@@ -7,8 +7,7 @@
 #include "esphome/components/light/light_state.h"
 #include "esphome/components/light/addressable_light.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 inline static int16_t sin16_c(uint16_t theta) {
   static const uint16_t BASE[] = {0, 6393, 12539, 18204, 23170, 27245, 30273, 32137};
@@ -172,12 +171,27 @@ class AddressableScanEffect : public AddressableLightEffect {
     if (now - this->last_move_ < this->move_interval_)
       return;
 
-    if (direction_) {
+    const auto num_leds = static_cast<uint32_t>(it.size());
+    if (this->scan_width_ >= num_leds) {
+      it.all() = current_color;
+      it.schedule_show();
+      this->last_move_ = now;
+      return;
+    }
+
+    const uint32_t max_pos = num_leds - this->scan_width_;
+    if (this->at_led_ >= max_pos) {
+      this->at_led_ = max_pos;
+      this->direction_ = false;
+    }
+
+    if (this->direction_) {
       this->at_led_++;
-      if (this->at_led_ == it.size() - this->scan_width_)
+      if (this->at_led_ >= max_pos)
         this->direction_ = false;
     } else {
-      this->at_led_--;
+      if (this->at_led_ > 0)
+        this->at_led_--;
       if (this->at_led_ == 0)
         this->direction_ = true;
     }
@@ -371,5 +385,4 @@ class AddressableFlickerEffect : public AddressableLightEffect {
   uint8_t intensity_{13};
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

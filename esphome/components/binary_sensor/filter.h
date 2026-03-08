@@ -1,12 +1,13 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_BINARY_SENSOR_FILTER
+
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-
-namespace binary_sensor {
+namespace esphome::binary_sensor {
 
 class BinarySensor;
 
@@ -139,6 +140,6 @@ class SettleFilter : public Filter, public Component {
   bool steady_{true};
 };
 
-}  // namespace binary_sensor
+}  // namespace esphome::binary_sensor
 
-}  // namespace esphome
+#endif  // USE_BINARY_SENSOR_FILTER

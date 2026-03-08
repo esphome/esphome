@@ -71,10 +71,10 @@ class ToshibaClimate : public climate_ir::ClimateIR {
       return TOSHIBA_RAS_2819T_TEMP_C_MAX;
     return TOSHIBA_GENERIC_TEMP_C_MAX;  // Default to GENERIC for unknown models
   }
-  std::set<climate::ClimateSwingMode> toshiba_swing_modes_() {
+  climate::ClimateSwingModeMask toshiba_swing_modes_() {
     return (this->model_ == MODEL_GENERIC)
-               ? std::set<climate::ClimateSwingMode>{}
-               : std::set<climate::ClimateSwingMode>{climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL};
+               ? climate::ClimateSwingModeMask()
+               : climate::ClimateSwingModeMask{climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL};
   }
   void encode_(remote_base::RemoteTransmitData *data, const uint8_t *message, uint8_t nbytes, uint8_t repeat);
   bool decode_(remote_base::RemoteReceiveData *data, uint8_t *message, uint8_t nbytes);

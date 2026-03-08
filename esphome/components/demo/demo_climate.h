@@ -28,16 +28,16 @@ class DemoClimate : public climate::Climate, public Component {
         this->mode = climate::CLIMATE_MODE_AUTO;
         this->action = climate::CLIMATE_ACTION_COOLING;
         this->fan_mode = climate::CLIMATE_FAN_HIGH;
-        this->custom_preset = {"My Preset"};
+        this->set_custom_preset_("My Preset");
         break;
       case DemoClimateType::TYPE_3:
         this->current_temperature = 21.5;
         this->target_temperature_low = 21.0;
         this->target_temperature_high = 22.5;
         this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-        this->custom_fan_mode = {"Auto Low"};
+        this->set_custom_fan_mode_("Auto Low");
         this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
-        this->preset = climate::CLIMATE_PRESET_AWAY;
+        this->set_preset_(climate::CLIMATE_PRESET_AWAY);
         break;
     }
     this->publish_state();
@@ -45,37 +45,31 @@ class DemoClimate : public climate::Climate, public Component {
 
  protected:
   void control(const climate::ClimateCall &call) override {
-    if (call.get_mode().has_value()) {
-      this->mode = *call.get_mode();
-    }
-    if (call.get_target_temperature().has_value()) {
-      this->target_temperature = *call.get_target_temperature();
-    }
-    if (call.get_target_temperature_low().has_value()) {
-      this->target_temperature_low = *call.get_target_temperature_low();
-    }
-    if (call.get_target_temperature_high().has_value()) {
-      this->target_temperature_high = *call.get_target_temperature_high();
-    }
-    if (call.get_fan_mode().has_value()) {
-      this->fan_mode = *call.get_fan_mode();
-      this->custom_fan_mode.reset();
-    }
-    if (call.get_swing_mode().has_value()) {
-      this->swing_mode = *call.get_swing_mode();
-    }
-    if (call.get_custom_fan_mode().has_value()) {
-      this->custom_fan_mode = *call.get_custom_fan_mode();
-      this->fan_mode.reset();
-    }
-    if (call.get_preset().has_value()) {
-      this->preset = *call.get_preset();
-      this->custom_preset.reset();
-    }
-    if (call.get_custom_preset().has_value()) {
-      this->custom_preset = *call.get_custom_preset();
-      this->preset.reset();
-    }
+    auto mode = call.get_mode();
+    if (mode.has_value())
+      this->mode = *mode;
+    auto target_temperature = call.get_target_temperature();
+    if (target_temperature.has_value())
+      this->target_temperature = *target_temperature;
+    auto target_temperature_low = call.get_target_temperature_low();
+    if (target_temperature_low.has_value())
+      this->target_temperature_low = *target_temperature_low;
+    auto target_temperature_high = call.get_target_temperature_high();
+    if (target_temperature_high.has_value())
+      this->target_temperature_high = *target_temperature_high;
+    auto fan_mode = call.get_fan_mode();
+    if (fan_mode.has_value())
+      this->set_fan_mode_(*fan_mode);
+    auto swing_mode = call.get_swing_mode();
+    if (swing_mode.has_value())
+      this->swing_mode = *swing_mode;
+    if (call.has_custom_fan_mode())
+      this->set_custom_fan_mode_(call.get_custom_fan_mode());
+    auto preset = call.get_preset();
+    if (preset.has_value())
+      this->set_preset_(*preset);
+    if (call.has_custom_preset())
+      this->set_custom_preset_(call.get_custom_preset());
     this->publish_state();
   }
   climate::ClimateTraits traits() override {

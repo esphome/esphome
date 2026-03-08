@@ -15,7 +15,7 @@ from esphome.const import (
     CONF_TYPE_ID,
     CONF_UPDATE_INTERVAL,
 )
-from esphome.core import ID
+from esphome.core import ID, Lambda
 from esphome.cpp_generator import (
     LambdaExpression,
     MockObj,
@@ -57,8 +57,23 @@ def maybe_conf(conf, *validators):
     return validate
 
 
-def register_action(name: str, action_type: MockObjClass, schema: cv.Schema):
-    return ACTION_REGISTRY.register(name, action_type, schema)
+def register_action(
+    name: str,
+    action_type: MockObjClass,
+    schema: cv.Schema,
+    *,
+    synchronous: bool = False,
+):
+    """Register an action type.
+
+    Actions default to ``synchronous=False`` (safe default), meaning string
+    arguments use owning std::string to prevent dangling references.
+
+    Set ``synchronous=True`` only for actions that complete synchronously
+    and never store trigger arguments for later execution.  This allows
+    the code generator to use non-owning StringRef for zero-copy access.
+    """
+    return ACTION_REGISTRY.register(name, action_type, schema, synchronous=synchronous)
 
 
 def register_condition(name: str, condition_type: MockObjClass, schema: cv.Schema):
@@ -182,7 +197,7 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
             value = cv.Schema([extra_validators])(value)
         if single:
             if len(value) != 1:
-                raise cv.Invalid("Cannot have more than 1 automation for templates")
+                raise cv.Invalid("This trigger allows only a single automation")
             return value[0]
         return value
 
@@ -310,8 +325,34 @@ async def for_condition_to_code(
     return var
 
 
+@register_condition(
+    "component.is_idle",
+    LambdaCondition,
+    maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(cg.Component),
+        }
+    ),
+)
+async def component_is_idle_condition_to_code(
+    config: ConfigType,
+    condition_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    comp = await cg.get_variable(config[CONF_ID])
+    lambda_ = await cg.process_lambda(
+        Lambda(f"return {comp}->is_idle();"), args, return_type=bool
+    )
+    return new_lambda_pvariable(
+        condition_id, lambda_, StatelessLambdaCondition, template_arg
+    )
+
+
 @register_action(
-    "delay", DelayAction, cv.templatable(cv.positive_time_period_milliseconds)
+    "delay",
+    DelayAction,
+    cv.templatable(cv.positive_time_period_milliseconds),
 )
 async def delay_action_to_code(
     config: ConfigType,
@@ -342,6 +383,7 @@ async def delay_action_to_code(
         cv.has_at_least_one_key(CONF_THEN, CONF_ELSE),
         cv.has_at_least_one_key(CONF_CONDITION, CONF_ANY, CONF_ALL),
     ),
+    synchronous=True,
 )
 async def if_action_to_code(
     config: ConfigType,
@@ -370,6 +412,7 @@ async def if_action_to_code(
             cv.Required(CONF_THEN): validate_action_list,
         }
     ),
+    synchronous=True,
 )
 async def while_action_to_code(
     config: ConfigType,
@@ -393,6 +436,7 @@ async def while_action_to_code(
             cv.Required(CONF_THEN): validate_action_list,
         }
     ),
+    synchronous=True,
 )
 async def repeat_action_to_code(
     config: ConfigType,
@@ -437,7 +481,12 @@ async def wait_until_action_to_code(
     return var
 
 
-@register_action("lambda", LambdaAction, cv.lambda_)
+# Lambda executes user C++ inline and returns — synchronous by execution model.
+# User code could theoretically store the StringRef for deferred use, but StringRef
+# is a view type and storing views beyond their scope is always unsafe regardless
+# of this optimization.  Marking non-synchronous would disable StringRef for nearly
+# all user services since most use lambda.
+@register_action("lambda", LambdaAction, cv.lambda_, synchronous=True)
 async def lambda_action_to_code(
     config: ConfigType,
     action_id: ID,
@@ -456,6 +505,7 @@ async def lambda_action_to_code(
             cv.Required(CONF_ID): cv.use_id(cg.PollingComponent),
         }
     ),
+    synchronous=True,
 )
 async def component_update_action_to_code(
     config: ConfigType,
@@ -475,6 +525,7 @@ async def component_update_action_to_code(
             cv.Required(CONF_ID): cv.use_id(cg.PollingComponent),
         }
     ),
+    synchronous=True,
 )
 async def component_suspend_action_to_code(
     config: ConfigType,
@@ -497,6 +548,7 @@ async def component_suspend_action_to_code(
             ),
         }
     ),
+    synchronous=True,
 )
 async def component_resume_action_to_code(
     config: ConfigType,
@@ -552,6 +604,27 @@ async def build_condition_list(
         condition = await build_condition(conf, templ, args)
         conditions.append(condition)
     return conditions
+
+
+def has_non_synchronous_actions(actions: ConfigType) -> bool:
+    """Check if a validated action list contains any non-synchronous actions.
+
+    Non-synchronous actions (delay, wait_until, script.wait, etc.) store
+    trigger args for later execution, making non-owning types like StringRef
+    unsafe.  Actions that haven't been audited default to non-synchronous.
+    """
+    if isinstance(actions, list):
+        return any(has_non_synchronous_actions(item) for item in actions)
+    if isinstance(actions, dict):
+        for key in actions:
+            if key in ACTION_REGISTRY and not ACTION_REGISTRY[key].synchronous:
+                return True
+        return any(
+            has_non_synchronous_actions(v)
+            for v in actions.values()
+            if isinstance(v, (list, dict))
+        )
+    return False
 
 
 async def build_automation(

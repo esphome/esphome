@@ -1,0 +1,25 @@
+text:
+  - platform: template
+    name: "Test Text"
+    id: test_text
+    optimistic: true
+    min_length: 0
+    max_length: 100
+    mode: text
+
+  - platform: template
+    name: "Test Text with Pattern"
+    id: test_text_pattern
+    optimistic: true
+    min_length: 1
+    max_length: 50
+    pattern: "[A-Za-z0-9 ]+"
+    mode: text
+
+  - platform: template
+    name: "Test Password"
+    id: test_password
+    optimistic: true
+    min_length: 8
+    max_length: 32
+    mode: password

@@ -47,7 +47,7 @@ template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
   SetFrequencyAction(LEDCOutput *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(float, frequency);
 
-  void play(Ts... x) {
+  void play(const Ts &...x) {
     float freq = this->frequency_.value(x...);
     this->parent_->update_frequency(freq);
   }

@@ -3,3 +3,4 @@ wifi:
   password: password1
 
 captive_portal:
+  compression: br

@@ -1,5 +1,6 @@
 # PYTHON_ARGCOMPLETE_OK
 import argparse
+from collections.abc import Callable
 from datetime import datetime
 import functools
 import getpass
@@ -22,6 +23,7 @@ import esphome.codegen as cg
 from esphome.config import iter_component_configs, read_config, strip_default_ids
 from esphome.const import (
     ALLOWED_NAME_CHARS,
+    ARGUMENT_HELP_DEVICE,
     CONF_API,
     CONF_BAUD_RATE,
     CONF_BROKER,
@@ -42,6 +44,7 @@ from esphome.const import (
     CONF_SUBSTITUTIONS,
     CONF_TOPIC,
     ENV_NOGITIGNORE,
+    KEY_NATIVE_IDF,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
@@ -61,6 +64,9 @@ from esphome.util import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+# Maximum buffer size for serial log reading to prevent unbounded memory growth
+SERIAL_BUFFER_MAX_SIZE = 65536
 
 # Special non-component keys that appear in configs
 _NON_COMPONENT_KEYS = frozenset(
@@ -112,6 +118,7 @@ class ArgsProtocol(Protocol):
     configuration: str
     name: str
     upload_speed: str | None
+    native_idf: bool
 
 
 def choose_prompt(options, purpose: str = None):
@@ -207,20 +214,25 @@ def choose_upload_log_host(
                     if has_mqtt_logging():
                         resolved.append("MQTT")
 
-                    if has_api() and has_non_ip_address():
+                    if has_api() and has_non_ip_address() and has_resolvable_address():
                         resolved.extend(_resolve_with_cache(CORE.address, purpose))
 
                 elif purpose == Purpose.UPLOADING:
                     if has_ota() and has_mqtt_ip_lookup():
                         resolved.append("MQTTIP")
 
-                    if has_ota() and has_non_ip_address():
+                    if has_ota() and has_non_ip_address() and has_resolvable_address():
                         resolved.extend(_resolve_with_cache(CORE.address, purpose))
             else:
                 resolved.append(device)
         if not resolved:
+            if CORE.dashboard:
+                hint = "If you know the IP, set 'use_address' in your network config."
+            else:
+                hint = "If you know the IP, try --device <IP>"
             raise EsphomeError(
-                f"All specified devices {defaults} could not be resolved. Is the device connected to the network?"
+                f"All specified devices {defaults} could not be resolved. "
+                f"Is the device connected to the network? {hint}"
             )
         return resolved
 
@@ -283,8 +295,13 @@ def has_api() -> bool:
 
 
 def has_ota() -> bool:
-    """Check if OTA is available."""
-    return CONF_OTA in CORE.config
+    """Check if OTA upload is available (requires platform: esphome)."""
+    if CONF_OTA not in CORE.config:
+        return False
+    return any(
+        ota_item.get(CONF_PLATFORM) == CONF_ESPHOME
+        for ota_item in CORE.config[CONF_OTA]
+    )
 
 
 def has_mqtt_ip_lookup() -> bool:
@@ -318,7 +335,17 @@ def has_resolvable_address() -> bool:
     """Check if CORE.address is resolvable (via mDNS, DNS, or is an IP address)."""
     # Any address (IP, mDNS hostname, or regular DNS hostname) is resolvable
     # The resolve_ip_address() function in helpers.py handles all types via AsyncResolver
-    return CORE.address is not None
+    if CORE.address is None:
+        return False
+
+    if has_ip_address():
+        return True
+
+    if has_mdns():
+        return True
+
+    # .local mDNS hostnames are only resolvable if mDNS is enabled
+    return not CORE.address.endswith(".local")
 
 
 def mqtt_get_ip(config: ConfigType, username: str, password: str, client_id: str):
@@ -405,6 +432,14 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
         return 1
     _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
 
+    process_stacktrace = None
+
+    try:
+        module = importlib.import_module("esphome.components." + CORE.target_platform)
+        process_stacktrace = getattr(module, "process_stacktrace")
+    except AttributeError:
+        pass
+
     backtrace_state = False
     ser = serial.Serial()
     ser.baudrate = baud_rate
@@ -421,25 +456,42 @@ def run_miniterm(config: ConfigType, port: str, args) -> int:
     while tries < 5:
         try:
             with ser:
+                buffer = b""
+                ser.timeout = 0.1  # 100ms timeout for non-blocking reads
                 while True:
                     try:
-                        raw = ser.readline()
+                        # Read all available data and timestamp it
+                        chunk = ser.read(ser.in_waiting or 1)
+                        if not chunk:
+                            continue
+                        time_ = datetime.now()
+                        milliseconds = time_.microsecond // 1000
+                        time_str = f"[{time_.hour:02}:{time_.minute:02}:{time_.second:02}.{milliseconds:03}]"
+
+                        # Add to buffer and process complete lines
+                        # Limit buffer size to prevent unbounded memory growth
+                        # if device sends data without newlines
+                        buffer += chunk
+                        if len(buffer) > SERIAL_BUFFER_MAX_SIZE:
+                            buffer = buffer[-SERIAL_BUFFER_MAX_SIZE:]
+                        while b"\n" in buffer:
+                            raw_line, buffer = buffer.split(b"\n", 1)
+                            line = raw_line.replace(b"\r", b"").decode(
+                                "utf8", "backslashreplace"
+                            )
+                            safe_print(parser.parse_line(line, time_str))
+
+                            if process_stacktrace:
+                                backtrace_state = process_stacktrace(
+                                    config, line, backtrace_state
+                                )
+                            else:
+                                backtrace_state = platformio_api.process_stacktrace(
+                                    config, line, backtrace_state=backtrace_state
+                                )
                     except serial.SerialException:
                         _LOGGER.error("Serial port closed!")
                         return 0
-                    line = (
-                        raw.replace(b"\r", b"")
-                        .replace(b"\n", b"")
-                        .decode("utf8", "backslashreplace")
-                    )
-                    time_ = datetime.now()
-                    nanoseconds = time_.microsecond // 1000
-                    time_str = f"[{time_.hour:02}:{time_.minute:02}:{time_.second:02}.{nanoseconds:03}]"
-                    safe_print(parser.parse_line(line, time_str))
-
-                    backtrace_state = platformio_api.process_stacktrace(
-                        config, line, backtrace_state=backtrace_state
-                    )
         except serial.SerialException:
             tries += 1
             time.sleep(1)
@@ -469,12 +521,15 @@ def wrap_to_code(name, comp):
     return wrapped
 
 
-def write_cpp(config: ConfigType) -> int:
+def write_cpp(config: ConfigType, native_idf: bool = False) -> int:
     if not get_bool_env(ENV_NOGITIGNORE):
         writer.write_gitignore()
 
+    # Store native_idf flag so esp32 component can check it
+    CORE.data[KEY_NATIVE_IDF] = native_idf
+
     generate_cpp_contents(config)
-    return write_cpp_file()
+    return write_cpp_file(native_idf=native_idf)
 
 
 def generate_cpp_contents(config: ConfigType) -> None:
@@ -488,28 +543,89 @@ def generate_cpp_contents(config: ConfigType) -> None:
     CORE.flush_tasks()
 
 
-def write_cpp_file() -> int:
+def write_cpp_file(native_idf: bool = False) -> int:
     code_s = indent(CORE.cpp_main_section)
     writer.write_cpp(code_s)
 
-    from esphome.build_gen import platformio
+    if native_idf and CORE.is_esp32 and CORE.target_framework == "esp-idf":
+        from esphome.build_gen import espidf
 
-    platformio.write_project()
+        espidf.write_project()
+    else:
+        from esphome.build_gen import platformio
+
+        platformio.write_project()
 
     return 0
 
 
 def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
-    from esphome import platformio_api
+    native_idf = getattr(args, "native_idf", False)
 
     # NOTE: "Build path:" format is parsed by script/ci_memory_impact_extract.py
     # If you change this format, update the regex in that script as well
     _LOGGER.info("Compiling app... Build path: %s", CORE.build_path)
-    rc = platformio_api.run_compile(config, CORE.verbose)
-    if rc != 0:
-        return rc
-    idedata = platformio_api.get_idedata(config)
-    return 0 if idedata is not None else 1
+
+    if native_idf and CORE.is_esp32 and CORE.target_framework == "esp-idf":
+        from esphome import espidf_api
+
+        rc = espidf_api.run_compile(config, CORE.verbose)
+        if rc != 0:
+            return rc
+
+        # Create factory.bin and ota.bin
+        espidf_api.create_factory_bin()
+        espidf_api.create_ota_bin()
+    else:
+        from esphome import platformio_api
+
+        rc = platformio_api.run_compile(config, CORE.verbose)
+        if rc != 0:
+            return rc
+
+        idedata = platformio_api.get_idedata(config)
+        if idedata is None:
+            return 1
+
+    # Check if firmware was rebuilt and emit build_info + create manifest
+    _check_and_emit_build_info()
+
+    return 0
+
+
+def _check_and_emit_build_info() -> None:
+    """Check if firmware was rebuilt and emit build_info."""
+    import json
+
+    firmware_path = CORE.firmware_bin
+    build_info_json_path = CORE.relative_build_path("build_info.json")
+
+    # Check if both files exist
+    if not firmware_path.exists() or not build_info_json_path.exists():
+        return
+
+    # Check if firmware is newer than build_info (indicating a relink occurred)
+    if firmware_path.stat().st_mtime <= build_info_json_path.stat().st_mtime:
+        return
+
+    # Read build_info from JSON
+    try:
+        with open(build_info_json_path, encoding="utf-8") as f:
+            build_info = json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        _LOGGER.debug("Failed to read build_info: %s", e)
+        return
+
+    config_hash = build_info.get("config_hash")
+    build_time_str = build_info.get("build_time_str")
+
+    if config_hash is None or build_time_str is None:
+        return
+
+    # Emit build_info with human-readable time
+    _LOGGER.info(
+        "Build Info: config_hash=0x%08x build_time_str=%s", config_hash, build_time_str
+    )
 
 
 def upload_using_esptool(
@@ -731,7 +847,8 @@ def command_vscode(args: ArgsProtocol) -> int | None:
 
 
 def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
-    exit_code = write_cpp(config)
+    native_idf = getattr(args, "native_idf", False)
+    exit_code = write_cpp(config, native_idf=native_idf)
     if exit_code != 0:
         return exit_code
     if args.only_generate:
@@ -740,7 +857,13 @@ def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
     exit_code = compile_program(args, config)
     if exit_code != 0:
         return exit_code
-    _LOGGER.info("Successfully compiled program.")
+    if CORE.is_host:
+        from esphome.platformio_api import get_idedata
+
+        program_path = str(get_idedata(config).firmware_elf_path)
+        _LOGGER.info("Successfully compiled program to path '%s'", program_path)
+    else:
+        _LOGGER.info("Successfully compiled program.")
     return 0
 
 
@@ -780,7 +903,8 @@ def command_logs(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
-    exit_code = write_cpp(config)
+    native_idf = getattr(args, "native_idf", False)
+    exit_code = write_cpp(config, native_idf=native_idf)
     if exit_code != 0:
         return exit_code
     exit_code = compile_program(args, config)
@@ -790,10 +914,8 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
     if CORE.is_host:
         from esphome.platformio_api import get_idedata
 
-        idedata = get_idedata(config)
-        if idedata is None:
-            return 1
-        program_path = idedata.raw["prog_path"]
+        program_path = str(get_idedata(config).firmware_elf_path)
+        _LOGGER.info("Running program from path '%s'", program_path)
         return run_external_process(program_path)
 
     # Get devices, resolving special identifiers like OTA
@@ -836,12 +958,6 @@ def command_clean_all(args: ArgsProtocol) -> int | None:
     return 0
 
 
-def command_mqtt_fingerprint(args: ArgsProtocol, config: ConfigType) -> int | None:
-    from esphome import mqtt
-
-    return mqtt.get_fingerprint(config)
-
-
 def command_version(args: ArgsProtocol) -> int | None:
     safe_print(f"Version: {const.__version__}")
     return 0
@@ -863,11 +979,21 @@ def command_dashboard(args: ArgsProtocol) -> int | None:
     return dashboard.start_dashboard(args)
 
 
-def command_update_all(args: ArgsProtocol) -> int | None:
+def run_multiple_configs(
+    files: list, command_builder: Callable[[str], list[str]]
+) -> int:
+    """Run a command for each configuration file in a subprocess.
+
+    Args:
+        files: List of configuration files to process.
+        command_builder: Callable that takes a file path and returns a command list.
+
+    Returns:
+        Number of failed files.
+    """
     import click
 
     success = {}
-    files = list_yaml_files(args.configuration)
     twidth = 60
 
     def print_bar(middle_text):
@@ -877,17 +1003,19 @@ def command_update_all(args: ArgsProtocol) -> int | None:
         safe_print(f"{half_line}{middle_text}{half_line}")
 
     for f in files:
-        safe_print(f"Updating {color(AnsiFore.CYAN, str(f))}")
+        f_path = Path(f) if not isinstance(f, Path) else f
+
+        if any(f_path.name == x for x in SECRETS_FILES):
+            _LOGGER.warning("Skipping secrets file %s", f_path)
+            continue
+
+        safe_print(f"Processing {color(AnsiFore.CYAN, str(f))}")
         safe_print("-" * twidth)
         safe_print()
-        if CORE.dashboard:
-            rc = run_external_process(
-                "esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"
-            )
-        else:
-            rc = run_external_process(
-                "esphome", "run", f, "--no-logs", "--device", "OTA"
-            )
+
+        cmd = command_builder(f)
+        rc = run_external_process(*cmd)
+
         if rc == 0:
             print_bar(f"[{color(AnsiFore.BOLD_GREEN, 'SUCCESS')}] {str(f)}")
             success[f] = True
@@ -902,12 +1030,25 @@ def command_update_all(args: ArgsProtocol) -> int | None:
     print_bar(f"[{color(AnsiFore.BOLD_WHITE, 'SUMMARY')}]")
     failed = 0
     for f in files:
+        if f not in success:
+            continue  # Skipped file
         if success[f]:
             safe_print(f"  - {str(f)}: {color(AnsiFore.GREEN, 'SUCCESS')}")
         else:
             safe_print(f"  - {str(f)}: {color(AnsiFore.BOLD_RED, 'FAILED')}")
             failed += 1
     return failed
+
+
+def command_update_all(args: ArgsProtocol) -> int | None:
+    files = list_yaml_files(args.configuration)
+
+    def build_command(f):
+        if CORE.dashboard:
+            return ["esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"]
+        return ["esphome", "run", f, "--no-logs", "--device", "OTA"]
+
+    return run_multiple_configs(files, build_command)
 
 
 def command_idedata(args: ArgsProtocol, config: ConfigType) -> int:
@@ -934,6 +1075,7 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     """
     from esphome import platformio_api
     from esphome.analyze_memory.cli import MemoryAnalyzerCLI
+    from esphome.analyze_memory.ram_strings import RamStringsAnalyzer
 
     # Always compile to ensure fresh data (fast if no changes - just relinks)
     exit_code = write_cpp(config)
@@ -956,20 +1098,38 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     external_components = detect_external_components(config)
     _LOGGER.debug("Detected external components: %s", external_components)
 
-    # Perform memory analysis
+    # Perform component memory analysis
     _LOGGER.info("Analyzing memory usage...")
     analyzer = MemoryAnalyzerCLI(
         str(firmware_elf),
         idedata.objdump_path,
         idedata.readelf_path,
         external_components,
+        idedata=idedata,
     )
     analyzer.analyze()
 
-    # Generate and display report
+    # Generate and display component report
     report = analyzer.generate_report()
     print()
     print(report)
+
+    # Perform RAM strings analysis
+    _LOGGER.info("Analyzing RAM strings...")
+    try:
+        ram_analyzer = RamStringsAnalyzer(
+            str(firmware_elf),
+            objdump_path=idedata.objdump_path,
+            platform=CORE.target_platform,
+        )
+        ram_analyzer.analyze()
+
+        # Generate and display RAM strings report
+        ram_report = ram_analyzer.generate_report()
+        print()
+        print(ram_report)
+    except Exception as e:  # pylint: disable=broad-except
+        _LOGGER.warning("RAM strings analysis failed: %s", e)
 
     return 0
 
@@ -1085,7 +1245,6 @@ POST_CONFIG_ACTIONS = {
     "run": command_run,
     "clean": command_clean,
     "clean-mqtt": command_clean_mqtt,
-    "mqtt-fingerprint": command_mqtt_fingerprint,
     "idedata": command_idedata,
     "rename": command_rename,
     "discover": command_discover,
@@ -1192,6 +1351,11 @@ def parse_args(argv):
         help="Only generate source code, do not compile.",
         action="store_true",
     )
+    parser_compile.add_argument(
+        "--native-idf",
+        help="Build with native ESP-IDF instead of PlatformIO (ESP32 esp-idf framework only).",
+        action="store_true",
+    )
 
     parser_upload = subparsers.add_parser(
         "upload",
@@ -1204,7 +1368,7 @@ def parse_args(argv):
     parser_upload.add_argument(
         "--device",
         action="append",
-        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses.",
+        help=ARGUMENT_HELP_DEVICE,
     )
     parser_upload.add_argument(
         "--upload_speed",
@@ -1227,7 +1391,7 @@ def parse_args(argv):
     parser_logs.add_argument(
         "--device",
         action="append",
-        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses.",
+        help=ARGUMENT_HELP_DEVICE,
     )
     parser_logs.add_argument(
         "--reset",
@@ -1257,7 +1421,7 @@ def parse_args(argv):
     parser_run.add_argument(
         "--device",
         action="append",
-        help="Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses.",
+        help=ARGUMENT_HELP_DEVICE,
     )
     parser_run.add_argument(
         "--upload_speed",
@@ -1272,6 +1436,11 @@ def parse_args(argv):
         action="store_true",
         help="Reset the device before starting serial logs.",
         default=os.getenv("ESPHOME_SERIAL_LOGGING_RESET"),
+    )
+    parser_run.add_argument(
+        "--native-idf",
+        help="Build with native ESP-IDF instead of PlatformIO (ESP32 esp-idf framework only).",
+        action="store_true",
     )
 
     parser_clean = subparsers.add_parser(
@@ -1289,13 +1458,6 @@ def parse_args(argv):
     )
     parser_wizard.add_argument("configuration", help="Your YAML configuration file.")
 
-    parser_fingerprint = subparsers.add_parser(
-        "mqtt-fingerprint", help="Get the SSL fingerprint from a MQTT broker."
-    )
-    parser_fingerprint.add_argument(
-        "configuration", help="Your YAML configuration file(s).", nargs="+"
-    )
-
     subparsers.add_parser("version", help="Print the ESPHome version and exit.")
 
     parser_clean = subparsers.add_parser(
@@ -1309,7 +1471,7 @@ def parse_args(argv):
         "clean-all", help="Clean all build and platform files."
     )
     parser_clean_all.add_argument(
-        "configuration", help="Your YAML configuration directory.", nargs="*"
+        "configuration", help="Your YAML file or configuration directory.", nargs="*"
     )
 
     parser_dashboard = subparsers.add_parser(
@@ -1441,38 +1603,48 @@ def run_esphome(argv):
 
     _LOGGER.info("ESPHome %s", const.__version__)
 
-    for conf_path in args.configuration:
-        conf_path = Path(conf_path)
-        if any(conf_path.name == x for x in SECRETS_FILES):
-            _LOGGER.warning("Skipping secrets file %s", conf_path)
-            continue
+    # Multiple configurations: use subprocesses to avoid state leakage
+    # between compilations (e.g., LVGL touchscreen state in module globals)
+    if len(args.configuration) > 1:
+        # Build command by reusing argv, replacing all configs with single file
+        # argv[0] is the program path, skip it since we prefix with "esphome"
+        def build_command(f):
+            return (
+                ["esphome"]
+                + [arg for arg in argv[1:] if arg not in args.configuration]
+                + [str(f)]
+            )
 
-        CORE.config_path = conf_path
-        CORE.dashboard = args.dashboard
+        return run_multiple_configs(args.configuration, build_command)
 
-        # For logs command, skip updating external components
-        skip_external = args.command == "logs"
-        config = read_config(
-            dict(args.substitution) if args.substitution else {},
-            skip_external_update=skip_external,
-        )
-        if config is None:
-            return 2
-        CORE.config = config
+    # Single configuration
+    conf_path = Path(args.configuration[0])
+    if any(conf_path.name == x for x in SECRETS_FILES):
+        _LOGGER.warning("Skipping secrets file %s", conf_path)
+        return 0
 
-        if args.command not in POST_CONFIG_ACTIONS:
-            safe_print(f"Unknown command {args.command}")
+    CORE.config_path = conf_path
+    CORE.dashboard = args.dashboard
 
-        try:
-            rc = POST_CONFIG_ACTIONS[args.command](args, config)
-        except EsphomeError as e:
-            _LOGGER.error(e, exc_info=args.verbose)
-            return 1
-        if rc != 0:
-            return rc
+    # For logs command, skip updating external components
+    skip_external = args.command == "logs"
+    config = read_config(
+        dict(args.substitution) if args.substitution else {},
+        skip_external_update=skip_external,
+    )
+    if config is None:
+        return 2
+    CORE.config = config
 
-        CORE.reset()
-    return 0
+    if args.command not in POST_CONFIG_ACTIONS:
+        safe_print(f"Unknown command {args.command}")
+        return 1
+
+    try:
+        return POST_CONFIG_ACTIONS[args.command](args, config)
+    except EsphomeError as e:
+        _LOGGER.error(e, exc_info=args.verbose)
+        return 1
 
 
 def main():

@@ -218,6 +218,21 @@ def map_sequence(value):
     return tuple(value)
 
 
+def flatten_sequence(sequence: tuple | list):
+    """
+    Flatten an init sequence into a single list of bytes.
+    :param sequence:  The list of tuples
+    :return: a list of bytes
+    """
+    return sum(
+        tuple(
+            (x[1], 0xFF) if x[0] == DELAY_FLAG else (x[0], len(x) - 1) + x[1:]
+            for x in sequence
+        ),
+        (),
+    )
+
+
 def delay(ms):
     return DELAY_FLAG, ms
 
@@ -384,6 +399,18 @@ class DriverChip:
             transform[CONF_TRANSFORM] = True
         return transform
 
+    def swap_xy_schema(self):
+        uses_swap = self.get_default(CONF_SWAP_XY, None) != cv.UNDEFINED
+
+        def validator(value):
+            if value:
+                raise cv.Invalid("Axis swapping not supported by this model")
+            return cv.boolean(value)
+
+        if uses_swap:
+            return {cv.Required(CONF_SWAP_XY): cv.boolean}
+        return {cv.Optional(CONF_SWAP_XY, default=False): validator}
+
     def add_madctl(self, sequence: list, config: dict):
         # Add the MADCTL command to the sequence based on the configuration.
         use_flip = config.get(CONF_USE_AXIS_FLIPS)
@@ -444,13 +471,7 @@ class DriverChip:
 
         # Flatten the sequence into a list of bytes, with the length of each command
         # or the delay flag inserted where needed
-        return sum(
-            tuple(
-                (x[1], 0xFF) if x[0] == DELAY_FLAG else (x[0], len(x) - 1) + x[1:]
-                for x in sequence
-            ),
-            (),
-        ), madctl
+        return flatten_sequence(sequence), madctl
 
 
 def requires_buffer(config) -> bool:

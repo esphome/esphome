@@ -3,6 +3,7 @@ import binascii
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import modbus
+from esphome.components.const import CONF_ENABLED
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
@@ -20,7 +21,6 @@ from .const import (
     CONF_BYTE_OFFSET,
     CONF_COMMAND_THROTTLE,
     CONF_CUSTOM_COMMAND,
-    CONF_ENABLED,
     CONF_FORCE_NEW_RANGE,
     CONF_MAX_CMD_RETRIES,
     CONF_MODBUS_CONTROLLER_ID,
@@ -48,6 +48,7 @@ CONF_SERVER_REGISTERS = "server_registers"
 MULTI_CONF = True
 
 modbus_controller_ns = cg.esphome_ns.namespace("modbus_controller")
+modbus_ns = cg.esphome_ns.namespace("modbus")
 ModbusController = modbus_controller_ns.class_(
     "ModbusController", cg.PollingComponent, modbus.ModbusDevice
 )
@@ -56,7 +57,7 @@ SensorItem = modbus_controller_ns.struct("SensorItem")
 ServerCourtesyResponse = modbus_controller_ns.struct("ServerCourtesyResponse")
 ServerRegister = modbus_controller_ns.struct("ServerRegister")
 
-ModbusFunctionCode_ns = modbus_controller_ns.namespace("ModbusFunctionCode")
+ModbusFunctionCode_ns = modbus_ns.namespace("ModbusFunctionCode")
 ModbusFunctionCode = ModbusFunctionCode_ns.enum("ModbusFunctionCode")
 MODBUS_FUNCTION_CODE = {
     "read_coils": ModbusFunctionCode.READ_COILS,
@@ -279,7 +280,7 @@ def modbus_calc_properties(config):
             if isinstance(value, str):
                 value = value.encode()
             config[CONF_ADDRESS] = binascii.crc_hqx(value, 0)
-        config[CONF_REGISTER_TYPE] = ModbusRegisterType.CUSTOM
+        config[CONF_REGISTER_TYPE] = cv.enum(MODBUS_REGISTER_TYPE)("custom")
         config[CONF_FORCE_NEW_RANGE] = True
     return byte_offset, reg_count
 

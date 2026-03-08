@@ -24,6 +24,7 @@ from esphome.const import (
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import CORE
+import esphome.final_validate as fv
 from esphome.schema_extractors import SCHEMA_EXTRACT
 
 AUTO_LOAD = ["esp32_ble", "bytebuffer"]
@@ -42,6 +43,7 @@ CONF_FIRMWARE_VERSION = "firmware_version"
 CONF_INDICATE = "indicate"
 CONF_MANUFACTURER = "manufacturer"
 CONF_MANUFACTURER_DATA = "manufacturer_data"
+CONF_MAX_CLIENTS = "max_clients"
 CONF_ON_WRITE = "on_write"
 CONF_READ = "read"
 CONF_STRING = "string"
@@ -287,6 +289,22 @@ def create_device_information_service(config):
 
 
 def final_validate_config(config):
+    # Validate max_clients does not exceed esp32_ble max_connections
+    max_clients = config[CONF_MAX_CLIENTS]
+    if max_clients > 1:
+        full_config = fv.full_config.get()
+        ble_config = full_config.get("esp32_ble", {})
+        max_connections = ble_config.get(
+            "max_connections", esp32_ble.DEFAULT_MAX_CONNECTIONS
+        )
+        if max_clients > max_connections:
+            raise cv.Invalid(
+                f"'max_clients' ({max_clients}) cannot exceed esp32_ble "
+                f"'max_connections' ({max_connections}). "
+                f"Please set 'max_connections: {max_clients}' in the "
+                f"'esp32_ble' component."
+            )
+
     # Check if all characteristics that require notifications have the notify property set
     for char_id in CORE.data.get(DOMAIN, {}).get(KEY_NOTIFY_REQUIRED, set()):
         # Look for the characteristic in the configuration
@@ -428,6 +446,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_MODEL): value_schema("string", templatable=False),
         cv.Optional(CONF_FIRMWARE_VERSION): value_schema("string", templatable=False),
         cv.Optional(CONF_MANUFACTURER_DATA): cv.Schema([cv.uint8_t]),
+        cv.Optional(CONF_MAX_CLIENTS, default=1): cv.int_range(min=1, max=9),
         cv.Optional(CONF_SERVICES, default=[]): cv.ensure_list(SERVICE_SCHEMA),
         cv.Optional(CONF_ON_CONNECT): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_DISCONNECT): automation.validate_automation(single=True),
@@ -461,7 +480,9 @@ async def parse_value(value_config, args):
     if isinstance(value, str):
         value = list(value.encode(value_config[CONF_STRING_ENCODING]))
     if isinstance(value, list):
-        return cg.std_vector.template(cg.uint8)(value)
+        # Generate initializer list {1, 2, 3} instead of std::vector<uint8_t>({1, 2, 3})
+        # This calls the set_value(std::initializer_list<uint8_t>) overload
+        return cg.ArrayInitializer(*value)
     val = cg.RawExpression(f"{value_config[CONF_TYPE]}({cg.safe_exp(value)})")
     return ByteBuffer_ns.wrap(val, value_config[CONF_ENDIANNESS])
 
@@ -525,7 +546,7 @@ async def to_code_characteristic(service_var, char_conf):
                 action_conf,
                 char_conf[CONF_CHAR_VALUE_ACTION_ID_],
                 cg.TemplateArguments(),
-                {},
+                [],
             )
             cg.add(value_action.play())
         else:
@@ -550,6 +571,7 @@ async def to_code(config):
     esp32_ble.register_ble_status_event_handler(parent, var)
     cg.add(var.set_parent(parent))
     cg.add(parent.advertising_set_appearance(config[CONF_APPEARANCE]))
+    cg.add(var.set_max_clients(config[CONF_MAX_CLIENTS]))
     if CONF_MANUFACTURER_DATA in config:
         cg.add(var.set_manufacturer_data(config[CONF_MANUFACTURER_DATA]))
     for service_config in config[CONF_SERVICES]:

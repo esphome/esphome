@@ -12,7 +12,7 @@ template<typename... Ts> class TurnOffAction : public Action<Ts...> {
  public:
   TurnOffAction(BinaryOutput *output) : output_(output) {}
 
-  void play(Ts... x) override { this->output_->turn_off(); }
+  void play(const Ts &...x) override { this->output_->turn_off(); }
 
  protected:
   BinaryOutput *output_;
@@ -22,7 +22,7 @@ template<typename... Ts> class TurnOnAction : public Action<Ts...> {
  public:
   TurnOnAction(BinaryOutput *output) : output_(output) {}
 
-  void play(Ts... x) override { this->output_->turn_on(); }
+  void play(const Ts &...x) override { this->output_->turn_on(); }
 
  protected:
   BinaryOutput *output_;
@@ -34,7 +34,7 @@ template<typename... Ts> class SetLevelAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(float, level)
 
-  void play(Ts... x) override { this->output_->set_level(this->level_.value(x...)); }
+  void play(const Ts &...x) override { this->output_->set_level(this->level_.value(x...)); }
 
  protected:
   FloatOutput *output_;
@@ -46,7 +46,7 @@ template<typename... Ts> class SetMinPowerAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(float, min_power)
 
-  void play(Ts... x) override { this->output_->set_min_power(this->min_power_.value(x...)); }
+  void play(const Ts &...x) override { this->output_->set_min_power(this->min_power_.value(x...)); }
 
  protected:
   FloatOutput *output_;
@@ -58,7 +58,7 @@ template<typename... Ts> class SetMaxPowerAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(float, max_power)
 
-  void play(Ts... x) override { this->output_->set_max_power(this->max_power_.value(x...)); }
+  void play(const Ts &...x) override { this->output_->set_max_power(this->max_power_.value(x...)); }
 
  protected:
   FloatOutput *output_;

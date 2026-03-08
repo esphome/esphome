@@ -89,7 +89,7 @@ class BL0906 : public PollingComponent, public uart::UARTDevice {
 
 template<typename... Ts> class ResetEnergyAction : public Action<Ts...>, public Parented<BL0906> {
  public:
-  void play(Ts... x) override { this->parent_->enqueue_action_(&BL0906::reset_energy_); }
+  void play(const Ts &...x) override { this->parent_->enqueue_action_(&BL0906::reset_energy_); }
 };
 
 }  // namespace bl0906

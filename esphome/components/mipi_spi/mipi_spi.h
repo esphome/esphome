@@ -5,11 +5,15 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace mipi_spi {
 
 constexpr static const char *const TAG = "display.mipi_spi";
+
+// Maximum bytes to log for commands (truncated if larger)
+static constexpr size_t MIPI_SPI_MAX_CMD_LOG_BYTES = 64;
 static constexpr uint8_t SW_RESET_CMD = 0x01;
 static constexpr uint8_t SLEEP_OUT = 0x11;
 static constexpr uint8_t NORON = 0x13;
@@ -58,6 +62,11 @@ enum BusType {
   BUS_TYPE_OCTAL = 8,
   BUS_TYPE_SINGLE_16 = 16,  // Single bit bus, but 16 bits per transfer
 };
+
+// Helper function for dump_config - defined in mipi_spi.cpp to allow use of LOG_PIN macro
+void internal_dump_config(const char *model, int width, int height, int offset_width, int offset_height, uint8_t madctl,
+                          bool invert_colors, int display_bits, bool is_big_endian, const optional<uint8_t> &brightness,
+                          GPIOPin *cs, GPIOPin *reset, GPIOPin *dc, int spi_mode, uint32_t data_rate, int bus_width);
 
 /**
  * Base class for MIPI SPI displays.
@@ -197,40 +206,9 @@ class MipiSpi : public display::Display,
   }
 
   void dump_config() override {
-    esph_log_config(TAG,
-                    "MIPI_SPI Display\n"
-                    "  Model: %s\n"
-                    "  Width: %u\n"
-                    "  Height: %u",
-                    this->model_, WIDTH, HEIGHT);
-    if constexpr (OFFSET_WIDTH != 0)
-      esph_log_config(TAG, "  Offset width: %u", OFFSET_WIDTH);
-    if constexpr (OFFSET_HEIGHT != 0)
-      esph_log_config(TAG, "  Offset height: %u", OFFSET_HEIGHT);
-    esph_log_config(TAG,
-                    "  Swap X/Y: %s\n"
-                    "  Mirror X: %s\n"
-                    "  Mirror Y: %s\n"
-                    "  Invert colors: %s\n"
-                    "  Color order: %s\n"
-                    "  Display pixels: %d bits\n"
-                    "  Endianness: %s\n",
-                    YESNO(this->madctl_ & MADCTL_MV), YESNO(this->madctl_ & (MADCTL_MX | MADCTL_XFLIP)),
-                    YESNO(this->madctl_ & (MADCTL_MY | MADCTL_YFLIP)), YESNO(this->invert_colors_),
-                    this->madctl_ & MADCTL_BGR ? "BGR" : "RGB", DISPLAYPIXEL * 8, IS_BIG_ENDIAN ? "Big" : "Little");
-    if (this->brightness_.has_value())
-      esph_log_config(TAG, "  Brightness: %u", this->brightness_.value());
-    if (this->cs_ != nullptr)
-      esph_log_config(TAG, "  CS Pin: %s", this->cs_->dump_summary().c_str());
-    if (this->reset_pin_ != nullptr)
-      esph_log_config(TAG, "  Reset Pin: %s", this->reset_pin_->dump_summary().c_str());
-    if (this->dc_pin_ != nullptr)
-      esph_log_config(TAG, "  DC Pin: %s", this->dc_pin_->dump_summary().c_str());
-    esph_log_config(TAG,
-                    "  SPI Mode: %d\n"
-                    "  SPI Data rate: %dMHz\n"
-                    "  SPI Bus width: %d",
-                    this->mode_, static_cast<unsigned>(this->data_rate_ / 1000000), BUS_TYPE);
+    internal_dump_config(this->model_, WIDTH, HEIGHT, OFFSET_WIDTH, OFFSET_HEIGHT, this->madctl_, this->invert_colors_,
+                         DISPLAYPIXEL * 8, IS_BIG_ENDIAN, this->brightness_, this->cs_, this->reset_pin_, this->dc_pin_,
+                         this->mode_, this->data_rate_, BUS_TYPE);
   }
 
  protected:
@@ -241,7 +219,10 @@ class MipiSpi : public display::Display,
 
   // Writes a command to the display, with the given bytes.
   void write_command_(uint8_t cmd, const uint8_t *bytes, size_t len) {
-    esph_log_v(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty(bytes, len).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    char hex_buf[format_hex_pretty_size(MIPI_SPI_MAX_CMD_LOG_BYTES)];
+    esph_log_v(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
+#endif
     if constexpr (BUS_TYPE == BUS_TYPE_QUAD) {
       this->enable();
       this->write_cmd_addr_data(8, 0x02, 24, cmd << 8, bytes, len);
@@ -478,7 +459,7 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
     RAMAllocator<BUFFERTYPE> allocator{};
     this->buffer_ = allocator.allocate(BUFFER_WIDTH * BUFFER_HEIGHT / FRACTION);
     if (this->buffer_ == nullptr) {
-      this->mark_failed("Buffer allocation failed");
+      this->mark_failed(LOG_STR("Buffer allocation failed"));
     }
   }
 
@@ -562,6 +543,12 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
 
   // Fills the display with a color.
   void fill(Color color) override {
+    // If clipping is active, fall back to base implementation
+    if (this->get_clipping().is_set()) {
+      display::Display::fill(color);
+      return;
+    }
+
     this->x_low_ = 0;
     this->y_low_ = this->start_line_;
     this->x_high_ = WIDTH - 1;

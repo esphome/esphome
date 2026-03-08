@@ -11,8 +11,7 @@
 #include "esphome/core/automation.h"
 #endif
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 enum UARTParityOptions {
   UART_CONFIG_PARITY_NONE,
@@ -29,6 +28,14 @@ enum UARTDirection {
 #endif
 
 const LogString *parity_to_str(UARTParityOptions parity);
+
+/// Result of a flush() call.
+enum class FlushResult {
+  SUCCESS,          ///< Confirmed: all bytes left the TX FIFO.
+  TIMEOUT,          ///< Confirmed: timed out before TX completed.
+  FAILED,           ///< Confirmed: driver or hardware error.
+  ASSUMED_SUCCESS,  ///< Platform cannot report result; success is assumed.
+};
 
 class UARTComponent {
  public:
@@ -70,10 +77,16 @@ class UARTComponent {
 
   // Pure virtual method to return the number of bytes available for reading.
   // @return Number of available bytes.
-  virtual int available() = 0;
+  virtual size_t available() = 0;
 
   // Pure virtual method to block until all bytes have been written to the UART bus.
-  virtual void flush() = 0;
+  // @return FlushResult indicating whether the flush was confirmed, timed out, failed, or assumed successful.
+  virtual FlushResult flush() = 0;
+
+  // Sets the maximum time to wait for TX to drain during flush().
+  // Only meaningful on ESP32 (IDF). Other platforms ignore this value.
+  // @param flush_timeout_ms Timeout in milliseconds; 0 means wait indefinitely.
+  virtual void set_flush_timeout(uint32_t flush_timeout_ms) {}
 
   // Sets the TX (transmit) pin for the UART bus.
   // @param tx_pin Pointer to the internal GPIO pin used for transmission.
@@ -184,20 +197,19 @@ class UARTComponent {
   virtual void check_logger_conflict() = 0;
   bool check_read_timeout_(size_t len = 1);
 
-  InternalGPIOPin *tx_pin_;
-  InternalGPIOPin *rx_pin_;
-  InternalGPIOPin *flow_control_pin_;
-  size_t rx_buffer_size_;
+  InternalGPIOPin *tx_pin_{};
+  InternalGPIOPin *rx_pin_{};
+  InternalGPIOPin *flow_control_pin_{};
+  size_t rx_buffer_size_{};
   size_t rx_full_threshold_{1};
   size_t rx_timeout_{0};
-  uint32_t baud_rate_;
-  uint8_t stop_bits_;
-  uint8_t data_bits_;
-  UARTParityOptions parity_;
+  uint32_t baud_rate_{0};
+  uint8_t stop_bits_{0};
+  uint8_t data_bits_{0};
+  UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};
 #ifdef USE_UART_DEBUGGER
   CallbackManager<void(UARTDirection, uint8_t)> debug_callback_{};
 #endif
 };
 
-}  // namespace uart
-}  // namespace esphome
+}  // namespace esphome::uart

@@ -134,27 +134,27 @@ async def test_scheduler_string_lifetime(
         # Run tests sequentially, waiting for each to complete
         try:
             # Test 1
-            client.execute_service(test_services["test1"], {})
+            await client.execute_service(test_services["test1"], {})
             await asyncio.wait_for(test1_complete.wait(), timeout=5.0)
 
             # Test 2
-            client.execute_service(test_services["test2"], {})
+            await client.execute_service(test_services["test2"], {})
             await asyncio.wait_for(test2_complete.wait(), timeout=5.0)
 
             # Test 3
-            client.execute_service(test_services["test3"], {})
+            await client.execute_service(test_services["test3"], {})
             await asyncio.wait_for(test3_complete.wait(), timeout=5.0)
 
             # Test 4
-            client.execute_service(test_services["test4"], {})
+            await client.execute_service(test_services["test4"], {})
             await asyncio.wait_for(test4_complete.wait(), timeout=5.0)
 
             # Test 5
-            client.execute_service(test_services["test5"], {})
+            await client.execute_service(test_services["test5"], {})
             await asyncio.wait_for(test5_complete.wait(), timeout=5.0)
 
             # Final check
-            client.execute_service(test_services["final"], {})
+            await client.execute_service(test_services["final"], {})
             await asyncio.wait_for(all_tests_complete.wait(), timeout=5.0)
 
         except TimeoutError:

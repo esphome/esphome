@@ -1,7 +1,6 @@
 #pragma once
 
 #include <chrono>
-#include <set>
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
@@ -60,9 +59,9 @@ class HaierClimateBase : public esphome::Component,
   void send_power_off_command();
   void toggle_power();
   void reset_protocol() { this->reset_protocol_request_ = true; };
-  void set_supported_modes(const std::set<esphome::climate::ClimateMode> &modes);
-  void set_supported_swing_modes(const std::set<esphome::climate::ClimateSwingMode> &modes);
-  void set_supported_presets(const std::set<esphome::climate::ClimatePreset> &presets);
+  void set_supported_modes(esphome::climate::ClimateModeMask modes);
+  void set_supported_swing_modes(esphome::climate::ClimateSwingModeMask modes);
+  void set_supported_presets(esphome::climate::ClimatePresetMask presets);
   bool valid_connection() const { return this->protocol_phase_ >= ProtocolPhases::IDLE; };
   size_t available() noexcept override { return esphome::uart::UARTDevice::available(); };
   size_t read_array(uint8_t *data, size_t len) noexcept override {

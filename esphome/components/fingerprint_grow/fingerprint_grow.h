@@ -169,7 +169,7 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   bool set_password_();
   bool get_parameters_();
   void get_fingerprint_count_();
-  uint8_t transfer_(std::vector<uint8_t> *p_data_buffer);
+  uint8_t transfer_(std::vector<uint8_t> &data_buffer);
   uint8_t send_command_();
   void sensor_wakeup_();
   void sensor_sleep_();
@@ -190,7 +190,7 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   bool is_sensor_awake_ = false;
   uint32_t last_transfer_ms_ = 0;
   uint32_t last_aura_led_control_ = 0;
-  uint16_t last_aura_led_duration_ = 0;
+  uint32_t last_aura_led_duration_ = 0;
   uint16_t system_identifier_code_ = 0;
   uint32_t idle_period_to_sleep_ms_ = UINT32_MAX;
   sensor::Sensor *fingerprint_count_sensor_{nullptr};
@@ -273,7 +273,7 @@ template<typename... Ts> class EnrollmentAction : public Action<Ts...>, public P
   TEMPLATABLE_VALUE(uint16_t, finger_id)
   TEMPLATABLE_VALUE(uint8_t, num_scans)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto finger_id = this->finger_id_.value(x...);
     auto num_scans = this->num_scans_.value(x...);
     if (num_scans) {
@@ -287,14 +287,14 @@ template<typename... Ts> class EnrollmentAction : public Action<Ts...>, public P
 template<typename... Ts>
 class CancelEnrollmentAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
-  void play(Ts... x) override { this->parent_->finish_enrollment(1); }
+  void play(const Ts &...x) override { this->parent_->finish_enrollment(1); }
 };
 
 template<typename... Ts> class DeleteAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
   TEMPLATABLE_VALUE(uint16_t, finger_id)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto finger_id = this->finger_id_.value(x...);
     this->parent_->delete_fingerprint(finger_id);
   }
@@ -302,14 +302,14 @@ template<typename... Ts> class DeleteAction : public Action<Ts...>, public Paren
 
 template<typename... Ts> class DeleteAllAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
-  void play(Ts... x) override { this->parent_->delete_all_fingerprints(); }
+  void play(const Ts &...x) override { this->parent_->delete_all_fingerprints(); }
 };
 
 template<typename... Ts> class LEDControlAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
   TEMPLATABLE_VALUE(bool, state)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto state = this->state_.value(x...);
     this->parent_->led_control(state);
   }
@@ -322,7 +322,7 @@ template<typename... Ts> class AuraLEDControlAction : public Action<Ts...>, publ
   TEMPLATABLE_VALUE(uint8_t, color)
   TEMPLATABLE_VALUE(uint8_t, count)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto state = this->state_.value(x...);
     auto speed = this->speed_.value(x...);
     auto color = this->color_.value(x...);

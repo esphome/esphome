@@ -9,12 +9,9 @@
 
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace ld2410 {
+namespace esphome::ld2410 {
 
 static const char *const TAG = "ld2410";
-static const char *const UNKNOWN_MAC = "unknown";
-static const char *const VERSION_FMT = "%u.%02X.%02X%02X%02X%02X";
 
 enum BaudRate : uint8_t {
   BAUD_RATE_9600 = 1,
@@ -120,10 +117,12 @@ constexpr Uint8ToString OUT_PIN_LEVELS_BY_UINT[] = {
     {OUT_PIN_LEVEL_HIGH, "high"},
 };
 
+constexpr uint32_t BAUD_RATES[] = {9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800};
+
 // Helper functions for lookups
-template<size_t N> uint8_t find_uint8(const StringToUint8 (&arr)[N], const std::string &str) {
+template<size_t N> uint8_t find_uint8(const StringToUint8 (&arr)[N], const char *str) {
   for (const auto &entry : arr) {
-    if (str == entry.str)
+    if (strcmp(str, entry.str) == 0)
       return entry.value;
   }
   return 0xFF;  // Not found
@@ -174,22 +173,20 @@ static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0x
 // MAC address the module uses when Bluetooth is disabled
 static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
 
-static inline int two_byte_to_int(char firstbyte, char secondbyte) { return (int16_t) (secondbyte << 8) + firstbyte; }
-
 static inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
   return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
 }
 
 void LD2410Component::dump_config() {
-  std::string mac_str =
-      mac_address_is_valid(this->mac_address_) ? format_mac_address_pretty(this->mac_address_) : UNKNOWN_MAC;
-  std::string version = str_sprintf(VERSION_FMT, this->version_[1], this->version_[0], this->version_[5],
-                                    this->version_[4], this->version_[3], this->version_[2]);
+  char mac_s[18];
+  char version_s[20];
+  const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
+  ld24xx::format_version_str(this->version_, version_s);
   ESP_LOGCONFIG(TAG,
                 "LD2410:\n"
                 "  Firmware version: %s\n"
                 "  MAC address: %s",
-                version.c_str(), mac_str.c_str());
+                version_s, mac_str);
 #ifdef USE_BINARY_SENSOR
   ESP_LOGCONFIG(TAG, "Binary Sensors:");
   LOG_BINARY_SENSOR("  ", "Target", this->target_binary_sensor_);
@@ -261,9 +258,10 @@ void LD2410Component::read_all_info() {
   this->query_parameters_();
   this->set_config_mode_(false);
 #ifdef USE_SELECT
-  const auto baud_rate = std::to_string(this->parent_->get_baud_rate());
   if (this->baud_rate_select_ != nullptr) {
-    this->baud_rate_select_->publish_state(baud_rate);
+    if (auto index = ld24xx::find_index(BAUD_RATES, this->parent_->get_baud_rate())) {
+      this->baud_rate_select_->publish_state(*index);
+    }
   }
 #endif
 }
@@ -275,8 +273,19 @@ void LD2410Component::restart_and_read_all_info() {
 }
 
 void LD2410Component::loop() {
-  while (this->available()) {
-    this->readline_(this->read());
+  // Read all available bytes in batches to reduce UART call overhead.
+  size_t avail = this->available();
+  uint8_t buf[MAX_LINE_LENGTH];
+  while (avail > 0) {
+    size_t to_read = std::min(avail, sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
+    }
+    avail -= to_read;
+
+    for (size_t i = 0; i < to_read; i++) {
+      this->readline_(buf[i]);
+    }
   }
 }
 
@@ -350,17 +359,14 @@ void LD2410Component::handle_periodic_data_() {
     Detect distance: 16~17th bytes
   */
 #ifdef USE_SENSOR
-  SAFE_PUBLISH_SENSOR(
-      this->moving_target_distance_sensor_,
-      ld2410::two_byte_to_int(this->buffer_data_[MOVING_TARGET_LOW], this->buffer_data_[MOVING_TARGET_HIGH]))
+  SAFE_PUBLISH_SENSOR(this->moving_target_distance_sensor_,
+                      encode_uint16(this->buffer_data_[MOVING_TARGET_HIGH], this->buffer_data_[MOVING_TARGET_LOW]))
   SAFE_PUBLISH_SENSOR(this->moving_target_energy_sensor_, this->buffer_data_[MOVING_ENERGY])
-  SAFE_PUBLISH_SENSOR(
-      this->still_target_distance_sensor_,
-      ld2410::two_byte_to_int(this->buffer_data_[STILL_TARGET_LOW], this->buffer_data_[STILL_TARGET_HIGH]));
+  SAFE_PUBLISH_SENSOR(this->still_target_distance_sensor_,
+                      encode_uint16(this->buffer_data_[STILL_TARGET_HIGH], this->buffer_data_[STILL_TARGET_LOW]));
   SAFE_PUBLISH_SENSOR(this->still_target_energy_sensor_, this->buffer_data_[STILL_ENERGY]);
-  SAFE_PUBLISH_SENSOR(
-      this->detection_distance_sensor_,
-      ld2410::two_byte_to_int(this->buffer_data_[DETECT_DISTANCE_LOW], this->buffer_data_[DETECT_DISTANCE_HIGH]));
+  SAFE_PUBLISH_SENSOR(this->detection_distance_sensor_,
+                      encode_uint16(this->buffer_data_[DETECT_DISTANCE_HIGH], this->buffer_data_[DETECT_DISTANCE_LOW]));
 
   if (engineering_mode) {
     /*
@@ -416,7 +422,8 @@ bool LD2410Component::handle_ack_data_() {
     return true;
   }
   if (!ld2410::validate_header_footer(CMD_FRAME_HEADER, this->buffer_data_)) {
-    ESP_LOGW(TAG, "Invalid header: %s", format_hex_pretty(this->buffer_data_, HEADER_FOOTER_SIZE).c_str());
+    char hex_buf[format_hex_pretty_size(HEADER_FOOTER_SIZE)];
+    ESP_LOGW(TAG, "Invalid header: %s", format_hex_pretty_to(hex_buf, this->buffer_data_, HEADER_FOOTER_SIZE));
     return true;
   }
   if (this->buffer_data_[COMMAND_STATUS] != 0x01) {
@@ -441,19 +448,20 @@ bool LD2410Component::handle_ack_data_() {
       ESP_LOGV(TAG, "Baud rate change");
 #ifdef USE_SELECT
       if (this->baud_rate_select_ != nullptr) {
-        ESP_LOGE(TAG, "Change baud rate to %s and reinstall", this->baud_rate_select_->state.c_str());
+        auto baud = this->baud_rate_select_->current_option();
+        ESP_LOGE(TAG, "Change baud rate to %.*s and reinstall", (int) baud.size(), baud.c_str());
       }
 #endif
       break;
 
     case CMD_QUERY_VERSION: {
       std::memcpy(this->version_, &this->buffer_data_[12], sizeof(this->version_));
-      std::string version = str_sprintf(VERSION_FMT, this->version_[1], this->version_[0], this->version_[5],
-                                        this->version_[4], this->version_[3], this->version_[2]);
-      ESP_LOGV(TAG, "Firmware version: %s", version.c_str());
+      char version_s[20];
+      ld24xx::format_version_str(this->version_, version_s);
+      ESP_LOGV(TAG, "Firmware version: %s", version_s);
 #ifdef USE_TEXT_SENSOR
       if (this->version_text_sensor_ != nullptr) {
-        this->version_text_sensor_->publish_state(version);
+        this->version_text_sensor_->publish_state(version_s);
       }
 #endif
       break;
@@ -476,11 +484,8 @@ bool LD2410Component::handle_ack_data_() {
       this->out_pin_level_ = this->buffer_data_[12];
       const auto *light_function_str = find_str(LIGHT_FUNCTIONS_BY_UINT, this->light_function_);
       const auto *out_pin_level_str = find_str(OUT_PIN_LEVELS_BY_UINT, this->out_pin_level_);
-      ESP_LOGV(TAG,
-               "Light function: %s\n"
-               "Light threshold: %u\n"
-               "Out pin level: %s",
-               light_function_str, this->light_threshold_, out_pin_level_str);
+      ESP_LOGV(TAG, "Light function: %s, threshold: %u, out pin level: %s", light_function_str, this->light_threshold_,
+               out_pin_level_str);
 #ifdef USE_SELECT
       if (this->light_function_select_ != nullptr) {
         this->light_function_select_->publish_state(light_function_str);
@@ -506,9 +511,9 @@ bool LD2410Component::handle_ack_data_() {
         std::memcpy(this->mac_address_, &this->buffer_data_[10], sizeof(this->mac_address_));
       }
 
-      std::string mac_str =
-          mac_address_is_valid(this->mac_address_) ? format_mac_address_pretty(this->mac_address_) : UNKNOWN_MAC;
-      ESP_LOGV(TAG, "MAC address: %s", mac_str.c_str());
+      char mac_s[18];
+      const char *mac_str = ld24xx::format_mac_str(this->mac_address_, mac_s);
+      ESP_LOGV(TAG, "MAC address: %s", mac_str);
 #ifdef USE_TEXT_SENSOR
       if (this->mac_text_sensor_ != nullptr) {
         this->mac_text_sensor_->publish_state(mac_str);
@@ -568,8 +573,8 @@ bool LD2410Component::handle_ack_data_() {
       /*
         None Duration: 33~34th bytes
       */
-      updates.push_back(set_number_value(this->timeout_number_,
-                                         ld2410::two_byte_to_int(this->buffer_data_[32], this->buffer_data_[33])));
+      updates.push_back(
+          set_number_value(this->timeout_number_, encode_uint16(this->buffer_data_[33], this->buffer_data_[32])));
       for (auto &update : updates) {
         update();
       }
@@ -595,16 +600,23 @@ void LD2410Component::readline_(int readch) {
     // We should never get here, but just in case...
     ESP_LOGW(TAG, "Max command length exceeded; ignoring");
     this->buffer_pos_ = 0;
+    return;
   }
-  if (this->buffer_pos_ < 4) {
+  if (this->buffer_pos_ < HEADER_FOOTER_SIZE) {
     return;  // Not enough data to process yet
   }
   if (ld2410::validate_header_footer(DATA_FRAME_FOOTER, &this->buffer_data_[this->buffer_pos_ - 4])) {
-    ESP_LOGV(TAG, "Handling Periodic Data: %s", format_hex_pretty(this->buffer_data_, this->buffer_pos_).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    char hex_buf[format_hex_pretty_size(MAX_LINE_LENGTH)];
+    ESP_LOGV(TAG, "Handling Periodic Data: %s", format_hex_pretty_to(hex_buf, this->buffer_data_, this->buffer_pos_));
+#endif
     this->handle_periodic_data_();
     this->buffer_pos_ = 0;  // Reset position index for next message
   } else if (ld2410::validate_header_footer(CMD_FRAME_FOOTER, &this->buffer_data_[this->buffer_pos_ - 4])) {
-    ESP_LOGV(TAG, "Handling Ack Data: %s", format_hex_pretty(this->buffer_data_, this->buffer_pos_).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    char hex_buf[format_hex_pretty_size(MAX_LINE_LENGTH)];
+    ESP_LOGV(TAG, "Handling Ack Data: %s", format_hex_pretty_to(hex_buf, this->buffer_data_, this->buffer_pos_));
+#endif
     if (this->handle_ack_data_()) {
       this->buffer_pos_ = 0;  // Reset position index for next message
     } else {
@@ -626,14 +638,14 @@ void LD2410Component::set_bluetooth(bool enable) {
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
 }
 
-void LD2410Component::set_distance_resolution(const std::string &state) {
+void LD2410Component::set_distance_resolution(const char *state) {
   this->set_config_mode_(true);
   const uint8_t cmd_value[2] = {find_uint8(DISTANCE_RESOLUTIONS_BY_STR, state), 0x00};
   this->send_command_(CMD_SET_DISTANCE_RESOLUTION, cmd_value, sizeof(cmd_value));
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
 }
 
-void LD2410Component::set_baud_rate(const std::string &state) {
+void LD2410Component::set_baud_rate(const char *state) {
   this->set_config_mode_(true);
   const uint8_t cmd_value[2] = {find_uint8(BAUD_RATES_BY_STR, state), 0x00};
   this->send_command_(CMD_SET_BAUD_RATE, cmd_value, sizeof(cmd_value));
@@ -759,10 +771,10 @@ void LD2410Component::set_light_out_control() {
 #endif
 #ifdef USE_SELECT
   if (this->light_function_select_ != nullptr && this->light_function_select_->has_state()) {
-    this->light_function_ = find_uint8(LIGHT_FUNCTIONS_BY_STR, this->light_function_select_->state);
+    this->light_function_ = find_uint8(LIGHT_FUNCTIONS_BY_STR, this->light_function_select_->current_option().c_str());
   }
   if (this->out_pin_level_select_ != nullptr && this->out_pin_level_select_->has_state()) {
-    this->out_pin_level_ = find_uint8(OUT_PIN_LEVELS_BY_STR, this->out_pin_level_select_->state);
+    this->out_pin_level_ = find_uint8(OUT_PIN_LEVELS_BY_STR, this->out_pin_level_select_->current_option().c_str());
   }
 #endif
   this->set_config_mode_(true);
@@ -784,5 +796,4 @@ void LD2410Component::set_gate_still_sensor(uint8_t gate, sensor::Sensor *s) {
 }
 #endif
 
-}  // namespace ld2410
-}  // namespace esphome
+}  // namespace esphome::ld2410

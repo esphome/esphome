@@ -51,15 +51,15 @@ class DutyTimeSensor : public sensor::Sensor, public PollingComponent {
 template<typename... Ts> class BaseAction : public Action<Ts...>, public Parented<DutyTimeSensor> {};
 
 template<typename... Ts> class StartAction : public BaseAction<Ts...> {
-  void play(Ts... x) override { this->parent_->start(); }
+  void play(const Ts &...x) override { this->parent_->start(); }
 };
 
 template<typename... Ts> class StopAction : public BaseAction<Ts...> {
-  void play(Ts... x) override { this->parent_->stop(); }
+  void play(const Ts &...x) override { this->parent_->stop(); }
 };
 
 template<typename... Ts> class ResetAction : public BaseAction<Ts...> {
-  void play(Ts... x) override { this->parent_->reset(); }
+  void play(const Ts &...x) override { this->parent_->reset(); }
 };
 
 template<typename... Ts> class RunningCondition : public Condition<Ts...>, public Parented<DutyTimeSensor> {
@@ -67,7 +67,7 @@ template<typename... Ts> class RunningCondition : public Condition<Ts...>, publi
   explicit RunningCondition(DutyTimeSensor *parent, bool state) : Parented(parent), state_(state) {}
 
  protected:
-  bool check(Ts... x) override { return this->parent_->is_running() == this->state_; }
+  bool check(const Ts &...x) override { return this->parent_->is_running() == this->state_; }
   bool state_;
 };
 

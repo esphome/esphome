@@ -1,6 +1,0 @@
-substitutions:
-  flow_control_pin: GPIO3
-packages:
-  modbus: !include ../../test_build_components/common/modbus/esp32-c3-idf.yaml
-
-<<: !include common.yaml

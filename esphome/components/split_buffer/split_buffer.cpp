@@ -4,7 +4,6 @@
 #include "esphome/core/log.h"
 
 namespace esphome::split_buffer {
-
 static constexpr const char *const TAG = "split_buffer";
 
 SplitBuffer::~SplitBuffer() { this->free(); }
@@ -102,32 +101,44 @@ void SplitBuffer::free() {
   this->total_length_ = 0;
 }
 
-uint8_t &SplitBuffer::operator[](size_t index) {
+const uint8_t &SplitBuffer::operator[](size_t index) const {
   if (index >= this->total_length_) {
     ESP_LOGE(TAG, "Out of bounds - %zu >= %zu", index, this->total_length_);
-    // Return reference to a static dummy byte to avoid crash
+    // Return reference to a static dummy byte since we can't throw exceptions.
+    // the byte is non-const since it will also be used by the non-const [] overload.
     static uint8_t dummy = 0;
     return dummy;
   }
 
-  size_t buffer_index = index / this->buffer_size_;
-  size_t offset_in_buffer = index - this->buffer_size_ * buffer_index;
+  const auto buffer_index = index / this->buffer_size_;
+  const auto offset_in_buffer = index % this->buffer_size_;
 
   return this->buffers_[buffer_index][offset_in_buffer];
 }
 
-const uint8_t &SplitBuffer::operator[](size_t index) const {
-  if (index >= this->total_length_) {
-    ESP_LOGE(TAG, "Out of bounds - %zu >= %zu", index, this->total_length_);
-    // Return reference to a static dummy byte to avoid crash
-    static const uint8_t DUMMY = 0;
-    return DUMMY;
+// non-const version of operator[] for write access
+uint8_t &SplitBuffer::operator[](size_t index) {
+  // avoid code duplication. These casts are safe since we know the object is not const.
+  return const_cast<uint8_t &>(static_cast<const SplitBuffer *>(this)->operator[](index));
+}
+
+/**
+ * Fill the entire buffer with a single byte value
+ * @param value Fill value
+ */
+void SplitBuffer::fill(uint8_t value) const {
+  if (this->buffer_count_ == 0)
+    return;
+  // clear all the full sized buffers
+  size_t i = 0;
+  for (; i != this->buffer_count_ - 1; i++) {
+    memset(this->buffers_[i], value, this->buffer_size_);
   }
-
-  size_t buffer_index = index / this->buffer_size_;
-  size_t offset_in_buffer = index - this->buffer_size_ * buffer_index;
-
-  return this->buffers_[buffer_index][offset_in_buffer];
+  // clear the last, potentially short, buffer.
+  // `i` is guaranteed to equal the last index since the loop terminates at that value.
+  // where all buffers are the same size, the modulus must return the size, not 0.
+  auto size_last = ((this->total_length_ - 1) % this->buffer_size_) + 1;
+  memset(this->buffers_[i], value, size_last);
 }
 
 }  // namespace esphome::split_buffer

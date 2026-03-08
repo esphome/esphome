@@ -1,4 +1,5 @@
 #include "mirage_protocol.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -13,9 +14,12 @@ constexpr uint32_t BIT_ONE_SPACE_US = 1592;
 constexpr uint32_t BIT_ZERO_SPACE_US = 545;
 
 constexpr unsigned int MIRAGE_IR_PACKET_BIT_SIZE = 120;
+// Max data bytes in packet (excluding checksum)
+constexpr size_t MIRAGE_MAX_DATA_BYTES = (MIRAGE_IR_PACKET_BIT_SIZE / 8);
 
 void MirageProtocol::encode(RemoteTransmitData *dst, const MirageData &data) {
-  ESP_LOGI(TAG, "Transive Mirage: %s", format_hex_pretty(data.data).c_str());
+  char hex_buf[format_hex_pretty_size(MIRAGE_MAX_DATA_BYTES)];
+  ESP_LOGI(TAG, "Transmit Mirage: %s", format_hex_pretty_to(hex_buf, data.data.data(), data.data.size()));
   dst->set_carrier_frequency(38000);
   dst->reserve(5 + ((data.data.size() + 1) * 2));
   dst->mark(HEADER_MARK_US);
@@ -77,7 +81,8 @@ optional<MirageData> MirageProtocol::decode(RemoteReceiveData src) {
 }
 
 void MirageProtocol::dump(const MirageData &data) {
-  ESP_LOGI(TAG, "Received Mirage: %s", format_hex_pretty(data.data).c_str());
+  char hex_buf[format_hex_pretty_size(MIRAGE_MAX_DATA_BYTES)];
+  ESP_LOGI(TAG, "Received Mirage: %s", format_hex_pretty_to(hex_buf, data.data.data(), data.data.size()));
 }
 
 }  // namespace remote_base

@@ -8,6 +8,9 @@
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif  // USE_BINARY_SENSOR
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif  // USE_TEXT_SENSOR
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
@@ -25,17 +28,18 @@ class GDK101Component : public PollingComponent, public i2c::I2CDevice {
   SUB_SENSOR(rad_1m)
   SUB_SENSOR(rad_10m)
   SUB_SENSOR(status)
-  SUB_SENSOR(fw_version)
   SUB_SENSOR(measurement_duration)
 #endif  // USE_SENSOR
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(vibration)
 #endif  // USE_BINARY_SENSOR
+#ifdef USE_TEXT_SENSOR
+  SUB_TEXT_SENSOR(fw_version)
+#endif  // USE_TEXT_SENSOR
 
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
 
  protected:

@@ -1,0 +1,61 @@
+esphome:
+  name: micros-to-millis-test
+  platformio_options:
+    build_flags:
+      - "-DDEBUG"
+  on_boot:
+    - lambda: |-
+        using esphome::micros_to_millis;
+        const char *TAG = "MTM";
+        int pass = 0, fail = 0;
+
+        auto check = [&](const char *name, uint64_t us) {
+          uint32_t got = micros_to_millis(us);
+          uint32_t want = (uint32_t)(us / 1000ULL);
+          if (got == want) { pass++; }
+          else { ESP_LOGE(TAG, "%s FAILED: got=%u want=%u", name, got, want); fail++; }
+        };
+
+        // Basic values
+        check("zero", 0);
+        check("below_1ms", 999);
+        check("exactly_1ms", 1000);
+        check("above_1ms", 1001);
+
+        // Shift boundary (1000 = 8 * 125, exercises the >>3 shift)
+        check("shift_7999", 7999);
+        check("shift_8000", 8000);
+        check("shift_8001", 8001);
+
+        // 32-bit boundary
+        check("u32max_minus1", 0xFFFFFFFEULL);
+        check("u32max", 0xFFFFFFFFULL);
+        check("u32max_plus1", 0x100000000ULL);
+
+        // Realistic uptimes
+        check("30_days", 2592000000000ULL);
+        check("1_year", 31536000000000ULL);
+
+        // Carry path: construct x = us>>3 with specific hi/lo that trigger adj overflow
+        { uint64_t x = (603ULL << 32) | 0xFFFFFFFFU; check("carry_603", x << 3); }
+        { uint64_t x = (5000ULL << 32) | 0xFFFFFFFFU; check("carry_5000", x << 3); }
+
+        // Carry boundary: exact transition where adj overflows (hi=1000, R=46)
+        {
+          uint32_t hi = 1000;
+          uint32_t thr = 0xFFFFFFFFU - hi * 46U;
+          uint64_t h = (uint64_t)hi << 32;
+          check("carry_before", (h | (thr - 1)) << 3);
+          check("carry_at", (h | thr) << 3);
+          check("carry_after", (h | (thr + 1)) << 3);
+        }
+
+        // Mod-8 variations (exercises the >>3 truncation)
+        for (int i = 0; i < 8; i++) { check("mod8", 2592000000000ULL + i); }
+
+        if (fail == 0) { ESP_LOGI(TAG, "ALL_PASSED %d tests", pass); }
+        else { ESP_LOGE(TAG, "%d FAILED out of %d", fail, pass + fail); }
+
+host:
+api:
+logger:

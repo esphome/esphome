@@ -91,14 +91,8 @@ def lock_schema(
     return _LOCK_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-LOCK_SCHEMA = lock_schema()
-LOCK_SCHEMA.add_extra(cv.deprecated_schema_constant("lock"))
-
-
+@setup_entity("lock")
 async def _setup_lock_core(var, config):
-    await setup_entity(var, config, "lock")
-
     for conf in config.get(CONF_ON_LOCK, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)

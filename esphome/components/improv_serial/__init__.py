@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import improv_base
-from esphome.components.esp32 import get_esp32_variant
-from esphome.components.esp32.const import VARIANT_ESP32S3
+from esphome.components.esp32 import VARIANT_ESP32S3, get_esp32_variant
 from esphome.components.logger import USB_CDC
 import esphome.config_validation as cv
 from esphome.const import CONF_BAUD_RATE, CONF_HARDWARE_UART, CONF_ID, CONF_LOGGER
@@ -27,7 +26,7 @@ def validate_logger(config):
     logger_conf = fv.full_config.get()[CONF_LOGGER]
     if logger_conf[CONF_BAUD_RATE] == 0:
         raise cv.Invalid("improv_serial requires the logger baud_rate to be not 0")
-    if CORE.using_esp_idf and (
+    if CORE.is_esp32 and (
         logger_conf[CONF_HARDWARE_UART] == USB_CDC
         and get_esp32_variant() == VARIANT_ESP32S3
     ):
@@ -44,3 +43,4 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await improv_base.setup_improv_core(var, config, "improv_serial")
+    cg.add_define("USE_IMPROV_SERIAL")

@@ -187,7 +187,14 @@ def install_meta_finder(
 
 
 def install_custom_components_meta_finder():
+    # Remove before 2026.6.0
     custom_components_dir = (Path(CORE.config_dir) / "custom_components").resolve()
+    if custom_components_dir.is_dir() and any(custom_components_dir.iterdir()):
+        _LOGGER.warning(
+            "The 'custom_components' folder is deprecated and will be removed in 2026.6.0. "
+            "Please use 'external_components' instead. "
+            "See https://esphome.io/components/external_components.html for more information."
+        )
     install_meta_finder(custom_components_dir)
 
 

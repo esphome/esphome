@@ -33,7 +33,8 @@ class BLECharacteristic {
   ~BLECharacteristic();
 
   void set_value(ByteBuffer buffer);
-  void set_value(const std::vector<uint8_t> &buffer);
+  void set_value(std::vector<uint8_t> &&buffer);
+  void set_value(std::initializer_list<uint8_t> data);
   void set_value(const std::string &buffer);
 
   void set_broadcast_property(bool value);
@@ -56,12 +57,12 @@ class BLECharacteristic {
   ESPBTUUID get_uuid() { return this->uuid_; }
   std::vector<uint8_t> &get_value() { return this->value_; }
 
-  static const uint32_t PROPERTY_READ = 1 << 0;
-  static const uint32_t PROPERTY_WRITE = 1 << 1;
-  static const uint32_t PROPERTY_NOTIFY = 1 << 2;
-  static const uint32_t PROPERTY_BROADCAST = 1 << 3;
-  static const uint32_t PROPERTY_INDICATE = 1 << 4;
-  static const uint32_t PROPERTY_WRITE_NR = 1 << 5;
+  static constexpr uint32_t PROPERTY_READ = 1 << 0;
+  static constexpr uint32_t PROPERTY_WRITE = 1 << 1;
+  static constexpr uint32_t PROPERTY_NOTIFY = 1 << 2;
+  static constexpr uint32_t PROPERTY_BROADCAST = 1 << 3;
+  static constexpr uint32_t PROPERTY_INDICATE = 1 << 4;
+  static constexpr uint32_t PROPERTY_WRITE_NR = 1 << 5;
 
   bool is_created();
   bool is_failed();
@@ -76,7 +77,6 @@ class BLECharacteristic {
   }
 
  protected:
-  bool write_event_{false};
   BLEService *service_{};
   ESPBTUUID uuid_;
   esp_gatt_char_prop_t properties_;

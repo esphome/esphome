@@ -9,6 +9,8 @@ esphome:
             update.is_available:
           then:
             - logger.log: "Update available"
+          else:
+            - update.check:
       - update.perform:
           force_update: true
 
