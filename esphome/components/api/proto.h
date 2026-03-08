@@ -518,10 +518,10 @@ class ProtoSize {
       return varint_wide(value);
     return varint_slow(value);
   }
-  // Slow path for varint >= 128, outlined to keep fast path small
-  static uint32_t varint_slow(uint32_t value) __attribute__((noinline));
 
  private:
+  // Slow path for varint >= 128, outlined to keep fast path small
+  static uint32_t varint_slow(uint32_t value) __attribute__((noinline));
   // Shared cascade for values >= 128 (used by both constexpr and noinline paths)
   static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE varint_wide(uint32_t value) {
     if (value < 16384)
