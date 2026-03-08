@@ -125,24 +125,23 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   void set_rx_callback(std::function<void()> cb) { this->rx_callback_ = std::move(cb); }
 
  protected:
-  // Larger structures first for better alignment
+  // Larger structures first (8+ bytes)
   RingBuffer input_buffer_;
   LockFreeQueue<UsbOutputChunk, USB_OUTPUT_CHUNK_COUNT> output_queue_;
   EventPool<UsbOutputChunk, USB_OUTPUT_CHUNK_COUNT> output_pool_;
   std::function<void()> rx_callback_{};
   CdcEps cdc_dev_{};
-  // Enum (likely 4 bytes)
+  StringRef debug_prefix_{};
+  // 4-byte fields
   UARTParityOptions parity_{UART_CONFIG_PARITY_NONE};
-  // Group atomics together (each 1 byte)
+  uint32_t flush_timeout_ms_{100};
+  // 1-byte fields (no padding between groups)
   std::atomic<bool> input_started_{true};
   std::atomic<bool> output_started_{true};
   std::atomic<bool> initialised_{false};
-  // Group regular bytes together to minimize padding
-  uint32_t flush_timeout_ms_{100};
   const uint8_t index_;
   bool debug_{};
   bool dummy_receiver_{};
-  StringRef debug_prefix_{};
 };
 
 class USBUartComponent : public usb_host::USBClient {

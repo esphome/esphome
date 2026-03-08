@@ -260,10 +260,12 @@ void USBUartComponent::dump_config() {
                   "    Data Bits: %u\n"
                   "    Parity: %s\n"
                   "    Stop bits: %s\n"
+                  "    Flush Timeout: %" PRIu32 " ms\n"
                   "    Debug: %s\n"
                   "    Dummy receiver: %s",
                   channel->index_, channel->baud_rate_, channel->data_bits_, PARITY_NAMES[channel->parity_],
-                  STOP_BITS_NAMES[channel->stop_bits_], YESNO(channel->debug_), YESNO(channel->dummy_receiver_));
+                  STOP_BITS_NAMES[channel->stop_bits_], channel->flush_timeout_ms_, YESNO(channel->debug_),
+                  YESNO(channel->dummy_receiver_));
   }
 }
 void USBUartComponent::start_input(USBUartChannel *channel) {
