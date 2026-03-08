@@ -392,8 +392,8 @@ def _upload_using_platformio(
 def upload_program(config: ConfigType, args, host: str) -> bool:
     from esphome.__main__ import check_permissions, get_port_type
 
-    result = 0
-    handled = False
+    from .ble_logger import is_mac_address
+    from .ota import smpmgr_scan, smpmgr_upload
 
     mcumgr_device: str | None = None
 
@@ -403,14 +403,15 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
             mcumgr_device = host
         else:
             result = _upload_using_platformio(config, host, ["-t", "upload"])
-            handled = True
+            if result != 0:
+                raise EsphomeError(f"Upload failed with result: {result}")
+            return True  # Handled: platformio serial upload
 
     if host == "PYOCD":
         result = _upload_using_platformio(config, host, ["-t", "flash_pyocd"])
-        handled = True
-
-    from .ble_logger import is_mac_address
-    from .ota import smpmgr_scan, smpmgr_upload
+        if result != 0:
+            raise EsphomeError(f"Upload failed with result: {result}")
+        return True  # Handled: platformio PYOCD upload
 
     if host == "BLE":
         mcumgr_device = asyncio.run(smpmgr_scan(CORE.name))
@@ -423,12 +424,9 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
             CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
         ).resolve()
         asyncio.run(smpmgr_upload(mcumgr_device, firmware))
-        handled = True
+        return True  # Handled: mcumgr OTA upload
 
-    if result != 0:
-        raise EsphomeError(f"Upload failed with result: {result}")
-
-    return handled
+    return False  # Not handled: let caller try default upload methods
 
 
 def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
