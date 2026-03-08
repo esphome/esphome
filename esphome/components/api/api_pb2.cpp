@@ -3840,6 +3840,20 @@ bool SerialProxyRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   }
   return true;
 }
+void SerialProxyRequestResponse::encode(ProtoWriteBuffer &buffer) const {
+  buffer.encode_uint32(1, this->instance);
+  buffer.encode_uint32(2, static_cast<uint32_t>(this->type));
+  buffer.encode_uint32(3, static_cast<uint32_t>(this->status));
+  buffer.encode_string(4, this->error_message);
+}
+uint32_t SerialProxyRequestResponse::calculate_size() const {
+  uint32_t size = 0;
+  size += ProtoSize::calc_uint32(1, this->instance);
+  size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->type));
+  size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->status));
+  size += ProtoSize::calc_length(1, this->error_message.size());
+  return size;
+}
 #endif
 #ifdef USE_BLUETOOTH_PROXY
 bool BluetoothSetConnectionParamsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {

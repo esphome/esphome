@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import socket
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
-from esphome.components.uart import CONF_DEBUG_PREFIX, UARTComponent
+from esphome.components.uart import CONF_DEBUG_PREFIX, CONF_FLUSH_TIMEOUT, UARTComponent
 from esphome.components.usb_host import register_usb_client, usb_device_schema
 import esphome.config_validation as cv
 from esphome.const import (
@@ -91,6 +91,9 @@ def channel_schema(channels, baud_rate_required):
                             cv.Optional(CONF_DUMMY_RECEIVER, default=False): cv.boolean,
                             cv.Optional(CONF_DEBUG, default=False): cv.boolean,
                             cv.Optional(CONF_DEBUG_PREFIX, default=""): cv.string,
+                            cv.Optional(
+                                CONF_FLUSH_TIMEOUT, default="100ms"
+                            ): cv.positive_time_period_milliseconds,
                         }
                     )
                 ),
@@ -129,6 +132,7 @@ async def to_code(config):
             cg.add(chvar.set_parity(channel[CONF_PARITY]))
             cg.add(chvar.set_baud_rate(channel[CONF_BAUD_RATE]))
             cg.add(chvar.set_dummy_receiver(channel[CONF_DUMMY_RECEIVER]))
+            cg.add(chvar.set_flush_timeout(channel[CONF_FLUSH_TIMEOUT]))
             cg.add(chvar.set_debug(channel[CONF_DEBUG]))
             if channel[CONF_DEBUG_PREFIX]:
                 cg.add(chvar.set_debug_prefix(channel[CONF_DEBUG_PREFIX]))
