@@ -27,10 +27,15 @@ from esphome.components.zephyr.const import (
 )
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADVANCED,
     CONF_BOARD,
+    CONF_DISABLED,
+    CONF_ENABLE_OTA_ROLLBACK,
     CONF_FRAMEWORK,
     CONF_ID,
+    CONF_OTA,
     CONF_RESET_PIN,
+    CONF_SAFE_MODE,
     CONF_VERSION,
     CONF_VOLTAGE,
     KEY_CORE,
@@ -41,6 +46,7 @@ from esphome.const import (
     ThreadModel,
 )
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
+import esphome.final_validate as fv
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
@@ -133,6 +139,7 @@ CONF_UICR_ERASE = "uicr_erase"
 
 VOLTAGE_LEVELS = [1.8, 2.1, 2.4, 2.7, 3.0, 3.3]
 
+
 CONFIG_SCHEMA = cv.All(
     _detect_bootloader,
     set_core_data,
@@ -156,9 +163,19 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_UICR_ERASE, default=False): cv.boolean,
                 }
             ),
-            cv.Optional(CONF_FRAMEWORK, default={CONF_VERSION: "2.6.1-a"}): cv.Schema(
+            cv.Optional(
+                CONF_FRAMEWORK,
+                default={},
+            ): cv.Schema(
                 {
-                    cv.Required(CONF_VERSION): cv.string_strict,
+                    cv.Optional(CONF_VERSION, default="2.6.1-a"): cv.string_strict,
+                    cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
+                        {
+                            cv.Optional(
+                                CONF_ENABLE_OTA_ROLLBACK, default=True
+                            ): cv.boolean,
+                        }
+                    ),
                 }
             ),
             cv.GenerateID(CONF_CDC_ACM): cv.declare_id(CdcAcm),
@@ -181,6 +198,24 @@ def _final_validate(config):
         _LOGGER.warning(
             "Selected generic Adafruit bootloader. The board might crash. Consider settings `bootloader:`"
         )
+    full_config = fv.full_config.get()
+    conf = config[CONF_FRAMEWORK]
+    advanced = conf[CONF_ADVANCED]
+
+    if advanced[CONF_ENABLE_OTA_ROLLBACK]:
+        # "disabled: false" means safe mode *is* enabled.
+        safe_mode_config = full_config.get(CONF_SAFE_MODE, {CONF_DISABLED: True})
+        safe_mode_enabled = not safe_mode_config[CONF_DISABLED]
+        ota_enabled = CONF_OTA in full_config
+        # Both need to be enabled for rollback to work
+        if not (ota_enabled and safe_mode_enabled):
+            # But only warn if ota is even possible
+            if ota_enabled:
+                _LOGGER.warning(
+                    "OTA rollback requires safe_mode, disabling rollback support"
+                )
+            # disable the rollback feature anyway since it can't be used.
+            advanced[CONF_ENABLE_OTA_ROLLBACK] = False
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -247,6 +282,11 @@ async def to_code(config: ConfigType) -> None:
         if reg0_config[CONF_UICR_ERASE]:
             cg.add_define("USE_NRF52_UICR_ERASE")
 
+    conf = config[CONF_FRAMEWORK]
+    advanced = conf[CONF_ADVANCED]
+    # Enable OTA rollback support
+    if advanced[CONF_ENABLE_OTA_ROLLBACK]:
+        cg.add_define("USE_OTA_ROLLBACK")
     # c++ support
     if framework_ver < cv.Version(2, 9, 2):
         zephyr_add_prj_conf("CPLUSPLUS", True)
@@ -259,7 +299,7 @@ async def to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
     # disable console
     zephyr_add_prj_conf("UART_CONSOLE", False)
-    zephyr_add_prj_conf("CONSOLE", False)
+    zephyr_add_prj_conf("CONSOLE", False, False)
     # use NFC pins as GPIO
     if framework_ver < cv.Version(2, 9, 2):
         zephyr_add_prj_conf("NFCT_PINS_AS_GPIOS", True)
