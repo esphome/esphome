@@ -532,6 +532,30 @@ class RoundFilter : public Filter {
   uint8_t precision_;
 };
 
+class HighPassFilter : public Filter {
+ public:
+  explicit HighPassFilter(float alpha);
+  optional<float> new_value(float value) override;
+  void set_alpha(float alpha);
+
+ protected:
+  float alpha_;
+  float last_input_{NAN};
+  float last_output_{NAN};
+};
+
+class LowPassFilter : public Filter {
+ public:
+  explicit LowPassFilter(float alpha);
+  void set_alpha(float alpha);
+  optional<float> new_value(float value) override;
+
+ protected:
+  float alpha_;
+  float last_input_{NAN};
+  float last_output_{NAN};
+};
+
 class RoundMultipleFilter : public Filter {
  public:
   explicit RoundMultipleFilter(float multiple);
