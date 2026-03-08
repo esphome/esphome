@@ -23,6 +23,7 @@ class HC8Component : public PollingComponent, public uart::UARTDevice {
  protected:
   sensor::Sensor *co2_sensor_{nullptr};
   uint32_t warmup_seconds_{0};
+  bool warmup_complete_{false};
 };
 
 template<typename... Ts> class HC8CalibrateAction : public Action<Ts...>, public Parented<HC8Component> {

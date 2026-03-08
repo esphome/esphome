@@ -6,6 +6,7 @@
 
 #include <user_interface.h>
 
+#include <cassert>
 #include <utility>
 #include <algorithm>
 #ifdef USE_WIFI_WPA2_EAP
@@ -205,12 +206,13 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   network::IPAddresses addresses;
   uint8_t index = 0;
   for (auto &addr : addrList) {
+    assert(index < addresses.size());
     addresses[index++] = addr.ipFromNetifNum();
   }
   return addresses;
 }
 bool WiFiComponent::wifi_apply_hostname_() {
-  const std::string &hostname = App.get_name();
+  const auto &hostname = App.get_name();
   bool ret = wifi_station_set_hostname(const_cast<char *>(hostname.c_str()));
   if (!ret) {
     ESP_LOGV(TAG, "Set hostname failed");
@@ -298,9 +300,10 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   // setup enterprise authentication if required
 #ifdef USE_WIFI_WPA2_EAP
-  if (ap.get_eap().has_value()) {
+  auto eap_opt = ap.get_eap();
+  if (eap_opt.has_value()) {
     // note: all certificates and keys have to be null terminated. Lengths are appended by +1 to include \0.
-    EAPAuth eap = ap.get_eap().value();
+    EAPAuth eap = *eap_opt;
     ret = wifi_station_set_enterprise_identity((uint8_t *) eap.identity.c_str(), eap.identity.length());
     if (ret) {
       ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_identity failed: %d", ret);
@@ -622,7 +625,7 @@ void WiFiComponent::wifi_pre_setup_() {
   this->wifi_mode_(false, false);
 }
 
-WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
+WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
   station_status_t status = wifi_station_get_connect_status();
   if (status == STATION_GOT_IP)
     return WiFiSTAConnectStatus::CONNECTED;

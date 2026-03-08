@@ -29,7 +29,7 @@ _LOGGER = logging.getLogger(__name__)
 
 def esp32_s3_validate_gpio_pin(value):
     if value < 0 or value > 48:
-        raise cv.Invalid(f"Invalid pin number: {value} (must be 0-46)")
+        raise cv.Invalid(f"Invalid pin number: {value} (must be 0-48)")
 
     if value in _ESP_32S3_SPI_PSRAM_PINS:
         raise cv.Invalid(
@@ -55,7 +55,7 @@ def esp32_s3_validate_supports(value):
     is_input = mode[CONF_INPUT]
 
     if num < 0 or num > 48:
-        raise cv.Invalid(f"Invalid pin number: {num} (must be 0-46)")
+        raise cv.Invalid(f"Invalid pin number: {num} (must be 0-48)")
     if is_input:
         # All ESP32 pins support input mode
         pass
