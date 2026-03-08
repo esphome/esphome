@@ -8,7 +8,7 @@ namespace esphome::api {
 
 static const char *const TAG = "api.proto";
 
-uint32_t ProtoSize::varint_slow_(uint32_t value) {
+uint32_t ProtoSize::varint_slow(uint32_t value) {
   // value is guaranteed >= 128 here (fast path handled inline)
   if (value < 16384) {
     return 2;  // 14 bits

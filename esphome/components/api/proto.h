@@ -524,10 +524,10 @@ class ProtoSize {
         return 4;
       return 5;
     }
-    return varint_slow_(value);
+    return varint_slow(value);
   }
   // Slow path for varint >= 128, outlined to keep fast path small
-  static uint32_t varint_slow_(uint32_t value) __attribute__((noinline));
+  static uint32_t varint_slow(uint32_t value) __attribute__((noinline));
 
   /**
    * @brief Calculates the size in bytes needed to encode a uint64_t value as a varint
