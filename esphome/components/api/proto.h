@@ -511,23 +511,23 @@ class ProtoSize {
    * @param value The uint32_t value to calculate size for
    * @return The number of bytes needed to encode the value
    */
-  static constexpr uint32_t varint(uint32_t value) {
-    // Optimized varint size calculation using leading zeros
-    // Each 7 bits requires one byte in the varint encoding
+  static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE varint(uint32_t value) {
     if (value < 128)
-      return 1;  // 7 bits, common case for small values
-
-    // For larger values, count bytes needed based on the position of the highest bit set
-    if (value < 16384) {
-      return 2;  // 14 bits
-    } else if (value < 2097152) {
-      return 3;  // 21 bits
-    } else if (value < 268435456) {
-      return 4;  // 28 bits
-    } else {
-      return 5;  // 32 bits (maximum for uint32_t)
+      return 1;  // Fast path: 7 bits, most common case
+    if (__builtin_is_constant_evaluated()) {
+      // Compile-time: full cascade for constexpr callers
+      if (value < 16384)
+        return 2;
+      if (value < 2097152)
+        return 3;
+      if (value < 268435456)
+        return 4;
+      return 5;
     }
+    return varint_slow_(value);
   }
+  // Slow path for varint >= 128, outlined to keep fast path small
+  static uint32_t varint_slow_(uint32_t value) __attribute__((noinline));
 
   /**
    * @brief Calculates the size in bytes needed to encode a uint64_t value as a varint
@@ -609,7 +609,7 @@ class ProtoSize {
   static constexpr uint32_t calc_int32_force(uint32_t field_id_size, int32_t value) {
     return field_id_size + (value < 0 ? 10 : varint(static_cast<uint32_t>(value)));
   }
-  static constexpr uint32_t calc_uint32(uint32_t field_id_size, uint32_t value) {
+  static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE calc_uint32(uint32_t field_id_size, uint32_t value) {
     return value ? field_id_size + varint(value) : 0;
   }
   static constexpr uint32_t calc_uint32_force(uint32_t field_id_size, uint32_t value) {
@@ -644,7 +644,7 @@ class ProtoSize {
   static constexpr uint32_t calc_uint64_force(uint32_t field_id_size, uint64_t value) {
     return field_id_size + varint(value);
   }
-  static constexpr uint32_t calc_length(uint32_t field_id_size, size_t len) {
+  static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE calc_length(uint32_t field_id_size, size_t len) {
     return len ? field_id_size + varint(static_cast<uint32_t>(len)) + static_cast<uint32_t>(len) : 0;
   }
   static constexpr uint32_t calc_length_force(uint32_t field_id_size, size_t len) {
