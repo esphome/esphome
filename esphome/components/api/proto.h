@@ -514,21 +514,26 @@ class ProtoSize {
   static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE varint(uint32_t value) {
     if (value < 128)
       return 1;  // Fast path: 7 bits, most common case
-    if (__builtin_is_constant_evaluated()) {
-      // Compile-time: full cascade for constexpr callers
-      if (value < 16384)
-        return 2;
-      if (value < 2097152)
-        return 3;
-      if (value < 268435456)
-        return 4;
-      return 5;
-    }
+    if (__builtin_is_constant_evaluated())
+      return varint_wide(value);
     return varint_slow(value);
   }
   // Slow path for varint >= 128, outlined to keep fast path small
   static uint32_t varint_slow(uint32_t value) __attribute__((noinline));
 
+ private:
+  // Shared cascade for values >= 128 (used by both constexpr and noinline paths)
+  static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE varint_wide(uint32_t value) {
+    if (value < 16384)
+      return 2;
+    if (value < 2097152)
+      return 3;
+    if (value < 268435456)
+      return 4;
+    return 5;
+  }
+
+ public:
   /**
    * @brief Calculates the size in bytes needed to encode a uint64_t value as a varint
    *

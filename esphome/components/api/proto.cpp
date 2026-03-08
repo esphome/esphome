@@ -8,18 +8,7 @@ namespace esphome::api {
 
 static const char *const TAG = "api.proto";
 
-uint32_t ProtoSize::varint_slow(uint32_t value) {
-  // value is guaranteed >= 128 here (fast path handled inline)
-  if (value < 16384) {
-    return 2;  // 14 bits
-  } else if (value < 2097152) {
-    return 3;  // 21 bits
-  } else if (value < 268435456) {
-    return 4;  // 28 bits
-  } else {
-    return 5;  // 32 bits (maximum for uint32_t)
-  }
-}
+uint32_t ProtoSize::varint_slow(uint32_t value) { return varint_wide(value); }
 
 #ifdef USE_API_VARINT64
 optional<ProtoVarInt> ProtoVarInt::parse_wide(const uint8_t *buffer, uint32_t len, uint32_t *consumed,
