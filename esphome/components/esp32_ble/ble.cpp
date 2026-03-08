@@ -451,7 +451,7 @@ void ESP32BLE::loop() {
             ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
 #ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
             {
-              esp_ble_gap_cb_param_t *param;
+              esp_ble_gap_cb_param_t *param = NULL;
               // clang-format off
               switch (gap_event) {
                 // All three scan complete events have the same structure with just status

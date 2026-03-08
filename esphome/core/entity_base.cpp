@@ -10,8 +10,8 @@ static const char *const TAG = "entity_base";
 
 // Entity Name
 const StringRef &EntityBase::get_name() const { return this->name_; }
-void EntityBase::set_name(const char *name) { this->set_name(name, 0); }
-void EntityBase::set_name(const char *name, uint32_t object_id_hash) {
+
+void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_strings_packed) {
   this->name_ = StringRef(name);
   if (this->name_.empty()) {
 #ifdef USE_DEVICES
@@ -44,6 +44,17 @@ void EntityBase::set_name(const char *name, uint32_t object_id_hash) {
       this->calc_object_id_();
     }
   }
+  // Unpack entity string table indices.
+  // Packed: [23..16] icon | [15..8] UoM | [7..0] device_class (each 8 bits)
+#ifdef USE_ENTITY_DEVICE_CLASS
+  this->device_class_idx_ = entity_strings_packed & 0xFF;
+#endif
+#ifdef USE_ENTITY_UNIT_OF_MEASUREMENT
+  this->uom_idx_ = (entity_strings_packed >> 8) & 0xFF;
+#endif
+#ifdef USE_ENTITY_ICON
+  this->icon_idx_ = (entity_strings_packed >> 16) & 0xFF;
+#endif
 }
 
 // Weak default lookup functions — overridden by generated code in main.cpp
