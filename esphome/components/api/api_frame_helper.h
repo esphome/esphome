@@ -178,7 +178,6 @@ class APIFrameHelper {
     // rx_buf_len_ tracks bytes read so far; if non-zero, we're mid-frame
     // and clearing would lose partially received data.
     if (this->rx_buf_len_ == 0) {
-      // Use swap trick since shrink_to_fit() is non-binding and may be ignored
       this->rx_buf_.release();
     }
   }

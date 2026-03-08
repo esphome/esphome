@@ -26,8 +26,13 @@ inline std::unique_ptr<uint8_t[]> make_buffer(size_t n) {
 /// making the zero-fill pure waste. For the receive buffer, bytes are
 /// overwritten by socket reads.
 ///
+/// Designed for bulk clear/resize/overwrite patterns. grow_() allocates
+/// exactly the requested size (no growth factor) since callers resize to
+/// known sizes rather than appending incrementally.
+///
 /// Safe because: callers always write exactly the number of bytes they
-/// resize for, and debug_check_bounds_ validates writes in debug builds.
+/// resize for. In the protobuf write path, debug_check_bounds_ validates
+/// writes in debug builds.
 class APIBuffer {
  public:
   void clear() { this->size_ = 0; }
