@@ -222,6 +222,7 @@ class USBUartTypeCP210X : public USBUartTypeCdcAcm {
 class USBUartTypeCH34X : public USBUartTypeCdcAcm {
  public:
   USBUartTypeCH34X(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
+  void dump_config() override;
 
  protected:
   void enable_channels() override;
@@ -230,6 +231,7 @@ class USBUartTypeCH34X : public USBUartTypeCdcAcm {
  private:
   void apply_line_settings_();
   CH34xChipType chiptype_{CHIP_UNKNOWN};
+  const char *chip_name_{"unknown"};
   uint8_t num_ports_{1};
 };
 

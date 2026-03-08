@@ -81,6 +81,7 @@ void USBUartTypeCH34X::enable_channels() {
     }
     this->defer([this, chiptype, num_ports, name]() {
       this->chiptype_ = chiptype;
+      this->chip_name_ = name;
       this->num_ports_ = num_ports;
       ESP_LOGD(TAG, "CH34x chip: %s, ports: %u", name, this->num_ports_);
       this->apply_line_settings_();
@@ -89,6 +90,11 @@ void USBUartTypeCH34X::enable_channels() {
   // Vendor-specific GET_CHIP_VERSION request (bRequest=0x5F): returns chip ID bytes
   // used to distinguish CH34x variants sharing the same PID.
   this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_IN, 0x5F, 0, 0, cb, {0, 0, 0, 0, 0, 0, 0, 0});
+}
+
+void USBUartTypeCH34X::dump_config() {
+  USBUartTypeCdcAcm::dump_config();
+  ESP_LOGCONFIG(TAG, "  CH34x chip: %s", this->chip_name_);
 }
 
 void USBUartTypeCH34X::apply_line_settings_() {
