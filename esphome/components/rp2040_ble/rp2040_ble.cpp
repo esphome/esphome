@@ -22,7 +22,7 @@ void RP2040BLE::setup() {
 }
 
 void RP2040BLE::enable() {
-  if (this->state_ == BLEComponentState::ACTIVE) {
+  if (this->state_ == BLEComponentState::ACTIVE || this->state_ == BLEComponentState::ENABLING) {
     return;
   }
 
@@ -38,7 +38,8 @@ void RP2040BLE::enable() {
   hci_add_event_handler(&this->hci_event_callback_registration_);
 
   // Register SM event handler
-  sm_add_event_handler(&this->hci_event_callback_registration_);
+  this->sm_event_callback_registration_.callback = &RP2040BLE::packet_handler_;
+  sm_add_event_handler(&this->sm_event_callback_registration_);
 
   hci_power_control(HCI_POWER_ON);
 }
@@ -105,7 +106,7 @@ void RP2040BLE::packet_handler_(uint8_t type, uint16_t channel, uint8_t *packet,
   switch (event_type) {
     case BTSTACK_EVENT_STATE: {
       uint8_t state = btstack_event_state_get_state(packet);
-      if (state == HCI_STATE_WORKING) {
+      if (state == HCI_STATE_WORKING && global_ble->state_ == BLEComponentState::ENABLING) {
         global_ble->state_ = BLEComponentState::ACTIVE;
       }
       break;
