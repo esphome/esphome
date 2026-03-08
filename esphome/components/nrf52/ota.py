@@ -26,13 +26,27 @@ from esphome.espota2 import ProgressBar
 from .ble_logger import is_mac_address
 
 SMP_SERVICE_UUID = "8D53DC1D-1DB7-4CD3-868B-8A527460AA84"
+BLE_SCAN_TIMEOUT = 10.0  # seconds
 
 _LOGGER = logging.getLogger(__name__)
 
 
+def _json_state(o: object) -> object:
+    """JSON serializer for SMP image state objects."""
+    if isinstance(o, (bytes, bytearray)):
+        return o.hex()
+    if hasattr(o, "hex"):
+        return o.hex()
+    if hasattr(o, "__dict__"):
+        return vars(o)
+    return str(o)
+
+
 async def smpmgr_scan(name: str) -> str:
     _LOGGER.info("Scanning bluetooth for %s...", name)
-    for device in await BleakScanner.discover(service_uuids=[SMP_SERVICE_UUID]):
+    for device in await BleakScanner.discover(
+        timeout=BLE_SCAN_TIMEOUT, service_uuids=[SMP_SERVICE_UUID]
+    ):
         if device.name == name:
             return device.address
     raise EsphomeError(f"BLE device {name} with OTA service not found")
@@ -101,19 +115,9 @@ async def _smpmgr_upload(device: str, firmware: Path) -> None:
         if len(image_state.images) == 0:
             _LOGGER.warning("No images on device!")
         for image in image_state.images:
-
-            def json_state(o):
-                if isinstance(o, (bytes, bytearray)):
-                    return o.hex()
-                if hasattr(o, "hex"):
-                    return o.hex()
-                if hasattr(o, "__dict__"):
-                    return vars(o)
-                return str(o)
-
             _LOGGER.info(
                 "Image state:\n%s",
-                json.dumps(image, indent=2, default=json_state),
+                json.dumps(image, indent=2, default=_json_state),
             )
             if image.active and not image.confirmed:
                 raise EsphomeError("No free slot. Testing mode but not confirmed yet.")
