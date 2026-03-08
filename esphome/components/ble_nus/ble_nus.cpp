@@ -100,16 +100,17 @@ size_t BLENUS::available() {
 #endif
 }
 
-void BLENUS::flush() {
+uart::FlushResult BLENUS::flush() {
   constexpr uint32_t timeout_5sec = 5000;
   uint32_t start = millis();
   while (atomic_get(&this->tx_status_) != TX_DISABLED && !ring_buf_is_empty(&global_ble_tx_ring_buf)) {
     if (millis() - start > timeout_5sec) {
       ESP_LOGW(TAG, "Flush timeout");
-      return;
+      return uart::FlushResult::TIMEOUT;
     }
     delay(1);
   }
+  return uart::FlushResult::SUCCESS;
 }
 
 void BLENUS::connected(bt_conn *conn, uint8_t err) {

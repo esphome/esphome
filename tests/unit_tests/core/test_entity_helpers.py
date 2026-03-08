@@ -32,9 +32,11 @@ from esphome.helpers import sanitize, snake_case
 
 from .common import load_config_from_fixture
 
-# Pre-compiled regex pattern for extracting names from set_name calls
-# Matches: .set_name("name", hash) or .set_name("name")
-SET_NAME_PATTERN = re.compile(r'\.set_name\(["\']([^"\']*)["\']')
+# Pre-compiled regex pattern for extracting names from configure_entity_/set_name calls
+# Matches: .configure_entity_("name", ...) or .set_name("name", ...)
+ENTITY_NAME_PATTERN = re.compile(
+    r'\.(?:configure_entity_|set_name)\(["\']([^"\']*)["\']'
+)
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "core" / "entity_helpers"
 
@@ -276,15 +278,23 @@ def setup_test_environment() -> Generator[list[str], None, None]:
     entity_helpers.add = original_add
 
 
-def extract_object_id_from_expressions(expressions: list[str]) -> str | None:
-    """Extract the object ID that would be computed from set_name calls.
+def extract_object_id_from_config(config: dict[str, Any]) -> str | None:
+    """Extract the object ID from config keys set by _setup_entity_impl."""
+    name = config.get("_entity_name")
+    if name is None:
+        return None
+    if name:
+        return sanitize(snake_case(name))
+    # Empty name - fall back to friendly_name or device name
+    if CORE.friendly_name:
+        return sanitize(snake_case(CORE.friendly_name))
+    return sanitize(snake_case(CORE.name)) if CORE.name else None
 
-    Since object_id is now computed from the name (via snake_case + sanitize),
-    we extract the name from set_name() calls and compute the expected object_id.
-    For empty names, we fall back to CORE.friendly_name or CORE.name.
-    """
+
+def extract_object_id_from_expressions(expressions: list[str]) -> str | None:
+    """Extract the object ID from configure_entity_() calls in generated expressions."""
     for expr in expressions:
-        if match := SET_NAME_PATTERN.search(expr):
+        if match := ENTITY_NAME_PATTERN.search(expr):
             name = match.group(1)
             if name:
                 return sanitize(snake_case(name))
@@ -299,8 +309,6 @@ def extract_object_id_from_expressions(expressions: list[str]) -> str | None:
 async def test_setup_entity_no_duplicates(setup_test_environment: list[str]) -> None:
     """Test setup_entity with unique names."""
 
-    added_expressions = setup_test_environment
-
     # Create mock entities
     var1 = MockObj("sensor1")
     var2 = MockObj("sensor2")
@@ -312,12 +320,9 @@ async def test_setup_entity_no_duplicates(setup_test_environment: list[str]) -> 
     }
     await _setup_entity_impl(var1, config1, "sensor")
 
-    # Get object ID from first entity
-    object_id1 = extract_object_id_from_expressions(added_expressions)
+    # Get object ID from first entity (stored in config, emitted later by finalize)
+    object_id1 = extract_object_id_from_config(config1)
     assert object_id1 == "temperature"
-
-    # Clear for next entity
-    added_expressions.clear()
 
     # Set up second entity with different name
     config2 = {
@@ -327,7 +332,7 @@ async def test_setup_entity_no_duplicates(setup_test_environment: list[str]) -> 
     await _setup_entity_impl(var2, config2, "sensor")
 
     # Get object ID from second entity
-    object_id2 = extract_object_id_from_expressions(added_expressions)
+    object_id2 = extract_object_id_from_config(config2)
     assert object_id2 == "humidity"
 
 
@@ -336,8 +341,6 @@ async def test_setup_entity_different_platforms(
     setup_test_environment: list[str],
 ) -> None:
     """Test that same name on different platforms doesn't conflict."""
-
-    added_expressions = setup_test_environment
 
     # Create mock entities
     sensor = MockObj("sensor1")
@@ -356,15 +359,11 @@ async def test_setup_entity_different_platforms(
         (text_sensor, "text_sensor"),
     ]
 
-    object_ids: list[str] = []
     for var, platform in platforms:
-        added_expressions.clear()
         await _setup_entity_impl(var, config, platform)
-        object_id = extract_object_id_from_expressions(added_expressions)
-        object_ids.append(object_id)
 
-    # All should get base object ID without suffix
-    assert all(obj_id == "status" for obj_id in object_ids)
+    # All should get the same object ID (name stored in config, not platform-specific)
+    assert extract_object_id_from_config(config) == "status"
 
 
 @pytest.fixture
@@ -389,7 +388,6 @@ async def test_setup_entity_with_devices(
     setup_test_environment: list[str], mock_get_variable: dict[ID, MockObj]
 ) -> None:
     """Test that same name on different devices doesn't conflict."""
-    added_expressions = setup_test_environment
 
     # Create mock devices
     device1_id = ID("device1", type="Device")
@@ -418,23 +416,17 @@ async def test_setup_entity_with_devices(
     }
 
     # Get object IDs
-    object_ids: list[str] = []
     for var, config in [(sensor1, config1), (sensor2, config2)]:
-        added_expressions.clear()
         await _setup_entity_impl(var, config, "sensor")
-        object_id = extract_object_id_from_expressions(added_expressions)
-        object_ids.append(object_id)
 
     # Both should get base object ID without suffix (different devices)
-    assert object_ids[0] == "temperature"
-    assert object_ids[1] == "temperature"
+    assert extract_object_id_from_config(config1) == "temperature"
+    assert extract_object_id_from_config(config2) == "temperature"
 
 
 @pytest.mark.asyncio
 async def test_setup_entity_empty_name(setup_test_environment: list[str]) -> None:
     """Test setup_entity with empty entity name."""
-
-    added_expressions = setup_test_environment
 
     var = MockObj("sensor1")
 
@@ -445,7 +437,7 @@ async def test_setup_entity_empty_name(setup_test_environment: list[str]) -> Non
 
     await _setup_entity_impl(var, config, "sensor")
 
-    object_id = extract_object_id_from_expressions(added_expressions)
+    object_id = extract_object_id_from_config(config)
     # Should use friendly name
     assert object_id == "test_device"
 
@@ -456,8 +448,6 @@ async def test_setup_entity_special_characters(
 ) -> None:
     """Test setup_entity with names containing special characters."""
 
-    added_expressions = setup_test_environment
-
     var = MockObj("sensor1")
 
     config = {
@@ -466,7 +456,7 @@ async def test_setup_entity_special_characters(
     }
 
     await _setup_entity_impl(var, config, "sensor")
-    object_id = extract_object_id_from_expressions(added_expressions)
+    object_id = extract_object_id_from_config(config)
 
     # Special characters should be sanitized
     assert object_id == "temperature_sensor_"
@@ -475,8 +465,6 @@ async def test_setup_entity_special_characters(
 @pytest.mark.asyncio
 async def test_setup_entity_with_icon(setup_test_environment: list[str]) -> None:
     """Test setup_entity sets icon correctly."""
-
-    setup_test_environment  # noqa: F841 - fixture initializes CORE state
 
     var = MockObj("sensor1")
 
@@ -800,10 +788,9 @@ async def test_setup_entity_empty_name_with_device(
     # Check that set_device was called
     assert any("sensor1.set_device" in expr for expr in added_expressions)
 
-    # For empty-name entities, Python passes 0 - C++ calculates hash at runtime
-    assert any('set_name("", 0)' in expr for expr in added_expressions), (
-        f"Expected set_name with hash 0, got {added_expressions}"
-    )
+    # For empty-name entities, Python stores hash 0 - C++ calculates hash at runtime
+    assert config.get("_entity_name") == ""
+    assert config.get("_entity_object_id_hash") == 0
 
 
 @pytest.mark.asyncio
@@ -815,7 +802,6 @@ async def test_setup_entity_empty_name_with_mac_suffix(
     For empty-name entities, Python passes 0 and C++ calculates the hash
     at runtime from friendly_name (bug-for-bug compatibility).
     """
-    added_expressions = setup_test_environment
 
     # Set up CORE.config with name_add_mac_suffix enabled
     CORE.config = {"name_add_mac_suffix": True}
@@ -831,10 +817,9 @@ async def test_setup_entity_empty_name_with_mac_suffix(
 
     await _setup_entity_impl(var, config, "sensor")
 
-    # For empty-name entities, Python passes 0 - C++ calculates hash at runtime
-    assert any('set_name("", 0)' in expr for expr in added_expressions), (
-        f"Expected set_name with hash 0, got {added_expressions}"
-    )
+    # For empty-name entities, Python stores hash 0 - C++ calculates hash at runtime
+    assert config.get("_entity_name") == ""
+    assert config.get("_entity_object_id_hash") == 0
 
 
 @pytest.mark.asyncio
@@ -847,7 +832,6 @@ async def test_setup_entity_empty_name_with_mac_suffix_no_friendly_name(
     at runtime. In this case C++ will hash the empty friendly_name
     (bug-for-bug compatibility).
     """
-    added_expressions = setup_test_environment
 
     # Set up CORE.config with name_add_mac_suffix enabled
     CORE.config = {"name_add_mac_suffix": True}
@@ -863,10 +847,9 @@ async def test_setup_entity_empty_name_with_mac_suffix_no_friendly_name(
 
     await _setup_entity_impl(var, config, "sensor")
 
-    # For empty-name entities, Python passes 0 - C++ calculates hash at runtime
-    assert any('set_name("", 0)' in expr for expr in added_expressions), (
-        f"Expected set_name with hash 0, got {added_expressions}"
-    )
+    # For empty-name entities, Python stores hash 0 - C++ calculates hash at runtime
+    assert config.get("_entity_name") == ""
+    assert config.get("_entity_object_id_hash") == 0
 
 
 @pytest.mark.asyncio
@@ -878,7 +861,6 @@ async def test_setup_entity_empty_name_no_mac_suffix_no_friendly_name(
     For empty-name entities, Python passes 0 and C++ calculates the hash
     at runtime from the device name.
     """
-    added_expressions = setup_test_environment
 
     # No MAC suffix (either not set or False)
     CORE.config = {}
@@ -896,10 +878,9 @@ async def test_setup_entity_empty_name_no_mac_suffix_no_friendly_name(
 
     await _setup_entity_impl(var, config, "sensor")
 
-    # For empty-name entities, Python passes 0 - C++ calculates hash at runtime
-    assert any('set_name("", 0)' in expr for expr in added_expressions), (
-        f"Expected set_name with hash 0, got {added_expressions}"
-    )
+    # For empty-name entities, Python stores hash 0 - C++ calculates hash at runtime
+    assert config.get("_entity_name") == ""
+    assert config.get("_entity_object_id_hash") == 0
 
 
 def test_register_string_overflow() -> None:
@@ -976,7 +957,7 @@ async def test_setup_entity_direct_call(setup_test_environment: list[str]) -> No
     # Direct call mode: await setup_entity(var, config, "camera")
     await setup_entity(var, config, "camera")
 
-    # Should have called set_name
+    # Should have emitted configure_entity_
     object_id = extract_object_id_from_expressions(added_expressions)
     assert object_id == "my_camera"
 
