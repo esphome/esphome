@@ -2,7 +2,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include <cmath>
-#include <functional>
 #include <memory>
 
 namespace esphome::sen6x {
