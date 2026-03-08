@@ -205,6 +205,18 @@ nrf52:
   - `2.9.2-0`  : Experimental
   - `3.2.0-0`  : Experimental (no Zigbee support)
 
+- **advanced** (*Optional*, mapping): See [Advanced Configuration](#nrf52-advanced_configuration) below.
+
+<span id="nrf52-advanced_configuration"></span>
+
+## Advanced Configuration
+
+- **enable_ota_rollback** (*Optional*, boolean): Enable OTA rollback support. When enabled, the bootloader will
+  automatically roll back to the previous firmware if the device crashes or resets before the boot is marked as
+  successful. This works in conjunction with the [safe_mode](/components/safe_mode) component - after the
+  `boot_is_good_after` time (default 60s), the firmware is marked as valid. If the device crashes before that,
+  it will roll back to the previous working firmware. Defaults to `true`.
+
 ## See Also
 
 - [ESPHome Core Configuration](/components/esphome/)
