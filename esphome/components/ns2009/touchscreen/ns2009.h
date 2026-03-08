@@ -12,7 +12,8 @@ class NS2009Component : public touchscreen::Touchscreen, public i2c::I2CDevice {
 
   /// @brief Initialize the NS2009 touchscreen.
   ///
-  /// This function checks the primary/secondary I2C addresses 0x48/0x49.
+  /// This function checks the configured I2C address.
+  /// If that fails, it also checks the primary/secondary I2C addresses 0x48/0x49.
   void setup() override;
   void dump_config() override;
 

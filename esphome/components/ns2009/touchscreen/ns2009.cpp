@@ -17,19 +17,37 @@ static constexpr uint8_t GET_Z = 0xE2;
 void NS2009Component::setup() {
   auto data_z = this->read_byte(GET_Z);
 
-  if (!data_z.has_value() && this->address_ == PRIMARY_ADDRESS) {
-    ESP_LOGD(TAG, "tried primary address 0x%02x with no success, trying secondary address 0x%02x", PRIMARY_ADDRESS,
-             SECONDARY_ADDRESS);
-    this->address_ = SECONDARY_ADDRESS;
-    data_z = this->read_byte(GET_Z);
+  if (!data_z.has_value()) {
+    ESP_LOGW(TAG, "tried %s address 0x%02x: %s", "configured", this->address_, "fail");
+    auto configured_address = this->address_;
+
+    if (this->address_ != PRIMARY_ADDRESS) {
+      this->address_ = PRIMARY_ADDRESS;
+      data_z = this->read_byte(GET_Z);
+
+      ESP_LOGW(TAG, "tried %s address 0x%02x: %s", "primary", this->address_, (data_z.has_value() ? "success" : "fail"));
+    }
+
+    if (this->address_ != SECONDARY_ADDRESS && !data_z.has_value()) {
+      this->address_ = SECONDARY_ADDRESS;
+      data_z = this->read_byte(GET_Z);
+
+      ESP_LOGW(TAG, "tried %s address 0x%02x: %s", "secondary", this->address_, (data_z.has_value() ? "success" : "fail"));
+    }
+
+    if (data_z.has_value() && this->address_ != configured_address) {
+      ESP_LOGW(TAG, "successfully connected with address 0x%02x but 0x%02x is configured", this->address_, configured_address);
+      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+      return;
+    }
+
+    if (!data_z.has_value()) {
+      this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
+      return;
+    }
   }
 
-  if (data_z.has_value()) {
-    ESP_LOGD(TAG, "successfully connected with address 0x%02x", this->address_);
-  } else {
-    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
-    return;
-  }
+  ESP_LOGD(TAG, "successfully connected with address 0x%02x", this->address_);
 }
 
 void NS2009Component::update_touches() {
@@ -40,7 +58,7 @@ void NS2009Component::update_touches() {
     if (z > this->threshold_) {
       auto data_x = this->read_bytes<2>(GET_X);
       if (!data_x.has_value()) {
-        ESP_LOGW(TAG, "Failed to read X position, skipping touch update");
+        ESP_LOGW(TAG, "failed to read X position, skipping update");
         this->skip_update_ = true;
         return;
       }
@@ -48,7 +66,7 @@ void NS2009Component::update_touches() {
 
       auto data_y = this->read_bytes<2>(GET_Y);
       if (!data_y.has_value()) {
-        ESP_LOGW(TAG, "Failed to read Y position, skipping touch update");
+        ESP_LOGW(TAG, "failed to read Y position, skipping update");
         this->skip_update_ = true;
         return;
       }
@@ -58,7 +76,7 @@ void NS2009Component::update_touches() {
       this->add_raw_touch_position_(0, x, y, z);
     }
   } else {
-    ESP_LOGW(TAG, "Failed to read Z position, skipping touch update");
+    ESP_LOGW(TAG, "failed to read Z position, skipping update");
     this->skip_update_ = true;
     return;
   }
