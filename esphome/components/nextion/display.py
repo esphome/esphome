@@ -58,6 +58,7 @@ BufferOverflowTrigger = nextion_ns.class_(
     "BufferOverflowTrigger", automation.Trigger.template()
 )
 
+
 def _validate_tft_upload(config):
     has_tft_url = CONF_TFT_URL in config
     for conf_key in (
@@ -66,9 +67,7 @@ def _validate_tft_upload(config):
         CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT,
     ):
         if conf_key in config and not has_tft_url:
-            raise cv.Invalid(
-                f"{conf_key} requires {CONF_TFT_URL} to be set"
-            )
+            raise cv.Invalid(f"{conf_key} requires {CONF_TFT_URL} to be set")
     if CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT in config:
         if not CORE.is_esp32:
             raise cv.Invalid(
