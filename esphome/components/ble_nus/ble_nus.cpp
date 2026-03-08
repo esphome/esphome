@@ -72,7 +72,7 @@ bool BLENUS::read_array(uint8_t *data, size_t len) {
     data++;
     if (--len == 0) {  // Decrement len first, then check it...
 #ifdef USE_UART_DEBUGGER
-      this->debug_callback_.call(uart::UART_DIRECTION_RX, data[0]);
+      this->debug_callback_.call(uart::UART_DIRECTION_RX, this->peek_buffer_);
 #endif
       return true;  // No more to read
     }
