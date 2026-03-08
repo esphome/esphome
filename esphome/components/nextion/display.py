@@ -217,9 +217,7 @@ async def to_code(config):
         # TFT upload HTTP retries (default: 5)
         if CONF_TFT_UPLOAD_HTTP_RETRIES in config:
             cg.add(
-                var.set_tft_upload_http_retries(
-                    config[CONF_TFT_UPLOAD_HTTP_RETRIES]
-                )
+                var.set_tft_upload_http_retries(config[CONF_TFT_UPLOAD_HTTP_RETRIES])
             )
 
         # TFT upload watchdog timeout (default: 0 = no adjustment)
