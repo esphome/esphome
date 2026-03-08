@@ -87,7 +87,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(MockUartComponent),
         cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
         cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.validate_bytes,
-        cv.Optional(CONF_RX_FULL_THRESHOLD, default=10): cv.int_range(min=1, max=120),
+        cv.Optional(CONF_RX_FULL_THRESHOLD): cv.int_range(min=1, max=120),
         cv.Optional(CONF_RX_TIMEOUT, default=2): cv.int_range(min=0, max=92),
         cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
         cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
@@ -135,7 +135,8 @@ async def to_code(config):
 
     cg.add(var.set_baud_rate(config[CONF_BAUD_RATE]))
     cg.add(var.set_rx_buffer_size(config[CONF_RX_BUFFER_SIZE]))
-    cg.add(var.set_rx_full_threshold(config[CONF_RX_FULL_THRESHOLD]))
+    if CONF_RX_FULL_THRESHOLD in config:
+        cg.add(var.set_rx_full_threshold(config[CONF_RX_FULL_THRESHOLD]))
     cg.add(var.set_rx_timeout(config[CONF_RX_TIMEOUT]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
     cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
