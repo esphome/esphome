@@ -123,7 +123,10 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(
                 CONF_TFT_UPLOAD_HTTP_TIMEOUT, default="4.5s"
-            ): cv.positive_time_period_milliseconds,
+            ): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=TimePeriod(milliseconds=65535)),
+            ),
             cv.Optional(
                 CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT
             ): cv.positive_time_period_milliseconds,

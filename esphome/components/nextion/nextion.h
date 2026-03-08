@@ -1075,7 +1075,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @brief Set the HTTP timeout for TFT upload requests.
    * @param timeout_ms Timeout in milliseconds. Defaults to 4500ms (4.5s).
    */
-  void set_tft_upload_http_timeout(uint32_t timeout_ms) { this->tft_upload_http_timeout_ = timeout_ms; }
+  void set_tft_upload_http_timeout(uint16_t timeout_ms) { this->tft_upload_http_timeout_ = timeout_ms; }
 
   /**
    * @brief Set the watchdog timeout during TFT upload.
@@ -1464,7 +1464,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   int tft_size_ = 0;
   uint32_t original_baud_rate_ = 0;
   bool upload_first_chunk_sent_ = false;
-  uint32_t tft_upload_http_timeout_{4500};   ///< HTTP timeout in ms (default: 4.5s)
+  uint16_t tft_upload_http_timeout_{4500};   ///< HTTP timeout in ms (default: 4.5s)
   uint32_t tft_upload_watchdog_timeout_{0};  ///< WDT timeout in ms (0 = no adjustment)
   uint8_t tft_upload_http_retries_{5};       ///< HTTP retry count (default: 5)
 
