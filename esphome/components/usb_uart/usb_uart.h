@@ -35,6 +35,36 @@ struct CdcEps {
   uint8_t interrupt_interface_number;
 };
 
+enum CH34xChipType : uint8_t {
+  CHIP_CH342F = 0,
+  CHIP_CH342K,
+  CHIP_CH343GP,
+  CHIP_CH343G_AUTOBAUD,
+  CHIP_CH343K,
+  CHIP_CH343J,
+  CHIP_CH344L,
+  CHIP_CH344L_V2,
+  CHIP_CH344Q,
+  CHIP_CH347TF,
+  CHIP_CH9101UH,
+  CHIP_CH9101RY,
+  CHIP_CH9102F,
+  CHIP_CH9102X,
+  CHIP_CH9103M,
+  CHIP_CH9104L,
+  CHIP_CH340B,
+  CHIP_CH339W,
+  CHIP_CH9111L_M0,
+  CHIP_CH9111L_M1,
+  CHIP_CH9114L,
+  CHIP_CH9114W,
+  CHIP_CH9114F,
+  CHIP_CH346C_M0,
+  CHIP_CH346C_M1,
+  CHIP_CH346C_M2,
+  CHIP_UNKNOWN = 0xFF,
+};
+
 enum UARTParityOptions {
   UART_CONFIG_PARITY_NONE = 0,
   UART_CONFIG_PARITY_ODD,
@@ -192,10 +222,17 @@ class USBUartTypeCP210X : public USBUartTypeCdcAcm {
 class USBUartTypeCH34X : public USBUartTypeCdcAcm {
  public:
   USBUartTypeCH34X(uint16_t vid, uint16_t pid) : USBUartTypeCdcAcm(vid, pid) {}
+  void dump_config() override;
 
  protected:
   void enable_channels() override;
   std::vector<CdcEps> parse_descriptors(usb_device_handle_t dev_hdl) override;
+
+ private:
+  void apply_line_settings_();
+  CH34xChipType chiptype_{CHIP_UNKNOWN};
+  const char *chip_name_{"unknown"};
+  uint8_t num_ports_{1};
 };
 
 }  // namespace esphome::usb_uart
