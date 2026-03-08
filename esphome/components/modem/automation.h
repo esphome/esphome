@@ -79,6 +79,18 @@ class ModemOnDisableTrigger : public Trigger<> {
   }
 };
 
+class ModemOnSyncTrigger : public Trigger<> {
+ public:
+  explicit ModemOnSyncTrigger(ModemComponent *parent) {
+    parent->add_on_state_callback([this, parent](ModemComponentState old_state, ModemComponentState state) {
+      if (!parent->is_failed() && old_state == ModemComponentState::SYNCING &&
+          state != ModemComponentState::NOT_RESPONDING && state != ModemComponentState::SYNCING) {
+        this->trigger();
+      }
+    });
+  }
+};
+
 template<typename... Ts> class ModemSendAtAction : public Action<Ts...> {
  public:
   void set_command(const std::string &command) { this->command_ = command; }

@@ -58,6 +58,7 @@ CONF_ON_NOT_RESPONDING = "on_not_responding"
 CONF_ON_POWERON = "on_poweron"
 CONF_ON_ENABLE = "on_enable"
 CONF_ON_DISABLE = "on_disable"
+CONF_ON_SYNC = "on_sync"
 CONF_ENABLE_CMUX = "enable_cmux"
 CONF_DTE_BUFFER_SIZE = "dte_buffer_size"
 CONF_URC = "urc"
@@ -135,6 +136,9 @@ ModemOnEnableTrigger = modem_ns.class_(
 )
 ModemOnDisableTrigger = modem_ns.class_(
     "ModemOnDisableTrigger", automation.Trigger.template()
+)
+ModemOnSyncTrigger = modem_ns.class_(
+    "ModemOnSyncTrigger", automation.Trigger.template()
 )
 
 # Actions
@@ -219,6 +223,9 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ON_DISABLE): automation.validate_automation(
                 {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModemOnDisableTrigger)}
+            ),
+            cv.Optional(CONF_ON_SYNC): automation.validate_automation(
+                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModemOnSyncTrigger)}
             ),
             cv.Optional(CONF_URC): text_sensor_schema(
                 device_class=DEVICE_CLASS_EMPTY,
@@ -458,6 +465,7 @@ async def to_code(config):
         CONF_ON_POWERON,
         CONF_ON_ENABLE,
         CONF_ON_DISABLE,
+        CONF_ON_SYNC,
     ]:
         for conf in config.get(conf_key, []):
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
