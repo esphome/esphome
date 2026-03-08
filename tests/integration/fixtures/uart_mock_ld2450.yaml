@@ -14,7 +14,7 @@ external_components:
 # Dummy uart entry to satisfy ld2450's DEPENDENCIES = ["uart"]
 # The actual UART bus used is the uart_mock component below
 uart:
-  baud_rate: 256000
+  baud_rate: 115200
   port: /dev/null
 
 uart_mock:
@@ -140,113 +140,63 @@ sensor:
     ld2450_id: ld2450_dev
     target_count:
       name: "Target Count"
-      filters:
+      filters: &sensor_filters
         - timeout:
             timeout: 50ms
             value: last
         - throttle_with_priority: 50ms
     still_target_count:
       name: "Still Target Count"
-      filters:
-        - timeout:
-            timeout: 50ms
-            value: last
-        - throttle_with_priority: 50ms
+      filters: *sensor_filters
     moving_target_count:
       name: "Moving Target Count"
-      filters:
-        - timeout:
-            timeout: 50ms
-            value: last
-        - throttle_with_priority: 50ms
+      filters: *sensor_filters
     target_1:
       x:
         name: "Target 1 X"
-        filters:
-          - timeout:
-              timeout: 50ms
-              value: last
-          - throttle_with_priority: 50ms
+        filters: *sensor_filters
       y:
         name: "Target 1 Y"
-        filters:
-          - timeout:
-              timeout: 50ms
-              value: last
-          - throttle_with_priority: 50ms
+        filters: *sensor_filters
       speed:
         name: "Target 1 Speed"
-        filters:
-          - timeout:
-              timeout: 50ms
-              value: last
-          - throttle_with_priority: 50ms
+        filters: *sensor_filters
       distance:
         name: "Target 1 Distance"
-        filters:
-          - timeout:
-              timeout: 50ms
-              value: last
-          - throttle_with_priority: 50ms
+        filters: *sensor_filters
       resolution:
         name: "Target 1 Resolution"
-        filters:
-          - timeout:
-              timeout: 50ms
-              value: last
-          - throttle_with_priority: 50ms
+        filters: *sensor_filters
       angle:
         name: "Target 1 Angle"
-        filters:
-          - timeout:
-              timeout: 50ms
-              value: last
-          - throttle_with_priority: 50ms
+        filters: *sensor_filters
     target_2:
       x:
         name: "Target 2 X"
-        filters:
-          - timeout:
-              timeout: 50ms
-              value: last
-          - throttle_with_priority: 50ms
+        filters: *sensor_filters
       y:
         name: "Target 2 Y"
-        filters:
-          - timeout:
-              timeout: 50ms
-              value: last
-          - throttle_with_priority: 50ms
+        filters: *sensor_filters
       speed:
         name: "Target 2 Speed"
-        filters:
-          - timeout:
-              timeout: 50ms
-              value: last
-          - throttle_with_priority: 50ms
+        filters: *sensor_filters
       distance:
         name: "Target 2 Distance"
-        filters:
-          - timeout:
-              timeout: 50ms
-              value: last
-          - throttle_with_priority: 50ms
+        filters: *sensor_filters
 
 binary_sensor:
   - platform: ld2450
     ld2450_id: ld2450_dev
     has_target:
       name: "Has Target"
-      filters:
+      filters: &binary_sensor_filters
         - settle: 50ms
     has_moving_target:
       name: "Has Moving Target"
-      filters:
-        - settle: 50ms
+      filters: *binary_sensor_filters
     has_still_target:
       name: "Has Still Target"
-      filters:
-        - settle: 50ms
+      filters: *binary_sensor_filters
 
 text_sensor:
   - platform: ld2450

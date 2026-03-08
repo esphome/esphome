@@ -209,3 +209,6 @@ async def test_uart_mock_ld2450(
         assert collector.sensor_states["moving_target_count"][
             recovery_idx
         ] == pytest.approx(1.0)
+        assert collector.sensor_states["still_target_count"][
+            recovery_idx
+        ] == pytest.approx(0.0)
