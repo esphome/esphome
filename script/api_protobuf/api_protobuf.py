@@ -622,6 +622,8 @@ class StringType(TypeInfo):
     @property
     def encode_content(self) -> str:
         # Use the StringRef
+        if self.force:
+            return f"buffer.encode_string({self.number}, this->{self.field_name}_ref_, true);"
         return f"buffer.encode_string({self.number}, this->{self.field_name}_ref_);"
 
     def dump(self, name):
@@ -709,7 +711,7 @@ class MessageType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
-        # Singular message fields skip encoding when empty
+        # encode_sub_message always encodes (uses backpatch), no force needed
         return f"buffer.{self.encode_func}({self.number}, this->{self.field_name});"
 
     @property
@@ -786,6 +788,8 @@ class BytesType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
+        if self.force:
+            return f"buffer.encode_bytes({self.number}, this->{self.field_name}_ptr_, this->{self.field_name}_len_, true);"
         return f"buffer.encode_bytes({self.number}, this->{self.field_name}_ptr_, this->{self.field_name}_len_);"
 
     def dump(self, name: str) -> str:
@@ -891,6 +895,8 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
 
     @property
     def encode_content(self) -> str:
+        if self.force:
+            return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len, true);"
         return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len);"
 
     @property
@@ -938,6 +944,10 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
 
     @property
     def encode_content(self) -> str:
+        if self.force:
+            return (
+                f"buffer.encode_string({self.number}, this->{self.field_name}, true);"
+            )
         return f"buffer.encode_string({self.number}, this->{self.field_name});"
 
     @property
@@ -1176,6 +1186,8 @@ class EnumType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
+        if self.force:
+            return f"buffer.{self.encode_func}({self.number}, static_cast<uint32_t>(this->{self.field_name}), true);"
         return f"buffer.{self.encode_func}({self.number}, static_cast<uint32_t>(this->{self.field_name}));"
 
     def dump(self, name: str) -> str:
