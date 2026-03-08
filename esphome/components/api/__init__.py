@@ -453,6 +453,10 @@ async def to_code(config: ConfigType) -> None:
             # and plaintext disabled. Only a factory reset can remove it.
             cg.add_define("USE_API_PLAINTEXT")
         cg.add_define("USE_API_NOISE")
+        # libsodium uses NATIVE_LITTLE_ENDIAN to enable optimized 32-bit
+        # load/store via memcpy instead of byte-at-a-time operations in
+        # poly1305 and chacha20. All ESPHome targets are little-endian.
+        cg.add_build_flag("-DNATIVE_LITTLE_ENDIAN")
         cg.add_library("esphome/noise-c", "0.1.10")
     else:
         cg.add_define("USE_API_PLAINTEXT")
