@@ -42,12 +42,15 @@ from .base_component import (
 )
 
 CODEOWNERS = ["@senexcrenshaw", "@edwardtfn"]
-
 DEPENDENCIES = ["uart"]
-AUTO_LOAD = ["binary_sensor", "switch", "sensor", "text_sensor"]
 
-if CORE.is_esp32:
-    AUTO_LOAD.append("watchdog")
+
+def AUTO_LOAD() -> list[str]:
+    base = ["binary_sensor", "switch", "sensor", "text_sensor"]
+    if CORE.is_esp32:
+        base.append("watchdog")
+    return base
+
 
 NextionSetBrightnessAction = nextion_ns.class_(
     "NextionSetBrightnessAction", automation.Action
