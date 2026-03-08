@@ -59,8 +59,6 @@ def maybe_conf(conf, *validators):
     return validate
 
 
-_UNSET = object()
-
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -69,7 +67,7 @@ def register_action(
     action_type: MockObjClass,
     schema: cv.Schema,
     *,
-    synchronous: bool | object = _UNSET,
+    synchronous: bool | None = None,
 ):
     """Register an action type.
 
@@ -85,7 +83,7 @@ def register_action(
     outlive the initial call, so string args use owning std::string to
     prevent dangling references.
     """
-    if synchronous is _UNSET:
+    if synchronous is None:
         _LOGGER.warning(
             "register_action('%s', ...) is missing the synchronous= parameter. "
             "Defaulting to synchronous=False (safe but prevents StringRef "
