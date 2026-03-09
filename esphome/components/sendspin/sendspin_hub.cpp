@@ -396,12 +396,10 @@ void SendspinHub::on_connection_closed_(int sockfd) {
   // Resolve sockfd to connection pointer, then delegate to shared handler.
   // Note: This callback is only invoked for server connections (from ws_server_).
   // Client connections use on_disconnected → on_connection_lost_() directly.
-  if (this->current_connection_ != nullptr &&
-      (this->current_connection_->get_sockfd() == sockfd || !this->current_connection_->is_connected())) {
+  if (this->current_connection_ != nullptr && this->current_connection_->get_sockfd() == sockfd) {
     this->on_connection_lost_(this->current_connection_.get());
   }
-  if (this->pending_connection_ != nullptr &&
-      (this->pending_connection_->get_sockfd() == sockfd || !this->pending_connection_->is_connected())) {
+  if (this->pending_connection_ != nullptr && this->pending_connection_->get_sockfd() == sockfd) {
     this->on_connection_lost_(this->pending_connection_.get());
   }
 }
