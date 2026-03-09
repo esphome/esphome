@@ -5,7 +5,7 @@ from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_RECEIVE_TIMEOUT
 
-CODEOWNERS = ["@Tomer27cz"]
+CODEOWNERS = ["@Tomer27cz", "@latonita"]
 
 DEPENDENCIES = ["uart"]
 
