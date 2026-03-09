@@ -200,6 +200,12 @@ void ModbusController::on_modbus_write_registers(uint8_t function_code, const st
       this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
       return;
     }
+    if (data.size() < 5 + payload_size) {
+      ESP_LOGW(TAG, "Write multiple registers payload truncated (%zu bytes, expected %u)", data.size(),
+               5 + payload_size);
+      this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
+      return;
+    }
     payload_offset = 5;
   } else if (function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER) {
     if (data.size() < 4) {
