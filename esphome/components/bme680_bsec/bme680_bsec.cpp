@@ -273,7 +273,7 @@ void BME680BSECComponent::read_() {
   if (this->bme680_settings_.trigger_measurement) {
     uint32_t start = millis();
     while (this->bme680_.power_mode != BME680_SLEEP_MODE) {
-      if (millis() - start > 100) {
+      if (millis() - start > 50) {
         ESP_LOGW(TAG, "Timeout waiting for BME680 to enter sleep mode");
         break;
       }
