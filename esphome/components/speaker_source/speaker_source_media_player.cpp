@@ -135,6 +135,10 @@ void SpeakerSourceMediaPlayer::handle_media_state_changed_(uint8_t pipeline, med
   PipelineContext &ps = this->pipelines_[pipeline];
 
   if (state == media_source::MediaSourceState::IDLE) {
+    // Track whether this IDLE was from an orchestrator-initiated stop (e.g., NEXT/PREV/PLAY_URI)
+    // so we can suppress spurious PLAYLIST_ADVANCE below
+    bool was_stopping = (ps.stopping_source == source);
+
     // Source went idle - clear stopping flag if this was the source we asked to stop
     if (ps.stopping_source == source) {
       ps.stopping_source = nullptr;
@@ -153,8 +157,10 @@ void SpeakerSourceMediaPlayer::handle_media_state_changed_(uint8_t pipeline, med
       // Finish the speaker to ensure it's ready for the next playback
       ps.speaker->finish();
 
-      // Queue PLAYLIST_ADVANCE to handle track completion - all playlist logic is in process_control_queue_
-      this->queue_command_(MediaPlayerControlCommand::PLAYLIST_ADVANCE, pipeline);
+      // Only advance the playlist if the track finished naturally (not stopped by the orchestrator)
+      if (!was_stopping) {
+        this->queue_command_(MediaPlayerControlCommand::PLAYLIST_ADVANCE, pipeline);
+      }
     }
   } else if (state == media_source::MediaSourceState::PLAYING) {
     // Source started playing - make it the active source if no one else is active
@@ -282,9 +288,9 @@ bool SpeakerSourceMediaPlayer::try_execute_play_uri_(const std::string &uri, uin
       // Only send END command once per source - check if we've already asked this source to stop
       if (ps.stopping_source != active_source) {
         ESP_LOGV(TAG, "Pipeline %u: stopping active source", pipeline);
+        ps.stopping_source = active_source;
         active_source->handle_command(media_source::MediaSourceCommand::STOP);
         ps.speaker->stop();
-        ps.stopping_source = active_source;
       }
       return false;  // Leave in queue, retry next loop
     }
@@ -296,9 +302,9 @@ bool SpeakerSourceMediaPlayer::try_execute_play_uri_(const std::string &uri, uin
     // Only send STOP command once per source
     if (ps.stopping_source != target_source) {
       ESP_LOGV(TAG, "Pipeline %u: target source busy, stopping", pipeline);
+      ps.stopping_source = target_source;
       target_source->handle_command(media_source::MediaSourceCommand::STOP);
       ps.speaker->stop();
-      ps.stopping_source = target_source;
     }
     return false;  // Leave in queue, retry next loop
   }
