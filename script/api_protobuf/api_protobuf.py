@@ -2213,12 +2213,7 @@ def build_message_type(
 
     cpp = ""
     if decode_varint:
-        # Use conditional parameter type to match base class
-        o = "#ifdef USE_API_VARINT64\n"
-        o += f"bool {desc.name}::decode_varint(uint32_t field_id, uint64_t value) {{\n"
-        o += "#else\n"
-        o += f"bool {desc.name}::decode_varint(uint32_t field_id, uint32_t value) {{\n"
-        o += "#endif\n"
+        o = f"bool {desc.name}::decode_varint(uint32_t field_id, proto_varint_value_t value) {{\n"
         o += "  switch (field_id) {\n"
         o += indent("\n".join(decode_varint), "    ") + "\n"
         o += "    default: return false;\n"
@@ -2226,15 +2221,8 @@ def build_message_type(
         o += "  return true;\n"
         o += "}\n"
         cpp += o
-        prot_lines = [
-            "#ifdef USE_API_VARINT64",
-            "bool decode_varint(uint32_t field_id, uint64_t value) override;",
-            "#else",
-            "bool decode_varint(uint32_t field_id, uint32_t value) override;",
-            "#endif",
-        ]
-        for i, line in enumerate(prot_lines):
-            protected_content.insert(i, line)
+        prot = "bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;"
+        protected_content.insert(0, prot)
     if decode_length:
         o = f"bool {desc.name}::decode_length(uint32_t field_id, ProtoLengthDelimited value) {{\n"
         o += "  switch (field_id) {\n"

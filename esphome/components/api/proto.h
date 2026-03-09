@@ -98,17 +98,20 @@ inline void encode_varint_to_buffer(uint32_t val, uint8_t *buffer) {
  * within the same function scope where temporaries are created.
  */
 
+/// Type used for decoded varint values - uint64_t when BLE needs 64-bit addresses, uint32_t otherwise
+#ifdef USE_API_VARINT64
+using proto_varint_value_t = uint64_t;
+#else
+using proto_varint_value_t = uint32_t;
+#endif
+
 /// Sentinel value for consumed field indicating parse failure
 inline constexpr uint32_t PROTO_VARINT_PARSE_FAILED = 0;
 
 /// Result of parsing a varint: value + number of bytes consumed.
 /// consumed == PROTO_VARINT_PARSE_FAILED indicates parse failure (not enough data or invalid).
 struct ProtoVarIntResult {
-#ifdef USE_API_VARINT64
-  uint64_t value;
-#else
-  uint32_t value;
-#endif
+  proto_varint_value_t value;
   uint32_t consumed;  // PROTO_VARINT_PARSE_FAILED = parse failed
 
   constexpr bool has_value() const { return this->consumed != PROTO_VARINT_PARSE_FAILED; }
@@ -506,11 +509,7 @@ class ProtoDecodableMessage : public ProtoMessage {
 
  protected:
   ~ProtoDecodableMessage() = default;
-#ifdef USE_API_VARINT64
-  virtual bool decode_varint(uint32_t field_id, uint64_t value) { return false; }
-#else
-  virtual bool decode_varint(uint32_t field_id, uint32_t value) { return false; }
-#endif
+  virtual bool decode_varint(uint32_t field_id, proto_varint_value_t value) { return false; }
   virtual bool decode_length(uint32_t field_id, ProtoLengthDelimited value) { return false; }
   virtual bool decode_32bit(uint32_t field_id, Proto32Bit value) { return false; }
   // NOTE: decode_64bit removed - wire type 1 not supported
