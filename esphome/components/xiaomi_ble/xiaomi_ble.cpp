@@ -183,13 +183,9 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
     return {};
   }
 
-  static uint8_t last_frame_count = 0;
-  if (last_frame_count == raw[4]) {
-    ESP_LOGVV(TAG, "parse_xiaomi_header(): duplicate data packet received (%d).", static_cast<int>(last_frame_count));
-    result.is_duplicate = true;
-    return {};
-  }
-  last_frame_count = raw[4];
+  // Note: duplicate detection removed because the static frame counter was shared
+  // across all Xiaomi BLE devices, causing false duplicate rejection when multiple
+  // devices are present. Callers should handle duplicates at a higher level if needed.
   result.is_duplicate = false;
   result.raw_offset = result.has_capability ? 12 : 11;
 
