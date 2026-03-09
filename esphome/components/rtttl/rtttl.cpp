@@ -147,8 +147,10 @@ void Rtttl::loop() {
 #endif  // USE_SPEAKER
 
   // Align to note: most rtttl's out there does not add any space after the ',' separator but just in case
-  while (this->position_ < this->rtttl_.length() &&
-         (this->rtttl_[this->position_] == ',' || this->rtttl_[this->position_] == ' ')) {
+  while (this->position_ < this->rtttl_.length()) {
+    char c = this->rtttl_[this->position_];
+    if (c != ',' && c != ' ')
+      break;
     this->position_++;
   }
 
