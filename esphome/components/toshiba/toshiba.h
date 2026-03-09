@@ -20,7 +20,6 @@ const float TOSHIBA_GENERIC_TEMP_C_MAX = 30.0;
 const float TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN = 16.0;
 const float TOSHIBA_RAC_PT1411HWRU_TEMP_C_MAX = 30.0;
 const float TOSHIBA_RAC_PT1411HWRU_TEMP_F_MIN = 60.0;
-const float TOSHIBA_RAC_PT1411HWRU_TEMP_F_MIN_C = 140.0f / 9.0f;  // 60°F expressed in °C
 const float TOSHIBA_RAC_PT1411HWRU_TEMP_F_MAX = 86.0;
 const float TOSHIBA_RAS_2819T_TEMP_C_MIN = 18.0;
 const float TOSHIBA_RAS_2819T_TEMP_C_MAX = 30.0;
@@ -60,7 +59,7 @@ class ToshibaClimate : public climate_ir::ClimateIR {
 
   float temperature_min_() {
     if (this->model_ == MODEL_RAC_PT1411HWRU_F)
-      return TOSHIBA_RAC_PT1411HWRU_TEMP_F_MIN_C;
+      return (TOSHIBA_RAC_PT1411HWRU_TEMP_F_MIN - 32.0f) * 5.0f / 9.0f;
     if (this->model_ == MODEL_RAC_PT1411HWRU_C)
       return TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN;
     if (this->model_ == MODEL_RAS_2819T)
