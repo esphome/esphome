@@ -47,6 +47,7 @@ rp2040:
 - **watchdog_timeout** (*Optional*, [Time](/guides/configuration-types#time)): The timeout to apply to the RP2040 watchdog.
   When the device hangs for that period of time, it will reboot. Defaults to `8388ms` (maximum). Set to `0s` to
   disable the watchdog entirely.
+- **enable_full_printf** (*Optional*, boolean): Enable full `FILE*`-based printf support. By default, ESPHome wraps `printf()`, `vprintf()`, and `fprintf()` with lightweight stubs that use `vsnprintf()` + `fwrite()`, saving ~9.2 KB of flash. ESPHome logging uses `snprintf`/`vsnprintf`, not libc printf, so these functions are typically unused unless an external component calls them. Set to `true` only if an external component needs full `FILE*`-based printf. Defaults to `false`.
 
 ## GPIO Pin Names
 
