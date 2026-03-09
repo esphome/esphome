@@ -38,7 +38,7 @@ ProtoVarIntResult ProtoVarInt::parse_slow(const uint8_t *buffer, uint32_t len) {
 #ifdef USE_API_VARINT64
   return parse_wide(buffer, len, result32);
 #else
-  return {0, 0};
+  return {0, PROTO_VARINT_PARSE_FAILED};
 #endif
 }
 
@@ -53,7 +53,7 @@ ProtoVarIntResult ProtoVarInt::parse_wide(const uint8_t *buffer, uint32_t len, u
       return {result64, i + 1};
     }
   }
-  return {0, 0};
+  return {0, PROTO_VARINT_PARSE_FAILED};
 }
 #endif
 
