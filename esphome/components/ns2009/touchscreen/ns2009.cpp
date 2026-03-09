@@ -18,28 +18,30 @@ void NS2009Component::setup() {
   auto data_z = this->read_byte(GET_Z);
 
   if (!data_z.has_value()) {
-    ESP_LOGW(TAG, "tried %s address 0x%02x: %s", "configured", this->address_, "fail");
+    ESP_LOGW(TAG, "tried %s address 0x%02x: %sdetected", "configured", this->address_, "not ");
     auto configured_address = this->address_;
 
     if (this->address_ != PRIMARY_ADDRESS) {
       this->address_ = PRIMARY_ADDRESS;
       data_z = this->read_byte(GET_Z);
 
-      ESP_LOGW(TAG, "tried %s address 0x%02x: %s", "primary", this->address_,
-               (data_z.has_value() ? "success" : "fail"));
+      ESP_LOGW(TAG, "tried %s address 0x%02x: %sdetected", "primary", this->address_,
+               (data_z.has_value() ? "" : "not "));
     }
 
     if (this->address_ != SECONDARY_ADDRESS && !data_z.has_value()) {
       this->address_ = SECONDARY_ADDRESS;
       data_z = this->read_byte(GET_Z);
 
-      ESP_LOGW(TAG, "tried %s address 0x%02x: %s", "secondary", this->address_,
-               (data_z.has_value() ? "success" : "fail"));
+      ESP_LOGW(TAG, "tried %s address 0x%02x: %sdetected", "secondary", this->address_,
+               (data_z.has_value() ? "" : "not "));
     }
 
     if (data_z.has_value() && this->address_ != configured_address) {
-      ESP_LOGW(TAG, "successfully connected with address 0x%02x but 0x%02x is configured", this->address_,
-               configured_address);
+      this->detected_address = this->address_;
+      this->address_ = configured_address;
+      ESP_LOGW(TAG, "detected address 0x%02x but 0x%02x is configured. try updating your config",
+               this->detected_address, configured_address);
       this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       return;
     }
@@ -88,6 +90,10 @@ void NS2009Component::update_touches() {
 void NS2009Component::dump_config() {
   ESP_LOGCONFIG(TAG, "NS2009 Touchscreen:");
   LOG_I2C_DEVICE(this);
+
+  if (this->detected_address)
+      ESP_LOGW(TAG, "detected address 0x%02x but 0x%02x is configured. try updating your config",
+               this->detected_address, this->address_);
 }
 
 }  // namespace esphome::ns2009
