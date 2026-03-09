@@ -133,6 +133,12 @@ void HlkFm22xComponent::recv_command_() {
   checksum ^= byte;
   length |= byte;
 
+  // Verify remaining data (payload + checksum) is available before reading
+  if (this->available() < length + 1) {
+    ESP_LOGV(TAG, "Incomplete message: need %u more bytes, have %zu", length + 1, (size_t) this->available());
+    return;
+  }
+
   // Read up to buffer size; discard excess bytes while still computing checksum
   // GET_ALL_FACE_IDS can return all enrolled face data (hundreds of bytes)
   // but handlers only need the first few bytes
