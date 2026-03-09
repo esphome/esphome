@@ -117,22 +117,11 @@ struct ProtoVarIntResult {
   constexpr bool has_value() const { return this->consumed != PROTO_VARINT_PARSE_FAILED; }
   constexpr uint16_t as_uint16() const { return this->value; }
   constexpr uint32_t as_uint32() const { return this->value; }
-  constexpr bool as_bool() const { return this->value; }
-  constexpr int32_t as_int32() const { return static_cast<int32_t>(this->value); }
-  constexpr int32_t as_sint32() const { return decode_zigzag32(static_cast<uint32_t>(this->value)); }
-#ifdef USE_API_VARINT64
-  constexpr uint64_t as_uint64() const { return this->value; }
-  constexpr int64_t as_int64() const { return static_cast<int64_t>(this->value); }
-  constexpr int64_t as_sint64() const { return decode_zigzag64(this->value); }
-#endif
 };
 
-/// Representation of a VarInt - in ProtoBuf should be 64bit but we only use 32bit
+/// Static varint parsing methods for the protobuf wire format.
 class ProtoVarInt {
  public:
-  ProtoVarInt() : value_(0) {}
-  explicit ProtoVarInt(uint64_t value) : value_(value) {}
-
   /// Parse a varint from buffer. Caller must ensure len >= 1.
   /// Returns result with consumed=0 on failure (truncated multi-byte varint).
   static inline ProtoVarIntResult ESPHOME_ALWAYS_INLINE parse_non_empty(const uint8_t *buffer, uint32_t len) {
@@ -161,37 +150,6 @@ class ProtoVarInt {
 #ifdef USE_API_VARINT64
   /// Continue parsing varint bytes 4-9 with 64-bit arithmetic.
   static ProtoVarIntResult parse_wide(const uint8_t *buffer, uint32_t len, uint32_t result32) __attribute__((noinline));
-#endif
-
- public:
-  constexpr uint16_t as_uint16() const { return this->value_; }
-  constexpr uint32_t as_uint32() const { return this->value_; }
-  constexpr bool as_bool() const { return this->value_; }
-  constexpr int32_t as_int32() const {
-    // Not ZigZag encoded
-    return static_cast<int32_t>(this->value_);
-  }
-  constexpr int32_t as_sint32() const {
-    // with ZigZag encoding
-    return decode_zigzag32(static_cast<uint32_t>(this->value_));
-  }
-#ifdef USE_API_VARINT64
-  constexpr uint64_t as_uint64() const { return this->value_; }
-  constexpr int64_t as_int64() const {
-    // Not ZigZag encoded
-    return static_cast<int64_t>(this->value_);
-  }
-  constexpr int64_t as_sint64() const {
-    // with ZigZag encoding
-    return decode_zigzag64(this->value_);
-  }
-#endif
-
- protected:
-#ifdef USE_API_VARINT64
-  uint64_t value_;
-#else
-  uint32_t value_;
 #endif
 };
 
