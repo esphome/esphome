@@ -14,8 +14,7 @@
 
 #include <atomic>
 
-namespace esphome {
-namespace mixer_speaker {
+namespace esphome::mixer_speaker {
 
 /* Classes for mixing several source speaker audio streams and writing it to another speaker component.
  *  - Volume controls are passed through to the output speaker
@@ -203,7 +202,6 @@ class MixerSpeaker : public Component {
   uint32_t all_stopped_since_ms_{0};             // Debounce transient all-stopped windows before stopping task
 };
 
-}  // namespace mixer_speaker
-}  // namespace esphome
+}  // namespace esphome::mixer_speaker
 
 #endif

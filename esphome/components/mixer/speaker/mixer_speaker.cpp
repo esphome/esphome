@@ -11,8 +11,7 @@
 #include <array>
 #include <cstring>
 
-namespace esphome {
-namespace mixer_speaker {
+namespace esphome::mixer_speaker {
 
 static const UBaseType_t MIXER_TASK_PRIORITY = 10;
 
@@ -770,7 +769,6 @@ void MixerSpeaker::audio_mixer_task(void *params) {
   vTaskSuspend(nullptr);  // Suspend this task indefinitely until the loop method deletes it
 }
 
-}  // namespace mixer_speaker
-}  // namespace esphome
+}  // namespace esphome::mixer_speaker
 
 #endif
