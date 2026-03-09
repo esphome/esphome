@@ -99,9 +99,32 @@ See [https://openthread.io/guides/thread-primer/node-roles-and-types](https://op
 The Poll Period makes the device behave as a SED.  Follow on work is needed utilizing Power Management and/or Light Sleep capability in esp-idf.
 If the device is always awake, the API timeout is 60 seconds, so a ping request will force interaction with the parent when the poll period is greater than 60 seconds.
 
+## OpenThread ESP-IDF Logging
+
+The OpenThread log level is controlled by the ``log_level`` setting in the ESP-IDF framework configuration.
+The ESP-IDF log levels are mapped to OpenThread log levels as follows:
+
+| ESP-IDF Level | OpenThread Level |
+|---------------|------------------|
+| NONE          | NONE             |
+| ERROR         | CRIT             |
+| WARN          | WARN             |
+| INFO          | NOTE             |
+| DEBUG         | INFO             |
+| VERBOSE       | DEBG             |
+
+```yaml
+# Example ESP-IDF framework log_level setting
+esp32:
+  framework:
+    type: esp-idf
+    log_level: INFO
+```
+
 ## See Also
 
 - [OpenThread Info Text Sensor](/components/text_sensor/openthread_info/)
 - [Network component](/components/network/)
+- [ESP32 Platform](/components/esp32/)
 - [https://openthread.io/](https://openthread.io/)
 - <APIRef text="openthread.h" path="openthread/openthread.h" />
