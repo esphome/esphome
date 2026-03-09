@@ -60,6 +60,7 @@ void MICS4514Component::update() {
   }
 
   if (this->red_calibration_ == 0 || this->ox_calibration_ == 0) {
+    ESP_LOGW(TAG, "Calibration values are zero, retrying");
     this->status_set_warning();
     this->initial_ = true;
     return;
