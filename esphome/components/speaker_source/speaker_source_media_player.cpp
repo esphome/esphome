@@ -28,6 +28,7 @@ void SourceBinding::request_mute(bool is_muted) {
   this->player->defer([this, is_muted]() { this->player->handle_mute_request_(is_muted); });
 }
 void SourceBinding::request_play_uri(const std::string &uri) {
+  // No defer needed: handle_play_uri_request_ uses call.perform() which enqueues via control(), which is thread-safe.
   this->player->handle_play_uri_request_(this->pipeline, uri);
 }
 
