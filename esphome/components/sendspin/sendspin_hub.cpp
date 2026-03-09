@@ -196,7 +196,8 @@ void SendspinHub::start(SendspinConnection *conn) {
 }
 
 void SendspinHub::try_send_hello_(SendspinConnection *conn, uint32_t delay_ms, uint8_t attempts_remaining) {
-  this->set_timeout("hello", delay_ms, [this, conn, delay_ms, attempts_remaining]() {
+  const char *key = (conn == this->pending_connection_.get()) ? "hello_pending" : "hello_current";
+  this->set_timeout(key, delay_ms, [this, conn, delay_ms, attempts_remaining]() {
     if (this->send_hello_message_(attempts_remaining - 1, conn)) {
       return;  // Done or non-recoverable, stop retrying
     }
