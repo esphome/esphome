@@ -36,10 +36,10 @@ media_player:
       sources:
         - audio_file_source
     on_mute:
-      - media_player.pause:
+      - media_player.shuffle:
           id: media_player_id
     on_unmute:
-      - media_player.play:
+      - media_player.unshuffle:
           id: media_player_id
     on_volume:
       - speaker_source.set_playlist_delay:
