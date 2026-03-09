@@ -95,8 +95,8 @@ void SEN6XComponent::setup() {
       this->serial_number_ = SEN6XComponent::sensirion_convert_to_string_in_place(raw_serial_number, 16);
       ESP_LOGI(TAG, "Serial number: %s", this->serial_number_.c_str());
 
-      // Step 2: Read product name in next loop iteration
-      this->set_timeout(0, [this]() {
+      // Step 2: Read product name - use non-zero delay to avoid chaining blocking I2C reads in one loop tick
+      this->set_timeout(20, [this]() {
         uint16_t raw_product_name[16];
         if (!this->get_register(SEN6X_CMD_GET_PRODUCT_NAME, raw_product_name, 16, 20)) {
           ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -142,8 +142,8 @@ void SEN6XComponent::setup() {
           this->hcho_sensor_ = nullptr;
         }
 
-        // Step 3: Read firmware version and start measurements in next loop iteration
-        this->set_timeout(0, [this]() {
+        // Step 3: Read firmware version - use non-zero delay to avoid chaining blocking I2C reads in one loop tick
+        this->set_timeout(20, [this]() {
           uint16_t raw_firmware_version = 0;
           if (!this->get_register(SEN6X_CMD_GET_FIRMWARE_VERSION, raw_firmware_version, 20)) {
             ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -207,6 +207,28 @@ void SEN6XComponent::schedule_post_setup_commands_() {
     });
   }
 
+  // Read back CO2-related settings to confirm what the device has applied
+  const bool supports_co2 = this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN66 || this->sen6x_type_ == SEN69C;
+  if (supports_co2) {
+    steps.emplace_back([this]() {
+      uint16_t ambient_pressure = 0;
+      if (this->get_register(SEN6X_CMD_AMBIENT_PRESSURE, ambient_pressure, 20))
+        if (ambient_pressure != 0xFFFF)
+          this->ambient_pressure_read_ = ambient_pressure;
+    });
+    steps.emplace_back([this]() {
+      uint16_t sensor_altitude = 0;
+      if (this->get_register(SEN6X_CMD_SENSOR_ALTITUDE, sensor_altitude, 20))
+        if (sensor_altitude != 0xFFFF)
+          this->sensor_altitude_read_ = sensor_altitude;
+    });
+    steps.emplace_back([this]() {
+      uint16_t asc_raw = 0;
+      if (this->get_register(SEN6X_CMD_CO2_SENSOR_AUTOMATIC_SELF_CAL, asc_raw, 20))
+        this->co2_asc_read_ = (asc_raw & 0x00FF) != 0;
+    });
+  }
+
   if (steps.empty()) {
     this->finish_setup_();
 
@@ -228,27 +250,6 @@ void SEN6XComponent::schedule_post_setup_commands_() {
 }
 
 void SEN6XComponent::finish_setup_() {
-  const bool supports_co2 = this->sen6x_type_ == SEN63C || this->sen6x_type_ == SEN66 ||
-
-                            this->sen6x_type_ == SEN69C;
-  if (supports_co2) {
-    uint16_t ambient_pressure = 0;
-    if (this->get_register(SEN6X_CMD_AMBIENT_PRESSURE, ambient_pressure, 20)) {
-      if (ambient_pressure != 0xFFFF) {
-        this->ambient_pressure_read_ = ambient_pressure;
-      }
-    }
-    uint16_t sensor_altitude = 0;
-    if (this->get_register(SEN6X_CMD_SENSOR_ALTITUDE, sensor_altitude, 20)) {
-      if (sensor_altitude != 0xFFFF)
-        this->sensor_altitude_read_ = sensor_altitude;
-    }
-    uint16_t asc_raw = 0;
-    if (this->get_register(SEN6X_CMD_CO2_SENSOR_AUTOMATIC_SELF_CAL, asc_raw, 20)) {
-      this->co2_asc_read_ = (asc_raw & 0x00FF) != 0;
-    }
-  }
-
   if (!this->write_command(SEN6X_CMD_START_MEASUREMENTS)) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
     this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
