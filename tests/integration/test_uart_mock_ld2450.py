@@ -189,26 +189,16 @@ async def test_uart_mock_ld2450(
         # Recovery frame values (Phase 5, after overflow):
         # Target 1: X=300, Y=400, Distance=500, Speed=30 (moving away)
         # target_count=1, moving=1, still=0
-        recovery_idx = next(
-            i
-            for i, v in enumerate(collector.sensor_states["target_1_distance"])
-            if v == pytest.approx(500.0, abs=1.0)
+        #
+        # Note: throttle filters cause sensor lists to have different lengths,
+        # so we check each value appeared somewhere rather than using a shared index.
+        assert (
+            pytest.approx(500.0, abs=1.0)
+            in collector.sensor_states["target_1_distance"]
         )
-        assert collector.sensor_states["target_1_x"][recovery_idx] == pytest.approx(
-            300.0
-        )
-        assert collector.sensor_states["target_1_y"][recovery_idx] == pytest.approx(
-            400.0
-        )
-        assert collector.sensor_states["target_1_speed"][recovery_idx] == pytest.approx(
-            30.0
-        )
-        assert collector.sensor_states["target_count"][recovery_idx] == pytest.approx(
-            1.0
-        )
-        assert collector.sensor_states["moving_target_count"][
-            recovery_idx
-        ] == pytest.approx(1.0)
-        assert collector.sensor_states["still_target_count"][
-            recovery_idx
-        ] == pytest.approx(0.0)
+        assert pytest.approx(300.0) in collector.sensor_states["target_1_x"]
+        assert pytest.approx(400.0) in collector.sensor_states["target_1_y"]
+        assert pytest.approx(30.0) in collector.sensor_states["target_1_speed"]
+        assert pytest.approx(1.0) in collector.sensor_states["target_count"]
+        assert pytest.approx(1.0) in collector.sensor_states["moving_target_count"]
+        assert pytest.approx(0.0) in collector.sensor_states["still_target_count"]
