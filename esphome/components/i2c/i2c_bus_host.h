@@ -11,7 +11,7 @@ namespace i2c {
 
 class HostI2CBus : public I2CBus, public Component {
  public:
-  virtual ~HostI2CBus();
+  ~HostI2CBus() override;
 
   void setup() override;
   void dump_config() override;
