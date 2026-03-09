@@ -13,7 +13,6 @@ bool ESP32BLEListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device
   bool matched = false;
   for (auto &service_data : device.get_service_datas()) {
     if (!service_data.uuid.contains(BTHOME_SVC_UUID_LOW, BTHOME_SVC_UUID_HIGH)) {
-      ESP_LOGD(TAG, "not bthome service data from %s", MacAddressPtr(device.address()).c_str());
       continue;
     }
 
