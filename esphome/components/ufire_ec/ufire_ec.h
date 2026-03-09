@@ -44,7 +44,7 @@ class UFireECComponent : public PollingComponent, public i2c::I2CDevice {
  protected:
   float measure_temperature_();
   float measure_ms_();
-  void set_solution_(float solution, float temperature);
+  bool set_solution_(float solution, float temperature);
   void set_compensation_(float temperature);
   void set_coefficient_(float coefficient);
   void set_temperature_(float temperature);

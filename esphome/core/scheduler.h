@@ -178,9 +178,11 @@ class Scheduler {
     uint16_t next_execution_high_;  // Upper 16 bits (millis_major counter)
 
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
-    // Multi-threaded with atomics: use atomic for lock-free access
-    // Place atomic<bool> separately since it can't be packed with bit fields
-    std::atomic<bool> remove{false};
+    // Multi-threaded with atomics: use atomic uint8_t for lock-free access.
+    // std::atomic<bool> is not used because GCC on Xtensa generates an indirect
+    // function call for std::atomic<bool>::load() instead of inlining it.
+    // std::atomic<uint8_t> inlines correctly on all platforms.
+    std::atomic<uint8_t> remove{0};
 
     // Bit-packed fields (4 bits used, 4 bits padding in 1 byte)
     enum Type : uint8_t { TIMEOUT, INTERVAL } type : 1;
@@ -204,7 +206,7 @@ class Scheduler {
           next_execution_low_(0),
           next_execution_high_(0),
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
-          // remove is initialized in the member declaration as std::atomic<bool>{false}
+          // remove is initialized in the member declaration
           type(TIMEOUT),
           name_type_(NameType::STATIC_STRING),
           is_retry(false) {
@@ -508,7 +510,7 @@ class Scheduler {
     // Multi-threaded with atomics: use atomic store with appropriate ordering
     // Release ordering when setting to true ensures cancellation is visible to other threads
     // Relaxed ordering when setting to false is sufficient for initialization
-    item->remove.store(removed, removed ? std::memory_order_release : std::memory_order_relaxed);
+    item->remove.store(removed ? 1 : 0, removed ? std::memory_order_release : std::memory_order_relaxed);
 #else
     // Single-threaded (ESPHOME_THREAD_SINGLE) or
     // multi-threaded without atomics (ESPHOME_THREAD_MULTI_NO_ATOMICS): direct write
