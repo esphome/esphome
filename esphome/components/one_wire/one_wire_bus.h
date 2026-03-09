@@ -9,7 +9,7 @@ namespace one_wire {
 
 class OneWireBus {
  public:
-  /// Send reset pulse.  This is required prior to all ROM commands
+  /// Send reset pulse. This is required prior to every 1-Wire transaction (ROM commands and function commands).
   bool reset();
 
   /// Write a word to the bus. LSB first.
