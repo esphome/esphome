@@ -98,17 +98,20 @@ inline void encode_varint_to_buffer(uint32_t val, uint8_t *buffer) {
  * within the same function scope where temporaries are created.
  */
 
+/// Sentinel value for consumed field indicating parse failure
+inline constexpr uint32_t PROTO_VARINT_PARSE_FAILED = 0;
+
 /// Result of parsing a varint: value + number of bytes consumed.
-/// consumed == 0 indicates parse failure (not enough data or invalid).
+/// consumed == PROTO_VARINT_PARSE_FAILED indicates parse failure (not enough data or invalid).
 struct ProtoVarIntResult {
 #ifdef USE_API_VARINT64
   uint64_t value;
 #else
   uint32_t value;
 #endif
-  uint32_t consumed;  // 0 = parse failed
+  uint32_t consumed;  // PROTO_VARINT_PARSE_FAILED = parse failed
 
-  constexpr bool has_value() const { return this->consumed != 0; }
+  constexpr bool has_value() const { return this->consumed != PROTO_VARINT_PARSE_FAILED; }
   constexpr uint16_t as_uint16() const { return this->value; }
   constexpr uint32_t as_uint32() const { return this->value; }
   constexpr bool as_bool() const { return this->value; }
@@ -135,17 +138,16 @@ class ProtoVarInt {
     // (booleans, small enums, field tags, small message sizes/types).
     if ((buffer[0] & 0x80) == 0) [[likely]]
       return {buffer[0], 1};
-    return parse_slow_(buffer, len);
+    return parse_slow(buffer, len);
   }
 
  protected:
   // Slow path for multi-byte varints (>= 128), outlined to keep fast path small
-  static ProtoVarIntResult parse_slow_(const uint8_t *buffer, uint32_t len) __attribute__((noinline));
+  static ProtoVarIntResult parse_slow(const uint8_t *buffer, uint32_t len) __attribute__((noinline));
 
 #ifdef USE_API_VARINT64
   /// Continue parsing varint bytes 4-9 with 64-bit arithmetic.
-  static ProtoVarIntResult parse_wide_(const uint8_t *buffer, uint32_t len, uint32_t result32)
-      __attribute__((noinline));
+  static ProtoVarIntResult parse_wide(const uint8_t *buffer, uint32_t len, uint32_t result32) __attribute__((noinline));
 #endif
 
  public:

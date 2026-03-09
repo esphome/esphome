@@ -20,7 +20,7 @@ void ProtoWriteBuffer::encode_varint_raw_slow_(uint32_t value) {
   *this->pos_++ = static_cast<uint8_t>(value);
 }
 
-ProtoVarIntResult ProtoVarInt::parse_slow_(const uint8_t *buffer, uint32_t len) {
+ProtoVarIntResult ProtoVarInt::parse_slow(const uint8_t *buffer, uint32_t len) {
   // Multi-byte varint: first byte already checked to have high bit set
   uint32_t result32 = buffer[0] & 0x7F;
 #ifdef USE_API_VARINT64
@@ -36,14 +36,14 @@ ProtoVarIntResult ProtoVarInt::parse_slow_(const uint8_t *buffer, uint32_t len) 
     }
   }
 #ifdef USE_API_VARINT64
-  return parse_wide_(buffer, len, result32);
+  return parse_wide(buffer, len, result32);
 #else
   return {0, 0};
 #endif
 }
 
 #ifdef USE_API_VARINT64
-ProtoVarIntResult ProtoVarInt::parse_wide_(const uint8_t *buffer, uint32_t len, uint32_t result32) {
+ProtoVarIntResult ProtoVarInt::parse_wide(const uint8_t *buffer, uint32_t len, uint32_t result32) {
   uint64_t result64 = result32;
   uint32_t limit = std::min(len, uint32_t(10));
   for (uint32_t i = 4; i < limit; i++) {
