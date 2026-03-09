@@ -110,6 +110,10 @@ struct PipelineContext {
   RepeatMode repeat_mode{REPEAT_OFF};
   uint32_t playlist_delay_ms{0};
 
+  // When non-empty, playlist_index indexes into these vectors
+  // which contain the actual playlist indices in shuffled order
+  std::vector<size_t> shuffle_indices;
+
   // Track frames sent to speaker to correlate with playback callbacks.
   // Atomic because it is written from the main loop/source tasks and read/decremented from the speaker playback
   // callback.
@@ -219,6 +223,15 @@ class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPla
   media_source::MediaSource *find_source_for_uri_(const std::string &uri, uint8_t pipeline);
   void queue_command_(MediaPlayerControlCommand::Type type, uint8_t pipeline);
   void queue_play_current_(uint8_t pipeline, uint32_t delay_ms = 0);
+
+  /// @brief Maps playlist_index through shuffle indices if shuffle is active
+  size_t get_playlist_position_(uint8_t pipeline) const;
+
+  /// @brief Generates shuffled indices for the playlist, keeping current track at current position
+  void shuffle_playlist_(uint8_t pipeline);
+
+  /// @brief Clears shuffle indices and adjusts playlist_index to maintain current track
+  void unshuffle_playlist_(uint8_t pipeline);
 
   QueueHandle_t media_control_command_queue_;
 
