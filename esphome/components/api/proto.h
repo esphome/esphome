@@ -115,8 +115,6 @@ struct ProtoVarIntResult {
   uint32_t consumed;  // PROTO_VARINT_PARSE_FAILED = parse failed
 
   constexpr bool has_value() const { return this->consumed != PROTO_VARINT_PARSE_FAILED; }
-  constexpr uint16_t as_uint16() const { return this->value; }
-  constexpr uint32_t as_uint32() const { return this->value; }
 };
 
 /// Static varint parsing methods for the protobuf wire format.

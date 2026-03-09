@@ -69,7 +69,7 @@ uint32_t ProtoDecodableMessage::count_repeated_field(const uint8_t *buffer, size
       break;  // Invalid data, stop counting
     }
 
-    uint32_t tag = res.as_uint32();
+    uint32_t tag = res.value;
     uint32_t field_type = tag & WIRE_TYPE_MASK;
     uint32_t field_id = tag >> 3;
     ptr += res.consumed;
@@ -94,7 +94,7 @@ uint32_t ProtoDecodableMessage::count_repeated_field(const uint8_t *buffer, size
         if (!res.has_value()) {
           return count;
         }
-        uint32_t field_length = res.as_uint32();
+        uint32_t field_length = res.value;
         ptr += res.consumed;
         if (field_length > static_cast<size_t>(end - ptr)) {
           return count;  // Out of bounds
@@ -215,7 +215,7 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
       return;
     }
 
-    uint32_t tag = res.as_uint32();
+    uint32_t tag = res.value;
     uint32_t field_type = tag & WIRE_TYPE_MASK;
     uint32_t field_id = tag >> 3;
     ptr += res.consumed;
@@ -228,7 +228,8 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
           return;
         }
         if (!this->decode_varint(field_id, res.value)) {
-          ESP_LOGV(TAG, "Cannot decode VarInt field %" PRIu32 " with value %" PRIu32 "!", field_id, res.as_uint32());
+          ESP_LOGV(TAG, "Cannot decode VarInt field %" PRIu32 " with value %" PRIu64 "!", field_id,
+                   static_cast<uint64_t>(res.value));
         }
         ptr += res.consumed;
         break;
@@ -239,7 +240,7 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
           ESP_LOGV(TAG, "Invalid Length Delimited at offset %ld", (long) (ptr - buffer));
           return;
         }
-        uint32_t field_length = res.as_uint32();
+        uint32_t field_length = res.value;
         ptr += res.consumed;
         if (field_length > static_cast<size_t>(end - ptr)) {
           ESP_LOGV(TAG, "Out-of-bounds Length Delimited at offset %ld", (long) (ptr - buffer));
