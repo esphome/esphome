@@ -21,7 +21,13 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, read_file, write_file_if_changed
 
-from .const import KEY_BOARD, KEY_PIO_FILES, KEY_RP2040, rp2040_ns
+from .const import (
+    CONF_ENABLE_FULL_PRINTF,
+    KEY_BOARD,
+    KEY_PIO_FILES,
+    KEY_RP2040,
+    rp2040_ns,
+)
 
 # force import gpio to register pin schema
 from .gpio import rp2040_pin_to_code  # noqa
@@ -153,6 +159,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=cv.TimePeriod(milliseconds=8388)),
             ),
+            cv.Optional(CONF_ENABLE_FULL_PRINTF, default=False): cv.boolean,
         }
     ),
     set_core_data,
@@ -189,6 +196,14 @@ async def to_code(config):
             f"earlephilhower/framework-arduinopico@{conf[CONF_SOURCE]}",
         ],
     )
+
+    # Wrap FILE*-based printf functions to eliminate newlib's _vfprintf_r
+    # (~9.2 KB). See printf_stubs.cpp for implementation.
+    if config.get(CONF_ENABLE_FULL_PRINTF):
+        cg.add_define("USE_FULL_PRINTF")
+    else:
+        for symbol in ("vprintf", "printf", "fprintf"):
+            cg.add_build_flag(f"-Wl,--wrap={symbol}")
 
     cg.add_platformio_option("board_build.core", "earlephilhower")
     cg.add_platformio_option("board_build.filesystem_size", "1m")
