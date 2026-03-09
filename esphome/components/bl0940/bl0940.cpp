@@ -215,10 +215,7 @@ void BL0940::received_package_(DataPacket *data) {
   uint32_t cf_cnt = (uint24_t) data->cf_cnt;
   cf_cnt |= this->prev_cf_cnt_ & 0xff000000;
   if (cf_cnt < this->prev_cf_cnt_) {
-    // Guard against uint32_t overflow when high byte is 0xFF
-    if (cf_cnt <= UINT32_MAX - 0x1000000) {
-      cf_cnt += 0x1000000;
-    }
+    cf_cnt += 0x1000000;
   }
   this->prev_cf_cnt_ = cf_cnt;
 
