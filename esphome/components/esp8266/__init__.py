@@ -6,6 +6,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
     CONF_BOARD_FLASH_MODE,
+    CONF_ENABLE_FULL_PRINTF,
     CONF_FRAMEWORK,
     CONF_PLATFORM_VERSION,
     CONF_SOURCE,
@@ -23,7 +24,6 @@ from esphome.helpers import copy_file_if_changed
 from .boards import BOARDS, ESP8266_LD_SCRIPTS
 from .const import (
     CONF_EARLY_PIN_INIT,
-    CONF_ENABLE_FULL_PRINTF,
     CONF_ENABLE_SERIAL,
     CONF_ENABLE_SERIAL1,
     CONF_RESTORE_FROM_FLASH,

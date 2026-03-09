@@ -6,6 +6,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
+    CONF_ENABLE_FULL_PRINTF,
     CONF_FRAMEWORK,
     CONF_PLATFORM_VERSION,
     CONF_SOURCE,
@@ -21,13 +22,7 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, read_file, write_file_if_changed
 
-from .const import (
-    CONF_ENABLE_FULL_PRINTF,
-    KEY_BOARD,
-    KEY_PIO_FILES,
-    KEY_RP2040,
-    rp2040_ns,
-)
+from .const import KEY_BOARD, KEY_PIO_FILES, KEY_RP2040, rp2040_ns
 
 # force import gpio to register pin schema
 from .gpio import rp2040_pin_to_code  # noqa
