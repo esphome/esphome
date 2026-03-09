@@ -215,7 +215,8 @@ void SEN6XComponent::poll_data_ready_() {
     ESP_LOGD(TAG, "Data not ready");
     return;
   }
-  ESP_LOGV(TAG, "Data ready polling attempt %u", POLL_RETRIES - this->poll_retries_remaining_ + 1);
+  ESP_LOGV(TAG, "Data ready polling attempt %u",
+           static_cast<unsigned>(POLL_RETRIES - this->poll_retries_remaining_ + 1));
   this->poll_retries_remaining_--;
 
   if (!this->write_command(SEN6X_CMD_GET_DATA_READY_STATUS)) {
