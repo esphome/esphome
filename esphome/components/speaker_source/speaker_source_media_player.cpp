@@ -328,7 +328,7 @@ bool SpeakerSourceMediaPlayer::try_execute_play_uri_(const std::string &uri, uin
 }
 
 void SpeakerSourceMediaPlayer::queue_command_(MediaPlayerControlCommand::Type type, uint8_t pipeline) {
-  MediaPlayerControlCommand cmd;
+  MediaPlayerControlCommand cmd{};
   cmd.type = type;
   cmd.pipeline = pipeline;
   if (xQueueSend(this->media_control_command_queue_, &cmd, 0) != pdTRUE) {
