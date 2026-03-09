@@ -61,6 +61,7 @@ void MICS4514Component::update() {
 
   if (this->red_calibration_ == 0 || this->ox_calibration_ == 0) {
     this->status_set_warning();
+    this->initial_ = true;
     return;
   }
   float red_f = (float) (power - red) / this->red_calibration_;

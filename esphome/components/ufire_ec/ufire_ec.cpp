@@ -1,5 +1,6 @@
 #include "esphome/core/log.h"
 #include "ufire_ec.h"
+#include <cmath>
 
 namespace esphome {
 namespace ufire_ec {
@@ -62,7 +63,7 @@ float UFireECComponent::measure_ms_() { return this->read_data_(REGISTER_MS); }
 
 void UFireECComponent::set_solution_(float solution, float temperature) {
   float denom = 1 - (this->temperature_coefficient_ * (temperature - 25));
-  if (denom == 0) {
+  if (std::abs(denom) < 1e-6f) {
     ESP_LOGE(TAG, "Temperature compensation denominator is zero");
     return;
   }
