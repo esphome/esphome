@@ -162,13 +162,15 @@ void Pipsolar::loop() {
 }
 
 uint8_t Pipsolar::check_incoming_length_(uint8_t length) {
-  if (this->read_pos_ - 3 == length) {
+  if (this->read_pos_ >= 3 && this->read_pos_ - 3 == length) {
     return 1;
   }
   return 0;
 }
 
 uint8_t Pipsolar::check_incoming_crc_() {
+  if (this->read_pos_ < 3)
+    return 0;
   uint16_t crc16;
   crc16 = this->pipsolar_crc_(read_buffer_, read_pos_ - 3);
   if (((uint8_t) ((crc16) >> 8)) == read_buffer_[read_pos_ - 3] &&
@@ -645,6 +647,7 @@ void Pipsolar::handle_qpiws_(const char *message) {
       case 34:
         this->publish_binary_sensor_(enabled, this->warning_high_ac_input_during_bus_soft_start_);
         value_warnings_present |= enabled.value_or(false);
+        break;
       case 35:
         this->publish_binary_sensor_(enabled, this->warning_battery_equalization_);
         value_warnings_present |= enabled.value_or(false);

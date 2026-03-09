@@ -8,6 +8,7 @@
 
 #include "LwRx.h"
 #include <cstring>
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace lightwaverf {
@@ -185,13 +186,20 @@ bool LwRx::lwrx_getmessage(uint8_t *buf, uint8_t len) {
   bool ret = true;
   int16_t j = 0;  // int
   if (this->rx_msgcomplete && len <= RX_MSGLEN) {
+    // Copy message under interrupt lock to prevent ISR overwriting rx_msg mid-read
+    uint8_t msg_copy[RX_MSGLEN];
+    {
+      InterruptLock lock;
+      memcpy(msg_copy, this->rx_msg, RX_MSGLEN);
+      this->rx_msgcomplete = false;
+    }
     for (uint8_t i = 0; ret && i < RX_MSGLEN; i++) {
       if (this->rx_translate || (len != RX_MSGLEN)) {
-        j = this->rx_find_nibble_(this->rx_msg[i]);
+        j = this->rx_find_nibble_(msg_copy[i]);
         if (j < 0)
           ret = false;
       } else {
-        j = this->rx_msg[i];
+        j = msg_copy[i];
       }
       switch (len) {
         case 4:
@@ -199,6 +207,7 @@ bool LwRx::lwrx_getmessage(uint8_t *buf, uint8_t len) {
             buf[2] = j;
           if (i == 2)
             buf[3] = j;
+          [[fallthrough]];
         case 2:
           if (i == 3)
             buf[0] = j;
@@ -212,7 +221,6 @@ bool LwRx::lwrx_getmessage(uint8_t *buf, uint8_t len) {
           break;
       }
     }
-    this->rx_msgcomplete = false;
   } else {
     ret = false;
   }
