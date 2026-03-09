@@ -6,6 +6,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
+    CONF_ENABLE_FULL_PRINTF,
     CONF_FRAMEWORK,
     CONF_PLATFORM_VERSION,
     CONF_SOURCE,
@@ -91,7 +92,7 @@ def _parse_platform_version(value):
 # The default/recommended arduino framework version
 #  - https://github.com/earlephilhower/arduino-pico/releases
 #  - https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(5, 5, 0)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(5, 5, 1)
 
 # The raspberrypi platform version to use for arduino frameworks
 #  - https://github.com/maxgerhardt/platform-raspberrypi/tags
@@ -101,8 +102,8 @@ RECOMMENDED_ARDUINO_PLATFORM_VERSION = "v1.4.0-gcc14-arduinopico460"
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(5, 5, 0), "https://github.com/earlephilhower/arduino-pico"),
-        "latest": (cv.Version(5, 5, 0), None),
+        "dev": (cv.Version(5, 5, 1), "https://github.com/earlephilhower/arduino-pico"),
+        "latest": (cv.Version(5, 5, 1), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
@@ -153,6 +154,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=cv.TimePeriod(milliseconds=8388)),
             ),
+            cv.Optional(CONF_ENABLE_FULL_PRINTF, default=False): cv.boolean,
         }
     ),
     set_core_data,
@@ -169,6 +171,7 @@ async def to_code(config):
     cg.add_platformio_option("lib_compat_mode", "strict")
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_RP2040")
+    cg.add_define("USE_NATIVE_64BIT_TIME")
     cg.set_cpp_standard("gnu++20")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "RP2040")
@@ -188,6 +191,14 @@ async def to_code(config):
             f"earlephilhower/framework-arduinopico@{conf[CONF_SOURCE]}",
         ],
     )
+
+    # Wrap FILE*-based printf functions to eliminate newlib's _vfprintf_r
+    # (~9.2 KB). See printf_stubs.cpp for implementation.
+    if config.get(CONF_ENABLE_FULL_PRINTF):
+        cg.add_define("USE_FULL_PRINTF")
+    else:
+        for symbol in ("vprintf", "printf", "fprintf"):
+            cg.add_build_flag(f"-Wl,--wrap={symbol}")
 
     cg.add_platformio_option("board_build.core", "earlephilhower")
     cg.add_platformio_option("board_build.filesystem_size", "1m")

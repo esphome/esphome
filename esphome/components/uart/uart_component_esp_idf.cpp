@@ -157,6 +157,9 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   if (this->rx_pin_ != nullptr && this->rx_pin_->is_inverted()) {
     invert |= UART_SIGNAL_RXD_INV;
   }
+  if (this->flow_control_pin_ != nullptr && this->flow_control_pin_->is_inverted()) {
+    invert |= UART_SIGNAL_RTS_INV;
+  }
 
   err = uart_set_line_inverse(this->uart_num_, invert);
   if (err != ESP_OK) {
@@ -226,6 +229,9 @@ void IDFUARTComponent::dump_config() {
                   "  RX Full Threshold: %u\n"
                   "  RX Timeout: %u",
                   this->rx_buffer_size_, this->rx_full_threshold_, this->rx_timeout_);
+  }
+  if (this->flush_timeout_ms_ > 0) {
+    ESP_LOGCONFIG(TAG, "  Flush Timeout: %" PRIu32 " ms", this->flush_timeout_ms_);
   }
   ESP_LOGCONFIG(TAG,
                 "  Baud Rate: %" PRIu32 " baud\n"
@@ -329,9 +335,15 @@ size_t IDFUARTComponent::available() {
   return available;
 }
 
-void IDFUARTComponent::flush() {
+FlushResult IDFUARTComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing");
-  uart_wait_tx_done(this->uart_num_, portMAX_DELAY);
+  TickType_t ticks = this->flush_timeout_ms_ == 0 ? portMAX_DELAY : pdMS_TO_TICKS(this->flush_timeout_ms_);
+  esp_err_t err = uart_wait_tx_done(this->uart_num_, ticks);
+  if (err == ESP_OK)
+    return FlushResult::SUCCESS;
+  if (err == ESP_ERR_TIMEOUT)
+    return FlushResult::TIMEOUT;
+  return FlushResult::FAILED;
 }
 
 void IDFUARTComponent::check_logger_conflict() {}
