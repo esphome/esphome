@@ -161,8 +161,6 @@ class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPla
 
   bool try_execute_play_uri_(const std::string &uri, uint8_t pipeline);
   media_source::MediaSource *find_source_for_uri_(const std::string &uri, uint8_t pipeline);
-  void queue_command_(MediaPlayerControlCommand::Type type, uint8_t pipeline);
-
   QueueHandle_t media_control_command_queue_;
 
   // Pipeline context for media pipeline

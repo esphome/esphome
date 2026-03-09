@@ -36,9 +36,6 @@ SpeakerSourceMediaPlayer = speaker_source_ns.class_(
 PipelineContext = speaker_source_ns.struct("PipelineContext")
 
 Pipeline = speaker_source_ns.enum("Pipeline")
-PIPELINE_ENUM = {
-    "media": Pipeline.MEDIA_PIPELINE,
-}
 
 
 # Returns a media_player.MediaPlayerSupportedFormat struct with the configured

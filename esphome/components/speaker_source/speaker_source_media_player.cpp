@@ -376,15 +376,6 @@ bool SpeakerSourceMediaPlayer::try_execute_play_uri_(const std::string &uri, uin
   return true;  // Remove from queue
 }
 
-void SpeakerSourceMediaPlayer::queue_command_(MediaPlayerControlCommand::Type type, uint8_t pipeline) {
-  MediaPlayerControlCommand cmd;
-  cmd.type = type;
-  cmd.pipeline = pipeline;
-  if (xQueueSend(this->media_control_command_queue_, &cmd, 0) != pdTRUE) {
-    ESP_LOGE(TAG, "Queue full, command dropped");
-  }
-}
-
 void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call) {
   if (!this->is_ready()) {
     return;
