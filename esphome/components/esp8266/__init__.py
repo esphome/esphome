@@ -23,6 +23,7 @@ from esphome.helpers import copy_file_if_changed
 from .boards import BOARDS, ESP8266_LD_SCRIPTS
 from .const import (
     CONF_EARLY_PIN_INIT,
+    CONF_ENABLE_FULL_PRINTF,
     CONF_ENABLE_SERIAL,
     CONF_ENABLE_SERIAL1,
     CONF_RESTORE_FROM_FLASH,
@@ -179,6 +180,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ENABLE_SERIAL): cv.boolean,
             cv.Optional(CONF_ENABLE_SERIAL1): cv.boolean,
+            cv.Optional(CONF_ENABLE_FULL_PRINTF, default=False): cv.boolean,
         }
     ),
     set_core_data,
@@ -259,6 +261,14 @@ async def to_code(config):
     # we pretend it has much larger memory to test that components compile together
     if CORE.testing_mode:
         cg.add_build_flag("-DESPHOME_TESTING_MODE")
+
+    # Wrap FILE*-based printf functions to eliminate newlib's _vfiprintf_r
+    # (~1.6 KB). See printf_stubs.cpp for implementation.
+    if config.get(CONF_ENABLE_FULL_PRINTF):
+        cg.add_define("USE_FULL_PRINTF")
+    else:
+        for symbol in ("vprintf", "printf", "fprintf"):
+            cg.add_build_flag(f"-Wl,--wrap={symbol}")
 
     cg.add_platformio_option("board_build.flash_mode", config[CONF_BOARD_FLASH_MODE])
 

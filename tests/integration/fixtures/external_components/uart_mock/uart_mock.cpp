@@ -53,6 +53,15 @@ void MockUartComponent::loop() {
     }
   }
 
+  // Process staged RX - deliver bytes whose delay has elapsed
+  uint32_t now_ms = millis();
+  while (!this->staged_rx_.empty() && (static_cast<int32_t>(now_ms - this->staged_rx_.front().available_at_ms) >= 0)) {
+    auto &staged = this->staged_rx_.front();
+    ESP_LOGD(TAG, "Delivering %zu staged RX bytes", staged.data.size());
+    this->inject_to_rx_buffer(staged.data);
+    this->staged_rx_.pop_front();
+  }
+
   // Process delayed responses
   for (auto &response : this->responses_) {
     if (response.delay_ms > 0 && response.last_match_ms > 0 && now - response.last_match_ms >= response.delay_ms) {
@@ -207,6 +216,17 @@ void MockUartComponent::inject_to_rx_buffer(const std::vector<uint8_t> &data) {
   for (uint8_t byte : data) {
     this->rx_buffer_.push_back(byte);
   }
+}
+
+void MockUartComponent::inject_to_rx_buffer_delayed(const std::vector<uint8_t> &data, uint32_t delay_ms) {
+  if (!data.empty() && data.size() <= 64) {
+    char hex_buf[format_hex_pretty_size(64)];
+    ESP_LOGD(TAG, "Staging %zu RX bytes with %ums delay: %s", data.size(), delay_ms,
+             format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
+  } else if (data.size() > 64) {
+    ESP_LOGD(TAG, "Staging %zu RX bytes with %ums delay (too large to log inline)", data.size(), delay_ms);
+  }
+  this->staged_rx_.push_back({data, millis() + delay_ms});
 }
 
 }  // namespace esphome::uart_mock
