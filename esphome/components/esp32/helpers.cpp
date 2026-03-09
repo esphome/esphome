@@ -37,9 +37,15 @@ IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
 
 LwIPLock::LwIPLock() {
 #ifdef CONFIG_LWIP_TCPIP_CORE_LOCKING
-  // Only acquire the lock if this thread doesn't already hold it.
-  // Track whether THIS instance acquired it so nested LwIPLock
-  // instances don't cause premature unlock.
+  // When CONFIG_LWIP_TCPIP_CORE_LOCKING is enabled, lwIP uses a global mutex to protect
+  // its internal state. Any thread can take this lock to safely access lwIP APIs.
+  //
+  // sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER) returns true if the current thread
+  // already holds the lwIP core lock. This prevents recursive locking attempts and
+  // allows nested LwIPLock instances to work correctly.
+  //
+  // If we don't already hold the lock, acquire it. This will block until the lock
+  // is available if another thread currently holds it.
   if (!sys_thread_tcpip(LWIP_CORE_LOCK_QUERY_HOLDER)) {
     LOCK_TCPIP_CORE();
     this->acquired_ = true;
@@ -49,7 +55,8 @@ LwIPLock::LwIPLock() {
 
 LwIPLock::~LwIPLock() {
 #ifdef CONFIG_LWIP_TCPIP_CORE_LOCKING
-  // Only release the lock if THIS instance acquired it.
+  // Only release the lock if this instance actually acquired it,
+  // so nested LwIPLock instances don't cause premature unlock.
   if (this->acquired_) {
     UNLOCK_TCPIP_CORE();
   }
