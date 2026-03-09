@@ -372,15 +372,15 @@ void I2SAudioSpeaker::speaker_task(void *params) {
         }
 
 #ifdef USE_ESP32_VARIANT_ESP32
-        // For ESP32 8/16 bit mono mode samples need to be switched.
+        // For ESP32 16-bit mono mode, adjacent samples need to be swapped.
         if (this_speaker->current_stream_info_.get_channels() == 1 &&
-            this_speaker->current_stream_info_.get_bits_per_sample() <= 16) {
-          size_t len = bytes_read / sizeof(int16_t);
-          int16_t *tmp_buf = (int16_t *) new_data;
-          for (size_t i = 0; i < len; i += 2) {
-            int16_t tmp = tmp_buf[i];
-            tmp_buf[i] = tmp_buf[i + 1];
-            tmp_buf[i + 1] = tmp;
+            this_speaker->current_stream_info_.get_bits_per_sample() == 16) {
+          int16_t *samples = reinterpret_cast<int16_t *>(new_data);
+          size_t sample_count = bytes_read / sizeof(int16_t);
+          for (size_t i = 0; i + 1 < sample_count; i += 2) {
+            int16_t tmp = samples[i];
+            samples[i] = samples[i + 1];
+            samples[i + 1] = tmp;
           }
         }
 #endif
