@@ -17,15 +17,20 @@ class BLEScanner : public text_sensor::TextSensor, public esp32_ble_tracker::ESP
  public:
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override {
     char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
-    // Escape quotes and backslashes in the device name for valid JSON
+    // Escape special characters in the device name for valid JSON
     const char *name = device.get_name().c_str();
     char escaped_name[128];
     size_t pos = 0;
-    for (; *name != '\0' && pos < sizeof(escaped_name) - 2; name++) {
-      if (*name == '"' || *name == '\\') {
+    for (; *name != '\0' && pos < sizeof(escaped_name) - 7; name++) {
+      uint8_t c = static_cast<uint8_t>(*name);
+      if (c == '"' || c == '\\') {
         escaped_name[pos++] = '\\';
+        escaped_name[pos++] = c;
+      } else if (c < 0x20) {
+        pos += snprintf(escaped_name + pos, sizeof(escaped_name) - pos, "\\u%04x", c);
+      } else {
+        escaped_name[pos++] = c;
       }
-      escaped_name[pos++] = *name;
     }
     escaped_name[pos] = '\0';
 
