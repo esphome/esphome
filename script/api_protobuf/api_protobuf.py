@@ -193,7 +193,6 @@ class TypeInfo(ABC):
         return f"case {self.number}: this->{self.field_name} = {content}; break;"
 
     decode_varint = None
-    is_varint64 = False
 
     @property
     def decode_length_content(self) -> str:
@@ -463,7 +462,6 @@ class Int64Type(TypeInfo):
     cpp_type = "int64_t"
     default_value = "0"
     decode_varint = "static_cast<int64_t>(value)"
-    is_varint64 = True
     encode_func = "encode_int64"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -484,7 +482,6 @@ class UInt64Type(TypeInfo):
     cpp_type = "uint64_t"
     default_value = "0"
     decode_varint = "value"
-    is_varint64 = True
     encode_func = "encode_uint64"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -1286,7 +1283,6 @@ class SInt64Type(TypeInfo):
     cpp_type = "int64_t"
     default_value = "0"
     decode_varint = "decode_zigzag64(value)"
-    is_varint64 = True
     encode_func = "encode_sint64"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -1623,10 +1619,6 @@ class RepeatedTypeInfo(TypeInfo):
         For repeated fields, we use the same wire type as the underlying field.
         """
         return self._ti.wire_type
-
-    @property
-    def is_varint64(self):
-        return self._ti.is_varint64
 
     @property
     def decode_varint_content(self) -> str:
