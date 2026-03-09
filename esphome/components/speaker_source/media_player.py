@@ -129,16 +129,37 @@ PIPELINE_SCHEMA = cv.Schema(
 )
 
 
-def _validate_repeated_speaker(config: ConfigType) -> ConfigType:
-    if (
-        (announcement_config := config.get(CONF_ANNOUNCEMENT_PIPELINE))
-        and (media_config := config.get(CONF_MEDIA_PIPELINE))
-        and announcement_config[CONF_SPEAKER] == media_config[CONF_SPEAKER]
-    ):
-        raise cv.Invalid(
-            "The announcement and media pipelines cannot use the same speaker. "
-            "Use the `mixer` speaker component to create two source speakers."
-        )
+def _validate_no_shared_resources(config: ConfigType) -> ConfigType:
+    announcement_config = config.get(CONF_ANNOUNCEMENT_PIPELINE)
+    media_config = config.get(CONF_MEDIA_PIPELINE)
+
+    # Check for duplicates within each pipeline
+    for pipeline_key in (CONF_ANNOUNCEMENT_PIPELINE, CONF_MEDIA_PIPELINE):
+        if pipeline_config := config.get(pipeline_key):
+            source_ids = [s.id for s in pipeline_config[CONF_SOURCES]]
+            if len(source_ids) != len(set(source_ids)):
+                raise cv.Invalid(
+                    f"Duplicate media sources in {pipeline_key}. "
+                    "Each media source can only appear once per pipeline."
+                )
+
+    # Check for sources shared between pipelines
+    if announcement_config and media_config:
+        if announcement_config[CONF_SPEAKER] == media_config[CONF_SPEAKER]:
+            raise cv.Invalid(
+                "The announcement and media pipelines cannot use the same speaker. "
+                "Use the `mixer` speaker component to create two source speakers."
+            )
+
+        announcement_source_ids = {s.id for s in announcement_config[CONF_SOURCES]}
+        media_source_ids = {s.id for s in media_config[CONF_SOURCES]}
+        shared = announcement_source_ids & media_source_ids
+        if shared:
+            raise cv.Invalid(
+                f"Media sources cannot be shared between pipelines: {', '.join(shared)}. "
+                "Create separate media source instances for each pipeline."
+            )
+
     return config
 
 
@@ -169,7 +190,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(media_player.media_player_schema(SpeakerSourceMediaPlayer)),
     cv.only_on_esp32,
     cv.has_at_least_one_key(CONF_ANNOUNCEMENT_PIPELINE, CONF_MEDIA_PIPELINE),
-    _validate_repeated_speaker,
+    _validate_no_shared_resources,
     _validate_volume_settings,
 )
 
