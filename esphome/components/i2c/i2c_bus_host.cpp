@@ -1,4 +1,3 @@
-#define USE_HOST
 #ifdef USE_HOST
 #if defined(__linux__)
 
