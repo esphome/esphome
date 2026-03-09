@@ -209,7 +209,7 @@ void EthernetComponent::setup() {
       break;
     }
 #endif
-#ifdef USE_ETHERNET_JL1101
+#if defined(USE_ETHERNET_JL1101) && (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2) || !defined(PLATFORMIO))
     case ETHERNET_TYPE_JL1101: {
       this->phy_ = esp_eth_phy_new_jl1101(&phy_config);
       break;
@@ -374,7 +374,7 @@ void EthernetComponent::dump_config() {
       eth_type = "IP101";
       break;
 #endif
-#ifdef USE_ETHERNET_JL1101
+#if defined(USE_ETHERNET_JL1101) && (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2) || !defined(PLATFORMIO))
     case ETHERNET_TYPE_JL1101:
       eth_type = "JL1101";
       break;
@@ -470,6 +470,7 @@ network::IPAddresses EthernetComponent::get_ip_addresses() {
   uint8_t count = 0;
   count = esp_netif_get_all_ip6(this->eth_netif_, if_ip6s);
   assert(count <= CONFIG_LWIP_IPV6_NUM_ADDRESSES);
+  assert(count < addresses.size());
   for (int i = 0; i < count; i++) {
     addresses[i + 1] = network::IPAddress(&if_ip6s[i]);
   }
@@ -686,8 +687,6 @@ void EthernetComponent::start_connect_() {
   this->connect_begin_ = millis();
   this->status_set_warning();
 }
-
-bool EthernetComponent::is_connected() { return this->state_ == EthernetComponentState::CONNECTED; }
 
 void EthernetComponent::dump_connect_params_() {
   esp_netif_ip_info_t ip;

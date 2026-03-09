@@ -10,7 +10,9 @@ static const char *const TAG = "bl0906";
 
 constexpr uint32_t to_uint32_t(ube24_t input) { return input.h << 16 | input.m << 8 | input.l; }
 
-constexpr int32_t to_int32_t(sbe24_t input) { return input.h << 16 | input.m << 8 | input.l; }
+constexpr int32_t to_int32_t(sbe24_t input) {
+  return static_cast<int32_t>(encode_uint32((uint8_t) input.h, input.m, input.l, 0)) >> 8;
+}
 
 // The SUM byte is (Addr+Data_L+Data_M+Data_H)&0xFF negated;
 constexpr uint8_t bl0906_checksum(const uint8_t address, const DataPacket *data) {
@@ -188,11 +190,9 @@ void BL0906::bias_correction_(uint8_t address, float measurements, float correct
   float i_rms0 = measurements * ki;
   float i_rms = correction * ki;
   int32_t value = (i_rms * i_rms - i_rms0 * i_rms0) / 256;
-  data.l = value << 24 >> 24;
-  data.m = value << 16 >> 24;
-  if (value < 0) {
-    data.h = (value << 8 >> 24) | 0b10000000;
-  }
+  data.l = value & 0xFF;
+  data.m = (value >> 8) & 0xFF;
+  data.h = (value >> 16) & 0xFF;
   data.address = bl0906_checksum(address, &data);
   ESP_LOGV(TAG, "RMSOS:%02X%02X%02X%02X%02X%02X", BL0906_WRITE_COMMAND, address, data.l, data.m, data.h, data.address);
   this->write_byte(BL0906_WRITE_COMMAND);

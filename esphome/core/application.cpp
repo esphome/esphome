@@ -32,7 +32,7 @@
 #include "esphome/components/status_led/status_led.h"
 #endif
 
-#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+#if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
 #include "esphome/components/socket/socket.h"
 #endif
 
@@ -153,6 +153,14 @@ void Application::setup() {
   this->setup_wake_loop_threadsafe_();
 #endif
 
+  // Ensure all active looping components are in LOOP state.
+  // Components after the last blocking component only got one call() during setup
+  // (CONSTRUCTION→SETUP) and never received the second call() (SETUP→LOOP).
+  // The main loop calls loop() directly, bypassing call()'s state machine.
+  for (uint16_t i = 0; i < this->looping_components_active_end_; i++) {
+    this->looping_components_[i]->set_component_state_(COMPONENT_STATE_LOOP);
+  }
+
   this->schedule_dump_config();
 }
 void Application::loop() {
@@ -173,7 +181,7 @@ void Application::loop() {
     {
       this->set_current_component(component);
       WarnIfComponentBlockingGuard guard{component, last_op_end_time};
-      component->call();
+      component->loop();
       // Use the finish method to get the current time as the end time
       last_op_end_time = guard.finish();
     }
@@ -705,8 +713,10 @@ void Application::yield_with_select_(uint32_t delay_ms) {
   }
   // No sockets registered or select() failed - use regular delay
   delay(delay_ms);
-#elif defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
-  // No select support but can wake on socket activity via esp_schedule()
+#elif (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+  // No select support but can wake on socket activity
+  // ESP8266: via esp_schedule()
+  // RP2040: via __sev()/__wfe() hardware sleep/wake
   socket::socket_delay(delay_ms);
 #else
   // No select support, use regular delay
