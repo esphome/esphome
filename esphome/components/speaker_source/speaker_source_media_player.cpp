@@ -210,7 +210,7 @@ size_t SpeakerSourceMediaPlayer::handle_media_output_(uint8_t pipeline, media_so
 }
 
 // THREAD CONTEXT: Called from main loop (loop)
-media_player::MediaPlayerState SpeakerSourceMediaPlayer::get_media_pipeline_state_(
+media_player::MediaPlayerState SpeakerSourceMediaPlayer::get_source_state_(
     media_source::MediaSource *source, bool playlist_active, media_player::MediaPlayerState old_state) const {
   if (source != nullptr) {
     switch (source->get_state()) {
@@ -262,21 +262,22 @@ void SpeakerSourceMediaPlayer::loop() {
           this->state = media_player::MEDIA_PLAYER_STATE_ANNOUNCING;
           break;
         case media_source::MediaSourceState::ERROR:
-          this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
-          ESP_LOGE(TAG, "Announcement source error");
+          ESP_LOGE(TAG, "Source error");
+          // Fall through to media pipeline state
+          this->state = this->get_source_state_(media_ps.active_source, media_playlist_active, old_state);
           break;
         default:
           break;
       }
     } else {
       // Announcement source is idle, fall through to media pipeline
-      this->state = this->get_media_pipeline_state_(media_ps.active_source, media_playlist_active, old_state);
+      this->state = this->get_source_state_(media_ps.active_source, media_playlist_active, old_state);
     }
   } else if (announcement_playlist_active && old_state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING) {
     this->state = media_player::MEDIA_PLAYER_STATE_ANNOUNCING;
   } else {
     // No active announcement, check media pipeline
-    this->state = this->get_media_pipeline_state_(media_ps.active_source, media_playlist_active, old_state);
+    this->state = this->get_source_state_(media_ps.active_source, media_playlist_active, old_state);
   }
 
   if (this->state != old_state) {
