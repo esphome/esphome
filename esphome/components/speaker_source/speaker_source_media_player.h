@@ -133,7 +133,7 @@ struct MediaPlayerControlCommand {
     SEND_COMMAND,      // Send command to active source
   };
   Type type;
-  uint8_t pipeline;
+  uint8_t pipeline;  // MEDIA_PIPELINE or ANNOUNCEMENT_PIPELINE
 
   union {
     std::string *uri;  // Owned pointer, must delete after xQueueReceive (for PLAY_URI and ENQUEUE_URI)
