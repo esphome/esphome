@@ -139,7 +139,7 @@ void HlkFm22xComponent::recv_command_() {
   uint32_t start = millis();
   while (this->available() < length + 1) {
     if (millis() - start > PAYLOAD_TIMEOUT_MS) {
-      ESP_LOGW(TAG, "Timeout waiting for payload (%u bytes)", length);
+      ESP_LOGE(TAG, "Timeout waiting for payload (%u bytes)", length);
       // Drain any partial payload bytes to resync the parser
       while (this->available() > 0) {
         this->read();
