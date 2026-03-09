@@ -10,6 +10,11 @@ speaker:
     i2s_dout_pin: ${i2s_dout_pin}
     sample_rate: 48000
     num_channels: 2
+  - platform: mixer
+    output_speaker: speaker_id
+    source_speakers:
+      - id: announcement_mixer_speaker_id
+      - id: media_mixer_speaker_id
 
 audio_file:
   - id: test_audio
@@ -19,7 +24,9 @@ audio_file:
 
 media_source:
   - platform: audio_file
-    id: audio_file_source
+    id: announcement_audio_file_source
+  - platform: audio_file
+    id: media_audio_file_source
 
 media_player:
   - platform: speaker_source
@@ -29,12 +36,18 @@ media_player:
     volume_initial: 0.75
     volume_max: 0.95
     volume_min: 0.0
-    media_pipeline:
-      speaker: speaker_id
+    announcement_pipeline:
+      speaker: announcement_mixer_speaker_id
       format: FLAC
       num_channels: 1
       sources:
-        - audio_file_source
+        - announcement_audio_file_source
+    media_pipeline:
+      speaker: media_mixer_speaker_id
+      format: FLAC
+      num_channels: 1
+      sources:
+        - media_audio_file_source
     on_mute:
       - media_player.shuffle:
           id: media_player_id

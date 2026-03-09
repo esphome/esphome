@@ -55,6 +55,7 @@ namespace esphome::speaker_source {
 
 enum Pipeline : uint8_t {
   MEDIA_PIPELINE = 0,
+  ANNOUNCEMENT_PIPELINE = 1,
 };
 
 enum RepeatMode : uint8_t {
@@ -87,7 +88,7 @@ struct SourceBinding : public media_source::MediaSourceListener {
 
 struct PipelineContext {
   /// @brief Timeout IDs for playlist delay, indexed by Pipeline enum
-  static constexpr const char *const TIMEOUT_IDS[] = {"next_media"};
+  static constexpr const char *const TIMEOUT_IDS[] = {"next_media", "next_ann"};
 
   speaker::Speaker *speaker{nullptr};
   optional<media_player::MediaPlayerSupportedFormat> format;
@@ -235,8 +236,9 @@ class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPla
 
   QueueHandle_t media_control_command_queue_;
 
-  // Pipeline context for media pipeline. See THREADING MODEL at top of namespace for access rules.
-  std::array<PipelineContext, 1> pipelines_;
+  // Pipeline context for media (index 0) and announcement (index 1) pipelines.
+  // See THREADING MODEL at top of namespace for access rules.
+  std::array<PipelineContext, 2> pipelines_;
 
   // Used to save volume/mute state for restoration on reboot
   ESPPreferenceObject pref_;

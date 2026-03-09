@@ -128,6 +128,7 @@ void SpeakerSourceMediaPlayer::handle_play_uri_request_(uint8_t pipeline, const 
   // Smart source is requesting the player to play a different URI
   auto call = this->make_call();
   call.set_media_url(uri);
+  call.set_announcement(pipeline == ANNOUNCEMENT_PIPELINE);
   call.perform();
 }
 
@@ -237,16 +238,46 @@ void SpeakerSourceMediaPlayer::loop() {
   // Process queued control commands
   this->process_control_queue_();
 
-  // Update state based on active sources
+  // Update state based on active sources - announcement pipeline takes priority
   media_player::MediaPlayerState old_state = this->state;
 
+  PipelineContext &ann_ps = this->pipelines_[ANNOUNCEMENT_PIPELINE];
   PipelineContext &media_ps = this->pipelines_[MEDIA_PIPELINE];
 
   // Check playlist state to detect transitions between items
+  bool announcement_playlist_active = (ann_ps.playlist_index < ann_ps.playlist.size()) ||
+                                      (ann_ps.repeat_mode != REPEAT_OFF && !ann_ps.playlist.empty());
   bool media_playlist_active = (media_ps.playlist_index < media_ps.playlist.size()) ||
                                (media_ps.repeat_mode != REPEAT_OFF && !media_ps.playlist.empty());
 
-  this->state = this->get_media_pipeline_state_(media_ps.active_source, media_playlist_active, old_state);
+  // Check announcement pipeline first
+  media_source::MediaSource *announcement_source = ann_ps.active_source;
+  if (announcement_source != nullptr) {
+    media_source::MediaSourceState announcement_state = announcement_source->get_state();
+    if (announcement_state != media_source::MediaSourceState::IDLE) {
+      // Announcement is active - announcements take priority and never report PAUSED
+      switch (announcement_state) {
+        case media_source::MediaSourceState::PLAYING:
+        case media_source::MediaSourceState::PAUSED:  // Treat paused announcements as announcing
+          this->state = media_player::MEDIA_PLAYER_STATE_ANNOUNCING;
+          break;
+        case media_source::MediaSourceState::ERROR:
+          this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
+          ESP_LOGE(TAG, "Announcement source error");
+          break;
+        default:
+          break;
+      }
+    } else {
+      // Announcement source is idle, fall through to media pipeline
+      this->state = this->get_media_pipeline_state_(media_ps.active_source, media_playlist_active, old_state);
+    }
+  } else if (announcement_playlist_active && old_state == media_player::MEDIA_PLAYER_STATE_ANNOUNCING) {
+    this->state = media_player::MEDIA_PLAYER_STATE_ANNOUNCING;
+  } else {
+    // No active announcement, check media pipeline
+    this->state = this->get_media_pipeline_state_(media_ps.active_source, media_playlist_active, old_state);
+  }
 
   if (this->state != old_state) {
     this->publish_state();
@@ -645,7 +676,23 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
   }
 
   MediaPlayerControlCommand control_command;
-  control_command.pipeline = MEDIA_PIPELINE;
+
+  // Determine which pipeline to use based on announcement flag, falling back if the preferred pipeline
+  // is not configured
+  auto announcement = call.get_announcement();
+  if (announcement.has_value() && announcement.value()) {
+    if (this->pipelines_[ANNOUNCEMENT_PIPELINE].is_configured()) {
+      control_command.pipeline = ANNOUNCEMENT_PIPELINE;
+    } else {
+      control_command.pipeline = MEDIA_PIPELINE;
+    }
+  } else {
+    if (this->pipelines_[MEDIA_PIPELINE].is_configured()) {
+      control_command.pipeline = MEDIA_PIPELINE;
+    } else {
+      control_command.pipeline = ANNOUNCEMENT_PIPELINE;
+    }
+  }
 
   auto media_url = call.get_media_url();
   if (media_url.has_value()) {

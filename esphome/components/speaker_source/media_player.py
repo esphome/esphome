@@ -20,6 +20,7 @@ DEPENDENCIES = ["media_source", "speaker"]
 
 CODEOWNERS = ["@kahrendt"]
 
+CONF_ANNOUNCEMENT_PIPELINE = "announcement_pipeline"
 CONF_MEDIA_PIPELINE = "media_pipeline"
 CONF_ON_MUTE = "on_mute"
 CONF_PIPELINE = "pipeline"
@@ -42,6 +43,19 @@ PipelineContext = speaker_source_ns.struct("PipelineContext")
 Pipeline = speaker_source_ns.enum("Pipeline")
 PIPELINE_ENUM = {
     "media": Pipeline.MEDIA_PIPELINE,
+    "announcement": Pipeline.ANNOUNCEMENT_PIPELINE,
+}
+
+# Maps config key -> (C++ Pipeline enum value, format purpose)
+_PIPELINE_INFO = {
+    CONF_MEDIA_PIPELINE: (
+        Pipeline.MEDIA_PIPELINE,
+        media_player.MEDIA_PLAYER_FORMAT_PURPOSE_ENUM["default"],
+    ),
+    CONF_ANNOUNCEMENT_PIPELINE: (
+        Pipeline.ANNOUNCEMENT_PIPELINE,
+        media_player.MEDIA_PLAYER_FORMAT_PURPOSE_ENUM["announcement"],
+    ),
 }
 
 SetPlaylistDelayAction = speaker_source_ns.class_(
@@ -59,7 +73,7 @@ FORMAT_MAPPING = {
 
 # Returns a media_player.MediaPlayerSupportedFormat struct with the configured
 # format, sample rate, number of channels, purpose, and bytes per sample
-def _get_supported_format_struct(pipeline: ConfigType):
+def _get_supported_format_struct(pipeline: ConfigType, purpose: MockObj):
     args = [
         media_player.MediaPlayerSupportedFormat,
     ]
@@ -68,7 +82,7 @@ def _get_supported_format_struct(pipeline: ConfigType):
 
     args.append(("sample_rate", pipeline[CONF_SAMPLE_RATE]))
     args.append(("num_channels", pipeline[CONF_NUM_CHANNELS]))
-    args.append(("purpose", media_player.MEDIA_PLAYER_FORMAT_PURPOSE_ENUM["default"]))
+    args.append(("purpose", purpose))
 
     # Omit sample_bytes for MP3: ffmpeg transcoding in Home Assistant fails
     # if the number of bytes per sample is specified for MP3.
@@ -115,6 +129,19 @@ PIPELINE_SCHEMA = cv.Schema(
 )
 
 
+def _validate_repeated_speaker(config: ConfigType) -> ConfigType:
+    if (
+        (announcement_config := config.get(CONF_ANNOUNCEMENT_PIPELINE))
+        and (media_config := config.get(CONF_MEDIA_PIPELINE))
+        and announcement_config[CONF_SPEAKER] == media_config[CONF_SPEAKER]
+    ):
+        raise cv.Invalid(
+            "The announcement and media pipelines cannot use the same speaker. "
+            "Use the `mixer` speaker component to create two source speakers."
+        )
+    return config
+
+
 def _validate_volume_settings(config: ConfigType) -> ConfigType:
     # CONF_VOLUME_INITIAL is in the scaled volume domain (0.0-1.0) and doesn't need to be validated
     if config[CONF_VOLUME_MIN] > config[CONF_VOLUME_MAX]:
@@ -131,7 +158,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_VOLUME_INITIAL, default=0.5): cv.percentage,
             cv.Optional(CONF_VOLUME_MAX, default=1.0): cv.percentage,
             cv.Optional(CONF_VOLUME_MIN, default=0.0): cv.percentage,
-            cv.Required(CONF_MEDIA_PIPELINE): PIPELINE_SCHEMA,
+            cv.Optional(CONF_ANNOUNCEMENT_PIPELINE): PIPELINE_SCHEMA,
+            cv.Optional(CONF_MEDIA_PIPELINE): PIPELINE_SCHEMA,
             cv.Optional(CONF_ON_MUTE): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_UNMUTE): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_VOLUME): automation.validate_automation(single=True),
@@ -140,23 +168,37 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.COMPONENT_SCHEMA)
     .extend(media_player.media_player_schema(SpeakerSourceMediaPlayer)),
     cv.only_on_esp32,
+    cv.has_at_least_one_key(CONF_ANNOUNCEMENT_PIPELINE, CONF_MEDIA_PIPELINE),
+    _validate_repeated_speaker,
     _validate_volume_settings,
 )
 
 
 def _final_validate_codecs(config: ConfigType) -> ConfigType:
-    pipeline = config[CONF_MEDIA_PIPELINE]
-    fmt = pipeline[CONF_FORMAT]
-    if fmt == "NONE":
+    # "NONE" means the pipeline accepts any format at runtime, so all codecs must be available.
+    # When a specific format is set, only that codec is requested.
+    needed_formats = set()
+    need_all = False
+
+    for pipeline_key in (CONF_ANNOUNCEMENT_PIPELINE, CONF_MEDIA_PIPELINE):
+        if pipeline := config.get(pipeline_key):
+            fmt = pipeline[CONF_FORMAT]
+            if fmt == "NONE":
+                need_all = True
+            else:
+                needed_formats.add(fmt)
+
+    if need_all:
         audio.request_flac_support()
         audio.request_mp3_support()
         audio.request_opus_support()
-    elif fmt == "FLAC":
-        audio.request_flac_support()
-    elif fmt == "MP3":
-        audio.request_mp3_support()
-    elif fmt == "OPUS":
-        audio.request_opus_support()
+    else:
+        if "FLAC" in needed_formats:
+            audio.request_flac_support()
+        if "MP3" in needed_formats:
+            audio.request_mp3_support()
+        if "OPUS" in needed_formats:
+            audio.request_opus_support()
 
     return config
 
@@ -164,7 +206,8 @@ def _final_validate_codecs(config: ConfigType) -> ConfigType:
 FINAL_VALIDATE_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Required(CONF_MEDIA_PIPELINE): _validate_pipeline,
+            cv.Optional(CONF_ANNOUNCEMENT_PIPELINE): _validate_pipeline,
+            cv.Optional(CONF_MEDIA_PIPELINE): _validate_pipeline,
         },
         extra=cv.ALLOW_EXTRA,
     ),
@@ -182,26 +225,25 @@ async def to_code(config: ConfigType) -> None:
     cg.add(var.set_volume_max(config[CONF_VOLUME_MAX]))
     cg.add(var.set_volume_min(config[CONF_VOLUME_MIN]))
 
-    pipeline_config = config[CONF_MEDIA_PIPELINE]
-    pipeline_enum = Pipeline.MEDIA_PIPELINE
+    for pipeline_key, (pipeline_enum, purpose) in _PIPELINE_INFO.items():
+        if pipeline_config := config.get(pipeline_key):
+            for source in pipeline_config[CONF_SOURCES]:
+                src = await cg.get_variable(source)
+                cg.add(var.add_media_source(pipeline_enum, src))
 
-    for source in pipeline_config[CONF_SOURCES]:
-        src = await cg.get_variable(source)
-        cg.add(var.add_media_source(pipeline_enum, src))
-
-    cg.add(
-        var.set_speaker(
-            pipeline_enum,
-            await cg.get_variable(pipeline_config[CONF_SPEAKER]),
-        )
-    )
-    if pipeline_config[CONF_FORMAT] != "NONE":
-        cg.add(
-            var.set_format(
-                pipeline_enum,
-                _get_supported_format_struct(pipeline_config),
+            cg.add(
+                var.set_speaker(
+                    pipeline_enum,
+                    await cg.get_variable(pipeline_config[CONF_SPEAKER]),
+                )
             )
-        )
+            if pipeline_config[CONF_FORMAT] != "NONE":
+                cg.add(
+                    var.set_format(
+                        pipeline_enum,
+                        _get_supported_format_struct(pipeline_config, purpose),
+                    )
+                )
 
     if on_mute := config.get(CONF_ON_MUTE):
         await automation.build_automation(
