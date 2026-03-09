@@ -1,5 +1,3 @@
-from esphome import automation
-from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 from esphome.components import i2c, sensirion_common, sensor
 import esphome.config_validation as cv
@@ -16,7 +14,6 @@ from esphome.const import (
     CONF_HUMIDITY,
     CONF_ID,
     CONF_INDEX_OFFSET,
-    CONF_INTERVAL,
     CONF_LEARNING_TIME_GAIN_HOURS,
     CONF_LEARNING_TIME_OFFSET_HOURS,
     CONF_NORMALIZED_OFFSET_SLOPE,
@@ -28,7 +25,6 @@ from esphome.const import (
     CONF_PM_10_0,
     CONF_STARTUP_DELAY,
     CONF_STD_INITIAL,
-    CONF_STORE_BASELINE,
     CONF_TEMPERATURE,
     CONF_TEMPERATURE_COMPENSATION,
     CONF_TIME_CONSTANT,
@@ -65,33 +61,11 @@ SEN6XComponent = sen6x_ns.class_(
 CONF_SLOT = "slot"
 
 # Local configuration constants not in esphome.const
-CONF_ENABLED = "enabled"
-CONF_AUTO_CLEANING = "auto_cleaning"
 CONF_TEMPERATURE_ACCELERATION = "temperature_acceleration"
 CONF_K = "k"
 CONF_P = "p"
 CONF_T1 = "t1"
 CONF_T2 = "t2"
-
-# Actions
-StartFanAction = sen6x_ns.class_("StartFanAction", automation.Action)
-PerformForcedCO2RecalibrationAction = sen6x_ns.class_(
-    "PerformForcedCO2RecalibrationAction", automation.Action
-)
-CO2SensorFactoryResetAction = sen6x_ns.class_(
-    "CO2SensorFactoryResetAction", automation.Action
-)
-ActivateSHTHeaterAction = sen6x_ns.class_("ActivateSHTHeaterAction", automation.Action)
-GetSHTHeaterMeasurementsAction = sen6x_ns.class_(
-    "GetSHTHeaterMeasurementsAction", automation.Action
-)
-StartMeasurementAction = sen6x_ns.class_("StartMeasurementAction", automation.Action)
-StopMeasurementAction = sen6x_ns.class_("StopMeasurementAction", automation.Action)
-SetTemperatureCompensationAction = sen6x_ns.class_(
-    "SetTemperatureCompensationAction", automation.Action
-)
-
-CONF_REFERENCE_CO2 = "reference_co2"
 
 
 def _gas_sensor(
@@ -224,15 +198,6 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_STARTUP_DELAY, default="60s"
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_AUTO_CLEANING): cv.Schema(
-                {
-                    cv.Optional(CONF_ENABLED, default=True): cv.boolean,
-                    cv.Optional(
-                        CONF_INTERVAL, default="1week"
-                    ): cv.positive_time_period_seconds,
-                }
-            ),
-            cv.Optional(CONF_STORE_BASELINE, default=True): cv.boolean,
             cv.Optional(CONF_TEMPERATURE_COMPENSATION): cv.Schema(
                 {
                     cv.Optional(CONF_OFFSET, default=0): cv.float_range(
@@ -345,98 +310,3 @@ async def to_code(config):
                 co2_cfg[CONF_AMBIENT_PRESSURE_COMPENSATION_SOURCE]
             )
             cg.add(var.set_ambient_pressure_source(sens))
-    if CONF_STORE_BASELINE in config:
-        cg.add(var.set_store_baseline(config[CONF_STORE_BASELINE]))
-    if cfg := config.get(CONF_AUTO_CLEANING):
-        cg.add(var.set_auto_cleaning(cfg[CONF_ENABLED], cfg[CONF_INTERVAL]))
-
-
-SEN6X_ACTION_SCHEMA = maybe_simple_id(
-    {
-        cv.Required(CONF_ID): cv.use_id(SEN6XComponent),
-    }
-)
-
-SEN6X_TEMPERATURE_COMPENSATION_ACTION_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_ID): cv.use_id(SEN6XComponent),
-        cv.Optional(CONF_OFFSET, default=0): cv.templatable(
-            cv.float_range(-163.84, 163.835)
-        ),
-        cv.Optional(CONF_NORMALIZED_OFFSET_SLOPE, default=0): cv.templatable(
-            cv.float_range(-3.2768, 3.2767)
-        ),
-        cv.Optional(CONF_TIME_CONSTANT, default=0): cv.templatable(
-            cv.int_range(0, 65535)
-        ),
-        cv.Optional(CONF_SLOT, default=0): cv.templatable(cv.int_range(0, 4)),
-    }
-)
-
-
-@automation.register_action(
-    "sen6x.start_fan_autoclean", StartFanAction, SEN6X_ACTION_SCHEMA
-)
-@automation.register_action(
-    "sen6x.co2_sensor_factory_reset", CO2SensorFactoryResetAction, SEN6X_ACTION_SCHEMA
-)
-@automation.register_action(
-    "sen6x.activate_sht_heater", ActivateSHTHeaterAction, SEN6X_ACTION_SCHEMA
-)
-@automation.register_action(
-    "sen6x.get_sht_heater_measurements",
-    GetSHTHeaterMeasurementsAction,
-    SEN6X_ACTION_SCHEMA,
-)
-@automation.register_action(
-    "sen6x.start_measurement", StartMeasurementAction, SEN6X_ACTION_SCHEMA
-)
-@automation.register_action(
-    "sen6x.stop_measurement", StopMeasurementAction, SEN6X_ACTION_SCHEMA
-)
-async def sen6x_simple_action_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
-
-
-@automation.register_action(
-    "sen6x.set_temperature_compensation",
-    SetTemperatureCompensationAction,
-    SEN6X_TEMPERATURE_COMPENSATION_ACTION_SCHEMA,
-)
-async def sen6x_set_temperature_compensation_to_code(
-    config, action_id, template_arg, args
-):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    offset = await cg.templatable(config[CONF_OFFSET], args, cg.float_)
-    slope = await cg.templatable(config[CONF_NORMALIZED_OFFSET_SLOPE], args, cg.float_)
-    time_constant = await cg.templatable(config[CONF_TIME_CONSTANT], args, cg.uint16)
-    slot = await cg.templatable(config[CONF_SLOT], args, cg.uint16)
-    cg.add(var.set_offset(offset))
-    cg.add(var.set_normalized_offset_slope(slope))
-    cg.add(var.set_time_constant(time_constant))
-    cg.add(var.set_slot(slot))
-    return var
-
-
-SEN6X_FRC_ACTION_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_ID): cv.use_id(SEN6XComponent),
-        cv.Required(CONF_REFERENCE_CO2): cv.templatable(cv.int_range(0, 20000)),
-    }
-)
-
-
-@automation.register_action(
-    "sen6x.perform_forced_co2_recalibration",
-    PerformForcedCO2RecalibrationAction,
-    SEN6X_FRC_ACTION_SCHEMA,
-)
-async def sen6x_frc_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    templ = await cg.templatable(config[CONF_REFERENCE_CO2], args, cg.uint16)
-    cg.add(var.set_reference(templ))
-    return var

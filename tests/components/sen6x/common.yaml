@@ -47,5 +47,4 @@ sensor:
       offset: 0
       normalized_offset_slope: 0
       time_constant: 0
-    store_baseline: true
     address: 0x6B

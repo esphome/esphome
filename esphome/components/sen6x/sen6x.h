@@ -4,22 +4,13 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
 #include "esphome/core/application.h"
-#include "esphome/core/preferences.h"
 
 #include <vector>
 
 namespace esphome::sen6x {
 
-// Shortest time interval of 2H (in milliseconds) for storing baseline values.
-// Prevents wear of the flash because of too many write operations
-static constexpr uint32_t SHORTEST_BASELINE_STORE_INTERVAL_MS = 2 * 60 * 60 * 1000UL;
 // Default NOx std_initial value per Sensirion specification
 static constexpr uint16_t NOX_DEFAULT_STD_INITIAL = 50;
-
-struct Sen6xVocBaseline {
-  uint16_t state[4];
-  uint32_t config_hash;  // Used to detect config/version changes and invalidate old baselines
-};
 
 struct GasTuning {
   uint16_t index_offset;
@@ -69,17 +60,10 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   void set_sensor_altitude(uint16_t sensor_altitude) { sensor_altitude_ = sensor_altitude; }
   void set_co2_automatic_self_calibration(bool enabled) { co2_asc_ = enabled; }
   void set_startup_delay(uint32_t delay_ms) { startup_delay_ms_ = delay_ms; }
-  void set_auto_cleaning(bool enabled, uint32_t interval_s) {
-    this->auto_cleaning_enabled_ = enabled;
-    this->auto_cleaning_interval_s_ = interval_s;
-  }
-  bool is_measurement_running() const;
   const std::string &get_product_name() const { return this->product_name_; }
   const std::string &get_serial_number() const { return this->serial_number_; }
   uint8_t get_firmware_version_major() const { return this->firmware_version_major_; }
   uint8_t get_firmware_version_minor() const { return this->firmware_version_minor_; }
-  bool get_state() const { return this->measurement_started_; }
-  void set_store_baseline(bool store_baseline) { this->store_baseline_ = store_baseline; }
   void set_voc_algorithm_tuning(uint16_t index_offset, uint16_t learning_time_offset_hours,
                                 uint16_t learning_time_gain_hours, uint16_t gating_max_duration_minutes,
                                 uint16_t std_initial, uint16_t gain_factor) {
@@ -113,8 +97,6 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
     temp_comp.slot = slot;
     this->temperature_compensation_ = temp_comp;
   }
-  bool apply_temperature_compensation(float offset, float normalized_offset_slope, uint16_t time_constant,
-                                      uint16_t slot);
   void set_temperature_acceleration(float k, float p, float t1, float t2) {
     TemperatureAcceleration temp_accel;
     temp_accel.k = k * 10;
@@ -124,14 +106,6 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
     this->temperature_acceleration_ = temp_accel;
   }
   void set_type(const std::string &type) { this->sen6x_type_ = infer_type_from_product_name_(type); }
-  bool start_fan_cleaning();
-  bool perform_forced_co2_recalibration(uint16_t reference_ppm);
-  bool co2_sensor_factory_reset();
-  bool reset_device();
-  bool activate_sht_heater();
-  bool get_sht_heater_measurements();
-  bool start_measurement();
-  bool stop_measurement();
 
  protected:
   bool update_ambient_pressure_compensation_(uint16_t pressure_hpa);
@@ -141,7 +115,6 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   Sen6xType infer_type_from_product_name_(const std::string &product_name);
   void schedule_post_setup_commands_();
   void finish_setup_();
-  bool execute_fan_cleaning_(bool restart_after);
 
   bool initialized_{false};
   sensor::Sensor *ambient_pressure_source_{nullptr};
@@ -150,10 +123,6 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   std::string serial_number_;
   uint8_t firmware_version_major_{0};
   uint8_t firmware_version_minor_{0};
-  Sen6xVocBaseline voc_baselines_storage_{};
-  bool store_baseline_{false};
-  uint32_t voc_baseline_time_{0};
-  ESPPreferenceObject pref_;
 
   optional<GasTuning> voc_tuning_params_;
   optional<GasTuning> nox_tuning_params_;
@@ -165,25 +134,8 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   optional<uint16_t> ambient_pressure_read_;
   optional<uint16_t> sensor_altitude_read_;
   optional<bool> co2_asc_read_;
-  optional<bool> auto_cleaning_enabled_;
-  optional<uint32_t> auto_cleaning_interval_s_;
-  bool measurement_started_{false};
   uint32_t startup_delay_ms_{60000};
   bool startup_complete_{false};
-  uint32_t last_stop_ms_{0};
-  uint32_t last_cleaning_ms_{0};
-  bool auto_clean_restart_pending_{false};
-  bool has_last_values_{false};
-  float last_pm_1_0_{NAN};
-  float last_pm_2_5_{NAN};
-  float last_pm_4_0_{NAN};
-  float last_pm_10_0_{NAN};
-  float last_temperature_{NAN};
-  float last_humidity_{NAN};
-  float last_voc_{NAN};
-  float last_nox_{NAN};
-  float last_hcho_{NAN};
-  float last_co2_{NAN};
 };
 
 }  // namespace esphome::sen6x
