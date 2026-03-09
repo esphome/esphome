@@ -52,12 +52,7 @@ class EPaperBase : public Display,
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
   void set_busy_pin(GPIOPin *busy) { this->busy_pin_ = busy; }
-  void set_enable_pins(const std::vector<GPIOPin *> &enable_pins) {
-    this->enable_pins_.init(enable_pins.size());
-    for (auto *pin : enable_pins) {
-      this->enable_pins_.push_back(pin);
-    }
-  }
+  void set_enable_pins(std::initializer_list<GPIOPin *> enable_pins) { this->enable_pins_ = enable_pins; }
   void set_reset_duration(uint32_t reset_duration) { this->reset_duration_ = reset_duration; }
   void set_transform(uint8_t transform) { this->transform_ = transform; }
   void set_full_update_every(uint8_t full_update_every) { this->full_update_every_ = full_update_every; }
