@@ -128,37 +128,36 @@ APIError APIPlaintextFrameHelper::try_read_frame_() {
 
     // Skip indicator byte at position 0
     uint8_t varint_pos = 1;
-    uint32_t consumed = 0;
 
-    auto msg_size_varint = ProtoVarInt::parse(&rx_header_buf_[varint_pos], rx_header_buf_pos_ - varint_pos, &consumed);
+    auto msg_size_varint = ProtoVarInt::parse(&rx_header_buf_[varint_pos], rx_header_buf_pos_ - varint_pos);
     if (!msg_size_varint.has_value()) {
       // not enough data there yet
       continue;
     }
 
-    if (msg_size_varint->as_uint32() > MAX_MESSAGE_SIZE) {
+    if (msg_size_varint.as_uint32() > MAX_MESSAGE_SIZE) {
       state_ = State::FAILED;
-      HELPER_LOG("Bad packet: message size %" PRIu32 " exceeds maximum %u", msg_size_varint->as_uint32(),
+      HELPER_LOG("Bad packet: message size %" PRIu32 " exceeds maximum %u", msg_size_varint.as_uint32(),
                  MAX_MESSAGE_SIZE);
       return APIError::BAD_DATA_PACKET;
     }
-    rx_header_parsed_len_ = msg_size_varint->as_uint16();
+    rx_header_parsed_len_ = msg_size_varint.as_uint16();
 
     // Move to next varint position
-    varint_pos += consumed;
+    varint_pos += msg_size_varint.consumed;
 
-    auto msg_type_varint = ProtoVarInt::parse(&rx_header_buf_[varint_pos], rx_header_buf_pos_ - varint_pos, &consumed);
+    auto msg_type_varint = ProtoVarInt::parse(&rx_header_buf_[varint_pos], rx_header_buf_pos_ - varint_pos);
     if (!msg_type_varint.has_value()) {
       // not enough data there yet
       continue;
     }
-    if (msg_type_varint->as_uint32() > std::numeric_limits<uint16_t>::max()) {
+    if (msg_type_varint.as_uint32() > std::numeric_limits<uint16_t>::max()) {
       state_ = State::FAILED;
-      HELPER_LOG("Bad packet: message type %" PRIu32 " exceeds maximum %u", msg_type_varint->as_uint32(),
+      HELPER_LOG("Bad packet: message type %" PRIu32 " exceeds maximum %u", msg_type_varint.as_uint32(),
                  std::numeric_limits<uint16_t>::max());
       return APIError::BAD_DATA_PACKET;
     }
-    rx_header_parsed_type_ = msg_type_varint->as_uint16();
+    rx_header_parsed_type_ = msg_type_varint.as_uint16();
     rx_header_parsed_ = true;
   }
   // header reading done

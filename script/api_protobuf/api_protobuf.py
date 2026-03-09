@@ -2205,7 +2205,7 @@ def build_message_type(
 
     cpp = ""
     if decode_varint:
-        o = f"bool {desc.name}::decode_varint(uint32_t field_id, ProtoVarInt value) {{\n"
+        o = f"bool {desc.name}::decode_varint(uint32_t field_id, ProtoVarIntResult value) {{\n"
         o += "  switch (field_id) {\n"
         o += indent("\n".join(decode_varint), "    ") + "\n"
         o += "    default: return false;\n"
@@ -2213,7 +2213,9 @@ def build_message_type(
         o += "  return true;\n"
         o += "}\n"
         cpp += o
-        prot = "bool decode_varint(uint32_t field_id, ProtoVarInt value) override;"
+        prot = (
+            "bool decode_varint(uint32_t field_id, ProtoVarIntResult value) override;"
+        )
         protected_content.insert(0, prot)
     if decode_length:
         o = f"bool {desc.name}::decode_length(uint32_t field_id, ProtoLengthDelimited value) {{\n"

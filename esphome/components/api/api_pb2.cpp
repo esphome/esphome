@@ -7,7 +7,7 @@
 
 namespace esphome::api {
 
-bool HelloRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool HelloRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 2:
       this->api_version_major = value.as_uint32();
@@ -316,7 +316,7 @@ uint32_t CoverStateResponse::calculate_size() const {
 #endif
   return size;
 }
-bool CoverCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool CoverCommandRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 4:
       this->has_position = value.as_bool();
@@ -423,7 +423,7 @@ uint32_t FanStateResponse::calculate_size() const {
 #endif
   return size;
 }
-bool FanCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool FanCommandRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 2:
       this->has_state = value.as_bool();
@@ -571,7 +571,7 @@ uint32_t LightStateResponse::calculate_size() const {
 #endif
   return size;
 }
-bool LightCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool LightCommandRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 2:
       this->has_state = value.as_bool();
@@ -787,7 +787,7 @@ uint32_t SwitchStateResponse::calculate_size() const {
 #endif
   return size;
 }
-bool SwitchCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool SwitchCommandRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 2:
       this->state = value.as_bool();
@@ -863,7 +863,7 @@ uint32_t TextSensorStateResponse::calculate_size() const {
   return size;
 }
 #endif
-bool SubscribeLogsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool SubscribeLogsRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->level = static_cast<enums::LogLevel>(value.as_uint32());
@@ -971,7 +971,7 @@ uint32_t HomeassistantActionRequest::calculate_size() const {
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
-bool HomeassistantActionResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool HomeassistantActionResponse::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->call_id = value.as_uint32();
@@ -1036,7 +1036,7 @@ bool HomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDel
   return true;
 }
 #endif
-bool DSTRule::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool DSTRule::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->time_seconds = value.as_sint32();
@@ -1061,7 +1061,7 @@ bool DSTRule::decode_varint(uint32_t field_id, ProtoVarInt value) {
   }
   return true;
 }
-bool ParsedTimezone::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool ParsedTimezone::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->std_offset_seconds = value.as_sint32();
@@ -1142,7 +1142,7 @@ uint32_t ListEntitiesServicesResponse::calculate_size() const {
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->supports_response));
   return size;
 }
-bool ExecuteServiceArgument::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool ExecuteServiceArgument::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->bool_ = value.as_bool();
@@ -1202,7 +1202,7 @@ void ExecuteServiceArgument::decode(const uint8_t *buffer, size_t length) {
   this->string_array.init(count_string_array);
   ProtoDecodableMessage::decode(buffer, length);
 }
-bool ExecuteServiceRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool ExecuteServiceRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
     case 3:
@@ -1313,7 +1313,7 @@ uint32_t CameraImageResponse::calculate_size() const {
 #endif
   return size;
 }
-bool CameraImageRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool CameraImageRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->single = value.as_bool();
@@ -1468,7 +1468,7 @@ uint32_t ClimateStateResponse::calculate_size() const {
 #endif
   return size;
 }
-bool ClimateCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool ClimateCommandRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 2:
       this->has_mode = value.as_bool();
@@ -1631,7 +1631,7 @@ uint32_t WaterHeaterStateResponse::calculate_size() const {
   size += ProtoSize::calc_float(1, this->target_temperature_high);
   return size;
 }
-bool WaterHeaterCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool WaterHeaterCommandRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 2:
       this->has_fields = value.as_uint32();
@@ -1731,7 +1731,7 @@ uint32_t NumberStateResponse::calculate_size() const {
 #endif
   return size;
 }
-bool NumberCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool NumberCommandRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
 #ifdef USE_DEVICES
     case 3:
@@ -1812,7 +1812,7 @@ uint32_t SelectStateResponse::calculate_size() const {
 #endif
   return size;
 }
-bool SelectCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool SelectCommandRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
 #ifdef USE_DEVICES
     case 3:
@@ -1903,7 +1903,7 @@ uint32_t SirenStateResponse::calculate_size() const {
 #endif
   return size;
 }
-bool SirenCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool SirenCommandRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 2:
       this->has_state = value.as_bool();
@@ -2011,7 +2011,7 @@ uint32_t LockStateResponse::calculate_size() const {
 #endif
   return size;
 }
-bool LockCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool LockCommandRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 2:
       this->command = static_cast<enums::LockCommand>(value.as_uint32());
@@ -2082,7 +2082,7 @@ uint32_t ListEntitiesButtonResponse::calculate_size() const {
 #endif
   return size;
 }
-bool ButtonCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool ButtonCommandRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
 #ifdef USE_DEVICES
     case 2:
@@ -2182,7 +2182,7 @@ uint32_t MediaPlayerStateResponse::calculate_size() const {
 #endif
   return size;
 }
-bool MediaPlayerCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool MediaPlayerCommandRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 2:
       this->has_command = value.as_bool();
@@ -2238,7 +2238,7 @@ bool MediaPlayerCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-bool SubscribeBluetoothLEAdvertisementsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool SubscribeBluetoothLEAdvertisementsRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->flags = value.as_uint32();
@@ -2274,7 +2274,7 @@ uint32_t BluetoothLERawAdvertisementsResponse::calculate_size() const {
   }
   return size;
 }
-bool BluetoothDeviceRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool BluetoothDeviceRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->address = value.as_uint64();
@@ -2307,7 +2307,7 @@ uint32_t BluetoothDeviceConnectionResponse::calculate_size() const {
   size += ProtoSize::calc_int32(1, this->error);
   return size;
 }
-bool BluetoothGATTGetServicesRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool BluetoothGATTGetServicesRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->address = value.as_uint64();
@@ -2413,7 +2413,7 @@ uint32_t BluetoothGATTGetServicesDoneResponse::calculate_size() const {
   size += ProtoSize::calc_uint64(1, this->address);
   return size;
 }
-bool BluetoothGATTReadRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool BluetoothGATTReadRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->address = value.as_uint64();
@@ -2438,7 +2438,7 @@ uint32_t BluetoothGATTReadResponse::calculate_size() const {
   size += ProtoSize::calc_length(1, this->data_len_);
   return size;
 }
-bool BluetoothGATTWriteRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool BluetoothGATTWriteRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->address = value.as_uint64();
@@ -2466,7 +2466,7 @@ bool BluetoothGATTWriteRequest::decode_length(uint32_t field_id, ProtoLengthDeli
   }
   return true;
 }
-bool BluetoothGATTReadDescriptorRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool BluetoothGATTReadDescriptorRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->address = value.as_uint64();
@@ -2479,7 +2479,7 @@ bool BluetoothGATTReadDescriptorRequest::decode_varint(uint32_t field_id, ProtoV
   }
   return true;
 }
-bool BluetoothGATTWriteDescriptorRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool BluetoothGATTWriteDescriptorRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->address = value.as_uint64();
@@ -2504,7 +2504,7 @@ bool BluetoothGATTWriteDescriptorRequest::decode_length(uint32_t field_id, Proto
   }
   return true;
 }
-bool BluetoothGATTNotifyRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool BluetoothGATTNotifyRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->address = value.as_uint64();
@@ -2632,7 +2632,7 @@ uint32_t BluetoothScannerStateResponse::calculate_size() const {
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->configured_mode));
   return size;
 }
-bool BluetoothScannerSetModeRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool BluetoothScannerSetModeRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->mode = static_cast<enums::BluetoothScannerMode>(value.as_uint32());
@@ -2644,7 +2644,7 @@ bool BluetoothScannerSetModeRequest::decode_varint(uint32_t field_id, ProtoVarIn
 }
 #endif
 #ifdef USE_VOICE_ASSISTANT
-bool SubscribeVoiceAssistantRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool SubscribeVoiceAssistantRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->subscribe = value.as_bool();
@@ -2685,7 +2685,7 @@ uint32_t VoiceAssistantRequest::calculate_size() const {
   size += ProtoSize::calc_length(1, this->wake_word_phrase.size());
   return size;
 }
-bool VoiceAssistantResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool VoiceAssistantResponse::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->port = value.as_uint32();
@@ -2713,7 +2713,7 @@ bool VoiceAssistantEventData::decode_length(uint32_t field_id, ProtoLengthDelimi
   }
   return true;
 }
-bool VoiceAssistantEventResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool VoiceAssistantEventResponse::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->event_type = static_cast<enums::VoiceAssistantEvent>(value.as_uint32());
@@ -2734,7 +2734,7 @@ bool VoiceAssistantEventResponse::decode_length(uint32_t field_id, ProtoLengthDe
   }
   return true;
 }
-bool VoiceAssistantAudio::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool VoiceAssistantAudio::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 2:
       this->end = value.as_bool();
@@ -2766,7 +2766,7 @@ uint32_t VoiceAssistantAudio::calculate_size() const {
   size += ProtoSize::calc_bool(1, this->end);
   return size;
 }
-bool VoiceAssistantTimerEventResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool VoiceAssistantTimerEventResponse::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->event_type = static_cast<enums::VoiceAssistantTimerEvent>(value.as_uint32());
@@ -2800,7 +2800,7 @@ bool VoiceAssistantTimerEventResponse::decode_length(uint32_t field_id, ProtoLen
   }
   return true;
 }
-bool VoiceAssistantAnnounceRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool VoiceAssistantAnnounceRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 4:
       this->start_conversation = value.as_bool();
@@ -2853,7 +2853,7 @@ uint32_t VoiceAssistantWakeWord::calculate_size() const {
   }
   return size;
 }
-bool VoiceAssistantExternalWakeWord::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool VoiceAssistantExternalWakeWord::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 5:
       this->model_size = value.as_uint32();
@@ -2990,7 +2990,7 @@ uint32_t AlarmControlPanelStateResponse::calculate_size() const {
 #endif
   return size;
 }
-bool AlarmControlPanelCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool AlarmControlPanelCommandRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 2:
       this->command = static_cast<enums::AlarmControlPanelStateCommand>(value.as_uint32());
@@ -3082,7 +3082,7 @@ uint32_t TextStateResponse::calculate_size() const {
 #endif
   return size;
 }
-bool TextCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool TextCommandRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
 #ifdef USE_DEVICES
     case 3:
@@ -3167,7 +3167,7 @@ uint32_t DateStateResponse::calculate_size() const {
 #endif
   return size;
 }
-bool DateCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool DateCommandRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 2:
       this->year = value.as_uint32();
@@ -3250,7 +3250,7 @@ uint32_t TimeStateResponse::calculate_size() const {
 #endif
   return size;
 }
-bool TimeCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool TimeCommandRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 2:
       this->hour = value.as_uint32();
@@ -3393,7 +3393,7 @@ uint32_t ValveStateResponse::calculate_size() const {
 #endif
   return size;
 }
-bool ValveCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool ValveCommandRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 2:
       this->has_position = value.as_bool();
@@ -3472,7 +3472,7 @@ uint32_t DateTimeStateResponse::calculate_size() const {
 #endif
   return size;
 }
-bool DateTimeCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool DateTimeCommandRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
 #ifdef USE_DEVICES
     case 3:
@@ -3561,7 +3561,7 @@ uint32_t UpdateStateResponse::calculate_size() const {
 #endif
   return size;
 }
-bool UpdateCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool UpdateCommandRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 2:
       this->command = static_cast<enums::UpdateCommand>(value.as_uint32());
@@ -3606,7 +3606,7 @@ uint32_t ZWaveProxyFrame::calculate_size() const {
   size += ProtoSize::calc_length(1, this->data_len);
   return size;
 }
-bool ZWaveProxyRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool ZWaveProxyRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->type = static_cast<enums::ZWaveProxyRequestType>(value.as_uint32());
@@ -3672,7 +3672,7 @@ uint32_t ListEntitiesInfraredResponse::calculate_size() const {
 }
 #endif
 #ifdef USE_IR_RF
-bool InfraredRFTransmitRawTimingsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool InfraredRFTransmitRawTimingsRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
 #ifdef USE_DEVICES
     case 1:
@@ -3737,7 +3737,7 @@ uint32_t InfraredRFReceiveEvent::calculate_size() const {
 }
 #endif
 #ifdef USE_SERIAL_PROXY
-bool SerialProxyConfigureRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool SerialProxyConfigureRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->instance = value.as_uint32();
@@ -3772,7 +3772,7 @@ uint32_t SerialProxyDataReceived::calculate_size() const {
   size += ProtoSize::calc_length(1, this->data_len_);
   return size;
 }
-bool SerialProxyWriteRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool SerialProxyWriteRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->instance = value.as_uint32();
@@ -3794,7 +3794,7 @@ bool SerialProxyWriteRequest::decode_length(uint32_t field_id, ProtoLengthDelimi
   }
   return true;
 }
-bool SerialProxySetModemPinsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool SerialProxySetModemPinsRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->instance = value.as_uint32();
@@ -3807,7 +3807,7 @@ bool SerialProxySetModemPinsRequest::decode_varint(uint32_t field_id, ProtoVarIn
   }
   return true;
 }
-bool SerialProxyGetModemPinsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool SerialProxyGetModemPinsRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->instance = value.as_uint32();
@@ -3827,7 +3827,7 @@ uint32_t SerialProxyGetModemPinsResponse::calculate_size() const {
   size += ProtoSize::calc_uint32(1, this->line_states);
   return size;
 }
-bool SerialProxyRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool SerialProxyRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->instance = value.as_uint32();
@@ -3856,7 +3856,7 @@ uint32_t SerialProxyRequestResponse::calculate_size() const {
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-bool BluetoothSetConnectionParamsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool BluetoothSetConnectionParamsRequest::decode_varint(uint32_t field_id, ProtoVarIntResult value) {
   switch (field_id) {
     case 1:
       this->address = value.as_uint64();

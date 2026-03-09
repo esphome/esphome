@@ -98,62 +98,57 @@ inline void encode_varint_to_buffer(uint32_t val, uint8_t *buffer) {
  * within the same function scope where temporaries are created.
  */
 
+/// Result of parsing a varint: value + number of bytes consumed.
+/// consumed == 0 indicates parse failure (not enough data or invalid).
+struct ProtoVarIntResult {
+#ifdef USE_API_VARINT64
+  uint64_t value;
+#else
+  uint32_t value;
+#endif
+  uint32_t consumed;  // 0 = parse failed
+
+  constexpr bool has_value() const { return this->consumed != 0; }
+  constexpr uint16_t as_uint16() const { return this->value; }
+  constexpr uint32_t as_uint32() const { return this->value; }
+  constexpr bool as_bool() const { return this->value; }
+  constexpr int32_t as_int32() const { return static_cast<int32_t>(this->value); }
+  constexpr int32_t as_sint32() const { return decode_zigzag32(static_cast<uint32_t>(this->value)); }
+#ifdef USE_API_VARINT64
+  constexpr uint64_t as_uint64() const { return this->value; }
+  constexpr int64_t as_int64() const { return static_cast<int64_t>(this->value); }
+  constexpr int64_t as_sint64() const { return decode_zigzag64(this->value); }
+#endif
+};
+
 /// Representation of a VarInt - in ProtoBuf should be 64bit but we only use 32bit
 class ProtoVarInt {
  public:
   ProtoVarInt() : value_(0) {}
   explicit ProtoVarInt(uint64_t value) : value_(value) {}
 
-  /// Parse a varint from buffer. consumed must be a valid pointer (not null).
-  static optional<ProtoVarInt> parse(const uint8_t *buffer, uint32_t len, uint32_t *consumed) {
-#ifdef ESPHOME_DEBUG_API
-    assert(consumed != nullptr);
-#endif
+  /// Parse a varint from buffer. Returns result with consumed=0 on failure.
+  static inline ProtoVarIntResult ESPHOME_ALWAYS_INLINE parse(const uint8_t *buffer, uint32_t len) {
     if (len == 0)
-      return {};
+      return {0, 0};
     // Fast path: single-byte varints (0-127) are the most common case
-    // (booleans, small enums, field tags). Avoid loop overhead entirely.
-    if ((buffer[0] & 0x80) == 0) {
-      *consumed = 1;
-      return ProtoVarInt(buffer[0]);
-    }
-    // 32-bit phase: process remaining bytes with native 32-bit shifts.
-    // Without USE_API_VARINT64: cover bytes 1-4 (shifts 7, 14, 21, 28) — the uint32_t
-    // shift at byte 4 (shift by 28) may lose bits 32-34, but those are always zero for valid uint32 values.
-    // With USE_API_VARINT64: cover bytes 1-3 (shifts 7, 14, 21) so parse_wide handles
-    // byte 4+ with full 64-bit arithmetic (avoids truncating values > UINT32_MAX).
-    uint32_t result32 = buffer[0] & 0x7F;
-#ifdef USE_API_VARINT64
-    uint32_t limit = std::min(len, uint32_t(4));
-#else
-    uint32_t limit = std::min(len, uint32_t(5));
-#endif
-    for (uint32_t i = 1; i < limit; i++) {
-      uint8_t val = buffer[i];
-      result32 |= uint32_t(val & 0x7F) << (i * 7);
-      if ((val & 0x80) == 0) {
-        *consumed = i + 1;
-        return ProtoVarInt(result32);
-      }
-    }
-    // 64-bit phase for remaining bytes (BLE addresses etc.)
-#ifdef USE_API_VARINT64
-    return parse_wide(buffer, len, consumed, result32);
-#else
-    return {};
-#endif
+    // (booleans, small enums, field tags, small message sizes/types).
+    if ((buffer[0] & 0x80) == 0) [[likely]]
+      return {buffer[0], 1};
+    return parse_slow_(buffer, len);
   }
 
-#ifdef USE_API_VARINT64
  protected:
-  /// Continue parsing varint bytes 4-9 with 64-bit arithmetic.
-  /// Separated to keep 64-bit shift code (__ashldi3 on 32-bit platforms) out of the common path.
-  static optional<ProtoVarInt> parse_wide(const uint8_t *buffer, uint32_t len, uint32_t *consumed, uint32_t result32)
-      __attribute__((noinline));
+  // Slow path for multi-byte varints (>= 128), outlined to keep fast path small
+  static ProtoVarIntResult parse_slow_(const uint8_t *buffer, uint32_t len) __attribute__((noinline));
 
- public:
+#ifdef USE_API_VARINT64
+  /// Continue parsing varint bytes 4-9 with 64-bit arithmetic.
+  static ProtoVarIntResult parse_wide_(const uint8_t *buffer, uint32_t len, uint32_t result32)
+      __attribute__((noinline));
 #endif
 
+ public:
   constexpr uint16_t as_uint16() const { return this->value_; }
   constexpr uint32_t as_uint32() const { return this->value_; }
   constexpr bool as_bool() const { return this->value_; }
@@ -499,7 +494,7 @@ class ProtoDecodableMessage : public ProtoMessage {
 
  protected:
   ~ProtoDecodableMessage() = default;
-  virtual bool decode_varint(uint32_t field_id, ProtoVarInt value) { return false; }
+  virtual bool decode_varint(uint32_t field_id, ProtoVarIntResult value) { return false; }
   virtual bool decode_length(uint32_t field_id, ProtoLengthDelimited value) { return false; }
   virtual bool decode_32bit(uint32_t field_id, Proto32Bit value) { return false; }
   // NOTE: decode_64bit removed - wire type 1 not supported
