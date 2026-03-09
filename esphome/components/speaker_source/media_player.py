@@ -107,6 +107,7 @@ PIPELINE_SCHEMA = cv.Schema(
 
 
 def _validate_volume_settings(config: ConfigType) -> ConfigType:
+    # CONF_VOLUME_INITIAL is in the scaled volume domain (0.0-1.0) and doesn't need to be validated
     if config[CONF_VOLUME_MIN] > config[CONF_VOLUME_MAX]:
         raise cv.Invalid(
             f"{CONF_VOLUME_MIN} ({config[CONF_VOLUME_MIN]}) must be less than or equal to {CONF_VOLUME_MAX} ({config[CONF_VOLUME_MAX]})"
