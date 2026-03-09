@@ -132,15 +132,23 @@ class ProtoVarInt {
 
   /// Parse a varint from buffer. Caller must ensure len >= 1.
   /// Returns result with consumed=0 on failure (truncated multi-byte varint).
-  static inline ProtoVarIntResult ESPHOME_ALWAYS_INLINE parse(const uint8_t *buffer, uint32_t len) {
+  static inline ProtoVarIntResult ESPHOME_ALWAYS_INLINE parse_non_empty(const uint8_t *buffer, uint32_t len) {
 #ifdef ESPHOME_DEBUG_API
-    assert(len > 0);  // All callers guarantee len > 0
+    assert(len > 0);
 #endif
     // Fast path: single-byte varints (0-127) are the most common case
     // (booleans, small enums, field tags, small message sizes/types).
     if ((buffer[0] & 0x80) == 0) [[likely]]
       return {buffer[0], 1};
     return parse_slow(buffer, len);
+  }
+
+  /// Parse a varint from buffer (safe for empty buffers).
+  /// Returns result with consumed=0 on failure (empty buffer or truncated varint).
+  static inline ProtoVarIntResult ESPHOME_ALWAYS_INLINE parse(const uint8_t *buffer, uint32_t len) {
+    if (len == 0)
+      return {0, PROTO_VARINT_PARSE_FAILED};
+    return parse_non_empty(buffer, len);
   }
 
  protected:

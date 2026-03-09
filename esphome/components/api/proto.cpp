@@ -63,8 +63,8 @@ uint32_t ProtoDecodableMessage::count_repeated_field(const uint8_t *buffer, size
   const uint8_t *end = buffer + length;
 
   while (ptr < end) {
-    // Parse field header (tag)
-    auto res = ProtoVarInt::parse(ptr, end - ptr);
+    // Parse field header (tag) - ptr < end guarantees len >= 1
+    auto res = ProtoVarInt::parse_non_empty(ptr, end - ptr);
     if (!res.has_value()) {
       break;  // Invalid data, stop counting
     }
@@ -208,8 +208,8 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
   const uint8_t *end = buffer + length;
 
   while (ptr < end) {
-    // Parse field header
-    auto res = ProtoVarInt::parse(ptr, end - ptr);
+    // Parse field header - ptr < end guarantees len >= 1
+    auto res = ProtoVarInt::parse_non_empty(ptr, end - ptr);
     if (!res.has_value()) {
       ESP_LOGV(TAG, "Invalid field start at offset %ld", (long) (ptr - buffer));
       return;

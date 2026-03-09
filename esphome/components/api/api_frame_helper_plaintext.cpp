@@ -129,7 +129,8 @@ APIError APIPlaintextFrameHelper::try_read_frame_() {
     // Skip indicator byte at position 0
     uint8_t varint_pos = 1;
 
-    auto msg_size_varint = ProtoVarInt::parse(&rx_header_buf_[varint_pos], rx_header_buf_pos_ - varint_pos);
+    // rx_header_buf_pos_ >= 3 and varint_pos == 1, so len >= 2
+    auto msg_size_varint = ProtoVarInt::parse_non_empty(&rx_header_buf_[varint_pos], rx_header_buf_pos_ - varint_pos);
     if (!msg_size_varint.has_value()) {
       // not enough data there yet
       continue;
