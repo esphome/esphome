@@ -152,8 +152,14 @@ void Rtttl::loop() {
   }
 
   // Align to note: most rtttl's out there does not add any space after the ',' separator but just in case
-  while (this->rtttl_[this->position_] == ',' || this->rtttl_[this->position_] == ' ') {
+  while (this->position_ < this->rtttl_.length() &&
+         (this->rtttl_[this->position_] == ',' || this->rtttl_[this->position_] == ' ')) {
     this->position_++;
+  }
+
+  if (this->position_ >= this->rtttl_.length()) {
+    this->finish_();
+    return;
   }
 
   // First, get note duration, if available

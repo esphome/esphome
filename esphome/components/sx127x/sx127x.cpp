@@ -286,6 +286,10 @@ SX127xError SX127x::transmit_packet(const std::vector<uint8_t> &packet) {
 
   // wait until transmit completes, typically the delay will be less than 100 ms
   uint32_t start = millis();
+  if (this->dio0_pin_ == nullptr) {
+    ESP_LOGE(TAG, "DIO0 pin not configured, cannot wait for transmit");
+    return SX127xError::TIMEOUT;
+  }
   while (!this->dio0_pin_->digital_read()) {
     if (millis() - start > 4000) {
       ESP_LOGE(TAG, "Transmit packet failure");

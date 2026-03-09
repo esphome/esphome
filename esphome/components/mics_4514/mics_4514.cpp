@@ -54,8 +54,8 @@ void MICS4514Component::update() {
 
   if (this->initial_) {
     this->initial_ = false;
-    this->ox_calibration_ = (float) (power - ox);
-    this->red_calibration_ = (float) (power - red);
+    this->ox_calibration_ = (float) ((int32_t) power - (int32_t) ox);
+    this->red_calibration_ = (float) ((int32_t) power - (int32_t) red);
     return;
   }
 
@@ -65,8 +65,8 @@ void MICS4514Component::update() {
     this->initial_ = true;
     return;
   }
-  float red_f = (float) (power - red) / this->red_calibration_;
-  float ox_f = (float) (power - ox) / this->ox_calibration_;
+  float red_f = (float) ((int32_t) power - (int32_t) red) / this->red_calibration_;
+  float ox_f = (float) ((int32_t) power - (int32_t) ox) / this->ox_calibration_;
 
   if (this->carbon_monoxide_sensor_ != nullptr) {
     float co = 0.0f;

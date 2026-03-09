@@ -144,7 +144,7 @@ void BMI160Component::internal_setup_(int stage) {
       }
       ESP_LOGV(TAG, "  Waiting for gyroscope to wake up");
       // wait between 51 & 81ms, doing 100 to be safe
-      this->set_timeout(10, [this]() { this->internal_setup_(2); });
+      this->set_timeout(100, [this]() { this->internal_setup_(2); });
       break;
 
     case 2:
