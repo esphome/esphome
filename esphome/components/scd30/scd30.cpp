@@ -222,7 +222,7 @@ bool SCD30Component::force_recalibration_with_reference(uint16_t co2_reference) 
 }
 
 uint16_t SCD30Component::get_forced_calibration_reference() {
-  uint16_t forced_calibration_reference;
+  uint16_t forced_calibration_reference = 0;
   // Get current CO2 calibration
   if (!this->get_register(SCD30_CMD_FORCED_CALIBRATION, forced_calibration_reference)) {
     ESP_LOGE(TAG, "Unable to read forced calibration reference.");

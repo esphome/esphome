@@ -16,17 +16,17 @@ static const char *const TAG = "esp32_ble_client";
 // Intermediate connection parameters for standard operation
 // ESP-IDF defaults (12.5-15ms) are too slow for stable connections through WiFi-based BLE proxies,
 // causing disconnections. These medium parameters balance responsiveness with bandwidth usage.
-static const uint16_t MEDIUM_MIN_CONN_INTERVAL = 0x07;  // 7 * 1.25ms = 8.75ms
-static const uint16_t MEDIUM_MAX_CONN_INTERVAL = 0x09;  // 9 * 1.25ms = 11.25ms
+static constexpr uint16_t MEDIUM_MIN_CONN_INTERVAL = 0x07;  // 7 * 1.25ms = 8.75ms
+static constexpr uint16_t MEDIUM_MAX_CONN_INTERVAL = 0x09;  // 9 * 1.25ms = 11.25ms
 // The timeout value was increased from 6s to 8s to address stability issues observed
 // in certain BLE devices when operating through WiFi-based BLE proxies. The longer
 // timeout reduces the likelihood of disconnections during periods of high latency.
-static const uint16_t MEDIUM_CONN_TIMEOUT = 800;  // 800 * 10ms = 8s
+static constexpr uint16_t MEDIUM_CONN_TIMEOUT = 800;  // 800 * 10ms = 8s
 
 // Fastest connection parameters for devices with short discovery timeouts
-static const uint16_t FAST_MIN_CONN_INTERVAL = 0x06;  // 6 * 1.25ms = 7.5ms (BLE minimum)
-static const uint16_t FAST_MAX_CONN_INTERVAL = 0x06;  // 6 * 1.25ms = 7.5ms
-static const uint16_t FAST_CONN_TIMEOUT = 1000;       // 1000 * 10ms = 10s
+static constexpr uint16_t FAST_MIN_CONN_INTERVAL = 0x06;  // 6 * 1.25ms = 7.5ms (BLE minimum)
+static constexpr uint16_t FAST_MAX_CONN_INTERVAL = 0x06;  // 6 * 1.25ms = 7.5ms
+static constexpr uint16_t FAST_CONN_TIMEOUT = 1000;       // 1000 * 10ms = 10s
 static const esp_bt_uuid_t NOTIFY_DESC_UUID = {
     .len = ESP_UUID_LEN_16,
     .uuid =
@@ -236,8 +236,8 @@ void BLEClientBase::log_warning_(const char *message) {
   ESP_LOGW(TAG, "[%d] [%s] %s", this->connection_index_, this->address_str_, message);
 }
 
-void BLEClientBase::update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency,
-                                        uint16_t timeout, const char *param_type) {
+esp_err_t BLEClientBase::update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency,
+                                             uint16_t timeout, const char *param_type) {
   esp_ble_conn_update_params_t conn_params = {{0}};
   memcpy(conn_params.bda, this->remote_bda_, sizeof(esp_bd_addr_t));
   conn_params.min_int = min_interval;
@@ -249,6 +249,7 @@ void BLEClientBase::update_conn_params_(uint16_t min_interval, uint16_t max_inte
   if (err != ESP_OK) {
     this->log_gattc_warning_("esp_ble_gap_update_conn_params", err);
   }
+  return err;
 }
 
 void BLEClientBase::set_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,
@@ -423,10 +424,8 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         for (auto &svc : this->services_) {
           char uuid_buf[espbt::UUID_STR_LEN];
           svc->uuid.to_str(uuid_buf);
-          ESP_LOGV(TAG,
-                   "[%d] [%s] Service UUID: %s\n"
-                   "[%d] [%s]  start_handle: 0x%x  end_handle: 0x%x",
-                   this->connection_index_, this->address_str_, uuid_buf, this->connection_index_, this->address_str_,
+          ESP_LOGV(TAG, "[%d] [%s] Service UUID: %s", this->connection_index_, this->address_str_, uuid_buf);
+          ESP_LOGV(TAG, "[%d] [%s]  start_handle: 0x%x  end_handle: 0x%x", this->connection_index_, this->address_str_,
                    svc->start_handle, svc->end_handle);
         }
 #endif

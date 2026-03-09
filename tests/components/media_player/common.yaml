@@ -23,8 +23,27 @@ media_player:
       - media_player.stop:
       - media_player.stop:
           announcement: true
+    on_announcement:
+      - media_player.play:
+    on_turn_on:
+      - media_player.play:
+    on_turn_off:
+      - media_player.stop:
     on_pause:
       - media_player.toggle:
+      - media_player.turn_on:
+      - media_player.turn_off:
+      - media_player.next:
+      - media_player.previous:
+      - media_player.mute:
+      - media_player.unmute:
+      - media_player.repeat_off:
+      - media_player.repeat_one:
+      - media_player.repeat_all:
+      - media_player.shuffle:
+      - media_player.unshuffle:
+      - media_player.group_join:
+      - media_player.clear_playlist:
       - wait_until:
           media_player.is_idle:
       - wait_until:
@@ -33,6 +52,12 @@ media_player:
           media_player.is_announcing:
       - wait_until:
           media_player.is_paused:
+      - wait_until:
+          media_player.is_on:
+      - wait_until:
+          media_player.is_off:
+      - wait_until:
+          media_player.is_muted:
       - media_player.volume_up:
       - media_player.volume_down:
       - media_player.volume_set: 50%
