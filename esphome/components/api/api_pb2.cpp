@@ -1039,7 +1039,7 @@ bool HomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDel
 bool DSTRule::decode_varint(uint32_t field_id, proto_varint_value_t value) {
   switch (field_id) {
     case 1:
-      this->time_seconds = decode_zigzag32(value);
+      this->time_seconds = decode_zigzag32(static_cast<uint32_t>(value));
       break;
     case 2:
       this->day = value;
@@ -1064,10 +1064,10 @@ bool DSTRule::decode_varint(uint32_t field_id, proto_varint_value_t value) {
 bool ParsedTimezone::decode_varint(uint32_t field_id, proto_varint_value_t value) {
   switch (field_id) {
     case 1:
-      this->std_offset_seconds = decode_zigzag32(value);
+      this->std_offset_seconds = decode_zigzag32(static_cast<uint32_t>(value));
       break;
     case 2:
-      this->dst_offset_seconds = decode_zigzag32(value);
+      this->dst_offset_seconds = decode_zigzag32(static_cast<uint32_t>(value));
       break;
     default:
       return false;
@@ -1147,13 +1147,13 @@ bool ExecuteServiceArgument::decode_varint(uint32_t field_id, proto_varint_value
       this->legacy_int = static_cast<int32_t>(value);
       break;
     case 5:
-      this->int_ = decode_zigzag32(value);
+      this->int_ = decode_zigzag32(static_cast<uint32_t>(value));
       break;
     case 6:
       this->bool_array.push_back(value != 0);
       break;
     case 7:
-      this->int_array.push_back(decode_zigzag32(value));
+      this->int_array.push_back(decode_zigzag32(static_cast<uint32_t>(value)));
       break;
     default:
       return false;

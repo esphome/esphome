@@ -1262,7 +1262,7 @@ class SFixed64Type(TypeInfo):
 class SInt32Type(TypeInfo):
     cpp_type = "int32_t"
     default_value = "0"
-    decode_varint = "decode_zigzag32(value)"
+    decode_varint = "decode_zigzag32(static_cast<uint32_t>(value))"
     encode_func = "encode_sint32"
     wire_type = WireType.VARINT  # Uses wire type 0
 
