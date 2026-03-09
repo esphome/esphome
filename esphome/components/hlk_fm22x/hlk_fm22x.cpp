@@ -6,6 +6,7 @@
 namespace esphome::hlk_fm22x {
 
 static const char *const TAG = "hlk_fm22x";
+static constexpr uint32_t PAYLOAD_TIMEOUT_MS = 20;
 
 void HlkFm22xComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HLK-FM22X...");
@@ -133,10 +134,15 @@ void HlkFm22xComponent::recv_command_() {
   checksum ^= byte;
   length |= byte;
 
-  // Verify remaining data (payload + checksum) is available before reading
-  if (this->available() < length + 1) {
-    ESP_LOGV(TAG, "Incomplete message: need %u more bytes, have %zu", length + 1, (size_t) this->available());
-    return;
+  // Wait for remaining data (payload + checksum) to arrive.
+  // Header bytes are already consumed, so we must finish reading this message.
+  uint32_t start = millis();
+  while (this->available() < length + 1) {
+    if (millis() - start > PAYLOAD_TIMEOUT_MS) {
+      ESP_LOGW(TAG, "Timeout waiting for payload (%u bytes)", length);
+      return;
+    }
+    delay(1);
   }
 
   // Read up to buffer size; discard excess bytes while still computing checksum
