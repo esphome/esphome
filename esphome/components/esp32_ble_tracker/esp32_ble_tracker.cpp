@@ -514,6 +514,11 @@ void ESPBTDevice::parse_adv_(const uint8_t *payload, uint8_t len) {
       continue;  // Possible zero padded advertisement data
     }
 
+    // Validate field fits in remaining payload
+    if (offset + field_length > len) {
+      break;
+    }
+
     // first byte of adv record is adv record type
     const uint8_t record_type = payload[offset++];
     const uint8_t *record = &payload[offset];
