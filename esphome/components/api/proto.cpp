@@ -21,8 +21,6 @@ void ProtoWriteBuffer::encode_varint_raw_slow_(uint32_t value) {
 }
 
 ProtoVarIntResult ProtoVarInt::parse_slow(const uint8_t *buffer, uint32_t len) {
-  if (len == 0)
-    return {0, 0};
   // Multi-byte varint: first byte already checked to have high bit set
   uint32_t result32 = buffer[0] & 0x7F;
 #ifdef USE_API_VARINT64
