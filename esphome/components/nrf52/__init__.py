@@ -392,22 +392,42 @@ def _upload_using_platformio(
 def upload_program(config: ConfigType, args, host: str) -> bool:
     from esphome.__main__ import check_permissions, get_port_type
 
-    result = 0
-    handled = False
+    mcumgr_device: str | None = None
 
     if get_port_type(host) == "SERIAL":
         check_permissions(host)
-        result = _upload_using_platformio(config, host, ["-t", "upload"])
-        handled = True
+        if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
+            mcumgr_device = host
+        else:
+            result = _upload_using_platformio(config, host, ["-t", "upload"])
+            if result != 0:
+                raise EsphomeError(f"Upload failed with result: {result}")
+            return True  # Handled: platformio serial upload
 
     if host == "PYOCD":
         result = _upload_using_platformio(config, host, ["-t", "flash_pyocd"])
-        handled = True
+        if result != 0:
+            raise EsphomeError(f"Upload failed with result: {result}")
+        return True  # Handled: platformio PYOCD upload
 
-    if result != 0:
-        raise EsphomeError(f"Upload failed with result: {result}")
+    # Deferred imports: bleak/smpclient are heavy, only load for BLE/mcumgr paths
+    from .ble_logger import is_mac_address
+    from .ota import smpmgr_scan, smpmgr_upload
 
-    return handled
+    if host == "BLE":
+        mcumgr_device = asyncio.run(smpmgr_scan(CORE.name))
+
+    if is_mac_address(host):
+        mcumgr_device = host
+
+    if mcumgr_device:
+        firmware = Path(
+            CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
+        ).resolve()
+        asyncio.run(smpmgr_upload(mcumgr_device, firmware))
+        return True  # Handled: mcumgr OTA upload
+
+    return False  # Not handled: let caller try default upload methods
 
 
 def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
@@ -415,7 +435,7 @@ def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
     from .ble_logger import is_mac_address, logger_connect, logger_scan
 
     if devices[0] == "BLE":
-        ble_device = asyncio.run(logger_scan(CORE.config["esphome"]["name"]))
+        ble_device = asyncio.run(logger_scan(CORE.name))
         if ble_device:
             address = ble_device.address
         else:

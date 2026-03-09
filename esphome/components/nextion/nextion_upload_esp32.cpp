@@ -7,6 +7,7 @@
 #include <esp_http_client.h>
 #include <cinttypes>
 #include "esphome/components/network/util.h"
+#include "esphome/components/watchdog/watchdog.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -68,7 +69,7 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
     int partial_read_len = 0;
     uint8_t retries = 0;
     // Attempt to read the chunk with retries.
-    while (retries < 5 && read_len < buffer_size) {
+    while (retries < this->tft_upload_http_retries_ && read_len < buffer_size) {
       partial_read_len =
           esp_http_client_read(http_client, reinterpret_cast<char *>(buffer) + read_len, buffer_size - read_len);
       if (partial_read_len > 0) {
@@ -167,6 +168,9 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
     return false;
   }
 
+  // Temporarily adjust watchdog timeout for the duration of the TFT upload
+  watchdog::WatchdogManager wdm(this->tft_upload_watchdog_timeout_);
+
   this->connection_state_.is_updating_ = true;
 
   if (exit_reparse) {
@@ -190,7 +194,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
       .url = this->tft_url_.c_str(),
       .cert_pem = nullptr,
       .method = HTTP_METHOD_HEAD,
-      .timeout_ms = 15000,
+      .timeout_ms = static_cast<int>(this->tft_upload_http_timeout_),
       .disable_auto_redirect = false,
       .max_redirection_count = 10,
   };

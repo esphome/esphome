@@ -383,7 +383,7 @@ void BME680BSECComponent::publish_(const bsec_output_t *outputs, uint8_t num_out
     switch (outputs[i].sensor_id) {
       case BSEC_OUTPUT_IAQ:
       case BSEC_OUTPUT_STATIC_IAQ: {
-        uint8_t accuracy = outputs[i].accuracy;
+        uint8_t accuracy = std::min<uint8_t>(outputs[i].accuracy, std::size(IAQ_ACCURACY_STATES) - 1);
         this->queue_push_([this, signal]() { this->publish_sensor_(this->iaq_sensor_, signal); });
         this->queue_push_([this, accuracy]() {
           this->publish_sensor_(this->iaq_accuracy_text_sensor_, IAQ_ACCURACY_STATES[accuracy]);
