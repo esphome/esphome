@@ -236,9 +236,9 @@ class APIFrameHelper {
   // Returns OK only in DATA state; maps CLOSED/FAILED to BAD_STATE and any
   // other intermediate state to WOULD_BLOCK.
   inline APIError ESPHOME_ALWAYS_INLINE check_data_state_() const {
-    if (state_ == State::DATA)
+    if (this->state_ == State::DATA)
       return APIError::OK;
-    if (state_ == State::CLOSED || state_ == State::FAILED)
+    if (this->state_ == State::CLOSED || this->state_ == State::FAILED)
       return APIError::BAD_STATE;
     return APIError::WOULD_BLOCK;
   }
