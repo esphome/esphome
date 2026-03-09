@@ -74,6 +74,9 @@ class SerialProxy : public uart::UARTDevice, public Component {
   /// @param data_size Number of data bits (5-8)
   void configure(uint32_t baudrate, bool flow_control, uint8_t parity, uint8_t stop_bits, uint8_t data_size);
 
+  /// Get the currently subscribed API connection (nullptr if none)
+  api::APIConnection *get_api_connection() { return this->api_connection_; }
+
   /// Handle a subscribe/unsubscribe request from an API client
   void serial_proxy_request(api::APIConnection *api_connection, api::enums::SerialProxyRequestType type);
 
