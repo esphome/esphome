@@ -397,7 +397,7 @@ void SpeakerSourceMediaPlayer::queue_play_current_(uint8_t pipeline, uint32_t de
 
 // THREAD CONTEXT: Called from main loop (loop)
 void SpeakerSourceMediaPlayer::process_control_queue_() {
-  MediaPlayerControlCommand control_command;
+  MediaPlayerControlCommand control_command{};
 
   // Use peek to check command without removing it
   if (xQueuePeek(this->media_control_command_queue_, &control_command, 0) != pdTRUE) {
@@ -675,7 +675,7 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
     return;
   }
 
-  MediaPlayerControlCommand control_command;
+  MediaPlayerControlCommand control_command{};
 
   // Determine which pipeline to use based on announcement flag, falling back if the preferred pipeline
   // is not configured
