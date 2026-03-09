@@ -217,9 +217,6 @@ async def esp32_to_code(config: ConfigType) -> None:
     else:
         add_idf_sdkconfig_option("CONFIG_ZB_ZED", True)
     add_idf_sdkconfig_option("CONFIG_ZB_RADIO_NATIVE", True)
-    # The pre-built Zigbee library uses esp_log_default_level which requires
-    # dynamic log level control to be enabled
-    add_idf_sdkconfig_option("CONFIG_LOG_DYNAMIC_LEVEL_CONTROL", True)
     if CONF_WIFI in CORE.config:
         add_idf_sdkconfig_option("CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE", 4096)
         cg.add_define("CONFIG_WIFI_COEX")
@@ -254,3 +251,7 @@ async def esp32_to_code(config: ConfigType) -> None:
                 )
             )
             await attributes_to_code(var, ep[CONF_NUM], cl)
+    # The pre-built Zigbee library uses esp_log_default_level which requires
+    # dynamic log level control to be enabled
+    # Moved to end so this runs after esp32 component. Should probably await esp32 explicitly.
+    add_idf_sdkconfig_option("CONFIG_LOG_DYNAMIC_LEVEL_CONTROL", True)
