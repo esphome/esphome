@@ -350,8 +350,8 @@ bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
   if (data.expect_item(DAIKIN_HEADER_MARK, DAIKIN_HEADER_SPACE)) {
     valid_daikin_frame = true;
     size_t bytes_count = data.size() / 2 / 8;
-    // Enough for 42 decoded bytes; truncates gracefully via buf_append_printf
-    char buf[128] = {};
+    // Header (20) + state (19) = 39 bytes max; truncates gracefully via buf_append_printf
+    char buf[40 * 3 + 1] = {};
     constexpr size_t buf_size = sizeof(buf);
     size_t buf_pos = 0;
     for (size_t i = 0; i < bytes_count; i++) {
