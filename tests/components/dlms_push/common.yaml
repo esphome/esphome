@@ -16,7 +16,7 @@ dlms_push:
   uart_id: bus_1
   show_log: true
   receive_timeout: 50ms
-  custom_pattern: "0E010605" # Example pattern for testing compilation
+  custom_pattern: "TC,TO,TS,TV" # Example DSL pattern for testing compilation
 
 sensor:
   - platform: dlms_push
