@@ -1,3 +1,4 @@
+#define USE_HOST
 #ifdef USE_HOST
 #if defined(__linux__)
 
@@ -28,29 +29,23 @@ HostI2CBus::~HostI2CBus() {
 void HostI2CBus::setup() {
   ESP_LOGCONFIG(TAG, "Setting up I2C bus...");
 
-  // Build device path
-  char device_path[32];
-  snprintf(device_path, sizeof(device_path), "/dev/i2c-%d", this->bus_num_);
-
   // Open I2C device file
-  this->file_descriptor_ = open(device_path, O_RDWR);
+  this->file_descriptor_ = open(this->device_.c_str(), O_RDWR);
   if (this->file_descriptor_ == -1) {
     int err = errno;
     if (err == ENOENT) {
-      this->update_error_(std::string("I2C device ") + device_path +
-                          " not found. Ensure I2C is enabled in kernel and the device exists.");
+      this->update_error_("not found");
     } else if (err == EACCES) {
-      this->update_error_(std::string("Permission denied accessing ") + device_path +
-                          ". Add user to i2c group: sudo usermod -a -G i2c $USER");
+      this->update_error_("permission denied");
     } else {
-      this->update_error_(std::string("Failed to open ") + device_path + ": " + strerror(err));
+      this->update_error_(std::string("failed to open: ") + strerror(err));
     }
     this->mark_failed();
     return;
   }
 
   this->initialized_ = true;
-  ESP_LOGCONFIG(TAG, "  Device: %s", device_path);
+  ESP_LOGCONFIG(TAG, "  Device: %s", this->device_.c_str());
 
   // Run bus scan if enabled
   if (this->scan_) {
@@ -60,7 +55,7 @@ void HostI2CBus::setup() {
 
 void HostI2CBus::dump_config() {
   ESP_LOGCONFIG(TAG, "I2C Bus:");
-  ESP_LOGCONFIG(TAG, "  Bus Number: %d", this->bus_num_);
+  ESP_LOGCONFIG(TAG, "  Device: %s", this->device_.c_str());
   ESP_LOGCONFIG(TAG, "  Frequency: %u Hz", this->frequency_);
 
   if (!this->first_error_.empty()) {
@@ -278,7 +273,7 @@ void HostI2CBus::update_error_(const std::string &error) {
   if (this->first_error_.empty()) {
     this->first_error_ = error;
   }
-  ESP_LOGE(TAG, "%s", error.c_str());
+  ESP_LOGE(TAG, "[%s] %s", this->device_.c_str(), error.c_str());
 }
 
 }  // namespace i2c

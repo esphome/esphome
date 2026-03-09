@@ -1,4 +1,5 @@
 import logging
+import re
 
 from esphome import pins
 import esphome.codegen as cg
@@ -29,6 +30,7 @@ from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ADDRESS,
+    CONF_DEVICE,
     CONF_FREQUENCY,
     CONF_I2C,
     CONF_I2C_ID,
@@ -82,8 +84,13 @@ LP_I2C_VARIANT = list(VALIDATE_LP_I2C.keys())
 
 CONF_SDA_PULLUP_ENABLED = "sda_pullup_enabled"
 CONF_SCL_PULLUP_ENABLED = "scl_pullup_enabled"
-CONF_BUS_NUM = "bus_num"
 MULTI_CONF = True
+
+
+def validate_device(value):
+    if not re.match(r"^/(?:[^/]+/)[^/]+$", value):
+        raise cv.Invalid("Device must be a valid device path (e.g., /dev/i2c-0)")
+    return value
 
 
 def _bus_declare_type(value):
@@ -114,6 +121,10 @@ def validate_host_config(config):
         config.pop(CONF_SCL, None)
         if CONF_SDA_PULLUP_ENABLED in config or CONF_SCL_PULLUP_ENABLED in config:
             raise cv.Invalid("Pull-up configuration is not supported on host platform.")
+        if CONF_DEVICE not in config:
+            raise cv.Invalid(
+                "'device' is required for host platform (e.g., /dev/i2c-0)."
+            )
     return config
 
 
@@ -152,8 +163,8 @@ CONFIG_SCHEMA = cv.All(
                 ),
                 cv.boolean,
             ),
-            cv.SplitDefault(CONF_BUS_NUM, host=0): cv.All(
-                cv.only_on(PLATFORM_HOST), cv.int_range(min=0, max=255)
+            cv.Optional(CONF_DEVICE): cv.All(
+                cv.only_on(PLATFORM_HOST), validate_device
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -212,7 +223,7 @@ async def to_code(config):
     if CORE.is_host:
         var = cg.new_Pvariable(config[CONF_ID])
         await cg.register_component(var, config)
-        cg.add(var.set_bus_num(config.get(CONF_BUS_NUM, 0)))
+        cg.add(var.set_device(config[CONF_DEVICE]))
         cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
         cg.add(var.set_scan(config[CONF_SCAN]))
     elif CORE.using_zephyr:

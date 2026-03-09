@@ -2,6 +2,6 @@
 
 i2c:
   - id: i2c_bus
-    bus_num: 0
+    device: /dev/i2c-0
     frequency: 100kHz
     scan: true
