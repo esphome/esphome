@@ -232,6 +232,17 @@ class APIFrameHelper {
     EXPLICIT_REJECT = 8,  // Noise only
   };
 
+  // Fast inline state check for read_packet/write_protobuf_messages hot path.
+  // Returns OK only in DATA state; maps CLOSED/FAILED to BAD_STATE and any
+  // other intermediate state to WOULD_BLOCK.
+  inline APIError ESPHOME_ALWAYS_INLINE check_data_state_() const {
+    if (this->state_ == State::DATA)
+      return APIError::OK;
+    if (this->state_ == State::CLOSED || this->state_ == State::FAILED)
+      return APIError::BAD_STATE;
+    return APIError::WOULD_BLOCK;
+  }
+
   // Containers (size varies, but typically 12+ bytes on 32-bit)
   std::array<std::unique_ptr<SendBuffer>, API_MAX_SEND_QUEUE> tx_buf_;
   std::vector<uint8_t> rx_buf_;
