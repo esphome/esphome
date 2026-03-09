@@ -198,7 +198,7 @@ bool Pipsolar::send_next_command_() {
       this->command_queue_[this->command_queue_position_].clear();
       return false;
     }
-    for (uint8_t i = 0; i < length; i++) {
+    for (size_t i = 0; i < length; i++) {
       byte_command[i] = (uint8_t) this->command_queue_[this->command_queue_position_].at(i);
     }
     this->state_ = STATE_COMMAND;
