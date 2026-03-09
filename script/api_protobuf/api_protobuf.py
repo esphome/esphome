@@ -193,6 +193,7 @@ class TypeInfo(ABC):
         return f"case {self.number}: this->{self.field_name} = {content}; break;"
 
     decode_varint = None
+    is_varint64 = False
 
     @property
     def decode_length_content(self) -> str:
@@ -461,7 +462,8 @@ class FloatType(TypeInfo):
 class Int64Type(TypeInfo):
     cpp_type = "int64_t"
     default_value = "0"
-    decode_varint = "value.as_int64()"
+    decode_varint = "static_cast<int64_t>(value)"
+    is_varint64 = True
     encode_func = "encode_int64"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -481,7 +483,8 @@ class Int64Type(TypeInfo):
 class UInt64Type(TypeInfo):
     cpp_type = "uint64_t"
     default_value = "0"
-    decode_varint = "value.as_uint64()"
+    decode_varint = "value"
+    is_varint64 = True
     encode_func = "encode_uint64"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -501,7 +504,7 @@ class UInt64Type(TypeInfo):
 class Int32Type(TypeInfo):
     cpp_type = "int32_t"
     default_value = "0"
-    decode_varint = "value.as_int32()"
+    decode_varint = "static_cast<int32_t>(value)"
     encode_func = "encode_int32"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -573,7 +576,7 @@ class Fixed32Type(TypeInfo):
 class BoolType(TypeInfo):
     cpp_type = "bool"
     default_value = "false"
-    decode_varint = "value.as_bool()"
+    decode_varint = "value != 0"
     encode_func = "encode_bool"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -1151,7 +1154,7 @@ class FixedArrayBytesType(TypeInfo):
 class UInt32Type(TypeInfo):
     cpp_type = "uint32_t"
     default_value = "0"
-    decode_varint = "value.as_uint32()"
+    decode_varint = "value"
     encode_func = "encode_uint32"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -1175,7 +1178,7 @@ class EnumType(TypeInfo):
 
     @property
     def decode_varint(self) -> str:
-        return f"static_cast<{self.cpp_type}>(value.as_uint32())"
+        return f"static_cast<{self.cpp_type}>(value)"
 
     default_value = ""
     wire_type = WireType.VARINT  # Uses wire type 0
@@ -1262,7 +1265,7 @@ class SFixed64Type(TypeInfo):
 class SInt32Type(TypeInfo):
     cpp_type = "int32_t"
     default_value = "0"
-    decode_varint = "value.as_sint32()"
+    decode_varint = "decode_zigzag32(value)"
     encode_func = "encode_sint32"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -1282,7 +1285,8 @@ class SInt32Type(TypeInfo):
 class SInt64Type(TypeInfo):
     cpp_type = "int64_t"
     default_value = "0"
-    decode_varint = "value.as_sint64()"
+    decode_varint = "decode_zigzag64(value)"
+    is_varint64 = True
     encode_func = "encode_sint64"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -1619,6 +1623,10 @@ class RepeatedTypeInfo(TypeInfo):
         For repeated fields, we use the same wire type as the underlying field.
         """
         return self._ti.wire_type
+
+    @property
+    def is_varint64(self):
+        return self._ti.is_varint64
 
     @property
     def decode_varint_content(self) -> str:
@@ -2205,7 +2213,12 @@ def build_message_type(
 
     cpp = ""
     if decode_varint:
-        o = f"bool {desc.name}::decode_varint(uint32_t field_id, ProtoVarIntResult value) {{\n"
+        # Use conditional parameter type to match base class
+        o = "#ifdef USE_API_VARINT64\n"
+        o += f"bool {desc.name}::decode_varint(uint32_t field_id, uint64_t value) {{\n"
+        o += "#else\n"
+        o += f"bool {desc.name}::decode_varint(uint32_t field_id, uint32_t value) {{\n"
+        o += "#endif\n"
         o += "  switch (field_id) {\n"
         o += indent("\n".join(decode_varint), "    ") + "\n"
         o += "    default: return false;\n"
@@ -2213,10 +2226,15 @@ def build_message_type(
         o += "  return true;\n"
         o += "}\n"
         cpp += o
-        prot = (
-            "bool decode_varint(uint32_t field_id, ProtoVarIntResult value) override;"
-        )
-        protected_content.insert(0, prot)
+        prot_lines = [
+            "#ifdef USE_API_VARINT64",
+            "bool decode_varint(uint32_t field_id, uint64_t value) override;",
+            "#else",
+            "bool decode_varint(uint32_t field_id, uint32_t value) override;",
+            "#endif",
+        ]
+        for i, line in enumerate(prot_lines):
+            protected_content.insert(i, line)
     if decode_length:
         o = f"bool {desc.name}::decode_length(uint32_t field_id, ProtoLengthDelimited value) {{\n"
         o += "  switch (field_id) {\n"

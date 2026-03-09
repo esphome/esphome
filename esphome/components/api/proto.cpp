@@ -227,7 +227,11 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
           ESP_LOGV(TAG, "Invalid VarInt at offset %ld", (long) (ptr - buffer));
           return;
         }
-        if (!this->decode_varint(field_id, res)) {
+#ifdef USE_API_VARINT64
+        if (!this->decode_varint(field_id, res.as_uint64())) {
+#else
+        if (!this->decode_varint(field_id, res.as_uint32())) {
+#endif
           ESP_LOGV(TAG, "Cannot decode VarInt field %" PRIu32 " with value %" PRIu32 "!", field_id, res.as_uint32());
         }
         ptr += res.consumed;

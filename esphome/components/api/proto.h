@@ -506,7 +506,11 @@ class ProtoDecodableMessage : public ProtoMessage {
 
  protected:
   ~ProtoDecodableMessage() = default;
-  virtual bool decode_varint(uint32_t field_id, ProtoVarIntResult value) { return false; }
+#ifdef USE_API_VARINT64
+  virtual bool decode_varint(uint32_t field_id, uint64_t value) { return false; }
+#else
+  virtual bool decode_varint(uint32_t field_id, uint32_t value) { return false; }
+#endif
   virtual bool decode_length(uint32_t field_id, ProtoLengthDelimited value) { return false; }
   virtual bool decode_32bit(uint32_t field_id, Proto32Bit value) { return false; }
   // NOTE: decode_64bit removed - wire type 1 not supported
