@@ -640,7 +640,8 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
 
   // Determine which pipeline to use based on announcement flag, falling back if the preferred pipeline
   // is not configured
-  if (call.get_announcement().has_value() && call.get_announcement().value()) {
+  auto announcement = call.get_announcement();
+  if (announcement.has_value() && announcement.value()) {
     if (this->pipelines_[ANNOUNCEMENT_PIPELINE].is_configured()) {
       control_command.pipeline = ANNOUNCEMENT_PIPELINE;
     } else {
@@ -654,9 +655,10 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
     }
   }
 
-  if (call.get_media_url().has_value()) {
-    bool enqueue =
-        call.get_command().has_value() && call.get_command().value() == media_player::MEDIA_PLAYER_COMMAND_ENQUEUE;
+  auto media_url = call.get_media_url();
+  if (media_url.has_value()) {
+    auto command = call.get_command();
+    bool enqueue = command.has_value() && command.value() == media_player::MEDIA_PLAYER_COMMAND_ENQUEUE;
 
     if (enqueue) {
       control_command.type = MediaPlayerControlCommand::ENQUEUE_URI;
@@ -666,7 +668,7 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
     // Heap allocation is unavoidable: URIs from Home Assistant are arbitrary-length (media URLs with tokens
     // can easily exceed 500 bytes). Deleted in process_control_queue_() after the command is consumed. FreeRTOS queues
     // require items to be copyable, so we store a pointer to the string in the queue rather than the string itself.
-    control_command.data.uri = new std::string(call.get_media_url().value());
+    control_command.data.uri = new std::string(media_url.value());
     if (xQueueSend(this->media_control_command_queue_, &control_command, 0) != pdTRUE) {
       delete control_command.data.uri;
       ESP_LOGE(TAG, "Queue full, URI dropped");
@@ -674,14 +676,16 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
     return;
   }
 
-  if (call.get_volume().has_value()) {
-    this->set_volume_(call.get_volume().value());
+  auto volume = call.get_volume();
+  if (volume.has_value()) {
+    this->set_volume_(volume.value());
     this->publish_state();
     return;
   }
 
-  if (call.get_command().has_value()) {
-    switch (call.get_command().value()) {
+  auto cmd = call.get_command();
+  if (cmd.has_value()) {
+    switch (cmd.value()) {
       case media_player::MEDIA_PLAYER_COMMAND_MUTE:
         this->set_mute_state_(true);
         this->publish_state();
@@ -703,7 +707,7 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
     }
 
     control_command.type = MediaPlayerControlCommand::SEND_COMMAND;
-    control_command.data.command = call.get_command().value();
+    control_command.data.command = cmd.value();
     if (xQueueSend(this->media_control_command_queue_, &control_command, 0) != pdTRUE) {
       ESP_LOGE(TAG, "Queue full, command dropped");
     }
