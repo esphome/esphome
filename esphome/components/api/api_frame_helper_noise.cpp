@@ -207,9 +207,7 @@ APIError APINoiseFrameHelper::try_read_frame_() {
   // During handshake, rx_buf_.size() is used in prologue construction, so
   // the buffer must be exactly msg_size to avoid prologue mismatch.)
   uint16_t alloc_size = msg_size + (is_data ? RX_BUF_NULL_TERMINATOR : 0);
-  if (this->rx_buf_.size() != alloc_size) {
-    this->rx_buf_.resize(alloc_size);
-  }
+  this->rx_buf_.resize(alloc_size);
 
   if (rx_buf_len_ < msg_size) {
     // more data to read
