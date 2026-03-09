@@ -432,7 +432,7 @@ void LD2412Component::handle_periodic_data_() {
         SAFE_PUBLISH_SENSOR(this->gate_still_sensors_[i], this->buffer_data_[STILL_SENSOR_START + i])
       }
       /*
-        Light sensor: 38th bytes
+        Light sensor value
       */
       SAFE_PUBLISH_SENSOR(this->light_sensor_, this->buffer_data_[LIGHT_SENSOR])
     }

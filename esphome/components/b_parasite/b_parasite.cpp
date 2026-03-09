@@ -39,7 +39,7 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   const auto &data = service_data.data;
 
   if (data.size() < 10) {
-    ESP_LOGW(TAG, "Service data too short: %d", data.size());
+    ESP_LOGW(TAG, "Service data too short: %zu", data.size());
     return false;
   }
 
@@ -53,7 +53,7 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   bool has_illuminance = data[0] & 0x1;
 
   if (has_illuminance && data.size() < 18) {
-    ESP_LOGW(TAG, "Service data too short for illuminance: %d", data.size());
+    ESP_LOGW(TAG, "Service data too short for illuminance: %zu", data.size());
     return false;
   }
 
