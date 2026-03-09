@@ -41,3 +41,8 @@ media_player:
     on_unmute:
       - media_player.play:
           id: media_player_id
+    on_volume:
+      - speaker_source.set_playlist_delay:
+          id: media_player_id
+          pipeline: media
+          delay: 500ms

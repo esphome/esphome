@@ -3,13 +3,16 @@ import esphome.codegen as cg
 from esphome.components import audio, media_player, media_source, speaker
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DELAY,
     CONF_FORMAT,
     CONF_ID,
     CONF_NUM_CHANNELS,
     CONF_SAMPLE_RATE,
     CONF_SPEAKER,
 )
+from esphome.core import ID
 from esphome.core.entity_helpers import inherit_property_from
+from esphome.cpp_generator import MockObj, TemplateArgsType
 from esphome.types import ConfigType
 
 AUTO_LOAD = ["audio"]
@@ -19,6 +22,7 @@ CODEOWNERS = ["@kahrendt"]
 
 CONF_MEDIA_PIPELINE = "media_pipeline"
 CONF_ON_MUTE = "on_mute"
+CONF_PIPELINE = "pipeline"
 CONF_ON_UNMUTE = "on_unmute"
 CONF_ON_VOLUME = "on_volume"
 CONF_SOURCES = "sources"
@@ -36,6 +40,13 @@ SpeakerSourceMediaPlayer = speaker_source_ns.class_(
 PipelineContext = speaker_source_ns.struct("PipelineContext")
 
 Pipeline = speaker_source_ns.enum("Pipeline")
+PIPELINE_ENUM = {
+    "media": Pipeline.MEDIA_PIPELINE,
+}
+
+SetPlaylistDelayAction = speaker_source_ns.class_(
+    "SetPlaylistDelayAction", automation.Action
+)
 
 
 FORMAT_MAPPING = {
@@ -210,3 +221,34 @@ async def to_code(config: ConfigType) -> None:
             [(cg.float_, "x")],
             on_volume,
         )
+
+
+SET_PLAYLIST_DELAY_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(SpeakerSourceMediaPlayer),
+        cv.Required(CONF_PIPELINE): cv.enum(PIPELINE_ENUM, lower=True),
+        cv.Required(CONF_DELAY): cv.templatable(cv.positive_time_period_milliseconds),
+    }
+)
+
+
+@automation.register_action(
+    "speaker_source.set_playlist_delay",
+    SetPlaylistDelayAction,
+    SET_PLAYLIST_DELAY_ACTION_SCHEMA,
+)
+async def set_playlist_delay_action_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    parent = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, parent)
+
+    cg.add(var.set_pipeline(config[CONF_PIPELINE]))
+
+    template_ = await cg.templatable(config[CONF_DELAY], args, cg.uint32)
+    cg.add(var.set_delay(template_))
+
+    return var

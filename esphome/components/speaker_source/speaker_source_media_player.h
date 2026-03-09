@@ -56,6 +56,12 @@ enum Pipeline : uint8_t {
   MEDIA_PIPELINE = 0,
 };
 
+enum RepeatMode : uint8_t {
+  REPEAT_OFF = 0,
+  REPEAT_ONE = 1,
+  REPEAT_ALL = 2,
+};
+
 // Forward declaration
 class SpeakerSourceMediaPlayer;
 
@@ -79,6 +85,9 @@ struct SourceBinding : public media_source::MediaSourceListener {
 };
 
 struct PipelineContext {
+  /// @brief Timeout IDs for playlist delay, indexed by Pipeline enum
+  static constexpr const char *const TIMEOUT_IDS[] = {"next_media"};
+
   speaker::Speaker *speaker{nullptr};
   optional<media_player::MediaPlayerSupportedFormat> format;
 
@@ -92,6 +101,14 @@ struct PipelineContext {
   // Uses std::vector because the count varies across instances (multiple speaker_source media players may exist).
   std::vector<std::unique_ptr<SourceBinding>> sources;
 
+  // Dynamic allocation is unavoidable here: URIs from Home Assistant are arbitrary-length strings
+  // (media URLs with tokens can easily exceed 500 bytes), and playlist size is unbounded.
+  // Pre-allocating fixed buffers would waste significant RAM when idle without covering worst cases.
+  std::vector<std::string> playlist;
+  size_t playlist_index{0};
+  RepeatMode repeat_mode{REPEAT_OFF};
+  uint32_t playlist_delay_ms{0};
+
   // Track frames sent to speaker to correlate with playback callbacks.
   // Atomic because it is written from the main loop/source tasks and read/decremented from the speaker playback
   // callback.
@@ -103,14 +120,17 @@ struct PipelineContext {
 
 struct MediaPlayerControlCommand {
   enum Type : uint8_t {
-    PLAY_URI,      // Find a source that can handle this URI and play it
-    SEND_COMMAND,  // Send command to active source
+    PLAY_URI,          // Clear playlist, reset index, add URI, queue PLAY_CURRENT
+    ENQUEUE_URI,       // Add URI to playlist, queue PLAY_CURRENT if idle
+    PLAYLIST_ADVANCE,  // Advance index (or wrap for repeat_all), queue PLAY_CURRENT if more items
+    PLAY_CURRENT,      // Play item at current playlist index (can retry if speaker not ready)
+    SEND_COMMAND,      // Send command to active source
   };
   Type type;
   uint8_t pipeline;
 
   union {
-    std::string *uri;  // Owned pointer, must delete after xQueueReceive (for PLAY_URI)
+    std::string *uri;  // Owned pointer, must delete after xQueueReceive (for PLAY_URI and ENQUEUE_URI)
     media_player::MediaPlayerCommand command;
   } data;
 };
@@ -154,6 +174,8 @@ class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPla
   Trigger<> *get_unmute_trigger() { return &this->unmute_trigger_; }
   Trigger<float> *get_volume_trigger() { return &this->volume_trigger_; }
 
+  void set_playlist_delay_ms(uint8_t pipeline, uint32_t delay_ms);
+
  protected:
   // Callbacks from source bindings (pipeline index is captured at binding creation time)
   size_t handle_media_output_(uint8_t pipeline, media_source::MediaSource *source, const uint8_t *data, size_t length,
@@ -183,11 +205,19 @@ class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPla
 
   /// @brief Determine media player state from the media pipeline's active source
   /// @param media_source Active source for the media pipeline (may be nullptr)
+  /// @param playlist_active Whether the media pipeline's playlist is in progress
+  /// @param old_state Previous media player state (used for transition smoothing)
   /// @return The appropriate MediaPlayerState
-  media_player::MediaPlayerState get_media_pipeline_state_(media_source::MediaSource *media_source) const;
+  media_player::MediaPlayerState get_media_pipeline_state_(media_source::MediaSource *media_source,
+                                                           bool playlist_active,
+                                                           media_player::MediaPlayerState old_state) const;
 
+  void process_control_queue_();
   bool try_execute_play_uri_(const std::string &uri, uint8_t pipeline);
   media_source::MediaSource *find_source_for_uri_(const std::string &uri, uint8_t pipeline);
+  void queue_command_(MediaPlayerControlCommand::Type type, uint8_t pipeline);
+  void queue_play_current_(uint8_t pipeline, uint32_t delay_ms = 0);
+
   QueueHandle_t media_control_command_queue_;
 
   // Pipeline context for media pipeline. See THREADING MODEL at top of namespace for access rules.
