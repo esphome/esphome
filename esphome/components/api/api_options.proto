@@ -90,4 +90,10 @@ extend google.protobuf.FieldOptions {
     //   - uint16_t <field>_length_{0};
     //   - uint16_t <field>_count_{0};
     optional bool packed_buffer = 50015 [default=false];
+
+    // force: Always encode this field, even when its value equals the proto3 default.
+    // Skips the zero/empty check in calculate_size() and encode(), using the _force
+    // variant of the calc_ method. Use on fields that are almost always non-default
+    // to eliminate dead branches on hot paths.
+    optional bool force = 50016 [default=false];
 }

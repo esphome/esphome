@@ -274,12 +274,13 @@ size_t HostUartComponent::available() {
   return result;
 };
 
-void HostUartComponent::flush() {
+FlushResult HostUartComponent::flush() {
   if (this->file_descriptor_ == -1) {
-    return;
+    return FlushResult::ASSUMED_SUCCESS;
   }
   tcflush(this->file_descriptor_, TCIOFLUSH);
   ESP_LOGV(TAG, "    Flushing");
+  return FlushResult::ASSUMED_SUCCESS;
 }
 
 void HostUartComponent::update_error_(const std::string &error) {

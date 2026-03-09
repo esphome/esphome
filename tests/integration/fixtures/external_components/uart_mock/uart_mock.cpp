@@ -144,8 +144,9 @@ bool MockUartComponent::read_array(uint8_t *data, size_t len) {
 
 size_t MockUartComponent::available() { return this->rx_buffer_.size(); }
 
-void MockUartComponent::flush() {
+uart::FlushResult MockUartComponent::flush() {
   // Nothing to flush in mock
+  return uart::FlushResult::ASSUMED_SUCCESS;
 }
 
 void MockUartComponent::set_rx_full_threshold(size_t rx_full_threshold) {
