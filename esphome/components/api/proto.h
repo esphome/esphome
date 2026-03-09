@@ -132,11 +132,11 @@ class ProtoVarInt {
 
   /// Parse a varint from buffer. Returns result with consumed=0 on failure.
   static inline ProtoVarIntResult ESPHOME_ALWAYS_INLINE parse(const uint8_t *buffer, uint32_t len) {
-    if (len == 0)
-      return {0, 0};
     // Fast path: single-byte varints (0-127) are the most common case
     // (booleans, small enums, field tags, small message sizes/types).
-    if ((buffer[0] & 0x80) == 0) [[likely]]
+    // len==0 check is folded into the condition to minimize inline size;
+    // parse_slow() handles len==0.
+    if (len != 0 && (buffer[0] & 0x80) == 0) [[likely]]
       return {buffer[0], 1};
     return parse_slow(buffer, len);
   }
