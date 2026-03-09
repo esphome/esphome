@@ -37,20 +37,6 @@ void DlmsPushComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "    OBIS: %s", entry.obis.c_str());
   }
 #endif
-
-#ifdef USE_TEXT_SENSOR
-  for (const auto &entry : this->text_sensors_) {
-    LOG_TEXT_SENSOR("  ", "Text Sensor (OBIS)", entry.sensor);
-    ESP_LOGCONFIG(TAG, "    OBIS: %s", entry.obis.c_str());
-  }
-#endif
-
-#ifdef USE_BINARY_SENSOR
-  for (const auto &entry : this->binary_sensors_) {
-    LOG_BINARY_SENSOR("  ", "Binary Sensor (OBIS)", entry.sensor);
-    ESP_LOGCONFIG(TAG, "    OBIS: %s", entry.obis.c_str());
-  }
-#endif
 }
 
 void DlmsPushComponent::loop() {
@@ -97,8 +83,8 @@ void DlmsPushComponent::process_frame_() {
     ESP_LOGD(TAG, "PUSH frame size: %zu bytes", this->rx_buffer_len_);
   }
 
-  auto callback = [this](const char *obis_code, float float_val, const char *str_val, bool is_numeric) {
-    this->on_data_parsed_(obis_code, float_val, str_val, is_numeric);
+  auto callback = [this](const char *obis_code, float float_val, bool is_numeric) {
+    this->on_data_parsed_(obis_code, float_val, is_numeric);
   };
 
   size_t parsed_objects = this->parser_->parse(this->rx_buffer_.get(), this->rx_buffer_len_, callback, this->show_log_);
@@ -111,7 +97,7 @@ void DlmsPushComponent::process_frame_() {
   this->rx_buffer_len_ = 0;
 }
 
-void DlmsPushComponent::on_data_parsed_(const char *obis_code, float float_val, const char *str_val, bool is_numeric) {
+void DlmsPushComponent::on_data_parsed_(const char *obis_code, float float_val, bool is_numeric) {
   int updated_count = 0;
 
 #ifdef USE_SENSOR
@@ -129,35 +115,6 @@ void DlmsPushComponent::on_data_parsed_(const char *obis_code, float float_val, 
   }
 #endif
 
-#ifdef USE_TEXT_SENSOR
-  for (const auto &entry : this->text_sensors_) {
-    if (entry.obis == obis_code) {
-      if (this->show_log_) {
-        ESP_LOGD(TAG, "Found sensor for OBIS code %s: '%s'", obis_code, entry.sensor->get_name().c_str());
-        ESP_LOGD(TAG, "Publishing data");
-      }
-      entry.sensor->publish_state(str_val);
-      updated_count++;
-    }
-  }
-#endif
-
-#ifdef USE_BINARY_SENSOR
-  if (is_numeric) {
-    bool state = float_val != 0.0f;
-    for (const auto &entry : this->binary_sensors_) {
-      if (entry.obis == obis_code) {
-        if (this->show_log_) {
-          ESP_LOGD(TAG, "Found sensor for OBIS code %s: '%s'", obis_code, entry.sensor->get_name().c_str());
-          ESP_LOGD(TAG, "Publishing data");
-        }
-        entry.sensor->publish_state(state);
-        updated_count++;
-      }
-    }
-  }
-#endif
-
   if (this->show_log_ && updated_count == 0) {
     ESP_LOGV(TAG, "Received OBIS %s, but no sensors are registered for it.", obis_code);
   }
@@ -166,18 +123,6 @@ void DlmsPushComponent::on_data_parsed_(const char *obis_code, float float_val, 
 #ifdef USE_SENSOR
 void DlmsPushComponent::register_sensor(const std::string &obis_code, sensor::Sensor *sensor) {
   this->sensors_.push_back({obis_code, sensor});
-}
-#endif
-
-#ifdef USE_TEXT_SENSOR
-void DlmsPushComponent::register_text_sensor(const std::string &obis_code, text_sensor::TextSensor *sensor) {
-  this->text_sensors_.push_back({obis_code, sensor});
-}
-#endif
-
-#ifdef USE_BINARY_SENSOR
-void DlmsPushComponent::register_binary_sensor(const std::string &obis_code, binary_sensor::BinarySensor *sensor) {
-  this->binary_sensors_.push_back({obis_code, sensor});
 }
 #endif
 

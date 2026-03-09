@@ -38,23 +38,3 @@ sensor:
     accuracy_decimals: 0
     device_class: power
     state_class: measurement
-
-binary_sensor:
-  - platform: dlms_push
-    name: "Disconnector state"
-    obis_code: 0.0.96.3.10.255
-
-  - platform: dlms_push
-    name: "Relay 1"
-    obis_code: 0.1.96.3.10.255
-
-text_sensor:
-  - platform: dlms_push
-    name: "Serial number"
-    obis_code: 0.0.96.1.1.255
-    entity_category: diagnostic
-
-  - platform: dlms_push
-    name: "Current tariff"
-    obis_code: 0.0.96.14.0.255
-    entity_category: diagnostic

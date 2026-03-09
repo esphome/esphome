@@ -244,10 +244,6 @@ bool DlmsParser::skip_data_(uint8_t type) {
     if (this->pos_ + skip_bytes > this->buffer_len_)
       return false;
 
-    if (this->show_log_) {
-      ESP_LOGVV(TAG, "Skipping variable data of type %s (bytes: %u) at position %zu",
-                this->dlms_data_type_to_string_((DlmsDataType) type), skip_bytes, this->pos_);
-    }
     this->pos_ += skip_bytes;
   }
   return true;
@@ -479,10 +475,6 @@ void DlmsParser::emit_object_(const AxdrDescriptorPattern &pat, const AxdrCaptur
   float raw_val_f = this->data_as_float_(c.value_type, c.value_ptr, c.value_len);
   float val_f = raw_val_f;
 
-  // Use stack-allocated buffer for formatting data
-  char val_s_buf[128];
-  this->data_to_string_(c.value_type, c.value_ptr, c.value_len, val_s_buf, sizeof(val_s_buf));
-
   bool is_numeric = (c.value_type != DLMS_DATA_TYPE_OCTET_STRING && c.value_type != DLMS_DATA_TYPE_STRING &&
                      c.value_type != DLMS_DATA_TYPE_STRING_UTF8);
 
@@ -496,19 +488,11 @@ void DlmsParser::emit_object_(const AxdrDescriptorPattern &pat, const AxdrCaptur
 
     ESP_LOGI(TAG, "Found attribute descriptor: class_id=%d, obis=%s", cid, obis_str_buf);
 
-    if (c.has_scaler_unit) {
-      ESP_LOGI(TAG, "Value type: %s, len %d, scaler %d, unit %d", this->dlms_data_type_to_string_(c.value_type),
-               c.value_len, c.scaler, c.unit_enum);
-    } else {
-      ESP_LOGI(TAG, "Value type: %s, len %d", this->dlms_data_type_to_string_(c.value_type), c.value_len);
-    }
-
     if (c.value_ptr && c.value_len > 0) {
       char hex_buf[512];
       esphome::format_hex_pretty_to(hex_buf, sizeof(hex_buf), c.value_ptr, c.value_len);
       ESP_LOGI(TAG, " as hex dump : %s", hex_buf);
     }
-    ESP_LOGI(TAG, " as string   :'%s'", val_s_buf);
     ESP_LOGI(TAG, " as number   : %f", raw_val_f);
 
     if (c.has_scaler_unit && is_numeric) {
@@ -516,7 +500,7 @@ void DlmsParser::emit_object_(const AxdrDescriptorPattern &pat, const AxdrCaptur
     }
   }
 
-  this->callback_(obis_str_buf, val_f, val_s_buf, is_numeric);
+  this->callback_(obis_str_buf, val_f, is_numeric);
   this->objects_found_++;
 }
 
@@ -575,164 +559,12 @@ float DlmsParser::data_as_float_(DlmsDataType value_type, const uint8_t *ptr, ui
   }
 }
 
-void DlmsParser::data_to_string_(DlmsDataType value_type, const uint8_t *ptr, uint8_t len, char *buffer,
-                                 size_t max_len) {
-  if (max_len > 0)
-    buffer[0] = '\0';
-  if (!ptr || len == 0 || max_len == 0)
-    return;
-
-  auto hex_of = [](const uint8_t *p, uint8_t l, char *out, size_t max_out) {
-    if (max_out == 0)
-      return;
-    out[0] = '\0';
-    size_t pos = 0;
-    for (uint8_t i = 0; i < l && pos + 2 < max_out; i++) {
-      pos += snprintf(out + pos, max_out - pos, "%02x", p[i]);
-    }
-  };
-
-  auto be16 = [](const uint8_t *p) { return (uint16_t) ((p[0] << 8) | p[1]); };
-  auto be32 = [](const uint8_t *p) {
-    return ((uint32_t) p[0] << 24) | ((uint32_t) p[1] << 16) | ((uint32_t) p[2] << 8) | (uint32_t) p[3];
-  };
-  auto be64 = [](const uint8_t *p) {
-    uint64_t v = 0;
-    for (int i = 0; i < 8; i++)
-      v = (v << 8) | p[i];
-    return v;
-  };
-
-  switch (value_type) {
-    case DLMS_DATA_TYPE_OCTET_STRING:
-    case DLMS_DATA_TYPE_STRING:
-    case DLMS_DATA_TYPE_STRING_UTF8: {
-      size_t copy_len = std::min((size_t) len, max_len - 1);
-      std::memcpy(buffer, ptr, copy_len);
-      buffer[copy_len] = '\0';
-      break;
-    }
-
-    case DLMS_DATA_TYPE_BIT_STRING:
-    case DLMS_DATA_TYPE_BINARY_CODED_DESIMAL:
-    case DLMS_DATA_TYPE_DATETIME:
-    case DLMS_DATA_TYPE_DATE:
-    case DLMS_DATA_TYPE_TIME:
-      hex_of(ptr, len, buffer, max_len);
-      break;
-
-    case DLMS_DATA_TYPE_BOOLEAN:
-    case DLMS_DATA_TYPE_ENUM:
-    case DLMS_DATA_TYPE_UINT8:
-      snprintf(buffer, max_len, "%u", static_cast<unsigned>(ptr[0]));
-      break;
-
-    case DLMS_DATA_TYPE_INT8:
-      snprintf(buffer, max_len, "%d", static_cast<int>(static_cast<int8_t>(ptr[0])));
-      break;
-
-    case DLMS_DATA_TYPE_UINT16:
-      if (len >= 2)
-        snprintf(buffer, max_len, "%u", be16(ptr));
-      break;
-
-    case DLMS_DATA_TYPE_INT16:
-      if (len >= 2)
-        snprintf(buffer, max_len, "%d", static_cast<int16_t>(be16(ptr)));
-      break;
-
-    case DLMS_DATA_TYPE_UINT32:
-      if (len >= 4)
-        snprintf(buffer, max_len, "%lu", (unsigned long) be32(ptr));
-      break;
-
-    case DLMS_DATA_TYPE_INT32:
-      if (len >= 4)
-        snprintf(buffer, max_len, "%ld", (long) static_cast<int32_t>(be32(ptr)));
-      break;
-
-    case DLMS_DATA_TYPE_UINT64:
-      if (len >= 8)
-        snprintf(buffer, max_len, "%llu", (unsigned long long) be64(ptr));
-      break;
-
-    case DLMS_DATA_TYPE_INT64:
-      if (len >= 8)
-        snprintf(buffer, max_len, "%lld", (long long) static_cast<int64_t>(be64(ptr)));
-      break;
-
-    case DLMS_DATA_TYPE_FLOAT32:
-    case DLMS_DATA_TYPE_FLOAT64: {
-      snprintf(buffer, max_len, "%f", this->data_as_float_(value_type, ptr, len));
-      break;
-    }
-
-    default:
-      break;
-  }
-}
-
 void DlmsParser::obis_to_string_(const uint8_t *obis, char *buffer, size_t max_len) {
   if (max_len > 0)
     buffer[0] = '\0';
   if (!obis || max_len == 0)
     return;
   snprintf(buffer, max_len, "%u.%u.%u.%u.%u.%u", obis[0], obis[1], obis[2], obis[3], obis[4], obis[5]);
-}
-
-const char *DlmsParser::dlms_data_type_to_string_(DlmsDataType vt) {
-  switch (vt) {
-    case DLMS_DATA_TYPE_NONE:
-      return "NONE";
-    case DLMS_DATA_TYPE_ARRAY:
-      return "ARRAY";
-    case DLMS_DATA_TYPE_STRUCTURE:
-      return "STRUCTURE";
-    case DLMS_DATA_TYPE_BOOLEAN:
-      return "BOOLEAN";
-    case DLMS_DATA_TYPE_BIT_STRING:
-      return "BIT_STRING";
-    case DLMS_DATA_TYPE_INT32:
-      return "INT32";
-    case DLMS_DATA_TYPE_UINT32:
-      return "UINT32";
-    case DLMS_DATA_TYPE_OCTET_STRING:
-      return "OCTET_STRING";
-    case DLMS_DATA_TYPE_STRING:
-      return "STRING";
-    case DLMS_DATA_TYPE_STRING_UTF8:
-      return "STRING_UTF8";
-    case DLMS_DATA_TYPE_BINARY_CODED_DESIMAL:
-      return "BINARY_CODED_DESIMAL";
-    case DLMS_DATA_TYPE_INT8:
-      return "INT8";
-    case DLMS_DATA_TYPE_INT16:
-      return "INT16";
-    case DLMS_DATA_TYPE_UINT8:
-      return "UINT8";
-    case DLMS_DATA_TYPE_UINT16:
-      return "UINT16";
-    case DLMS_DATA_TYPE_COMPACT_ARRAY:
-      return "COMPACT_ARRAY";
-    case DLMS_DATA_TYPE_INT64:
-      return "INT64";
-    case DLMS_DATA_TYPE_UINT64:
-      return "UINT64";
-    case DLMS_DATA_TYPE_ENUM:
-      return "ENUM";
-    case DLMS_DATA_TYPE_FLOAT32:
-      return "FLOAT32";
-    case DLMS_DATA_TYPE_FLOAT64:
-      return "FLOAT64";
-    case DLMS_DATA_TYPE_DATETIME:
-      return "DATETIME";
-    case DLMS_DATA_TYPE_DATE:
-      return "DATE";
-    case DLMS_DATA_TYPE_TIME:
-      return "TIME";
-    default:
-      return "UNKNOWN";
-  }
 }
 
 void DlmsParser::register_pattern_dsl_(const std::string &name, const std::string &dsl, int priority) {

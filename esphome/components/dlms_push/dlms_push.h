@@ -6,12 +6,6 @@
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
-#ifdef USE_TEXT_SENSOR
-#include "esphome/components/text_sensor/text_sensor.h"
-#endif
-#ifdef USE_BINARY_SENSOR
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#endif
 
 #include <vector>
 #include <string>
@@ -39,18 +33,12 @@ class DlmsPushComponent : public Component, public uart::UARTDevice {
 #ifdef USE_SENSOR
   void register_sensor(const std::string &obis_code, sensor::Sensor *sensor);
 #endif
-#ifdef USE_TEXT_SENSOR
-  void register_text_sensor(const std::string &obis_code, text_sensor::TextSensor *sensor);
-#endif
-#ifdef USE_BINARY_SENSOR
-  void register_binary_sensor(const std::string &obis_code, binary_sensor::BinarySensor *sensor);
-#endif
 
  protected:
   void read_rx_buffer_();
   void process_frame_();
 
-  void on_data_parsed_(const char *obis_code, float float_val, const char *str_val, bool is_numeric);
+  void on_data_parsed_(const char *obis_code, float float_val, bool is_numeric);
 
   uint32_t receive_timeout_ms_{50};
   bool show_log_{false};
@@ -70,20 +58,6 @@ class DlmsPushComponent : public Component, public uart::UARTDevice {
     sensor::Sensor *sensor;
   };
   std::vector<NumericSensorEntry> sensors_;
-#endif
-#ifdef USE_TEXT_SENSOR
-  struct TextSensorEntry {
-    std::string obis;
-    text_sensor::TextSensor *sensor;
-  };
-  std::vector<TextSensorEntry> text_sensors_;
-#endif
-#ifdef USE_BINARY_SENSOR
-  struct BinarySensorEntry {
-    std::string obis;
-    binary_sensor::BinarySensor *sensor;
-  };
-  std::vector<BinarySensorEntry> binary_sensors_;
 #endif
 };
 

@@ -35,9 +35,8 @@ enum DlmsDataType : uint8_t {
   DLMS_DATA_TYPE_TIME = 27
 };
 
-// Callback for the hub: OBIS code (e.g. "1.0.1.8.0.255"), numeric value, string value, is_numeric flag
-using DlmsDataCallback =
-    std::function<void(const char *obis_code, float float_val, const char *str_val, bool is_numeric)>;
+// Callback for the hub: OBIS code (e.g. "1.0.1.8.0.255"), numeric value, is_numeric flag
+using DlmsDataCallback = std::function<void(const char *obis_code, float float_val, bool is_numeric)>;
 
 // --- Pattern Matching Enums & Structs ---
 enum class AxdrTokenType : uint8_t {
@@ -113,9 +112,7 @@ class DlmsParser {
   void emit_object_(const AxdrDescriptorPattern &pat, const AxdrCaptures &c);
 
   float data_as_float_(DlmsDataType value_type, const uint8_t *ptr, uint8_t len);
-  void data_to_string_(DlmsDataType value_type, const uint8_t *ptr, uint8_t len, char *buffer, size_t max_len);
   void obis_to_string_(const uint8_t *obis, char *buffer, size_t max_len);
-  const char *dlms_data_type_to_string_(DlmsDataType vt);
 
   const uint8_t *buffer_{nullptr};
   size_t buffer_len_{0};
