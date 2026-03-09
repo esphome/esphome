@@ -24,7 +24,7 @@ class NS2009Component : public touchscreen::Touchscreen, public i2c::I2CDevice {
   uint8_t threshold_{40};
 
  private:
-   uint8_t detected_address;
+  uint8_t detected_address;
 };
 
 }  // namespace esphome::ns2009

@@ -92,8 +92,8 @@ void NS2009Component::dump_config() {
   LOG_I2C_DEVICE(this);
 
   if (this->detected_address)
-      ESP_LOGW(TAG, "detected address 0x%02x but 0x%02x is configured. try updating your config",
-               this->detected_address, this->address_);
+    ESP_LOGW(TAG, "detected address 0x%02x but 0x%02x is configured. try updating your config", this->detected_address,
+             this->address_);
 }
 
 }  // namespace esphome::ns2009
