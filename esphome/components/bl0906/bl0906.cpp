@@ -192,10 +192,7 @@ void BL0906::bias_correction_(uint8_t address, float measurements, float correct
   int32_t value = (i_rms * i_rms - i_rms0 * i_rms0) / 256;
   data.l = value & 0xFF;
   data.m = (value >> 8) & 0xFF;
-  data.h = (value >> 16) & 0x7F;
-  if (value < 0) {
-    data.h |= 0x80;
-  }
+  data.h = (value >> 16) & 0xFF;
   data.address = bl0906_checksum(address, &data);
   ESP_LOGV(TAG, "RMSOS:%02X%02X%02X%02X%02X%02X", BL0906_WRITE_COMMAND, address, data.l, data.m, data.h, data.address);
   this->write_byte(BL0906_WRITE_COMMAND);
