@@ -375,6 +375,7 @@ void APINoiseFrameHelper::send_explicit_handshake_reject_(const LogString *reaso
 #ifdef USE_STORE_LOG_STR_IN_FLASH
   // On ESP8266 with flash strings, we need to use PROGMEM-aware functions
   size_t reason_len = strlen_P(reinterpret_cast<PGM_P>(reason));
+  reason_len = std::min(reason_len, sizeof(data) - 1);
   if (reason_len > 0) {
     memcpy_P(data + 1, reinterpret_cast<PGM_P>(reason), reason_len);
   }
@@ -382,6 +383,7 @@ void APINoiseFrameHelper::send_explicit_handshake_reject_(const LogString *reaso
   // Normal memory access
   const char *reason_str = LOG_STR_ARG(reason);
   size_t reason_len = strlen(reason_str);
+  reason_len = std::min(reason_len, sizeof(data) - 1);
   if (reason_len > 0) {
     // NOLINTNEXTLINE(bugprone-not-null-terminated-result) - binary protocol, not a C string
     std::memcpy(data + 1, reason_str, reason_len);
