@@ -38,6 +38,7 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   uint8_t firmware_version_major_{0};
   uint8_t firmware_version_minor_{0};
   bool startup_complete_{false};
+  uint8_t poll_retries_remaining_{0};
 };
 
 }  // namespace esphome::sen6x

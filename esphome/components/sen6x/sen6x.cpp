@@ -2,7 +2,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include <cmath>
-#include <memory>
 
 namespace esphome::sen6x {
 
@@ -186,18 +185,16 @@ void SEN6XComponent::update() {
   set_read_command_and_words(this->sen6x_type_, read_cmd, read_words);
 
   // 24 attempts × 50 ms = 1200 ms covers one full measurement cycle.
-  constexpr uint8_t poll_retries = 24;
-  auto retries_left = std::make_shared<uint8_t>(poll_retries);
-  this->set_interval("sen6x_poll", 50, [this, retries_left, read_cmd, read_words]() {
-    if (*retries_left == 0) {
+  this->poll_retries_remaining_ = 24;
+  this->set_interval("sen6x_poll", 50, [this, read_cmd, read_words]() {
+    if (this->poll_retries_remaining_ == 0) {
       this->status_set_warning();
       ESP_LOGD(TAG, "Data not ready");
       this->cancel_interval("sen6x_poll");
       return;
     }
-    const uint8_t attempt = static_cast<uint8_t>(poll_retries - *retries_left + 1);
-    ESP_LOGV(TAG, "Data ready polling attempt %u", attempt);
-    (*retries_left)--;
+    ESP_LOGV(TAG, "Data ready polling attempt %u", 25 - this->poll_retries_remaining_);
+    this->poll_retries_remaining_--;
 
     if (!this->write_command(SEN6X_CMD_GET_DATA_READY_STATUS)) {
       this->status_set_warning();
@@ -206,7 +203,7 @@ void SEN6XComponent::update() {
       return;
     }
 
-    this->set_timeout(20, [this, retries_left, read_cmd, read_words]() {
+    this->set_timeout(20, [this, read_cmd, read_words]() {
       uint16_t raw_read_status;
       if (!this->read_data(&raw_read_status, 1)) {
         this->status_set_warning();
