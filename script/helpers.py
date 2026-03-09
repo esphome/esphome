@@ -705,8 +705,10 @@ def get_components_from_integration_fixtures() -> set[str]:
         if not config:
             continue
 
-        # Add all top-level component keys
-        components.update(config.keys())
+        # Add all top-level component keys (skip YAML anchor keys starting with '.')
+        components.update(
+            k for k in config if isinstance(k, str) and not k.startswith(".")
+        )
 
         # Add platform components (e.g., output.template)
         for value in config.values():
