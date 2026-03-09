@@ -374,7 +374,7 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
       // Always use our local playlist to start playback
       this->cancel_timeout(PipelineContext::TIMEOUT_IDS[pipeline]);
       ps.playlist.clear();
-      ps.playlist_index = 0;
+      ps.playlist_index = 0;  // Reset index
       ps.playlist.push_back(*control_command.data.uri);
 
       // Queue PLAY_CURRENT to initiate playback
@@ -658,6 +658,9 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
 }
 
 media_player::MediaPlayerTraits SpeakerSourceMediaPlayer::get_traits() {
+  // This media player supports more traits like playlists, repeat, and shuffle, but the ESPHome API currently (March
+  // 2026) doesn't support those commands, so we only report pause support for now since that's used by the frontend and
+  // supported by our player.
   auto traits = media_player::MediaPlayerTraits();
   traits.set_supports_pause(true);
 
