@@ -9,9 +9,13 @@
 #include <cinttypes>
 #include <cstdio>
 
-#if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
+#ifdef USE_OTA_ROLLBACK
+#ifdef USE_ZEPHYR
+#include <zephyr/dfu/mcuboot.h>
+#elif defined(USE_ESP32)
 #include <esp_ota_ops.h>
 #include <esp_system.h>
+#endif
 #endif
 
 namespace esphome::safe_mode {
@@ -66,9 +70,16 @@ float SafeModeComponent::get_setup_priority() const { return setup_priority::AFT
 void SafeModeComponent::mark_successful() {
   this->clean_rtc();
   this->boot_successful_ = true;
-#if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
+#if defined(USE_OTA_ROLLBACK)
+// Mark OTA partition as valid to prevent rollback
+#if defined(USE_ZEPHYR)
+  if (!boot_is_img_confirmed()) {
+    boot_write_img_confirmed();
+  }
+#elif defined(USE_ESP32)
   // Mark OTA partition as valid to prevent rollback
   esp_ota_mark_app_valid_cancel_rollback();
+#endif
 #endif
   // Disable loop since we no longer need to check
   this->disable_loop();

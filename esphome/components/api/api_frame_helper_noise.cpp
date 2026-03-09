@@ -269,7 +269,7 @@ APIError APINoiseFrameHelper::state_action_() {
   }
   if (state_ == State::SERVER_HELLO) {
     // send server hello
-    const std::string &name = App.get_name();
+    const auto &name = App.get_name();
     char mac[MAC_ADDRESS_BUFFER_SIZE];
     get_mac_address_into_buffer(mac);
 
@@ -397,14 +397,9 @@ void APINoiseFrameHelper::send_explicit_handshake_reject_(const LogString *reaso
   state_ = orig_state;
 }
 APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
-  APIError aerr = this->state_action_();
-  if (aerr != APIError::OK) {
+  APIError aerr = this->check_data_state_();
+  if (aerr != APIError::OK)
     return aerr;
-  }
-
-  if (this->state_ != State::DATA) {
-    return APIError::WOULD_BLOCK;
-  }
 
   aerr = this->try_read_frame_();
   if (aerr != APIError::OK)
@@ -461,14 +456,9 @@ APIError APINoiseFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuff
 }
 
 APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) {
-  APIError aerr = state_action_();
-  if (aerr != APIError::OK) {
+  APIError aerr = this->check_data_state_();
+  if (aerr != APIError::OK)
     return aerr;
-  }
-
-  if (state_ != State::DATA) {
-    return APIError::WOULD_BLOCK;
-  }
 
   if (messages.empty()) {
     return APIError::OK;
