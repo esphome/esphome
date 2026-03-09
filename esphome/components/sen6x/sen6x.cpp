@@ -33,9 +33,10 @@ static constexpr uint16_t SEN6X_CMD_AMBIENT_PRESSURE = 0x6720;
 static constexpr uint16_t SEN6X_CMD_SENSOR_ALTITUDE = 0x6736;
 static constexpr uint16_t SEN6X_CMD_RESET = 0xD304;
 
-static const int8_t SEN6X_INDEX_SCALE_FACTOR = 10;                            // used for VOC and NOx index values
-static const int8_t SEN6X_MIN_INDEX_VALUE = 1 * SEN6X_INDEX_SCALE_FACTOR;     // must be adjusted by the scale factor
-static const int16_t SEN6X_MAX_INDEX_VALUE = 500 * SEN6X_INDEX_SCALE_FACTOR;  // must be adjusted by the scale factor
+static constexpr int8_t SEN6X_INDEX_SCALE_FACTOR = 10;                         // used for VOC and NOx index values
+static constexpr int8_t SEN6X_MIN_INDEX_VALUE = 1 * SEN6X_INDEX_SCALE_FACTOR;  // must be adjusted by the scale factor
+static constexpr int16_t SEN6X_MAX_INDEX_VALUE =
+    500 * SEN6X_INDEX_SCALE_FACTOR;  // must be adjusted by the scale factor
 
 static inline void set_read_command_and_words(SEN6XComponent::Sen6xType type, uint16_t &read_cmd, uint8_t &read_words) {
   read_cmd = SEN6X_CMD_READ_MEASUREMENT;
@@ -260,8 +261,14 @@ void SEN6XComponent::finish_setup_() {
 }
 
 void SEN6XComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "sen6x:");
-  LOG_I2C_DEVICE(this);
+  ESP_LOGCONFIG(TAG,
+                "sen6x:\n"
+                "  Product: %s\n"
+                "  Serial: %s\n"
+                "  Firmware: %u.%u\n"
+                "  Address: 0x%02X",
+                this->product_name_.c_str(), this->serial_number_.c_str(), this->firmware_version_major_,
+                this->firmware_version_minor_, this->address_);
   LOG_UPDATE_INTERVAL(this);
   if (this->ambient_pressure_source_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Dynamic ambient pressure compensation using '%s'",
