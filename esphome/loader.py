@@ -75,7 +75,7 @@ class ComponentManifest:
             # During C++ testing, only run to_code for allowlisted components
             name = self.module.__package__.rsplit(".", 1)[-1]
             if name not in CORE.cpp_testing_codegen:
-                return None
+                return getattr(self.module, "to_code_testing", None)
         return getattr(self.module, "to_code", None)
 
     @property
