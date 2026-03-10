@@ -459,10 +459,13 @@ bool ESPHomeOTAComponent::writeall_(const uint8_t *buf, size_t len) {
         ESP_LOGW(TAG, "Write err %zu bytes, errno %d", len, errno);
         return false;
       }
+      // EWOULDBLOCK: on raw TCP writes never block, delay(1) prevents spinning
+      this->yield_and_feed_watchdog_();
     } else {
       at += written;
+      // write() may block up to SO_SNDTIMEO on BSD/lwip sockets, feed WDT
+      App.feed_wdt();
     }
-    this->yield_and_feed_watchdog_();
   }
   return true;
 }
