@@ -26,6 +26,11 @@ COMPONENTS_TESTS_DIR: Path = Path(root_path) / "tests" / "components"
 # matters and the placeholder is never compiled.
 _DUMMY_PLATFORM = "dummy"
 
+# Components whose to_code should run during C++ test builds.
+# Most components don't need code generation for tests; only these
+# essential ones (platform setup, logging, core config) are needed.
+CPP_TESTING_CODEGEN_COMPONENTS = {"esphome", "host", "logger"}
+
 
 def hash_components(components: list[str]) -> str:
     key = ",".join(components)
@@ -172,6 +177,7 @@ def run_tests(selected_components: list[str]) -> int:
     CORE.config_path = COMPONENTS_TESTS_DIR / "dummy.yaml"
     CORE.dashboard = None
     CORE.cpp_testing = True
+    CORE.cpp_testing_codegen = CPP_TESTING_CODEGEN_COMPONENTS
 
     # Validate config will expand the above with defaults:
     config = validate_config(config, {})

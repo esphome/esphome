@@ -761,6 +761,3 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
         # as they are only included when needed by the preprocessor
     }
 )
-
-# Emit the same code when compiling for tests
-to_code_testing = to_code
