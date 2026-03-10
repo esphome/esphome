@@ -124,7 +124,7 @@ void MicroNova::queue_read_request(uint8_t location, uint8_t address) {
     ESP_LOGW(TAG, "Read queue full, dropping read [%02X,%02X]", location, address);
     return;
   }
-  ESP_LOGV(TAG, "Queued read [%02X,%02X] (queue size: %zu)", location, address, this->read_queue_.size());
+  ESP_LOGV(TAG, "Queued read [%02X,%02X] (queue size: %u)", location, address, this->read_queue_.size());
 }
 #endif
 
@@ -199,7 +199,7 @@ bool MicroNova::queue_write_command(uint8_t location, uint8_t address, uint8_t d
     ESP_LOGW(TAG, "Write queue full, dropping command");
     return false;
   }
-  ESP_LOGD(TAG, "Queued write [%02X,%02X] (queue size: %zu)", location, address, this->write_queue_.size());
+  ESP_LOGD(TAG, "Queued write [%02X,%02X] (queue size: %u)", location, address, this->write_queue_.size());
 #ifdef MICRONOVA_LISTENER_COUNT
   // Automatically queue sensor updates after write commands
   this->request_update_listeners_();

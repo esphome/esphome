@@ -298,10 +298,12 @@ template<typename T, size_t N> class StaticVector {
 /// A tiny ring buffer that avoids dynamic allocations from std::deque/std::queue
 /// (which can be wasteful on MCUs), while supporting iteration over queued elements.
 template<typename T, size_t N> class StaticRingBuffer {
+  using index_type = std::conditional_t<(N <= 255), uint8_t, uint16_t>;
+
  public:
   class Iterator {
    public:
-    Iterator(const StaticRingBuffer *buf, size_t pos) : buf_(buf), pos_(pos) {}
+    Iterator(const StaticRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
     const T &operator*() const { return buf_->data_[(buf_->head_ + pos_) % N]; }
     Iterator &operator++() {
       ++pos_;
@@ -311,7 +313,7 @@ template<typename T, size_t N> class StaticRingBuffer {
 
    private:
     const StaticRingBuffer *buf_;
-    size_t pos_;
+    index_type pos_;
   };
 
   bool push(const T &value) {
@@ -333,17 +335,17 @@ template<typename T, size_t N> class StaticRingBuffer {
 
   T &front() { return this->data_[this->head_]; }
   const T &front() const { return this->data_[this->head_]; }
-  size_t size() const { return this->count_; }
+  index_type size() const { return this->count_; }
   bool empty() const { return this->count_ == 0; }
 
   Iterator begin() const { return Iterator(this, 0); }
   Iterator end() const { return Iterator(this, this->count_); }
 
- private:
+ protected:
   T data_[N];
-  size_t head_{0};
-  size_t tail_{0};
-  size_t count_{0};
+  index_type head_{0};
+  index_type tail_{0};
+  index_type count_{0};
 };
 
 /// Fixed-capacity vector - allocates once at runtime, never reallocates
