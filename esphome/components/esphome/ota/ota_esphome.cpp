@@ -258,6 +258,9 @@ void ESPHomeOTAComponent::handle_data_() {
   tv.tv_sec = 2;
   tv.tv_usec = 0;
   this->client_->setsockopt(SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+  // Also set send timeout to prevent blocking writes from stalling the WDT
+  // when the TCP send buffer is full (e.g., network congestion).
+  this->client_->setsockopt(SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
   this->client_->setblocking(true);
 
   // Acknowledge auth OK - 1 byte
@@ -413,7 +416,9 @@ bool ESPHomeOTAComponent::readall_(uint8_t *buf, size_t len) {
     } else {
       at += read;
     }
-    this->yield_and_feed_watchdog_();
+    // read() already waited via SO_RCVTIMEO, just yield without 1ms stall
+    App.feed_wdt();
+    delay(0);
   }
 
   return true;

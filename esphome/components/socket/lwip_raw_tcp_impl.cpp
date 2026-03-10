@@ -355,6 +355,10 @@ int LWIPRawCommon::setsockopt(int level, int optname, const void *optval, sockle
     this->recv_timeout_cs_ = cs > 255 ? 255 : static_cast<uint8_t>(cs);
     return 0;
   }
+  if (level == SOL_SOCKET && optname == SO_SNDTIMEO) {
+    // Raw TCP writes are non-blocking (tcp_write), so send timeout is a no-op.
+    return 0;
+  }
   if (level == IPPROTO_TCP && optname == TCP_NODELAY) {
     if (optlen != 4) {
       errno = EINVAL;
