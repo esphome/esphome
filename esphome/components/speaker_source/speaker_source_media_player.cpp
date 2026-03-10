@@ -7,7 +7,7 @@
 
 namespace esphome::speaker_source {
 
-static const uint32_t MEDIA_CONTROLS_QUEUE_LENGTH = 20;
+static constexpr uint32_t MEDIA_CONTROLS_QUEUE_LENGTH = 20;
 
 static const char *const TAG = "speaker_source_media_player";
 
