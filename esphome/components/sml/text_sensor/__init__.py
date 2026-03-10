@@ -1,9 +1,9 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_FORMAT, CONF_OBIS_CODE
+from esphome.const import CONF_FORMAT
 
-from .. import CONF_SERVER_ID, CONF_SML_ID, Sml, obis_code, sml_ns
+from .. import CONF_OBIS_CODE, CONF_SERVER_ID, CONF_SML_ID, Sml, obis_code, sml_ns
 
 AUTO_LOAD = ["sml"]
 

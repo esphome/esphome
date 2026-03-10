@@ -1,11 +1,13 @@
 import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_DLMS_PUSH_ID, CONF_OBIS_CODE
 
 from . import DlmsPushComponent, obis_code
 
 DEPENDENCIES = ["dlms_push"]
+
+CONF_DLMS_PUSH_ID = "dlms_push_id"
+CONF_OBIS_CODE = "obis_code"
 
 CONFIG_SCHEMA = sensor.sensor_schema().extend(
     {
