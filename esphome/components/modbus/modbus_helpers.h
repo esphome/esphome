@@ -80,7 +80,7 @@ inline uint16_t server_frame_length(const std::vector<uint8_t> &frame) {
 
 // Returns the expected length of a client response frame based on the function code
 // If the frame is too short to determine the length, returns the minimum length
-inline uint8_t client_frame_length(const std::vector<uint8_t> &frame) {
+inline uint16_t client_frame_length(const std::vector<uint8_t> &frame) {
   if (frame.size() < 2)
     return MIN_FRAME_SIZE;
   switch (static_cast<ModbusFunctionCode>(frame[1])) {
@@ -149,11 +149,14 @@ enum class SensorValueType : uint8_t {
 };
 
 // Check frame length for supported read and write function codes.
-inline bool is_client_frame_length_valid(const std::vector<uint8_t> &frame) {
+inline bool is_client_frame_length_valid(const std::vector<uint8_t> &frame, bool has_crc = true) {
+  uint16_t frame_length = frame.size() + (has_crc ? 0 : 2);  // Account for CRC if not already included in frame
+  if (frame_length < MIN_FRAME_SIZE || frame_length > MAX_FRAME_SIZE)
+    return false;
   if (is_function_code_read(frame[1]) || is_function_code_write(frame[1])) {
-    return client_frame_length(frame) == frame.size();
+    return client_frame_length(frame) == frame_length;
   }
-  return frame.size() >= MIN_FRAME_SIZE && frame.size() <= MAX_FRAME_SIZE;
+  return true;
 }
 
 inline bool value_type_is_float(SensorValueType v) {

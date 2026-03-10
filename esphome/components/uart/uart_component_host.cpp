@@ -96,8 +96,7 @@ speed_t get_baud(int baud) {
 
 }  // namespace
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 static const char *const TAG = "uart.host";
 
@@ -266,7 +265,7 @@ bool HostUartComponent::read_array(uint8_t *data, size_t len) {
   return true;
 }
 
-int HostUartComponent::available() {
+size_t HostUartComponent::available() {
   if (this->file_descriptor_ == -1) {
     return 0;
   }
@@ -276,9 +275,10 @@ int HostUartComponent::available() {
     this->update_error_(strerror(errno));
     return 0;
   }
+  size_t result = available;
   if (this->has_peek_)
-    available++;
-  return available;
+    result++;
+  return result;
 };
 
 void HostUartComponent::flush() {
@@ -296,7 +296,5 @@ void HostUartComponent::update_error_(const std::string &error) {
   ESP_LOGE(TAG, "Port error: %s", error.c_str());
 }
 
-}  // namespace uart
-}  // namespace esphome
-
+}  // namespace esphome::uart
 #endif  // USE_HOST

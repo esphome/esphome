@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from esphome.components.esp32.const import (
+from esphome.components.esp32 import (
     KEY_VARIANT,
     VARIANT_ESP32,
     VARIANT_ESP32C2,
@@ -23,22 +23,23 @@ from tests.component_tests.types import SetCoreConfigCallable
 UNSUPPORTED_PSRAM_VARIANTS = [
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
-    VARIANT_ESP32C5,
     VARIANT_ESP32C6,
     VARIANT_ESP32H2,
 ]
 
 SUPPORTED_PSRAM_VARIANTS = [
     VARIANT_ESP32,
+    VARIANT_ESP32C5,
+    VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
-    VARIANT_ESP32P4,
 ]
 SUPPORTED_PSRAM_MODES = {
     VARIANT_ESP32: ["quad"],
+    VARIANT_ESP32C5: ["quad"],
+    VARIANT_ESP32P4: ["hex"],
     VARIANT_ESP32S2: ["quad"],
     VARIANT_ESP32S3: ["quad", "octal"],
-    VARIANT_ESP32P4: ["hex"],
 }
 
 

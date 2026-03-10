@@ -3,7 +3,7 @@
 #include "micro_wake_word.h"
 #include "streaming_model.h"
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 namespace esphome {
 namespace micro_wake_word {
 

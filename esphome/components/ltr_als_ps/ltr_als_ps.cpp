@@ -165,7 +165,7 @@ void LTRAlsPsComponent::loop() {
       break;
 
     case State::WAITING_FOR_DATA:
-      if (this->is_als_data_ready_(this->als_readings_) == DataAvail::DATA_OK) {
+      if (this->is_als_data_ready_(this->als_readings_) == LtrDataAvail::LTR_DATA_OK) {
         tries = 0;
         ESP_LOGV(TAG, "Reading sensor data having gain = %.0fx, time = %d ms", get_gain_coeff(this->als_readings_.gain),
                  get_itime_ms(this->als_readings_.integration_time));
@@ -376,23 +376,23 @@ void LTRAlsPsComponent::configure_integration_time_(IntegrationTime time) {
   }
 }
 
-DataAvail LTRAlsPsComponent::is_als_data_ready_(AlsReadings &data) {
+LtrDataAvail LTRAlsPsComponent::is_als_data_ready_(AlsReadings &data) {
   AlsPsStatusRegister als_status{0};
 
   als_status.raw = this->reg((uint8_t) CommandRegisters::ALS_PS_STATUS).get();
   if (!als_status.als_new_data)
-    return DataAvail::NO_DATA;
+    return LtrDataAvail::LTR_NO_DATA;
 
   if (als_status.data_invalid) {
     ESP_LOGW(TAG, "Data available but not valid");
-    return DataAvail::BAD_DATA;
+    return LtrDataAvail::LTR_BAD_DATA;
   }
   ESP_LOGV(TAG, "Data ready, reported gain is %.0f", get_gain_coeff(als_status.gain));
   if (data.gain != als_status.gain) {
     ESP_LOGW(TAG, "Actual gain differs from requested (%.0f)", get_gain_coeff(data.gain));
-    return DataAvail::BAD_DATA;
+    return LtrDataAvail::LTR_BAD_DATA;
   }
-  return DataAvail::DATA_OK;
+  return LtrDataAvail::LTR_DATA_OK;
 }
 
 void LTRAlsPsComponent::read_sensor_data_(AlsReadings &data) {

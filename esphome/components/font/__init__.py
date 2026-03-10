@@ -486,6 +486,8 @@ class GlyphInfo:
 
 
 def glyph_to_glyphinfo(glyph, font, size, bpp):
+    # Convert to 32 bit unicode codepoint
+    glyph = ord(glyph)
     scale = 256 // (1 << bpp)
     if not font.is_scalable:
         sizes = [pt_to_px(x.size) for x in font.available_sizes]

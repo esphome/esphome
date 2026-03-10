@@ -60,6 +60,7 @@ display:
     update_interval: never
 
 lvgl:
+  update_when_display_idle: true
   displays:
     - tft_display
     - second_display

@@ -7,7 +7,7 @@ from urllib.parse import urljoin
 from esphome import automation, external_files, git
 from esphome.automation import register_action, register_condition
 import esphome.codegen as cg
-from esphome.components import esp32, microphone, socket
+from esphome.components import esp32, microphone, ota, socket
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FILE,
@@ -368,7 +368,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_with_esp_idf,
+    cv.only_on_esp32,
 )
 
 
@@ -452,7 +452,7 @@ async def to_code(config):
     cg.add(var.set_microphone_source(mic_source))
 
     cg.add_define("USE_MICRO_WAKE_WORD")
-    cg.add_define("USE_OTA_STATE_CALLBACK")
+    ota.request_ota_state_listeners()
 
     esp32.add_idf_component(name="espressif/esp-tflite-micro", ref="1.3.3~1")
 

@@ -1,12 +1,11 @@
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || defined(USE_ESP32_VARIANT_ESP32P4)
+#if defined(USE_ESP32_VARIANT_ESP32P4) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "usb_uart.h"
 #include "usb/usb_host.h"
 #include "esphome/core/log.h"
 
 #include "esphome/components/bytebuffer/bytebuffer.h"
 
-namespace esphome {
-namespace usb_uart {
+namespace esphome::usb_uart {
 
 using namespace bytebuffer;
 /**
@@ -74,8 +73,17 @@ void USBUartTypeCH34X::enable_channels() {
     this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, cmd, value, (factor << 8) | divisor, callback);
     this->control_transfer(USB_VENDOR_DEV | usb_host::USB_DIR_OUT, cmd + 3, 0x80, 0, callback);
   }
-  USBUartTypeCdcAcm::enable_channels();
+  this->start_channels();
 }
-}  // namespace usb_uart
-}  // namespace esphome
-#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
+
+std::vector<CdcEps> USBUartTypeCH34X::parse_descriptors(usb_device_handle_t dev_hdl) {
+  auto result = USBUartTypeCdcAcm::parse_descriptors(dev_hdl);
+  // ch34x doesn't use the interrupt endpoint, and we don't have endpoints to spare
+  for (auto &cdc_dev : result) {
+    cdc_dev.interrupt_interface_number = 0xFF;
+  }
+  return result;
+}
+}  // namespace esphome::usb_uart
+
+#endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3

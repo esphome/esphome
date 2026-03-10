@@ -453,11 +453,14 @@ def test_preload_core_config_no_platform(setup_core: Path) -> None:
     # Mock _is_target_platform to avoid expensive component loading
     with patch("esphome.core.config._is_target_platform") as mock_is_platform:
         # Return True for known platforms
-        mock_is_platform.side_effect = lambda name: name in [
-            "esp32",
-            "esp8266",
-            "rp2040",
-        ]
+        mock_is_platform.side_effect = lambda name: (
+            name
+            in [
+                "esp32",
+                "esp8266",
+                "rp2040",
+            ]
+        )
 
         with pytest.raises(cv.Invalid, match="Platform missing"):
             preload_core_config(config, result)
@@ -477,11 +480,14 @@ def test_preload_core_config_multiple_platforms(setup_core: Path) -> None:
     # Mock _is_target_platform to avoid expensive component loading
     with patch("esphome.core.config._is_target_platform") as mock_is_platform:
         # Return True for known platforms
-        mock_is_platform.side_effect = lambda name: name in [
-            "esp32",
-            "esp8266",
-            "rp2040",
-        ]
+        mock_is_platform.side_effect = lambda name: (
+            name
+            in [
+                "esp32",
+                "esp8266",
+                "rp2040",
+            ]
+        )
 
         with pytest.raises(cv.Invalid, match="Found multiple target platform blocks"):
             preload_core_config(config, result)
@@ -892,3 +898,74 @@ async def test_add_includes_overwrites_existing_files(
     mock_copy_file_if_changed.assert_called_once_with(
         include_file, CORE.build_path / "src" / "header.h"
     )
+
+
+def test_config_hash_returns_int() -> None:
+    """Test that config_hash returns an integer."""
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test"}}
+    assert isinstance(CORE.config_hash, int)
+
+
+def test_config_hash_is_cached() -> None:
+    """Test that config_hash is computed once and cached."""
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test"}}
+
+    # First access computes the hash
+    hash1 = CORE.config_hash
+
+    # Modify config (without resetting cache)
+    CORE.config = {"esphome": {"name": "different"}}
+
+    # Second access returns cached value
+    hash2 = CORE.config_hash
+
+    assert hash1 == hash2
+
+
+def test_config_hash_reset_clears_cache() -> None:
+    """Test that reset() clears the cached config_hash."""
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test"}}
+    hash1 = CORE.config_hash
+
+    # Reset clears the cache
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "different"}}
+
+    hash2 = CORE.config_hash
+
+    # After reset, hash should be recomputed
+    assert hash1 != hash2
+
+
+def test_config_hash_deterministic_key_order() -> None:
+    """Test that config_hash is deterministic regardless of key insertion order."""
+    CORE.reset()
+    # Create two configs with same content but different key order
+    config1 = {"z_key": 1, "a_key": 2, "nested": {"z_nested": "z", "a_nested": "a"}}
+    config2 = {"a_key": 2, "z_key": 1, "nested": {"a_nested": "a", "z_nested": "z"}}
+
+    CORE.config = config1
+    hash1 = CORE.config_hash
+
+    CORE.reset()
+    CORE.config = config2
+    hash2 = CORE.config_hash
+
+    # Hashes should be equal because keys are sorted during serialization
+    assert hash1 == hash2
+
+
+def test_config_hash_different_for_different_configs() -> None:
+    """Test that different configs produce different hashes."""
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test1"}}
+    hash1 = CORE.config_hash
+
+    CORE.reset()
+    CORE.config = {"esphome": {"name": "test2"}}
+    hash2 = CORE.config_hash
+
+    assert hash1 != hash2

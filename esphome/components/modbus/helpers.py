@@ -2,11 +2,10 @@ import esphome.codegen as cg
 
 modbus_ns = cg.esphome_ns.namespace("modbus")
 modbus_helpers_ns = modbus_ns.namespace("helpers")
-ModbusRole = modbus_ns.enum("ModbusRole")
 
+ModbusFunctionCode_ns = modbus_ns.namespace("ModbusFunctionCode")
+ModbusFunctionCode = ModbusFunctionCode_ns.enum("ModbusFunctionCode")
 
-ModbusFunctionCode_ns = modbus_ns.namespace("FunctionCode")
-ModbusFunctionCode = ModbusFunctionCode_ns.enum("FunctionCode")
 MODBUS_FUNCTION_CODE = {
     "read_coils": ModbusFunctionCode.READ_COILS,
     "read_discrete_inputs": ModbusFunctionCode.READ_DISCRETE_INPUTS,

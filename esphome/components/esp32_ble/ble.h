@@ -52,6 +52,19 @@ enum IoCapability {
   IO_CAP_KBDISP = ESP_IO_CAP_KBDISP,
 };
 
+#ifdef ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
+enum AuthReqMode {
+  AUTH_REQ_NO_BOND = ESP_LE_AUTH_NO_BOND,
+  AUTH_REQ_BOND = ESP_LE_AUTH_BOND,
+  AUTH_REQ_MITM = ESP_LE_AUTH_REQ_MITM,
+  AUTH_REQ_BOND_MITM = ESP_LE_AUTH_REQ_BOND_MITM,
+  AUTH_REQ_SC_ONLY = ESP_LE_AUTH_REQ_SC_ONLY,
+  AUTH_REQ_SC_BOND = ESP_LE_AUTH_REQ_SC_BOND,
+  AUTH_REQ_SC_MITM = ESP_LE_AUTH_REQ_SC_MITM,
+  AUTH_REQ_SC_MITM_BOND = ESP_LE_AUTH_REQ_SC_MITM_BOND,
+};
+#endif
+
 enum BLEComponentState : uint8_t {
   /** Nothing has been initialized yet. */
   BLE_COMPONENT_STATE_OFF = 0,
@@ -100,6 +113,12 @@ class ESP32BLE : public Component {
  public:
   void set_io_capability(IoCapability io_capability) { this->io_cap_ = (esp_ble_io_cap_t) io_capability; }
 
+#ifdef ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
+  void set_max_key_size(uint8_t key_size) { this->max_key_size_ = key_size; }
+  void set_min_key_size(uint8_t key_size) { this->min_key_size_ = key_size; }
+  void set_auth_req(AuthReqMode req) { this->auth_req_mode_ = (esp_ble_auth_req_t) req; }
+#endif
+
   void set_advertising_cycle_time(uint32_t advertising_cycle_time) {
     this->advertising_cycle_time_ = advertising_cycle_time;
   }
@@ -112,7 +131,7 @@ class ESP32BLE : public Component {
   void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
-  void set_name(const std::string &name) { this->name_ = name; }
+  void set_name(const char *name) { this->name_ = name; }
 
 #ifdef USE_ESP32_BLE_ADVERTISING
   void advertising_start();
@@ -155,6 +174,10 @@ class ESP32BLE : public Component {
 #endif
   static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
 
+  // Handle DISABLE and ENABLE transitions when not in the ACTIVE state.
+  // Other non-ACTIVE states (e.g. OFF, DISABLED) are currently treated as no-ops.
+  void __attribute__((noinline)) loop_handle_state_transition_not_active_();
+
   bool ble_setup_();
   bool ble_dismantle_();
   bool ble_pre_setup_();
@@ -191,13 +214,11 @@ class ESP32BLE : public Component {
   esphome::LockFreeQueue<BLEEvent, MAX_BLE_QUEUE_SIZE> ble_events_;
   esphome::EventPool<BLEEvent, MAX_BLE_QUEUE_SIZE> ble_event_pool_;
 
-  // optional<string> (typically 16+ bytes on 32-bit, aligned to 4 bytes)
-  optional<std::string> name_;
-
   // 4-byte aligned members
 #ifdef USE_ESP32_BLE_ADVERTISING
   BLEAdvertising *advertising_{};  // 4 bytes (pointer)
 #endif
+  const char *name_{nullptr};                 // 4 bytes (pointer to string literal in flash)
   esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};  // 4 bytes (enum)
   uint32_t advertising_cycle_time_{};         // 4 bytes
 
@@ -207,6 +228,13 @@ class ESP32BLE : public Component {
   // 1-byte aligned members (grouped together to minimize padding)
   BLEComponentState state_{BLE_COMPONENT_STATE_OFF};  // 1 byte (uint8_t enum)
   bool enable_on_boot_{};                             // 1 byte
+
+#ifdef ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS
+  optional<esp_ble_auth_req_t> auth_req_mode_;
+
+  uint8_t max_key_size_{0};  // range is 7..16, 0 is unset
+  uint8_t min_key_size_{0};  // range is 7..16, 0 is unset
+#endif
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
@@ -214,17 +242,23 @@ extern ESP32BLE *global_ble;
 
 template<typename... Ts> class BLEEnabledCondition : public Condition<Ts...> {
  public:
-  bool check(const Ts &...x) override { return global_ble->is_active(); }
+  bool check(const Ts &...x) override { return global_ble != nullptr && global_ble->is_active(); }
 };
 
 template<typename... Ts> class BLEEnableAction : public Action<Ts...> {
  public:
-  void play(const Ts &...x) override { global_ble->enable(); }
+  void play(const Ts &...x) override {
+    if (global_ble != nullptr)
+      global_ble->enable();
+  }
 };
 
 template<typename... Ts> class BLEDisableAction : public Action<Ts...> {
  public:
-  void play(const Ts &...x) override { global_ble->disable(); }
+  void play(const Ts &...x) override {
+    if (global_ble != nullptr)
+      global_ble->disable();
+  }
 };
 
 }  // namespace esphome::esp32_ble

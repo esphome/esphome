@@ -143,7 +143,5 @@ uint8_t HTU21DComponent::get_heater_level() {
   return raw_heater & 0xF;
 }
 
-float HTU21DComponent::get_setup_priority() const { return setup_priority::DATA; }
-
 }  // namespace htu21d
 }  // namespace esphome

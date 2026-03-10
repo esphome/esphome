@@ -6,6 +6,8 @@
 #include "esphome/components/modbus/modbus_definitions.h"
 #include "esphome/components/modbus/modbus_helpers.h"
 
+#include <cstring>
+#include <memory>
 #include <vector>
 #include <deque>
 #include <optional>
@@ -15,7 +17,37 @@ namespace modbus {
 
 using namespace esphome::modbus::helpers;
 
-static const uint16_t MODBUS_TX_BUFFER_SIZE = 100;
+static constexpr uint16_t MODBUS_TX_BUFFER_SIZE = 15;
+
+struct ModbusFrame {
+  // Frame with exact-size allocation to avoid std::vector overhead
+  std::unique_ptr<uint8_t[]> data;
+  uint16_t size;  // Modbus RTU max is 256 bytes
+
+  ModbusFrame(const uint8_t *src, uint16_t len) : data(std::make_unique<uint8_t[]>(len + 2)), size(len + 2) {
+    std::memcpy(this->data.get(), src, len);
+    auto crc = crc16(data.get(), len);
+    data[len + 0] = crc >> 0;
+    data[len + 1] = crc >> 8;
+  }
+
+  bool operator==(const ModbusFrame &other) const {
+    if (this->size != other.size) {
+      return false;
+    }
+    return std::memcmp(this->data.get(), other.data.get(), this->size) == 0;
+  }
+
+  // This is a comparison against a raw payload (without CRC).
+  // This is used to check for duplicates in the tx queue without needing to construct full ModbusFrames for every item
+  // in the queue.
+  bool operator==(const std::vector<uint8_t> &other) const {
+    if (this->size - 2 != other.size()) {
+      return false;
+    }
+    return std::memcmp(this->data.get(), other.data(), other.size()) == 0;
+  }
+};
 
 class Modbus : public uart::UARTDevice, public Component {
  public:
@@ -36,8 +68,8 @@ class Modbus : public uart::UARTDevice, public Component {
   bool parse_modbus_server_frame_();
   virtual void process_modbus_server_frame(uint8_t address, uint8_t function_code,
                                            const std::vector<uint8_t> &data) = 0;
-  void clear_rx_buffer_(const std::string &reason, bool warn = false, size_t bytes_to_clear = 0);
-  bool send_frame_(const std::vector<uint8_t> &frame);
+  void clear_rx_buffer_(const LogString *reason, bool warn = false, size_t bytes_to_clear = 0);
+  bool send_frame_(const ModbusFrame &frame);
 
   uint32_t last_modbus_byte_{0};
   uint32_t last_receive_check_{0};
@@ -57,8 +89,10 @@ class ModbusServerDevice;
 
 struct ModbusDeviceCommand {
   ModbusClientDevice *device;
-  std::vector<uint8_t> frame;
+  ModbusFrame frame;
   bool interrupted{false};
+
+  ModbusDeviceCommand(ModbusClientDevice *device, const uint8_t *src, uint16_t len) : device(device), frame(src, len) {}
 };
 
 class ModbusClientHub : public Modbus {
@@ -85,7 +119,7 @@ class ModbusClientHub : public Modbus {
   uint16_t send_wait_time_{2000};
   std::optional<ModbusDeviceCommand> waiting_for_response_;
 
-  // std::queue is appropriate here since we need a FIFO buffer, and we can't know ahead of time how many
+  // std::deque is appropriate here since we need a FIFO buffer, and we can't know ahead of time how many
   // requests will be queued. Each modbus component may queue multiple requests, and the sequence of scheduling
   // may change at run time.
   std::deque<ModbusDeviceCommand> tx_buffer_;
@@ -134,6 +168,8 @@ class ModbusClientDevice {
   inline void clear_tx_queue_for_device() { this->parent_->clear_tx_queue_for_device(this); }
 
   // If more than one device is connected block sending a new command before a response is received
+  ESPDEPRECATED("Use ready_for_immediate_send() instead. Removed in 2026.9.0", "2026.3.0")
+  bool waiting_for_response() { return !ready_for_immediate_send(); }
   bool ready_for_immediate_send() { return parent_->tx_buffer_empty() && !parent_->tx_blocked(); }
 
  protected:

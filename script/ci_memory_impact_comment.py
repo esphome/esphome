@@ -215,6 +215,20 @@ def prepare_symbol_changes_data(
     }
 
 
+def format_components_str(components: list[str]) -> str:
+    """Format a list of components for display.
+
+    Args:
+        components: List of component names
+
+    Returns:
+        Formatted string with backtick-quoted component names
+    """
+    if len(components) == 1:
+        return f"`{components[0]}`"
+    return ", ".join(f"`{c}`" for c in sorted(components))
+
+
 def prepare_component_breakdown_data(
     target_analysis: dict | None, pr_analysis: dict | None
 ) -> list[tuple[str, int, int, int]] | None:
@@ -316,11 +330,10 @@ def create_comment_body(
     }
 
     # Format components list
+    context["components_str"] = format_components_str(components)
     if len(components) == 1:
-        context["components_str"] = f"`{components[0]}`"
         context["config_note"] = "a representative test configuration"
     else:
-        context["components_str"] = ", ".join(f"`{c}`" for c in sorted(components))
         context["config_note"] = (
             f"a merged configuration with {len(components)} components"
         )
@@ -502,6 +515,43 @@ def post_or_update_comment(pr_number: str, comment_body: str) -> None:
     print("Comment posted/updated successfully", file=sys.stderr)
 
 
+def create_target_unavailable_comment(
+    pr_data: dict,
+) -> str:
+    """Create a comment body when target branch data is unavailable.
+
+    This happens when the target branch (dev/beta/release) fails to build.
+    This can occur because:
+    1. The target branch has a build issue independent of this PR
+    2. This PR fixes a build issue on the target branch
+    In either case, we only care that the PR branch builds successfully.
+
+    Args:
+        pr_data: Dictionary with PR branch analysis results
+
+    Returns:
+        Formatted comment body
+    """
+    components = pr_data.get("components", [])
+    platform = pr_data.get("platform", "unknown")
+    pr_ram = pr_data.get("ram_bytes", 0)
+    pr_flash = pr_data.get("flash_bytes", 0)
+
+    env = Environment(
+        loader=FileSystemLoader(TEMPLATE_DIR),
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+    template = env.get_template("ci_memory_impact_target_unavailable.j2")
+    return template.render(
+        comment_marker=COMMENT_MARKER,
+        components_str=format_components_str(components),
+        platform=platform,
+        pr_ram=format_bytes(pr_ram),
+        pr_flash=format_bytes(pr_flash),
+    )
+
+
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -523,14 +573,24 @@ def main() -> int:
 
     # Load analysis JSON files (all data comes from JSON for security)
     target_data: dict | None = load_analysis_json(args.target_json)
-    if not target_data:
-        print("Error: Failed to load target analysis JSON", file=sys.stderr)
-        sys.exit(1)
-
     pr_data: dict | None = load_analysis_json(args.pr_json)
+
+    # PR data is required - if the PR branch can't build, that's a real error
     if not pr_data:
         print("Error: Failed to load PR analysis JSON", file=sys.stderr)
         sys.exit(1)
+
+    # Target data is optional - target branch (dev) may fail to build because:
+    # 1. The target branch has a build issue independent of this PR
+    # 2. This PR fixes a build issue on the target branch
+    if not target_data:
+        print(
+            "Warning: Target branch analysis unavailable, posting limited comment",
+            file=sys.stderr,
+        )
+        comment_body = create_target_unavailable_comment(pr_data)
+        post_or_update_comment(args.pr_number, comment_body)
+        return 0
 
     # Extract detailed analysis if available
     target_analysis: dict | None = None

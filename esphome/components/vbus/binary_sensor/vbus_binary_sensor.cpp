@@ -129,6 +129,25 @@ void DeltaSolCSPlusBSensor::handle_message(std::vector<uint8_t> &message) {
     this->s4_error_bsensor_->publish_state(message[20] & 8);
 }
 
+void DeltaSolBS2BSensor::dump_config() {
+  ESP_LOGCONFIG(TAG, "DeltaSol BS/2 (DrainBack):");
+  LOG_BINARY_SENSOR("  ", "Sensor 1 Error", this->s1_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 2 Error", this->s2_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 3 Error", this->s3_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 4 Error", this->s4_error_bsensor_);
+}
+
+void DeltaSolBS2BSensor::handle_message(std::vector<uint8_t> &message) {
+  if (this->s1_error_bsensor_ != nullptr)
+    this->s1_error_bsensor_->publish_state(message[10] & 1);
+  if (this->s2_error_bsensor_ != nullptr)
+    this->s2_error_bsensor_->publish_state(message[10] & 2);
+  if (this->s3_error_bsensor_ != nullptr)
+    this->s3_error_bsensor_->publish_state(message[10] & 4);
+  if (this->s4_error_bsensor_ != nullptr)
+    this->s4_error_bsensor_->publish_state(message[10] & 8);
+}
+
 void VBusCustomBSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "VBus Custom Binary Sensor:");
   if (this->source_ == 0xffff) {

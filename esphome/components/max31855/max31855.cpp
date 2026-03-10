@@ -31,7 +31,6 @@ void MAX31855Sensor::dump_config() {
     ESP_LOGCONFIG(TAG, "  Reference temperature disabled.");
   }
 }
-float MAX31855Sensor::get_setup_priority() const { return setup_priority::DATA; }
 void MAX31855Sensor::read_data_() {
   this->enable();
   delay(1);

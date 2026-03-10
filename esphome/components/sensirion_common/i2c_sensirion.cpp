@@ -39,42 +39,23 @@ bool SensirionI2CDevice::read_data(uint16_t *data, const uint8_t len) {
  */
 bool SensirionI2CDevice::write_command_(uint16_t command, CommandLen command_len, const uint16_t *data,
                                         const uint8_t data_len) {
-  uint8_t temp_stack[BUFFER_STACK_SIZE];
-  std::unique_ptr<uint8_t[]> temp_heap;
-  uint8_t *temp;
   size_t required_buffer_len = data_len * 3 + 2;
-
-  // Is a dynamic allocation required ?
-  if (required_buffer_len >= BUFFER_STACK_SIZE) {
-    temp_heap = std::unique_ptr<uint8_t[]>(new uint8_t[required_buffer_len]);
-    temp = temp_heap.get();
-  } else {
-    temp = temp_stack;
-  }
+  SmallBufferWithHeapFallback<BUFFER_STACK_SIZE> buffer(required_buffer_len);
+  uint8_t *temp = buffer.get();
   // First byte or word is the command
   uint8_t raw_idx = 0;
   if (command_len == 1) {
     temp[raw_idx++] = command & 0xFF;
   } else {
     // command is 2 bytes
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
     temp[raw_idx++] = command >> 8;
     temp[raw_idx++] = command & 0xFF;
-#else
-    temp[raw_idx++] = command & 0xFF;
-    temp[raw_idx++] = command >> 8;
-#endif
   }
   // add parameters followed by crc
   // skipped if len == 0
   for (size_t i = 0; i < data_len; i++) {
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
     temp[raw_idx++] = data[i] >> 8;
     temp[raw_idx++] = data[i] & 0xFF;
-#else
-    temp[raw_idx++] = data[i] & 0xFF;
-    temp[raw_idx++] = data[i] >> 8;
-#endif
     // Use MSB first since Sensirion devices use CRC-8 with MSB first
     uint8_t crc = crc8(&temp[raw_idx - 2], 2, 0xFF, CRC_POLYNOMIAL, true);
     temp[raw_idx++] = crc;

@@ -31,3 +31,11 @@ button:
     name: "UART Button"
     uart_id: uart_uart
     data: [0xFF, 0xEE]
+
+event:
+  - platform: uart
+    uart_id: uart_uart
+    name: "UART Event"
+    event_types:
+      - "string_event_A": "*A#"
+      - "bytes_event_B": [0x2A, 0x42, 0x23]

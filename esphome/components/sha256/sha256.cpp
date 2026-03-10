@@ -10,10 +10,11 @@ namespace esphome::sha256 {
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
 
-// CRITICAL ESP32-S3 HARDWARE SHA ACCELERATION REQUIREMENTS:
+// CRITICAL ESP32 HARDWARE SHA ACCELERATION REQUIREMENTS (IDF 5.5.x):
 //
-// The ESP32-S3 uses hardware DMA for SHA acceleration. The mbedtls_sha256_context structure contains
-// internal state that the DMA engine references. This imposes two critical constraints:
+// ESP32 variants (except original ESP32) use DMA-based hardware SHA acceleration that requires
+// 32-byte aligned digest buffers. This is handled automatically via HashBase::digest_ which has
+// alignas(32) on these platforms. Two additional constraints apply:
 //
 // 1. NO VARIABLE LENGTH ARRAYS (VLAs): VLAs corrupt the stack layout, causing the DMA engine to
 //    write to incorrect memory locations. This results in null pointer dereferences and crashes.
@@ -26,7 +27,7 @@ namespace esphome::sha256 {
 //
 // CORRECT USAGE:
 //   void my_function() {
-//     sha256::SHA256 hasher;  // Created locally
+//     sha256::SHA256 hasher;
 //     hasher.init();
 //     hasher.add(data, len);  // Any size, no chunking needed
 //     hasher.calculate();
@@ -34,7 +35,7 @@ namespace esphome::sha256 {
 //     // hasher destroyed when function returns
 //   }
 //
-// INCORRECT USAGE (WILL FAIL ON ESP32-S3):
+// INCORRECT USAGE (WILL FAIL):
 //   void my_function() {
 //     sha256::SHA256 hasher;
 //     helper(&hasher);  // WRONG: Passed to different stack frame

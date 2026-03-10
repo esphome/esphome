@@ -84,9 +84,8 @@ const uint8_t MAX_NUM_OF_REGISTERS_TO_WRITE = 123;  // 0x7B
 const uint8_t MAX_NUM_OF_REGISTERS_TO_READ = 125;  // 0x7D
 
 // Smallest possible frame is 4 bytes (custom function with no data): address(1) + function(1) + CRC(2)
-const uint16_t MIN_FRAME_SIZE = 4;
-const uint16_t MAX_FRAME_SIZE = 256;
-
+static constexpr uint16_t MIN_FRAME_SIZE = 4;
+static constexpr uint16_t MAX_FRAME_SIZE = 256;
 /// End of Modbus definitions
 }  // namespace modbus
 }  // namespace esphome
