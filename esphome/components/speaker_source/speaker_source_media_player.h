@@ -22,6 +22,39 @@
 
 namespace esphome::speaker_source {
 
+// THREADING MODEL:
+// This component coordinates media sources that run their own decode tasks with speakers
+// that have their own playback callback tasks. Three thread contexts exist:
+//
+// - Main loop task: setup(), loop(), dump_config(), handle_media_state_changed_(),
+//   handle_volume_request_(), handle_mute_request_(), set_volume_(), set_mute_state_(),
+//   get_media_pipeline_state_(), find_source_for_uri_(), try_execute_play_uri_(),
+//   save_volume_restore_state_()
+//
+// - Media source task(s): handle_media_output_() via SourceBinding::write_audio().
+//   Called from each source's decode task thread when streaming audio data.
+//   Reads ps.active_source (atomic), writes ps.pending_frames (atomic), and calls
+//   ps.speaker methods (speaker pointer is immutable after setup).
+//
+// - Speaker callback task: handle_speaker_playback_callback_() via speaker's
+//   add_audio_output_callback(). Called when the speaker finishes writing frames to the DAC.
+//   Reads ps.active_source (atomic), writes ps.pending_frames (atomic), and calls
+//   active_source->notify_audio_played().
+//
+// control() is called from BOTH the main loop (HA/automation commands) and source task threads
+// (via SourceBinding::request_play_uri -> handle_play_uri_request_ -> call.perform()).
+// It is thread-safe because it only enqueues to media_control_command_queue_ (FreeRTOS queue)
+// or directly calls set_volume_/set_mute_state_ (which only happens for volume/mute commands
+// from the main loop path — source tasks use defer() for volume/mute requests instead).
+//
+// Thread-safe communication:
+// - FreeRTOS queue (media_control_command_queue_): control() -> loop() for play/command dispatch
+// - defer(): SourceBinding::request_volume/request_mute -> main loop for volume/mute changes
+// - Atomic fields (active_source, pending_frames): shared between all three thread contexts
+//
+// Non-atomic pipeline fields (last_source, stopping_source, pending_source) are only accessed
+// from the main loop thread.
+
 enum Pipeline : uint8_t {
   MEDIA_PIPELINE = 0,
 };
@@ -160,12 +193,7 @@ class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPla
   media_source::MediaSource *find_source_for_uri_(const std::string &uri, uint8_t pipeline);
   QueueHandle_t media_control_command_queue_;
 
-  // Pipeline context for media pipeline
-  // Threading: Most pipeline access is from the main loop thread (loop, handle_media_state_changed_ via the media
-  // source listener contract). Two callbacks cross threads:
-  //   - handle_media_output_: called from media source tasks (writes audio to speaker)
-  //   - handle_speaker_playback_callback_: called from the speaker callback task
-  // These only touch active_source and pending_frames, both atomic. No mutex needed.
+  // Pipeline context for media pipeline. See THREADING MODEL at top of namespace for access rules.
   std::array<PipelineContext, 1> pipelines_;
 
   // Used to save volume/mute state for restoration on reboot

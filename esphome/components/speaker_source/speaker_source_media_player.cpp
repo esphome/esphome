@@ -13,24 +13,35 @@ static const char *const TAG = "speaker_source_media_player";
 
 // SourceBinding method implementations (defined here because SpeakerSourceMediaPlayer is forward-declared in the
 // header)
+
+// THREAD CONTEXT: Called from media source decode task thread
 size_t SourceBinding::write_audio(const uint8_t *data, size_t length, uint32_t timeout_ms,
                                   const audio::AudioStreamInfo &stream_info) {
   return this->player->handle_media_output_(this->pipeline, this->source, data, length, timeout_ms, stream_info);
 }
+
+// THREAD CONTEXT: Called from main loop (media source's loop() calls set_state_ which calls report_state)
 void SourceBinding::report_state(media_source::MediaSourceState state) {
   this->player->handle_media_state_changed_(this->pipeline, this->source, state);
 }
+
+// THREAD CONTEXT: Called from media source task thread; uses defer() to marshal to main loop
 void SourceBinding::request_volume(float volume) {
   this->player->defer([this, volume]() { this->player->handle_volume_request_(volume); });
 }
+
+// THREAD CONTEXT: Called from media source task thread; uses defer() to marshal to main loop
 void SourceBinding::request_mute(bool is_muted) {
   this->player->defer([this, is_muted]() { this->player->handle_mute_request_(is_muted); });
 }
+
+// THREAD CONTEXT: Called from media source task thread.
+// Thread-safe because handle_play_uri_request_ calls control() which enqueues via FreeRTOS queue.
 void SourceBinding::request_play_uri(const std::string &uri) {
-  // No defer needed: handle_play_uri_request_ uses call.perform() which enqueues via control(), which is thread-safe.
   this->player->handle_play_uri_request_(this->pipeline, uri);
 }
 
+// THREAD CONTEXT: Called during code generation setup (main loop)
 void SpeakerSourceMediaPlayer::add_media_source(uint8_t pipeline, media_source::MediaSource *media_source) {
   auto &binding =
       this->pipelines_[pipeline].sources.emplace_back(std::make_unique<SourceBinding>(this, media_source, pipeline));
@@ -72,6 +83,7 @@ void SpeakerSourceMediaPlayer::setup() {
   }
 }
 
+// THREAD CONTEXT: Called from the speaker's playback callback task (not main loop)
 void SpeakerSourceMediaPlayer::handle_speaker_playback_callback_(uint32_t frames, int64_t timestamp, uint8_t pipeline) {
   PipelineContext &ps = this->pipelines_[pipeline];
 
@@ -96,18 +108,22 @@ void SpeakerSourceMediaPlayer::handle_speaker_playback_callback_(uint32_t frames
   }
 }
 
+// THREAD CONTEXT: Called from main loop via defer()
 void SpeakerSourceMediaPlayer::handle_volume_request_(float volume) {
   // Update the media player's volume
   this->set_volume_(volume);
   this->publish_state();
 }
 
+// THREAD CONTEXT: Called from main loop via defer()
 void SpeakerSourceMediaPlayer::handle_mute_request_(bool is_muted) {
   // Update the media player's mute state
   this->set_mute_state_(is_muted);
   this->publish_state();
 }
 
+// THREAD CONTEXT: Called from media source task thread.
+// Thread-safe because control() enqueues the URI via FreeRTOS queue.
 void SpeakerSourceMediaPlayer::handle_play_uri_request_(uint8_t pipeline, const std::string &uri) {
   // Smart source is requesting the player to play a different URI
   auto call = this->make_call();
@@ -115,6 +131,7 @@ void SpeakerSourceMediaPlayer::handle_play_uri_request_(uint8_t pipeline, const 
   call.perform();
 }
 
+// THREAD CONTEXT: Called from main loop (media source's loop() calls set_state_ which calls report_state)
 void SpeakerSourceMediaPlayer::handle_media_state_changed_(uint8_t pipeline, media_source::MediaSource *source,
                                                            media_source::MediaSourceState state) {
   PipelineContext &ps = this->pipelines_[pipeline];
@@ -152,6 +169,9 @@ void SpeakerSourceMediaPlayer::handle_media_state_changed_(uint8_t pipeline, med
   }
 }
 
+// THREAD CONTEXT: Called from media source decode task thread (not main loop).
+// Reads ps.active_source (atomic), writes ps.pending_frames (atomic), and calls
+// ps.speaker methods (speaker pointer is immutable after setup).
 size_t SpeakerSourceMediaPlayer::handle_media_output_(uint8_t pipeline, media_source::MediaSource *source,
                                                       const uint8_t *data, size_t length, uint32_t timeout_ms,
                                                       const audio::AudioStreamInfo &stream_info) {
@@ -375,6 +395,11 @@ bool SpeakerSourceMediaPlayer::try_execute_play_uri_(const std::string &uri, uin
   return true;  // Remove from queue
 }
 
+// THREAD CONTEXT: Called from BOTH main loop (HA/automation commands) and media source task
+// threads (via SourceBinding::request_play_uri -> handle_play_uri_request_ -> call.perform()).
+// The source task path only triggers PLAY_URI, which enqueues via the FreeRTOS queue (thread-safe).
+// Volume/mute branches call set_volume_/set_mute_state_ directly, but these are only reached
+// from the main loop path — source tasks use defer() for volume/mute requests instead.
 void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call) {
   if (!this->is_ready()) {
     return;
