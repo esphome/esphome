@@ -54,7 +54,7 @@ void DewPointComponent::loop() {
   }
 
   // Check for valid humidity range
-  if (!((this->humidity_value_ > 0.0f) && (this->humidity_value_ < ::std::nextafter(100.0f, 100.1f)))) {
+  if (this->humidity_value_ <= 0.0f || this->humidity_value_ > 100.0f) {
     ESP_LOGW(TAG, "Humidity value out of range (0-100): %.2f", this->humidity_value_);
     this->publish_state(NAN);
     return;
