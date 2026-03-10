@@ -3,6 +3,7 @@
 #include "esphome/core/defines.h"
 #ifdef USE_RUNTIME_IMAGE_BMP
 
+#include <algorithm>
 #include <memory>
 
 #include "image_decoder.h"

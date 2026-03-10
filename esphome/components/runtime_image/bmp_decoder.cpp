@@ -77,7 +77,7 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
         if (this->color_table_entries_ == 0) {
           this->color_table_entries_ = 256;
         } else if (this->color_table_entries_ > 256) {
-          ESP_LOGE(TAG, "Too many color table entries: %d", this->color_table_entries_);
+          ESP_LOGE(TAG, "Too many color table entries: %" PRIu32, this->color_table_entries_);
           return DECODE_ERROR_UNSUPPORTED_FORMAT;
         }
         size_t header_size = encode_uint32(buffer[17], buffer[16], buffer[15], buffer[14]);
@@ -90,10 +90,7 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
                                                 buffer[offset + i * 4 + 1], buffer[offset + i * 4]);
         }
 
-        this->padding_bytes_ = 4 - (this->width_bytes_ % 4);
-        if (this->padding_bytes_ == 4) {
-          this->padding_bytes_ = 0;
-        }
+        this->padding_bytes_ = (4 - (this->width_bytes_ % 4)) % 4;
 
         break;
       }
@@ -151,10 +148,11 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
       break;
     }
     case 8: {
+      size_t width = static_cast<size_t>(this->width_);
+      size_t last_col = width - 1;
       while (index < size) {
-        size_t x = this->paint_index_ % static_cast<size_t>(this->width_);
-        size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / static_cast<size_t>(this->width_));
-        size_t last_col = static_cast<size_t>(this->width_) - 1;
+        size_t x = this->paint_index_ % width;
+        size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / width);
         size_t needed = 1 + ((x == last_col) ? this->padding_bytes_ : 0);
         if (index + needed > size) {
           this->decoded_bytes_ += index;
@@ -163,7 +161,7 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
 
         uint8_t color_index = buffer[index];
         if (color_index >= this->color_table_entries_) {
-          ESP_LOGE(TAG, "Invalid color index: %d", color_index);
+          ESP_LOGE(TAG, "Invalid color index: %u", color_index);
           return DECODE_ERROR_UNSUPPORTED_FORMAT;
         }
 
@@ -183,10 +181,11 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
       break;
     }
     case 24: {
+      size_t width = static_cast<size_t>(this->width_);
+      size_t last_col = width - 1;
       while (index < size) {
-        size_t x = this->paint_index_ % static_cast<size_t>(this->width_);
-        size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / static_cast<size_t>(this->width_));
-        size_t last_col = static_cast<size_t>(this->width_) - 1;
+        size_t x = this->paint_index_ % width;
+        size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / width);
         size_t needed = 3 + ((x == last_col) ? this->padding_bytes_ : 0);
         if (index + needed > size) {
           this->decoded_bytes_ += index;
