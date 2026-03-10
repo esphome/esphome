@@ -24,7 +24,9 @@ COMPONENTS_TESTS_DIR: Path = Path(root_path) / "tests" / "components"
 # Components whose to_code should run during C++ test builds.
 # Most components don't need code generation for tests; only these
 # essential ones (platform setup, logging, core config) are needed.
-CPP_TESTING_CODEGEN_COMPONENTS = {"esphome", "host", "logger"}
+# Note: "core" is the esphome core config module (esphome/core/config.py),
+# which registers under package name "core" not "esphome".
+CPP_TESTING_CODEGEN_COMPONENTS = {"core", "host", "logger"}
 
 
 def hash_components(components: list[str]) -> str:
