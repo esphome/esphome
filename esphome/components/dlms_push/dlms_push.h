@@ -42,7 +42,7 @@ class DlmsPushComponent : public Component, public uart::UARTDevice {
   uint32_t receive_timeout_ms_{50};
   bool show_log_{false};
 
-  static const size_t MAX_RX_BUFFER_SIZE = 2048;
+  static constexpr size_t MAX_RX_BUFFER_SIZE = 2048;
   std::unique_ptr<uint8_t[]> rx_buffer_;
   size_t rx_buffer_len_{0};
   uint32_t last_rx_char_time_{0};
