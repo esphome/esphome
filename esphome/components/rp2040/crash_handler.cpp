@@ -4,6 +4,7 @@
 #include "esphome/core/log.h"
 
 #include <cinttypes>
+#include <hardware/regs/addressmap.h>
 #include <hardware/structs/watchdog.h>
 #include <hardware/watchdog.h>
 
@@ -25,18 +26,18 @@ static constexpr uint32_t CRASH_MAGIC = 0xDEADBEEF;
 // [4..7] = up to 4 additional code addresses found by scanning the stack
 //          (return addresses from callers, giving a deeper backtrace)
 
-// Flash is mapped at 0x10000000. RP2040 supports up to 16MB, RP2350 up to 32MB.
-// We use a conservative upper bound to keep false positives low during stack scanning.
-// Wider ranges would match more stale data on the stack that happens to look like code addresses.
+// Flash is mapped at XIP_BASE (0x10000000). We use a conservative upper bound
+// to keep false positives low during stack scanning. Wider ranges would match
+// more stale data on the stack that happens to look like code addresses.
 #if defined(PICO_RP2350)
-static constexpr uint32_t FLASH_END = 0x10400000;  // 4MB — RP2350 typical max
+static constexpr uint32_t FLASH_SCAN_END = XIP_BASE + 0x400000;  // 4MB — RP2350 typical max
 #else
-static constexpr uint32_t FLASH_END = 0x10200000;  // 2MB — RP2040 typical max
+static constexpr uint32_t FLASH_SCAN_END = XIP_BASE + 0x200000;  // 2MB — RP2040 typical max
 #endif
 
 static inline bool is_code_addr(uint32_t val) {
   uint32_t cleared = val & ~1u;  // Clear Thumb bit
-  return cleared >= 0x10000000 && cleared < FLASH_END;
+  return cleared >= XIP_BASE && cleared < FLASH_SCAN_END;
 }
 
 static constexpr size_t MAX_BACKTRACE = 4;
@@ -126,12 +127,8 @@ static void __attribute__((used, noreturn)) hard_fault_handler_c(uint32_t *frame
   // The exception frame is 8 words (32 bytes) at 'frame'. The pre-fault
   // stack starts at frame+8. Walk up to 64 words looking for return addresses.
   uint32_t *scan_start = frame + 8;  // Past exception frame
-  // SRAM end address differs by chip variant
-#if defined(PICO_RP2350)
-  uint32_t *stack_top = (uint32_t *) 0x20082000;  // RP2350: 520KB SRAM
-#else
-  uint32_t *stack_top = (uint32_t *) 0x20042000;   // RP2040: 264KB SRAM
-#endif
+  // SRAM_END is chip-specific: 0x20042000 (RP2040) or 0x20082000 (RP2350)
+  uint32_t *stack_top = (uint32_t *) SRAM_END;
   uint32_t bt_count = 0;
 
   for (uint32_t *p = scan_start; p < stack_top && p < scan_start + 64 && bt_count < MAX_BACKTRACE; p++) {
