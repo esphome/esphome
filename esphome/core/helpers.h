@@ -297,6 +297,9 @@ template<typename T, size_t N> class StaticVector {
 ///
 /// A tiny ring buffer that avoids dynamic allocations from std::deque/std::queue
 /// (which can be wasteful on MCUs), while supporting iteration over queued elements.
+///
+/// Not thread-safe. All access (push/pop/iteration) must occur from a single
+/// context, or the caller must provide external synchronization.
 template<typename T, size_t N> class StaticRingBuffer {
   using index_type = std::conditional_t<(N <= 255), uint8_t, uint16_t>;
 
