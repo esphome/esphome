@@ -350,8 +350,9 @@ bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
   if (data.expect_item(DAIKIN_HEADER_MARK, DAIKIN_HEADER_SPACE)) {
     valid_daikin_frame = true;
     size_t bytes_count = data.size() / 2 / 8;
-    size_t buf_size = bytes_count * 3 + 1;
-    std::unique_ptr<char[]> buf(new char[buf_size]());  // value-initialize (zero-fill)
+    // Header (20) + state (19) = 39 bytes max; truncates gracefully via buf_append_printf
+    char buf[40 * 3 + 1] = {};
+    constexpr size_t buf_size = sizeof(buf);
     size_t buf_pos = 0;
     for (size_t i = 0; i < bytes_count; i++) {
       uint8_t byte = 0;
@@ -363,9 +364,9 @@ bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
           break;
         }
       }
-      buf_pos = buf_append_printf(buf.get(), buf_size, buf_pos, "%02x ", byte);
+      buf_pos = buf_append_printf(buf, buf_size, buf_pos, "%02x ", byte);
     }
-    ESP_LOGD(TAG, "WHOLE FRAME %s  size: %d", buf.get(), data.size());
+    ESP_LOGD(TAG, "WHOLE FRAME %s  size: %d", buf, data.size());
   }
   if (!valid_daikin_frame) {
     char sbuf[16 * 10 + 1] = {0};

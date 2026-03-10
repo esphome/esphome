@@ -146,7 +146,6 @@ void LTRAlsPs501Component::update() {
 
 void LTRAlsPs501Component::loop() {
   ErrorCode err = i2c::ERROR_OK;
-  static uint8_t tries{0};
 
   switch (this->state_) {
     case State::DELAYED_SETUP:
@@ -175,20 +174,20 @@ void LTRAlsPs501Component::loop() {
 
     case State::WAITING_FOR_DATA:
       if (this->is_als_data_ready_(this->als_readings_) == LtrDataAvail::LTR_DATA_OK) {
-        tries = 0;
+        this->tries_ = 0;
         ESP_LOGV(TAG, "Reading sensor data assuming gain = %.0fx, time = %d ms",
                  get_gain_coeff(this->als_readings_.gain), get_itime_ms(this->als_readings_.integration_time));
         this->read_sensor_data_(this->als_readings_);
         this->apply_lux_calculation_(this->als_readings_);
         this->state_ = State::DATA_COLLECTED;
-      } else if (tries >= MAX_TRIES) {
+      } else if (this->tries_ >= MAX_TRIES) {
         ESP_LOGW(TAG, "Can't get data after several tries. Aborting.");
-        tries = 0;
+        this->tries_ = 0;
         this->status_set_warning();
         this->state_ = State::IDLE;
         return;
       } else {
-        tries++;
+        this->tries_++;
       }
       break;
 
@@ -230,21 +229,21 @@ void LTRAlsPs501Component::loop() {
 }
 
 void LTRAlsPs501Component::check_and_trigger_ps_() {
-  static uint32_t last_high_trigger_time{0};
-  static uint32_t last_low_trigger_time{0};
   uint16_t ps_data = this->read_ps_data_();
   uint32_t now = millis();
 
   if (ps_data != this->ps_readings_) {
     this->ps_readings_ = ps_data;
     // Higher values - object is closer to sensor
-    if (ps_data > this->ps_threshold_high_ && now - last_high_trigger_time >= this->ps_cooldown_time_s_ * 1000) {
-      last_high_trigger_time = now;
+    if (ps_data > this->ps_threshold_high_ &&
+        now - this->last_ps_high_trigger_time_ >= this->ps_cooldown_time_s_ * 1000) {
+      this->last_ps_high_trigger_time_ = now;
       ESP_LOGD(TAG, "Proximity high threshold triggered. Value = %d, Trigger level = %d", ps_data,
                this->ps_threshold_high_);
       this->on_ps_high_trigger_callback_.call();
-    } else if (ps_data < this->ps_threshold_low_ && now - last_low_trigger_time >= this->ps_cooldown_time_s_ * 1000) {
-      last_low_trigger_time = now;
+    } else if (ps_data < this->ps_threshold_low_ &&
+               now - this->last_ps_low_trigger_time_ >= this->ps_cooldown_time_s_ * 1000) {
+      this->last_ps_low_trigger_time_ = now;
       ESP_LOGD(TAG, "Proximity low threshold triggered. Value = %d, Trigger level = %d", ps_data,
                this->ps_threshold_low_);
       this->on_ps_low_trigger_callback_.call();
