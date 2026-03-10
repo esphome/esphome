@@ -100,11 +100,16 @@ def _set_stream_limits(config):
 
 
 def _validate_esp32_variant(config):
-    if config[CONF_DAC_TYPE] != "internal":
-        return config
     variant = esp32.get_esp32_variant()
-    if variant not in INTERNAL_DAC_VARIANTS:
-        raise cv.Invalid(f"{variant} does not have an internal DAC")
+    if config[CONF_DAC_TYPE] == "internal":
+        if variant not in INTERNAL_DAC_VARIANTS:
+            raise cv.Invalid(f"{variant} does not have an internal DAC")
+    elif (
+        variant == esp32.VARIANT_ESP32
+        and config.get(CONF_BITS_PER_SAMPLE) == 8
+        and config.get(CONF_CHANNEL) in (CONF_MONO, CONF_LEFT, CONF_RIGHT)
+    ):
+        raise cv.Invalid("8-bit mono mode is not supported on ESP32")
     return config
 
 

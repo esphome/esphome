@@ -52,6 +52,7 @@ CONFIG_SCHEMA = (
     "fan.hbridge.brake",
     BrakeAction,
     maybe_simple_id({cv.GenerateID(): cv.use_id(HBridgeFan)}),
+    synchronous=True,
 )
 async def fan_hbridge_brake_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

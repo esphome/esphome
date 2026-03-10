@@ -339,6 +339,7 @@
 #define USE_I2C
 #define USE_LOGGER_USB_CDC
 #define USE_SOCKET_IMPL_LWIP_TCP
+#define USE_RP2040_BLE
 #define USE_SPI
 #endif
 

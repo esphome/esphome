@@ -9,6 +9,7 @@ import pytest
 
 from esphome.config_validation import Invalid
 from esphome.const import (
+    CONF_DEVICE_CLASS,
     CONF_DEVICE_ID,
     CONF_DISABLED_BY_DEFAULT,
     CONF_ENTITY_CATEGORY,
@@ -16,16 +17,20 @@ from esphome.const import (
     CONF_ID,
     CONF_INTERNAL,
     CONF_NAME,
+    CONF_UNIT_OF_MEASUREMENT,
 )
 from esphome.core import CORE, ID, entity_helpers
 from esphome.core.entity_helpers import (
     _register_string,
     _setup_entity_impl,
     entity_duplicate_validator,
+    finalize_entity_strings,
     get_base_entity_object_id,
     register_device_class,
     register_icon,
+    setup_device_class,
     setup_entity,
+    setup_unit_of_measurement,
 )
 from esphome.cpp_generator import MockObj
 from esphome.helpers import sanitize, snake_case
@@ -486,8 +491,6 @@ async def test_setup_entity_disabled_by_default(
 ) -> None:
     """Test setup_entity sets disabled_by_default correctly."""
 
-    added_expressions = setup_test_environment
-
     var = MockObj("sensor1")
 
     config = {
@@ -497,10 +500,8 @@ async def test_setup_entity_disabled_by_default(
 
     await _setup_entity_impl(var, config, "sensor")
 
-    # Check disabled_by_default was set
-    assert any(
-        "sensor1.set_disabled_by_default(true)" in expr for expr in added_expressions
-    )
+    # disabled_by_default is now packed into config for configure_entity_()
+    assert config.get("_entity_disabled_by_default") == 1
 
 
 def test_entity_duplicate_validator() -> None:
@@ -785,8 +786,8 @@ async def test_setup_entity_empty_name_with_device(
 
     entity_helpers.get_variable = original_get_variable
 
-    # Check that set_device was called
-    assert any("sensor1.set_device" in expr for expr in added_expressions)
+    # Check that set_device_ was called (separate protected call, accessible via friend)
+    assert any("sensor1.set_device_" in expr for expr in added_expressions)
 
     # For empty-name entities, Python stores hash 0 - C++ calculates hash at runtime
     assert config.get("_entity_name") == ""
@@ -928,7 +929,7 @@ def test_register_device_class_max_length() -> None:
 async def test_setup_entity_with_entity_category(
     setup_test_environment: list[str],
 ) -> None:
-    """Test setup_entity sets entity_category correctly."""
+    """Test entity_category is packed correctly through the full setup flow."""
     added_expressions = setup_test_environment
     var = MockObj("sensor1")
     config = {
@@ -937,9 +938,10 @@ async def test_setup_entity_with_entity_category(
         CONF_ENTITY_CATEGORY: "diagnostic",
     }
     await _setup_entity_impl(var, config, "sensor")
-    assert any(
-        'set_entity_category("diagnostic")' in expr for expr in added_expressions
-    )
+    finalize_entity_strings(var, config)
+    packed = _extract_packed_value(added_expressions)
+    assert packed != 0
+    assert "category:diagnostic" in added_expressions[0]
 
 
 @pytest.mark.asyncio
@@ -988,3 +990,199 @@ async def test_setup_entity_decorator_mode(setup_test_environment: list[str]) ->
     assert body_called
     object_id = extract_object_id_from_expressions(added_expressions)
     assert object_id == "temperature"
+
+
+# Tests for finalize_entity_strings packing
+#
+# These tests verify that flags and string indices produce non-zero packed values
+# and correct inline comments. The actual bit layout correctness (Python _*_SHIFT
+# matching C++ ENTITY_FIELD_*_SHIFT) is verified end-to-end by the integration
+# test test_host_mode_entity_fields, which compiles firmware and checks values
+# via the native API.
+
+
+def _extract_packed_value(expressions: list[str]) -> int:
+    """Extract the third argument (packed value) from a configure_entity_() call."""
+    for expr in expressions:
+        if "configure_entity_" in expr:
+            # Match the last integer argument before the closing ");"
+            match = re.search(r",\s*(\d+)\s*\)", expr)
+            if match:
+                return int(match.group(1))
+    raise AssertionError("No configure_entity_ call found")
+
+
+@pytest.mark.asyncio
+async def test_finalize_no_flags(setup_test_environment: list[str]) -> None:
+    """Test entity with no special flags — packed value is 0, no comment."""
+    added_expressions = setup_test_environment
+    var = MockObj("sensor1")
+    config = {
+        CONF_NAME: "Test",
+        CONF_DISABLED_BY_DEFAULT: False,
+    }
+    await _setup_entity_impl(var, config, "sensor")
+    finalize_entity_strings(var, config)
+    packed = _extract_packed_value(added_expressions)
+    assert packed == 0
+    assert "//" not in added_expressions[0]
+
+
+@pytest.mark.asyncio
+async def test_finalize_internal(setup_test_environment: list[str]) -> None:
+    """Test entity with internal=True packs the internal flag."""
+    added_expressions = setup_test_environment
+    var = MockObj("sensor1")
+    config = {
+        CONF_NAME: "Test",
+        CONF_DISABLED_BY_DEFAULT: False,
+        CONF_INTERNAL: True,
+    }
+    await _setup_entity_impl(var, config, "sensor")
+    finalize_entity_strings(var, config)
+    packed = _extract_packed_value(added_expressions)
+    assert packed != 0
+    assert "// internal" in added_expressions[0]
+
+
+@pytest.mark.asyncio
+async def test_finalize_disabled_by_default(
+    setup_test_environment: list[str],
+) -> None:
+    """Test entity with disabled_by_default=True packs the flag."""
+    added_expressions = setup_test_environment
+    var = MockObj("sensor1")
+    config = {
+        CONF_NAME: "Test",
+        CONF_DISABLED_BY_DEFAULT: True,
+    }
+    await _setup_entity_impl(var, config, "sensor")
+    finalize_entity_strings(var, config)
+    packed = _extract_packed_value(added_expressions)
+    assert packed != 0
+    assert "// disabled_by_default" in added_expressions[0]
+
+
+@pytest.mark.asyncio
+async def test_finalize_entity_category(
+    setup_test_environment: list[str],
+) -> None:
+    """Test entity_category values are packed and described in comment."""
+    added_expressions = setup_test_environment
+    var = MockObj("sensor1")
+
+    # Test diagnostic
+    config = {
+        CONF_NAME: "Test",
+        CONF_DISABLED_BY_DEFAULT: False,
+        CONF_ENTITY_CATEGORY: "diagnostic",
+    }
+    await _setup_entity_impl(var, config, "sensor")
+    finalize_entity_strings(var, config)
+    packed_diag = _extract_packed_value(added_expressions)
+    assert packed_diag != 0
+    assert "category:diagnostic" in added_expressions[0]
+
+    # Test config — different packed value
+    added_expressions.clear()
+    config2 = {
+        CONF_NAME: "Test2",
+        CONF_DISABLED_BY_DEFAULT: False,
+        CONF_ENTITY_CATEGORY: "config",
+    }
+    await _setup_entity_impl(var, config2, "sensor")
+    finalize_entity_strings(var, config2)
+    packed_cfg = _extract_packed_value(added_expressions)
+    assert packed_cfg != 0
+    assert packed_cfg != packed_diag
+    assert "category:config" in added_expressions[0]
+
+
+@pytest.mark.asyncio
+async def test_finalize_string_indices(
+    setup_test_environment: list[str],
+) -> None:
+    """Test device_class, unit_of_measurement, and icon produce non-zero packed value."""
+    added_expressions = setup_test_environment
+    var = MockObj("sensor1")
+    config = {
+        CONF_NAME: "Test",
+        CONF_DISABLED_BY_DEFAULT: False,
+        CONF_DEVICE_CLASS: "temperature",
+        CONF_UNIT_OF_MEASUREMENT: "°C",
+        CONF_ICON: "mdi:thermometer",
+    }
+    await _setup_entity_impl(var, config, "sensor")
+    setup_device_class(config)
+    setup_unit_of_measurement(config)
+    finalize_entity_strings(var, config)
+    packed = _extract_packed_value(added_expressions)
+    assert packed != 0
+    comment = added_expressions[0]
+    assert "dc:temperature" in comment
+    assert "uom:°C" in comment
+    assert "icon:mdi:thermometer" in comment
+
+
+@pytest.mark.asyncio
+async def test_finalize_all_fields(
+    setup_test_environment: list[str],
+) -> None:
+    """Test all fields set: flags, string indices, and comment."""
+    added_expressions = setup_test_environment
+    var = MockObj("sensor1")
+    config = {
+        CONF_NAME: "Test",
+        CONF_DISABLED_BY_DEFAULT: True,
+        CONF_INTERNAL: True,
+        CONF_ENTITY_CATEGORY: "diagnostic",
+        CONF_DEVICE_CLASS: "temperature",
+        CONF_UNIT_OF_MEASUREMENT: "°C",
+        CONF_ICON: "mdi:thermometer",
+    }
+    await _setup_entity_impl(var, config, "sensor")
+    setup_device_class(config)
+    setup_unit_of_measurement(config)
+    finalize_entity_strings(var, config)
+    packed = _extract_packed_value(added_expressions)
+    assert packed != 0
+    # Verify comment contains all flags with actual string values
+    comment_line = added_expressions[0]
+    assert (
+        "// internal, disabled_by_default, category:diagnostic,"
+        " dc:temperature, uom:°C, icon:mdi:thermometer" in comment_line
+    )
+
+
+@pytest.mark.asyncio
+async def test_finalize_comment_sanitization(
+    setup_test_environment: list[str],
+) -> None:
+    """Test that user strings in comments are sanitized against injection."""
+    added_expressions = setup_test_environment
+    var = MockObj("sensor1")
+    config = {
+        CONF_NAME: "Test",
+        CONF_DISABLED_BY_DEFAULT: False,
+        # Backslash at end would cause line splice eating next code line
+        CONF_ICON: "mdi:evil\\",
+    }
+    await _setup_entity_impl(var, config, "sensor")
+    finalize_entity_strings(var, config)
+    comment_line = added_expressions[0]
+    # Backslash must be replaced to prevent line splice
+    assert "\\" not in comment_line
+    assert "mdi:evil/" in comment_line
+
+    added_expressions.clear()
+    config2 = {
+        CONF_NAME: "Test2",
+        CONF_DISABLED_BY_DEFAULT: False,
+        CONF_ICON: "mdi:evil\nINJECTED_CODE();",
+    }
+    await _setup_entity_impl(var, config2, "sensor")
+    finalize_entity_strings(var, config2)
+    comment_line = added_expressions[0]
+    # Newline must be replaced to prevent breaking out of comment
+    assert "\n" not in comment_line
+    assert "INJECTED_CODE" in comment_line  # still visible but safe in comment
