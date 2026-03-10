@@ -10,15 +10,23 @@ from helpers import get_all_components, get_all_dependencies, root_path
 
 from esphome.__main__ import command_compile, parse_args
 from esphome.config import validate_config
+from esphome.const import CONF_PLATFORM
 from esphome.core import CORE
+from esphome.loader import get_component
 from esphome.platformio_api import get_idedata
-from esphome.yaml_util import load_yaml
 
 # This must coincide with the version in /platformio.ini
 PLATFORMIO_GOOGLE_TEST_LIB = "google/googletest@^1.15.2"
 
 # Path to /tests/components
 COMPONENTS_TESTS_DIR: Path = Path(root_path) / "tests" / "components"
+
+# Components whose to_code should run during C++ test builds.
+# Most components don't need code generation for tests; only these
+# essential ones (platform setup, logging, core config) are needed.
+# Note: "core" is the esphome core config module (esphome/core/config.py),
+# which registers under package name "core" not "esphome".
+CPP_TESTING_CODEGEN_COMPONENTS = {"core", "host", "logger"}
 
 
 def hash_components(components: list[str]) -> str:
@@ -30,12 +38,14 @@ def filter_components_without_tests(components: list[str]) -> list[str]:
     """Filter out components that do not have a corresponding test file.
 
     This is done by checking if the component's directory contains at
-    least a .cpp file.
+    least a .cpp or .h file.
     """
     filtered_components: list[str] = []
     for component in components:
         test_dir = COMPONENTS_TESTS_DIR / component
-        if test_dir.is_dir() and any(test_dir.glob("*.cpp")):
+        if test_dir.is_dir() and (
+            any(test_dir.glob("*.cpp")) or any(test_dir.glob("*.h"))
+        ):
             filtered_components.append(component)
         else:
             print(
@@ -43,38 +53,6 @@ def filter_components_without_tests(components: list[str]) -> list[str]:
                 file=sys.stderr,
             )
     return filtered_components
-
-
-# Name of optional per-component YAML config merged into the test build
-# before validation so that platform defines (USE_SENSOR, etc.) are generated.
-CPP_TEST_CONFIG_FILE = "cpp_test.yaml"
-
-
-def load_component_test_configs(components: list[str]) -> dict:
-    """Load cpp_test.yaml files from test component directories.
-
-    These configs are merged into the base test config *before* validation
-    so that entity registration runs during code generation, which causes
-    the corresponding USE_* defines to be emitted.
-    """
-    merged: dict = {}
-    for component in components:
-        config_file = COMPONENTS_TESTS_DIR / component / CPP_TEST_CONFIG_FILE
-        if not config_file.exists():
-            continue
-        component_config = load_yaml(config_file)
-        if not component_config:
-            continue
-        for key, value in component_config.items():
-            if (
-                key in merged
-                and isinstance(merged[key], list)
-                and isinstance(value, list)
-            ):
-                merged[key].extend(value)
-            else:
-                merged[key] = value
-    return merged
 
 
 def create_test_config(config_name: str, includes: list[str]) -> dict:
@@ -113,11 +91,52 @@ def create_test_config(config_name: str, includes: list[str]) -> dict:
     }
 
 
+def get_platform_components(components: list[str]) -> list[str]:
+    """Discover platform sub-components referenced by test directory structure.
+
+    For each component being tested, any sub-directory named after a platform
+    domain (e.g. ``sensor``, ``binary_sensor``) is treated as a request to
+    include that ``<domain>.<component>`` platform in the build.  The sub-
+    directory must name a valid platform domain; anything else raises an error
+    so that typos are caught early.
+
+    Returns:
+        List of ``"domain.component"`` strings, one per discovered sub-directory.
+    """
+    platform_components: list[str] = []
+    for component in components:
+        test_dir = COMPONENTS_TESTS_DIR / component
+        if not test_dir.is_dir():
+            continue
+        # Each sub-directory name is expected to be a platform domain
+        # (e.g. tests/components/bthome/sensor/ → sensor.bthome).
+        for domain_dir in test_dir.iterdir():
+            if not domain_dir.is_dir():
+                continue
+            domain = domain_dir.name
+            domain_module = get_component(domain)
+            if domain_module is None or not domain_module.is_platform_component:
+                raise ValueError(
+                    f"Component tests for '{component}' reference non-existing or invalid domain '{domain}'"
+                    f" in its directory structure. See ({COMPONENTS_TESTS_DIR / component / domain})."
+                )
+            platform_components.append(f"{domain}.{component}")
+    return platform_components
+
+
+# Exit codes for run_tests
+EXIT_OK = 0
+EXIT_SKIPPED = 1
+EXIT_COMPILE_ERROR = 2
+EXIT_CONFIG_ERROR = 3
+EXIT_NO_EXECUTABLE = 4
+
+
 def run_tests(selected_components: list[str]) -> int:
     # Skip tests on Windows
     if os.name == "nt":
         print("Skipping esphome tests on Windows", file=sys.stderr)
-        return 1
+        return EXIT_SKIPPED
 
     # Remove components that do not have tests
     components = filter_components_without_tests(selected_components)
@@ -127,45 +146,63 @@ def run_tests(selected_components: list[str]) -> int:
             "No components specified or no tests found for the specified components.",
             file=sys.stderr,
         )
-        return 0
+        return EXIT_OK
 
     components = sorted(components)
 
-    # Obtain possible dependencies for the requested components.
-    # Always include 'time' because USE_TIME_TIMEZONE is defined as a build flag,
-    # which causes core/time.h to include components/time/posix_tz.h.
-    components_with_dependencies = sorted(
-        get_all_dependencies(set(components) | {"time"})
-    )
-
-    # Build a list of include folders, one folder per component containing tests.
-    # A special replacement main.cpp is located in /tests/components/main.cpp
+    # Build a list of include folders relative to COMPONENTS_TESTS_DIR. These folders will
+    # be added along with their subfolders.
+    # "main.cpp" is a special entry that points to /tests/components/main.cpp,
+    # which provides a custom test runner entry-point replacing the default one.
+    # Each remaining entry is a component folder whose *.cpp files are compiled.
     includes: list[str] = ["main.cpp"] + components
+
+    # Obtain a list of platform components to be tested:
+    try:
+        platform_components = get_platform_components(components)
+    except ValueError as e:
+        print(f"Error obtaining platform components: {e}")
+        return EXIT_CONFIG_ERROR
+
+    components = sorted(components + platform_components)
 
     # Create a unique name for this config based on the actual components being tested
     # to maximize cache during testing
     config_name: str = "cpptests-" + hash_components(components)
 
-    config = create_test_config(config_name, includes)
+    # Obtain possible dependencies for the requested components.
+    # Always include 'time' because USE_TIME_TIMEZONE is defined as a build flag,
+    # which causes core/time.h to include components/time/posix_tz.h.
+    components_with_dependencies: list[str] = sorted(
+        get_all_dependencies(set(components) | {"time"}, cpp_testing=True)
+    )
 
-    # Merge component-specific test configs (e.g. sensor instances) before
-    # validation so that entity registration and USE_* defines work.
-    extra_config = load_component_test_configs(components)
-    config.update(extra_config)
+    config = create_test_config(config_name, includes)
 
     CORE.config_path = COMPONENTS_TESTS_DIR / "dummy.yaml"
     CORE.dashboard = None
+    CORE.cpp_testing = True
+    CORE.cpp_testing_codegen = CPP_TESTING_CODEGEN_COMPONENTS
 
     # Validate config will expand the above with defaults:
     config = validate_config(config, {})
 
     # Add all components and dependencies to the base configuration after validation, so their files
-    # are added to the build.  Use setdefault to avoid overwriting entries that were
-    # already validated (e.g. sensor instances from cpp_test.yaml).
-    for key in components_with_dependencies:
-        config.setdefault(key, {})
+    # are added to the build.
+    for component_name in components_with_dependencies:
+        if "." in component_name:
+            # Format is always "domain.component" (exactly one dot),
+            # as produced by get_platform_components().
+            domain, component = component_name.split(".", maxsplit=1)
+            domain_list = config.setdefault(domain, [])
+            CORE.testing_ensure_platform_registered(domain)
+            domain_list.append({CONF_PLATFORM: component})
+        else:
+            config.setdefault(component_name, [])
 
-    print(f"Testing components: {', '.join(components)}")
+    dependencies = set(components_with_dependencies) - set(components)
+    deps_str = ", ".join(dependencies) if dependencies else "None"
+    print(f"Testing components: {', '.join(components)}. Dependencies: {deps_str}")
     CORE.config = config
     args = parse_args(["program", "compile", str(CORE.config_path)])
     try:
@@ -178,13 +215,13 @@ def run_tests(selected_components: list[str]) -> int:
         print(
             f"Error compiling unit tests for {', '.join(components)}. Check path. : {e}"
         )
-        return 2
+        return EXIT_COMPILE_ERROR
 
     # After a successful compilation, locate the executable and run it:
     idedata = get_idedata(config)
     if idedata is None:
         print("Cannot find executable")
-        return 1
+        return EXIT_NO_EXECUTABLE
 
     program_path: str = idedata.raw["prog_path"]
     run_cmd: list[str] = [program_path]

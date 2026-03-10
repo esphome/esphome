@@ -506,6 +506,7 @@ canbus::Error MCP2515::set_bitrate_(canbus::CanSpeed can_speed, CanClock can_clo
           cfg3 = MCP_12MHZ_40KBPS_CFG3;
           break;
         case (canbus::CAN_50KBPS):  //  50Kbps
+          cfg1 = MCP_12MHZ_50KBPS_CFG1;
           cfg2 = MCP_12MHZ_50KBPS_CFG2;
           cfg3 = MCP_12MHZ_50KBPS_CFG3;
           break;
