@@ -1,0 +1,38 @@
+---
+description: "Instructions for setting up Bluetooth LE on RP2040/RP2350 devices in ESPHome."
+title: "RP2040 BLE Component"
+---
+
+The `rp2040_ble` component in ESPHome sets up the Bluetooth LE stack on RP2040 and RP2350 devices
+using the [BTstack](https://github.com/bluekitchen/btstack) library provided by the
+[arduino-pico](https://github.com/earlephilhower/arduino-pico) framework.
+
+This component requires a board with the Cypress/Infineon **CYW43439** wireless chip, which provides
+both WiFi and Bluetooth 5.2 support. The Raspberry Pi **Pico W** and **Pico 2 W** are the most common
+boards with this chip.
+
+> [!NOTE]
+> This component initializes the BLE stack only. Additional components for scanning, connecting,
+> and acting as a server will be added in future releases.
+
+> [!NOTE]
+> This component uses the [BTstack](https://github.com/bluekitchen/btstack) Bluetooth stack, which is
+> included in the [pico-sdk](https://github.com/raspberrypi/pico-sdk). Raspberry Pi provides a
+> [royalty-free commercial license](https://github.com/raspberrypi/pico-sdk/blob/master/src/rp2_common/pico_btstack/LICENSE.RP)
+> for BTstack when used on supported hardware (Pico W, Pico 2 W, and RM2). No additional licensing
+> is required.
+
+```yaml
+# Example configuration
+
+rp2040_ble:
+```
+
+## Configuration variables
+
+- **enable_on_boot** (*Optional*, boolean): If enabled, the BLE interface will be enabled on boot. Defaults to `true`.
+
+## See Also
+
+- [RP2040 Platform](/components/rp2040/)
+- [ESP32 BLE Component](/components/esp32_ble/)
