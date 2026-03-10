@@ -294,19 +294,32 @@ bool DlmsParser::parse_element_(uint8_t type, uint8_t depth) {
 }
 
 bool DlmsParser::parse_sequence_(uint8_t type, uint8_t depth) {
-  uint8_t elements_count = this->read_byte_();
-  if (elements_count == 0xFF) {
+  uint8_t first_byte = this->read_byte_();
+  if (first_byte == 0xFF) {
     if (this->show_log_)
       ESP_LOGVV(TAG, "Invalid sequence length at position %zu", this->pos_ - 1);
     return false;
   }
 
+  uint32_t elements_count = first_byte;
+  // Handle DLMS multi-byte length fields for sequence counts
+  if (first_byte > 127) {
+    uint8_t num_bytes = first_byte & 0x7F;
+    elements_count = 0;
+    for (int i = 0; i < num_bytes; i++) {
+      uint8_t b = this->read_byte_();
+      if (b == 0xFF && this->pos_ >= this->buffer_len_)
+        return false;
+      elements_count = (elements_count << 8) | b;
+    }
+  }
+
   if (this->show_log_) {
-    ESP_LOGD(TAG, "Parsing %s with %d elements at position %zu (depth %d)",
+    ESP_LOGD(TAG, "Parsing %s with %u elements at position %zu (depth %d)",
              type == DLMS_DATA_TYPE_STRUCTURE ? "STRUCTURE" : "ARRAY", elements_count, this->pos_ - 1, depth);
   }
 
-  uint8_t elements_consumed = 0;
+  uint32_t elements_consumed = 0;
   while (elements_consumed < elements_count) {
     size_t original_position = this->pos_;
 
@@ -318,7 +331,7 @@ bool DlmsParser::parse_sequence_(uint8_t type, uint8_t depth) {
 
     if (this->pos_ >= this->buffer_len_) {
       if (this->show_log_) {
-        ESP_LOGV(TAG, "Unexpected end while reading element %d of %s", elements_consumed + 1,
+        ESP_LOGV(TAG, "Unexpected end while reading element %u of %s", elements_consumed + 1,
                  type == DLMS_DATA_TYPE_STRUCTURE ? "STRUCTURE" : "ARRAY");
       }
 
@@ -332,7 +345,7 @@ bool DlmsParser::parse_sequence_(uint8_t type, uint8_t depth) {
 
     if (this->pos_ == original_position) {
       if (this->show_log_) {
-        ESP_LOGV(TAG, "No progress parsing element %d at position %zu, aborting to avoid infinite loop",
+        ESP_LOGV(TAG, "No progress parsing element %u at position %zu, aborting to avoid infinite loop",
                  elements_consumed, original_position);
       }
 
@@ -389,20 +402,23 @@ bool DlmsParser::capture_generic_value_(AxdrCaptures &c) {
   return true;
 }
 
-bool DlmsParser::try_match_patterns_(uint8_t elem_idx) {
+bool DlmsParser::try_match_patterns_(uint32_t elem_idx) {
   for (const auto &p : this->patterns_) {
     uint8_t consumed = 0;
     size_t saved_position = this->pos_;
     if (this->match_pattern_(elem_idx, p, consumed)) {
-      this->last_pattern_elements_consumed_ = consumed;
-      return true;
+      // Ensure we actually made progress in the buffer to prevent infinite loops on zero-consuming matches
+      if (this->pos_ > saved_position) {
+        this->last_pattern_elements_consumed_ = consumed;
+        return true;
+      }
     }
-    this->pos_ = saved_position;  // Backtrack if match failed
+    this->pos_ = saved_position;  // Backtrack if match failed or consumed zero bytes
   }
   return false;
 }
 
-bool DlmsParser::match_pattern_(uint8_t elem_idx, const AxdrDescriptorPattern &pat,
+bool DlmsParser::match_pattern_(uint32_t elem_idx, const AxdrDescriptorPattern &pat,
                                 uint8_t &elements_consumed_at_level0) {
   AxdrCaptures cap{};
   elements_consumed_at_level0 = 0;
@@ -494,6 +510,11 @@ bool DlmsParser::match_pattern_(uint8_t elem_idx, const AxdrDescriptorPattern &p
     }
   }
 
+  // Reject the match if no OBIS or value was captured
+  if (!cap.obis || cap.value_type == DLMS_DATA_TYPE_NONE) {
+    return false;
+  }
+
   if (elements_consumed_at_level0 == 0)
     elements_consumed_at_level0 = 1;
   cap.elem_idx = initial_position;
@@ -513,7 +534,8 @@ void DlmsParser::emit_object_(const AxdrDescriptorPattern &pat, const AxdrCaptur
   float val_f = raw_val_f;
 
   bool is_numeric = (c.value_type != DLMS_DATA_TYPE_OCTET_STRING && c.value_type != DLMS_DATA_TYPE_STRING &&
-                     c.value_type != DLMS_DATA_TYPE_STRING_UTF8);
+                     c.value_type != DLMS_DATA_TYPE_STRING_UTF8 && c.value_type != DLMS_DATA_TYPE_DATETIME &&
+                     c.value_type != DLMS_DATA_TYPE_DATE && c.value_type != DLMS_DATA_TYPE_TIME);
 
   if (c.has_scaler_unit && is_numeric) {
     val_f *= std::pow(10, c.scaler);
