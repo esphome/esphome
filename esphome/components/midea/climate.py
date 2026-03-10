@@ -289,8 +289,7 @@ async def to_code(config):
     if CONF_HUMIDITY_SETPOINT in config:
         sens = await sensor.new_sensor(config[CONF_HUMIDITY_SETPOINT])
         cg.add(var.set_humidity_setpoint_sensor(sens))
-    # TODO: Update to official library after https://github.com/dudanov/MideaUART/pull/27 is merged
-    # cg.add_library("dudanov/MideaUART", "1.2.0")
+    # Using fork with ESP-IDF support until dudanov/MideaUART#27 is merged
     cg.add_library(
         name="MideaUART",
         version=None,
