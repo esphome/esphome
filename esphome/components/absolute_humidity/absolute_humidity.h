@@ -28,17 +28,17 @@ class AbsoluteHumidityComponent : public sensor::Sensor, public Component {
    *
    * @param temperature_c Air temperature in °C.
    */
-  static float es_buck(float temperature_c);
+  static float es_buck(float const temperature_c);
   /** Tetens equation for saturation vapor pressure in kPa.
    *
    * @param temperature_c Air temperature in °C.
    */
-  static float es_tetens(float temperature_c);
+  static float es_tetens(float const temperature_c);
   /** Wobus equation for saturation vapor pressure in kPa.
    *
    * @param temperature_c Air temperature in °C.
    */
-  static float es_wobus(float temperature_c);
+  static float es_wobus(float const temperature_c);
 
   /** Calculate vapor density (absolute humidity) in g/m³.
    *
@@ -46,7 +46,7 @@ class AbsoluteHumidityComponent : public sensor::Sensor, public Component {
    * @param hr Relative humidity 0 to 1.
    * @param ta Absolute temperature in K.
    */
-  static float vapor_density(float es, float hr, float ta);
+  static float vapor_density(float const es, float const hr, float const ta);
 
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
