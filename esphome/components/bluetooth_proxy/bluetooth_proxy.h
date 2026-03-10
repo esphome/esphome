@@ -46,6 +46,7 @@ enum BluetoothProxyFeature : uint32_t {
   FEATURE_CACHE_CLEARING = 1 << 4,
   FEATURE_RAW_ADVERTISEMENTS = 1 << 5,
   FEATURE_STATE_AND_MODE = 1 << 6,
+  FEATURE_CONNECTION_PARAMS_SETTING = 1 << 7,
 };
 
 enum BluetoothProxySubscriptionFlag : uint32_t {
@@ -82,6 +83,7 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
   void bluetooth_gatt_write_descriptor(const api::BluetoothGATTWriteDescriptorRequest &msg);
   void bluetooth_gatt_send_services(const api::BluetoothGATTGetServicesRequest &msg);
   void bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest &msg);
+  void bluetooth_set_connection_params(const api::BluetoothSetConnectionParamsRequest &msg);
 
   void subscribe_api_connection(api::APIConnection *api_connection, uint32_t flags);
   void unsubscribe_api_connection(api::APIConnection *api_connection);
@@ -130,6 +132,7 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
       flags |= BluetoothProxyFeature::FEATURE_REMOTE_CACHING;
       flags |= BluetoothProxyFeature::FEATURE_PAIRING;
       flags |= BluetoothProxyFeature::FEATURE_CACHE_CLEARING;
+      flags |= BluetoothProxyFeature::FEATURE_CONNECTION_PARAMS_SETTING;
     }
 
     return flags;

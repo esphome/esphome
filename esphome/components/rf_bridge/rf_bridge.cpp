@@ -74,7 +74,7 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
       data.length = raw[2];
       data.protocol = raw[3];
       char next_byte[3];  // 2 hex chars + null
-      for (uint8_t i = 0; i < data.length - 1; i++) {
+      for (uint8_t i = 0; i + 1 < data.length; i++) {
         buf_append_printf(next_byte, sizeof(next_byte), 0, "%02X", raw[4 + i]);
         data.code += next_byte;
       }
@@ -145,6 +145,9 @@ void RFBridgeComponent::loop() {
     }
     avail -= to_read;
     for (size_t i = 0; i < to_read; i++) {
+      if (this->rx_buffer_.size() > MAX_RX_BUFFER_SIZE) {
+        this->rx_buffer_.clear();
+      }
       if (this->parse_bridge_byte_(buf[i])) {
         ESP_LOGVV(TAG, "Parsed: 0x%02X", buf[i]);
         this->last_bridge_byte_ = now;
