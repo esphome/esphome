@@ -38,6 +38,14 @@ PipelineContext = speaker_source_ns.struct("PipelineContext")
 Pipeline = speaker_source_ns.enum("Pipeline")
 
 
+FORMAT_MAPPING = {
+    "FLAC": "flac",
+    "MP3": "mp3",
+    "OPUS": "opus",
+    "WAV": "wav",
+}
+
+
 # Returns a media_player.MediaPlayerSupportedFormat struct with the configured
 # format, sample rate, number of channels, purpose, and bytes per sample
 def _get_supported_format_struct(pipeline: ConfigType):
@@ -45,14 +53,7 @@ def _get_supported_format_struct(pipeline: ConfigType):
         media_player.MediaPlayerSupportedFormat,
     ]
 
-    if pipeline[CONF_FORMAT] == "FLAC":
-        args.append(("format", "flac"))
-    elif pipeline[CONF_FORMAT] == "MP3":
-        args.append(("format", "mp3"))
-    elif pipeline[CONF_FORMAT] == "OPUS":
-        args.append(("format", "opus"))
-    elif pipeline[CONF_FORMAT] == "WAV":
-        args.append(("format", "wav"))
+    args.append(("format", FORMAT_MAPPING[pipeline[CONF_FORMAT]]))
 
     args.append(("sample_rate", pipeline[CONF_SAMPLE_RATE]))
     args.append(("num_channels", pipeline[CONF_NUM_CHANNELS]))
