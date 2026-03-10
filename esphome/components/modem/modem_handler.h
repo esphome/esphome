@@ -44,7 +44,6 @@ class ModemHandler {
   std::string apn;
   std::vector<std::string> init_at_commands;
   int baud_rate = 0;
-  bool cmux{false};
 
   // esp_modem objects
   std::unique_ptr<DCE> dce{nullptr};

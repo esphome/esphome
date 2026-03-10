@@ -51,7 +51,6 @@ CONF_ON_NOT_RESPONDING = "on_not_responding"
 CONF_ON_ENABLE = "on_enable"
 CONF_ON_DISABLE = "on_disable"
 CONF_ON_SYNC = "on_sync"
-CONF_ENABLE_CMUX = "enable_cmux"
 CONF_DTE_BUFFER_SIZE = "dte_buffer_size"
 CONF_URC = "urc"
 
@@ -123,7 +122,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_USE_ADDRESS): cv.string,
             cv.Optional(CONF_INIT_AT): cv.All(cv.ensure_list(cv.string)),
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
-            cv.Optional(CONF_ENABLE_CMUX, default=True): cv.boolean,
             cv.Optional(CONF_DEBUG, default=False): cv.boolean,
             cv.Optional(CONF_TX_BUFFER_SIZE, default=1024): cv.positive_int,
             cv.Optional(CONF_RX_BUFFER_SIZE, default=1024): cv.positive_int,
@@ -168,18 +166,6 @@ CONFIG_SCHEMA = cv.All(
         esp_idf=cv.Version(4, 0, 0),  # 5.2.0 OK
     ),
 )
-
-
-def final_validate_platform(config):
-    # To be called by platform components
-    if modem_config := fv.full_config.get().get(CONF_MODEM, None):
-        if not modem_config.get(CONF_ENABLE_CMUX, None):
-            raise cv.Invalid(
-                f"'{CONF_MODEM}' platform require '{CONF_ENABLE_CMUX}' to be 'true'."
-            )
-    else:
-        raise cv.Invalid("'{CONF_MODEM}' component required.")
-    return config
 
 
 def _final_validate(config):
@@ -303,9 +289,6 @@ async def to_code(config):
 
     if config[CONF_ENABLE_ON_BOOT]:
         cg.add(var.enable())
-
-    if config[CONF_ENABLE_CMUX]:
-        cg.add(var.enable_cmux())
 
     if config[CONF_DEBUG]:
         add_idf_sdkconfig_option("CONFIG_LOG_MAXIMUM_LEVEL_VERBOSE", True)

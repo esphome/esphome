@@ -147,7 +147,6 @@ void ModemComponent::setup() {
   ESP_LOGCONFIG(TAG, "  Tx Pin    : GPIO%u", this->modem_handler->tx_pin->get_pin());
   ESP_LOGCONFIG(TAG, "  Rx Pin    : GPIO%u", this->modem_handler->rx_pin->get_pin());
   ESP_LOGCONFIG(TAG, "  Enabled   : %s", (this->component_state_ != ModemComponentState::DISABLED) ? "Yes" : "No");
-  ESP_LOGCONFIG(TAG, "  Use CMUX  : %s", this->modem_handler->cmux ? "Yes" : "No");
   if (this->modem_handler->baud_rate != 0)
     ESP_LOGCONFIG(TAG, "  Baud rate : %d", this->modem_handler->baud_rate);
   ESP_LOGCONFIG(TAG, "  UART port : %d", this->modem_handler->uart_port_num);
@@ -397,11 +396,7 @@ ModemComponentState ModemComponent::handle_state_init_network_() {
 
 ModemComponentState ModemComponent::handle_state_start_ppp_() {
   bool status = false;
-  if (this->modem_handler->cmux) {
-    status = this->modem_handler->dce->set_mode(esp_modem::modem_mode::CMUX_MODE);
-  } else {
-    status = this->modem_handler->dce->set_mode(esp_modem::modem_mode::DATA_MODE);
-  }
+  status = this->modem_handler->dce->set_mode(esp_modem::modem_mode::CMUX_MODE);
 
   if (!status) {
     ESP_LOGE(TAG, "Failed to enter PPP. Resetting modem.");
@@ -435,12 +430,9 @@ ModemComponentState ModemComponent::handle_state_connected_() {
     this->loop_delay_(this->modem_handler->connect_retry_delay);
     return ModemComponentState::DISCONNECTED;
   }
-  // If CMUX, we can log status
-  if (this->modem_handler->cmux) {
-    if ((millis() - this->last_health_check_) > 30000) {
-      this->last_health_check_ = millis();
-      this->modem_handler->modem_log_status();
-    }
+  if ((millis() - this->last_health_check_) > 30000) {
+    this->last_health_check_ = millis();
+    this->modem_handler->modem_log_status();
   }
   this->loop_delay_(2000);
   return ModemComponentState::CONNECTED;
