@@ -46,7 +46,6 @@ class AbsoluteHumidityComponent : public sensor::Sensor, public Component {
    * @param es Saturation vapor pressure in kPa.
    * @param hr Relative humidity 0 to 1.
    * @param ta Absolute temperature in K.
-   * @param heater_duration The duration in ms that the heater should turn on for when measuring.
    */
   static float vapor_density(float es, float hr, float ta);
 
