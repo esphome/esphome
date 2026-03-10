@@ -1,0 +1,157 @@
+#ifdef USE_RP2040
+
+#include "crash_handler.h"
+#include "esphome/core/log.h"
+
+#include <hardware/structs/watchdog.h>
+#include <hardware/watchdog.h>
+
+// Cortex-M0+ exception frame offsets (words)
+// When a fault occurs, the CPU pushes: R0, R1, R2, R3, R12, LR, PC, xPSR
+#define EF_LR 5
+#define EF_PC 6
+
+static constexpr uint32_t CRASH_MAGIC = 0xDEADBEEF;
+
+// We only have 8 scratch registers (32 bytes) that survive watchdog reboot.
+// Use them for the most important data, then scan the stack for code addresses.
+//
+// Scratch register layout:
+// [0] = magic (CRASH_MAGIC)
+// [1] = PC (program counter at fault)
+// [2] = LR (link register from exception frame)
+// [3] = SP (stack pointer at fault)
+// [4..7] = up to 4 additional code addresses found by scanning the stack
+//          (return addresses from callers, giving a deeper backtrace)
+
+// RP2040 flash is mapped at 0x10000000, code lives in first 1MB typically
+static inline bool is_code_addr(uint32_t val) {
+  // Thumb addresses have bit 0 set, but addr2line wants them without it.
+  // Accept anything in flash range 0x10000000-0x10100000 (1MB)
+  uint32_t cleared = val & ~1u;
+  return cleared >= 0x10000000 && cleared < 0x10100000;
+}
+
+static constexpr size_t MAX_BACKTRACE = 4;
+
+namespace esphome {
+namespace rp2040 {
+
+static const char *const TAG = "rp2040.crash";
+
+static struct {
+  bool valid{false};
+  uint32_t pc;
+  uint32_t lr;
+  uint32_t sp;
+  uint32_t backtrace[MAX_BACKTRACE];
+  uint8_t backtrace_count;
+} s_crash_data;
+
+void crash_handler_read_and_clear() {
+  if (watchdog_hw->scratch[0] == CRASH_MAGIC) {
+    s_crash_data.valid = true;
+    s_crash_data.pc = watchdog_hw->scratch[1];
+    s_crash_data.lr = watchdog_hw->scratch[2];
+    s_crash_data.sp = watchdog_hw->scratch[3];
+    s_crash_data.backtrace_count = 0;
+    for (size_t i = 0; i < MAX_BACKTRACE; i++) {
+      uint32_t addr = watchdog_hw->scratch[4 + i];
+      if (addr == 0)
+        break;
+      s_crash_data.backtrace[i] = addr;
+      s_crash_data.backtrace_count++;
+    }
+  }
+  // Clear scratch registers regardless
+  for (int i = 0; i < 8; i++) {
+    watchdog_hw->scratch[i] = 0;
+  }
+}
+
+void crash_handler_log() {
+  if (!s_crash_data.valid)
+    return;
+
+  ESP_LOGE(TAG, "*** CRASH DETECTED ON PREVIOUS BOOT ***");
+  ESP_LOGE(TAG, "  PC:  0x%08X  (fault location)", s_crash_data.pc);
+  ESP_LOGE(TAG, "  LR:  0x%08X  (return address)", s_crash_data.lr);
+  ESP_LOGE(TAG, "  SP:  0x%08X", s_crash_data.sp);
+  for (uint8_t i = 0; i < s_crash_data.backtrace_count; i++) {
+    ESP_LOGE(TAG, "  BT%d: 0x%08X  (stack backtrace)", i, s_crash_data.backtrace[i]);
+  }
+  ESP_LOGE(TAG, "Use addr2line -e firmware.elf 0x%08X 0x%08X to decode", s_crash_data.pc, s_crash_data.lr);
+}
+
+}  // namespace rp2040
+}  // namespace esphome
+
+// --- HardFault handler ---
+// Overrides the weak isr_hardfault from arduino-pico's crt0.S.
+// On Cortex-M0+, the CPU pushes {R0,R1,R2,R3,R12,LR,PC,xPSR} onto the
+// active stack (MSP or PSP). We determine which stack was active,
+// extract key registers, store them in watchdog scratch registers
+// (which survive watchdog reboot), then trigger a reboot.
+
+// C handler called from the asm wrapper with the exception frame pointer.
+static void __attribute__((used)) hard_fault_handler_c(uint32_t *frame, uint32_t exc_return) {
+  // watchdog_reboot() overwrites scratch[4]-[7], so we must call it first
+  // then write ALL our data after. The 10ms timeout gives us plenty of time.
+  watchdog_reboot(0, 0, 10);
+
+  // Write key registers
+  watchdog_hw->scratch[0] = CRASH_MAGIC;
+  watchdog_hw->scratch[1] = frame[EF_PC];
+  watchdog_hw->scratch[2] = frame[EF_LR];
+  watchdog_hw->scratch[3] = (uint32_t) frame;  // SP at fault
+
+  // Scan stack for code addresses to build a deeper backtrace.
+  // The exception frame is 8 words (32 bytes) at 'frame'. The pre-fault
+  // stack starts at frame+8. Walk up to 64 words looking for return addresses.
+  uint32_t *scan_start = frame + 8;  // Past exception frame
+  // RP2040 RAM ends at 0x20042000 (264KB SRAM)
+  uint32_t *stack_top = (uint32_t *) 0x20042000;
+  uint32_t bt_count = 0;
+
+  for (uint32_t *p = scan_start; p < stack_top && p < scan_start + 64 && bt_count < MAX_BACKTRACE; p++) {
+    uint32_t val = *p;
+    // Check if this looks like a code address in flash
+    // Skip if it's the same as PC or LR we already saved
+    if (is_code_addr(val) && val != frame[EF_PC] && val != frame[EF_LR]) {
+      watchdog_hw->scratch[4 + bt_count] = val;
+      bt_count++;
+    }
+  }
+  // Zero remaining slots
+  for (uint32_t i = bt_count; i < MAX_BACKTRACE; i++) {
+    watchdog_hw->scratch[4 + i] = 0;
+  }
+
+  while (true) {
+    __asm volatile("nop");
+  }
+}
+
+// Naked asm wrapper - Cortex-M0+ compatible (no ITE/conditional execution).
+// Determines active stack pointer and branches to C handler.
+// Uses literal pool (.word) for addresses since M0+ has limited immediate encoding.
+extern "C" void __attribute__((naked, used)) isr_hardfault() {
+  __asm volatile("movs r0, #4          \n"  // Prepare bit 2 mask
+                 "mov  r1, lr          \n"  // r1 = EXC_RETURN
+                 "tst  r1, r0          \n"  // Test bit 2
+                 "beq  1f              \n"  // If 0, was using MSP
+                 "mrs  r0, psp         \n"  // Bit 2 set = PSP was active
+                 "b    2f              \n"
+                 "1:                   \n"
+                 "mrs  r0, msp         \n"  // Bit 2 clear = MSP was active
+                 "2:                   \n"
+                 // r0 = exception frame pointer, r1 = EXC_RETURN (still in r1)
+                 "ldr  r2, 3f          \n"  // Load C handler address from literal pool
+                 "bx   r2              \n"  // Branch to handler (r0=frame, r1=exc_return)
+                 ".align 2             \n"
+                 "3: .word %c0         \n"  // Literal pool: address of C handler
+                 :
+                 : "i"(hard_fault_handler_c));
+}
+
+#endif  // USE_RP2040
