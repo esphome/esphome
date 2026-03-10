@@ -11,7 +11,7 @@ void DewPointComponent::setup() {
   if (this->temperature_sensor_ != nullptr) {
     this->temperature_sensor_->add_on_state_callback([this](float state) {
       this->temperature_value_ = state;
-      this->update_dew_point_();
+      this->enable_loop();
     });
     // Get initial value
     if (this->temperature_sensor_->has_state()) {
@@ -22,16 +22,13 @@ void DewPointComponent::setup() {
   if (this->humidity_sensor_ != nullptr) {
     this->humidity_sensor_->add_on_state_callback([this](float state) {
       this->humidity_value_ = state;
-      this->update_dew_point_();
+      this->enable_loop();
     });
     // Get initial value
     if (this->humidity_sensor_->has_state()) {
       this->humidity_value_ = this->humidity_sensor_->state;
     }
   }
-
-  // Calculate initial dew point
-  this->update_dew_point_();
 }
 
 void DewPointComponent::dump_config() {
@@ -45,7 +42,10 @@ void DewPointComponent::dump_config() {
 
 float DewPointComponent::get_setup_priority() const { return setup_priority::DATA; }
 
-void DewPointComponent::update_dew_point_() {
+void DewPointComponent::loop() {
+  // Only run once
+  this->disable_loop();
+
   // Check if we have valid values for both sensors
   if (std::isnan(this->temperature_value_) || std::isnan(this->humidity_value_)) {
     ESP_LOGW(TAG, "Temperature or humidity value is NaN, skipping calculation");

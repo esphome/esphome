@@ -13,12 +13,11 @@ class DewPointComponent : public Component, public sensor::Sensor {
 
   void setup() override;
   void dump_config() override;
+  void loop() override;
 
   float get_setup_priority() const override;
 
  protected:
-  void update_dew_point_();
-
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
   float temperature_value_{NAN};
