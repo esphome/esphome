@@ -42,7 +42,7 @@ class ModemComponent : public Component, public uart::UARTComponent {
   bool peek_byte(uint8_t *data) override { return false; }
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override { return this->uart_buffer_size_; }
-  void flush() override {}
+  uart::FlushResult flush() override { return uart::FlushResult::ASSUMED_SUCCESS; }
   void check_logger_conflict() override {}
 
   void set_reboot_timeout(uint32_t timeout) { this->timeout_ = timeout; }
