@@ -5,12 +5,6 @@ modem:
   rx_pin: GPIO26
   tx_pin: GPIO27
   baud_rate: 115200
-  power_pin:
-    ton_pulse_delay: 3s
-    ton_delay: 10s
-    pin:
-      number: GPIO04
-      inverted: True
   model: SIM7600
   apn: orange
   pin_code: "0000"
@@ -28,25 +22,20 @@ modem:
   nmea:
     id: nmea_data
 
-text_sensor:
-  - platform: modem
-    network_type:
-      name: network type
-    signal_strength:
-      name: Signal strength
-
-sensor:
-  - platform: modem
-    rssi:
-      name: rssi
-    ber:
-      name: ber
-
-switch:
-  - platform: modem
-    gnss:
-      name: GNSS
-      restore_mode: ALWAYS_ON
+# commented while sub pr #14683 not merged
+#text_sensor:
+#  - platform: modem
+#    network_type:
+#      name: network type
+#    signal_strength:
+#      name: Signal strength
+#
+#sensor:
+#  - platform: modem
+#    rssi:
+#      name: rssi
+#    ber:
+#      name: ber
 
 packages:
   - !include common.yaml
