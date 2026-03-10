@@ -4,6 +4,11 @@ namespace esphome::micronova {
 
 static const char *const TAG = "micronova.switch";
 
+void MicroNovaSwitch::dump_config() {
+  LOG_SWITCH("", "Micronova switch", this);
+  this->dump_base_config();
+}
+
 void MicroNovaSwitch::write_state(bool state) {
   if (state) {
     // Only send power-on when current state is Off

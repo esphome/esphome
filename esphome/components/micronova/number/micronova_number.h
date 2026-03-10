@@ -8,10 +8,7 @@ namespace esphome::micronova {
 class MicroNovaNumber : public number::Number, public MicroNovaListener {
  public:
   MicroNovaNumber(MicroNova *m) : MicroNovaListener(m) {}
-  void dump_config() override {
-    LOG_NUMBER("", "Micronova number", this);
-    this->dump_base_config();
-  }
+  void dump_config() override;
   void control(float value) override;
   void process_value_from_stove(int value_from_stove) override;
 

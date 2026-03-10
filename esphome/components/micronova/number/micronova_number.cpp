@@ -2,6 +2,13 @@
 
 namespace esphome::micronova {
 
+static const char *const TAG = "micronova.number";
+
+void MicroNovaNumber::dump_config() {
+  LOG_NUMBER("", "Micronova number", this);
+  this->dump_base_config();
+}
+
 void MicroNovaNumber::process_value_from_stove(int value_from_stove) {
   if (value_from_stove == -1) {
     this->publish_state(NAN);

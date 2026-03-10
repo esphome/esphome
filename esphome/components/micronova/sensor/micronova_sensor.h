@@ -8,10 +8,7 @@ namespace esphome::micronova {
 class MicroNovaSensor : public sensor::Sensor, public MicroNovaListener {
  public:
   MicroNovaSensor(MicroNova *m) : MicroNovaListener(m) {}
-  void dump_config() override {
-    LOG_SENSOR("", "Micronova sensor", this);
-    this->dump_base_config();
-  }
+  void dump_config() override;
 
   void process_value_from_stove(int value_from_stove) override;
 
