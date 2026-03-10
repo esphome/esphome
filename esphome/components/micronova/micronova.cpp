@@ -114,7 +114,10 @@ void MicroNova::queue_read_request(uint8_t location, uint8_t address) {
   cmd.memory_address = address;
   cmd.data = 0;
 
-  this->read_queue_.push(cmd);
+  if (!this->read_queue_.push(cmd)) {
+    ESP_LOGW(TAG, "Read queue full, dropping read [%02X,%02X]", location, address);
+    return;
+  }
   ESP_LOGV(TAG, "Queued read [%02X,%02X] (queue size: %zu)", location, address, this->read_queue_.size());
 }
 #endif

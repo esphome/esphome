@@ -101,7 +101,7 @@ class MicroNova : public Component, public uart::UARTDevice {
 #ifdef MICRONOVA_LISTENER_COUNT
   StaticRingBuffer<MicroNovaCommand, MICRONOVA_LISTENER_COUNT> read_queue_;
 #endif
-  MicroNovaCommand current_command_;
+  MicroNovaCommand current_command_{};
   uint32_t transmission_time_{0};  ///< Time when current command was sent
   bool reply_pending_{false};      ///< True if we are waiting for a reply from the stove
 
