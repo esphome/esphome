@@ -122,21 +122,24 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
   }
   switch (this->bits_per_pixel_) {
     case 1: {
+      size_t width = static_cast<size_t>(this->width_);
       while (index < size) {
-        uint8_t current_byte = buffer[index];
-        bool end_of_row = false;
-        for (uint8_t i = 0; i < 8; i++) {
-          size_t x = this->paint_index_ % static_cast<size_t>(this->width_);
-          size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / static_cast<size_t>(this->width_));
-          Color c = (current_byte & (1 << (7 - i))) ? display::COLOR_ON : display::COLOR_OFF;
-          this->draw(x, y, 1, 1, c);
-          this->paint_index_++;
-          // End of pixel row: skip remaining bits in this byte
-          if (x + 1 >= static_cast<size_t>(this->width_)) {
-            end_of_row = true;
-            break;
-          }
+        size_t x = this->paint_index_ % width;
+        size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / width);
+        size_t remaining_in_row = width - x;
+        uint8_t pixels_in_byte = std::min<size_t>(remaining_in_row, 8);
+        bool end_of_row = remaining_in_row <= 8;
+        size_t needed = 1 + (end_of_row ? this->padding_bytes_ : 0);
+        if (index + needed > size) {
+          this->decoded_bytes_ += index;
+          return index;
         }
+        uint8_t current_byte = buffer[index];
+        for (uint8_t i = 0; i < pixels_in_byte; i++) {
+          Color c = (current_byte & (1 << (7 - i))) ? display::COLOR_ON : display::COLOR_OFF;
+          this->draw(x + i, y, 1, 1, c);
+        }
+        this->paint_index_ += pixels_in_byte;
         this->current_index_++;
         index++;
         // End of pixel row: skip row padding bytes (4-byte alignment)
