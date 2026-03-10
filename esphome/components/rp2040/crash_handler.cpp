@@ -24,12 +24,13 @@ static constexpr uint32_t CRASH_MAGIC = 0xDEADBEEF;
 // [4..7] = up to 4 additional code addresses found by scanning the stack
 //          (return addresses from callers, giving a deeper backtrace)
 
-// RP2040 flash is mapped at 0x10000000, code lives in first 1MB typically
+// RP2040 flash is mapped at 0x10000000 with up to 16MB address space.
+// We use 2MB as the upper bound — large enough for any typical ESPHome firmware
+// while keeping false positives low during stack scanning. Wider ranges would
+// match more stale data on the stack that happens to look like code addresses.
 static inline bool is_code_addr(uint32_t val) {
-  // Thumb addresses have bit 0 set, but addr2line wants them without it.
-  // Accept anything in flash range 0x10000000-0x10100000 (1MB)
-  uint32_t cleared = val & ~1u;
-  return cleared >= 0x10000000 && cleared < 0x10100000;
+  uint32_t cleared = val & ~1u;  // Clear Thumb bit
+  return cleared >= 0x10000000 && cleared < 0x10200000;
 }
 
 static constexpr size_t MAX_BACKTRACE = 4;
