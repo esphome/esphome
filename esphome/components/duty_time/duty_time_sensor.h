@@ -41,9 +41,9 @@ class DutyTimeSensor : public sensor::Sensor, public PollingComponent {
   sensor::Sensor *last_duty_time_sensor_{nullptr};
   ESPPreferenceObject pref_;
 
-  uint32_t total_sec_;
-  uint32_t last_time_;
-  uint32_t edge_time_;
+  uint32_t total_sec_{0};
+  uint32_t last_time_{0};
+  uint32_t edge_time_{0};
   bool last_state_{false};
   bool restore_;
 };

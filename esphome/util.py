@@ -1,5 +1,6 @@
 import collections
 from collections.abc import Callable
+from dataclasses import dataclass
 import io
 import logging
 from pathlib import Path
@@ -353,6 +354,75 @@ def get_serial_ports() -> list[SerialPort]:
 
     result.sort(key=lambda x: x.path)
     return result
+
+
+PICOTOOL_PACKAGE = "tool-picotool-rp2040-earlephilhower"
+
+
+def get_picotool_path(cc_path: str) -> Path | None:
+    """Derive the picotool binary path from the PlatformIO toolchain cc_path.
+
+    The cc_path from IDEData points to the toolchain package, e.g.:
+    ~/.platformio/packages/toolchain-rp2040-earlephilhower/bin/arm-none-eabi-gcc
+    Picotool is in a sibling package:
+    ~/.platformio/packages/tool-picotool-rp2040-earlephilhower/picotool
+    """
+    cc = Path(cc_path)
+    # Go from .../packages/toolchain-.../bin/gcc up to .../packages/
+    packages_dir = cc.parent.parent.parent
+    binary_name = "picotool.exe" if sys.platform == "win32" else "picotool"
+    picotool = packages_dir / PICOTOOL_PACKAGE / binary_name
+    if picotool.is_file():
+        return picotool
+    return None
+
+
+def is_picotool_usb_permission_error(output: str | bytes) -> bool:
+    """Check if picotool output indicates a USB permission error."""
+    if isinstance(output, str):
+        return (
+            "unable to connect" in output
+            or "LIBUSB_ERROR_ACCESS" in output
+            or "Permission denied" in output
+        )
+    return (
+        b"unable to connect" in output
+        or b"LIBUSB_ERROR_ACCESS" in output
+        or b"Permission denied" in output
+    )
+
+
+@dataclass
+class BootselResult:
+    """Result of RP2040 BOOTSEL detection."""
+
+    device_count: int
+    permission_error: bool = False
+
+
+def detect_rp2040_bootsel(picotool_path: str | Path) -> BootselResult:
+    """Detect RP2040/RP2350 devices in BOOTSEL mode using picotool.
+
+    Returns a BootselResult with the number of devices found (by counting
+    'type:' lines in output), and whether a permission error was detected.
+    """
+    try:
+        result = subprocess.run(
+            [str(picotool_path), "info", "-d"],
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+        device_count = result.stdout.count(b"type:")
+        if device_count > 0:
+            return BootselResult(device_count)
+        # Check for permission issues — picotool can see the device
+        # on the USB bus but can't connect without proper permissions
+        if is_picotool_usb_permission_error(result.stderr + result.stdout):
+            return BootselResult(0, permission_error=True)
+        return BootselResult(0)
+    except (OSError, subprocess.TimeoutExpired):
+        return BootselResult(0)
 
 
 def get_esp32_arduino_flash_error_help() -> str | None:

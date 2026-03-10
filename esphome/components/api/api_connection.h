@@ -3,6 +3,12 @@
 #include "esphome/core/defines.h"
 #ifdef USE_API
 #include "api_frame_helper.h"
+#ifdef USE_API_NOISE
+#include "api_frame_helper_noise.h"
+#endif
+#ifdef USE_API_PLAINTEXT
+#include "api_frame_helper_plaintext.h"
+#endif
 #include "api_pb2.h"
 #include "api_pb2_service.h"
 #include "api_server.h"
@@ -123,7 +129,7 @@ class APIConnection final : public APIServerConnectionBase {
   void send_homeassistant_action(const HomeassistantActionRequest &call) {
     if (!this->flags_.service_call_subscription)
       return;
-    this->send_message(call, HomeassistantActionRequest::MESSAGE_TYPE);
+    this->send_message(call);
   }
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
   void on_homeassistant_action_response(const HomeassistantActionResponse &msg) override;
@@ -142,12 +148,13 @@ class APIConnection final : public APIServerConnectionBase {
   void on_bluetooth_gatt_notify_request(const BluetoothGATTNotifyRequest &msg) override;
   void on_subscribe_bluetooth_connections_free_request() override;
   void on_bluetooth_scanner_set_mode_request(const BluetoothScannerSetModeRequest &msg) override;
+  void on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &msg) override;
 
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
   void send_time_request() {
     GetTimeRequest req;
-    this->send_message(req, GetTimeRequest::MESSAGE_TYPE);
+    this->send_message(req);
   }
 #endif
 
@@ -180,6 +187,15 @@ class APIConnection final : public APIServerConnectionBase {
 #ifdef USE_IR_RF
   void on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &msg) override;
   void send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg);
+#endif
+
+#ifdef USE_SERIAL_PROXY
+  void on_serial_proxy_configure_request(const SerialProxyConfigureRequest &msg) override;
+  void on_serial_proxy_write_request(const SerialProxyWriteRequest &msg) override;
+  void on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg) override;
+  void on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg) override;
+  void on_serial_proxy_request(const SerialProxyRequest &msg) override;
+  void send_serial_proxy_data(const SerialProxyDataReceived &msg);
 #endif
 
 #ifdef USE_EVENT
@@ -247,6 +263,7 @@ class APIConnection final : public APIServerConnectionBase {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::CONNECTED ||
            this->is_authenticated();
   }
+  bool is_marked_for_removal() const { return this->flags_.remove; }
   uint8_t get_log_subscription_level() const { return this->flags_.log_subscription; }
 
   // Get client API version for feature detection
@@ -257,9 +274,21 @@ class APIConnection final : public APIServerConnectionBase {
 
   void on_fatal_error() override;
   void on_no_setup_connection() override;
-  bool send_message_impl(const ProtoMessage &msg, uint8_t message_type) override;
 
-  void prepare_first_message_buffer(std::vector<uint8_t> &shared_buf, size_t header_padding, size_t total_size) {
+  // Function pointer type for type-erased message encoding
+  using MessageEncodeFn = void (*)(const void *, ProtoWriteBuffer &);
+  // Function pointer type for type-erased size calculation
+  using CalculateSizeFn = uint32_t (*)(const void *);
+
+  template<typename T> bool send_message(const T &msg) {
+    if constexpr (T::ESTIMATED_SIZE == 0) {
+      return this->send_message_(0, T::MESSAGE_TYPE, &encode_msg_noop, &msg);
+    } else {
+      return this->send_message_(msg.calculate_size(), T::MESSAGE_TYPE, &proto_encode_msg<T>, &msg);
+    }
+  }
+
+  void prepare_first_message_buffer(APIBuffer &shared_buf, size_t header_padding, size_t total_size) {
     shared_buf.clear();
     // Reserve space for header padding + message + footer
     // - Header padding: space for protocol headers (7 bytes for Noise, 6 for Plaintext)
@@ -270,13 +299,19 @@ class APIConnection final : public APIServerConnectionBase {
   }
 
   // Convenience overload - computes frame overhead internally
-  void prepare_first_message_buffer(std::vector<uint8_t> &shared_buf, size_t payload_size) {
+  void prepare_first_message_buffer(APIBuffer &shared_buf, size_t payload_size) {
     const uint8_t header_padding = this->helper_->frame_header_padding();
     const uint8_t footer_size = this->helper_->frame_footer_size();
     this->prepare_first_message_buffer(shared_buf, header_padding, payload_size + header_padding + footer_size);
   }
 
-  bool try_to_clear_buffer(bool log_out_of_space);
+  bool try_to_clear_buffer(bool log_out_of_space) {
+    if (this->flags_.remove)
+      return false;
+    if (this->helper_->can_write_without_blocking())
+      return true;
+    return this->try_to_clear_buffer_slow_(log_out_of_space);
+  }
   bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) override;
 
   const char *get_name() const { return this->helper_->get_client_name(); }
@@ -286,6 +321,8 @@ class APIConnection final : public APIServerConnectionBase {
   }
 
  protected:
+  bool try_to_clear_buffer_slow_(bool log_out_of_space);
+
   // Helper function to handle authentication completion
   void complete_authentication_();
 
@@ -312,50 +349,67 @@ class APIConnection final : public APIServerConnectionBase {
   void process_state_subscriptions_();
 #endif
 
-  // Non-template helper to encode any ProtoMessage
-  static uint16_t encode_message_to_buffer(ProtoMessage &msg, uint8_t message_type, APIConnection *conn,
-                                           uint32_t remaining_size);
-
-  // Helper to fill entity state base and encode message
-  static uint16_t fill_and_encode_entity_state(EntityBase *entity, StateResponseProtoMessage &msg, uint8_t message_type,
-                                               APIConnection *conn, uint32_t remaining_size) {
-    msg.key = entity->get_object_id_hash();
-#ifdef USE_DEVICES
-    msg.device_id = entity->get_device_id();
-#endif
-    return encode_message_to_buffer(msg, message_type, conn, remaining_size);
+  // Size thunk — converts void* back to concrete type for direct calculate_size() call
+  template<typename T> static uint32_t calc_size(const void *msg) {
+    return static_cast<const T *>(msg)->calculate_size();
   }
 
-  // Helper to fill entity info base and encode message
-  static uint16_t fill_and_encode_entity_info(EntityBase *entity, InfoResponseProtoMessage &msg, uint8_t message_type,
-                                              APIConnection *conn, uint32_t remaining_size) {
-    // Set common fields that are shared by all entity types
-    msg.key = entity->get_object_id_hash();
+  // Shared no-op encode thunk for empty messages (ESTIMATED_SIZE == 0)
+  static void encode_msg_noop(const void *, ProtoWriteBuffer &) {}
 
-    // API 1.14+ clients compute object_id client-side from the entity name
-    // For older clients, we must send object_id for backward compatibility
-    // See: https://github.com/esphome/backlog/issues/76
-    // TODO: Remove this backward compat code before 2026.7.0 - all clients should support API 1.14 by then
-    // Buffer must remain in scope until encode_message_to_buffer is called
-    char object_id_buf[OBJECT_ID_MAX_LEN];
-    if (!conn->client_supports_api_version(1, 14)) {
-      msg.object_id = entity->get_object_id_to(object_id_buf);
+  // Non-template buffer management for send_message
+  bool send_message_(uint32_t payload_size, uint8_t message_type, MessageEncodeFn encode_fn, const void *msg);
+
+  // Non-template buffer management for batch encoding
+  static uint16_t encode_to_buffer(uint32_t calculated_size, MessageEncodeFn encode_fn, const void *msg,
+                                   APIConnection *conn, uint32_t remaining_size);
+
+  // Thin template wrapper — computes size, delegates buffer work to non-template helper
+  template<typename T> static uint16_t encode_message_to_buffer(T &msg, APIConnection *conn, uint32_t remaining_size) {
+    if constexpr (T::ESTIMATED_SIZE == 0) {
+      return encode_to_buffer(0, &encode_msg_noop, &msg, conn, remaining_size);
+    } else {
+      return encode_to_buffer(msg.calculate_size(), &proto_encode_msg<T>, &msg, conn, remaining_size);
     }
+  }
 
-    if (entity->has_own_name()) {
-      msg.name = entity->get_name();
-    }
+  // Non-template core — fills state fields and encodes
+  static uint16_t fill_and_encode_entity_state(EntityBase *entity, StateResponseProtoMessage &msg,
+                                               CalculateSizeFn size_fn, MessageEncodeFn encode_fn, APIConnection *conn,
+                                               uint32_t remaining_size);
 
-    // Set common EntityBase properties
-#ifdef USE_ENTITY_ICON
-    msg.icon = entity->get_icon_ref();
-#endif
-    msg.disabled_by_default = entity->is_disabled_by_default();
-    msg.entity_category = static_cast<enums::EntityCategory>(entity->get_entity_category());
-#ifdef USE_DEVICES
-    msg.device_id = entity->get_device_id();
-#endif
-    return encode_message_to_buffer(msg, message_type, conn, remaining_size);
+  // Thin template wrapper
+  template<typename T>
+  static uint16_t fill_and_encode_entity_state(EntityBase *entity, T &msg, APIConnection *conn,
+                                               uint32_t remaining_size) {
+    return fill_and_encode_entity_state(entity, msg, &calc_size<T>, &proto_encode_msg<T>, conn, remaining_size);
+  }
+
+  // Non-template core — fills info fields, allocates buffers, and encodes
+  static uint16_t fill_and_encode_entity_info(EntityBase *entity, InfoResponseProtoMessage &msg,
+                                              CalculateSizeFn size_fn, MessageEncodeFn encode_fn, APIConnection *conn,
+                                              uint32_t remaining_size);
+
+  // Thin template wrapper
+  template<typename T>
+  static uint16_t fill_and_encode_entity_info(EntityBase *entity, T &msg, APIConnection *conn,
+                                              uint32_t remaining_size) {
+    return fill_and_encode_entity_info(entity, msg, &calc_size<T>, &proto_encode_msg<T>, conn, remaining_size);
+  }
+
+  // Non-template core — fills device_class, then delegates to fill_and_encode_entity_info
+  static uint16_t fill_and_encode_entity_info_with_device_class(EntityBase *entity, InfoResponseProtoMessage &msg,
+                                                                StringRef &device_class_field, CalculateSizeFn size_fn,
+                                                                MessageEncodeFn encode_fn, APIConnection *conn,
+                                                                uint32_t remaining_size);
+
+  // Thin template wrapper
+  template<typename T>
+  static uint16_t fill_and_encode_entity_info_with_device_class(EntityBase *entity, T &msg,
+                                                                StringRef &device_class_field, APIConnection *conn,
+                                                                uint32_t remaining_size) {
+    return fill_and_encode_entity_info_with_device_class(entity, msg, device_class_field, &calc_size<T>,
+                                                         &proto_encode_msg<T>, conn, remaining_size);
   }
 
 #ifdef USE_VOICE_ASSISTANT
@@ -489,7 +543,13 @@ class APIConnection final : public APIServerConnectionBase {
   // === Optimal member ordering for 32-bit systems ===
 
   // Group 1: Pointers (4 bytes each on 32-bit)
+#if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
   std::unique_ptr<APIFrameHelper> helper_;
+#elif defined(USE_API_NOISE)
+  std::unique_ptr<APINoiseFrameHelper> helper_;
+#elif defined(USE_API_PLAINTEXT)
+  std::unique_ptr<APIPlaintextFrameHelper> helper_;
+#endif
   APIServer *parent_;
 
   // Group 2: Iterator union (saves ~16 bytes vs separate iterators)
@@ -627,8 +687,8 @@ class APIConnection final : public APIServerConnectionBase {
 
   bool schedule_batch_();
   void process_batch_();
-  void process_batch_multi_(std::vector<uint8_t> &shared_buf, size_t num_items, uint8_t header_padding,
-                            uint8_t footer_size) __attribute__((noinline));
+  void process_batch_multi_(APIBuffer &shared_buf, size_t num_items, uint8_t header_padding, uint8_t footer_size)
+      __attribute__((noinline));
   void clear_batch_() {
     this->deferred_batch_.clear();
     this->flags_.batch_scheduled = false;

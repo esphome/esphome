@@ -29,8 +29,18 @@ enum UARTDirection {
 
 const LogString *parity_to_str(UARTParityOptions parity);
 
+/// Result of a flush() call.
+enum class FlushResult {
+  SUCCESS,          ///< Confirmed: all bytes left the TX FIFO.
+  TIMEOUT,          ///< Confirmed: timed out before TX completed.
+  FAILED,           ///< Confirmed: driver or hardware error.
+  ASSUMED_SUCCESS,  ///< Platform cannot report result; success is assumed.
+};
+
 class UARTComponent {
  public:
+  static constexpr size_t RX_FULL_THRESHOLD_UNSET = 0;
+
   // Writes an array of bytes to the UART bus.
   // @param data A vector of bytes to be written.
   void write_array(const std::vector<uint8_t> &data) { this->write_array(&data[0], data.size()); }
@@ -72,7 +82,13 @@ class UARTComponent {
   virtual size_t available() = 0;
 
   // Pure virtual method to block until all bytes have been written to the UART bus.
-  virtual void flush() = 0;
+  // @return FlushResult indicating whether the flush was confirmed, timed out, failed, or assumed successful.
+  virtual FlushResult flush() = 0;
+
+  // Sets the maximum time to wait for TX to drain during flush().
+  // Only meaningful on ESP32 (IDF). Other platforms ignore this value.
+  // @param flush_timeout_ms Timeout in milliseconds; 0 means wait indefinitely.
+  virtual void set_flush_timeout(uint32_t flush_timeout_ms) {}
 
   // Sets the TX (transmit) pin for the UART bus.
   // @param tx_pin Pointer to the internal GPIO pin used for transmission.
@@ -183,11 +199,13 @@ class UARTComponent {
   virtual void check_logger_conflict() = 0;
   bool check_read_timeout_(size_t len = 1);
 
-  InternalGPIOPin *tx_pin_;
-  InternalGPIOPin *rx_pin_;
-  InternalGPIOPin *flow_control_pin_;
-  size_t rx_buffer_size_;
-  size_t rx_full_threshold_{1};
+  InternalGPIOPin *tx_pin_{};
+  InternalGPIOPin *rx_pin_{};
+  InternalGPIOPin *flow_control_pin_{};
+  size_t rx_buffer_size_{};
+  // ESP32 (both Arduino and ESP-IDF) always sets this at codegen time via set_rx_full_threshold().
+  // Other platforms (USB UART, Arduino, etc.) leave it unset.
+  size_t rx_full_threshold_{RX_FULL_THRESHOLD_UNSET};
   size_t rx_timeout_{0};
   uint32_t baud_rate_{0};
   uint8_t stop_bits_{0};

@@ -8,6 +8,7 @@ import json
 import logging
 from pathlib import Path
 import re
+import sys
 import time
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
@@ -40,6 +41,8 @@ from esphome.__main__ import (
     show_logs,
     upload_program,
     upload_using_esptool,
+    upload_using_picotool,
+    upload_using_platformio,
 )
 from esphome.components.esp32 import KEY_ESP32, KEY_VARIANT, VARIANT_ESP32
 from esphome.const import (
@@ -70,6 +73,7 @@ from esphome.const import (
     PLATFORM_RP2040,
 )
 from esphome.core import CORE, EsphomeError
+from esphome.util import BootselResult
 
 
 def strip_ansi_codes(text: str) -> str:
@@ -171,6 +175,13 @@ def mock_upload_using_esptool() -> Generator[Mock]:
 def mock_upload_using_platformio() -> Generator[Mock]:
     """Mock upload_using_platformio for testing."""
     with patch("esphome.__main__.upload_using_platformio") as mock:
+        yield mock
+
+
+@pytest.fixture
+def mock_upload_using_picotool() -> Generator[Mock]:
+    """Mock upload_using_picotool for testing."""
+    with patch("esphome.__main__.upload_using_picotool") as mock:
         yield mock
 
 
@@ -851,6 +862,221 @@ def test_choose_upload_log_host_no_address_with_ota_config() -> None:
         )
 
 
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_no_defaults_with_rp2040_bootsel(
+    mock_choose_prompt: Mock,
+) -> None:
+    """Test interactive mode shows RP2040 BOOTSEL option via picotool."""
+    setup_core(platform=PLATFORM_RP2040)
+
+    with (
+        patch(
+            "esphome.__main__._find_picotool", return_value=Path("/usr/bin/picotool")
+        ),
+        patch("esphome.__main__.detect_rp2040_bootsel", return_value=BootselResult(1)),
+    ):
+        result = choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+        assert result == ["/dev/ttyUSB0"]  # mock_choose_prompt default
+        mock_choose_prompt.assert_called_once_with(
+            [("RP2040 BOOTSEL (via picotool)", "BOOTSEL")],
+            purpose=Purpose.UPLOADING,
+        )
+
+
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_rp2040_no_device_shows_bootsel_help() -> None:
+    """Test BOOTSEL instructions shown when no RP2040 device found."""
+    setup_core(platform=PLATFORM_RP2040)
+
+    with (
+        patch(
+            "esphome.__main__._find_picotool", return_value=Path("/usr/bin/picotool")
+        ),
+        patch("esphome.__main__.detect_rp2040_bootsel", return_value=BootselResult(0)),
+        pytest.raises(EsphomeError, match="BOOTSEL"),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+
+
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_rp2040_bootsel_tip_with_ota(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test BOOTSEL tip shown when only OTA options exist for RP2040."""
+    setup_core(
+        platform=PLATFORM_RP2040,
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]},
+        address="192.168.1.100",
+    )
+
+    with (
+        patch(
+            "esphome.__main__._find_picotool", return_value=Path("/usr/bin/picotool")
+        ),
+        patch("esphome.__main__.detect_rp2040_bootsel", return_value=BootselResult(0)),
+        patch(
+            "esphome.__main__.choose_prompt",
+            return_value="192.168.1.100",
+        ),
+        caplog.at_level(logging.INFO, logger="esphome.__main__"),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+        assert "BOOTSEL" in caplog.text
+
+
+def test_choose_upload_log_host_rp2040_bootsel_tip_with_serial_ports(
+    caplog: pytest.LogCaptureFixture,
+    mock_choose_prompt: Mock,
+) -> None:
+    """Test BOOTSEL tip shown when serial ports exist but no BOOTSEL device."""
+    setup_core(platform=PLATFORM_RP2040)
+
+    mock_ports = [MockSerialPort("/dev/ttyACM0", "RP2040 Serial")]
+    with (
+        patch("esphome.__main__.get_serial_ports", return_value=mock_ports),
+        patch(
+            "esphome.__main__._find_picotool",
+            return_value=Path("/usr/bin/picotool"),
+        ),
+        patch("esphome.__main__.detect_rp2040_bootsel", return_value=BootselResult(0)),
+        caplog.at_level(logging.INFO, logger="esphome.__main__"),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+        assert "BOOTSEL" in caplog.text
+
+
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_rp2040_permission_error_no_options(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test permission warning shown when BOOTSEL device found but not accessible."""
+    setup_core(platform=PLATFORM_RP2040)
+
+    with (
+        patch(
+            "esphome.__main__._find_picotool", return_value=Path("/usr/bin/picotool")
+        ),
+        patch(
+            "esphome.__main__.detect_rp2040_bootsel",
+            return_value=BootselResult(0, permission_error=True),
+        ),
+        patch("esphome.__main__.sys.platform", "linux"),
+        pytest.raises(EsphomeError, match="BOOTSEL"),
+        caplog.at_level(logging.WARNING, logger="esphome.__main__"),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+
+    assert "USB permissions" in caplog.text
+    assert "udev" in caplog.text
+
+
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_rp2040_permission_error_with_ota(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test permission warning shown with OTA fallback available."""
+    setup_core(
+        platform=PLATFORM_RP2040,
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]},
+        address="192.168.1.100",
+    )
+
+    with (
+        patch(
+            "esphome.__main__._find_picotool", return_value=Path("/usr/bin/picotool")
+        ),
+        patch(
+            "esphome.__main__.detect_rp2040_bootsel",
+            return_value=BootselResult(0, permission_error=True),
+        ),
+        patch(
+            "esphome.__main__.choose_prompt",
+            return_value="192.168.1.100",
+        ),
+        caplog.at_level(logging.WARNING, logger="esphome.__main__"),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+
+    assert "USB permissions" in caplog.text
+
+
+def test_choose_upload_log_host_no_bootsel_for_non_rp2040(
+    mock_no_serial_ports: Mock,
+) -> None:
+    """Test that BOOTSEL detection is not run for non-RP2040 platforms."""
+    setup_core(
+        platform=PLATFORM_ESP32,
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]},
+        address="192.168.1.100",
+    )
+
+    with (
+        patch("esphome.__main__._find_picotool") as mock_find_picotool,
+        patch(
+            "esphome.__main__.choose_prompt",
+            return_value="192.168.1.100",
+        ),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+        mock_find_picotool.assert_not_called()
+
+
+def test_choose_upload_log_host_rp2040_serial_and_bootsel(
+    mock_choose_prompt: Mock,
+) -> None:
+    """Test both serial ports and BOOTSEL option shown for RP2040."""
+    setup_core(platform=PLATFORM_RP2040)
+
+    mock_ports = [MockSerialPort("/dev/ttyACM0", "RP2040 Serial")]
+    with (
+        patch("esphome.__main__.get_serial_ports", return_value=mock_ports),
+        patch(
+            "esphome.__main__._find_picotool", return_value=Path("/usr/bin/picotool")
+        ),
+        patch("esphome.__main__.detect_rp2040_bootsel", return_value=BootselResult(1)),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+        mock_choose_prompt.assert_called_once_with(
+            [
+                ("/dev/ttyACM0 (RP2040 Serial)", "/dev/ttyACM0"),
+                ("RP2040 BOOTSEL (via picotool)", "BOOTSEL"),
+            ],
+            purpose=Purpose.UPLOADING,
+        )
+
+
 @dataclass
 class MockArgs:
     """Mock args for testing."""
@@ -1060,6 +1286,46 @@ def test_upload_program_serial_platformio_platforms(
     mock_upload_using_platformio.assert_called_once_with(config, device)
 
 
+def test_upload_using_platformio_creates_signed_bin_for_rp2040(
+    tmp_path: Path,
+) -> None:
+    """Test that upload_using_platformio creates firmware.bin.signed for RP2040."""
+    setup_core(platform=PLATFORM_RP2040)
+
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    firmware_bin = build_dir / "firmware.bin"
+    firmware_bin.write_bytes(b"test firmware content")
+    firmware_elf = build_dir / "firmware.elf"
+    firmware_elf.write_bytes(b"elf")
+
+    mock_idedata = MagicMock()
+    mock_idedata.firmware_elf_path = str(firmware_elf)
+
+    with (
+        patch("esphome.platformio_api.get_idedata", return_value=mock_idedata),
+        patch("esphome.platformio_api.run_platformio_cli_run", return_value=0),
+    ):
+        result = upload_using_platformio({}, "/dev/ttyACM0")
+
+    assert result == 0
+    signed_bin = build_dir / "firmware.bin.signed"
+    assert signed_bin.is_file()
+    assert signed_bin.read_bytes() == b"test firmware content"
+
+
+def test_upload_using_platformio_skips_signed_bin_for_non_rp2040(
+    tmp_path: Path,
+) -> None:
+    """Test that upload_using_platformio doesn't create signed bin for non-RP2040."""
+    setup_core(platform=PLATFORM_ESP32)
+
+    with patch("esphome.platformio_api.run_platformio_cli_run", return_value=0):
+        result = upload_using_platformio({}, "/dev/ttyUSB0")
+
+    assert result == 0
+
+
 def test_upload_program_serial_upload_failed(
     mock_upload_using_esptool: Mock,
     mock_get_port_type: Mock,
@@ -1080,6 +1346,158 @@ def test_upload_program_serial_upload_failed(
     assert host is None
     mock_check_permissions.assert_called_once_with("/dev/ttyUSB0")
     mock_upload_using_esptool.assert_called_once()
+
+
+def test_upload_program_bootsel(
+    mock_upload_using_picotool: Mock,
+    mock_get_port_type: Mock,
+) -> None:
+    """Test upload_program with BOOTSEL for RP2040."""
+    setup_core(platform=PLATFORM_RP2040)
+    mock_get_port_type.return_value = "BOOTSEL"
+    mock_upload_using_picotool.return_value = 0
+
+    config = {}
+    args = MockArgs()
+    devices = ["BOOTSEL"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 0
+    # BOOTSEL device can't be used for logging, so host should be None
+    assert host is None
+    mock_upload_using_picotool.assert_called_once_with(config)
+
+
+def test_upload_program_bootsel_failed(
+    mock_upload_using_picotool: Mock,
+    mock_get_port_type: Mock,
+) -> None:
+    """Test upload_program when BOOTSEL upload fails."""
+    setup_core(platform=PLATFORM_RP2040)
+    mock_get_port_type.return_value = "BOOTSEL"
+    mock_upload_using_picotool.return_value = 1
+
+    config = {}
+    args = MockArgs()
+    devices = ["BOOTSEL"]
+
+    exit_code, host = upload_program(config, args, devices)
+
+    assert exit_code == 1
+    assert host is None
+    mock_upload_using_picotool.assert_called_once_with(config)
+
+
+def test_upload_using_picotool_success(tmp_path: Path) -> None:
+    """Test upload_using_picotool succeeds."""
+    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    firmware_elf = build_dir / "firmware.elf"
+    firmware_elf.write_bytes(b"\x00" * 1024)
+
+    # Create picotool binary
+    packages_dir = tmp_path / "packages"
+    toolchain_bin = packages_dir / "toolchain-rp2040-earlephilhower" / "bin"
+    toolchain_bin.mkdir(parents=True)
+    picotool_dir = packages_dir / "tool-picotool-rp2040-earlephilhower"
+    picotool_dir.mkdir(parents=True)
+    binary_name = "picotool.exe" if sys.platform == "win32" else "picotool"
+    picotool = picotool_dir / binary_name
+    picotool.touch()
+
+    mock_idedata = MagicMock()
+    mock_idedata.firmware_elf_path = str(firmware_elf)
+    mock_idedata.cc_path = str(toolchain_bin / "arm-none-eabi-gcc")
+
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stderr = b""
+
+    config = {}
+    with (
+        patch("esphome.platformio_api.get_idedata", return_value=mock_idedata),
+        patch("subprocess.run", return_value=mock_result),
+    ):
+        exit_code = upload_using_picotool(config)
+
+    assert exit_code == 0
+
+
+def test_upload_using_picotool_no_elf(tmp_path: Path) -> None:
+    """Test upload_using_picotool when ELF file is missing."""
+    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+
+    mock_idedata = MagicMock()
+    mock_idedata.firmware_elf_path = str(build_dir / "firmware.elf")
+    mock_idedata.cc_path = "/fake/path/gcc"
+
+    config = {}
+    with patch("esphome.platformio_api.get_idedata", return_value=mock_idedata):
+        exit_code = upload_using_picotool(config)
+
+    assert exit_code == 1
+
+
+def test_upload_using_picotool_not_found(tmp_path: Path) -> None:
+    """Test upload_using_picotool when picotool binary not found."""
+    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    firmware_elf = build_dir / "firmware.elf"
+    firmware_elf.write_bytes(b"\x00" * 512)
+
+    mock_idedata = MagicMock()
+    mock_idedata.firmware_elf_path = str(firmware_elf)
+    mock_idedata.cc_path = "/fake/path/gcc"
+
+    config = {}
+    with patch("esphome.platformio_api.get_idedata", return_value=mock_idedata):
+        exit_code = upload_using_picotool(config)
+
+    assert exit_code == 1
+
+
+def test_upload_using_picotool_permission_error(tmp_path: Path) -> None:
+    """Test upload_using_picotool shows helpful message on permission error."""
+    setup_core(platform=PLATFORM_RP2040, tmp_path=tmp_path)
+
+    build_dir = tmp_path / "build"
+    build_dir.mkdir()
+    firmware_elf = build_dir / "firmware.elf"
+    firmware_elf.write_bytes(b"\x00" * 512)
+
+    packages_dir = tmp_path / "packages"
+    toolchain_bin = packages_dir / "toolchain-rp2040-earlephilhower" / "bin"
+    toolchain_bin.mkdir(parents=True)
+    picotool_dir = packages_dir / "tool-picotool-rp2040-earlephilhower"
+    picotool_dir.mkdir(parents=True)
+    binary_name = "picotool.exe" if sys.platform == "win32" else "picotool"
+    picotool = picotool_dir / binary_name
+    picotool.touch()
+
+    mock_idedata = MagicMock()
+    mock_idedata.firmware_elf_path = str(firmware_elf)
+    mock_idedata.cc_path = str(toolchain_bin / "arm-none-eabi-gcc")
+
+    mock_result = MagicMock()
+    mock_result.returncode = 1
+    mock_result.stderr = b"LIBUSB_ERROR_ACCESS"
+
+    config = {}
+    with (
+        patch("esphome.platformio_api.get_idedata", return_value=mock_idedata),
+        patch("subprocess.run", return_value=mock_result),
+    ):
+        exit_code = upload_using_picotool(config)
+
+    assert exit_code == 1
 
 
 def test_upload_program_ota_success(
@@ -1605,6 +2023,8 @@ def test_get_port_type() -> None:
     assert get_port_type("192.168.1.100") == "NETWORK"
     assert get_port_type("esphome-device.local") == "NETWORK"
     assert get_port_type("10.0.0.1") == "NETWORK"
+
+    assert get_port_type("BOOTSEL") == "BOOTSEL"
 
 
 def test_has_mqtt_ip_lookup() -> None:
