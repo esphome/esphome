@@ -1,7 +1,6 @@
 #ifdef USE_ESP32
 
 #include "modem_handler.h"
-#include "helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include <cmath>
@@ -12,11 +11,6 @@ namespace modem {
 using namespace esp_modem;
 
 static const char *const TAG = "modem_handler";
-
-#define ESPMODEM_ERROR_CHECK(err, message) \
-  if ((err) != command_result::OK) { \
-    ESP_LOGE(TAG, message ": %s", command_result_to_string(err).c_str()); \
-  }
 
 void ModemHandler::modem_create_dte_dce(int baud_rate) {
   this->current_baud_rate = baud_rate;
@@ -81,19 +75,6 @@ AtCommandResult ModemHandler::send_at(const std::string &cmd, uint32_t timeout, 
   if (this->dce) {
     at_command_result.esp_modem_command_result = this->dce->at(cmd, at_command_result.output, cmd_timeout);
     at_command_result.success = at_command_result.esp_modem_command_result == command_result::OK;
-
-    auto level = ESPHOME_LOG_LEVEL_VERY_VERBOSE;
-    if (verbose) {
-      if (at_command_result.success) {
-        level = ESPHOME_LOG_LEVEL_INFO;
-      } else {
-        level = ESPHOME_LOG_LEVEL_ERROR;
-      }
-    }
-
-    esp_log_printf_(level, TAG, __LINE__, "Result for command %s: %s (status %s)", cmd.c_str(),
-                    at_command_result.c_str(),
-                    command_result_to_string(at_command_result.esp_modem_command_result).c_str());
   } else {
     ESP_LOGE(TAG, "Modem DCE not ready, cannot send AT command: %s", cmd.c_str());
     at_command_result.esp_modem_command_result = command_result::FAIL;
@@ -125,10 +106,8 @@ void ModemHandler::modem_log_status() {
   int registration_state = 0;
   float rssi = NAN, ber = NAN;
   std::string sim_status = "UNKNOWN";
-
   if (this->dce && this->dce->sync() == esp_modem::command_result::OK) {
     synced = true;
-
     auto res = this->send_at("AT+CPIN?");
     if (res) {
       auto &out = res.output;
@@ -143,34 +122,11 @@ void ModemHandler::modem_log_status() {
   bool connected =
       synced && network_mode != 0 && attached && !std::isnan(rssi) && sim_status.find("READY") != std::string::npos;
   std::string cfun_str = (cfun == 1) ? "OK" : "NOK(" + std::to_string(cfun) + ")";
-
   ESP_LOGI(TAG,
-           "Modem status: %s, attached: %s, registration state: %d,radio function: %s, SIM: %s, type: %s, ber: %.0f%%, "
-           "rssi: %.0fdB %s",
+           "Modem status: %s, attached: %s, registration state: %d, radio function: %s, SIM: %s, type: %d, ber: %.0f "
+           "%%, rssi: %.0f dB",
            connected ? "Good" : (synced ? "BAD" : "No SYNC"), attached ? "Yes" : "NO", registration_state,
-           cfun_str.c_str(), sim_status.c_str(), network_system_mode_to_string(network_mode).c_str(), ber * 100.0f,
-           rssi, get_signal_bars(rssi).c_str());
-}
-
-void ModemHandler::send_init_at() {
-  if (this->rts_pin != nullptr && this->cts_pin != nullptr) {
-    // Send AT command to setup flow control
-    App.feed_wdt();
-    if (this->dce->set_flow_control(2, 2) != command_result::OK) {
-      ESP_LOGE(TAG, "Failed to set modem flow control to RTS/CTS.");
-    }
-  }
-
-  for (const auto &cmd : this->init_at_commands) {
-    App.feed_wdt();
-    AtCommandResult result = this->send_at(cmd);
-    if (result.success) {
-      ESP_LOGI(TAG, "init_at %s: %s", cmd.c_str(), result.output.c_str());
-    } else {
-      ESP_LOGW(TAG, "init_at %s: %s", cmd.c_str(), command_result_to_string(result.esp_modem_command_result).c_str());
-    }
-    delay(200);  // NOLINT
-  }
+           cfun_str.c_str(), sim_status.c_str(), (int) network_mode, ber * 100.0f, rssi);
 }
 
 bool ModemHandler::prepare_sim() {
@@ -178,8 +134,7 @@ bool ModemHandler::prepare_sim() {
   delay(200);  // NOLINT
   AtCommandResult result = this->send_at("AT+CPIN?");
   if (!result.success) {
-    ESP_LOGW(TAG, "Failed to check pin: %s (%s)", result.c_str(),
-             command_result_to_string(result.esp_modem_command_result).c_str());
+    ESP_LOGW(TAG, "Failed to check pin: %s", result.c_str());
     return false;
   }
 

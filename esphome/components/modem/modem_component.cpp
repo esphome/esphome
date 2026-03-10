@@ -1,16 +1,11 @@
 #ifdef USE_ESP32
 #include "modem_component.h"
 #include "modem_handler.h"
-#include "helpers.h"
 
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/components/network/util.h"
-
-// #ifdef USE_WIFI_AP
-// #include "esphome/components/wifi/wifi_component.h"
-// #endif
 
 #include <esp_netif.h>
 #include <esp_netif_ppp.h>
@@ -285,8 +280,8 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
     if (!try_autobaud(b)) {
       continue;
     }
-    ESP_LOGV(TAG, "Modem ON. Autodetect mode: %s, baud: %d",
-             modem_mode_to_string(this->modem_handler->dce->get_mode()).c_str(), b);
+    // ESP_LOGV(TAG, "Modem ON. Autodetect mode: %s, baud: %d",
+    //          modem_mode_to_string(this->modem_handler->dce->get_mode()).c_str(), b);
     auto mode = this->modem_handler->dce->get_mode();
     if (mode == modem_mode::CMUX_MANUAL_MODE || mode == modem_mode::DATA_MODE) {
       if (b != this->modem_handler->baud_rate) {
@@ -371,7 +366,6 @@ ModemComponentState ModemComponent::handle_state_syncing_() {
     };
 
     this->modem_handler->dce->set_enhanced_urc(urc_handler);
-    this->modem_handler->send_init_at();
     return ModemComponentState::INIT_NETWORK;
   }
   return ModemComponentState::SYNCING;
@@ -491,7 +485,8 @@ void ModemComponent::transition_to_(ModemComponentState next_state) {
   ModemComponentState previous_state = this->component_state_;
   this->on_exit_state_(previous_state);
   this->component_state_ = next_state;
-  ESP_LOGV(TAG, "State change: %s -> %s", state_to_string(previous_state).c_str(), state_to_string(next_state).c_str());
+  // ESP_LOGV(TAG, "State change: %s -> %s", state_to_string(previous_state).c_str(),
+  // state_to_string(next_state).c_str());
   this->on_state_callback_.call(previous_state, next_state);
   this->component_last_state_ = next_state;
   this->on_enter_state_(next_state);
