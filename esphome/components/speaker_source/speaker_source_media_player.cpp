@@ -5,8 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace speaker_source {
+namespace esphome::speaker_source {
 
 static const uint32_t MEDIA_CONTROLS_QUEUE_LENGTH = 20;
 
@@ -521,7 +520,6 @@ void SpeakerSourceMediaPlayer::set_volume_(float volume, bool publish) {
   this->defer([this, volume]() { this->volume_trigger_.trigger(volume); });
 }
 
-}  // namespace speaker_source
-}  // namespace esphome
+}  // namespace esphome::speaker_source
 
 #endif  // USE_ESP32

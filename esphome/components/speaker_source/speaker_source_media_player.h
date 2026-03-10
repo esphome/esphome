@@ -20,8 +20,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 
-namespace esphome {
-namespace speaker_source {
+namespace esphome::speaker_source {
 
 enum Pipeline : uint8_t {
   MEDIA_PIPELINE = 0,
@@ -190,7 +189,6 @@ class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPla
   bool is_muted_{false};
 };
 
-}  // namespace speaker_source
-}  // namespace esphome
+}  // namespace esphome::speaker_source
 
 #endif  // USE_ESP32
