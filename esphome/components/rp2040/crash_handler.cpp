@@ -8,8 +8,8 @@
 
 // Cortex-M0+ exception frame offsets (words)
 // When a fault occurs, the CPU pushes: R0, R1, R2, R3, R12, LR, PC, xPSR
-#define EF_LR 5
-#define EF_PC 6
+static constexpr uint32_t EF_LR = 5;
+static constexpr uint32_t EF_PC = 6;
 
 static constexpr uint32_t CRASH_MAGIC = 0xDEADBEEF;
 
