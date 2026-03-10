@@ -121,12 +121,17 @@ void ModemHandler::modem_log_status() {
   }
   bool connected =
       synced && network_mode != 0 && attached && !std::isnan(rssi) && sim_status.find("READY") != std::string::npos;
-  std::string cfun_str = (cfun == 1) ? "OK" : "NOK(" + std::to_string(cfun) + ")";
+  char cfun_str[16];
+  if (cfun == 1) {
+    snprintf(cfun_str, sizeof(cfun_str), "OK");
+  } else {
+    snprintf(cfun_str, sizeof(cfun_str), "NOK(%d)", cfun);
+  }
   ESP_LOGI(TAG,
            "Modem status: %s, attached: %s, registration state: %d, radio function: %s, SIM: %s, type: %d, ber: %.0f "
            "%%, rssi: %.0f dB",
-           connected ? "Good" : (synced ? "BAD" : "No SYNC"), attached ? "Yes" : "NO", registration_state,
-           cfun_str.c_str(), sim_status.c_str(), (int) network_mode, ber * 100.0f, rssi);
+           connected ? "Good" : (synced ? "BAD" : "No SYNC"), attached ? "Yes" : "NO", registration_state, cfun_str,
+           sim_status.c_str(), (int) network_mode, ber * 100.0f, rssi);
 }
 
 bool ModemHandler::prepare_sim() {
