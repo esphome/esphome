@@ -9,8 +9,6 @@ from esphome.const import (
     UNIT_CELSIUS,
 )
 
-AUTO_LOAD = ["sensor"]
-
 DEPENDENCIES = ["sensor"]
 
 dew_point_ns = cg.esphome_ns.namespace("dew_point")
