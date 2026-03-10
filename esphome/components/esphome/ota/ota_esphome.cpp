@@ -239,6 +239,31 @@ void ESPHomeOTAComponent::handle_data_() {
   /// and reboots on success.
   ///
   /// Authentication has already been handled in the non-blocking states AUTH_SEND/AUTH_READ.
+  ///
+  /// Socket I/O strategy:
+  ///
+  /// Before this function, the handshake states use non-blocking I/O:
+  ///   read()/write() return immediately with EWOULDBLOCK if no data
+  ///   loop() retries on next iteration (~16ms), no delay needed
+  ///
+  /// This function switches to blocking mode with SO_RCVTIMEO/SO_SNDTIMEO:
+  ///
+  ///   Path          | Wait mechanism         | WDT strategy
+  ///   --------------|------------------------|---------------------------
+  ///   Main read     | SO_RCVTIMEO (2s block) | feed_wdt() only, no delay
+  ///   readall_()    | SO_RCVTIMEO (2s block) | feed_wdt() + delay(0)
+  ///   writeall_()   | SO_SNDTIMEO (2s block) | feed_wdt() + delay(1)
+  ///
+  /// readall_() uses delay(0) because SO_RCVTIMEO already waited — just yield.
+  /// writeall_() uses delay(1) because on raw TCP (ESP8266, RP2040) writes
+  /// never block (tcp_write returns immediately), so delay(1) prevents spinning.
+  ///
+  /// Platform details:
+  ///   BSD sockets (ESP32):     setblocking(true) makes read/write block
+  ///   lwip sockets (LT):      setblocking(true) makes read/write block
+  ///   Raw TCP (8266, RP2040):  setblocking is no-op; SO_RCVTIMEO uses
+  ///                            socket_delay()/socket_wake() in read();
+  ///                            write() always returns immediately
   ota::OTAResponseTypes error_code = ota::OTA_RESPONSE_ERROR_UNKNOWN;
   bool update_started = false;
   size_t total = 0;
@@ -250,16 +275,11 @@ void ESPHomeOTAComponent::handle_data_() {
   size_t size_acknowledged = 0;
 #endif
 
-  // Switch to blocking mode with receive timeout for efficient data transfer.
-  // This replaces the non-blocking poll + delay(1) pattern: read() now sleeps
-  // until data arrives (waking immediately) instead of polling every 1ms.
-  // The 2-second timeout ensures the WDT is fed regularly (WDT is typically 5s).
+  // Set socket timeouts and blocking mode (see strategy table above)
   struct timeval tv;
   tv.tv_sec = 2;
   tv.tv_usec = 0;
   this->client_->setsockopt(SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-  // Also set send timeout to prevent blocking writes from stalling the WDT
-  // when the TCP send buffer is full (e.g., network congestion).
   this->client_->setsockopt(SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
   this->client_->setblocking(true);
 
