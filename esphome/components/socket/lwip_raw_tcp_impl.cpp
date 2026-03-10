@@ -11,6 +11,9 @@
 
 #ifdef USE_ESP8266
 #include <coredecls.h>  // For esp_schedule()
+#elif defined(USE_RP2040)
+#include <hardware/sync.h>  // For __sev(), __wfe()
+#include <pico/time.h>      // For add_alarm_in_ms(), cancel_alarm()
 #endif
 
 namespace esphome::socket {
@@ -39,6 +42,72 @@ void socket_delay(uint32_t ms) {
 void IRAM_ATTR socket_wake() {
   s_socket_woke = true;
   esp_schedule();
+}
+#elif defined(USE_RP2040)
+// RP2040 (non-FreeRTOS) socket wake using hardware WFE/SEV instructions.
+//
+// Same pattern as ESP8266's esp_delay()/esp_schedule(): set a one-shot timer,
+// then sleep with __wfe(). Wake on either:
+//   - Timer alarm fires → callback calls __sev() → __wfe() returns → timeout
+//   - Socket data arrives → LWIP callback calls socket_wake() → __sev() → __wfe() returns → early wake
+//
+// CYW43 WiFi chip communicates via SPI interrupts on core 0. When data arrives,
+// the GPIO interrupt fires → async_context pendsv processes CYW43/LWIP → recv/accept
+// callbacks call socket_wake() → __sev() wakes the main loop from __wfe() sleep.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static volatile bool s_socket_woke = false;
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static volatile bool s_delay_expired = false;
+
+static int64_t alarm_callback(alarm_id_t id, void *user_data) {
+  (void) id;
+  (void) user_data;
+  s_delay_expired = true;
+  // Wake the main loop from __wfe() sleep — timeout expired.
+  __sev();
+  // Return 0 = don't reschedule (one-shot)
+  return 0;
+}
+
+void socket_delay(uint32_t ms) {
+  if (ms == 0) {
+    yield();
+    return;
+  }
+  // If a wake was already signalled, consume it and return immediately
+  // instead of going to sleep. This avoids losing a wake that arrived
+  // between loop iterations.
+  if (s_socket_woke) {
+    s_socket_woke = false;
+    return;
+  }
+  s_socket_woke = false;
+  s_delay_expired = false;
+  // Set a one-shot timer to wake us after the timeout.
+  // add_alarm_in_ms returns >0 on success, 0 if time already passed, <0 on error.
+  alarm_id_t alarm = add_alarm_in_ms(ms, alarm_callback, nullptr, true);
+  if (alarm <= 0) {
+    delay(ms);
+    return;
+  }
+  // Sleep until woken by either the timer alarm or socket_wake().
+  // __wfe() may return spuriously (stale event register, other interrupts),
+  // so we loop checking both flags.
+  while (!s_socket_woke && !s_delay_expired) {
+    __wfe();
+  }
+  // Cancel timer if we woke early (socket data arrived before timeout)
+  if (!s_delay_expired)
+    cancel_alarm(alarm);
+}
+
+// No IRAM_ATTR equivalent needed: on RP2040, CYW43 async_context runs LWIP
+// callbacks via pendsv (not hard IRQ), so they execute from flash safely.
+void socket_wake() {
+  s_socket_woke = true;
+  // Wake the main loop from __wfe() sleep. __sev() is a global event that
+  // wakes any core sleeping in __wfe(). This is ISR-safe.
+  __sev();
 }
 #endif
 
@@ -371,7 +440,7 @@ err_t LWIPRawImpl::recv_fn(struct pbuf *pb, err_t err) {
   } else {
     pbuf_cat(this->rx_buf_, pb);
   }
-#ifdef USE_ESP8266
+#if (defined(USE_ESP8266) || defined(USE_RP2040))
   // Wake the main loop immediately so it can process the received data.
   socket_wake();
 #endif
@@ -650,7 +719,7 @@ err_t LWIPRawListenImpl::accept_fn_(struct tcp_pcb *newpcb, err_t err) {
   sock->init();
   this->accepted_sockets_[this->accepted_socket_count_++] = std::move(sock);
   LWIP_LOG("Accepted connection, queue size: %d", this->accepted_socket_count_);
-#ifdef USE_ESP8266
+#if (defined(USE_ESP8266) || defined(USE_RP2040))
   // Wake the main loop immediately so it can accept the new connection.
   socket_wake();
 #endif

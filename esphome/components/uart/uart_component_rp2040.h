@@ -25,7 +25,7 @@ class RP2040UartComponent : public UARTComponent, public Component {
   bool read_array(uint8_t *data, size_t len) override;
 
   size_t available() override;
-  void flush() override;
+  FlushResult flush() override;
 
   uint16_t get_config();
 
