@@ -51,14 +51,18 @@ void DlmsPushComponent::read_rx_buffer_() {
   this->last_rx_char_time_ = App.get_loop_component_start_time();
 
   while (this->available()) {
-    if (this->rx_buffer_len_ >= MAX_RX_BUFFER_SIZE) {
-      ESP_LOGW(TAG, "RX Buffer overflow. Frame too large! Truncating.");
-      break;
-    }
-
     uint8_t byte;
     if (this->read_byte(&byte)) {
-      this->rx_buffer_[this->rx_buffer_len_++] = byte;
+      if (this->rx_buffer_len_ < MAX_RX_BUFFER_SIZE) {
+        this->rx_buffer_[this->rx_buffer_len_++] = byte;
+      } else {
+        if (!this->overflow_warned_) {
+          ESP_LOGW(TAG, "RX Buffer overflow. Frame too large! Truncating.");
+          this->overflow_warned_ = true;
+        }
+        // Continuing to read discards the byte to drain the UART buffer
+        // without processing it, preventing an infinite timeout lock.
+      }
     } else {
       ESP_LOGW(TAG, "Failed to read byte from UART.");
       break;
@@ -67,8 +71,10 @@ void DlmsPushComponent::read_rx_buffer_() {
 }
 
 void DlmsPushComponent::process_frame_() {
-  if (this->rx_buffer_len_ == 0)
+  if (this->rx_buffer_len_ == 0) {
+    this->overflow_warned_ = false;
     return;
+  }
 
   if (this->show_log_) {
     ESP_LOGD(TAG, "PUSH frame size: %zu bytes", this->rx_buffer_len_);
@@ -81,11 +87,11 @@ void DlmsPushComponent::process_frame_() {
   size_t parsed_objects = this->parser_->parse(this->rx_buffer_.get(), this->rx_buffer_len_, callback, this->show_log_);
 
   if (this->show_log_) {
-    ESP_LOGD(TAG, "PUSH data parsing complete: %zu objects, bytes consumed %zu/%zu", parsed_objects,
-             this->rx_buffer_len_, this->rx_buffer_len_);
+    ESP_LOGD(TAG, "PUSH data parsing complete: %zu objects found in %zu bytes", parsed_objects, this->rx_buffer_len_);
   }
 
   this->rx_buffer_len_ = 0;
+  this->overflow_warned_ = false;
 }
 
 void DlmsPushComponent::on_data_parsed_(const char *obis_code, float float_val, bool is_numeric) {

@@ -47,6 +47,7 @@ class DlmsPushComponent : public Component, public uart::UARTDevice {
   size_t rx_buffer_len_{0};
   uint32_t last_rx_char_time_{0};
   bool receiving_{false};
+  bool overflow_warned_{false};
 
   std::unique_ptr<DlmsParser> parser_;
 
