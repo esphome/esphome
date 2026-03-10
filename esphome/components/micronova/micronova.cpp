@@ -185,12 +185,15 @@ bool MicroNova::queue_write_command(uint8_t location, uint8_t address, uint8_t d
   cmd.memory_address = address;
   cmd.data = data;
 
-  // Check if this write is already queued
-  for (const auto &queued : this->write_queue_) {
-    if (queued.memory_location == cmd.memory_location && queued.memory_address == cmd.memory_address &&
-        queued.data == cmd.data) {
-      // we log on purpose the location without the WRITE_BIT for clarity for the user
-      ESP_LOGW(TAG, "Write [%02X,%02X] with data 0x%02X already queued, skipping", location, address, data);
+  // Check if a write to the same address is already queued - update data in-place
+  for (auto &queued : this->write_queue_) {
+    if (queued.memory_location == cmd.memory_location && queued.memory_address == cmd.memory_address) {
+      if (queued.data != cmd.data) {
+        ESP_LOGD(TAG, "Updating queued write [%02X,%02X] data 0x%02X -> 0x%02X", location, address, queued.data, data);
+        queued.data = cmd.data;
+      } else {
+        ESP_LOGV(TAG, "Write [%02X,%02X] with data 0x%02X already queued, skipping", location, address, data);
+      }
       return true;
     }
   }

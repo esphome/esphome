@@ -306,13 +306,28 @@ template<typename T, size_t N> class StaticRingBuffer {
  public:
   class Iterator {
    public:
-    Iterator(const StaticRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
-    const T &operator*() const { return buf_->data_[(buf_->head_ + pos_) % N]; }
+    Iterator(StaticRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
+    T &operator*() { return buf_->data_[(buf_->head_ + pos_) % N]; }
     Iterator &operator++() {
       ++pos_;
       return *this;
     }
     bool operator!=(const Iterator &other) const { return pos_ != other.pos_; }
+
+   private:
+    StaticRingBuffer *buf_;
+    index_type pos_;
+  };
+
+  class ConstIterator {
+   public:
+    ConstIterator(const StaticRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
+    const T &operator*() const { return buf_->data_[(buf_->head_ + pos_) % N]; }
+    ConstIterator &operator++() {
+      ++pos_;
+      return *this;
+    }
+    bool operator!=(const ConstIterator &other) const { return pos_ != other.pos_; }
 
    private:
     const StaticRingBuffer *buf_;
@@ -341,8 +356,10 @@ template<typename T, size_t N> class StaticRingBuffer {
   index_type size() const { return this->count_; }
   bool empty() const { return this->count_ == 0; }
 
-  Iterator begin() const { return Iterator(this, 0); }
-  Iterator end() const { return Iterator(this, this->count_); }
+  Iterator begin() { return Iterator(this, 0); }
+  Iterator end() { return Iterator(this, this->count_); }
+  ConstIterator begin() const { return ConstIterator(this, 0); }
+  ConstIterator end() const { return ConstIterator(this, this->count_); }
 
  protected:
   T data_[N];
