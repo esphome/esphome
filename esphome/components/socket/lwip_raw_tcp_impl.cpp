@@ -781,6 +781,7 @@ std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
     errno = EPROTOTYPE;
     return nullptr;
   }
+  LWIP_LOCK();
   auto *pcb = tcp_new();
   if (pcb == nullptr)
     return nullptr;
@@ -800,6 +801,7 @@ std::unique_ptr<ListenSocket> socket_listen(int domain, int type, int protocol) 
     errno = EPROTOTYPE;
     return nullptr;
   }
+  LWIP_LOCK();
   auto *pcb = tcp_new();
   if (pcb == nullptr)
     return nullptr;
