@@ -21,11 +21,6 @@ PLATFORMIO_GOOGLE_TEST_LIB = "google/googletest@^1.15.2"
 # Path to /tests/components
 COMPONENTS_TESTS_DIR: Path = Path(root_path) / "tests" / "components"
 
-# Placeholder name used when registering a platform domain with ESPHome during
-# test builds.  The actual value is irrelevant; only the first registration
-# matters and the placeholder is never compiled.
-_DUMMY_PLATFORM = "dummy"
-
 # Components whose to_code should run during C++ test builds.
 # Most components don't need code generation for tests; only these
 # essential ones (platform setup, logging, core config) are needed.
@@ -190,8 +185,7 @@ def run_tests(selected_components: list[str]) -> int:
             # as produced by get_platform_components().
             domain, component = component_name.split(".", maxsplit=1)
             domain_list = config.setdefault(domain, [])
-            if not domain_list:
-                CORE.register_platform_component(domain, _DUMMY_PLATFORM)
+            CORE.testing_ensure_platform_registered(domain)
             domain_list.append({CONF_PLATFORM: component})
         else:
             config.setdefault(component_name, [])
