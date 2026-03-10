@@ -157,7 +157,7 @@ void I2SAudioSpeaker::setup() {
   this->event_group_ = xEventGroupCreate();
 
   if (this->event_group_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to create event group");
+    ESP_LOGE(TAG, "Event group creation failed");
     this->mark_failed();
     return;
   }
@@ -166,7 +166,7 @@ void I2SAudioSpeaker::setup() {
   if (this->spdif_mode_) {
     this->spdif_encoder_ = new SPDIFEncoder();
     if (!this->spdif_encoder_->setup()) {
-      ESP_LOGE(TAG, "Failed to setup SPDIF encoder");
+      ESP_LOGE(TAG, "SPDIF encoder setup failed");
       this->mark_failed();
       return;
     }
@@ -230,21 +230,21 @@ void I2SAudioSpeaker::loop() {
 
   // Handle the task's state
   if (event_group_bits & SpeakerEventGroupBits::TASK_STARTING) {
-    ESP_LOGD(TAG, "Starting");
+    ESP_LOGV(TAG, "Starting");
     xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::TASK_STARTING);
   }
   if (event_group_bits & SpeakerEventGroupBits::TASK_RUNNING) {
-    ESP_LOGD(TAG, "Started");
+    ESP_LOGV(TAG, "Started");
     xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::TASK_RUNNING);
     this->state_ = speaker::STATE_RUNNING;
   }
   if (event_group_bits & SpeakerEventGroupBits::TASK_STOPPING) {
-    ESP_LOGD(TAG, "Stopping");
+    ESP_LOGV(TAG, "Stopping");
     xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::TASK_STOPPING);
     this->state_ = speaker::STATE_STOPPING;
   }
   if (event_group_bits & SpeakerEventGroupBits::TASK_STOPPED) {
-    ESP_LOGD(TAG, "Stopped");
+    ESP_LOGV(TAG, "Stopped");
 
     vTaskDelete(this->speaker_task_handle_);
     this->speaker_task_handle_ = nullptr;
@@ -749,7 +749,7 @@ void I2SAudioSpeaker::speaker_task(void *params) {
                 (spdif_last_reprime_time == 0) || ((now_ms - spdif_last_reprime_time) >= SPDIF_REPRIME_COOLDOWN_MS);
 
             if ((spdif_zero_block_streak >= 100 || long_zero_progress) && reprime_cooldown_elapsed) {
-              ESP_LOGW(TAG, "SPDIF: TX appears stalled, attempting DMA re-prime");
+              ESP_LOGV(TAG, "SPDIF: TX appears stalled, attempting DMA re-prime");
 
               i2s_channel_disable(this_speaker->tx_handle_);
 
