@@ -20,7 +20,7 @@ class MicronovaData:
     """Track micronova component state during code generation."""
 
     listener_count: int = 0
-    writer_count: int = 0
+    has_writer: bool = False
 
 
 def _get_data() -> MicronovaData:
@@ -88,7 +88,7 @@ def MICRONOVA_ADDRESS_SCHEMA(
 
 def register_micronova_writer() -> None:
     """Register a component that can write to the stove (button, switch, number)."""
-    _get_data().writer_count += 1
+    _get_data().has_writer = True
 
 
 async def to_code_micronova_listener(mv, var, config):
@@ -112,7 +112,7 @@ async def to_code(config):
 async def _final_step() -> None:
     """Add defines for listener and writer counts after all are registered."""
     data = _get_data()
-    if data.listener_count == 0 and data.writer_count == 0:
+    if data.listener_count == 0 and not data.has_writer:
         raise cv.Invalid(
             "No micronova entities configured. Add at least one micronova entity."
         )
@@ -123,5 +123,5 @@ async def _final_step() -> None:
     if data.listener_count > 0:
         cg.add_define("MICRONOVA_LISTENER_COUNT", data.listener_count)
 
-    if data.writer_count > 0:
+    if data.has_writer:
         cg.add_define("USE_MICRONOVA_WRITER")
