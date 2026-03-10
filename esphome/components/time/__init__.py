@@ -406,11 +406,6 @@ async def to_code(config):
     cg.add_global(time_ns.using)
 
 
-# The following function overrides to_code during C++ testing:
-async def to_code_testing(config):
-    cg.add_build_flag("-DUSE_TIME_TIMEZONE")
-
-
 @automation.register_condition(
     "time.has_time",
     TimeHasTimeCondition,

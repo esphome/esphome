@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import hashlib
+import importlib.util
 import os
 from pathlib import Path
 import subprocess
@@ -12,7 +13,13 @@ from esphome.__main__ import command_compile, parse_args
 from esphome.config import validate_config
 from esphome.const import CONF_PLATFORM
 from esphome.core import CORE
-from esphome.loader import get_component
+from esphome.loader import (
+    ComponentManifest,
+    TestingComponentManifest,
+    get_component,
+    get_platform,
+    set_testing_manifest,
+)
 from esphome.platformio_api import get_idedata
 
 # This must coincide with the version in /platformio.ini
@@ -113,6 +120,8 @@ def get_platform_components(components: list[str]) -> list[str]:
             if not domain_dir.is_dir():
                 continue
             domain = domain_dir.name
+            if domain.startswith("__"):
+                continue
             domain_module = get_component(domain)
             if domain_module is None or not domain_module.is_platform_component:
                 raise ValueError(
@@ -121,6 +130,88 @@ def get_platform_components(components: list[str]) -> list[str]:
                 )
             platform_components.append(f"{domain}.{component}")
     return platform_components
+
+
+def _build_testing_manifest(
+    manifest: ComponentManifest,
+    cache_key: str,
+    suppress_to_code: bool,
+    test_init: Path,
+) -> None:
+    """Wrap *manifest* in a TestingComponentManifest, apply restrictions and any
+    override_manifest() found in *test_init*, then install it under *cache_key*.
+
+    Args:
+        manifest: The original component manifest to wrap.
+        cache_key: The key used to store the result in the component cache
+                   (top-level: component name; platform: ``"component.domain"``).
+        suppress_to_code: When True, set ``to_code = None`` before calling the
+                          override function (the override can still restore it).
+        test_init: Path to the ``__init__.py`` that may define ``override_manifest``.
+    """
+    testing_manifest = TestingComponentManifest(manifest)
+
+    if suppress_to_code:
+        testing_manifest.to_code = None
+
+    if test_init.is_file():
+        spec = importlib.util.spec_from_file_location(
+            f"_test_manifest_override.{cache_key}", test_init
+        )
+        if spec is not None and spec.loader is not None:
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            override_fn = getattr(mod, "override_manifest", None)
+            if override_fn is not None:
+                override_fn(testing_manifest)
+
+    set_testing_manifest(cache_key, testing_manifest)
+
+
+def load_test_manifest_overrides(components: list[str]) -> None:
+    """Apply C++ testing restrictions and any per-component test overrides.
+
+    For every component:
+    1. Wraps its manifest in a ``TestingComponentManifest`` and sets
+       ``to_code = None`` for components not in ``CPP_TESTING_CODEGEN_COMPONENTS``
+       so that code generation is suppressed during C++ unit test builds.
+    2. If a test ``__init__.py`` exists and defines
+       ``override_manifest(manifest: TestingComponentManifest)``, calls it,
+       allowing test code to restore or replace ``to_code``, add dependencies, etc.
+
+    Already-processed components are skipped, so this is safe to call multiple
+    times with overlapping component lists.
+    """
+    for comp_name in components:
+        if "." in comp_name:
+            # Platform component (e.g. "sensor.packet_transport").
+            # The cache key is reversed relative to the list format:
+            # "sensor.packet_transport" is stored as "packet_transport.sensor".
+            domain, component = comp_name.split(".", maxsplit=1)
+            manifest = get_platform(domain, component)
+            if manifest is None or isinstance(manifest, TestingComponentManifest):
+                continue
+            _build_testing_manifest(
+                manifest,
+                cache_key=f"{component}.{domain}",
+                suppress_to_code=True,
+                # tests/components/packet_transport/sensor/__init__.py
+                test_init=COMPONENTS_TESTS_DIR / component / domain / "__init__.py",
+            )
+        else:
+            manifest = get_component(comp_name)
+            if manifest is None or isinstance(manifest, TestingComponentManifest):
+                continue
+            suppress = comp_name not in CPP_TESTING_CODEGEN_COMPONENTS
+            test_init = COMPONENTS_TESTS_DIR / comp_name / "__init__.py"
+            if not suppress and not test_init.is_file():
+                continue
+            _build_testing_manifest(
+                manifest,
+                cache_key=comp_name,
+                suppress_to_code=suppress,
+                test_init=test_init,
+            )
 
 
 # Exit codes for run_tests
@@ -169,17 +260,24 @@ def run_tests(selected_components: list[str]) -> int:
     # to maximize cache during testing
     config_name: str = "cpptests-" + hash_components(components)
 
+    # Apply test manifest overrides before dependency resolution so that any
+    # dependency additions made by override_manifest() are picked up.
+    load_test_manifest_overrides(components)
+
     # Obtain possible dependencies for the requested components.
     components_with_dependencies: list[str] = sorted(
         get_all_dependencies(set(components), cpp_testing=True)
     )
+
+    # Apply overrides for any transitively discovered dependencies that also
+    # provide an override_manifest() in their test directory.
+    load_test_manifest_overrides(components_with_dependencies)
 
     config = create_test_config(config_name, includes)
 
     CORE.config_path = COMPONENTS_TESTS_DIR / "dummy.yaml"
     CORE.dashboard = None
     CORE.cpp_testing = True
-    CORE.cpp_testing_codegen = CPP_TESTING_CODEGEN_COMPONENTS
 
     # Validate config will expand the above with defaults:
     config = validate_config(config, {})

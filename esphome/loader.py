@@ -71,11 +71,6 @@ class ComponentManifest:
 
     @property
     def to_code(self) -> Callable[[Any], None] | None:
-        if CORE.cpp_testing:
-            # During C++ testing, only run to_code for allowlisted components
-            name = self.module.__package__.rsplit(".", 1)[-1]
-            if name not in CORE.cpp_testing_codegen:
-                return getattr(self.module, "to_code_testing", None)
         return getattr(self.module, "to_code", None)
 
     @property
@@ -144,6 +139,48 @@ class ComponentManifest:
 
             ret.append(FileResource(self.package, resource))
         return ret
+
+
+class TestingComponentManifest:
+    """Mutable wrapper around ComponentManifest for test-specific attribute overrides.
+
+    When ``tests/components/<name>/__init__.py`` defines::
+
+        def override_manifest(manifest: TestingComponentManifest) -> None:
+            ...
+
+    the function receives an instance of this class wrapping the real component
+    manifest.  Any attribute assignment stores an override; reads fall back to
+    the underlying ``ComponentManifest`` when no override has been set.
+
+    Example::
+
+        def override_manifest(manifest: TestingComponentManifest) -> None:
+            async def to_code_testing(config):
+                pass  # lightweight no-op stub for C++ unit tests
+
+            manifest.to_code = to_code_testing
+            manifest.dependencies = manifest.dependencies + ["extra_dep_for_tests"]
+    """
+
+    def __init__(self, wrapped: "ComponentManifest") -> None:
+        object.__setattr__(self, "_wrapped", wrapped)
+        object.__setattr__(self, "_overrides", {})
+
+    def __getattr__(self, name: str) -> Any:
+        overrides: dict[str, Any] = object.__getattribute__(self, "_overrides")
+        if name in overrides:
+            return overrides[name]
+        wrapped: ComponentManifest = object.__getattribute__(self, "_wrapped")
+        return getattr(wrapped, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        overrides: dict[str, Any] = object.__getattribute__(self, "_overrides")
+        overrides[name] = value
+
+    def restore(self) -> None:
+        """Clear all overrides, reverting to the wrapped manifest's values."""
+        object.__getattribute__(self, "_overrides").clear()
 
 
 class ComponentMetaFinder(importlib.abc.MetaPathFinder):
@@ -243,3 +280,12 @@ def get_platform(domain: str, platform: str) -> ComponentManifest | None:
 _COMPONENT_CACHE: dict[str, ComponentManifest] = {}
 CORE_COMPONENTS_PATH = (Path(__file__).parent / "components").resolve()
 _COMPONENT_CACHE["esphome"] = ComponentManifest(esphome.core.config)
+
+
+def set_testing_manifest(domain: str, manifest: TestingComponentManifest) -> None:
+    """Install a testing manifest override into the component cache.
+
+    Called from the C++ unit test infrastructure when a component's test
+    directory provides an ``override_manifest`` function.
+    """
+    _COMPONENT_CACHE[domain] = manifest
