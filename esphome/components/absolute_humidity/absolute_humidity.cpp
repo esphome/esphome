@@ -4,7 +4,7 @@
 namespace esphome {
 namespace absolute_humidity {
 
-static const char *const TAG = "absolute_humidity.sensor";
+static const char *const TAG{"absolute_humidity.sensor"};
 
 void AbsoluteHumidityComponent::setup() {
   this->temperature_sensor_->add_on_state_callback([this](float state) {
@@ -58,8 +58,8 @@ void AbsoluteHumidityComponent::loop() {
   this->disable_loop();
 
   // Ensure we have source data
-  const bool no_temperature = std::isnan(this->temperature_);
-  const bool no_humidity = std::isnan(this->humidity_);
+  const bool no_temperature{std::isnan(this->temperature_)};
+  const bool no_humidity{std::isnan(this->humidity_)};
   if (no_temperature || no_humidity) {
     if (no_temperature) {
       ESP_LOGW(TAG, "No valid state from temperature sensor!");
@@ -73,9 +73,9 @@ void AbsoluteHumidityComponent::loop() {
   }
 
   // Convert to desired units
-  const float temperature_c = this->temperature_;
-  const float temperature_k = temperature_c + 273.15;
-  const float hr = this->humidity_ / 100;
+  const float temperature_c{this->temperature_};
+  const float temperature_k{temperature_c + 273.15f};
+  const float hr{this->humidity_ / 100.0f};
 
   // Calculate saturation vapor pressure
   float es;
@@ -96,7 +96,7 @@ void AbsoluteHumidityComponent::loop() {
   }
 
   // Calculate absolute humidity
-  const float absolute_humidity = vapor_density(es, hr, temperature_k);
+  const float absolute_humidity{vapor_density(es, hr, temperature_k)};
 
   ESP_LOGD(TAG, "Saturation vapor pressure %f kPa, absolute humidity %f g/m³", es, absolute_humidity);
 
@@ -109,16 +109,16 @@ void AbsoluteHumidityComponent::loop() {
 // More accurate than Tetens in normal meteorologic conditions
 float AbsoluteHumidityComponent::es_buck(float temperature_c) {
   float a, b, c, d;
-  if (temperature_c >= 0) {
-    a = 0.61121;
-    b = 18.678;
-    c = 234.5;
-    d = 257.14;
+  if (temperature_c >= 0.0f) {
+    a = 0.61121f;
+    b = 18.678f;
+    c = 234.5f;
+    d = 257.14f;
   } else {
-    a = 0.61115;
-    b = 18.678;
-    c = 233.7;
-    d = 279.82;
+    a = 0.61115f;
+    b = 18.678f;
+    c = 233.7f;
+    d = 279.82f;
   }
   return a * expf((b - (temperature_c / c)) * (temperature_c / (d + temperature_c)));
 }
@@ -126,14 +126,14 @@ float AbsoluteHumidityComponent::es_buck(float temperature_c) {
 // Tetens equation (https://en.wikipedia.org/wiki/Tetens_equation)
 float AbsoluteHumidityComponent::es_tetens(float temperature_c) {
   float a, b;
-  if (temperature_c >= 0) {
-    a = 17.27;
-    b = 237.3;
+  if (temperature_c >= 0.0f) {
+    a = 17.27f;
+    b = 237.3f;
   } else {
-    a = 21.875;
-    b = 265.5;
+    a = 21.875f;
+    b = 265.5f;
   }
-  return 0.61078 * expf((a * temperature_c) / (temperature_c + b));
+  return 0.61078f * expf((a * temperature_c) / (temperature_c + b));
 }
 
 // Wobus equation
@@ -152,18 +152,18 @@ float AbsoluteHumidityComponent::es_wobus(float t) {
   //
   //     Baker, Schlatter  17-MAY-1982     Original version.
 
-  const float c0 = +0.99999683e00;
-  const float c1 = -0.90826951e-02;
-  const float c2 = +0.78736169e-04;
-  const float c3 = -0.61117958e-06;
-  const float c4 = +0.43884187e-08;
-  const float c5 = -0.29883885e-10;
-  const float c6 = +0.21874425e-12;
-  const float c7 = -0.17892321e-14;
-  const float c8 = +0.11112018e-16;
-  const float c9 = -0.30994571e-19;
-  const float p = c0 + t * (c1 + t * (c2 + t * (c3 + t * (c4 + t * (c5 + t * (c6 + t * (c7 + t * (c8 + t * (c9)))))))));
-  return 0.61078 / pow(p, 8);
+  const float c0{+0.99999683e00f};
+  const float c1{-0.90826951e-02f};
+  const float c2{+0.78736169e-04f};
+  const float c3{-0.61117958e-06f};
+  const float c4{+0.43884187e-08f};
+  const float c5{-0.29883885e-10f};
+  const float c6{+0.21874425e-12f};
+  const float c7{-0.17892321e-14f};
+  const float c8{+0.11112018e-16f};
+  const float c9{-0.30994571e-19f};
+  const float p{c0 + t * (c1 + t * (c2 + t * (c3 + t * (c4 + t * (c5 + t * (c6 + t * (c7 + t * (c8 + t * (c9)))))))))};
+  return 0.61078f / pow(p, 8);
 }
 
 // From https://www.environmentalbiophysics.org/chalk-talk-how-to-calculate-absolute-humidity/
@@ -174,9 +174,9 @@ float AbsoluteHumidityComponent::vapor_density(float es, float hr, float ta) {
   // hr = relative humidity [0-1]
   // ta = absolute temperature (K)
 
-  const float ea = hr * es * 1000;   // vapor pressure of the air (Pa)
-  const float mw = 18.01528;         // molar mass of water (g⋅mol⁻¹)
-  const float r = 8.31446261815324;  // molar gas constant (J⋅K⁻¹)
+  const float ea{hr * es * 1000.0f};  // vapor pressure of the air (Pa)
+  const float mw{18.01528f};          // molar mass of water (g⋅mol⁻¹)
+  const float r{8.31446261815324f};   // molar gas constant (J⋅K⁻¹)
   return (ea * mw) / (r * ta);
 }
 
