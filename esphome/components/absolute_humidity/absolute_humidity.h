@@ -16,8 +16,6 @@ enum SaturationVaporPressureEquation {
 /// This class implements calculation of absolute humidity from temperature and relative humidity.
 class AbsoluteHumidityComponent : public sensor::Sensor, public Component {
  public:
-  AbsoluteHumidityComponent() = default;
-
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
   void set_humidity_sensor(sensor::Sensor *humidity_sensor) { this->humidity_sensor_ = humidity_sensor; }
   void set_equation(SaturationVaporPressureEquation equation) { this->equation_ = equation; }
