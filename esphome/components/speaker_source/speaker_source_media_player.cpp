@@ -500,7 +500,6 @@ void SpeakerSourceMediaPlayer::set_volume_(float volume, bool publish) {
 
   if (publish) {
     this->volume = volume;
-    this->save_volume_restore_state_();
   }
 
   // Notify all media sources about the volume change
@@ -511,11 +510,16 @@ void SpeakerSourceMediaPlayer::set_volume_(float volume, bool publish) {
   }
 
   // Turn on the mute state if the volume is effectively zero, off otherwise.
-  // Pass publish=false since set_volume_ already saved above.
+  // Pass publish=false to avoid saving twice.
   if (volume < 0.001) {
     this->set_mute_state_(true, false);
   } else {
     this->set_mute_state_(false, false);
+  }
+
+  // Save after mute mutation so the restored state has the correct is_muted_ value
+  if (publish) {
+    this->save_volume_restore_state_();
   }
 
   this->defer([this, volume]() { this->volume_trigger_.trigger(volume); });
