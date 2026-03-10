@@ -47,4 +47,9 @@ sensor:
       offset: 0
       normalized_offset_slope: 0
       time_constant: 0
+    temperature_acceleration:
+      k: 20.0
+      p: 20.0
+      t1: 100.0
+      t2: 100.0
     address: 0x6B

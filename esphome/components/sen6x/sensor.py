@@ -211,10 +211,10 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_TEMPERATURE_ACCELERATION): cv.Schema(
                 {
-                    cv.Optional(CONF_K, default=0): cv.float_range(0, 6553.5),
-                    cv.Optional(CONF_P, default=0): cv.float_range(0, 6553.5),
-                    cv.Optional(CONF_T1, default=0): cv.float_range(0, 6553.5),
-                    cv.Optional(CONF_T2, default=0): cv.float_range(0, 6553.5),
+                    cv.Optional(CONF_K, default=20.0): cv.float_range(0.1, 6553.5),
+                    cv.Optional(CONF_P, default=20.0): cv.float_range(0.1, 6553.5),
+                    cv.Optional(CONF_T1, default=100.0): cv.float_range(0.1, 6553.5),
+                    cv.Optional(CONF_T2, default=300.0): cv.float_range(0.1, 6553.5),
                 }
             ),
         }
