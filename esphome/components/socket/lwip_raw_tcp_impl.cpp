@@ -145,6 +145,9 @@ static const char *const TAG = "socket.lwip";
 // ---- Shared helpers ----
 
 /// Convert lwip ip_addr_t + host-order port to sockaddr, based on the socket's address family.
+/// @param port_host Port in host byte order. TCP callers must convert from network order first
+///                  (tcp_pcb stores ports in network byte order); UDP callers can pass directly
+///                  (lwip udp_recv callback provides port in host byte order).
 /// Shared by both TCP (LWIPRawCommon) and UDP (LWIPRawUDPImpl) implementations.
 static int lwip_ip_to_sockaddr(sa_family_t family, const ip_addr_t *ip, uint16_t port_host, struct sockaddr *name,
                                socklen_t *addrlen) {
@@ -895,6 +898,7 @@ int LWIPRawUDPImpl::ip2sockaddr_(const ip_addr_t *ip, uint16_t port, struct sock
 
 ssize_t LWIPRawUDPImpl::sendto(const void *buf, size_t len, int flags, const struct sockaddr *dest_addr,
                                socklen_t addrlen) {
+  (void) flags;  // Flags (MSG_DONTWAIT, etc.) are ignored; raw lwip is always non-blocking
   if (this->pcb_ == nullptr) {
     errno = EBADF;
     return -1;
