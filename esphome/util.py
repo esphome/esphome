@@ -1,5 +1,6 @@
 import collections
 from collections.abc import Callable
+from dataclasses import dataclass
 import io
 import logging
 from pathlib import Path
@@ -376,11 +377,19 @@ def get_picotool_path(cc_path: str) -> Path | None:
     return None
 
 
-def detect_rp2040_bootsel(picotool_path: str | Path) -> int:
+@dataclass
+class BootselResult:
+    """Result of RP2040 BOOTSEL detection."""
+
+    device_count: int
+    permission_error: bool = False
+
+
+def detect_rp2040_bootsel(picotool_path: str | Path) -> BootselResult:
     """Detect RP2040/RP2350 devices in BOOTSEL mode using picotool.
 
-    Returns the number of devices found (by counting 'type:' lines in output),
-    matching PlatformIO's detection approach.
+    Returns a BootselResult with the number of devices found (by counting
+    'type:' lines in output), and whether a permission error was detected.
     """
     try:
         result = subprocess.run(
@@ -389,9 +398,17 @@ def detect_rp2040_bootsel(picotool_path: str | Path) -> int:
             timeout=10,
             check=False,
         )
-        return result.stdout.count(b"type:")
+        device_count = result.stdout.count(b"type:")
+        if device_count > 0:
+            return BootselResult(device_count)
+        # Check stderr for permission issues — picotool can see the device
+        # on the USB bus but can't connect without proper permissions
+        combined = result.stderr + result.stdout
+        if b"unable to connect" in combined or b"LIBUSB_ERROR_ACCESS" in combined:
+            return BootselResult(0, permission_error=True)
+        return BootselResult(0)
     except (OSError, subprocess.TimeoutExpired):
-        return 0
+        return BootselResult(0)
 
 
 def get_esp32_arduino_flash_error_help() -> str | None:

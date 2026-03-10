@@ -259,13 +259,17 @@ def choose_upload_log_host(
     ]
 
     # Add RP2040 BOOTSEL device option when uploading
+    bootsel_permission_error = False
     if (
         purpose == Purpose.UPLOADING
         and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
         and (picotool := _find_picotool()) is not None
-        and detect_rp2040_bootsel(picotool) > 0
     ):
-        options.append(("RP2040 BOOTSEL (via picotool)", "BOOTSEL"))
+        bootsel = detect_rp2040_bootsel(picotool)
+        if bootsel.device_count > 0:
+            options.append(("RP2040 BOOTSEL (via picotool)", "BOOTSEL"))
+        elif bootsel.permission_error:
+            bootsel_permission_error = True
 
     if purpose == Purpose.LOGGING:
         if has_mqtt_logging():
@@ -290,6 +294,17 @@ def choose_upload_log_host(
         and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
         and not any(get_port_type(opt[1]) == PortType.BOOTSEL for opt in options)
     ):
+        if bootsel_permission_error:
+            _LOGGER.warning(
+                "An RP2040 device in BOOTSEL mode was detected but could "
+                "not be accessed due to USB permissions."
+            )
+            if sys.platform.startswith("linux"):
+                _LOGGER.warning(
+                    "You may need to add a udev rule for RP2040 devices. "
+                    "See: https://github.com/raspberrypi/picotool"
+                    "/blob/master/udev/60-picotool.rules"
+                )
         if not options:
             raise EsphomeError(
                 f"No RP2040 device found. {_RP2040_BOOTSEL_INSTRUCTIONS}"
@@ -824,7 +839,8 @@ def upload_using_picotool(config: ConfigType) -> int:
             if sys.platform.startswith("linux"):
                 msg += (
                     " You may need to add udev rules for RP2040 devices."
-                    " See: https://github.com/raspberrypi/picotool#linux-permissions"
+                    " See: https://github.com/raspberrypi/picotool"
+                    "/blob/master/udev/60-picotool.rules"
                 )
             _LOGGER.error(msg)
         else:
