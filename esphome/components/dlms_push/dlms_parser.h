@@ -84,14 +84,10 @@ class DlmsParser {
  public:
   DlmsParser();
 
-  // Registers a custom parsing pattern from the YAML config
-  void register_custom_pattern(const std::string &dsl);
-
   // Parses the buffer and fires callbacks for each found sensor value
   size_t parse(const uint8_t *buffer, size_t length, DlmsDataCallback callback, bool show_log);
 
  private:
-  void register_pattern_dsl_(const std::string &name, const std::string &dsl, int priority);
   void load_default_patterns_();
 
   uint8_t read_byte_();

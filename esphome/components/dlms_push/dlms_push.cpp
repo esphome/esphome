@@ -15,10 +15,6 @@ DlmsPushComponent::DlmsPushComponent() { this->parser_ = std::make_unique<DlmsPa
 void DlmsPushComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up DLMS PUSH Component...");
 
-  if (!this->custom_pattern_.empty()) {
-    this->parser_->register_custom_pattern(this->custom_pattern_);
-  }
-
   this->rx_buffer_ = std::make_unique<uint8_t[]>(MAX_RX_BUFFER_SIZE);
   this->rx_buffer_len_ = 0;
 }
@@ -27,9 +23,6 @@ void DlmsPushComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "DLMS PUSH Component:");
   ESP_LOGCONFIG(TAG, "  Receive Timeout: %u ms", this->receive_timeout_ms_);
   ESP_LOGCONFIG(TAG, "  Show Log: %s", this->show_log_ ? "True" : "False");
-  if (!this->custom_pattern_.empty()) {
-    ESP_LOGCONFIG(TAG, "  Custom Pattern: %s", this->custom_pattern_.c_str());
-  }
 
 #ifdef USE_SENSOR
   for (const auto &entry : this->sensors_) {

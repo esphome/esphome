@@ -17,14 +17,51 @@ static const char *const TAG = "dlms_parser";
 DlmsParser::DlmsParser() { this->load_default_patterns_(); }
 
 void DlmsParser::load_default_patterns_() {
-  this->register_pattern_dsl_("T1", "TC,TO,TS,TV", 10);
-  this->register_pattern_dsl_("T2", "TO,TV,TSU", 10);
-  this->register_pattern_dsl_("T3", "TV,TC,TSU,TO", 10);
-  this->register_pattern_dsl_("U.ZPA", "F,C,O,A,TV", 10);
-}
+  auto add_pattern = [this](const std::string &name, int priority, const std::vector<AxdrPatternStep> &steps) {
+    AxdrDescriptorPattern pat{name, priority, steps, 0};
+    auto it = std::upper_bound(
+        this->patterns_.begin(), this->patterns_.end(), pat,
+        [](const AxdrDescriptorPattern &a, const AxdrDescriptorPattern &b) { return a.priority < b.priority; });
+    this->patterns_.insert(it, pat);
+  };
 
-void DlmsParser::register_custom_pattern(const std::string &dsl) {
-  this->register_pattern_dsl_("CUSTOM", dsl, 0);  // Priority 0 to try this first
+  // T1: TC,TO,TS,TV
+  add_pattern("T1", 10,
+              {{AxdrTokenType::EXPECT_TYPE_EXACT, DLMS_DATA_TYPE_UINT16},
+               {AxdrTokenType::EXPECT_CLASS_ID_UNTAGGED},
+               {AxdrTokenType::EXPECT_OBIS6_TAGGED},
+               {AxdrTokenType::EXPECT_SCALER_TAGGED},
+               {AxdrTokenType::EXPECT_VALUE_GENERIC}});
+
+  // T2: TO,TV,TSU
+  add_pattern("T2", 10,
+              {{AxdrTokenType::EXPECT_OBIS6_TAGGED},
+               {AxdrTokenType::EXPECT_VALUE_GENERIC},
+               {AxdrTokenType::EXPECT_STRUCTURE_N, 2},
+               {AxdrTokenType::GOING_DOWN},
+               {AxdrTokenType::EXPECT_SCALER_TAGGED},
+               {AxdrTokenType::EXPECT_UNIT_ENUM_TAGGED},
+               {AxdrTokenType::GOING_UP}});
+
+  // T3: TV,TC,TSU,TO
+  add_pattern("T3", 10,
+              {{AxdrTokenType::EXPECT_VALUE_GENERIC},
+               {AxdrTokenType::EXPECT_TYPE_EXACT, DLMS_DATA_TYPE_UINT16},
+               {AxdrTokenType::EXPECT_CLASS_ID_UNTAGGED},
+               {AxdrTokenType::EXPECT_STRUCTURE_N, 2},
+               {AxdrTokenType::GOING_DOWN},
+               {AxdrTokenType::EXPECT_SCALER_TAGGED},
+               {AxdrTokenType::EXPECT_UNIT_ENUM_TAGGED},
+               {AxdrTokenType::GOING_UP},
+               {AxdrTokenType::EXPECT_OBIS6_TAGGED}});
+
+  // U.ZPA: F,C,O,A,TV
+  add_pattern("U.ZPA", 10,
+              {{AxdrTokenType::EXPECT_TO_BE_FIRST},
+               {AxdrTokenType::EXPECT_CLASS_ID_UNTAGGED},
+               {AxdrTokenType::EXPECT_OBIS6_UNTAGGED},
+               {AxdrTokenType::EXPECT_ATTR8_UNTAGGED},
+               {AxdrTokenType::EXPECT_VALUE_GENERIC}});
 }
 
 size_t DlmsParser::parse(const uint8_t *buffer, size_t length, DlmsDataCallback callback, bool show_log) {
@@ -565,109 +602,6 @@ void DlmsParser::obis_to_string_(const uint8_t *obis, char *buffer, size_t max_l
   if (!obis || max_len == 0)
     return;
   snprintf(buffer, max_len, "%u.%u.%u.%u.%u.%u", obis[0], obis[1], obis[2], obis[3], obis[4], obis[5]);
-}
-
-void DlmsParser::register_pattern_dsl_(const std::string &name, const std::string &dsl, int priority) {
-  AxdrDescriptorPattern pat{name, priority, {}, 0};
-
-  auto trim = [](const std::string &s) {
-    size_t b = s.find_first_not_of(" \t\r\n");
-    size_t e = s.find_last_not_of(" \t\r\n");
-    if (b == std::string::npos)
-      return std::string();
-    return s.substr(b, e - b + 1);
-  };
-
-  std::vector<std::string> tokens;
-  std::string current;
-  int paren = 0;
-  for (char c : dsl) {
-    if (c == '(') {
-      paren++;
-      current.push_back(c);
-    } else if (c == ')') {
-      paren--;
-      current.push_back(c);
-    } else if (c == ',' && paren == 0) {
-      tokens.push_back(trim(current));
-      current.clear();
-    } else {
-      current.push_back(c);
-    }
-  }
-  if (!current.empty())
-    tokens.push_back(trim(current));
-
-  for (size_t i = 0; i < tokens.size(); i++) {
-    std::string tok = tokens[i];
-    if (tok.empty())
-      continue;
-
-    if (tok == "F") {
-      pat.steps.push_back({AxdrTokenType::EXPECT_TO_BE_FIRST});
-    } else if (tok == "C") {
-      pat.steps.push_back({AxdrTokenType::EXPECT_CLASS_ID_UNTAGGED});
-    } else if (tok == "TC") {
-      pat.steps.push_back({AxdrTokenType::EXPECT_TYPE_EXACT, DLMS_DATA_TYPE_UINT16});
-      pat.steps.push_back({AxdrTokenType::EXPECT_CLASS_ID_UNTAGGED});
-    } else if (tok == "O") {
-      pat.steps.push_back({AxdrTokenType::EXPECT_OBIS6_UNTAGGED});
-    } else if (tok == "TO") {
-      pat.steps.push_back({AxdrTokenType::EXPECT_OBIS6_TAGGED});
-    } else if (tok == "A") {
-      pat.steps.push_back({AxdrTokenType::EXPECT_ATTR8_UNTAGGED});
-    } else if (tok == "TA") {
-      pat.steps.push_back({AxdrTokenType::EXPECT_TYPE_U_I_8});
-      pat.steps.push_back({AxdrTokenType::EXPECT_ATTR8_UNTAGGED});
-    } else if (tok == "TS") {
-      pat.steps.push_back({AxdrTokenType::EXPECT_SCALER_TAGGED});
-    } else if (tok == "TU") {
-      pat.steps.push_back({AxdrTokenType::EXPECT_UNIT_ENUM_TAGGED});
-    } else if (tok == "TSU") {
-      pat.steps.push_back({AxdrTokenType::EXPECT_STRUCTURE_N, 2});
-      pat.steps.push_back({AxdrTokenType::GOING_DOWN});
-      pat.steps.push_back({AxdrTokenType::EXPECT_SCALER_TAGGED});
-      pat.steps.push_back({AxdrTokenType::EXPECT_UNIT_ENUM_TAGGED});
-      pat.steps.push_back({AxdrTokenType::GOING_UP});
-    } else if (tok == "V" || tok == "TV") {
-      pat.steps.push_back({AxdrTokenType::EXPECT_VALUE_GENERIC});
-    } else if (tok.size() >= 2 && tok.substr(0, 2) == "S(") {
-      size_t l = tok.find('(');
-      size_t r = tok.rfind(')');
-      if (l != std::string::npos && r != std::string::npos && r > l + 1) {
-        std::string inner = tok.substr(l + 1, r - l - 1);
-        std::vector<std::string> inner_tokens;
-        std::string cur;
-        for (char c2 : inner) {
-          if (c2 == ',') {
-            inner_tokens.push_back(trim(cur));
-            cur.clear();
-          } else {
-            cur.push_back(c2);
-          }
-        }
-        if (!cur.empty())
-          inner_tokens.push_back(trim(cur));
-
-        if (!inner_tokens.empty()) {
-          pat.steps.push_back({AxdrTokenType::EXPECT_STRUCTURE_N, static_cast<uint8_t>(inner_tokens.size())});
-          inner_tokens.insert(inner_tokens.begin(), "DN");
-          inner_tokens.emplace_back("UP");
-          tokens.insert(tokens.begin() + i + 1, inner_tokens.begin(), inner_tokens.end());
-        }
-      }
-    } else if (tok == "DN") {
-      pat.steps.push_back({AxdrTokenType::GOING_DOWN});
-    } else if (tok == "UP") {
-      pat.steps.push_back({AxdrTokenType::GOING_UP});
-    }
-  }
-
-  // Insert maintaining priority sort order
-  auto it = std::upper_bound(
-      this->patterns_.begin(), this->patterns_.end(), pat,
-      [](const AxdrDescriptorPattern &a, const AxdrDescriptorPattern &b) { return a.priority < b.priority; });
-  this->patterns_.insert(it, pat);
 }
 
 }  // namespace dlms_push

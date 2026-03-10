@@ -38,7 +38,6 @@ CONFIG_SCHEMA = cv.All(
                 CONF_RECEIVE_TIMEOUT, default="50ms"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_SHOW_LOG, default=False): cv.boolean,
-            cv.Optional(CONF_CUSTOM_PATTERN, default=""): cv.string,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -54,4 +53,3 @@ async def to_code(config):
     # Apply configuration to the C++ component
     cg.add(var.set_receive_timeout(config[CONF_RECEIVE_TIMEOUT]))
     cg.add(var.set_show_log(config[CONF_SHOW_LOG]))
-    cg.add(var.set_custom_pattern(config[CONF_CUSTOM_PATTERN]))

@@ -28,7 +28,6 @@ class DlmsPushComponent : public Component, public uart::UARTDevice {
 
   void set_receive_timeout(uint32_t timeout_ms) { this->receive_timeout_ms_ = timeout_ms; }
   void set_show_log(bool show_log) { this->show_log_ = show_log; }
-  void set_custom_pattern(const std::string &pattern) { this->custom_pattern_ = pattern; }
 
 #ifdef USE_SENSOR
   void register_sensor(const std::string &obis_code, sensor::Sensor *sensor);
@@ -42,7 +41,6 @@ class DlmsPushComponent : public Component, public uart::UARTDevice {
 
   uint32_t receive_timeout_ms_{50};
   bool show_log_{false};
-  std::string custom_pattern_{""};
 
   static const size_t MAX_RX_BUFFER_SIZE = 2048;
   std::unique_ptr<uint8_t[]> rx_buffer_;
