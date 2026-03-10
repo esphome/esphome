@@ -27,7 +27,21 @@ def obis_code(value):
         raise cv.Invalid(
             f"{value} is not a valid OBIS code (expected format: A.B.C.D.E.F)"
         )
-    return value
+
+    # Normalize by converting each segment to an integer and back to a string
+    # This strips leading zeros and allows enforcing the 0-255 range per field
+    fields = value.split(".")
+    normalized_fields = []
+
+    for field in fields:
+        num = int(field)
+        if not (0 <= num <= 255):
+            raise cv.Invalid(
+                f"OBIS code field '{field}' in '{value}' is out of range (must be 0-255)."
+            )
+        normalized_fields.append(str(num))
+
+    return ".".join(normalized_fields)
 
 
 CONFIG_SCHEMA = cv.All(
