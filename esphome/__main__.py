@@ -64,6 +64,7 @@ from esphome.util import (
     detect_rp2040_bootsel,
     get_picotool_path,
     get_serial_ports,
+    is_picotool_usb_permission_error,
     list_yaml_files,
     run_external_command,
     run_external_process,
@@ -836,7 +837,7 @@ def upload_using_picotool(config: ConfigType) -> int:
         if stderr:
             for line in stderr.splitlines():
                 safe_print(line)
-        if "LIBUSB_ERROR_ACCESS" in stderr or "Permission denied" in stderr:
+        if is_picotool_usb_permission_error(stderr):
             msg = "Permission denied accessing USB device."
             if sys.platform.startswith("linux"):
                 msg += f" {_RP2040_UDEV_HINT}"
