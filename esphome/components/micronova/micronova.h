@@ -8,7 +8,6 @@
 
 namespace esphome::micronova {
 
-static const char *const TAG = "micronova";
 static constexpr uint8_t WRITE_QUEUE_SIZE = 10;
 
 /// Represents a command to be sent to the stove

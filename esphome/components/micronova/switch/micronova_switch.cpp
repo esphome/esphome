@@ -2,6 +2,8 @@
 
 namespace esphome::micronova {
 
+static const char *const TAG = "micronova.switch";
+
 void MicroNovaSwitch::write_state(bool state) {
   if (state) {
     // Only send power-on when current state is Off
