@@ -14,7 +14,6 @@ from esphome.config import validate_config
 from esphome.const import CONF_PLATFORM
 from esphome.core import CORE
 from esphome.loader import (
-    ComponentManifest,
     TestingComponentManifest,
     get_component,
     get_platform,
@@ -27,13 +26,6 @@ PLATFORMIO_GOOGLE_TEST_LIB = "google/googletest@^1.15.2"
 
 # Path to /tests/components
 COMPONENTS_TESTS_DIR: Path = Path(root_path) / "tests" / "components"
-
-# Components whose to_code should run during C++ test builds.
-# Most components don't need code generation for tests; only these
-# essential ones (platform setup, logging, core config) are needed.
-# Note: "core" is the esphome core config module (esphome/core/config.py),
-# which registers under package name "core" not "esphome".
-CPP_TESTING_CODEGEN_COMPONENTS = {"core", "host", "logger"}
 
 
 def hash_components(components: list[str]) -> str:
@@ -133,26 +125,24 @@ def get_platform_components(components: list[str]) -> list[str]:
 
 
 def _build_testing_manifest(
-    manifest: ComponentManifest,
+    manifest: TestingComponentManifest,
     cache_key: str,
-    suppress_to_code: bool,
     test_init: Path,
 ) -> None:
-    """Wrap *manifest* in a TestingComponentManifest, apply restrictions and any
+    """Wrap *manifest* in a TestingComponentManifest, suppress to_code, apply any
     override_manifest() found in *test_init*, then install it under *cache_key*.
+
+    ``to_code`` is always suppressed first. An ``override_manifest`` function in
+    *test_init* may call ``manifest.enable_codegen()`` to re-enable it.
 
     Args:
         manifest: The original component manifest to wrap.
         cache_key: The key used to store the result in the component cache
                    (top-level: component name; platform: ``"component.domain"``).
-        suppress_to_code: When True, set ``to_code = None`` before calling the
-                          override function (the override can still restore it).
         test_init: Path to the ``__init__.py`` that may define ``override_manifest``.
     """
     testing_manifest = TestingComponentManifest(manifest)
-
-    if suppress_to_code:
-        testing_manifest.to_code = None
+    testing_manifest.to_code = None
 
     if test_init.is_file():
         spec = importlib.util.spec_from_file_location(
@@ -194,7 +184,6 @@ def load_test_manifest_overrides(components: list[str]) -> None:
             _build_testing_manifest(
                 manifest,
                 cache_key=f"{component}.{domain}",
-                suppress_to_code=True,
                 # tests/components/packet_transport/sensor/__init__.py
                 test_init=COMPONENTS_TESTS_DIR / component / domain / "__init__.py",
             )
@@ -202,15 +191,10 @@ def load_test_manifest_overrides(components: list[str]) -> None:
             manifest = get_component(comp_name)
             if manifest is None or isinstance(manifest, TestingComponentManifest):
                 continue
-            suppress = comp_name not in CPP_TESTING_CODEGEN_COMPONENTS
-            test_init = COMPONENTS_TESTS_DIR / comp_name / "__init__.py"
-            if not suppress and not test_init.is_file():
-                continue
             _build_testing_manifest(
                 manifest,
                 cache_key=comp_name,
-                suppress_to_code=suppress,
-                test_init=test_init,
+                test_init=COMPONENTS_TESTS_DIR / comp_name / "__init__.py",
             )
 
 
@@ -266,7 +250,7 @@ def run_tests(selected_components: list[str]) -> int:
 
     # Obtain possible dependencies for the requested components.
     components_with_dependencies: list[str] = sorted(
-        get_all_dependencies(set(components), cpp_testing=True)
+        get_all_dependencies(set(components))
     )
 
     # Apply overrides for any transitively discovered dependencies that also
@@ -277,7 +261,6 @@ def run_tests(selected_components: list[str]) -> int:
 
     CORE.config_path = COMPONENTS_TESTS_DIR / "dummy.yaml"
     CORE.dashboard = None
-    CORE.cpp_testing = True
 
     # Validate config will expand the above with defaults:
     config = validate_config(config, {})

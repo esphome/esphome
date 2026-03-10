@@ -178,6 +178,15 @@ class TestingComponentManifest:
         overrides: dict[str, Any] = object.__getattribute__(self, "_overrides")
         overrides[name] = value
 
+    def enable_codegen(self) -> None:
+        """Remove the to_code suppression, re-enabling code generation for this component.
+
+        Call this from ``override_manifest`` when the component needs its real (or a
+        custom stub) ``to_code`` to run during C++ unit test builds.
+        """
+        overrides: dict[str, Any] = object.__getattribute__(self, "_overrides")
+        overrides.pop("to_code", None)
+
     def restore(self) -> None:
         """Clear all overrides, reverting to the wrapped manifest's values."""
         object.__getattribute__(self, "_overrides").clear()
