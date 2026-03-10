@@ -616,6 +616,7 @@ int LWIPRawImpl::internal_output_() {
 }
 
 ssize_t LWIPRawImpl::write(const void *buf, size_t len) {
+  LWIP_LOCK();  // Hold for write + optional output
   ssize_t written = this->internal_write_(buf, len);
   if (written == -1)
     return -1;
