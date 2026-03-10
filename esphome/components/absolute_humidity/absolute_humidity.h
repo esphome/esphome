@@ -3,8 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 
-namespace esphome {
-namespace absolute_humidity {
+namespace esphome::absolute_humidity {
 
 /// Enum listing all implemented saturation vapor pressure equations.
 enum SaturationVaporPressureEquation {
@@ -57,5 +56,4 @@ class AbsoluteHumidityComponent : public sensor::Sensor, public Component {
   SaturationVaporPressureEquation equation_;
 };
 
-}  // namespace absolute_humidity
-}  // namespace esphome
+}  // namespace esphome::absolute_humidity

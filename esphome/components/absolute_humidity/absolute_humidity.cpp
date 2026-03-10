@@ -1,8 +1,7 @@
 #include "esphome/core/log.h"
 #include "absolute_humidity.h"
 
-namespace esphome {
-namespace absolute_humidity {
+namespace esphome::absolute_humidity {
 
 static const char *const TAG{"absolute_humidity.sensor"};
 
@@ -180,5 +179,4 @@ float AbsoluteHumidityComponent::vapor_density(float es, float hr, float ta) {
   return (ea * mw) / (r * ta);
 }
 
-}  // namespace absolute_humidity
-}  // namespace esphome
+}  // namespace esphome::absolute_humidity
