@@ -46,17 +46,6 @@ class ModemOnDisconnectTrigger : public Trigger<> {
   }
 };
 
-class ModemOnPowerOnTrigger : public Trigger<> {
- public:
-  explicit ModemOnPowerOnTrigger(ModemComponent *parent) {
-    parent->add_on_state_callback([this, parent](ModemComponentState old_state, ModemComponentState state) {
-      if (!parent->is_failed() && state == ModemComponentState::POWERING_ON) {
-        this->trigger();
-      }
-    });
-  }
-};
-
 class ModemOnEnableTrigger : public Trigger<> {
  public:
   explicit ModemOnEnableTrigger(ModemComponent *parent) {

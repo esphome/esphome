@@ -88,9 +88,6 @@ std::string state_to_string(ModemComponentState state) {
     case ModemComponentState::ENABLING:
       str = "ENABLING";
       break;
-    case ModemComponentState::POWERING_ON:
-      str = "POWERING_ON";
-      break;
     case ModemComponentState::SYNCING:
       str = "SYNCING";
       break;
@@ -117,9 +114,6 @@ std::string state_to_string(ModemComponentState state) {
       break;
     case ModemComponentState::DISABLED:
       str = "DISABLED";
-      break;
-    case ModemComponentState::POWERING_OFF:
-      str = "POWERING_OFF";
       break;
   }
   return str;

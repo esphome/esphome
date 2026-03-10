@@ -101,17 +101,6 @@ AtCommandResult ModemHandler::send_at(const std::string &cmd, uint32_t timeout, 
   return at_command_result;
 }
 
-bool ModemHandler::get_power_status() {
-  if (this->status_pin) {
-    return this->status_pin->digital_read();
-  }
-  if (this->dce && this->dce->sync() == command_result::OK) {
-    return true;
-  }
-  ESP_LOGW(TAG, "No status pin, modem sync failed. Assuming powered on.");
-  return true;
-}
-
 bool ModemHandler::get_signal_quality(float &out_rssi, float &out_ber) {
   out_rssi = NAN;
   out_ber = NAN;

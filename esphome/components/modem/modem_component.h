@@ -20,7 +20,6 @@ namespace modem {
 
 enum class ModemComponentState {
   ENABLING,
-  POWERING_ON,
   SYNCING,
   INIT_NETWORK,
   START_PPP,
@@ -30,7 +29,6 @@ enum class ModemComponentState {
   NOT_RESPONDING,
   DISABLING,
   DISABLED,
-  POWERING_OFF,
 };
 
 struct ModemRestoreState {
@@ -56,16 +54,6 @@ class ModemComponent : public Component, public uart::UARTComponent {
   void set_cts_pin(InternalGPIOPin *cts_pin) { this->modem_handler->cts_pin = cts_pin; }
   void set_baud_rate(int baud_rate) { this->modem_handler->baud_rate = baud_rate; }
   void set_model(const std::string &model) { this->modem_handler->model = model; }
-  void set_power_pin(GPIOPin *power_pin) { this->modem_handler->power_pin = power_pin; }
-  void set_power_ton_pulse_delay(uint32_t ton_pulse_delay) {
-    this->modem_handler->power_ton_pulse_delay = ton_pulse_delay;
-  }
-  void set_power_ton_delay(uint32_t ton_delay) { this->modem_handler->power_ton_delay = ton_delay; }
-  void set_power_toff_pulse_delay(uint32_t toff_pulse_delay) {
-    this->modem_handler->power_toff_pulse_delay = toff_pulse_delay;
-  }
-  void set_power_toff_delay(uint32_t toff_delay) { this->modem_handler->power_toff_delay = toff_delay; }
-  void set_status_pin(GPIOPin *status_pin) { this->modem_handler->status_pin = status_pin; }
   void set_pin_code(const std::string &pin_code) { this->modem_handler->pin_code = pin_code; }
   void set_tx_buffer_size(uint16_t tx_buffer_size) { this->modem_handler->tx_buffer_size = tx_buffer_size; }
   void set_rx_buffer_size(uint16_t rx_buffer_size) { this->modem_handler->rx_buffer_size = rx_buffer_size; }
@@ -115,7 +103,6 @@ class ModemComponent : public Component, public uart::UARTComponent {
 
   // ===== State handler methods =====
   ModemComponentState handle_state_enabling_();
-  ModemComponentState handle_state_powering_on_();
   ModemComponentState handle_state_syncing_();
   ModemComponentState handle_state_init_network_();
   ModemComponentState handle_state_start_ppp_();
@@ -125,7 +112,6 @@ class ModemComponent : public Component, public uart::UARTComponent {
   ModemComponentState handle_state_not_responding_();
   ModemComponentState handle_state_disabling_();
   ModemComponentState handle_state_disabled_();
-  ModemComponentState handle_state_powering_off_();
 
   void transition_to_(ModemComponentState next_state);
   void request_state_(ModemComponentState next_state);

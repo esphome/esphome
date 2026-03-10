@@ -18,7 +18,6 @@ from esphome.const import (
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
     CONF_PASSWORD,
-    CONF_PIN,
     CONF_REBOOT_TIMEOUT,
     CONF_RX_BUFFER_SIZE,
     CONF_RX_PIN,
@@ -47,15 +46,8 @@ CONF_APN = "apn"
 CONF_DTR_PIN = "dtr_pin"
 CONF_RTS_PIN = "rts_pin"
 CONF_CTS_PIN = "cts_pin"
-CONF_STATUS_PIN = "status_pin"
-CONF_POWER_PIN = "power_pin"
-CONF_TON_PULSE_DELAY = "ton_pulse_delay"
-CONF_TON_DELAY = "ton_delay"
-CONF_TOFF_PULSE_DELAY = "toff_pulse_delay"
-CONF_TOFF_DELAY = "toff_delay"
 CONF_INIT_AT = "init_at"
 CONF_ON_NOT_RESPONDING = "on_not_responding"
-CONF_ON_POWERON = "on_poweron"
 CONF_ON_ENABLE = "on_enable"
 CONF_ON_DISABLE = "on_disable"
 CONF_ON_SYNC = "on_sync"
@@ -73,47 +65,6 @@ MODEM_MODELS = [
     "SIM7670",
     "GENERIC",
 ]
-MODEM_MODELS_POWER = {
-    "BG96": {
-        CONF_TON_PULSE_DELAY: 600,
-        CONF_TON_DELAY: 4900,
-        CONF_TOFF_PULSE_DELAY: 650,
-        CONF_TOFF_DELAY: 2000,
-    },
-    "SIM800": {
-        CONF_TON_PULSE_DELAY: 1300,
-        CONF_TON_DELAY: 3000,
-        CONF_TOFF_PULSE_DELAY: 200,
-        CONF_TOFF_DELAY: 3000,
-    },
-    "SIM7000": {
-        CONF_TON_PULSE_DELAY: 1100,
-        CONF_TON_DELAY: 4500,
-        CONF_TOFF_PULSE_DELAY: 1300,
-        CONF_TOFF_DELAY: 1800,
-    },
-    "SIM7080": {
-        CONF_TON_PULSE_DELAY: 1000,
-        CONF_TON_DELAY: 2500,
-        CONF_TOFF_PULSE_DELAY: 1200,
-        CONF_TOFF_DELAY: 1800,
-    },
-    "SIM7600": {
-        CONF_TON_PULSE_DELAY: 500,
-        CONF_TON_DELAY: 14000,
-        CONF_TOFF_PULSE_DELAY: 2800,
-        CONF_TOFF_DELAY: 25000,
-    },
-    "GENERIC": {
-        CONF_TON_PULSE_DELAY: None,
-        CONF_TON_DELAY: None,
-        CONF_TOFF_PULSE_DELAY: None,
-        CONF_TOFF_DELAY: None,
-    },
-}
-MODEM_MODELS_POWER["SIM7070"] = MODEM_MODELS_POWER["SIM7080"]
-MODEM_MODELS_POWER["SIM7670"] = MODEM_MODELS_POWER["SIM7600"]
-
 modem_ns = cg.esphome_ns.namespace("modem")
 ModemComponent = modem_ns.class_("ModemComponent", cg.Component, uart.UARTComponent)
 
@@ -127,9 +78,6 @@ ModemOnConnectTrigger = modem_ns.class_(
 )
 ModemOnDisconnectTrigger = modem_ns.class_(
     "ModemOnDisconnectTrigger", automation.Trigger.template()
-)
-ModemOnPowerOnTrigger = modem_ns.class_(
-    "ModemOnPowerOnTrigger", automation.Trigger.template()
 )
 ModemOnEnableTrigger = modem_ns.class_(
     "ModemOnEnableTrigger", automation.Trigger.template()
@@ -171,21 +119,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BAUD_RATE): cv.positive_int,
             cv.Required(CONF_MODEL): cv.one_of(*MODEM_MODELS, upper=True),
             cv.Required(CONF_APN): cv.string,
-            cv.Optional(CONF_STATUS_PIN): pins.gpio_input_pin_schema,
-            cv.Optional(CONF_POWER_PIN): cv.maybe_simple_value(
-                {
-                    cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
-                    cv.Optional(
-                        CONF_TON_PULSE_DELAY
-                    ): cv.positive_time_period_milliseconds,
-                    cv.Optional(CONF_TON_DELAY): cv.positive_time_period_milliseconds,
-                    cv.Optional(
-                        CONF_TOFF_PULSE_DELAY
-                    ): cv.positive_time_period_milliseconds,
-                    cv.Optional(CONF_TOFF_DELAY): cv.positive_time_period_milliseconds,
-                },
-                key=CONF_PIN,
-            ),
             cv.Optional(CONF_PIN_CODE): cv.string_strict,
             cv.Optional(CONF_USE_ADDRESS): cv.string,
             cv.Optional(CONF_INIT_AT): cv.All(cv.ensure_list(cv.string)),
@@ -214,9 +147,6 @@ CONFIG_SCHEMA = cv.All(
                         ModemOnDisconnectTrigger
                     )
                 }
-            ),
-            cv.Optional(CONF_ON_POWERON): automation.validate_automation(
-                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModemOnPowerOnTrigger)}
             ),
             cv.Optional(CONF_ON_ENABLE): automation.validate_automation(
                 {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModemOnEnableTrigger)}
@@ -258,38 +188,6 @@ def _final_validate(config):
     # if wifi_config := full_config.get(CONF_WIFI, None):
     #     if wifi_has_sta(wifi_config):
     #         raise cv.Invalid("Wi-Fi must be in AP-only mode when using a modem")
-    power_pin_config = config.get(CONF_POWER_PIN, None)
-    if power_pin_config:
-        # if ton/off pulse delay options are defined, they overrides MODEM_MODELS_POWER
-        if ton_pulse_delay := power_pin_config.get(CONF_TON_PULSE_DELAY, None):
-            MODEM_MODELS_POWER[config[CONF_MODEL]][CONF_TON_PULSE_DELAY] = (
-                ton_pulse_delay
-            )
-        if ton_delay := power_pin_config.get(CONF_TON_DELAY, None):
-            MODEM_MODELS_POWER[config[CONF_MODEL]][CONF_TON_DELAY] = ton_delay
-        if toff_pulse_delay := power_pin_config.get(CONF_TOFF_PULSE_DELAY, None):
-            MODEM_MODELS_POWER[config[CONF_MODEL]][CONF_TOFF_PULSE_DELAY] = (
-                toff_pulse_delay
-            )
-        if toff_delay := power_pin_config.get(CONF_TOFF_DELAY, None):
-            MODEM_MODELS_POWER[config[CONF_MODEL]][CONF_TOFF_DELAY] = toff_delay
-
-        if config[CONF_MODEL] not in MODEM_MODELS_POWER and not (
-            power_pin_config.get(CONF_TON_PULSE_DELAY, None)
-            and power_pin_config.get(CONF_TON_DELAY, None)
-            and power_pin_config.get(CONF_TOFF_PULSE_DELAY, None)
-            and power_pin_config.get(CONF_TOFF_DELAY, None)
-        ):
-            raise cv.Invalid(
-                f"Modem model '{config[CONF_MODEL]}' has no known power specs. If using a power pin, '{CONF_TON_PULSE_DELAY}', '{CONF_TON_DELAY}', '{CONF_TOFF_PULSE_DELAY}', '{CONF_TOFF_DELAY}' options a required"
-            )
-        power_undef = [
-            k for k, v in MODEM_MODELS_POWER[config[CONF_MODEL]].items() if not v
-        ]
-        if power_undef:
-            raise cv.Invalid(
-                f"Options {power_undef} must be defined for model {config[CONF_MODEL]}"
-            )
 
     if (
         conf_safe_mode := full_config.get(CONF_SAFE_MODE, None)
@@ -413,15 +311,7 @@ async def to_code(config):
         for cmd in init_at:
             cg.add(var.add_init_at_command(cmd))
 
-    modem_model = config[CONF_MODEL]
-    cg.add(var.set_model(modem_model))
-
-    if power_spec := MODEM_MODELS_POWER.get(modem_model):
-        cg.add(var.set_power_ton_pulse_delay(power_spec[CONF_TON_PULSE_DELAY]))
-        cg.add(var.set_power_ton_delay(power_spec[CONF_TON_DELAY]))
-        cg.add(var.set_power_toff_pulse_delay(power_spec[CONF_TOFF_PULSE_DELAY]))
-        cg.add(var.set_power_toff_delay(power_spec[CONF_TOFF_DELAY]))
-
+    cg.add(var.set_model(config[CONF_MODEL]))
     cg.add(var.set_apn(config[CONF_APN]))
 
     tx_pin = await cg.gpio_pin_expression(config[CONF_TX_PIN])
@@ -441,14 +331,6 @@ async def to_code(config):
     if baud_rate := config.get(CONF_BAUD_RATE, None):
         cg.add(var.set_baud_rate(baud_rate))
 
-    if status_pin := config.get(CONF_STATUS_PIN, None):
-        pin = await cg.gpio_pin_expression(status_pin)
-        cg.add(var.set_status_pin(pin))
-
-    if power_pin := config.get(CONF_POWER_PIN, None):
-        pin = await cg.gpio_pin_expression(power_pin[CONF_PIN])
-        cg.add(var.set_power_pin(pin))
-
     if rx_buffer_size := config.get(CONF_RX_BUFFER_SIZE, None):
         cg.add(var.set_rx_buffer_size(rx_buffer_size))
 
@@ -462,7 +344,6 @@ async def to_code(config):
         CONF_ON_NOT_RESPONDING,
         CONF_ON_CONNECT,
         CONF_ON_DISCONNECT,
-        CONF_ON_POWERON,
         CONF_ON_ENABLE,
         CONF_ON_DISABLE,
         CONF_ON_SYNC,

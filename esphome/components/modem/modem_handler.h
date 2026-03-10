@@ -37,12 +37,6 @@ class ModemHandler {
   InternalGPIOPin *rts_pin{nullptr};
   InternalGPIOPin *cts_pin{nullptr};
   std::string model;
-  GPIOPin *status_pin{nullptr};
-  uint32_t power_ton_pulse_delay;
-  uint32_t power_ton_delay;
-  uint32_t power_toff_pulse_delay;
-  uint32_t power_toff_delay;
-  GPIOPin *power_pin{nullptr};
   uint16_t tx_buffer_size = 512;
   uint16_t rx_buffer_size = 512;
   uint16_t dte_buffer_size = 512;
@@ -73,7 +67,6 @@ class ModemHandler {
   void modem_create_dte_dce(int baud_rate);
   void enable_debug();
   AtCommandResult send_at(const std::string &cmd, uint32_t timeout = 0, bool verbose = false);
-  bool get_power_status();
   bool get_signal_quality(float &out_rssi, float &out_ber);
   static void ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
   void modem_log_status();
