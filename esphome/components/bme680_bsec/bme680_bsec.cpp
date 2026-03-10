@@ -271,10 +271,16 @@ void BME680BSECComponent::read_() {
   int64_t curr_time_ns = this->get_time_ns_();
 
   if (this->bme680_settings_.trigger_measurement) {
+    uint32_t start = millis();
     while (this->bme680_.power_mode != BME680_SLEEP_MODE) {
+      if (millis() - start > 50) {
+        ESP_LOGE(TAG, "Timeout waiting for BME680 to enter sleep mode");
+        return;
+      }
       this->bme680_status_ = bme680_get_sensor_mode(&this->bme680_);
       if (this->bme680_status_ != BME680_OK) {
-        ESP_LOGW(TAG, "Failed to get sensor mode (BME680 Error Code %d)", this->bme680_status_);
+        ESP_LOGE(TAG, "Failed to get sensor mode (BME680 Error Code %d)", this->bme680_status_);
+        return;
       }
     }
   }

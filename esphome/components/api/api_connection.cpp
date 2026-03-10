@@ -155,6 +155,18 @@ APIConnection::~APIConnection() {
     voice_assistant::global_voice_assistant->client_subscription(this, false);
   }
 #endif
+#ifdef USE_ZWAVE_PROXY
+  if (zwave_proxy::global_zwave_proxy != nullptr && zwave_proxy::global_zwave_proxy->get_api_connection() == this) {
+    zwave_proxy::global_zwave_proxy->zwave_proxy_request(this, enums::ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE);
+  }
+#endif
+#ifdef USE_SERIAL_PROXY
+  for (auto *proxy : App.get_serial_proxies()) {
+    if (proxy->get_api_connection() == this) {
+      proxy->serial_proxy_request(this, enums::SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE);
+    }
+  }
+#endif
 }
 
 void APIConnection::destroy_active_iterator_() {
