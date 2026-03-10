@@ -71,8 +71,6 @@ void DlmsPushComponent::process_frame_() {
     return;
 
   if (this->show_log_) {
-    ESP_LOGD(TAG, "Processing received push data");
-    ESP_LOGD(TAG, "Processing PUSH data frame with DLMS parser");
     ESP_LOGD(TAG, "PUSH frame size: %zu bytes", this->rx_buffer_len_);
   }
 
@@ -98,8 +96,7 @@ void DlmsPushComponent::on_data_parsed_(const char *obis_code, float float_val, 
     for (const auto &entry : this->sensors_) {
       if (entry.obis == obis_code) {
         if (this->show_log_) {
-          ESP_LOGD(TAG, "Found sensor for OBIS code %s: '%s'", obis_code, entry.sensor->get_name().c_str());
-          ESP_LOGD(TAG, "Publishing data");
+          ESP_LOGD(TAG, "Publishing sensor for OBIS code %s: '%s'", obis_code, entry.sensor->get_name().c_str());
         }
         entry.sensor->publish_state(float_val);
         updated_count++;

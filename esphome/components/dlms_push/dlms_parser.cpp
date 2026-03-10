@@ -519,24 +519,6 @@ void DlmsParser::emit_object_(const AxdrDescriptorPattern &pat, const AxdrCaptur
     val_f *= std::pow(10, c.scaler);
   }
 
-  if (this->show_log_) {
-    ESP_LOGD(TAG, "Pattern match '%s' at idx %u ===============", pat.name.c_str(), c.elem_idx);
-    uint16_t cid = c.class_id ? c.class_id : pat.default_class_id;
-
-    ESP_LOGI(TAG, "Found attribute descriptor: class_id=%d, obis=%s", cid, obis_str_buf);
-
-    if (c.value_ptr && c.value_len > 0) {
-      char hex_buf[512];
-      esphome::format_hex_pretty_to(hex_buf, sizeof(hex_buf), c.value_ptr, c.value_len);
-      ESP_LOGI(TAG, " as hex dump : %s", hex_buf);
-    }
-    ESP_LOGI(TAG, " as number   : %f", raw_val_f);
-
-    if (c.has_scaler_unit && is_numeric) {
-      ESP_LOGI(TAG, " as number * scaler  : %f", val_f);
-    }
-  }
-
   this->callback_(obis_str_buf, val_f, is_numeric);
   this->objects_found_++;
 }
