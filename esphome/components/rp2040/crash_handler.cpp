@@ -69,6 +69,11 @@ void crash_handler_read_and_clear() {
   }
 }
 
+// Intentionally uses separate ESP_LOGE calls per line instead of combining into
+// one multi-line log message. This ensures each address appears as its own line
+// on the serial console (miniterm), making it possible to see partial output if
+// the device crashes again during boot, and allowing the CLI's process_stacktrace
+// to match and decode each address individually.
 void crash_handler_log() {
   if (!s_crash_data.valid)
     return;
