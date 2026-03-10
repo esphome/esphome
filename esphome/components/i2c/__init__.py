@@ -1,5 +1,6 @@
 import logging
 import re
+import sys
 
 from esphome import pins
 import esphome.codegen as cg
@@ -115,10 +116,16 @@ def validate_config(config):
 
 def validate_host_config(config):
     if CORE.is_host:
-        # Remove default SDA/SCL pins for host platform
-        # These get added by cv.Optional default values but aren't used on host
-        config.pop(CONF_SDA, None)
-        config.pop(CONF_SCL, None)
+        # Host I2C is currently only supported on Linux
+        if not sys.platform.lower().startswith("linux"):
+            raise cv.Invalid(
+                "I2C is only supported on Linux for the host platform. "
+                f"Current platform: {sys.platform}"
+            )
+        if CONF_SDA in config or CONF_SCL in config:
+            raise cv.Invalid(
+                "'sda' and 'scl' are not supported on host platform; use 'device' instead."
+            )
         if CONF_SDA_PULLUP_ENABLED in config or CONF_SCL_PULLUP_ENABLED in config:
             raise cv.Invalid("Pull-up configuration is not supported on host platform.")
         if CONF_DEVICE not in config:
@@ -132,11 +139,23 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): _bus_declare_type,
-            cv.Optional(CONF_SDA, default="SDA"): pins.internal_gpio_pin_number,
+            cv.SplitDefault(
+                CONF_SDA,
+                esp32="SDA",
+                esp8266="SDA",
+                rp2040="SDA",
+                nrf52="SDA",
+            ): pins.internal_gpio_pin_number,
             cv.SplitDefault(CONF_SDA_PULLUP_ENABLED, esp32=True): cv.All(
                 cv.only_on_esp32, cv.boolean
             ),
-            cv.Optional(CONF_SCL, default="SCL"): pins.internal_gpio_pin_number,
+            cv.SplitDefault(
+                CONF_SCL,
+                esp32="SCL",
+                esp8266="SCL",
+                rp2040="SCL",
+                nrf52="SCL",
+            ): pins.internal_gpio_pin_number,
             cv.SplitDefault(CONF_SCL_PULLUP_ENABLED, esp32=True): cv.All(
                 cv.only_on_esp32, cv.boolean
             ),
