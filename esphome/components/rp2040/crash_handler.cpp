@@ -3,6 +3,7 @@
 #include "crash_handler.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
 #include <hardware/structs/watchdog.h>
 #include <hardware/watchdog.h>
 
@@ -24,13 +25,18 @@ static constexpr uint32_t CRASH_MAGIC = 0xDEADBEEF;
 // [4..7] = up to 4 additional code addresses found by scanning the stack
 //          (return addresses from callers, giving a deeper backtrace)
 
-// RP2040 flash is mapped at 0x10000000 with up to 16MB address space.
-// We use 2MB as the upper bound — large enough for any typical ESPHome firmware
-// while keeping false positives low during stack scanning. Wider ranges would
-// match more stale data on the stack that happens to look like code addresses.
+// Flash is mapped at 0x10000000. RP2040 supports up to 16MB, RP2350 up to 32MB.
+// We use a conservative upper bound to keep false positives low during stack scanning.
+// Wider ranges would match more stale data on the stack that happens to look like code addresses.
+#if defined(PICO_RP2350)
+static constexpr uint32_t FLASH_END = 0x10400000;  // 4MB — RP2350 typical max
+#else
+static constexpr uint32_t FLASH_END = 0x10200000;  // 2MB — RP2040 typical max
+#endif
+
 static inline bool is_code_addr(uint32_t val) {
   uint32_t cleared = val & ~1u;  // Clear Thumb bit
-  return cleared >= 0x10000000 && cleared < 0x10200000;
+  return cleared >= 0x10000000 && cleared < FLASH_END;
 }
 
 static constexpr size_t MAX_BACKTRACE = 4;
@@ -69,6 +75,11 @@ void crash_handler_read_and_clear() {
   }
 }
 
+// Intentionally uses separate ESP_LOGE calls per line instead of combining into
+// one multi-line log message. This ensures each address appears as its own line
+// on the serial console (miniterm), making it possible to see partial output if
+// the device crashes again during boot, and allowing the CLI's process_stacktrace
+// to match and decode each address individually.
 void crash_handler_log() {
   if (!s_crash_data.valid)
     return;
@@ -80,7 +91,14 @@ void crash_handler_log() {
   for (uint8_t i = 0; i < s_crash_data.backtrace_count; i++) {
     ESP_LOGE(TAG, "  BT%d: 0x%08X  (stack backtrace)", i, s_crash_data.backtrace[i]);
   }
-  ESP_LOGE(TAG, "Use addr2line -e firmware.elf 0x%08X 0x%08X to decode", s_crash_data.pc, s_crash_data.lr);
+  // Build addr2line hint with all captured addresses for easy copy-paste
+  char hint[160];
+  int pos = snprintf(hint, sizeof(hint), "Use: addr2line -pfiaC -e firmware.elf 0x%08" PRIX32 " 0x%08" PRIX32,
+                     s_crash_data.pc, s_crash_data.lr);
+  for (uint8_t i = 0; i < s_crash_data.backtrace_count && pos < (int) sizeof(hint) - 12; i++) {
+    pos += snprintf(hint + pos, sizeof(hint) - pos, " 0x%08" PRIX32, s_crash_data.backtrace[i]);
+  }
+  ESP_LOGE(TAG, "%s", hint);
 }
 
 }  // namespace esphome::rp2040
@@ -93,7 +111,7 @@ void crash_handler_log() {
 // (which survive watchdog reboot), then trigger a reboot.
 
 // C handler called from the asm wrapper with the exception frame pointer.
-static void __attribute__((used)) hard_fault_handler_c(uint32_t *frame, uint32_t exc_return) {
+static void __attribute__((used, noreturn)) hard_fault_handler_c(uint32_t *frame, uint32_t /*exc_return*/) {
   // watchdog_reboot() overwrites scratch[4]-[7], so we must call it first
   // then write ALL our data after. The 10ms timeout gives us plenty of time.
   watchdog_reboot(0, 0, 10);
@@ -108,8 +126,12 @@ static void __attribute__((used)) hard_fault_handler_c(uint32_t *frame, uint32_t
   // The exception frame is 8 words (32 bytes) at 'frame'. The pre-fault
   // stack starts at frame+8. Walk up to 64 words looking for return addresses.
   uint32_t *scan_start = frame + 8;  // Past exception frame
-  // RP2040 RAM ends at 0x20042000 (264KB SRAM)
-  uint32_t *stack_top = (uint32_t *) 0x20042000;
+  // SRAM end address differs by chip variant
+#if defined(PICO_RP2350)
+  uint32_t *stack_top = (uint32_t *) 0x20082000;  // RP2350: 520KB SRAM
+#else
+  uint32_t *stack_top = (uint32_t *) 0x20042000;   // RP2040: 264KB SRAM
+#endif
   uint32_t bt_count = 0;
 
   for (uint32_t *p = scan_start; p < stack_top && p < scan_start + 64 && bt_count < MAX_BACKTRACE; p++) {
