@@ -402,6 +402,21 @@ def get_picotool_path(cc_path: str) -> Path | None:
     return None
 
 
+def is_picotool_usb_permission_error(output: str | bytes) -> bool:
+    """Check if picotool output indicates a USB permission error."""
+    if isinstance(output, str):
+        return (
+            "unable to connect" in output
+            or "LIBUSB_ERROR_ACCESS" in output
+            or "Permission denied" in output
+        )
+    return (
+        b"unable to connect" in output
+        or b"LIBUSB_ERROR_ACCESS" in output
+        or b"Permission denied" in output
+    )
+
+
 @dataclass
 class BootselResult:
     """Result of RP2040 BOOTSEL detection."""
@@ -426,10 +441,9 @@ def detect_rp2040_bootsel(picotool_path: str | Path) -> BootselResult:
         device_count = result.stdout.count(b"type:")
         if device_count > 0:
             return BootselResult(device_count)
-        # Check stderr for permission issues — picotool can see the device
+        # Check for permission issues — picotool can see the device
         # on the USB bus but can't connect without proper permissions
-        combined = result.stderr + result.stdout
-        if b"unable to connect" in combined or b"LIBUSB_ERROR_ACCESS" in combined:
+        if is_picotool_usb_permission_error(result.stderr + result.stdout):
             return BootselResult(0, permission_error=True)
         return BootselResult(0)
     except (OSError, subprocess.TimeoutExpired):

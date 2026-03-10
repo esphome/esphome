@@ -7,3 +7,8 @@ esp8266:
 
 logger:
   level: DEBUG
+
+# Need at least one non-logger component so the ordering test
+# can verify that logger pre_setup() comes before other allocations.
+preferences:
+  flash_write_interval: 1min
