@@ -679,10 +679,11 @@ void I2SAudioSpeaker::speaker_task(void *params) {
         // SPDIF Continuous Silence Mode: always output valid SPDIF stream
         // When no audio data, write silence-encoded blocks to keep receiver happy
         if (spdif_continuous_mode && this_speaker->spdif_encoder_ != nullptr) {
-          // CRITICAL: Update last_data_received_time unconditionally in SPDIF silence mode
-          // This prevents the speaker task timeout from firing. Outputting silence is active
-          // operation, not idleness - we're keeping the SPDIF receiver synced.
-          last_data_received_time = millis();
+          // In "timeout: never" mode, keep the task alive while outputting silence.
+          // When a timeout is configured, silence timeout logic below handles task shutdown.
+          if (!this_speaker->timeout_.has_value()) {
+            last_data_received_time = millis();
+          }
 
           // Grace period: After preload completes, don't enter "silence mode" for a while.
           // This allows bursty data delivery to settle without causing audio/silence oscillation.
@@ -698,9 +699,16 @@ void I2SAudioSpeaker::speaker_task(void *params) {
             }
 
             // In SPDIF continuous mode, don't auto-stop on silence timeout.
-            // During aggressive seek/track changes, brief data gaps can exceed configured timeout
-            // and prematurely tear down the output path while upstream is still recovering.
-            // Teardown should be driven by explicit stop commands.
+            // During aggressive seek/track changes, brief data gaps can occur; the debounce/grace
+            // logic above avoids transient oscillation. If silence persists past the configured
+            // timeout, stop the task so components expecting timeout semantics can recover.
+            if (this_speaker->timeout_.has_value()) {
+              const uint32_t silence_duration = millis() - this_speaker->spdif_silence_start_;
+              if (silence_duration >= this_speaker->timeout_.value()) {
+                ESP_LOGV(TAG, "SPDIF: Silence timeout reached (%" PRIu32 "ms) - stopping speaker", silence_duration);
+                break;
+              }
+            }
           }
 
           // First flush any partial block with silence padding (non-blocking to avoid getting stuck).
