@@ -27,15 +27,6 @@ class AbsoluteHumidityComponent : public sensor::Sensor, public Component {
   void loop() override;
 
  protected:
-  void temperature_callback_(float state) {
-    this->next_update_ = true;
-    this->temperature_ = state;
-  }
-  void humidity_callback_(float state) {
-    this->next_update_ = true;
-    this->humidity_ = state;
-  }
-
   /** Buck equation for saturation vapor pressure in kPa.
    *
    * @param temperature_c Air temperature in °C.
@@ -63,8 +54,6 @@ class AbsoluteHumidityComponent : public sensor::Sensor, public Component {
 
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
-
-  bool next_update_{false};
 
   float temperature_{NAN};
   float humidity_{NAN};

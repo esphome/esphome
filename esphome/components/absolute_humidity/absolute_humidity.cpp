@@ -7,16 +7,24 @@ namespace absolute_humidity {
 static const char *const TAG = "absolute_humidity.sensor";
 
 void AbsoluteHumidityComponent::setup() {
+  this->temperature_sensor_->add_on_state_callback([this](float state) {
+    this->temperature_ = state;
+    this->enable_loop();
+  });
   ESP_LOGD(TAG, "  Added callback for temperature '%s'", this->temperature_sensor_->get_name().c_str());
-  this->temperature_sensor_->add_on_state_callback([this](float state) { this->temperature_callback_(state); });
+  // Get initial value
   if (this->temperature_sensor_->has_state()) {
-    this->temperature_callback_(this->temperature_sensor_->get_state());
+    this->temperature_ = this->temperature_sensor_->get_state();
   }
 
+  this->humidity_sensor_->add_on_state_callback([this](float state) {
+    this->humidity_ = state;
+    this->enable_loop();
+  });
   ESP_LOGD(TAG, "  Added callback for relative humidity '%s'", this->humidity_sensor_->get_name().c_str());
-  this->humidity_sensor_->add_on_state_callback([this](float state) { this->humidity_callback_(state); });
+  // Get initial value
   if (this->humidity_sensor_->has_state()) {
-    this->humidity_callback_(this->humidity_sensor_->get_state());
+    this->humidity_ = this->humidity_sensor_->get_state();
   }
 }
 
@@ -46,10 +54,8 @@ void AbsoluteHumidityComponent::dump_config() {
 }
 
 void AbsoluteHumidityComponent::loop() {
-  if (!this->next_update_) {
-    return;
-  }
-  this->next_update_ = false;
+  // Only run once
+  this->disable_loop();
 
   // Ensure we have source data
   const bool no_temperature = std::isnan(this->temperature_);
