@@ -296,21 +296,19 @@ void SpeakerSourceMediaPlayer::loop() {
 
 media_source::MediaSource *SpeakerSourceMediaPlayer::find_source_for_uri_(const std::string &uri, uint8_t pipeline) {
   PipelineContext &ps = this->pipelines_[pipeline];
+  media_source::MediaSource *first_match = nullptr;
   for (auto &binding : ps.sources) {
     if (binding->source->can_handle(uri)) {
-      // Check if this source is idle
+      // Prefer an idle source; otherwise remember the first match (will be stopped by try_execute_play_uri_)
       if (binding->source->get_state() == media_source::MediaSourceState::IDLE) {
-        return binding->source;  // First idle match wins
+        return binding->source;
+      }
+      if (first_match == nullptr) {
+        first_match = binding->source;
       }
     }
   }
-  // If no idle source found, try again without checking state (will be stopped by try_execute_play_uri_)
-  for (auto &binding : ps.sources) {
-    if (binding->source->can_handle(uri)) {
-      return binding->source;  // First match wins
-    }
-  }
-  return nullptr;
+  return first_match;
 }
 
 bool SpeakerSourceMediaPlayer::try_execute_play_uri_(const std::string &uri, uint8_t pipeline) {
