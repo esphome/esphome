@@ -168,6 +168,7 @@ async def wireguard_enabled_to_code(config, condition_id, template_arg, args):
     "wireguard.enable",
     WireguardEnableAction,
     cv.Schema({cv.GenerateID(): cv.use_id(Wireguard)}),
+    synchronous=True,
 )
 async def wireguard_enable_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -179,6 +180,7 @@ async def wireguard_enable_to_code(config, action_id, template_arg, args):
     "wireguard.disable",
     WireguardDisableAction,
     cv.Schema({cv.GenerateID(): cv.use_id(Wireguard)}),
+    synchronous=True,
 )
 async def wireguard_disable_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

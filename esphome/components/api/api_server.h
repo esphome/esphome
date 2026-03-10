@@ -2,6 +2,7 @@
 
 #include "esphome/core/defines.h"
 #ifdef USE_API
+#include "api_buffer.h"
 #include "api_noise_context.h"
 #include "api_pb2.h"
 #include "api_pb2_service.h"
@@ -65,7 +66,7 @@ class APIServer : public Component,
   void set_max_connections(uint8_t max_connections) { this->max_connections_ = max_connections; }
 
   // Get reference to shared buffer for API connections
-  std::vector<uint8_t> &get_shared_buffer_ref() { return shared_write_buffer_; }
+  APIBuffer &get_shared_buffer_ref() { return shared_write_buffer_; }
 
 #ifdef USE_API_NOISE
   bool save_noise_psk(psk_t psk, bool make_active = true);
@@ -276,7 +277,7 @@ class APIServer : public Component,
   // Not pre-allocated: all send paths call prepare_first_message_buffer() which
   // reserves the exact needed size. Pre-allocating here would cause heap fragmentation
   // since the buffer would almost always reallocate on first use.
-  std::vector<uint8_t> shared_write_buffer_;
+  APIBuffer shared_write_buffer_;
 #ifdef USE_API_HOMEASSISTANT_STATES
   std::vector<HomeAssistantStateSubscription> state_subs_;
 #endif

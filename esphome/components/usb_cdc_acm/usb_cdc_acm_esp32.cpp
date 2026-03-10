@@ -326,10 +326,10 @@ size_t USBCDCACMInstance::available() {
   return waiting + (this->has_peek_ ? 1 : 0);
 }
 
-void USBCDCACMInstance::flush() {
+uart::FlushResult USBCDCACMInstance::flush() {
   // Wait for TX ring buffer to be empty
   if (this->usb_tx_ringbuf_ == nullptr) {
-    return;
+    return uart::FlushResult::ASSUMED_SUCCESS;
   }
 
   UBaseType_t waiting = 1;
@@ -341,7 +341,12 @@ void USBCDCACMInstance::flush() {
   }
 
   // Also wait for USB to finish transmitting
-  tinyusb_cdcacm_write_flush(static_cast<tinyusb_cdcacm_itf_t>(this->itf_), pdMS_TO_TICKS(100));
+  esp_err_t err = tinyusb_cdcacm_write_flush(static_cast<tinyusb_cdcacm_itf_t>(this->itf_), pdMS_TO_TICKS(100));
+  if (err == ESP_OK)
+    return uart::FlushResult::SUCCESS;
+  if (err == ESP_ERR_TIMEOUT)
+    return uart::FlushResult::TIMEOUT;
+  return uart::FlushResult::FAILED;
 }
 
 void USBCDCACMInstance::check_logger_conflict() {}

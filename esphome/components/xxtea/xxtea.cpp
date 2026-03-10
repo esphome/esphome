@@ -7,6 +7,8 @@ static const uint32_t DELTA = 0x9e3779b9;
 #define MX ((((z >> 5) ^ (y << 2)) + ((y >> 3) ^ (z << 4))) ^ ((sum ^ y) + (k[(p ^ e) & 7] ^ z)))
 
 void encrypt(uint32_t *v, size_t n, const uint32_t *k) {
+  if (n == 0)
+    return;
   uint32_t z, y, sum, e;
   size_t p;
   size_t q = 6 + 52 / n;
@@ -25,6 +27,8 @@ void encrypt(uint32_t *v, size_t n, const uint32_t *k) {
 }
 
 void decrypt(uint32_t *v, size_t n, const uint32_t *k) {
+  if (n == 0)
+    return;
   uint32_t z, y, sum, e;
   size_t p;
   size_t q = 6 + 52 / n;
