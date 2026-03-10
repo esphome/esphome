@@ -83,10 +83,15 @@ void TemplateClimate::dump_config() {
 }
 
 void TemplateClimate::control(const climate::ClimateCall &call) {
-  // When no state-readback lambdas are present ESPHome owns the state, so
-  // apply changes immediately. When state lambdas are present the device owns
-  // the state; apply changes as a preview only if optimistic is enabled (the
-  // device will correct via lambdas on the next loop iteration).
+  // Read lambdas (loop) poll the device state each iteration.
+  // Set actions send new settings to the controlled device.
+  // optimistic=true:  also update the entity state immediately after an action,
+  //   so the UI reflects the change right away; the next loop() read will
+  //   confirm or correct it.
+  // optimistic=false: do not update the entity state after an action; wait for
+  //   the next loop() read lambda to reflect the device's actual state.
+  // When no read lambdas are configured, always update entity state immediately
+  // since nothing will otherwise update it.
   const bool has_state_lambdas = this->target_temperature_f_.has_value() || this->mode_f_.has_value() ||
                                  this->fan_mode_f_.has_value() || this->swing_mode_f_.has_value() ||
                                  this->preset_f_.has_value();

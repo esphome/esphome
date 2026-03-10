@@ -64,11 +64,10 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_SET_PRESET_ACTION): automation.validate_automation(
                 single=True
             ),
-            # optimistic: whether HA reflects a command immediately as a visual preview.
-            #   When no state-readback lambdas are present ESPHome owns state permanently
-            #   (commands always apply). When state lambdas are present the device owns
-            #   state; optimistic=true shows a preview that the device corrects on the
-            #   next loop, optimistic=false waits for the device to confirm.
+            # optimistic: controls whether the entity state is updated immediately after a
+            #   set_*_action fires (True) or only after the next read-lambda poll (False).
+            #   When no read lambdas are configured the entity state is always updated
+            #   immediately, since there is nothing polling the device.
             cv.Optional(CONF_OPTIMISTIC, default=True): cv.boolean,
         }
     )
