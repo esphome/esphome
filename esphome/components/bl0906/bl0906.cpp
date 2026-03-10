@@ -138,23 +138,24 @@ void BL0906::read_data_(const uint8_t address, const float reference, sensor::Se
 
   this->write_byte(BL0906_READ_COMMAND);
   this->write_byte(address);
-  if (this->read_array((uint8_t *) &buffer, sizeof(buffer) - 1)) {
-    if (bl0906_checksum(address, &buffer) == buffer.checksum) {
-      if (signed_result) {
-        data_s24.l = buffer.l;
-        data_s24.m = buffer.m;
-        data_s24.h = buffer.h;
-      } else {
-        data_u24.l = buffer.l;
-        data_u24.m = buffer.m;
-        data_u24.h = buffer.h;
-      }
-    } else {
-      ESP_LOGW(TAG, "Junk on wire. Throwing away partial message");
-      while (read() >= 0)
-        ;
-      return;
-    }
+  if (!this->read_array((uint8_t *) &buffer, sizeof(buffer) - 1)) {
+    ESP_LOGW(TAG, "Read failed");
+    return;
+  }
+  if (bl0906_checksum(address, &buffer) != buffer.checksum) {
+    ESP_LOGW(TAG, "Junk on wire. Throwing away partial message");
+    while (read() >= 0)
+      ;
+    return;
+  }
+  if (signed_result) {
+    data_s24.l = buffer.l;
+    data_s24.m = buffer.m;
+    data_s24.h = buffer.h;
+  } else {
+    data_u24.l = buffer.l;
+    data_u24.m = buffer.m;
+    data_u24.h = buffer.h;
   }
   // Power
   if (reference == BL0906_PREF) {

@@ -106,10 +106,15 @@ std::vector<CdcEps> USBUartTypeCdcAcm::parse_descriptors(usb_device_handle_t dev
 }
 
 void RingBuffer::push(uint8_t item) {
+  if (this->get_free_space() == 0)
+    return;
   this->buffer_[this->insert_pos_] = item;
   this->insert_pos_ = (this->insert_pos_ + 1) % this->buffer_size_;
 }
 void RingBuffer::push(const uint8_t *data, size_t len) {
+  size_t free = this->get_free_space();
+  if (len > free)
+    len = free;
   for (size_t i = 0; i != len; i++) {
     this->buffer_[this->insert_pos_] = *data++;
     this->insert_pos_ = (this->insert_pos_ + 1) % this->buffer_size_;
