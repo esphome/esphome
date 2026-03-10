@@ -39,10 +39,12 @@ void SpeakerSourceMediaPlayer::add_media_source(uint8_t pipeline, media_source::
 }
 
 void SpeakerSourceMediaPlayer::dump_config() {
-  ESP_LOGCONFIG(TAG, "Speaker Source Media Player:");
-  ESP_LOGCONFIG(TAG, "  Volume Increment: %.2f", this->volume_increment_);
-  ESP_LOGCONFIG(TAG, "  Volume Min: %.2f", this->volume_min_);
-  ESP_LOGCONFIG(TAG, "  Volume Max: %.2f", this->volume_max_);
+  ESP_LOGCONFIG(TAG,
+                "Speaker Source Media Player:\n"
+                "  Volume Increment: %.2f\n"
+                "  Volume Min: %.2f\n"
+                "  Volume Max: %.2f",
+                this->volume_increment_, this->volume_min_, this->volume_max_);
 }
 
 void SpeakerSourceMediaPlayer::setup() {
