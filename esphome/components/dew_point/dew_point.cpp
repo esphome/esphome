@@ -1,6 +1,5 @@
 
 #include "dew_point.h"
-#include <cmath>
 
 namespace esphome::dew_point {
 
