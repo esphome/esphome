@@ -340,7 +340,7 @@ template<typename T, size_t N> class StaticRingBuffer {
   Iterator end() const { return Iterator(this, this->count_); }
 
  private:
-  T data_[N]{};
+  T data_[N];
   size_t head_{0};
   size_t tail_{0};
   size_t count_{0};
