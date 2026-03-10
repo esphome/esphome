@@ -668,7 +668,7 @@ def get_all_dependencies(
 
         for comp_name in all_components:
             if "." in comp_name:
-                domain, platform = comp_name.split(".")
+                domain, platform = comp_name.split(".", maxsplit=1)
                 comp = get_platform(domain, platform)
             else:
                 comp = get_component(comp_name)
