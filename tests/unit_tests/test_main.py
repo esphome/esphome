@@ -6,6 +6,7 @@ from collections.abc import Generator
 from dataclasses import dataclass
 import json
 import logging
+import os
 from pathlib import Path
 import re
 import sys
@@ -19,6 +20,8 @@ from pytest import CaptureFixture
 from esphome import platformio_api
 from esphome.__main__ import (
     Purpose,
+    _get_configured_xtal_freq,
+    _make_crystal_freq_callback,
     choose_upload_log_host,
     command_analyze_memory,
     command_clean_all,
@@ -3717,3 +3720,124 @@ esp32:
         clean_output.split("SUMMARY")[1] if "SUMMARY" in clean_output else ""
     )
     assert "secrets.yaml" not in summary_section
+
+
+def test_get_configured_xtal_freq_reads_sdkconfig(tmp_path: Path) -> None:
+    """Test reading XTAL_FREQ from sdkconfig."""
+    CORE.name = "test-device"
+    CORE.build_path = tmp_path
+    sdkconfig = tmp_path / "sdkconfig.test-device"
+    sdkconfig.write_text(
+        "CONFIG_SOC_XTAL_SUPPORT_26M=y\nCONFIG_XTAL_FREQ=26\nCONFIG_XTAL_FREQ_26=y\n"
+    )
+    assert _get_configured_xtal_freq() == 26
+
+
+def test_get_configured_xtal_freq_default_40(tmp_path: Path) -> None:
+    """Test reading default 40MHz XTAL_FREQ from sdkconfig."""
+    CORE.name = "test-device"
+    CORE.build_path = tmp_path
+    sdkconfig = tmp_path / "sdkconfig.test-device"
+    sdkconfig.write_text("CONFIG_XTAL_FREQ=40\nCONFIG_XTAL_FREQ_40=y\n")
+    assert _get_configured_xtal_freq() == 40
+
+
+def test_get_configured_xtal_freq_missing_file(tmp_path: Path) -> None:
+    """Test that missing sdkconfig returns None."""
+    CORE.name = "test-device"
+    CORE.build_path = tmp_path
+    assert _get_configured_xtal_freq() is None
+
+
+def test_get_configured_xtal_freq_no_xtal_line(tmp_path: Path) -> None:
+    """Test that sdkconfig without XTAL_FREQ returns None."""
+    CORE.name = "test-device"
+    CORE.build_path = tmp_path
+    sdkconfig = tmp_path / "sdkconfig.test-device"
+    sdkconfig.write_text("CONFIG_OTHER=123\n")
+    assert _get_configured_xtal_freq() is None
+
+
+def test_crystal_freq_callback_mismatch() -> None:
+    """Test callback returns warning on crystal frequency mismatch."""
+    callback = _make_crystal_freq_callback(40)
+    result = callback("Crystal frequency:  26MHz")
+    assert result is not None
+    assert "26MHz" in result
+    assert "40MHz" in result
+    assert "CONFIG_XTAL_FREQ_26" in result
+
+
+def test_crystal_freq_callback_match() -> None:
+    """Test callback returns None when frequencies match."""
+    callback = _make_crystal_freq_callback(40)
+    result = callback("Crystal frequency:  40MHz")
+    assert result is None
+
+
+def test_crystal_freq_callback_no_crystal_line() -> None:
+    """Test callback returns None for unrelated lines."""
+    callback = _make_crystal_freq_callback(40)
+    assert callback("Chip type: ESP8684H") is None
+    assert callback("MAC: a0:b7:65:8b:16:d4") is None
+    assert callback("") is None
+
+
+def test_upload_using_esptool_passes_crystal_callback(
+    tmp_path: Path,
+    mock_run_external_command_main: Mock,
+    mock_get_idedata: Mock,
+) -> None:
+    """Test that upload_using_esptool passes crystal freq callback for ESP32."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: VARIANT_ESP32}
+
+    # Create sdkconfig with XTAL_FREQ
+    build_dir = Path(CORE.build_path)
+    build_dir.mkdir(parents=True, exist_ok=True)
+    sdkconfig = build_dir / "sdkconfig.test"
+    sdkconfig.write_text("CONFIG_XTAL_FREQ=40\n")
+
+    mock_idedata = MagicMock(spec=platformio_api.IDEData)
+    mock_idedata.firmware_bin_path = tmp_path / "firmware.bin"
+    mock_idedata.extra_flash_images = []
+    mock_get_idedata.return_value = mock_idedata
+    (tmp_path / "firmware.bin").touch()
+
+    config = {CONF_ESPHOME: {"platformio_options": {}}}
+    upload_using_esptool(config, "/dev/ttyUSB0", None, None)
+
+    # Verify line_callbacks was passed with the crystal callback
+    call_kwargs = mock_run_external_command_main.call_args[1]
+    assert "line_callbacks" in call_kwargs
+    assert len(call_kwargs["line_callbacks"]) == 1
+
+
+def test_upload_using_esptool_subprocess_passes_crystal_callback(
+    mock_run_external_process: Mock,
+    mock_get_idedata: Mock,
+    tmp_path: Path,
+) -> None:
+    """Test that crystal freq callback is passed via run_external_process."""
+    setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path, name="test")
+    CORE.data[KEY_ESP32] = {KEY_VARIANT: VARIANT_ESP32}
+
+    # Create sdkconfig with XTAL_FREQ
+    build_dir = Path(CORE.build_path)
+    build_dir.mkdir(parents=True, exist_ok=True)
+    sdkconfig = build_dir / "sdkconfig.test"
+    sdkconfig.write_text("CONFIG_XTAL_FREQ=40\n")
+
+    mock_idedata = MagicMock(spec=platformio_api.IDEData)
+    mock_idedata.firmware_bin_path = tmp_path / "firmware.bin"
+    mock_idedata.extra_flash_images = []
+    mock_get_idedata.return_value = mock_idedata
+    (tmp_path / "firmware.bin").touch()
+
+    config = {CONF_ESPHOME: {"platformio_options": {}}}
+    with patch.dict(os.environ, {"ESPHOME_USE_SUBPROCESS": "1"}):
+        upload_using_esptool(config, "/dev/ttyUSB0", None, None)
+
+    call_kwargs = mock_run_external_process.call_args[1]
+    assert "line_callbacks" in call_kwargs
+    assert len(call_kwargs["line_callbacks"]) == 1

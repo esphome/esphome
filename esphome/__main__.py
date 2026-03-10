@@ -1,6 +1,7 @@
 # PYTHON_ARGCOMPLETE_OK
 import argparse
 from collections.abc import Callable
+from contextlib import suppress
 from datetime import datetime
 import functools
 import getpass
@@ -687,6 +688,47 @@ def _check_and_emit_build_info() -> None:
     )
 
 
+def _get_configured_xtal_freq() -> int | None:
+    """Read the configured crystal frequency from the sdkconfig file."""
+    sdkconfig_path = CORE.relative_build_path(f"sdkconfig.{CORE.name}")
+    if not sdkconfig_path.is_file():
+        return None
+    with suppress(OSError, ValueError):
+        content = sdkconfig_path.read_text()
+        for line in content.splitlines():
+            if line.startswith("CONFIG_XTAL_FREQ="):
+                return int(line.split("=", 1)[1])
+    return None
+
+
+def _make_crystal_freq_callback(
+    configured_freq: int,
+) -> Callable[[str], str | None]:
+    """Create a callback that checks esptool crystal frequency output."""
+    crystal_re = re.compile(r"Crystal frequency:\s+(\d+)\s*MHz")
+
+    def check_crystal_line(line: str) -> str | None:
+        if not (match := crystal_re.search(line)):
+            return None
+        detected = int(match.group(1))
+        if detected == configured_freq:
+            return None
+        return (
+            f"\n\033[33mWARNING: Crystal frequency mismatch! "
+            f"Device reports {detected}MHz but firmware is configured "
+            f"for {configured_freq}MHz.\n"
+            f"UART logging and other clock-dependent features will not "
+            f"work correctly.\n"
+            f"Set the correct crystal frequency with sdkconfig_options:\n"
+            f"  esp32:\n"
+            f"    framework:\n"
+            f"      sdkconfig_options:\n"
+            f"        CONFIG_XTAL_FREQ_{detected}: 'y'\033[0m\n\n"
+        )
+
+    return check_crystal_line
+
+
 def upload_using_esptool(
     config: ConfigType, port: str, file: str, speed: int
 ) -> str | int:
@@ -715,6 +757,14 @@ def upload_using_esptool(
 
         mcu = get_esp32_variant().lower()
 
+    line_callbacks: list[Callable[[str], str | None]] = []
+    if (
+        CORE.is_esp32
+        and file is None
+        and (configured_freq := _get_configured_xtal_freq()) is not None
+    ):
+        line_callbacks.append(_make_crystal_freq_callback(configured_freq))
+
     def run_esptool(baud_rate):
         cmd = [
             "esptool",
@@ -739,9 +789,13 @@ def upload_using_esptool(
         if os.environ.get("ESPHOME_USE_SUBPROCESS") is None:
             import esptool
 
-            return run_external_command(esptool.main, *cmd)  # pylint: disable=no-member
+            return run_external_command(
+                esptool.main,  # pylint: disable=no-member
+                *cmd,
+                line_callbacks=line_callbacks,
+            )
 
-        return run_external_process(*cmd)
+        return run_external_process(*cmd, line_callbacks=line_callbacks)
 
     rc = run_esptool(first_baudrate)
     if rc == 0 or first_baudrate == 115200:
