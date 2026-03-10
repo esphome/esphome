@@ -3303,9 +3303,7 @@ esp32:
 class TestCcacheCLI:
     """Tests for --ccache CLI flag handling."""
 
-    def test_compile_ccache_sets_enabled_before_write_cpp(
-        self, tmp_path: Path
-    ) -> None:
+    def test_compile_ccache_sets_enabled_before_write_cpp(self, tmp_path: Path) -> None:
         """Test --ccache flag sets _get_ccache_data().enabled before write_cpp()."""
         from esphome.__main__ import command_compile
         from esphome.core.config import _get_ccache_data
@@ -3326,9 +3324,7 @@ class TestCcacheCLI:
 
         assert captured_enabled == [True]
 
-    def test_run_ccache_sets_enabled_before_write_cpp(
-        self, tmp_path: Path
-    ) -> None:
+    def test_run_ccache_sets_enabled_before_write_cpp(self, tmp_path: Path) -> None:
         """Test --ccache flag in command_run sets enabled before write_cpp()."""
         from esphome.__main__ import command_run
         from esphome.core.config import _get_ccache_data
@@ -3369,9 +3365,7 @@ class TestCcacheCLI:
 
         assert captured_enabled == [True]
 
-    def test_compile_native_idf_ccache_sets_env_var(
-        self, tmp_path: Path
-    ) -> None:
+    def test_compile_native_idf_ccache_sets_env_var(self, tmp_path: Path) -> None:
         """Test --ccache --native-idf sets IDF_CCACHE_ENABLE=1."""
         from esphome.const import KEY_TARGET_FRAMEWORK
         from esphome.core.config import _get_ccache_data
@@ -3395,9 +3389,7 @@ class TestCcacheCLI:
             assert os.environ.get("IDF_CCACHE_ENABLE") == "1"
             os.environ.pop("IDF_CCACHE_ENABLE", None)
 
-    def test_compile_without_ccache_flag(
-        self, tmp_path: Path
-    ) -> None:
+    def test_compile_without_ccache_flag(self, tmp_path: Path) -> None:
         """Test compile without --ccache does not set enabled."""
         from esphome.__main__ import command_compile
         from esphome.core.config import _get_ccache_data

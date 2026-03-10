@@ -972,7 +972,13 @@ class TestCcacheEnvVars:
     def _cleanup_env(self):
         """Clean up ccache env vars after each test."""
         yield
-        for key in ("CCACHE_BASEDIR", "CCACHE_DIR", "CCACHE_SLOPPINESS", "CCACHE_MAXSIZE", "CCACHE_NOHASHDIR"):
+        for key in (
+            "CCACHE_BASEDIR",
+            "CCACHE_DIR",
+            "CCACHE_SLOPPINESS",
+            "CCACHE_MAXSIZE",
+            "CCACHE_NOHASHDIR",
+        ):
             os.environ.pop(key, None)
 
     def _run_cli(self, setup_core: Path) -> None:
@@ -986,13 +992,13 @@ class TestCcacheEnvVars:
             finally:
                 os.environ.pop("ESPHOME_USE_SUBPROCESS", None)
 
-    def test_ccache_env_vars_set_when_enabled(
-        self, setup_core: Path
-    ) -> None:
+    def test_ccache_env_vars_set_when_enabled(self, setup_core: Path) -> None:
         """Test ccache env vars are set when enabled and ccache is installed."""
         _get_ccache_data().enabled = True
 
-        with patch("esphome.platformio_api.shutil.which", return_value="/usr/bin/ccache"):
+        with patch(
+            "esphome.platformio_api.shutil.which", return_value="/usr/bin/ccache"
+        ):
             self._run_cli(setup_core)
 
         assert "CCACHE_BASEDIR" in os.environ
@@ -1003,9 +1009,7 @@ class TestCcacheEnvVars:
         assert os.environ["CCACHE_NOHASHDIR"] == "1"
         assert "esphome-ccache" in os.environ["CCACHE_DIR"]
 
-    def test_ccache_env_vars_cleaned_when_disabled(
-        self, setup_core: Path
-    ) -> None:
+    def test_ccache_env_vars_cleaned_when_disabled(self, setup_core: Path) -> None:
         """Test ccache env vars are cleaned up when disabled."""
         os.environ["CCACHE_BASEDIR"] = "/old/path"
         os.environ["CCACHE_SLOPPINESS"] = "old_value"
@@ -1030,15 +1034,15 @@ class TestCcacheEnvVars:
 
         assert "not found" in caplog.text
 
-    def test_ccache_dir_setdefault_preserves_existing(
-        self, setup_core: Path
-    ) -> None:
+    def test_ccache_dir_setdefault_preserves_existing(self, setup_core: Path) -> None:
         """Test CCACHE_DIR uses setdefault and doesn't overwrite existing values."""
         _get_ccache_data().enabled = True
         os.environ["CCACHE_DIR"] = "/custom/cache/dir"
         os.environ["CCACHE_MAXSIZE"] = "10G"
 
-        with patch("esphome.platformio_api.shutil.which", return_value="/usr/bin/ccache"):
+        with patch(
+            "esphome.platformio_api.shutil.which", return_value="/usr/bin/ccache"
+        ):
             self._run_cli(setup_core)
 
         assert os.environ["CCACHE_DIR"] == "/custom/cache/dir"

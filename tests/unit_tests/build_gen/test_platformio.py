@@ -245,5 +245,7 @@ def test_write_project_calls_write_ccache_script_when_enabled(
     platformio.write_project()
 
     # Should have written ccache_wrapper.py (among other files)
-    written_paths = [str(call_args[0][0]) for call_args in mock_write_file_if_changed.call_args_list]
+    written_paths = [
+        str(call_args[0][0]) for call_args in mock_write_file_if_changed.call_args_list
+    ]
     assert any(platformio.CCACHE_SCRIPT_FILE_NAME in p for p in written_paths)
