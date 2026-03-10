@@ -12,6 +12,10 @@
 #include "device.h"
 #endif
 
+// Forward declarations for friend access from codegen-generated setup()
+void setup();           // NOLINT(readability-redundant-declaration) - may be declared in Arduino.h
+void original_setup();  // NOLINT(readability-redundant-declaration) - used by cpp unit tests
+
 namespace esphome {
 
 // Extern lookup functions for entity string tables.
@@ -36,21 +40,35 @@ static constexpr size_t OBJECT_ID_MAX_LEN = 128;
 // Maximum state length that Home Assistant will accept without raising ValueError
 static constexpr size_t MAX_STATE_LEN = 255;
 
+// Maximum device class string buffer size (47 chars + null terminator)
+// Longest standard device class: "volatile_organic_compounds_parts" (32 chars)
+// Device classes are stored in PROGMEM; on ESP8266 they must be copied to a stack buffer.
+static constexpr size_t MAX_DEVICE_CLASS_LENGTH = 48;
+
+// Maximum icon string buffer size (63 chars + null terminator)
+// Icons are stored in PROGMEM; on ESP8266 they must be copied to a stack buffer.
+static constexpr size_t MAX_ICON_LENGTH = 64;
+
 enum EntityCategory : uint8_t {
   ENTITY_CATEGORY_NONE = 0,
   ENTITY_CATEGORY_CONFIG = 1,
   ENTITY_CATEGORY_DIAGNOSTIC = 2,
 };
 
+// Bit layout for entity_fields parameter in configure_entity_().
+// Keep in sync with _*_SHIFT constants in esphome/core/entity_helpers.py
+static constexpr uint8_t ENTITY_FIELD_DC_SHIFT = 0;
+static constexpr uint8_t ENTITY_FIELD_UOM_SHIFT = 8;
+static constexpr uint8_t ENTITY_FIELD_ICON_SHIFT = 16;
+static constexpr uint8_t ENTITY_FIELD_INTERNAL_SHIFT = 24;
+static constexpr uint8_t ENTITY_FIELD_DISABLED_BY_DEFAULT_SHIFT = 25;
+static constexpr uint8_t ENTITY_FIELD_ENTITY_CATEGORY_SHIFT = 26;
+
 // The generic Entity base class that provides an interface common to all Entities.
 class EntityBase {
  public:
-  // Get/set the name of this Entity
+  // Get the name of this Entity
   const StringRef &get_name() const;
-  void set_name(const char *name);
-  /// Set name with pre-computed object_id hash (avoids runtime hash calculation)
-  /// Use hash=0 for dynamic names that need runtime calculation
-  void set_name(const char *name, uint32_t object_id_hash);
 
   // Get whether this Entity has its own name or it should use the device friendly_name.
   bool has_own_name() const { return this->flags_.has_own_name; }
@@ -79,43 +97,42 @@ class EntityBase {
   /// Useful for building compound strings without intermediate buffer
   size_t write_object_id_to(char *buf, size_t buf_size) const;
 
-  // Get/set whether this Entity should be hidden outside ESPHome
+  // Get whether this Entity should be hidden outside ESPHome
   bool is_internal() const { return this->flags_.internal; }
-  void set_internal(bool internal) { this->flags_.internal = internal; }
 
   // Check if this object is declared to be disabled by default.
   // That means that when the device gets added to Home Assistant (or other clients) it should
   // not be added to the default view by default, and a user action is necessary to manually add it.
   bool is_disabled_by_default() const { return this->flags_.disabled_by_default; }
-  void set_disabled_by_default(bool disabled_by_default) { this->flags_.disabled_by_default = disabled_by_default; }
 
-  // Get/set the entity category.
+  // Get the entity category.
   EntityCategory get_entity_category() const { return static_cast<EntityCategory>(this->flags_.entity_category); }
-  void set_entity_category(EntityCategory entity_category) {
-    this->flags_.entity_category = static_cast<uint8_t>(entity_category);
-  }
 
-  // Set entity string table indices — one call per entity from codegen.
-  // Packed: [23..16] icon | [15..8] UoM | [7..0] device_class (each 8 bits)
-  void set_entity_strings([[maybe_unused]] uint32_t packed) {
-#ifdef USE_ENTITY_DEVICE_CLASS
-    this->device_class_idx_ = packed & 0xFF;
-#endif
-#ifdef USE_ENTITY_UNIT_OF_MEASUREMENT
-    this->uom_idx_ = (packed >> 8) & 0xFF;
-#endif
-#ifdef USE_ENTITY_ICON
-    this->icon_idx_ = (packed >> 16) & 0xFF;
-#endif
-  }
+  // Get this entity's device class into a stack buffer.
+  // On non-ESP8266: returns pointer to PROGMEM string directly (buffer unused).
+  // On ESP8266: copies from PROGMEM to buffer, returns buffer pointer.
+  const char *get_device_class_to(std::span<char, MAX_DEVICE_CLASS_LENGTH> buffer) const;
 
-  // Get device class as StringRef (from packed index)
+#ifdef USE_ESP8266
+  // On ESP8266, rodata is RAM. Device classes are in PROGMEM and cannot be accessed
+  // directly as const char*. Use get_device_class_to() with a stack buffer instead.
+  template<typename T = int> StringRef get_device_class_ref() const {
+    static_assert(sizeof(T) == 0, "get_device_class_ref() unavailable on ESP8266 (rodata is RAM). "
+                                  "Use get_device_class_to() with a stack buffer.");
+    return StringRef("");
+  }
+  template<typename T = int> std::string get_device_class() const {
+    static_assert(sizeof(T) == 0, "get_device_class() unavailable on ESP8266 (rodata is RAM). "
+                                  "Use get_device_class_to() with a stack buffer.");
+    return "";
+  }
+#else
+  // Deprecated: use get_device_class_to() instead. Device classes are in PROGMEM.
+  ESPDEPRECATED("Use get_device_class_to() instead. Will be removed in ESPHome 2026.9.0", "2026.3.0")
   StringRef get_device_class_ref() const;
-  /// Get the device class as std::string (deprecated, prefer get_device_class_ref())
-  ESPDEPRECATED("Use get_device_class_ref() instead for better performance (avoids string copy). Will be removed in "
-                "ESPHome 2026.9.0",
-                "2026.3.0")
+  ESPDEPRECATED("Use get_device_class_to() instead. Will be removed in ESPHome 2026.9.0", "2026.3.0")
   std::string get_device_class() const;
+#endif
   // Get unit of measurement as StringRef (from packed index)
   StringRef get_unit_of_measurement_ref() const;
   /// Get the unit of measurement as std::string (deprecated, prefer get_unit_of_measurement_ref())
@@ -124,22 +141,40 @@ class EntityBase {
                 "2026.3.0")
   std::string get_unit_of_measurement() const;
 
-  // Get/set this entity's icon
-  ESPDEPRECATED(
-      "Use get_icon_ref() instead for better performance (avoids string copy). Will be removed in ESPHome 2026.5.0",
-      "2025.11.0")
-  std::string get_icon() const;
+  // Get this entity's icon into a stack buffer.
+  // On ESP32: returns pointer to PROGMEM string directly (buffer unused).
+  // On ESP8266: copies from PROGMEM to buffer, returns buffer pointer.
+  const char *get_icon_to(std::span<char, MAX_ICON_LENGTH> buffer) const;
+
+#ifdef USE_ESP8266
+  // On ESP8266, rodata is RAM. Icons are in PROGMEM and cannot be accessed
+  // directly as const char*. Use get_icon_to() with a stack buffer instead.
+  template<typename T = int> StringRef get_icon_ref() const {
+    static_assert(sizeof(T) == 0,
+                  "get_icon_ref() unavailable on ESP8266 (rodata is RAM). Use get_icon_to() with a stack buffer.");
+    return StringRef("");
+  }
+  template<typename T = int> std::string get_icon() const {
+    static_assert(sizeof(T) == 0,
+                  "get_icon() unavailable on ESP8266 (rodata is RAM). Use get_icon_to() with a stack buffer.");
+    return "";
+  }
+#else
+  // Deprecated: use get_icon_to() instead. Icons are in PROGMEM.
+  ESPDEPRECATED("Use get_icon_to() instead. Will be removed in ESPHome 2026.9.0", "2026.3.0")
   StringRef get_icon_ref() const;
+  ESPDEPRECATED("Use get_icon_to() instead. Will be removed in ESPHome 2026.9.0", "2026.3.0")
+  std::string get_icon() const;
+#endif
 
 #ifdef USE_DEVICES
-  // Get/set this entity's device id
+  // Get this entity's device id
   uint32_t get_device_id() const {
     if (this->device_ == nullptr) {
       return 0;  // No device set, return 0
     }
     return this->device_->get_device_id();
   }
-  void set_device(Device *device) { this->device_ = device; }
   // Get the device this entity belongs to (nullptr if main device)
   Device *get_device() const { return this->device_; }
 #endif
@@ -193,6 +228,18 @@ class EntityBase {
   }
 
  protected:
+  friend void ::setup();
+  friend void ::original_setup();
+
+  /// Combined entity setup from codegen: set name, object_id hash, entity string indices, and flags.
+  /// Bit layout of entity_fields is defined by the ENTITY_FIELD_*_SHIFT constants above.
+  void configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_fields);
+
+#ifdef USE_DEVICES
+  // Codegen-only setter — only accessible from setup() via friend declaration.
+  void set_device_(Device *device) { this->device_ = device; }
+#endif
+
   /// Non-template helper for make_entity_preference() to avoid code bloat.
   /// When preference hash algorithm changes, migration logic goes here.
   ESPPreferenceObject make_entity_preference_(size_t size, uint32_t version);

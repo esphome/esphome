@@ -96,7 +96,7 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
   bool inverted_{false};
   bool non_blocking_{false};
 #endif
-  uint8_t carrier_duty_percent_;
+  uint8_t carrier_duty_percent_{50};
 
   Trigger<> transmit_trigger_;
   Trigger<> complete_trigger_;

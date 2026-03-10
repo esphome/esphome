@@ -192,7 +192,8 @@ void LwTx::lwtx_set_gap_multiplier(uint8_t gap_multiplier) { this->tx_gap_multip
 void LwTx::lw_timer_start() {
   {
     InterruptLock lock;
-    static LwTx *arg = this;  // NOLINT
+    static LwTx *arg;
+    arg = this;
     timer1_attachInterrupt([] { isr_t_xtimer(arg); });
     timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);
     timer1_write(this->espPeriod);
