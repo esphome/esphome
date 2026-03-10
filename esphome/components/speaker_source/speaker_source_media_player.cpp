@@ -206,6 +206,7 @@ size_t SpeakerSourceMediaPlayer::handle_media_output_(uint8_t pipeline, media_so
   return 0;
 }
 
+// THREAD CONTEXT: Called from main loop (loop)
 media_player::MediaPlayerState SpeakerSourceMediaPlayer::get_media_pipeline_state_(
     media_source::MediaSource *source, bool playlist_active, media_player::MediaPlayerState old_state) const {
   if (source != nullptr) {
@@ -333,6 +334,7 @@ bool SpeakerSourceMediaPlayer::try_execute_play_uri_(const std::string &uri, uin
   return true;  // Remove from queue
 }
 
+// THREAD CONTEXT: Called from main loop (process_control_queue_, queue_play_current_, handle_media_state_changed_)
 void SpeakerSourceMediaPlayer::queue_command_(MediaPlayerControlCommand::Type type, uint8_t pipeline) {
   MediaPlayerControlCommand cmd{};
   cmd.type = type;
@@ -342,12 +344,15 @@ void SpeakerSourceMediaPlayer::queue_command_(MediaPlayerControlCommand::Type ty
   }
 }
 
+// THREAD CONTEXT: Called from main loop via automation commands (direct)
 void SpeakerSourceMediaPlayer::set_playlist_delay_ms(uint8_t pipeline, uint32_t delay_ms) {
   if (pipeline < this->pipelines_.size()) {
     this->pipelines_[pipeline].playlist_delay_ms = delay_ms;
   }
 }
 
+// THREAD CONTEXT: Called from main loop (process_control_queue_).
+// The timeout callback also runs on the main loop.
 void SpeakerSourceMediaPlayer::queue_play_current_(uint8_t pipeline, uint32_t delay_ms) {
   if (delay_ms > 0) {
     this->set_timeout(PipelineContext::TIMEOUT_IDS[pipeline], delay_ms,
@@ -357,6 +362,7 @@ void SpeakerSourceMediaPlayer::queue_play_current_(uint8_t pipeline, uint32_t de
   }
 }
 
+// THREAD CONTEXT: Called from main loop (loop)
 void SpeakerSourceMediaPlayer::process_control_queue_() {
   MediaPlayerControlCommand control_command;
 

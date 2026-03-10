@@ -29,7 +29,8 @@ namespace esphome::speaker_source {
 // - Main loop task: setup(), loop(), dump_config(), handle_media_state_changed_(),
 //   handle_volume_request_(), handle_mute_request_(), handle_play_uri_request_(),
 //   set_volume_(), set_mute_state_(), control(), get_media_pipeline_state_(),
-//   find_source_for_uri_(), try_execute_play_uri_(), save_volume_restore_state_()
+//   find_source_for_uri_(), try_execute_play_uri_(), save_volume_restore_state_(),
+//   process_control_queue_(), queue_command_(), queue_play_current_()
 //
 // - Media source task(s): handle_media_output_() via SourceBinding::write_audio().
 //   Called from each source's decode task thread when streaming audio data.
@@ -49,8 +50,8 @@ namespace esphome::speaker_source {
 // - defer(): SourceBinding::request_volume/request_mute/request_play_uri -> main loop
 // - Atomic fields (active_source, pending_frames): shared between all three thread contexts
 //
-// Non-atomic pipeline fields (last_source, stopping_source, pending_source) are only accessed
-// from the main loop thread.
+// Non-atomic pipeline fields (last_source, stopping_source, pending_source, playlist,
+// playlist_index, repeat_mode) are only accessed from the main loop thread.
 
 enum Pipeline : uint8_t {
   MEDIA_PIPELINE = 0,
