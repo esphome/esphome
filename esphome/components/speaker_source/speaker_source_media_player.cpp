@@ -180,7 +180,7 @@ size_t SpeakerSourceMediaPlayer::handle_media_output_(uint8_t pipeline, media_so
 }
 
 media_player::MediaPlayerState SpeakerSourceMediaPlayer::get_media_pipeline_state_(
-    media_source::MediaSource *source, media_player::MediaPlayerState old_state) const {
+    media_source::MediaSource *source) const {
   if (source != nullptr) {
     switch (source->get_state()) {
       case media_source::MediaSourceState::PLAYING:
@@ -286,7 +286,7 @@ void SpeakerSourceMediaPlayer::loop() {
   media_player::MediaPlayerState old_state = this->state;
 
   PipelineContext &media_ps = this->pipelines_[MEDIA_PIPELINE];
-  this->state = this->get_media_pipeline_state_(media_ps.active_source, old_state);
+  this->state = this->get_media_pipeline_state_(media_ps.active_source);
 
   if (this->state != old_state) {
     this->publish_state();

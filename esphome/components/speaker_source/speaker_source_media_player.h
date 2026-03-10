@@ -153,10 +153,8 @@ class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPla
 
   /// @brief Determine media player state from the media pipeline's active source
   /// @param media_source Active source for the media pipeline (may be nullptr)
-  /// @param old_state Previous media player state (used for transition smoothing)
   /// @return The appropriate MediaPlayerState
-  media_player::MediaPlayerState get_media_pipeline_state_(media_source::MediaSource *media_source,
-                                                           media_player::MediaPlayerState old_state) const;
+  media_player::MediaPlayerState get_media_pipeline_state_(media_source::MediaSource *media_source) const;
 
   bool try_execute_play_uri_(const std::string &uri, uint8_t pipeline);
   media_source::MediaSource *find_source_for_uri_(const std::string &uri, uint8_t pipeline);
