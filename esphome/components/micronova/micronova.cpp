@@ -59,8 +59,13 @@ void MicroNova::loop() {
     if (this->available() >= STOVE_REPLY_SIZE) {
 #ifdef MICRONOVA_LISTENER_COUNT
       int stove_reply_value = this->read_stove_reply_();
-      // For READ commands, notify all listeners registered for this address
-      if (!this->current_command_.is_write()) {
+      if (this->current_command_.is_write()) {
+        if (stove_reply_value == -1) {
+          ESP_LOGW(TAG, "Write to [0x%02X:0x%02X] may have failed (checksum mismatch in reply)",
+                   this->current_command_.memory_location & ~WRITE_BIT, this->current_command_.memory_address);
+        }
+      } else {
+        // For READ commands, notify all listeners registered for this address
         uint8_t loc = this->current_command_.memory_location;
         uint8_t addr = this->current_command_.memory_address;
         for (auto *listener : this->listeners_) {
