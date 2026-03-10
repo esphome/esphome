@@ -169,7 +169,9 @@ void ModbusServer::on_modbus_write_registers(uint8_t function_code, const std::v
   }
 
   std::vector<uint8_t> response;
-  response.reserve(4);
+  response.reserve(6);
+  response.push_back(this->address_);
+  response.push_back(function_code);
   response.insert(response.end(), data.begin(), data.begin() + 4);
   this->send_raw(response);
 }
