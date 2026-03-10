@@ -63,7 +63,8 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
 
     switch (this->bits_per_pixel_) {
       case 1:
-        this->width_bytes_ = (this->width_ % 8 == 0) ? (this->width_ / 8) : (this->width_ / 8 + 1);
+        this->width_bytes_ = (this->width_ + 7) / 8;
+        this->padding_bytes_ = (4 - (this->width_bytes_ % 4)) % 4;
         break;
       case 24:
         this->width_bytes_ = this->width_ * 3;
@@ -92,15 +93,26 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
     case 1: {
       while (index < size) {
         uint8_t current_byte = buffer[index];
+        bool end_of_row = false;
         for (uint8_t i = 0; i < 8; i++) {
-          size_t x = (this->paint_index_ % static_cast<size_t>(this->width_)) + i;
+          size_t x = this->paint_index_ % static_cast<size_t>(this->width_);
           size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / static_cast<size_t>(this->width_));
           Color c = (current_byte & (1 << (7 - i))) ? display::COLOR_ON : display::COLOR_OFF;
           this->draw(x, y, 1, 1, c);
+          this->paint_index_++;
+          // End of pixel row: skip remaining bits in this byte
+          if (x + 1 >= static_cast<size_t>(this->width_)) {
+            end_of_row = true;
+            break;
+          }
         }
-        this->paint_index_ += 8;
         this->current_index_++;
         index++;
+        // End of pixel row: skip row padding bytes (4-byte alignment)
+        if (end_of_row && this->padding_bytes_ > 0) {
+          index += this->padding_bytes_;
+          this->current_index_ += this->padding_bytes_;
+        }
       }
       break;
     }
