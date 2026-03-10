@@ -122,11 +122,19 @@ def get_platform_components(components: list[str]) -> list[str]:
     return platform_components
 
 
+# Exit codes for run_tests
+EXIT_OK = 0
+EXIT_SKIPPED = 1
+EXIT_COMPILE_ERROR = 2
+EXIT_CONFIG_ERROR = 3
+EXIT_NO_EXECUTABLE = 4
+
+
 def run_tests(selected_components: list[str]) -> int:
     # Skip tests on Windows
     if os.name == "nt":
         print("Skipping esphome tests on Windows", file=sys.stderr)
-        return 1
+        return EXIT_SKIPPED
 
     # Remove components that do not have tests
     components = filter_components_without_tests(selected_components)
@@ -136,7 +144,7 @@ def run_tests(selected_components: list[str]) -> int:
             "No components specified or no tests found for the specified components.",
             file=sys.stderr,
         )
-        return 0
+        return EXIT_OK
 
     components = sorted(components)
 
@@ -150,9 +158,9 @@ def run_tests(selected_components: list[str]) -> int:
     # Obtain a list of platform components to be tested:
     try:
         platform_components = get_platform_components(components)
-    except Exception as e:
+    except ValueError as e:
         print(f"Error obtaining platform components: {e}")
-        return 3
+        return EXIT_CONFIG_ERROR
 
     components = sorted(components + platform_components)
 
@@ -205,13 +213,13 @@ def run_tests(selected_components: list[str]) -> int:
         print(
             f"Error compiling unit tests for {', '.join(components)}. Check path. : {e}"
         )
-        return 2
+        return EXIT_COMPILE_ERROR
 
     # After a successful compilation, locate the executable and run it:
     idedata = get_idedata(config)
     if idedata is None:
         print("Cannot find executable")
-        return 1
+        return EXIT_NO_EXECUTABLE
 
     program_path: str = idedata.raw["prog_path"]
     run_cmd: list[str] = [program_path]
