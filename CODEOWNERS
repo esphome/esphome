@@ -54,6 +54,8 @@ esphome/components/atm90e32/* @circuitsetup @descipher
 esphome/components/audio/* @kahrendt
 esphome/components/audio_adc/* @kbx81
 esphome/components/audio_dac/* @kbx81
+esphome/components/audio_file/* @kahrendt
+esphome/components/audio_file/media_source/* @kahrendt
 esphome/components/axs15231/* @clydebarrow
 esphome/components/b_parasite/* @rbaron
 esphome/components/ballu/* @bazuchan
@@ -316,6 +318,7 @@ esphome/components/mcp9808/* @k7hpn
 esphome/components/md5/* @esphome/core
 esphome/components/mdns/* @esphome/core
 esphome/components/media_player/* @jesserockz
+esphome/components/media_source/* @kahrendt
 esphome/components/micro_wake_word/* @jesserockz @kahrendt
 esphome/components/micronova/* @edenhaus @jorre05
 esphome/components/microphone/* @jesserockz @kahrendt
@@ -411,7 +414,7 @@ esphome/components/rp2040_pio_led_strip/* @Papa-DMan
 esphome/components/rp2040_pwm/* @jesserockz
 esphome/components/rpi_dpi_rgb/* @clydebarrow
 esphome/components/rtl87xx/* @kuba2k2
-esphome/components/rtttl/* @glmnet
+esphome/components/rtttl/* @glmnet @ximex
 esphome/components/runtime_image/* @clydebarrow @guillempages @kahrendt
 esphome/components/runtime_stats/* @bdraco
 esphome/components/rx8130/* @beormund
@@ -432,6 +435,7 @@ esphome/components/sen5x/* @martgras
 esphome/components/sen6x/* @martgras @mebner86 @mikelawrence @tuct
 esphome/components/sensirion_common/* @martgras
 esphome/components/sensor/* @esphome/core
+esphome/components/serial_proxy/* @kbx81
 esphome/components/sfa30/* @ghsensdev
 esphome/components/sgp40/* @SenexCrenshaw
 esphome/components/sgp4x/* @martgras @SenexCrenshaw
@@ -584,6 +588,7 @@ esphome/components/xl9535/* @mreditor97
 esphome/components/xpt2046/touchscreen/* @nielsnl68 @numo68
 esphome/components/xxtea/* @clydebarrow
 esphome/components/zephyr/* @tomaszduda23
+esphome/components/zephyr_mcumgr/ota/* @tomaszduda23
 esphome/components/zhlt01/* @cfeenstra1024
 esphome/components/zigbee/* @tomaszduda23
 esphome/components/zio_ultrasonic/* @kahrendt

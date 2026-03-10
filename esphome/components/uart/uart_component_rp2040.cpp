@@ -187,9 +187,10 @@ bool RP2040UartComponent::read_array(uint8_t *data, size_t len) {
   return true;
 }
 size_t RP2040UartComponent::available() { return this->serial_->available(); }
-void RP2040UartComponent::flush() {
+FlushResult RP2040UartComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing");
   this->serial_->flush();
+  return FlushResult::ASSUMED_SUCCESS;
 }
 
 }  // namespace esphome::uart

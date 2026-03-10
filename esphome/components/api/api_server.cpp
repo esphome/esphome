@@ -359,11 +359,11 @@ void APIServer::on_update(update::UpdateEntity *obj) {
 #endif
 
 #ifdef USE_ZWAVE_PROXY
-void APIServer::on_zwave_proxy_request(const esphome::api::ProtoMessage &msg) {
+void APIServer::on_zwave_proxy_request(const ZWaveProxyRequest &msg) {
   // We could add code to manage a second subscription type, but, since this message type is
   //  very infrequent and small, we simply send it to all clients
   for (auto &c : this->clients_)
-    c->send_message(msg, api::ZWaveProxyRequest::MESSAGE_TYPE);
+    c->send_message(msg);
 }
 #endif
 
@@ -531,7 +531,7 @@ bool APIServer::update_noise_psk_(const SavedNoisePsk &new_psk, const LogString 
       this->set_noise_psk(active_psk);
       for (auto &c : this->clients_) {
         DisconnectRequest req;
-        c->send_message(req, DisconnectRequest::MESSAGE_TYPE);
+        c->send_message(req);
       }
     });
   }
@@ -582,11 +582,7 @@ void APIServer::request_time() {
 }
 #endif
 
-bool APIServer::is_connected(bool state_subscription_only) const {
-  if (!state_subscription_only) {
-    return !this->clients_.empty();
-  }
-
+bool APIServer::is_connected_with_state_subscription() const {
   for (const auto &client : this->clients_) {
     if (client->flags_.state_subscription) {
       return true;
@@ -631,7 +627,7 @@ void APIServer::on_shutdown() {
   // Send disconnect requests to all connected clients
   for (auto &c : this->clients_) {
     DisconnectRequest req;
-    if (!c->send_message(req, DisconnectRequest::MESSAGE_TYPE)) {
+    if (!c->send_message(req)) {
       // If we can't send the disconnect request directly (tx_buffer full),
       // schedule it at the front of the batch so it will be sent with priority
       c->schedule_message_front_(nullptr, DisconnectRequest::MESSAGE_TYPE, DisconnectRequest::ESTIMATED_SIZE);

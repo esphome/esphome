@@ -15,7 +15,7 @@ void DeepSleepComponent::dump_config_platform_() {}
 bool DeepSleepComponent::prepare_to_sleep_() { return true; }
 
 void DeepSleepComponent::deep_sleep_() {
-  ESP.deepSleep(*this->sleep_duration_);  // NOLINT(readability-static-accessed-through-instance)
+  ESP.deepSleep(this->sleep_duration_.value_or(0));  // NOLINT(readability-static-accessed-through-instance)
 }
 
 }  // namespace deep_sleep
