@@ -18,6 +18,7 @@
 
 #include <cerrno>
 #include <cstdio>
+#include <sys/time.h>
 
 namespace esphome {
 
@@ -249,6 +250,16 @@ void ESPHomeOTAComponent::handle_data_() {
   size_t size_acknowledged = 0;
 #endif
 
+  // Switch to blocking mode with receive timeout for efficient data transfer.
+  // This replaces the non-blocking poll + delay(1) pattern: read() now sleeps
+  // until data arrives (waking immediately) instead of polling every 1ms.
+  // The 2-second timeout ensures the WDT is fed regularly (WDT is typically 5s).
+  struct timeval tv;
+  tv.tv_sec = 2;
+  tv.tv_usec = 0;
+  this->client_->setsockopt(SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+  this->client_->setblocking(true);
+
   // Acknowledge auth OK - 1 byte
   this->write_byte_(ota::OTA_RESPONSE_AUTH_OK);
 
@@ -299,7 +310,8 @@ void ESPHomeOTAComponent::handle_data_() {
     ssize_t read = this->client_->read(buf, requested);
     if (read == -1) {
       if (this->would_block_(errno)) {
-        this->yield_and_feed_watchdog_();
+        // read() already waited up to SO_RCVTIMEO for data, just feed WDT
+        App.feed_wdt();
         continue;
       }
       ESP_LOGW(TAG, "Read err %d", errno);

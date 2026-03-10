@@ -57,6 +57,7 @@ class LWIPRawCommon {
   // instead use it for determining whether to call lwip_output
   bool nodelay_ = false;
   sa_family_t family_ = 0;
+  uint8_t recv_timeout_cs_ = 0;  // SO_RCVTIMEO in centiseconds (0 = no timeout, max 2.55s)
 };
 
 /// Connected socket implementation for LWIP raw TCP.
@@ -102,11 +103,8 @@ class LWIPRawImpl : public LWIPRawCommon {
       errno = ECONNRESET;
       return -1;
     }
-    if (blocking) {
-      // blocking operation not supported
-      errno = EINVAL;
-      return -1;
-    }
+    // Raw TCP doesn't use a blocking flag directly. Blocking behavior
+    // is provided by SO_RCVTIMEO which makes read() wait via socket_delay().
     return 0;
   }
   int loop() { return 0; }

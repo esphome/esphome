@@ -5,6 +5,7 @@
 
 #include <cerrno>
 #include <cstring>
+#include <sys/time.h>
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -303,6 +304,18 @@ int LWIPRawCommon::getsockopt(int level, int optname, void *optval, socklen_t *o
     *optlen = 4;
     return 0;
   }
+  if (level == SOL_SOCKET && optname == SO_RCVTIMEO) {
+    if (*optlen < sizeof(struct timeval)) {
+      errno = EINVAL;
+      return -1;
+    }
+    uint32_t ms = this->recv_timeout_cs_ * 10;
+    auto *tv = reinterpret_cast<struct timeval *>(optval);
+    tv->tv_sec = ms / 1000;
+    tv->tv_usec = (ms % 1000) * 1000;
+    *optlen = sizeof(struct timeval);
+    return 0;
+  }
   if (level == IPPROTO_TCP && optname == TCP_NODELAY) {
     if (*optlen < 4) {
       errno = EINVAL;
@@ -329,6 +342,17 @@ int LWIPRawCommon::setsockopt(int level, int optname, const void *optval, sockle
     }
     // lwip doesn't seem to have this feature. Don't send an error
     // to prevent warnings
+    return 0;
+  }
+  if (level == SOL_SOCKET && optname == SO_RCVTIMEO) {
+    if (optlen < sizeof(struct timeval)) {
+      errno = EINVAL;
+      return -1;
+    }
+    const auto *tv = reinterpret_cast<const struct timeval *>(optval);
+    uint32_t ms = tv->tv_sec * 1000 + tv->tv_usec / 1000;
+    uint32_t cs = (ms + 9) / 10;  // round up to nearest centisecond
+    this->recv_timeout_cs_ = cs > 255 ? 255 : static_cast<uint8_t>(cs);
     return 0;
   }
   if (level == IPPROTO_TCP && optname == TCP_NODELAY) {
@@ -459,8 +483,22 @@ ssize_t LWIPRawImpl::read(void *buf, size_t len) {
     return 0;
   }
   if (this->rx_buf_ == nullptr) {
-    errno = EWOULDBLOCK;
-    return -1;
+    if (this->recv_timeout_cs_ > 0) {
+      // Wait efficiently for data — socket_delay() sleeps and wakes
+      // immediately when recv_fn() fires (data arrives via socket_wake())
+      socket_delay(this->recv_timeout_cs_ * 10);
+      // Recheck after waking — data or close may have arrived
+      if (this->rx_closed_ && this->rx_buf_ == nullptr)
+        return 0;
+      if (this->rx_buf_ == nullptr) {
+        errno = EWOULDBLOCK;
+        return -1;
+      }
+      // Data arrived, fall through to copy
+    } else {
+      errno = EWOULDBLOCK;
+      return -1;
+    }
   }
 
   size_t read = 0;
