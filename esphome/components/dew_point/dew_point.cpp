@@ -6,12 +6,6 @@ namespace esphome::dew_point {
 
 static const char *const TAG = "dew_point.sensor";
 
-void DewPointComponent::set_temperature_sensor(sensor::Sensor *temperature_sensor) {
-  temperature_sensor_ = temperature_sensor;
-}
-
-void DewPointComponent::set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
-
 void DewPointComponent::setup() {
   // Register callbacks for sensor updates
   if (this->temperature_sensor_ != nullptr) {
