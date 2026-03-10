@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(USE_ESP32)
+#if defined(USE_ESP32) || defined(USE_ZEPHYR)
 
 #include <atomic>
 #include <cstddef>

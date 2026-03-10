@@ -59,6 +59,10 @@ bool ModbusController::send_next_command_() {
 
 // Queue incoming response
 void ModbusController::on_modbus_data(const std::vector<uint8_t> &data) {
+  if (this->command_queue_.empty()) {
+    ESP_LOGW(TAG, "Received modbus data but command queue is empty");
+    return;
+  }
   auto &current_command = this->command_queue_.front();
   if (current_command != nullptr) {
     if (this->module_offline_) {
@@ -92,6 +96,9 @@ void ModbusController::process_modbus_data_(const ModbusCommandItem *response) {
 
 void ModbusController::on_modbus_error(uint8_t function_code, uint8_t exception_code) {
   ESP_LOGE(TAG, "Modbus error function code: 0x%X exception: %d ", function_code, exception_code);
+  if (this->command_queue_.empty()) {
+    return;
+  }
   // Remove pending command waiting for a response
   auto &current_command = this->command_queue_.front();
   if (current_command != nullptr) {

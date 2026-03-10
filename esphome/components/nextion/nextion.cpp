@@ -191,6 +191,18 @@ void Nextion::dump_config() {
 #ifdef USE_NEXTION_MAX_QUEUE_SIZE
   ESP_LOGCONFIG(TAG, "  Max queue size: %zu", this->max_queue_size_);
 #endif
+#ifdef USE_NEXTION_TFT_UPLOAD
+  ESP_LOGCONFIG(TAG,
+                "  TFT URL: %s\n"
+                "  TFT upload HTTP timeout: %" PRIu16 "ms\n"
+                "  TFT upload HTTP retries: %u",
+                this->tft_url_.c_str(), this->tft_upload_http_timeout_, this->tft_upload_http_retries_);
+#ifdef USE_ESP32
+  if (this->tft_upload_watchdog_timeout_ > 0) {
+    ESP_LOGCONFIG(TAG, "  TFT upload WDT timeout: %" PRIu32 "ms", this->tft_upload_watchdog_timeout_);
+  }
+#endif  // USE_ESP32
+#endif  // USE_NEXTION_TFT_UPLOAD
 }
 
 void Nextion::update() {
@@ -634,16 +646,12 @@ void Nextion::process_nextion_commands_() {
           break;
         }
 
-        if (to_process_length == 0) {
-          ESP_LOGE(TAG, "Numeric return but no data");
+        if (to_process_length < 4) {
+          ESP_LOGE(TAG, "Numeric return but insufficient data (need 4, got %zu)", to_process_length);
           break;
         }
 
-        int value = 0;
-
-        for (int i = 0; i < 4; ++i) {
-          value += to_process[i] << (8 * i);
-        }
+        int value = static_cast<int>(encode_uint32(to_process[3], to_process[2], to_process[1], to_process[0]));
 
         NextionQueue *nb = this->nextion_queue_.front();
         if (!nb || !nb->component) {
@@ -739,10 +747,8 @@ void Nextion::process_nextion_commands_() {
         index = to_process.find('\0');
         variable_name = to_process.substr(0, index);
         // // Get variable name
-        int value = 0;
-        for (int i = 0; i < 4; ++i) {
-          value += to_process[i + index + 1] << (8 * i);
-        }
+        int value = static_cast<int>(
+            encode_uint32(to_process[index + 4], to_process[index + 3], to_process[index + 2], to_process[index + 1]));
 
         ESP_LOGN(TAG, "Sensor: %s=%d", variable_name.c_str(), value);
 
