@@ -92,10 +92,10 @@ PROGMEM_STRING_TABLE(MeasRateStrings, "1Hz", "2Hz",
                      "100Hz", "200Hz");
 PROGMEM_STRING_TABLE(OversamplingStrings, "X1", "X2", "X4", "X8", "X16", "X32", "X64", "X128");
 
-static const LogString *oversampling_to_str(const Oversampling oversampling) {
+inline static const LogString *oversampling_to_str(const Oversampling oversampling) {
   return OversamplingStrings::get_log_str(static_cast<uint8_t>(oversampling), OversamplingStrings::LAST_INDEX);
 }
-static const LogString *meas_rate_to_str(SampleRate rate) {
+inline static const LogString *meas_rate_to_str(SampleRate rate) {
   return MeasRateStrings::get_log_str(static_cast<uint8_t>(rate), MeasRateStrings::LAST_INDEX);
 }
 inline uint32_t oversampling_to_scale_factor(const Oversampling oversampling) {
@@ -110,7 +110,7 @@ class SPA06Component : public PollingComponent {
   void dump_config() override;
 
   //// ESPHome-side settings
-  void set_conversion_time(uint8_t conversion_time) { this->conversion_time_ = conversion_time; }
+  void set_conversion_time(uint16_t conversion_time) { this->conversion_time_ = conversion_time; }
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { this->pressure_sensor_ = pressure_sensor; }
   void set_temperature_oversampling_config(Oversampling temperature_oversampling) {
@@ -182,7 +182,8 @@ class SPA06Component : public PollingComponent {
   Oversampling pressure_oversampling_{Oversampling::OVERSAMPLING_NONE};
   SampleRate temperature_rate_{SampleRate::SAMPLE_RATE_8};
   SampleRate pressure_rate_{SampleRate::SAMPLE_RATE_4};
-  uint8_t conversion_time_{10};
+  // Default conversion time: 27.6ms (16x pres) + 3.6ms (1x temp) ~ 32ms
+  uint16_t conversion_time_{32};
 
   // Protocol-related union-structs and read variables
   uint8_t psr_tmp_read_[3] = {0, 0, 0};
