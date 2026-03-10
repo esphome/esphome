@@ -14,7 +14,7 @@ void DewPointComponent::setup() {
     });
     // Get initial value
     if (this->temperature_sensor_->has_state()) {
-      this->temperature_value_ = this->temperature_sensor_->state;
+      this->temperature_value_ = this->temperature_sensor_->get_state();
     }
   }
 
@@ -25,7 +25,7 @@ void DewPointComponent::setup() {
     });
     // Get initial value
     if (this->humidity_sensor_->has_state()) {
-      this->humidity_value_ = this->humidity_sensor_->state;
+      this->humidity_value_ = this->humidity_sensor_->get_state();
     }
   }
 }
