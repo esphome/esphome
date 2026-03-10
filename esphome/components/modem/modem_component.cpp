@@ -8,9 +8,9 @@
 #include "esphome/core/defines.h"
 #include "esphome/components/network/util.h"
 
-#ifdef USE_WIFI_AP
-#include "esphome/components/wifi/wifi_component.h"
-#endif
+// #ifdef USE_WIFI_AP
+// #include "esphome/components/wifi/wifi_component.h"
+// #endif
 
 #include <esp_netif.h>
 #include <esp_netif_ppp.h>
@@ -520,9 +520,9 @@ void ModemComponent::on_enter_state_(ModemComponentState state) {
       cancel_timeout("modem_timeout");
       this->status_clear_warning();
       this->dump_connect_params_();
-#ifdef USE_WIFI_AP
-      esphome::wifi::global_wifi_component->wifi_ap_nat(this->modem_handler->ppp_netif);
-#endif
+      // #ifdef USE_WIFI_AP
+      //       esphome::wifi::global_wifi_component->wifi_ap_nat(this->modem_handler->ppp_netif);
+      // #endif
       break;
     case ModemComponentState::DISABLING:
       ESP_LOGI(TAG, "Disabling modem");
