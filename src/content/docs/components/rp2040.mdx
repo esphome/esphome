@@ -37,6 +37,23 @@ rp2040:
     platform_version: https://github.com/maxgerhardt/platform-raspberrypi.git
 ```
 
+## Initial Flashing (BOOTSEL Mode)
+
+To flash an RP2040 board for the first time over USB, you need to put it into **BOOTSEL mode**:
+
+1. Unplug the device from USB.
+2. Hold the **BOOT/BOOTSEL** button on the board.
+3. Plug in the USB cable while holding the button.
+4. Release the button — the device should appear as a USB drive (typically named `RPI-RP2`).
+
+Once in BOOTSEL mode, run `esphome run your_config.yaml`. ESPHome will automatically detect the
+mounted `RPI-RP2` volume and offer it as an upload target. The UF2 firmware will be copied to the
+device with a progress bar, and the device will automatically reboot into the new firmware.
+
+After the initial flash, subsequent updates can be done over-the-air (OTA) or via the serial
+port without needing to hold the BOOTSEL button — the `picotool` upload protocol will
+automatically reset the device into BOOTSEL mode.
+
 ## Configuration variables
 
 - **board** (**Required**, string): The PlatformIO board identifier. Common boards include `rpipicow`
