@@ -24,7 +24,7 @@ namespace wled {
 // https://github.com/Aircoookie/WLED/wiki/UDP-Realtime-Control
 enum Protocol { WLED_NOTIFIER = 0, WARLS = 1, DRGB = 2, DRGBW = 3, DNRGB = 4 };
 
-const int DEFAULT_BLANK_TIME = 1000;
+constexpr uint32_t DEFAULT_BLANK_TIME = 1000;
 
 static const char *const TAG = "wled_light_effect";
 
@@ -34,9 +34,10 @@ void WLEDLightEffect::start() {
   AddressableLightEffect::start();
 
   if (this->blank_on_start_) {
-    this->blank_at_ = 0;
+    this->blank_start_ = millis();
+    this->blank_timeout_ = 0;
   } else {
-    this->blank_at_ = UINT32_MAX;
+    this->blank_start_.reset();
   }
 }
 
@@ -81,10 +82,10 @@ void WLEDLightEffect::apply(light::AddressableLight &it, const Color &current_co
     }
   }
 
-  // FIXME: Use roll-over safe arithmetic
-  if (blank_at_ < millis()) {
+  if (this->blank_start_.has_value() && millis() - *this->blank_start_ >= this->blank_timeout_) {
     blank_all_leds_(it);
-    blank_at_ = millis() + DEFAULT_BLANK_TIME;
+    this->blank_start_ = millis();
+    this->blank_timeout_ = DEFAULT_BLANK_TIME;
   }
 }
 
@@ -142,11 +143,13 @@ bool WLEDLightEffect::parse_frame_(light::AddressableLight &it, const uint8_t *p
   }
 
   if (timeout == UINT8_MAX) {
-    blank_at_ = UINT32_MAX;
+    this->blank_start_.reset();
   } else if (timeout > 0) {
-    blank_at_ = millis() + timeout * 1000;
+    this->blank_start_ = millis();
+    this->blank_timeout_ = timeout * 1000;
   } else {
-    blank_at_ = millis() + DEFAULT_BLANK_TIME;
+    this->blank_start_ = millis();
+    this->blank_timeout_ = DEFAULT_BLANK_TIME;
   }
 
   it.schedule_show();
@@ -158,7 +161,7 @@ bool WLEDLightEffect::parse_notifier_frame_(light::AddressableLight &it, const u
   // https://kno.wled.ge/interfaces/udp-notifier/
   // https://github.com/Aircoookie/WLED/blob/main/wled00/udp.cpp
 
-  if (size < 34) {
+  if (size <= 34) {
     return false;
   }
 

@@ -232,17 +232,19 @@ void GraphLegend::init(Graph *g) {
     ESP_LOGI(TAGL, "  %s %d %d", txtstr.c_str(), fw, fh);
 
     if (this->values_ != VALUE_POSITION_TYPE_NONE) {
-      std::string valstr =
-          value_accuracy_to_string(trace->sensor_->get_state(), trace->sensor_->get_accuracy_decimals());
+      char valstr[VALUE_ACCURACY_MAX_LEN];
       if (this->units_) {
-        valstr += trace->sensor_->get_unit_of_measurement_ref();
+        value_accuracy_with_uom_to_buf(valstr, trace->sensor_->get_state(), trace->sensor_->get_accuracy_decimals(),
+                                       trace->sensor_->get_unit_of_measurement_ref());
+      } else {
+        value_accuracy_to_buf(valstr, trace->sensor_->get_state(), trace->sensor_->get_accuracy_decimals());
       }
-      this->font_value_->measure(valstr.c_str(), &fw, &fos, &fbl, &fh);
+      this->font_value_->measure(valstr, &fw, &fos, &fbl, &fh);
       if (fw > valw)
         valw = fw;
       if (fh > valh)
         valh = fh;
-      ESP_LOGI(TAGL, "    %s %d %d", valstr.c_str(), fw, fh);
+      ESP_LOGI(TAGL, "    %s %d %d", valstr, fw, fh);
     }
   }
   // Add extra margin
@@ -368,13 +370,15 @@ void Graph::draw_legend(display::Display *buff, uint16_t x_offset, uint16_t y_of
     if (legend_->values_ != VALUE_POSITION_TYPE_NONE) {
       int xv = x + legend_->xv_;
       int yv = y + legend_->yv_;
-      std::string valstr =
-          value_accuracy_to_string(trace->sensor_->get_state(), trace->sensor_->get_accuracy_decimals());
+      char valstr[VALUE_ACCURACY_MAX_LEN];
       if (legend_->units_) {
-        valstr += trace->sensor_->get_unit_of_measurement_ref();
+        value_accuracy_with_uom_to_buf(valstr, trace->sensor_->get_state(), trace->sensor_->get_accuracy_decimals(),
+                                       trace->sensor_->get_unit_of_measurement_ref());
+      } else {
+        value_accuracy_to_buf(valstr, trace->sensor_->get_state(), trace->sensor_->get_accuracy_decimals());
       }
-      buff->printf(xv, yv, legend_->font_value_, trace->get_line_color(), TextAlign::TOP_CENTER, "%s", valstr.c_str());
-      ESP_LOGV(TAG, "    value: %s", valstr.c_str());
+      buff->printf(xv, yv, legend_->font_value_, trace->get_line_color(), TextAlign::TOP_CENTER, "%s", valstr);
+      ESP_LOGV(TAG, "    value: %s", valstr);
     }
     x += legend_->xs_;
     y += legend_->ys_;

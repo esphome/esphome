@@ -14,12 +14,17 @@ static const int PORT = 5568;
 E131Component::E131Component() {}
 
 E131Component::~E131Component() {
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   if (this->socket_) {
     this->socket_->close();
   }
+#elif defined(USE_SOCKET_IMPL_LWIP_TCP)
+  this->udp_.stop();
+#endif
 }
 
 void E131Component::setup() {
+#if defined(USE_SOCKET_IMPL_BSD_SOCKETS) || defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
   this->socket_ = socket::socket_ip(SOCK_DGRAM, IPPROTO_IP);
 
   int enable = 1;
@@ -50,30 +55,35 @@ void E131Component::setup() {
     this->mark_failed();
     return;
   }
+#elif defined(USE_SOCKET_IMPL_LWIP_TCP)
+  if (!this->udp_.begin(PORT)) {
+    ESP_LOGW(TAG, "Cannot bind E1.31 to port %d.", PORT);
+    this->mark_failed();
+    return;
+  }
+#endif
 
   join_igmp_groups_();
 }
 
 void E131Component::loop() {
-  std::vector<uint8_t> payload;
   E131Packet packet;
   int universe = 0;
   uint8_t buf[1460];
+  ssize_t len;
 
-  ssize_t len = this->socket_->read(buf, sizeof(buf));
-  if (len == -1) {
-    return;
-  }
-  payload.resize(len);
-  memmove(&payload[0], buf, len);
+  // Drain all queued packets so multi-universe frames are applied
+  // atomically before the light writes. Without this, each universe
+  // packet would trigger a separate full-strip write causing tearing.
+  while ((len = this->read_(buf, sizeof(buf))) > 0) {
+    if (!this->packet_(buf, (size_t) len, universe, packet)) {
+      ESP_LOGV(TAG, "Invalid packet received of size %d.", (int) len);
+      continue;
+    }
 
-  if (!this->packet_(payload, universe, packet)) {
-    ESP_LOGV(TAG, "Invalid packet received of size %zu.", payload.size());
-    return;
-  }
-
-  if (!this->process_(universe, packet)) {
-    ESP_LOGV(TAG, "Ignored packet for %d universe of size %d.", universe, packet.count);
+    if (!this->process_(universe, packet)) {
+      ESP_LOGV(TAG, "Ignored packet for %d universe of size %d.", universe, packet.count);
+    }
   }
 }
 
@@ -82,8 +92,9 @@ void E131Component::add_effect(E131AddressableLightEffect *light_effect) {
     return;
   }
 
-  ESP_LOGD(TAG, "Registering '%s' for universes %d-%d.", light_effect->get_name(), light_effect->get_first_universe(),
-           light_effect->get_last_universe());
+  auto effect_name = light_effect->get_name();
+  ESP_LOGD(TAG, "Registering '%.*s' for universes %d-%d.", (int) effect_name.size(), effect_name.c_str(),
+           light_effect->get_first_universe(), light_effect->get_last_universe());
 
   light_effects_.push_back(light_effect);
 
@@ -98,8 +109,9 @@ void E131Component::remove_effect(E131AddressableLightEffect *light_effect) {
     return;
   }
 
-  ESP_LOGD(TAG, "Unregistering '%s' for universes %d-%d.", light_effect->get_name(), light_effect->get_first_universe(),
-           light_effect->get_last_universe());
+  auto effect_name = light_effect->get_name();
+  ESP_LOGD(TAG, "Unregistering '%.*s' for universes %d-%d.", (int) effect_name.size(), effect_name.c_str(),
+           light_effect->get_first_universe(), light_effect->get_last_universe());
 
   // Swap with last element and pop for O(1) removal (order doesn't matter)
   *it = light_effects_.back();

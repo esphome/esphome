@@ -1,10 +1,10 @@
-from dataclasses import dataclass
 from logging import getLogger
 import math
 import re
 
 from esphome import automation, pins
 import esphome.codegen as cg
+from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -114,38 +114,6 @@ MULTI_CONF = True
 MULTI_CONF_NO_DEFAULT = True
 
 
-@dataclass
-class UARTData:
-    """State data for UART component configuration generation."""
-
-    wake_loop_on_rx: bool = False
-
-
-def _get_data() -> UARTData:
-    """Get UART component data from CORE.data."""
-    if DOMAIN not in CORE.data:
-        CORE.data[DOMAIN] = UARTData()
-    return CORE.data[DOMAIN]
-
-
-def request_wake_loop_on_rx() -> None:
-    """Request that the UART wake the main loop when data is received.
-
-    Components that need low-latency notification of incoming UART data
-    should call this function during their code generation.
-    This enables the RX event task which wakes the main loop when data arrives.
-    """
-    data = _get_data()
-    if not data.wake_loop_on_rx:
-        data.wake_loop_on_rx = True
-
-        # UART RX event task uses wake_loop_threadsafe() to notify the main loop
-        # Automatically enable the socket wake infrastructure when RX wake is requested
-        from esphome.components import socket
-
-        socket.require_wake_loop_threadsafe()
-
-
 def validate_raw_data(value):
     if isinstance(value, str):
         return value.encode("utf-8")
@@ -215,9 +183,6 @@ UART_PARITY_OPTIONS = {
     "ODD": UARTParityOptions.UART_CONFIG_PARITY_ODD,
 }
 
-CONF_STOP_BITS = "stop_bits"
-CONF_DATA_BITS = "data_bits"
-CONF_PARITY = "parity"
 CONF_RX_FULL_THRESHOLD = "rx_full_threshold"
 CONF_RX_TIMEOUT = "rx_timeout"
 
@@ -378,6 +343,28 @@ async def to_code(config):
     if CONF_DEBUG in config:
         await debug_to_code(config[CONF_DEBUG], var)
 
+    # ESP8266: Enable the Arduino Serial objects that might be used based on pin config
+    # The C++ code selects hardware serial at runtime based on these pin combinations:
+    # - Serial (UART0): TX=1 or null, RX=3 or null
+    # - Serial (UART0 swap): TX=15 or null, RX=13 or null
+    # - Serial1: TX=2 or null, RX=8 or null
+    if CORE.is_esp8266:
+        from esphome.components.esp8266.const import enable_serial, enable_serial1
+
+        tx_num = config[CONF_TX_PIN][CONF_NUMBER] if CONF_TX_PIN in config else None
+        rx_num = config[CONF_RX_PIN][CONF_NUMBER] if CONF_RX_PIN in config else None
+
+        # Check if this config could use Serial (UART0 regular or swap)
+        if (tx_num is None or tx_num in (1, 15)) and (
+            rx_num is None or rx_num in (3, 13)
+        ):
+            enable_serial()
+            cg.add_define("USE_ESP8266_UART_SERIAL")
+        # Check if this config could use Serial1
+        if (tx_num is None or tx_num == 2) and (rx_num is None or rx_num == 8):
+            enable_serial1()
+            cg.add_define("USE_ESP8266_UART_SERIAL1")
+
     CORE.add_job(final_step)
 
 
@@ -482,7 +469,7 @@ def final_validate_device_schema(
 async def register_uart_device(var, config):
     """Register a UART device, setting up all the internal values.
 
-    This is a coroutine, you need to await it with a 'yield' expression!
+    This is a coroutine, you need to await it with an 'await' expression!
     """
     parent = await cg.get_variable(config[CONF_UART_ID])
     cg.add(var.set_uart_parent(parent))
@@ -520,7 +507,14 @@ async def uart_write_to_code(config, action_id, template_arg, args):
 @coroutine_with_priority(CoroPriority.FINAL)
 async def final_step():
     """Final code generation step to configure optional UART features."""
-    if _get_data().wake_loop_on_rx:
+    if CORE.is_esp32 and CORE.has_networking:
+        # Wake-on-RX is essentially free on ESP32 (just an ISR function pointer
+        # registration) — enable by default to reduce RX buffer overflow risk
+        # by waking the main loop immediately when data arrives.
+        # Requires networking for the wake_loop_isrsafe() infrastructure.
+        from esphome.components import socket
+
+        socket.require_wake_loop_threadsafe()
         cg.add_define("USE_UART_WAKE_LOOP_ON_RX")
 
 

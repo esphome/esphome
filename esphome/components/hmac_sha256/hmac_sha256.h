@@ -35,7 +35,7 @@ class HmacSHA256 {
   void get_bytes(uint8_t *output);
 
   /// Retrieve the HMAC-SHA256 digest as hex characters.
-  /// The output must be able to hold 64 bytes or more.
+  /// The output must be able to hold 65 bytes or more (64 hex chars + null terminator).
   void get_hex(char *output);
 
   /// Compare the digest against a provided byte-encoded digest (32 bytes).

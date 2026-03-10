@@ -183,7 +183,7 @@ async def to_code(config):
     if CORE.using_zephyr:
         zephyr_add_prj_conf("I2C", True)
         i2c = "i2c0"
-        if zephyr_data()[KEY_BOARD] in ["xiao_ble"]:
+        if zephyr_data()[KEY_BOARD] == "xiao_ble":
             i2c = "i2c1"
         zephyr_add_overlay(
             f"""
@@ -250,7 +250,7 @@ async def register_i2c_device(var, config):
 
     Sets the i2c bus to use and the i2c address.
 
-    This is a coroutine, you need to await it with a 'yield' expression!
+    This is a coroutine, you need to await it with an 'await' expression!
     """
     parent = await cg.get_variable(config[CONF_I2C_ID])
     cg.add(var.set_i2c_bus(parent))

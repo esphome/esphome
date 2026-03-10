@@ -10,8 +10,8 @@
 
 namespace esphome::cover {
 
-const extern float COVER_OPEN;
-const extern float COVER_CLOSED;
+static constexpr float COVER_OPEN = 1.0f;
+static constexpr float COVER_CLOSED = 0.0f;
 
 #define LOG_COVER(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -20,9 +20,7 @@ const extern float COVER_CLOSED;
     if (traits_.get_is_assumed_state()) { \
       ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
     } \
-    if (!(obj)->get_device_class_ref().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class_ref().c_str()); \
-    } \
+    LOG_ENTITY_DEVICE_CLASS(TAG, prefix, *(obj)); \
   }
 
 class Cover;
@@ -109,7 +107,7 @@ const LogString *cover_operation_to_str(CoverOperation op);
  * to control all values of the cover. Also implement get_traits() to return what operations
  * the cover supports.
  */
-class Cover : public EntityBase, public EntityBase_DeviceClass {
+class Cover : public EntityBase {
  public:
   explicit Cover();
 

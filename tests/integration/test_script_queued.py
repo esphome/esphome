@@ -98,9 +98,11 @@ async def test_script_queued(
             if not test3_complete.done():
                 loop.call_later(
                     0.3,
-                    lambda: test3_complete.set_result(True)
-                    if not test3_complete.done()
-                    else None,
+                    lambda: (
+                        test3_complete.set_result(True)
+                        if not test3_complete.done()
+                        else None
+                    ),
                 )
 
         # Test 4: Rejection

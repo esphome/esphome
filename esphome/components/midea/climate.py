@@ -30,7 +30,7 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_WATT,
 )
-from esphome.core import coroutine
+from esphome.core import CORE, coroutine
 
 CODEOWNERS = ["@dudanov"]
 DEPENDENCIES = ["climate", "uart"]
@@ -289,6 +289,9 @@ async def to_code(config):
     if CONF_HUMIDITY_SETPOINT in config:
         sens = await sensor.new_sensor(config[CONF_HUMIDITY_SETPOINT])
         cg.add(var.set_humidity_setpoint_sensor(sens))
+    # MideaUART library requires WiFi (WiFi auto-enables Network via dependency mapping)
+    if CORE.is_esp32:
+        cg.add_library("WiFi", None)
     # Using fork with ESP-IDF support until dudanov/MideaUART#27 is merged
     cg.add_library(
         name="MideaUART",

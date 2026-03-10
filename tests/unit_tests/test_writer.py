@@ -13,6 +13,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from esphome.const import (
+    PLATFORM_BK72XX,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_RP2040,
+    PLATFORM_RTL87XX,
+)
 from esphome.core import EsphomeError
 from esphome.storage_json import StorageJSON
 from esphome.writer import (
@@ -28,6 +35,7 @@ from esphome.writer import (
     generate_build_info_data_h,
     get_build_info,
     storage_should_clean,
+    storage_should_update_cmake_cache,
     update_storage_json,
     write_cpp,
     write_gitignore,
@@ -169,6 +177,86 @@ def test_storage_edge_case_from_empty_integrations(
     old = create_storage(loaded_integrations=[])
     new = create_storage(loaded_integrations=["api", "wifi"])
     assert storage_should_clean(old, new) is False
+
+
+# Tests for storage_should_update_cmake_cache
+
+
+@pytest.mark.parametrize("framework", ["arduino", "esp-idf"])
+def test_storage_should_update_cmake_cache_when_integration_added_esp32(
+    create_storage: Callable[..., StorageJSON],
+    framework: str,
+) -> None:
+    """Test cmake cache update triggered when integration added on ESP32."""
+    old = create_storage(
+        loaded_integrations=["api", "wifi"],
+        core_platform=PLATFORM_ESP32,
+        framework=framework,
+    )
+    new = create_storage(
+        loaded_integrations=["api", "wifi", "restart"],
+        core_platform=PLATFORM_ESP32,
+        framework=framework,
+    )
+    assert storage_should_update_cmake_cache(old, new) is True
+
+
+def test_storage_should_update_cmake_cache_when_platform_changed_esp32(
+    create_storage: Callable[..., StorageJSON],
+) -> None:
+    """Test cmake cache update triggered when platforms change on ESP32."""
+    old = create_storage(
+        loaded_integrations=["api", "wifi"],
+        loaded_platforms={"sensor"},
+        core_platform=PLATFORM_ESP32,
+        framework="arduino",
+    )
+    new = create_storage(
+        loaded_integrations=["api", "wifi"],
+        loaded_platforms={"sensor", "binary_sensor"},
+        core_platform=PLATFORM_ESP32,
+        framework="arduino",
+    )
+    assert storage_should_update_cmake_cache(old, new) is True
+
+
+def test_storage_should_not_update_cmake_cache_when_nothing_changes(
+    create_storage: Callable[..., StorageJSON],
+) -> None:
+    """Test cmake cache not updated when nothing changes."""
+    old = create_storage(
+        loaded_integrations=["api", "wifi"],
+        core_platform=PLATFORM_ESP32,
+        framework="arduino",
+    )
+    new = create_storage(
+        loaded_integrations=["api", "wifi"],
+        core_platform=PLATFORM_ESP32,
+        framework="arduino",
+    )
+    assert storage_should_update_cmake_cache(old, new) is False
+
+
+@pytest.mark.parametrize(
+    "core_platform",
+    [PLATFORM_ESP8266, PLATFORM_RP2040, PLATFORM_BK72XX, PLATFORM_RTL87XX],
+)
+def test_storage_should_not_update_cmake_cache_for_non_esp32(
+    create_storage: Callable[..., StorageJSON],
+    core_platform: str,
+) -> None:
+    """Test cmake cache not updated for non-ESP32 platforms."""
+    old = create_storage(
+        loaded_integrations=["api", "wifi"],
+        core_platform=core_platform,
+        framework="arduino",
+    )
+    new = create_storage(
+        loaded_integrations=["api", "wifi", "restart"],
+        core_platform=core_platform,
+        framework="arduino",
+    )
+    assert storage_should_update_cmake_cache(old, new) is False
 
 
 @patch("esphome.writer.clean_build")
@@ -378,8 +466,8 @@ def test_clean_build(
     ) as mock_get_instance:
         mock_config = MagicMock()
         mock_get_instance.return_value = mock_config
-        mock_config.get.side_effect = (
-            lambda section, option: str(platformio_cache_dir)
+        mock_config.get.side_effect = lambda section, option: (
+            str(platformio_cache_dir)
             if (section, option) == ("platformio", "cache_dir")
             else ""
         )
@@ -542,8 +630,8 @@ def test_clean_build_empty_cache_dir(
     ) as mock_get_instance:
         mock_config = MagicMock()
         mock_get_instance.return_value = mock_config
-        mock_config.get.side_effect = (
-            lambda section, option: "   "  # Whitespace only
+        mock_config.get.side_effect = lambda section, option: (
+            "   "  # Whitespace only
             if (section, option) == ("platformio", "cache_dir")
             else ""
         )
@@ -1486,8 +1574,8 @@ def test_copy_src_tree_writes_build_info_files(
     mock_component.resources = mock_resources
 
     # Setup mocks
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF
     mock_core.comment = "Test comment"
@@ -1561,8 +1649,8 @@ def test_copy_src_tree_detects_config_hash_change(
     build_info_h_path.write_text("// old build_info_data.h")
 
     # Setup mocks
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF  # Different from existing
     mock_core.comment = ""
@@ -1623,8 +1711,8 @@ def test_copy_src_tree_detects_version_change(
     build_info_h_path.write_text("// old build_info_data.h")
 
     # Setup mocks
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF
     mock_core.comment = ""
@@ -1673,8 +1761,8 @@ def test_copy_src_tree_handles_invalid_build_info_json(
     build_info_h_path.write_text("// old build_info_data.h")
 
     # Setup mocks
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF
     mock_core.comment = ""
@@ -1747,8 +1835,8 @@ def test_copy_src_tree_build_info_timestamp_behavior(
     mock_component.resources = mock_resources
 
     # Setup mocks
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF
     mock_core.comment = ""
@@ -1842,8 +1930,8 @@ def test_copy_src_tree_detects_removed_source_file(
     existing_file.write_text("// test file")
 
     # Setup mocks - no components, so the file should be removed
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF
     mock_core.comment = ""
@@ -1904,8 +1992,8 @@ def test_copy_src_tree_ignores_removed_generated_file(
     build_info_h.write_text("// old generated file")
 
     # Setup mocks
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF
     mock_core.comment = ""

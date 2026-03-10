@@ -39,6 +39,15 @@
 
 namespace esphome::ld24xx {
 
+// Helper to find index of value in constexpr array
+template<size_t N> optional<size_t> find_index(const uint32_t (&arr)[N], uint32_t value) {
+  for (size_t i = 0; i < N; i++) {
+    if (arr[i] == value)
+      return i;
+  }
+  return {};
+}
+
 static const char *const UNKNOWN_MAC = "unknown";
 static const char *const VERSION_FMT = "%u.%02X.%02X%02X%02X%02X";
 
