@@ -38,10 +38,10 @@ void NS2009Component::setup() {
     }
 
     if (data_z.has_value() && this->address_ != configured_address) {
-      this->detected_address = this->address_;
+      this->detected_address_ = this->address_;
       this->address_ = configured_address;
       ESP_LOGW(TAG, "detected address 0x%02x but 0x%02x is configured. try updating your config",
-               this->detected_address, configured_address);
+               this->detected_address_, configured_address);
       this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       return;
     }
@@ -91,8 +91,8 @@ void NS2009Component::dump_config() {
   ESP_LOGCONFIG(TAG, "NS2009 Touchscreen:");
   LOG_I2C_DEVICE(this);
 
-  if (this->detected_address)
-    ESP_LOGW(TAG, "detected address 0x%02x but 0x%02x is configured. try updating your config", this->detected_address,
+  if (this->detected_address_)
+    ESP_LOGW(TAG, "detected address 0x%02x but 0x%02x is configured. try updating your config", this->detected_address_,
              this->address_);
 }
 
