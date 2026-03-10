@@ -111,17 +111,48 @@ void crash_handler_log() {
 // extract key registers, store them in watchdog scratch registers
 // (which survive watchdog reboot), then trigger a reboot.
 
+// Check if a pointer falls within SRAM (valid for stack access).
+// SRAM_BASE and SRAM_END are chip-specific SDK defines:
+//   RP2040: 0x20000000 - 0x20042000 (264KB)
+//   RP2350: 0x20000000 - 0x20082000 (520KB)
+static inline bool is_valid_sram_ptr(const uint32_t *ptr) {
+  auto addr = (uint32_t) ptr;
+  // Exception frame is 8 words (32 bytes), so frame+7 must also be in SRAM.
+  // Check alignment (must be word-aligned) and that the full frame fits.
+  return (addr % 4 == 0) && addr >= SRAM_BASE && (addr + 32) <= SRAM_END;
+}
+
 // C handler called from the asm wrapper with the exception frame pointer.
 static void __attribute__((used, noreturn)) hard_fault_handler_c(uint32_t *frame, uint32_t /*exc_return*/) {
   // watchdog_reboot() overwrites scratch[4]-[7], so we must call it first
   // then write ALL our data after. The 10ms timeout gives us plenty of time.
   watchdog_reboot(0, 0, 10);
 
+  // Validate frame pointer before dereferencing. If the HardFault was caused
+  // by a stacking error or corrupted SP, frame may be invalid. Write a minimal
+  // crash marker so we at least know a crash occurred.
+  if (!is_valid_sram_ptr(frame)) {
+    watchdog_hw->scratch[0] = CRASH_MAGIC;
+    watchdog_hw->scratch[1] = 0;                 // PC unknown
+    watchdog_hw->scratch[2] = 0;                 // LR unknown
+    watchdog_hw->scratch[3] = (uint32_t) frame;  // Record the bad SP for diagnosis
+    for (uint32_t i = 0; i < MAX_BACKTRACE; i++) {
+      watchdog_hw->scratch[4 + i] = 0;
+    }
+    while (true) {
+      __asm volatile("nop");
+    }
+  }
+
+  // Pre-fault SP: the exception frame is 8 words pushed onto the stack,
+  // so the SP before the fault was frame + 8 words.
+  uint32_t pre_fault_sp = (uint32_t) (frame + 8);
+
   // Write key registers
   watchdog_hw->scratch[0] = CRASH_MAGIC;
   watchdog_hw->scratch[1] = frame[EF_PC];
   watchdog_hw->scratch[2] = frame[EF_LR];
-  watchdog_hw->scratch[3] = (uint32_t) frame;  // SP at fault
+  watchdog_hw->scratch[3] = pre_fault_sp;
 
   // Scan stack for code addresses to build a deeper backtrace.
   // The exception frame is 8 words (32 bytes) at 'frame'. The pre-fault
