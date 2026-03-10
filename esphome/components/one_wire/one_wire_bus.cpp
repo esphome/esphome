@@ -17,8 +17,6 @@ const uint8_t ONE_WIRE_ROM_SEARCH = 0xF0;
 
 const std::vector<uint64_t> &OneWireBus::get_devices() { return this->devices_; }
 
-bool OneWireBus::reset() { return this->reset_(); }
-
 bool OneWireBus::reset_() {
   int res = this->reset_int();
   if (res == -1)
@@ -59,8 +57,11 @@ void OneWireBus::search() {
   }
 }
 
-void OneWireBus::skip() {
+bool OneWireBus::skip() {
+  if (!this->reset_())
+    return false;
   this->write8(0xCC);  // skip ROM
+  return true;
 }
 
 const LogString *OneWireBus::get_model_str(uint8_t model) {

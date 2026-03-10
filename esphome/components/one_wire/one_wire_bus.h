@@ -9,8 +9,6 @@ namespace one_wire {
 
 class OneWireBus {
  public:
-  /// Send reset pulse. This is required prior to every 1-Wire transaction (ROM commands and function commands).
-  bool reset();
 
   /// Write a word to the bus. LSB first.
   virtual void write8(uint8_t val) = 0;
@@ -19,7 +17,8 @@ class OneWireBus {
   virtual void write64(uint64_t val) = 0;
 
   /// Write a command to the bus that addresses all devices by skipping the ROM.
-  void skip();
+  /// Returns true if a device presence pulse is detected.
+  bool skip();
 
   /// Read an 8 bit word from the bus.
   virtual uint8_t read8() = 0;
