@@ -285,7 +285,7 @@ def _addr2line(tool: str, elf: Path, addr: str) -> str:
             check=True,
         )
         return result.stdout.strip()
-    except Exception:  # pylint: disable=broad-except
+    except (OSError, subprocess.CalledProcessError):
         return f"{addr} (decode failed)"
 
 
