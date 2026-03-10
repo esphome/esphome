@@ -237,6 +237,11 @@ class LWIPRawUDPImpl {
 /// UDP socket with receive support for LWIP raw API.
 /// Extends LWIPRawUDPImpl with a fixed-size ring buffer for incoming packets.
 /// The recv callback is registered on bind().
+///
+/// Note: close() and bind() intentionally hide the base class methods to add
+/// recv callback registration/cleanup. This is safe because these classes are
+/// never used polymorphically (no virtual dispatch) — callers always use the
+/// concrete LWIPRawUDPRecvImpl type via the UDPRecvSocket alias.
 class LWIPRawUDPRecvImpl : public LWIPRawUDPImpl {
  public:
   using LWIPRawUDPImpl::LWIPRawUDPImpl;
@@ -250,9 +255,11 @@ class LWIPRawUDPRecvImpl : public LWIPRawUDPImpl {
 
   /// Read the next queued packet, discarding source address info.
   /// If buf is smaller than the packet, data is silently truncated (returns bytes copied).
+  /// Note: unlike POSIX MSG_TRUNC, this does not return the original packet length on truncation.
   ssize_t read(void *buf, size_t len);
   /// Read the next queued packet and return the source address.
   /// If buf is smaller than the packet, data is silently truncated (returns bytes copied).
+  /// Note: unlike POSIX MSG_TRUNC, this does not return the original packet length on truncation.
   ssize_t recvfrom(void *buf, size_t len, struct sockaddr *src_addr, socklen_t *addrlen);
 
   /// Returns true if there are packets available to read.
