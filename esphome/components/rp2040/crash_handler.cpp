@@ -34,8 +34,7 @@ static inline bool is_code_addr(uint32_t val) {
 
 static constexpr size_t MAX_BACKTRACE = 4;
 
-namespace esphome {
-namespace rp2040 {
+namespace esphome::rp2040 {
 
 static const char *const TAG = "rp2040.crash";
 
@@ -83,8 +82,7 @@ void crash_handler_log() {
   ESP_LOGE(TAG, "Use addr2line -e firmware.elf 0x%08X 0x%08X to decode", s_crash_data.pc, s_crash_data.lr);
 }
 
-}  // namespace rp2040
-}  // namespace esphome
+}  // namespace esphome::rp2040
 
 // --- HardFault handler ---
 // Overrides the weak isr_hardfault from arduino-pico's crt0.S.
