@@ -9,8 +9,8 @@ namespace esphome::api {
 
 class APINoiseFrameHelper final : public APIFrameHelper {
  public:
-  APINoiseFrameHelper(std::unique_ptr<socket::Socket> socket, APINoiseContext &ctx, const ClientInfo *client_info)
-      : APIFrameHelper(std::move(socket), client_info), ctx_(ctx) {
+  APINoiseFrameHelper(std::unique_ptr<socket::Socket> socket, APINoiseContext &ctx)
+      : APIFrameHelper(std::move(socket)), ctx_(ctx) {
     // Noise header structure:
     // Pos 0: indicator (0x01)
     // Pos 1-2: encrypted payload size (16-bit big-endian)
@@ -23,7 +23,7 @@ class APINoiseFrameHelper final : public APIFrameHelper {
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;
   APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) override;
-  APIError write_protobuf_packets(ProtoWriteBuffer buffer, std::span<const PacketInfo> packets) override;
+  APIError write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) override;
 
  protected:
   APIError state_action_();

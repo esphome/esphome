@@ -41,7 +41,9 @@ void SGP30Component::setup() {
     this->mark_failed();
     return;
   }
-  this->serial_number_ = encode_uint24(raw_serial_number[0], raw_serial_number[1], raw_serial_number[2]);
+  this->serial_number_ = (static_cast<uint64_t>(raw_serial_number[0]) << 32) |
+                         (static_cast<uint64_t>(raw_serial_number[1]) << 16) |
+                         static_cast<uint64_t>(raw_serial_number[2]);
   ESP_LOGD(TAG, "Serial number: %" PRIu64, this->serial_number_);
 
   // Featureset identification for future use
@@ -72,10 +74,10 @@ void SGP30Component::setup() {
     return;
   }
 
-  // Hash with compilation time and serial number
+  // Hash with config hash, version, and serial number
   // This ensures the baseline storage is cleared after OTA
-  // Serial numbers are unique to each sensor, so mulitple sensors can be used without conflict
-  uint32_t hash = fnv1_hash(App.get_compilation_time_ref() + std::to_string(this->serial_number_));
+  // Serial numbers are unique to each sensor, so multiple sensors can be used without conflict
+  uint32_t hash = fnv1a_hash_extend(App.get_config_version_hash(), this->serial_number_);
   this->pref_ = global_preferences->make_preference<SGP30Baselines>(hash, true);
 
   if (this->store_baseline_ && this->pref_.load(&this->baselines_storage_)) {

@@ -1,4 +1,5 @@
 #include "sgp4x.h"
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include <cinttypes>
@@ -34,13 +35,9 @@ void SGP4xComponent::setup() {
     this->self_test_time_ = SPG40_SELFTEST_TIME;
     this->measure_time_ = SGP40_MEASURE_TIME;
     if (this->nox_sensor_) {
-      ESP_LOGE(TAG, "SGP41 required for NOx");
-      // disable the sensor
-      this->nox_sensor_->set_disabled_by_default(true);
-      // make sure it's not visible in HA
-      this->nox_sensor_->set_internal(true);
-      this->nox_sensor_->state = NAN;
-      // remove pointer to sensor
+      ESP_LOGE(TAG, "SGP41 required for NOx, disabling NOx sensor");
+      // Drop the pointer so update() never publishes to it.
+      // The entity remains registered but will never receive state updates.
       this->nox_sensor_ = nullptr;
     }
   } else if (featureset == SGP41_FEATURESET) {
@@ -56,10 +53,10 @@ void SGP4xComponent::setup() {
   ESP_LOGD(TAG, "Version 0x%0X", featureset);
 
   if (this->store_baseline_) {
-    // Hash with compilation time and serial number
+    // Hash with config hash, version, and serial number
     // This ensures the baseline storage is cleared after OTA
-    // Serial numbers are unique to each sensor, so mulitple sensors can be used without conflict
-    uint32_t hash = fnv1_hash(App.get_compilation_time_ref() + std::to_string(this->serial_number_));
+    // Serial numbers are unique to each sensor, so multiple sensors can be used without conflict
+    uint32_t hash = fnv1a_hash_extend(App.get_config_version_hash(), this->serial_number_);
     this->pref_ = global_preferences->make_preference<SGP4xBaselines>(hash, true);
 
     if (this->pref_.load(&this->voc_baselines_storage_)) {
@@ -202,7 +199,7 @@ void SGP4xComponent::measure_raw_() {
       response_words = 2;
     }
   }
-  uint16_t rhticks = llround((uint16_t) ((humidity * 65535) / 100));
+  uint16_t rhticks = (uint16_t) llround((humidity * 65535) / 100);
   uint16_t tempticks = (uint16_t) (((temperature + 45) * 65535) / 175);
   // first parameter are the relative humidity ticks
   data[0] = rhticks;

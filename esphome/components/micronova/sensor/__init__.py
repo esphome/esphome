@@ -118,8 +118,6 @@ CONFIG_SCHEMA = cv.Schema(
             MicroNovaSensor,
         ).extend(
             MICRONOVA_ADDRESS_SCHEMA(
-                default_memory_location=0x00,
-                default_memory_address=0x00,
                 is_polling_component=True,
             )
         ),

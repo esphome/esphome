@@ -73,6 +73,12 @@ LIST_ENTITIES_HANDLER(media_player, media_player::MediaPlayer, ListEntitiesMedia
 LIST_ENTITIES_HANDLER(alarm_control_panel, alarm_control_panel::AlarmControlPanel,
                       ListEntitiesAlarmControlPanelResponse)
 #endif
+#ifdef USE_WATER_HEATER
+LIST_ENTITIES_HANDLER(water_heater, water_heater::WaterHeater, ListEntitiesWaterHeaterResponse)
+#endif
+#ifdef USE_INFRARED
+LIST_ENTITIES_HANDLER(infrared, infrared::Infrared, ListEntitiesInfraredResponse)
+#endif
 #ifdef USE_EVENT
 LIST_ENTITIES_HANDLER(event, event::Event, ListEntitiesEventResponse)
 #endif
@@ -88,7 +94,7 @@ ListEntitiesIterator::ListEntitiesIterator(APIConnection *client) : client_(clie
 #ifdef USE_API_USER_DEFINED_ACTIONS
 bool ListEntitiesIterator::on_service(UserServiceDescriptor *service) {
   auto resp = service->encode_list_service_response();
-  return this->client_->send_message(resp, ListEntitiesServicesResponse::MESSAGE_TYPE);
+  return this->client_->send_message(resp);
 }
 #endif
 

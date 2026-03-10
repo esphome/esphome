@@ -43,9 +43,6 @@ globals:
   - id: static_char_retry_counter
     type: int
     initial_value: '0'
-  - id: mixed_cancel_result
-    type: bool
-    initial_value: 'false'
 
 # Using different component types for each test to ensure isolation
 sensor:
@@ -271,23 +268,6 @@ script:
             ESP_LOGI("test", "Static cancel result: %s", result ? "true" : "false");
           });
 
-      # Test 10: Mix string and const char* cancel
-      - logger.log: "=== Test 10: Mixed string/const char* ==="
-      - lambda: |-
-          auto *component = id(immediate_done_sensor);
-
-          // Set with std::string
-          std::string str_name = "mixed_retry";
-          App.scheduler.set_retry(component, str_name, 40, 3,
-            [](uint8_t retry_countdown) {
-              ESP_LOGI("test", "Mixed retry - should be cancelled");
-              return RetryResult::RETRY;
-            });
-
-          // Cancel with const char*
-          id(mixed_cancel_result) = App.scheduler.cancel_retry(component, "mixed_retry");
-          ESP_LOGI("test", "Mixed cancel result: %s", id(mixed_cancel_result) ? "true" : "false");
-
       # Wait for all tests to complete before reporting
       - delay: 500ms
 
@@ -303,5 +283,4 @@ script:
           ESP_LOGI("test", "Multiple same name counter: %d (expected 20+)", id(multiple_same_name_counter));
           ESP_LOGI("test", "Const char retry counter: %d (expected 1)", id(const_char_retry_counter));
           ESP_LOGI("test", "Static char retry counter: %d (expected 1)", id(static_char_retry_counter));
-          ESP_LOGI("test", "Mixed cancel result: %s (expected true)", id(mixed_cancel_result) ? "true" : "false");
           ESP_LOGI("test", "All retry tests completed");

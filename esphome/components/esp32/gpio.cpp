@@ -97,10 +97,8 @@ void ESP32InternalGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpi
   gpio_isr_handler_add(this->get_pin_num(), func, arg);
 }
 
-std::string ESP32InternalGPIOPin::dump_summary() const {
-  char buffer[32];
-  snprintf(buffer, sizeof(buffer), "GPIO%" PRIu32, static_cast<uint32_t>(this->pin_));
-  return buffer;
+size_t ESP32InternalGPIOPin::dump_summary(char *buffer, size_t len) const {
+  return snprintf(buffer, len, "GPIO%" PRIu32, static_cast<uint32_t>(this->pin_));
 }
 
 void ESP32InternalGPIOPin::setup() {

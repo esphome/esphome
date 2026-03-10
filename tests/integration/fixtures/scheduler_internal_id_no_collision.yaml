@@ -1,0 +1,109 @@
+esphome:
+  name: scheduler-internal-id-test
+  on_boot:
+    priority: -100
+    then:
+      - logger.log: "Starting scheduler internal ID collision tests"
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+globals:
+  - id: tests_done
+    type: bool
+    initial_value: 'false'
+
+script:
+  - id: test_internal_id_no_collision
+    then:
+      - logger.log: "Testing NUMERIC_ID_INTERNAL vs NUMERIC_ID isolation"
+      - lambda: |-
+          // All tests use the same component and the same uint32_t value (0).
+          // NUMERIC_ID_INTERNAL and NUMERIC_ID are separate NameType values,
+          // so the scheduler must treat them as independent timers.
+          auto *comp = id(test_sensor);
+
+          // ---- Test 1: Both timeout types fire independently ----
+          // Set an internal timeout with ID 0
+          App.scheduler.set_timeout(comp, InternalSchedulerID{0}, 50, []() {
+            ESP_LOGI("test", "Internal timeout 0 fired");
+          });
+          // Set a component numeric timeout with the same ID 0
+          App.scheduler.set_timeout(comp, 0U, 50, []() {
+            ESP_LOGI("test", "Numeric timeout 0 fired");
+          });
+
+          // ---- Test 2: Cancelling numeric ID does NOT cancel internal ID ----
+          // Set an internal timeout with ID 1
+          App.scheduler.set_timeout(comp, InternalSchedulerID{1}, 100, []() {
+            ESP_LOGI("test", "Internal timeout 1 survived cancel");
+          });
+          // Set a numeric timeout with the same ID 1
+          App.scheduler.set_timeout(comp, 1U, 100, []() {
+            ESP_LOGE("test", "ERROR: Numeric timeout 1 should have been cancelled");
+          });
+          // Cancel only the numeric one
+          App.scheduler.cancel_timeout(comp, 1U);
+
+          // ---- Test 3: Cancelling internal ID does NOT cancel numeric ID ----
+          // Set a numeric timeout with ID 2
+          App.scheduler.set_timeout(comp, 2U, 150, []() {
+            ESP_LOGI("test", "Numeric timeout 2 survived cancel");
+          });
+          // Set an internal timeout with the same ID 2
+          App.scheduler.set_timeout(comp, InternalSchedulerID{2}, 150, []() {
+            ESP_LOGE("test", "ERROR: Internal timeout 2 should have been cancelled");
+          });
+          // Cancel only the internal one
+          App.scheduler.cancel_timeout(comp, InternalSchedulerID{2});
+
+          // ---- Test 4: Both interval types fire independently ----
+          static int internal_interval_count = 0;
+          static int numeric_interval_count = 0;
+          App.scheduler.set_interval(comp, InternalSchedulerID{3}, 100, []() {
+            internal_interval_count++;
+            if (internal_interval_count == 2) {
+              ESP_LOGI("test", "Internal interval 3 fired twice");
+              App.scheduler.cancel_interval(id(test_sensor), InternalSchedulerID{3});
+            }
+          });
+          App.scheduler.set_interval(comp, 3U, 100, []() {
+            numeric_interval_count++;
+            if (numeric_interval_count == 2) {
+              ESP_LOGI("test", "Numeric interval 3 fired twice");
+              App.scheduler.cancel_interval(id(test_sensor), 3U);
+            }
+          });
+
+          // ---- Test 5: String name does NOT collide with internal ID ----
+          // Use string name and internal ID 10 on same component
+          App.scheduler.set_timeout(comp, "collision_test", 200, []() {
+            ESP_LOGI("test", "String timeout collision_test fired");
+          });
+          App.scheduler.set_timeout(comp, InternalSchedulerID{10}, 200, []() {
+            ESP_LOGI("test", "Internal timeout 10 fired");
+          });
+
+          // Log completion after all timers should have fired
+          App.scheduler.set_timeout(comp, 9999U, 1500, []() {
+            ESP_LOGI("test", "All collision tests complete");
+          });
+
+sensor:
+  - platform: template
+    name: Test Sensor
+    id: test_sensor
+    lambda: return 1.0;
+    update_interval: never
+
+interval:
+  - interval: 0.1s
+    then:
+      - if:
+          condition:
+            lambda: 'return id(tests_done) == false;'
+          then:
+            - lambda: 'id(tests_done) = true;'
+            - script.execute: test_internal_id_no_collision

@@ -81,8 +81,6 @@ void MAX17043Component::dump_config() {
   LOG_SENSOR("  ", "Battery Level", this->battery_remaining_sensor_);
 }
 
-float MAX17043Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void MAX17043Component::sleep_mode() {
   if (!this->is_failed()) {
     if (!this->write_byte_16(MAX17043_CONFIG, MAX17043_CONFIG_POWER_UP_DEFAULT | MAX17043_CONFIG_SLEEP_MASK)) {

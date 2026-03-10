@@ -11,15 +11,7 @@
 
 namespace esphome::mdns {
 
-void MDNSComponent::setup() {
-#ifdef USE_MDNS_STORE_SERVICES
-  this->compile_records_(this->services_);
-  const auto &services = this->services_;
-#else
-  StaticVector<MDNSService, MDNS_SERVICE_COUNT> services;
-  this->compile_records_(services);
-#endif
-
+static void register_esp8266(MDNSComponent *, StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services) {
   MDNS.begin(App.get_name().c_str());
 
   for (const auto &service : services) {
@@ -44,7 +36,14 @@ void MDNSComponent::setup() {
   }
 }
 
-void MDNSComponent::loop() { MDNS.update(); }
+void MDNSComponent::setup() {
+  this->setup_buffers_and_register_(register_esp8266);
+  // Schedule MDNS.update() via set_interval() instead of overriding loop().
+  // This removes the component from the per-iteration loop list entirely,
+  // eliminating virtual dispatch overhead on every main loop cycle.
+  // See MDNS_UPDATE_INTERVAL_MS comment in mdns_component.h for safety analysis.
+  this->set_interval(MDNS_UPDATE_INTERVAL_MS, []() { MDNS.update(); });
+}
 
 void MDNSComponent::on_shutdown() {
   MDNS.close();

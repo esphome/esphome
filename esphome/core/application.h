@@ -1,16 +1,21 @@
 #pragma once
 
 #include <algorithm>
+#include <ctime>
 #include <limits>
+#include <span>
 #include <string>
+#include <type_traits>
 #include <vector>
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/scheduler.h"
 #include "esphome/core/string_ref.h"
+#include "esphome/core/version.h"
 
 #ifdef USE_DEVICES
 #include "esphome/core/device.h"
@@ -20,12 +25,20 @@
 #endif
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_LWIP_FAST_SELECT
+#include "esphome/core/lwip_fast_select.h"
+#else
 #include <sys/select.h>
 #ifdef USE_WAKE_LOOP_THREADSAFE
 #include <lwip/sockets.h>
 #endif
+#endif
 #endif  // USE_SOCKET_SELECT_SUPPORT
-
+#if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+namespace esphome::socket {
+void socket_wake();  // NOLINT(readability-redundant-declaration)
+}  // namespace esphome::socket
+#endif
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
@@ -83,6 +96,15 @@
 #ifdef USE_ALARM_CONTROL_PANEL
 #include "esphome/components/alarm_control_panel/alarm_control_panel.h"
 #endif
+#ifdef USE_WATER_HEATER
+#include "esphome/components/water_heater/water_heater.h"
+#endif
+#ifdef USE_INFRARED
+#include "esphome/components/infrared/infrared.h"
+#endif
+#ifdef USE_SERIAL_PROXY
+#include "esphome/components/serial_proxy/serial_proxy.h"
+#endif
 #ifdef USE_EVENT
 #include "esphome/components/event/event.h"
 #endif
@@ -90,39 +112,65 @@
 #include "esphome/components/update/update_entity.h"
 #endif
 
+namespace esphome::socket {
+#ifdef USE_SOCKET_SELECT_SUPPORT
+/// Shared ready() helper for fd-based socket implementations.
+bool socket_ready_fd(int fd, bool loop_monitored);  // NOLINT(readability-redundant-declaration)
+#endif
+}  // namespace esphome::socket
+
+// Forward declarations for friend access from codegen-generated setup()
+void setup();           // NOLINT(readability-redundant-declaration) - may be declared in Arduino.h
+void original_setup();  // NOLINT(readability-redundant-declaration) - used by cpp unit tests
+
 namespace esphome {
+
+/// SFINAE helper: detects whether T overrides Component::loop().
+/// When &T::loop is ambiguous (multiple inheritance with separate loop() methods),
+/// the ambiguity itself proves an override exists, so the true_type default is correct.
+template<typename T, typename = void> struct HasLoopOverride : std::true_type {};
+template<typename T>
+struct HasLoopOverride<T, std::void_t<decltype(&T::loop)>>
+    : std::bool_constant<!std::is_same_v<decltype(&T::loop), decltype(&Component::loop)>> {};
 
 // Teardown timeout constant (in milliseconds)
 // For reboots, it's more important to shut down quickly than disconnect cleanly
 // since we're not entering deep sleep. The only consequence of not shutting down
 // cleanly is a warning in the log.
-static const uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for quick reboot
+static constexpr uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for quick reboot
 
 class Application {
  public:
-  void pre_setup(const std::string &name, const std::string &friendly_name, const char *comment,
-                 const char *compilation_time, bool name_add_mac_suffix) {
+#ifdef ESPHOME_NAME_ADD_MAC_SUFFIX
+  /// Pre-setup with MAC suffix: overwrites placeholder in mutable static buffers with actual MAC.
+  void pre_setup(char *name, size_t name_len, char *friendly_name, size_t friendly_name_len) {
     arch_init();
-    this->name_add_mac_suffix_ = name_add_mac_suffix;
-    if (name_add_mac_suffix) {
-      // MAC address length: 12 hex chars + null terminator
-      constexpr size_t mac_address_len = 13;
-      // MAC address suffix length (last 6 characters of 12-char MAC address string)
-      constexpr size_t mac_address_suffix_len = 6;
-      char mac_addr[mac_address_len];
-      get_mac_address_into_buffer(mac_addr);
-      const char *mac_suffix_ptr = mac_addr + mac_address_suffix_len;
-      this->name_ = make_name_with_suffix(name, '-', mac_suffix_ptr, mac_address_suffix_len);
-      if (!friendly_name.empty()) {
-        this->friendly_name_ = make_name_with_suffix(friendly_name, ' ', mac_suffix_ptr, mac_address_suffix_len);
-      }
-    } else {
-      this->name_ = name;
-      this->friendly_name_ = friendly_name;
+    this->name_add_mac_suffix_ = true;
+    // MAC address length: 12 hex chars + null terminator
+    constexpr size_t mac_address_len = 13;
+    // MAC address suffix length (last 6 characters of 12-char MAC address string)
+    constexpr size_t mac_address_suffix_len = 6;
+    char mac_addr[mac_address_len];
+    get_mac_address_into_buffer(mac_addr);
+    // Overwrite the placeholder suffix in the mutable static buffers with actual MAC
+    // name is always non-empty (validated by validate_hostname in Python config)
+    memcpy(name + name_len - mac_address_suffix_len, mac_addr + mac_address_suffix_len, mac_address_suffix_len);
+    if (friendly_name_len > 0) {
+      memcpy(friendly_name + friendly_name_len - mac_address_suffix_len, mac_addr + mac_address_suffix_len,
+             mac_address_suffix_len);
     }
-    this->comment_ = comment;
-    this->compilation_time_ = compilation_time;
+    this->name_ = StringRef(name, name_len);
+    this->friendly_name_ = StringRef(friendly_name, friendly_name_len);
   }
+#else
+  /// Pre-setup without MAC suffix: StringRef points directly at const string literals in flash.
+  void pre_setup(const char *name, size_t name_len, const char *friendly_name, size_t friendly_name_len) {
+    arch_init();
+    this->name_add_mac_suffix_ = false;
+    this->name_ = StringRef(name, name_len);
+    this->friendly_name_ = StringRef(friendly_name, friendly_name_len);
+  }
+#endif
 
 #ifdef USE_DEVICES
   void register_device(Device *device) { this->devices_.push_back(device); }
@@ -214,6 +262,21 @@ class Application {
   }
 #endif
 
+#ifdef USE_WATER_HEATER
+  void register_water_heater(water_heater::WaterHeater *water_heater) { this->water_heaters_.push_back(water_heater); }
+#endif
+
+#ifdef USE_INFRARED
+  void register_infrared(infrared::Infrared *infrared) { this->infrareds_.push_back(infrared); }
+#endif
+
+#ifdef USE_SERIAL_PROXY
+  void register_serial_proxy(serial_proxy::SerialProxy *proxy) {
+    proxy->set_instance_index(this->serial_proxies_.size());
+    this->serial_proxies_.push_back(proxy);
+  }
+#endif
+
 #ifdef USE_EVENT
   void register_event(event::Event *event) { this->events_.push_back(event); }
 #endif
@@ -224,13 +287,6 @@ class Application {
 
   /// Reserve space for components to avoid memory fragmentation
 
-  /// Register the component in this Application instance.
-  template<class C> C *register_component(C *c) {
-    static_assert(std::is_base_of<Component, C>::value, "Only Component subclasses can be registered");
-    this->register_component_((Component *) c);
-    return c;
-  }
-
   /// Set up all the registered components. Call this at the end of your setup() function.
   void setup();
 
@@ -238,10 +294,10 @@ class Application {
   void loop();
 
   /// Get the name of this Application set by pre_setup().
-  const std::string &get_name() const { return this->name_; }
+  const StringRef &get_name() const { return this->name_; }
 
   /// Get the friendly name of this Application set by pre_setup().
-  const std::string &get_friendly_name() const { return this->friendly_name_; }
+  const StringRef &get_friendly_name() const { return this->friendly_name_; }
 
   /// Get the area of this Application set by pre_setup().
   const char *get_area() const {
@@ -254,16 +310,45 @@ class Application {
     return "";
   }
 
-  /// Get the comment of this Application set by pre_setup().
-  std::string get_comment() const { return this->comment_; }
-  /// Get the comment as StringRef (avoids allocation)
-  StringRef get_comment_ref() const { return StringRef(this->comment_); }
+  /// Maximum size of the comment buffer (including null terminator)
+  static constexpr size_t ESPHOME_COMMENT_SIZE_MAX = 256;
+
+  /// Copy the comment string into the provided buffer
+  void get_comment_string(std::span<char, ESPHOME_COMMENT_SIZE_MAX> buffer);
+
+  /// Get the comment of this Application as a string
+  std::string get_comment() {
+    char buffer[ESPHOME_COMMENT_SIZE_MAX];
+    this->get_comment_string(buffer);
+    return std::string(buffer);
+  }
 
   bool is_name_add_mac_suffix_enabled() const { return this->name_add_mac_suffix_; }
 
-  std::string get_compilation_time() const { return this->compilation_time_; }
-  /// Get the compilation time as StringRef (for API usage)
-  StringRef get_compilation_time_ref() const { return StringRef(this->compilation_time_); }
+  /// Size of buffer required for build time string (including null terminator)
+  static constexpr size_t BUILD_TIME_STR_SIZE = 26;
+
+  /// Get the config hash as a 32-bit integer
+  uint32_t get_config_hash();
+
+  /// Get the config hash extended with ESPHome version
+  uint32_t get_config_version_hash();
+
+  /// Get the build time as a Unix timestamp
+  time_t get_build_time();
+
+  /// Copy the build time string into the provided buffer
+  /// Buffer must be BUILD_TIME_STR_SIZE bytes (compile-time enforced)
+  void get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buffer);
+
+  /// Get the build time as a string (deprecated, use get_build_time_string() instead)
+  // Remove before 2026.7.0
+  ESPDEPRECATED("Use get_build_time_string() instead. Removed in 2026.7.0", "2026.1.0")
+  std::string get_compilation_time() {
+    char buf[BUILD_TIME_STR_SIZE];
+    this->get_build_time_string(buf);
+    return std::string(buf);
+  }
 
   /// Get the cached time in milliseconds from when the current component started its loop execution
   inline uint32_t IRAM_ATTR HOT get_loop_component_start_time() const { return this->loop_component_start_time_; }
@@ -413,6 +498,20 @@ class Application {
   GET_ENTITY_METHOD(alarm_control_panel::AlarmControlPanel, alarm_control_panel, alarm_control_panels)
 #endif
 
+#ifdef USE_WATER_HEATER
+  auto &get_water_heaters() const { return this->water_heaters_; }
+  GET_ENTITY_METHOD(water_heater::WaterHeater, water_heater, water_heaters)
+#endif
+
+#ifdef USE_INFRARED
+  auto &get_infrareds() const { return this->infrareds_; }
+  GET_ENTITY_METHOD(infrared::Infrared, infrared, infrareds)
+#endif
+
+#ifdef USE_SERIAL_PROXY
+  auto &get_serial_proxies() const { return this->serial_proxies_; }
+#endif
+
 #ifdef USE_EVENT
   auto &get_events() const { return this->events_; }
   GET_ENTITY_METHOD(event::Event, event, events)
@@ -425,30 +524,74 @@ class Application {
 
   Scheduler scheduler;
 
-  /// Register/unregister a socket file descriptor to be monitored for read events.
-#ifdef USE_SOCKET_SELECT_SUPPORT
-  /// These functions update the fd_set used by select() in the main loop.
+  /// Register/unregister a socket to be monitored for read events.
   /// WARNING: These functions are NOT thread-safe. They must only be called from the main loop.
+#ifdef USE_LWIP_FAST_SELECT
+  /// Fast select path: hooks netconn callback and registers for monitoring.
+  /// @return true if registration was successful, false if sock is null
+  bool register_socket(struct lwip_sock *sock);
+  void unregister_socket(struct lwip_sock *sock);
+#elif defined(USE_SOCKET_SELECT_SUPPORT)
+  /// Fallback select() path: monitors file descriptors.
   /// NOTE: File descriptors >= FD_SETSIZE (typically 10 on ESP) will be rejected with an error.
   /// @return true if registration was successful, false if fd exceeds limits
   bool register_socket_fd(int fd);
   void unregister_socket_fd(int fd);
-  /// Check if there's data available on a socket without blocking
-  /// This function is thread-safe for reading, but should be called after select() has run
-  bool is_socket_ready(int fd) const;
+#endif
 
 #ifdef USE_WAKE_LOOP_THREADSAFE
-  /// Wake the main event loop from a FreeRTOS task
-  /// Thread-safe, can be called from task context to immediately wake select()
-  /// IMPORTANT: NOT safe to call from ISR context (socket operations not ISR-safe)
+  /// Wake the main event loop from another FreeRTOS task.
+  /// Thread-safe, but must only be called from task context (NOT ISR-safe).
+  /// On ESP32: uses xTaskNotifyGive (<1 us)
+  /// On other platforms: uses UDP loopback socket
   void wake_loop_threadsafe();
 #endif
+
+#ifdef USE_LWIP_FAST_SELECT
+  /// Wake the main event loop from an ISR.
+  /// Uses vTaskNotifyGiveFromISR() — <1 us, ISR-safe.
+  /// Only available on platforms with fast select (ESP32, LibreTiny).
+  /// @param px_higher_priority_task_woken Set to pdTRUE if a context switch is needed.
+  static void IRAM_ATTR wake_loop_isrsafe(int *px_higher_priority_task_woken) {
+    esphome_lwip_wake_main_loop_from_isr(px_higher_priority_task_woken);
+  }
+
+#ifdef USE_ESP32
+  /// Wake the main event loop from any context (ISR, thread, or main loop).
+  /// Detects the calling context and uses the appropriate FreeRTOS API.
+  static void IRAM_ATTR wake_loop_any_context() { esphome_lwip_wake_main_loop_any_context(); }
+#endif
+#endif
+
+#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+  /// Wake the main event loop from any context (ISR, thread, or main loop).
+  /// Sets the socket wake flag and calls esp_schedule() to exit esp_delay() early.
+  static void IRAM_ATTR wake_loop_any_context() { socket::socket_wake(); }
+#elif defined(USE_RP2040) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+  /// Wake the main event loop from any context.
+  /// Sets the socket wake flag and calls __sev() to exit __wfe() early.
+  static void wake_loop_any_context() { socket::socket_wake(); }
 #endif
 
  protected:
   friend Component;
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
+  friend bool socket::socket_ready_fd(int fd, bool loop_monitored);
+#endif
+  friend void ::setup();
+  friend void ::original_setup();
 
-  void register_component_(Component *comp);
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
+  bool is_socket_ready_(int fd) const { return FD_ISSET(fd, &this->read_fds_); }
+#endif
+
+  /// Register a component, detecting loop() override at compile time.
+  /// Uses HasLoopOverride<T> which handles ambiguous &T::loop from multiple inheritance.
+  template<typename T> void register_component_(T *comp) {
+    this->register_component_impl_(comp, HasLoopOverride<T>::value);
+  }
+
+  void register_component_impl_(Component *comp, bool has_loop);
 
   void calculate_looping_components_();
   void add_looping_components_by_state_(bool match_loop_done);
@@ -463,12 +606,17 @@ class Application {
   void before_loop_tasks_(uint32_t loop_start_time);
   void after_loop_tasks_();
 
+  /// Process dump_config output one component per loop iteration.
+  /// Extracted from loop() to keep cold startup/reconnect logging out of the hot path.
+  /// Caller must ensure dump_config_at_ < components_.size().
+  void __attribute__((noinline)) process_dump_config_();
+
   void feed_wdt_arch_();
 
   /// Perform a delay while also monitoring socket file descriptors for readiness
   void yield_with_select_(uint32_t delay_ms);
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
   void setup_wake_loop_threadsafe_();       // Create wake notification socket
   inline void drain_wake_notifications_();  // Read pending wake notifications in main loop (hot path - inlined)
 #endif
@@ -477,8 +625,6 @@ class Application {
 
   // Pointer-sized members first
   Component *current_component_{nullptr};
-  const char *comment_{nullptr};
-  const char *compilation_time_{nullptr};
 
   // std::vector (3 pointers each: begin, end, capacity)
   // Partitioned vector design for looping components
@@ -498,30 +644,32 @@ class Application {
   //   and active_end_ is incremented
   // - This eliminates branch mispredictions from flag checking in the hot loop
   FixedVector<Component *> looping_components_{};
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_LWIP_FAST_SELECT
+  std::vector<struct lwip_sock *> monitored_sockets_;  // Cached lwip_sock pointers for direct rcvevent read
+#elif defined(USE_SOCKET_SELECT_SUPPORT)
   std::vector<int> socket_fds_;  // Vector of all monitored socket file descriptors
-#ifdef USE_WAKE_LOOP_THREADSAFE
+#endif
+#ifdef USE_SOCKET_SELECT_SUPPORT
+#if defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
   int wake_socket_fd_{-1};  // Shared wake notification socket for waking main loop from tasks
 #endif
 #endif
 
-  // std::string members (typically 24-32 bytes each)
-  std::string name_;
-  std::string friendly_name_;
-
-  // size_t members
-  size_t dump_config_at_{SIZE_MAX};
+  // StringRef members (8 bytes each: pointer + size)
+  StringRef name_;
+  StringRef friendly_name_;
 
   // 4-byte members
   uint32_t last_loop_{0};
   uint32_t loop_component_start_time_{0};
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
   int max_fd_{-1};  // Highest file descriptor number for select()
 #endif
 
   // 2-byte members (grouped together for alignment)
-  uint16_t loop_interval_{16};                 // Loop interval in ms (max 65535ms = 65.5 seconds)
+  uint16_t dump_config_at_{std::numeric_limits<uint16_t>::max()};  // Index into components_ for dump_config progress
+  uint16_t loop_interval_{16};                                     // Loop interval in ms (max 65535ms = 65.5 seconds)
   uint16_t looping_components_active_end_{0};  // Index marking end of active components in looping_components_
   uint16_t current_loop_index_{0};             // For safe reentrant modifications during iteration
 
@@ -531,14 +679,14 @@ class Application {
   bool in_loop_{false};
   volatile bool has_pending_enable_loop_requests_{false};
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
   bool socket_fds_changed_{false};  // Flag to rebuild base_read_fds_ when socket_fds_ changes
 #endif
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
-  // Variable-sized members
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
+  // Variable-sized members (not needed with fast select — is_socket_ready_ reads rcvevent directly)
+  fd_set read_fds_{};       // Working fd_set: populated by select()
   fd_set base_read_fds_{};  // Cached fd_set rebuilt only when socket_fds_ changes
-  fd_set read_fds_{};       // Working fd_set for select(), copied from base_read_fds_
 #endif
 
   // StaticVectors (largest members - contain actual array data inline)
@@ -611,6 +759,15 @@ class Application {
   StaticVector<alarm_control_panel::AlarmControlPanel *, ESPHOME_ENTITY_ALARM_CONTROL_PANEL_COUNT>
       alarm_control_panels_{};
 #endif
+#ifdef USE_WATER_HEATER
+  StaticVector<water_heater::WaterHeater *, ESPHOME_ENTITY_WATER_HEATER_COUNT> water_heaters_{};
+#endif
+#ifdef USE_INFRARED
+  StaticVector<infrared::Infrared *, ESPHOME_ENTITY_INFRARED_COUNT> infrareds_{};
+#endif
+#ifdef USE_SERIAL_PROXY
+  StaticVector<serial_proxy::SerialProxy *, SERIAL_PROXY_COUNT> serial_proxies_{};
+#endif
 #ifdef USE_UPDATE
   StaticVector<update::UpdateEntity *, ESPHOME_ENTITY_UPDATE_COUNT> updates_{};
 #endif
@@ -619,7 +776,7 @@ class Application {
 /// Global storage of Application pointer - only one Application can exist.
 extern Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
 // Inline implementations for hot-path functions
 // drain_wake_notifications_() is called on every loop iteration
 
@@ -629,8 +786,8 @@ static constexpr size_t WAKE_NOTIFY_DRAIN_BUFFER_SIZE = 16;
 
 inline void Application::drain_wake_notifications_() {
   // Called from main loop to drain any pending wake notifications
-  // Must check is_socket_ready() to avoid blocking on empty socket
-  if (this->wake_socket_fd_ >= 0 && this->is_socket_ready(this->wake_socket_fd_)) {
+  // Must check is_socket_ready_() to avoid blocking on empty socket
+  if (this->wake_socket_fd_ >= 0 && this->is_socket_ready_(this->wake_socket_fd_)) {
     char buffer[WAKE_NOTIFY_DRAIN_BUFFER_SIZE];
     // Drain all pending notifications with non-blocking reads
     // Multiple wake events may have triggered multiple writes, so drain until EWOULDBLOCK
@@ -641,6 +798,6 @@ inline void Application::drain_wake_notifications_() {
     }
   }
 }
-#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
 
 }  // namespace esphome

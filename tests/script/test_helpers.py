@@ -1011,8 +1011,8 @@ def test_get_all_dependencies_handles_missing_components() -> None:
         comp.dependencies = ["missing_comp"]
         comp.auto_load = []
 
-        mock_get_component.side_effect = (
-            lambda name: comp if name == "existing" else None
+        mock_get_component.side_effect = lambda name: (
+            comp if name == "existing" else None
         )
 
         result = helpers.get_all_dependencies({"existing", "nonexistent"})
@@ -1055,6 +1055,30 @@ def test_get_components_from_integration_fixtures() -> None:
         components = helpers.get_components_from_integration_fixtures()
 
         assert components == expected_components
+
+
+def test_get_components_from_integration_fixtures_skips_yaml_anchors() -> None:
+    """Test that YAML anchor keys (starting with '.') are excluded."""
+    yaml_content = {
+        "sensor": [{"platform": "template", "name": "test"}],
+        "esphome": {"name": "test"},
+        ".sensor_filters": {"filters": [{"timeout": "50ms"}]},
+        ".binary_filters": {"filters": [{"settle": "50ms"}]},
+    }
+
+    mock_yaml_file = Mock()
+
+    with (
+        patch("pathlib.Path.glob") as mock_glob,
+        patch("esphome.yaml_util.load_yaml", return_value=yaml_content),
+    ):
+        mock_glob.return_value = [mock_yaml_file]
+
+        components = helpers.get_components_from_integration_fixtures()
+
+        assert ".sensor_filters" not in components
+        assert ".binary_filters" not in components
+        assert components == {"sensor", "esphome", "template"}
 
 
 @pytest.mark.parametrize(

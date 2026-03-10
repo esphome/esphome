@@ -11,8 +11,6 @@ namespace esphome::ble_client {
 
 static const char *const TAG = "ble_text_sensor";
 
-static const std::string EMPTY = "";
-
 void BLETextSensor::loop() {
   // Parent BLEClientNode has a loop() method, but this component uses
   // polling via update() and BLE callbacks so loop isn't needed
@@ -21,14 +19,17 @@ void BLETextSensor::loop() {
 
 void BLETextSensor::dump_config() {
   LOG_TEXT_SENSOR("", "BLE Text Sensor", this);
+  char service_buf[esp32_ble::UUID_STR_LEN];
+  char char_buf[esp32_ble::UUID_STR_LEN];
+  char descr_buf[esp32_ble::UUID_STR_LEN];
   ESP_LOGCONFIG(TAG,
                 "  MAC address        : %s\n"
                 "  Service UUID       : %s\n"
                 "  Characteristic UUID: %s\n"
                 "  Descriptor UUID    : %s\n"
                 "  Notifications      : %s",
-                this->parent()->address_str(), this->service_uuid_.to_string().c_str(),
-                this->char_uuid_.to_string().c_str(), this->descr_uuid_.to_string().c_str(), YESNO(this->notify_));
+                this->parent()->address_str(), this->service_uuid_.to_str(service_buf),
+                this->char_uuid_.to_str(char_buf), this->descr_uuid_.to_str(descr_buf), YESNO(this->notify_));
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -44,7 +45,7 @@ void BLETextSensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     }
     case ESP_GATTC_CLOSE_EVT: {
       this->status_set_warning();
-      this->publish_state(EMPTY);
+      this->publish_state("");
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
@@ -52,9 +53,11 @@ void BLETextSensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
       if (chr == nullptr) {
         this->status_set_warning();
-        this->publish_state(EMPTY);
-        ESP_LOGW(TAG, "No sensor characteristic found at service %s char %s", this->service_uuid_.to_string().c_str(),
-                 this->char_uuid_.to_string().c_str());
+        this->publish_state("");
+        char service_buf[esp32_ble::UUID_STR_LEN];
+        char char_buf[esp32_ble::UUID_STR_LEN];
+        ESP_LOGW(TAG, "No sensor characteristic found at service %s char %s", this->service_uuid_.to_str(service_buf),
+                 this->char_uuid_.to_str(char_buf));
         break;
       }
       this->handle = chr->handle;
@@ -62,10 +65,13 @@ void BLETextSensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         auto *descr = chr->get_descriptor(this->descr_uuid_);
         if (descr == nullptr) {
           this->status_set_warning();
-          this->publish_state(EMPTY);
+          this->publish_state("");
+          char service_buf[esp32_ble::UUID_STR_LEN];
+          char char_buf[esp32_ble::UUID_STR_LEN];
+          char descr_buf[esp32_ble::UUID_STR_LEN];
           ESP_LOGW(TAG, "No sensor descriptor found at service %s char %s descr %s",
-                   this->service_uuid_.to_string().c_str(), this->char_uuid_.to_string().c_str(),
-                   this->descr_uuid_.to_string().c_str());
+                   this->service_uuid_.to_str(service_buf), this->char_uuid_.to_str(char_buf),
+                   this->descr_uuid_.to_str(descr_buf));
           break;
         }
         this->handle = descr->handle;
@@ -91,7 +97,7 @@ void BLETextSensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
           break;
         }
         this->status_clear_warning();
-        this->publish_state(this->parse_data(param->read.value, param->read.value_len));
+        this->publish_state(reinterpret_cast<const char *>(param->read.value), param->read.value_len);
       }
       break;
     }
@@ -100,7 +106,7 @@ void BLETextSensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         break;
       ESP_LOGV(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: handle=0x%x, value=0x%x", this->get_name().c_str(),
                param->notify.handle, param->notify.value[0]);
-      this->publish_state(this->parse_data(param->notify.value, param->notify.value_len));
+      this->publish_state(reinterpret_cast<const char *>(param->notify.value), param->notify.value_len);
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
@@ -111,11 +117,6 @@ void BLETextSensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     default:
       break;
   }
-}
-
-std::string BLETextSensor::parse_data(uint8_t *value, uint16_t value_len) {
-  std::string text(value, value + value_len);
-  return text;
 }
 
 void BLETextSensor::update() {
@@ -132,7 +133,7 @@ void BLETextSensor::update() {
                                         ESP_GATT_AUTH_REQ_NONE);
   if (status) {
     this->status_set_warning();
-    this->publish_state(EMPTY);
+    this->publish_state("");
     ESP_LOGW(TAG, "[%s] Error sending read request for sensor, status=%d", this->get_name().c_str(), status);
   }
 }

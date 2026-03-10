@@ -38,7 +38,6 @@ void MS5611Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
 }
-float MS5611Component::get_setup_priority() const { return setup_priority::DATA; }
 void MS5611Component::update() {
   // request temperature reading
   if (!this->write_bytes(MS5611_CMD_CONV_D2 + 0x08, nullptr, 0)) {

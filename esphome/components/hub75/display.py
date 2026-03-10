@@ -1,6 +1,7 @@
+import logging
 from typing import Any
 
-from esphome import pins
+from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import display
 from esphome.components.esp32 import add_idf_component
@@ -15,12 +16,18 @@ from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
     CONF_OE_PIN,
+    CONF_ROTATION,
     CONF_UPDATE_INTERVAL,
 )
+from esphome.core import ID, EnumValue
+from esphome.cpp_generator import MockObj, TemplateArgsType
 import esphome.final_validate as fv
+from esphome.helpers import add_class_to_obj
 from esphome.types import ConfigType
 
 from . import boards, hub75_ns
+
+_LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@stuartparmenter"]
@@ -93,36 +100,74 @@ CONF_DOUBLE_BUFFER = "double_buffer"
 CONF_MIN_REFRESH_RATE = "min_refresh_rate"
 
 # Map to hub75 library enums (in global namespace)
-ShiftDriver = cg.global_ns.enum("ShiftDriver", is_class=True)
+Hub75ShiftDriver = cg.global_ns.enum("Hub75ShiftDriver", is_class=True)
 SHIFT_DRIVERS = {
-    "GENERIC": ShiftDriver.GENERIC,
-    "FM6126A": ShiftDriver.FM6126A,
-    "ICN2038S": ShiftDriver.ICN2038S,
-    "FM6124": ShiftDriver.FM6124,
-    "MBI5124": ShiftDriver.MBI5124,
-    "DP3246": ShiftDriver.DP3246,
+    "GENERIC": Hub75ShiftDriver.GENERIC,
+    "FM6126A": Hub75ShiftDriver.FM6126A,
+    "ICN2038S": Hub75ShiftDriver.ICN2038S,
+    "FM6124": Hub75ShiftDriver.FM6124,
+    "MBI5124": Hub75ShiftDriver.MBI5124,
+    "DP3246": Hub75ShiftDriver.DP3246,
 }
 
-PanelLayout = cg.global_ns.enum("PanelLayout", is_class=True)
+Hub75PanelLayout = cg.global_ns.enum("Hub75PanelLayout", is_class=True)
 PANEL_LAYOUTS = {
-    "HORIZONTAL": PanelLayout.HORIZONTAL,
-    "TOP_LEFT_DOWN": PanelLayout.TOP_LEFT_DOWN,
-    "TOP_RIGHT_DOWN": PanelLayout.TOP_RIGHT_DOWN,
-    "BOTTOM_LEFT_UP": PanelLayout.BOTTOM_LEFT_UP,
-    "BOTTOM_RIGHT_UP": PanelLayout.BOTTOM_RIGHT_UP,
-    "TOP_LEFT_DOWN_ZIGZAG": PanelLayout.TOP_LEFT_DOWN_ZIGZAG,
-    "TOP_RIGHT_DOWN_ZIGZAG": PanelLayout.TOP_RIGHT_DOWN_ZIGZAG,
-    "BOTTOM_LEFT_UP_ZIGZAG": PanelLayout.BOTTOM_LEFT_UP_ZIGZAG,
-    "BOTTOM_RIGHT_UP_ZIGZAG": PanelLayout.BOTTOM_RIGHT_UP_ZIGZAG,
+    "HORIZONTAL": Hub75PanelLayout.HORIZONTAL,
+    "TOP_LEFT_DOWN": Hub75PanelLayout.TOP_LEFT_DOWN,
+    "TOP_RIGHT_DOWN": Hub75PanelLayout.TOP_RIGHT_DOWN,
+    "BOTTOM_LEFT_UP": Hub75PanelLayout.BOTTOM_LEFT_UP,
+    "BOTTOM_RIGHT_UP": Hub75PanelLayout.BOTTOM_RIGHT_UP,
+    "TOP_LEFT_DOWN_ZIGZAG": Hub75PanelLayout.TOP_LEFT_DOWN_ZIGZAG,
+    "TOP_RIGHT_DOWN_ZIGZAG": Hub75PanelLayout.TOP_RIGHT_DOWN_ZIGZAG,
+    "BOTTOM_LEFT_UP_ZIGZAG": Hub75PanelLayout.BOTTOM_LEFT_UP_ZIGZAG,
+    "BOTTOM_RIGHT_UP_ZIGZAG": Hub75PanelLayout.BOTTOM_RIGHT_UP_ZIGZAG,
 }
 
-ScanPattern = cg.global_ns.enum("ScanPattern", is_class=True)
-SCAN_PATTERNS = {
-    "STANDARD_TWO_SCAN": ScanPattern.STANDARD_TWO_SCAN,
-    "FOUR_SCAN_16PX_HIGH": ScanPattern.FOUR_SCAN_16PX_HIGH,
-    "FOUR_SCAN_32PX_HIGH": ScanPattern.FOUR_SCAN_32PX_HIGH,
-    "FOUR_SCAN_64PX_HIGH": ScanPattern.FOUR_SCAN_64PX_HIGH,
+Hub75ScanWiring = cg.global_ns.enum("Hub75ScanWiring", is_class=True)
+SCAN_WIRINGS = {
+    "STANDARD_TWO_SCAN": Hub75ScanWiring.STANDARD_TWO_SCAN,
+    "SCAN_1_4_16PX_HIGH": Hub75ScanWiring.SCAN_1_4_16PX_HIGH,
+    "SCAN_1_8_32PX_HIGH": Hub75ScanWiring.SCAN_1_8_32PX_HIGH,
+    "SCAN_1_8_40PX_HIGH": Hub75ScanWiring.SCAN_1_8_40PX_HIGH,
+    "SCAN_1_8_64PX_HIGH": Hub75ScanWiring.SCAN_1_8_64PX_HIGH,
 }
+
+# Deprecated scan wiring names - mapped to new names
+DEPRECATED_SCAN_WIRINGS = {
+    "FOUR_SCAN_16PX_HIGH": "SCAN_1_4_16PX_HIGH",
+    "FOUR_SCAN_32PX_HIGH": "SCAN_1_8_32PX_HIGH",
+    "FOUR_SCAN_64PX_HIGH": "SCAN_1_8_64PX_HIGH",
+}
+
+
+def _validate_scan_wiring(value):
+    """Validate scan_wiring with deprecation warnings for old names."""
+    value = cv.string(value).upper().replace(" ", "_")
+
+    # Check if using deprecated name
+    # Remove deprecated names in 2026.7.0
+    if value in DEPRECATED_SCAN_WIRINGS:
+        new_name = DEPRECATED_SCAN_WIRINGS[value]
+        _LOGGER.warning(
+            "Scan wiring '%s' is deprecated and will be removed in ESPHome 2026.7.0. "
+            "Please use '%s' instead.",
+            value,
+            new_name,
+        )
+        value = new_name
+
+    # Validate against allowed values
+    if value not in SCAN_WIRINGS:
+        raise cv.Invalid(
+            f"Unknown scan wiring '{value}'. "
+            f"Valid options are: {', '.join(sorted(SCAN_WIRINGS.keys()))}"
+        )
+
+    # Return as EnumValue like cv.enum does
+    result = add_class_to_obj(value, EnumValue)
+    result.enum_value = SCAN_WIRINGS[value]
+    return result
+
 
 Hub75ClockSpeed = cg.global_ns.enum("Hub75ClockSpeed", is_class=True)
 CLOCK_SPEEDS = {
@@ -132,9 +177,18 @@ CLOCK_SPEEDS = {
     "20MHZ": Hub75ClockSpeed.HZ_20M,
 }
 
+Hub75Rotation = cg.global_ns.enum("Hub75Rotation", is_class=True)
+ROTATIONS = {
+    0: Hub75Rotation.ROTATE_0,
+    90: Hub75Rotation.ROTATE_90,
+    180: Hub75Rotation.ROTATE_180,
+    270: Hub75Rotation.ROTATE_270,
+}
+
 HUB75Display = hub75_ns.class_("HUB75Display", cg.PollingComponent, display.Display)
 Hub75Config = cg.global_ns.struct("Hub75Config")
 Hub75Pins = cg.global_ns.struct("Hub75Pins")
+SetBrightnessAction = hub75_ns.class_("SetBrightnessAction", automation.Action)
 
 
 def _merge_board_pins(config: ConfigType) -> ConfigType:
@@ -358,6 +412,8 @@ CONFIG_SCHEMA = cv.All(
     display.FULL_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(HUB75Display),
+            # Override rotation - store Hub75Rotation directly (driver handles rotation)
+            cv.Optional(CONF_ROTATION): cv.enum(ROTATIONS, int=True),
             # Board preset (optional - provides default pin mappings)
             cv.Optional(CONF_BOARD): cv.one_of(*BOARDS.keys(), lower=True),
             # Panel dimensions
@@ -368,14 +424,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_LAYOUT_COLS): cv.positive_int,
             cv.Optional(CONF_LAYOUT): cv.enum(PANEL_LAYOUTS, upper=True, space="_"),
             # Panel hardware configuration
-            cv.Optional(CONF_SCAN_WIRING): cv.enum(
-                SCAN_PATTERNS, upper=True, space="_"
-            ),
+            cv.Optional(CONF_SCAN_WIRING): _validate_scan_wiring,
             cv.Optional(CONF_SHIFT_DRIVER): cv.enum(SHIFT_DRIVERS, upper=True),
             # Display configuration
             cv.Optional(CONF_DOUBLE_BUFFER): cv.boolean,
             cv.Optional(CONF_BRIGHTNESS): cv.int_range(min=0, max=255),
-            cv.Optional(CONF_BIT_DEPTH): cv.int_range(min=6, max=12),
+            cv.Optional(CONF_BIT_DEPTH): cv.int_range(min=4, max=12),
             cv.Optional(CONF_GAMMA_CORRECT): cv.enum(
                 {"LINEAR": 0, "CIE1931": 1, "GAMMA_2_2": 2}, upper=True
             ),
@@ -487,10 +541,11 @@ def _build_config_struct(
     Fields must be added in declaration order (see hub75_types.h) to satisfy
     C++ designated initializer requirements. The order is:
       1. fields_before_pins (panel_width through layout)
-      2. pins
-      3. output_clock_speed
-      4. min_refresh_rate
-      5. fields_after_min_refresh (latch_blanking through brightness)
+      2. rotation
+      3. pins
+      4. output_clock_speed
+      5. min_refresh_rate
+      6. fields_after_min_refresh (latch_blanking through brightness)
     """
     fields_before_pins = [
         (CONF_PANEL_WIDTH, "panel_width"),
@@ -513,6 +568,10 @@ def _build_config_struct(
 
     _append_config_fields(config, fields_before_pins, config_fields)
 
+    # Rotation - config already contains Hub75Rotation enum from cv.enum
+    if CONF_ROTATION in config:
+        config_fields.append(("rotation", config[CONF_ROTATION]))
+
     config_fields.append(("pins", pins_struct))
 
     if CONF_CLOCK_SPEED in config:
@@ -528,15 +587,15 @@ def _build_config_struct(
 async def to_code(config: ConfigType) -> None:
     add_idf_component(
         name="esphome/esp-hub75",
-        ref="0.1.6",
+        ref="0.3.2",
     )
 
-    # Set compile-time configuration via defines
+    # Set compile-time configuration via build flags (so external library sees them)
     if CONF_BIT_DEPTH in config:
-        cg.add_define("HUB75_BIT_DEPTH", config[CONF_BIT_DEPTH])
+        cg.add_build_flag(f"-DHUB75_BIT_DEPTH={config[CONF_BIT_DEPTH]}")
 
     if CONF_GAMMA_CORRECT in config:
-        cg.add_define("HUB75_GAMMA_MODE", config[CONF_GAMMA_CORRECT])
+        cg.add_build_flag(f"-DHUB75_GAMMA_MODE={config[CONF_GAMMA_CORRECT].enum_value}")
 
     # Await all pin expressions
     pin_expressions = {
@@ -567,6 +626,11 @@ async def to_code(config: ConfigType) -> None:
     pins_struct = _build_pins_struct(pin_expressions, e_pin_num)
     hub75_config = _build_config_struct(config, pins_struct, min_refresh)
 
+    # Rotation is handled by the hub75 driver (config_.rotation already set above).
+    # Force rotation to 0 for ESPHome's Display base class to avoid double-rotation.
+    if CONF_ROTATION in config:
+        config[CONF_ROTATION] = 0
+
     # Create display and register
     var = cg.new_Pvariable(config[CONF_ID], hub75_config)
     await display.register_display(var, config)
@@ -576,3 +640,27 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))
+
+
+@automation.register_action(
+    "hub75.set_brightness",
+    SetBrightnessAction,
+    cv.maybe_simple_value(
+        {
+            cv.GenerateID(): cv.use_id(HUB75Display),
+            cv.Required(CONF_BRIGHTNESS): cv.templatable(cv.int_range(min=0, max=255)),
+        },
+        key=CONF_BRIGHTNESS,
+    ),
+)
+async def hub75_set_brightness_to_code(
+    config: ConfigType,
+    action_id: ID,
+    template_arg: cg.TemplateArguments,
+    args: TemplateArgsType,
+) -> MockObj:
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config[CONF_BRIGHTNESS], args, cg.uint8)
+    cg.add(var.set_brightness(template_))
+    return var

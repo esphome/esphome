@@ -61,7 +61,5 @@ void TC74Component::read_temperature_() {
   this->status_clear_warning();
 }
 
-float TC74Component::get_setup_priority() const { return setup_priority::DATA; }
-
 }  // namespace tc74
 }  // namespace esphome
