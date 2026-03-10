@@ -9,33 +9,13 @@ modem:
   apn: orange
   pin_code: "0000"
   enable_on_boot: True
-  enable_cmux: True
   reboot_timeout: 5min
-  init_at:
-    - AT
   on_not_responding:
     logger.log: "modem not responding"
   on_connect:
     logger.log: "modem connected"
   on_disconnect:
     logger.log: "modem disconnected"
-  nmea:
-    id: nmea_data
-
-# commented while sub pr #14683 not merged
-#text_sensor:
-#  - platform: modem
-#    network_type:
-#      name: network type
-#    signal_strength:
-#      name: Signal strength
-#
-#sensor:
-#  - platform: modem
-#    rssi:
-#      name: rssi
-#    ber:
-#      name: ber
 
 packages:
   - !include common.yaml
