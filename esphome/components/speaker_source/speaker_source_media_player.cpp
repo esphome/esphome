@@ -411,29 +411,26 @@ void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call
     switch (cmd.value()) {
       case media_player::MEDIA_PLAYER_COMMAND_MUTE:
         this->set_mute_state_(true);
-        this->publish_state();
-        return;
+        break;
       case media_player::MEDIA_PLAYER_COMMAND_UNMUTE:
         this->set_mute_state_(false);
-        this->publish_state();
-        return;
+        break;
       case media_player::MEDIA_PLAYER_COMMAND_VOLUME_UP:
         this->set_volume_(std::min(1.0f, this->volume + this->volume_increment_));
-        this->publish_state();
-        return;
+        break;
       case media_player::MEDIA_PLAYER_COMMAND_VOLUME_DOWN:
         this->set_volume_(std::max(0.0f, this->volume - this->volume_increment_));
-        this->publish_state();
-        return;
-      default:
         break;
+      default:
+        // Queue command for processing in loop()
+        control_command.type = MediaPlayerControlCommand::SEND_COMMAND;
+        control_command.data.command = cmd.value();
+        if (xQueueSend(this->media_control_command_queue_, &control_command, 0) != pdTRUE) {
+          ESP_LOGE(TAG, "Queue full, command dropped");
+        }
+        return;
     }
-
-    control_command.type = MediaPlayerControlCommand::SEND_COMMAND;
-    control_command.data.command = cmd.value();
-    if (xQueueSend(this->media_control_command_queue_, &control_command, 0) != pdTRUE) {
-      ESP_LOGE(TAG, "Queue full, command dropped");
-    }
+    this->publish_state();
   }
 }
 
