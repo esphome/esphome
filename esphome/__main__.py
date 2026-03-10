@@ -84,6 +84,12 @@ _RP2040_BOOTSEL_INSTRUCTIONS = (
     "Then run the upload command again."
 )
 
+_RP2040_UDEV_HINT = (
+    "You may need to add a udev rule for RP2040 devices. "
+    "See: https://github.com/raspberrypi/picotool"
+    "/blob/master/udev/60-picotool.rules"
+)
+
 # Special non-component keys that appear in configs
 _NON_COMPONENT_KEYS = frozenset(
     {
@@ -300,11 +306,7 @@ def choose_upload_log_host(
                 "not be accessed due to USB permissions."
             )
             if sys.platform.startswith("linux"):
-                _LOGGER.warning(
-                    "You may need to add a udev rule for RP2040 devices. "
-                    "See: https://github.com/raspberrypi/picotool"
-                    "/blob/master/udev/60-picotool.rules"
-                )
+                _LOGGER.warning(_RP2040_UDEV_HINT)
         if not options:
             raise EsphomeError(
                 f"No RP2040 device found. {_RP2040_BOOTSEL_INSTRUCTIONS}"
@@ -837,11 +839,7 @@ def upload_using_picotool(config: ConfigType) -> int:
         if "LIBUSB_ERROR_ACCESS" in stderr or "Permission denied" in stderr:
             msg = "Permission denied accessing USB device."
             if sys.platform.startswith("linux"):
-                msg += (
-                    " You may need to add udev rules for RP2040 devices."
-                    " See: https://github.com/raspberrypi/picotool"
-                    "/blob/master/udev/60-picotool.rules"
-                )
+                msg += f" {_RP2040_UDEV_HINT}"
             _LOGGER.error(msg)
         else:
             _LOGGER.error("picotool upload failed (exit code %d).", result.returncode)
