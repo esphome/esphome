@@ -209,8 +209,8 @@ def run_external_command(
     func,
     *cmd,
     capture_stdout: bool = False,
-    filter_lines: str = None,
-    line_callbacks: list | None = None,
+    filter_lines: list[str] | None = None,
+    line_callbacks: list[Callable[[str], str | None]] | None = None,
 ) -> int | str:
     """
     Run a function from an external package that acts like a main method.
@@ -220,7 +220,9 @@ def run_external_command(
     :param func: Function to execute
     :param cmd: Command to run as (eg first element of sys.argv)
     :param capture_stdout: Capture text from stdout and return that.
-    :param filter_lines: Regular expression used to filter captured output.
+        Note: line_callbacks are not invoked when capture_stdout is True.
+    :param filter_lines: Regular expressions used to filter captured output.
+    :param line_callbacks: Callbacks invoked per line; non-None returns are written to output.
     :return: str if `capture_stdout` is set else int exit code.
 
     """

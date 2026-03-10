@@ -3722,38 +3722,38 @@ esp32:
     assert "secrets.yaml" not in summary_section
 
 
-def test_get_configured_xtal_freq_reads_sdkconfig(setup_core: Path) -> None:
+def test_get_configured_xtal_freq_reads_sdkconfig(tmp_path: Path) -> None:
     """Test reading XTAL_FREQ from sdkconfig."""
     CORE.name = "test-device"
-    CORE.build_path = setup_core
-    sdkconfig = setup_core / "sdkconfig.test-device"
+    CORE.build_path = tmp_path
+    sdkconfig = tmp_path / "sdkconfig.test-device"
     sdkconfig.write_text(
         "CONFIG_SOC_XTAL_SUPPORT_26M=y\nCONFIG_XTAL_FREQ=26\nCONFIG_XTAL_FREQ_26=y\n"
     )
     assert _get_configured_xtal_freq() == 26
 
 
-def test_get_configured_xtal_freq_default_40(setup_core: Path) -> None:
+def test_get_configured_xtal_freq_default_40(tmp_path: Path) -> None:
     """Test reading default 40MHz XTAL_FREQ from sdkconfig."""
     CORE.name = "test-device"
-    CORE.build_path = setup_core
-    sdkconfig = setup_core / "sdkconfig.test-device"
+    CORE.build_path = tmp_path
+    sdkconfig = tmp_path / "sdkconfig.test-device"
     sdkconfig.write_text("CONFIG_XTAL_FREQ=40\nCONFIG_XTAL_FREQ_40=y\n")
     assert _get_configured_xtal_freq() == 40
 
 
-def test_get_configured_xtal_freq_missing_file(setup_core: Path) -> None:
+def test_get_configured_xtal_freq_missing_file(tmp_path: Path) -> None:
     """Test that missing sdkconfig returns None."""
     CORE.name = "test-device"
-    CORE.build_path = setup_core
+    CORE.build_path = tmp_path
     assert _get_configured_xtal_freq() is None
 
 
-def test_get_configured_xtal_freq_no_xtal_line(setup_core: Path) -> None:
+def test_get_configured_xtal_freq_no_xtal_line(tmp_path: Path) -> None:
     """Test that sdkconfig without XTAL_FREQ returns None."""
     CORE.name = "test-device"
-    CORE.build_path = setup_core
-    sdkconfig = setup_core / "sdkconfig.test-device"
+    CORE.build_path = tmp_path
+    sdkconfig = tmp_path / "sdkconfig.test-device"
     sdkconfig.write_text("CONFIG_OTHER=123\n")
     assert _get_configured_xtal_freq() is None
 
