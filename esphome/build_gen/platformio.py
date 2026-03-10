@@ -1,5 +1,6 @@
 from esphome.const import __version__
 from esphome.core import CORE
+from esphome.core.config import _get_ccache_data
 from esphome.helpers import mkdir_p, read_file, write_file_if_changed
 from esphome.writer import find_begin_end, update_storage_json
 
@@ -48,10 +49,13 @@ def get_ini_content():
     # Add extra script for C++ flags
     CORE.add_platformio_option("extra_scripts", [f"pre:{CXX_FLAGS_FILE_NAME}"])
 
+    if _get_ccache_data().enabled:
+        CORE.add_platformio_option("extra_scripts", [f"post:{CCACHE_SCRIPT_FILE_NAME}"])
+
     content = "[platformio]\n"
     content += f"description = ESPHome {__version__}\n"
 
-    content += f"[env:{CORE.name}]\n"
+    content += f"[env:{CORE.pio_env_name}]\n"
     content += format_ini(CORE.platformio_options)
 
     return content
@@ -82,6 +86,9 @@ def write_project():
     # Write extra script for C++ specific flags
     write_cxx_flags_script()
 
+    if _get_ccache_data().enabled:
+        write_ccache_script()
+
 
 CXX_FLAGS_FILE_NAME = "cxx_flags.py"
 CXX_FLAGS_FILE_CONTENTS = """# Auto-generated ESPHome script for C++ specific compiler flags
@@ -98,3 +105,34 @@ def write_cxx_flags_script() -> None:
         contents += 'env.Append(CXXFLAGS=["-Wno-volatile"])'
         contents += "\n"
     write_file_if_changed(path, contents)
+
+
+CCACHE_SCRIPT_FILE_NAME = "ccache_wrapper.py"
+CCACHE_SCRIPT_CONTENTS = """\
+# Auto-generated ESPHome script for ccache compiler caching
+import shutil
+Import("env")
+
+ccache_path = shutil.which("ccache")
+if ccache_path:
+    def _wrap_env(e):
+        cc = e["CC"]
+        if isinstance(cc, list) and cc[0] == "ccache":
+            return
+        e.Replace(CC=["ccache", cc], CXX=["ccache", e["CXX"]])
+
+    _wrap_env(env)
+    try:
+        Import("projenv")
+        _wrap_env(projenv)
+    except Exception:
+        pass
+    for lb in env.GetLibBuilders():
+        _wrap_env(lb.env)
+    print(f"ccache: wrapping CC/CXX with {ccache_path}")
+"""
+
+
+def write_ccache_script() -> None:
+    path = CORE.relative_build_path(CCACHE_SCRIPT_FILE_NAME)
+    write_file_if_changed(path, CCACHE_SCRIPT_CONTENTS)

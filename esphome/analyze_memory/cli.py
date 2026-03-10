@@ -633,6 +633,7 @@ def main():
     for elf_candidate in [
         build_path / "firmware.elf",
         build_path / ".pioenvs" / build_path.name / "firmware.elf",
+        build_path / ".pioenvs" / "app" / "firmware.elf",
     ]:
         if elf_candidate.exists():
             elf_file = str(elf_candidate)

@@ -6,6 +6,7 @@ from collections.abc import Generator
 from dataclasses import dataclass
 import json
 import logging
+import os
 from pathlib import Path
 import re
 import time
@@ -3297,3 +3298,122 @@ esp32:
         clean_output.split("SUMMARY")[1] if "SUMMARY" in clean_output else ""
     )
     assert "secrets.yaml" not in summary_section
+
+
+class TestCcacheCLI:
+    """Tests for --ccache CLI flag handling."""
+
+    def test_compile_ccache_sets_enabled_before_write_cpp(
+        self, tmp_path: Path
+    ) -> None:
+        """Test --ccache flag sets _get_ccache_data().enabled before write_cpp()."""
+        from esphome.__main__ import command_compile
+        from esphome.core.config import _get_ccache_data
+
+        setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+        captured_enabled = []
+
+        def capture_write_cpp(config, **kwargs):
+            captured_enabled.append(_get_ccache_data().enabled)
+            return 0
+
+        args = MockArgs()
+        args.ccache = True
+        args.only_generate = True
+
+        with patch("esphome.__main__.write_cpp", side_effect=capture_write_cpp):
+            command_compile(args, {})
+
+        assert captured_enabled == [True]
+
+    def test_run_ccache_sets_enabled_before_write_cpp(
+        self, tmp_path: Path
+    ) -> None:
+        """Test --ccache flag in command_run sets enabled before write_cpp()."""
+        from esphome.__main__ import command_run
+        from esphome.core.config import _get_ccache_data
+
+        setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+        captured_enabled = []
+
+        def capture_write_cpp(config, **kwargs):
+            captured_enabled.append(_get_ccache_data().enabled)
+            return 1  # Return non-zero to exit early
+
+        args = MockArgs()
+        args.ccache = True
+
+        with patch("esphome.__main__.write_cpp", side_effect=capture_write_cpp):
+            command_run(args, {})
+
+        assert captured_enabled == [True]
+
+    def test_analyze_memory_ccache_sets_enabled_before_write_cpp(
+        self, tmp_path: Path
+    ) -> None:
+        """Test --ccache flag in command_analyze_memory sets enabled before write_cpp()."""
+        from esphome.core.config import _get_ccache_data
+
+        setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+        captured_enabled = []
+
+        def capture_write_cpp(config, **kwargs):
+            captured_enabled.append(_get_ccache_data().enabled)
+            return 1  # Return non-zero to exit early
+
+        args = MockArgs()
+        args.ccache = True
+
+        with patch("esphome.__main__.write_cpp", side_effect=capture_write_cpp):
+            command_analyze_memory(args, {})
+
+        assert captured_enabled == [True]
+
+    def test_compile_native_idf_ccache_sets_env_var(
+        self, tmp_path: Path
+    ) -> None:
+        """Test --ccache --native-idf sets IDF_CCACHE_ENABLE=1."""
+        from esphome.const import KEY_TARGET_FRAMEWORK
+        from esphome.core.config import _get_ccache_data
+
+        setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+        CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "esp-idf"
+        _get_ccache_data().enabled = True
+
+        args = MockArgs()
+        args.native_idf = True
+
+        mock_espidf = MagicMock()
+        mock_espidf.run_compile.return_value = 0
+
+        with (
+            patch("esphome.__main__.shutil.which", return_value="/usr/bin/ccache"),
+            patch("esphome.__main__._check_and_emit_build_info"),
+            patch.dict("sys.modules", {"esphome.espidf_api": mock_espidf}),
+        ):
+            compile_program(args, {})
+            assert os.environ.get("IDF_CCACHE_ENABLE") == "1"
+            os.environ.pop("IDF_CCACHE_ENABLE", None)
+
+    def test_compile_without_ccache_flag(
+        self, tmp_path: Path
+    ) -> None:
+        """Test compile without --ccache does not set enabled."""
+        from esphome.__main__ import command_compile
+        from esphome.core.config import _get_ccache_data
+
+        setup_core(platform=PLATFORM_ESP32, tmp_path=tmp_path)
+        captured_enabled = []
+
+        def capture_write_cpp(config, **kwargs):
+            captured_enabled.append(_get_ccache_data().enabled)
+            return 0
+
+        args = MockArgs()
+        args.only_generate = True
+        # No ccache attribute set
+
+        with patch("esphome.__main__.write_cpp", side_effect=capture_write_cpp):
+            command_compile(args, {})
+
+        assert captured_enabled == [False]

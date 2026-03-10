@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from dataclasses import dataclass
 import logging
 import os
 from pathlib import Path
@@ -14,6 +15,7 @@ from esphome.const import (
     CONF_AREA_ID,
     CONF_AREAS,
     CONF_BUILD_PATH,
+    CONF_CCACHE,
     CONF_COMMENT,
     CONF_COMPILE_PROCESS_LIMIT,
     CONF_DEBUG_SCHEDULER,
@@ -220,6 +222,22 @@ if "ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT" in os.environ:
 else:
     _compile_process_limit_default = cv.UNDEFINED
 
+DOMAIN_CCACHE = "ccache"
+
+
+@dataclass
+class CcacheData:
+    enabled: bool = False
+
+
+def _get_ccache_data() -> CcacheData:
+    if DOMAIN_CCACHE not in CORE.data:
+        CORE.data[DOMAIN_CCACHE] = CcacheData()
+    return CORE.data[DOMAIN_CCACHE]
+
+
+_ccache_default = os.environ.get("ESPHOME_CCACHE", "").lower() in ("1", "true", "yes")
+
 # Keep in sync with ESPHOME_FRIENDLY_NAME_MAX_LEN in esphome/core/entity_base.h
 FRIENDLY_NAME_MAX_LEN = 120
 
@@ -321,6 +339,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_COMPILE_PROCESS_LIMIT, default=_compile_process_limit_default
             ): cv.int_range(min=1, max=get_usable_cpu_count()),
+            cv.Optional(CONF_CCACHE, default=_ccache_default): cv.boolean,
             cv.Optional(CONF_AREAS, default=[]): cv.ensure_list(AREA_SCHEMA),
             cv.Optional(CONF_DEVICES, default=[]): cv.ensure_list(DEVICE_SCHEMA),
         }
@@ -691,6 +710,10 @@ async def to_code(config: ConfigType) -> None:
 
     if config[CONF_ENVIRONMENT_VARIABLES]:
         CORE.add_job(_add_environment_variables, config[CONF_ENVIRONMENT_VARIABLES])
+
+    # Use OR so CLI flag (set before write_cpp) takes priority over YAML
+    ccache_data = _get_ccache_data()
+    ccache_data.enabled = ccache_data.enabled or config[CONF_CCACHE]
 
     # Process areas
     all_areas: list[dict[str, str | core.ID]] = []

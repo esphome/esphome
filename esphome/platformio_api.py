@@ -4,12 +4,14 @@ import logging
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import time
 from typing import Any
 
 from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
 from esphome.core import CORE, EsphomeError
+from esphome.core.config import _get_ccache_data
 from esphome.util import run_external_command, run_external_process
 
 _LOGGER = logging.getLogger(__name__)
@@ -166,6 +168,28 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     os.environ.setdefault("PYTHONWARNINGS", "ignore::SyntaxWarning")
     # Increase uv retry count to handle transient network errors (default is 3)
     os.environ.setdefault("UV_HTTP_RETRIES", "10")
+
+    if _get_ccache_data().enabled:
+        if shutil.which("ccache"):
+            os.environ["CCACHE_BASEDIR"] = str(CORE.build_path.resolve())
+            os.environ.setdefault(
+                "CCACHE_DIR", str(Path.home() / ".cache" / "esphome-ccache")
+            )
+            os.environ["CCACHE_SLOPPINESS"] = (
+                "pch_defines,time_macros,include_file_mtime,include_file_ctime"
+            )
+            os.environ["CCACHE_NOHASHDIR"] = "1"
+            os.environ.setdefault("CCACHE_MAXSIZE", "5G")
+        else:
+            _LOGGER.warning(
+                "ccache requested but not found in PATH. Building without ccache. "
+                "Install with: apt install ccache / brew install ccache"
+            )
+    else:
+        # Clean up ccache env vars from prior runs (dashboard mode persistence)
+        for key in ("CCACHE_BASEDIR", "CCACHE_SLOPPINESS", "CCACHE_NOHASHDIR"):
+            os.environ.pop(key, None)
+
     cmd = ["platformio"] + list(args)
 
     if not CORE.verbose:

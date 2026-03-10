@@ -9,7 +9,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from esphome.build_gen import platformio
+from esphome.const import KEY_CORE, KEY_TARGET_PLATFORM, PLATFORM_ESP32
 from esphome.core import CORE
+from esphome.core.config import _get_ccache_data
 
 
 @pytest.fixture
@@ -186,3 +188,62 @@ def test_write_ini_calls_update_storage_json(
 
     platformio.write_ini(content)
     mock_update_storage_json.assert_called_once()
+
+
+def test_write_ccache_script(
+    mock_write_file_if_changed: MagicMock,
+) -> None:
+    """Test write_ccache_script generates the file via write_file_if_changed."""
+    CORE.build_path = "/tmp/test_build"
+
+    platformio.write_ccache_script()
+
+    mock_write_file_if_changed.assert_called_once()
+    call_args = mock_write_file_if_changed.call_args[0]
+    assert platformio.CCACHE_SCRIPT_FILE_NAME in str(call_args[0])
+    assert 'Import("env")' in call_args[1]
+    assert "e.Replace" in call_args[1]
+
+
+def test_get_ini_content_includes_ccache_when_enabled(
+    tmp_path: Path,
+) -> None:
+    """Test get_ini_content includes ccache wrapper script when enabled."""
+    CORE.build_path = str(tmp_path)
+    CORE.name = "test"
+    _get_ccache_data().enabled = True
+
+    content = platformio.get_ini_content()
+
+    assert f"post:{platformio.CCACHE_SCRIPT_FILE_NAME}" in content
+    assert "[env:app]" in content
+
+
+def test_get_ini_content_excludes_ccache_when_disabled(
+    tmp_path: Path,
+) -> None:
+    """Test get_ini_content does NOT include ccache script when disabled."""
+    CORE.build_path = str(tmp_path)
+    CORE.name = "test"
+
+    content = platformio.get_ini_content()
+
+    assert "ccache_wrapper.py" not in content
+
+
+def test_write_project_calls_write_ccache_script_when_enabled(
+    tmp_path: Path,
+    mock_update_storage_json: MagicMock,
+    mock_write_file_if_changed: MagicMock,
+) -> None:
+    """Test write_project calls write_ccache_script when enabled."""
+    CORE.build_path = tmp_path
+    CORE.name = "test"
+    CORE.data[KEY_CORE] = {KEY_TARGET_PLATFORM: PLATFORM_ESP32}
+    _get_ccache_data().enabled = True
+
+    platformio.write_project()
+
+    # Should have written ccache_wrapper.py (among other files)
+    written_paths = [str(call_args[0][0]) for call_args in mock_write_file_if_changed.call_args_list]
+    assert any(platformio.CCACHE_SCRIPT_FILE_NAME in p for p in written_paths)

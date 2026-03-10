@@ -9,6 +9,7 @@ import logging
 import os
 from pathlib import Path
 import re
+import shutil
 import sys
 import time
 from typing import Protocol
@@ -568,6 +569,15 @@ def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
 
     if native_idf and CORE.is_esp32 and CORE.target_framework == "esp-idf":
         from esphome import espidf_api
+        from esphome.core.config import _get_ccache_data
+
+        if _get_ccache_data().enabled:
+            if shutil.which("ccache"):
+                os.environ["IDF_CCACHE_ENABLE"] = "1"
+            else:
+                _LOGGER.warning("ccache requested but not found in PATH")
+        else:
+            os.environ.pop("IDF_CCACHE_ENABLE", None)
 
         rc = espidf_api.run_compile(config, CORE.verbose)
         if rc != 0:
@@ -848,6 +858,10 @@ def command_vscode(args: ArgsProtocol) -> int | None:
 
 def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
     native_idf = getattr(args, "native_idf", False)
+    if getattr(args, "ccache", False):
+        from esphome.core.config import _get_ccache_data
+
+        _get_ccache_data().enabled = True
     exit_code = write_cpp(config, native_idf=native_idf)
     if exit_code != 0:
         return exit_code
@@ -904,6 +918,10 @@ def command_logs(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
     native_idf = getattr(args, "native_idf", False)
+    if getattr(args, "ccache", False):
+        from esphome.core.config import _get_ccache_data
+
+        _get_ccache_data().enabled = True
     exit_code = write_cpp(config, native_idf=native_idf)
     if exit_code != 0:
         return exit_code
@@ -1076,6 +1094,11 @@ def command_analyze_memory(args: ArgsProtocol, config: ConfigType) -> int:
     from esphome import platformio_api
     from esphome.analyze_memory.cli import MemoryAnalyzerCLI
     from esphome.analyze_memory.ram_strings import RamStringsAnalyzer
+
+    if getattr(args, "ccache", False):
+        from esphome.core.config import _get_ccache_data
+
+        _get_ccache_data().enabled = True
 
     # Always compile to ensure fresh data (fast if no changes - just relinks)
     exit_code = write_cpp(config)
@@ -1356,6 +1379,11 @@ def parse_args(argv):
         help="Build with native ESP-IDF instead of PlatformIO (ESP32 esp-idf framework only).",
         action="store_true",
     )
+    parser_compile.add_argument(
+        "--ccache",
+        help="Enable ccache compiler caching.",
+        action="store_true",
+    )
 
     parser_upload = subparsers.add_parser(
         "upload",
@@ -1440,6 +1468,11 @@ def parse_args(argv):
     parser_run.add_argument(
         "--native-idf",
         help="Build with native ESP-IDF instead of PlatformIO (ESP32 esp-idf framework only).",
+        action="store_true",
+    )
+    parser_run.add_argument(
+        "--ccache",
+        help="Enable ccache compiler caching.",
         action="store_true",
     )
 
@@ -1543,6 +1576,11 @@ def parse_args(argv):
     )
     parser_analyze_memory.add_argument(
         "configuration", help="Your YAML configuration file(s).", nargs="+"
+    )
+    parser_analyze_memory.add_argument(
+        "--ccache",
+        help="Enable ccache compiler caching.",
+        action="store_true",
     )
 
     # Keep backward compatibility with the old command line format of

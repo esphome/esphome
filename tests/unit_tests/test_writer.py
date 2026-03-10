@@ -357,6 +357,7 @@ def test_clean_cmake_cache(
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.name = "test_device"
+    mock_core.pio_env_name = "test_device"
 
     # Verify file exists before
     assert cmake_cache_file.exists()
@@ -384,6 +385,7 @@ def test_clean_cmake_cache_no_pioenvs_dir(
 
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
+    mock_core.pio_env_name = "test_device"
 
     # Verify directory doesn't exist
     assert not pioenvs_dir.exists()
@@ -411,6 +413,7 @@ def test_clean_cmake_cache_no_cmake_file(
     # Setup mocks
     mock_core.relative_pioenvs_path.return_value = pioenvs_dir
     mock_core.name = "test_device"
+    mock_core.pio_env_name = "test_device"
 
     # Verify file doesn't exist
     assert not cmake_cache_file.exists()

@@ -767,13 +767,24 @@ class EsphomeCore:
         return self.relative_build_path(".piolibdeps", *path)
 
     @property
+    def pio_env_name(self) -> str:
+        """Return the PlatformIO environment name.
+
+        Returns a fixed name when ccache is enabled so that build artifact
+        paths are identical across devices, enabling cross-device cache hits.
+        """
+        from esphome.core.config import _get_ccache_data
+
+        return "app" if _get_ccache_data().enabled else self.name
+
+    @property
     def firmware_bin(self) -> Path:
         # Check if using native ESP-IDF build (--native-idf)
         if self.data.get(KEY_NATIVE_IDF, False):
             return self.relative_build_path("build", f"{self.name}.bin")
         if self.is_libretiny:
-            return self.relative_pioenvs_path(self.name, "firmware.uf2")
-        return self.relative_pioenvs_path(self.name, "firmware.bin")
+            return self.relative_pioenvs_path(self.pio_env_name, "firmware.uf2")
+        return self.relative_pioenvs_path(self.pio_env_name, "firmware.bin")
 
     @property
     def target_platform(self):

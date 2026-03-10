@@ -422,7 +422,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
 
     if mcumgr_device:
         firmware = Path(
-            CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
+            CORE.relative_pioenvs_path(CORE.pio_env_name, "zephyr", "app_update.bin")
         ).resolve()
         asyncio.run(smpmgr_upload(mcumgr_device, firmware))
         return True  # Handled: mcumgr OTA upload
@@ -474,7 +474,7 @@ def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> 
             addr2line = find_tool("addr2line")
             if addr2line is None:
                 return False
-            elf = CORE.relative_pioenvs_path(CORE.name, "firmware.elf")
+            elf = CORE.relative_pioenvs_path(CORE.pio_env_name, "firmware.elf")
             if not elf.exists():
                 _LOGGER.warning("%s does not exists", elf)
                 return False
