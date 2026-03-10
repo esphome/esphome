@@ -1,5 +1,6 @@
 
 #include "dew_point.h"
+#include <cmath>
 
 namespace esphome::dew_point {
 
@@ -58,7 +59,7 @@ void DewPointComponent::update_dew_point_() {
   }
 
   // Check for valid humidity range
-  if (this->humidity_value_ < 0.0f || this->humidity_value_ > 100.0f) {
+  if (!(this->humidity_value_ > 0.0f) && (this->humidity_value_ < ::std::nextafter(100.0f, 100.1f))) {
     ESP_LOGW(TAG, "Humidity value out of range (0-100): %.2f", this->humidity_value_);
     return;
   }
