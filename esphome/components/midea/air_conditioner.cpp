@@ -1,3 +1,5 @@
+#ifndef USE_ZEPHYR
+
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "air_conditioner.h"
@@ -180,3 +182,5 @@ void AirConditioner::do_display_toggle() {
 }  // namespace ac
 }  // namespace midea
 }  // namespace esphome
+
+#endif  // USE_ZEPHYR

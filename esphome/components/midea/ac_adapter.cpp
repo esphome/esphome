@@ -1,3 +1,5 @@
+#ifndef USE_ZEPHYR
+
 #include "esphome/core/log.h"
 #include "ac_adapter.h"
 
@@ -173,3 +175,5 @@ void Converters::to_climate_traits(ClimateTraits &traits, const dudanov::midea::
 }  // namespace ac
 }  // namespace midea
 }  // namespace esphome
+
+#endif  // USE_ZEPHYR

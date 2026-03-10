@@ -1,5 +1,6 @@
 #pragma once
 
+#ifndef USE_ZEPHYR
 #ifdef USE_REMOTE_TRANSMITTER
 #include "esphome/components/remote_base/midea_protocol.h"
 
@@ -87,3 +88,4 @@ class IrTransmitter {
 }  // namespace esphome
 
 #endif  // USE_REMOTE_TRANSMITTER
+#endif  // USE_ZEPHYR

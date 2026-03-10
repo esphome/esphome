@@ -1,5 +1,7 @@
 #pragma once
 
+#ifndef USE_ZEPHYR
+
 #include "esphome/core/automation.h"
 #include "air_conditioner.h"
 
@@ -64,3 +66,5 @@ template<typename... Ts> class PowerToggleAction : public MideaActionBase<Ts...>
 }  // namespace ac
 }  // namespace midea
 }  // namespace esphome
+
+#endif  // USE_ZEPHYR

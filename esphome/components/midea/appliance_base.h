@@ -1,5 +1,7 @@
 #pragma once
 
+#ifndef USE_ZEPHYR
+
 // MideaUART
 #include <Appliance/ApplianceBase.h>
 #include <Helpers/Logger.h>
@@ -99,3 +101,5 @@ template<typename T> class ApplianceBase : public Component {
 
 }  // namespace midea
 }  // namespace esphome
+
+#endif  // USE_ZEPHYR

@@ -1,5 +1,7 @@
 #pragma once
 
+#ifndef USE_ZEPHYR
+
 // MideaUART
 #include <Appliance/AirConditioner/AirConditioner.h>
 
@@ -45,3 +47,5 @@ class Converters {
 }  // namespace ac
 }  // namespace midea
 }  // namespace esphome
+
+#endif  // USE_ZEPHYR
