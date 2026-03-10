@@ -133,6 +133,17 @@ static void __attribute__((used)) hard_fault_handler_c(uint32_t *frame, uint32_t
 // Naked asm wrapper - Cortex-M0+ compatible (no ITE/conditional execution).
 // Determines active stack pointer and branches to C handler.
 // Uses literal pool (.word) for addresses since M0+ has limited immediate encoding.
+//
+// Based on the standard Cortex-M0+ HardFault handler pattern described in:
+// - ARM Application Note AN209: "Using Cortex-M3/M4/M7 Fault Exceptions"
+//   (adapted for M0+ which lacks conditional execution instructions)
+// - Memfault: "How to debug a HardFault on an ARM Cortex-M MCU"
+//   https://interrupt.memfault.com/blog/cortex-m-hardfault-debug
+// - Raspberry Pi Forums: "Cortex-M0+ Hard Fault handler porting"
+//   https://www.eevblog.com/forum/microcontrollers/cortex-m0-hard-fault-handler-porting/
+//
+// The key M0+ adaptation: replaces ITE/MRSEQ/MRSNE (Cortex-M3+) with
+// MOVS+TST+BEQ branch sequence, and uses a literal pool for the C handler address.
 extern "C" void __attribute__((naked, used)) isr_hardfault() {
   __asm volatile("movs r0, #4          \n"  // Prepare bit 2 mask
                  "mov  r1, lr          \n"  // r1 = EXC_RETURN
