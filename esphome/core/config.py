@@ -223,6 +223,12 @@ else:
 # Keep in sync with ESPHOME_FRIENDLY_NAME_MAX_LEN in esphome/core/entity_base.h
 FRIENDLY_NAME_MAX_LEN = 120
 
+# Max device class string length (47 chars + null = 48-byte PROGMEM buffer)
+# Keep in sync with MAX_DEVICE_CLASS_LENGTH in esphome/core/entity_base.h:
+# DEVICE_CLASS_MAX_LENGTH == MAX_DEVICE_CLASS_LENGTH - 1 (C++ includes the null)
+DEVICE_CLASS_MAX_LENGTH = 47
+
+
 # Max icon string length (63 chars + null = 64-byte PROGMEM buffer)
 # Keep in sync with MAX_ICON_LENGTH in esphome/core/entity_base.h
 ICON_MAX_LENGTH = 63

@@ -25,9 +25,9 @@ class X9cOutput : public output::FloatOutput, public Component {
   InternalGPIOPin *cs_pin_;
   InternalGPIOPin *inc_pin_;
   InternalGPIOPin *ud_pin_;
-  float initial_value_;
-  float pot_value_;
-  int step_delay_;
+  float initial_value_{0.0f};
+  float pot_value_{0.0f};
+  int step_delay_{0};
 };
 
 }  // namespace x9c

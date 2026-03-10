@@ -10,8 +10,8 @@ static const char *const TAG = "entity_base";
 
 // Entity Name
 const StringRef &EntityBase::get_name() const { return this->name_; }
-void EntityBase::set_name(const char *name) { this->set_name(name, 0); }
-void EntityBase::set_name(const char *name, uint32_t object_id_hash) {
+
+void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_fields) {
   this->name_ = StringRef(name);
   if (this->name_.empty()) {
 #ifdef USE_DEVICES
@@ -44,6 +44,19 @@ void EntityBase::set_name(const char *name, uint32_t object_id_hash) {
       this->calc_object_id_();
     }
   }
+  // Unpack entity string table indices and flags from entity_fields.
+#ifdef USE_ENTITY_DEVICE_CLASS
+  this->device_class_idx_ = (entity_fields >> ENTITY_FIELD_DC_SHIFT) & 0xFF;
+#endif
+#ifdef USE_ENTITY_UNIT_OF_MEASUREMENT
+  this->uom_idx_ = (entity_fields >> ENTITY_FIELD_UOM_SHIFT) & 0xFF;
+#endif
+#ifdef USE_ENTITY_ICON
+  this->icon_idx_ = (entity_fields >> ENTITY_FIELD_ICON_SHIFT) & 0xFF;
+#endif
+  this->flags_.internal = (entity_fields >> ENTITY_FIELD_INTERNAL_SHIFT) & 1;
+  this->flags_.disabled_by_default = (entity_fields >> ENTITY_FIELD_DISABLED_BY_DEFAULT_SHIFT) & 1;
+  this->flags_.entity_category = (entity_fields >> ENTITY_FIELD_ENTITY_CATEGORY_SHIFT) & 0x3;
 }
 
 // Weak default lookup functions — overridden by generated code in main.cpp
@@ -51,7 +64,27 @@ __attribute__((weak)) const char *entity_device_class_lookup(uint8_t) { return "
 __attribute__((weak)) const char *entity_uom_lookup(uint8_t) { return ""; }
 __attribute__((weak)) const char *entity_icon_lookup(uint8_t) { return ""; }
 
-// Entity device class (from index)
+// Entity device class — buffer-based API for PROGMEM safety on ESP8266
+const char *EntityBase::get_device_class_to([[maybe_unused]] std::span<char, MAX_DEVICE_CLASS_LENGTH> buffer) const {
+#ifdef USE_ENTITY_DEVICE_CLASS
+  const uint8_t idx = this->device_class_idx_;
+#else
+  const uint8_t idx = 0;
+#endif
+#ifdef USE_ESP8266
+  if (idx == 0)
+    return "";
+  const char *dc = entity_device_class_lookup(idx);
+  ESPHOME_strncpy_P(buffer.data(), dc, buffer.size() - 1);
+  buffer[buffer.size() - 1] = '\0';
+  return buffer.data();
+#else
+  return entity_device_class_lookup(idx);
+#endif
+}
+
+#ifndef USE_ESP8266
+// Deprecated device class accessors — not available on ESP8266 (rodata is RAM)
 StringRef EntityBase::get_device_class_ref() const {
 #ifdef USE_ENTITY_DEVICE_CLASS
   return StringRef(entity_device_class_lookup(this->device_class_idx_));
@@ -59,7 +92,14 @@ StringRef EntityBase::get_device_class_ref() const {
   return StringRef(entity_device_class_lookup(0));
 #endif
 }
-std::string EntityBase::get_device_class() const { return std::string(this->get_device_class_ref().c_str()); }
+std::string EntityBase::get_device_class() const {
+#ifdef USE_ENTITY_DEVICE_CLASS
+  return std::string(entity_device_class_lookup(this->device_class_idx_));
+#else
+  return std::string(entity_device_class_lookup(0));
+#endif
+}
+#endif  // !USE_ESP8266
 
 // Entity unit of measurement (from index)
 StringRef EntityBase::get_unit_of_measurement_ref() const {
@@ -191,8 +231,10 @@ void log_entity_icon(const char *tag, const char *prefix, const EntityBase &obj)
 #endif
 
 void log_entity_device_class(const char *tag, const char *prefix, const EntityBase &obj) {
-  if (!obj.get_device_class_ref().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj.get_device_class_ref().c_str());
+  char dc_buf[MAX_DEVICE_CLASS_LENGTH];
+  const char *dc = obj.get_device_class_to(dc_buf);
+  if (dc[0] != '\0') {
+    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, dc);
   }
 }
 

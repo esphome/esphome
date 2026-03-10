@@ -2137,7 +2137,8 @@ json::SerializationBuffer<> WebServer::event_json_(event::Event *obj, StringRef 
     for (const char *event_type : obj->get_event_types()) {
       event_types.add(event_type);
     }
-    root[ESPHOME_F("device_class")] = obj->get_device_class_ref();
+    char dc_buf[MAX_DEVICE_CLASS_LENGTH];
+    root[ESPHOME_F("device_class")] = obj->get_device_class_to(dc_buf);
     this->add_sorting_info_(root, obj);
   }
 

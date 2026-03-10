@@ -46,6 +46,12 @@ def _validate_esp32_variant(config):
     if config[CONF_ADC_TYPE] == "external":
         if config[CONF_PDM] and variant not in PDM_VARIANTS:
             raise cv.Invalid(f"{variant} does not support PDM")
+        if (
+            variant == esp32.VARIANT_ESP32
+            and config.get(CONF_BITS_PER_SAMPLE) == 8
+            and config.get(CONF_CHANNEL) in (CONF_LEFT, CONF_RIGHT)
+        ):
+            raise cv.Invalid("8-bit mono mode is not supported on ESP32")
         return config
     if config[CONF_ADC_TYPE] == "internal":
         if variant not in INTERNAL_ADC_VARIANTS:
