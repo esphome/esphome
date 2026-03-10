@@ -540,6 +540,7 @@ ssize_t LWIPRawImpl::read(void *buf, size_t len) {
 }
 
 ssize_t LWIPRawImpl::readv(const struct iovec *iov, int iovcnt) {
+  LWIP_LOCK();  // Hold for entire scatter-gather operation
   ssize_t ret = 0;
   for (int i = 0; i < iovcnt; i++) {
     ssize_t err = this->read(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
@@ -631,6 +632,7 @@ ssize_t LWIPRawImpl::write(const void *buf, size_t len) {
 }
 
 ssize_t LWIPRawImpl::writev(const struct iovec *iov, int iovcnt) {
+  LWIP_LOCK();  // Hold for entire scatter-gather operation
   ssize_t written = 0;
   for (int i = 0; i < iovcnt; i++) {
     ssize_t err = this->internal_write_(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
