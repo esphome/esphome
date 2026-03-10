@@ -27,9 +27,9 @@ namespace esphome::speaker_source {
 // that have their own playback callback tasks. Three thread contexts exist:
 //
 // - Main loop task: setup(), loop(), dump_config(), handle_media_state_changed_(),
-//   handle_volume_request_(), handle_mute_request_(), set_volume_(), set_mute_state_(),
-//   get_media_pipeline_state_(), find_source_for_uri_(), try_execute_play_uri_(),
-//   save_volume_restore_state_()
+//   handle_volume_request_(), handle_mute_request_(), handle_play_uri_request_(),
+//   set_volume_(), set_mute_state_(), control(), get_media_pipeline_state_(),
+//   find_source_for_uri_(), try_execute_play_uri_(), save_volume_restore_state_()
 //
 // - Media source task(s): handle_media_output_() via SourceBinding::write_audio().
 //   Called from each source's decode task thread when streaming audio data.
@@ -41,15 +41,12 @@ namespace esphome::speaker_source {
 //   Reads ps.active_source (atomic), writes ps.pending_frames (atomic), and calls
 //   active_source->notify_audio_played().
 //
-// control() is called from BOTH the main loop (HA/automation commands) and source task threads
-// (via SourceBinding::request_play_uri -> handle_play_uri_request_ -> call.perform()).
-// It is thread-safe because it only enqueues to media_control_command_queue_ (FreeRTOS queue)
-// or directly calls set_volume_/set_mute_state_ (which only happens for volume/mute commands
-// from the main loop path — source tasks use defer() for volume/mute requests instead).
+// control() is only called from the main loop (HA/automation commands).
+// Source tasks use defer() for all requests (volume, mute, play_uri).
 //
 // Thread-safe communication:
 // - FreeRTOS queue (media_control_command_queue_): control() -> loop() for play/command dispatch
-// - defer(): SourceBinding::request_volume/request_mute -> main loop for volume/mute changes
+// - defer(): SourceBinding::request_volume/request_mute/request_play_uri -> main loop
 // - Atomic fields (active_source, pending_frames): shared between all three thread contexts
 //
 // Non-atomic pipeline fields (last_source, stopping_source, pending_source) are only accessed

@@ -35,10 +35,9 @@ void SourceBinding::request_mute(bool is_muted) {
   this->player->defer([this, is_muted]() { this->player->handle_mute_request_(is_muted); });
 }
 
-// THREAD CONTEXT: Called from media source task thread.
-// Thread-safe because handle_play_uri_request_ calls control() which enqueues via FreeRTOS queue.
+// THREAD CONTEXT: Called from media source task thread; uses defer() to marshal to main loop
 void SourceBinding::request_play_uri(const std::string &uri) {
-  this->player->handle_play_uri_request_(this->pipeline, uri);
+  this->player->defer([this, uri]() { this->player->handle_play_uri_request_(this->pipeline, uri); });
 }
 
 // THREAD CONTEXT: Called during code generation setup (main loop)
@@ -122,8 +121,7 @@ void SpeakerSourceMediaPlayer::handle_mute_request_(bool is_muted) {
   this->publish_state();
 }
 
-// THREAD CONTEXT: Called from media source task thread.
-// Thread-safe because control() enqueues the URI via FreeRTOS queue.
+// THREAD CONTEXT: Called from main loop via defer()
 void SpeakerSourceMediaPlayer::handle_play_uri_request_(uint8_t pipeline, const std::string &uri) {
   // Smart source is requesting the player to play a different URI
   auto call = this->make_call();
@@ -395,11 +393,9 @@ bool SpeakerSourceMediaPlayer::try_execute_play_uri_(const std::string &uri, uin
   return true;  // Remove from queue
 }
 
-// THREAD CONTEXT: Called from BOTH main loop (HA/automation commands) and media source task
-// threads (via SourceBinding::request_play_uri -> handle_play_uri_request_ -> call.perform()).
-// The source task path only triggers PLAY_URI, which enqueues via the FreeRTOS queue (thread-safe).
-// Volume/mute branches call set_volume_/set_mute_state_ directly, but these are only reached
-// from the main loop path — source tasks use defer() for volume/mute requests instead.
+// THREAD CONTEXT: Called from main loop only. Entry points:
+// - HA/automation commands (direct)
+// - handle_play_uri_request_() via make_call().perform() (deferred from source tasks)
 void SpeakerSourceMediaPlayer::control(const media_player::MediaPlayerCall &call) {
   if (!this->is_ready()) {
     return;
