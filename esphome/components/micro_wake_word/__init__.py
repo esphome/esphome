@@ -529,8 +529,15 @@ async def to_code(config):
 MICRO_WAKE_WORD_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(MicroWakeWord)})
 
 
-@register_action("micro_wake_word.start", StartAction, MICRO_WAKE_WORD_ACTION_SCHEMA)
-@register_action("micro_wake_word.stop", StopAction, MICRO_WAKE_WORD_ACTION_SCHEMA)
+@register_action(
+    "micro_wake_word.start",
+    StartAction,
+    MICRO_WAKE_WORD_ACTION_SCHEMA,
+    synchronous=True,
+)
+@register_action(
+    "micro_wake_word.stop", StopAction, MICRO_WAKE_WORD_ACTION_SCHEMA, synchronous=True
+)
 @register_condition(
     "micro_wake_word.is_running", IsRunningCondition, MICRO_WAKE_WORD_ACTION_SCHEMA
 )
@@ -551,11 +558,13 @@ MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA = automation.maybe_simple_id(
     "micro_wake_word.enable_model",
     EnableModelAction,
     MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA,
+    synchronous=True,
 )
 @register_action(
     "micro_wake_word.disable_model",
     DisableModelAction,
     MICRO_WAKE_WORLD_MODEL_ACTION_SCHEMA,
+    synchronous=True,
 )
 @register_condition(
     "micro_wake_word.model_is_enabled",

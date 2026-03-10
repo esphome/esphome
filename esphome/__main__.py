@@ -9,6 +9,8 @@ import logging
 import os
 from pathlib import Path
 import re
+import shutil
+import subprocess
 import sys
 import time
 from typing import Protocol
@@ -44,7 +46,9 @@ from esphome.const import (
     CONF_SUBSTITUTIONS,
     CONF_TOPIC,
     ENV_NOGITIGNORE,
+    KEY_CORE,
     KEY_NATIVE_IDF,
+    KEY_TARGET_PLATFORM,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
@@ -56,7 +60,11 @@ from esphome.helpers import get_bool_env, indent, is_ip_address
 from esphome.log import AnsiFore, color, setup_log
 from esphome.types import ConfigType
 from esphome.util import (
+    PICOTOOL_PACKAGE,
+    detect_rp2040_bootsel,
+    get_picotool_path,
     get_serial_ports,
+    is_picotool_usb_permission_error,
     list_yaml_files,
     run_external_command,
     run_external_process,
@@ -67,6 +75,21 @@ _LOGGER = logging.getLogger(__name__)
 
 # Maximum buffer size for serial log reading to prevent unbounded memory growth
 SERIAL_BUFFER_MAX_SIZE = 65536
+
+_RP2040_BOOTSEL_INSTRUCTIONS = (
+    "To enter BOOTSEL mode:\n"
+    "  1. Unplug the device\n"
+    "  2. Hold the BOOT/BOOTSEL button\n"
+    "  3. Plug in the USB cable while holding the button\n"
+    "  4. Release the button - the device should appear as a USB drive (RPI-RP2)\n"
+    "Then run the upload command again."
+)
+
+_RP2040_UDEV_HINT = (
+    "You may need to add a udev rule for RP2040 devices. "
+    "See: https://github.com/raspberrypi/picotool"
+    "/blob/master/udev/60-picotool.rules"
+)
 
 # Special non-component keys that appear in configs
 _NON_COMPONENT_KEYS = frozenset(
@@ -163,6 +186,7 @@ class PortType(StrEnum):
     NETWORK = "NETWORK"
     MQTT = "MQTT"
     MQTTIP = "MQTTIP"
+    BOOTSEL = "BOOTSEL"
 
 
 # Magic MQTT port types that require special handling
@@ -241,6 +265,19 @@ def choose_upload_log_host(
         (f"{port.path} ({port.description})", port.path) for port in get_serial_ports()
     ]
 
+    # Add RP2040 BOOTSEL device option when uploading
+    bootsel_permission_error = False
+    if (
+        purpose == Purpose.UPLOADING
+        and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
+        and (picotool := _find_picotool()) is not None
+    ):
+        bootsel = detect_rp2040_bootsel(picotool)
+        if bootsel.device_count > 0:
+            options.append(("RP2040 BOOTSEL (via picotool)", "BOOTSEL"))
+        elif bootsel.permission_error:
+            bootsel_permission_error = True
+
     if purpose == Purpose.LOGGING:
         if has_mqtt_logging():
             mqtt_config = CORE.config[CONF_MQTT]
@@ -257,6 +294,25 @@ def choose_upload_log_host(
             options.append((f"Over The Air ({CORE.address})", CORE.address))
         if has_mqtt_ip_lookup():
             options.append(("Over The Air (MQTT IP lookup)", "MQTTIP"))
+
+    # Show helpful BOOTSEL instructions for RP2040 when no BOOTSEL device is found
+    if (
+        purpose == Purpose.UPLOADING
+        and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
+        and not any(get_port_type(opt[1]) == PortType.BOOTSEL for opt in options)
+    ):
+        if bootsel_permission_error:
+            _LOGGER.warning(
+                "An RP2040 device in BOOTSEL mode was detected but could "
+                "not be accessed due to USB permissions."
+            )
+            if sys.platform.startswith("linux"):
+                _LOGGER.warning(_RP2040_UDEV_HINT)
+        if not options:
+            raise EsphomeError(
+                f"No RP2040 device found. {_RP2040_BOOTSEL_INSTRUCTIONS}"
+            )
+        _LOGGER.info("Tip: %s", _RP2040_BOOTSEL_INSTRUCTIONS)
 
     if check_default is not None and check_default in [opt[1] for opt in options]:
         return [check_default]
@@ -404,10 +460,13 @@ def get_port_type(port: str) -> PortType:
 
     Returns:
         PortType.SERIAL for serial ports (/dev/ttyUSB0, COM1, etc.)
+        PortType.BOOTSEL for RP2040 BOOTSEL upload via picotool
         PortType.MQTT for MQTT logging
         PortType.MQTTIP for MQTT IP lookup
         PortType.NETWORK for IP addresses, hostnames, or mDNS names
     """
+    if port == "BOOTSEL":
+        return PortType.BOOTSEL
     if port.startswith("/") or port.startswith("COM"):
         return PortType.SERIAL
     if port == "MQTT":
@@ -695,13 +754,136 @@ def upload_using_esptool(
     return run_esptool(115200)
 
 
-def upload_using_platformio(config: ConfigType, port: str):
+def upload_using_platformio(config: ConfigType, port: str) -> int:
     from esphome import platformio_api
+
+    # RP2040 platform-raspberrypi build recipe expects firmware.bin.signed for
+    # the upload target, but 'nobuild' skips the build phase that creates it.
+    # Create it here so the upload doesn't fail.
+    if CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040:
+        idedata = platformio_api.get_idedata(config)
+        build_dir = Path(idedata.firmware_elf_path).parent
+        firmware_bin = build_dir / "firmware.bin"
+        signed_bin = build_dir / "firmware.bin.signed"
+        if firmware_bin.is_file() and not signed_bin.is_file():
+            shutil.copy2(firmware_bin, signed_bin)
 
     upload_args = ["-t", "upload", "-t", "nobuild"]
     if port is not None:
         upload_args += ["--upload-port", port]
     return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
+
+
+def _find_picotool() -> Path | None:
+    """Find the picotool binary from PlatformIO packages."""
+    from esphome import platformio_api
+
+    try:
+        idedata = platformio_api.get_idedata(CORE.config)
+    except Exception:  # noqa: BLE001  # pylint: disable=broad-except
+        return None
+    return get_picotool_path(idedata.cc_path)
+
+
+def upload_using_picotool(config: ConfigType) -> int:
+    """Upload firmware to RP2040 in BOOTSEL mode using picotool.
+
+    Uses picotool to load the ELF firmware directly via USB, avoiding
+    the mass storage copy approach that causes "disk not ejected properly"
+    warnings on macOS.
+    """
+    from esphome import platformio_api
+
+    idedata = platformio_api.get_idedata(config)
+    firmware_elf = Path(idedata.firmware_elf_path)
+
+    if not firmware_elf.is_file():
+        _LOGGER.error(
+            "Firmware ELF file not found at %s. "
+            "Make sure the project has been compiled first.",
+            firmware_elf,
+        )
+        return 1
+
+    picotool = get_picotool_path(idedata.cc_path)
+    if picotool is None:
+        _LOGGER.error(
+            "picotool not found. Ensure the RP2040 PlatformIO platform "
+            "is installed (%s).",
+            PICOTOOL_PACKAGE,
+        )
+        return 1
+
+    _LOGGER.info("Uploading firmware to RP2040 via picotool...")
+    try:
+        # Don't capture stdout — let picotool write directly to the terminal
+        # so progress bars display in real-time with \r updates.
+        # Capture stderr only so we can detect permission errors.
+        result = subprocess.run(
+            [str(picotool), "load", "-v", "-x", str(firmware_elf)],
+            stderr=subprocess.PIPE,
+            timeout=60,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        _LOGGER.error("picotool upload timed out after 60 seconds.")
+        return 1
+    except OSError as err:
+        _LOGGER.error("Failed to run picotool: %s", err)
+        return 1
+
+    if result.returncode != 0:
+        stderr = result.stderr.decode("utf-8", errors="replace").strip()
+        if stderr:
+            for line in stderr.splitlines():
+                safe_print(line)
+        if is_picotool_usb_permission_error(stderr):
+            msg = "Permission denied accessing USB device."
+            if sys.platform.startswith("linux"):
+                msg += f" {_RP2040_UDEV_HINT}"
+            _LOGGER.error(msg)
+        else:
+            _LOGGER.error("picotool upload failed (exit code %d).", result.returncode)
+        return 1
+
+    return 0
+
+
+def _wait_for_serial_port(
+    port: str | None = None,
+    timeout: float = 30.0,
+    known_ports: set[str] | None = None,
+) -> None:
+    """Wait for a serial port to appear, e.g. after a device reboot.
+
+    USB-CDC devices disappear briefly after flashing while the device
+    reboots and re-enumerates on the USB bus.
+
+    If port is given, wait for that specific path. If known_ports is
+    given, wait for a new port that wasn't in the set. Otherwise wait
+    for any serial port to appear.
+    """
+
+    def _port_found() -> bool:
+        ports = get_serial_ports()
+        if port is not None:
+            return any(p.path == port for p in ports)
+        if known_ports is not None:
+            return any(p.path not in known_ports for p in ports)
+        return bool(ports)
+
+    if _port_found():
+        return
+    if port is not None:
+        _LOGGER.info("Waiting for %s to come online...", port)
+    else:
+        _LOGGER.info("Waiting for device to reboot...")
+    start = time.monotonic()
+    while time.monotonic() - start < timeout:
+        time.sleep(0.05)
+        if _port_found():
+            time.sleep(0.05)
+            return
 
 
 def check_permissions(port: str):
@@ -733,7 +915,15 @@ def upload_program(
     except AttributeError:
         pass
 
-    if get_port_type(host) == PortType.SERIAL:
+    port_type = get_port_type(host)
+
+    if port_type == PortType.BOOTSEL:
+        exit_code = upload_using_picotool(config)
+        # Return None for device - BOOTSEL can't be used for logging,
+        # so command_run will show the interactive chooser for log source
+        return exit_code, None
+
+    if port_type == PortType.SERIAL:
         check_permissions(host)
 
         exit_code = 1
@@ -787,6 +977,7 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
     port_type = get_port_type(port)
 
     if port_type == PortType.SERIAL:
+        _wait_for_serial_port(port)
         check_permissions(port)
         return run_miniterm(config, port, args)
 
@@ -925,6 +1116,9 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
         purpose=Purpose.UPLOADING,
     )
 
+    # Snapshot current serial ports before upload so we can detect new ones
+    pre_upload_ports = {p.path for p in get_serial_ports()}
+
     exit_code, successful_device = upload_program(config, args, devices)
     if exit_code == 0:
         _LOGGER.info("Successfully uploaded program.")
@@ -934,6 +1128,19 @@ def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     if args.no_logs:
         return 0
+
+    # After BOOTSEL upload, wait for a new serial port to appear
+    # so it shows up in the log chooser
+    if (
+        successful_device is None
+        and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
+    ):
+        _wait_for_serial_port(known_ports=pre_upload_ports)
+        # If exactly one new serial port appeared, use it directly
+        serial_ports = get_serial_ports()
+        new_ports = [p for p in serial_ports if p.path not in pre_upload_ports]
+        if len(new_ports) == 1:
+            successful_device = new_ports[0].path
 
     # For logs, prefer the device we successfully uploaded to
     devices = choose_upload_log_host(

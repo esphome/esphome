@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
+import sys
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -402,3 +405,132 @@ def test_shlex_quote_edge_cases() -> None:
     assert util.shlex_quote("\t") == "'\t'"
     assert util.shlex_quote("\n") == "'\n'"
     assert util.shlex_quote("   ") == "'   '"
+
+
+def test_get_picotool_path_found(tmp_path: Path) -> None:
+    """Test picotool path derivation from cc_path."""
+    # Create the expected directory structure
+    packages_dir = tmp_path / "packages"
+    toolchain_dir = packages_dir / "toolchain-rp2040-earlephilhower" / "bin"
+    toolchain_dir.mkdir(parents=True)
+    gcc = toolchain_dir / "arm-none-eabi-gcc"
+    gcc.touch()
+
+    binary_name = "picotool.exe" if sys.platform == "win32" else "picotool"
+    picotool_dir = packages_dir / "tool-picotool-rp2040-earlephilhower"
+    picotool_dir.mkdir(parents=True)
+    picotool = picotool_dir / binary_name
+    picotool.touch()
+
+    result = util.get_picotool_path(str(gcc))
+    assert result == picotool
+
+
+def test_get_picotool_path_not_found(tmp_path: Path) -> None:
+    """Test picotool path returns None when not installed."""
+    packages_dir = tmp_path / "packages"
+    toolchain_dir = packages_dir / "toolchain-rp2040-earlephilhower" / "bin"
+    toolchain_dir.mkdir(parents=True)
+    gcc = toolchain_dir / "arm-none-eabi-gcc"
+    gcc.touch()
+
+    result = util.get_picotool_path(str(gcc))
+    assert result is None
+
+
+def test_get_picotool_path_windows(tmp_path: Path) -> None:
+    """Test picotool path uses .exe on Windows."""
+    packages_dir = tmp_path / "packages"
+    toolchain_dir = packages_dir / "toolchain-rp2040-earlephilhower" / "bin"
+    toolchain_dir.mkdir(parents=True)
+    gcc = toolchain_dir / "arm-none-eabi-gcc.exe"
+    gcc.touch()
+
+    picotool_dir = packages_dir / "tool-picotool-rp2040-earlephilhower"
+    picotool_dir.mkdir(parents=True)
+    picotool = picotool_dir / "picotool.exe"
+    picotool.touch()
+
+    with patch("esphome.util.sys.platform", "win32"):
+        result = util.get_picotool_path(str(gcc))
+    assert result == picotool
+
+
+def test_detect_rp2040_bootsel_found() -> None:
+    """Test BOOTSEL device detection when device is present."""
+    mock_result = MagicMock()
+    mock_result.stdout = b"Device Information\n type: RP2040\n"
+    with patch("esphome.util.subprocess.run", return_value=mock_result):
+        result = util.detect_rp2040_bootsel("/usr/bin/picotool")
+    assert result.device_count == 1
+    assert result.permission_error is False
+
+
+def test_detect_rp2040_bootsel_multiple() -> None:
+    """Test BOOTSEL detection with multiple devices."""
+    mock_result = MagicMock()
+    mock_result.stdout = b"type: RP2040\ntype: RP2350\n"
+    with patch("esphome.util.subprocess.run", return_value=mock_result):
+        result = util.detect_rp2040_bootsel("/usr/bin/picotool")
+    assert result.device_count == 2
+    assert result.permission_error is False
+
+
+def test_detect_rp2040_bootsel_none() -> None:
+    """Test BOOTSEL detection when no device found."""
+    mock_result = MagicMock()
+    mock_result.stdout = (
+        b"No accessible RP2040/RP2350 devices in BOOTSEL mode were found.\n"
+    )
+    mock_result.stderr = b""
+    with patch("esphome.util.subprocess.run", return_value=mock_result):
+        result = util.detect_rp2040_bootsel("/usr/bin/picotool")
+    assert result.device_count == 0
+    assert result.permission_error is False
+
+
+def test_detect_rp2040_bootsel_permission_error() -> None:
+    """Test BOOTSEL detection with device found but not accessible."""
+    mock_result = MagicMock()
+    mock_result.stdout = (
+        b"No accessible RP-series devices in BOOTSEL mode were found.\n"
+    )
+    mock_result.stderr = (
+        b"RP2040 device at bus 5, address 24 appears to be in BOOTSEL mode, "
+        b"but picotool was unable to connect. "
+        b"Maybe try 'sudo' or check your permissions.\n"
+    )
+    with patch("esphome.util.subprocess.run", return_value=mock_result):
+        result = util.detect_rp2040_bootsel("/usr/bin/picotool")
+    assert result.device_count == 0
+    assert result.permission_error is True
+
+
+def test_detect_rp2040_bootsel_libusb_access_error() -> None:
+    """Test BOOTSEL detection with LIBUSB_ERROR_ACCESS."""
+    mock_result = MagicMock()
+    mock_result.stdout = b""
+    mock_result.stderr = b"LIBUSB_ERROR_ACCESS\n"
+    with patch("esphome.util.subprocess.run", return_value=mock_result):
+        result = util.detect_rp2040_bootsel("/usr/bin/picotool")
+    assert result.device_count == 0
+    assert result.permission_error is True
+
+
+def test_detect_rp2040_bootsel_oserror() -> None:
+    """Test BOOTSEL detection handles OSError."""
+    with patch("esphome.util.subprocess.run", side_effect=OSError("not found")):
+        result = util.detect_rp2040_bootsel("/usr/bin/picotool")
+    assert result.device_count == 0
+    assert result.permission_error is False
+
+
+def test_detect_rp2040_bootsel_timeout() -> None:
+    """Test BOOTSEL detection handles timeout."""
+    with patch(
+        "esphome.util.subprocess.run",
+        side_effect=subprocess.TimeoutExpired("picotool", 10),
+    ):
+        result = util.detect_rp2040_bootsel("/usr/bin/picotool")
+    assert result.device_count == 0
+    assert result.permission_error is False
