@@ -28,11 +28,11 @@ void MicroNovaSwitch::write_state(bool state) {
 }
 
 void MicroNovaSwitch::process_value_from_stove(int value_from_stove) {
-  this->raw_state_ = value_from_stove;
   if (value_from_stove == -1) {
     ESP_LOGE(TAG, "Error reading stove state");
     return;
   }
+  this->raw_state_ = value_from_stove;
 
   // set the stove switch to on for any value but 0
   bool state = value_from_stove != 0;
