@@ -458,13 +458,16 @@ void SpeakerSourceMediaPlayer::save_volume_restore_state_() {
 }
 
 void SpeakerSourceMediaPlayer::set_mute_state_(bool mute_state, bool publish) {
+  if (this->is_muted_ == mute_state) {
+    return;
+  }
+
   for (auto &ps : this->pipelines_) {
     if (ps.is_configured()) {
       ps.speaker->set_mute_state(mute_state);
     }
   }
 
-  bool old_mute_state = this->is_muted_;
   this->is_muted_ = mute_state;
 
   if (publish) {
@@ -478,12 +481,10 @@ void SpeakerSourceMediaPlayer::set_mute_state_(bool mute_state, bool publish) {
     }
   }
 
-  if (old_mute_state != mute_state) {
-    if (mute_state) {
-      this->defer([this]() { this->mute_trigger_.trigger(); });
-    } else {
-      this->defer([this]() { this->unmute_trigger_.trigger(); });
-    }
+  if (mute_state) {
+    this->defer([this]() { this->mute_trigger_.trigger(); });
+  } else {
+    this->defer([this]() { this->unmute_trigger_.trigger(); });
   }
 }
 
