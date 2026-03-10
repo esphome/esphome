@@ -799,6 +799,7 @@ LWIPRawUDPImpl::LWIPRawUDPImpl(sa_family_t family) : family_(family) {
 }
 
 LWIPRawUDPImpl::~LWIPRawUDPImpl() {
+  LWIP_LOCK();
   if (this->pcb_ != nullptr) {
     udp_remove(this->pcb_);
     this->pcb_ = nullptr;
@@ -806,6 +807,7 @@ LWIPRawUDPImpl::~LWIPRawUDPImpl() {
 }
 
 int LWIPRawUDPImpl::bind_internal_(const struct sockaddr *name, socklen_t addrlen) {
+  LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = EBADF;
     return -1;
@@ -847,6 +849,7 @@ int LWIPRawUDPImpl::bind_internal_(const struct sockaddr *name, socklen_t addrle
 int LWIPRawUDPImpl::bind(const struct sockaddr *name, socklen_t addrlen) { return this->bind_internal_(name, addrlen); }
 
 int LWIPRawUDPImpl::close() {
+  LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = EBADF;
     return -1;
@@ -899,6 +902,7 @@ int LWIPRawUDPImpl::ip2sockaddr_(const ip_addr_t *ip, uint16_t port, struct sock
 ssize_t LWIPRawUDPImpl::sendto(const void *buf, size_t len, int flags, const struct sockaddr *dest_addr,
                                socklen_t addrlen) {
   (void) flags;  // Flags (MSG_DONTWAIT, etc.) are ignored; raw lwip is always non-blocking
+  LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = EBADF;
     return -1;
@@ -940,6 +944,7 @@ ssize_t LWIPRawUDPImpl::sendto(const void *buf, size_t len, int flags, const str
 }
 
 int LWIPRawUDPImpl::setsockopt(int level, int optname, const void *optval, socklen_t optlen) {
+  LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = EBADF;
     return -1;
@@ -1001,6 +1006,7 @@ int LWIPRawUDPImpl::setsockopt(int level, int optname, const void *optval, sockl
 }
 
 int LWIPRawUDPImpl::getsockopt(int level, int optname, void *optval, socklen_t *optlen) {
+  LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = EBADF;
     return -1;
@@ -1036,24 +1042,27 @@ LWIPRawUDPRecvImpl::~LWIPRawUDPRecvImpl() {
 }
 
 int LWIPRawUDPRecvImpl::close() {
+  LWIP_LOCK();
   // Unregister recv callback before removing pcb
   if (this->pcb_ != nullptr) {
     udp_recv(this->pcb_, nullptr, nullptr);
   }
   // Flush any queued rx packets
-  while (this->rx_read_idx_ != this->rx_write_idx_) {
+  while (this->rx_count_ > 0) {
     auto &pkt = this->rx_queue_[this->rx_read_idx_];
     if (pkt.pb != nullptr) {
       pbuf_free(pkt.pb);
       pkt.pb = nullptr;
     }
     this->rx_read_idx_ = (this->rx_read_idx_ + 1) & UDP_RX_MASK;
+    this->rx_count_--;
   }
   // close() returns EBADF if already closed, which is fine from destructor
   return LWIPRawUDPImpl::close();
 }
 
 int LWIPRawUDPRecvImpl::bind(const struct sockaddr *name, socklen_t addrlen) {
+  LWIP_LOCK();
   int ret = this->bind_internal_(name, addrlen);
   if (ret != 0)
     return ret;
@@ -1073,7 +1082,8 @@ ssize_t LWIPRawUDPRecvImpl::recvfrom(void *buf, size_t len, struct sockaddr *src
     errno = EINVAL;
     return -1;
   }
-  if (this->rx_read_idx_ == this->rx_write_idx_) {
+  LWIP_LOCK();
+  if (this->rx_count_ == 0) {
     errno = EWOULDBLOCK;
     return -1;
   }
@@ -1090,11 +1100,11 @@ ssize_t LWIPRawUDPRecvImpl::recvfrom(void *buf, size_t len, struct sockaddr *src
     this->ip2sockaddr_(&pkt.src_addr, pkt.src_port, src_addr, addrlen);
   }
 
-  // Free the pbuf and advance the read pointer — must be last,
-  // as this publishes the slot to the producer (recv callback).
+  // Free the pbuf and advance the read pointer
   pbuf_free(pkt.pb);
   pkt.pb = nullptr;
   this->rx_read_idx_ = (this->rx_read_idx_ + 1) & UDP_RX_MASK;
+  this->rx_count_--;
 
   return (ssize_t) copy_len;
 }
@@ -1104,24 +1114,25 @@ void LWIPRawUDPRecvImpl::s_recv_fn(void *arg, struct udp_pcb *pcb, struct pbuf *
   self->recv_fn_(p, addr, port);
 }
 
+// Called by lwip core which already holds the async_context lock on RP2040.
 void LWIPRawUDPRecvImpl::recv_fn_(struct pbuf *p, const ip_addr_t *addr, u16_t port) {
   if (p == nullptr)
     return;
 
-  // Check if queue is full (next write position would collide with read position)
-  uint8_t next_write = (this->rx_write_idx_ + 1) & UDP_RX_MASK;
-  if (next_write == this->rx_read_idx_) {
+  // Check if queue is full
+  if (this->rx_count_ >= UDP_RX_QUEUE_SIZE) {
     // Drop packet — queue full
     pbuf_free(p);
     return;
   }
 
-  // Enqueue the packet — write data first, then publish by advancing write index.
-  auto &slot = this->rx_queue_[this->rx_write_idx_];
+  // Enqueue the packet
+  uint8_t write_idx = (this->rx_read_idx_ + this->rx_count_) & UDP_RX_MASK;
+  auto &slot = this->rx_queue_[write_idx];
   slot.pb = p;
   slot.src_addr = *addr;
   slot.src_port = port;
-  this->rx_write_idx_ = next_write;
+  this->rx_count_++;
 
 #if defined(USE_ESP8266) || defined(USE_RP2040)
   socket_wake();
@@ -1152,6 +1163,7 @@ std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol
 
 std::unique_ptr<UDPSocket> socket_udp(int domain, int protocol) {
   (void) protocol;  // Raw lwip UDP ignores protocol; kept for API compatibility
+  LWIP_LOCK();
   auto sock = make_unique<LWIPRawUDPImpl>((sa_family_t) domain);
   if (!sock->is_valid()) {
     errno = ENOMEM;
@@ -1162,6 +1174,7 @@ std::unique_ptr<UDPSocket> socket_udp(int domain, int protocol) {
 
 std::unique_ptr<UDPRecvSocket> socket_udp_recv(int domain, int protocol) {
   (void) protocol;  // Raw lwip UDP ignores protocol; kept for API compatibility
+  LWIP_LOCK();
   auto sock = make_unique<LWIPRawUDPRecvImpl>((sa_family_t) domain);
   if (!sock->is_valid()) {
     errno = ENOMEM;
