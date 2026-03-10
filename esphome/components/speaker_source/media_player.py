@@ -57,14 +57,6 @@ FORMAT_MAPPING = {
 }
 
 
-FORMAT_MAPPING = {
-    "FLAC": "flac",
-    "MP3": "mp3",
-    "OPUS": "opus",
-    "WAV": "wav",
-}
-
-
 # Returns a media_player.MediaPlayerSupportedFormat struct with the configured
 # format, sample rate, number of channels, purpose, and bytes per sample
 def _get_supported_format_struct(pipeline: ConfigType):
