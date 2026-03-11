@@ -173,6 +173,7 @@ CONFIG_SCHEMA_BASE = cv.Schema(
         ),
     },
 ).extend(cv.polling_component_schema("60s"))
+CONFIG_SCHEMA_BASE.add_extra(measurement_timing_check)
 
 
 async def to_code_base(config):
