@@ -58,10 +58,11 @@ struct RawCrashData {
   uint8_t backtrace_count;
   uint32_t backtrace[MAX_BACKTRACE];
 };
-static RawCrashData __attribute__((section(".noinit"))) s_raw_crash_data;
+static RawCrashData __attribute__((section(".noinit")))
+s_raw_crash_data;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 // Whether crash data was found and validated this boot.
-static bool s_crash_data_valid = false;
+static bool s_crash_data_valid = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 namespace esphome::esp32 {
 
@@ -123,6 +124,8 @@ void crash_handler_log() {
 // into NOINIT memory before the normal panic handler runs.
 //
 extern "C" {
+// NOLINTBEGIN(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
+// Names are mandated by the --wrap linker mechanism
 extern void __real_esp_panic_handler(panic_info_t *info);
 
 void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
@@ -195,6 +198,7 @@ void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
   __real_esp_panic_handler(info);
 }
 
+// NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 }  // extern "C"
 
 #endif  // USE_ESP32
