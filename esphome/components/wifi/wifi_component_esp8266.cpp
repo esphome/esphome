@@ -6,6 +6,7 @@
 
 #include <user_interface.h>
 
+#include <cassert>
 #include <utility>
 #include <algorithm>
 #ifdef USE_WIFI_WPA2_EAP
@@ -205,12 +206,13 @@ network::IPAddresses WiFiComponent::wifi_sta_ip_addresses() {
   network::IPAddresses addresses;
   uint8_t index = 0;
   for (auto &addr : addrList) {
+    assert(index < addresses.size());
     addresses[index++] = addr.ipFromNetifNum();
   }
   return addresses;
 }
 bool WiFiComponent::wifi_apply_hostname_() {
-  const std::string &hostname = App.get_name();
+  const auto &hostname = App.get_name();
   bool ret = wifi_station_set_hostname(const_cast<char *>(hostname.c_str()));
   if (!ret) {
     ESP_LOGV(TAG, "Set hostname failed");
@@ -636,8 +638,6 @@ WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
   return WiFiSTAConnectStatus::IDLE;
 }
 bool WiFiComponent::wifi_scan_start_(bool passive) {
-  static bool first_scan = false;
-
   // enable STA
   if (!this->wifi_mode_(true, {}))
     return false;
@@ -654,23 +654,13 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   config.show_hidden = 1;
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
   config.scan_type = passive ? WIFI_SCAN_TYPE_PASSIVE : WIFI_SCAN_TYPE_ACTIVE;
-  if (first_scan) {
-    if (passive) {
-      config.scan_time.passive = 200;
-    } else {
-      config.scan_time.active.min = 100;
-      config.scan_time.active.max = 200;
-    }
+  if (passive) {
+    config.scan_time.passive = 500;
   } else {
-    if (passive) {
-      config.scan_time.passive = 500;
-    } else {
-      config.scan_time.active.min = 400;
-      config.scan_time.active.max = 500;
-    }
+    config.scan_time.active.min = 400;
+    config.scan_time.active.max = 500;
   }
 #endif
-  first_scan = false;
   bool ret = wifi_station_scan(&config, &WiFiComponent::s_wifi_scan_done_callback);
   if (!ret) {
     ESP_LOGV(TAG, "wifi_station_scan failed");
