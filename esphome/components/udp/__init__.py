@@ -73,7 +73,7 @@ def _consume_udp_sockets(config: ConfigType) -> ConfigType:
 
     # UDP uses up to 2 sockets: 1 broadcast + 1 listen
     # Whether each is used depends on code generation, so register worst case
-    socket.consume_sockets(2, "udp")(config)
+    socket.consume_sockets(2, "udp", socket.SocketType.UDP)(config)
     return config
 
 
@@ -171,6 +171,7 @@ def validate_raw_data(value):
         },
         key=CONF_DATA,
     ),
+    synchronous=True,
 )
 async def udp_write_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

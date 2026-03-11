@@ -468,8 +468,15 @@ ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
 
 static inline void normalize_accuracy_decimals(float &value, int8_t &accuracy_decimals) {
   if (accuracy_decimals < 0) {
-    auto multiplier = powf(10.0f, accuracy_decimals);
-    value = roundf(value * multiplier) / multiplier;
+    float divisor;
+    if (accuracy_decimals == -1) {
+      divisor = 10.0f;
+    } else if (accuracy_decimals == -2) {
+      divisor = 100.0f;
+    } else {
+      divisor = pow10_int(-accuracy_decimals);
+    }
+    value = roundf(value / divisor) * divisor;
     accuracy_decimals = 0;
   }
 }
@@ -699,7 +706,7 @@ float gamma_correct(float value, float gamma) {
   if (gamma <= 0.0f)
     return value;
 
-  return powf(value, gamma);
+  return powf(value, gamma);  // NOLINT - deprecated, removal 2026.9.0
 }
 float gamma_uncorrect(float value, float gamma) {
   if (value <= 0.0f)
@@ -707,7 +714,7 @@ float gamma_uncorrect(float value, float gamma) {
   if (gamma <= 0.0f)
     return value;
 
-  return powf(value, 1 / gamma);
+  return powf(value, 1 / gamma);  // NOLINT - deprecated, removal 2026.9.0
 }
 
 void rgb_to_hsv(float red, float green, float blue, int &hue, float &saturation, float &value) {
@@ -787,7 +794,6 @@ void HighFrequencyLoopRequester::stop() {
   num_requests--;
   this->started_ = false;
 }
-bool HighFrequencyLoopRequester::is_high_frequency() { return num_requests > 0; }
 
 std::string get_mac_address() {
   uint8_t mac[6];

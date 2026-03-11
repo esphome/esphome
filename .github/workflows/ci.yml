@@ -686,7 +686,7 @@ jobs:
       ram_usage: ${{ steps.extract.outputs.ram_usage }}
       flash_usage: ${{ steps.extract.outputs.flash_usage }}
       cache_hit: ${{ steps.cache-memory-analysis.outputs.cache-hit }}
-      skip: ${{ steps.check-script.outputs.skip }}
+      skip: ${{ steps.check-script.outputs.skip || steps.check-tests.outputs.skip }}
     steps:
       - name: Check out target branch
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -705,10 +705,39 @@ jobs:
             echo "::warning::ci_memory_impact_extract.py not found on target branch, skipping memory impact analysis"
           fi
 
-      # All remaining steps only run if script exists
+      # Check if test files exist on the target branch for the requested
+      # components and platform. When a PR adds new test files for a platform,
+      # the target branch won't have them yet, so skip instead of failing.
+      # This check must be done here (not in determine-jobs.py) because
+      # determine-jobs runs on the PR branch and cannot see what the target
+      # branch has.
+      - name: Check for test files on target branch
+        id: check-tests
+        if: steps.check-script.outputs.skip != 'true'
+        run: |
+          components='${{ toJSON(fromJSON(needs.determine-jobs.outputs.memory_impact).components) }}'
+          platform="${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}"
+          found=false
+          for component in $(echo "$components" | jq -r '.[]'); do
+            # Check for test files matching the platform (test.platform.yaml or test-*.platform.yaml)
+            for f in tests/components/${component}/test*.${platform}.yaml; do
+              if [ -f "$f" ]; then
+                found=true
+                break 2
+              fi
+            done
+          done
+          if [ "$found" = false ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "::warning::No test files found on target branch for platform ${platform}, skipping memory impact analysis"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      # All remaining steps only run if script and tests exist
       - name: Generate cache key
         id: cache-key
-        if: steps.check-script.outputs.skip != 'true'
+        if: steps.check-script.outputs.skip != 'true' && steps.check-tests.outputs.skip != 'true'
         run: |
           # Get the commit SHA of the target branch
           target_sha=$(git rev-parse HEAD)
@@ -735,14 +764,14 @@ jobs:
 
       - name: Restore cached memory analysis
         id: cache-memory-analysis
-        if: steps.check-script.outputs.skip != 'true'
+        if: steps.check-script.outputs.skip != 'true' && steps.check-tests.outputs.skip != 'true'
         uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: memory-analysis-target.json
           key: ${{ steps.cache-key.outputs.cache-key }}
 
       - name: Cache status
-        if: steps.check-script.outputs.skip != 'true'
+        if: steps.check-script.outputs.skip != 'true' && steps.check-tests.outputs.skip != 'true'
         run: |
           if [ "${{ steps.cache-memory-analysis.outputs.cache-hit }}" == "true" ]; then
             echo "✓ Cache hit! Using cached memory analysis results."
@@ -752,21 +781,21 @@ jobs:
           fi
 
       - name: Restore Python
-        if: steps.check-script.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
+        if: steps.check-script.outputs.skip != 'true' && steps.check-tests.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
         uses: ./.github/actions/restore-python
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
 
       - name: Cache platformio
-        if: steps.check-script.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
+        if: steps.check-script.outputs.skip != 'true' && steps.check-tests.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
         uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: ~/.platformio
           key: platformio-memory-${{ fromJSON(needs.determine-jobs.outputs.memory_impact).platform }}-${{ hashFiles('platformio.ini') }}
 
       - name: Build, compile, and analyze memory
-        if: steps.check-script.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
+        if: steps.check-script.outputs.skip != 'true' && steps.check-tests.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true'
         id: build
         run: |
           . venv/bin/activate
@@ -800,7 +829,7 @@ jobs:
             --platform "$platform"
 
       - name: Save memory analysis to cache
-        if: steps.check-script.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true' && steps.build.outcome == 'success'
+        if: steps.check-script.outputs.skip != 'true' && steps.check-tests.outputs.skip != 'true' && steps.cache-memory-analysis.outputs.cache-hit != 'true' && steps.build.outcome == 'success'
         uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
         with:
           path: memory-analysis-target.json
@@ -808,7 +837,7 @@ jobs:
 
       - name: Extract memory usage for outputs
         id: extract
-        if: steps.check-script.outputs.skip != 'true'
+        if: steps.check-script.outputs.skip != 'true' && steps.check-tests.outputs.skip != 'true'
         run: |
           if [ -f memory-analysis-target.json ]; then
             ram=$(jq -r '.ram_bytes' memory-analysis-target.json)
@@ -822,7 +851,7 @@ jobs:
           fi
 
       - name: Upload memory analysis JSON
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: memory-analysis-target
           path: memory-analysis-target.json
@@ -886,7 +915,7 @@ jobs:
             --platform "$platform"
 
       - name: Upload memory analysis JSON
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: memory-analysis-pr
           path: memory-analysis-pr.json
@@ -916,13 +945,13 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Download target analysis JSON
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: memory-analysis-target
           path: ./memory-analysis
         continue-on-error: true
       - name: Download PR analysis JSON
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: memory-analysis-pr
           path: ./memory-analysis
