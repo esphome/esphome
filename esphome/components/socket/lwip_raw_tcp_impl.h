@@ -177,30 +177,20 @@ class LWIPRawListenImpl : public LWIPRawCommon {
   int loop() { return 0; }
 
   static void s_err_fn(void *arg, err_t err);
-#ifdef USE_RP2040
   static void s_accepted_pcb_err_fn(void *arg, err_t err);
-#endif
 
  private:
   err_t accept_fn_(struct tcp_pcb *newpcb, err_t err);
   static err_t s_accept_fn(void *arg, struct tcp_pcb *newpcb, err_t err);
 
-  // Accept queue - temporary holding area between lwip callbacks and main loop.
+  // Accept queue — stores raw tcp_pcb pointers instead of heap-allocated LWIPRawImpl objects.
+  // LWIPRawImpl creation is deferred to the main-loop accept() call. This avoids:
+  // - Heap allocation in the accept callback (unsafe from IRQ context on RP2040)
+  // - Dangling LWIPRawImpl if the connection errors before accept() picks it up
   // 3 slots is plenty since connections are pulled out quickly by the event loop.
-  //
-  // On RP2040, the accept callback runs from IRQ context (async_context_threadsafe_background),
-  // so it must NOT allocate heap memory — newlib's malloc recursive mutex doesn't prevent
-  // IRQ re-entry on the same core, causing heap corruption under rapid connect/disconnect.
-  // We store raw tcp_pcb pointers and defer LWIPRawImpl creation to the main-loop accept().
-  //
-  // On ESP8266, lwip callbacks run cooperatively (SYS context), so malloc is safe in callbacks.
   static constexpr size_t MAX_ACCEPTED_SOCKETS = 3;
-#ifdef USE_RP2040
   std::array<struct tcp_pcb *, MAX_ACCEPTED_SOCKETS> accepted_pcbs_{};
-#else
-  std::array<std::unique_ptr<LWIPRawImpl>, MAX_ACCEPTED_SOCKETS> accepted_sockets_;
-#endif
-  uint8_t accepted_socket_count_ = 0;  // Number of entries currently in queue
+  uint8_t accepted_socket_count_ = 0;  // Number of PCBs currently in queue
 };
 
 }  // namespace esphome::socket

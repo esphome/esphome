@@ -664,7 +664,6 @@ ssize_t LWIPRawImpl::writev(const struct iovec *iov, int iovcnt) {
 
 LWIPRawListenImpl::~LWIPRawListenImpl() {
   LWIP_LOCK();
-#ifdef USE_RP2040
   // Abort any queued PCBs that were never accepted by the main loop
   for (uint8_t i = 0; i < this->accepted_socket_count_; i++) {
     if (this->accepted_pcbs_[i] != nullptr) {
@@ -673,7 +672,6 @@ LWIPRawListenImpl::~LWIPRawListenImpl() {
     }
   }
   this->accepted_socket_count_ = 0;
-#endif
   // Listen PCBs must use tcp_close(), not tcp_abort().
   // tcp_abandon() asserts pcb->state != LISTEN and would access
   // fields that don't exist in the smaller tcp_pcb_listen struct.
@@ -699,7 +697,6 @@ void LWIPRawListenImpl::s_err_fn(void *arg, err_t err) {
   arg_this->pcb_ = nullptr;
 }
 
-#ifdef USE_RP2040
 void LWIPRawListenImpl::s_accepted_pcb_err_fn(void *arg, err_t err) {
   // Called when a queued (not yet accepted) PCB errors — e.g., remote sent RST.
   // The PCB is already freed by lwip. Null our pointer so accept() skips it.
@@ -707,7 +704,6 @@ void LWIPRawListenImpl::s_accepted_pcb_err_fn(void *arg, err_t err) {
   auto *slot = reinterpret_cast<struct tcp_pcb **>(arg);
   *slot = nullptr;
 }
-#endif
 
 err_t LWIPRawListenImpl::s_accept_fn(void *arg, struct tcp_pcb *newpcb, err_t err) {
   auto *arg_this = reinterpret_cast<LWIPRawListenImpl *>(arg);
@@ -724,9 +720,7 @@ std::unique_ptr<LWIPRawImpl> LWIPRawListenImpl::accept(struct sockaddr *addr, so
     errno = EWOULDBLOCK;
     return nullptr;
   }
-#ifdef USE_RP2040
-  // On RP2040, the accept callback stored raw PCBs to avoid heap allocation in IRQ context.
-  // Create the LWIPRawImpl here on the main loop where malloc is safe.
+  // Take raw PCB from front of queue
   struct tcp_pcb *pcb = this->accepted_pcbs_[0];
   // Shift remaining PCBs forward
   for (uint8_t i = 1; i < this->accepted_socket_count_; i++) {
@@ -748,18 +742,10 @@ std::unique_ptr<LWIPRawImpl> LWIPRawListenImpl::accept(struct sockaddr *addr, so
     errno = EWOULDBLOCK;
     return nullptr;
   }
+  // Create socket wrapper on the main loop (not in accept callback) to avoid
+  // heap allocation in IRQ context on RP2040.
   auto sock = make_unique<LWIPRawImpl>(this->family_, pcb);
   sock->init();
-#else
-  // Take from front for FIFO ordering
-  std::unique_ptr<LWIPRawImpl> sock = std::move(this->accepted_sockets_[0]);
-  // Shift remaining sockets forward
-  for (uint8_t i = 1; i < this->accepted_socket_count_; i++) {
-    this->accepted_sockets_[i - 1] = std::move(this->accepted_sockets_[i]);
-  }
-  this->accepted_socket_count_--;
-  LWIP_LOG("Connection accepted by application, queue size: %d", this->accepted_socket_count_);
-#endif
   if (addr != nullptr) {
     sock->getpeername(addr, addrlen);
   }
@@ -811,11 +797,8 @@ err_t LWIPRawListenImpl::accept_fn_(struct tcp_pcb *newpcb, err_t err) {
     // Must return ERR_ABRT since we called tcp_abort()
     return ERR_ABRT;
   }
-#ifdef USE_RP2040
-  // On RP2040, this callback runs from IRQ context (async_context_threadsafe_background).
-  // Heap allocation here is unsafe — newlib's malloc recursive mutex doesn't prevent
-  // IRQ re-entry on the same core, causing heap corruption under rapid connect/disconnect.
-  // Store the raw PCB and defer LWIPRawImpl creation to the main-loop accept().
+  // Store the raw PCB — LWIPRawImpl creation is deferred to the main-loop accept().
+  // This avoids heap allocation in this callback, which is unsafe from IRQ context on RP2040.
   uint8_t idx = this->accepted_socket_count_++;
   this->accepted_pcbs_[idx] = newpcb;
   // Register a temporary error callback so that if the connection errors (RST, timeout)
@@ -823,11 +806,6 @@ err_t LWIPRawListenImpl::accept_fn_(struct tcp_pcb *newpcb, err_t err) {
   // tcp_arg points to our array slot; accept() updates these pointers after shifting.
   tcp_arg(newpcb, &this->accepted_pcbs_[idx]);
   tcp_err(newpcb, LWIPRawListenImpl::s_accepted_pcb_err_fn);
-#else
-  auto sock = make_unique<LWIPRawImpl>(this->family_, newpcb);
-  sock->init();
-  this->accepted_sockets_[this->accepted_socket_count_++] = std::move(sock);
-#endif
   LWIP_LOG("Accepted connection, queue size: %d", this->accepted_socket_count_);
 #if (defined(USE_ESP8266) || defined(USE_RP2040))
   // Wake the main loop immediately so it can accept the new connection.
