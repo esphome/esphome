@@ -8,7 +8,6 @@ import time
 
 from esphome import loader
 from esphome.config import iter_component_configs, iter_components
-from esphome.core.config import INCLUDE_STAGE_ORDER, KEY_INCLUDE_STATEMENTS
 from esphome.const import (
     HEADER_FILE_EXTENSIONS,
     PLATFORM_ESP32,
@@ -16,6 +15,7 @@ from esphome.const import (
     __version__,
 )
 from esphome.core import CORE, EsphomeError
+from esphome.core.config import INCLUDE_STAGE_ORDER, KEY_INCLUDE_STATEMENTS
 from esphome.helpers import (
     copy_file_if_changed,
     cpp_string_escape,
@@ -159,9 +159,7 @@ def find_begin_end(text, begin_s, end_s):
     return text[:begin_index], text[(end_index + len(end_s)) :]
 
 
-DEFINES_H_FORMAT = (
-    ESPHOME_H_FORMAT
-) = """\
+DEFINES_H_FORMAT = ESPHOME_H_FORMAT = """\
 #pragma once
 #include "esphome/core/macros.h"
 {}
