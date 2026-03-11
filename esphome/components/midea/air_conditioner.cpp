@@ -25,7 +25,7 @@ template<typename T> void update_property(T &property, const T &value, bool &fla
 
 void AirConditioner::on_status_change() {
   bool need_publish = false;
-  update_property(this->target_temperature, this->base_.getTargetTemp(), need_publish);
+  update_property(this->target_temperature, this->ac_celsius_to_ha_celsius(this->base_.getTargetTemp()), need_publish);
   update_property(this->current_temperature, this->base_.getIndoorTemp(), need_publish);
   auto mode = Converters::to_climate_mode(this->base_.getMode());
   update_property(this->mode, mode, need_publish);
@@ -58,7 +58,7 @@ void AirConditioner::control(const ClimateCall &call) {
   dudanov::midea::ac::Control ctrl{};
   auto target_temp_val = call.get_target_temperature();
   if (target_temp_val.has_value())
-    ctrl.targetTemp = *target_temp_val;
+    ctrl.targetTemp = this->ha_celsius_to_ac_celsius(*target_temp_val);
   auto swing_mode_val = call.get_swing_mode();
   if (swing_mode_val.has_value())
     ctrl.swingMode = Converters::to_midea_swing_mode(*swing_mode_val);
@@ -85,9 +85,17 @@ void AirConditioner::control(const ClimateCall &call) {
 ClimateTraits AirConditioner::traits() {
   auto traits = ClimateTraits();
   traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
-  traits.set_visual_min_temperature(17);
-  traits.set_visual_max_temperature(30);
-  traits.set_visual_temperature_step(0.5);
+  if (this->use_fahrenheit_) {
+    // Set min/max/step so HA displays clean integer F (60-86)
+    traits.set_visual_min_temperature((F_MIN - 32.0f) / 1.8f - 0.001f);  // 60F = 15.556C
+    traits.set_visual_max_temperature((F_MAX - 32.0f) / 1.8f);  // 86F = 30.0C
+    traits.set_visual_target_temperature_step(1.0f);             // 1F step
+    traits.set_visual_current_temperature_step(0.5f);          // match stock
+  } else {
+    traits.set_visual_min_temperature(17);
+    traits.set_visual_max_temperature(30);
+    traits.set_visual_temperature_step(0.5);
+  }
   traits.set_supported_modes(this->supported_modes_);
   traits.set_supported_swing_modes(this->supported_swing_modes_);
   traits.set_supported_presets(this->supported_presets_);

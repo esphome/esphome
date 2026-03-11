@@ -53,7 +53,9 @@ def templatize(value):
 
 def register_action(name, type_, schema):
     validator = templatize(schema).extend(MIDEA_ACTION_BASE_SCHEMA)
-    registerer = automation.register_action(f"midea_ac.{name}", type_, validator)
+    registerer = automation.register_action(
+        f"midea_ac.{name}", type_, validator
+    )
 
     def decorator(func):
         async def new_func(config, action_id, template_arg, args):
@@ -114,6 +116,7 @@ CONFIG_SCHEMA = cv.All(
                 remote_transmitter.RemoteTransmitterComponent
             ),
             cv.Optional(CONF_BEEPER, default=False): cv.boolean,
+            cv.Optional(CONF_USE_FAHRENHEIT, default=False): cv.boolean,
             cv.Optional(CONF_AUTOCONF, default=True): cv.boolean,
             cv.Optional(CONF_SUPPORTED_MODES): cv.ensure_list(validate_modes),
             cv.Optional(CONF_SUPPORTED_SWING_MODES): cv.ensure_list(
@@ -270,6 +273,7 @@ async def to_code(config):
         transmitter_ = await cg.get_variable(config[CONF_TRANSMITTER_ID])
         cg.add(var.set_transmitter(transmitter_))
     cg.add(var.set_beeper_feedback(config[CONF_BEEPER]))
+    cg.add(var.set_use_fahrenheit(config[CONF_USE_FAHRENHEIT]))
     cg.add(var.set_autoconf(config[CONF_AUTOCONF]))
     if CONF_SUPPORTED_MODES in config:
         cg.add(var.set_supported_modes(config[CONF_SUPPORTED_MODES]))
