@@ -572,7 +572,7 @@ bool INA2XX::write_unsigned_16_(uint8_t reg, uint16_t val) {
 }
 
 bool INA2XX::read_unsigned_(uint8_t reg, uint8_t reg_size, uint64_t &data_out) {
-  uint8_t rx_buf[5];
+  uint8_t rx_buf[5]{};
   if (reg_size > sizeof(rx_buf)) {
     return false;
   }
