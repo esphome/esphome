@@ -443,7 +443,7 @@ class WiFiComponent : public Component {
 
   void set_reboot_timeout(uint32_t reboot_timeout);
 
-  bool is_connected() const;
+  bool is_connected() const { return this->connected_; }
 
   void set_power_save_mode(WiFiPowerSaveMode power_save);
   void set_min_auth_mode(WifiMinAuthMode min_auth_mode) { min_auth_mode_ = min_auth_mode; }
@@ -678,6 +678,8 @@ class WiFiComponent : public Component {
   bool wifi_sta_connect_(const WiFiAP &ap);
   void wifi_pre_setup_();
   WiFiSTAConnectStatus wifi_sta_connect_status_() const;
+  bool is_connected_() const;
+  void update_connected_state_();
   bool wifi_scan_start_(bool passive);
 
 #ifdef USE_WIFI_AP
@@ -854,6 +856,7 @@ class WiFiComponent : public Component {
   bool has_completed_scan_after_captive_portal_start_{
       false};  // Tracks if we've completed a scan after captive portal started
   bool skip_cooldown_next_cycle_{false};
+  bool connected_{false};
   bool post_connect_roaming_{true};  // Enabled by default
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   bool is_high_performance_mode_{false};

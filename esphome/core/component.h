@@ -142,7 +142,7 @@ class Component {
    */
   virtual void on_powerdown() {}
 
-  uint8_t get_component_state() const;
+  uint8_t get_component_state() const { return this->component_state_; }
 
   /** Reset this component back to the construction state to allow setup to run again.
    *
@@ -154,7 +154,7 @@ class Component {
    *
    * @return True if in loop state, false otherwise.
    */
-  bool is_in_loop_state() const;
+  bool is_in_loop_state() const { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP; }
 
   /** Check if this component is idle.
    * Being idle means being in LOOP_DONE state.
@@ -162,7 +162,7 @@ class Component {
    *
    * @return True if the component is idle
    */
-  bool is_idle() const;
+  bool is_idle() const { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE; }
 
   /** Mark this component as failed. Any future timeouts/intervals/setup/loop will no longer be called.
    *
@@ -230,15 +230,15 @@ class Component {
    */
   void enable_loop_soon_any_context();
 
-  bool is_failed() const;
+  bool is_failed() const { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED; }
 
   bool is_ready() const;
 
   virtual bool can_proceed();
 
-  bool status_has_warning() const;
+  bool status_has_warning() const { return this->component_state_ & STATUS_LED_WARNING; }
 
-  bool status_has_error() const;
+  bool status_has_error() const { return this->component_state_ & STATUS_LED_ERROR; }
 
   void status_set_warning(const char *message = nullptr);
   void status_set_warning(const LogString *message);
@@ -251,9 +251,17 @@ class Component {
   void status_set_error(const char *message);
   void status_set_error(const LogString *message);
 
-  void status_clear_warning();
+  void status_clear_warning() {
+    if ((this->component_state_ & STATUS_LED_WARNING) == 0)
+      return;
+    this->status_clear_warning_slow_path_();
+  }
 
-  void status_clear_error();
+  void status_clear_error() {
+    if ((this->component_state_ & STATUS_LED_ERROR) == 0)
+      return;
+    this->status_clear_error_slow_path_();
+  }
 
   /** Set warning status flag and automatically clear it after a timeout.
    *
@@ -505,6 +513,9 @@ class Component {
   bool cancel_defer(const char *name);         // NOLINT
   bool cancel_defer(uint32_t id);              // NOLINT
 
+  void status_clear_warning_slow_path_();
+  void status_clear_error_slow_path_();
+
   // Ordered for optimal packing on 32-bit systems
   const LogString *component_source_{nullptr};
   uint16_t warn_if_blocking_over_{WARN_IF_BLOCKING_OVER_MS};  ///< Warn if blocked for this many ms (max 65.5s)
@@ -563,10 +574,21 @@ class PollingComponent : public Component {
   uint32_t update_interval_;
 };
 
+#ifdef USE_RUNTIME_STATS
+uint32_t micros();  // Forward declare for inline constructor
+#endif
+
 class WarnIfComponentBlockingGuard {
  public:
   WarnIfComponentBlockingGuard(Component *component, uint32_t start_time)
-      : started_(start_time), component_(component) {}
+      : started_(start_time),
+        component_(component)
+#ifdef USE_RUNTIME_STATS
+        ,
+        started_us_(micros())
+#endif
+  {
+  }
 
   // Finish the timing operation and return the current time
   uint32_t finish();
@@ -576,6 +598,9 @@ class WarnIfComponentBlockingGuard {
  protected:
   uint32_t started_;
   Component *component_;
+#ifdef USE_RUNTIME_STATS
+  uint32_t started_us_;
+#endif
 };
 
 // Function to clear setup priority overrides after all components are set up

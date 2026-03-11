@@ -146,6 +146,10 @@ void ESP32Camera::dump_config() {
   }
 
   sensor_t *s = esp_camera_sensor_get();
+  if (s == nullptr) {
+    ESP_LOGE(TAG, "  Camera sensor not available");
+    return;
+  }
   auto st = s->status;
   ESP_LOGCONFIG(TAG,
                 "  JPEG Quality: %u\n"
@@ -483,6 +487,9 @@ void ESP32Camera::request_image(camera::CameraRequester requester) { this->singl
 camera::CameraImageReader *ESP32Camera::create_image_reader() { return new ESP32CameraImageReader; }
 void ESP32Camera::update_camera_parameters() {
   sensor_t *s = esp_camera_sensor_get();
+  if (s == nullptr) {
+    return;
+  }
   /* update image */
   s->set_vflip(s, this->vertical_flip_);
   s->set_hmirror(s, this->horizontal_mirror_);
