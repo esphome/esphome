@@ -1,8 +1,8 @@
 esphome:
   includes:
-    - path: ${component_dir}/before_globals_include.h
+    - path: ${component_dir}/include_order/before_globals_include.h
       stage: before_any_globals
-    - ${component_dir}/after_globals_include.h
+    - ${component_dir}/include_order/after_globals_include.h
   on_boot:
     then:
       - lambda: |-
