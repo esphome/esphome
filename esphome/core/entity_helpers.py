@@ -34,11 +34,19 @@ _KEY_ICON_IDX = "_entity_icon_idx"
 _KEY_ENTITY_NAME = "_entity_name"
 _KEY_OBJECT_ID_HASH = "_entity_object_id_hash"
 
-# Bit layout for entity_strings_packed in configure_entity_() — must match C++ in entity_base.h:
-#   [23..16] icon (8 bits) | [15..8] UoM (8 bits) | [7..0] device_class (8 bits)
+# Bit layout for entity_fields in configure_entity_().
+# Keep in sync with ENTITY_FIELD_*_SHIFT constants in esphome/core/entity_base.h
 _DC_SHIFT = 0
 _UOM_SHIFT = 8
 _ICON_SHIFT = 16
+_INTERNAL_SHIFT = 24
+_DISABLED_BY_DEFAULT_SHIFT = 25
+_ENTITY_CATEGORY_SHIFT = 26
+
+# Private config keys for storing flags
+_KEY_INTERNAL = "_entity_internal"
+_KEY_DISABLED_BY_DEFAULT = "_entity_disabled_by_default"
+_KEY_ENTITY_CATEGORY = "_entity_category"
 
 # Maximum unique strings per category (8-bit index, 0 = not set)
 _MAX_DEVICE_CLASSES = 0xFF  # 255
@@ -220,8 +228,39 @@ def setup_unit_of_measurement(config: ConfigType) -> None:
     config[_KEY_UOM_IDX] = idx
 
 
+def _sanitize_comment(text: str) -> str:
+    r"""Sanitize a string for safe inclusion in a C++ // line comment.
+
+    Dangerous characters:
+    - \n, \r: break out of line comment, next line becomes code
+    - \: at end of line, splices next line into comment (eats real code)
+    """
+    return text.replace("\\", "/").replace("\n", " ").replace("\r", "")
+
+
+def _describe_packed_flags(config: ConfigType, entity_category: int) -> str:
+    """Build a human-readable description of packed entity flags for C++ comments."""
+    parts: list[str] = []
+    if config.get(_KEY_INTERNAL):
+        parts.append("internal")
+    if config.get(_KEY_DISABLED_BY_DEFAULT):
+        parts.append("disabled_by_default")
+    entity_cat_keys = list(cv.ENTITY_CATEGORIES)
+    if entity_category < len(entity_cat_keys) and (
+        cat_name := entity_cat_keys[entity_category]
+    ):
+        parts.append(f"category:{cat_name}")
+    if config.get(_KEY_DC_IDX) and (dc := config.get(CONF_DEVICE_CLASS)):
+        parts.append(f"dc:{_sanitize_comment(dc)}")
+    if config.get(_KEY_UOM_IDX) and (uom := config.get(CONF_UNIT_OF_MEASUREMENT)):
+        parts.append(f"uom:{_sanitize_comment(uom)}")
+    if config.get(_KEY_ICON_IDX) and (icon := config.get(CONF_ICON)):
+        parts.append(f"icon:{_sanitize_comment(icon)}")
+    return ", ".join(parts)
+
+
 def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
-    """Emit a single configure_entity_() call with name, hash, and packed string indices.
+    """Emit a single configure_entity_() call with name, hash, packed string indices, and flags.
 
     Call this at the end of each component's setup function, after
     setup_entity() and any register_device_class/register_unit_of_measurement calls.
@@ -231,8 +270,24 @@ def finalize_entity_strings(var: MockObj, config: ConfigType) -> None:
     dc_idx = config.get(_KEY_DC_IDX, 0)
     uom_idx = config.get(_KEY_UOM_IDX, 0)
     icon_idx = config.get(_KEY_ICON_IDX, 0)
-    packed = (dc_idx << _DC_SHIFT) | (uom_idx << _UOM_SHIFT) | (icon_idx << _ICON_SHIFT)
-    add(var.configure_entity_(entity_name, object_id_hash, packed))
+    internal = config.get(_KEY_INTERNAL, 0)
+    disabled_by_default = config.get(_KEY_DISABLED_BY_DEFAULT, 0)
+    entity_category = config.get(_KEY_ENTITY_CATEGORY, 0)
+    packed = (
+        (dc_idx << _DC_SHIFT)
+        | (uom_idx << _UOM_SHIFT)
+        | (icon_idx << _ICON_SHIFT)
+        | (internal << _INTERNAL_SHIFT)
+        | (disabled_by_default << _DISABLED_BY_DEFAULT_SHIFT)
+        | (entity_category << _ENTITY_CATEGORY_SHIFT)
+    )
+    # Build inline comment describing the packed flags for readability
+    comment = _describe_packed_flags(config, entity_category)
+    expr = var.configure_entity_(entity_name, object_id_hash, packed)
+    if comment:
+        add(RawStatement(f"{expr};  // {comment}"))
+    else:
+        add(expr)
 
 
 def get_base_entity_object_id(
@@ -332,7 +387,7 @@ async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) ->
     # Get device info if configured
     if device_id_obj := config.get(CONF_DEVICE_ID):
         device: MockObj = await get_variable(device_id_obj)
-        add(var.set_device(device))
+        add(var.set_device_(device))
 
     # Pre-compute entity name and object_id hash for configure_entity_()
     # which is emitted later by finalize_entity_strings().
@@ -343,18 +398,25 @@ async def _setup_entity_impl(var: MockObj, config: ConfigType, platform: str) ->
     object_id_hash = fnv1_hash_object_id(entity_name) if entity_name else 0
     config[_KEY_ENTITY_NAME] = entity_name
     config[_KEY_OBJECT_ID_HASH] = object_id_hash
-    # Only set disabled_by_default if True (default is False)
-    if config[CONF_DISABLED_BY_DEFAULT]:
-        add(var.set_disabled_by_default(True))
+    # Store flags for packing into configure_entity_()
+    config[_KEY_DISABLED_BY_DEFAULT] = int(config[CONF_DISABLED_BY_DEFAULT])
     if CONF_INTERNAL in config:
-        add(var.set_internal(config[CONF_INTERNAL]))
+        config[_KEY_INTERNAL] = int(config[CONF_INTERNAL])
     icon_idx = 0
     if CONF_ICON in config:
         # Add USE_ENTITY_ICON define when icons are used
         cg.add_define("USE_ENTITY_ICON")
         icon_idx = register_icon(config[CONF_ICON])
     if CONF_ENTITY_CATEGORY in config:
-        add(var.set_entity_category(config[CONF_ENTITY_CATEGORY]))
+        # Derive integer value from key position in cv.ENTITY_CATEGORIES
+        # (must match C++ EntityCategory enum in entity_base.h)
+        entity_cat_str = str(config[CONF_ENTITY_CATEGORY])
+        entity_cat_keys = list(cv.ENTITY_CATEGORIES)
+        config[_KEY_ENTITY_CATEGORY] = (
+            entity_cat_keys.index(entity_cat_str)
+            if entity_cat_str in entity_cat_keys
+            else 0
+        )
     # Store icon index for finalize_entity_strings
     config[_KEY_ICON_IDX] = icon_idx
 

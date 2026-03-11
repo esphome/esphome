@@ -1,0 +1,43 @@
+i2s_audio:
+  i2s_lrclk_pin: ${i2s_bclk_pin}
+  i2s_bclk_pin: ${i2s_lrclk_pin}
+  i2s_mclk_pin: ${i2s_mclk_pin}
+
+speaker:
+  - platform: i2s_audio
+    id: speaker_id
+    dac_type: external
+    i2s_dout_pin: ${i2s_dout_pin}
+    sample_rate: 48000
+    num_channels: 2
+
+audio_file:
+  - id: test_audio
+    file:
+      type: local
+      path: $component_dir/test.wav
+
+media_source:
+  - platform: audio_file
+    id: audio_file_source
+
+media_player:
+  - platform: speaker_source
+    id: media_player_id
+    name: Media Player
+    volume_increment: 0.02
+    volume_initial: 0.75
+    volume_max: 0.95
+    volume_min: 0.0
+    media_pipeline:
+      speaker: speaker_id
+      format: FLAC
+      num_channels: 1
+      sources:
+        - audio_file_source
+    on_mute:
+      - media_player.pause:
+          id: media_player_id
+    on_unmute:
+      - media_player.play:
+          id: media_player_id

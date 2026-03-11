@@ -88,8 +88,8 @@ def _translate_pin(value):
 
 @dataclass
 class ESP32ValidationFunctions:
-    pin_validation: Callable[[Any], Any]
-    usage_validation: Callable[[Any], Any]
+    pin_validation: Callable[[int], int]
+    usage_validation: Callable[[dict[str, Any]], dict[str, Any]]
 
 
 _esp32_validations = {
