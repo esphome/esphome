@@ -76,6 +76,10 @@ def add_define(macro, value="1"):
     lv_defines[macro] = value
 
 
+def is_defined(macro):
+    return macro in get_data(KEY_LV_DEFINES)
+
+
 def literal(arg) -> MockObj:
     if isinstance(arg, str):
         return MockObj(arg)
@@ -775,4 +779,6 @@ LV_DEFINES = (
     "LV_USE_THORVG",
     "LV_SDL_USE_EGL",
     "LV_USE_EGL",
+    "LV_LABEL_LONG_TXT_HINT",
+    "LV_LABEL_TEXT_SELECTION",
 )
