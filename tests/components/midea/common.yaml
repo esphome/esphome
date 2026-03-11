@@ -36,6 +36,7 @@ climate:
     num_attempts: 5
     timeout: 2s
     beeper: false
+    use_fahrenheit: true
     autoconf: true
     visual:
       min_temperature: 17 °C
