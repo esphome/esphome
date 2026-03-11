@@ -612,8 +612,14 @@ async def to_code(config):
         cg.add_define("USE_ESP32_BLE_UUID")
 
     if config[CONF_FILTER] and config[CONF_FILTER][CONF_MAC_ADDRESS]:
-        allowlist_items = [(it[CONF_VALUE].as_hex, it[CONF_PUBLIC]) for it in config[CONF_FILTER][CONF_MAC_ADDRESS]]
-        cg.add_define("ESPHOME_ESP32_BLE_ALLOWLIST_SIZE", len(config[CONF_FILTER][CONF_MAC_ADDRESS]))
+        allowlist_items = [
+            (it[CONF_VALUE].as_hex, it[CONF_PUBLIC])
+            for it in config[CONF_FILTER][CONF_MAC_ADDRESS]
+        ]
+        cg.add_define(
+            "ESPHOME_ESP32_BLE_ALLOWLIST_SIZE",
+            len(config[CONF_FILTER][CONF_MAC_ADDRESS]),
+        )
         cg.add(var.set_allowlist_items(allowlist_items))
 
     # Schedule the handler defines to be added after all components register
