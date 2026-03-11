@@ -88,9 +88,9 @@ ClimateTraits AirConditioner::traits() {
   if (this->use_fahrenheit_) {
     // Set min/max/step so HA displays clean integer F (60-86)
     traits.set_visual_min_temperature((F_MIN - 32.0f) / 1.8f - 0.001f);  // 60F = 15.556C
-    traits.set_visual_max_temperature((F_MAX - 32.0f) / 1.8f);  // 86F = 30.0C
-    traits.set_visual_target_temperature_step(1.0f);             // 1F step
-    traits.set_visual_current_temperature_step(1.0f);          // 0.5C ≈ 1F
+    traits.set_visual_max_temperature((F_MAX - 32.0f) / 1.8f);           // 86F = 30.0C
+    traits.set_visual_target_temperature_step(1.0f);                     // 1F step
+    traits.set_visual_current_temperature_step(1.0f);                    // 0.5C ≈ 1F
   } else {
     traits.set_visual_min_temperature(17);
     traits.set_visual_max_temperature(30);

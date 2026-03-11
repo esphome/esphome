@@ -72,9 +72,9 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner>,
   static constexpr int F_MAX = 86;
   static constexpr int F_COUNT = F_MAX - F_MIN + 1;
   static constexpr float AC_CELSIUS[F_COUNT] = {
-    16.0f, 16.5f, 17.0f, 17.5f, 18.0f, 18.5f, 19.0f, 19.5f, 20.0f,  // 60-68
-    20.5f, 21.0f, 21.5f, 22.0f, 23.0f, 23.5f, 24.0f, 24.5f, 25.0f,  // 69-77
-    25.5f, 26.0f, 26.5f, 27.0f, 28.0f, 28.5f, 29.0f, 29.5f, 30.0f   // 78-86
+      16.0f, 16.5f, 17.0f, 17.5f, 18.0f, 18.5f, 19.0f, 19.5f, 20.0f,  // 60-68
+      20.5f, 21.0f, 21.5f, 22.0f, 23.0f, 23.5f, 24.0f, 24.5f, 25.0f,  // 69-77
+      25.5f, 26.0f, 26.5f, 27.0f, 28.0f, 28.5f, 29.0f, 29.5f, 30.0f   // 78-86
   };
 
   /// INBOUND (HA -> AC): Convert HA's precise Celsius to the AC's canonical
@@ -83,8 +83,10 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner>,
     if (!this->use_fahrenheit_)
       return celsius;
     int f = static_cast<int>(std::round(celsius * 1.8f + 32.0f));
-    if (f < F_MIN) f = F_MIN;
-    if (f > F_MAX) f = F_MAX;
+    if (f < F_MIN)
+      f = F_MIN;
+    if (f > F_MAX)
+      f = F_MAX;
     return AC_CELSIUS[f - F_MIN];
   }
 
