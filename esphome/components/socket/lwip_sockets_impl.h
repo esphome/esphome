@@ -55,7 +55,7 @@ class LwIPSocketImpl {
 #if defined(USE_LWIP_FAST_SELECT) && defined(CONFIG_LWIP_TCPIP_CORE_LOCKING)
     // Fast path for TCP_NODELAY: directly set the pcb flag under the TCPIP core lock,
     // bypassing lwip_setsockopt overhead (socket lookups, hook, switch cascade, refcounting).
-    if (level == IPPROTO_TCP && optname == TCP_NODELAY && optlen == sizeof(int)) {
+    if (level == IPPROTO_TCP && optname == TCP_NODELAY && optlen == sizeof(int) && optval != nullptr) {
       LwIPLock lock;
       if (esphome_lwip_set_nodelay(this->cached_sock_, *reinterpret_cast<const int *>(optval) != 0))
         return 0;
