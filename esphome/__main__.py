@@ -74,6 +74,8 @@ from esphome.util import (
 
 _LOGGER = logging.getLogger(__name__)
 
+ESPHOME_COMMAND = [sys.executable, "-m", "esphome"]
+
 # Maximum buffer size for serial log reading to prevent unbounded memory growth
 SERIAL_BUFFER_MAX_SIZE = 65536
 
@@ -1307,28 +1309,10 @@ def command_update_all(args: ArgsProtocol) -> int | None:
     files = list_yaml_files(args.configuration)
 
     def build_command(f):
+        cmd = [*ESPHOME_COMMAND]
         if CORE.dashboard:
-            return [
-                sys.executable,
-                "-m",
-                "esphome",
-                "--dashboard",
-                "run",
-                f,
-                "--no-logs",
-                "--device",
-                "OTA",
-            ]
-        return [
-            sys.executable,
-            "-m",
-            "esphome",
-            "run",
-            f,
-            "--no-logs",
-            "--device",
-            "OTA",
-        ]
+            cmd.append("--dashboard")
+        return [*cmd, "run", f, "--no-logs", "--device", "OTA"]
 
     return run_multiple_configs(files, build_command)
 
@@ -1477,7 +1461,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     new_path.write_text(new_raw, encoding="utf-8")
 
-    rc = run_external_process(sys.executable, "-m", "esphome", "config", str(new_path))
+    rc = run_external_process(*ESPHOME_COMMAND, "config", str(new_path))
     if rc != 0:
         print(color(AnsiFore.BOLD_RED, "Rename failed. Reverting changes."))
         new_path.unlink()
@@ -1495,7 +1479,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
         cli_args.insert(0, "--dashboard")
 
     try:
-        rc = run_external_process(sys.executable, "-m", "esphome", *cli_args)
+        rc = run_external_process(*ESPHOME_COMMAND, *cli_args)
     except KeyboardInterrupt:
         rc = 1
     if rc != 0:
@@ -1892,7 +1876,7 @@ def run_esphome(argv):
         # argv[0] is the program path, skip it since we prefix with "esphome"
         def build_command(f):
             return (
-                [sys.executable, "-m", "esphome"]
+                [*ESPHOME_COMMAND]
                 + [arg for arg in argv[1:] if arg not in args.configuration]
                 + [str(f)]
             )
