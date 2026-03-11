@@ -28,11 +28,13 @@ static inline bool IRAM_ATTR is_code_addr(uint32_t addr) {
 // Raw crash data written by the panic handler wrapper.
 // Lives in .noinit so it survives software reset but contains garbage after power cycle.
 // Validated by magic marker. Static linkage since it's only used within this file.
+// Field order matters: magic, pc, and backtrace_count are at fixed offsets
+// so the struct remains readable even if MAX_BACKTRACE changes between versions.
 struct RawCrashData {
   uint32_t magic;
   uint32_t pc;
-  uint32_t backtrace[MAX_BACKTRACE];
   uint8_t backtrace_count;
+  uint32_t backtrace[MAX_BACKTRACE];
 };
 static RawCrashData __attribute__((section(".noinit"))) s_raw_crash_data;
 
