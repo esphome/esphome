@@ -187,8 +187,8 @@ class LWIPRawListenImpl : public LWIPRawCommon {
   // LWIPRawImpl creation is deferred to the main-loop accept() call. This avoids:
   // - Heap allocation in the accept callback (unsafe from IRQ context on RP2040)
   // - Dangling LWIPRawImpl if the connection errors before accept() picks it up
-  // 3 slots is plenty since connections are pulled out quickly by the event loop.
-  static constexpr size_t MAX_ACCEPTED_SOCKETS = 3;
+  // 2 slots is plenty since the main loop drains the queue every iteration.
+  static constexpr size_t MAX_ACCEPTED_SOCKETS = 2;
   std::array<struct tcp_pcb *, MAX_ACCEPTED_SOCKETS> accepted_pcbs_{};
   uint8_t accepted_socket_count_ = 0;  // Number of PCBs currently in queue
 };
