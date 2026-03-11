@@ -39,3 +39,5 @@ dependencies:
       - if: "target in [esp32, esp32s2, esp32s3, esp32c6, esp32p4]"
   esp32async/asynctcp:
     version: 3.4.91
+  lvgl/lvgl:
+    version: 9.5.0
