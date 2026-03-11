@@ -316,7 +316,7 @@ void IndicatorLine::set_obj(lv_obj_t *lv_obj) {
       [](lv_event_t *e) {
         auto *indicator = static_cast<IndicatorLine *>(lv_event_get_user_data(e));
         indicator->update_length_();
-        ESP_LOGD(TAG, "Updated length, value = %d", indicator->angle_);
+        ESP_LOGV(TAG, "Updated length, value = %d", indicator->angle_);
       },
       LV_EVENT_SIZE_CHANGED, this);
 }
@@ -627,7 +627,16 @@ void LvglComponent::loop() {
     if (this->paused_ && this->show_snow_)
       this->write_random_();
   } else {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    auto now = millis();
     lv_timer_handler();
+    auto elapsed = millis() - now;
+    if (elapsed > 15) {
+      ESP_LOGV(TAG, "lv_timer_handler took %dms", (int) (millis() - now));
+    }
+#else
+    lv_timer_handler();
+#endif
   }
 }
 
@@ -643,6 +652,7 @@ void LvglComponent::static_flush_cb(lv_display_t *disp_drv, const lv_area_t *are
   reinterpret_cast<LvglComponent *>(lv_display_get_user_data(disp_drv))->flush_cb_(disp_drv, area, color_p);
 }
 
+#ifdef USE_LVGL_SCALE
 /**
  * Function to apply colors to ticks based on position
  * @param e The event data
@@ -671,6 +681,7 @@ void lv_scale_draw_event_cb(lv_event_t *e, uint16_t range_start, uint16_t range_
     }
   }
 }
+#endif  // USE_LVGL_SCALE
 
 static void lv_container_constructor(const lv_obj_class_t *class_p, lv_obj_t *obj) {
   LV_TRACE_OBJ_CREATE("begin");
