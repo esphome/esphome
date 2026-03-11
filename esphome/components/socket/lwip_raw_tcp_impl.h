@@ -177,6 +177,9 @@ class LWIPRawListenImpl : public LWIPRawCommon {
   int loop() { return 0; }
 
   static void s_err_fn(void *arg, err_t err);
+#ifdef USE_RP2040
+  static void s_accepted_pcb_err_fn(void *arg, err_t err);
+#endif
 
  private:
   err_t accept_fn_(struct tcp_pcb *newpcb, err_t err);
