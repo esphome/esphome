@@ -1,6 +1,8 @@
 import logging
 from pathlib import Path
+import re
 from string import ascii_letters, digits
+import subprocess
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -264,3 +266,48 @@ def copy_files():
         path = CORE.relative_src_path("esphome.h")
         content = read_file(path).rstrip("\n")
         write_file_if_changed(path, content + '\n#include "pio_includes.h"\n')
+
+
+# RP2040 crash handler stacktrace decoding
+# Matches output from esphome/components/rp2040/crash_handler.cpp
+_CRASH_RE = re.compile(r"CRASH DETECTED ON PREVIOUS BOOT")
+_CRASH_ADDR_RE = re.compile(
+    r"(?:PC|LR|BT\d):\s+(0x[0-9a-fA-F]{8})\s+\((?:fault location|return address|stack backtrace)\)"
+)
+
+
+def _addr2line(tool: str, elf: Path, addr: str) -> str:
+    try:
+        result = subprocess.run(
+            [tool, "-pfiaC", "-e", str(elf), addr],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return f"{addr} (decode failed)"
+
+
+def process_stacktrace(config, line: str, backtrace_state: bool) -> bool:
+    """Decode RP2040 crash handler output using addr2line."""
+    if _CRASH_RE.search(line):
+        _LOGGER.error("RP2040 crash detected - decoding addresses")
+        return True
+
+    if backtrace_state:
+        if match := _CRASH_ADDR_RE.search(line):
+            from esphome.platformio_api import get_idedata
+
+            idedata = get_idedata(config)
+            if idedata.addr2line_path:
+                elf = idedata.firmware_elf_path
+                if elf.exists():
+                    decoded = _addr2line(idedata.addr2line_path, elf, match.group(1))
+                    _LOGGER.error("  %s => %s", match.group(1), decoded)
+
+        # Stop backtrace state after addr2line hint (last line of crash dump)
+        if "addr2line" in line:
+            return False
+
+    return backtrace_state

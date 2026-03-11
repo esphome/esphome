@@ -20,20 +20,40 @@ void ProtoWriteBuffer::encode_varint_raw_slow_(uint32_t value) {
   *this->pos_++ = static_cast<uint8_t>(value);
 }
 
+ProtoVarIntResult ProtoVarInt::parse_slow(const uint8_t *buffer, uint32_t len) {
+  // Multi-byte varint: first byte already checked to have high bit set
+  uint32_t result32 = buffer[0] & 0x7F;
 #ifdef USE_API_VARINT64
-optional<ProtoVarInt> ProtoVarInt::parse_wide(const uint8_t *buffer, uint32_t len, uint32_t *consumed,
-                                              uint32_t result32) {
+  uint32_t limit = std::min(len, uint32_t(4));
+#else
+  uint32_t limit = std::min(len, uint32_t(5));
+#endif
+  for (uint32_t i = 1; i < limit; i++) {
+    uint8_t val = buffer[i];
+    result32 |= uint32_t(val & 0x7F) << (i * 7);
+    if ((val & 0x80) == 0) {
+      return {result32, i + 1};
+    }
+  }
+#ifdef USE_API_VARINT64
+  return parse_wide(buffer, len, result32);
+#else
+  return {0, PROTO_VARINT_PARSE_FAILED};
+#endif
+}
+
+#ifdef USE_API_VARINT64
+ProtoVarIntResult ProtoVarInt::parse_wide(const uint8_t *buffer, uint32_t len, uint32_t result32) {
   uint64_t result64 = result32;
   uint32_t limit = std::min(len, uint32_t(10));
   for (uint32_t i = 4; i < limit; i++) {
     uint8_t val = buffer[i];
     result64 |= uint64_t(val & 0x7F) << (i * 7);
     if ((val & 0x80) == 0) {
-      *consumed = i + 1;
-      return ProtoVarInt(result64);
+      return {result64, i + 1};
     }
   }
-  return {};
+  return {0, PROTO_VARINT_PARSE_FAILED};
 }
 #endif
 
@@ -43,18 +63,16 @@ uint32_t ProtoDecodableMessage::count_repeated_field(const uint8_t *buffer, size
   const uint8_t *end = buffer + length;
 
   while (ptr < end) {
-    uint32_t consumed;
-
-    // Parse field header (tag)
-    auto res = ProtoVarInt::parse(ptr, end - ptr, &consumed);
+    // Parse field header (tag) - ptr < end guarantees len >= 1
+    auto res = ProtoVarInt::parse_non_empty(ptr, end - ptr);
     if (!res.has_value()) {
       break;  // Invalid data, stop counting
     }
 
-    uint32_t tag = res->as_uint32();
+    uint32_t tag = static_cast<uint32_t>(res.value);
     uint32_t field_type = tag & WIRE_TYPE_MASK;
     uint32_t field_id = tag >> 3;
-    ptr += consumed;
+    ptr += res.consumed;
 
     // Count if this is the target field
     if (field_id == target_field_id) {
@@ -64,20 +82,20 @@ uint32_t ProtoDecodableMessage::count_repeated_field(const uint8_t *buffer, size
     // Skip field data based on wire type
     switch (field_type) {
       case WIRE_TYPE_VARINT: {  // VarInt - parse and skip
-        res = ProtoVarInt::parse(ptr, end - ptr, &consumed);
+        res = ProtoVarInt::parse(ptr, end - ptr);
         if (!res.has_value()) {
           return count;  // Invalid data, return what we have
         }
-        ptr += consumed;
+        ptr += res.consumed;
         break;
       }
       case WIRE_TYPE_LENGTH_DELIMITED: {  // Length-delimited - parse length and skip data
-        res = ProtoVarInt::parse(ptr, end - ptr, &consumed);
+        res = ProtoVarInt::parse(ptr, end - ptr);
         if (!res.has_value()) {
           return count;
         }
-        uint32_t field_length = res->as_uint32();
-        ptr += consumed;
+        uint32_t field_length = static_cast<uint32_t>(res.value);
+        ptr += res.consumed;
         if (field_length > static_cast<size_t>(end - ptr)) {
           return count;  // Out of bounds
         }
@@ -190,41 +208,40 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
   const uint8_t *end = buffer + length;
 
   while (ptr < end) {
-    uint32_t consumed;
-
-    // Parse field header
-    auto res = ProtoVarInt::parse(ptr, end - ptr, &consumed);
+    // Parse field header - ptr < end guarantees len >= 1
+    auto res = ProtoVarInt::parse_non_empty(ptr, end - ptr);
     if (!res.has_value()) {
       ESP_LOGV(TAG, "Invalid field start at offset %ld", (long) (ptr - buffer));
       return;
     }
 
-    uint32_t tag = res->as_uint32();
+    uint32_t tag = static_cast<uint32_t>(res.value);
     uint32_t field_type = tag & WIRE_TYPE_MASK;
     uint32_t field_id = tag >> 3;
-    ptr += consumed;
+    ptr += res.consumed;
 
     switch (field_type) {
       case WIRE_TYPE_VARINT: {  // VarInt
-        res = ProtoVarInt::parse(ptr, end - ptr, &consumed);
+        res = ProtoVarInt::parse(ptr, end - ptr);
         if (!res.has_value()) {
           ESP_LOGV(TAG, "Invalid VarInt at offset %ld", (long) (ptr - buffer));
           return;
         }
-        if (!this->decode_varint(field_id, *res)) {
-          ESP_LOGV(TAG, "Cannot decode VarInt field %" PRIu32 " with value %" PRIu32 "!", field_id, res->as_uint32());
+        if (!this->decode_varint(field_id, res.value)) {
+          ESP_LOGV(TAG, "Cannot decode VarInt field %" PRIu32 " with value %" PRIu64 "!", field_id,
+                   static_cast<uint64_t>(res.value));
         }
-        ptr += consumed;
+        ptr += res.consumed;
         break;
       }
       case WIRE_TYPE_LENGTH_DELIMITED: {  // Length-delimited
-        res = ProtoVarInt::parse(ptr, end - ptr, &consumed);
+        res = ProtoVarInt::parse(ptr, end - ptr);
         if (!res.has_value()) {
           ESP_LOGV(TAG, "Invalid Length Delimited at offset %ld", (long) (ptr - buffer));
           return;
         }
-        uint32_t field_length = res->as_uint32();
-        ptr += consumed;
+        uint32_t field_length = static_cast<uint32_t>(res.value);
+        ptr += res.consumed;
         if (field_length > static_cast<size_t>(end - ptr)) {
           ESP_LOGV(TAG, "Out-of-bounds Length Delimited at offset %ld", (long) (ptr - buffer));
           return;

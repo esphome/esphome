@@ -101,6 +101,11 @@ class SerialProxy : public uart::UARTDevice, public Component {
   void set_dtr_pin(GPIOPin *pin) { this->dtr_pin_ = pin; }
 
  protected:
+#ifdef USE_API
+  /// Read from UART and send to API client (slow path with 256-byte stack buffer)
+  void read_and_send_(size_t available);
+#endif
+
   /// Instance index for identifying this proxy in API messages
   uint32_t instance_index_{0};
 

@@ -21,10 +21,12 @@ PLATFORMIO_GOOGLE_TEST_LIB = "google/googletest@^1.15.2"
 # Path to /tests/components
 COMPONENTS_TESTS_DIR: Path = Path(root_path) / "tests" / "components"
 
-# Placeholder name used when registering a platform domain with ESPHome during
-# test builds.  The actual value is irrelevant; only the first registration
-# matters and the placeholder is never compiled.
-_DUMMY_PLATFORM = "dummy"
+# Components whose to_code should run during C++ test builds.
+# Most components don't need code generation for tests; only these
+# essential ones (platform setup, logging, core config) are needed.
+# Note: "core" is the esphome core config module (esphome/core/config.py),
+# which registers under package name "core" not "esphome".
+CPP_TESTING_CODEGEN_COMPONENTS = {"core", "host", "logger"}
 
 
 def hash_components(components: list[str]) -> str:
@@ -76,6 +78,11 @@ def create_test_config(config_name: str, includes: list[str]) -> dict:
                 "build_flags": [
                     "-Og",  # optimize for debug
                     "-DUSE_TIME_TIMEZONE",  # enable timezone code paths for testing
+                    "-DESPHOME_DEBUG",  # enable debug assertions
+                    # Enable the address and undefined behavior sanitizers
+                    "-fsanitize=address",
+                    "-fsanitize=undefined",
+                    "-fno-omit-frame-pointer",
                 ],
                 "debug_build_flags": [  # only for debug builds
                     "-g3",  # max debug info
@@ -122,11 +129,19 @@ def get_platform_components(components: list[str]) -> list[str]:
     return platform_components
 
 
+# Exit codes for run_tests
+EXIT_OK = 0
+EXIT_SKIPPED = 1
+EXIT_COMPILE_ERROR = 2
+EXIT_CONFIG_ERROR = 3
+EXIT_NO_EXECUTABLE = 4
+
+
 def run_tests(selected_components: list[str]) -> int:
     # Skip tests on Windows
     if os.name == "nt":
         print("Skipping esphome tests on Windows", file=sys.stderr)
-        return 1
+        return EXIT_SKIPPED
 
     # Remove components that do not have tests
     components = filter_components_without_tests(selected_components)
@@ -136,7 +151,7 @@ def run_tests(selected_components: list[str]) -> int:
             "No components specified or no tests found for the specified components.",
             file=sys.stderr,
         )
-        return 0
+        return EXIT_OK
 
     components = sorted(components)
 
@@ -150,9 +165,9 @@ def run_tests(selected_components: list[str]) -> int:
     # Obtain a list of platform components to be tested:
     try:
         platform_components = get_platform_components(components)
-    except Exception as e:
+    except ValueError as e:
         print(f"Error obtaining platform components: {e}")
-        return 3
+        return EXIT_CONFIG_ERROR
 
     components = sorted(components + platform_components)
 
@@ -172,6 +187,7 @@ def run_tests(selected_components: list[str]) -> int:
     CORE.config_path = COMPONENTS_TESTS_DIR / "dummy.yaml"
     CORE.dashboard = None
     CORE.cpp_testing = True
+    CORE.cpp_testing_codegen = CPP_TESTING_CODEGEN_COMPONENTS
 
     # Validate config will expand the above with defaults:
     config = validate_config(config, {})
@@ -184,8 +200,7 @@ def run_tests(selected_components: list[str]) -> int:
             # as produced by get_platform_components().
             domain, component = component_name.split(".", maxsplit=1)
             domain_list = config.setdefault(domain, [])
-            if not domain_list:
-                CORE.register_platform_component(domain, _DUMMY_PLATFORM)
+            CORE.testing_ensure_platform_registered(domain)
             domain_list.append({CONF_PLATFORM: component})
         else:
             config.setdefault(component_name, [])
@@ -205,13 +220,13 @@ def run_tests(selected_components: list[str]) -> int:
         print(
             f"Error compiling unit tests for {', '.join(components)}. Check path. : {e}"
         )
-        return 2
+        return EXIT_COMPILE_ERROR
 
     # After a successful compilation, locate the executable and run it:
     idedata = get_idedata(config)
     if idedata is None:
         print("Cannot find executable")
-        return 1
+        return EXIT_NO_EXECUTABLE
 
     program_path: str = idedata.raw["prog_path"]
     run_cmd: list[str] = [program_path]

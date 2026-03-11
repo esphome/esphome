@@ -12,13 +12,13 @@ testing binaries that combine many components. By convention, this unique namesp
 For components that expose to a platform component, create a folder under your component test folder with the platform component name, e.g. `binary_sensor` and
 include the relevant `.cpp` and `.h` test files there.
 
-### Override code component code generation for testing
+### Override component code generation for testing
 
 When generating code for testing, ESPHome won't invoke the component's `to_code` function, since most components do not
 need to generate configuration code for testing.
 
 If you do need to generate code to for example configure compilation flags or add libraries,
-then you can define the alternative `to_code_testing` python function in your component's `__init__.py`.
+add the component name to the `CPP_TESTING_CODEGEN_COMPONENTS` allowlist in `script/cpp_unit_test.py`.
 
 ## Running component unit tests
 

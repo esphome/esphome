@@ -668,7 +668,7 @@ def get_all_dependencies(
 
         for comp_name in all_components:
             if "." in comp_name:
-                domain, platform = comp_name.split(".")
+                domain, platform = comp_name.split(".", maxsplit=1)
                 comp = get_platform(domain, platform)
             else:
                 comp = get_component(comp_name)
@@ -716,8 +716,10 @@ def get_components_from_integration_fixtures() -> set[str]:
         if not config:
             continue
 
-        # Add all top-level component keys
-        components.update(config.keys())
+        # Add all top-level component keys (skip YAML anchor keys starting with '.')
+        components.update(
+            k for k in config if isinstance(k, str) and not k.startswith(".")
+        )
 
         # Add platform components (e.g., output.template)
         for value in config.values():
