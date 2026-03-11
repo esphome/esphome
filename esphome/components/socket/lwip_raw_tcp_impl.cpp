@@ -439,11 +439,10 @@ void LWIPRawImpl::init(struct pbuf *initial_rx, bool initial_rx_closed) {
 }
 
 void LWIPRawImpl::s_err_fn(void *arg, err_t err) {
-  // Called by lwip core which already holds the async_context lock on RP2040.
-  // No LWIP_LOCK() needed — acquiring it would be redundant (recursive mutex).
+  // LWIP CALLBACK — runs from IRQ context on RP2040 (low-priority user IRQ).
+  // No heap allocation allowed — malloc is not IRQ-safe (see #14687).
+  // No LWIP_LOCK() needed — lwip core already holds the async_context lock.
   //
-  // "If a connection is aborted because of an error, the application is alerted of this event by
-  // the err callback."
   // pcb is already freed when this callback is called
   // ERR_RST: connection was reset by remote host
   // ERR_ABRT: aborted through tcp_abort or TCP timer
@@ -458,7 +457,8 @@ err_t LWIPRawImpl::s_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, er
 }
 
 err_t LWIPRawImpl::recv_fn(struct pbuf *pb, err_t err) {
-  // Called by lwip core which already holds the async_context lock on RP2040.
+  // LWIP CALLBACK — runs from IRQ context on RP2040 (low-priority user IRQ).
+  // No heap allocation allowed — malloc is not IRQ-safe (see #14687).
   LWIP_LOG("recv(pb=%p err=%d)", pb, err);
   if (err != 0) {
     // "An error code if there has been an error receiving Only return ERR_ABRT if you have
@@ -704,13 +704,16 @@ void LWIPRawListenImpl::init() {
 }
 
 void LWIPRawListenImpl::s_err_fn(void *arg, err_t err) {
-  // Called by lwip core which already holds the async_context lock on RP2040.
+  // LWIP CALLBACK — runs from IRQ context on RP2040 (low-priority user IRQ).
+  // No heap allocation allowed — malloc is not IRQ-safe (see #14687).
   auto *arg_this = reinterpret_cast<LWIPRawListenImpl *>(arg);
   ESP_LOGVV(TAG, "socket %p: err(err=%d)", arg_this, err);
   arg_this->pcb_ = nullptr;
 }
 
 void LWIPRawListenImpl::s_queued_err_fn(void *arg, err_t err) {
+  // LWIP CALLBACK — runs from IRQ context on RP2040 (low-priority user IRQ).
+  // No heap allocation allowed — malloc is not IRQ-safe (see #14687).
   // Called when a queued (not yet accepted) PCB errors — e.g., remote sent RST.
   // The PCB is already freed by lwip. Null our pointer so accept() skips it.
   (void) err;
@@ -720,6 +723,8 @@ void LWIPRawListenImpl::s_queued_err_fn(void *arg, err_t err) {
 }
 
 err_t LWIPRawListenImpl::s_queued_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, err_t err) {
+  // LWIP CALLBACK — runs from IRQ context on RP2040 (low-priority user IRQ).
+  // No heap allocation allowed — malloc is not IRQ-safe (see #14687).
   // Temporary recv callback for PCBs queued between accept_fn_ and accept().
   // Without this, lwip's default tcp_recv_null handler would ACK and drop the data,
   // causing the API handshake to silently fail (client sends Hello, server never sees it).
@@ -812,7 +817,8 @@ int LWIPRawListenImpl::listen(int backlog) {
 }
 
 err_t LWIPRawListenImpl::accept_fn_(struct tcp_pcb *newpcb, err_t err) {
-  // Called by lwip core which already holds the async_context lock on RP2040.
+  // LWIP CALLBACK — runs from IRQ context on RP2040 (low-priority user IRQ).
+  // No heap allocation allowed — malloc is not IRQ-safe (see #14687).
   LWIP_LOG("accept(newpcb=%p err=%d)", newpcb, err);
   if (err != ERR_OK || newpcb == nullptr) {
     // "An error code if there has been an error accepting. Only return ERR_ABRT if you have
