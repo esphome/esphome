@@ -30,6 +30,8 @@ static inline bool IRAM_ATTR is_code_addr(uint32_t addr) {
 // Validated by magic marker. Static linkage since it's only used within this file.
 // Version field is first so future firmware can always identify the struct layout.
 // Magic is second to validate the data. Remaining fields can change between versions.
+// Version is uint32_t because it would be padded to 4 bytes anyway before the next
+// uint32_t field, so we use the full width rather than wasting 3 bytes of padding.
 static constexpr uint32_t CRASH_DATA_VERSION = 1;
 struct RawCrashData {
   uint32_t version;
