@@ -1,4 +1,5 @@
 import abc
+from typing import TYPE_CHECKING
 
 from esphome import codegen as cg
 from esphome.config import Config
@@ -200,6 +201,21 @@ class LvContext(LambdaContext):
         return self.add(*args)
 
 
+def get_lambda_context_args() -> list[tuple[SafeExpType, str]]:
+    """Get automation parameters from the current lambda context if available.
+
+    When called from outside LVGL's context (e.g., from interval),
+    CodeContext.code_context will be None, so return empty args.
+    """
+    if CodeContext.code_context is None:
+        return []
+    if TYPE_CHECKING:
+        # CodeContext base class doesn't define get_automation_parameters(),
+        # but LambdaContext and LvContext (the concrete implementations) do.
+        assert isinstance(CodeContext.code_context, LambdaContext)
+    return CodeContext.code_context.get_automation_parameters()
+
+
 class LocalVariable(MockObj):
     """
     Create a local variable and enclose the code using it within a block.
@@ -337,7 +353,7 @@ def lv_Pvariable(type, name) -> MockObj:
     """
     if isinstance(name, str):
         name = ID(name, True, type)
-    decl = VariableDeclarationExpression(type, "*", name)
+    decl = VariableDeclarationExpression(type, "*", name, static=True)
     CORE.add_global(decl)
     var = MockObj(name, "->")
     CORE.register_variable(name, var)
@@ -353,7 +369,7 @@ def lv_variable(type, name) -> MockObj:
     """
     if isinstance(name, str):
         name = ID(name, True, type)
-    decl = VariableDeclarationExpression(type, "", name)
+    decl = VariableDeclarationExpression(type, "", name, static=True)
     CORE.add_global(decl)
     var = MockObj(name, ".")
     CORE.register_variable(name, var)

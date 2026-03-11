@@ -71,6 +71,11 @@ class ComponentManifest:
 
     @property
     def to_code(self) -> Callable[[Any], None] | None:
+        if CORE.cpp_testing:
+            # During C++ testing, only run to_code for allowlisted components
+            name = self.module.__package__.rsplit(".", 1)[-1]
+            if name not in CORE.cpp_testing_codegen:
+                return None
         return getattr(self.module, "to_code", None)
 
     @property
@@ -187,7 +192,14 @@ def install_meta_finder(
 
 
 def install_custom_components_meta_finder():
+    # Remove before 2026.6.0
     custom_components_dir = (Path(CORE.config_dir) / "custom_components").resolve()
+    if custom_components_dir.is_dir() and any(custom_components_dir.iterdir()):
+        _LOGGER.warning(
+            "The 'custom_components' folder is deprecated and will be removed in 2026.6.0. "
+            "Please use 'external_components' instead. "
+            "See https://esphome.io/components/external_components.html for more information."
+        )
     install_meta_finder(custom_components_dir)
 
 

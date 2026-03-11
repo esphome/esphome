@@ -4,8 +4,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace time {
+namespace esphome::time {
 
 static const char *const TAG = "automation";
 static const int MAX_TIMESTAMP_DRIFT = 900;  // how far can the clock drift before we consider
@@ -92,5 +91,4 @@ SyncTrigger::SyncTrigger(RealTimeClock *rtc) : rtc_(rtc) {
   rtc->add_on_time_sync_callback([this]() { this->trigger(); });
 }
 
-}  // namespace time
-}  // namespace esphome
+}  // namespace esphome::time

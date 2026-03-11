@@ -150,8 +150,6 @@ void AHT10Component::update() {
   this->restart_read_();
 }
 
-float AHT10Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void AHT10Component::dump_config() {
   ESP_LOGCONFIG(TAG, "AHT10:");
   LOG_I2C_DEVICE(this);

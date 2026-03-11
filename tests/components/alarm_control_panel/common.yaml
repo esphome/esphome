@@ -9,6 +9,8 @@ alarm_control_panel:
     name: Alarm Panel
     codes:
       - "1234"
+      - "5678"
+      - "0000"
     requires_code_to_arm: true
     arming_home_time: 1s
     arming_night_time: 1s
@@ -29,6 +31,7 @@ alarm_control_panel:
     name: Alarm Panel 2
     codes:
       - "1234"
+      - "9999"
     requires_code_to_arm: true
     arming_home_time: 1s
     arming_night_time: 1s

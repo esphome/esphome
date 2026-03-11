@@ -11,7 +11,7 @@ from esphome.components.const import (
     CONF_DRAW_ROUNDING,
 )
 from esphome.components.display import CONF_SHOW_TEST_CARD
-from esphome.components.esp32 import VARIANT_ESP32S3, only_on_variant
+from esphome.components.esp32 import VARIANT_ESP32P4, VARIANT_ESP32S3, only_on_variant
 from esphome.components.mipi import (
     COLOR_ORDERS,
     CONF_DE_PIN,
@@ -224,8 +224,8 @@ def _config_schema(config):
     schema = model_schema(config)
     return cv.All(
         schema,
-        only_on_variant(supported=[VARIANT_ESP32S3]),
-        cv.only_with_esp_idf,
+        cv.only_on_esp32,
+        only_on_variant(supported=[VARIANT_ESP32S3, VARIANT_ESP32P4]),
     )(config)
 
 
@@ -260,7 +260,7 @@ async def to_code(config):
         cg.add(var.set_enable_pins(enable))
 
     if CONF_SPI_ID in config:
-        await spi.register_spi_device(var, config)
+        await spi.register_spi_device(var, config, write_only=True)
         sequence, madctl = model.get_sequence(config)
         cg.add(var.set_init_sequence(sequence))
         cg.add(var.set_madctl(madctl))

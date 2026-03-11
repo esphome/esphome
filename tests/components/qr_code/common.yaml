@@ -5,6 +5,7 @@ display:
     cs_pin: ${cs_pin}
     dc_pin: ${dc_pin}
     reset_pin: ${reset_pin}
+    data_rate: 500kHz
     invert_colors: false
     lambda: |-
       // Draw a QR code in the center of the screen

@@ -1,12 +1,16 @@
 #include "vbus.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <algorithm>
 #include <cinttypes>
 
 namespace esphome {
 namespace vbus {
 
 static const char *const TAG = "vbus";
+
+// Maximum bytes to log in verbose hex output (16 frames * 4 bytes = 64 bytes typical)
+static constexpr size_t VBUS_MAX_LOG_BYTES = 64;
 
 void VBus::dump_config() {
   ESP_LOGCONFIG(TAG, "VBus:");
@@ -83,6 +87,9 @@ void VBus::loop() {
           this->state_ = 0;
           ESP_LOGD(TAG, "P1 empty message");
         }
+      } else if (this->buffer_.size() > 15) {
+        ESP_LOGW(TAG, "Unknown protocol 0x%02x, discarding", this->protocol_);
+        this->state_ = 0;
       }
       continue;
     }
@@ -101,8 +108,12 @@ void VBus::loop() {
         this->buffer_.push_back(this->fbytes_[i]);
       if (++this->cframe_ < this->frames_)
         continue;
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      char hex_buf[format_hex_size(VBUS_MAX_LOG_BYTES)];
+      size_t log_bytes = std::min(this->buffer_.size(), static_cast<size_t>(VBUS_MAX_LOG_BYTES));
+#endif
       ESP_LOGV(TAG, "P2 C%04x %04x->%04x: %s", this->command_, this->source_, this->dest_,
-               format_hex(this->buffer_).c_str());
+               format_hex_to(hex_buf, this->buffer_.data(), log_bytes));
       for (auto &listener : this->listeners_)
         listener->on_message(this->command_, this->source_, this->dest_, this->buffer_);
       this->state_ = 0;

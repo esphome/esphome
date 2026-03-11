@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from esphome.components.packages import CONFIG_SCHEMA, do_packages_pass, merge_packages
+import esphome.config as config_module
 from esphome.config import resolve_extend_remove
 from esphome.config_helpers import Extend, Remove
 import esphome.config_validation as cv
@@ -33,6 +34,7 @@ from esphome.const import (
     CONF_VARS,
     CONF_WIFI,
 )
+from esphome.core import CORE
 from esphome.util import OrderedDict
 
 # Test strings
@@ -991,3 +993,35 @@ def test_package_merge_invalid(invalid_package) -> None:
 
     with pytest.raises(cv.Invalid):
         merge_packages(config)
+
+
+def test_raw_config_contains_merged_esphome_from_package(tmp_path) -> None:
+    """Test that CORE.raw_config contains esphome section from merged package.
+
+    This is a regression test for the bug where CORE.raw_config was set before
+    packages were merged, causing KeyError when components accessed
+    CORE.raw_config[CONF_ESPHOME] and the esphome section came from a package.
+    """
+    # Create a config where esphome section comes from a package
+    test_config = OrderedDict()
+    test_config[CONF_PACKAGES] = {
+        "base": {
+            CONF_ESPHOME: {CONF_NAME: TEST_DEVICE_NAME},
+        }
+    }
+    test_config["esp32"] = {"board": "esp32dev"}
+
+    # Set up CORE for the test
+    test_yaml = tmp_path / "test.yaml"
+    test_yaml.write_text("# test config")
+    CORE.reset()
+    CORE.config_path = test_yaml
+
+    # Call validate_config - this should merge packages and set CORE.raw_config
+    config_module.validate_config(test_config, {})
+
+    # Verify that CORE.raw_config contains the esphome section from the package
+    assert CONF_ESPHOME in CORE.raw_config, (
+        "CORE.raw_config should contain esphome section after package merge"
+    )
+    assert CORE.raw_config[CONF_ESPHOME][CONF_NAME] == TEST_DEVICE_NAME

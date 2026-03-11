@@ -2,12 +2,10 @@
 
 #ifdef USE_ZEPHYR
 
-namespace esphome {
-namespace zephyr {
+namespace esphome::zephyr {
 
 void setup_preferences();
 
-}  // namespace zephyr
-}  // namespace esphome
+}
 
 #endif

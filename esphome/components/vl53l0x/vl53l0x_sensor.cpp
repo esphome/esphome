@@ -27,8 +27,10 @@ void VL53L0XSensor::dump_config() {
   if (this->enable_pin_ != nullptr) {
     LOG_PIN("  Enable Pin: ", this->enable_pin_);
   }
-  ESP_LOGCONFIG(TAG, "  Timeout: %u%s", this->timeout_us_, this->timeout_us_ > 0 ? "us" : " (no timeout)");
-  ESP_LOGCONFIG(TAG, "  Timing Budget %uus ", this->measurement_timing_budget_us_);
+  ESP_LOGCONFIG(TAG,
+                "  Timeout: %u%s\n"
+                "  Timing Budget %uus ",
+                this->timeout_us_, this->timeout_us_ > 0 ? "us" : " (no timeout)", this->measurement_timing_budget_us_);
 }
 
 void VL53L0XSensor::setup() {
@@ -85,9 +87,9 @@ void VL53L0XSensor::setup() {
   reg(0x94) = 0x6B;
   reg(0x83) = 0x00;
 
-  this->timeout_start_us_ = micros();
+  uint32_t timeout_start_us = micros();
   while (reg(0x83).get() == 0x00) {
-    if (this->timeout_us_ > 0 && ((uint16_t) (micros() - this->timeout_start_us_) > this->timeout_us_)) {
+    if (this->timeout_us_ > 0 && (micros() - timeout_start_us > this->timeout_us_)) {
       ESP_LOGE(TAG, "'%s' - setup timeout", this->name_.c_str());
       this->mark_failed();
       return;

@@ -15,6 +15,8 @@ from typing import Any
 
 import colorama
 
+from esphome.loader import get_platform
+
 root_path = os.path.abspath(os.path.normpath(os.path.join(__file__, "..", "..")))
 basepath = os.path.join(root_path, "esphome")
 temp_folder = os.path.join(root_path, ".temp")
@@ -156,22 +158,25 @@ def print_error_for_file(file: str | Path, body: str | None) -> None:
         print()
 
 
-def build_all_include() -> None:
-    # Build a cpp file that includes all header files in this repo.
-    # Otherwise header-only integrations would not be tested by clang-tidy
+def build_all_include(header_files: list[str] | None = None) -> None:
+    # Build a cpp file that includes header files for clang-tidy to check.
+    # If header_files is provided, only include those headers.
+    # Otherwise, include all header files in the esphome directory.
 
-    # Use git ls-files to find all .h files in the esphome directory
-    # This is much faster than walking the filesystem
-    cmd = ["git", "ls-files", "esphome/**/*.h"]
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    if header_files is None:
+        # Use git ls-files to find all .h files in the esphome directory
+        # This is much faster than walking the filesystem
+        cmd = ["git", "ls-files", "esphome/**/*.h"]
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
 
-    # Process git output - git already returns paths relative to repo root
-    headers = [
-        f'#include "{include_p}"'
-        for line in proc.stdout.strip().split("\n")
-        if (include_p := line.replace(os.path.sep, "/"))
-    ]
+        # Process git output - git already returns paths relative to repo root
+        header_files = [
+            line.replace(os.path.sep, "/")
+            for line in proc.stdout.strip().split("\n")
+            if line
+        ]
 
+    headers = [f'#include "{h}"' for h in header_files]
     headers.sort()
     headers.append("")
     content = "\n".join(headers)
@@ -621,11 +626,15 @@ def get_usable_cpu_count() -> int:
     )
 
 
-def get_all_dependencies(component_names: set[str]) -> set[str]:
+def get_all_dependencies(
+    component_names: set[str], cpp_testing: bool = False
+) -> set[str]:
     """Get all dependencies for a set of components.
 
     Args:
         component_names: Set of component names to get dependencies for
+        cpp_testing: If True, set CORE.cpp_testing so AUTO_LOAD callables that
+                     conditionally include testing-only dependencies work correctly
 
     Returns:
         Set of all components including dependencies and auto-loaded components
@@ -643,6 +652,7 @@ def get_all_dependencies(component_names: set[str]) -> set[str]:
 
     # Reset CORE to ensure clean state
     CORE.reset()
+    CORE.cpp_testing = cpp_testing
 
     # Set up fake config path for component loading
     root = Path(__file__).parent.parent
@@ -657,7 +667,11 @@ def get_all_dependencies(component_names: set[str]) -> set[str]:
         new_components: set[str] = set()
 
         for comp_name in all_components:
-            comp = get_component(comp_name)
+            if "." in comp_name:
+                domain, platform = comp_name.split(".", maxsplit=1)
+                comp = get_platform(domain, platform)
+            else:
+                comp = get_component(comp_name)
             if not comp:
                 continue
 
@@ -702,8 +716,10 @@ def get_components_from_integration_fixtures() -> set[str]:
         if not config:
             continue
 
-        # Add all top-level component keys
-        components.update(config.keys())
+        # Add all top-level component keys (skip YAML anchor keys starting with '.')
+        components.update(
+            k for k in config if isinstance(k, str) and not k.startswith(".")
+        )
 
         # Add platform components (e.g., output.template)
         for value in config.values():
