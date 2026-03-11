@@ -52,35 +52,35 @@ AtCommandResult ModemComponent::send_at(const std::string &cmd, uint32_t timeout
 }
 
 void ModemComponent::enable() {
-  if (this->component_state_ == ModemComponentState::DISABLED) {
+  if (this->component_state_ == ModemComponentState::MODEM_DISABLED) {
     ESP_LOGI(TAG, "Enabling modem");
     this->disable_wanted_ = false;
-    this->request_state_(ModemComponentState::ENABLING);
+    this->request_state_(ModemComponentState::MODEM_ENABLING);
   }
 }
 
 void ModemComponent::disable() {
-  if (this->component_state_ == ModemComponentState::DISABLED) {
+  if (this->component_state_ == ModemComponentState::MODEM_DISABLED) {
     this->disable_wanted_ = true;
     return;
   }
   this->disable_wanted_ = true;
-  this->request_state_(ModemComponentState::DISABLING);
+  this->request_state_(ModemComponentState::MODEM_DISABLING);
 }
 
 void ModemComponent::reset() {
-  if (this->component_state_ == ModemComponentState::DISABLED) {
+  if (this->component_state_ == ModemComponentState::MODEM_DISABLED) {
     this->disable_wanted_ = false;
-    this->request_state_(ModemComponentState::ENABLING);
+    this->request_state_(ModemComponentState::MODEM_ENABLING);
     return;
   }
   this->disable_wanted_ = false;
-  this->request_state_(ModemComponentState::DISABLING);
+  this->request_state_(ModemComponentState::MODEM_DISABLING);
 }
 
 network::IPAddresses ModemComponent::get_ip_addresses() {
   network::IPAddresses addresses;
-  if (this->component_state_ == ModemComponentState::CONNECTED) {
+  if (this->component_state_ == ModemComponentState::MODEM_CONNECTED) {
     addresses[0] = network::IPAddress(&this->modem_handler->network_infos.ip_info.ip);
   }
   return addresses;
@@ -118,7 +118,6 @@ bool ModemComponent::read_array(uint8_t *data, size_t len) {
 }
 
 void ModemComponent::setup() {
-  char buffer[GPIO_SUMMARY_MAX_LEN];
   ESP_LOGI(TAG, "Modem setup...");
   this->pref_ = global_preferences->make_preference<ModemRestoreState>(76007670UL);
   this->pref_.load(&this->modem_restore_state_);
@@ -146,7 +145,8 @@ void ModemComponent::setup() {
   ESP_LOGCONFIG(TAG, "  PIN code  : %s", (this->modem_handler->pin_code.empty()) ? "No" : "Yes (not shown)");
   ESP_LOGCONFIG(TAG, "  Tx Pin    : GPIO%u", this->modem_handler->tx_pin->get_pin());
   ESP_LOGCONFIG(TAG, "  Rx Pin    : GPIO%u", this->modem_handler->rx_pin->get_pin());
-  ESP_LOGCONFIG(TAG, "  Enabled   : %s", (this->component_state_ != ModemComponentState::DISABLED) ? "Yes" : "No");
+  ESP_LOGCONFIG(TAG, "  Enabled   : %s",
+                (this->component_state_ != ModemComponentState::MODEM_DISABLED) ? "Yes" : "No");
   if (this->modem_handler->baud_rate != 0)
     ESP_LOGCONFIG(TAG, "  Baud rate : %d", this->modem_handler->baud_rate);
   ESP_LOGCONFIG(TAG, "  UART port : %d", this->modem_handler->uart_port_num);
@@ -186,50 +186,50 @@ void ModemComponent::loop() {
     return;
   }
   if (this->has_requested_state_) {
-    if (this->requested_state_ != ModemComponentState::DISABLING ||
-        this->component_state_ != ModemComponentState::ENABLING || this->enabling_retry_ <= 0) {
+    if (this->requested_state_ != ModemComponentState::MODEM_DISABLING ||
+        this->component_state_ != ModemComponentState::MODEM_ENABLING || this->enabling_retry_ <= 0) {
       this->transition_to_(this->requested_state_);
       this->has_requested_state_ = false;
     }
   }
-  if (this->disable_wanted_ && this->component_state_ != ModemComponentState::DISABLED &&
-      this->component_state_ != ModemComponentState::DISABLING) {
-    if (this->component_state_ != ModemComponentState::ENABLING || this->enabling_retry_ == 0) {
-      this->transition_to_(ModemComponentState::DISABLING);
+  if (this->disable_wanted_ && this->component_state_ != ModemComponentState::MODEM_DISABLED &&
+      this->component_state_ != ModemComponentState::MODEM_DISABLING) {
+    if (this->component_state_ != ModemComponentState::MODEM_ENABLING || this->enabling_retry_ == 0) {
+      this->transition_to_(ModemComponentState::MODEM_DISABLING);
       return;
     }
   }
 
-  ModemComponentState next_state = this->component_state_;
+  ModemComponentState next_state;
   switch (this->component_state_) {
-    case ModemComponentState::ENABLING:
+    case ModemComponentState::MODEM_ENABLING:
       next_state = this->handle_state_enabling_();
       break;
-    case ModemComponentState::DISABLED:
+    case ModemComponentState::MODEM_DISABLED:
       next_state = this->handle_state_disabled_();
       break;
-    case ModemComponentState::SYNCING:
+    case ModemComponentState::MODEM_SYNCING:
       next_state = this->handle_state_syncing_();
       break;
-    case ModemComponentState::INIT_NETWORK:
+    case ModemComponentState::MODEM_INIT_NETWORK:
       next_state = this->handle_state_init_network_();
       break;
-    case ModemComponentState::START_PPP:
+    case ModemComponentState::MODEM_START_PPP:
       next_state = this->handle_state_start_ppp_();
       break;
-    case ModemComponentState::WAIT_IP:
+    case ModemComponentState::MODEM_WAIT_IP:
       next_state = this->handle_state_wait_ip_();
       break;
-    case ModemComponentState::CONNECTED:
+    case ModemComponentState::MODEM_CONNECTED:
       next_state = this->handle_state_connected_();
       break;
-    case ModemComponentState::DISCONNECTED:
+    case ModemComponentState::MODEM_DISCONNECTED:
       next_state = this->handle_state_disconnected_();
       break;
-    case ModemComponentState::NOT_RESPONDING:
+    case ModemComponentState::MODEM_NOT_RESPONDING:
       next_state = this->handle_state_not_responding_();
       break;
-    case ModemComponentState::DISABLING:
+    case ModemComponentState::MODEM_DISABLING:
       next_state = this->handle_state_disabling_();
       break;
   }
@@ -243,11 +243,11 @@ ModemComponentState ModemComponent::handle_state_disabled_() {
   this->loop_delay_(3000);
   // Just wait 'enable()'
   if (this->disable_wanted_) {
-    return ModemComponentState::DISABLED;
+    return ModemComponentState::MODEM_DISABLED;
   }
   // Disable state was temporary (reset wanted)
   // Stay some time in disabled state to avoid bouncing
-  return ModemComponentState::ENABLING;
+  return ModemComponentState::MODEM_ENABLING;
 }
 
 ModemComponentState ModemComponent::handle_state_enabling_() {
@@ -291,22 +291,22 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
           this->modem_handler->dce->set_mode(modem_mode::COMMAND_MODE);
         }
       } else {
-        // this->component_state_ = ModemComponentState::WAIT_IP;
+        // this->component_state_ = ModemComponentState::MODEM_WAIT_IP;
         this->modem_handler->dce->set_mode(modem_mode::CMUX_MANUAL_EXIT);
         this->modem_handler->dce->set_mode(modem_mode::COMMAND_MODE);
       }
     }
-    return ModemComponentState::SYNCING;
+    return ModemComponentState::MODEM_SYNCING;
   }
 
   if (this->enabling_retry_ > 0) {
     --this->enabling_retry_;
     ESP_LOGW(TAG, "Unable enable modem, retrying (%u left).", this->enabling_retry_);
     this->loop_delay_(3000);
-    return ModemComponentState::ENABLING;
+    return ModemComponentState::MODEM_ENABLING;
   }
   ESP_LOGE(TAG, "Unable enable modem");
-  return ModemComponentState::NOT_RESPONDING;
+  return ModemComponentState::MODEM_NOT_RESPONDING;
 }
 
 ModemComponentState ModemComponent::handle_state_syncing_() {
@@ -315,7 +315,7 @@ ModemComponentState ModemComponent::handle_state_syncing_() {
       ESP_LOGD(TAG, "Modem set to COMMAND_MODE");
     } else {
       ESP_LOGE(TAG, "Failed sync modem");
-      return ModemComponentState::NOT_RESPONDING;
+      return ModemComponentState::MODEM_NOT_RESPONDING;
     }
   }
 
@@ -337,43 +337,44 @@ ModemComponentState ModemComponent::handle_state_syncing_() {
         global_preferences->sync();
       } else {
         ESP_LOGE(TAG, "Failed to sync modem at baud rate %d.", this->modem_handler->baud_rate);
-        return ModemComponentState::NOT_RESPONDING;
+        return ModemComponentState::MODEM_NOT_RESPONDING;
       }
     } else {
       ESP_LOGW(TAG, "Failed to set modem baud rate to %d. Using %d.", this->modem_handler->baud_rate,
                this->modem_handler->current_baud_rate);
       this->loop_delay_(1000);
-      return ModemComponentState::SYNCING;
+      return ModemComponentState::MODEM_SYNCING;
     }
   }
 
   if (this->modem_handler->dce->sync() == esp_modem::command_result::OK) {
     ESP_LOGD(TAG, "Modem synced");
     // Add URC handler
+#ifdef USE_MODEM_URC
     auto urc_handler = [this](const esp_modem::DTE::UrcBufferInfo &buffer_info) {
       if (!buffer_info.is_command_active) {
         std::string line(reinterpret_cast<const char *>(buffer_info.new_data_start), buffer_info.new_data_size);
-#ifdef USE_MODEM_URC
+
         // Publish to text sensor if configured
         if (this->urc_text_sensor != nullptr) {
           // defer so we won't be in the callback context
           this->defer([this, line]() { this->urc_text_sensor->publish_state(line); });
         }
-#endif
       }
       return esp_modem::DTE::UrcConsumeInfo{esp_modem::DTE::UrcConsumeResult::CONSUME_NONE, 0};
     };
 
     this->modem_handler->dce->set_enhanced_urc(urc_handler);
-    return ModemComponentState::INIT_NETWORK;
+    return ModemComponentState::MODEM_INIT_NETWORK;
+#endif
   }
-  return ModemComponentState::SYNCING;
+  return ModemComponentState::MODEM_SYNCING;
 }
 
 ModemComponentState ModemComponent::handle_state_init_network_() {
   if (this->modem_handler->dce->sync() != esp_modem::command_result::OK) {
     ESP_LOGW(TAG, "Modem not synced during network init");
-    return ModemComponentState::SYNCING;
+    return ModemComponentState::MODEM_SYNCING;
   }
 
   this->modem_handler->dce->config_network_registration_urc(5);
@@ -386,12 +387,12 @@ ModemComponentState ModemComponent::handle_state_init_network_() {
 
   if (attachement_state) {
     ESP_LOGI(TAG, "Modem initialized and ready");
-    return ModemComponentState::START_PPP;
+    return ModemComponentState::MODEM_START_PPP;
   }
   ESP_LOGW(TAG, "Modem not yet ready to connect");
   this->modem_handler->modem_log_status();
   this->loop_delay_(4000);
-  return ModemComponentState::INIT_NETWORK;
+  return ModemComponentState::MODEM_INIT_NETWORK;
 }
 
 ModemComponentState ModemComponent::handle_state_start_ppp_() {
@@ -402,15 +403,15 @@ ModemComponentState ModemComponent::handle_state_start_ppp_() {
     ESP_LOGE(TAG, "Failed to enter PPP. Resetting modem.");
     this->disable_wanted_ = false;
     this->loop_delay_(1000);
-    return ModemComponentState::DISABLING;
+    return ModemComponentState::MODEM_DISABLING;
   }
-  return ModemComponentState::WAIT_IP;
+  return ModemComponentState::MODEM_WAIT_IP;
 }
 
 ModemComponentState ModemComponent::handle_state_wait_ip_() {
-  // In WAIT_IP state, we wait for IP_EVENT_PPP_GOT_IP.
+  // In MODEM_WAIT_IP state, we wait for IP_EVENT_PPP_GOT_IP.
   if (this->modem_handler->network_infos.got_ip) {
-    return ModemComponentState::CONNECTED;
+    return ModemComponentState::MODEM_CONNECTED;
   }
   if (this->wait_ip_retry_ > 0) {
     --this->wait_ip_retry_;
@@ -418,39 +419,39 @@ ModemComponentState ModemComponent::handle_state_wait_ip_() {
   if (this->wait_ip_retry_ > 0) {
     ESP_LOGD(TAG, "Wait IP left retry: %d", this->wait_ip_retry_);
     this->loop_delay_(this->modem_handler->connect_retry_delay);
-    return ModemComponentState::WAIT_IP;
+    return ModemComponentState::MODEM_WAIT_IP;
   }
   ESP_LOGE(TAG, "Unable to get IP address");
-  return ModemComponentState::SYNCING;
+  return ModemComponentState::MODEM_SYNCING;
 }
 
 ModemComponentState ModemComponent::handle_state_connected_() {
   if (!this->modem_handler->network_infos.got_ip) {
     ESP_LOGW(TAG, "Lost IP");
     this->loop_delay_(this->modem_handler->connect_retry_delay);
-    return ModemComponentState::DISCONNECTED;
+    return ModemComponentState::MODEM_DISCONNECTED;
   }
   if ((millis() - this->last_health_check_) > 30000) {
     this->last_health_check_ = millis();
     this->modem_handler->modem_log_status();
   }
   this->loop_delay_(2000);
-  return ModemComponentState::CONNECTED;
+  return ModemComponentState::MODEM_CONNECTED;
 }
 
 ModemComponentState ModemComponent::handle_state_disconnected_() {
   if (this->modem_handler->dce->sync() != esp_modem::command_result::OK) {
     ESP_LOGD(TAG, "Disconnected and not responding");
-    return ModemComponentState::NOT_RESPONDING;
+    return ModemComponentState::MODEM_NOT_RESPONDING;
   }
   ESP_LOGW(TAG, "Disconnected. Attempting to reconnect");
-  return ModemComponentState::START_PPP;
+  return ModemComponentState::MODEM_START_PPP;
 }
 
 ModemComponentState ModemComponent::handle_state_not_responding_() {
   ESP_LOGW(TAG, "Modem not responding, attempting a reset");
   this->disable_wanted_ = false;
-  return ModemComponentState::DISABLING;
+  return ModemComponentState::MODEM_DISABLING;
 }
 
 ModemComponentState ModemComponent::handle_state_disabling_() {
@@ -462,7 +463,7 @@ ModemComponentState ModemComponent::handle_state_disabling_() {
   } else {
     ESP_LOGE(TAG, "Failed to set modem to minimal functionality.");
   }
-  return ModemComponentState::DISABLED;
+  return ModemComponentState::MODEM_DISABLED;
 }
 
 void ModemComponent::request_state_(ModemComponentState next_state) {
@@ -486,24 +487,24 @@ void ModemComponent::transition_to_(ModemComponentState next_state) {
 
 void ModemComponent::on_enter_state_(ModemComponentState state) {
   // State invariants (entry establishes these):
-  // - WAIT_IP: waiting for PPP got IP, retry counter initialized.
-  // - CONNECTED: got_ip expected, modem_timeout cancelled, params dumped.
+  // - MODEM_WAIT_IP: waiting for PPP got IP, retry counter initialized.
+  // - MODEM_CONNECTED: got_ip expected, modem_timeout cancelled, params dumped.
   // - DISABLED: no modem timeouts active, no retries pending.
   switch (state) {
-    case ModemComponentState::ENABLING:
+    case ModemComponentState::MODEM_ENABLING:
       this->enabling_retry_ = 3;
       set_timeout("modem_timeout", this->timeout_,
                   [this]() { this->abort_("Modem was not able to connect (timeout)"); });
       break;
-    case ModemComponentState::START_PPP:
+    case ModemComponentState::MODEM_START_PPP:
       this->status_set_warning("Starting connection");
       // ESP_LOGI(TAG, "%s", this->modem_handler->modem_network_status_string().c_str());
       this->modem_handler->modem_log_status();
       break;
-    case ModemComponentState::WAIT_IP:
+    case ModemComponentState::MODEM_WAIT_IP:
       this->wait_ip_retry_ = 10;
       break;
-    case ModemComponentState::CONNECTED:
+    case ModemComponentState::MODEM_CONNECTED:
       cancel_timeout("modem_timeout");
       this->status_clear_warning();
       this->dump_connect_params_();
@@ -511,12 +512,12 @@ void ModemComponent::on_enter_state_(ModemComponentState state) {
       //       esphome::wifi::global_wifi_component->wifi_ap_nat(this->modem_handler->ppp_netif);
       // #endif
       break;
-    case ModemComponentState::DISABLING:
+    case ModemComponentState::MODEM_DISABLING:
       ESP_LOGI(TAG, "Disabling modem");
       cancel_timeout("modem_timeout");
       this->loop_delay_(this->modem_handler->command_delay);
       break;
-    case ModemComponentState::DISABLED:
+    case ModemComponentState::MODEM_DISABLED:
       cancel_timeout("modem_timeout");
       this->wait_ip_retry_ = 0;
       break;
@@ -537,7 +538,7 @@ void ModemComponent::loop_delay_(uint32_t delay_ms) { this->next_loop_millis_ = 
 
 void ModemComponent::dump_connect_params_() {
   char buffer[network::IP_ADDRESS_BUFFER_SIZE];
-  if (this->component_state_ != ModemComponentState::CONNECTED) {
+  if (this->component_state_ != ModemComponentState::MODEM_CONNECTED) {
     ESP_LOGCONFIG(TAG, "Modem connection: Not connected.");
     return;
   }

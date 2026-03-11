@@ -179,7 +179,7 @@ void ModemHandler::ip_event_handler(void *arg, esp_event_base_t event_base, int3
       break;
     }
     case IP_EVENT_PPP_LOST_IP:
-      // if (self->component_state_ == ModemComponentState::CONNECTED) {
+      // if (self->component_state_ == ModemComponentState::MODEM_CONNECTED) {
       //   // Only log if previously connected.
       //   ESP_LOGD(TAG, "IP event: Lost IP.");
       // }

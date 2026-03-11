@@ -19,16 +19,16 @@ namespace esphome {
 namespace modem {
 
 enum class ModemComponentState {
-  ENABLING,
-  SYNCING,
-  INIT_NETWORK,
-  START_PPP,
-  WAIT_IP,
-  CONNECTED,
-  DISCONNECTED,
-  NOT_RESPONDING,
-  DISABLING,
-  DISABLED,
+  MODEM_ENABLING,
+  MODEM_SYNCING,
+  MODEM_INIT_NETWORK,
+  MODEM_START_PPP,
+  MODEM_WAIT_IP,
+  MODEM_CONNECTED,
+  MODEM_DISCONNECTED,
+  MODEM_NOT_RESPONDING,
+  MODEM_DISABLING,
+  MODEM_DISABLED,
 };
 
 struct ModemRestoreState {
@@ -65,8 +65,8 @@ class ModemComponent : public Component, public uart::UARTComponent {
   void set_urc_text_sensor(text_sensor::TextSensor *urc_text_sensor) { this->urc_text_sensor = urc_text_sensor; }
   text_sensor::TextSensor *urc_text_sensor{nullptr};
 #endif
-  bool is_connected() { return this->component_state_ == ModemComponentState::CONNECTED; }
-  bool is_disabled() { return this->component_state_ == ModemComponentState::DISABLED && this->disable_wanted_; }
+  bool is_connected() { return this->component_state_ == ModemComponentState::MODEM_CONNECTED; }
+  bool is_disabled() { return this->component_state_ == ModemComponentState::MODEM_DISABLED && this->disable_wanted_; }
   bool is_enabled() { return !is_disabled(); }
 
   // Delegated methods
@@ -126,9 +126,9 @@ class ModemComponent : public Component, public uart::UARTComponent {
   CallbackManager<void(ModemComponentState, ModemComponentState)> on_state_callback_;
 
   // Changes will trigger user callback
-  ModemComponentState component_state_{ModemComponentState::DISABLED};
-  ModemComponentState component_last_state_{ModemComponentState::DISABLED};
-  ModemComponentState requested_state_{ModemComponentState::DISABLED};
+  ModemComponentState component_state_{ModemComponentState::MODEM_DISABLED};
+  ModemComponentState component_last_state_{ModemComponentState::MODEM_DISABLED};
+  ModemComponentState requested_state_{ModemComponentState::MODEM_DISABLED};
 
   uint32_t last_health_check_{0};
   uint32_t next_loop_millis_{0};
