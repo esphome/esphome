@@ -8,6 +8,7 @@ import time
 
 from esphome import loader
 from esphome.config import iter_component_configs, iter_components
+from esphome.core.config import INCLUDE_STAGE_ORDER, KEY_INCLUDE_STATEMENTS
 from esphome.const import (
     HEADER_FILE_EXTENSIONS,
     PLATFORM_ESP32,
@@ -158,7 +159,9 @@ def find_begin_end(text, begin_s, end_s):
     return text[:begin_index], text[(end_index + len(end_s)) :]
 
 
-DEFINES_H_FORMAT = ESPHOME_H_FORMAT = """\
+DEFINES_H_FORMAT = (
+    ESPHOME_H_FORMAT
+) = """\
 #pragma once
 #include "esphome/core/macros.h"
 {}
@@ -366,6 +369,26 @@ static const char ESPHOME_COMMENT_STR[] = "{escaped_comment}";
 """
 
 
+def _render_global_statements() -> str:
+    from esphome.cpp_generator import statement
+
+    global_code = []
+
+    for exp in CORE.global_statements:
+        text = str(statement(exp)).rstrip()
+        global_code.append(text)
+
+    return "\n".join(global_code) + ("\n" if global_code else "")
+
+
+def _render_include_stage(stage: str) -> str:
+    include_statements = CORE.data.get(KEY_INCLUDE_STATEMENTS, {})
+    statements = include_statements.get(stage, [])
+    if not statements:
+        return ""
+    return "\n".join(statements) + "\n"
+
+
 def write_cpp(code_s):
     path = CORE.relative_src_path("main.cpp")
     if path.is_file():
@@ -381,8 +404,11 @@ def write_cpp(code_s):
         code_format = CPP_BASE_FORMAT
 
     copy_src_tree()
+    global_body_s = _render_global_statements()
     global_s = '#include "esphome.h"\n'
-    global_s += CORE.cpp_global_section
+    global_s += _render_include_stage(INCLUDE_STAGE_ORDER[0])
+    global_s += global_body_s
+    global_s += _render_include_stage(INCLUDE_STAGE_ORDER[1])
 
     full_file = f"{code_format[0] + CPP_INCLUDE_BEGIN}\n{global_s}{CPP_INCLUDE_END}"
     full_file += (
