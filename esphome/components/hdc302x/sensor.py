@@ -114,7 +114,10 @@ HDC302X_HEATER_ON_ACTION_SCHEMA = maybe_simple_id(
 
 
 @automation.register_action(
-    "hdc302x.heater_on", HeaterOnAction, HDC302X_HEATER_ON_ACTION_SCHEMA
+    "hdc302x.heater_on",
+    HeaterOnAction,
+    HDC302X_HEATER_ON_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def hdc302x_heater_on_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -127,7 +130,10 @@ async def hdc302x_heater_on_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "hdc302x.heater_off", HeaterOffAction, HDC302X_ACTION_SCHEMA
+    "hdc302x.heater_off",
+    HeaterOffAction,
+    HDC302X_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def hdc302x_heater_off_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

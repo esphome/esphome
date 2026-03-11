@@ -34,7 +34,7 @@
 #endif
 #endif
 #endif  // USE_SOCKET_SELECT_SUPPORT
-#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+#if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
 namespace esphome::socket {
 void socket_wake();  // NOLINT(readability-redundant-declaration)
 }  // namespace esphome::socket
@@ -142,6 +142,7 @@ static constexpr uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for qu
 class Application {
  public:
 #ifdef ESPHOME_NAME_ADD_MAC_SUFFIX
+  // Called before Logger::pre_setup() — must not log (global_logger is not yet set).
   /// Pre-setup with MAC suffix: overwrites placeholder in mutable static buffers with actual MAC.
   void pre_setup(char *name, size_t name_len, char *friendly_name, size_t friendly_name_len) {
     arch_init();
@@ -163,6 +164,7 @@ class Application {
     this->friendly_name_ = StringRef(friendly_name, friendly_name_len);
   }
 #else
+  // Called before Logger::pre_setup() — must not log (global_logger is not yet set).
   /// Pre-setup without MAC suffix: StringRef points directly at const string literals in flash.
   void pre_setup(const char *name, size_t name_len, const char *friendly_name, size_t friendly_name_len) {
     arch_init();
@@ -565,8 +567,12 @@ class Application {
 
 #if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
   /// Wake the main event loop from any context (ISR, thread, or main loop).
-  /// On ESP8266: sets the socket wake flag and calls esp_schedule() to exit esp_delay() early.
+  /// Sets the socket wake flag and calls esp_schedule() to exit esp_delay() early.
   static void IRAM_ATTR wake_loop_any_context() { socket::socket_wake(); }
+#elif defined(USE_RP2040) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+  /// Wake the main event loop from any context.
+  /// Sets the socket wake flag and calls __sev() to exit __wfe() early.
+  static void wake_loop_any_context() { socket::socket_wake(); }
 #endif
 
  protected:
