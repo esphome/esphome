@@ -204,7 +204,7 @@ class AsyncWebServer {
   ~AsyncWebServer() { this->end(); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
-  void onNotFound(std::function<void(AsyncWebServerRequest *request)> fn) { on_not_found_ = std::move(fn); }
+  void onNotFound(std::function<void(AsyncWebServerRequest *request)> &&fn) { on_not_found_ = std::move(fn); }
 
   void begin();
   void end();
@@ -327,7 +327,7 @@ class AsyncEventSource : public AsyncWebHandler {
   // NOLINTNEXTLINE(readability-identifier-naming)
   void handleRequest(AsyncWebServerRequest *request) override;
   // NOLINTNEXTLINE(readability-identifier-naming)
-  void onConnect(connect_handler_t cb) { this->on_connect_ = std::move(cb); }
+  void onConnect(connect_handler_t &&cb) { this->on_connect_ = std::move(cb); }
 
   void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);

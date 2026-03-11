@@ -150,25 +150,21 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
       this->on_publish_.call((int) event.msg_id);
       break;
     case MQTT_EVENT_DATA: {
-      static std::string topic;
       if (!event.topic.empty()) {
         // When a single message arrives as multiple chunks, the topic will be empty
         // on any but the first message, leading to event.topic being an empty string.
         // To ensure handlers get the correct topic, cache the last seen topic to
         // simulate always receiving the topic from underlying library
-        topic = event.topic;
+        this->cached_topic_ = event.topic;
       }
-      ESP_LOGV(TAG, "MQTT_EVENT_DATA %s", topic.c_str());
-      this->on_message_.call(topic.c_str(), event.data.data(), event.data.size(), event.current_data_offset,
-                             event.total_data_len);
+      ESP_LOGV(TAG, "MQTT_EVENT_DATA %s", this->cached_topic_.c_str());
+      this->on_message_.call(this->cached_topic_.c_str(), event.data.data(), event.data.size(),
+                             event.current_data_offset, event.total_data_len);
     } break;
     case MQTT_EVENT_ERROR:
       ESP_LOGE(TAG, "MQTT_EVENT_ERROR");
       if (event.error_handle.error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
-        ESP_LOGE(TAG,
-                 "Last error code reported from esp-tls: 0x%x\n"
-                 "Last tls stack error number: 0x%x\n"
-                 "Last captured errno : %d (%s)",
+        ESP_LOGE(TAG, "Last esp-tls error: 0x%x, tls stack error: 0x%x, socket errno: %d (%s)",
                  event.error_handle.esp_tls_last_esp_err, event.error_handle.esp_tls_stack_err,
                  event.error_handle.esp_transport_sock_errno, strerror(event.error_handle.esp_transport_sock_errno));
       } else if (event.error_handle.error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {

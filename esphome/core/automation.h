@@ -4,6 +4,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 #include <concepts>
 #include <functional>
@@ -56,6 +57,16 @@ template<typename T, typename... X> class TemplatableValue {
     this->static_str_ = str;
   }
 
+#ifdef USE_ESP8266
+  // On ESP8266, __FlashStringHelper* is a distinct type from const char*.
+  // ESPHOME_F(s) expands to F(s) which returns __FlashStringHelper* pointing to PROGMEM.
+  // Store as FLASH_STRING — value()/is_empty()/ref_or_copy_to() use _P functions
+  // to access the PROGMEM pointer safely.
+  TemplatableValue(const __FlashStringHelper *str) requires std::same_as<T, std::string> : type_(FLASH_STRING) {
+    this->static_str_ = reinterpret_cast<const char *>(str);
+  }
+#endif
+
   template<typename F> TemplatableValue(F value) requires(!std::invocable<F, X...>) : type_(VALUE) {
     if constexpr (USE_HEAP_STORAGE) {
       this->value_ = new T(std::move(value));
@@ -89,7 +100,7 @@ template<typename T, typename... X> class TemplatableValue {
       this->f_ = new std::function<T(X...)>(*other.f_);
     } else if (this->type_ == STATELESS_LAMBDA) {
       this->stateless_f_ = other.stateless_f_;
-    } else if (this->type_ == STATIC_STRING) {
+    } else if (this->type_ == STATIC_STRING || this->type_ == FLASH_STRING) {
       this->static_str_ = other.static_str_;
     }
   }
@@ -108,7 +119,7 @@ template<typename T, typename... X> class TemplatableValue {
       other.f_ = nullptr;
     } else if (this->type_ == STATELESS_LAMBDA) {
       this->stateless_f_ = other.stateless_f_;
-    } else if (this->type_ == STATIC_STRING) {
+    } else if (this->type_ == STATIC_STRING || this->type_ == FLASH_STRING) {
       this->static_str_ = other.static_str_;
     }
     other.type_ = NONE;
@@ -141,7 +152,7 @@ template<typename T, typename... X> class TemplatableValue {
     } else if (this->type_ == LAMBDA) {
       delete this->f_;
     }
-    // STATELESS_LAMBDA/STATIC_STRING/NONE: no cleanup needed (pointers, not heap-allocated)
+    // STATELESS_LAMBDA/STATIC_STRING/FLASH_STRING/NONE: no cleanup needed (pointers, not heap-allocated)
   }
 
   bool has_value() const { return this->type_ != NONE; }
@@ -165,6 +176,17 @@ template<typename T, typename... X> class TemplatableValue {
           return std::string(this->static_str_);
         }
         __builtin_unreachable();
+#ifdef USE_ESP8266
+      case FLASH_STRING:
+        // PROGMEM pointer — must use _P functions to access on ESP8266
+        if constexpr (std::same_as<T, std::string>) {
+          size_t len = strlen_P(this->static_str_);
+          std::string result(len, '\0');
+          memcpy_P(result.data(), this->static_str_, len);
+          return result;
+        }
+        __builtin_unreachable();
+#endif
       case NONE:
       default:
         return T{};
@@ -186,9 +208,12 @@ template<typename T, typename... X> class TemplatableValue {
   }
 
   /// Check if this holds a static string (const char* stored without allocation)
+  /// The pointer is always directly readable (RAM or flash-mapped).
+  /// Returns false for FLASH_STRING (PROGMEM on ESP8266, requires _P functions).
   bool is_static_string() const { return this->type_ == STATIC_STRING; }
 
   /// Get the static string pointer (only valid if is_static_string() returns true)
+  /// The pointer is always directly readable — FLASH_STRING uses a separate type.
   const char *get_static_string() const { return this->static_str_; }
 
   /// Check if the string value is empty without allocating (for std::string specialization).
@@ -200,6 +225,12 @@ template<typename T, typename... X> class TemplatableValue {
         return true;
       case STATIC_STRING:
         return this->static_str_ == nullptr || this->static_str_[0] == '\0';
+#ifdef USE_ESP8266
+      case FLASH_STRING:
+        // PROGMEM pointer — must use progmem_read_byte on ESP8266
+        return this->static_str_ == nullptr ||
+               progmem_read_byte(reinterpret_cast<const uint8_t *>(this->static_str_)) == '\0';
+#endif
       case VALUE:
         return this->value_->empty();
       default:  // LAMBDA/STATELESS_LAMBDA - must call value()
@@ -209,8 +240,9 @@ template<typename T, typename... X> class TemplatableValue {
 
   /// Get a StringRef to the string value without heap allocation when possible.
   /// For STATIC_STRING/VALUE, returns reference to existing data (no allocation).
+  /// For FLASH_STRING (ESP8266 PROGMEM), copies to provided buffer via _P functions.
   /// For LAMBDA/STATELESS_LAMBDA, calls value(), copies to provided buffer, returns ref to buffer.
-  /// @param lambda_buf Buffer used only for lambda case (must remain valid while StringRef is used).
+  /// @param lambda_buf Buffer used only for copy cases (must remain valid while StringRef is used).
   /// @param lambda_buf_size Size of the buffer.
   /// @return StringRef pointing to the string data.
   StringRef ref_or_copy_to(char *lambda_buf, size_t lambda_buf_size) const requires std::same_as<T, std::string> {
@@ -221,6 +253,19 @@ template<typename T, typename... X> class TemplatableValue {
         if (this->static_str_ == nullptr)
           return StringRef();
         return StringRef(this->static_str_, strlen(this->static_str_));
+#ifdef USE_ESP8266
+      case FLASH_STRING:
+        if (this->static_str_ == nullptr)
+          return StringRef();
+        {
+          // PROGMEM pointer — copy to buffer via _P functions
+          size_t len = strlen_P(this->static_str_);
+          size_t copy_len = std::min(len, lambda_buf_size - 1);
+          memcpy_P(lambda_buf, this->static_str_, copy_len);
+          lambda_buf[copy_len] = '\0';
+          return StringRef(lambda_buf, copy_len);
+        }
+#endif
       case VALUE:
         return StringRef(this->value_->data(), this->value_->size());
       default: {  // LAMBDA/STATELESS_LAMBDA - must call value() and copy
@@ -239,6 +284,7 @@ template<typename T, typename... X> class TemplatableValue {
    LAMBDA,
    STATELESS_LAMBDA,
    STATIC_STRING,  // For const char* when T is std::string - avoids heap allocation
+   FLASH_STRING,   // PROGMEM pointer on ESP8266; never set on other platforms
  } type_;
   // For std::string, use heap pointer to minimize union size (4 bytes vs 12+).
   // For other types, store value inline as before.
@@ -247,7 +293,7 @@ template<typename T, typename... X> class TemplatableValue {
     ValueStorage value_;  // T for inline storage, T* for heap storage
     std::function<T(X...)> *f_;
     T (*stateless_f_)(X...);
-    const char *static_str_;  // For STATIC_STRING type
+    const char *static_str_;  // For STATIC_STRING and FLASH_STRING types
   };
 };
 

@@ -21,6 +21,17 @@ class SensirionI2CDevice : public i2c::I2CDevice {
  public:
   enum CommandLen : uint8_t { ADDR_8_BIT = 1, ADDR_16_BIT = 2 };
 
+  /**
+   * This function performs an in-place conversion of the provided buffer
+   * from uint16_t values to big endianness. Useful for Sensirion strings in SEN5X and SEN6X
+   */
+  static inline const char *sensirion_convert_to_string_in_place(uint16_t *array, size_t length) {
+    for (size_t i = 0; i < length; i++) {
+      array[i] = convert_big_endian(array[i]);
+    }
+    return reinterpret_cast<const char *>(array);
+  }
+
   /** Read data words from I2C device.
    * handles CRC check used by Sensirion sensors
    * @param data pointer to raw result

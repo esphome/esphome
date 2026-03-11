@@ -1,4 +1,5 @@
 esphome:
+  debug_scheduler: true  # Enable scheduler leak detection
   name: scheduler-string-lifetime-test
 
 external_components:
