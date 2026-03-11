@@ -191,10 +191,11 @@ void SGP4xComponent::measure_raw_() {
     response_words = 1;
   } else {
     // SGP41 sensor must use NOx conditioning command for the first 10 seconds
-    if (millis() - this->nox_conditioning_start_ < 10000) {
+    if (this->nox_conditioning_start_.has_value() && millis() - *this->nox_conditioning_start_ < 10000) {
       command = SGP41_CMD_NOX_CONDITIONING;
       response_words = 1;
     } else {
+      this->nox_conditioning_start_.reset();
       command = SGP41_CMD_MEASURE_RAW;
       response_words = 2;
     }
