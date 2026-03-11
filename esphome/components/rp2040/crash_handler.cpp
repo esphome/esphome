@@ -116,7 +116,7 @@ void crash_handler_log() {
 //   RP2040: 0x20000000 - 0x20042000 (264KB)
 //   RP2350: 0x20000000 - 0x20082000 (520KB)
 static inline bool is_valid_sram_ptr(const uint32_t *ptr) {
-  auto addr = (uint32_t) ptr;
+  auto addr = reinterpret_cast<uintptr_t>(ptr);
   // Exception frame is 8 words (32 bytes), so frame+7 must also be in SRAM.
   // Check alignment (must be word-aligned) and that the full frame fits.
   return (addr % 4 == 0) && addr >= SRAM_BASE && (addr + 32) <= SRAM_END;
@@ -133,9 +133,9 @@ static void __attribute__((used, noreturn)) hard_fault_handler_c(uint32_t *frame
   // crash marker so we at least know a crash occurred.
   if (!is_valid_sram_ptr(frame)) {
     watchdog_hw->scratch[0] = CRASH_MAGIC;
-    watchdog_hw->scratch[1] = 0;                 // PC unknown
-    watchdog_hw->scratch[2] = 0;                 // LR unknown
-    watchdog_hw->scratch[3] = (uint32_t) frame;  // Record the bad SP for diagnosis
+    watchdog_hw->scratch[1] = 0;                                   // PC unknown
+    watchdog_hw->scratch[2] = 0;                                   // LR unknown
+    watchdog_hw->scratch[3] = reinterpret_cast<uintptr_t>(frame);  // Record the bad SP for diagnosis
     for (uint32_t i = 0; i < MAX_BACKTRACE; i++) {
       watchdog_hw->scratch[4 + i] = 0;
     }
@@ -145,8 +145,13 @@ static void __attribute__((used, noreturn)) hard_fault_handler_c(uint32_t *frame
   }
 
   // Pre-fault SP: the exception frame is 8 words pushed onto the stack,
-  // so the SP before the fault was frame + 8 words.
-  uint32_t pre_fault_sp = (uint32_t) (frame + 8);
+  // so the SP before the fault was frame + 8 words. If xPSR bit 9 is set,
+  // the hardware pushed an extra alignment word to maintain 8-byte stack
+  // alignment (ARMv6-M/ARMv7-M spec), so add 1 more word.
+  static constexpr uint32_t EF_XPSR = 7;
+  uint32_t extra_align = (frame[EF_XPSR] & (1u << 9)) ? 1 : 0;
+  uint32_t *post_frame = frame + 8 + extra_align;
+  uint32_t pre_fault_sp = reinterpret_cast<uintptr_t>(post_frame);
 
   // Write key registers
   watchdog_hw->scratch[0] = CRASH_MAGIC;
@@ -155,11 +160,11 @@ static void __attribute__((used, noreturn)) hard_fault_handler_c(uint32_t *frame
   watchdog_hw->scratch[3] = pre_fault_sp;
 
   // Scan stack for code addresses to build a deeper backtrace.
-  // The exception frame is 8 words (32 bytes) at 'frame'. The pre-fault
-  // stack starts at frame+8. Walk up to 64 words looking for return addresses.
-  uint32_t *scan_start = frame + 8;  // Past exception frame
+  // The exception frame is 8 words (32 bytes) at 'frame', plus an optional
+  // alignment word. Walk up to 64 words looking for return addresses.
+  uint32_t *scan_start = post_frame;
   // SRAM_END is chip-specific: 0x20042000 (RP2040) or 0x20082000 (RP2350)
-  uint32_t *stack_top = (uint32_t *) SRAM_END;
+  uint32_t *stack_top = reinterpret_cast<uint32_t *>(SRAM_END);
   uint32_t bt_count = 0;
 
   for (uint32_t *p = scan_start; p < stack_top && p < scan_start + 64 && bt_count < MAX_BACKTRACE; p++) {
