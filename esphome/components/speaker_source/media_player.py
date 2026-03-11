@@ -198,7 +198,7 @@ CONFIG_SCHEMA = cv.All(
 def _final_validate_codecs(config: ConfigType) -> ConfigType:
     # "NONE" means the pipeline accepts any format at runtime, so all optional codecs must be available.
     # When a specific format is set, only that codec is requested.
-    needed_formats = set()
+    needed_formats: set[str] = set()
     need_all = False
 
     for pipeline_key in (CONF_ANNOUNCEMENT_PIPELINE, CONF_MEDIA_PIPELINE):
