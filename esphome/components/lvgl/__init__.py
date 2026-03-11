@@ -119,7 +119,11 @@ LV_CONF_H_FORMAT = """\
 
 
 def generate_lv_conf_h():
-    definitions = [as_macro(m, v) for m, v in df.get_data(df.KEY_LV_DEFINES).items()]
+    lv_defines = df.get_data(df.KEY_LV_DEFINES)
+    unused_defines = set(df.LV_DEFINES) - set(lv_defines)
+    definitions = [as_macro(m, v) for m, v in lv_defines.items()] + [
+        as_macro(m, "0") for m in unused_defines
+    ]
     definitions.sort()
     return LV_CONF_H_FORMAT.format("\n".join(definitions))
 
@@ -225,6 +229,9 @@ async def to_code(configs):
     else:
         df.add_define("LV_DRAW_BUF_ALIGN", "1")
         cg.add_library("lvgl/lvgl", LVGL_VERSION)
+    df.add_define("LV_DRAW_BUF_STRIDE_ALIGN", "1")
+    df.add_define("LV_USE_DRAW_SW", "1")
+    df.add_define("LV_USE_STDLIB_SPRINTF", "LV_STDLIB_CLIB")
     cg.add_define("USE_LVGL")
     # suppress default enabling of extra widgets
     df.add_define("_LV_KCONFIG_PRESENT")
