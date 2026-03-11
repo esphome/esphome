@@ -114,9 +114,6 @@ void crash_handler_log() {
     pos += snprintf(hint + pos, sizeof(hint) - pos, " 0x%08" PRIX32, addr);
   }
   ESP_LOGE(TAG, "%s", hint);
-#if CONFIG_IDF_TARGET_ARCH_RISCV
-  ESP_LOGE(TAG, "RISC-V backtrace is best-effort. Check serial console for full register dump.");
-#endif
 }
 
 }  // namespace esphome::esp32
