@@ -161,7 +161,7 @@ static const char *get_exception_reason() {
       "StoreProhibited",
   };
   uint32_t cause = s_raw_crash_data.cause;
-  if (cause < sizeof(REASON) / sizeof(reason[0]) && REASON[cause] != nullptr)
+  if (cause < sizeof(REASON) / sizeof(REASON[0]) && REASON[cause] != nullptr)
     return REASON[cause];
 #elif CONFIG_IDF_TARGET_ARCH_RISCV
   // For SoC-level panics (watchdog, cache error), mcause holds IDF-internal
@@ -188,7 +188,7 @@ static const char *get_exception_reason() {
       "Store page fault",
   };
   uint32_t cause = s_raw_crash_data.cause;
-  if (cause < sizeof(REASON) / sizeof(reason[0]) && REASON[cause] != nullptr)
+  if (cause < sizeof(REASON) / sizeof(REASON[0]) && REASON[cause] != nullptr)
     return REASON[cause];
 #endif
   return "Unknown";
