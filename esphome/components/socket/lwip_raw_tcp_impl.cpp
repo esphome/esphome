@@ -699,6 +699,16 @@ void LWIPRawListenImpl::s_err_fn(void *arg, err_t err) {
   arg_this->pcb_ = nullptr;
 }
 
+#ifdef USE_RP2040
+void LWIPRawListenImpl::s_accepted_pcb_err_fn(void *arg, err_t err) {
+  // Called when a queued (not yet accepted) PCB errors — e.g., remote sent RST.
+  // The PCB is already freed by lwip. Null our pointer so accept() skips it.
+  (void) err;
+  auto *slot = reinterpret_cast<struct tcp_pcb **>(arg);
+  *slot = nullptr;
+}
+#endif
+
 err_t LWIPRawListenImpl::s_accept_fn(void *arg, struct tcp_pcb *newpcb, err_t err) {
   auto *arg_this = reinterpret_cast<LWIPRawListenImpl *>(arg);
   return arg_this->accept_fn_(newpcb, err);
@@ -724,7 +734,20 @@ std::unique_ptr<LWIPRawImpl> LWIPRawListenImpl::accept(struct sockaddr *addr, so
   }
   this->accepted_pcbs_[this->accepted_socket_count_ - 1] = nullptr;
   this->accepted_socket_count_--;
+  // Update tcp_arg for remaining queued PCBs — their array slots shifted by one.
+  // Safe because we hold LWIP_LOCK, so err callbacks can't fire during the update.
+  for (uint8_t i = 0; i < this->accepted_socket_count_; i++) {
+    if (this->accepted_pcbs_[i] != nullptr) {
+      tcp_arg(this->accepted_pcbs_[i], &this->accepted_pcbs_[i]);
+    }
+  }
   LWIP_LOG("Connection accepted by application, queue size: %d", this->accepted_socket_count_);
+  if (pcb == nullptr) {
+    // PCB was freed by lwip (RST/timeout) while queued — the temporary error callback
+    // nulled our pointer. Return EWOULDBLOCK so the caller retries next loop.
+    errno = EWOULDBLOCK;
+    return nullptr;
+  }
   auto sock = make_unique<LWIPRawImpl>(this->family_, pcb);
   sock->init();
 #else
@@ -793,7 +816,13 @@ err_t LWIPRawListenImpl::accept_fn_(struct tcp_pcb *newpcb, err_t err) {
   // Heap allocation here is unsafe — newlib's malloc recursive mutex doesn't prevent
   // IRQ re-entry on the same core, causing heap corruption under rapid connect/disconnect.
   // Store the raw PCB and defer LWIPRawImpl creation to the main-loop accept().
-  this->accepted_pcbs_[this->accepted_socket_count_++] = newpcb;
+  uint8_t idx = this->accepted_socket_count_++;
+  this->accepted_pcbs_[idx] = newpcb;
+  // Register a temporary error callback so that if the connection errors (RST, timeout)
+  // before accept() picks it up, we null our pointer instead of leaving a dangling reference.
+  // tcp_arg points to our array slot; accept() updates these pointers after shifting.
+  tcp_arg(newpcb, &this->accepted_pcbs_[idx]);
+  tcp_err(newpcb, LWIPRawListenImpl::s_accepted_pcb_err_fn);
 #else
   auto sock = make_unique<LWIPRawImpl>(this->family_, newpcb);
   sock->init();
