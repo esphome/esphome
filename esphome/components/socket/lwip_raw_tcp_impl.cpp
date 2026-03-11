@@ -425,12 +425,16 @@ LWIPRawImpl::~LWIPRawImpl() {
   // Base class destructor handles pcb_ cleanup via tcp_abort
 }
 
-void LWIPRawImpl::init() {
+void LWIPRawImpl::init(struct pbuf *initial_rx) {
   LWIP_LOCK();
   LWIP_LOG("init(%p)", this->pcb_);
   tcp_arg(this->pcb_, this);
   tcp_recv(this->pcb_, LWIPRawImpl::s_recv_fn);
   tcp_err(this->pcb_, LWIPRawImpl::s_err_fn);
+  if (initial_rx != nullptr) {
+    this->rx_buf_ = initial_rx;
+    this->rx_buf_offset_ = 0;
+  }
 }
 
 void LWIPRawImpl::s_err_fn(void *arg, err_t err) {
@@ -668,10 +672,15 @@ LWIPRawListenImpl::~LWIPRawListenImpl() {
   // Clear the error callback first — tcp_abort triggers it, and we don't
   // want s_accepted_pcb_err_fn writing to slots during destruction.
   for (uint8_t i = 0; i < this->accepted_socket_count_; i++) {
-    if (this->accepted_pcbs_[i] != nullptr) {
-      tcp_err(this->accepted_pcbs_[i], nullptr);
-      tcp_abort(this->accepted_pcbs_[i]);
-      this->accepted_pcbs_[i] = nullptr;
+    auto &entry = this->accepted_pcbs_[i];
+    if (entry.pcb != nullptr) {
+      tcp_err(entry.pcb, nullptr);
+      tcp_abort(entry.pcb);
+      entry.pcb = nullptr;
+    }
+    if (entry.rx_buf != nullptr) {
+      pbuf_free(entry.rx_buf);
+      entry.rx_buf = nullptr;
     }
   }
   this->accepted_socket_count_ = 0;
@@ -700,12 +709,32 @@ void LWIPRawListenImpl::s_err_fn(void *arg, err_t err) {
   arg_this->pcb_ = nullptr;
 }
 
-void LWIPRawListenImpl::s_accepted_pcb_err_fn(void *arg, err_t err) {
+void LWIPRawListenImpl::s_queued_err_fn(void *arg, err_t err) {
   // Called when a queued (not yet accepted) PCB errors — e.g., remote sent RST.
   // The PCB is already freed by lwip. Null our pointer so accept() skips it.
   (void) err;
-  auto *slot = reinterpret_cast<struct tcp_pcb **>(arg);
-  *slot = nullptr;
+  auto *entry = reinterpret_cast<QueuedPcb *>(arg);
+  entry->pcb = nullptr;
+  // Don't free rx_buf here — accept() will clean it up when it sees pcb==nullptr
+}
+
+err_t LWIPRawListenImpl::s_queued_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, err_t err) {
+  // Temporary recv callback for PCBs queued between accept_fn_ and accept().
+  // Without this, lwip's default tcp_recv_null handler would ACK and drop the data,
+  // causing the API handshake to silently fail (client sends Hello, server never sees it).
+  (void) pcb;
+  auto *entry = reinterpret_cast<QueuedPcb *>(arg);
+  if (pb == nullptr || err != ERR_OK) {
+    // Remote closed or error
+    entry->rx_closed = true;
+    return ERR_OK;
+  }
+  if (entry->rx_buf == nullptr) {
+    entry->rx_buf = pb;
+  } else {
+    pbuf_cat(entry->rx_buf, pb);
+  }
+  return ERR_OK;
 }
 
 err_t LWIPRawListenImpl::s_accept_fn(void *arg, struct tcp_pcb *newpcb, err_t err) {
@@ -723,32 +752,39 @@ std::unique_ptr<LWIPRawImpl> LWIPRawListenImpl::accept(struct sockaddr *addr, so
     errno = EWOULDBLOCK;
     return nullptr;
   }
-  // Take raw PCB from front of queue
-  struct tcp_pcb *pcb = this->accepted_pcbs_[0];
-  // Shift remaining PCBs forward
+  // Take entry from front of queue
+  QueuedPcb entry = this->accepted_pcbs_[0];
+  // Shift remaining entries forward
   for (uint8_t i = 1; i < this->accepted_socket_count_; i++) {
     this->accepted_pcbs_[i - 1] = this->accepted_pcbs_[i];
   }
-  this->accepted_pcbs_[this->accepted_socket_count_ - 1] = nullptr;
+  this->accepted_pcbs_[this->accepted_socket_count_ - 1] = {};
   this->accepted_socket_count_--;
   // Update tcp_arg for remaining queued PCBs — their array slots shifted by one.
-  // Safe because we hold LWIP_LOCK, so err callbacks can't fire during the update.
+  // Safe because we hold LWIP_LOCK, so err/recv callbacks can't fire during the update.
   for (uint8_t i = 0; i < this->accepted_socket_count_; i++) {
-    if (this->accepted_pcbs_[i] != nullptr) {
-      tcp_arg(this->accepted_pcbs_[i], &this->accepted_pcbs_[i]);
+    if (this->accepted_pcbs_[i].pcb != nullptr) {
+      tcp_arg(this->accepted_pcbs_[i].pcb, &this->accepted_pcbs_[i]);
     }
   }
   LWIP_LOG("Connection accepted by application, queue size: %d", this->accepted_socket_count_);
-  if (pcb == nullptr) {
+  if (entry.pcb == nullptr) {
     // PCB was freed by lwip (RST/timeout) while queued — the temporary error callback
-    // nulled our pointer. Return EWOULDBLOCK so the caller retries next loop.
+    // nulled our pointer. Free any buffered data and return EWOULDBLOCK.
+    if (entry.rx_buf != nullptr) {
+      pbuf_free(entry.rx_buf);
+    }
     errno = EWOULDBLOCK;
     return nullptr;
   }
   // Create socket wrapper on the main loop (not in accept callback) to avoid
-  // heap allocation in IRQ context on RP2040.
-  auto sock = make_unique<LWIPRawImpl>(this->family_, pcb);
-  sock->init();
+  // heap allocation in IRQ context on RP2040. Transfer any data received while queued.
+  auto sock = make_unique<LWIPRawImpl>(this->family_, entry.pcb);
+  sock->init(entry.rx_buf);
+  if (entry.rx_closed) {
+    // Remote closed while queued — mark so read() returns EOF after buffered data
+    sock->rx_closed_ = true;
+  }
   if (addr != nullptr) {
     sock->getpeername(addr, addrlen);
   }
@@ -803,12 +839,15 @@ err_t LWIPRawListenImpl::accept_fn_(struct tcp_pcb *newpcb, err_t err) {
   // Store the raw PCB — LWIPRawImpl creation is deferred to the main-loop accept().
   // This avoids heap allocation in this callback, which is unsafe from IRQ context on RP2040.
   uint8_t idx = this->accepted_socket_count_++;
-  this->accepted_pcbs_[idx] = newpcb;
-  // Register a temporary error callback so that if the connection errors (RST, timeout)
-  // before accept() picks it up, we null our pointer instead of leaving a dangling reference.
-  // tcp_arg points to our array slot; accept() updates these pointers after shifting.
+  this->accepted_pcbs_[idx] = {newpcb, nullptr, false};
+  // Register temporary callbacks so that while the PCB is queued:
+  // - err: nulls our pointer if the connection errors (RST, timeout)
+  // - recv: buffers any data that arrives before accept() creates the LWIPRawImpl
+  //   (without this, lwip's default tcp_recv_null would ACK and drop the data)
+  // tcp_arg points to our queue entry; accept() updates these pointers after shifting.
   tcp_arg(newpcb, &this->accepted_pcbs_[idx]);
-  tcp_err(newpcb, LWIPRawListenImpl::s_accepted_pcb_err_fn);
+  tcp_err(newpcb, LWIPRawListenImpl::s_queued_err_fn);
+  tcp_recv(newpcb, LWIPRawListenImpl::s_queued_recv_fn);
   LWIP_LOG("Accepted connection, queue size: %d", this->accepted_socket_count_);
 #if (defined(USE_ESP8266) || defined(USE_RP2040))
   // Wake the main loop immediately so it can accept the new connection.
