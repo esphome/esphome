@@ -28,12 +28,13 @@ static inline bool IRAM_ATTR is_code_addr(uint32_t addr) {
 // Raw crash data written by the panic handler wrapper.
 // Lives in .noinit so it survives software reset but contains garbage after power cycle.
 // Validated by magic marker. Static linkage since it's only used within this file.
-static struct {
+struct RawCrashData {
   uint32_t magic;
   uint32_t pc;
   uint32_t backtrace[MAX_BACKTRACE];
   uint8_t backtrace_count;
-} __attribute__((section(".noinit"))) s_raw_crash_data;
+};
+static RawCrashData __attribute__((section(".noinit"))) s_raw_crash_data;
 
 namespace esphome::esp32 {
 
