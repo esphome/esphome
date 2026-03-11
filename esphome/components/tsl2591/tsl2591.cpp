@@ -327,7 +327,9 @@ uint16_t TSL2591Component::get_illuminance(TSL2591SensorChannel channel, uint32_
     return (combined_illuminance >> 16);
   } else if (channel == TSL2591_SENSOR_CHANNEL_VISIBLE) {
     // Reads all and subtracts out the infrared
-    return ((combined_illuminance & 0xFFFF) - (combined_illuminance >> 16));
+    uint16_t full = combined_illuminance & 0xFFFF;
+    uint16_t ir = combined_illuminance >> 16;
+    return (ir > full) ? 0 : (full - ir);
   }
   // unknown channel!
   ESP_LOGE(TAG, "get_illuminance() caller requested an unknown channel: %d", channel);

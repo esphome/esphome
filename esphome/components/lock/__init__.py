@@ -91,9 +91,8 @@ def lock_schema(
     return _LOCK_SCHEMA.extend(schema)
 
 
+@setup_entity("lock")
 async def _setup_lock_core(var, config):
-    await setup_entity(var, config, "lock")
-
     for conf in config.get(CONF_ON_LOCK, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
@@ -130,9 +129,15 @@ LOCK_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action("lock.unlock", UnlockAction, LOCK_ACTION_SCHEMA)
-@automation.register_action("lock.lock", LockAction, LOCK_ACTION_SCHEMA)
-@automation.register_action("lock.open", OpenAction, LOCK_ACTION_SCHEMA)
+@automation.register_action(
+    "lock.unlock", UnlockAction, LOCK_ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "lock.lock", LockAction, LOCK_ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "lock.open", OpenAction, LOCK_ACTION_SCHEMA, synchronous=True
+)
 async def lock_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)

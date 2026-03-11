@@ -568,7 +568,8 @@ static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, J
     }
 #endif
 #ifdef USE_ENTITY_ICON
-    root[ESPHOME_F("icon")] = obj->get_icon_ref().c_str();
+    char icon_buf[MAX_ICON_LENGTH];
+    root[ESPHOME_F("icon")] = obj->get_icon_to(icon_buf);
 #endif
     root[ESPHOME_F("entity_category")] = obj->get_entity_category();
     bool is_disabled = obj->is_disabled_by_default();
@@ -1139,7 +1140,7 @@ json::SerializationBuffer<> WebServer::number_json_(number::Number *obj, float v
   json::JsonBuilder builder;
   JsonObject root = builder.root();
 
-  const auto uom_ref = obj->traits.get_unit_of_measurement_ref();
+  const auto uom_ref = obj->get_unit_of_measurement_ref();
   const int8_t accuracy = step_to_accuracy_decimals(obj->traits.get_step());
 
   // Need two buffers: one for value, one for state with UOM
@@ -2136,7 +2137,8 @@ json::SerializationBuffer<> WebServer::event_json_(event::Event *obj, StringRef 
     for (const char *event_type : obj->get_event_types()) {
       event_types.add(event_type);
     }
-    root[ESPHOME_F("device_class")] = obj->get_device_class_ref();
+    char dc_buf[MAX_DEVICE_CLASS_LENGTH];
+    root[ESPHOME_F("device_class")] = obj->get_device_class_to(dc_buf);
     this->add_sorting_info_(root, obj);
   }
 

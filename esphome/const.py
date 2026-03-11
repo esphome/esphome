@@ -4,12 +4,15 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2026.3.0-dev"
+__version__ = "2026.4.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
 )
+
+# CLI Help Text Constants
+ARGUMENT_HELP_DEVICE = "Manually specify the serial port/address to use, for example /dev/ttyUSB0. Can be specified multiple times for fallback addresses. Use 'OTA' for resolving from MQTT, DNS or mDNS and avoiding the interactive prompt."
 
 
 class Platform(StrEnum):
@@ -271,6 +274,7 @@ CONF_CURRENT = "current"
 CONF_CURRENT_HUMIDITY_STATE_TOPIC = "current_humidity_state_topic"
 CONF_CURRENT_OPERATION = "current_operation"
 CONF_CURRENT_RESISTOR = "current_resistor"
+CONF_CURRENT_TEMPERATURE = "current_temperature"
 CONF_CURRENT_TEMPERATURE_STATE_TOPIC = "current_temperature_state_topic"
 CONF_CUSTOM = "custom"
 CONF_CUSTOM_FAN_MODE = "custom_fan_mode"
@@ -280,7 +284,6 @@ CONF_CUSTOM_PRESETS = "custom_presets"
 CONF_CYCLE = "cycle"
 CONF_DALLAS_ID = "dallas_id"
 CONF_DATA = "data"
-CONF_DATA_BITS = "data_bits"
 CONF_DATA_PIN = "data_pin"
 CONF_DATA_PINS = "data_pins"
 CONF_DATA_RATE = "data_rate"
@@ -353,6 +356,7 @@ CONF_EFFECT = "effect"
 CONF_EFFECTS = "effects"
 CONF_ELSE = "else"
 CONF_ENABLE_BTM = "enable_btm"
+CONF_ENABLE_FULL_PRINTF = "enable_full_printf"
 CONF_ENABLE_IPV6 = "enable_ipv6"
 CONF_ENABLE_ON_BOOT = "enable_on_boot"
 CONF_ENABLE_OTA_ROLLBACK = "enable_ota_rollback"
@@ -760,7 +764,6 @@ CONF_PAGE_ID = "page_id"
 CONF_PAGES = "pages"
 CONF_PANASONIC = "panasonic"
 CONF_PARAMETERS = "parameters"
-CONF_PARITY = "parity"
 CONF_PASSWORD = "password"
 CONF_PATH = "path"
 CONF_PATTERN = "pattern"
@@ -963,7 +966,6 @@ CONF_STEP_PIN = "step_pin"
 CONF_STILL_THRESHOLD = "still_threshold"
 CONF_STOP = "stop"
 CONF_STOP_ACTION = "stop_action"
-CONF_STOP_BITS = "stop_bits"
 CONF_STORE_BASELINE = "store_baseline"
 CONF_SUBNET = "subnet"
 CONF_SUBSCRIBE_QOS = "subscribe_qos"

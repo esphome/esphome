@@ -44,7 +44,7 @@ SprinklerControllerSwitch::SprinklerControllerSwitch() = default;
 
 void SprinklerControllerSwitch::loop() {
   // Loop is only enabled when f_ has a value (see setup())
-  auto s = (*this->f_)();
+  auto s = (*this->f_)();  // NOLINT(bugprone-unchecked-optional-access)
   if (s.has_value()) {
     this->publish_state(*s);
   }
@@ -89,20 +89,21 @@ void SprinklerValveOperator::loop() {
   uint32_t now = App.get_loop_component_start_time();
   switch (this->state_) {
     case STARTING:
-      if ((now - *this->start_millis_) > this->start_delay_) {
+      if ((now - *this->start_millis_) > this->start_delay_) {  // NOLINT(bugprone-unchecked-optional-access)
         this->run_();  // start_delay_ has been exceeded, so ensure both valves are on and update the state
       }
       break;
 
     case ACTIVE:
-      if ((now - *this->start_millis_) > (this->start_delay_ + this->run_duration_)) {
+      if ((now - *this->start_millis_) >  // NOLINT(bugprone-unchecked-optional-access)
+          (this->start_delay_ + this->run_duration_)) {
         this->stop();  // start_delay_ + run_duration_ has been exceeded, start shutting down
       }
       break;
 
     case STOPPING:
-      if ((now - *this->stop_millis_) > this->stop_delay_) {
-        this->kill_();  // stop_delay_has been exceeded, ensure all valves are off
+      if ((now - *this->stop_millis_) > this->stop_delay_) {  // NOLINT(bugprone-unchecked-optional-access)
+        this->kill_();                                        // stop_delay_has been exceeded, ensure all valves are off
       }
       break;
 
@@ -567,7 +568,7 @@ void Sprinkler::set_valve_run_duration(const optional<size_t> valve_number, cons
     return;
   }
   auto call = this->valve_[valve_number.value()].run_duration_number->make_call();
-  if (this->valve_[valve_number.value()].run_duration_number->traits.get_unit_of_measurement_ref() == MIN_STR) {
+  if (this->valve_[valve_number.value()].run_duration_number->get_unit_of_measurement_ref() == MIN_STR) {
     call.set_value(run_duration.value() / 60.0);
   } else {
     call.set_value(run_duration.value());
@@ -649,7 +650,7 @@ uint32_t Sprinkler::valve_run_duration(const size_t valve_number) {
     return 0;
   }
   if (this->valve_[valve_number].run_duration_number != nullptr) {
-    if (this->valve_[valve_number].run_duration_number->traits.get_unit_of_measurement_ref() == MIN_STR) {
+    if (this->valve_[valve_number].run_duration_number->get_unit_of_measurement_ref() == MIN_STR) {
       return static_cast<uint32_t>(roundf(this->valve_[valve_number].run_duration_number->state * 60));
     } else {
       return static_cast<uint32_t>(roundf(this->valve_[valve_number].run_duration_number->state));
@@ -1067,7 +1068,8 @@ uint32_t Sprinkler::total_cycle_time_enabled_incomplete_valves() {
     if (this->valve_is_enabled_(valve)) {
       enabled_valve_count++;
       if (!this->valve_cycle_complete_(valve)) {
-        if (!this->active_valve().has_value() || (valve != this->active_valve().value())) {
+        auto active = this->active_valve();
+        if (!active.has_value() || (valve != *active)) {
           total_time_remaining += this->valve_run_duration_adjusted(valve);
           incomplete_valve_count++;
         } else {
@@ -1190,8 +1192,11 @@ switch_::Switch *Sprinkler::valve_switch(const size_t valve_number) {
 }
 
 switch_::Switch *Sprinkler::valve_pump_switch(const size_t valve_number) {
-  if (this->is_a_valid_valve(valve_number) && this->valve_[valve_number].pump_switch_index.has_value()) {
-    return this->pump_[this->valve_[valve_number].pump_switch_index.value()];
+  if (this->is_a_valid_valve(valve_number)) {
+    auto idx = this->valve_[valve_number].pump_switch_index;
+    if (idx.has_value()) {
+      return this->pump_[*idx];
+    }
   }
   return nullptr;
 }
