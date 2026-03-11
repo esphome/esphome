@@ -664,9 +664,12 @@ ssize_t LWIPRawImpl::writev(const struct iovec *iov, int iovcnt) {
 
 LWIPRawListenImpl::~LWIPRawListenImpl() {
   LWIP_LOCK();
-  // Abort any queued PCBs that were never accepted by the main loop
+  // Abort any queued PCBs that were never accepted by the main loop.
+  // Clear the error callback first — tcp_abort triggers it, and we don't
+  // want s_accepted_pcb_err_fn writing to slots during destruction.
   for (uint8_t i = 0; i < this->accepted_socket_count_; i++) {
     if (this->accepted_pcbs_[i] != nullptr) {
+      tcp_err(this->accepted_pcbs_[i], nullptr);
       tcp_abort(this->accepted_pcbs_[i]);
       this->accepted_pcbs_[i] = nullptr;
     }
