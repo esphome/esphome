@@ -189,6 +189,15 @@ class APIConnection final : public APIServerConnectionBase {
   void send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg);
 #endif
 
+#ifdef USE_SERIAL_PROXY
+  void on_serial_proxy_configure_request(const SerialProxyConfigureRequest &msg) override;
+  void on_serial_proxy_write_request(const SerialProxyWriteRequest &msg) override;
+  void on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg) override;
+  void on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg) override;
+  void on_serial_proxy_request(const SerialProxyRequest &msg) override;
+  void send_serial_proxy_data(const SerialProxyDataReceived &msg);
+#endif
+
 #ifdef USE_EVENT
   void send_event(event::Event *event);
 #endif
@@ -254,6 +263,7 @@ class APIConnection final : public APIServerConnectionBase {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::CONNECTED ||
            this->is_authenticated();
   }
+  bool is_marked_for_removal() const { return this->flags_.remove; }
   uint8_t get_log_subscription_level() const { return this->flags_.log_subscription; }
 
   // Get client API version for feature detection
@@ -278,7 +288,7 @@ class APIConnection final : public APIServerConnectionBase {
     }
   }
 
-  void prepare_first_message_buffer(std::vector<uint8_t> &shared_buf, size_t header_padding, size_t total_size) {
+  void prepare_first_message_buffer(APIBuffer &shared_buf, size_t header_padding, size_t total_size) {
     shared_buf.clear();
     // Reserve space for header padding + message + footer
     // - Header padding: space for protocol headers (7 bytes for Noise, 6 for Plaintext)
@@ -289,13 +299,19 @@ class APIConnection final : public APIServerConnectionBase {
   }
 
   // Convenience overload - computes frame overhead internally
-  void prepare_first_message_buffer(std::vector<uint8_t> &shared_buf, size_t payload_size) {
+  void prepare_first_message_buffer(APIBuffer &shared_buf, size_t payload_size) {
     const uint8_t header_padding = this->helper_->frame_header_padding();
     const uint8_t footer_size = this->helper_->frame_footer_size();
     this->prepare_first_message_buffer(shared_buf, header_padding, payload_size + header_padding + footer_size);
   }
 
-  bool try_to_clear_buffer(bool log_out_of_space);
+  bool try_to_clear_buffer(bool log_out_of_space) {
+    if (this->flags_.remove)
+      return false;
+    if (this->helper_->can_write_without_blocking())
+      return true;
+    return this->try_to_clear_buffer_slow_(log_out_of_space);
+  }
   bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) override;
 
   const char *get_name() const { return this->helper_->get_client_name(); }
@@ -305,6 +321,8 @@ class APIConnection final : public APIServerConnectionBase {
   }
 
  protected:
+  bool try_to_clear_buffer_slow_(bool log_out_of_space);
+
   // Helper function to handle authentication completion
   void complete_authentication_();
 
@@ -669,8 +687,8 @@ class APIConnection final : public APIServerConnectionBase {
 
   bool schedule_batch_();
   void process_batch_();
-  void process_batch_multi_(std::vector<uint8_t> &shared_buf, size_t num_items, uint8_t header_padding,
-                            uint8_t footer_size) __attribute__((noinline));
+  void process_batch_multi_(APIBuffer &shared_buf, size_t num_items, uint8_t header_padding, uint8_t footer_size)
+      __attribute__((noinline));
   void clear_batch_() {
     this->deferred_batch_.clear();
     this->flags_.batch_scheduled = false;
