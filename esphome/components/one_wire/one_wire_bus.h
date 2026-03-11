@@ -9,7 +9,6 @@ namespace one_wire {
 
 class OneWireBus {
  public:
-
   /// Write a word to the bus. LSB first.
   virtual void write8(uint8_t val) = 0;
 
