@@ -25,7 +25,7 @@ template<typename T> void update_property(T &property, const T &value, bool &fla
 
 void AirConditioner::on_status_change() {
   bool need_publish = false;
-  update_property(this->target_temperature, this->ac_celsius_to_ha_celsius(this->base_.getTargetTemp()), need_publish);
+  update_property(this->target_temperature, this->ac_celsius_to_ha_celsius_(this->base_.getTargetTemp()), need_publish);
   update_property(this->current_temperature, this->base_.getIndoorTemp(), need_publish);
   auto mode = Converters::to_climate_mode(this->base_.getMode());
   update_property(this->mode, mode, need_publish);
@@ -58,7 +58,7 @@ void AirConditioner::control(const ClimateCall &call) {
   dudanov::midea::ac::Control ctrl{};
   auto target_temp_val = call.get_target_temperature();
   if (target_temp_val.has_value())
-    ctrl.targetTemp = this->ha_celsius_to_ac_celsius(*target_temp_val);
+    ctrl.targetTemp = this->ha_celsius_to_ac_celsius_(*target_temp_val);
   auto swing_mode_val = call.get_swing_mode();
   if (swing_mode_val.has_value())
     ctrl.swingMode = Converters::to_midea_swing_mode(*swing_mode_val);

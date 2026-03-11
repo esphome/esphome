@@ -79,7 +79,7 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner>,
 
   /// INBOUND (HA -> AC): Convert HA's precise Celsius to the AC's canonical
   /// 0.5C value. HA sends (F-32)/1.8 which doesn't land on 0.5C steps.
-  float ha_celsius_to_ac_celsius(float celsius) {
+  float ha_celsius_to_ac_celsius_(float celsius) {
     if (!this->use_fahrenheit_)
       return celsius;
     int f = static_cast<int>(std::round(celsius * 1.8f + 32.0f));
@@ -92,7 +92,7 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner>,
 
   /// OUTBOUND (AC -> HA): Convert the AC's canonical 0.5C value to the
   /// precise Celsius that HA will display as a clean integer F.
-  float ac_celsius_to_ha_celsius(float celsius) {
+  float ac_celsius_to_ha_celsius_(float celsius) {
     if (!this->use_fahrenheit_)
       return celsius;
     // Find this value in the AC table
