@@ -171,7 +171,7 @@ void ModemHandler::ip_event_handler(void *arg, esp_event_base_t event_base, int3
   switch (event_id) {
     case IP_EVENT_PPP_GOT_IP: {
       ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
-      ESP_LOGD(TAG, "IP event: Got IP " IPSTR, IP2STR(&event->ip_info.ip));
+      ESP_LOGD(TAG, "PPP IP event: Got IP " IPSTR, IP2STR(&event->ip_info.ip));
       handler->network_infos.ip_info = event->ip_info;
       esp_netif_get_dns_info(event->esp_netif, ESP_NETIF_DNS_MAIN, &handler->network_infos.dns_main);
       esp_netif_get_dns_info(event->esp_netif, ESP_NETIF_DNS_BACKUP, &handler->network_infos.dns_backup);
@@ -179,10 +179,7 @@ void ModemHandler::ip_event_handler(void *arg, esp_event_base_t event_base, int3
       break;
     }
     case IP_EVENT_PPP_LOST_IP:
-      // if (self->component_state_ == ModemComponentState::MODEM_CONNECTED) {
-      //   // Only log if previously connected.
-      //   ESP_LOGD(TAG, "IP event: Lost IP.");
-      // }
+      ESP_LOGD(TAG, "PPP IP event: Lost IP.");
       handler->network_infos.got_ip = false;
       break;
   }

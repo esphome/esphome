@@ -66,14 +66,16 @@ class ModemComponent : public Component, public uart::UARTComponent {
   text_sensor::TextSensor *urc_text_sensor{nullptr};
 #endif
   bool is_connected() { return this->component_state_ == ModemComponentState::MODEM_CONNECTED; }
-  bool is_disabled() { return this->component_state_ == ModemComponentState::MODEM_DISABLED && this->disable_wanted_; }
+  bool is_disabled() {
+    return this->component_state_ == ModemComponentState::MODEM_DISABLED &&
+           this->target_state_ == ModemComponentState::MODEM_DISABLED;
+  }
   bool is_enabled() { return !is_disabled(); }
 
   // Delegated methods
   AtCommandResult send_at(const std::string &cmd, uint32_t timeout = 0, bool verbose = false);
   void enable();
   void disable();
-  void reset();
 
   network::IPAddresses get_ip_addresses();
   const char *get_use_address() const { return this->use_address_; };
@@ -113,9 +115,13 @@ class ModemComponent : public Component, public uart::UARTComponent {
   ModemComponentState handle_state_disabled_();
 
   void transition_to_(ModemComponentState next_state);
-  void request_state_(ModemComponentState next_state);
   void on_enter_state_(ModemComponentState state);
   void on_exit_state_(ModemComponentState state);
+
+  // target_state_ model helpers
+  ModemComponentState compute_next_state_();
+  bool is_going_up_() const { return target_state_ == ModemComponentState::MODEM_CONNECTED; }
+  bool is_going_down_() const { return target_state_ == ModemComponentState::MODEM_DISABLED; }
 
   void abort_(const std::string &message);
   void loop_delay_(uint32_t delay_ms);
@@ -128,14 +134,12 @@ class ModemComponent : public Component, public uart::UARTComponent {
   // Changes will trigger user callback
   ModemComponentState component_state_{ModemComponentState::MODEM_DISABLED};
   ModemComponentState component_last_state_{ModemComponentState::MODEM_DISABLED};
-  ModemComponentState requested_state_{ModemComponentState::MODEM_DISABLED};
+  ModemComponentState target_state_{ModemComponentState::MODEM_DISABLED};  // Stable target state
 
   uint32_t last_health_check_{0};
   uint32_t next_loop_millis_{0};
   uint8_t enabling_retry_{0};
   uint8_t wait_ip_retry_{0};
-  bool disable_wanted_{true};
-  bool has_requested_state_{false};
 
   ModemRestoreState modem_restore_state_{};
   ESPPreferenceObject pref_;
