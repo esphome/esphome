@@ -60,7 +60,11 @@ from esphome.const import (
     DEVICE_CLASS_WINDOW,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    setup_device_class,
+    setup_entity,
+)
 from esphome.cpp_generator import MockObjClass
 from esphome.util import Registry
 
@@ -604,11 +608,9 @@ async def _build_binary_sensor_automations(var, config):
         )
 
 
+@setup_entity("binary_sensor")
 async def setup_binary_sensor_core_(var, config):
-    await setup_entity(var, config, "binary_sensor")
-
-    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
-        cg.add(var.set_device_class(device_class))
+    setup_device_class(config)
     trigger = config.get(CONF_TRIGGER_ON_INITIAL_STATE, False) or config.get(
         CONF_PUBLISH_INITIAL_STATE, False
     )
@@ -683,6 +685,7 @@ async def to_code(config):
         },
         key=CONF_ID,
     ),
+    synchronous=True,
 )
 async def binary_sensor_invalidate_state_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

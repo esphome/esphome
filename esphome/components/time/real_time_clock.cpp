@@ -90,7 +90,7 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   };
   struct timezone tz = {0, 0};
   int ret = settimeofday(&timev, &tz);
-  if (ret == EINVAL) {
+  if (ret != 0 && errno == EINVAL) {
     // Some ESP8266 frameworks abort when timezone parameter is not NULL
     // while ESP32 expects it not to be NULL
     ret = settimeofday(&timev, nullptr);

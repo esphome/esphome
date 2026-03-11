@@ -607,6 +607,7 @@ async def mqtt_connected_to_code(config, condition_id, template_arg, args):
             cv.GenerateID(): cv.use_id(MQTTClientComponent),
         }
     ),
+    synchronous=True,
 )
 async def mqtt_enable_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -621,6 +622,7 @@ async def mqtt_enable_to_code(config, action_id, template_arg, args):
             cv.GenerateID(): cv.use_id(MQTTClientComponent),
         }
     ),
+    synchronous=True,
 )
 async def mqtt_disable_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
