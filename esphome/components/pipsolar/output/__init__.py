@@ -98,6 +98,7 @@ async def to_code(config):
             cv.Required(CONF_VALUE): cv.templatable(cv.positive_float),
         }
     ),
+    synchronous=True,
 )
 async def output_pipsolar_set_level_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

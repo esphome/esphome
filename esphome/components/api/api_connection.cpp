@@ -2016,7 +2016,7 @@ uint16_t APIConnection::encode_to_buffer(uint32_t calculated_size, MessageEncode
   if (total_calculated_size > remaining_size)
     return 0;  // Doesn't fit
 
-  std::vector<uint8_t> &shared_buf = conn->parent_->get_shared_buffer_ref();
+  auto &shared_buf = conn->parent_->get_shared_buffer_ref();
 
   if (conn->flags_.batch_first_message) {
     // First message - buffer already prepared by caller, just clear flag
@@ -2184,7 +2184,7 @@ void APIConnection::process_batch_() {
 
 // Separated from process_batch_() so the single-message fast path gets a minimal
 // stack frame without the MAX_MESSAGES_PER_BATCH * sizeof(MessageInfo) array.
-void APIConnection::process_batch_multi_(std::vector<uint8_t> &shared_buf, size_t num_items, uint8_t header_padding,
+void APIConnection::process_batch_multi_(APIBuffer &shared_buf, size_t num_items, uint8_t header_padding,
                                          uint8_t footer_size) {
   // Ensure MessageInfo remains trivially destructible for our placement new approach
   static_assert(std::is_trivially_destructible<MessageInfo>::value,
