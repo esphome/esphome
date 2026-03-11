@@ -138,11 +138,13 @@ static const char *const TAG = "socket.lwip";
 #define LWIP_LOG(msg, ...)
 #endif
 
-// Clear LWIP callbacks and abort a PCB.
-// Must be called before destroying the object that `tcp_arg` points to.
-// tcp_abort() triggers the err callback synchronously — without clearing
-// first, it would call back into a partially-destroyed object, corrupting
-// freed memory.
+// Clear arg, recv, and err callbacks, then abort a connected PCB.
+// Only valid for full tcp_pcb (not tcp_pcb_listen).
+// Must be called before destroying the object that tcp_arg points to —
+// tcp_abort() triggers the err callback synchronously, which would
+// otherwise call back into a partially-destroyed object.
+// tcp_sent/tcp_poll are not cleared because this implementation
+// never registers them.
 static void pcb_detach_abort(struct tcp_pcb *pcb) {
   tcp_arg(pcb, nullptr);
   tcp_recv(pcb, nullptr);
@@ -150,10 +152,13 @@ static void pcb_detach_abort(struct tcp_pcb *pcb) {
   tcp_abort(pcb);
 }
 
-// Clear LWIP callbacks and gracefully close a PCB.
+// Clear arg, recv, and err callbacks, then gracefully close a connected PCB.
+// Only valid for full tcp_pcb (not tcp_pcb_listen).
 // After tcp_close(), the PCB remains alive during the TCP close handshake
 // (FIN_WAIT, TIME_WAIT states). Without clearing callbacks first, LWIP
 // would call recv/err on a destroyed socket object, corrupting the heap.
+// tcp_sent/tcp_poll are not cleared because this implementation
+// never registers them.
 // Returns ERR_OK on success; on failure the PCB is aborted instead.
 static err_t pcb_detach_close(struct tcp_pcb *pcb) {
   tcp_arg(pcb, nullptr);
@@ -714,9 +719,13 @@ LWIPRawListenImpl::~LWIPRawListenImpl() {
   // Listen PCBs must use tcp_close(), not tcp_abort().
   // tcp_abandon() asserts pcb->state != LISTEN and would access
   // fields that don't exist in the smaller tcp_pcb_listen struct.
+  // Don't use pcb_detach_close() here — tcp_recv()/tcp_err() also access
+  // fields that only exist in the full tcp_pcb, not tcp_pcb_listen.
+  // tcp_close() on a listen PCB is synchronous (frees immediately),
+  // so there are no async callbacks to worry about.
   // Close here and null pcb_ so the base destructor skips tcp_abort.
   if (this->pcb_ != nullptr) {
-    pcb_detach_close(this->pcb_);
+    tcp_close(this->pcb_);
     this->pcb_ = nullptr;
   }
 }
