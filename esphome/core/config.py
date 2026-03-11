@@ -18,6 +18,7 @@ from esphome.const import (
     CONF_COMMENT,
     CONF_COMPILE_PROCESS_LIMIT,
     CONF_DEBUG_SCHEDULER,
+    CONF_DEFAULT,
     CONF_DEVICES,
     CONF_ENVIRONMENT_VARIABLES,
     CONF_ESPHOME,
@@ -33,10 +34,12 @@ from esphome.const import (
     CONF_ON_LOOP,
     CONF_ON_SHUTDOWN,
     CONF_ON_UPDATE,
+    CONF_PATH,
     CONF_PLATFORM,
     CONF_PLATFORMIO_OPTIONS,
     CONF_PRIORITY,
     CONF_PROJECT,
+    CONF_STAGE,
     CONF_TRIGGER_ID,
     CONF_VERSION,
     KEY_CORE,
@@ -108,6 +111,13 @@ Device = cg.esphome_ns.class_("Device")
 Area = cg.esphome_ns.class_("Area")
 
 VALID_INCLUDE_EXTS = {".h", ".hpp", ".tcc", ".ino", ".cpp", ".c"}
+
+INCLUDE_STAGE_BEFORE_ANY_GLOBALS = "before_any_globals"
+INCLUDE_STAGE_AFTER_ALL_GLOBALS = "after_all_globals"
+
+INCLUDE_STAGES = (INCLUDE_STAGE_AFTER_ALL_GLOBALS, INCLUDE_STAGE_BEFORE_ANY_GLOBALS)
+
+KEY_INCLUDE_STATEMENTS = "include_statements"
 
 
 def validate_hostname(config):
@@ -181,9 +191,13 @@ def validate_ids_and_references(config: ConfigType) -> ConfigType:
     return config
 
 
+def _is_system_include(value: str) -> bool:
+    return value.startswith("<") and value.endswith(">")
+
+
 def valid_include(value: str) -> str:
     # Look for "<...>" includes
-    if value.startswith("<") and value.endswith(">"):
+    if _is_system_include(value):
         return value
     try:
         return str(cv.directory(value))
@@ -196,6 +210,20 @@ def valid_include(value: str) -> str:
             f"Include has invalid file extension {ext} - valid extensions are {', '.join(VALID_INCLUDE_EXTS)}"
         )
     return str(path)
+
+
+INCLUDE_SCHEMA = cv.maybe_simple_value(
+    cv.Schema(
+        {
+            cv.Required(CONF_PATH): valid_include,
+            cv.Optional(CONF_STAGE, default=CONF_DEFAULT): cv.enum(
+                {stage: stage for stage in INCLUDE_STAGES} | {CONF_DEFAULT: None},
+                lower=True,
+            ),
+        }
+    ),
+    key=CONF_PATH,
+)
 
 
 def valid_project_name(value: str):
@@ -312,8 +340,8 @@ CONFIG_SCHEMA = cv.All(
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoopTrigger),
                 }
             ),
-            cv.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(valid_include),
-            cv.Optional(CONF_INCLUDES_C, default=[]): cv.ensure_list(valid_include),
+            cv.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(INCLUDE_SCHEMA),
+            cv.Optional(CONF_INCLUDES_C, default=[]): cv.ensure_list(INCLUDE_SCHEMA),
             cv.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),
             cv.Optional(CONF_NAME_ADD_MAC_SUFFIX, default=False): cv.boolean,
             cv.Optional(CONF_DEBUG_SCHEDULER, default=False): cv.boolean,
@@ -390,15 +418,15 @@ def _list_target_platforms():
     return target_platforms
 
 
-def _sort_includes_by_type(includes: list[str]) -> tuple[list[str], list[str]]:
-    system_includes = []
-    other_includes = []
-    for include in includes:
-        if include.startswith("<") and include.endswith(">"):
-            system_includes.append(include)
-        else:
-            other_includes.append(include)
-    return system_includes, other_includes
+def _add_include_statement(name: str, stage: str, is_c_header: bool) -> None:
+    include_stage_statements = CORE.data.setdefault(
+        KEY_INCLUDE_STATEMENTS, {stage: [] for stage in INCLUDE_STAGES}
+    )
+    include_stage_statements[stage].append(
+        f'extern "C" {{\n  #include "{name}"\n}}'
+        if is_c_header
+        else f'#include "{name}"'
+    )
 
 
 def preload_core_config(config, result) -> str:
@@ -438,22 +466,17 @@ def preload_core_config(config, result) -> str:
     return target_platforms[0]
 
 
-def include_file(path: Path, basename: Path, is_c_header: bool = False):
+def include_file(
+    path: Path, basename: Path, stage: str, is_c_header: bool = False
+) -> None:
     parts = basename.parts
     dst = CORE.relative_src_path(*parts)
     copy_file_if_changed(path, dst)
 
     ext = path.suffix
+    # Skip including it if it's not a header, but copy the file anyways
     if ext in [".h", ".hpp", ".tcc"]:
-        # Header, add include statement
-        if is_c_header:
-            # Wrap in extern "C" block for C headers
-            cg.add_global(
-                cg.RawStatement(f'extern "C" {{\n  #include "{basename}"\n}}')
-            )
-        else:
-            # Regular include
-            cg.add_global(cg.RawStatement(f'#include "{basename}"'))
+        _add_include_statement(str(basename), stage, is_c_header)
 
 
 ARDUINO_GLUE_CODE = """\
@@ -488,19 +511,35 @@ async def add_arduino_global_workaround():
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
-async def add_includes(includes: list[str], is_c_header: bool = False) -> None:
+async def add_includes(
+    includes: list[dict[str, str | None]], is_c_header: bool = False
+) -> None:
     # Add includes at the very end, so that the included files can access global variables
     for include in includes:
-        path = CORE.relative_config_path(include)
+        include_path = include[CONF_PATH]
+        assert include_path is not None
+        stage = include[CONF_STAGE]
+        if _is_system_include(include_path):
+            _add_include_statement(
+                include_path,
+                # Default for system includes is to get added before globals
+                INCLUDE_STAGE_BEFORE_ANY_GLOBALS if stage is None else stage,
+                is_c_header,
+            )
+            continue
+        # The default for non-system includes is to get added after globals
+        stage = INCLUDE_STAGE_AFTER_ALL_GLOBALS if stage is None else stage
+
+        path = CORE.relative_config_path(include_path)
         if path.is_dir():
             # Directory, copy tree
             for p in walk_files(path):
                 basename = p.relative_to(path.parent)
-                include_file(p, basename, is_c_header)
+                include_file(p, basename, stage, is_c_header)
         else:
             # Copy file
             basename = Path(path.name)
-            include_file(path, basename, is_c_header)
+            include_file(path, basename, stage, is_c_header)
 
 
 @coroutine_with_priority(CoroPriority.FINAL)
@@ -679,25 +718,10 @@ async def to_code(config: ConfigType) -> None:
         CORE.add_job(add_arduino_global_workaround)
 
     if config[CONF_INCLUDES]:
-        system_includes, other_includes = _sort_includes_by_type(config[CONF_INCLUDES])
-        # <...> includes should be at the start
-        for include in system_includes:
-            cg.add_global(cg.RawStatement(f"#include {include}"), prepend=True)
-        # Other includes should be at the end
-        CORE.add_job(add_includes, other_includes, False)
+        CORE.add_job(add_includes, config[CONF_INCLUDES], False)
 
     if config[CONF_INCLUDES_C]:
-        system_includes, other_includes = _sort_includes_by_type(
-            config[CONF_INCLUDES_C]
-        )
-        # <...> includes should be at the start
-        for include in system_includes:
-            cg.add_global(
-                cg.RawStatement(f'extern "C" {{\n  #include {include}\n}}'),
-                prepend=True,
-            )
-        # Other includes should be at the end
-        CORE.add_job(add_includes, other_includes, True)
+        CORE.add_job(add_includes, config[CONF_INCLUDES_C], True)
 
     if project_conf := config.get(CONF_PROJECT):
         cg.add_define("ESPHOME_PROJECT_NAME", project_conf[CONF_NAME])

@@ -1,0 +1,26 @@
+esphome:
+  includes:
+    - path: ${component_dir}/include_order/before_globals_include.h
+      stage: before_any_globals
+    - ${component_dir}/include_order/after_globals_include.h
+  on_boot:
+    then:
+      - lambda: |-
+          static_assert(DEFINED_FIRST == 2, "before-globals include did not define the expected macro");
+          static_assert(DEFINED_SECOND == DEFINED_FIRST, "after-globals include did not see the early macro");
+          CustomGlobalType value{DEFINED_SECOND};
+          (void) value;
+
+globals:
+  - id: int_global
+    type: int
+    restore_value: false
+    initial_value: "0"
+  - id: array_global
+    type: int[DEFINED_FIRST]
+    restore_value: false
+    initial_value: "{1, 2}"
+  - id: custom_type_global
+    type: CustomGlobalType
+    restore_value: false
+    initial_value: "CustomGlobalType{3}"
