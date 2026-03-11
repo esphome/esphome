@@ -1,6 +1,7 @@
 #ifdef USE_ESP32
 #include "logger.h"
 
+#include "esphome/components/esp32/crash_handler.h"
 #include <esp_log.h>
 
 #include <driver/uart.h>
@@ -117,6 +118,7 @@ void Logger::pre_setup() {
   esp_log_set_vprintf(esp_idf_log_vprintf_);
 
   ESP_LOGI(TAG, "Log initialized");
+  esp32::crash_handler_log();
 }
 
 void HOT Logger::write_msg_(const char *msg, uint16_t len) {

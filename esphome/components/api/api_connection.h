@@ -14,6 +14,9 @@
 #include "api_server.h"
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
+#ifdef USE_ESP32
+#include "esphome/components/esp32/crash_handler.h"
+#endif
 #include "esphome/core/entity_base.h"
 #include "esphome/core/string_ref.h"
 
@@ -235,6 +238,9 @@ class APIConnection final : public APIServerConnectionBase {
     this->flags_.log_subscription = msg.level;
     if (msg.dump_config)
       App.schedule_dump_config();
+#ifdef USE_ESP32
+    esp32::crash_handler_log();
+#endif
   }
 #ifdef USE_API_HOMEASSISTANT_SERVICES
   void on_subscribe_homeassistant_services_request() override { this->flags_.service_call_subscription = true; }
