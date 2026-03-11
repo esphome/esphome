@@ -1309,17 +1309,8 @@ def command_update_all(args: ArgsProtocol) -> int | None:
     files = list_yaml_files(args.configuration)
 
     def build_command(f):
-        if CORE.dashboard:
-            return [
-                *ESPHOME_COMMAND,
-                "--dashboard",
-                "run",
-                f,
-                "--no-logs",
-                "--device",
-                "OTA",
-            ]
-        return [*ESPHOME_COMMAND, "run", f, "--no-logs", "--device", "OTA"]
+        dashboard = ["--dashboard"] if CORE.dashboard else []
+        return [*ESPHOME_COMMAND, *dashboard, "run", f, "--no-logs", "--device", "OTA"]
 
     return run_multiple_configs(files, build_command)
 
