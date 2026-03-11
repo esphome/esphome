@@ -36,36 +36,25 @@ struct RawCrashData {
 };
 static RawCrashData __attribute__((section(".noinit"))) s_raw_crash_data;
 
+// Whether crash data was found and validated this boot.
+static bool s_crash_data_valid = false;
+
 namespace esphome::esp32 {
 
 static const char *const TAG = "esp32.crash";
 
-// Validated crash data — populated by crash_handler_read_and_clear() from the
-// raw NOINIT data written by the panic handler wrapper.
-static struct {
-  bool valid;
-  uint32_t pc;
-  uint32_t backtrace[MAX_BACKTRACE];
-  uint8_t backtrace_count;
-} s_crash_data;
-
 void crash_handler_read_and_clear() {
-  s_crash_data.valid = false;
   if (s_raw_crash_data.magic == CRASH_MAGIC) {
-    s_crash_data.valid = true;
-    s_crash_data.pc = s_raw_crash_data.pc;
-    s_crash_data.backtrace_count = s_raw_crash_data.backtrace_count;
-    if (s_crash_data.backtrace_count > MAX_BACKTRACE)
-      s_crash_data.backtrace_count = MAX_BACKTRACE;
-    for (uint8_t i = 0; i < s_crash_data.backtrace_count; i++) {
-      s_crash_data.backtrace[i] = s_raw_crash_data.backtrace[i];
-    }
+    s_crash_data_valid = true;
+    // Clamp backtrace count to prevent out-of-bounds reads from corrupt .noinit data
+    if (s_raw_crash_data.backtrace_count > MAX_BACKTRACE)
+      s_raw_crash_data.backtrace_count = MAX_BACKTRACE;
   }
   // Clear magic regardless so we don't re-report on next normal reboot
   s_raw_crash_data.magic = 0;
 }
 
-bool crash_handler_has_data() { return s_crash_data.valid; }
+bool crash_handler_has_data() { return s_crash_data_valid; }
 
 // Intentionally uses separate ESP_LOGE calls per line instead of combining into
 // one multi-line log message. This ensures each address appears as its own line
@@ -73,19 +62,19 @@ bool crash_handler_has_data() { return s_crash_data.valid; }
 // crashes again during boot, and allowing the CLI's process_stacktrace to match
 // and decode each address individually.
 void crash_handler_log() {
-  if (!s_crash_data.valid)
+  if (!s_crash_data_valid)
     return;
 
   ESP_LOGE(TAG, "*** CRASH DETECTED ON PREVIOUS BOOT ***");
-  ESP_LOGE(TAG, "  PC:  0x%08" PRIX32 "  (fault location)", s_crash_data.pc);
-  for (uint8_t i = 0; i < s_crash_data.backtrace_count; i++) {
-    ESP_LOGE(TAG, "  BT%d: 0x%08" PRIX32 "  (backtrace)", i, s_crash_data.backtrace[i]);
+  ESP_LOGE(TAG, "  PC:  0x%08" PRIX32 "  (fault location)", s_raw_crash_data.pc);
+  for (uint8_t i = 0; i < s_raw_crash_data.backtrace_count; i++) {
+    ESP_LOGE(TAG, "  BT%d: 0x%08" PRIX32 "  (backtrace)", i, s_raw_crash_data.backtrace[i]);
   }
   // Build addr2line hint with all captured addresses for easy copy-paste
   char hint[256];
-  int pos = snprintf(hint, sizeof(hint), "Use: addr2line -pfiaC -e firmware.elf 0x%08" PRIX32, s_crash_data.pc);
-  for (uint8_t i = 0; i < s_crash_data.backtrace_count && pos < (int) sizeof(hint) - 12; i++) {
-    pos += snprintf(hint + pos, sizeof(hint) - pos, " 0x%08" PRIX32, s_crash_data.backtrace[i]);
+  int pos = snprintf(hint, sizeof(hint), "Use: addr2line -pfiaC -e firmware.elf 0x%08" PRIX32, s_raw_crash_data.pc);
+  for (uint8_t i = 0; i < s_raw_crash_data.backtrace_count && pos < (int) sizeof(hint) - 12; i++) {
+    pos += snprintf(hint + pos, sizeof(hint) - pos, " 0x%08" PRIX32, s_raw_crash_data.backtrace[i]);
   }
   ESP_LOGE(TAG, "%s", hint);
 }
