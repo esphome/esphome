@@ -7,8 +7,7 @@
 #include "esphome/core/automation.h"
 #include "speaker_source_media_player.h"
 
-namespace esphome {
-namespace speaker_source {
+namespace esphome::speaker_source {
 
 template<typename... Ts> class SetPlaylistDelayAction : public Action<Ts...> {
  public:
@@ -25,7 +24,6 @@ template<typename... Ts> class SetPlaylistDelayAction : public Action<Ts...> {
   SpeakerSourceMediaPlayer *parent_;
 };
 
-}  // namespace speaker_source
-}  // namespace esphome
+}  // namespace esphome::speaker_source
 
 #endif  // USE_ESP32
