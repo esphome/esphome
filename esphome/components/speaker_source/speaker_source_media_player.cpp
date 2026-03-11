@@ -140,7 +140,7 @@ void SpeakerSourceMediaPlayer::handle_media_state_changed_(uint8_t pipeline, med
     bool was_stopping = (ps.stopping_source == source);
 
     // Source went idle - clear stopping flag if this was the source we asked to stop
-    if (ps.stopping_source == source) {
+    if (was_stopping) {
       ps.stopping_source = nullptr;
     }
 
