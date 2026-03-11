@@ -28,4 +28,5 @@ MAX_EXECUTOR_WORKERS = 48
 
 SENTINEL = object()
 
-DASHBOARD_COMMAND = [sys.executable, "-m", "esphome", "--dashboard"]
+ESPHOME_COMMAND = [sys.executable, "-m", "esphome"]
+DASHBOARD_COMMAND = [*ESPHOME_COMMAND, "--dashboard"]

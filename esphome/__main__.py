@@ -1458,7 +1458,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     new_path.write_text(new_raw, encoding="utf-8")
 
-    rc = run_external_process("esphome", "config", str(new_path))
+    rc = run_external_process(sys.executable, "-m", "esphome", "config", str(new_path))
     if rc != 0:
         print(color(AnsiFore.BOLD_RED, "Rename failed. Reverting changes."))
         new_path.unlink()
@@ -1476,7 +1476,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
         cli_args.insert(0, "--dashboard")
 
     try:
-        rc = run_external_process("esphome", *cli_args)
+        rc = run_external_process(sys.executable, "-m", "esphome", *cli_args)
     except KeyboardInterrupt:
         rc = 1
     if rc != 0:
@@ -1873,7 +1873,7 @@ def run_esphome(argv):
         # argv[0] is the program path, skip it since we prefix with "esphome"
         def build_command(f):
             return (
-                ["esphome"]
+                [sys.executable, "-m", "esphome"]
                 + [arg for arg in argv[1:] if arg not in args.configuration]
                 + [str(f)]
             )
