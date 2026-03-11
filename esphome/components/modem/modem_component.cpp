@@ -159,12 +159,15 @@ void ModemComponent::setup() {
              CONFIG_ESP_TASK_WDT_TIMEOUT_S);
   }
 
-  ESP_LOGV(TAG, "PPP netif init.");
   esp_err_t err;
+
+  // This section should be removed once #14012 is merged.
+  ESP_LOGV(TAG, "PPP netif init.");
   err = esp_netif_init();
   ESPHL_ERROR_CHECK(err, "PPP netif init failed");
   err = esp_event_loop_create_default();
   ESPHL_ERROR_CHECK(err, "PPP event loop init failed");
+  // end of section to remove
 
   esp_netif_config_t netif_ppp_config = ESP_NETIF_DEFAULT_PPP();
   this->modem_handler->ppp_netif = esp_netif_new(&netif_ppp_config);
@@ -363,10 +366,9 @@ ModemComponentState ModemComponent::handle_state_syncing_() {
       }
       return esp_modem::DTE::UrcConsumeInfo{esp_modem::DTE::UrcConsumeResult::CONSUME_NONE, 0};
     };
-
     this->modem_handler->dce->set_enhanced_urc(urc_handler);
-    return ModemComponentState::MODEM_INIT_NETWORK;
 #endif
+    return ModemComponentState::MODEM_INIT_NETWORK;
   }
   return ModemComponentState::MODEM_SYNCING;
 }
@@ -480,6 +482,7 @@ void ModemComponent::transition_to_(ModemComponentState next_state) {
   this->component_state_ = next_state;
   // ESP_LOGV(TAG, "State change: %s -> %s", state_to_string(previous_state).c_str(),
   // state_to_string(next_state).c_str());
+  ESP_LOGV(TAG, "State change: %d -> %d", previous_state, next_state);
   this->on_state_callback_.call(previous_state, next_state);
   this->component_last_state_ = next_state;
   this->on_enter_state_(next_state);
@@ -508,9 +511,6 @@ void ModemComponent::on_enter_state_(ModemComponentState state) {
       cancel_timeout("modem_timeout");
       this->status_clear_warning();
       this->dump_connect_params_();
-      // #ifdef USE_WIFI_AP
-      //       esphome::wifi::global_wifi_component->wifi_ap_nat(this->modem_handler->ppp_netif);
-      // #endif
       break;
     case ModemComponentState::MODEM_DISABLING:
       ESP_LOGI(TAG, "Disabling modem");
