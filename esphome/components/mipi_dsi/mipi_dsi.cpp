@@ -37,7 +37,7 @@ void MIPI_DSI::setup() {
       .num_data_lanes =
           this->lanes_,  // Number of data lanes to use, can't set a value that exceeds the chip's capability
       .phy_clk_src = MIPI_DSI_PHY_CLK_SRC_DEFAULT,  // Clock source for the DPHY
-      .lane_bit_rate_mbps = this->lane_bit_rate_,   // Bit rate of the data lanes, in Mbps
+      .lane_bit_rate_mbps = static_cast<uint32_t>(this->lane_bit_rate_),   // Bit rate of the data lanes, in Mbps
   };
   auto err = esp_lcd_new_dsi_bus(&bus_config, &this->bus_handle_);
   if (err != ESP_OK) {
@@ -60,7 +60,7 @@ void MIPI_DSI::setup() {
   }
   esp_lcd_dpi_panel_config_t dpi_config = {.virtual_channel = 0,
                                            .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
-                                           .dpi_clock_freq_mhz = this->pclk_frequency_,
+                                           .dpi_clock_freq_mhz = static_cast<uint32_t>(this->pclk_frequency_),
                                            .pixel_format = pixel_format,
                                            .num_fbs = 1,  // number of frame buffers to allocate
                                            .video_timing =
