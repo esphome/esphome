@@ -919,9 +919,11 @@ def _wait_for_serial_port(
     """
 
     def _port_found() -> bool:
-        ports = get_serial_ports()
         if port is not None:
-            return any(p.path == port for p in ports)
+            if os.name == "posix":
+                return os.path.exists(port)
+            return any(p.path == port for p in get_serial_ports())
+        ports = get_serial_ports()
         if known_ports is not None:
             return any(p.path not in known_ports for p in ports)
         return bool(ports)

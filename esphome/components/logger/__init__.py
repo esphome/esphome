@@ -337,6 +337,16 @@ async def to_code(config):
     )
     if CORE.is_esp32:
         cg.add(log.create_pthread_key())
+    # set_uart_selection() must be called before pre_setup() because
+    # pre_setup() switches on uart_ to decide which hardware to initialize
+    # (e.g. UART0 vs USB_SERIAL_JTAG). Without this, uart_ is still the
+    # default UART_SELECTION_UART0 and the wrong hardware gets initialized.
+    if CONF_HARDWARE_UART in config:
+        cg.add(
+            log.set_uart_selection(
+                HARDWARE_UART_TO_UART_SELECTION[config[CONF_HARDWARE_UART]]
+            )
+        )
     # pre_setup() must be called before init_log_buffer() because
     # init_log_buffer() calls disable_loop() which may log at VV level,
     # and global_logger must be set before any logging occurs.
@@ -354,12 +364,6 @@ async def to_code(config):
         cg.add(log.init_log_buffer(64))  # Fixed 64 slots for host
 
     cg.add(log.set_log_level(initial_level))
-    if CONF_HARDWARE_UART in config:
-        cg.add(
-            log.set_uart_selection(
-                HARDWARE_UART_TO_UART_SELECTION[config[CONF_HARDWARE_UART]]
-            )
-        )
 
     # Enable runtime tag levels if logs are configured or explicitly enabled
     logs_config = config[CONF_LOGS]
