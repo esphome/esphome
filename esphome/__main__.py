@@ -1308,8 +1308,27 @@ def command_update_all(args: ArgsProtocol) -> int | None:
 
     def build_command(f):
         if CORE.dashboard:
-            return [sys.executable, "-m", "esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"]
-        return [sys.executable, "-m", "esphome", "run", f, "--no-logs", "--device", "OTA"]
+            return [
+                sys.executable,
+                "-m",
+                "esphome",
+                "--dashboard",
+                "run",
+                f,
+                "--no-logs",
+                "--device",
+                "OTA",
+            ]
+        return [
+            sys.executable,
+            "-m",
+            "esphome",
+            "run",
+            f,
+            "--no-logs",
+            "--device",
+            "OTA",
+        ]
 
     return run_multiple_configs(files, build_command)
 
