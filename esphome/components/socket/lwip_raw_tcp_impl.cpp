@@ -463,6 +463,9 @@ err_t LWIPRawImpl::recv_fn(struct pbuf *pb, err_t err) {
   if (err != 0) {
     // "An error code if there has been an error receiving Only return ERR_ABRT if you have
     // called tcp_abort from within the callback function!"
+    if (pb != nullptr) {
+      pbuf_free(pb);
+    }
     this->rx_closed_ = true;
     return ERR_OK;
   }
@@ -732,9 +735,13 @@ err_t LWIPRawListenImpl::s_queued_recv_fn(void *arg, struct tcp_pcb *pcb, struct
   auto *entry = reinterpret_cast<QueuedPcb *>(arg);
   if (pb == nullptr || err != ERR_OK) {
     // Remote closed or error
+    if (pb != nullptr) {
+      pbuf_free(pb);
+    }
     entry->rx_closed = true;
     return ERR_OK;
   }
+  // Buffer the data — tcp_recved() is deferred to read() after accept() creates the socket.
   if (entry->rx_buf == nullptr) {
     entry->rx_buf = pb;
   } else {
