@@ -218,9 +218,11 @@ void esphome_lwip_hook_socket(struct lwip_sock *sock) {
 }
 
 bool esphome_lwip_set_nodelay(struct lwip_sock *sock, bool enable) {
-  if (sock == NULL || sock->conn == NULL || sock->conn->pcb.tcp == NULL)
+  if (sock == NULL || sock->conn == NULL)
     return false;
   if (NETCONNTYPE_GROUP(sock->conn->type) != NETCONN_TCP)
+    return false;
+  if (sock->conn->pcb.tcp == NULL)
     return false;
   if (enable) {
     tcp_nagle_disable(sock->conn->pcb.tcp);
