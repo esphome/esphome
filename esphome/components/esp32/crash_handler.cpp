@@ -17,7 +17,7 @@
 #endif
 
 static constexpr uint32_t CRASH_MAGIC = 0xDEADBEEF;
-static constexpr size_t MAX_BACKTRACE = 8;
+static constexpr size_t MAX_BACKTRACE = 16;
 
 // Check if an address looks like code (flash-mapped or IRAM).
 // Must be safe to call from panic context (no flash access needed).
