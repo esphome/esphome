@@ -15,8 +15,8 @@ It uses [UART](/components/uart) for communication.
 The [UART](/components/uart) must be configured with a baud rate 1200, 8 data bits, 2 stop bits, no parity, no flow control.
 
 > [!WARNING]
-> MicroNova bords come in various flavours. This code is only tested on an ExtraFlame Ketty Evo 2.0 stove. The protocol is not
-> documented but has been reverse engineerd by others. See the links below for all the info that helped me.
+> MicroNova boards come in various flavours. This code is only tested on an ExtraFlame Ketty Evo 2.0 and ExtraFlame Ilary Top (2024) stove. 
+> The protocol is not documented but has been reverse engineered by others. See the links below for all the info that helped.
 > The different sensors, buttons and stove switch may require specific **memory_location** and **memory_address** parameters that
 > match your MicroNova specific board.
 >
@@ -26,14 +26,14 @@ The [UART](/components/uart) must be configured with a baud rate 1200, 8 data bi
 
 ## Connecting your stove
 
-Most MicroNova based pellet stoves have a serial output. In most cases this output has 4 pins: GND, 5v, 20V and DATA.
+Most MicroNova-based pellet stoves have a serial output. In most cases this output has 4 pins: GND, 5 V, 20 V and DATA.
 
 <Image src={micronovaSerialImg} layout="constrained" alt="" />
 
 <Image src={micronovaSerialLayoutImg} layout="constrained" alt="" />
 
 You will have to build a simple circuit to interface with your stove. It is based on optocouplers for galvanic separation and logic
-level shifting between 5v and 3V3.
+level shifting between 5 V and 3.3 V.
 
 <Figure
   src={micronovaOptocouplersImg}
@@ -44,8 +44,8 @@ level shifting between 5v and 3V3.
 
 See the references below for all the details about te circuit.
 
-You can use the 5V output from the stove to power the ESP module, but you will have to put a voltage regulator in between to
-get 3v3.
+You can use the 5 V output from the stove to power the ESP module, but you will have to put a voltage regulator in between to
+get 3.3 V.
 
 ## Component/Hub
 
@@ -59,9 +59,9 @@ micronova:
 - **enable_rx_pin** (**Required**, [Pin](/guides/configuration-types#pin)): Output pin to be used to switch the line between RX and TX.
 
 > [!NOTE]
-> For all text sensors, sensors, numbers, buttons and switches hereafter most of the default **memory_location** and **memory_address** parameters will work so you should
-> not specify them. However your Micronova board may require you to specify alternate values. So every text sensor, button,
-> switch or number accepts these parameters:
+> For all text sensors, sensors, numbers, buttons and switches hereafter most of the default **memory_location** and **memory_address** 
+> parameters will work so you should not specify them. However your Micronova board may require you to specify alternate values. 
+> So every text sensor, button, switch or number accepts these parameters:
 >
 > - **memory_location** (*Optional*): The memory location for the parameter (0x00 for RAM, 0x20 for EPROM on most stoves).
 >   The write bit is set automatically when writing.
@@ -148,7 +148,7 @@ number:
   - platform: micronova
     thermostat_temperature:
       name: Thermostat temperature
-      step: 0.5
+      step: 0.5  # <- may not be needed
     power_level:
       name: Thermostat temperature
 ```
@@ -207,6 +207,52 @@ switch:
 >
 > - **memory_data_on** (*Optional*): The data to write when turning the switch on.
 > - **memory_data_off** (*Optional*): The data to write when turning the switch off.
+
+## Example of a full configuration
+
+```yaml
+uart:
+  - id: micronova_port
+    rx_pin: GPIOXX
+    tx_pin: GPIOXX
+    baud_rate: 1200
+    data_bits: 8
+    parity: NONE
+    stop_bits: 2
+
+micronova:
+  enable_rx_pin: GPIOxx
+  uart_id: micronova_port
+
+text_sensor:
+  - platform: micronova
+    stove_state:
+      name: Stove status
+
+number:
+  - platform: micronova
+    thermostat_temperature:
+      name: Thermostat temperature
+    power_level:
+      name: Power level
+
+switch:
+  - platform: micronova
+    stove:
+      name: Stove on-off switch
+
+sensor:
+  - platform: micronova
+    room_temperature:
+      name: Room temperature
+    fumes_temperature:
+      name: Fumes temperature
+    stove_power:
+      name: Stove power level
+    fan_speed:
+      fan_rpm_offset: 240
+      name: Fan RPM
+```
 
 ## See Also
 

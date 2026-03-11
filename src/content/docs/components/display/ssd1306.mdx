@@ -130,6 +130,12 @@ display:
       it.print(0, 0, id(font), "Hello World!");
 ```
 
+> [!TIP]
+> Display content might become corrupted for many reasons, including electrical or RF interference. Some people reported
+> mixing of multiple devices with a different [SPI mode](/components/spi#spi-modes) on a single bus as a contributing
+> factor. While the chip's datasheet suggests that the SSD1306 uses `MODE3`, other (non-ESPHome) drivers successfully
+> use `MODE0` for accessing the display. Using `spi_mode: MODE0` might therefore help reduce glitching.
+
 ### Configuration variables
 
 - **model** (**Required**): The model of the display. Options are:

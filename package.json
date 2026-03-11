@@ -10,9 +10,9 @@
     "lint": "node lint.mjs"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.37.6",
+    "@astrojs/starlight": "^0.37.7",
     "astro": "^5.18.0",
-    "katex": "^0.16.33",
+    "katex": "^0.16.38",
     "micromark": "^4.0.2",
     "rehype-katex": "^7.0.1",
     "remark-github-blockquote-alert": "^2.0.1",
