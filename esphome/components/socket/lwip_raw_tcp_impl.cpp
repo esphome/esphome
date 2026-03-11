@@ -425,7 +425,7 @@ LWIPRawImpl::~LWIPRawImpl() {
   // Base class destructor handles pcb_ cleanup via tcp_abort
 }
 
-void LWIPRawImpl::init(struct pbuf *initial_rx) {
+void LWIPRawImpl::init(struct pbuf *initial_rx, bool initial_rx_closed) {
   LWIP_LOCK();
   LWIP_LOG("init(%p)", this->pcb_);
   tcp_arg(this->pcb_, this);
@@ -435,6 +435,7 @@ void LWIPRawImpl::init(struct pbuf *initial_rx) {
     this->rx_buf_ = initial_rx;
     this->rx_buf_offset_ = 0;
   }
+  this->rx_closed_ = initial_rx_closed;
 }
 
 void LWIPRawImpl::s_err_fn(void *arg, err_t err) {
@@ -670,7 +671,7 @@ LWIPRawListenImpl::~LWIPRawListenImpl() {
   LWIP_LOCK();
   // Abort any queued PCBs that were never accepted by the main loop.
   // Clear the error callback first — tcp_abort triggers it, and we don't
-  // want s_accepted_pcb_err_fn writing to slots during destruction.
+  // want s_queued_err_fn writing to slots during destruction.
   for (uint8_t i = 0; i < this->accepted_socket_count_; i++) {
     auto &entry = this->accepted_pcbs_[i];
     if (entry.pcb != nullptr) {
@@ -775,11 +776,7 @@ std::unique_ptr<LWIPRawImpl> LWIPRawListenImpl::accept(struct sockaddr *addr, so
     // Create socket wrapper on the main loop (not in accept callback) to avoid
     // heap allocation in IRQ context on RP2040. Transfer any data received while queued.
     auto sock = make_unique<LWIPRawImpl>(this->family_, entry.pcb);
-    sock->init(entry.rx_buf);
-    if (entry.rx_closed) {
-      // Remote closed while queued — mark so read() returns EOF after buffered data
-      sock->rx_closed_ = true;
-    }
+    sock->init(entry.rx_buf, entry.rx_closed);
     if (addr != nullptr) {
       sock->getpeername(addr, addrlen);
     }
