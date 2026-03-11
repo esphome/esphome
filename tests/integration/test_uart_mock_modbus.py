@@ -297,3 +297,104 @@ async def test_uart_mock_modbus_no_threshold(
                 f"Timeout waiting for SDM voltage change. Received sensor states:\n"
                 f"  sdm_voltage: {sensor_states['sdm_voltage']}\n"
             )
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_server(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test basic modbus data parsing."""
+    # Replace external component path placeholder
+    external_components_path = str(
+        Path(__file__).parent / "fixtures" / "external_components"
+    )
+    yaml_config = yaml_config.replace(
+        "EXTERNAL_COMPONENT_PATH", external_components_path
+    )
+
+    loop = asyncio.get_running_loop()
+
+    # Track sensor state updates (after initial state is swallowed)
+    sensor_states: dict[str, list[float]] = {
+        "basic_read": [],
+        "read_after_peer_response": [],
+        "read_after_peer_timeout": [],
+    }
+
+    basic_read_changed = loop.create_future()
+    read_after_peer_response_changed = loop.create_future()
+    read_after_peer_timeout_changed = loop.create_future()
+
+    def on_state(state: EntityState) -> None:
+        if isinstance(state, SensorState) and not state.missing_state:
+            sensor_name = key_to_sensor.get(state.key)
+            if sensor_name and sensor_name in sensor_states:
+                sensor_states[sensor_name].append(state.state)
+                if (
+                    sensor_name == "basic_read"
+                    and state.state == 1
+                    and not basic_read_changed.done()
+                ):
+                    basic_read_changed.set_result(True)
+                elif (
+                    sensor_name == "read_after_peer_response"
+                    and state.state == 1
+                    and not read_after_peer_response_changed.done()
+                ):
+                    read_after_peer_response_changed.set_result(True)
+                elif (
+                    sensor_name == "read_after_peer_timeout"
+                    and state.state == 1
+                    and not read_after_peer_timeout_changed.done()
+                ):
+                    read_after_peer_timeout_changed.set_result(True)
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        entities, _ = await client.list_entities_services()
+
+        # Build key mappings for all sensor types
+        all_names = list(sensor_states.keys())
+        key_to_sensor = build_key_to_entity_mapping(entities, all_names)
+
+        # Set up initial state helper
+        initial_state_helper = InitialStateHelper(entities)
+        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+
+        try:
+            await initial_state_helper.wait_for_initial_states()
+        except TimeoutError:
+            pytest.fail("Timeout waiting for initial states")
+
+        # Start the UART mock scenario now that we're subscribed
+        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
+        assert start_btn is not None, "Start Scenario button not found"
+        client.button_command(start_btn.key)
+
+        try:
+            await asyncio.wait_for(basic_read_changed, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for basic_read change. Received sensor states:\n"
+                f"  basic_read: {sensor_states['basic_read']}\n"
+            )
+
+        try:
+            await asyncio.wait_for(read_after_peer_response_changed, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for read_after_peer_response change. Received sensor states:\n"
+                f"  read_after_peer_response: {sensor_states['read_after_peer_response']}\n"
+            )
+
+        try:
+            await asyncio.wait_for(read_after_peer_timeout_changed, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for read_after_peer_timeout change. Received sensor states:\n"
+                f"  read_after_peer_timeout: {sensor_states['read_after_peer_timeout']}\n"
+            )
