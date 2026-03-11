@@ -438,155 +438,7 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
     }
 
     case MediaPlayerControlCommand::SEND_COMMAND: {
-      media_player::MediaPlayerCommand player_command = control_command.data.command;
-
-      // Determine target source: prefer active, fall back to last
-      media_source::MediaSource *target_source = nullptr;
-      if (ps.active_source != nullptr) {
-        target_source = ps.active_source;
-      } else if (ps.last_source != nullptr) {
-        target_source = ps.last_source;
-      }
-
-      switch (player_command) {
-        case media_player::MEDIA_PLAYER_COMMAND_TOGGLE: {
-          // Convert TOGGLE to PLAY or PAUSE based on current state
-          if ((active_source != nullptr) && (active_source->get_state() == media_source::MediaSourceState::PLAYING)) {
-            if (target_source != nullptr) {
-              target_source->handle_command(media_source::MediaSourceCommand::PAUSE);
-            }
-          } else if (!has_internal_playlist && active_source == nullptr && !ps.playlist.empty()) {
-            bool last_has_internal_playlist = (ps.last_source != nullptr) && ps.last_source->has_internal_playlist();
-            if (last_has_internal_playlist) {
-              ps.last_source->handle_command(media_source::MediaSourceCommand::PLAY);
-            } else {
-              if (ps.playlist_index >= ps.playlist.size()) {
-                ps.playlist_index = 0;
-              }
-              this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
-            }
-          } else {
-            if (target_source != nullptr) {
-              target_source->handle_command(media_source::MediaSourceCommand::PLAY);
-            }
-          }
-          break;
-        }
-
-        case media_player::MEDIA_PLAYER_COMMAND_PLAY: {
-          if (!has_internal_playlist && active_source == nullptr && !ps.playlist.empty()) {
-            bool last_has_internal_playlist = (ps.last_source != nullptr) && ps.last_source->has_internal_playlist();
-            if (last_has_internal_playlist) {
-              ps.last_source->handle_command(media_source::MediaSourceCommand::PLAY);
-            } else {
-              if (ps.playlist_index >= ps.playlist.size()) {
-                ps.playlist_index = 0;
-              }
-              this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
-            }
-          } else if (target_source != nullptr) {
-            target_source->handle_command(media_source::MediaSourceCommand::PLAY);
-          }
-          break;
-        }
-
-        case media_player::MEDIA_PLAYER_COMMAND_PAUSE: {
-          if (target_source != nullptr) {
-            target_source->handle_command(media_source::MediaSourceCommand::PAUSE);
-          }
-          break;
-        }
-
-        case media_player::MEDIA_PLAYER_COMMAND_STOP: {
-          if (!has_internal_playlist) {
-            this->cancel_timeout(PipelineContext::TIMEOUT_IDS[pipeline]);
-            ps.playlist.clear();
-            ps.playlist_index = 0;
-          }
-          if (target_source != nullptr) {
-            target_source->handle_command(media_source::MediaSourceCommand::STOP);
-          }
-          break;
-        }
-
-        case media_player::MEDIA_PLAYER_COMMAND_NEXT: {
-          if (!has_internal_playlist) {
-            this->cancel_timeout(PipelineContext::TIMEOUT_IDS[pipeline]);
-            if (ps.playlist_index + 1 < ps.playlist.size()) {
-              ps.playlist_index++;
-              this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
-            } else if (ps.repeat_mode == REPEAT_ALL && !ps.playlist.empty()) {
-              ps.playlist_index = 0;
-              this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
-            }
-          } else if (target_source != nullptr) {
-            target_source->handle_command(media_source::MediaSourceCommand::NEXT);
-          }
-          break;
-        }
-
-        case media_player::MEDIA_PLAYER_COMMAND_PREVIOUS: {
-          if (!has_internal_playlist) {
-            this->cancel_timeout(PipelineContext::TIMEOUT_IDS[pipeline]);
-            if (ps.playlist_index > 0) {
-              ps.playlist_index--;
-              this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
-            } else if (ps.repeat_mode == REPEAT_ALL && !ps.playlist.empty()) {
-              ps.playlist_index = ps.playlist.size() - 1;
-              this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
-            }
-          } else if (target_source != nullptr) {
-            target_source->handle_command(media_source::MediaSourceCommand::PREVIOUS);
-          }
-          break;
-        }
-
-        case media_player::MEDIA_PLAYER_COMMAND_REPEAT_ONE:
-          if (!has_internal_playlist) {
-            ps.repeat_mode = REPEAT_ONE;
-          } else if (target_source != nullptr) {
-            target_source->handle_command(media_source::MediaSourceCommand::REPEAT_ONE);
-          }
-          break;
-
-        case media_player::MEDIA_PLAYER_COMMAND_REPEAT_OFF:
-          if (!has_internal_playlist) {
-            ps.repeat_mode = REPEAT_OFF;
-          } else if (target_source != nullptr) {
-            target_source->handle_command(media_source::MediaSourceCommand::REPEAT_OFF);
-          }
-          break;
-
-        case media_player::MEDIA_PLAYER_COMMAND_REPEAT_ALL:
-          if (!has_internal_playlist) {
-            ps.repeat_mode = REPEAT_ALL;
-          } else if (target_source != nullptr) {
-            target_source->handle_command(media_source::MediaSourceCommand::REPEAT_ALL);
-          }
-          break;
-
-        case media_player::MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST: {
-          if (!has_internal_playlist) {
-            this->cancel_timeout(PipelineContext::TIMEOUT_IDS[pipeline]);
-            if (ps.playlist_index < ps.playlist.size()) {
-              ps.playlist[0] = std::move(ps.playlist[ps.playlist_index]);
-              ps.playlist.resize(1);
-              ps.playlist_index = 0;
-            } else {
-              ps.playlist.clear();
-              ps.playlist_index = 0;
-            }
-          } else if (target_source != nullptr) {
-            target_source->handle_command(media_source::MediaSourceCommand::CLEAR_PLAYLIST);
-          }
-          break;
-        }
-
-        default:
-          // TURN_ON, TURN_OFF, ENQUEUE (handled separately with URL), SHUFFLE/UNSHUFFLE (PR3) are no-ops
-          break;
-      }
-
+      this->handle_player_command_(control_command.data.command, pipeline);
       command_executed = true;
       break;
     }
@@ -601,6 +453,161 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
         control_command.type == MediaPlayerControlCommand::ENQUEUE_URI) {
       delete control_command.data.uri;
     }
+  }
+}
+
+// THREAD CONTEXT: Called from main loop only (via process_control_queue_)
+void SpeakerSourceMediaPlayer::handle_player_command_(media_player::MediaPlayerCommand player_command,
+                                                      uint8_t pipeline) {
+  PipelineContext &ps = this->pipelines_[pipeline];
+  media_source::MediaSource *active_source = ps.active_source;
+  bool has_internal_playlist = (active_source != nullptr) && active_source->has_internal_playlist();
+
+  // Determine target source: prefer active, fall back to last
+  media_source::MediaSource *target_source = nullptr;
+  if (active_source != nullptr) {
+    target_source = active_source;
+  } else if (ps.last_source != nullptr) {
+    target_source = ps.last_source;
+  }
+
+  switch (player_command) {
+    case media_player::MEDIA_PLAYER_COMMAND_TOGGLE: {
+      // Convert TOGGLE to PLAY or PAUSE based on current state
+      if ((active_source != nullptr) && (active_source->get_state() == media_source::MediaSourceState::PLAYING)) {
+        if (target_source != nullptr) {
+          target_source->handle_command(media_source::MediaSourceCommand::PAUSE);
+        }
+      } else if (!has_internal_playlist && active_source == nullptr && !ps.playlist.empty()) {
+        bool last_has_internal_playlist = (ps.last_source != nullptr) && ps.last_source->has_internal_playlist();
+        if (last_has_internal_playlist) {
+          ps.last_source->handle_command(media_source::MediaSourceCommand::PLAY);
+        } else {
+          if (ps.playlist_index >= ps.playlist.size()) {
+            ps.playlist_index = 0;
+          }
+          this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
+        }
+      } else {
+        if (target_source != nullptr) {
+          target_source->handle_command(media_source::MediaSourceCommand::PLAY);
+        }
+      }
+      break;
+    }
+
+    case media_player::MEDIA_PLAYER_COMMAND_PLAY: {
+      if (!has_internal_playlist && active_source == nullptr && !ps.playlist.empty()) {
+        bool last_has_internal_playlist = (ps.last_source != nullptr) && ps.last_source->has_internal_playlist();
+        if (last_has_internal_playlist) {
+          ps.last_source->handle_command(media_source::MediaSourceCommand::PLAY);
+        } else {
+          if (ps.playlist_index >= ps.playlist.size()) {
+            ps.playlist_index = 0;
+          }
+          this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
+        }
+      } else if (target_source != nullptr) {
+        target_source->handle_command(media_source::MediaSourceCommand::PLAY);
+      }
+      break;
+    }
+
+    case media_player::MEDIA_PLAYER_COMMAND_PAUSE: {
+      if (target_source != nullptr) {
+        target_source->handle_command(media_source::MediaSourceCommand::PAUSE);
+      }
+      break;
+    }
+
+    case media_player::MEDIA_PLAYER_COMMAND_STOP: {
+      if (!has_internal_playlist) {
+        this->cancel_timeout(PipelineContext::TIMEOUT_IDS[pipeline]);
+        ps.playlist.clear();
+        ps.playlist_index = 0;
+      }
+      if (target_source != nullptr) {
+        target_source->handle_command(media_source::MediaSourceCommand::STOP);
+      }
+      break;
+    }
+
+    case media_player::MEDIA_PLAYER_COMMAND_NEXT: {
+      if (!has_internal_playlist) {
+        this->cancel_timeout(PipelineContext::TIMEOUT_IDS[pipeline]);
+        if (ps.playlist_index + 1 < ps.playlist.size()) {
+          ps.playlist_index++;
+          this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
+        } else if (ps.repeat_mode == REPEAT_ALL && !ps.playlist.empty()) {
+          ps.playlist_index = 0;
+          this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
+        }
+      } else if (target_source != nullptr) {
+        target_source->handle_command(media_source::MediaSourceCommand::NEXT);
+      }
+      break;
+    }
+
+    case media_player::MEDIA_PLAYER_COMMAND_PREVIOUS: {
+      if (!has_internal_playlist) {
+        this->cancel_timeout(PipelineContext::TIMEOUT_IDS[pipeline]);
+        if (ps.playlist_index > 0) {
+          ps.playlist_index--;
+          this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
+        } else if (ps.repeat_mode == REPEAT_ALL && !ps.playlist.empty()) {
+          ps.playlist_index = ps.playlist.size() - 1;
+          this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
+        }
+      } else if (target_source != nullptr) {
+        target_source->handle_command(media_source::MediaSourceCommand::PREVIOUS);
+      }
+      break;
+    }
+
+    case media_player::MEDIA_PLAYER_COMMAND_REPEAT_ONE:
+      if (!has_internal_playlist) {
+        ps.repeat_mode = REPEAT_ONE;
+      } else if (target_source != nullptr) {
+        target_source->handle_command(media_source::MediaSourceCommand::REPEAT_ONE);
+      }
+      break;
+
+    case media_player::MEDIA_PLAYER_COMMAND_REPEAT_OFF:
+      if (!has_internal_playlist) {
+        ps.repeat_mode = REPEAT_OFF;
+      } else if (target_source != nullptr) {
+        target_source->handle_command(media_source::MediaSourceCommand::REPEAT_OFF);
+      }
+      break;
+
+    case media_player::MEDIA_PLAYER_COMMAND_REPEAT_ALL:
+      if (!has_internal_playlist) {
+        ps.repeat_mode = REPEAT_ALL;
+      } else if (target_source != nullptr) {
+        target_source->handle_command(media_source::MediaSourceCommand::REPEAT_ALL);
+      }
+      break;
+
+    case media_player::MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST: {
+      if (!has_internal_playlist) {
+        this->cancel_timeout(PipelineContext::TIMEOUT_IDS[pipeline]);
+        if (ps.playlist_index < ps.playlist.size()) {
+          ps.playlist[0] = std::move(ps.playlist[ps.playlist_index]);
+          ps.playlist.resize(1);
+          ps.playlist_index = 0;
+        } else {
+          ps.playlist.clear();
+          ps.playlist_index = 0;
+        }
+      } else if (target_source != nullptr) {
+        target_source->handle_command(media_source::MediaSourceCommand::CLEAR_PLAYLIST);
+      }
+      break;
+    }
+
+    default:
+      // TURN_ON, TURN_OFF, ENQUEUE (handled separately with URL), SHUFFLE/UNSHUFFLE (PR3) are no-ops
+      break;
   }
 }
 
