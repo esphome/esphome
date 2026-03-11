@@ -130,6 +130,9 @@ class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
   PsGain ps_gain_{PsGain::PS_GAIN_16};
   uint16_t ps_threshold_high_{0xffff};
   uint16_t ps_threshold_low_{0x0000};
+  uint32_t last_ps_high_trigger_time_{0};
+  uint32_t last_ps_low_trigger_time_{0};
+  uint8_t read_data_tries_{0};
 
   //
   //   Sensors for publishing data

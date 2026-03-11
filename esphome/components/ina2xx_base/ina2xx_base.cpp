@@ -572,18 +572,16 @@ bool INA2XX::write_unsigned_16_(uint8_t reg, uint16_t val) {
 }
 
 bool INA2XX::read_unsigned_(uint8_t reg, uint8_t reg_size, uint64_t &data_out) {
-  static uint8_t rx_buf[5] = {0};  // max buffer size
-
-  if (reg_size > 5) {
+  if (reg_size > sizeof(this->read_buf_)) {
     return false;
   }
 
-  auto ret = this->read_ina_register(reg, rx_buf, reg_size);
+  auto ret = this->read_ina_register(reg, this->read_buf_, reg_size);
 
   // Combine bytes
-  data_out = rx_buf[0];
+  data_out = this->read_buf_[0];
   for (uint8_t i = 1; i < reg_size; i++) {
-    data_out = (data_out << 8) | rx_buf[i];
+    data_out = (data_out << 8) | this->read_buf_[i];
   }
   ESP_LOGV(TAG, "read_unsigned_ reg=0x%02X, ret=%s, len=%d, val=0x%" PRIX64, reg, OKFAILED(ret), reg_size, data_out);
 
