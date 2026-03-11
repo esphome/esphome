@@ -25,6 +25,20 @@ static inline bool IRAM_ATTR is_code_addr(uint32_t addr) {
   return (addr >= SOC_IROM_LOW && addr < SOC_IROM_HIGH) || (addr >= SOC_IRAM_LOW && addr < SOC_IRAM_HIGH);
 }
 
+#if CONFIG_IDF_TARGET_ARCH_RISCV
+// Check if a code address is a real return address by verifying the preceding
+// instruction is a JAL or JALR with rd=ra (x1). Called at log time (not during
+// panic) so flash cache is available and both IRAM and IROM are safely readable.
+static inline bool is_return_addr(uint32_t addr) {
+  if (!is_code_addr(addr) || addr < 4)
+    return false;
+  uint32_t inst = *(uint32_t *) (addr - 4);
+  uint32_t opcode = inst & 0x7f;
+  // JAL (opcode 0x6f) or JALR (opcode 0x67) with rd=x1 (ra)
+  return (opcode == 0x6f || opcode == 0x67) && (inst & 0xf80) == 0x80;
+}
+#endif
+
 // Raw crash data written by the panic handler wrapper.
 // Lives in .noinit so it survives software reset but contains garbage after power cycle.
 // Validated by magic marker. Static linkage since it's only used within this file.
@@ -73,14 +87,27 @@ void crash_handler_log() {
 
   ESP_LOGE(TAG, "*** CRASH DETECTED ON PREVIOUS BOOT ***");
   ESP_LOGE(TAG, "  PC:  0x%08" PRIX32 "  (fault location)", s_raw_crash_data.pc);
+  uint8_t bt_num = 0;
   for (uint8_t i = 0; i < s_raw_crash_data.backtrace_count; i++) {
-    ESP_LOGE(TAG, "  BT%d: 0x%08" PRIX32 "  (backtrace)", i, s_raw_crash_data.backtrace[i]);
+    uint32_t addr = s_raw_crash_data.backtrace[i];
+#if CONFIG_IDF_TARGET_ARCH_RISCV
+    // Filter stack-scanned addresses: skip values that aren't preceded by a
+    // JAL/JALR call instruction. Safe to check here since flash cache is up.
+    if (!is_return_addr(addr))
+      continue;
+#endif
+    ESP_LOGE(TAG, "  BT%d: 0x%08" PRIX32 "  (backtrace)", bt_num++, addr);
   }
   // Build addr2line hint with all captured addresses for easy copy-paste
   char hint[256];
   int pos = snprintf(hint, sizeof(hint), "Use: addr2line -pfiaC -e firmware.elf 0x%08" PRIX32, s_raw_crash_data.pc);
   for (uint8_t i = 0; i < s_raw_crash_data.backtrace_count && pos < (int) sizeof(hint) - 12; i++) {
-    pos += snprintf(hint + pos, sizeof(hint) - pos, " 0x%08" PRIX32, s_raw_crash_data.backtrace[i]);
+    uint32_t addr = s_raw_crash_data.backtrace[i];
+#if CONFIG_IDF_TARGET_ARCH_RISCV
+    if (!is_return_addr(addr))
+      continue;
+#endif
+    pos += snprintf(hint + pos, sizeof(hint) - pos, " 0x%08" PRIX32, addr);
   }
   ESP_LOGE(TAG, "%s", hint);
 }
@@ -143,7 +170,8 @@ void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
       s_raw_crash_data.backtrace[count++] = rv_frame->ra;
     }
 
-    // Scan stack for additional code addresses (like RP2040 approach)
+    // Scan stack for code addresses — captures broadly during panic,
+    // filtered by is_return_addr() at log time when flash is accessible.
     auto *scan_start = (uint32_t *) rv_frame->sp;
     for (uint32_t i = 0; i < 64 && count < MAX_BACKTRACE; i++) {
       uint32_t val = scan_start[i];
