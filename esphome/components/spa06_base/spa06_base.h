@@ -85,11 +85,8 @@ enum MeasCrtl {
 // Oversampling scale factors. See datasheet page 15.
 constexpr uint32_t OVERSAMPLING_K_LUT[8] PROGMEM = {524288, 1572864, 3670017, 7864320,
                                                     253952, 516096,  1040384, 2088960};
-PROGMEM_STRING_TABLE(MeasRateStrings, "1Hz", "2Hz",
-                     "4Hz"
-                     "8Hz",
-                     "16Hz", "32Hz", "64Hz", "128Hz", "1.5625Hz", "3.125Hz", "6.25Hz", "12.5Hz", "25Hz", "50Hz",
-                     "100Hz", "200Hz");
+PROGMEM_STRING_TABLE(MeasRateStrings, "1Hz", "2Hz", "4Hz", "8Hz", "16Hz", "32Hz", "64Hz", "128Hz", "1.5625Hz",
+                     "3.125Hz", "6.25Hz", "12.5Hz", "25Hz", "50Hz", "100Hz", "200Hz");
 PROGMEM_STRING_TABLE(OversamplingStrings, "X1", "X2", "X4", "X8", "X16", "X32", "X64", "X128");
 
 inline static const LogString *oversampling_to_str(const Oversampling oversampling) {
@@ -168,8 +165,8 @@ class SPA06Component : public PollingComponent {
   float convert_pressure_(const float &p_raw_sc, const float &t_raw_sc);
 
   //// Protocol-related variables
-  // Oversampling scale factors
-  uint32_t kp_{0}, kt_{0};
+  // Oversampling scale factors. Defaults are for X1 sampling scaling.
+  uint32_t kp_{524288}, kt_{524288};
   // Coefficients for calculating pressure and temperature from raw values
   // Obtained from IC during setup
   int32_t c00_{0}, c10_{0};
