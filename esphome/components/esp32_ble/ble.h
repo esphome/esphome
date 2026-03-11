@@ -35,8 +35,25 @@ static constexpr uint8_t MAX_BLE_QUEUE_SIZE = 100;  // 64 + 36 (ring buffer size
 static constexpr uint8_t MAX_BLE_QUEUE_SIZE = 88;  // 64 + 24 (ring buffer size without PSRAM)
 #endif
 
-uint64_t ble_addr_to_uint64(const esp_bd_addr_t address);
-void uint64_to_ble_addr(uint64_t address, esp_bd_addr_t bd_addr);
+inline uint64_t ble_addr_to_uint64(const esp_bd_addr_t address) {
+  uint64_t u = 0;
+  u |= uint64_t(address[0] & 0xFF) << 40;
+  u |= uint64_t(address[1] & 0xFF) << 32;
+  u |= uint64_t(address[2] & 0xFF) << 24;
+  u |= uint64_t(address[3] & 0xFF) << 16;
+  u |= uint64_t(address[4] & 0xFF) << 8;
+  u |= uint64_t(address[5] & 0xFF) << 0;
+  return u;
+}
+
+inline void uint64_to_ble_addr(uint64_t address, esp_bd_addr_t bd_addr) {
+  bd_addr[0] = (address >> 40) & 0xff;
+  bd_addr[1] = (address >> 32) & 0xff;
+  bd_addr[2] = (address >> 24) & 0xff;
+  bd_addr[3] = (address >> 16) & 0xff;
+  bd_addr[4] = (address >> 8) & 0xff;
+  bd_addr[5] = (address >> 0) & 0xff;
+}
 
 // NOLINTNEXTLINE(modernize-use-using)
 typedef struct {

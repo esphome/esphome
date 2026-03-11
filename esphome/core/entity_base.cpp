@@ -11,7 +11,7 @@ static const char *const TAG = "entity_base";
 // Entity Name
 const StringRef &EntityBase::get_name() const { return this->name_; }
 
-void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_strings_packed) {
+void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_fields) {
   this->name_ = StringRef(name);
   if (this->name_.empty()) {
 #ifdef USE_DEVICES
@@ -44,17 +44,19 @@ void EntityBase::configure_entity_(const char *name, uint32_t object_id_hash, ui
       this->calc_object_id_();
     }
   }
-  // Unpack entity string table indices.
-  // Packed: [23..16] icon | [15..8] UoM | [7..0] device_class (each 8 bits)
+  // Unpack entity string table indices and flags from entity_fields.
 #ifdef USE_ENTITY_DEVICE_CLASS
-  this->device_class_idx_ = entity_strings_packed & 0xFF;
+  this->device_class_idx_ = (entity_fields >> ENTITY_FIELD_DC_SHIFT) & 0xFF;
 #endif
 #ifdef USE_ENTITY_UNIT_OF_MEASUREMENT
-  this->uom_idx_ = (entity_strings_packed >> 8) & 0xFF;
+  this->uom_idx_ = (entity_fields >> ENTITY_FIELD_UOM_SHIFT) & 0xFF;
 #endif
 #ifdef USE_ENTITY_ICON
-  this->icon_idx_ = (entity_strings_packed >> 16) & 0xFF;
+  this->icon_idx_ = (entity_fields >> ENTITY_FIELD_ICON_SHIFT) & 0xFF;
 #endif
+  this->flags_.internal = (entity_fields >> ENTITY_FIELD_INTERNAL_SHIFT) & 1;
+  this->flags_.disabled_by_default = (entity_fields >> ENTITY_FIELD_DISABLED_BY_DEFAULT_SHIFT) & 1;
+  this->flags_.entity_category = (entity_fields >> ENTITY_FIELD_ENTITY_CATEGORY_SHIFT) & 0x3;
 }
 
 // Weak default lookup functions — overridden by generated code in main.cpp
