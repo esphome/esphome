@@ -461,7 +461,7 @@ class FloatType(TypeInfo):
 class Int64Type(TypeInfo):
     cpp_type = "int64_t"
     default_value = "0"
-    decode_varint = "value.as_int64()"
+    decode_varint = "static_cast<int64_t>(value)"
     encode_func = "encode_int64"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -481,7 +481,7 @@ class Int64Type(TypeInfo):
 class UInt64Type(TypeInfo):
     cpp_type = "uint64_t"
     default_value = "0"
-    decode_varint = "value.as_uint64()"
+    decode_varint = "value"
     encode_func = "encode_uint64"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -501,7 +501,7 @@ class UInt64Type(TypeInfo):
 class Int32Type(TypeInfo):
     cpp_type = "int32_t"
     default_value = "0"
-    decode_varint = "value.as_int32()"
+    decode_varint = "static_cast<int32_t>(value)"
     encode_func = "encode_int32"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -573,7 +573,7 @@ class Fixed32Type(TypeInfo):
 class BoolType(TypeInfo):
     cpp_type = "bool"
     default_value = "false"
-    decode_varint = "value.as_bool()"
+    decode_varint = "value != 0"
     encode_func = "encode_bool"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -1151,7 +1151,7 @@ class FixedArrayBytesType(TypeInfo):
 class UInt32Type(TypeInfo):
     cpp_type = "uint32_t"
     default_value = "0"
-    decode_varint = "value.as_uint32()"
+    decode_varint = "value"
     encode_func = "encode_uint32"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -1175,7 +1175,7 @@ class EnumType(TypeInfo):
 
     @property
     def decode_varint(self) -> str:
-        return f"static_cast<{self.cpp_type}>(value.as_uint32())"
+        return f"static_cast<{self.cpp_type}>(value)"
 
     default_value = ""
     wire_type = WireType.VARINT  # Uses wire type 0
@@ -1262,7 +1262,7 @@ class SFixed64Type(TypeInfo):
 class SInt32Type(TypeInfo):
     cpp_type = "int32_t"
     default_value = "0"
-    decode_varint = "value.as_sint32()"
+    decode_varint = "decode_zigzag32(static_cast<uint32_t>(value))"
     encode_func = "encode_sint32"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -1282,7 +1282,7 @@ class SInt32Type(TypeInfo):
 class SInt64Type(TypeInfo):
     cpp_type = "int64_t"
     default_value = "0"
-    decode_varint = "value.as_sint64()"
+    decode_varint = "decode_zigzag64(value)"
     encode_func = "encode_sint64"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -2205,7 +2205,7 @@ def build_message_type(
 
     cpp = ""
     if decode_varint:
-        o = f"bool {desc.name}::decode_varint(uint32_t field_id, ProtoVarInt value) {{\n"
+        o = f"bool {desc.name}::decode_varint(uint32_t field_id, proto_varint_value_t value) {{\n"
         o += "  switch (field_id) {\n"
         o += indent("\n".join(decode_varint), "    ") + "\n"
         o += "    default: return false;\n"
@@ -2213,7 +2213,7 @@ def build_message_type(
         o += "  return true;\n"
         o += "}\n"
         cpp += o
-        prot = "bool decode_varint(uint32_t field_id, ProtoVarInt value) override;"
+        prot = "bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;"
         protected_content.insert(0, prot)
     if decode_length:
         o = f"bool {desc.name}::decode_length(uint32_t field_id, ProtoLengthDelimited value) {{\n"

@@ -76,6 +76,9 @@ esp_err_t configure_timer_frequency(ledc_mode_t speed_mode, ledc_timer_t timer_n
     init_result = ledc_timer_config(&timer_conf);
     if (init_result != ESP_OK) {
       ESP_LOGW(TAG, "Unable to initialize timer with frequency %.1f and bit depth of %u", frequency, bit_depth);
+      if (bit_depth <= 1) {
+        break;
+      }
       // try again with a lower bit depth
       timer_conf.duty_resolution = static_cast<ledc_timer_bit_t>(--bit_depth);
     }

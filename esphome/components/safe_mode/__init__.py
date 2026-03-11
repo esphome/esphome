@@ -62,6 +62,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.use_id(SafeModeComponent),
         }
     ),
+    synchronous=True,
 )
 async def safe_mode_mark_successful_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])

@@ -4,7 +4,7 @@ from enum import Enum
 
 from esphome.enum import StrEnum
 
-__version__ = "2026.3.0-dev"
+__version__ = "2026.4.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -356,6 +356,7 @@ CONF_EFFECT = "effect"
 CONF_EFFECTS = "effects"
 CONF_ELSE = "else"
 CONF_ENABLE_BTM = "enable_btm"
+CONF_ENABLE_FULL_PRINTF = "enable_full_printf"
 CONF_ENABLE_IPV6 = "enable_ipv6"
 CONF_ENABLE_ON_BOOT = "enable_on_boot"
 CONF_ENABLE_OTA_ROLLBACK = "enable_ota_rollback"
