@@ -5,6 +5,7 @@
 #include "esphome/components/sensirion_common/i2c_sensirion.h"
 #include "esphome/core/application.h"
 
+#include <functional>
 #include <vector>
 
 namespace esphome::sen6x {
@@ -114,15 +115,24 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
   bool write_temperature_acceleration_(const TemperatureAcceleration &acceleration);
   Sen6xType infer_type_from_product_name_(const std::string &product_name);
   void schedule_post_setup_commands_();
+  void run_next_setup_step_();
   void finish_setup_();
+  void poll_data_ready_();
+  void read_measurements_();
+  void parse_and_publish_measurements_();
 
   bool initialized_{false};
   sensor::Sensor *ambient_pressure_source_{nullptr};
   std::string product_name_;
   Sen6xType sen6x_type_{UNKNOWN};
   std::string serial_number_;
+  uint16_t read_cmd_{0};
   uint8_t firmware_version_major_{0};
   uint8_t firmware_version_minor_{0};
+  uint8_t poll_retries_remaining_{0};
+  uint8_t read_words_{0};
+  std::vector<std::function<void()>> setup_steps_;
+  size_t setup_step_index_{0};
 
   optional<GasTuning> voc_tuning_params_;
   optional<GasTuning> nox_tuning_params_;
