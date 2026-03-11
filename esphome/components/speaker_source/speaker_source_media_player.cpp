@@ -378,9 +378,6 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
   PipelineContext &ps = this->pipelines_[pipeline];
   media_source::MediaSource *active_source = ps.active_source;
 
-  // Check if active source has internal playlist management
-  bool has_internal_playlist = (active_source != nullptr) && active_source->has_internal_playlist();
-
   switch (control_command.type) {
     case MediaPlayerControlCommand::PLAY_URI: {
       // Always use our local playlist to start playback
