@@ -879,6 +879,7 @@ err_t LWIPRawListenImpl::accept_fn_(struct tcp_pcb *newpcb, err_t err) {
 // ---- LWIPRawUDPImpl (send-only) methods ----
 
 LWIPRawUDPImpl::LWIPRawUDPImpl(sa_family_t family) : family_(family) {
+  LWIP_LOCK();
 #if LWIP_IPV6
   this->pcb_ = udp_new_ip_type(family == AF_INET6 ? IPADDR_TYPE_ANY : IPADDR_TYPE_V4);
 #else
