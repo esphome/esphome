@@ -34,7 +34,7 @@
 #endif
 #endif
 #endif  // USE_SOCKET_SELECT_SUPPORT
-#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+#if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
 namespace esphome::socket {
 void socket_wake();  // NOLINT(readability-redundant-declaration)
 }  // namespace esphome::socket
@@ -102,6 +102,9 @@ void socket_wake();  // NOLINT(readability-redundant-declaration)
 #ifdef USE_INFRARED
 #include "esphome/components/infrared/infrared.h"
 #endif
+#ifdef USE_SERIAL_PROXY
+#include "esphome/components/serial_proxy/serial_proxy.h"
+#endif
 #ifdef USE_EVENT
 #include "esphome/components/event/event.h"
 #endif
@@ -138,26 +141,38 @@ static constexpr uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for qu
 
 class Application {
  public:
-  void pre_setup(const std::string &name, const std::string &friendly_name, bool name_add_mac_suffix) {
+#ifdef ESPHOME_NAME_ADD_MAC_SUFFIX
+  // Called before Logger::pre_setup() — must not log (global_logger is not yet set).
+  /// Pre-setup with MAC suffix: overwrites placeholder in mutable static buffers with actual MAC.
+  void pre_setup(char *name, size_t name_len, char *friendly_name, size_t friendly_name_len) {
     arch_init();
-    this->name_add_mac_suffix_ = name_add_mac_suffix;
-    if (name_add_mac_suffix) {
-      // MAC address length: 12 hex chars + null terminator
-      constexpr size_t mac_address_len = 13;
-      // MAC address suffix length (last 6 characters of 12-char MAC address string)
-      constexpr size_t mac_address_suffix_len = 6;
-      char mac_addr[mac_address_len];
-      get_mac_address_into_buffer(mac_addr);
-      const char *mac_suffix_ptr = mac_addr + mac_address_suffix_len;
-      this->name_ = make_name_with_suffix(name, '-', mac_suffix_ptr, mac_address_suffix_len);
-      if (!friendly_name.empty()) {
-        this->friendly_name_ = make_name_with_suffix(friendly_name, ' ', mac_suffix_ptr, mac_address_suffix_len);
-      }
-    } else {
-      this->name_ = name;
-      this->friendly_name_ = friendly_name;
+    this->name_add_mac_suffix_ = true;
+    // MAC address length: 12 hex chars + null terminator
+    constexpr size_t mac_address_len = 13;
+    // MAC address suffix length (last 6 characters of 12-char MAC address string)
+    constexpr size_t mac_address_suffix_len = 6;
+    char mac_addr[mac_address_len];
+    get_mac_address_into_buffer(mac_addr);
+    // Overwrite the placeholder suffix in the mutable static buffers with actual MAC
+    // name is always non-empty (validated by validate_hostname in Python config)
+    memcpy(name + name_len - mac_address_suffix_len, mac_addr + mac_address_suffix_len, mac_address_suffix_len);
+    if (friendly_name_len > 0) {
+      memcpy(friendly_name + friendly_name_len - mac_address_suffix_len, mac_addr + mac_address_suffix_len,
+             mac_address_suffix_len);
     }
+    this->name_ = StringRef(name, name_len);
+    this->friendly_name_ = StringRef(friendly_name, friendly_name_len);
   }
+#else
+  // Called before Logger::pre_setup() — must not log (global_logger is not yet set).
+  /// Pre-setup without MAC suffix: StringRef points directly at const string literals in flash.
+  void pre_setup(const char *name, size_t name_len, const char *friendly_name, size_t friendly_name_len) {
+    arch_init();
+    this->name_add_mac_suffix_ = false;
+    this->name_ = StringRef(name, name_len);
+    this->friendly_name_ = StringRef(friendly_name, friendly_name_len);
+  }
+#endif
 
 #ifdef USE_DEVICES
   void register_device(Device *device) { this->devices_.push_back(device); }
@@ -257,6 +272,13 @@ class Application {
   void register_infrared(infrared::Infrared *infrared) { this->infrareds_.push_back(infrared); }
 #endif
 
+#ifdef USE_SERIAL_PROXY
+  void register_serial_proxy(serial_proxy::SerialProxy *proxy) {
+    proxy->set_instance_index(this->serial_proxies_.size());
+    this->serial_proxies_.push_back(proxy);
+  }
+#endif
+
 #ifdef USE_EVENT
   void register_event(event::Event *event) { this->events_.push_back(event); }
 #endif
@@ -274,10 +296,10 @@ class Application {
   void loop();
 
   /// Get the name of this Application set by pre_setup().
-  const std::string &get_name() const { return this->name_; }
+  const StringRef &get_name() const { return this->name_; }
 
   /// Get the friendly name of this Application set by pre_setup().
-  const std::string &get_friendly_name() const { return this->friendly_name_; }
+  const StringRef &get_friendly_name() const { return this->friendly_name_; }
 
   /// Get the area of this Application set by pre_setup().
   const char *get_area() const {
@@ -488,6 +510,10 @@ class Application {
   GET_ENTITY_METHOD(infrared::Infrared, infrared, infrareds)
 #endif
 
+#ifdef USE_SERIAL_PROXY
+  auto &get_serial_proxies() const { return this->serial_proxies_; }
+#endif
+
 #ifdef USE_EVENT
   auto &get_events() const { return this->events_; }
   GET_ENTITY_METHOD(event::Event, event, events)
@@ -500,14 +526,20 @@ class Application {
 
   Scheduler scheduler;
 
-  /// Register/unregister a socket file descriptor to be monitored for read events.
-#ifdef USE_SOCKET_SELECT_SUPPORT
-  /// These functions update the fd_set used by select() in the main loop.
+  /// Register/unregister a socket to be monitored for read events.
   /// WARNING: These functions are NOT thread-safe. They must only be called from the main loop.
+#ifdef USE_LWIP_FAST_SELECT
+  /// Fast select path: hooks netconn callback and registers for monitoring.
+  /// @return true if registration was successful, false if sock is null
+  bool register_socket(struct lwip_sock *sock);
+  void unregister_socket(struct lwip_sock *sock);
+#elif defined(USE_SOCKET_SELECT_SUPPORT)
+  /// Fallback select() path: monitors file descriptors.
   /// NOTE: File descriptors >= FD_SETSIZE (typically 10 on ESP) will be rejected with an error.
   /// @return true if registration was successful, false if fd exceeds limits
   bool register_socket_fd(int fd);
   void unregister_socket_fd(int fd);
+#endif
 
 #ifdef USE_WAKE_LOOP_THREADSAFE
   /// Wake the main event loop from another FreeRTOS task.
@@ -532,33 +564,27 @@ class Application {
   static void IRAM_ATTR wake_loop_any_context() { esphome_lwip_wake_main_loop_any_context(); }
 #endif
 #endif
-#endif
 
 #if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
   /// Wake the main event loop from any context (ISR, thread, or main loop).
-  /// On ESP8266: sets the socket wake flag and calls esp_schedule() to exit esp_delay() early.
+  /// Sets the socket wake flag and calls esp_schedule() to exit esp_delay() early.
   static void IRAM_ATTR wake_loop_any_context() { socket::socket_wake(); }
+#elif defined(USE_RP2040) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+  /// Wake the main event loop from any context.
+  /// Sets the socket wake flag and calls __sev() to exit __wfe() early.
+  static void wake_loop_any_context() { socket::socket_wake(); }
 #endif
 
  protected:
   friend Component;
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
   friend bool socket::socket_ready_fd(int fd, bool loop_monitored);
 #endif
   friend void ::setup();
   friend void ::original_setup();
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
-  /// Fast path for Socket::ready() via friendship - skips negative fd check.
-  /// Main loop only — with USE_LWIP_FAST_SELECT, reads rcvevent via
-  /// lwip_socket_dbg_get_socket(), which has no refcount; safe only because
-  /// the main loop owns socket lifetime (creates, reads, and closes sockets
-  /// on the same thread).
-#ifdef USE_LWIP_FAST_SELECT
-  bool is_socket_ready_(int fd) const { return esphome_lwip_socket_has_data(fd); }
-#else
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
   bool is_socket_ready_(int fd) const { return FD_ISSET(fd, &this->read_fds_); }
-#endif
 #endif
 
   /// Register a component, detecting loop() override at compile time.
@@ -620,16 +646,20 @@ class Application {
   //   and active_end_ is incremented
   // - This eliminates branch mispredictions from flag checking in the hot loop
   FixedVector<Component *> looping_components_{};
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_LWIP_FAST_SELECT
+  std::vector<struct lwip_sock *> monitored_sockets_;  // Cached lwip_sock pointers for direct rcvevent read
+#elif defined(USE_SOCKET_SELECT_SUPPORT)
   std::vector<int> socket_fds_;  // Vector of all monitored socket file descriptors
+#endif
+#ifdef USE_SOCKET_SELECT_SUPPORT
 #if defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
   int wake_socket_fd_{-1};  // Shared wake notification socket for waking main loop from tasks
 #endif
 #endif
 
-  // std::string members (typically 24-32 bytes each)
-  std::string name_;
-  std::string friendly_name_;
+  // StringRef members (8 bytes each: pointer + size)
+  StringRef name_;
+  StringRef friendly_name_;
 
   // 4-byte members
   uint32_t last_loop_{0};
@@ -736,6 +766,9 @@ class Application {
 #endif
 #ifdef USE_INFRARED
   StaticVector<infrared::Infrared *, ESPHOME_ENTITY_INFRARED_COUNT> infrareds_{};
+#endif
+#ifdef USE_SERIAL_PROXY
+  StaticVector<serial_proxy::SerialProxy *, SERIAL_PROXY_COUNT> serial_proxies_{};
 #endif
 #ifdef USE_UPDATE
   StaticVector<update::UpdateEntity *, ESPHOME_ENTITY_UPDATE_COUNT> updates_{};

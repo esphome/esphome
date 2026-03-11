@@ -72,6 +72,7 @@ ignore_types = (
     ".gif",
     ".webp",
     ".bin",
+    ".wav",
 )
 
 LINT_FILE_CHECKS = []
@@ -518,7 +519,7 @@ def lint_constants_usage():
             continue
         errs.append(
             f"Constant {highlight(constant)} is defined in {len(uses)} files. Please move all definitions of the "
-            f"constant to const.py (Uses: {', '.join(str(u) for u in uses)}) in a separate PR. "
+            f"constant to esphome/components/const/__init__.py (Uses: {', '.join(str(u) for u in uses)}) in a separate PR. "
             "See https://developers.esphome.io/contributing/code/#python"
         )
     return errs
@@ -838,6 +839,54 @@ def lint_no_scanf(fname, match):
         f"  - {highlight('parse_hex()')} for hex string parsing\n"
         f"  - Manual parsing for simple fixed formats\n"
         f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
+# Base entity platforms - these are linked into most builds and should not
+# pull in powf/__ieee754_powf (~2.3KB flash).
+BASE_ENTITY_PLATFORMS = [
+    "alarm_control_panel",
+    "binary_sensor",
+    "button",
+    "climate",
+    "cover",
+    "datetime",
+    "event",
+    "fan",
+    "light",
+    "lock",
+    "media_player",
+    "number",
+    "select",
+    "sensor",
+    "switch",
+    "text",
+    "text_sensor",
+    "update",
+    "valve",
+    "water_heater",
+]
+
+# Directories protected from powf: core + all base entity platforms
+POWF_PROTECTED_DIRS = ["esphome/core"] + [
+    f"esphome/components/{p}" for p in BASE_ENTITY_PLATFORMS
+]
+
+
+@lint_re_check(
+    r"[^\w]powf\s*\(" + CPP_RE_EOL,
+    include=[
+        f"{d}/*.{ext}" for d in POWF_PROTECTED_DIRS for ext in ["h", "cpp", "tcc"]
+    ],
+)
+def lint_no_powf_in_core(fname, match):
+    return (
+        f"{highlight('powf()')} pulls in __ieee754_powf (~2.3KB flash) and is not allowed in "
+        f"core or base entity platform code. These files are linked into every build.\n"
+        f"Please use alternatives:\n"
+        f"  - {highlight('pow10_int(exp)')} for integer powers of 10 (from helpers.h)\n"
+        f"  - Precomputed lookup tables for gamma/non-integer exponents\n"
+        f"(If powf is strictly necessary, add `// NOLINT` to the line)"
     )
 
 
