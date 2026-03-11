@@ -119,11 +119,13 @@ PN7150_SCHEMA = cv.Schema(
     "tag.set_emulation_message",
     SetEmulationMessageAction,
     SET_MESSAGE_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
     "tag.set_write_message",
     SetWriteMessageAction,
     SET_MESSAGE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def pn7150_set_message_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -138,22 +140,43 @@ async def pn7150_set_message_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "tag.emulation_off", EmulationOffAction, SIMPLE_ACTION_SCHEMA
-)
-@automation.register_action("tag.emulation_on", EmulationOnAction, SIMPLE_ACTION_SCHEMA)
-@automation.register_action("tag.polling_off", PollingOffAction, SIMPLE_ACTION_SCHEMA)
-@automation.register_action("tag.polling_on", PollingOnAction, SIMPLE_ACTION_SCHEMA)
-@automation.register_action(
-    "tag.set_clean_mode", SetCleanModeAction, SIMPLE_ACTION_SCHEMA
+    "tag.emulation_off",
+    EmulationOffAction,
+    SIMPLE_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "tag.set_format_mode", SetFormatModeAction, SIMPLE_ACTION_SCHEMA
+    "tag.emulation_on", EmulationOnAction, SIMPLE_ACTION_SCHEMA, synchronous=True
 )
 @automation.register_action(
-    "tag.set_read_mode", SetReadModeAction, SIMPLE_ACTION_SCHEMA
+    "tag.polling_off", PollingOffAction, SIMPLE_ACTION_SCHEMA, synchronous=True
 )
 @automation.register_action(
-    "tag.set_write_mode", SetWriteModeAction, SIMPLE_ACTION_SCHEMA
+    "tag.polling_on", PollingOnAction, SIMPLE_ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "tag.set_clean_mode",
+    SetCleanModeAction,
+    SIMPLE_ACTION_SCHEMA,
+    synchronous=True,
+)
+@automation.register_action(
+    "tag.set_format_mode",
+    SetFormatModeAction,
+    SIMPLE_ACTION_SCHEMA,
+    synchronous=True,
+)
+@automation.register_action(
+    "tag.set_read_mode",
+    SetReadModeAction,
+    SIMPLE_ACTION_SCHEMA,
+    synchronous=True,
+)
+@automation.register_action(
+    "tag.set_write_mode",
+    SetWriteModeAction,
+    SIMPLE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def pn7150_simple_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

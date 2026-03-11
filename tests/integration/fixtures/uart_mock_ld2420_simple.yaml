@@ -1,0 +1,141 @@
+esphome:
+  name: uart-mock-ld2420-simple-test
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2420's DEPENDENCIES = ["uart"]
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  id: mock_uart
+  baud_rate: 115200
+  auto_start: false
+  responses:
+    # Catch-all response only (no version-specific response).
+    # Without a version response, firmware_ver_ stays at default "v0.0.0".
+    # get_firmware_int("v0.0.0") = 0 < 154 → simple mode (CMD_SYSTEM_MODE_SIMPLE).
+    - expect_tx: [0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x04, 0x00,
+          0xFF, 0x01,
+          0x00, 0x00,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+  injections:
+    # Phase 1 (t=100ms): Valid simple mode text frame - happy path
+    # "ON Range 0100\r\n" → presence=true, distance=100
+    # Simple mode frames end with \r\n (0x0D 0x0A), triggering handle_simple_mode_.
+    - delay: 100ms
+      inject_rx:
+        [
+          0x4F, 0x4E, 0x20, 0x52, 0x61, 0x6E, 0x67, 0x65, 0x20,
+          0x30, 0x31, 0x30, 0x30,
+          0x0D, 0x0A,
+        ]
+
+    # Phase 2 (t=300ms): Garbage bytes
+    # LD2420's readline_ stores all bytes regardless of header. buffer_pos_ = 7.
+    - delay: 200ms
+      inject_rx: [0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x11, 0x22]
+
+    # Phase 3 (t=500ms): Overflow - inject 50 bytes of 0xFF (MAX_LINE_LENGTH=50)
+    # buffer_pos_ starts at 7 (from Phase 2 garbage).
+    # Positions 7-48 fill (42 bytes), byte 43 triggers overflow (buffer_pos_=49).
+    # After overflow: buffer_pos_=0, remaining 7 bytes fill positions 0-6.
+    # Final buffer_pos_ = 7.
+    - delay: 200ms
+      inject_rx:
+        [
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        ]
+
+    # Phase 4 (t=1400ms): Recovery after overflow
+    # buffer_pos_ = 7 (from overflow remainder). These 15 bytes fill positions 7-21.
+    # At position 21 (0x0A), \r\n detected → handle_simple_mode_(buffer, 22).
+    # Parser skips 0xFF bytes at positions 0-6, finds "ON" at positions 7-8,
+    # parses digits "0050" → distance=50.
+    # Delay=900ms ensures >1000ms gap from Phase 1 for REFRESH_RATE_MS throttle.
+    - delay: 900ms
+      inject_rx:
+        [
+          0x4F, 0x4E, 0x20, 0x52, 0x61, 0x6E, 0x67, 0x65, 0x20,
+          0x30, 0x30, 0x35, 0x30,
+          0x0D, 0x0A,
+        ]
+
+    # Phase 5 (t=2500ms): 16-digit distance - tests PR #14458 bug #1
+    # "ON Range 0000000000000000\r\n" has 16 digit characters.
+    # handle_simple_mode_ outbuf is 16 bytes, can hold 15 digits (index 0-14).
+    #
+    # Pre-fix: At the 16th digit, index=15, (index < bufsize-1) is false.
+    #          The digit branch doesn't increment pos. The else branch is skipped.
+    #          pos stays at the 16th digit FOREVER → INFINITE LOOP.
+    #          The binary hangs, no more state updates, test times out.
+    # Post-fix: pos always increments (moved outside digit branch).
+    #          16th digit skipped, loop continues to \r\n. distance=0.
+    - delay: 1100ms
+      inject_rx:
+        [
+          0x4F, 0x4E, 0x20, 0x52, 0x61, 0x6E, 0x67, 0x65, 0x20,
+          0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
+          0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30,
+          0x0D, 0x0A,
+        ]
+
+    # Phase 6 (t=3700ms): Post-bug-trigger recovery
+    # If Phase 5 didn't hang, this frame should parse correctly.
+    # "ON Range 0025\r\n" → distance=25
+    # Delay=1200ms ensures >1000ms gap from Phase 5 for throttle.
+    - delay: 1200ms
+      inject_rx:
+        [
+          0x4F, 0x4E, 0x20, 0x52, 0x61, 0x6E, 0x67, 0x65, 0x20,
+          0x30, 0x30, 0x32, 0x35,
+          0x0D, 0x0A,
+        ]
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    on_press:
+      - lambda: 'id(mock_uart).start_scenario();'
+
+ld2420:
+  id: ld2420_dev
+  uart_id: mock_uart
+
+sensor:
+  - platform: ld2420
+    ld2420_id: ld2420_dev
+    moving_distance:
+      name: "Moving Distance"
+      filters:
+        - timeout:
+            timeout: 50ms
+            value: last
+        - throttle_with_priority: 50ms
+
+binary_sensor:
+  - platform: ld2420
+    ld2420_id: ld2420_dev
+    has_target:
+      name: "Has Target"
+      filters:
+        - settle: 50ms

@@ -45,8 +45,8 @@ class HONEYWELLABP2Sensor : public PollingComponent, public i2c::I2CDevice {
   const float max_count_b_ = 11744051.2;  // (70% of 2^24 counts or 0xB33333)
   const float min_count_b_ = 5033164.8;   // (30% of 2^24 counts or 0x4CCCCC)
 
-  float max_count_;
-  float min_count_;
+  float max_count_{max_count_a_};
+  float min_count_{min_count_a_};
   bool measurement_running_ = false;
 
   uint8_t raw_data_[7];                      // holds output data
