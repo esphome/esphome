@@ -116,7 +116,12 @@ void crash_handler_log() {
     if (i >= s_raw_crash_data.reg_frame_count && !is_return_addr(addr))
       continue;
 #endif
-    ESP_LOGE(TAG, "  BT%d: 0x%08" PRIX32 "  (backtrace)", bt_num++, addr);
+#if CONFIG_IDF_TARGET_ARCH_RISCV
+    const char *source = (i < s_raw_crash_data.reg_frame_count) ? "backtrace" : "stack scan";
+#else
+    const char *source = "backtrace";
+#endif
+    ESP_LOGE(TAG, "  BT%d: 0x%08" PRIX32 "  (%s)", bt_num++, addr, source);
   }
   // Build addr2line hint with all captured addresses for easy copy-paste
   char hint[256];
