@@ -33,13 +33,22 @@ static inline bool is_return_addr(uint32_t addr) {
   if (!is_code_addr(addr) || addr < 4)
     return false;
   // A return address on the stack points to the instruction after a call.
-  // Read the 4-byte instruction immediately before this address.
+  // Check for 4-byte JAL/JALR call instruction before this address.
   uint32_t inst = *(uint32_t *) (addr - 4);
   // RISC-V instruction encoding: bits [6:0] = opcode, bits [11:7] = rd
   uint32_t opcode = inst & 0x7f;  // Extract 7-bit opcode
   uint32_t rd = inst & 0xf80;     // Extract rd field (bits 11:7)
   // Match JAL (0x6f) or JALR (0x67) with rd=ra (x1, encoded as 0x80 = 1<<7)
-  return (opcode == 0x6f || opcode == 0x67) && rd == 0x80;
+  if ((opcode == 0x6f || opcode == 0x67) && rd == 0x80)
+    return true;
+  // Check for 2-byte compressed c.jalr before this address (C extension).
+  // c.jalr saves to ra implicitly: funct4=1001, rs1!=0, rs2=0, op=10
+  if (addr >= 2) {
+    uint16_t c_inst = *(uint16_t *) (addr - 2);
+    if ((c_inst & 0xf07f) == 0x9002 && (c_inst & 0x0f80) != 0)
+      return true;
+  }
+  return false;
 }
 #endif
 
@@ -56,6 +65,7 @@ struct RawCrashData {
   uint32_t magic;
   uint32_t pc;
   uint8_t backtrace_count;
+  uint8_t reg_frame_count;  // Number of entries from registers (not stack-scanned)
   uint32_t backtrace[MAX_BACKTRACE];
 };
 static RawCrashData __attribute__((section(".noinit")))
@@ -71,9 +81,11 @@ static const char *const TAG = "esp32.crash";
 void crash_handler_read_and_clear() {
   if (s_raw_crash_data.magic == CRASH_MAGIC && s_raw_crash_data.version == CRASH_DATA_VERSION) {
     s_crash_data_valid = true;
-    // Clamp backtrace count to prevent out-of-bounds reads from corrupt .noinit data
+    // Clamp counts to prevent out-of-bounds reads from corrupt .noinit data
     if (s_raw_crash_data.backtrace_count > MAX_BACKTRACE)
       s_raw_crash_data.backtrace_count = MAX_BACKTRACE;
+    if (s_raw_crash_data.reg_frame_count > s_raw_crash_data.backtrace_count)
+      s_raw_crash_data.reg_frame_count = s_raw_crash_data.backtrace_count;
   }
   // Clear magic regardless so we don't re-report on next normal reboot
   s_raw_crash_data.magic = 0;
@@ -96,9 +108,8 @@ void crash_handler_log() {
   for (uint8_t i = 0; i < s_raw_crash_data.backtrace_count; i++) {
     uint32_t addr = s_raw_crash_data.backtrace[i];
 #if CONFIG_IDF_TARGET_ARCH_RISCV
-    // Filter stack-scanned addresses: skip values that aren't preceded by a
-    // JAL/JALR call instruction. Safe to check here since flash cache is up.
-    if (!is_return_addr(addr))
+    // Register-sourced entries (MEPC/RA) are trusted; only filter stack-scanned ones.
+    if (i >= s_raw_crash_data.reg_frame_count && !is_return_addr(addr))
       continue;
 #endif
     ESP_LOGE(TAG, "  BT%d: 0x%08" PRIX32 "  (backtrace)", bt_num++, addr);
@@ -109,7 +120,7 @@ void crash_handler_log() {
   for (uint8_t i = 0; i < s_raw_crash_data.backtrace_count && pos < (int) sizeof(hint) - 12; i++) {
     uint32_t addr = s_raw_crash_data.backtrace[i];
 #if CONFIG_IDF_TARGET_ARCH_RISCV
-    if (!is_return_addr(addr))
+    if (i >= s_raw_crash_data.reg_frame_count && !is_return_addr(addr))
       continue;
 #endif
     pos += snprintf(hint + pos, sizeof(hint) - pos, " 0x%08" PRIX32, addr);
@@ -132,6 +143,7 @@ void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
   // Save the faulting PC
   s_raw_crash_data.pc = (uint32_t) info->addr;
   s_raw_crash_data.backtrace_count = 0;
+  s_raw_crash_data.reg_frame_count = 0;
 
 #if CONFIG_IDF_TARGET_ARCH_XTENSA
   // Xtensa: walk the backtrace using the public API
@@ -176,6 +188,10 @@ void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
     if (is_code_addr(rv_frame->ra) && rv_frame->ra != rv_frame->mepc) {
       s_raw_crash_data.backtrace[count++] = rv_frame->ra;
     }
+
+    // Track how many entries came from registers (MEPC/RA) so we can
+    // skip return-address validation for them at log time.
+    s_raw_crash_data.reg_frame_count = count;
 
     // Scan stack for code addresses — captures broadly during panic,
     // filtered by is_return_addr() at log time when flash is accessible.
