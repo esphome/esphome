@@ -110,6 +110,13 @@ class BLEStatusEventHandler {
   virtual void ble_before_disabled_event_handler() = 0;
 };
 
+#ifdef ESPHOME_ESP32_BLE_ALLOWLIST_SIZE
+typedef struct {
+  uint64_t mac_address;
+  bool is_public;
+} allowlist_item_t;
+#endif
+
 class ESP32BLE : public Component {
  public:
   void set_io_capability(IoCapability io_capability) { this->io_cap_ = (esp_ble_io_cap_t) io_capability; }
@@ -125,9 +132,11 @@ class ESP32BLE : public Component {
   }
   uint32_t get_advertising_cycle_time() const { return this->advertising_cycle_time_; }
 
-  void set_allowed_addresses(const std::initializer_list<uint64_t> &allowed_addresses) {
-    allowed_addresses_ = allowed_addresses;
+#ifdef ESPHOME_ESP32_BLE_ALLOWLIST_SIZE
+  void set_allowlist_items(const std::initializer_list<allowlist_item_t> &allowlist_items) {
+    this->allowlist_items_ = allowlist_items;
   }
+#endif
 
   void enable();
   void disable();
@@ -214,11 +223,13 @@ class ESP32BLE : public Component {
 #ifdef ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT
   StaticVector<BLEStatusEventHandler *, ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT> ble_status_event_handlers_;
 #endif
+#ifdef ESPHOME_ESP32_BLE_ALLOWLIST_SIZE
+  StaticVector<allowlist_item_t, ESPHOME_ESP32_BLE_ALLOWLIST_SIZE> allowlist_items_;
+#endif
 
   // Large objects (size depends on template parameters, but typically aligned to 4 bytes)
   esphome::LockFreeQueue<BLEEvent, MAX_BLE_QUEUE_SIZE> ble_events_;
   esphome::EventPool<BLEEvent, MAX_BLE_QUEUE_SIZE> ble_event_pool_;
-  std::vector<uint64_t> allowed_addresses_;
 
   // 4-byte aligned members
 #ifdef USE_ESP32_BLE_ADVERTISING
