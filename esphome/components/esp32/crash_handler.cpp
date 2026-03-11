@@ -112,7 +112,7 @@ static const char *get_exception_reason() {
   if (s_raw_crash_data.pseudo_excause) {
     // SoC-level panic: watchdog, cache error, etc.
     // Keep in sync with ESP-IDF's PANIC_RSN_* defines
-    static const char *const pseudo_reason[] = {
+    static const char *const PSEUDO_REASON[] = {
         "Unknown reason",                 // 0
         "Unhandled debug exception",      // 1
         "Double exception",               // 2
@@ -123,12 +123,12 @@ static const char *get_exception_reason() {
         "Cache error",                    // 7
     };
     uint32_t cause = s_raw_crash_data.cause;
-    if (cause < sizeof(pseudo_reason) / sizeof(pseudo_reason[0]))
-      return pseudo_reason[cause];
-    return pseudo_reason[0];
+    if (cause < sizeof(PSEUDO_REASON) / sizeof(PSEUDO_REASON[0]))
+      return PSEUDO_REASON[cause];
+    return PSEUDO_REASON[0];
   }
   // Real Xtensa exception
-  static const char *const reason[] = {
+  static const char *const REASON[] = {
       "IllegalInstruction",
       "Syscall",
       "InstructionFetchError",
@@ -161,15 +161,15 @@ static const char *get_exception_reason() {
       "StoreProhibited",
   };
   uint32_t cause = s_raw_crash_data.cause;
-  if (cause < sizeof(reason) / sizeof(reason[0]) && reason[cause] != nullptr)
-    return reason[cause];
+  if (cause < sizeof(REASON) / sizeof(reason[0]) && REASON[cause] != nullptr)
+    return REASON[cause];
 #elif CONFIG_IDF_TARGET_ARCH_RISCV
   // For SoC-level panics (watchdog, cache error), mcause holds IDF-internal
   // interrupt numbers, not standard RISC-V cause codes. The exception type
   // field already identifies these, so just return null to use the type name.
   if (s_raw_crash_data.pseudo_excause)
     return nullptr;
-  static const char *const reason[] = {
+  static const char *const REASON[] = {
       "Instruction address misaligned",
       "Instruction access fault",
       "Illegal instruction",
@@ -188,15 +188,15 @@ static const char *get_exception_reason() {
       "Store page fault",
   };
   uint32_t cause = s_raw_crash_data.cause;
-  if (cause < sizeof(reason) / sizeof(reason[0]) && reason[cause] != nullptr)
-    return reason[cause];
+  if (cause < sizeof(REASON) / sizeof(reason[0]) && REASON[cause] != nullptr)
+    return REASON[cause];
 #endif
   return "Unknown";
 }
 
 // Exception type names matching panic_exception_t enum
 static const char *get_exception_type() {
-  static const char *const types[] = {
+  static const char *const TYPES[] = {
       "Debug exception",  // PANIC_EXCEPTION_DEBUG
       "Interrupt wdt",    // PANIC_EXCEPTION_IWDT
       "Task wdt",         // PANIC_EXCEPTION_TWDT
@@ -204,8 +204,8 @@ static const char *get_exception_type() {
       "Fault",            // PANIC_EXCEPTION_FAULT
   };
   uint8_t exc = s_raw_crash_data.exception;
-  if (exc < sizeof(types) / sizeof(types[0]))
-    return types[exc];
+  if (exc < sizeof(TYPES) / sizeof(TYPES[0]))
+    return TYPES[exc];
   return "Unknown";
 }
 
