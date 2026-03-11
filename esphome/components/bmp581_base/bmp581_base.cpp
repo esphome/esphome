@@ -34,13 +34,11 @@ static const LogString *iir_filter_to_str(IIRFilter filter) {
 }
 // Note: ERROR_COMMUNICATION_FAILED (index=1) uses a different ESPHome static
 // error message, so it is left blank here
-PROGMEM_STRING_TABLE(BMP581LogErrorStrings, "", "", "Register read failed", "Register write failed", "Unknown Chip ID",
-                     "Get status failed", "NVM not ready", "NVM error detected", "Reset failed",
+PROGMEM_STRING_TABLE(BMP581LogErrorStrings, "", ESP_LOG_MSG_COMM_FAIL, "Register read failed", "Register write failed",
+                     "Unknown Chip ID", "Get status failed", "NVM not ready", "NVM error detected", "Reset failed",
                      "IIR Filter failed to prime with initial measurement", "Unknown error");
 static const LogString *error_code_to_str(ErrorCode error) {
-  return error == ERROR_COMMUNICATION_FAILED
-             ? ESP_LOG_MSG_COMM_FAIL
-             : BMP581LogErrorStrings::get_log_str(static_cast<uint8_t>(error), BMP581LogErrorStrings::LAST_INDEX);
+  return BMP581LogErrorStrings::get_log_str(static_cast<uint8_t>(error), BMP581LogErrorStrings::LAST_INDEX);
 }
 
 void BMP581Component::dump_config() {
