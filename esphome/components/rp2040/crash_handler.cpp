@@ -46,16 +46,19 @@ namespace esphome::rp2040 {
 
 static const char *const TAG = "rp2040.crash";
 
+// Placed in .noinit so BSS zero-init cannot race with crash_handler_read_and_clear().
+// The valid field is explicitly cleared in crash_handler_read_and_clear() instead.
 static struct {
-  bool valid{false};
+  bool valid;
   uint32_t pc;
   uint32_t lr;
   uint32_t sp;
   uint32_t backtrace[MAX_BACKTRACE];
   uint8_t backtrace_count;
-} s_crash_data;
+} __attribute__((section(".noinit"))) s_crash_data;
 
 void crash_handler_read_and_clear() {
+  s_crash_data.valid = false;
   if (watchdog_hw->scratch[0] == CRASH_MAGIC) {
     s_crash_data.valid = true;
     s_crash_data.pc = watchdog_hw->scratch[1];
@@ -86,11 +89,11 @@ void crash_handler_log() {
     return;
 
   ESP_LOGE(TAG, "*** CRASH DETECTED ON PREVIOUS BOOT ***");
-  ESP_LOGE(TAG, "  PC:  0x%08X  (fault location)", s_crash_data.pc);
-  ESP_LOGE(TAG, "  LR:  0x%08X  (return address)", s_crash_data.lr);
-  ESP_LOGE(TAG, "  SP:  0x%08X", s_crash_data.sp);
+  ESP_LOGE(TAG, "  PC:  0x%08" PRIX32 "  (fault location)", s_crash_data.pc);
+  ESP_LOGE(TAG, "  LR:  0x%08" PRIX32 "  (return address)", s_crash_data.lr);
+  ESP_LOGE(TAG, "  SP:  0x%08" PRIX32, s_crash_data.sp);
   for (uint8_t i = 0; i < s_crash_data.backtrace_count; i++) {
-    ESP_LOGE(TAG, "  BT%d: 0x%08X  (stack backtrace)", i, s_crash_data.backtrace[i]);
+    ESP_LOGE(TAG, "  BT%d: 0x%08" PRIX32 "  (stack backtrace)", i, s_crash_data.backtrace[i]);
   }
   // Build addr2line hint with all captured addresses for easy copy-paste
   char hint[160];
@@ -165,6 +168,8 @@ static void __attribute__((used, noreturn)) hard_fault_handler_c(uint32_t *frame
   uint32_t *scan_start = post_frame;
   // SRAM_END is chip-specific: 0x20042000 (RP2040) or 0x20082000 (RP2350)
   uint32_t *stack_top = reinterpret_cast<uint32_t *>(SRAM_END);
+  // Scan up to 64 words (256 bytes) — covers typical nested call frames
+  // without scanning too much stale stack data that could produce false positives.
   uint32_t bt_count = 0;
 
   for (uint32_t *p = scan_start; p < stack_top && p < scan_start + 64 && bt_count < MAX_BACKTRACE; p++) {
