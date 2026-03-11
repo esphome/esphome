@@ -79,12 +79,15 @@ async def async_run_logs(config: dict[str, Any], addresses: list[str]) -> None:
         )
         for parsed_msg in parse_log_message(text, timestamp):
             print(parsed_msg.replace("\033", "\\033") if dashboard else parsed_msg)
-        if platform_process_stacktrace:
-            backtrace_state = platform_process_stacktrace(config, text, backtrace_state)
-        else:
-            backtrace_state = process_stacktrace(
-                config, text, backtrace_state=backtrace_state
-            )
+        for raw_line in text.splitlines():
+            if platform_process_stacktrace:
+                backtrace_state = platform_process_stacktrace(
+                    config, raw_line, backtrace_state
+                )
+            else:
+                backtrace_state = process_stacktrace(
+                    config, raw_line, backtrace_state=backtrace_state
+                )
 
     stop = await async_run(cli, on_log, name=name)
     try:

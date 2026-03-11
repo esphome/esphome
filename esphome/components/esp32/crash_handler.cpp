@@ -4,6 +4,7 @@
 #include "esphome/core/log.h"
 
 #include <cinttypes>
+#include <cstring>
 #include <esp_attr.h>
 #include <esp_private/panic_internal.h>
 #include <soc/soc.h>
@@ -34,7 +35,10 @@ static inline bool is_return_addr(uint32_t addr) {
     return false;
   // A return address on the stack points to the instruction after a call.
   // Check for 4-byte JAL/JALR call instruction before this address.
-  uint32_t inst = *(uint32_t *) (addr - 4);
+  // Use memcpy for alignment safety — RISC-V C extension means code addresses
+  // are only 2-byte aligned, so addr-4 may not be 4-byte aligned.
+  uint32_t inst;
+  memcpy(&inst, (const void *) (addr - 4), sizeof(inst));
   // RISC-V instruction encoding: bits [6:0] = opcode, bits [11:7] = rd
   uint32_t opcode = inst & 0x7f;  // Extract 7-bit opcode
   uint32_t rd = inst & 0xf80;     // Extract rd field (bits 11:7)
