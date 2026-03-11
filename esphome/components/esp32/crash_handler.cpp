@@ -63,14 +63,17 @@ static inline bool is_return_addr(uint32_t addr) {
 // Magic is second to validate the data. Remaining fields can change between versions.
 // Version is uint32_t because it would be padded to 4 bytes anyway before the next
 // uint32_t field, so we use the full width rather than wasting 3 bytes of padding.
-static constexpr uint32_t CRASH_DATA_VERSION = 1;
+static constexpr uint32_t CRASH_DATA_VERSION = 2;
 struct RawCrashData {
   uint32_t version;
   uint32_t magic;
   uint32_t pc;
   uint8_t backtrace_count;
   uint8_t reg_frame_count;  // Number of entries from registers (not stack-scanned)
+  uint8_t exception;        // panic_exception_t enum (FAULT/ABORT/IWDT/TWDT/DEBUG)
+  uint8_t pseudo_excause;   // Whether cause is a pseudo exception (Xtensa SoC-level panic)
   uint32_t backtrace[MAX_BACKTRACE];
+  uint32_t cause;  // Architecture-specific: exccause (Xtensa) or mcause (RISC-V)
 };
 static RawCrashData __attribute__((section(".noinit")))
 s_raw_crash_data;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -90,12 +93,121 @@ void crash_handler_read_and_clear() {
       s_raw_crash_data.backtrace_count = MAX_BACKTRACE;
     if (s_raw_crash_data.reg_frame_count > s_raw_crash_data.backtrace_count)
       s_raw_crash_data.reg_frame_count = s_raw_crash_data.backtrace_count;
+    if (s_raw_crash_data.exception > 4)  // panic_exception_t max value
+      s_raw_crash_data.exception = 4;    // Default to PANIC_EXCEPTION_FAULT
+    if (s_raw_crash_data.pseudo_excause > 1)
+      s_raw_crash_data.pseudo_excause = 0;
   }
   // Clear magic regardless so we don't re-report on next normal reboot
   s_raw_crash_data.magic = 0;
 }
 
 bool crash_handler_has_data() { return s_crash_data_valid; }
+
+// Look up the exception cause as a human-readable string.
+// Tables mirror ESP-IDF's panic_arch_fill_info() which uses local static arrays
+// not exposed via any public API.
+static const char *get_exception_reason() {
+#if CONFIG_IDF_TARGET_ARCH_XTENSA
+  if (s_raw_crash_data.pseudo_excause) {
+    // SoC-level panic: watchdog, cache error, etc.
+    // Keep in sync with ESP-IDF's PANIC_RSN_* defines
+    static const char *const pseudo_reason[] = {
+        "Unknown reason",                 // 0
+        "Unhandled debug exception",      // 1
+        "Double exception",               // 2
+        "Unhandled kernel exception",     // 3
+        "Coprocessor exception",          // 4
+        "Interrupt wdt timeout on CPU0",  // 5
+        "Interrupt wdt timeout on CPU1",  // 6
+        "Cache error",                    // 7
+    };
+    uint32_t cause = s_raw_crash_data.cause;
+    if (cause < sizeof(pseudo_reason) / sizeof(pseudo_reason[0]))
+      return pseudo_reason[cause];
+    return pseudo_reason[0];
+  }
+  // Real Xtensa exception
+  static const char *const reason[] = {
+      "IllegalInstruction",
+      "Syscall",
+      "InstructionFetchError",
+      "LoadStoreError",
+      "Level1Interrupt",
+      "Alloca",
+      "IntegerDivideByZero",
+      "PCValue",
+      "Privileged",
+      "LoadStoreAlignment",
+      nullptr,
+      nullptr,
+      "InstrPDAddrError",
+      "LoadStorePIFDataError",
+      "InstrPIFAddrError",
+      "LoadStorePIFAddrError",
+      "InstTLBMiss",
+      "InstTLBMultiHit",
+      "InstFetchPrivilege",
+      nullptr,
+      "InstrFetchProhibited",
+      nullptr,
+      nullptr,
+      nullptr,
+      "LoadStoreTLBMiss",
+      "LoadStoreTLBMultihit",
+      "LoadStorePrivilege",
+      nullptr,
+      "LoadProhibited",
+      "StoreProhibited",
+  };
+  uint32_t cause = s_raw_crash_data.cause;
+  if (cause < sizeof(reason) / sizeof(reason[0]) && reason[cause] != nullptr)
+    return reason[cause];
+#elif CONFIG_IDF_TARGET_ARCH_RISCV
+  // For SoC-level panics (watchdog, cache error), mcause holds IDF-internal
+  // interrupt numbers, not standard RISC-V cause codes. The exception type
+  // field already identifies these, so just return null to use the type name.
+  if (s_raw_crash_data.pseudo_excause)
+    return nullptr;
+  static const char *const reason[] = {
+      "Instruction address misaligned",
+      "Instruction access fault",
+      "Illegal instruction",
+      "Breakpoint",
+      "Load address misaligned",
+      "Load access fault",
+      "Store address misaligned",
+      "Store access fault",
+      "Environment call from U-mode",
+      "Environment call from S-mode",
+      nullptr,
+      "Environment call from M-mode",
+      "Instruction page fault",
+      "Load page fault",
+      nullptr,
+      "Store page fault",
+  };
+  uint32_t cause = s_raw_crash_data.cause;
+  if (cause < sizeof(reason) / sizeof(reason[0]) && reason[cause] != nullptr)
+    return reason[cause];
+#endif
+  return "Unknown";
+}
+
+// Exception type names matching panic_exception_t enum
+static const char *get_exception_type() {
+  static const char *const types[] = {
+      "Debug exception",  // PANIC_EXCEPTION_DEBUG
+      "Interrupt wdt",    // PANIC_EXCEPTION_IWDT
+      "Task wdt",         // PANIC_EXCEPTION_TWDT
+      "Abort",            // PANIC_EXCEPTION_ABORT
+      "Fault",            // PANIC_EXCEPTION_FAULT
+  };
+  uint8_t exc = s_raw_crash_data.exception;
+  if (exc < sizeof(types) / sizeof(types[0]))
+    return types[exc];
+  return "Unknown";
+}
 
 // Intentionally uses separate ESP_LOGE calls per line instead of combining into
 // one multi-line log message. This ensures each address appears as its own line
@@ -107,6 +219,12 @@ void crash_handler_log() {
     return;
 
   ESP_LOGE(TAG, "*** CRASH DETECTED ON PREVIOUS BOOT ***");
+  const char *reason = get_exception_reason();
+  if (reason != nullptr) {
+    ESP_LOGE(TAG, "  Reason: %s - %s", get_exception_type(), reason);
+  } else {
+    ESP_LOGE(TAG, "  Reason: %s", get_exception_type());
+  }
   ESP_LOGE(TAG, "  PC:  0x%08" PRIX32 "  (fault location)", s_raw_crash_data.pc);
   uint8_t bt_num = 0;
   for (uint8_t i = 0; i < s_raw_crash_data.backtrace_count; i++) {
@@ -149,15 +267,18 @@ extern "C" {
 extern void __real_esp_panic_handler(panic_info_t *info);
 
 void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
-  // Save the faulting PC
+  // Save the faulting PC and exception info
   s_raw_crash_data.pc = (uint32_t) info->addr;
   s_raw_crash_data.backtrace_count = 0;
   s_raw_crash_data.reg_frame_count = 0;
+  s_raw_crash_data.exception = (uint8_t) info->exception;
+  s_raw_crash_data.pseudo_excause = info->pseudo_excause ? 1 : 0;
 
 #if CONFIG_IDF_TARGET_ARCH_XTENSA
   // Xtensa: walk the backtrace using the public API
   if (info->frame != nullptr) {
     auto *xt_frame = (XtExcFrame *) info->frame;
+    s_raw_crash_data.cause = xt_frame->exccause;
     esp_backtrace_frame_t bt_frame = {
         .pc = (uint32_t) xt_frame->pc,
         .sp = (uint32_t) xt_frame->a1,
@@ -188,6 +309,7 @@ void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
   // RISC-V: capture MEPC + RA, then scan stack for code addresses
   if (info->frame != nullptr) {
     auto *rv_frame = (RvExcFrame *) info->frame;
+    s_raw_crash_data.cause = rv_frame->mcause;
     uint8_t count = 0;
 
     // Save MEPC (fault PC) and RA (return address)
