@@ -26,7 +26,7 @@ COMPONENTS_TESTS_DIR: Path = Path(root_path) / "tests" / "components"
 # essential ones (platform setup, logging, core config) are needed.
 # Note: "core" is the esphome core config module (esphome/core/config.py),
 # which registers under package name "core" not "esphome".
-CPP_TESTING_CODEGEN_COMPONENTS = {"core", "host", "logger"}
+CPP_TESTING_CODEGEN_COMPONENTS = {"core", "host", "logger", "bthome"}
 
 
 def hash_components(components: list[str]) -> str:

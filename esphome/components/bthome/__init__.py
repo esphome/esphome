@@ -411,18 +411,6 @@ async def _server_to_code(config):
         cg.add(server_var.set_local_sensor(i, local_var))
 
 
-async def to_code(config):
-    if CONF_REMOTE_DEVICES in config:
-        await _client_to_code(config)
-
-    if (
-        CONF_SENSORS in config
-        or CONF_BINARY_SENSORS in config
-        or CONF_TEXT_SENSORS in config
-    ):
-        await _server_to_code(config)
-
-
 # This function is executed instead of to_code() during c++ testing
 async def to_code_testing(config):
     # During testing, enable encryption code unconditionally
@@ -441,3 +429,19 @@ async def to_code_testing(config):
 
     # Pull mbedtls for testing in host environment
     cg.add_library("baracodadailyhealthtech/mbedtls", "3.6.1-1", None)
+
+
+async def to_code(config):
+    if CORE.cpp_testing:
+        await to_code_testing(config)
+        return
+
+    if CONF_REMOTE_DEVICES in config:
+        await _client_to_code(config)
+
+    if (
+        CONF_SENSORS in config
+        or CONF_BINARY_SENSORS in config
+        or CONF_TEXT_SENSORS in config
+    ):
+        await _server_to_code(config)
