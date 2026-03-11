@@ -26,16 +26,14 @@ static inline bool IRAM_ATTR is_code_addr(uint32_t addr) {
 }
 
 // Raw crash data written by the panic handler wrapper.
-// Lives in .noinit so it survives software reset.
-// Defined at file scope (outside any namespace) because both the namespace
-// functions and the extern "C" panic handler wrapper need to access it.
-struct RawCrashData {
+// Lives in .noinit so it survives software reset but contains garbage after power cycle.
+// Validated by magic marker. Static linkage since it's only used within this file.
+static struct {
   uint32_t magic;
   uint32_t pc;
   uint32_t backtrace[MAX_BACKTRACE];
   uint8_t backtrace_count;
-};
-extern RawCrashData s_raw_crash_data;
+} __attribute__((section(".noinit"))) s_raw_crash_data;
 
 namespace esphome::esp32 {
 
@@ -89,8 +87,6 @@ void crash_handler_log() {
     pos += snprintf(hint + pos, sizeof(hint) - pos, " 0x%08" PRIX32, s_crash_data.backtrace[i]);
   }
   ESP_LOGE(TAG, "%s", hint);
-  // Clear so we don't re-log on subsequent API reconnects
-  s_crash_data.valid = false;
 }
 
 }  // namespace esphome::esp32
@@ -99,11 +95,6 @@ void crash_handler_log() {
 // Intercepts esp_panic_handler() via --wrap linker flag to capture crash data
 // into NOINIT memory before the normal panic handler runs.
 //
-// The raw crash data struct must be separate from the read-side struct to avoid
-// BSS initialization conflicts. It lives in .noinit so it survives software reset.
-
-RawCrashData __attribute__((section(".noinit"))) s_raw_crash_data;
-
 extern "C" {
 extern void __real_esp_panic_handler(panic_info_t *info);
 
