@@ -47,7 +47,7 @@ void BMP581Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BMP581:");
 
   if (this->error_code_ != NONE) {
-    ESP_LOGE(TAG, LOG_STR_ARG(error_code_to_str(this->error_code_)));
+    ESP_LOGE(TAG, "%s", LOG_STR_ARG(error_code_to_str(this->error_code_)));
   }
 
   LOG_UPDATE_INTERVAL(this);
@@ -92,7 +92,7 @@ void BMP581Component::setup() {
 
   // Power-On-Reboot bit is asserted if sensor successfully reset
   if (!this->reset_()) {
-    ESP_LOGE(TAG, LOG_STR_ARG(error_code_to_str(ERROR_SENSOR_RESET)));
+    ESP_LOGE(TAG, "%s", LOG_STR_ARG(error_code_to_str(ERROR_SENSOR_RESET)));
 
     this->error_code_ = ERROR_SENSOR_RESET;
     this->mark_failed();
@@ -108,7 +108,7 @@ void BMP581Component::setup() {
 
   // read chip id from sensor
   if (!this->bmp_read_byte(BMP581_CHIP_ID, &chip_id)) {
-    ESP_LOGE(TAG, LOG_STR_ARG(error_code_to_str(ERROR_READ_REGISTER)));
+    ESP_LOGE(TAG, "%s", LOG_STR_ARG(error_code_to_str(ERROR_READ_REGISTER)));
 
     this->error_code_ = ERROR_COMMUNICATION_FAILED;
     this->mark_failed();
@@ -118,7 +118,7 @@ void BMP581Component::setup() {
 
   // verify id
   if (chip_id != BMP581_ASIC_ID) {
-    ESP_LOGE(TAG, LOG_STR_ARG(error_code_to_str(ERROR_WRONG_CHIP_ID)));
+    ESP_LOGE(TAG, "%s", LOG_STR_ARG(error_code_to_str(ERROR_WRONG_CHIP_ID)));
 
     this->error_code_ = ERROR_WRONG_CHIP_ID;
     this->mark_failed();
@@ -131,7 +131,7 @@ void BMP581Component::setup() {
   ////////////////////////////////////////////////////
 
   if (!this->bmp_read_byte(BMP581_STATUS, &this->status_.reg)) {
-    ESP_LOGE(TAG, LOG_STR_ARG(error_code_to_str(ERROR_READ_REGISTER)));
+    ESP_LOGE(TAG, "%s", LOG_STR_ARG(error_code_to_str(ERROR_READ_REGISTER)));
 
     this->error_code_ = ERROR_COMMUNICATION_FAILED;
     this->mark_failed();
@@ -141,7 +141,7 @@ void BMP581Component::setup() {
 
   // verify status_nvm_rdy bit (it is asserted if boot was successful)
   if (!(this->status_.bit.status_nvm_rdy)) {
-    ESP_LOGE(TAG, LOG_STR_ARG(error_code_to_str(ERROR_SENSOR_NVM_READY)));
+    ESP_LOGE(TAG, "%s", LOG_STR_ARG(error_code_to_str(ERROR_SENSOR_NVM_READY)));
 
     this->error_code_ = ERROR_SENSOR_STATUS;
     this->mark_failed();
@@ -151,7 +151,7 @@ void BMP581Component::setup() {
 
   // verify status_nvm_err bit (it is asserted if an error is detected)
   if (this->status_.bit.status_nvm_err) {
-    ESP_LOGE(TAG, LOG_STR_ARG(error_code_to_str(ERROR_SENSOR_NVM_ERROR)));
+    ESP_LOGE(TAG, "%s", LOG_STR_ARG(error_code_to_str(ERROR_SENSOR_NVM_ERROR)));
 
     this->error_code_ = ERROR_SENSOR_STATUS;
     this->mark_failed();
@@ -215,7 +215,7 @@ void BMP581Component::setup() {
     }
 
     if (!this->prime_iir_filter_()) {
-      ESP_LOGE(TAG, LOG_STR_ARG(error_code_to_str(ERROR_PRIME_IIR_FAILED)));
+      ESP_LOGE(TAG, "%s", LOG_STR_ARG(error_code_to_str(ERROR_PRIME_IIR_FAILED)));
 
       this->error_code_ = ERROR_PRIME_IIR_FAILED;
       this->mark_failed();
