@@ -301,7 +301,7 @@ def process_stacktrace(config, line: str, backtrace_state: bool) -> bool:
 
             idedata = get_idedata(config)
             if idedata.addr2line_path:
-                elf = CORE.relative_pioenvs_path(CORE.name, "firmware.elf")
+                elf = idedata.firmware_elf_path
                 if elf.exists():
                     decoded = _addr2line(idedata.addr2line_path, elf, match.group(1))
                     _LOGGER.error("  %s => %s", match.group(1), decoded)
