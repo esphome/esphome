@@ -106,7 +106,7 @@ void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
     sio_hw->gpio_oe_set = arg->mask;
   } else if (flags & gpio::FLAG_INPUT) {
     sio_hw->gpio_oe_clr = arg->mask;
-    hw_write_masked(&padsbank0_hw->io[arg->pin],
+    hw_write_masked(&pads_bank0_hw->io[arg->pin],
                     (bool_to_bit(flags & gpio::FLAG_PULLUP) << PADS_BANK0_GPIO0_PUE_LSB) |
                         (bool_to_bit(flags & gpio::FLAG_PULLDOWN) << PADS_BANK0_GPIO0_PDE_LSB),
                     PADS_BANK0_GPIO0_PUE_BITS | PADS_BANK0_GPIO0_PDE_BITS);

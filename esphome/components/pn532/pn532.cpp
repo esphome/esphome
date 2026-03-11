@@ -308,13 +308,13 @@ void PN532::send_nack_() {
 enum PN532ReadReady PN532::read_ready_(bool block) {
   if (this->rd_ready_ == READY) {
     if (block) {
-      this->rd_start_time_ = 0;
+      this->rd_start_time_.reset();
       this->rd_ready_ = WOULDBLOCK;
     }
     return READY;
   }
 
-  if (!this->rd_start_time_) {
+  if (!this->rd_start_time_.has_value()) {
     this->rd_start_time_ = millis();
   }
 
@@ -324,7 +324,7 @@ enum PN532ReadReady PN532::read_ready_(bool block) {
       break;
     }
 
-    if (millis() - this->rd_start_time_ > 100) {
+    if (millis() - *this->rd_start_time_ > 100) {
       ESP_LOGV(TAG, "Timed out waiting for readiness from PN532!");
       this->rd_ready_ = TIMEOUT;
       break;
@@ -340,7 +340,7 @@ enum PN532ReadReady PN532::read_ready_(bool block) {
 
   auto rdy = this->rd_ready_;
   if (block || rdy == TIMEOUT) {
-    this->rd_start_time_ = 0;
+    this->rd_start_time_.reset();
     this->rd_ready_ = WOULDBLOCK;
   }
   return rdy;

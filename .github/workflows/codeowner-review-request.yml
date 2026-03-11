@@ -24,10 +24,17 @@ jobs:
     if: ${{ github.repository == 'esphome/esphome' && !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout base branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+
       - name: Request reviews from component codeowners
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
+            const { loadCodeowners, getEffectiveOwners } = require('./.github/scripts/codeowners.js');
+
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const pr_number = context.payload.pull_request.number;
@@ -38,12 +45,15 @@ jobs:
             const BOT_COMMENT_MARKER = '<!-- codeowner-review-request-bot -->';
 
             try {
-              // Get the list of changed files in this PR
-              const { data: files } = await github.rest.pulls.listFiles({
-                owner,
-                repo,
-                pull_number: pr_number
-              });
+              // Get the list of changed files in this PR (with pagination)
+              const files = await github.paginate(
+                github.rest.pulls.listFiles,
+                {
+                  owner,
+                  repo,
+                  pull_number: pr_number
+                }
+              );
 
               const changedFiles = files.map(file => file.filename);
               console.log(`Found ${changedFiles.length} changed files`);
@@ -53,32 +63,10 @@ jobs:
                 return;
               }
 
-              // Fetch CODEOWNERS file from root
-              const { data: codeownersFile } = await github.rest.repos.getContent({
-                owner,
-                repo,
-                path: 'CODEOWNERS',
-                ref: context.payload.pull_request.base.sha
-              });
-              const codeownersContent = Buffer.from(codeownersFile.content, 'base64').toString('utf8');
+              // Parse CODEOWNERS from the checked-out base branch
+              const codeownersPatterns = loadCodeowners();
 
-              // Parse CODEOWNERS file to extract all patterns and their owners
-              const codeownersLines = codeownersContent.split('\n')
-                .map(line => line.trim())
-                .filter(line => line && !line.startsWith('#'));
-
-              const codeownersPatterns = [];
-
-              // Convert CODEOWNERS pattern to regex (robust glob handling)
-              function globToRegex(pattern) {
-                // Escape regex special characters except for glob wildcards
-                let regexStr = pattern
-                  .replace(/([.+^=!:${}()|[\]\\])/g, '\\$1') // escape regex chars
-                  .replace(/\*\*/g, '.*') // globstar
-                  .replace(/\*/g, '[^/]*') // single star
-                  .replace(/\?/g, '.'); // question mark
-                return new RegExp('^' + regexStr + '$');
-              }
+              console.log(`Parsed ${codeownersPatterns.length} codeowner patterns`);
 
               // Helper function to create comment body
               function createCommentBody(reviewersList, teamsList, matchedFileCount, isSuccessful = true) {
@@ -93,50 +81,11 @@ jobs:
                 }
               }
 
-              for (const line of codeownersLines) {
-                const parts = line.split(/\s+/);
-                if (parts.length < 2) continue;
-
-                const pattern = parts[0];
-                const owners = parts.slice(1);
-
-                // Use robust glob-to-regex conversion
-                const regex = globToRegex(pattern);
-                codeownersPatterns.push({ pattern, regex, owners });
-              }
-
-              console.log(`Parsed ${codeownersPatterns.length} codeowner patterns`);
-
-              // Match changed files against CODEOWNERS patterns
-              const matchedOwners = new Set();
-              const matchedTeams = new Set();
-              const fileMatches = new Map(); // Track which files matched which patterns
-
-              for (const file of changedFiles) {
-                for (const { pattern, regex, owners } of codeownersPatterns) {
-                  if (regex.test(file)) {
-                    console.log(`File '${file}' matches pattern '${pattern}' with owners: ${owners.join(', ')}`);
-
-                    if (!fileMatches.has(file)) {
-                      fileMatches.set(file, []);
-                    }
-                    fileMatches.get(file).push({ pattern, owners });
-
-                    // Add owners to the appropriate set (remove @ prefix)
-                    for (const owner of owners) {
-                      const cleanOwner = owner.startsWith('@') ? owner.slice(1) : owner;
-                      if (cleanOwner.includes('/')) {
-                        // Team mention (org/team-name)
-                        const teamName = cleanOwner.split('/')[1];
-                        matchedTeams.add(teamName);
-                      } else {
-                        // Individual user
-                        matchedOwners.add(cleanOwner);
-                      }
-                    }
-                  }
-                }
-              }
+              // Match changed files against CODEOWNERS patterns using last-match-wins semantics
+              const effective = getEffectiveOwners(changedFiles, codeownersPatterns);
+              const matchedOwners = effective.users;
+              const matchedTeams = effective.teams;
+              const matchedFileCount = effective.matchedFileCount;
 
               if (matchedOwners.size === 0 && matchedTeams.size === 0) {
                 console.log('No codeowners found for any changed files');
@@ -170,11 +119,14 @@ jobs:
               }
 
               // Check for completed reviews to avoid re-requesting users who have already reviewed
-              const { data: reviews } = await github.rest.pulls.listReviews({
-                owner,
-                repo,
-                pull_number: pr_number
-              });
+              const reviews = await github.paginate(
+                github.rest.pulls.listReviews,
+                {
+                  owner,
+                  repo,
+                  pull_number: pr_number
+                }
+              );
 
               const reviewedUsers = new Set();
               reviews.forEach(review => {
@@ -247,7 +199,7 @@ jobs:
               }
 
               const totalReviewers = reviewersList.length + teamsList.length;
-              console.log(`Requesting reviews from ${reviewersList.length} users and ${teamsList.length} teams for ${fileMatches.size} matched files`);
+              console.log(`Requesting reviews from ${reviewersList.length} users and ${teamsList.length} teams for ${matchedFileCount} matched files`);
 
               // Request reviews
               try {
@@ -279,7 +231,7 @@ jobs:
 
                 // Only add a comment if there are new codeowners to mention (not previously pinged)
                 if (reviewersList.length > 0 || teamsList.length > 0) {
-                  const commentBody = createCommentBody(reviewersList, teamsList, fileMatches.size, true);
+                  const commentBody = createCommentBody(reviewersList, teamsList, matchedFileCount, true);
 
                   await github.rest.issues.createComment({
                     owner,
@@ -297,7 +249,7 @@ jobs:
 
                   // Only try to add a comment if there are new codeowners to mention
                   if (reviewersList.length > 0 || teamsList.length > 0) {
-                    const commentBody = createCommentBody(reviewersList, teamsList, fileMatches.size, false);
+                    const commentBody = createCommentBody(reviewersList, teamsList, matchedFileCount, false);
 
                     try {
                       await github.rest.issues.createComment({
