@@ -748,48 +748,46 @@ std::unique_ptr<LWIPRawImpl> LWIPRawListenImpl::accept(struct sockaddr *addr, so
     errno = EBADF;
     return nullptr;
   }
-  if (this->accepted_socket_count_ == 0) {
-    errno = EWOULDBLOCK;
-    return nullptr;
-  }
-  // Take entry from front of queue
-  QueuedPcb entry = this->accepted_pcbs_[0];
-  // Shift remaining entries forward
-  for (uint8_t i = 1; i < this->accepted_socket_count_; i++) {
-    this->accepted_pcbs_[i - 1] = this->accepted_pcbs_[i];
-  }
-  this->accepted_pcbs_[this->accepted_socket_count_ - 1] = {};
-  this->accepted_socket_count_--;
-  // Update tcp_arg for remaining queued PCBs — their array slots shifted by one.
-  // Safe because we hold LWIP_LOCK, so err/recv callbacks can't fire during the update.
-  for (uint8_t i = 0; i < this->accepted_socket_count_; i++) {
-    if (this->accepted_pcbs_[i].pcb != nullptr) {
-      tcp_arg(this->accepted_pcbs_[i].pcb, &this->accepted_pcbs_[i]);
+  // Dequeue front entry, skipping any null entries (PCBs freed by lwip while queued).
+  // The error callback nulled their pcb pointers; clean up buffered data and discard.
+  while (this->accepted_socket_count_ > 0) {
+    QueuedPcb entry = this->accepted_pcbs_[0];
+    // Shift remaining entries forward and update tcp_arg pointers (slots shifted by one).
+    // Safe because we hold LWIP_LOCK, so err/recv callbacks can't fire during the update.
+    for (uint8_t i = 1; i < this->accepted_socket_count_; i++) {
+      this->accepted_pcbs_[i - 1] = this->accepted_pcbs_[i];
     }
-  }
-  LWIP_LOG("Connection accepted by application, queue size: %d", this->accepted_socket_count_);
-  if (entry.pcb == nullptr) {
-    // PCB was freed by lwip (RST/timeout) while queued — the temporary error callback
-    // nulled our pointer. Free any buffered data and return EWOULDBLOCK.
-    if (entry.rx_buf != nullptr) {
-      pbuf_free(entry.rx_buf);
+    this->accepted_pcbs_[this->accepted_socket_count_ - 1] = {};
+    this->accepted_socket_count_--;
+    for (uint8_t i = 0; i < this->accepted_socket_count_; i++) {
+      if (this->accepted_pcbs_[i].pcb != nullptr) {
+        tcp_arg(this->accepted_pcbs_[i].pcb, &this->accepted_pcbs_[i]);
+      }
     }
-    errno = EWOULDBLOCK;
-    return nullptr;
+    if (entry.pcb == nullptr) {
+      // PCB was freed by lwip (RST/timeout) while queued — discard and try next
+      if (entry.rx_buf != nullptr) {
+        pbuf_free(entry.rx_buf);
+      }
+      continue;
+    }
+    LWIP_LOG("Connection accepted by application, queue size: %d", this->accepted_socket_count_);
+    // Create socket wrapper on the main loop (not in accept callback) to avoid
+    // heap allocation in IRQ context on RP2040. Transfer any data received while queued.
+    auto sock = make_unique<LWIPRawImpl>(this->family_, entry.pcb);
+    sock->init(entry.rx_buf);
+    if (entry.rx_closed) {
+      // Remote closed while queued — mark so read() returns EOF after buffered data
+      sock->rx_closed_ = true;
+    }
+    if (addr != nullptr) {
+      sock->getpeername(addr, addrlen);
+    }
+    LWIP_LOG("accept(%p)", sock.get());
+    return sock;
   }
-  // Create socket wrapper on the main loop (not in accept callback) to avoid
-  // heap allocation in IRQ context on RP2040. Transfer any data received while queued.
-  auto sock = make_unique<LWIPRawImpl>(this->family_, entry.pcb);
-  sock->init(entry.rx_buf);
-  if (entry.rx_closed) {
-    // Remote closed while queued — mark so read() returns EOF after buffered data
-    sock->rx_closed_ = true;
-  }
-  if (addr != nullptr) {
-    sock->getpeername(addr, addrlen);
-  }
-  LWIP_LOG("accept(%p)", sock.get());
-  return sock;
+  errno = EWOULDBLOCK;
+  return nullptr;
 }
 
 int LWIPRawListenImpl::listen(int backlog) {
