@@ -1162,15 +1162,15 @@ int LWIPRawUDPRecvImpl::bind(const struct sockaddr *name, socklen_t addrlen) {
 ssize_t LWIPRawUDPRecvImpl::read(void *buf, size_t len) { return this->recvfrom(buf, len, nullptr, nullptr); }
 
 ssize_t LWIPRawUDPRecvImpl::recvfrom(void *buf, size_t len, struct sockaddr *src_addr, socklen_t *addrlen) {
-  if (this->pcb_ == nullptr) {
-    errno = EBADF;
-    return -1;
-  }
   if (buf == nullptr && len > 0) {
     errno = EINVAL;
     return -1;
   }
   LWIP_LOCK();
+  if (this->pcb_ == nullptr) {
+    errno = EBADF;
+    return -1;
+  }
   if (this->rx_count_ == 0) {
     errno = EWOULDBLOCK;
     return -1;
@@ -1202,7 +1202,9 @@ void LWIPRawUDPRecvImpl::s_recv_fn(void *arg, struct udp_pcb *pcb, struct pbuf *
   self->recv_fn_(p, addr, port);
 }
 
-// Called by lwip core which already holds the async_context lock on RP2040.
+// LWIP CALLBACK — runs from IRQ context on RP2040 (low-priority user IRQ).
+// No heap allocation allowed — malloc is not IRQ-safe (see #14687).
+// No LWIP_LOCK() needed — lwip core already holds the async_context lock.
 void LWIPRawUDPRecvImpl::recv_fn_(struct pbuf *p, const ip_addr_t *addr, u16_t port) {
   if (p == nullptr)
     return;
