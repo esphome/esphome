@@ -453,7 +453,7 @@ async def to_code(config: ConfigType) -> None:
             # and plaintext disabled. Only a factory reset can remove it.
             cg.add_define("USE_API_PLAINTEXT")
         cg.add_define("USE_API_NOISE")
-        cg.add_library("esphome/noise-c", "0.1.10")
+        cg.add_library("esphome/noise-c", "0.1.11")
     else:
         cg.add_define("USE_API_PLAINTEXT")
 
@@ -712,6 +712,7 @@ API_RESPOND_ACTION_SCHEMA = cv.All(
     "api.respond",
     APIRespondAction,
     API_RESPOND_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def api_respond_to_code(
     config: ConfigType,

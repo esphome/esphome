@@ -192,8 +192,13 @@ bool Pipsolar::send_next_command_() {
   if (!this->command_queue_[this->command_queue_position_].empty()) {
     const char *command = this->command_queue_[this->command_queue_position_].c_str();
     uint8_t byte_command[16];
-    uint8_t length = this->command_queue_[this->command_queue_position_].length();
-    for (uint8_t i = 0; i < length; i++) {
+    size_t length = this->command_queue_[this->command_queue_position_].length();
+    if (length > sizeof(byte_command)) {
+      ESP_LOGE(TAG, "Command too long: %zu", length);
+      this->command_queue_[this->command_queue_position_].clear();
+      return false;
+    }
+    for (size_t i = 0; i < length; i++) {
       byte_command[i] = (uint8_t) this->command_queue_[this->command_queue_position_].at(i);
     }
     this->state_ = STATE_COMMAND;
@@ -647,6 +652,7 @@ void Pipsolar::handle_qpiws_(const char *message) {
       case 34:
         this->publish_binary_sensor_(enabled, this->warning_high_ac_input_during_bus_soft_start_);
         value_warnings_present |= enabled.value_or(false);
+        break;
       case 35:
         this->publish_binary_sensor_(enabled, this->warning_battery_equalization_);
         value_warnings_present |= enabled.value_or(false);

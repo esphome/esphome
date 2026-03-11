@@ -200,6 +200,7 @@ FactoryResetAction = zigbee_ns.class_(
     "zigbee.factory_reset",
     FactoryResetAction,
     ZIGBEE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def reset_zigbee_to_code(
     config: ConfigType,

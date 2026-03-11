@@ -46,10 +46,12 @@ uart_mock:
 
 modbus:
   uart_id: virtual_uart_dev
+  turnaround_time: 10ms
 
 sensor:
   - platform: sdm_meter
     address: 2
+    update_interval: 1s
     phase_a:
       voltage:
         name: sdm_voltage

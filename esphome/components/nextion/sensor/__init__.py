@@ -110,6 +110,7 @@ async def to_code(config):
             ),
         }
     ),
+    synchronous=True,
 )
 async def sensor_nextion_publish_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
