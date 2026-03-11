@@ -133,7 +133,7 @@ static constexpr uint8_t DATA_FRAME_FOOTER[2] = {0x55, 0xCC};
 // MAC address the module uses when Bluetooth is disabled
 static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
 
-static inline uint16_t convert_seconds_to_ms(uint16_t value) { return value * 1000; };
+static inline uint32_t convert_seconds_to_ms(uint16_t value) { return (uint32_t) value * 1000; };
 
 static inline void convert_int_values_to_hex(const int *values, uint8_t *bytes) {
   for (uint8_t i = 0; i < 4; i++) {
@@ -474,15 +474,12 @@ void LD2450Component::handle_periodic_data_() {
     is_moving = false;
     // tx is used for further calculations, so always needs to be populated
     tx = ld2450::decode_coordinate(this->buffer_data_[start], this->buffer_data_[start + 1]);
-    SAFE_PUBLISH_SENSOR(this->move_x_sensors_[index], tx);
     // Y
     start = TARGET_Y + index * 8;
     ty = ld2450::decode_coordinate(this->buffer_data_[start], this->buffer_data_[start + 1]);
-    SAFE_PUBLISH_SENSOR(this->move_y_sensors_[index], ty);
     // RESOLUTION
     start = TARGET_RESOLUTION + index * 8;
     res = (this->buffer_data_[start + 1] << 8) | this->buffer_data_[start];
-    SAFE_PUBLISH_SENSOR(this->move_resolution_sensors_[index], res);
 #endif
     // SPEED
     start = TARGET_SPEED + index * 8;
@@ -491,9 +488,6 @@ void LD2450Component::handle_periodic_data_() {
       is_moving = true;
       moving_target_count++;
     }
-#ifdef USE_SENSOR
-    SAFE_PUBLISH_SENSOR(this->move_speed_sensors_[index], ts);
-#endif
     // DISTANCE
     // Optimized: use already decoded tx and ty values, replace pow() with multiplication
     int32_t x_squared = (int32_t) tx * tx;
@@ -503,10 +497,23 @@ void LD2450Component::handle_periodic_data_() {
       target_count++;
     }
 #ifdef USE_SENSOR
-    SAFE_PUBLISH_SENSOR(this->move_distance_sensors_[index], td);
-    // ANGLE - atan2f computes angle from Y axis directly, no sqrt/division needed
-    angle = atan2f(static_cast<float>(-tx), static_cast<float>(ty)) * (180.0f / std::numbers::pi_v<float>);
-    SAFE_PUBLISH_SENSOR(this->move_angle_sensors_[index], angle);
+    if (td == 0) {
+      SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_x_sensors_[index]);
+      SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_y_sensors_[index]);
+      SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_resolution_sensors_[index]);
+      SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_speed_sensors_[index]);
+      SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_distance_sensors_[index]);
+      SAFE_PUBLISH_SENSOR_UNKNOWN(this->move_angle_sensors_[index]);
+    } else {
+      SAFE_PUBLISH_SENSOR(this->move_x_sensors_[index], tx);
+      SAFE_PUBLISH_SENSOR(this->move_y_sensors_[index], ty);
+      SAFE_PUBLISH_SENSOR(this->move_resolution_sensors_[index], res);
+      SAFE_PUBLISH_SENSOR(this->move_speed_sensors_[index], ts);
+      SAFE_PUBLISH_SENSOR(this->move_distance_sensors_[index], td);
+      // ANGLE - atan2f computes angle from Y axis directly, no sqrt/division needed
+      angle = atan2f(static_cast<float>(-tx), static_cast<float>(ty)) * (180.0f / std::numbers::pi_v<float>);
+      SAFE_PUBLISH_SENSOR(this->move_angle_sensors_[index], angle);
+    }
 #endif
 #ifdef USE_TEXT_SENSOR
     // DIRECTION

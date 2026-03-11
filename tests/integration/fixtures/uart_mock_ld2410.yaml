@@ -20,6 +20,7 @@ uart:
 uart_mock:
   id: mock_uart
   baud_rate: 256000
+  auto_start: false
   injections:
     # Phase 1 (t=100ms): Valid LD2410 normal mode data frame - happy path
     # The buffer is clean at this point, so this frame should parse correctly.
@@ -143,3 +144,10 @@ binary_sensor:
       name: "Has Moving Target"
     has_still_target:
       name: "Has Still Target"
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      - lambda: 'id(mock_uart).start_scenario();'
