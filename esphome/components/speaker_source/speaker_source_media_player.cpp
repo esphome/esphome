@@ -219,7 +219,7 @@ media_player::MediaPlayerState SpeakerSourceMediaPlayer::get_source_state_(
       case media_source::MediaSourceState::PAUSED:
         return media_player::MEDIA_PLAYER_STATE_PAUSED;
       case media_source::MediaSourceState::ERROR:
-        ESP_LOGE(TAG, "Source error");
+        ESP_LOGE(TAG, "Media source error");
         return media_player::MEDIA_PLAYER_STATE_IDLE;
       case media_source::MediaSourceState::IDLE:
       default:
@@ -262,7 +262,7 @@ void SpeakerSourceMediaPlayer::loop() {
           this->state = media_player::MEDIA_PLAYER_STATE_ANNOUNCING;
           break;
         case media_source::MediaSourceState::ERROR:
-          ESP_LOGE(TAG, "Source error");
+          ESP_LOGE(TAG, "Announcement source error");
           // Fall through to media pipeline state
           this->state = this->get_source_state_(media_ps.active_source, media_playlist_active, old_state);
           break;
