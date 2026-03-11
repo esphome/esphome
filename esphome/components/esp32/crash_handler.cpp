@@ -63,7 +63,7 @@ static inline bool is_return_addr(uint32_t addr) {
 // Magic is second to validate the data. Remaining fields can change between versions.
 // Version is uint32_t because it would be padded to 4 bytes anyway before the next
 // uint32_t field, so we use the full width rather than wasting 3 bytes of padding.
-static constexpr uint32_t CRASH_DATA_VERSION = 2;
+static constexpr uint32_t CRASH_DATA_VERSION = 1;
 struct RawCrashData {
   uint32_t version;
   uint32_t magic;
