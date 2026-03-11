@@ -1,0 +1,153 @@
+---
+description: "Instructions for setting up a speaker source media player in ESPHome."
+title: "Speaker Source Media Player"
+---
+
+The `speaker_source` media player platform orchestrates [media source](/components/media_source/) components that produce audio. When a media URL is received, the platform routes it to the appropriate source based on the URI prefix. For example, a URL starting with `audio-file://` is handled by the [Audio File media source](/components/media_source/audio_file/).
+
+It supports two independent audio pipelines: media and announcement. Each pipeline must output to a unique [speaker](/components/speaker/). Use a [mixer speaker](/components/speaker/mixer/) component to create two different speakers that output to a single audio speaker.
+
+Each pipeline maintains its own playlist with support for repeat (off, one, all) and shuffle modes. Volume and mute state are persisted to flash and restored on reboot.
+
+This platform only works on ESP32-based chips using the [ESP-IDF framework](/components/esp32#esp32-framework).
+
+> [!WARNING]
+> Audio and voice components consume a significant amount of resources (RAM, CPU) on the device.
+>
+> **Crashes are likely to occur** if you include too many additional components in your device's
+> configuration. In particular, Bluetooth/BLE components are known to cause issues when used in
+> combination with Voice Assistant and/or other audio components.
+
+```yaml
+# Example minimal configuration entry
+audio_file:
+  - id: alert_sound
+    file: "sounds/alert.wav"
+
+media_source:
+  - platform: audio_file
+    id: file_source
+
+media_player:
+  - platform: speaker_source
+    media_pipeline:
+      speaker: my_speaker_id
+      sources:
+        - file_source
+```
+
+## Configuration variables
+
+- **media_pipeline** (*Optional*, Pipeline Schema): Configuration settings for the media pipeline. At least one of `media_pipeline` or `announcement_pipeline` is required.
+
+  - **speaker** (**Required**, [ID](/guides/configuration-types#id)): The [speaker](/components/speaker/) to output the audio.
+  - **sources** (**Required**, list of [IDs](/guides/configuration-types#id)): A list of [media source](/components/media_source/) component IDs to use for this pipeline. At least one source is required. When a media URL is received, the pipeline finds the first source that can handle the URI prefix. Each source can only belong to one pipeline; if both pipelines need the same type of source, configure separate instances.
+  - **format** (*Optional*, enum): The audio format Home Assistant will transcode audio to before sending it to the device. One of `FLAC`, `MP3`, `OPUS`, `WAV`, or `NONE`. `NONE` disables transcoding in Home Assistant. Defaults to `FLAC`.
+  - **sample_rate** (*Optional*, positive integer): Sample rate for the transcoded audio. Should be supported by the configured `speaker` component. Defaults to the speaker's sample rate. The `OPUS` codec only supports a `48000` sample rate.
+  - **num_channels** (*Optional*, positive integer): Number of channels for the transcoded audio. Must be either `1` or `2`. Defaults to the speaker's number of channels.
+
+- **announcement_pipeline** (*Optional*, Pipeline Schema): Configuration settings for the announcement pipeline. Same options as `media_pipeline`. Must use a different speaker than `media_pipeline`.
+- **volume_increment** (*Optional*, percentage): Increment amount that the `media_player.volume_up` and `media_player.volume_down` actions will increase or decrease volume by. Defaults to `5%`.
+- **volume_initial** (*Optional*, percentage): The default volume used on first boot when no volume has been previously saved. Defaults to `50%`.
+- **volume_min** (*Optional*, percentage): The minimum volume allowed. Defaults to `0%`.
+- **volume_max** (*Optional*, percentage): The maximum volume allowed. Defaults to `100%`.
+- **on_mute** (*Optional*, [Automation](/automations)): An automation to perform when muted.
+- **on_unmute** (*Optional*, [Automation](/automations)): An automation to perform when unmuted.
+- **on_volume** (*Optional*, [Automation](/automations)): An automation to perform when the volume is changed.
+- All other options from [Media Player](/components/media_player#config-media_player)
+
+<span id="media_player-speaker_source-examples"></span>
+
+## Example Configuration
+
+This example configures a dual-pipeline setup using an [I²S Audio Speaker](/components/speaker/i2s_audio/) with a `mixer` speaker to combine both pipelines and `resampler` speakers for sample rate matching. It uses [Audio File media sources](/components/media_source/audio_file/) for both pipelines.
+
+```yaml
+audio_file:
+  - id: alert_sound
+    file: "sounds/alert.wav"
+
+media_source:
+  - platform: audio_file
+    id: announcement_file_source
+  - platform: audio_file
+    id: media_file_source
+
+i2s_audio:
+  i2s_lrclk_pin: GPIOXX
+  i2s_bclk_pin: GPIOXX
+  sample_rate: 48000
+
+speaker:
+  - platform: i2s_audio
+    id: speaker_id
+    dac_type: external
+    i2s_dout_pin: GPIOXX
+    sample_rate: 48000
+  - platform: mixer
+    id: mixer_speaker_id
+    output_speaker: speaker_id
+    source_speakers:
+      - id: announcement_spk_mixer_input
+      - id: media_spk_mixer_input
+  - platform: resampler
+    id: media_spk_resampling_input
+    output_speaker: media_spk_mixer_input
+  - platform: resampler
+    id: announcement_spk_resampling_input
+    output_speaker: announcement_spk_mixer_input
+
+media_player:
+  - platform: speaker_source
+    name: "Speaker Source Media Player"
+    id: speaker_source_media_player_id
+    media_pipeline:
+      speaker: media_spk_resampling_input
+      format: FLAC
+      num_channels: 2
+      sources:
+        - media_file_source
+    announcement_pipeline:
+      speaker: announcement_spk_resampling_input
+      format: FLAC
+      num_channels: 1
+      sources:
+        - announcement_file_source
+```
+
+## Automations
+
+<span id="media_player-speaker_source-set_playlist_delay"></span>
+
+### `speaker_source.set_playlist_delay` Action
+
+This action sets the delay between consecutive tracks in a pipeline's playlist. This can be useful to add a pause between announcement files or between media tracks.
+
+```yaml
+on_...:
+  - speaker_source.set_playlist_delay:
+      id: speaker_source_media_player_id
+      pipeline: media
+      delay: 500ms
+```
+
+Configuration variables:
+
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The speaker source media player to control.
+- **pipeline** (**Required**, enum): Which pipeline to set the delay for. One of `media` or `announcement`.
+- **delay** (**Required**, [Time](/guides/configuration-types#time), [templatable](/automations/templates)): The delay between playlist tracks.
+
+### Base Media Player Actions
+
+This platform supports all [media player actions](/components/media_player#media_player-actions) including `play`, `pause`, `stop`, `toggle`, `volume_set`, `volume_up`, `volume_down`, `mute`, `unmute`, `next`, `previous`, `repeat_off`, `repeat_one`, `repeat_all`, `shuffle`, `unshuffle`, and `clear_playlist`.
+
+When using the `media_player.play_media` action, the media URL is routed to the first source in the pipeline that can handle the URI prefix. For example, a URL starting with `audio-file://` is routed to an Audio File media source.
+
+## See Also
+
+- [Media Source Components](/components/media_source/)
+- [Audio File Media Source](/components/media_source/audio_file/)
+- [Speaker Components](/components/speaker/)
+- [Mixer Speaker](/components/speaker/mixer/)
+- [Speaker Audio Media Player](/components/media_player/speaker/)
+- [Media Player Component](/components/media_player/)
