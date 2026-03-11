@@ -29,6 +29,16 @@ import ImgTable from '@components/ImgTable.astro';
 -->
 <!-- RELEASE_OVERVIEW_END -->
 
+## Upgrade Checklist
+
+<!-- UPGRADE_CHECKLIST_START -->
+<!--
+  AI-generated checklist of actionable items for users upgrading to this version.
+  Generated from breaking changes and undocumented API changes.
+  Each item starts with "If you..." and gives a concise action.
+-->
+<!-- UPGRADE_CHECKLIST_END -->
+
 <!-- FEATURE_HIGHLIGHTS_START -->
 <!--
   FEATURE HIGHLIGHT SECTIONS
@@ -70,6 +80,25 @@ import ImgTable from '@components/ImgTable.astro';
   - Use code blocks for YAML examples
 -->
 <!-- BREAKING_CHANGES_USERS_END -->
+
+### Undocumented API Changes
+
+<!-- UNDOCUMENTED_API_CHANGES_START -->
+<!--
+  UNDOCUMENTED API CHANGES
+
+  For C++ API changes that don't affect YAML configurations but may affect
+  users with custom lambdas or external component developers. These are
+  changes to internal APIs that aren't covered by the breaking change policy
+  but are worth noting for advanced users.
+
+  Guidelines:
+  - Group related changes together
+  - Include before/after code examples where helpful
+  - Link to relevant PRs
+  - Explain who is affected (lambda users, external component developers)
+-->
+<!-- UNDOCUMENTED_API_CHANGES_END -->
 
 ### Breaking Changes for Developers
 
@@ -113,6 +142,12 @@ import ImgTable from '@components/ImgTable.astro';
 <!-- AUTO_GENERATED_BREAKING_CHANGES_LIST_START -->
 <!-- This section is automatically generated from PR labels -->
 <!-- AUTO_GENERATED_BREAKING_CHANGES_LIST_END -->
+
+### Undocumented API Changes
+
+<!-- AUTO_GENERATED_UNDOCUMENTED_API_CHANGES_LIST_START -->
+<!-- This section is automatically generated from PR labels -->
+<!-- AUTO_GENERATED_UNDOCUMENTED_API_CHANGES_LIST_END -->
 
 ### All changes
 

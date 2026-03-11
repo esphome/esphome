@@ -46,6 +46,19 @@ safe_mode:
 >
 > **All other components (for example, displays and sensors) are disabled and cannot be used.**
 
+<span id="safe_mode-mark_successful_action"></span>
+
+## `safe_mode.mark_successful` Action
+
+This action marks the boot as successful, preventing safe mode from being invoked. This is useful for devices that
+take a sensor reading and then enter deep sleep, rather than waiting for the `boot_is_good_after` time to elapse.
+
+```yaml
+on_...:
+  then:
+    - safe_mode.mark_successful
+```
+
 ## See Also
 
 - [Safe Mode Button](/components/button/safe_mode/)

@@ -88,6 +88,7 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 LABEL_BREAKING_CHANGE = "breaking-change"
 LABEL_NEW_FEATURE = "new-feature"
 LABEL_NEW_COMPONENT = "new-component"
+LABEL_UNDOCUMENTED_API_CHANGE = "undocumented-api-change"
 
 
 @dataclass
@@ -567,6 +568,9 @@ class ReleaseNotesGenerator:
         breaking_changes = [pr for pr in prs if LABEL_BREAKING_CHANGE in pr.labels]
         new_features = [pr for pr in prs if LABEL_NEW_FEATURE in pr.labels]
         new_components = [pr for pr in prs if LABEL_NEW_COMPONENT in pr.labels]
+        undocumented_api_changes = [
+            pr for pr in prs if LABEL_UNDOCUMENTED_API_CHANGE in pr.labels
+        ]
 
         # Generate Combined Overview + Feature Highlights Prompt
         overview_and_highlights_prompt = self._generate_overview_and_highlights_prompt(
@@ -575,13 +579,13 @@ class ReleaseNotesGenerator:
         overview_highlights_file = self.prompts_dir / "overview_and_highlights.txt"
         overview_highlights_file.write_text(overview_and_highlights_prompt)
 
-        # Generate Combined Breaking Changes Prompt (user + developer)
-        if breaking_changes:
-            breaking_prompt = self._generate_combined_breaking_changes_prompt(
-                breaking_changes
-            )
-            breaking_file = self.prompts_dir / "breaking_changes.txt"
-            breaking_file.write_text(breaking_prompt)
+        # Generate Breaking Changes + Upgrade Checklist + Undocumented API Changes Prompt
+        # Always generated because the Upgrade Checklist is always needed
+        breaking_prompt = self._generate_breaking_changes_and_checklist_prompt(
+            breaking_changes, undocumented_api_changes, prs
+        )
+        breaking_file = self.prompts_dir / "breaking_changes.txt"
+        breaking_file.write_text(breaking_prompt)
 
         # Print instructions
         print("\n" + "=" * 80)
@@ -590,21 +594,24 @@ class ReleaseNotesGenerator:
         print("\nStart Claude Code CLI and read the prompt files:\n")
         print("  claude")
         print(f"  > Please read {overview_highlights_file} and follow the instructions")
-        if breaking_changes:
-            print(f"  > Please read {breaking_file} and follow the instructions")
+        print(f"  > Please read {breaking_file} and follow the instructions")
 
         print("\nPrompt 1: Overview + Feature Highlights (COMBINED)")
         print(f"  Prompt: {overview_highlights_file}")
         print(f"  Outputs: {self.responses_dir / 'release_overview.md'}")
         print(f"           {self.responses_dir / 'feature_highlights.md'}")
 
-        if breaking_changes:
-            print("\nPrompt 2: Breaking Changes - Users + Developers (COMBINED)")
-            print(f"  Prompt: {breaking_file}")
-            print(f"  Outputs: {self.responses_dir / 'breaking_changes_users.md'}")
-            print(f"           {self.responses_dir / 'breaking_changes_developers.md'}")
+        print(
+            "\nPrompt 2: Breaking Changes + Upgrade Checklist + Undocumented API Changes"
+        )
+        print(f"  Prompt: {breaking_file}")
+        print(f"  Outputs: {self.responses_dir / 'breaking_changes_users.md'}")
+        print(f"           {self.responses_dir / 'breaking_changes_developers.md'}")
+        print(f"           {self.responses_dir / 'upgrade_checklist.md'}")
+        if undocumented_api_changes:
+            print(f"           {self.responses_dir / 'undocumented_api_changes.md'}")
 
-        print("\nNote: Each prompt will generate TWO output files automatically.")
+        print("\nNote: Each prompt will generate multiple output files automatically.")
 
         print("\n" + "=" * 80)
         print("STEP 2: Assemble the changelog")
@@ -654,18 +661,25 @@ class ReleaseNotesGenerator:
             breaking_changes=breaking_changes,
         )
 
-    def _generate_combined_breaking_changes_prompt(
-        self, breaking_prs: list[PullRequest]
+    def _generate_breaking_changes_and_checklist_prompt(
+        self,
+        breaking_prs: list[PullRequest],
+        undocumented_api_prs: list[PullRequest],
+        all_prs: list[PullRequest],
     ) -> str:
-        """Generate combined prompt for both user and developer breaking changes"""
+        """Generate prompt for breaking changes, upgrade checklist, and undocumented API changes"""
         template = self.jinja_env.get_template("breaking_changes.txt")
 
         return template.render(
             version=str(self.version),
             users_file=self.responses_dir / "breaking_changes_users.md",
             devs_file=self.responses_dir / "breaking_changes_developers.md",
+            checklist_file=self.responses_dir / "upgrade_checklist.md",
+            undocumented_file=self.responses_dir / "undocumented_api_changes.md",
             prs_cache_dir=self.prs_cache_dir,
             breaking_changes=breaking_prs,
+            undocumented_api_changes=undocumented_api_prs,
+            all_prs=all_prs,
         )
 
     def assemble_changelog(self) -> bool:
@@ -731,6 +745,16 @@ class ReleaseNotesGenerator:
         if highlights_file.exists():
             highlights = highlights_file.read_text().strip()
 
+        upgrade_checklist_file = self.responses_dir / "upgrade_checklist.md"
+        upgrade_checklist = ""
+        if upgrade_checklist_file.exists():
+            upgrade_checklist = upgrade_checklist_file.read_text().strip()
+
+        undocumented_api_file = self.responses_dir / "undocumented_api_changes.md"
+        undocumented_api = ""
+        if undocumented_api_file.exists():
+            undocumented_api = undocumented_api_file.read_text().strip()
+
         # Load the PR numbers for this version from a manifest file
         manifest_file = self.version_dir / "pr_numbers.txt"
         if not manifest_file.exists():
@@ -754,6 +778,11 @@ class ReleaseNotesGenerator:
         # Replace AI-generated sections
         template = self._replace_marker_content(template, "RELEASE_OVERVIEW", overview)
 
+        if upgrade_checklist:
+            template = self._replace_marker_content(
+                template, "UPGRADE_CHECKLIST", upgrade_checklist
+            )
+
         if highlights:
             template = self._replace_marker_content(
                 template, "FEATURE_HIGHLIGHTS", highlights
@@ -762,6 +791,11 @@ class ReleaseNotesGenerator:
         if breaking_users:
             template = self._replace_marker_content(
                 template, "BREAKING_CHANGES_USERS", breaking_users
+            )
+
+        if undocumented_api:
+            template = self._replace_marker_content(
+                template, "UNDOCUMENTED_API_CHANGES", undocumented_api
             )
 
         if breaking_devs:
@@ -828,11 +862,15 @@ class ReleaseNotesGenerator:
         new_features = [pr for pr in prs if "new-feature" in pr.labels]
         new_components = [pr for pr in prs if "new-component" in pr.labels]
         breaking_changes = [pr for pr in prs if "breaking-change" in pr.labels]
+        undocumented_api_changes = [
+            pr for pr in prs if "undocumented-api-change" in pr.labels
+        ]
 
         # Generate lists
         features_list = self._format_pr_list(new_features)
         components_list = self._format_pr_list(new_components)
         breaking_list = self._format_pr_list(breaking_changes)
+        undocumented_list = self._format_pr_list(undocumented_api_changes)
         all_list = self._format_pr_list(prs)
 
         # Replace sections
@@ -844,6 +882,11 @@ class ReleaseNotesGenerator:
         )
         template = self._replace_marker_content(
             template, "AUTO_GENERATED_BREAKING_CHANGES_LIST", breaking_list
+        )
+        template = self._replace_marker_content(
+            template,
+            "AUTO_GENERATED_UNDOCUMENTED_API_CHANGES_LIST",
+            undocumented_list,
         )
         return self._replace_marker_content(
             template, "AUTO_GENERATED_ALL_CHANGES", all_list

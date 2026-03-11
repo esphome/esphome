@@ -51,6 +51,9 @@ Setting both `vid` and `pid` to 0 will match any device.
 - **parity** (*Optional*, string): The parity to use. One of `NONE`, `EVEN`, `ODD`, `MARK` and `SPACE`. Defaults to `NONE`.
 - **dummy_receiver** (*Optional*, boolean): If set to true, the channel will consume any data received. This is useful for debugging purposes. Defaults to false.
 - **debug** (*Optional*, boolean): If set to true, the channel will log all data sent and received. Defaults to false.
+- **debug_prefix** (*Optional*, string): A string prepended to every debug log line for this channel.
+  Useful when multiple channels have debugging enabled, to distinguish their output in the log. Defaults to "".
+- **flush_timeout** (*Optional*, [Time](/guides/configuration-types#time)): The maximum time to wait for the USB output queue to drain when `flush()` is called. If the queue does not drain within this time, `flush()` returns a `TIMEOUT` result. Defaults to `100ms`.
 
 ## Device types
 

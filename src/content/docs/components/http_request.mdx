@@ -45,6 +45,12 @@ http_request:
 
 **For the ESP8266:**
 
+- **tls_buffer_size_rx** (*Optional*, integer): Change TLS receive buffer size. Should be set to `16384` to fit the TLS
+  record size of modern HTTP servers. This will increase RAM usage significantly and may require removing other
+  components to free up RAM. You can check the max free heap block using the [Debug Component](/components/debug/). If
+  the server is configured to support the MFL TLS extension then this can be reduced, but most popular servers (Traefik,
+  Caddy, Cloudflare) don't support it and nginx has it disabled by default. Defaults to `512`.
+- **tls_buffer_size_tx** (*Optional*, integer): Change TLS transmit buffer size. Defaults to `512`.
 - **esp8266_disable_ssl_support** (*Optional*, boolean): Determines whether to include HTTPS/SSL support in the
   firmware binary. Excluding the SSL libraries from your build will result in a smaller binary, which may be
   necessary for memory-constrained devices (512 kB or 1 MB). If you see

@@ -27,6 +27,10 @@ esp32:
 > the board configuration will be automatically filled using a standard Espressif devkit board
 > suitable for that variant. Both may be specified (for backwards compatibility) but they must define the same variant.
 
+- **engineering_sample** (*Optional*, boolean): **ESP32-P4 only.** Set to `true` if your board has engineering
+  sample silicon (rev < 3.0). When using `variant: esp32p4` without specifying a `board`, a warning is logged
+  if this option is not explicitly set. Defaults to `false`.
+
 - **flash_size** (*Optional*, string): The amount of flash memory available on the ESP32 board/module. One of `2MB`,
   `4MB`, `8MB`, `16MB` or `32MB`. Defaults to `4MB`. **Warning: specifying a size larger than that available
   on your board will cause the ESP32 to fail to boot.**
@@ -130,8 +134,8 @@ esp32:
   [Espressif's documentation](https://docs.espressif.com/projects/esp-idf/en/v5.3.3/esp32/api-reference/kconfig.html#config-lwip-esp-lwip-assert)
   for more information.
 
-- **execute_from_psram** (*Optional*, boolean): On ESP32S3 only may be set to `true` to enable executing code from PSRAM.
-  With octal PSRAM this can be faster than executing from FLASH memory, and enables code such as display drawing
+- **execute_from_psram** (*Optional*, boolean): On ESP32S3 and ESP32P4 only may be set to `true` to enable executing code from PSRAM.
+  With octal or hex PSRAM this can be faster than executing from FLASH memory, and enables code such as display drawing
   to execute normally when writing to FLASH, e.g. during an OTA update. The default is `false`.
 
 - **ignore_efuse_custom_mac** (*Optional*, boolean): Can be set to `true` for devices on which the burned-in custom
@@ -269,8 +273,18 @@ The following options disable unused VFS features to save flash memory:
   [ESP Component Registry](https://components.espressif.com/). This option re-enables built-in ESP-IDF components
   that are excluded by default.
 
+**C Library Options:**
+
+- **enable_full_printf** (*Optional*, boolean): Enable full FILE\*-based printf support. By default, ESPHome wraps
+  `printf()`, `vprintf()`, and `fprintf()` with lightweight stubs that use `vsnprintf()` + `fwrite()`,
+  eliminating newlib's `_vfprintf_r` and saving ~11 KB of flash. ESPHome replaces the ESP-IDF log handler at
+  startup, so these libc printf functions are essentially dead code at runtime. Crash backtraces and panic output
+  are unaffected — they use `esp_rom_printf()` which is a ROM function and does not go through libc. Set to
+  `true` only if an external component needs full FILE\*-based `fprintf()` with output longer than 512 bytes.
+  Defaults to `false` (lightweight stubs to save flash).
+
 Some options can be disabled to save flash memory without affecting typical ESPHome functionality. The performance
-options (defaulting to `true`  ) improve socket operation performance but can be disabled if you need better
+options (defaulting to `true`) improve socket operation performance but can be disabled if you need better
 multi-threaded scalability (which is uncommon since ESPHome uses an event loop).
 
 - **disable_mbedtls_pkcs7** (*Optional*, boolean): Disable PKCS#7 support in mbedTLS. PKCS#7 is used for specific certificate
@@ -341,6 +355,9 @@ esp32:
       use_full_certificate_bundle: false  # Saves ~51 KB flash
       disable_mbedtls_peer_cert: true  # Saves ~4 KB heap per connection
       disable_mbedtls_pkcs7: true  # Saves code size
+
+      # C library options
+      enable_full_printf: false  # Saves ~11 KB flash
 
       # Debug options (disabled by default for production)
       disable_debug_stubs: true  # Saves code size

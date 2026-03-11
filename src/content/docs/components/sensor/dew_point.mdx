@@ -1,0 +1,44 @@
+---
+description: "Instructions for setting up dew point calculation"
+title: "Dew Point"
+---
+import APIRef from '@components/APIRef.astro';
+
+
+The `dew_point` platform allows you to calculate the dew point from air temperature and relative humidity.
+For the calculation the Magnus formula approximation is used.
+
+See the links at the bottom of the page for details on dew point equations and the Magnus formula.
+
+```yaml
+# Example configuration entry
+sensor:
+  - platform: dew_point
+    name: "Dew point"
+    temperature: temperature
+    humidity: humidity
+
+  # Use any temperature and relative humidity source, e.g. a BME280:
+  - platform: bme280_i2c
+    temperature:
+      name: "BME280 Temperature"
+      id: temperature
+    pressure:
+      name: "BME280 Pressure"
+    humidity:
+      name: "BME280 Humidity"
+      id: humidity
+```
+
+## Configuration variables
+
+- **temperature** (**Required**, [ID](/guides/configuration-types#id)): The sensor that is used to measure the current temperature, in °C.
+- **humidity** (**Required**, [ID](/guides/configuration-types#id)): The sensor that is used to measure the current relative humidity, in %.
+- All other options from [Sensor](/components/sensor).
+
+## See Also
+
+- [Absolute Humidity](/components/sensor/absolute_humidity/)
+- [Sensor Filters](/components/sensor#sensor-filters)
+- [Dew point on Wikipedia](https://en.wikipedia.org/wiki/Dew_point)
+- <APIRef text="dew_point.h" path="dew_point/dew_point.h" />
