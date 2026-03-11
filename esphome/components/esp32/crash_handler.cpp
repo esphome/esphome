@@ -28,12 +28,15 @@ static inline bool IRAM_ATTR is_code_addr(uint32_t addr) {
 // Raw crash data written by the panic handler wrapper.
 // Lives in .noinit so it survives software reset but contains garbage after power cycle.
 // Validated by magic marker. Static linkage since it's only used within this file.
-// Field order matters: magic, pc, and backtrace_count are at fixed offsets
+// Field order matters: magic, version, pc, and backtrace_count are at fixed offsets
 // so the struct remains readable even if MAX_BACKTRACE changes between versions.
+static constexpr uint8_t CRASH_DATA_VERSION = 1;
 struct RawCrashData {
   uint32_t magic;
   uint32_t pc;
+  uint8_t version;
   uint8_t backtrace_count;
+  // 2 bytes padding here, then backtrace array
   uint32_t backtrace[MAX_BACKTRACE];
 };
 static RawCrashData __attribute__((section(".noinit"))) s_raw_crash_data;
@@ -46,7 +49,7 @@ namespace esphome::esp32 {
 static const char *const TAG = "esp32.crash";
 
 void crash_handler_read_and_clear() {
-  if (s_raw_crash_data.magic == CRASH_MAGIC) {
+  if (s_raw_crash_data.magic == CRASH_MAGIC && s_raw_crash_data.version == CRASH_DATA_VERSION) {
     s_crash_data_valid = true;
     // Clamp backtrace count to prevent out-of-bounds reads from corrupt .noinit data
     if (s_raw_crash_data.backtrace_count > MAX_BACKTRACE)
@@ -151,7 +154,8 @@ void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
   }
 #endif
 
-  // Write magic last — ensures all data is written before we mark it valid
+  // Write version and magic last — ensures all data is written before we mark it valid
+  s_raw_crash_data.version = CRASH_DATA_VERSION;
   s_raw_crash_data.magic = CRASH_MAGIC;
 
   // Call the real panic handler (prints to UART, does core dump, reboots, etc.)
