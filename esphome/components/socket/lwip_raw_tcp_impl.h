@@ -66,7 +66,7 @@ class LWIPRawImpl : public LWIPRawCommon {
   using LWIPRawCommon::LWIPRawCommon;
   ~LWIPRawImpl();
 
-  void init();
+  void init(struct pbuf *initial_rx = nullptr, bool initial_rx_closed = false);
 
   // Non-listening sockets return error
   std::unique_ptr<LWIPRawImpl> accept(struct sockaddr *, socklen_t *) {
@@ -182,23 +182,28 @@ class LWIPRawListenImpl : public LWIPRawCommon {
   err_t accept_fn_(struct tcp_pcb *newpcb, err_t err);
   static err_t s_accept_fn(void *arg, struct tcp_pcb *newpcb, err_t err);
 
-  // Accept queue - holds incoming connections briefly until the event loop calls accept()
-  // This is NOT a connection pool - just a temporary queue between LWIP callbacks and the main loop
-  // 3 slots is plenty since connections are pulled out quickly by the event loop
-  //
-  // Memory analysis: std::array<3> vs original std::queue implementation:
-  // - std::queue uses std::deque internally which on 32-bit systems needs:
-  //   24 bytes (deque object) + 32+ bytes (map array) + heap allocations
-  //   Total: ~56+ bytes minimum, plus heap fragmentation
-  // - std::array<3>: 12 bytes fixed (3 pointers × 4 bytes)
-  // Saves ~44+ bytes RAM per listening socket + avoids ALL heap allocations
-  // Used on ESP8266 and RP2040 (platforms using LWIP_TCP implementation)
-  //
-  // By using a separate listening socket class, regular connected sockets save
-  // 16 bytes (12 bytes array + 1 byte count + 3 bytes padding) of memory overhead on 32-bit systems
-  static constexpr size_t MAX_ACCEPTED_SOCKETS = 3;
-  std::array<std::unique_ptr<LWIPRawImpl>, MAX_ACCEPTED_SOCKETS> accepted_sockets_;
-  uint8_t accepted_socket_count_ = 0;  // Number of sockets currently in queue
+  // Temporary callbacks for queued PCBs (between accept_fn_ and accept())
+  static void s_queued_err_fn(void *arg, err_t err);
+  static err_t s_queued_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, err_t err);
+
+  // Accept queue entry — stores a raw tcp_pcb and any data received while queued.
+  // lwip's default tcp_recv_null handler drops data and ACKs it, so we must register
+  // a temporary recv callback to buffer any data that arrives between accept_fn_
+  // (which stores the PCB) and accept() (which creates the LWIPRawImpl).
+  struct QueuedPcb {
+    struct tcp_pcb *pcb{nullptr};
+    struct pbuf *rx_buf{nullptr};  // Data received while queued (before accept() picks it up)
+    bool rx_closed{false};         // Remote sent FIN while queued
+  };
+
+  // Accept queue — stores raw tcp_pcb entries instead of heap-allocated LWIPRawImpl objects.
+  // LWIPRawImpl creation is deferred to the main-loop accept() call. This avoids:
+  // - Heap allocation in the accept callback (unsafe from IRQ context on RP2040)
+  // - Dangling LWIPRawImpl if the connection errors before accept() picks it up
+  // 2 slots is plenty since the main loop drains the queue every iteration.
+  static constexpr size_t MAX_ACCEPTED_SOCKETS = 2;
+  std::array<QueuedPcb, MAX_ACCEPTED_SOCKETS> accepted_pcbs_{};
+  uint8_t accepted_socket_count_ = 0;  // Number of entries currently in queue
 };
 
 }  // namespace esphome::socket
