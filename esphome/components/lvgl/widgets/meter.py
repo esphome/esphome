@@ -44,7 +44,7 @@ from ..defines import (
     get_remapped_uses,
     get_warnings,
 )
-from ..helpers import add_lv_use, lvgl_components_required
+from ..helpers import add_lv_use
 from ..lv_validation import (
     LV_OPA,
     LV_RADIUS,
@@ -328,6 +328,9 @@ class MeterType(WidgetType):
             lv_name=CONF_CONTAINER,
         )
 
+    def get_uses(self):
+        return {CONF_SCALE}
+
     def validate(self, value):
         return cv.has_at_most_one_key(CONF_INDICATOR, CONF_PIVOT)(value)
 
@@ -338,7 +341,6 @@ class MeterType(WidgetType):
     async def create_to_code(self, config: dict, parent: MockObj):
         """For a meter object using scale widget, create and set parameters"""
 
-        lvgl_components_required.add("scale")  # Use scale component
         outer_config = config.copy()
         indicator_config = {CONF_INDICATOR: outer_config.pop(CONF_TICKS, {})}
         w = await super().create_to_code(outer_config, parent)
