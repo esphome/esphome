@@ -78,6 +78,7 @@ def create_test_config(config_name: str, includes: list[str]) -> dict:
                 "build_flags": [
                     "-Og",  # optimize for debug
                     "-DUSE_TIME_TIMEZONE",  # enable timezone code paths for testing
+                    "-DESPHOME_DEBUG",  # enable debug assertions
                 ],
                 "debug_build_flags": [  # only for debug builds
                     "-g3",  # max debug info

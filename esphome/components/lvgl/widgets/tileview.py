@@ -114,6 +114,7 @@ def tile_select_validate(config):
             cv.Optional(CONF_TILE_ID): cv.use_id(lv_tile_t),
         },
     ).add_extra(tile_select_validate),
+    synchronous=True,
 )
 async def tileview_select(config, action_id, template_arg, args):
     widgets = await get_widgets(config)

@@ -95,8 +95,13 @@ class LWIPRawImpl : public LWIPRawCommon {
     errno = ENOSYS;
     return -1;
   }
+  // Intentionally unlocked — this is a polling check called every loop iteration.
+  // A stale read at worst delays processing by one loop tick; the actual I/O in
+  // read() holds the lwip lock and re-checks properly. See esphome#10681.
   bool ready() const { return this->rx_buf_ != nullptr || this->rx_closed_ || this->pcb_ == nullptr; }
 
+  // No lock needed — only called during setup before callbacks are registered.
+  // A stale pcb_ read is benign (returns ECONNRESET, which the caller handles).
   int setblocking(bool blocking) {
     if (this->pcb_ == nullptr) {
       errno = ECONNRESET;
@@ -134,6 +139,7 @@ class LWIPRawListenImpl : public LWIPRawCommon {
 
   void init();
 
+  // Intentionally unlocked — polling check, see LWIPRawImpl::ready() comment.
   bool ready() const { return this->accepted_socket_count_ > 0; }
 
   std::unique_ptr<LWIPRawImpl> accept(struct sockaddr *addr, socklen_t *addrlen);

@@ -203,6 +203,7 @@ async def lvgl_is_idle(config, condition_id, template_arg, args):
         ),
         LVGL_SCHEMA,
     ),
+    synchronous=True,
 )
 async def obj_invalidate_to_code(config, action_id, template_arg, args):
     if CONF_LVGL_ID in config:
@@ -234,6 +235,7 @@ DISP_PROPS = {str(x) for x in DISP_BG_SCHEMA.schema}
             cv.Optional(CONF_BOTTOM_LAYER): part_schema(layer_spec.parts),
         }
     ),
+    synchronous=True,
 )
 async def lvgl_update_to_code(config, action_id, template_arg, args):
     widgets = await get_widgets(config, CONF_LVGL_ID)
@@ -253,6 +255,7 @@ async def lvgl_update_to_code(config, action_id, template_arg, args):
             cv.Optional(CONF_SHOW_SNOW, default=False): lv_bool,
         }
     ),
+    synchronous=True,
 )
 async def pause_action_to_code(config, action_id, template_arg, args):
     lv_comp = await cg.get_variable(config[CONF_LVGL_ID])
@@ -268,6 +271,7 @@ async def pause_action_to_code(config, action_id, template_arg, args):
     "lvgl.resume",
     LvglAction,
     LVGL_SCHEMA,
+    synchronous=True,
 )
 async def resume_action_to_code(config, action_id, template_arg, args):
     lv_comp = await cg.get_variable(config[CONF_LVGL_ID])
@@ -278,7 +282,9 @@ async def resume_action_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action("lvgl.widget.disable", ObjUpdateAction, LIST_ACTION_SCHEMA)
+@automation.register_action(
+    "lvgl.widget.disable", ObjUpdateAction, LIST_ACTION_SCHEMA, synchronous=True
+)
 async def obj_disable_to_code(config, action_id, template_arg, args):
     async def do_disable(widget: Widget):
         widget.add_state(LV_STATE.DISABLED)
@@ -288,7 +294,9 @@ async def obj_disable_to_code(config, action_id, template_arg, args):
     )
 
 
-@automation.register_action("lvgl.widget.enable", ObjUpdateAction, LIST_ACTION_SCHEMA)
+@automation.register_action(
+    "lvgl.widget.enable", ObjUpdateAction, LIST_ACTION_SCHEMA, synchronous=True
+)
 async def obj_enable_to_code(config, action_id, template_arg, args):
     async def do_enable(widget: Widget):
         widget.clear_state(LV_STATE.DISABLED)
@@ -298,7 +306,9 @@ async def obj_enable_to_code(config, action_id, template_arg, args):
     )
 
 
-@automation.register_action("lvgl.widget.hide", ObjUpdateAction, LIST_ACTION_SCHEMA)
+@automation.register_action(
+    "lvgl.widget.hide", ObjUpdateAction, LIST_ACTION_SCHEMA, synchronous=True
+)
 async def obj_hide_to_code(config, action_id, template_arg, args):
     async def do_hide(widget: Widget):
         widget.add_flag("LV_OBJ_FLAG_HIDDEN")
@@ -307,7 +317,9 @@ async def obj_hide_to_code(config, action_id, template_arg, args):
     return await action_to_code(widgets, do_hide, action_id, template_arg, args)
 
 
-@automation.register_action("lvgl.widget.show", ObjUpdateAction, LIST_ACTION_SCHEMA)
+@automation.register_action(
+    "lvgl.widget.show", ObjUpdateAction, LIST_ACTION_SCHEMA, synchronous=True
+)
 async def obj_show_to_code(config, action_id, template_arg, args):
     async def do_show(widget: Widget):
         widget.clear_flag("LV_OBJ_FLAG_HIDDEN")
@@ -349,6 +361,7 @@ def focused_id(value):
             key=CONF_ID,
         ),
     ),
+    synchronous=True,
 )
 async def widget_focus(config, action_id, template_arg, args):
     widget = await get_widgets(config)
@@ -388,7 +401,10 @@ async def widget_focus(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "lvgl.widget.update", ObjUpdateAction, base_update_schema(lv_obj_base_t, PARTS)
+    "lvgl.widget.update",
+    ObjUpdateAction,
+    base_update_schema(lv_obj_base_t, PARTS),
+    synchronous=True,
 )
 async def obj_update_to_code(config, action_id, template_arg, args):
     async def do_update(widget: Widget):
@@ -420,6 +436,7 @@ def validate_refresh_config(config):
         ),
         validate_refresh_config,
     ),
+    synchronous=True,
 )
 async def obj_refresh_to_code(config, action_id, template_arg, args):
     widget = await get_widgets(config)

@@ -85,6 +85,7 @@ async def styles_to_code(config):
             cv.Required(CONF_ID): cv.use_id(lv_style_t),
         }
     ),
+    synchronous=True,
 )
 async def style_update_to_code(config, action_id, template_arg, args):
     await wait_for_widgets()

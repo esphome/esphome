@@ -122,6 +122,7 @@ tabview_spec = TabviewType()
             cv.Required(CONF_INDEX): lv_int,
         },
     ).add_extra(cv.has_at_least_one_key(CONF_INDEX, CONF_TAB_ID)),
+    synchronous=True,
 )
 async def tabview_select(config, action_id, template_arg, args):
     widget = await get_widgets(config)
