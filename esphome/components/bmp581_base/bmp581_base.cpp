@@ -39,7 +39,7 @@ PROGMEM_STRING_TABLE(BMP581LogErrorStrings, "", "", "Register read failed", "Reg
                      "IIR Filter failed to prime with initial measurement", "Unknown error");
 static const LogString *error_code_to_str(ErrorCode error) {
   return error == ERROR_COMMUNICATION_FAILED
-             ? ESP_LOG_MSG_COMM_FAILED
+             ? ESP_LOG_MSG_COMM_FAIL
              : BMP581LogErrorStrings::get_log_str(static_cast<uint8_t>(error), BMP581LogErrorStrings::LAST_INDEX);
 }
 
