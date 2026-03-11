@@ -151,7 +151,7 @@ dialog::backdrop {
   padding-block: 0.5em;
 }
 
-.sidebar-content ul li > a {
+.sidebar-content ul li>a {
   padding-block: 0.5em;
 }
 
@@ -256,8 +256,8 @@ dialog::backdrop {
 }
 
 /* Ensure Image component wrapper centers its content */
-.sl-markdown-content > p > img,
-.sl-markdown-content > img {
+.sl-markdown-content>p>img,
+.sl-markdown-content>img {
   display: block;
   margin-left: auto;
   margin-right: auto;
@@ -266,4 +266,16 @@ dialog::backdrop {
 /* Transparent background pattern for badges */
 .transparent-background img {
   background: repeating-conic-gradient(#999 0% 25%, transparent 10% 50%) 50% / 10px 10px;
+}
+
+/* Better hero image */
+html[data-has-hero] .hero img {
+  width: auto;
+  max-width: 100%;
+}
+
+@media (min-width: 800px) {
+  html[data-has-hero] .hero {
+    grid-template-columns: 5fr 4fr;
+  }
 }
