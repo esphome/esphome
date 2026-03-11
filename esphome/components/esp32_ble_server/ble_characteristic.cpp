@@ -310,8 +310,8 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
           (*this->on_write_callback_)(this->value_, param->exec_write.conn_id);
         }
       }
-      esp_err_t err =
-          esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, nullptr);
+      esp_err_t err = esp_ble_gatts_send_response(gatts_if, param->exec_write.conn_id, param->exec_write.trans_id,
+                                                  ESP_GATT_OK, nullptr);
       if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_ble_gatts_send_response failed: %d", err);
       }

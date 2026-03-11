@@ -115,6 +115,7 @@ class EthernetComponent : public Component {
   const char *get_eth_mac_address_pretty_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
   eth_duplex_t get_duplex_mode();
   eth_speed_t get_link_speed();
+  esp_eth_handle_t get_eth_handle() const { return this->eth_handle_; }
   bool powerdown();
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
@@ -213,7 +214,7 @@ class EthernetComponent : public Component {
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern EthernetComponent *global_eth_component;
 
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2)
+#if defined(USE_ETHERNET_JL1101) && (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2) || !defined(PLATFORMIO))
 extern "C" esp_eth_phy_t *esp_eth_phy_new_jl1101(const eth_phy_config_t *config);
 #endif
 

@@ -1,5 +1,6 @@
 #ifdef USE_RP2040
 #include "logger.h"
+#include "esphome/components/rp2040/crash_handler.h"
 #include "esphome/core/log.h"
 
 namespace esphome::logger {
@@ -25,6 +26,7 @@ void Logger::pre_setup() {
   }
   global_logger = this;
   ESP_LOGI(TAG, "Log initialized");
+  rp2040::crash_handler_log();
 }
 
 void HOT Logger::write_msg_(const char *msg, uint16_t len) {
