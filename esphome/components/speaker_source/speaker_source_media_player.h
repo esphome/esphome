@@ -28,8 +28,9 @@ namespace esphome::speaker_source {
 //
 // - Main loop task: setup(), loop(), dump_config(), handle_media_state_changed_(),
 //   handle_volume_request_(), handle_mute_request_(), handle_play_uri_request_(),
-//   set_volume_(), set_mute_state_(), control(), get_media_pipeline_state_(),
-//   find_source_for_uri_(), try_execute_play_uri_(), save_volume_restore_state_()
+//   set_volume_(), set_mute_state_(), control(), get_source_state_(),
+//   find_source_for_uri_(), try_execute_play_uri_(), save_volume_restore_state_(),
+//   process_control_queue_(), handle_player_command_(), queue_command_(), queue_play_current_()
 //
 // - Media source task(s): handle_media_output_() via SourceBinding::write_audio().
 //   Called from each source's decode task thread when streaming audio data.
@@ -49,11 +50,18 @@ namespace esphome::speaker_source {
 // - defer(): SourceBinding::request_volume/request_mute/request_play_uri -> main loop
 // - Atomic fields (active_source, pending_frames): shared between all three thread contexts
 //
-// Non-atomic pipeline fields (last_source, stopping_source, pending_source) are only accessed
-// from the main loop thread.
+// Non-atomic pipeline fields (last_source, stopping_source, pending_source, playlist,
+// playlist_index, repeat_mode) are only accessed from the main loop thread.
 
 enum Pipeline : uint8_t {
   MEDIA_PIPELINE = 0,
+  ANNOUNCEMENT_PIPELINE = 1,
+};
+
+enum RepeatMode : uint8_t {
+  REPEAT_OFF = 0,
+  REPEAT_ONE = 1,
+  REPEAT_ALL = 2,
 };
 
 // Forward declaration
@@ -78,6 +86,9 @@ struct SourceBinding : public media_source::MediaSourceListener {
   void request_play_uri(const std::string &uri) override;
 };
 
+/// @brief Timeout IDs for playlist delay, indexed by Pipeline enum
+static constexpr uint32_t PIPELINE_TIMEOUT_IDS[] = {1, 2};
+
 struct PipelineContext {
   speaker::Speaker *speaker{nullptr};
   optional<media_player::MediaPlayerSupportedFormat> format;
@@ -92,6 +103,18 @@ struct PipelineContext {
   // Uses std::vector because the count varies across instances (multiple speaker_source media players may exist).
   std::vector<std::unique_ptr<SourceBinding>> sources;
 
+  // Dynamic allocation is unavoidable here: URIs from Home Assistant are arbitrary-length strings
+  // (media URLs with tokens can easily exceed 500 bytes), and playlist size is unbounded.
+  // Pre-allocating fixed buffers would waste significant RAM when idle without covering worst cases.
+  std::vector<std::string> playlist;
+  size_t playlist_index{0};
+  RepeatMode repeat_mode{REPEAT_OFF};
+  uint32_t playlist_delay_ms{0};
+
+  // When non-empty, playlist_index indexes into these vectors
+  // which contain the actual playlist indices in shuffled order
+  std::vector<size_t> shuffle_indices;
+
   // Track frames sent to speaker to correlate with playback callbacks.
   // Atomic because it is written from the main loop/source tasks and read/decremented from the speaker playback
   // callback.
@@ -103,14 +126,17 @@ struct PipelineContext {
 
 struct MediaPlayerControlCommand {
   enum Type : uint8_t {
-    PLAY_URI,      // Find a source that can handle this URI and play it
-    SEND_COMMAND,  // Send command to active source
+    PLAY_URI,          // Clear playlist, reset index, add URI, queue PLAY_CURRENT
+    ENQUEUE_URI,       // Add URI to playlist, queue PLAY_CURRENT if idle
+    PLAYLIST_ADVANCE,  // Advance index (or wrap for repeat_all), queue PLAY_CURRENT if more items
+    PLAY_CURRENT,      // Play item at current playlist index (can retry if speaker not ready)
+    SEND_COMMAND,      // Send command to active source
   };
   Type type;
-  uint8_t pipeline;
+  uint8_t pipeline;  // MEDIA_PIPELINE or ANNOUNCEMENT_PIPELINE
 
   union {
-    std::string *uri;  // Owned pointer, must delete after xQueueReceive (for PLAY_URI)
+    std::string *uri;  // Owned pointer, must delete after xQueueReceive (for PLAY_URI and ENQUEUE_URI)
     media_player::MediaPlayerCommand command;
   } data;
 };
@@ -154,6 +180,8 @@ class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPla
   Trigger<> *get_unmute_trigger() { return &this->unmute_trigger_; }
   Trigger<float> *get_volume_trigger() { return &this->volume_trigger_; }
 
+  void set_playlist_delay_ms(uint8_t pipeline, uint32_t delay_ms);
+
  protected:
   // Callbacks from source bindings (pipeline index is captured at binding creation time)
   size_t handle_media_output_(uint8_t pipeline, media_source::MediaSource *source, const uint8_t *data, size_t length,
@@ -181,17 +209,35 @@ class SpeakerSourceMediaPlayer : public Component, public media_player::MediaPla
   /// @brief Saves the current volume and mute state to the flash for restoration.
   void save_volume_restore_state_();
 
-  /// @brief Determine media player state from the media pipeline's active source
-  /// @param media_source Active source for the media pipeline (may be nullptr)
+  /// @brief Determine media player state from a pipeline's active source
+  /// @param media_source Active source (may be nullptr)
+  /// @param playlist_active Whether the pipeline's playlist is in progress
+  /// @param old_state Previous media player state (used for transition smoothing)
   /// @return The appropriate MediaPlayerState
-  media_player::MediaPlayerState get_media_pipeline_state_(media_source::MediaSource *media_source) const;
+  media_player::MediaPlayerState get_source_state_(media_source::MediaSource *media_source, bool playlist_active,
+                                                   media_player::MediaPlayerState old_state) const;
 
+  void process_control_queue_();
+  void handle_player_command_(media_player::MediaPlayerCommand player_command, uint8_t pipeline);
   bool try_execute_play_uri_(const std::string &uri, uint8_t pipeline);
   media_source::MediaSource *find_source_for_uri_(const std::string &uri, uint8_t pipeline);
+  void queue_command_(MediaPlayerControlCommand::Type type, uint8_t pipeline);
+  void queue_play_current_(uint8_t pipeline, uint32_t delay_ms = 0);
+
+  /// @brief Maps playlist_index through shuffle indices if shuffle is active
+  size_t get_playlist_position_(uint8_t pipeline) const;
+
+  /// @brief Generates shuffled indices for the playlist, keeping current track at current position
+  void shuffle_playlist_(uint8_t pipeline);
+
+  /// @brief Clears shuffle indices and adjusts playlist_index to maintain current track
+  void unshuffle_playlist_(uint8_t pipeline);
+
   QueueHandle_t media_control_command_queue_;
 
-  // Pipeline context for media pipeline. See THREADING MODEL at top of namespace for access rules.
-  std::array<PipelineContext, 1> pipelines_;
+  // Pipeline context for media (index 0) and announcement (index 1) pipelines.
+  // See THREADING MODEL at top of namespace for access rules.
+  std::array<PipelineContext, 2> pipelines_;
 
   // Used to save volume/mute state for restoration on reboot
   ESPPreferenceObject pref_;
