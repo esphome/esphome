@@ -753,18 +753,16 @@ std::unique_ptr<LWIPRawImpl> LWIPRawListenImpl::accept(struct sockaddr *addr, so
   // The error callback nulled their pcb pointers; clean up buffered data and discard.
   while (this->accepted_socket_count_ > 0) {
     QueuedPcb entry = this->accepted_pcbs_[0];
-    // Shift remaining entries forward and update tcp_arg pointers (slots shifted by one).
+    // Shift remaining entries forward, updating tcp_arg pointers as we go.
     // Safe because we hold LWIP_LOCK, so err/recv callbacks can't fire during the update.
     for (uint8_t i = 1; i < this->accepted_socket_count_; i++) {
       this->accepted_pcbs_[i - 1] = this->accepted_pcbs_[i];
+      if (this->accepted_pcbs_[i - 1].pcb != nullptr) {
+        tcp_arg(this->accepted_pcbs_[i - 1].pcb, &this->accepted_pcbs_[i - 1]);
+      }
     }
     this->accepted_pcbs_[this->accepted_socket_count_ - 1] = {};
     this->accepted_socket_count_--;
-    for (uint8_t i = 0; i < this->accepted_socket_count_; i++) {
-      if (this->accepted_pcbs_[i].pcb != nullptr) {
-        tcp_arg(this->accepted_pcbs_[i].pcb, &this->accepted_pcbs_[i]);
-      }
-    }
     if (entry.pcb == nullptr) {
       // PCB was freed by lwip (RST/timeout) while queued — discard and try next
       if (entry.rx_buf != nullptr) {
