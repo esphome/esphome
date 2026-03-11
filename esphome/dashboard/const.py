@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sys
+
 from esphome.enum import StrEnum
 
 
@@ -26,4 +28,4 @@ MAX_EXECUTOR_WORKERS = 48
 
 SENTINEL = object()
 
-DASHBOARD_COMMAND = ["esphome", "--dashboard"]
+DASHBOARD_COMMAND = [sys.executable, "-m", "esphome", "--dashboard"]
