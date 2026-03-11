@@ -41,6 +41,11 @@ class OpenThreadComponent : public Component {
 #endif
   void set_output_power(int8_t output_power) { this->output_power_ = output_power; }
 
+  /** Internal: Apply settings for Link Mode incl poll period
+   * @pre Call while holding lock
+   */
+  void apply_linkmode_locked(otInstance *instance);
+
  protected:
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
   static void on_state_changed_(otChangedFlags flags, void *context);

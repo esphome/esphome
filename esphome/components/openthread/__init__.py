@@ -1,3 +1,4 @@
+from esphome import automation
 import esphome.codegen as cg
 from esphome.components.esp32 import (
     VARIANT_ESP32C5,
@@ -247,3 +248,67 @@ async def to_code(config):
         cg.add(ot.set_output_power(output_power))
 
     set_sdkconfig_options(config)
+
+
+# Actions
+
+# Single field action to set poll period
+OpenThreadComponentPollPeriodAction = openthread_ns.class_(
+    "OpenThreadComponentPollPeriodAction",
+    automation.Action,
+    cg.Parented.template(OpenThreadComponent),
+)
+# Example of combined action
+OpenThreadComponentLinkModeAction = openthread_ns.class_(
+    "OpenThreadComponentLinkModeAction",
+    automation.Action,
+    cg.Parented.template(OpenThreadComponent),
+)
+
+# TODO: Validations (e.g. MTD only)
+
+POLL_PERIOD_ACTION_SCHEMA = automation.maybe_conf(
+    CONF_POLL_PERIOD,
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(OpenThreadComponent),
+            cv.Required(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
+        }
+    ),
+)
+
+LINK_MODE_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(OpenThreadComponent),
+        cv.Optional(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
+        # Other possible future fields
+    }
+)
+
+
+@automation.register_action(
+    "openthread.pollperiod",
+    OpenThreadComponentPollPeriodAction,
+    POLL_PERIOD_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def openthread_poll_period_action_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    cg.add(var.set_poll_period(config[CONF_POLL_PERIOD]))
+    return var
+
+
+@automation.register_action(
+    "openthread.linkmode",
+    OpenThreadComponentLinkModeAction,
+    LINK_MODE_ACTION_SCHEMA,
+    synchronous=True,
+)
+async def openthread_link_mode_action_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    if (poll_period := config.get(CONF_POLL_PERIOD)) is not None:
+        cg.add(var.set_poll_period(poll_period))
+    # ...other fields...
+    return var
