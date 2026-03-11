@@ -21,22 +21,6 @@
 
 namespace esphome::ethernet {
 
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2)
-// work around IDF compile issue on P4 https://github.com/espressif/esp-idf/pull/15637
-#ifdef USE_ESP32_VARIANT_ESP32P4
-#undef ETH_ESP32_EMAC_DEFAULT_CONFIG
-#define ETH_ESP32_EMAC_DEFAULT_CONFIG() \
-  { \
-    .smi_gpio = {.mdc_num = 31, .mdio_num = 52}, .interface = EMAC_DATA_INTERFACE_RMII, \
-    .clock_config = {.rmii = {.clock_mode = EMAC_CLK_EXT_IN, .clock_gpio = (emac_rmii_clock_gpio_t) 50}}, \
-    .dma_burst_len = ETH_DMA_BURST_LEN_32, .intr_priority = 0, \
-    .emac_dataif_gpio = \
-        {.rmii = {.tx_en_num = 49, .txd0_num = 34, .txd1_num = 35, .crs_dv_num = 28, .rxd0_num = 29, .rxd1_num = 30}}, \
-    .clock_config_out_in = {.rmii = {.clock_mode = EMAC_CLK_EXT_IN, .clock_gpio = (emac_rmii_clock_gpio_t) -1}}, \
-  }
-#endif
-#endif
-
 static const char *const TAG = "ethernet";
 
 // PHY register size for hex logging
@@ -162,7 +146,33 @@ void EthernetComponent::setup() {
   phy_config.phy_addr = this->phy_addr_;
   phy_config.reset_gpio_num = this->power_pin_;
 
-  eth_esp32_emac_config_t esp32_emac_config = ETH_ESP32_EMAC_DEFAULT_CONFIG();
+  eth_esp32_emac_config_t esp32_emac_config{};
+#if CONFIG_IDF_TARGET_ESP32P4
+  // Avoid ETH_ESP32_EMAC_DEFAULT_CONFIG() on ESP32-P4 because some ESP-IDF releases
+  // use out-of-order designated initializers, which fail in C++ mode.
+  esp32_emac_config.smi_gpio.mdc_num = 31;
+  esp32_emac_config.smi_gpio.mdio_num = 52;
+  esp32_emac_config.interface = EMAC_DATA_INTERFACE_RMII;
+  esp32_emac_config.clock_config.rmii.clock_mode = EMAC_CLK_EXT_IN;
+  esp32_emac_config.clock_config.rmii.clock_gpio = (emac_rmii_clock_gpio_t) 50;
+  esp32_emac_config.dma_burst_len = ETH_DMA_BURST_LEN_32;
+  esp32_emac_config.intr_priority = 0;
+#if SOC_EMAC_USE_MULTI_IO_MUX || SOC_EMAC_MII_USE_GPIO_MATRIX
+  esp32_emac_config.emac_dataif_gpio.rmii.tx_en_num = 49;
+  esp32_emac_config.emac_dataif_gpio.rmii.txd0_num = 34;
+  esp32_emac_config.emac_dataif_gpio.rmii.txd1_num = 35;
+  esp32_emac_config.emac_dataif_gpio.rmii.crs_dv_num = 28;
+  esp32_emac_config.emac_dataif_gpio.rmii.rxd0_num = 29;
+  esp32_emac_config.emac_dataif_gpio.rmii.rxd1_num = 30;
+#endif
+#if !SOC_EMAC_RMII_CLK_OUT_INTERNAL_LOOPBACK
+  esp32_emac_config.clock_config_out_in.rmii.clock_mode = EMAC_CLK_EXT_IN;
+  esp32_emac_config.clock_config_out_in.rmii.clock_gpio = (emac_rmii_clock_gpio_t) -1;
+#endif
+  esp32_emac_config.mdc_freq_hz = 0;
+#else
+  esp32_emac_config = ETH_ESP32_EMAC_DEFAULT_CONFIG();
+#endif
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
   esp32_emac_config.smi_gpio.mdc_num = this->mdc_pin_;
   esp32_emac_config.smi_gpio.mdio_num = this->mdio_pin_;
