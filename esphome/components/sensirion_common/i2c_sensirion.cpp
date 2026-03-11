@@ -22,7 +22,7 @@ bool SensirionI2CDevice::read_data(uint16_t *data, const uint8_t len) {
   }
 
   for (size_t i = 0; i < len; i++) {
-    const size_t j = static_cast<size_t>(i) * 3;
+    const size_t j = i * 3;
     // Use MSB first since Sensirion devices use CRC-8 with MSB first
     uint8_t crc = crc8(&temp[j], 2, 0xFF, CRC_POLYNOMIAL, true);
     if (crc != temp[j + 2]) {
