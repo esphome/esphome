@@ -511,6 +511,7 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
 
         case media_player::MEDIA_PLAYER_COMMAND_NEXT: {
           if (!has_internal_playlist) {
+            this->cancel_timeout(PipelineContext::TIMEOUT_IDS[pipeline]);
             if (ps.playlist_index + 1 < ps.playlist.size()) {
               ps.playlist_index++;
               this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
@@ -526,6 +527,7 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
 
         case media_player::MEDIA_PLAYER_COMMAND_PREVIOUS: {
           if (!has_internal_playlist) {
+            this->cancel_timeout(PipelineContext::TIMEOUT_IDS[pipeline]);
             if (ps.playlist_index > 0) {
               ps.playlist_index--;
               this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
