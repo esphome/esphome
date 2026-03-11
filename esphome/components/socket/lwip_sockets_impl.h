@@ -10,7 +10,7 @@
 #include "headers.h"
 
 #ifdef USE_LWIP_FAST_SELECT
-struct lwip_sock;
+#include "esphome/core/lwip_fast_select.h"
 #endif
 
 namespace esphome::socket {
