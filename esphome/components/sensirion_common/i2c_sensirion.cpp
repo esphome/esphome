@@ -26,7 +26,7 @@ bool SensirionI2CDevice::read_data(uint16_t *data, const uint8_t len) {
     // Use MSB first since Sensirion devices use CRC-8 with MSB first
     uint8_t crc = crc8(&temp[j], 2, 0xFF, CRC_POLYNOMIAL, true);
     if (crc != temp[j + 2]) {
-      ESP_LOGE(TAG, "CRC invalid @ %d! 0x%02X != 0x%02X", i, temp[j + 2], crc);
+      ESP_LOGE(TAG, "CRC invalid @ %zu! 0x%02X != 0x%02X", i, temp[j + 2], crc);
       this->last_error_ = i2c::ERROR_CRC;
       return false;
     }
