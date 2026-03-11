@@ -47,7 +47,7 @@ void BMP581Component::dump_config() {
   ESP_LOGCONFIG(TAG, "BMP581:");
 
   if (this->error_code_ != NONE) {
-    ESP_LOGE(TAG, error_code_to_str(this->error_code));
+    ESP_LOGE(TAG, error_code_to_str(this->error_code_));
   }
 
   LOG_UPDATE_INTERVAL(this);

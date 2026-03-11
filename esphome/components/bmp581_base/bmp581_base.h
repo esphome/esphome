@@ -86,7 +86,6 @@ class BMP581Component : public PollingComponent {
   virtual bool bmp_write_byte(uint8_t a_register, uint8_t data) = 0;
   virtual bool bmp_read_bytes(uint8_t a_register, uint8_t *data, size_t len) = 0;
   virtual bool bmp_write_bytes(uint8_t a_register, uint8_t *data, size_t len) = 0;
-
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *pressure_sensor_{nullptr};
 
@@ -132,10 +131,15 @@ class BMP581Component : public PollingComponent {
   enum ErrorCode {
     NONE = 0,
     ERROR_COMMUNICATION_FAILED,
+    ERROR_READ_REGISTER,
+    ERROR_WRITE_REGISTER,
     ERROR_WRONG_CHIP_ID,
     ERROR_SENSOR_STATUS,
+    ERROR_SENSOR_NVM_READY,
+    ERROR_SENSOR_NVM_ERROR,
     ERROR_SENSOR_RESET,
-    ERROR_PRIME_IIR_FAILED
+    ERROR_PRIME_IIR_FAILED,
+    ERROR_UNKNOWN
   } error_code_{NONE};
 
   // BMP581's interrupt source register (address 0x15) to configure which interrupts are enabled (page 54 of datasheet)
