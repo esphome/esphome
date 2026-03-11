@@ -919,9 +919,9 @@ def _wait_for_serial_port(
     """
 
     def _port_found() -> bool:
-        ports = get_serial_ports()
         if port is not None:
-            return any(p.path == port for p in ports)
+            return os.path.exists(port)
+        ports = get_serial_ports()
         if known_ports is not None:
             return any(p.path not in known_ports for p in ports)
         return bool(ports)
