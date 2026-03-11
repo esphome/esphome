@@ -89,6 +89,8 @@ void crash_handler_log() {
     pos += snprintf(hint + pos, sizeof(hint) - pos, " 0x%08" PRIX32, s_crash_data.backtrace[i]);
   }
   ESP_LOGE(TAG, "%s", hint);
+  // Clear so we don't re-log on subsequent API reconnects
+  s_crash_data.valid = false;
 }
 
 }  // namespace esphome::esp32
@@ -123,8 +125,9 @@ void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
 
     uint8_t count = 0;
     // First frame PC
-    if (is_code_addr(esp_cpu_process_stack_pc(bt_frame.pc))) {
-      s_raw_crash_data.backtrace[count++] = esp_cpu_process_stack_pc(bt_frame.pc);
+    uint32_t first_pc = esp_cpu_process_stack_pc(bt_frame.pc);
+    if (is_code_addr(first_pc)) {
+      s_raw_crash_data.backtrace[count++] = first_pc;
     }
     // Walk remaining frames
     while (count < MAX_BACKTRACE && bt_frame.next_pc != 0) {

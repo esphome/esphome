@@ -2,8 +2,6 @@
 
 #ifdef USE_ESP32
 
-#include <cstdint>
-
 namespace esphome::esp32 {
 
 /// Read crash data from NOINIT memory and clear the magic marker.
