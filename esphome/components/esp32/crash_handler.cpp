@@ -32,10 +32,14 @@ static inline bool IRAM_ATTR is_code_addr(uint32_t addr) {
 static inline bool is_return_addr(uint32_t addr) {
   if (!is_code_addr(addr) || addr < 4)
     return false;
+  // A return address on the stack points to the instruction after a call.
+  // Read the 4-byte instruction immediately before this address.
   uint32_t inst = *(uint32_t *) (addr - 4);
-  uint32_t opcode = inst & 0x7f;
-  // JAL (opcode 0x6f) or JALR (opcode 0x67) with rd=x1 (ra)
-  return (opcode == 0x6f || opcode == 0x67) && (inst & 0xf80) == 0x80;
+  // RISC-V instruction encoding: bits [6:0] = opcode, bits [11:7] = rd
+  uint32_t opcode = inst & 0x7f;  // Extract 7-bit opcode
+  uint32_t rd = inst & 0xf80;     // Extract rd field (bits 11:7)
+  // Match JAL (0x6f) or JALR (0x67) with rd=ra (x1, encoded as 0x80 = 1<<7)
+  return (opcode == 0x6f || opcode == 0x67) && rd == 0x80;
 }
 #endif
 
