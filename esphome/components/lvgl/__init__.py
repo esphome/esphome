@@ -385,6 +385,7 @@ async def to_code(configs):
             lv_image_formats.add("RGB565A8" if transparent else "RGB565")
         if image_type == ImageRGB:
             lv_image_formats.add("ARGB8888" if transparent else "RGB8888")
+    lv_image_formats.add("ARGB8888")
     if df.is_defined("LV_GRADIENT_MAX_STOPS"):
         lv_image_formats.add("RGB888")
     for fmt in lv_image_formats:
