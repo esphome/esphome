@@ -646,8 +646,8 @@ void Nextion::process_nextion_commands_() {
           break;
         }
 
-        if (to_process_length == 0) {
-          ESP_LOGE(TAG, "Numeric return but no data");
+        if (to_process_length < 4) {
+          ESP_LOGE(TAG, "Numeric return but insufficient data (need 4, got %zu)", to_process_length);
           break;
         }
 
