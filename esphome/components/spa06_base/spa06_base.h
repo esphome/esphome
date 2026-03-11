@@ -168,8 +168,8 @@ class SPA06Component : public PollingComponent {
   float convert_pressure_(const float &p_raw_sc, const float &t_raw_sc);
 
   //// Protocol-related variables
-  // Oversampling scale factors
-  uint32_t kp_{0}, kt_{0};
+  // Oversampling scale factors. Defaults are for X1 sampling scaling.
+  uint32_t kp_{524288}, kt_{524288};
   // Coefficients for calculating pressure and temperature from raw values
   // Obtained from IC during setup
   int32_t c00_{0}, c10_{0};
