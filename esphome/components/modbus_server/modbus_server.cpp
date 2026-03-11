@@ -155,13 +155,14 @@ void ModbusServer::on_modbus_write_registers(uint8_t function_code, const std::v
   }
 
   // Actually write to the registers:
-  if (!for_each_register([this, function_code, &data](ServerRegister *server_register, uint16_t offset) {
+  if (!for_each_register([&data](ServerRegister *server_register, uint16_t offset) {
         bool error = false;
         int64_t number = payload_to_number(data, server_register->value_type, offset, 0xFFFFFFFF, &error);
-        if (error)
+        if (error) {
           return false;
-        else
+        } else {
           return server_register->write_lambda(number);
+        }
       })) {
     ESP_LOGW(TAG, "Could not write all registers. Sending exception response.");
     this->send_error(function_code, ModbusExceptionCode::SERVICE_DEVICE_FAILURE);

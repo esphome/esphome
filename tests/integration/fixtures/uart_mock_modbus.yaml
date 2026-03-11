@@ -22,7 +22,7 @@ uart_mock:
     baud_rate: 9600
     rx_full_threshold: 120
     rx_timeout: 2
-    auto_start: false
+    auto_start: true
     debug:
     responses:
       - expect_tx: [0x01, 0x03, 0x00, 0x03, 0x00, 0x01, 0x74, 0x0A] # Read holding register 3 on device 1 (basic_register)
@@ -46,7 +46,7 @@ modbus:
 modbus_controller:
   - address: 1
     id: modbus_controller_ok
-    max_cmd_retries: 0
+    max_cmd_retries: 2
     update_interval: 1s
   - address: 2
     id: modbus_controller_slow
@@ -89,4 +89,4 @@ button:
     name: "Start Scenario"
     id: start_scenario_btn
     on_press:
-      - lambda: 'id(virtual_uart_dev).start_scenario();'
+      - lambda: "id(virtual_uart_dev).start_scenario();"

@@ -70,8 +70,8 @@ bool Modbus::timeout_() {
   // when the buffer is filling the back half of the response
   const uint16_t timeout = std::max(
       (uint16_t) this->frame_delay_ms_,
-      (uint16_t) (this->rx_buffer_.size() > this->parent_->get_rx_full_threshold() - 1 ? this->long_rx_buffer_delay_ms_
-                                                                                       : 0));
+      (uint16_t) (this->rx_buffer_.size() >= this->parent_->get_rx_full_threshold() ? this->long_rx_buffer_delay_ms_
+                                                                                    : 0));
 
   return this->last_receive_check_ - this->last_modbus_byte_ > timeout;
 }
