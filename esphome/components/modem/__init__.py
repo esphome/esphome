@@ -3,15 +3,12 @@ import logging
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import uart
-
-# from esphome.components.wifi import wifi_has_sta  # uncomment after PR #4091 is merged
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.components.text_sensor import new_text_sensor, text_sensor_schema
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
     CONF_DEBUG,
-    CONF_DISABLED,
     CONF_ENABLE_ON_BOOT,
     CONF_ID,
     CONF_MODEL,
@@ -21,7 +18,6 @@ from esphome.const import (
     CONF_REBOOT_TIMEOUT,
     CONF_RX_BUFFER_SIZE,
     CONF_RX_PIN,
-    CONF_SAFE_MODE,
     CONF_TRIGGER_ID,
     CONF_TX_BUFFER_SIZE,
     CONF_TX_PIN,
@@ -30,7 +26,6 @@ from esphome.const import (
     DEVICE_CLASS_EMPTY,
 )
 from esphome.core import coroutine_with_priority
-import esphome.final_validate as fv
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -166,28 +161,6 @@ CONFIG_SCHEMA = cv.All(
         esp_idf=cv.Version(4, 0, 0),  # 5.2.0 OK
     ),
 )
-
-
-def _final_validate(config):
-    full_config = fv.full_config.get()
-    # Uncomment after PR #4091 is merged
-    # if wifi_config := full_config.get(CONF_WIFI, None):
-    #     if wifi_has_sta(wifi_config):
-    #         raise cv.Invalid("Wi-Fi must be in AP-only mode when using a modem")
-
-    if (
-        conf_safe_mode := full_config.get(CONF_SAFE_MODE, None)
-    ) and not conf_safe_mode.get(CONF_DISABLED, None):
-        _LOGGER.warning(
-            "%s may be explicitly disabled, since triggering it would prevent the %s component from being activated.",
-            CONF_SAFE_MODE,
-            CONF_MODEM,
-        )
-
-    return config
-
-
-FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 # Register actions
