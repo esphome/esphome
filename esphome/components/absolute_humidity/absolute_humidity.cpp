@@ -162,7 +162,7 @@ float AbsoluteHumidityComponent::es_wobus(const float t) {
   const float c8{+0.11112018e-16f};
   const float c9{-0.30994571e-19f};
   const float p{c0 + t * (c1 + t * (c2 + t * (c3 + t * (c4 + t * (c5 + t * (c6 + t * (c7 + t * (c8 + t * (c9)))))))))};
-  return 0.61078f / pow(p, 8);
+  return 0.61078f / powf(p, 8.0f);
 }
 
 // From https://www.environmentalbiophysics.org/chalk-talk-how-to-calculate-absolute-humidity/
