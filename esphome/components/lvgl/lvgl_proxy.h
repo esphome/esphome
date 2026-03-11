@@ -8,9 +8,10 @@ file is included in the build, LVGL is always included.
 // required for clang-tidy
 #ifndef LV_CONF_H
 #define LV_CONF_SKIP 1  // NOLINT
-#endif                  // LV_CONF_H
-
+#else
 #include <lvgl.h>
+#endif  // LV_CONF_H
+
 namespace esphome {
 namespace lvgl {}  // namespace lvgl
 }  // namespace esphome
