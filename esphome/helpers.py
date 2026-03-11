@@ -9,6 +9,7 @@ import platform
 import re
 import shutil
 import stat
+import sys
 import tempfile
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
@@ -583,6 +584,32 @@ _DISALLOWED_CHARS = re.compile(r"[^a-zA-Z0-9-_]")
 def sanitize(value):
     """Same behaviour as `helpers.cpp` method `str_sanitize`."""
     return _DISALLOWED_CHARS.sub("_", value)
+
+
+class ProgressBar:
+    """A simple terminal progress bar for upload operations."""
+
+    def __init__(self) -> None:
+        self.last_progress: int | None = None
+
+    def update(self, progress: float) -> None:
+        bar_length = 60
+        status = ""
+        if progress >= 1:
+            progress = 1
+            status = "Done...\r\n"
+        new_progress = int(progress * 100)
+        if new_progress == self.last_progress:
+            return
+        self.last_progress = new_progress
+        block = int(round(bar_length * progress))
+        text = f"\rUploading: [{'=' * block + ' ' * (bar_length - block)}] {new_progress}% {status}"
+        sys.stderr.write(text)
+        sys.stderr.flush()
+
+    def done(self) -> None:
+        sys.stderr.write("\n")
+        sys.stderr.flush()
 
 
 def docs_url(path: str) -> str:

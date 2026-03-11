@@ -210,7 +210,13 @@ WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
 def wifi_network_ap(value):
     if value is None:
         value = {}
-    return WIFI_NETWORK_AP(value)
+    config = WIFI_NETWORK_AP(value)
+    if CONF_MANUAL_IP in config and CORE.is_rp2040:
+        raise cv.Invalid(
+            "Manual AP IP configuration is not supported on RP2040. "
+            "The AP uses the default IP 192.168.4.1"
+        )
+    return config
 
 
 WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend(
@@ -664,12 +670,16 @@ async def wifi_ap_active_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg)
 
 
-@automation.register_action("wifi.enable", WiFiEnableAction, cv.Schema({}))
+@automation.register_action(
+    "wifi.enable", WiFiEnableAction, cv.Schema({}), synchronous=True
+)
 async def wifi_enable_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg)
 
 
-@automation.register_action("wifi.disable", WiFiDisableAction, cv.Schema({}))
+@automation.register_action(
+    "wifi.disable", WiFiDisableAction, cv.Schema({}), synchronous=True
+)
 async def wifi_disable_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg)
 
@@ -775,6 +785,7 @@ async def final_step():
             cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
         }
     ),
+    synchronous=False,
 )
 async def wifi_set_sta_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

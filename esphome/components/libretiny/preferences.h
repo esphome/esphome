@@ -2,12 +2,10 @@
 
 #ifdef USE_LIBRETINY
 
-namespace esphome {
-namespace libretiny {
+namespace esphome::libretiny {
 
 void setup_preferences();
 
-}  // namespace libretiny
-}  // namespace esphome
+}  // namespace esphome::libretiny
 
 #endif  // USE_LIBRETINY

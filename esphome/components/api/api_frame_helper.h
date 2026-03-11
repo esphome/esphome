@@ -5,10 +5,10 @@
 #include <memory>
 #include <span>
 #include <utility>
-#include <vector>
 
 #include "esphome/core/defines.h"
 #ifdef USE_API
+#include "esphome/components/api/api_buffer.h"
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -28,6 +28,10 @@ static constexpr uint16_t MAX_MESSAGE_SIZE = 8192;  // 8 KiB for ESP8266
 #else
 static constexpr uint16_t MAX_MESSAGE_SIZE = 32768;  // 32 KiB for ESP32 and other platforms
 #endif
+
+// Extra byte reserved in rx_buf_ beyond the message size so protobuf
+// StringRef fields can be null-terminated in-place after decode.
+static constexpr uint16_t RX_BUF_NULL_TERMINATOR = 1;
 
 // Maximum number of messages to batch in a single write operation
 // Must be >= MAX_INITIAL_PER_BATCH in api_connection.h (enforced by static_assert there)
@@ -174,8 +178,7 @@ class APIFrameHelper {
     // rx_buf_len_ tracks bytes read so far; if non-zero, we're mid-frame
     // and clearing would lose partially received data.
     if (this->rx_buf_len_ == 0) {
-      // Use swap trick since shrink_to_fit() is non-binding and may be ignored
-      std::vector<uint8_t>().swap(this->rx_buf_);
+      this->rx_buf_.release();
     }
   }
 
@@ -202,9 +205,6 @@ class APIFrameHelper {
 
   // Common socket write error handling
   APIError handle_socket_write_error_();
-  template<typename StateEnum>
-  APIError write_raw_(const struct iovec *iov, int iovcnt, socket::Socket *socket, std::vector<uint8_t> &tx_buf,
-                      const std::string &info, StateEnum &state, StateEnum failed_state);
 
   // Socket ownership (4 bytes on 32-bit, 8 bytes on 64-bit)
   std::unique_ptr<socket::Socket> socket_;
@@ -228,9 +228,20 @@ class APIFrameHelper {
     EXPLICIT_REJECT = 8,  // Noise only
   };
 
+  // Fast inline state check for read_packet/write_protobuf_messages hot path.
+  // Returns OK only in DATA state; maps CLOSED/FAILED to BAD_STATE and any
+  // other intermediate state to WOULD_BLOCK.
+  inline APIError ESPHOME_ALWAYS_INLINE check_data_state_() const {
+    if (this->state_ == State::DATA)
+      return APIError::OK;
+    if (this->state_ == State::CLOSED || this->state_ == State::FAILED)
+      return APIError::BAD_STATE;
+    return APIError::WOULD_BLOCK;
+  }
+
   // Containers (size varies, but typically 12+ bytes on 32-bit)
   std::array<std::unique_ptr<SendBuffer>, API_MAX_SEND_QUEUE> tx_buf_;
-  std::vector<uint8_t> rx_buf_;
+  APIBuffer rx_buf_;
 
   // Client name buffer - stores name from Hello message or initial peername
   char client_name_[CLIENT_INFO_NAME_MAX_LEN]{};
