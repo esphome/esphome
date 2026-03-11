@@ -57,6 +57,20 @@ enum IIRFilter {
   IIR_FILTER_128 = 0x7
 };
 
+enum ErrorCode {
+  NONE = 0,
+  ERROR_COMMUNICATION_FAILED,
+  ERROR_READ_REGISTER,
+  ERROR_WRITE_REGISTER,
+  ERROR_WRONG_CHIP_ID,
+  ERROR_SENSOR_STATUS,
+  ERROR_SENSOR_NVM_READY,
+  ERROR_SENSOR_NVM_ERROR,
+  ERROR_SENSOR_RESET,
+  ERROR_PRIME_IIR_FAILED,
+  ERROR_UNKNOWN
+};
+
 class BMP581Component : public PollingComponent {
  public:
   void dump_config() override;
@@ -128,19 +142,7 @@ class BMP581Component : public PollingComponent {
   // Sets the power mode on the BMP581 by writing to the ODR register
   bool write_power_mode_(OperationMode mode);
 
-  enum ErrorCode {
-    NONE = 0,
-    ERROR_COMMUNICATION_FAILED,
-    ERROR_READ_REGISTER,
-    ERROR_WRITE_REGISTER,
-    ERROR_WRONG_CHIP_ID,
-    ERROR_SENSOR_STATUS,
-    ERROR_SENSOR_NVM_READY,
-    ERROR_SENSOR_NVM_ERROR,
-    ERROR_SENSOR_RESET,
-    ERROR_PRIME_IIR_FAILED,
-    ERROR_UNKNOWN
-  } error_code_{NONE};
+  ErrorCode error_code_{NONE};
 
   // BMP581's interrupt source register (address 0x15) to configure which interrupts are enabled (page 54 of datasheet)
   union {
