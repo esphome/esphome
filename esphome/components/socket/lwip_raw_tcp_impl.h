@@ -66,7 +66,7 @@ class LWIPRawImpl : public LWIPRawCommon {
   using LWIPRawCommon::LWIPRawCommon;
   ~LWIPRawImpl();
 
-  void init(struct pbuf *initial_rx = nullptr);
+  void init(struct pbuf *initial_rx = nullptr, bool initial_rx_closed = false);
 
   // Non-listening sockets return error
   std::unique_ptr<LWIPRawImpl> accept(struct sockaddr *, socklen_t *) {
@@ -120,8 +120,6 @@ class LWIPRawImpl : public LWIPRawCommon {
 
   static void s_err_fn(void *arg, err_t err);
   static err_t s_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, err_t err);
-
-  friend class LWIPRawListenImpl;  // accept() transfers queued rx data
 
  protected:
   ssize_t internal_write_(const void *buf, size_t len);
