@@ -55,6 +55,15 @@ enum EntityCategory : uint8_t {
   ENTITY_CATEGORY_DIAGNOSTIC = 2,
 };
 
+// Bit layout for entity_fields parameter in configure_entity_().
+// Keep in sync with _*_SHIFT constants in esphome/core/entity_helpers.py
+static constexpr uint8_t ENTITY_FIELD_DC_SHIFT = 0;
+static constexpr uint8_t ENTITY_FIELD_UOM_SHIFT = 8;
+static constexpr uint8_t ENTITY_FIELD_ICON_SHIFT = 16;
+static constexpr uint8_t ENTITY_FIELD_INTERNAL_SHIFT = 24;
+static constexpr uint8_t ENTITY_FIELD_DISABLED_BY_DEFAULT_SHIFT = 25;
+static constexpr uint8_t ENTITY_FIELD_ENTITY_CATEGORY_SHIFT = 26;
+
 // The generic Entity base class that provides an interface common to all Entities.
 class EntityBase {
  public:
@@ -88,21 +97,16 @@ class EntityBase {
   /// Useful for building compound strings without intermediate buffer
   size_t write_object_id_to(char *buf, size_t buf_size) const;
 
-  // Get/set whether this Entity should be hidden outside ESPHome
+  // Get whether this Entity should be hidden outside ESPHome
   bool is_internal() const { return this->flags_.internal; }
-  void set_internal(bool internal) { this->flags_.internal = internal; }
 
   // Check if this object is declared to be disabled by default.
   // That means that when the device gets added to Home Assistant (or other clients) it should
   // not be added to the default view by default, and a user action is necessary to manually add it.
   bool is_disabled_by_default() const { return this->flags_.disabled_by_default; }
-  void set_disabled_by_default(bool disabled_by_default) { this->flags_.disabled_by_default = disabled_by_default; }
 
-  // Get/set the entity category.
+  // Get the entity category.
   EntityCategory get_entity_category() const { return static_cast<EntityCategory>(this->flags_.entity_category); }
-  void set_entity_category(EntityCategory entity_category) {
-    this->flags_.entity_category = static_cast<uint8_t>(entity_category);
-  }
 
   // Get this entity's device class into a stack buffer.
   // On non-ESP8266: returns pointer to PROGMEM string directly (buffer unused).
@@ -164,14 +168,13 @@ class EntityBase {
 #endif
 
 #ifdef USE_DEVICES
-  // Get/set this entity's device id
+  // Get this entity's device id
   uint32_t get_device_id() const {
     if (this->device_ == nullptr) {
       return 0;  // No device set, return 0
     }
     return this->device_->get_device_id();
   }
-  void set_device(Device *device) { this->device_ = device; }
   // Get the device this entity belongs to (nullptr if main device)
   Device *get_device() const { return this->device_; }
 #endif
@@ -228,8 +231,14 @@ class EntityBase {
   friend void ::setup();
   friend void ::original_setup();
 
-  /// Combined entity setup from codegen: set name, object_id hash, and entity string indices.
-  void configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_strings_packed);
+  /// Combined entity setup from codegen: set name, object_id hash, entity string indices, and flags.
+  /// Bit layout of entity_fields is defined by the ENTITY_FIELD_*_SHIFT constants above.
+  void configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_fields);
+
+#ifdef USE_DEVICES
+  // Codegen-only setter — only accessible from setup() via friend declaration.
+  void set_device_(Device *device) { this->device_ = device; }
+#endif
 
   /// Non-template helper for make_entity_preference() to avoid code bloat.
   /// When preference hash algorithm changes, migration logic goes here.

@@ -106,10 +106,15 @@ std::vector<CdcEps> USBUartTypeCdcAcm::parse_descriptors(usb_device_handle_t dev
 }
 
 void RingBuffer::push(uint8_t item) {
+  if (this->get_free_space() == 0)
+    return;
   this->buffer_[this->insert_pos_] = item;
   this->insert_pos_ = (this->insert_pos_ + 1) % this->buffer_size_;
 }
 void RingBuffer::push(const uint8_t *data, size_t len) {
+  size_t free = this->get_free_space();
+  if (len > free)
+    len = free;
   for (size_t i = 0; i != len; i++) {
     this->buffer_[this->insert_pos_] = *data++;
     this->insert_pos_ = (this->insert_pos_ + 1) % this->buffer_size_;
@@ -166,17 +171,20 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
   this->parent_->start_output(this);
 }
 
-void USBUartChannel::flush() {
+uart::FlushResult USBUartChannel::flush() {
   // Spin until the output queue is drained and the last USB transfer completes.
   // Safe to call from the main loop only.
-  // The 100 ms timeout guards against a device that stops responding mid-flush;
+  // The flush_timeout_ms_ timeout guards against a device that stops responding mid-flush;
   // in that case the main loop is blocked for the full duration.
-  uint32_t start = millis();  // 100 ms safety timeout
-  while ((!this->output_queue_.empty() || this->output_started_.load()) && millis() - start < 100) {
+  uint32_t start = millis();
+  while ((!this->output_queue_.empty() || this->output_started_.load()) && millis() - start < this->flush_timeout_ms_) {
     // Kick start_output() in case data arrived but no transfer is in flight yet.
     this->parent_->start_output(this);
     yield();
   }
+  if (!this->output_queue_.empty() || this->output_started_.load())
+    return uart::FlushResult::TIMEOUT;
+  return uart::FlushResult::SUCCESS;
 }
 
 bool USBUartChannel::peek_byte(uint8_t *data) {
@@ -257,10 +265,12 @@ void USBUartComponent::dump_config() {
                   "    Data Bits: %u\n"
                   "    Parity: %s\n"
                   "    Stop bits: %s\n"
+                  "    Flush Timeout: %" PRIu32 " ms\n"
                   "    Debug: %s\n"
                   "    Dummy receiver: %s",
                   channel->index_, channel->baud_rate_, channel->data_bits_, PARITY_NAMES[channel->parity_],
-                  STOP_BITS_NAMES[channel->stop_bits_], YESNO(channel->debug_), YESNO(channel->dummy_receiver_));
+                  STOP_BITS_NAMES[channel->stop_bits_], channel->flush_timeout_ms_, YESNO(channel->debug_),
+                  YESNO(channel->dummy_receiver_));
   }
 }
 void USBUartComponent::start_input(USBUartChannel *channel) {

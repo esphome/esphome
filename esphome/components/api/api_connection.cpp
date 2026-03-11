@@ -155,6 +155,18 @@ APIConnection::~APIConnection() {
     voice_assistant::global_voice_assistant->client_subscription(this, false);
   }
 #endif
+#ifdef USE_ZWAVE_PROXY
+  if (zwave_proxy::global_zwave_proxy != nullptr && zwave_proxy::global_zwave_proxy->get_api_connection() == this) {
+    zwave_proxy::global_zwave_proxy->zwave_proxy_request(this, enums::ZWAVE_PROXY_REQUEST_TYPE_UNSUBSCRIBE);
+  }
+#endif
+#ifdef USE_SERIAL_PROXY
+  for (auto *proxy : App.get_serial_proxies()) {
+    if (proxy->get_api_connection() == this) {
+      proxy->serial_proxy_request(this, enums::SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE);
+    }
+  }
+#endif
 }
 
 void APIConnection::destroy_active_iterator_() {
@@ -1445,6 +1457,89 @@ void APIConnection::on_infrared_rf_transmit_raw_timings_request(const InfraredRF
 void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg) { this->send_message(msg); }
 #endif
 
+#ifdef USE_SERIAL_PROXY
+void APIConnection::on_serial_proxy_configure_request(const SerialProxyConfigureRequest &msg) {
+  auto &proxies = App.get_serial_proxies();
+  if (msg.instance >= proxies.size()) {
+    ESP_LOGW(TAG, "Serial proxy instance %u out of range (max %u)", msg.instance,
+             static_cast<uint32_t>(proxies.size()));
+    return;
+  }
+  proxies[msg.instance]->configure(msg.baudrate, msg.flow_control, static_cast<uint8_t>(msg.parity), msg.stop_bits,
+                                   msg.data_size);
+}
+
+void APIConnection::on_serial_proxy_write_request(const SerialProxyWriteRequest &msg) {
+  auto &proxies = App.get_serial_proxies();
+  if (msg.instance >= proxies.size()) {
+    ESP_LOGW(TAG, "Serial proxy instance %u out of range", msg.instance);
+    return;
+  }
+  proxies[msg.instance]->write_from_client(msg.data, msg.data_len);
+}
+
+void APIConnection::on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg) {
+  auto &proxies = App.get_serial_proxies();
+  if (msg.instance >= proxies.size()) {
+    ESP_LOGW(TAG, "Serial proxy instance %u out of range", msg.instance);
+    return;
+  }
+  proxies[msg.instance]->set_modem_pins(msg.line_states);
+}
+
+void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg) {
+  auto &proxies = App.get_serial_proxies();
+  if (msg.instance >= proxies.size()) {
+    ESP_LOGW(TAG, "Serial proxy instance %u out of range", msg.instance);
+    return;
+  }
+  SerialProxyGetModemPinsResponse resp{};
+  resp.instance = msg.instance;
+  resp.line_states = proxies[msg.instance]->get_modem_pins();
+  this->send_message(resp);
+}
+
+void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
+  auto &proxies = App.get_serial_proxies();
+  if (msg.instance >= proxies.size()) {
+    ESP_LOGW(TAG, "Serial proxy instance %u out of range", msg.instance);
+    return;
+  }
+  switch (msg.type) {
+    case enums::SERIAL_PROXY_REQUEST_TYPE_SUBSCRIBE:
+    case enums::SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
+      proxies[msg.instance]->serial_proxy_request(this, msg.type);
+      break;
+    case enums::SERIAL_PROXY_REQUEST_TYPE_FLUSH: {
+      SerialProxyRequestResponse resp{};
+      resp.instance = msg.instance;
+      resp.type = enums::SERIAL_PROXY_REQUEST_TYPE_FLUSH;
+      switch (proxies[msg.instance]->flush_port()) {
+        case uart::FlushResult::SUCCESS:
+          resp.status = enums::SERIAL_PROXY_STATUS_OK;
+          break;
+        case uart::FlushResult::ASSUMED_SUCCESS:
+          resp.status = enums::SERIAL_PROXY_STATUS_ASSUMED_SUCCESS;
+          break;
+        case uart::FlushResult::TIMEOUT:
+          resp.status = enums::SERIAL_PROXY_STATUS_TIMEOUT;
+          break;
+        case uart::FlushResult::FAILED:
+          resp.status = enums::SERIAL_PROXY_STATUS_ERROR;
+          break;
+      }
+      this->send_message(resp);
+      break;
+    }
+    default:
+      ESP_LOGW(TAG, "Unknown serial proxy request type: %u", static_cast<uint32_t>(msg.type));
+      break;
+  }
+}
+
+void APIConnection::send_serial_proxy_data(const SerialProxyDataReceived &msg) { this->send_message(msg); }
+#endif
+
 #ifdef USE_INFRARED
 uint16_t APIConnection::try_send_infrared_info(EntityBase *entity, APIConnection *conn, uint32_t remaining_size) {
   auto *infrared = static_cast<infrared::Infrared *>(entity);
@@ -1571,7 +1666,7 @@ bool APIConnection::send_ping_response_() {
 }
 
 bool APIConnection::send_device_info_response_() {
-  DeviceInfoResponse resp{};
+  DeviceInfoResponse resp;
   resp.name = StringRef(App.get_name());
   resp.friendly_name = StringRef(App.get_friendly_name());
 #ifdef USE_AREAS
@@ -1665,6 +1760,16 @@ bool APIConnection::send_device_info_response_() {
 #ifdef USE_ZWAVE_PROXY
   resp.zwave_proxy_feature_flags = zwave_proxy::global_zwave_proxy->get_feature_flags();
   resp.zwave_home_id = zwave_proxy::global_zwave_proxy->get_home_id();
+#endif
+#ifdef USE_SERIAL_PROXY
+  size_t serial_proxy_index = 0;
+  for (auto const &proxy : App.get_serial_proxies()) {
+    if (serial_proxy_index >= SERIAL_PROXY_COUNT)
+      break;
+    auto &info = resp.serial_proxies[serial_proxy_index++];
+    info.name = StringRef(proxy->get_name());
+    info.port_type = proxy->get_port_type();
+  }
 #endif
 #ifdef USE_API_NOISE
   resp.api_encryption_supported = true;
@@ -1852,11 +1957,7 @@ void APIConnection::on_noise_encryption_set_key_request(const NoiseEncryptionSet
 #ifdef USE_API_HOMEASSISTANT_STATES
 void APIConnection::on_subscribe_home_assistant_states_request() { state_subs_at_ = 0; }
 #endif
-bool APIConnection::try_to_clear_buffer(bool log_out_of_space) {
-  if (this->flags_.remove)
-    return false;
-  if (this->helper_->can_write_without_blocking())
-    return true;
+bool APIConnection::try_to_clear_buffer_slow_(bool log_out_of_space) {
   delay(0);
   APIError err = this->helper_->loop();
   if (err != APIError::OK) {
@@ -1915,7 +2016,7 @@ uint16_t APIConnection::encode_to_buffer(uint32_t calculated_size, MessageEncode
   if (total_calculated_size > remaining_size)
     return 0;  // Doesn't fit
 
-  std::vector<uint8_t> &shared_buf = conn->parent_->get_shared_buffer_ref();
+  auto &shared_buf = conn->parent_->get_shared_buffer_ref();
 
   if (conn->flags_.batch_first_message) {
     // First message - buffer already prepared by caller, just clear flag
@@ -2083,7 +2184,7 @@ void APIConnection::process_batch_() {
 
 // Separated from process_batch_() so the single-message fast path gets a minimal
 // stack frame without the MAX_MESSAGES_PER_BATCH * sizeof(MessageInfo) array.
-void APIConnection::process_batch_multi_(std::vector<uint8_t> &shared_buf, size_t num_items, uint8_t header_padding,
+void APIConnection::process_batch_multi_(APIBuffer &shared_buf, size_t num_items, uint8_t header_padding,
                                          uint8_t footer_size) {
   // Ensure MessageInfo remains trivially destructible for our placement new approach
   static_assert(std::is_trivially_destructible<MessageInfo>::value,
