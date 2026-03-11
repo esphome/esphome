@@ -236,6 +236,7 @@ SET_PLAYLIST_DELAY_ACTION_SCHEMA = cv.Schema(
     "speaker_source.set_playlist_delay",
     SetPlaylistDelayAction,
     SET_PLAYLIST_DELAY_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def set_playlist_delay_action_to_code(
     config: ConfigType,
