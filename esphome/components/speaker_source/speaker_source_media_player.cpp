@@ -389,7 +389,7 @@ void SpeakerSourceMediaPlayer::set_playlist_delay_ms(uint8_t pipeline, uint32_t 
 // The timeout callback also runs on the main loop.
 void SpeakerSourceMediaPlayer::queue_play_current_(uint8_t pipeline, uint32_t delay_ms) {
   if (delay_ms > 0) {
-    this->set_timeout(PipelineContext::TIMEOUT_IDS[pipeline], delay_ms,
+    this->set_timeout(PIPELINE_TIMEOUT_IDS[pipeline], delay_ms,
                       [this, pipeline]() { this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline); });
   } else {
     this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
@@ -415,7 +415,7 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
   switch (control_command.type) {
     case MediaPlayerControlCommand::PLAY_URI: {
       // Always use our local playlist to start playback
-      this->cancel_timeout(PipelineContext::TIMEOUT_IDS[pipeline]);
+      this->cancel_timeout(PIPELINE_TIMEOUT_IDS[pipeline]);
       ps.playlist.clear();
       ps.shuffle_indices.clear();  // Clear shuffle when starting fresh playlist
       ps.playlist_index = 0;       // Reset index
@@ -560,7 +560,7 @@ void SpeakerSourceMediaPlayer::handle_player_command_(media_player::MediaPlayerC
 
     case media_player::MEDIA_PLAYER_COMMAND_STOP: {
       if (!has_internal_playlist) {
-        this->cancel_timeout(PipelineContext::TIMEOUT_IDS[pipeline]);
+        this->cancel_timeout(PIPELINE_TIMEOUT_IDS[pipeline]);
         ps.playlist.clear();
         ps.shuffle_indices.clear();
         ps.playlist_index = 0;
@@ -573,7 +573,7 @@ void SpeakerSourceMediaPlayer::handle_player_command_(media_player::MediaPlayerC
 
     case media_player::MEDIA_PLAYER_COMMAND_NEXT: {
       if (!has_internal_playlist) {
-        this->cancel_timeout(PipelineContext::TIMEOUT_IDS[pipeline]);
+        this->cancel_timeout(PIPELINE_TIMEOUT_IDS[pipeline]);
         if (ps.playlist_index + 1 < ps.playlist.size()) {
           ps.playlist_index++;
           this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
@@ -589,7 +589,7 @@ void SpeakerSourceMediaPlayer::handle_player_command_(media_player::MediaPlayerC
 
     case media_player::MEDIA_PLAYER_COMMAND_PREVIOUS: {
       if (!has_internal_playlist) {
-        this->cancel_timeout(PipelineContext::TIMEOUT_IDS[pipeline]);
+        this->cancel_timeout(PIPELINE_TIMEOUT_IDS[pipeline]);
         if (ps.playlist_index > 0) {
           ps.playlist_index--;
           this->queue_command_(MediaPlayerControlCommand::PLAY_CURRENT, pipeline);
@@ -629,7 +629,7 @@ void SpeakerSourceMediaPlayer::handle_player_command_(media_player::MediaPlayerC
 
     case media_player::MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST: {
       if (!has_internal_playlist) {
-        this->cancel_timeout(PipelineContext::TIMEOUT_IDS[pipeline]);
+        this->cancel_timeout(PIPELINE_TIMEOUT_IDS[pipeline]);
         if (ps.playlist_index < ps.playlist.size()) {
           size_t actual_position = this->get_playlist_position_(pipeline);
           ps.playlist[0] = std::move(ps.playlist[actual_position]);

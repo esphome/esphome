@@ -86,10 +86,10 @@ struct SourceBinding : public media_source::MediaSourceListener {
   void request_play_uri(const std::string &uri) override;
 };
 
-struct PipelineContext {
-  /// @brief Timeout IDs for playlist delay, indexed by Pipeline enum
-  static constexpr const char *const TIMEOUT_IDS[] = {"next_media", "next_ann"};
+/// @brief Timeout IDs for playlist delay, indexed by Pipeline enum
+static constexpr uint32_t PIPELINE_TIMEOUT_IDS[] = {1, 2};
 
+struct PipelineContext {
   speaker::Speaker *speaker{nullptr};
   optional<media_player::MediaPlayerSupportedFormat> format;
 
