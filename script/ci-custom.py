@@ -72,6 +72,7 @@ ignore_types = (
     ".gif",
     ".webp",
     ".bin",
+    ".wav",
 )
 
 LINT_FILE_CHECKS = []
@@ -518,7 +519,7 @@ def lint_constants_usage():
             continue
         errs.append(
             f"Constant {highlight(constant)} is defined in {len(uses)} files. Please move all definitions of the "
-            f"constant to const.py (Uses: {', '.join(str(u) for u in uses)}) in a separate PR. "
+            f"constant to esphome/components/const/__init__.py (Uses: {', '.join(str(u) for u in uses)}) in a separate PR. "
             "See https://developers.esphome.io/contributing/code/#python"
         )
     return errs

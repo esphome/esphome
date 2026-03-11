@@ -133,6 +133,7 @@ async def to_code(config):
             cv.Required(CONF_ID): cv.use_id(PIDClimate),
         }
     ),
+    synchronous=True,
 )
 async def pid_reset_integral_term(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -154,6 +155,7 @@ async def pid_reset_integral_term(config, action_id, template_arg, args):
             ): cv.possibly_negative_percentage,
         }
     ),
+    synchronous=True,
 )
 async def esp8266_set_frequency_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -175,6 +177,7 @@ async def esp8266_set_frequency_to_code(config, action_id, template_arg, args):
             cv.Optional(CONF_KD, default=0.0): cv.templatable(cv.float_),
         }
     ),
+    synchronous=True,
 )
 async def set_control_parameters(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

@@ -29,6 +29,7 @@ CONFIG_SCHEMA = time.TIME_SCHEMA.extend(
             cv.GenerateID(): cv.use_id(PCF85063Component),
         }
     ),
+    synchronous=True,
 )
 async def pcf85063_write_time_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -44,6 +45,7 @@ async def pcf85063_write_time_to_code(config, action_id, template_arg, args):
             cv.GenerateID(): cv.use_id(PCF85063Component),
         }
     ),
+    synchronous=True,
 )
 async def pcf85063_read_time_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

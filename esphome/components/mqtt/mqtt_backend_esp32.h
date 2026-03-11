@@ -265,6 +265,7 @@ class MQTTBackendESP32 final : public MQTTBackend {
   CallbackManager<on_unsubscribe_callback_t> on_unsubscribe_;
   CallbackManager<on_message_callback_t> on_message_;
   CallbackManager<on_publish_user_callback_t> on_publish_;
+  std::string cached_topic_;
   std::queue<Event> mqtt_events_;
 
 #if defined(USE_MQTT_IDF_ENQUEUE)

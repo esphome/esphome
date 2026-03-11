@@ -5,11 +5,13 @@ from typing import TypedDict
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_BOARD, KEY_CORE, KEY_FRAMEWORK_VERSION
-from esphome.core import CORE
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, write_file_if_changed
+from esphome.types import ConfigType
 
 from .const import (
     BOOTLOADER_MCUBOOT,
+    CONF_CDC_ACM,
     KEY_BOARD,
     KEY_BOOTLOADER,
     KEY_EXTRA_BUILD_FILES,
@@ -54,7 +56,7 @@ class ZephyrData(TypedDict):
     user: dict[str, list[str]]
 
 
-def zephyr_set_core_data(config):
+def zephyr_set_core_data(config: ConfigType) -> None:
     CORE.data[KEY_ZEPHYR] = ZephyrData(
         board=config[CONF_BOARD],
         bootloader=config[KEY_BOOTLOADER],
@@ -64,7 +66,6 @@ def zephyr_set_core_data(config):
         pm_static=[],
         user={},
     )
-    return config
 
 
 def zephyr_data() -> ZephyrData:
@@ -110,7 +111,7 @@ def add_extra_script(stage: str, filename: str, path: Path) -> None:
         cg.add_platformio_option("extra_scripts", [key])
 
 
-def zephyr_to_code(config):
+def zephyr_to_code(config: ConfigType) -> None:
     cg.add_build_flag("-DUSE_ZEPHYR")
     cg.add_define("USE_NATIVE_64BIT_TIME")
     cg.set_cpp_standard("gnu++20")
@@ -132,6 +133,15 @@ def zephyr_to_code(config):
         Path(__file__).parent / "pre_build.py.script",
     )
 
+    CORE.add_job(_cdc_acm_to_code, config)
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def _cdc_acm_to_code(config: ConfigType) -> None:
+    if "CONFIG_CDC_ACM_DTE_RATE_CALLBACK_SUPPORT" in zephyr_data()[KEY_PRJ_CONF]:
+        var = cg.new_Pvariable(config[CONF_CDC_ACM])
+        await cg.register_component(var, {})
+
 
 def zephyr_setup_preferences():
     cg.add(zephyr_ns.setup_preferences())
@@ -151,7 +161,7 @@ def _format_prj_conf_val(value: PrjConfValueType) -> str:
     raise ValueError
 
 
-def zephyr_add_cdc_acm(config, id):
+def zephyr_add_cdc_acm(config: ConfigType, id: int) -> None:
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     if CORE.is_nrf52 and framework_ver >= cv.Version(3, 2, 0):
         zephyr_add_prj_conf("CONFIG_USB_DEVICE_STACK_NEXT", False)
