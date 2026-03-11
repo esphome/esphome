@@ -57,7 +57,7 @@ Step 3: Review AI Responses (CRITICAL!)
 
 Step 4: Assemble Changelog
   $ python script/generate_release_notes.py 2025.11.0 --assemble
-  This combines AI responses with auto-generated PR lists into content/changelog/2025.11.0.md
+  This combines AI responses with auto-generated PR lists into src/content/docs/changelog/2025.11.0.mdx
 
 Troubleshooting Common Issues:
 -----------------------------
@@ -629,7 +629,7 @@ class ReleaseNotesGenerator:
         print("=" * 80)
         print("\n⚠️  WARNING: AI-generated content MUST be reviewed for accuracy!")
         print("\nCarefully review and edit the assembled changelog:")
-        print(f"  content/changelog/{self.version}.md")
+        print(f"  src/content/docs/changelog/{self.version}.mdx")
         print("\nCheck for:")
         print("  ✓ Hallucinations or inaccurate technical claims")
         print(
@@ -694,7 +694,7 @@ class ReleaseNotesGenerator:
             return False
 
         # Load template
-        template_file = Path("script/release_notes_template.md")
+        template_file = Path("script/release_notes_template.mdx")
         if not template_file.exists():
             print(f"Error: Template not found: {template_file}")
             return False
@@ -702,19 +702,22 @@ class ReleaseNotesGenerator:
         template = template_file.read_text()
 
         # Check if destination file exists and has content to preserve
-        output_file = Path("content/changelog") / f"{self.version}.md"
+        output_file = Path("src/content/docs/changelog") / f"{self.version}.mdx"
         existing_imgtable = None
         existing_full_list = None
         if output_file.exists():
             existing_content = output_file.read_text()
 
-            # Extract existing imgtable content
+            # Extract existing ImgTable content
             imgtable_match = re.search(
-                r"{{< imgtable >}}(.*?){{< /imgtable >}}", existing_content, re.DOTALL
+                r"<ImgTable items=\{\[.*?\]\} />", existing_content, re.DOTALL
             )
-            if imgtable_match and imgtable_match.group(1).strip():
-                existing_imgtable = imgtable_match.group(0)
-                print("✓ Preserving existing imgtable")
+            if imgtable_match:
+                items_content = imgtable_match.group(0)
+                # Only preserve if it has actual entries (not just comments/empty)
+                if re.search(r'\[".+?"', items_content):
+                    existing_imgtable = items_content
+                    print("✓ Preserving existing ImgTable")
 
             # Extract existing "Full list of changes" section
             # This regex matches from "## Full list of changes" to end of file
@@ -812,7 +815,7 @@ class ReleaseNotesGenerator:
         # Replace imgtable if we have one preserved
         if existing_imgtable:
             template = re.sub(
-                r"<!-- MANUAL: Add featured components here -->\s*{{< imgtable >}}.*?{{< /imgtable >}}",
+                r"<ImgTable items=\{\[.*?\]\} />",
                 existing_imgtable,
                 template,
                 flags=re.DOTALL,
@@ -843,9 +846,9 @@ class ReleaseNotesGenerator:
         return True
 
     def _replace_marker_content(self, template: str, marker: str, content: str) -> str:
-        """Replace content between <!-- MARKER_START --> and <!-- MARKER_END -->"""
-        pattern = f"<!-- {marker}_START -->.*?<!-- {marker}_END -->"
-        replacement = f"<!-- {marker}_START -->\n{content}\n<!-- {marker}_END -->"
+        """Replace content between {/* MARKER_START */} and {/* MARKER_END */}"""
+        pattern = re.escape("{/* ") + marker + re.escape("_START */}") + ".*?" + re.escape("{/* ") + marker + re.escape("_END */}")
+        replacement = "{/* " + marker + "_START */}\n" + content + "\n{/* " + marker + "_END */}"
 
         result, count = re.subn(pattern, replacement, template, flags=re.DOTALL)
 
