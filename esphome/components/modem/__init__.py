@@ -208,13 +208,6 @@ async def modem_disable_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "modem.reset", ModemResetAction, cv.Schema({}), synchronous=True
-)
-async def modem_reset_to_code(config, action_id, template_arg, args):
-    return cg.new_Pvariable(action_id, template_arg)
-
-
-@automation.register_action(
     "modem.send_at", ModemSendAtAction, cv.templatable(cv.string), synchronous=True
 )
 async def modem_send_at_action_to_code(config, action_id, template_arg, args):

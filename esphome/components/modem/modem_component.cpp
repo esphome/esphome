@@ -68,16 +68,6 @@ void ModemComponent::disable() {
   this->request_state_(ModemComponentState::MODEM_DISABLING);
 }
 
-void ModemComponent::reset() {
-  if (this->component_state_ == ModemComponentState::MODEM_DISABLED) {
-    this->disable_wanted_ = false;
-    this->request_state_(ModemComponentState::MODEM_ENABLING);
-    return;
-  }
-  this->disable_wanted_ = false;
-  this->request_state_(ModemComponentState::MODEM_DISABLING);
-}
-
 network::IPAddresses ModemComponent::get_ip_addresses() {
   network::IPAddresses addresses;
   if (this->component_state_ == ModemComponentState::MODEM_CONNECTED) {
@@ -482,7 +472,7 @@ void ModemComponent::transition_to_(ModemComponentState next_state) {
   this->component_state_ = next_state;
   // ESP_LOGV(TAG, "State change: %s -> %s", state_to_string(previous_state).c_str(),
   // state_to_string(next_state).c_str());
-  ESP_LOGV(TAG, "State change: %d -> %d", previous_state, next_state);
+  ESP_LOGV(TAG, "State change: %d -> %d", static_cast<int>(previous_state), static_cast<int>(next_state));
   this->on_state_callback_.call(previous_state, next_state);
   this->component_last_state_ = next_state;
   this->on_enter_state_(next_state);

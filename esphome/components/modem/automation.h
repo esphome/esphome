@@ -104,11 +104,6 @@ template<typename... Ts> class ModemDisableAction : public Action<Ts...> {
   void play(const Ts &...x) override { global_modem_component->disable(); }
 };
 
-template<typename... Ts> class ModemResetAction : public Action<Ts...> {
- public:
-  void play(const Ts &...x) override { global_modem_component->reset(); }
-};
-
 // Conditions
 template<typename... Ts> class ModemConnectedCondition : public Condition<Ts...> {
  public:
