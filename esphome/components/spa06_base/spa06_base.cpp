@@ -28,7 +28,7 @@ void SPA06Component::dump_config() {
                   LOG_STR_ARG(meas_rate_to_str(this->temperature_rate_)));
   }
   if (this->pressure_sensor_) {
-    LOG_SENSOR(" ", "Pressure", this->pressure_sensor_);
+    LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
 
     ESP_LOGCONFIG(TAG,
                   "  Oversampling: %s\n"
@@ -73,14 +73,15 @@ void SPA06Component::setup() {
            "  Rev ID: %u",
            this->prod_id_.bit.prod_id, this->prod_id_.bit.rev_id);
 
-  // 3. Read chip readiness from CFG_REG
-  //    Only fail here if the sensor coefficients are not ready
+  // 3. Read chip readiness from MEAS_CFG
+  //    First check if the sensor reports ready
   if (!spa_read_byte(SPA06_MEAS_CFG, &this->meas_.reg)) {
-    ESP_LOGD(TAG, "Sensor not ready");
+    ESP_LOGE(TAG, "Sensor status read failure");
     // TODO: Set internal error code
     this->mark_failed();
     return;
   }
+  // Check if the sensor reports coefficients are ready
   if (!meas_.bit.coef_ready) {
     ESP_LOGE(TAG, "Coefficients not ready");
     // TODO: Set internal error code
