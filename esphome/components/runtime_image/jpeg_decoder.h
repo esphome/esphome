@@ -3,7 +3,7 @@
 #include "image_decoder.h"
 #include "runtime_image.h"
 #include "esphome/core/defines.h"
-#ifdef USE_RUNTIME_IMAGE_JPEG
+#if defined(USE_RUNTIME_IMAGE_JPEG) && !defined(USE_RUNTIME_IMAGE_JPEG_TURBO)
 #include <JPEGDEC.h>
 
 namespace esphome::runtime_image {
@@ -30,4 +30,4 @@ class JpegDecoder : public ImageDecoder {
 
 }  // namespace esphome::runtime_image
 
-#endif  // USE_RUNTIME_IMAGE_JPEG
+#endif  // USE_RUNTIME_IMAGE_JPEG && !USE_RUNTIME_IMAGE_JPEG_TURBO

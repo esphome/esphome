@@ -9,7 +9,11 @@
 #include "bmp_decoder.h"
 #endif
 #ifdef USE_RUNTIME_IMAGE_JPEG
+#ifdef USE_RUNTIME_IMAGE_JPEG_TURBO
+#include "jpeg_decoder_turbo.h"
+#else
 #include "jpeg_decoder.h"
+#endif
 #endif
 #ifdef USE_RUNTIME_IMAGE_PNG
 #include "png_decoder.h"

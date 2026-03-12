@@ -74,7 +74,17 @@ class JPEGFormat(Format):
 
     def actions(self) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_JPEG")
-        cg.add_library("JPEGDEC", None, "https://github.com/bitbank2/JPEGDEC#ca1e0f2")
+        from esphome.core import CORE
+
+        if CORE.is_esp32:
+            from esphome.components.esp32 import add_idf_component
+
+            cg.add_define("USE_RUNTIME_IMAGE_JPEG_TURBO")
+            add_idf_component(name="espressif/libjpeg-turbo", ref="3.1.1~1")
+        else:
+            cg.add_library(
+                "JPEGDEC", None, "https://github.com/bitbank2/JPEGDEC#ca1e0f2"
+            )
 
 
 class PNGFormat(Format):

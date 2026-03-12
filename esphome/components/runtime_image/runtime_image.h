@@ -68,6 +68,8 @@ class RuntimeImage : public image::Image {
   void map_chroma_key(Color &color);
   int get_buffer_width() const { return this->buffer_width_; }
   int get_buffer_height() const { return this->buffer_height_; }
+  int get_fixed_width() const { return this->fixed_width_; }
+  int get_fixed_height() const { return this->fixed_height_; }
 
   // Image drawing interface
   void draw(int x, int y, display::Display *display, Color color_on, Color color_off) override;
