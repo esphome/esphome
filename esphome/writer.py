@@ -17,9 +17,9 @@ from esphome.const import (
 )
 from esphome.core import CORE, EsphomeError
 from esphome.core.config import (
-    get_include_statements,
     INCLUDE_STAGE_AFTER_ALL_GLOBALS,
     INCLUDE_STAGE_BEFORE_ANY_GLOBALS,
+    get_include_statements,
 )
 from esphome.helpers import (
     copy_file_if_changed,
