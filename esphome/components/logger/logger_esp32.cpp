@@ -118,7 +118,9 @@ void Logger::pre_setup() {
   esp_log_set_vprintf(esp_idf_log_vprintf_);
 
   ESP_LOGI(TAG, "Log initialized");
+#ifdef USE_ESP32_CRASH_HANDLER
   esp32::crash_handler_log();
+#endif
 }
 
 void HOT Logger::write_msg_(const char *msg, uint16_t len) {

@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP32
+#ifdef USE_ESP32_CRASH_HANDLER
 
 namespace esphome::esp32 {
 
@@ -15,4 +15,4 @@ bool crash_handler_has_data();
 
 }  // namespace esphome::esp32
 
-#endif  // USE_ESP32
+#endif  // USE_ESP32_CRASH_HANDLER
