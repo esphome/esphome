@@ -1,9 +1,9 @@
-#include "equitherm_pid_controller.h"
+#include "pid_controller.h"
 
 namespace esphome {
-namespace equitherm_climate {
+namespace equitherm {
 
-float EquithermPIDController::update(float setpoint, float process_value) {
+float PIDController::update(float setpoint, float process_value) {
   // e(t) ... error at timestamp t
   // r(t) ... setpoint
   // y(t) ... process value (sensor reading)
@@ -26,13 +26,13 @@ float EquithermPIDController::update(float setpoint, float process_value) {
   return weighted_average_(output_list_, output, samples);
 }
 
-bool EquithermPIDController::in_deadband() {
+bool PIDController::in_deadband() {
   // return (fabs(error) < deadband_threshold);
   float err = -error_;
   return (threshold_low_ < err && err < threshold_high_);
 }
 
-void EquithermPIDController::calculate_proportional_term_() {
+void PIDController::calculate_proportional_term_() {
   // p(t) := K_p * e(t)
   proportional_term_ = kp_ * error_;
 
@@ -49,7 +49,7 @@ void EquithermPIDController::calculate_proportional_term_() {
   }
 }
 
-void EquithermPIDController::calculate_integral_term_() {
+void PIDController::calculate_integral_term_() {
   // i(t) := K_i * \int_{0}^{t} e(t) dt
   float new_integral = error_ * dt_ * ki_;
 
@@ -69,7 +69,7 @@ void EquithermPIDController::calculate_integral_term_() {
   integral_term_ = accumulated_integral_;
 }
 
-void EquithermPIDController::calculate_derivative_term_(float setpoint) {
+void PIDController::calculate_derivative_term_(float setpoint) {
   // derivative_term_
   // d(t) := K_d * de(t)/dt
   float derivative = 0.0f;
@@ -93,7 +93,7 @@ void EquithermPIDController::calculate_derivative_term_(float setpoint) {
   }
 }
 
-float EquithermPIDController::weighted_average_(std::deque<float> &list, float new_value, int samples) {
+float PIDController::weighted_average_(std::deque<float> &list, float new_value, int samples) {
   // if only 1 sample needed, clear the list and return
   if (samples == 1) {
     list.clear();
@@ -114,7 +114,7 @@ float EquithermPIDController::weighted_average_(std::deque<float> &list, float n
   return sum / list.size();
 }
 
-float EquithermPIDController::calculate_relative_time_() {
+float PIDController::calculate_relative_time_() {
   uint32_t now = millis();
   uint32_t dt = now - this->last_time_;
   if (last_time_ == 0) {
@@ -125,5 +125,5 @@ float EquithermPIDController::calculate_relative_time_() {
   return dt / 1000.0f;
 }
 
-}  // namespace equitherm_climate
+}  // namespace equitherm
 }  // namespace esphome

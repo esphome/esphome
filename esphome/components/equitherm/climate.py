@@ -9,19 +9,21 @@ CONF_OUTDOOR_SENSOR = "outdoor_sensor"
 CONF_INDOOR_SENSOR = "indoor_sensor"
 CONF_CH_SETPOINT = "ch_setpoint"
 CONF_HEAT_OUTPUT = "heat_output"
+CONF_FALLBACK_OUTDOOR_TEMP = "fallback_outdoor_temp"
 CONF_CONTROL_PARAMETERS = "control_parameters"
 CONF_OUTPUT_PARAMETERS = "output_parameters"
 CONF_DEADBAND_PARAMETERS = "deadband_parameters"
-CONF_SLOPE = "slope"
-CONF_EXPONENT = "exponent"
-CONF_SHIFT = "shift"
-CONF_T_MIN_FLOW = "t_min_flow"
-CONF_T_MAX_FLOW = "t_max_flow"
-CONF_TARGET_DIFF_FACTOR = "target_diff_factor"  # Phase B: Room correction
-CONF_ROOM_ERROR_CLAMP = "room_error_clamp"  # Max room error correction
-CONF_SMOOTHING_THRESHOLD = "smoothing_threshold"  # Minimum change to trigger output
 
-# PID parameters (Phase D)
+# Heating curve parameters (industry standard)
+CONF_HC = "hc"  # Heat curve coefficient (0.5-1.5)
+CONF_N = "n"  # Radiator exponent (1.2-1.33 for panels, 1.0 for underfloor)
+CONF_SHIFT = "shift"
+
+CONF_MIN_FLOW_TEMP = "min_flow_temp"
+CONF_MAX_FLOW_TEMP = "max_flow_temp"
+CONF_SMOOTHING_THRESHOLD = "smoothing_threshold"
+
+# PID parameters
 CONF_KP = "kp"
 CONF_KI = "ki"
 CONF_KD = "kd"
@@ -33,37 +35,44 @@ CONF_THRESHOLD_HIGH = "threshold_high"
 CONF_THRESHOLD_LOW = "threshold_low"
 CONF_KP_MULTIPLIER = "kp_multiplier"
 CONF_KI_MULTIPLIER = "ki_multiplier"
+CONF_KD_MULTIPLIER = "kd_multiplier"
 
-equitherm_climate_ns = cg.esphome_ns.namespace("equitherm_climate")
-EquithermClimate = equitherm_climate_ns.class_(
+equitherm_ns = cg.esphome_ns.namespace("equitherm")
+EquithermClimate = equitherm_ns.class_(
     "EquithermClimate", climate.Climate, cg.Component
 )
 
 CONTROL_PARAMETERS_SCHEMA = cv.Schema(
     {
-        # Equitherm curve parameters
-        cv.Required(CONF_SLOPE): cv.float_range(
-            min=0.1
-        ),  # Minimum 0.1 for numerical stability
-        cv.Optional(CONF_EXPONENT, default=1.5): cv.positive_float,
+        # Industry-standard heating curve parameters
+        cv.Required(CONF_HC): cv.float_range(min=0.1),
+        cv.Optional(CONF_N, default=1.25): cv.float_range(min=0.5, max=3.0),
         cv.Optional(CONF_SHIFT, default=0.0): cv.float_,
-        cv.Optional(CONF_TARGET_DIFF_FACTOR, default=1.0): cv.float_range(min=0.0),
-        cv.Optional(CONF_ROOM_ERROR_CLAMP, default=3.0): cv.float_range(min=0.0),
-        # PID trim parameters (Phase D)
-        cv.Optional(CONF_KP, default=0.0): cv.float_,
-        cv.Optional(CONF_KI, default=0.0): cv.float_,
-        cv.Optional(CONF_KD, default=0.0): cv.float_,
+        # PID parameters for room temperature correction
+        # Default kp=1.0 provides simple proportional correction (like old target_diff_factor)
+        cv.Optional(CONF_KP, default=1.0): cv.float_range(min=0.0),
+        cv.Optional(CONF_KI, default=0.0): cv.float_range(min=0.0),
+        cv.Optional(CONF_KD, default=0.0): cv.float_range(min=0.0),
         cv.Optional(CONF_MIN_INTEGRAL, default=-10.0): cv.float_,
         cv.Optional(CONF_MAX_INTEGRAL, default=10.0): cv.float_,
     }
 )
 
-OUTPUT_PARAMETERS_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_T_MIN_FLOW, default=25.0): cv.temperature,
-        cv.Optional(CONF_T_MAX_FLOW, default=70.0): cv.temperature,
-        cv.Optional(CONF_SMOOTHING_THRESHOLD, default=0.5): cv.float_range(min=0.0),
-    }
+OUTPUT_PARAMETERS_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_MIN_FLOW_TEMP, default=25.0): cv.temperature,
+            cv.Optional(CONF_MAX_FLOW_TEMP, default=70.0): cv.temperature,
+            cv.Optional(CONF_SMOOTHING_THRESHOLD, default=0.5): cv.float_range(min=0.0),
+        }
+    ),
+    lambda config: (
+        config
+        if config[CONF_MIN_FLOW_TEMP] < config[CONF_MAX_FLOW_TEMP]
+        else cv.Invalid(
+            f"{CONF_MIN_FLOW_TEMP} ({config[CONF_MIN_FLOW_TEMP]}) must be less than {CONF_MAX_FLOW_TEMP} ({config[CONF_MAX_FLOW_TEMP]})"
+        )
+    ),
 )
 
 DEADBAND_PARAMETERS_SCHEMA = cv.Schema(
@@ -72,6 +81,7 @@ DEADBAND_PARAMETERS_SCHEMA = cv.Schema(
         cv.Optional(CONF_THRESHOLD_LOW, default=0.0): cv.float_range(min=0.0),
         cv.Optional(CONF_KP_MULTIPLIER, default=0.0): cv.float_range(min=0.0),
         cv.Optional(CONF_KI_MULTIPLIER, default=0.0): cv.float_range(min=0.0),
+        cv.Optional(CONF_KD_MULTIPLIER, default=0.0): cv.float_range(min=0.0),
     }
 )
 
@@ -84,6 +94,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE): cv.temperature,
             cv.Optional(CONF_CH_SETPOINT): cv.use_id(number.Number),
             cv.Optional(CONF_HEAT_OUTPUT): cv.use_id(output.FloatOutput),
+            cv.Optional(CONF_FALLBACK_OUTDOOR_TEMP, default=0.0): cv.temperature,
             cv.Required(CONF_CONTROL_PARAMETERS): CONTROL_PARAMETERS_SCHEMA,
             cv.Required(CONF_OUTPUT_PARAMETERS): OUTPUT_PARAMETERS_SCHEMA,
             cv.Optional(CONF_DEADBAND_PARAMETERS): DEADBAND_PARAMETERS_SCHEMA,
@@ -116,13 +127,14 @@ async def to_code(config):
     # Climate defaults
     cg.add(var.set_default_target_temperature(config[CONF_DEFAULT_TARGET_TEMPERATURE]))
 
-    # Control parameters (equitherm curve + PID)
+    # Fallback outdoor temperature (sensor failure handling)
+    cg.add(var.set_fallback_outdoor_temp(config[CONF_FALLBACK_OUTDOOR_TEMP]))
+
+    # Control parameters (heating curve + PID)
     params = config[CONF_CONTROL_PARAMETERS]
-    cg.add(var.set_slope(params[CONF_SLOPE]))
-    cg.add(var.set_exponent(params[CONF_EXPONENT]))
+    cg.add(var.set_hc(params[CONF_HC]))
+    cg.add(var.set_n(params[CONF_N]))
     cg.add(var.set_shift(params[CONF_SHIFT]))
-    cg.add(var.set_target_diff_factor(params[CONF_TARGET_DIFF_FACTOR]))
-    cg.add(var.set_room_error_clamp(params[CONF_ROOM_ERROR_CLAMP]))
     # PID parameters
     cg.add(var.set_kp(params[CONF_KP]))
     cg.add(var.set_ki(params[CONF_KI]))
@@ -132,8 +144,8 @@ async def to_code(config):
 
     # Output parameters
     params = config[CONF_OUTPUT_PARAMETERS]
-    cg.add(var.set_t_min_flow(params[CONF_T_MIN_FLOW]))
-    cg.add(var.set_t_max_flow(params[CONF_T_MAX_FLOW]))
+    cg.add(var.set_min_flow_temp(params[CONF_MIN_FLOW_TEMP]))
+    cg.add(var.set_max_flow_temp(params[CONF_MAX_FLOW_TEMP]))
     cg.add(var.set_smoothing_threshold(params[CONF_SMOOTHING_THRESHOLD]))
 
     # Deadband parameters - optional
@@ -143,3 +155,4 @@ async def to_code(config):
         cg.add(var.set_threshold_low(params[CONF_THRESHOLD_LOW]))
         cg.add(var.set_kp_multiplier(params[CONF_KP_MULTIPLIER]))
         cg.add(var.set_ki_multiplier(params[CONF_KI_MULTIPLIER]))
+        cg.add(var.set_kd_multiplier(params[CONF_KD_MULTIPLIER]))

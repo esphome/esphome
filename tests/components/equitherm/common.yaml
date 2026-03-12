@@ -1,0 +1,107 @@
+sensor:
+  - platform: template
+    id: outdoor_sensor
+    lambda: return 12.0;
+    update_interval: 60s
+
+  - platform: template
+    id: indoor_sensor
+    lambda: return 19.5;
+    update_interval: 60s
+
+  # Diagnostic sensors (Phase G)
+  - platform: equitherm
+    climate_id: heating_controller
+    type: base_curve_output
+    name: "Base Curve Output"
+    id: base_curve_output_sensor
+
+  - platform: equitherm
+    climate_id: heating_controller
+    type: final_flow_setpoint
+    name: "Final Flow Setpoint"
+    id: final_flow_setpoint_sensor
+
+  - platform: equitherm
+    climate_id: heating_controller
+    type: raw_pid_correction
+    name: "Raw PID Correction"
+    id: raw_pid_correction_sensor
+
+# Diagnostic binary sensors
+binary_sensor:
+  - platform: equitherm
+    climate_id: heating_controller
+    outdoor_fallback_active:
+      name: "Outdoor Sensor Fallback Active"
+      id: outdoor_fallback_sensor
+    indoor_fallback_active:
+      name: "Indoor Sensor Fallback Active"
+      id: indoor_fallback_sensor
+
+# Diagnostic text sensors
+text_sensor:
+  - platform: equitherm
+    climate_id: heating_controller
+    control_mode:
+      name: "Heating Control Mode"
+      id: control_mode_sensor
+
+output:
+  - platform: slow_pwm
+    pin: 4
+    id: heat_output
+    period: 15s
+
+# Runtime tuning numbers (Phase H)
+number:
+  - platform: equitherm
+    climate_id: heating_controller
+    heat_curve_coefficient:
+      name: "Heating Curve Coefficient"
+      id: hc_number
+    heat_curve_exponent:
+      name: "Heating Curve Exponent"
+      id: n_number
+    heat_curve_shift:
+      name: "Heating Curve Shift"
+      id: shift_number
+    pid_proportional_gain:
+      name: "PID Proportional Gain"
+      id: kp_number
+    pid_integral_gain:
+      name: "PID Integral Gain"
+      id: ki_number
+    pid_derivative_gain:
+      name: "PID Derivative Gain"
+      id: kd_number
+    fallback_outdoor_temp:
+      name: "Fallback Outdoor Temperature"
+      id: fallback_outdoor_temp_number
+
+climate:
+  - platform: equitherm
+    id: heating_controller
+    name: Equitherm Climate
+    outdoor_sensor: outdoor_sensor
+    indoor_sensor: indoor_sensor
+    default_target_temperature: 20°C
+    fallback_outdoor_temp: 0.0
+    heat_output: heat_output
+    control_parameters:
+      hc: 3.0
+      n: 1.5
+      shift: 0.0
+      kp: 2.0
+      ki: 0.5
+      kd: 0.0
+      min_integral: -5.0
+      max_integral: 5.0
+    output_parameters:
+      min_flow_temp: 25.0
+      max_flow_temp: 70.0
+    deadband_parameters:
+      threshold_high: 0.5
+      threshold_low: 0.5
+      kp_multiplier: 0.1
+      ki_multiplier: 0.0

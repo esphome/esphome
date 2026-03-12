@@ -4,24 +4,16 @@
 #include <cmath>
 
 namespace esphome {
-namespace equitherm_climate {
+namespace equitherm {
 
-/// PID controller copied from pid component for independence.
-/// Renamed to EquithermPIDController to avoid conflicts.
-struct EquithermPIDController {
+/// Embedded PID controller — avoids dependency on pid component.
+struct PIDController {
   float update(float setpoint, float process_value);
 
   void reset_accumulated_integral() { accumulated_integral_ = 0; }
   void set_starting_integral_term(float in) { accumulated_integral_ = in; }
 
   bool in_deadband();
-
-  /// Check if PID is active (any gain is effectively non-zero)
-  bool is_active() const {
-    // Use epsilon tolerance for float comparison - handles runtime tuning
-    constexpr float EPSILON = 0.0001f;
-    return fabsf(kp_) > EPSILON || fabsf(ki_) > EPSILON || fabsf(kd_) > EPSILON;
-  }
 
   friend class EquithermClimate;
 
@@ -76,5 +68,5 @@ struct EquithermPIDController {
   std::deque<float> output_list_;
 };
 
-}  // namespace equitherm_climate
+}  // namespace equitherm
 }  // namespace esphome
