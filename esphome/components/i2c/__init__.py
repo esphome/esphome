@@ -94,7 +94,13 @@ def _bus_declare_type(value):
 
 
 def _rp2040_i2c_controller(pin):
-    """Return the I2C controller number (0 or 1) for a given RP2040/RP2350 GPIO pin."""
+    """Return the I2C controller number (0 or 1) for a given RP2040/RP2350 GPIO pin.
+
+    See RP2040 datasheet Table 2 (section 1.4.3, "GPIO Functions"):
+    https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
+    See RP2350 datasheet Table 7 (section 9.4, "Function Select"):
+    https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf
+    """
     return (pin // 2) % 2
 
 

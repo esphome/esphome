@@ -22,7 +22,8 @@ void ArduinoI2CBus::setup() {
 #elif defined(USE_RP2040)
   // Select Wire instance based on pin assignment, not definition order.
   // RP2040 I2C controller is determined by GPIO: (pin / 2) % 2
-  // I2C0 SDA: GPIO 0,4,8,12,16,20,24,28  I2C1 SDA: GPIO 2,6,10,14,18,22,26
+  // See RP2040 datasheet Table 2 (section 1.4.3): https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
+  // See RP2350 datasheet Table 7 (section 9.4): https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf
   if ((this->sda_pin_ / 2) % 2 == 0) {
     wire_ = &Wire;
   } else {
