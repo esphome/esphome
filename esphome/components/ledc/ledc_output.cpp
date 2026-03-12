@@ -145,7 +145,7 @@ void LEDCOutput::write_state(float state) {
 
 void LEDCOutput::setup() {
   if (!ledc_peripheral_reset_done) {
-    ESP_LOGI(TAG, "Resetting LEDC peripheral to clear stale state after reboot");
+    ESP_LOGV(TAG, "Resetting LEDC peripheral to clear stale state after reboot");
     periph_module_reset(PERIPH_LEDC_MODULE);
     ledc_peripheral_reset_done = true;
   }
