@@ -127,8 +127,14 @@ LV_CONF_H_FORMAT = """\
 
 
 def generate_lv_conf_h():
+    # Get all possible LV_ config defines based on the widgets used in the config, and the standard LVGL options
+    all_defines = set(
+        df.LV_DEFINES + tuple(f"LV_USE_{w.upper()}" for w in WIDGET_TYPES)
+    )
+    # Get the defines that are actually used based on the config
     lv_defines = df.get_data(df.KEY_LV_DEFINES)
-    unused_defines = set(df.LV_DEFINES) - set(lv_defines)
+    unused_defines = all_defines - set(lv_defines)
+    # Create the content of lv_conf.h with the used defines set to their value, and the unused defines disabled
     definitions = [as_macro(m, v) for m, v in lv_defines.items()] + [
         as_macro(m, "0") for m in unused_defines
     ]
@@ -360,6 +366,7 @@ async def to_code(configs):
     # This must be done after all widgets are created
     for comp in helpers.lvgl_components_required:
         cg.add_define(f"USE_LVGL_{comp.upper()}")
+    lv_image_formats = set()
     if {
         "transform_rotation",
         "transform_scale",
@@ -367,11 +374,11 @@ async def to_code(configs):
         "transform_scale_y",
     } & styles_used:
         df.add_define("LV_COLOR_SCREEN_TRANSP", "1")
+        lv_image_formats.add("ARGB8888")
     for use in helpers.lv_uses:
         df.add_define(f"LV_USE_{use.upper()}")
         cg.add_define(f"USE_LVGL_{use.upper()}")
 
-    lv_image_formats = set()
     for image_id in lv_images_used:
         await cg.get_variable(image_id)
         metadata = get_image_metadata(image_id.id)
@@ -385,7 +392,6 @@ async def to_code(configs):
             lv_image_formats.add("RGB565A8" if transparent else "RGB565")
         if image_type == ImageRGB:
             lv_image_formats.add("ARGB8888" if transparent else "RGB8888")
-    lv_image_formats.add("ARGB8888")
     if df.is_defined("LV_GRADIENT_MAX_STOPS"):
         lv_image_formats.add("RGB888")
     for fmt in lv_image_formats:
