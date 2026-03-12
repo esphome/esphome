@@ -37,6 +37,21 @@ inline ledc_mode_t get_speed_mode(uint8_t) { return LEDC_LOW_SPEED_MODE; }
 #endif
 
 #if !defined(SOC_LEDC_SUPPORT_FADE_STOP)
+// Classic ESP32 (currently the only target without SOC_LEDC_SUPPORT_FADE_STOP) can block in
+// ledc_ll_set_duty_start() while duty_start is set. We check the same conf1.duty_start bit here
+// to defer updates and avoid entering IDF's unbounded wait loop.
+//
+// This intentionally depends on the classic ESP32 LEDC register layout used by IDF's own LL HAL.
+// If another target without SOC_LEDC_SUPPORT_FADE_STOP is introduced, revisit this helper.
+static_assert(
+#if defined(CONFIG_IDF_TARGET_ESP32)
+    true,
+#else
+    false,
+#endif
+    "LEDC duty_start pending check assumes classic ESP32 register layout; "
+    "re-evaluate for this target");
+
 static bool ledc_duty_update_pending(ledc_mode_t speed_mode, ledc_channel_t chan_num) {
   auto *hw = LEDC_LL_GET_HW();
   return hw->channel_group[speed_mode].channel[chan_num].conf1.duty_start != 0;
