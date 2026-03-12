@@ -127,6 +127,9 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
     return true;
   uint8_t address = raw[0];
   uint8_t function_code = raw[1];
+  // Byte 1: function code
+  if (at == 1)
+    return true;
   // Byte 2: Size (with modbus rtu function code 4/3)
   // See also https://en.wikipedia.org/wiki/Modbus
   if (at == 2)
