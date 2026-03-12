@@ -21,9 +21,9 @@ void ArduinoI2CBus::setup() {
   wire_ = new TwoWire();  // NOLINT(cppcoreguidelines-owning-memory)
 #elif defined(USE_RP2040)
   // Select Wire instance based on pin assignment, not definition order.
-  // RP2040 I2C controller is determined by GPIO: (pin / 2) % 2
-  // See RP2040 datasheet Table 2 (section 1.4.3): https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
-  // See RP2350 datasheet Table 7 (section 9.4): https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf
+  // I2C controller = (gpio / 2) % 2: even pairs (0-1,4-5,...) → I2C0, odd pairs (2-3,6-7,...) → I2C1
+  // RP2040 datasheet Table 2 (section 1.4.3): https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
+  // RP2350 datasheet Table 7 (section 9.4): https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf
   if ((this->sda_pin_ / 2) % 2 == 0) {
     wire_ = &Wire;
   } else {

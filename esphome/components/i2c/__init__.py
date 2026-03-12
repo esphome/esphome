@@ -178,9 +178,10 @@ def _final_validate(config):
             if len(set(controllers)) != len(controllers):
                 raise cv.Invalid(
                     "Multiple I2C buses are configured to use the same I2C controller. "
-                    "Each bus must use pins on a different controller "
-                    "(I2C0: SDA on GPIO 0,4,8,12,16,20,24,28; "
-                    "I2C1: SDA on GPIO 2,6,10,14,18,22,26)."
+                    "Each bus must use pins on a different controller. "
+                    "The I2C controller is determined by (gpio / 2) % 2: "
+                    "even pin pairs (0-1, 4-5, 8-9, ...) use I2C0, "
+                    "odd pin pairs (2-3, 6-7, 10-11, ...) use I2C1."
                 )
     if CORE.is_esp32 and get_esp32_variant() in ESP32_I2C_CAPABILITIES:
         variant = get_esp32_variant()
