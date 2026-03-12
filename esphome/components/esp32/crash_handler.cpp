@@ -1,5 +1,8 @@
 #ifdef USE_ESP32
 
+#include "esphome/core/defines.h"
+#ifdef USE_ESP32_CRASH_HANDLER
+
 #include "crash_handler.h"
 #include "esphome/core/log.h"
 
@@ -348,4 +351,5 @@ void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
 // NOLINTEND(bugprone-reserved-identifier,cert-dcl37-c,cert-dcl51-cpp,readability-identifier-naming)
 }  // extern "C"
 
+#endif  // USE_ESP32_CRASH_HANDLER
 #endif  // USE_ESP32

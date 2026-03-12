@@ -1,7 +1,7 @@
 #ifdef USE_ESP32
 
-#include "crash_handler.h"
 #include "esphome/core/defines.h"
+#include "crash_handler.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "preferences.h"
@@ -37,8 +37,10 @@ void arch_restart() {
 }
 
 void arch_init() {
+#ifdef USE_ESP32_CRASH_HANDLER
   // Read crash data from previous boot before anything else
   esp32::crash_handler_read_and_clear();
+#endif
 
   // Enable the task watchdog only on the loop task (from which we're currently running)
   esp_task_wdt_add(nullptr);

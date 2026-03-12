@@ -195,6 +195,7 @@
 
 // ESP32-specific feature flags
 #ifdef USE_ESP32
+#define USE_ESP32_CRASH_HANDLER
 #define USE_MQTT_IDF_ENQUEUE
 #define USE_ESPHOME_TASK_LOG_BUFFER
 #define USE_OTA_ROLLBACK
