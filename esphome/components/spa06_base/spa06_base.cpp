@@ -240,9 +240,9 @@ bool SPA06Component::soft_reset_() {
 float SPA06Component::convert_temperature_(const float &t_raw_sc) { return this->c0_ * 0.5 + this->c1_ * t_raw_sc; }
 // Pressure conversion formula. See datasheet pg. 14
 float SPA06Component::convert_pressure_(const float &p_raw_sc, const float &t_raw_sc) {
-  float p2_raw_sc = std::pow(p_raw_sc, 2);
-  float p3_raw_sc = std::pow(p_raw_sc, 3);
-  float p4_raw_sc = std::pow(p_raw_sc, 4);
+  float p2_raw_sc = p_raw_sc * p_raw_sc;
+  float p3_raw_sc = p2_raw_sc * p_raw_sc;
+  float p4_raw_sc = p3_raw_sc * p_raw_sc;
   return this->c00_ + (float) this->c10_ * p_raw_sc + (float) this->c20_ * p2_raw_sc + (float) this->c30_ * p3_raw_sc +
          (float) this->c40_ * p4_raw_sc +
          t_raw_sc * ((float) this->c01_ + (float) this->c11_ * p_raw_sc + (float) this->c21_ * p2_raw_sc +
@@ -260,13 +260,29 @@ void SPA06Component::update() {
     float raw_temperature;
     float temperature = 0.0;
     float pressure = 0.0;
+
+    // Check measurement register for readiness
+    if (!this->spa_read_byte(SPA06_MEAS_CFG, &this->meas_.reg)) {
+      ESP_LOGD(TAG, "Cannot read meas config");
+      return;
+    }
     if (this->pressure_sensor_) {
+      if (!this->meas_.bit.prs_ready || !this->meas_.bit.tmp_ready) {
+        ESP_LOGW(TAG, "Temperature and pressure not ready");
+        this->status_set_warning();
+        return;
+      }
       if (!this->read_temperature_and_pressure_(temperature, pressure, raw_temperature)) {
         ESP_LOGW(TAG, "Temperature and pressure read failure");
         this->status_set_warning();
         return;
       }
     } else {
+      if (!this->meas_.bit.tmp_ready) {
+        ESP_LOGW(TAG, "Temperature not ready");
+        this->status_set_warning();
+        return;
+      }
       if (!this->read_temperature_(temperature, raw_temperature)) {
         ESP_LOGW(TAG, "Temperature read fail");
         this->status_set_warning();
@@ -276,27 +292,18 @@ void SPA06Component::update() {
     if (this->temperature_sensor_) {
       this->temperature_sensor_->publish_state(temperature);
     } else {
-      ESP_LOGD(TAG, "No temperature sensor configured?");
+      ESP_LOGV(TAG, "No temperature sensor configured");
     }
     if (this->pressure_sensor_) {
       this->pressure_sensor_->publish_state(pressure);
     } else {
-      ESP_LOGD(TAG, "No pressure sensor configured?");
+      ESP_LOGV(TAG, "No pressure sensor configured");
     }
     this->status_clear_warning();
   });
 }
 
 bool SPA06Component::read_temperature_and_pressure_(float &temperature, float &pressure, float &t_raw_sc) {
-  // 1. Check measurement register for readiness
-  if (!this->spa_read_byte(SPA06_MEAS_CFG, &this->meas_.reg)) {
-    ESP_LOGD(TAG, "Cannot read meas config");
-    return false;
-  }
-  // Exit if temp and pressure readiness aren't ready
-  if (!this->meas_.bit.prs_ready || !this->meas_.bit.tmp_ready) {
-    return false;
-  }
   // Temperature read and decode
   if (!this->read_temperature_(temperature, t_raw_sc)) {
     return false;
