@@ -17,6 +17,9 @@
 #ifdef USE_ESP32_CRASH_HANDLER
 #include "esphome/components/esp32/crash_handler.h"
 #endif
+#ifdef USE_RP2040_CRASH_HANDLER
+#include "esphome/components/rp2040/crash_handler.h"
+#endif
 #include "esphome/core/entity_base.h"
 #include "esphome/core/string_ref.h"
 
@@ -240,6 +243,9 @@ class APIConnection final : public APIServerConnectionBase {
       App.schedule_dump_config();
 #ifdef USE_ESP32_CRASH_HANDLER
     esp32::crash_handler_log();
+#endif
+#ifdef USE_RP2040_CRASH_HANDLER
+    rp2040::crash_handler_log();
 #endif
   }
 #ifdef USE_API_HOMEASSISTANT_SERVICES
