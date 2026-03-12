@@ -8,7 +8,6 @@ from esphome.components.text_sensor import new_text_sensor, text_sensor_schema
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BAUD_RATE,
-    CONF_DEBUG,
     CONF_ENABLE_ON_BOOT,
     CONF_ID,
     CONF_MODEL,
@@ -117,7 +116,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_USE_ADDRESS): cv.string,
             cv.Optional(CONF_INIT_AT): cv.All(cv.ensure_list(cv.string)),
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
-            cv.Optional(CONF_DEBUG, default=False): cv.boolean,
             cv.Optional(CONF_TX_BUFFER_SIZE, default=1024): cv.positive_int,
             cv.Optional(CONF_RX_BUFFER_SIZE, default=1024): cv.positive_int,
             cv.Optional(CONF_DTE_BUFFER_SIZE, default=1024): cv.positive_int,
@@ -255,10 +253,6 @@ async def to_code(config):
 
     if config[CONF_ENABLE_ON_BOOT]:
         cg.add(var.enable())
-
-    if config[CONF_DEBUG]:
-        add_idf_sdkconfig_option("CONFIG_LOG_MAXIMUM_LEVEL_VERBOSE", True)
-        cg.add(var.enable_debug())
 
     if init_at := config.get(CONF_INIT_AT, None):
         for cmd in init_at:

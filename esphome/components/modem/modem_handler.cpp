@@ -65,8 +65,6 @@ void ModemHandler::modem_create_dte_dce(int baud_rate) {
   ESP_LOGV(TAG, "DTE/DCE created.");
 }
 
-void ModemHandler::enable_debug() { esp_log_level_set("command_lib", ESP_LOG_VERBOSE); }
-
 AtCommandResult ModemHandler::send_at(const std::string &cmd, uint32_t timeout, bool verbose) {
   const uint32_t cmd_timeout = timeout == 0 ? this->command_delay : timeout;
   AtCommandResult at_command_result;
