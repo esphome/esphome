@@ -23,6 +23,7 @@ static ProgmemStr alarm_state_to_mqtt_str(AlarmControlPanelState state) {
 
 MQTTAlarmControlPanelComponent::MQTTAlarmControlPanelComponent(AlarmControlPanel *alarm_control_panel)
     : alarm_control_panel_(alarm_control_panel) {}
+
 static bool apply_command(AlarmControlPanelCall &call, const char *state) {
   if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("ARM_AWAY")) == 0) {
     call.arm_away();
@@ -67,10 +68,8 @@ void MQTTAlarmControlPanelComponent::setup() {
           }
         }
       }
-    } else {
-      if (!apply_command(call, payload.c_str())) {
-        ESP_LOGW(TAG, "'%s': Received unknown command payload %s", this->friendly_name_().c_str(), payload.c_str());
-      }
+    } else if (!apply_command(call, payload.c_str())) {
+      ESP_LOGW(TAG, "'%s': Received unknown command payload %s", this->friendly_name_().c_str(), payload.c_str());
     }
     call.perform();
   });
