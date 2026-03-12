@@ -246,6 +246,8 @@ uint8_t PN7160::reset_core_(const bool reset_config, const bool power) {
     delay(NFCC_INIT_TIMEOUT);
   }
 
+  delay(NFCC_INIT_TIMEOUT); // Add extra delay before sending the first command
+
   nfc::NciMessage rx;
   nfc::NciMessage tx(nfc::NCI_PKT_MT_CTRL_COMMAND, nfc::NCI_CORE_GID, nfc::NCI_CORE_RESET_OID,
                      {(uint8_t) reset_config});
@@ -338,7 +340,52 @@ uint8_t PN7160::send_init_config_() {
     return nfc::STATUS_FAILED;
   }
 
+  if (this->send_rf_config_() != nfc::STATUS_OK) {
+    ESP_LOGE(TAG, "Error sending RF config");
+    return nfc::STATUS_FAILED;
+  }
+
   return this->send_core_config_();
+}
+
+uint8_t PN7160::send_rf_config_() {
+  if (this->sensitivity_ == PN7160_SENSITIVITY_HIGH) {
+    // High Sensitivity Tuning
+    // Sets MIN_LEVEL (lower 4 bits of CLIF_SIGPRO_RM_CONFIG1_REG 0x2D) to 2
+    std::vector<uint8_t> high_sens_cmd = {
+        0x01,              // Number of parameters
+        0xA0, 0x0D,        // Param ID: RF_TRANSITION_CFG
+        0x06,              // Length
+        0x01,              // Transition ID: Reader Mode
+        0x01,              // Number of registers
+        0x2D,              // Register: CLIF_SIGPRO_RM_CONFIG1_REG
+        0x01,              // Length
+        0x02               // Value: MIN_LEVEL = 2
+    };
+
+    nfc::NciMessage rx;
+    nfc::NciMessage tx(nfc::NCI_PKT_MT_CTRL_COMMAND, nfc::NCI_CORE_GID, nfc::NCI_CORE_SET_CONFIG_OID, high_sens_cmd);
+
+    ESP_LOGD(TAG, "Setting High Sensitivity (MIN_LEVEL=2)");
+    if (this->transceive_(tx, rx) != nfc::STATUS_OK) {
+      ESP_LOGW(TAG, "Failed to set high sensitivity");
+      // Don't fail the whole init for this
+    }
+  }
+
+  if (!this->proprietary_config_.empty()) {
+    nfc::NciMessage rx;
+    nfc::NciMessage tx(nfc::NCI_PKT_MT_CTRL_COMMAND, nfc::NCI_CORE_GID, nfc::NCI_CORE_SET_CONFIG_OID,
+                       this->proprietary_config_);
+
+    ESP_LOGD(TAG, "Sending proprietary config (%u bytes)", this->proprietary_config_.size());
+    if (this->transceive_(tx, rx) != nfc::STATUS_OK) {
+      ESP_LOGE(TAG, "Error sending proprietary config");
+      return nfc::STATUS_FAILED;
+    }
+  }
+
+  return nfc::STATUS_OK;
 }
 
 uint8_t PN7160::send_core_config_() {

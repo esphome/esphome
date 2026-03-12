@@ -86,7 +86,7 @@ bool PN7160::is_mifare_ultralight_formatted_(const std::vector<uint8_t> &page_3_
           (page_3_to_6[p4_offset + 2] != 0xFF) || (page_3_to_6[p4_offset + 3] != 0xFF));
 }
 
-uint16_t PN7160::read_mifare_ultralight_capacity_() {
+uint32_t PN7160::read_mifare_ultralight_capacity_() {
   std::vector<uint8_t> data;
   if (this->read_mifare_ultralight_bytes_(3, nfc::MIFARE_ULTRALIGHT_PAGE_SIZE, data) == nfc::STATUS_OK) {
     ESP_LOGV(TAG, "Tag capacity is %u bytes", data[2] * 8U);

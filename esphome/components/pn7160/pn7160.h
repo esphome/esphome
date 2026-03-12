@@ -1,18 +1,52 @@
 #pragma once
 
+#include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/version.h"
+
+#include <vector>
+#include <cstring>
+
+namespace esphome {
+namespace nfc {
+// Compatibility shim for missing symbols in older core nfc component
+#if ESPHOME_VERSION_CODE < VERSION_CODE(2026, 1, 0)
+using NfcTagUid = std::vector<uint8_t>;
+static const size_t FORMAT_BYTES_BUFFER_SIZE = 128;
+static const size_t FORMAT_UID_BUFFER_SIZE = 32;
+inline const char *format_bytes_to(char *buf, const std::vector<uint8_t> &bytes) {
+  std::string s = format_bytes(const_cast<std::vector<uint8_t> &>(bytes));
+  strncpy(buf, s.c_str(), FORMAT_BYTES_BUFFER_SIZE - 1);
+  buf[FORMAT_BYTES_BUFFER_SIZE - 1] = '\0';
+  return buf;
+}
+inline const char *format_uid_to(char *buf, const std::vector<uint8_t> &uid) {
+  std::string s = format_uid(const_cast<std::vector<uint8_t> &>(uid));
+  strncpy(buf, s.c_str(), FORMAT_UID_BUFFER_SIZE - 1);
+  buf[FORMAT_UID_BUFFER_SIZE - 1] = '\0';
+  return buf;
+}
+#endif
+}  // namespace nfc
+}  // namespace esphome
+
 #include "esphome/components/nfc/automation.h"
 #include "esphome/components/nfc/nci_core.h"
 #include "esphome/components/nfc/nci_message.h"
 #include "esphome/components/nfc/nfc.h"
 #include "esphome/components/nfc/nfc_helpers.h"
-#include "esphome/core/component.h"
 #include "esphome/core/gpio.h"
-#include "esphome/core/helpers.h"
 
 #include <functional>
 
 namespace esphome {
 namespace pn7160 {
+
+enum PN7160Sensitivity {
+  PN7160_SENSITIVITY_LOW = 0,
+  PN7160_SENSITIVITY_MEDIUM,
+  PN7160_SENSITIVITY_HIGH,
+};
 
 static const uint16_t NFCC_DEFAULT_TIMEOUT = 10;
 static const uint16_t NFCC_INIT_TIMEOUT = 50;
@@ -114,16 +148,8 @@ static const uint8_t RF_LISTEN_MODE_ROUTING_CONFIG[] = {0x00,  // "more" (anothe
                                                         0x07,  // power state
                                                         nfc::TECH_PASSIVE_NFCA};  // technology
 
-enum class CardEmulationState : uint8_t {
-  CARD_EMU_IDLE,
-  CARD_EMU_NDEF_APP_SELECTED,
-  CARD_EMU_CC_SELECTED,
-  CARD_EMU_NDEF_SELECTED,
-  CARD_EMU_DESFIRE_PROD,
-};
-
 enum class NCIState : uint8_t {
-  NONE = 0x00,
+  NONE = 0,
   NFCC_RESET,
   NFCC_INIT,
   NFCC_CONFIG,
@@ -133,11 +159,25 @@ enum class NCIState : uint8_t {
   RFST_DISCOVERY,
   RFST_W4_ALL_DISCOVERIES,
   RFST_W4_HOST_SELECT,
+  RFST_POLL_ACTIVE,
   RFST_LISTEN_ACTIVE,
   RFST_LISTEN_SLEEP,
-  RFST_POLL_ACTIVE,
-  EP_DEACTIVATING,
   EP_SELECTING,
+  EP_DEACTIVATING,
+  TEST,
+  FAILED,
+};
+
+enum class CardEmulationState : uint8_t {
+  CARD_EMU_IDLE = 0,
+  CARD_EMU_DISCOVERED,
+  CARD_EMU_NDEF_APP_SELECTED,
+  CARD_EMU_CC_SELECTED,
+  CARD_EMU_NDEF_SELECTED,
+  CARD_EMU_T4T_SELECT_NDEF_APP,
+  CARD_EMU_T4T_SELECT_NDEF_FILE,
+  CARD_EMU_T4T_READ_SIZE,
+  CARD_EMU_T4T_READ_DATA,
   TEST = 0xFE,
   FAILED = 0xFF,
 };
@@ -147,6 +187,13 @@ enum class TestMode : uint8_t {
   TEST_PRBS,
   TEST_ANTENNA,
   TEST_GET_REGISTER,
+};
+
+enum Task : uint8_t {
+  EP_READ = 0,
+  EP_WRITE,
+  EP_CLEAN,
+  EP_FORMAT,
 };
 
 struct DiscoveredEndpoint {
@@ -169,6 +216,9 @@ class PN7160 : public nfc::Nfcc, public Component {
   void set_max_failed_checks(uint8_t max) { this->max_failed_checks_ = max; }
   void set_auto_reset_on_failure(bool reset) { this->auto_reset_on_failure_ = reset; }
 
+  void set_sensitivity(PN7160Sensitivity sensitivity) { this->sensitivity_ = sensitivity; }
+  void set_proprietary_config(const std::vector<uint8_t> &config) { this->proprietary_config_ = config; }
+
   void set_dwl_req_pin(GPIOPin *dwl_req_pin) { this->dwl_req_pin_ = dwl_req_pin; }
   void set_irq_pin(GPIOPin *irq_pin) { this->irq_pin_ = irq_pin; }
   void set_ven_pin(GPIOPin *ven_pin) { this->ven_pin_ = ven_pin; }
@@ -186,35 +236,42 @@ class PN7160 : public nfc::Nfcc, public Component {
   void set_polling_on();
   bool polling_enabled() { return this->polling_enabled_; }
 
-  void register_ontag_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
-  void register_ontagremoved_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
+  void set_clean_mode();
+  void set_format_mode();
+  void set_read_mode();
+  void set_write_mode();
+  void clean_mode();
+  void format_mode();
+  void read_mode();
+  void write_mode();
+  void set_write_message(std::shared_ptr<nfc::NdefMessage> message);
+  void set_tag_write_message(std::shared_ptr<nfc::NdefMessage> message);
+  void set_tag_write_message(optional<std::string> message, optional<bool> include_android_app_record);
 
-  void add_on_emulated_tag_scan_callback(std::function<void()> callback) {
-    this->on_emulated_tag_scan_callback_.add(std::move(callback));
-  }
+  float get_setup_priority() const override { return setup_priority::DATA; }
+
+  uint8_t set_test_mode(TestMode test_mode, const std::vector<uint8_t> &data, std::vector<uint8_t> &result);
 
   void add_on_finished_write_callback(std::function<void()> callback) {
     this->on_finished_write_callback_.add(std::move(callback));
   }
+  void add_on_emulated_tag_scan_callback(std::function<void()> callback) {
+    this->on_emulated_tag_scan_callback_.add(std::move(callback));
+  }
 
-  bool is_writing() { return this->next_task_ != EP_READ; };
+  void register_ontag_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
+  void register_ontagremoved_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
 
-  void read_mode();
-  void clean_mode();
-  void format_mode();
-  void write_mode();
-  void set_tag_write_message(std::shared_ptr<nfc::NdefMessage> message);
-  void set_tag_write_message(optional<std::string> message, optional<bool> include_android_app_record);
-
-  uint8_t set_test_mode(TestMode test_mode, const std::vector<uint8_t> &data, std::vector<uint8_t> &result);
+  bool is_writing() { return this->write_mode_; }
 
  protected:
-  uint8_t reset_core_(bool reset_config, bool power);
+  uint8_t reset_core_(bool reset_config = true, bool power = true);
   uint8_t init_core_();
   uint8_t send_init_config_();
+  uint8_t send_rf_config_();
   uint8_t send_core_config_();
   uint8_t refresh_core_config_();
-
+  uint8_t set_pmu_cfg_();
   uint8_t set_discover_map_();
 
   uint8_t set_listen_mode_routing_();
@@ -252,7 +309,7 @@ class PN7160 : public nfc::Nfcc, public Component {
 
   uint8_t transceive_(nfc::NciMessage &tx, nfc::NciMessage &rx, uint16_t timeout = NFCC_DEFAULT_TIMEOUT,
                       bool expect_notification = true);
-  virtual uint8_t read_nfcc(nfc::NciMessage &rx, uint16_t timeout) = 0;
+  virtual uint8_t read_nfcc(nfc::NciMessage &rx, const uint16_t timeout) = 0;
   virtual uint8_t write_nfcc(nfc::NciMessage &tx) = 0;
 
   uint8_t wait_for_irq_(uint16_t timeout = NFCC_DEFAULT_TIMEOUT, bool pin_state = true);
@@ -270,55 +327,61 @@ class PN7160 : public nfc::Nfcc, public Component {
   uint8_t halt_mifare_classic_tag_();
 
   uint8_t read_mifare_ultralight_tag_(nfc::NfcTag &tag);
-  uint8_t read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_bytes, std::vector<uint8_t> &data);
+  uint8_t read_mifare_ultralight_tag_(nfc::NfcTagUid &uid, nfc::NfcTag &tag) { return read_mifare_ultralight_tag_(tag); }
+  uint8_t read_mifare_ultralight_bytes_(uint8_t page_num, uint16_t length, std::vector<uint8_t> &data);
+  uint32_t read_mifare_ultralight_capacity_();
   bool is_mifare_ultralight_formatted_(const std::vector<uint8_t> &page_3_to_6);
-  uint16_t read_mifare_ultralight_capacity_();
   uint8_t find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_3_to_6, uint8_t &message_length,
                                        uint8_t &message_start_index);
-  uint8_t write_mifare_ultralight_page_(uint8_t page_num, std::vector<uint8_t> &write_data);
   uint8_t write_mifare_ultralight_tag_(nfc::NfcTagUid &uid, const std::shared_ptr<nfc::NdefMessage> &message);
   uint8_t clean_mifare_ultralight_();
-
-  enum NfcTask : uint8_t {
-    EP_READ = 0,
-    EP_CLEAN,
-    EP_FORMAT,
-    EP_WRITE,
-  } next_task_{EP_READ};
-
-  bool config_refresh_pending_{false};
-  bool core_config_is_solo_{false};
-  bool listening_enabled_{false};
-  bool polling_enabled_{true};
-
-  uint8_t error_count_{0};
-  uint8_t fail_count_{0};
-  uint32_t last_nci_state_change_{0};
-  uint8_t selecting_endpoint_{0};
-  uint32_t tag_ttl_{250};
-  bool health_check_enabled_{true};
-  uint32_t health_check_interval_{60000};
-  uint8_t max_failed_checks_{3};
-  bool auto_reset_on_failure_{true};
-  uint8_t health_fail_count_{0};
-  uint32_t last_health_check_{0};
+  uint8_t write_mifare_ultralight_page_(uint8_t page_num, std::vector<uint8_t> &write_data);
 
   GPIOPin *dwl_req_pin_{nullptr};
   GPIOPin *irq_pin_{nullptr};
   GPIOPin *ven_pin_{nullptr};
   GPIOPin *wkup_req_pin_{nullptr};
 
-  CallbackManager<void()> on_emulated_tag_scan_callback_;
-  CallbackManager<void()> on_finished_write_callback_;
+  bool health_check_enabled_{true};
+  uint32_t health_check_interval_{120000};
+  uint32_t last_health_check_{0};
+  uint8_t health_fail_count_{0};
+  uint8_t max_failed_checks_{5};
+  bool auto_reset_on_failure_{true};
 
+  PN7160Sensitivity sensitivity_{PN7160_SENSITIVITY_MEDIUM};
+  std::vector<uint8_t> proprietary_config_;
+
+  uint32_t last_nci_transition_{0};
+  uint32_t last_nci_state_change_{0};
+  uint32_t tag_ttl_{5000};
+
+  bool polling_enabled_{true};
+  bool listening_enabled_{false};
+  bool selecting_endpoint_{false};
+  bool write_mode_{false};
+  bool clean_mode_{false};
+  bool format_mode_{false};
+  bool config_refresh_pending_{false};
+  bool core_config_is_solo_{true};
+
+  Task next_task_{EP_READ};
+
+  DiscoveredEndpoint current_endpoint_;
   std::vector<DiscoveredEndpoint> discovered_endpoint_;
 
   CardEmulationState ce_state_{CardEmulationState::CARD_EMU_IDLE};
   NCIState nci_state_{NCIState::NFCC_RESET};
   NCIState nci_state_error_{NCIState::NONE};
+  uint8_t nci_state_error_count_{0};
+  uint8_t error_count_{0};
 
-  std::shared_ptr<nfc::NdefMessage> card_emulation_message_;
+  std::shared_ptr<nfc::NdefMessage> tag_emulation_message_;
+  std::shared_ptr<nfc::NdefMessage> card_emulation_message_{nullptr};
   std::shared_ptr<nfc::NdefMessage> next_task_message_to_write_;
+
+  CallbackManager<void()> on_finished_write_callback_;
+  CallbackManager<void()> on_emulated_tag_scan_callback_;
 
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontag_;
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
