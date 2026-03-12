@@ -20,12 +20,13 @@ void ArduinoI2CBus::setup() {
 #if defined(USE_ESP8266)
   wire_ = new TwoWire();  // NOLINT(cppcoreguidelines-owning-memory)
 #elif defined(USE_RP2040)
-  static bool first = true;
-  if (first) {
+  // Select Wire instance based on pin assignment, not definition order.
+  // RP2040 I2C controller is determined by GPIO: (pin / 2) % 2
+  // I2C0 SDA: GPIO 0,4,8,12,16,20,24,28  I2C1 SDA: GPIO 2,6,10,14,18,22,26
+  if ((this->sda_pin_ / 2) % 2 == 0) {
     wire_ = &Wire;
-    first = false;
   } else {
-    wire_ = &Wire1;  // NOLINT(cppcoreguidelines-owning-memory)
+    wire_ = &Wire1;
   }
 #endif
 

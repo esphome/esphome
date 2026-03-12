@@ -93,11 +93,25 @@ def _bus_declare_type(value):
     raise NotImplementedError
 
 
+def _rp2040_i2c_controller(pin):
+    """Return the I2C controller number (0 or 1) for a given RP2040/RP2350 GPIO pin."""
+    return (pin // 2) % 2
+
+
 def validate_config(config):
     if CORE.is_esp32:
         return cv.require_framework_version(
             esp_idf=cv.Version(5, 4, 2), esp32_arduino=cv.Version(3, 2, 1)
         )(config)
+    if CORE.is_rp2040:
+        sda_controller = _rp2040_i2c_controller(config[CONF_SDA])
+        scl_controller = _rp2040_i2c_controller(config[CONF_SCL])
+        if sda_controller != scl_controller:
+            raise cv.Invalid(
+                f"SDA pin GPIO{config[CONF_SDA]} is on I2C{sda_controller} but "
+                f"SCL pin GPIO{config[CONF_SCL]} is on I2C{scl_controller}. "
+                f"Both pins must be on the same I2C controller."
+            )
     return config
 
 
@@ -146,6 +160,22 @@ def _final_validate(config):
     full_config = fv.full_config.get()[CONF_I2C]
     if CORE.using_zephyr and len(full_config) > 1:
         raise cv.Invalid("Second i2c is not implemented on Zephyr yet")
+    if CORE.is_rp2040:
+        if len(full_config) > 2:
+            raise cv.Invalid(
+                "The maximum number of I2C interfaces for RP2040/RP2350 is 2"
+            )
+        if len(full_config) > 1:
+            controllers = [
+                _rp2040_i2c_controller(conf[CONF_SDA]) for conf in full_config
+            ]
+            if len(set(controllers)) != len(controllers):
+                raise cv.Invalid(
+                    "Multiple I2C buses are configured to use the same I2C controller. "
+                    "Each bus must use pins on a different controller "
+                    "(I2C0: SDA on GPIO 0,4,8,12,16,20,24,28; "
+                    "I2C1: SDA on GPIO 2,6,10,14,18,22,26)."
+                )
     if CORE.is_esp32 and get_esp32_variant() in ESP32_I2C_CAPABILITIES:
         variant = get_esp32_variant()
         max_num = ESP32_I2C_CAPABILITIES[variant]["NUM"]
