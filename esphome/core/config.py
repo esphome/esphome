@@ -217,7 +217,8 @@ INCLUDE_SCHEMA = cv.maybe_simple_value(
         {
             cv.Required(CONF_PATH): valid_include,
             cv.Optional(CONF_STAGE, default=CONF_DEFAULT): cv.enum(
-                {stage: stage for stage in INCLUDE_STAGES} | {CONF_DEFAULT: None},
+                {stage: stage for stage in INCLUDE_STAGES}
+                | {CONF_DEFAULT: CONF_DEFAULT},
                 lower=True,
             ),
         }
@@ -512,23 +513,22 @@ async def add_arduino_global_workaround():
 
 @coroutine_with_priority(CoroPriority.FINAL)
 async def add_includes(
-    includes: list[dict[str, str | None]], is_c_header: bool = False
+    includes: list[dict[str, str]], is_c_header: bool = False
 ) -> None:
     # Add includes at the very end, so that the included files can access global variables
     for include in includes:
         include_path = include[CONF_PATH]
-        assert include_path is not None
         stage = include[CONF_STAGE]
         if _is_system_include(include_path):
             _add_include_statement(
                 include_path,
                 # Default for system includes is to get added before globals
-                INCLUDE_STAGE_BEFORE_ANY_GLOBALS if stage is None else stage,
+                INCLUDE_STAGE_BEFORE_ANY_GLOBALS if stage == CONF_DEFAULT else stage,
                 is_c_header,
             )
             continue
         # The default for non-system includes is to get added after globals
-        stage = INCLUDE_STAGE_AFTER_ALL_GLOBALS if stage is None else stage
+        stage = INCLUDE_STAGE_AFTER_ALL_GLOBALS if stage == CONF_DEFAULT else stage
 
         path = CORE.relative_config_path(include_path)
         if path.is_dir():
