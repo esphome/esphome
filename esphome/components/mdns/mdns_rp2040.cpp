@@ -8,17 +8,11 @@
 #include "mdns_component.h"
 
 // Arduino-Pico's PolledTimeout.h (pulled in by ESP8266mDNS.h) redefines IRAM_ATTR to empty.
-// Save the current definition (from hal.h), undef before include to avoid a redefinition warning,
-// then restore the original value afterwards.
-#ifdef IRAM_ATTR
-#define ESPHOME_SAVED_IRAM_ATTR IRAM_ATTR
+// Save and restore our definition around the include to avoid a redefinition warning.
+#pragma push_macro("IRAM_ATTR")
 #undef IRAM_ATTR
-#endif
 #include <ESP8266mDNS.h>
-#ifdef ESPHOME_SAVED_IRAM_ATTR
-#define IRAM_ATTR ESPHOME_SAVED_IRAM_ATTR
-#undef ESPHOME_SAVED_IRAM_ATTR
-#endif
+#pragma pop_macro("IRAM_ATTR")
 
 namespace esphome::mdns {
 
