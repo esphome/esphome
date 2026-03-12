@@ -97,7 +97,7 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
 #endif
 
   if (ret != 0) {
-    ESP_LOGW(TAG, "setimeofday() failed with code %d", ret);
+    ESP_LOGW(TAG, "settimeofday() failed with code %d", ret);
   }
 #endif
   auto time = this->now();
