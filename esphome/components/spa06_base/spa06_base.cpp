@@ -16,6 +16,7 @@ inline int32_t decode32(uint8_t xmsb, uint8_t msb, uint8_t lsb, uint8_t xlsb, si
 
 void SPA06Component::dump_config() {
   ESP_LOGCONFIG(TAG, "SPA06:");
+  // TODO: Read internal error code and print if not NONE
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG, "  Measurement conversion time: %ums", this->conversion_time_);
   if (this->temperature_sensor_) {
@@ -43,31 +44,26 @@ void SPA06Component::setup() {
   //   2. Verify sensor chip ID matches
   //   3. Verify coefficients are ready
   //   4. Read coefficients
-  //   5. Configure temperature sensor
-  //   6. Configure pressure sensor
-  //   7. Configure FIFO
-  //   8. Start sensor in background mode
+  //   5. Configure temperature and pressure sensors
+  //   6. Write communication settings
+  //   7. Write measurement settings (background measurement mode)
 
   // 1. Soft reset
   if (!this->soft_reset_()) {
     ESP_LOGE(TAG, "Reset failed");
-    // this->error_code_ = ERROR_SENSOR_RESET;
+    // TODO: Set internal error code
     this->mark_failed();
     return;
   }
 
-  // reset() internally delays by 2ms to make sure that
-  // the sensor is in a ready state. We need to delay at
-  // least 1 more millisecond before coefficients are
-  // ready (datasheet pg. 7). This code spreads those two
-  // milliseconds out before and after reading the chip ID.
-  // delay(1);
+  // soft_reset_() internally delays by 3ms to make sure that
+  // the sensor is in a ready state and coefficients are ready.
 
   // 2. Read chip ID
   // TODO: check ID for consistency?
   if (!spa_read_byte(SPA06_ID, &this->prod_id_.reg)) {
     ESP_LOGE(TAG, "Chip ID read failure");
-    // this->error_code = ERROR_CHIP_ID_READ;
+    // TODO: Set internal error code
     this->mark_failed();
     return;
   }
@@ -76,8 +72,6 @@ void SPA06Component::setup() {
            "  Prod ID: %u\n"
            "  Rev ID: %u",
            this->prod_id_.bit.prod_id, this->prod_id_.bit.rev_id);
-  // One more delay before coefficients should be ready
-  // delay(2);
 
   // 3. Read chip readiness from CFG_REG
   //    Only fail here if the sensor coefficients are not ready
@@ -86,7 +80,7 @@ void SPA06Component::setup() {
   }
   if (!meas_.bit.coef_ready) {
     ESP_LOGE(TAG, "Coefficients not ready");
-    // this->error_code = ERROR_CHIP_COEF_NOT_READY;
+    // TODO: Set internal error code
     this->mark_failed();
     return;
   }
@@ -94,6 +88,7 @@ void SPA06Component::setup() {
   // 4. Read coefficients
   if (!this->read_coefficients_()) {
     ESP_LOGE(TAG, "Coefficient read error");
+    // TODO: Set internal error code
     this->mark_failed();
     return;
   }
@@ -123,6 +118,7 @@ void SPA06Component::setup() {
   // Write temperature settings
   if (!write_temperature_settings_(this->temperature_oversampling_, this->temperature_rate_)) {
     ESP_LOGE(TAG, "Temperature settings write fail");
+    // TODO: Set internal error code
     this->mark_failed();
     return;
   }
@@ -133,21 +129,23 @@ void SPA06Component::setup() {
     this->mark_failed();
     return;
   }
-  // Write communication settings
+  // 6. Write communication settings
   // This call sets the bit shifts for pressure and temperature if
   //   their respective oversampling config is > X8
-  // This call also disables interrupts FIFO and specifies SPI 4-wire
+  // This call also disables interrupts, FIFO, and specifies SPI 4-wire
   if (!write_communication_settings_(this->pressure_oversampling_ > OVERSAMPLING_X8,
                                      this->temperature_oversampling_ > OVERSAMPLING_X8)) {
     ESP_LOGE(TAG, "Comm settings write fail");
+    // TODO: Set internal error code
     this->mark_failed();
     return;
   }
 
-  // Write measurement settings
+  // 7. Write measurement settings
   // This function sets background measurement mode without FIFO
   if (!write_measurement_settings_(this->pressure_sensor_ ? MeasCrtl::MEASCRTL_BG_BOTH : MeasCrtl::MEASCRTL_BG_TEMP)) {
     ESP_LOGE(TAG, "Measurement settings write fail");
+    // TODO: Set internal error code
     this->mark_failed();
     return;
   }
