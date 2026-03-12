@@ -12,6 +12,11 @@ esphome:
           kp: 0.0
           ki: 0.0
           kd: 0.0
+      - climate.pid.set_deadband_control_parameters_multipliers:
+          id: pid_climate
+          kp_multiplier: 0.0
+          ki_multiplier: 0.0
+          kd_multiplier: 0.0
       - climate.pid.reset_integral_term: pid_climate
 
 output:
