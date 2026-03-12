@@ -37,22 +37,6 @@ from .common import load_config_from_fixture
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "core" / "config"
 
 
-@pytest.fixture
-def mock_cg_with_include_capture() -> tuple[Mock, list[str]]:
-    """Mock code generation with include capture."""
-    includes_added: list[str] = []
-
-    with patch("esphome.core.config.cg") as mock_cg:
-        mock_raw_statement = MagicMock()
-
-        def capture_include(text: str) -> MagicMock:
-            includes_added.append(text)
-            return mock_raw_statement
-
-        mock_cg.RawStatement.side_effect = capture_include
-        yield mock_cg, includes_added
-
-
 def test_validate_area_config_with_string() -> None:
     """Test that string area config is converted to structured format."""
     result = validate_area_config("Living Room")
@@ -616,23 +600,19 @@ def test_include_file_header(tmp_path: Path, mock_copy_file_if_changed: Mock) ->
 
     CORE.build_path = tmp_path / "build"
 
-    with patch("esphome.core.config.cg") as mock_cg:
-        # Mock RawStatement to capture the text
-        mock_raw_statement = MagicMock()
-        mock_raw_statement.text = ""
-
-        def raw_statement_side_effect(text):
-            mock_raw_statement.text = text
-            return mock_raw_statement
-
-        mock_cg.RawStatement.side_effect = raw_statement_side_effect
-
-        config.include_file(src_file, Path("test.h"))
-
+    for stage in config.INCLUDE_STAGES:
+        mock_copy_file_if_changed.reset_mock()
+        config.include_file(src_file, Path("test.h"), stage, is_c_header=False)
         mock_copy_file_if_changed.assert_called_once()
-        mock_cg.add_global.assert_called_once()
         # Check that include statement was added
-        assert '#include "test.h"' in mock_raw_statement.text
+        assert any(
+            '#include "test.h"' in s for s in config.get_include_statements(stage)
+        )
+
+
+def test_include_stages_not_default() -> None:
+    """Test that none of the concrete stages contain the default stage"""
+    assert config.INCLUDE_STAGE_DEFAULT not in config.INCLUDE_STAGES
 
 
 def test_include_file_cpp(tmp_path: Path, mock_copy_file_if_changed: Mock) -> None:
@@ -642,12 +622,14 @@ def test_include_file_cpp(tmp_path: Path, mock_copy_file_if_changed: Mock) -> No
 
     CORE.build_path = tmp_path / "build"
 
-    with patch("esphome.core.config.cg") as mock_cg:
-        config.include_file(src_file, Path("test.cpp"))
-
+    for stage in config.INCLUDE_STAGES:
+        mock_copy_file_if_changed.reset_mock()
+        config.include_file(src_file, Path("test.cpp"), stage, is_c_header=False)
         mock_copy_file_if_changed.assert_called_once()
         # Should not add include statement for .cpp files
-        mock_cg.add_global.assert_not_called()
+        assert not any(
+            '#include "test.cpp"' in s for s in config.get_include_statements(stage)
+        )
 
 
 def test_include_file_with_c_header(
@@ -659,24 +641,15 @@ def test_include_file_with_c_header(
 
     CORE.build_path = tmp_path / "build"
 
-    with patch("esphome.core.config.cg") as mock_cg:
-        # Mock RawStatement to capture the text
-        mock_raw_statement = MagicMock()
-        mock_raw_statement.text = ""
-
-        def raw_statement_side_effect(text):
-            mock_raw_statement.text = text
-            return mock_raw_statement
-
-        mock_cg.RawStatement.side_effect = raw_statement_side_effect
-
-        config.include_file(src_file, Path("c_library.h"), is_c_header=True)
-
+    for stage in config.INCLUDE_STAGES:
+        mock_copy_file_if_changed.reset_mock()
+        config.include_file(src_file, Path("c_library.h"), stage, is_c_header=True)
         mock_copy_file_if_changed.assert_called_once()
-        mock_cg.add_global.assert_called_once()
-        # Check that include statement is wrapped in extern "C" block
-        assert 'extern "C"' in mock_raw_statement.text
-        assert '#include "c_library.h"' in mock_raw_statement.text
+        # Check that include statement was added
+        statements = config.get_include_statements(stage)
+        assert any('extern "C"' in s for s in statements) and any(
+            '#include "c_library.h"' in s for s in statements
+        )
 
 
 def test_get_usable_cpu_count() -> None:
@@ -761,7 +734,6 @@ def test_is_target_platform() -> None:
 async def test_add_includes_with_single_file(
     tmp_path: Path,
     mock_copy_file_if_changed: Mock,
-    mock_cg_with_include_capture: tuple[Mock, list[str]],
 ) -> None:
     """Test add_includes copies a single header file to build directory."""
     CORE.config_path = tmp_path / "config.yaml"
@@ -772,9 +744,10 @@ async def test_add_includes_with_single_file(
     include_file = tmp_path / "my_header.h"
     include_file.write_text("#define MY_CONSTANT 42")
 
-    mock_cg, includes_added = mock_cg_with_include_capture
-
-    await config.add_includes([str(include_file)])
+    real_stage = config.INCLUDE_STAGE_AFTER_ALL_GLOBALS
+    await config.add_includes(
+        [dict(path=str(include_file), stage=config.INCLUDE_STAGE_DEFAULT)]
+    )
 
     # Verify copy_file_if_changed was called to copy the file
     # Note: add_includes adds files to a src/ subdirectory
@@ -783,7 +756,10 @@ async def test_add_includes_with_single_file(
     )
 
     # Verify include statement was added
-    assert any('#include "my_header.h"' in inc for inc in includes_added)
+    assert any(
+        '#include "my_header.h"' in inc
+        for inc in config.get_include_statements(real_stage)
+    )
 
 
 @pytest.mark.asyncio
@@ -791,7 +767,6 @@ async def test_add_includes_with_single_file(
 async def test_add_includes_with_directory_unix(
     tmp_path: Path,
     mock_copy_file_if_changed: Mock,
-    mock_cg_with_include_capture: tuple[Mock, list[str]],
 ) -> None:
     """Test add_includes copies all files from a directory on Unix."""
     CORE.config_path = tmp_path / "config.yaml"
@@ -813,9 +788,9 @@ async def test_add_includes_with_directory_unix(
     subdir.mkdir()
     (subdir / "nested.h").write_text("#define NESTED")
 
-    mock_cg, includes_added = mock_cg_with_include_capture
-
-    await config.add_includes([str(include_dir)])
+    stage = config.INCLUDE_STAGE_BEFORE_ANY_GLOBALS
+    await config.add_includes([dict(path=str(include_dir), stage=stage)])
+    includes_added = config.get_include_statements(stage)
 
     # Verify copy_file_if_changed was called for all files
     assert mock_copy_file_if_changed.call_count == 5  # 4 code files + 1 README
@@ -836,7 +811,6 @@ async def test_add_includes_with_directory_unix(
 async def test_add_includes_with_directory_windows(
     tmp_path: Path,
     mock_copy_file_if_changed: Mock,
-    mock_cg_with_include_capture: tuple[Mock, list[str]],
 ) -> None:
     """Test add_includes copies all files from a directory on Windows."""
     CORE.config_path = tmp_path / "config.yaml"
@@ -858,9 +832,9 @@ async def test_add_includes_with_directory_windows(
     subdir.mkdir()
     (subdir / "nested.h").write_text("#define NESTED")
 
-    mock_cg, includes_added = mock_cg_with_include_capture
-
-    await config.add_includes([str(include_dir)])
+    stage = config.INCLUDE_STAGE_BEFORE_ANY_GLOBALS
+    await config.add_includes([dict(path=str(include_dir), stage=stage)])
+    includes_added = config.get_include_statements(stage)
 
     # Verify copy_file_if_changed was called for all files
     assert mock_copy_file_if_changed.call_count == 5  # 4 code files + 1 README
@@ -898,7 +872,12 @@ async def test_add_includes_with_multiple_sources(
     (dir2 / "file2.cpp").write_text("// File2")
 
     with patch("esphome.core.config.cg"):
-        await config.add_includes([str(single_file), str(dir1), str(dir2)])
+        await config.add_includes(
+            [
+                dict(path=p, stage=config.INCLUDE_STAGE_DEFAULT)
+                for p in [str(single_file), str(dir1), str(dir2)]
+            ]
+        )
 
     # Verify copy_file_if_changed was called for all files
     assert mock_copy_file_if_changed.call_count == 3  # 3 files total
@@ -919,7 +898,9 @@ async def test_add_includes_empty_directory(
 
     with patch("esphome.core.config.cg"):
         # Should not raise any errors
-        await config.add_includes([str(empty_dir)])
+        await config.add_includes(
+            [dict(path=str(empty_dir), stage=config.INCLUDE_STAGE_DEFAULT)]
+        )
 
     # No files to copy from empty directory
     mock_copy_file_if_changed.assert_not_called()
@@ -948,7 +929,9 @@ async def test_add_includes_preserves_directory_structure_unix(
     (utils_dir / "helper.h").write_text("#define HELPER")
 
     with patch("esphome.core.config.cg"):
-        await config.add_includes([str(lib_dir)])
+        await config.add_includes(
+            [dict(path=str(lib_dir), stage=config.INCLUDE_STAGE_DEFAULT)]
+        )
 
     # Verify copy_file_if_changed was called with correct paths
     calls = mock_copy_file_if_changed.call_args_list
@@ -982,7 +965,9 @@ async def test_add_includes_preserves_directory_structure_windows(
     (utils_dir / "helper.h").write_text("#define HELPER")
 
     with patch("esphome.core.config.cg"):
-        await config.add_includes([str(lib_dir)])
+        await config.add_includes(
+            [dict(path=str(lib_dir), stage=config.INCLUDE_STAGE_DEFAULT)]
+        )
 
     # Verify copy_file_if_changed was called with correct paths
     calls = mock_copy_file_if_changed.call_args_list
@@ -1007,7 +992,9 @@ async def test_add_includes_overwrites_existing_files(
     include_file.write_text("#define NEW_VALUE 42")
 
     with patch("esphome.core.config.cg"):
-        await config.add_includes([str(include_file)])
+        await config.add_includes(
+            [dict(path=str(include_file), stage=config.INCLUDE_STAGE_DEFAULT)]
+        )
 
     # Verify copy_file_if_changed was called (it handles overwriting)
     # Note: add_includes adds files to a src/ subdirectory
