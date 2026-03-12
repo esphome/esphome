@@ -82,7 +82,9 @@ void socket_delay(uint32_t ms) {
     s_socket_woke = false;
     return;
   }
-  s_socket_woke = false;
+  // Don't clear s_socket_woke here — if an IRQ fires between the check above
+  // and the while loop below, the while condition sees it immediately. Clearing
+  // here would lose that wake and sleep until the timer fires.
   s_delay_expired = false;
   // Set a one-shot timer to wake us after the timeout.
   // add_alarm_in_ms returns >0 on success, 0 if time already passed, <0 on error.
@@ -100,6 +102,7 @@ void socket_delay(uint32_t ms) {
   // Cancel timer if we woke early (socket data arrived before timeout)
   if (!s_delay_expired)
     cancel_alarm(alarm);
+  s_socket_woke = false;  // consume the wake for next call
 }
 
 // No IRAM_ATTR equivalent needed: on RP2040, CYW43 async_context runs LWIP
