@@ -622,6 +622,7 @@ async def to_code(config):
         ),
         validate_set_value_action,
     ),
+    synchronous=True,
 )
 async def ble_server_characteristic_set_value(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -641,6 +642,7 @@ async def ble_server_characteristic_set_value(config, action_id, template_arg, a
             cv.Required(CONF_VALUE): value_schema(),
         }
     ),
+    synchronous=True,
 )
 async def ble_server_descriptor_set_value(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -662,6 +664,7 @@ async def ble_server_descriptor_set_value(config, action_id, template_arg, args)
         ),
         validate_notify_action,
     ),
+    synchronous=True,
 )
 async def ble_server_characteristic_notify(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

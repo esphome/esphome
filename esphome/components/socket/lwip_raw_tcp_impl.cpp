@@ -11,6 +11,9 @@
 
 #ifdef USE_ESP8266
 #include <coredecls.h>  // For esp_schedule()
+#elif defined(USE_RP2040)
+#include <hardware/sync.h>  // For __sev(), __wfe()
+#include <pico/time.h>      // For add_alarm_in_ms(), cancel_alarm()
 #endif
 
 namespace esphome::socket {
@@ -40,7 +43,91 @@ void IRAM_ATTR socket_wake() {
   s_socket_woke = true;
   esp_schedule();
 }
+#elif defined(USE_RP2040)
+// RP2040 (non-FreeRTOS) socket wake using hardware WFE/SEV instructions.
+//
+// Same pattern as ESP8266's esp_delay()/esp_schedule(): set a one-shot timer,
+// then sleep with __wfe(). Wake on either:
+//   - Timer alarm fires → callback calls __sev() → __wfe() returns → timeout
+//   - Socket data arrives → LWIP callback calls socket_wake() → __sev() → __wfe() returns → early wake
+//
+// CYW43 WiFi chip communicates via SPI interrupts on core 0. When data arrives,
+// the GPIO interrupt fires → async_context pendsv processes CYW43/LWIP → recv/accept
+// callbacks call socket_wake() → __sev() wakes the main loop from __wfe() sleep.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static volatile bool s_socket_woke = false;
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static volatile bool s_delay_expired = false;
+
+static int64_t alarm_callback(alarm_id_t id, void *user_data) {
+  (void) id;
+  (void) user_data;
+  s_delay_expired = true;
+  // Wake the main loop from __wfe() sleep — timeout expired.
+  __sev();
+  // Return 0 = don't reschedule (one-shot)
+  return 0;
+}
+
+void socket_delay(uint32_t ms) {
+  if (ms == 0) {
+    yield();
+    return;
+  }
+  // If a wake was already signalled, consume it and return immediately
+  // instead of going to sleep. This avoids losing a wake that arrived
+  // between loop iterations.
+  if (s_socket_woke) {
+    s_socket_woke = false;
+    return;
+  }
+  s_socket_woke = false;
+  s_delay_expired = false;
+  // Set a one-shot timer to wake us after the timeout.
+  // add_alarm_in_ms returns >0 on success, 0 if time already passed, <0 on error.
+  alarm_id_t alarm = add_alarm_in_ms(ms, alarm_callback, nullptr, true);
+  if (alarm <= 0) {
+    delay(ms);
+    return;
+  }
+  // Sleep until woken by either the timer alarm or socket_wake().
+  // __wfe() may return spuriously (stale event register, other interrupts),
+  // so we loop checking both flags.
+  while (!s_socket_woke && !s_delay_expired) {
+    __wfe();
+  }
+  // Cancel timer if we woke early (socket data arrived before timeout)
+  if (!s_delay_expired)
+    cancel_alarm(alarm);
+}
+
+// No IRAM_ATTR equivalent needed: on RP2040, CYW43 async_context runs LWIP
+// callbacks via pendsv (not hard IRQ), so they execute from flash safely.
+void socket_wake() {
+  s_socket_woke = true;
+  // Wake the main loop from __wfe() sleep. __sev() is a global event that
+  // wakes any core sleeping in __wfe(). This is ISR-safe.
+  __sev();
+}
 #endif
+
+// ---- LWIP thread safety ----
+//
+// On RP2040 (Pico W), arduino-pico sets PICO_CYW43_ARCH_THREADSAFE_BACKGROUND=1.
+// This means lwip callbacks (recv_fn, accept_fn, err_fn) run from a low-priority
+// user IRQ context, not the main loop (see low_priority_irq_handler() in pico-sdk
+// async_context_threadsafe_background.c). They can preempt main-loop code at any point.
+//
+// Without locking, this causes race conditions between recv_fn and read() on the
+// shared rx_buf_ pbuf chain — recv_fn calls pbuf_cat() while read() is freeing
+// nodes, leading to use-after-free and infinite-loop crashes. See esphome#10681.
+//
+// On ESP8266, lwip callbacks run from the SYS context which cooperates with user
+// code (CONT context) — they never preempt each other, so no locking is needed.
+//
+// esphome::LwIPLock is the platform-provided RAII guard (see helpers.h/helpers.cpp).
+// On RP2040, it acquires cyw43_arch_lwip_begin/end. On ESP8266, it's a no-op.
+#define LWIP_LOCK() esphome::LwIPLock lwip_lock_guard  // NOLINT
 
 static const char *const TAG = "socket.lwip";
 
@@ -54,6 +141,7 @@ static const char *const TAG = "socket.lwip";
 // ---- LWIPRawCommon methods ----
 
 LWIPRawCommon::~LWIPRawCommon() {
+  LWIP_LOCK();
   if (this->pcb_ != nullptr) {
     LWIP_LOG("tcp_abort(%p)", this->pcb_);
     tcp_abort(this->pcb_);
@@ -62,6 +150,7 @@ LWIPRawCommon::~LWIPRawCommon() {
 }
 
 int LWIPRawCommon::bind(const struct sockaddr *name, socklen_t addrlen) {
+  LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = EBADF;
     return -1;
@@ -127,6 +216,7 @@ int LWIPRawCommon::bind(const struct sockaddr *name, socklen_t addrlen) {
 }
 
 int LWIPRawCommon::close() {
+  LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = ECONNRESET;
     return -1;
@@ -145,6 +235,7 @@ int LWIPRawCommon::close() {
 }
 
 int LWIPRawCommon::shutdown(int how) {
+  LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = ECONNRESET;
     return -1;
@@ -171,6 +262,7 @@ int LWIPRawCommon::shutdown(int how) {
 }
 
 int LWIPRawCommon::getpeername(struct sockaddr *name, socklen_t *addrlen) {
+  LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = ECONNRESET;
     return -1;
@@ -183,6 +275,7 @@ int LWIPRawCommon::getpeername(struct sockaddr *name, socklen_t *addrlen) {
 }
 
 int LWIPRawCommon::getsockname(struct sockaddr *name, socklen_t *addrlen) {
+  LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = ECONNRESET;
     return -1;
@@ -215,6 +308,7 @@ size_t LWIPRawCommon::getsockname_to(std::span<char, SOCKADDR_STR_LEN> buf) {
 }
 
 int LWIPRawCommon::getsockopt(int level, int optname, void *optval, socklen_t *optlen) {
+  LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = ECONNRESET;
     return -1;
@@ -249,6 +343,7 @@ int LWIPRawCommon::getsockopt(int level, int optname, void *optval, socklen_t *o
 }
 
 int LWIPRawCommon::setsockopt(int level, int optname, const void *optval, socklen_t optlen) {
+  LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = ECONNRESET;
     return -1;
@@ -319,6 +414,7 @@ int LWIPRawCommon::ip2sockaddr_(ip_addr_t *ip, uint16_t port, struct sockaddr *n
 // ---- LWIPRawImpl methods ----
 
 LWIPRawImpl::~LWIPRawImpl() {
+  LWIP_LOCK();
   // Free any received pbufs that LWIP transferred ownership of via recv_fn.
   // tcp_abort() in the base destructor won't free these since LWIP considers
   // ownership transferred once the recv callback accepts them.
@@ -329,16 +425,24 @@ LWIPRawImpl::~LWIPRawImpl() {
   // Base class destructor handles pcb_ cleanup via tcp_abort
 }
 
-void LWIPRawImpl::init() {
+void LWIPRawImpl::init(struct pbuf *initial_rx, bool initial_rx_closed) {
+  LWIP_LOCK();
   LWIP_LOG("init(%p)", this->pcb_);
   tcp_arg(this->pcb_, this);
   tcp_recv(this->pcb_, LWIPRawImpl::s_recv_fn);
   tcp_err(this->pcb_, LWIPRawImpl::s_err_fn);
+  if (initial_rx != nullptr) {
+    this->rx_buf_ = initial_rx;
+    this->rx_buf_offset_ = 0;
+  }
+  this->rx_closed_ = initial_rx_closed;
 }
 
 void LWIPRawImpl::s_err_fn(void *arg, err_t err) {
-  // "If a connection is aborted because of an error, the application is alerted of this event by
-  // the err callback."
+  // LWIP CALLBACK — runs from IRQ context on RP2040 (low-priority user IRQ).
+  // No heap allocation allowed — malloc is not IRQ-safe (see #14687).
+  // No LWIP_LOCK() needed — lwip core already holds the async_context lock.
+  //
   // pcb is already freed when this callback is called
   // ERR_RST: connection was reset by remote host
   // ERR_ABRT: aborted through tcp_abort or TCP timer
@@ -353,10 +457,15 @@ err_t LWIPRawImpl::s_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, er
 }
 
 err_t LWIPRawImpl::recv_fn(struct pbuf *pb, err_t err) {
+  // LWIP CALLBACK — runs from IRQ context on RP2040 (low-priority user IRQ).
+  // No heap allocation allowed — malloc is not IRQ-safe (see #14687).
   LWIP_LOG("recv(pb=%p err=%d)", pb, err);
   if (err != 0) {
     // "An error code if there has been an error receiving Only return ERR_ABRT if you have
     // called tcp_abort from within the callback function!"
+    if (pb != nullptr) {
+      pbuf_free(pb);
+    }
     this->rx_closed_ = true;
     return ERR_OK;
   }
@@ -371,7 +480,7 @@ err_t LWIPRawImpl::recv_fn(struct pbuf *pb, err_t err) {
   } else {
     pbuf_cat(this->rx_buf_, pb);
   }
-#ifdef USE_ESP8266
+#if (defined(USE_ESP8266) || defined(USE_RP2040))
   // Wake the main loop immediately so it can process the received data.
   socket_wake();
 #endif
@@ -379,6 +488,7 @@ err_t LWIPRawImpl::recv_fn(struct pbuf *pb, err_t err) {
 }
 
 ssize_t LWIPRawImpl::read(void *buf, size_t len) {
+  LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = ECONNRESET;
     return -1;
@@ -438,6 +548,7 @@ ssize_t LWIPRawImpl::read(void *buf, size_t len) {
 }
 
 ssize_t LWIPRawImpl::readv(const struct iovec *iov, int iovcnt) {
+  LWIP_LOCK();  // Hold for entire scatter-gather operation
   ssize_t ret = 0;
   for (int i = 0; i < iovcnt; i++) {
     ssize_t err = this->read(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
@@ -456,6 +567,7 @@ ssize_t LWIPRawImpl::readv(const struct iovec *iov, int iovcnt) {
 }
 
 ssize_t LWIPRawImpl::internal_write_(const void *buf, size_t len) {
+  LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = ECONNRESET;
     return -1;
@@ -488,6 +600,11 @@ ssize_t LWIPRawImpl::internal_write_(const void *buf, size_t len) {
 }
 
 int LWIPRawImpl::internal_output_() {
+  LWIP_LOCK();
+  if (this->pcb_ == nullptr) {
+    errno = ECONNRESET;
+    return -1;
+  }
   LWIP_LOG("tcp_output(%p)", this->pcb_);
   err_t err = tcp_output(this->pcb_);
   if (err == ERR_ABRT) {
@@ -507,6 +624,7 @@ int LWIPRawImpl::internal_output_() {
 }
 
 ssize_t LWIPRawImpl::write(const void *buf, size_t len) {
+  LWIP_LOCK();  // Hold for write + optional output
   ssize_t written = this->internal_write_(buf, len);
   if (written == -1)
     return -1;
@@ -523,6 +641,7 @@ ssize_t LWIPRawImpl::write(const void *buf, size_t len) {
 }
 
 ssize_t LWIPRawImpl::writev(const struct iovec *iov, int iovcnt) {
+  LWIP_LOCK();  // Hold for entire scatter-gather operation
   ssize_t written = 0;
   for (int i = 0; i < iovcnt; i++) {
     ssize_t err = this->internal_write_(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
@@ -552,6 +671,23 @@ ssize_t LWIPRawImpl::writev(const struct iovec *iov, int iovcnt) {
 // ---- LWIPRawListenImpl methods ----
 
 LWIPRawListenImpl::~LWIPRawListenImpl() {
+  LWIP_LOCK();
+  // Abort any queued PCBs that were never accepted by the main loop.
+  // Clear the error callback first — tcp_abort triggers it, and we don't
+  // want s_queued_err_fn writing to slots during destruction.
+  for (uint8_t i = 0; i < this->accepted_socket_count_; i++) {
+    auto &entry = this->accepted_pcbs_[i];
+    if (entry.pcb != nullptr) {
+      tcp_err(entry.pcb, nullptr);
+      tcp_abort(entry.pcb);
+      entry.pcb = nullptr;
+    }
+    if (entry.rx_buf != nullptr) {
+      pbuf_free(entry.rx_buf);
+      entry.rx_buf = nullptr;
+    }
+  }
+  this->accepted_socket_count_ = 0;
   // Listen PCBs must use tcp_close(), not tcp_abort().
   // tcp_abandon() asserts pcb->state != LISTEN and would access
   // fields that don't exist in the smaller tcp_pcb_listen struct.
@@ -563,6 +699,7 @@ LWIPRawListenImpl::~LWIPRawListenImpl() {
 }
 
 void LWIPRawListenImpl::init() {
+  LWIP_LOCK();
   LWIP_LOG("init(%p)", this->pcb_);
   tcp_arg(this->pcb_, this);
   tcp_accept(this->pcb_, LWIPRawListenImpl::s_accept_fn);
@@ -570,9 +707,47 @@ void LWIPRawListenImpl::init() {
 }
 
 void LWIPRawListenImpl::s_err_fn(void *arg, err_t err) {
+  // LWIP CALLBACK — runs from IRQ context on RP2040 (low-priority user IRQ).
+  // No heap allocation allowed — malloc is not IRQ-safe (see #14687).
   auto *arg_this = reinterpret_cast<LWIPRawListenImpl *>(arg);
   ESP_LOGVV(TAG, "socket %p: err(err=%d)", arg_this, err);
   arg_this->pcb_ = nullptr;
+}
+
+void LWIPRawListenImpl::s_queued_err_fn(void *arg, err_t err) {
+  // LWIP CALLBACK — runs from IRQ context on RP2040 (low-priority user IRQ).
+  // No heap allocation allowed — malloc is not IRQ-safe (see #14687).
+  // Called when a queued (not yet accepted) PCB errors — e.g., remote sent RST.
+  // The PCB is already freed by lwip. Null our pointer so accept() skips it.
+  (void) err;
+  auto *entry = reinterpret_cast<QueuedPcb *>(arg);
+  entry->pcb = nullptr;
+  // Don't free rx_buf here — accept() will clean it up when it sees pcb==nullptr
+}
+
+err_t LWIPRawListenImpl::s_queued_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, err_t err) {
+  // LWIP CALLBACK — runs from IRQ context on RP2040 (low-priority user IRQ).
+  // No heap allocation allowed — malloc is not IRQ-safe (see #14687).
+  // Temporary recv callback for PCBs queued between accept_fn_ and accept().
+  // Without this, lwip's default tcp_recv_null handler would ACK and drop the data,
+  // causing the API handshake to silently fail (client sends Hello, server never sees it).
+  (void) pcb;
+  auto *entry = reinterpret_cast<QueuedPcb *>(arg);
+  if (pb == nullptr || err != ERR_OK) {
+    // Remote closed or error
+    if (pb != nullptr) {
+      pbuf_free(pb);
+    }
+    entry->rx_closed = true;
+    return ERR_OK;
+  }
+  // Buffer the data — tcp_recved() is deferred to read() after accept() creates the socket.
+  if (entry->rx_buf == nullptr) {
+    entry->rx_buf = pb;
+  } else {
+    pbuf_cat(entry->rx_buf, pb);
+  }
+  return ERR_OK;
 }
 
 err_t LWIPRawListenImpl::s_accept_fn(void *arg, struct tcp_pcb *newpcb, err_t err) {
@@ -581,30 +756,49 @@ err_t LWIPRawListenImpl::s_accept_fn(void *arg, struct tcp_pcb *newpcb, err_t er
 }
 
 std::unique_ptr<LWIPRawImpl> LWIPRawListenImpl::accept(struct sockaddr *addr, socklen_t *addrlen) {
+  LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = EBADF;
     return nullptr;
   }
-  if (this->accepted_socket_count_ == 0) {
-    errno = EWOULDBLOCK;
-    return nullptr;
+  // Dequeue front entry, skipping any null entries (PCBs freed by lwip while queued).
+  // The error callback nulled their pcb pointers; clean up buffered data and discard.
+  while (this->accepted_socket_count_ > 0) {
+    QueuedPcb entry = this->accepted_pcbs_[0];
+    // Shift remaining entries forward, updating tcp_arg pointers as we go.
+    // Safe because we hold LWIP_LOCK, so err/recv callbacks can't fire during the update.
+    for (uint8_t i = 1; i < this->accepted_socket_count_; i++) {
+      this->accepted_pcbs_[i - 1] = this->accepted_pcbs_[i];
+      if (this->accepted_pcbs_[i - 1].pcb != nullptr) {
+        tcp_arg(this->accepted_pcbs_[i - 1].pcb, &this->accepted_pcbs_[i - 1]);
+      }
+    }
+    this->accepted_pcbs_[this->accepted_socket_count_ - 1] = {};
+    this->accepted_socket_count_--;
+    if (entry.pcb == nullptr) {
+      // PCB was freed by lwip (RST/timeout) while queued — discard and try next
+      if (entry.rx_buf != nullptr) {
+        pbuf_free(entry.rx_buf);
+      }
+      continue;
+    }
+    LWIP_LOG("Connection accepted by application, queue size: %d", this->accepted_socket_count_);
+    // Create socket wrapper on the main loop (not in accept callback) to avoid
+    // heap allocation in IRQ context on RP2040. Transfer any data received while queued.
+    auto sock = make_unique<LWIPRawImpl>(this->family_, entry.pcb);
+    sock->init(entry.rx_buf, entry.rx_closed);
+    if (addr != nullptr) {
+      sock->getpeername(addr, addrlen);
+    }
+    LWIP_LOG("accept(%p)", sock.get());
+    return sock;
   }
-  // Take from front for FIFO ordering
-  std::unique_ptr<LWIPRawImpl> sock = std::move(this->accepted_sockets_[0]);
-  // Shift remaining sockets forward
-  for (uint8_t i = 1; i < this->accepted_socket_count_; i++) {
-    this->accepted_sockets_[i - 1] = std::move(this->accepted_sockets_[i]);
-  }
-  this->accepted_socket_count_--;
-  LWIP_LOG("Connection accepted by application, queue size: %d", this->accepted_socket_count_);
-  if (addr != nullptr) {
-    sock->getpeername(addr, addrlen);
-  }
-  LWIP_LOG("accept(%p)", sock.get());
-  return sock;
+  errno = EWOULDBLOCK;
+  return nullptr;
 }
 
 int LWIPRawListenImpl::listen(int backlog) {
+  LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = EBADF;
     return -1;
@@ -630,6 +824,8 @@ int LWIPRawListenImpl::listen(int backlog) {
 }
 
 err_t LWIPRawListenImpl::accept_fn_(struct tcp_pcb *newpcb, err_t err) {
+  // LWIP CALLBACK — runs from IRQ context on RP2040 (low-priority user IRQ).
+  // No heap allocation allowed — malloc is not IRQ-safe (see #14687).
   LWIP_LOG("accept(newpcb=%p err=%d)", newpcb, err);
   if (err != ERR_OK || newpcb == nullptr) {
     // "An error code if there has been an error accepting. Only return ERR_ABRT if you have
@@ -646,11 +842,20 @@ err_t LWIPRawListenImpl::accept_fn_(struct tcp_pcb *newpcb, err_t err) {
     // Must return ERR_ABRT since we called tcp_abort()
     return ERR_ABRT;
   }
-  auto sock = make_unique<LWIPRawImpl>(this->family_, newpcb);
-  sock->init();
-  this->accepted_sockets_[this->accepted_socket_count_++] = std::move(sock);
+  // Store the raw PCB — LWIPRawImpl creation is deferred to the main-loop accept().
+  // This avoids heap allocation in this callback, which is unsafe from IRQ context on RP2040.
+  uint8_t idx = this->accepted_socket_count_++;
+  this->accepted_pcbs_[idx] = {newpcb, nullptr, false};
+  // Register temporary callbacks so that while the PCB is queued:
+  // - err: nulls our pointer if the connection errors (RST, timeout)
+  // - recv: buffers any data that arrives before accept() creates the LWIPRawImpl
+  //   (without this, lwip's default tcp_recv_null would ACK and drop the data)
+  // tcp_arg points to our queue entry; accept() updates these pointers after shifting.
+  tcp_arg(newpcb, &this->accepted_pcbs_[idx]);
+  tcp_err(newpcb, LWIPRawListenImpl::s_queued_err_fn);
+  tcp_recv(newpcb, LWIPRawListenImpl::s_queued_recv_fn);
   LWIP_LOG("Accepted connection, queue size: %d", this->accepted_socket_count_);
-#ifdef USE_ESP8266
+#if (defined(USE_ESP8266) || defined(USE_RP2040))
   // Wake the main loop immediately so it can accept the new connection.
   socket_wake();
 #endif
@@ -665,6 +870,7 @@ std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
     errno = EPROTOTYPE;
     return nullptr;
   }
+  LWIP_LOCK();
   auto *pcb = tcp_new();
   if (pcb == nullptr)
     return nullptr;
@@ -684,6 +890,7 @@ std::unique_ptr<ListenSocket> socket_listen(int domain, int type, int protocol) 
     errno = EPROTOTYPE;
     return nullptr;
   }
+  LWIP_LOCK();
   auto *pcb = tcp_new();
   if (pcb == nullptr)
     return nullptr;
@@ -696,6 +903,8 @@ std::unique_ptr<ListenSocket> socket_listen_loop_monitored(int domain, int type,
   // LWIPRawImpl doesn't use file descriptors, so monitoring is not applicable
   return socket_listen(domain, type, protocol);
 }
+
+#undef LWIP_LOCK
 
 }  // namespace esphome::socket
 

@@ -207,9 +207,7 @@ APIError APINoiseFrameHelper::try_read_frame_() {
   // During handshake, rx_buf_.size() is used in prologue construction, so
   // the buffer must be exactly msg_size to avoid prologue mismatch.)
   uint16_t alloc_size = msg_size + (is_data ? RX_BUF_NULL_TERMINATOR : 0);
-  if (this->rx_buf_.size() != alloc_size) {
-    this->rx_buf_.resize(alloc_size);
-  }
+  this->rx_buf_.resize(alloc_size);
 
   if (rx_buf_len_ < msg_size) {
     // more data to read
@@ -269,7 +267,7 @@ APIError APINoiseFrameHelper::state_action_() {
   }
   if (state_ == State::SERVER_HELLO) {
     // send server hello
-    const std::string &name = App.get_name();
+    const auto &name = App.get_name();
     char mac[MAC_ADDRESS_BUFFER_SIZE];
     get_mac_address_into_buffer(mac);
 
@@ -375,6 +373,7 @@ void APINoiseFrameHelper::send_explicit_handshake_reject_(const LogString *reaso
 #ifdef USE_STORE_LOG_STR_IN_FLASH
   // On ESP8266 with flash strings, we need to use PROGMEM-aware functions
   size_t reason_len = strlen_P(reinterpret_cast<PGM_P>(reason));
+  reason_len = std::min(reason_len, sizeof(data) - 1);
   if (reason_len > 0) {
     memcpy_P(data + 1, reinterpret_cast<PGM_P>(reason), reason_len);
   }
@@ -382,6 +381,7 @@ void APINoiseFrameHelper::send_explicit_handshake_reject_(const LogString *reaso
   // Normal memory access
   const char *reason_str = LOG_STR_ARG(reason);
   size_t reason_len = strlen(reason_str);
+  reason_len = std::min(reason_len, sizeof(data) - 1);
   if (reason_len > 0) {
     // NOLINTNEXTLINE(bugprone-not-null-terminated-result) - binary protocol, not a C string
     std::memcpy(data + 1, reason_str, reason_len);
@@ -397,14 +397,9 @@ void APINoiseFrameHelper::send_explicit_handshake_reject_(const LogString *reaso
   state_ = orig_state;
 }
 APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
-  APIError aerr = this->state_action_();
-  if (aerr != APIError::OK) {
+  APIError aerr = this->check_data_state_();
+  if (aerr != APIError::OK)
     return aerr;
-  }
-
-  if (this->state_ != State::DATA) {
-    return APIError::WOULD_BLOCK;
-  }
 
   aerr = this->try_read_frame_();
   if (aerr != APIError::OK)
@@ -461,14 +456,9 @@ APIError APINoiseFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuff
 }
 
 APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) {
-  APIError aerr = state_action_();
-  if (aerr != APIError::OK) {
+  APIError aerr = this->check_data_state_();
+  if (aerr != APIError::OK)
     return aerr;
-  }
-
-  if (state_ != State::DATA) {
-    return APIError::WOULD_BLOCK;
-  }
 
   if (messages.empty()) {
     return APIError::OK;
@@ -579,8 +569,7 @@ APIError APINoiseFrameHelper::init_handshake_() {
   if (aerr != APIError::OK)
     return aerr;
   // set_prologue copies it into handshakestate, so we can get rid of it now
-  // Use swap idiom to actually release memory (= {} only clears size, not capacity)
-  std::vector<uint8_t>().swap(prologue_);
+  prologue_.release();
 
   err = noise_handshakestate_start(handshake_);
   aerr = handle_noise_error_(err, LOG_STR("noise_handshakestate_start"), APIError::HANDSHAKESTATE_SETUP_FAILED);
