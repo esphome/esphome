@@ -2,6 +2,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
+static const char *const TAG = "spa06_i2c";
+
 namespace esphome::spa06_i2c {
 void SPA06I2CComponent::dump_config() {
   LOG_I2C_DEVICE(this);
