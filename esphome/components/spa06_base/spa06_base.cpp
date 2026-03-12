@@ -265,7 +265,8 @@ void SPA06Component::update() {
 
     // Check measurement register for readiness
     if (!this->spa_read_byte(SPA06_MEAS_CFG, &this->meas_.reg)) {
-      ESP_LOGD(TAG, "Cannot read meas config");
+      ESP_LOGW(TAG, "Cannot read meas config");
+      this->status_set_warning();
       return;
     }
     if (this->pressure_sensor_) {
