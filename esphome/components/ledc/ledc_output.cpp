@@ -5,11 +5,9 @@
 
 #include <driver/ledc.h>
 #include <cinttypes>
-#ifdef USE_ESP_IDF
 #include <esp_private/periph_ctrl.h>
 #if !defined(SOC_LEDC_SUPPORT_FADE_STOP)
 #include <hal/ledc_ll.h>
-#endif
 #endif
 
 #define CLOCK_FREQUENCY 80e6f
@@ -25,9 +23,7 @@ static const uint8_t SETUP_ATTEMPT_COUNT_MAX = 5;
 namespace esphome::ledc {
 
 static const char *const TAG = "ledc.output";
-#ifdef USE_ESP_IDF
 static bool ledc_peripheral_reset_done = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-#endif
 
 static const int MAX_RES_BITS = LEDC_TIMER_BIT_MAX - 1;
 #if SOC_LEDC_SUPPORT_HS_MODE
@@ -40,7 +36,7 @@ inline ledc_mode_t get_speed_mode(uint8_t channel) { return channel < 8 ? LEDC_H
 inline ledc_mode_t get_speed_mode(uint8_t) { return LEDC_LOW_SPEED_MODE; }
 #endif
 
-#if defined(USE_ESP_IDF) && !defined(SOC_LEDC_SUPPORT_FADE_STOP)
+#if !defined(SOC_LEDC_SUPPORT_FADE_STOP)
 static bool ledc_duty_update_pending(ledc_mode_t speed_mode, ledc_channel_t chan_num) {
   auto *hw = LEDC_LL_GET_HW();
   return hw->channel_group[speed_mode].channel[chan_num].conf1.duty_start != 0;
@@ -123,7 +119,6 @@ void LEDCOutput::write_state(float state) {
   if (duty == this->last_duty_) {
     return;
   }
-  this->last_duty_ = duty;
 
   ESP_LOGV(TAG, "Setting duty: %" PRIu32 " on channel %u", duty, this->channel_);
   auto speed_mode = get_speed_mode(this->channel_);
@@ -136,7 +131,7 @@ void LEDCOutput::write_state(float state) {
     ledc_stop(speed_mode, chan_num, 0);
     this->last_duty_ = duty;
   } else {
-#if defined(USE_ESP_IDF) && !defined(SOC_LEDC_SUPPORT_FADE_STOP)
+#if !defined(SOC_LEDC_SUPPORT_FADE_STOP)
     if (ledc_duty_update_pending(speed_mode, chan_num)) {
       ESP_LOGV(TAG, "Skipping LEDC duty update on channel %u while previous duty_start is still set", this->channel_);
       return;
@@ -149,13 +144,11 @@ void LEDCOutput::write_state(float state) {
 }
 
 void LEDCOutput::setup() {
-#ifdef USE_ESP_IDF
   if (!ledc_peripheral_reset_done) {
     ESP_LOGI(TAG, "Resetting LEDC peripheral to clear stale state after reboot");
     periph_module_reset(PERIPH_LEDC_MODULE);
     ledc_peripheral_reset_done = true;
   }
-#endif
 
   auto speed_mode = get_speed_mode(this->channel_);
   auto timer_num = static_cast<ledc_timer_t>((this->channel_ % 8) / 2);
