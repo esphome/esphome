@@ -4,8 +4,6 @@
 
 namespace esphome::spa06_i2c {
 
-static const char *const TAG = "spa06_i2c.sensor";
-
 class SPA06I2CComponent : public spa06_base::SPA06Component, public i2c::I2CDevice {
  public:
   bool spa_read_byte(uint8_t a_register, uint8_t *data) override { return read_byte(a_register, data); }
