@@ -166,6 +166,7 @@ TTLS_PHASE_2 = {
 }
 
 EAP_AUTH_SCHEMA = cv.All(
+    cv.only_on([Platform.ESP32, Platform.ESP8266]),
     cv.Schema(
         {
             cv.Optional(CONF_IDENTITY): cv.string_strict,
