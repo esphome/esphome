@@ -61,8 +61,14 @@ static constexpr uint8_t OBIS_D = 3;
 static constexpr uint8_t OBIS_E = 4;
 static constexpr uint8_t OBIS_F = 5;
 
+constexpr uint32_t encode_obis_cde(uint8_t c, uint8_t d, uint8_t e) {
+  return (static_cast<uint32_t>(c) << 16) | (static_cast<uint32_t>(d) << 8) | e;
+}
+
 // Metadata
 static constexpr uint16_t OBIS_TIMESTAMP = 0x0100;
+static constexpr uint32_t OBIS_LIST_VERSION_IDENTIFIER = 0x000281;
+static constexpr uint32_t OBIS_METER_NUMBER = 0x000001;
 static constexpr uint16_t OBIS_SERIAL_NUMBER = 0x6001;
 static constexpr uint16_t OBIS_DEVICE_NAME = 0x2A00;
 
@@ -79,16 +85,33 @@ static constexpr uint16_t OBIS_CURRENT_L3 = 0x4707;
 // Power
 static constexpr uint16_t OBIS_ACTIVE_POWER_PLUS = 0x0107;
 static constexpr uint16_t OBIS_ACTIVE_POWER_MINUS = 0x0207;
+static constexpr uint16_t OBIS_REACTIVE_POWER_PLUS = 0x0307;
+static constexpr uint16_t OBIS_REACTIVE_POWER_MINUS = 0x0407;
+static constexpr uint16_t OBIS_ACTIVE_POWER_PLUS_L1 = 0x1507;
+static constexpr uint16_t OBIS_ACTIVE_POWER_MINUS_L1 = 0x1607;
+static constexpr uint16_t OBIS_ACTIVE_POWER_PLUS_L2 = 0x2907;
+static constexpr uint16_t OBIS_ACTIVE_POWER_MINUS_L2 = 0x2A07;
+static constexpr uint16_t OBIS_ACTIVE_POWER_PLUS_L3 = 0x3D07;
+static constexpr uint16_t OBIS_ACTIVE_POWER_MINUS_L3 = 0x3E07;
 
 // Active energy
 static constexpr uint16_t OBIS_ACTIVE_ENERGY_PLUS = 0x0108;
 static constexpr uint16_t OBIS_ACTIVE_ENERGY_MINUS = 0x0208;
+static constexpr uint16_t OBIS_ACTIVE_ENERGY_PLUS_L1 = 0x1508;
+static constexpr uint16_t OBIS_ACTIVE_ENERGY_MINUS_L1 = 0x1608;
+static constexpr uint16_t OBIS_ACTIVE_ENERGY_PLUS_L2 = 0x2908;
+static constexpr uint16_t OBIS_ACTIVE_ENERGY_MINUS_L2 = 0x2A08;
+static constexpr uint16_t OBIS_ACTIVE_ENERGY_PLUS_L3 = 0x3D08;
+static constexpr uint16_t OBIS_ACTIVE_ENERGY_MINUS_L3 = 0x3E08;
 
 // Reactive energy
 static constexpr uint16_t OBIS_REACTIVE_ENERGY_PLUS = 0x0308;
 static constexpr uint16_t OBIS_REACTIVE_ENERGY_MINUS = 0x0408;
 
-// Netz NOE specific
+// Power Factor
 static constexpr uint16_t OBIS_POWER_FACTOR = 0x0D07;
+static constexpr uint16_t OBIS_POWER_FACTOR_L1 = 0x2107;
+static constexpr uint16_t OBIS_POWER_FACTOR_L2 = 0x3507;
+static constexpr uint16_t OBIS_POWER_FACTOR_L3 = 0x4907;
 
 }  // namespace esphome::dlms_meter

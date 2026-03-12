@@ -13,6 +13,8 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional("timestamp"): text_sensor.text_sensor_schema(),
         # Netz NOE
         cv.Optional("meternumber"): text_sensor.text_sensor_schema(),
+        cv.Optional("meter_number"): text_sensor.text_sensor_schema(),
+        cv.Optional("obis_list_version"): text_sensor.text_sensor_schema(),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 

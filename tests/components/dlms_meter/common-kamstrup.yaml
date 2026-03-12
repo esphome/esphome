@@ -1,0 +1,52 @@
+dlms_meter:
+  decryption_key: "36C66639E48A8CA4D6BC8B282A793BBB"
+  authentication_key: "00112233445566778899AABBCCDDEEFF"
+  provider: kamstrup-omnipower
+
+sensor:
+  - platform: dlms_meter
+    active_power_plus_l1:
+      name: "Active power taken from grid on L1"
+    active_power_minus_l1:
+      name: "Active power put into grid on L1"
+    active_power_plus_l2:
+      name: "Active power taken from grid on L2"
+    active_power_minus_l2:
+      name: "Active power put into grid on L2"
+    active_power_plus_l3:
+      name: "Active power taken from grid on L3"
+    active_power_minus_l3:
+      name: "Active power put into grid on L3"
+    reactive_power_plus:
+      name: "Reactive power taken from grid"
+    reactive_power_minus:
+      name: "Reactive power put into grid"
+    power_factor_l1:
+      name: "Power factor L1"
+    power_factor_l2:
+      name: "Power factor L2"
+    power_factor_l3:
+      name: "Power factor L3"
+    power_factor_total:
+      name: "Power factor total"
+    active_energy_plus_l1:
+      name: "Active energy taken from grid on L1"
+    active_energy_minus_l1:
+      name: "Active energy put into grid on L1"
+    active_energy_plus_l2:
+      name: "Active energy taken from grid on L2"
+    active_energy_minus_l2:
+      name: "Active energy put into grid on L2"
+    active_energy_plus_l3:
+      name: "Active energy taken from grid on L3"
+    active_energy_minus_l3:
+      name: "Active energy put into grid on L3"
+
+text_sensor:
+  - platform: dlms_meter
+    meter_number:
+      name: "Meter number"
+    obis_list_version:
+      name: "OBIS list version"
+
+<<: !include common.yaml

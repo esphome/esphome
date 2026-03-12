@@ -30,21 +30,25 @@ namespace esphome::dlms_meter {
 +-------------------------------+
 |                               |
 ~                               ~
-        Encrypted Payload
+           Ciphertext
 ~                               ~
 |                               |
++-------------------------------+
+|     Authentication Tag        | (12 Bytes, if authentication bit is set)
 +-------------------------------+
 
 Ciphering Service: 0xDB (General-Glo-Ciphering)
 System Title Length: 0x08
 System Title: Unique ID of meter
-Length: 1 Byte=Length <= 127, 3 Bytes=Length > 127 (0x82 & 2 Bytes length)
+Length: 1 Byte=Length <= 127, 3 Bytes=Length > 127 (0x82 + 2 length bytes)
 Security Control Byte:
 - Bit 3…0: Security_Suite_Id
 - Bit 4: "A" subfield: indicates that authentication is applied
 - Bit 5: "E" subfield: indicates that encryption is applied
 - Bit 6: Key_Set subfield: 0 = Unicast, 1 = Broadcast
 - Bit 7: Indicates the use of compression.
+The payload after the frame counter is ciphertext. If authentication is enabled, a trailing 12-byte
+authentication tag is appended to the ciphertext.
  */
 
 static constexpr uint8_t DLMS_HEADER_LENGTH = 16;
@@ -58,10 +62,16 @@ static constexpr uint8_t DLMS_SECBYTE_OFFSET = 11;
 static constexpr uint8_t DLMS_FRAMECOUNTER_OFFSET = 12;
 static constexpr uint8_t DLMS_FRAMECOUNTER_LENGTH = 4;
 static constexpr uint8_t DLMS_PAYLOAD_OFFSET = 16;
+static constexpr uint8_t DLMS_AUTH_TAG_LENGTH = 12;
 static constexpr uint8_t GLO_CIPHERING = 0xDB;
 static constexpr uint8_t DATA_NOTIFICATION = 0x0F;
 static constexpr uint8_t TIMESTAMP_DATETIME = 0x0C;
 static constexpr uint16_t MAX_MESSAGE_LENGTH = 512;  // Maximum size of message (when having 2 bytes length in header).
+static constexpr uint8_t DLMS_SECURITY_SUITE_MASK = 0x0F;
+static constexpr uint8_t DLMS_SECURITY_AUTHENTICATION = 0x10;
+static constexpr uint8_t DLMS_SECURITY_ENCRYPTION = 0x20;
+static constexpr uint8_t DLMS_SECURITY_SUPPORTED_SUITE_0 = 0x00;
+static constexpr uint8_t DLMS_SECURITY_SUPPORTED_SUITE_1 = 0x01;
 
 // Provider specific quirks
 static constexpr uint8_t NETZ_NOE_MAGIC_BYTE = 0x81;  // Magic length byte used by Netz NOE

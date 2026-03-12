@@ -8,9 +8,10 @@ DEPENDENCIES = ["uart"]
 
 CONF_DLMS_METER_ID = "dlms_meter_id"
 CONF_DECRYPTION_KEY = "decryption_key"
+CONF_AUTHENTICATION_KEY = "authentication_key"
 CONF_PROVIDER = "provider"
 
-PROVIDERS = {"generic": 0, "netznoe": 1}
+PROVIDERS = {"generic": 0, "netznoe": 1, "kamstrup-omnipower": 2}
 
 dlms_meter_component_ns = cg.esphome_ns.namespace("dlms_meter")
 DlmsMeterComponent = dlms_meter_component_ns.class_(
@@ -21,11 +22,11 @@ DlmsMeterComponent = dlms_meter_component_ns.class_(
 def validate_key(value):
     value = cv.string_strict(value)
     if len(value) != 32:
-        raise cv.Invalid("Decryption key must be 32 hex characters (16 bytes)")
+        raise cv.Invalid("Key must be 32 hex characters (16 bytes)")
     try:
         return [int(value[i : i + 2], 16) for i in range(0, 32, 2)]
     except ValueError as exc:
-        raise cv.Invalid("Decryption key must be hex values from 00 to FF") from exc
+        raise cv.Invalid("Key must be hex values from 00 to FF") from exc
 
 
 CONFIG_SCHEMA = cv.All(
@@ -33,6 +34,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(DlmsMeterComponent),
             cv.Required(CONF_DECRYPTION_KEY): validate_key,
+            cv.Optional(CONF_AUTHENTICATION_KEY): validate_key,
             cv.Optional(CONF_PROVIDER, default="generic"): cv.enum(
                 PROVIDERS, lower=True
             ),
@@ -54,4 +56,7 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
     key = ", ".join(str(b) for b in config[CONF_DECRYPTION_KEY])
     cg.add(var.set_decryption_key(cg.RawExpression(f"{{{key}}}")))
+    if CONF_AUTHENTICATION_KEY in config:
+        auth_key = ", ".join(str(b) for b in config[CONF_AUTHENTICATION_KEY])
+        cg.add(var.set_authentication_key(cg.RawExpression(f"{{{auth_key}}}")))
     cg.add(var.set_provider(PROVIDERS[config[CONF_PROVIDER]]))
