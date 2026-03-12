@@ -506,7 +506,7 @@ color_mode_bitmask_t LightCall::get_suitable_color_modes_mask_() {
 
 LightCall &LightCall::set_effect(const char *effect, size_t len) {
   if (len == 4 && strncasecmp(effect, "none", 4) == 0) {
-    this->set_effect(0);
+    this->set_effect(uint32_t{0});
     return *this;
   }
 
