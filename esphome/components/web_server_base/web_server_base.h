@@ -122,6 +122,7 @@ class WebServerBase {
 #endif
 
   void add_handler(AsyncWebHandler *handler);
+  void add_handler_without_auth(AsyncWebHandler *handler);
 
   void set_port(uint16_t port) { port_ = port; }
   uint16_t get_port() const { return port_; }
