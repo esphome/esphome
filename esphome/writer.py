@@ -17,8 +17,8 @@ from esphome.const import (
 )
 from esphome.core import CORE, EsphomeError
 from esphome.core.config import (
-    INCLUDE_STAGE_BEFORE_ANY_GLOBALS,
     INCLUDE_STAGE_AFTER_ALL_GLOBALS,
+    INCLUDE_STAGE_BEFORE_ANY_GLOBALS,
     KEY_INCLUDE_STATEMENTS,
 )
 from esphome.helpers import (
@@ -186,9 +186,7 @@ def find_begin_end(text, begin_s, end_s):
     return text[:begin_index], text[(end_index + len(end_s)) :]
 
 
-DEFINES_H_FORMAT = (
-    ESPHOME_H_FORMAT
-) = """\
+DEFINES_H_FORMAT = ESPHOME_H_FORMAT = """\
 #pragma once
 #include "esphome/core/macros.h"
 {}
