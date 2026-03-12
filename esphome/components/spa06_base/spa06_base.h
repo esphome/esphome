@@ -38,7 +38,7 @@ enum {
 };
 
 // Oversampling config.
-enum Oversampling {
+enum Oversampling : uint8_t {
   OVERSAMPLING_NONE = 0x0,
   OVERSAMPLING_X2 = 0x1,
   OVERSAMPLING_X4 = 0x2,
@@ -48,10 +48,10 @@ enum Oversampling {
   OVERSAMPLING_X64 = 0x6,
   OVERSAMPLING_X128 = 0x7,
   OVERSAMPLING_COUNT = 0x8,
-} : uint8_t;
+};
 
 // Measuring rate config
-enum SampleRate {
+enum SampleRate : uint8_t {
   SAMPLE_RATE_1 = 0x0,
   SAMPLE_RATE_2 = 0x1,
   SAMPLE_RATE_4 = 0x2,
@@ -68,19 +68,19 @@ enum SampleRate {
   SAMPLE_RATE_50 = 0xD,
   SAMPLE_RATE_100 = 0xE,
   SAMPLE_RATE_200 = 0xF,
-} : uint8_t;
+};
 
 // Measuring control config, set in MEAS_CFG register.
 // See datasheet pages 28-29
 
-enum MeasCrtl {
+enum MeasCrtl : uint8_t {
   MEASCRTL_IDLE = 0x0,
   MEASCRTL_PRES = 0x1,
   MEASCRTL_TEMP = 0x2,
   MEASCRTL_BG_PRES = 0x5,
   MEASCRTL_BG_TEMP = 0x6,
   MEASCRTL_BG_BOTH = 0x7,
-} : uint8_t;
+};
 
 // Oversampling scale factors. See datasheet page 15.
 constexpr uint32_t OVERSAMPLING_K_LUT[8] PROGMEM = {524288, 1572864, 3670016, 7864320,
