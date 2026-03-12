@@ -52,22 +52,21 @@ void MQTTAlarmControlPanelComponent::setup() {
     auto call = this->alarm_control_panel_->make_call();
     if (!payload.empty() && payload[0] == '{') {
       // JSON payload: {"state": "DISARM", "code": "1234"}
-      json::parse_json(payload, [&call, this](JsonObject root) -> bool {
+      JsonDocument doc = json::parse_json(payload);
+      JsonObject root = doc.as<JsonObject>();
+      if (!root.isNull()) {
         const char *state = root["state"];
         if (state == nullptr) {
           ESP_LOGW(TAG, "'%s': JSON payload missing 'state' key", this->friendly_name_().c_str());
-          return false;
-        }
-        if (!apply_command(call, state)) {
+        } else if (!apply_command(call, state)) {
           ESP_LOGW(TAG, "'%s': Received unknown state in JSON payload: %s", this->friendly_name_().c_str(), state);
-          return false;
+        } else {
+          const char *code = root["code"];
+          if (code != nullptr) {
+            call.set_code(code);
+          }
         }
-        const char *code = root["code"];
-        if (code != nullptr) {
-          call.set_code(code);
-        }
-        return true;
-      });
+      }
     } else {
       if (!apply_command(call, payload.c_str())) {
         ESP_LOGW(TAG, "'%s': Received unknown command payload %s", this->friendly_name_().c_str(), payload.c_str());
