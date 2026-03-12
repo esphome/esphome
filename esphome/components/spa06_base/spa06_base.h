@@ -83,7 +83,8 @@ enum MeasCrtl {
 };
 
 // Oversampling scale factors. See datasheet page 15.
-constexpr uint32_t OVERSAMPLING_K_LUT[8] PROGMEM = {524288, 1572864, 3670017, 7864320,
+// x1 x3 x7 x15
+constexpr uint32_t OVERSAMPLING_K_LUT[8] PROGMEM = {524288, 1572864, 3670016, 7864320,
                                                     253952, 516096,  1040384, 2088960};
 PROGMEM_STRING_TABLE(MeasRateStrings, "1Hz", "2Hz", "4Hz", "8Hz", "16Hz", "32Hz", "64Hz", "128Hz", "1.5625Hz",
                      "3.125Hz", "6.25Hz", "12.5Hz", "25Hz", "50Hz", "100Hz", "200Hz");
