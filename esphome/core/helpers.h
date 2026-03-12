@@ -356,6 +356,13 @@ template<typename T, size_t N> class StaticRingBuffer {
   index_type size() const { return this->count_; }
   bool empty() const { return this->count_ == 0; }
 
+  /// Clear all elements (reset to empty)
+  void clear() {
+    this->head_ = 0;
+    this->tail_ = 0;
+    this->count_ = 0;
+  }
+
   Iterator begin() { return Iterator(this, 0); }
   Iterator end() { return Iterator(this, this->count_); }
   ConstIterator begin() const { return ConstIterator(this, 0); }
