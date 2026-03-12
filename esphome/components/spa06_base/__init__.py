@@ -58,7 +58,7 @@ SPA06Component = spa06_ns.class_("SPA06Component", cg.PollingComponent)
 def spa_oversample_time(oversample):
     # Pressure oversampling conversion times are listed on datasheet Pg. 26
     # Datasheet does not have a table for temperature oversampling;
-    # assumpution is that it is the same as pressure
+    # assumption is that it is the same as pressure
     OVERSAMPLING_CONVERSION_TIMES = {
         "NONE": 3.6,
         "2X": 5.2,
