@@ -9,11 +9,14 @@ namespace equitherm {
 class EquithermClimate;
 
 enum EquithermSensorType {
-  EQUITHERM_SENSOR_TYPE_CURVE_OUTPUT_RAW,       // Raw heating curve output (before rate limiting)
-  EQUITHERM_SENSOR_TYPE_BASE_CURVE_OUTPUT,      // After rate limiting, before PID correction
+  EQUITHERM_SENSOR_TYPE_CURVE_OUTPUT_RAW,       // Raw heating curve output (before PID and rate limiting)
+  EQUITHERM_SENSOR_TYPE_BASE_CURVE_OUTPUT,      // Curve + PID, before rate limiting
   EQUITHERM_SENSOR_TYPE_FINAL_FLOW_SETPOINT,    // Final flow temperature (after all corrections)
   EQUITHERM_SENSOR_TYPE_LAST_WRITTEN_SETPOINT,  // Last value actually written to boiler
   EQUITHERM_SENSOR_TYPE_PID_CORRECTION,         // PID correction value
+  EQUITHERM_SENSOR_TYPE_PROPORTIONAL_TERM,      // PID proportional term (Kp * error)
+  EQUITHERM_SENSOR_TYPE_INTEGRAL_TERM,          // PID integral term
+  EQUITHERM_SENSOR_TYPE_DERIVATIVE_TERM,        // PID derivative term
 };
 
 class EquithermSensor : public sensor::Sensor, public Component {

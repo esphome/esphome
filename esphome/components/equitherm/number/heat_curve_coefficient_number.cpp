@@ -9,11 +9,11 @@ static const char *const TAG = "heat_curve_coefficient_number";
 
 void HeatCurveCoefficientNumber::setup() {
   this->init_state_(this->parent_->get_hc());
-  this->parent_->set_hc(this->state);
+  this->parent_->set_heat_curve_coefficient(this->state);
 }
 
 void HeatCurveCoefficientNumber::control(float value) {
-  this->parent_->set_hc(value);
+  this->parent_->set_heat_curve_coefficient(value);
   this->save_state_(value);
   this->publish_state(value);
   this->parent_->recalculate();

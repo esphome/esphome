@@ -9,11 +9,11 @@ static const char *const TAG = "heat_curve_exponent_number";
 
 void HeatCurveExponentNumber::setup() {
   this->init_state_(this->parent_->get_n());
-  this->parent_->set_n(this->state);
+  this->parent_->set_heat_curve_exponent(this->state);
 }
 
 void HeatCurveExponentNumber::control(float value) {
-  this->parent_->set_n(value);
+  this->parent_->set_heat_curve_exponent(value);
   this->save_state_(value);
   this->publish_state(value);
   this->parent_->recalculate();

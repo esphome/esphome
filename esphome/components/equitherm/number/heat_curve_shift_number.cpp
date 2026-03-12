@@ -9,11 +9,11 @@ static const char *const TAG = "heat_curve_shift_number";
 
 void HeatCurveShiftNumber::setup() {
   this->init_state_(this->parent_->get_shift());
-  this->parent_->set_shift(this->state);
+  this->parent_->set_heat_curve_shift(this->state);
 }
 
 void HeatCurveShiftNumber::control(float value) {
-  this->parent_->set_shift(value);
+  this->parent_->set_heat_curve_shift(value);
   this->save_state_(value);
   this->publish_state(value);
   this->parent_->recalculate();

@@ -31,6 +31,15 @@ void EquithermSensor::update_from_parent_() {
     case EQUITHERM_SENSOR_TYPE_PID_CORRECTION:
       value = this->parent_->get_pid_correction();
       break;
+    case EQUITHERM_SENSOR_TYPE_PROPORTIONAL_TERM:
+      value = this->parent_->get_proportional_term();
+      break;
+    case EQUITHERM_SENSOR_TYPE_INTEGRAL_TERM:
+      value = this->parent_->get_integral_term();
+      break;
+    case EQUITHERM_SENSOR_TYPE_DERIVATIVE_TERM:
+      value = this->parent_->get_derivative_term();
+      break;
     default:
       ESP_LOGW(TAG, "Unknown sensor type: %d", static_cast<int>(this->type_));
       value = NAN;

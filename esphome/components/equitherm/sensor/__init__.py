@@ -39,6 +39,9 @@ EQUITHERM_SENSOR_TYPES = {
     "final_flow_setpoint": EquithermSensorType.EQUITHERM_SENSOR_TYPE_FINAL_FLOW_SETPOINT,
     "last_written_setpoint": EquithermSensorType.EQUITHERM_SENSOR_TYPE_LAST_WRITTEN_SETPOINT,
     "pid_correction": EquithermSensorType.EQUITHERM_SENSOR_TYPE_PID_CORRECTION,
+    "proportional_term": EquithermSensorType.EQUITHERM_SENSOR_TYPE_PROPORTIONAL_TERM,
+    "integral_term": EquithermSensorType.EQUITHERM_SENSOR_TYPE_INTEGRAL_TERM,
+    "derivative_term": EquithermSensorType.EQUITHERM_SENSOR_TYPE_DERIVATIVE_TERM,
 }
 
 # =============================================================================
@@ -66,6 +69,9 @@ FLOW_TEMPERATURE_SENSORS = {
 
 PID_DIAGNOSTIC_SENSORS = {
     "pid_correction": _temperature_sensor_config(),
+    "proportional_term": _temperature_sensor_config(),
+    "integral_term": _temperature_sensor_config(),
+    "derivative_term": _temperature_sensor_config(),
 }
 
 # Combined sensor type configurations

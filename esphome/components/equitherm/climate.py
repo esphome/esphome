@@ -10,18 +10,23 @@ CONF_INDOOR_SENSOR = "indoor_sensor"
 CONF_CH_SETPOINT = "ch_setpoint"
 CONF_HEAT_OUTPUT = "heat_output"
 CONF_FALLBACK_OUTDOOR_TEMP = "fallback_outdoor_temp"
+CONF_SENSOR_STALE_TIMEOUT = "sensor_stale_timeout"
 CONF_CONTROL_PARAMETERS = "control_parameters"
 CONF_OUTPUT_PARAMETERS = "output_parameters"
 CONF_DEADBAND_PARAMETERS = "deadband_parameters"
 
-# Heating curve parameters (industry standard)
-CONF_HC = "hc"  # Heat curve coefficient (0.5-1.5)
-CONF_N = "n"  # Radiator exponent (1.2-1.33 for panels, 1.0 for underfloor)
-CONF_SHIFT = "shift"
+# Heating curve parameters
+CONF_HEAT_CURVE_COEFFICIENT = "heat_curve_coefficient"
+CONF_HEAT_CURVE_EXPONENT = "heat_curve_exponent"
+CONF_HEAT_CURVE_SHIFT = "heat_curve_shift"
 
 CONF_MIN_FLOW_TEMP = "min_flow_temp"
 CONF_MAX_FLOW_TEMP = "max_flow_temp"
 CONF_RATE_LIMIT_PER_MINUTE = "rate_limit_per_minute"
+
+# Output behavior parameters
+CONF_ACTION_HYSTERESIS = "action_hysteresis"
+CONF_WRITE_DEADBAND = "write_deadband"
 
 # PID parameters
 CONF_KP = "kp"
@@ -44,12 +49,11 @@ EquithermClimate = equitherm_ns.class_(
 
 CONTROL_PARAMETERS_SCHEMA = cv.Schema(
     {
-        # Industry-standard heating curve parameters
-        cv.Required(CONF_HC): cv.float_range(min=0.1),
-        cv.Required(CONF_N): cv.float_range(min=0.5, max=3.0),
-        cv.Optional(CONF_SHIFT, default=0.0): cv.float_,
+        # Heating curve parameters
+        cv.Required(CONF_HEAT_CURVE_COEFFICIENT): cv.float_range(min=0.5, max=5.0),
+        cv.Required(CONF_HEAT_CURVE_EXPONENT): cv.float_range(min=0.5, max=3.0),
+        cv.Optional(CONF_HEAT_CURVE_SHIFT, default=0.0): cv.float_,
         # PID parameters for room temperature correction
-        # Default kp=1.0 provides simple proportional correction (like old target_diff_factor)
         cv.Optional(CONF_KP, default=0.0): cv.float_range(min=0.0),
         cv.Optional(CONF_KI, default=0.0): cv.float_range(min=0.0),
         cv.Optional(CONF_KD, default=0.0): cv.float_range(min=0.0),
@@ -61,14 +65,16 @@ CONTROL_PARAMETERS_SCHEMA = cv.Schema(
 OUTPUT_PARAMETERS_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Required(
-                CONF_MIN_FLOW_TEMP,
-            ): cv.temperature,
-            cv.Required(
-                CONF_MAX_FLOW_TEMP,
-            ): cv.temperature,
+            cv.Required(CONF_MIN_FLOW_TEMP): cv.temperature,
+            cv.Required(CONF_MAX_FLOW_TEMP): cv.temperature,
             cv.Optional(CONF_RATE_LIMIT_PER_MINUTE, default=0.2): cv.float_range(
                 min=0.0, max=2.0
+            ),
+            cv.Optional(CONF_ACTION_HYSTERESIS, default=0.5): cv.float_range(
+                min=0.0, max=5.0
+            ),
+            cv.Optional(CONF_WRITE_DEADBAND, default=0.05): cv.float_range(
+                min=0.01, max=1.0
             ),
         }
     ),
@@ -80,10 +86,6 @@ OUTPUT_PARAMETERS_SCHEMA = cv.All(
         )
     ),
 )
-
-# =============================================================================
-# Validation
-# =============================================================================
 
 
 def _validate_deadband_thresholds(config):
@@ -121,6 +123,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CH_SETPOINT): cv.use_id(number.Number),
             cv.Optional(CONF_HEAT_OUTPUT): cv.use_id(output.FloatOutput),
             cv.Optional(CONF_FALLBACK_OUTDOOR_TEMP, default=0.0): cv.temperature,
+            cv.Optional(
+                CONF_SENSOR_STALE_TIMEOUT, default="10min"
+            ): cv.positive_time_period_milliseconds,
             cv.Required(CONF_CONTROL_PARAMETERS): CONTROL_PARAMETERS_SCHEMA,
             cv.Required(CONF_OUTPUT_PARAMETERS): OUTPUT_PARAMETERS_SCHEMA,
             cv.Optional(CONF_DEADBAND_PARAMETERS): DEADBAND_PARAMETERS_SCHEMA,
@@ -155,12 +160,13 @@ async def to_code(config):
 
     # Fallback outdoor temperature (sensor failure handling)
     cg.add(var.set_fallback_outdoor_temp(config[CONF_FALLBACK_OUTDOOR_TEMP]))
+    cg.add(var.set_sensor_stale_timeout(config[CONF_SENSOR_STALE_TIMEOUT]))
 
     # Control parameters (heating curve + PID)
     params = config[CONF_CONTROL_PARAMETERS]
-    cg.add(var.set_hc(params[CONF_HC]))
-    cg.add(var.set_n(params[CONF_N]))
-    cg.add(var.set_shift(params[CONF_SHIFT]))
+    cg.add(var.set_heat_curve_coefficient(params[CONF_HEAT_CURVE_COEFFICIENT]))
+    cg.add(var.set_heat_curve_exponent(params[CONF_HEAT_CURVE_EXPONENT]))
+    cg.add(var.set_heat_curve_shift(params[CONF_HEAT_CURVE_SHIFT]))
     # PID parameters
     cg.add(var.set_kp(params[CONF_KP]))
     cg.add(var.set_ki(params[CONF_KI]))
@@ -173,6 +179,8 @@ async def to_code(config):
     cg.add(var.set_min_flow_temp(params[CONF_MIN_FLOW_TEMP]))
     cg.add(var.set_max_flow_temp(params[CONF_MAX_FLOW_TEMP]))
     cg.add(var.set_rate_limit_per_minute(params[CONF_RATE_LIMIT_PER_MINUTE]))
+    cg.add(var.set_action_hysteresis(params[CONF_ACTION_HYSTERESIS]))
+    cg.add(var.set_write_deadband(params[CONF_WRITE_DEADBAND]))
 
     # Deadband parameters - optional
     if CONF_DEADBAND_PARAMETERS in config:

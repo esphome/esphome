@@ -34,13 +34,15 @@ class EquithermClimate : public climate::Climate, public Component {
   void set_default_target_temperature(float temp) { default_target_temperature_ = temp; }
 
   // Heating curve parameters (delegated to heating curve)
-  void set_hc(float hc) { heating_curve_.set_hc(hc); }
-  void set_n(float n) { heating_curve_.set_n(n); }
-  void set_shift(float shift) { heating_curve_.set_shift(shift); }
+  void set_heat_curve_coefficient(float hc) { heating_curve_.set_hc(hc); }
+  void set_heat_curve_exponent(float n) { heating_curve_.set_n(n); }
+  void set_heat_curve_shift(float shift) { heating_curve_.set_shift(shift); }
 
   // Output parameters
   void set_min_flow_temp(float temp) { heating_curve_.set_min_flow_temp(temp); }
   void set_max_flow_temp(float temp) { heating_curve_.set_max_flow_temp(temp); }
+  void set_action_hysteresis(float hysteresis) { action_hysteresis_ = hysteresis; }
+  void set_write_deadband(float deadband) { write_deadband_ = deadband; }
 
   // Rate limiting (replaces smoothing_threshold)
   void set_rate_limit_per_minute(float value) { rate_limit_per_minute_ = clamp(value, 0.0f, 2.0f); }
@@ -63,6 +65,8 @@ class EquithermClimate : public climate::Climate, public Component {
   // Fallback parameters (sensor failure handling)
   void set_fallback_outdoor_temp(float temp) { fallback_outdoor_temp_ = temp; }
   float get_fallback_outdoor_temp() const { return fallback_outdoor_temp_; }
+  void set_sensor_stale_timeout(uint32_t timeout_ms) { sensor_stale_timeout_ms_ = timeout_ms; }
+  uint32_t get_sensor_stale_timeout() const { return sensor_stale_timeout_ms_; }
   bool is_outdoor_fallback_active() const { return outdoor_fallback_active_; }
   bool is_indoor_fallback_active() const { return indoor_fallback_active_; }
   bool is_rate_limiting_active() const { return rate_limiting_active_; }
@@ -90,15 +94,20 @@ class EquithermClimate : public climate::Climate, public Component {
   float get_kp() const { return pid_controller_.kp_; }
   float get_ki() const { return pid_controller_.ki_; }
   float get_kd() const { return pid_controller_.kd_; }
+  float get_proportional_term() const { return pid_controller_.proportional_term_; }
+  float get_integral_term() const { return pid_controller_.integral_term_; }
+  float get_derivative_term() const { return pid_controller_.derivative_term_; }
 
   // Callback for diagnostic sensors
   void add_on_state_callback(std::function<void()> &&callback) { state_callback_.add(std::move(callback)); }
 
   // Force immediate recalculation (used by runtime tuning numbers)
   void recalculate() {
-    this->prev_smoothed_flow_ = NAN;         // Bypass smoothing on forced recalc
-    this->last_rate_limit_time_ = millis();  // Reset timer to avoid huge delta
-    this->compute_and_apply_(false);         // Don't tick PID on param change
+    // Setting prev_rate_limited_flow_ to NAN triggers the "first calculation" path
+    // in compute_and_apply_(), which bypasses rate limiting and initializes
+    // the rate limiter state with the new calculated value.
+    this->prev_rate_limited_flow_ = NAN;
+    this->compute_and_apply_(false);  // Don't tick PID on param change
   }
 
  protected:
@@ -128,8 +137,8 @@ class EquithermClimate : public climate::Climate, public Component {
   float default_target_temperature_{20.0f};
   /// Rate limit for output changes (°C per minute)
   float rate_limit_per_minute_{0.2f};
-  /// Previous smoothed flow temperature for rate limiting
-  float prev_smoothed_flow_{NAN};
+  /// Previous rate-limited flow temperature (for time-based rate limiting)
+  float prev_rate_limited_flow_{NAN};
   /// Raw heating curve output before rate limiting (for diagnostics)
   float curve_output_raw_{NAN};
   /// Base setpoint after rate limiting, before PID (for diagnostics)
@@ -146,6 +155,12 @@ class EquithermClimate : public climate::Climate, public Component {
   float pid_correction_{NAN};
   /// Fallback outdoor temperature when sensor fails (default 0°C - safe for winter)
   float fallback_outdoor_temp_{0.0f};
+  /// Hysteresis (°C) above min_flow_temp to decide HEATING vs IDLE action display
+  float action_hysteresis_{0.5f};
+  /// Minimum setpoint change (°C) required to write to boiler output
+  float write_deadband_{0.05f};
+  /// Timeout for sensor staleness (ms) - treat as failed if no update for this long
+  uint32_t sensor_stale_timeout_ms_{600000};  // Default: 10 minutes
   /// Last known valid outdoor temperature for stale data window
   float last_valid_outdoor_temp_{NAN};
   /// Last known valid indoor temperature for display when sensor fails

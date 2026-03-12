@@ -101,9 +101,9 @@ climate:
     fallback_outdoor_temp: 0.0
     heat_output: heat_output
     control_parameters:
-      hc: 3.0
-      n: 1.5
-      shift: 0.0
+      heat_curve_coefficient: 3.0
+      heat_curve_exponent: 1.5
+      heat_curve_shift: 0.0
       kp: 2.0
       ki: 0.5
       kd: 0.0
