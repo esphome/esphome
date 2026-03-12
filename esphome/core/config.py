@@ -420,11 +420,14 @@ def _list_target_platforms():
     return target_platforms
 
 
-def _add_include_statement(name: str, stage: str, is_c_header: bool) -> None:
-    include_stage_statements = CORE.data.setdefault(
+def get_include_statements(stage: str) -> list[str]:
+    return CORE.data.setdefault(
         KEY_INCLUDE_STATEMENTS, {stage: [] for stage in INCLUDE_STAGES}
-    )
-    include_stage_statements[stage].append(
+    )[stage]
+
+
+def add_include_statement(name: str, stage: str, is_c_header: bool) -> None:
+    get_include_statements(stage).append(
         f'extern "C" {{\n  #include "{name}"\n}}'
         if is_c_header
         else f'#include "{name}"'
@@ -478,7 +481,7 @@ def include_file(
     ext = path.suffix
     # Skip including it if it's not a header, but copy the file anyways
     if ext in [".h", ".hpp", ".tcc"]:
-        _add_include_statement(str(basename), stage, is_c_header)
+        add_include_statement(str(basename), stage, is_c_header)
 
 
 ARDUINO_GLUE_CODE = """\
@@ -521,7 +524,7 @@ async def add_includes(
         include_path = include[CONF_PATH]
         stage = include[CONF_STAGE]
         if _is_system_include(include_path):
-            _add_include_statement(
+            add_include_statement(
                 include_path,
                 # Default for system includes is to get added before globals
                 (

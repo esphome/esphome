@@ -17,9 +17,9 @@ from esphome.const import (
 )
 from esphome.core import CORE, EsphomeError
 from esphome.core.config import (
+    get_include_statements,
     INCLUDE_STAGE_AFTER_ALL_GLOBALS,
     INCLUDE_STAGE_BEFORE_ANY_GLOBALS,
-    KEY_INCLUDE_STATEMENTS,
 )
 from esphome.helpers import (
     copy_file_if_changed,
@@ -459,8 +459,7 @@ const char ESPHOME_COMMENT_STR[] = "{escaped_comment}";
 
 
 def _render_include_stage(stage: str) -> str:
-    include_statements = CORE.data.get(KEY_INCLUDE_STATEMENTS, {})
-    statements = include_statements.get(stage, [])
+    statements = get_include_statements(stage)
     if not statements:
         return ""
     return "\n".join(statements) + "\n"
