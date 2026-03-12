@@ -427,10 +427,9 @@ def get_include_statements(stage: str) -> list[str]:
 
 
 def add_include_statement(name: str, stage: str, is_c_header: bool) -> None:
+    """Adds include statement. Note: name should be quoted with "" or <>"""
     get_include_statements(stage).append(
-        f'extern "C" {{\n  #include "{name}"\n}}'
-        if is_c_header
-        else f'#include "{name}"'
+        f'extern "C" {{\n  #include {name}\n}}' if is_c_header else f"#include {name}"
     )
 
 
@@ -474,6 +473,7 @@ def preload_core_config(config, result) -> str:
 def include_file(
     path: Path, basename: Path, stage: str, is_c_header: bool = False
 ) -> None:
+    """Called for non-system header or source files. Only header files get their include statement"""
     parts = basename.parts
     dst = CORE.relative_src_path(*parts)
     copy_file_if_changed(path, dst)
@@ -481,7 +481,7 @@ def include_file(
     ext = path.suffix
     # Skip including it if it's not a header, but copy the file anyways
     if ext in [".h", ".hpp", ".tcc"]:
-        add_include_statement(str(basename), stage, is_c_header)
+        add_include_statement(f'"{str(basename)}"', stage, is_c_header)
 
 
 ARDUINO_GLUE_CODE = """\
