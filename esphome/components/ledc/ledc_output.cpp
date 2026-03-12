@@ -5,6 +5,9 @@
 
 #include <driver/ledc.h>
 #include <cinttypes>
+#ifdef USE_ESP_IDF
+#include <esp_private/periph_ctrl.h>
+#endif
 
 #define CLOCK_FREQUENCY 80e6f
 
@@ -16,10 +19,10 @@
 
 static const uint8_t SETUP_ATTEMPT_COUNT_MAX = 5;
 
-namespace esphome {
-namespace ledc {
+namespace esphome::ledc {
 
 static const char *const TAG = "ledc.output";
+static bool ledc_peripheral_reset_done = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static const int MAX_RES_BITS = LEDC_TIMER_BIT_MAX - 1;
 #if SOC_LEDC_SUPPORT_HS_MODE
@@ -105,6 +108,11 @@ void LEDCOutput::write_state(float state) {
   const uint32_t max_duty = (uint32_t(1) << this->bit_depth_) - 1;
   const float duty_rounded = roundf(state * max_duty);
   auto duty = static_cast<uint32_t>(duty_rounded);
+  if (duty == this->last_duty_) {
+    return;
+  }
+  this->last_duty_ = duty;
+
   ESP_LOGV(TAG, "Setting duty: %" PRIu32 " on channel %u", duty, this->channel_);
   auto speed_mode = get_speed_mode(this->channel_);
   auto chan_num = static_cast<ledc_channel_t>(this->channel_ % 8);
@@ -120,6 +128,14 @@ void LEDCOutput::write_state(float state) {
 }
 
 void LEDCOutput::setup() {
+#ifdef USE_ESP_IDF
+  if (!ledc_peripheral_reset_done) {
+    ESP_LOGI(TAG, "Resetting LEDC peripheral to clear stale state after reboot");
+    periph_module_reset(PERIPH_LEDC_MODULE);
+    ledc_peripheral_reset_done = true;
+  }
+#endif
+
   auto speed_mode = get_speed_mode(this->channel_);
   auto timer_num = static_cast<ledc_timer_t>((this->channel_ % 8) / 2);
   auto chan_num = static_cast<ledc_channel_t>(this->channel_ % 8);
@@ -207,12 +223,12 @@ void LEDCOutput::update_frequency(float frequency) {
   this->status_clear_error();
 
   // re-apply duty
+  this->last_duty_ = UINT32_MAX;
   this->write_state(this->duty_);
 }
 
 uint8_t next_ledc_channel = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-}  // namespace ledc
-}  // namespace esphome
+}  // namespace esphome::ledc
 
 #endif
