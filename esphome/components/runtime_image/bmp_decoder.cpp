@@ -12,7 +12,10 @@ static const char *const TAG = "image_decoder.bmp";
 
 int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
   size_t index = 0;
-  if (this->current_index_ == 0 && index == 0 && size > 14) {
+  if (this->current_index_ == 0) {
+    if (size <= 14) {
+      return 0;  // Need more data for file header
+    }
     /**
      * BMP file format:
      * 0-1: Signature (BM)
@@ -39,7 +42,10 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
     this->current_index_ = 14;
     index = 14;
   }
-  if (this->current_index_ == 14 && index == 14 && size > this->data_offset_) {
+  if (this->current_index_ == 14) {
+    if (size <= this->data_offset_) {
+      return 0;  // Need more data for DIB header and color table
+    }
     /**
      * BMP DIB header:
      * 14-17: DIB header size
@@ -66,6 +72,28 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
         this->width_bytes_ = (this->width_ + 7) / 8;
         this->padding_bytes_ = (4 - (this->width_bytes_ % 4)) % 4;
         break;
+      case 8: {
+        this->width_bytes_ = this->width_;
+        if (this->color_table_entries_ == 0) {
+          this->color_table_entries_ = 256;
+        } else if (this->color_table_entries_ > 256) {
+          ESP_LOGE(TAG, "Too many color table entries: %" PRIu32, this->color_table_entries_);
+          return DECODE_ERROR_UNSUPPORTED_FORMAT;
+        }
+        size_t header_size = encode_uint32(buffer[17], buffer[16], buffer[15], buffer[14]);
+        size_t offset = 14 + header_size;
+
+        this->color_table_ = std::make_unique<uint32_t[]>(this->color_table_entries_);
+
+        for (size_t i = 0; i < this->color_table_entries_; i++) {
+          this->color_table_[i] = encode_uint32(buffer[offset + i * 4 + 3], buffer[offset + i * 4 + 2],
+                                                buffer[offset + i * 4 + 1], buffer[offset + i * 4]);
+        }
+
+        this->padding_bytes_ = (4 - (this->width_bytes_ % 4)) % 4;
+
+        break;
+      }
       case 24:
         this->width_bytes_ = this->width_ * 3;
         if (this->width_bytes_ % 4 != 0) {
@@ -91,21 +119,24 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
   }
   switch (this->bits_per_pixel_) {
     case 1: {
+      size_t width = static_cast<size_t>(this->width_);
       while (index < size) {
-        uint8_t current_byte = buffer[index];
-        bool end_of_row = false;
-        for (uint8_t i = 0; i < 8; i++) {
-          size_t x = this->paint_index_ % static_cast<size_t>(this->width_);
-          size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / static_cast<size_t>(this->width_));
-          Color c = (current_byte & (1 << (7 - i))) ? display::COLOR_ON : display::COLOR_OFF;
-          this->draw(x, y, 1, 1, c);
-          this->paint_index_++;
-          // End of pixel row: skip remaining bits in this byte
-          if (x + 1 >= static_cast<size_t>(this->width_)) {
-            end_of_row = true;
-            break;
-          }
+        size_t x = this->paint_index_ % width;
+        size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / width);
+        size_t remaining_in_row = width - x;
+        uint8_t pixels_in_byte = std::min<size_t>(remaining_in_row, 8);
+        bool end_of_row = remaining_in_row <= 8;
+        size_t needed = 1 + (end_of_row ? this->padding_bytes_ : 0);
+        if (index + needed > size) {
+          this->decoded_bytes_ += index;
+          return index;
         }
+        uint8_t current_byte = buffer[index];
+        for (uint8_t i = 0; i < pixels_in_byte; i++) {
+          Color c = (current_byte & (1 << (7 - i))) ? display::COLOR_ON : display::COLOR_OFF;
+          this->draw(x + i, y, 1, 1, c);
+        }
+        this->paint_index_ += pixels_in_byte;
         this->current_index_++;
         index++;
         // End of pixel row: skip row padding bytes (4-byte alignment)
@@ -116,23 +147,57 @@ int HOT BmpDecoder::decode(uint8_t *buffer, size_t size) {
       }
       break;
     }
-    case 24: {
+    case 8: {
+      size_t width = static_cast<size_t>(this->width_);
+      size_t last_col = width - 1;
       while (index < size) {
-        if (index + 2 >= size) {
+        size_t x = this->paint_index_ % width;
+        size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / width);
+        size_t needed = 1 + ((x == last_col) ? this->padding_bytes_ : 0);
+        if (index + needed > size) {
+          this->decoded_bytes_ += index;
+          return index;
+        }
+
+        uint8_t color_index = buffer[index];
+        if (color_index >= this->color_table_entries_) {
+          ESP_LOGE(TAG, "Invalid color index: %u", color_index);
+          return DECODE_ERROR_UNSUPPORTED_FORMAT;
+        }
+
+        uint32_t rgb = this->color_table_[color_index];
+        uint8_t b = rgb & 0xff;
+        uint8_t g = (rgb >> 8) & 0xff;
+        uint8_t r = (rgb >> 16) & 0xff;
+        this->draw(x, y, 1, 1, Color(r, g, b));
+        this->paint_index_++;
+        this->current_index_++;
+        index++;
+        if (x == last_col && this->padding_bytes_ > 0) {
+          index += this->padding_bytes_;
+          this->current_index_ += this->padding_bytes_;
+        }
+      }
+      break;
+    }
+    case 24: {
+      size_t width = static_cast<size_t>(this->width_);
+      size_t last_col = width - 1;
+      while (index < size) {
+        size_t x = this->paint_index_ % width;
+        size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / width);
+        size_t needed = 3 + ((x == last_col) ? this->padding_bytes_ : 0);
+        if (index + needed > size) {
           this->decoded_bytes_ += index;
           return index;
         }
         uint8_t b = buffer[index];
         uint8_t g = buffer[index + 1];
         uint8_t r = buffer[index + 2];
-        size_t x = this->paint_index_ % static_cast<size_t>(this->width_);
-        size_t y = static_cast<size_t>(this->height_ - 1) - (this->paint_index_ / static_cast<size_t>(this->width_));
-        Color c = Color(r, g, b);
-        this->draw(x, y, 1, 1, c);
+        this->draw(x, y, 1, 1, Color(r, g, b));
         this->paint_index_++;
         this->current_index_ += 3;
         index += 3;
-        size_t last_col = static_cast<size_t>(this->width_) - 1;
         if (x == last_col && this->padding_bytes_ > 0) {
           index += this->padding_bytes_;
           this->current_index_ += this->padding_bytes_;

@@ -1375,9 +1375,8 @@ void HonClimate::process_protocol_reset() {
 
 bool HonClimate::should_get_big_data_() {
   if (this->big_data_sensors_ > 0) {
-    static uint8_t counter = 0;
-    counter = (counter + 1) % 3;
-    return counter == 1;
+    this->big_data_counter_ = (this->big_data_counter_ + 1) % 3;
+    return this->big_data_counter_ == 1;
   }
   return false;
 }

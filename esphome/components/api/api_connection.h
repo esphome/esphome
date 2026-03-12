@@ -14,6 +14,12 @@
 #include "api_server.h"
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
+#ifdef USE_ESP32_CRASH_HANDLER
+#include "esphome/components/esp32/crash_handler.h"
+#endif
+#ifdef USE_RP2040_CRASH_HANDLER
+#include "esphome/components/rp2040/crash_handler.h"
+#endif
 #include "esphome/core/entity_base.h"
 #include "esphome/core/string_ref.h"
 
@@ -235,6 +241,12 @@ class APIConnection final : public APIServerConnectionBase {
     this->flags_.log_subscription = msg.level;
     if (msg.dump_config)
       App.schedule_dump_config();
+#ifdef USE_ESP32_CRASH_HANDLER
+    esp32::crash_handler_log();
+#endif
+#ifdef USE_RP2040_CRASH_HANDLER
+    rp2040::crash_handler_log();
+#endif
   }
 #ifdef USE_API_HOMEASSISTANT_SERVICES
   void on_subscribe_homeassistant_services_request() override { this->flags_.service_call_subscription = true; }
@@ -288,7 +300,7 @@ class APIConnection final : public APIServerConnectionBase {
     }
   }
 
-  void prepare_first_message_buffer(std::vector<uint8_t> &shared_buf, size_t header_padding, size_t total_size) {
+  void prepare_first_message_buffer(APIBuffer &shared_buf, size_t header_padding, size_t total_size) {
     shared_buf.clear();
     // Reserve space for header padding + message + footer
     // - Header padding: space for protocol headers (7 bytes for Noise, 6 for Plaintext)
@@ -299,7 +311,7 @@ class APIConnection final : public APIServerConnectionBase {
   }
 
   // Convenience overload - computes frame overhead internally
-  void prepare_first_message_buffer(std::vector<uint8_t> &shared_buf, size_t payload_size) {
+  void prepare_first_message_buffer(APIBuffer &shared_buf, size_t payload_size) {
     const uint8_t header_padding = this->helper_->frame_header_padding();
     const uint8_t footer_size = this->helper_->frame_footer_size();
     this->prepare_first_message_buffer(shared_buf, header_padding, payload_size + header_padding + footer_size);
@@ -687,8 +699,8 @@ class APIConnection final : public APIServerConnectionBase {
 
   bool schedule_batch_();
   void process_batch_();
-  void process_batch_multi_(std::vector<uint8_t> &shared_buf, size_t num_items, uint8_t header_padding,
-                            uint8_t footer_size) __attribute__((noinline));
+  void process_batch_multi_(APIBuffer &shared_buf, size_t num_items, uint8_t header_padding, uint8_t footer_size)
+      __attribute__((noinline));
   void clear_batch_() {
     this->deferred_batch_.clear();
     this->flags_.batch_scheduled = false;

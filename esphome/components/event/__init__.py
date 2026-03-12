@@ -129,7 +129,9 @@ TRIGGER_EVENT_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action("event.trigger", TriggerEventAction, TRIGGER_EVENT_SCHEMA)
+@automation.register_action(
+    "event.trigger", TriggerEventAction, TRIGGER_EVENT_SCHEMA, synchronous=True
+)
 async def event_fire_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
