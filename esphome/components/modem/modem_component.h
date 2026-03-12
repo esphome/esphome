@@ -20,7 +20,7 @@ namespace modem {
 
 enum class ModemComponentState {
   MODEM_ENABLING,
-  MODEM_SYNCING,
+  MODEM_SYNCED,
   MODEM_INIT_NETWORK,
   MODEM_START_PPP,
   MODEM_WAIT_IP,
@@ -103,7 +103,7 @@ class ModemComponent : public Component, public uart::UARTComponent {
 
   // ===== State handler methods =====
   ModemComponentState handle_state_enabling_();
-  ModemComponentState handle_state_syncing_();
+  ModemComponentState handle_state_synced_();
   ModemComponentState handle_state_init_network_();
   ModemComponentState handle_state_start_ppp_();
   ModemComponentState handle_state_wait_ip_();

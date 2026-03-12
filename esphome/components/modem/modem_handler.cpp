@@ -177,8 +177,10 @@ void ModemHandler::ip_event_handler(void *arg, esp_event_base_t event_base, int3
       break;
     }
     case IP_EVENT_PPP_LOST_IP:
-      ESP_LOGD(TAG, "PPP IP event: Lost IP.");
-      handler->network_infos.got_ip = false;
+      if (handler->network_infos.got_ip) {
+        ESP_LOGD(TAG, "PPP IP event: Lost IP.");
+        handler->network_infos.got_ip = false;
+      }
       break;
   }
 }
