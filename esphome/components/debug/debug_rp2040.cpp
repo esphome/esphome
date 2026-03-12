@@ -41,15 +41,19 @@ const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFE
 #endif
 
   if (watchdog_caused_reboot()) {
+    bool handled = false;
 #ifdef USE_RP2040_CRASH_HANDLER
     if (rp2040::crash_handler_has_data()) {
       pos = buf_append_str(buf, size, pos, "Crash (HardFault)|");
-    } else
+      handled = true;
+    }
 #endif
-        if (watchdog_enable_caused_reboot()) {
-      pos = buf_append_str(buf, size, pos, "Watchdog timeout|");
-    } else {
-      pos = buf_append_str(buf, size, pos, "Software reset|");
+    if (!handled) {
+      if (watchdog_enable_caused_reboot()) {
+        pos = buf_append_str(buf, size, pos, "Watchdog timeout|");
+      } else {
+        pos = buf_append_str(buf, size, pos, "Software reset|");
+      }
     }
   }
 
