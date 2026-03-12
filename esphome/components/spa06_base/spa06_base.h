@@ -48,7 +48,7 @@ enum Oversampling {
   OVERSAMPLING_X64 = 0x6,
   OVERSAMPLING_X128 = 0x7,
   OVERSAMPLING_COUNT = 0x8,
-};
+} : uint8_t;
 
 // Measuring rate config
 enum SampleRate {
@@ -68,7 +68,7 @@ enum SampleRate {
   SAMPLE_RATE_50 = 0xD,
   SAMPLE_RATE_100 = 0xE,
   SAMPLE_RATE_200 = 0xF,
-};
+} : uint8_t;
 
 // Measuring control config, set in MEAS_CFG register.
 // See datasheet pages 28-29
@@ -80,10 +80,9 @@ enum MeasCrtl {
   MEASCRTL_BG_PRES = 0x5,
   MEASCRTL_BG_TEMP = 0x6,
   MEASCRTL_BG_BOTH = 0x7,
-};
+} : uint8_t;
 
 // Oversampling scale factors. See datasheet page 15.
-// x1 x3 x7 x15
 constexpr uint32_t OVERSAMPLING_K_LUT[8] PROGMEM = {524288, 1572864, 3670016, 7864320,
                                                     253952, 516096,  1040384, 2088960};
 PROGMEM_STRING_TABLE(MeasRateStrings, "1Hz", "2Hz", "4Hz", "8Hz", "16Hz", "32Hz", "64Hz", "128Hz", "1.5625Hz",
@@ -166,8 +165,8 @@ class SPA06Component : public PollingComponent {
   float convert_pressure_(const float &p_raw_sc, const float &t_raw_sc);
 
   //// Protocol-related variables
-  // Oversampling scale factors. Defaults are for X1 sampling scaling.
-  uint32_t kp_{524288}, kt_{524288};
+  // Oversampling scale factors. Defaults are for X16 (pressure) and X1 (temp)
+  uint32_t kp_{253952}, kt_{524288};
   // Coefficients for calculating pressure and temperature from raw values
   // Obtained from IC during setup
   int32_t c00_{0}, c10_{0};
@@ -177,9 +176,9 @@ class SPA06Component : public PollingComponent {
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *pressure_sensor_{nullptr};
   Oversampling temperature_oversampling_{Oversampling::OVERSAMPLING_NONE};
-  Oversampling pressure_oversampling_{Oversampling::OVERSAMPLING_NONE};
-  SampleRate temperature_rate_{SampleRate::SAMPLE_RATE_8};
-  SampleRate pressure_rate_{SampleRate::SAMPLE_RATE_4};
+  Oversampling pressure_oversampling_{Oversampling::OVERSAMPLING_X16};
+  SampleRate temperature_rate_{SampleRate::SAMPLE_RATE_1};
+  SampleRate pressure_rate_{SampleRate::SAMPLE_RATE_1};
   // Default conversion time: 27.6ms (16x pres) + 3.6ms (1x temp) ~ 32ms
   uint16_t conversion_time_{32};
 
