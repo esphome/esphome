@@ -36,7 +36,6 @@ static void register_rp2040(MDNSComponent *, StaticVector<MDNSService, MDNS_SERV
 }
 
 void MDNSComponent::setup() {
-  this->setup_buffers_and_register_(register_rp2040);
   // RP2040's LEAmDNS library registers a LwipIntf::stateUpCB() callback to restart
   // mDNS when the network interface reconnects. However, stateUpCB() is stubbed out
   // in arduino-pico's LwipIntfCB.cpp because the original ESP8266 implementation used
@@ -44,15 +43,23 @@ void MDNSComponent::setup() {
   // safely run directly since netif status callbacks fire from IRQ context
   // (PICO_CYW43_ARCH_THREADSAFE_BACKGROUND) while _restart() allocates UDP sockets.
   //
-  // Workaround: detect WiFi reconnection from the main loop and call notifyAPChange()
-  // to trigger the same _restart(), safely from non-IRQ context.
+  // Workaround: defer MDNS.begin() and service registration until WiFi is connected
+  // (has an IP), then call notifyAPChange() on subsequent reconnects to restart
+  // mDNS probing and announcing — all from main loop context so it's thread-safe.
   this->set_interval(MDNS_UPDATE_INTERVAL_MS, [this]() {
     bool connected = network::is_connected();
     if (connected && !this->was_connected_) {
-      MDNS.notifyAPChange();
+      if (!this->initialized_) {
+        this->setup_buffers_and_register_(register_rp2040);
+        this->initialized_ = true;
+      } else {
+        MDNS.notifyAPChange();
+      }
     }
     this->was_connected_ = connected;
-    MDNS.update();
+    if (this->initialized_) {
+      MDNS.update();
+    }
   });
 }
 

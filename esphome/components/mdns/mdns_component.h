@@ -132,6 +132,7 @@ class MDNSComponent final : public Component {
 #endif
 #ifdef USE_RP2040
   bool was_connected_{false};
+  bool initialized_{false};
 #endif
   void compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUNT> &services, char *mac_address_buf);
 };
