@@ -566,13 +566,8 @@ void LWIPRawImpl::wait_for_data_() {
   }
 }
 
-ssize_t LWIPRawImpl::read(void *buf, size_t len) {
-  // See waiting_for_data_() for safety of unlocked reads.
-  if (this->recv_timeout_cs_ > 0 && this->waiting_for_data_()) {
-    this->wait_for_data_();
-  }
-
-  LWIP_LOCK();
+ssize_t LWIPRawImpl::read_locked_(void *buf, size_t len) {
+  // Caller must hold LWIP_LOCK. Copies available data from rx_buf_ into buf.
   if (this->pcb_ == nullptr) {
     errno = ECONNRESET;
     return -1;
@@ -631,8 +626,18 @@ ssize_t LWIPRawImpl::read(void *buf, size_t len) {
   return read;
 }
 
+ssize_t LWIPRawImpl::read(void *buf, size_t len) {
+  // See waiting_for_data_() for safety of unlocked reads.
+  if (this->recv_timeout_cs_ > 0 && this->waiting_for_data_()) {
+    this->wait_for_data_();
+  }
+
+  LWIP_LOCK();
+  return this->read_locked_(buf, len);
+}
+
 ssize_t LWIPRawImpl::readv(const struct iovec *iov, int iovcnt) {
-  // See read() for safety analysis of these unlocked reads.
+  // See waiting_for_data_() for safety of unlocked reads.
   if (this->recv_timeout_cs_ > 0 && this->waiting_for_data_()) {
     this->wait_for_data_();
   }
@@ -640,7 +645,7 @@ ssize_t LWIPRawImpl::readv(const struct iovec *iov, int iovcnt) {
   LWIP_LOCK();  // Hold for entire scatter-gather operation
   ssize_t ret = 0;
   for (int i = 0; i < iovcnt; i++) {
-    ssize_t err = this->read(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
+    ssize_t err = this->read_locked_(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
     if (err == -1) {
       if (ret != 0) {
         // if we already read some don't return an error

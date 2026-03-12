@@ -127,6 +127,7 @@ class LWIPRawImpl : public LWIPRawCommon {
   // authoritative recheck happens under LWIP_LOCK afterward.
   bool waiting_for_data_() const { return this->rx_buf_ == nullptr && !this->rx_closed_ && this->pcb_ != nullptr; }
   void wait_for_data_();
+  ssize_t read_locked_(void *buf, size_t len);
   ssize_t internal_write_(const void *buf, size_t len);
   int internal_output_();
 
