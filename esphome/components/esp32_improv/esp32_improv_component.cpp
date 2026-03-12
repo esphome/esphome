@@ -314,6 +314,8 @@ void ESP32ImprovComponent::dump_config() {
 }
 
 void ESP32ImprovComponent::process_incoming_data_() {
+  if (this->incoming_data_.size() < 3)
+    return;
   uint8_t length = this->incoming_data_[1];
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE

@@ -152,6 +152,11 @@ class TypeInfo(ABC):
         return self._field.label == FieldDescriptorProto.LABEL_REPEATED
 
     @property
+    def force(self) -> bool:
+        """Check if this field should always be encoded (skip zero/empty check)."""
+        return get_field_opt(self._field, pb.force, False)
+
+    @property
     def wire_type(self) -> WireType:
         """Get the wire type for the field."""
         raise NotImplementedError
@@ -218,6 +223,8 @@ class TypeInfo(ABC):
 
     @property
     def encode_content(self) -> str:
+        if self.force:
+            return f"buffer.{self.encode_func}({self.number}, this->{self.field_name}, true);"
         return f"buffer.{self.encode_func}({self.number}, this->{self.field_name});"
 
     encode_func = None
@@ -270,18 +277,21 @@ class TypeInfo(ABC):
     def _get_simple_size_calculation(
         self, name: str, force: bool, base_method: str, value_expr: str = None
     ) -> str:
-        """Helper for simple size calculations.
+        """Helper for simple size calculations using static ProtoSize methods.
 
         Args:
             name: Field name
             force: Whether this is for a repeated field
-            base_method: Base method name (e.g., "add_int32")
+            base_method: Base method name (e.g., "int32")
             value_expr: Optional value expression (defaults to name)
         """
         field_id_size = self.calculate_field_id_size()
-        method = f"{base_method}_force" if force else base_method
+        method = f"calc_{base_method}_force" if force else f"calc_{base_method}"
+        # calc_bool_force only takes field_id_size (no value needed - bool is always 1 byte)
+        if base_method == "bool" and force:
+            return f"size += ProtoSize::{method}({field_id_size});"
         value = value_expr or name
-        return f"size.{method}({field_id_size}, {value});"
+        return f"size += ProtoSize::{method}({field_id_size}, {value});"
 
     @abstractmethod
     def get_size_calculation(self, name: str, force: bool = False) -> str:
@@ -410,7 +420,9 @@ class DoubleType(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
-        return f"size.add_double({field_id_size}, {name});"
+        if force:
+            return f"size += {field_id_size + self.get_fixed_size_bytes()};"
+        return f"size += ProtoSize::calc_fixed64({field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
         return 8
@@ -434,7 +446,9 @@ class FloatType(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
-        return f"size.add_float({field_id_size}, {name});"
+        if force:
+            return f"size += {field_id_size + self.get_fixed_size_bytes()};"
+        return f"size += ProtoSize::calc_float({field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
         return 4
@@ -447,7 +461,7 @@ class FloatType(TypeInfo):
 class Int64Type(TypeInfo):
     cpp_type = "int64_t"
     default_value = "0"
-    decode_varint = "value.as_int64()"
+    decode_varint = "static_cast<int64_t>(value)"
     encode_func = "encode_int64"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -457,7 +471,7 @@ class Int64Type(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return self._get_simple_size_calculation(name, force, "add_int64")
+        return self._get_simple_size_calculation(name, force, "int64")
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 3  # field ID + 3 bytes typical varint
@@ -467,7 +481,7 @@ class Int64Type(TypeInfo):
 class UInt64Type(TypeInfo):
     cpp_type = "uint64_t"
     default_value = "0"
-    decode_varint = "value.as_uint64()"
+    decode_varint = "value"
     encode_func = "encode_uint64"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -477,7 +491,7 @@ class UInt64Type(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return self._get_simple_size_calculation(name, force, "add_uint64")
+        return self._get_simple_size_calculation(name, force, "uint64")
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 3  # field ID + 3 bytes typical varint
@@ -487,7 +501,7 @@ class UInt64Type(TypeInfo):
 class Int32Type(TypeInfo):
     cpp_type = "int32_t"
     default_value = "0"
-    decode_varint = "value.as_int32()"
+    decode_varint = "static_cast<int32_t>(value)"
     encode_func = "encode_int32"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -497,7 +511,7 @@ class Int32Type(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return self._get_simple_size_calculation(name, force, "add_int32")
+        return self._get_simple_size_calculation(name, force, "int32")
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 3  # field ID + 3 bytes typical varint
@@ -518,7 +532,9 @@ class Fixed64Type(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
-        return f"size.add_fixed64({field_id_size}, {name});"
+        if force:
+            return f"size += {field_id_size + self.get_fixed_size_bytes()};"
+        return f"size += ProtoSize::calc_fixed64({field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
         return 8
@@ -542,7 +558,9 @@ class Fixed32Type(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
-        return f"size.add_fixed32({field_id_size}, {name});"
+        if force:
+            return f"size += {field_id_size + self.get_fixed_size_bytes()};"
+        return f"size += ProtoSize::calc_fixed32({field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
         return 4
@@ -555,7 +573,7 @@ class Fixed32Type(TypeInfo):
 class BoolType(TypeInfo):
     cpp_type = "bool"
     default_value = "false"
-    decode_varint = "value.as_bool()"
+    decode_varint = "value != 0"
     encode_func = "encode_bool"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -563,7 +581,7 @@ class BoolType(TypeInfo):
         return f"out.append(YESNO({name}));"
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return self._get_simple_size_calculation(name, force, "add_bool")
+        return self._get_simple_size_calculation(name, force, "bool")
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 1  # field ID + 1 byte
@@ -604,6 +622,8 @@ class StringType(TypeInfo):
     @property
     def encode_content(self) -> str:
         # Use the StringRef
+        if self.force:
+            return f"buffer.encode_string({self.number}, this->{self.field_name}_ref_, true);"
         return f"buffer.encode_string({self.number}, this->{self.field_name}_ref_);"
 
     def dump(self, name):
@@ -647,18 +667,18 @@ class StringType(TypeInfo):
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         # For SOURCE_CLIENT only messages, use the string field directly
         if not self._needs_encode:
-            return self._get_simple_size_calculation(name, force, "add_length")
+            return self._get_simple_size_calculation(name, force, "length")
 
         # Check if this is being called from a repeated field context
         # In that case, 'name' will be 'it' and we need to use the repeated version
         if name == "it":
-            # For repeated fields, we need to use add_length_force which includes field ID
+            # For repeated fields, we need to use length_force which includes field ID
             field_id_size = self.calculate_field_id_size()
-            return f"size.add_length_force({field_id_size}, it.size());"
+            return f"size += ProtoSize::calc_length_force({field_id_size}, it.size());"
 
         # For messages that need encoding, use the StringRef size
         field_id_size = self.calculate_field_id_size()
-        return f"size.add_length({field_id_size}, this->{self.field_name}_ref_.size());"
+        return f"size += ProtoSize::calc_length({field_id_size}, this->{self.field_name}_ref_.size());"
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical string
@@ -687,7 +707,12 @@ class MessageType(TypeInfo):
 
     @property
     def encode_func(self) -> str:
-        return "encode_message"
+        return "encode_optional_sub_message"
+
+    @property
+    def encode_content(self) -> str:
+        # encode_sub_message always encodes (uses backpatch), no force needed
+        return f"buffer.{self.encode_func}({self.number}, this->{self.field_name});"
 
     @property
     def decode_length(self) -> str:
@@ -713,7 +738,9 @@ class MessageType(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return self._get_simple_size_calculation(name, force, "add_message_object")
+        field_id_size = self.calculate_field_id_size()
+        method = "calc_message_force" if force else "calc_message"
+        return f"size += ProtoSize::{method}({field_id_size}, {name}.calculate_size());"
 
     def get_estimated_size(self) -> int:
         # For message types, we can't easily estimate the submessage size without
@@ -761,6 +788,8 @@ class BytesType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
+        if self.force:
+            return f"buffer.encode_bytes({self.number}, this->{self.field_name}_ptr_, this->{self.field_name}_len_, true);"
         return f"buffer.encode_bytes({self.number}, this->{self.field_name}_ptr_, this->{self.field_name}_len_);"
 
     def dump(self, name: str) -> str:
@@ -814,7 +843,7 @@ class BytesType(TypeInfo):
         )
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return f"size.add_length({self.calculate_field_id_size()}, this->{self.field_name}_len_);"
+        return f"size += ProtoSize::calc_length({self.calculate_field_id_size()}, this->{self.field_name}_len_);"
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical bytes
@@ -866,6 +895,8 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
 
     @property
     def encode_content(self) -> str:
+        if self.force:
+            return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len, true);"
         return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len);"
 
     @property
@@ -889,7 +920,7 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
         )
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return f"size.add_length({self.calculate_field_id_size()}, this->{self.field_name}_len);"
+        return f"size += ProtoSize::calc_length({self.calculate_field_id_size()}, this->{self.field_name}_len);"
 
 
 class PointerToStringBufferType(PointerToBufferTypeBase):
@@ -913,6 +944,10 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
 
     @property
     def encode_content(self) -> str:
+        if self.force:
+            return (
+                f"buffer.encode_string({self.number}, this->{self.field_name}, true);"
+            )
         return f"buffer.encode_string({self.number}, this->{self.field_name});"
 
     @property
@@ -931,7 +966,7 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
         return f'dump_field(out, "{self.name}", this->{self.field_name});'
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return f"size.add_length({self.calculate_field_id_size()}, this->{self.field_name}.size());"
+        return f"size += ProtoSize::calc_length({self.calculate_field_id_size()}, this->{self.field_name}.size());"
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical string
@@ -1076,6 +1111,8 @@ class FixedArrayBytesType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
+        if self.force:
+            return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len, true);"
         return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len);"
 
     def dump(self, name: str) -> str:
@@ -1095,9 +1132,9 @@ class FixedArrayBytesType(TypeInfo):
 
         if force:
             # For repeated fields, always calculate size (no zero check)
-            return f"size.add_length_force({field_id_size}, {length_field});"
-        # For non-repeated fields, add_length already checks for zero
-        return f"size.add_length({field_id_size}, {length_field});"
+            return f"size += ProtoSize::calc_length_force({field_id_size}, {length_field});"
+        # For non-repeated fields, length already checks for zero
+        return f"size += ProtoSize::calc_length({field_id_size}, {length_field});"
 
     def get_estimated_size(self) -> int:
         # Estimate based on typical BLE advertisement size
@@ -1114,7 +1151,7 @@ class FixedArrayBytesType(TypeInfo):
 class UInt32Type(TypeInfo):
     cpp_type = "uint32_t"
     default_value = "0"
-    decode_varint = "value.as_uint32()"
+    decode_varint = "value"
     encode_func = "encode_uint32"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -1124,7 +1161,7 @@ class UInt32Type(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return self._get_simple_size_calculation(name, force, "add_uint32")
+        return self._get_simple_size_calculation(name, force, "uint32")
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 3  # field ID + 3 bytes typical varint
@@ -1138,7 +1175,7 @@ class EnumType(TypeInfo):
 
     @property
     def decode_varint(self) -> str:
-        return f"static_cast<{self.cpp_type}>(value.as_uint32())"
+        return f"static_cast<{self.cpp_type}>(value)"
 
     default_value = ""
     wire_type = WireType.VARINT  # Uses wire type 0
@@ -1149,6 +1186,8 @@ class EnumType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
+        if self.force:
+            return f"buffer.{self.encode_func}({self.number}, static_cast<uint32_t>(this->{self.field_name}), true);"
         return f"buffer.{self.encode_func}({self.number}, static_cast<uint32_t>(this->{self.field_name}));"
 
     def dump(self, name: str) -> str:
@@ -1160,7 +1199,7 @@ class EnumType(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         return self._get_simple_size_calculation(
-            name, force, "add_uint32", f"static_cast<uint32_t>({name})"
+            name, force, "uint32", f"static_cast<uint32_t>({name})"
         )
 
     def get_estimated_size(self) -> int:
@@ -1182,7 +1221,9 @@ class SFixed32Type(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
-        return f"size.add_sfixed32({field_id_size}, {name});"
+        if force:
+            return f"size += {field_id_size + self.get_fixed_size_bytes()};"
+        return f"size += ProtoSize::calc_sfixed32({field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
         return 4
@@ -1206,7 +1247,9 @@ class SFixed64Type(TypeInfo):
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
-        return f"size.add_sfixed64({field_id_size}, {name});"
+        if force:
+            return f"size += {field_id_size + self.get_fixed_size_bytes()};"
+        return f"size += ProtoSize::calc_sfixed64({field_id_size}, {name});"
 
     def get_fixed_size_bytes(self) -> int:
         return 8
@@ -1219,7 +1262,7 @@ class SFixed64Type(TypeInfo):
 class SInt32Type(TypeInfo):
     cpp_type = "int32_t"
     default_value = "0"
-    decode_varint = "value.as_sint32()"
+    decode_varint = "decode_zigzag32(static_cast<uint32_t>(value))"
     encode_func = "encode_sint32"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -1229,7 +1272,7 @@ class SInt32Type(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return self._get_simple_size_calculation(name, force, "add_sint32")
+        return self._get_simple_size_calculation(name, force, "sint32")
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 3  # field ID + 3 bytes typical varint
@@ -1239,7 +1282,7 @@ class SInt32Type(TypeInfo):
 class SInt64Type(TypeInfo):
     cpp_type = "int64_t"
     default_value = "0"
-    decode_varint = "value.as_sint64()"
+    decode_varint = "decode_zigzag64(value)"
     encode_func = "encode_sint64"
     wire_type = WireType.VARINT  # Uses wire type 0
 
@@ -1249,7 +1292,7 @@ class SInt64Type(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return self._get_simple_size_calculation(name, force, "add_sint64")
+        return self._get_simple_size_calculation(name, force, "sint64")
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 3  # field ID + 3 bytes typical varint
@@ -1309,9 +1352,9 @@ class FixedArrayRepeatedType(TypeInfo):
         """Helper to generate encode statement for a single element."""
         if isinstance(self._ti, EnumType):
             return f"buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>({element}), true);"
-        # MessageType.encode_message doesn't have a force parameter
+        # Repeated message elements use encode_sub_message (force=true is default)
         if isinstance(self._ti, MessageType):
-            return f"buffer.{self._ti.encode_func}({self.number}, {element});"
+            return f"buffer.encode_sub_message({self.number}, {element});"
         return f"buffer.{self._ti.encode_func}({self.number}, {element}, true);"
 
     @property
@@ -1637,9 +1680,9 @@ class RepeatedTypeInfo(TypeInfo):
         """Helper to generate encode call for a single element."""
         if isinstance(self._ti, EnumType):
             return f"buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>({element}), true);"
-        # MessageType.encode_message doesn't have a force parameter
+        # Repeated message elements use encode_sub_message (force=true is default)
         if isinstance(self._ti, MessageType):
-            return f"buffer.{self._ti.encode_func}({self.number}, {element});"
+            return f"buffer.encode_sub_message({self.number}, {element});"
         return f"buffer.{self._ti.encode_func}({self.number}, {element}, true);"
 
     @property
@@ -1686,11 +1729,17 @@ class RepeatedTypeInfo(TypeInfo):
         # For repeated fields, we always need to pass force=True to the underlying type's calculation
         # This is because the encode method always sets force=true for repeated fields
 
-        # Handle message types separately as they use a dedicated helper
+        # Handle message types separately - generate inline loop
         if isinstance(self._ti, MessageType):
             field_id_size = self._ti.calculate_field_id_size()
-            container = f"*{name}" if self._use_pointer else name
-            return f"size.add_repeated_message({field_id_size}, {container});"
+            container_ref = f"*{name}" if self._use_pointer else name
+            empty_check = f"{name}->empty()" if self._use_pointer else f"{name}.empty()"
+            o = f"if (!{empty_check}) {{\n"
+            o += f"  for (const auto &it : {container_ref}) {{\n"
+            o += f"    size += ProtoSize::calc_message_force({field_id_size}, it.calculate_size());\n"
+            o += "  }\n"
+            o += "}"
+            return o
 
         # For non-message types, generate size calculation with iteration
         container_ref = f"*{name}" if self._use_pointer else name
@@ -1705,14 +1754,14 @@ class RepeatedTypeInfo(TypeInfo):
             field_id_size = self._ti.calculate_field_id_size()
             bytes_per_element = field_id_size + num_bytes
             size_expr = f"{name}->size()" if self._use_pointer else f"{name}.size()"
-            o += f"  size.add_precalculated_size({size_expr} * {bytes_per_element});\n"
+            o += f"  size += {size_expr} * {bytes_per_element};\n"
         else:
             # Other types need the actual value
             # Special handling for const char* elements
             if self._use_pointer and "const char" in self._container_no_template:
                 field_id_size = self.calculate_field_id_size()
                 o += f"  for (const char *it : {container_ref}) {{\n"
-                o += f"    size.add_length_force({field_id_size}, strlen(it));\n"
+                o += f"    size += ProtoSize::calc_length_force({field_id_size}, strlen(it));\n"
             else:
                 auto_ref = "" if self._ti_is_bool else "&"
                 o += f"  for (const auto {auto_ref}it : {container_ref}) {{\n"
@@ -1905,6 +1954,37 @@ def build_type_usage_map(
     )
 
 
+def get_varint64_ifdef(
+    file_desc: descriptor.FileDescriptorProto,
+    message_ifdef_map: dict[str, str | None],
+) -> tuple[bool, str | None]:
+    """Check if 64-bit varint fields exist and get their common ifdef guard.
+
+    Returns:
+        (has_varint64, ifdef_guard) - has_varint64 is True if any fields exist,
+        ifdef_guard is the common guard or None if unconditional.
+    """
+    varint64_types = {
+        FieldDescriptorProto.TYPE_INT64,
+        FieldDescriptorProto.TYPE_UINT64,
+        FieldDescriptorProto.TYPE_SINT64,
+    }
+    ifdefs: set[str | None] = {
+        message_ifdef_map.get(msg.name)
+        for msg in file_desc.message_type
+        if not msg.options.deprecated
+        for field in msg.field
+        if not field.options.deprecated and field.type in varint64_types
+    }
+    if not ifdefs:
+        return False, None
+    if None in ifdefs:
+        # At least one 64-bit varint field is unconditional, so the guard must be unconditional.
+        return True, None
+    ifdefs.discard(None)
+    return True, ifdefs.pop() if len(ifdefs) == 1 else None
+
+
 def build_enum_type(desc, enum_ifdef_map) -> tuple[str, str, str]:
     """Builds the enum type.
 
@@ -2087,7 +2167,8 @@ def build_message_type(
             encode.extend(wrap_with_ifdef(ti.encode_content, field_ifdef))
             size_calc.extend(
                 wrap_with_ifdef(
-                    ti.get_size_calculation(f"this->{ti.field_name}"), field_ifdef
+                    ti.get_size_calculation(f"this->{ti.field_name}", ti.force),
+                    field_ifdef,
                 )
             )
 
@@ -2124,7 +2205,7 @@ def build_message_type(
 
     cpp = ""
     if decode_varint:
-        o = f"bool {desc.name}::decode_varint(uint32_t field_id, ProtoVarInt value) {{\n"
+        o = f"bool {desc.name}::decode_varint(uint32_t field_id, proto_varint_value_t value) {{\n"
         o += "  switch (field_id) {\n"
         o += indent("\n".join(decode_varint), "    ") + "\n"
         o += "    default: return false;\n"
@@ -2132,7 +2213,7 @@ def build_message_type(
         o += "  return true;\n"
         o += "}\n"
         cpp += o
-        prot = "bool decode_varint(uint32_t field_id, ProtoVarInt value) override;"
+        prot = "bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;"
         protected_content.insert(0, prot)
     if decode_length:
         o = f"bool {desc.name}::decode_length(uint32_t field_id, ProtoLengthDelimited value) {{\n"
@@ -2186,7 +2267,7 @@ def build_message_type(
 
     # Only generate encode method if this message needs encoding and has fields
     if needs_encode and encode:
-        o = f"void {desc.name}::encode(ProtoWriteBuffer buffer) const {{"
+        o = f"void {desc.name}::encode(ProtoWriteBuffer &buffer) const {{"
         if len(encode) == 1 and len(encode[0]) + len(o) + 3 < 120:
             o += f" {encode[0]} }}\n"
         else:
@@ -2194,23 +2275,19 @@ def build_message_type(
             o += indent("\n".join(encode)) + "\n"
             o += "}\n"
         cpp += o
-        prot = "void encode(ProtoWriteBuffer buffer) const override;"
+        prot = "void encode(ProtoWriteBuffer &buffer) const;"
         public_content.append(prot)
     # If no fields to encode or message doesn't need encoding, the default implementation in ProtoMessage will be used
 
     # Add calculate_size method only if this message needs encoding and has fields
     if needs_encode and size_calc:
-        o = f"void {desc.name}::calculate_size(ProtoSize &size) const {{"
-        # For a single field, just inline it for simplicity
-        if len(size_calc) == 1 and len(size_calc[0]) + len(o) + 3 < 120:
-            o += f" {size_calc[0]} }}\n"
-        else:
-            # For multiple fields
-            o += "\n"
-            o += indent("\n".join(size_calc)) + "\n"
-            o += "}\n"
+        o = f"uint32_t {desc.name}::calculate_size() const {{\n"
+        o += "  uint32_t size = 0;\n"
+        o += indent("\n".join(size_calc)) + "\n"
+        o += "  return size;\n"
+        o += "}\n"
         cpp += o
-        prot = "void calculate_size(ProtoSize &size) const override;"
+        prot = "uint32_t calculate_size() const;"
         public_content.append(prot)
     # If no fields to calculate size for or message doesn't need encoding, the default implementation in ProtoMessage will be used
 
@@ -2434,9 +2511,6 @@ def build_base_class(
     out = f"class {base_class_name} : public {parent_class} {{\n"
     out += " public:\n"
 
-    # Add destructor with override
-    public_content.insert(0, f"~{base_class_name}() override = default;")
-
     # Base classes don't implement encode/decode/calculate_size
     # Derived classes handle these with their specific field numbers
     cpp = ""
@@ -2444,6 +2518,8 @@ def build_base_class(
     out += indent("\n".join(public_content)) + "\n"
     out += "\n"
     out += " protected:\n"
+    # Non-virtual protected destructor prevents accidental polymorphic deletion
+    protected_content.insert(0, f"~{base_class_name}() = default;")
     out += indent("\n".join(protected_content))
     if protected_content:
         out += "\n"
@@ -2559,11 +2635,38 @@ def main() -> None:
 
     file = d.file[0]
 
+    # Build dynamic ifdef mappings early so we can emit USE_API_VARINT64 before includes
+    enum_ifdef_map, message_ifdef_map, message_source_map, used_messages = (
+        build_type_usage_map(file)
+    )
+
+    # Find the ifdef guard for 64-bit varint fields (int64/uint64/sint64).
+    # Generated into api_pb2_defines.h so proto.h can include it, ensuring
+    # consistent ProtoVarInt layout across all translation units.
+    has_varint64, varint64_guard = get_varint64_ifdef(file, message_ifdef_map)
+
+    # Generate api_pb2_defines.h — included by proto.h to ensure all translation
+    # units see USE_API_VARINT64 consistently (avoids ODR violations in ProtoVarInt).
+    defines_content = FILE_HEADER
+    defines_content += "#pragma once\n\n"
+    defines_content += '#include "esphome/core/defines.h"\n'
+    if has_varint64:
+        lines = [
+            "#ifndef USE_API_VARINT64",
+            "#define USE_API_VARINT64",
+            "#endif",
+        ]
+        defines_content += "\n".join(wrap_with_ifdef(lines, varint64_guard))
+        defines_content += "\n"
+    defines_content += "\nnamespace esphome::api {}  // namespace esphome::api\n"
+
+    with open(root / "api_pb2_defines.h", "w", encoding="utf-8") as f:
+        f.write(defines_content)
+
     content = FILE_HEADER
     content += """\
 #pragma once
 
-#include "esphome/core/defines.h"
 #include "esphome/core/string_ref.h"
 
 #include "proto.h"
@@ -2693,11 +2796,6 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
 """
 
     content += "namespace enums {\n\n"
-
-    # Build dynamic ifdef mappings for both enums and messages
-    enum_ifdef_map, message_ifdef_map, message_source_map, used_messages = (
-        build_type_usage_map(file)
-    )
 
     # Simple grouping of enums by ifdef
     current_ifdef = None
@@ -2873,14 +2971,8 @@ static const char *const TAG = "api.service";
     hpp += " public:\n"
     hpp += "#endif\n\n"
 
-    # Add non-template send_message method
-    hpp += "  bool send_message(const ProtoMessage &msg, uint8_t message_type) {\n"
-    hpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
-    hpp += "    DumpBuffer dump_buf;\n"
-    hpp += "    this->log_send_message_(msg.message_name(), msg.dump_to(dump_buf));\n"
-    hpp += "#endif\n"
-    hpp += "    return this->send_message_impl(msg, message_type);\n"
-    hpp += "  }\n\n"
+    # send_message is now a template on APIConnection directly
+    # No non-template send_message method needed here
 
     # Add logging helper method implementations to cpp
     cpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"

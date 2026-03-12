@@ -141,13 +141,13 @@ enum UARTSelection : uint8_t {
  * 2. Works with ESP-IDF's pthread implementation that uses a linked list for TLS variables
  * 3. Avoids the limitations of the fixed FreeRTOS task local storage slots
  */
-class Logger : public Component {
+class Logger final : public Component {
  public:
-  explicit Logger(uint32_t baud_rate, size_t tx_buffer_size);
+  explicit Logger(uint32_t baud_rate);
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   void init_log_buffer(size_t total_buffer_size);
 #endif
-#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_USB_CDC))
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
   void loop() override;
 #endif
   /// Manually set the baud rate for serial, set to 0 to disable.
@@ -229,7 +229,7 @@ class Logger : public Component {
   void log_vprintf_non_main_thread_(uint8_t level, const char *tag, int line, const char *format, va_list args,
                                     const char *thread_name);
 #endif
-#if defined(USE_ZEPHYR) && defined(USE_LOGGER_USB_CDC)
+#if defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC)
   void cdc_loop_();
 #endif
   void process_messages_();
@@ -281,7 +281,7 @@ class Logger : public Component {
   inline void HOT log_message_to_buffer_and_send_(bool &recursion_guard, uint8_t level, const char *tag, int line,
                                                   FormatType format, va_list args, const char *thread_name) {
     RecursionGuard guard(recursion_guard);
-    LogBuffer buf{this->tx_buffer_, this->tx_buffer_size_};
+    LogBuffer buf{this->tx_buffer_, ESPHOME_LOGGER_TX_BUFFER_SIZE};
 #ifdef USE_STORE_LOG_STR_IN_FLASH
     if constexpr (std::is_same_v<FormatType, const __FlashStringHelper *>) {
       this->format_log_to_buffer_with_terminator_P_(level, tag, line, format, args, buf);
@@ -312,11 +312,11 @@ class Logger : public Component {
 
   // Group 4-byte aligned members first
   uint32_t baud_rate_;
-  char *tx_buffer_{nullptr};
 #if defined(USE_ARDUINO) && !defined(USE_ESP32)
   Stream *hw_serial_{nullptr};
 #endif
 #if defined(USE_ZEPHYR)
+  void dump_crash_();
   const device *uart_dev_{nullptr};
 #endif
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ZEPHYR)
@@ -353,7 +353,6 @@ class Logger : public Component {
 #endif
 
   // Group smaller types together at the end
-  uint16_t tx_buffer_size_{0};
   uint8_t current_level_{ESPHOME_LOG_LEVEL_VERY_VERBOSE};
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_ZEPHYR)
   UARTSelection uart_{UART_SELECTION_UART0};
@@ -369,6 +368,9 @@ class Logger : public Component {
 #else
   bool global_recursion_guard_{false};  // Simple global recursion guard for single-task platforms
 #endif
+
+  // Large buffer placed last to keep frequently-accessed member offsets small
+  char tx_buffer_[ESPHOME_LOGGER_TX_BUFFER_SIZE + 1];  // +1 for null terminator
 
   // --- get_thread_name_ overloads (per-platform) ---
 
@@ -464,9 +466,9 @@ class Logger : public Component {
   inline RecursionGuard make_non_main_task_guard_() { return RecursionGuard(non_main_task_recursion_guard_); }
 #endif
 
-// Zephyr needs loop working to check when CDC port is open
-#if defined(USE_ESPHOME_TASK_LOG_BUFFER) && !(defined(USE_ZEPHYR) || defined(USE_LOGGER_USB_CDC))
-  // Disable loop when task buffer is empty (with USB CDC check on ESP32)
+#if defined(USE_ESPHOME_TASK_LOG_BUFFER) && !(defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
+  // Disable loop when task buffer is empty
+  // Zephyr with USB CDC needs loop active to poll port readiness via cdc_loop_()
   inline void disable_loop_when_buffer_empty_() {
     // Thread safety note: This is safe even if another task calls enable_loop_soon_any_context()
     // concurrently. If that happens between our check and disable_loop(), the enable request
@@ -479,7 +481,7 @@ class Logger : public Component {
 };
 extern Logger *global_logger;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-class LoggerMessageTrigger : public Trigger<uint8_t, const char *, const char *> {
+class LoggerMessageTrigger final : public Trigger<uint8_t, const char *, const char *> {
  public:
   explicit LoggerMessageTrigger(Logger *parent, uint8_t level) : level_(level) {
     parent->add_log_callback(this,

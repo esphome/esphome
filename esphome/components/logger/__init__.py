@@ -101,6 +101,8 @@ CONF_INITIAL_LEVEL = "initial_level"
 CONF_LOGGER_ID = "logger_id"
 CONF_RUNTIME_TAG_LEVELS = "runtime_tag_levels"
 CONF_TASK_LOG_BUFFER_SIZE = "task_log_buffer_size"
+CONF_WAIT_FOR_CDC = "wait_for_cdc"
+CONF_EARLY_MESSAGE = "early_message"
 
 UART_SELECTION_ESP32 = {
     VARIANT_ESP32: [UART0, UART1, UART2],
@@ -208,6 +210,12 @@ def validate_initial_no_higher_than_global(config):
     return config
 
 
+def validate_wait_for_cdc(config):
+    if config.get(CONF_WAIT_FOR_CDC) and config.get(CONF_HARDWARE_UART) != USB_CDC:
+        raise cv.Invalid("wait_for_cdc requires hardware_uart: USB_CDC")
+    return config
+
+
 Logger = logger_ns.class_("Logger", cg.Component)
 LoggerMessageTrigger = logger_ns.class_(
     "LoggerMessageTrigger",
@@ -300,10 +308,18 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(
                 CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH, esp8266=True
             ): cv.All(cv.only_on_esp8266, cv.boolean),
+            cv.SplitDefault(CONF_WAIT_FOR_CDC, nrf52=False): cv.All(
+                cv.only_on(PLATFORM_NRF52),
+                cv.boolean,
+            ),
+            cv.SplitDefault(CONF_EARLY_MESSAGE, nrf52=False): cv.All(
+                cv.only_on(PLATFORM_NRF52), cv.boolean
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     validate_local_no_higher_than_global,
     validate_initial_no_higher_than_global,
+    validate_wait_for_cdc,
 )
 
 
@@ -313,13 +329,28 @@ async def to_code(config):
     level = config[CONF_LEVEL]
     CORE.data.setdefault(CONF_LOGGER, {})[CONF_LEVEL] = level
     initial_level = LOG_LEVELS[config.get(CONF_INITIAL_LEVEL, level)]
+    tx_buffer_size = config[CONF_TX_BUFFER_SIZE]
+    cg.add_define("ESPHOME_LOGGER_TX_BUFFER_SIZE", tx_buffer_size)
     log = cg.new_Pvariable(
         config[CONF_ID],
         baud_rate,
-        config[CONF_TX_BUFFER_SIZE],
     )
     if CORE.is_esp32:
         cg.add(log.create_pthread_key())
+    # set_uart_selection() must be called before pre_setup() because
+    # pre_setup() switches on uart_ to decide which hardware to initialize
+    # (e.g. UART0 vs USB_SERIAL_JTAG). Without this, uart_ is still the
+    # default UART_SELECTION_UART0 and the wrong hardware gets initialized.
+    if CONF_HARDWARE_UART in config:
+        cg.add(
+            log.set_uart_selection(
+                HARDWARE_UART_TO_UART_SELECTION[config[CONF_HARDWARE_UART]]
+            )
+        )
+    # pre_setup() must be called before init_log_buffer() because
+    # init_log_buffer() calls disable_loop() which may log at VV level,
+    # and global_logger must be set before any logging occurs.
+    cg.add(log.pre_setup())
     if CORE.is_esp32 or CORE.is_libretiny or CORE.is_nrf52:
         task_log_buffer_size = config[CONF_TASK_LOG_BUFFER_SIZE]
         if task_log_buffer_size > 0:
@@ -333,13 +364,6 @@ async def to_code(config):
         cg.add(log.init_log_buffer(64))  # Fixed 64 slots for host
 
     cg.add(log.set_log_level(initial_level))
-    if CONF_HARDWARE_UART in config:
-        cg.add(
-            log.set_uart_selection(
-                HARDWARE_UART_TO_UART_SELECTION[config[CONF_HARDWARE_UART]]
-            )
-        )
-    cg.add(log.pre_setup())
 
     # Enable runtime tag levels if logs are configured or explicitly enabled
     logs_config = config[CONF_LOGS]
@@ -425,13 +449,21 @@ async def to_code(config):
     except cv.Invalid:
         pass
 
+    if config.get(CONF_WAIT_FOR_CDC):
+        cg.add_define("USE_LOGGER_WAIT_FOR_CDC")
+    if config.get(CONF_EARLY_MESSAGE):
+        cg.add_define("USE_LOGGER_EARLY_MESSAGE")
+
     if CORE.is_nrf52:
+        # esphome implement own fatal error handler which save PC/LR before reset
+        zephyr_add_prj_conf("RESET_ON_FATAL_ERROR", False)
         zephyr_add_prj_conf("THREAD_LOCAL_STORAGE", True)
         if config[CONF_HARDWARE_UART] == UART0:
             zephyr_add_overlay("""&uart0 { status = "okay";};""")
         if config[CONF_HARDWARE_UART] == UART1:
             zephyr_add_overlay("""&uart1 { status = "okay";};""")
         if config[CONF_HARDWARE_UART] == USB_CDC:
+            cg.add_define("USE_LOGGER_UART_SELECTION_USB_CDC")
             zephyr_add_prj_conf("UART_LINE_CTRL", True)
             zephyr_add_cdc_acm(config, 0)
 
@@ -494,7 +526,9 @@ LOGGER_LOG_ACTION_SCHEMA = cv.All(
 )
 
 
-@automation.register_action(CONF_LOGGER_LOG, LambdaAction, LOGGER_LOG_ACTION_SCHEMA)
+@automation.register_action(
+    CONF_LOGGER_LOG, LambdaAction, LOGGER_LOG_ACTION_SCHEMA, synchronous=True
+)
 async def logger_log_action_to_code(config, action_id, template_arg, args):
     esp_log = LOG_LEVEL_TO_ESP_LOG[config[CONF_LEVEL]]
     args_ = [cg.RawExpression(str(x)) for x in config[CONF_ARGS]]
@@ -518,6 +552,7 @@ async def logger_log_action_to_code(config, action_id, template_arg, args):
         },
         key=CONF_LEVEL,
     ),
+    synchronous=True,
 )
 async def logger_set_level_to_code(config, action_id, template_arg, args):
     level = LOG_LEVELS[config[CONF_LEVEL]]

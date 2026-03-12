@@ -429,7 +429,7 @@ bool BMP581Component::read_temperature_(float &temperature) {
   }
 
   // temperature MSB is in data[2], LSB is in data[1], XLSB in data[0]
-  int32_t raw_temp = (int32_t) data[2] << 16 | (int32_t) data[1] << 8 | (int32_t) data[0];
+  int32_t raw_temp = static_cast<int32_t>(encode_uint32(data[2], data[1], data[0], 0)) >> 8;
   temperature = (float) (raw_temp / 65536.0);  // convert measurement to degrees Celsius (page 22 of datasheet)
 
   return true;
@@ -458,7 +458,7 @@ bool BMP581Component::read_temperature_and_pressure_(float &temperature, float &
   }
 
   // temperature MSB is in data[2], LSB is in data[1], XLSB in data[0]
-  int32_t raw_temp = (int32_t) data[2] << 16 | (int32_t) data[1] << 8 | (int32_t) data[0];
+  int32_t raw_temp = static_cast<int32_t>(encode_uint32(data[2], data[1], data[0], 0)) >> 8;
   temperature = (float) (raw_temp / 65536.0);  // convert measurement to degrees Celsius (page 22 of datasheet)
 
   // pressure MSB is in data[5], LSB is in data[4], XLSB in data[3]

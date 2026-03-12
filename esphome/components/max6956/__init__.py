@@ -112,6 +112,7 @@ async def max6956_pin_to_code(config):
         },
         key=CONF_BRIGHTNESS_GLOBAL,
     ),
+    synchronous=True,
 )
 async def max6956_set_brightness_global_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -133,6 +134,7 @@ async def max6956_set_brightness_global_to_code(config, action_id, template_arg,
         },
         key=CONF_BRIGHTNESS_MODE,
     ),
+    synchronous=True,
 )
 async def max6956_set_brightness_mode_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

@@ -10,7 +10,7 @@ namespace mipi_dsi {
 static constexpr size_t MIPI_DSI_MAX_CMD_LOG_BYTES = 64;
 
 static bool notify_refresh_ready(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata, void *user_ctx) {
-  auto *sem = static_cast<SemaphoreHandle_t *>(user_ctx);
+  auto sem = static_cast<SemaphoreHandle_t>(user_ctx);
   BaseType_t need_yield = pdFALSE;
   xSemaphoreGiveFromISR(sem, &need_yield);
   return (need_yield == pdTRUE);
@@ -190,6 +190,7 @@ void MIPI_DSI::draw_pixels_at(int x_start, int y_start, int w, int h, const uint
   if (bitness != this->color_depth_) {
     display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
                                      x_pad);
+    return;
   }
   this->write_to_display_(x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
 }
@@ -374,7 +375,7 @@ void MIPI_DSI::dump_config() {
                 "\n  Swap X/Y: %s"
                 "\n  Rotation: %d degrees"
                 "\n  DSI Lanes: %u"
-                "\n  Lane Bit Rate: %uMbps"
+                "\n  Lane Bit Rate: %.0fMbps"
                 "\n  HSync Pulse Width: %u"
                 "\n  HSync Back Porch: %u"
                 "\n  HSync Front Porch: %u"
@@ -385,7 +386,7 @@ void MIPI_DSI::dump_config() {
                 "\n  Display Pixel Mode: %d bit"
                 "\n  Color Order: %s"
                 "\n  Invert Colors: %s"
-                "\n  Pixel Clock: %dMHz",
+                "\n  Pixel Clock: %.1fMHz",
                 this->model_, this->width_, this->height_, YESNO(this->madctl_ & (MADCTL_XFLIP | MADCTL_MX)),
                 YESNO(this->madctl_ & (MADCTL_YFLIP | MADCTL_MY)), YESNO(this->madctl_ & MADCTL_MV), this->rotation_,
                 this->lanes_, this->lane_bit_rate_, this->hsync_pulse_width_, this->hsync_back_porch_,

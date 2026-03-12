@@ -192,8 +192,6 @@ static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0x
 // MAC address the module uses when Bluetooth is disabled
 static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
 
-static inline int two_byte_to_int(char firstbyte, char secondbyte) { return (int16_t) (secondbyte << 8) + firstbyte; }
-
 static inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
   return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
 }
@@ -398,44 +396,46 @@ void LD2412Component::handle_periodic_data_() {
     Detect distance: 16~17th bytes
   */
 #ifdef USE_SENSOR
-  SAFE_PUBLISH_SENSOR(
-      this->moving_target_distance_sensor_,
-      ld2412::two_byte_to_int(this->buffer_data_[MOVING_TARGET_LOW], this->buffer_data_[MOVING_TARGET_HIGH]))
+  SAFE_PUBLISH_SENSOR(this->moving_target_distance_sensor_,
+                      encode_uint16(this->buffer_data_[MOVING_TARGET_HIGH], this->buffer_data_[MOVING_TARGET_LOW]))
   SAFE_PUBLISH_SENSOR(this->moving_target_energy_sensor_, this->buffer_data_[MOVING_ENERGY])
-  SAFE_PUBLISH_SENSOR(
-      this->still_target_distance_sensor_,
-      ld2412::two_byte_to_int(this->buffer_data_[STILL_TARGET_LOW], this->buffer_data_[STILL_TARGET_HIGH]))
+  SAFE_PUBLISH_SENSOR(this->still_target_distance_sensor_,
+                      encode_uint16(this->buffer_data_[STILL_TARGET_HIGH], this->buffer_data_[STILL_TARGET_LOW]))
   SAFE_PUBLISH_SENSOR(this->still_target_energy_sensor_, this->buffer_data_[STILL_ENERGY])
   if (this->detection_distance_sensor_ != nullptr) {
     int new_detect_distance = 0;
     if (target_state != 0x00 && (target_state & MOVE_BITMASK)) {
       new_detect_distance =
-          ld2412::two_byte_to_int(this->buffer_data_[MOVING_TARGET_LOW], this->buffer_data_[MOVING_TARGET_HIGH]);
+          encode_uint16(this->buffer_data_[MOVING_TARGET_HIGH], this->buffer_data_[MOVING_TARGET_LOW]);
     } else if (target_state != 0x00) {
-      new_detect_distance =
-          ld2412::two_byte_to_int(this->buffer_data_[STILL_TARGET_LOW], this->buffer_data_[STILL_TARGET_HIGH]);
+      new_detect_distance = encode_uint16(this->buffer_data_[STILL_TARGET_HIGH], this->buffer_data_[STILL_TARGET_LOW]);
     }
     this->detection_distance_sensor_->publish_state_if_not_dup(new_detect_distance);
   }
   if (engineering_mode) {
-    /*
-      Moving distance range: 18th byte
-      Still distance range: 19th byte
-      Moving energy: 20~28th bytes
-    */
-    for (uint8_t i = 0; i < TOTAL_GATES; i++) {
-      SAFE_PUBLISH_SENSOR(this->gate_move_sensors_[i], this->buffer_data_[MOVING_SENSOR_START + i])
+    // Engineering mode needs at least LIGHT_SENSOR + 1 bytes
+    if (this->buffer_pos_ < LIGHT_SENSOR + 1) {
+      ESP_LOGW(TAG, "Engineering mode packet too short: %u", this->buffer_pos_);
+    } else {
+      /*
+        Moving distance range: 18th byte
+        Still distance range: 19th byte
+        Moving energy: 20~28th bytes
+      */
+      for (uint8_t i = 0; i < TOTAL_GATES; i++) {
+        SAFE_PUBLISH_SENSOR(this->gate_move_sensors_[i], this->buffer_data_[MOVING_SENSOR_START + i])
+      }
+      /*
+        Still energy: 29~37th bytes
+      */
+      for (uint8_t i = 0; i < TOTAL_GATES; i++) {
+        SAFE_PUBLISH_SENSOR(this->gate_still_sensors_[i], this->buffer_data_[STILL_SENSOR_START + i])
+      }
+      /*
+        Light sensor value
+      */
+      SAFE_PUBLISH_SENSOR(this->light_sensor_, this->buffer_data_[LIGHT_SENSOR])
     }
-    /*
-      Still energy: 29~37th bytes
-    */
-    for (uint8_t i = 0; i < TOTAL_GATES; i++) {
-      SAFE_PUBLISH_SENSOR(this->gate_still_sensors_[i], this->buffer_data_[STILL_SENSOR_START + i])
-    }
-    /*
-      Light sensor: 38th bytes
-    */
-    SAFE_PUBLISH_SENSOR(this->light_sensor_, this->buffer_data_[LIGHT_SENSOR])
   } else {
     for (auto &gate_move_sensor : this->gate_move_sensors_) {
       SAFE_PUBLISH_SENSOR_UNKNOWN(gate_move_sensor)
@@ -530,10 +530,7 @@ bool LD2412Component::handle_ack_data_() {
       this->light_function_ = this->buffer_data_[10];
       this->light_threshold_ = this->buffer_data_[11];
       const auto *light_function_str = find_str(LIGHT_FUNCTIONS_BY_UINT, this->light_function_);
-      ESP_LOGV(TAG,
-               "Light function: %s\n"
-               "Light threshold: %u",
-               light_function_str, this->light_threshold_);
+      ESP_LOGV(TAG, "Light function: %s, threshold: %u", light_function_str, this->light_threshold_);
 #ifdef USE_SELECT
       if (this->light_function_select_ != nullptr) {
         this->light_function_select_->publish_state(light_function_str);
@@ -640,9 +637,9 @@ bool LD2412Component::handle_ack_data_() {
       /*
         None Duration: 11~12th bytes
       */
-      updates.push_back(set_number_value(this->timeout_number_,
-                                         ld2412::two_byte_to_int(this->buffer_data_[12], this->buffer_data_[13])));
-      ESP_LOGV(TAG, "timeout_number_: %u", ld2412::two_byte_to_int(this->buffer_data_[12], this->buffer_data_[13]));
+      updates.push_back(
+          set_number_value(this->timeout_number_, encode_uint16(this->buffer_data_[13], this->buffer_data_[12])));
+      ESP_LOGV(TAG, "timeout_number_: %u", encode_uint16(this->buffer_data_[13], this->buffer_data_[12]));
       /*
         Output pin configuration: 13th bytes
       */
