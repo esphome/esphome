@@ -521,7 +521,9 @@ async def add_arduino_global_workaround():
 async def add_includes(
     includes: list[dict[str, str]], is_c_header: bool = False
 ) -> None:
-    # Add includes at the very end, so that the included files can access global variables
+    # Add configured includes according to their stage: by default, non-system includes
+    # are added after all globals (so they can access global variables), while system
+    # includes default to being added before any globals.
     for include in includes:
         include_path = include[CONF_PATH]
         stage = include[CONF_STAGE]
