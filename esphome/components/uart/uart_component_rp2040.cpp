@@ -105,15 +105,29 @@ void RP2040UartComponent::setup() {
     }
   }
 
+  // Determine which hardware UART to use. A pin that is not specified
+  // should not prevent hardware UART selection — one-way UART is valid.
+  // Both pins must map to the same UART when both are specified.
+  int8_t hw_uart = -1;
+  if (tx_hw != -1 && rx_hw != -1) {
+    // Both pins specified — they must agree on the UART number
+    if (tx_hw == rx_hw) {
+      hw_uart = tx_hw;
+    }
+  } else if (tx_hw != -1) {
+    hw_uart = tx_hw;
+  } else if (rx_hw != -1) {
+    hw_uart = rx_hw;
+  }
+
 #ifdef USE_LOGGER
-  if (tx_hw == rx_hw && logger::global_logger->get_uart() == tx_hw) {
-    ESP_LOGD(TAG, "Using SerialPIO as UART%d is taken by the logger", tx_hw);
-    tx_hw = -1;
-    rx_hw = -1;
+  if (hw_uart != -1 && logger::global_logger->get_uart() == hw_uart) {
+    ESP_LOGD(TAG, "Using SerialPIO as UART%d is taken by the logger", hw_uart);
+    hw_uart = -1;
   }
 #endif
 
-  if (tx_hw == -1 || rx_hw == -1 || tx_hw != rx_hw) {
+  if (hw_uart == -1) {
     ESP_LOGV(TAG, "Using SerialPIO");
     pin_size_t tx = this->tx_pin_ == nullptr ? NOPIN : this->tx_pin_->get_pin();
     pin_size_t rx = this->rx_pin_ == nullptr ? NOPIN : this->rx_pin_->get_pin();
@@ -127,13 +141,15 @@ void RP2040UartComponent::setup() {
   } else {
     ESP_LOGV(TAG, "Using Hardware Serial");
     SerialUART *serial;
-    if (tx_hw == 0) {
+    if (hw_uart == 0) {
       serial = &Serial1;
     } else {
       serial = &Serial2;
     }
-    serial->setTX(this->tx_pin_->get_pin());
-    serial->setRX(this->rx_pin_->get_pin());
+    if (this->tx_pin_ != nullptr)
+      serial->setTX(this->tx_pin_->get_pin());
+    if (this->rx_pin_ != nullptr)
+      serial->setRX(this->rx_pin_->get_pin());
     serial->setFIFOSize(this->rx_buffer_size_);
     serial->begin(this->baud_rate_, config);
     this->serial_ = serial;
