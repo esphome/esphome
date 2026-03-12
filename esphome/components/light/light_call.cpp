@@ -214,6 +214,7 @@ LightColorValues LightCall::validate_() {
   if (this->has_brightness() && this->brightness_ == 0.0f) {
     this->state_ = false;
     this->set_flag_(FLAG_HAS_STATE);
+    this->clear_flag_(FLAG_HAS_BRIGHTNESS);
     this->brightness_ = 1.0f;
   }
 
