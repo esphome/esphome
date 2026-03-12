@@ -375,6 +375,7 @@ async def to_code(configs):
     } & styles_used:
         df.add_define("LV_COLOR_SCREEN_TRANSP", "1")
         lv_image_formats.add("ARGB8888")
+    lv_image_formats.add("RGB565")  # Always need RGB565 for the display buffer
     for use in helpers.lv_uses:
         df.add_define(f"LV_USE_{use.upper()}")
         cg.add_define(f"USE_LVGL_{use.upper()}")
