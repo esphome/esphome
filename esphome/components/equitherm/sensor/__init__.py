@@ -3,38 +3,105 @@ from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACCURACY_DECIMALS,
+    CONF_DEVICE_CLASS,
     CONF_ICON,
     CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
-    ICON_SCALE,
+    DEVICE_CLASS_TEMPERATURE,
+    ENTITY_CATEGORY_NONE,
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
-    UNIT_EMPTY,
 )
 
 from ..climate import EquithermClimate, equitherm_ns
 
+# =============================================================================
+# C++ Class Declarations
+# =============================================================================
+
 EquithermSensor = equitherm_ns.class_("EquithermSensor", sensor.Sensor, cg.Component)
 EquithermSensorType = equitherm_ns.enum("EquithermSensorType")
 
-EQUITHERM_SENSOR_TYPES = {
-    "base_curve_output": EquithermSensorType.EQUITHERM_SENSOR_TYPE_BASE_CURVE_OUTPUT,
-    "final_flow_setpoint": EquithermSensorType.EQUITHERM_SENSOR_TYPE_FINAL_FLOW_SETPOINT,
-    "raw_pid_correction": EquithermSensorType.EQUITHERM_SENSOR_TYPE_RAW_PID_CORRECTION,
-    "gain_scheduling_ratio": EquithermSensorType.EQUITHERM_SENSOR_TYPE_GAIN_SCHEDULING_RATIO,
-    "scaled_correction": EquithermSensorType.EQUITHERM_SENSOR_TYPE_SCALED_CORRECTION,
-}
+# =============================================================================
+# Configuration Keys
+# =============================================================================
 
 CONF_CLIMATE_ID = "climate_id"
 
-CONFIG_SCHEMA = (
+# =============================================================================
+# Sensor Type Enum Mapping
+# =============================================================================
+
+EQUITHERM_SENSOR_TYPES = {
+    "curve_output_raw": EquithermSensorType.EQUITHERM_SENSOR_TYPE_CURVE_OUTPUT_RAW,
+    "base_curve_output": EquithermSensorType.EQUITHERM_SENSOR_TYPE_BASE_CURVE_OUTPUT,
+    "final_flow_setpoint": EquithermSensorType.EQUITHERM_SENSOR_TYPE_FINAL_FLOW_SETPOINT,
+    "last_written_setpoint": EquithermSensorType.EQUITHERM_SENSOR_TYPE_LAST_WRITTEN_SETPOINT,
+    "pid_correction": EquithermSensorType.EQUITHERM_SENSOR_TYPE_PID_CORRECTION,
+}
+
+# =============================================================================
+# Sensor Type Configurations
+# =============================================================================
+
+
+def _temperature_sensor_config():
+    """Default configuration for temperature sensors."""
+    return {
+        "unit": UNIT_CELSIUS,
+        "icon": ICON_THERMOMETER,
+        "accuracy_decimals": 1,
+        "device_class": DEVICE_CLASS_TEMPERATURE,
+    }
+
+
+# Sensor type configurations grouped by category
+FLOW_TEMPERATURE_SENSORS = {
+    "curve_output_raw": _temperature_sensor_config(),
+    "base_curve_output": _temperature_sensor_config(),
+    "final_flow_setpoint": _temperature_sensor_config(),
+    "last_written_setpoint": _temperature_sensor_config(),
+}
+
+PID_DIAGNOSTIC_SENSORS = {
+    "pid_correction": _temperature_sensor_config(),
+}
+
+# Combined sensor type configurations
+SENSOR_TYPE_CONFIGS = {
+    **FLOW_TEMPERATURE_SENSORS,
+    **PID_DIAGNOSTIC_SENSORS,
+}
+
+# =============================================================================
+# Validation
+# =============================================================================
+
+
+def _apply_type_defaults(config):
+    """Apply type-specific defaults based on sensor type."""
+    type_config = SENSOR_TYPE_CONFIGS[config[CONF_TYPE]]
+
+    config.setdefault(CONF_UNIT_OF_MEASUREMENT, type_config["unit"])
+    config.setdefault(CONF_ICON, type_config["icon"])
+    config.setdefault(CONF_ACCURACY_DECIMALS, type_config["accuracy_decimals"])
+
+    if type_config["device_class"]:
+        config.setdefault(CONF_DEVICE_CLASS, type_config["device_class"])
+
+    return config
+
+
+# =============================================================================
+# Configuration Schema
+# =============================================================================
+
+CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         EquithermSensor,
-        unit_of_measurement=UNIT_CELSIUS,
-        icon=ICON_THERMOMETER,
-        accuracy_decimals=1,
         state_class=STATE_CLASS_MEASUREMENT,
+        entity_category=ENTITY_CATEGORY_NONE,
     )
     .extend(
         {
@@ -42,17 +109,16 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_TYPE): cv.enum(EQUITHERM_SENSOR_TYPES, lower=True),
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
+    _apply_type_defaults,
 )
+
+# =============================================================================
+# Code Generation
+# =============================================================================
 
 
 async def to_code(config):
-    # Apply type-specific defaults for gain_scheduling_ratio
-    if config[CONF_TYPE] == "gain_scheduling_ratio":
-        config.setdefault(CONF_UNIT_OF_MEASUREMENT, UNIT_EMPTY)
-        config.setdefault(CONF_ICON, ICON_SCALE)
-        config.setdefault(CONF_ACCURACY_DECIMALS, 2)
-
     parent = await cg.get_variable(config[CONF_CLIMATE_ID])
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)

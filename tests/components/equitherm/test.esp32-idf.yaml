@@ -1,5 +1,5 @@
 esphome:
-  name: test-equitherm-climate-esp32-idf
+  name: test-equitherm-esp32-idf
 
 esp32:
   board: esp32dev

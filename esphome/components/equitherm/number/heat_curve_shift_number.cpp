@@ -16,7 +16,7 @@ void HeatCurveShiftNumber::control(float value) {
   this->parent_->set_shift(value);
   this->save_state_(value);
   this->publish_state(value);
-  this->parent_->recalculate(true);
+  this->parent_->recalculate();
 }
 
 void HeatCurveShiftNumber::dump_config() {

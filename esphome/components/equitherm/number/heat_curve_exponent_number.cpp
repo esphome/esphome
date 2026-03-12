@@ -16,7 +16,7 @@ void HeatCurveExponentNumber::control(float value) {
   this->parent_->set_n(value);
   this->save_state_(value);
   this->publish_state(value);
-  this->parent_->recalculate(true);
+  this->parent_->recalculate();
 }
 
 void HeatCurveExponentNumber::dump_config() {

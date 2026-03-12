@@ -21,7 +21,7 @@ CONF_SHIFT = "shift"
 
 CONF_MIN_FLOW_TEMP = "min_flow_temp"
 CONF_MAX_FLOW_TEMP = "max_flow_temp"
-CONF_SMOOTHING_THRESHOLD = "smoothing_threshold"
+CONF_RATE_LIMIT_PER_MINUTE = "rate_limit_per_minute"
 
 # PID parameters
 CONF_KP = "kp"
@@ -46,11 +46,11 @@ CONTROL_PARAMETERS_SCHEMA = cv.Schema(
     {
         # Industry-standard heating curve parameters
         cv.Required(CONF_HC): cv.float_range(min=0.1),
-        cv.Optional(CONF_N, default=1.25): cv.float_range(min=0.5, max=3.0),
+        cv.Required(CONF_N): cv.float_range(min=0.5, max=3.0),
         cv.Optional(CONF_SHIFT, default=0.0): cv.float_,
         # PID parameters for room temperature correction
         # Default kp=1.0 provides simple proportional correction (like old target_diff_factor)
-        cv.Optional(CONF_KP, default=1.0): cv.float_range(min=0.0),
+        cv.Optional(CONF_KP, default=0.0): cv.float_range(min=0.0),
         cv.Optional(CONF_KI, default=0.0): cv.float_range(min=0.0),
         cv.Optional(CONF_KD, default=0.0): cv.float_range(min=0.0),
         cv.Optional(CONF_MIN_INTEGRAL, default=-10.0): cv.float_,
@@ -61,9 +61,15 @@ CONTROL_PARAMETERS_SCHEMA = cv.Schema(
 OUTPUT_PARAMETERS_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_MIN_FLOW_TEMP, default=25.0): cv.temperature,
-            cv.Optional(CONF_MAX_FLOW_TEMP, default=70.0): cv.temperature,
-            cv.Optional(CONF_SMOOTHING_THRESHOLD, default=0.5): cv.float_range(min=0.0),
+            cv.Required(
+                CONF_MIN_FLOW_TEMP,
+            ): cv.temperature,
+            cv.Required(
+                CONF_MAX_FLOW_TEMP,
+            ): cv.temperature,
+            cv.Optional(CONF_RATE_LIMIT_PER_MINUTE, default=0.2): cv.float_range(
+                min=0.0, max=2.0
+            ),
         }
     ),
     lambda config: (
@@ -75,14 +81,34 @@ OUTPUT_PARAMETERS_SCHEMA = cv.All(
     ),
 )
 
-DEADBAND_PARAMETERS_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_THRESHOLD_HIGH, default=0.0): cv.float_range(min=0.0),
-        cv.Optional(CONF_THRESHOLD_LOW, default=0.0): cv.float_range(min=0.0),
-        cv.Optional(CONF_KP_MULTIPLIER, default=0.0): cv.float_range(min=0.0),
-        cv.Optional(CONF_KI_MULTIPLIER, default=0.0): cv.float_range(min=0.0),
-        cv.Optional(CONF_KD_MULTIPLIER, default=0.0): cv.float_range(min=0.0),
-    }
+# =============================================================================
+# Validation
+# =============================================================================
+
+
+def _validate_deadband_thresholds(config):
+    """Validate that threshold_high > threshold_low for a valid deadband range."""
+    threshold_low = config[CONF_THRESHOLD_LOW]
+    threshold_high = config[CONF_THRESHOLD_HIGH]
+    if threshold_high <= threshold_low:
+        raise cv.Invalid(
+            f"threshold_high ({threshold_high}) must be greater than "
+            f"threshold_low ({threshold_low})"
+        )
+    return config
+
+
+DEADBAND_PARAMETERS_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_THRESHOLD_LOW): cv.float_,
+            cv.Required(CONF_THRESHOLD_HIGH): cv.float_,
+            cv.Optional(CONF_KP_MULTIPLIER, default=0.0): cv.float_range(min=0.0),
+            cv.Optional(CONF_KI_MULTIPLIER, default=0.0): cv.float_range(min=0.0),
+            cv.Optional(CONF_KD_MULTIPLIER, default=0.0): cv.float_range(min=0.0),
+        }
+    ),
+    _validate_deadband_thresholds,
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -146,7 +172,7 @@ async def to_code(config):
     params = config[CONF_OUTPUT_PARAMETERS]
     cg.add(var.set_min_flow_temp(params[CONF_MIN_FLOW_TEMP]))
     cg.add(var.set_max_flow_temp(params[CONF_MAX_FLOW_TEMP]))
-    cg.add(var.set_smoothing_threshold(params[CONF_SMOOTHING_THRESHOLD]))
+    cg.add(var.set_rate_limit_per_minute(params[CONF_RATE_LIMIT_PER_MINUTE]))
 
     # Deadband parameters - optional
     if CONF_DEADBAND_PARAMETERS in config:

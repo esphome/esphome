@@ -12,6 +12,12 @@ sensor:
   # Diagnostic sensors (Phase G)
   - platform: equitherm
     climate_id: heating_controller
+    type: curve_output_raw
+    name: "Curve Output Raw"
+    id: curve_output_raw_sensor
+
+  - platform: equitherm
+    climate_id: heating_controller
     type: base_curve_output
     name: "Base Curve Output"
     id: base_curve_output_sensor
@@ -24,9 +30,9 @@ sensor:
 
   - platform: equitherm
     climate_id: heating_controller
-    type: raw_pid_correction
-    name: "Raw PID Correction"
-    id: raw_pid_correction_sensor
+    type: pid_correction
+    name: "PID Correction"
+    id: pid_correction_sensor
 
 # Diagnostic binary sensors
 binary_sensor:
@@ -38,6 +44,9 @@ binary_sensor:
     indoor_fallback_active:
       name: "Indoor Sensor Fallback Active"
       id: indoor_fallback_sensor
+    rate_limiting_active:
+      name: "Rate Limiting Active"
+      id: rate_limiting_sensor
 
 # Diagnostic text sensors
 text_sensor:
@@ -78,6 +87,9 @@ number:
     fallback_outdoor_temp:
       name: "Fallback Outdoor Temperature"
       id: fallback_outdoor_temp_number
+    rate_limit:
+      name: "Rate Limit"
+      id: rate_limit_number
 
 climate:
   - platform: equitherm
@@ -102,6 +114,6 @@ climate:
       max_flow_temp: 70.0
     deadband_parameters:
       threshold_high: 0.5
-      threshold_low: 0.5
+      threshold_low: -0.5
       kp_multiplier: 0.1
       ki_multiplier: 0.0

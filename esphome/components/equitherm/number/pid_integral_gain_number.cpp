@@ -16,7 +16,7 @@ void PIDIntegralGainNumber::control(float value) {
   this->parent_->set_ki(value);
   this->save_state_(value);
   this->publish_state(value);
-  this->parent_->recalculate(false);
+  this->parent_->recalculate();
 }
 
 void PIDIntegralGainNumber::dump_config() {

@@ -7,7 +7,11 @@
 namespace esphome {
 namespace equitherm {
 
-/// Base class for equitherm climate number entities with common restore logic
+/// Base class for equitherm climate number entities with common restore logic.
+///
+/// These numbers are runtime tuning interfaces for parameters defined in the climate
+/// component's YAML config. The initial value is read from the parent climate in setup().
+/// If restore_value is true, user's runtime tuning persists across reboots.
 class EquithermNumberBase : public number::Number, public Component {
  public:
   void set_restore_value(bool restore_value) { restore_value_ = restore_value; }

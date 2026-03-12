@@ -16,7 +16,7 @@ void PIDProportionalGainNumber::control(float value) {
   this->parent_->set_kp(value);
   this->save_state_(value);
   this->publish_state(value);
-  this->parent_->recalculate(false);
+  this->parent_->recalculate();
 }
 
 void PIDProportionalGainNumber::dump_config() {

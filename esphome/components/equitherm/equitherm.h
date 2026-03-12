@@ -41,7 +41,10 @@ class EquithermClimate : public climate::Climate, public Component {
   // Output parameters
   void set_min_flow_temp(float temp) { heating_curve_.set_min_flow_temp(temp); }
   void set_max_flow_temp(float temp) { heating_curve_.set_max_flow_temp(temp); }
-  void set_smoothing_threshold(float threshold) { smoothing_threshold_ = threshold; }
+
+  // Rate limiting (replaces smoothing_threshold)
+  void set_rate_limit_per_minute(float value) { rate_limit_per_minute_ = clamp(value, 0.0f, 2.0f); }
+  float get_rate_limit_per_minute() const { return rate_limit_per_minute_; }
 
   // PID parameters
   void set_kp(float kp) { pid_controller_.kp_ = kp; }
@@ -62,13 +65,14 @@ class EquithermClimate : public climate::Climate, public Component {
   float get_fallback_outdoor_temp() const { return fallback_outdoor_temp_; }
   bool is_outdoor_fallback_active() const { return outdoor_fallback_active_; }
   bool is_indoor_fallback_active() const { return indoor_fallback_active_; }
+  bool is_rate_limiting_active() const { return rate_limiting_active_; }
 
   // State getters (for diagnostics)
+  float get_curve_output_raw() const { return curve_output_raw_; }
   float get_base_curve_output() const { return base_curve_output_; }
   float get_final_flow_setpoint() const { return final_flow_setpoint_; }
-  float get_raw_pid_correction() const { return raw_pid_correction_; }
-  float get_gain_scheduling_ratio() const { return gain_scheduling_ratio_; }
-  float get_scaled_correction() const { return raw_pid_correction_ * gain_scheduling_ratio_; }
+  float get_last_written_setpoint() const { return last_written_setpoint_; }
+  float get_pid_correction() const { return pid_correction_; }
   bool in_deadband() { return pid_controller_.in_deadband(); }
   bool is_pid_active() const {
     // Check if any PID gain is effectively non-zero (handles runtime tuning)
@@ -91,11 +95,10 @@ class EquithermClimate : public climate::Climate, public Component {
   void add_on_state_callback(std::function<void()> &&callback) { state_callback_.add(std::move(callback)); }
 
   // Force immediate recalculation (used by runtime tuning numbers)
-  void recalculate(bool curve_changed) {
-    if (curve_changed)
-      this->compute_reference_sensitivity_();
-    this->prev_smoothed_flow_ = NAN;  // Bypass smoothing on forced recalc
-    this->compute_and_apply_(false);  // Don't tick PID on param change
+  void recalculate() {
+    this->prev_smoothed_flow_ = NAN;         // Bypass smoothing on forced recalc
+    this->last_rate_limit_time_ = millis();  // Reset timer to avoid huge delta
+    this->compute_and_apply_(false);         // Don't tick PID on param change
   }
 
  protected:
@@ -105,7 +108,6 @@ class EquithermClimate : public climate::Climate, public Component {
   climate::ClimateTraits traits() override;
 
   void compute_and_apply_(bool update_pid = true);
-  void compute_reference_sensitivity_();
   void write_setpoint_(float temp_c);
   void write_setpoint_off_();
 
@@ -124,22 +126,24 @@ class EquithermClimate : public climate::Climate, public Component {
   PIDController pid_controller_;
   /// Default target temperature when no state restored
   float default_target_temperature_{20.0f};
-  /// Minimum change to trigger output update (°C)
-  float smoothing_threshold_{0.5f};
-  /// Previous smoothed flow temperature for threshold comparison
+  /// Rate limit for output changes (°C per minute)
+  float rate_limit_per_minute_{0.2f};
+  /// Previous smoothed flow temperature for rate limiting
   float prev_smoothed_flow_{NAN};
-  /// Base curve output before corrections (for diagnostics)
+  /// Raw heating curve output before rate limiting (for diagnostics)
+  float curve_output_raw_{NAN};
+  /// Base setpoint after rate limiting, before PID (for diagnostics)
   float base_curve_output_{NAN};
-  /// Final flow setpoint sent to boiler (for diagnostics)
+  /// Whether rate limiting is currently clamping the output
+  bool rate_limiting_active_{false};
+  /// Timestamp of last rate-limited update for time-based limiting
+  uint32_t last_rate_limit_time_{0};
+  /// Final flow setpoint (after rate limiting + PID, for diagnostics)
   float final_flow_setpoint_{NAN};
-  /// Raw PID correction before gain scheduling (for diagnostics)
-  float raw_pid_correction_{NAN};
-  /// Current gain scheduling ratio (for diagnostics) - 1.0 when not active
-  float gain_scheduling_ratio_{1.0f};
-  /// Reference sensitivity for gain scheduling (computed in setup)
-  float reference_sensitivity_{NAN};
-  /// Previous target temperature for detecting changes
-  float prev_target_temperature_{NAN};
+  /// Last value actually written to boiler (for write deadband comparison)
+  float last_written_setpoint_{NAN};
+  /// PID correction (for diagnostics)
+  float pid_correction_{NAN};
   /// Fallback outdoor temperature when sensor fails (default 0°C - safe for winter)
   float fallback_outdoor_temp_{0.0f};
   /// Last known valid outdoor temperature for stale data window
