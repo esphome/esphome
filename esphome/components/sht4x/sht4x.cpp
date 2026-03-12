@@ -10,7 +10,7 @@ static const uint8_t MEASURECOMMANDS[] = {0xFD, 0xF6, 0xE0};
 static const uint8_t SERIAL_NUMBER_COMMAND = 0x89;
 
 void SHT4XComponent::start_heater_() {
-  uint8_t cmd[] = {MEASURECOMMANDS[this->heater_command_]};
+  uint8_t cmd[] = {this->heater_command_};
 
   ESP_LOGD(TAG, "Heater turning on");
   if (this->write(cmd, 1) != i2c::ERROR_OK) {

@@ -11,7 +11,9 @@
 #include "light_traits.h"
 #include "light_transformer.h"
 
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 #include <strings.h>
 #include <vector>
 
@@ -166,6 +168,23 @@ class LightState : public EntityBase, public Component {
   void set_gamma_correct(float gamma_correct);
   float get_gamma_correct() const { return this->gamma_correct_; }
 
+#ifdef USE_LIGHT_GAMMA_LUT
+  /// Set pre-computed gamma forward lookup table (256-entry uint16 PROGMEM array)
+  void set_gamma_table(const uint16_t *forward) { this->gamma_table_ = forward; }
+
+  /// Get the forward gamma lookup table
+  const uint16_t *get_gamma_table() const { return this->gamma_table_; }
+
+  /// Apply gamma correction using the pre-computed forward LUT
+  float gamma_correct_lut(float value) const;
+  /// Reverse gamma correction by binary-searching the forward LUT
+  float gamma_uncorrect_lut(float value) const;
+#else
+  /// No gamma LUT — passthrough
+  float gamma_correct_lut(float value) const { return value; }
+  float gamma_uncorrect_lut(float value) const { return value; }
+#endif  // USE_LIGHT_GAMMA_LUT
+
   /// Set the restore mode of this light
   void set_restore_mode(LightRestoreMode restore_mode);
 
@@ -200,6 +219,20 @@ class LightState : public EntityBase, public Component {
     return 0;  // Effect not found
   }
 
+  /// Get effect index by name (const char* overload, avoids std::string construction).
+  uint32_t get_effect_index(const char *name, size_t len) const {
+    if (len == 4 && ESPHOME_strncasecmp_P(name, ESPHOME_PSTR("none"), 4) == 0) {
+      return 0;
+    }
+    StringRef ref(name, len);
+    for (size_t i = 0; i < this->effects_.size(); i++) {
+      if (str_equals_case_insensitive(ref, this->effects_[i]->get_name())) {
+        return i + 1;
+      }
+    }
+    return 0;
+  }
+
   /// Get effect by index. Returns nullptr if index is invalid.
   LightEffect *get_effect_by_index(uint32_t index) const {
     if (index == 0 || index > this->effects_.size()) {
@@ -224,9 +257,9 @@ class LightState : public EntityBase, public Component {
 
   void current_values_as_brightness(float *brightness);
 
-  void current_values_as_rgb(float *red, float *green, float *blue, bool color_interlock = false);
+  void current_values_as_rgb(float *red, float *green, float *blue);
 
-  void current_values_as_rgbw(float *red, float *green, float *blue, float *white, bool color_interlock = false);
+  void current_values_as_rgbw(float *red, float *green, float *blue, float *white);
 
   void current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white,
                                bool constant_brightness = false);
@@ -297,6 +330,10 @@ class LightState : public EntityBase, public Component {
   uint32_t flash_transition_length_{};
   /// Gamma correction factor for the light.
   float gamma_correct_{};
+#ifdef USE_LIGHT_GAMMA_LUT
+  const uint16_t *gamma_table_{nullptr};
+#endif  // USE_LIGHT_GAMMA_LUT
+
   /// Whether the light value should be written in the next cycle.
   bool next_write_{true};
   // for effects, true if a transformer (transition) is active.

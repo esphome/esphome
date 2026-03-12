@@ -222,9 +222,8 @@ def validate_preset_modes(value):
     return value
 
 
+@setup_entity("fan")
 async def setup_fan_core_(var, config):
-    await setup_entity(var, config, "fan")
-
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
@@ -311,13 +310,17 @@ FAN_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action("fan.toggle", ToggleAction, FAN_ACTION_SCHEMA)
+@automation.register_action(
+    "fan.toggle", ToggleAction, FAN_ACTION_SCHEMA, synchronous=True
+)
 async def fan_toggle_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("fan.turn_off", TurnOffAction, FAN_ACTION_SCHEMA)
+@automation.register_action(
+    "fan.turn_off", TurnOffAction, FAN_ACTION_SCHEMA, synchronous=True
+)
 async def fan_turn_off_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
@@ -336,6 +339,7 @@ async def fan_turn_off_to_code(config, action_id, template_arg, args):
             ),
         }
     ),
+    synchronous=True,
 )
 async def fan_turn_on_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -361,6 +365,7 @@ async def fan_turn_on_to_code(config, action_id, template_arg, args):
             cv.Optional(CONF_OFF_SPEED_CYCLE, default=True): cv.boolean,
         }
     ),
+    synchronous=True,
 )
 async def fan_cycle_speed_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

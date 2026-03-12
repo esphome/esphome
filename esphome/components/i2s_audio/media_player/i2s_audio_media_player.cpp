@@ -11,17 +11,18 @@ static const char *const TAG = "audio";
 
 void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
   media_player::MediaPlayerState play_state = media_player::MEDIA_PLAYER_STATE_PLAYING;
-  if (call.get_announcement().has_value()) {
-    play_state = call.get_announcement().value() ? media_player::MEDIA_PLAYER_STATE_ANNOUNCING
-                                                 : media_player::MEDIA_PLAYER_STATE_PLAYING;
+  auto announcement = call.get_announcement();
+  if (announcement.has_value()) {
+    play_state = *announcement ? media_player::MEDIA_PLAYER_STATE_ANNOUNCING : media_player::MEDIA_PLAYER_STATE_PLAYING;
   }
-  if (call.get_media_url().has_value()) {
-    this->current_url_ = call.get_media_url();
+  auto media_url = call.get_media_url();
+  if (media_url.has_value()) {
+    this->current_url_ = media_url;
     if (this->i2s_state_ != I2S_STATE_STOPPED && this->audio_ != nullptr) {
       if (this->audio_->isRunning()) {
         this->audio_->stopSong();
       }
-      this->audio_->connecttohost(this->current_url_.value().c_str());
+      this->audio_->connecttohost(media_url->c_str());
       this->state = play_state;
     } else {
       this->start();
@@ -32,13 +33,15 @@ void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
     this->is_announcement_ = true;
   }
 
-  if (call.get_volume().has_value()) {
-    this->volume = call.get_volume().value();
+  auto vol = call.get_volume();
+  if (vol.has_value()) {
+    this->volume = *vol;
     this->set_volume_(volume);
     this->unmute_();
   }
-  if (call.get_command().has_value()) {
-    switch (call.get_command().value()) {
+  auto cmd = call.get_command();
+  if (cmd.has_value()) {
+    switch (*cmd) {
       case media_player::MEDIA_PLAYER_COMMAND_MUTE:
         this->mute_();
         break;
@@ -67,7 +70,7 @@ void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
     if (this->i2s_state_ != I2S_STATE_RUNNING) {
       return;
     }
-    switch (call.get_command().value()) {
+    switch (*cmd) {
       case media_player::MEDIA_PLAYER_COMMAND_PLAY:
         if (!this->audio_->isRunning())
           this->audio_->pauseResume();
