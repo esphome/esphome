@@ -1442,6 +1442,11 @@ async def to_code(config):
     cg.add_build_flag("-DUSE_ESP32")
     cg.add_define("USE_NATIVE_64BIT_TIME")
     cg.add_build_flag("-Wl,-z,noexecstack")
+    # Arduino already wraps esp_panic_handler for its own backtrace handler,
+    # so only add our wrap when using ESP-IDF framework to avoid linker conflicts.
+    if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
+        cg.add_build_flag("-Wl,--wrap=esp_panic_handler")
+        cg.add_define("USE_ESP32_CRASH_HANDLER")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     variant = config[CONF_VARIANT]
     cg.add_build_flag(f"-DUSE_ESP32_VARIANT_{variant}")
