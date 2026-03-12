@@ -13,8 +13,6 @@ from esphome.const import (
     CONF_TRIGGER_ID,
 )
 
-cv.require_esphome_version(2024, 12, 0)
-
 AUTO_LOAD = ["binary_sensor", "nfc"]
 CODEOWNERS = ["@kbx81", "@jesserockz"]
 
@@ -37,7 +35,7 @@ CONF_TAG_TTL = "tag_ttl"
 CONF_VEN_PIN = "ven_pin"
 CONF_WKUP_REQ_PIN = "wkup_req_pin"
 
-# Health check options (JohnMcLear enhancements)
+# Health check options
 CONF_HEALTH_CHECK_ENABLED = "health_check_enabled"
 CONF_HEALTH_CHECK_INTERVAL = "health_check_interval"
 CONF_MAX_FAILED_CHECKS = "max_failed_checks"
@@ -140,11 +138,13 @@ PN7160_SCHEMA = cv.Schema(
     "tag.set_emulation_message",
     SetEmulationMessageAction,
     SET_MESSAGE_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
     "tag.set_write_message",
     SetWriteMessageAction,
     SET_MESSAGE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def pn7160_set_message_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -159,22 +159,40 @@ async def pn7160_set_message_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "tag.emulation_off", EmulationOffAction, SIMPLE_ACTION_SCHEMA
-)
-@automation.register_action("tag.emulation_on", EmulationOnAction, SIMPLE_ACTION_SCHEMA)
-@automation.register_action("tag.polling_off", PollingOffAction, SIMPLE_ACTION_SCHEMA)
-@automation.register_action("tag.polling_on", PollingOnAction, SIMPLE_ACTION_SCHEMA)
-@automation.register_action(
-    "tag.set_clean_mode", SetCleanModeAction, SIMPLE_ACTION_SCHEMA
+    "tag.emulation_off", EmulationOffAction, SIMPLE_ACTION_SCHEMA, synchronous=True
 )
 @automation.register_action(
-    "tag.set_format_mode", SetFormatModeAction, SIMPLE_ACTION_SCHEMA
+    "tag.emulation_on", EmulationOnAction, SIMPLE_ACTION_SCHEMA, synchronous=True
 )
 @automation.register_action(
-    "tag.set_read_mode", SetReadModeAction, SIMPLE_ACTION_SCHEMA
+    "tag.polling_off", PollingOffAction, SIMPLE_ACTION_SCHEMA, synchronous=True
 )
 @automation.register_action(
-    "tag.set_write_mode", SetWriteModeAction, SIMPLE_ACTION_SCHEMA
+    "tag.polling_on", PollingOnAction, SIMPLE_ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "tag.set_clean_mode",
+    SetCleanModeAction,
+    SIMPLE_ACTION_SCHEMA,
+    synchronous=True,
+)
+@automation.register_action(
+    "tag.set_format_mode",
+    SetFormatModeAction,
+    SIMPLE_ACTION_SCHEMA,
+    synchronous=True,
+)
+@automation.register_action(
+    "tag.set_read_mode",
+    SetReadModeAction,
+    SIMPLE_ACTION_SCHEMA,
+    synchronous=True,
+)
+@automation.register_action(
+    "tag.set_write_mode",
+    SetWriteModeAction,
+    SIMPLE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def pn7160_simple_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

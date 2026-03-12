@@ -1,41 +1,13 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/helpers.h"
-#include "esphome/core/version.h"
-
-#include <vector>
-#include <cstring>
-
-namespace esphome {
-namespace nfc {
-// Compatibility shim for missing symbols in older core nfc component
-#if ESPHOME_VERSION_CODE < VERSION_CODE(2026, 1, 0)
-using NfcTagUid = std::vector<uint8_t>;
-static const size_t FORMAT_BYTES_BUFFER_SIZE = 128;
-static const size_t FORMAT_UID_BUFFER_SIZE = 32;
-inline const char *format_bytes_to(char *buf, const std::vector<uint8_t> &bytes) {
-  std::string s = format_bytes(const_cast<std::vector<uint8_t> &>(bytes));
-  strncpy(buf, s.c_str(), FORMAT_BYTES_BUFFER_SIZE - 1);
-  buf[FORMAT_BYTES_BUFFER_SIZE - 1] = '\0';
-  return buf;
-}
-inline const char *format_uid_to(char *buf, const std::vector<uint8_t> &uid) {
-  std::string s = format_uid(const_cast<std::vector<uint8_t> &>(uid));
-  strncpy(buf, s.c_str(), FORMAT_UID_BUFFER_SIZE - 1);
-  buf[FORMAT_UID_BUFFER_SIZE - 1] = '\0';
-  return buf;
-}
-#endif
-}  // namespace nfc
-}  // namespace esphome
-
 #include "esphome/components/nfc/automation.h"
 #include "esphome/components/nfc/nci_core.h"
 #include "esphome/components/nfc/nci_message.h"
 #include "esphome/components/nfc/nfc.h"
 #include "esphome/components/nfc/nfc_helpers.h"
+#include "esphome/core/component.h"
 #include "esphome/core/gpio.h"
+#include "esphome/core/helpers.h"
 
 #include <functional>
 
