@@ -6,11 +6,11 @@ from esphome.const import CONF_ID, DEVICE_CLASS_PROBLEM, ENTITY_CATEGORY_DIAGNOS
 from ..climate import EquithermClimate, equitherm_ns
 
 # Explicit binary sensor classes for each type
-OutdoorFallbackBinarySensor = equitherm_ns.class_(
-    "OutdoorFallbackBinarySensor", binary_sensor.BinarySensor, cg.Component
+OutdoorSensorFaultBinarySensor = equitherm_ns.class_(
+    "OutdoorSensorFaultBinarySensor", binary_sensor.BinarySensor, cg.Component
 )
-IndoorFallbackBinarySensor = equitherm_ns.class_(
-    "IndoorFallbackBinarySensor", binary_sensor.BinarySensor, cg.Component
+IndoorSensorFaultBinarySensor = equitherm_ns.class_(
+    "IndoorSensorFaultBinarySensor", binary_sensor.BinarySensor, cg.Component
 )
 RateLimitingBinarySensor = equitherm_ns.class_(
     "RateLimitingBinarySensor", binary_sensor.BinarySensor, cg.Component
@@ -19,8 +19,8 @@ RateLimitingBinarySensor = equitherm_ns.class_(
 CONF_CLIMATE_ID = "climate_id"
 
 # Configuration keys for each binary sensor type
-CONF_OUTDOOR_FALLBACK_ACTIVE = "outdoor_fallback_active"
-CONF_INDOOR_FALLBACK_ACTIVE = "indoor_fallback_active"
+CONF_OUTDOOR_SENSOR_FAULT = "outdoor_sensor_fault"
+CONF_INDOOR_SENSOR_FAULT = "indoor_sensor_fault"
 CONF_RATE_LIMITING_ACTIVE = "rate_limiting_active"
 
 
@@ -47,11 +47,11 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
         cv.GenerateID(CONF_CLIMATE_ID): cv.use_id(EquithermClimate),
-        cv.Optional(CONF_OUTDOOR_FALLBACK_ACTIVE): _problem_sensor_schema(
-            OutdoorFallbackBinarySensor
+        cv.Optional(CONF_OUTDOOR_SENSOR_FAULT): _problem_sensor_schema(
+            OutdoorSensorFaultBinarySensor
         ),
-        cv.Optional(CONF_INDOOR_FALLBACK_ACTIVE): _problem_sensor_schema(
-            IndoorFallbackBinarySensor
+        cv.Optional(CONF_INDOOR_SENSOR_FAULT): _problem_sensor_schema(
+            IndoorSensorFaultBinarySensor
         ),
         cv.Optional(CONF_RATE_LIMITING_ACTIVE): _status_sensor_schema(
             RateLimitingBinarySensor, icon="mdi:speedometer-slow"
@@ -71,10 +71,10 @@ async def _register_binary_sensor(config, parent_id):
 async def to_code(config):
     parent_id = config[CONF_CLIMATE_ID]
 
-    if outdoor_config := config.get(CONF_OUTDOOR_FALLBACK_ACTIVE):
+    if outdoor_config := config.get(CONF_OUTDOOR_SENSOR_FAULT):
         await _register_binary_sensor(outdoor_config, parent_id)
 
-    if indoor_config := config.get(CONF_INDOOR_FALLBACK_ACTIVE):
+    if indoor_config := config.get(CONF_INDOOR_SENSOR_FAULT):
         await _register_binary_sensor(indoor_config, parent_id)
 
     if rate_limiting_config := config.get(CONF_RATE_LIMITING_ACTIVE):

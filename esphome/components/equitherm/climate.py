@@ -10,6 +10,7 @@ CONF_DEFAULT_TARGET_TEMPERATURE = "default_target_temperature"
 CONF_OUTDOOR_SENSOR = "outdoor_sensor"
 CONF_INDOOR_SENSOR = "indoor_sensor"
 CONF_FLOW_SETPOINT = "flow_setpoint"
+CONF_MANUAL_FLOW_TEMP = "manual_flow_temp"
 CONF_HEAT_OUTPUT = "heat_output"
 CONF_FALLBACK_OUTDOOR_TEMP = "fallback_outdoor_temp"
 CONF_SENSOR_STALE_TIMEOUT = "sensor_stale_timeout"
@@ -37,6 +38,7 @@ CONF_KI = "ki"
 CONF_KD = "kd"
 CONF_MIN_INTEGRAL = "min_integral"
 CONF_MAX_INTEGRAL = "max_integral"
+CONF_DERIVATIVE_AVERAGING_SAMPLES = "derivative_averaging_samples"
 
 # Deadband parameters
 CONF_THRESHOLD_HIGH = "threshold_high"
@@ -72,6 +74,9 @@ CONTROL_PARAMETERS_SCHEMA = cv.Schema(
         cv.Optional(CONF_KD, default=0.0): cv.float_range(min=0.0),
         cv.Optional(CONF_MIN_INTEGRAL, default=-1): cv.float_,
         cv.Optional(CONF_MAX_INTEGRAL, default=1): cv.float_,
+        cv.Optional(CONF_DERIVATIVE_AVERAGING_SAMPLES, default=1): cv.int_range(
+            min=1, max=16
+        ),
     }
 )
 
@@ -140,6 +145,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_INDOOR_SENSOR): cv.use_id(sensor.Sensor),
             cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE): cv.temperature,
             cv.Optional(CONF_FLOW_SETPOINT): cv.use_id(number.Number),
+            cv.Optional(CONF_MANUAL_FLOW_TEMP): cv.use_id(number.Number),
             cv.Optional(CONF_HEAT_OUTPUT): cv.use_id(output.FloatOutput),
             cv.Optional(CONF_FALLBACK_OUTDOOR_TEMP, default=0.0): cv.temperature,
             cv.Optional(
@@ -175,11 +181,16 @@ async def to_code(config):
     # Output (mutually exclusive)
     if CONF_FLOW_SETPOINT in config:
         flow_setpoint = await cg.get_variable(config[CONF_FLOW_SETPOINT])
-        cg.add(var.set_flow_setpoint(flow_setpoint))
+        cg.add(var.set_flow_setpoint_output(flow_setpoint))
     if CONF_HEAT_OUTPUT in config:
         heat_output = await cg.get_variable(config[CONF_HEAT_OUTPUT])
         cg.add(var.set_heat_output(heat_output))
         cg.add_define("USE_EQUITHERM_HEAT_OUTPUT")
+
+    # Manual flow temperature number entity (for CLIMATE_PRESET_MANUAL)
+    if CONF_MANUAL_FLOW_TEMP in config:
+        manual_flow_temp = await cg.get_variable(config[CONF_MANUAL_FLOW_TEMP])
+        cg.add(var.set_manual_flow_temp(manual_flow_temp))
 
     # Climate defaults
     cg.add(var.set_default_target_temperature(config[CONF_DEFAULT_TARGET_TEMPERATURE]))
@@ -199,6 +210,7 @@ async def to_code(config):
     cg.add(var.set_kd(params[CONF_KD]))
     cg.add(var.set_min_integral(params[CONF_MIN_INTEGRAL]))
     cg.add(var.set_max_integral(params[CONF_MAX_INTEGRAL]))
+    cg.add(var.set_derivative_samples(params[CONF_DERIVATIVE_AVERAGING_SAMPLES]))
 
     # Output parameters
     params = config[CONF_OUTPUT_PARAMETERS]

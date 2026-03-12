@@ -7,8 +7,8 @@ namespace equitherm {
 
 class EquithermClimate;
 
-/// Indoor fallback active sensor - indicates when indoor sensor has failed and PID is disabled (pure equitherm mode)
-class IndoorFallbackBinarySensor : public EquithermBinarySensorBase, public Parented<EquithermClimate> {
+/// Indoor sensor fault indicator - ON when indoor sensor has failed and PID is disabled (pure equitherm mode)
+class IndoorSensorFaultBinarySensor : public EquithermBinarySensorBase, public Parented<EquithermClimate> {
  public:
   void setup() override;
   void dump_config() override;

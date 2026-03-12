@@ -26,8 +26,8 @@ void ControlModeTextSensor::update_from_parent_() {
   if (this->parent_->mode == climate::CLIMATE_MODE_OFF) {
     mode = MODE_OFF;
   } else {
-    bool outdoor_fallback = this->parent_->is_outdoor_fallback_active();
-    bool indoor_fallback = this->parent_->is_indoor_fallback_active();
+    bool outdoor_fallback = this->parent_->is_outdoor_sensor_fault();
+    bool indoor_fallback = this->parent_->is_indoor_sensor_fault();
 
     if (!outdoor_fallback && !indoor_fallback) {
       // Both sensors valid - check if PID is actually active

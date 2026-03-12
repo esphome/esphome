@@ -16,32 +16,32 @@ void EquithermSensor::setup() {
 void EquithermSensor::update_from_parent_() {
   float value;
   switch (this->type_) {
-    case EQUITHERM_SENSOR_TYPE_CURVE_OUTPUT_RAW:
-      value = this->parent_->get_curve_output_raw();
+    case EQUITHERM_SENSOR_TYPE_HEATING_CURVE_OUTPUT:
+      value = this->parent_->get_heating_curve_output();
       break;
-    case EQUITHERM_SENSOR_TYPE_BASE_CURVE_OUTPUT:
-      value = this->parent_->get_base_curve_output();
+    case EQUITHERM_SENSOR_TYPE_PID_ADJUSTED_OUTPUT:
+      value = this->parent_->get_pid_adjusted_output();
       break;
-    case EQUITHERM_SENSOR_TYPE_FINAL_FLOW_SETPOINT:
-      value = this->parent_->get_final_flow_setpoint();
+    case EQUITHERM_SENSOR_TYPE_FLOW_SETPOINT:
+      value = this->parent_->get_flow_setpoint();
       break;
-    case EQUITHERM_SENSOR_TYPE_LAST_WRITTEN_SETPOINT:
-      value = this->parent_->get_last_written_setpoint();
+    case EQUITHERM_SENSOR_TYPE_ACTIVE_SETPOINT:
+      value = this->parent_->get_active_setpoint();
       break;
     case EQUITHERM_SENSOR_TYPE_PID_CORRECTION:
       value = this->parent_->get_pid_correction();
       break;
-    case EQUITHERM_SENSOR_TYPE_PROPORTIONAL_TERM:
+    case EQUITHERM_SENSOR_TYPE_PID_PROPORTIONAL:
       value = this->parent_->get_proportional_term();
       break;
-    case EQUITHERM_SENSOR_TYPE_INTEGRAL_TERM:
+    case EQUITHERM_SENSOR_TYPE_PID_INTEGRAL:
       value = this->parent_->get_integral_term();
       break;
-    case EQUITHERM_SENSOR_TYPE_DERIVATIVE_TERM:
+    case EQUITHERM_SENSOR_TYPE_PID_DERIVATIVE:
       value = this->parent_->get_derivative_term();
       break;
     case EQUITHERM_SENSOR_TYPE_FALLBACK_DURATION:
-      value = static_cast<float>(this->parent_->get_fallback_duration());
+      value = this->parent_->get_fallback_duration();
       break;
     default:
       ESP_LOGW(TAG, "Unknown sensor type: %d", static_cast<int>(this->type_));

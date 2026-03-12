@@ -12,31 +12,37 @@ sensor:
   # Diagnostic sensors (Phase G)
   - platform: equitherm
     climate_id: heating_controller
-    type: curve_output_raw
-    name: "Curve Output Raw"
-    id: curve_output_raw_sensor
+    type: HEATING_CURVE_OUTPUT
+    name: "Heating Curve Output"
+    id: heating_curve_output_sensor
 
   - platform: equitherm
     climate_id: heating_controller
-    type: base_curve_output
-    name: "Base Curve Output"
-    id: base_curve_output_sensor
+    type: PID_ADJUSTED_OUTPUT
+    name: "PID Adjusted Output"
+    id: pid_adjusted_output_sensor
 
   - platform: equitherm
     climate_id: heating_controller
-    type: final_flow_setpoint
-    name: "Final Flow Setpoint"
-    id: final_flow_setpoint_sensor
+    type: FLOW_SETPOINT
+    name: "Flow Setpoint"
+    id: flow_setpoint_sensor
 
   - platform: equitherm
     climate_id: heating_controller
-    type: pid_correction
+    type: ACTIVE_SETPOINT
+    name: "Active Setpoint"
+    id: active_setpoint_sensor
+
+  - platform: equitherm
+    climate_id: heating_controller
+    type: PID_CORRECTION
     name: "PID Correction"
     id: pid_correction_sensor
 
   - platform: equitherm
     climate_id: heating_controller
-    type: fallback_duration
+    type: FALLBACK_DURATION
     name: "Fallback Duration"
     id: fallback_duration_sensor
 
@@ -44,12 +50,12 @@ sensor:
 binary_sensor:
   - platform: equitherm
     climate_id: heating_controller
-    outdoor_fallback_active:
-      name: "Outdoor Sensor Fallback Active"
-      id: outdoor_fallback_sensor
-    indoor_fallback_active:
-      name: "Indoor Sensor Fallback Active"
-      id: indoor_fallback_sensor
+    outdoor_sensor_fault:
+      name: "Outdoor Sensor Fault"
+      id: outdoor_sensor_fault_sensor
+    indoor_sensor_fault:
+      name: "Indoor Sensor Fault"
+      id: indoor_sensor_fault_sensor
     rate_limiting_active:
       name: "Rate Limiting Active"
       id: rate_limiting_sensor
@@ -118,6 +124,7 @@ climate:
       kd: 0.0
       min_integral: -5.0
       max_integral: 5.0
+      derivative_averaging_samples: 4
     output_parameters:
       min_flow_temp: 25.0
       max_flow_temp: 70.0

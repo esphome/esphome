@@ -37,15 +37,15 @@ CONF_CLIMATE_ID = "climate_id"
 # =============================================================================
 
 EQUITHERM_SENSOR_TYPES = {
-    "curve_output_raw": EquithermSensorType.EQUITHERM_SENSOR_TYPE_CURVE_OUTPUT_RAW,
-    "base_curve_output": EquithermSensorType.EQUITHERM_SENSOR_TYPE_BASE_CURVE_OUTPUT,
-    "final_flow_setpoint": EquithermSensorType.EQUITHERM_SENSOR_TYPE_FINAL_FLOW_SETPOINT,
-    "last_written_setpoint": EquithermSensorType.EQUITHERM_SENSOR_TYPE_LAST_WRITTEN_SETPOINT,
-    "pid_correction": EquithermSensorType.EQUITHERM_SENSOR_TYPE_PID_CORRECTION,
-    "proportional_term": EquithermSensorType.EQUITHERM_SENSOR_TYPE_PROPORTIONAL_TERM,
-    "integral_term": EquithermSensorType.EQUITHERM_SENSOR_TYPE_INTEGRAL_TERM,
-    "derivative_term": EquithermSensorType.EQUITHERM_SENSOR_TYPE_DERIVATIVE_TERM,
-    "fallback_duration": EquithermSensorType.EQUITHERM_SENSOR_TYPE_FALLBACK_DURATION,
+    "HEATING_CURVE_OUTPUT": EquithermSensorType.EQUITHERM_SENSOR_TYPE_HEATING_CURVE_OUTPUT,
+    "PID_ADJUSTED_OUTPUT": EquithermSensorType.EQUITHERM_SENSOR_TYPE_PID_ADJUSTED_OUTPUT,
+    "FLOW_SETPOINT": EquithermSensorType.EQUITHERM_SENSOR_TYPE_FLOW_SETPOINT,
+    "ACTIVE_SETPOINT": EquithermSensorType.EQUITHERM_SENSOR_TYPE_ACTIVE_SETPOINT,
+    "PID_CORRECTION": EquithermSensorType.EQUITHERM_SENSOR_TYPE_PID_CORRECTION,
+    "PID_PROPORTIONAL": EquithermSensorType.EQUITHERM_SENSOR_TYPE_PID_PROPORTIONAL,
+    "PID_INTEGRAL": EquithermSensorType.EQUITHERM_SENSOR_TYPE_PID_INTEGRAL,
+    "PID_DERIVATIVE": EquithermSensorType.EQUITHERM_SENSOR_TYPE_PID_DERIVATIVE,
+    "FALLBACK_DURATION": EquithermSensorType.EQUITHERM_SENSOR_TYPE_FALLBACK_DURATION,
 }
 
 # =============================================================================
@@ -65,22 +65,22 @@ def _temperature_sensor_config():
 
 # Sensor type configurations grouped by category
 FLOW_TEMPERATURE_SENSORS = {
-    "curve_output_raw": _temperature_sensor_config(),
-    "base_curve_output": _temperature_sensor_config(),
-    "final_flow_setpoint": _temperature_sensor_config(),
-    "last_written_setpoint": _temperature_sensor_config(),
+    "HEATING_CURVE_OUTPUT": _temperature_sensor_config(),
+    "PID_ADJUSTED_OUTPUT": _temperature_sensor_config(),
+    "FLOW_SETPOINT": _temperature_sensor_config(),
+    "ACTIVE_SETPOINT": _temperature_sensor_config(),
 }
 
 PID_DIAGNOSTIC_SENSORS = {
-    "pid_correction": _temperature_sensor_config(),
-    "proportional_term": _temperature_sensor_config(),
-    "integral_term": _temperature_sensor_config(),
-    "derivative_term": _temperature_sensor_config(),
+    "PID_CORRECTION": _temperature_sensor_config(),
+    "PID_PROPORTIONAL": _temperature_sensor_config(),
+    "PID_INTEGRAL": _temperature_sensor_config(),
+    "PID_DERIVATIVE": _temperature_sensor_config(),
 }
 
 # Diagnostic sensors for fallback mode
 FALLBACK_DIAGNOSTIC_SENSORS = {
-    "fallback_duration": {
+    "FALLBACK_DURATION": {
         "unit": UNIT_SECOND,
         "icon": ICON_TIMER,
         "accuracy_decimals": 0,
@@ -127,7 +127,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(
         {
             cv.GenerateID(CONF_CLIMATE_ID): cv.use_id(EquithermClimate),
-            cv.Required(CONF_TYPE): cv.enum(EQUITHERM_SENSOR_TYPES, lower=True),
+            cv.Required(CONF_TYPE): cv.enum(EQUITHERM_SENSOR_TYPES, upper=True),
         }
     )
     .extend(cv.COMPONENT_SCHEMA),

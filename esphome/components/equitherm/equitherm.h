@@ -32,10 +32,13 @@ class EquithermClimate : public climate::Climate, public Component {
   void set_indoor_sensor(sensor::Sensor *sensor) { indoor_sensor_ = sensor; }
 
   // Output (mutually exclusive - only one should be set)
-  void set_flow_setpoint(number::Number *number) { flow_setpoint_ = number; }
+  void set_flow_setpoint_output(number::Number *number) { flow_setpoint_output_ = number; }
 #ifdef USE_EQUITHERM_HEAT_OUTPUT
   void set_heat_output(output::FloatOutput *output) { heat_output_ = output; }
 #endif
+
+  // Optional manual flow temperature (used when manual preset is active)
+  void set_manual_flow_temp(number::Number *number) { manual_flow_temp_ = number; }
 
   // Climate defaults
   void set_default_target_temperature(float temp) { default_target_temperature_ = temp; }
@@ -63,6 +66,7 @@ class EquithermClimate : public climate::Climate, public Component {
   void set_kd(float kd) { pid_controller_.kd_ = kd; }
   void set_min_integral(float min_integral) { pid_controller_.min_integral_ = min_integral; }
   void set_max_integral(float max_integral) { pid_controller_.max_integral_ = max_integral; }
+  void set_derivative_samples(int samples) { pid_controller_.derivative_samples_ = samples; }
 
   // Deadband parameters
   void set_threshold_low(float threshold) { pid_controller_.threshold_low_ = threshold; }
@@ -76,17 +80,17 @@ class EquithermClimate : public climate::Climate, public Component {
   float get_fallback_outdoor_temp() const { return fallback_outdoor_temp_; }
   void set_sensor_stale_timeout(uint32_t timeout_ms) { sensor_stale_timeout_ms_ = timeout_ms; }
   uint32_t get_sensor_stale_timeout() const { return sensor_stale_timeout_ms_; }
-  bool is_outdoor_fallback_active() const { return outdoor_fallback_active_; }
-  bool is_indoor_fallback_active() const { return indoor_fallback_active_; }
+  bool is_outdoor_sensor_fault() const { return outdoor_sensor_fault_; }
+  bool is_indoor_sensor_fault() const { return indoor_sensor_fault_; }
   bool is_rate_limiting_active() const { return rate_limiting_active_; }
-  /// Get fallback duration in seconds (0 if not in fallback)
-  uint32_t get_fallback_duration() const;
+  /// Get fallback duration in seconds (NAN if not in fallback)
+  float get_fallback_duration() const;
 
   // State getters (for diagnostics)
-  float get_curve_output_raw() const { return curve_output_raw_; }
-  float get_base_curve_output() const { return base_curve_output_; }
-  float get_final_flow_setpoint() const { return final_flow_setpoint_; }
-  float get_last_written_setpoint() const { return last_written_setpoint_; }
+  float get_heating_curve_output() const { return heating_curve_output_; }
+  float get_pid_adjusted_output() const { return pid_adjusted_output_; }
+  float get_flow_setpoint() const { return flow_setpoint_; }
+  float get_active_setpoint() const { return active_setpoint_; }
   float get_pid_correction() const { return pid_correction_; }
   bool in_deadband() { return pid_controller_.in_deadband(); }
   bool is_pid_active() const {
@@ -140,11 +144,13 @@ class EquithermClimate : public climate::Climate, public Component {
   /// Indoor temperature sensor (required - for current_temperature display and room correction)
   sensor::Sensor *indoor_sensor_{nullptr};
   /// Flow temperature setpoint output (direct °C control, e.g., OpenTherm)
-  number::Number *flow_setpoint_{nullptr};
+  number::Number *flow_setpoint_output_{nullptr};
 #ifdef USE_EQUITHERM_HEAT_OUTPUT
   /// Alternative: generic float output (normalized 0-1)
   output::FloatOutput *heat_output_{nullptr};
 #endif
+  /// Manual flow temperature override (used when custom preset "manual" is active)
+  number::Number *manual_flow_temp_{nullptr};
 
   /// Curve calculation engine
   HeatingCurve heating_curve_;
@@ -159,17 +165,17 @@ class EquithermClimate : public climate::Climate, public Component {
   /// Previous rate-limited flow temperature (for time-based rate limiting)
   float prev_rate_limited_flow_{NAN};
   /// Raw heating curve output before rate limiting (for diagnostics)
-  float curve_output_raw_{NAN};
-  /// Base setpoint after rate limiting, before PID (for diagnostics)
-  float base_curve_output_{NAN};
+  float heating_curve_output_{NAN};
+  /// Setpoint after PID, before rate limiting (for diagnostics)
+  float pid_adjusted_output_{NAN};
   /// Whether rate limiting is currently clamping the output
   bool rate_limiting_active_{false};
   /// Timestamp of last rate-limited update for time-based limiting
   uint32_t last_rate_limit_time_{0};
-  /// Final flow setpoint (after rate limiting + PID, for diagnostics)
-  float final_flow_setpoint_{NAN};
-  /// Last value actually written to boiler (for write deadband comparison)
-  float last_written_setpoint_{NAN};
+  /// Flow setpoint (after rate limiting + PID, for diagnostics)
+  float flow_setpoint_{NAN};
+  /// Last value actually written to boiler (confirmed active setpoint)
+  float active_setpoint_{NAN};
   /// PID correction (for diagnostics)
   float pid_correction_{NAN};
   /// Fallback outdoor temperature when sensor fails (default 0°C - safe for winter)
@@ -184,10 +190,10 @@ class EquithermClimate : public climate::Climate, public Component {
   float last_valid_outdoor_temp_{NAN};
   /// Last known valid indoor temperature for display when sensor fails
   float last_valid_indoor_temp_{NAN};
-  /// Whether outdoor sensor fallback is currently active
-  bool outdoor_fallback_active_{false};
+  /// Whether outdoor sensor has failed (using fallback temperature)
+  bool outdoor_sensor_fault_{false};
   /// Whether indoor sensor has failed (PID disabled, pure equitherm mode)
-  bool indoor_fallback_active_{false};
+  bool indoor_sensor_fault_{false};
   /// Timestamp when fallback mode started (0 if not in fallback)
   uint32_t fallback_start_time_{0};
   /// Timestamp of last valid outdoor sensor reading
