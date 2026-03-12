@@ -1,5 +1,8 @@
 #ifdef USE_RP2040
 
+#include "esphome/core/defines.h"
+#ifdef USE_RP2040_CRASH_HANDLER
+
 #include "crash_handler.h"
 #include "esphome/core/log.h"
 
@@ -13,13 +16,19 @@
 static constexpr uint32_t EF_LR = 5;
 static constexpr uint32_t EF_PC = 6;
 
-static constexpr uint32_t CRASH_MAGIC = 0xDEADBEEF;
+// Version encoded in the magic value: upper 16 bits are sentinel (0xDEAD),
+// lower 16 bits are the version number. This avoids using a separate scratch
+// register for versioning (we only have 8 total). Future firmware reads the
+// sentinel to confirm it's crash data, then the version to know the layout.
+static constexpr uint32_t CRASH_MAGIC_SENTINEL = 0xDEAD0000;
+static constexpr uint32_t CRASH_DATA_VERSION = 1;
+static constexpr uint32_t CRASH_MAGIC_V1 = CRASH_MAGIC_SENTINEL | CRASH_DATA_VERSION;
 
 // We only have 8 scratch registers (32 bytes) that survive watchdog reboot.
 // Use them for the most important data, then scan the stack for code addresses.
 //
 // Scratch register layout:
-// [0] = magic (CRASH_MAGIC)
+// [0] = versioned magic (upper 16 bits = 0xDEAD sentinel, lower 16 bits = version)
 // [1] = PC (program counter at fault)
 // [2] = LR (link register from exception frame)
 // [3] = SP (stack pointer at fault)
@@ -57,9 +66,12 @@ static struct {
   uint8_t backtrace_count;
 } __attribute__((section(".noinit"))) s_crash_data;
 
+bool crash_handler_has_data() { return s_crash_data.valid; }
+
 void crash_handler_read_and_clear() {
   s_crash_data.valid = false;
-  if (watchdog_hw->scratch[0] == CRASH_MAGIC) {
+  uint32_t magic = watchdog_hw->scratch[0];
+  if ((magic & 0xFFFF0000) == CRASH_MAGIC_SENTINEL && (magic & 0xFFFF) == CRASH_DATA_VERSION) {
     s_crash_data.valid = true;
     s_crash_data.pc = watchdog_hw->scratch[1];
     s_crash_data.lr = watchdog_hw->scratch[2];
@@ -135,7 +147,7 @@ static void __attribute__((used, noreturn)) hard_fault_handler_c(uint32_t *frame
   // by a stacking error or corrupted SP, frame may be invalid. Write a minimal
   // crash marker so we at least know a crash occurred.
   if (!is_valid_sram_ptr(frame)) {
-    watchdog_hw->scratch[0] = CRASH_MAGIC;
+    watchdog_hw->scratch[0] = CRASH_MAGIC_V1;
     watchdog_hw->scratch[1] = 0;                                   // PC unknown
     watchdog_hw->scratch[2] = 0;                                   // LR unknown
     watchdog_hw->scratch[3] = reinterpret_cast<uintptr_t>(frame);  // Record the bad SP for diagnosis
@@ -157,7 +169,7 @@ static void __attribute__((used, noreturn)) hard_fault_handler_c(uint32_t *frame
   uint32_t pre_fault_sp = reinterpret_cast<uintptr_t>(post_frame);
 
   // Write key registers
-  watchdog_hw->scratch[0] = CRASH_MAGIC;
+  watchdog_hw->scratch[0] = CRASH_MAGIC_V1;
   watchdog_hw->scratch[1] = frame[EF_PC];
   watchdog_hw->scratch[2] = frame[EF_LR];
   watchdog_hw->scratch[3] = pre_fault_sp;
@@ -224,4 +236,5 @@ extern "C" void __attribute__((naked, used)) isr_hardfault() {
                  : "i"(hard_fault_handler_c));
 }
 
+#endif  // USE_RP2040_CRASH_HANDLER
 #endif  // USE_RP2040
