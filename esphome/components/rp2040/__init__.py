@@ -212,6 +212,7 @@ async def to_code(config):
     )
 
     cg.add_define("USE_RP2040_WATCHDOG_TIMEOUT", config[CONF_WATCHDOG_TIMEOUT])
+    cg.add_define("USE_RP2040_CRASH_HANDLER")
 
 
 def add_pio_file(component: str, key: str, data: str):
