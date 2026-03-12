@@ -116,6 +116,7 @@ INCLUDE_STAGE_BEFORE_ANY_GLOBALS = "before_any_globals"
 INCLUDE_STAGE_AFTER_ALL_GLOBALS = "after_all_globals"
 
 INCLUDE_STAGES = (INCLUDE_STAGE_AFTER_ALL_GLOBALS, INCLUDE_STAGE_BEFORE_ANY_GLOBALS)
+INCLUDE_STAGE_DEFAULT = CONF_DEFAULT
 
 KEY_INCLUDE_STATEMENTS = "include_statements"
 
@@ -216,9 +217,9 @@ INCLUDE_SCHEMA = cv.maybe_simple_value(
     cv.Schema(
         {
             cv.Required(CONF_PATH): valid_include,
-            cv.Optional(CONF_STAGE, default=CONF_DEFAULT): cv.enum(
+            cv.Optional(CONF_STAGE, default=INCLUDE_STAGE_DEFAULT): cv.enum(
                 {stage: stage for stage in INCLUDE_STAGES}
-                | {CONF_DEFAULT: CONF_DEFAULT},
+                | {INCLUDE_STAGE_DEFAULT: INCLUDE_STAGE_DEFAULT},
                 lower=True,
             ),
         }
@@ -523,12 +524,18 @@ async def add_includes(
             _add_include_statement(
                 include_path,
                 # Default for system includes is to get added before globals
-                INCLUDE_STAGE_BEFORE_ANY_GLOBALS if stage == CONF_DEFAULT else stage,
+                (
+                    INCLUDE_STAGE_BEFORE_ANY_GLOBALS
+                    if stage == INCLUDE_STAGE_DEFAULT
+                    else stage
+                ),
                 is_c_header,
             )
             continue
         # The default for non-system includes is to get added after globals
-        stage = INCLUDE_STAGE_AFTER_ALL_GLOBALS if stage == CONF_DEFAULT else stage
+        stage = (
+            INCLUDE_STAGE_AFTER_ALL_GLOBALS if stage == INCLUDE_STAGE_DEFAULT else stage
+        )
 
         path = CORE.relative_config_path(include_path)
         if path.is_dir():
