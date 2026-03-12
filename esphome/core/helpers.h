@@ -1079,7 +1079,7 @@ __attribute__((format(printf, 4, 5))) inline size_t buf_append_printf(char *buf,
 /// @param buf Output buffer
 /// @param size Total buffer size
 /// @param pos Current position in buffer
-/// @param str String to append
+/// @param str String to append (must not be null)
 /// @return New position after appending (capped at size on overflow)
 inline size_t buf_append_str(char *buf, size_t size, size_t pos, const char *str) {
   if (pos >= size) {
