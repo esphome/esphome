@@ -522,20 +522,12 @@ void LWIPRawImpl::wait_for_data_() {
   // Wait for data without holding LWIP_LOCK so recv_fn() can run on RP2040
   // (needs async_context lock).
   //
-  // IMPORTANT: This method only null-checks rx_buf_/pcb_ and reads rx_closed_.
-  // It never dereferences pointers or modifies any state. All fields are only
-  // modified by recv_fn()/err_fn() (which set rx_buf_, rx_closed_, pcb_) and
-  // by the locked read path (which consumes rx_buf_). Since we haven't entered
-  // the locked section yet, only callbacks can change these fields, and pointer/
-  // bool reads are atomic on ARM/Xtensa — so a stale value at worst causes an
-  // unnecessary sleep or early exit, both handled by the LWIP_LOCK recheck.
-  //
   // Loop until data arrives, connection closes, or the full timeout elapses.
   // socket_delay() may return early due to other sockets waking the global
   // socket_wake() flag, so we re-enter for the remaining time.
   uint32_t timeout_ms = this->recv_timeout_cs_ * 10;
   uint32_t start = millis();
-  while (this->rx_buf_ == nullptr && !this->rx_closed_ && this->pcb_ != nullptr) {
+  while (this->waiting_for_data_()) {
     uint32_t elapsed = millis() - start;
     if (elapsed >= timeout_ms)
       break;
@@ -544,15 +536,8 @@ void LWIPRawImpl::wait_for_data_() {
 }
 
 ssize_t LWIPRawImpl::read(void *buf, size_t len) {
-  // Unlocked pre-check: these fields are modified by recv_fn()/err_fn() which
-  // run from IRQ context on RP2040. Pointer and bool reads are atomic on
-  // ARM/Xtensa, so we never see a torn value — just possibly stale:
-  //   - rx_buf_ stale null: unnecessary wait, but wait_for_data_() re-checks
-  //     and returns immediately when data is found
-  //   - rx_buf_ stale non-null: skip wait, locked section below handles it
-  //   - rx_closed_/pcb_ stale: wait_for_data_() loop re-checks each iteration
-  // All state is authoritatively rechecked under LWIP_LOCK below.
-  if (this->recv_timeout_cs_ > 0 && this->rx_buf_ == nullptr && !this->rx_closed_ && this->pcb_ != nullptr) {
+  // See waiting_for_data_() for safety of unlocked reads.
+  if (this->recv_timeout_cs_ > 0 && this->waiting_for_data_()) {
     this->wait_for_data_();
   }
 
@@ -617,7 +602,7 @@ ssize_t LWIPRawImpl::read(void *buf, size_t len) {
 
 ssize_t LWIPRawImpl::readv(const struct iovec *iov, int iovcnt) {
   // See read() for safety analysis of these unlocked reads.
-  if (this->recv_timeout_cs_ > 0 && this->rx_buf_ == nullptr && !this->rx_closed_ && this->pcb_ != nullptr) {
+  if (this->recv_timeout_cs_ > 0 && this->waiting_for_data_()) {
     this->wait_for_data_();
   }
 

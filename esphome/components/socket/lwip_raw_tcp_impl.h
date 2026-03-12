@@ -120,6 +120,12 @@ class LWIPRawImpl : public LWIPRawCommon {
   static err_t s_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, err_t err);
 
  protected:
+  // True when the socket could receive data but none has arrived yet.
+  // Safe to call without LWIP_LOCK — only null-checks pointers and reads a bool,
+  // all atomic on ARM/Xtensa. A stale value is harmless: the caller either does
+  // an unnecessary wait (stale true) or skips it (stale false), and the
+  // authoritative recheck happens under LWIP_LOCK afterward.
+  bool waiting_for_data_() const { return this->rx_buf_ == nullptr && !this->rx_closed_ && this->pcb_ != nullptr; }
   void wait_for_data_();
   ssize_t internal_write_(const void *buf, size_t len);
   int internal_output_();
