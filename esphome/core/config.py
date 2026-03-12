@@ -421,9 +421,11 @@ def _list_target_platforms():
 
 
 def get_include_statements(stage: str) -> list[str]:
-    return CORE.data.setdefault(
-        KEY_INCLUDE_STATEMENTS, {stage: [] for stage in INCLUDE_STAGES}
-    )[stage]
+    include_statements = CORE.data.get(KEY_INCLUDE_STATEMENTS)
+    if include_statements is None:
+        include_statements = {s: [] for s in INCLUDE_STAGES}
+        CORE.data[KEY_INCLUDE_STATEMENTS] = include_statements
+    return include_statements[stage]
 
 
 def add_include_statement(name: str, stage: str, is_c_header: bool) -> None:
