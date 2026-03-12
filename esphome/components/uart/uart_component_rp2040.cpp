@@ -107,16 +107,21 @@ void RP2040UartComponent::setup() {
 
   // Determine which hardware UART to use. A pin that is not specified
   // should not prevent hardware UART selection — one-way UART is valid.
-  // Both pins must map to the same UART when both are specified.
+  // When both pins are configured, both must be HW-capable and agree on UART number.
+  // When only one pin is configured (nullptr other), use that pin's HW UART.
+  // If a pin is configured but not HW-capable (inverted/invalid), fall back to SerialPIO.
   int8_t hw_uart = -1;
-  if (tx_hw != -1 && rx_hw != -1) {
-    // Both pins specified — they must agree on the UART number
-    if (tx_hw == rx_hw) {
+  const bool tx_configured = (this->tx_pin_ != nullptr);
+  const bool rx_configured = (this->rx_pin_ != nullptr);
+
+  if (tx_configured && rx_configured) {
+    // Both pins configured — both must map to the same hardware UART
+    if (tx_hw != -1 && rx_hw != -1 && tx_hw == rx_hw) {
       hw_uart = tx_hw;
     }
-  } else if (tx_hw != -1) {
+  } else if (tx_configured) {
     hw_uart = tx_hw;
-  } else if (rx_hw != -1) {
+  } else if (rx_configured) {
     hw_uart = rx_hw;
   }
 
