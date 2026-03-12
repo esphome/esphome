@@ -47,6 +47,18 @@ void PIDClimateSensor::update_from_parent_() {
       value = this->parent_->get_kd();
       this->publish_state(value);
       return;
+    case PID_SENSOR_TYPE_KP_DEADBAND_MULTIPLIER:
+      value = this->parent_->get_kp_multiplier();
+      this->publish_state(value);
+      return;
+    case PID_SENSOR_TYPE_KI_DEADBAND_MULTIPLIER:
+      value = this->parent_->get_ki_multiplier();
+      this->publish_state(value);
+      return;
+    case PID_SENSOR_TYPE_KD_DEADBAND_MULTIPLIER:
+      value = this->parent_->get_kd_multiplier();
+      this->publish_state(value);
+      return;
     default:
       value = NAN;
       break;

@@ -35,6 +35,15 @@ sensor:
       }
       return 0.0;
     update_interval: 60s
+  - platform: pid
+    climate_id: pid_climate
+    type: KP_DEADBAND_MULTIPLIER
+  - platform: pid
+    climate_id: pid_climate
+    type: KI_DEADBAND_MULTIPLIER
+  - platform: pid
+    climate_id: pid_climate
+    type: KD_DEADBAND_MULTIPLIER
 
 climate:
   - platform: pid
