@@ -258,10 +258,13 @@ APIError APINoiseFrameHelper::state_action_() {
     // ignore contents, may be used in future for flags
     // Resize for: existing prologue + 2 size bytes + frame data
     size_t old_size = this->prologue_.size();
-    this->prologue_.resize(old_size + 2 + this->rx_buf_.size());
-    this->prologue_[old_size] = (uint8_t) (this->rx_buf_.size() >> 8);
-    this->prologue_[old_size + 1] = (uint8_t) this->rx_buf_.size();
-    std::memcpy(this->prologue_.data() + old_size + 2, this->rx_buf_.data(), this->rx_buf_.size());
+    size_t rx_size = this->rx_buf_.size();
+    this->prologue_.resize(old_size + 2 + rx_size);
+    this->prologue_[old_size] = (uint8_t) (rx_size >> 8);
+    this->prologue_[old_size + 1] = (uint8_t) rx_size;
+    if (rx_size > 0) {
+      std::memcpy(this->prologue_.data() + old_size + 2, this->rx_buf_.data(), rx_size);
+    }
 
     state_ = State::SERVER_HELLO;
   }
