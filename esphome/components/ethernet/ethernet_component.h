@@ -15,6 +15,8 @@
 #include "esp_mac.h"
 #include "esp_idf_version.h"
 
+extern "C" eth_esp32_emac_config_t eth_esp32_emac_default_config(void);
+
 namespace esphome::ethernet {
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
