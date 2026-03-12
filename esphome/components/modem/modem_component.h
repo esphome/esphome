@@ -88,7 +88,7 @@ class ModemComponent : public Component, public uart::UARTComponent {
 
   void dump_config() override { this->dump_connect_params_(); }
   float get_setup_priority() const override { return setup_priority::WIFI + 1; }  // Just before Wi-Fi
-  void add_on_state_callback(std::function<void(ModemComponentState, ModemComponentState)> &&callback) {
+  void add_on_state_callback(std::function<void(ModemComponentState)> &&callback) {
     this->on_state_callback_.add(std::move(callback));
   }
   std::unique_ptr<ModemHandler> modem_handler{nullptr};
@@ -128,7 +128,7 @@ class ModemComponent : public Component, public uart::UARTComponent {
 
   // Attributes from YAML config
   uint32_t timeout_;
-  CallbackManager<void(ModemComponentState, ModemComponentState)> on_state_callback_;
+  CallbackManager<void(ModemComponentState)> on_state_callback_;
 
   // Changes will trigger user callback
   ModemComponentState component_state_{ModemComponentState::MODEM_DISABLED};

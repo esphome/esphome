@@ -461,7 +461,7 @@ void ModemComponent::transition_to_(ModemComponentState next_state) {
   // ESP_LOGV(TAG, "State change: %s -> %s", state_to_string(previous_state).c_str(),
   // state_to_string(next_state).c_str());
   ESP_LOGD(TAG, "State change: %d -> %d", static_cast<int>(previous_state), static_cast<int>(next_state));
-  this->on_state_callback_.call(previous_state, next_state);
+  this->on_state_callback_.call(next_state);
   this->component_last_state_ = next_state;
   this->on_enter_state_(next_state);
 }
