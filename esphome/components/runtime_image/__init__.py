@@ -74,7 +74,7 @@ class JPEGFormat(Format):
 
     def actions(self) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_JPEG")
-        cg.add_library("bitbank2/JPEGDEC", "1.8.4")
+        cg.add_library("JPEGDEC", "1.8.4", "https://github.com/bitbank2/JPEGDEC#1.8.4")
 
 
 class PNGFormat(Format):
