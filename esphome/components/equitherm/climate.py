@@ -254,6 +254,7 @@ EQUITHERM_FORCE_RECALCULATE_ACTION_SCHEMA = automation.maybe_simple_id(
     "climate.equitherm.force_recalculate",
     EquithermForceRecalculateAction,
     EQUITHERM_FORCE_RECALCULATE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def equitherm_force_recalculate_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
