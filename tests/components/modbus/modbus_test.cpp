@@ -20,6 +20,7 @@ class MockDevice : public ModbusDevice {
 
 TEST(ModbusTest, TwoByteRegressionTest) {
   TestModbus modbus;
+  modbus.set_role(ModbusRole::CLIENT);
   // First byte (at=0)
   EXPECT_TRUE(modbus.test_parse_modbus_byte(0x01));
   // Second byte (at=1)
@@ -33,6 +34,7 @@ TEST(ModbusTest, TestValidFrame) {
   modbus.set_role(ModbusRole::CLIENT);
 
   MockDevice device;
+  device.set_parent(&modbus);
   device.set_address(0x01);
   modbus.register_device(&device);
   modbus.set_waiting(0x01);
