@@ -16,7 +16,7 @@ void HeatCurveCoefficientNumber::control(float value) {
   this->parent_->set_heat_curve_coefficient(value);
   this->save_state_(value);
   this->publish_state(value);
-  this->parent_->recalculate();
+  this->parent_->force_recalculate();
 }
 
 void HeatCurveCoefficientNumber::dump_config() {

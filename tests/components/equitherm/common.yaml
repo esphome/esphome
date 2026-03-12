@@ -34,6 +34,12 @@ sensor:
     name: "PID Correction"
     id: pid_correction_sensor
 
+  - platform: equitherm
+    climate_id: heating_controller
+    type: fallback_duration
+    name: "Fallback Duration"
+    id: fallback_duration_sensor
+
 # Diagnostic binary sensors
 binary_sensor:
   - platform: equitherm
@@ -87,9 +93,12 @@ number:
     fallback_outdoor_temp:
       name: "Fallback Outdoor Temperature"
       id: fallback_outdoor_temp_number
-    rate_limit:
-      name: "Rate Limit"
-      id: rate_limit_number
+    rate_limit_rising:
+      name: "Rate Limit Rising"
+      id: rate_limit_rising_number
+    rate_limit_falling:
+      name: "Rate Limit Falling"
+      id: rate_limit_falling_number
 
 climate:
   - platform: equitherm
@@ -112,8 +121,25 @@ climate:
     output_parameters:
       min_flow_temp: 25.0
       max_flow_temp: 70.0
+      rate_limit_rising: 0.5
+      rate_limit_falling: 2.0
     deadband_parameters:
       threshold_high: 0.5
       threshold_low: -0.5
       kp_multiplier: 0.1
       ki_multiplier: 0.0
+
+# Test action
+wifi:
+  ssid: "test"
+
+api:
+  actions:
+    - action: test_force_recalculate
+      then:
+        - climate.equitherm.force_recalculate: heating_controller
+    - action: test_force_recalculate_no_pid
+      then:
+        - climate.equitherm.force_recalculate:
+            id: heating_controller
+            update_pid: false

@@ -7,8 +7,9 @@ namespace equitherm {
 
 class EquithermClimate;
 
-/// Rate limit - controls how fast the flow temperature can change (°C per minute)
-class RateLimitNumber : public EquithermNumberBase, public Parented<EquithermClimate> {
+/// Rate limit for falling flow temperature (°C per minute) - energy optimal
+/// Controls how fast the flow temperature can decrease (typically faster than rising)
+class RateLimitFallingNumber : public EquithermNumberBase, public Parented<EquithermClimate> {
  public:
   void setup() override;
   void dump_config() override;

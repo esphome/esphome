@@ -7,7 +7,7 @@ namespace equitherm {
 
 static const char *const TAG = "control_mode_text_sensor";
 
-// Static string literals for control mode - zero heap allocation on state changes
+// Static string literals for control mode - pointer dedup avoids publish_state on unchanged updates
 static const char *const MODE_OFF = "Off";
 static const char *const MODE_EQUITHERM_PID = "Equitherm + PID";
 static const char *const MODE_EQUITHERM_ONLY = "Equitherm Only";
@@ -41,6 +41,10 @@ void ControlModeTextSensor::update_from_parent_() {
     }
   }
 
+  // Pointer compare - all modes are static literals, so pointer equality = string equality
+  if (mode == this->last_mode_)
+    return;
+  this->last_mode_ = mode;
   this->publish_state(mode);
 }
 

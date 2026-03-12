@@ -17,6 +17,7 @@ enum EquithermSensorType {
   EQUITHERM_SENSOR_TYPE_PROPORTIONAL_TERM,      // PID proportional term (Kp * error)
   EQUITHERM_SENSOR_TYPE_INTEGRAL_TERM,          // PID integral term
   EQUITHERM_SENSOR_TYPE_DERIVATIVE_TERM,        // PID derivative term
+  EQUITHERM_SENSOR_TYPE_FALLBACK_DURATION,      // Duration in fallback mode (seconds)
 };
 
 class EquithermSensor : public sensor::Sensor, public Component {

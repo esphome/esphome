@@ -7,11 +7,14 @@ from esphome.const import (
     CONF_ICON,
     CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
+    DEVICE_CLASS_DURATION,
     DEVICE_CLASS_TEMPERATURE,
     ENTITY_CATEGORY_NONE,
     ICON_THERMOMETER,
+    ICON_TIMER,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
+    UNIT_SECOND,
 )
 
 from ..climate import EquithermClimate, equitherm_ns
@@ -42,6 +45,7 @@ EQUITHERM_SENSOR_TYPES = {
     "proportional_term": EquithermSensorType.EQUITHERM_SENSOR_TYPE_PROPORTIONAL_TERM,
     "integral_term": EquithermSensorType.EQUITHERM_SENSOR_TYPE_INTEGRAL_TERM,
     "derivative_term": EquithermSensorType.EQUITHERM_SENSOR_TYPE_DERIVATIVE_TERM,
+    "fallback_duration": EquithermSensorType.EQUITHERM_SENSOR_TYPE_FALLBACK_DURATION,
 }
 
 # =============================================================================
@@ -74,10 +78,21 @@ PID_DIAGNOSTIC_SENSORS = {
     "derivative_term": _temperature_sensor_config(),
 }
 
+# Diagnostic sensors for fallback mode
+FALLBACK_DIAGNOSTIC_SENSORS = {
+    "fallback_duration": {
+        "unit": UNIT_SECOND,
+        "icon": ICON_TIMER,
+        "accuracy_decimals": 0,
+        "device_class": DEVICE_CLASS_DURATION,
+    },
+}
+
 # Combined sensor type configurations
 SENSOR_TYPE_CONFIGS = {
     **FLOW_TEMPERATURE_SENSORS,
     **PID_DIAGNOSTIC_SENSORS,
+    **FALLBACK_DIAGNOSTIC_SENSORS,
 }
 
 # =============================================================================

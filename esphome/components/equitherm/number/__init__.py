@@ -41,7 +41,12 @@ PIDDerivativeGainNumber = equitherm_ns.class_(
 FallbackOutdoorTempNumber = equitherm_ns.class_(
     "FallbackOutdoorTempNumber", number.Number, cg.Component
 )
-RateLimitNumber = equitherm_ns.class_("RateLimitNumber", number.Number, cg.Component)
+RateLimitRisingNumber = equitherm_ns.class_(
+    "RateLimitRisingNumber", number.Number, cg.Component
+)
+RateLimitFallingNumber = equitherm_ns.class_(
+    "RateLimitFallingNumber", number.Number, cg.Component
+)
 
 # =============================================================================
 # Configuration Keys
@@ -62,8 +67,9 @@ CONF_PID_DERIVATIVE_GAIN = "pid_derivative_gain"
 # Fallback
 CONF_FALLBACK_OUTDOOR_TEMP = "fallback_outdoor_temp"
 
-# Output rate limiting
-CONF_RATE_LIMIT = "rate_limit"
+# Output rate limiting (asymmetric)
+CONF_RATE_LIMIT_RISING = "rate_limit_rising"
+CONF_RATE_LIMIT_FALLING = "rate_limit_falling"
 
 # =============================================================================
 # Icons (component-specific, not in esphome/const.py)
@@ -207,9 +213,14 @@ FALLBACK_SCHEMA = cv.Schema(
 
 RATE_LIMIT_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_RATE_LIMIT): _number_schema(
-            RateLimitNumber,
-            icon="mdi:speedometer-slow",
+        cv.Optional(CONF_RATE_LIMIT_RISING): _number_schema(
+            RateLimitRisingNumber,
+            icon="mdi:thermometer-chevron-up",
+            unit="°C/min",
+        ),
+        cv.Optional(CONF_RATE_LIMIT_FALLING): _number_schema(
+            RateLimitFallingNumber,
+            icon="mdi:thermometer-chevron-down",
             unit="°C/min",
         ),
     }
@@ -310,9 +321,18 @@ async def _register_fallback_numbers(config, parent_id):
 
 async def _register_rate_limit_numbers(config, parent_id):
     """Register rate limit number entities."""
-    if rate_limit_config := config.get(CONF_RATE_LIMIT):
+    if rate_limit_rising_config := config.get(CONF_RATE_LIMIT_RISING):
         await _register_number(
-            rate_limit_config,
+            rate_limit_rising_config,
+            parent_id,
+            DEFAULT_RATE_LIMIT_MIN,
+            DEFAULT_RATE_LIMIT_MAX,
+            DEFAULT_RATE_LIMIT_STEP,
+        )
+
+    if rate_limit_falling_config := config.get(CONF_RATE_LIMIT_FALLING):
+        await _register_number(
+            rate_limit_falling_config,
             parent_id,
             DEFAULT_RATE_LIMIT_MIN,
             DEFAULT_RATE_LIMIT_MAX,

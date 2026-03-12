@@ -40,6 +40,9 @@ void EquithermSensor::update_from_parent_() {
     case EQUITHERM_SENSOR_TYPE_DERIVATIVE_TERM:
       value = this->parent_->get_derivative_term();
       break;
+    case EQUITHERM_SENSOR_TYPE_FALLBACK_DURATION:
+      value = static_cast<float>(this->parent_->get_fallback_duration());
+      break;
     default:
       ESP_LOGW(TAG, "Unknown sensor type: %d", static_cast<int>(this->type_));
       value = NAN;

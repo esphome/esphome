@@ -2,11 +2,16 @@
 
 #include <functional>
 
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/sensor/sensor.h"
+
+#ifdef USE_EQUITHERM_HEAT_OUTPUT
 #include "esphome/components/output/float_output.h"
+#endif
+
 #include "equitherm_controller.h"
 #include "pid_controller.h"
 
@@ -27,8 +32,10 @@ class EquithermClimate : public climate::Climate, public Component {
   void set_indoor_sensor(sensor::Sensor *sensor) { indoor_sensor_ = sensor; }
 
   // Output (mutually exclusive - only one should be set)
-  void set_ch_setpoint(number::Number *number) { ch_setpoint_ = number; }
+  void set_flow_setpoint(number::Number *number) { flow_setpoint_ = number; }
+#ifdef USE_EQUITHERM_HEAT_OUTPUT
   void set_heat_output(output::FloatOutput *output) { heat_output_ = output; }
+#endif
 
   // Climate defaults
   void set_default_target_temperature(float temp) { default_target_temperature_ = temp; }
@@ -44,9 +51,11 @@ class EquithermClimate : public climate::Climate, public Component {
   void set_action_hysteresis(float hysteresis) { action_hysteresis_ = hysteresis; }
   void set_write_deadband(float deadband) { write_deadband_ = deadband; }
 
-  // Rate limiting (replaces smoothing_threshold)
-  void set_rate_limit_per_minute(float value) { rate_limit_per_minute_ = clamp(value, 0.0f, 2.0f); }
-  float get_rate_limit_per_minute() const { return rate_limit_per_minute_; }
+  // Rate limiting (asymmetric: different limits for rising vs falling)
+  void set_rate_limit_rising(float value) { rate_limit_rising_ = value; }
+  void set_rate_limit_falling(float value) { rate_limit_falling_ = value; }
+  float get_rate_limit_rising() const { return rate_limit_rising_; }
+  float get_rate_limit_falling() const { return rate_limit_falling_; }
 
   // PID parameters
   void set_kp(float kp) { pid_controller_.kp_ = kp; }
@@ -70,6 +79,8 @@ class EquithermClimate : public climate::Climate, public Component {
   bool is_outdoor_fallback_active() const { return outdoor_fallback_active_; }
   bool is_indoor_fallback_active() const { return indoor_fallback_active_; }
   bool is_rate_limiting_active() const { return rate_limiting_active_; }
+  /// Get fallback duration in seconds (0 if not in fallback)
+  uint32_t get_fallback_duration() const;
 
   // State getters (for diagnostics)
   float get_curve_output_raw() const { return curve_output_raw_; }
@@ -101,13 +112,17 @@ class EquithermClimate : public climate::Climate, public Component {
   // Callback for diagnostic sensors
   void add_on_state_callback(std::function<void()> &&callback) { state_callback_.add(std::move(callback)); }
 
-  // Force immediate recalculation (used by runtime tuning numbers)
-  void recalculate() {
+  // Triggers for heating state transitions
+  Trigger<> *get_on_heating_start_trigger() { return &this->heating_start_trigger_; }
+  Trigger<> *get_on_heating_stop_trigger() { return &this->heating_stop_trigger_; }
+
+  // Force immediate recalculation, bypassing rate limiting (used by runtime tuning numbers)
+  void force_recalculate(bool update_pid = false) {
     // Setting prev_rate_limited_flow_ to NAN triggers the "first calculation" path
     // in compute_and_apply_(), which bypasses rate limiting and initializes
     // the rate limiter state with the new calculated value.
     this->prev_rate_limited_flow_ = NAN;
-    this->compute_and_apply_(false);  // Don't tick PID on param change
+    this->compute_and_apply_(update_pid);
   }
 
  protected:
@@ -124,10 +139,12 @@ class EquithermClimate : public climate::Climate, public Component {
   sensor::Sensor *outdoor_sensor_{nullptr};
   /// Indoor temperature sensor (required - for current_temperature display and room correction)
   sensor::Sensor *indoor_sensor_{nullptr};
-  /// OpenTherm number output for direct °C control
-  number::Number *ch_setpoint_{nullptr};
+  /// Flow temperature setpoint output (direct °C control, e.g., OpenTherm)
+  number::Number *flow_setpoint_{nullptr};
+#ifdef USE_EQUITHERM_HEAT_OUTPUT
   /// Alternative: generic float output (normalized 0-1)
   output::FloatOutput *heat_output_{nullptr};
+#endif
 
   /// Curve calculation engine
   HeatingCurve heating_curve_;
@@ -135,8 +152,10 @@ class EquithermClimate : public climate::Climate, public Component {
   PIDController pid_controller_;
   /// Default target temperature when no state restored
   float default_target_temperature_{20.0f};
-  /// Rate limit for output changes (°C per minute)
-  float rate_limit_per_minute_{0.2f};
+  /// Rate limit for rising output changes (°C per minute)
+  float rate_limit_rising_{NAN};
+  /// Rate limit for falling output changes (°C per minute)
+  float rate_limit_falling_{NAN};
   /// Previous rate-limited flow temperature (for time-based rate limiting)
   float prev_rate_limited_flow_{NAN};
   /// Raw heating curve output before rate limiting (for diagnostics)
@@ -169,12 +188,33 @@ class EquithermClimate : public climate::Climate, public Component {
   bool outdoor_fallback_active_{false};
   /// Whether indoor sensor has failed (PID disabled, pure equitherm mode)
   bool indoor_fallback_active_{false};
+  /// Timestamp when fallback mode started (0 if not in fallback)
+  uint32_t fallback_start_time_{0};
   /// Timestamp of last valid outdoor sensor reading
   uint32_t last_valid_outdoor_time_{0};
   /// Timestamp of last valid indoor sensor reading
   uint32_t last_valid_indoor_time_{0};
   /// Callback for diagnostic sensors
   CallbackManager<void()> state_callback_;
+  /// Previous climate action — used to detect heating start/stop transitions
+  climate::ClimateAction prev_action_{climate::CLIMATE_ACTION_OFF};
+  /// Trigger fired when transitioning into CLIMATE_ACTION_HEATING
+  Trigger<> heating_start_trigger_;
+  /// Trigger fired when transitioning out of CLIMATE_ACTION_HEATING
+  Trigger<> heating_stop_trigger_;
+};
+
+template<typename... Ts> class EquithermForceRecalculateAction : public Action<Ts...> {
+ public:
+  EquithermForceRecalculateAction(EquithermClimate *parent) : parent_(parent) {}
+
+  void set_update_pid(bool update_pid) { update_pid_ = update_pid; }
+
+  void play(const Ts &...x) override { this->parent_->force_recalculate(this->update_pid_); }
+
+ protected:
+  EquithermClimate *parent_;
+  bool update_pid_{true};
 };
 
 }  // namespace equitherm

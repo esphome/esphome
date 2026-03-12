@@ -16,7 +16,7 @@ void PIDDerivativeGainNumber::control(float value) {
   this->parent_->set_kd(value);
   this->save_state_(value);
   this->publish_state(value);
-  this->parent_->recalculate();
+  this->parent_->force_recalculate();
 }
 
 void PIDDerivativeGainNumber::dump_config() {
