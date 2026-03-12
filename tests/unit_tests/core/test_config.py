@@ -763,6 +763,19 @@ async def test_add_includes_with_single_file(
 
 
 @pytest.mark.asyncio
+async def test_add_includes_with_system_include(
+    mock_copy_file_if_changed: Mock,
+) -> None:
+    """Test add_includes adds system includes with brackets and doesn't copy any files"""
+    for stage in config.INCLUDE_STAGES:
+        await config.add_includes([dict(path="<vector>", stage=stage)])
+        mock_copy_file_if_changed.assert_not_called()
+        assert any(
+            "#include <vector>" in inc for inc in config.get_include_statements(stage)
+        )
+
+
+@pytest.mark.asyncio
 @pytest.mark.skipif(os.name == "nt", reason="Unix-specific test")
 async def test_add_includes_with_directory_unix(
     tmp_path: Path,
