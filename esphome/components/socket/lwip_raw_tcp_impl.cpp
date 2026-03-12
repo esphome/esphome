@@ -5,6 +5,7 @@
 
 #include <cerrno>
 #include <cstring>
+#include <sys/time.h>
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -81,7 +82,9 @@ void socket_delay(uint32_t ms) {
     s_socket_woke = false;
     return;
   }
-  s_socket_woke = false;
+  // Don't clear s_socket_woke here — if an IRQ fires between the check above
+  // and the while loop below, the while condition sees it immediately. Clearing
+  // here would lose that wake and sleep until the timer fires.
   s_delay_expired = false;
   // Set a one-shot timer to wake us after the timeout.
   // add_alarm_in_ms returns >0 on success, 0 if time already passed, <0 on error.
@@ -99,6 +102,7 @@ void socket_delay(uint32_t ms) {
   // Cancel timer if we woke early (socket data arrived before timeout)
   if (!s_delay_expired)
     cancel_alarm(alarm);
+  s_socket_woke = false;  // consume the wake for next call
 }
 
 // No IRAM_ATTR equivalent needed: on RP2040, CYW43 async_context runs LWIP
@@ -359,6 +363,18 @@ int LWIPRawCommon::getsockopt(int level, int optname, void *optval, socklen_t *o
     *optlen = 4;
     return 0;
   }
+  if (level == SOL_SOCKET && optname == SO_RCVTIMEO) {
+    if (*optlen < sizeof(struct timeval)) {
+      errno = EINVAL;
+      return -1;
+    }
+    uint32_t ms = this->recv_timeout_cs_ * 10;
+    auto *tv = reinterpret_cast<struct timeval *>(optval);
+    tv->tv_sec = ms / 1000;
+    tv->tv_usec = (ms % 1000) * 1000;
+    *optlen = sizeof(struct timeval);
+    return 0;
+  }
   if (level == IPPROTO_TCP && optname == TCP_NODELAY) {
     if (*optlen < 4) {
       errno = EINVAL;
@@ -386,6 +402,21 @@ int LWIPRawCommon::setsockopt(int level, int optname, const void *optval, sockle
     }
     // lwip doesn't seem to have this feature. Don't send an error
     // to prevent warnings
+    return 0;
+  }
+  if (level == SOL_SOCKET && optname == SO_RCVTIMEO) {
+    if (optlen < sizeof(struct timeval)) {
+      errno = EINVAL;
+      return -1;
+    }
+    const auto *tv = reinterpret_cast<const struct timeval *>(optval);
+    uint32_t ms = tv->tv_sec * 1000 + tv->tv_usec / 1000;
+    uint32_t cs = (ms + 9) / 10;  // round up to nearest centisecond
+    this->recv_timeout_cs_ = cs > 255 ? 255 : static_cast<uint8_t>(cs);
+    return 0;
+  }
+  if (level == SOL_SOCKET && optname == SO_SNDTIMEO) {
+    // Raw TCP writes are non-blocking (tcp_write), so send timeout is a no-op.
     return 0;
   }
   if (level == IPPROTO_TCP && optname == TCP_NODELAY) {
@@ -518,7 +549,29 @@ err_t LWIPRawImpl::recv_fn(struct pbuf *pb, err_t err) {
   return ERR_OK;
 }
 
+void LWIPRawImpl::wait_for_data_() {
+  // Wait for data without holding LWIP_LOCK so recv_fn() can run on RP2040
+  // (needs async_context lock).
+  //
+  // Loop until data arrives, connection closes, or the full timeout elapses.
+  // socket_delay() may return early due to other sockets waking the global
+  // socket_wake() flag, so we re-enter for the remaining time.
+  uint32_t timeout_ms = this->recv_timeout_cs_ * 10;
+  uint32_t start = millis();
+  while (this->waiting_for_data_()) {
+    uint32_t elapsed = millis() - start;
+    if (elapsed >= timeout_ms)
+      break;
+    socket_delay(timeout_ms - elapsed);
+  }
+}
+
 ssize_t LWIPRawImpl::read(void *buf, size_t len) {
+  // See waiting_for_data_() for safety of unlocked reads.
+  if (this->recv_timeout_cs_ > 0 && this->waiting_for_data_()) {
+    this->wait_for_data_();
+  }
+
   LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = ECONNRESET;
@@ -579,6 +632,11 @@ ssize_t LWIPRawImpl::read(void *buf, size_t len) {
 }
 
 ssize_t LWIPRawImpl::readv(const struct iovec *iov, int iovcnt) {
+  // See read() for safety analysis of these unlocked reads.
+  if (this->recv_timeout_cs_ > 0 && this->waiting_for_data_()) {
+    this->wait_for_data_();
+  }
+
   LWIP_LOCK();  // Hold for entire scatter-gather operation
   ssize_t ret = 0;
   for (int i = 0; i < iovcnt; i++) {
