@@ -76,7 +76,10 @@ void SPA06Component::setup() {
   // 3. Read chip readiness from CFG_REG
   //    Only fail here if the sensor coefficients are not ready
   if (!spa_read_byte(SPA06_MEAS_CFG, &this->meas_.reg)) {
-    ESP_LOGD(TAG, "Sensor not ready, attempting to continue");
+    ESP_LOGD(TAG, "Sensor not ready");
+    // TODO: Set internal error code
+    this->mark_failed();
+    return;
   }
   if (!meas_.bit.coef_ready) {
     ESP_LOGE(TAG, "Coefficients not ready");
