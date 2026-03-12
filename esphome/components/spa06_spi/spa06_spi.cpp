@@ -60,7 +60,7 @@ bool SPA06SPIComponent::spa_read_bytes(uint8_t a_register, uint8_t *data, size_t
 
 bool SPA06SPIComponent::spa_write_bytes(uint8_t a_register, uint8_t *data, size_t len) {
   this->enable();
-  this->transfer_byte(set_bit(a_register, 7));
+  this->transfer_byte(clear_bit(a_register, 7));
   this->write_array(data, len);
   this->disable();
   return true;
