@@ -6,8 +6,6 @@
 
 namespace esphome::spa06_spi {
 
-static const char *const TAG = "spa06_spi";
-
 uint8_t set_bit(uint8_t num, uint8_t position) {
   uint8_t mask = 1 << position;
   return num | mask;
@@ -29,10 +27,10 @@ void SPA06SPIComponent::protocol_reset() {
   this->spa_read_byte(spa06_base::SPA06_ID, &dummy_read);
 }
 
-// In SPI mode, only 7 bits of the register addresses are used; the MSB of register address is not used
-// and replaced by a read/write bit (RW = ‘0’ for write and RW = ‘1’ for read).
-// Example: address 0xF7 is accessed by using SPI register address 0x77. For write access, the byte
-// 0x77 is transferred, for read access, the byte 0xF7 is transferred.
+// In SPI mode, only 7 bits of the register addresses are used; the MSB of register address
+// is not used and replaced by a read/write bit (RW = ‘0’ for write and RW = ‘1’ for read).
+// Example: address 0xF7 is accessed by using SPI register address 0x77. For write access,
+// the byte 0x77 is transferred, for read access, the byte 0xF7 is transferred.
 
 bool SPA06SPIComponent::spa_read_byte(uint8_t a_register, uint8_t *data) {
   this->enable();
