@@ -120,7 +120,7 @@ class LWIPRawImpl : public LWIPRawCommon {
   static err_t s_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, err_t err);
 
  protected:
-  ssize_t read_locked_(void *buf, size_t len);
+  void wait_for_data_();
   ssize_t internal_write_(const void *buf, size_t len);
   int internal_output_();
 

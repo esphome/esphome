@@ -515,23 +515,28 @@ err_t LWIPRawImpl::recv_fn(struct pbuf *pb, err_t err) {
   return ERR_OK;
 }
 
+void LWIPRawImpl::wait_for_data_() {
+  // Wait for data without holding LWIP_LOCK so recv_fn() can run on RP2040
+  // (needs async_context lock). Unlocked reads of rx_buf_/rx_closed_/pcb_ are
+  // safe (atomic pointer/bool on ARM/Xtensa) — they're just hints to avoid
+  // unnecessary sleeping; the authoritative check happens under LWIP_LOCK
+  // in the caller after this returns.
+  // Loop until data arrives, connection closes, or the full timeout elapses.
+  // socket_delay() may return early due to other sockets waking the global
+  // socket_wake() flag, so we re-enter for the remaining time.
+  uint32_t timeout_ms = this->recv_timeout_cs_ * 10;
+  uint32_t start = millis();
+  while (this->rx_buf_ == nullptr && !this->rx_closed_ && this->pcb_ != nullptr) {
+    uint32_t elapsed = millis() - start;
+    if (elapsed >= timeout_ms)
+      break;
+    socket_delay(timeout_ms - elapsed);
+  }
+}
+
 ssize_t LWIPRawImpl::read(void *buf, size_t len) {
-  // If SO_RCVTIMEO is set and no data available, wait without holding lock.
-  // These reads are safe unlocked (atomic pointer/bool on ARM/Xtensa) —
-  // they're just hints; the authoritative check happens under LWIP_LOCK below.
-  // Lock must not be held during socket_delay() so recv_fn() can run on RP2040.
   if (this->recv_timeout_cs_ > 0 && this->rx_buf_ == nullptr && !this->rx_closed_ && this->pcb_ != nullptr) {
-    // Loop until data arrives, connection closes, or the full timeout elapses.
-    // socket_delay() may return early due to other sockets waking the global
-    // socket_wake() flag, so we re-enter for the remaining time.
-    uint32_t timeout_ms = this->recv_timeout_cs_ * 10;
-    uint32_t start = millis();
-    while (this->rx_buf_ == nullptr && !this->rx_closed_ && this->pcb_ != nullptr) {
-      uint32_t elapsed = millis() - start;
-      if (elapsed >= timeout_ms)
-        break;
-      socket_delay(timeout_ms - elapsed);
-    }
+    this->wait_for_data_();
   }
 
   LWIP_LOCK();
@@ -539,19 +544,17 @@ ssize_t LWIPRawImpl::read(void *buf, size_t len) {
     errno = ECONNRESET;
     return -1;
   }
-  if (this->rx_closed_ && this->rx_buf_ == nullptr)
+  if (this->rx_closed_ && this->rx_buf_ == nullptr) {
     return 0;
-  if (len == 0)
+  }
+  if (len == 0) {
     return 0;
+  }
   if (this->rx_buf_ == nullptr) {
     errno = EWOULDBLOCK;
     return -1;
   }
-  return this->read_locked_(buf, len);
-}
 
-ssize_t LWIPRawImpl::read_locked_(void *buf, size_t len) {
-  // Caller must hold LWIP_LOCK and ensure rx_buf_ != nullptr
   size_t read = 0;
   uint8_t *buf8 = reinterpret_cast<uint8_t *>(buf);
   while (len && this->rx_buf_ != nullptr) {
@@ -596,23 +599,14 @@ ssize_t LWIPRawImpl::read_locked_(void *buf, size_t len) {
 }
 
 ssize_t LWIPRawImpl::readv(const struct iovec *iov, int iovcnt) {
+  if (this->recv_timeout_cs_ > 0 && this->rx_buf_ == nullptr && !this->rx_closed_ && this->pcb_ != nullptr) {
+    this->wait_for_data_();
+  }
+
   LWIP_LOCK();  // Hold for entire scatter-gather operation
-  if (this->pcb_ == nullptr) {
-    errno = ECONNRESET;
-    return -1;
-  }
-  if (this->rx_closed_ && this->rx_buf_ == nullptr) {
-    return 0;
-  }
   ssize_t ret = 0;
   for (int i = 0; i < iovcnt; i++) {
-    if (this->rx_buf_ == nullptr) {
-      if (ret != 0)
-        break;
-      errno = EWOULDBLOCK;
-      return -1;
-    }
-    ssize_t err = this->read_locked_(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
+    ssize_t err = this->read(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
     if (err == -1) {
       if (ret != 0) {
         // if we already read some don't return an error
