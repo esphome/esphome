@@ -231,6 +231,52 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                     lines.append(f"    {size:>6,} B  {sym_name}")
             lines.append("")
 
+    # Number of top called functions to show
+    TOP_CALLS_LIMIT: int = 50
+
+    def _add_function_call_analysis(self, lines: list[str]) -> None:
+        """Add function call frequency analysis section.
+
+        Shows the most frequently called functions by call site count,
+        helping identify inlining candidates. Includes function size
+        when available from the symbol table.
+        """
+        self._add_section_header(lines, "Top Called Functions (inlining candidates)")
+
+        # Build a size lookup from all component symbols: mangled_name -> size
+        symbol_sizes: dict[str, int] = {
+            symbol: size
+            for symbols in self._component_symbols.values()
+            for symbol, _, size, _ in symbols
+        }
+
+        # Sort by call count descending
+        sorted_calls = sorted(
+            self._function_call_counts.items(), key=lambda x: x[1], reverse=True
+        )
+
+        lines.append(f"{'#':>3}  {'Calls':>5}  {'Size':>7}  Function")
+        lines.append(f"{'---':>3}  {'-----':>5}  {'-------':>7}  {'-' * 60}")
+
+        for i, (mangled, count) in enumerate(sorted_calls[: self.TOP_CALLS_LIMIT]):
+            # Look up demangled name
+            demangled = self._demangle_cache.get(mangled, mangled)
+            # Truncate long names
+            if len(demangled) > 80:
+                demangled = f"{demangled[:77]}..."
+            # Look up size
+            size = symbol_sizes.get(mangled)
+            size_str = f"{size:>5,} B" if size is not None else "      ?"
+            lines.append(f"{i + 1:>3}  {count:>5}  {size_str}  {demangled}")
+
+        total_calls = sum(self._function_call_counts.values())
+        lines.append("")
+        lines.append(
+            f"Total: {len(self._function_call_counts)} unique targets, "
+            f"{total_calls:,} call sites"
+        )
+        lines.append("")
+
     def generate_report(self, detailed: bool = False) -> str:
         """Generate a formatted memory report."""
         components = sorted(
@@ -532,6 +578,10 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         # CSWTCH (GCC switch table) analysis
         if self._cswtch_symbols:
             self._add_cswtch_analysis(lines)
+
+        # Function call frequency analysis
+        if self._function_call_counts:
+            self._add_function_call_analysis(lines)
 
         lines.append(
             "Note: This analysis covers symbols in the ELF file. Some runtime allocations may not be included."
