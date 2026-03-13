@@ -52,5 +52,13 @@ async def to_code(config):
         # Transparently handle the deprecated format
         for key, obis_val in DEPRECATED_TEXT_KEYS.items():
             if key in config:
+                _LOGGER.warning(
+                    "'%s' is deprecated and will be removed in ESPHome 2026.9.0. "
+                    "Please extract this into a separate text_sensor block using "
+                    "obis_code: '%s'.",
+                    key,
+                    obis_val,
+                )
+
                 sens = await text_sensor.new_text_sensor(config[key])
                 cg.add(hub.register_text_sensor(obis_val, sens))
