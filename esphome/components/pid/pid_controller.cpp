@@ -94,8 +94,8 @@ void PIDController::calculate_derivative_term_(float setpoint) {
 }
 
 float PIDController::ring_buffer_average_(FixedRingBuffer<float> &buf, float new_value, int max_samples) {
-  // if only 1 sample needed, clear the buffer and return
-  if (max_samples == 1) {
+  // if only 1 sample needed (or invalid), clear the buffer and return
+  if (max_samples <= 1) {
     buf.clear();
     return new_value;
   }
