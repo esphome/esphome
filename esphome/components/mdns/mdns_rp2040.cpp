@@ -43,9 +43,10 @@ void MDNSComponent::setup() {
   // safely run directly since netif status callbacks fire from IRQ context
   // (PICO_CYW43_ARCH_THREADSAFE_BACKGROUND) while _restart() allocates UDP sockets.
   //
-  // Workaround: defer MDNS.begin() and service registration until WiFi is connected
-  // (has an IP), then call notifyAPChange() on subsequent reconnects to restart
-  // mDNS probing and announcing — all from main loop context so it's thread-safe.
+  // Workaround: defer MDNS.begin() and service registration until the network is
+  // connected (has an IP), then call notifyAPChange() on subsequent reconnects to
+  // restart mDNS probing and announcing — all from main loop context so it's
+  // thread-safe.
   this->set_interval(MDNS_UPDATE_INTERVAL_MS, [this]() {
     bool connected = network::is_connected();
     if (connected && !this->was_connected_) {
