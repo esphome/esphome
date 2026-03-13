@@ -10,13 +10,19 @@
 #include <memory>
 #include "esphome/core/hash_base.h"
 
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32)
 #include <esp_idf_version.h>
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+// mbedtls 4.0 moved sha256.h to private/ and guards function declarations
+// behind MBEDTLS_ALLOW_PRIVATE_ACCESS. IDF's esp_config.h defines this but
+// private_access.h is parsed before the config is loaded.
+#define MBEDTLS_ALLOW_PRIVATE_ACCESS
 #include "mbedtls/private/sha256.h"
 #else
 #include "mbedtls/sha256.h"
 #endif
+#elif defined(USE_LIBRETINY)
+#include "mbedtls/sha256.h"
 #elif defined(USE_ESP8266) || defined(USE_RP2040)
 #include <bearssl/bearssl_hash.h>
 #elif defined(USE_HOST)
