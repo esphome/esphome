@@ -632,3 +632,106 @@ async def test_uart_mock_modbus_server_controller(
                 f"Timeout waiting for reg_fp32_r change. Received sensor states:\n"
                 f"  reg_fp32_r: {sensor_states['reg_fp32_r']}\n"
             )
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_server_controller_multiple(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test server/controller functionality with multiple servers."""
+    # Replace external component path placeholder
+    external_components_path = str(
+        Path(__file__).parent / "fixtures" / "external_components"
+    )
+    yaml_config = yaml_config.replace(
+        "EXTERNAL_COMPONENT_PATH", external_components_path
+    )
+
+    loop = asyncio.get_running_loop()
+
+    # Track sensor state updates (after initial state is swallowed)
+    sensor_states: dict[str, list[float]] = {
+        "reg_u_word": [],
+        "reg_u_word_2": [],
+    }
+
+    # Track error and warning logs
+    error_log_lines: list[str] = []
+    warning_log_lines: list[str] = []
+
+    def line_callback(line: str) -> None:
+        if "[E][modbus" in line:
+            error_log_lines.append(line)
+        if "[W][modbus" in line:
+            warning_log_lines.append(line)
+
+    reg_u_word_changed = loop.create_future()
+    reg_u_word_2_changed = loop.create_future()
+
+    def on_state(state: EntityState) -> None:
+        if isinstance(state, SensorState) and not state.missing_state:
+            sensor_name = key_to_sensor.get(state.key)
+            if sensor_name and sensor_name in sensor_states:
+                sensor_states[sensor_name].append(state.state)
+                if (
+                    sensor_name == "reg_u_word"
+                    and state.state == 919
+                    and not reg_u_word_changed.done()
+                ):
+                    reg_u_word_changed.set_result(True)
+                elif (
+                    sensor_name == "reg_u_word_2"
+                    and state.state == 929
+                    and not reg_u_word_2_changed.done()
+                ):
+                    reg_u_word_2_changed.set_result(True)
+
+    async with (
+        run_compiled(yaml_config, line_callback=line_callback),
+        api_client_connected() as client,
+    ):
+        entities, _ = await client.list_entities_services()
+
+        # Build key mappings for all sensor types
+        all_names = list(sensor_states.keys())
+        key_to_sensor = build_key_to_entity_mapping(entities, all_names)
+
+        # Set up initial state helper
+        initial_state_helper = InitialStateHelper(entities)
+        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+
+        try:
+            await initial_state_helper.wait_for_initial_states()
+        except TimeoutError:
+            pytest.fail("Timeout waiting for initial states")
+
+        # Start the UART mock scenario now that we're subscribed
+        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
+        assert start_btn is not None, "Start Scenario button not found"
+        client.button_command(start_btn.key)
+
+        try:
+            await asyncio.wait_for(reg_u_word_changed, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for reg_u_word change. Received sensor states:\n"
+                f"  reg_u_word: {sensor_states['reg_u_word']}\n"
+            )
+        try:
+            await asyncio.wait_for(reg_u_word_2_changed, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for reg_u_word_2 change. Received sensor states:\n"
+                f"  reg_u_word_2: {sensor_states['reg_u_word_2']}\n"
+            )
+
+        assert len(error_log_lines) == 0, (
+            "Expect no errors logged by the modbus mock, but got:\n"
+            + "\n".join(error_log_lines)
+        )
+        assert len(warning_log_lines) == 0, (
+            "Expect no warnings logged by the modbus mock, but got:\n"
+            + "\n".join(warning_log_lines)
+        )
