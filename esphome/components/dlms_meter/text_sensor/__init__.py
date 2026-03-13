@@ -6,6 +6,7 @@ import esphome.config_validation as cv
 
 from .. import (
     CONF_DLMS_METER_ID,
+    CONF_OBIS_CODE,
     DEPRECATED_TEXT_KEYS,
     DlmsMeterComponent,
     obis_code,
@@ -14,8 +15,6 @@ from .. import (
 
 _LOGGER = logging.getLogger(__name__)
 DEPENDENCIES = ["dlms_meter"]
-
-CONF_OBIS_CODE = "obis_code"
 
 # New single-entity platform schema
 NEW_SCHEMA = text_sensor.text_sensor_schema().extend(

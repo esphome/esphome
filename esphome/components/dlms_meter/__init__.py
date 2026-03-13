@@ -15,6 +15,7 @@ CONF_DLMS_METER_ID = "dlms_meter_id"
 CONF_DECRYPTION_KEY = "decryption_key"
 CONF_PROVIDER = "provider"
 CONF_TRANSPORT = "transport"
+CONF_OBIS_CODE = "obis_code"
 
 PROVIDERS = {"generic": 0, "netznoe": 1}
 TRANSPORTS = {"mbus": 0, "raw": 1}
