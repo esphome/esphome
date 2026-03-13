@@ -13,11 +13,14 @@ static constexpr const char *TAG = "dlms_meter";
 
 void DlmsMeterComponent::dump_config() {
   const char *provider_name = this->provider_ == PROVIDER_NETZNOE ? "Netz NOE" : "Generic";
+  const char *transport_name = this->transport_ == TRANSPORT_MBUS ? "M-Bus" : "Raw";
   ESP_LOGCONFIG(TAG,
                 "DLMS Meter:\n"
                 "  Provider: %s\n"
+                "  Transport: %s\n"
+                "  Decryption Enabled: %s\n"
                 "  Read Timeout: %u ms",
-                provider_name, this->read_timeout_);
+                provider_name, transport_name, this->has_decryption_key_ ? "YES" : "NO", this->read_timeout_);
 #define DLMS_METER_LOG_SENSOR(s) LOG_SENSOR("  ", #s, this->s##_sensor_);
   DLMS_METER_SENSOR_LIST(DLMS_METER_LOG_SENSOR, )
 #define DLMS_METER_LOG_TEXT_SENSOR(s) LOG_TEXT_SENSOR("  ", #s, this->s##_text_sensor_);
@@ -51,26 +54,36 @@ void DlmsMeterComponent::loop() {
   }
 
   if (!this->receive_buffer_.empty() && millis() - this->last_read_ > this->read_timeout_) {
-    this->mbus_payload_.clear();
-    if (!this->parse_mbus_(this->mbus_payload_))
-      return;
+    this->payload_.clear();
 
-    uint16_t message_length;
-    uint8_t systitle_length;
-    uint16_t header_offset;
-    if (!this->parse_dlms_(this->mbus_payload_, message_length, systitle_length, header_offset))
-      return;
-
-    if (message_length < DECODER_START_OFFSET || message_length > MAX_MESSAGE_LENGTH) {
-      ESP_LOGE(TAG, "DLMS: Message length invalid: %u", message_length);
-      this->receive_buffer_.clear();
-      return;
+    if (this->transport_ == TRANSPORT_MBUS) {
+      if (!this->parse_mbus_(this->payload_))
+        return;
+    } else {
+      this->payload_ = this->receive_buffer_;
     }
 
-    // Decrypt in place and then decode the OBIS codes
-    if (!this->decrypt_(this->mbus_payload_, message_length, systitle_length, header_offset))
-      return;
-    this->decode_obis_(&this->mbus_payload_[header_offset + DLMS_PAYLOAD_OFFSET], message_length);
+    if (this->has_decryption_key_) {
+      uint16_t message_length;
+      uint8_t systitle_length;
+      uint16_t header_offset;
+      if (!this->parse_dlms_(this->payload_, message_length, systitle_length, header_offset))
+        return;
+
+      if (message_length < DECODER_START_OFFSET || message_length > MAX_MESSAGE_LENGTH) {
+        ESP_LOGE(TAG, "DLMS: Message length invalid: %u", message_length);
+        this->receive_buffer_.clear();
+        return;
+      }
+
+      // Decrypt in place and then decode the OBIS codes
+      if (!this->decrypt_(this->payload_, message_length, systitle_length, header_offset))
+        return;
+      this->decode_obis_(&this->payload_[header_offset + DLMS_PAYLOAD_OFFSET], message_length);
+    } else {
+      // If no decryption key is provided, decode the parsed payload directly assuming unencrypted APDU.
+      this->decode_obis_(this->payload_.data(), this->payload_.size());
+    }
   }
 }
 

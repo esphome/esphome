@@ -50,6 +50,8 @@ struct MeterData {
 
 // Provider constants
 enum Providers : uint32_t { PROVIDER_GENERIC = 0x00, PROVIDER_NETZNOE = 0x01 };
+// Transport constants
+enum Transports : uint32_t { TRANSPORT_MBUS = 0x00, TRANSPORT_RAW = 0x01 };
 
 class DlmsMeterComponent : public Component, public uart::UARTDevice {
  public:
@@ -58,8 +60,12 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
   void dump_config() override;
   void loop() override;
 
-  void set_decryption_key(const std::array<uint8_t, 16> &key) { this->decryption_key_ = key; }
+  void set_decryption_key(const std::array<uint8_t, 16> &key) {
+    this->decryption_key_ = key;
+    this->has_decryption_key_ = true;
+  }
   void set_provider(uint32_t provider) { this->provider_ = provider; }
+  void set_transport(uint32_t transport) { this->transport_ = transport; }
 
   void publish_sensors(MeterData &data) {
 #define DLMS_METER_PUBLISH_SENSOR(s) \
@@ -85,11 +91,14 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
   void decode_obis_(uint8_t *plaintext, uint16_t message_length);
 
   std::vector<uint8_t> receive_buffer_;  // Stores the packet currently being received
-  std::vector<uint8_t> mbus_payload_;    // Parsed M-Bus payload, reused to avoid heap churn
+  std::vector<uint8_t> payload_;         // Parsed payload, reused to avoid heap churn
   uint32_t last_read_ = 0;               // Timestamp when data was last read
   uint32_t read_timeout_ = 1000;         // Time to wait after last byte before considering data complete
 
   uint32_t provider_ = PROVIDER_GENERIC;  // Provider of the meter / your grid operator
+  uint32_t transport_ = TRANSPORT_MBUS;   // Transport protocol used
+
+  bool has_decryption_key_{false};
   std::array<uint8_t, 16> decryption_key_;
 };
 
