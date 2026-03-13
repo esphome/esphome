@@ -30,13 +30,19 @@ class SEN6XComponent : public PollingComponent, public sensirion_common::Sensiri
 
  protected:
   Sen6xType infer_type_from_product_name_(const std::string &product_name);
+  void poll_data_ready_();
+  void read_measurements_();
+  void parse_and_publish_measurements_();
 
   bool initialized_{false};
   std::string product_name_;
   Sen6xType sen6x_type_{UNKNOWN};
   std::string serial_number_;
+  uint16_t read_cmd_{0};
   uint8_t firmware_version_major_{0};
   uint8_t firmware_version_minor_{0};
+  uint8_t poll_retries_remaining_{0};
+  uint8_t read_words_{0};
   bool startup_complete_{false};
 };
 

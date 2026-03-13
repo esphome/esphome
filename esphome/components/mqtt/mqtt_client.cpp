@@ -44,8 +44,10 @@ MQTTClientComponent::MQTTClientComponent() {
 void MQTTClientComponent::setup() {
   this->mqtt_backend_.set_on_message(
       [this](const char *topic, const char *payload, size_t len, size_t index, size_t total) {
-        if (index == 0)
+        if (index == 0) {
+          this->payload_buffer_.clear();
           this->payload_buffer_.reserve(total);
+        }
 
         // append new payload, may contain incomplete MQTT message
         this->payload_buffer_.append(payload, len);
