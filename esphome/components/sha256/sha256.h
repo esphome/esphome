@@ -11,7 +11,12 @@
 #include "esphome/core/hash_base.h"
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#include <esp_idf_version.h>
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#include "mbedtls/private/sha256.h"
+#else
 #include "mbedtls/sha256.h"
+#endif
 #elif defined(USE_ESP8266) || defined(USE_RP2040)
 #include <bearssl/bearssl_hash.h>
 #elif defined(USE_HOST)
