@@ -1,5 +1,5 @@
 esphome:
-  name: uart-mock-modbus-test
+  name: uart-mock-modbus-server-test
 
 host:
 api:

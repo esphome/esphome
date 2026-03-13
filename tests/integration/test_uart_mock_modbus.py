@@ -398,3 +398,237 @@ async def test_uart_mock_modbus_server(
                 f"Timeout waiting for read_after_peer_timeout change. Received sensor states:\n"
                 f"  read_after_peer_timeout: {sensor_states['read_after_peer_timeout']}\n"
             )
+
+
+@pytest.mark.asyncio
+async def test_uart_mock_modbus_server_controller(
+    yaml_config: str,
+    run_compiled: RunCompiledFunction,
+    api_client_connected: APIClientConnectedFactory,
+) -> None:
+    """Test server/controller functionality for all read register types."""
+    # Replace external component path placeholder
+    external_components_path = str(
+        Path(__file__).parent / "fixtures" / "external_components"
+    )
+    yaml_config = yaml_config.replace(
+        "EXTERNAL_COMPONENT_PATH", external_components_path
+    )
+
+    loop = asyncio.get_running_loop()
+
+    # Track sensor state updates (after initial state is swallowed)
+    sensor_states: dict[str, list[float]] = {
+        "reg_u_word": [],
+        "reg_s_word": [],
+        "reg_u_dword": [],
+        "reg_s_dword": [],
+        "reg_u_dword_r": [],
+        "reg_s_dword_r": [],
+        "reg_u_qword": [],
+        "reg_s_qword": [],
+        "reg_u_qword_r": [],
+        "reg_s_qword_r": [],
+        "reg_fp32": [],
+        "reg_fp32_r": [],
+    }
+
+    reg_u_word_changed = loop.create_future()
+    reg_s_word_changed = loop.create_future()
+    reg_u_dword_changed = loop.create_future()
+    reg_s_dword_changed = loop.create_future()
+    reg_u_dword_r_changed = loop.create_future()
+    reg_s_dword_r_changed = loop.create_future()
+    reg_u_qword_changed = loop.create_future()
+    reg_s_qword_changed = loop.create_future()
+    reg_u_qword_r_changed = loop.create_future()
+    reg_s_qword_r_changed = loop.create_future()
+    reg_fp32_changed = loop.create_future()
+    reg_fp32_r_changed = loop.create_future()
+
+    def on_state(state: EntityState) -> None:
+        if isinstance(state, SensorState) and not state.missing_state:
+            sensor_name = key_to_sensor.get(state.key)
+            if sensor_name and sensor_name in sensor_states:
+                sensor_states[sensor_name].append(state.state)
+                if (
+                    sensor_name == "reg_u_word"
+                    and state.state == 99
+                    and not reg_u_word_changed.done()
+                ):
+                    reg_u_word_changed.set_result(True)
+                elif (
+                    sensor_name == "reg_s_word"
+                    and state.state == -99
+                    and not reg_s_word_changed.done()
+                ):
+                    reg_s_word_changed.set_result(True)
+                elif (
+                    sensor_name == "reg_u_dword"
+                    and state.state == 16909060
+                    and not reg_u_dword_changed.done()
+                ):
+                    reg_u_dword_changed.set_result(True)
+                elif (
+                    sensor_name == "reg_s_dword"
+                    and state.state == -16909060
+                    and not reg_s_dword_changed.done()
+                ):
+                    reg_s_dword_changed.set_result(True)
+                elif (
+                    sensor_name == "reg_u_dword_r"
+                    and state.state == pytest.approx(67305985)
+                    and not reg_u_dword_r_changed.done()
+                ):
+                    reg_u_dword_r_changed.set_result(True)
+                elif (
+                    sensor_name == "reg_s_dword_r"
+                    and state.state == pytest.approx(-67305985)
+                    and not reg_s_dword_r_changed.done()
+                ):
+                    reg_s_dword_r_changed.set_result(True)
+                elif (
+                    sensor_name == "reg_u_qword"
+                    and state.state == pytest.approx(72623859790382856)
+                    and not reg_u_qword_changed.done()
+                ):
+                    reg_u_qword_changed.set_result(True)
+                elif (
+                    sensor_name == "reg_s_qword"
+                    and state.state == pytest.approx(-72623859790382856)
+                    and not reg_s_qword_changed.done()
+                ):
+                    reg_s_qword_changed.set_result(True)
+                elif (
+                    sensor_name == "reg_u_qword_r"
+                    and state.state == pytest.approx(578437695752307201)
+                    and not reg_u_qword_r_changed.done()
+                ):
+                    reg_u_qword_r_changed.set_result(True)
+                elif (
+                    sensor_name == "reg_s_qword_r"
+                    and state.state == pytest.approx(-578437695752307201)
+                    and not reg_s_qword_r_changed.done()
+                ):
+                    reg_s_qword_r_changed.set_result(True)
+                elif (
+                    sensor_name == "reg_fp32"
+                    and state.state == pytest.approx(3.14)
+                    and not reg_fp32_changed.done()
+                ):
+                    reg_fp32_changed.set_result(True)
+                elif (
+                    sensor_name == "reg_fp32_r"
+                    and state.state == pytest.approx(3.14)
+                    and not reg_fp32_r_changed.done()
+                ):
+                    reg_fp32_r_changed.set_result(True)
+
+    async with (
+        run_compiled(yaml_config),
+        api_client_connected() as client,
+    ):
+        entities, _ = await client.list_entities_services()
+
+        # Build key mappings for all sensor types
+        all_names = list(sensor_states.keys())
+        key_to_sensor = build_key_to_entity_mapping(entities, all_names)
+
+        # Set up initial state helper
+        initial_state_helper = InitialStateHelper(entities)
+        client.subscribe_states(initial_state_helper.on_state_wrapper(on_state))
+
+        try:
+            await initial_state_helper.wait_for_initial_states()
+        except TimeoutError:
+            pytest.fail("Timeout waiting for initial states")
+
+        # Start the UART mock scenario now that we're subscribed
+        start_btn = find_entity(entities, "start_scenario", ButtonInfo)
+        assert start_btn is not None, "Start Scenario button not found"
+        client.button_command(start_btn.key)
+
+        try:
+            await asyncio.wait_for(reg_u_word_changed, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for reg_u_word change. Received sensor states:\n"
+                f"  reg_u_word: {sensor_states['reg_u_word']}\n"
+            )
+        try:
+            await asyncio.wait_for(reg_s_word_changed, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for reg_s_word change. Received sensor states:\n"
+                f"  reg_s_word: {sensor_states['reg_s_word']}\n"
+            )
+        try:
+            await asyncio.wait_for(reg_u_dword_changed, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for reg_u_dword change. Received sensor states:\n"
+                f"  reg_u_dword: {sensor_states['reg_u_dword']}\n"
+            )
+        try:
+            await asyncio.wait_for(reg_s_dword_changed, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for reg_s_dword change. Received sensor states:\n"
+                f"  reg_s_dword: {sensor_states['reg_s_dword']}\n"
+            )
+        try:
+            await asyncio.wait_for(reg_u_dword_r_changed, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for reg_u_dword_r change. Received sensor states:\n"
+                f"  reg_u_dword_r: {sensor_states['reg_u_dword_r']}\n"
+            )
+        try:
+            await asyncio.wait_for(reg_s_dword_r_changed, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for reg_s_dword_r change. Received sensor states:\n"
+                f"  reg_s_dword_r: {sensor_states['reg_s_dword_r']}\n"
+            )
+        try:
+            await asyncio.wait_for(reg_u_qword_changed, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for reg_u_qword change. Received sensor states:\n"
+                f"  reg_u_qword: {sensor_states['reg_u_qword']}\n"
+            )
+        try:
+            await asyncio.wait_for(reg_s_qword_changed, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for reg_s_qword change. Received sensor states:\n"
+                f"  reg_s_qword: {sensor_states['reg_s_qword']}\n"
+            )
+        try:
+            await asyncio.wait_for(reg_u_qword_r_changed, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for reg_u_qword_r change. Received sensor states:\n"
+                f"  reg_u_qword_r: {sensor_states['reg_u_qword_r']}\n"
+            )
+        try:
+            await asyncio.wait_for(reg_s_qword_r_changed, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for reg_s_qword_r change. Received sensor states:\n"
+                f"  reg_s_qword_r: {sensor_states['reg_s_qword_r']}\n"
+            )
+        try:
+            await asyncio.wait_for(reg_fp32_changed, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for reg_fp32 change. Received sensor states:\n"
+                f"  reg_fp32: {sensor_states['reg_fp32']}\n"
+            )
+        try:
+            await asyncio.wait_for(reg_fp32_r_changed, timeout=2.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Timeout waiting for reg_fp32_r change. Received sensor states:\n"
+                f"  reg_fp32_r: {sensor_states['reg_fp32_r']}\n"
+            )
