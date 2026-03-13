@@ -1,5 +1,8 @@
+import logging
+
 import esphome.codegen as cg
 from esphome.components import spi
+from esphome.components.spi import CONF_SPI_MODE
 import esphome.config_validation as cv
 
 from ..spa06_base import CONFIG_SCHEMA_BASE, to_code_base
@@ -13,9 +16,26 @@ SPA06SPIComponent = spa06_ns.class_(
     "SPA06SPIComponent", cg.PollingComponent, spi.SPIDevice
 )
 
-CONFIG_SCHEMA = CONFIG_SCHEMA_BASE.extend(
-    spi.spi_device_schema(default_mode="mode3")
-).extend({cv.GenerateID(): cv.declare_id(SPA06SPIComponent)})
+_LOGGER = logging.getLogger(__name__)
+
+VALID_SPI_MODES = {3: "MODE3", "3": "MODE3", "MODE3": "MODE3"}
+
+
+def check_spi_mode(config):
+    spi_mode = config.get(CONF_SPI_MODE)
+    if spi_mode not in VALID_SPI_MODES:
+        _LOGGER.warning(
+            "SPA06 only supports SPI mode3. Sensor may not work correctly or at all."
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    CONFIG_SCHEMA_BASE.extend(spi.spi_device_schema(default_mode="mode3")).extend(
+        {cv.GenerateID(): cv.declare_id(SPA06SPIComponent)}
+    ),
+    check_spi_mode,
+)
 
 
 async def to_code(config):
