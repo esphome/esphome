@@ -18,6 +18,7 @@
 
 #include <cerrno>
 #include <cstdio>
+#include <sys/time.h>
 
 namespace esphome {
 
@@ -238,6 +239,31 @@ void ESPHomeOTAComponent::handle_data_() {
   /// and reboots on success.
   ///
   /// Authentication has already been handled in the non-blocking states AUTH_SEND/AUTH_READ.
+  ///
+  /// Socket I/O strategy:
+  ///
+  /// Before this function, the handshake states use non-blocking I/O:
+  ///   read()/write() return immediately with EWOULDBLOCK if no data
+  ///   loop() retries on next iteration (~16ms), no delay needed
+  ///
+  /// This function switches to blocking mode with SO_RCVTIMEO/SO_SNDTIMEO:
+  ///
+  ///   Path          | Wait mechanism         | WDT strategy
+  ///   --------------|------------------------|---------------------------
+  ///   Main read     | SO_RCVTIMEO (2s block) | feed_wdt() only, no delay
+  ///   readall_()    | SO_RCVTIMEO (2s block) | feed_wdt() + delay(0)
+  ///   writeall_()   | SO_SNDTIMEO (2s block) | feed_wdt() + delay(1)
+  ///
+  /// readall_() uses delay(0) because SO_RCVTIMEO already waited — just yield.
+  /// writeall_() uses delay(1) because on raw TCP (ESP8266, RP2040) writes
+  /// never block (tcp_write returns immediately), so delay(1) prevents spinning.
+  ///
+  /// Platform details:
+  ///   BSD sockets (ESP32):     setblocking(true) makes read/write block
+  ///   lwip sockets (LT):      setblocking(true) makes read/write block
+  ///   Raw TCP (8266, RP2040):  setblocking is no-op; SO_RCVTIMEO uses
+  ///                            socket_delay()/socket_wake() in read();
+  ///                            write() always returns immediately
   ota::OTAResponseTypes error_code = ota::OTA_RESPONSE_ERROR_UNKNOWN;
   bool update_started = false;
   size_t total = 0;
@@ -248,6 +274,14 @@ void ESPHomeOTAComponent::handle_data_() {
 #if USE_OTA_VERSION == 2
   size_t size_acknowledged = 0;
 #endif
+
+  // Set socket timeouts and blocking mode (see strategy table above)
+  struct timeval tv;
+  tv.tv_sec = 2;
+  tv.tv_usec = 0;
+  this->client_->setsockopt(SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+  this->client_->setsockopt(SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+  this->client_->setblocking(true);
 
   // Acknowledge auth OK - 1 byte
   this->write_byte_(ota::OTA_RESPONSE_AUTH_OK);
@@ -299,7 +333,8 @@ void ESPHomeOTAComponent::handle_data_() {
     ssize_t read = this->client_->read(buf, requested);
     if (read == -1) {
       if (this->would_block_(errno)) {
-        this->yield_and_feed_watchdog_();
+        // read() already waited up to SO_RCVTIMEO for data, just feed WDT
+        App.feed_wdt();
         continue;
       }
       ESP_LOGW(TAG, "Read err %d", errno);
@@ -401,7 +436,9 @@ bool ESPHomeOTAComponent::readall_(uint8_t *buf, size_t len) {
     } else {
       at += read;
     }
-    this->yield_and_feed_watchdog_();
+    // read() already waited via SO_RCVTIMEO, just yield without 1ms stall
+    App.feed_wdt();
+    delay(0);
   }
 
   return true;
@@ -422,10 +459,13 @@ bool ESPHomeOTAComponent::writeall_(const uint8_t *buf, size_t len) {
         ESP_LOGW(TAG, "Write err %zu bytes, errno %d", len, errno);
         return false;
       }
+      // EWOULDBLOCK: on raw TCP writes never block, delay(1) prevents spinning
+      this->yield_and_feed_watchdog_();
     } else {
       at += written;
+      // write() may block up to SO_SNDTIMEO on BSD/lwip sockets, feed WDT
+      App.feed_wdt();
     }
-    this->yield_and_feed_watchdog_();
   }
   return true;
 }
