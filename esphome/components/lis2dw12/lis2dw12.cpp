@@ -271,11 +271,10 @@ void LIS2DW12Component::dump_config() {
 #endif
 }
 
-void LIS2DW12Component::read_acceleration_data_() {
+bool LIS2DW12Component::read_acceleration_data_() {
   uint8_t accel_data[6];
   if (!this->read_bytes(static_cast<uint8_t>(RegisterMap::OUT_X_L), accel_data, 6)) {
-    this->status_set_warning();
-    return;
+    return false;
   }
 
   // LIS2DW12 data is left-justified in 16-bit words
@@ -314,11 +313,23 @@ void LIS2DW12Component::read_acceleration_data_() {
   this->data_.x = raw_x * factor + this->offset_x_;
   this->data_.y = raw_y * factor + this->offset_y_;
   this->data_.z = raw_z * factor + this->offset_z_;
+
+  return true;
 }
 
-void LIS2DW12Component::read_interrupt_status_() {
-  this->read_byte(static_cast<uint8_t>(RegisterMap::ALL_INT_SRC), &this->status_.all_int.raw);
-  this->read_byte(static_cast<uint8_t>(RegisterMap::SIXD_SRC), &this->status_.sixd.raw);
+bool LIS2DW12Component::read_interrupt_status_() {
+  uint8_t all_int_src = 0;
+  uint8_t sixd_src = 0;
+  bool ok = this->read_byte(static_cast<uint8_t>(RegisterMap::ALL_INT_SRC), &all_int_src);
+  ok = this->read_byte(static_cast<uint8_t>(RegisterMap::SIXD_SRC), &sixd_src) && ok;
+  if (!ok) {
+    this->status_.all_int.raw = 0;
+    this->status_.sixd.raw = 0;
+    return false;
+  }
+  this->status_.all_int.raw = all_int_src;
+  this->status_.sixd.raw = sixd_src;
+  return true;
 }
 
 const char *LIS2DW12Component::get_orientation_string_() {
@@ -385,7 +396,10 @@ void LIS2DW12Component::loop() {
     return;
   }
 
-  this->read_interrupt_status_();
+  if (!this->read_interrupt_status_()) {
+    this->status_set_warning();
+    return;
+  }
   this->process_events_();
 }
 
@@ -394,7 +408,10 @@ void LIS2DW12Component::update() {
     return;
   }
 
-  this->read_acceleration_data_();
+  if (!this->read_acceleration_data_()) {
+    this->status_set_warning();
+    return;
+  }
 
   ESP_LOGV(TAG, "Acceleration: {x = %+1.3f m/s\xC2\xB2, y = %+1.3f m/s\xC2\xB2, z = %+1.3f m/s\xC2\xB2}", this->data_.x,
            this->data_.y, this->data_.z);

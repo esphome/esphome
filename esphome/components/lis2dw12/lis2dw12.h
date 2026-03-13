@@ -217,8 +217,8 @@ class LIS2DW12Component : public PollingComponent, public i2c::I2CDevice {
   } status_{};
 
   bool configure_registers_();
-  void read_acceleration_data_();
-  void read_interrupt_status_();
+  bool read_acceleration_data_();
+  bool read_interrupt_status_();
   void process_events_();
   const char *get_orientation_string_();
 
