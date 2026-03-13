@@ -1962,9 +1962,10 @@ class LwIPLock {
   LwIPLock();
   ~LwIPLock();
 #else
-  // No lwIP core locking — inline no-ops
-  LwIPLock() = default;
-  ~LwIPLock() = default;
+  // No lwIP core locking — inline no-ops (empty bodies instead of = default
+  // to prevent clang-tidy unused-variable warnings at call sites)
+  LwIPLock() {}
+  ~LwIPLock() {}
 #endif
 };
 
