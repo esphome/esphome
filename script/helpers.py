@@ -732,10 +732,11 @@ def get_components_from_integration_fixtures() -> set[str]:
     Returns:
         Set of component names used in integration test fixtures
     """
-    all_components: set[str] = set()
-    for components in get_components_per_integration_fixture().values():
-        all_components.update(components)
-    return all_components
+    return {
+        comp
+        for components in get_components_per_integration_fixture().values()
+        for comp in components
+    }
 
 
 @cache
@@ -760,6 +761,30 @@ def get_components_per_integration_fixture() -> dict[str, set[str]]:
     return result
 
 
+_TEST_FUNC_RE = re.compile(r"async def (test_\w+)")
+
+
+@cache
+def get_fixture_to_test_files() -> dict[str, frozenset[str]]:
+    """Map integration test fixture names to the test files that use them.
+
+    Returns:
+        Dictionary mapping fixture name to frozenset of test file paths
+        (relative to repo root)
+    """
+    integration_dir = Path(__file__).parent.parent / "tests" / "integration"
+    result: dict[str, set[str]] = {}
+
+    for test_file in integration_dir.glob("test_*.py"):
+        content = test_file.read_text()
+        rel_path = str(test_file.relative_to(Path(__file__).parent.parent))
+        for func in _TEST_FUNC_RE.findall(content):
+            base_name = func.replace("test_", "").partition("[")[0]
+            result.setdefault(base_name, set()).add(rel_path)
+
+    return {k: frozenset(v) for k, v in result.items()}
+
+
 def get_integration_test_files_for_components(
     changed_components: set[str],
 ) -> list[str]:
@@ -777,21 +802,8 @@ def get_integration_test_files_for_components(
         Sorted list of test file paths relative to repo root
         (e.g., ["tests/integration/test_api.py", ...])
     """
-    import re
-
     fixture_components = get_components_per_integration_fixture()
-    integration_dir = Path(__file__).parent.parent / "tests" / "integration"
-
-    # Build mapping: fixture_name -> test_file(s)
-    fixture_to_test_files: dict[str, set[str]] = {}
-    for test_file in integration_dir.glob("test_*.py"):
-        content = test_file.read_text()
-        funcs = re.findall(r"async def (test_\w+)", content)
-        for func in funcs:
-            base_name = func.replace("test_", "").partition("[")[0]
-            fixture_to_test_files.setdefault(base_name, set()).add(
-                str(test_file.relative_to(Path(__file__).parent.parent))
-            )
+    fixture_to_test_files = get_fixture_to_test_files()
 
     # Find which test files need to run
     test_files: set[str] = set()

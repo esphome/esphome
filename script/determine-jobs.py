@@ -63,6 +63,7 @@ from helpers import (
     get_component_test_files,
     get_components_with_dependencies,
     get_cpp_changed_components,
+    get_fixture_to_test_files,
     get_integration_test_files_for_components,
     get_target_branch,
     git_ls_files,
@@ -195,46 +196,25 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
     ):
         return (True, [])
 
-    integration_files = [f for f in files if "tests/integration" in f]
-
     # Collect specific test files that need to run
     test_files: set[str] = set()
+    fixture_to_test_files = get_fixture_to_test_files()
 
-    # Add specific changed test files
-    for f in integration_files:
+    for f in files:
         if f.startswith("tests/integration/test_") and f.endswith(".py"):
             test_files.add(f)
-        elif "/fixtures/" in f and f.endswith(".yaml"):
-            # Fixture changed - find the test file(s) that use it
-            fixture_name = Path(f).stem
-            # Find test files containing functions that map to this fixture
-            import re
+        elif f.startswith("tests/integration/fixtures/") and f.endswith(".yaml"):
+            # Fixture changed - add corresponding test file(s)
+            test_files.update(fixture_to_test_files.get(Path(f).stem, ()))
 
-            integration_dir = Path(__file__).parent.parent / "tests" / "integration"
-            for test_file in integration_dir.glob("test_*.py"):
-                content = test_file.read_text()
-                funcs = re.findall(r"async def (test_\w+)", content)
-                for func in funcs:
-                    base_name = func.replace("test_", "").partition("[")[0]
-                    if base_name == fixture_name:
-                        test_files.add(
-                            str(test_file.relative_to(Path(__file__).parent.parent))
-                        )
-
-    # Check if any components used by integration tests changed
-    changed_component_set: set[str] = set()
-    for file in files:
-        component = get_component_from_path(file)
-        if component:
-            changed_component_set.add(component)
-
+    # Find test files whose fixtures use any of the changed components
+    changed_component_set = {
+        component for file in files if (component := get_component_from_path(file))
+    }
     if changed_component_set:
-        # Find test files whose fixtures use any of the changed components
-        # (including transitive dependencies)
-        component_test_files = get_integration_test_files_for_components(
-            changed_component_set
+        test_files.update(
+            get_integration_test_files_for_components(changed_component_set)
         )
-        test_files.update(component_test_files)
 
     if test_files:
         return (False, sorted(test_files))
