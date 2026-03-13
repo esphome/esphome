@@ -97,7 +97,7 @@ def build_key_to_entity_mapping(
     for entity in entities:
         obj_id = entity.object_id.lower()
         for entity_name in entity_names:
-            if entity_name in obj_id:
+            if entity_name == obj_id:
                 key_to_entity[entity.key] = entity_name
                 break
     return key_to_entity
