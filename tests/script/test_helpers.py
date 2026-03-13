@@ -1111,8 +1111,10 @@ def test_get_components_from_integration_fixtures() -> None:
         "gpio",
     }
 
-    mock_yaml_file = Mock()
+    mock_yaml_file = Mock(stem="test_fixture")
 
+    # Clear cache from previous calls
+    helpers.get_components_per_integration_fixture.cache_clear()
     with (
         patch("pathlib.Path.glob") as mock_glob,
         patch("esphome.yaml_util.load_yaml", return_value=yaml_content),
@@ -1122,6 +1124,7 @@ def test_get_components_from_integration_fixtures() -> None:
         components = helpers.get_components_from_integration_fixtures()
 
         assert components == expected_components
+    helpers.get_components_per_integration_fixture.cache_clear()
 
 
 def test_get_components_from_integration_fixtures_skips_yaml_anchors() -> None:
@@ -1133,8 +1136,10 @@ def test_get_components_from_integration_fixtures_skips_yaml_anchors() -> None:
         ".binary_filters": {"filters": [{"settle": "50ms"}]},
     }
 
-    mock_yaml_file = Mock()
+    mock_yaml_file = Mock(stem="test_fixture")
 
+    # Clear cache from previous calls
+    helpers.get_components_per_integration_fixture.cache_clear()
     with (
         patch("pathlib.Path.glob") as mock_glob,
         patch("esphome.yaml_util.load_yaml", return_value=yaml_content),
@@ -1146,6 +1151,7 @@ def test_get_components_from_integration_fixtures_skips_yaml_anchors() -> None:
         assert ".sensor_filters" not in components
         assert ".binary_filters" not in components
         assert components == {"sensor", "esphome", "template"}
+    helpers.get_components_per_integration_fixture.cache_clear()
 
 
 @pytest.mark.parametrize(
