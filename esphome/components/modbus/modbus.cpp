@@ -3,6 +3,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+// dummy change
+
 namespace esphome {
 namespace modbus {
 
