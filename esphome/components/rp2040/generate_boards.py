@@ -168,7 +168,7 @@ def generate(arduino_pico_path: Path) -> str:
 
     # Format output to match pre-commit ruff formatting
     result = subprocess.run(
-        ["ruff", "format", "--stdin-filename", "boards.py"],
+        [sys.executable, "-m", "ruff", "format", "--stdin-filename", "boards.py"],
         input=content.encode(),
         capture_output=True,
         check=True,
