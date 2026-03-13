@@ -1958,8 +1958,9 @@ def add_partition(name: str, p_type: str | int, subtype: str | int, size: int) -
     custom_partitions[name] = {"type": p_type_str, "subtype": subtype_str, "size": size}
 
 
-def _flash_size_to_bytes(flash_size: str) -> int:
-    return int(flash_size.rstrip("MB")) * 1024 * 1024
+def _flash_size_to_bytes(flash_size_mb: str) -> int:
+    """Convert flash size string (e.g. '4MB') to bytes."""
+    return int(flash_size_mb.removesuffix("MB")) * 1024 * 1024
 
 
 def _get_custom_partitions_total_size() -> int:
@@ -1972,8 +1973,8 @@ def _get_custom_partitions_total_size() -> int:
     return size
 
 
-def _get_app_partition_size(flash_size: str) -> int:
-    flash_bytes = _flash_size_to_bytes(flash_size)
+def _get_app_partition_size(flash_size_mb: str) -> int:
+    flash_bytes = _flash_size_to_bytes(flash_size_mb)
     custom_total = _get_custom_partitions_total_size()
     # Align down to 64KB — app partitions require 64KB-aligned offsets,
     # so the size must also be aligned to avoid unbudgeted padding.
@@ -1993,8 +1994,8 @@ def _get_app_partition_size(flash_size: str) -> int:
     return app_size
 
 
-def get_partition_csv(flash_size: str) -> str:
-    app_size = _get_app_partition_size(flash_size)
+def get_partition_csv(flash_size_mb: str) -> str:
+    app_size = _get_app_partition_size(flash_size_mb)
 
     if CORE.using_arduino:
         csv = f"""\
