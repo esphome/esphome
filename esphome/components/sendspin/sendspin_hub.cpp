@@ -64,6 +64,9 @@ void SendspinHub::setup() {
     if (this->pending_connection_ != nullptr && this->pending_connection_->get_sockfd() == sockfd) {
       return static_cast<SendspinServerConnection *>(this->pending_connection_.get());
     }
+    if (this->dying_connection_ != nullptr && this->dying_connection_->get_sockfd() == sockfd) {
+      return static_cast<SendspinServerConnection *>(this->dying_connection_.get());
+    }
     return nullptr;
   });
 }
@@ -489,11 +492,11 @@ void SendspinHub::complete_handoff_(bool switch_to_new) {
 }
 
 void SendspinHub::disconnect_and_release_(std::unique_ptr<SendspinConnection> conn, SendspinGoodbyeReason reason) {
-  // Convert to shared_ptr so the callback chain keeps the connection alive through the async goodbye.
-  auto dying = std::shared_ptr<SendspinConnection>(std::move(conn));
-  dying->disconnect(reason, [dying]() {
-    // Connection destroyed when this callback (and its captured shared_ptr) is cleaned up
-  });
+  // Store as dying_connection_ so it remains findable by sockfd during the async goodbye send.
+  // This prevents httpd from returning ESP_FAIL (and force-closing the socket) when the server
+  // sends messages between the handoff decision and the goodbye completion.
+  this->dying_connection_ = std::shared_ptr<SendspinConnection>(std::move(conn));
+  this->dying_connection_->disconnect(reason, [this]() { this->dying_connection_.reset(); });
 }
 
 void SendspinHub::cleanup_connection_state_() {

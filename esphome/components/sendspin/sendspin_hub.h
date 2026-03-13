@@ -310,6 +310,10 @@ class SendspinHub : public Component {
   /// @brief Pending connection during handoff (temporary, until decision is made).
   std::unique_ptr<SendspinConnection> pending_connection_;
 
+  /// @brief Connection being gracefully disconnected (kept alive until goodbye completes).
+  /// Remains findable by sockfd so httpd can route messages during the async goodbye send.
+  std::shared_ptr<SendspinConnection> dying_connection_;
+
   /// @brief WebSocket server listener (server mode only).
   std::unique_ptr<SendspinWsServer> ws_server_;
 
