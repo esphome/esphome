@@ -215,7 +215,7 @@ template<typename T, size_t N> class StaticVector {
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
  private:
-  std::array<T, N> data_{};
+  std::array<T, N> data_;  // intentionally not value-initialized to avoid memset
   size_t count_{0};
 
  public:
@@ -291,6 +291,81 @@ template<typename T, size_t N> class StaticVector {
   // Conversion to std::span for compatibility with span-based APIs
   operator std::span<T>() { return std::span<T>(data_.data(), count_); }
   operator std::span<const T>() const { return std::span<const T>(data_.data(), count_); }
+};
+
+/// Fixed-size circular buffer with FIFO semantics and iteration support.
+///
+/// A tiny ring buffer that avoids dynamic allocations from std::deque/std::queue
+/// (which can be wasteful on MCUs), while supporting iteration over queued elements.
+///
+/// Not thread-safe. All access (push/pop/iteration) must occur from a single
+/// context, or the caller must provide external synchronization.
+template<typename T, size_t N> class StaticRingBuffer {
+  using index_type = std::conditional_t<(N <= 255), uint8_t, uint16_t>;
+
+ public:
+  class Iterator {
+   public:
+    Iterator(StaticRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
+    T &operator*() { return buf_->data_[(buf_->head_ + pos_) % N]; }
+    Iterator &operator++() {
+      ++pos_;
+      return *this;
+    }
+    bool operator!=(const Iterator &other) const { return pos_ != other.pos_; }
+
+   private:
+    StaticRingBuffer *buf_;
+    index_type pos_;
+  };
+
+  class ConstIterator {
+   public:
+    ConstIterator(const StaticRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
+    const T &operator*() const { return buf_->data_[(buf_->head_ + pos_) % N]; }
+    ConstIterator &operator++() {
+      ++pos_;
+      return *this;
+    }
+    bool operator!=(const ConstIterator &other) const { return pos_ != other.pos_; }
+
+   private:
+    const StaticRingBuffer *buf_;
+    index_type pos_;
+  };
+
+  bool push(const T &value) {
+    if (this->count_ >= N) {
+      return false;
+    }
+    this->data_[this->tail_] = value;
+    this->tail_ = (this->tail_ + 1) % N;
+    ++this->count_;
+    return true;
+  }
+
+  void pop() {
+    if (this->count_ > 0) {
+      this->head_ = (this->head_ + 1) % N;
+      --this->count_;
+    }
+  }
+
+  T &front() { return this->data_[this->head_]; }
+  const T &front() const { return this->data_[this->head_]; }
+  index_type size() const { return this->count_; }
+  bool empty() const { return this->count_ == 0; }
+
+  Iterator begin() { return Iterator(this, 0); }
+  Iterator end() { return Iterator(this, this->count_); }
+  ConstIterator begin() const { return ConstIterator(this, 0); }
+  ConstIterator end() const { return ConstIterator(this, this->count_); }
+
+ protected:
+  T data_[N];
+  index_type head_{0};
+  index_type tail_{0};
+  index_type count_{0};
 };
 
 /// Fixed-capacity vector - allocates once at runtime, never reallocates
@@ -866,6 +941,28 @@ __attribute__((format(printf, 4, 5))) inline size_t buf_append_printf(char *buf,
   return std::min(pos + static_cast<size_t>(written), size);
 }
 #endif
+
+/// Safely append a string to buffer without format parsing, returning new position (capped at size).
+/// More efficient than buf_append_printf for plain string literals.
+/// @param buf Output buffer
+/// @param size Total buffer size
+/// @param pos Current position in buffer
+/// @param str String to append (must not be null)
+/// @return New position after appending (capped at size on overflow)
+inline size_t buf_append_str(char *buf, size_t size, size_t pos, const char *str) {
+  if (pos >= size) {
+    return size;
+  }
+  size_t remaining = size - pos - 1;  // reserve space for null terminator
+  size_t len = strlen(str);
+  if (len > remaining) {
+    len = remaining;
+  }
+  memcpy(buf + pos, str, len);
+  pos += len;
+  buf[pos] = '\0';
+  return pos;
+}
 
 /// Concatenate a name with a separator and suffix using an efficient stack-based approach.
 /// This avoids multiple heap allocations during string construction.

@@ -11,9 +11,14 @@
 
 #include "esp_eth.h"
 #include "esp_eth_mac.h"
+#include "esp_eth_mac_esp.h"
 #include "esp_netif.h"
 #include "esp_mac.h"
 #include "esp_idf_version.h"
+
+#if CONFIG_ETH_USE_ESP32_EMAC
+extern "C" eth_esp32_emac_config_t eth_esp32_emac_default_config(void);
+#endif
 
 namespace esphome::ethernet {
 
@@ -214,7 +219,7 @@ class EthernetComponent : public Component {
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern EthernetComponent *global_eth_component;
 
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2)
+#if defined(USE_ETHERNET_JL1101) && (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2) || !defined(PLATFORMIO))
 extern "C" esp_eth_phy_t *esp_eth_phy_new_jl1101(const eth_phy_config_t *config);
 #endif
 
