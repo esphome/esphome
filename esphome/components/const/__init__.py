@@ -2,6 +2,7 @@
 
 CODEOWNERS = ["@esphome/core"]
 
+CONF_CLIMATE_ID = "climate_id"
 CONF_BYTE_ORDER = "byte_order"
 BYTE_ORDER_LITTLE = "little_endian"
 BYTE_ORDER_BIG = "big_endian"
