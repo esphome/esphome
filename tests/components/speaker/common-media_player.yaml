@@ -16,4 +16,3 @@ media_player:
     volume_max: 0.95
     volume_min: 0.0
     task_stack_in_psram: true
-    codec_support_enabled: all

@@ -37,16 +37,12 @@ DEPENDENCIES = ["network"]
 CODEOWNERS = ["@kahrendt", "@synesthesiam"]
 DOMAIN = "media_player"
 
-CODEC_SUPPORT_ALL = "all"
-CODEC_SUPPORT_NEEDED = "needed"
-CODEC_SUPPORT_NONE = "none"
-
 TYPE_LOCAL = "local"
 TYPE_WEB = "web"
 
 CONF_ANNOUNCEMENT = "announcement"
 CONF_ANNOUNCEMENT_PIPELINE = "announcement_pipeline"
-CONF_CODEC_SUPPORT_ENABLED = "codec_support_enabled"
+CONF_CODEC_SUPPORT_ENABLED = "codec_support_enabled"  # Remove before 2026.10.0
 CONF_ENQUEUE = "enqueue"
 CONF_MEDIA_FILE = "media_file"
 CONF_MEDIA_PIPELINE = "media_pipeline"
@@ -191,51 +187,40 @@ def _validate_repeated_speaker(config):
 
 
 def _final_validate(config):
-    # Normalize boolean values to string equivalents
-    codec_mode = config[CONF_CODEC_SUPPORT_ENABLED]
-    if codec_mode is True:
-        codec_mode = CODEC_SUPPORT_ALL
-    elif codec_mode is False:
-        codec_mode = CODEC_SUPPORT_NONE
+    # Remove before 2026.10.0
+    if CONF_CODEC_SUPPORT_ENABLED in config:
+        _LOGGER.warning(
+            "'%s' is deprecated and will be removed in 2026.10.0. "
+            "Codec support is now automatically determined from the pipeline "
+            "'format' setting. Set format to 'NONE' to enable all codecs.",
+            CONF_CODEC_SUPPORT_ENABLED,
+        )
 
-    use_codec = codec_mode != CODEC_SUPPORT_NONE
-
-    # Validate all local files have a recognized type (regardless of codec mode)
+    # Validate all local files have a recognized type
     for file_config in config.get(CONF_FILES, []):
         _, media_file_type = _read_audio_file_and_type(file_config)
         if str(media_file_type) == str(audio.AUDIO_FILE_TYPE_ENUM["NONE"]):
             raise cv.Invalid("Unsupported local media file")
-        if not use_codec and str(media_file_type) != str(
-            audio.AUDIO_FILE_TYPE_ENUM["WAV"]
-        ):
-            raise cv.Invalid(
-                f"Unsupported local media file type, set {CONF_CODEC_SUPPORT_ENABLED} to true or convert the media file to wav"
-            )
 
-    if codec_mode == CODEC_SUPPORT_ALL:
+    # Request codecs based on pipeline formats
+    needed_formats = media_player.request_codecs_for_pipelines(
+        config, [CONF_ANNOUNCEMENT_PIPELINE, CONF_MEDIA_PIPELINE]
+    )
+
+    # Also request codecs needed by local files
+    for file_config in config.get(CONF_FILES, []):
+        _, media_file_type = _read_audio_file_and_type(file_config)
+        for fmt_name, fmt_enum in audio.AUDIO_FILE_TYPE_ENUM.items():
+            if str(media_file_type) == str(fmt_enum):
+                if fmt_name not in ("WAV", "NONE"):
+                    needed_formats.add(fmt_name)
+                break
+    if "FLAC" in needed_formats:
         audio.request_flac_support()
+    if "MP3" in needed_formats:
         audio.request_mp3_support()
+    if "OPUS" in needed_formats:
         audio.request_opus_support()
-    elif codec_mode == CODEC_SUPPORT_NEEDED:
-        needed_formats = media_player.request_codecs_for_pipelines(
-            config, [CONF_ANNOUNCEMENT_PIPELINE, CONF_MEDIA_PIPELINE]
-        )
-
-        # Also collect formats from local files
-        for file_config in config.get(CONF_FILES, []):
-            _, media_file_type = _read_audio_file_and_type(file_config)
-            for fmt_name, fmt_enum in audio.AUDIO_FILE_TYPE_ENUM.items():
-                if str(media_file_type) == str(fmt_enum):
-                    if fmt_name not in ("WAV", "NONE"):
-                        needed_formats.add(fmt_name)
-                    break
-        # Request any additional codecs needed by local files
-        if "FLAC" in needed_formats:
-            audio.request_flac_support()
-        if "MP3" in needed_formats:
-            audio.request_mp3_support()
-        if "OPUS" in needed_formats:
-            audio.request_opus_support()
 
     return config
 
@@ -300,17 +285,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BUFFER_SIZE, default=1000000): cv.int_range(
                 min=4000, max=4000000
             ),
-            cv.Optional(
-                CONF_CODEC_SUPPORT_ENABLED, default=CODEC_SUPPORT_NEEDED
-            ): cv.Any(
-                cv.boolean,
-                cv.one_of(
-                    CODEC_SUPPORT_ALL,
-                    CODEC_SUPPORT_NEEDED,
-                    CODEC_SUPPORT_NONE,
-                    lower=True,
-                ),
-            ),
+            # Remove before 2026.10.0
+            cv.Optional(CONF_CODEC_SUPPORT_ENABLED): cv.Any(cv.boolean, cv.string),
             cv.Optional(CONF_FILES): cv.ensure_list(MEDIA_FILE_TYPE_SCHEMA),
             cv.Optional(CONF_TASK_STACK_IN_PSRAM): cv.All(
                 cv.boolean, cv.requires_component(psram.DOMAIN)
