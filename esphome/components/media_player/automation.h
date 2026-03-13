@@ -66,6 +66,18 @@ template<typename... Ts> class PlayMediaAction : public Action<Ts...>, public Pa
   }
 };
 
+template<typename... Ts> class EnqueueMediaAction : public Action<Ts...>, public Parented<MediaPlayer> {
+  TEMPLATABLE_VALUE(std::string, media_url)
+  TEMPLATABLE_VALUE(bool, announcement)
+  void play(const Ts &...x) override {
+    this->parent_->make_call()
+        .set_command(MediaPlayerCommand::MEDIA_PLAYER_COMMAND_ENQUEUE)
+        .set_media_url(this->media_url_.value(x...))
+        .set_announcement(this->announcement_.value(x...))
+        .perform();
+  }
+};
+
 template<typename... Ts> class VolumeSetAction : public Action<Ts...>, public Parented<MediaPlayer> {
   TEMPLATABLE_VALUE(float, volume)
   void play(const Ts &...x) override { this->parent_->make_call().set_volume(this->volume_.value(x...)).perform(); }
