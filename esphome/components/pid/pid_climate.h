@@ -27,8 +27,14 @@ class PIDClimate : public climate::Climate, public Component {
   void set_kd(float kd) { controller_.kd_ = kd; }
   void set_min_integral(float min_integral) { controller_.min_integral_ = min_integral; }
   void set_max_integral(float max_integral) { controller_.max_integral_ = max_integral; }
-  void set_output_samples(int in) { controller_.output_samples_ = in; }
-  void set_derivative_samples(int in) { controller_.derivative_samples_ = in; }
+  void set_output_samples(int in) {
+    controller_.output_samples_ = in;
+    controller_.output_window_.init(in);
+  }
+  void set_derivative_samples(int in) {
+    controller_.derivative_samples_ = in;
+    controller_.derivative_window_.init(in);
+  }
 
   void set_threshold_low(float in) { controller_.threshold_low_ = in; }
   void set_threshold_high(float in) { controller_.threshold_high_ = in; }
@@ -37,7 +43,10 @@ class PIDClimate : public climate::Climate, public Component {
   void set_kd_multiplier(float in) { controller_.kd_multiplier_ = in; }
   void set_starting_integral_term(float in) { controller_.set_starting_integral_term(in); }
 
-  void set_deadband_output_samples(int in) { controller_.deadband_output_samples_ = in; }
+  void set_deadband_output_samples(int in) {
+    controller_.deadband_output_samples_ = in;
+    controller_.deadband_output_window_.init(in);
+  }
 
   float get_output_value() const { return output_value_; }
   float get_error_value() const { return controller_.error_; }

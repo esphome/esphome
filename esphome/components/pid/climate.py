@@ -57,7 +57,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_KD_MULTIPLIER, default=0.0): cv.float_,
                     cv.Optional(
                         CONF_DEADBAND_OUTPUT_AVERAGING_SAMPLES, default=1
-                    ): cv.int_,
+                    ): cv.positive_int,
                 }
             ),
             cv.Required(CONF_CONTROL_PARAMETERS): cv.Schema(
@@ -68,8 +68,12 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_STARTING_INTEGRAL_TERM, default=0.0): cv.float_,
                     cv.Optional(CONF_MIN_INTEGRAL, default=-1): cv.float_,
                     cv.Optional(CONF_MAX_INTEGRAL, default=1): cv.float_,
-                    cv.Optional(CONF_DERIVATIVE_AVERAGING_SAMPLES, default=1): cv.int_,
-                    cv.Optional(CONF_OUTPUT_AVERAGING_SAMPLES, default=1): cv.int_,
+                    cv.Optional(
+                        CONF_DERIVATIVE_AVERAGING_SAMPLES, default=1
+                    ): cv.positive_int,
+                    cv.Optional(
+                        CONF_OUTPUT_AVERAGING_SAMPLES, default=1
+                    ): cv.positive_int,
                 }
             ),
         }
