@@ -28,25 +28,38 @@ void SerialProxy::setup() {
   // instance_index_ is fixed at registration time; pre-set it so loop() only needs to update data
   this->outgoing_msg_.instance = this->instance_index_;
 #endif
+  // No subscriber at startup; disable loop until a client subscribes
+  this->disable_loop();
 }
 
 void SerialProxy::loop() {
 #ifdef USE_API
-  // Detect subscriber disconnect
-  if (this->api_connection_ != nullptr && (this->api_connection_->is_marked_for_removal() ||
-                                           !this->api_connection_->is_connection_setup() || !api_is_connected())) {
-    ESP_LOGW(TAG, "Subscriber disconnected");
-    this->api_connection_ = nullptr;
+  // Safety check — loop should only run when subscribed, but guard against races
+  if (this->api_connection_ == nullptr) [[unlikely]] {
+    this->disable_loop();
+    return;
   }
 
-  if (this->api_connection_ == nullptr)
+  // Detect subscriber disconnect
+  if (this->api_connection_->is_marked_for_removal() || !this->api_connection_->is_connection_setup() ||
+      !api_is_connected()) {
+    ESP_LOGW(TAG, "Subscriber disconnected");
+    this->api_connection_ = nullptr;
+    this->disable_loop();
     return;
+  }
 
   // Read available data from UART and forward to subscribed client
   size_t available = this->available();
   if (available == 0)
     return;
 
+  this->read_and_send_(available);
+#endif
+}
+
+#ifdef USE_API
+void __attribute__((noinline)) SerialProxy::read_and_send_(size_t available) {
   // Read in chunks up to SERIAL_PROXY_MAX_READ_SIZE
   uint8_t buffer[SERIAL_PROXY_MAX_READ_SIZE];
   size_t to_read = std::min(available, sizeof(buffer));
@@ -56,8 +69,8 @@ void SerialProxy::loop() {
 
   this->outgoing_msg_.set_data(buffer, to_read);
   this->api_connection_->send_serial_proxy_data(this->outgoing_msg_);
-#endif
 }
+#endif
 
 void SerialProxy::dump_config() {
   ESP_LOGCONFIG(TAG,
@@ -166,6 +179,7 @@ void SerialProxy::serial_proxy_request(api::APIConnection *api_connection, api::
         return;
       }
       this->api_connection_ = api_connection;
+      this->enable_loop();
       ESP_LOGV(TAG, "API connection subscribed to serial proxy [%u]", this->instance_index_);
       break;
     case api::enums::SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
@@ -174,6 +188,7 @@ void SerialProxy::serial_proxy_request(api::APIConnection *api_connection, api::
         return;
       }
       this->api_connection_ = nullptr;
+      this->disable_loop();
       ESP_LOGV(TAG, "API connection unsubscribed from serial proxy [%u]", this->instance_index_);
       break;
     default:

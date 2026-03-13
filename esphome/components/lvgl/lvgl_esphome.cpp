@@ -163,8 +163,11 @@ void LvglComponent::show_page(size_t index, lv_scr_load_anim_t anim, uint32_t ti
 void LvglComponent::show_next_page(lv_scr_load_anim_t anim, uint32_t time) {
   if (this->pages_.empty() || (this->current_page_ == this->pages_.size() - 1 && !this->page_wrap_))
     return;
+  size_t start = this->current_page_;
   do {
     this->current_page_ = (this->current_page_ + 1) % this->pages_.size();
+    if (this->current_page_ == start)
+      return;  // all pages have skip=true (guaranteed not to happen by YAML validation)
   } while (this->pages_[this->current_page_]->skip);  // skip empty pages()
   this->show_page(this->current_page_, anim, time);
 }
@@ -172,8 +175,11 @@ void LvglComponent::show_next_page(lv_scr_load_anim_t anim, uint32_t time) {
 void LvglComponent::show_prev_page(lv_scr_load_anim_t anim, uint32_t time) {
   if (this->pages_.empty() || (this->current_page_ == 0 && !this->page_wrap_))
     return;
+  size_t start = this->current_page_;
   do {
     this->current_page_ = (this->current_page_ + this->pages_.size() - 1) % this->pages_.size();
+    if (this->current_page_ == start)
+      return;  // all pages have skip=true (guaranteed not to happen by YAML validation)
   } while (this->pages_[this->current_page_]->skip);  // skip empty pages()
   this->show_page(this->current_page_, anim, time);
 }

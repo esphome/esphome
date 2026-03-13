@@ -10,7 +10,7 @@
 #include "headers.h"
 
 #ifdef USE_LWIP_FAST_SELECT
-struct lwip_sock;
+#include "esphome/core/lwip_fast_select.h"
 #endif
 
 namespace esphome::socket {
@@ -52,6 +52,15 @@ class LwIPSocketImpl {
     return lwip_getsockopt(this->fd_, level, optname, optval, optlen);
   }
   int setsockopt(int level, int optname, const void *optval, socklen_t optlen) {
+#if defined(USE_LWIP_FAST_SELECT) && defined(CONFIG_LWIP_TCPIP_CORE_LOCKING)
+    // Fast path for TCP_NODELAY: directly set the pcb flag under the TCPIP core lock,
+    // bypassing lwip_setsockopt overhead (socket lookups, hook, switch cascade, refcounting).
+    if (level == IPPROTO_TCP && optname == TCP_NODELAY && optlen == sizeof(int) && optval != nullptr) {
+      LwIPLock lock;
+      if (esphome_lwip_set_nodelay(this->cached_sock_, *reinterpret_cast<const int *>(optval) != 0))
+        return 0;
+    }
+#endif
     return lwip_setsockopt(this->fd_, level, optname, optval, optlen);
   }
   int listen(int backlog) { return lwip_listen(this->fd_, backlog); }
