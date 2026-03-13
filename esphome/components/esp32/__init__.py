@@ -1907,6 +1907,14 @@ async def to_code(config):
 
 KEY_CUSTOM_PARTITIONS = "custom_partitions"
 
+
+@dataclass
+class CustomPartition:
+    type: str
+    subtype: str
+    size: int
+
+
 # Partition layout (offsets auto-placed by gen_esp32part.py):
 #   otadata(0x2000) + phy_init(0x1000) + [pad to 64KB] + app0 + app1
 #   + [eeprom(0x1000) + spiffs(0xF000)]  (Arduino only)
@@ -1955,7 +1963,9 @@ def add_partition(name: str, p_type: str | int, subtype: str | int, size: int) -
     p_type_str = f"0x{p_type:X}" if isinstance(p_type, int) else p_type
     subtype_str = f"0x{subtype:X}" if isinstance(subtype, int) else subtype
     custom_partitions = CORE.data[KEY_ESP32].setdefault(KEY_CUSTOM_PARTITIONS, {})
-    custom_partitions[name] = {"type": p_type_str, "subtype": subtype_str, "size": size}
+    custom_partitions[name] = CustomPartition(
+        type=p_type_str, subtype=subtype_str, size=size
+    )
 
 
 def _flash_size_to_bytes(flash_size_mb: str) -> int:
@@ -1967,9 +1977,9 @@ def _get_custom_partitions_total_size() -> int:
     """Total size of custom partitions including alignment padding."""
     size = 0
     for partition in CORE.data[KEY_ESP32].get(KEY_CUSTOM_PARTITIONS, {}).values():
-        if partition["type"] == "app":
+        if partition.type == "app":
             size = (size + 0xFFFF) & ~0xFFFF  # align to 64KB
-        size += partition["size"]
+        size += partition.size
     return size
 
 
@@ -2016,7 +2026,7 @@ app1,     app,  ota_1,   , 0x{app_size:X},
 nvs,      data, nvs,     , 0x70000,
 """
     for name, entry in CORE.data[KEY_ESP32].get(KEY_CUSTOM_PARTITIONS, {}).items():
-        csv += f"{name}, {entry['type']}, {entry['subtype']}, , 0x{entry['size']:X},\n"
+        csv += f"{name}, {entry.type}, {entry.subtype}, , 0x{entry.size:X},\n"
     return csv
 
 
