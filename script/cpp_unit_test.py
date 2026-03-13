@@ -79,6 +79,10 @@ def create_test_config(config_name: str, includes: list[str]) -> dict:
                     "-Og",  # optimize for debug
                     "-DUSE_TIME_TIMEZONE",  # enable timezone code paths for testing
                     "-DESPHOME_DEBUG",  # enable debug assertions
+                    # Enable the address and undefined behavior sanitizers
+                    "-fsanitize=address",
+                    "-fsanitize=undefined",
+                    "-fno-omit-frame-pointer",
                 ],
                 "debug_build_flags": [  # only for debug builds
                     "-g3",  # max debug info
