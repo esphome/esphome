@@ -62,7 +62,7 @@ SetPlaylistDelayAction = speaker_source_ns.class_(
 )
 
 
-_validate_pipeline = media_player.validate_pipeline(
+_validate_pipeline = media_player.validate_preferred_format(
     "speaker_source media_player", CONF_SPEAKER
 )
 
@@ -151,7 +151,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate_codecs(config: ConfigType) -> ConfigType:
-    media_player.request_codecs_for_pipelines(
+    media_player.request_codecs_for_format_configs(
         config, [CONF_ANNOUNCEMENT_PIPELINE, CONF_MEDIA_PIPELINE]
     )
     return config

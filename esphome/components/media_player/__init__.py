@@ -53,27 +53,27 @@ FORMAT_MAPPING = {
 
 
 def build_supported_format_struct(
-    pipeline: ConfigType, purpose: MockObj
+    format_config: ConfigType, purpose: MockObj
 ) -> cg.StructInitializer:
-    """Build a MediaPlayerSupportedFormat struct from pipeline config and purpose."""
+    """Build a MediaPlayerSupportedFormat struct from a format config and purpose."""
     args = [
         MediaPlayerSupportedFormat,
-        ("format", FORMAT_MAPPING[pipeline[CONF_FORMAT]]),
-        ("sample_rate", pipeline[CONF_SAMPLE_RATE]),
-        ("num_channels", pipeline[CONF_NUM_CHANNELS]),
+        ("format", FORMAT_MAPPING[format_config[CONF_FORMAT]]),
+        ("sample_rate", format_config[CONF_SAMPLE_RATE]),
+        ("num_channels", format_config[CONF_NUM_CHANNELS]),
         ("purpose", purpose),
     ]
 
     # Omit sample_bytes for MP3: ffmpeg transcoding in Home Assistant fails
     # if the number of bytes per sample is specified for MP3.
-    if pipeline[CONF_FORMAT] != "MP3":
+    if format_config[CONF_FORMAT] != "MP3":
         args.append(("sample_bytes", 2))
 
     return cg.StructInitializer(*args)
 
 
-def validate_pipeline(component_name: str, audio_device_key: str) -> cv.Schema:
-    """Return a pipeline validator that inherits audio device settings and validates format constraints."""
+def validate_preferred_format(component_name: str, audio_device_key: str) -> cv.Schema:
+    """Return a validator that inherits audio device settings and validates format constraints."""
 
     def validator(config: ConfigType) -> ConfigType:
         # Inherit settings from audio device if not manually set
@@ -98,20 +98,20 @@ def validate_pipeline(component_name: str, audio_device_key: str) -> cv.Schema:
     return validator
 
 
-def request_codecs_for_pipelines(
-    config: ConfigType, pipeline_keys: list[str]
+def request_codecs_for_format_configs(
+    config: ConfigType, format_config_keys: list[str]
 ) -> set[str]:
-    """Scan pipelines for configured formats and request the needed codec support.
+    """Scan format configs for configured formats and request the needed codec support.
 
     Returns the set of explicitly needed format strings (e.g. {"FLAC", "MP3"}).
-    If any pipeline uses "NONE" (accepts any format), all codecs are requested.
+    If any config uses "NONE" (accepts any format), all codecs are requested.
     """
     needed_formats: set[str] = set()
     need_all = False
 
-    for pipeline_key in pipeline_keys:
-        if pipeline := config.get(pipeline_key):
-            fmt = pipeline[CONF_FORMAT]
+    for key in format_config_keys:
+        if format_config := config.get(key):
+            fmt = format_config[CONF_FORMAT]
             if fmt == "NONE":
                 need_all = True
             else:

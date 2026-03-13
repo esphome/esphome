@@ -170,7 +170,7 @@ def _validate_file_shorthand(value):
     )
 
 
-_validate_pipeline = media_player.validate_pipeline(
+_validate_pipeline = media_player.validate_preferred_format(
     "speaker media_player", CONF_SPEAKER
 )
 
@@ -205,7 +205,7 @@ def _final_validate(config):
             raise cv.Invalid("Unsupported local media file")
 
     # Request codecs based on pipeline formats
-    needed_formats = media_player.request_codecs_for_pipelines(
+    needed_formats = media_player.request_codecs_for_format_configs(
         config, [CONF_ANNOUNCEMENT_PIPELINE, CONF_MEDIA_PIPELINE]
     )
 
