@@ -1982,7 +1982,7 @@ def _get_app_partition_size(flash_size: str) -> int:
     wasted = (raw_size - app_size) * 2
     if wasted:
         _LOGGER.warning(
-            "Custom partition sizes are not 64KB-aligned; %dKB of flash will be wasted.",
+            "Custom partitions cause %dKB of wasted flash due to 64KB app partition alignment.",
             wasted // 1024,
         )
     if app_size <= 0x10000:  # 64 KB
