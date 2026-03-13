@@ -329,7 +329,7 @@ class MeterType(WidgetType):
         )
 
     def get_uses(self):
-        return {CONF_SCALE}
+        return CONF_SCALE, CONF_LINE
 
     def validate(self, value):
         return cv.has_at_most_one_key(CONF_INDICATOR, CONF_PIVOT)(value)
@@ -341,6 +341,7 @@ class MeterType(WidgetType):
     async def create_to_code(self, config: dict, parent: MockObj):
         """For a meter object using scale widget, create and set parameters"""
 
+        add_lv_use(*self.get_uses())
         outer_config = config.copy()
         indicator_config = {CONF_INDICATOR: outer_config.pop(CONF_TICKS, {})}
         w = await super().create_to_code(outer_config, parent)
@@ -433,7 +434,6 @@ class MeterType(WidgetType):
                         lv.obj_add_flag(scale_var, LV_OBJ_FLAG.SEND_DRAW_TASK_EVENTS)
 
                 if t == CONF_LINE:
-                    add_lv_use(CONF_LINE)
                     # Needle represented by a line
                     if CONF_LENGTH in v:
                         length = v[CONF_LENGTH]
