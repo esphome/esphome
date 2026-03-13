@@ -1976,6 +1976,11 @@ def _validate_partition(
 
 
 def add_partition(name: str, p_type: str | int, subtype: str | int, size: int) -> None:
+    """Register a custom partition to be appended to the partition table.
+
+    Called from component to_code() to request additional flash partitions.
+    Size must be 4KB aligned. Integer types/subtypes are converted to hex strings.
+    """
     if name in CORE.data[KEY_ESP32].get(KEY_CUSTOM_PARTITIONS, {}):
         raise ValueError(f"Partition name '{name}' is already defined.")
     _validate_partition(name, p_type, subtype, size)
