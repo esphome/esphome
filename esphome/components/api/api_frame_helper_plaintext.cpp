@@ -255,8 +255,7 @@ APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffe
     // Calculate varint sizes for header layout using inline ternary to avoid varint_slow call overhead
     uint8_t size_varint_len =
         msg.payload_size < ProtoSize::VARINT_MAX_1_BYTE ? 1 : (msg.payload_size < ProtoSize::VARINT_MAX_2_BYTE ? 2 : 3);
-    uint8_t type_varint_len =
-        msg.message_type < ProtoSize::VARINT_MAX_1_BYTE ? 1 : (msg.message_type < ProtoSize::VARINT_MAX_2_BYTE ? 2 : 3);
+    uint8_t type_varint_len = msg.message_type < ProtoSize::VARINT_MAX_1_BYTE ? 1 : 2;
     uint8_t total_header_len = 1 + size_varint_len + type_varint_len;
 
     // Calculate where to start writing the header
@@ -290,10 +289,8 @@ APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffe
     // Write the plaintext header
     buf_start[header_offset] = 0x00;  // indicator
 
-    // Encode payload size varint
+    // Encode varints directly into buffer
     encode_varint_to_buffer(msg.payload_size, buf_start + header_offset + 1);
-
-    // Encode message type varint
     encode_varint_to_buffer(msg.message_type, buf_start + header_offset + 1 + size_varint_len);
 
     // Add iovec for this message (header + payload)
