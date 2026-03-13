@@ -1,9 +1,12 @@
+import logging
 import re
 
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, PLATFORM_ESP32, PLATFORM_ESP8266
+
+_LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@SimonFischer04"]
 DEPENDENCIES = ["uart"]
@@ -16,10 +19,42 @@ CONF_TRANSPORT = "transport"
 PROVIDERS = {"generic": 0, "netznoe": 1}
 TRANSPORTS = {"mbus": 0, "raw": 1}
 
+# Map old hardcoded keys to their equivalent OBIS codes
+DEPRECATED_NUMERIC_KEYS = {
+    "voltage_l1": "1.0.32.7.0.255",
+    "voltage_l2": "1.0.52.7.0.255",
+    "voltage_l3": "1.0.72.7.0.255",
+    "current_l1": "1.0.31.7.0.255",
+    "current_l2": "1.0.51.7.0.255",
+    "current_l3": "1.0.71.7.0.255",
+    "active_power_plus": "1.0.1.7.0.255",
+    "active_power_minus": "1.0.2.7.0.255",
+    "active_energy_plus": "1.0.1.8.0.255",
+    "active_energy_minus": "1.0.2.8.0.255",
+    "reactive_energy_plus": "1.0.3.8.0.255",
+    "reactive_energy_minus": "1.0.4.8.0.255",
+    "power_factor": "1.0.13.7.0.255",
+}
+
+DEPRECATED_TEXT_KEYS = {
+    "timestamp": "0.0.1.0.0.255",
+    "meternumber": "0.0.96.1.0.255",
+}
+
 dlms_meter_component_ns = cg.esphome_ns.namespace("dlms_meter")
 DlmsMeterComponent = dlms_meter_component_ns.class_(
     "DlmsMeterComponent", cg.Component, uart.UARTDevice
 )
+
+
+def warn_deprecated(config):
+    _LOGGER.warning(
+        "The monolithic platform configuration for dlms_meter sensors is deprecated "
+        "and will be removed in ESPHome 2026.9.0. Please separate your sensors into "
+        "individual '- platform: dlms_meter' entries using the 'obis_code' parameter. "
+        "See the dlms_meter documentation for migration details."
+    )
+    return config
 
 
 def validate_key(value):
