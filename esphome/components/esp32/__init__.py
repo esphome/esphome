@@ -1909,7 +1909,8 @@ KEY_CUSTOM_PARTITIONS = "custom_partitions"
 
 
 @dataclass
-class CustomPartition:
+class PartitionEntry:
+    name: str
     type: str
     subtype: str
     size: int
@@ -1978,8 +1979,8 @@ def add_partition(name: str, p_type: str | int, subtype: str | int, size: int) -
     p_type_str = f"0x{p_type:X}" if isinstance(p_type, int) else p_type
     subtype_str = f"0x{subtype:X}" if isinstance(subtype, int) else subtype
     custom_partitions = CORE.data[KEY_ESP32].setdefault(KEY_CUSTOM_PARTITIONS, {})
-    custom_partitions[name] = CustomPartition(
-        type=p_type_str, subtype=subtype_str, size=size
+    custom_partitions[name] = PartitionEntry(
+        name=name, type=p_type_str, subtype=subtype_str, size=size
     )
 
 
@@ -2029,27 +2030,35 @@ def _get_app_partition_size(flash_size_mb: str) -> int:
 def get_partition_csv(flash_size_mb: str) -> str:
     app_size = _get_app_partition_size(flash_size_mb)
 
+    partitions: list[PartitionEntry] = [
+        PartitionEntry(name="otadata", type="data", subtype="ota", size=OTADATA_SIZE),
+        PartitionEntry(name="phy_init", type="data", subtype="phy", size=PHY_INIT_SIZE),
+        PartitionEntry(name="app0", type="app", subtype="ota_0", size=app_size),
+        PartitionEntry(name="app1", type="app", subtype="ota_1", size=app_size),
+    ]
     if CORE.using_arduino:
-        csv = f"""\
-otadata,  data, ota,     , 0x{OTADATA_SIZE:X},
-phy_init, data, phy,     , 0x{PHY_INIT_SIZE:X},
-app0,     app,  ota_0,   , 0x{app_size:X},
-app1,     app,  ota_1,   , 0x{app_size:X},
-eeprom,   data, 0x99,    , 0x{EEPROM_SIZE:X},
-spiffs,   data, spiffs,  , 0x{SPIFFS_SIZE:X},
-nvs,      data, nvs,     , 0x{ARDUINO_NVS_SIZE:X},
-"""
+        partitions.append(
+            PartitionEntry(name="eeprom", type="data", subtype="0x99", size=EEPROM_SIZE)
+        )
+        partitions.append(
+            PartitionEntry(
+                name="spiffs", type="data", subtype="spiffs", size=SPIFFS_SIZE
+            )
+        )
+        partitions.append(
+            PartitionEntry(
+                name="nvs", type="data", subtype="nvs", size=ARDUINO_NVS_SIZE
+            )
+        )
     else:
-        csv = f"""\
-otadata,  data, ota,     , 0x{OTADATA_SIZE:X},
-phy_init, data, phy,     , 0x{PHY_INIT_SIZE:X},
-app0,     app,  ota_0,   , 0x{app_size:X},
-app1,     app,  ota_1,   , 0x{app_size:X},
-nvs,      data, nvs,     , 0x{IDF_NVS_SIZE:X},
-"""
-    for name, entry in CORE.data[KEY_ESP32].get(KEY_CUSTOM_PARTITIONS, {}).items():
-        csv += f"{name}, {entry.type}, {entry.subtype}, , 0x{entry.size:X},\n"
-    return csv
+        partitions.append(
+            PartitionEntry(name="nvs", type="data", subtype="nvs", size=IDF_NVS_SIZE)
+        )
+    partitions.extend(CORE.data[KEY_ESP32].get(KEY_CUSTOM_PARTITIONS, {}).values())
+
+    return "".join(
+        f"{p.name}, {p.type}, {p.subtype}, , 0x{p.size:X},\n" for p in partitions
+    )
 
 
 def _format_sdkconfig_val(value: SdkconfigValueType) -> str:
