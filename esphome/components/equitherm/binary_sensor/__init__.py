@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
+from esphome.components.const import CONF_CLIMATE_ID
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, DEVICE_CLASS_PROBLEM, ENTITY_CATEGORY_DIAGNOSTIC
 
@@ -15,8 +16,6 @@ IndoorSensorFaultBinarySensor = equitherm_ns.class_(
 RateLimitingBinarySensor = equitherm_ns.class_(
     "RateLimitingBinarySensor", binary_sensor.BinarySensor, cg.Component
 )
-
-CONF_CLIMATE_ID = "climate_id"
 
 # Configuration keys for each binary sensor type
 CONF_OUTDOOR_SENSOR_FAULT = "outdoor_sensor_fault"

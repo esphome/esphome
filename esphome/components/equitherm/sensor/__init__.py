@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import CONF_CLIMATE_ID
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ACCURACY_DECIMALS,
@@ -25,12 +26,6 @@ from ..climate import EquithermClimate, equitherm_ns
 
 EquithermSensor = equitherm_ns.class_("EquithermSensor", sensor.Sensor, cg.Component)
 EquithermSensorType = equitherm_ns.enum("EquithermSensorType")
-
-# =============================================================================
-# Configuration Keys
-# =============================================================================
-
-CONF_CLIMATE_ID = "climate_id"
 
 # =============================================================================
 # Sensor Type Enum Mapping

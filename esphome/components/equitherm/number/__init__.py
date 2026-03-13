@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import number
+from esphome.components.const import CONF_CLIMATE_ID
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -47,12 +48,6 @@ RateLimitRisingNumber = equitherm_ns.class_(
 RateLimitFallingNumber = equitherm_ns.class_(
     "RateLimitFallingNumber", number.Number, cg.Component
 )
-
-# =============================================================================
-# Configuration Keys
-# =============================================================================
-
-CONF_CLIMATE_ID = "climate_id"
 
 # Heating curve parameters
 CONF_HEAT_CURVE_COEFFICIENT = "heat_curve_coefficient"

@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
+from esphome.components.const import CONF_CLIMATE_ID
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, ENTITY_CATEGORY_DIAGNOSTIC
 
@@ -9,7 +10,6 @@ ControlModeTextSensor = equitherm_ns.class_(
     "ControlModeTextSensor", text_sensor.TextSensor, cg.Component
 )
 
-CONF_CLIMATE_ID = "climate_id"
 CONF_CONTROL_MODE = "control_mode"
 
 
