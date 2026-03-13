@@ -14,6 +14,7 @@
 #include "mbus.h"
 #include "dlms.h"
 #include "obis.h"
+#include "dlms_parser.h"
 
 #include <array>
 #include <vector>
@@ -88,7 +89,6 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
                    uint16_t &header_offset);
   bool decrypt_(std::vector<uint8_t> &mbus_payload, uint16_t message_length, uint8_t systitle_length,
                 uint16_t header_offset);
-  void decode_obis_(uint8_t *plaintext, uint16_t message_length);
 
   std::vector<uint8_t> receive_buffer_;  // Stores the packet currently being received
   std::vector<uint8_t> payload_;         // Parsed payload, reused to avoid heap churn

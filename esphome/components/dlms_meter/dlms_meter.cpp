@@ -63,6 +63,85 @@ void DlmsMeterComponent::loop() {
       this->payload_ = this->receive_buffer_;
     }
 
+    MeterData data{};
+    DlmsParser parser;
+
+    auto callback = [&data](const char *obis_code, float float_val, const char *str_val, bool is_numeric) {
+      int parts[6] = {0};
+      int count = 0;
+      const char *ptr = obis_code;
+
+      // Extract parts of the OBIS code using strtol to avoid the sscanf flash size penalty
+      while (*ptr && count < 6) {
+        char *endptr;
+        parts[count++] = strtol(ptr, &endptr, 10);
+        if (*endptr == '.') {
+          ptr = endptr + 1;  // Skip the dot for the next number
+        } else {
+          break;  // Reached the end of the string or an invalid format
+        }
+      }
+
+      // If we successfully parsed all 6 groups (A.B.C.D.E.F)
+      if (count == 6) {
+        // Extract C and D to match the original enums in obis.h
+        uint16_t obis_cd = (parts[2] << 8) | parts[3];
+
+        if (is_numeric) {
+          switch (obis_cd) {
+            case OBIS_VOLTAGE_L1:
+              data.voltage_l1 = float_val;
+              break;
+            case OBIS_VOLTAGE_L2:
+              data.voltage_l2 = float_val;
+              break;
+            case OBIS_VOLTAGE_L3:
+              data.voltage_l3 = float_val;
+              break;
+            case OBIS_CURRENT_L1:
+              data.current_l1 = float_val;
+              break;
+            case OBIS_CURRENT_L2:
+              data.current_l2 = float_val;
+              break;
+            case OBIS_CURRENT_L3:
+              data.current_l3 = float_val;
+              break;
+            case OBIS_ACTIVE_POWER_PLUS:
+              data.active_power_plus = float_val;
+              break;
+            case OBIS_ACTIVE_POWER_MINUS:
+              data.active_power_minus = float_val;
+              break;
+            case OBIS_ACTIVE_ENERGY_PLUS:
+              data.active_energy_plus = float_val;
+              break;
+            case OBIS_ACTIVE_ENERGY_MINUS:
+              data.active_energy_minus = float_val;
+              break;
+            case OBIS_REACTIVE_ENERGY_PLUS:
+              data.reactive_energy_plus = float_val;
+              break;
+            case OBIS_REACTIVE_ENERGY_MINUS:
+              data.reactive_energy_minus = float_val;
+              break;
+            case OBIS_POWER_FACTOR:
+              data.power_factor = float_val;
+              break;
+            default:
+              ESP_LOGV(TAG, "Unsupported numeric OBIS code %s", obis_code);
+          }
+        } else {
+          // Handling strings and dates
+          if (obis_cd == OBIS_TIMESTAMP) {
+            snprintf(data.timestamp, sizeof(data.timestamp), "%s", str_val);
+          } else if (obis_cd == OBIS_SERIAL_NUMBER || obis_cd == OBIS_DEVICE_NAME) {
+            snprintf(data.meternumber, sizeof(data.meternumber), "%s", str_val);
+          }
+        }
+      }
+    };
+
     if (this->has_decryption_key_) {
       uint16_t message_length;
       uint8_t systitle_length;
@@ -79,11 +158,18 @@ void DlmsMeterComponent::loop() {
       // Decrypt in place and then decode the OBIS codes
       if (!this->decrypt_(this->payload_, message_length, systitle_length, header_offset))
         return;
-      this->decode_obis_(&this->payload_[header_offset + DLMS_PAYLOAD_OFFSET], message_length);
+
+      parser.parse(&this->payload_[header_offset + DLMS_PAYLOAD_OFFSET], message_length, callback, true);
     } else {
       // If no decryption key is provided, decode the parsed payload directly assuming unencrypted APDU.
-      this->decode_obis_(this->payload_.data(), this->payload_.size());
+      parser.parse(this->payload_.data(), this->payload_.size(), callback, true);
     }
+
+    this->receive_buffer_.clear();
+
+    ESP_LOGI(TAG, "Received valid data");
+    this->publish_sensors(data);
+    this->status_clear_warning();
   }
 }
 
@@ -276,217 +362,6 @@ bool DlmsMeterComponent::decrypt_(std::vector<uint8_t> &mbus_payload, uint16_t m
   }
   ESP_LOGV(TAG, "Decrypted payload: %d bytes", message_length);
   return true;
-}
-
-void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_length) {
-  ESP_LOGV(TAG, "Decoding payload");
-  MeterData data{};
-  uint16_t current_position = DECODER_START_OFFSET;
-  bool power_factor_found = false;
-
-  while (current_position + OBIS_CODE_OFFSET <= message_length) {
-    if (plaintext[current_position + OBIS_TYPE_OFFSET] != DataType::OCTET_STRING) {
-      ESP_LOGE(TAG, "OBIS: Unsupported OBIS header type: %x", plaintext[current_position + OBIS_TYPE_OFFSET]);
-      this->receive_buffer_.clear();
-      return;
-    }
-
-    uint8_t obis_code_length = plaintext[current_position + OBIS_LENGTH_OFFSET];
-    if (obis_code_length != OBIS_CODE_LENGTH_STANDARD && obis_code_length != OBIS_CODE_LENGTH_EXTENDED) {
-      ESP_LOGE(TAG, "OBIS: Unsupported OBIS header length: %x", obis_code_length);
-      this->receive_buffer_.clear();
-      return;
-    }
-    if (current_position + OBIS_CODE_OFFSET + obis_code_length > message_length) {
-      ESP_LOGE(TAG, "OBIS: Buffer too short for OBIS code");
-      this->receive_buffer_.clear();
-      return;
-    }
-
-    uint8_t *obis_code = &plaintext[current_position + OBIS_CODE_OFFSET];
-    uint8_t obis_medium = obis_code[OBIS_A];
-    uint16_t obis_cd = encode_uint16(obis_code[OBIS_C], obis_code[OBIS_D]);
-
-    bool timestamp_found = false;
-    bool meter_number_found = false;
-    if (this->provider_ == PROVIDER_NETZNOE) {
-      // Do not advance Position when reading the Timestamp at DECODER_START_OFFSET
-      if ((obis_code_length == OBIS_CODE_LENGTH_EXTENDED) && (current_position == DECODER_START_OFFSET)) {
-        timestamp_found = true;
-      } else if (power_factor_found) {
-        meter_number_found = true;
-        power_factor_found = false;
-      } else {
-        current_position += obis_code_length + OBIS_CODE_OFFSET;  // Advance past code and position
-      }
-    } else {
-      current_position += obis_code_length + OBIS_CODE_OFFSET;  // Advance past code, position and type
-    }
-    if (!timestamp_found && !meter_number_found && obis_medium != Medium::ELECTRICITY &&
-        obis_medium != Medium::ABSTRACT) {
-      ESP_LOGE(TAG, "OBIS: Unsupported OBIS medium: %x", obis_medium);
-      this->receive_buffer_.clear();
-      return;
-    }
-
-    if (current_position >= message_length) {
-      ESP_LOGE(TAG, "OBIS: Buffer too short for data type");
-      this->receive_buffer_.clear();
-      return;
-    }
-
-    float value = 0.0f;
-    uint8_t value_size = 0;
-    uint8_t data_type = plaintext[current_position];
-    current_position++;
-
-    switch (data_type) {
-      case DataType::DOUBLE_LONG_UNSIGNED: {
-        value_size = 4;
-        if (current_position + value_size > message_length) {
-          ESP_LOGE(TAG, "OBIS: Buffer too short for DOUBLE_LONG_UNSIGNED");
-          this->receive_buffer_.clear();
-          return;
-        }
-        value = encode_uint32(plaintext[current_position + 0], plaintext[current_position + 1],
-                              plaintext[current_position + 2], plaintext[current_position + 3]);
-        current_position += value_size;
-        break;
-      }
-      case DataType::LONG_UNSIGNED: {
-        value_size = 2;
-        if (current_position + value_size > message_length) {
-          ESP_LOGE(TAG, "OBIS: Buffer too short for LONG_UNSIGNED");
-          this->receive_buffer_.clear();
-          return;
-        }
-        value = encode_uint16(plaintext[current_position + 0], plaintext[current_position + 1]);
-        current_position += value_size;
-        break;
-      }
-      case DataType::OCTET_STRING: {
-        uint8_t data_length = plaintext[current_position];
-        current_position++;  // Advance past string length
-        if (current_position + data_length > message_length) {
-          ESP_LOGE(TAG, "OBIS: Buffer too short for OCTET_STRING");
-          this->receive_buffer_.clear();
-          return;
-        }
-        // Handle timestamp (normal OBIS code or NETZNOE special case)
-        if (obis_cd == OBIS_TIMESTAMP || timestamp_found) {
-          if (data_length < 8) {
-            ESP_LOGE(TAG, "OBIS: Timestamp data too short: %u", data_length);
-            this->receive_buffer_.clear();
-            return;
-          }
-          uint16_t year = encode_uint16(plaintext[current_position + 0], plaintext[current_position + 1]);
-          uint8_t month = plaintext[current_position + 2];
-          uint8_t day = plaintext[current_position + 3];
-          uint8_t hour = plaintext[current_position + 5];
-          uint8_t minute = plaintext[current_position + 6];
-          uint8_t second = plaintext[current_position + 7];
-          if (year > 9999 || month > 12 || day > 31 || hour > 23 || minute > 59 || second > 59) {
-            ESP_LOGE(TAG, "Invalid timestamp values: %04u-%02u-%02uT%02u:%02u:%02uZ", year, month, day, hour, minute,
-                     second);
-            this->receive_buffer_.clear();
-            return;
-          }
-          snprintf(data.timestamp, sizeof(data.timestamp), "%04u-%02u-%02uT%02u:%02u:%02uZ", year, month, day, hour,
-                   minute, second);
-        } else if (meter_number_found) {
-          snprintf(data.meternumber, sizeof(data.meternumber), "%.*s", data_length, &plaintext[current_position]);
-        }
-        current_position += data_length;
-        break;
-      }
-      default:
-        ESP_LOGE(TAG, "OBIS: Unsupported OBIS data type: %x", data_type);
-        this->receive_buffer_.clear();
-        return;
-    }
-
-    // Skip break after data
-    if (this->provider_ == PROVIDER_NETZNOE) {
-      // Don't skip the break on the first timestamp, as there's none
-      if (!timestamp_found) {
-        current_position += 2;
-      }
-    } else {
-      current_position += 2;
-    }
-
-    // Check for additional data (scaler-unit structure)
-    if (current_position < message_length && plaintext[current_position] == DataType::INTEGER) {
-      // Apply scaler: real_value = raw_value × 10^scaler
-      if (current_position + 1 < message_length) {
-        int8_t scaler = static_cast<int8_t>(plaintext[current_position + 1]);
-        if (scaler != 0) {
-          value *= pow10_int(scaler);
-        }
-      }
-
-      // on EVN Meters there is no additional break
-      if (this->provider_ == PROVIDER_NETZNOE) {
-        current_position += 4;
-      } else {
-        current_position += 6;
-      }
-    }
-
-    // Handle numeric values (LONG_UNSIGNED and DOUBLE_LONG_UNSIGNED)
-    if (value_size > 0) {
-      switch (obis_cd) {
-        case OBIS_VOLTAGE_L1:
-          data.voltage_l1 = value;
-          break;
-        case OBIS_VOLTAGE_L2:
-          data.voltage_l2 = value;
-          break;
-        case OBIS_VOLTAGE_L3:
-          data.voltage_l3 = value;
-          break;
-        case OBIS_CURRENT_L1:
-          data.current_l1 = value;
-          break;
-        case OBIS_CURRENT_L2:
-          data.current_l2 = value;
-          break;
-        case OBIS_CURRENT_L3:
-          data.current_l3 = value;
-          break;
-        case OBIS_ACTIVE_POWER_PLUS:
-          data.active_power_plus = value;
-          break;
-        case OBIS_ACTIVE_POWER_MINUS:
-          data.active_power_minus = value;
-          break;
-        case OBIS_ACTIVE_ENERGY_PLUS:
-          data.active_energy_plus = value;
-          break;
-        case OBIS_ACTIVE_ENERGY_MINUS:
-          data.active_energy_minus = value;
-          break;
-        case OBIS_REACTIVE_ENERGY_PLUS:
-          data.reactive_energy_plus = value;
-          break;
-        case OBIS_REACTIVE_ENERGY_MINUS:
-          data.reactive_energy_minus = value;
-          break;
-        case OBIS_POWER_FACTOR:
-          data.power_factor = value;
-          power_factor_found = true;
-          break;
-        default:
-          ESP_LOGW(TAG, "Unsupported OBIS code 0x%04X", obis_cd);
-      }
-    }
-  }
-
-  this->receive_buffer_.clear();
-
-  ESP_LOGI(TAG, "Received valid data");
-  this->publish_sensors(data);
-  this->status_clear_warning();
 }
 
 }  // namespace esphome::dlms_meter
