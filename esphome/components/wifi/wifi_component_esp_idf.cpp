@@ -637,13 +637,21 @@ const char *get_disconnect_reason_str(uint8_t reason) {
       return "Auth Expired";
     case WIFI_REASON_AUTH_LEAVE:
       return "Auth Leave";
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    case WIFI_REASON_DISASSOC_DUE_TO_INACTIVITY:
+      return "Disassociated Due to Inactivity";
+#else
     case WIFI_REASON_ASSOC_EXPIRE:
       return "Association Expired";
 #endif
     case WIFI_REASON_ASSOC_TOOMANY:
       return "Too Many Associations";
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    case WIFI_REASON_CLASS2_FRAME_FROM_NONAUTH_STA:
+      return "Class 2 Frame from Non-Authenticated STA";
+    case WIFI_REASON_CLASS3_FRAME_FROM_NONASSOC_STA:
+      return "Class 3 Frame from Non-Associated STA";
+#else
     case WIFI_REASON_NOT_AUTHED:
       return "Not Authenticated";
     case WIFI_REASON_NOT_ASSOCED:
