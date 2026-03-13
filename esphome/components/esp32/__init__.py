@@ -2056,9 +2056,11 @@ def get_partition_csv(flash_size_mb: str) -> str:
         )
     partitions.extend(CORE.data[KEY_ESP32].get(KEY_CUSTOM_PARTITIONS, {}).values())
 
-    return "".join(
+    csv = "".join(
         f"{p.name}, {p.type}, {p.subtype}, , 0x{p.size:X},\n" for p in partitions
     )
+    _LOGGER.debug("Partition table:\n%s", csv)
+    return csv
 
 
 def _format_sdkconfig_val(value: SdkconfigValueType) -> str:
