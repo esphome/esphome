@@ -100,13 +100,11 @@ float PIDController::ring_buffer_average_(FixedRingBuffer<float> &buf, float new
     return new_value;
   }
 
-  // Use push_overwrite for sliding window behavior (overwrites oldest when full)
-  buf.push_overwrite(new_value);
-
-  // When buffer has more entries than the current mode needs (shared buffer may be
-  // sized larger for the other mode), trim oldest entries to match max_samples
-  while (buf.size() > static_cast<size_t>(max_samples))
+  // Trim oldest entries to make room (handles mode-switching where buffer
+  // may have more entries than the current mode needs)
+  while (buf.size() >= static_cast<size_t>(max_samples))
     buf.pop();
+  buf.push(new_value);
 
   float sum = 0;
   for (auto val : buf)
