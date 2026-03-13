@@ -253,9 +253,10 @@ APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffe
 
   for (const auto &msg : messages) {
     // Calculate varint sizes for header layout using inline ternary to avoid varint_slow call overhead
-    uint8_t size_varint_len =
-        msg.payload_size < ProtoSize::VARINT_MAX_1_BYTE ? 1 : (msg.payload_size < ProtoSize::VARINT_MAX_2_BYTE ? 2 : 3);
-    uint8_t type_varint_len = msg.message_type < ProtoSize::VARINT_MAX_1_BYTE ? 1 : 2;
+    uint8_t size_varint_len = msg.payload_size < ProtoSize::VARINT_THRESHOLD_1_BYTE
+                                  ? 1
+                                  : (msg.payload_size < ProtoSize::VARINT_THRESHOLD_2_BYTE ? 2 : 3);
+    uint8_t type_varint_len = msg.message_type < ProtoSize::VARINT_THRESHOLD_1_BYTE ? 1 : 2;
     uint8_t total_header_len = 1 + size_varint_len + type_varint_len;
 
     // Calculate where to start writing the header
