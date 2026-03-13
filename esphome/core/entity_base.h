@@ -86,7 +86,7 @@ class EntityBase {
   std::string get_object_id() const;
 
   // Get the unique Object ID of this Entity
-  uint32_t get_object_id_hash() { return this->object_id_hash_; }
+  uint32_t get_object_id_hash() const { return this->object_id_hash_; }
 
   /// Get object_id with zero heap allocation
   /// For static case: returns StringRef to internal storage (buffer unused)
