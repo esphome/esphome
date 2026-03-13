@@ -139,11 +139,11 @@ class APIFrameHelper {
   // holding data too long waiting for Nagle's timer causes buffer exhaustion
   // and dropped messages.
   //
-  // ESP32 (TCP_SND_BUF=64KB) / RP2040 (8×MSS): 4 logs per cycle
-  // ESP8266 / LibreTiny: 3 logs per cycle (tighter buffers)
+  // ESP32 (TCP_SND_BUF=4×MSS+) / RP2040 (8×MSS) / LibreTiny (4×MSS): 4 logs per cycle
+  // ESP8266 (2×MSS): 3 logs per cycle (tightest buffers)
   //
-  // Flow (ESP32/RP2040): Log 1 (Nagle on) -> Log 2 -> Log 3 -> Log 4 (NODELAY, flush)
-  // Flow (other):        Log 1 (Nagle on) -> Log 2 -> Log 3 (NODELAY, flush all)
+  // Flow (ESP32/RP2040/LT): Log 1 (Nagle on) -> Log 2 -> Log 3 -> Log 4 (NODELAY, flush)
+  // Flow (ESP8266):         Log 1 (Nagle on) -> Log 2 -> Log 3 (NODELAY, flush all)
   //
   void set_nodelay_for_message(bool is_log_message) {
     if (!is_log_message) {
@@ -261,13 +261,13 @@ class APIFrameHelper {
   // Nagle batching state for log messages. NODELAY_ON (-1) means NODELAY is enabled
   // (immediate send). Values 1..LOG_NAGLE_COUNT count log messages in the current Nagle batch.
   // After LOG_NAGLE_COUNT logs, we switch to NODELAY to flush and reset.
-  // ESP32 and RP2040 have larger TCP send buffers and can coalesce more;
-  // ESP8266 and LibreTiny have tighter buffers.
+  // ESP8266 has the tightest TCP send buffer (2×MSS) and needs conservative batching.
+  // ESP32 (4×MSS+), RP2040 (8×MSS), and LibreTiny (4×MSS) can coalesce more.
   static constexpr int8_t NODELAY_ON = -1;
-#if defined(USE_ESP32) || defined(USE_RP2040)
-  static constexpr int8_t LOG_NAGLE_COUNT = 3;
-#else
+#ifdef USE_ESP8266
   static constexpr int8_t LOG_NAGLE_COUNT = 2;
+#else
+  static constexpr int8_t LOG_NAGLE_COUNT = 3;
 #endif
   int8_t nodelay_state_{NODELAY_ON};
 
