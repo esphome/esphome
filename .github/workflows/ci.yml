@@ -106,6 +106,7 @@ jobs:
           script/build_codeowners.py --check
           script/build_language_schema.py --check
           script/generate-esp32-boards.py --check
+          script/generate-rp2040-boards.py --check
 
   pytest:
     name: Run pytest
