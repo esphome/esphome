@@ -170,7 +170,9 @@ def _validate_file_shorthand(value):
     )
 
 
-_validate_pipeline = media_player.validate_pipeline("speaker media_player")
+_validate_pipeline = media_player.validate_pipeline(
+    "speaker media_player", CONF_SPEAKER
+)
 
 
 def _validate_repeated_speaker(config):

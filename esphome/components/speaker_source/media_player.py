@@ -62,7 +62,9 @@ SetPlaylistDelayAction = speaker_source_ns.class_(
 )
 
 
-_validate_pipeline = media_player.validate_pipeline("speaker_source media_player")
+_validate_pipeline = media_player.validate_pipeline(
+    "speaker_source media_player", CONF_SPEAKER
+)
 
 
 PIPELINE_SCHEMA = cv.Schema(

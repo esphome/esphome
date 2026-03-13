@@ -13,7 +13,6 @@ from esphome.const import (
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
     CONF_SAMPLE_RATE,
-    CONF_SPEAKER,
     CONF_TRIGGER_ID,
     CONF_VOLUME,
 )
@@ -73,22 +72,22 @@ def build_supported_format_struct(
     return cg.StructInitializer(*args)
 
 
-def validate_pipeline(component_name: str) -> cv.Schema:
-    """Return a pipeline validator that inherits speaker settings and validates format constraints."""
+def validate_pipeline(component_name: str, audio_device_key: str) -> cv.Schema:
+    """Return a pipeline validator that inherits audio device settings and validates format constraints."""
 
     def validator(config: ConfigType) -> ConfigType:
-        # Inherit settings from speaker if not manually set
-        inherit_property_from(CONF_NUM_CHANNELS, CONF_SPEAKER)(config)
-        inherit_property_from(CONF_SAMPLE_RATE, CONF_SPEAKER)(config)
+        # Inherit settings from audio device if not manually set
+        inherit_property_from(CONF_NUM_CHANNELS, audio_device_key)(config)
+        inherit_property_from(CONF_SAMPLE_RATE, audio_device_key)(config)
 
         # Opus only supports 48 kHz
         if config.get(CONF_FORMAT) == "OPUS" and config.get(CONF_SAMPLE_RATE) != 48000:
             raise cv.Invalid("Opus only supports a sample rate of 48000 Hz")
 
-        # Validate the settings are compatible with the speaker
+        # Validate the settings are compatible with the audio device
         audio.final_validate_audio_schema(
             component_name,
-            audio_device=CONF_SPEAKER,
+            audio_device=audio_device_key,
             bits_per_sample=16,
             channels=config.get(CONF_NUM_CHANNELS),
             sample_rate=config.get(CONF_SAMPLE_RATE),
