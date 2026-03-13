@@ -2016,6 +2016,13 @@ def _get_app_partition_size(flash_size_mb: str) -> int:
             "Custom partitions are too large to fit in the available flash size. "
             "Reduce custom partition sizes."
         )
+    if app_size <= 0x80000:  # 512 KB
+        _LOGGER.warning(
+            "App partition size is only %dKB. This may be too small for firmware with "
+            "many components. Consider reducing custom partition sizes or using a "
+            "larger flash chip.",
+            app_size // 1024,
+        )
     return app_size
 
 
