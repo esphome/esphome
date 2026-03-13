@@ -50,6 +50,8 @@
 #include "esphome/components/infrared/infrared.h"
 #endif
 
+// test mod
+
 namespace esphome::api {
 
 // Read a maximum of 5 messages per loop iteration to prevent starving other components.
