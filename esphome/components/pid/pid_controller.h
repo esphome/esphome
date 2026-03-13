@@ -67,11 +67,8 @@ struct PIDController {
   // Ring buffer for derivative smoothing
   FixedRingBuffer<float> derivative_window_;
 
-  // Ring buffer for output smoothing (normal mode)
+  // Ring buffer for output smoothing (shared between normal and deadband modes)
   FixedRingBuffer<float> output_window_;
-
-  // Ring buffer for output smoothing (deadband mode)
-  FixedRingBuffer<float> deadband_output_window_;
 
 };  // Struct PIDController
 }  // namespace pid

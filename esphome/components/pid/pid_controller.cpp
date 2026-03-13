@@ -21,12 +21,9 @@ float PIDController::update(float setpoint, float process_value) {
   // u(t) := p(t) + i(t) + d(t)
   float output = proportional_term_ + integral_term_ + derivative_term_;
 
-  // smooth/sample the output using appropriate buffer for current mode
-  if (in_deadband()) {
-    return ring_buffer_average_(deadband_output_window_, output, deadband_output_samples_);
-  } else {
-    return ring_buffer_average_(output_window_, output, output_samples_);
-  }
+  // smooth/sample the output using shared buffer with mode-appropriate sample count
+  int samples = in_deadband() ? deadband_output_samples_ : output_samples_;
+  return ring_buffer_average_(output_window_, output, samples);
 }
 
 bool PIDController::in_deadband() {
@@ -106,7 +103,11 @@ float PIDController::ring_buffer_average_(FixedRingBuffer<float> &buf, float new
   // Use push_overwrite for sliding window behavior (overwrites oldest when full)
   buf.push_overwrite(new_value);
 
-  // Buffer is always initialized via init_buffers() before this is called
+  // When buffer has more entries than the current mode needs (shared buffer may be
+  // sized larger for the other mode), trim oldest entries to match max_samples
+  while (buf.size() > static_cast<size_t>(max_samples))
+    buf.pop();
+
   float sum = 0;
   for (auto val : buf)
     sum += val;
