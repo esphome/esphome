@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import audio
@@ -72,7 +74,9 @@ def build_supported_format_struct(
     return cg.StructInitializer(*args)
 
 
-def validate_preferred_format(component_name: str, audio_device_key: str) -> cv.Schema:
+def validate_preferred_format(
+    component_name: str, audio_device_key: str
+) -> Callable[[ConfigType], ConfigType]:
     """Return a validator that inherits audio device settings and validates format constraints."""
 
     def validator(config: ConfigType) -> ConfigType:
