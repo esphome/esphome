@@ -105,10 +105,11 @@ static void validate_static_string(const char *name) {
 // avoid the main thread modifying the list while it is being accessed.
 
 // Calculate random offset for interval timers
-// Extracted from set_timer_common_ to reduce code size - float math + random_float()
-// only needed for intervals, not timeouts
+// Extracted from set_timer_common_ to reduce code size - only needed for intervals, not timeouts
 uint32_t Scheduler::calculate_interval_offset_(uint32_t delay) {
-  return static_cast<uint32_t>(std::min(delay / 2, MAX_INTERVAL_DELAY) * random_float());
+  uint32_t max_offset = std::min(delay / 2, MAX_INTERVAL_DELAY);
+  // Multiply-and-shift: uniform random in [0, max_offset) without floating point
+  return static_cast<uint32_t>((static_cast<uint64_t>(random_uint32()) * max_offset) >> 32);
 }
 
 // Check if a retry was already cancelled in items_ or to_add_
