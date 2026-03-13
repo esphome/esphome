@@ -20,8 +20,6 @@ __attribute__((weak)) void print_coredump() {}
 
 namespace esphome::logger {
 
-static const uint32_t CRASH_MAGIC = 0xDEADBEEF;
-
 __attribute__((section(".noinit"))) struct {
   uint32_t magic;
   uint32_t reason;
@@ -152,7 +150,7 @@ static const char *reason_to_str(unsigned int reason, char *buf) {
 
 void Logger::dump_crash_() {
   ESP_LOGD(TAG, "Crash buffer address %p", &crash_buf);
-  if (crash_buf.magic == CRASH_MAGIC) {
+  if (crash_buf.magic == App.get_config_hash()) {
     char reason_buf[REASON_BUF_SIZE];
     ESP_LOGE(TAG, "Last crash:");
     ESP_LOGE(TAG, "Reason=%s PC=0x%08x LR=0x%08x", reason_to_str(crash_buf.reason, reason_buf), crash_buf.pc,
@@ -164,7 +162,7 @@ void Logger::dump_crash_() {
 }
 
 void k_sys_fatal_error_handler(unsigned int reason, const z_arch_esf_t *esf) {
-  crash_buf.magic = CRASH_MAGIC;
+  crash_buf.magic = App.get_config_hash();
   crash_buf.reason = reason;
   if (esf) {
     crash_buf.pc = esf->basic.pc;

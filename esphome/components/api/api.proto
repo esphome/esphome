@@ -58,6 +58,7 @@ service APIConnection {
   rpc subscribe_bluetooth_connections_free(SubscribeBluetoothConnectionsFreeRequest) returns (BluetoothConnectionsFreeResponse) {}
   rpc unsubscribe_bluetooth_le_advertisements(UnsubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
   rpc bluetooth_scanner_set_mode(BluetoothScannerSetModeRequest) returns (void) {}
+  rpc bluetooth_set_connection_params(BluetoothSetConnectionParamsRequest) returns (BluetoothSetConnectionParamsResponse) {}
 
   rpc subscribe_voice_assistant(SubscribeVoiceAssistantRequest) returns (void) {}
   rpc voice_assistant_get_configuration(VoiceAssistantConfigurationRequest) returns (VoiceAssistantConfigurationResponse) {}
@@ -69,6 +70,12 @@ service APIConnection {
   rpc zwave_proxy_request(ZWaveProxyRequest) returns (void) {}
 
   rpc infrared_rf_transmit_raw_timings(InfraredRFTransmitRawTimingsRequest) returns (void) {}
+
+  rpc serial_proxy_configure(SerialProxyConfigureRequest) returns (void) {}
+  rpc serial_proxy_write(SerialProxyWriteRequest) returns (void) {}
+  rpc serial_proxy_set_modem_pins(SerialProxySetModemPinsRequest) returns (void) {}
+  rpc serial_proxy_get_modem_pins(SerialProxyGetModemPinsRequest) returns (void) {}
+  rpc serial_proxy_request(SerialProxyRequest) returns (void) {}
 }
 
 
@@ -198,6 +205,17 @@ message DeviceInfo {
   uint32 area_id = 3;
 }
 
+enum SerialProxyPortType {
+  SERIAL_PROXY_PORT_TYPE_TTL = 0;
+  SERIAL_PROXY_PORT_TYPE_RS232 = 1;
+  SERIAL_PROXY_PORT_TYPE_RS485 = 2;
+}
+
+message SerialProxyInfo {
+  string name = 1;                    // Human-readable port name
+  SerialProxyPortType port_type = 2;  // Port type (RS232, RS485)
+}
+
 message DeviceInfoResponse {
   option (id) = 10;
   option (source) = SOURCE_SERVER;
@@ -260,6 +278,9 @@ message DeviceInfoResponse {
   // Indicates if Z-Wave proxy support is available and features supported
   uint32 zwave_proxy_feature_flags = 23 [(field_ifdef) = "USE_ZWAVE_PROXY"];
   uint32 zwave_home_id = 24 [(field_ifdef) = "USE_ZWAVE_PROXY"];
+
+  // Serial proxy instance metadata
+  repeated SerialProxyInfo serial_proxies = 25 [(field_ifdef) = "USE_SERIAL_PROXY", (fixed_array_size_define) = "SERIAL_PROXY_COUNT"];
 }
 
 message ListEntitiesRequest {
@@ -834,6 +855,33 @@ message GetTimeRequest {
   option (source) = SOURCE_SERVER;
 }
 
+enum DSTRuleType {
+  DST_RULE_TYPE_NONE = 0;
+  DST_RULE_TYPE_MONTH_WEEK_DAY = 1;
+  DST_RULE_TYPE_JULIAN_NO_LEAP = 2;
+  DST_RULE_TYPE_DAY_OF_YEAR = 3;
+}
+
+message DSTRule {
+  option (source) = SOURCE_CLIENT;
+
+  sint32 time_seconds = 1;
+  uint32 day = 2;
+  DSTRuleType type = 3;
+  uint32 month = 4;
+  uint32 week = 5;
+  uint32 day_of_week = 6;
+}
+
+message ParsedTimezone {
+  option (source) = SOURCE_CLIENT;
+
+  sint32 std_offset_seconds = 1;
+  sint32 dst_offset_seconds = 2;
+  DSTRule dst_start = 3;
+  DSTRule dst_end = 4;
+}
+
 message GetTimeResponse {
   option (id) = 37;
   option (source) = SOURCE_CLIENT;
@@ -841,6 +889,7 @@ message GetTimeResponse {
 
   fixed32 epoch_seconds = 1;
   string timezone = 2;
+  ParsedTimezone parsed_timezone = 3;
 }
 
 // ==================== USER-DEFINES SERVICES ====================
@@ -989,6 +1038,7 @@ enum ClimateAction {
   CLIMATE_ACTION_IDLE = 4;
   CLIMATE_ACTION_DRYING = 5;
   CLIMATE_ACTION_FAN = 6;
+  CLIMATE_ACTION_DEFROSTING = 7;
 }
 enum ClimatePreset {
   CLIMATE_PRESET_NONE = 0;
@@ -1554,11 +1604,11 @@ message BluetoothLEAdvertisementResponse {
 }
 
 message BluetoothLERawAdvertisement {
-  uint64 address = 1;
-  sint32 rssi = 2;
+  uint64 address = 1 [(force) = true];
+  sint32 rssi = 2 [(force) = true];
   uint32 address_type = 3;
 
-  bytes data = 4 [(fixed_array_size) = 62];
+  bytes data = 4 [(fixed_array_size) = 62, (force) = true];
 }
 
 message BluetoothLERawAdvertisementsResponse {
@@ -2487,4 +2537,135 @@ message InfraredRFReceiveEvent {
   uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];
   fixed32 key = 2;                                    // Key identifying the receiver instance
   repeated sint32 timings = 3 [packed = true, (container_pointer_no_template) = "std::vector<int32_t>"];  // Raw timings in microseconds (zigzag-encoded): alternating mark/space periods
+}
+
+// ==================== SERIAL PROXY ====================
+
+enum SerialProxyParity {
+  SERIAL_PROXY_PARITY_NONE = 0;
+  SERIAL_PROXY_PARITY_EVEN = 1;
+  SERIAL_PROXY_PARITY_ODD = 2;
+}
+
+// Configure UART parameters for a serial proxy instance
+message SerialProxyConfigureRequest {
+  option (id) = 138;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_SERIAL_PROXY";
+
+  uint32 instance = 1;          // Instance index (0-based)
+  uint32 baudrate = 2;          // Baud rate in bits per second
+  bool flow_control = 3;        // Enable hardware flow control
+  SerialProxyParity parity = 4; // Parity setting
+  uint32 stop_bits = 5;         // Number of stop bits (1 or 2)
+  uint32 data_size = 6;         // Number of data bits (5-8)
+}
+
+// Data received from a serial device, forwarded to clients
+message SerialProxyDataReceived {
+  option (id) = 139;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_SERIAL_PROXY";
+  option (no_delay) = true;
+
+  uint32 instance = 1;          // Instance index (0-based)
+  bytes data = 2;               // Raw data received from the serial device
+}
+
+// Write data to a serial device
+message SerialProxyWriteRequest {
+  option (id) = 140;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_SERIAL_PROXY";
+  option (no_delay) = true;
+
+  uint32 instance = 1;          // Instance index (0-based)
+  bytes data = 2;               // Raw data to write to the serial device
+}
+
+// Set modem control pin states (RTS and DTR)
+message SerialProxySetModemPinsRequest {
+  option (id) = 141;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_SERIAL_PROXY";
+
+  uint32 instance = 1;          // Instance index (0-based)
+  uint32 line_states = 2;       // Bitmask of SerialProxyLineStateFlags
+}
+
+// Request current modem control pin states
+message SerialProxyGetModemPinsRequest {
+  option (id) = 142;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_SERIAL_PROXY";
+
+  uint32 instance = 1;          // Instance index (0-based)
+}
+
+// Response with current modem control pin states
+message SerialProxyGetModemPinsResponse {
+  option (id) = 143;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_SERIAL_PROXY";
+
+  uint32 instance = 1;          // Instance index (0-based)
+  uint32 line_states = 2;       // Bitmask of SerialProxyLineStateFlags
+}
+
+enum SerialProxyRequestType {
+  SERIAL_PROXY_REQUEST_TYPE_SUBSCRIBE = 0;   // Subscribe to receive data from this serial proxy instance
+  SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE = 1; // Unsubscribe from this serial proxy instance
+  SERIAL_PROXY_REQUEST_TYPE_FLUSH = 2;       // Flush the serial port (block until all TX data is sent)
+}
+
+enum SerialProxyStatus {
+  SERIAL_PROXY_STATUS_OK = 0;              // Completed successfully; TX drain confirmed
+  SERIAL_PROXY_STATUS_ASSUMED_SUCCESS = 1; // Platform cannot confirm TX drain; success assumed
+  SERIAL_PROXY_STATUS_ERROR = 2;           // Driver or hardware error
+  SERIAL_PROXY_STATUS_TIMEOUT = 3;         // Timed out before TX completed
+  SERIAL_PROXY_STATUS_NOT_SUPPORTED = 4;   // Request type not supported by this instance
+}
+
+// Generic request message for simple serial proxy operations
+message SerialProxyRequest {
+  option (id) = 144;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_SERIAL_PROXY";
+
+  uint32 instance = 1;                  // Instance index (0-based)
+  SerialProxyRequestType type = 2;      // Request type
+}
+
+// Response to a SerialProxyRequest (e.g. flush completion or failure)
+message SerialProxyRequestResponse {
+  option (id) = 147;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_SERIAL_PROXY";
+
+  uint32 instance = 1;                  // Instance index (0-based)
+  SerialProxyRequestType type = 2;      // Which request type this responds to
+  SerialProxyStatus status = 3;         // Result status
+  string error_message = 4;            // Additional detail on failure (optional)
+}
+
+// ==================== BLUETOOTH CONNECTION PARAMS ====================
+message BluetoothSetConnectionParamsRequest {
+  option (id) = 145;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+  uint32 min_interval = 2;  // units of 1.25ms
+  uint32 max_interval = 3;  // units of 1.25ms
+  uint32 latency = 4;
+  uint32 timeout = 5;       // units of 10ms
+}
+
+message BluetoothSetConnectionParamsResponse {
+  option (id) = 146;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+  int32 error = 2;
 }

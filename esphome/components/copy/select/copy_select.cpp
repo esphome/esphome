@@ -11,8 +11,9 @@ void CopySelect::setup() {
 
   traits.set_options(source_->traits.get_options());
 
-  if (source_->has_state())
-    this->publish_state(source_->active_index().value());
+  auto idx = this->source_->active_index();
+  if (idx.has_value())
+    this->publish_state(*idx);
 }
 
 void CopySelect::dump_config() { LOG_SELECT("", "Copy Select", this); }

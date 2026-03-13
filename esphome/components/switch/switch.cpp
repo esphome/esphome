@@ -3,8 +3,7 @@
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace switch_ {
+namespace esphome::switch_ {
 
 static const char *const TAG = "switch";
 
@@ -107,5 +106,4 @@ void log_switch(const char *tag, const char *prefix, const char *type, Switch *o
   }
 }
 
-}  // namespace switch_
-}  // namespace esphome
+}  // namespace esphome::switch_

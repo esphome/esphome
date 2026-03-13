@@ -163,8 +163,11 @@ void LvglComponent::show_page(size_t index, lv_scr_load_anim_t anim, uint32_t ti
 void LvglComponent::show_next_page(lv_scr_load_anim_t anim, uint32_t time) {
   if (this->pages_.empty() || (this->current_page_ == this->pages_.size() - 1 && !this->page_wrap_))
     return;
+  size_t start = this->current_page_;
   do {
     this->current_page_ = (this->current_page_ + 1) % this->pages_.size();
+    if (this->current_page_ == start)
+      return;  // all pages have skip=true (guaranteed not to happen by YAML validation)
   } while (this->pages_[this->current_page_]->skip);  // skip empty pages()
   this->show_page(this->current_page_, anim, time);
 }
@@ -172,8 +175,11 @@ void LvglComponent::show_next_page(lv_scr_load_anim_t anim, uint32_t time) {
 void LvglComponent::show_prev_page(lv_scr_load_anim_t anim, uint32_t time) {
   if (this->pages_.empty() || (this->current_page_ == 0 && !this->page_wrap_))
     return;
+  size_t start = this->current_page_;
   do {
     this->current_page_ = (this->current_page_ + this->pages_.size() - 1) % this->pages_.size();
+    if (this->current_page_ == start)
+      return;  // all pages have skip=true (guaranteed not to happen by YAML validation)
   } while (this->pages_[this->current_page_]->skip);  // skip empty pages()
   this->show_page(this->current_page_, anim, time);
 }
@@ -421,7 +427,10 @@ void LvglComponent::write_random_() {
     col = col / this->draw_rounding * this->draw_rounding;
     auto row = random_uint32() % this->disp_drv_.ver_res;
     row = row / this->draw_rounding * this->draw_rounding;
-    auto size = (random_uint32() % 32) / this->draw_rounding * this->draw_rounding - 1;
+    auto size = ((random_uint32() % 32) / this->draw_rounding + 2) * this->draw_rounding - 1;
+    // clamp size so the square fits within the draw buffer
+    if ((size + 1) * (size + 1) > this->draw_buf_.size)
+      size = static_cast<decltype(size)>(sqrtf(this->draw_buf_.size)) - 1;
     lv_area_t area;
     area.x1 = col;
     area.y1 = row;

@@ -39,6 +39,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_COLOR_ORDER,
     CONF_DIMENSIONS,
+    CONF_DISABLED,
     CONF_ENABLE_PIN,
     CONF_ID,
     CONF_INIT_SEQUENCE,
@@ -88,14 +89,17 @@ COLOR_DEPTHS = {
 def model_schema(config):
     model = MODELS[config[CONF_MODEL].upper()]
     model.defaults[CONF_SWAP_XY] = cv.UNDEFINED
-    transform = cv.Schema(
-        {
-            cv.Required(CONF_MIRROR_X): cv.boolean,
-            cv.Required(CONF_MIRROR_Y): cv.boolean,
-            cv.Optional(CONF_SWAP_XY): cv.invalid(
-                "Axis swapping not supported by DSI displays"
-            ),
-        }
+    transform = cv.Any(
+        cv.Schema(
+            {
+                cv.Required(CONF_MIRROR_X): cv.boolean,
+                cv.Required(CONF_MIRROR_Y): cv.boolean,
+                cv.Optional(CONF_SWAP_XY): cv.invalid(
+                    "Axis swapping not supported by DSI displays"
+                ),
+            }
+        ),
+        cv.one_of(CONF_DISABLED, lower=True),
     )
     # CUSTOM model will need to provide a custom init sequence
     iseqconf = (
@@ -199,9 +203,9 @@ async def to_code(config):
     cg.add(var.set_vsync_pulse_width(config[CONF_VSYNC_PULSE_WIDTH]))
     cg.add(var.set_vsync_back_porch(config[CONF_VSYNC_BACK_PORCH]))
     cg.add(var.set_vsync_front_porch(config[CONF_VSYNC_FRONT_PORCH]))
-    cg.add(var.set_pclk_frequency(int(config[CONF_PCLK_FREQUENCY] / 1e6)))
+    cg.add(var.set_pclk_frequency(config[CONF_PCLK_FREQUENCY] / 1.0e6))
     cg.add(var.set_lanes(int(config[CONF_LANES])))
-    cg.add(var.set_lane_bit_rate(int(config[CONF_LANE_BIT_RATE] / 1e6)))
+    cg.add(var.set_lane_bit_rate(config[CONF_LANE_BIT_RATE] / 1.0e6))
     if reset_pin := config.get(CONF_RESET_PIN):
         reset = await cg.gpio_pin_expression(reset_pin)
         cg.add(var.set_reset_pin(reset))

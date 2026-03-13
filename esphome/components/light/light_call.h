@@ -130,6 +130,8 @@ class LightCall {
   LightCall &set_effect(optional<std::string> effect);
   /// Set the effect of the light by its name.
   LightCall &set_effect(const std::string &effect) { return this->set_effect(effect.data(), effect.size()); }
+  /// Set the effect of the light by its name (const char * overload to resolve ambiguity).
+  LightCall &set_effect(const char *effect) { return this->set_effect(effect, strlen(effect)); }
   /// Set the effect of the light by its name and length (zero-copy from API).
   LightCall &set_effect(const char *effect, size_t len);
   /// Set the effect of the light by its internal index number (only for internal use).

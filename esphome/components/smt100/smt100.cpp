@@ -12,14 +12,28 @@ void SMT100Component::update() {
 }
 
 void SMT100Component::loop() {
-  static char buffer[MAX_LINE_LENGTH];
   while (this->available() != 0) {
-    if (readline_(read(), buffer, MAX_LINE_LENGTH) > 0) {
-      int counts = (int) strtol((strtok(buffer, ",")), nullptr, 10);
-      float permittivity = (float) strtod((strtok(nullptr, ",")), nullptr);
-      float moisture = (float) strtod((strtok(nullptr, ",")), nullptr);
-      float temperature = (float) strtod((strtok(nullptr, ",")), nullptr);
-      float voltage = (float) strtod((strtok(nullptr, ",")), nullptr);
+    if (this->readline_(this->read(), this->readline_buffer_, MAX_LINE_LENGTH) > 0) {
+      char *token = strtok(this->readline_buffer_, ",");
+      if (!token)
+        continue;
+      int counts = (int) strtol(token, nullptr, 10);
+      token = strtok(nullptr, ",");
+      if (!token)
+        continue;
+      float permittivity = (float) strtod(token, nullptr);
+      token = strtok(nullptr, ",");
+      if (!token)
+        continue;
+      float moisture = (float) strtod(token, nullptr);
+      token = strtok(nullptr, ",");
+      if (!token)
+        continue;
+      float temperature = (float) strtod(token, nullptr);
+      token = strtok(nullptr, ",");
+      if (!token)
+        continue;
+      float voltage = (float) strtod(token, nullptr);
 
       if (this->counts_sensor_ != nullptr) {
         counts_sensor_->publish_state(counts);
@@ -56,7 +70,6 @@ void SMT100Component::dump_config() {
 }
 
 int SMT100Component::readline_(int readch, char *buffer, int len) {
-  static int pos = 0;
   int rpos;
 
   if (readch > 0) {
@@ -64,13 +77,13 @@ int SMT100Component::readline_(int readch, char *buffer, int len) {
       case '\n':  // Ignore new-lines
         break;
       case '\r':  // Return on CR
-        rpos = pos;
-        pos = 0;  // Reset position index ready for next time
+        rpos = this->readline_pos_;
+        this->readline_pos_ = 0;  // Reset position index ready for next time
         return rpos;
       default:
-        if (pos < len - 1) {
-          buffer[pos++] = readch;
-          buffer[pos] = 0;
+        if (this->readline_pos_ < len - 1) {
+          buffer[this->readline_pos_++] = readch;
+          buffer[this->readline_pos_] = 0;
         }
     }
   }
