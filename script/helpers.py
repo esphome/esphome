@@ -785,34 +785,53 @@ def get_fixture_to_test_files() -> dict[str, frozenset[str]]:
     return {k: frozenset(v) for k, v in result.items()}
 
 
+@cache
+def _get_component_to_integration_test_files() -> dict[str, frozenset[str]]:
+    """Build index mapping each component to the test files that depend on it.
+
+    Resolves full dependency trees once per fixture, then inverts the mapping
+    so lookups are O(1) per component.
+
+    Returns:
+        Dictionary mapping component name to frozenset of test file paths
+    """
+    fixture_components = get_components_per_integration_fixture()
+    fixture_to_test_files = get_fixture_to_test_files()
+
+    result: dict[str, set[str]] = {}
+    for fixture_name, components in fixture_components.items():
+        test_files = fixture_to_test_files.get(fixture_name)
+        if not test_files:
+            continue
+        # Get full dependency tree for this fixture's components
+        all_deps = get_all_dependencies(components)
+        for dep in all_deps:
+            result.setdefault(dep, set()).update(test_files)
+
+    return {k: frozenset(v) for k, v in result.items()}
+
+
 def get_integration_test_files_for_components(
     changed_components: set[str],
 ) -> list[str]:
     """Get integration test file paths that use any of the given components.
 
-    For each fixture YAML, resolves the full dependency tree of its components
-    and checks if any overlap with the changed components. Returns the test
-    file paths (relative to repo root) that need to run.
+    Uses a precomputed component → test files index for O(C) lookup
+    where C is the number of changed components.
 
     Args:
         changed_components: Set of component names that have changed
-            (should already include dependencies)
 
     Returns:
         Sorted list of test file paths relative to repo root
         (e.g., ["tests/integration/test_api.py", ...])
     """
-    fixture_components = get_components_per_integration_fixture()
-    fixture_to_test_files = get_fixture_to_test_files()
+    component_to_tests = _get_component_to_integration_test_files()
 
-    # Find which test files need to run
     test_files: set[str] = set()
-    for fixture_name, components in fixture_components.items():
-        # Get full dependency tree for this fixture's components
-        all_deps = get_all_dependencies(components)
-        # If any changed component is in the dependency tree, run the test
-        if changed_components & all_deps and fixture_name in fixture_to_test_files:
-            test_files.update(fixture_to_test_files[fixture_name])
+    for component in changed_components:
+        if component in component_to_tests:
+            test_files.update(component_to_tests[component])
 
     return sorted(test_files)
 
