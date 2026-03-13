@@ -1924,24 +1924,26 @@ def _validate_partition(
     """Validate partition parameters. Raises ValueError on invalid input."""
     if name in RESERVED_PARTITION_NAMES:
         raise ValueError(f"Partition name '{name}' is reserved.")
-    if isinstance(p_type, str) and p_type not in ("app", "data"):
-        raise ValueError(
-            f"Type '{p_type}' is invalid. Only 'app' and 'data' are allowed."
-            " Use numbers for custom types."
-        )
-    if isinstance(subtype, str):
-        if p_type == "app" and subtype not in VALID_APP_SUBTYPES:
+    # Validate string types/subtypes (skip already-normalized hex strings like "0x40")
+    if isinstance(p_type, str) and not p_type.startswith("0x"):
+        if p_type not in ("app", "data"):
             raise ValueError(
-                f"Subtype '{subtype}' is invalid for app type."
-                f" Only {', '.join(sorted(VALID_APP_SUBTYPES))} are allowed."
-                " Use numbers for custom subtypes."
+                f"Type '{p_type}' is invalid. Only 'app' and 'data' are allowed."
+                " Use numbers for custom types."
             )
-        if p_type == "data" and subtype not in VALID_DATA_SUBTYPES:
-            raise ValueError(
-                f"Subtype '{subtype}' is invalid for data type."
-                f" Only {', '.join(sorted(VALID_DATA_SUBTYPES))} are allowed."
-                " Use numbers for custom subtypes."
-            )
+        if isinstance(subtype, str) and not subtype.startswith("0x"):
+            if p_type == "app" and subtype not in VALID_APP_SUBTYPES:
+                raise ValueError(
+                    f"Subtype '{subtype}' is invalid for app type."
+                    f" Only {', '.join(sorted(VALID_APP_SUBTYPES))} are allowed."
+                    " Use numbers for custom subtypes."
+                )
+            if p_type == "data" and subtype not in VALID_DATA_SUBTYPES:
+                raise ValueError(
+                    f"Subtype '{subtype}' is invalid for data type."
+                    f" Only {', '.join(sorted(VALID_DATA_SUBTYPES))} are allowed."
+                    " Use numbers for custom subtypes."
+                )
     if size % 0x1000 != 0:
         raise ValueError("Partition size must be 4KB (0x1000) aligned.")
 
