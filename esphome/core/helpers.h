@@ -1873,14 +1873,22 @@ template<typename T> class Parented {
  */
 class Mutex {
  public:
-  Mutex();
   Mutex(const Mutex &) = delete;
+  Mutex &operator=(const Mutex &) = delete;
+
+#if defined(USE_ESP8266) || defined(USE_RP2040)
+  // Single-threaded platforms: inline no-ops so the compiler eliminates all call overhead.
+  Mutex() = default;
+  ~Mutex() = default;
+  void lock() {}
+  bool try_lock() { return true; }
+  void unlock() {}
+#else
+  Mutex();
   ~Mutex();
   void lock();
   bool try_lock();
   void unlock();
-
-  Mutex &operator=(const Mutex &) = delete;
 
  private:
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
@@ -1889,6 +1897,7 @@ class Mutex {
   // d-pointer to store private data on new platforms
   void *handle_;  // NOLINT(clang-diagnostic-unused-private-field)
 #endif
+#endif  // single-threaded check
 };
 
 /** Helper class that wraps a mutex with a RAII-style API.
