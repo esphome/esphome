@@ -50,9 +50,7 @@ void SPA06Component::setup() {
 
   // 1. Soft reset
   if (!this->soft_reset_()) {
-    ESP_LOGE(TAG, "Reset failed");
-    // TODO: Set internal error code
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Reset failed"));
     return;
   }
 
@@ -62,9 +60,7 @@ void SPA06Component::setup() {
   // 2. Read chip ID
   // TODO: check ID for consistency?
   if (!spa_read_byte(SPA06_ID, &this->prod_id_.reg)) {
-    ESP_LOGE(TAG, "Chip ID read failure");
-    // TODO: Set internal error code
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Chip ID read failure"));
     return;
   }
   ESP_LOGV(TAG,
@@ -76,24 +72,18 @@ void SPA06Component::setup() {
   // 3. Read chip readiness from MEAS_CFG
   //    First check if the sensor reports ready
   if (!spa_read_byte(SPA06_MEAS_CFG, &this->meas_.reg)) {
-    ESP_LOGE(TAG, "Sensor status read failure");
-    // TODO: Set internal error code
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Sensor status read failure"));
     return;
   }
   // Check if the sensor reports coefficients are ready
   if (!meas_.bit.coef_ready) {
-    ESP_LOGE(TAG, "Coefficients not ready");
-    // TODO: Set internal error code
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Coefficients not ready"));
     return;
   }
 
   // 4. Read coefficients
   if (!this->read_coefficients_()) {
-    ESP_LOGE(TAG, "Coefficient read error");
-    // TODO: Set internal error code
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Coefficients read error"));
     return;
   }
 
@@ -121,16 +111,13 @@ void SPA06Component::setup() {
 
   // Write temperature settings
   if (!write_temperature_settings_(this->temperature_oversampling_, this->temperature_rate_)) {
-    ESP_LOGE(TAG, "Temperature settings write fail");
-    // TODO: Set internal error code
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Temperature settings write fail"));
     return;
   }
 
   // Write pressure settings
   if (!write_pressure_settings_(this->pressure_oversampling_, this->pressure_rate_)) {
-    ESP_LOGE(TAG, "Pressure settings write fail");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Pressure settings write fail"));
     return;
   }
   // 6. Write communication settings
@@ -139,18 +126,14 @@ void SPA06Component::setup() {
   // This call also disables interrupts, FIFO, and specifies SPI 4-wire
   if (!write_communication_settings_(this->pressure_oversampling_ > OVERSAMPLING_X8,
                                      this->temperature_oversampling_ > OVERSAMPLING_X8)) {
-    ESP_LOGE(TAG, "Comm settings write fail");
-    // TODO: Set internal error code
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Comm settings write fail"));
     return;
   }
 
   // 7. Write measurement settings
   // This function sets background measurement mode without FIFO
   if (!write_measurement_settings_(this->pressure_sensor_ ? MeasCrtl::MEASCRTL_BG_BOTH : MeasCrtl::MEASCRTL_BG_TEMP)) {
-    ESP_LOGE(TAG, "Measurement settings write fail");
-    // TODO: Set internal error code
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Measurement settings write fail"));
     return;
   }
 }
