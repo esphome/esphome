@@ -46,7 +46,7 @@ _READELF_SECTION_PATTERN = re.compile(
 #   ARM:    bl/blx <addr> <symbol>
 # Captures the mangled symbol name inside angle brackets.
 _CALL_TARGET_PATTERN = re.compile(
-    r"\t(?:call[x]?[048c]|call12|callx12|bl[x]?)\s+[\da-fA-F]+ <([^>]+)>"
+    r"\t(?:call(?:0|4|8|12)|callx(?:0|4|8|12)|blx?)\s+[\da-fA-F]+ <([^>]+)>"
 )
 
 # Component category prefixes
