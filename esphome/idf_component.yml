@@ -4,7 +4,7 @@ dependencies:
   esphome/esp-audio-libs:
     version: 2.0.3
   esphome/micro-opus:
-    version: 0.3.4
+    version: 0.3.5
   espressif/esp-tflite-micro:
     version: 1.3.3~1
   espressif/esp32-camera:
@@ -20,7 +20,7 @@ dependencies:
     rules:
       - if: "target in [esp32h2, esp32p4]"
   espressif/esp_hosted:
-    version: 2.12.0
+    version: 2.12.1
     rules:
       - if: "target in [esp32h2, esp32p4]"
   zorxx/multipart-parser:
