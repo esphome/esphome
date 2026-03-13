@@ -1,21 +1,31 @@
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components import audio
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENTITY_CATEGORY,
+    CONF_FORMAT,
     CONF_ICON,
     CONF_ID,
+    CONF_NUM_CHANNELS,
     CONF_ON_IDLE,
     CONF_ON_STATE,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
+    CONF_SAMPLE_RATE,
+    CONF_SPEAKER,
     CONF_TRIGGER_ID,
     CONF_VOLUME,
 )
 from esphome.core import CORE
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    inherit_property_from,
+    setup_entity,
+)
 from esphome.coroutine import CoroPriority, coroutine_with_priority
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
 
@@ -34,6 +44,94 @@ MEDIA_PLAYER_FORMAT_PURPOSE_ENUM = {
     "default": MediaPlayerFormatPurpose.PURPOSE_DEFAULT,
     "announcement": MediaPlayerFormatPurpose.PURPOSE_ANNOUNCEMENT,
 }
+
+FORMAT_MAPPING = {
+    "FLAC": "flac",
+    "MP3": "mp3",
+    "OPUS": "opus",
+    "WAV": "wav",
+}
+
+
+def build_supported_format_struct(
+    pipeline: ConfigType, purpose: MockObj
+) -> cg.StructInitializer:
+    """Build a MediaPlayerSupportedFormat struct from pipeline config and purpose."""
+    args = [
+        MediaPlayerSupportedFormat,
+        ("format", FORMAT_MAPPING[pipeline[CONF_FORMAT]]),
+        ("sample_rate", pipeline[CONF_SAMPLE_RATE]),
+        ("num_channels", pipeline[CONF_NUM_CHANNELS]),
+        ("purpose", purpose),
+    ]
+
+    # Omit sample_bytes for MP3: ffmpeg transcoding in Home Assistant fails
+    # if the number of bytes per sample is specified for MP3.
+    if pipeline[CONF_FORMAT] != "MP3":
+        args.append(("sample_bytes", 2))
+
+    return cg.StructInitializer(*args)
+
+
+def validate_pipeline(component_name: str) -> cv.Schema:
+    """Return a pipeline validator that inherits speaker settings and validates format constraints."""
+
+    def validator(config: ConfigType) -> ConfigType:
+        # Inherit settings from speaker if not manually set
+        inherit_property_from(CONF_NUM_CHANNELS, CONF_SPEAKER)(config)
+        inherit_property_from(CONF_SAMPLE_RATE, CONF_SPEAKER)(config)
+
+        # Opus only supports 48 kHz
+        if config.get(CONF_FORMAT) == "OPUS" and config.get(CONF_SAMPLE_RATE) != 48000:
+            raise cv.Invalid("Opus only supports a sample rate of 48000 Hz")
+
+        # Validate the settings are compatible with the speaker
+        audio.final_validate_audio_schema(
+            component_name,
+            audio_device=CONF_SPEAKER,
+            bits_per_sample=16,
+            channels=config.get(CONF_NUM_CHANNELS),
+            sample_rate=config.get(CONF_SAMPLE_RATE),
+        )(config)
+
+        return config
+
+    return validator
+
+
+def request_codecs_for_pipelines(
+    config: ConfigType, pipeline_keys: list[str]
+) -> set[str]:
+    """Scan pipelines for configured formats and request the needed codec support.
+
+    Returns the set of explicitly needed format strings (e.g. {"FLAC", "MP3"}).
+    If any pipeline uses "NONE" (accepts any format), all codecs are requested.
+    """
+    needed_formats: set[str] = set()
+    need_all = False
+
+    for pipeline_key in pipeline_keys:
+        if pipeline := config.get(pipeline_key):
+            fmt = pipeline[CONF_FORMAT]
+            if fmt == "NONE":
+                need_all = True
+            else:
+                needed_formats.add(fmt)
+
+    if need_all:
+        audio.request_flac_support()
+        audio.request_mp3_support()
+        audio.request_opus_support()
+    else:
+        if "FLAC" in needed_formats:
+            audio.request_flac_support()
+        if "MP3" in needed_formats:
+            audio.request_mp3_support()
+        if "OPUS" in needed_formats:
+            audio.request_opus_support()
+
+    return needed_formats
+
 
 # Local config key constants
 CONF_ANNOUNCEMENT = "announcement"

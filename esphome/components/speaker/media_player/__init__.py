@@ -26,7 +26,6 @@ from esphome.const import (
     CONF_URL,
 )
 from esphome.core import CORE, HexInt
-from esphome.core.entity_helpers import inherit_property_from
 from esphome.external_files import download_content
 
 _LOGGER = logging.getLogger(__name__)
@@ -104,43 +103,10 @@ def _download_web_file(value):
     return value
 
 
-# Returns a media_player.MediaPlayerSupportedFormat struct with the configured
-# format, sample rate, number of channels, purpose, and bytes per sample
-def _get_supported_format_struct(pipeline, type):
-    args = [
-        media_player.MediaPlayerSupportedFormat,
-    ]
-
-    if pipeline[CONF_FORMAT] == "FLAC":
-        args.append(("format", "flac"))
-    elif pipeline[CONF_FORMAT] == "MP3":
-        args.append(("format", "mp3"))
-    elif pipeline[CONF_FORMAT] == "OPUS":
-        args.append(("format", "opus"))
-    elif pipeline[CONF_FORMAT] == "WAV":
-        args.append(("format", "wav"))
-
-    args.append(("sample_rate", pipeline[CONF_SAMPLE_RATE]))
-    args.append(("num_channels", pipeline[CONF_NUM_CHANNELS]))
-
-    if type == "MEDIA":
-        args.append(
-            (
-                "purpose",
-                media_player.MEDIA_PLAYER_FORMAT_PURPOSE_ENUM["default"],
-            )
-        )
-    elif type == "ANNOUNCEMENT":
-        args.append(
-            (
-                "purpose",
-                media_player.MEDIA_PLAYER_FORMAT_PURPOSE_ENUM["announcement"],
-            )
-        )
-    if pipeline[CONF_FORMAT] != "MP3":
-        args.append(("sample_bytes", 2))
-
-    return cg.StructInitializer(*args)
+_PURPOSE_MAP = {
+    "MEDIA": media_player.MEDIA_PLAYER_FORMAT_PURPOSE_ENUM["default"],
+    "ANNOUNCEMENT": media_player.MEDIA_PLAYER_FORMAT_PURPOSE_ENUM["announcement"],
+}
 
 
 def _file_schema(value):
@@ -208,25 +174,7 @@ def _validate_file_shorthand(value):
     )
 
 
-def _validate_pipeline(config):
-    # Inherit transcoder settings from speaker if not manually set
-    inherit_property_from(CONF_NUM_CHANNELS, CONF_SPEAKER)(config)
-    inherit_property_from(CONF_SAMPLE_RATE, CONF_SPEAKER)(config)
-
-    # Opus only supports 48 kHz
-    if config.get(CONF_FORMAT) == "OPUS" and config.get(CONF_SAMPLE_RATE) != 48000:
-        raise cv.Invalid("Opus only supports a sample rate of 48000 Hz")
-
-    # Validate the transcoder settings is compatible with the speaker
-    audio.final_validate_audio_schema(
-        "speaker media_player",
-        audio_device=CONF_SPEAKER,
-        bits_per_sample=16,
-        channels=config.get(CONF_NUM_CHANNELS),
-        sample_rate=config.get(CONF_SAMPLE_RATE),
-    )(config)
-
-    return config
+_validate_pipeline = media_player.validate_pipeline("speaker media_player")
 
 
 def _validate_repeated_speaker(config):
@@ -252,19 +200,7 @@ def _final_validate(config):
 
     use_codec = codec_mode != CODEC_SUPPORT_NONE
 
-    # In "needed" mode, collect formats from pipelines and files
-    needed_formats = set()
-    need_all = False
-    if codec_mode == CODEC_SUPPORT_NEEDED:
-        for pipeline_key in (CONF_ANNOUNCEMENT_PIPELINE, CONF_MEDIA_PIPELINE):
-            if pipeline := config.get(pipeline_key):
-                fmt = pipeline[CONF_FORMAT]
-                if fmt == "NONE":
-                    # No preferred format means any format could arrive
-                    need_all = True
-                else:
-                    needed_formats.add(fmt)
-
+    # Validate all local files have a recognized type (regardless of codec mode)
     for file_config in config.get(CONF_FILES, []):
         _, media_file_type = _read_audio_file_and_type(file_config)
         if str(media_file_type) == str(audio.AUDIO_FILE_TYPE_ENUM["NONE"]):
@@ -272,24 +208,28 @@ def _final_validate(config):
         if not use_codec and str(media_file_type) != str(
             audio.AUDIO_FILE_TYPE_ENUM["WAV"]
         ):
-            # Only wav files are supported
             raise cv.Invalid(
                 f"Unsupported local media file type, set {CONF_CODEC_SUPPORT_ENABLED} to true or convert the media file to wav"
             )
-        # In "needed" mode, add file format to needed codecs
-        if codec_mode == CODEC_SUPPORT_NEEDED:
+
+    if codec_mode == CODEC_SUPPORT_ALL:
+        audio.request_flac_support()
+        audio.request_mp3_support()
+        audio.request_opus_support()
+    elif codec_mode == CODEC_SUPPORT_NEEDED:
+        needed_formats = media_player.request_codecs_for_pipelines(
+            config, [CONF_ANNOUNCEMENT_PIPELINE, CONF_MEDIA_PIPELINE]
+        )
+
+        # Also collect formats from local files
+        for file_config in config.get(CONF_FILES, []):
+            _, media_file_type = _read_audio_file_and_type(file_config)
             for fmt_name, fmt_enum in audio.AUDIO_FILE_TYPE_ENUM.items():
                 if str(media_file_type) == str(fmt_enum):
                     if fmt_name not in ("WAV", "NONE"):
                         needed_formats.add(fmt_name)
                     break
-
-    # Request codec support
-    if codec_mode == CODEC_SUPPORT_ALL or need_all:
-        audio.request_flac_support()
-        audio.request_mp3_support()
-        audio.request_opus_support()
-    elif codec_mode == CODEC_SUPPORT_NEEDED:
+        # Request any additional codecs needed by local files
         if "FLAC" in needed_formats:
             audio.request_flac_support()
         if "MP3" in needed_formats:
@@ -430,8 +370,8 @@ async def to_code(config):
     if announcement_pipeline_config[CONF_FORMAT] != "NONE":
         cg.add(
             var.set_announcement_format(
-                _get_supported_format_struct(
-                    announcement_pipeline_config, "ANNOUNCEMENT"
+                media_player.build_supported_format_struct(
+                    announcement_pipeline_config, _PURPOSE_MAP["ANNOUNCEMENT"]
                 )
             )
         )
@@ -442,7 +382,9 @@ async def to_code(config):
         if media_pipeline_config[CONF_FORMAT] != "NONE":
             cg.add(
                 var.set_media_format(
-                    _get_supported_format_struct(media_pipeline_config, "MEDIA")
+                    media_player.build_supported_format_struct(
+                        media_pipeline_config, _PURPOSE_MAP["MEDIA"]
+                    )
                 )
             )
 
