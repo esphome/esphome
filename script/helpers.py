@@ -777,7 +777,7 @@ def get_fixture_to_test_files() -> dict[str, frozenset[str]]:
 
     for test_file in integration_dir.glob("test_*.py"):
         content = test_file.read_text(encoding="utf-8")
-        rel_path = str(test_file.relative_to(Path(__file__).parent.parent))
+        rel_path = test_file.relative_to(Path(__file__).parent.parent).as_posix()
         for func in _TEST_FUNC_RE.findall(content):
             base_name = func.replace("test_", "").partition("[")[0]
             result.setdefault(base_name, set()).add(rel_path)
