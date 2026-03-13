@@ -415,6 +415,112 @@ def test_determine_integration_tests_component_dependency() -> None:
         ]
 
 
+def test_determine_integration_tests_component_only_affected_tests() -> None:
+    """Test that only tests using the changed component are returned."""
+    with (
+        patch.object(
+            determine_jobs,
+            "changed_files",
+            return_value=["esphome/components/modbus/modbus.cpp"],
+        ),
+        patch.object(determine_jobs, "get_fixture_to_test_files", return_value={}),
+        patch.object(
+            determine_jobs, "get_integration_test_files_for_components"
+        ) as mock_test_files,
+    ):
+        mock_test_files.return_value = [
+            "tests/integration/test_uart_mock_modbus.py",
+        ]
+        run_all, test_files = determine_jobs.determine_integration_tests()
+        assert run_all is False
+        assert test_files == ["tests/integration/test_uart_mock_modbus.py"]
+        # Verify it was called with the right component
+        mock_test_files.assert_called_once_with({"modbus"})
+
+
+def test_determine_integration_tests_infra_file_runs_all() -> None:
+    """Test that changing infrastructure files (conftest.py, etc.) runs all tests."""
+    with patch.object(
+        determine_jobs,
+        "changed_files",
+        return_value=["tests/integration/conftest.py"],
+    ):
+        run_all, test_files = determine_jobs.determine_integration_tests()
+        assert run_all is True
+        assert test_files == []
+
+
+def test_determine_integration_tests_readme_does_not_run_all() -> None:
+    """Test that changing README.md does not trigger integration tests."""
+    with patch.object(
+        determine_jobs,
+        "changed_files",
+        return_value=["tests/integration/README.md"],
+    ):
+        run_all, test_files = determine_jobs.determine_integration_tests()
+        assert run_all is False
+        assert test_files == []
+
+
+def test_determine_integration_tests_changed_test_file() -> None:
+    """Test that changing a specific test file only runs that test."""
+    with (
+        patch.object(
+            determine_jobs,
+            "changed_files",
+            return_value=["tests/integration/test_syslog.py"],
+        ),
+        patch.object(determine_jobs, "get_fixture_to_test_files", return_value={}),
+        patch.object(
+            determine_jobs,
+            "get_integration_test_files_for_components",
+            return_value=[],
+        ),
+    ):
+        run_all, test_files = determine_jobs.determine_integration_tests()
+        assert run_all is False
+        assert test_files == ["tests/integration/test_syslog.py"]
+
+
+def test_determine_integration_tests_changed_fixture_yaml() -> None:
+    """Test that changing a fixture YAML runs the corresponding test file."""
+    with (
+        patch.object(
+            determine_jobs,
+            "changed_files",
+            return_value=["tests/integration/fixtures/uart_mock_modbus.yaml"],
+        ),
+        patch.object(determine_jobs, "get_fixture_to_test_files") as mock_fixture_map,
+        patch.object(
+            determine_jobs,
+            "get_integration_test_files_for_components",
+            return_value=[],
+        ),
+    ):
+        mock_fixture_map.return_value = {
+            "uart_mock_modbus": frozenset(
+                {"tests/integration/test_uart_mock_modbus.py"}
+            ),
+        }
+        run_all, test_files = determine_jobs.determine_integration_tests()
+        assert run_all is False
+        assert test_files == ["tests/integration/test_uart_mock_modbus.py"]
+
+
+def test_determine_integration_tests_non_yaml_fixture_runs_all() -> None:
+    """Test that non-YAML changes under fixtures/ (e.g., external_components) run all tests."""
+    with patch.object(
+        determine_jobs,
+        "changed_files",
+        return_value=[
+            "tests/integration/fixtures/external_components/test_component/__init__.py"
+        ],
+    ):
+        run_all, test_files = determine_jobs.determine_integration_tests()
+        assert run_all is True
+        assert test_files == []
+
+
 @pytest.mark.parametrize(
     ("check_returncode", "changed_files", "expected_result"),
     [
