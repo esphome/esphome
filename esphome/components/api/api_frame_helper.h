@@ -154,7 +154,7 @@ class APIFrameHelper {
       return;
     }
 
-    // Log messages 1-3: state transitions -1 -> 1 -> 2 -> -1 (flush on 3rd)
+    // Log messages: state transitions -1 -> 1 -> ... -> LOG_NAGLE_COUNT -> -1 (flush)
     if (this->nodelay_state_ == NODELAY_ON) {
       this->set_nodelay_raw_(false);
       this->nodelay_state_ = 1;
