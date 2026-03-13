@@ -1962,7 +1962,7 @@ class LwIPLock {
   LwIPLock();
   ~LwIPLock();
 #else
-  // Single-threaded or no lwIP core locking — inline no-ops
+  // No lwIP core locking — inline no-ops
   LwIPLock() = default;
   ~LwIPLock() = default;
 #endif
