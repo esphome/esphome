@@ -189,23 +189,27 @@ void FriedrichClimate::transmit_state() {
   }
 
   // Set fan
-  switch (this->fan_mode.value()) {
-    case climate::CLIMATE_FAN_HIGH:
-      remote_state[8] = BYTE8_FAN_HIGH;
-      break;
-    case climate::CLIMATE_FAN_MEDIUM:
-      remote_state[8] = BYTE8_FAN_MED;
-      break;
-    case climate::CLIMATE_FAN_LOW:
-      remote_state[8] = BYTE8_FAN_LOW;
-      break;
-    case climate::CLIMATE_FAN_QUIET:
-      remote_state[8] = BYTE8_FAN_QUIET;
-      break;
-    case climate::CLIMATE_FAN_AUTO:
-    default:
-      remote_state[8] = BYTE8_FAN_AUTO;
-      break;
+  if (fan_mode.has_value()) {
+    switch (this->fan_mode.value()) {
+      case climate::CLIMATE_FAN_HIGH:
+        remote_state[8] = BYTE8_FAN_HIGH;
+        break;
+      case climate::CLIMATE_FAN_MEDIUM:
+        remote_state[8] = BYTE8_FAN_MED;
+        break;
+      case climate::CLIMATE_FAN_LOW:
+        remote_state[8] = BYTE8_FAN_LOW;
+        break;
+      case climate::CLIMATE_FAN_QUIET:
+        remote_state[8] = BYTE8_FAN_QUIET;
+        break;
+      case climate::CLIMATE_FAN_AUTO:
+      default:
+        remote_state[8] = BYTE8_FAN_AUTO;
+        break;
+    }
+  } else {
+    remote_state[8] = BYTE8_FAN_AUTO;
   }
 
   // Set swing
