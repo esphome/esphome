@@ -211,12 +211,6 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_ZWAVE_PROXY
   virtual void on_z_wave_proxy_request(const ZWaveProxyRequest &value){};
 #endif
-#ifdef USE_ZIGBEE_PROXY
-  virtual void on_zigbee_proxy_frame(const ZigbeeProxyFrame &value){};
-#endif
-#ifdef USE_ZIGBEE_PROXY
-  virtual void on_zigbee_proxy_request(const ZigbeeProxyRequest &value){};
-#endif
 
 #ifdef USE_IR_RF
   virtual void on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &value){};
@@ -244,6 +238,12 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &value){};
 #endif
 
+#ifdef USE_ZIGBEE_PROXY
+  virtual void on_zigbee_proxy_frame(const ZigbeeProxyFrame &value){};
+#endif
+#ifdef USE_ZIGBEE_PROXY
+  virtual void on_zigbee_proxy_request(const ZigbeeProxyRequest &value){};
+#endif
  protected:
   void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;
 };
