@@ -183,7 +183,7 @@ class APIConnection final : public APIServerConnectionBase {
 #ifdef USE_ZIGBEE_PROXY
   void on_zigbee_proxy_frame(const ZigbeeProxyFrame &msg) override;
   void on_zigbee_proxy_request(const ZigbeeProxyRequest &msg) override;
-  void send_zigbee_proxy_frame(const ZigbeeProxyFrame &msg) { this->send_message(msg, ZigbeeProxyFrame::MESSAGE_TYPE); }
+  void send_zigbee_proxy_frame(const ZigbeeProxyFrame &msg) { this->send_message(msg); }
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
