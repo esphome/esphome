@@ -18,14 +18,23 @@ key_collector:
       - logger.log:
           format: "input progress: '%s', started by '%c'"
           args: ['x.c_str()', "(start == 0 ? '~' : start)"]
+      - logger.log:
+          format: "second listener - progress: '%s'"
+          args: ['x.c_str()']
     on_result:
       - logger.log:
           format: "input result: '%s', started by '%c', ended by '%c'"
           args: ['x.c_str()', "(start == 0 ? '~' : start)", "(end == 0 ? '~' : end)"]
+      - logger.log:
+          format: "second listener - result: '%s'"
+          args: ['x.c_str()']
     on_timeout:
       - logger.log:
           format: "input timeout: '%s', started by '%c'"
           args: ['x.c_str()', "(start == 0 ? '~' : start)"]
+      - logger.log:
+          format: "second listener - timeout: '%s'"
+          args: ['x.c_str()']
     enable_on_boot: false
 
 button:
@@ -34,3 +43,8 @@ button:
     on_press:
       - key_collector.enable:
       - key_collector.disable:
+
+text_sensor:
+  - platform: key_collector
+    id: collected_keys
+    source_id: reader

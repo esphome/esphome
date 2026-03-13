@@ -5,6 +5,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::template_ {
 
@@ -28,18 +29,11 @@ void TemplateAlarmControlPanel::add_sensor(binary_sensor::BinarySensor *sensor, 
   this->sensor_data_.push_back(sd);
 };
 
+// Alarm sensor type strings indexed by AlarmSensorType enum (0-3): DELAYED, INSTANT, DELAYED_FOLLOWER, INSTANT_ALWAYS
+PROGMEM_STRING_TABLE(AlarmSensorTypeStrings, "delayed", "instant", "delayed_follower", "instant_always");
+
 static const LogString *sensor_type_to_string(AlarmSensorType type) {
-  switch (type) {
-    case ALARM_SENSOR_TYPE_INSTANT:
-      return LOG_STR("instant");
-    case ALARM_SENSOR_TYPE_DELAYED_FOLLOWER:
-      return LOG_STR("delayed_follower");
-    case ALARM_SENSOR_TYPE_INSTANT_ALWAYS:
-      return LOG_STR("instant_always");
-    case ALARM_SENSOR_TYPE_DELAYED:
-    default:
-      return LOG_STR("delayed");
-  }
+  return AlarmSensorTypeStrings::get_log_str(static_cast<uint8_t>(type), 0);
 }
 #endif
 
@@ -263,14 +257,16 @@ void TemplateAlarmControlPanel::bypass_before_arming() {
 }
 
 void TemplateAlarmControlPanel::control(const AlarmControlPanelCall &call) {
-  if (call.get_state()) {
-    if (call.get_state() == ACP_STATE_ARMED_AWAY) {
+  auto opt_state = call.get_state();
+  if (opt_state) {
+    auto state = *opt_state;
+    if (state == ACP_STATE_ARMED_AWAY) {
       this->arm_(call.get_code(), ACP_STATE_ARMED_AWAY, this->arming_away_time_);
-    } else if (call.get_state() == ACP_STATE_ARMED_HOME) {
+    } else if (state == ACP_STATE_ARMED_HOME) {
       this->arm_(call.get_code(), ACP_STATE_ARMED_HOME, this->arming_home_time_);
-    } else if (call.get_state() == ACP_STATE_ARMED_NIGHT) {
+    } else if (state == ACP_STATE_ARMED_NIGHT) {
       this->arm_(call.get_code(), ACP_STATE_ARMED_NIGHT, this->arming_night_time_);
-    } else if (call.get_state() == ACP_STATE_DISARMED) {
+    } else if (state == ACP_STATE_DISARMED) {
       if (!this->is_code_valid_(call.get_code())) {
         ESP_LOGW(TAG, "Not disarming code doesn't match");
         return;
@@ -280,13 +276,12 @@ void TemplateAlarmControlPanel::control(const AlarmControlPanelCall &call) {
 #ifdef USE_BINARY_SENSOR
       this->bypassed_sensor_indicies_.clear();
 #endif
-    } else if (call.get_state() == ACP_STATE_TRIGGERED) {
+    } else if (state == ACP_STATE_TRIGGERED) {
       this->publish_state(ACP_STATE_TRIGGERED);
-    } else if (call.get_state() == ACP_STATE_PENDING) {
+    } else if (state == ACP_STATE_PENDING) {
       this->publish_state(ACP_STATE_PENDING);
     } else {
-      ESP_LOGE(TAG, "State not yet implemented: %s",
-               LOG_STR_ARG(alarm_control_panel_state_to_string(*call.get_state())));
+      ESP_LOGE(TAG, "State not yet implemented: %s", LOG_STR_ARG(alarm_control_panel_state_to_string(state)));
     }
   }
 }

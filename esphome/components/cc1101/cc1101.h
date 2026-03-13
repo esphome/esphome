@@ -79,7 +79,7 @@ class CC1101Component : public Component,
   // Packet mode operations
   CC1101Error transmit_packet(const std::vector<uint8_t> &packet);
   void register_listener(CC1101Listener *listener) { this->listeners_.push_back(listener); }
-  Trigger<std::vector<uint8_t>, float, float, uint8_t> *get_packet_trigger() const { return this->packet_trigger_; }
+  Trigger<std::vector<uint8_t>, float, float, uint8_t> *get_packet_trigger() { return &this->packet_trigger_; }
 
  protected:
   uint16_t chip_id_{0};
@@ -96,8 +96,7 @@ class CC1101Component : public Component,
 
   // Packet handling
   void call_listeners_(const std::vector<uint8_t> &packet, float freq_offset, float rssi, uint8_t lqi);
-  Trigger<std::vector<uint8_t>, float, float, uint8_t> *packet_trigger_{
-      new Trigger<std::vector<uint8_t>, float, float, uint8_t>()};
+  Trigger<std::vector<uint8_t>, float, float, uint8_t> packet_trigger_;
   std::vector<uint8_t> packet_;
   std::vector<CC1101Listener *> listeners_;
 
@@ -160,6 +159,84 @@ template<typename... Ts> class SendPacketAction : public Action<Ts...>, public P
   std::function<std::vector<uint8_t>(Ts...)> data_func_{};
   const uint8_t *data_static_{nullptr};
   size_t data_static_len_{0};
+};
+
+template<typename... Ts> class SetSymbolRateAction : public Action<Ts...>, public Parented<CC1101Component> {
+ public:
+  TEMPLATABLE_VALUE(float, symbol_rate)
+  void play(const Ts &...x) override { this->parent_->set_symbol_rate(this->symbol_rate_.value(x...)); }
+};
+
+template<typename... Ts> class SetFrequencyAction : public Action<Ts...>, public Parented<CC1101Component> {
+ public:
+  TEMPLATABLE_VALUE(float, frequency)
+  void play(const Ts &...x) override { this->parent_->set_frequency(this->frequency_.value(x...)); }
+};
+
+template<typename... Ts> class SetOutputPowerAction : public Action<Ts...>, public Parented<CC1101Component> {
+ public:
+  TEMPLATABLE_VALUE(float, output_power)
+  void play(const Ts &...x) override { this->parent_->set_output_power(this->output_power_.value(x...)); }
+};
+
+template<typename... Ts> class SetModulationTypeAction : public Action<Ts...>, public Parented<CC1101Component> {
+ public:
+  TEMPLATABLE_VALUE(Modulation, modulation_type)
+  void play(const Ts &...x) override { this->parent_->set_modulation_type(this->modulation_type_.value(x...)); }
+};
+
+template<typename... Ts> class SetRxAttenuationAction : public Action<Ts...>, public Parented<CC1101Component> {
+ public:
+  TEMPLATABLE_VALUE(RxAttenuation, rx_attenuation)
+  void play(const Ts &...x) override { this->parent_->set_rx_attenuation(this->rx_attenuation_.value(x...)); }
+};
+
+template<typename... Ts> class SetDcBlockingFilterAction : public Action<Ts...>, public Parented<CC1101Component> {
+ public:
+  TEMPLATABLE_VALUE(bool, dc_blocking_filter)
+  void play(const Ts &...x) override { this->parent_->set_dc_blocking_filter(this->dc_blocking_filter_.value(x...)); }
+};
+
+template<typename... Ts> class SetManchesterAction : public Action<Ts...>, public Parented<CC1101Component> {
+ public:
+  TEMPLATABLE_VALUE(bool, manchester)
+  void play(const Ts &...x) override { this->parent_->set_manchester(this->manchester_.value(x...)); }
+};
+
+template<typename... Ts> class SetFilterBandwidthAction : public Action<Ts...>, public Parented<CC1101Component> {
+ public:
+  TEMPLATABLE_VALUE(float, filter_bandwidth)
+  void play(const Ts &...x) override { this->parent_->set_filter_bandwidth(this->filter_bandwidth_.value(x...)); }
+};
+
+template<typename... Ts> class SetFskDeviationAction : public Action<Ts...>, public Parented<CC1101Component> {
+ public:
+  TEMPLATABLE_VALUE(float, fsk_deviation)
+  void play(const Ts &...x) override { this->parent_->set_fsk_deviation(this->fsk_deviation_.value(x...)); }
+};
+
+template<typename... Ts> class SetMskDeviationAction : public Action<Ts...>, public Parented<CC1101Component> {
+ public:
+  TEMPLATABLE_VALUE(uint8_t, msk_deviation)
+  void play(const Ts &...x) override { this->parent_->set_msk_deviation(this->msk_deviation_.value(x...)); }
+};
+
+template<typename... Ts> class SetChannelAction : public Action<Ts...>, public Parented<CC1101Component> {
+ public:
+  TEMPLATABLE_VALUE(uint8_t, channel)
+  void play(const Ts &...x) override { this->parent_->set_channel(this->channel_.value(x...)); }
+};
+
+template<typename... Ts> class SetChannelSpacingAction : public Action<Ts...>, public Parented<CC1101Component> {
+ public:
+  TEMPLATABLE_VALUE(float, channel_spacing)
+  void play(const Ts &...x) override { this->parent_->set_channel_spacing(this->channel_spacing_.value(x...)); }
+};
+
+template<typename... Ts> class SetIfFrequencyAction : public Action<Ts...>, public Parented<CC1101Component> {
+ public:
+  TEMPLATABLE_VALUE(float, if_frequency)
+  void play(const Ts &...x) override { this->parent_->set_if_frequency(this->if_frequency_.value(x...)); }
 };
 
 }  // namespace esphome::cc1101

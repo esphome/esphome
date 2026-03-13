@@ -106,12 +106,19 @@ void MR24HPC1Component::update_() {
 
 // main loop
 void MR24HPC1Component::loop() {
-  uint8_t byte;
+  // Read all available bytes in batches to reduce UART call overhead.
+  size_t avail = this->available();
+  uint8_t buf[64];
+  while (avail > 0) {
+    size_t to_read = std::min(avail, sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
+    }
+    avail -= to_read;
 
-  // Is there data on the serial port
-  while (this->available()) {
-    this->read_byte(&byte);
-    this->r24_split_data_frame_(byte);  // split data frame
+    for (size_t i = 0; i < to_read; i++) {
+      this->r24_split_data_frame_(buf[i]);  // split data frame
+    }
   }
 
   if ((this->s_output_info_switch_flag_ == OUTPUT_SWTICH_OFF) &&
@@ -445,7 +452,8 @@ void MR24HPC1Component::r24_frame_parse_open_underlying_information_(uint8_t *da
       }
       break;
     case 0x83:
-      if (this->custom_presence_of_detection_sensor_ != nullptr) {
+      if (this->custom_presence_of_detection_sensor_ != nullptr &&
+          data[FRAME_DATA_INDEX] < std::size(S_PRESENCE_OF_DETECTION_RANGE_STR)) {
         this->custom_presence_of_detection_sensor_->publish_state(
             S_PRESENCE_OF_DETECTION_RANGE_STR[data[FRAME_DATA_INDEX]]);
       }
@@ -639,7 +647,7 @@ void MR24HPC1Component::r24_frame_parse_human_information_(uint8_t *data) {
 #ifdef USE_BINARY_SENSOR
     case 0x01:
     case 0x81:
-      if (this->has_target_binary_sensor_ != nullptr) {
+      if (this->has_target_binary_sensor_ != nullptr && data[FRAME_DATA_INDEX] < std::size(S_SOMEONE_EXISTS_STR)) {
         this->has_target_binary_sensor_->publish_state(S_SOMEONE_EXISTS_STR[data[FRAME_DATA_INDEX]]);
       }
       break;

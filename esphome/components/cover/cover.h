@@ -10,8 +10,8 @@
 
 namespace esphome::cover {
 
-const extern float COVER_OPEN;
-const extern float COVER_CLOSED;
+static constexpr float COVER_OPEN = 1.0f;
+static constexpr float COVER_CLOSED = 0.0f;
 
 #define LOG_COVER(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -107,7 +107,7 @@ const LogString *cover_operation_to_str(CoverOperation op);
  * to control all values of the cover. Also implement get_traits() to return what operations
  * the cover supports.
  */
-class Cover : public EntityBase, public EntityBase_DeviceClass {
+class Cover : public EntityBase {
  public:
   explicit Cover();
 

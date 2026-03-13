@@ -43,14 +43,13 @@ void HTE501Component::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
-float HTE501Component::get_setup_priority() const { return setup_priority::DATA; }
 void HTE501Component::update() {
   uint8_t address_1[] = {0x2C, 0x1B};
   this->write(address_1, 2);
   this->set_timeout(50, [this]() {
     uint8_t i2c_response[6];
     this->read(i2c_response, 6);
-    if (i2c_response[2] != crc8(i2c_response, 2, 0xFF, 0x31, true) &&
+    if (i2c_response[2] != crc8(i2c_response, 2, 0xFF, 0x31, true) ||
         i2c_response[5] != crc8(i2c_response + 3, 2, 0xFF, 0x31, true)) {
       this->error_code_ = CRC_CHECK_FAILED;
       this->status_set_warning();

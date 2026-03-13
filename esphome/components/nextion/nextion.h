@@ -1048,7 +1048,6 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
   void setup() override;
   void set_brightness(float brightness) { this->brightness_ = brightness; }
-  float get_setup_priority() const override;
   void update() override;
   void loop() override;
   void set_writer(const nextion_writer_t &writer);
@@ -1072,6 +1071,33 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   bool send_command_printf(const char *format, ...) __attribute__((format(printf, 2, 3)));
 
 #ifdef USE_NEXTION_TFT_UPLOAD
+  /**
+   * @brief Set the HTTP timeout for TFT upload requests.
+   * @param timeout_ms Timeout in milliseconds. Defaults to 4500ms (4.5s).
+   */
+  void set_tft_upload_http_timeout(uint16_t timeout_ms) { this->tft_upload_http_timeout_ = timeout_ms; }
+
+#ifdef USE_ESP32
+  /**
+   * @brief Set the watchdog timeout during TFT upload.
+   *
+   * The system watchdog timeout is temporarily adjusted to this value
+   * during the entire TFT transfer process and restored to the original
+   * value after the transfer completes (whether successful or not).
+   *
+   * A value of 0 means no watchdog adjustment (default).
+   *
+   * @param timeout_ms Watchdog timeout in milliseconds. 0 = no adjustment.
+   */
+  void set_tft_upload_watchdog_timeout(uint32_t timeout_ms) { this->tft_upload_watchdog_timeout_ = timeout_ms; }
+#endif  // USE_ESP32
+
+  /**
+   * @brief Set the number of HTTP retries for TFT upload requests.
+   * @param retries Number of retries. Defaults to 5. Range: 1-255.
+   */
+  void set_tft_upload_http_retries(uint8_t retries) { this->tft_upload_http_retries_ = retries; }
+
   /**
    * Set the tft file URL.
    */
@@ -1440,8 +1466,12 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   int tft_size_ = 0;
   uint32_t original_baud_rate_ = 0;
   bool upload_first_chunk_sent_ = false;
+  uint16_t tft_upload_http_timeout_{4500};  ///< HTTP timeout in ms (default: 4.5s)
+  uint8_t tft_upload_http_retries_{5};      ///< HTTP retry count (default: 5)
 
 #ifdef USE_ESP32
+  uint32_t tft_upload_watchdog_timeout_{0};  ///< WDT timeout in ms (0 = no adjustment)
+
   /**
    * will request 4096 bytes chunks from the web server
    * and send each to Nextion

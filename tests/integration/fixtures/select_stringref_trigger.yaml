@@ -56,7 +56,21 @@ select:
             std::string prefix = x.substr(0, 6);
             ESP_LOGI("test", "Substr prefix: %s", prefix.c_str());
 
-  # Second select with numeric options to test ADL functions
+  # Second select with set_action trigger (uses TemplateSelectWithSetAction subclass)
+  - platform: template
+    name: "Action Select"
+    id: action_select
+    options:
+      - "Action A"
+      - "Action B"
+    set_action:
+      then:
+        # Test: set_action trigger receives StringRef
+        - logger.log:
+            format: "set_action triggered: %s"
+            args: ['x.c_str()']
+
+  # Third select with numeric options to test ADL functions
   - platform: template
     name: "Baud Rate"
     id: baud_select

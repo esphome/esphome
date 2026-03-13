@@ -16,7 +16,6 @@
 #include <type_traits>
 #include <vector>
 #include <concepts>
-
 #include <strings.h>
 
 #include "esphome/core/optional.h"
@@ -134,6 +133,78 @@ template<typename T> class ConstVector {
   size_t size_;
 };
 
+/// Small buffer optimization - stores data inline when small, heap-allocates for large data
+/// This avoids heap fragmentation for common small allocations while supporting arbitrary sizes.
+/// Memory management is encapsulated - callers just use set() and data().
+template<size_t InlineSize = 8> class SmallInlineBuffer {
+ public:
+  SmallInlineBuffer() = default;
+  ~SmallInlineBuffer() {
+    if (!this->is_inline_())
+      delete[] this->heap_;
+  }
+
+  // Move constructor
+  SmallInlineBuffer(SmallInlineBuffer &&other) noexcept : len_(other.len_) {
+    if (other.is_inline_()) {
+      memcpy(this->inline_, other.inline_, this->len_);
+    } else {
+      this->heap_ = other.heap_;
+      other.heap_ = nullptr;
+    }
+    other.len_ = 0;
+  }
+
+  // Move assignment
+  SmallInlineBuffer &operator=(SmallInlineBuffer &&other) noexcept {
+    if (this != &other) {
+      if (!this->is_inline_())
+        delete[] this->heap_;
+      this->len_ = other.len_;
+      if (other.is_inline_()) {
+        memcpy(this->inline_, other.inline_, this->len_);
+      } else {
+        this->heap_ = other.heap_;
+        other.heap_ = nullptr;
+      }
+      other.len_ = 0;
+    }
+    return *this;
+  }
+
+  // Disable copy (would need deep copy of heap data)
+  SmallInlineBuffer(const SmallInlineBuffer &) = delete;
+  SmallInlineBuffer &operator=(const SmallInlineBuffer &) = delete;
+
+  /// Set buffer contents, allocating heap if needed
+  void set(const uint8_t *src, size_t size) {
+    // Free existing heap allocation if switching from heap to inline or different heap size
+    if (!this->is_inline_() && (size <= InlineSize || size != this->len_)) {
+      delete[] this->heap_;
+      this->heap_ = nullptr;  // Defensive: prevent use-after-free if logic changes
+    }
+    // Allocate new heap buffer if needed
+    if (size > InlineSize && (this->is_inline_() || size != this->len_)) {
+      this->heap_ = new uint8_t[size];  // NOLINT(cppcoreguidelines-owning-memory)
+    }
+    this->len_ = size;
+    memcpy(this->data(), src, size);
+  }
+
+  uint8_t *data() { return this->is_inline_() ? this->inline_ : this->heap_; }
+  const uint8_t *data() const { return this->is_inline_() ? this->inline_ : this->heap_; }
+  size_t size() const { return this->len_; }
+
+ protected:
+  bool is_inline_() const { return this->len_ <= InlineSize; }
+
+  size_t len_{0};
+  union {
+    uint8_t inline_[InlineSize]{};  // Zero-init ensures clean initial state
+    uint8_t *heap_;
+  };
+};
+
 /// Minimal static vector - saves memory by avoiding std::vector overhead
 template<typename T, size_t N> class StaticVector {
  public:
@@ -144,7 +215,7 @@ template<typename T, size_t N> class StaticVector {
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
  private:
-  std::array<T, N> data_{};
+  std::array<T, N> data_;  // intentionally not value-initialized to avoid memset
   size_t count_{0};
 
  public:
@@ -220,6 +291,81 @@ template<typename T, size_t N> class StaticVector {
   // Conversion to std::span for compatibility with span-based APIs
   operator std::span<T>() { return std::span<T>(data_.data(), count_); }
   operator std::span<const T>() const { return std::span<const T>(data_.data(), count_); }
+};
+
+/// Fixed-size circular buffer with FIFO semantics and iteration support.
+///
+/// A tiny ring buffer that avoids dynamic allocations from std::deque/std::queue
+/// (which can be wasteful on MCUs), while supporting iteration over queued elements.
+///
+/// Not thread-safe. All access (push/pop/iteration) must occur from a single
+/// context, or the caller must provide external synchronization.
+template<typename T, size_t N> class StaticRingBuffer {
+  using index_type = std::conditional_t<(N <= 255), uint8_t, uint16_t>;
+
+ public:
+  class Iterator {
+   public:
+    Iterator(StaticRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
+    T &operator*() { return buf_->data_[(buf_->head_ + pos_) % N]; }
+    Iterator &operator++() {
+      ++pos_;
+      return *this;
+    }
+    bool operator!=(const Iterator &other) const { return pos_ != other.pos_; }
+
+   private:
+    StaticRingBuffer *buf_;
+    index_type pos_;
+  };
+
+  class ConstIterator {
+   public:
+    ConstIterator(const StaticRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
+    const T &operator*() const { return buf_->data_[(buf_->head_ + pos_) % N]; }
+    ConstIterator &operator++() {
+      ++pos_;
+      return *this;
+    }
+    bool operator!=(const ConstIterator &other) const { return pos_ != other.pos_; }
+
+   private:
+    const StaticRingBuffer *buf_;
+    index_type pos_;
+  };
+
+  bool push(const T &value) {
+    if (this->count_ >= N) {
+      return false;
+    }
+    this->data_[this->tail_] = value;
+    this->tail_ = (this->tail_ + 1) % N;
+    ++this->count_;
+    return true;
+  }
+
+  void pop() {
+    if (this->count_ > 0) {
+      this->head_ = (this->head_ + 1) % N;
+      --this->count_;
+    }
+  }
+
+  T &front() { return this->data_[this->head_]; }
+  const T &front() const { return this->data_[this->head_]; }
+  index_type size() const { return this->count_; }
+  bool empty() const { return this->count_ == 0; }
+
+  Iterator begin() { return Iterator(this, 0); }
+  Iterator end() { return Iterator(this, this->count_); }
+  ConstIterator begin() const { return ConstIterator(this, 0); }
+  ConstIterator end() const { return ConstIterator(this, this->count_); }
+
+ protected:
+  T data_[N];
+  index_type head_{0};
+  index_type tail_{0};
+  index_type count_{0};
 };
 
 /// Fixed-capacity vector - allocates once at runtime, never reallocates
@@ -440,6 +586,21 @@ template<size_t STACK_SIZE, typename T = uint8_t> class SmallBufferWithHeapFallb
 /// @name Mathematics
 ///@{
 
+/// Compute 10^exp using iterative multiplication/division.
+/// Avoids pulling in powf/__ieee754_powf (~2.3KB flash) for small integer exponents.  // NOLINT
+/// Matches powf(10, exp) for the int8_t exponent range used by sensor accuracy_decimals.  // NOLINT
+inline float pow10_int(int8_t exp) {
+  float result = 1.0f;
+  if (exp >= 0) {
+    for (int8_t i = 0; i < exp; i++)
+      result *= 10.0f;
+  } else {
+    for (int8_t i = exp; i < 0; i++)
+      result /= 10.0f;
+  }
+  return result;
+}
+
 /// Remap \p value from the range (\p min, \p max) to (\p min_out, \p max_out).
 template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max_out) {
   return (value - min) * (max_out - min_out) / (max - min) + min_out;
@@ -512,6 +673,44 @@ template<std::integral T> constexpr uint32_t fnv1a_hash_extend(uint32_t hash, T 
 /// Calculate a FNV-1a hash of \p str.
 constexpr uint32_t fnv1a_hash(const char *str) { return fnv1a_hash_extend(FNV1_OFFSET_BASIS, str); }
 inline uint32_t fnv1a_hash(const std::string &str) { return fnv1a_hash(str.c_str()); }
+
+/// Convert a 64-bit microsecond count to milliseconds without calling
+/// __udivdi3 (software 64-bit divide, ~1200 ns on Xtensa @ 240 MHz).
+///
+/// Returns uint32_t by default (for millis()), or uint64_t when requested
+/// (for millis_64()). The only difference is whether hi * Q is truncated
+/// to 32 bits or widened to 64.
+///
+/// On 32-bit targets, GCC does not optimize 64-bit constant division into a
+/// multiply-by-reciprocal. Since 1000 = 8 * 125, we first right-shift by 3
+/// (free divide-by-8), then use the Euclidean division identity to decompose
+/// the remaining 64-bit divide-by-125 into a single 32-bit division:
+///
+///   floor(us / 1000) = floor(floor(us / 8) / 125)    [exact for integers]
+///   2^32 = Q * 125 + R  (34359738 * 125 + 46)
+///   (hi * 2^32 + lo) / 125 = hi * Q + (hi * R + lo) / 125
+///
+/// GCC optimizes the remaining 32-bit "/ 125U" into a multiply-by-reciprocal
+/// (mulhu + shift), so no division instruction is emitted.
+///
+/// Safe for us up to ~3.2e18 (~101,700 years of microseconds).
+///
+/// See: https://en.wikipedia.org/wiki/Euclidean_division
+/// See: https://ridiculousfish.com/blog/posts/labor-of-division-episode-iii.html
+template<typename ReturnT = uint32_t> inline constexpr ESPHOME_ALWAYS_INLINE ReturnT micros_to_millis(uint64_t us) {
+  constexpr uint32_t d = 125U;
+  constexpr uint32_t q = static_cast<uint32_t>((1ULL << 32) / d);  // 34359738
+  constexpr uint32_t r = static_cast<uint32_t>((1ULL << 32) % d);  // 46
+  // 1000 = 8 * 125; divide-by-8 is a free shift
+  uint64_t x = us >> 3;
+  uint32_t lo = static_cast<uint32_t>(x);
+  uint32_t hi = static_cast<uint32_t>(x >> 32);
+  // Combine remainder term: hi * (2^32 % 125) + lo
+  uint32_t adj = hi * r + lo;
+  // If adj overflowed, the true value is 2^32 + adj; apply the identity again
+  // static_cast<ReturnT>(hi) widens to 64-bit when ReturnT=uint64_t, preserving upper bits of hi*q
+  return static_cast<ReturnT>(hi) * q + (adj < lo ? (adj + r) / d + q : adj / d);
+}
 
 /// Return a random 32-bit unsigned integer.
 uint32_t random_uint32();
@@ -743,6 +942,28 @@ __attribute__((format(printf, 4, 5))) inline size_t buf_append_printf(char *buf,
 }
 #endif
 
+/// Safely append a string to buffer without format parsing, returning new position (capped at size).
+/// More efficient than buf_append_printf for plain string literals.
+/// @param buf Output buffer
+/// @param size Total buffer size
+/// @param pos Current position in buffer
+/// @param str String to append (must not be null)
+/// @return New position after appending (capped at size on overflow)
+inline size_t buf_append_str(char *buf, size_t size, size_t pos, const char *str) {
+  if (pos >= size) {
+    return size;
+  }
+  size_t remaining = size - pos - 1;  // reserve space for null terminator
+  size_t len = strlen(str);
+  if (len > remaining) {
+    len = remaining;
+  }
+  memcpy(buf + pos, str, len);
+  pos += len;
+  buf[pos] = '\0';
+  return pos;
+}
+
 /// Concatenate a name with a separator and suffix using an efficient stack-based approach.
 /// This avoids multiple heap allocations during string construction.
 /// Maximum name length supported is 120 characters for friendly names.
@@ -875,6 +1096,9 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<
 }
 
 /// Parse a hex character to its nibble value (0-15), returns 255 on invalid input
+/// Returned by parse_hex_char() for non-hex characters.
+static constexpr uint8_t INVALID_HEX_CHAR = 255;
+
 constexpr uint8_t parse_hex_char(char c) {
   if (c >= '0' && c <= '9')
     return c - '0';
@@ -882,7 +1106,7 @@ constexpr uint8_t parse_hex_char(char c) {
     return c - 'A' + 10;
   if (c >= 'a' && c <= 'f')
     return c - 'a' + 10;
-  return 255;
+  return INVALID_HEX_CHAR;
 }
 
 /// Convert a nibble (0-15) to hex char with specified base ('a' for lowercase, 'A' for uppercase)
@@ -1081,6 +1305,9 @@ template<std::size_t N> std::string format_hex(const std::array<uint8_t, N> &dat
  * Each byte is displayed as a two-digit uppercase hex value, separated by the specified separator.
  * Optionally includes the total byte count in parentheses at the end.
  *
+ * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+ * Causes heap fragmentation on long-running devices.
+ *
  * @param data Pointer to the byte array to format.
  * @param length Number of bytes in the array.
  * @param separator Character to use between hex bytes (default: '.').
@@ -1106,6 +1333,9 @@ std::string format_hex_pretty(const uint8_t *data, size_t length, char separator
  *
  * Similar to the byte array version, but formats 16-bit words as 4-digit hex values.
  *
+ * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+ * Causes heap fragmentation on long-running devices.
+ *
  * @param data Pointer to the 16-bit word array to format.
  * @param length Number of 16-bit words in the array.
  * @param separator Character to use between hex words (default: '.').
@@ -1128,6 +1358,9 @@ std::string format_hex_pretty(const uint16_t *data, size_t length, char separato
  *
  * Convenience overload for std::vector<uint8_t>. Formats each byte as a two-digit
  * uppercase hex value with customizable separator.
+ *
+ * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+ * Causes heap fragmentation on long-running devices.
  *
  * @param data Vector of bytes to format.
  * @param separator Character to use between hex bytes (default: '.').
@@ -1152,6 +1385,9 @@ std::string format_hex_pretty(const std::vector<uint8_t> &data, char separator =
  * Convenience overload for std::vector<uint16_t>. Each 16-bit word is formatted
  * as a 4-digit uppercase hex value in big-endian order.
  *
+ * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+ * Causes heap fragmentation on long-running devices.
+ *
  * @param data Vector of 16-bit words to format.
  * @param separator Character to use between hex words (default: '.').
  * @param show_length Whether to append the word count in parentheses (default: true).
@@ -1174,6 +1410,9 @@ std::string format_hex_pretty(const std::vector<uint16_t> &data, char separator 
  * Treats each character in the string as a byte and formats it in hex.
  * Useful for debugging binary data stored in std::string containers.
  *
+ * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+ * Causes heap fragmentation on long-running devices.
+ *
  * @param data String whose bytes should be formatted as hex.
  * @param separator Character to use between hex bytes (default: '.').
  * @param show_length Whether to append the byte count in parentheses (default: true).
@@ -1195,6 +1434,9 @@ std::string format_hex_pretty(const std::string &data, char separator = '.', boo
  *
  * Converts the integer to big-endian byte order and formats each byte as hex.
  * The most significant byte appears first in the output string.
+ *
+ * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+ * Causes heap fragmentation on long-running devices.
  *
  * @tparam T Unsigned integer type (uint8_t, uint16_t, uint32_t, uint64_t, etc.).
  * @param val The unsigned integer value to format.
@@ -1330,8 +1572,12 @@ bool base64_decode_int32_vector(const std::string &base64, std::vector<int32_t> 
 ///@{
 
 /// Applies gamma correction of \p gamma to \p value.
+// Remove before 2026.9.0
+ESPDEPRECATED("Use LightState::gamma_correct_lut() instead. Removed in 2026.9.0.", "2026.3.0")
 float gamma_correct(float value, float gamma);
 /// Reverts gamma correction of \p gamma to \p value.
+// Remove before 2026.9.0
+ESPDEPRECATED("Use LightState::gamma_uncorrect_lut() instead. Removed in 2026.9.0.", "2026.3.0")
 float gamma_uncorrect(float value, float gamma);
 
 /// Convert \p red, \p green and \p blue (all 0-1) values to \p hue (0-360), \p saturation (0-1) and \p value (0-1).
@@ -1583,7 +1829,7 @@ class HighFrequencyLoopRequester {
   void stop();
 
   /// Check whether the loop is running continuously.
-  static bool is_high_frequency();
+  static bool is_high_frequency() { return num_requests > 0; }
 
  protected:
   bool started_{false};
@@ -1653,13 +1899,10 @@ template<class T> class RAMAllocator {
     ALLOW_FAILURE = 1 << 2,   // Does nothing. Kept for compatibility.
   };
 
-  RAMAllocator() = default;
-  RAMAllocator(uint8_t flags) {
-    // default is both external and internal
-    flags &= ALLOC_INTERNAL | ALLOC_EXTERNAL;
-    if (flags != 0)
-      this->flags_ = flags;
-  }
+  constexpr RAMAllocator() = default;
+  constexpr RAMAllocator(uint8_t flags)
+      : flags_((flags & (ALLOC_INTERNAL | ALLOC_EXTERNAL)) != 0 ? (flags & (ALLOC_INTERNAL | ALLOC_EXTERNAL))
+                                                                : (ALLOC_INTERNAL | ALLOC_EXTERNAL)) {}
   template<class U> constexpr RAMAllocator(const RAMAllocator<U> &other) : flags_{other.flags_} {}
 
   T *allocate(size_t n) { return this->allocate(n, sizeof(T)); }

@@ -28,6 +28,8 @@ async def test_select_stringref_trigger(
     find_substr_future = loop.create_future()
     find_char_future = loop.create_future()
     substr_future = loop.create_future()
+    # set_action trigger (TemplateSelectWithSetAction subclass)
+    set_action_future = loop.create_future()
     # ADL functions
     stoi_future = loop.create_future()
     stol_future = loop.create_future()
@@ -43,6 +45,8 @@ async def test_select_stringref_trigger(
     find_substr_pattern = re.compile(r"Found 'Option' in value")
     find_char_pattern = re.compile(r"Space at position: 6")  # space at index 6
     substr_pattern = re.compile(r"Substr prefix: Option")
+    # set_action trigger pattern (TemplateSelectWithSetAction subclass)
+    set_action_pattern = re.compile(r"set_action triggered: Action B")
     # ADL function patterns (115200 from baud rate select)
     stoi_pattern = re.compile(r"stoi result: 115200")
     stol_pattern = re.compile(r"stol result: 115200")
@@ -67,6 +71,9 @@ async def test_select_stringref_trigger(
             find_char_future.set_result(True)
         if not substr_future.done() and substr_pattern.search(line):
             substr_future.set_result(True)
+        # set_action trigger
+        if not set_action_future.done() and set_action_pattern.search(line):
+            set_action_future.set_result(True)
         # ADL functions
         if not stoi_future.done() and stoi_pattern.search(line):
             stoi_future.set_result(True)
@@ -89,22 +96,21 @@ async def test_select_stringref_trigger(
         # List entities to find our select
         entities, _ = await client.list_entities_services()
 
-        select_entity = next(
-            (e for e in entities if hasattr(e, "options") and e.name == "Test Select"),
-            None,
-        )
+        select_entity = next((e for e in entities if e.name == "Test Select"), None)
         assert select_entity is not None, "Test Select entity not found"
 
-        baud_entity = next(
-            (e for e in entities if hasattr(e, "options") and e.name == "Baud Rate"),
-            None,
-        )
+        baud_entity = next((e for e in entities if e.name == "Baud Rate"), None)
         assert baud_entity is not None, "Baud Rate entity not found"
+
+        action_entity = next((e for e in entities if e.name == "Action Select"), None)
+        assert action_entity is not None, "Action Select entity not found"
 
         # Change select to Option B - this should trigger on_value with StringRef
         client.select_command(select_entity.key, "Option B")
         # Change baud to 115200 - this tests ADL functions (stoi, stol, stof, stod)
         client.select_command(baud_entity.key, "115200")
+        # Change action select - tests set_action trigger (TemplateSelectWithSetAction)
+        client.select_command(action_entity.key, "Action B")
 
         # Wait for all log messages confirming StringRef operations work
         try:
@@ -118,6 +124,7 @@ async def test_select_stringref_trigger(
                     find_substr_future,
                     find_char_future,
                     substr_future,
+                    set_action_future,
                     stoi_future,
                     stol_future,
                     stof_future,
@@ -135,6 +142,7 @@ async def test_select_stringref_trigger(
                 "find_substr": find_substr_future.done(),
                 "find_char": find_char_future.done(),
                 "substr": substr_future.done(),
+                "set_action": set_action_future.done(),
                 "stoi": stoi_future.done(),
                 "stol": stol_future.done(),
                 "stof": stof_future.done(),

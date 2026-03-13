@@ -1,10 +1,11 @@
-import re
-
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components import logger, socket
-from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.components.esp32 import (
+    add_idf_sdkconfig_option,
+    include_builtin_idf_component,
+)
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
@@ -43,7 +44,6 @@ from esphome.const import (
     CONF_RETAIN,
     CONF_SHUTDOWN_MESSAGE,
     CONF_SKIP_CERT_CN_CHECK,
-    CONF_SSL_FINGERPRINTS,
     CONF_STATE_TOPIC,
     CONF_SUBSCRIBE_QOS,
     CONF_TOPIC,
@@ -218,13 +218,6 @@ def validate_config(value):
     return out
 
 
-def validate_fingerprint(value):
-    value = cv.string(value)
-    if re.match(r"^[0-9a-f]{40}$", value) is None:
-        raise cv.Invalid("fingerprint must be valid SHA1 hash")
-    return value
-
-
 def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for MQTT component."""
     # MQTT needs 1 socket for the broker connection
@@ -287,9 +280,6 @@ CONFIG_SCHEMA = cv.All(
                     }
                 ),
                 validate_message_just_topic,
-            ),
-            cv.Optional(CONF_SSL_FINGERPRINTS): cv.All(
-                cv.only_on_esp8266, cv.ensure_list(validate_fingerprint)
             ),
             cv.Optional(CONF_KEEPALIVE, default="15s"): cv.positive_time_period_seconds,
             cv.Optional(
@@ -360,6 +350,8 @@ async def to_code(config):
     # This enables low-latency MQTT event processing instead of waiting for select() timeout
     if CORE.is_esp32:
         socket.require_wake_loop_threadsafe()
+        # Re-enable ESP-IDF's mqtt component (excluded by default to save compile time)
+        include_builtin_idf_component("mqtt")
 
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
@@ -439,14 +431,6 @@ async def to_code(config):
         if CONF_LEVEL in log_topic:
             cg.add(var.set_log_level(logger.LOG_LEVELS[log_topic[CONF_LEVEL]]))
 
-    if CONF_SSL_FINGERPRINTS in config:
-        for fingerprint in config[CONF_SSL_FINGERPRINTS]:
-            arr = [
-                cg.RawExpression(f"0x{fingerprint[i : i + 2]}") for i in range(0, 40, 2)
-            ]
-            cg.add(var.add_ssl_fingerprint(arr))
-        cg.add_build_flag("-DASYNC_TCP_SSL_ENABLED=1")
-
     cg.add(var.set_keep_alive(config[CONF_KEEPALIVE]))
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
@@ -508,7 +492,7 @@ MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "mqtt.publish", MQTTPublishAction, MQTT_PUBLISH_ACTION_SCHEMA
+    "mqtt.publish", MQTTPublishAction, MQTT_PUBLISH_ACTION_SCHEMA, synchronous=True
 )
 async def mqtt_publish_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -537,7 +521,10 @@ MQTT_PUBLISH_JSON_ACTION_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "mqtt.publish_json", MQTTPublishJsonAction, MQTT_PUBLISH_JSON_ACTION_SCHEMA
+    "mqtt.publish_json",
+    MQTTPublishJsonAction,
+    MQTT_PUBLISH_JSON_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def mqtt_publish_json_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -620,6 +607,7 @@ async def mqtt_connected_to_code(config, condition_id, template_arg, args):
             cv.GenerateID(): cv.use_id(MQTTClientComponent),
         }
     ),
+    synchronous=True,
 )
 async def mqtt_enable_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -634,6 +622,7 @@ async def mqtt_enable_to_code(config, action_id, template_arg, args):
             cv.GenerateID(): cv.use_id(MQTTClientComponent),
         }
     ),
+    synchronous=True,
 )
 async def mqtt_disable_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

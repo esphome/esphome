@@ -13,7 +13,7 @@ namespace esphome::api {
 static inline void append_quoted_string(DumpBuffer &out, const StringRef &ref) {
   out.append("'");
   if (!ref.empty()) {
-    out.append(ref.c_str());
+    out.append(ref.c_str(), ref.size());
   }
   out.append("'");
 }
@@ -23,15 +23,8 @@ static inline void append_field_prefix(DumpBuffer &out, const char *field_name, 
   out.append(indent, ' ').append(field_name).append(": ");
 }
 
-static inline void append_with_newline(DumpBuffer &out, const char *str) {
-  out.append(str);
-  out.append("\n");
-}
-
 static inline void append_uint(DumpBuffer &out, uint32_t value) {
-  char buf[16];
-  snprintf(buf, sizeof(buf), "%" PRIu32, value);
-  out.append(buf);
+  out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%" PRIu32, value));
 }
 
 // RAII helper for message dump formatting
@@ -49,31 +42,23 @@ class MessageDumpHelper {
 
 // Helper functions to reduce code duplication in dump methods
 static void dump_field(DumpBuffer &out, const char *field_name, int32_t value, int indent = 2) {
-  char buffer[64];
   append_field_prefix(out, field_name, indent);
-  snprintf(buffer, 64, "%" PRId32, value);
-  append_with_newline(out, buffer);
+  out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%" PRId32 "\n", value));
 }
 
 static void dump_field(DumpBuffer &out, const char *field_name, uint32_t value, int indent = 2) {
-  char buffer[64];
   append_field_prefix(out, field_name, indent);
-  snprintf(buffer, 64, "%" PRIu32, value);
-  append_with_newline(out, buffer);
+  out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%" PRIu32 "\n", value));
 }
 
 static void dump_field(DumpBuffer &out, const char *field_name, float value, int indent = 2) {
-  char buffer[64];
   append_field_prefix(out, field_name, indent);
-  snprintf(buffer, 64, "%g", value);
-  append_with_newline(out, buffer);
+  out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%g\n", value));
 }
 
 static void dump_field(DumpBuffer &out, const char *field_name, uint64_t value, int indent = 2) {
-  char buffer[64];
   append_field_prefix(out, field_name, indent);
-  snprintf(buffer, 64, "%" PRIu64, value);
-  append_with_newline(out, buffer);
+  out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%" PRIu64 "\n", value));
 }
 
 static void dump_field(DumpBuffer &out, const char *field_name, bool value, int indent = 2) {
@@ -112,9 +97,21 @@ static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint
   char hex_buf[format_hex_pretty_size(160)];
   append_field_prefix(out, field_name, indent);
   format_hex_pretty_to(hex_buf, data, len);
-  append_with_newline(out, hex_buf);
+  out.append(hex_buf).append("\n");
 }
 
+template<> const char *proto_enum_to_string<enums::SerialProxyPortType>(enums::SerialProxyPortType value) {
+  switch (value) {
+    case enums::SERIAL_PROXY_PORT_TYPE_TTL:
+      return "SERIAL_PROXY_PORT_TYPE_TTL";
+    case enums::SERIAL_PROXY_PORT_TYPE_RS232:
+      return "SERIAL_PROXY_PORT_TYPE_RS232";
+    case enums::SERIAL_PROXY_PORT_TYPE_RS485:
+      return "SERIAL_PROXY_PORT_TYPE_RS485";
+    default:
+      return "UNKNOWN";
+  }
+}
 template<> const char *proto_enum_to_string<enums::EntityCategory>(enums::EntityCategory value) {
   switch (value) {
     case enums::ENTITY_CATEGORY_NONE:
@@ -219,6 +216,20 @@ template<> const char *proto_enum_to_string<enums::LogLevel>(enums::LogLevel val
       return "LOG_LEVEL_VERBOSE";
     case enums::LOG_LEVEL_VERY_VERBOSE:
       return "LOG_LEVEL_VERY_VERBOSE";
+    default:
+      return "UNKNOWN";
+  }
+}
+template<> const char *proto_enum_to_string<enums::DSTRuleType>(enums::DSTRuleType value) {
+  switch (value) {
+    case enums::DST_RULE_TYPE_NONE:
+      return "DST_RULE_TYPE_NONE";
+    case enums::DST_RULE_TYPE_MONTH_WEEK_DAY:
+      return "DST_RULE_TYPE_MONTH_WEEK_DAY";
+    case enums::DST_RULE_TYPE_JULIAN_NO_LEAP:
+      return "DST_RULE_TYPE_JULIAN_NO_LEAP";
+    case enums::DST_RULE_TYPE_DAY_OF_YEAR:
+      return "DST_RULE_TYPE_DAY_OF_YEAR";
     default:
       return "UNKNOWN";
   }
@@ -336,6 +347,8 @@ template<> const char *proto_enum_to_string<enums::ClimateAction>(enums::Climate
       return "CLIMATE_ACTION_DRYING";
     case enums::CLIMATE_ACTION_FAN:
       return "CLIMATE_ACTION_FAN";
+    case enums::CLIMATE_ACTION_DEFROSTING:
+      return "CLIMATE_ACTION_DEFROSTING";
     default:
       return "UNKNOWN";
   }
@@ -400,6 +413,10 @@ const char *proto_enum_to_string<enums::WaterHeaterCommandHasField>(enums::Water
       return "WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_LOW";
     case enums::WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH:
       return "WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH";
+    case enums::WATER_HEATER_COMMAND_HAS_ON_STATE:
+      return "WATER_HEATER_COMMAND_HAS_ON_STATE";
+    case enums::WATER_HEATER_COMMAND_HAS_AWAY_STATE:
+      return "WATER_HEATER_COMMAND_HAS_AWAY_STATE";
     default:
       return "UNKNOWN";
   }
@@ -747,6 +764,48 @@ template<> const char *proto_enum_to_string<enums::ZWaveProxyRequestType>(enums:
   }
 }
 #endif
+#ifdef USE_SERIAL_PROXY
+template<> const char *proto_enum_to_string<enums::SerialProxyParity>(enums::SerialProxyParity value) {
+  switch (value) {
+    case enums::SERIAL_PROXY_PARITY_NONE:
+      return "SERIAL_PROXY_PARITY_NONE";
+    case enums::SERIAL_PROXY_PARITY_EVEN:
+      return "SERIAL_PROXY_PARITY_EVEN";
+    case enums::SERIAL_PROXY_PARITY_ODD:
+      return "SERIAL_PROXY_PARITY_ODD";
+    default:
+      return "UNKNOWN";
+  }
+}
+template<> const char *proto_enum_to_string<enums::SerialProxyRequestType>(enums::SerialProxyRequestType value) {
+  switch (value) {
+    case enums::SERIAL_PROXY_REQUEST_TYPE_SUBSCRIBE:
+      return "SERIAL_PROXY_REQUEST_TYPE_SUBSCRIBE";
+    case enums::SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE:
+      return "SERIAL_PROXY_REQUEST_TYPE_UNSUBSCRIBE";
+    case enums::SERIAL_PROXY_REQUEST_TYPE_FLUSH:
+      return "SERIAL_PROXY_REQUEST_TYPE_FLUSH";
+    default:
+      return "UNKNOWN";
+  }
+}
+template<> const char *proto_enum_to_string<enums::SerialProxyStatus>(enums::SerialProxyStatus value) {
+  switch (value) {
+    case enums::SERIAL_PROXY_STATUS_OK:
+      return "SERIAL_PROXY_STATUS_OK";
+    case enums::SERIAL_PROXY_STATUS_ASSUMED_SUCCESS:
+      return "SERIAL_PROXY_STATUS_ASSUMED_SUCCESS";
+    case enums::SERIAL_PROXY_STATUS_ERROR:
+      return "SERIAL_PROXY_STATUS_ERROR";
+    case enums::SERIAL_PROXY_STATUS_TIMEOUT:
+      return "SERIAL_PROXY_STATUS_TIMEOUT";
+    case enums::SERIAL_PROXY_STATUS_NOT_SUPPORTED:
+      return "SERIAL_PROXY_STATUS_NOT_SUPPORTED";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
 
 const char *HelloRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "HelloRequest");
@@ -779,10 +838,6 @@ const char *PingResponse::dump_to(DumpBuffer &out) const {
   out.append("PingResponse {}");
   return out.c_str();
 }
-const char *DeviceInfoRequest::dump_to(DumpBuffer &out) const {
-  out.append("DeviceInfoRequest {}");
-  return out.c_str();
-}
 #ifdef USE_AREAS
 const char *AreaInfo::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "AreaInfo");
@@ -797,6 +852,14 @@ const char *DeviceInfo::dump_to(DumpBuffer &out) const {
   dump_field(out, "device_id", this->device_id);
   dump_field(out, "name", this->name);
   dump_field(out, "area_id", this->area_id);
+  return out.c_str();
+}
+#endif
+#ifdef USE_SERIAL_PROXY
+const char *SerialProxyInfo::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "SerialProxyInfo");
+  dump_field(out, "name", this->name);
+  dump_field(out, "port_type", static_cast<enums::SerialProxyPortType>(this->port_type));
   return out.c_str();
 }
 #endif
@@ -861,18 +924,17 @@ const char *DeviceInfoResponse::dump_to(DumpBuffer &out) const {
 #ifdef USE_ZWAVE_PROXY
   dump_field(out, "zwave_home_id", this->zwave_home_id);
 #endif
-  return out.c_str();
-}
-const char *ListEntitiesRequest::dump_to(DumpBuffer &out) const {
-  out.append("ListEntitiesRequest {}");
+#ifdef USE_SERIAL_PROXY
+  for (const auto &it : this->serial_proxies) {
+    out.append("  serial_proxies: ");
+    it.dump_to(out);
+    out.append("\n");
+  }
+#endif
   return out.c_str();
 }
 const char *ListEntitiesDoneResponse::dump_to(DumpBuffer &out) const {
   out.append("ListEntitiesDoneResponse {}");
-  return out.c_str();
-}
-const char *SubscribeStatesRequest::dump_to(DumpBuffer &out) const {
-  out.append("SubscribeStatesRequest {}");
   return out.c_str();
 }
 #ifdef USE_BINARY_SENSOR
@@ -1206,10 +1268,6 @@ const char *NoiseEncryptionSetKeyResponse::dump_to(DumpBuffer &out) const {
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-const char *SubscribeHomeassistantServicesRequest::dump_to(DumpBuffer &out) const {
-  out.append("SubscribeHomeassistantServicesRequest {}");
-  return out.c_str();
-}
 const char *HomeassistantServiceMap::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "HomeassistantServiceMap");
   dump_field(out, "key", this->key);
@@ -1260,10 +1318,6 @@ const char *HomeassistantActionResponse::dump_to(DumpBuffer &out) const {
 }
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
-const char *SubscribeHomeAssistantStatesRequest::dump_to(DumpBuffer &out) const {
-  out.append("SubscribeHomeAssistantStatesRequest {}");
-  return out.c_str();
-}
 const char *SubscribeHomeAssistantStateResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "SubscribeHomeAssistantStateResponse");
   dump_field(out, "entity_id", this->entity_id);
@@ -1283,10 +1337,35 @@ const char *GetTimeRequest::dump_to(DumpBuffer &out) const {
   out.append("GetTimeRequest {}");
   return out.c_str();
 }
+const char *DSTRule::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "DSTRule");
+  dump_field(out, "time_seconds", this->time_seconds);
+  dump_field(out, "day", this->day);
+  dump_field(out, "type", static_cast<enums::DSTRuleType>(this->type));
+  dump_field(out, "month", this->month);
+  dump_field(out, "week", this->week);
+  dump_field(out, "day_of_week", this->day_of_week);
+  return out.c_str();
+}
+const char *ParsedTimezone::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "ParsedTimezone");
+  dump_field(out, "std_offset_seconds", this->std_offset_seconds);
+  dump_field(out, "dst_offset_seconds", this->dst_offset_seconds);
+  out.append("  dst_start: ");
+  this->dst_start.dump_to(out);
+  out.append("\n");
+  out.append("  dst_end: ");
+  this->dst_end.dump_to(out);
+  out.append("\n");
+  return out.c_str();
+}
 const char *GetTimeResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "GetTimeResponse");
   dump_field(out, "epoch_seconds", this->epoch_seconds);
   dump_field(out, "timezone", this->timezone);
+  out.append("  parsed_timezone: ");
+  this->parsed_timezone.dump_to(out);
+  out.append("\n");
   return out.c_str();
 }
 #ifdef USE_API_USER_DEFINED_ACTIONS
@@ -1939,10 +2018,6 @@ const char *BluetoothGATTNotifyDataResponse::dump_to(DumpBuffer &out) const {
   dump_bytes_field(out, "data", this->data_ptr_, this->data_len_);
   return out.c_str();
 }
-const char *SubscribeBluetoothConnectionsFreeRequest::dump_to(DumpBuffer &out) const {
-  out.append("SubscribeBluetoothConnectionsFreeRequest {}");
-  return out.c_str();
-}
 const char *BluetoothConnectionsFreeResponse::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, "BluetoothConnectionsFreeResponse");
   dump_field(out, "free", this->free);
@@ -1983,10 +2058,6 @@ const char *BluetoothDeviceUnpairingResponse::dump_to(DumpBuffer &out) const {
   dump_field(out, "address", this->address);
   dump_field(out, "success", this->success);
   dump_field(out, "error", this->error);
-  return out.c_str();
-}
-const char *UnsubscribeBluetoothLEAdvertisementsRequest::dump_to(DumpBuffer &out) const {
-  out.append("UnsubscribeBluetoothLEAdvertisementsRequest {}");
   return out.c_str();
 }
 const char *BluetoothDeviceClearCacheResponse::dump_to(DumpBuffer &out) const {
@@ -2505,6 +2576,78 @@ const char *InfraredRFReceiveEvent::dump_to(DumpBuffer &out) const {
   for (const auto &it : *this->timings) {
     dump_field(out, "timings", it, 4);
   }
+  return out.c_str();
+}
+#endif
+#ifdef USE_SERIAL_PROXY
+const char *SerialProxyConfigureRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "SerialProxyConfigureRequest");
+  dump_field(out, "instance", this->instance);
+  dump_field(out, "baudrate", this->baudrate);
+  dump_field(out, "flow_control", this->flow_control);
+  dump_field(out, "parity", static_cast<enums::SerialProxyParity>(this->parity));
+  dump_field(out, "stop_bits", this->stop_bits);
+  dump_field(out, "data_size", this->data_size);
+  return out.c_str();
+}
+const char *SerialProxyDataReceived::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "SerialProxyDataReceived");
+  dump_field(out, "instance", this->instance);
+  dump_bytes_field(out, "data", this->data_ptr_, this->data_len_);
+  return out.c_str();
+}
+const char *SerialProxyWriteRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "SerialProxyWriteRequest");
+  dump_field(out, "instance", this->instance);
+  dump_bytes_field(out, "data", this->data, this->data_len);
+  return out.c_str();
+}
+const char *SerialProxySetModemPinsRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "SerialProxySetModemPinsRequest");
+  dump_field(out, "instance", this->instance);
+  dump_field(out, "line_states", this->line_states);
+  return out.c_str();
+}
+const char *SerialProxyGetModemPinsRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "SerialProxyGetModemPinsRequest");
+  dump_field(out, "instance", this->instance);
+  return out.c_str();
+}
+const char *SerialProxyGetModemPinsResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "SerialProxyGetModemPinsResponse");
+  dump_field(out, "instance", this->instance);
+  dump_field(out, "line_states", this->line_states);
+  return out.c_str();
+}
+const char *SerialProxyRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "SerialProxyRequest");
+  dump_field(out, "instance", this->instance);
+  dump_field(out, "type", static_cast<enums::SerialProxyRequestType>(this->type));
+  return out.c_str();
+}
+const char *SerialProxyRequestResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "SerialProxyRequestResponse");
+  dump_field(out, "instance", this->instance);
+  dump_field(out, "type", static_cast<enums::SerialProxyRequestType>(this->type));
+  dump_field(out, "status", static_cast<enums::SerialProxyStatus>(this->status));
+  dump_field(out, "error_message", this->error_message);
+  return out.c_str();
+}
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+const char *BluetoothSetConnectionParamsRequest::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "BluetoothSetConnectionParamsRequest");
+  dump_field(out, "address", this->address);
+  dump_field(out, "min_interval", this->min_interval);
+  dump_field(out, "max_interval", this->max_interval);
+  dump_field(out, "latency", this->latency);
+  dump_field(out, "timeout", this->timeout);
+  return out.c_str();
+}
+const char *BluetoothSetConnectionParamsResponse::dump_to(DumpBuffer &out) const {
+  MessageDumpHelper helper(out, "BluetoothSetConnectionParamsResponse");
+  dump_field(out, "address", this->address);
+  dump_field(out, "error", this->error);
   return out.c_str();
 }
 #endif
