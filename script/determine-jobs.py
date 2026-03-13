@@ -186,17 +186,16 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
         # If any core files changed, run all integration tests
         return (True, [])
 
-    # Check for integration test infrastructure changes vs specific test/fixture changes
+    # If infrastructure files changed (conftest, utils, etc.), run all tests
+    if any(
+        "tests/integration" in f
+        and not f.startswith("tests/integration/test_")
+        and "/fixtures/" not in f
+        for f in files
+    ):
+        return (True, [])
+
     integration_files = [f for f in files if "tests/integration" in f]
-    if integration_files:
-        # If infrastructure files changed (conftest, utils, etc.), run all tests
-        infrastructure_files = [
-            f
-            for f in integration_files
-            if not (f.startswith("tests/integration/test_") or "/fixtures/" in f)
-        ]
-        if infrastructure_files:
-            return (True, [])
 
     # Collect specific test files that need to run
     test_files: set[str] = set()
