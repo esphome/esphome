@@ -1,27 +1,28 @@
 sensor:
   - platform: dlms_meter
-    voltage_l1:
-      name: "Voltage L1"
-    voltage_l2:
-      name: "Voltage L2"
-    voltage_l3:
-      name: "Voltage L3"
-    current_l1:
-      name: "Current L1"
-    current_l2:
-      name: "Current L2"
-    current_l3:
-      name: "Current L3"
-    active_power_plus:
-      name: "Active power taken from grid"
-    active_power_minus:
-      name: "Active power put into grid"
-    active_energy_plus:
-      name: "Active energy taken from grid"
-    active_energy_minus:
-      name: "Active energy put into grid"
+    id: active_energy_consumed
+    obis_code: 1.0.1.8.0.255
+    name: "Active Energy Import"
+    unit_of_measurement: kWh
+    accuracy_decimals: 3
+    device_class: energy
+    state_class: total_increasing
+  - platform: dlms_meter
+    id: active_power
+    name: "Active power consumption"
+    obis_code: 1.0.1.7.0.255
+    unit_of_measurement: W
+    accuracy_decimals: 0
+    device_class: power
+    state_class: measurement
 
 text_sensor:
   - platform: dlms_meter
-    timestamp:
-      name: "timestamp"
+    name: "Serial number"
+    obis_code: 0.0.96.1.1.255
+    entity_category: diagnostic
+
+  - platform: dlms_meter
+    name: "Current tariff"
+    obis_code: 0.0.96.14.0.255
+    entity_category: diagnostic

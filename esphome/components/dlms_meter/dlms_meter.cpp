@@ -21,10 +21,20 @@ void DlmsMeterComponent::dump_config() {
                 "  Decryption Enabled: %s\n"
                 "  Read Timeout: %u ms",
                 provider_name, transport_name, this->has_decryption_key_ ? "YES" : "NO", this->read_timeout_);
-#define DLMS_METER_LOG_SENSOR(s) LOG_SENSOR("  ", #s, this->s##_sensor_);
-  DLMS_METER_SENSOR_LIST(DLMS_METER_LOG_SENSOR, )
-#define DLMS_METER_LOG_TEXT_SENSOR(s) LOG_TEXT_SENSOR("  ", #s, this->s##_text_sensor_);
-  DLMS_METER_TEXT_SENSOR_LIST(DLMS_METER_LOG_TEXT_SENSOR, )
+
+#ifdef USE_SENSOR
+  for (const auto &entry : this->sensors_) {
+    LOG_SENSOR("  ", "Numeric Sensor (OBIS)", entry.sensor);
+    ESP_LOGCONFIG(TAG, "    OBIS: %s", entry.obis.c_str());
+  }
+#endif
+
+#ifdef USE_TEXT_SENSOR
+  for (const auto &entry : this->text_sensors_) {
+    LOG_TEXT_SENSOR("  ", "Text Sensor (OBIS)", entry.sensor);
+    ESP_LOGCONFIG(TAG, "    OBIS: %s", entry.obis.c_str());
+  }
+#endif
 }
 
 void DlmsMeterComponent::loop() {
@@ -63,83 +73,25 @@ void DlmsMeterComponent::loop() {
       this->payload_ = this->receive_buffer_;
     }
 
-    MeterData data{};
     DlmsParser parser;
 
-    auto callback = [&data](const char *obis_code, float float_val, const char *str_val, bool is_numeric) {
-      int parts[6] = {0};
-      int count = 0;
-      const char *ptr = obis_code;
-
-      // Extract parts of the OBIS code using strtol to avoid the sscanf flash size penalty
-      while (*ptr && count < 6) {
-        char *endptr;
-        parts[count++] = strtol(ptr, &endptr, 10);
-        if (*endptr == '.') {
-          ptr = endptr + 1;  // Skip the dot for the next number
-        } else {
-          break;  // Reached the end of the string or an invalid format
-        }
-      }
-
-      // If we successfully parsed all 6 groups (A.B.C.D.E.F)
-      if (count == 6) {
-        // Extract C and D to match the original enums in obis.h
-        uint16_t obis_cd = (parts[2] << 8) | parts[3];
-
-        if (is_numeric) {
-          switch (obis_cd) {
-            case OBIS_VOLTAGE_L1:
-              data.voltage_l1 = float_val;
-              break;
-            case OBIS_VOLTAGE_L2:
-              data.voltage_l2 = float_val;
-              break;
-            case OBIS_VOLTAGE_L3:
-              data.voltage_l3 = float_val;
-              break;
-            case OBIS_CURRENT_L1:
-              data.current_l1 = float_val;
-              break;
-            case OBIS_CURRENT_L2:
-              data.current_l2 = float_val;
-              break;
-            case OBIS_CURRENT_L3:
-              data.current_l3 = float_val;
-              break;
-            case OBIS_ACTIVE_POWER_PLUS:
-              data.active_power_plus = float_val;
-              break;
-            case OBIS_ACTIVE_POWER_MINUS:
-              data.active_power_minus = float_val;
-              break;
-            case OBIS_ACTIVE_ENERGY_PLUS:
-              data.active_energy_plus = float_val;
-              break;
-            case OBIS_ACTIVE_ENERGY_MINUS:
-              data.active_energy_minus = float_val;
-              break;
-            case OBIS_REACTIVE_ENERGY_PLUS:
-              data.reactive_energy_plus = float_val;
-              break;
-            case OBIS_REACTIVE_ENERGY_MINUS:
-              data.reactive_energy_minus = float_val;
-              break;
-            case OBIS_POWER_FACTOR:
-              data.power_factor = float_val;
-              break;
-            default:
-              ESP_LOGV(TAG, "Unsupported numeric OBIS code %s", obis_code);
-          }
-        } else {
-          // Handling strings and dates
-          if (obis_cd == OBIS_TIMESTAMP) {
-            snprintf(data.timestamp, sizeof(data.timestamp), "%s", str_val);
-          } else if (obis_cd == OBIS_SERIAL_NUMBER || obis_cd == OBIS_DEVICE_NAME) {
-            snprintf(data.meternumber, sizeof(data.meternumber), "%s", str_val);
+    auto callback = [this](const char *obis_code, float float_val, const char *str_val, bool is_numeric) {
+#ifdef USE_SENSOR
+      if (is_numeric) {
+        for (const auto &entry : this->sensors_) {
+          if (entry.obis == obis_code) {
+            entry.sensor->publish_state(float_val);
           }
         }
       }
+#endif
+#ifdef USE_TEXT_SENSOR
+      for (const auto &entry : this->text_sensors_) {
+        if (entry.obis == obis_code) {
+          entry.sensor->publish_state(str_val);
+        }
+      }
+#endif
     };
 
     if (this->has_decryption_key_) {
@@ -159,16 +111,15 @@ void DlmsMeterComponent::loop() {
       if (!this->decrypt_(this->payload_, message_length, systitle_length, header_offset))
         return;
 
-      parser.parse(&this->payload_[header_offset + DLMS_PAYLOAD_OFFSET], message_length, callback, true);
+      parser.parse(&this->payload_[header_offset + DLMS_PAYLOAD_OFFSET], message_length, callback, false);
     } else {
       // If no decryption key is provided, decode the parsed payload directly assuming unencrypted APDU.
-      parser.parse(this->payload_.data(), this->payload_.size(), callback, true);
+      parser.parse(this->payload_.data(), this->payload_.size(), callback, false);
     }
 
     this->receive_buffer_.clear();
 
     ESP_LOGI(TAG, "Received valid data");
-    this->publish_sensors(data);
     this->status_clear_warning();
   }
 }
