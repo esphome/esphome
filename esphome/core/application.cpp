@@ -701,7 +701,8 @@ void Application::yield_with_select_(uint32_t delay_ms) {
     // ret < 0: error (except EINTR which is normal)
     // ret > 0: socket(s) have data ready - normal and expected
     // ret == 0: timeout occurred - normal and expected
-    if (ret >= 0 || errno == EINTR) [[likely]] {
+    const int err = errno;
+    if (ret >= 0 || err == EINTR) [[likely]] {
       // Yield if zero timeout since select(0) only polls without yielding
       if (delay_ms == 0) [[unlikely]] {
         yield();
@@ -709,7 +710,7 @@ void Application::yield_with_select_(uint32_t delay_ms) {
       return;
     }
     // select() error - log and fall through to delay()
-    ESP_LOGW(TAG, "select() failed with errno %d", errno);
+    ESP_LOGW(TAG, "select() failed with errno %d", err);
   }
   // No sockets registered or select() failed - use regular delay
   delay(delay_ms);
