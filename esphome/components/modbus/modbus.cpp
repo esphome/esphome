@@ -105,23 +105,18 @@ bool ModbusClientHub::tx_blocked() {
 bool ModbusClientHub::tx_buffer_empty() { return this->tx_buffer_.empty(); }
 
 void Modbus::receive_bytes_() {
-  bool bytes_received = false;
-  while (this->available()) {
-    bytes_received = true;
-    uint8_t byte;
-    this->read_byte(&byte);
-    if (this->rx_buffer_.empty()) {
-      ESP_LOGV(TAG, "Received first byte %" PRIu8 " (0X%x) %" PRIu32 "ms after last send", byte, byte,
-               millis() - this->last_send_);
-    } else {
-      ESP_LOGVV(TAG, "Received byte %" PRIu8 " (0X%x) %" PRIu32 "ms after last send", byte, byte,
-                millis() - this->last_send_);
-    }
-    this->rx_buffer_.push_back(byte);
-  }
   this->last_receive_check_ = millis();
-  if (bytes_received) {
+  size_t bytes = this->available();
+
+  if (bytes) {
+    int buffer_size = this->rx_buffer_.size();
     this->last_modbus_byte_ = this->last_receive_check_;
+    this->rx_buffer_.resize(buffer_size + bytes);
+    this->read_array(this->rx_buffer_.data() + buffer_size, bytes);
+    if (buffer_size == 0) {
+      ESP_LOGV(TAG, "Received first byte %d (0X%x) %dms after last send %d", this->rx_buffer_[0], this->rx_buffer_[0],
+               millis() - this->last_send_, this->rx_buffer_.size());
+    }
   }
 }
 
