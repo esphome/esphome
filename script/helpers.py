@@ -752,7 +752,7 @@ def get_components_per_integration_fixture() -> dict[str, set[str]]:
     fixtures_dir = Path(__file__).parent.parent / "tests" / "integration" / "fixtures"
 
     for yaml_file in fixtures_dir.glob("*.yaml"):
-        config: dict[str, any] | None = yaml_util.load_yaml(yaml_file)
+        config: dict[str, Any] | None = yaml_util.load_yaml(yaml_file)
         if not config:
             continue
 
