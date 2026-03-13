@@ -17,9 +17,7 @@ bool random_bytes(uint8_t *data, size_t len) { return os_get_random(data, len) =
 IRAM_ATTR InterruptLock::InterruptLock() { state_ = xt_rsil(15); }
 IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(state_); }
 
-// ESP8266 doesn't support lwIP core locking, so this is a no-op
-LwIPLock::LwIPLock() {}
-LwIPLock::~LwIPLock() {}
+// ESP8266 LwIPLock is defined inline as a no-op in helpers.h
 
 void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
   wifi_get_macaddr(STATION_IF, mac);
