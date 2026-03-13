@@ -1949,12 +1949,12 @@ def _validate_partition(
 
 
 def add_partition(name: str, p_type: str | int, subtype: str | int, size: int) -> None:
-    if name in CORE.data.get(KEY_CUSTOM_PARTITIONS, {}):
+    if name in CORE.data[KEY_ESP32].get(KEY_CUSTOM_PARTITIONS, {}):
         raise ValueError(f"Partition name '{name}' is already defined.")
     _validate_partition(name, p_type, subtype, size)
     p_type_str = f"0x{p_type:X}" if isinstance(p_type, int) else p_type
     subtype_str = f"0x{subtype:X}" if isinstance(subtype, int) else subtype
-    custom_partitions = CORE.data.setdefault(KEY_CUSTOM_PARTITIONS, {})
+    custom_partitions = CORE.data[KEY_ESP32].setdefault(KEY_CUSTOM_PARTITIONS, {})
     custom_partitions[name] = {"type": p_type_str, "subtype": subtype_str, "size": size}
 
 
@@ -1965,7 +1965,7 @@ def _flash_size_to_bytes(flash_size: str) -> int:
 def _get_custom_partitions_total_size() -> int:
     """Total size of custom partitions including alignment padding."""
     size = 0
-    for partition in CORE.data.get(KEY_CUSTOM_PARTITIONS, {}).values():
+    for partition in CORE.data[KEY_ESP32].get(KEY_CUSTOM_PARTITIONS, {}).values():
         if partition["type"] == "app":
             size = (size + 0xFFFF) & ~0xFFFF  # align to 64KB
         size += partition["size"]
@@ -2014,7 +2014,7 @@ app0,     app,  ota_0,   , 0x{app_size:X},
 app1,     app,  ota_1,   , 0x{app_size:X},
 nvs,      data, nvs,     , 0x70000,
 """
-    for name, entry in CORE.data.get(KEY_CUSTOM_PARTITIONS, {}).items():
+    for name, entry in CORE.data[KEY_ESP32].get(KEY_CUSTOM_PARTITIONS, {}).items():
         csv += f"{name}, {entry['type']}, {entry['subtype']}, , 0x{entry['size']:X},\n"
     return csv
 
