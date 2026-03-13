@@ -29,14 +29,20 @@ void ModbusServer::on_modbus_read_registers(uint8_t function_code, uint16_t star
         if (!server_register->read_lambda) {
           break;
         }
-        int64_t value = server_register->read_lambda();
+        optional<int64_t> value = server_register->read_lambda();
+        if (!value.has_value()) {
+          ESP_LOGW(TAG, "Matched register at 0x%02X but read lambda returned no value. Sending exception response.",
+                   server_register->address);
+          this->send_error(function_code, ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
+          return;
+        }
         ESP_LOGV(TAG, "Matched register. Address: 0x%02X. Value type: %zu. Register count: %u. Value: %s.",
                  server_register->address, static_cast<size_t>(server_register->value_type),
-                 server_register->register_count, server_register->format_value(value).c_str());
+                 server_register->register_count, server_register->format_value(value.value()).c_str());
 
         std::vector<uint16_t> payload;
         payload.reserve(server_register->register_count * 2);
-        modbus::helpers::number_to_payload(payload, value, server_register->value_type);
+        modbus::helpers::number_to_payload(payload, value.value(), server_register->value_type);
         sixteen_bit_response.insert(sixteen_bit_response.end(), payload.cbegin(), payload.cend());
         current_address += server_register->register_count;
         found = true;

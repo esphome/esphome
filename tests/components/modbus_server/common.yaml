@@ -39,3 +39,7 @@ modbus_server:
         value_type: U_WORD
         read_lambda: |-
           return (random_uint32() % 100);
+      - address: 0x7
+        value_type: U_WORD
+        read_lambda: |-
+          return {};

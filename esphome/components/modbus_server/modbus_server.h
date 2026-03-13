@@ -5,6 +5,7 @@
 #include "esphome/components/modbus/modbus.h"
 #include "esphome/components/modbus/modbus_helpers.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/optional.h"
 
 #include <utility>
 #include <vector>
@@ -20,7 +21,7 @@ struct ServerCourtesyResponse {
 };
 
 class ServerRegister {
-  using ReadLambda = std::function<int64_t()>;
+  using ReadLambda = std::function<optional<int64_t>()>;
   using WriteLambda = std::function<bool(int64_t value)>;
 
  public:
@@ -30,13 +31,16 @@ class ServerRegister {
     this->register_count = register_count;
   }
 
-  template<typename T> void set_read_lambda(const std::function<T(uint16_t address)> &&user_read_lambda) {
-    this->read_lambda = [this, user_read_lambda]() -> int64_t {
-      T user_value = user_read_lambda(this->address);
+  template<typename T> void set_read_lambda(const std::function<optional<T>(uint16_t address)> &&user_read_lambda) {
+    this->read_lambda = [this, user_read_lambda]() -> optional<int64_t> {
+      optional<T> user_value = user_read_lambda(this->address);
+      if (!user_value.has_value()) {
+        return nullopt;
+      }
       if constexpr (std::is_same_v<T, float>) {
-        return bit_cast<uint32_t>(user_value);
+        return bit_cast<uint32_t>(user_value.value());
       } else {
-        return static_cast<int64_t>(user_value);
+        return static_cast<int64_t>(user_value.value());
       }
     };
   }

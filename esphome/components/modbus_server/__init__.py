@@ -103,7 +103,7 @@ async def to_code(config):
                     await cg.process_lambda(
                         server_register[CONF_READ_LAMBDA],
                         [(cg.uint16, "address")],
-                        return_type=cpp_type,
+                        return_type=cg.optional.template(cpp_type),
                     ),
                 )
             )
