@@ -1226,69 +1226,45 @@ def _set_default_framework(config):
     return config
 
 
-def _validate_partition(
-    name: str,
-    partition_type: str | int,
-    subtype: str | int,
-    partition_size: int,
-    error_func: Exception,
-):
-    if name in [
-        "nvs",
-        "app0",
-        "app1",
-        "otadata",
-        "eeprom",
-        "spiffs",
-        "phy_init",
-    ]:
-        raise error_func(f"Partition name {name} is reserved.")
-    if isinstance(partition_type, str) and partition_type not in ["app", "data"]:
-        raise error_func(
-            f"Type {partition_type} is invalid. Only app and data are allowed. Use numbers for custom types"
-        )
-    if (
-        isinstance(subtype, str)
-        and partition_type == "app"
-        and subtype not in ["factory", "test"]
-    ):
-        raise error_func(
-            f"Subtype {subtype} is invalid for app type. Only factory and test are allowed. Use numbers for custom subtypes"
-        )
-    if (
-        isinstance(subtype, str)
-        and partition_type == "data"
-        and subtype
-        not in [
-            "nvs",
-            "nvs_keys",
-            "spiffs",
-            "coredump",
-            "efuse",
-            "fat",
-            "undefined",
-            "littlefs",
-        ]
-    ):
-        raise error_func(
-            f"Subtype {subtype} is invalid for data type. Only nvs, nvs_keys, spiffs, coredump, efuse, fat, undefined, and littlefs are allowed. Use numbers for custom subtypes"
-        )
-    if partition_size % 0x1000 != 0:
-        raise error_func("Partition size must be 4KB (0x1000) aligned.")
+RESERVED_PARTITION_NAMES = {
+    "nvs",
+    "app0",
+    "app1",
+    "otadata",
+    "eeprom",
+    "spiffs",
+    "phy_init",
+}
+
+VALID_APP_SUBTYPES = {"factory", "test"}
+VALID_DATA_SUBTYPES = {
+    "nvs",
+    "nvs_keys",
+    "spiffs",
+    "coredump",
+    "efuse",
+    "fat",
+    "undefined",
+    "littlefs",
+}
 
 
 def _validate_custom_partition(config):
-    _validate_partition(
-        config["name"],
-        config["type"],
-        config["subtype"],
-        config["size"],
-        cv.Invalid,
-    )
-    if isinstance(config["type"], int):
-        config["type"] = f"0x{config['type']:X}"
-    if isinstance(config["subtype"], int):
-        config["subtype"] = f"0x{config['subtype']:X}"
+    """Voluptuous validator for custom partition schema."""
+    try:
+        _validate_partition(
+            config[CONF_NAME],
+            config[CONF_TYPE],
+            config[CONF_SUBTYPE],
+            config[CONF_SIZE],
+        )
+    except ValueError as e:
+        raise cv.Invalid(str(e)) from e
+    # Normalize integer types/subtypes to hex strings
+    if isinstance(config[CONF_TYPE], int):
+        config[CONF_TYPE] = f"0x{config[CONF_TYPE]:X}"
+    if isinstance(config[CONF_SUBTYPE], int):
+        config[CONF_SUBTYPE] = f"0x{config[CONF_SUBTYPE]:X}"
     return config
 
 
@@ -1931,99 +1907,105 @@ async def to_code(config):
 
 KEY_CUSTOM_PARTITIONS = "custom_partitions"
 
+# Partition layout (offsets auto-placed by gen_esp32part.py):
+#   otadata(0x2000) + phy_init(0x1000) + [pad to 64KB] + app0 + app1
+#   + [eeprom(0x1000) + spiffs(0xF000)]  (Arduino only)
+#   + nvs (fixed: 0x60000 Arduino, 0x70000 IDF)
+#   + custom_partitions...
+#
+# PARTITION_OVERHEAD is the total non-app budget (system partitions + nvs + padding).
+# Custom partitions are appended at the end and steal from app.
+PARTITION_OVERHEAD = 0x80000  # 512 KB
 
-def add_partition(name: str, p_type: str, subtype: str, size: int) -> None:
-    p_type_ = p_type
-    subtype_ = subtype
+
+def _validate_partition(
+    name: str, p_type: str | int, subtype: str | int, size: int
+) -> None:
+    """Validate partition parameters. Raises ValueError on invalid input."""
+    if name in RESERVED_PARTITION_NAMES:
+        raise ValueError(f"Partition name '{name}' is reserved.")
+    if isinstance(p_type, str) and p_type not in ("app", "data"):
+        raise ValueError(
+            f"Type '{p_type}' is invalid. Only 'app' and 'data' are allowed."
+            " Use numbers for custom types."
+        )
+    if isinstance(subtype, str):
+        if p_type == "app" and subtype not in VALID_APP_SUBTYPES:
+            raise ValueError(
+                f"Subtype '{subtype}' is invalid for app type."
+                f" Only {', '.join(sorted(VALID_APP_SUBTYPES))} are allowed."
+                " Use numbers for custom subtypes."
+            )
+        if p_type == "data" and subtype not in VALID_DATA_SUBTYPES:
+            raise ValueError(
+                f"Subtype '{subtype}' is invalid for data type."
+                f" Only {', '.join(sorted(VALID_DATA_SUBTYPES))} are allowed."
+                " Use numbers for custom subtypes."
+            )
+    if size % 0x1000 != 0:
+        raise ValueError("Partition size must be 4KB (0x1000) aligned.")
+
+
+def add_partition(name: str, p_type: str | int, subtype: str | int, size: int) -> None:
     if name in CORE.data.get(KEY_CUSTOM_PARTITIONS, {}):
-        raise ValueError(f"Partition name {name} is already defined.")
-    _validate_partition(name, p_type_, subtype_, size, ValueError)
-    if isinstance(p_type_, int):
-        p_type_ = f"0x{p_type_:X}"
-    if isinstance(subtype_, int):
-        subtype_ = f"0x{subtype_:X}"
+        raise ValueError(f"Partition name '{name}' is already defined.")
+    _validate_partition(name, p_type, subtype, size)
+    p_type_str = f"0x{p_type:X}" if isinstance(p_type, int) else p_type
+    subtype_str = f"0x{subtype:X}" if isinstance(subtype, int) else subtype
     custom_partitions = CORE.data.setdefault(KEY_CUSTOM_PARTITIONS, {})
-    custom_partitions[name] = {"type": p_type_, "subtype": subtype_, "size": size}
+    custom_partitions[name] = {"type": p_type_str, "subtype": subtype_str, "size": size}
 
 
-def _get_custom_partition_half_size() -> int:
+def _flash_size_to_bytes(flash_size: str) -> int:
+    return int(flash_size.rstrip("MB")) * 1024 * 1024
+
+
+def _get_custom_partitions_total_size() -> int:
+    """Total size of custom partitions including alignment padding."""
     size = 0
     for partition in CORE.data.get(KEY_CUSTOM_PARTITIONS, {}).values():
         if partition["type"] == "app":
             size = (size + 0xFFFF) & ~0xFFFF  # align to 64KB
         size += partition["size"]
-    return (size // 2 + 0xFFFF) & ~0xFFFF  # align to 64KB
+    return size
 
 
-APP_PARTITION_SIZES = {
-    "2MB": 0x0C0000,  # 768 KB
-    "4MB": 0x1C0000,  # 1792 KB
-    "8MB": 0x3C0000,  # 3840 KB
-    "16MB": 0x7C0000,  # 7936 KB
-    "32MB": 0xFC0000,  # 16128 KB
-}
-
-
-def get_arduino_partition_csv(flash_size: str):
-    app_partition_size = (
-        APP_PARTITION_SIZES[flash_size] - _get_custom_partition_half_size()
-    )
-    if app_partition_size <= 0x010000:  # 64 KB
+def _get_app_partition_size(flash_size: str) -> int:
+    flash_bytes = _flash_size_to_bytes(flash_size)
+    custom_total = _get_custom_partitions_total_size()
+    app_size = (flash_bytes - PARTITION_OVERHEAD - custom_total) // 2
+    if app_size <= 0x10000:  # 64 KB
         raise ValueError(
             "Custom partitions are too large to fit in the available flash size. "
             "Reduce custom partition sizes."
         )
-    eeprom_partition_size = 0x1000  # 4 KB
-    spiffs_partition_size = 0xF000  # 60 KB
+    return app_size
 
-    app0_partition_start = 0x010000  # 64 KB
-    app1_partition_start = app0_partition_start + app_partition_size
-    eeprom_partition_start = app1_partition_start + app_partition_size
-    spiffs_partition_start = eeprom_partition_start + eeprom_partition_size
-    custom_partition_start = spiffs_partition_start + spiffs_partition_size
 
-    partition_csv = f"""\
-nvs,      data, nvs,     0x9000, 0x5000,
-otadata,  data, ota,     0xE000, 0x2000,
-app0,     app,  ota_0,   0x{app0_partition_start:X}, 0x{app_partition_size:X},
-app1,     app,  ota_1,   0x{app1_partition_start:X}, 0x{app_partition_size:X},
-eeprom,   data, 0x99,    0x{eeprom_partition_start:X}, 0x{eeprom_partition_size:X},
-spiffs,   data, spiffs,  0x{spiffs_partition_start:X}, 0x{spiffs_partition_size:X},
+def get_partition_csv(flash_size: str) -> str:
+    app_size = _get_app_partition_size(flash_size)
+
+    if CORE.using_arduino:
+        csv = f"""\
+otadata,  data, ota,     , 0x2000,
+phy_init, data, phy,     , 0x1000,
+app0,     app,  ota_0,   , 0x{app_size:X},
+app1,     app,  ota_1,   , 0x{app_size:X},
+eeprom,   data, 0x99,    , 0x1000,
+spiffs,   data, spiffs,  , 0xF000,
+nvs,      data, nvs,     , 0x60000,
 """
-    for partition, types in CORE.data.get(KEY_CUSTOM_PARTITIONS, {}).items():
-        if types["type"] == "app":
-            custom_partition_start = (
-                custom_partition_start + 0xFFFF
-            ) & ~0xFFFF  # align to 64KB
-        else:
-            custom_partition_start = (
-                custom_partition_start + 0xFFF
-            ) & ~0xFFF  # align to 4KB
-        partition_csv += f"{partition}, {types['type']},   {types['subtype']},    0x{custom_partition_start:X},   0x{types['size']:X},\n"
-        custom_partition_start = custom_partition_start + types["size"]
-    return partition_csv
-
-
-def get_idf_partition_csv(flash_size: str):
-    app_partition_size = (
-        APP_PARTITION_SIZES[flash_size] - _get_custom_partition_half_size()
-    )
-    if app_partition_size <= 0x010000:  # 64 KB
-        raise ValueError(
-            "Custom partitions are too large to fit in the available flash size. "
-            "Reduce custom partition sizes."
-        )
-
-    partition_csv = f"""\
-otadata,  data, ota,     ,        0x2000,
-phy_init, data, phy,     ,        0x1000,
-app0,     app,  ota_0,   ,        0x{app_partition_size:X},
-app1,     app,  ota_1,   ,        0x{app_partition_size:X},
-nvs,      data, nvs,     ,        0x6D000,
+    else:
+        csv = f"""\
+otadata,  data, ota,     , 0x2000,
+phy_init, data, phy,     , 0x1000,
+app0,     app,  ota_0,   , 0x{app_size:X},
+app1,     app,  ota_1,   , 0x{app_size:X},
+nvs,      data, nvs,     , 0x70000,
 """
-    for partition, types in CORE.data.get(KEY_CUSTOM_PARTITIONS, {}).items():
-        partition_csv += f"{partition}, {types['type']},   {types['subtype']},    , 0x{types['size']:X},\n"
-    return partition_csv
+    for name, entry in CORE.data.get(KEY_CUSTOM_PARTITIONS, {}).items():
+        csv += f"{name}, {entry['type']}, {entry['subtype']}, , 0x{entry['size']:X},\n"
+    return csv
 
 
 def _format_sdkconfig_val(value: SdkconfigValueType) -> str:
@@ -2130,16 +2112,10 @@ def copy_files():
 
     if "partitions.csv" not in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES]:
         flash_size = CORE.data[KEY_ESP32][KEY_FLASH_SIZE]
-        if CORE.using_arduino:
-            write_file_if_changed(
-                CORE.relative_build_path("partitions.csv"),
-                get_arduino_partition_csv(flash_size),
-            )
-        else:
-            write_file_if_changed(
-                CORE.relative_build_path("partitions.csv"),
-                get_idf_partition_csv(flash_size),
-            )
+        write_file_if_changed(
+            CORE.relative_build_path("partitions.csv"),
+            get_partition_csv(flash_size),
+        )
     # IDF build scripts look for version string to put in the build.
     # However, if the build path does not have an initialized git repo,
     # and no version.txt file exists, the CMake script fails for some setups.
