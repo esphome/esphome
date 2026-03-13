@@ -1915,15 +1915,30 @@ class CustomPartition:
     size: int
 
 
-# Partition layout (offsets auto-placed by gen_esp32part.py):
-#   otadata(0x2000) + phy_init(0x1000) + [pad to 64KB] + app0 + app1
-#   + [eeprom(0x1000) + spiffs(0xF000)]  (Arduino only)
-#   + nvs (fixed: 0x60000 Arduino, 0x70000 IDF)
-#   + custom_partitions...
-#
-# PARTITION_OVERHEAD is the total non-app budget (system partitions + nvs + padding).
-# Custom partitions are appended at the end and steal from app.
-PARTITION_OVERHEAD = 0x80000  # 512 KB
+# Partition sizes (offsets auto-placed by gen_esp32part.py).
+# These constants are the single source of truth — used in both
+# the CSV generation and the overhead calculation.
+OTADATA_SIZE = 0x2000
+PHY_INIT_SIZE = 0x1000
+EEPROM_SIZE = 0x1000  # Arduino only
+SPIFFS_SIZE = 0xF000  # Arduino only
+ARDUINO_NVS_SIZE = 0x60000
+IDF_NVS_SIZE = 0x70000
+
+
+def _get_partition_overhead() -> int:
+    """Total non-app partition budget (system partitions + nvs + padding).
+
+    Custom partitions are appended at the end and steal from app.
+    """
+    # otadata + phy_init are followed by app0 which requires 64KB alignment,
+    # so pad up to the next 64KB boundary.
+    overhead = (OTADATA_SIZE + PHY_INIT_SIZE + 0xFFFF) & ~0xFFFF
+    if CORE.using_arduino:
+        overhead += EEPROM_SIZE + SPIFFS_SIZE + ARDUINO_NVS_SIZE
+    else:
+        overhead += IDF_NVS_SIZE
+    return overhead
 
 
 def _validate_partition(
@@ -1988,7 +2003,7 @@ def _get_app_partition_size(flash_size_mb: str) -> int:
     custom_total = _get_custom_partitions_total_size()
     # Align down to 64KB — app partitions require 64KB-aligned offsets,
     # so the size must also be aligned to avoid unbudgeted padding.
-    raw_size = (flash_bytes - PARTITION_OVERHEAD - custom_total) // 2
+    raw_size = (flash_bytes - _get_partition_overhead() - custom_total) // 2
     app_size = raw_size & ~0xFFFF
     wasted = (raw_size - app_size) * 2
     if wasted:
@@ -2009,21 +2024,21 @@ def get_partition_csv(flash_size_mb: str) -> str:
 
     if CORE.using_arduino:
         csv = f"""\
-otadata,  data, ota,     , 0x2000,
-phy_init, data, phy,     , 0x1000,
+otadata,  data, ota,     , 0x{OTADATA_SIZE:X},
+phy_init, data, phy,     , 0x{PHY_INIT_SIZE:X},
 app0,     app,  ota_0,   , 0x{app_size:X},
 app1,     app,  ota_1,   , 0x{app_size:X},
-eeprom,   data, 0x99,    , 0x1000,
-spiffs,   data, spiffs,  , 0xF000,
-nvs,      data, nvs,     , 0x60000,
+eeprom,   data, 0x99,    , 0x{EEPROM_SIZE:X},
+spiffs,   data, spiffs,  , 0x{SPIFFS_SIZE:X},
+nvs,      data, nvs,     , 0x{ARDUINO_NVS_SIZE:X},
 """
     else:
         csv = f"""\
-otadata,  data, ota,     , 0x2000,
-phy_init, data, phy,     , 0x1000,
+otadata,  data, ota,     , 0x{OTADATA_SIZE:X},
+phy_init, data, phy,     , 0x{PHY_INIT_SIZE:X},
 app0,     app,  ota_0,   , 0x{app_size:X},
 app1,     app,  ota_1,   , 0x{app_size:X},
-nvs,      data, nvs,     , 0x70000,
+nvs,      data, nvs,     , 0x{IDF_NVS_SIZE:X},
 """
     for name, entry in CORE.data[KEY_ESP32].get(KEY_CUSTOM_PARTITIONS, {}).items():
         csv += f"{name}, {entry.type}, {entry.subtype}, , 0x{entry.size:X},\n"
