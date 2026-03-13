@@ -1975,7 +1975,16 @@ def _get_custom_partitions_total_size() -> int:
 def _get_app_partition_size(flash_size: str) -> int:
     flash_bytes = _flash_size_to_bytes(flash_size)
     custom_total = _get_custom_partitions_total_size()
-    app_size = (flash_bytes - PARTITION_OVERHEAD - custom_total) // 2
+    # Align down to 64KB — app partitions require 64KB-aligned offsets,
+    # so the size must also be aligned to avoid unbudgeted padding.
+    raw_size = (flash_bytes - PARTITION_OVERHEAD - custom_total) // 2
+    app_size = raw_size & ~0xFFFF
+    wasted = (raw_size - app_size) * 2
+    if wasted:
+        _LOGGER.warning(
+            "Custom partition sizes are not 64KB-aligned; %dKB of flash will be wasted.",
+            wasted // 1024,
+        )
     if app_size <= 0x10000:  # 64 KB
         raise ValueError(
             "Custom partitions are too large to fit in the available flash size. "
