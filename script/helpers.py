@@ -716,12 +716,12 @@ def _extract_components_from_yaml(config: dict) -> set[str]:
 
     # Add platform components (e.g., output.template)
     for value in config.values():
-        if not isinstance(value, list):
-            continue
-
-        for item in value:
-            if isinstance(item, dict) and "platform" in item:
-                components.add(item["platform"])
+        if isinstance(value, list):
+            components.update(
+                item["platform"]
+                for item in value
+                if isinstance(item, dict) and "platform" in item
+            )
 
     return components
 
