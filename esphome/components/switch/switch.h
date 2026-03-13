@@ -35,7 +35,7 @@ enum SwitchRestoreMode : uint8_t {
  * A switch is basically just a combination of a binary sensor (for reporting switch values)
  * and a write_state method that writes a state to the hardware.
  */
-class Switch : public EntityBase, public EntityBase_DeviceClass {
+class Switch : public EntityBase {
  public:
   explicit Switch();
 

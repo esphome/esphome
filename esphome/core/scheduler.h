@@ -2,7 +2,6 @@
 
 #include "esphome/core/defines.h"
 #include <cstring>
-#include <memory>
 #include <string>
 #include <vector>
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
@@ -12,6 +11,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/time_64.h"
 
 namespace esphome {
 
@@ -143,19 +143,6 @@ class Scheduler {
   };
 
  protected:
-  struct SchedulerItem;
-
-  // Custom deleter for SchedulerItem unique_ptr that prevents the compiler from
-  // inlining the destructor at every destruction site. On BK7231N (Thumb-1), GCC
-  // inlines ~unique_ptr<SchedulerItem> (~30 bytes: null check + ~std::function +
-  // operator delete) at every destruction site, while ESP32/ESP8266/RTL8720CF outline
-  // it into a single helper. This noinline deleter ensures only one copy exists.
-  // operator() is defined in scheduler.cpp to prevent inlining.
-  struct SchedulerItemDeleter {
-    void operator()(SchedulerItem *ptr) const noexcept;
-  };
-  using SchedulerItemPtr = std::unique_ptr<SchedulerItem, SchedulerItemDeleter>;
-
   struct SchedulerItem {
     // Ordered by size to minimize padding
     Component *component;
@@ -177,9 +164,11 @@ class Scheduler {
     uint16_t next_execution_high_;  // Upper 16 bits (millis_major counter)
 
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
-    // Multi-threaded with atomics: use atomic for lock-free access
-    // Place atomic<bool> separately since it can't be packed with bit fields
-    std::atomic<bool> remove{false};
+    // Multi-threaded with atomics: use atomic uint8_t for lock-free access.
+    // std::atomic<bool> is not used because GCC on Xtensa generates an indirect
+    // function call for std::atomic<bool>::load() instead of inlining it.
+    // std::atomic<uint8_t> inlines correctly on all platforms.
+    std::atomic<uint8_t> remove{0};
 
     // Bit-packed fields (4 bits used, 4 bits padding in 1 byte)
     enum Type : uint8_t { TIMEOUT, INTERVAL } type : 1;
@@ -203,7 +192,7 @@ class Scheduler {
           next_execution_low_(0),
           next_execution_high_(0),
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
-          // remove is initialized in the member declaration as std::atomic<bool>{false}
+          // remove is initialized in the member declaration
           type(TIMEOUT),
           name_type_(NameType::STATIC_STRING),
           is_retry(false) {
@@ -216,14 +205,14 @@ class Scheduler {
       name_.static_name = nullptr;
     }
 
-    // Destructor - no dynamic memory to clean up
+    // Destructor - no dynamic memory to clean up (callback's std::function handles its own)
     ~SchedulerItem() = default;
 
     // Delete copy operations to prevent accidental copies
     SchedulerItem(const SchedulerItem &) = delete;
     SchedulerItem &operator=(const SchedulerItem &) = delete;
 
-    // Delete move operations: SchedulerItem objects are only managed via unique_ptr, never moved directly
+    // Delete move operations: SchedulerItem objects are managed via raw pointers, never moved directly
     SchedulerItem(SchedulerItem &&) = delete;
     SchedulerItem &operator=(SchedulerItem &&) = delete;
 
@@ -247,7 +236,7 @@ class Scheduler {
       name_type_ = type;
     }
 
-    static bool cmp(const SchedulerItemPtr &a, const SchedulerItemPtr &b);
+    static bool cmp(SchedulerItem *a, SchedulerItem *b);
 
     // Note: We use 48 bits total (32 + 16), stored in a 64-bit value for API compatibility.
     // The upper 16 bits of the 64-bit value are always zero, which is fine since
@@ -284,33 +273,27 @@ class Scheduler {
   bool cancel_retry_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id);
 
   // Extend a 32-bit millis() value to 64-bit. Use when the caller already has a fresh now.
-  // On ESP32, Host, Zephyr, and RP2040, ignores now and uses the native 64-bit time source via millis_64().
+  // On platforms with native 64-bit time, ignores now and uses millis_64() directly.
   // On other platforms, extends now to 64-bit using rollover tracking.
   uint64_t millis_64_from_(uint32_t now) {
-#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_ZEPHYR) || defined(USE_RP2040)
+#ifdef USE_NATIVE_64BIT_TIME
     (void) now;
     return millis_64();
 #else
-    return this->millis_64_impl_(now);
+    return Millis64Impl::compute(now);
 #endif
   }
-
-#if !defined(USE_ESP32) && !defined(USE_HOST) && !defined(USE_ZEPHYR) && !defined(USE_RP2040)
-  // On platforms without native 64-bit time, millis_64() HAL function delegates to this
-  // method which tracks 32-bit millis() rollover using millis_major_ and last_millis_.
-  friend uint64_t millis_64();
-  uint64_t millis_64_impl_(uint32_t now);
-#endif
   // Cleanup logically deleted items from the scheduler
   // Returns the number of items remaining after cleanup
   // IMPORTANT: This method should only be called from the main thread (loop task).
   size_t cleanup_();
-  // Remove and return the front item from the heap
+  // Remove and return the front item from the heap as a raw pointer.
+  // Caller takes ownership and must either recycle or delete the item.
   // IMPORTANT: Caller must hold the scheduler lock before calling this function.
-  SchedulerItemPtr pop_raw_locked_();
+  SchedulerItem *pop_raw_locked_();
   // Get or create a scheduler item from the pool
   // IMPORTANT: Caller must hold the scheduler lock before calling this function.
-  SchedulerItemPtr get_item_from_pool_locked_();
+  SchedulerItem *get_item_from_pool_locked_();
 
  private:
   // Helper to cancel items - must be called with lock held
@@ -334,19 +317,16 @@ class Scheduler {
   // Helper function to check if item matches criteria for cancellation
   // name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
   // IMPORTANT: Must be called with scheduler lock held
-  inline bool HOT matches_item_locked_(const SchedulerItemPtr &item, Component *component, NameType name_type,
+  inline bool HOT matches_item_locked_(SchedulerItem *item, Component *component, NameType name_type,
                                        const char *static_name, uint32_t hash_or_id, SchedulerItem::Type type,
                                        bool match_retry, bool skip_removed = true) const {
     // THREAD SAFETY: Check for nullptr first to prevent LoadProhibited crashes. On multi-threaded
-    // platforms, items can be moved out of defer_queue_ during processing, leaving nullptr entries.
-    // PR #11305 added nullptr checks in callers (mark_matching_items_removed_locked_()), but this check
-    // provides defense-in-depth: helper
-    // functions should be safe regardless of caller behavior.
+    // platforms, items can be nulled in defer_queue_ during processing.
     // Fixes: https://github.com/esphome/esphome/issues/11940
-    if (!item)
+    if (item == nullptr)
       return false;
-    if (item->component != component || item->type != type ||
-        (skip_removed && this->is_item_removed_locked_(item.get())) || (match_retry && !item->is_retry)) {
+    if (item->component != component || item->type != type || (skip_removed && this->is_item_removed_locked_(item)) ||
+        (match_retry && !item->is_retry)) {
       return false;
     }
     // Name type must match
@@ -368,10 +348,12 @@ class Scheduler {
   }
 
   // Helper to recycle a SchedulerItem back to the pool.
+  // Takes a raw pointer — caller transfers ownership. The item is either added to the
+  // pool or deleted if the pool is full.
   // IMPORTANT: Only call from main loop context! Recycling clears the callback,
   // so calling from another thread while the callback is executing causes use-after-free.
   // IMPORTANT: Caller must hold the scheduler lock before calling this function.
-  void recycle_item_main_loop_(SchedulerItemPtr item);
+  void recycle_item_main_loop_(SchedulerItem *item);
 
   // Helper to perform full cleanup when too many items are cancelled
   void full_cleanup_removed_items_();
@@ -427,27 +409,28 @@ class Scheduler {
     // Merge lock acquisitions: instead of separate locks for move-out and recycle (2N+1 total),
     // recycle each item after re-acquiring the lock for the next iteration (N+1 total).
     // The lock is held across: recycle → loop condition → move-out, then released for execution.
-    SchedulerItemPtr item;
+    SchedulerItem *item;
 
     this->lock_.lock();
     while (this->defer_queue_front_ < defer_queue_end) {
-      // SAFETY: Moving out the unique_ptr leaves a nullptr in the vector at defer_queue_front_.
-      // This is intentional and safe because:
+      // Take ownership of the item, leaving nullptr in the vector slot.
+      // This is safe because:
       // 1. The vector is only cleaned up by cleanup_defer_queue_locked_() at the end of this function
       // 2. Any code iterating defer_queue_ MUST check for nullptr items (see mark_matching_items_removed_locked_)
       // 3. The lock protects concurrent access, but the nullptr remains until cleanup
-      item = std::move(this->defer_queue_[this->defer_queue_front_]);
+      item = this->defer_queue_[this->defer_queue_front_];
+      this->defer_queue_[this->defer_queue_front_] = nullptr;
       this->defer_queue_front_++;
       this->lock_.unlock();
 
       // Execute callback without holding lock to prevent deadlocks
       // if the callback tries to call defer() again
-      if (!this->should_skip_item_(item.get())) {
-        now = this->execute_item_(item.get(), now);
+      if (!this->should_skip_item_(item)) {
+        now = this->execute_item_(item, now);
       }
 
       this->lock_.lock();
-      this->recycle_item_main_loop_(std::move(item));
+      this->recycle_item_main_loop_(item);
     }
     // Clean up the queue (lock already held from last recycle or initial acquisition)
     this->cleanup_defer_queue_locked_();
@@ -514,7 +497,7 @@ class Scheduler {
     // Multi-threaded with atomics: use atomic store with appropriate ordering
     // Release ordering when setting to true ensures cancellation is visible to other threads
     // Relaxed ordering when setting to false is sufficient for initialization
-    item->remove.store(removed, removed ? std::memory_order_release : std::memory_order_relaxed);
+    item->remove.store(removed ? 1 : 0, removed ? std::memory_order_release : std::memory_order_relaxed);
 #else
     // Single-threaded (ESPHOME_THREAD_SINGLE) or
     // multi-threaded without atomics (ESPHOME_THREAD_MULTI_NO_ATOMICS): direct write
@@ -527,18 +510,14 @@ class Scheduler {
   // name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
   // Returns the number of items marked for removal
   // IMPORTANT: Must be called with scheduler lock held
-  __attribute__((noinline)) size_t mark_matching_items_removed_locked_(std::vector<SchedulerItemPtr> &container,
+  __attribute__((noinline)) size_t mark_matching_items_removed_locked_(std::vector<SchedulerItem *> &container,
                                                                        Component *component, NameType name_type,
                                                                        const char *static_name, uint32_t hash_or_id,
                                                                        SchedulerItem::Type type, bool match_retry) {
     size_t count = 0;
-    for (auto &item : container) {
-      // Skip nullptr items (can happen in defer_queue_ when items are being processed)
-      // The defer_queue_ uses index-based processing: items are std::moved out but left in the
-      // vector as nullptr until cleanup. Even though this function is called with lock held,
-      // the vector can still contain nullptr items from the processing loop. This check prevents crashes.
-      if (item && this->matches_item_locked_(item, component, name_type, static_name, hash_or_id, type, match_retry)) {
-        this->set_item_removed_(item.get(), true);
+    for (auto *item : container) {
+      if (this->matches_item_locked_(item, component, name_type, static_name, hash_or_id, type, match_retry)) {
+        this->set_item_removed_(item, true);
         count++;
       }
     }
@@ -546,15 +525,15 @@ class Scheduler {
   }
 
   Mutex lock_;
-  std::vector<SchedulerItemPtr> items_;
-  std::vector<SchedulerItemPtr> to_add_;
+  std::vector<SchedulerItem *> items_;
+  std::vector<SchedulerItem *> to_add_;
 #ifndef ESPHOME_THREAD_SINGLE
   // Single-core platforms don't need the defer queue and save ~32 bytes of RAM
   // Using std::vector instead of std::deque avoids 512-byte chunked allocations
   // Index tracking avoids O(n) erase() calls when draining the queue each loop
-  std::vector<SchedulerItemPtr> defer_queue_;  // FIFO queue for defer() calls
-  size_t defer_queue_front_{0};                // Index of first valid item in defer_queue_ (tracks consumed items)
-#endif                                         /* ESPHOME_THREAD_SINGLE */
+  std::vector<SchedulerItem *> defer_queue_;  // FIFO queue for defer() calls
+  size_t defer_queue_front_{0};               // Index of first valid item in defer_queue_ (tracks consumed items)
+#endif                                        /* ESPHOME_THREAD_SINGLE */
   uint32_t to_remove_{0};
 
   // Memory pool for recycling SchedulerItem objects to reduce heap churn.
@@ -565,40 +544,18 @@ class Scheduler {
   // - The pool significantly reduces heap fragmentation which is critical because heap allocation/deallocation
   //   can stall the entire system, causing timing issues and dropped events for any components that need
   //   to synchronize between tasks (see https://github.com/esphome/backlog/issues/52)
-  std::vector<SchedulerItemPtr> scheduler_item_pool_;
+  std::vector<SchedulerItem *> scheduler_item_pool_;
 
-#if !defined(USE_ESP32) && !defined(USE_HOST) && !defined(USE_ZEPHYR) && !defined(USE_RP2040)
-  // On platforms with native 64-bit time (ESP32, Host, Zephyr, RP2040), no rollover tracking needed.
-  // On other platforms, these fields track 32-bit millis() rollover for millis_64_impl_().
-#ifdef ESPHOME_THREAD_MULTI_ATOMICS
-  /*
-   * Multi-threaded platforms with atomic support: last_millis_ needs atomic for lock-free updates
-   *
-   * MEMORY-ORDERING NOTE
-   * --------------------
-   * `last_millis_` and `millis_major_` form a single 64-bit timestamp split in half.
-   * Writers publish `last_millis_` with memory_order_release and readers use
-   * memory_order_acquire. This ensures that once a reader sees the new low word,
-   * it also observes the corresponding increment of `millis_major_`.
-   */
-  std::atomic<uint32_t> last_millis_{0};
-#else  /* not ESPHOME_THREAD_MULTI_ATOMICS */
-  // Platforms without atomic support or single-threaded platforms
-  uint32_t last_millis_{0};
-#endif /* else ESPHOME_THREAD_MULTI_ATOMICS */
+#ifdef ESPHOME_DEBUG_SCHEDULER
+  // Leak detection: tracks total live SchedulerItem allocations.
+  // Invariant: debug_live_items_ == items_.size() + to_add_.size() + defer_queue_.size() + scheduler_item_pool_.size()
+  // Verified periodically in call() to catch leaks early.
+  size_t debug_live_items_{0};
 
-  /*
-   * Upper 16 bits of the 64-bit millis counter. Incremented only while holding
-   * `lock_`; read concurrently. Atomic (relaxed) avoids a formal data race.
-   * Ordering relative to `last_millis_` is provided by its release store and the
-   * corresponding acquire loads.
-   */
-#ifdef ESPHOME_THREAD_MULTI_ATOMICS
-  std::atomic<uint16_t> millis_major_{0};
-#else  /* not ESPHOME_THREAD_MULTI_ATOMICS */
-  uint16_t millis_major_{0};
-#endif /* else ESPHOME_THREAD_MULTI_ATOMICS */
-#endif /* !USE_ESP32 && !USE_HOST && !USE_ZEPHYR && !USE_RP2040 */
+  // Verify the scheduler memory invariant: all allocated items are accounted for.
+  // Returns true if no leak detected. Logs an error and asserts on failure.
+  bool debug_verify_no_leak_() const;
+#endif
 };
 
 }  // namespace esphome
