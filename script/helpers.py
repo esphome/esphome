@@ -714,7 +714,7 @@ def _extract_components_from_yaml(config: dict) -> set[str]:
     # Add all top-level component keys (skip YAML anchor keys starting with '.')
     components.update(k for k in config if isinstance(k, str) and not k.startswith("."))
 
-    # Add platform components (e.g., output.template)
+    # Add platform values from list entries (e.g., sensor -> platform: template adds "template")
     for value in config.values():
         if isinstance(value, list):
             components.update(

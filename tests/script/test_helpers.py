@@ -36,6 +36,7 @@ def clear_helpers_cache() -> None:
     """Clear cached functions before each test."""
     helpers._get_github_event_data.cache_clear()
     helpers._get_changed_files_github_actions.cache_clear()
+    helpers.get_components_per_integration_fixture.cache_clear()
 
 
 @pytest.mark.parametrize(
@@ -1113,8 +1114,6 @@ def test_get_components_from_integration_fixtures() -> None:
 
     mock_yaml_file = Mock(stem="test_fixture")
 
-    # Clear cache from previous calls
-    helpers.get_components_per_integration_fixture.cache_clear()
     with (
         patch("pathlib.Path.glob") as mock_glob,
         patch("esphome.yaml_util.load_yaml", return_value=yaml_content),
@@ -1124,7 +1123,6 @@ def test_get_components_from_integration_fixtures() -> None:
         components = helpers.get_components_from_integration_fixtures()
 
         assert components == expected_components
-    helpers.get_components_per_integration_fixture.cache_clear()
 
 
 def test_get_components_from_integration_fixtures_skips_yaml_anchors() -> None:
@@ -1138,8 +1136,6 @@ def test_get_components_from_integration_fixtures_skips_yaml_anchors() -> None:
 
     mock_yaml_file = Mock(stem="test_fixture")
 
-    # Clear cache from previous calls
-    helpers.get_components_per_integration_fixture.cache_clear()
     with (
         patch("pathlib.Path.glob") as mock_glob,
         patch("esphome.yaml_util.load_yaml", return_value=yaml_content),
@@ -1151,7 +1147,6 @@ def test_get_components_from_integration_fixtures_skips_yaml_anchors() -> None:
         assert ".sensor_filters" not in components
         assert ".binary_filters" not in components
         assert components == {"sensor", "esphome", "template"}
-    helpers.get_components_per_integration_fixture.cache_clear()
 
 
 @pytest.mark.parametrize(
