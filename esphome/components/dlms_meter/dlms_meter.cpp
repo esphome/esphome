@@ -1,7 +1,5 @@
 #include "dlms_meter.h"
 
-#include <cmath>
-
 #if defined(USE_ESP8266_FRAMEWORK_ARDUINO)
 #include <bearssl/bearssl.h>
 #elif defined(USE_ESP32)
@@ -410,7 +408,7 @@ void DlmsMeterComponent::decode_obis_(uint8_t *plaintext, uint16_t message_lengt
       if (current_position + 1 < message_length) {
         int8_t scaler = static_cast<int8_t>(plaintext[current_position + 1]);
         if (scaler != 0) {
-          value *= powf(10.0f, scaler);
+          value *= pow10_int(scaler);
         }
       }
 

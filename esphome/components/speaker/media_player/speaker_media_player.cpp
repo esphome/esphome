@@ -51,7 +51,11 @@ static const UBaseType_t ANNOUNCEMENT_PIPELINE_TASK_PRIORITY = 1;
 static const char *const TAG = "speaker_media_player";
 
 void SpeakerMediaPlayer::setup() {
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+  state = media_player::MEDIA_PLAYER_STATE_OFF;
+#else
   state = media_player::MEDIA_PLAYER_STATE_IDLE;
+#endif
 
   this->media_control_command_queue_ = xQueueCreate(MEDIA_CONTROLS_QUEUE_LENGTH, sizeof(MediaCallCommand));
 
@@ -128,13 +132,19 @@ void SpeakerMediaPlayer::watch_media_commands_() {
     bool enqueue = media_command.enqueue.has_value() && media_command.enqueue.value();
 
     if (media_command.url.has_value() || media_command.file.has_value()) {
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+      if (this->state == media_player::MEDIA_PLAYER_STATE_OFF) {
+        this->state = media_player::MEDIA_PLAYER_STATE_ON;
+        publish_state();
+      }
+#endif
       PlaylistItem playlist_item;
       if (media_command.url.has_value()) {
         playlist_item.url = *media_command.url.value();
         delete media_command.url.value();
       }
       if (media_command.file.has_value()) {
-        playlist_item.file = media_command.file.value();
+        playlist_item.file = media_command.file;
       }
 
       if (this->single_pipeline_() || (media_command.announce.has_value() && media_command.announce.value())) {
@@ -184,6 +194,12 @@ void SpeakerMediaPlayer::watch_media_commands_() {
     if (media_command.command.has_value()) {
       switch (media_command.command.value()) {
         case media_player::MEDIA_PLAYER_COMMAND_PLAY:
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+          if (this->state == media_player::MEDIA_PLAYER_STATE_OFF) {
+            this->state = media_player::MEDIA_PLAYER_STATE_ON;
+            publish_state();
+          }
+#endif
           if ((this->media_pipeline_ != nullptr) && (this->is_paused_)) {
             this->media_pipeline_->set_pause_state(false);
           }
@@ -195,10 +211,26 @@ void SpeakerMediaPlayer::watch_media_commands_() {
           }
           this->is_paused_ = true;
           break;
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+        case media_player::MEDIA_PLAYER_COMMAND_TURN_ON:
+          if (this->state == media_player::MEDIA_PLAYER_STATE_OFF) {
+            this->state = media_player::MEDIA_PLAYER_STATE_ON;
+            this->publish_state();
+          }
+          break;
+        case media_player::MEDIA_PLAYER_COMMAND_TURN_OFF:
+          this->is_turn_off_ = true;
+          // Intentional Fall-through
+#endif
         case media_player::MEDIA_PLAYER_COMMAND_STOP:
           // Pipelines do not stop immediately after calling the stop command, so confirm its stopped before unpausing.
           // This avoids an audible short segment playing after receiving the stop command in a paused state.
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+          if (this->single_pipeline_() || (media_command.announce.has_value() && media_command.announce.value()) ||
+              (this->is_turn_off_ && this->announcement_pipeline_state_ != AudioPipelineState::STOPPED)) {
+#else
           if (this->single_pipeline_() || (media_command.announce.has_value() && media_command.announce.value())) {
+#endif
             if (this->announcement_pipeline_ != nullptr) {
               this->cancel_timeout("next_ann");
               this->announcement_playlist_.clear();
@@ -366,7 +398,13 @@ void SpeakerMediaPlayer::loop() {
       }
     } else {
       if (this->is_paused_) {
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+        if (this->state != media_player::MEDIA_PLAYER_STATE_OFF) {
+          this->state = media_player::MEDIA_PLAYER_STATE_PAUSED;
+        }
+#else
         this->state = media_player::MEDIA_PLAYER_STATE_PAUSED;
+#endif
       } else if (this->media_pipeline_state_ == AudioPipelineState::PLAYING) {
         this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
       } else if (this->media_pipeline_state_ == AudioPipelineState::STOPPED) {
@@ -399,7 +437,13 @@ void SpeakerMediaPlayer::loop() {
             }
           }
         } else {
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+          if (this->state != media_player::MEDIA_PLAYER_STATE_OFF) {
+            this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
+          }
+#else
           this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
+#endif
         }
       }
     }
@@ -409,6 +453,20 @@ void SpeakerMediaPlayer::loop() {
     this->publish_state();
     ESP_LOGD(TAG, "State changed to %s", media_player::media_player_state_to_string(this->state));
   }
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+  if (this->is_turn_off_ && (this->state == media_player::MEDIA_PLAYER_STATE_PAUSED ||
+                             this->state == media_player::MEDIA_PLAYER_STATE_IDLE)) {
+    this->is_turn_off_ = false;
+    if (this->state == media_player::MEDIA_PLAYER_STATE_PAUSED) {
+      this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
+      this->publish_state();
+      ESP_LOGD(TAG, "State changed to %s", media_player::media_player_state_to_string(this->state));
+    }
+    this->state = media_player::MEDIA_PLAYER_STATE_OFF;
+    this->publish_state();
+    ESP_LOGD(TAG, "State changed to %s", media_player::media_player_state_to_string(this->state));
+  }
+#endif
 }
 
 void SpeakerMediaPlayer::play_file(audio::AudioFile *media_file, bool announcement, bool enqueue) {
@@ -437,18 +495,21 @@ void SpeakerMediaPlayer::control(const media_player::MediaPlayerCall &call) {
 
   MediaCallCommand media_command;
 
-  if (this->single_pipeline_() || (call.get_announcement().has_value() && call.get_announcement().value())) {
+  auto ann = call.get_announcement();
+  if (this->single_pipeline_() || (ann.has_value() && *ann)) {
     media_command.announce = true;
   } else {
     media_command.announce = false;
   }
 
-  if (call.get_media_url().has_value()) {
-    media_command.url = new std::string(
-        call.get_media_url().value());  // Must be manually deleted after receiving media_command from a queue
+  auto media_url = call.get_media_url();
+  if (media_url.has_value()) {
+    media_command.url =
+        new std::string(*media_url);  // Must be manually deleted after receiving media_command from a queue
 
-    if (call.get_command().has_value()) {
-      if (call.get_command().value() == media_player::MEDIA_PLAYER_COMMAND_ENQUEUE) {
+    auto cmd = call.get_command();
+    if (cmd.has_value()) {
+      if (*cmd == media_player::MEDIA_PLAYER_COMMAND_ENQUEUE) {
         media_command.enqueue = true;
       }
     }
@@ -457,18 +518,20 @@ void SpeakerMediaPlayer::control(const media_player::MediaPlayerCall &call) {
     return;
   }
 
-  if (call.get_volume().has_value()) {
-    media_command.volume = call.get_volume().value();
+  auto vol = call.get_volume();
+  if (vol.has_value()) {
+    media_command.volume = vol;
     // Wait 0 ticks for queue to be free, volume sets aren't that important!
     xQueueSend(this->media_control_command_queue_, &media_command, 0);
     return;
   }
 
-  if (call.get_command().has_value()) {
-    media_command.command = call.get_command().value();
+  auto cmd = call.get_command();
+  if (cmd.has_value()) {
+    media_command.command = cmd;
     TickType_t ticks_to_wait = portMAX_DELAY;
-    if ((call.get_command().value() == media_player::MEDIA_PLAYER_COMMAND_VOLUME_UP) ||
-        (call.get_command().value() == media_player::MEDIA_PLAYER_COMMAND_VOLUME_DOWN)) {
+    if ((*cmd == media_player::MEDIA_PLAYER_COMMAND_VOLUME_UP) ||
+        (*cmd == media_player::MEDIA_PLAYER_COMMAND_VOLUME_DOWN)) {
       ticks_to_wait = 0;  // Wait 0 ticks for queue to be free, volume sets aren't that important!
     }
     xQueueSend(this->media_control_command_queue_, &media_command, ticks_to_wait);
@@ -481,6 +544,9 @@ media_player::MediaPlayerTraits SpeakerMediaPlayer::get_traits() {
   if (!this->single_pipeline_()) {
     traits.set_supports_pause(true);
   }
+#ifdef USE_SPEAKER_MEDIA_PLAYER_ON_OFF
+  traits.set_supports_turn_off_on(true);
+#endif
 
   if (this->announcement_format_.has_value()) {
     traits.get_supported_formats().push_back(this->announcement_format_.value());

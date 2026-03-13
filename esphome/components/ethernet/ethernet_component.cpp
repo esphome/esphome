@@ -19,24 +19,7 @@
 #include <driver/spi_master.h>
 #endif
 
-namespace esphome {
-namespace ethernet {
-
-#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2)
-// work around IDF compile issue on P4 https://github.com/espressif/esp-idf/pull/15637
-#ifdef USE_ESP32_VARIANT_ESP32P4
-#undef ETH_ESP32_EMAC_DEFAULT_CONFIG
-#define ETH_ESP32_EMAC_DEFAULT_CONFIG() \
-  { \
-    .smi_gpio = {.mdc_num = 31, .mdio_num = 52}, .interface = EMAC_DATA_INTERFACE_RMII, \
-    .clock_config = {.rmii = {.clock_mode = EMAC_CLK_EXT_IN, .clock_gpio = (emac_rmii_clock_gpio_t) 50}}, \
-    .dma_burst_len = ETH_DMA_BURST_LEN_32, .intr_priority = 0, \
-    .emac_dataif_gpio = \
-        {.rmii = {.tx_en_num = 49, .txd0_num = 34, .txd1_num = 35, .crs_dv_num = 28, .rxd0_num = 29, .rxd1_num = 30}}, \
-    .clock_config_out_in = {.rmii = {.clock_mode = EMAC_CLK_EXT_IN, .clock_gpio = (emac_rmii_clock_gpio_t) -1}}, \
-  }
-#endif
-#endif
+namespace esphome::ethernet {
 
 static const char *const TAG = "ethernet";
 
@@ -163,7 +146,7 @@ void EthernetComponent::setup() {
   phy_config.phy_addr = this->phy_addr_;
   phy_config.reset_gpio_num = this->power_pin_;
 
-  eth_esp32_emac_config_t esp32_emac_config = ETH_ESP32_EMAC_DEFAULT_CONFIG();
+  eth_esp32_emac_config_t esp32_emac_config = eth_esp32_emac_default_config();
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
   esp32_emac_config.smi_gpio.mdc_num = this->mdc_pin_;
   esp32_emac_config.smi_gpio.mdio_num = this->mdio_pin_;
@@ -210,7 +193,7 @@ void EthernetComponent::setup() {
       break;
     }
 #endif
-#ifdef USE_ETHERNET_JL1101
+#if defined(USE_ETHERNET_JL1101) && (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2) || !defined(PLATFORMIO))
     case ETHERNET_TYPE_JL1101: {
       this->phy_ = esp_eth_phy_new_jl1101(&phy_config);
       break;
@@ -375,7 +358,7 @@ void EthernetComponent::dump_config() {
       eth_type = "IP101";
       break;
 #endif
-#ifdef USE_ETHERNET_JL1101
+#if defined(USE_ETHERNET_JL1101) && (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2) || !defined(PLATFORMIO))
     case ETHERNET_TYPE_JL1101:
       eth_type = "JL1101";
       break;
@@ -471,6 +454,7 @@ network::IPAddresses EthernetComponent::get_ip_addresses() {
   uint8_t count = 0;
   count = esp_netif_get_all_ip6(this->eth_netif_, if_ip6s);
   assert(count <= CONFIG_LWIP_IPV6_NUM_ADDRESSES);
+  assert(count < addresses.size());
   for (int i = 0; i < count; i++) {
     addresses[i + 1] = network::IPAddress(&if_ip6s[i]);
   }
@@ -688,8 +672,6 @@ void EthernetComponent::start_connect_() {
   this->status_set_warning();
 }
 
-bool EthernetComponent::is_connected() { return this->state_ == EthernetComponentState::CONNECTED; }
-
 void EthernetComponent::dump_connect_params_() {
   esp_netif_ip_info_t ip;
   esp_netif_get_ip_info(this->eth_netif_, &ip);
@@ -866,10 +848,7 @@ void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister regi
   }
 #endif
 
-  ESP_LOGD(TAG,
-           "Writing to PHY Register Address: 0x%02" PRIX32 "\n"
-           "Writing to PHY Register Value: 0x%04" PRIX32,
-           register_data.address, register_data.value);
+  ESP_LOGD(TAG, "Writing PHY reg 0x%02" PRIX32 " = 0x%04" PRIX32, register_data.address, register_data.value);
   err = mac->write_phy_reg(mac, this->phy_addr_, register_data.address, register_data.value);
   ESPHL_ERROR_CHECK(err, "Writing PHY Register failed");
 
@@ -884,7 +863,6 @@ void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister regi
 
 #endif
 
-}  // namespace ethernet
-}  // namespace esphome
+}  // namespace esphome::ethernet
 
 #endif  // USE_ESP32

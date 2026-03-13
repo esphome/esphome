@@ -248,6 +248,12 @@ class TestLiterals:
             (cg.FloatLiteral(4.2), "4.2f"),
             (cg.FloatLiteral(1.23456789), "1.23456789f"),
             (cg.FloatLiteral(math.nan), "NAN"),
+            (cg.FlashStringLiteral("hello"), 'ESPHOME_F("hello")'),
+            (cg.FlashStringLiteral(""), 'ESPHOME_F("")'),
+            (
+                cg.FlashStringLiteral('quote"here'),
+                'ESPHOME_F("quote\\042here")',
+            ),
         ),
     )
     def test_str__simple(self, target: cg.Literal, expected: str):
@@ -325,7 +331,7 @@ class TestStatements:
             ),
             (
                 cg.ProgmemAssignmentExpression(ct.uint16, "foo", "bar"),
-                'static const uint16_t foo[] PROGMEM = "bar"',
+                'static constexpr uint16_t foo[] PROGMEM = "bar"',
             ),
         ),
     )
@@ -624,3 +630,75 @@ class TestProcessLambda:
         # Test invalid tuple format (single element)
         with pytest.raises(AssertionError):
             await cg.process_lambda(lambda_obj, [(int,)])
+
+
+@pytest.mark.asyncio
+async def test_templatable__string_with_std_string_returns_flash_literal() -> None:
+    """Static string with std::string output_type returns FlashStringLiteral."""
+    result = await cg.templatable("hello", [], ct.std_string)
+
+    assert isinstance(result, cg.FlashStringLiteral)
+    assert str(result) == 'ESPHOME_F("hello")'
+
+
+@pytest.mark.asyncio
+async def test_templatable__empty_string_with_std_string() -> None:
+    """Empty static string with std::string output_type returns FlashStringLiteral."""
+    result = await cg.templatable("", [], ct.std_string)
+
+    assert isinstance(result, cg.FlashStringLiteral)
+    assert str(result) == 'ESPHOME_F("")'
+
+
+@pytest.mark.asyncio
+async def test_templatable__string_with_none_output_type() -> None:
+    """Static string with output_type=None returns raw string (no wrapping)."""
+    result = await cg.templatable("hello", [], None)
+
+    assert isinstance(result, str)
+    assert result == "hello"
+
+
+@pytest.mark.asyncio
+async def test_templatable__int_with_std_string() -> None:
+    """Non-string value with std::string output_type returns raw value."""
+    result = await cg.templatable(42, [], ct.std_string)
+
+    assert result == 42
+
+
+@pytest.mark.asyncio
+async def test_templatable__string_with_non_string_output_type() -> None:
+    """Static string with non-std::string output_type returns raw string."""
+    result = await cg.templatable("hello", [], ct.bool_)
+
+    assert isinstance(result, str)
+    assert result == "hello"
+
+
+@pytest.mark.asyncio
+async def test_templatable__with_to_exp_callable() -> None:
+    """When to_exp is provided, it is applied to non-template values."""
+    result = await cg.templatable(42, [], None, to_exp=lambda x: x * 2)
+
+    assert result == 84
+
+
+@pytest.mark.asyncio
+async def test_templatable__with_to_exp_dict() -> None:
+    """When to_exp is a dict, value is looked up."""
+    mapping: dict[str, int] = {"on": 1, "off": 0}
+    result = await cg.templatable("on", [], None, to_exp=mapping)
+
+    assert result == 1
+
+
+@pytest.mark.asyncio
+async def test_templatable__lambda_with_std_string() -> None:
+    """Lambda value returns LambdaExpression, not FlashStringLiteral."""
+    from esphome.core import Lambda
+
+    lambda_obj = Lambda('return "hello";')
+    result = await cg.templatable(lambda_obj, [], ct.std_string)
+
+    assert isinstance(result, cg.LambdaExpression)
