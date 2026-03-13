@@ -23,3 +23,6 @@ uart:
     baud_rate: 115200
     debug:
       debug_prefix: "[UART1] "
+  - id: uart_rx_only
+    rx_pin: 17
+    baud_rate: 1200

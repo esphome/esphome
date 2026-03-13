@@ -642,7 +642,7 @@ class StringType(TypeInfo):
         # For SOURCE_BOTH, check if StringRef is set (sending) or use string (received)
         return (
             f"if (!this->{self.field_name}_ref_.empty()) {{"
-            f'  out.append("\'").append(this->{self.field_name}_ref_.c_str()).append("\'");'
+            f'  out.append("\'").append(this->{self.field_name}_ref_.c_str(), this->{self.field_name}_ref_.size()).append("\'");'
             f"}} else {{"
             f'  out.append("\'").append(this->{self.field_name}).append("\'");'
             f"}}"
@@ -2705,7 +2705,7 @@ namespace esphome::api {
 static inline void append_quoted_string(DumpBuffer &out, const StringRef &ref) {
   out.append("'");
   if (!ref.empty()) {
-    out.append(ref.c_str());
+    out.append(ref.c_str(), ref.size());
   }
   out.append("'");
 }

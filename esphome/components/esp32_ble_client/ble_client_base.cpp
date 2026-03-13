@@ -27,6 +27,7 @@ static constexpr uint16_t MEDIUM_CONN_TIMEOUT = 800;  // 800 * 10ms = 8s
 static constexpr uint16_t FAST_MIN_CONN_INTERVAL = 0x06;  // 6 * 1.25ms = 7.5ms (BLE minimum)
 static constexpr uint16_t FAST_MAX_CONN_INTERVAL = 0x06;  // 6 * 1.25ms = 7.5ms
 static constexpr uint16_t FAST_CONN_TIMEOUT = 1000;       // 1000 * 10ms = 10s
+static constexpr uint32_t DISCONNECTING_TIMEOUT = 10000;  // 10s
 static const esp_bt_uuid_t NOTIFY_DESC_UUID = {
     .len = ESP_UUID_LEN_16,
     .uuid =
@@ -62,6 +63,15 @@ void BLEClientBase::loop() {
   // will enable it again when a connection is needed.
   else if (this->state() == espbt::ClientState::IDLE) {
     this->disable_loop();
+  } else if (this->state() == espbt::ClientState::DISCONNECTING &&
+             (millis() - this->disconnecting_started_) > DISCONNECTING_TIMEOUT) {
+    ESP_LOGE(TAG, "[%d] [%s] Timeout waiting for CLOSE_EVT after disconnect, forcing IDLE", this->connection_index_,
+             this->address_str_);
+    // release_services() must be called before set_idle_() — if we entered DISCONNECTING
+    // via unconditional_disconnect() (which doesn't call release_services()), and ESP-IDF
+    // never delivered CLOSE_EVT/DISCONNECT_EVT, services would leak without this call.
+    this->release_services();
+    this->set_idle_();
   }
 }
 
@@ -101,11 +111,15 @@ bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
 #endif
 
 void BLEClientBase::connect() {
-  // Prevent duplicate connection attempts
+  // Prevent duplicate connection attempts or connecting while still disconnecting
   if (this->state() == espbt::ClientState::CONNECTING || this->state() == espbt::ClientState::CONNECTED ||
       this->state() == espbt::ClientState::ESTABLISHED) {
     ESP_LOGW(TAG, "[%d] [%s] Connection already in progress, state=%s", this->connection_index_, this->address_str_,
              espbt::client_state_to_string(this->state()));
+    return;
+  } else if (this->state() == espbt::ClientState::DISCONNECTING) {
+    ESP_LOGW(TAG, "[%d] [%s] Cannot connect, still waiting for CLOSE_EVT to complete disconnect",
+             this->connection_index_, this->address_str_);
     return;
   }
   ESP_LOGI(TAG, "[%d] [%s] 0x%02x Connecting", this->connection_index_, this->address_str_, this->remote_addr_type_);
@@ -174,7 +188,7 @@ void BLEClientBase::unconditional_disconnect() {
     this->set_address(0);
     this->set_state(espbt::ClientState::IDLE);
   } else {
-    this->set_state(espbt::ClientState::DISCONNECTING);
+    this->set_disconnecting_();
   }
 }
 
@@ -220,6 +234,7 @@ void BLEClientBase::log_connection_params_(const char *param_type) {
 void BLEClientBase::handle_connection_result_(esp_err_t ret) {
   if (ret) {
     this->log_gattc_warning_("esp_ble_gattc_open", ret);
+    // Don't use set_idle_() here — CONNECT_EVT never fired so conn_id_ is still UNSET_CONN_ID.
     this->set_state(espbt::ClientState::IDLE);
   }
 }
@@ -311,15 +326,16 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       }
       if (param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN) {
         this->log_gattc_warning_("Connection open", param->open.status);
-        this->set_state(espbt::ClientState::IDLE);
+        // Connection was never established so CLOSE_EVT may not follow
+        this->set_idle_();
         break;
       }
       if (this->want_disconnect_) {
         // Disconnect was requested after connecting started,
         // but before the connection was established. Now that we have
         // this->conn_id_ set, we can disconnect it.
+        // Don't reset conn_id_ here — CLOSE_EVT needs it to match and call set_idle_().
         this->unconditional_disconnect();
-        this->conn_id_ = UNSET_CONN_ID;
         break;
       }
       // MTU negotiation already started in ESP_GATTC_CONNECT_EVT
@@ -363,8 +379,22 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_DISCONNECT_EVT, reason 0x%02x", this->connection_index_, this->address_str_,
                  param->disconnect.reason);
       }
+      // For active disconnects (esp_ble_gattc_close), CLOSE_EVT arrives before
+      // DISCONNECT_EVT. If CLOSE_EVT already transitioned us to IDLE, don't go
+      // backwards to DISCONNECTING — the connection is already fully cleaned up.
+      if (this->state() == espbt::ClientState::IDLE) {
+        this->log_event_("DISCONNECT_EVT after CLOSE_EVT, already IDLE");
+        break;
+      }
+      // For passive disconnects (remote device disconnected or link lost),
+      // DISCONNECT_EVT arrives first. Don't transition to IDLE yet — wait for
+      // CLOSE_EVT to ensure the controller has fully freed resources (L2CAP
+      // channels, ATT resources, HCI connection handle). Transitioning to IDLE
+      // here would allow reconnection before cleanup is complete, causing the
+      // controller to reject the new connection (status=133) or crash with
+      // ASSERT_PARAM in lld_evt.c.
       this->release_services();
-      this->set_state(espbt::ClientState::IDLE);
+      this->set_disconnecting_();
       break;
     }
 
@@ -387,8 +417,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         return false;
       this->log_gattc_lifecycle_event_("CLOSE");
       this->release_services();
-      this->set_state(espbt::ClientState::IDLE);
-      this->conn_id_ = UNSET_CONN_ID;
+      this->set_idle_();
       break;
     }
     case ESP_GATTC_SEARCH_RES_EVT: {
