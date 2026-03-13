@@ -25,10 +25,10 @@ struct PIDController {
   /// Differential gain K_d.
   float kd_ = 0;
 
-  // smooth the derivative value using a weighted average over X samples
+  // smooth the derivative value using an average over X samples
   int derivative_samples_ = 8;
 
-  /// smooth the output value using a weighted average over X values
+  /// smooth the output value using an average over X values
   int output_samples_ = 1;
 
   float threshold_low_ = 0.0f;
