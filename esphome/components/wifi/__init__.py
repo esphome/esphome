@@ -166,6 +166,7 @@ TTLS_PHASE_2 = {
 }
 
 EAP_AUTH_SCHEMA = cv.All(
+    cv.only_on([Platform.ESP32, Platform.ESP8266]),
     cv.Schema(
         {
             cv.Optional(CONF_IDENTITY): cv.string_strict,
@@ -562,13 +563,6 @@ async def to_code(config):
         cg.add_library("ESP8266WiFi", None)
     elif CORE.is_rp2040:
         cg.add_library("WiFi", None)
-        # RP2040's mDNS library (LEAmDNS) relies on LwipIntf::stateUpCB() to restart
-        # mDNS when the network interface reconnects. However, this callback is disabled
-        # in the arduino-pico framework. As a workaround, we block component setup until
-        # WiFi is connected via can_proceed(), ensuring mDNS.begin() is called with an
-        # active connection. This define enables the loop priority sorting infrastructure
-        # used during the setup blocking phase.
-        cg.add_define("USE_LOOP_PRIORITY")
 
     if CORE.is_esp32:
         if config[CONF_ENABLE_BTM] or config[CONF_ENABLE_RRM]:

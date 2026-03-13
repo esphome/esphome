@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.const import CONF_CLIMATE_ID
 import esphome.config_validation as cv
 from esphome.const import CONF_TYPE, ICON_GAUGE, STATE_CLASS_MEASUREMENT, UNIT_PERCENT
 
@@ -24,7 +25,6 @@ PID_CLIMATE_SENSOR_TYPES = {
     "KD_DEADBAND_MULTIPLIER": PIDClimateSensorType.PID_SENSOR_TYPE_KD_DEADBAND_MULTIPLIER,
 }
 
-CONF_CLIMATE_ID = "climate_id"
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
         PIDClimateSensor,
