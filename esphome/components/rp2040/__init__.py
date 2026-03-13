@@ -203,7 +203,12 @@ async def to_code(config):
             cg.add_build_flag(f"-Wl,--wrap={symbol}")
 
     cg.add_platformio_option("board_build.core", "earlephilhower")
-    cg.add_platformio_option("board_build.filesystem_size", "1m")
+    # In testing mode, use all flash for sketch to allow linking grouped component tests.
+    # Real RP2040 hardware uses 1MB filesystem + 1MB sketch, but CI tests may combine
+    # many components that exceed the 1MB sketch partition.
+    cg.add_platformio_option(
+        "board_build.filesystem_size", "0m" if CORE.testing_mode else "1m"
+    )
 
     ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     cg.add_define(
