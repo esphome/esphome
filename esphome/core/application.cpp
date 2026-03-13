@@ -698,15 +698,18 @@ void Application::yield_with_select_(uint32_t delay_ms) {
 #endif
 
     // Process select() result:
-    // ret < 0: error (except EINTR which is normal)
     // ret > 0: socket(s) have data ready - normal and expected
     // ret == 0: timeout occurred - normal and expected
-    const int err = errno;
-    if (ret >= 0 || err == EINTR) [[likely]] {
+    if (ret >= 0) [[likely]] {
       // Yield if zero timeout since select(0) only polls without yielding
       if (delay_ms == 0) [[unlikely]] {
         yield();
       }
+      return;
+    }
+    // ret < 0: error (EINTR is normal, anything else is unexpected)
+    const int err = errno;
+    if (err == EINTR) {
       return;
     }
     // select() error - log and fall through to delay()
