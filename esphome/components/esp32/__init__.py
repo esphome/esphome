@@ -1249,7 +1249,7 @@ VALID_DATA_SUBTYPES = {
 }
 
 
-def _validate_custom_partition(config):
+def _validate_custom_partition(config: ConfigType) -> ConfigType:
     """Voluptuous validator for custom partition schema."""
     try:
         _validate_partition(
