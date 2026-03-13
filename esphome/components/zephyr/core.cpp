@@ -76,9 +76,7 @@ void Mutex::unlock() { k_mutex_unlock(static_cast<k_mutex *>(this->handle_)); }
 IRAM_ATTR InterruptLock::InterruptLock() { state_ = irq_lock(); }
 IRAM_ATTR InterruptLock::~InterruptLock() { irq_unlock(state_); }
 
-// Zephyr doesn't support lwIP core locking, so this is a no-op
-LwIPLock::LwIPLock() {}
-LwIPLock::~LwIPLock() {}
+// Zephyr LwIPLock is defined inline as a no-op in helpers.h
 
 uint32_t random_uint32() { return rand(); }  // NOLINT(cert-msc30-c, cert-msc50-cpp)
 bool random_bytes(uint8_t *data, size_t len) {

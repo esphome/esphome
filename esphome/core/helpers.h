@@ -1930,19 +1930,26 @@ class InterruptLock {
 
 /** Helper class to lock the lwIP TCPIP core when making lwIP API calls from non-TCPIP threads.
  *
- * This is needed on multi-threaded platforms (ESP32) when CONFIG_LWIP_TCPIP_CORE_LOCKING is enabled.
- * It ensures thread-safe access to lwIP APIs.
+ * This is needed on multi-threaded platforms (ESP32) when CONFIG_LWIP_TCPIP_CORE_LOCKING is enabled,
+ * and on RP2040 when CYW43 WiFi is active (cyw43_arch_lwip_begin/end).
  *
- * @note This follows the same pattern as InterruptLock - platform-specific implementations in helpers.cpp
+ * On single-threaded platforms without lwIP core locking (ESP8266, LibreTiny, Zephyr),
+ * this is a no-op defined inline so the compiler can eliminate all call overhead.
  */
 class LwIPLock {
  public:
-  LwIPLock();
-  ~LwIPLock();
-
-  // Delete copy constructor and copy assignment operator to prevent accidental copying
   LwIPLock(const LwIPLock &) = delete;
   LwIPLock &operator=(const LwIPLock &) = delete;
+
+#if defined(USE_ESP32) || (defined(USE_RP2040) && defined(USE_WIFI))
+  // Platforms with real lwIP locking — out-of-line implementations in helpers.cpp
+  LwIPLock();
+  ~LwIPLock();
+#else
+  // Single-threaded or no lwIP core locking — inline no-ops
+  LwIPLock() = default;
+  ~LwIPLock() = default;
+#endif
 };
 
 /** Helper class to request `loop()` to be called as fast as possible.
