@@ -714,7 +714,7 @@ def _extract_components_from_yaml(config: dict) -> set[str]:
     # Add all top-level component keys (skip YAML anchor keys starting with '.')
     components.update(k for k in config if isinstance(k, str) and not k.startswith("."))
 
-    # Add platform components (e.g., output.template)
+    # Add platform values from list entries (e.g., sensor -> platform: template adds "template")
     for value in config.values():
         if isinstance(value, list):
             components.update(
@@ -752,7 +752,7 @@ def get_components_per_integration_fixture() -> dict[str, set[str]]:
     fixtures_dir = Path(__file__).parent.parent / "tests" / "integration" / "fixtures"
 
     for yaml_file in fixtures_dir.glob("*.yaml"):
-        config: dict[str, any] | None = yaml_util.load_yaml(yaml_file)
+        config: dict[str, Any] | None = yaml_util.load_yaml(yaml_file)
         if not config:
             continue
 

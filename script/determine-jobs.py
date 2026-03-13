@@ -187,9 +187,11 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
         # If any core files changed, run all integration tests
         return (True, [])
 
-    # If infrastructure files changed (conftest, utils, etc.), run all tests
+    # If infrastructure Python files changed (conftest, utils, etc.), run all tests
+    # Excludes test files (test_*.py), fixtures, and non-Python files (README.md)
     if any(
-        "tests/integration" in f
+        f.startswith("tests/integration/")
+        and f.endswith(".py")
         and not f.startswith("tests/integration/test_")
         and "/fixtures/" not in f
         for f in files
@@ -203,9 +205,14 @@ def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[s
     for f in files:
         if f.startswith("tests/integration/test_") and f.endswith(".py"):
             test_files.add(f)
-        elif f.startswith("tests/integration/fixtures/") and f.endswith(".yaml"):
-            # Fixture changed - add corresponding test file(s)
-            test_files.update(fixture_to_test_files.get(Path(f).stem, ()))
+        elif f.startswith("tests/integration/fixtures/"):
+            if f.endswith(".yaml"):
+                # Fixture YAML changed - add corresponding test file(s)
+                test_files.update(fixture_to_test_files.get(Path(f).stem, ()))
+            else:
+                # Non-YAML fixture file changed (e.g., external_components/)
+                # Run all tests since we can't determine which tests are affected
+                return (True, [])
 
     # Find test files whose fixtures use any of the changed components
     changed_component_set = {
