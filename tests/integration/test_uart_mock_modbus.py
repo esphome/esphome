@@ -175,6 +175,16 @@ async def test_uart_mock_modbus_timing(
         "sdm_voltage": [],
     }
 
+    # Track error and warning logs
+    error_log_lines: list[str] = []
+    warning_log_lines: list[str] = []
+
+    def line_callback(line: str) -> None:
+        if "[E][modbus" in line:
+            error_log_lines.append(line)
+        if "[W][modbus" in line:
+            warning_log_lines.append(line)
+
     voltage_changed = loop.create_future()
 
     def on_state(state: EntityState) -> None:
@@ -191,7 +201,7 @@ async def test_uart_mock_modbus_timing(
                     voltage_changed.set_result(True)
 
     async with (
-        run_compiled(yaml_config),
+        run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
@@ -222,6 +232,15 @@ async def test_uart_mock_modbus_timing(
                 f"Timeout waiting for SDM voltage change. Received sensor states:\n"
                 f"  sdm_voltage: {sensor_states['sdm_voltage']}\n"
             )
+
+        assert len(error_log_lines) == 0, (
+            "Expect no errors logged by the modbus mock, but got:\n"
+            + "\n".join(error_log_lines)
+        )
+        assert len(warning_log_lines) == 0, (
+            "Expect no warnings logged by the modbus mock, but got:\n"
+            + "\n".join(warning_log_lines)
+        )
 
 
 @pytest.mark.asyncio
@@ -250,6 +269,16 @@ async def test_uart_mock_modbus_no_threshold(
         "sdm_voltage": [],
     }
 
+    # Track error and warning logs
+    error_log_lines: list[str] = []
+    warning_log_lines: list[str] = []
+
+    def line_callback(line: str) -> None:
+        if "[E][modbus" in line:
+            error_log_lines.append(line)
+        if "[W][modbus" in line:
+            warning_log_lines.append(line)
+
     voltage_changed = loop.create_future()
 
     def on_state(state: EntityState) -> None:
@@ -266,7 +295,7 @@ async def test_uart_mock_modbus_no_threshold(
                     voltage_changed.set_result(True)
 
     async with (
-        run_compiled(yaml_config),
+        run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
@@ -298,6 +327,15 @@ async def test_uart_mock_modbus_no_threshold(
                 f"  sdm_voltage: {sensor_states['sdm_voltage']}\n"
             )
 
+        assert len(error_log_lines) == 0, (
+            "Expect no errors logged by the modbus mock, but got:\n"
+            + "\n".join(error_log_lines)
+        )
+        assert len(warning_log_lines) == 0, (
+            "Expect no warnings logged by the modbus mock, but got:\n"
+            + "\n".join(warning_log_lines)
+        )
+
 
 @pytest.mark.asyncio
 async def test_uart_mock_modbus_server(
@@ -322,6 +360,16 @@ async def test_uart_mock_modbus_server(
         "read_after_peer_response": [],
         "read_after_peer_timeout": [],
     }
+
+    # Track error and warning logs
+    error_log_lines: list[str] = []
+    warning_log_lines: list[str] = []
+
+    def line_callback(line: str) -> None:
+        if "[E][modbus" in line:
+            error_log_lines.append(line)
+        if "[W][modbus" in line:
+            warning_log_lines.append(line)
 
     basic_read_changed = loop.create_future()
     read_after_peer_response_changed = loop.create_future()
@@ -352,7 +400,7 @@ async def test_uart_mock_modbus_server(
                     read_after_peer_timeout_changed.set_result(True)
 
     async with (
-        run_compiled(yaml_config),
+        run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
@@ -399,6 +447,15 @@ async def test_uart_mock_modbus_server(
                 f"  read_after_peer_timeout: {sensor_states['read_after_peer_timeout']}\n"
             )
 
+        assert len(error_log_lines) == 0, (
+            "Expect no errors logged by the modbus mock, but got:\n"
+            + "\n".join(error_log_lines)
+        )
+        assert len(warning_log_lines) == 0, (
+            "Expect no warnings logged by the modbus mock, but got:\n"
+            + "\n".join(warning_log_lines)
+        )
+
 
 @pytest.mark.asyncio
 async def test_uart_mock_modbus_server_controller(
@@ -432,6 +489,16 @@ async def test_uart_mock_modbus_server_controller(
         "reg_fp32": [],
         "reg_fp32_r": [],
     }
+
+    # Track error and warning logs
+    error_log_lines: list[str] = []
+    warning_log_lines: list[str] = []
+
+    def line_callback(line: str) -> None:
+        if "[E][modbus" in line:
+            error_log_lines.append(line)
+        if "[W][modbus" in line:
+            warning_log_lines.append(line)
 
     reg_u_word_changed = loop.create_future()
     reg_s_word_changed = loop.create_future()
@@ -525,7 +592,7 @@ async def test_uart_mock_modbus_server_controller(
                     reg_fp32_r_changed.set_result(True)
 
     async with (
-        run_compiled(yaml_config),
+        run_compiled(yaml_config, line_callback=line_callback),
         api_client_connected() as client,
     ):
         entities, _ = await client.list_entities_services()
@@ -632,6 +699,15 @@ async def test_uart_mock_modbus_server_controller(
                 f"Timeout waiting for reg_fp32_r change. Received sensor states:\n"
                 f"  reg_fp32_r: {sensor_states['reg_fp32_r']}\n"
             )
+
+        assert len(error_log_lines) == 0, (
+            "Expect no errors logged by the modbus mock, but got:\n"
+            + "\n".join(error_log_lines)
+        )
+        assert len(warning_log_lines) == 0, (
+            "Expect no warnings logged by the modbus mock, but got:\n"
+            + "\n".join(warning_log_lines)
+        )
 
 
 @pytest.mark.asyncio
