@@ -6,6 +6,8 @@ what files have changed. It outputs JSON with the following structure:
 
 {
   "integration_tests": true/false,
+  "integration_tests_run_all": true/false,
+  "integration_test_files": ["tests/integration/test_foo.py", ...],
   "clang_tidy": true/false,
   "clang_format": true/false,
   "python_linters": true/false,
@@ -56,13 +58,12 @@ from helpers import (
     core_changed,
     filter_component_and_test_cpp_files,
     filter_component_and_test_files,
-    get_all_dependencies,
     get_changed_components,
     get_component_from_path,
     get_component_test_files,
-    get_components_from_integration_fixtures,
     get_components_with_dependencies,
     get_cpp_changed_components,
+    get_integration_test_files_for_components,
     get_target_branch,
     git_ls_files,
     parse_test_filename,
@@ -143,65 +144,103 @@ MEMORY_IMPACT_PLATFORM_PREFERENCE = [
 ]
 
 
-def should_run_integration_tests(branch: str | None = None) -> bool:
-    """Determine if integration tests should run based on changed files.
+def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[str]]:
+    """Determine which integration tests should run based on changed files.
 
-    This function is used by the CI workflow to intelligently skip integration tests when they're
-    not needed, saving significant CI time and resources.
+    This function is used by the CI workflow to intelligently skip or filter
+    integration tests, saving significant CI time and resources.
 
-    Integration tests will run when ANY of the following conditions are met:
+    Returns (run_all=True, []) when ANY of the following conditions are met:
 
     1. Core C++ files changed (esphome/core/*)
        - Any .cpp, .h, .tcc files in the core directory
        - These files contain fundamental functionality used throughout ESPHome
-       - Examples: esphome/core/component.cpp, esphome/core/application.h
 
     2. Core Python files changed (esphome/core/*.py)
        - Only .py files in the esphome/core/ directory
        - These are core Python files that affect the entire system
-       - Examples: esphome/core/config.py, esphome/core/__init__.py
-       - NOT included: esphome/*.py, esphome/dashboard/*.py, esphome/components/*/*.py
 
-    3. Integration test files changed
-       - Any file in tests/integration/ directory
-       - This includes test files themselves and fixture YAML files
-       - Examples: tests/integration/test_api.py, tests/integration/fixtures/api.yaml
+    3. Integration test infrastructure files changed
+       - conftest.py, types.py, const.py, entity_utils.py, state_utils.py, etc.
 
-    4. Components used by integration tests (or their dependencies) changed
-       - The function parses all YAML files in tests/integration/fixtures/
-       - Extracts which components are used in integration tests
-       - Recursively finds all dependencies of those components
-       - If any of these components have changes, tests must run
-       - Example: If api.yaml uses 'sensor' and 'api' components, and 'api' depends on 'socket',
-         then changes to sensor/, api/, or socket/ components trigger tests
+    Returns (run_all=False, [test_files...]) when:
+
+    4. Specific integration test files changed
+       - Only those specific test files are returned
+
+    5. Components used by integration tests (or their dependencies) changed
+       - Only test files whose fixtures use the changed components are returned
 
     Args:
         branch: Branch to compare against. If None, uses default.
 
     Returns:
-        True if integration tests should run, False otherwise.
+        Tuple of (run_all, test_files) where:
+        - run_all: True if all integration tests should run
+        - test_files: List of specific test file paths to run (empty if run_all
+          is True, or if no tests need to run)
     """
     files = changed_files(branch)
 
     if core_changed(files):
-        # If any core files changed, run integration tests
-        return True
+        # If any core files changed, run all integration tests
+        return (True, [])
 
-    # Check if any integration test files changed
-    if any("tests/integration" in file for file in files):
-        return True
+    # Check for integration test infrastructure changes vs specific test/fixture changes
+    integration_files = [f for f in files if "tests/integration" in f]
+    if integration_files:
+        # If infrastructure files changed (conftest, utils, etc.), run all tests
+        infrastructure_files = [
+            f
+            for f in integration_files
+            if not (f.startswith("tests/integration/test_") or "/fixtures/" in f)
+        ]
+        if infrastructure_files:
+            return (True, [])
 
-    # Get all components used in integration tests and their dependencies
-    fixture_components = get_components_from_integration_fixtures()
-    all_required_components = get_all_dependencies(fixture_components)
+    # Collect specific test files that need to run
+    test_files: set[str] = set()
 
-    # Check if any required components changed
+    # Add specific changed test files
+    for f in integration_files:
+        if f.startswith("tests/integration/test_") and f.endswith(".py"):
+            test_files.add(f)
+        elif "/fixtures/" in f and f.endswith(".yaml"):
+            # Fixture changed - find the test file(s) that use it
+            fixture_name = Path(f).stem
+            # Find test files containing functions that map to this fixture
+            import re
+
+            integration_dir = Path(__file__).parent.parent / "tests" / "integration"
+            for test_file in integration_dir.glob("test_*.py"):
+                content = test_file.read_text()
+                funcs = re.findall(r"async def (test_\w+)", content)
+                for func in funcs:
+                    base_name = func.replace("test_", "").partition("[")[0]
+                    if base_name == fixture_name:
+                        test_files.add(
+                            str(test_file.relative_to(Path(__file__).parent.parent))
+                        )
+
+    # Check if any components used by integration tests changed
+    changed_component_set: set[str] = set()
     for file in files:
         component = get_component_from_path(file)
-        if component and component in all_required_components:
-            return True
+        if component:
+            changed_component_set.add(component)
 
-    return False
+    if changed_component_set:
+        # Find test files whose fixtures use any of the changed components
+        # (including transitive dependencies)
+        component_test_files = get_integration_test_files_for_components(
+            changed_component_set
+        )
+        test_files.update(component_test_files)
+
+    if test_files:
+        return (False, sorted(test_files))
+
+    return (False, [])
 
 
 @cache
@@ -682,7 +721,10 @@ def main() -> None:
     args = parser.parse_args()
 
     # Determine what should run
-    run_integration = should_run_integration_tests(args.branch)
+    integration_run_all, integration_test_files = determine_integration_tests(
+        args.branch
+    )
+    run_integration = integration_run_all or bool(integration_test_files)
     run_clang_tidy = should_run_clang_tidy(args.branch)
     run_clang_format = should_run_clang_format(args.branch)
     run_python_linters = should_run_python_linters(args.branch)
@@ -810,6 +852,8 @@ def main() -> None:
 
     output: dict[str, Any] = {
         "integration_tests": run_integration,
+        "integration_tests_run_all": integration_run_all,
+        "integration_test_files": integration_test_files,
         "clang_tidy": run_clang_tidy,
         "clang_tidy_mode": clang_tidy_mode,
         "clang_format": run_clang_format,

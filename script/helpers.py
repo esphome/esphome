@@ -700,15 +700,54 @@ def get_all_dependencies(
     return all_components
 
 
+def _extract_components_from_yaml(config: dict) -> set[str]:
+    """Extract component names from a parsed YAML config.
+
+    Args:
+        config: Parsed YAML configuration dictionary
+
+    Returns:
+        Set of component names found in the config
+    """
+    components: set[str] = set()
+
+    # Add all top-level component keys (skip YAML anchor keys starting with '.')
+    components.update(k for k in config if isinstance(k, str) and not k.startswith("."))
+
+    # Add platform components (e.g., output.template)
+    for value in config.values():
+        if not isinstance(value, list):
+            continue
+
+        for item in value:
+            if isinstance(item, dict) and "platform" in item:
+                components.add(item["platform"])
+
+    return components
+
+
 def get_components_from_integration_fixtures() -> set[str]:
     """Extract all components used in integration test fixtures.
 
     Returns:
         Set of component names used in integration test fixtures
     """
+    all_components: set[str] = set()
+    for components in get_components_per_integration_fixture().values():
+        all_components.update(components)
+    return all_components
+
+
+@cache
+def get_components_per_integration_fixture() -> dict[str, set[str]]:
+    """Extract components used in each integration test fixture.
+
+    Returns:
+        Dictionary mapping fixture name (stem) to set of component names
+    """
     from esphome import yaml_util
 
-    components: set[str] = set()
+    result: dict[str, set[str]] = {}
     fixtures_dir = Path(__file__).parent.parent / "tests" / "integration" / "fixtures"
 
     for yaml_file in fixtures_dir.glob("*.yaml"):
@@ -716,21 +755,54 @@ def get_components_from_integration_fixtures() -> set[str]:
         if not config:
             continue
 
-        # Add all top-level component keys (skip YAML anchor keys starting with '.')
-        components.update(
-            k for k in config if isinstance(k, str) and not k.startswith(".")
-        )
+        result[yaml_file.stem] = _extract_components_from_yaml(config)
 
-        # Add platform components (e.g., output.template)
-        for value in config.values():
-            if not isinstance(value, list):
-                continue
+    return result
 
-            for item in value:
-                if isinstance(item, dict) and "platform" in item:
-                    components.add(item["platform"])
 
-    return components
+def get_integration_test_files_for_components(
+    changed_components: set[str],
+) -> list[str]:
+    """Get integration test file paths that use any of the given components.
+
+    For each fixture YAML, resolves the full dependency tree of its components
+    and checks if any overlap with the changed components. Returns the test
+    file paths (relative to repo root) that need to run.
+
+    Args:
+        changed_components: Set of component names that have changed
+            (should already include dependencies)
+
+    Returns:
+        Sorted list of test file paths relative to repo root
+        (e.g., ["tests/integration/test_api.py", ...])
+    """
+    import re
+
+    fixture_components = get_components_per_integration_fixture()
+    integration_dir = Path(__file__).parent.parent / "tests" / "integration"
+
+    # Build mapping: fixture_name -> test_file(s)
+    fixture_to_test_files: dict[str, set[str]] = {}
+    for test_file in integration_dir.glob("test_*.py"):
+        content = test_file.read_text()
+        funcs = re.findall(r"async def (test_\w+)", content)
+        for func in funcs:
+            base_name = func.replace("test_", "").partition("[")[0]
+            fixture_to_test_files.setdefault(base_name, set()).add(
+                str(test_file.relative_to(Path(__file__).parent.parent))
+            )
+
+    # Find which test files need to run
+    test_files: set[str] = set()
+    for fixture_name, components in fixture_components.items():
+        # Get full dependency tree for this fixture's components
+        all_deps = get_all_dependencies(components)
+        # If any changed component is in the dependency tree, run the test
+        if changed_components & all_deps and fixture_name in fixture_to_test_files:
+            test_files.update(fixture_to_test_files[fixture_name])
+
+    return sorted(test_files)
 
 
 def filter_component_and_test_files(file_path: str) -> bool:
