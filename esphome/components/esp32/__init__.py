@@ -1919,6 +1919,9 @@ class PartitionEntry:
 # Partition sizes (offsets auto-placed by gen_esp32part.py).
 # These constants are the single source of truth — used in both
 # the CSV generation and the overhead calculation.
+BOOTLOADER_SIZE = 0x8000
+PARTITION_TABLE_SIZE = 0x1000
+FIRST_PARTITION_OFFSET = BOOTLOADER_SIZE + PARTITION_TABLE_SIZE
 OTADATA_SIZE = 0x2000
 PHY_INIT_SIZE = 0x1000
 EEPROM_SIZE = 0x1000  # Arduino only
@@ -1934,7 +1937,9 @@ def _get_partition_overhead() -> int:
     """
     # otadata + phy_init are followed by app0 which requires 64KB alignment,
     # so pad up to the next 64KB boundary.
-    overhead = (OTADATA_SIZE + PHY_INIT_SIZE + 0xFFFF) & ~0xFFFF
+    overhead = (
+        FIRST_PARTITION_OFFSET + OTADATA_SIZE + PHY_INIT_SIZE + 0xFFFF
+    ) & ~0xFFFF
     if CORE.using_arduino:
         overhead += EEPROM_SIZE + SPIFFS_SIZE + ARDUINO_NVS_SIZE
     else:
