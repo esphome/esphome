@@ -828,12 +828,13 @@ def get_integration_test_files_for_components(
     """
     component_to_tests = _get_component_to_integration_test_files()
 
-    test_files: set[str] = set()
-    for component in changed_components:
-        if component in component_to_tests:
-            test_files.update(component_to_tests[component])
-
-    return sorted(test_files)
+    return sorted(
+        {
+            test_file
+            for component in changed_components
+            for test_file in component_to_tests.get(component, ())
+        }
+    )
 
 
 def filter_component_and_test_files(file_path: str) -> bool:
