@@ -141,6 +141,9 @@ static constexpr uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for qu
 
 class Application {
  public:
+#ifdef USE_HOST
+  virtual ~Application();
+#endif
 #ifdef ESPHOME_NAME_ADD_MAC_SUFFIX
   // Called before Logger::pre_setup() — must not log (global_logger is not yet set).
   /// Pre-setup with MAC suffix: overwrites placeholder in mutable static buffers with actual MAC.

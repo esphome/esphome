@@ -93,6 +93,10 @@ class Component {
    */
   virtual void setup();
 
+#ifdef USE_HOST
+  virtual ~Component() = default;
+#endif
+
   /** This method will be called repeatedly.
    *
    * Analogous to Arduino's loop(). setup() is guaranteed to be called before this.

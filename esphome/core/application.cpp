@@ -58,6 +58,15 @@ namespace esphome {
 
 static const char *const TAG = "app";
 
+#ifdef USE_HOST
+Application::~Application() {
+  for (auto *comp : this->components_) {
+    delete comp;
+  }
+  this->components_.clear();
+}
+#endif
+
 // Helper function for insertion sort of components by priority
 // Using insertion sort instead of std::stable_sort saves ~1.3KB of flash
 // by avoiding template instantiations (std::rotate, std::stable_sort, lambdas)

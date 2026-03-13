@@ -1646,8 +1646,12 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
  public:
   LazyCallbackManager() = default;
   /// Destructor - clean up allocated CallbackManager if any.
-  /// In practice this never runs (entities live for device lifetime) but included for correctness.
-  ~LazyCallbackManager() { delete this->callbacks_; }
+  /// In practice this never runs on embedded (entities live for device lifetime).
+  ~LazyCallbackManager() {
+#ifdef USE_HOST
+    delete this->callbacks_;
+#endif
+  }
 
   // Non-copyable and non-movable (entities are never copied or moved)
   LazyCallbackManager(const LazyCallbackManager &) = delete;
