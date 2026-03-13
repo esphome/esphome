@@ -26,7 +26,7 @@ struct PIDController {
   float kd_ = 0;
 
   // smooth the derivative value using an average over X samples
-  int derivative_samples_ = 8;
+  int derivative_samples_ = 1;
 
   /// smooth the output value using an average over X values
   int output_samples_ = 1;
