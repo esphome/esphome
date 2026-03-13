@@ -1,4 +1,3 @@
-#include <cstdio>
 #include <cstring>
 #include "hmac_sha256.h"
 #if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY) || defined(USE_HOST)
@@ -26,9 +25,7 @@ void HmacSHA256::calculate() { mbedtls_md_hmac_finish(&this->ctx_, this->digest_
 void HmacSHA256::get_bytes(uint8_t *output) { memcpy(output, this->digest_, SHA256_DIGEST_SIZE); }
 
 void HmacSHA256::get_hex(char *output) {
-  for (size_t i = 0; i < SHA256_DIGEST_SIZE; i++) {
-    sprintf(output + (i * 2), "%02x", this->digest_[i]);
-  }
+  format_hex_to(output, SHA256_DIGEST_SIZE * 2 + 1, this->digest_, SHA256_DIGEST_SIZE);
 }
 
 bool HmacSHA256::equals_bytes(const uint8_t *expected) {

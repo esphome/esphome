@@ -124,17 +124,10 @@ void HostUartComponent::setup() {
   fcntl(this->file_descriptor_, F_SETFL, 0);
   struct termios options;
   tcgetattr(this->file_descriptor_, &options);
+  cfmakeraw(&options);
   options.c_cflag &= ~CRTSCTS;
   options.c_cflag |= CREAD | CLOCAL;
-  options.c_lflag &= ~ICANON;
-  options.c_lflag &= ~ECHO;
-  options.c_lflag &= ~ECHOE;
-  options.c_lflag &= ~ECHONL;
-  options.c_lflag &= ~ISIG;
-  options.c_iflag &= ~(IXON | IXOFF | IXANY);
-  options.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL);
-  options.c_oflag &= ~OPOST;
-  options.c_oflag &= ~ONLCR;
+  options.c_iflag &= ~(IXOFF | IXANY);
   // Set data bits
   options.c_cflag &= ~CSIZE;  // Mask the character size bits
   switch (this->data_bits_) {
@@ -265,7 +258,7 @@ bool HostUartComponent::read_array(uint8_t *data, size_t len) {
   return true;
 }
 
-int HostUartComponent::available() {
+size_t HostUartComponent::available() {
   if (this->file_descriptor_ == -1) {
     return 0;
   }
@@ -275,17 +268,19 @@ int HostUartComponent::available() {
     this->update_error_(strerror(errno));
     return 0;
   }
+  size_t result = available;
   if (this->has_peek_)
-    available++;
-  return available;
+    result++;
+  return result;
 };
 
-void HostUartComponent::flush() {
+FlushResult HostUartComponent::flush() {
   if (this->file_descriptor_ == -1) {
-    return;
+    return FlushResult::ASSUMED_SUCCESS;
   }
   tcflush(this->file_descriptor_, TCIOFLUSH);
   ESP_LOGV(TAG, "    Flushing");
+  return FlushResult::ASSUMED_SUCCESS;
 }
 
 void HostUartComponent::update_error_(const std::string &error) {

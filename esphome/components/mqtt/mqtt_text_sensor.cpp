@@ -14,12 +14,6 @@ using namespace esphome::text_sensor;
 
 MQTTTextSensor::MQTTTextSensor(TextSensor *sensor) : sensor_(sensor) {}
 void MQTTTextSensor::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
-  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  const auto device_class = this->sensor_->get_device_class_ref();
-  if (!device_class.empty()) {
-    root[MQTT_DEVICE_CLASS] = device_class;
-  }
-  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
   config.command_topic = false;
 }
 void MQTTTextSensor::setup() {
@@ -31,7 +25,10 @@ void MQTTTextSensor::dump_config() {
   LOG_MQTT_COMPONENT(true, false);
 }
 
-bool MQTTTextSensor::publish_state(const std::string &value) { return this->publish(this->get_state_topic_(), value); }
+bool MQTTTextSensor::publish_state(const std::string &value) {
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return this->publish(this->get_state_topic_to_(topic_buf), value.data(), value.size());
+}
 bool MQTTTextSensor::send_initial_state() {
   if (this->sensor_->has_state()) {
     return this->publish_state(this->sensor_->state);
@@ -39,7 +36,7 @@ bool MQTTTextSensor::send_initial_state() {
     return true;
   }
 }
-std::string MQTTTextSensor::component_type() const { return "sensor"; }
+MQTT_COMPONENT_TYPE(MQTTTextSensor, "sensor")
 const EntityBase *MQTTTextSensor::get_entity() const { return this->sensor_; }
 
 }  // namespace esphome::mqtt

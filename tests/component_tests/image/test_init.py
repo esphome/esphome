@@ -5,17 +5,21 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from esphome import config_validation as cv
 from esphome.components.image import (
+    CONF_INVERT_ALPHA,
+    CONF_OPAQUE,
     CONF_TRANSPARENCY,
     CONFIG_SCHEMA,
     get_all_image_metadata,
     get_image_metadata,
+    write_image,
 )
-from esphome.const import CONF_ID, CONF_RAW_DATA_ID, CONF_TYPE
+from esphome.const import CONF_DITHER, CONF_FILE, CONF_ID, CONF_RAW_DATA_ID, CONF_TYPE
 from esphome.core import CORE
 
 
@@ -350,3 +354,52 @@ def test_get_all_image_metadata_empty() -> None:
         "get_all_image_metadata should always return a dict"
     )
     # Length could be 0 or more depending on what's in CORE at test time
+
+
+@pytest.fixture
+def mock_progmem_array():
+    """Mock progmem_array to avoid needing a proper ID object in tests."""
+    with patch("esphome.components.image.cg.progmem_array") as mock_progmem:
+        mock_progmem.return_value = MagicMock()
+        yield mock_progmem
+
+
+@pytest.mark.asyncio
+async def test_svg_with_mm_dimensions_succeeds(
+    component_config_path: Callable[[str], Path],
+    mock_progmem_array: MagicMock,
+) -> None:
+    """Test that SVG files with dimensions in mm are successfully processed."""
+    # Create a config for write_image without CONF_RESIZE
+    config = {
+        CONF_FILE: component_config_path("mm_dimensions.svg"),
+        CONF_TYPE: "BINARY",
+        CONF_TRANSPARENCY: CONF_OPAQUE,
+        CONF_DITHER: "NONE",
+        CONF_INVERT_ALPHA: False,
+        CONF_RAW_DATA_ID: "test_raw_data_id",
+    }
+
+    # This should succeed without raising an error
+    result = await write_image(config)
+
+    # Verify that write_image returns the expected tuple
+    assert isinstance(result, tuple), "write_image should return a tuple"
+    assert len(result) == 6, "write_image should return 6 values"
+
+    prog_arr, width, height, image_type, trans_value, frame_count = result
+
+    # Verify the dimensions are positive integers
+    # At 100 DPI, 10mm = ~39 pixels (10mm * 100dpi / 25.4mm_per_inch)
+    assert isinstance(width, int), "Width should be an integer"
+    assert isinstance(height, int), "Height should be an integer"
+    assert width > 0, "Width should be positive"
+    assert height > 0, "Height should be positive"
+    assert frame_count == 1, "Single image should have frame_count of 1"
+    # Verify we got reasonable dimensions from the mm-based SVG
+    assert 30 < width < 50, (
+        f"Width should be around 39 pixels for 10mm at 100dpi, got {width}"
+    )
+    assert 30 < height < 50, (
+        f"Height should be around 39 pixels for 10mm at 100dpi, got {height}"
+    )

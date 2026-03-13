@@ -27,7 +27,7 @@ class MQTTLockComponent : public mqtt::MQTTComponent {
 
  protected:
   /// "lock" component type.
-  std::string component_type() const override;
+  const char *component_type() const override;
   const EntityBase *get_entity() const override;
 
   lock::Lock *lock_;

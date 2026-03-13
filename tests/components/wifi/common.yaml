@@ -26,3 +26,7 @@ wifi:
     - ssid: MySSID3
       password: password3
       priority: 0
+  on_connect:
+    - logger.log: "WiFi connected!"
+  on_disconnect:
+    - logger.log: "WiFi disconnected!"

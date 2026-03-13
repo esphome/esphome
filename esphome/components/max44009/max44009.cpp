@@ -51,8 +51,6 @@ void MAX44009Sensor::dump_config() {
   }
 }
 
-float MAX44009Sensor::get_setup_priority() const { return setup_priority::DATA; }
-
 void MAX44009Sensor::update() {
   // update sensor illuminance value
   float lux = this->read_illuminance_();

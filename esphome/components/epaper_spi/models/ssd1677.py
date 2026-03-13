@@ -4,10 +4,9 @@ from . import EpaperModel
 
 
 class SSD1677(EpaperModel):
-    def __init__(self, name, class_name="EPaperSSD1677", **kwargs):
-        if CONF_DATA_RATE not in kwargs:
-            kwargs[CONF_DATA_RATE] = "20MHz"
-        super().__init__(name, class_name, **kwargs)
+    def __init__(self, name, class_name="EPaperMono", data_rate="20MHz", **defaults):
+        defaults[CONF_DATA_RATE] = data_rate
+        super().__init__(name, class_name, **defaults)
 
     # fmt: off
     def get_init_sequence(self, config: dict):
@@ -23,11 +22,15 @@ class SSD1677(EpaperModel):
 
 ssd1677 = SSD1677("ssd1677")
 
-ssd1677.extend(
-    "seeed-ee04-mono-4.26",
+wave_4_26 = ssd1677.extend(
+    "waveshare-4.26in",
     width=800,
     height=480,
     mirror_x=True,
+)
+
+wave_4_26.extend(
+    "seeed-ee04-mono-4.26",
     cs_pin=44,
     dc_pin=10,
     reset_pin=38,

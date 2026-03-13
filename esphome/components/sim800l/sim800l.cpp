@@ -1,4 +1,5 @@
 #include "sim800l.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cstring>
 
@@ -50,8 +51,8 @@ void Sim800LComponent::update() {
   } else if (state_ == STATE_RECEIVED_SMS) {
     // Serial Buffer should have flushed.
     // Send cmd to delete received sms
-    char delete_cmd[20];
-    sprintf(delete_cmd, "AT+CMGD=%d", this->parse_index_);
+    char delete_cmd[20];  // "AT+CMGD=" (8) + uint8_t (max 3) + null = 12 <= 20
+    buf_append_printf(delete_cmd, sizeof(delete_cmd), 0, "AT+CMGD=%d", this->parse_index_);
     this->send_cmd_(delete_cmd);
     this->state_ = STATE_CHECK_SMS;
     this->expect_ack_ = true;
@@ -195,7 +196,8 @@ void Sim800LComponent::parse_cmd_(std::string message) {
     case STATE_CREG_WAIT: {
       // Response: "+CREG: 0,1" -- the one there means registered ok
       //           "+CREG: -,-" means not registered ok
-      bool registered = message.compare(0, 6, "+CREG:") == 0 && (message[9] == '1' || message[9] == '5');
+      bool registered =
+          message.size() > 9 && message.compare(0, 6, "+CREG:") == 0 && (message[9] == '1' || message[9] == '5');
       if (registered) {
         if (!this->registered_) {
           ESP_LOGD(TAG, "Registered OK");
@@ -204,7 +206,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         this->expect_ack_ = true;
       } else {
         ESP_LOGW(TAG, "Registration Fail");
-        if (message[7] == '0') {  // Network registration is disable, enable it
+        if (message.size() > 7 && message[7] == '0') {  // Network registration is disabled, enable it
           send_cmd_("AT+CREG=1");
           this->expect_ack_ = true;
           this->state_ = STATE_SETUP_CMGF;
@@ -325,7 +327,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       if (ok || message.compare(0, 6, "+CMGL:") == 0) {
         ESP_LOGD(TAG,
                  "Received SMS from: %s\n"
-                 "%s",
+                 "  %s",
                  this->sender_.c_str(), this->message_.c_str());
         this->sms_received_callback_.call(this->message_, this->sender_);
         this->state_ = STATE_RECEIVED_SMS;

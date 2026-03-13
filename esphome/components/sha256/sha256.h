@@ -24,13 +24,14 @@ namespace esphome::sha256 {
 
 /// SHA256 hash implementation.
 ///
-/// CRITICAL for ESP32-S3 with IDF 5.5.x hardware SHA acceleration:
-/// 1. SHA256 objects MUST be declared with `alignas(32)` for proper DMA alignment
-/// 2. The object MUST stay in the same stack frame (no passing to other functions)
-/// 3. NO Variable Length Arrays (VLAs) in the same function
+/// CRITICAL for ESP32 variants (except original) with IDF 5.5.x hardware SHA acceleration:
+/// 1. The object MUST stay in the same stack frame (no passing to other functions)
+/// 2. NO Variable Length Arrays (VLAs) in the same function
+///
+/// Note: Alignment is handled automatically via the HashBase::digest_ member.
 ///
 /// Example usage:
-///   alignas(32) sha256::SHA256 hasher;
+///   sha256::SHA256 hasher;
 ///   hasher.init();
 ///   hasher.add(data, len);
 ///   hasher.calculate();

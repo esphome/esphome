@@ -80,20 +80,17 @@ void EPaperSpectraE6::power_on() {
 
 void EPaperSpectraE6::power_off() {
   ESP_LOGV(TAG, "Power off");
-  this->command(0x02);
-  this->data(0x00);
+  this->cmd_data(0x02, {0x00});
 }
 
 void EPaperSpectraE6::refresh_screen(bool partial) {
   ESP_LOGV(TAG, "Refresh");
-  this->command(0x12);
-  this->data(0x00);
+  this->cmd_data(0x12, {0x00});
 }
 
 void EPaperSpectraE6::deep_sleep() {
   ESP_LOGV(TAG, "Deep sleep");
-  this->command(0x07);
-  this->data(0xA5);
+  this->cmd_data(0x07, {0xA5});
 }
 
 void EPaperSpectraE6::fill(Color color) {
@@ -143,7 +140,7 @@ bool HOT EPaperSpectraE6::transfer_data() {
     if (buf_idx == sizeof bytes_to_send) {
       this->start_data_();
       this->write_array(bytes_to_send, buf_idx);
-      this->end_data_();
+      this->disable();
       ESP_LOGV(TAG, "Wrote %d bytes at %ums", buf_idx, (unsigned) millis());
       buf_idx = 0;
 
@@ -157,7 +154,7 @@ bool HOT EPaperSpectraE6::transfer_data() {
   if (buf_idx != 0) {
     this->start_data_();
     this->write_array(bytes_to_send, buf_idx);
-    this->end_data_();
+    this->disable();
   }
   this->current_data_index_ = 0;
   return true;

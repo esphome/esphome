@@ -15,7 +15,7 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     SCHEDULER_DONT_RUN,
 )
-from esphome.core import CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
 
@@ -159,6 +159,7 @@ async def register_display(var, config):
             cv.Required(CONF_ID): cv.templatable(cv.use_id(DisplayPage)),
         }
     ),
+    synchronous=True,
 )
 async def display_page_show_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -179,6 +180,7 @@ async def display_page_show_to_code(config, action_id, template_arg, args):
             cv.GenerateID(CONF_ID): cv.templatable(cv.use_id(Display)),
         }
     ),
+    synchronous=True,
 )
 async def display_page_show_next_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -193,6 +195,7 @@ async def display_page_show_next_to_code(config, action_id, template_arg, args):
             cv.GenerateID(CONF_ID): cv.templatable(cv.use_id(Display)),
         }
     ),
+    synchronous=True,
 )
 async def display_page_show_previous_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -222,3 +225,8 @@ async def display_is_displaying_page_to_code(config, condition_id, template_arg,
 async def to_code(config):
     cg.add_global(display_ns.using)
     cg.add_define("USE_DISPLAY")
+    if CORE.is_esp32:
+        # Re-enable ESP-IDF's LCD driver (excluded by default to save compile time)
+        from esphome.components.esp32 import include_builtin_idf_component
+
+        include_builtin_idf_component("esp_lcd")

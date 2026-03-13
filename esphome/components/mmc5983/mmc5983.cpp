@@ -133,7 +133,5 @@ void MMC5983Component::dump_config() {
   LOG_SENSOR("  ", "Z", this->z_sensor_);
 }
 
-float MMC5983Component::get_setup_priority() const { return setup_priority::DATA; }
-
 }  // namespace mmc5983
 }  // namespace esphome

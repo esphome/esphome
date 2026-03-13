@@ -3,3 +3,4 @@
 zigbee:
   wipe_on_boot: once
   power_source: battery
+  ieee802154_vendor_oui: 0x231
