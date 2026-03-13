@@ -100,10 +100,9 @@ def validate_preferred_format(component_name: str, audio_device_key: str) -> cv.
 
 def request_codecs_for_format_configs(
     config: ConfigType, format_config_keys: list[str]
-) -> set[str]:
+) -> None:
     """Scan format configs for configured formats and request the needed codec support.
 
-    Returns the set of explicitly needed format strings (e.g. {"FLAC", "MP3"}).
     If any config uses "NONE" (accepts any format), all codecs are requested.
     """
     needed_formats: set[str] = set()
@@ -128,8 +127,6 @@ def request_codecs_for_format_configs(
             audio.request_mp3_support()
         if "OPUS" in needed_formats:
             audio.request_opus_support()
-
-    return needed_formats
 
 
 # Local config key constants

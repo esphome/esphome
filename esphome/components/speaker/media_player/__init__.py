@@ -198,31 +198,25 @@ def _final_validate(config):
             CONF_CODEC_SUPPORT_ENABLED,
         )
 
-    # Validate all local files have a recognized type
+    # Request codecs based on pipeline formats
+    media_player.request_codecs_for_format_configs(
+        config, [CONF_ANNOUNCEMENT_PIPELINE, CONF_MEDIA_PIPELINE]
+    )
+
+    # Validate local files and request any additional codecs they need
     for file_config in config.get(CONF_FILES, []):
         _, media_file_type = _read_audio_file_and_type(file_config)
         if str(media_file_type) == str(audio.AUDIO_FILE_TYPE_ENUM["NONE"]):
             raise cv.Invalid("Unsupported local media file")
-
-    # Request codecs based on pipeline formats
-    needed_formats = media_player.request_codecs_for_format_configs(
-        config, [CONF_ANNOUNCEMENT_PIPELINE, CONF_MEDIA_PIPELINE]
-    )
-
-    # Also request codecs needed by local files
-    for file_config in config.get(CONF_FILES, []):
-        _, media_file_type = _read_audio_file_and_type(file_config)
         for fmt_name, fmt_enum in audio.AUDIO_FILE_TYPE_ENUM.items():
             if str(media_file_type) == str(fmt_enum):
-                if fmt_name not in ("WAV", "NONE"):
-                    needed_formats.add(fmt_name)
+                if fmt_name == "FLAC":
+                    audio.request_flac_support()
+                elif fmt_name == "MP3":
+                    audio.request_mp3_support()
+                elif fmt_name == "OPUS":
+                    audio.request_opus_support()
                 break
-    if "FLAC" in needed_formats:
-        audio.request_flac_support()
-    if "MP3" in needed_formats:
-        audio.request_mp3_support()
-    if "OPUS" in needed_formats:
-        audio.request_opus_support()
 
     return config
 
