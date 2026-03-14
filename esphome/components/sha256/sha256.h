@@ -67,6 +67,8 @@ class SHA256 : public esphome::HashBase {
 #if defined(USE_SHA256_PSA)
   psa_hash_operation_t op_ = PSA_HASH_OPERATION_INIT;
 #elif defined(USE_SHA256_MBEDTLS)
+  // The mbedtls context for ESP32-S3 hardware SHA requires proper alignment and stack frame constraints.
+  // See class documentation above for critical requirements.
   mbedtls_sha256_context ctx_{};
 #elif defined(USE_ESP8266) || defined(USE_RP2040)
   br_sha256_context ctx_{};
