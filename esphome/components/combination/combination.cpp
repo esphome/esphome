@@ -163,7 +163,7 @@ void MeanCombinationComponent::handle_new_value(float value) {
     return;
 
   float sum = 0.0;
-  size_t count = 0.0;
+  size_t count = 0;
 
   for (const auto &sensor : this->sensors_) {
     if (std::isfinite(sensor->state)) {
@@ -172,6 +172,10 @@ void MeanCombinationComponent::handle_new_value(float value) {
     }
   }
 
+  if (count == 0) {
+    this->publish_state(NAN);
+    return;
+  }
   float mean = sum / count;
 
   this->publish_state(mean);
@@ -236,6 +240,11 @@ void RangeCombinationComponent::handle_new_value(float value) {
     if (std::isfinite(sensor->state)) {
       sensor_states.push_back(sensor->state);
     }
+  }
+
+  if (sensor_states.empty()) {
+    this->publish_state(NAN);
+    return;
   }
 
   sort(sensor_states.begin(), sensor_states.end());

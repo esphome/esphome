@@ -476,7 +476,10 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "climate.control", ControlAction, CLIMATE_CONTROL_ACTION_SCHEMA
+    "climate.control",
+    ControlAction,
+    CLIMATE_CONTROL_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def climate_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

@@ -6,6 +6,7 @@ Usage: python esphome/components/rp2040/generate_boards.py <arduino-pico-path>
 import json
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 from jinja2 import Environment, FileSystemLoader
@@ -157,13 +158,22 @@ def generate(arduino_pico_path: Path) -> str:
     board_pins, boards = load_boards(arduino_pico_path)
 
     template = _jinja_env.get_template("boards.jinja2")
-    return template.render(
+    content = template.render(
         cyw43_gpio_offset=CYW43_GPIO_OFFSET,
         cyw43_max_gpio=CYW43_GPIO_OFFSET + CYW43_GPIO_COUNT - 1,
         default_max_pin=DEFAULT_MAX_PIN,
         board_pins=sorted(board_pins.items()),
         boards=sorted(boards.items()),
     )
+
+    # Format output to match pre-commit ruff formatting
+    result = subprocess.run(
+        [sys.executable, "-m", "ruff", "format", "--stdin-filename", "boards.py"],
+        input=content.encode(),
+        capture_output=True,
+        check=True,
+    )
+    return result.stdout.decode()
 
 
 def main():
