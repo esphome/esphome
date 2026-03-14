@@ -10,14 +10,14 @@ namespace atm90e32 {
 
 static const char *const TAG = "atm90e32";
 
-namespace {
-uint32_t pref_hash(const char *prefix, const char *name_space) {
+static uint32_t pref_hash(const char *prefix, const char *name_space) {
   auto hash = fnv1_hash(prefix);
   return fnv1_hash_extend(hash, name_space);
 }
 
 template<typename T>
-int migrate_legacy_pref_if_needed(ESPPreferenceObject &current_pref, ESPPreferenceObject &legacy_pref, T *scratch) {
+static int migrate_legacy_pref_if_needed(ESPPreferenceObject &current_pref, ESPPreferenceObject &legacy_pref,
+                                         T *scratch) {
   T current{};
   if (current_pref.load(&current)) {
     return 0;
@@ -27,7 +27,6 @@ int migrate_legacy_pref_if_needed(ESPPreferenceObject &current_pref, ESPPreferen
   }
   return current_pref.save(scratch) ? 1 : -1;
 }
-}  // namespace
 
 void ATM90E32Component::loop() {
   if (this->get_publish_interval_flag_()) {
