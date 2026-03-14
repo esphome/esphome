@@ -13,8 +13,9 @@ sensor:
     pm_2_5:
       name: PM1003 PWM PM2.5
     pwm:
-      pin: ${pwm_pin_1}
-      inverted: true
+      pin:
+        number: ${pwm_pin_1}
+        inverted: true
 
   # UART mode - PM1006 with only PM2.5 sensor
   - platform: pm100x_uart
@@ -41,5 +42,6 @@ sensor:
     pm_2_5:
       name: PM1006K PWM PM2.5
     pwm:
-      pin: ${pwm_pin_2}
-      inverted: true
+      pin:
+        number: ${pwm_pin_2}
+        inverted: true

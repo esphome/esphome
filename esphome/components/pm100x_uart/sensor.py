@@ -62,16 +62,9 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def validate_interval_uart(config):
-    # Skip UART pin validation to allow multiple PM100X instances on same UART bus
-    # This is useful for testing different configurations
-    # WARNING: Multiple instances will send commands and receive responses simultaneously,
-    # which may cause interference. Use with caution - typically only one instance should
-    # be active at a time on each UART bus.
-    return config
-
-
-FINAL_VALIDATE_SCHEMA = validate_interval_uart
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "pm100x_uart", baud_rate=9600, require_rx=True, require_tx=True
+)
 
 
 async def to_code(config):
