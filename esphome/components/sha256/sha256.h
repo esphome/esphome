@@ -61,9 +61,13 @@ class SHA256 : public esphome::HashBase {
   size_t get_size() const override { return 32; }
 
  protected:
-#if defined(USE_ESP32) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#if defined(USE_ESP32)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
   psa_hash_operation_t op_ = PSA_HASH_OPERATION_INIT;
-#elif defined(USE_ESP32) || defined(USE_LIBRETINY)
+#else
+  mbedtls_sha256_context ctx_{};
+#endif
+#elif defined(USE_LIBRETINY)
   // The mbedtls context for ESP32-S3 hardware SHA requires proper alignment and stack frame constraints.
   // See class documentation above for critical requirements.
   mbedtls_sha256_context ctx_{};
