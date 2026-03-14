@@ -96,16 +96,13 @@ int HOT esp_idf_log_vprintf_(const char *format, va_list args) {  // NOLINT
 #include <esp_private/log_message.h>
 #include <esp_log_write.h>
 
-// Outlined cold path for early boot and constrained environment logging.
-// Used before ESPHome's hook is installed (early boot) and for constrained
-// env calls (PHY init, efuse reads) where the ESPHome hook would crash
-// due to fwrite lock issues on USB JTAG devices.
-// Formats messages in ESPHome style with ANSI colors into a 512-byte stack
-// buffer, then outputs atomically via esp_rom_printf.
-// Not IRAM_ATTR — flash is accessible in all cases this is called (cache
-// is enabled; constrained_env is set because the scheduler isn't running
-// or PHY init context, not because flash cache is disabled).
-static void __attribute__((noinline)) esp_log_format_early_(esp_log_msg_t *message) {
+// Format an ESP-IDF log message directly to the console, bypassing the
+// ESPHome logger hook. Used when the hook isn't installed (early boot) or
+// can't be used safely (constrained env: PHY init, efuse reads — fwrite
+// locks crash on USB JTAG devices).
+// Formats in ESPHome style with ANSI colors into a 512-byte stack buffer,
+// then outputs atomically via esp_rom_printf.
+static void __attribute__((noinline)) esp_log_format_direct_(esp_log_msg_t *message) {
   // ESP-IDF levels: NONE=0 ERROR=1 WARN=2 INFO=3 DEBUG=4 VERBOSE=5
   // Color digits: E=1(red) W=3(yellow) I=2(green) D=6(cyan) V=7(gray)
   static const char color_digit[] = {'\0', '1', '3', '2', '6', '7'};
@@ -153,7 +150,7 @@ void esp_log_format(esp_log_msg_t *message) {
     // where ESP_EARLY_LOGx from ISR also used flash-resident format strings
     // via esp_rom_printf. No ESP-IDF code is known to log from ISR with
     // cache disabled.
-    esp_log_format_early_(message);
+    esp_log_format_direct_(message);
     return;
   }
   // After hook installed, normal environment: skip formatting, forward body only.
