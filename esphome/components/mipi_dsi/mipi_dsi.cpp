@@ -87,7 +87,9 @@ void MIPI_DSI::setup() {
                                                    .vsync_front_porch = this->vsync_front_porch_,
                                                },
                                            .flags = {
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
                                                .use_dma2d = true,
+#endif
                                            }};
   // clang-format on
   err = esp_lcd_new_panel_dpi(this->bus_handle_, &dpi_config, &this->handle_);
@@ -95,6 +97,13 @@ void MIPI_DSI::setup() {
     this->smark_failed(LOG_STR("esp_lcd_new_panel_dpi failed"), err);
     return;
   }
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  err = esp_lcd_dpi_panel_enable_dma2d(this->handle_);
+  if (err != ESP_OK) {
+    this->smark_failed(LOG_STR("esp_lcd_dpi_panel_enable_dma2d failed"), err);
+    return;
+  }
+#endif
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(true);
