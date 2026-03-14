@@ -102,64 +102,58 @@ int HOT esp_idf_log_vprintf_(const char *format, va_list args) {  // NOLINT
 #include <esp_private/log_format.h>
 #include <esp_log_write.h>
 
-// Outlined cold path for early boot / constrained environment logging.
-// Uses esp_log_printf/esp_log_vprintf which dispatch to esp_rom_vprintf
-// for constrained environments (same as ESP-IDF's original esp_log_format).
-// Must be in IRAM since it's called from the IRAM esp_log_format during
-// early boot when the scheduler isn't running (constrained_env=1).
-static void IRAM_ATTR __attribute__((noinline)) esp_log_format_early_(esp_log_msg_t *message) {
+// Outlined cold path for early boot logging (before ESPHome hook is installed).
+// Formats messages in ESPHome style with ANSI colors.
+// Not IRAM_ATTR — flash is always accessible during early boot (cache is enabled,
+// constrained_env is set only because the scheduler isn't running yet).
+static void __attribute__((noinline)) esp_log_format_early_(esp_log_msg_t *message) {
   // ESP-IDF levels: NONE=0 ERROR=1 WARN=2 INFO=3 DEBUG=4 VERBOSE=5
   // Color digits: E=1(red) W=3(yellow) I=2(green) D=6(cyan) V=7(gray)
-  // DRAM_ATTR required: this function is IRAM_ATTR and may be called from constrained
-  // environments where flash cache is disabled. All string constants must be in DRAM.
-  // ESP-IDF's own log_format_text.c achieves this via linker fragment (noflash), but
-  // our override is in a different compilation unit so we must use DRAM_ATTR explicitly.
-  static DRAM_ATTR const char color_digit[] = {'\0', '1', '3', '2', '6', '7'};
-  static DRAM_ATTR const char lvl[] = {'\0', 'E', 'W', 'I', 'D', 'V'};
-  static DRAM_ATTR const char fmt_header[] = "\033[0;3%cm[%c][%s]: ";
-  static DRAM_ATTR const char fmt_reset_nl[] = "\033[0m\n";
-  static DRAM_ATTR const char fmt_nl[] = "\n";
-  static DRAM_ATTR const char tag_fallback[] = "idf";
+  static const char color_digit[] = {'\0', '1', '3', '2', '6', '7'};
+  static const char lvl[] = {'\0', 'E', 'W', 'I', 'D', 'V'};
+  // Format into stack buffer and output atomically via esp_rom_printf
+  // to prevent interleaving. Can't use fwrite (newlib locks not initialized).
+  char buf[256];
+  int pos = 0;
   uint8_t level = message->config.opts.log_level;
-#if CONFIG_LIBC_NEWLIB
-  if (!message->config.opts.constrained_env) {
-    flockfile(stdout);
-  }
-#endif
   if (level > 0 && level < sizeof(lvl)) {
-    esp_log_printf(message->config, fmt_header, color_digit[level], lvl[level],
-                   message->tag ? message->tag : tag_fallback);
+    pos = snprintf(buf, sizeof(buf), "\033[0;3%cm[%c][%s]: ", color_digit[level], lvl[level],
+                   message->tag ? message->tag : "idf");
   }
-  esp_log_vprintf(message->config, message->format, message->args);
-  if (level > 0 && level < sizeof(lvl)) {
-    esp_log_printf(message->config, fmt_reset_nl);
-  } else {
-    esp_log_printf(message->config, fmt_nl);
+  if (pos >= 0 && pos < (int) sizeof(buf) - 2) {
+    int body = vsnprintf(buf + pos, sizeof(buf) - pos, message->format, message->args);
+    if (body > 0)
+      pos += (body < (int) sizeof(buf) - pos) ? body : (int) sizeof(buf) - pos - 1;
   }
-#if CONFIG_LIBC_NEWLIB
-  if (!message->config.opts.constrained_env) {
-    funlockfile(stdout);
+  if (level > 0 && level < sizeof(lvl) && pos < (int) sizeof(buf) - 6) {
+    pos += snprintf(buf + pos, sizeof(buf) - pos, "\033[0m");
   }
-#endif
+  if (pos < (int) sizeof(buf) - 1) {
+    buf[pos++] = '\n';
+  }
+  buf[pos] = '\0';
+  esp_rom_printf("%s", buf);
 }
 
 extern "C" {
-// IRAM_ATTR required because ESP-IDF places esp_log_format in IRAM when
-// CONFIG_LOG_IN_IRAM is enabled, and it may be called from constrained
-// environments (ISR, cache disabled) where flash is inaccessible.
+// Override esp_log_format from liblog.a to prevent V2's 3-call vprintf
+// fragmentation. IRAM_ATTR to match ESP-IDF's linker fragment placement.
 void IRAM_ATTR esp_log_format(esp_log_msg_t *message) {
-  // Check if ESPHome's vprintf hook is installed by comparing against default.
-  // Before logger init, esp_log_vprint_func == &vprintf (the default).
   extern vprintf_like_t esp_log_vprint_func;
   extern int vprintf(const char *, __gnuc_va_list);  // NOLINT
   if (esp_log_vprint_func == &vprintf || message->config.opts.constrained_env) [[unlikely]] {
-    // Early boot or constrained env (ISR, cache disabled):
-    // use ROM functions only — flash may be inaccessible.
+    // Early boot or constrained env (PHY init, ISR): can't use the ESPHome
+    // hook (fwrite locks crash during PHY init on USB JTAG devices).
+    // Format to stack buffer with vsnprintf + esp_rom_printf (both safe
+    // without stdio locks). vsnprintf writes to a buffer (no stdio init
+    // needed), esp_rom_printf is ROM-resident.
     esp_log_format_early_(message);
     return;
   }
-  // After hook installed, normal environment: skip formatting, forward body only
-  esp_log_vprintf(message->config, message->format, message->args);
+  // After hook installed, normal environment: skip formatting, forward body only.
+  // Call esp_log_vprint_func directly to avoid pulling in esp_rom_vprintf
+  // (1.2KB IRAM) through the esp_log_vprintf inline.
+  esp_log_vprint_func(message->format, message->args);
 }
 }  // extern "C"
 #endif
