@@ -60,7 +60,7 @@ class HmacSHA256 {
 #if defined(USE_HMAC_SHA256_PSA)
   static constexpr size_t SHA256_DIGEST_SIZE = 32;
   psa_mac_operation_t op_ = PSA_MAC_OPERATION_INIT;
-  mbedtls_svc_key_id_t key_id_{};
+  mbedtls_svc_key_id_t key_id_ = MBEDTLS_SVC_KEY_ID_INIT;
   uint8_t digest_[SHA256_DIGEST_SIZE]{};
 #elif defined(USE_HMAC_SHA256_MBEDTLS)
   static constexpr size_t SHA256_DIGEST_SIZE = 32;
