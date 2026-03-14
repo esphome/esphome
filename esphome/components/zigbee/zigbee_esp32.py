@@ -222,8 +222,8 @@ async def esp32_to_code(config: ConfigType) -> None:
         cg.add_define("CONFIG_WIFI_COEX")
 
     # add partitions for zigbee
-    add_partition("zb_storage", "data", "fat", 0x4000)
-    add_partition("zb_fct", "data", "fat", 0x400)
+    add_partition("zb_storage", "data", "fat", 0x4000)  # 16KB
+    add_partition("zb_fct", "data", "fat", 0x1000)  # 4KB, minimum size
 
     # create endpoints
     zb_data = CORE.data.get(KEY_ZIGBEE, {})
