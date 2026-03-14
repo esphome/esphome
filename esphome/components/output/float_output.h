@@ -48,7 +48,7 @@ class FloatOutput : public BinaryOutput {
 
   /** Sets this output to ignore min_power for a 0 state
    *
-   * @param zero True if a 0 state should mean 0 and not min_power.
+   * @param zero_means_zero True if a 0 state should mean 0 and not min_power.
    */
   void set_zero_means_zero(bool zero_means_zero) { this->zero_means_zero_ = zero_means_zero; }
 
