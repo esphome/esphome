@@ -1802,6 +1802,13 @@ async def to_code(config):
     elif advanced[CONF_DISABLE_MBEDTLS_PKCS7]:
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PKCS7_C", False)
 
+    # Disable SHA-512 support in mbedTLS
+    # ESPHome only uses SHA-256 (OTA, noise protocol, etc.)
+    # On IDF < 6.0, MBEDTLS_SHA512_C also controls SHA-384 which TLS needs,
+    # so only disable on IDF 6.0+ where SHA-384 has its own config.
+    if framework_ver >= cv.Version(6, 0, 0):
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_SHA512_C", False)
+
     # Disable regi2c control functions in IRAM
     # Only needed if using analog peripherals (ADC, DAC, etc.) from ISRs while cache is disabled
     if advanced[CONF_DISABLE_REGI2C_IN_IRAM]:
