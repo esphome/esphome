@@ -427,9 +427,13 @@ def set_core_data(config):
     # Store the underlying IDF version for framework-agnostic checks
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         CORE.data[KEY_ESP32][KEY_IDF_VERSION] = framework_ver
+    elif (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is not None:
+        CORE.data[KEY_ESP32][KEY_IDF_VERSION] = idf_ver
     else:
-        CORE.data[KEY_ESP32][KEY_IDF_VERSION] = ARDUINO_IDF_VERSION_LOOKUP.get(
-            framework_ver, framework_ver
+        raise cv.Invalid(
+            f"Arduino version {framework_ver} has no known ESP-IDF version mapping. "
+            "Please update ARDUINO_IDF_VERSION_LOOKUP.",
+            path=[CONF_FRAMEWORK, CONF_VERSION],
         )
 
     CORE.data[KEY_ESP32][KEY_BOARD] = config[CONF_BOARD]
