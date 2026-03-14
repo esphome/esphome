@@ -16,11 +16,14 @@
 // mbedtls 4.0 (IDF 6.0) removed the legacy mbedtls_sha256_* API.
 // Use the PSA Crypto API instead. PSA crypto is auto-initialized by
 // ESP-IDF at startup (esp_psa_crypto_init.c, priority 104).
+#define USE_SHA256_PSA
 #include <psa/crypto.h>
 #else
+#define USE_SHA256_MBEDTLS
 #include "mbedtls/sha256.h"
 #endif
 #elif defined(USE_LIBRETINY)
+#define USE_SHA256_MBEDTLS
 #include "mbedtls/sha256.h"
 #elif defined(USE_ESP8266) || defined(USE_RP2040)
 #include <bearssl/bearssl_hash.h>
@@ -61,13 +64,9 @@ class SHA256 : public esphome::HashBase {
   size_t get_size() const override { return 32; }
 
  protected:
-#if defined(USE_ESP32)
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#if defined(USE_SHA256_PSA)
   psa_hash_operation_t op_ = PSA_HASH_OPERATION_INIT;
-#else
-  mbedtls_sha256_context ctx_{};
-#endif
-#elif defined(USE_LIBRETINY)
+#elif defined(USE_SHA256_MBEDTLS)
   mbedtls_sha256_context ctx_{};
 #elif defined(USE_ESP8266) || defined(USE_RP2040)
   br_sha256_context ctx_{};

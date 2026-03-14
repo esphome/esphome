@@ -8,8 +8,7 @@
 
 namespace esphome::sha256 {
 
-#if defined(USE_ESP32)
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#if defined(USE_SHA256_PSA)
 
 // ESP-IDF 6.0 ships mbedtls 4.0 which removed the legacy mbedtls_sha256_* API.
 // Use the PSA Crypto API instead. PSA crypto is auto-initialized by ESP-IDF
@@ -30,62 +29,13 @@ void SHA256::calculate() {
   psa_hash_finish(&this->op_, this->digest_, sizeof(this->digest_), &hash_length);
 }
 
-#else  // ESP_IDF_VERSION < 6.0.0
-
-// CRITICAL ESP32 HARDWARE SHA ACCELERATION REQUIREMENTS (IDF 5.5.x):
-//
-// ESP32 variants (except original ESP32) use DMA-based hardware SHA acceleration that requires
-// 32-byte aligned digest buffers. This is handled automatically via HashBase::digest_ which has
-// alignas(32) on these platforms. Two additional constraints apply:
-//
-// 1. NO VARIABLE LENGTH ARRAYS (VLAs): VLAs corrupt the stack layout, causing the DMA engine to
-//    write to incorrect memory locations. This results in null pointer dereferences and crashes.
-//    ALWAYS use fixed-size arrays (e.g., char buf[65], not char buf[size+1]).
-//
-// 2. SAME STACK FRAME ONLY: The SHA256 object must be created and used entirely within the same
-//    function. NEVER pass the SHA256 object or HashBase pointer to another function. When the stack
-//    frame changes (function call/return), the DMA references become invalid and will produce
-//    truncated hash output (20 bytes instead of 32) or corrupt memory.
-//
-// CORRECT USAGE:
-//   void my_function() {
-//     sha256::SHA256 hasher;
-//     hasher.init();
-//     hasher.add(data, len);  // Any size, no chunking needed
-//     hasher.calculate();
-//     bool ok = hasher.equals_hex(expected);
-//     // hasher destroyed when function returns
-//   }
-//
-// INCORRECT USAGE (WILL FAIL):
-//   void my_function() {
-//     sha256::SHA256 hasher;
-//     helper(&hasher);  // WRONG: Passed to different stack frame
-//   }
-//   void helper(HashBase *h) {
-//     h->init();  // WRONG: Will produce truncated/corrupted output
-//   }
+#elif defined(USE_SHA256_MBEDTLS)
 
 SHA256::~SHA256() { mbedtls_sha256_free(&this->ctx_); }
 
 void SHA256::init() {
   mbedtls_sha256_init(&this->ctx_);
   mbedtls_sha256_starts(&this->ctx_, 0);  // 0 = SHA256, not SHA224
-}
-
-void SHA256::add(const uint8_t *data, size_t len) { mbedtls_sha256_update(&this->ctx_, data, len); }
-
-void SHA256::calculate() { mbedtls_sha256_finish(&this->ctx_, this->digest_); }
-
-#endif  // ESP_IDF_VERSION check
-
-#elif defined(USE_LIBRETINY)
-
-SHA256::~SHA256() { mbedtls_sha256_free(&this->ctx_); }
-
-void SHA256::init() {
-  mbedtls_sha256_init(&this->ctx_);
-  mbedtls_sha256_starts(&this->ctx_, 0);
 }
 
 void SHA256::add(const uint8_t *data, size_t len) { mbedtls_sha256_update(&this->ctx_, data, len); }
