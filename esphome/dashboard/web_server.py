@@ -52,7 +52,7 @@ from esphome.util import get_serial_ports, shlex_quote
 from esphome.yaml_util import FastestAvailableSafeLoader
 
 from ..helpers import write_file
-from .const import DASHBOARD_COMMAND, DashboardEvent
+from .const import DASHBOARD_COMMAND, ESPHOME_COMMAND, DashboardEvent
 from .core import DASHBOARD, ESPHomeDashboard, Event
 from .entries import UNKNOWN_STATE, DashboardEntry, entry_state_to_bool
 from .models import build_device_list_response
@@ -1079,7 +1079,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
             return
 
         if not path.is_file():
-            args = ["esphome", "idedata", settings.rel_path(configuration)]
+            args = [*ESPHOME_COMMAND, "idedata", settings.rel_path(configuration)]
             rc, stdout, _ = await async_run_system_command(args)
 
             if rc != 0:
@@ -1462,7 +1462,7 @@ class JsonConfigRequestHandler(BaseHandler):
             self.send_error(404)
             return
 
-        args = ["esphome", "config", str(filename), "--show-secrets"]
+        args = [*ESPHOME_COMMAND, "config", str(filename), "--show-secrets"]
 
         rc, stdout, stderr = await async_run_system_command(args)
 
