@@ -122,35 +122,26 @@ static const char *const WAKEUP_CAUSES[] = {
 #endif
 
 const char *DebugComponent::get_wakeup_cause_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
+  static constexpr auto NUM_CAUSES = sizeof(WAKEUP_CAUSES) / sizeof(WAKEUP_CAUSES[0]);
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
   // IDF 6.0+ returns a bitmap of all wakeup sources
   uint32_t causes = esp_sleep_get_wakeup_causes();
   if (causes == 0) {
     return WAKEUP_CAUSES[0];  // "undefined"
   }
-  char *buf = buffer.data();
-  size_t buf_size = buffer.size();
-  size_t pos = 0;
-  for (unsigned i = 0; i < sizeof(WAKEUP_CAUSES) / sizeof(WAKEUP_CAUSES[0]); i++) {
-    if (!(causes & (1U << i))) {
-      continue;
+  buffer[0] = '\0';
+  for (unsigned i = 0; i < NUM_CAUSES; i++) {
+    if (causes & (1U << i)) {
+      if (buffer[0] != '\0') {
+        strlcat(buffer.data(), ", ", buffer.size());
+      }
+      strlcat(buffer.data(), WAKEUP_CAUSES[i], buffer.size());
     }
-    if (pos > 0 && pos < buf_size - 2) {
-      buf[pos++] = ',';
-      buf[pos++] = ' ';
-    }
-    size_t len = strlen(WAKEUP_CAUSES[i]);
-    if (pos + len >= buf_size) {
-      break;
-    }
-    memcpy(buf + pos, WAKEUP_CAUSES[i], len);
-    pos += len;
   }
-  buf[pos] = '\0';
-  return buf;
+  return buffer.data();
 #else
   unsigned reason = esp_sleep_get_wakeup_cause();
-  if (reason < sizeof(WAKEUP_CAUSES) / sizeof(WAKEUP_CAUSES[0])) {
+  if (reason < NUM_CAUSES) {
     return WAKEUP_CAUSES[reason];
   }
   return "unknown source";
