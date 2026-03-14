@@ -5,6 +5,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include <esp_sleep.h>
+#include <esp_idf_version.h>
 
 #include <esp_heap_caps.h>
 #include <esp_system.h>
@@ -82,32 +83,78 @@ const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFE
   return buf;
 }
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
 static const char *const WAKEUP_CAUSES[] = {
-    "undefined",
-    "undefined",
-    "external signal using RTC_IO",
-    "external signal using RTC_CNTL",
-    "timer",
-    "touchpad",
-    "ULP program",
-    "GPIO",
-    "UART",
-    "WIFI",
-    "COCPU int",
-    "COCPU crash",
-    "BT",
+    "undefined",                       // ESP_SLEEP_WAKEUP_UNDEFINED (0)
+    "undefined",                       // ESP_SLEEP_WAKEUP_ALL (1)
+    "external signal using RTC_IO",    // ESP_SLEEP_WAKEUP_EXT0 (2)
+    "external signal using RTC_CNTL",  // ESP_SLEEP_WAKEUP_EXT1 (3)
+    "timer",                           // ESP_SLEEP_WAKEUP_TIMER (4)
+    "touchpad",                        // ESP_SLEEP_WAKEUP_TOUCHPAD (5)
+    "ULP program",                     // ESP_SLEEP_WAKEUP_ULP (6)
+    "GPIO",                            // ESP_SLEEP_WAKEUP_GPIO (7)
+    "UART",                            // ESP_SLEEP_WAKEUP_UART (8)
+    "UART1",                           // ESP_SLEEP_WAKEUP_UART1 (9)
+    "UART2",                           // ESP_SLEEP_WAKEUP_UART2 (10)
+    "WIFI",                            // ESP_SLEEP_WAKEUP_WIFI (11)
+    "COCPU int",                       // ESP_SLEEP_WAKEUP_COCPU (12)
+    "COCPU crash",                     // ESP_SLEEP_WAKEUP_COCPU_TRAP_TRIG (13)
+    "BT",                              // ESP_SLEEP_WAKEUP_BT (14)
+    "VAD",                             // ESP_SLEEP_WAKEUP_VAD (15)
+    "VBAT under voltage",              // ESP_SLEEP_WAKEUP_VBAT_UNDER_VOLT (16)
 };
+#else
+static const char *const WAKEUP_CAUSES[] = {
+    "undefined",                       // ESP_SLEEP_WAKEUP_UNDEFINED (0)
+    "undefined",                       // ESP_SLEEP_WAKEUP_ALL (1)
+    "external signal using RTC_IO",    // ESP_SLEEP_WAKEUP_EXT0 (2)
+    "external signal using RTC_CNTL",  // ESP_SLEEP_WAKEUP_EXT1 (3)
+    "timer",                           // ESP_SLEEP_WAKEUP_TIMER (4)
+    "touchpad",                        // ESP_SLEEP_WAKEUP_TOUCHPAD (5)
+    "ULP program",                     // ESP_SLEEP_WAKEUP_ULP (6)
+    "GPIO",                            // ESP_SLEEP_WAKEUP_GPIO (7)
+    "UART",                            // ESP_SLEEP_WAKEUP_UART (8)
+    "WIFI",                            // ESP_SLEEP_WAKEUP_WIFI (9)
+    "COCPU int",                       // ESP_SLEEP_WAKEUP_COCPU (10)
+    "COCPU crash",                     // ESP_SLEEP_WAKEUP_COCPU_TRAP_TRIG (11)
+    "BT",                              // ESP_SLEEP_WAKEUP_BT (12)
+};
+#endif
 
 const char *DebugComponent::get_wakeup_cause_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
-  const char *wake_reason;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  // IDF 6.0+ returns a bitmap of all wakeup sources
+  uint32_t causes = esp_sleep_get_wakeup_causes();
+  if (causes == 0) {
+    return WAKEUP_CAUSES[0];  // "undefined"
+  }
+  char *buf = buffer.data();
+  size_t buf_size = buffer.size();
+  size_t pos = 0;
+  for (unsigned i = 0; i < sizeof(WAKEUP_CAUSES) / sizeof(WAKEUP_CAUSES[0]); i++) {
+    if (!(causes & (1U << i))) {
+      continue;
+    }
+    if (pos > 0 && pos < buf_size - 2) {
+      buf[pos++] = ',';
+      buf[pos++] = ' ';
+    }
+    size_t len = strlen(WAKEUP_CAUSES[i]);
+    if (pos + len >= buf_size) {
+      break;
+    }
+    memcpy(buf + pos, WAKEUP_CAUSES[i], len);
+    pos += len;
+  }
+  buf[pos] = '\0';
+  return buf;
+#else
   unsigned reason = esp_sleep_get_wakeup_cause();
   if (reason < sizeof(WAKEUP_CAUSES) / sizeof(WAKEUP_CAUSES[0])) {
-    wake_reason = WAKEUP_CAUSES[reason];
-  } else {
-    wake_reason = "unknown source";
+    return WAKEUP_CAUSES[reason];
   }
-  // Return the static string directly - no need to copy to buffer
-  return wake_reason;
+  return "unknown source";
+#endif
 }
 
 void DebugComponent::log_partition_info_() {
