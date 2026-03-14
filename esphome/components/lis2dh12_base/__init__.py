@@ -1,3 +1,4 @@
+from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -23,6 +24,11 @@ CONF_LIS2DH12_ID = "lis2dh12_id"
 
 CONF_OUTPUT_DATA_RATE = "output_data_rate"
 CONF_MIRROR_Z = "mirror_z"
+CONF_ON_ACTIVE = "on_active"
+CONF_ON_DOUBLE_TAP = "on_double_tap"
+CONF_ON_FREEFALL = "on_freefall"
+CONF_ON_ORIENTATION = "on_orientation"
+CONF_ON_TAP = "on_tap"
 
 lis2dh12_base_ns = cg.esphome_ns.namespace("lis2dh12_base")
 LIS2DH12Component = lis2dh12_base_ns.class_("LIS2DH12Component", cg.PollingComponent)
@@ -83,6 +89,11 @@ CONFIG_SCHEMA_BASE = cv.Schema(
                 cv.Optional(CONF_SWAP_XY, default=False): cv.boolean,
             }
         ),
+        cv.Optional(CONF_ON_ACTIVE): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_TAP): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_DOUBLE_TAP): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_FREEFALL): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_ORIENTATION): automation.validate_automation(single=True),
     }
 ).extend(cv.polling_component_schema("10s"))
 
@@ -119,5 +130,19 @@ async def to_code_base(config):
                 calibration_config[CONF_OFFSET_Z],
             )
         )
+
+    for trigger_key, getter in [
+        (CONF_ON_TAP, "get_tap_trigger"),
+        (CONF_ON_DOUBLE_TAP, "get_double_tap_trigger"),
+        (CONF_ON_FREEFALL, "get_freefall_trigger"),
+        (CONF_ON_ACTIVE, "get_active_trigger"),
+        (CONF_ON_ORIENTATION, "get_orientation_trigger"),
+    ]:
+        if trigger_key in config:
+            await automation.build_automation(
+                getattr(var, getter)(),
+                [],
+                config[trigger_key],
+            )
 
     return var

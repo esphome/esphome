@@ -14,6 +14,21 @@ lis2dh12_i2c:
     mirror_y: true
     mirror_z: true
     swap_xy: false
+  on_tap:
+    - then:
+        - logger.log: "Tapped"
+  on_double_tap:
+    - then:
+        - logger.log: "Double tapped"
+  on_freefall:
+    - then:
+        - logger.log: "Freefall detected"
+  on_active:
+    - then:
+        - logger.log: "Activity detected"
+  on_orientation:
+    - then:
+        - logger.log: "Orientation changed"
 
 sensor:
   - platform: lis2dh12_base
@@ -21,3 +36,21 @@ sensor:
     acceleration_x: Accel X
     acceleration_y: Accel Y
     acceleration_z: Accel Z
+
+text_sensor:
+  - platform: lis2dh12_base
+    lis2dh12_id: lis2dh12_i2c_accel
+    orientation: Orientation
+
+binary_sensor:
+  - platform: lis2dh12_base
+    lis2dh12_id: lis2dh12_i2c_accel
+    tap: Single tap
+    double_tap:
+      name: Double tap
+    freefall:
+      name: Freefall
+    active:
+      name: Active
+      filters:
+        - delayed_off: 5000ms
