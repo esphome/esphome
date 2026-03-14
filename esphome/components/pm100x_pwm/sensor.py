@@ -4,18 +4,18 @@ from esphome.components import pm100x, pm100x_pwm, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
-    CONF_INTERNAL,
     CONF_MODEL,
-    CONF_NAME,
     CONF_PIN,
     CONF_PM_2_5,
     CONF_STARTUP_DELAY,
     CONF_UPDATE_INTERVAL,
     DEVICE_CLASS_PM25,
     ICON_BLUR,
+    ICON_PERCENT,
     SCHEDULER_DONT_RUN,
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
+    UNIT_PERCENT,
 )
 
 AUTO_LOAD = ["pm100x", "duty_cycle"]
@@ -29,14 +29,21 @@ DutyCycleSensor = duty_cycle_ns.class_(
 )
 
 
-PWM_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(DutyCycleSensor),
-        cv.Optional(CONF_NAME): cv.string,
-        cv.Required(CONF_PIN): pins.internal_gpio_input_pin_schema,
-        cv.Optional(CONF_INTERNAL, default=True): cv.boolean,
-    }
-).extend(cv.polling_component_schema("30s"))
+PWM_SCHEMA = (
+    sensor.sensor_schema(
+        DutyCycleSensor,
+        unit_of_measurement=UNIT_PERCENT,
+        icon=ICON_PERCENT,
+        accuracy_decimals=1,
+        state_class=STATE_CLASS_MEASUREMENT,
+    )
+    .extend(
+        {
+            cv.Required(CONF_PIN): pins.internal_gpio_input_pin_schema,
+        }
+    )
+    .extend(cv.polling_component_schema("30s"))
+)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -75,29 +82,10 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_PM_2_5])
         cg.add(var.set_pm_2_5_sensor(sens))
 
-    # PWM duty cycle sensor
     if CONF_PWM in config:
-        # Add the duty_cycle header include to generated C++ code
-        cg.add_global(
-            cg.RawStatement(
-                '#include "esphome/components/duty_cycle/duty_cycle_sensor.h"'
-            )
-        )
-
         pwm_conf = config[CONF_PWM]
-        pwm = cg.new_Pvariable(pwm_conf[CONF_ID])
+        pwm = await sensor.new_sensor(pwm_conf)
         await cg.register_component(pwm, pwm_conf)
-
-        # Manually configure sensor properties since we don't use sensor_schema
-        if CONF_NAME in pwm_conf:
-            cg.add(pwm.set_name(pwm_conf[CONF_NAME]))
-        if CONF_INTERNAL in pwm_conf:
-            cg.add(pwm.set_internal(pwm_conf[CONF_INTERNAL]))
-        cg.add(pwm.set_unit_of_measurement("%"))
-        cg.add(pwm.set_icon("mdi:percent"))
-        cg.add(pwm.set_accuracy_decimals(1))
-        # Use the StateClasses enum
-        cg.add(pwm.set_state_class(sensor.StateClasses.STATE_CLASS_MEASUREMENT))
 
         pin = await cg.gpio_pin_expression(pwm_conf[CONF_PIN])
         cg.add(pwm.set_pin(pin))

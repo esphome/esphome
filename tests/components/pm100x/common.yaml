@@ -17,6 +17,7 @@ sensor:
     pm_2_5:
       name: PM1003 PWM PM2.5
     pwm:
+      name: PM1003 PWM Duty Cycle
       pin:
         number: ${pwm_pin_1}
         inverted: true
@@ -28,6 +29,7 @@ sensor:
     pm_2_5:
       name: PM1006K PWM PM2.5
     pwm:
+      name: PM1006K PWM Duty Cycle
       pin:
         number: ${pwm_pin_2}
         inverted: true
