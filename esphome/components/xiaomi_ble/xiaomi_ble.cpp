@@ -321,9 +321,10 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
 
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
   // PSA AEAD expects ciphertext + tag concatenated
-  uint8_t ct_with_tag[vector.datasize + vector.tagsize];
+  uint8_t ct_with_tag[sizeof(vector.ciphertext) + sizeof(vector.tag)];
   memcpy(ct_with_tag, vector.ciphertext, vector.datasize);
   memcpy(ct_with_tag + vector.datasize, vector.tag, vector.tagsize);
+  size_t ct_with_tag_size = vector.datasize + vector.tagsize;
 
   psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
   psa_set_key_type(&attributes, PSA_KEY_TYPE_AES);
@@ -340,7 +341,7 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
   size_t plaintext_length;
   psa_status_t status = psa_aead_decrypt(key_id, PSA_ALG_AEAD_WITH_SHORTENED_TAG(PSA_ALG_CCM, vector.tagsize),
                                          vector.iv, vector.ivsize, vector.authdata, vector.authsize, ct_with_tag,
-                                         sizeof(ct_with_tag), vector.plaintext, vector.datasize, &plaintext_length);
+                                         ct_with_tag_size, vector.plaintext, vector.datasize, &plaintext_length);
   psa_destroy_key(key_id);
   bool decrypt_ok = (status == PSA_SUCCESS);
 #else
