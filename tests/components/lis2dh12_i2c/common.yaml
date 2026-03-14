@@ -1,0 +1,23 @@
+lis2dh12_i2c:
+  id: lis2dh12_i2c_accel
+  i2c_id: i2c_bus
+  range: 4G
+  resolution: high
+  output_data_rate: 100Hz
+  update_interval: 10s
+  calibration:
+    offset_x: -0.250
+    offset_y: -0.400
+    offset_z: -0.800
+  transform:
+    mirror_x: false
+    mirror_y: true
+    mirror_z: true
+    swap_xy: false
+
+sensor:
+  - platform: lis2dh12_base
+    lis2dh12_id: lis2dh12_i2c_accel
+    acceleration_x: Accel X
+    acceleration_y: Accel Y
+    acceleration_z: Accel Z
