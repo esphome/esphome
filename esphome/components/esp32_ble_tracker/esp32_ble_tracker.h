@@ -17,8 +17,6 @@
 // mbedtls 4.0 (IDF 6.0) removed the legacy mbedtls AES API.
 // Use the PSA Crypto API instead.
 #define USE_BLE_TRACKER_PSA_AES
-#else
-#define USE_BLE_TRACKER_MBEDTLS_AES
 #endif
 
 #include <esp_bt_defs.h>

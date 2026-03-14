@@ -775,7 +775,7 @@ bool ESPBTDevice::resolve_irk(const uint8_t *irk) const {
   psa_status_t status = psa_cipher_encrypt(key_id, PSA_ALG_ECB_NO_PADDING, ecb_plaintext, AES_BLOCK_SIZE,
                                            ecb_ciphertext, AES_BLOCK_SIZE, &output_length);
   psa_destroy_key(key_id);
-  if (status != PSA_SUCCESS) {
+  if (status != PSA_SUCCESS || output_length != AES_BLOCK_SIZE) {
     return false;
   }
 #else
