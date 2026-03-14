@@ -1883,6 +1883,16 @@ class Mutex {
   void lock() {}
   bool try_lock() { return true; }
   void unlock() {}
+#elif defined(USE_ESP32) || defined(USE_LIBRETINY)
+  // FreeRTOS platforms: inline to avoid out-of-line call overhead.
+  Mutex() { handle_ = xSemaphoreCreateMutex(); }
+  ~Mutex() = default;
+  void lock() { xSemaphoreTake(this->handle_, portMAX_DELAY); }
+  bool try_lock() { return xSemaphoreTake(this->handle_, 0) == pdTRUE; }
+  void unlock() { xSemaphoreGive(this->handle_); }
+
+ private:
+  SemaphoreHandle_t handle_;
 #else
   Mutex();
   ~Mutex();
@@ -1891,13 +1901,9 @@ class Mutex {
   void unlock();
 
  private:
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
-  SemaphoreHandle_t handle_;
-#else
   // d-pointer to store private data on new platforms
   void *handle_;  // NOLINT(clang-diagnostic-unused-private-field)
 #endif
-#endif  // single-threaded check
 };
 
 /** Helper class that wraps a mutex with a RAII-style API.

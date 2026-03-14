@@ -35,7 +35,7 @@ bool random_bytes(uint8_t *data, size_t len) {
   return true;
 }
 
-// RP2040 Mutex is defined inline in helpers.h when ESPHOME_THREAD_SINGLE is set.
+// RP2040 Mutex is defined inline in helpers.h for RP2040/ESP8266 builds.
 
 IRAM_ATTR InterruptLock::InterruptLock() { state_ = save_and_disable_interrupts(); }
 IRAM_ATTR InterruptLock::~InterruptLock() { restore_interrupts(state_); }
