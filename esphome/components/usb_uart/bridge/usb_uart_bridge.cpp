@@ -34,6 +34,7 @@ static constexpr size_t USB_TASK_STACK_SIZE = 4096;
 static constexpr size_t USB_TASK_STACK_SIZE_VV = 8192;
 static constexpr uint32_t UART_RELOAD_SETTLE_MS = 20;
 static constexpr uint32_t LOG_THROTTLE_MS = 1000;
+static constexpr size_t RINGBUF_RETRY_CHUNK_SIZE = 64;
 
 static bool should_log_now_(uint32_t *last_ms, uint32_t interval_ms) {
   uint32_t now = esp_log_timestamp();
@@ -42,6 +43,29 @@ static bool should_log_now_(uint32_t *last_ms, uint32_t interval_ms) {
     return true;
   }
   return false;
+}
+
+static bool ringbuf_send_with_retry_(RingbufHandle_t ringbuf, const uint8_t *data, size_t len, uint32_t *log_ms) {
+  if (len == 0) {
+    return true;
+  }
+
+  if (xRingbufferSend(ringbuf, data, len, pdMS_TO_TICKS(1)) == pdTRUE) {
+    return true;
+  }
+
+  size_t offset = 0;
+  while (offset < len) {
+    size_t chunk = MIN(RINGBUF_RETRY_CHUNK_SIZE, len - offset);
+    if (xRingbufferSend(ringbuf, data + offset, chunk, pdMS_TO_TICKS(1)) != pdTRUE) {
+      if (should_log_now_(log_ms, LOG_THROTTLE_MS)) {
+        ESP_LOGW(TAG, "USB TX buffer full; some data is lost");
+      }
+      return false;
+    }
+    offset += chunk;
+  }
+  return true;
 }
 
 static esp_err_t ringbuf_read_bytes(RingbufHandle_t ring_buf, uint8_t *out_buf, size_t out_buf_sz, size_t *rx_data_size,
@@ -244,12 +268,7 @@ void USBUARTBridge::uart_rx_task() {
       }
     }
 
-    BaseType_t res = xRingbufferSend(usb_tx_ringbuf, data, total_rx_size, pdMS_TO_TICKS(1));
-    if (res != pdTRUE) {
-      if (should_log_now_(&tx_full_log_ms, LOG_THROTTLE_MS)) {
-        ESP_LOGW(TAG, "USB TX buffer full; data drops are occurring");
-      }
-    }
+    ringbuf_send_with_retry_(usb_tx_ringbuf, data, total_rx_size, &tx_full_log_ms);
 
     ESP_LOGV(TAG, "UART RX: waking up USB TX task");
     xTaskNotifyGive(usb_tx_handle);
