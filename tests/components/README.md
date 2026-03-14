@@ -7,10 +7,23 @@
 testing binaries that combine many components. By convention, this unique namespace is `esphome::component::testing`
 (where "component" is the component under test), for example: `esphome::uart::testing`.
 
+### Platform components
+
+For components that expose to a platform component, create a folder under your component test folder with the platform component name, e.g. `binary_sensor` and
+include the relevant `.cpp` and `.h` test files there.
+
+### Override component code generation for testing
+
+When generating code for testing, ESPHome won't invoke the component's `to_code` function, since most components do not
+need to generate configuration code for testing.
+
+If you do need to generate code to for example configure compilation flags or add libraries,
+add the component name to the `CPP_TESTING_CODEGEN_COMPONENTS` allowlist in `script/cpp_unit_test.py`.
 
 ## Running component unit tests
 
 (from the repository root)
+
 ```bash
 ./script/cpp_unit_test.py component1 component2 ...
 ```

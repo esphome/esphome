@@ -70,6 +70,7 @@ class DaikinArcClimate : public climate_ir::ClimateIR {
   // Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
   bool parse_state_frame_(const uint8_t frame[]);
+  uint8_t last_humidity_{0x66};
 };
 
 }  // namespace daikin_arc
