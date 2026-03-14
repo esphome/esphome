@@ -1614,6 +1614,11 @@ async def to_code(config):
     # This saves ~250 bytes of RAM (tag cache) and associated code
     add_idf_sdkconfig_option("CONFIG_LOG_TAG_LEVEL_IMPL_NONE", True)
 
+    # Use ESP-IDF Log V2 to eliminate per-site esp_log_timestamp() macro expansions
+    # V2 centralizes formatting inside esp_log(), reducing flash usage
+    add_idf_sdkconfig_option("CONFIG_LOG_VERSION_1", False)
+    add_idf_sdkconfig_option("CONFIG_LOG_VERSION_2", True)
+
     # Reduce PHY TX power in the event of a brownout
     add_idf_sdkconfig_option("CONFIG_ESP_PHY_REDUCE_TX_POWER", True)
 
