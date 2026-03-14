@@ -417,7 +417,7 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
 
   FixedRingBuffer() = default;
   ~FixedRingBuffer() {
-    if constexpr (std::is_trivial<T>::value) {
+    if constexpr (std::is_trivially_copyable<T>::value && std::is_trivially_default_constructible<T>::value) {
       ::operator delete(this->data_);
     } else {
       delete[] this->data_;
@@ -430,7 +430,7 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
 
   /// Allocate capacity - can only be called once
   void init(index_type capacity) {
-    if constexpr (std::is_trivial<T>::value) {
+    if constexpr (std::is_trivially_copyable<T>::value && std::is_trivially_default_constructible<T>::value) {
       // Raw allocation without initialization (elements are written before read)
       // NOLINTNEXTLINE(bugprone-sizeof-expression)
       this->data_ = static_cast<T *>(::operator new(capacity * sizeof(T)));
