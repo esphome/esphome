@@ -14,6 +14,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S3,
     add_idf_sdkconfig_option,
     get_esp32_variant,
+    idf_version,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -23,8 +24,6 @@ from esphome.const import (
     CONF_ID,
     CONF_MODE,
     CONF_SPEED,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
     PLATFORM_ESP32,
 )
 from esphome.core import CORE
@@ -202,9 +201,7 @@ async def to_code(config):
         # ESP32 and ESP32-S2 don't have this constraint.
         if variant not in (VARIANT_ESP32, VARIANT_ESP32S2):
             add_idf_sdkconfig_option("CONFIG_ESPTOOLPY_FLASHFREQ_120M", True)
-        if config[CONF_MODE] == TYPE_OCTAL and CORE.data[KEY_CORE][
-            KEY_FRAMEWORK_VERSION
-        ] >= cv.Version(5, 4, 0):
+        if config[CONF_MODE] == TYPE_OCTAL and idf_version() >= cv.Version(5, 4, 0):
             add_idf_sdkconfig_option(
                 "CONFIG_SPIRAM_TIMING_TUNING_POINT_VIA_TEMPERATURE_SENSOR",
                 True,
