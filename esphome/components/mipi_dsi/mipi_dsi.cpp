@@ -54,6 +54,17 @@ void MIPI_DSI::setup() {
     this->smark_failed(LOG_STR("new_panel_io_dbi failed"), err);
     return;
   }
+  // clang-format off
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  auto color_format = LCD_COLOR_FMT_RGB565;
+  if (this->color_depth_ == display::COLOR_BITNESS_888) {
+    color_format = LCD_COLOR_FMT_RGB888;
+  }
+  esp_lcd_dpi_panel_config_t dpi_config = {.virtual_channel = 0,
+                                           .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
+                                           .dpi_clock_freq_mhz = this->pclk_frequency_,
+                                           .in_color_format = color_format,
+#else
   auto pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565;
   if (this->color_depth_ == display::COLOR_BITNESS_888) {
     pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB888;
@@ -62,6 +73,7 @@ void MIPI_DSI::setup() {
                                            .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
                                            .dpi_clock_freq_mhz = this->pclk_frequency_,
                                            .pixel_format = pixel_format,
+#endif
                                            .num_fbs = 1,  // number of frame buffers to allocate
                                            .video_timing =
                                                {
@@ -77,6 +89,7 @@ void MIPI_DSI::setup() {
                                            .flags = {
                                                .use_dma2d = true,
                                            }};
+  // clang-format on
   err = esp_lcd_new_panel_dpi(this->bus_handle_, &dpi_config, &this->handle_);
   if (err != ESP_OK) {
     this->smark_failed(LOG_STR("esp_lcd_new_panel_dpi failed"), err);

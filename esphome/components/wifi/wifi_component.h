@@ -18,7 +18,7 @@
 #endif
 
 #if defined(USE_ESP32) && defined(USE_WIFI_WPA2_EAP)
-#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
 #include <esp_eap_client.h>
 #else
 #include <esp_wpa2.h>
@@ -436,10 +436,6 @@ class WiFiComponent : public Component {
   void check_connecting_finished(uint32_t now);
 
   void retry_connect();
-
-#ifdef USE_RP2040
-  bool can_proceed() override;
-#endif
 
   void set_reboot_timeout(uint32_t reboot_timeout);
 

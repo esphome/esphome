@@ -11,9 +11,14 @@
 
 #include "esp_eth.h"
 #include "esp_eth_mac.h"
+#include "esp_eth_mac_esp.h"
 #include "esp_netif.h"
 #include "esp_mac.h"
 #include "esp_idf_version.h"
+
+#if CONFIG_ETH_USE_ESP32_EMAC
+extern "C" eth_esp32_emac_config_t eth_esp32_emac_default_config(void);
+#endif
 
 namespace esphome::ethernet {
 
