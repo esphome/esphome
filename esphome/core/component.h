@@ -6,6 +6,7 @@
 #include <string>
 
 #include "esphome/core/defines.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/optional.h"
@@ -574,13 +575,10 @@ class PollingComponent : public Component {
   uint32_t update_interval_;
 };
 
-uint32_t millis();  // Forward declare for inline finish()
-#ifdef USE_RUNTIME_STATS
-uint32_t micros();  // Forward declare for inline constructor
-#endif
+// millis() and micros() are available via hal.h
 
 // Cold path for blocking warning - defined in component.cpp
-void warn_if_blocking(Component *component, uint32_t blocking_time);
+void warn_blocking(Component *component, uint32_t blocking_time);
 
 class WarnIfComponentBlockingGuard {
  public:
@@ -603,7 +601,7 @@ class WarnIfComponentBlockingGuard {
     this->record_runtime_stats_();
 #endif
     if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
-      warn_if_blocking(this->component_, blocking_time);
+      warn_blocking(this->component_, blocking_time);
     }
     return curr_time;
   }
