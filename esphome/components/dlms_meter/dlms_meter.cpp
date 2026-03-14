@@ -260,7 +260,8 @@ bool DlmsMeterComponent::decrypt_(std::vector<uint8_t> &mbus_payload, uint16_t m
     if (psa_aead_decrypt_setup(&op, key_id, PSA_ALG_GCM) == PSA_SUCCESS &&
         psa_aead_set_nonce(&op, iv, sizeof(iv)) == PSA_SUCCESS) {
       size_t outlen = 0;
-      if (psa_aead_update(&op, payload_ptr, message_length, payload_ptr, message_length, &outlen) == PSA_SUCCESS) {
+      if (psa_aead_update(&op, payload_ptr, message_length, payload_ptr, message_length, &outlen) == PSA_SUCCESS &&
+          outlen == message_length) {
         decrypt_failed = false;
       }
     }
