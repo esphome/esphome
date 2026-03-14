@@ -23,10 +23,15 @@ CODEOWNERS = ["@tuct", "@habbie"]
 
 CONF_PWM = "pwm"
 
+duty_cycle_ns = cg.esphome_ns.namespace("duty_cycle")
+DutyCycleSensor = duty_cycle_ns.class_(
+    "DutyCycleSensor", sensor.Sensor, cg.PollingComponent
+)
+
 
 PWM_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(cg.PollingComponent),
+        cv.GenerateID(): cv.declare_id(DutyCycleSensor),
         cv.Optional(CONF_NAME): cv.string,
         cv.Required(CONF_PIN): pins.internal_gpio_input_pin_schema,
         cv.Optional(CONF_INTERNAL, default=True): cv.boolean,
@@ -79,16 +84,8 @@ async def to_code(config):
             )
         )
 
-        duty_cycle_ns = cg.esphome_ns.namespace("duty_cycle")
-        DutyCycleSensor = duty_cycle_ns.class_(
-            "DutyCycleSensor", sensor.Sensor, cg.PollingComponent
-        )
-
         pwm_conf = config[CONF_PWM]
-        pwm_id = pwm_conf[CONF_ID]
-        # Create instance with explicit class type
-        rhs = cg.RawExpression("new duty_cycle::DutyCycleSensor()")
-        pwm = cg.Pvariable(pwm_id, rhs, DutyCycleSensor)
+        pwm = cg.new_Pvariable(pwm_conf[CONF_ID])
         await cg.register_component(pwm, pwm_conf)
 
         # Manually configure sensor properties since we don't use sensor_schema
@@ -105,8 +102,8 @@ async def to_code(config):
         pin = await cg.gpio_pin_expression(pwm_conf[CONF_PIN])
         cg.add(pwm.set_pin(pin))
 
-        if config[CONF_UPDATE_INTERVAL].total_milliseconds != SCHEDULER_DONT_RUN:
-            cg.add(pwm.set_update_interval(config[CONF_UPDATE_INTERVAL]))
+        if pwm_conf[CONF_UPDATE_INTERVAL].total_milliseconds != SCHEDULER_DONT_RUN:
+            cg.add(pwm.set_update_interval(pwm_conf[CONF_UPDATE_INTERVAL]))
         cg.add(var.set_pwm_sensor(pwm))
 
     cg.add(var.set_startup_delay(config[CONF_STARTUP_DELAY].total_milliseconds))
