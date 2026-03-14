@@ -113,7 +113,7 @@ static void __attribute__((noinline)) esp_log_format_early_(esp_log_msg_t *messa
   static const char lvl[] = {'\0', 'E', 'W', 'I', 'D', 'V'};
   // Format into stack buffer and output atomically via esp_rom_printf
   // to prevent interleaving. Can't use fwrite (newlib locks not initialized).
-  char buf[256];
+  char buf[512];
   int pos = 0;
   uint8_t level = message->config.opts.log_level;
   if (level > 0 && level < sizeof(lvl)) {
