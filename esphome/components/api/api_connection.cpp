@@ -2025,8 +2025,7 @@ uint16_t APIConnection::encode_to_buffer(uint32_t calculated_size, MessageEncode
     // Batch message second or later
     // Add padding for previous message footer + this message header
     size_t current_size = shared_buf.size();
-    shared_buf.reserve(current_size + total_calculated_size);
-    shared_buf.resize(current_size + footer_size + header_padding);
+    shared_buf.reserve_and_resize(current_size + total_calculated_size, current_size + footer_size + header_padding);
   }
 
   // Pre-resize buffer to include payload, then encode through raw pointer
