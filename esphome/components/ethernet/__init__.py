@@ -14,6 +14,7 @@ from esphome.components.esp32 import (
     add_idf_component,
     add_idf_sdkconfig_option,
     get_esp32_variant,
+    idf_version,
     include_builtin_idf_component,
 )
 from esphome.components.network import ip_address_literal
@@ -176,13 +177,12 @@ ManualIP = ethernet_ns.struct("ManualIP")
 def _is_framework_spi_polling_mode_supported():
     # SPI Ethernet without IRQ feature is added in
     # esp-idf >= (5.3+ ,5.2.1+, 5.1.4)
-    # Note: Arduino now uses ESP-IDF as a component, so we only check IDF version
-    framework_version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    if framework_version >= cv.Version(5, 3, 0):
+    ver = idf_version()
+    if ver >= cv.Version(5, 3, 0):
         return True
-    if cv.Version(5, 3, 0) > framework_version >= cv.Version(5, 2, 1):
+    if cv.Version(5, 3, 0) > ver >= cv.Version(5, 2, 1):
         return True
-    if cv.Version(5, 2, 0) > framework_version >= cv.Version(5, 1, 4):  # noqa: SIM103
+    if cv.Version(5, 2, 0) > ver >= cv.Version(5, 1, 4):  # noqa: SIM103
         return True
     return False
 
