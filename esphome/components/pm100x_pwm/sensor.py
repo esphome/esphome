@@ -22,12 +22,11 @@ AUTO_LOAD = ["pm100x", "duty_cycle"]
 CODEOWNERS = ["@tuct", "@habbie"]
 
 CONF_PWM = "pwm"
-CONF_PWM_SENSOR_ID = cv.GenerateID()
 
 
 PWM_SCHEMA = cv.Schema(
     {
-        CONF_PWM_SENSOR_ID: cv.declare_id(cg.PollingComponent),
+        cv.GenerateID(): cv.declare_id(cg.PollingComponent),
         cv.Optional(CONF_NAME): cv.string,
         cv.Required(CONF_PIN): pins.internal_gpio_input_pin_schema,
         cv.Optional(CONF_INTERNAL, default=True): cv.boolean,
@@ -86,7 +85,7 @@ async def to_code(config):
         )
 
         pwm_conf = config[CONF_PWM]
-        pwm_id = pwm_conf[CONF_PWM_SENSOR_ID]
+        pwm_id = pwm_conf[CONF_ID]
         # Create instance with explicit class type
         rhs = cg.RawExpression("new duty_cycle::DutyCycleSensor()")
         pwm = cg.Pvariable(pwm_id, rhs, DutyCycleSensor)
@@ -103,7 +102,6 @@ async def to_code(config):
         # Use the StateClasses enum
         cg.add(pwm.set_state_class(sensor.StateClasses.STATE_CLASS_MEASUREMENT))
 
-        # Pin is already validated and transformed in validate_pwm_pin
         pin = await cg.gpio_pin_expression(pwm_conf[CONF_PIN])
         cg.add(pwm.set_pin(pin))
 
