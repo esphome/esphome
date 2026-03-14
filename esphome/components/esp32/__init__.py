@@ -672,11 +672,19 @@ ARDUINO_IDF_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 5, 3, "1"),
-    "latest": cv.Version(5, 5, 3, "1"),
-    "dev": cv.Version(5, 5, 3, "1"),
+    "recommended": cv.Version(6, 0, 0),
+    "latest": cv.Version(6, 0, 0),
+    "dev": cv.Version(6, 0, 0),
+}
+ESP_IDF_SOURCE_OVERRIDE = {
+    cv.Version(
+        6, 0, 0
+    ): "https://github.com/swoboda1337/esp-idf.git#v6.0-rc1-pioarduino",
 }
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(
+        6, 0, 0
+    ): "https://github.com/swoboda1337/platform-espressif32.git#idf-v6.0",
     cv.Version(5, 5, 3, "1"): cv.Version(55, 3, 37),
     cv.Version(5, 5, 3): cv.Version(55, 3, 37),
     cv.Version(5, 5, 2): cv.Version(55, 3, 37),
@@ -712,13 +720,15 @@ def _check_versions(config):
                 "Version needs to be explicitly set when a custom source or platform_version is used."
             )
 
-        platform_lookup = PLATFORM_VERSION_LOOKUP[value[CONF_VERSION]]
-        value[CONF_PLATFORM_VERSION] = _parse_platform_version(str(platform_lookup))
-
         if value[CONF_TYPE] == FRAMEWORK_ARDUINO:
             version = ARDUINO_FRAMEWORK_VERSION_LOOKUP[value[CONF_VERSION]]
+            platform_lookup = PLATFORM_VERSION_LOOKUP[value[CONF_VERSION]]
         else:
             version = ESP_IDF_FRAMEWORK_VERSION_LOOKUP[value[CONF_VERSION]]
+            platform_lookup = ESP_IDF_PLATFORM_VERSION_LOOKUP.get(version)
+            if platform_lookup is None:
+                platform_lookup = PLATFORM_VERSION_LOOKUP[value[CONF_VERSION]]
+        value[CONF_PLATFORM_VERSION] = _parse_platform_version(str(platform_lookup))
     else:
         version = cv.Version.parse(cv.version_number(value[CONF_VERSION]))
 
@@ -739,10 +749,15 @@ def _check_versions(config):
             raise cv.Invalid("Only ESP-IDF 5.0+ is supported.")
         recommended_version = ESP_IDF_FRAMEWORK_VERSION_LOOKUP["recommended"]
         platform_lookup = ESP_IDF_PLATFORM_VERSION_LOOKUP.get(version)
-        value[CONF_SOURCE] = value.get(
-            CONF_SOURCE,
-            _format_framework_espidf_version(version, value.get(CONF_RELEASE)),
-        )
+        if version in ESP_IDF_SOURCE_OVERRIDE:
+            value[CONF_SOURCE] = value.get(
+                CONF_SOURCE, ESP_IDF_SOURCE_OVERRIDE[version]
+            )
+        else:
+            value[CONF_SOURCE] = value.get(
+                CONF_SOURCE,
+                _format_framework_espidf_version(version, value.get(CONF_RELEASE)),
+            )
         if _is_framework_url(value[CONF_SOURCE]):
             value[CONF_SOURCE] = f"pioarduino/framework-espidf@{value[CONF_SOURCE]}"
 
