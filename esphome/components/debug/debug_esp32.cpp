@@ -131,14 +131,15 @@ const char *DebugComponent::get_wakeup_cause_(std::span<char, RESET_REASON_BUFFE
   }
   char *p = buffer.data();
   char *end = p + buffer.size();
+  *p = '\0';
   const char *sep = "";
   for (unsigned i = 0; i < NUM_CAUSES && p < end; i++) {
     if (causes & (1U << i)) {
-      int written = snprintf(p, end - p, "%s%s", sep, WAKEUP_CAUSES[i]);
-      if (written < 0 || p + written >= end) {
+      size_t needed = strlen(sep) + strlen(WAKEUP_CAUSES[i]);
+      if (p + needed >= end) {
         break;
       }
-      p += written;
+      p += sprintf(p, "%s%s", sep, WAKEUP_CAUSES[i]);
       sep = ", ";
     }
   }
