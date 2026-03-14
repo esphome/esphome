@@ -116,10 +116,10 @@ static void IRAM_ATTR __attribute__((noinline)) esp_log_format_early_(esp_log_ms
   // our override is in a different compilation unit so we must use DRAM_ATTR explicitly.
   static DRAM_ATTR const char color_digit[] = {'\0', '1', '3', '2', '6', '7'};
   static DRAM_ATTR const char lvl[] = {'\0', 'E', 'W', 'I', 'D', 'V'};
-  static DRAM_ATTR const char fmt_header[] = "\033[0;3%cm[%c][%s:000]: ";
+  static DRAM_ATTR const char fmt_header[] = "\033[0;3%cm[%c][%s]: ";
   static DRAM_ATTR const char fmt_reset_nl[] = "\033[0m\n";
   static DRAM_ATTR const char fmt_nl[] = "\n";
-  static DRAM_ATTR const char tag_fallback[] = "esp-idf";
+  static DRAM_ATTR const char tag_fallback[] = "idf";
   uint8_t level = message->config.opts.log_level;
 #if CONFIG_LIBC_NEWLIB
   if (!message->config.opts.constrained_env) {
