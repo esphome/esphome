@@ -102,6 +102,8 @@ int HOT esp_idf_log_vprintf_(const char *format, va_list args) {  // NOLINT
 // locks crash on USB JTAG devices).
 // Formats in ESPHome style with ANSI colors into a 512-byte stack buffer,
 // then outputs atomically via esp_rom_printf.
+// This path is cold on 99.9% of builds — it only runs during early boot
+// and at DEBUG framework log level (default is ERROR).
 static void __attribute__((noinline)) esp_log_format_direct_(esp_log_msg_t *message) {
   // ESP-IDF levels: NONE=0 ERROR=1 WARN=2 INFO=3 DEBUG=4 VERBOSE=5
   // Color digits: E=1(red) W=3(yellow) I=2(green) D=6(cyan) V=7(gray)
@@ -133,10 +135,10 @@ static void __attribute__((noinline)) esp_log_format_direct_(esp_log_msg_t *mess
 
 extern "C" {
 // Override esp_log_format from liblog.a to prevent V2's 3-call vprintf
-// fragmentation. No IRAM_ATTR needed — the only case where flash is
-// inaccessible (ISR with cache disabled) would crash anyway because the
-// caller's format string and tag are also in flash.
-void esp_log_format(esp_log_msg_t *message) {
+// fragmentation. IRAM_ATTR to match esp_log_va's IRAM placement and avoid
+// an IRAM→flash cache miss on every ESP-IDF log call. This function is
+// tiny (~43 bytes) so the IRAM cost is negligible.
+void IRAM_ATTR esp_log_format(esp_log_msg_t *message) {
   extern vprintf_like_t esp_log_vprint_func;
   extern int vprintf(const char *, __gnuc_va_list);  // NOLINT
   if (esp_log_vprint_func == &vprintf || message->config.opts.constrained_env) [[unlikely]] {
