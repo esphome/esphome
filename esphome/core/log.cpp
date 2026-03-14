@@ -140,25 +140,17 @@ extern "C" {
 void IRAM_ATTR esp_log_format(esp_log_msg_t *message) {
   extern vprintf_like_t esp_log_vprint_func;
   extern int vprintf(const char *, __gnuc_va_list);  // NOLINT
-  if (message->config.opts.constrained_env) [[unlikely]] {
-    // Constrained env: constrained_env combines three conditions —
-    // scheduler not running, in ISR, or cache disabled. Only the first
-    // is safe for flash access. Check ISR context explicitly to decide.
-    if (xPortInIsrContext()) {
-      // In ISR: flash may be inaccessible. Output tag only via ROM printf.
-      // This matches V1 behavior where ISR logging was best-effort.
-      static DRAM_ATTR const char isr_fmt[] = "[%s] (ISR log)\n";
-      esp_rom_printf(isr_fmt, message->tag ? message->tag : "idf");
-    } else {
-      // Scheduler not running or PHY init: flash is accessible.
-      // Use stack buffer formatting (can't use ESPHome hook — fwrite
-      // locks crash during PHY init on USB JTAG devices).
-      esp_log_format_early_(message);
-    }
-    return;
-  }
-  if (esp_log_vprint_func == &vprintf) [[unlikely]] {
-    // Early boot: hook not installed yet. Format with ESPHome style.
+  if (esp_log_vprint_func == &vprintf || message->config.opts.constrained_env) [[unlikely]] {
+    // Early boot or constrained env (PHY init, efuse reads, scheduler not
+    // running). Can't use the ESPHome hook — fwrite locks crash during PHY
+    // init on USB JTAG devices and newlib isn't initialized during early boot.
+    // Format to stack buffer with vsnprintf + esp_rom_printf instead.
+    //
+    // Note: if called from an ISR with flash cache disabled, this will crash
+    // because the format string and tag are in flash. This is the same as V1
+    // where ESP_EARLY_LOGx from ISR also used flash-resident format strings
+    // via esp_rom_printf. No ESP-IDF code is known to log from ISR with
+    // cache disabled.
     esp_log_format_early_(message);
     return;
   }
