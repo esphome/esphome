@@ -136,8 +136,10 @@ static void __attribute__((noinline)) esp_log_format_early_(esp_log_msg_t *messa
 
 extern "C" {
 // Override esp_log_format from liblog.a to prevent V2's 3-call vprintf
-// fragmentation. IRAM_ATTR to match ESP-IDF's linker fragment placement.
-void IRAM_ATTR esp_log_format(esp_log_msg_t *message) {
+// fragmentation. No IRAM_ATTR needed — the only case where flash is
+// inaccessible (ISR with cache disabled) would crash anyway because the
+// caller's format string and tag are also in flash.
+void esp_log_format(esp_log_msg_t *message) {
   extern vprintf_like_t esp_log_vprint_func;
   extern int vprintf(const char *, __gnuc_va_list);  // NOLINT
   if (esp_log_vprint_func == &vprintf || message->config.opts.constrained_env) [[unlikely]] {
