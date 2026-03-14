@@ -1,5 +1,7 @@
 #include "spa06_base.h"
 
+#include "esphome/core/helpers.h"
+
 namespace esphome::spa06_base {
 
 static const char *const TAG = "spa06";
