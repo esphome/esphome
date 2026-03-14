@@ -59,6 +59,7 @@ from .const import (  # noqa
     KEY_EXTRA_BUILD_FILES,
     KEY_FLASH_SIZE,
     KEY_FULL_CERT_BUNDLE,
+    KEY_IDF_VERSION,
     KEY_PATH,
     KEY_REF,
     KEY_REPO,
@@ -420,9 +421,16 @@ def set_core_data(config):
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = excluded
     # Initialize Arduino library tracking - cg.add_library() auto-enables libraries
     CORE.data[KEY_ESP32][KEY_ARDUINO_LIBRARIES] = set()
-    CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
-        config[CONF_FRAMEWORK][CONF_VERSION]
-    )
+    framework_ver = cv.Version.parse(config[CONF_FRAMEWORK][CONF_VERSION])
+    CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = framework_ver
+
+    # Store the underlying IDF version for framework-agnostic checks
+    if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
+        CORE.data[KEY_ESP32][KEY_IDF_VERSION] = framework_ver
+    else:
+        CORE.data[KEY_ESP32][KEY_IDF_VERSION] = ARDUINO_IDF_VERSION_LOOKUP.get(
+            framework_ver, framework_ver
+        )
 
     CORE.data[KEY_ESP32][KEY_BOARD] = config[CONF_BOARD]
     CORE.data[KEY_ESP32][KEY_FLASH_SIZE] = config[CONF_FLASH_SIZE]
@@ -1052,6 +1060,15 @@ def require_mbedtls_sha512() -> None:
     and CONFIG_MBEDTLS_SHA512_C from being disabled.
     """
     CORE.data[KEY_ESP32][KEY_MBEDTLS_SHA512_REQUIRED] = True
+
+
+def idf_version() -> cv.Version:
+    """Return the underlying ESP-IDF version regardless of framework choice.
+
+    For ESP-IDF builds this is the framework version directly.
+    For Arduino builds this is the mapped IDF version from ARDUINO_IDF_VERSION_LOOKUP.
+    """
+    return CORE.data[KEY_ESP32][KEY_IDF_VERSION]
 
 
 def require_fatfs() -> None:
@@ -1822,7 +1839,7 @@ async def to_code(config):
     # software fallback), so there was no code size cost to leaving
     # them enabled.
     # Components that need SHA-384/SHA-512 can call require_mbedtls_sha512()
-    if framework_ver >= cv.Version(6, 0, 0) and not CORE.data[KEY_ESP32].get(
+    if idf_version() >= cv.Version(6, 0, 0) and not CORE.data[KEY_ESP32].get(
         KEY_MBEDTLS_SHA512_REQUIRED, False
     ):
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_SHA384_C", False)
