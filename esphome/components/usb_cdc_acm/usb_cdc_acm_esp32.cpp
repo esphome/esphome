@@ -22,6 +22,20 @@ static constexpr size_t USB_CDC_MAX_LOG_BYTES = 168;
 
 static constexpr size_t USB_TX_TASK_STACK_SIZE = 4096;
 static constexpr size_t USB_TX_TASK_STACK_SIZE_VV = 8192;
+static constexpr uint32_t LOG_THROTTLE_MS = 1000;
+
+static uint32_t usb_rx_full_log_ms[ESPHOME_MAX_USB_CDC_INSTANCES] = {0};
+static uint32_t usb_tx_flush_fail_log_ms[ESPHOME_MAX_USB_CDC_INSTANCES] = {0};
+static uint32_t usb_tx_queue_stall_log_ms[ESPHOME_MAX_USB_CDC_INSTANCES] = {0};
+
+static bool should_log_now_(uint32_t *last_ms, uint32_t interval_ms) {
+  uint32_t now = esp_log_timestamp();
+  if ((now - *last_ms) >= interval_ms) {
+    *last_ms = now;
+    return true;
+  }
+  return false;
+}
 
 static USBCDCACMInstance *get_instance_by_itf(int itf) {
   if (global_usb_cdc_component == nullptr) {
@@ -54,7 +68,10 @@ static void tinyusb_cdc_rx_callback(int itf, cdcacm_event_t *event) {
     if (rx_ringbuf != nullptr) {
       BaseType_t send_res = xRingbufferSend(rx_ringbuf, rx_buf, rx_size, 0);
       if (send_res != pdTRUE) {
-        ESP_LOGE(TAG, "USB RX itf=%d: buffer full, %u bytes lost", itf, rx_size);
+        if (itf >= 0 && itf < ESPHOME_MAX_USB_CDC_INSTANCES &&
+            should_log_now_(&usb_rx_full_log_ms[itf], LOG_THROTTLE_MS)) {
+          ESP_LOGE(TAG, "USB RX itf=%d: buffer full; some data is lost", itf);
+        }
       } else {
         ESP_LOGV(TAG, "USB RX itf=%d: queued %u bytes", itf, rx_size);
       }
@@ -138,6 +155,13 @@ void USBCDCACMInstance::setup() {
     return;
   }
 
+  this->usb_tx_task_buffer_.reset(new (std::nothrow) uint8_t[CONFIG_TINYUSB_CDC_TX_BUFSIZE]);
+  if (this->usb_tx_task_buffer_ == nullptr) {
+    ESP_LOGE(TAG, "USB TX task buffer allocation failed for itf %d", this->itf_);
+    this->parent_->mark_failed();
+    return;
+  }
+
   // Configure this CDC interface
   const tinyusb_config_cdcacm_t acm_cfg = {
       .usb_dev = TINYUSB_USBDEV_0,
@@ -184,7 +208,11 @@ void USBCDCACMInstance::usb_tx_task_fn(void *arg) {
 }
 
 void USBCDCACMInstance::usb_tx_task() {
-  uint8_t data[CONFIG_TINYUSB_CDC_TX_BUFSIZE] = {0};
+  uint8_t *data = this->usb_tx_task_buffer_.get();
+  if (data == nullptr) {
+    ESP_LOGE(TAG, "USB TX task buffer missing for itf %d", this->itf_);
+    vTaskDelete(nullptr);
+  }
   size_t tx_data_size = 0;
 
   while (1) {
@@ -211,22 +239,45 @@ void USBCDCACMInstance::usb_tx_task() {
     // Serial data will be split up into 64 byte chunks to be sent over USB so this
     // usually will take multiple iterations
     uint8_t *data_head = &data[0];
+    const tinyusb_cdcacm_itf_t itf = static_cast<tinyusb_cdcacm_itf_t>(this->itf_);
 
     while (tx_data_size > 0) {
-      size_t queued =
-          tinyusb_cdcacm_write_queue(static_cast<tinyusb_cdcacm_itf_t>(this->itf_), data_head, tx_data_size);
+      if (!tud_cdc_n_connected(this->itf_)) {
+        ESP_LOGV(TAG, "USB TX itf=%d: host not connected, dropping pending data", this->itf_);
+        break;
+      }
+
+      size_t queued = tinyusb_cdcacm_write_queue(itf, data_head, tx_data_size);
       ESP_LOGV(TAG, "USB TX itf=%d: enqueued: size=%d, queued=%u", this->itf_, tx_data_size, queued);
+
+      if (queued == 0) {
+        // USB endpoint has no space right now; avoid spinning and log flood.
+        if (this->itf_ < ESPHOME_MAX_USB_CDC_INSTANCES &&
+            should_log_now_(&usb_tx_queue_stall_log_ms[this->itf_], LOG_THROTTLE_MS)) {
+          ESP_LOGW(TAG, "USB TX itf=%d: endpoint busy, dropping pending data", this->itf_);
+        }
+        break;
+      }
 
       tx_data_size -= queued;
       data_head += queued;
 
       ESP_LOGV(TAG, "USB TX itf=%d: waiting 10ms for flush", this->itf_);
-      esp_err_t flush_ret =
-          tinyusb_cdcacm_write_flush(static_cast<tinyusb_cdcacm_itf_t>(this->itf_), pdMS_TO_TICKS(10));
+      esp_err_t flush_ret = tinyusb_cdcacm_write_flush(itf, pdMS_TO_TICKS(10));
 
       if (flush_ret != ESP_OK) {
-        ESP_LOGE(TAG, "USB TX itf=%d: flush failed", this->itf_);
-        tud_cdc_n_write_clear(this->itf_);
+        if (flush_ret == ESP_ERR_TIMEOUT) {
+          if (this->itf_ < ESPHOME_MAX_USB_CDC_INSTANCES &&
+              should_log_now_(&usb_tx_flush_fail_log_ms[this->itf_], LOG_THROTTLE_MS)) {
+            ESP_LOGW(TAG, "USB TX itf=%d: flush timeout, dropping pending data", this->itf_);
+          }
+        } else if (this->itf_ < ESPHOME_MAX_USB_CDC_INSTANCES &&
+                   should_log_now_(&usb_tx_flush_fail_log_ms[this->itf_], LOG_THROTTLE_MS)) {
+          ESP_LOGE(TAG, "USB TX itf=%d: flush failed (%d)", this->itf_, flush_ret);
+        }
+        if (flush_ret != ESP_ERR_TIMEOUT) {
+          tud_cdc_n_write_clear(this->itf_);
+        }
         break;
       }
     }

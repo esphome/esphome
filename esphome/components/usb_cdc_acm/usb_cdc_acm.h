@@ -7,6 +7,7 @@
 #include "esphome/components/uart/uart_component.h"
 
 #include <functional>
+#include <memory>
 #include "freertos/ringbuf.h"
 #include "tusb_cdc_acm.h"
 
@@ -93,6 +94,7 @@ class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMC
 
   RingbufHandle_t usb_tx_ringbuf_{nullptr};
   RingbufHandle_t usb_rx_ringbuf_{nullptr};
+  std::unique_ptr<uint8_t[]> usb_tx_task_buffer_{nullptr};
   // RX buffer for peek functionality
   uint8_t peek_buffer_{0};
   bool has_peek_{false};

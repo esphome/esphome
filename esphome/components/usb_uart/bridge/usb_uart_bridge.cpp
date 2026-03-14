@@ -33,6 +33,16 @@ static const char *TAG = "usb_uart_bridge";
 static constexpr size_t USB_TASK_STACK_SIZE = 4096;
 static constexpr size_t USB_TASK_STACK_SIZE_VV = 8192;
 static constexpr uint32_t UART_RELOAD_SETTLE_MS = 20;
+static constexpr uint32_t LOG_THROTTLE_MS = 1000;
+
+static bool should_log_now_(uint32_t *last_ms, uint32_t interval_ms) {
+  uint32_t now = esp_log_timestamp();
+  if ((now - *last_ms) >= interval_ms) {
+    *last_ms = now;
+    return true;
+  }
+  return false;
+}
 
 static esp_err_t ringbuf_read_bytes(RingbufHandle_t ring_buf, uint8_t *out_buf, size_t out_buf_sz, size_t *rx_data_size,
                                     TickType_t xTicksToWait) {
@@ -200,50 +210,44 @@ void USBUARTBridge::uart_rx_task() {
   TaskHandle_t usb_tx_handle = this->uart_rx_task_param_.usb_tx_handle;
   RingbufHandle_t usb_tx_ringbuf = this->usb_cdc_parent_->get_tx_ringbuf();
   uart_port_t uart_num = (uart_port_t) this->uart_parent_->get_hw_serial_number();
+  uint32_t tx_full_log_ms = 0;
 
   uint8_t data[USB_UART_BRIDGE_UART_RX_BUFFER_SIZE] = {0};
-  size_t available = 0;
 
   while (1) {
     // Block until at least one byte is available from UART.
-    int rx_data_size = uart_read_bytes(uart_num, data, 1, portMAX_DELAY);
-    if (rx_data_size < 0) {
-      ESP_LOGE(TAG, "UART read failed: %d", rx_data_size);
+    int total_rx_size = uart_read_bytes(uart_num, data, 1, portMAX_DELAY);
+    if (total_rx_size < 0) {
+      ESP_LOGE(TAG, "UART read failed: %d", total_rx_size);
       vTaskDelay(pdMS_TO_TICKS(10));
       continue;
     }
-    if (rx_data_size == 0) {
+    if (total_rx_size == 0) {
       continue;
-    }
-
-    BaseType_t res = xRingbufferSend(usb_tx_ringbuf, data, 1, 0);
-    if (res != pdTRUE) {
-      ESP_LOGW(TAG, "USB TX buffer full; 1 byte lost");
     }
 
     // Drain the currently buffered burst without waiting.
     while (1) {
-      esp_err_t err = uart_get_buffered_data_len(uart_num, &available);
-      if (err != ESP_OK) {
-        ESP_LOGE(TAG, "uart_get_buffered_data_len failed: %d", err);
-        break;
-      }
-      if (available == 0) {
-        break;
-      }
-
-      rx_data_size = uart_read_bytes(uart_num, data, MIN(USB_UART_BRIDGE_UART_RX_BUFFER_SIZE, available), 0);
+      int rx_data_size =
+          uart_read_bytes(uart_num, data + total_rx_size, USB_UART_BRIDGE_UART_RX_BUFFER_SIZE - total_rx_size, 0);
       ESP_LOGV(TAG, "UART RX: %d bytes", rx_data_size);
-      if (rx_data_size <= 0) {
-        if (rx_data_size < 0) {
-          ESP_LOGE(TAG, "UART read failed: %d", rx_data_size);
-        }
+      if (rx_data_size == 0) {
         break;
       }
+      if (rx_data_size < 0) {
+        ESP_LOGE(TAG, "UART read failed: %d", rx_data_size);
+        break;
+      }
+      total_rx_size += rx_data_size;
+      if (total_rx_size >= USB_UART_BRIDGE_UART_RX_BUFFER_SIZE) {
+        break;
+      }
+    }
 
-      res = xRingbufferSend(usb_tx_ringbuf, data, rx_data_size, 0);
-      if (res != pdTRUE) {
-        ESP_LOGW(TAG, "USB TX buffer full; %d bytes lost", rx_data_size);
+    BaseType_t res = xRingbufferSend(usb_tx_ringbuf, data, total_rx_size, pdMS_TO_TICKS(1));
+    if (res != pdTRUE) {
+      if (should_log_now_(&tx_full_log_ms, LOG_THROTTLE_MS)) {
+        ESP_LOGW(TAG, "USB TX buffer full; data drops are occurring");
       }
     }
 
@@ -254,6 +258,7 @@ void USBUARTBridge::uart_rx_task() {
 
 void USBUARTBridge::uart_tx_task() {
   RingbufHandle_t usb_rx_ringbuf = this->usb_cdc_parent_->get_rx_ringbuf();
+  uart_port_t uart_num = (uart_port_t) this->uart_parent_->get_hw_serial_number();
   uint8_t data_to_uart[USB_UART_BRIDGE_UART_TX_BUFFER_SIZE];
   size_t rx_size;
 
@@ -267,17 +272,10 @@ void USBUARTBridge::uart_tx_task() {
     }
 
     ESP_LOGV(TAG, "Sending %d bytes to UART", rx_size);
-    size_t xfer_size =
-        uart_write_bytes((uart_port_t) this->uart_parent_->get_hw_serial_number(), data_to_uart, rx_size);
+    size_t xfer_size = uart_write_bytes(uart_num, data_to_uart, rx_size);
 
     if (xfer_size != rx_size) {
       ESP_LOGW(TAG, "UART write incomplete (%d/%d bytes)", xfer_size, rx_size);
-    }
-
-    ESP_LOGV(TAG, "Waiting for UART TX to complete");
-    esp_err_t result = uart_wait_tx_done((uart_port_t) this->uart_parent_->get_hw_serial_number(), portMAX_DELAY);
-    if (result != ESP_OK) {
-      ESP_LOGE(TAG, "uart_wait_tx_done failed: %d", result);
     }
   }
 }
