@@ -27,12 +27,14 @@
 #include <esp_coexist.h>
 #endif
 
+#ifdef USE_ESP32_BLE_DEVICE
 #ifdef USE_BLE_TRACKER_PSA_AES
 #include <psa/crypto.h>
 #else
 #define MBEDTLS_AES_ALT
 #include <aes_alt.h>
 #endif
+#endif  // USE_ESP32_BLE_DEVICE
 
 // bt_trace.h
 #undef TAG
