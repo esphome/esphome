@@ -68,8 +68,6 @@ class SHA256 : public esphome::HashBase {
   mbedtls_sha256_context ctx_{};
 #endif
 #elif defined(USE_LIBRETINY)
-  // The mbedtls context for ESP32-S3 hardware SHA requires proper alignment and stack frame constraints.
-  // See class documentation above for critical requirements.
   mbedtls_sha256_context ctx_{};
 #elif defined(USE_ESP8266) || defined(USE_RP2040)
   br_sha256_context ctx_{};

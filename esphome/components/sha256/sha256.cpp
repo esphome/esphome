@@ -77,6 +77,21 @@ void SHA256::add(const uint8_t *data, size_t len) { mbedtls_sha256_update(&this-
 
 void SHA256::calculate() { mbedtls_sha256_finish(&this->ctx_, this->digest_); }
 
+#endif  // ESP_IDF_VERSION check
+
+#elif defined(USE_LIBRETINY)
+
+SHA256::~SHA256() { mbedtls_sha256_free(&this->ctx_); }
+
+void SHA256::init() {
+  mbedtls_sha256_init(&this->ctx_);
+  mbedtls_sha256_starts(&this->ctx_, 0);
+}
+
+void SHA256::add(const uint8_t *data, size_t len) { mbedtls_sha256_update(&this->ctx_, data, len); }
+
+void SHA256::calculate() { mbedtls_sha256_finish(&this->ctx_, this->digest_); }
+
 #elif defined(USE_ESP8266) || defined(USE_RP2040)
 
 SHA256::~SHA256() = default;
