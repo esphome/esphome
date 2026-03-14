@@ -227,7 +227,7 @@ bool BTHomeMiThermometer::decrypt_bthome_payload_(const std::vector<uint8_t> &da
                                          nonce.data(), nonce.size(), nullptr, 0, ct_with_tag, ct_with_tag_size,
                                          payload.data(), ciphertext_size, &plaintext_length);
   psa_destroy_key(key_id);
-  if (status != PSA_SUCCESS) {
+  if (status != PSA_SUCCESS || plaintext_length != ciphertext_size) {
     ESP_LOGVV(TAG, "BTHome decryption failed.");
     return false;
   }

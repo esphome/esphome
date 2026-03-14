@@ -343,7 +343,7 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
                                          vector.iv, vector.ivsize, vector.authdata, vector.authsize, ct_with_tag,
                                          ct_with_tag_size, vector.plaintext, vector.datasize, &plaintext_length);
   psa_destroy_key(key_id);
-  bool decrypt_ok = (status == PSA_SUCCESS);
+  bool decrypt_ok = (status == PSA_SUCCESS && plaintext_length == vector.datasize);
 #else
   mbedtls_ccm_context ctx;
   mbedtls_ccm_init(&ctx);
