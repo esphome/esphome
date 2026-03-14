@@ -31,6 +31,40 @@ void SHA256::calculate() {
 
 #elif defined(USE_SHA256_MBEDTLS)
 
+// CRITICAL ESP32 HARDWARE SHA ACCELERATION REQUIREMENTS (IDF 5.5.x):
+//
+// ESP32 variants (except original ESP32) use DMA-based hardware SHA acceleration that requires
+// 32-byte aligned digest buffers. This is handled automatically via HashBase::digest_ which has
+// alignas(32) on these platforms. Two additional constraints apply:
+//
+// 1. NO VARIABLE LENGTH ARRAYS (VLAs): VLAs corrupt the stack layout, causing the DMA engine to
+//    write to incorrect memory locations. This results in null pointer dereferences and crashes.
+//    ALWAYS use fixed-size arrays (e.g., char buf[65], not char buf[size+1]).
+//
+// 2. SAME STACK FRAME ONLY: The SHA256 object must be created and used entirely within the same
+//    function. NEVER pass the SHA256 object or HashBase pointer to another function. When the stack
+//    frame changes (function call/return), the DMA references become invalid and will produce
+//    truncated hash output (20 bytes instead of 32) or corrupt memory.
+//
+// CORRECT USAGE:
+//   void my_function() {
+//     sha256::SHA256 hasher;
+//     hasher.init();
+//     hasher.add(data, len);  // Any size, no chunking needed
+//     hasher.calculate();
+//     bool ok = hasher.equals_hex(expected);
+//     // hasher destroyed when function returns
+//   }
+//
+// INCORRECT USAGE (WILL FAIL):
+//   void my_function() {
+//     sha256::SHA256 hasher;
+//     helper(&hasher);  // WRONG: Passed to different stack frame
+//   }
+//   void helper(HashBase *h) {
+//     h->init();  // WRONG: Will produce truncated/corrupted output
+//   }
+
 SHA256::~SHA256() { mbedtls_sha256_free(&this->ctx_); }
 
 void SHA256::init() {
