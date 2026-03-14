@@ -157,7 +157,7 @@ void Application::setup() {
   // Components after the last blocking component only got one call() during setup
   // (CONSTRUCTION→SETUP) and never received the second call() (SETUP→LOOP).
   // The main loop calls loop() directly, bypassing call()'s state machine.
-  for (uint16_t i = 0; i < this->looping_components_active_end_; i++) {
+  for (uint32_t i = 0; i < this->looping_components_active_end_; i++) {
     this->looping_components_[i]->set_component_state_(COMPONENT_STATE_LOOP);
   }
 
@@ -424,7 +424,7 @@ void Application::disable_component_loop_(Component *component) {
   // Linear search to find component in active section
   // Most configs have 10-30 looping components (30 is on the high end)
   // O(n) is acceptable here as we optimize for memory, not complexity
-  for (uint16_t i = 0; i < this->looping_components_active_end_; i++) {
+  for (uint32_t i = 0; i < this->looping_components_active_end_; i++) {
     if (this->looping_components_[i] == component) {
       // Move last active component to this position
       this->looping_components_active_end_--;
@@ -448,7 +448,7 @@ void Application::disable_component_loop_(Component *component) {
   }
 }
 
-void Application::activate_looping_component_(uint16_t index) {
+void Application::activate_looping_component_(uint32_t index) {
   // Helper to move component from inactive to active section
   if (index != this->looping_components_active_end_) {
     std::swap(this->looping_components_[index], this->looping_components_[this->looping_components_active_end_]);
@@ -461,8 +461,8 @@ void Application::enable_component_loop_(Component *component) {
   // the component must be in the inactive section (if it exists in looping_components_)
   // Only search the inactive portion for better performance
   // With typical 0-5 inactive components, O(k) is much faster than O(n)
-  const uint16_t size = this->looping_components_.size();
-  for (uint16_t i = this->looping_components_active_end_; i < size; i++) {
+  const uint32_t size = this->looping_components_.size();
+  for (uint32_t i = this->looping_components_active_end_; i < size; i++) {
     if (this->looping_components_[i] == component) {
       // Found in inactive section - move to active
       this->activate_looping_component_(i);
@@ -486,10 +486,10 @@ void Application::enable_pending_loops_() {
   // 4. ISRs can safely set flags at any time - worst case is we process them next iteration
   // 5. The global flag (has_pending_enable_loop_requests_) is cleared before this method,
   //    so any ISR that fires during processing will be caught in the next loop
-  const uint16_t size = this->looping_components_.size();
+  const uint32_t size = this->looping_components_.size();
   bool has_pending = false;
 
-  for (uint16_t i = this->looping_components_active_end_; i < size; i++) {
+  for (uint32_t i = this->looping_components_active_end_; i < size; i++) {
     Component *component = this->looping_components_[i];
     if (!component->pending_enable_loop_) {
       continue;  // Skip components without pending requests

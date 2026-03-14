@@ -604,7 +604,7 @@ class Application {
   void disable_component_loop_(Component *component);
   void enable_component_loop_(Component *component);
   void enable_pending_loops_();
-  void activate_looping_component_(uint16_t index);
+  void activate_looping_component_(uint32_t index);
   void before_loop_tasks_(uint32_t loop_start_time);
   void after_loop_tasks_();
 
@@ -664,6 +664,11 @@ class Application {
   // 4-byte members
   uint32_t last_loop_{0};
   uint32_t loop_component_start_time_{0};
+  uint32_t looping_components_active_end_{0};  // Index marking end of active components in looping_components_
+  uint32_t current_loop_index_{0};             // For safe reentrant modifications during iteration
+#ifdef USE_SETUP_HEAP_STATS
+  uint32_t setup_heap_stats_baseline_{0};
+#endif
 
 #if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
   int max_fd_{-1};  // Highest file descriptor number for select()
@@ -672,8 +677,6 @@ class Application {
   // 2-byte members (grouped together for alignment)
   uint16_t dump_config_at_{std::numeric_limits<uint16_t>::max()};  // Index into components_ for dump_config progress
   uint16_t loop_interval_{16};                                     // Loop interval in ms (max 65535ms = 65.5 seconds)
-  uint16_t looping_components_active_end_{0};  // Index marking end of active components in looping_components_
-  uint16_t current_loop_index_{0};             // For safe reentrant modifications during iteration
 
   // 1-byte members (grouped together to minimize padding)
   uint8_t app_state_{0};
