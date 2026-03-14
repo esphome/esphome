@@ -139,7 +139,7 @@ const char *DebugComponent::get_wakeup_cause_(std::span<char, RESET_REASON_BUFFE
       if (p + needed >= end) {
         break;
       }
-      p += sprintf(p, "%s%s", sep, WAKEUP_CAUSES[i]);
+      p += snprintf(p, end - p, "%s%s", sep, WAKEUP_CAUSES[i]);
       sep = ", ";
     }
   }
