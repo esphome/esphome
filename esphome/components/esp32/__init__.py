@@ -1802,15 +1802,14 @@ async def to_code(config):
     elif advanced[CONF_DISABLE_MBEDTLS_PKCS7]:
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PKCS7_C", False)
 
-    # Disable SHA-384 and SHA-512 support in mbedTLS
-    # ESPHome only uses SHA-256 (OTA, noise protocol, etc.)
-    # SHA-384 uses the same compression function as SHA-512
-    # (mbedtls_internal_sha512_process), so both must be disabled to
-    # eliminate the ~3KB software SHA-512 implementation.
-    # TLS still works with SHA-256 cipher suites (TLS_AES_128_GCM_SHA256,
-    # TLS_CHACHA20_POLY1305_SHA256) which are universally supported.
-    # On IDF < 6.0, SHA-384 and SHA-512 share a single config
-    # (MBEDTLS_SHA512_C), so only disable on IDF 6.0+ where they're separate.
+    # Disable SHA-384 and SHA-512 in mbedTLS
+    # ESPHome doesn't use either algorithm. SHA-384 shares the same
+    # compression function as SHA-512 (mbedtls_internal_sha512_process),
+    # so both must be disabled to eliminate the ~3KB software fallback
+    # that IDF 6.0's PSA parallel engine always links in.
+    # On IDF < 6.0 these are a single config and hardware-only (no
+    # software fallback), so there was no code size cost to leaving
+    # them enabled.
     if framework_ver >= cv.Version(6, 0, 0):
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_SHA384_C", False)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_SHA512_C", False)
