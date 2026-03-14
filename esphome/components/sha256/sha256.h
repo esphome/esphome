@@ -10,7 +10,17 @@
 #include <memory>
 #include "esphome/core/hash_base.h"
 
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32)
+#include <esp_idf_version.h>
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+// mbedtls 4.0 (IDF 6.0) removed the legacy mbedtls_sha256_* API.
+// Use the PSA Crypto API instead. PSA crypto is auto-initialized by
+// ESP-IDF at startup (esp_psa_crypto_init.c, priority 104).
+#include <psa/crypto.h>
+#else
+#include "mbedtls/sha256.h"
+#endif
+#elif defined(USE_LIBRETINY)
 #include "mbedtls/sha256.h"
 #elif defined(USE_ESP8266) || defined(USE_RP2040)
 #include <bearssl/bearssl_hash.h>
@@ -51,7 +61,9 @@ class SHA256 : public esphome::HashBase {
   size_t get_size() const override { return 32; }
 
  protected:
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  psa_hash_operation_t op_ = PSA_HASH_OPERATION_INIT;
+#elif defined(USE_ESP32) || defined(USE_LIBRETINY)
   // The mbedtls context for ESP32-S3 hardware SHA requires proper alignment and stack frame constraints.
   // See class documentation above for critical requirements.
   mbedtls_sha256_context ctx_{};
