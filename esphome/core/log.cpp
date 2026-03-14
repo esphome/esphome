@@ -88,31 +88,30 @@ int HOT esp_idf_log_vprintf_(const char *format, va_list args) {  // NOLINT
 }  // namespace esphome
 
 #if defined(USE_ESP32) && !defined(BOOTLOADER_BUILD)
-// Override esp_log_format to disable ESP-IDF's own log formatting so that
-// the vprintf hook receives a single call per message (just the user's format
-// string + args). Without this, Log V2 makes 3 vprintf calls per message
-// (header, body, newline) which fragments the output in ESPHome's logger.
-// This strong definition overrides the archive symbol from ESP-IDF's liblog.
-// It affects all callers including precompiled blobs (e.g. wifi).
-//
-// Before the ESPHome logger hook is installed (early boot), we fall through
-// to the original ESP-IDF formatting so boot messages have proper formatting.
+// Override esp_log_format to prevent V2's 3-call vprintf fragmentation.
+// Without this, Log V2 calls the vprintf hook 3 times per message (header,
+// body, newline) which creates 3 separate log entries in ESPHome's logger.
+// This strong definition overrides the archive symbol from ESP-IDF's liblog,
+// affecting all callers including precompiled blobs (e.g. wifi).
 #include <esp_private/log_message.h>
-#include <esp_private/log_print.h>
-#include <esp_private/log_format.h>
 #include <esp_log_write.h>
 
-// Outlined cold path for early boot logging (before ESPHome hook is installed).
-// Formats messages in ESPHome style with ANSI colors.
-// Not IRAM_ATTR — flash is always accessible during early boot (cache is enabled,
-// constrained_env is set only because the scheduler isn't running yet).
+// Outlined cold path for early boot and constrained environment logging.
+// Used before ESPHome's hook is installed (early boot) and for constrained
+// env calls (PHY init, efuse reads) where the ESPHome hook would crash
+// due to fwrite lock issues on USB JTAG devices.
+// Formats messages in ESPHome style with ANSI colors into a 512-byte stack
+// buffer, then outputs atomically via esp_rom_printf.
+// Not IRAM_ATTR — flash is accessible in all cases this is called (cache
+// is enabled; constrained_env is set because the scheduler isn't running
+// or PHY init context, not because flash cache is disabled).
 static void __attribute__((noinline)) esp_log_format_early_(esp_log_msg_t *message) {
   // ESP-IDF levels: NONE=0 ERROR=1 WARN=2 INFO=3 DEBUG=4 VERBOSE=5
   // Color digits: E=1(red) W=3(yellow) I=2(green) D=6(cyan) V=7(gray)
   static const char color_digit[] = {'\0', '1', '3', '2', '6', '7'};
   static const char lvl[] = {'\0', 'E', 'W', 'I', 'D', 'V'};
-  // Format into stack buffer and output atomically via esp_rom_printf
-  // to prevent interleaving. Can't use fwrite (newlib locks not initialized).
+  // Format into stack buffer and output atomically via esp_rom_printf.
+  // Can't use fwrite (locks crash during early boot and PHY init).
   char buf[512];
   int pos = 0;
   uint8_t level = message->config.opts.log_level;
