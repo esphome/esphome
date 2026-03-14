@@ -5,10 +5,9 @@
 
 #include <driver/ledc.h>
 #include <cinttypes>
+#include <esp_idf_version.h>
 #include <esp_private/periph_ctrl.h>
-#if !defined(SOC_LEDC_SUPPORT_FADE_STOP)
 #include <hal/ledc_ll.h>
-#endif
 
 #define CLOCK_FREQUENCY 80e6f
 
@@ -161,7 +160,14 @@ void LEDCOutput::write_state(float state) {
 void LEDCOutput::setup() {
   if (!ledc_peripheral_reset_done) {
     ESP_LOGV(TAG, "Resetting LEDC peripheral to clear stale state after reboot");
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    PERIPH_RCC_ATOMIC() {
+      ledc_ll_enable_reset_reg(true);
+      ledc_ll_enable_reset_reg(false);
+    }
+#else
     periph_module_reset(PERIPH_LEDC_MODULE);
+#endif
     ledc_peripheral_reset_done = true;
   }
 
