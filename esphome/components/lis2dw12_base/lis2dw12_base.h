@@ -1,7 +1,6 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/components/i2c/i2c.h"
 #include "esphome/core/automation.h"
 
 #ifdef USE_BINARY_SENSOR
@@ -14,8 +13,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
 
-namespace esphome {
-namespace lis2dw12 {
+namespace esphome::lis2dw12_base {
 
 // LIS2DW12 Register Map
 enum class RegisterMap : uint8_t {
@@ -149,7 +147,7 @@ union RegSixdSrc {
   uint8_t raw{0};
 };
 
-class LIS2DW12Component : public PollingComponent, public i2c::I2CDevice {
+class LIS2DW12Component : public PollingComponent {
  public:
   void setup() override;
   void dump_config() override;
@@ -159,11 +157,15 @@ class LIS2DW12Component : public PollingComponent, public i2c::I2CDevice {
 
   void set_power_mode(PowerMode mode) { this->power_mode_ = mode; }
   void set_low_noise(bool low_noise) { this->low_noise_ = low_noise; }
-  void set_data_rate(DataRate rate) { this->data_rate_ = rate; }
+  void set_output_data_rate(DataRate rate) { this->data_rate_ = rate; }
   void set_range(Range range) { this->range_ = range; }
   void set_filter_bandwidth(FilterBandwidth bw) { this->filter_bandwidth_ = bw; }
   void set_offset(float offset_x, float offset_y, float offset_z);
   void set_transform(bool mirror_x, bool mirror_y, bool mirror_z, bool swap_xy);
+
+  virtual bool read_byte(uint8_t a_register, uint8_t *data) = 0;
+  virtual bool write_byte(uint8_t a_register, uint8_t data) = 0;
+  virtual bool read_bytes(uint8_t a_register, uint8_t *data, size_t len) = 0;
 
 #ifdef USE_BINARY_SENSOR
   SUB_BINARY_SENSOR(tap)
@@ -229,5 +231,4 @@ class LIS2DW12Component : public PollingComponent, public i2c::I2CDevice {
   Trigger<> orientation_trigger_;
 };
 
-}  // namespace lis2dw12
-}  // namespace esphome
+}  // namespace esphome::lis2dw12_base

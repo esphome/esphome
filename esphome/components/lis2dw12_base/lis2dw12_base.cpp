@@ -1,11 +1,10 @@
-#include "lis2dw12.h"
+#include "lis2dw12_base.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace lis2dw12 {
+namespace esphome::lis2dw12_base {
 
-static const char *const TAG = "lis2dw12";
+static const char *const TAG = "lis2dw12_base";
 
 static const uint8_t LIS2DW12_WHO_AM_I_VALUE = 0x44;
 static const float GRAVITY_EARTH = 9.80665f;
@@ -41,17 +40,13 @@ static const LogString *power_mode_to_string(PowerMode mode) {
 static const LogString *range_to_string(Range range) {
   switch (range) {
     case Range::RANGE_2G:
-      return LOG_STR("\xC2\xB1"
-                     "2g");
+      return LOG_STR("±2g");
     case Range::RANGE_4G:
-      return LOG_STR("\xC2\xB1"
-                     "4g");
+      return LOG_STR("±4g");
     case Range::RANGE_8G:
-      return LOG_STR("\xC2\xB1"
-                     "8g");
+      return LOG_STR("±8g");
     case Range::RANGE_16G:
-      return LOG_STR("\xC2\xB1"
-                     "16g");
+      return LOG_STR("±16g");
     default:
       return LOG_STR("Unknown");
   }
@@ -234,7 +229,6 @@ bool LIS2DW12Component::configure_registers_() {
 
 void LIS2DW12Component::dump_config() {
   ESP_LOGCONFIG(TAG, "LIS2DW12:");
-  LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
@@ -244,7 +238,7 @@ void LIS2DW12Component::dump_config() {
                 "  Range: %s\n"
                 "  Filter Bandwidth: %s\n"
                 "  Low Noise: %s\n"
-                "  Offsets: {%.3f m/s\xC2\xB2, %.3f m/s\xC2\xB2, %.3f m/s\xC2\xB2}\n"
+                "  Offsets: {%.3f m/s², %.3f m/s², %.3f m/s²}\n"
                 "  Transform: {mirror_x=%s, mirror_y=%s, mirror_z=%s, swap_xy=%s}",
                 LOG_STR_ARG(power_mode_to_string(this->power_mode_)),
                 LOG_STR_ARG(data_rate_to_string(this->data_rate_)), LOG_STR_ARG(range_to_string(this->range_)),
@@ -413,8 +407,8 @@ void LIS2DW12Component::update() {
     return;
   }
 
-  ESP_LOGV(TAG, "Acceleration: {x = %+1.3f m/s\xC2\xB2, y = %+1.3f m/s\xC2\xB2, z = %+1.3f m/s\xC2\xB2}", this->data_.x,
-           this->data_.y, this->data_.z);
+  ESP_LOGV(TAG, "Acceleration: {x = %+1.3f m/s², y = %+1.3f m/s², z = %+1.3f m/s²}", this->data_.x, this->data_.y,
+           this->data_.z);
 
 #ifdef USE_SENSOR
   if (this->acceleration_x_sensor_ != nullptr)
@@ -450,5 +444,4 @@ void LIS2DW12Component::set_transform(bool mirror_x, bool mirror_y, bool mirror_
   this->swap_xy_ = swap_xy;
 }
 
-}  // namespace lis2dw12
-}  // namespace esphome
+}  // namespace esphome::lis2dw12_base

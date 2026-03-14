@@ -6,7 +6,7 @@ from esphome.const import CONF_NAME
 from . import CONF_LIS2DW12_ID, LIS2DW12_SENSOR_SCHEMA
 
 CODEOWNERS = ["@latonita"]
-DEPENDENCIES = ["lis2dw12"]
+DEPENDENCIES = ["lis2dw12_base"]
 
 CONF_ORIENTATION = "orientation"
 ICON_SCREEN_ROTATION = "mdi:screen-rotation"

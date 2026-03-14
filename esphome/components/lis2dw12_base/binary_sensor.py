@@ -6,7 +6,7 @@ from esphome.const import CONF_ACTIVE, CONF_NAME, DEVICE_CLASS_VIBRATION, ICON_V
 from . import CONF_LIS2DW12_ID, LIS2DW12_SENSOR_SCHEMA
 
 CODEOWNERS = ["@latonita"]
-DEPENDENCIES = ["lis2dw12"]
+DEPENDENCIES = ["lis2dw12_base"]
 
 CONF_TAP = "tap"
 CONF_DOUBLE_TAP = "double_tap"

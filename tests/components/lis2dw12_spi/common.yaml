@@ -1,8 +1,10 @@
-lis2dw12:
-  i2c_id: i2c_bus
+lis2dw12_spi:
+  id: lis2dw12_spi_accel
+  spi_id: spi_bus
+  cs_pin: GPIO5
   range: 4G
   power_mode: high_performance
-  data_rate: 100Hz
+  output_data_rate: 100Hz
   filter_bandwidth: odr_div_2
   low_noise: true
   update_interval: 10s
@@ -32,17 +34,20 @@ lis2dw12:
         - logger.log: "Orientation changed"
 
 sensor:
-  - platform: lis2dw12
+  - platform: lis2dw12_base
+    lis2dw12_id: lis2dw12_spi_accel
     acceleration_x: Accel X
     acceleration_y: Accel Y
     acceleration_z: Accel Z
 
 text_sensor:
-  - platform: lis2dw12
+  - platform: lis2dw12_base
+    lis2dw12_id: lis2dw12_spi_accel
     orientation: Orientation
 
 binary_sensor:
-  - platform: lis2dw12
+  - platform: lis2dw12_base
+    lis2dw12_id: lis2dw12_spi_accel
     tap: Single tap
     double_tap:
       name: Double tap
