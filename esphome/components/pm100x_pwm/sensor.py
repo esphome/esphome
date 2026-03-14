@@ -5,10 +5,8 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_INTERNAL,
-    CONF_INVERTED,
     CONF_MODEL,
     CONF_NAME,
-    CONF_NUMBER,
     CONF_PIN,
     CONF_PM_2_5,
     CONF_STARTUP_DELAY,
@@ -27,44 +25,14 @@ CONF_PWM = "pwm"
 CONF_PWM_SENSOR_ID = cv.GenerateID()
 
 
-def validate_pwm_pin(config):
-    """Transform flat pin config to nested structure and validate."""
-    pin_value = config[CONF_PIN]
-    inverted = config.get(CONF_INVERTED, False)
-
-    # Build pin config dict
-    if isinstance(pin_value, dict):
-        pin_config = pin_value.copy()
-    else:
-        pin_config = {CONF_NUMBER: pin_value}
-
-    # Add inverted to pin config
-    pin_config[CONF_INVERTED] = inverted
-
-    # Validate the pin config (this runs during validation phase when context is available)
-    pin_config = pins.internal_gpio_input_pin_schema(pin_config)
-
-    # Replace the pin field with the validated config
-    config = config.copy()
-    config[CONF_PIN] = pin_config
-
-    return config
-
-
-PWM_SCHEMA = cv.All(
-    cv.Schema(
-        {
-            CONF_PWM_SENSOR_ID: cv.declare_id(cg.PollingComponent),
-            cv.Optional(CONF_NAME): cv.string,
-            cv.Required(CONF_PIN): cv.Any(
-                int, str, dict
-            ),  # Accept raw value, validate in validate_pwm_pin
-            cv.Optional(CONF_INVERTED, default=False): cv.boolean,
-            cv.Optional(CONF_INTERNAL, default=True): cv.boolean,
-        }
-    ).extend(cv.polling_component_schema("30s")),
-    validate_pwm_pin,  # Transform and validate pin here (during validation phase)
-)
+PWM_SCHEMA = cv.Schema(
+    {
+        CONF_PWM_SENSOR_ID: cv.declare_id(cg.PollingComponent),
+        cv.Optional(CONF_NAME): cv.string,
+        cv.Required(CONF_PIN): pins.internal_gpio_input_pin_schema,
+        cv.Optional(CONF_INTERNAL, default=True): cv.boolean,
+    }
+).extend(cv.polling_component_schema("30s"))
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
