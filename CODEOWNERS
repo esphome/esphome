@@ -286,6 +286,7 @@ esphome/components/lightwaverf/* @max246
 esphome/components/lilygo_t5_47/touchscreen/* @jesserockz
 esphome/components/lis2dh12_base/* @latonita
 esphome/components/lis2dh12_i2c/* @latonita
+esphome/components/lis2dh12_spi/* @latonita
 esphome/components/lm75b/* @beormund
 esphome/components/ln882x/* @lamauny
 esphome/components/lock/* @esphome/core
