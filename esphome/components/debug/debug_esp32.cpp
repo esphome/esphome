@@ -98,7 +98,7 @@ static const char *const WAKEUP_CAUSES[] = {
     "BT",
 };
 
-const char *DebugComponent::get_wakeup_cause_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
+const char *DebugComponent::get_wakeup_cause_(std::span<char, WAKEUP_CAUSE_BUFFER_SIZE> buffer) {
   const char *wake_reason;
   unsigned reason = esp_sleep_get_wakeup_cause();
   if (reason < sizeof(WAKEUP_CAUSES) / sizeof(WAKEUP_CAUSES[0])) {
@@ -197,9 +197,9 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   pos = buf_append_printf(buf, size, pos, "|CPU Frequency: %" PRIu32 " MHz", cpu_freq_mhz);
 
   char reset_buffer[RESET_REASON_BUFFER_SIZE];
-  char wakeup_buffer[RESET_REASON_BUFFER_SIZE];
+  char wakeup_buffer[WAKEUP_CAUSE_BUFFER_SIZE];
   const char *reset_reason = get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE>(reset_buffer));
-  const char *wakeup_cause = get_wakeup_cause_(std::span<char, RESET_REASON_BUFFER_SIZE>(wakeup_buffer));
+  const char *wakeup_cause = get_wakeup_cause_(std::span<char, WAKEUP_CAUSE_BUFFER_SIZE>(wakeup_buffer));
 
   uint8_t mac[6];
   get_mac_address_raw(mac);
