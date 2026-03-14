@@ -974,6 +974,7 @@ KEY_USB_SERIAL_JTAG_SECONDARY_REQUIRED = "usb_serial_jtag_secondary_required"
 KEY_MBEDTLS_PEER_CERT_REQUIRED = "mbedtls_peer_cert_required"
 KEY_MBEDTLS_PKCS7_REQUIRED = "mbedtls_pkcs7_required"
 KEY_FATFS_REQUIRED = "fatfs_required"
+KEY_MBEDTLS_SHA512_REQUIRED = "mbedtls_sha512_required"
 
 
 def require_vfs_select() -> None:
@@ -1041,6 +1042,16 @@ def require_mbedtls_pkcs7() -> None:
     This prevents CONFIG_MBEDTLS_PKCS7_C from being disabled.
     """
     CORE.data[KEY_ESP32][KEY_MBEDTLS_PKCS7_REQUIRED] = True
+
+
+def require_mbedtls_sha512() -> None:
+    """Mark that mbedTLS SHA-384/SHA-512 support is required by a component.
+
+    Call this from components that need to verify TLS certificates or signatures
+    using SHA-384 or SHA-512 algorithms. This prevents CONFIG_MBEDTLS_SHA384_C
+    and CONFIG_MBEDTLS_SHA512_C from being disabled.
+    """
+    CORE.data[KEY_ESP32][KEY_MBEDTLS_SHA512_REQUIRED] = True
 
 
 def require_fatfs() -> None:
@@ -1810,7 +1821,10 @@ async def to_code(config):
     # On IDF < 6.0 these are a single config and hardware-only (no
     # software fallback), so there was no code size cost to leaving
     # them enabled.
-    if framework_ver >= cv.Version(6, 0, 0):
+    # Components that need SHA-384/SHA-512 can call require_mbedtls_sha512()
+    if framework_ver >= cv.Version(6, 0, 0) and not CORE.data[KEY_ESP32].get(
+        KEY_MBEDTLS_SHA512_REQUIRED, False
+    ):
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_SHA384_C", False)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_SHA512_C", False)
 
