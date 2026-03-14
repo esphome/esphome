@@ -1,4 +1,3 @@
-import logging
 from typing import Any
 
 from esphome import automation, pins
@@ -24,7 +23,6 @@ CONF_CH2_ACTIVE = "ch2_active"
 CONF_SUMMER_MODE_ACTIVE = "summer_mode_active"
 CONF_DHW_BLOCK = "dhw_block"
 CONF_SYNC_MODE = "sync_mode"
-CONF_OPENTHERM_VERSION = "opentherm_version"  # Deprecated, will be removed
 CONF_BEFORE_SEND = "before_send"
 CONF_BEFORE_PROCESS_RESPONSE = "before_process_response"
 
@@ -37,8 +35,6 @@ BeforeProcessResponseTrigger = generate.opentherm_ns.class_(
     "BeforeProcessResponseTrigger",
     automation.Trigger.template(generate.OpenthermData.operator("ref")),
 )
-
-_LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -54,7 +50,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SUMMER_MODE_ACTIVE, False): cv.boolean,
             cv.Optional(CONF_DHW_BLOCK, False): cv.boolean,
             cv.Optional(CONF_SYNC_MODE, False): cv.boolean,
-            cv.Optional(CONF_OPENTHERM_VERSION): cv.positive_float,  # Deprecated
             cv.Optional(CONF_BEFORE_SEND): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(BeforeSendTrigger),
@@ -123,11 +118,6 @@ async def to_code(config: dict[str, Any]) -> None:
             cg.add(getattr(var, f"set_{key}_{const.SETTING}")(value))
             settings.append(key)
         else:
-            if key == CONF_OPENTHERM_VERSION:
-                _LOGGER.warning(
-                    "opentherm_version is deprecated and will be removed in esphome 2025.2.0\n"
-                    "Please change to 'opentherm_version_controller'."
-                )
             cg.add(getattr(var, f"set_{key}")(value))
 
     if len(input_sensors) > 0:

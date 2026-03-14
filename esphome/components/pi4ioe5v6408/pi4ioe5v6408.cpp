@@ -144,9 +144,10 @@ bool PI4IOE5V6408Component::write_gpio_modes_() {
   }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGV(TAG,
-           "Wrote GPIO modes: 0b" BYTE_TO_BINARY_PATTERN "\n"
-           "Wrote GPIO pullup/pulldown: 0b" BYTE_TO_BINARY_PATTERN "\n"
-           "Wrote GPIO pull enable: 0b" BYTE_TO_BINARY_PATTERN,
+           "Wrote GPIO config:\n"
+           "  modes: 0b" BYTE_TO_BINARY_PATTERN "\n"
+           "  pullup/pulldown: 0b" BYTE_TO_BINARY_PATTERN "\n"
+           "  pull enable: 0b" BYTE_TO_BINARY_PATTERN,
            BYTE_TO_BINARY(this->mode_mask_), BYTE_TO_BINARY(this->pull_up_down_mask_),
            BYTE_TO_BINARY(this->pull_enable_mask_));
 #endif

@@ -72,6 +72,7 @@ ignore_types = (
     ".gif",
     ".webp",
     ".bin",
+    ".wav",
 )
 
 LINT_FILE_CHECKS = []
@@ -301,7 +302,7 @@ def highlight(s):
     ],
 )
 def lint_no_defines(fname, match):
-    s = highlight(f"static const uint8_t {match.group(1)} = {match.group(2)};")
+    s = highlight(f"static constexpr uint8_t {match.group(1)} = {match.group(2)};")
     return (
         "#define macros for integer constants are not allowed, please use "
         f"{s} style instead (replace uint8_t with the appropriate "
@@ -494,6 +495,22 @@ def lint_no_byte_datatype(fname, match):
     )
 
 
+@lint_re_check(
+    r"(?:std\s*::\s*string_view|#include\s*<string_view>)" + CPP_RE_EOL,
+    include=cpp_include,
+)
+def lint_no_std_string_view(fname, match):
+    return (
+        f"{highlight('std::string_view')} is not allowed in ESPHome. "
+        f"It pulls in significant STL template machinery that bloats flash on "
+        f"resource-constrained embedded targets, does not work well with ArduinoJson, "
+        f"and duplicates functionality already provided by {highlight('StringRef')}.\n"
+        f"Please use {highlight('StringRef')} from {highlight('esphome/core/string_ref.h')} "
+        f"for non-owning string references, or {highlight('const char *')} for simple cases.\n"
+        f"(If strictly necessary, add `{highlight('// NOLINT')}` to the end of the line)"
+    )
+
+
 @lint_post_check
 def lint_constants_usage():
     errs = []
@@ -502,7 +519,7 @@ def lint_constants_usage():
             continue
         errs.append(
             f"Constant {highlight(constant)} is defined in {len(uses)} files. Please move all definitions of the "
-            f"constant to const.py (Uses: {', '.join(str(u) for u in uses)}) in a separate PR. "
+            f"constant to esphome/components/const/__init__.py (Uses: {', '.join(str(u) for u in uses)}) in a separate PR. "
             "See https://developers.esphome.io/contributing/code/#python"
         )
     return errs
@@ -825,6 +842,87 @@ def lint_no_scanf(fname, match):
     )
 
 
+# Base entity platforms - these are linked into most builds and should not
+# pull in powf/__ieee754_powf (~2.3KB flash).
+BASE_ENTITY_PLATFORMS = [
+    "alarm_control_panel",
+    "binary_sensor",
+    "button",
+    "climate",
+    "cover",
+    "datetime",
+    "event",
+    "fan",
+    "light",
+    "lock",
+    "media_player",
+    "number",
+    "select",
+    "sensor",
+    "switch",
+    "text",
+    "text_sensor",
+    "update",
+    "valve",
+    "water_heater",
+]
+
+# Directories protected from powf: core + all base entity platforms
+POWF_PROTECTED_DIRS = ["esphome/core"] + [
+    f"esphome/components/{p}" for p in BASE_ENTITY_PLATFORMS
+]
+
+
+@lint_re_check(
+    r"[^\w]powf\s*\(" + CPP_RE_EOL,
+    include=[
+        f"{d}/*.{ext}" for d in POWF_PROTECTED_DIRS for ext in ["h", "cpp", "tcc"]
+    ],
+)
+def lint_no_powf_in_core(fname, match):
+    return (
+        f"{highlight('powf()')} pulls in __ieee754_powf (~2.3KB flash) and is not allowed in "
+        f"core or base entity platform code. These files are linked into every build.\n"
+        f"Please use alternatives:\n"
+        f"  - {highlight('pow10_int(exp)')} for integer powers of 10 (from helpers.h)\n"
+        f"  - Precomputed lookup tables for gamma/non-integer exponents\n"
+        f"(If powf is strictly necessary, add `// NOLINT` to the line)"
+    )
+
+
+LOG_MULTILINE_RE = re.compile(r"ESP_LOG\w+\s*\(.*?;", re.DOTALL)
+LOG_BAD_CONTINUATION_RE = re.compile(r'\\n(?:[^ \\"\r\n\t]|"\s*\n\s*"[^ \\])')
+LOG_PERCENT_S_CONTINUATION_RE = re.compile(r'\\n(?:%s|"\s*\n\s*"%s)')
+
+
+@lint_content_check(include=cpp_include)
+def lint_log_multiline_continuation(fname, content):
+    errs = []
+    for log_match in LOG_MULTILINE_RE.finditer(content):
+        log_text = log_match.group(0)
+        for bad_match in LOG_BAD_CONTINUATION_RE.finditer(log_text):
+            # %s may expand to a whitespace prefix at runtime, skip those
+            if LOG_PERCENT_S_CONTINUATION_RE.match(log_text, bad_match.start()):
+                continue
+            # Calculate line number from position in full content
+            abs_pos = log_match.start() + bad_match.start()
+            lineno = content.count("\n", 0, abs_pos) + 1
+            col = abs_pos - content.rfind("\n", 0, abs_pos)
+            errs.append(
+                (
+                    lineno,
+                    col,
+                    "Multi-line log message has a continuation line that does "
+                    "not start with a space. The log viewer uses leading "
+                    "whitespace to detect continuation lines and re-add the "
+                    f"log tag prefix (e.g. {highlight('[C][component:042]:')}).\n"
+                    "Either start the continuation with a space/indent, or "
+                    "split into separate ESP_LOG* calls.",
+                )
+            )
+    return errs
+
+
 @lint_content_find_check(
     "ESP_LOG",
     include=["*.h", "*.tcc"],
@@ -910,7 +1008,7 @@ def main():
             continue
         run_checks(LINT_CONTENT_CHECKS, fname, fname, content)
 
-    run_checks(LINT_POST_CHECKS, "POST")
+    run_checks(LINT_POST_CHECKS, Path("POST"))
 
     for f, errs in sorted(errors.items()):
         bold = functools.partial(styled, colorama.Style.BRIGHT)

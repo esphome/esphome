@@ -106,11 +106,13 @@ PMWCS3_CALIBRATION_SCHEMA = cv.Schema(
     "pmwcs3.air_calibration",
     PMWCS3AirCalibrationAction,
     PMWCS3_CALIBRATION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
     "pmwcs3.water_calibration",
     PMWCS3WaterCalibrationAction,
     PMWCS3_CALIBRATION_SCHEMA,
+    synchronous=True,
 )
 async def pmwcs3_calibration_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
@@ -130,6 +132,7 @@ PMWCS3_NEW_I2C_ADDRESS_SCHEMA = cv.maybe_simple_value(
     "pmwcs3.new_i2c_address",
     PMWCS3NewI2cAddressAction,
     PMWCS3_NEW_I2C_ADDRESS_SCHEMA,
+    synchronous=True,
 )
 async def pmwcs3newi2caddress_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])

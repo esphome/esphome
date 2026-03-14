@@ -11,25 +11,115 @@
 
 namespace esphome::ble_nus {
 
-constexpr size_t BLE_TX_BUF_SIZE = 2048;
-
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 BLENUS *global_ble_nus;
-RING_BUF_DECLARE(global_ble_tx_ring_buf, BLE_TX_BUF_SIZE);
+RING_BUF_DECLARE(global_ble_tx_ring_buf, ESPHOME_BLE_NUS_TX_RING_BUFFER_SIZE);
+#ifdef ESPHOME_BLE_NUS_RX_RING_BUFFER_SIZE
+RING_BUF_DECLARE(global_ble_rx_ring_buf, ESPHOME_BLE_NUS_RX_RING_BUFFER_SIZE);
+#endif
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 static const char *const TAG = "ble_nus";
 
-size_t BLENUS::write_array(const uint8_t *data, size_t len) {
+void BLENUS::write_array(const uint8_t *data, size_t len) {
   if (atomic_get(&this->tx_status_) == TX_DISABLED) {
-    return 0;
+    return;
   }
-  return ring_buf_put(&global_ble_tx_ring_buf, data, len);
+  auto sent = ring_buf_put(&global_ble_tx_ring_buf, data, len);
+  if (sent < len) {
+    ESP_LOGE(TAG, "TX dropping %u bytes", len - sent);
+    return;
+  }
+#ifdef USE_UART_DEBUGGER
+  for (size_t i = 0; i < len; i++) {
+    this->debug_callback_.call(uart::UART_DIRECTION_TX, data[i]);
+  }
+#endif
+}
+
+bool BLENUS::peek_byte(uint8_t *data) {
+#ifdef ESPHOME_BLE_NUS_RX_RING_BUFFER_SIZE
+  if (this->has_peek_) {
+    *data = this->peek_buffer_;
+    return true;
+  }
+
+  if (this->read_byte(&this->peek_buffer_)) {
+    *data = this->peek_buffer_;
+    this->has_peek_ = true;
+    return true;
+  }
+
+  return false;
+#else
+  return false;
+#endif
+}
+
+bool BLENUS::read_array(uint8_t *data, size_t len) {
+#ifdef ESPHOME_BLE_NUS_RX_RING_BUFFER_SIZE
+  if (len == 0) {
+    return true;
+  }
+  if (this->available() < len) {
+    return false;
+  }
+
+  // First, use the peek buffer if available
+  if (this->has_peek_) {
+    data[0] = this->peek_buffer_;
+    this->has_peek_ = false;
+    data++;
+    if (--len == 0) {  // Decrement len first, then check it...
+#ifdef USE_UART_DEBUGGER
+      this->debug_callback_.call(uart::UART_DIRECTION_RX, this->peek_buffer_);
+#endif
+      return true;  // No more to read
+    }
+  }
+
+  if (ring_buf_get(&global_ble_rx_ring_buf, data, len) != len) {
+    ESP_LOGE(TAG, "UART BLE unexpected size");
+    return false;
+  }
+#ifdef USE_UART_DEBUGGER
+  for (size_t i = 0; i < len; i++) {
+    this->debug_callback_.call(uart::UART_DIRECTION_RX, data[i]);
+  }
+#endif
+  return true;
+#else
+  return false;
+#endif
+}
+
+size_t BLENUS::available() {
+#ifdef ESPHOME_BLE_NUS_RX_RING_BUFFER_SIZE
+  uint32_t size = ring_buf_size_get(&global_ble_rx_ring_buf);
+  ESP_LOGVV(TAG, "UART BLE available %u", size);
+  return size + (this->has_peek_ ? 1 : 0);
+#else
+  return 0;
+#endif
+}
+
+uart::FlushResult BLENUS::flush() {
+  constexpr uint32_t timeout_500ms = 500;
+  uint32_t start = millis();
+  while (atomic_get(&this->tx_status_) != TX_DISABLED && !ring_buf_is_empty(&global_ble_tx_ring_buf)) {
+    if (millis() - start > timeout_500ms) {
+      ESP_LOGW(TAG, "Flush timeout");
+      return uart::FlushResult::TIMEOUT;
+    }
+    delay(1);
+  }
+  return uart::FlushResult::SUCCESS;
 }
 
 void BLENUS::connected(bt_conn *conn, uint8_t err) {
   if (err == 0) {
     global_ble_nus->conn_.store(bt_conn_ref(conn));
+    global_ble_nus->connected_ = true;
   }
 }
 
@@ -38,6 +128,7 @@ void BLENUS::disconnected(bt_conn *conn, uint8_t reason) {
     bt_conn_unref(global_ble_nus->conn_.load());
     // Connection array is global static.
     // Reference can be kept even if disconnected.
+    global_ble_nus->connected_ = false;
   }
 }
 
@@ -63,12 +154,19 @@ void BLENUS::send_enabled_callback(bt_nus_send_status status) {
       break;
   }
 }
-
 void BLENUS::rx_callback(bt_conn *conn, const uint8_t *const data, uint16_t len) {
-  ESP_LOGD(TAG, "Received %d bytes.", len);
+  ESP_LOGV(TAG, "Received %d bytes.", len);
+#ifdef ESPHOME_BLE_NUS_RX_RING_BUFFER_SIZE
+  auto recv_len = ring_buf_put(&global_ble_rx_ring_buf, data, len);
+  if (recv_len < len) {
+    ESP_LOGE(TAG, "RX dropping %u bytes", len - recv_len);
+  }
+#endif
 }
-
 void BLENUS::setup() {
+#ifdef ESPHOME_BLE_NUS_RX_RING_BUFFER_SIZE
+  this->rx_buffer_size_ = ESPHOME_BLE_NUS_RX_RING_BUFFER_SIZE;
+#endif
   bt_nus_cb callbacks = {
       .received = rx_callback,
       .sent = tx_callback,
@@ -87,7 +185,10 @@ void BLENUS::setup() {
   global_ble_nus = this;
 #ifdef USE_LOGGER
   if (logger::global_logger != nullptr && this->expose_log_) {
-    logger::global_logger->add_log_listener(this);
+    logger::global_logger->add_log_callback(
+        this, [](void *self, uint8_t level, const char *tag, const char *message, size_t message_len) {
+          static_cast<BLENUS *>(self)->on_log(level, tag, message, message_len);
+        });
   }
 #endif
 }
@@ -103,16 +204,17 @@ void BLENUS::on_log(uint8_t level, const char *tag, const char *message, size_t 
 #endif
 
 void BLENUS::dump_config() {
-  ESP_LOGCONFIG(TAG,
-                "ble nus:\n"
-                "  log: %s",
-                YESNO(this->expose_log_));
   uint32_t mtu = 0;
   bt_conn *conn = this->conn_.load();
-  if (conn) {
+  if (conn && this->connected_) {
     mtu = bt_nus_get_mtu(conn);
   }
-  ESP_LOGCONFIG(TAG, "  MTU: %u", mtu);
+  ESP_LOGCONFIG(TAG,
+                "ble nus:\n"
+                "  log: %s\n"
+                "  connected: %s\n"
+                "  MTU: %u",
+                YESNO(this->expose_log_), YESNO(this->connected_.load()), mtu);
 }
 
 void BLENUS::loop() {

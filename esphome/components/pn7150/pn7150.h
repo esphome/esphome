@@ -14,48 +14,48 @@
 namespace esphome {
 namespace pn7150 {
 
-static const uint16_t NFCC_DEFAULT_TIMEOUT = 10;
-static const uint16_t NFCC_INIT_TIMEOUT = 50;
-static const uint16_t NFCC_TAG_WRITE_TIMEOUT = 15;
+static constexpr uint16_t NFCC_DEFAULT_TIMEOUT = 10;
+static constexpr uint16_t NFCC_INIT_TIMEOUT = 50;
+static constexpr uint16_t NFCC_TAG_WRITE_TIMEOUT = 15;
 
-static const uint8_t NFCC_MAX_COMM_FAILS = 3;
-static const uint8_t NFCC_MAX_ERROR_COUNT = 10;
+static constexpr uint8_t NFCC_MAX_COMM_FAILS = 3;
+static constexpr uint8_t NFCC_MAX_ERROR_COUNT = 10;
 
-static const uint8_t XCHG_DATA_OID = 0x10;
-static const uint8_t MF_SECTORSEL_OID = 0x32;
-static const uint8_t MFC_AUTHENTICATE_OID = 0x40;
-static const uint8_t TEST_PRBS_OID = 0x30;
-static const uint8_t TEST_ANTENNA_OID = 0x3D;
-static const uint8_t TEST_GET_REGISTER_OID = 0x33;
+static constexpr uint8_t XCHG_DATA_OID = 0x10;
+static constexpr uint8_t MF_SECTORSEL_OID = 0x32;
+static constexpr uint8_t MFC_AUTHENTICATE_OID = 0x40;
+static constexpr uint8_t TEST_PRBS_OID = 0x30;
+static constexpr uint8_t TEST_ANTENNA_OID = 0x3D;
+static constexpr uint8_t TEST_GET_REGISTER_OID = 0x33;
 
-static const uint8_t MFC_AUTHENTICATE_PARAM_KS_A = 0x00;  // key select A
-static const uint8_t MFC_AUTHENTICATE_PARAM_KS_B = 0x80;  // key select B
-static const uint8_t MFC_AUTHENTICATE_PARAM_EMBED_KEY = 0x10;
+static constexpr uint8_t MFC_AUTHENTICATE_PARAM_KS_A = 0x00;  // key select A
+static constexpr uint8_t MFC_AUTHENTICATE_PARAM_KS_B = 0x80;  // key select B
+static constexpr uint8_t MFC_AUTHENTICATE_PARAM_EMBED_KEY = 0x10;
 
-static const uint8_t CARD_EMU_T4T_APP_SELECT[] = {0x00, 0xA4, 0x04, 0x00, 0x07, 0xD2, 0x76,
-                                                  0x00, 0x00, 0x85, 0x01, 0x01, 0x00};
-static const uint8_t CARD_EMU_T4T_CC[] = {0x00, 0x0F, 0x20, 0x00, 0xFF, 0x00, 0xFF, 0x04,
-                                          0x06, 0xE1, 0x04, 0x00, 0xFF, 0x00, 0x00};
-static const uint8_t CARD_EMU_T4T_CC_SELECT[] = {0x00, 0xA4, 0x00, 0x0C, 0x02, 0xE1, 0x03};
-static const uint8_t CARD_EMU_T4T_NDEF_SELECT[] = {0x00, 0xA4, 0x00, 0x0C, 0x02, 0xE1, 0x04};
-static const uint8_t CARD_EMU_T4T_READ[] = {0x00, 0xB0};
-static const uint8_t CARD_EMU_T4T_WRITE[] = {0x00, 0xD6};
-static const uint8_t CARD_EMU_T4T_OK[] = {0x90, 0x00};
-static const uint8_t CARD_EMU_T4T_NOK[] = {0x6A, 0x82};
+static constexpr uint8_t CARD_EMU_T4T_APP_SELECT[] = {0x00, 0xA4, 0x04, 0x00, 0x07, 0xD2, 0x76,
+                                                      0x00, 0x00, 0x85, 0x01, 0x01, 0x00};
+static constexpr uint8_t CARD_EMU_T4T_CC[] = {0x00, 0x0F, 0x20, 0x00, 0xFF, 0x00, 0xFF, 0x04,
+                                              0x06, 0xE1, 0x04, 0x00, 0xFF, 0x00, 0x00};
+static constexpr uint8_t CARD_EMU_T4T_CC_SELECT[] = {0x00, 0xA4, 0x00, 0x0C, 0x02, 0xE1, 0x03};
+static constexpr uint8_t CARD_EMU_T4T_NDEF_SELECT[] = {0x00, 0xA4, 0x00, 0x0C, 0x02, 0xE1, 0x04};
+static constexpr uint8_t CARD_EMU_T4T_READ[] = {0x00, 0xB0};
+static constexpr uint8_t CARD_EMU_T4T_WRITE[] = {0x00, 0xD6};
+static constexpr uint8_t CARD_EMU_T4T_OK[] = {0x90, 0x00};
+static constexpr uint8_t CARD_EMU_T4T_NOK[] = {0x6A, 0x82};
 
-static const uint8_t CORE_CONFIG_SOLO[] = {0x01,   // Number of parameter fields
-                                           0x00,   // config param identifier (TOTAL_DURATION)
-                                           0x02,   // length of value
-                                           0x01,   // TOTAL_DURATION (low)...
-                                           0x00};  // TOTAL_DURATION (high): 1 ms
+static constexpr uint8_t CORE_CONFIG_SOLO[] = {0x01,   // Number of parameter fields
+                                               0x00,   // config param identifier (TOTAL_DURATION)
+                                               0x02,   // length of value
+                                               0x01,   // TOTAL_DURATION (low)...
+                                               0x00};  // TOTAL_DURATION (high): 1 ms
 
-static const uint8_t CORE_CONFIG_RW_CE[] = {0x01,   // Number of parameter fields
-                                            0x00,   // config param identifier (TOTAL_DURATION)
-                                            0x02,   // length of value
-                                            0xF8,   // TOTAL_DURATION (low)...
-                                            0x02};  // TOTAL_DURATION (high): 760 ms
+static constexpr uint8_t CORE_CONFIG_RW_CE[] = {0x01,   // Number of parameter fields
+                                                0x00,   // config param identifier (TOTAL_DURATION)
+                                                0x02,   // length of value
+                                                0xF8,   // TOTAL_DURATION (low)...
+                                                0x02};  // TOTAL_DURATION (high): 760 ms
 
-static const uint8_t PMU_CFG[] = {
+static constexpr uint8_t PMU_CFG[] = {
     0x01,        // Number of parameters
     0xA0, 0x0E,  // ext. tag
     3,           // length
@@ -64,7 +64,7 @@ static const uint8_t PMU_CFG[] = {
     0x01,        // RFU; must be 0x00 for CFG1 and 0x01 for CFG2
 };
 
-static const uint8_t RF_DISCOVER_MAP_CONFIG[] = {  // poll modes
+static constexpr uint8_t RF_DISCOVER_MAP_CONFIG[] = {  // poll modes
     nfc::PROT_T1T,    nfc::RF_DISCOVER_MAP_MODE_POLL,
     nfc::INTF_FRAME,  // poll mode
     nfc::PROT_T2T,    nfc::RF_DISCOVER_MAP_MODE_POLL,
@@ -76,28 +76,29 @@ static const uint8_t RF_DISCOVER_MAP_CONFIG[] = {  // poll modes
     nfc::PROT_MIFARE, nfc::RF_DISCOVER_MAP_MODE_POLL,
     nfc::INTF_TAGCMD};  // poll mode
 
-static const uint8_t RF_DISCOVERY_LISTEN_CONFIG[] = {nfc::MODE_LISTEN_MASK | nfc::TECH_PASSIVE_NFCA,   // listen mode
-                                                     nfc::MODE_LISTEN_MASK | nfc::TECH_PASSIVE_NFCB,   // listen mode
-                                                     nfc::MODE_LISTEN_MASK | nfc::TECH_PASSIVE_NFCF};  // listen mode
+static constexpr uint8_t RF_DISCOVERY_LISTEN_CONFIG[] = {
+    nfc::MODE_LISTEN_MASK | nfc::TECH_PASSIVE_NFCA,   // listen mode
+    nfc::MODE_LISTEN_MASK | nfc::TECH_PASSIVE_NFCB,   // listen mode
+    nfc::MODE_LISTEN_MASK | nfc::TECH_PASSIVE_NFCF};  // listen mode
 
-static const uint8_t RF_DISCOVERY_POLL_CONFIG[] = {nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCA,   // poll mode
-                                                   nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCB,   // poll mode
-                                                   nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCF};  // poll mode
+static constexpr uint8_t RF_DISCOVERY_POLL_CONFIG[] = {nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCA,   // poll mode
+                                                       nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCB,   // poll mode
+                                                       nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCF};  // poll mode
 
-static const uint8_t RF_DISCOVERY_CONFIG[] = {nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCA,          // poll mode
-                                              nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCB,          // poll mode
-                                              nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCF,          // poll mode
-                                              nfc::MODE_LISTEN_MASK | nfc::TECH_PASSIVE_NFCA,   // listen mode
-                                              nfc::MODE_LISTEN_MASK | nfc::TECH_PASSIVE_NFCB,   // listen mode
-                                              nfc::MODE_LISTEN_MASK | nfc::TECH_PASSIVE_NFCF};  // listen mode
+static constexpr uint8_t RF_DISCOVERY_CONFIG[] = {nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCA,          // poll mode
+                                                  nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCB,          // poll mode
+                                                  nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCF,          // poll mode
+                                                  nfc::MODE_LISTEN_MASK | nfc::TECH_PASSIVE_NFCA,   // listen mode
+                                                  nfc::MODE_LISTEN_MASK | nfc::TECH_PASSIVE_NFCB,   // listen mode
+                                                  nfc::MODE_LISTEN_MASK | nfc::TECH_PASSIVE_NFCF};  // listen mode
 
-static const uint8_t RF_LISTEN_MODE_ROUTING_CONFIG[] = {0x00,  // "more" (another message is coming)
-                                                        1,     // number of table entries
-                                                        0x01,  // type = protocol-based
-                                                        3,     // length
-                                                        0,     // DH NFCEE ID, a static ID representing the DH-NFCEE
-                                                        0x01,  // power state
-                                                        nfc::PROT_ISODEP};  // protocol
+static constexpr uint8_t RF_LISTEN_MODE_ROUTING_CONFIG[] = {0x00,  // "more" (another message is coming)
+                                                            1,     // number of table entries
+                                                            0x01,  // type = protocol-based
+                                                            3,     // length
+                                                            0,     // DH NFCEE ID, a static ID representing the DH-NFCEE
+                                                            0x01,  // power state
+                                                            nfc::PROT_ISODEP};  // protocol
 
 enum class CardEmulationState : uint8_t {
   CARD_EMU_IDLE,

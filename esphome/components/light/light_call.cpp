@@ -214,7 +214,14 @@ LightColorValues LightCall::validate_() {
   if (this->has_brightness() && this->brightness_ == 0.0f) {
     this->state_ = false;
     this->set_flag_(FLAG_HAS_STATE);
-    this->brightness_ = 1.0f;
+    if (color_mode & ColorCapability::BRIGHTNESS) {
+      // Reset brightness so the light has nonzero brightness when turned back on.
+      this->brightness_ = 1.0f;
+    } else {
+      // Light doesn't support brightness; clear the flag to avoid a spurious
+      // "brightness not supported" warning during capability validation.
+      this->clear_flag_(FLAG_HAS_BRIGHTNESS);
+    }
   }
 
   // Set color brightness to 100% if currently zero and a color is set.
@@ -389,9 +396,8 @@ void LightCall::transform_parameters_() {
       const float ww_fraction = (color_temp - min_mireds) / range;
       const float cw_fraction = 1.0f - ww_fraction;
       const float max_cw_ww = std::max(ww_fraction, cw_fraction);
-      const float gamma = this->parent_->get_gamma_correct();
-      this->cold_white_ = gamma_uncorrect(cw_fraction / max_cw_ww, gamma);
-      this->warm_white_ = gamma_uncorrect(ww_fraction / max_cw_ww, gamma);
+      this->cold_white_ = this->parent_->gamma_uncorrect_lut(cw_fraction / max_cw_ww);
+      this->warm_white_ = this->parent_->gamma_uncorrect_lut(ww_fraction / max_cw_ww);
       this->set_flag_(FLAG_HAS_COLD_WHITE);
       this->set_flag_(FLAG_HAS_WARM_WHITE);
     }
@@ -507,7 +513,7 @@ color_mode_bitmask_t LightCall::get_suitable_color_modes_mask_() {
 
 LightCall &LightCall::set_effect(const char *effect, size_t len) {
   if (len == 4 && strncasecmp(effect, "none", 4) == 0) {
-    this->set_effect(0);
+    this->set_effect(uint32_t{0});
     return *this;
   }
 

@@ -1,6 +1,7 @@
 #ifdef USE_ESP32
 #include "logger.h"
 
+#include "esphome/components/esp32/crash_handler.h"
 #include <esp_log.h>
 
 #include <driver/uart.h>
@@ -77,9 +78,10 @@ void init_uart(uart_port_t uart_num, uint32_t baud_rate, int tx_buffer_size) {
   uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
   uart_config.source_clk = UART_SCLK_DEFAULT;
   uart_param_config(uart_num, &uart_config);
-  const int uart_buffer_size = tx_buffer_size;
-  // Install UART driver using an event queue here
-  uart_driver_install(uart_num, uart_buffer_size, uart_buffer_size, 10, nullptr, 0);
+  // The logger only writes to UART, never reads, so use the minimum RX buffer.
+  // ESP-IDF requires rx_buffer_size > UART_HW_FIFO_LEN (128 bytes).
+  const int min_rx_buffer_size = UART_HW_FIFO_LEN(uart_num) + 1;
+  uart_driver_install(uart_num, min_rx_buffer_size, tx_buffer_size, 0, nullptr, 0);
 }
 
 void Logger::pre_setup() {
@@ -88,16 +90,16 @@ void Logger::pre_setup() {
     switch (this->uart_) {
       case UART_SELECTION_UART0:
         this->uart_num_ = UART_NUM_0;
-        init_uart(this->uart_num_, baud_rate_, tx_buffer_size_);
+        init_uart(this->uart_num_, baud_rate_, ESPHOME_LOGGER_TX_BUFFER_SIZE);
         break;
       case UART_SELECTION_UART1:
         this->uart_num_ = UART_NUM_1;
-        init_uart(this->uart_num_, baud_rate_, tx_buffer_size_);
+        init_uart(this->uart_num_, baud_rate_, ESPHOME_LOGGER_TX_BUFFER_SIZE);
         break;
 #ifdef USE_ESP32_VARIANT_ESP32
       case UART_SELECTION_UART2:
         this->uart_num_ = UART_NUM_2;
-        init_uart(this->uart_num_, baud_rate_, tx_buffer_size_);
+        init_uart(this->uart_num_, baud_rate_, ESPHOME_LOGGER_TX_BUFFER_SIZE);
         break;
 #endif
 #ifdef USE_LOGGER_USB_CDC
@@ -116,6 +118,9 @@ void Logger::pre_setup() {
   esp_log_set_vprintf(esp_idf_log_vprintf_);
 
   ESP_LOGI(TAG, "Log initialized");
+#ifdef USE_ESP32_CRASH_HANDLER
+  esp32::crash_handler_log();
+#endif
 }
 
 void HOT Logger::write_msg_(const char *msg, uint16_t len) {

@@ -79,6 +79,7 @@ def clang_options(idedata):
             "-Dpgm_read_byte_near(s)=(*(const uint8_t *)(s))",
             "-Dpgm_read_word(s)=(*(const uint16_t *)(s))",
             "-Dpgm_read_dword(s)=(*(const uint32_t *)(s))",
+            "-Dpgm_read_ptr(s)=(*(const void *const *)(s))",
             "-DPROGMEM=",
             "-DPGM_P=const char *",
             "-DPSTR(s)=(s)",

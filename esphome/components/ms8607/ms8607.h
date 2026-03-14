@@ -67,9 +67,9 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
   /// use raw temperature & pressure to calculate & publish values
   void calculate_values_(uint32_t raw_temperature, uint32_t raw_pressure);
 
-  sensor::Sensor *temperature_sensor_;
-  sensor::Sensor *pressure_sensor_;
-  sensor::Sensor *humidity_sensor_;
+  sensor::Sensor *temperature_sensor_{nullptr};
+  sensor::Sensor *pressure_sensor_{nullptr};
+  sensor::Sensor *humidity_sensor_{nullptr};
 
   /** I2CDevice object to communicate with secondary I2C address for the humidity sensor
    *
@@ -77,7 +77,7 @@ class MS8607Component : public PollingComponent, public i2c::I2CDevice {
    *
    * Default address for humidity is 0x40
    */
-  MS8607HumidityDevice *humidity_device_;
+  MS8607HumidityDevice *humidity_device_{nullptr};
 
   /// This device's pressure & temperature calibration values, read from PROM
   struct CalibrationValues {
