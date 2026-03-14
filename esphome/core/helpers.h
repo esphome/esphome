@@ -301,7 +301,7 @@ template<typename T, size_t N> class StaticVector {
 /// Not thread-safe. All access (push/pop/iteration) must occur from a single
 /// context, or the caller must provide external synchronization.
 template<typename T, size_t N> class StaticRingBuffer {
-  using index_type = std::conditional_t<(N <= 255), uint8_t, uint16_t>;
+  using index_type = std::conditional_t<(N <= std::numeric_limits<uint8_t>::max()), uint8_t, uint16_t>;
 
  public:
   class Iterator {
@@ -356,6 +356,13 @@ template<typename T, size_t N> class StaticRingBuffer {
   index_type size() const { return this->count_; }
   bool empty() const { return this->count_ == 0; }
 
+  /// Clear all elements (reset to empty)
+  void clear() {
+    this->head_ = 0;
+    this->tail_ = 0;
+    this->count_ = 0;
+  }
+
   Iterator begin() { return Iterator(this, 0); }
   Iterator end() { return Iterator(this, this->count_); }
   ConstIterator begin() const { return ConstIterator(this, 0); }
@@ -366,6 +373,128 @@ template<typename T, size_t N> class StaticRingBuffer {
   index_type head_{0};
   index_type tail_{0};
   index_type count_{0};
+};
+
+/// Fixed-capacity circular buffer - allocates once at runtime, never reallocates.
+/// Runtime-sized equivalent of StaticRingBuffer - use when capacity is only known at initialization.
+/// Supports FIFO push/pop and iteration over queued elements.
+/// Not thread-safe.
+template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()> class FixedRingBuffer {
+  using index_type = std::conditional_t<
+      (MAX_CAPACITY <= std::numeric_limits<uint8_t>::max()), uint8_t,
+      std::conditional_t<(MAX_CAPACITY <= std::numeric_limits<uint16_t>::max()), uint16_t, uint32_t>>;
+
+ public:
+  class Iterator {
+   public:
+    Iterator(FixedRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
+    T &operator*() { return buf_->data_[(buf_->head_ + pos_) % buf_->capacity_]; }
+    Iterator &operator++() {
+      ++pos_;
+      return *this;
+    }
+    bool operator!=(const Iterator &other) const { return pos_ != other.pos_; }
+
+   private:
+    FixedRingBuffer *buf_;
+    index_type pos_;
+  };
+
+  class ConstIterator {
+   public:
+    ConstIterator(const FixedRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
+    const T &operator*() const { return buf_->data_[(buf_->head_ + pos_) % buf_->capacity_]; }
+    ConstIterator &operator++() {
+      ++pos_;
+      return *this;
+    }
+    bool operator!=(const ConstIterator &other) const { return pos_ != other.pos_; }
+
+   private:
+    const FixedRingBuffer *buf_;
+    index_type pos_;
+  };
+
+  FixedRingBuffer() = default;
+  ~FixedRingBuffer() {
+    if constexpr (std::is_trivial<T>::value) {
+      ::operator delete(this->data_);
+    } else {
+      delete[] this->data_;
+    }
+  }
+
+  // Disable copy
+  FixedRingBuffer(const FixedRingBuffer &) = delete;
+  FixedRingBuffer &operator=(const FixedRingBuffer &) = delete;
+
+  /// Allocate capacity - can only be called once
+  void init(index_type capacity) {
+    if constexpr (std::is_trivial<T>::value) {
+      // Raw allocation without initialization (elements are written before read)
+      // NOLINTNEXTLINE(bugprone-sizeof-expression)
+      this->data_ = static_cast<T *>(::operator new(capacity * sizeof(T)));
+    } else {
+      this->data_ = new T[capacity];
+    }
+    this->capacity_ = capacity;
+  }
+
+  /// Push a value. Returns false if full.
+  bool push(const T &value) {
+    if (this->count_ >= this->capacity_)
+      return false;
+    this->data_[this->tail_] = value;
+    this->tail_ = (this->tail_ + 1) % this->capacity_;
+    ++this->count_;
+    return true;
+  }
+
+  /// Push a value, overwriting the oldest if full.
+  void push_overwrite(const T &value) {
+    this->data_[this->tail_] = value;
+    this->tail_ = (this->tail_ + 1) % this->capacity_;
+    if (this->count_ >= this->capacity_) {
+      // Buffer full - advance head to drop oldest, count stays at capacity
+      this->head_ = this->tail_;
+    } else {
+      ++this->count_;
+    }
+  }
+
+  /// Remove the oldest element.
+  void pop() {
+    if (this->count_ > 0) {
+      this->head_ = (this->head_ + 1) % this->capacity_;
+      --this->count_;
+    }
+  }
+
+  T &front() { return this->data_[this->head_]; }
+  const T &front() const { return this->data_[this->head_]; }
+  index_type size() const { return this->count_; }
+  bool empty() const { return this->count_ == 0; }
+  index_type capacity() const { return this->capacity_; }
+  bool full() const { return this->count_ == this->capacity_; }
+
+  /// Clear all elements (reset to empty, keep capacity)
+  void clear() {
+    this->head_ = 0;
+    this->tail_ = 0;
+    this->count_ = 0;
+  }
+
+  Iterator begin() { return Iterator(this, 0); }
+  Iterator end() { return Iterator(this, this->count_); }
+  ConstIterator begin() const { return ConstIterator(this, 0); }
+  ConstIterator end() const { return ConstIterator(this, this->count_); }
+
+ protected:
+  T *data_{nullptr};
+  index_type head_{0};
+  index_type tail_{0};
+  index_type count_{0};
+  index_type capacity_{0};
 };
 
 /// Fixed-capacity vector - allocates once at runtime, never reallocates
