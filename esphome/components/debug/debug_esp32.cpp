@@ -129,13 +129,17 @@ const char *DebugComponent::get_wakeup_cause_(std::span<char, RESET_REASON_BUFFE
   if (causes == 0) {
     return WAKEUP_CAUSES[0];  // "undefined"
   }
-  buffer[0] = '\0';
+  size_t pos = 0;
   for (unsigned i = 0; i < NUM_CAUSES; i++) {
-    if (causes & (1U << i)) {
-      if (buffer[0] != '\0') {
-        strlcat(buffer.data(), ", ", buffer.size());
-      }
-      strlcat(buffer.data(), WAKEUP_CAUSES[i], buffer.size());
+    if (!(causes & (1U << i))) {
+      continue;
+    }
+    if (pos > 0) {
+      pos += snprintf(buffer.data() + pos, buffer.size() - pos, ", ");
+    }
+    pos += snprintf(buffer.data() + pos, buffer.size() - pos, "%s", WAKEUP_CAUSES[i]);
+    if (pos >= buffer.size()) {
+      break;
     }
   }
   return buffer.data();
