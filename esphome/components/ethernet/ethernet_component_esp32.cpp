@@ -1,6 +1,7 @@
 #include "ethernet_component.h"
 
-#if defined(USE_ETHERNET) && defined(USE_ESP32)
+#ifdef USE_ETHERNET
+#ifdef USE_ESP32
 
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -838,4 +839,5 @@ void EthernetComponent::write_phy_register_(esp_eth_mac_t *mac, PHYRegister regi
 
 }  // namespace esphome::ethernet
 
-#endif  // USE_ETHERNET && USE_ESP32
+#endif  // USE_ESP32
+#endif  // USE_ETHERNET
