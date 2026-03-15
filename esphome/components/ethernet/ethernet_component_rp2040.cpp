@@ -62,6 +62,8 @@ void EthernetComponent::setup() {
 
   if (!success) {
     ESP_LOGE(TAG, "Failed to initialize W5500 Ethernet");
+    delete this->eth_;  // NOLINT(cppcoreguidelines-owning-memory)
+    this->eth_ = nullptr;
     this->mark_failed();
     return;
   }
@@ -178,6 +180,7 @@ network::IPAddresses EthernetComponent::get_ip_addresses() {
 }
 
 network::IPAddress EthernetComponent::get_dns_address(uint8_t num) {
+  LwIPLock lock;
   const ip_addr_t *dns_ip = dns_getserver(num);
   return dns_ip;
 }
@@ -234,6 +237,7 @@ void EthernetComponent::start_connect_() {
   if (this->manual_ip_.has_value()) {
     // Static IP was already configured before begin() in setup()
     // Set DNS servers
+    LwIPLock lock;
     if (this->manual_ip_->dns1.is_set()) {
       ip_addr_t d;
       d = this->manual_ip_->dns1;
@@ -269,19 +273,25 @@ void EthernetComponent::dump_connect_params_() {
   char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
 
   auto *netif = this->eth_->getNetIf();
-  ESP_LOGCONFIG(
-      TAG,
-      "  IP Address: %s\n"
-      "  Hostname: '%s'\n"
-      "  Subnet: %s\n"
-      "  Gateway: %s\n"
-      "  DNS1: %s\n"
-      "  DNS2: %s\n"
-      "  MAC Address: %s",
-      network::IPAddress(&netif->ip_addr).str_to(ip_buf), App.get_name().c_str(),
-      network::IPAddress(&netif->netmask).str_to(subnet_buf), network::IPAddress(&netif->gw).str_to(gateway_buf),
-      network::IPAddress(dns_getserver(0)).str_to(dns1_buf), network::IPAddress(dns_getserver(1)).str_to(dns2_buf),
-      this->get_eth_mac_address_pretty_into_buffer(mac_buf));
+  const ip_addr_t *dns_ip1;
+  const ip_addr_t *dns_ip2;
+  {
+    LwIPLock lock;
+    dns_ip1 = dns_getserver(0);
+    dns_ip2 = dns_getserver(1);
+  }
+  ESP_LOGCONFIG(TAG,
+                "  IP Address: %s\n"
+                "  Hostname: '%s'\n"
+                "  Subnet: %s\n"
+                "  Gateway: %s\n"
+                "  DNS1: %s\n"
+                "  DNS2: %s\n"
+                "  MAC Address: %s",
+                network::IPAddress(&netif->ip_addr).str_to(ip_buf), App.get_name().c_str(),
+                network::IPAddress(&netif->netmask).str_to(subnet_buf),
+                network::IPAddress(&netif->gw).str_to(gateway_buf), network::IPAddress(dns_ip1).str_to(dns1_buf),
+                network::IPAddress(dns_ip2).str_to(dns2_buf), this->get_eth_mac_address_pretty_into_buffer(mac_buf));
 }
 
 void EthernetComponent::set_clk_pin(uint8_t clk_pin) { this->clk_pin_ = clk_pin; }
