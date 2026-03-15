@@ -160,8 +160,12 @@ EthernetComponent = ethernet_ns.class_("EthernetComponent", cg.Component)
 ManualIP = ethernet_ns.struct("ManualIP")
 
 
-def _is_framework_spi_polling_mode_supported():
-    """Check if ESP-IDF framework supports SPI polling mode (ESP32 only)."""
+def _is_framework_spi_polling_mode_supported() -> bool:
+    """Check if ESP-IDF framework supports SPI polling mode (ESP32 only).
+
+    SPI Ethernet without IRQ feature is added in
+    esp-idf >= (5.3+, 5.2.1+, 5.1.4)
+    """
     if not CORE.is_esp32:
         return False
     from esphome.components.esp32 import idf_version
