@@ -1,0 +1,23 @@
+esphome:
+  name: host-template-text-save-test
+
+host:
+
+api:
+  batch_delay: 0ms
+
+logger:
+
+preferences:
+  flash_write_interval: 0s
+
+text:
+  - platform: template
+    name: "Test Text Restore"
+    id: test_text_restore
+    optimistic: true
+    min_length: 0
+    max_length: 10
+    mode: text
+    initial_value: "hello"
+    restore_value: true
