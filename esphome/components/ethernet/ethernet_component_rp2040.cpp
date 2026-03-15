@@ -81,11 +81,15 @@ void EthernetComponent::setup() {
 
 void EthernetComponent::loop() {
   // On RP2040, we need to poll connection state since there are no events.
-  // linkStatus() reads the W5500 PHY register via SPI — no lwip state involved.
+  const uint32_t now = App.get_loop_component_start_time();
+
+  // Throttle link/IP polling to avoid excessive SPI transactions from linkStatus()
+  // which reads the W5500 PHY register via SPI on every call.
   // connected() reads netif->ip_addr without LwIPLock, but this is a single
   // 32-bit aligned read (atomic on ARM) — worst case is a one-iteration-stale
   // value, which is benign for polling.
-  if (this->eth_ != nullptr) {
+  if (this->eth_ != nullptr && now - this->last_link_check_ >= LINK_CHECK_INTERVAL) {
+    this->last_link_check_ = now;
     bool link_up = this->eth_->linkStatus() == LinkON;
     bool has_ip = this->eth_->connected();
 
@@ -108,9 +112,7 @@ void EthernetComponent::loop() {
     }
   }
 
-  // Call common state machine
-  const uint32_t now = App.get_loop_component_start_time();
-
+  // State machine
   switch (this->state_) {
     case EthernetComponentState::STOPPED:
       if (this->started_) {
