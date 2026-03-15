@@ -305,9 +305,9 @@ class APIConnection final : public APIServerConnectionBase {
     // Reserve space for header padding + message + footer
     // - Header padding: space for protocol headers (7 bytes for Noise, 6 for Plaintext)
     // - Footer: space for MAC (16 bytes for Noise, 0 for Plaintext)
-    shared_buf.reserve(total_size);
-    // Resize to add header padding so message encoding starts at the correct position
-    shared_buf.resize(header_padding);
+    // Reserve full size but only set initial size to header padding
+    // so message encoding starts at the correct position
+    shared_buf.reserve_and_resize(total_size, header_padding);
   }
 
   // Convenience overload - computes frame overhead internally
