@@ -13,7 +13,65 @@ instructions for capturing and understanding crash data.
 
 ## Getting a Stack Trace from Crashes
 
-When your ESPHome device crashes, you can obtain a decoded stack trace to help identify the cause. This requires:
+### ESP32: Automatic Crash Reporting (No Serial Cable Needed)
+
+ESP32 devices using the **ESP-IDF framework** (the default) automatically capture the crash backtrace and store it
+across software resets (warm reboots). After a crash, the backtrace is logged at boot and when Home Assistant or
+`esphome logs` connects via the API. The CLI automatically decodes the addresses using the debug symbols from your
+last local compile.
+
+> [!NOTE]
+> This feature requires the ESP-IDF framework, which is the default for ESP32 devices. It is not available when
+> using the Arduino framework.
+
+To see the decoded crash data:
+
+1. **Compile and upload locally** to ensure you have matching debug symbols:
+
+   ```shell
+   esphome compile your-device.yaml
+   esphome upload your-device.yaml
+   ```
+
+1. **Connect via API** after the crash (no USB needed):
+
+   ```shell
+   esphome logs your-device.yaml
+   ```
+
+   The crash data from the previous boot will appear automatically:
+
+   ```log
+   [12:31:55][E][esp32.crash:221]: *** CRASH DETECTED ON PREVIOUS BOOT ***
+   [12:31:55][E][esp32.crash:224]:   Reason: Fault - StoreProhibited
+   [12:31:55][E][esp32.crash:228]:   PC:  0x4011AD40  (fault location)
+   WARNING Decoded 0x4011AD40: setup()::{lambda()#1}::_FUN() at your-device.yaml:89
+   [12:31:55][E][esp32.crash:242]:   BT0: 0x4011AD3D  (backtrace)
+   WARNING Decoded 0x4011AD3D: setup()::{lambda()#1}::_FUN() at your-device.yaml:89
+   [12:31:55][E][esp32.crash:242]:   BT1: 0x4011AD95  (backtrace)
+   WARNING Decoded 0x4011AD95: esphome::StatelessLambdaAction<>::play()
+   [12:31:56][E][esp32.crash:242]:   BT2: 0x4011AD77  (backtrace)
+   WARNING Decoded 0x4011AD77: esphome::Action<>::play_complex()
+   [12:31:56][E][esp32.crash:242]:   BT3: 0x4011AE6D  (backtrace)
+   WARNING Decoded 0x4011AE6D: esphome::ActionList<>::play()
+   [12:31:56][E][esp32.crash:242]:   BT4: 0x400D6C7E  (backtrace)
+   WARNING Decoded 0x400D6C7E: esphome::button::Button::press()
+   ```
+
+   The crash data also appears in the Home Assistant log viewer. To enable this, go to the ESPHome device's
+   integration options in Home Assistant and enable **Subscribe to logs from the device**. The logs appear under
+   the `homeassistant.components.esphome` logger. See the
+   [Home Assistant ESPHome integration docs](https://www.home-assistant.io/integrations/esphome/#obtaining-logs-from-the-device)
+   for details.
+
+> [!NOTE]
+> The crash data survives software resets but not power cycles. If the device crashes and is power-cycled
+> before you can connect, the crash data will be lost.
+
+### All Platforms: Serial Console Stack Trace
+
+For platforms without automatic crash reporting, or when you need the full register dump, you can capture the
+crash output via serial console. This requires:
 
 1. Compiling the firmware locally (to have matching debug symbols)
 1. Connecting the device via USB cable for serial console access
