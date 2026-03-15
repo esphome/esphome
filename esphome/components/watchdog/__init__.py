@@ -33,7 +33,6 @@ TimeoutAction = watchdog_ns.class_(
     "WatchdogManagerComponentTimeoutAction",
     automation.Action,
     cg.Parented.template(WatchdogManagerComponent),
-    synchronous=True,
 )
 
 
@@ -53,7 +52,10 @@ TIMEOUT_ACTION_SCHEMA = automation.maybe_conf(
 
 
 @automation.register_action(
-    "watchdog.set_timeout", TimeoutAction, TIMEOUT_ACTION_SCHEMA
+    "watchdog.set_timeout",
+    TimeoutAction,
+    TIMEOUT_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def coap_client_request_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
