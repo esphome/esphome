@@ -713,7 +713,7 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": cv.Version(55, 3, 37),
+    "recommended": "https://github.com/swoboda1337/platform-espressif32.git#idf-v6.0",
     "latest": cv.Version(55, 3, 37),
     "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
 }
