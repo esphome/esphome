@@ -191,7 +191,7 @@ void ModbusServer::dump_config() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGCONFIG(TAG, "server registers");
   for (auto &r : this->server_registers_) {
-    ESP_LOGCONFIG(TAG, "  Address=0x%02X value_type=%zu register_count=%u", r->address,
+    ESP_LOGCONFIG(TAG, "  Address=0x%02X value_type=%u register_count=%u", r->address,
                   static_cast<uint8_t>(r->value_type), r->register_count);
   }
 #endif

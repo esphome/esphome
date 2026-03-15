@@ -114,8 +114,8 @@ void Modbus::receive_bytes_() {
     this->rx_buffer_.resize(buffer_size + bytes);
     this->read_array(this->rx_buffer_.data() + buffer_size, bytes);
     if (buffer_size == 0) {
-      ESP_LOGV(TAG, "Received first byte %d (0X%x) %dms after last send %d", this->rx_buffer_[0], this->rx_buffer_[0],
-               millis() - this->last_send_, this->rx_buffer_.size());
+      ESP_LOGV(TAG, "Received first byte %" PRIu8 " (0X%x) of %zu bytes %" PRIu32 "ms after last send",
+               this->rx_buffer_[0], this->rx_buffer_[0], this->rx_buffer_.size(), millis() - this->last_send_);
     }
   }
 }
@@ -138,16 +138,18 @@ void ModbusServerHub::parse_modbus_frames() {
     size_t size;
     do {
       size = this->rx_buffer_.size();
-      ESP_LOGVV(TAG, "Parsing frames buffer size = %d ", size);
+      ESP_LOGVV(TAG, "Parsing frames buffer size = %" PRIu32, size);
       if (this->expecting_peer_response_ != 0) {
         if (!this->parse_modbus_server_frame_()) {
-          ESP_LOGV(TAG, "Stop expecting peer response from %d due to parse failure, and retry parse",
+          ESP_LOGV(TAG, "Stop expecting peer response from %" PRIu8 " due to parse failure, and retry parse",
                    this->expecting_peer_response_);
           this->expecting_peer_response_ = 0;
           size++;  // force retry parse as client frame
         } else if (this->timeout_() && size == this->rx_buffer_.size()) {
           // If we timed out and the above parse attempt did not then we also stop expecting a response
-          ESP_LOGV(TAG, "Stop expecting peer response from %d due to timeout after partial response, and retry parse",
+          ESP_LOGV(TAG,
+                   "Stop expecting peer response from %" PRIu8
+                   " due to timeout after partial response, and retry parse",
                    this->expecting_peer_response_);
           this->expecting_peer_response_ = 0;
           size++;  // force retry parse as client frame
@@ -251,8 +253,9 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
 void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t function_code,
                                                   const std::vector<uint8_t> &data) {
   if (!this->waiting_for_response_.has_value()) {
-    ESP_LOGW(TAG, "Received unexpected frame from address %d, function code 0x%X, %dms after last send", address,
-             function_code, this->last_modbus_byte_ - this->last_send_);
+    ESP_LOGW(TAG,
+             "Received unexpected frame from address %" PRIu8 ", function code 0x%X, %" PRIu32 "ms after last send",
+             address, function_code, this->last_modbus_byte_ - this->last_send_);
     return;
   } else {  // We are waiting for a response
     // Check if the response matches the expected address and function code
@@ -261,7 +264,9 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t funct
     uint8_t expected_address = wfr.frame.data.get()[0];
     uint8_t expected_function_code = wfr.frame.data.get()[1];
     if (expected_address != address || expected_function_code != (function_code & FUNCTION_CODE_MASK)) {
-      ESP_LOGW(TAG, "Received incorrect frame address %d <> %d or function code 0x%X <> 0x%X, %dms after last send",
+      ESP_LOGW(TAG,
+               "Received incorrect frame address %" PRIu8 " <> %" PRIu8 " or function code 0x%X <> 0x%X, %" PRIu32
+               "ms after last send",
                address, expected_address, (function_code & FUNCTION_CODE_MASK), expected_function_code,
                this->last_modbus_byte_ - this->last_send_);
       // Invalidate the waiting device so it won't process this response.
@@ -273,10 +278,10 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t funct
     }
 
     if (wfr.interrupted) {
-      ESP_LOGW(
-          TAG,
-          "Ignoring response from %d - transmission interrupted by previous unexpected response, %dms after last send",
-          address, this->last_modbus_byte_ - this->last_send_);
+      ESP_LOGW(TAG,
+               "Ignoring response from %" PRIu8 " - transmission interrupted by previous unexpected response, %" PRIu32
+               "ms after last send",
+               address, this->last_modbus_byte_ - this->last_send_);
       return;
     } else {  // We have a valid device waiting for this response
 
@@ -284,16 +289,17 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t funct
       // Is it an error response?
       if (is_function_code_exception(function_code)) {
         uint8_t exception = data[0];
-        ESP_LOGW(TAG, "Error function code: 0x%X exception: %d, address: %d, %dms after last send", function_code,
-                 exception, address, this->last_modbus_byte_ - this->last_send_);
+        ESP_LOGW(TAG,
+                 "Error function code: 0x%X exception: %" PRIu8 ", address: %" PRIu8 ", %" PRIu32 "ms after last send",
+                 function_code, exception, address, this->last_modbus_byte_ - this->last_send_);
         if (wfr.device)
           wfr.device->on_modbus_error(function_code & FUNCTION_CODE_MASK, exception);
 
       } else if (wfr.device) {  // Not an error response
         wfr.device->on_modbus_data(data);
       } else {  // Not an error response, but no device to respond to
-        ESP_LOGV(TAG, "Ignoring response from %d - no callback device set, %dms after last send", address,
-                 this->last_modbus_byte_ - this->last_send_);
+        ESP_LOGV(TAG, "Ignoring response from %" PRIu8 " - no callback device set, %" PRIu32 "ms after last send",
+                 address, this->last_modbus_byte_ - this->last_send_);
       }
     }
   }
@@ -303,14 +309,14 @@ void ModbusServerHub::process_modbus_server_frame(uint8_t address, uint8_t funct
                                                   const std::vector<uint8_t> &) {
   for (auto *device : this->devices_) {
     if (device->address_ == address) {
-      ESP_LOGE(TAG, "Unexpected response from address %d, which is mapped to this device.", address);
+      ESP_LOGE(TAG, "Unexpected response from address %" PRIu8 ", which is mapped to this device.", address);
     }
   }
 
   if (this->expecting_peer_response_ == address) {
-    ESP_LOGV(TAG, "Expected response from peer %d received", address);
+    ESP_LOGV(TAG, "Expected response from peer %" PRIu8 " received", address);
   } else {
-    ESP_LOGV(TAG, "Unexpected response from peer %d received", address);
+    ESP_LOGV(TAG, "Unexpected response from peer %" PRIu8 " received", address);
   }
 
   this->expecting_peer_response_ = 0;
@@ -331,7 +337,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
                  function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
         device->on_modbus_write_registers(function_code, data);
       } else {
-        ESP_LOGW(TAG, "Unsupported function code %d", function_code);
+        ESP_LOGW(TAG, "Unsupported function code %" PRIu8, function_code);
         device->send_error(function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
       }
     }
@@ -339,7 +345,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
 
   if (!found) {
     this->expecting_peer_response_ = address;
-    ESP_LOGV(TAG, "Request to peer %d received", address);
+    ESP_LOGV(TAG, "Request to peer %" PRIu8 " received", address);
   }
 }
 
@@ -349,7 +355,7 @@ bool Modbus::send_frame_(const ModbusFrame &frame) {
     return false;
   }
   if (frame.size > MAX_FRAME_SIZE) {
-    ESP_LOGE(TAG, "Attempted to send frame larger than max frame size of %d bytes", MAX_FRAME_SIZE);
+    ESP_LOGE(TAG, "Attempted to send frame larger than max frame size of %" PRIu16 " bytes", MAX_FRAME_SIZE);
     return false;
   }
 
@@ -396,17 +402,17 @@ void ModbusClientHub::send_next_frame_() {
   this->tx_buffer_.pop_front();
 
   if (!this->tx_buffer_.empty()) {
-    ESP_LOGV(TAG, "Write queue contains %" PRIu32 " items.", this->tx_buffer_.size());
+    ESP_LOGV(TAG, "Write queue contains %zu items.", this->tx_buffer_.size());
   }
 }
 
 void ModbusClientHub::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Modbus:\n"
-                "  Send Wait Time: %d ms\n"
-                "  Turnaround Time: %d ms\n"
-                "  Frame Delay: %d ms\n"
-                "  Long Rx Buffer Delay: %d ms",
+                "  Send Wait Time: %" PRIu16 " ms\n"
+                "  Turnaround Time: %" PRIu16 " ms\n"
+                "  Frame Delay: %" PRIu16 " ms\n"
+                "  Long Rx Buffer Delay: %" PRIu16 " ms",
                 this->send_wait_time_, this->turnaround_delay_ms_, this->frame_delay_ms_,
                 this->long_rx_buffer_delay_ms_);
   LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
@@ -414,8 +420,8 @@ void ModbusClientHub::dump_config() {
 void ModbusServerHub::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Modbus:\n"
-                "  Frame Delay: %d ms\n"
-                "  Long Rx Buffer Delay: %d ms",
+                "  Frame Delay: %" PRIu16 " ms\n"
+                "  Long Rx Buffer Delay: %" PRIu16 " ms",
                 this->frame_delay_ms_, this->long_rx_buffer_delay_ms_);
   LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
 }
@@ -427,8 +433,10 @@ float Modbus::get_setup_priority() const {
 
 void ModbusClientHub::send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
                            ModbusClientDevice *device, bool allow_duplicates) {
-  ESP_LOGVV(TAG, "ModbusClient::send address=%d function_code=0x%X start_address=%d number_of_entities=%d ", address,
-            function_code, start_address, number_of_entities);
+  ESP_LOGVV(TAG,
+            "ModbusClient::send address=%" PRIu8 " function_code=0x%X start_address=%" PRIu16
+            " number_of_entities=%" PRIu16,
+            address, function_code, start_address, number_of_entities);
   std::vector<uint8_t> data;
   data.push_back(address);
   create_client_pdu(data, (ModbusFunctionCode) function_code, start_address, number_of_entities);
@@ -503,7 +511,7 @@ void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sen
 
   if (clear_sent && this->waiting_for_response_.has_value() && this->waiting_for_response_.value().device) {
     if (this->waiting_for_response_.value().frame.data[0] == address) {
-      ESP_LOGV(TAG, "Clearing waiting for response for address %d", address);
+      ESP_LOGV(TAG, "Clearing waiting for response for address %" PRIu8, address);
       // Invalidate the waiting device so it won't process a response.
       this->waiting_for_response_.value().device = nullptr;
     }
@@ -545,11 +553,11 @@ void Modbus::clear_rx_buffer_(const LogString *reason, bool warn, size_t bytes_t
     bytes = bytes_to_clear;
   if (bytes > 0) {
     if (warn) {
-      ESP_LOGW(TAG, "Clearing buffer of %" PRIu32 " bytes - %s %" PRIu32 "ms after last send", bytes,
-               LOG_STR_ARG(reason), millis() - this->last_send_);
+      ESP_LOGW(TAG, "Clearing buffer of %zu bytes - %s %" PRIu32 "ms after last send", bytes, LOG_STR_ARG(reason),
+               millis() - this->last_send_);
     } else {
-      ESP_LOGV(TAG, "Clearing buffer of %" PRIu32 " bytes - %s %" PRIu32 "ms after last send", bytes,
-               LOG_STR_ARG(reason), millis() - this->last_send_);
+      ESP_LOGV(TAG, "Clearing buffer of %zu bytes - %s %" PRIu32 "ms after last send", bytes, LOG_STR_ARG(reason),
+               millis() - this->last_send_);
     }
     if (bytes == this->rx_buffer_.size()) {
       this->rx_buffer_.clear();
