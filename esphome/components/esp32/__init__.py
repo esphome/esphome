@@ -1991,8 +1991,8 @@ def _write_idf_component_yml():
         # and not required by any enabled Arduino library
         excluded_components = CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
         components_to_stub = (
-            set(ARDUINO_EXCLUDED_IDF_COMPONENTS)
-            & excluded_components - required_idf_components
+            (set(ARDUINO_EXCLUDED_IDF_COMPONENTS) & excluded_components)
+            - required_idf_components
         )
 
         stubs_dir = CORE.relative_build_path("component_stubs")
