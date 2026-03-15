@@ -41,14 +41,11 @@ enum TemplateAlarmControlPanelRestoreMode {
 };
 
 #ifdef USE_BINARY_SENSOR
-struct SensorDataStore {
-  bool last_chime_state;
-};
-
 struct SensorInfo {
   uint16_t flags;
   AlarmSensorType type;
-  uint8_t store_index;
+  bool chime_active;
+  bool auto_bypassed;
 };
 
 struct AlarmSensor {
@@ -68,7 +65,6 @@ class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControl
   bool get_requires_code_to_arm() const override { return this->requires_code_to_arm_; }
   bool get_all_sensors_ready() { return this->sensors_ready_; };
   void set_restore_mode(TemplateAlarmControlPanelRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
-  void bypass_before_arming();
 
 #ifdef USE_BINARY_SENSOR
   /** Initialize the sensors vector with the specified capacity.
@@ -141,11 +137,6 @@ class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControl
 #ifdef USE_BINARY_SENSOR
   // List of binary sensors with their alarm-specific info
   FixedVector<AlarmSensor> sensors_;
-  // a list of automatically bypassed sensors
-  std::vector<uint8_t> bypassed_sensor_indicies_;
-  // Per sensor data store
-  std::vector<SensorDataStore> sensor_data_;
-  uint8_t next_store_index_ = 0;
 #endif
   TemplateAlarmControlPanelRestoreMode restore_mode_{};
 
@@ -170,6 +161,8 @@ class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControl
   bool is_code_valid_(optional<std::string> code);
 
   void arm_(optional<std::string> code, alarm_control_panel::AlarmControlPanelState state, uint32_t delay);
+  void auto_bypass_sensors_();
+  void clear_auto_bypassed_sensors_();
 };
 
 }  // namespace esphome::template_
