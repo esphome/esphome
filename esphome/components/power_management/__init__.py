@@ -50,10 +50,16 @@ PM_ACTION_SCHEMA = automation.maybe_conf(
 
 
 @automation.register_action(
-    "power_management.acquire_lock", AcquireLockAction, PM_ACTION_SCHEMA
+    "power_management.acquire_lock",
+    AcquireLockAction,
+    PM_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "power_management.release_lock", ReleaseLockAction, PM_ACTION_SCHEMA
+    "power_management.release_lock",
+    ReleaseLockAction,
+    PM_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def power_management_lock_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
