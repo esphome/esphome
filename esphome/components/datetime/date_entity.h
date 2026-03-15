@@ -91,7 +91,7 @@ class DateCall {
 
   DateEntity *parent_;
 
-  optional<int16_t> year_;
+  optional<uint16_t> year_;
   optional<uint8_t> month_;
   optional<uint8_t> day_;
 };

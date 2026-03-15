@@ -173,7 +173,7 @@ void BL0942::received_package_(DataPacket *data) {
   float i_rms = (uint24_t) data->i_rms / current_reference_;
   float watt = (int24_t) data->watt / power_reference_;
   float total_energy_consumption = cf_cnt / energy_reference_;
-  float frequency = 1000000.0f / data->frequency;
+  float frequency = data->frequency != 0 ? 1000000.0f / data->frequency : NAN;
 
   if (voltage_sensor_ != nullptr) {
     voltage_sensor_->publish_state(v_rms);

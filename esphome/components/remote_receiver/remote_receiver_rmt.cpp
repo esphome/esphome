@@ -44,7 +44,6 @@ void RemoteReceiverComponent::setup() {
   channel.intr_priority = 0;
   channel.flags.invert_in = 0;
   channel.flags.with_dma = this->with_dma_;
-  channel.flags.io_loop_back = 0;
   esp_err_t error = rmt_new_rx_channel(&channel, &this->channel_);
   if (error != ESP_OK) {
     this->error_code_ = error;
@@ -106,7 +105,7 @@ void RemoteReceiverComponent::setup() {
   this->store_.filter_symbols = this->filter_symbols_;
   this->store_.receive_size = this->receive_symbols_ * sizeof(rmt_symbol_word_t);
   this->store_.buffer_size = std::max((event_size + this->store_.receive_size) * 2, this->buffer_size_);
-  this->store_.buffer = new uint8_t[this->buffer_size_];
+  this->store_.buffer = new uint8_t[this->store_.buffer_size];
   error = rmt_receive(this->channel_, (uint8_t *) this->store_.buffer + event_size, this->store_.receive_size,
                       &this->store_.config);
   if (error != ESP_OK) {

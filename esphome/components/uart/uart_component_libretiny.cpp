@@ -127,7 +127,7 @@ void LibreTinyUARTComponent::setup() {
     print_pins("UART0", uart_manager.get_tx_pins_for_uart(0), uart_manager.get_rx_pins_for_uart(0));
     print_pins("UART1", uart_manager.get_tx_pins_for_uart(1), uart_manager.get_rx_pins_for_uart(1));
     print_pins("UART2", uart_manager.get_tx_pins_for_uart(2), uart_manager.get_rx_pins_for_uart(2));
-    this->mark_failed();
+    this->mark_failed(LOG_STR("SoftwareSerial is not implemented for this chip."));
     return;
 #endif
   }
@@ -185,9 +185,10 @@ bool LibreTinyUARTComponent::read_array(uint8_t *data, size_t len) {
 }
 
 size_t LibreTinyUARTComponent::available() { return this->serial_->available(); }
-void LibreTinyUARTComponent::flush() {
+FlushResult LibreTinyUARTComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing");
   this->serial_->flush();
+  return FlushResult::ASSUMED_SUCCESS;
 }
 
 void LibreTinyUARTComponent::check_logger_conflict() {
