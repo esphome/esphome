@@ -974,6 +974,7 @@ err_t LWIPRawListenImpl::accept_fn_(struct tcp_pcb *newpcb, err_t err) {
 // ---- LWIPRawUDPImpl (send-only) methods ----
 
 LWIPRawUDPImpl::LWIPRawUDPImpl(sa_family_t family) : family_(family) {
+  LWIP_LOCK();
 #if LWIP_IPV6
   this->pcb_ = udp_new_ip_type(family == AF_INET6 ? IPADDR_TYPE_ANY : IPADDR_TYPE_V4);
 #else
@@ -982,6 +983,7 @@ LWIPRawUDPImpl::LWIPRawUDPImpl(sa_family_t family) : family_(family) {
 }
 
 LWIPRawUDPImpl::~LWIPRawUDPImpl() {
+  LWIP_LOCK();
   if (this->pcb_ != nullptr) {
     udp_remove(this->pcb_);
     this->pcb_ = nullptr;
@@ -989,6 +991,7 @@ LWIPRawUDPImpl::~LWIPRawUDPImpl() {
 }
 
 int LWIPRawUDPImpl::bind_internal_(const struct sockaddr *name, socklen_t addrlen) {
+  LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = EBADF;
     return -1;
@@ -1030,6 +1033,7 @@ int LWIPRawUDPImpl::bind_internal_(const struct sockaddr *name, socklen_t addrle
 int LWIPRawUDPImpl::bind(const struct sockaddr *name, socklen_t addrlen) { return this->bind_internal_(name, addrlen); }
 
 int LWIPRawUDPImpl::close() {
+  LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = EBADF;
     return -1;
@@ -1081,6 +1085,7 @@ int LWIPRawUDPImpl::ip2sockaddr_(const ip_addr_t *ip, uint16_t port, struct sock
 
 ssize_t LWIPRawUDPImpl::sendto(const void *buf, size_t len, int flags, const struct sockaddr *dest_addr,
                                socklen_t addrlen) {
+  LWIP_LOCK();
   (void) flags;  // Flags (MSG_DONTWAIT, etc.) are ignored; raw lwip is always non-blocking
   if (this->pcb_ == nullptr) {
     errno = EBADF;
@@ -1123,6 +1128,7 @@ ssize_t LWIPRawUDPImpl::sendto(const void *buf, size_t len, int flags, const str
 }
 
 int LWIPRawUDPImpl::setsockopt(int level, int optname, const void *optval, socklen_t optlen) {
+  LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = EBADF;
     return -1;
@@ -1219,7 +1225,9 @@ LWIPRawUDPRecvImpl::~LWIPRawUDPRecvImpl() {
 }
 
 int LWIPRawUDPRecvImpl::close() {
-  // Unregister recv callback before removing pcb
+  LWIP_LOCK();
+  // Unregister recv callback before removing pcb — prevents new packets
+  // from being enqueued after we start flushing.
   if (this->pcb_ != nullptr) {
     udp_recv(this->pcb_, nullptr, nullptr);
   }
@@ -1232,15 +1240,17 @@ int LWIPRawUDPRecvImpl::close() {
     }
     this->rx_read_idx_ = (this->rx_read_idx_ + 1) & UDP_RX_MASK;
   }
-  // close() returns EBADF if already closed, which is fine from destructor
+  // Base close() acquires LWIP_LOCK again (recursive/reentrant on RP2040)
   return LWIPRawUDPImpl::close();
 }
 
 int LWIPRawUDPRecvImpl::bind(const struct sockaddr *name, socklen_t addrlen) {
+  // bind_internal_ acquires LWIP_LOCK (recursive/reentrant on RP2040)
   int ret = this->bind_internal_(name, addrlen);
   if (ret != 0)
     return ret;
   // Register recv callback now that we're bound and ready to receive
+  LWIP_LOCK();
   udp_recv(this->pcb_, LWIPRawUDPRecvImpl::s_recv_fn, this);
   return 0;
 }
@@ -1261,6 +1271,7 @@ ssize_t LWIPRawUDPRecvImpl::recvfrom(void *buf, size_t len, struct sockaddr *src
     return -1;
   }
 
+  LWIP_LOCK();
   auto &pkt = this->rx_queue_[this->rx_read_idx_];
   size_t pkt_len = pkt.pb->tot_len;
   size_t copy_len = std::min(len, pkt_len);
