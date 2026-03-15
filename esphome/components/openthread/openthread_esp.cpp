@@ -82,8 +82,7 @@ void OpenThreadComponent::setup() {
 
   // lock
   esp_openthread_lock_acquire(portMAX_DELAY);
-  this->set_link_mode(instance, false, true);
-
+  this->apply_linkmode(instance);
   if (this->output_power_.has_value()) {
     if (const auto err = otPlatRadioSetTransmitPower(instance, *this->output_power_); err != OT_ERROR_NONE) {
       ESP_LOGE(TAG, "Failed to set power: %s", otThreadErrorToString(err));

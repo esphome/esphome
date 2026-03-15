@@ -30,7 +30,6 @@ from .const import (
     CONF_DEVICE_TYPE,
     CONF_EXT_PAN_ID,
     CONF_FORCE_DATASET,
-    CONF_KEEP_RADIO_ON,
     CONF_MDNS_ID,
     CONF_MESH_LOCAL_PREFIX,
     CONF_NETWORK_KEY,
@@ -237,11 +236,7 @@ async def to_code(config):
     ot = cg.new_Pvariable(config[CONF_ID])
     cg.add(ot.set_use_address(config[CONF_USE_ADDRESS]))
     await cg.register_component(ot, config)
-    if (
-        poll_period := config.get(CONF_POLL_PERIOD)
-    ) is not None and poll_period > TimePeriodMilliseconds(milliseconds=0):
-        # So we can compile in code based on poll_period
-        cg.add_define("USE_OPENTHREAD_POLL_PERIOD")
+    if (poll_period := config.get(CONF_POLL_PERIOD)) is not None:
         cg.add(ot.set_poll_period(poll_period))
 
     srp = cg.new_Pvariable(config[CONF_SRP_ID])
@@ -255,25 +250,33 @@ async def to_code(config):
     set_sdkconfig_options(config)
 
 
-OpenThreadComponentRadioAction = openthread_ns.class_(
-    "OpenThreadComponentRadioAction", automation.Action
+# Actions
+OpenThreadComponentPollPeriodAction = openthread_ns.class_(
+    "OpenThreadComponentPollPeriodAction",
+    automation.Action,
+    cg.Parented.template(OpenThreadComponent),
 )
 
-RADIO_ACTION_SCHEMA = automation.maybe_conf(
-    CONF_KEEP_RADIO_ON,
+# TODO: Validations (e.g. MTD only)
+POLL_PERIOD_ACTION_SCHEMA = automation.maybe_conf(
+    CONF_POLL_PERIOD,
     cv.Schema(
         {
-            cv.Optional(CONF_KEEP_RADIO_ON): cv.boolean,
+            cv.GenerateID(): cv.use_id(OpenThreadComponent),
+            cv.Required(CONF_POLL_PERIOD): cv.positive_time_period_milliseconds,
         }
     ),
 )
 
 
 @automation.register_action(
-    "openthread.radio", OpenThreadComponentRadioAction, RADIO_ACTION_SCHEMA
+    "openthread.pollperiod",
+    OpenThreadComponentPollPeriodAction,
+    POLL_PERIOD_ACTION_SCHEMA,
+    synchronous=True,
 )
-async def openthread_radio_action_to_code(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    if (keep_radio_on := config.get(CONF_KEEP_RADIO_ON)) is not None:
-        cg.add(var.set_keep_radio_on(keep_radio_on))
+async def openthread_poll_period_action_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    cg.add(var.set_poll_period(config[CONF_POLL_PERIOD]))
     return var
