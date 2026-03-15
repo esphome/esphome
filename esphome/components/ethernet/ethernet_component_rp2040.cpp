@@ -80,7 +80,11 @@ void EthernetComponent::setup() {
 }
 
 void EthernetComponent::loop() {
-  // On RP2040, we need to poll connection state since there are no events
+  // On RP2040, we need to poll connection state since there are no events.
+  // linkStatus() reads the W5500 PHY register via SPI — no lwip state involved.
+  // connected() reads netif->ip_addr without LwIPLock, but this is a single
+  // 32-bit aligned read (atomic on ARM) — worst case is a one-iteration-stale
+  // value, which is benign for polling.
   if (this->eth_ != nullptr) {
     bool link_up = this->eth_->linkStatus() == LinkON;
     bool has_ip = this->eth_->connected();
