@@ -250,9 +250,6 @@ void EthernetComponent::start_connect_() {
     }
   }
 #endif
-
-  this->connect_begin_ = millis();
-  this->status_set_warning();
 }
 
 void EthernetComponent::finish_connect_() {
@@ -272,13 +269,16 @@ void EthernetComponent::dump_connect_params_() {
   char dns2_buf[network::IP_ADDRESS_BUFFER_SIZE];
   char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
 
-  auto *netif = this->eth_->getNetIf();
-  const ip_addr_t *dns_ip1;
-  const ip_addr_t *dns_ip2;
+  // Copy all lwIP state under the lock to avoid races with IRQ callbacks
+  ip_addr_t ip_addr, netmask, gw, dns1_addr, dns2_addr;
   {
     LwIPLock lock;
-    dns_ip1 = dns_getserver(0);
-    dns_ip2 = dns_getserver(1);
+    auto *netif = this->eth_->getNetIf();
+    ip_addr = netif->ip_addr;
+    netmask = netif->netmask;
+    gw = netif->gw;
+    dns1_addr = *dns_getserver(0);
+    dns2_addr = *dns_getserver(1);
   }
   ESP_LOGCONFIG(TAG,
                 "  IP Address: %s\n"
@@ -288,10 +288,10 @@ void EthernetComponent::dump_connect_params_() {
                 "  DNS1: %s\n"
                 "  DNS2: %s\n"
                 "  MAC Address: %s",
-                network::IPAddress(&netif->ip_addr).str_to(ip_buf), App.get_name().c_str(),
-                network::IPAddress(&netif->netmask).str_to(subnet_buf),
-                network::IPAddress(&netif->gw).str_to(gateway_buf), network::IPAddress(dns_ip1).str_to(dns1_buf),
-                network::IPAddress(dns_ip2).str_to(dns2_buf), this->get_eth_mac_address_pretty_into_buffer(mac_buf));
+                network::IPAddress(&ip_addr).str_to(ip_buf), App.get_name().c_str(),
+                network::IPAddress(&netmask).str_to(subnet_buf), network::IPAddress(&gw).str_to(gateway_buf),
+                network::IPAddress(&dns1_addr).str_to(dns1_buf), network::IPAddress(&dns2_addr).str_to(dns2_buf),
+                this->get_eth_mac_address_pretty_into_buffer(mac_buf));
 }
 
 void EthernetComponent::set_clk_pin(uint8_t clk_pin) { this->clk_pin_ = clk_pin; }
