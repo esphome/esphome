@@ -504,7 +504,7 @@ void AudioPipeline::decode_task(void *params) {
         if (!started_playback && has_stream_info) {
           // Verify enough data is available before starting playback
           std::shared_ptr<RingBuffer> temp_ring_buffer = this_pipeline->raw_file_ring_buffer_.lock();
-          if (temp_ring_buffer->available() >= initial_bytes_to_buffer) {
+          if (temp_ring_buffer != nullptr && temp_ring_buffer->available() >= initial_bytes_to_buffer) {
             started_playback = true;
           }
         }
