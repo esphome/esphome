@@ -247,16 +247,11 @@ def _validate(config):
                     f"{config[CONF_TYPE]} PHY requires RMII interface and is only supported "
                     f"on ESP32 classic and ESP32-P4, not {variant}"
                 )
-    elif CORE.is_rp2040:
-        if config[CONF_TYPE] not in RP2040_SPI_ETHERNET_TYPES:
-            raise cv.Invalid(
-                f"Only {', '.join(RP2040_SPI_ETHERNET_TYPES)} are supported on RP2040, "
-                f"not {config[CONF_TYPE]}"
-            )
-        if CONF_CLOCK_SPEED in config:
-            raise cv.Invalid(f"'{CONF_CLOCK_SPEED}' is not supported on RP2040")
-        if CONF_POLLING_INTERVAL in config:
-            raise cv.Invalid(f"'{CONF_POLLING_INTERVAL}' is not supported on RP2040")
+    elif CORE.is_rp2040 and config[CONF_TYPE] not in RP2040_SPI_ETHERNET_TYPES:
+        raise cv.Invalid(
+            f"Only {', '.join(RP2040_SPI_ETHERNET_TYPES)} are supported on RP2040, "
+            f"not {config[CONF_TYPE]}"
+        )
     return config
 
 
@@ -315,10 +310,13 @@ SPI_SCHEMA = cv.All(
                 cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_number,
                 cv.Optional(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
                 cv.Optional(CONF_CLOCK_SPEED, default="26.67MHz"): cv.All(
-                    cv.frequency, cv.int_range(int(8e6), int(80e6))
+                    cv.only_on([Platform.ESP32]),
+                    cv.frequency,
+                    cv.int_range(int(8e6), int(80e6)),
                 ),
                 # Set default value (SPI_ETHERNET_DEFAULT_POLLING_INTERVAL) at _validate()
                 cv.Optional(CONF_POLLING_INTERVAL): cv.All(
+                    cv.only_on([Platform.ESP32]),
                     cv.positive_time_period_milliseconds,
                     cv.Range(min=TimePeriodMilliseconds(milliseconds=1)),
                 ),
