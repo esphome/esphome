@@ -602,7 +602,7 @@ class ProtoSize {
   static constexpr uint32_t calc_sint32(uint32_t field_id_size, int32_t value) {
     return value ? field_id_size + varint(encode_zigzag32(value)) : 0;
   }
-  static constexpr uint32_t calc_sint32_force(uint32_t field_id_size, int32_t value) {
+  static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE calc_sint32_force(uint32_t field_id_size, int32_t value) {
     return field_id_size + varint(encode_zigzag32(value));
   }
   static constexpr uint32_t calc_int64(uint32_t field_id_size, int64_t value) {
@@ -614,13 +614,13 @@ class ProtoSize {
   static constexpr uint32_t calc_uint64(uint32_t field_id_size, uint64_t value) {
     return value ? field_id_size + varint(value) : 0;
   }
-  static constexpr uint32_t calc_uint64_force(uint32_t field_id_size, uint64_t value) {
+  static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE calc_uint64_force(uint32_t field_id_size, uint64_t value) {
     return field_id_size + varint(value);
   }
   static constexpr uint32_t calc_length(uint32_t field_id_size, size_t len) {
     return len ? field_id_size + varint(static_cast<uint32_t>(len)) + static_cast<uint32_t>(len) : 0;
   }
-  static constexpr uint32_t calc_length_force(uint32_t field_id_size, size_t len) {
+  static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE calc_length_force(uint32_t field_id_size, size_t len) {
     return field_id_size + varint(static_cast<uint32_t>(len)) + static_cast<uint32_t>(len);
   }
   static constexpr uint32_t calc_sint64(uint32_t field_id_size, int64_t value) {
@@ -638,7 +638,8 @@ class ProtoSize {
   static constexpr uint32_t calc_message(uint32_t field_id_size, uint32_t nested_size) {
     return nested_size ? field_id_size + varint(nested_size) + nested_size : 0;
   }
-  static constexpr uint32_t calc_message_force(uint32_t field_id_size, uint32_t nested_size) {
+  static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE calc_message_force(uint32_t field_id_size,
+                                                                            uint32_t nested_size) {
     return field_id_size + varint(nested_size) + nested_size;
   }
 };
