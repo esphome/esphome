@@ -348,6 +348,8 @@
 #define USE_SOCKET_IMPL_LWIP_TCP
 #define USE_RP2040_BLE
 #define USE_SPI
+#define USE_ETHERNET
+#define USE_ETHERNET_SPI
 #endif
 
 #ifdef USE_LIBRETINY
