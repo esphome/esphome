@@ -58,7 +58,6 @@ class LWIPRawCommon {
   // instead use it for determining whether to call lwip_output
   bool nodelay_ = false;
   sa_family_t family_ = 0;
-  uint8_t recv_timeout_cs_ = 0;  // SO_RCVTIMEO in centiseconds (0 = no timeout, max 2.55s)
 };
 
 /// Connected socket implementation for LWIP raw TCP.
@@ -109,8 +108,11 @@ class LWIPRawImpl : public LWIPRawCommon {
       errno = ECONNRESET;
       return -1;
     }
-    // Raw TCP doesn't use a blocking flag directly. Blocking behavior
-    // is provided by SO_RCVTIMEO which makes read() wait via socket_delay().
+    if (blocking) {
+      // blocking operation not supported
+      errno = EINVAL;
+      return -1;
+    }
     return 0;
   }
   int loop() { return 0; }
@@ -121,14 +123,6 @@ class LWIPRawImpl : public LWIPRawCommon {
   static err_t s_recv_fn(void *arg, struct tcp_pcb *pcb, struct pbuf *pb, err_t err);
 
  protected:
-  // True when the socket could receive data but none has arrived yet.
-  // Safe to call without LWIP_LOCK — only null-checks pointers and reads a bool,
-  // all atomic on ARM/Xtensa. A stale value is harmless: the caller either does
-  // an unnecessary wait (stale true) or skips it (stale false), and the
-  // authoritative recheck happens under LWIP_LOCK afterward.
-  bool waiting_for_data_() const { return this->rx_buf_ == nullptr && !this->rx_closed_ && this->pcb_ != nullptr; }
-  void wait_for_data_();
-  ssize_t read_locked_(void *buf, size_t len);
   ssize_t internal_write_(const void *buf, size_t len);
   int internal_output_();
 
@@ -280,19 +274,19 @@ class LWIPRawUDPRecvImpl : public LWIPRawUDPImpl {
   ssize_t recvfrom(void *buf, size_t len, struct sockaddr *src_addr, socklen_t *addrlen);
 
   /// Returns true if there are packets available to read.
-  bool ready() const { return this->rx_read_idx_ != this->rx_write_idx_; }
+  /// Intentionally unlocked — same rationale as LWIPRawImpl::ready().
+  bool ready() const { return this->rx_count_ > 0; }
 
  protected:
   static void s_recv_fn(void *arg, struct udp_pcb *pcb, struct pbuf *p, const ip_addr_t *addr, u16_t port);
   void recv_fn_(struct pbuf *p, const ip_addr_t *addr, u16_t port);
 
-  /// Lock-free SPSC ring buffer for received UDP packets.
-  /// Producer (recv callback, possibly IRQ context on RP2040) writes rx_write_idx_.
-  /// Consumer (main loop) writes rx_read_idx_.
-  /// No shared read-modify-write — safe without locking.
-  /// One slot is reserved to distinguish full from empty, giving 3 usable slots.
+  /// Ring buffer for received UDP packets.
+  /// Both producer (recv callback) and consumer (main loop) are serialized by the
+  /// lwip lock — the callback runs under lwip core lock, and consumer methods hold
+  /// LWIP_LOCK(). All 4 slots are usable (no wasted slot for full/empty distinction).
   /// No heap allocation in the recv callback — packets are dropped if the queue is full.
-  static constexpr uint8_t UDP_RX_QUEUE_SIZE = 4;  // Must be power of 2
+  static constexpr uint8_t UDP_RX_QUEUE_SIZE = 4;
   static constexpr uint8_t UDP_RX_MASK = UDP_RX_QUEUE_SIZE - 1;
   static_assert((UDP_RX_QUEUE_SIZE & UDP_RX_MASK) == 0, "UDP_RX_QUEUE_SIZE must be power of 2");
   struct UDPRxPacket {
@@ -301,8 +295,8 @@ class LWIPRawUDPRecvImpl : public LWIPRawUDPImpl {
     uint16_t src_port{0};
   };
   std::array<UDPRxPacket, UDP_RX_QUEUE_SIZE> rx_queue_{};
-  volatile uint8_t rx_read_idx_{0};   ///< Written by consumer (main loop), read by producer
-  volatile uint8_t rx_write_idx_{0};  ///< Written by producer (recv callback), read by consumer
+  uint8_t rx_read_idx_{0};
+  uint8_t rx_count_{0};
 };
 
 }  // namespace esphome::socket

@@ -5,7 +5,6 @@
 
 #include <cerrno>
 #include <cstring>
-#include <sys/time.h>
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -86,9 +85,7 @@ void socket_delay(uint32_t ms) {
     s_socket_woke = false;
     return;
   }
-  // Don't clear s_socket_woke here — if an IRQ fires between the check above
-  // and the while loop below, the while condition sees it immediately. Clearing
-  // here would lose that wake and sleep until the timer fires.
+  s_socket_woke = false;
   s_delay_expired = false;
   // Set a one-shot timer to wake us after the timeout.
   // add_alarm_in_ms returns >0 on success, 0 if time already passed, <0 on error.
@@ -106,7 +103,6 @@ void socket_delay(uint32_t ms) {
   // Cancel timer if we woke early (socket data arrived before timeout)
   if (!s_delay_expired)
     cancel_alarm(alarm);
-  s_socket_woke = false;  // consume the wake for next call
 }
 
 // No IRAM_ATTR equivalent needed: on RP2040, CYW43 async_context runs LWIP
@@ -412,18 +408,6 @@ int LWIPRawCommon::getsockopt(int level, int optname, void *optval, socklen_t *o
     *optlen = 4;
     return 0;
   }
-  if (level == SOL_SOCKET && optname == SO_RCVTIMEO) {
-    if (*optlen < sizeof(struct timeval)) {
-      errno = EINVAL;
-      return -1;
-    }
-    uint32_t ms = this->recv_timeout_cs_ * 10;
-    auto *tv = reinterpret_cast<struct timeval *>(optval);
-    tv->tv_sec = ms / 1000;
-    tv->tv_usec = (ms % 1000) * 1000;
-    *optlen = sizeof(struct timeval);
-    return 0;
-  }
   if (level == IPPROTO_TCP && optname == TCP_NODELAY) {
     if (*optlen < 4) {
       errno = EINVAL;
@@ -451,21 +435,6 @@ int LWIPRawCommon::setsockopt(int level, int optname, const void *optval, sockle
     }
     // lwip doesn't seem to have this feature. Don't send an error
     // to prevent warnings
-    return 0;
-  }
-  if (level == SOL_SOCKET && optname == SO_RCVTIMEO) {
-    if (optlen < sizeof(struct timeval)) {
-      errno = EINVAL;
-      return -1;
-    }
-    const auto *tv = reinterpret_cast<const struct timeval *>(optval);
-    uint32_t ms = tv->tv_sec * 1000 + tv->tv_usec / 1000;
-    uint32_t cs = (ms + 9) / 10;  // round up to nearest centisecond
-    this->recv_timeout_cs_ = cs > 255 ? 255 : static_cast<uint8_t>(cs);
-    return 0;
-  }
-  if (level == SOL_SOCKET && optname == SO_SNDTIMEO) {
-    // Raw TCP writes are non-blocking (tcp_write), so send timeout is a no-op.
     return 0;
   }
   if (level == IPPROTO_TCP && optname == TCP_NODELAY) {
@@ -563,25 +532,8 @@ err_t LWIPRawImpl::recv_fn(struct pbuf *pb, err_t err) {
   return ERR_OK;
 }
 
-void LWIPRawImpl::wait_for_data_() {
-  // Wait for data without holding LWIP_LOCK so recv_fn() can run on RP2040
-  // (needs async_context lock).
-  //
-  // Loop until data arrives, connection closes, or the full timeout elapses.
-  // socket_delay() may return early due to other sockets waking the global
-  // socket_wake() flag, so we re-enter for the remaining time.
-  uint32_t timeout_ms = this->recv_timeout_cs_ * 10;
-  uint32_t start = millis();
-  while (this->waiting_for_data_()) {
-    uint32_t elapsed = millis() - start;
-    if (elapsed >= timeout_ms)
-      break;
-    socket_delay(timeout_ms - elapsed);
-  }
-}
-
-ssize_t LWIPRawImpl::read_locked_(void *buf, size_t len) {
-  // Caller must hold LWIP_LOCK. Copies available data from rx_buf_ into buf.
+ssize_t LWIPRawImpl::read(void *buf, size_t len) {
+  LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = ECONNRESET;
     return -1;
@@ -640,26 +592,11 @@ ssize_t LWIPRawImpl::read_locked_(void *buf, size_t len) {
   return read;
 }
 
-ssize_t LWIPRawImpl::read(void *buf, size_t len) {
-  // See waiting_for_data_() for safety of unlocked reads.
-  if (this->recv_timeout_cs_ > 0 && this->waiting_for_data_()) {
-    this->wait_for_data_();
-  }
-
-  LWIP_LOCK();
-  return this->read_locked_(buf, len);
-}
-
 ssize_t LWIPRawImpl::readv(const struct iovec *iov, int iovcnt) {
-  // See waiting_for_data_() for safety of unlocked reads.
-  if (this->recv_timeout_cs_ > 0 && this->waiting_for_data_()) {
-    this->wait_for_data_();
-  }
-
   LWIP_LOCK();  // Hold for entire scatter-gather operation
   ssize_t ret = 0;
   for (int i = 0; i < iovcnt; i++) {
-    ssize_t err = this->read_locked_(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
+    ssize_t err = this->read(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
     if (err == -1) {
       if (ret != 0) {
         // if we already read some don't return an error
@@ -1085,8 +1022,8 @@ int LWIPRawUDPImpl::ip2sockaddr_(const ip_addr_t *ip, uint16_t port, struct sock
 
 ssize_t LWIPRawUDPImpl::sendto(const void *buf, size_t len, int flags, const struct sockaddr *dest_addr,
                                socklen_t addrlen) {
-  LWIP_LOCK();
   (void) flags;  // Flags (MSG_DONTWAIT, etc.) are ignored; raw lwip is always non-blocking
+  LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = EBADF;
     return -1;
@@ -1190,6 +1127,7 @@ int LWIPRawUDPImpl::setsockopt(int level, int optname, const void *optval, sockl
 }
 
 int LWIPRawUDPImpl::getsockopt(int level, int optname, void *optval, socklen_t *optlen) {
+  LWIP_LOCK();
   if (this->pcb_ == nullptr) {
     errno = EBADF;
     return -1;
@@ -1226,31 +1164,30 @@ LWIPRawUDPRecvImpl::~LWIPRawUDPRecvImpl() {
 
 int LWIPRawUDPRecvImpl::close() {
   LWIP_LOCK();
-  // Unregister recv callback before removing pcb — prevents new packets
-  // from being enqueued after we start flushing.
+  // Unregister recv callback before removing pcb
   if (this->pcb_ != nullptr) {
     udp_recv(this->pcb_, nullptr, nullptr);
   }
   // Flush any queued rx packets
-  while (this->rx_read_idx_ != this->rx_write_idx_) {
+  while (this->rx_count_ > 0) {
     auto &pkt = this->rx_queue_[this->rx_read_idx_];
     if (pkt.pb != nullptr) {
       pbuf_free(pkt.pb);
       pkt.pb = nullptr;
     }
     this->rx_read_idx_ = (this->rx_read_idx_ + 1) & UDP_RX_MASK;
+    this->rx_count_--;
   }
-  // Base close() acquires LWIP_LOCK again (recursive/reentrant on RP2040)
+  // close() returns EBADF if already closed, which is fine from destructor
   return LWIPRawUDPImpl::close();
 }
 
 int LWIPRawUDPRecvImpl::bind(const struct sockaddr *name, socklen_t addrlen) {
-  // bind_internal_ acquires LWIP_LOCK (recursive/reentrant on RP2040)
+  LWIP_LOCK();
   int ret = this->bind_internal_(name, addrlen);
   if (ret != 0)
     return ret;
   // Register recv callback now that we're bound and ready to receive
-  LWIP_LOCK();
   udp_recv(this->pcb_, LWIPRawUDPRecvImpl::s_recv_fn, this);
   return 0;
 }
@@ -1258,20 +1195,20 @@ int LWIPRawUDPRecvImpl::bind(const struct sockaddr *name, socklen_t addrlen) {
 ssize_t LWIPRawUDPRecvImpl::read(void *buf, size_t len) { return this->recvfrom(buf, len, nullptr, nullptr); }
 
 ssize_t LWIPRawUDPRecvImpl::recvfrom(void *buf, size_t len, struct sockaddr *src_addr, socklen_t *addrlen) {
-  if (this->pcb_ == nullptr) {
-    errno = EBADF;
-    return -1;
-  }
   if (buf == nullptr && len > 0) {
     errno = EINVAL;
     return -1;
   }
-  if (this->rx_read_idx_ == this->rx_write_idx_) {
+  LWIP_LOCK();
+  if (this->pcb_ == nullptr) {
+    errno = EBADF;
+    return -1;
+  }
+  if (this->rx_count_ == 0) {
     errno = EWOULDBLOCK;
     return -1;
   }
 
-  LWIP_LOCK();
   auto &pkt = this->rx_queue_[this->rx_read_idx_];
   size_t pkt_len = pkt.pb->tot_len;
   size_t copy_len = std::min(len, pkt_len);
@@ -1284,11 +1221,11 @@ ssize_t LWIPRawUDPRecvImpl::recvfrom(void *buf, size_t len, struct sockaddr *src
     this->ip2sockaddr_(&pkt.src_addr, pkt.src_port, src_addr, addrlen);
   }
 
-  // Free the pbuf and advance the read pointer — must be last,
-  // as this publishes the slot to the producer (recv callback).
+  // Free the pbuf and advance the read pointer
   pbuf_free(pkt.pb);
   pkt.pb = nullptr;
   this->rx_read_idx_ = (this->rx_read_idx_ + 1) & UDP_RX_MASK;
+  this->rx_count_--;
 
   return (ssize_t) copy_len;
 }
@@ -1298,24 +1235,27 @@ void LWIPRawUDPRecvImpl::s_recv_fn(void *arg, struct udp_pcb *pcb, struct pbuf *
   self->recv_fn_(p, addr, port);
 }
 
+// LWIP CALLBACK — runs from IRQ context on RP2040 (low-priority user IRQ).
+// No heap allocation allowed — malloc is not IRQ-safe (see #14687).
+// No LWIP_LOCK() needed — lwip core already holds the async_context lock.
 void LWIPRawUDPRecvImpl::recv_fn_(struct pbuf *p, const ip_addr_t *addr, u16_t port) {
   if (p == nullptr)
     return;
 
-  // Check if queue is full (next write position would collide with read position)
-  uint8_t next_write = (this->rx_write_idx_ + 1) & UDP_RX_MASK;
-  if (next_write == this->rx_read_idx_) {
+  // Check if queue is full
+  if (this->rx_count_ >= UDP_RX_QUEUE_SIZE) {
     // Drop packet — queue full
     pbuf_free(p);
     return;
   }
 
-  // Enqueue the packet — write data first, then publish by advancing write index.
-  auto &slot = this->rx_queue_[this->rx_write_idx_];
+  // Enqueue the packet
+  uint8_t write_idx = (this->rx_read_idx_ + this->rx_count_) & UDP_RX_MASK;
+  auto &slot = this->rx_queue_[write_idx];
   slot.pb = p;
   slot.src_addr = *addr;
   slot.src_port = port;
-  this->rx_write_idx_ = next_write;
+  this->rx_count_++;
 
 #if defined(USE_ESP8266) || defined(USE_RP2040)
   socket_wake();
@@ -1346,6 +1286,7 @@ std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol
 
 std::unique_ptr<UDPSocket> socket_udp(int domain, int protocol) {
   (void) protocol;  // Raw lwip UDP ignores protocol; kept for API compatibility
+  LWIP_LOCK();
   auto sock = make_unique<LWIPRawUDPImpl>((sa_family_t) domain);
   if (!sock->is_valid()) {
     errno = ENOMEM;
@@ -1356,6 +1297,7 @@ std::unique_ptr<UDPSocket> socket_udp(int domain, int protocol) {
 
 std::unique_ptr<UDPRecvSocket> socket_udp_recv(int domain, int protocol) {
   (void) protocol;  // Raw lwip UDP ignores protocol; kept for API compatibility
+  LWIP_LOCK();
   auto sock = make_unique<LWIPRawUDPRecvImpl>((sa_family_t) domain);
   if (!sock->is_valid()) {
     errno = ENOMEM;
