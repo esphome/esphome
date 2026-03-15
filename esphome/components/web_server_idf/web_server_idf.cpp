@@ -74,12 +74,13 @@ int nonblocking_send(httpd_handle_t hd, int sockfd, const char *buf, size_t buf_
   // Use MSG_DONTWAIT to prevent blocking when TCP send buffer is full
   int ret = send(sockfd, buf, buf_len, flags | MSG_DONTWAIT);
   if (ret < 0) {
-    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+    const int err = errno;
+    if (err == EAGAIN || err == EWOULDBLOCK) {
       // Buffer full - retry later
       return HTTPD_SOCK_ERR_TIMEOUT;
     }
     // Real error
-    ESP_LOGD(TAG, "send error: errno %d", errno);
+    ESP_LOGD(TAG, "send error: errno %d", err);
     return HTTPD_SOCK_ERR_FAIL;
   }
   return ret;

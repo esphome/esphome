@@ -207,9 +207,7 @@ APIError APINoiseFrameHelper::try_read_frame_() {
   // During handshake, rx_buf_.size() is used in prologue construction, so
   // the buffer must be exactly msg_size to avoid prologue mismatch.)
   uint16_t alloc_size = msg_size + (is_data ? RX_BUF_NULL_TERMINATOR : 0);
-  if (this->rx_buf_.size() != alloc_size) {
-    this->rx_buf_.resize(alloc_size);
-  }
+  this->rx_buf_.resize(alloc_size);
 
   if (rx_buf_len_ < msg_size) {
     // more data to read
@@ -260,10 +258,13 @@ APIError APINoiseFrameHelper::state_action_() {
     // ignore contents, may be used in future for flags
     // Resize for: existing prologue + 2 size bytes + frame data
     size_t old_size = this->prologue_.size();
-    this->prologue_.resize(old_size + 2 + this->rx_buf_.size());
-    this->prologue_[old_size] = (uint8_t) (this->rx_buf_.size() >> 8);
-    this->prologue_[old_size + 1] = (uint8_t) this->rx_buf_.size();
-    std::memcpy(this->prologue_.data() + old_size + 2, this->rx_buf_.data(), this->rx_buf_.size());
+    size_t rx_size = this->rx_buf_.size();
+    this->prologue_.resize(old_size + 2 + rx_size);
+    this->prologue_[old_size] = (uint8_t) (rx_size >> 8);
+    this->prologue_[old_size + 1] = (uint8_t) rx_size;
+    if (rx_size > 0) {
+      std::memcpy(this->prologue_.data() + old_size + 2, this->rx_buf_.data(), rx_size);
+    }
 
     state_ = State::SERVER_HELLO;
   }
@@ -375,6 +376,7 @@ void APINoiseFrameHelper::send_explicit_handshake_reject_(const LogString *reaso
 #ifdef USE_STORE_LOG_STR_IN_FLASH
   // On ESP8266 with flash strings, we need to use PROGMEM-aware functions
   size_t reason_len = strlen_P(reinterpret_cast<PGM_P>(reason));
+  reason_len = std::min(reason_len, sizeof(data) - 1);
   if (reason_len > 0) {
     memcpy_P(data + 1, reinterpret_cast<PGM_P>(reason), reason_len);
   }
@@ -382,6 +384,7 @@ void APINoiseFrameHelper::send_explicit_handshake_reject_(const LogString *reaso
   // Normal memory access
   const char *reason_str = LOG_STR_ARG(reason);
   size_t reason_len = strlen(reason_str);
+  reason_len = std::min(reason_len, sizeof(data) - 1);
   if (reason_len > 0) {
     // NOLINTNEXTLINE(bugprone-not-null-terminated-result) - binary protocol, not a C string
     std::memcpy(data + 1, reason_str, reason_len);
@@ -397,14 +400,9 @@ void APINoiseFrameHelper::send_explicit_handshake_reject_(const LogString *reaso
   state_ = orig_state;
 }
 APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
-  APIError aerr = this->state_action_();
-  if (aerr != APIError::OK) {
+  APIError aerr = this->check_data_state_();
+  if (aerr != APIError::OK)
     return aerr;
-  }
-
-  if (this->state_ != State::DATA) {
-    return APIError::WOULD_BLOCK;
-  }
 
   aerr = this->try_read_frame_();
   if (aerr != APIError::OK)
@@ -452,23 +450,10 @@ APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
   buffer->type = type;
   return APIError::OK;
 }
-APIError APINoiseFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
-  // Resize to include MAC space (required for Noise encryption)
-  buffer.get_buffer()->resize(buffer.get_buffer()->size() + frame_footer_size_);
-  MessageInfo msg{type, 0,
-                  static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_ - frame_footer_size_)};
-  return write_protobuf_messages(buffer, std::span<const MessageInfo>(&msg, 1));
-}
-
 APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) {
-  APIError aerr = state_action_();
-  if (aerr != APIError::OK) {
+  APIError aerr = this->check_data_state_();
+  if (aerr != APIError::OK)
     return aerr;
-  }
-
-  if (state_ != State::DATA) {
-    return APIError::WOULD_BLOCK;
-  }
 
   if (messages.empty()) {
     return APIError::OK;

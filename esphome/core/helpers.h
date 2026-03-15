@@ -296,6 +296,210 @@ template<typename T, size_t N> class StaticVector {
   operator std::span<const T>() const { return std::span<const T>(data_.data(), count_); }
 };
 
+/// Fixed-size circular buffer with FIFO semantics and iteration support.
+///
+/// A tiny ring buffer that avoids dynamic allocations from std::deque/std::queue
+/// (which can be wasteful on MCUs), while supporting iteration over queued elements.
+///
+/// Not thread-safe. All access (push/pop/iteration) must occur from a single
+/// context, or the caller must provide external synchronization.
+template<typename T, size_t N> class StaticRingBuffer {
+  using index_type = std::conditional_t<(N <= std::numeric_limits<uint8_t>::max()), uint8_t, uint16_t>;
+
+ public:
+  class Iterator {
+   public:
+    Iterator(StaticRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
+    T &operator*() { return buf_->data_[(buf_->head_ + pos_) % N]; }
+    Iterator &operator++() {
+      ++pos_;
+      return *this;
+    }
+    bool operator!=(const Iterator &other) const { return pos_ != other.pos_; }
+
+   private:
+    StaticRingBuffer *buf_;
+    index_type pos_;
+  };
+
+  class ConstIterator {
+   public:
+    ConstIterator(const StaticRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
+    const T &operator*() const { return buf_->data_[(buf_->head_ + pos_) % N]; }
+    ConstIterator &operator++() {
+      ++pos_;
+      return *this;
+    }
+    bool operator!=(const ConstIterator &other) const { return pos_ != other.pos_; }
+
+   private:
+    const StaticRingBuffer *buf_;
+    index_type pos_;
+  };
+
+  bool push(const T &value) {
+    if (this->count_ >= N) {
+      return false;
+    }
+    this->data_[this->tail_] = value;
+    this->tail_ = (this->tail_ + 1) % N;
+    ++this->count_;
+    return true;
+  }
+
+  void pop() {
+    if (this->count_ > 0) {
+      this->head_ = (this->head_ + 1) % N;
+      --this->count_;
+    }
+  }
+
+  T &front() { return this->data_[this->head_]; }
+  const T &front() const { return this->data_[this->head_]; }
+  index_type size() const { return this->count_; }
+  bool empty() const { return this->count_ == 0; }
+
+  /// Clear all elements (reset to empty)
+  void clear() {
+    this->head_ = 0;
+    this->tail_ = 0;
+    this->count_ = 0;
+  }
+
+  Iterator begin() { return Iterator(this, 0); }
+  Iterator end() { return Iterator(this, this->count_); }
+  ConstIterator begin() const { return ConstIterator(this, 0); }
+  ConstIterator end() const { return ConstIterator(this, this->count_); }
+
+ protected:
+  T data_[N];
+  index_type head_{0};
+  index_type tail_{0};
+  index_type count_{0};
+};
+
+/// Fixed-capacity circular buffer - allocates once at runtime, never reallocates.
+/// Runtime-sized equivalent of StaticRingBuffer - use when capacity is only known at initialization.
+/// Supports FIFO push/pop and iteration over queued elements.
+/// Not thread-safe.
+template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()> class FixedRingBuffer {
+  using index_type = std::conditional_t<
+      (MAX_CAPACITY <= std::numeric_limits<uint8_t>::max()), uint8_t,
+      std::conditional_t<(MAX_CAPACITY <= std::numeric_limits<uint16_t>::max()), uint16_t, uint32_t>>;
+
+ public:
+  class Iterator {
+   public:
+    Iterator(FixedRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
+    T &operator*() { return buf_->data_[(buf_->head_ + pos_) % buf_->capacity_]; }
+    Iterator &operator++() {
+      ++pos_;
+      return *this;
+    }
+    bool operator!=(const Iterator &other) const { return pos_ != other.pos_; }
+
+   private:
+    FixedRingBuffer *buf_;
+    index_type pos_;
+  };
+
+  class ConstIterator {
+   public:
+    ConstIterator(const FixedRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
+    const T &operator*() const { return buf_->data_[(buf_->head_ + pos_) % buf_->capacity_]; }
+    ConstIterator &operator++() {
+      ++pos_;
+      return *this;
+    }
+    bool operator!=(const ConstIterator &other) const { return pos_ != other.pos_; }
+
+   private:
+    const FixedRingBuffer *buf_;
+    index_type pos_;
+  };
+
+  FixedRingBuffer() = default;
+  ~FixedRingBuffer() {
+    if constexpr (std::is_trivially_copyable<T>::value && std::is_trivially_default_constructible<T>::value) {
+      ::operator delete(this->data_);
+    } else {
+      delete[] this->data_;
+    }
+  }
+
+  // Disable copy
+  FixedRingBuffer(const FixedRingBuffer &) = delete;
+  FixedRingBuffer &operator=(const FixedRingBuffer &) = delete;
+
+  /// Allocate capacity - can only be called once
+  void init(index_type capacity) {
+    if constexpr (std::is_trivially_copyable<T>::value && std::is_trivially_default_constructible<T>::value) {
+      // Raw allocation without initialization (elements are written before read)
+      // NOLINTNEXTLINE(bugprone-sizeof-expression)
+      this->data_ = static_cast<T *>(::operator new(capacity * sizeof(T)));
+    } else {
+      this->data_ = new T[capacity];
+    }
+    this->capacity_ = capacity;
+  }
+
+  /// Push a value. Returns false if full.
+  bool push(const T &value) {
+    if (this->count_ >= this->capacity_)
+      return false;
+    this->data_[this->tail_] = value;
+    this->tail_ = (this->tail_ + 1) % this->capacity_;
+    ++this->count_;
+    return true;
+  }
+
+  /// Push a value, overwriting the oldest if full.
+  void push_overwrite(const T &value) {
+    this->data_[this->tail_] = value;
+    this->tail_ = (this->tail_ + 1) % this->capacity_;
+    if (this->count_ >= this->capacity_) {
+      // Buffer full - advance head to drop oldest, count stays at capacity
+      this->head_ = this->tail_;
+    } else {
+      ++this->count_;
+    }
+  }
+
+  /// Remove the oldest element.
+  void pop() {
+    if (this->count_ > 0) {
+      this->head_ = (this->head_ + 1) % this->capacity_;
+      --this->count_;
+    }
+  }
+
+  T &front() { return this->data_[this->head_]; }
+  const T &front() const { return this->data_[this->head_]; }
+  index_type size() const { return this->count_; }
+  bool empty() const { return this->count_ == 0; }
+  index_type capacity() const { return this->capacity_; }
+  bool full() const { return this->count_ == this->capacity_; }
+
+  /// Clear all elements (reset to empty, keep capacity)
+  void clear() {
+    this->head_ = 0;
+    this->tail_ = 0;
+    this->count_ = 0;
+  }
+
+  Iterator begin() { return Iterator(this, 0); }
+  Iterator end() { return Iterator(this, this->count_); }
+  ConstIterator begin() const { return ConstIterator(this, 0); }
+  ConstIterator end() const { return ConstIterator(this, this->count_); }
+
+ protected:
+  T *data_{nullptr};
+  index_type head_{0};
+  index_type tail_{0};
+  index_type count_{0};
+  index_type capacity_{0};
+};
+
 /// Fixed-capacity vector - allocates once at runtime, never reallocates
 /// This avoids std::vector template overhead (_M_realloc_insert, _M_default_append)
 /// when size is known at initialization but not at compile time
@@ -869,6 +1073,28 @@ __attribute__((format(printf, 4, 5))) inline size_t buf_append_printf(char *buf,
   return std::min(pos + static_cast<size_t>(written), size);
 }
 #endif
+
+/// Safely append a string to buffer without format parsing, returning new position (capped at size).
+/// More efficient than buf_append_printf for plain string literals.
+/// @param buf Output buffer
+/// @param size Total buffer size
+/// @param pos Current position in buffer
+/// @param str String to append (must not be null)
+/// @return New position after appending (capped at size on overflow)
+inline size_t buf_append_str(char *buf, size_t size, size_t pos, const char *str) {
+  if (pos >= size) {
+    return size;
+  }
+  size_t remaining = size - pos - 1;  // reserve space for null terminator
+  size_t len = strlen(str);
+  if (len > remaining) {
+    len = remaining;
+  }
+  memcpy(buf + pos, str, len);
+  pos += len;
+  buf[pos] = '\0';
+  return pos;
+}
 
 /// Concatenate a name with a separator and suffix using an efficient stack-based approach.
 /// This avoids multiple heap allocations during string construction.
@@ -1647,19 +1873,34 @@ template<typename T> class Parented {
  */
 class Mutex {
  public:
-  Mutex();
   Mutex(const Mutex &) = delete;
+  Mutex &operator=(const Mutex &) = delete;
+
+#if defined(USE_ESP8266) || defined(USE_RP2040)
+  // Single-threaded platforms: inline no-ops so the compiler eliminates all call overhead.
+  Mutex() = default;
+  ~Mutex() = default;
+  void lock() {}
+  bool try_lock() { return true; }
+  void unlock() {}
+#elif defined(USE_ESP32) || defined(USE_LIBRETINY)
+  // FreeRTOS platforms: inline to avoid out-of-line call overhead.
+  Mutex() { handle_ = xSemaphoreCreateMutex(); }
+  ~Mutex() = default;
+  void lock() { xSemaphoreTake(this->handle_, portMAX_DELAY); }
+  bool try_lock() { return xSemaphoreTake(this->handle_, 0) == pdTRUE; }
+  void unlock() { xSemaphoreGive(this->handle_); }
+
+ private:
+  SemaphoreHandle_t handle_;
+#else
+  Mutex();
   ~Mutex();
   void lock();
   bool try_lock();
   void unlock();
 
-  Mutex &operator=(const Mutex &) = delete;
-
  private:
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
-  SemaphoreHandle_t handle_;
-#else
   // d-pointer to store private data on new platforms
   void *handle_;  // NOLINT(clang-diagnostic-unused-private-field)
 #endif
@@ -1711,19 +1952,27 @@ class InterruptLock {
 
 /** Helper class to lock the lwIP TCPIP core when making lwIP API calls from non-TCPIP threads.
  *
- * This is needed on multi-threaded platforms (ESP32) when CONFIG_LWIP_TCPIP_CORE_LOCKING is enabled.
- * It ensures thread-safe access to lwIP APIs.
+ * This is needed on multi-threaded platforms (ESP32) when CONFIG_LWIP_TCPIP_CORE_LOCKING is enabled,
+ * and on RP2040 when CYW43 WiFi is active (cyw43_arch_lwip_begin/end).
  *
- * @note This follows the same pattern as InterruptLock - platform-specific implementations in helpers.cpp
+ * On platforms without lwIP core locking (ESP8266, LibreTiny, Zephyr),
+ * this is a no-op defined inline so the compiler can eliminate all call overhead.
  */
 class LwIPLock {
  public:
-  LwIPLock();
-  ~LwIPLock();
-
-  // Delete copy constructor and copy assignment operator to prevent accidental copying
   LwIPLock(const LwIPLock &) = delete;
   LwIPLock &operator=(const LwIPLock &) = delete;
+
+#if defined(USE_ESP32) || defined(USE_RP2040)
+  // Platforms with potential lwIP core locking — out-of-line implementations in helpers.cpp
+  LwIPLock();
+  ~LwIPLock();
+#else
+  // No lwIP core locking — inline no-ops (empty bodies instead of = default
+  // to prevent clang-tidy unused-variable warnings at call sites)
+  LwIPLock() {}
+  ~LwIPLock() {}
+#endif
 };
 
 /** Helper class to request `loop()` to be called as fast as possible.

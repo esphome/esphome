@@ -14,6 +14,12 @@
 #include "api_server.h"
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
+#ifdef USE_ESP32_CRASH_HANDLER
+#include "esphome/components/esp32/crash_handler.h"
+#endif
+#ifdef USE_RP2040_CRASH_HANDLER
+#include "esphome/components/rp2040/crash_handler.h"
+#endif
 #include "esphome/core/entity_base.h"
 #include "esphome/core/string_ref.h"
 
@@ -189,6 +195,15 @@ class APIConnection final : public APIServerConnectionBase {
   void send_infrared_rf_receive_event(const InfraredRFReceiveEvent &msg);
 #endif
 
+#ifdef USE_SERIAL_PROXY
+  void on_serial_proxy_configure_request(const SerialProxyConfigureRequest &msg) override;
+  void on_serial_proxy_write_request(const SerialProxyWriteRequest &msg) override;
+  void on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg) override;
+  void on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg) override;
+  void on_serial_proxy_request(const SerialProxyRequest &msg) override;
+  void send_serial_proxy_data(const SerialProxyDataReceived &msg);
+#endif
+
 #ifdef USE_EVENT
   void send_event(event::Event *event);
 #endif
@@ -226,6 +241,12 @@ class APIConnection final : public APIServerConnectionBase {
     this->flags_.log_subscription = msg.level;
     if (msg.dump_config)
       App.schedule_dump_config();
+#ifdef USE_ESP32_CRASH_HANDLER
+    esp32::crash_handler_log();
+#endif
+#ifdef USE_RP2040_CRASH_HANDLER
+    rp2040::crash_handler_log();
+#endif
   }
 #ifdef USE_API_HOMEASSISTANT_SERVICES
   void on_subscribe_homeassistant_services_request() override { this->flags_.service_call_subscription = true; }
@@ -254,6 +275,7 @@ class APIConnection final : public APIServerConnectionBase {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::CONNECTED ||
            this->is_authenticated();
   }
+  bool is_marked_for_removal() const { return this->flags_.remove; }
   uint8_t get_log_subscription_level() const { return this->flags_.log_subscription; }
 
   // Get client API version for feature detection
@@ -283,9 +305,9 @@ class APIConnection final : public APIServerConnectionBase {
     // Reserve space for header padding + message + footer
     // - Header padding: space for protocol headers (7 bytes for Noise, 6 for Plaintext)
     // - Footer: space for MAC (16 bytes for Noise, 0 for Plaintext)
-    shared_buf.reserve(total_size);
-    // Resize to add header padding so message encoding starts at the correct position
-    shared_buf.resize(header_padding);
+    // Reserve full size but only set initial size to header padding
+    // so message encoding starts at the correct position
+    shared_buf.reserve_and_resize(total_size, header_padding);
   }
 
   // Convenience overload - computes frame overhead internally
@@ -295,7 +317,13 @@ class APIConnection final : public APIServerConnectionBase {
     this->prepare_first_message_buffer(shared_buf, header_padding, payload_size + header_padding + footer_size);
   }
 
-  bool try_to_clear_buffer(bool log_out_of_space);
+  bool try_to_clear_buffer(bool log_out_of_space) {
+    if (this->flags_.remove)
+      return false;
+    if (this->helper_->can_write_without_blocking())
+      return true;
+    return this->try_to_clear_buffer_slow_(log_out_of_space);
+  }
   bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) override;
 
   const char *get_name() const { return this->helper_->get_client_name(); }
@@ -305,6 +333,8 @@ class APIConnection final : public APIServerConnectionBase {
   }
 
  protected:
+  bool try_to_clear_buffer_slow_(bool log_out_of_space);
+
   // Helper function to handle authentication completion
   void complete_authentication_();
 

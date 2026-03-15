@@ -76,6 +76,7 @@ from esphome.const import (
     PLATFORM_RP2040,
 )
 from esphome.core import CORE, EsphomeError
+from esphome.util import BootselResult
 
 
 def strip_ansi_codes(text: str) -> str:
@@ -875,7 +876,7 @@ def test_choose_upload_log_host_no_defaults_with_rp2040_bootsel(
         patch(
             "esphome.__main__._find_picotool", return_value=Path("/usr/bin/picotool")
         ),
-        patch("esphome.__main__.detect_rp2040_bootsel", return_value=1),
+        patch("esphome.__main__.detect_rp2040_bootsel", return_value=BootselResult(1)),
     ):
         result = choose_upload_log_host(
             default=None,
@@ -898,7 +899,7 @@ def test_choose_upload_log_host_rp2040_no_device_shows_bootsel_help() -> None:
         patch(
             "esphome.__main__._find_picotool", return_value=Path("/usr/bin/picotool")
         ),
-        patch("esphome.__main__.detect_rp2040_bootsel", return_value=0),
+        patch("esphome.__main__.detect_rp2040_bootsel", return_value=BootselResult(0)),
         pytest.raises(EsphomeError, match="BOOTSEL"),
     ):
         choose_upload_log_host(
@@ -923,7 +924,7 @@ def test_choose_upload_log_host_rp2040_bootsel_tip_with_ota(
         patch(
             "esphome.__main__._find_picotool", return_value=Path("/usr/bin/picotool")
         ),
-        patch("esphome.__main__.detect_rp2040_bootsel", return_value=0),
+        patch("esphome.__main__.detect_rp2040_bootsel", return_value=BootselResult(0)),
         patch(
             "esphome.__main__.choose_prompt",
             return_value="192.168.1.100",
@@ -952,7 +953,7 @@ def test_choose_upload_log_host_rp2040_bootsel_tip_with_serial_ports(
             "esphome.__main__._find_picotool",
             return_value=Path("/usr/bin/picotool"),
         ),
-        patch("esphome.__main__.detect_rp2040_bootsel", return_value=0),
+        patch("esphome.__main__.detect_rp2040_bootsel", return_value=BootselResult(0)),
         caplog.at_level(logging.INFO, logger="esphome.__main__"),
     ):
         choose_upload_log_host(
@@ -961,6 +962,69 @@ def test_choose_upload_log_host_rp2040_bootsel_tip_with_serial_ports(
             purpose=Purpose.UPLOADING,
         )
         assert "BOOTSEL" in caplog.text
+
+
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_rp2040_permission_error_no_options(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test permission warning shown when BOOTSEL device found but not accessible."""
+    setup_core(platform=PLATFORM_RP2040)
+
+    with (
+        patch(
+            "esphome.__main__._find_picotool", return_value=Path("/usr/bin/picotool")
+        ),
+        patch(
+            "esphome.__main__.detect_rp2040_bootsel",
+            return_value=BootselResult(0, permission_error=True),
+        ),
+        patch("esphome.__main__.sys.platform", "linux"),
+        pytest.raises(EsphomeError, match="BOOTSEL"),
+        caplog.at_level(logging.WARNING, logger="esphome.__main__"),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+
+    assert "USB permissions" in caplog.text
+    assert "udev" in caplog.text
+
+
+@pytest.mark.usefixtures("mock_no_serial_ports")
+def test_choose_upload_log_host_rp2040_permission_error_with_ota(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test permission warning shown with OTA fallback available."""
+    setup_core(
+        platform=PLATFORM_RP2040,
+        config={CONF_OTA: [{CONF_PLATFORM: CONF_ESPHOME}]},
+        address="192.168.1.100",
+    )
+
+    with (
+        patch(
+            "esphome.__main__._find_picotool", return_value=Path("/usr/bin/picotool")
+        ),
+        patch(
+            "esphome.__main__.detect_rp2040_bootsel",
+            return_value=BootselResult(0, permission_error=True),
+        ),
+        patch(
+            "esphome.__main__.choose_prompt",
+            return_value="192.168.1.100",
+        ),
+        caplog.at_level(logging.WARNING, logger="esphome.__main__"),
+    ):
+        choose_upload_log_host(
+            default=None,
+            check_default=None,
+            purpose=Purpose.UPLOADING,
+        )
+
+    assert "USB permissions" in caplog.text
 
 
 def test_choose_upload_log_host_no_bootsel_for_non_rp2040(
@@ -1000,7 +1064,7 @@ def test_choose_upload_log_host_rp2040_serial_and_bootsel(
         patch(
             "esphome.__main__._find_picotool", return_value=Path("/usr/bin/picotool")
         ),
-        patch("esphome.__main__.detect_rp2040_bootsel", return_value=1),
+        patch("esphome.__main__.detect_rp2040_bootsel", return_value=BootselResult(1)),
     ):
         choose_upload_log_host(
             default=None,
@@ -3658,38 +3722,38 @@ esp32:
     assert "secrets.yaml" not in summary_section
 
 
-def test_get_configured_xtal_freq_reads_sdkconfig(setup_core: Path) -> None:
+def test_get_configured_xtal_freq_reads_sdkconfig(tmp_path: Path) -> None:
     """Test reading XTAL_FREQ from sdkconfig."""
     CORE.name = "test-device"
-    CORE.build_path = setup_core
-    sdkconfig = setup_core / "sdkconfig.test-device"
+    CORE.build_path = tmp_path
+    sdkconfig = tmp_path / "sdkconfig.test-device"
     sdkconfig.write_text(
         "CONFIG_SOC_XTAL_SUPPORT_26M=y\nCONFIG_XTAL_FREQ=26\nCONFIG_XTAL_FREQ_26=y\n"
     )
     assert _get_configured_xtal_freq() == 26
 
 
-def test_get_configured_xtal_freq_default_40(setup_core: Path) -> None:
+def test_get_configured_xtal_freq_default_40(tmp_path: Path) -> None:
     """Test reading default 40MHz XTAL_FREQ from sdkconfig."""
     CORE.name = "test-device"
-    CORE.build_path = setup_core
-    sdkconfig = setup_core / "sdkconfig.test-device"
+    CORE.build_path = tmp_path
+    sdkconfig = tmp_path / "sdkconfig.test-device"
     sdkconfig.write_text("CONFIG_XTAL_FREQ=40\nCONFIG_XTAL_FREQ_40=y\n")
     assert _get_configured_xtal_freq() == 40
 
 
-def test_get_configured_xtal_freq_missing_file(setup_core: Path) -> None:
+def test_get_configured_xtal_freq_missing_file(tmp_path: Path) -> None:
     """Test that missing sdkconfig returns None."""
     CORE.name = "test-device"
-    CORE.build_path = setup_core
+    CORE.build_path = tmp_path
     assert _get_configured_xtal_freq() is None
 
 
-def test_get_configured_xtal_freq_no_xtal_line(setup_core: Path) -> None:
+def test_get_configured_xtal_freq_no_xtal_line(tmp_path: Path) -> None:
     """Test that sdkconfig without XTAL_FREQ returns None."""
     CORE.name = "test-device"
-    CORE.build_path = setup_core
-    sdkconfig = setup_core / "sdkconfig.test-device"
+    CORE.build_path = tmp_path
+    sdkconfig = tmp_path / "sdkconfig.test-device"
     sdkconfig.write_text("CONFIG_OTHER=123\n")
     assert _get_configured_xtal_freq() is None
 

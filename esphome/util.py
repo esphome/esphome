@@ -1,5 +1,6 @@
 import collections
 from collections.abc import Callable
+from dataclasses import dataclass
 import io
 import logging
 from pathlib import Path
@@ -208,8 +209,8 @@ def run_external_command(
     func,
     *cmd,
     capture_stdout: bool = False,
-    filter_lines: str = None,
-    line_callbacks: list | None = None,
+    filter_lines: list[str] | None = None,
+    line_callbacks: list[Callable[[str], str | None]] | None = None,
 ) -> int | str:
     """
     Run a function from an external package that acts like a main method.
@@ -219,7 +220,9 @@ def run_external_command(
     :param func: Function to execute
     :param cmd: Command to run as (eg first element of sys.argv)
     :param capture_stdout: Capture text from stdout and return that.
-    :param filter_lines: Regular expression used to filter captured output.
+        Note: line_callbacks are not invoked when capture_stdout is True.
+    :param filter_lines: Regular expressions used to filter captured output.
+    :param line_callbacks: Callbacks invoked per line; non-None returns are written to output.
     :return: str if `capture_stdout` is set else int exit code.
 
     """
@@ -401,11 +404,34 @@ def get_picotool_path(cc_path: str) -> Path | None:
     return None
 
 
-def detect_rp2040_bootsel(picotool_path: str | Path) -> int:
+def is_picotool_usb_permission_error(output: str | bytes) -> bool:
+    """Check if picotool output indicates a USB permission error."""
+    if isinstance(output, str):
+        return (
+            "unable to connect" in output
+            or "LIBUSB_ERROR_ACCESS" in output
+            or "Permission denied" in output
+        )
+    return (
+        b"unable to connect" in output
+        or b"LIBUSB_ERROR_ACCESS" in output
+        or b"Permission denied" in output
+    )
+
+
+@dataclass
+class BootselResult:
+    """Result of RP2040 BOOTSEL detection."""
+
+    device_count: int
+    permission_error: bool = False
+
+
+def detect_rp2040_bootsel(picotool_path: str | Path) -> BootselResult:
     """Detect RP2040/RP2350 devices in BOOTSEL mode using picotool.
 
-    Returns the number of devices found (by counting 'type:' lines in output),
-    matching PlatformIO's detection approach.
+    Returns a BootselResult with the number of devices found (by counting
+    'type:' lines in output), and whether a permission error was detected.
     """
     try:
         result = subprocess.run(
@@ -414,9 +440,16 @@ def detect_rp2040_bootsel(picotool_path: str | Path) -> int:
             timeout=10,
             check=False,
         )
-        return result.stdout.count(b"type:")
+        device_count = result.stdout.count(b"type:")
+        if device_count > 0:
+            return BootselResult(device_count)
+        # Check for permission issues — picotool can see the device
+        # on the USB bus but can't connect without proper permissions
+        if is_picotool_usb_permission_error(result.stderr + result.stdout):
+            return BootselResult(0, permission_error=True)
+        return BootselResult(0)
     except (OSError, subprocess.TimeoutExpired):
-        return 0
+        return BootselResult(0)
 
 
 def get_esp32_arduino_flash_error_help() -> str | None:

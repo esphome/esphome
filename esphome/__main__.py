@@ -65,6 +65,7 @@ from esphome.util import (
     detect_rp2040_bootsel,
     get_picotool_path,
     get_serial_ports,
+    is_picotool_usb_permission_error,
     list_yaml_files,
     run_external_command,
     run_external_process,
@@ -72,6 +73,8 @@ from esphome.util import (
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+ESPHOME_COMMAND = [sys.executable, "-m", "esphome"]
 
 # Maximum buffer size for serial log reading to prevent unbounded memory growth
 SERIAL_BUFFER_MAX_SIZE = 65536
@@ -83,6 +86,12 @@ _RP2040_BOOTSEL_INSTRUCTIONS = (
     "  3. Plug in the USB cable while holding the button\n"
     "  4. Release the button - the device should appear as a USB drive (RPI-RP2)\n"
     "Then run the upload command again."
+)
+
+_RP2040_UDEV_HINT = (
+    "You may need to add a udev rule for RP2040 devices. "
+    "See: https://github.com/raspberrypi/picotool"
+    "/blob/master/udev/60-picotool.rules"
 )
 
 # Special non-component keys that appear in configs
@@ -260,13 +269,17 @@ def choose_upload_log_host(
     ]
 
     # Add RP2040 BOOTSEL device option when uploading
+    bootsel_permission_error = False
     if (
         purpose == Purpose.UPLOADING
         and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
         and (picotool := _find_picotool()) is not None
-        and detect_rp2040_bootsel(picotool) > 0
     ):
-        options.append(("RP2040 BOOTSEL (via picotool)", "BOOTSEL"))
+        bootsel = detect_rp2040_bootsel(picotool)
+        if bootsel.device_count > 0:
+            options.append(("RP2040 BOOTSEL (via picotool)", "BOOTSEL"))
+        elif bootsel.permission_error:
+            bootsel_permission_error = True
 
     if purpose == Purpose.LOGGING:
         if has_mqtt_logging():
@@ -291,6 +304,13 @@ def choose_upload_log_host(
         and CORE.data.get(KEY_CORE, {}).get(KEY_TARGET_PLATFORM) == PLATFORM_RP2040
         and not any(get_port_type(opt[1]) == PortType.BOOTSEL for opt in options)
     ):
+        if bootsel_permission_error:
+            _LOGGER.warning(
+                "An RP2040 device in BOOTSEL mode was detected but could "
+                "not be accessed due to USB permissions."
+            )
+            if sys.platform.startswith("linux"):
+                _LOGGER.warning(_RP2040_UDEV_HINT)
         if not options:
             raise EsphomeError(
                 f"No RP2040 device found. {_RP2040_BOOTSEL_INSTRUCTIONS}"
@@ -687,12 +707,12 @@ def _make_crystal_freq_callback(
     configured_freq: int,
 ) -> Callable[[str], str | None]:
     """Create a callback that checks esptool crystal frequency output."""
-    crystal_re = re.compile(r"Crystal frequency:\s+(\d+(?:\.\d+)?)\s*MHz")
+    crystal_re = re.compile(r"Crystal frequency:\s+(\d+)\s*MHz")
 
     def check_crystal_line(line: str) -> str | None:
         if not (match := crystal_re.search(line)):
             return None
-        detected = int(float(match.group(1)))
+        detected = int(match.group(1))
         if detected == configured_freq:
             return None
         return (
@@ -705,9 +725,7 @@ def _make_crystal_freq_callback(
             f"  esp32:\n"
             f"    framework:\n"
             f"      sdkconfig_options:\n"
-            f"        CONFIG_XTAL_FREQ_{detected}: 'y'\n"
-            f"        CONFIG_XTAL_FREQ_{configured_freq}: 'n'\n"
-            f'        CONFIG_XTAL_FREQ: "{detected}"\033[0m\n\n'
+            f"        CONFIG_XTAL_FREQ_{detected}: 'y'\033[0m\n\n"
         )
 
     return check_crystal_line
@@ -742,7 +760,11 @@ def upload_using_esptool(
         mcu = get_esp32_variant().lower()
 
     line_callbacks: list[Callable[[str], str | None]] = []
-    if CORE.is_esp32 and (configured_freq := _get_configured_xtal_freq()) is not None:
+    if (
+        CORE.is_esp32
+        and file is None
+        and (configured_freq := _get_configured_xtal_freq()) is not None
+    ):
         line_callbacks.append(_make_crystal_freq_callback(configured_freq))
 
     def run_esptool(baud_rate):
@@ -871,13 +893,10 @@ def upload_using_picotool(config: ConfigType) -> int:
         if stderr:
             for line in stderr.splitlines():
                 safe_print(line)
-        if "LIBUSB_ERROR_ACCESS" in stderr or "Permission denied" in stderr:
+        if is_picotool_usb_permission_error(stderr):
             msg = "Permission denied accessing USB device."
             if sys.platform.startswith("linux"):
-                msg += (
-                    " You may need to add udev rules for RP2040 devices."
-                    " See: https://github.com/raspberrypi/picotool#linux-permissions"
-                )
+                msg += f" {_RP2040_UDEV_HINT}"
             _LOGGER.error(msg)
         else:
             _LOGGER.error("picotool upload failed (exit code %d).", result.returncode)
@@ -902,9 +921,11 @@ def _wait_for_serial_port(
     """
 
     def _port_found() -> bool:
-        ports = get_serial_ports()
         if port is not None:
-            return any(p.path == port for p in ports)
+            if os.name == "posix":
+                return os.path.exists(port)
+            return any(p.path == port for p in get_serial_ports())
+        ports = get_serial_ports()
         if known_ports is not None:
             return any(p.path not in known_ports for p in ports)
         return bool(ports)
@@ -1288,9 +1309,8 @@ def command_update_all(args: ArgsProtocol) -> int | None:
     files = list_yaml_files(args.configuration)
 
     def build_command(f):
-        if CORE.dashboard:
-            return ["esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"]
-        return ["esphome", "run", f, "--no-logs", "--device", "OTA"]
+        dashboard = ["--dashboard"] if CORE.dashboard else []
+        return [*ESPHOME_COMMAND, *dashboard, "run", f, "--no-logs", "--device", "OTA"]
 
     return run_multiple_configs(files, build_command)
 
@@ -1439,7 +1459,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     new_path.write_text(new_raw, encoding="utf-8")
 
-    rc = run_external_process("esphome", "config", str(new_path))
+    rc = run_external_process(*ESPHOME_COMMAND, "config", str(new_path))
     if rc != 0:
         print(color(AnsiFore.BOLD_RED, "Rename failed. Reverting changes."))
         new_path.unlink()
@@ -1457,7 +1477,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
         cli_args.insert(0, "--dashboard")
 
     try:
-        rc = run_external_process("esphome", *cli_args)
+        rc = run_external_process(*ESPHOME_COMMAND, *cli_args)
     except KeyboardInterrupt:
         rc = 1
     if rc != 0:
@@ -1854,7 +1874,7 @@ def run_esphome(argv):
         # argv[0] is the program path, skip it since we prefix with "esphome"
         def build_command(f):
             return (
-                ["esphome"]
+                [*ESPHOME_COMMAND]
                 + [arg for arg in argv[1:] if arg not in args.configuration]
                 + [str(f)]
             )
