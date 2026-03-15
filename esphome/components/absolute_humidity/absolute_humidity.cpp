@@ -151,16 +151,16 @@ float AbsoluteHumidityComponent::es_wobus(float t) {
   //
   //     Baker, Schlatter  17-MAY-1982     Original version.
 
-  const float c0{+0.99999683e00f};
-  const float c1{-0.90826951e-02f};
-  const float c2{+0.78736169e-04f};
-  const float c3{-0.61117958e-06f};
-  const float c4{+0.43884187e-08f};
-  const float c5{-0.29883885e-10f};
-  const float c6{+0.21874425e-12f};
-  const float c7{-0.17892321e-14f};
-  const float c8{+0.11112018e-16f};
-  const float c9{-0.30994571e-19f};
+  constexpr float c0{+0.99999683e+00f};
+  constexpr float c1{-0.90826951e-02f};
+  constexpr float c2{+0.78736169e-04f};
+  constexpr float c3{-0.61117958e-06f};
+  constexpr float c4{+0.43884187e-08f};
+  constexpr float c5{-0.29883885e-10f};
+  constexpr float c6{+0.21874425e-12f};
+  constexpr float c7{-0.17892321e-14f};
+  constexpr float c8{+0.11112018e-16f};
+  constexpr float c9{-0.30994571e-19f};
   const float p{c0 + t * (c1 + t * (c2 + t * (c3 + t * (c4 + t * (c5 + t * (c6 + t * (c7 + t * (c8 + t * (c9)))))))))};
   return 0.61078f / powf(p, 8.0f);
 }
