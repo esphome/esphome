@@ -48,6 +48,7 @@ class ESP8266OTABackend final {
   uint32_t start_address_{0};
   uint32_t current_address_{0};
   size_t image_size_{0};
+  size_t bytes_received_{0};
 
   md5::MD5Digest md5_{};
   uint8_t expected_md5_[16];  // Fixed-size buffer for 128-bit (16-byte) MD5 digest

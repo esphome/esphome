@@ -4,7 +4,8 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esp_lcd_panel_rgb.h"
+#include <driver/gpio.h>
+#include <esp_lcd_panel_rgb.h>
 #include <span>
 
 namespace esphome {
@@ -153,18 +154,18 @@ void MipiRgb::common_setup_() {
   config.clk_src = LCD_CLK_SRC_PLL160M;
   size_t data_pin_count = sizeof(this->data_pins_) / sizeof(this->data_pins_[0]);
   for (size_t i = 0; i != data_pin_count; i++) {
-    config.data_gpio_nums[i] = this->data_pins_[i]->get_pin();
+    config.data_gpio_nums[i] = static_cast<gpio_num_t>(this->data_pins_[i]->get_pin());
   }
   config.data_width = data_pin_count;
-  config.disp_gpio_num = -1;
-  config.hsync_gpio_num = this->hsync_pin_->get_pin();
-  config.vsync_gpio_num = this->vsync_pin_->get_pin();
+  config.disp_gpio_num = GPIO_NUM_NC;
+  config.hsync_gpio_num = static_cast<gpio_num_t>(this->hsync_pin_->get_pin());
+  config.vsync_gpio_num = static_cast<gpio_num_t>(this->vsync_pin_->get_pin());
   if (this->de_pin_) {
-    config.de_gpio_num = this->de_pin_->get_pin();
+    config.de_gpio_num = static_cast<gpio_num_t>(this->de_pin_->get_pin());
   } else {
-    config.de_gpio_num = -1;
+    config.de_gpio_num = GPIO_NUM_NC;
   }
-  config.pclk_gpio_num = this->pclk_pin_->get_pin();
+  config.pclk_gpio_num = static_cast<gpio_num_t>(this->pclk_pin_->get_pin());
   esp_err_t err = esp_lcd_new_rgb_panel(&config, &this->handle_);
   if (err == ESP_OK)
     err = esp_lcd_panel_reset(this->handle_);

@@ -106,6 +106,7 @@ jobs:
           script/build_codeowners.py --check
           script/build_language_schema.py --check
           script/generate-esp32-boards.py --check
+          script/generate-rp2040-boards.py --check
 
   pytest:
     name: Run pytest
@@ -170,6 +171,8 @@ jobs:
       - common
     outputs:
       integration-tests: ${{ steps.determine.outputs.integration-tests }}
+      integration-tests-run-all: ${{ steps.determine.outputs.integration-tests-run-all }}
+      integration-test-files: ${{ steps.determine.outputs.integration-test-files }}
       clang-tidy: ${{ steps.determine.outputs.clang-tidy }}
       clang-tidy-mode: ${{ steps.determine.outputs.clang-tidy-mode }}
       python-linters: ${{ steps.determine.outputs.python-linters }}
@@ -210,6 +213,8 @@ jobs:
 
           # Extract individual fields
           echo "integration-tests=$(echo "$output" | jq -r '.integration_tests')" >> $GITHUB_OUTPUT
+          echo "integration-tests-run-all=$(echo "$output" | jq -r '.integration_tests_run_all')" >> $GITHUB_OUTPUT
+          echo "integration-test-files=$(echo "$output" | jq -c '.integration_test_files')" >> $GITHUB_OUTPUT
           echo "clang-tidy=$(echo "$output" | jq -r '.clang_tidy')" >> $GITHUB_OUTPUT
           echo "clang-tidy-mode=$(echo "$output" | jq -r '.clang_tidy_mode')" >> $GITHUB_OUTPUT
           echo "python-linters=$(echo "$output" | jq -r '.python_linters')" >> $GITHUB_OUTPUT
@@ -261,9 +266,20 @@ jobs:
       - name: Register matcher
         run: echo "::add-matcher::.github/workflows/matchers/pytest.json"
       - name: Run integration tests
+        env:
+          INTEGRATION_TEST_FILES: ${{ needs.determine-jobs.outputs.integration-test-files }}
+          INTEGRATION_TESTS_RUN_ALL: ${{ needs.determine-jobs.outputs.integration-tests-run-all }}
         run: |
           . venv/bin/activate
-          pytest -vv --no-cov --tb=native -n auto tests/integration/
+          if [[ "$INTEGRATION_TESTS_RUN_ALL" == "true" ]]; then
+            echo "Running all integration tests"
+            pytest -vv --no-cov --tb=native -n auto tests/integration/
+          else
+            # Parse JSON array into bash array to avoid shell expansion issues
+            mapfile -t test_files < <(echo "$INTEGRATION_TEST_FILES" | jq -r '.[]')
+            echo "Running ${#test_files[@]} specific integration tests"
+            pytest -vv --no-cov --tb=native -n auto "${test_files[@]}"
+          fi
 
   cpp-unit-tests:
     name: Run C++ unit tests
