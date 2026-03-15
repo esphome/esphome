@@ -686,11 +686,14 @@ ARDUINO_IDF_VERSION_LOOKUP = {
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(5, 5, 3, "1"),
-    "latest": cv.Version(5, 5, 3, "1"),
-    "dev": cv.Version(5, 5, 3, "1"),
+    "recommended": cv.Version(6, 0, 0, "rc1"),
+    "latest": cv.Version(6, 0, 0, "rc1"),
+    "dev": cv.Version(6, 0, 0, "rc1"),
 }
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(
+        6, 0, 0, "rc1"
+    ): "https://github.com/swoboda1337/platform-espressif32.git#idf-v6.0",
     cv.Version(5, 5, 3, "1"): cv.Version(55, 3, 37),
     cv.Version(5, 5, 3): cv.Version(55, 3, 37),
     cv.Version(5, 5, 2): cv.Version(55, 3, 37),

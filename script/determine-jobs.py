@@ -742,11 +742,9 @@ def main() -> None:
         changed_components = changed_components_result
         is_core_change = False
 
-    # Filter to only components that have test files
-    # Components without tests shouldn't generate CI test jobs
-    changed_components_with_tests = [
-        component for component in changed_components if _component_has_tests(component)
-    ]
+    # Test all components with test files
+    all_component_dirs = (Path(root_path) / ESPHOME_TESTS_COMPONENTS_PATH).iterdir()
+    changed_components_with_tests = [d.name for d in all_component_dirs if d.is_dir()]
 
     # Get directly changed components with tests (for isolated testing)
     # These will be tested WITHOUT --testing-mode in CI to enable full validation
