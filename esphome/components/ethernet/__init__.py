@@ -310,10 +310,13 @@ SPI_SCHEMA = cv.All(
                 cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_number,
                 cv.Optional(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
                 cv.Optional(CONF_CLOCK_SPEED, default="26.67MHz"): cv.All(
-                    cv.frequency, cv.int_range(int(8e6), int(80e6))
+                    cv.only_on([Platform.ESP32]),
+                    cv.frequency,
+                    cv.int_range(int(8e6), int(80e6)),
                 ),
                 # Set default value (SPI_ETHERNET_DEFAULT_POLLING_INTERVAL) at _validate()
                 cv.Optional(CONF_POLLING_INTERVAL): cv.All(
+                    cv.only_on([Platform.ESP32]),
                     cv.positive_time_period_milliseconds,
                     cv.Range(min=TimePeriodMilliseconds(milliseconds=1)),
                 ),
