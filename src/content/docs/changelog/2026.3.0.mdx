@@ -79,7 +79,9 @@ The RP2040/RP2350 platform takes a major step toward first-class support in this
 
 - **BLE foundation** - New [rp2040_ble](/components/rp2040_ble) component initializes BTstack on Pico W/Pico 2 W boards, laying the groundwork for BLE scanning and Bluetooth proxy support with only ~17KB overhead ([#14603](https://github.com/esphome/esphome/pull/14603))
 - **BOOTSEL upload via picotool** - `esphome upload` now detects RP2040 devices in BOOTSEL mode, uploads with real-time progress, and automatically starts log output after reboot ([#14483](https://github.com/esphome/esphome/pull/14483))
-- **HardFault crash handler** - A new crash handler captures register state and stack backtrace when a HardFault occurs, stores it across reboot via watchdog scratch registers, and logs it on next boot ([#14685](https://github.com/esphome/esphome/pull/14685)). The CLI's serial log viewer auto-decodes addresses using `addr2line`. Works on both RP2040 and RP2350.
+- **HardFault crash handler** - See the [Crash Handlers](#crash-handlers-without-a-serial-cable) section below for details ([#14685](https://github.com/esphome/esphome/pull/14685), [#14716](https://github.com/esphome/esphome/pull/14716))
+- **Hardware UART with single pin** - RP2040 now supports configuring a hardware UART with only TX or only RX, useful for one-way serial protocols ([#14725](https://github.com/esphome/esphome/pull/14725))
+- **ADC fix for RP2350** - Fixed a `PICO_VSYS_PIN` compile error on RP2350 boards when using the ADC component ([#14724](https://github.com/esphome/esphome/pull/14724))
 - **Socket wake support** - The fast select optimization was ported to RP2040, enabling efficient socket polling without `lwip_select()` overhead ([#14498](https://github.com/esphome/esphome/pull/14498))
 - **WiFi AP and captive portal** - WiFi AP mode and AP+STA fallback now work reliably on RP2040/RP2350, with 7 WiFi fixes in arduino-pico 5.5.1 ([#14500](https://github.com/esphome/esphome/pull/14500)). The captive portal component was also enabled for the platform ([#14505](https://github.com/esphome/esphome/pull/14505))
 
@@ -88,6 +90,10 @@ The RP2040/RP2350 platform takes a major step toward first-class support in this
 - **LWIP PCB use-after-free fixed** - A long-standing bug where `tcp_close()` left the PCB alive during the TCP close handshake, allowing LWIP `recv`/`err` callbacks to fire with dangling pointers after the socket object was destroyed, has been fixed ([#14706](https://github.com/esphome/esphome/pull/14706)). This caused `umm_malloc_core` heap corruption crashes that have plagued ESP8266 reliability for years, and also affected RP2040. Both platforms now pass the 500-iteration rapid connect/disconnect stress test with 4 concurrent clients.
 - **TCP race condition fixed** - A critical race between lwip IRQ callbacks and the main loop on Pico W was identified and fixed, preventing heap corruption under concurrent API connections ([#14679](https://github.com/esphome/esphome/pull/14679))
 - **Accept-in-IRQ heap corruption fixed** - Socket accept callbacks on RP2040 no longer allocate memory in IRQ context, eliminating crashes under rapid connect/disconnect stress testing ([#14687](https://github.com/esphome/esphome/pull/14687))
+- **OTA timeout fixed** - OTA updates on ESP8266 and RP2040 no longer time out under load; switched from polling to `SO_RCVTIMEO` for reliable socket reads ([#14675](https://github.com/esphome/esphome/pull/14675))
+- **mDNS restart after WiFi reconnect** - mDNS on RP2040 now correctly restarts after WiFi reconnects, fixing service discovery failures ([#14737](https://github.com/esphome/esphome/pull/14737))
+- **I2C bus selection** - Fixed RP2040 I2C bus selection to correctly choose the hardware I2C peripheral based on pin assignment ([#14745](https://github.com/esphome/esphome/pull/14745))
+- **Debug reset reason** - The debug component now correctly reports the reset reason on RP2040/RP2350 ([#14740](https://github.com/esphome/esphome/pull/14740))
 
 **Flash and Performance:**
 
@@ -172,6 +178,7 @@ The native API communication layer received over 20 targeted optimizations this 
 - **Socket layer overhaul** - The entire socket abstraction was devirtualized, converting the virtual base class to concrete per-platform types (`BSDSocketImpl`, `LwIPSocketImpl`, `LWIPRawImpl`) with zero virtual methods ([#14398](https://github.com/esphome/esphome/pull/14398)). The compiler now fully inlines hot-path socket methods (`read`, `write`, `writev`, `ready`) directly into API frame helpers and OTA chunk handlers, eliminating vtable loads on every packet. Saves ~3KB flash on ESP32. Socket pointer caching ([#14408](https://github.com/esphome/esphome/pull/14408)) further inlined the entire `ready()` chain to ~30 bytes with zero function calls.
 - **Handshake timeout** - 15-second timeout for completing API handshakes prevents connection slot exhaustion from stale half-open connections ([#14050](https://github.com/esphome/esphome/pull/14050))
 - **Inlined send buffer fast path** - The `try_to_clear_buffer()` check on every `send_buffer()` call is now inlined, avoiding a function call when the TX buffer is already clear ([#14630](https://github.com/esphome/esphome/pull/14630))
+- **TCP_NODELAY fast path** - Setting `TCP_NODELAY` now bypasses the expensive `lwip_setsockopt` overhead by writing directly to the PCB flags ([#14693](https://github.com/esphome/esphome/pull/14693))
 
 **BLE Event Processing:**
 
@@ -252,11 +259,17 @@ ESP-IDF has been bumped to 5.5.3 ([#14122](https://github.com/esphome/esphome/pu
 - **Codebase-wide constexpr migration** - Over 20 PRs converted `static const` to `constexpr` across core, API, BLE, NFC, MQTT, and display components, moving constants to flash and enabling compiler optimizations ([#14071](https://github.com/esphome/esphome/pull/14071), [#14127](https://github.com/esphome/esphome/pull/14127), [#14129](https://github.com/esphome/esphome/pull/14129), and others)
 - **`esphome::optional` replaced with `std::optional`** - Eliminates a custom implementation in favor of the C++17 standard ([#14368](https://github.com/esphome/esphome/pull/14368))
 
-## ESP32 Crash Handler
+## Crash Handlers Without a Serial Cable
+
+**ESP32:**
 
 A new crash handler for ESP32 devices using the ESP-IDF framework automatically captures backtraces when a crash occurs, stores them in `.noinit` memory (survives software reset), and logs the data on next boot ([#14709](https://github.com/esphome/esphome/pull/14709)). Crash data appears in `esphome logs` over the API — no serial cable needed — and in the Home Assistant log viewer when "Subscribe to logs" is enabled. The CLI automatically decodes addresses inline using `addr2line`.
 
 The handler works on both **Xtensa** (ESP32, S2, S3) and **RISC-V** (C3, C6, H2, C2) architectures, capturing up to 16 backtrace frames with human-readable exception reasons. On RISC-V, stack-scanned entries are validated and labeled to distinguish from register-sourced frames. Memory cost is minimal: +92 bytes RAM, +1,092 bytes flash. No configuration needed — it's automatically enabled for all ESP-IDF devices.
+
+**RP2040/RP2350:**
+
+A HardFault crash handler captures register state and stack backtrace when a crash occurs, stores it across reboot via watchdog scratch registers, and logs it on next boot ([#14685](https://github.com/esphome/esphome/pull/14685)). A follow-up fix ([#14716](https://github.com/esphome/esphome/pull/14716)) improved backtrace storage and logger integration. The CLI's serial log viewer auto-decodes addresses using `addr2line`. Works on both RP2040 and RP2350.
 
 ## ESP32-P4 and ESP32-C5 Improvements
 
@@ -402,6 +415,7 @@ Most users can update without any configuration changes. The items below are gro
 - **Time**: The libc timezone infrastructure has been replaced with a lightweight custom parser, saving ~9.5KB flash on ESP32 and ~2% RAM on ESP8266. The `dump_config()` output now shows human-readable timezone info (e.g., `UTC-6:00 (DST UTC-5:00)`) instead of raw POSIX strings [#13635](https://github.com/esphome/esphome/pull/13635)
 - **Icons (ESP8266)**: Icon strings are now stored in PROGMEM (flash), with a maximum length of 63 characters. All standard `mdi:*` icons are well under this limit [#14437](https://github.com/esphome/esphome/pull/14437)
 - **Device Classes (ESP8266)**: Device class strings are similarly moved to PROGMEM [#14443](https://github.com/esphome/esphome/pull/14443)
+- **Light**: Lambdas calling `set_effect(0)` to disable effects by integer index will get an ambiguous overload error. Use `set_effect(uint32_t{0})` or `set_effect("None")` instead [#14732](https://github.com/esphome/esphome/pull/14732)
 {/* BREAKING_CHANGES_USERS_END */}
 
 ### Undocumented API Changes
