@@ -247,11 +247,16 @@ def _validate(config):
                     f"{config[CONF_TYPE]} PHY requires RMII interface and is only supported "
                     f"on ESP32 classic and ESP32-P4, not {variant}"
                 )
-    elif CORE.is_rp2040 and config[CONF_TYPE] not in RP2040_SPI_ETHERNET_TYPES:
-        raise cv.Invalid(
-            f"Only {', '.join(RP2040_SPI_ETHERNET_TYPES)} are supported on RP2040, "
-            f"not {config[CONF_TYPE]}"
-        )
+    elif CORE.is_rp2040:
+        if config[CONF_TYPE] not in RP2040_SPI_ETHERNET_TYPES:
+            raise cv.Invalid(
+                f"Only {', '.join(RP2040_SPI_ETHERNET_TYPES)} are supported on RP2040, "
+                f"not {config[CONF_TYPE]}"
+            )
+        if CONF_CLOCK_SPEED in config:
+            raise cv.Invalid(f"'{CONF_CLOCK_SPEED}' is not supported on RP2040")
+        if CONF_POLLING_INTERVAL in config:
+            raise cv.Invalid(f"'{CONF_POLLING_INTERVAL}' is not supported on RP2040")
     return config
 
 
