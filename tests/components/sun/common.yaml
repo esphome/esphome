@@ -11,6 +11,7 @@ time:
 sun:
   latitude: 48.8584°
   longitude: 2.2945°
+  offset: 10d
   on_sunrise:
     - then:
         - logger.log: Good morning
@@ -36,3 +37,7 @@ text_sensor:
   - platform: sun
     name: Sun Next Sunset
     type: sunset
+  - platform: sun
+    name: Sun Time
+    type: time
+    format: "%c"
