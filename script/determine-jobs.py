@@ -711,7 +711,8 @@ def main() -> None:
         args.branch
     )
     run_integration = integration_run_all or bool(integration_test_files)
-    run_clang_tidy = should_run_clang_tidy(args.branch)
+    # Force clang-tidy for IDF 6.0 testing
+    run_clang_tidy = True
     run_clang_format = should_run_clang_format(args.branch)
     run_python_linters = should_run_python_linters(args.branch)
     changed_cpp_file_count = count_changed_cpp_files(args.branch)
