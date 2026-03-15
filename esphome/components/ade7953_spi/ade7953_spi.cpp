@@ -32,6 +32,10 @@ bool AdE7953Spi::ade_write_16(uint16_t reg, uint16_t value) {
   this->write_byte16(reg);
   this->transfer_byte(0);
   this->write_byte16(value);
+  if (reg == ade7953_base::CONFIG_16) {
+    // According to datasheet, at least 1,2 ms need to be wait after clearing LOCK_BIT in CONFIG reg
+    delayMicroseconds(2);
+  }
   this->disable();
   return false;
 }

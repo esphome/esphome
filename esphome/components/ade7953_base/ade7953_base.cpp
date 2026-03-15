@@ -18,7 +18,12 @@ void ADE7953::setup() {
 
   // The chip might take up to 100ms to initialise
   this->set_timeout(100, [this]() {
-    // this->ade_write_8(0x0010, 0x04);
+    // Lock communication interface (SPI or I2C)
+    uint16_t config_v_;
+    this->ade_read_16(CONFIG_16, &config_v_);
+    config_v_ &= 0x7FFF;  // Clear the lock bit
+    this->ade_write_16(CONFIG_16, config_v_);
+    // Configure optimum settings according to datasheet
     this->ade_write_8(0x00FE, 0xAD);
     this->ade_write_16(0x0120, 0x0030);
     // Set gains

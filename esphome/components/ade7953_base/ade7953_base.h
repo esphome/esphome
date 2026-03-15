@@ -16,6 +16,8 @@ static const uint8_t PGA_IA_8 =
 static const uint8_t PGA_IB_8 =
     0x009;  // PGA_IB, (R/W) Default: 0x00, Unsigned, Current Channel B gain configuration (Bits[2:0])
 
+static const uint16_t CONFIG_16 = 0x102;  // CONFIG, (R/W) Default: 0x8004, Unsigned, Configuration register
+
 static const uint32_t AIGAIN_32 =
     0x380;  // AIGAIN, (R/W)   Default: 0x400000, Unsigned,Current channel gain (Current Channel A)(32 bit)
 static const uint32_t AVGAIN_32 = 0x381;  // AVGAIN, (R/W)   Default: 0x400000, Unsigned,Voltage channel gain(32 bit)
