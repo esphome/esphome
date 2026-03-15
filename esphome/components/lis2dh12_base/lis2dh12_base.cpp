@@ -1,5 +1,6 @@
 #include "lis2dh12_base.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome::lis2dh12_base {
@@ -9,96 +10,52 @@ static const char *const TAG = "lis2dh12";
 static const uint8_t LIS2DH12_WHO_AM_I_VALUE = 0x33;
 static const float GRAVITY_EARTH = 9.80665f;
 
-static const uint32_t TAP_COOLDOWN_MS = 500;
-static const uint32_t DOUBLE_TAP_COOLDOWN_MS = 500;
-static const uint32_t FREEFALL_COOLDOWN_MS = 500;
-static const uint32_t ACTIVITY_COOLDOWN_MS = 500;
+static const uint16_t EVENT_COOLDOWN_MS = 500;
 
 // Sensitivity in mg/LSB indexed by Range enum value: 2G=0, 4G=1, 8G=2, 16G=3
-// High-resolution mode (12-bit)
-static const float SENSITIVITY_HR[] = {1.0f, 2.0f, 4.0f, 12.0f};
-// Normal mode (10-bit)
-static const float SENSITIVITY_NM[] = {4.0f, 8.0f, 16.0f, 48.0f};
-// Low-power mode (8-bit)
-static const float SENSITIVITY_LP[] = {16.0f, 32.0f, 64.0f, 192.0f};
+constexpr float SENSITIVITY_HR[] PROGMEM = {1.0f, 2.0f, 4.0f, 12.0f};      // High-resolution (12-bit)
+constexpr float SENSITIVITY_NM[] PROGMEM = {4.0f, 8.0f, 16.0f, 48.0f};     // Normal (10-bit)
+constexpr float SENSITIVITY_LP[] PROGMEM = {16.0f, 32.0f, 64.0f, 192.0f};  // Low-power (8-bit)
+
+PROGMEM_STRING_TABLE(ResolutionStrings, "High Resolution (12-bit)", "Normal (10-bit)", "Low Power (8-bit)", "Unknown");
 
 static const LogString *resolution_to_string(Resolution res) {
-  switch (res) {
-    case Resolution::HIGH_RESOLUTION:
-      return LOG_STR("High Resolution (12-bit)");
-    case Resolution::NORMAL:
-      return LOG_STR("Normal (10-bit)");
-    case Resolution::LOW_POWER:
-      return LOG_STR("Low Power (8-bit)");
-    default:
-      return LOG_STR("Unknown");
-  }
+  return ResolutionStrings::get_log_str(static_cast<uint8_t>(res), ResolutionStrings::LAST_INDEX);
 }
+
+PROGMEM_STRING_TABLE(RangeStrings, "±2g", "±4g", "±8g", "±16g", "±??g");
 
 static const LogString *range_to_string(Range range) {
-  switch (range) {
-    case Range::RANGE_2G:
-      return LOG_STR("±2g");
-    case Range::RANGE_4G:
-      return LOG_STR("±4g");
-    case Range::RANGE_8G:
-      return LOG_STR("±8g");
-    case Range::RANGE_16G:
-      return LOG_STR("±16g");
-    default:
-      return LOG_STR("Unknown");
-  }
+  return RangeStrings::get_log_str(static_cast<uint8_t>(range), RangeStrings::LAST_INDEX);
 }
 
+PROGMEM_STRING_TABLE(DataRateStrings, "Power Down", "1 Hz", "10 Hz", "25 Hz", "50 Hz", "100 Hz", "200 Hz", "400 Hz",
+                     "1620 Hz (LP)", "5376 Hz (LP) / 1344 Hz (NM/HR)", "Unknown");
+
 static const LogString *data_rate_to_string(DataRate rate) {
-  switch (rate) {
-    case DataRate::RATE_POWER_DOWN:
-      return LOG_STR("Power Down");
-    case DataRate::RATE_1HZ:
-      return LOG_STR("1 Hz");
-    case DataRate::RATE_10HZ:
-      return LOG_STR("10 Hz");
-    case DataRate::RATE_25HZ:
-      return LOG_STR("25 Hz");
-    case DataRate::RATE_50HZ:
-      return LOG_STR("50 Hz");
-    case DataRate::RATE_100HZ:
-      return LOG_STR("100 Hz");
-    case DataRate::RATE_200HZ:
-      return LOG_STR("200 Hz");
-    case DataRate::RATE_400HZ:
-      return LOG_STR("400 Hz");
-    case DataRate::RATE_1620HZ_LP:
-      return LOG_STR("1620 Hz (LP)");
-    case DataRate::RATE_5376HZ_LP:
-      return LOG_STR("5376 Hz (LP) / 1344 Hz (NM/HR)");
-    default:
-      return LOG_STR("Unknown");
-  }
+  return DataRateStrings::get_log_str(static_cast<uint8_t>(rate), DataRateStrings::LAST_INDEX);
 }
 
 void LIS2DH12Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up LIS2DH12...");
+  ESP_LOGV(TAG, "Setting up LIS2DH12");
 
   // Verify WHO_AM_I
   uint8_t who_am_i{0};
   if (!this->read_byte(static_cast<uint8_t>(RegisterMap::WHO_AM_I), &who_am_i) || who_am_i != LIS2DH12_WHO_AM_I_VALUE) {
-    ESP_LOGE(TAG, "WHO_AM_I check failed. Got 0x%02X, expected 0x%02X", who_am_i, LIS2DH12_WHO_AM_I_VALUE);
-    this->mark_failed();
+    ESP_LOGD(TAG, "Expected Chip ID 0x%02X, got 0x%02X", LIS2DH12_WHO_AM_I_VALUE, who_am_i);
+    this->mark_failed(LOG_STR("Unknown Chip ID"));
     return;
   }
 
   // Reboot memory content (CTRL_REG5 bit 7)
   if (!this->write_byte(static_cast<uint8_t>(RegisterMap::CTRL_REG5), 0x80)) {
-    ESP_LOGE(TAG, "Reboot failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Reboot failed"));
     return;
   }
   delay(5);  // NOLINT - wait for reboot to complete
 
   if (!this->configure_registers_()) {
-    ESP_LOGE(TAG, "Register configuration failed");
-    this->mark_failed();
+    this->mark_failed(LOG_STR("Register config failed"));
     return;
   }
 
@@ -177,13 +134,13 @@ bool LIS2DH12Component::configure_registers_() {
     return false;
   }
 
-  // INT1_THS
-  if (!this->write_byte(static_cast<uint8_t>(RegisterMap::INT1_THS), 0x10)) {
+  // INT1_THS: ~60° threshold (0x36 = 54×16mg = 864mg ≈ sin(60°)×1g)
+  if (!this->write_byte(static_cast<uint8_t>(RegisterMap::INT1_THS), 0x36)) {
     return false;
   }
 
-  // INT1_DURATION
-  if (!this->write_byte(static_cast<uint8_t>(RegisterMap::INT1_DURATION), 0x00)) {
+  // INT1_DURATION: 240ms debounce at 25Hz (6×1/25Hz) per ST DT0097
+  if (!this->write_byte(static_cast<uint8_t>(RegisterMap::INT1_DURATION), 0x06)) {
     return false;
   }
 
@@ -202,9 +159,6 @@ bool LIS2DH12Component::configure_registers_() {
 
 void LIS2DH12Component::dump_config() {
   ESP_LOGCONFIG(TAG, "LIS2DH12:");
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
-  }
   ESP_LOGCONFIG(TAG,
                 "  Resolution: %s\n"
                 "  Data Rate: %s\n"
@@ -241,9 +195,9 @@ bool LIS2DH12Component::read_acceleration_data_() {
     return false;
   }
 
-  int16_t raw_x = static_cast<int16_t>((accel_data[1] << 8) | accel_data[0]);
-  int16_t raw_y = static_cast<int16_t>((accel_data[3] << 8) | accel_data[2]);
-  int16_t raw_z = static_cast<int16_t>((accel_data[5] << 8) | accel_data[4]);
+  int16_t raw_x = static_cast<int16_t>(encode_uint16(accel_data[1], accel_data[0]));
+  int16_t raw_y = static_cast<int16_t>(encode_uint16(accel_data[3], accel_data[2]));
+  int16_t raw_z = static_cast<int16_t>(encode_uint16(accel_data[5], accel_data[4]));
 
   switch (this->resolution_) {
     case Resolution::HIGH_RESOLUTION:
@@ -300,22 +254,22 @@ bool LIS2DH12Component::read_interrupt_status_() {
 }
 
 const char *LIS2DH12Component::get_orientation_string_() {
-  if (this->status_.int1.xh)
-    return "X Up";
-  if (this->status_.int1.xl)
-    return "X Down";
-  if (this->status_.int1.yh)
-    return "Y Up";
-  if (this->status_.int1.yl)
-    return "Y Down";
   if (this->status_.int1.zh)
-    return "Z Up";
+    return "Face Up";
   if (this->status_.int1.zl)
-    return "Z Down";
+    return "Face Down";
+  if (this->status_.int1.xh)
+    return "Portrait Up";
+  if (this->status_.int1.xl)
+    return "Portrait Down";
+  if (this->status_.int1.yh)
+    return "Landscape Right";
+  if (this->status_.int1.yl)
+    return "Landscape Left";
   return "Unknown";
 }
 
-static void binary_event_debounce(bool state, uint32_t now, uint32_t &last_ms, Trigger<> &trigger, uint32_t cooldown_ms,
+static void binary_event_debounce(bool state, uint32_t now, uint32_t &last_ms, Trigger<> &trigger, uint16_t cooldown_ms,
                                   void *bs, const char *desc) {
   if (state && now - last_ms > cooldown_ms) {
     ESP_LOGV(TAG, "%s detected", desc);
@@ -342,18 +296,18 @@ static void binary_event_debounce(bool state, uint32_t now, uint32_t &last_ms, T
 void LIS2DH12Component::process_events_() {
   uint32_t now = millis();
 
-  binary_event_debounce(this->status_.click.sclick, now, this->status_.last_tap_ms, this->tap_trigger_, TAP_COOLDOWN_MS,
-                        BS_OPTIONAL_PTR(this->tap_binary_sensor_), "Tap");
+  binary_event_debounce(this->status_.click.sclick, now, this->status_.last_tap_ms, this->tap_trigger_,
+                        EVENT_COOLDOWN_MS, BS_OPTIONAL_PTR(this->tap_binary_sensor_), "Tap");
   binary_event_debounce(this->status_.click.dclick, now, this->status_.last_double_tap_ms, this->double_tap_trigger_,
-                        DOUBLE_TAP_COOLDOWN_MS, BS_OPTIONAL_PTR(this->double_tap_binary_sensor_), "Double Tap");
+                        EVENT_COOLDOWN_MS, BS_OPTIONAL_PTR(this->double_tap_binary_sensor_), "Double Tap");
 
   binary_event_debounce(
       this->status_.int1.ia && !this->status_.int1.xh && !this->status_.int1.yh && !this->status_.int1.zh, now,
-      this->status_.last_freefall_ms, this->freefall_trigger_, FREEFALL_COOLDOWN_MS,
+      this->status_.last_freefall_ms, this->freefall_trigger_, EVENT_COOLDOWN_MS,
       BS_OPTIONAL_PTR(this->freefall_binary_sensor_), "Freefall");
   binary_event_debounce(
       this->status_.int1.ia && (this->status_.int1.xh || this->status_.int1.yh || this->status_.int1.zh), now,
-      this->status_.last_active_ms, this->active_trigger_, ACTIVITY_COOLDOWN_MS,
+      this->status_.last_active_ms, this->active_trigger_, EVENT_COOLDOWN_MS,
       BS_OPTIONAL_PTR(this->active_binary_sensor_), "Activity");
 
   if (this->status_.int1.ia && this->status_.int1.raw != this->status_.int1_old.raw) {
