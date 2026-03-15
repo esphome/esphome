@@ -106,7 +106,7 @@ void AbsoluteHumidityComponent::loop() {
 
 // Buck equation (https://en.wikipedia.org/wiki/Arden_Buck_equation)
 // More accurate than Tetens in normal meteorologic conditions
-float AbsoluteHumidityComponent::es_buck(const float temperature_c) {
+float AbsoluteHumidityComponent::es_buck(float temperature_c) {
   float a, b, c, d;
   if (temperature_c >= 0.0f) {
     a = 0.61121f;
@@ -123,7 +123,7 @@ float AbsoluteHumidityComponent::es_buck(const float temperature_c) {
 }
 
 // Tetens equation (https://en.wikipedia.org/wiki/Tetens_equation)
-float AbsoluteHumidityComponent::es_tetens(const float temperature_c) {
+float AbsoluteHumidityComponent::es_tetens(float temperature_c) {
   float a, b;
   if (temperature_c >= 0.0f) {
     a = 17.27f;
@@ -139,7 +139,7 @@ float AbsoluteHumidityComponent::es_tetens(const float temperature_c) {
 // https://wahiduddin.net/calc/density_altitude.htm
 // https://wahiduddin.net/calc/density_algorithms.htm
 // Calculate the saturation vapor pressure (kPa)
-float AbsoluteHumidityComponent::es_wobus(const float t) {
+float AbsoluteHumidityComponent::es_wobus(float t) {
   // THIS FUNCTION RETURNS THE SATURATION VAPOR PRESSURE ESW (MILLIBARS)
   // OVER LIQUID WATER GIVEN THE TEMPERATURE T (CELSIUS). THE POLYNOMIAL
   // APPROXIMATION BELOW IS DUE TO HERMAN WOBUS, A MATHEMATICIAN WHO
@@ -168,7 +168,7 @@ float AbsoluteHumidityComponent::es_wobus(const float t) {
 // From https://www.environmentalbiophysics.org/chalk-talk-how-to-calculate-absolute-humidity/
 // H/T to https://esphome.io/cookbook/bme280_environment/
 // H/T to https://carnotcycle.wordpress.com/2012/08/04/how-to-convert-relative-humidity-to-absolute-humidity/
-float AbsoluteHumidityComponent::vapor_density(const float es, const float hr, const float ta) {
+float AbsoluteHumidityComponent::vapor_density(float es, float hr, float ta) {
   // es = saturated vapor pressure (kPa)
   // hr = relative humidity [0-1]
   // ta = absolute temperature (K)
