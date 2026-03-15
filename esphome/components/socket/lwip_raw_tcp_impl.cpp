@@ -263,6 +263,20 @@ static bool sockaddr_to_lwip(const struct sockaddr *addr, socklen_t addrlen, ip_
   return false;
 }
 
+/// Map lwip bind error to errno. Returns 0 on success, -1 on error with errno set.
+static int lwip_bind_err(err_t err) {
+  if (err == ERR_OK)
+    return 0;
+  if (err == ERR_USE) {
+    errno = EADDRINUSE;
+  } else if (err == ERR_VAL) {
+    errno = EINVAL;
+  } else {
+    errno = EIO;
+  }
+  return -1;
+}
+
 // ---- LWIPRawCommon methods ----
 
 LWIPRawCommon::~LWIPRawCommon() {
@@ -297,22 +311,8 @@ int LWIPRawCommon::bind(const struct sockaddr *name, socklen_t addrlen) {
   }
 #endif
   err_t err = tcp_bind(this->pcb_, &ip, port);
-  if (err == ERR_USE) {
-    LWIP_LOG("  -> err ERR_USE");
-    errno = EADDRINUSE;
-    return -1;
-  }
-  if (err == ERR_VAL) {
-    LWIP_LOG("  -> err ERR_VAL");
-    errno = EINVAL;
-    return -1;
-  }
-  if (err != ERR_OK) {
-    LWIP_LOG("  -> err %d", err);
-    errno = EIO;
-    return -1;
-  }
-  return 0;
+  LWIP_LOG("  -> err %d", err);
+  return lwip_bind_err(err);
 }
 
 int LWIPRawCommon::close() {
@@ -1028,20 +1028,7 @@ int LWIPRawUDPImpl::bind_internal_(const struct sockaddr *name, socklen_t addrle
     ip.type = IPADDR_TYPE_ANY;
   }
 #endif
-  err_t err = udp_bind(this->pcb_, &ip, port);
-  if (err == ERR_USE) {
-    errno = EADDRINUSE;
-    return -1;
-  }
-  if (err == ERR_VAL) {
-    errno = EINVAL;
-    return -1;
-  }
-  if (err != ERR_OK) {
-    errno = EIO;
-    return -1;
-  }
-  return 0;
+  return lwip_bind_err(udp_bind(this->pcb_, &ip, port));
 }
 
 int LWIPRawUDPImpl::bind(const struct sockaddr *name, socklen_t addrlen) { return this->bind_internal_(name, addrlen); }
