@@ -52,32 +52,5 @@ class OpenThreadComponentPollPeriodAction final : public Action<Ts...>, public O
   void apply_locked_(otInstance *instance) override { this->parent_->apply_linkmode(instance); }
 };
 
-/** Action to set multiple link mode parameters in one shot */
-template<typename... Ts>
-class OpenThreadComponentLinkModeAction final : public Action<Ts...>, public OpenThreadComponentBaseAction {
-  TEMPLATABLE_VALUE(uint32_t, poll_period)
-  // ... TODO: Other link mode fields ...
-
- public:
-  /* Passthrough ctor */
-  using OpenThreadComponentBaseAction::OpenThreadComponentBaseAction;
-
- protected:
-  void play(const Ts &...x) override {
-    // Arbitrary optional fields can be set
-
-#ifdef CONFIG_OPENTHREAD_MTD
-    if (this->poll_period_.has_value()) {
-      this->parent_->set_poll_period(this->poll_period_.value(x...));
-    }
-#endif
-    // ... TODO: Other link mode fields ...
-
-    this->lock_and_apply_();
-  }
-
-  void apply_locked_(otInstance *instance) override { this->parent_->apply_linkmode(instance); }
-};
-
 }  // namespace esphome::openthread
 #endif
