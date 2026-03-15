@@ -309,14 +309,14 @@ SPI_SCHEMA = cv.All(
                 cv.Required(CONF_CS_PIN): pins.internal_gpio_output_pin_number,
                 cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_number,
                 cv.Optional(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
-                cv.Optional(CONF_CLOCK_SPEED, default="26.67MHz"): cv.All(
-                    cv.only_on([Platform.ESP32]),
+                cv.SplitDefault(CONF_CLOCK_SPEED, esp32="26.67MHz"): cv.All(
+                    cv.only_on_esp32,
                     cv.frequency,
                     cv.int_range(int(8e6), int(80e6)),
                 ),
                 # Set default value (SPI_ETHERNET_DEFAULT_POLLING_INTERVAL) at _validate()
                 cv.Optional(CONF_POLLING_INTERVAL): cv.All(
-                    cv.only_on([Platform.ESP32]),
+                    cv.only_on_esp32,
                     cv.positive_time_period_milliseconds,
                     cv.Range(min=TimePeriodMilliseconds(milliseconds=1)),
                 ),
@@ -447,7 +447,7 @@ async def to_code(config):
     CORE.add_job(final_step)
 
 
-async def _to_code_esp32(var, config):
+async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
     from esphome.components.esp32 import (
         add_idf_component,
         add_idf_sdkconfig_option,
@@ -504,7 +504,7 @@ async def _to_code_esp32(var, config):
         add_idf_component(name="espressif/lan867x", ref="2.0.0")
 
 
-async def _to_code_rp2040(var, config):
+async def _to_code_rp2040(var: cg.Pvariable, config: ConfigType) -> None:
     cg.add(var.set_clk_pin(config[CONF_CLK_PIN]))
     cg.add(var.set_miso_pin(config[CONF_MISO_PIN]))
     cg.add(var.set_mosi_pin(config[CONF_MOSI_PIN]))
