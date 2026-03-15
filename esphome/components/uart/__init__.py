@@ -4,8 +4,8 @@ import re
 
 from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.components.libretiny import LTComponent
 from esphome.components.const import CONF_DATA_BITS, CONF_PARITY, CONF_STOP_BITS
+from esphome.components.libretiny import LTComponent
 from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
