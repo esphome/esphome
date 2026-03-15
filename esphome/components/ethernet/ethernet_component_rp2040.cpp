@@ -180,6 +180,7 @@ void EthernetComponent::dump_config() {
 network::IPAddresses EthernetComponent::get_ip_addresses() {
   network::IPAddresses addresses;
   if (this->eth_ != nullptr) {
+    LwIPLock lock;
     addresses[0] = network::IPAddress(this->eth_->localIP());
   }
   return addresses;
