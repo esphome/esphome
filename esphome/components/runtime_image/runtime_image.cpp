@@ -35,7 +35,9 @@ RuntimeImage::RuntimeImage(ImageFormat format, image::ImageType type, image::Tra
       fixed_width_(fixed_width),
       fixed_height_(fixed_height),
       placeholder_(placeholder),
-      is_big_endian_(is_big_endian) {}
+      is_big_endian_(is_big_endian) {
+  this->big_endian_ = is_big_endian;
+}
 
 RuntimeImage::~RuntimeImage() { this->release(); }
 

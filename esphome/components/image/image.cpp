@@ -1,5 +1,6 @@
 #include "image.h"
 
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
@@ -9,8 +10,8 @@ namespace image {
 void Image::draw(int x, int y, display::Display *display, Color color_on, Color color_off) {
   int img_x0 = 0;
   int img_y0 = 0;
-  int w = width_;
-  int h = height_;
+  int w = this->width_;
+  int h = this->height_;
 
   auto clipping = display->get_clipping();
   if (clipping.is_set()) {
@@ -24,7 +25,32 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
       h = clipping.y2() - y;
   }
 
-  switch (type_) {
+  int draw_w = w - img_x0;
+  int draw_h = h - img_y0;
+
+  if (draw_w <= 0 || draw_h <= 0)
+    return;
+
+  // For opaque RGB/RGB565 images, use bulk draw_pixels_at
+  // which allows display drivers to use DMA or optimized transfers
+  if (!this->has_transparency()) {
+    switch (this->type_) {
+      case IMAGE_TYPE_RGB:
+        display->draw_pixels_at(x + img_x0, y + img_y0, draw_w, draw_h, this->data_start_, display::COLOR_ORDER_RGB,
+                                display::COLOR_BITNESS_888, true, img_x0, img_y0, this->width_ - w);
+        return;
+      case IMAGE_TYPE_RGB565:
+        display->draw_pixels_at(x + img_x0, y + img_y0, draw_w, draw_h, this->data_start_, display::COLOR_ORDER_RGB,
+                                display::COLOR_BITNESS_565, this->big_endian_, img_x0, img_y0, this->width_ - w);
+        return;
+      default:
+        break;
+    }
+  }
+
+  // Fallback: per-pixel drawing for transparent images and binary type.
+  // Feed WDT periodically to prevent watchdog timeout on large images.
+  switch (this->type_) {
     case IMAGE_TYPE_BINARY: {
       for (int img_x = img_x0; img_x < w; img_x++) {
         for (int img_y = img_y0; img_y < h; img_y++) {
@@ -34,6 +60,7 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
             display->draw_pixel_at(x + img_x, y + img_y, color_off);
           }
         }
+        App.feed_wdt();
       }
       break;
     }
@@ -62,6 +89,7 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
           }
           display->draw_pixel_at(x + img_x, y + img_y, color);
         }
+        App.feed_wdt();
       }
       break;
     case IMAGE_TYPE_RGB565:
@@ -72,6 +100,7 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
             display->draw_pixel_at(x + img_x, y + img_y, color);
           }
         }
+        App.feed_wdt();
       }
       break;
     case IMAGE_TYPE_RGB:
@@ -82,6 +111,7 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
             display->draw_pixel_at(x + img_x, y + img_y, color);
           }
         }
+        App.feed_wdt();
       }
       break;
   }
