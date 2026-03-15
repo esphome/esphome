@@ -7,7 +7,7 @@
 #include <esphome/components/sensor/sensor.h>
 #include <esphome/core/component.h>
 
-#define BME280_ERROR_WRONG_CHIP_ID "Wrong chip ID"
+#define BME280_ERROR_WRONG_CHIP_ID "Wrong chip ID or no response"
 
 namespace esphome {
 namespace bme280_base {

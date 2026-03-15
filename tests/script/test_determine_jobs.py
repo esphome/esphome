@@ -29,9 +29,9 @@ spec.loader.exec_module(determine_jobs)
 
 
 @pytest.fixture
-def mock_should_run_integration_tests() -> Generator[Mock, None, None]:
-    """Mock should_run_integration_tests from helpers."""
-    with patch.object(determine_jobs, "should_run_integration_tests") as mock:
+def mock_determine_integration_tests() -> Generator[Mock, None, None]:
+    """Mock determine_integration_tests."""
+    with patch.object(determine_jobs, "determine_integration_tests") as mock:
         yield mock
 
 
@@ -87,7 +87,7 @@ def clear_determine_jobs_caches() -> None:
 
 
 def test_main_all_tests_should_run(
-    mock_should_run_integration_tests: Mock,
+    mock_determine_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
@@ -100,7 +100,7 @@ def test_main_all_tests_should_run(
     # Ensure we're not in GITHUB_ACTIONS mode for this test
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
 
-    mock_should_run_integration_tests.return_value = True
+    mock_determine_integration_tests.return_value = (True, [])
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = True
     mock_should_run_python_linters.return_value = True
@@ -152,6 +152,8 @@ def test_main_all_tests_should_run(
     output = json.loads(captured.out)
 
     assert output["integration_tests"] is True
+    assert output["integration_tests_run_all"] is True
+    assert output["integration_test_files"] == []
     assert output["clang_tidy"] is True
     assert output["clang_tidy_mode"] in ["nosplit", "split"]
     assert output["clang_format"] is True
@@ -183,7 +185,7 @@ def test_main_all_tests_should_run(
 
 
 def test_main_no_tests_should_run(
-    mock_should_run_integration_tests: Mock,
+    mock_determine_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
@@ -196,7 +198,7 @@ def test_main_no_tests_should_run(
     # Ensure we're not in GITHUB_ACTIONS mode for this test
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
 
-    mock_should_run_integration_tests.return_value = False
+    mock_determine_integration_tests.return_value = (False, [])
     mock_should_run_clang_tidy.return_value = False
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = False
@@ -233,6 +235,8 @@ def test_main_no_tests_should_run(
     output = json.loads(captured.out)
 
     assert output["integration_tests"] is False
+    assert output["integration_tests_run_all"] is False
+    assert output["integration_test_files"] == []
     assert output["clang_tidy"] is False
     assert output["clang_tidy_mode"] == "disabled"
     assert output["clang_format"] is False
@@ -253,7 +257,7 @@ def test_main_no_tests_should_run(
 
 
 def test_main_with_branch_argument(
-    mock_should_run_integration_tests: Mock,
+    mock_determine_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
@@ -266,7 +270,7 @@ def test_main_with_branch_argument(
     # Ensure we're not in GITHUB_ACTIONS mode for this test
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
 
-    mock_should_run_integration_tests.return_value = False
+    mock_determine_integration_tests.return_value = (False, [])
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = True
@@ -302,7 +306,7 @@ def test_main_with_branch_argument(
         determine_jobs.main()
 
     # Check that functions were called with branch
-    mock_should_run_integration_tests.assert_called_once_with("main")
+    mock_determine_integration_tests.assert_called_once_with("main")
     mock_should_run_clang_tidy.assert_called_once_with("main")
     mock_should_run_clang_format.assert_called_once_with("main")
     mock_should_run_python_linters.assert_called_once_with("main")
@@ -312,6 +316,8 @@ def test_main_with_branch_argument(
     output = json.loads(captured.out)
 
     assert output["integration_tests"] is False
+    assert output["integration_tests_run_all"] is False
+    assert output["integration_test_files"] == []
     assert output["clang_tidy"] is True
     assert output["clang_tidy_mode"] in ["nosplit", "split"]
     assert output["clang_format"] is False
@@ -334,30 +340,33 @@ def test_main_with_branch_argument(
     assert output["cpp_unit_tests_components"] == ["mqtt"]
 
 
-def test_should_run_integration_tests(
+def test_determine_integration_tests(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Test should_run_integration_tests function."""
-    # Core C++ files trigger tests
+    """Test determine_integration_tests function."""
+    # Core C++ files trigger run_all
     with patch.object(
         determine_jobs, "changed_files", return_value=["esphome/core/component.cpp"]
     ):
-        result = determine_jobs.should_run_integration_tests()
-        assert result is True
+        run_all, test_files = determine_jobs.determine_integration_tests()
+        assert run_all is True
+        assert test_files == []
 
-    # Core Python files trigger tests
+    # Core Python files trigger run_all
     with patch.object(
         determine_jobs, "changed_files", return_value=["esphome/core/config.py"]
     ):
-        result = determine_jobs.should_run_integration_tests()
-        assert result is True
+        run_all, test_files = determine_jobs.determine_integration_tests()
+        assert run_all is True
+        assert test_files == []
 
     # Python files directly in esphome/ do NOT trigger tests
     with patch.object(
         determine_jobs, "changed_files", return_value=["esphome/config.py"]
     ):
-        result = determine_jobs.should_run_integration_tests()
-        assert result is False
+        run_all, test_files = determine_jobs.determine_integration_tests()
+        assert run_all is False
+        assert test_files == []
 
     # Python files in subdirectories (not core) do NOT trigger tests
     with patch.object(
@@ -365,35 +374,151 @@ def test_should_run_integration_tests(
         "changed_files",
         return_value=["esphome/dashboard/web_server.py"],
     ):
-        result = determine_jobs.should_run_integration_tests()
-        assert result is False
+        run_all, test_files = determine_jobs.determine_integration_tests()
+        assert run_all is False
+        assert test_files == []
 
 
-def test_should_run_integration_tests_with_branch() -> None:
-    """Test should_run_integration_tests with branch argument."""
+def test_determine_integration_tests_with_branch() -> None:
+    """Test determine_integration_tests with branch argument."""
     with patch.object(determine_jobs, "changed_files") as mock_changed:
         mock_changed.return_value = []
-        determine_jobs.should_run_integration_tests("release")
+        run_all, test_files = determine_jobs.determine_integration_tests("release")
         mock_changed.assert_called_once_with("release")
+        assert run_all is False
+        assert test_files == []
 
 
-def test_should_run_integration_tests_component_dependency() -> None:
-    """Test that integration tests run when components used in fixtures change."""
+def test_determine_integration_tests_component_dependency() -> None:
+    """Test that integration tests return specific test files when components used in fixtures change."""
     with (
         patch.object(
             determine_jobs,
             "changed_files",
             return_value=["esphome/components/api/api.cpp"],
         ),
+        patch.object(determine_jobs, "get_fixture_to_test_files") as mock_fixture_map,
         patch.object(
-            determine_jobs, "get_components_from_integration_fixtures"
-        ) as mock_fixtures,
+            determine_jobs, "get_integration_test_files_for_components"
+        ) as mock_test_files,
     ):
-        mock_fixtures.return_value = {"api", "sensor"}
-        with patch.object(determine_jobs, "get_all_dependencies") as mock_deps:
-            mock_deps.return_value = {"api", "sensor", "network"}
-            result = determine_jobs.should_run_integration_tests()
-            assert result is True
+        mock_fixture_map.return_value = {}
+        mock_test_files.return_value = [
+            "tests/integration/test_api.py",
+            "tests/integration/test_sensor.py",
+        ]
+        run_all, test_files = determine_jobs.determine_integration_tests()
+        assert run_all is False
+        assert test_files == [
+            "tests/integration/test_api.py",
+            "tests/integration/test_sensor.py",
+        ]
+
+
+def test_determine_integration_tests_component_only_affected_tests() -> None:
+    """Test that only tests using the changed component are returned."""
+    with (
+        patch.object(
+            determine_jobs,
+            "changed_files",
+            return_value=["esphome/components/modbus/modbus.cpp"],
+        ),
+        patch.object(determine_jobs, "get_fixture_to_test_files", return_value={}),
+        patch.object(
+            determine_jobs, "get_integration_test_files_for_components"
+        ) as mock_test_files,
+    ):
+        mock_test_files.return_value = [
+            "tests/integration/test_uart_mock_modbus.py",
+        ]
+        run_all, test_files = determine_jobs.determine_integration_tests()
+        assert run_all is False
+        assert test_files == ["tests/integration/test_uart_mock_modbus.py"]
+        # Verify it was called with the right component
+        mock_test_files.assert_called_once_with({"modbus"})
+
+
+def test_determine_integration_tests_infra_file_runs_all() -> None:
+    """Test that changing infrastructure files (conftest.py, etc.) runs all tests."""
+    with patch.object(
+        determine_jobs,
+        "changed_files",
+        return_value=["tests/integration/conftest.py"],
+    ):
+        run_all, test_files = determine_jobs.determine_integration_tests()
+        assert run_all is True
+        assert test_files == []
+
+
+def test_determine_integration_tests_readme_does_not_run_all() -> None:
+    """Test that changing README.md does not trigger integration tests."""
+    with patch.object(
+        determine_jobs,
+        "changed_files",
+        return_value=["tests/integration/README.md"],
+    ):
+        run_all, test_files = determine_jobs.determine_integration_tests()
+        assert run_all is False
+        assert test_files == []
+
+
+def test_determine_integration_tests_changed_test_file() -> None:
+    """Test that changing a specific test file only runs that test."""
+    with (
+        patch.object(
+            determine_jobs,
+            "changed_files",
+            return_value=["tests/integration/test_syslog.py"],
+        ),
+        patch.object(determine_jobs, "get_fixture_to_test_files", return_value={}),
+        patch.object(
+            determine_jobs,
+            "get_integration_test_files_for_components",
+            return_value=[],
+        ),
+    ):
+        run_all, test_files = determine_jobs.determine_integration_tests()
+        assert run_all is False
+        assert test_files == ["tests/integration/test_syslog.py"]
+
+
+def test_determine_integration_tests_changed_fixture_yaml() -> None:
+    """Test that changing a fixture YAML runs the corresponding test file."""
+    with (
+        patch.object(
+            determine_jobs,
+            "changed_files",
+            return_value=["tests/integration/fixtures/uart_mock_modbus.yaml"],
+        ),
+        patch.object(determine_jobs, "get_fixture_to_test_files") as mock_fixture_map,
+        patch.object(
+            determine_jobs,
+            "get_integration_test_files_for_components",
+            return_value=[],
+        ),
+    ):
+        mock_fixture_map.return_value = {
+            "uart_mock_modbus": frozenset(
+                {"tests/integration/test_uart_mock_modbus.py"}
+            ),
+        }
+        run_all, test_files = determine_jobs.determine_integration_tests()
+        assert run_all is False
+        assert test_files == ["tests/integration/test_uart_mock_modbus.py"]
+
+
+def test_determine_integration_tests_non_yaml_fixture_runs_all() -> None:
+    """Test that non-YAML changes under fixtures/ (e.g., external_components) run all tests."""
+    with patch.object(
+        determine_jobs,
+        "changed_files",
+        return_value=[
+            "tests/integration/fixtures/external_components/test_component/__init__.py"
+        ],
+    ):
+        run_all, test_files = determine_jobs.determine_integration_tests()
+        assert run_all is True
+        assert test_files == []
 
 
 @pytest.mark.parametrize(
@@ -538,7 +663,7 @@ def test_count_changed_cpp_files_with_branch() -> None:
 
 
 def test_main_filters_components_without_tests(
-    mock_should_run_integration_tests: Mock,
+    mock_determine_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
@@ -551,7 +676,7 @@ def test_main_filters_components_without_tests(
     # Ensure we're not in GITHUB_ACTIONS mode for this test
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
 
-    mock_should_run_integration_tests.return_value = False
+    mock_determine_integration_tests.return_value = (False, [])
     mock_should_run_clang_tidy.return_value = False
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = False
@@ -631,7 +756,7 @@ def test_main_filters_components_without_tests(
 
 
 def test_main_detects_components_with_variant_tests(
-    mock_should_run_integration_tests: Mock,
+    mock_determine_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
@@ -649,7 +774,7 @@ def test_main_detects_components_with_variant_tests(
     # Ensure we're not in GITHUB_ACTIONS mode for this test
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
 
-    mock_should_run_integration_tests.return_value = False
+    mock_determine_integration_tests.return_value = (False, [])
     mock_should_run_clang_tidy.return_value = False
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = False
@@ -999,7 +1124,7 @@ def test_detect_memory_impact_config_with_variant_tests(tmp_path: Path) -> None:
 
 
 def test_clang_tidy_mode_full_scan(
-    mock_should_run_integration_tests: Mock,
+    mock_determine_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
@@ -1010,7 +1135,7 @@ def test_clang_tidy_mode_full_scan(
     """Test that full scan (hash changed) always uses split mode."""
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
 
-    mock_should_run_integration_tests.return_value = False
+    mock_determine_integration_tests.return_value = (False, [])
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = False
@@ -1065,7 +1190,7 @@ def test_clang_tidy_mode_targeted_scan(
     component_count: int,
     files_per_component: int,
     expected_mode: str,
-    mock_should_run_integration_tests: Mock,
+    mock_determine_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
@@ -1076,7 +1201,7 @@ def test_clang_tidy_mode_targeted_scan(
     """Test clang-tidy mode selection based on files_to_check count."""
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
 
-    mock_should_run_integration_tests.return_value = False
+    mock_determine_integration_tests.return_value = (False, [])
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = False
@@ -1123,7 +1248,7 @@ def test_clang_tidy_mode_targeted_scan(
 
 
 def test_main_core_files_changed_still_detects_components(
-    mock_should_run_integration_tests: Mock,
+    mock_determine_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
@@ -1135,7 +1260,7 @@ def test_main_core_files_changed_still_detects_components(
     """Test that component changes are detected even when core files change."""
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
 
-    mock_should_run_integration_tests.return_value = True
+    mock_determine_integration_tests.return_value = (True, [])
     mock_should_run_clang_tidy.return_value = True
     mock_should_run_clang_format.return_value = True
     mock_should_run_python_linters.return_value = True
@@ -1604,7 +1729,7 @@ def test_detect_platform_hint_from_filename_case_insensitive(
 
 def test_component_batching_beta_branch_40_per_batch(
     tmp_path: Path,
-    mock_should_run_integration_tests: Mock,
+    mock_determine_integration_tests: Mock,
     mock_should_run_clang_tidy: Mock,
     mock_should_run_clang_format: Mock,
     mock_should_run_python_linters: Mock,
@@ -1628,7 +1753,7 @@ def test_component_batching_beta_branch_40_per_batch(
         (comp_dir / "test.esp32-idf.yaml").write_text(f"# Test for {comp}")
 
     # Setup mocks
-    mock_should_run_integration_tests.return_value = False
+    mock_determine_integration_tests.return_value = (False, [])
     mock_should_run_clang_tidy.return_value = False
     mock_should_run_clang_format.return_value = False
     mock_should_run_python_linters.return_value = False
