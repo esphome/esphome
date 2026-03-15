@@ -733,14 +733,12 @@ def main() -> None:
     )
 
     if changed_components_result is None:
-        # Core files changed - will trigger full clang-tidy scan
+        # Core files changed
         # But we still need to track changed components for testing and memory analysis
         changed_components = get_components_with_dependencies(component_files, True)
-        is_core_change = True
     else:
         # Use the result from get_changed_components() which includes dependencies
         changed_components = changed_components_result
-        is_core_change = False
 
     # Test all components with test files
     all_component_dirs = (Path(root_path) / ESPHOME_TESTS_COMPONENTS_PATH).iterdir()
@@ -767,8 +765,8 @@ def main() -> None:
 
     # Determine clang-tidy mode based on actual files that will be checked
     if run_clang_tidy:
-        # Full scan needed if: hash changed OR core files changed
-        is_full_scan = _is_clang_tidy_full_scan() or is_core_change
+        # Force full scan for IDF 6.0 testing
+        is_full_scan = True
 
         if is_full_scan:
             # Full scan checks all files - always use split mode for efficiency
