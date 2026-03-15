@@ -17,6 +17,7 @@ enum InkplateModel : uint8_t {
   INKPLATE_6_V2 = 3,
   INKPLATE_5 = 4,
   INKPLATE_5_V2 = 5,
+  INKPLATE_4_TEMPERA = 6,
 };
 
 static constexpr uint8_t GLUT_SIZE = 9;
@@ -131,12 +132,14 @@ class Inkplate : public display::DisplayBuffer, public i2c::I2CDevice {
       return 1280;
     } else if (this->model_ == INKPLATE_6_PLUS) {
       return 1024;
+    } else if (this->model_ == INKPLATE_4_TEMPERA) {
+      return 600;
     }
     return 0;
   }
 
   int get_height_internal() override {
-    if (this->model_ == INKPLATE_6 || this->model_ == INKPLATE_6_V2) {
+    if (this->model_ == INKPLATE_6 || this->model_ == INKPLATE_6_V2 || this->model_ == INKPLATE_4_TEMPERA) {
       return 600;
     } else if (this->model_ == INKPLATE_5) {
       return 540;

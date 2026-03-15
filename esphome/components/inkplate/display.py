@@ -63,6 +63,7 @@ MODELS = {
     "inkplate_6_v2": InkplateModel.INKPLATE_6_V2,
     "inkplate_5": InkplateModel.INKPLATE_5,
     "inkplate_5_v2": InkplateModel.INKPLATE_5_V2,
+    "inkplate_4_tempera": InkplateModel.INKPLATE_4_TEMPERA,
 }
 
 CONF_CUSTOM_WAVEFORM = "custom_waveform"

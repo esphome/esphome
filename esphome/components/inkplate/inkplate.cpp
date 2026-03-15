@@ -407,6 +407,14 @@ void Inkplate::display1b_() {
       clean_fast_(0, 11);
       rep = 3;
       break;
+    case INKPLATE_4_TEMPERA:
+      clean_fast_(0, 5);
+      clean_fast_(1, 15);
+      clean_fast_(0, 15);
+      clean_fast_(1, 15);
+      clean_fast_(0, 15);
+      rep = 10;
+      break;
   }
 
   uint32_t clock = (1UL << this->cl_pin_->get_pin());
@@ -475,6 +483,9 @@ void Inkplate::display1b_() {
 
   if (this->model_ == INKPLATE_6_PLUS) {
     clean_fast_(2, 2);
+    clean_fast_(3, 1);
+  } else if (this->model_ == INKPLATE_4_TEMPERA) {
+    clean_fast_(2, 1);
     clean_fast_(3, 1);
   } else {
     uint32_t send = this->pin_lut_[0];
@@ -575,6 +586,13 @@ void Inkplate::display3b_() {
       clean_fast_(2, 1);
       clean_fast_(0, 11);
       break;
+    case INKPLATE_4_TEMPERA:
+      clean_fast_(0, 5);
+      clean_fast_(1, 15);
+      clean_fast_(0, 15);
+      clean_fast_(1, 15);
+      clean_fast_(0, 15);
+      break;
   }
 
   uint32_t clock = (1UL << this->cl_pin_->get_pin());
@@ -645,7 +663,17 @@ bool Inkplate::partial_update_() {
   }
   ESP_LOGV(TAG, "Partial update buffer built after (%" PRIu32 "ms)", millis() - start_time);
 
-  int rep = (this->model_ == INKPLATE_6_V2) ? 6 : 5;
+  int rep;
+  switch (this->model_) {
+    case INKPLATE_6_V2:
+      rep = 6;
+      break;
+    case INKPLATE_4_TEMPERA:
+      rep = 9;
+      break;
+    default:
+      rep = 5;
+  }
 
   eink_on_();
   uint32_t clock = (1UL << this->cl_pin_->get_pin());
