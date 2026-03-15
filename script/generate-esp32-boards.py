@@ -9,6 +9,7 @@ import tempfile
 
 from esphome.components.esp32 import PLATFORM_VERSION_LOOKUP
 from esphome.helpers import write_file_if_changed
+from esphome import config_validation as cv
 
 ver = PLATFORM_VERSION_LOOKUP["recommended"]
 root = Path(__file__).parent.parent
@@ -17,7 +18,7 @@ boards_file_path = root / "esphome" / "components" / "esp32" / "boards.py"
 
 def get_boards():
     with tempfile.TemporaryDirectory() as tempdir:
-        if hasattr(ver, "major"):
+        if isinstance(ver, cv.Version):
             branch = f"{ver.major}.{ver.minor:02d}.{ver.patch:02d}"
             if ver.extra:
                 branch += f"-{ver.extra}"
