@@ -408,7 +408,7 @@ void EthernetComponent::dump_config() {
                 this->clk_pin_, this->miso_pin_, this->mosi_pin_, this->cs_pin_);
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   if (this->polling_interval_ != 0) {
-    ESP_LOGCONFIG(TAG, "  Polling Interval: %lu ms", this->polling_interval_);
+    ESP_LOGCONFIG(TAG, "  Polling Interval: %" PRIu32 " ms", this->polling_interval_);
   } else
 #endif
   {
