@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 
@@ -94,8 +96,8 @@ union RegClickSrc {
   uint8_t raw{0};
 };
 
-// INT1_SRC register (0x31)
-union RegInt1Src {
+// INT1_SRC register (0x31) / INT2_SRC register (0x35) — same bit layout
+union RegIntSrc {
   struct {
     bool xl : 1;
     bool xh : 1;
@@ -166,8 +168,9 @@ class LIS2DH12Component : public PollingComponent {
 
   struct {
     RegClickSrc click;
-    RegInt1Src int1;
-    RegInt1Src int1_old;
+    RegIntSrc int1;  // 6D orientation (INT1_SRC)
+    RegIntSrc int1_old;
+    RegIntSrc int2;  // Freefall/activity (INT2_SRC)
 
     uint32_t last_tap_ms{0};
     uint32_t last_double_tap_ms{0};

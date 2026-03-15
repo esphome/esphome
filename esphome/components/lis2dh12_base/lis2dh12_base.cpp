@@ -100,8 +100,13 @@ bool LIS2DH12Component::configure_registers_() {
     return false;
   }
 
-  // CTRL_REG5: LIR_INT1=1 (bit 3) - latch interrupt on INT1
-  if (!this->write_byte(static_cast<uint8_t>(RegisterMap::CTRL_REG5), 0x08)) {
+  // CTRL_REG5: LIR_INT1=1 (bit 3), LIR_INT2=1 (bit 1) - latch both interrupts
+  if (!this->write_byte(static_cast<uint8_t>(RegisterMap::CTRL_REG5), 0x0A)) {
+    return false;
+  }
+
+  // CTRL_REG6: I2_IA2=1 (bit 5) - route INT2 generator to INT2 pin
+  if (!this->write_byte(static_cast<uint8_t>(RegisterMap::CTRL_REG6), 0x20)) {
     return false;
   }
 
@@ -143,6 +148,21 @@ bool LIS2DH12Component::configure_registers_() {
 
   // INT1_DURATION: 240ms debounce at 25Hz (6×1/25Hz) per ST DT0097
   if (!this->write_byte(static_cast<uint8_t>(RegisterMap::INT1_DURATION), 0x06)) {
+    return false;
+  }
+
+  // INT2_CFG: AOI=1, 6D=0, XL=1, YL=1, ZL=1 → freefall (all axes below threshold)
+  if (!this->write_byte(static_cast<uint8_t>(RegisterMap::INT2_CFG), 0x95)) {
+    return false;
+  }
+
+  // INT2_THS: freefall threshold = 350mg (0x16 = 22×16mg = 352mg)
+  if (!this->write_byte(static_cast<uint8_t>(RegisterMap::INT2_THS), 0x16)) {
+    return false;
+  }
+
+  // INT2_DURATION: 30ms minimum event duration (3/ODR at 100Hz)
+  if (!this->write_byte(static_cast<uint8_t>(RegisterMap::INT2_DURATION), 0x03)) {
     return false;
   }
 
@@ -243,15 +263,19 @@ bool LIS2DH12Component::read_acceleration_data_() {
 bool LIS2DH12Component::read_interrupt_status_() {
   uint8_t click_src = 0;
   uint8_t int1_src = 0;
+  uint8_t int2_src = 0;
   bool ok = this->read_byte(static_cast<uint8_t>(RegisterMap::CLICK_SRC), &click_src);
   ok = this->read_byte(static_cast<uint8_t>(RegisterMap::INT1_SRC), &int1_src) && ok;
+  ok = this->read_byte(static_cast<uint8_t>(RegisterMap::INT2_SRC), &int2_src) && ok;
   if (!ok) {
     this->status_.click.raw = 0;
     this->status_.int1.raw = 0;
+    this->status_.int2.raw = 0;
     return false;
   }
   this->status_.click.raw = click_src;
   this->status_.int1.raw = int1_src;
+  this->status_.int2.raw = int2_src;
   return true;
 }
 
@@ -303,18 +327,23 @@ void LIS2DH12Component::process_events_() {
   binary_event_debounce(this->status_.click.dclick, now, this->status_.last_double_tap_ms, this->double_tap_trigger_,
                         EVENT_COOLDOWN_MS, BS_OPTIONAL_PTR(this->double_tap_binary_sensor_), "Double Tap");
 
-  binary_event_debounce(
-      this->status_.int1.ia && !this->status_.int1.xh && !this->status_.int1.yh && !this->status_.int1.zh, now,
-      this->status_.last_freefall_ms, this->freefall_trigger_, EVENT_COOLDOWN_MS,
-      BS_OPTIONAL_PTR(this->freefall_binary_sensor_), "Freefall");
-  binary_event_debounce(
-      this->status_.int1.ia && (this->status_.int1.xh || this->status_.int1.yh || this->status_.int1.zh), now,
-      this->status_.last_active_ms, this->active_trigger_, EVENT_COOLDOWN_MS,
-      BS_OPTIONAL_PTR(this->active_binary_sensor_), "Activity");
+  // Freefall: INT2 configured as AOI=1 with low bits only → all axes below threshold
+  binary_event_debounce(this->status_.int2.ia, now, this->status_.last_freefall_ms, this->freefall_trigger_,
+                        EVENT_COOLDOWN_MS, BS_OPTIONAL_PTR(this->freefall_binary_sensor_), "Freefall");
+  // Activity: click or orientation change detected (device is being moved)
+  binary_event_debounce(this->status_.click.ia || this->status_.int1.raw != this->status_.int1_old.raw, now,
+                        this->status_.last_active_ms, this->active_trigger_, EVENT_COOLDOWN_MS,
+                        BS_OPTIONAL_PTR(this->active_binary_sensor_), "Activity");
 
   if (this->status_.int1.ia && this->status_.int1.raw != this->status_.int1_old.raw) {
     ESP_LOGVV(TAG, "Orientation changed");
     this->orientation_trigger_.trigger();
+#ifdef USE_TEXT_SENSOR
+    if (this->orientation_text_sensor_ != nullptr) {
+      this->orientation_text_sensor_->publish_state(this->get_orientation_string_());
+    }
+#endif
+    this->status_.int1_old = this->status_.int1;
   }
 }
 
@@ -353,8 +382,7 @@ void LIS2DH12Component::update() {
 #endif
 
 #ifdef USE_TEXT_SENSOR
-  if (this->orientation_text_sensor_ != nullptr &&
-      (this->status_.int1.raw != this->status_.int1_old.raw || this->status_.never_published)) {
+  if (this->orientation_text_sensor_ != nullptr && this->status_.never_published) {
     this->orientation_text_sensor_->publish_state(this->get_orientation_string_());
     this->status_.int1_old = this->status_.int1;
   }
