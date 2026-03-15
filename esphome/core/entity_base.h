@@ -68,7 +68,7 @@ static constexpr uint8_t ENTITY_FIELD_ENTITY_CATEGORY_SHIFT = 26;
 class EntityBase {
  public:
   // Get the name of this Entity
-  const StringRef &get_name() const;
+  const StringRef &get_name() const { return this->name_; }
 
   // Get whether this Entity has its own name or it should use the device friendly_name.
   bool has_own_name() const { return this->flags_.has_own_name; }
@@ -86,7 +86,7 @@ class EntityBase {
   std::string get_object_id() const;
 
   // Get the unique Object ID of this Entity
-  uint32_t get_object_id_hash();
+  uint32_t get_object_id_hash() const { return this->object_id_hash_; }
 
   /// Get object_id with zero heap allocation
   /// For static case: returns StringRef to internal storage (buffer unused)

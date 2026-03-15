@@ -417,7 +417,7 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
 
   FixedRingBuffer() = default;
   ~FixedRingBuffer() {
-    if constexpr (std::is_trivial<T>::value) {
+    if constexpr (std::is_trivially_copyable<T>::value && std::is_trivially_default_constructible<T>::value) {
       ::operator delete(this->data_);
     } else {
       delete[] this->data_;
@@ -430,7 +430,7 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
 
   /// Allocate capacity - can only be called once
   void init(index_type capacity) {
-    if constexpr (std::is_trivial<T>::value) {
+    if constexpr (std::is_trivially_copyable<T>::value && std::is_trivially_default_constructible<T>::value) {
       // Raw allocation without initialization (elements are written before read)
       // NOLINTNEXTLINE(bugprone-sizeof-expression)
       this->data_ = static_cast<T *>(::operator new(capacity * sizeof(T)));
@@ -1930,19 +1930,27 @@ class InterruptLock {
 
 /** Helper class to lock the lwIP TCPIP core when making lwIP API calls from non-TCPIP threads.
  *
- * This is needed on multi-threaded platforms (ESP32) when CONFIG_LWIP_TCPIP_CORE_LOCKING is enabled.
- * It ensures thread-safe access to lwIP APIs.
+ * This is needed on multi-threaded platforms (ESP32) when CONFIG_LWIP_TCPIP_CORE_LOCKING is enabled,
+ * and on RP2040 when CYW43 WiFi is active (cyw43_arch_lwip_begin/end).
  *
- * @note This follows the same pattern as InterruptLock - platform-specific implementations in helpers.cpp
+ * On platforms without lwIP core locking (ESP8266, LibreTiny, Zephyr),
+ * this is a no-op defined inline so the compiler can eliminate all call overhead.
  */
 class LwIPLock {
  public:
-  LwIPLock();
-  ~LwIPLock();
-
-  // Delete copy constructor and copy assignment operator to prevent accidental copying
   LwIPLock(const LwIPLock &) = delete;
   LwIPLock &operator=(const LwIPLock &) = delete;
+
+#if defined(USE_ESP32) || defined(USE_RP2040)
+  // Platforms with potential lwIP core locking — out-of-line implementations in helpers.cpp
+  LwIPLock();
+  ~LwIPLock();
+#else
+  // No lwIP core locking — inline no-ops (empty bodies instead of = default
+  // to prevent clang-tidy unused-variable warnings at call sites)
+  LwIPLock() {}
+  ~LwIPLock() {}
+#endif
 };
 
 /** Helper class to request `loop()` to be called as fast as possible.

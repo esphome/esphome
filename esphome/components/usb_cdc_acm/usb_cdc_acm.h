@@ -9,7 +9,7 @@
 #include <functional>
 #include <memory>
 #include "freertos/ringbuf.h"
-#include "tusb_cdc_acm.h"
+#include "tinyusb_cdc_acm.h"
 
 namespace esphome::usb_cdc_acm {
 
