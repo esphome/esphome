@@ -432,14 +432,16 @@ float Modbus::get_setup_priority() const {
 }
 
 void ModbusClientHub::send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
-                           ModbusClientDevice *device, bool allow_duplicates) {
+                           uint8_t payload_len, const uint8_t *payload, ModbusClientDevice *device,
+                           bool allow_duplicates) {
   ESP_LOGVV(TAG,
             "ModbusClient::send address=%" PRIu8 " function_code=0x%X start_address=%" PRIu16
             " number_of_entities=%" PRIu16,
             address, function_code, start_address, number_of_entities);
   std::vector<uint8_t> data;
   data.push_back(address);
-  create_client_pdu(data, (ModbusFunctionCode) function_code, start_address, number_of_entities);
+  std::vector<uint8_t> values(payload, payload + payload_len);
+  create_client_pdu(data, (ModbusFunctionCode) function_code, start_address, number_of_entities, values);
   this->send_raw(data, device, allow_duplicates);
 }
 

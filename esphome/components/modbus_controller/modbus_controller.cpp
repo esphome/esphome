@@ -519,7 +519,8 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
 
 bool ModbusCommandItem::send() {
   if (this->function_code != ModbusFunctionCode::CUSTOM) {
-    modbusdevice->send(uint8_t(this->function_code), this->register_address, this->register_count);
+    modbusdevice->send(uint8_t(this->function_code), this->register_address, this->register_count, this->payload.size(),
+                       this->payload.empty() ? nullptr : &this->payload[0]);
   } else {
     modbusdevice->send_raw(this->payload);
   }
