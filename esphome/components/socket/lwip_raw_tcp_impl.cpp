@@ -220,6 +220,45 @@ static err_t pcb_detach_close(struct tcp_pcb *pcb) {
   return err;
 }
 
+/// Convert sockaddr to lwip ip_addr_t and host-order port.
+/// For IPv6, sets type to IPADDR_TYPE_V6 (callers that need dual-stack should
+/// override to IPADDR_TYPE_ANY after calling).
+/// Shared by both TCP (LWIPRawCommon) and UDP (LWIPRawUDPImpl) bind/sendto paths.
+static bool sockaddr_to_lwip(const struct sockaddr *addr, socklen_t addrlen, ip_addr_t *ip, uint16_t *port) {
+  if (addrlen < sizeof(sa_family_t))
+    return false;
+#if LWIP_IPV6
+  if (addr->sa_family == AF_INET) {
+    if (addrlen < sizeof(sockaddr_in))
+      return false;
+    auto *addr4 = reinterpret_cast<const sockaddr_in *>(addr);
+    *port = ntohs(addr4->sin_port);
+    ip->type = IPADDR_TYPE_V4;
+    ip->u_addr.ip4.addr = addr4->sin_addr.s_addr;
+    return true;
+  }
+  if (addr->sa_family == AF_INET6) {
+    if (addrlen < sizeof(sockaddr_in6))
+      return false;
+    auto *addr6 = reinterpret_cast<const sockaddr_in6 *>(addr);
+    *port = ntohs(addr6->sin6_port);
+    ip->type = IPADDR_TYPE_V6;
+    memcpy(&ip->u_addr.ip6.addr, &addr6->sin6_addr.un.u8_addr, 16);
+    return true;
+  }
+#else
+  if (addr->sa_family == AF_INET) {
+    if (addrlen < sizeof(sockaddr_in))
+      return false;
+    auto *addr4 = reinterpret_cast<const sockaddr_in *>(addr);
+    *port = ntohs(addr4->sin_port);
+    ip->addr = addr4->sin_addr.s_addr;
+    return true;
+  }
+#endif
+  return false;
+}
+
 // ---- LWIPRawCommon methods ----
 
 LWIPRawCommon::~LWIPRawCommon() {
@@ -242,41 +281,16 @@ int LWIPRawCommon::bind(const struct sockaddr *name, socklen_t addrlen) {
     return -1;
   }
   ip_addr_t ip;
-  in_port_t port;
+  uint16_t port;
+  if (!sockaddr_to_lwip(name, addrlen, &ip, &port)) {
+    errno = EINVAL;
+    return -1;
+  }
 #if LWIP_IPV6
-  if (this->family_ == AF_INET) {
-    if (addrlen < sizeof(sockaddr_in)) {
-      errno = EINVAL;
-      return -1;
-    }
-    auto *addr4 = reinterpret_cast<const sockaddr_in *>(name);
-    port = ntohs(addr4->sin_port);
-    ip.type = IPADDR_TYPE_V4;
-    ip.u_addr.ip4.addr = addr4->sin_addr.s_addr;
-    LWIP_LOG("tcp_bind(%p ip=%s port=%u)", this->pcb_, ip4addr_ntoa(&ip.u_addr.ip4), port);
-  } else if (this->family_ == AF_INET6) {
-    if (addrlen < sizeof(sockaddr_in6)) {
-      errno = EINVAL;
-      return -1;
-    }
-    auto *addr6 = reinterpret_cast<const sockaddr_in6 *>(name);
-    port = ntohs(addr6->sin6_port);
+  // Use IPADDR_TYPE_ANY for dual-stack (accept both IPv4 and IPv6)
+  if (this->family_ == AF_INET6) {
     ip.type = IPADDR_TYPE_ANY;
-    memcpy(&ip.u_addr.ip6.addr, &addr6->sin6_addr.un.u8_addr, 16);
-    LWIP_LOG("tcp_bind(%p ip=%s port=%u)", this->pcb_, ip6addr_ntoa(&ip.u_addr.ip6), port);
-  } else {
-    errno = EINVAL;
-    return -1;
   }
-#else
-  if (this->family_ != AF_INET) {
-    errno = EINVAL;
-    return -1;
-  }
-  auto *addr4 = reinterpret_cast<const sockaddr_in *>(name);
-  port = ntohs(addr4->sin_port);
-  ip.addr = addr4->sin_addr.s_addr;
-  LWIP_LOG("tcp_bind(%p ip=%u port=%u)", this->pcb_, ip.addr, port);
 #endif
   err_t err = tcp_bind(this->pcb_, &ip, port);
   if (err == ERR_USE) {
@@ -978,41 +992,6 @@ int LWIPRawUDPImpl::close() {
   udp_remove(this->pcb_);
   this->pcb_ = nullptr;
   return 0;
-}
-
-bool LWIPRawUDPImpl::sockaddr_to_lwip(const struct sockaddr *addr, socklen_t addrlen, ip_addr_t *ip, uint16_t *port) {
-  if (addrlen < sizeof(sa_family_t))
-    return false;
-#if LWIP_IPV6
-  if (addr->sa_family == AF_INET) {
-    if (addrlen < sizeof(sockaddr_in))
-      return false;
-    auto *addr4 = reinterpret_cast<const sockaddr_in *>(addr);
-    *port = ntohs(addr4->sin_port);
-    ip->type = IPADDR_TYPE_V4;
-    ip->u_addr.ip4.addr = addr4->sin_addr.s_addr;
-    return true;
-  }
-  if (addr->sa_family == AF_INET6) {
-    if (addrlen < sizeof(sockaddr_in6))
-      return false;
-    auto *addr6 = reinterpret_cast<const sockaddr_in6 *>(addr);
-    *port = ntohs(addr6->sin6_port);
-    ip->type = IPADDR_TYPE_V6;
-    memcpy(&ip->u_addr.ip6.addr, &addr6->sin6_addr.un.u8_addr, 16);
-    return true;
-  }
-#else
-  if (addr->sa_family == AF_INET) {
-    if (addrlen < sizeof(sockaddr_in))
-      return false;
-    auto *addr4 = reinterpret_cast<const sockaddr_in *>(addr);
-    *port = ntohs(addr4->sin_port);
-    ip->addr = addr4->sin_addr.s_addr;
-    return true;
-  }
-#endif
-  return false;
 }
 
 int LWIPRawUDPImpl::ip2sockaddr_(const ip_addr_t *ip, uint16_t port, struct sockaddr *name, socklen_t *addrlen) {

@@ -233,8 +233,6 @@ class LWIPRawUDPImpl {
   int get_fd() const { return -1; }
 
  protected:
-  /// Convert sockaddr to lwip ip_addr_t and port.
-  static bool sockaddr_to_lwip(const struct sockaddr *addr, socklen_t addrlen, ip_addr_t *ip, uint16_t *port);
   /// Convert lwip ip_addr_t and port to sockaddr.
   int ip2sockaddr_(const ip_addr_t *ip, uint16_t port, struct sockaddr *name, socklen_t *addrlen);
 
