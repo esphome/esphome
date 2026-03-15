@@ -716,10 +716,11 @@ async def test_uart_mock_modbus_server_controller_write(
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test server/controller write functionality for all supported register types.
+    """Test server/controller write functionality for all register value types.
 
     Verifies that writing to modbus server registers via the controller updates
     the server's stored values, which are then read back correctly on the next poll.
+    All 12 value types are tested: U/S_WORD, U/S_DWORD(_R), U/S_QWORD(_R), FP32(_R).
     """
     # Replace external component path placeholder
     external_components_path = str(
@@ -736,7 +737,15 @@ async def test_uart_mock_modbus_server_controller_write(
         "reg_u_word": [],
         "reg_s_word": [],
         "reg_u_dword": [],
+        "reg_s_dword": [],
+        "reg_u_dword_r": [],
+        "reg_s_dword_r": [],
+        "reg_u_qword": [],
+        "reg_s_qword": [],
+        "reg_u_qword_r": [],
+        "reg_s_qword_r": [],
         "reg_fp32": [],
+        "reg_fp32_r": [],
     }
 
     # Track error and warning logs
@@ -753,13 +762,29 @@ async def test_uart_mock_modbus_server_controller_write(
     reg_u_word_initial = loop.create_future()
     reg_s_word_initial = loop.create_future()
     reg_u_dword_initial = loop.create_future()
+    reg_s_dword_initial = loop.create_future()
+    reg_u_dword_r_initial = loop.create_future()
+    reg_s_dword_r_initial = loop.create_future()
+    reg_u_qword_initial = loop.create_future()
+    reg_s_qword_initial = loop.create_future()
+    reg_u_qword_r_initial = loop.create_future()
+    reg_s_qword_r_initial = loop.create_future()
     reg_fp32_initial = loop.create_future()
+    reg_fp32_r_initial = loop.create_future()
 
     # Futures for post-write reads (confirm values were stored on the server)
     reg_u_word_written = loop.create_future()
     reg_s_word_written = loop.create_future()
     reg_u_dword_written = loop.create_future()
+    reg_s_dword_written = loop.create_future()
+    reg_u_dword_r_written = loop.create_future()
+    reg_s_dword_r_written = loop.create_future()
+    reg_u_qword_written = loop.create_future()
+    reg_s_qword_written = loop.create_future()
+    reg_u_qword_r_written = loop.create_future()
+    reg_s_qword_r_written = loop.create_future()
     reg_fp32_written = loop.create_future()
+    reg_fp32_r_written = loop.create_future()
 
     def on_state(state: EntityState) -> None:
         if isinstance(state, SensorState) and not state.missing_state:
@@ -777,10 +802,45 @@ async def test_uart_mock_modbus_server_controller_write(
                     elif state.state == -42 and not reg_s_word_written.done():
                         reg_s_word_written.set_result(True)
                 elif sensor_name == "reg_u_dword":
-                    if state.state == 100001 and not reg_u_dword_initial.done():
+                    if state.state == 1001 and not reg_u_dword_initial.done():
                         reg_u_dword_initial.set_result(True)
-                    elif state.state == 200002 and not reg_u_dword_written.done():
+                    elif state.state == 2002 and not reg_u_dword_written.done():
                         reg_u_dword_written.set_result(True)
+                elif sensor_name == "reg_s_dword":
+                    if state.state == -1001 and not reg_s_dword_initial.done():
+                        reg_s_dword_initial.set_result(True)
+                    elif state.state == -2002 and not reg_s_dword_written.done():
+                        reg_s_dword_written.set_result(True)
+                elif sensor_name == "reg_u_dword_r":
+                    if state.state == 3003 and not reg_u_dword_r_initial.done():
+                        reg_u_dword_r_initial.set_result(True)
+                    elif state.state == 4004 and not reg_u_dword_r_written.done():
+                        reg_u_dword_r_written.set_result(True)
+                elif sensor_name == "reg_s_dword_r":
+                    if state.state == -3003 and not reg_s_dword_r_initial.done():
+                        reg_s_dword_r_initial.set_result(True)
+                    elif state.state == -4004 and not reg_s_dword_r_written.done():
+                        reg_s_dword_r_written.set_result(True)
+                elif sensor_name == "reg_u_qword":
+                    if state.state == 5005 and not reg_u_qword_initial.done():
+                        reg_u_qword_initial.set_result(True)
+                    elif state.state == 6006 and not reg_u_qword_written.done():
+                        reg_u_qword_written.set_result(True)
+                elif sensor_name == "reg_s_qword":
+                    if state.state == -5005 and not reg_s_qword_initial.done():
+                        reg_s_qword_initial.set_result(True)
+                    elif state.state == -6006 and not reg_s_qword_written.done():
+                        reg_s_qword_written.set_result(True)
+                elif sensor_name == "reg_u_qword_r":
+                    if state.state == 7007 and not reg_u_qword_r_initial.done():
+                        reg_u_qword_r_initial.set_result(True)
+                    elif state.state == 8008 and not reg_u_qword_r_written.done():
+                        reg_u_qword_r_written.set_result(True)
+                elif sensor_name == "reg_s_qword_r":
+                    if state.state == -7007 and not reg_s_qword_r_initial.done():
+                        reg_s_qword_r_initial.set_result(True)
+                    elif state.state == -8008 and not reg_s_qword_r_written.done():
+                        reg_s_qword_r_written.set_result(True)
                 elif sensor_name == "reg_fp32":
                     if (
                         state.state == pytest.approx(1.5, abs=0.01)
@@ -792,6 +852,17 @@ async def test_uart_mock_modbus_server_controller_write(
                         and not reg_fp32_written.done()
                     ):
                         reg_fp32_written.set_result(True)
+                elif sensor_name == "reg_fp32_r":
+                    if (
+                        state.state == pytest.approx(2.5, abs=0.01)
+                        and not reg_fp32_r_initial.done()
+                    ):
+                        reg_fp32_r_initial.set_result(True)
+                    elif (
+                        state.state == pytest.approx(6.28, abs=0.01)
+                        and not reg_fp32_r_written.done()
+                    ):
+                        reg_fp32_r_written.set_result(True)
 
     async with (
         run_compiled(yaml_config, line_callback=line_callback),
@@ -817,7 +888,7 @@ async def test_uart_mock_modbus_server_controller_write(
         assert start_btn is not None, "Start Scenario button not found"
         client.button_command(start_btn.key)
 
-        # Wait for the initial baseline values to confirm the controller <-> server
+        # Wait for initial baseline values to confirm the controller <-> server
         # connection is working before issuing writes
         try:
             await asyncio.wait_for(
@@ -825,63 +896,85 @@ async def test_uart_mock_modbus_server_controller_write(
                     reg_u_word_initial,
                     reg_s_word_initial,
                     reg_u_dword_initial,
+                    reg_s_dword_initial,
+                    reg_u_dword_r_initial,
+                    reg_s_dword_r_initial,
+                    reg_u_qword_initial,
+                    reg_s_qword_initial,
+                    reg_u_qword_r_initial,
+                    reg_s_qword_r_initial,
                     reg_fp32_initial,
+                    reg_fp32_r_initial,
                 ),
                 timeout=4.0,
             )
         except TimeoutError:
             pytest.fail(
-                f"Timeout waiting for initial sensor reads. Received sensor states:\n"
-                f"  reg_u_word: {sensor_states['reg_u_word']}\n"
-                f"  reg_s_word: {sensor_states['reg_s_word']}\n"
-                f"  reg_u_dword: {sensor_states['reg_u_dword']}\n"
-                f"  reg_fp32: {sensor_states['reg_fp32']}\n"
+                "Timeout waiting for initial sensor reads. Received sensor states:\n"
+                + "\n".join(f"  {k}: {v}" for k, v in sensor_states.items())
             )
 
-        # Issue write commands for all register types
+        # Find all number entities for issuing write commands
         write_u_word = find_entity(entities, "write_u_word", NumberInfo)
         write_s_word = find_entity(entities, "write_s_word", NumberInfo)
         write_u_dword = find_entity(entities, "write_u_dword", NumberInfo)
+        write_s_dword = find_entity(entities, "write_s_dword", NumberInfo)
+        write_u_dword_r = find_entity(entities, "write_u_dword_r", NumberInfo)
+        write_s_dword_r = find_entity(entities, "write_s_dword_r", NumberInfo)
+        write_u_qword = find_entity(entities, "write_u_qword", NumberInfo)
+        write_s_qword = find_entity(entities, "write_s_qword", NumberInfo)
+        write_u_qword_r = find_entity(entities, "write_u_qword_r", NumberInfo)
+        write_s_qword_r = find_entity(entities, "write_s_qword_r", NumberInfo)
         write_fp32 = find_entity(entities, "write_fp32", NumberInfo)
+        write_fp32_r = find_entity(entities, "write_fp32_r", NumberInfo)
         assert write_u_word is not None, "write_u_word number entity not found"
         assert write_s_word is not None, "write_s_word number entity not found"
         assert write_u_dword is not None, "write_u_dword number entity not found"
+        assert write_s_dword is not None, "write_s_dword number entity not found"
+        assert write_u_dword_r is not None, "write_u_dword_r number entity not found"
+        assert write_s_dword_r is not None, "write_s_dword_r number entity not found"
+        assert write_u_qword is not None, "write_u_qword number entity not found"
+        assert write_s_qword is not None, "write_s_qword number entity not found"
+        assert write_u_qword_r is not None, "write_u_qword_r number entity not found"
+        assert write_s_qword_r is not None, "write_s_qword_r number entity not found"
         assert write_fp32 is not None, "write_fp32 number entity not found"
+        assert write_fp32_r is not None, "write_fp32_r number entity not found"
 
         client.number_command(write_u_word.key, 42)
         client.number_command(write_s_word.key, -42)
-        client.number_command(write_u_dword.key, 200002)
+        client.number_command(write_u_dword.key, 2002)
+        client.number_command(write_s_dword.key, -2002)
+        client.number_command(write_u_dword_r.key, 4004)
+        client.number_command(write_s_dword_r.key, -4004)
+        client.number_command(write_u_qword.key, 6006)
+        client.number_command(write_s_qword.key, -6006)
+        client.number_command(write_u_qword_r.key, 8008)
+        client.number_command(write_s_qword_r.key, -8008)
         client.number_command(write_fp32.key, 3.14)
+        client.number_command(write_fp32_r.key, 6.28)
 
         # Wait for sensors to reflect the written values (confirmed round-trip write+read)
-        try:
-            await asyncio.wait_for(reg_u_word_written, timeout=4.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for reg_u_word write confirmation. Received sensor states:\n"
-                f"  reg_u_word: {sensor_states['reg_u_word']}\n"
-            )
-        try:
-            await asyncio.wait_for(reg_s_word_written, timeout=4.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for reg_s_word write confirmation. Received sensor states:\n"
-                f"  reg_s_word: {sensor_states['reg_s_word']}\n"
-            )
-        try:
-            await asyncio.wait_for(reg_u_dword_written, timeout=4.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for reg_u_dword write confirmation. Received sensor states:\n"
-                f"  reg_u_dword: {sensor_states['reg_u_dword']}\n"
-            )
-        try:
-            await asyncio.wait_for(reg_fp32_written, timeout=4.0)
-        except TimeoutError:
-            pytest.fail(
-                f"Timeout waiting for reg_fp32 write confirmation. Received sensor states:\n"
-                f"  reg_fp32: {sensor_states['reg_fp32']}\n"
-            )
+        for future, name in [
+            (reg_u_word_written, "reg_u_word"),
+            (reg_s_word_written, "reg_s_word"),
+            (reg_u_dword_written, "reg_u_dword"),
+            (reg_s_dword_written, "reg_s_dword"),
+            (reg_u_dword_r_written, "reg_u_dword_r"),
+            (reg_s_dword_r_written, "reg_s_dword_r"),
+            (reg_u_qword_written, "reg_u_qword"),
+            (reg_s_qword_written, "reg_s_qword"),
+            (reg_u_qword_r_written, "reg_u_qword_r"),
+            (reg_s_qword_r_written, "reg_s_qword_r"),
+            (reg_fp32_written, "reg_fp32"),
+            (reg_fp32_r_written, "reg_fp32_r"),
+        ]:
+            try:
+                await asyncio.wait_for(future, timeout=4.0)
+            except TimeoutError:
+                pytest.fail(
+                    f"Timeout waiting for {name} write confirmation. "
+                    f"Received sensor states: {sensor_states[name]}"
+                )
 
         assert len(error_log_lines) == 0, (
             "Expect no errors logged by the modbus mock, but got:\n"
