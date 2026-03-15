@@ -546,13 +546,21 @@ def exclude_builtin_idf_component(name: str) -> None:
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].add(name)
 
 
-def include_builtin_idf_component(name: str) -> None:
+def include_builtin_idf_component(name: str, component: str | None = None) -> None:
     """Remove an ESP-IDF component from the exclusion list.
 
     Call this from components that need an ESP-IDF component that is
-    excluded by default in DEFAULT_EXCLUDED_IDF_COMPONENTS. This ensures the
-    component will be built when needed.
+    excluded by default. This ensures the component will be built when needed.
+
+    For builtin IDF components:
+        include_builtin_idf_component("esp_lcd")
+
+    For managed components (namespace/component):
+        include_builtin_idf_component("espressif", "esp-dsp")
     """
+    if component is not None:
+        # Managed component: format as "namespace__component"
+        name = f"{name}__{component}"
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].discard(name)
 
 
@@ -1978,9 +1986,13 @@ def _write_idf_component_yml():
             for comp in ARDUINO_LIBRARY_IDF_COMPONENTS.get(lib, ())
         }
 
-        # Only stub components that are not required by any enabled Arduino library
+        # Only stub components that are still in the exclusion set
+        # (components may have been re-enabled via include_builtin_idf_component())
+        # and not required by any enabled Arduino library
+        excluded_components = CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
         components_to_stub = (
-            set(ARDUINO_EXCLUDED_IDF_COMPONENTS) - required_idf_components
+            set(ARDUINO_EXCLUDED_IDF_COMPONENTS)
+            & excluded_components - required_idf_components
         )
 
         stubs_dir = CORE.relative_build_path("component_stubs")
