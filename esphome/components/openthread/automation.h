@@ -1,22 +1,83 @@
 #pragma once
+#include "esphome/core/defines.h"
+#ifdef USE_OPENTHREAD
 #include "openthread.h"
 
 #include "esphome/core/automation.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::openthread {
 
-template<typename... Ts> class OpenThreadComponentRadioAction : public Action<Ts...> {
+/** Base class allowing to fetch OpenThread lock from parent component
+ * while applying action
+ *
+ * - Nontemplate aspects belong here to avoid template bloat.
+ * - Subclasses implement virtual action method that is called under lock.
+ * - Seal leaf subclasses via @a final to support devirtualization.
+ */
+class OpenThreadComponentBaseAction : public Parented<OpenThreadComponent> {
  public:
-  TEMPLATABLE_VALUE(bool, keep_radio_on)
+  // Enforce ctor with parent argument (not without args)
+  explicit OpenThreadComponentBaseAction(OpenThreadComponent *ot) : Parented<OpenThreadComponent>(ot) {}
 
+ protected:
+  /** Handler to implement in subclass for applying action parts that need lock */
+  virtual void apply_locked_(otInstance *instance) = 0;
+
+  /** Fetch OT lock and then call @a apply_locked_ */
+  void lock_and_apply_();
+
+  /** Timeout (ms) for acquiring OT lock */
+  static constexpr int LOCK_ACQUIRE_TIMEOUT_MS = 100;
+};
+
+/** Action to set single poll period parameter */
+template<typename... Ts>
+class OpenThreadComponentPollPeriodAction final : public Action<Ts...>, public OpenThreadComponentBaseAction {
+  TEMPLATABLE_VALUE(uint32_t, poll_period)
+
+ public:
+  /* Passthrough ctor */
+  using OpenThreadComponentBaseAction::OpenThreadComponentBaseAction;
+
+ protected:
   void play(const Ts &...x) override {
-#ifdef USE_OPENTHREAD_POLL_PERIOD
-    bool keep_radio_on = false;
-    if (this->keep_radio_on_.has_value()) {
-      keep_radio_on = this->keep_radio_on_.value(x...);
-    }
-    openthread::global_openthread_component->keep_radio_on_during_idle(keep_radio_on);
+#ifdef CONFIG_OPENTHREAD_MTD
+    this->parent_->set_poll_period(this->poll_period_.value(x...));
+
+    this->lock_and_apply_();
 #endif
   }
+
+  void apply_locked_(otInstance *instance) override { this->parent_->apply_linkmode(instance); }
 };
+
+/** Action to set multiple link mode parameters in one shot */
+template<typename... Ts>
+class OpenThreadComponentLinkModeAction final : public Action<Ts...>, public OpenThreadComponentBaseAction {
+  TEMPLATABLE_VALUE(uint32_t, poll_period)
+  // ... TODO: Other link mode fields ...
+
+ public:
+  /* Passthrough ctor */
+  using OpenThreadComponentBaseAction::OpenThreadComponentBaseAction;
+
+ protected:
+  void play(const Ts &...x) override {
+    // Arbitrary optional fields can be set
+
+#ifdef CONFIG_OPENTHREAD_MTD
+    if (this->poll_period_.has_value()) {
+      this->parent_->set_poll_period(this->poll_period_.value(x...));
+    }
+#endif
+    // ... TODO: Other link mode fields ...
+
+    this->lock_and_apply_();
+  }
+
+  void apply_locked_(otInstance *instance) override { this->parent_->apply_linkmode(instance); }
+};
+
 }  // namespace esphome::openthread
+#endif

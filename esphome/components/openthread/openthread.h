@@ -36,12 +36,15 @@ class OpenThreadComponent : public Component {
 
   const char *get_use_address() const;
   void set_use_address(const char *use_address);
-#ifdef USE_OPENTHREAD_POLL_PERIOD
+#if CONFIG_OPENTHREAD_MTD
   void set_poll_period(uint32_t poll_period) { this->poll_period_ = poll_period; }
-  esp_err_t keep_radio_on_during_idle(bool keep_radio_on);
 #endif
-  void set_link_mode(otInstance *instance, bool keep_radio_on, bool set_poll_period);
   void set_output_power(int8_t output_power) { this->output_power_ = output_power; }
+
+  /** Internal: Apply settings for Link Mode incl poll period
+   * @pre Call while holding lock
+   */
+  void apply_linkmode(otInstance *instance);
 
  protected:
   std::optional<otIp6Address> get_omr_address_(InstanceLock &lock);
@@ -56,7 +59,6 @@ class OpenThreadComponent : public Component {
   bool teardown_started_{false};
   bool teardown_complete_{false};
   bool connected_{false};
-  otLinkModeConfig link_mode_config_{0};
 
  private:
   // Stores a pointer to a string literal (static storage duration).
