@@ -280,7 +280,7 @@ struct SunAtLocation {
 
 HorizontalCoordinate Sun::calc_coords_() {
   SunAtLocation sun{location_};
-  //Moment m{time_->utcnow()};
+  // Moment m{time_->utcnow()};
   Moment m{ESPTime::from_epoch_utc(time_->timestamp_now() + this->offset_)};
 
   if (!m.dt.is_valid())
@@ -313,7 +313,7 @@ optional<ESPTime> Sun::calc_event_(ESPTime date, bool rising, double zenith) {
   return it;
 }
 optional<ESPTime> Sun::calc_event_(bool rising, double zenith) {
-  //auto it = Sun::calc_event_(this->time_->utcnow(), rising, zenith);
+  // auto it = Sun::calc_event_(this->time_->utcnow(), rising, zenith);
   auto it = Sun::calc_event_(ESPTime::from_epoch_utc(this->time_->timestamp_now() + this->offset_), rising, zenith);
   return it;
 }
