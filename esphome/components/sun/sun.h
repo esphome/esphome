@@ -58,6 +58,7 @@ class Sun {
   time::RealTimeClock *get_time() const { return time_; }
   void set_latitude(double latitude) { location_.latitude = latitude; }
   void set_longitude(double longitude) { location_.longitude = longitude; }
+  void set_offset(int offset) { offset_ = offset; }
 
   // Check if the sun is above the horizon, with a default elevation angle of -0.83333 (standard for sunrise/set).
   bool is_above_horizon(double elevation = -0.83333) { return this->elevation() > elevation; }
@@ -74,6 +75,7 @@ class Sun {
   internal::HorizontalCoordinate calc_coords_();
   optional<ESPTime> calc_event_(bool rising, double zenith);
   optional<ESPTime> calc_event_(ESPTime date, bool rising, double zenith);
+  int offset_;
 
   time::RealTimeClock *time_;
   internal::GeoLocation location_;

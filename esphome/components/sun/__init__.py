@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_ID,
     CONF_LATITUDE,
     CONF_LONGITUDE,
+    CONF_OFFSET,
     CONF_TIME_ID,
     CONF_TRIGGER_ID,
 )
@@ -88,6 +89,16 @@ def parse_latlon(value):
     return val
 
 
+def validate_offset(value):
+    if (
+        (value.nanoseconds is not None)
+        or (value.microseconds is not None)
+        or (value.milliseconds is not None)
+    ):
+        raise cv.Invalid("Delay must be 1s or greater.")
+    return value
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(Sun),
@@ -97,6 +108,9 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Required(CONF_LONGITUDE): cv.All(
             parse_latlon, cv.float_range(min=-180, max=180)
+        ),
+        cv.Optional(CONF_OFFSET, default="0s"): cv.All(
+            cv.time_period_str_unit, validate_offset
         ),
         cv.Optional(CONF_ON_SUNRISE): automation.validate_automation(
             {
@@ -115,11 +129,23 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
+
+    offset_in_seconds = 0
+    if config[CONF_OFFSET].seconds is not None:
+        offset_in_seconds += config[CONF_OFFSET].seconds
+    if config[CONF_OFFSET].minutes is not None:
+        offset_in_seconds += config[CONF_OFFSET].minutes * 60
+    if config[CONF_OFFSET].hours is not None:
+        offset_in_seconds += config[CONF_OFFSET].hours * 60 * 60
+    if config[CONF_OFFSET].days is not None:
+        offset_in_seconds += config[CONF_OFFSET].days * 60 * 60 * 24
+
     var = cg.new_Pvariable(config[CONF_ID])
     time_ = await cg.get_variable(config[CONF_TIME_ID])
     cg.add(var.set_time(time_))
     cg.add(var.set_latitude(config[CONF_LATITUDE]))
     cg.add(var.set_longitude(config[CONF_LONGITUDE]))
+    cg.add(var.set_offset(offset_in_seconds))
 
     for conf in config.get(CONF_ON_SUNRISE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
