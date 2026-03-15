@@ -129,8 +129,9 @@ bool LIS2DH12Component::configure_registers_() {
     return false;
   }
 
-  // INT1_CFG: 6D=1, ZHIE=1, ZLIE=1, YHIE=1, YLIE=1, XHIE=1, XLIE=1
-  if (!this->write_byte(static_cast<uint8_t>(RegisterMap::INT1_CFG), 0x7F)) {
+  // INT1_CFG: AOI=1, 6D=1 → 6D position recognition (active while in known position)
+  // ZHIE=1, ZLIE=1, YHIE=1, YLIE=1, XHIE=1, XLIE=1
+  if (!this->write_byte(static_cast<uint8_t>(RegisterMap::INT1_CFG), 0xFF)) {
     return false;
   }
 
