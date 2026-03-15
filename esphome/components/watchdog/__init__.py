@@ -33,6 +33,7 @@ TimeoutAction = watchdog_ns.class_(
     "WatchdogManagerComponentTimeoutAction",
     automation.Action,
     cg.Parented.template(WatchdogManagerComponent),
+    synchronous=True,
 )
 
 
