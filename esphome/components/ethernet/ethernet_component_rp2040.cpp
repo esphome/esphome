@@ -75,8 +75,10 @@ void EthernetComponent::setup() {
   // via __addEthernetPacketHandler when no interrupt pin is used,
   // or via GPIO interrupt when one is provided.
 
-  // Mark as started - connection will be detected in loop()
-  this->started_ = true;
+  // Don't set started_ here — let the link polling in loop() set it
+  // when the W5500 link is actually up. Setting it prematurely causes
+  // a "Starting → Stopped → Starting" log sequence because the W5500
+  // needs time after begin() before the PHY link is ready.
 }
 
 void EthernetComponent::loop() {
