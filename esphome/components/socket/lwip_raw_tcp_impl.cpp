@@ -130,7 +130,8 @@ void socket_wake() {
 // code (CONT context) — they never preempt each other, so no locking is needed.
 //
 // esphome::LwIPLock is the platform-provided RAII guard (see helpers.h/helpers.cpp).
-// On RP2040, it acquires cyw43_arch_lwip_begin/end. On ESP8266, it's a no-op.
+// On RP2040, it acquires cyw43_arch_lwip_begin/end (WiFi) or ethernet_arch_lwip_begin/end
+// (Ethernet). On ESP8266, it's a no-op.
 #define LWIP_LOCK() esphome::LwIPLock lwip_lock_guard  // NOLINT
 
 static const char *const TAG = "socket.lwip";
