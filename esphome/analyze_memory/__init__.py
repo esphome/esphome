@@ -1,6 +1,6 @@
 """Memory usage analyzer for ESPHome compiled binaries."""
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 import logging
 from pathlib import Path
@@ -38,6 +38,15 @@ _LIBC_PRINTF_SCANF_FAMILY = frozenset(["printf", "fprintf", "sprintf", "scanf"])
 # Format: [ #] name type addr off size
 _READELF_SECTION_PATTERN = re.compile(
     r"\s*\[\s*\d+\]\s+([\.\w]+)\s+\w+\s+[\da-fA-F]+\s+[\da-fA-F]+\s+([\da-fA-F]+)"
+)
+
+# Regex for extracting call targets from objdump disassembly
+# Matches direct call instructions across architectures:
+#   Xtensa: call0/call4/call8/call12/callx0/callx4/callx8/callx12 <addr> <symbol>
+#   ARM:    bl/blx <addr> <symbol>
+# Captures the mangled symbol name inside angle brackets.
+_CALL_TARGET_PATTERN = re.compile(
+    r"\t(?:call(?:0|4|8|12)|callx(?:0|4|8|12)|blx?)\s+[\da-fA-F]+ <([^>]+)>"
 )
 
 # Component category prefixes
@@ -197,6 +206,8 @@ class MemoryAnalyzer:
         self._lib_hash_to_name: dict[str, str] = {}
         # Heuristic category to library redirect: "mdns_lib" -> "[lib]mdns"
         self._heuristic_to_lib: dict[str, str] = {}
+        # Function call counts: mangled_name -> call_count
+        self._function_call_counts: Counter[str] = Counter()
 
     def analyze(self) -> dict[str, ComponentMemory]:
         """Analyze the ELF file and return component memory usage."""
@@ -206,6 +217,7 @@ class MemoryAnalyzer:
         self._categorize_symbols()
         self._analyze_cswtch_symbols()
         self._analyze_sdk_libraries()
+        self._analyze_function_calls()
         return dict(self.components)
 
     def _parse_sections(self) -> None:
@@ -384,8 +396,9 @@ class MemoryAnalyzer:
             return
 
         _LOGGER.info("Demangling %d symbols", len(symbols))
-        self._demangle_cache = batch_demangle(symbols, objdump_path=self.objdump_path)
-        _LOGGER.info("Successfully demangled %d symbols", len(self._demangle_cache))
+        demangled = batch_demangle(symbols, objdump_path=self.objdump_path)
+        self._demangle_cache.update(demangled)
+        _LOGGER.info("Successfully demangled %d symbols", len(demangled))
 
     def _demangle_symbol(self, symbol: str) -> str:
         """Get demangled C++ symbol name from cache."""
@@ -1009,6 +1022,43 @@ class MemoryAnalyzer:
             "CSWTCH analysis: %d symbols, %d bytes total",
             len(self._cswtch_symbols),
             total_size,
+        )
+
+    def _analyze_function_calls(self) -> None:
+        """Count function call sites by parsing disassembly output.
+
+        Parses direct call instructions (call0/call8/bl/blx) from objdump -d
+        to count how many times each function is called. This helps identify
+        inlining candidates — frequently called small functions benefit most
+        from inlining.
+        """
+        result = run_tool(
+            [self.objdump_path, "-d", str(self.elf_path)],
+            timeout=60,
+        )
+        if result is None or result.returncode != 0:
+            _LOGGER.debug("Failed to disassemble ELF for function call analysis")
+            return
+
+        self._function_call_counts = Counter(
+            match.group(1)
+            for line in result.stdout.splitlines()
+            if (match := _CALL_TARGET_PATTERN.search(line))
+        )
+
+        # Demangle any call targets not already in the cache
+        missing = [
+            name
+            for name in self._function_call_counts
+            if name not in self._demangle_cache
+        ]
+        if missing:
+            self._batch_demangle_symbols(missing)
+
+        _LOGGER.debug(
+            "Function call analysis: %d unique targets, %d total calls",
+            len(self._function_call_counts),
+            sum(self._function_call_counts.values()),
         )
 
     def get_unattributed_ram(self) -> tuple[int, int, int]:

@@ -4,6 +4,7 @@
 #include <ctime>
 #include <initializer_list>
 
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/time/real_time_clock.h"

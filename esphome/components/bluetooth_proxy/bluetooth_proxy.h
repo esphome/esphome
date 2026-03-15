@@ -23,9 +23,9 @@
 
 namespace esphome::bluetooth_proxy {
 
-static const esp_err_t ESP_GATT_NOT_CONNECTED = -1;
-static const int DONE_SENDING_SERVICES = -2;
-static const int INIT_SENDING_SERVICES = -3;
+static constexpr esp_err_t ESP_GATT_NOT_CONNECTED = -1;
+static constexpr int DONE_SENDING_SERVICES = -2;
+static constexpr int INIT_SENDING_SERVICES = -3;
 
 using namespace esp32_ble_client;
 
@@ -35,8 +35,8 @@ using namespace esp32_ble_client;
 // Version 3: New connection API
 // Version 4: Pairing support
 // Version 5: Cache clear support
-static const uint32_t LEGACY_ACTIVE_CONNECTIONS_VERSION = 5;
-static const uint32_t LEGACY_PASSIVE_ONLY_VERSION = 1;
+static constexpr uint32_t LEGACY_ACTIVE_CONNECTIONS_VERSION = 5;
+static constexpr uint32_t LEGACY_PASSIVE_ONLY_VERSION = 1;
 
 enum BluetoothProxyFeature : uint32_t {
   FEATURE_PASSIVE_SCAN = 1 << 0,
@@ -46,6 +46,7 @@ enum BluetoothProxyFeature : uint32_t {
   FEATURE_CACHE_CLEARING = 1 << 4,
   FEATURE_RAW_ADVERTISEMENTS = 1 << 5,
   FEATURE_STATE_AND_MODE = 1 << 6,
+  FEATURE_CONNECTION_PARAMS_SETTING = 1 << 7,
 };
 
 enum BluetoothProxySubscriptionFlag : uint32_t {
@@ -82,6 +83,7 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
   void bluetooth_gatt_write_descriptor(const api::BluetoothGATTWriteDescriptorRequest &msg);
   void bluetooth_gatt_send_services(const api::BluetoothGATTGetServicesRequest &msg);
   void bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest &msg);
+  void bluetooth_set_connection_params(const api::BluetoothSetConnectionParamsRequest &msg);
 
   void subscribe_api_connection(api::APIConnection *api_connection, uint32_t flags);
   void unsubscribe_api_connection(api::APIConnection *api_connection);
@@ -130,6 +132,7 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
       flags |= BluetoothProxyFeature::FEATURE_REMOTE_CACHING;
       flags |= BluetoothProxyFeature::FEATURE_PAIRING;
       flags |= BluetoothProxyFeature::FEATURE_CACHE_CLEARING;
+      flags |= BluetoothProxyFeature::FEATURE_CONNECTION_PARAMS_SETTING;
     }
 
     return flags;

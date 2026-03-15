@@ -1,6 +1,6 @@
 #include "online_image.h"
-
 #include "esphome/core/log.h"
+#include <algorithm>
 
 static const char *const TAG = "online_image";
 static const char *const ETAG_HEADER_NAME = "etag";
@@ -8,142 +8,82 @@ static const char *const IF_NONE_MATCH_HEADER_NAME = "if-none-match";
 static const char *const LAST_MODIFIED_HEADER_NAME = "last-modified";
 static const char *const IF_MODIFIED_SINCE_HEADER_NAME = "if-modified-since";
 
-#include "image_decoder.h"
+namespace esphome::online_image {
 
-#ifdef USE_ONLINE_IMAGE_BMP_SUPPORT
-#include "bmp_image.h"
-#endif
-#ifdef USE_ONLINE_IMAGE_JPEG_SUPPORT
-#include "jpeg_image.h"
-#endif
-#ifdef USE_ONLINE_IMAGE_PNG_SUPPORT
-#include "png_image.h"
-#endif
-
-namespace esphome {
-namespace online_image {
-
-using image::ImageType;
-
-inline bool is_color_on(const Color &color) {
-  // This produces the most accurate monochrome conversion, but is slightly slower.
-  //  return (0.2125 * color.r + 0.7154 * color.g + 0.0721 * color.b) > 127;
-
-  // Approximation using fast integer computations; produces acceptable results
-  // Equivalent to 0.25 * R + 0.5 * G + 0.25 * B
-  return ((color.r >> 2) + (color.g >> 1) + (color.b >> 2)) & 0x80;
-}
-
-OnlineImage::OnlineImage(const std::string &url, int width, int height, ImageFormat format, ImageType type,
-                         image::Transparency transparency, uint32_t download_buffer_size, bool is_big_endian)
-    : Image(nullptr, 0, 0, type, transparency),
-      buffer_(nullptr),
-      download_buffer_(download_buffer_size),
-      download_buffer_initial_size_(download_buffer_size),
-      format_(format),
-      fixed_width_(width),
-      fixed_height_(height),
-      is_big_endian_(is_big_endian) {
+OnlineImage::OnlineImage(const std::string &url, int width, int height, runtime_image::ImageFormat format,
+                         image::ImageType type, image::Transparency transparency, image::Image *placeholder,
+                         uint32_t buffer_size, bool is_big_endian)
+    : RuntimeImage(format, type, transparency, placeholder, is_big_endian, width, height),
+      download_buffer_(buffer_size),
+      download_buffer_initial_size_(buffer_size) {
   this->set_url(url);
 }
 
-void OnlineImage::draw(int x, int y, display::Display *display, Color color_on, Color color_off) {
-  if (this->data_start_) {
-    Image::draw(x, y, display, color_on, color_off);
-  } else if (this->placeholder_) {
-    this->placeholder_->draw(x, y, display, color_on, color_off);
+bool OnlineImage::validate_url_(const std::string &url) {
+  if (url.empty()) {
+    ESP_LOGE(TAG, "URL is empty");
+    return false;
   }
-}
-
-void OnlineImage::release() {
-  if (this->buffer_) {
-    ESP_LOGV(TAG, "Deallocating old buffer");
-    this->allocator_.deallocate(this->buffer_, this->get_buffer_size_());
-    this->data_start_ = nullptr;
-    this->buffer_ = nullptr;
-    this->width_ = 0;
-    this->height_ = 0;
-    this->buffer_width_ = 0;
-    this->buffer_height_ = 0;
-    this->last_modified_ = "";
-    this->etag_ = "";
-    this->end_connection_();
+  if (url.length() > 2048) {
+    ESP_LOGE(TAG, "URL is too long");
+    return false;
   }
-}
-
-size_t OnlineImage::resize_(int width_in, int height_in) {
-  int width = this->fixed_width_;
-  int height = this->fixed_height_;
-  if (this->is_auto_resize_()) {
-    width = width_in;
-    height = height_in;
-    if (this->width_ != width && this->height_ != height) {
-      this->release();
-    }
+  if (url.compare(0, 7, "http://") != 0 && url.compare(0, 8, "https://") != 0) {
+    ESP_LOGE(TAG, "URL must start with http:// or https://");
+    return false;
   }
-  size_t new_size = this->get_buffer_size_(width, height);
-  if (this->buffer_) {
-    // Buffer already allocated => no need to resize
-    return new_size;
-  }
-  ESP_LOGD(TAG, "Allocating new buffer of %zu bytes", new_size);
-  this->buffer_ = this->allocator_.allocate(new_size);
-  if (this->buffer_ == nullptr) {
-    ESP_LOGE(TAG, "allocation of %zu bytes failed. Biggest block in heap: %zu Bytes", new_size,
-             this->allocator_.get_max_free_block_size());
-    this->end_connection_();
-    return 0;
-  }
-  this->buffer_width_ = width;
-  this->buffer_height_ = height;
-  this->width_ = width;
-  ESP_LOGV(TAG, "New size: (%d, %d)", width, height);
-  return new_size;
+  return true;
 }
 
 void OnlineImage::update() {
-  if (this->decoder_) {
+  if (this->is_decoding()) {
     ESP_LOGW(TAG, "Image already being updated.");
     return;
   }
-  ESP_LOGI(TAG, "Updating image %s", this->url_.c_str());
 
-  std::list<http_request::Header> headers = {};
-
-  http_request::Header accept_header;
-  accept_header.name = "Accept";
-  std::string accept_mime_type;
-  switch (this->format_) {
-#ifdef USE_ONLINE_IMAGE_BMP_SUPPORT
-    case ImageFormat::BMP:
-      accept_mime_type = "image/bmp";
-      break;
-#endif  // USE_ONLINE_IMAGE_BMP_SUPPORT
-#ifdef USE_ONLINE_IMAGE_JPEG_SUPPORT
-    case ImageFormat::JPEG:
-      accept_mime_type = "image/jpeg";
-      break;
-#endif  // USE_ONLINE_IMAGE_JPEG_SUPPORT
-#ifdef USE_ONLINE_IMAGE_PNG_SUPPORT
-    case ImageFormat::PNG:
-      accept_mime_type = "image/png";
-      break;
-#endif  // USE_ONLINE_IMAGE_PNG_SUPPORT
-    default:
-      accept_mime_type = "image/*";
+  if (!this->validate_url_(this->url_)) {
+    ESP_LOGE(TAG, "Invalid URL: %s", this->url_.c_str());
+    this->download_error_callback_.call();
+    return;
   }
-  accept_header.value = accept_mime_type + ",*/*;q=0.8";
 
+  ESP_LOGD(TAG, "Updating image from %s", this->url_.c_str());
+
+  std::vector<http_request::Header> headers;
+
+  // Add caching headers if we have them
   if (!this->etag_.empty()) {
-    headers.push_back(http_request::Header{IF_NONE_MATCH_HEADER_NAME, this->etag_});
+    headers.push_back({IF_NONE_MATCH_HEADER_NAME, this->etag_});
   }
-
   if (!this->last_modified_.empty()) {
-    headers.push_back(http_request::Header{IF_MODIFIED_SINCE_HEADER_NAME, this->last_modified_});
+    headers.push_back({IF_MODIFIED_SINCE_HEADER_NAME, this->last_modified_});
   }
 
-  headers.push_back(accept_header);
+  // Add Accept header based on image format
+  const char *accept_mime_type;
+  switch (this->get_format()) {
+#ifdef USE_RUNTIME_IMAGE_BMP
+    case runtime_image::BMP:
+      accept_mime_type = "image/bmp,*/*;q=0.8";
+      break;
+#endif
+#ifdef USE_RUNTIME_IMAGE_JPEG
+    case runtime_image::JPEG:
+      accept_mime_type = "image/jpeg,*/*;q=0.8";
+      break;
+#endif
+#ifdef USE_RUNTIME_IMAGE_PNG
+    case runtime_image::PNG:
+      accept_mime_type = "image/png,*/*;q=0.8";
+      break;
+#endif
+    default:
+      accept_mime_type = "image/*,*/*;q=0.8";
+      break;
+  }
+  headers.push_back({"Accept", accept_mime_type});
 
+  // User headers last so they can override any of the above
   for (auto &header : this->request_headers_) {
     headers.push_back(http_request::Header{header.first, header.second.value()});
   }
@@ -175,186 +115,117 @@ void OnlineImage::update() {
   ESP_LOGD(TAG, "Starting download");
   size_t total_size = this->downloader_->content_length;
 
-#ifdef USE_ONLINE_IMAGE_BMP_SUPPORT
-  if (this->format_ == ImageFormat::BMP) {
-    ESP_LOGD(TAG, "Allocating BMP decoder");
-    this->decoder_ = make_unique<BmpDecoder>(this);
-    this->enable_loop();
+  // Initialize decoder with the known format
+  if (!this->begin_decode(total_size)) {
+    ESP_LOGE(TAG, "Failed to initialize decoder for format %d", this->get_format());
+    this->end_connection_();
+    this->download_error_callback_.call();
+    return;
   }
-#endif  // USE_ONLINE_IMAGE_BMP_SUPPORT
-#ifdef USE_ONLINE_IMAGE_JPEG_SUPPORT
-  if (this->format_ == ImageFormat::JPEG) {
-    ESP_LOGD(TAG, "Allocating JPEG decoder");
-    this->decoder_ = esphome::make_unique<JpegDecoder>(this);
-    this->enable_loop();
-  }
-#endif  // USE_ONLINE_IMAGE_JPEG_SUPPORT
-#ifdef USE_ONLINE_IMAGE_PNG_SUPPORT
-  if (this->format_ == ImageFormat::PNG) {
-    ESP_LOGD(TAG, "Allocating PNG decoder");
-    this->decoder_ = make_unique<PngDecoder>(this);
-    this->enable_loop();
-  }
-#endif  // USE_ONLINE_IMAGE_PNG_SUPPORT
 
-  if (!this->decoder_) {
-    ESP_LOGE(TAG, "Could not instantiate decoder. Image format unsupported: %d", this->format_);
-    this->end_connection_();
-    this->download_error_callback_.call();
-    return;
+  // JPEG requires the complete image in the download buffer before decoding
+  if (this->get_format() == runtime_image::JPEG && total_size > this->download_buffer_.size()) {
+    this->download_buffer_.resize(total_size);
   }
-  auto prepare_result = this->decoder_->prepare(total_size);
-  if (prepare_result < 0) {
-    this->end_connection_();
-    this->download_error_callback_.call();
-    return;
-  }
+
   ESP_LOGI(TAG, "Downloading image (Size: %zu)", total_size);
-  this->start_time_ = ::time(nullptr);
+  this->start_time_ = millis();
+  this->enable_loop();
 }
 
 void OnlineImage::loop() {
-  if (!this->decoder_) {
+  if (!this->is_decoding()) {
     // Not decoding at the moment => nothing to do.
     this->disable_loop();
     return;
   }
-  if (!this->downloader_ || this->decoder_->is_finished()) {
-    this->data_start_ = buffer_;
-    this->width_ = buffer_width_;
-    this->height_ = buffer_height_;
-    ESP_LOGD(TAG, "Image fully downloaded, read %zu bytes, width/height = %d/%d", this->downloader_->get_bytes_read(),
-             this->width_, this->height_);
-    ESP_LOGD(TAG, "Total time: %" PRIu32 "s", (uint32_t) (::time(nullptr) - this->start_time_));
+
+  if (!this->downloader_) {
+    ESP_LOGE(TAG, "Downloader not instantiated; cannot download");
+    this->end_connection_();
+    this->download_error_callback_.call();
+    return;
+  }
+
+  // Check if download is complete — use decoder's format-specific completion check
+  // to handle both known content-length and chunked transfer encoding
+  if (this->is_decode_finished() || (this->downloader_->content_length > 0 &&
+                                     this->downloader_->get_bytes_read() >= this->downloader_->content_length &&
+                                     this->download_buffer_.unread() == 0)) {
+    // Finalize decoding
+    this->end_decode();
+
+    ESP_LOGD(TAG, "Image fully downloaded, %zu bytes in %" PRIu32 " ms", this->downloader_->get_bytes_read(),
+             millis() - this->start_time_);
+
+    // Save caching headers
     this->etag_ = this->downloader_->get_response_header(ETAG_HEADER_NAME);
     this->last_modified_ = this->downloader_->get_response_header(LAST_MODIFIED_HEADER_NAME);
+
     this->download_finished_callback_.call(false);
     this->end_connection_();
     return;
   }
-  if (this->downloader_ == nullptr) {
-    ESP_LOGE(TAG, "Downloader not instantiated; cannot download");
-    return;
-  }
+
+  // Download and decode more data
   size_t available = this->download_buffer_.free_capacity();
-  if (available) {
-    // Some decoders need to fully download the image before downloading.
-    // In case of huge images, don't wait blocking until the whole image has been downloaded,
-    // use smaller chunks
+  if (available > 0) {
+    // Download in chunks to avoid blocking
     available = std::min(available, this->download_buffer_initial_size_);
     auto len = this->downloader_->read(this->download_buffer_.append(), available);
+
     if (len > 0) {
       this->download_buffer_.write(len);
-      auto fed = this->decoder_->decode(this->download_buffer_.data(), this->download_buffer_.unread());
-      if (fed < 0) {
-        ESP_LOGE(TAG, "Error when decoding image.");
+
+      // Feed data to decoder
+      auto consumed = this->feed_data(this->download_buffer_.data(), this->download_buffer_.unread());
+
+      if (consumed < 0) {
+        ESP_LOGE(TAG, "Error decoding image: %d", consumed);
         this->end_connection_();
         this->download_error_callback_.call();
         return;
       }
-      this->download_buffer_.read(fed);
-    }
-  }
-}
 
-void OnlineImage::map_chroma_key(Color &color) {
-  if (this->transparency_ == image::TRANSPARENCY_CHROMA_KEY) {
-    if (color.g == 1 && color.r == 0 && color.b == 0) {
-      color.g = 0;
-    }
-    if (color.w < 0x80) {
-      color.r = 0;
-      color.g = this->type_ == ImageType::IMAGE_TYPE_RGB565 ? 4 : 1;
-      color.b = 0;
-    }
-  }
-}
-
-void OnlineImage::draw_pixel_(int x, int y, Color color) {
-  if (!this->buffer_) {
-    ESP_LOGE(TAG, "Buffer not allocated!");
-    return;
-  }
-  if (x < 0 || y < 0 || x >= this->buffer_width_ || y >= this->buffer_height_) {
-    ESP_LOGE(TAG, "Tried to paint a pixel (%d,%d) outside the image!", x, y);
-    return;
-  }
-  uint32_t pos = this->get_position_(x, y);
-  switch (this->type_) {
-    case ImageType::IMAGE_TYPE_BINARY: {
-      const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
-      pos = x + y * width_8;
-      auto bitno = 0x80 >> (pos % 8u);
-      pos /= 8u;
-      auto on = is_color_on(color);
-      if (this->has_transparency() && color.w < 0x80)
-        on = false;
-      if (on) {
-        this->buffer_[pos] |= bitno;
-      } else {
-        this->buffer_[pos] &= ~bitno;
+      if (consumed > 0) {
+        this->download_buffer_.read(consumed);
       }
-      break;
+    } else if (len < 0) {
+      ESP_LOGE(TAG, "Error downloading image: %d", len);
+      this->end_connection_();
+      this->download_error_callback_.call();
+      return;
     }
-    case ImageType::IMAGE_TYPE_GRAYSCALE: {
-      auto gray = static_cast<uint8_t>(0.2125 * color.r + 0.7154 * color.g + 0.0721 * color.b);
-      if (this->transparency_ == image::TRANSPARENCY_CHROMA_KEY) {
-        if (gray == 1) {
-          gray = 0;
-        }
-        if (color.w < 0x80) {
-          gray = 1;
-        }
-      } else if (this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
-        if (color.w != 0xFF)
-          gray = color.w;
-      }
-      this->buffer_[pos] = gray;
-      break;
-    }
-    case ImageType::IMAGE_TYPE_RGB565: {
-      this->map_chroma_key(color);
-      uint16_t col565 = display::ColorUtil::color_to_565(color);
-      if (this->is_big_endian_) {
-        this->buffer_[pos + 0] = static_cast<uint8_t>((col565 >> 8) & 0xFF);
-        this->buffer_[pos + 1] = static_cast<uint8_t>(col565 & 0xFF);
-      } else {
-        this->buffer_[pos + 0] = static_cast<uint8_t>(col565 & 0xFF);
-        this->buffer_[pos + 1] = static_cast<uint8_t>((col565 >> 8) & 0xFF);
-      }
-      if (this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
-        this->buffer_[pos + 2] = color.w;
-      }
-      break;
-    }
-    case ImageType::IMAGE_TYPE_RGB: {
-      this->map_chroma_key(color);
-      this->buffer_[pos + 0] = color.r;
-      this->buffer_[pos + 1] = color.g;
-      this->buffer_[pos + 2] = color.b;
-      if (this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
-        this->buffer_[pos + 3] = color.w;
-      }
-      break;
+  } else {
+    // Buffer is full, need to decode some data first
+    auto consumed = this->feed_data(this->download_buffer_.data(), this->download_buffer_.unread());
+    if (consumed > 0) {
+      this->download_buffer_.read(consumed);
+    } else if (consumed < 0) {
+      ESP_LOGE(TAG, "Decode error with full buffer: %d", consumed);
+      this->end_connection_();
+      this->download_error_callback_.call();
+      return;
+    } else {
+      // Decoder can't process more data, might need complete image
+      // This is normal for JPEG which needs complete data
+      ESP_LOGV(TAG, "Decoder waiting for more data");
     }
   }
 }
 
 void OnlineImage::end_connection_() {
+  // Abort any in-progress decode to free decoder resources.
+  // Use RuntimeImage::release() directly to avoid recursion with OnlineImage::release().
+  if (this->is_decoding()) {
+    RuntimeImage::release();
+  }
   if (this->downloader_) {
     this->downloader_->end();
     this->downloader_ = nullptr;
   }
-  this->decoder_.reset();
   this->download_buffer_.reset();
-}
-
-bool OnlineImage::validate_url_(const std::string &url) {
-  if ((url.length() < 8) || !url.starts_with("http") || (url.find("://") == std::string::npos)) {
-    ESP_LOGE(TAG, "URL is invalid and/or must be prefixed with 'http://' or 'https://'");
-    return false;
-  }
-  return true;
+  this->disable_loop();
 }
 
 void OnlineImage::add_on_finished_callback(std::function<void(bool)> &&callback) {
@@ -365,5 +236,16 @@ void OnlineImage::add_on_error_callback(std::function<void()> &&callback) {
   this->download_error_callback_.add(std::move(callback));
 }
 
-}  // namespace online_image
-}  // namespace esphome
+void OnlineImage::release() {
+  // Clear cache headers
+  this->etag_ = "";
+  this->last_modified_ = "";
+
+  // End any active connection
+  this->end_connection_();
+
+  // Call parent's release to free the image buffer
+  RuntimeImage::release();
+}
+
+}  // namespace esphome::online_image

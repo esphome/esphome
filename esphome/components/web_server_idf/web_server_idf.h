@@ -16,6 +16,7 @@
 #include <vector>
 
 #ifdef USE_WEBSERVER
+#include "esphome/components/json/json_util.h"
 #include "esphome/components/web_server/list_entities.h"
 #endif
 
@@ -116,7 +117,8 @@ class AsyncWebServerRequest {
   /// Write URL (without query string) to buffer, returns StringRef pointing to buffer.
   /// URL is decoded (e.g., %20 -> space).
   StringRef url_to(std::span<char, URL_BUF_SIZE> buffer) const;
-  /// Get URL as std::string. Prefer url_to() to avoid heap allocation.
+  // Remove before 2026.9.0
+  ESPDEPRECATED("Use url_to() instead. Removed in 2026.9.0", "2026.3.0")
   std::string url() const {
     char buffer[URL_BUF_SIZE];
     return std::string(this->url_to(buffer));
@@ -170,14 +172,8 @@ class AsyncWebServerRequest {
   AsyncWebParameter *getParam(const std::string &name) { return this->getParam(name.c_str()); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
-  bool hasArg(const char *name) { return this->hasParam(name); }
-  std::string arg(const char *name) {
-    auto *param = this->getParam(name);
-    if (param) {
-      return param->value();
-    }
-    return {};
-  }
+  bool hasArg(const char *name);
+  std::string arg(const char *name);
   std::string arg(const std::string &name) { return this->arg(name.c_str()); }
 
   operator httpd_req_t *() const { return this->req_; }
@@ -192,6 +188,7 @@ class AsyncWebServerRequest {
   // is faster than tree/hash overhead. AsyncWebParameter stores both name and value to avoid
   // duplicate storage. Only successful lookups are cached to prevent cache pollution when
   // handlers check for optional parameters that don't exist.
+  optional<std::string> find_query_value_(const char *name) const;
   std::vector<AsyncWebParameter *> params_;
   std::string post_query_;
   AsyncWebServerRequest(httpd_req_t *req) : req_(req) {}
@@ -207,7 +204,7 @@ class AsyncWebServer {
   ~AsyncWebServer() { this->end(); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
-  void onNotFound(std::function<void(AsyncWebServerRequest *request)> fn) { on_not_found_ = std::move(fn); }
+  void onNotFound(std::function<void(AsyncWebServerRequest *request)> &&fn) { on_not_found_ = std::move(fn); }
 
   void begin();
   void end();
@@ -254,7 +251,7 @@ class AsyncWebHandler {
 class AsyncEventSource;
 class AsyncEventSourceResponse;
 
-using message_generator_t = std::string(esphome::web_server::WebServer *, void *);
+using message_generator_t = json::SerializationBuffer<>(esphome::web_server::WebServer *, void *);
 
 /*
   This class holds a pointer to the source component that wants to publish a state event, and a pointer to a function
@@ -330,7 +327,7 @@ class AsyncEventSource : public AsyncWebHandler {
   // NOLINTNEXTLINE(readability-identifier-naming)
   void handleRequest(AsyncWebServerRequest *request) override;
   // NOLINTNEXTLINE(readability-identifier-naming)
-  void onConnect(connect_handler_t cb) { this->on_connect_ = std::move(cb); }
+  void onConnect(connect_handler_t &&cb) { this->on_connect_ = std::move(cb); }
 
   void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);

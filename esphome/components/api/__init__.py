@@ -76,7 +76,7 @@ SERVICE_ARG_NATIVE_TYPES: dict[str, MockObj] = {
     "bool": cg.bool_,
     "int": cg.int32,
     "float": cg.float_,
-    "string": cg.std_string,
+    "string": cg.StringRef,
     "bool[]": cg.FixedVector.template(cg.bool_).operator("const").operator("ref"),
     "int[]": cg.FixedVector.template(cg.int32).operator("const").operator("ref"),
     "float[]": cg.FixedVector.template(cg.float_).operator("const").operator("ref"),
@@ -233,8 +233,8 @@ def _consume_api_sockets(config: ConfigType) -> ConfigType:
 
     # API needs 1 listening socket + typically 3 concurrent client connections
     # (not max_connections, which is the upper limit rarely reached)
-    sockets_needed = 1 + 3
-    socket.consume_sockets(sockets_needed, "api")(config)
+    socket.consume_sockets(3, "api")(config)
+    socket.consume_sockets(1, "api", socket.SocketType.TCP_LISTEN)(config)
     return config
 
 
@@ -380,9 +380,18 @@ async def to_code(config: ConfigType) -> None:
                 if is_optional:
                     func_args.append((cg.bool_, "return_response"))
 
+            # Check if action chain has non-synchronous actions that would make
+            # non-owning StringRef dangle (rx_buf_ reused after delay)
+            has_non_synchronous = automation.has_non_synchronous_actions(
+                conf.get(CONF_THEN, [])
+            )
+
             service_arg_names: list[str] = []
             for name, var_ in conf[CONF_VARIABLES].items():
                 native = SERVICE_ARG_NATIVE_TYPES[var_]
+                # Fall back to std::string for string args if non-synchronous actions exist
+                if has_non_synchronous and native is cg.StringRef:
+                    native = cg.std_string
                 service_template_args.append(native)
                 func_args.append((native, name))
                 service_arg_names.append(name)
@@ -444,7 +453,7 @@ async def to_code(config: ConfigType) -> None:
             # and plaintext disabled. Only a factory reset can remove it.
             cg.add_define("USE_API_PLAINTEXT")
         cg.add_define("USE_API_NOISE")
-        cg.add_library("esphome/noise-c", "0.1.10")
+        cg.add_library("esphome/noise-c", "0.1.11")
     else:
         cg.add_define("USE_API_PLAINTEXT")
 
@@ -509,11 +518,13 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
     "homeassistant.action",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
     "homeassistant.service",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def homeassistant_service_to_code(
     config: ConfigType,
@@ -524,24 +535,31 @@ async def homeassistant_service_to_code(
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, False)
-    templ = await cg.templatable(config[CONF_ACTION], args, None)
+    templ = await cg.templatable(config[CONF_ACTION], args, cg.std_string)
     cg.add(var.set_service(templ))
 
     # Initialize FixedVectors with exact sizes from config
     cg.add(var.init_data(len(config[CONF_DATA])))
     for key, value in config[CONF_DATA].items():
+        # output_type=None because lambdas can return non-string types (int,
+        # float, char*) that TemplatableStringValue converts via to_string.
+        # Static strings are manually wrapped for PROGMEM on ESP8266.
         templ = await cg.templatable(value, args, None)
-        cg.add(var.add_data(key, templ))
+        if isinstance(templ, str):
+            templ = cg.FlashStringLiteral(templ)
+        cg.add(var.add_data(cg.FlashStringLiteral(key), templ))
 
     cg.add(var.init_data_template(len(config[CONF_DATA_TEMPLATE])))
     for key, value in config[CONF_DATA_TEMPLATE].items():
         templ = await cg.templatable(value, args, None)
-        cg.add(var.add_data_template(key, templ))
+        if isinstance(templ, str):
+            templ = cg.FlashStringLiteral(templ)
+        cg.add(var.add_data_template(cg.FlashStringLiteral(key), templ))
 
     cg.add(var.init_variables(len(config[CONF_VARIABLES])))
     for key, value in config[CONF_VARIABLES].items():
         templ = await cg.templatable(value, args, None)
-        cg.add(var.add_variable(key, templ))
+        cg.add(var.add_variable(cg.FlashStringLiteral(key), templ))
 
     if on_error := config.get(CONF_ON_ERROR):
         cg.add_define("USE_API_HOMEASSISTANT_ACTION_RESPONSES")
@@ -604,29 +622,37 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema(
     "homeassistant.event",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_EVENT_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def homeassistant_event_to_code(config, action_id, template_arg, args):
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
-    templ = await cg.templatable(config[CONF_EVENT], args, None)
+    templ = await cg.templatable(config[CONF_EVENT], args, cg.std_string)
     cg.add(var.set_service(templ))
 
     # Initialize FixedVectors with exact sizes from config
     cg.add(var.init_data(len(config[CONF_DATA])))
     for key, value in config[CONF_DATA].items():
+        # output_type=None because lambdas can return non-string types (int,
+        # float, char*) that TemplatableStringValue converts via to_string.
+        # Static strings are manually wrapped for PROGMEM on ESP8266.
         templ = await cg.templatable(value, args, None)
-        cg.add(var.add_data(key, templ))
+        if isinstance(templ, str):
+            templ = cg.FlashStringLiteral(templ)
+        cg.add(var.add_data(cg.FlashStringLiteral(key), templ))
 
     cg.add(var.init_data_template(len(config[CONF_DATA_TEMPLATE])))
     for key, value in config[CONF_DATA_TEMPLATE].items():
         templ = await cg.templatable(value, args, None)
-        cg.add(var.add_data_template(key, templ))
+        if isinstance(templ, str):
+            templ = cg.FlashStringLiteral(templ)
+        cg.add(var.add_data_template(cg.FlashStringLiteral(key), templ))
 
     cg.add(var.init_variables(len(config[CONF_VARIABLES])))
     for key, value in config[CONF_VARIABLES].items():
         templ = await cg.templatable(value, args, None)
-        cg.add(var.add_variable(key, templ))
+        cg.add(var.add_variable(cg.FlashStringLiteral(key), templ))
 
     return var
 
@@ -644,16 +670,17 @@ HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA = cv.maybe_simple_value(
     "homeassistant.tag_scanned",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, args):
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
-    cg.add(var.set_service("esphome.tag_scanned"))
+    cg.add(var.set_service(cg.FlashStringLiteral("esphome.tag_scanned")))
     # Initialize FixedVector with exact size (1 data field)
     cg.add(var.init_data(1))
     templ = await cg.templatable(config[CONF_TAG], args, cg.std_string)
-    cg.add(var.add_data("tag_id", templ))
+    cg.add(var.add_data(cg.FlashStringLiteral("tag_id"), templ))
     return var
 
 
@@ -685,6 +712,7 @@ API_RESPOND_ACTION_SCHEMA = cv.All(
     "api.respond",
     APIRespondAction,
     API_RESPOND_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def api_respond_to_code(
     config: ConfigType,

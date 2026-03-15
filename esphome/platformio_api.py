@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import time
 from typing import Any
 
 from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
@@ -44,31 +45,61 @@ def patch_structhash():
 
 
 def patch_file_downloader():
-    """Patch PlatformIO's FileDownloader to retry on PackageException errors."""
+    """Patch PlatformIO's FileDownloader to retry on PackageException errors.
+
+    PlatformIO's FileDownloader uses HTTPSession which lacks built-in retry
+    for 502/503 errors. We add retries with exponential backoff and close the
+    session between attempts to force a fresh TCP connection, which may route
+    to a different CDN edge node.
+    """
     from platformio.package.download import FileDownloader
     from platformio.package.exception import PackageException
+
+    if getattr(FileDownloader.__init__, "_esphome_patched", False):
+        return
 
     original_init = FileDownloader.__init__
 
     def patched_init(self, *args: Any, **kwargs: Any) -> None:
-        max_retries = 3
+        max_retries = 5
 
         for attempt in range(max_retries):
             try:
-                return original_init(self, *args, **kwargs)
+                original_init(self, *args, **kwargs)
+                return
             except PackageException as e:
                 if attempt < max_retries - 1:
+                    # Exponential backoff: 2, 4, 8, 16 seconds
+                    delay = 2 ** (attempt + 1)
                     _LOGGER.warning(
-                        "Package download failed: %s. Retrying... (attempt %d/%d)",
+                        "Package download failed: %s. "
+                        "Retrying in %d seconds... (attempt %d/%d)",
                         str(e),
+                        delay,
                         attempt + 1,
                         max_retries,
                     )
+                    # Close the response and session to free resources
+                    # and force a new TCP connection on retry, which may
+                    # route to a different CDN edge node
+                    # pylint: disable=protected-access,broad-except
+                    try:
+                        if (
+                            hasattr(self, "_http_response")
+                            and self._http_response is not None
+                        ):
+                            self._http_response.close()
+                        if hasattr(self, "_http_session"):
+                            self._http_session.close()
+                    except Exception:
+                        pass
+                    # pylint: enable=protected-access,broad-except
+                    time.sleep(delay)
                 else:
                     # Final attempt - re-raise
                     raise
-        return None
 
+    patched_init._esphome_patched = True  # type: ignore[attr-defined]  # pylint: disable=protected-access
     FileDownloader.__init__ = patched_init
 
 
@@ -309,6 +340,8 @@ STACKTRACE_ESP32_BACKTRACE_RE = re.compile(
     r"Backtrace:(?:\s*0x[0-9a-fA-F]{8}:0x[0-9a-fA-F]{8})+"
 )
 STACKTRACE_ESP32_BACKTRACE_PC_RE = re.compile(r"4[0-9a-f]{7}")
+# ESP32 crash handler (stored backtrace from previous boot)
+STACKTRACE_ESP32_CRASH_BT_RE = re.compile(r"BT\d+:\s*0x([0-9a-fA-F]{8})")
 STACKTRACE_ESP8266_BACKTRACE_PC_RE = re.compile(r"4[0-9a-f]{7}")
 
 
@@ -338,6 +371,11 @@ def process_stacktrace(config, line, backtrace_state):
         _LOGGER.warning(
             "Memory allocation of %s bytes failed at %s", match.group(2), match.group(1)
         )
+        _decode_pc(config, match.group(1))
+
+    # ESP32 crash handler backtrace (from previous boot)
+    match = re.search(STACKTRACE_ESP32_CRASH_BT_RE, line)
+    if match is not None:
         _decode_pc(config, match.group(1))
 
     # ESP32 single-line backtrace

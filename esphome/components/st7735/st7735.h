@@ -68,7 +68,6 @@ class ST7735 : public display::DisplayBuffer,
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   void spi_master_write_addr_(uint16_t addr1, uint16_t addr2);
-  void spi_master_write_color_(uint16_t color, uint16_t size);
 
   int get_width_internal() override;
   int get_height_internal() override;

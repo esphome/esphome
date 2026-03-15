@@ -75,7 +75,7 @@ void RX8130Component::read_time() {
       .second = bcd2dec(date[0] & 0x7f),
       .minute = bcd2dec(date[1] & 0x7f),
       .hour = bcd2dec(date[2] & 0x3f),
-      .day_of_week = bcd2dec(date[3] & 0x7f),
+      .day_of_week = static_cast<uint8_t>((date[3] & 0x7f) ? __builtin_ctz(date[3] & 0x7f) + 1 : 1),
       .day_of_month = bcd2dec(date[4] & 0x3f),
       .day_of_year = 1,  // ignored by recalc_timestamp_utc(false)
       .month = bcd2dec(date[5] & 0x1f),
@@ -103,7 +103,7 @@ void RX8130Component::write_time() {
   buff[0] = dec2bcd(now.second);
   buff[1] = dec2bcd(now.minute);
   buff[2] = dec2bcd(now.hour);
-  buff[3] = dec2bcd(now.day_of_week);
+  buff[3] = 1 << (now.day_of_week - 1);
   buff[4] = dec2bcd(now.day_of_month);
   buff[5] = dec2bcd(now.month);
   buff[6] = dec2bcd(now.year % 100);
