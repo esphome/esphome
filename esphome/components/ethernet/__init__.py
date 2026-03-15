@@ -130,6 +130,8 @@ _PHY_TYPE_TO_DEFINE = {
 }
 
 SPI_ETHERNET_TYPES = ["W5500", "DM9051"]
+# RP2040-supported SPI ethernet types
+RP2040_SPI_ETHERNET_TYPES = ["W5500"]
 SPI_ETHERNET_DEFAULT_POLLING_INTERVAL = TimePeriodMilliseconds(milliseconds=10)
 
 emac_rmii_clock_mode_t = cg.global_ns.enum("emac_rmii_clock_mode_t")
@@ -245,6 +247,11 @@ def _validate(config):
                     f"{config[CONF_TYPE]} PHY requires RMII interface and is only supported "
                     f"on ESP32 classic and ESP32-P4, not {variant}"
                 )
+    elif CORE.is_rp2040 and config[CONF_TYPE] not in RP2040_SPI_ETHERNET_TYPES:
+        raise cv.Invalid(
+            f"Only {', '.join(RP2040_SPI_ETHERNET_TYPES)} are supported on RP2040, "
+            f"not {config[CONF_TYPE]}"
+        )
     return config
 
 
@@ -313,7 +320,7 @@ SPI_SCHEMA = cv.All(
             }
         ),
     ),
-    cv.only_on([Platform.ESP32]),
+    cv.only_on([Platform.ESP32, Platform.RP2040]),
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -403,6 +410,8 @@ async def to_code(config):
 
     if CORE.is_esp32:
         await _to_code_esp32(var, config)
+    elif CORE.is_rp2040:
+        await _to_code_rp2040(var, config)
 
     cg.add(var.set_type(ETHERNET_TYPES[config[CONF_TYPE]]))
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
@@ -492,6 +501,20 @@ async def _to_code_esp32(var, config):
         add_idf_component(name="espressif/lan867x", ref="2.0.0")
 
 
+async def _to_code_rp2040(var, config):
+    cg.add(var.set_clk_pin(config[CONF_CLK_PIN]))
+    cg.add(var.set_miso_pin(config[CONF_MISO_PIN]))
+    cg.add(var.set_mosi_pin(config[CONF_MOSI_PIN]))
+    cg.add(var.set_cs_pin(config[CONF_CS_PIN]))
+    if CONF_INTERRUPT_PIN in config:
+        cg.add(var.set_interrupt_pin(config[CONF_INTERRUPT_PIN]))
+    if CONF_RESET_PIN in config:
+        cg.add(var.set_reset_pin(config[CONF_RESET_PIN]))
+
+    cg.add_define("USE_ETHERNET_SPI")
+    cg.add_library("lwIP_w5500", None)
+
+
 def _final_validate_rmii_pins(config: ConfigType) -> None:
     """Validate that RMII pins are not used by other components."""
     if not CORE.is_esp32:
@@ -571,5 +594,6 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_IDF,
             PlatformFramework.ESP32_ARDUINO,
         },
+        "ethernet_component_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
     }
 )
