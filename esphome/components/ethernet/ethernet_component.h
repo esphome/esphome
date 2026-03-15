@@ -214,7 +214,9 @@ class EthernetComponent : public Component {
 #endif  // USE_ESP32
 
 #ifdef USE_RP2040
+  static constexpr uint32_t LINK_CHECK_INTERVAL = 500;  // ms between link/IP polls
   Wiznet5500lwIP *eth_{nullptr};
+  uint32_t last_link_check_{0};
   uint8_t clk_pin_;
   uint8_t miso_pin_;
   uint8_t mosi_pin_;
