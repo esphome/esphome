@@ -88,7 +88,7 @@ def build_key_to_entity_mapping(
 
     Args:
         entities: List of entity info objects from the API
-        entity_names: List of entity names to search for in object_ids
+        entity_names: List of entity names to match exactly against object_ids
 
     Returns:
         Dictionary mapping entity keys to entity names
