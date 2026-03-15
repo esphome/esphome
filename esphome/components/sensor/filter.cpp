@@ -41,26 +41,14 @@ void Filter::initialize(Sensor *parent, Filter *next) {
 }
 
 // SlidingWindowFilter
-SlidingWindowFilter::SlidingWindowFilter(size_t window_size, size_t send_every, size_t send_first_at)
-    : window_size_(window_size), send_every_(send_every), send_at_(send_every - send_first_at) {
-  // Allocate ring buffer once at initialization
+SlidingWindowFilter::SlidingWindowFilter(uint16_t window_size, uint16_t send_every, uint16_t send_first_at)
+    : send_every_(send_every), send_at_(send_every - send_first_at) {
   this->window_.init(window_size);
 }
 
 optional<float> SlidingWindowFilter::new_value(float value) {
-  // Add value to ring buffer
-  if (this->window_count_ < this->window_size_) {
-    // Buffer not yet full - just append
-    this->window_.push_back(value);
-    this->window_count_++;
-  } else {
-    // Buffer full - overwrite oldest value (ring buffer)
-    this->window_[this->window_head_] = value;
-    this->window_head_++;
-    if (this->window_head_ >= this->window_size_) {
-      this->window_head_ = 0;
-    }
-  }
+  // Add value to ring buffer (overwrites oldest when full)
+  this->window_.push_overwrite(value);
 
   // Check if we should send a result
   if (++this->send_at_ >= this->send_every_) {
@@ -77,9 +65,8 @@ FixedVector<float> SortedWindowFilter::get_window_values_() {
   // Copy window without NaN values using FixedVector (no heap allocation)
   // Returns unsorted values - caller will use std::nth_element for partial sorting as needed
   FixedVector<float> values;
-  values.init(this->window_count_);
-  for (size_t i = 0; i < this->window_count_; i++) {
-    float v = this->window_[i];
+  values.init(this->window_.size());
+  for (float v : this->window_) {
     if (!std::isnan(v)) {
       values.push_back(v);
     }
@@ -150,8 +137,7 @@ float MaxFilter::compute_result() { return this->find_extremum_<std::greater<flo
 float SlidingWindowMovingAverageFilter::compute_result() {
   float sum = 0;
   size_t valid_count = 0;
-  for (size_t i = 0; i < this->window_count_; i++) {
-    float v = this->window_[i];
+  for (float v : this->window_) {
     if (!std::isnan(v)) {
       sum += v;
       valid_count++;
@@ -161,7 +147,7 @@ float SlidingWindowMovingAverageFilter::compute_result() {
 }
 
 // ExponentialMovingAverageFilter
-ExponentialMovingAverageFilter::ExponentialMovingAverageFilter(float alpha, size_t send_every, size_t send_first_at)
+ExponentialMovingAverageFilter::ExponentialMovingAverageFilter(float alpha, uint16_t send_every, uint16_t send_first_at)
     : alpha_(alpha), send_every_(send_every), send_at_(send_every - send_first_at) {}
 optional<float> ExponentialMovingAverageFilter::new_value(float value) {
   if (!std::isnan(value)) {
@@ -183,7 +169,7 @@ optional<float> ExponentialMovingAverageFilter::new_value(float value) {
   }
   return {};
 }
-void ExponentialMovingAverageFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
+void ExponentialMovingAverageFilter::set_send_every(uint16_t send_every) { this->send_every_ = send_every; }
 void ExponentialMovingAverageFilter::set_alpha(float alpha) { this->alpha_ = alpha; }
 
 // ThrottleAverageFilter
@@ -511,7 +497,7 @@ optional<float> ToNTCTemperatureFilter::new_value(float value) {
 }
 
 // StreamingFilter (base class)
-StreamingFilter::StreamingFilter(size_t window_size, size_t send_first_at)
+StreamingFilter::StreamingFilter(uint16_t window_size, uint16_t send_first_at)
     : window_size_(window_size), send_first_at_(send_first_at) {}
 
 optional<float> StreamingFilter::new_value(float value) {
