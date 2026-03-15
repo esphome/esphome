@@ -44,6 +44,12 @@ class APIBuffer {
     this->reserve(n);
     this->size_ = n;  // no zero-fill
   }
+  /// Reserve capacity for max(reserve_size, new_size) bytes, then set size to new_size.
+  /// Single grow_ check regardless of argument order.
+  inline void reserve_and_resize(size_t reserve_size, size_t new_size) ESPHOME_ALWAYS_INLINE {
+    this->reserve(std::max(reserve_size, new_size));
+    this->size_ = new_size;
+  }
   uint8_t *data() { return this->data_.get(); }
   const uint8_t *data() const { return this->data_.get(); }
   size_t size() const { return this->size_; }
