@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
+import importlib
 import logging
 from typing import TYPE_CHECKING, Any
 import warnings
@@ -18,6 +19,7 @@ import contextlib
 
 from esphome.const import CONF_KEY, CONF_PORT, __version__
 from esphome.core import CORE
+from esphome.platformio_api import process_stacktrace
 
 from . import CONF_ENCRYPTION
 
@@ -55,9 +57,19 @@ async def async_run_logs(config: dict[str, Any], addresses: list[str]) -> None:
         addresses=addresses,  # Pass all addresses for automatic retry
     )
     dashboard = CORE.dashboard
+    backtrace_state = False
+
+    # Try platform-specific stacktrace handler first, fall back to generic
+    platform_process_stacktrace = None
+    try:
+        module = importlib.import_module("esphome.components." + CORE.target_platform)
+        platform_process_stacktrace = getattr(module, "process_stacktrace")
+    except (AttributeError, ImportError):
+        pass
 
     def on_log(msg: SubscribeLogsResponse) -> None:
         """Handle a new log message."""
+        nonlocal backtrace_state
         time_ = datetime.now()
         message: bytes = msg.message
         text = message.decode("utf8", "backslashreplace")
@@ -67,6 +79,15 @@ async def async_run_logs(config: dict[str, Any], addresses: list[str]) -> None:
         )
         for parsed_msg in parse_log_message(text, timestamp):
             print(parsed_msg.replace("\033", "\\033") if dashboard else parsed_msg)
+        for raw_line in text.splitlines():
+            if platform_process_stacktrace:
+                backtrace_state = platform_process_stacktrace(
+                    config, raw_line, backtrace_state
+                )
+            else:
+                backtrace_state = process_stacktrace(
+                    config, raw_line, backtrace_state=backtrace_state
+                )
 
     stop = await async_run(cli, on_log, name=name)
     try:

@@ -6,7 +6,7 @@
 #include <type_traits>
 
 #ifdef USE_ESP32
-#if (ESP_IDF_VERSION_MAJOR >= 5 && ESP_IDF_VERSION_MINOR >= 1)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
 #include <esp_eap_client.h>
 #else
 #include <esp_wpa2.h>
@@ -913,7 +913,7 @@ void WiFiComponent::setup_ap_config_() {
     static constexpr size_t AP_SSID_PREFIX_LEN = 25;
     static constexpr size_t AP_SSID_SUFFIX_LEN = 7;
 
-    const std::string &app_name = App.get_name();
+    const auto &app_name = App.get_name();
     const char *name_ptr = app_name.c_str();
     size_t name_len = app_name.length();
 
@@ -2108,20 +2108,6 @@ void WiFiComponent::retry_connect() {
     this->start_connecting(params);
   }
 }
-
-#ifdef USE_RP2040
-// RP2040's mDNS library (LEAmDNS) relies on LwipIntf::stateUpCB() to restart
-// mDNS when the network interface reconnects. However, this callback is disabled
-// in the arduino-pico framework. As a workaround, we block component setup until
-// WiFi is connected, ensuring mDNS.begin() is called with an active connection.
-
-bool WiFiComponent::can_proceed() {
-  if (!this->has_sta() || this->state_ == WIFI_COMPONENT_STATE_DISABLED || this->ap_setup_) {
-    return true;
-  }
-  return this->is_connected_();
-}
-#endif
 
 void WiFiComponent::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
 bool WiFiComponent::is_connected_() const {
