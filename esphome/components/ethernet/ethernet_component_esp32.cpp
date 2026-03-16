@@ -164,21 +164,21 @@ void EthernetComponent::setup() {
       .post_cb = nullptr,
   };
 
-#if CONFIG_ETH_SPI_ETHERNET_W5500
+#ifdef USE_ETHERNET_W5500
   eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(host, &devcfg);
 #endif
-#if CONFIG_ETH_SPI_ETHERNET_DM9051
+#ifdef USE_ETHERNET_DM9051
   eth_dm9051_config_t dm9051_config = ETH_DM9051_DEFAULT_CONFIG(host, &devcfg);
 #endif
 
-#if CONFIG_ETH_SPI_ETHERNET_W5500
+#ifdef USE_ETHERNET_W5500
   w5500_config.int_gpio_num = this->interrupt_pin_;
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   w5500_config.poll_period_ms = this->polling_interval_;
 #endif
 #endif
 
-#if CONFIG_ETH_SPI_ETHERNET_DM9051
+#ifdef USE_ETHERNET_DM9051
   dm9051_config.int_gpio_num = this->interrupt_pin_;
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   dm9051_config.poll_period_ms = this->polling_interval_;
@@ -204,7 +204,8 @@ void EthernetComponent::setup() {
   esp32_emac_config.smi_mdio_gpio_num = this->mdio_pin_;
 #endif
   esp32_emac_config.clock_config.rmii.clock_mode = this->clk_mode_;
-  esp32_emac_config.clock_config.rmii.clock_gpio = (emac_rmii_clock_gpio_t) this->clk_pin_;
+  esp32_emac_config.clock_config.rmii.clock_gpio =
+      static_cast<decltype(esp32_emac_config.clock_config.rmii.clock_gpio)>(this->clk_pin_);
 
   esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&esp32_emac_config, &mac_config);
 #endif
@@ -213,7 +214,11 @@ void EthernetComponent::setup() {
 #ifdef USE_ETHERNET_OPENETH
     case ETHERNET_TYPE_OPENETH: {
       phy_config.autonego_timeout_ms = 1000;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+      this->phy_ = esp_eth_phy_new_generic(&phy_config);
+#else
       this->phy_ = esp_eth_phy_new_dp83848(&phy_config);
+#endif
       break;
     }
 #endif
@@ -242,9 +247,16 @@ void EthernetComponent::setup() {
       break;
     }
 #endif
-#if defined(USE_ETHERNET_JL1101) && (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2) || !defined(PLATFORMIO))
+#ifdef USE_ETHERNET_JL1101
     case ETHERNET_TYPE_JL1101: {
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+      // No registry component exists; generic PHY driver works for JL1101
+      this->phy_ = esp_eth_phy_new_generic(&phy_config);
+#else
+      // IDF < 5.4.2 or non-PlatformIO: uses custom ESPHome driver (esp_eth_phy_jl1101.c)
+      // IDF 5.4.2+ with PlatformIO: uses builtin esp_eth_phy_new_jl1101()
       this->phy_ = esp_eth_phy_new_jl1101(&phy_config);
+#endif
       break;
     }
 #endif
@@ -263,14 +275,14 @@ void EthernetComponent::setup() {
 #endif
 #endif
 #ifdef USE_ETHERNET_SPI
-#if CONFIG_ETH_SPI_ETHERNET_W5500
+#ifdef USE_ETHERNET_W5500
     case ETHERNET_TYPE_W5500: {
       mac = esp_eth_mac_new_w5500(&w5500_config, &mac_config);
       this->phy_ = esp_eth_phy_new_w5500(&phy_config);
       break;
     }
 #endif
-#if CONFIG_ETH_SPI_ETHERNET_DM9051
+#ifdef USE_ETHERNET_DM9051
     case ETHERNET_TYPE_DM9051: {
       mac = esp_eth_mac_new_dm9051(&dm9051_config, &mac_config);
       this->phy_ = esp_eth_phy_new_dm9051(&phy_config);
@@ -354,7 +366,7 @@ void EthernetComponent::dump_config() {
       eth_type = "IP101";
       break;
 #endif
-#if defined(USE_ETHERNET_JL1101) && (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2) || !defined(PLATFORMIO))
+#ifdef USE_ETHERNET_JL1101
     case ETHERNET_TYPE_JL1101:
       eth_type = "JL1101";
       break;
@@ -368,12 +380,12 @@ void EthernetComponent::dump_config() {
       eth_type = "KSZ8081RNA";
       break;
 #endif
-#if CONFIG_ETH_SPI_ETHERNET_W5500
+#ifdef USE_ETHERNET_W5500
     case ETHERNET_TYPE_W5500:
       eth_type = "W5500";
       break;
 #endif
-#if CONFIG_ETH_SPI_ETHERNET_DM9051
+#ifdef USE_ETHERNET_DM9051
     case ETHERNET_TYPE_DM9051:
       eth_type = "DM9051";
       break;

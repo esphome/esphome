@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import logging
 
 from esphome import automation, pins
@@ -126,7 +127,30 @@ _PHY_TYPE_TO_DEFINE = {
     "JL1101": "USE_ETHERNET_JL1101",
     "KSZ8081": "USE_ETHERNET_KSZ8081",
     "KSZ8081RNA": "USE_ETHERNET_KSZ8081",
+    "W5500": "USE_ETHERNET_W5500",
+    "DM9051": "USE_ETHERNET_DM9051",
     "LAN8670": "USE_ETHERNET_LAN8670",
+}
+
+
+@dataclass(frozen=True)
+class IDFRegistryComponent:
+    """An ESP-IDF component from the Espressif Component Registry."""
+
+    name: str
+    version: str
+
+
+# IDF 6.0 moved per-chip PHY/MAC drivers to the Espressif Component Registry.
+_IDF6_ETHERNET_COMPONENTS: dict[str, IDFRegistryComponent] = {
+    "LAN8720": IDFRegistryComponent("espressif/lan87xx", "1.0.0"),
+    "RTL8201": IDFRegistryComponent("espressif/rtl8201", "1.0.1"),
+    "DP83848": IDFRegistryComponent("espressif/dp83848", "1.0.0"),
+    "IP101": IDFRegistryComponent("espressif/ip101", "1.0.0"),
+    "KSZ8081": IDFRegistryComponent("espressif/ksz80xx", "1.0.0"),
+    "KSZ8081RNA": IDFRegistryComponent("espressif/ksz80xx", "1.0.0"),
+    "W5500": IDFRegistryComponent("espressif/w5500", "1.0.1"),
+    "DM9051": IDFRegistryComponent("espressif/dm9051", "1.0.0"),
 }
 
 SPI_ETHERNET_TYPES = ["W5500", "DM9051"]
@@ -439,6 +463,7 @@ async def _to_code_esp32(var, config):
     from esphome.components.esp32 import (
         add_idf_component,
         add_idf_sdkconfig_option,
+        idf_version,
         include_builtin_idf_component,
     )
 
@@ -459,7 +484,11 @@ async def _to_code_esp32(var, config):
 
         cg.add_define("USE_ETHERNET_SPI")
         add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
-        add_idf_sdkconfig_option(f"CONFIG_ETH_SPI_ETHERNET_{config[CONF_TYPE]}", True)
+        # CONFIG_ETH_SPI_ETHERNET_{TYPE} Kconfig options were removed in IDF 6.0
+        if idf_version() < cv.Version(6, 0, 0):
+            add_idf_sdkconfig_option(
+                f"CONFIG_ETH_SPI_ETHERNET_{config[CONF_TYPE]}", True
+            )
     elif config[CONF_TYPE] == "OPENETH":
         cg.add_define("USE_ETHERNET_OPENETH")
         add_idf_sdkconfig_option("CONFIG_ETH_USE_OPENETH", True)
@@ -490,6 +519,12 @@ async def _to_code_esp32(var, config):
     if config[CONF_TYPE] == "LAN8670":
         # Add LAN867x 10BASE-T1S PHY support component
         add_idf_component(name="espressif/lan867x", ref="2.0.0")
+
+    # IDF 6.0 moved per-chip PHY/MAC drivers to the Espressif Component Registry
+    if idf_version() >= cv.Version(6, 0, 0) and (
+        component := _IDF6_ETHERNET_COMPONENTS.get(config[CONF_TYPE])
+    ):
+        add_idf_component(name=component.name, ref=component.version)
 
 
 def _final_validate_rmii_pins(config: ConfigType) -> None:
