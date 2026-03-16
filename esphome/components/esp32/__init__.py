@@ -532,6 +532,10 @@ def add_idf_component(
         KEY_REF: ref,
         KEY_PATH: path,
     }
+    # Also un-stub this component if it was excluded (e.g. in ARDUINO_EXCLUDED_IDF_COMPONENTS)
+    # The stub key uses "__" separator while add_idf_component uses "/"
+    stub_key = name.replace("/", "__")
+    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].discard(stub_key)
 
 
 def exclude_builtin_idf_component(name: str) -> None:
@@ -546,21 +550,13 @@ def exclude_builtin_idf_component(name: str) -> None:
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].add(name)
 
 
-def include_builtin_idf_component(name: str, component: str | None = None) -> None:
+def include_builtin_idf_component(name: str) -> None:
     """Remove an ESP-IDF component from the exclusion list.
 
     Call this from components that need an ESP-IDF component that is
-    excluded by default. This ensures the component will be built when needed.
-
-    For builtin IDF components:
-        include_builtin_idf_component("esp_lcd")
-
-    For managed components (namespace/component):
-        include_builtin_idf_component("espressif", "esp-dsp")
+    excluded by default in DEFAULT_EXCLUDED_IDF_COMPONENTS. This ensures the
+    component will be built when needed.
     """
-    if component is not None:
-        # Managed component: format as "namespace__component"
-        name = f"{name}__{component}"
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].discard(name)
 
 

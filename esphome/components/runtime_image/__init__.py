@@ -77,10 +77,12 @@ class JPEGFormat(Format):
         cg.add_define("USE_RUNTIME_IMAGE_JPEG")
         cg.add_library("JPEGDEC", "1.8.4", "https://github.com/bitbank2/JPEGDEC#1.8.4")
         if CORE.is_esp32:
-            from esphome.components.esp32 import include_builtin_idf_component
+            from esphome.components.esp32 import add_idf_component
 
-            # JPEGDEC uses ESP32-S3 SIMD optimizations that require esp-dsp headers
-            include_builtin_idf_component("espressif", "esp-dsp")
+            # JPEGDEC uses ESP32-S3 SIMD optimizations (guarded by board-level
+            # ARDUINO_ESP32S3_DEV define) that require esp-dsp headers.
+            # add_idf_component also un-stubs for Arduino builds.
+            add_idf_component(name="espressif/esp-dsp", ref="1.7.1")
 
 
 class PNGFormat(Format):
