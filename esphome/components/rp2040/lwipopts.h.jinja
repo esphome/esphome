@@ -1,0 +1,46 @@
+// ESPHome lwIP configuration override for RP2040.
+// Includes the framework's original lwipopts.h, then overrides specific
+// settings to tune lwIP for ESPHome's IoT use case.
+//
+// This file is found first via -I injection (see inject_lwip_include.py.script).
+// #include_next chains to the framework's original in include/lwipopts.h.
+// Since the original uses #pragma once, it won't be included again later
+// (e.g. via tusb_config.h), avoiding duplicate definition warnings.
+
+// Include the framework's original lwipopts.h first
+#include_next "lwipopts.h"
+
+// --- ESPHome overrides below ---
+// Only #undef and redefine values that differ from the framework defaults.
+
+// TCP send/receive buffers: 4xMSS matches ESP32 (down from 8xMSS)
+#undef TCP_SND_BUF
+#define TCP_SND_BUF                   {{ TCP_SND_BUF }}
+
+#undef TCP_WND
+#define TCP_WND                       {{ TCP_WND }}
+
+// Queued segment limits: derived from 4xMSS buffer size, matching ESP32
+#undef TCP_SND_QUEUELEN
+#define TCP_SND_QUEUELEN              {{ TCP_SND_QUEUELEN }}
+
+#undef MEMP_NUM_TCP_SEG
+#define MEMP_NUM_TCP_SEG              {{ MEMP_NUM_TCP_SEG }}
+
+// Packet buffer pool: 16 matches ESP32 (down from 24)
+#undef PBUF_POOL_SIZE
+#define PBUF_POOL_SIZE                {{ PBUF_POOL_SIZE }}
+
+// PCB pools: sized to actual component needs via socket.get_socket_counts()
+#undef MEMP_NUM_TCP_PCB
+#define MEMP_NUM_TCP_PCB              {{ MEMP_NUM_TCP_PCB }}
+
+#undef MEMP_NUM_TCP_PCB_LISTEN
+#define MEMP_NUM_TCP_PCB_LISTEN       {{ MEMP_NUM_TCP_PCB_LISTEN }}
+
+#undef MEMP_NUM_UDP_PCB
+#define MEMP_NUM_UDP_PCB              {{ MEMP_NUM_UDP_PCB }}
+
+// Listen backlog: match component needs
+#undef TCP_DEFAULT_LISTEN_BACKLOG
+#define TCP_DEFAULT_LISTEN_BACKLOG    {{ MEMP_NUM_TCP_PCB_LISTEN }}
