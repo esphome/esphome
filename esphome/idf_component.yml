@@ -37,5 +37,9 @@ dependencies:
     version: 0.3.2
     rules:
       - if: "target in [esp32, esp32s2, esp32s3, esp32c6, esp32p4]"
+  espressif/mqtt:
+    version: "1.0.0"
+    rules:
+      - if: "idf_version >=6.0.0"
   esp32async/asynctcp:
     version: 3.4.91
