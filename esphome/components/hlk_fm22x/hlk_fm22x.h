@@ -100,9 +100,8 @@ class HlkFm22xComponent : public PollingComponent, public uart::UARTDevice {
   template<typename F> void add_on_face_scan_invalid_callback(F &&callback) {
     this->face_scan_invalid_callback_.add(std::forward<F>(callback));
   }
-  void add_on_face_info_callback(
-      std::function<void(int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t)> callback) {
-    this->face_info_callback_.add(std::move(callback));
+  template<typename F> void add_on_face_info_callback(F &&callback) {
+    this->face_info_callback_.add(std::forward<F>(callback));
   }
   template<typename F> void add_on_enrollment_done_callback(F &&callback) {
     this->enrollment_done_callback_.add(std::forward<F>(callback));
