@@ -366,7 +366,7 @@ async def to_code(configs):
     # This must be done after all widgets are created
     for comp in helpers.lvgl_components_required:
         cg.add_define(f"USE_LVGL_{comp.upper()}")
-    lv_image_formats = set()
+    lv_image_formats = df.get_color_formats().copy()
     if {
         "transform_rotation",
         "transform_scale",
@@ -375,7 +375,9 @@ async def to_code(configs):
     } & styles_used:
         df.add_define("LV_COLOR_SCREEN_TRANSP", "1")
         lv_image_formats.add("ARGB8888")
-    lv_image_formats.add("RGB565")  # Always need RGB565 for the display buffer
+    lv_image_formats.add(
+        "RGB565"
+    )  # Currently always need RGB565 for the display buffer
     for use in helpers.lv_uses:
         df.add_define(f"LV_USE_{use.upper()}")
         cg.add_define(f"USE_LVGL_{use.upper()}")

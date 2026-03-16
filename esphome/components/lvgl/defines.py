@@ -25,10 +25,11 @@ LOGGER = logging.getLogger(__name__)
 lvgl_ns = cg.esphome_ns.namespace("lvgl")
 
 DOMAIN = "lvgl"
+KEY_COLOR_FORMATS = "color_formats"
 KEY_LV_DEFINES = "lv_defines"
+KEY_REMAPPED_USES = "remapped_uses"
 KEY_UPDATED_WIDGETS = "updated_widgets"
 KEY_WARNINGS = "warnings"
-KEY_REMAPPED_USES = "remapped_uses"
 
 
 def get_data(key, default=None):
@@ -49,6 +50,10 @@ def get_warnings():
 
 def get_remapped_uses():
     return get_data(KEY_REMAPPED_USES, set())
+
+
+def get_color_formats():
+    return get_data(KEY_COLOR_FORMATS, set())
 
 
 def add_warning(msg: str):

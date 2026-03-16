@@ -49,7 +49,6 @@ class SliderType(NumberType):
         return True
 
     def get_uses(self):
-        print("SliderType.get_uses")
         return (CONF_BAR,)
 
     async def to_code(self, w: Widget, config):
