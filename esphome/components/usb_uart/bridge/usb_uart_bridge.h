@@ -5,7 +5,7 @@
 #include "esphome/core/component.h"
 
 #include "freertos/ringbuf.h"
-#include "tusb_cdc_acm.h"
+#include "tinyusb_cdc_acm.h"
 
 namespace esphome::usb_uart_bridge {
 
