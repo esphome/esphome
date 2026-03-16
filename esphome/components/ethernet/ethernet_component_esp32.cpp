@@ -10,6 +10,36 @@
 #include <cinttypes>
 #include "esp_event.h"
 
+// IDF 6.0 moved per-chip PHY/MAC drivers to the Espressif Component Registry;
+// they are no longer included via esp_eth.h and need explicit includes.
+// On IDF 5.x these headers don't exist as standalone files.
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#ifdef USE_ETHERNET_LAN8720
+#include "esp_eth_phy_lan87xx.h"
+#endif
+#ifdef USE_ETHERNET_RTL8201
+#include "esp_eth_phy_rtl8201.h"
+#endif
+#ifdef USE_ETHERNET_DP83848
+#include "esp_eth_phy_dp83848.h"
+#endif
+#ifdef USE_ETHERNET_IP101
+#include "esp_eth_phy_ip101.h"
+#endif
+#ifdef USE_ETHERNET_KSZ8081
+#include "esp_eth_phy_ksz80xx.h"
+#endif
+#ifdef USE_ETHERNET_W5500
+#include "esp_eth_mac_w5500.h"
+#include "esp_eth_phy_w5500.h"
+#endif
+#ifdef USE_ETHERNET_DM9051
+#include "esp_eth_mac_dm9051.h"
+#include "esp_eth_phy_dm9051.h"
+#endif
+#endif  // ESP_IDF_VERSION >= 6.0.0
+
+// LAN867x header exists on all IDF versions (external component since IDF 5.3)
 #ifdef USE_ETHERNET_LAN8670
 #include "esp_eth_phy_lan867x.h"
 #endif
@@ -249,14 +279,9 @@ void EthernetComponent::setup() {
 #endif
 #ifdef USE_ETHERNET_JL1101
     case ETHERNET_TYPE_JL1101: {
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-      // No registry component exists; generic PHY driver works for JL1101
-      this->phy_ = esp_eth_phy_new_generic(&phy_config);
-#else
-      // IDF < 5.4.2 or non-PlatformIO: uses custom ESPHome driver (esp_eth_phy_jl1101.c)
-      // IDF 5.4.2+ with PlatformIO: uses builtin esp_eth_phy_new_jl1101()
+      // PlatformIO (pioarduino): builtin esp_eth_phy_new_jl1101() on all IDF versions
+      // Non-PlatformIO: custom ESPHome driver (esp_eth_phy_jl1101.c)
       this->phy_ = esp_eth_phy_new_jl1101(&phy_config);
-#endif
       break;
     }
 #endif
