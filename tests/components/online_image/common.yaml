@@ -40,6 +40,10 @@ online_image:
     url: https://samples-files.com/samples/images/bmp/480-360-sample.bmp
     format: BMP
     type: BINARY
+  - id: online_rgb_bmp_8bit
+    url: https://samples-files.com/samples/images/bmp/480-360-sample.bmp
+    format: BMP
+    type: RGB
   - id: online_jpeg_image
     url: http://www.faqs.org/images/library.jpg
     format: JPEG

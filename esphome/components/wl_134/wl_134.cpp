@@ -70,12 +70,13 @@ Wl134Component::Rfid134Error Wl134Component::read_packet_() {
                                                      RFID134_PACKET_CHECKSUM - RFID134_PACKET_RESERVED1);
 
   ESP_LOGV(TAG,
-           "Tag id:    %012lld\n"
-           "Country:   %03d\n"
-           "isData:    %s\n"
-           "isAnimal:  %s\n"
-           "Reserved0: %d\n"
-           "Reserved1: %" PRId32,
+           "RFID134 Tag:\n"
+           "  Tag id:    %012lld\n"
+           "  Country:   %03d\n"
+           "  isData:    %s\n"
+           "  isAnimal:  %s\n"
+           "  Reserved0: %d\n"
+           "  Reserved1: %" PRId32,
            reading.id, reading.country, reading.isData ? "true" : "false", reading.isAnimal ? "true" : "false",
            reading.reserved0, reading.reserved1);
 

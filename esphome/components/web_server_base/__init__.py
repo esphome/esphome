@@ -20,20 +20,36 @@ def AUTO_LOAD():
 
 
 web_server_base_ns = cg.esphome_ns.namespace("web_server_base")
-WebServerBase = web_server_base_ns.class_("WebServerBase", cg.Component)
+WebServerBase = web_server_base_ns.class_("WebServerBase")
 
 CONF_WEB_SERVER_BASE_ID = "web_server_base_id"
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(WebServerBase),
-    }
+
+
+def _consume_web_server_base_sockets(config):
+    """Register the shared listening socket for the HTTP server.
+
+    web_server_base is the shared HTTP server used by web_server and captive_portal.
+    The listening socket is registered here rather than in each consumer.
+    """
+    from esphome.components import socket
+
+    socket.consume_sockets(1, "web_server_base", socket.SocketType.TCP_LISTEN)(config)
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(WebServerBase),
+        }
+    ),
+    _consume_web_server_base_sockets,
 )
 
 
 @coroutine_with_priority(CoroPriority.WEB_SERVER_BASE)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
     cg.add(cg.RawExpression(f"{web_server_base_ns}::global_web_server_base = {var}"))
 
     if CORE.is_esp32:

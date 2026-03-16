@@ -23,7 +23,9 @@ class CH422GComponent : public Component, public i2c::I2CDevice {
   void pin_mode(uint8_t pin, gpio::Flags flags);
 
   float get_setup_priority() const override;
+#ifdef USE_LOOP_PRIORITY
   float get_loop_priority() const override;
+#endif
   void dump_config() override;
 
  protected:

@@ -106,7 +106,12 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    setup_device_class,
+    setup_entity,
+    setup_unit_of_measurement,
+)
 from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.util import Registry
 
@@ -398,9 +403,9 @@ async def filter_out_filter_to_code(config, filter_id):
 QUANTILE_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_EVERY, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.int_range(min=1, max=65535),
             cv.Optional(CONF_QUANTILE, default=0.9): cv.zero_to_one_float,
         }
     ),
@@ -422,9 +427,9 @@ async def quantile_filter_to_code(config, filter_id):
 MEDIAN_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_EVERY, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.int_range(min=1, max=65535),
         }
     ),
     validate_send_first_at,
@@ -444,9 +449,9 @@ async def median_filter_to_code(config, filter_id):
 MIN_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_EVERY, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.int_range(min=1, max=65535),
         }
     ),
     validate_send_first_at,
@@ -478,9 +483,9 @@ async def min_filter_to_code(config, filter_id):
 MAX_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_EVERY, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.int_range(min=1, max=65535),
         }
     ),
     validate_send_first_at,
@@ -504,9 +509,9 @@ async def max_filter_to_code(config, filter_id):
 SLIDING_AVERAGE_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_WINDOW_SIZE, default=15): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_WINDOW_SIZE, default=15): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_EVERY, default=15): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.int_range(min=1, max=65535),
         }
     ),
     validate_send_first_at,
@@ -535,8 +540,8 @@ EXPONENTIAL_AVERAGE_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_ALPHA, default=0.1): cv.positive_float,
-            cv.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_SEND_EVERY, default=15): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.int_range(min=1, max=65535),
         }
     ),
     validate_send_first_at,
@@ -603,7 +608,7 @@ DELTA_SCHEMA = cv.Any(
 def _get_delta(value):
     if isinstance(value, str):
         assert value.endswith("%")
-        return 0.0, float(value[:-1])
+        return 0.0, float(value[:-1]) / 100.0
     return value, 0.0
 
 
@@ -888,24 +893,8 @@ async def build_filters(config):
     return await cg.build_registry_list(FILTER_REGISTRY, config)
 
 
-async def setup_sensor_core_(var, config):
-    await setup_entity(var, config, "sensor")
-
-    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
-        cg.add(var.set_device_class(device_class))
-    if (state_class := config.get(CONF_STATE_CLASS)) is not None:
-        cg.add(var.set_state_class(state_class))
-    if (unit_of_measurement := config.get(CONF_UNIT_OF_MEASUREMENT)) is not None:
-        cg.add(var.set_unit_of_measurement(unit_of_measurement))
-    if (accuracy_decimals := config.get(CONF_ACCURACY_DECIMALS)) is not None:
-        cg.add(var.set_accuracy_decimals(accuracy_decimals))
-    # Only set force_update if True (default is False)
-    if config[CONF_FORCE_UPDATE]:
-        cg.add(var.set_force_update(True))
-    if config.get(CONF_FILTERS):  # must exist and not be empty
-        filters = await build_filters(config[CONF_FILTERS])
-        cg.add(var.set_filters(filters))
-
+@coroutine_with_priority(CoroPriority.AUTOMATION)
+async def _build_sensor_automations(var, config):
     for conf in config.get(CONF_ON_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(float, "x")], conf)
@@ -922,6 +911,25 @@ async def setup_sensor_core_(var, config):
             template_ = await cg.templatable(below, [(float, "x")], float)
             cg.add(trigger.set_max(template_))
         await automation.build_automation(trigger, [(float, "x")], conf)
+
+
+@setup_entity("sensor")
+async def setup_sensor_core_(var, config):
+    setup_device_class(config)
+    setup_unit_of_measurement(config)
+    if (state_class := config.get(CONF_STATE_CLASS)) is not None:
+        cg.add(var.set_state_class(state_class))
+    if (accuracy_decimals := config.get(CONF_ACCURACY_DECIMALS)) is not None:
+        cg.add(var.set_accuracy_decimals(accuracy_decimals))
+    # Only set force_update if True (default is False)
+    if config[CONF_FORCE_UPDATE]:
+        cg.add(var.set_force_update(True))
+    if config.get(CONF_FILTERS):  # must exist and not be empty
+        cg.add_define("USE_SENSOR_FILTER")
+        filters = await build_filters(config[CONF_FILTERS])
+        cg.add(var.set_filters(filters))
+
+    CORE.add_job(_build_sensor_automations, var, config)
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)

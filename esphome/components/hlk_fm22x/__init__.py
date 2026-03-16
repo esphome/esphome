@@ -170,6 +170,7 @@ async def to_code(config):
         },
         key=CONF_NAME,
     ),
+    synchronous=True,
 )
 async def hlk_fm22x_enroll_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -192,6 +193,7 @@ async def hlk_fm22x_enroll_to_code(config, action_id, template_arg, args):
         },
         key=CONF_FACE_ID,
     ),
+    synchronous=True,
 )
 async def hlk_fm22x_delete_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -210,6 +212,7 @@ async def hlk_fm22x_delete_to_code(config, action_id, template_arg, args):
             cv.GenerateID(): cv.use_id(HlkFm22xComponent),
         }
     ),
+    synchronous=True,
 )
 async def hlk_fm22x_delete_all_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -225,6 +228,7 @@ async def hlk_fm22x_delete_all_to_code(config, action_id, template_arg, args):
             cv.GenerateID(): cv.use_id(HlkFm22xComponent),
         }
     ),
+    synchronous=True,
 )
 async def hlk_fm22x_scan_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -240,6 +244,7 @@ async def hlk_fm22x_scan_to_code(config, action_id, template_arg, args):
             cv.GenerateID(): cv.use_id(HlkFm22xComponent),
         }
     ),
+    synchronous=True,
 )
 async def hlk_fm22x_reset_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
