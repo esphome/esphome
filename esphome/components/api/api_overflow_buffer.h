@@ -13,7 +13,7 @@ namespace esphome::api {
 /// Circular queue of heap-allocated byte buffers used as a TCP send backlog.
 ///
 /// Under normal operation this buffer is **never used** — data goes straight
-/// from the frame helper to the socket.  It only fills when the kernel TCP
+/// from the frame helper to the socket.  It only fills when the LWIP TCP
 /// send buffer is full (slow client, congested network, heavy logging).
 /// The queue drains automatically on subsequent write/loop calls once the
 /// socket becomes writable again.
