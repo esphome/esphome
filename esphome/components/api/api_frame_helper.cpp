@@ -120,10 +120,11 @@ APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt, uint16_
       if (this->check_socket_write_err_(errno) != APIError::WOULD_BLOCK)
         return APIError::SOCKET_WRITE_FAILED;
     }
+    // If drain didn't fully clear, skip direct send and queue behind backlog
   }
 
-  // If no backlog (either drained or was empty), try to send directly
   if (this->overflow_buf_.empty()) {
+    // No backlog — try to send directly
     // Optimize for single iovec case (common for plaintext API)
     ssize_t sent =
         (iovcnt == 1) ? this->socket_->write(iov[0].iov_base, iov[0].iov_len) : this->socket_->writev(iov, iovcnt);
