@@ -36,9 +36,9 @@ from esphome.const import (
     CONF_VALUE,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
+    KEY_NATIVE_IDF,
     Platform,
     PlatformFramework,
-)
 from esphome.core import (
     CORE,
     CoroPriority,
@@ -629,9 +629,12 @@ def _filter_source_files() -> list[str]:
     elif CORE.is_esp32:
         from esphome.components.esp32 import idf_version
 
-        ver = idf_version()
-        if cv.Version(5, 4, 2) <= ver < cv.Version(6, 0, 0):
-            excluded.append("esp_eth_phy_jl1101.c")
+        # Mirror C preprocessor logic: only exclude for PlatformIO (non-native IDF)
+        is_native_idf = CORE.data.get(KEY_NATIVE_IDF, False)
+        if not is_native_idf:
+            ver = idf_version()
+            if cv.Version(5, 4, 2) <= ver < cv.Version(6, 0, 0):
+                excluded.append("esp_eth_phy_jl1101.c")
     return excluded
 
 
