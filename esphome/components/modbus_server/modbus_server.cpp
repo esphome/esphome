@@ -72,7 +72,7 @@ void ModbusServer::on_modbus_read_registers(uint8_t function_code, uint16_t star
     response.push_back(decoded_value[0]);
     response.push_back(decoded_value[1]);
   }
-  this->send(function_code, std::move(response));
+  this->send(function_code, response);
 }
 
 void ModbusServer::on_modbus_write_registers(uint8_t function_code, const std::vector<uint8_t> &data) {

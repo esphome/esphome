@@ -133,7 +133,7 @@ class ModbusServerHub : public Modbus {
  public:
   ModbusServerHub() = default;
   void dump_config() override;
-  void send(uint8_t address, uint8_t function_code, std::vector<uint8_t> &&payload);
+  void send(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &payload);
   void send_raw(const std::vector<uint8_t> &payload);
   void register_device(ModbusServerDevice *device) { this->devices_.push_back(device); }
 
@@ -193,8 +193,8 @@ class ModbusServerDevice {
   void set_address(uint8_t address) { address_ = address; }
   virtual void on_modbus_read_registers(uint8_t function_code, uint16_t start_address, uint16_t number_of_registers){};
   virtual void on_modbus_write_registers(uint8_t function_code, const std::vector<uint8_t> &data){};
-  void send(uint8_t function, std::vector<uint8_t> &&payload) {
-    this->parent_->send(this->address_, function, std::move(payload));
+  void send(uint8_t function, const std::vector<uint8_t> &payload) {
+    this->parent_->send(this->address_, function, payload);
   }
   void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload); }
   void send_error(uint8_t function_code, ModbusExceptionCode exception_code) {

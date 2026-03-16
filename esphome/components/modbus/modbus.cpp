@@ -433,9 +433,13 @@ void ModbusClientHub::send(uint8_t address, uint8_t function_code, uint16_t star
   this->send_raw(data, device, allow_duplicates);
 }
 
-void ModbusServerHub::send(uint8_t address, uint8_t function_code, std::vector<uint8_t> &&payload) {
-  payload.insert(payload.begin(), std::initializer_list<uint8_t>{address, function_code});
-  this->send_raw(payload);
+void ModbusServerHub::send(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &payload) {
+  std::vector<uint8_t> frame;
+  frame.reserve(2 + payload.size());
+  frame.push_back(address);
+  frame.push_back(function_code);
+  frame.insert(frame.end(), payload.begin(), payload.end());
+  this->send_raw(frame);
 }
 
 // Helper function for lambdas
