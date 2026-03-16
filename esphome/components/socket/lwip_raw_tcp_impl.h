@@ -242,8 +242,11 @@ class LWIPRawUDPImpl {
   /// Convert lwip ip_addr_t and port to sockaddr.
   int ip2sockaddr_(const ip_addr_t *ip, uint16_t port, struct sockaddr *name, socklen_t *addrlen);
 
-  /// Shared bind logic — parses sockaddr and calls udp_bind.
-  int bind_internal_(const struct sockaddr *name, socklen_t addrlen);
+  /// Shared bind logic — parses sockaddr and calls udp_bind. Caller must hold LWIP_LOCK.
+  int bind_internal_locked_(const struct sockaddr *name, socklen_t addrlen);
+
+  /// Shared close logic — unregisters and removes udp pcb. Caller must hold LWIP_LOCK.
+  int close_internal_locked_();
 
   struct udp_pcb *pcb_{nullptr};
   sa_family_t family_{0};

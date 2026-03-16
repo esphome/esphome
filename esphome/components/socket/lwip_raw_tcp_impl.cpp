@@ -1005,8 +1005,8 @@ LWIPRawUDPImpl::~LWIPRawUDPImpl() {
   }
 }
 
-int LWIPRawUDPImpl::bind_internal_(const struct sockaddr *name, socklen_t addrlen) {
-  LWIP_LOCK();
+int LWIPRawUDPImpl::bind_internal_locked_(const struct sockaddr *name, socklen_t addrlen) {
+  // Caller must hold LWIP_LOCK
   if (this->pcb_ == nullptr) {
     errno = EBADF;
     return -1;
@@ -1032,10 +1032,18 @@ int LWIPRawUDPImpl::bind_internal_(const struct sockaddr *name, socklen_t addrle
   return lwip_bind_err(udp_bind(this->pcb_, &ip, port));
 }
 
-int LWIPRawUDPImpl::bind(const struct sockaddr *name, socklen_t addrlen) { return this->bind_internal_(name, addrlen); }
+int LWIPRawUDPImpl::bind(const struct sockaddr *name, socklen_t addrlen) {
+  LWIP_LOCK();
+  return this->bind_internal_locked_(name, addrlen);
+}
 
 int LWIPRawUDPImpl::close() {
   LWIP_LOCK();
+  return this->close_internal_locked_();
+}
+
+int LWIPRawUDPImpl::close_internal_locked_() {
+  // Caller must hold LWIP_LOCK
   if (this->pcb_ == nullptr) {
     errno = EBADF;
     return -1;
@@ -1208,13 +1216,13 @@ int LWIPRawUDPRecvImpl::close() {
     this->rx_read_idx_ = (this->rx_read_idx_ + 1) & UDP_RX_MASK;
     this->rx_count_--;
   }
-  // close() returns EBADF if already closed, which is fine from destructor
-  return LWIPRawUDPImpl::close();
+  // close_internal_locked_() returns EBADF if already closed, which is fine from destructor
+  return this->close_internal_locked_();
 }
 
 int LWIPRawUDPRecvImpl::bind(const struct sockaddr *name, socklen_t addrlen) {
   LWIP_LOCK();
-  int ret = this->bind_internal_(name, addrlen);
+  int ret = this->bind_internal_locked_(name, addrlen);
   if (ret != 0)
     return ret;
   // Register recv callback now that we're bound and ready to receive
@@ -1316,7 +1324,6 @@ std::unique_ptr<Socket> socket_loop_monitored(int domain, int type, int protocol
 
 std::unique_ptr<UDPSocket> socket_udp(int domain, int protocol) {
   (void) protocol;  // Raw lwip UDP ignores protocol; kept for API compatibility
-  LWIP_LOCK();
   auto sock = make_unique<LWIPRawUDPImpl>((sa_family_t) domain);
   if (!sock->is_valid()) {
     errno = ENOMEM;
@@ -1327,7 +1334,6 @@ std::unique_ptr<UDPSocket> socket_udp(int domain, int protocol) {
 
 std::unique_ptr<UDPRecvSocket> socket_udp_recv(int domain, int protocol) {
   (void) protocol;  // Raw lwip UDP ignores protocol; kept for API compatibility
-  LWIP_LOCK();
   auto sock = make_unique<LWIPRawUDPRecvImpl>((sa_family_t) domain);
   if (!sock->is_valid()) {
     errno = ENOMEM;
