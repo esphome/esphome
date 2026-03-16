@@ -36,11 +36,11 @@ struct SavedNoisePsk {
 } PACKED;  // NOLINT
 #endif
 
-class APIServer : public Component,
-                  public Controller
+class APIServer final : public Component,
+                        public Controller
 #ifdef USE_CAMERA
     ,
-                  public camera::CameraListener
+                        public camera::CameraListener
 #endif
 {
  public:

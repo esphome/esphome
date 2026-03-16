@@ -392,6 +392,7 @@ bool Component::set_status_flag_(uint8_t flag) {
   return true;
 }
 
+void Component::status_set_warning() { this->status_set_warning((const LogString *) nullptr); }
 void Component::status_set_warning(const char *message) {
   if (!this->set_status_flag_(STATUS_LED_WARNING))
     return;
