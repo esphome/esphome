@@ -111,7 +111,12 @@ struct LogBuffer {
   }
 #endif
   void write_body(const char *text, uint16_t text_length) {
-    this->write_(text, text_length);
+    const uint16_t available = this->remaining_();
+    const uint16_t copy_len = (text_length < available) ? text_length : available;
+    if (copy_len > 0) {
+      memcpy(this->current_(), text, copy_len);
+      this->pos += copy_len;
+    }
     this->finalize_();
   }
 
@@ -119,14 +124,6 @@ struct LogBuffer {
   bool full_() const { return this->pos >= this->size; }
   uint16_t remaining_() const { return this->size - this->pos; }
   char *current_() { return this->data + this->pos; }
-  void write_(const char *value, uint16_t length) {
-    const uint16_t available = this->remaining_();
-    const uint16_t copy_len = (length < available) ? length : available;
-    if (copy_len > 0) {
-      memcpy(this->current_(), value, copy_len);
-      this->pos += copy_len;
-    }
-  }
   void finalize_() {
     this->write_ansi_reset_();
     // Null terminate
