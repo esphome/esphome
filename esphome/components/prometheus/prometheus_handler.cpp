@@ -1,7 +1,5 @@
 #include "prometheus_handler.h"
-#if defined(USE_DATETIME_DATE) || defined(USE_DATETIME_DATETIME) || defined(USE_DATETIME_TIME)
 #include <cinttypes>
-#endif
 #ifdef USE_NETWORK
 #include "esphome/core/application.h"
 
