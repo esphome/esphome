@@ -35,12 +35,7 @@ bool random_bytes(uint8_t *data, size_t len) {
   return true;
 }
 
-// RP2040 doesn't have mutexes, but that shouldn't be an issue as it's single-core and non-preemptive OS.
-Mutex::Mutex() {}
-Mutex::~Mutex() {}
-void Mutex::lock() {}
-bool Mutex::try_lock() { return true; }
-void Mutex::unlock() {}
+// RP2040 Mutex is defined inline in helpers.h for RP2040/ESP8266 builds.
 
 IRAM_ATTR InterruptLock::InterruptLock() { state_ = save_and_disable_interrupts(); }
 IRAM_ATTR InterruptLock::~InterruptLock() { restore_interrupts(state_); }
