@@ -39,7 +39,7 @@ class GPIOBinarySensorStore {
   Component *component_{nullptr};  // Pointer to the component for enable_loop_soon_any_context()
 };
 
-class GPIOBinarySensor : public binary_sensor::BinarySensor, public Component {
+class GPIOBinarySensor final : public binary_sensor::BinarySensor, public Component {
  public:
   // No destructor needed: ESPHome components are created at boot and live forever.
   // Interrupts are only detached on reboot when memory is cleared anyway.

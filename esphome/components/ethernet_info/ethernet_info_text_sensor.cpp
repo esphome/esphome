@@ -1,7 +1,7 @@
 #include "ethernet_info_text_sensor.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_ESP32
+#ifdef USE_ETHERNET
 
 namespace esphome::ethernet_info {
 
@@ -49,4 +49,4 @@ void MACAddressEthernetInfo::dump_config() { LOG_TEXT_SENSOR("", "EthernetInfo M
 
 }  // namespace esphome::ethernet_info
 
-#endif  // USE_ESP32
+#endif  // USE_ETHERNET

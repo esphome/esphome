@@ -473,6 +473,12 @@ class ProtoDecodableMessage : public ProtoMessage {
 
 class ProtoSize {
  public:
+  // Varint encoding thresholds: values below each threshold fit in N bytes
+  static constexpr uint32_t VARINT_THRESHOLD_1_BYTE = 1 << 7;   // 128
+  static constexpr uint32_t VARINT_THRESHOLD_2_BYTE = 1 << 14;  // 16384
+  static constexpr uint32_t VARINT_THRESHOLD_3_BYTE = 1 << 21;  // 2097152
+  static constexpr uint32_t VARINT_THRESHOLD_4_BYTE = 1 << 28;  // 268435456
+
   /**
    * @brief Calculates the size in bytes needed to encode a uint32_t value as a varint
    *
@@ -480,7 +486,7 @@ class ProtoSize {
    * @return The number of bytes needed to encode the value
    */
   static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE varint(uint32_t value) {
-    if (value < 128) [[likely]]
+    if (value < VARINT_THRESHOLD_1_BYTE) [[likely]]
       return 1;  // Fast path: 7 bits, most common case
     if (__builtin_is_constant_evaluated())
       return varint_wide(value);
@@ -492,11 +498,11 @@ class ProtoSize {
   static uint32_t varint_slow(uint32_t value) __attribute__((noinline));
   // Shared cascade for values >= 128 (used by both constexpr and noinline paths)
   static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE varint_wide(uint32_t value) {
-    if (value < 16384)
+    if (value < VARINT_THRESHOLD_2_BYTE)
       return 2;
-    if (value < 2097152)
+    if (value < VARINT_THRESHOLD_3_BYTE)
       return 3;
-    if (value < 268435456)
+    if (value < VARINT_THRESHOLD_4_BYTE)
       return 4;
     return 5;
   }
@@ -602,7 +608,7 @@ class ProtoSize {
   static constexpr uint32_t calc_sint32(uint32_t field_id_size, int32_t value) {
     return value ? field_id_size + varint(encode_zigzag32(value)) : 0;
   }
-  static constexpr uint32_t calc_sint32_force(uint32_t field_id_size, int32_t value) {
+  static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE calc_sint32_force(uint32_t field_id_size, int32_t value) {
     return field_id_size + varint(encode_zigzag32(value));
   }
   static constexpr uint32_t calc_int64(uint32_t field_id_size, int64_t value) {
@@ -614,13 +620,13 @@ class ProtoSize {
   static constexpr uint32_t calc_uint64(uint32_t field_id_size, uint64_t value) {
     return value ? field_id_size + varint(value) : 0;
   }
-  static constexpr uint32_t calc_uint64_force(uint32_t field_id_size, uint64_t value) {
+  static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE calc_uint64_force(uint32_t field_id_size, uint64_t value) {
     return field_id_size + varint(value);
   }
   static constexpr uint32_t calc_length(uint32_t field_id_size, size_t len) {
     return len ? field_id_size + varint(static_cast<uint32_t>(len)) + static_cast<uint32_t>(len) : 0;
   }
-  static constexpr uint32_t calc_length_force(uint32_t field_id_size, size_t len) {
+  static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE calc_length_force(uint32_t field_id_size, size_t len) {
     return field_id_size + varint(static_cast<uint32_t>(len)) + static_cast<uint32_t>(len);
   }
   static constexpr uint32_t calc_sint64(uint32_t field_id_size, int64_t value) {
@@ -638,7 +644,8 @@ class ProtoSize {
   static constexpr uint32_t calc_message(uint32_t field_id_size, uint32_t nested_size) {
     return nested_size ? field_id_size + varint(nested_size) + nested_size : 0;
   }
-  static constexpr uint32_t calc_message_force(uint32_t field_id_size, uint32_t nested_size) {
+  static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE calc_message_force(uint32_t field_id_size,
+                                                                            uint32_t nested_size) {
     return field_id_size + varint(nested_size) + nested_size;
   }
 };
