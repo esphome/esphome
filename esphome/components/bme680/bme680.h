@@ -32,8 +32,8 @@ enum BME680Oversampling {
 /// Struct for storing calibration data for the BME680.
 struct BME680CalibrationData {
   uint16_t t1;
-  uint16_t t2;
-  uint8_t t3;
+  int16_t t2;
+  int8_t t3;
 
   uint16_t p1;
   int16_t p2;
@@ -99,7 +99,6 @@ class BME680Component : public PollingComponent, public i2c::I2CDevice {
   // (In most use cases you won't need these)
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
 
  protected:

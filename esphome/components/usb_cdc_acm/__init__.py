@@ -74,3 +74,4 @@ async def to_code(config: ConfigType) -> None:
     add_idf_sdkconfig_option(
         "CONFIG_TINYUSB_CDC_TX_BUFSIZE", config[CONF_TX_BUFFER_SIZE]
     )
+    cg.add_define("ESPHOME_MAX_USB_CDC_INSTANCES", num_interfaces)

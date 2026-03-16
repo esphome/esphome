@@ -15,13 +15,15 @@ class PipsolarOutput : public output::FloatOutput {
  public:
   PipsolarOutput() {}
   void set_parent(Pipsolar *parent) { this->parent_ = parent; }
-  void set_set_command(const std::string &command) { this->set_command_ = command; };
+  void set_set_command(const char *command) { this->set_command_ = command; }
+  /// Prevent accidental use of std::string which would dangle
+  void set_set_command(const std::string &command) = delete;
   void set_possible_values(std::vector<float> possible_values) { this->possible_values_ = std::move(possible_values); }
-  void set_value(float value) { this->write_state(value); };
+  void set_value(float value) { this->write_state(value); }
 
  protected:
   void write_state(float state) override;
-  std::string set_command_;
+  const char *set_command_{nullptr};
   Pipsolar *parent_;
   std::vector<float> possible_values_;
 };

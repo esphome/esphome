@@ -271,24 +271,31 @@ class ServerRegister {
 
   // Formats a raw value into a string representation based on the value type for debugging
   std::string format_value(int64_t value) const {
+    // max 44: float with %.1f can be up to 42 chars (3.4e38 → 39 integer digits + sign + decimal + 1 digit)
+    // plus null terminator = 43, rounded to 44 for 4-byte alignment
+    char buf[44];
     switch (this->value_type) {
       case SensorValueType::U_WORD:
       case SensorValueType::U_DWORD:
       case SensorValueType::U_DWORD_R:
       case SensorValueType::U_QWORD:
       case SensorValueType::U_QWORD_R:
-        return std::to_string(static_cast<uint64_t>(value));
+        buf_append_printf(buf, sizeof(buf), 0, "%" PRIu64, static_cast<uint64_t>(value));
+        return buf;
       case SensorValueType::S_WORD:
       case SensorValueType::S_DWORD:
       case SensorValueType::S_DWORD_R:
       case SensorValueType::S_QWORD:
       case SensorValueType::S_QWORD_R:
-        return std::to_string(value);
+        buf_append_printf(buf, sizeof(buf), 0, "%" PRId64, value);
+        return buf;
       case SensorValueType::FP32_R:
       case SensorValueType::FP32:
-        return str_sprintf("%.1f", bit_cast<float>(static_cast<uint32_t>(value)));
+        buf_append_printf(buf, sizeof(buf), 0, "%.1f", bit_cast<float>(static_cast<uint32_t>(value)));
+        return buf;
       default:
-        return std::to_string(value);
+        buf_append_printf(buf, sizeof(buf), 0, "%" PRId64, value);
+        return buf;
     }
   }
 

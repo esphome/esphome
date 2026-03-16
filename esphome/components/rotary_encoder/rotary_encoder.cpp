@@ -132,7 +132,7 @@ void RotaryEncoderSensor::setup() {
   int32_t initial_value = 0;
   switch (this->restore_mode_) {
     case ROTARY_ENCODER_RESTORE_DEFAULT_ZERO:
-      this->rtc_ = global_preferences->make_preference<int32_t>(this->get_preference_hash());
+      this->rtc_ = this->make_entity_preference<int32_t>();
       if (!this->rtc_.load(&initial_value)) {
         initial_value = 0;
       }
@@ -235,7 +235,6 @@ void RotaryEncoderSensor::loop() {
   }
 }
 
-float RotaryEncoderSensor::get_setup_priority() const { return setup_priority::DATA; }
 void RotaryEncoderSensor::set_restore_mode(RotaryEncoderRestoreMode restore_mode) {
   this->restore_mode_ = restore_mode;
 }

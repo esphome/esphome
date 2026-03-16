@@ -83,7 +83,7 @@ class SX127x : public Component,
   void configure();
   SX127xError transmit_packet(const std::vector<uint8_t> &packet);
   void register_listener(SX127xListener *listener) { this->listeners_.push_back(listener); }
-  Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() const { return this->packet_trigger_; };
+  Trigger<std::vector<uint8_t>, float, float> *get_packet_trigger() { return &this->packet_trigger_; }
 
  protected:
   void configure_fsk_ook_();
@@ -94,7 +94,7 @@ class SX127x : public Component,
   void write_register_(uint8_t reg, uint8_t value);
   void call_listeners_(const std::vector<uint8_t> &packet, float rssi, float snr);
   uint8_t read_register_(uint8_t reg);
-  Trigger<std::vector<uint8_t>, float, float> *packet_trigger_{new Trigger<std::vector<uint8_t>, float, float>()};
+  Trigger<std::vector<uint8_t>, float, float> packet_trigger_;
   std::vector<SX127xListener *> listeners_;
   std::vector<uint8_t> packet_;
   std::vector<uint8_t> sync_value_;

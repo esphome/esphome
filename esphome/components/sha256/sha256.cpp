@@ -8,28 +8,47 @@
 
 namespace esphome::sha256 {
 
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+#if defined(USE_SHA256_PSA)
 
-// CRITICAL ESP32-S3 HARDWARE SHA ACCELERATION REQUIREMENTS (IDF 5.5.x):
+// ESP-IDF 6.0 ships mbedtls 4.0 which removed the legacy mbedtls_sha256_* API.
+// Use the PSA Crypto API instead. PSA crypto is auto-initialized by ESP-IDF
+// at startup, so no psa_crypto_init() call is needed.
+
+SHA256::~SHA256() { psa_hash_abort(&this->op_); }
+
+void SHA256::init() {
+  psa_hash_abort(&this->op_);
+  this->op_ = PSA_HASH_OPERATION_INIT;
+  psa_hash_setup(&this->op_, PSA_ALG_SHA_256);
+}
+
+void SHA256::add(const uint8_t *data, size_t len) { psa_hash_update(&this->op_, data, len); }
+
+void SHA256::calculate() {
+  size_t hash_length;
+  psa_hash_finish(&this->op_, this->digest_, sizeof(this->digest_), &hash_length);
+}
+
+#elif defined(USE_SHA256_MBEDTLS)
+
+// CRITICAL ESP32 HARDWARE SHA ACCELERATION REQUIREMENTS (IDF 5.5.x):
 //
-// The ESP32-S3 uses hardware DMA for SHA acceleration. The mbedtls_sha256_context structure contains
-// internal state that the DMA engine references. This imposes three critical constraints:
+// ESP32 variants (except original ESP32) use DMA-based hardware SHA acceleration that requires
+// 32-byte aligned digest buffers. This is handled automatically via HashBase::digest_ which has
+// alignas(32) on these platforms. Two additional constraints apply:
 //
-// 1. ALIGNMENT: The SHA256 object MUST be declared with `alignas(32)` for proper DMA alignment.
-//    Without this, the DMA engine may crash with an abort in sha_hal_read_digest().
-//
-// 2. NO VARIABLE LENGTH ARRAYS (VLAs): VLAs corrupt the stack layout, causing the DMA engine to
+// 1. NO VARIABLE LENGTH ARRAYS (VLAs): VLAs corrupt the stack layout, causing the DMA engine to
 //    write to incorrect memory locations. This results in null pointer dereferences and crashes.
 //    ALWAYS use fixed-size arrays (e.g., char buf[65], not char buf[size+1]).
 //
-// 3. SAME STACK FRAME ONLY: The SHA256 object must be created and used entirely within the same
+// 2. SAME STACK FRAME ONLY: The SHA256 object must be created and used entirely within the same
 //    function. NEVER pass the SHA256 object or HashBase pointer to another function. When the stack
 //    frame changes (function call/return), the DMA references become invalid and will produce
 //    truncated hash output (20 bytes instead of 32) or corrupt memory.
 //
 // CORRECT USAGE:
 //   void my_function() {
-//     alignas(32) sha256::SHA256 hasher;  // Created locally with proper alignment
+//     sha256::SHA256 hasher;
 //     hasher.init();
 //     hasher.add(data, len);  // Any size, no chunking needed
 //     hasher.calculate();
@@ -37,9 +56,9 @@ namespace esphome::sha256 {
 //     // hasher destroyed when function returns
 //   }
 //
-// INCORRECT USAGE (WILL FAIL ON ESP32-S3):
+// INCORRECT USAGE (WILL FAIL):
 //   void my_function() {
-//     sha256::SHA256 hasher;  // WRONG: Missing alignas(32)
+//     sha256::SHA256 hasher;
 //     helper(&hasher);  // WRONG: Passed to different stack frame
 //   }
 //   void helper(HashBase *h) {

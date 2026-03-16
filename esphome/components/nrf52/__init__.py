@@ -3,11 +3,14 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
+import re
+import subprocess
 
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.zephyr import (
     copy_files as zephyr_copy_files,
+    zephyr_add_overlay,
     zephyr_add_pm_static,
     zephyr_add_prj_conf,
     zephyr_data,
@@ -17,15 +20,23 @@ from esphome.components.zephyr import (
 )
 from esphome.components.zephyr.const import (
     BOOTLOADER_MCUBOOT,
+    CONF_CDC_ACM,
     KEY_BOOTLOADER,
     KEY_ZEPHYR,
+    CdcAcm,
 )
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADVANCED,
     CONF_BOARD,
+    CONF_DISABLED,
+    CONF_ENABLE_OTA_ROLLBACK,
     CONF_FRAMEWORK,
     CONF_ID,
+    CONF_OTA,
     CONF_RESET_PIN,
+    CONF_SAFE_MODE,
+    CONF_VERSION,
     CONF_VOLTAGE,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
@@ -35,6 +46,7 @@ from esphome.const import (
     ThreadModel,
 )
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
+import esphome.final_validate as fv
 from esphome.storage_json import StorageJSON
 from esphome.types import ConfigType
 
@@ -59,12 +71,29 @@ def set_core_data(config: ConfigType) -> ConfigType:
     zephyr_set_core_data(config)
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_NRF52
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = KEY_ZEPHYR
-    CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version(2, 6, 1)
 
     if config[KEY_BOOTLOADER] in BOOTLOADER_CONFIG:
         zephyr_add_pm_static(BOOTLOADER_CONFIG[config[KEY_BOOTLOADER]])
 
     return config
+
+
+def set_framework(config: ConfigType) -> ConfigType:
+    framework_ver = cv.Version.parse(
+        cv.version_number(config[CONF_FRAMEWORK][CONF_VERSION])
+    )
+    CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = framework_ver
+    if framework_ver < cv.Version(2, 9, 2):
+        return cv.require_framework_version(
+            nrf52_zephyr=cv.Version(2, 6, 1, "a"),
+        )(config)
+    if framework_ver < cv.Version(3, 2, 0):
+        return cv.require_framework_version(
+            nrf52_zephyr=cv.Version(2, 9, 2, "2"),
+        )(config)
+    return cv.require_framework_version(
+        nrf52_zephyr=cv.Version(3, 2, 0, "1"),
+    )(config)
 
 
 BOOTLOADERS = [
@@ -110,6 +139,7 @@ CONF_UICR_ERASE = "uicr_erase"
 
 VOLTAGE_LEVELS = [1.8, 2.1, 2.4, 2.7, 3.0, 3.3]
 
+
 CONFIG_SCHEMA = cv.All(
     _detect_bootloader,
     set_core_data,
@@ -133,8 +163,25 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_UICR_ERASE, default=False): cv.boolean,
                 }
             ),
+            cv.Optional(
+                CONF_FRAMEWORK,
+                default={},
+            ): cv.Schema(
+                {
+                    cv.Optional(CONF_VERSION, default="2.6.1-a"): cv.string_strict,
+                    cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
+                        {
+                            cv.Optional(
+                                CONF_ENABLE_OTA_ROLLBACK, default=True
+                            ): cv.boolean,
+                        }
+                    ),
+                }
+            ),
+            cv.GenerateID(CONF_CDC_ACM): cv.declare_id(CdcAcm),
         }
     ),
+    set_framework,
 )
 
 
@@ -151,6 +198,24 @@ def _final_validate(config):
         _LOGGER.warning(
             "Selected generic Adafruit bootloader. The board might crash. Consider settings `bootloader:`"
         )
+    full_config = fv.full_config.get()
+    conf = config[CONF_FRAMEWORK]
+    advanced = conf[CONF_ADVANCED]
+
+    if advanced[CONF_ENABLE_OTA_ROLLBACK]:
+        # "disabled: false" means safe mode *is* enabled.
+        safe_mode_config = full_config.get(CONF_SAFE_MODE, {CONF_DISABLED: True})
+        safe_mode_enabled = not safe_mode_config[CONF_DISABLED]
+        ota_enabled = CONF_OTA in full_config
+        # Both need to be enabled for rollback to work
+        if not (ota_enabled and safe_mode_enabled):
+            # But only warn if ota is even possible
+            if ota_enabled:
+                _LOGGER.warning(
+                    "OTA rollback requires safe_mode, disabling rollback support"
+                )
+            # disable the rollback feature anyway since it can't be used.
+            advanced[CONF_ENABLE_OTA_ROLLBACK] = False
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -168,13 +233,12 @@ async def to_code(config: ConfigType) -> None:
     cg.add_platformio_option(CONF_FRAMEWORK, CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK])
     cg.add_platformio_option(
         "platform",
-        "https://github.com/tomaszduda23/platform-nordicnrf52/archive/refs/tags/v10.3.0-1.zip",
+        "https://github.com/tomaszduda23/platform-nordicnrf52/archive/refs/tags/v10.3.0-5.zip",
     )
     cg.add_platformio_option(
         "platform_packages",
         [
-            "platformio/framework-zephyr@https://github.com/tomaszduda23/framework-sdk-nrf/archive/refs/tags/v2.6.1-7.zip",
-            "platformio/toolchain-gccarmnoneeabi@https://github.com/tomaszduda23/toolchain-sdk-ng/archive/refs/tags/v0.17.4-0.zip",
+            f"platformio/framework-zephyr@https://github.com/tomaszduda23/framework-sdk-nrf/archive/refs/tags/v{CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}.zip",
         ],
     )
 
@@ -200,7 +264,17 @@ async def to_code(config: ConfigType) -> None:
 
     if dfu_config := config.get(CONF_DFU):
         CORE.add_job(_dfu_to_code, dfu_config)
-    zephyr_add_prj_conf("BOARD_ENABLE_DCDC", config[CONF_DCDC])
+    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    if framework_ver < cv.Version(2, 9, 2):
+        zephyr_add_prj_conf("BOARD_ENABLE_DCDC", config[CONF_DCDC])
+    else:
+        zephyr_add_overlay(
+            f"""
+                &reg1 {{
+                    regulator-initial-mode = <{"NRF5X_REG_MODE_DCDC" if config[CONF_DCDC] else "NRF5X_REG_MODE_LDO"}>;
+                }};
+            """
+        )
 
     if reg0_config := config.get(CONF_REG0):
         value = VOLTAGE_LEVELS.index(reg0_config[CONF_VOLTAGE])
@@ -208,17 +282,36 @@ async def to_code(config: ConfigType) -> None:
         if reg0_config[CONF_UICR_ERASE]:
             cg.add_define("USE_NRF52_UICR_ERASE")
 
+    conf = config[CONF_FRAMEWORK]
+    advanced = conf[CONF_ADVANCED]
+    # Enable OTA rollback support
+    if advanced[CONF_ENABLE_OTA_ROLLBACK]:
+        cg.add_define("USE_OTA_ROLLBACK")
     # c++ support
-    zephyr_add_prj_conf("CPLUSPLUS", True)
-    zephyr_add_prj_conf("LIB_CPLUSPLUS", True)
+    if framework_ver < cv.Version(2, 9, 2):
+        zephyr_add_prj_conf("CPLUSPLUS", True)
+        zephyr_add_prj_conf("LIB_CPLUSPLUS", True)
+    else:
+        zephyr_add_prj_conf("CPP", True)
+        zephyr_add_prj_conf("REQUIRES_FULL_LIBCPP", True)
     # watchdog
     zephyr_add_prj_conf("WATCHDOG", True)
     zephyr_add_prj_conf("WDT_DISABLE_AT_BOOT", False)
     # disable console
     zephyr_add_prj_conf("UART_CONSOLE", False)
-    zephyr_add_prj_conf("CONSOLE", False)
+    zephyr_add_prj_conf("CONSOLE", False, False)
     # use NFC pins as GPIO
-    zephyr_add_prj_conf("NFCT_PINS_AS_GPIOS", True)
+    if framework_ver < cv.Version(2, 9, 2):
+        zephyr_add_prj_conf("NFCT_PINS_AS_GPIOS", True)
+    else:
+        zephyr_add_overlay(
+            """
+                &uicr {
+                    nfct-pins-as-gpios;
+                };
+            """
+        )
+    zephyr_add_prj_conf("REBOOT", True)
 
 
 @coroutine_with_priority(CoroPriority.DIAGNOSTICS)
@@ -299,22 +392,42 @@ def _upload_using_platformio(
 def upload_program(config: ConfigType, args, host: str) -> bool:
     from esphome.__main__ import check_permissions, get_port_type
 
-    result = 0
-    handled = False
+    mcumgr_device: str | None = None
 
     if get_port_type(host) == "SERIAL":
         check_permissions(host)
-        result = _upload_using_platformio(config, host, ["-t", "upload"])
-        handled = True
+        if zephyr_data()[KEY_BOOTLOADER] == BOOTLOADER_MCUBOOT:
+            mcumgr_device = host
+        else:
+            result = _upload_using_platformio(config, host, ["-t", "upload"])
+            if result != 0:
+                raise EsphomeError(f"Upload failed with result: {result}")
+            return True  # Handled: platformio serial upload
 
     if host == "PYOCD":
         result = _upload_using_platformio(config, host, ["-t", "flash_pyocd"])
-        handled = True
+        if result != 0:
+            raise EsphomeError(f"Upload failed with result: {result}")
+        return True  # Handled: platformio PYOCD upload
 
-    if result != 0:
-        raise EsphomeError(f"Upload failed with result: {result}")
+    # Deferred imports: bleak/smpclient are heavy, only load for BLE/mcumgr paths
+    from .ble_logger import is_mac_address
+    from .ota import smpmgr_scan, smpmgr_upload
 
-    return handled
+    if host == "BLE":
+        mcumgr_device = asyncio.run(smpmgr_scan(CORE.name))
+
+    if is_mac_address(host):
+        mcumgr_device = host
+
+    if mcumgr_device:
+        firmware = Path(
+            CORE.relative_pioenvs_path(CORE.name, "zephyr", "app_update.bin")
+        ).resolve()
+        asyncio.run(smpmgr_upload(mcumgr_device, firmware))
+        return True  # Handled: mcumgr OTA upload
+
+    return False  # Not handled: let caller try default upload methods
 
 
 def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
@@ -322,7 +435,7 @@ def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
     from .ble_logger import is_mac_address, logger_connect, logger_scan
 
     if devices[0] == "BLE":
-        ble_device = asyncio.run(logger_scan(CORE.config["esphome"]["name"]))
+        ble_device = asyncio.run(logger_scan(CORE.name))
         if ble_device:
             address = ble_device.address
         else:
@@ -331,4 +444,42 @@ def show_logs(config: ConfigType, args, devices: list[str]) -> bool:
     if is_mac_address(address):
         asyncio.run(logger_connect(address))
         return True
+    return False
+
+
+def _addr2line(addr2line: str, elf: Path, addr: str) -> str:
+    try:
+        result = subprocess.run(
+            [addr2line, "-e", elf, addr],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip().splitlines()[0]
+    except Exception as err:  # pylint: disable=broad-except
+        _LOGGER.error("Running command failed: %s", err)
+    return ""
+
+
+def process_stacktrace(config: ConfigType, line: str, backtrace_state: bool) -> bool:
+    if "Last crash:" in line:
+        return True
+    if backtrace_state:
+        match = re.search(r"PC=(0x[0-9a-fA-F]+)\s+LR=(0x[0-9a-fA-F]+)", line)
+        if match:
+            pc = match.group(1)
+            lr = match.group(2)
+            from esphome.analyze_memory.toolchain import find_tool
+
+            addr2line = find_tool("addr2line")
+            if addr2line is None:
+                return False
+            elf = CORE.relative_pioenvs_path(CORE.name, "firmware.elf")
+            if not elf.exists():
+                _LOGGER.warning("%s does not exists", elf)
+                return False
+            _LOGGER.error("=== CRASH ===")
+            _LOGGER.error("PC: %s", _addr2line(addr2line, elf, pc))
+            _LOGGER.error("LR: %s", _addr2line(addr2line, elf, lr))
+
     return False

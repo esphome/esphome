@@ -5,6 +5,8 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/log.h"
 #include <zephyr/settings/settings.h>
+#include <cinttypes>
+#include <cstring>
 
 namespace esphome {
 namespace zephyr {
@@ -12,6 +14,9 @@ namespace zephyr {
 static const char *const TAG = "zephyr.preferences";
 
 #define ESPHOME_SETTINGS_KEY "esphome"
+
+// Buffer size for key: "esphome/" (8) + max hex uint32 (8) + null terminator (1) = 17; use 20 for safety margin
+static constexpr size_t KEY_BUFFER_SIZE = 20;
 
 class ZephyrPreferenceBackend : public ESPPreferenceBackend {
  public:
@@ -27,7 +32,9 @@ class ZephyrPreferenceBackend : public ESPPreferenceBackend {
 
   bool load(uint8_t *data, size_t len) override {
     if (len != this->data.size()) {
-      ESP_LOGE(TAG, "size of setting key %s changed, from: %u, to: %u", get_key().c_str(), this->data.size(), len);
+      char key_buf[KEY_BUFFER_SIZE];
+      this->format_key(key_buf, sizeof(key_buf));
+      ESP_LOGE(TAG, "size of setting key %s changed, from: %u, to: %u", key_buf, this->data.size(), len);
       return false;
     }
     std::memcpy(data, this->data.data(), len);
@@ -36,7 +43,7 @@ class ZephyrPreferenceBackend : public ESPPreferenceBackend {
   }
 
   uint32_t get_type() const { return this->type_; }
-  std::string get_key() const { return str_sprintf(ESPHOME_SETTINGS_KEY "/%" PRIx32, this->type_); }
+  void format_key(char *buf, size_t size) const { snprintf(buf, size, ESPHOME_SETTINGS_KEY "/%" PRIx32, this->type_); }
 
   std::vector<uint8_t> data;
 
@@ -85,7 +92,9 @@ class ZephyrPreferences : public ESPPreferences {
     }
     printf("type %u size %u\n", type, this->backends_.size());
     auto *pref = new ZephyrPreferenceBackend(type);  // NOLINT(cppcoreguidelines-owning-memory)
-    ESP_LOGD(TAG, "Add new setting %s.", pref->get_key().c_str());
+    char key_buf[KEY_BUFFER_SIZE];
+    pref->format_key(key_buf, sizeof(key_buf));
+    ESP_LOGD(TAG, "Add new setting %s.", key_buf);
     this->backends_.push_back(pref);
     return ESPPreferenceObject(pref);
   }
@@ -134,18 +143,20 @@ class ZephyrPreferences : public ESPPreferences {
 
   static int export_settings(int (*cb)(const char *name, const void *value, size_t val_len)) {
     for (auto *backend : static_cast<ZephyrPreferences *>(global_preferences)->backends_) {
-      auto name = backend->get_key();
-      int err = cb(name.c_str(), backend->data.data(), backend->data.size());
-      ESP_LOGD(TAG, "save in flash, name %s, len %u, err %d", name.c_str(), backend->data.size(), err);
+      char name[KEY_BUFFER_SIZE];
+      backend->format_key(name, sizeof(name));
+      int err = cb(name, backend->data.data(), backend->data.size());
+      ESP_LOGD(TAG, "save in flash, name %s, len %u, err %d", name, backend->data.size(), err);
     }
     return 0;
   }
 };
 
+static ZephyrPreferences s_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 void setup_preferences() {
-  auto *prefs = new ZephyrPreferences();  // NOLINT(cppcoreguidelines-owning-memory)
-  global_preferences = prefs;
-  prefs->open();
+  global_preferences = &s_preferences;
+  s_preferences.open();
 }
 
 }  // namespace zephyr

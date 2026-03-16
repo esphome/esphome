@@ -14,6 +14,7 @@ static const char *const TAG = "captive_portal.dns";
 // DNS constants
 static constexpr uint16_t DNS_PORT = 53;
 static constexpr uint16_t DNS_QR_FLAG = 1 << 15;
+static constexpr uint16_t DNS_AA_FLAG = 1 << 10;
 static constexpr uint16_t DNS_OPCODE_MASK = 0x7800;
 static constexpr uint16_t DNS_QTYPE_A = 0x0001;
 static constexpr uint16_t DNS_QCLASS_IN = 0x0001;
@@ -53,7 +54,7 @@ void DNSServer::start(const network::IPAddress &ip) {
 #endif
 
   // Create loop-monitored UDP socket
-  this->socket_ = socket::socket_ip_loop_monitored(SOCK_DGRAM, IPPROTO_UDP);
+  this->socket_ = socket::socket_ip_loop_monitored(SOCK_DGRAM, IPPROTO_UDP).release();
   if (this->socket_ == nullptr) {
     ESP_LOGE(TAG, "Socket create failed");
     return;
@@ -70,17 +71,14 @@ void DNSServer::start(const network::IPAddress &ip) {
   int err = this->socket_->bind((struct sockaddr *) &server_addr, addr_len);
   if (err != 0) {
     ESP_LOGE(TAG, "Bind failed: %d", errno);
-    this->socket_ = nullptr;
+    this->destroy_socket_();
     return;
   }
   ESP_LOGV(TAG, "Bound to port %d", DNS_PORT);
 }
 
 void DNSServer::stop() {
-  if (this->socket_ != nullptr) {
-    this->socket_->close();
-    this->socket_ = nullptr;
-  }
+  this->destroy_socket_();
   ESP_LOGV(TAG, "Stopped");
 }
 
@@ -165,8 +163,8 @@ void DNSServer::process_next_request() {
   }
 
   // Build DNS response by modifying the request in-place
-  header->flags = htons(DNS_QR_FLAG | 0x8000);  // Response + Authoritative
-  header->an_count = htons(1);                  // One answer
+  header->flags = htons(DNS_QR_FLAG | DNS_AA_FLAG);  // Response + Authoritative
+  header->an_count = htons(1);                       // One answer
 
   // Add answer section after the question
   size_t question_len = (ptr + sizeof(DNSQuestion)) - this->buffer_ - sizeof(DNSHeader);

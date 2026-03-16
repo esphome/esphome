@@ -24,7 +24,6 @@
 #include "esphome/components/socket/socket.h"
 
 #include <span>
-#include <unordered_map>
 #include <vector>
 
 namespace esphome {
@@ -81,7 +80,9 @@ struct Timer {
              this->id.c_str(), this->name.c_str(), this->total_seconds, this->seconds_left, YESNO(this->is_active));
     return buffer.data();
   }
-  std::string to_string() const {
+  // Remove before 2026.8.0
+  ESPDEPRECATED("Use to_str() instead. Removed in 2026.8.0", "2026.2.0")
+  std::string to_string() const {  // NOLINT
     char buffer[TO_STR_BUFFER_SIZE];
     return this->to_str(buffer);
   }
@@ -193,40 +194,40 @@ class VoiceAssistant : public Component {
   void set_conversation_timeout(uint32_t conversation_timeout) { this->conversation_timeout_ = conversation_timeout; }
   void reset_conversation_id();
 
-  Trigger<> *get_intent_end_trigger() const { return this->intent_end_trigger_; }
-  Trigger<> *get_intent_start_trigger() const { return this->intent_start_trigger_; }
-  Trigger<std::string> *get_intent_progress_trigger() const { return this->intent_progress_trigger_; }
-  Trigger<> *get_listening_trigger() const { return this->listening_trigger_; }
-  Trigger<> *get_end_trigger() const { return this->end_trigger_; }
-  Trigger<> *get_start_trigger() const { return this->start_trigger_; }
-  Trigger<> *get_stt_vad_end_trigger() const { return this->stt_vad_end_trigger_; }
-  Trigger<> *get_stt_vad_start_trigger() const { return this->stt_vad_start_trigger_; }
+  Trigger<> *get_intent_end_trigger() { return &this->intent_end_trigger_; }
+  Trigger<> *get_intent_start_trigger() { return &this->intent_start_trigger_; }
+  Trigger<std::string> *get_intent_progress_trigger() { return &this->intent_progress_trigger_; }
+  Trigger<> *get_listening_trigger() { return &this->listening_trigger_; }
+  Trigger<> *get_end_trigger() { return &this->end_trigger_; }
+  Trigger<> *get_start_trigger() { return &this->start_trigger_; }
+  Trigger<> *get_stt_vad_end_trigger() { return &this->stt_vad_end_trigger_; }
+  Trigger<> *get_stt_vad_start_trigger() { return &this->stt_vad_start_trigger_; }
 #ifdef USE_SPEAKER
-  Trigger<> *get_tts_stream_start_trigger() const { return this->tts_stream_start_trigger_; }
-  Trigger<> *get_tts_stream_end_trigger() const { return this->tts_stream_end_trigger_; }
+  Trigger<> *get_tts_stream_start_trigger() { return &this->tts_stream_start_trigger_; }
+  Trigger<> *get_tts_stream_end_trigger() { return &this->tts_stream_end_trigger_; }
 #endif
-  Trigger<> *get_wake_word_detected_trigger() const { return this->wake_word_detected_trigger_; }
-  Trigger<std::string> *get_stt_end_trigger() const { return this->stt_end_trigger_; }
-  Trigger<std::string> *get_tts_end_trigger() const { return this->tts_end_trigger_; }
-  Trigger<std::string> *get_tts_start_trigger() const { return this->tts_start_trigger_; }
-  Trigger<std::string, std::string> *get_error_trigger() const { return this->error_trigger_; }
-  Trigger<> *get_idle_trigger() const { return this->idle_trigger_; }
+  Trigger<> *get_wake_word_detected_trigger() { return &this->wake_word_detected_trigger_; }
+  Trigger<std::string> *get_stt_end_trigger() { return &this->stt_end_trigger_; }
+  Trigger<std::string> *get_tts_end_trigger() { return &this->tts_end_trigger_; }
+  Trigger<std::string> *get_tts_start_trigger() { return &this->tts_start_trigger_; }
+  Trigger<std::string, std::string> *get_error_trigger() { return &this->error_trigger_; }
+  Trigger<> *get_idle_trigger() { return &this->idle_trigger_; }
 
-  Trigger<> *get_client_connected_trigger() const { return this->client_connected_trigger_; }
-  Trigger<> *get_client_disconnected_trigger() const { return this->client_disconnected_trigger_; }
+  Trigger<> *get_client_connected_trigger() { return &this->client_connected_trigger_; }
+  Trigger<> *get_client_disconnected_trigger() { return &this->client_disconnected_trigger_; }
 
   void client_subscription(api::APIConnection *client, bool subscribe);
   api::APIConnection *get_api_connection() const { return this->api_client_; }
 
   void set_wake_word(const std::string &wake_word) { this->wake_word_ = wake_word; }
 
-  Trigger<Timer> *get_timer_started_trigger() const { return this->timer_started_trigger_; }
-  Trigger<Timer> *get_timer_updated_trigger() const { return this->timer_updated_trigger_; }
-  Trigger<Timer> *get_timer_cancelled_trigger() const { return this->timer_cancelled_trigger_; }
-  Trigger<Timer> *get_timer_finished_trigger() const { return this->timer_finished_trigger_; }
-  Trigger<std::vector<Timer>> *get_timer_tick_trigger() const { return this->timer_tick_trigger_; }
+  Trigger<Timer> *get_timer_started_trigger() { return &this->timer_started_trigger_; }
+  Trigger<Timer> *get_timer_updated_trigger() { return &this->timer_updated_trigger_; }
+  Trigger<Timer> *get_timer_cancelled_trigger() { return &this->timer_cancelled_trigger_; }
+  Trigger<Timer> *get_timer_finished_trigger() { return &this->timer_finished_trigger_; }
+  Trigger<const std::vector<Timer> &> *get_timer_tick_trigger() { return &this->timer_tick_trigger_; }
   void set_has_timers(bool has_timers) { this->has_timers_ = has_timers; }
-  const std::unordered_map<std::string, Timer> &get_timers() const { return this->timers_; }
+  const std::vector<Timer> &get_timers() const { return this->timers_; }
 
  protected:
   bool allocate_buffers_();
@@ -241,37 +242,37 @@ class VoiceAssistant : public Component {
   std::unique_ptr<socket::Socket> socket_ = nullptr;
   struct sockaddr_storage dest_addr_;
 
-  Trigger<> *intent_end_trigger_ = new Trigger<>();
-  Trigger<> *intent_start_trigger_ = new Trigger<>();
-  Trigger<> *listening_trigger_ = new Trigger<>();
-  Trigger<> *end_trigger_ = new Trigger<>();
-  Trigger<> *start_trigger_ = new Trigger<>();
-  Trigger<> *stt_vad_start_trigger_ = new Trigger<>();
-  Trigger<> *stt_vad_end_trigger_ = new Trigger<>();
+  Trigger<> intent_end_trigger_;
+  Trigger<> intent_start_trigger_;
+  Trigger<> listening_trigger_;
+  Trigger<> end_trigger_;
+  Trigger<> start_trigger_;
+  Trigger<> stt_vad_start_trigger_;
+  Trigger<> stt_vad_end_trigger_;
 #ifdef USE_SPEAKER
-  Trigger<> *tts_stream_start_trigger_ = new Trigger<>();
-  Trigger<> *tts_stream_end_trigger_ = new Trigger<>();
+  Trigger<> tts_stream_start_trigger_;
+  Trigger<> tts_stream_end_trigger_;
 #endif
-  Trigger<std::string> *intent_progress_trigger_ = new Trigger<std::string>();
-  Trigger<> *wake_word_detected_trigger_ = new Trigger<>();
-  Trigger<std::string> *stt_end_trigger_ = new Trigger<std::string>();
-  Trigger<std::string> *tts_end_trigger_ = new Trigger<std::string>();
-  Trigger<std::string> *tts_start_trigger_ = new Trigger<std::string>();
-  Trigger<std::string, std::string> *error_trigger_ = new Trigger<std::string, std::string>();
-  Trigger<> *idle_trigger_ = new Trigger<>();
+  Trigger<std::string> intent_progress_trigger_;
+  Trigger<> wake_word_detected_trigger_;
+  Trigger<std::string> stt_end_trigger_;
+  Trigger<std::string> tts_end_trigger_;
+  Trigger<std::string> tts_start_trigger_;
+  Trigger<std::string, std::string> error_trigger_;
+  Trigger<> idle_trigger_;
 
-  Trigger<> *client_connected_trigger_ = new Trigger<>();
-  Trigger<> *client_disconnected_trigger_ = new Trigger<>();
+  Trigger<> client_connected_trigger_;
+  Trigger<> client_disconnected_trigger_;
 
   api::APIConnection *api_client_{nullptr};
 
-  std::unordered_map<std::string, Timer> timers_;
+  std::vector<Timer> timers_;
   void timer_tick_();
-  Trigger<Timer> *timer_started_trigger_ = new Trigger<Timer>();
-  Trigger<Timer> *timer_finished_trigger_ = new Trigger<Timer>();
-  Trigger<Timer> *timer_updated_trigger_ = new Trigger<Timer>();
-  Trigger<Timer> *timer_cancelled_trigger_ = new Trigger<Timer>();
-  Trigger<std::vector<Timer>> *timer_tick_trigger_ = new Trigger<std::vector<Timer>>();
+  Trigger<Timer> timer_started_trigger_;
+  Trigger<Timer> timer_finished_trigger_;
+  Trigger<Timer> timer_updated_trigger_;
+  Trigger<Timer> timer_cancelled_trigger_;
+  Trigger<const std::vector<Timer> &> timer_tick_trigger_;
   bool has_timers_{false};
   bool timer_tick_running_{false};
 

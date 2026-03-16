@@ -1,5 +1,6 @@
 #ifdef USE_HOST
 
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "preferences.h"
@@ -11,7 +12,7 @@
 
 namespace esphome {
 
-void IRAM_ATTR HOT yield() { ::sched_yield(); }
+void HOT yield() { ::sched_yield(); }
 uint32_t IRAM_ATTR HOT millis() {
   struct timespec spec;
   clock_gettime(CLOCK_MONOTONIC, &spec);
@@ -19,7 +20,12 @@ uint32_t IRAM_ATTR HOT millis() {
   uint32_t ms = round(spec.tv_nsec / 1e6);
   return ((uint32_t) seconds) * 1000U + ms;
 }
-void IRAM_ATTR HOT delay(uint32_t ms) {
+uint64_t millis_64() {
+  struct timespec spec;
+  clock_gettime(CLOCK_MONOTONIC, &spec);
+  return static_cast<uint64_t>(spec.tv_sec) * 1000ULL + static_cast<uint64_t>(spec.tv_nsec) / 1000000ULL;
+}
+void HOT delay(uint32_t ms) {
   struct timespec ts;
   ts.tv_sec = ms / 1000;
   ts.tv_nsec = (ms % 1000) * 1000000;
@@ -48,11 +54,13 @@ void arch_restart() { exit(0); }
 void arch_init() {
   // pass
 }
-void IRAM_ATTR HOT arch_feed_wdt() {
+void HOT arch_feed_wdt() {
   // pass
 }
 
 uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
+const char *progmem_read_ptr(const char *const *addr) { return *addr; }
+uint16_t progmem_read_uint16(const uint16_t *addr) { return *addr; }
 uint32_t arch_get_cpu_cycle_count() {
   struct timespec spec;
   clock_gettime(CLOCK_MONOTONIC, &spec);

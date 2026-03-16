@@ -13,9 +13,12 @@ void Pipsolar::setup() {
 }
 
 void Pipsolar::empty_uart_buffer_() {
-  uint8_t byte;
-  while (this->available()) {
-    this->read_byte(&byte);
+  uint8_t buf[64];
+  size_t avail;
+  while ((avail = this->available()) > 0) {
+    if (!this->read_array(buf, std::min(avail, sizeof(buf)))) {
+      break;
+    }
   }
 }
 
@@ -94,32 +97,47 @@ void Pipsolar::loop() {
   }
 
   if (this->state_ == STATE_COMMAND || this->state_ == STATE_POLL) {
-    while (this->available()) {
-      uint8_t byte;
-      this->read_byte(&byte);
-
-      // make sure data and null terminator fit in buffer
-      if (this->read_pos_ >= PIPSOLAR_READ_BUFFER_LENGTH - 1) {
-        this->read_pos_ = 0;
-        this->empty_uart_buffer_();
-        ESP_LOGW(TAG, "response data too long, discarding.");
+    size_t avail = this->available();
+    while (avail > 0) {
+      uint8_t buf[64];
+      size_t to_read = std::min(avail, sizeof(buf));
+      if (!this->read_array(buf, to_read)) {
         break;
       }
-      this->read_buffer_[this->read_pos_] = byte;
-      this->read_pos_++;
+      avail -= to_read;
+      bool done = false;
+      for (size_t i = 0; i < to_read; i++) {
+        uint8_t byte = buf[i];
 
-      // end of answer
-      if (byte == 0x0D) {
-        this->read_buffer_[this->read_pos_] = 0;
-        this->empty_uart_buffer_();
-        if (this->state_ == STATE_POLL) {
-          this->state_ = STATE_POLL_COMPLETE;
+        // make sure data and null terminator fit in buffer
+        if (this->read_pos_ >= PIPSOLAR_READ_BUFFER_LENGTH - 1) {
+          this->read_pos_ = 0;
+          this->empty_uart_buffer_();
+          ESP_LOGW(TAG, "response data too long, discarding.");
+          done = true;
+          break;
         }
-        if (this->state_ == STATE_COMMAND) {
-          this->state_ = STATE_COMMAND_COMPLETE;
+        this->read_buffer_[this->read_pos_] = byte;
+        this->read_pos_++;
+
+        // end of answer
+        if (byte == 0x0D) {
+          this->read_buffer_[this->read_pos_] = 0;
+          this->empty_uart_buffer_();
+          if (this->state_ == STATE_POLL) {
+            this->state_ = STATE_POLL_COMPLETE;
+          }
+          if (this->state_ == STATE_COMMAND) {
+            this->state_ = STATE_COMMAND_COMPLETE;
+          }
+          done = true;
+          break;
         }
       }
-    }  // available
+      if (done) {
+        break;
+      }
+    }
   }
   if (this->state_ == STATE_COMMAND) {
     if (millis() - this->command_start_millis_ > esphome::pipsolar::Pipsolar::COMMAND_TIMEOUT) {
@@ -144,13 +162,15 @@ void Pipsolar::loop() {
 }
 
 uint8_t Pipsolar::check_incoming_length_(uint8_t length) {
-  if (this->read_pos_ - 3 == length) {
+  if (this->read_pos_ >= 3 && this->read_pos_ - 3 == length) {
     return 1;
   }
   return 0;
 }
 
 uint8_t Pipsolar::check_incoming_crc_() {
+  if (this->read_pos_ < 3)
+    return 0;
   uint16_t crc16;
   crc16 = this->pipsolar_crc_(read_buffer_, read_pos_ - 3);
   if (((uint8_t) ((crc16) >> 8)) == read_buffer_[read_pos_ - 3] &&
@@ -172,8 +192,13 @@ bool Pipsolar::send_next_command_() {
   if (!this->command_queue_[this->command_queue_position_].empty()) {
     const char *command = this->command_queue_[this->command_queue_position_].c_str();
     uint8_t byte_command[16];
-    uint8_t length = this->command_queue_[this->command_queue_position_].length();
-    for (uint8_t i = 0; i < length; i++) {
+    size_t length = this->command_queue_[this->command_queue_position_].length();
+    if (length > sizeof(byte_command)) {
+      ESP_LOGE(TAG, "Command too long: %zu", length);
+      this->command_queue_[this->command_queue_position_].clear();
+      return false;
+    }
+    for (size_t i = 0; i < length; i++) {
       byte_command[i] = (uint8_t) this->command_queue_[this->command_queue_position_].at(i);
     }
     this->state_ = STATE_COMMAND;
@@ -627,6 +652,7 @@ void Pipsolar::handle_qpiws_(const char *message) {
       case 34:
         this->publish_binary_sensor_(enabled, this->warning_high_ac_input_during_bus_soft_start_);
         value_warnings_present |= enabled.value_or(false);
+        break;
       case 35:
         this->publish_binary_sensor_(enabled, this->warning_battery_equalization_);
         value_warnings_present |= enabled.value_or(false);
@@ -730,8 +756,7 @@ esphome::optional<bool> Pipsolar::get_bit_(std::string bits, uint8_t bit_pos) {
 }
 
 void Pipsolar::dump_config() {
-  ESP_LOGCONFIG(TAG, "Pipsolar:\n"
-                     "enabled polling commands:");
+  ESP_LOGCONFIG(TAG, "Pipsolar enabled polling commands:");
   for (auto &enabled_polling_command : this->enabled_polling_commands_) {
     if (enabled_polling_command.length != 0) {
       ESP_LOGCONFIG(TAG, "%s", enabled_polling_command.command);

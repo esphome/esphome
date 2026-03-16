@@ -31,7 +31,7 @@ class MQTTDateTimeComponent : public mqtt::MQTTComponent {
   bool publish_state(uint16_t year, uint8_t month, uint8_t day, uint8_t hour, uint8_t minute, uint8_t second);
 
  protected:
-  std::string component_type() const override;
+  const char *component_type() const override;
   const EntityBase *get_entity() const override;
 
   datetime::DateTimeEntity *datetime_;

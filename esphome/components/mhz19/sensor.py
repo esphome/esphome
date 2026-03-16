@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_CO2,
     CONF_ID,
     CONF_TEMPERATURE,
+    CONF_WARMUP_TIME,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_TEMPERATURE,
     ICON_MOLECULE_CO2,
@@ -18,7 +19,6 @@ from esphome.const import (
 DEPENDENCIES = ["uart"]
 
 CONF_AUTOMATIC_BASELINE_CALIBRATION = "automatic_baseline_calibration"
-CONF_WARMUP_TIME = "warmup_time"
 CONF_DETECTION_RANGE = "detection_range"
 
 mhz19_ns = cg.esphome_ns.namespace("mhz19")
@@ -112,13 +112,22 @@ NO_ARGS_ACTION_SCHEMA = maybe_simple_id(
 
 
 @automation.register_action(
-    "mhz19.calibrate_zero", MHZ19CalibrateZeroAction, NO_ARGS_ACTION_SCHEMA
+    "mhz19.calibrate_zero",
+    MHZ19CalibrateZeroAction,
+    NO_ARGS_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "mhz19.abc_enable", MHZ19ABCEnableAction, NO_ARGS_ACTION_SCHEMA
+    "mhz19.abc_enable",
+    MHZ19ABCEnableAction,
+    NO_ARGS_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "mhz19.abc_disable", MHZ19ABCDisableAction, NO_ARGS_ACTION_SCHEMA
+    "mhz19.abc_disable",
+    MHZ19ABCDisableAction,
+    NO_ARGS_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def mhz19_no_args_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -137,7 +146,10 @@ RANGE_ACTION_SCHEMA = maybe_simple_id(
 
 
 @automation.register_action(
-    "mhz19.detection_range_set", MHZ19DetectionRangeSetAction, RANGE_ACTION_SCHEMA
+    "mhz19.detection_range_set",
+    MHZ19DetectionRangeSetAction,
+    RANGE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def mhz19_detection_range_set_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

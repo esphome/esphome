@@ -11,13 +11,19 @@ from esphome.const import (
 )
 from esphome.core import CORE, TimePeriod
 
-from . import Nextion, nextion_ns, nextion_ref
+from . import (  # noqa: F401  pylint: disable=unused-import
+    FILTER_SOURCE_FILES,
+    Nextion,
+    nextion_ns,
+    nextion_ref,
+)
 from .base_component import (
     CONF_AUTO_WAKE_ON_TOUCH,
     CONF_COMMAND_SPACING,
     CONF_DUMP_DEVICE_INFO,
     CONF_EXIT_REPARSE_ON_START,
     CONF_MAX_COMMANDS_PER_LOOP,
+    CONF_MAX_QUEUE_AGE,
     CONF_MAX_QUEUE_SIZE,
     CONF_ON_BUFFER_OVERFLOW,
     CONF_ON_PAGE,
@@ -26,15 +32,25 @@ from .base_component import (
     CONF_ON_WAKE,
     CONF_SKIP_CONNECTION_HANDSHAKE,
     CONF_START_UP_PAGE,
+    CONF_STARTUP_OVERRIDE_MS,
+    CONF_TFT_UPLOAD_HTTP_RETRIES,
+    CONF_TFT_UPLOAD_HTTP_TIMEOUT,
+    CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT,
     CONF_TFT_URL,
     CONF_TOUCH_SLEEP_TIMEOUT,
     CONF_WAKE_UP_PAGE,
 )
 
 CODEOWNERS = ["@senexcrenshaw", "@edwardtfn"]
-
 DEPENDENCIES = ["uart"]
-AUTO_LOAD = ["binary_sensor", "switch", "sensor", "text_sensor"]
+
+
+def AUTO_LOAD() -> list[str]:
+    base = ["binary_sensor", "switch", "sensor", "text_sensor"]
+    if CORE.is_esp32:
+        base.append("watchdog")
+    return base
+
 
 NextionSetBrightnessAction = nextion_ns.class_(
     "NextionSetBrightnessAction", automation.Action
@@ -48,7 +64,24 @@ BufferOverflowTrigger = nextion_ns.class_(
     "BufferOverflowTrigger", automation.Trigger.template()
 )
 
-CONFIG_SCHEMA = (
+
+def _validate_tft_upload(config):
+    has_tft_url = CONF_TFT_URL in config
+    for conf_key in (
+        CONF_TFT_UPLOAD_HTTP_TIMEOUT,
+        CONF_TFT_UPLOAD_HTTP_RETRIES,
+        CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT,
+    ):
+        if conf_key in config and not has_tft_url:
+            raise cv.Invalid(f"{conf_key} requires {CONF_TFT_URL} to be set")
+    if CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT in config and not CORE.is_esp32:
+        raise cv.Invalid(
+            f"{CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT} is only available on ESP32"
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     display.BASIC_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(Nextion),
@@ -60,6 +93,12 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_DUMP_DEVICE_INFO, default=False): cv.boolean,
             cv.Optional(CONF_EXIT_REPARSE_ON_START, default=False): cv.boolean,
+            cv.Optional(CONF_MAX_QUEUE_AGE, default="8000ms"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(
+                    min=TimePeriod(milliseconds=0), max=TimePeriod(milliseconds=65535)
+                ),
+            ),
             cv.Optional(CONF_MAX_COMMANDS_PER_LOOP): cv.uint16_t,
             cv.Optional(CONF_MAX_QUEUE_SIZE): cv.positive_int,
             cv.Optional(CONF_ON_BUFFER_OVERFLOW): automation.validate_automation(
@@ -95,7 +134,21 @@ CONFIG_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_SKIP_CONNECTION_HANDSHAKE, default=False): cv.boolean,
+            cv.Optional(CONF_STARTUP_OVERRIDE_MS, default="8000ms"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(
+                    min=TimePeriod(milliseconds=0), max=TimePeriod(milliseconds=65535)
+                ),
+            ),
             cv.Optional(CONF_START_UP_PAGE): cv.uint8_t,
+            cv.Optional(CONF_TFT_UPLOAD_HTTP_RETRIES): cv.int_range(min=1, max=255),
+            cv.Optional(CONF_TFT_UPLOAD_HTTP_TIMEOUT): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=TimePeriod(milliseconds=65535)),
+            ),
+            cv.Optional(
+                CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT
+            ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_TFT_URL): cv.url,
             cv.Optional(CONF_TOUCH_SLEEP_TIMEOUT): cv.Any(
                 0, cv.int_range(min=3, max=65535)
@@ -104,7 +157,8 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("5s"))
-    .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(uart.UART_DEVICE_SCHEMA),
+    _validate_tft_upload,
 )
 
 
@@ -118,6 +172,7 @@ CONFIG_SCHEMA = (
         },
         key=CONF_BRIGHTNESS,
     ),
+    synchronous=True,
 )
 async def nextion_set_brightness_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -133,6 +188,8 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await uart.register_uart_device(var, config)
 
+    cg.add(var.set_max_queue_age(config[CONF_MAX_QUEUE_AGE]))
+
     if max_queue_size := config.get(CONF_MAX_QUEUE_SIZE):
         cg.add_define("USE_NEXTION_MAX_QUEUE_SIZE")
         cg.add(var.set_max_queue_size(max_queue_size))
@@ -140,6 +197,8 @@ async def to_code(config):
     if command_spacing := config.get(CONF_COMMAND_SPACING):
         cg.add_define("USE_NEXTION_COMMAND_SPACING")
         cg.add(var.set_command_spacing(command_spacing.total_milliseconds))
+
+    cg.add(var.set_startup_override_ms(config[CONF_STARTUP_OVERRIDE_MS]))
 
     if CONF_BRIGHTNESS in config:
         cg.add(var.set_brightness(config[CONF_BRIGHTNESS]))
@@ -153,7 +212,32 @@ async def to_code(config):
     if CONF_TFT_URL in config:
         cg.add_define("USE_NEXTION_TFT_UPLOAD")
         cg.add(var.set_tft_url(config[CONF_TFT_URL]))
+
+        # TFT upload HTTP timeout (default: 4.5s)
+        if CONF_TFT_UPLOAD_HTTP_TIMEOUT in config:
+            cg.add(
+                var.set_tft_upload_http_timeout(
+                    config[CONF_TFT_UPLOAD_HTTP_TIMEOUT].total_milliseconds
+                )
+            )
+
+        # TFT upload HTTP retries (default: 5)
+        if CONF_TFT_UPLOAD_HTTP_RETRIES in config:
+            cg.add(
+                var.set_tft_upload_http_retries(config[CONF_TFT_UPLOAD_HTTP_RETRIES])
+            )
+
+        # TFT upload watchdog timeout (default: 0 = no adjustment)
+        if CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT in config:
+            cg.add(
+                var.set_tft_upload_watchdog_timeout(
+                    config[CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT].total_milliseconds
+                )
+            )
+
         if CORE.is_esp32:
+            # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time)
+            esp32.include_builtin_idf_component("esp_http_client")
             esp32.add_idf_sdkconfig_option("CONFIG_ESP_TLS_INSECURE", True)
             esp32.add_idf_sdkconfig_option(
                 "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY", True

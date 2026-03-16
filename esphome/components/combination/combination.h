@@ -10,8 +10,6 @@ namespace combination {
 
 class CombinationComponent : public Component, public sensor::Sensor {
  public:
-  float get_setup_priority() const override { return esphome::setup_priority::DATA; }
-
   /// @brief Logs all source sensor's names
   virtual void log_source_sensors() = 0;
 

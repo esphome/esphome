@@ -25,7 +25,7 @@ class MQTTTextSensor : public mqtt::MQTTComponent {
   bool send_initial_state() override;
 
  protected:
-  std::string component_type() const override;
+  const char *component_type() const override;
   const EntityBase *get_entity() const override;
 
   text_sensor::TextSensor *sensor_;
