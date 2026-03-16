@@ -186,5 +186,24 @@ template<typename... Ts> class PIDSetDeadbandControlParametersMultipliersAction 
   PIDClimate *parent_;
 };
 
+template<typename... Ts> class PIDSetDeadbandThresholdParametersAction : public Action<Ts...> {
+ public:
+  PIDSetDeadbandThresholdParametersAction(PIDClimate *parent) : parent_(parent) {}
+
+  void play(const Ts &...x) {
+    auto threshold_high = this->threshold_high_.value(x...);
+    auto threshold_low = this->threshold_low_.value(x...);
+
+    this->parent_->set_threshold_high(threshold_high);
+    this->parent_->set_threshold_low(threshold_low);
+  }
+
+ protected:
+  TEMPLATABLE_VALUE(float, threshold_high)
+  TEMPLATABLE_VALUE(float, threshold_low)
+
+  PIDClimate *parent_;
+};
+
 }  // namespace pid
 }  // namespace esphome
