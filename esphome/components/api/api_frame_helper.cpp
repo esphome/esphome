@@ -102,8 +102,9 @@ const LogString *api_error_to_logstr(APIError err) {
 
 APIError APIFrameHelper::drain_overflow_and_handle_errors_() {
   if (this->overflow_buf_.try_drain(this->socket_.get()) == -1) {
-    if (this->check_socket_write_err_(errno) != APIError::WOULD_BLOCK) {
-      HELPER_LOG("Socket write failed with errno %d", errno);
+    int err = errno;
+    if (this->check_socket_write_err_(err) != APIError::WOULD_BLOCK) {
+      HELPER_LOG("Socket write failed with errno %d", err);
       return APIError::SOCKET_WRITE_FAILED;
     }
   }
@@ -135,8 +136,9 @@ APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt, uint16_
         (iovcnt == 1) ? this->socket_->write(iov[0].iov_base, iov[0].iov_len) : this->socket_->writev(iov, iovcnt);
 
     if (sent == -1) [[unlikely]] {
-      if (this->check_socket_write_err_(errno) != APIError::WOULD_BLOCK) {
-        HELPER_LOG("Socket write failed with errno %d", errno);
+      int err = errno;
+      if (this->check_socket_write_err_(err) != APIError::WOULD_BLOCK) {
+        HELPER_LOG("Socket write failed with errno %d", err);
         return APIError::SOCKET_WRITE_FAILED;
       }
     } else if (static_cast<uint16_t>(sent) >= total_write_len) [[likely]] {

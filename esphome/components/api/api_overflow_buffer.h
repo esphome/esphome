@@ -6,6 +6,7 @@
 #include "esphome/core/defines.h"
 #ifdef USE_API
 
+#include "esphome/components/socket/headers.h"
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/helpers.h"
 
@@ -52,8 +53,9 @@ class APIOverflowBuffer {
   uint8_t count() const { return this->count_; }
 
   /// Try to drain queued data to the socket.
-  /// Returns bytes-written > 0 on success/partial, 0 if all drained,
+  /// Returns bytes-written > 0 on success/partial, 0 if all drained or no progress,
   /// -1 on error (caller must check errno to distinguish EWOULDBLOCK from hard errors).
+  /// Callers only need to act on -1; 0 and positive values both mean "no error".
   /// Frees entries as they are fully sent.
   ssize_t try_drain(socket::Socket *socket);
 
