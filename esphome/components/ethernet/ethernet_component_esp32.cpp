@@ -272,14 +272,9 @@ void EthernetComponent::setup() {
 #endif
 #ifdef USE_ETHERNET_JL1101
     case ETHERNET_TYPE_JL1101: {
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-      // No registry component exists; generic PHY driver works for JL1101
-      this->phy_ = esp_eth_phy_new_generic(&phy_config);
-#else
-      // IDF < 5.4.2 or non-PlatformIO: uses custom ESPHome driver (esp_eth_phy_jl1101.c)
-      // IDF 5.4.2+ with PlatformIO: uses builtin esp_eth_phy_new_jl1101()
+      // PlatformIO (pioarduino): builtin esp_eth_phy_new_jl1101() on all IDF versions
+      // Non-PlatformIO: custom ESPHome driver (esp_eth_phy_jl1101.c)
       this->phy_ = esp_eth_phy_new_jl1101(&phy_config);
-#endif
       break;
     }
 #endif
