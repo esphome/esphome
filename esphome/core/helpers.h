@@ -1729,6 +1729,53 @@ constexpr float fahrenheit_to_celsius(float value) { return (value - 32.0f) / 1.
 /// @name Utilities
 /// @{
 
+/// Lightweight type-erased callback (8 bytes on 32-bit) that avoids std::function overhead.
+/// No null check, no exceptions, no heap allocation for small trivially-copyable callables.
+///
+/// With C++20 if constexpr, automatically detects [this] lambdas (sizeof <= sizeof(void*),
+/// trivially copyable) and stores them inline. Larger callables are heap-allocated.
+template<typename... X> struct Callback;
+
+template<typename... Ts> struct Callback<void(Ts...)> {
+  void (*fn)(void *, Ts...);
+  void *ctx;
+
+  void call(Ts... args) const { this->fn(this->ctx, args...); }
+
+  /// Create from any callable. Small trivially-copyable callables (like [this] lambdas)
+  /// are stored inline in the ctx pointer without heap allocation.
+  template<typename F> static Callback create(F &&callable) {
+    using DecayF = std::decay_t<F>;
+    if constexpr (sizeof(DecayF) <= sizeof(void *) && std::is_trivially_copyable_v<DecayF>) {
+      // Small trivial callable (e.g. [this]() { this->method(); }) - store inline in ctx
+      Callback cb;
+      cb.ctx = nullptr;
+      // Store the callable in the ctx pointer itself (type-punning via char* is allowed)
+      char *dst = reinterpret_cast<char *>(&cb.ctx);
+      const char *src = reinterpret_cast<const char *>(&callable);
+      for (size_t i = 0; i < sizeof(DecayF); ++i)
+        dst[i] = src[i];
+      cb.fn = [](void *c, Ts... args) {
+        // Recover the callable from the ctx pointer.
+        // Safe under C++20 (P0593R6): byte copy into aligned storage implicitly
+        // creates objects of implicit-lifetime types (trivially copyable qualifies).
+        alignas(DecayF) char buf[sizeof(DecayF)];
+        const char *csrc = reinterpret_cast<const char *>(&c);
+        for (size_t i = 0; i < sizeof(DecayF); ++i)
+          buf[i] = csrc[i];
+        reinterpret_cast<DecayF *>(buf)->operator()(args...);
+      };
+      return cb;
+    } else {
+      // Large or non-trivial callable - heap allocate.
+      // Intentionally never freed: callbacks in ESPHome are registered during setup()
+      // and live for device lifetime. Same lifetime as the previous std::function approach.
+      auto *stored = new DecayF(std::forward<F>(callable));
+      return {[](void *c, Ts... args) { (*static_cast<DecayF *>(c))(args...); }, static_cast<void *>(stored)};
+    }
+  }
+};
+
 template<typename... X> class CallbackManager;
 
 /** Helper class to allow having multiple subscribers to a callback.
@@ -1737,13 +1784,14 @@ template<typename... X> class CallbackManager;
  */
 template<typename... Ts> class CallbackManager<void(Ts...)> {
  public:
-  /// Add a callback to the list.
-  void add(std::function<void(Ts...)> &&callback) { this->callbacks_.push_back(std::move(callback)); }
+  /// Add any callable. Small trivially-copyable callables (like [this] lambdas)
+  /// are stored inline without heap allocation or std::function.
+  template<typename F> void add(F &&callback) { this->add_(Callback<void(Ts...)>::create(std::forward<F>(callback))); }
 
-  /// Call all callbacks in this manager.
+  /// Call all callbacks in this manager. No null check on invoke.
   void call(Ts... args) {
     for (auto &cb : this->callbacks_)
-      cb(args...);
+      cb.call(args...);
   }
   size_t size() const { return this->callbacks_.size(); }
 
@@ -1751,7 +1799,10 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
   void operator()(Ts... args) { call(args...); }
 
  protected:
-  std::vector<std::function<void(Ts...)>> callbacks_;
+  template<typename...> friend class LazyCallbackManager;
+  /// Non-template core to avoid code duplication per lambda type.
+  void add_(Callback<void(Ts...)> cb) { this->callbacks_.push_back(cb); }
+  std::vector<Callback<void(Ts...)>> callbacks_;
 };
 
 template<typename... X> class LazyCallbackManager;
@@ -1784,13 +1835,8 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
   LazyCallbackManager(LazyCallbackManager &&) = delete;
   LazyCallbackManager &operator=(LazyCallbackManager &&) = delete;
 
-  /// Add a callback to the list. Allocates the underlying CallbackManager on first use.
-  void add(std::function<void(Ts...)> &&callback) {
-    if (!this->callbacks_) {
-      this->callbacks_ = new CallbackManager<void(Ts...)>();
-    }
-    this->callbacks_->add(std::move(callback));
-  }
+  /// Add any callable. Allocates the underlying CallbackManager on first use.
+  template<typename F> void add(F &&callback) { this->add_(Callback<void(Ts...)>::create(std::forward<F>(callback))); }
 
   /// Call all callbacks in this manager. No-op if no callbacks registered.
   void call(Ts... args) {
@@ -1809,6 +1855,13 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
   void operator()(Ts... args) { this->call(args...); }
 
  protected:
+  /// Non-template core to avoid code duplication per lambda type.
+  void add_(Callback<void(Ts...)> cb) {
+    if (!this->callbacks_) {
+      this->callbacks_ = new CallbackManager<void(Ts...)>();
+    }
+    this->callbacks_->add_(cb);
+  }
   CallbackManager<void(Ts...)> *callbacks_{nullptr};
 };
 
