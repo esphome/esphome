@@ -13,6 +13,7 @@ from ..lv_validation import animated, get_start_value, lv_float
 from ..lvcode import lv
 from ..types import LvNumber
 from . import NumberType, Widget
+from .label import CONF_LABEL
 from .lv_bar import CONF_BAR
 
 CONF_SLIDER = "slider"
@@ -49,7 +50,7 @@ class SliderType(NumberType):
         return True
 
     def get_uses(self):
-        return (CONF_BAR,)
+        return (CONF_BAR, CONF_LABEL)
 
     async def to_code(self, w: Widget, config):
         if CONF_MIN_VALUE in config:

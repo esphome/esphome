@@ -393,9 +393,10 @@ class MeterType(WidgetType):
                     props = {
                         "arc_width": v[CONF_WIDTH],
                         "arc_color": v[CONF_COLOR],
-                        "arc_opa": v[CONF_OPA],
                         "arc_rounded": v.get("arc_rounded", False),
                     }
+                    if (opa := v.get(CONF_OPA)) is not None:
+                        props["arc_opa"] = opa
                     if CONF_R_MOD in v:
                         get_warnings().add(
                             "The 'r_mod' indicator property is not supported in LVGL 9.x and will be ignored."
