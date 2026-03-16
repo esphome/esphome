@@ -63,11 +63,11 @@ optional<BrennenstuhlData> BrennenstuhlProtocol::decode(RemoteReceiveData src) {
   };
   // suppress noisy frames, at least a complete bs_code should be available
   if (n_received > N_SYMBOLS_REQ) {
-    int32_t bs_codes[4] = {0, 0, 0, 0};  // internal bs codes
-    int32_t bs_cnt = 0;                  // number of bs codes found within frame
-    int32_t bs_idx = -1;                 // index to best bs code
-    uint32_t bit_cnt = 0;                // bit counter [0..23]
-    uint32_t pw_pre = 0;                 // pulsewidth of previous carrier (abs value)
+    uint32_t bs_codes[4] = {0, 0, 0, 0};  // internal codes
+    int32_t bs_cnt = 0;                   // number of bs codes found within frame
+    int32_t bs_idx = -1;                  // index to best bs code
+    uint32_t bit_cnt = 0;                 // bit counter [0..23]
+    uint32_t pw_pre = 0;                  // pulsewidth of previous carrier (abs value)
     RxSt fsm = RxSt::START_PULSE;
     for (uint32_t ic = 0; (ic != n_received) && (bs_cnt != N_FRAME_CODES); ic++) {
       uint32_t pw_cur = (uint32_t) (src[ic] < 0 ? -src[ic] : src[ic]);  // current pulsewidth
