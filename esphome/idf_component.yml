@@ -31,6 +31,34 @@ dependencies:
     version: "2.0.0"
     rules:
       - if: "target in [esp32, esp32p4]"
+  espressif/lan87xx:
+    version: "1.0.0"
+    rules:
+      - if: "idf_version >=6.0.0 && target in [esp32, esp32p4]"
+  espressif/rtl8201:
+    version: "1.0.1"
+    rules:
+      - if: "idf_version >=6.0.0 && target in [esp32, esp32p4]"
+  espressif/dp83848:
+    version: "1.0.0"
+    rules:
+      - if: "idf_version >=6.0.0 && target in [esp32, esp32p4]"
+  espressif/ip101:
+    version: "1.0.0"
+    rules:
+      - if: "idf_version >=6.0.0 && target in [esp32, esp32p4]"
+  espressif/ksz80xx:
+    version: "1.0.0"
+    rules:
+      - if: "idf_version >=6.0.0 && target in [esp32, esp32p4]"
+  espressif/w5500:
+    version: "1.0.1"
+    rules:
+      - if: "idf_version >=6.0.0"
+  espressif/dm9051:
+    version: "1.0.0"
+    rules:
+      - if: "idf_version >=6.0.0"
   espressif/esp_tinyusb:
     version: "2.1.1"
     rules:
