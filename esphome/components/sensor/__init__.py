@@ -403,9 +403,9 @@ async def filter_out_filter_to_code(config, filter_id):
 QUANTILE_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_EVERY, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.int_range(min=1, max=65535),
             cv.Optional(CONF_QUANTILE, default=0.9): cv.zero_to_one_float,
         }
     ),
@@ -427,9 +427,9 @@ async def quantile_filter_to_code(config, filter_id):
 MEDIAN_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_EVERY, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.int_range(min=1, max=65535),
         }
     ),
     validate_send_first_at,
@@ -449,9 +449,9 @@ async def median_filter_to_code(config, filter_id):
 MIN_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_EVERY, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.int_range(min=1, max=65535),
         }
     ),
     validate_send_first_at,
@@ -483,9 +483,9 @@ async def min_filter_to_code(config, filter_id):
 MAX_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_EVERY, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.int_range(min=1, max=65535),
         }
     ),
     validate_send_first_at,
@@ -509,9 +509,9 @@ async def max_filter_to_code(config, filter_id):
 SLIDING_AVERAGE_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_WINDOW_SIZE, default=15): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_WINDOW_SIZE, default=15): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_EVERY, default=15): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.int_range(min=1, max=65535),
         }
     ),
     validate_send_first_at,
@@ -540,8 +540,8 @@ EXPONENTIAL_AVERAGE_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_ALPHA, default=0.1): cv.positive_float,
-            cv.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_SEND_EVERY, default=15): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.int_range(min=1, max=65535),
         }
     ),
     validate_send_first_at,
