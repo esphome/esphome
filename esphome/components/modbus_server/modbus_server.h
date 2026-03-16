@@ -6,9 +6,6 @@
 #include "esphome/components/modbus/modbus_helpers.h"
 #include "esphome/core/automation.h"
 
-#include <list>
-#include <queue>
-#include <set>
 #include <utility>
 #include <vector>
 
