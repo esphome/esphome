@@ -1747,22 +1747,20 @@ template<typename... Ts> struct Callback<void(Ts...)> {
   template<typename F> static Callback create(F &&callable) {
     using DecayF = std::decay_t<F>;
     if constexpr (sizeof(DecayF) <= sizeof(void *) && std::is_trivially_copyable_v<DecayF>) {
-      // Small trivial callable (e.g. [this]() { this->method(); }) - store inline in ctx
+      // Small trivial callable (e.g. [this]() { this->method(); }) - store inline in ctx.
+      // Safe under C++20 (P0593R6): byte copy into aligned storage implicitly
+      // creates objects of implicit-lifetime types (trivially copyable qualifies).
       Callback cb;
       cb.ctx = nullptr;
-      // Store the callable in the ctx pointer itself (type-punning via char* is allowed)
-      char *dst = reinterpret_cast<char *>(&cb.ctx);
-      const char *src = reinterpret_cast<const char *>(&callable);
+      char *dst = reinterpret_cast<char *>(&cb.ctx);                // NOLINT(clang-analyzer-core.uninitialized.Assign)
+      const char *src = reinterpret_cast<const char *>(&callable);  // NOLINT(clang-analyzer-core.uninitialized.Assign)
       for (size_t i = 0; i < sizeof(DecayF); ++i)
-        dst[i] = src[i];
+        dst[i] = src[i];  // NOLINT(clang-analyzer-core.uninitialized.Assign)
       cb.fn = [](void *c, Ts... args) {
-        // Recover the callable from the ctx pointer.
-        // Safe under C++20 (P0593R6): byte copy into aligned storage implicitly
-        // creates objects of implicit-lifetime types (trivially copyable qualifies).
         alignas(DecayF) char buf[sizeof(DecayF)];
-        const char *csrc = reinterpret_cast<const char *>(&c);
+        const char *csrc = reinterpret_cast<const char *>(&c);  // NOLINT(clang-analyzer-core.uninitialized.Assign)
         for (size_t i = 0; i < sizeof(DecayF); ++i)
-          buf[i] = csrc[i];
+          buf[i] = csrc[i];  // NOLINT(clang-analyzer-core.uninitialized.Assign)
         reinterpret_cast<DecayF *>(buf)->operator()(args...);
       };
       return cb;
