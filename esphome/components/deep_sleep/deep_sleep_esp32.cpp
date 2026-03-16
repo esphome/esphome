@@ -1,9 +1,9 @@
 #ifdef USE_ESP32
 #include "soc/soc_caps.h"
 #include "driver/gpio.h"
-#include <esp_idf_version.h>
 #include "deep_sleep_component.h"
 #include "esphome/core/log.h"
+#include <esp_idf_version.h>
 
 namespace esphome {
 namespace deep_sleep {
