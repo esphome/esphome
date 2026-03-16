@@ -65,8 +65,8 @@ class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControl
   bool get_requires_code_to_arm() const override { return this->requires_code_to_arm_; }
   bool get_all_sensors_ready() { return this->sensors_ready_; };
   void set_restore_mode(TemplateAlarmControlPanelRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
-  // Remove before 2026.9.0
-  ESPDEPRECATED("Use auto_bypass_sensors_() instead. Removed in 2026.10.0", "2026.4.0")
+  // Remove before 2026.10.0
+  ESPDEPRECATED("bypass_before_arming() is deprecated and will be removed in 2026.10.0", "2026.4.0")
   void bypass_before_arming() { this->auto_bypass_sensors_(); }
 
 #ifdef USE_BINARY_SENSOR
