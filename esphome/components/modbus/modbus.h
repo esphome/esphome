@@ -151,8 +151,8 @@ class ModbusClientDevice {
   ModbusClientDevice() = default;
   ModbusClientDevice(ModbusClientHub *parent, uint8_t address) : parent_(parent), address_(address) {}
   virtual ~ModbusClientDevice() { this->clear_tx_queue_for_device(); }
-  void set_parent(ModbusClientHub *parent) { parent_ = parent; }
-  void set_address(uint8_t address) { address_ = address; }
+  void set_parent(ModbusClientHub *parent) { this->parent_ = parent; }
+  void set_address(uint8_t address) { this->address_ = address; }
   virtual void on_modbus_data(const std::vector<uint8_t> &data) {}
   virtual void on_modbus_error(uint8_t function_code, uint8_t exception_code) {}
   virtual void on_modbus_not_sent() {}
@@ -162,8 +162,10 @@ class ModbusClientDevice {
     this->parent_->send(this->address_, function, start_address, number_of_entities, payload_len, payload, this);
   }
   void send_pdu(const std::vector<uint8_t> &pdu) {
-    std::vector<uint8_t> payload = pdu;
-    payload.insert(payload.begin(), {this->address_});
+    std::vector<uint8_t> payload;
+    payload.reserve(1 + pdu.size());
+    payload.push_back(this->address_);
+    payload.insert(payload.end(), pdu.begin(), pdu.end());
     this->parent_->send_raw(payload, this);
   }
   void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload, this); }
@@ -174,12 +176,12 @@ class ModbusClientDevice {
 
   // If more than one device is connected block sending a new command before a response is received
   ESPDEPRECATED("Use ready_for_immediate_send() instead. Removed in 2026.9.0", "2026.3.0")
-  bool waiting_for_response() { return !ready_for_immediate_send(); }
-  bool ready_for_immediate_send() { return parent_->tx_buffer_empty() && !parent_->tx_blocked(); }
+  bool waiting_for_response() { return !this->ready_for_immediate_send(); }
+  bool ready_for_immediate_send() { return this->parent_->tx_buffer_empty() && !this->parent_->tx_blocked(); }
 
  protected:
-  ModbusClientHub *parent_;
-  uint8_t address_;
+  ModbusClientHub *parent_{nullptr};
+  uint8_t address_{0};
 };
 
 // This is for compatibility with external components using the former class name
@@ -189,8 +191,8 @@ class ModbusServerDevice {
  public:
   ModbusServerDevice() = default;
   ModbusServerDevice(ModbusServerHub *parent, uint8_t address) : parent_(parent), address_(address) {}
-  void set_parent(ModbusServerHub *parent) { parent_ = parent; }
-  void set_address(uint8_t address) { address_ = address; }
+  void set_parent(ModbusServerHub *parent) { this->parent_ = parent; }
+  void set_address(uint8_t address) { this->address_ = address; }
   virtual void on_modbus_read_registers(uint8_t function_code, uint16_t start_address, uint16_t number_of_registers){};
   virtual void on_modbus_write_registers(uint8_t function_code, const std::vector<uint8_t> &data){};
   void send(uint8_t function, const std::vector<uint8_t> &payload) {
@@ -209,8 +211,8 @@ class ModbusServerDevice {
  protected:
   friend ModbusServerHub;
 
-  ModbusServerHub *parent_;
-  uint8_t address_;
+  ModbusServerHub *parent_{nullptr};
+  uint8_t address_{0};
 };
 
 }  // namespace modbus
