@@ -105,9 +105,6 @@ APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt, uint16_
   // Returns APIError::OK if all data was sent or successfully queued.
   // Returns APIError::SOCKET_WRITE_FAILED if socket write failed, and sets state to FAILED.
 
-  if (iovcnt == 0)
-    return APIError::OK;  // Nothing to do, success
-
 #ifdef HELPER_LOG_PACKETS
   for (int i = 0; i < iovcnt; i++) {
     LOG_PACKET_SENDING(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
