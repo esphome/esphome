@@ -1737,6 +1737,10 @@ constexpr float fahrenheit_to_celsius(float value) { return (value - 32.0f) / 1.
 template<typename... X> struct Callback;
 
 template<typename... Ts> struct Callback<void(Ts...)> {
+  // The inline storage path stores callable bytes in ctx via memcpy.
+  // This requires all bit patterns to be valid for void* (no trap representations).
+  static_assert(sizeof(void *) == sizeof(std::uintptr_t), "void* must be the same size as uintptr_t");
+
   void (*fn)(void *, Ts...);
   void *ctx;
 
