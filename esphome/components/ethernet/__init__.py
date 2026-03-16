@@ -600,11 +600,33 @@ async def final_step():
         cg.add_define("ESPHOME_ETHERNET_IP_STATE_LISTENERS", ip_state_count)
 
 
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
+_platform_filter = filter_source_files_from_platform(
     {
         "ethernet_component_esp32.cpp": {
             PlatformFramework.ESP32_IDF,
             PlatformFramework.ESP32_ARDUINO,
         },
+        "esp_eth_phy_jl1101.c": {
+            PlatformFramework.ESP32_IDF,
+            PlatformFramework.ESP32_ARDUINO,
+        },
     }
 )
+
+
+def _filter_source_files() -> list[str]:
+    excluded = _platform_filter()
+    if not CORE.is_esp32:
+        return excluded
+    from esphome.components.esp32 import idf_version
+
+    # Custom JL1101 driver not needed on IDF >= 6.0 (uses generic PHY)
+    # or IDF >= 5.4.2 with PlatformIO (uses builtin driver)
+    if idf_version() >= cv.Version(6, 0, 0) or (
+        idf_version() >= cv.Version(5, 4, 2) and CORE.using_platformio
+    ):
+        excluded.append("esp_eth_phy_jl1101.c")
+    return excluded
+
+
+FILTER_SOURCE_FILES = _filter_source_files

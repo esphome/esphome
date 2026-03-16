@@ -10,8 +10,31 @@
 #include <cinttypes>
 #include "esp_event.h"
 
+#ifdef USE_ETHERNET_LAN8720
+#include "esp_eth_phy_lan87xx.h"
+#endif
+#ifdef USE_ETHERNET_RTL8201
+#include "esp_eth_phy_rtl8201.h"
+#endif
+#ifdef USE_ETHERNET_DP83848
+#include "esp_eth_phy_dp83848.h"
+#endif
+#ifdef USE_ETHERNET_IP101
+#include "esp_eth_phy_ip101.h"
+#endif
+#ifdef USE_ETHERNET_KSZ8081
+#include "esp_eth_phy_ksz80xx.h"
+#endif
 #ifdef USE_ETHERNET_LAN8670
 #include "esp_eth_phy_lan867x.h"
+#endif
+#ifdef USE_ETHERNET_W5500
+#include "esp_eth_mac_w5500.h"
+#include "esp_eth_phy_w5500.h"
+#endif
+#ifdef USE_ETHERNET_DM9051
+#include "esp_eth_mac_dm9051.h"
+#include "esp_eth_phy_dm9051.h"
 #endif
 
 #ifdef USE_ETHERNET_SPI
