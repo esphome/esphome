@@ -140,16 +140,18 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
   if (this->has_peek_) {
     data[0] = this->peek_buffer_;
     this->has_peek_ = false;
+#ifdef USE_UART_DEBUGGER
+    this->debug_callback_.call(uart::UART_DIRECTION_RX, data[0]);
+#endif
     data++;
     if (--len == 0) {  // Decrement len first, then check it...
-#ifdef USE_UART_DEBUGGER
-      this->debug_callback_.call(uart::UART_DIRECTION_RX, data[0]);
-#endif
-      return true;  // No more to read
+      return true;     // No more to read
     }
   }
-
-  ring_buf_get(&this->rx_ringbuf_, data, len);
+  if (ring_buf_get(&this->rx_ringbuf_, data, len) != len) {
+    ESP_LOGE(TAG, "UART BLE unexpected size");
+    return false;
+  }
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
     this->debug_callback_.call(uart::UART_DIRECTION_RX, data[i]);

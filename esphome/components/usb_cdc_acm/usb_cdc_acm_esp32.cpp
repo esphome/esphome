@@ -270,13 +270,13 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
   if (this->has_peek_) {
     data[0] = this->peek_buffer_;
     this->has_peek_ = false;
+#ifdef USE_UART_DEBUGGER
+    this->debug_callback_.call(uart::UART_DIRECTION_RX, data[0]);
+#endif
     bytes_read = 1;
     data++;
     if (--len == 0) {  // Decrement len first, then check it...
-#ifdef USE_UART_DEBUGGER
-      this->debug_callback_.call(uart::UART_DIRECTION_RX, data[0]);
-#endif
-      return true;  // No more to read
+      return true;     // No more to read
     }
   }
 
@@ -289,15 +289,15 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
 
   memcpy(data, buf, rx_size);
   vRingbufferReturnItem(this->usb_rx_ringbuf_, (void *) buf);
+#ifdef USE_UART_DEBUGGER
+  for (size_t i = 0; i < rx_size; i++) {
+    this->debug_callback_.call(uart::UART_DIRECTION_RX, data[i]);
+  }
+#endif
   bytes_read += rx_size;
   data += rx_size;
   len -= rx_size;
   if (len == 0) {
-#ifdef USE_UART_DEBUGGER
-    for (size_t i = 0; i < len; i++) {
-      this->debug_callback_.call(uart::UART_DIRECTION_RX, data[i]);
-    }
-#endif
     return true;  // No more to read
   }
 
@@ -309,14 +309,14 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
 
   memcpy(data, buf, rx_size);
   vRingbufferReturnItem(this->usb_rx_ringbuf_, (void *) buf);
+#ifdef USE_UART_DEBUGGER
+  for (size_t i = 0; i < rx_size; i++) {
+    this->debug_callback_.call(uart::UART_DIRECTION_RX, data[i]);
+  }
+#endif
   bytes_read += rx_size;
 
   if (bytes_read == original_len) {
-#ifdef USE_UART_DEBUGGER
-    for (size_t i = 0; i < len; i++) {
-      this->debug_callback_.call(uart::UART_DIRECTION_RX, data[i]);
-    }
-#endif
     return true;
   }
 
