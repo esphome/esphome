@@ -582,7 +582,7 @@ void LvglComponent::setup() {
                          this->full_refresh_ ? LV_DISPLAY_RENDER_MODE_FULL : LV_DISPLAY_RENDER_MODE_PARTIAL);
   this->rotation = display->get_rotation();
   if (this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
-    this->rotate_buf_ = static_cast<lv_color_t *>(lv_malloc_core(buf_bytes));  // NOLINT
+    this->rotate_buf_ = static_cast<lv_color_t *>(lv_alloc_draw_buf(buf_bytes, false));  // NOLINT
     if (this->rotate_buf_ == nullptr) {
       this->status_set_error(LOG_STR("Memory allocation failure"));
       this->mark_failed();
