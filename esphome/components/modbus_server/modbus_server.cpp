@@ -29,9 +29,10 @@ void ModbusServer::on_modbus_read_registers(uint8_t function_code, uint16_t star
           break;
         }
         int64_t value = server_register->read_lambda();
+        char value_buf[ServerRegister::FORMAT_VALUE_BUF_SIZE];
         ESP_LOGD(TAG, "Matched register. Address: 0x%02X. Value type: %zu. Register count: %u. Value: %s.",
                  server_register->address, static_cast<size_t>(server_register->value_type),
-                 server_register->register_count, server_register->format_value(value).c_str());
+                 server_register->register_count, server_register->format_value(value, value_buf, sizeof(value_buf)));
 
         std::vector<uint16_t> payload;
         payload.reserve(server_register->register_count * 2);
