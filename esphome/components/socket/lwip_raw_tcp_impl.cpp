@@ -998,11 +998,13 @@ LWIPRawUDPImpl::LWIPRawUDPImpl(sa_family_t family) : family_(family) {
 }
 
 LWIPRawUDPImpl::~LWIPRawUDPImpl() {
+  // Early return avoids acquiring the lwip lock when pcb_ is already null
+  // (e.g., after LWIPRawUDPRecvImpl::close() already cleaned up).
+  if (this->pcb_ == nullptr)
+    return;
   LWIP_LOCK();
-  if (this->pcb_ != nullptr) {
-    udp_remove(this->pcb_);
-    this->pcb_ = nullptr;
-  }
+  udp_remove(this->pcb_);
+  this->pcb_ = nullptr;
 }
 
 int LWIPRawUDPImpl::bind_internal_locked_(const struct sockaddr *name, socklen_t addrlen) {
