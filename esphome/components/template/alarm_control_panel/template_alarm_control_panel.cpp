@@ -17,7 +17,7 @@ TemplateAlarmControlPanel::TemplateAlarmControlPanel(){};
 
 #ifdef USE_BINARY_SENSOR
 void TemplateAlarmControlPanel::add_sensor(binary_sensor::BinarySensor *sensor, uint16_t flags, AlarmSensorType type) {
-  // Save the flags and type. Assign a store index for the per sensor data type.
+  // Save the sensor pointer, flags, and type in the per-sensor info structure.
   AlarmSensor alarm_sensor;
   alarm_sensor.sensor = sensor;
   alarm_sensor.info.flags = flags;
