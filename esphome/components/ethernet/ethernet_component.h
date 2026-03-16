@@ -85,7 +85,7 @@ enum eth_duplex_t { ETH_DUPLEX_HALF, ETH_DUPLEX_FULL };
 enum eth_speed_t { ETH_SPEED_10M, ETH_SPEED_100M };
 #endif
 
-class EthernetComponent : public Component {
+class EthernetComponent final : public Component {
  public:
   EthernetComponent();
   void setup() override;
