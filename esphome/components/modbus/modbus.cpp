@@ -109,7 +109,7 @@ void Modbus::receive_bytes_() {
   size_t bytes = this->available();
 
   if (bytes) {
-    int buffer_size = this->rx_buffer_.size();
+    size_t buffer_size = this->rx_buffer_.size();
     this->last_modbus_byte_ = this->last_receive_check_;
     this->rx_buffer_.resize(buffer_size + bytes);
     this->read_array(this->rx_buffer_.data() + buffer_size, bytes);
