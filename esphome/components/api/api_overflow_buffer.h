@@ -7,6 +7,7 @@
 #ifdef USE_API
 
 #include "esphome/components/socket/socket.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome::api {
 
@@ -33,7 +34,7 @@ class APIOverflowBuffer {
     const uint8_t *current_data() const { return this->data + this->offset; }
 
     /// Free this entry and its data buffer.
-    static void destroy(Entry *entry) {
+    static ESPHOME_ALWAYS_INLINE void destroy(Entry *entry) {
       delete[] entry->data;
       delete entry;  // NOLINT(cppcoreguidelines-owning-memory)
     }
