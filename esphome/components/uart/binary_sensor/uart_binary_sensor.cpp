@@ -18,7 +18,7 @@ void UARTBinarySensor::setup() {
 
 void UARTBinarySensor::loop() {
   this->publish_state(false);
-  // only first entry mange the buffer. The rest just check if data match.
+  // only first entry manage the buffer. The rest just check if data match.
   if (this->first_entity_) {
     if (buffer.size() == max_data_size) {
       buffer.erase(buffer.begin());
