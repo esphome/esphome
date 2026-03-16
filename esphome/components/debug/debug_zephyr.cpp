@@ -91,6 +91,7 @@ void DebugComponent::log_partition_info_() {
   flash_area_foreach(fa_cb, nullptr);
 }
 
+#ifdef ESPHOME_LOG_HAS_VERBOSE
 // Check if an nRF peripheral's ENABLE register indicates it is enabled.
 // periph: peripheral register prefix (e.g. USBD, UARTE, SPI)
 // reg: register block pointer (e.g. NRF_USBD, NRF_UARTE0)
