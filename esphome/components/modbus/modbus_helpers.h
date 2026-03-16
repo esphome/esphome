@@ -81,7 +81,7 @@ inline uint8_t c_to_hex(char c) { return (c >= 'A') ? (c >= 'a') ? (c - 'a' + 10
  * @return byte value
  */
 inline uint8_t byte_from_hex_str(const std::string &value, uint8_t pos) {
-  if (value.length() < pos * 2 + 1)
+  if (value.length() < pos * 2 + 2)
     return 0;
   return (c_to_hex(value[pos * 2]) << 4) | c_to_hex(value[pos * 2 + 1]);
 }
@@ -132,13 +132,20 @@ template<typename T> T get_data(const std::vector<uint8_t> &data, size_t buffer_
   }
 
   if (sizeof(T) == sizeof(uint32_t)) {
-    return get_data<uint16_t>(data, buffer_offset) << 16 | get_data<uint16_t>(data, (buffer_offset + 2));
+    return static_cast<uint32_t>(get_data<uint16_t>(data, buffer_offset)) << 16 |
+           static_cast<uint32_t>(get_data<uint16_t>(data, buffer_offset + 2));
   }
 
   if (sizeof(T) == sizeof(uint64_t)) {
     return static_cast<uint64_t>(get_data<uint32_t>(data, buffer_offset)) << 32 |
            (static_cast<uint64_t>(get_data<uint32_t>(data, buffer_offset + 4)));
   }
+
+  static_assert(sizeof(T) == sizeof(uint8_t) || sizeof(T) == sizeof(uint16_t) || sizeof(T) == sizeof(uint32_t) ||
+                    sizeof(T) == sizeof(uint64_t),
+                "Unsupported type size in get_data; only 1, 2, 4, or 8-byte integer types are supported.");
+
+  return T{};
 }
 
 /** Extract coil data from modbus response buffer
@@ -170,7 +177,7 @@ template<typename N> N mask_and_shift_by_rightbit(N data, uint32_t mask) {
     return result;
   }
   for (size_t pos = 0; pos < sizeof(N) << 3; pos++) {
-    if ((mask & (1 << pos)) != 0)
+    if (pos < 32 && (mask & (1u << pos)) != 0)
       return result >> pos;
   }
   return 0;
