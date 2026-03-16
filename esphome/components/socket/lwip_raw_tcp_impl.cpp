@@ -1256,9 +1256,14 @@ ssize_t LWIPRawUDPRecvImpl::recvfrom(void *buf, size_t len, struct sockaddr *src
   // Copy data from pbuf chain
   pbuf_copy_partial(pkt.pb, buf, copy_len, 0);
 
-  // Fill in source address if requested
+  // Fill in source address if requested.
+  // If ip2sockaddr_ fails (e.g., addrlen too small), fail the entire recvfrom
+  // rather than silently returning data without a source address.
   if (src_addr != nullptr && addrlen != nullptr) {
-    this->ip2sockaddr_(&pkt.src_addr, pkt.src_port, src_addr, addrlen);
+    if (this->ip2sockaddr_(&pkt.src_addr, pkt.src_port, src_addr, addrlen) != 0) {
+      // Put the packet back — don't consume it on address conversion failure
+      return -1;
+    }
   }
 
   // Free the pbuf and advance the read pointer
