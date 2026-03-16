@@ -81,7 +81,7 @@ class JPEGFormat(Format):
 
             # JPEGDEC uses ESP32-S3 SIMD optimizations (guarded by board-level
             # ARDUINO_ESP32S3_DEV define) that require esp-dsp headers.
-            # add_idf_component also un-stubs for Arduino builds.
+            # On Arduino this overwrites the stub; on IDF it adds the component.
             add_idf_component(name="espressif/esp-dsp", ref="1.7.1")
 
 

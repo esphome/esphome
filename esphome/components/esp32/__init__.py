@@ -532,10 +532,6 @@ def add_idf_component(
         KEY_REF: ref,
         KEY_PATH: path,
     }
-    # Also un-stub this component if it was excluded (e.g. in ARDUINO_EXCLUDED_IDF_COMPONENTS)
-    # The stub key uses "__" separator while add_idf_component uses "/"
-    stub_key = name.replace("/", "__")
-    CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS].discard(stub_key)
 
 
 def exclude_builtin_idf_component(name: str) -> None:
@@ -1982,13 +1978,10 @@ def _write_idf_component_yml():
             for comp in ARDUINO_LIBRARY_IDF_COMPONENTS.get(lib, ())
         }
 
-        # Only stub components that are still in the exclusion set
-        # (components may have been re-enabled via include_builtin_idf_component())
-        # and not required by any enabled Arduino library
-        excluded_components = CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS]
+        # Only stub components that are not required by any enabled Arduino library
         components_to_stub = (
-            set(ARDUINO_EXCLUDED_IDF_COMPONENTS) & excluded_components
-        ) - required_idf_components
+            set(ARDUINO_EXCLUDED_IDF_COMPONENTS) - required_idf_components
+        )
 
         stubs_dir = CORE.relative_build_path("component_stubs")
         stubs_dir.mkdir(exist_ok=True)
