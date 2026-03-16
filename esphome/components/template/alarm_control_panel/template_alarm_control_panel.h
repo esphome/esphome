@@ -82,7 +82,7 @@ class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControl
    * @param flags The OR of BinarySensorFlags for the sensor.
    * @param type The sensor type which determines its triggering behaviour.
    */
-  void add_sensor(binary_sensor::BinarySensor *sensor, uint16_t flags = 0,
+  void add_sensor(binary_sensor::BinarySensor *sensor, uint8_t flags = 0,
                   AlarmSensorType type = ALARM_SENSOR_TYPE_DELAYED);
 #endif
 

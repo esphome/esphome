@@ -16,7 +16,7 @@ static const char *const TAG = "template.alarm_control_panel";
 TemplateAlarmControlPanel::TemplateAlarmControlPanel(){};
 
 #ifdef USE_BINARY_SENSOR
-void TemplateAlarmControlPanel::add_sensor(binary_sensor::BinarySensor *sensor, uint16_t flags, AlarmSensorType type) {
+void TemplateAlarmControlPanel::add_sensor(binary_sensor::BinarySensor *sensor, uint8_t flags, AlarmSensorType type) {
   // Save the sensor pointer, flags, and type in the per-sensor info structure.
   AlarmSensor alarm_sensor;
   alarm_sensor.sensor = sensor;
@@ -53,7 +53,7 @@ void TemplateAlarmControlPanel::dump_config() {
                 (this->trigger_time_ / 1000), this->get_supported_features());
 #ifdef USE_BINARY_SENSOR
   for (const auto &alarm_sensor : this->sensors_) {
-    const uint16_t flags = alarm_sensor.info.flags;
+    const uint8_t flags = alarm_sensor.info.flags;
     ESP_LOGCONFIG(TAG,
                   "  Binary Sensor:\n"
                   "    Name: %s\n"
