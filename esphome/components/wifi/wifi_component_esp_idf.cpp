@@ -17,7 +17,7 @@
 #include <memory>
 #include <utility>
 #ifdef USE_WIFI_WPA2_EAP
-#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
 #include <esp_eap_client.h>
 #else
 #include <esp_wpa2.h>
@@ -75,7 +75,11 @@ struct IDFWiFiEvent {
 #if USE_NETWORK_IPV6
     ip_event_got_ip6_t ip_got_ip6;
 #endif /* USE_NETWORK_IPV6 */
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    ip_event_assigned_ip_to_client_t ip_assigned_ip_to_client;
+#else
     ip_event_ap_staipassigned_t ip_ap_staipassigned;
+#endif
   } data;
 };
 
@@ -116,8 +120,13 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
     memcpy(&event.data.ap_staconnected, event_data, sizeof(wifi_event_ap_staconnected_t));
   } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_STADISCONNECTED) {
     memcpy(&event.data.ap_stadisconnected, event_data, sizeof(wifi_event_ap_stadisconnected_t));
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  } else if (event_base == IP_EVENT && event_id == IP_EVENT_ASSIGNED_IP_TO_CLIENT) {
+    memcpy(&event.data.ip_assigned_ip_to_client, event_data, sizeof(ip_event_assigned_ip_to_client_t));
+#else
   } else if (event_base == IP_EVENT && event_id == IP_EVENT_AP_STAIPASSIGNED) {
     memcpy(&event.data.ip_ap_staipassigned, event_data, sizeof(ip_event_ap_staipassigned_t));
+#endif
   } else {
     // did not match any event, don't send anything
     return;
@@ -407,7 +416,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   if (eap_opt.has_value()) {
     // note: all certificates and keys have to be null terminated. Lengths are appended by +1 to include \0.
     EAPAuth eap = *eap_opt;
-#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
     err = esp_eap_client_set_identity((uint8_t *) eap.identity.c_str(), eap.identity.length());
 #else
     err = esp_wifi_sta_wpa2_ent_set_identity((uint8_t *) eap.identity.c_str(), eap.identity.length());
@@ -419,7 +428,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     int client_cert_len = strlen(eap.client_cert);
     int client_key_len = strlen(eap.client_key);
     if (ca_cert_len) {
-#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
       err = esp_eap_client_set_ca_cert((uint8_t *) eap.ca_cert, ca_cert_len + 1);
 #else
       err = esp_wifi_sta_wpa2_ent_set_ca_cert((uint8_t *) eap.ca_cert, ca_cert_len + 1);
@@ -432,7 +441,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     // validation is not required as the config tool has already validated it
     if (client_cert_len && client_key_len) {
       // if we have certs, this must be EAP-TLS
-#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
       err = esp_eap_client_set_certificate_and_key((uint8_t *) eap.client_cert, client_cert_len + 1,
                                                    (uint8_t *) eap.client_key, client_key_len + 1,
                                                    (uint8_t *) eap.password.c_str(), eap.password.length());
@@ -446,7 +455,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
       }
     } else {
       // in the absence of certs, assume this is username/password based
-#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
       err = esp_eap_client_set_username((uint8_t *) eap.username.c_str(), eap.username.length());
 #else
       err = esp_wifi_sta_wpa2_ent_set_username((uint8_t *) eap.username.c_str(), eap.username.length());
@@ -454,7 +463,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
       if (err != ESP_OK) {
         ESP_LOGV(TAG, "set_username failed %d", err);
       }
-#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
       err = esp_eap_client_set_password((uint8_t *) eap.password.c_str(), eap.password.length());
 #else
       err = esp_wifi_sta_wpa2_ent_set_password((uint8_t *) eap.password.c_str(), eap.password.length());
@@ -463,7 +472,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
         ESP_LOGV(TAG, "set_password failed %d", err);
       }
       // set TTLS Phase 2, defaults to MSCHAPV2
-#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
       err = esp_eap_client_set_ttls_phase2_method(eap.ttls_phase_2);
 #else
       err = esp_wifi_sta_wpa2_ent_set_ttls_phase2_method(eap.ttls_phase_2);
@@ -472,7 +481,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
         ESP_LOGV(TAG, "set_ttls_phase2_method failed %d", err);
       }
     }
-#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
     err = esp_wifi_sta_enterprise_enable();
 #else
     err = esp_wifi_sta_wpa2_ent_enable();
@@ -628,14 +637,26 @@ const char *get_disconnect_reason_str(uint8_t reason) {
       return "Auth Expired";
     case WIFI_REASON_AUTH_LEAVE:
       return "Auth Leave";
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    case WIFI_REASON_DISASSOC_DUE_TO_INACTIVITY:
+      return "Disassociated Due to Inactivity";
+#else
     case WIFI_REASON_ASSOC_EXPIRE:
       return "Association Expired";
+#endif
     case WIFI_REASON_ASSOC_TOOMANY:
       return "Too Many Associations";
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    case WIFI_REASON_CLASS2_FRAME_FROM_NONAUTH_STA:
+      return "Class 2 Frame from Non-Authenticated STA";
+    case WIFI_REASON_CLASS3_FRAME_FROM_NONASSOC_STA:
+      return "Class 3 Frame from Non-Associated STA";
+#else
     case WIFI_REASON_NOT_AUTHED:
       return "Not Authenticated";
     case WIFI_REASON_NOT_ASSOCED:
       return "Not Associated";
+#endif
     case WIFI_REASON_ASSOC_LEAVE:
       return "Association Leave";
     case WIFI_REASON_ASSOC_NOT_AUTHED:
@@ -688,7 +709,7 @@ const char *get_disconnect_reason_str(uint8_t reason) {
       return "Association comeback time too long";
     case WIFI_REASON_SA_QUERY_TIMEOUT:
       return "SA query timeout";
-#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 2)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 0)
     case WIFI_REASON_NO_AP_FOUND_W_COMPATIBLE_SECURITY:
       return "No AP found with compatible security";
     case WIFI_REASON_NO_AP_FOUND_IN_AUTHMODE_THRESHOLD:
@@ -917,8 +938,13 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     ESP_LOGV(TAG, "AP client disconnected MAC=%s", mac_buf);
 #endif
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_ASSIGNED_IP_TO_CLIENT) {
+    const auto &it = data->data.ip_assigned_ip_to_client;
+#else
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_AP_STAIPASSIGNED) {
     const auto &it = data->data.ip_ap_staipassigned;
+#endif
     ESP_LOGV(TAG, "AP client assigned IP " IPSTR, IP2STR(&it.ip));
   }
 }

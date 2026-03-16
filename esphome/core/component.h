@@ -240,7 +240,8 @@ class Component {
 
   bool status_has_error() const { return this->component_state_ & STATUS_LED_ERROR; }
 
-  void status_set_warning(const char *message = nullptr);
+  void status_set_warning();  // Set warning flag without message
+  void status_set_warning(const char *message);
   void status_set_warning(const LogString *message);
 
   void status_set_error();  // Set error flag without message
