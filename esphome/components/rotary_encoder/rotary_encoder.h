@@ -90,7 +90,7 @@ class RotaryEncoderSensor : public sensor::Sensor, public Component {
     this->on_anticlockwise_callback_.add(std::forward<F>(callback));
   }
 
-  void register_listener(std::function<void(uint32_t)> listener) { this->listeners_.add(std::move(listener)); }
+  template<typename F> void register_listener(F &&listener) { this->listeners_.add(std::forward<F>(listener)); }
 
  protected:
   InternalGPIOPin *pin_a_;
