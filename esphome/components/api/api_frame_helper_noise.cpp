@@ -154,9 +154,7 @@ APIError APINoiseFrameHelper::loop() {
   }
 
   if (!this->overflow_buf_.empty()) [[unlikely]] {
-    APIError err = this->drain_overflow_and_handle_errors_();
-    if (err != APIError::OK)
-      return err;
+    return this->drain_overflow_and_handle_errors_();
   }
   return APIError::OK;
 }
