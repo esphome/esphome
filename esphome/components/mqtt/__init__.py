@@ -3,7 +3,9 @@ from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components import logger, socket
 from esphome.components.esp32 import (
+    add_idf_component,
     add_idf_sdkconfig_option,
+    idf_version,
     include_builtin_idf_component,
 )
 from esphome.config_helpers import filter_source_files_from_platform
@@ -351,7 +353,11 @@ async def to_code(config):
     if CORE.is_esp32:
         socket.require_wake_loop_threadsafe()
         # Re-enable ESP-IDF's mqtt component (excluded by default to save compile time)
-        include_builtin_idf_component("mqtt")
+        # IDF 6.0 moved esp-mqtt to an external component
+        if idf_version() >= cv.Version(6, 0, 0):
+            add_idf_component(name="espressif/mqtt", ref="1.0.0")
+        else:
+            include_builtin_idf_component("mqtt")
 
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)

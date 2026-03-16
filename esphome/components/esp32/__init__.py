@@ -612,10 +612,12 @@ def _format_framework_espidf_version(
         ext = "tar.xz"
     else:
         ext = "zip"
-    # Build version string with dot-separated extra (e.g., "5.5.3.1" not "5.5.3-1")
+    # Build version string with extra separator based on type:
+    # numeric extra uses dot (e.g., "5.5.3.1"), string extra uses dash (e.g., "6.0.0-rc1")
     ver_str = f"{ver.major}.{ver.minor}.{ver.patch}"
     if ver.extra:
-        ver_str += f".{ver.extra}"
+        sep = "." if str(ver.extra).isdigit() else "-"
+        ver_str += f"{sep}{ver.extra}"
     if release:
         return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{ver_str}.{release}/esp-idf-v{ver_str}.{ext}"
     return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{ver_str}/esp-idf-v{ver_str}.{ext}"
