@@ -114,7 +114,7 @@ APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt, uint16_
   uint16_t skip = 0;
 
   // If there is already backlogged data, try to drain it first
-  if (!this->overflow_buf_.empty()) {
+  if (!this->overflow_buf_.empty()) [[unlikely]] {
     if (this->overflow_buf_.try_drain(this->socket_.get()) == -1) {
       HELPER_LOG("Socket write failed with errno %d", errno);
       if (this->check_socket_write_err_(errno) != APIError::WOULD_BLOCK)
@@ -129,18 +129,23 @@ APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt, uint16_
     ssize_t sent =
         (iovcnt == 1) ? this->socket_->write(iov[0].iov_base, iov[0].iov_len) : this->socket_->writev(iov, iovcnt);
 
-    if (sent == -1) {
+    if (sent == -1) [[unlikely]] {  // Socket write failed
       HELPER_LOG("Socket write failed with errno %d", errno);
       if (this->check_socket_write_err_(errno) != APIError::WOULD_BLOCK)
         return APIError::SOCKET_WRITE_FAILED;
-    } else if (static_cast<uint16_t>(sent) >= total_write_len) {
-      return APIError::OK;  // All data sent successfully
+    } else if (static_cast<uint16_t>(sent) >= total_write_len) [[likely]] {  // All data sent successfully
+      return APIError::OK;                                                   // All data sent successfully
     } else {
       skip = static_cast<uint16_t>(sent);  // Partially sent — queue the remainder
     }
   }
 
-  return this->enqueue_or_fail_(iov, iovcnt, total_write_len, skip);
+  // Queue data into overflow buffer, or fail the connection if full
+  if (!this->overflow_buf_.enqueue_iov(iov, iovcnt, total_write_len, skip)) {
+    this->state_ = State::FAILED;
+    return APIError::SOCKET_WRITE_FAILED;
+  }
+  return APIError::OK;
 }
 
 const char *APIFrameHelper::get_peername_to(std::span<char, socket::SOCKADDR_STR_LEN> buf) const {

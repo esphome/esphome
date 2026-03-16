@@ -212,15 +212,6 @@ class APIFrameHelper {
     return APIError::SOCKET_WRITE_FAILED;
   }
 
-  // Enqueue IOV data into the overflow buffer, or fail the connection if full
-  APIError enqueue_or_fail_(const struct iovec *iov, int iovcnt, uint16_t total_len, uint16_t skip) {
-    if (!this->overflow_buf_.enqueue_iov(iov, iovcnt, total_len, skip)) {
-      this->state_ = State::FAILED;
-      return APIError::SOCKET_WRITE_FAILED;
-    }
-    return APIError::OK;
-  }
-
   // Socket ownership (4 bytes on 32-bit, 8 bytes on 64-bit)
   std::unique_ptr<socket::Socket> socket_;
 
