@@ -90,6 +90,7 @@ async def to_code(config):
         },
         key=CONF_STATE,
     ),
+    synchronous=True,
 )
 async def lock_template_publish_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

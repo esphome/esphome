@@ -568,7 +568,8 @@ static void set_json_id(JsonObject &root, EntityBase *obj, const char *prefix, J
     }
 #endif
 #ifdef USE_ENTITY_ICON
-    root[ESPHOME_F("icon")] = obj->get_icon_ref().c_str();
+    char icon_buf[MAX_ICON_LENGTH];
+    root[ESPHOME_F("icon")] = obj->get_icon_to(icon_buf);
 #endif
     root[ESPHOME_F("entity_category")] = obj->get_entity_category();
     bool is_disabled = obj->is_disabled_by_default();
@@ -2136,7 +2137,8 @@ json::SerializationBuffer<> WebServer::event_json_(event::Event *obj, StringRef 
     for (const char *event_type : obj->get_event_types()) {
       event_types.add(event_type);
     }
-    root[ESPHOME_F("device_class")] = obj->get_device_class_ref();
+    char dc_buf[MAX_DEVICE_CLASS_LENGTH];
+    root[ESPHOME_F("device_class")] = obj->get_device_class_to(dc_buf);
     this->add_sorting_info_(root, obj);
   }
 
@@ -2179,7 +2181,7 @@ json::SerializationBuffer<> WebServer::update_state_json_generator(WebServer *we
 }
 json::SerializationBuffer<> WebServer::update_all_json_generator(WebServer *web_server, void *source) {
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  return web_server->update_json_((update::UpdateEntity *) (source), DETAIL_STATE);
+  return web_server->update_json_((update::UpdateEntity *) (source), DETAIL_ALL);
 }
 json::SerializationBuffer<> WebServer::update_json_(update::UpdateEntity *obj, JsonDetail start_config) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson

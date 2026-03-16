@@ -322,11 +322,13 @@ void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
   // 8. Race condition with main loop is handled by clearing flag before processing
   this->pending_enable_loop_ = true;
   App.has_pending_enable_loop_requests_ = true;
-#if (defined(USE_LWIP_FAST_SELECT) && defined(USE_ESP32)) || (defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP))
+#if (defined(USE_LWIP_FAST_SELECT) && defined(USE_ESP32)) || \
+    ((defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP))
   // Wake the main loop from sleep. Without this, the main loop would not
   // wake until the select/delay timeout expires (~16ms).
   // ESP32: uses xPortInIsrContext() to choose the correct FreeRTOS notify API.
   // ESP8266: sets socket wake flag and calls esp_schedule() to exit esp_delay() early.
+  // RP2040: sets socket wake flag and calls __sev() to exit __wfe() early.
   Application::wake_loop_any_context();
 #endif
 }
@@ -390,6 +392,7 @@ bool Component::set_status_flag_(uint8_t flag) {
   return true;
 }
 
+void Component::status_set_warning() { this->status_set_warning((const LogString *) nullptr); }
 void Component::status_set_warning(const char *message) {
   if (!this->set_status_flag_(STATUS_LED_WARNING))
     return;
@@ -422,15 +425,11 @@ void Component::status_set_error(const LogString *message) {
     store_component_error_message(this, LOG_STR_ARG(message), true);
   }
 }
-void Component::status_clear_warning() {
-  if ((this->component_state_ & STATUS_LED_WARNING) == 0)
-    return;
+void Component::status_clear_warning_slow_path_() {
   this->component_state_ &= ~STATUS_LED_WARNING;
   ESP_LOGW(TAG, "%s cleared Warning flag", LOG_STR_ARG(this->get_component_log_str()));
 }
-void Component::status_clear_error() {
-  if ((this->component_state_ & STATUS_LED_ERROR) == 0)
-    return;
+void Component::status_clear_error_slow_path_() {
   this->component_state_ &= ~STATUS_LED_ERROR;
   ESP_LOGE(TAG, "%s cleared Error flag", LOG_STR_ARG(this->get_component_log_str()));
 }
@@ -534,7 +533,7 @@ uint32_t WarnIfComponentBlockingGuard::finish() {
   // 1ms granularity, so results were essentially random noise.
   if (global_runtime_stats != nullptr) {
     uint32_t duration_us = micros() - this->started_us_;
-    global_runtime_stats->record_component_time(this->component_, duration_us, curr_time);
+    global_runtime_stats->record_component_time(this->component_, duration_us);
   }
 #endif
   if (blocking_time > WARN_IF_BLOCKING_OVER_MS) {

@@ -37,7 +37,7 @@ class TimeoutFilter : public Filter, public Component {
   TemplatableValue<uint32_t> timeout_delay_{};
 };
 
-class DelayedOnOffFilter : public Filter, public Component {
+class DelayedOnOffFilter final : public Filter, public Component {
  public:
   optional<bool> new_value(bool value) override;
 

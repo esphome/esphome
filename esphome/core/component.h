@@ -240,7 +240,8 @@ class Component {
 
   bool status_has_error() const { return this->component_state_ & STATUS_LED_ERROR; }
 
-  void status_set_warning(const char *message = nullptr);
+  void status_set_warning();  // Set warning flag without message
+  void status_set_warning(const char *message);
   void status_set_warning(const LogString *message);
 
   void status_set_error();  // Set error flag without message
@@ -251,9 +252,17 @@ class Component {
   void status_set_error(const char *message);
   void status_set_error(const LogString *message);
 
-  void status_clear_warning();
+  void status_clear_warning() {
+    if ((this->component_state_ & STATUS_LED_WARNING) == 0)
+      return;
+    this->status_clear_warning_slow_path_();
+  }
 
-  void status_clear_error();
+  void status_clear_error() {
+    if ((this->component_state_ & STATUS_LED_ERROR) == 0)
+      return;
+    this->status_clear_error_slow_path_();
+  }
 
   /** Set warning status flag and automatically clear it after a timeout.
    *
@@ -504,6 +513,9 @@ class Component {
   bool cancel_defer(const std::string &name);  // NOLINT
   bool cancel_defer(const char *name);         // NOLINT
   bool cancel_defer(uint32_t id);              // NOLINT
+
+  void status_clear_warning_slow_path_();
+  void status_clear_error_slow_path_();
 
   // Ordered for optimal packing on 32-bit systems
   const LogString *component_source_{nullptr};
