@@ -7,7 +7,6 @@
 #include <bitset>
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <vector>
 
 namespace esphome {

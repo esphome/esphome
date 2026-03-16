@@ -4,7 +4,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <vector>
 #include "esphome/core/helpers.h"
 

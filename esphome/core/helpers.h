@@ -1741,8 +1741,8 @@ template<typename... Ts> struct Callback<void(Ts...)> {
   // This requires all bit patterns to be valid for void* (no trap representations).
   static_assert(sizeof(void *) == sizeof(std::uintptr_t), "void* must be the same size as uintptr_t");
 
-  void (*fn)(void *, Ts...);
-  void *ctx;
+  void (*fn)(void *, Ts...){nullptr};
+  void *ctx{nullptr};
 
   void call(Ts... args) const { this->fn(this->ctx, args...); }
 
@@ -1754,8 +1754,7 @@ template<typename... Ts> struct Callback<void(Ts...)> {
       // Small trivial callable (e.g. [this]() { this->method(); }) - store inline in ctx.
       // Safe under C++20 (P0593R6): byte copy into aligned storage implicitly
       // creates objects of implicit-lifetime types (trivially copyable qualifies).
-      Callback cb;
-      cb.ctx = nullptr;
+      Callback cb;  // fn and ctx are zero-initialized by default
       __builtin_memcpy(&cb.ctx, &callable, sizeof(DecayF));
       cb.fn = [](void *c, Ts... args) {
         alignas(DecayF) char buf[sizeof(DecayF)];
