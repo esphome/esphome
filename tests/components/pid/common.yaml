@@ -54,11 +54,11 @@ sensor:
   - platform: pid
     id: pid_threshold_high
     climate_id: pid_climate
-    type: DEADBAND_TRESHOLD_HIGH
+    type: DEADBAND_THRESHOLD_HIGH
   - platform: pid
     id: pid_threshold_low
     climate_id: pid_climate
-    type: DEADBAND_TRESHOLD_LOW
+    type: DEADBAND_THRESHOLD_LOW
 
 climate:
   - platform: pid

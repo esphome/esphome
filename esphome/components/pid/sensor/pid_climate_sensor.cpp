@@ -47,11 +47,11 @@ void PIDClimateSensor::update_from_parent_() {
       value = this->parent_->get_kd();
       this->publish_state(value);
       return;
-    case PID_SENSOR_TYPE_DEADBAND_TRESHOLD_HIGH:
+    case PID_SENSOR_TYPE_DEADBAND_THRESHOLD_HIGH:
       value = this->parent_->get_threshold_high();
       this->publish_state(value);
       return;
-    case PID_SENSOR_TYPE_DEADBAND_TRESHOLD_LOW:
+    case PID_SENSOR_TYPE_DEADBAND_THRESHOLD_LOW:
       value = this->parent_->get_threshold_low();
       this->publish_state(value);
       return;
