@@ -306,7 +306,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_MAX_SEND_QUEUE,
                 esp8266=4,  # Limited RAM, need to fail fast
                 esp32=8,  # More RAM, can buffer more
-                rp2040=5,  # Limited RAM
+                rp2040=8,  # Moderate RAM
                 bk72xx=8,  # Moderate RAM
                 nrf52=8,  # Moderate RAM
                 rtl87xx=8,  # Moderate RAM
