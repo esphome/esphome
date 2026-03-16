@@ -89,7 +89,7 @@ bool Modbus::tx_blocked() {
   // 2. There are bytes in our Rx buffer
   // 3. The last sent byte isn't more than frame_delay ms ago (i.e. wait to tell receivers that our previous Tx is done)
   // 4. The last received byte isn't more than frame_delay ms ago (i.e. wait to be sure there isn't more Rx coming)
-  // 5. If we're a client - also wait for the turnaround delay, to give the servers time to process the previous message
+  // N.B. turnaround_delay_ms_ is 0 for servers, so conditions 3 and 4 collapse to just frame_delay for them
   return this->available() || !this->rx_buffer_.empty() ||
          (now - this->last_send_ < this->last_send_tx_offset_ + this->frame_delay_ms_ + this->turnaround_delay_ms_) ||
          (now - this->last_modbus_byte_ < this->frame_delay_ms_ + this->turnaround_delay_ms_);
