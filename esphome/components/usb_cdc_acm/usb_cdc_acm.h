@@ -13,7 +13,7 @@
 #include <zephyr/sys/ring_buffer.h>
 #else
 #include "freertos/ringbuf.h"
-#include "tusb_cdc_acm.h"
+#include "tinyusb_cdc_acm.h"
 #endif
 
 #ifdef USE_UART_DEBUGGER
