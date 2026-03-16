@@ -599,7 +599,7 @@ class WarnIfComponentBlockingGuard {
     this->record_runtime_stats_();
 #endif
     if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
-      warn_blocking_(this->component_, blocking_time);
+      warn_blocking(this->component_, blocking_time);
     }
     return curr_time;
   }
@@ -616,7 +616,7 @@ class WarnIfComponentBlockingGuard {
 
  private:
   // Cold path for blocking warning - defined in component.cpp
-  static void __attribute__((noinline, cold)) warn_blocking_(Component *component, uint32_t blocking_time);
+  static void __attribute__((noinline, cold)) warn_blocking(Component *component, uint32_t blocking_time);
 };
 
 // Function to clear setup priority overrides after all components are set up
