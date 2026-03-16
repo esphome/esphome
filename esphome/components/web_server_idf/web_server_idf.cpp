@@ -74,12 +74,13 @@ int nonblocking_send(httpd_handle_t hd, int sockfd, const char *buf, size_t buf_
   // Use MSG_DONTWAIT to prevent blocking when TCP send buffer is full
   int ret = send(sockfd, buf, buf_len, flags | MSG_DONTWAIT);
   if (ret < 0) {
-    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+    const int err = errno;
+    if (err == EAGAIN || err == EWOULDBLOCK) {
       // Buffer full - retry later
       return HTTPD_SOCK_ERR_TIMEOUT;
     }
     // Real error
-    ESP_LOGD(TAG, "send error: errno %d", errno);
+    ESP_LOGD(TAG, "send error: errno %d", err);
     return HTTPD_SOCK_ERR_FAIL;
   }
   return ret;
@@ -921,7 +922,7 @@ esp_err_t AsyncWebServer::handle_multipart_upload_(httpd_req_t *r, const char *c
   });
 
   // Use heap buffer - 1460 bytes is too large for the httpd task stack
-  auto buffer = std::make_unique<char[]>(MULTIPART_CHUNK_SIZE);
+  auto buffer = std::make_unique_for_overwrite<char[]>(MULTIPART_CHUNK_SIZE);
   size_t bytes_since_yield = 0;
 
   for (size_t remaining = r->content_len; remaining > 0;) {

@@ -8,7 +8,7 @@
 
 #include <functional>
 #include "freertos/ringbuf.h"
-#include "tusb_cdc_acm.h"
+#include "tinyusb_cdc_acm.h"
 
 namespace esphome::usb_cdc_acm {
 
@@ -82,7 +82,7 @@ class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMC
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override;
-  void flush() override;
+  uart::FlushResult flush() override;
 
  protected:
   void check_logger_conflict() override;

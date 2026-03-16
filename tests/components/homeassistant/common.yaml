@@ -90,6 +90,19 @@ text_sensor:
     id: ha_hello_world_text2
     attribute: some_attribute
 
+event:
+  - platform: template
+    name: Test Event
+    id: test_event
+    event_types:
+      - test_event_type
+    on_event:
+      - homeassistant.event:
+          event: esphome.test_event
+          data:
+            event_name: !lambda |-
+              return event_type;
+
 time:
   - platform: homeassistant
     on_time:

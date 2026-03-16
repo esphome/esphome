@@ -81,9 +81,11 @@ void OpenThreadComponent::ot_main() {
   // Initialize the OpenThread stack
   // otLoggingSetLevel(OT_LOG_LEVEL_DEBG);
   ESP_ERROR_CHECK(esp_openthread_init(&config));
+  // Fetch OT instance once to avoid repeated call into OT stack
+  otInstance *instance = esp_openthread_get_instance();
 
 #if CONFIG_OPENTHREAD_STATE_INDICATOR_ENABLE
-  ESP_ERROR_CHECK(esp_openthread_state_indicator_init(esp_openthread_get_instance()));
+  ESP_ERROR_CHECK(esp_openthread_state_indicator_init(instance));
 #endif
 
 #if CONFIG_OPENTHREAD_LOG_LEVEL_DYNAMIC
@@ -104,34 +106,40 @@ void OpenThreadComponent::ot_main() {
   esp_cli_custom_command_init();
 #endif  // CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
 
+  ESP_LOGD(TAG, "Thread Version: %" PRIu16, otThreadGetVersion());
+
   otLinkModeConfig link_mode_config{};
 #if CONFIG_OPENTHREAD_FTD
   link_mode_config.mRxOnWhenIdle = true;
   link_mode_config.mDeviceType = true;
   link_mode_config.mNetworkData = true;
 #elif CONFIG_OPENTHREAD_MTD
-  if (this->poll_period > 0) {
-    if (otLinkSetPollPeriod(esp_openthread_get_instance(), this->poll_period) != OT_ERROR_NONE) {
-      ESP_LOGE(TAG, "Failed to set OpenThread pollperiod.");
+  if (this->poll_period_ > 0) {
+    if (otLinkSetPollPeriod(instance, this->poll_period_) != OT_ERROR_NONE) {
+      ESP_LOGE(TAG, "Failed to set pollperiod");
     }
-    uint32_t link_polling_period = otLinkGetPollPeriod(esp_openthread_get_instance());
-    ESP_LOGD(TAG, "Link Polling Period: %" PRIu32, link_polling_period);
+    ESP_LOGD(TAG, "Link Polling Period: %" PRIu32, otLinkGetPollPeriod(instance));
   }
-  link_mode_config.mRxOnWhenIdle = this->poll_period == 0;
+  link_mode_config.mRxOnWhenIdle = this->poll_period_ == 0;
   link_mode_config.mDeviceType = false;
   link_mode_config.mNetworkData = false;
 #endif
 
-  if (otThreadSetLinkMode(esp_openthread_get_instance(), link_mode_config) != OT_ERROR_NONE) {
-    ESP_LOGE(TAG, "Failed to set OpenThread linkmode.");
+  if (otThreadSetLinkMode(instance, link_mode_config) != OT_ERROR_NONE) {
+    ESP_LOGE(TAG, "Failed to set linkmode");
   }
-  link_mode_config = otThreadGetLinkMode(esp_openthread_get_instance());
-  ESP_LOGD(TAG,
-           "Link Mode Device Type: %s\n"
-           "Link Mode Network Data: %s\n"
-           "Link Mode RX On When Idle: %s",
-           link_mode_config.mDeviceType ? "true" : "false", link_mode_config.mNetworkData ? "true" : "false",
-           link_mode_config.mRxOnWhenIdle ? "true" : "false");
+#ifdef ESPHOME_LOG_HAS_DEBUG  // Fetch link mode from OT only when DEBUG
+  link_mode_config = otThreadGetLinkMode(instance);
+  ESP_LOGD(TAG, "Link Mode Device Type: %s, Network Data: %s, RX On When Idle: %s",
+           TRUEFALSE(link_mode_config.mDeviceType), TRUEFALSE(link_mode_config.mNetworkData),
+           TRUEFALSE(link_mode_config.mRxOnWhenIdle));
+#endif
+
+  if (this->output_power_.has_value()) {
+    if (const auto err = otPlatRadioSetTransmitPower(instance, *this->output_power_); err != OT_ERROR_NONE) {
+      ESP_LOGE(TAG, "Failed to set power: %s", otThreadErrorToString(err));
+    }
+  }
 
   // Run the main loop
 #if CONFIG_OPENTHREAD_CLI
@@ -142,13 +150,12 @@ void OpenThreadComponent::ot_main() {
 
 #ifndef USE_OPENTHREAD_FORCE_DATASET
   // Check if openthread has a valid dataset from a previous execution
-  otError error = otDatasetGetActiveTlvs(esp_openthread_get_instance(), &dataset);
+  otError error = otDatasetGetActiveTlvs(instance, &dataset);
   if (error != OT_ERROR_NONE) {
     // Make sure the length is 0 so we fallback to the configuration
     dataset.mLength = 0;
   } else {
-    ESP_LOGI(TAG, "Found OpenThread-managed dataset, ignoring esphome configuration\n"
-                  "(set force_dataset: true to override)");
+    ESP_LOGI(TAG, "Found existing dataset, ignoring config (force_dataset: true to override)");
   }
 #endif
 
@@ -168,6 +175,9 @@ void OpenThreadComponent::ot_main() {
   // Pass the existing dataset, or NULL which will use the preprocessor definitions
   ESP_ERROR_CHECK(esp_openthread_auto_start(dataset.mLength > 0 ? &dataset : nullptr));
 
+  // Register state change callback to update connected_ reactively instead of polling
+  otSetStateChangedCallback(instance, OpenThreadComponent::on_state_changed_, this);
+
   esp_openthread_launch_mainloop();
 
   // Clean up
@@ -180,6 +190,8 @@ void OpenThreadComponent::ot_main() {
   vTaskDelete(NULL);
 }
 
+int OpenThreadComponent::openthread_stop_() { return esp_openthread_mainloop_exit(); }
+
 network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   network::IPAddresses addresses;
   struct esp_ip6_addr if_ip6s[CONFIG_LWIP_IPV6_NUM_ADDRESSES];
@@ -187,11 +199,15 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   esp_netif_t *netif = esp_netif_get_default_netif();
   count = esp_netif_get_all_ip6(netif, if_ip6s);
   assert(count <= CONFIG_LWIP_IPV6_NUM_ADDRESSES);
+  assert(count < addresses.size());
   for (int i = 0; i < count; i++) {
     addresses[i + 1] = network::IPAddress(&if_ip6s[i]);
   }
   return addresses;
 }
+
+// not thread safe, only use in read-only use cases
+otInstance *OpenThreadComponent::get_openthread_instance_() { return esp_openthread_get_instance(); }
 
 std::optional<InstanceLock> InstanceLock::try_acquire(int delay) {
   if (esp_openthread_lock_acquire(delay)) {
