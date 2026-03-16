@@ -17,7 +17,7 @@ esphome:
           kp_multiplier: 0.0
           ki_multiplier: 0.0
           kd_multiplier: 0.0
-        - climate.pid.set_deadband_threshold_parameters:
+      - climate.pid.set_deadband_threshold_parameters:
           id: pid_climate
           threshold_high: 0.0
           threshold_low: 0.0
@@ -54,11 +54,11 @@ sensor:
   - platform: pid
     id: pid_threshold_high
     climate_id: pid_climate
-    type: THRESHOLD_HIGH
+    type: DEADBAND_TRESHOLD_HIGH
   - platform: pid
     id: pid_threshold_low
     climate_id: pid_climate
-    type: THRESHOLD_LOW
+    type: DEADBAND_TRESHOLD_LOW
 
 climate:
   - platform: pid
