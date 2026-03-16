@@ -97,7 +97,7 @@ class OnlineImage : public PollingComponent,
    */
   std::string last_modified_ = "";
 
-  time_t start_time_;
+  uint32_t start_time_{0};
 };
 
 template<typename... Ts> class OnlineImageSetUrlAction : public Action<Ts...> {

@@ -57,6 +57,9 @@ void TuyaLight::setup() {
         return;
       }
 
+      if (!this->color_type_.has_value())
+        return;
+
       float red, green, blue;
       switch (*this->color_type_) {
         case TuyaColorType::RGBHSV:
@@ -185,7 +188,7 @@ void TuyaLight::write_state(light::LightState *state) {
     }
   }
 
-  if (this->color_id_.has_value() && (brightness == 0.0f || !color_interlock_)) {
+  if (this->color_id_.has_value() && this->color_type_.has_value() && (brightness == 0.0f || !color_interlock_)) {
     std::string color_value;
     switch (*this->color_type_) {
       case TuyaColorType::RGB: {

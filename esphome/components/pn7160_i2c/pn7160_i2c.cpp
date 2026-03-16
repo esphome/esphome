@@ -34,7 +34,8 @@ uint8_t PN7160I2C::read_nfcc(nfc::NciMessage &rx, const uint16_t timeout) {
 }
 
 uint8_t PN7160I2C::write_nfcc(nfc::NciMessage &tx) {
-  if (this->write(tx.encode().data(), tx.encode().size()) == i2c::ERROR_OK) {
+  auto encoded = tx.encode();
+  if (this->write(encoded.data(), encoded.size()) == i2c::ERROR_OK) {
     return nfc::STATUS_OK;
   }
   return nfc::STATUS_FAILED;

@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_BOARD,
     CONF_COMPONENTS,
     CONF_DISABLED,
+    CONF_ENABLE_FULL_PRINTF,
     CONF_ENABLE_OTA_ROLLBACK,
     CONF_ESPHOME,
     CONF_FRAMEWORK,
@@ -58,6 +59,7 @@ from .const import (  # noqa
     KEY_EXTRA_BUILD_FILES,
     KEY_FLASH_SIZE,
     KEY_FULL_CERT_BUNDLE,
+    KEY_IDF_VERSION,
     KEY_PATH,
     KEY_REF,
     KEY_REPO,
@@ -419,9 +421,20 @@ def set_core_data(config):
     CORE.data[KEY_ESP32][KEY_EXCLUDE_COMPONENTS] = excluded
     # Initialize Arduino library tracking - cg.add_library() auto-enables libraries
     CORE.data[KEY_ESP32][KEY_ARDUINO_LIBRARIES] = set()
-    CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
-        config[CONF_FRAMEWORK][CONF_VERSION]
-    )
+    framework_ver = cv.Version.parse(config[CONF_FRAMEWORK][CONF_VERSION])
+    CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = framework_ver
+
+    # Store the underlying IDF version for framework-agnostic checks
+    if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
+        CORE.data[KEY_ESP32][KEY_IDF_VERSION] = framework_ver
+    elif (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is not None:
+        CORE.data[KEY_ESP32][KEY_IDF_VERSION] = idf_ver
+    else:
+        raise cv.Invalid(
+            f"Arduino version {framework_ver} has no known ESP-IDF version mapping. "
+            "Please update ARDUINO_IDF_VERSION_LOOKUP.",
+            path=[CONF_FRAMEWORK, CONF_VERSION],
+        )
 
     CORE.data[KEY_ESP32][KEY_BOARD] = config[CONF_BOARD]
     CORE.data[KEY_ESP32][KEY_FLASH_SIZE] = config[CONF_FLASH_SIZE]
@@ -464,6 +477,8 @@ def only_on_variant(*, supported=None, unsupported=None, msg_prefix="This featur
         unsupported = [unsupported]
 
     def validator_(obj):
+        if not CORE.is_esp32:
+            raise cv.Invalid(f"{msg_prefix} is only available on ESP32")
         variant = get_esp32_variant()
         if supported is not None and variant not in supported:
             raise cv.Invalid(
@@ -597,10 +612,12 @@ def _format_framework_espidf_version(
         ext = "tar.xz"
     else:
         ext = "zip"
-    # Build version string with dot-separated extra (e.g., "5.5.3.1" not "5.5.3-1")
+    # Build version string with extra separator based on type:
+    # numeric extra uses dot (e.g., "5.5.3.1"), string extra uses dash (e.g., "6.0.0-rc1")
     ver_str = f"{ver.major}.{ver.minor}.{ver.patch}"
     if ver.extra:
-        ver_str += f".{ver.extra}"
+        sep = "." if str(ver.extra).isdigit() else "-"
+        ver_str += f"{sep}{ver.extra}"
     if release:
         return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{ver_str}.{release}/esp-idf-v{ver_str}.{ext}"
     return f"pioarduino/framework-espidf@https://github.com/pioarduino/esp-idf/releases/download/v{ver_str}/esp-idf-v{ver_str}.{ext}"
@@ -890,10 +907,10 @@ def final_validate(config):
                 )
             )
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
-        if config[CONF_VARIANT] != VARIANT_ESP32S3:
+        if config[CONF_VARIANT] not in {VARIANT_ESP32S3, VARIANT_ESP32P4}:
             errs.append(
                 cv.Invalid(
-                    f"'{CONF_EXECUTE_FROM_PSRAM}' is only supported on {VARIANT_ESP32S3} variant",
+                    f"'{CONF_EXECUTE_FROM_PSRAM}' is not available on this esp32 variant",
                     path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_EXECUTE_FROM_PSRAM],
                 )
             )
@@ -971,6 +988,7 @@ KEY_USB_SERIAL_JTAG_SECONDARY_REQUIRED = "usb_serial_jtag_secondary_required"
 KEY_MBEDTLS_PEER_CERT_REQUIRED = "mbedtls_peer_cert_required"
 KEY_MBEDTLS_PKCS7_REQUIRED = "mbedtls_pkcs7_required"
 KEY_FATFS_REQUIRED = "fatfs_required"
+KEY_MBEDTLS_SHA512_REQUIRED = "mbedtls_sha512_required"
 
 
 def require_vfs_select() -> None:
@@ -1038,6 +1056,25 @@ def require_mbedtls_pkcs7() -> None:
     This prevents CONFIG_MBEDTLS_PKCS7_C from being disabled.
     """
     CORE.data[KEY_ESP32][KEY_MBEDTLS_PKCS7_REQUIRED] = True
+
+
+def require_mbedtls_sha512() -> None:
+    """Mark that mbedTLS SHA-384/SHA-512 support is required by a component.
+
+    Call this from components that need to verify TLS certificates or signatures
+    using SHA-384 or SHA-512 algorithms. This prevents CONFIG_MBEDTLS_SHA384_C
+    and CONFIG_MBEDTLS_SHA512_C from being disabled.
+    """
+    CORE.data[KEY_ESP32][KEY_MBEDTLS_SHA512_REQUIRED] = True
+
+
+def idf_version() -> cv.Version:
+    """Return the underlying ESP-IDF version regardless of framework choice.
+
+    For ESP-IDF builds this is the framework version directly.
+    For Arduino builds this is the mapped IDF version from ARDUINO_IDF_VERSION_LOOKUP.
+    """
+    return CORE.data[KEY_ESP32][KEY_IDF_VERSION]
 
 
 def require_fatfs() -> None:
@@ -1126,6 +1163,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(
                     CONF_INCLUDE_BUILTIN_IDF_COMPONENTS, default=[]
                 ): cv.ensure_list(cv.string_strict),
+                cv.Optional(CONF_ENABLE_FULL_PRINTF, default=False): cv.boolean,
                 cv.Optional(CONF_DISABLE_DEBUG_STUBS, default=True): cv.boolean,
                 cv.Optional(CONF_DISABLE_OCD_AWARE, default=True): cv.boolean,
                 cv.Optional(
@@ -1436,7 +1474,13 @@ async def to_code(config):
 
     cg.set_cpp_standard("gnu++20")
     cg.add_build_flag("-DUSE_ESP32")
+    cg.add_define("USE_NATIVE_64BIT_TIME")
     cg.add_build_flag("-Wl,-z,noexecstack")
+    # Arduino already wraps esp_panic_handler for its own backtrace handler,
+    # so only add our wrap when using ESP-IDF framework to avoid linker conflicts.
+    if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
+        cg.add_build_flag("-Wl,--wrap=esp_panic_handler")
+        cg.add_define("USE_ESP32_CRASH_HANDLER")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     variant = config[CONF_VARIANT]
     cg.add_build_flag(f"-DUSE_ESP32_VARIANT_{variant}")
@@ -1469,6 +1513,14 @@ async def to_code(config):
             "_ZSt25__throw_bad_function_callv",
         ]:
             cg.add_build_flag(f"-Wl,--wrap={mangled}")
+
+        # Wrap FILE*-based printf functions to eliminate newlib's _vfprintf_r
+        # (~11 KB). See printf_stubs.cpp for implementation.
+        if conf[CONF_ADVANCED][CONF_ENABLE_FULL_PRINTF]:
+            cg.add_define("USE_FULL_PRINTF")
+        else:
+            for symbol in ("vprintf", "printf", "fprintf"):
+                cg.add_build_flag(f"-Wl,--wrap={symbol}")
     else:
         cg.add_build_flag("-DUSE_ARDUINO")
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ARDUINO")
@@ -1627,8 +1679,13 @@ async def to_code(config):
     _configure_lwip_max_sockets(conf)
 
     if advanced[CONF_EXECUTE_FROM_PSRAM]:
-        add_idf_sdkconfig_option("CONFIG_SPIRAM_FETCH_INSTRUCTIONS", True)
-        add_idf_sdkconfig_option("CONFIG_SPIRAM_RODATA", True)
+        if variant == VARIANT_ESP32S3:
+            add_idf_sdkconfig_option("CONFIG_SPIRAM_FETCH_INSTRUCTIONS", True)
+            add_idf_sdkconfig_option("CONFIG_SPIRAM_RODATA", True)
+        elif variant == VARIANT_ESP32P4:
+            add_idf_sdkconfig_option("CONFIG_SPIRAM_XIP_FROM_PSRAM", True)
+        else:
+            raise ValueError("Unhandled ESP32 variant")
 
     # Apply LWIP core locking for better socket performance
     # This is already enabled by default in Arduino framework, where it provides
@@ -1778,6 +1835,21 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PKCS7_C", True)
     elif advanced[CONF_DISABLE_MBEDTLS_PKCS7]:
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_PKCS7_C", False)
+
+    # Disable SHA-384 and SHA-512 in mbedTLS
+    # ESPHome doesn't use either algorithm. SHA-384 shares the same
+    # compression function as SHA-512 (mbedtls_internal_sha512_process),
+    # so both must be disabled to eliminate the ~3KB software fallback
+    # that IDF 6.0's PSA parallel engine always links in.
+    # On IDF < 6.0 these are a single config and hardware-only (no
+    # software fallback), so there was no code size cost to leaving
+    # them enabled.
+    # Components that need SHA-384/SHA-512 can call require_mbedtls_sha512()
+    if idf_version() >= cv.Version(6, 0, 0) and not CORE.data[KEY_ESP32].get(
+        KEY_MBEDTLS_SHA512_REQUIRED, False
+    ):
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_SHA384_C", False)
+        add_idf_sdkconfig_option("CONFIG_MBEDTLS_SHA512_C", False)
 
     # Disable regi2c control functions in IRAM
     # Only needed if using analog peripherals (ADC, DAC, etc.) from ISRs while cache is disabled

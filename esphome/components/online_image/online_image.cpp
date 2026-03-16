@@ -129,7 +129,7 @@ void OnlineImage::update() {
   }
 
   ESP_LOGI(TAG, "Downloading image (Size: %zu)", total_size);
-  this->start_time_ = ::time(nullptr);
+  this->start_time_ = millis();
   this->enable_loop();
 }
 
@@ -155,8 +155,8 @@ void OnlineImage::loop() {
     // Finalize decoding
     this->end_decode();
 
-    ESP_LOGD(TAG, "Image fully downloaded, %zu bytes in %" PRIu32 "s", this->downloader_->get_bytes_read(),
-             (uint32_t) (::time(nullptr) - this->start_time_));
+    ESP_LOGD(TAG, "Image fully downloaded, %zu bytes in %" PRIu32 " ms", this->downloader_->get_bytes_read(),
+             millis() - this->start_time_);
 
     // Save caching headers
     this->etag_ = this->downloader_->get_response_header(ETAG_HEADER_NAME);

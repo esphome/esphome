@@ -209,7 +209,11 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
 
       esp_gatt_rsp_t response;
       if (param->read.is_long) {
-        if (this->value_.size() - this->value_read_offset_ < max_offset) {
+        if (this->value_read_offset_ >= this->value_.size()) {
+          response.attr_value.len = 0;
+          response.attr_value.offset = this->value_read_offset_;
+          this->value_read_offset_ = 0;
+        } else if (this->value_.size() - this->value_read_offset_ < max_offset) {
           //  Last message in the chain
           response.attr_value.len = this->value_.size() - this->value_read_offset_;
           response.attr_value.offset = this->value_read_offset_;
@@ -306,8 +310,8 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
           (*this->on_write_callback_)(this->value_, param->exec_write.conn_id);
         }
       }
-      esp_err_t err =
-          esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, nullptr);
+      esp_err_t err = esp_ble_gatts_send_response(gatts_if, param->exec_write.conn_id, param->exec_write.trans_id,
+                                                  ESP_GATT_OK, nullptr);
       if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_ble_gatts_send_response failed: %d", err);
       }
