@@ -12,6 +12,7 @@
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "proto.h"
 
 namespace esphome::api {
 
@@ -36,8 +37,6 @@ static constexpr uint16_t RX_BUF_NULL_TERMINATOR = 1;
 // Maximum number of messages to batch in a single write operation
 // Must be >= MAX_INITIAL_PER_BATCH in api_connection.h (enforced by static_assert there)
 static constexpr size_t MAX_MESSAGES_PER_BATCH = 34;
-
-class ProtoWriteBuffer;
 
 // Max client name length (e.g., "Home Assistant 2026.1.0.dev0" = 28 chars)
 static constexpr size_t CLIENT_INFO_NAME_MAX_LEN = 32;
@@ -161,7 +160,14 @@ class APIFrameHelper {
       this->nodelay_counter_ = 0;
     }
   }
-  virtual APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) = 0;
+  APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
+    // Resize buffer to include footer space if needed (e.g. Noise MAC)
+    if (frame_footer_size_)
+      buffer.get_buffer()->resize(buffer.get_buffer()->size() + frame_footer_size_);
+    MessageInfo msg{type, 0,
+                    static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_ - frame_footer_size_)};
+    return write_protobuf_messages(buffer, std::span<const MessageInfo>(&msg, 1));
+  }
   // Write multiple protobuf messages in a single operation
   // messages contains (message_type, offset, length) for each message in the buffer
   // The buffer contains all messages with appropriate padding before each

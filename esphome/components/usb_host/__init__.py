@@ -4,7 +4,9 @@ from esphome.components.esp32 import (
     VARIANT_ESP32P4,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
+    add_idf_component,
     add_idf_sdkconfig_option,
+    idf_version,
     only_on_variant,
 )
 import esphome.config_validation as cv
@@ -64,6 +66,9 @@ async def register_usb_client(config):
 
 
 async def to_code(config: ConfigType) -> None:
+    # IDF 6.0 moved USB host to an external component
+    if idf_version() >= cv.Version(6, 0, 0):
+        add_idf_component(name="espressif/usb", ref="1.3.0")
     add_idf_sdkconfig_option("CONFIG_USB_HOST_CONTROL_TRANSFER_MAX_SIZE", 1024)
     if config.get(CONF_ENABLE_HUBS):
         add_idf_sdkconfig_option("CONFIG_USB_HOST_HUBS_SUPPORTED", True)
