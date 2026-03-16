@@ -122,7 +122,7 @@ APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt, uint16_
   }
 
   // If backlog is clear, try direct send
-  if (this->overflow_buf_.empty()) {
+  if (this->overflow_buf_.empty()) [[likely]] {
     ssize_t sent =
         (iovcnt == 1) ? this->socket_->write(iov[0].iov_base, iov[0].iov_len) : this->socket_->writev(iov, iovcnt);
 
