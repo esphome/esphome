@@ -1752,15 +1752,10 @@ template<typename... Ts> struct Callback<void(Ts...)> {
       // creates objects of implicit-lifetime types (trivially copyable qualifies).
       Callback cb;
       cb.ctx = nullptr;
-      char *dst = reinterpret_cast<char *>(&cb.ctx);                // NOLINT(clang-analyzer-core.uninitialized.Assign)
-      const char *src = reinterpret_cast<const char *>(&callable);  // NOLINT(clang-analyzer-core.uninitialized.Assign)
-      for (size_t i = 0; i < sizeof(DecayF); ++i)
-        dst[i] = src[i];  // NOLINT(clang-analyzer-core.uninitialized.Assign)
+      __builtin_memcpy(&cb.ctx, &callable, sizeof(DecayF));
       cb.fn = [](void *c, Ts... args) {
         alignas(DecayF) char buf[sizeof(DecayF)];
-        const char *csrc = reinterpret_cast<const char *>(&c);  // NOLINT(clang-analyzer-core.uninitialized.Assign)
-        for (size_t i = 0; i < sizeof(DecayF); ++i)
-          buf[i] = csrc[i];  // NOLINT(clang-analyzer-core.uninitialized.Assign)
+        __builtin_memcpy(buf, &c, sizeof(DecayF));
         reinterpret_cast<DecayF *>(buf)->operator()(args...);
       };
       return cb;
