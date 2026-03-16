@@ -113,33 +113,30 @@ APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt, uint16_
 
   uint16_t skip = 0;
 
-  // If there is already backlogged data, try to drain then queue behind it
+  // If there is already backlogged data, try to drain it first
   if (!this->overflow_buf_.empty()) {
     if (this->overflow_buf_.try_drain(this->socket_.get()) == -1) {
       HELPER_LOG("Socket write failed with errno %d", errno);
       if (this->check_socket_write_err_(errno) != APIError::WOULD_BLOCK)
         return APIError::SOCKET_WRITE_FAILED;
     }
-    // If still backlogged, queue new data behind it
-    if (!this->overflow_buf_.empty())
-      return this->enqueue_or_fail_(iov, iovcnt, total_write_len, skip);
   }
 
-  // No backlog — try to send directly
-  // Optimize for single iovec case (common for plaintext API)
-  ssize_t sent =
-      (iovcnt == 1) ? this->socket_->write(iov[0].iov_base, iov[0].iov_len) : this->socket_->writev(iov, iovcnt);
+  // If no backlog (either drained or was empty), try to send directly
+  if (this->overflow_buf_.empty()) {
+    // Optimize for single iovec case (common for plaintext API)
+    ssize_t sent =
+        (iovcnt == 1) ? this->socket_->write(iov[0].iov_base, iov[0].iov_len) : this->socket_->writev(iov, iovcnt);
 
-  if (sent == -1) {
-    HELPER_LOG("Socket write failed with errno %d", errno);
-    if (this->check_socket_write_err_(errno) != APIError::WOULD_BLOCK)
-      return APIError::SOCKET_WRITE_FAILED;
-  } else if (static_cast<uint16_t>(sent) >= total_write_len) {
-    // All data sent successfully
-    return APIError::OK;
-  } else {
-    // Partially sent — queue the remainder
-    skip = static_cast<uint16_t>(sent);
+    if (sent == -1) {
+      HELPER_LOG("Socket write failed with errno %d", errno);
+      if (this->check_socket_write_err_(errno) != APIError::WOULD_BLOCK)
+        return APIError::SOCKET_WRITE_FAILED;
+    } else if (static_cast<uint16_t>(sent) >= total_write_len) {
+      return APIError::OK;  // All data sent successfully
+    } else {
+      skip = static_cast<uint16_t>(sent);  // Partially sent — queue the remainder
+    }
   }
 
   return this->enqueue_or_fail_(iov, iovcnt, total_write_len, skip);
