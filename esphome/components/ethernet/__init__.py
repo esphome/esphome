@@ -39,6 +39,7 @@ from esphome.const import (
     KEY_NATIVE_IDF,
     Platform,
     PlatformFramework,
+)
 from esphome.core import (
     CORE,
     CoroPriority,
@@ -626,15 +627,13 @@ def _filter_source_files() -> list[str]:
     # and pioarduino doesn't have it builtin (IDF 5.4.2 to 5.x)
     if eth_type != "JL1101":
         excluded.append("esp_eth_phy_jl1101.c")
-    elif CORE.is_esp32:
+    elif CORE.is_esp32 and not CORE.data.get(KEY_NATIVE_IDF, False):
         from esphome.components.esp32 import idf_version
 
-        # Mirror C preprocessor logic: only exclude for PlatformIO (non-native IDF)
-        is_native_idf = CORE.data.get(KEY_NATIVE_IDF, False)
-        if not is_native_idf:
-            ver = idf_version()
-            if cv.Version(5, 4, 2) <= ver < cv.Version(6, 0, 0):
-                excluded.append("esp_eth_phy_jl1101.c")
+        # pioarduino has JL1101 builtin on IDF 5.4.2-5.x; exclude custom driver
+        # to avoid shadowing. Native IDF builds always need the custom driver.
+        if cv.Version(5, 4, 2) <= idf_version() < cv.Version(6, 0, 0):
+            excluded.append("esp_eth_phy_jl1101.c")
     return excluded
 
 
