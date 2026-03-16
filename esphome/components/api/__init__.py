@@ -303,7 +303,7 @@ CONFIG_SCHEMA = cv.All(
             # Platform defaults based on available RAM and typical message rates:
             cv.SplitDefault(
                 CONF_MAX_SEND_QUEUE,
-                esp8266=5,  # Limited RAM, need to fail fast
+                esp8266=4,  # Limited RAM, need to fail fast
                 esp32=8,  # More RAM, can buffer more
                 rp2040=5,  # Limited RAM
                 bk72xx=8,  # Moderate RAM
