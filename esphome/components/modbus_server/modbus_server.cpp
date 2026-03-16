@@ -15,7 +15,7 @@ void ModbusServer::on_modbus_read_registers(uint8_t function_code, uint16_t star
            this->address_, function_code, start_address, number_of_registers);
 
   if (number_of_registers == 0 || number_of_registers > modbus::MAX_NUM_OF_REGISTERS_TO_READ) {
-    ESP_LOGW(TAG, "Invalid number of registers %d. Sending exception response.", number_of_registers);
+    ESP_LOGW(TAG, "Invalid number of registers %" PRIu16 ". Sending exception response.", number_of_registers);
     this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_ADDRESS);
     return;
   }
@@ -49,7 +49,7 @@ void ModbusServer::on_modbus_read_registers(uint8_t function_code, uint16_t star
           (current_address <= this->server_courtesy_response_.register_last_address)) {
         ESP_LOGD(TAG,
                  "Could not match any register to address 0x%02X, but default allowed. "
-                 "Returning default value: %d.",
+                 "Returning default value: %" PRIu16 ".",
                  current_address, this->server_courtesy_response_.register_value);
         sixteen_bit_response.push_back(this->server_courtesy_response_.register_value);
         current_address += 1;  // Just increment by 1, as the default response is a single register
@@ -87,13 +87,15 @@ void ModbusServer::on_modbus_write_registers(uint8_t function_code, const std::v
     }
     number_of_registers = uint16_t(data[3]) | (uint16_t(data[2]) << 8);
     if (number_of_registers == 0 || number_of_registers > modbus::MAX_NUM_OF_REGISTERS_TO_WRITE) {
-      ESP_LOGW(TAG, "Invalid number of registers %d. Sending exception response.", number_of_registers);
+      ESP_LOGW(TAG, "Invalid number of registers %" PRIu16 ". Sending exception response.", number_of_registers);
       this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
       return;
     }
     uint16_t payload_size = data[4];
     if (payload_size != number_of_registers * 2) {
-      ESP_LOGW(TAG, "Payload size of %d bytes is not 2 times the number of registers (%d). Sending exception response.",
+      ESP_LOGW(TAG,
+               "Payload size of %" PRIu16 " bytes is not 2 times the number of registers (%" PRIu16
+               "). Sending exception response.",
                payload_size, number_of_registers);
       this->send_error(function_code, ModbusExceptionCode::ILLEGAL_DATA_VALUE);
       return;
@@ -185,7 +187,7 @@ void ModbusServer::dump_config() {
                 "  Server Courtesy Response:\n"
                 "    Enabled: %s\n"
                 "    Register Last Address: 0x%02X\n"
-                "    Register Value: %d",
+                "    Register Value: %" PRIu16,
                 this->address_, this->server_courtesy_response_.enabled ? "true" : "false",
                 this->server_courtesy_response_.register_last_address, this->server_courtesy_response_.register_value);
 
