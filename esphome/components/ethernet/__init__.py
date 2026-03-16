@@ -621,10 +621,9 @@ def _filter_source_files() -> list[str]:
     from esphome.components.esp32 import idf_version
 
     # Custom JL1101 driver not needed on IDF >= 6.0 (uses generic PHY)
-    # or IDF >= 5.4.2 with PlatformIO (uses builtin driver)
-    if idf_version() >= cv.Version(6, 0, 0) or (
-        idf_version() >= cv.Version(5, 4, 2) and CORE.using_platformio
-    ):
+    # On IDF 5.4.2+ with PlatformIO, the .c file compiles to empty via
+    # its own preprocessor guard (PLATFORMIO is a C-level define)
+    if idf_version() >= cv.Version(6, 0, 0):
         excluded.append("esp_eth_phy_jl1101.c")
     return excluded
 
