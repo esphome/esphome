@@ -132,15 +132,16 @@ struct LogBuffer {
     // Null terminate
     this->data[this->full_() ? this->size - 1 : this->pos] = '\0';
   }
-  // Write ANSI reset sequence inline (4 bytes: "\033[0m") - avoids write_() call overhead
+  // Write ANSI reset sequence inline ("\033[0m") - avoids write_() call overhead
+  static constexpr uint16_t ANSI_RESET_LEN = 4;  // "\033[0m"
   void write_ansi_reset_() {
-    if (this->remaining_() >= 4) {
+    if (this->remaining_() >= ANSI_RESET_LEN) {
       char *p = this->current_();
       *p++ = '\033';
       *p++ = '[';
       *p++ = '0';
       *p++ = 'm';
-      this->pos += 4;
+      this->pos += ANSI_RESET_LEN;
     }
   }
   void strip_trailing_newlines_() {
