@@ -140,7 +140,7 @@ void ModbusController::on_modbus_read_registers(uint8_t function_code, uint16_t 
 
         std::vector<uint16_t> payload;
         payload.reserve(server_register->register_count * 2);
-        number_to_payload(payload, value, server_register->value_type);
+        modbus::helpers::number_to_payload(payload, value, server_register->value_type);
         sixteen_bit_response.insert(sixteen_bit_response.end(), payload.cbegin(), payload.cend());
         current_address += server_register->register_count;
         found = true;
@@ -258,7 +258,7 @@ void ModbusController::on_modbus_write_registers(uint8_t function_code, const st
 
   // Actually write to the registers:
   if (!for_each_register([&data](ServerRegister *server_register, uint16_t offset) {
-        int64_t number = payload_to_number(data, server_register->value_type, offset, 0xFFFFFFFF);
+        int64_t number = modbus::helpers::payload_to_number(data, server_register->value_type, offset, 0xFFFFFFFF);
         return server_register->write_lambda(number);
       })) {
     this->send_error(function_code, ModbusExceptionCode::SERVICE_DEVICE_FAILURE);
@@ -517,7 +517,8 @@ void ModbusController::loop() {
 
 void ModbusController::on_write_register_response(ModbusRegisterType register_type, uint16_t start_address,
                                                   const std::vector<uint8_t> &data) {
-  ESP_LOGV(TAG, "Command ACK 0x%X %d ", get_data<uint16_t>(data, 0), get_data<int16_t>(data, 1));
+  ESP_LOGV(TAG, "Command ACK 0x%X %d ", modbus::helpers::get_data<uint16_t>(data, 0),
+           modbus::helpers::get_data<int16_t>(data, 1));
 }
 
 void ModbusController::dump_sensors_() {
@@ -535,7 +536,7 @@ ModbusCommandItem ModbusCommandItem::create_read_command(
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
   cmd.register_type = register_type;
-  cmd.function_code = modbus_register_read_function(register_type);
+  cmd.function_code = modbus::helpers::modbus_register_read_function(register_type);
   cmd.register_address = start_address;
   cmd.register_count = register_count;
   cmd.on_data_func = std::move(handler);
@@ -548,7 +549,7 @@ ModbusCommandItem ModbusCommandItem::create_read_command(ModbusController *modbu
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
   cmd.register_type = register_type;
-  cmd.function_code = modbus_register_read_function(register_type);
+  cmd.function_code = modbus::helpers::modbus_register_read_function(register_type);
   cmd.register_address = start_address;
   cmd.register_count = register_count;
   cmd.on_data_func = [modbusdevice](ModbusRegisterType register_type, uint16_t start_address,
