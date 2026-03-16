@@ -31,8 +31,7 @@ ssize_t APIOverflowBuffer::try_drain(socket::Socket *socket) {
     // Entry fully sent — free it and advance
     Entry::destroy(front);
     this->queue_[this->head_] = nullptr;
-    if (++this->head_ >= API_MAX_SEND_QUEUE)
-      this->head_ = 0;
+    this->head_ = (this->head_ + 1) % API_MAX_SEND_QUEUE;
     this->count_--;
   }
 
@@ -63,8 +62,7 @@ bool APIOverflowBuffer::enqueue_iov(const struct iovec *iov, int iovcnt, uint16_
     }
   }
 
-  if (++this->tail_ >= API_MAX_SEND_QUEUE)
-    this->tail_ = 0;
+  this->tail_ = (this->tail_ + 1) % API_MAX_SEND_QUEUE;
   this->count_++;
   return true;
 }
