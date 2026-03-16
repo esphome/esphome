@@ -3,6 +3,7 @@
 
 #ifdef USE_ESP32
 
+#include <driver/gpio.h>
 #include <driver/ledc.h>
 #include <cinttypes>
 #include <esp_idf_version.h>
@@ -189,7 +190,7 @@ void LEDCOutput::setup() {
            this->phase_angle_, hpoint);
 
   ledc_channel_config_t chan_conf{};
-  chan_conf.gpio_num = this->pin_->get_pin();
+  chan_conf.gpio_num = static_cast<gpio_num_t>(this->pin_->get_pin());
   chan_conf.speed_mode = speed_mode;
   chan_conf.channel = chan_num;
   chan_conf.intr_type = LEDC_INTR_DISABLE;
