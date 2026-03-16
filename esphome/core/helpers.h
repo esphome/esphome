@@ -1756,7 +1756,7 @@ template<typename... Ts> struct Callback<void(Ts...)> {
       cb.fn = [](void *c, Ts... args) {
         alignas(DecayF) char buf[sizeof(DecayF)];
         __builtin_memcpy(buf, &c, sizeof(DecayF));
-        reinterpret_cast<DecayF *>(buf)->operator()(args...);
+        (*reinterpret_cast<DecayF *>(buf))(args...);
       };
       return cb;
     } else {
