@@ -558,20 +558,6 @@ async def _to_code_rp2040(var: cg.Pvariable, config: ConfigType) -> None:
     cg.add_library("lwIP_w5500", None)
 
 
-async def _to_code_rp2040(var: cg.Pvariable, config: ConfigType) -> None:
-    cg.add(var.set_clk_pin(config[CONF_CLK_PIN]))
-    cg.add(var.set_miso_pin(config[CONF_MISO_PIN]))
-    cg.add(var.set_mosi_pin(config[CONF_MOSI_PIN]))
-    cg.add(var.set_cs_pin(config[CONF_CS_PIN]))
-    if CONF_INTERRUPT_PIN in config:
-        cg.add(var.set_interrupt_pin(config[CONF_INTERRUPT_PIN]))
-    if CONF_RESET_PIN in config:
-        cg.add(var.set_reset_pin(config[CONF_RESET_PIN]))
-
-    cg.add_define("USE_ETHERNET_SPI")
-    cg.add_library("lwIP_w5500", None)
-
-
 def _final_validate_rmii_pins(config: ConfigType) -> None:
     """Validate that RMII pins are not used by other components."""
     if not CORE.is_esp32:
