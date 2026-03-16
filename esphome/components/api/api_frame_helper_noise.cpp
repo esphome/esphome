@@ -153,8 +153,7 @@ APIError APINoiseFrameHelper::loop() {
     }
   }
 
-  // Use base class implementation for buffer sending
-  return APIFrameHelper::loop();
+  return this->try_drain_overflow_buffer_();
 }
 
 /** Read a packet into the rx_buf_.

@@ -105,7 +105,7 @@ class APIFrameHelper {
   }
   virtual ~APIFrameHelper() = default;
   virtual APIError init() = 0;
-  virtual APIError loop();
+  virtual APIError loop() = 0;
   virtual APIError read_packet(ReadPacketBuffer *buffer) = 0;
   bool can_write_without_blocking() { return this->state_ == State::DATA && this->overflow_buf_.empty(); }
   int getpeername(struct sockaddr *addr, socklen_t *addrlen) { return socket_->getpeername(addr, addrlen); }
@@ -190,6 +190,16 @@ class APIFrameHelper {
   }
 
  protected:
+  // Drain any backlogged overflow data to the socket.
+  // Returns OK even for WOULD_BLOCK to avoid connection termination.
+  APIError try_drain_overflow_buffer_() {
+    if (!this->overflow_buf_.empty() && this->overflow_buf_.try_drain(this->socket_.get()) == -1) {
+      if (this->check_socket_write_err_(errno) != APIError::WOULD_BLOCK)
+        return APIError::SOCKET_WRITE_FAILED;
+    }
+    return APIError::OK;
+  }
+
   // Common implementation for writing raw data to socket
   APIError write_raw_(const struct iovec *iov, int iovcnt, uint16_t total_write_len);
 

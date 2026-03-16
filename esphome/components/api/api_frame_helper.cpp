@@ -100,17 +100,6 @@ const LogString *api_error_to_logstr(APIError err) {
   return LOG_STR("UNKNOWN");
 }
 
-// Default implementation for loop - handles draining overflow buffer
-APIError APIFrameHelper::loop() {
-  if (!this->overflow_buf_.empty() && this->overflow_buf_.try_drain(this->socket_.get()) == -1) {
-    HELPER_LOG("Socket write failed with errno %d", errno);
-    if (this->check_socket_write_err_(errno) != APIError::WOULD_BLOCK)
-      return APIError::SOCKET_WRITE_FAILED;
-  }
-  // Convert WOULD_BLOCK to OK to avoid connection termination
-  return APIError::OK;
-}
-
 // This method writes data to socket or buffers it
 APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt, uint16_t total_write_len) {
   // Returns APIError::OK if all data was sent or successfully queued.
