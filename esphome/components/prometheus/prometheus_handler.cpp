@@ -1201,6 +1201,8 @@ void PrometheusHandler::datetime_row_(AsyncResponseStream *stream, datetime::Dat
   if (obj->has_state()) {
     // We have a valid value, construct a datetime object
     ESPTime val{};
+    ESP_LOGD(TAG, "year=%d month=%d day=%d hour=%d minute=%d second=%d dow=%d doy=%d is_dst=%d", val.year, val.month,
+             val.day_of_month, val.hour, val.minute, val.second, val.day_of_week, val.day_of_year, val.is_dst);
     val.year = obj->year;
     val.month = obj->month;
     val.day_of_month = obj->day;
