@@ -3,7 +3,7 @@ esphome:
 
 host:
 api:
-  batch_delay: 0ms  # Disable batching to receive all state updates
+  batch_delay: 0ms # Disable batching to receive all state updates
 logger:
   level: DEBUG
 
@@ -15,8 +15,8 @@ sensor:
 
   - platform: copy
     source_id: source_nan_sensor
-    name: "Min NaN Sensor"
-    id: min_nan_sensor
+    name: "Min NaN"
+    id: min_nan
     filters:
       - min:
           window_size: 5
@@ -25,8 +25,8 @@ sensor:
 
   - platform: copy
     source_id: source_nan_sensor
-    name: "Max NaN Sensor"
-    id: max_nan_sensor
+    name: "Max NaN"
+    id: max_nan
     filters:
       - max:
           window_size: 5
@@ -42,7 +42,7 @@ script:
       - delay: 20ms
       - sensor.template.publish:
           id: source_nan_sensor
-          state: !lambda 'return NAN;'
+          state: !lambda "return NAN;"
       - delay: 20ms
       - sensor.template.publish:
           id: source_nan_sensor
@@ -50,7 +50,7 @@ script:
       - delay: 20ms
       - sensor.template.publish:
           id: source_nan_sensor
-          state: !lambda 'return NAN;'
+          state: !lambda "return NAN;"
       - delay: 20ms
       - sensor.template.publish:
           id: source_nan_sensor
@@ -62,7 +62,7 @@ script:
       - delay: 20ms
       - sensor.template.publish:
           id: source_nan_sensor
-          state: !lambda 'return NAN;'
+          state: !lambda "return NAN;"
       - delay: 20ms
       - sensor.template.publish:
           id: source_nan_sensor
@@ -74,7 +74,7 @@ script:
       - delay: 20ms
       - sensor.template.publish:
           id: source_nan_sensor
-          state: !lambda 'return NAN;'
+          state: !lambda "return NAN;"
 
 button:
   - platform: template
