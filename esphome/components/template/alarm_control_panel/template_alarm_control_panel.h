@@ -18,7 +18,7 @@
 namespace esphome::template_ {
 
 #ifdef USE_BINARY_SENSOR
-enum BinarySensorFlags : uint16_t {
+enum BinarySensorFlags : uint8_t {
   BINARY_SENSOR_MODE_NORMAL = 1 << 0,
   BINARY_SENSOR_MODE_BYPASS_ARMED_HOME = 1 << 1,
   BINARY_SENSOR_MODE_BYPASS_ARMED_NIGHT = 1 << 2,
@@ -42,7 +42,7 @@ enum TemplateAlarmControlPanelRestoreMode {
 
 #ifdef USE_BINARY_SENSOR
 struct SensorInfo {
-  uint16_t flags;
+  uint8_t flags;
   AlarmSensorType type;
   bool chime_active;
   bool auto_bypassed;
