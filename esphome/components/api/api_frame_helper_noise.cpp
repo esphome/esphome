@@ -153,11 +153,12 @@ APIError APINoiseFrameHelper::loop() {
     }
   }
 
-  APIError err = this->try_drain_overflow_buffer_();
-  if (err != APIError::OK) {
-    HELPER_LOG("Overflow drain failed with errno %d", errno);
+  if (!this->overflow_buf_.empty()) [[unlikely]] {
+    APIError err = this->drain_overflow_and_handle_errors_();
+    if (err != APIError::OK)
+      return err;
   }
-  return err;
+  return APIError::OK;
 }
 
 /** Read a packet into the rx_buf_.

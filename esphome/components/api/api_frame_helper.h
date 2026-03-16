@@ -190,15 +190,11 @@ class APIFrameHelper {
   }
 
  protected:
-  // Drain any backlogged overflow data to the socket.
-  // Returns OK even for WOULD_BLOCK to avoid connection termination.
-  APIError try_drain_overflow_buffer_() {
-    if (!this->overflow_buf_.empty() && this->overflow_buf_.try_drain(this->socket_.get()) == -1) {
-      if (this->check_socket_write_err_(errno) != APIError::WOULD_BLOCK)
-        return APIError::SOCKET_WRITE_FAILED;
-    }
-    return APIError::OK;
-  }
+  // Drain backlogged overflow data to the socket and handle errors.
+  // Called when overflow_buf_.empty() is false. Out-of-line to keep the
+  // fast path (empty check) inline at call sites.
+  // Returns OK for transient errors (WOULD_BLOCK), SOCKET_WRITE_FAILED for hard errors.
+  APIError drain_overflow_and_handle_errors_();
 
   // Common implementation for writing raw data to socket
   APIError write_raw_(const struct iovec *iov, int iovcnt, uint16_t total_write_len);

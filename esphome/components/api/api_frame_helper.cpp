@@ -100,6 +100,15 @@ const LogString *api_error_to_logstr(APIError err) {
   return LOG_STR("UNKNOWN");
 }
 
+APIError APIFrameHelper::drain_overflow_and_handle_errors_() {
+  if (this->overflow_buf_.try_drain(this->socket_.get()) == -1) {
+    HELPER_LOG("Socket write failed with errno %d", errno);
+    if (this->check_socket_write_err_(errno) != APIError::WOULD_BLOCK)
+      return APIError::SOCKET_WRITE_FAILED;
+  }
+  return APIError::OK;
+}
+
 // Write data to socket, overflow to backlog buffer if LWIP TCP send buffer is full.
 // Returns OK if all data was sent or successfully queued.
 // Returns SOCKET_WRITE_FAILED on hard error (sets state to FAILED).
@@ -114,11 +123,9 @@ APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt, uint16_
 
   // Drain any existing backlog first
   if (!this->overflow_buf_.empty()) [[unlikely]] {
-    if (this->overflow_buf_.try_drain(this->socket_.get()) == -1) {
-      HELPER_LOG("Socket write failed with errno %d", errno);
-      if (this->check_socket_write_err_(errno) != APIError::WOULD_BLOCK)
-        return APIError::SOCKET_WRITE_FAILED;
-    }
+    APIError err = this->drain_overflow_and_handle_errors_();
+    if (err != APIError::OK)
+      return err;
   }
 
   // If backlog is clear, try direct send
