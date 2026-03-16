@@ -295,45 +295,41 @@ const char *LIS2DH12Component::get_orientation_string_() {
   return "Unknown";
 }
 
-static void binary_event_debounce(bool state, uint32_t now, uint32_t &last_ms, Trigger<> &trigger, uint16_t cooldown_ms,
-                                  void *bs, const char *desc) {
+static void trigger_with_cooldown(bool state, uint32_t now, uint32_t &last_ms, Trigger<> &trigger, uint16_t cooldown_ms,
+                                  const char *desc) {
   if (state && now - last_ms > cooldown_ms) {
     ESP_LOGV(TAG, "%s detected", desc);
     trigger.trigger();
     last_ms = now;
-#ifdef USE_BINARY_SENSOR
-    if (bs != nullptr) {
-      static_cast<binary_sensor::BinarySensor *>(bs)->publish_state(true);
-    }
-#endif
-  } else if (!state && now - last_ms > cooldown_ms && bs != nullptr) {
-#ifdef USE_BINARY_SENSOR
-    static_cast<binary_sensor::BinarySensor *>(bs)->publish_state(false);
-#endif
   }
 }
-
-#ifdef USE_BINARY_SENSOR
-#define BS_OPTIONAL_PTR(x) ((void *) (x))
-#else
-#define BS_OPTIONAL_PTR(x) (nullptr)
-#endif
 
 void LIS2DH12Component::process_events_() {
   uint32_t now = millis();
 
-  binary_event_debounce(this->status_.click.sclick, now, this->status_.last_tap_ms, this->tap_trigger_,
-                        EVENT_COOLDOWN_MS, BS_OPTIONAL_PTR(this->tap_binary_sensor_), "Tap");
-  binary_event_debounce(this->status_.click.dclick, now, this->status_.last_double_tap_ms, this->double_tap_trigger_,
-                        EVENT_COOLDOWN_MS, BS_OPTIONAL_PTR(this->double_tap_binary_sensor_), "Double Tap");
+  bool tap = this->status_.click.sclick;
+  bool double_tap = this->status_.click.dclick;
+  bool freefall = this->status_.int2.ia;
+  bool active = this->status_.click.ia || this->status_.int1.raw != this->status_.int1_old.raw;
 
-  // Freefall: INT2 configured as AOI=1 with low bits only → all axes below threshold
-  binary_event_debounce(this->status_.int2.ia, now, this->status_.last_freefall_ms, this->freefall_trigger_,
-                        EVENT_COOLDOWN_MS, BS_OPTIONAL_PTR(this->freefall_binary_sensor_), "Freefall");
-  // Activity: click or orientation change detected (device is being moved)
-  binary_event_debounce(this->status_.click.ia || this->status_.int1.raw != this->status_.int1_old.raw, now,
-                        this->status_.last_active_ms, this->active_trigger_, EVENT_COOLDOWN_MS,
-                        BS_OPTIONAL_PTR(this->active_binary_sensor_), "Activity");
+  trigger_with_cooldown(tap, now, this->status_.last_tap_ms, this->tap_trigger_, EVENT_COOLDOWN_MS, "Tap");
+  trigger_with_cooldown(double_tap, now, this->status_.last_double_tap_ms, this->double_tap_trigger_, EVENT_COOLDOWN_MS,
+                        "Double Tap");
+  trigger_with_cooldown(freefall, now, this->status_.last_freefall_ms, this->freefall_trigger_, EVENT_COOLDOWN_MS,
+                        "Freefall");
+  trigger_with_cooldown(active, now, this->status_.last_active_ms, this->active_trigger_, EVENT_COOLDOWN_MS,
+                        "Activity");
+
+#ifdef USE_BINARY_SENSOR
+  if (this->tap_binary_sensor_)
+    this->tap_binary_sensor_->publish_state(tap);
+  if (this->double_tap_binary_sensor_)
+    this->double_tap_binary_sensor_->publish_state(double_tap);
+  if (this->freefall_binary_sensor_)
+    this->freefall_binary_sensor_->publish_state(freefall);
+  if (this->active_binary_sensor_)
+    this->active_binary_sensor_->publish_state(active);
+#endif
 
   if (this->status_.int1.ia && this->status_.int1.raw != this->status_.int1_old.raw) {
     ESP_LOGVV(TAG, "Orientation changed");
