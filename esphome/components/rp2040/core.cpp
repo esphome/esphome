@@ -1,8 +1,10 @@
 #ifdef USE_RP2040
 
 #include "core.h"
-#include "crash_handler.h"
 #include "esphome/core/defines.h"
+#ifdef USE_RP2040_CRASH_HANDLER
+#include "crash_handler.h"
+#endif
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 
@@ -25,7 +27,9 @@ void arch_restart() {
 }
 
 void arch_init() {
+#ifdef USE_RP2040_CRASH_HANDLER
   rp2040::crash_handler_read_and_clear();
+#endif
 #if USE_RP2040_WATCHDOG_TIMEOUT > 0
   watchdog_enable(USE_RP2040_WATCHDOG_TIMEOUT, false);
 #endif
