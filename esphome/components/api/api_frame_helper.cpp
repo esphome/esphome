@@ -103,9 +103,8 @@ const LogString *api_error_to_logstr(APIError err) {
 // Default implementation for loop - handles draining overflow buffer
 APIError APIFrameHelper::loop() {
   if (!this->overflow_buf_.empty() && this->overflow_buf_.try_drain(this->socket_.get()) == -1) {
-    const int sav_errno = errno;
-    HELPER_LOG("Socket write failed with errno %d", sav_errno);
-    if (this->check_socket_write_err_(sav_errno) != APIError::WOULD_BLOCK)
+    HELPER_LOG("Socket write failed with errno %d", errno);
+    if (this->check_socket_write_err_(errno) != APIError::WOULD_BLOCK)
       return APIError::SOCKET_WRITE_FAILED;
   }
   // Convert WOULD_BLOCK to OK to avoid connection termination
@@ -144,9 +143,8 @@ APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt, uint16_
       (iovcnt == 1) ? this->socket_->write(iov[0].iov_base, iov[0].iov_len) : this->socket_->writev(iov, iovcnt);
 
   if (sent == -1) {
-    const int sav_errno = errno;
-    HELPER_LOG("Socket write failed with errno %d", sav_errno);
-    if (this->check_socket_write_err_(sav_errno) != APIError::WOULD_BLOCK)
+    HELPER_LOG("Socket write failed with errno %d", errno);
+    if (this->check_socket_write_err_(errno) != APIError::WOULD_BLOCK)
       return APIError::SOCKET_WRITE_FAILED;
     // Socket would block — queue everything
     return this->enqueue_or_fail_(iov, iovcnt, total_write_len, 0);
