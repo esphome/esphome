@@ -399,7 +399,7 @@ class WiFiPowerSaveListener {
 };
 
 /// This component is responsible for managing the ESP WiFi interface.
-class WiFiComponent : public Component {
+class WiFiComponent final : public Component {
  public:
   /// Construct a WiFiComponent.
   WiFiComponent();

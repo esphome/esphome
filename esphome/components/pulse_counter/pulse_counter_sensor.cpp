@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 
 #ifdef HAS_PCNT
+#include <driver/gpio.h>
 #include <esp_private/esp_clk.h>
 #include <hal/pcnt_ll.h>
 #endif
@@ -76,8 +77,8 @@ bool HwPulseCounterStorage::pulse_counter_setup(InternalGPIOPin *pin) {
   }
 
   pcnt_chan_config_t chan_config = {
-      .edge_gpio_num = this->pin->get_pin(),
-      .level_gpio_num = -1,
+      .edge_gpio_num = static_cast<gpio_num_t>(this->pin->get_pin()),
+      .level_gpio_num = GPIO_NUM_NC,
   };
   error = pcnt_new_channel(this->pcnt_unit, &chan_config, &this->pcnt_channel);
   if (error != ESP_OK) {
