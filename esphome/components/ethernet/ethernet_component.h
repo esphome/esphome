@@ -22,6 +22,10 @@ extern "C" eth_esp32_emac_config_t eth_esp32_emac_default_config(void);
 #endif
 #endif  // USE_ESP32
 
+#ifdef USE_RP2040
+#include <W5500lwIP.h>
+#endif
+
 namespace esphome::ethernet {
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
@@ -135,6 +139,15 @@ class EthernetComponent : public Component {
 #endif  // USE_ETHERNET_SPI
 #endif  // USE_ESP32
 
+#ifdef USE_RP2040
+  void set_clk_pin(uint8_t clk_pin);
+  void set_miso_pin(uint8_t miso_pin);
+  void set_mosi_pin(uint8_t mosi_pin);
+  void set_cs_pin(uint8_t cs_pin);
+  void set_interrupt_pin(int8_t interrupt_pin);
+  void set_reset_pin(int8_t reset_pin);
+#endif  // USE_RP2040
+
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   void add_ip_state_listener(EthernetIPStateListener *listener) { this->ip_state_listeners_.push_back(listener); }
 #endif
@@ -199,6 +212,18 @@ class EthernetComponent : public Component {
   esp_eth_handle_t eth_handle_;
   esp_eth_phy_t *phy_{nullptr};
 #endif  // USE_ESP32
+
+#ifdef USE_RP2040
+  static constexpr uint32_t LINK_CHECK_INTERVAL = 500;  // ms between link/IP polls
+  Wiznet5500lwIP *eth_{nullptr};
+  uint32_t last_link_check_{0};
+  uint8_t clk_pin_;
+  uint8_t miso_pin_;
+  uint8_t mosi_pin_;
+  uint8_t cs_pin_;
+  int8_t interrupt_pin_{-1};
+  int8_t reset_pin_{-1};
+#endif  // USE_RP2040
 
   // Common members
 #ifdef USE_ETHERNET_MANUAL_IP

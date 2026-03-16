@@ -158,6 +158,8 @@ _IDF6_ETHERNET_COMPONENTS: dict[str, IDFRegistryComponent] = {
 }
 
 SPI_ETHERNET_TYPES = ["W5500", "DM9051"]
+# RP2040-supported SPI ethernet types
+RP2040_SPI_ETHERNET_TYPES = ["W5500"]
 SPI_ETHERNET_DEFAULT_POLLING_INTERVAL = TimePeriodMilliseconds(milliseconds=10)
 
 emac_rmii_clock_mode_t = cg.global_ns.enum("emac_rmii_clock_mode_t")
@@ -273,6 +275,11 @@ def _validate(config):
                     f"{config[CONF_TYPE]} PHY requires RMII interface and is only supported "
                     f"on ESP32 classic and ESP32-P4, not {variant}"
                 )
+    elif CORE.is_rp2040 and config[CONF_TYPE] not in RP2040_SPI_ETHERNET_TYPES:
+        raise cv.Invalid(
+            f"Only {', '.join(RP2040_SPI_ETHERNET_TYPES)} are supported on RP2040, "
+            f"not {config[CONF_TYPE]}"
+        )
     return config
 
 
@@ -330,18 +337,21 @@ SPI_SCHEMA = cv.All(
                 cv.Required(CONF_CS_PIN): pins.internal_gpio_output_pin_number,
                 cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_number,
                 cv.Optional(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
-                cv.Optional(CONF_CLOCK_SPEED, default="26.67MHz"): cv.All(
-                    cv.frequency, cv.int_range(int(8e6), int(80e6))
+                cv.SplitDefault(CONF_CLOCK_SPEED, esp32="26.67MHz"): cv.All(
+                    cv.only_on_esp32,
+                    cv.frequency,
+                    cv.int_range(int(8e6), int(80e6)),
                 ),
                 # Set default value (SPI_ETHERNET_DEFAULT_POLLING_INTERVAL) at _validate()
                 cv.Optional(CONF_POLLING_INTERVAL): cv.All(
+                    cv.only_on_esp32,
                     cv.positive_time_period_milliseconds,
                     cv.Range(min=TimePeriodMilliseconds(milliseconds=1)),
                 ),
             }
         ),
     ),
-    cv.only_on([Platform.ESP32]),
+    cv.only_on([Platform.ESP32, Platform.RP2040]),
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -431,6 +441,8 @@ async def to_code(config):
 
     if CORE.is_esp32:
         await _to_code_esp32(var, config)
+    elif CORE.is_rp2040:
+        await _to_code_rp2040(var, config)
 
     cg.add(var.set_type(ETHERNET_TYPES[config[CONF_TYPE]]))
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
@@ -464,7 +476,7 @@ async def to_code(config):
     CORE.add_job(final_step)
 
 
-async def _to_code_esp32(var, config):
+async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
     from esphome.components.esp32 import (
         add_idf_component,
         add_idf_sdkconfig_option,
@@ -530,6 +542,20 @@ async def _to_code_esp32(var, config):
         component := _IDF6_ETHERNET_COMPONENTS.get(config[CONF_TYPE])
     ):
         add_idf_component(name=component.name, ref=component.version)
+
+
+async def _to_code_rp2040(var: cg.Pvariable, config: ConfigType) -> None:
+    cg.add(var.set_clk_pin(config[CONF_CLK_PIN]))
+    cg.add(var.set_miso_pin(config[CONF_MISO_PIN]))
+    cg.add(var.set_mosi_pin(config[CONF_MOSI_PIN]))
+    cg.add(var.set_cs_pin(config[CONF_CS_PIN]))
+    if CONF_INTERRUPT_PIN in config:
+        cg.add(var.set_interrupt_pin(config[CONF_INTERRUPT_PIN]))
+    if CONF_RESET_PIN in config:
+        cg.add(var.set_reset_pin(config[CONF_RESET_PIN]))
+
+    cg.add_define("USE_ETHERNET_SPI")
+    cg.add_library("lwIP_w5500", None)
 
 
 def _final_validate_rmii_pins(config: ConfigType) -> None:
@@ -611,6 +637,7 @@ _platform_filter = filter_source_files_from_platform(
             PlatformFramework.ESP32_IDF,
             PlatformFramework.ESP32_ARDUINO,
         },
+        "ethernet_component_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
         "esp_eth_phy_jl1101.c": {
             PlatformFramework.ESP32_IDF,
             PlatformFramework.ESP32_ARDUINO,

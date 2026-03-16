@@ -28,6 +28,9 @@ CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["esp32"]
 MULTI_CONF = True
 
+CONF_PDM = "pdm"
+CONF_ADC_TYPE = "adc_type"
+
 CONF_I2S_DOUT_PIN = "i2s_dout_pin"
 CONF_I2S_DIN_PIN = "i2s_din_pin"
 CONF_I2S_MCLK_PIN = "i2s_mclk_pin"
@@ -257,29 +260,26 @@ CONFIG_SCHEMA = cv.All(
 
 
 @dataclass
-class I2SPortData:
-    """I2S port assignments, computed during final validation."""
+class I2SAudioData:
+    """I2S audio component state stored in CORE.data."""
 
     port_map: dict[str, int] = field(default_factory=dict)
 
 
-I2S_PORT_DATA_KEY = "i2s_port_data"
+def _get_data() -> I2SAudioData:
+    if CONF_I2S_AUDIO not in CORE.data:
+        CORE.data[CONF_I2S_AUDIO] = I2SAudioData()
+    return CORE.data[CONF_I2S_AUDIO]
 
 
-def _get_port_data() -> I2SPortData:
-    if I2S_PORT_DATA_KEY not in CORE.data:
-        CORE.data[I2S_PORT_DATA_KEY] = I2SPortData()
-    return CORE.data[I2S_PORT_DATA_KEY]
-
-
-def _assign_ports():
+def _assign_ports() -> None:
     """Assign I2S port numbers, prioritizing instances with microphone children.
 
     Microphones (especially PDM) require port 0 on most ESP32 variants.
     This runs once and stores the mapping in CORE.data.
     """
-    port_data = _get_port_data()
-    if port_data.port_map:
+    data = _get_data()
+    if data.port_map:
         return
 
     full_config = fv.full_config.get()
@@ -291,7 +291,7 @@ def _assign_ports():
     for mic_config in full_config.get("microphone", []):
         if CONF_I2S_AUDIO_ID not in mic_config:
             continue
-        if mic_config.get("pdm") or mic_config.get("adc_type") == "internal":
+        if mic_config.get(CONF_PDM) or mic_config.get(CONF_ADC_TYPE) == "internal":
             if port0_parent_id is not None:
                 raise cv.Invalid(
                     "Only one PDM/ADC microphone is supported (requires I2S port 0)"
@@ -301,12 +301,12 @@ def _assign_ports():
     # Assign ports: port 0 parent first (if any), rest get sequential
     next_port = 0
     if port0_parent_id is not None:
-        port_data.port_map[port0_parent_id] = next_port
+        data.port_map[port0_parent_id] = next_port
         next_port += 1
     for config in i2s_configs:
         config_id = str(config[CONF_ID])
         if config_id != port0_parent_id:
-            port_data.port_map[config_id] = next_port
+            data.port_map[config_id] = next_port
             next_port += 1
 
 
@@ -341,11 +341,9 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     # Assign I2S port from _final_validate computed mapping
-    port_data = _get_port_data()
-    if not port_data.port_map:
-        raise cv.Invalid("I2S port assignments not computed")
-    if (port := port_data.port_map.get(str(config[CONF_ID]))) is None:
-        raise cv.Invalid(f"No I2S port assigned for {config[CONF_ID]}")
+    data = _get_data()
+    if (port := data.port_map.get(str(config[CONF_ID]))) is None:
+        raise ValueError(f"No I2S port assigned for {config[CONF_ID]}")
     cg.add(var.set_port(port))
 
     # Re-enable ESP-IDF's I2S driver (excluded by default to save compile time)

@@ -13,9 +13,11 @@ from esphome.const import (
 )
 
 from .. import (
+    CONF_ADC_TYPE,
     CONF_I2S_DIN_PIN,
     CONF_LEFT,
     CONF_MONO,
+    CONF_PDM,
     CONF_RIGHT,
     I2SAudioIn,
     i2s_audio_component_schema,
@@ -29,9 +31,7 @@ CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["i2s_audio"]
 
 CONF_ADC_PIN = "adc_pin"
-CONF_ADC_TYPE = "adc_type"
 CONF_CORRECT_DC_OFFSET = "correct_dc_offset"
-CONF_PDM = "pdm"
 
 I2SAudioMicrophone = i2s_audio_ns.class_(
     "I2SAudioMicrophone", I2SAudioIn, microphone.Microphone, cg.Component
