@@ -55,8 +55,8 @@ IRAM_ATTR InterruptLock::~InterruptLock() { restore_interrupts(state_); }
 // Both acquire the async_context recursive mutex to prevent IRQ callbacks from
 // firing during critical sections.
 //
-// When neither WiFi nor Ethernet is configured, LwIPLock is
-// defined inline as a no-op in helpers.h.
+// When neither WiFi nor Ethernet is configured, this is a no-op since
+// there's no network stack and no lwip callbacks to race with.
 #if defined(USE_WIFI)
 LwIPLock::LwIPLock() { cyw43_arch_lwip_begin(); }
 LwIPLock::~LwIPLock() { cyw43_arch_lwip_end(); }
