@@ -52,7 +52,8 @@ class APIOverflowBuffer {
   uint8_t count() const { return this->count_; }
 
   /// Try to drain queued data to the socket.
-  /// Returns bytes-written >= 0 on success/partial, -1 on hard error (errno set).
+  /// Returns bytes-written > 0 on success/partial, 0 if all drained,
+  /// -1 on error (caller must check errno to distinguish EWOULDBLOCK from hard errors).
   /// Frees entries as they are fully sent.
   ssize_t try_drain(socket::Socket *socket);
 

@@ -18,7 +18,8 @@ ssize_t APIOverflowBuffer::try_drain(socket::Socket *socket) {
     ssize_t sent = socket->write(front->current_data(), front->remaining());
 
     if (sent <= 0) {
-      // -1 = error (caller checks errno), 0 = would block
+      // -1 = error (caller checks errno for EWOULDBLOCK vs hard error)
+      // 0 = nothing sent (treat as no progress)
       return sent;
     }
 
