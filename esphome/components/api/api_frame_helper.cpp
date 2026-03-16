@@ -128,11 +128,9 @@ APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt, uint16_
 
   // If there is already backlogged data, try to drain then queue behind it
   if (!this->overflow_buf_.empty()) {
-    ssize_t ret = this->overflow_buf_.try_drain(this->socket_.get());
-    if (ret == -1) {
-      const int sav_errno = errno;
-      HELPER_LOG("Socket write failed with errno %d", sav_errno);
-      if (this->check_socket_write_err_(sav_errno) != APIError::WOULD_BLOCK)
+    if (this->overflow_buf_.try_drain(this->socket_.get()) == -1) {
+      HELPER_LOG("Socket write failed with errno %d", errno);
+      if (this->check_socket_write_err_(errno) != APIError::WOULD_BLOCK)
         return APIError::SOCKET_WRITE_FAILED;
     }
     // If still backlogged, queue new data behind it; otherwise fall through to direct send
