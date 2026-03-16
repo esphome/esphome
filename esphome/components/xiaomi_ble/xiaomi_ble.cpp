@@ -5,7 +5,12 @@
 #ifdef USE_ESP32
 
 #include <vector>
+#include <esp_idf_version.h>
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#include <psa/crypto.h>
+#else
 #include "mbedtls/ccm.h"
+#endif
 
 namespace esphome {
 namespace xiaomi_ble {
@@ -314,6 +319,32 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
   memcpy(vector.iv + 6, v + 2, 3);               // sensor type (2) + packet id (1)
   memcpy(vector.iv + 9, v + raw.size() - 7, 3);  // payload counter
 
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  // PSA AEAD expects ciphertext + tag concatenated
+  uint8_t ct_with_tag[sizeof(vector.ciphertext) + sizeof(vector.tag)];
+  memcpy(ct_with_tag, vector.ciphertext, vector.datasize);
+  memcpy(ct_with_tag + vector.datasize, vector.tag, vector.tagsize);
+  size_t ct_with_tag_size = vector.datasize + vector.tagsize;
+
+  psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+  psa_set_key_type(&attributes, PSA_KEY_TYPE_AES);
+  psa_set_key_bits(&attributes, vector.keysize * 8);
+  psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_DECRYPT);
+  psa_set_key_algorithm(&attributes, PSA_ALG_AEAD_WITH_SHORTENED_TAG(PSA_ALG_CCM, vector.tagsize));
+
+  mbedtls_svc_key_id_t key_id;
+  if (psa_import_key(&attributes, vector.key, vector.keysize, &key_id) != PSA_SUCCESS) {
+    ESP_LOGVV(TAG, "decrypt_xiaomi_payload(): psa_import_key() failed.");
+    return false;
+  }
+
+  size_t plaintext_length;
+  psa_status_t status = psa_aead_decrypt(key_id, PSA_ALG_AEAD_WITH_SHORTENED_TAG(PSA_ALG_CCM, vector.tagsize),
+                                         vector.iv, vector.ivsize, vector.authdata, vector.authsize, ct_with_tag,
+                                         ct_with_tag_size, vector.plaintext, vector.datasize, &plaintext_length);
+  psa_destroy_key(key_id);
+  bool decrypt_ok = (status == PSA_SUCCESS && plaintext_length == vector.datasize);
+#else
   mbedtls_ccm_context ctx;
   mbedtls_ccm_init(&ctx);
 
@@ -326,7 +357,11 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
 
   ret = mbedtls_ccm_auth_decrypt(&ctx, vector.datasize, vector.iv, vector.ivsize, vector.authdata, vector.authsize,
                                  vector.ciphertext, vector.plaintext, vector.tag, vector.tagsize);
-  if (ret) {
+  mbedtls_ccm_free(&ctx);
+  bool decrypt_ok = (ret == 0);
+#endif
+
+  if (!decrypt_ok) {
     uint8_t mac_address[6] = {0};
     memcpy(mac_address, mac_reverse + 5, 1);
     memcpy(mac_address + 1, mac_reverse + 4, 1);
@@ -346,7 +381,6 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
     ESP_LOGVV(TAG, "           Iv : %s", format_hex_pretty_to(hex_buf, vector.iv, vector.ivsize));
     ESP_LOGVV(TAG, "       Cipher : %s", format_hex_pretty_to(hex_buf, vector.ciphertext, vector.datasize));
     ESP_LOGVV(TAG, "          Tag : %s", format_hex_pretty_to(hex_buf, vector.tag, vector.tagsize));
-    mbedtls_ccm_free(&ctx);
     return false;
   }
 
@@ -367,7 +401,6 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
   ESP_LOGVV(TAG, "  Plaintext : %s, Packet : %d",
             format_hex_pretty_to(hex_buf, raw.data() + cipher_pos, vector.datasize), static_cast<int>(raw[4]));
 
-  mbedtls_ccm_free(&ctx);
   return true;
 }
 
