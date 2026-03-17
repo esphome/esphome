@@ -198,7 +198,7 @@ void HDMICEC::try_builtin_handler_(uint8_t source, uint8_t destination, const st
       // reply with "Set OSD Name" (0x47)
       std::array<uint8_t, Frame::MAX_LENGTH - 1> payload = {0x47};
       unsigned int payload_size = std::min(payload.size(), osd_name_bytes_.size() + 1);
-      for (int i = 1; i < payload_size; i++) {
+      for (unsigned int i = 1; i < payload_size; i++) {
         payload[i] = osd_name_bytes_[i - 1];
       }
       send(address_, source, payload.data(), payload_size);
