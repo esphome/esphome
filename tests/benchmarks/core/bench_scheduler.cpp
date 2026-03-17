@@ -130,29 +130,4 @@ static void Scheduler_Defer(benchmark::State &state) {
 }
 BENCHMARK(Scheduler_Defer);
 
-// --- Scheduler: next_schedule_in() calculation ---
-
-static void Scheduler_NextScheduleIn(benchmark::State &state) {
-  Scheduler scheduler;
-  Component dummy_component;
-
-  // Add some timeouts
-  for (int i = 0; i < 10; i++) {
-    scheduler.set_timeout(&dummy_component, static_cast<uint32_t>(i), 1000 * (i + 1), []() {});
-  }
-  scheduler.process_to_add();
-
-  uint32_t now = millis();
-
-  for (auto _ : state) {
-    optional<uint32_t> result;
-    for (int i = 0; i < kInnerIterations; i++) {
-      result = scheduler.next_schedule_in(now);
-    }
-    benchmark::DoNotOptimize(result);
-  }
-  state.SetItemsProcessed(state.iterations() * kInnerIterations);
-}
-BENCHMARK(Scheduler_NextScheduleIn);
-
 }  // namespace esphome::benchmarks
