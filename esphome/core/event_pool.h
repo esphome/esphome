@@ -17,7 +17,8 @@ namespace esphome {
 // SIZING: When paired with a LockFreeQueue<T, Q_SIZE>, the pool SIZE should be
 // Q_SIZE - 1 (the queue's actual capacity, since the ring buffer reserves one slot).
 // This ensures allocate() returns nullptr before push() can fail, which:
-//  - Prevents permanently leaking a pool slot
+//  - Prevents the allocate-succeeds-but-push-fails mismatch that permanently
+//    leaks a pool slot (the element is never returned to the pool)
 //  - Avoids needing release() on the producer path after a failed push(),
 //    preserving the SPSC contract on the internal free list
 template<class T, uint8_t SIZE> class EventPool {
