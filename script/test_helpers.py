@@ -36,6 +36,15 @@ LOGGER_KEY = "logger"
 # by component benchmark.yaml files. esphome: allows sub-key merging.
 BASE_CONFIG_KEYS = frozenset({ESPHOME_KEY, HOST_KEY, LOGGER_KEY})
 
+# Shared build flag — enables timezone code paths for testing/benchmarking.
+USE_TIME_TIMEZONE_FLAG = "-DUSE_TIME_TIMEZONE"
+
+# Components whose to_code should always run during C++ test/benchmark builds.
+# These are the minimal infrastructure components needed for host compilation.
+# Note: "core" is the esphome core config module (esphome/core/config.py),
+# which registers under package name "core" not "esphome".
+BASE_CODEGEN_COMPONENTS = {"core", "host", "logger"}
+
 # Exit codes
 EXIT_OK = 0
 EXIT_SKIPPED = 1

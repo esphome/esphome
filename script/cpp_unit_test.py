@@ -4,17 +4,15 @@ from pathlib import Path
 import sys
 
 from helpers import get_all_components, root_path
-from test_helpers import PLATFORMIO_GOOGLE_TEST_LIB, build_and_run
+from test_helpers import (
+    BASE_CODEGEN_COMPONENTS,
+    PLATFORMIO_GOOGLE_TEST_LIB,
+    USE_TIME_TIMEZONE_FLAG,
+    build_and_run,
+)
 
 # Path to /tests/components
 COMPONENTS_TESTS_DIR: Path = Path(root_path) / "tests" / "components"
-
-# Components whose to_code should run during C++ test builds.
-# Most components don't need code generation for tests; only these
-# essential ones (platform setup, logging, core config) are needed.
-# Note: "core" is the esphome core config module (esphome/core/config.py),
-# which registers under package name "core" not "esphome".
-CPP_TESTING_CODEGEN_COMPONENTS = {"core", "host", "logger"}
 
 PLATFORMIO_OPTIONS = {
     "build_type": "debug",
@@ -23,7 +21,7 @@ PLATFORMIO_OPTIONS = {
     ],
     "build_flags": [
         "-Og",  # optimize for debug
-        "-DUSE_TIME_TIMEZONE",  # enable timezone code paths for testing
+        USE_TIME_TIMEZONE_FLAG,
         "-DESPHOME_DEBUG",  # enable debug assertions
         # Enable the address and undefined behavior sanitizers
         "-fsanitize=address",
@@ -41,7 +39,7 @@ def run_tests(selected_components: list[str]) -> int:
     return build_and_run(
         selected_components=selected_components,
         tests_dir=COMPONENTS_TESTS_DIR,
-        codegen_components=CPP_TESTING_CODEGEN_COMPONENTS,
+        codegen_components=BASE_CODEGEN_COMPONENTS,
         config_prefix="cpptests",
         friendly_name="CPP Unit Tests",
         libraries=PLATFORMIO_GOOGLE_TEST_LIB,

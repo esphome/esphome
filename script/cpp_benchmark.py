@@ -2,12 +2,18 @@
 """Build and run C++ benchmarks for ESPHome components using Google Benchmark."""
 
 import argparse
+import json
 import os
 from pathlib import Path
 import sys
 
 from helpers import root_path
-from test_helpers import PLATFORMIO_GOOGLE_BENCHMARK_LIB, build_and_run
+from test_helpers import (
+    BASE_CODEGEN_COMPONENTS,
+    PLATFORMIO_GOOGLE_BENCHMARK_LIB,
+    USE_TIME_TIMEZONE_FLAG,
+    build_and_run,
+)
 
 # Path to /tests/benchmarks/components
 BENCHMARKS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "components"
@@ -15,15 +21,14 @@ BENCHMARKS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "components"
 # Path to /tests/benchmarks/core (always included, not a component)
 CORE_BENCHMARKS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "core"
 
-# Components whose to_code should run during benchmark builds.
-# core/host/logger are infrastructure. json is needed because its
-# to_code adds the ArduinoJson library (it's auto-loaded by api but
-# cpp_testing suppresses to_code for components not in this set).
-BENCHMARK_CODEGEN_COMPONENTS = {"core", "host", "logger", "json"}
+# Additional codegen components beyond the base set.
+# json is needed because its to_code adds the ArduinoJson library
+# (auto-loaded by api, but cpp_testing suppresses to_code unless listed).
+BENCHMARK_CODEGEN_COMPONENTS = BASE_CODEGEN_COMPONENTS | {"json"}
 
 PLATFORMIO_OPTIONS = {
     "build_flags": [
-        "-DUSE_TIME_TIMEZONE",  # enable timezone code paths
+        USE_TIME_TIMEZONE_FLAG,
         "-g",  # debug symbols for profiling
     ],
     # Use deep+ LDF mode to ensure PlatformIO detects the benchmark
@@ -39,8 +44,6 @@ def run_benchmarks(selected_components: list[str], build_only: bool = False) -> 
     lib_config_json = os.environ.get("BENCHMARK_LIB_CONFIG")
 
     if lib_config_json:
-        import json
-
         lib_config = json.loads(lib_config_json)
         benchmark_lib = f"benchmark=symlink://{lib_config['lib_path']}"
     else:
