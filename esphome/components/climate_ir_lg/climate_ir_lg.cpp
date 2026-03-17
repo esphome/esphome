@@ -131,7 +131,7 @@ void LgIrClimate::transmit_state() {
         case climate::CLIMATE_SWING_OFF:
           ESP_LOGD(TAG, "setting swing off");
           remote_state |= CommandAdvSwing::HEADER_ADV_SWING;
-          remote_state |= CommandAdvSwing::VERT_FIX_3;
+          remote_state |= CommandAdvSwing::VERT_SWING_OFF;
           break;
         default:
           return;
