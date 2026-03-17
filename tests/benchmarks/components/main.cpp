@@ -5,7 +5,7 @@
 /*
 This special main.cpp provides the entry point for Google Benchmark.
 It replaces the default ESPHome main with a benchmark runner.
-See the codspeed_plan.md for more information.
+
 */
 
 // Auto generated code by esphome
