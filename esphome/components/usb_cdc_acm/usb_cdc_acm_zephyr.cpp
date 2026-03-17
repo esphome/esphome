@@ -34,7 +34,7 @@ void USBCDCACMInstance::uart_rx_process_() {
   if (recv_len) {
     int rx = uart_fifo_read(this->uart_dev_, data, recv_len);
     if (rx < 0) {
-      ESP_LOGE(TAG, "Failed to read UART FIFO, err %d", recv_len);
+      ESP_LOGE(TAG, "Failed to read UART FIFO, err %d", rx);
     } else {
       total_size += rx;
     }
