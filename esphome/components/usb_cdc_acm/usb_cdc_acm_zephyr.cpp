@@ -149,7 +149,7 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
     }
   }
   if (ring_buf_get(&this->rx_ringbuf_, data, len) != len) {
-    ESP_LOGE(TAG, "UART BLE unexpected size");
+    ESP_LOGE(TAG, "UART CDC unexpected size");
     return false;
   }
 #ifdef USE_UART_DEBUGGER

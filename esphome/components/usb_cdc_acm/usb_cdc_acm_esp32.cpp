@@ -316,11 +316,7 @@ bool USBCDCACMInstance::read_array(uint8_t *data, size_t len) {
 #endif
   bytes_read += rx_size;
 
-  if (bytes_read == original_len) {
-    return true;
-  }
-
-  return false;
+  return bytes_read == original_len;
 }
 
 size_t USBCDCACMInstance::available() {

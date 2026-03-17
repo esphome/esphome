@@ -6,7 +6,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S3,
     add_idf_sdkconfig_option,
 )
-from esphome.components.uart import debug_to_code, maybe_empty_debug
+from esphome.components.uart import debug_to_code, maybe_empty_debug, uart_ns
 from esphome.components.zephyr import zephyr_add_cdc_acm, zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import (
@@ -99,6 +99,7 @@ async def to_code(config: ConfigType) -> None:
         cg.add(interface.set_interface_number(interface_index))
         cg.add(var.add_interface(interface))
         if CONF_DEBUG in interface_conf:
+            cg.add_global(uart_ns.using)
             await debug_to_code(interface_conf[CONF_DEBUG], interface)
     if CORE.using_zephyr:
         if any_port_enabled:
