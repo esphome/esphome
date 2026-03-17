@@ -34,6 +34,7 @@ PLATFORMIO_OPTIONS = {
         "-O2",  # optimize for speed (CodSpeed recommends RelWithDebInfo)
         "-g",  # debug symbols for profiling
         USE_TIME_TIMEZONE_FLAG,
+        "-DUSE_BENCHMARK",  # disable WarnIfComponentBlockingGuard in finish()
     ],
     # Use deep+ LDF mode to ensure PlatformIO detects the benchmark
     # library dependency from nested includes.

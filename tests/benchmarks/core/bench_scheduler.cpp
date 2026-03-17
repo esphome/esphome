@@ -5,6 +5,11 @@
 
 namespace esphome::benchmarks {
 
+// Inner iteration count to amortize CodSpeed instrumentation overhead.
+// Without this, the ~60ns per-iteration valgrind start/stop cost dominates
+// sub-microsecond benchmarks.
+static constexpr int kInnerIterations = 2000;
+
 // --- Scheduler fast path: no work to do ---
 
 static void Scheduler_Call_NoWork(benchmark::State &state) {
@@ -12,9 +17,12 @@ static void Scheduler_Call_NoWork(benchmark::State &state) {
   uint32_t now = millis();
 
   for (auto _ : state) {
-    scheduler.call(now);
+    for (int i = 0; i < kInnerIterations; i++) {
+      scheduler.call(now);
+    }
     benchmark::DoNotOptimize(now);
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(Scheduler_Call_NoWork);
 
@@ -33,11 +41,41 @@ static void Scheduler_Call_TimersNotDue(benchmark::State &state) {
   uint32_t now = millis();
 
   for (auto _ : state) {
-    scheduler.call(now);
+    for (int i = 0; i < kInnerIterations; i++) {
+      scheduler.call(now);
+    }
     benchmark::DoNotOptimize(now);
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(Scheduler_Call_TimersNotDue);
+
+// --- Scheduler with 5 intervals firing every call ---
+
+static void Scheduler_Call_5IntervalsFiring(benchmark::State &state) {
+  Scheduler scheduler;
+  Component dummy_component;
+  int fire_count = 0;
+
+  // Benchmarks the heap-based scheduler dispatch with 5 callbacks firing.
+  // Uses monotonically increasing fake time so intervals reliably fire every call.
+  // USE_BENCHMARK ifdef in component.h disables WarnIfComponentBlockingGuard
+  // (fake now > real millis() would cause underflow in finish()).
+  // interval=0 would cause an infinite loop (reschedules at same now).
+  for (int i = 0; i < 5; i++) {
+    scheduler.set_interval(&dummy_component, static_cast<uint32_t>(i), 1, [&fire_count]() { fire_count++; });
+  }
+  scheduler.process_to_add();
+
+  uint32_t now = millis() + 100;
+
+  for (auto _ : state) {
+    scheduler.call(now);
+    now++;
+    benchmark::DoNotOptimize(fire_count);
+  }
+}
+BENCHMARK(Scheduler_Call_5IntervalsFiring);
 
 // --- Scheduler: next_schedule_in() calculation ---
 
@@ -54,9 +92,13 @@ static void Scheduler_NextScheduleIn(benchmark::State &state) {
   uint32_t now = millis();
 
   for (auto _ : state) {
-    auto result = scheduler.next_schedule_in(now);
+    optional<uint32_t> result;
+    for (int i = 0; i < kInnerIterations; i++) {
+      result = scheduler.next_schedule_in(now);
+    }
     benchmark::DoNotOptimize(result);
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(Scheduler_NextScheduleIn);
 

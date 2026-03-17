@@ -81,7 +81,7 @@ def filter_components_with_files(components: list[str], tests_dir: Path) -> list
             filtered_components.append(component)
         else:
             print(
-                f"WARNING: No files found for component '{component}' in {tests_dir}, skipping.",
+                f"WARNING: No files found for component '{component}' in {test_dir}, skipping.",
                 file=sys.stderr,
             )
     return filtered_components
@@ -139,6 +139,11 @@ def load_component_yaml_configs(components: list[str], tests_dir: Path) -> dict:
     Returns:
         Merged dict of component configs to add to the base config
     """
+    # Note: components are processed in sorted order. For conflicting keys
+    # (e.g. two benchmark.yaml files both declaring sensor:), the first
+    # component alphabetically wins via setdefault(). This is fine for now
+    # with a single benchmark component (api) but would need a real merge
+    # strategy if multiple components declare overlapping configs.
     merged: dict = {}
     for component in components:
         yaml_path = tests_dir / component / BENCHMARK_YAML_FILENAME
@@ -284,7 +289,7 @@ def compile_and_get_binary(
             print(f"Error compiling {label} for {', '.join(components)}")
             return exit_code, None
     except Exception as e:
-        print(f"Error compiling {label} for {', '.join(components)}. Check path. : {e}")
+        print(f"Error compiling {label} for {', '.join(components)}: {e}")
         return EXIT_COMPILE_ERROR, None
 
     # After a successful compilation, locate the executable:
