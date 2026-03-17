@@ -232,16 +232,18 @@ def load_test_manifest_overrides(
             cache_key = comp_name
             test_init = tests_dir / comp_name / "__init__.py"
 
-        if test_init.is_file():
-            spec = importlib.util.spec_from_file_location(
-                f"_test_manifest_override.{cache_key}", test_init
-            )
-            if spec is not None and spec.loader is not None:
-                mod = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(mod)
-                override_fn = getattr(mod, "override_manifest", None)
-                if override_fn is not None:
-                    override_fn(override)
+        if not test_init.is_file():
+            continue
+        spec = importlib.util.spec_from_file_location(
+            f"_test_manifest_override.{cache_key}", test_init
+        )
+        if spec is None or spec.loader is None:
+            continue
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        override_fn = getattr(mod, "override_manifest", None)
+        if override_fn is not None:
+            override_fn(override)
 
 
 # Type alias for manifest override loaders
