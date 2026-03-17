@@ -29,9 +29,9 @@ import shutil
 import subprocess
 import sys
 
-# Pin to a specific commit for reproducibility
+# Pin to a specific release for reproducibility
 CODSPEED_CPP_REPO = "https://github.com/CodSpeedHQ/codspeed-cpp.git"
-CODSPEED_CPP_SHA = "d6b4111428ae1f1667fec9bff009522378d5d347"
+CODSPEED_CPP_SHA = "e633aca00da3d0ad14e7bf424d9cb47165a29028"  # v2.1.0
 
 DEFAULT_OUTPUT_DIR = "/tmp/codspeed-cpp"
 
