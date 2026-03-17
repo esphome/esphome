@@ -72,9 +72,13 @@ static void Scheduler_Call_5IntervalsFiring(benchmark::State &state) {
   }
   scheduler.process_to_add();
 
+  // Start at a known time so intervals are immediately due.
+  // now increases monotonically across all iterations — this is required
+  // because millis_64_from_() tracks rollovers and going backwards would
+  // appear as a 32-bit wrap (~49 day jump forward).
+  uint32_t now = millis() + 100;
+
   for (auto _ : state) {
-    // Reset each outer iteration to avoid unbounded growth toward UINT32_MAX
-    uint32_t now = 100;
     for (int i = 0; i < kInnerIterations; i++) {
       scheduler.call(now);
       // Advance time by 1ms so intervals are due again next call
