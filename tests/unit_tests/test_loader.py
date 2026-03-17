@@ -71,7 +71,7 @@ def test_testing_manifest_enable_codegen_preserves_other_overrides() -> None:
 
     tm.enable_codegen()
 
-    assert tm.to_code is not None or tm.to_code is inner.to_code
+    assert tm.to_code is inner.to_code
     assert tm.dependencies == ["ble"]
 
 
