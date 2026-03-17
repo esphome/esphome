@@ -8,7 +8,7 @@ namespace esphome::benchmarks {
 // Inner iteration count to amortize CodSpeed instrumentation overhead.
 // Without this, the ~60ns per-iteration valgrind start/stop cost dominates
 // sub-microsecond benchmarks.
-static constexpr int kInnerIterations = 1000;
+static constexpr int kInnerIterations = 2000;
 
 // --- Scheduler fast path: no work to do ---
 
