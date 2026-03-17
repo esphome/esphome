@@ -540,7 +540,7 @@ class Scheduler {
   // Lock-free check if to_add_ is empty (for fast-path in process_to_add)
   bool to_add_empty_() const {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
-    return this->to_add_count_.load(std::memory_order_acquire) == 0;
+    return this->to_add_count_.load(std::memory_order_relaxed) == 0;
 #elif defined(ESPHOME_THREAD_SINGLE)
     // Single-threaded: no concurrent writers, direct check is safe
     return this->to_add_.empty();
@@ -553,7 +553,7 @@ class Scheduler {
   // Increment to_add_count_ (caller must hold lock on non-atomic platforms)
   void to_add_count_increment_() {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
-    this->to_add_count_.fetch_add(1, std::memory_order_release);
+    this->to_add_count_.fetch_add(1, std::memory_order_relaxed);
 #else
     this->to_add_count_++;
 #endif
@@ -586,7 +586,7 @@ class Scheduler {
     // defer_queue_ only exists on multi-threaded platforms, so no ESPHOME_THREAD_SINGLE path
     // ESPHOME_THREAD_MULTI_NO_ATOMICS: always take the lock
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
-    return this->defer_count_.load(std::memory_order_acquire) == 0;
+    return this->defer_count_.load(std::memory_order_relaxed) == 0;
 #else
     return false;
 #endif
@@ -594,7 +594,7 @@ class Scheduler {
 
   void defer_count_increment_() {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
-    this->defer_count_.fetch_add(1, std::memory_order_release);
+    this->defer_count_.fetch_add(1, std::memory_order_relaxed);
 #else
     this->defer_count_++;
 #endif
@@ -621,7 +621,7 @@ class Scheduler {
   // Lock-free check if there are items to remove (for fast-path in cleanup_)
   bool to_remove_empty_() const {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
-    return this->to_remove_.load(std::memory_order_acquire) == 0;
+    return this->to_remove_.load(std::memory_order_relaxed) == 0;
 #elif defined(ESPHOME_THREAD_SINGLE)
     return this->to_remove_ == 0;
 #else
@@ -631,7 +631,7 @@ class Scheduler {
 
   void to_remove_add_(uint32_t count) {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
-    this->to_remove_.fetch_add(count, std::memory_order_release);
+    this->to_remove_.fetch_add(count, std::memory_order_relaxed);
 #else
     this->to_remove_ += count;
 #endif
