@@ -70,8 +70,10 @@ static void CalcAndEncode_SensorStateResponse(benchmark::State &state) {
 }
 BENCHMARK(CalcAndEncode_SensorStateResponse);
 
-// Cold path: fresh buffer each iteration (measures heap allocation).
-// No inner loop — the point is to measure one alloc+encode per iteration.
+// Cold path: fresh buffer each iteration (measures heap allocation cost).
+// Inner loop still needed to amortize CodSpeed instrumentation overhead.
+// Each inner iteration creates a fresh buffer, so this measures
+// alloc+calc+encode per item.
 static void CalcAndEncode_SensorStateResponse_Fresh(benchmark::State &state) {
   SensorStateResponse msg;
   msg.key = 0x12345678;
@@ -79,13 +81,16 @@ static void CalcAndEncode_SensorStateResponse_Fresh(benchmark::State &state) {
   msg.missing_state = false;
 
   for (auto _ : state) {
-    APIBuffer buffer;
-    uint32_t size = msg.calculate_size();
-    buffer.resize(size);
-    ProtoWriteBuffer writer(&buffer, 0);
-    msg.encode(writer);
-    benchmark::DoNotOptimize(buffer.data());
+    for (int i = 0; i < kInnerIterations; i++) {
+      APIBuffer buffer;
+      uint32_t size = msg.calculate_size();
+      buffer.resize(size);
+      ProtoWriteBuffer writer(&buffer, 0);
+      msg.encode(writer);
+      benchmark::DoNotOptimize(buffer.data());
+    }
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(CalcAndEncode_SensorStateResponse_Fresh);
 
@@ -269,19 +274,24 @@ static void CalcAndEncode_DeviceInfoResponse(benchmark::State &state) {
 }
 BENCHMARK(CalcAndEncode_DeviceInfoResponse);
 
-// Cold path: fresh buffer each iteration (measures heap allocation).
-// No inner loop — the point is to measure one alloc+encode per iteration.
+// Cold path: fresh buffer each iteration (measures heap allocation cost).
+// Inner loop still needed to amortize CodSpeed instrumentation overhead.
+// Each inner iteration creates a fresh buffer, so this measures
+// alloc+calc+encode per item.
 static void CalcAndEncode_DeviceInfoResponse_Fresh(benchmark::State &state) {
   auto msg = make_device_info_response();
 
   for (auto _ : state) {
-    APIBuffer buffer;
-    uint32_t size = msg.calculate_size();
-    buffer.resize(size);
-    ProtoWriteBuffer writer(&buffer, 0);
-    msg.encode(writer);
-    benchmark::DoNotOptimize(buffer.data());
+    for (int i = 0; i < kInnerIterations; i++) {
+      APIBuffer buffer;
+      uint32_t size = msg.calculate_size();
+      buffer.resize(size);
+      ProtoWriteBuffer writer(&buffer, 0);
+      msg.encode(writer);
+      benchmark::DoNotOptimize(buffer.data());
+    }
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(CalcAndEncode_DeviceInfoResponse_Fresh);
 
