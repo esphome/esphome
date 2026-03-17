@@ -258,7 +258,8 @@ class MQTTBackendESP32 final : public MQTTBackend {
   bool skip_cert_cn_check_{false};
 #if defined(USE_MQTT_IDF_ENQUEUE)
   static void esphome_mqtt_task(void *params);
-  EventPool<struct QueueElement, MQTT_QUEUE_LENGTH> mqtt_outbound_pool_;
+  // Pool sized to queue capacity (SIZE-1) — see mqtt_event_pool_ comment.
+  EventPool<struct QueueElement, MQTT_QUEUE_LENGTH - 1> mqtt_outbound_pool_;
   NotifyingLockFreeQueue<struct QueueElement, MQTT_QUEUE_LENGTH> mqtt_queue_;
   TaskHandle_t task_handle_{nullptr};
   bool enqueue_(MqttQueueTypeT type, const char *topic, int qos = 0, bool retain = false, const char *payload = NULL,
@@ -277,8 +278,8 @@ class MQTTBackendESP32 final : public MQTTBackend {
   // buffer that holds N-1 elements (one slot distinguishes full from empty).
   // This guarantees allocate() returns nullptr before push() can fail, which:
   //  1. Prevents leaking a pool slot (the Nth allocate succeeds but push fails)
-  //  2. Ensures only the main loop ever calls release(), preserving the SPSC
-  //     contract on the pool's internal free list
+  //  2. Avoids needing release() on the producer path after a failed push(),
+  //     preserving the SPSC contract on the pool's internal free list
   EventPool<Event, MQTT_EVENT_QUEUE_LENGTH - 1> mqtt_event_pool_;
   LockFreeQueue<Event, MQTT_EVENT_QUEUE_LENGTH> mqtt_event_queue_;
 

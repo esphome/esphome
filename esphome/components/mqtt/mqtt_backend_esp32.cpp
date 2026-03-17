@@ -198,8 +198,8 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
       return;
     }
     event->populate(*static_cast<esp_mqtt_event_t *>(event_data));
-    // Push always succeeds: pool is sized to queue capacity (N-1), so if
-    // allocate() returned non-null, the queue is guaranteed to have room.
+    // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+    // allocate() returned non-null, the queue cannot be full.
     instance->mqtt_event_queue_.push(event);
 
     // Wake main loop immediately to process MQTT event instead of waiting for select() timeout
