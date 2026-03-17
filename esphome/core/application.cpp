@@ -38,9 +38,6 @@
 #ifdef USE_STATUS_LED
 #include "esphome/components/status_led/status_led.h"
 #endif
-#ifdef USE_SETUP_HEAP_STATS
-#include "esphome/components/setup_heap_stats/setup_heap_stats.h"
-#endif
 
 #if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
 #include "esphome/components/socket/socket.h"
@@ -94,14 +91,6 @@ void Application::register_component_impl_(Component *comp, bool has_loop) {
     comp->component_state_ |= COMPONENT_HAS_LOOP;
   }
   this->components_.push_back(comp);
-#ifdef USE_SETUP_HEAP_STATS
-  if (global_setup_heap_stats == nullptr) {
-    // Lazily create collector on first component registration
-    // Pass the baseline captured in pre_setup() so the first component's cost is measured
-    new setup_heap_stats::SetupHeapStatsCollector(this->setup_heap_stats_baseline_);
-  }
-  global_setup_heap_stats->record_component_registered(comp);
-#endif
 }
 void Application::setup() {
   ESP_LOGI(TAG, "Running through setup()");
@@ -154,12 +143,6 @@ void Application::setup() {
   }
 
   ESP_LOGI(TAG, "setup() finished successfully!");
-
-#ifdef USE_SETUP_HEAP_STATS
-  if (global_setup_heap_stats != nullptr) {
-    global_setup_heap_stats->log_summary();
-  }
-#endif
 
 #ifdef USE_SETUP_PRIORITY_OVERRIDE
   // Clear setup priority overrides to free memory
@@ -274,18 +257,19 @@ void Application::process_dump_config_() {
 #endif
     }
 #endif
-#if defined(USE_ESP32_VARIANT_ESP32) && defined(USE_ESP32_FRAMEWORK_ESP_IDF) && !defined(USE_ESP32_SRAM1_AS_IRAM) && \
-    ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 0)
+#if defined(USE_ESP32_FRAMEWORK_ESP_IDF) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 0)
     {
-      // Check if bootloader supports SRAM1 as IRAM (requires ESP-IDF >= 5.1 bootloader)
-      // esp_bootloader_desc_t is only available in ESP-IDF >= 5.2, but any bootloader
-      // from 5.2+ also supports SRAM1 as IRAM (which was introduced in 5.1)
+      // esp_bootloader_desc_t is available in ESP-IDF >= 5.2; if readable the bootloader is modern
       esp_bootloader_desc_t boot_desc;
-      if (esp_ota_get_bootloader_description(nullptr, &boot_desc) == ESP_OK) {
-        ESP_LOGW(TAG, "Bootloader supports SRAM1 as IRAM (+40KB). Set sram1_as_iram: true %s", ESP32_ADVANCED_PATH);
-      } else {
-        ESP_LOGW(TAG, "Bootloader too old for SRAM1 as IRAM (+40KB). Flash via USB once to update the bootloader");
+      if (esp_ota_get_bootloader_description(nullptr, &boot_desc) != ESP_OK) {
+        ESP_LOGW(TAG, "Bootloader too old for OTA rollback and SRAM1 as IRAM (+40KB). "
+                      "Flash via USB once to update the bootloader");
       }
+#if defined(USE_ESP32_VARIANT_ESP32) && !defined(USE_ESP32_SRAM1_AS_IRAM)
+      else {
+        ESP_LOGW(TAG, "Bootloader supports SRAM1 as IRAM (+40KB). Set sram1_as_iram: true %s", ESP32_ADVANCED_PATH);
+      }
+#endif
     }
 #endif
 #endif
@@ -880,11 +864,5 @@ uint32_t Application::get_config_hash() { return ESPHOME_CONFIG_HASH; }
 uint32_t Application::get_config_version_hash() { return fnv1a_hash_extend(ESPHOME_CONFIG_HASH, ESPHOME_VERSION); }
 
 time_t Application::get_build_time() { return ESPHOME_BUILD_TIME; }
-
-#ifdef USE_SETUP_HEAP_STATS
-void Application::init_setup_heap_stats_baseline_() {
-  this->setup_heap_stats_baseline_ = setup_heap_stats::SetupHeapStatsCollector::get_free_internal_heap();
-}
-#endif
 
 }  // namespace esphome
