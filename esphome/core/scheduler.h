@@ -617,8 +617,9 @@ class Scheduler {
 
 #endif /* ESPHOME_THREAD_SINGLE */
 
-  // Counter for items marked for removal. Incremented cross-thread in cancel_item_locked_(),
-  // read without lock in cleanup_() fast path.
+  // Counter for items marked for removal. Incremented cross-thread in cancel_item_locked_().
+  // On ESPHOME_THREAD_MULTI_ATOMICS this is read without a lock in the cleanup_() fast path;
+  // on ESPHOME_THREAD_MULTI_NO_ATOMICS the fast path is disabled so cleanup_() always takes the lock.
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
   std::atomic<uint32_t> to_remove_{0};
 #else
