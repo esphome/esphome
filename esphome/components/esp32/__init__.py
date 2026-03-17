@@ -667,6 +667,7 @@ ARDUINO_PLATFORM_VERSION_LOOKUP = {
 # These versions correspond to pioarduino/esp-idf releases
 # See: https://github.com/pioarduino/esp-idf/releases
 ARDUINO_IDF_VERSION_LOOKUP = {
+    cv.Version(4, 0, 0): cv.Version(6, 0, 0, "rc1"),
     cv.Version(3, 3, 7): cv.Version(5, 5, 3, "1"),
     cv.Version(3, 3, 6): cv.Version(5, 5, 2),
     cv.Version(3, 3, 5): cv.Version(5, 5, 2),
@@ -713,7 +714,7 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
 PLATFORM_VERSION_LOOKUP = {
-    "recommended": cv.Version(55, 3, 37),
+    "recommended": "https://github.com/swoboda1337/platform-espressif32.git#idf-v6.0",
     "latest": cv.Version(55, 3, 37),
     "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
 }
@@ -731,12 +732,10 @@ def _check_versions(config):
 
         if value[CONF_TYPE] == FRAMEWORK_ARDUINO:
             version = ARDUINO_FRAMEWORK_VERSION_LOOKUP[value[CONF_VERSION]]
-            platform_lookup = PLATFORM_VERSION_LOOKUP[value[CONF_VERSION]]
         else:
             version = ESP_IDF_FRAMEWORK_VERSION_LOOKUP[value[CONF_VERSION]]
-            platform_lookup = ESP_IDF_PLATFORM_VERSION_LOOKUP.get(version)
-            if platform_lookup is None:
-                platform_lookup = PLATFORM_VERSION_LOOKUP[value[CONF_VERSION]]
+
+        platform_lookup = PLATFORM_VERSION_LOOKUP[value[CONF_VERSION]]
         value[CONF_PLATFORM_VERSION] = _parse_platform_version(str(platform_lookup))
     else:
         version = cv.Version.parse(cv.version_number(value[CONF_VERSION]))
