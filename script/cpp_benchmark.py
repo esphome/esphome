@@ -52,15 +52,18 @@ def run_benchmarks(selected_components: list[str], build_only: bool = False) -> 
         # registration to CodSpeed-instrumented variants, and
         # CODSPEED_ROOT_DIR is used to display relative file paths in reports.
         project_root = Path(__file__).resolve().parent.parent
+        codspeed_flags = [
+            "-DCODSPEED_ENABLED",
+            "-DCODSPEED_SIMULATION",
+            f'-DCODSPEED_ROOT_DIR=\\"{project_root}\\"',
+        ]
         pio_options = {
             **PLATFORMIO_OPTIONS,
-            "build_flags": PLATFORMIO_OPTIONS["build_flags"]
-            + [
-                "-DCODSPEED_ENABLED",
-                "-DCODSPEED_SIMULATION",
-                f'-DCODSPEED_ROOT_DIR=\\"{project_root}\\"',
-            ],
+            "build_flags": PLATFORMIO_OPTIONS["build_flags"] + codspeed_flags,
         }
+        print(f"CodSpeed library: {lib_config['lib_path']}", file=sys.stderr)
+        print(f"CodSpeed build flags: {codspeed_flags}", file=sys.stderr)
+        print(f"PlatformIO options: {pio_options}", file=sys.stderr)
     else:
         benchmark_lib = PLATFORMIO_GOOGLE_BENCHMARK_LIB
 
