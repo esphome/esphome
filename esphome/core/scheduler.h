@@ -529,15 +529,21 @@ class Scheduler {
   std::vector<SchedulerItem *> items_;
   std::vector<SchedulerItem *> to_add_;
 
-  // Fast-path counter for process_to_add() to skip lock when nothing to add.
-  // Uses atomic on platforms that support it, plain uint32_t + lock otherwise.
+  // Fast-path counter for process_to_add() to skip taking the lock when there is
+  // nothing to add. Uses std::atomic on platforms that support it, plain uint32_t
+  // otherwise. On non-atomic platforms, callers must hold the scheduler lock when
+  // mutating this counter.
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
   std::atomic<uint32_t> to_add_count_{0};
 #else
   uint32_t to_add_count_{0};
 #endif
 
-  // Lock-free check if to_add_ is empty (for fast-path in process_to_add)
+  // Fast-path helper for process_to_add() to decide if it can try the lock-free path.
+  // - On ESPHOME_THREAD_MULTI_ATOMICS: performs a lock-free check via to_add_count_.
+  // - On ESPHOME_THREAD_SINGLE: direct container check is safe (no concurrent writers).
+  // - On ESPHOME_THREAD_MULTI_NO_ATOMICS: always returns false to force the caller
+  //   down the locked path; this is NOT a lock-free emptiness check on that platform.
   bool to_add_empty_() const {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
     return this->to_add_count_.load(std::memory_order_relaxed) == 0;
@@ -545,8 +551,9 @@ class Scheduler {
     // Single-threaded: no concurrent writers, direct check is safe
     return this->to_add_.empty();
 #else
-  // Multi-threaded without atomics: must take lock
-  return false;  // Always take the lock path
+    // Multi-threaded without atomics: must take lock; always indicate "not empty"
+    // so the caller does not attempt a lock-free path.
+    return false;
 #endif
   }
 
