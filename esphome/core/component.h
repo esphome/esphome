@@ -594,17 +594,12 @@ class WarnIfComponentBlockingGuard {
   // Inlined: the fast path is just millis() + subtract + compare
   inline uint32_t HOT finish() {
     uint32_t curr_time = millis();
+    uint32_t blocking_time = curr_time - this->started_;
 #ifdef USE_RUNTIME_STATS
     this->record_runtime_stats_();
 #endif
-    // Guard against underflow: if curr_time < started_, the subtraction wraps
-    // to a huge value. This can happen when the scheduler passes a `now` value
-    // slightly ahead of real millis() (e.g. from execute_item_ return values).
-    if (curr_time >= this->started_) [[likely]] {
-      uint32_t blocking_time = curr_time - this->started_;
-      if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
-        warn_blocking(this->component_, blocking_time);
-      }
+    if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
+      warn_blocking(this->component_, blocking_time);
     }
     return curr_time;
   }
