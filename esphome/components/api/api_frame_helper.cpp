@@ -113,10 +113,11 @@ APIError APIFrameHelper::loop() {
 
 // Common socket write error handling
 APIError APIFrameHelper::handle_socket_write_error_() {
-  if (errno == EWOULDBLOCK || errno == EAGAIN) {
+  const int err = errno;
+  if (err == EWOULDBLOCK || err == EAGAIN) {
     return APIError::WOULD_BLOCK;
   }
-  HELPER_LOG("Socket write failed with errno %d", errno);
+  HELPER_LOG("Socket write failed with errno %d", err);
   this->state_ = State::FAILED;
   return APIError::SOCKET_WRITE_FAILED;
 }
@@ -278,11 +279,12 @@ APIError APIFrameHelper::init_common_() {
 
 APIError APIFrameHelper::handle_socket_read_result_(ssize_t received) {
   if (received == -1) {
-    if (errno == EWOULDBLOCK || errno == EAGAIN) {
+    const int err = errno;
+    if (err == EWOULDBLOCK || err == EAGAIN) {
       return APIError::WOULD_BLOCK;
     }
     state_ = State::FAILED;
-    HELPER_LOG("Socket read failed with errno %d", errno);
+    HELPER_LOG("Socket read failed with errno %d", err);
     return APIError::SOCKET_READ_FAILED;
   } else if (received == 0) {
     state_ = State::FAILED;
