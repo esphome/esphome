@@ -36,6 +36,7 @@ static void CalculateSize_SensorStateResponse(benchmark::State &state) {
 }
 BENCHMARK(CalculateSize_SensorStateResponse);
 
+// Steady state: buffer already allocated from previous iteration
 static void CalcAndEncode_SensorStateResponse(benchmark::State &state) {
   APIBuffer buffer;
   SensorStateResponse msg;
@@ -52,6 +53,24 @@ static void CalcAndEncode_SensorStateResponse(benchmark::State &state) {
   }
 }
 BENCHMARK(CalcAndEncode_SensorStateResponse);
+
+// Cold path: fresh buffer each iteration (measures heap allocation)
+static void CalcAndEncode_SensorStateResponse_Fresh(benchmark::State &state) {
+  SensorStateResponse msg;
+  msg.key = 0x12345678;
+  msg.state = 23.5f;
+  msg.missing_state = false;
+
+  for (auto _ : state) {
+    APIBuffer buffer;
+    uint32_t size = msg.calculate_size();
+    buffer.resize(size);
+    ProtoWriteBuffer writer(&buffer, 0);
+    msg.encode(writer);
+    benchmark::DoNotOptimize(buffer.data());
+  }
+}
+BENCHMARK(CalcAndEncode_SensorStateResponse_Fresh);
 
 // --- BinarySensorStateResponse ---
 
@@ -193,6 +212,7 @@ static void Encode_DeviceInfoResponse(benchmark::State &state) {
 }
 BENCHMARK(Encode_DeviceInfoResponse);
 
+// Steady state: buffer already allocated from previous iteration
 static void CalcAndEncode_DeviceInfoResponse(benchmark::State &state) {
   auto msg = make_device_info_response();
   APIBuffer buffer;
@@ -206,5 +226,20 @@ static void CalcAndEncode_DeviceInfoResponse(benchmark::State &state) {
   }
 }
 BENCHMARK(CalcAndEncode_DeviceInfoResponse);
+
+// Cold path: fresh buffer each iteration (measures heap allocation)
+static void CalcAndEncode_DeviceInfoResponse_Fresh(benchmark::State &state) {
+  auto msg = make_device_info_response();
+
+  for (auto _ : state) {
+    APIBuffer buffer;
+    uint32_t size = msg.calculate_size();
+    buffer.resize(size);
+    ProtoWriteBuffer writer(&buffer, 0);
+    msg.encode(writer);
+    benchmark::DoNotOptimize(buffer.data());
+  }
+}
+BENCHMARK(CalcAndEncode_DeviceInfoResponse_Fresh);
 
 }  // namespace esphome::api::benchmarks
