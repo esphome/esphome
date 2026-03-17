@@ -3,6 +3,7 @@
 #include <array>
 #include <vector>
 #include <atomic>
+#include <initializer_list>
 
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -38,7 +39,10 @@ class MessageTrigger;
 class Frame {
  public:
   Frame() = default;
-  Frame(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload);
+  Frame(uint8_t initiator_addr, uint8_t target_addr, const uint8_t *payload, unsigned int payload_size);
+  Frame(uint8_t initiator_addr, uint8_t target_addr, const std::initializer_list<uint8_t> &payload)
+      : Frame(initiator_addr, target_addr, payload.begin(), payload.size()) {}
+
   void set_header(uint8_t initiator_addr, uint8_t target_addr);
   uint8_t initiator_addr() const { return (data_[0] >> 4) & 0xf; }
   uint8_t destination_addr() const { return data_[0] & 0xf; }
@@ -136,7 +140,7 @@ class CECTransmit {
  public:
   void setup(InternalGPIOPin *pin);
   void dump_config();
-  bool queue_for_send(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data_bytes);
+  bool queue_for_send(uint8_t source, uint8_t destination, const uint8_t *payload_bytes, unsigned int payload_size);
   bool is_idle() const { return send_queue_.is_empty() && (transmit_state_ == TransmitState::IDLE); }
   void set_uart(uart::UARTComponent *uart) { uart_ = uart; }
   bool has_uart() const { return uart_ != nullptr; }
@@ -244,8 +248,23 @@ class HDMICEC : public Component {
   void add_message_trigger(MessageTrigger *trigger) { message_triggers_.push_back(trigger); }
   uint8_t get_device_type() const;
 
-  bool send(uint8_t destination, const std::vector<uint8_t> &data_bytes);
-  bool send(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data_bytes);
+  // Generic 'send' of a bus message, it pushes its message into a send buffer for later transmit.
+  bool send(uint8_t source, uint8_t destination, const uint8_t *payload_bytes, unsigned int payload_size);
+
+  // More compact 'send' wrappers for easier use:
+  // Preferred for most use cases, with a compile-time-fixed argument list:
+  bool send(uint8_t destination, const std::initializer_list<uint8_t> &payload) {
+    return send(address_, destination, payload.begin(), payload.size());
+  }
+  // For use when the payload is stored by the caller in an std::vector or std::array:
+  bool send(uint8_t destination, const uint8_t *payload_bytes, unsigned int payload_size) {
+    return send(address_, destination, payload_bytes, payload_size);
+  }
+  // And finally, provided for backwards compatibility, now discouraged:
+  // Better avoid use of a 'source' != my address_. Better avoid the 'vector' for its heap allocation
+  bool send(uint8_t source, uint8_t destination, const std::vector<uint8_t> &payload) {
+    return send(source, destination, payload.data(), payload.size());
+  }
 
   // Component overrides
   float get_setup_priority() const override { return esphome::setup_priority::HARDWARE; }

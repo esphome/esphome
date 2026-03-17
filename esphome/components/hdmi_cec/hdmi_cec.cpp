@@ -36,11 +36,11 @@ static const char *const TAG = "hdmi_cec";
 static constexpr gpio::Flags PIN_MODE_FLAGS =
     gpio::FLAG_INPUT | gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN | gpio::FLAG_PULLUP;
 
-Frame::Frame(uint8_t initiator_addr, uint8_t target_addr, const std::vector<uint8_t> &payload) {
+Frame::Frame(uint8_t initiator_addr, uint8_t target_addr, const uint8_t *payload, unsigned int payload_size) {
   this->set_header(initiator_addr, target_addr);
-  size_ = std::min(1 + payload.size(), data_.size());  // size of header plus payload in frame
+  size_ = std::min(1 + payload_size, data_.size());  // size of header(==1) plus payload in frame
   for (int i = 1; i < size_; i++)
-    data_[i] = payload[i - 1];
+    data_[i] = *payload++;
 }
 
 void Frame::set_header(uint8_t initiator_addr, uint8_t target_addr) {
@@ -182,36 +182,35 @@ void HDMICEC::try_builtin_handler_(uint8_t source, uint8_t destination, const st
     // "Get CEC Version" request
     case 0x9F: {
       // reply with "CEC Version" (0x9E), "1.4" (0x5)
-      send(address_, source, {0x9E, 0x05});
+      send(source, {0x9E, 0x05});
       break;
     }
 
     // "Give Device Power Status" request
     case 0x8F: {
       // reply with "Report Power Status" (0x90)
-      send(address_, source, {0x90, 0x00});  // "On"
+      send(source, {0x90, 0x00});  // "On"
       break;
     }
 
     // "Give OSD Name" request
     case 0x46: {
       // reply with "Set OSD Name" (0x47)
-      std::vector<uint8_t> data = {0x47};
-      data.insert(data.end(), osd_name_bytes_.begin(), osd_name_bytes_.end());
-      send(address_, source, data);
+      std::array<uint8_t, Frame::MAX_LENGTH - 1> payload = {0x47};
+      unsigned int payload_size = std::min(payload.size(), osd_name_bytes_.size() + 1);
+      for (int i = 1; i < payload_size; i++) {
+        payload[i] = osd_name_bytes_[i - 1];
+      }
+      send(address_, source, payload.data(), payload_size);
       break;
     }
 
     // "Give Physical Address" request
     case 0x83: {
       // reply with "Report Physical Address" (0x84)
-      auto physical_address_bytes = decode_value(physical_address_);
-      std::vector<uint8_t> data = {0x84};
-      data.insert(data.end(), physical_address_bytes.begin(), physical_address_bytes.end());
-      // Device Type
-      data.push_back(get_device_type());
-      // Broadcast Physical Address
-      send(address_, 0xF, data);
+      // Broadcast Physical Address and my device type
+      send(0xF, {0x84, (uint8_t) ((physical_address_ >> 8) & 0xff), (uint8_t) (physical_address_ & 0xff),
+                 get_device_type()});
       break;
     }
 
@@ -222,22 +221,18 @@ void HDMICEC::try_builtin_handler_(uint8_t source, uint8_t destination, const st
 
     // default case (no built-in handler + no on_message handler) => message not supported => send "Feature Abort"
     default:
-      send(address_, source, {0x00, opcode, 0x00});
+      send(source, {0x00, opcode, 0x00});
       break;
   }
 }
 
-bool HDMICEC::send(uint8_t destination, const std::vector<uint8_t> &data_bytes) {
-  return send(address_, destination, data_bytes);
-}
-
-bool HDMICEC::send(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data_bytes) {
+bool HDMICEC::send(uint8_t source, uint8_t destination, const uint8_t *data_bytes, unsigned int data_size) {
   if (recv_.get_monitor_mode()) {
     // in 'monitor mode' no presence on the CEC bus is shown, so we don't send
     return false;
   }
 
-  return xmit_.queue_for_send(source, destination, data_bytes);
+  return xmit_.queue_for_send(source, destination, data_bytes, data_size);
 }
 
 inline void IRAM_ATTR CECTransmit::set_pin_input_high() { pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP); }
@@ -278,15 +273,16 @@ void CECTransmit::dump_config() {
   ESP_LOGCONFIG(TAG, "  has UART: %s", (uart_ ? "yes" : "no"));
 }
 
-bool CECTransmit::queue_for_send(uint8_t source, uint8_t destination, const std::vector<uint8_t> &data_bytes) {
+bool CECTransmit::queue_for_send(uint8_t source, uint8_t destination, const uint8_t *payload_bytes,
+                                 unsigned int payload_size) {
   Frame *frame = send_queue_.back();
   if (!frame)
     return false;  // queue is (still) full
 
-  if (1 + data_bytes.size() > Frame::MAX_LENGTH)
-    return false;  // exceeds the cec 1.4 standard max message length
+  if (1 + payload_size > Frame::MAX_LENGTH)  // Frame has 1 byte to hold source and destination plus payload
+    return false;                            // exceeds the cec 1.4 standard max message length
 
-  new (frame) Frame(source, destination, data_bytes);
+  new (frame) Frame(source, destination, payload_bytes, payload_size);
   send_queue_.push_back();  // commit the frame obtained from the last 'back()'
   return true;
 }
