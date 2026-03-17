@@ -4,6 +4,7 @@
 #include "esphome/components/usb_cdc_acm/usb_cdc_acm.h"
 #include "esphome/core/component.h"
 
+#include <memory>
 #include "freertos/ringbuf.h"
 #include "tinyusb_cdc_acm.h"
 
@@ -21,38 +22,37 @@ class USBUARTBridge : public Component {
 
   void set_uart_parent(uart::IDFUARTComponent *uart_parent) { this->uart_parent_ = uart_parent; }
   void set_usb_cdc_parent(usb_cdc_acm::USBCDCACMInstance *usb_cdc_parent) { this->usb_cdc_parent_ = usb_cdc_parent; }
-
-  uart::IDFUARTComponent *get_uart_parent() const { return this->uart_parent_; }
-  usb_cdc_acm::USBCDCACMInstance *get_usb_cdc_parent() const { return this->usb_cdc_parent_; }
+  void set_uart_rx_buffer_size(size_t size) { this->uart_rx_buffer_size_ = size; }
+  void set_uart_tx_buffer_size(size_t size) { this->uart_tx_buffer_size_ = size; }
 
   void set_line_coding(uint32_t bit_rate, uint8_t stop_bits, uint8_t parity, uint8_t data_bits);
   void set_line_state(bool dtr, bool rts);
 
+ protected:
   static void uart_rx_task_fn(void *arg);
   static void uart_tx_task_fn(void *arg);
   void uart_rx_task();
   void uart_tx_task();
-
-  typedef struct uart_rx_task_param_t {
-    TaskHandle_t usb_tx_handle;
-  } uart_rx_task_param_t;
-
- protected:
   void uart_settings_reload_();
 
   TaskHandle_t uart_rx_task_handle_{nullptr};
   TaskHandle_t uart_tx_task_handle_{nullptr};
+  TaskHandle_t usb_tx_task_handle_{nullptr};
 
   GPIOPin *dtr_pin_{nullptr};
   GPIOPin *rts_pin_{nullptr};
 
-  uart_rx_task_param_t uart_rx_task_param_{};
-
-  bool reload_pending_{false};
   uint32_t reload_requested_at_{0};
+
+  size_t uart_rx_buffer_size_{256};
+  size_t uart_tx_buffer_size_{256};
+  std::unique_ptr<uint8_t[]> uart_rx_buffer_{nullptr};
+  std::unique_ptr<uint8_t[]> uart_tx_buffer_{nullptr};
 
   uart::IDFUARTComponent *uart_parent_{nullptr};
   usb_cdc_acm::USBCDCACMInstance *usb_cdc_parent_{nullptr};
+
+  bool reload_pending_{false};
 };
 
 }  // namespace esphome::usb_uart_bridge

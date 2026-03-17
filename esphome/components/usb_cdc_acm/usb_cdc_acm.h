@@ -78,6 +78,9 @@ class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMC
   static void usb_tx_task_fn(void *arg);
   void usb_tx_task();
 
+  /// Throttled log for RX buffer full events (called from USB callback context)
+  void log_rx_buffer_full_throttled();
+
   // UARTComponent interface implementation
   void write_array(const uint8_t *data, size_t len) override;
   bool peek_byte(uint8_t *data) override;
@@ -102,6 +105,11 @@ class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMC
   // User-registered callbacks (called from main loop)
   LineCodingCallback line_coding_callback_{nullptr};
   LineStateCallback line_state_callback_{nullptr};
+
+  // Throttled log timestamps
+  uint32_t rx_full_log_ms_{0};
+  uint32_t tx_flush_fail_log_ms_{0};
+  uint32_t tx_queue_stall_log_ms_{0};
 
   // Lock-free queue and event pool for cross-task event passing
   EventPool<CDCEvent, EVENT_QUEUE_SIZE> event_pool_;

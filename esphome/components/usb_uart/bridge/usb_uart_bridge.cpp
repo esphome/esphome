@@ -3,7 +3,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
-#include <sys/param.h>
+#include <algorithm>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/ringbuf.h"
@@ -11,30 +11,36 @@
 #include "driver/uart.h"
 #include "esp_log.h"
 
-#include "tusb_cdc_acm.h"
+#include "tinyusb_cdc_acm.h"
 
-#define STR_STOP_BITS(s) (((s) == 2) ? "UART_STOP_BITS_2" : (((s) == 1) ? "UART_STOP_BITS_1_5" : "UART_STOP_BITS_1"))
-#define STR_PARITY(p) (((p) == 2) ? "UART_PARITY_EVEN" : (((p) == 1) ? "UART_PARITY_ODD" : "UART_PARITY_DISABLE"))
-#define STR_DATA_BITS(b) \
-  (((b) == 5) ? "UART_DATA_5_BITS" \
-              : (((b) == 6) ? "UART_DATA_6_BITS" : (((b) == 7) ? "UART_DATA_7_BITS" : "UART_DATA_8_BITS")))
+namespace esphome::usb_uart_bridge {
+
+static constexpr const char *TAG = "usb_uart_bridge";
+
+static constexpr size_t USB_TASK_STACK_SIZE = 4096;
+static constexpr size_t USB_TASK_STACK_SIZE_VV = 8192;
+static constexpr size_t RINGBUF_RETRY_CHUNK_SIZE = 64;
+static constexpr uint32_t LOG_THROTTLE_MS = 1000;
+static constexpr uint32_t UART_RELOAD_SETTLE_MS = 20;
 
 /*
- * uint32_t bit_rate;
  * uint8_t  stop_bits; ///< 0: 1 stop bit - 1: 1.5 stop bits - 2: 2 stop bits
  * uint8_t  parity;    ///< 0: None - 1: Odd - 2: Even - 3: Mark - 4: Space
  * uint8_t  data_bits; ///< can be 5, 6, 7, 8 or 16
  * */
 
-namespace esphome::usb_uart_bridge {
-
-static const char *TAG = "usb_uart_bridge";
-
-static constexpr size_t USB_TASK_STACK_SIZE = 4096;
-static constexpr size_t USB_TASK_STACK_SIZE_VV = 8192;
-static constexpr uint32_t UART_RELOAD_SETTLE_MS = 20;
-static constexpr uint32_t LOG_THROTTLE_MS = 1000;
-static constexpr size_t RINGBUF_RETRY_CHUNK_SIZE = 64;
+static const char *str_stop_bits(uint8_t s) {
+  return (s == 2) ? "UART_STOP_BITS_2" : (s == 1) ? "UART_STOP_BITS_1_5" : "UART_STOP_BITS_1";
+}
+static const char *str_parity(uint8_t p) {
+  return (p == 2) ? "UART_PARITY_EVEN" : (p == 1) ? "UART_PARITY_ODD" : "UART_PARITY_DISABLE";
+}
+static const char *str_data_bits(uint8_t b) {
+  return (b == 5)   ? "UART_DATA_5_BITS"
+         : (b == 6) ? "UART_DATA_6_BITS"
+         : (b == 7) ? "UART_DATA_7_BITS"
+                    : "UART_DATA_8_BITS";
+}
 
 static bool should_log_now_(uint32_t *last_ms, uint32_t interval_ms) {
   uint32_t now = esp_log_timestamp();
@@ -56,7 +62,7 @@ static bool ringbuf_send_with_retry_(RingbufHandle_t ringbuf, const uint8_t *dat
 
   size_t offset = 0;
   while (offset < len) {
-    size_t chunk = MIN(RINGBUF_RETRY_CHUNK_SIZE, len - offset);
+    size_t chunk = std::min(RINGBUF_RETRY_CHUNK_SIZE, len - offset);
     if (xRingbufferSend(ringbuf, data + offset, chunk, pdMS_TO_TICKS(1)) != pdTRUE) {
       if (should_log_now_(log_ms, LOG_THROTTLE_MS)) {
         ESP_LOGW(TAG, "USB TX buffer full; some data is lost");
@@ -115,6 +121,20 @@ void USBUARTBridge::setup() {
     return;
   }
 
+  this->uart_rx_buffer_.reset(new (std::nothrow) uint8_t[this->uart_rx_buffer_size_]);
+  if (this->uart_rx_buffer_ == nullptr) {
+    ESP_LOGE(TAG, "UART RX buffer allocation failed");
+    this->mark_failed();
+    return;
+  }
+
+  this->uart_tx_buffer_.reset(new (std::nothrow) uint8_t[this->uart_tx_buffer_size_]);
+  if (this->uart_tx_buffer_ == nullptr) {
+    ESP_LOGE(TAG, "UART TX buffer allocation failed");
+    this->mark_failed();
+    return;
+  }
+
   // Register line state and line coding callbacks with the USB CDC ACM component
   this->usb_cdc_parent_->set_line_state_callback([this](bool dtr, bool rts) { this->set_line_state(dtr, rts); });
   this->usb_cdc_parent_->set_line_coding_callback(
@@ -133,12 +153,8 @@ void USBUARTBridge::setup() {
     return;
   }
 
-  vTaskDelay(pdMS_TO_TICKS(100));
-
   // Create task that reads from UART and writes to USB CDC TX buffer
-  this->uart_rx_task_param_ = {
-      .usb_tx_handle = this->usb_cdc_parent_->get_tx_task_handle(),
-  };
+  this->usb_tx_task_handle_ = this->usb_cdc_parent_->get_tx_task_handle();
   xTaskCreate(uart_rx_task_fn, "uart_usb_rx", stack_size, this, 4, &this->uart_rx_task_handle_);
   if (this->uart_rx_task_handle_ == nullptr) {
     ESP_LOGE(TAG, "Failed to create UART RX task");
@@ -188,19 +204,19 @@ void USBUARTBridge::set_line_coding(uint32_t bit_rate, uint8_t stop_bits, uint8_
   if (this->uart_parent_->get_stop_bits() != uart_stop_bits) {
     this->uart_parent_->set_stop_bits(uart_stop_bits);
     changed = true;
-    ESP_LOGV(TAG, "Stop bits changed to %s", STR_STOP_BITS(stop_bits));
+    ESP_LOGV(TAG, "Stop bits changed to %s", str_stop_bits(stop_bits));
   }
 
   if (this->uart_parent_->get_parity() != parity) {
     this->uart_parent_->set_parity(static_cast<uart::UARTParityOptions>(parity));
     changed = true;
-    ESP_LOGV(TAG, "Parity changed to %s", STR_PARITY(parity));
+    ESP_LOGV(TAG, "Parity changed to %s", str_parity(parity));
   }
 
   if (this->uart_parent_->get_data_bits() != data_bits) {
     this->uart_parent_->set_data_bits(data_bits);
     changed = true;
-    ESP_LOGV(TAG, "Data bits changed to %s", STR_DATA_BITS(data_bits));
+    ESP_LOGV(TAG, "Data bits changed to %s", str_data_bits(data_bits));
   }
 
   if (changed) {
@@ -231,12 +247,13 @@ void USBUARTBridge::uart_tx_task_fn(void *arg) {
 }
 
 void USBUARTBridge::uart_rx_task() {
-  TaskHandle_t usb_tx_handle = this->uart_rx_task_param_.usb_tx_handle;
+  TaskHandle_t usb_tx_handle = this->usb_tx_task_handle_;
   RingbufHandle_t usb_tx_ringbuf = this->usb_cdc_parent_->get_tx_ringbuf();
   uart_port_t uart_num = (uart_port_t) this->uart_parent_->get_hw_serial_number();
   uint32_t tx_full_log_ms = 0;
 
-  uint8_t data[USB_UART_BRIDGE_UART_RX_BUFFER_SIZE] = {0};
+  uint8_t *data = this->uart_rx_buffer_.get();
+  const size_t buf_size = this->uart_rx_buffer_size_;
 
   while (1) {
     // Block until at least one byte is available from UART.
@@ -252,8 +269,7 @@ void USBUARTBridge::uart_rx_task() {
 
     // Drain the currently buffered burst without waiting.
     while (1) {
-      int rx_data_size =
-          uart_read_bytes(uart_num, data + total_rx_size, USB_UART_BRIDGE_UART_RX_BUFFER_SIZE - total_rx_size, 0);
+      int rx_data_size = uart_read_bytes(uart_num, data + total_rx_size, buf_size - total_rx_size, 0);
       ESP_LOGV(TAG, "UART RX: %d bytes", rx_data_size);
       if (rx_data_size == 0) {
         break;
@@ -263,7 +279,7 @@ void USBUARTBridge::uart_rx_task() {
         break;
       }
       total_rx_size += rx_data_size;
-      if (total_rx_size >= USB_UART_BRIDGE_UART_RX_BUFFER_SIZE) {
+      if (total_rx_size >= (int) buf_size) {
         break;
       }
     }
@@ -278,12 +294,13 @@ void USBUARTBridge::uart_rx_task() {
 void USBUARTBridge::uart_tx_task() {
   RingbufHandle_t usb_rx_ringbuf = this->usb_cdc_parent_->get_rx_ringbuf();
   uart_port_t uart_num = (uart_port_t) this->uart_parent_->get_hw_serial_number();
-  uint8_t data_to_uart[USB_UART_BRIDGE_UART_TX_BUFFER_SIZE];
+  uint8_t *data_to_uart = this->uart_tx_buffer_.get();
+  const size_t buf_size = this->uart_tx_buffer_size_;
   size_t rx_size;
 
   while (1) {
     ESP_LOGV(TAG, "Waiting for data to send to UART");
-    esp_err_t ret = ringbuf_read_bytes(usb_rx_ringbuf, data_to_uart, sizeof(data_to_uart), &rx_size, portMAX_DELAY);
+    esp_err_t ret = ringbuf_read_bytes(usb_rx_ringbuf, data_to_uart, buf_size, &rx_size, portMAX_DELAY);
 
     if (ret != ESP_OK) {
       ESP_LOGE(TAG, "USB RX RingBuf read failed");
@@ -301,6 +318,8 @@ void USBUARTBridge::uart_tx_task() {
 
 void USBUARTBridge::uart_settings_reload_() {
   if (this->uart_parent_ != nullptr) {
+    // Safe to suspend: tasks are either blocked on FreeRTOS primitives (uart_read_bytes,
+    // xRingbufferReceiveUpTo) or performing atomic ring buffer/UART operations — no mutexes held.
     if (this->uart_rx_task_handle_ != nullptr) {
       vTaskSuspend(this->uart_rx_task_handle_);
     }

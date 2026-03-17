@@ -46,9 +46,5 @@ async def to_code(config):
         rts_pin = await cg.gpio_pin_expression(rts_pin_config)
         cg.add(var.set_rts_pin(rts_pin))
 
-    cg.add_define(
-        "USB_UART_BRIDGE_UART_RX_BUFFER_SIZE", config[CONF_UART_RX_BUFFER_SIZE]
-    )
-    cg.add_define(
-        "USB_UART_BRIDGE_UART_TX_BUFFER_SIZE", config[CONF_UART_TX_BUFFER_SIZE]
-    )
+    cg.add(var.set_uart_rx_buffer_size(config[CONF_UART_RX_BUFFER_SIZE]))
+    cg.add(var.set_uart_tx_buffer_size(config[CONF_UART_TX_BUFFER_SIZE]))
