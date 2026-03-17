@@ -72,10 +72,7 @@ static void Scheduler_Call_5IntervalsFiring(benchmark::State &state) {
   }
   scheduler.process_to_add();
 
-  // Start at a known time so intervals are immediately due.
-  // now increases monotonically across all iterations — this is required
-  // because millis_64_from_() tracks rollovers and going backwards would
-  // appear as a 32-bit wrap (~49 day jump forward).
+  // Must be monotonic — millis_64_from_() tracks rollovers.
   uint32_t now = millis() + 100;
 
   for (auto _ : state) {
