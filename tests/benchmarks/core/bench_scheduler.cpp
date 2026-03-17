@@ -50,6 +50,34 @@ static void Scheduler_Call_TimersNotDue(benchmark::State &state) {
 }
 BENCHMARK(Scheduler_Call_TimersNotDue);
 
+// --- Scheduler with 5 intervals firing every call ---
+
+static void Scheduler_Call_5IntervalsFiring(benchmark::State &state) {
+  Scheduler scheduler;
+  Component dummy_component;
+  int fire_count = 0;
+
+  // Add 5 intervals with 1ms period — they fire every call when time advances
+  for (int i = 0; i < 5; i++) {
+    scheduler.set_interval(&dummy_component, static_cast<uint32_t>(i), 1, [&fire_count]() { fire_count++; });
+  }
+  scheduler.process_to_add();
+
+  // Start at a known time so intervals are immediately due
+  uint32_t now = millis() + 100;
+
+  for (auto _ : state) {
+    for (int i = 0; i < kInnerIterations; i++) {
+      scheduler.call(now);
+      // Advance time by 1ms so intervals are due again next call
+      now++;
+    }
+    benchmark::DoNotOptimize(fire_count);
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(Scheduler_Call_5IntervalsFiring);
+
 // --- Scheduler: next_schedule_in() calculation ---
 
 static void Scheduler_NextScheduleIn(benchmark::State &state) {
