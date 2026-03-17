@@ -339,6 +339,7 @@ jobs:
         with:
           run: ${{ steps.build.outputs.binary }}
           token: ${{ secrets.CODSPEED_TOKEN }}
+          mode: simulation
 
   clang-tidy-single:
     name: ${{ matrix.name }}

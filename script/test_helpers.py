@@ -248,7 +248,9 @@ def compile_and_get_binary(
             domain_list = config.setdefault(domain, [])
             CORE.testing_ensure_platform_registered(domain)
             domain_list.append({CONF_PLATFORM: component})
-        else:
+        # Skip "core" — it's a pseudo-component handled by the build
+        # system, not a real loadable component (get_component returns None)
+        elif get_component(component_name) is not None:
             config.setdefault(component_name, [])
 
     # Register platforms from the extra config (benchmark.yaml) so
