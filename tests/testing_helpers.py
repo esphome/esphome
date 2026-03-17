@@ -1,6 +1,6 @@
 from typing import Any
 
-from esphome.loader import _COMPONENT_CACHE, ComponentManifest
+from esphome.loader import ComponentManifest, _replace_component_manifest
 
 
 class ComponentManifestOverride:
@@ -60,4 +60,4 @@ def set_testing_manifest(domain: str, manifest: ComponentManifestOverride) -> No
     Called from the C++ unit test infrastructure when a component's test
     directory provides an ``override_manifest`` function.
     """
-    _COMPONENT_CACHE[domain] = manifest
+    _replace_component_manifest(domain, manifest)

@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
-from esphome.loader import ComponentManifest
+from esphome.loader import ComponentManifest, _replace_component_manifest, get_component
 from tests.testing_helpers import ComponentManifestOverride
 
 # ---------------------------------------------------------------------------
@@ -90,6 +90,16 @@ def test_testing_manifest_restore_clears_all_overrides() -> None:
 
     assert tm.to_code is real_to_code
     assert tm.dependencies == ["wifi"]
+
+
+def test_replace_component_manifest_installs_override() -> None:
+    """_replace_component_manifest replaces the cached manifest for a domain."""
+    inner = _make_manifest()
+    override = ComponentManifestOverride(inner)
+
+    _replace_component_manifest("_test_dummy_domain", override)
+
+    assert get_component("_test_dummy_domain") is override
 
 
 def test_component_manifest_resources_with_filter_source_files() -> None:
