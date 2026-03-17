@@ -125,12 +125,16 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   // Byte 0: modbus address (match all)
   if (at == 0)
     return true;
-  uint8_t address = raw[0];
-  uint8_t function_code = raw[1];
+  // Byte 1: function code
+  if (at == 1)
+    return true;
   // Byte 2: Size (with modbus rtu function code 4/3)
   // See also https://en.wikipedia.org/wiki/Modbus
   if (at == 2)
     return true;
+
+  uint8_t address = raw[0];
+  uint8_t function_code = raw[1];
 
   uint8_t data_len = raw[2];
   uint8_t data_offset = 3;
@@ -145,10 +149,6 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
     // installed, but wait, there is the CRC, and if we get a hit there is a good
     // chance that this is a complete message ... admittedly there is a small chance is
     // isn't but that is quite small given the purpose of the CRC in the first place
-
-    // Fewer than 2 bytes can't calc CRC
-    if (at < 2)
-      return true;
 
     data_len = at - 2;
     data_offset = 1;

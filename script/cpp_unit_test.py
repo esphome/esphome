@@ -77,6 +77,10 @@ def create_test_config(config_name: str, includes: list[str]) -> dict:
                 "build_flags": [
                     "-Og",  # optimize for debug
                     "-DESPHOME_DEBUG",  # enable debug assertions
+                    # Enable the address and undefined behavior sanitizers
+                    "-fsanitize=address",
+                    "-fsanitize=undefined",
+                    "-fno-omit-frame-pointer",
                 ],
                 "debug_build_flags": [  # only for debug builds
                     "-g3",  # max debug info

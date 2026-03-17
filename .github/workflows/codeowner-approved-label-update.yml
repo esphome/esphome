@@ -10,6 +10,9 @@ name: Codeowner Approved Label
 on:
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
+    branches-ignore:
+      - release
+      - beta
 
 permissions:
   issues: write
