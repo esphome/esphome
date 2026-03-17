@@ -284,9 +284,9 @@ class Scheduler {
 #endif
   }
   // Cleanup logically deleted items from the scheduler
-  // Returns the number of items remaining after cleanup
+  // Returns true if items remain after cleanup
   // IMPORTANT: This method should only be called from the main thread (loop task).
-  size_t cleanup_();
+  bool cleanup_();
   // Remove and return the front item from the heap as a raw pointer.
   // Caller takes ownership and must either recycle or delete the item.
   // IMPORTANT: Caller must hold the scheduler lock before calling this function.

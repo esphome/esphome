@@ -396,7 +396,7 @@ optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {
   // safe when called from the main thread. Other threads must not call this method.
 
   // If no items, return empty optional
-  if (this->cleanup_() == 0)
+  if (!this->cleanup_())
     return {};
 
   SchedulerItem *item = this->items_[0];
@@ -633,12 +633,12 @@ void HOT Scheduler::process_to_add() {
   this->to_add_.clear();
   this->to_add_count_clear_();
 }
-size_t HOT Scheduler::cleanup_() {
-  // Fast path: if nothing to remove, just return the current size.
+bool HOT Scheduler::cleanup_() {
+  // Fast path: if nothing to remove, just check if items exist.
   // Uses atomic load on platforms with atomics, falls back to always taking the lock otherwise.
   // Worst case is a one-loop-iteration delay in cleanup.
   if (this->to_remove_empty_())
-    return this->items_.size();
+    return !this->items_.empty();
 
   // We must hold the lock for the entire cleanup operation because:
   // 1. We're modifying items_ (via pop_raw_locked_) which requires exclusive access
@@ -656,7 +656,7 @@ size_t HOT Scheduler::cleanup_() {
     this->to_remove_decrement_();
     this->recycle_item_main_loop_(this->pop_raw_locked_());
   }
-  return this->items_.size();
+  return !this->items_.empty();
 }
 Scheduler::SchedulerItem *HOT Scheduler::pop_raw_locked_() {
   std::pop_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
