@@ -645,7 +645,7 @@ def _is_framework_url(source: str) -> bool:
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
-    "recommended": cv.Version(3, 3, 7),
+    "recommended": cv.Version(4, 0, 0),
     "latest": cv.Version(3, 3, 7),
     "dev": cv.Version(3, 3, 7),
 }
