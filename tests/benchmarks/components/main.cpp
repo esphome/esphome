@@ -10,7 +10,7 @@ It replaces the default ESPHome main with a benchmark runner.
 
 // Auto generated code by esphome
 // ========== AUTO GENERATED INCLUDE BLOCK BEGIN ===========
-// ========== AUTO GENERATED INCLUDE BLOCK END ==========="
+// ========== AUTO GENERATED INCLUDE BLOCK END ===========
 
 void original_setup() {
   // Code-generated App initialization (pre_setup, area/device registration, etc.)
