@@ -5,6 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include <esp_idf_version.h>
 #ifdef USE_I2S_LEGACY
 #include <driver/i2s.h>
 #else
@@ -56,8 +57,6 @@ class I2SAudioOut : public I2SAudioBase {};
 
 class I2SAudioComponent : public Component {
  public:
-  void setup() override;
-
 #ifdef USE_I2S_LEGACY
   i2s_pin_config_t get_pin_config() const {
     return {
@@ -86,12 +85,16 @@ class I2SAudioComponent : public Component {
   void set_mclk_pin(int pin) { this->mclk_pin_ = pin; }
   void set_bclk_pin(int pin) { this->bclk_pin_ = pin; }
   void set_lrclk_pin(int pin) { this->lrclk_pin_ = pin; }
+  void set_port(int port) { this->port_ = port; }
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  int get_port() const { return this->port_; }
+#else
+  i2s_port_t get_port() const { return static_cast<i2s_port_t>(this->port_); }
+#endif
 
   void lock() { this->lock_.lock(); }
   bool try_lock() { return this->lock_.try_lock(); }
   void unlock() { this->lock_.unlock(); }
-
-  i2s_port_t get_port() const { return this->port_; }
 
  protected:
   Mutex lock_;
@@ -106,7 +109,7 @@ class I2SAudioComponent : public Component {
   int bclk_pin_{I2S_GPIO_UNUSED};
 #endif
   int lrclk_pin_;
-  i2s_port_t port_{};
+  int port_{};
 };
 
 }  // namespace i2s_audio

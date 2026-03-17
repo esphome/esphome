@@ -163,10 +163,14 @@ class ESPNowComponent : public Component {
 
   uint8_t own_address_[ESP_NOW_ETH_ALEN]{0};
   LockFreeQueue<ESPNowPacket, MAX_ESP_NOW_RECEIVE_QUEUE_SIZE> receive_packet_queue_{};
-  EventPool<ESPNowPacket, MAX_ESP_NOW_RECEIVE_QUEUE_SIZE> receive_packet_pool_{};
+  // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
+  // buffer that holds N-1 elements. This guarantees allocate() returns nullptr
+  // before push() can fail, preventing a pool slot leak.
+  EventPool<ESPNowPacket, MAX_ESP_NOW_RECEIVE_QUEUE_SIZE - 1> receive_packet_pool_{};
 
   LockFreeQueue<ESPNowSendPacket, MAX_ESP_NOW_SEND_QUEUE_SIZE> send_packet_queue_{};
-  EventPool<ESPNowSendPacket, MAX_ESP_NOW_SEND_QUEUE_SIZE> send_packet_pool_{};
+  // Pool sized to queue capacity (SIZE-1) — see receive_packet_pool_ comment.
+  EventPool<ESPNowSendPacket, MAX_ESP_NOW_SEND_QUEUE_SIZE - 1> send_packet_pool_{};
   ESPNowSendPacket *current_send_packet_{nullptr};  // Currently sending packet, nullptr if none
 
   uint8_t wifi_channel_{0};
