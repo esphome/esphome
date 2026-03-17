@@ -56,27 +56,27 @@ def _git(args: list[str], **kwargs: object) -> None:
 
 
 def _clone_repo(output_dir: Path) -> None:
-    """Clone codspeed-cpp at the pinned SHA with submodules."""
+    """Shallow-clone codspeed-cpp at the pinned SHA with submodules."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    _git(["init", str(output_dir)])
+    _git(["-C", str(output_dir), "remote", "add", "origin", CODSPEED_CPP_REPO])
+    _git(["-C", str(output_dir), "fetch", "--depth", "1", "origin", CODSPEED_CPP_SHA])
     _git(
-        [
-            "clone",
-            "--recurse-submodules",
-            "--shallow-submodules",
-            CODSPEED_CPP_REPO,
-            str(output_dir),
-        ]
+        ["-C", str(output_dir), "checkout", "FETCH_HEAD"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
     _git(
         [
             "-C",
             str(output_dir),
-            "-c",
-            "advice.detachedHead=false",
-            "checkout",
-            CODSPEED_CPP_SHA,
-        ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+            "submodule",
+            "update",
+            "--init",
+            "--recursive",
+            "--depth",
+            "1",
+        ]
     )
 
 
