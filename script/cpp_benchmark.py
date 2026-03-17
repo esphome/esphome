@@ -47,13 +47,19 @@ def run_benchmarks(selected_components: list[str], build_only: bool = False) -> 
     if lib_config_json:
         lib_config = json.loads(lib_config_json)
         benchmark_lib = f"benchmark=symlink://{lib_config['lib_path']}"
-        # CODSPEED_ENABLED must be defined globally (not just in library build
-        # flags) because benchmark.h uses #ifdef CODSPEED_ENABLED to switch
-        # benchmark registration to CodSpeed-instrumented variants.
+        # These defines must be global (not just in library.json) because
+        # benchmark.h uses #ifdef CODSPEED_ENABLED to switch benchmark
+        # registration to CodSpeed-instrumented variants, and
+        # CODSPEED_ROOT_DIR is used to display relative file paths in reports.
+        project_root = Path(__file__).resolve().parent.parent
         pio_options = {
             **PLATFORMIO_OPTIONS,
             "build_flags": PLATFORMIO_OPTIONS["build_flags"]
-            + ["-DCODSPEED_ENABLED", "-DCODSPEED_SIMULATION"],
+            + [
+                "-DCODSPEED_ENABLED",
+                "-DCODSPEED_SIMULATION",
+                f'-DCODSPEED_ROOT_DIR=\\"{project_root}\\"',
+            ],
         }
     else:
         benchmark_lib = PLATFORMIO_GOOGLE_BENCHMARK_LIB
