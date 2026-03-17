@@ -77,6 +77,55 @@ static void Scheduler_Call_5IntervalsFiring(benchmark::State &state) {
 }
 BENCHMARK(Scheduler_Call_5IntervalsFiring);
 
+// --- Scheduler: set_timeout registration ---
+
+static void Scheduler_SetTimeout(benchmark::State &state) {
+  Scheduler scheduler;
+  Component dummy_component;
+
+  for (auto _ : state) {
+    for (int i = 0; i < kInnerIterations; i++) {
+      scheduler.set_timeout(&dummy_component, static_cast<uint32_t>(i % 5), 1000, []() {});
+    }
+    scheduler.process_to_add();
+    benchmark::DoNotOptimize(scheduler);
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(Scheduler_SetTimeout);
+
+// --- Scheduler: set_interval registration ---
+
+static void Scheduler_SetInterval(benchmark::State &state) {
+  Scheduler scheduler;
+  Component dummy_component;
+
+  for (auto _ : state) {
+    for (int i = 0; i < kInnerIterations; i++) {
+      scheduler.set_interval(&dummy_component, static_cast<uint32_t>(i % 5), 1000, []() {});
+    }
+    scheduler.process_to_add();
+    benchmark::DoNotOptimize(scheduler);
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(Scheduler_SetInterval);
+
+// --- Scheduler: defer registration ---
+
+static void Scheduler_Defer(benchmark::State &state) {
+  Component dummy_component;
+
+  for (auto _ : state) {
+    for (int i = 0; i < kInnerIterations; i++) {
+      dummy_component.defer(static_cast<uint32_t>(i % 5), []() {});
+    }
+    benchmark::DoNotOptimize(dummy_component);
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(Scheduler_Defer);
+
 // --- Scheduler: next_schedule_in() calculation ---
 
 static void Scheduler_NextScheduleIn(benchmark::State &state) {
