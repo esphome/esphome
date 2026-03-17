@@ -43,9 +43,18 @@ def run_benchmarks(selected_components: list[str], build_only: bool = False) -> 
     # containing {"lib_path": "/path/to/google_benchmark"}.
     lib_config_json = os.environ.get("BENCHMARK_LIB_CONFIG")
 
+    pio_options = PLATFORMIO_OPTIONS
     if lib_config_json:
         lib_config = json.loads(lib_config_json)
         benchmark_lib = f"benchmark=symlink://{lib_config['lib_path']}"
+        # CODSPEED_ENABLED must be defined globally (not just in library build
+        # flags) because benchmark.h uses #ifdef CODSPEED_ENABLED to switch
+        # benchmark registration to CodSpeed-instrumented variants.
+        pio_options = {
+            **PLATFORMIO_OPTIONS,
+            "build_flags": PLATFORMIO_OPTIONS["build_flags"]
+            + ["-DCODSPEED_ENABLED", "-DCODSPEED_SIMULATION"],
+        }
     else:
         benchmark_lib = PLATFORMIO_GOOGLE_BENCHMARK_LIB
 
@@ -56,7 +65,7 @@ def run_benchmarks(selected_components: list[str], build_only: bool = False) -> 
         config_prefix="cppbench",
         friendly_name="CPP Benchmarks",
         libraries=benchmark_lib,
-        platformio_options=PLATFORMIO_OPTIONS,
+        platformio_options=pio_options,
         main_entry="main.cpp",
         label="benchmarks",
         build_only=build_only,
