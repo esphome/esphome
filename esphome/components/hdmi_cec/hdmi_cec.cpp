@@ -226,13 +226,13 @@ void HDMICEC::try_builtin_handler_(uint8_t source, uint8_t destination, const st
   }
 }
 
-bool HDMICEC::send(uint8_t source, uint8_t destination, const uint8_t *data_bytes, unsigned int data_size) {
+bool HDMICEC::send(uint8_t source, uint8_t destination, const uint8_t *payload_bytes, unsigned int payload_size) {
   if (recv_.get_monitor_mode()) {
     // in 'monitor mode' no presence on the CEC bus is shown, so we don't send
     return false;
   }
 
-  return xmit_.queue_for_send(source, destination, data_bytes, data_size);
+  return xmit_.queue_for_send(source, destination, payload_bytes, payload_size);
 }
 
 inline void IRAM_ATTR CECTransmit::set_pin_input_high() { pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP); }
