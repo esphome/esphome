@@ -81,8 +81,6 @@ void ESP32BLE::disable() {
   this->state_ = BLE_COMPONENT_STATE_DISABLE;
 }
 
-bool ESP32BLE::is_active() { return this->state_ == BLE_COMPONENT_STATE_ACTIVE; }
-
 #ifdef USE_ESP32_BLE_ADVERTISING
 void ESP32BLE::advertising_start() {
   this->advertising_init_();
