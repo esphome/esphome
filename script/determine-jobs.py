@@ -830,6 +830,7 @@ def main() -> None:
             "fastled_clockless",
             "fastled_spi",
             "neopixelbus",
+            "i2s_audio",
         }
         solo_components = [
             c for c in changed_components_with_tests if c in solo_batch_components
