@@ -9,6 +9,13 @@
 #endif
 #ifdef USE_ESP32
 #include <esp_chip_info.h>
+#if defined(USE_ESP32_FRAMEWORK_ESP_IDF)
+#include <esp_idf_version.h>
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 0)
+#include <esp_ota_ops.h>
+#include <esp_bootloader_desc.h>
+#endif
+#endif
 #endif
 #ifdef USE_LWIP_FAST_SELECT
 #include "esphome/core/lwip_fast_select.h"
@@ -264,6 +271,19 @@ void Application::process_dump_config_() {
       ESP_LOGW(TAG, "Set minimum_chip_revision: \"%d.%d\" to reduce binary size", chip_info.revision / 100,
                chip_info.revision % 100);
 #endif
+    }
+#endif
+#if defined(USE_ESP32_VARIANT_ESP32) && defined(USE_ESP32_FRAMEWORK_ESP_IDF) && !defined(USE_ESP32_SRAM1_AS_IRAM) && \
+    ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 0)
+    {
+      // Check if bootloader supports SRAM1 as IRAM (requires ESP-IDF >= 5.1 bootloader)
+      // esp_bootloader_desc_t is only available in ESP-IDF >= 5.2, but any bootloader
+      // from 5.2+ also supports SRAM1 as IRAM (which was introduced in 5.1)
+      esp_bootloader_desc_t boot_desc;
+      if (esp_ota_get_bootloader_description(nullptr, &boot_desc) == ESP_OK) {
+        ESP_LOGW(TAG, "Bootloader supports SRAM1 as IRAM (+40KB). "
+                      "Set sram1_as_iram: true under esp32 > framework > advanced");
+      }
     }
 #endif
 #endif
