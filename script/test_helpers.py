@@ -139,6 +139,11 @@ def load_component_yaml_configs(components: list[str], tests_dir: Path) -> dict:
     Returns:
         Merged dict of component configs to add to the base config
     """
+    # Note: components are processed in sorted order. For conflicting keys
+    # (e.g. two benchmark.yaml files both declaring sensor:), the first
+    # component alphabetically wins via setdefault(). This is fine for now
+    # with a single benchmark component (api) but would need a real merge
+    # strategy if multiple components declare overlapping configs.
     merged: dict = {}
     for component in components:
         yaml_path = tests_dir / component / BENCHMARK_YAML_FILENAME
