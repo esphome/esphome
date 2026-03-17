@@ -328,8 +328,8 @@ def build_and_run(
         label: Label for log messages
         build_only: If True, print binary path and return without running
         extra_run_args: Extra arguments to pass to the binary
-        extra_include_dirs: Additional directories (relative to tests_dir)
-            whose .cpp files should be compiled
+        extra_include_dirs: Additional directories whose .cpp files
+            should be compiled (resolved relative to tests_dir if possible)
 
     Returns:
         Exit code

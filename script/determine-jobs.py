@@ -381,6 +381,19 @@ def determine_cpp_unit_tests(
     return (False, get_cpp_changed_components(cpp_files))
 
 
+# Paths within tests/benchmarks/ that contain component benchmark files
+BENCHMARKS_COMPONENTS_PATH = "tests/benchmarks/components"
+
+# Files that, when changed, should trigger benchmark runs
+BENCHMARK_INFRASTRUCTURE_FILES = frozenset(
+    {
+        "script/cpp_benchmark.py",
+        "script/test_helpers.py",
+        "script/setup_codspeed_lib.py",
+    }
+)
+
+
 def should_run_benchmarks(branch: str | None = None) -> bool:
     """Determine if C++ benchmarks should run based on changed files.
 
@@ -389,7 +402,7 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
     1. Core C++ files changed (esphome/core/*)
     2. A directly changed component has benchmark files (no dependency expansion)
     3. Benchmark infrastructure changed (tests/benchmarks/*, script/cpp_benchmark.py,
-       script/test_helpers.py)
+       script/test_helpers.py, script/setup_codspeed_lib.py)
 
     Unlike unit tests, benchmarks do NOT expand to dependent components.
     Changing ``sensor`` does not trigger ``api`` benchmarks just because
@@ -407,14 +420,13 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
 
     # Check if benchmark infrastructure changed
     if any(
-        f.startswith("tests/benchmarks/")
-        or f in ("script/cpp_benchmark.py", "script/test_helpers.py")
+        f.startswith("tests/benchmarks/") or f in BENCHMARK_INFRASTRUCTURE_FILES
         for f in files
     ):
         return True
 
     # Check if any directly changed component has benchmarks
-    benchmarks_dir = Path(root_path) / "tests" / "benchmarks" / "components"
+    benchmarks_dir = Path(root_path) / BENCHMARKS_COMPONENTS_PATH
     if not benchmarks_dir.is_dir():
         return False
     benchmarked_components = {
