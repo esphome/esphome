@@ -1,0 +1,210 @@
+#include <benchmark/benchmark.h>
+
+#include "esphome/components/api/api_pb2.h"
+#include "esphome/components/api/api_buffer.h"
+
+namespace esphome::api::benchmarks {
+
+// --- SensorStateResponse (highest frequency message) ---
+
+static void BM_Encode_SensorStateResponse(benchmark::State &state) {
+  APIBuffer buffer;
+  SensorStateResponse msg;
+  msg.key = 0x12345678;
+  msg.state = 23.5f;
+  msg.missing_state = false;
+  uint32_t size = msg.calculate_size();
+  buffer.resize(size);
+
+  for (auto _ : state) {
+    ProtoWriteBuffer writer(&buffer, 0);
+    msg.encode(writer);
+    benchmark::DoNotOptimize(buffer.data());
+  }
+}
+BENCHMARK(BM_Encode_SensorStateResponse);
+
+static void BM_CalculateSize_SensorStateResponse(benchmark::State &state) {
+  SensorStateResponse msg;
+  msg.key = 0x12345678;
+  msg.state = 23.5f;
+  msg.missing_state = false;
+
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(msg.calculate_size());
+  }
+}
+BENCHMARK(BM_CalculateSize_SensorStateResponse);
+
+static void BM_CalcAndEncode_SensorStateResponse(benchmark::State &state) {
+  APIBuffer buffer;
+  SensorStateResponse msg;
+  msg.key = 0x12345678;
+  msg.state = 23.5f;
+  msg.missing_state = false;
+
+  for (auto _ : state) {
+    uint32_t size = msg.calculate_size();
+    buffer.resize(size);
+    ProtoWriteBuffer writer(&buffer, 0);
+    msg.encode(writer);
+    benchmark::DoNotOptimize(buffer.data());
+  }
+}
+BENCHMARK(BM_CalcAndEncode_SensorStateResponse);
+
+// --- BinarySensorStateResponse ---
+
+static void BM_Encode_BinarySensorStateResponse(benchmark::State &state) {
+  APIBuffer buffer;
+  BinarySensorStateResponse msg;
+  msg.key = 0xAABBCCDD;
+  msg.state = true;
+  msg.missing_state = false;
+  uint32_t size = msg.calculate_size();
+  buffer.resize(size);
+
+  for (auto _ : state) {
+    ProtoWriteBuffer writer(&buffer, 0);
+    msg.encode(writer);
+    benchmark::DoNotOptimize(buffer.data());
+  }
+}
+BENCHMARK(BM_Encode_BinarySensorStateResponse);
+
+// --- HelloResponse (string fields) ---
+
+static void BM_Encode_HelloResponse(benchmark::State &state) {
+  APIBuffer buffer;
+  HelloResponse msg;
+  msg.api_version_major = 1;
+  msg.api_version_minor = 10;
+  msg.server_info = StringRef::from_lit("esphome v2026.3.0");
+  msg.name = StringRef::from_lit("living-room-sensor");
+  uint32_t size = msg.calculate_size();
+  buffer.resize(size);
+
+  for (auto _ : state) {
+    ProtoWriteBuffer writer(&buffer, 0);
+    msg.encode(writer);
+    benchmark::DoNotOptimize(buffer.data());
+  }
+}
+BENCHMARK(BM_Encode_HelloResponse);
+
+// --- LightStateResponse (complex multi-field message) ---
+
+static void BM_Encode_LightStateResponse(benchmark::State &state) {
+  APIBuffer buffer;
+  LightStateResponse msg;
+  msg.key = 0x11223344;
+  msg.state = true;
+  msg.brightness = 0.8f;
+  msg.color_mode = enums::COLOR_MODE_RGB_WHITE;
+  msg.color_brightness = 1.0f;
+  msg.red = 1.0f;
+  msg.green = 0.5f;
+  msg.blue = 0.2f;
+  msg.white = 0.0f;
+  msg.color_temperature = 4000.0f;
+  msg.cold_white = 0.0f;
+  msg.warm_white = 0.0f;
+  msg.effect = StringRef::from_lit("rainbow");
+  uint32_t size = msg.calculate_size();
+  buffer.resize(size);
+
+  for (auto _ : state) {
+    ProtoWriteBuffer writer(&buffer, 0);
+    msg.encode(writer);
+    benchmark::DoNotOptimize(buffer.data());
+  }
+}
+BENCHMARK(BM_Encode_LightStateResponse);
+
+static void BM_CalculateSize_LightStateResponse(benchmark::State &state) {
+  LightStateResponse msg;
+  msg.key = 0x11223344;
+  msg.state = true;
+  msg.brightness = 0.8f;
+  msg.color_mode = enums::COLOR_MODE_RGB_WHITE;
+  msg.color_brightness = 1.0f;
+  msg.red = 1.0f;
+  msg.green = 0.5f;
+  msg.blue = 0.2f;
+  msg.white = 0.0f;
+  msg.color_temperature = 4000.0f;
+  msg.cold_white = 0.0f;
+  msg.warm_white = 0.0f;
+  msg.effect = StringRef::from_lit("rainbow");
+
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(msg.calculate_size());
+  }
+}
+BENCHMARK(BM_CalculateSize_LightStateResponse);
+
+// --- DeviceInfoResponse (nested submessages: 20 devices + 20 areas) ---
+
+static DeviceInfoResponse make_device_info_response() {
+  DeviceInfoResponse msg;
+  msg.name = StringRef::from_lit("living-room-sensor");
+  msg.mac_address = StringRef::from_lit("AA:BB:CC:DD:EE:FF");
+  msg.esphome_version = StringRef::from_lit("2026.3.0");
+  msg.compilation_time = StringRef::from_lit("Mar 16 2026, 12:00:00");
+  msg.model = StringRef::from_lit("esp32-poe-iso");
+  msg.manufacturer = StringRef::from_lit("Olimex");
+  msg.friendly_name = StringRef::from_lit("Living Room Sensor");
+#ifdef USE_DEVICES
+  for (uint32_t i = 0; i < ESPHOME_DEVICE_COUNT && i < 20; i++) {
+    msg.devices[i].device_id = i + 1;
+    msg.devices[i].name = StringRef::from_lit("device");
+    msg.devices[i].area_id = (i % 20) + 1;
+  }
+#endif
+#ifdef USE_AREAS
+  for (uint32_t i = 0; i < ESPHOME_AREA_COUNT && i < 20; i++) {
+    msg.areas[i].area_id = i + 1;
+    msg.areas[i].name = StringRef::from_lit("area");
+  }
+#endif
+  return msg;
+}
+
+static void BM_CalculateSize_DeviceInfoResponse(benchmark::State &state) {
+  auto msg = make_device_info_response();
+
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(msg.calculate_size());
+  }
+}
+BENCHMARK(BM_CalculateSize_DeviceInfoResponse);
+
+static void BM_Encode_DeviceInfoResponse(benchmark::State &state) {
+  auto msg = make_device_info_response();
+  APIBuffer buffer;
+  uint32_t total_size = msg.calculate_size();
+  buffer.resize(total_size);
+
+  for (auto _ : state) {
+    ProtoWriteBuffer writer(&buffer, 0);
+    msg.encode(writer);
+    benchmark::DoNotOptimize(buffer.data());
+  }
+}
+BENCHMARK(BM_Encode_DeviceInfoResponse);
+
+static void BM_CalcAndEncode_DeviceInfoResponse(benchmark::State &state) {
+  auto msg = make_device_info_response();
+  APIBuffer buffer;
+
+  for (auto _ : state) {
+    uint32_t size = msg.calculate_size();
+    buffer.resize(size);
+    ProtoWriteBuffer writer(&buffer, 0);
+    msg.encode(writer);
+    benchmark::DoNotOptimize(buffer.data());
+  }
+}
+BENCHMARK(BM_CalcAndEncode_DeviceInfoResponse);
+
+}  // namespace esphome::api::benchmarks
