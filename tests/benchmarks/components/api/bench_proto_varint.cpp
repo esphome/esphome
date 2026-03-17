@@ -104,10 +104,12 @@ BENCHMARK(Encode_Varint_MaxUint32);
 // --- ProtoSize::varint() benchmarks ---
 
 static void ProtoSize_Varint_Small(benchmark::State &state) {
+  // Use varying input to prevent constant folding.
+  // Values 0-127 all take 1 byte but the compiler can't prove that.
   for (auto _ : state) {
     uint32_t result = 0;
     for (int i = 0; i < kInnerIterations; i++) {
-      result += ProtoSize::varint(42);
+      result += ProtoSize::varint(static_cast<uint32_t>(i) & 0x7F);
     }
     benchmark::DoNotOptimize(result);
   }
@@ -116,10 +118,11 @@ static void ProtoSize_Varint_Small(benchmark::State &state) {
 BENCHMARK(ProtoSize_Varint_Small);
 
 static void ProtoSize_Varint_Large(benchmark::State &state) {
+  // Use varying input to prevent constant folding.
   for (auto _ : state) {
     uint32_t result = 0;
     for (int i = 0; i < kInnerIterations; i++) {
-      result += ProtoSize::varint(0xFFFFFFFF);
+      result += ProtoSize::varint(0xFFFF0000 | static_cast<uint32_t>(i));
     }
     benchmark::DoNotOptimize(result);
   }
