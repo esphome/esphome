@@ -7,7 +7,7 @@ namespace esphome::benchmarks {
 
 // --- Scheduler fast path: no work to do ---
 
-static void BM_Scheduler_Call_NoWork(benchmark::State &state) {
+static void Scheduler_Call_NoWork(benchmark::State &state) {
   Scheduler scheduler;
   uint32_t now = millis();
 
@@ -16,11 +16,11 @@ static void BM_Scheduler_Call_NoWork(benchmark::State &state) {
     benchmark::DoNotOptimize(now);
   }
 }
-BENCHMARK(BM_Scheduler_Call_NoWork);
+BENCHMARK(Scheduler_Call_NoWork);
 
 // --- Scheduler with timers: call() when timers exist but aren't due ---
 
-static void BM_Scheduler_Call_TimersNotDue(benchmark::State &state) {
+static void Scheduler_Call_TimersNotDue(benchmark::State &state) {
   Scheduler scheduler;
   Component dummy_component;
 
@@ -37,11 +37,11 @@ static void BM_Scheduler_Call_TimersNotDue(benchmark::State &state) {
     benchmark::DoNotOptimize(now);
   }
 }
-BENCHMARK(BM_Scheduler_Call_TimersNotDue);
+BENCHMARK(Scheduler_Call_TimersNotDue);
 
 // --- Scheduler: next_schedule_in() calculation ---
 
-static void BM_Scheduler_NextScheduleIn(benchmark::State &state) {
+static void Scheduler_NextScheduleIn(benchmark::State &state) {
   Scheduler scheduler;
   Component dummy_component;
 
@@ -58,6 +58,6 @@ static void BM_Scheduler_NextScheduleIn(benchmark::State &state) {
     benchmark::DoNotOptimize(result);
   }
 }
-BENCHMARK(BM_Scheduler_NextScheduleIn);
+BENCHMARK(Scheduler_NextScheduleIn);
 
 }  // namespace esphome::benchmarks

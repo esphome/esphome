@@ -7,7 +7,7 @@ namespace esphome::api::benchmarks {
 
 // --- HelloRequest decode (string + varint fields) ---
 
-static void BM_Decode_HelloRequest(benchmark::State &state) {
+static void Decode_HelloRequest(benchmark::State &state) {
   // Manually encoded HelloRequest:
   // field 1 (string): "aioesphomeapi"
   // field 2 (varint): 1  (api_version_major)
@@ -25,11 +25,11 @@ static void BM_Decode_HelloRequest(benchmark::State &state) {
     benchmark::DoNotOptimize(msg.api_version_major);
   }
 }
-BENCHMARK(BM_Decode_HelloRequest);
+BENCHMARK(Decode_HelloRequest);
 
 // --- SwitchCommandRequest decode (simple command) ---
 
-static void BM_Decode_SwitchCommandRequest(benchmark::State &state) {
+static void Decode_SwitchCommandRequest(benchmark::State &state) {
   // field 1 (fixed32): key = 0x12345678
   // field 2 (varint): state = true
   uint8_t encoded[] = {
@@ -43,11 +43,11 @@ static void BM_Decode_SwitchCommandRequest(benchmark::State &state) {
     benchmark::DoNotOptimize(msg.state);
   }
 }
-BENCHMARK(BM_Decode_SwitchCommandRequest);
+BENCHMARK(Decode_SwitchCommandRequest);
 
 // --- LightCommandRequest decode (complex command with many fields) ---
 
-static void BM_Decode_LightCommandRequest(benchmark::State &state) {
+static void Decode_LightCommandRequest(benchmark::State &state) {
   uint8_t encoded[] = {
       // field 1: key (fixed32) = 0x11223344
       0x0D,
@@ -114,6 +114,6 @@ static void BM_Decode_LightCommandRequest(benchmark::State &state) {
     benchmark::DoNotOptimize(msg.brightness);
   }
 }
-BENCHMARK(BM_Decode_LightCommandRequest);
+BENCHMARK(Decode_LightCommandRequest);
 
 }  // namespace esphome::api::benchmarks

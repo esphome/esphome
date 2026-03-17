@@ -7,7 +7,7 @@ namespace esphome::api::benchmarks {
 
 // --- SensorStateResponse (highest frequency message) ---
 
-static void BM_Encode_SensorStateResponse(benchmark::State &state) {
+static void Encode_SensorStateResponse(benchmark::State &state) {
   APIBuffer buffer;
   SensorStateResponse msg;
   msg.key = 0x12345678;
@@ -22,9 +22,9 @@ static void BM_Encode_SensorStateResponse(benchmark::State &state) {
     benchmark::DoNotOptimize(buffer.data());
   }
 }
-BENCHMARK(BM_Encode_SensorStateResponse);
+BENCHMARK(Encode_SensorStateResponse);
 
-static void BM_CalculateSize_SensorStateResponse(benchmark::State &state) {
+static void CalculateSize_SensorStateResponse(benchmark::State &state) {
   SensorStateResponse msg;
   msg.key = 0x12345678;
   msg.state = 23.5f;
@@ -34,9 +34,9 @@ static void BM_CalculateSize_SensorStateResponse(benchmark::State &state) {
     benchmark::DoNotOptimize(msg.calculate_size());
   }
 }
-BENCHMARK(BM_CalculateSize_SensorStateResponse);
+BENCHMARK(CalculateSize_SensorStateResponse);
 
-static void BM_CalcAndEncode_SensorStateResponse(benchmark::State &state) {
+static void CalcAndEncode_SensorStateResponse(benchmark::State &state) {
   APIBuffer buffer;
   SensorStateResponse msg;
   msg.key = 0x12345678;
@@ -51,11 +51,11 @@ static void BM_CalcAndEncode_SensorStateResponse(benchmark::State &state) {
     benchmark::DoNotOptimize(buffer.data());
   }
 }
-BENCHMARK(BM_CalcAndEncode_SensorStateResponse);
+BENCHMARK(CalcAndEncode_SensorStateResponse);
 
 // --- BinarySensorStateResponse ---
 
-static void BM_Encode_BinarySensorStateResponse(benchmark::State &state) {
+static void Encode_BinarySensorStateResponse(benchmark::State &state) {
   APIBuffer buffer;
   BinarySensorStateResponse msg;
   msg.key = 0xAABBCCDD;
@@ -70,11 +70,11 @@ static void BM_Encode_BinarySensorStateResponse(benchmark::State &state) {
     benchmark::DoNotOptimize(buffer.data());
   }
 }
-BENCHMARK(BM_Encode_BinarySensorStateResponse);
+BENCHMARK(Encode_BinarySensorStateResponse);
 
 // --- HelloResponse (string fields) ---
 
-static void BM_Encode_HelloResponse(benchmark::State &state) {
+static void Encode_HelloResponse(benchmark::State &state) {
   APIBuffer buffer;
   HelloResponse msg;
   msg.api_version_major = 1;
@@ -90,11 +90,11 @@ static void BM_Encode_HelloResponse(benchmark::State &state) {
     benchmark::DoNotOptimize(buffer.data());
   }
 }
-BENCHMARK(BM_Encode_HelloResponse);
+BENCHMARK(Encode_HelloResponse);
 
 // --- LightStateResponse (complex multi-field message) ---
 
-static void BM_Encode_LightStateResponse(benchmark::State &state) {
+static void Encode_LightStateResponse(benchmark::State &state) {
   APIBuffer buffer;
   LightStateResponse msg;
   msg.key = 0x11223344;
@@ -119,9 +119,9 @@ static void BM_Encode_LightStateResponse(benchmark::State &state) {
     benchmark::DoNotOptimize(buffer.data());
   }
 }
-BENCHMARK(BM_Encode_LightStateResponse);
+BENCHMARK(Encode_LightStateResponse);
 
-static void BM_CalculateSize_LightStateResponse(benchmark::State &state) {
+static void CalculateSize_LightStateResponse(benchmark::State &state) {
   LightStateResponse msg;
   msg.key = 0x11223344;
   msg.state = true;
@@ -141,7 +141,7 @@ static void BM_CalculateSize_LightStateResponse(benchmark::State &state) {
     benchmark::DoNotOptimize(msg.calculate_size());
   }
 }
-BENCHMARK(BM_CalculateSize_LightStateResponse);
+BENCHMARK(CalculateSize_LightStateResponse);
 
 // --- DeviceInfoResponse (nested submessages: 20 devices + 20 areas) ---
 
@@ -170,16 +170,16 @@ static DeviceInfoResponse make_device_info_response() {
   return msg;
 }
 
-static void BM_CalculateSize_DeviceInfoResponse(benchmark::State &state) {
+static void CalculateSize_DeviceInfoResponse(benchmark::State &state) {
   auto msg = make_device_info_response();
 
   for (auto _ : state) {
     benchmark::DoNotOptimize(msg.calculate_size());
   }
 }
-BENCHMARK(BM_CalculateSize_DeviceInfoResponse);
+BENCHMARK(CalculateSize_DeviceInfoResponse);
 
-static void BM_Encode_DeviceInfoResponse(benchmark::State &state) {
+static void Encode_DeviceInfoResponse(benchmark::State &state) {
   auto msg = make_device_info_response();
   APIBuffer buffer;
   uint32_t total_size = msg.calculate_size();
@@ -191,9 +191,9 @@ static void BM_Encode_DeviceInfoResponse(benchmark::State &state) {
     benchmark::DoNotOptimize(buffer.data());
   }
 }
-BENCHMARK(BM_Encode_DeviceInfoResponse);
+BENCHMARK(Encode_DeviceInfoResponse);
 
-static void BM_CalcAndEncode_DeviceInfoResponse(benchmark::State &state) {
+static void CalcAndEncode_DeviceInfoResponse(benchmark::State &state) {
   auto msg = make_device_info_response();
   APIBuffer buffer;
 
@@ -205,6 +205,6 @@ static void BM_CalcAndEncode_DeviceInfoResponse(benchmark::State &state) {
     benchmark::DoNotOptimize(buffer.data());
   }
 }
-BENCHMARK(BM_CalcAndEncode_DeviceInfoResponse);
+BENCHMARK(CalcAndEncode_DeviceInfoResponse);
 
 }  // namespace esphome::api::benchmarks

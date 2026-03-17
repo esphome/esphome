@@ -356,13 +356,9 @@ def build_and_run(
     if extra_include_dirs:
         for d in extra_include_dirs:
             if d.is_dir() and (any(d.glob("*.cpp")) or any(d.glob("*.h"))):
-                # Use path relative to tests_dir for PlatformIO includes
-                try:
-                    rel = d.relative_to(tests_dir)
-                    includes.append(str(rel))
-                except ValueError:
-                    # Not relative to tests_dir, use absolute
-                    includes.append(str(d))
+                # ESPHome includes are relative to the config directory (tests_dir)
+                rel = os.path.relpath(d, tests_dir)
+                includes.append(rel)
 
     # Discover platform sub-components
     try:
