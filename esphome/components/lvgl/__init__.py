@@ -228,7 +228,8 @@ async def to_code(configs):
     if CORE.is_esp32:
         if get_esp32_variant() == VARIANT_ESP32P4:
             add_idf_sdkconfig_option("CONFIG_LV_DRAW_BUF_ALIGN", 64)
-            df.add_define("LV_USE_PPA", "1")
+            # disable use of PPA for fills until upstream bugs fixed
+            df.add_define("LV_USE_PPA", "0")
             df.add_define("LV_DRAW_BUF_ALIGN", "64")
         else:
             df.add_define("LV_DRAW_BUF_ALIGN", "32")

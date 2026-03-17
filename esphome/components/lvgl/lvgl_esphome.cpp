@@ -4,11 +4,13 @@
 #include "esphome/core/log.h"
 #include "lvgl_esphome.h"
 
+#include "core/lv_global.h"
 #include "core/lv_obj_class_private.h"
 
 #include <numeric>
 
 static void *lv_alloc_draw_buf(size_t size, bool internal);
+static void *draw_buf_alloc_cb(size_t size, lv_color_format_t color_format) { return lv_alloc_draw_buf(size, false); };
 
 namespace esphome::lvgl {
 static const char *const TAG = "lvgl";
@@ -134,6 +136,13 @@ void LvglComponent::set_paused(bool paused, bool show_snow) {
 
 void LvglComponent::esphome_lvgl_init() {
   lv_init();
+  // override draw buf alloc to ensure proper alignment for PPA
+  LV_GLOBAL_DEFAULT()->draw_buf_handlers.buf_malloc_cb = draw_buf_alloc_cb;
+  LV_GLOBAL_DEFAULT()->draw_buf_handlers.buf_free_cb = lv_free_core;
+  LV_GLOBAL_DEFAULT()->image_cache_draw_buf_handlers.buf_malloc_cb = draw_buf_alloc_cb;
+  LV_GLOBAL_DEFAULT()->image_cache_draw_buf_handlers.buf_free_cb = lv_free_core;
+  LV_GLOBAL_DEFAULT()->font_draw_buf_handlers.buf_malloc_cb = draw_buf_alloc_cb;
+  LV_GLOBAL_DEFAULT()->font_draw_buf_handlers.buf_free_cb = lv_free_core;
   lv_tick_set_cb([] { return millis(); });
   lv_update_event = static_cast<lv_event_code_t>(lv_event_register_id());
   lv_api_event = static_cast<lv_event_code_t>(lv_event_register_id());
