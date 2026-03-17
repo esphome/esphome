@@ -116,8 +116,8 @@ void USBCDCACMInstance::check_logger_conflict() {
   }
 
   if (this->uart_dev_ == logger::global_logger->get_hw_serial()) {
-    ESP_LOGW(TAG, "  You're using the same serial port for logging and the UART component. Please "
-                  "disable logging over the serial port by setting logger->baud_rate to 0.");
+    ESP_LOGW(TAG, "  The same serial port is used for logging and the UART component; "
+                  "set logger.baud_rate: 0 to disable logging over the serial port");
   }
 #endif
 }
