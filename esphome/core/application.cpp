@@ -259,7 +259,15 @@ void Application::process_dump_config_() {
 #endif
 #if defined(USE_ESP32_FRAMEWORK_ESP_IDF) && ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 2, 0)
     {
-      // esp_bootloader_desc_t is available in ESP-IDF >= 5.2; if readable the bootloader is modern
+      // esp_bootloader_desc_t is available in ESP-IDF >= 5.2; if readable the bootloader is modern.
+      //
+      // Design decision: We intentionally do NOT mention sram1_as_iram when the bootloader is too old.
+      // Enabling sram1_as_iram with an old bootloader causes a hard brick (device fails to boot,
+      // requires USB reflash to recover). Users don't always read warnings carefully, so we only
+      // suggest the option once we've confirmed the bootloader can handle it. In practice this
+      // means a user with an old bootloader may need to flash twice: once via USB to update the
+      // bootloader (they'll see the suggestion on next boot), then OTA with sram1_as_iram: true.
+      // Two flashes is a better outcome than a bricked device.
       esp_bootloader_desc_t boot_desc;
       if (esp_ota_get_bootloader_description(nullptr, &boot_desc) != ESP_OK) {
         ESP_LOGW(TAG, "Bootloader too old for OTA rollback and SRAM1 as IRAM (+40KB). "
