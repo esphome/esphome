@@ -296,9 +296,8 @@ def compile_and_get_binary(
 
     # Obtain possible dependencies BEFORE validate_config, because
     # get_all_dependencies calls CORE.reset() which clears build_path.
-    # Always include 'time' because it is needed for timezone support.
     components_with_dependencies: list[str] = sorted(
-        get_all_dependencies(set(components) | {"time"})
+        get_all_dependencies(set(components))
     )
 
     # Apply overrides for any transitively discovered dependencies.
