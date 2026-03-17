@@ -66,18 +66,22 @@ static void Scheduler_Call_5IntervalsFiring(benchmark::State &state) {
   BenchComponent dummy_component;
   int fire_count = 0;
 
-  // Add 5 intervals with 0ms period — they fire every call() unconditionally.
-  // WarnIfComponentBlockingGuard compares the `now` we pass against real
-  // millis() in finish(), so we must pass real millis() to avoid underflow.
-  // With interval=0, all 5 fire every call without needing to advance time.
+  // Add 5 intervals with 1ms period — they fire every call when time advances.
+  // We use monotonically increasing fake time (now++) so intervals reliably fire.
+  // WARN_IF_BLOCKING_OVER_MS=UINT32_MAX in benchmark build flags prevents the
+  // WarnIfComponentBlockingGuard from triggering when fake time exceeds real millis().
+  // Note: interval=0 causes an infinite loop (reschedules at same time, never breaks).
   for (int i = 0; i < 5; i++) {
-    scheduler.set_interval(&dummy_component, static_cast<uint32_t>(i), 0, [&fire_count]() { fire_count++; });
+    scheduler.set_interval(&dummy_component, static_cast<uint32_t>(i), 1, [&fire_count]() { fire_count++; });
   }
   scheduler.process_to_add();
 
+  uint32_t now = millis() + 100;
+
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
-      scheduler.call(millis());
+      scheduler.call(now);
+      now++;
     }
     benchmark::DoNotOptimize(fire_count);
   }

@@ -34,6 +34,10 @@ PLATFORMIO_OPTIONS = {
         "-O2",  # optimize for speed (CodSpeed recommends RelWithDebInfo)
         "-g",  # debug symbols for profiling
         USE_TIME_TIMEZONE_FLAG,
+        # Disable WarnIfComponentBlockingGuard check — scheduler benchmarks
+        # use fake monotonic time ahead of real millis(), causing uint32_t
+        # underflow in the guard's (millis() - started_) calculation.
+        "-DWARN_IF_BLOCKING_OVER_MS=UINT32_MAX",
     ],
     # Use deep+ LDF mode to ensure PlatformIO detects the benchmark
     # library dependency from nested includes.
