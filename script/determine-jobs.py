@@ -381,6 +381,63 @@ def determine_cpp_unit_tests(
     return (False, get_cpp_changed_components(cpp_files))
 
 
+# Paths within tests/benchmarks/ that contain component benchmark files
+BENCHMARKS_COMPONENTS_PATH = "tests/benchmarks/components"
+
+# Files that, when changed, should trigger benchmark runs
+BENCHMARK_INFRASTRUCTURE_FILES = frozenset(
+    {
+        "script/cpp_benchmark.py",
+        "script/test_helpers.py",
+        "script/setup_codspeed_lib.py",
+    }
+)
+
+
+def should_run_benchmarks(branch: str | None = None) -> bool:
+    """Determine if C++ benchmarks should run based on changed files.
+
+    Benchmarks run when any of the following conditions are met:
+
+    1. Core C++ files changed (esphome/core/*)
+    2. A directly changed component has benchmark files (no dependency expansion)
+    3. Benchmark infrastructure changed (tests/benchmarks/*, script/cpp_benchmark.py,
+       script/test_helpers.py, script/setup_codspeed_lib.py)
+
+    Unlike unit tests, benchmarks do NOT expand to dependent components.
+    Changing ``sensor`` does not trigger ``api`` benchmarks just because
+    api depends on sensor.
+
+    Args:
+        branch: Branch to compare against. If None, uses default.
+
+    Returns:
+        True if benchmarks should run, False otherwise.
+    """
+    files = changed_files(branch)
+    if core_changed(files):
+        return True
+
+    # Check if benchmark infrastructure changed
+    if any(
+        f.startswith("tests/benchmarks/") or f in BENCHMARK_INFRASTRUCTURE_FILES
+        for f in files
+    ):
+        return True
+
+    # Check if any directly changed component has benchmarks
+    benchmarks_dir = Path(root_path) / BENCHMARKS_COMPONENTS_PATH
+    if not benchmarks_dir.is_dir():
+        return False
+    benchmarked_components = {
+        d.name
+        for d in benchmarks_dir.iterdir()
+        if d.is_dir() and (any(d.glob("*.cpp")) or any(d.glob("*.h")))
+    }
+    # Only direct changes — no dependency expansion
+    return any(get_component_from_path(f) in benchmarked_components for f in files)
+
+
 def _any_changed_file_endswith(branch: str | None, extensions: tuple[str, ...]) -> bool:
     """Check if a changed file ends with any of the specified extensions."""
     return any(file.endswith(extensions) for file in changed_files(branch))
@@ -804,6 +861,9 @@ def main() -> None:
     # Determine which C++ unit tests to run
     cpp_run_all, cpp_components = determine_cpp_unit_tests(args.branch)
 
+    # Determine if benchmarks should run
+    run_benchmarks = should_run_benchmarks(args.branch)
+
     # Split components into batches for CI testing
     # This intelligently groups components with similar bus configurations
     component_test_batches: list[str]
@@ -856,6 +916,7 @@ def main() -> None:
         "cpp_unit_tests_run_all": cpp_run_all,
         "cpp_unit_tests_components": cpp_components,
         "component_test_batches": component_test_batches,
+        "benchmarks": run_benchmarks,
     }
 
     # Output as JSON
