@@ -1821,3 +1821,151 @@ def test_component_batching_beta_branch_40_per_batch(
         all_components.extend(batch_str.split())
     assert len(all_components) == 120
     assert set(all_components) == set(component_names)
+
+
+# --- should_run_benchmarks tests ---
+
+
+def test_should_run_benchmarks_core_change() -> None:
+    """Test benchmarks trigger on core C++ file changes."""
+    with patch.object(
+        determine_jobs, "changed_files", return_value=["esphome/core/scheduler.cpp"]
+    ):
+        assert determine_jobs.should_run_benchmarks() is True
+
+
+def test_should_run_benchmarks_core_header_change() -> None:
+    """Test benchmarks trigger on core header changes."""
+    with patch.object(
+        determine_jobs, "changed_files", return_value=["esphome/core/helpers.h"]
+    ):
+        assert determine_jobs.should_run_benchmarks() is True
+
+
+def test_should_run_benchmarks_benchmark_infra_change() -> None:
+    """Test benchmarks trigger on benchmark infrastructure changes."""
+    for infra_file in [
+        "script/cpp_benchmark.py",
+        "script/test_helpers.py",
+        "script/setup_codspeed_lib.py",
+    ]:
+        with patch.object(determine_jobs, "changed_files", return_value=[infra_file]):
+            assert determine_jobs.should_run_benchmarks() is True, (
+                f"Expected benchmarks to run for {infra_file}"
+            )
+
+
+def test_should_run_benchmarks_benchmark_file_change() -> None:
+    """Test benchmarks trigger on benchmark file changes."""
+    with patch.object(
+        determine_jobs,
+        "changed_files",
+        return_value=["tests/benchmarks/components/api/bench_proto_encode.cpp"],
+    ):
+        assert determine_jobs.should_run_benchmarks() is True
+
+
+def test_should_run_benchmarks_core_benchmark_file_change() -> None:
+    """Test benchmarks trigger on core benchmark file changes."""
+    with patch.object(
+        determine_jobs,
+        "changed_files",
+        return_value=["tests/benchmarks/core/bench_scheduler.cpp"],
+    ):
+        assert determine_jobs.should_run_benchmarks() is True
+
+
+def test_should_run_benchmarks_benchmarked_component_change(tmp_path: Path) -> None:
+    """Test benchmarks trigger when a benchmarked component changes."""
+    # Create a fake benchmarks directory with an 'api' component
+    benchmarks_dir = tmp_path / "tests" / "benchmarks" / "components" / "api"
+    benchmarks_dir.mkdir(parents=True)
+    (benchmarks_dir / "bench_proto_encode.cpp").write_text("// benchmark")
+
+    with (
+        patch.object(
+            determine_jobs,
+            "changed_files",
+            return_value=["esphome/components/api/proto.h"],
+        ),
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(
+            determine_jobs,
+            "BENCHMARKS_COMPONENTS_PATH",
+            "tests/benchmarks/components",
+        ),
+    ):
+        assert determine_jobs.should_run_benchmarks() is True
+
+
+def test_should_run_benchmarks_non_benchmarked_component_change(
+    tmp_path: Path,
+) -> None:
+    """Test benchmarks do NOT trigger for non-benchmarked component changes."""
+    # Create a fake benchmarks directory with only 'api'
+    benchmarks_dir = tmp_path / "tests" / "benchmarks" / "components" / "api"
+    benchmarks_dir.mkdir(parents=True)
+    (benchmarks_dir / "bench_proto_encode.cpp").write_text("// benchmark")
+
+    with (
+        patch.object(
+            determine_jobs,
+            "changed_files",
+            return_value=["esphome/components/sensor/__init__.py"],
+        ),
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(
+            determine_jobs,
+            "BENCHMARKS_COMPONENTS_PATH",
+            "tests/benchmarks/components",
+        ),
+    ):
+        assert determine_jobs.should_run_benchmarks() is False
+
+
+def test_should_run_benchmarks_no_dependency_expansion(tmp_path: Path) -> None:
+    """Test benchmarks do NOT expand to dependent components.
+
+    Changing 'sensor' should not trigger 'api' benchmarks even if api
+    depends on sensor. This is intentional — benchmark runs should be
+    targeted to directly changed components only.
+    """
+    benchmarks_dir = tmp_path / "tests" / "benchmarks" / "components" / "api"
+    benchmarks_dir.mkdir(parents=True)
+    (benchmarks_dir / "bench_proto_encode.cpp").write_text("// benchmark")
+
+    with (
+        patch.object(
+            determine_jobs,
+            "changed_files",
+            # sensor is a dependency of api, but benchmarks don't expand
+            return_value=["esphome/components/sensor/sensor.cpp"],
+        ),
+        patch.object(determine_jobs, "root_path", str(tmp_path)),
+        patch.object(
+            determine_jobs,
+            "BENCHMARKS_COMPONENTS_PATH",
+            "tests/benchmarks/components",
+        ),
+    ):
+        assert determine_jobs.should_run_benchmarks() is False
+
+
+def test_should_run_benchmarks_unrelated_change() -> None:
+    """Test benchmarks do NOT trigger for unrelated changes."""
+    with patch.object(determine_jobs, "changed_files", return_value=["README.md"]):
+        assert determine_jobs.should_run_benchmarks() is False
+
+
+def test_should_run_benchmarks_no_changes() -> None:
+    """Test benchmarks do NOT trigger with no changes."""
+    with patch.object(determine_jobs, "changed_files", return_value=[]):
+        assert determine_jobs.should_run_benchmarks() is False
+
+
+def test_should_run_benchmarks_with_branch() -> None:
+    """Test should_run_benchmarks passes branch to changed_files."""
+    with patch.object(determine_jobs, "changed_files") as mock_changed:
+        mock_changed.return_value = []
+        determine_jobs.should_run_benchmarks("release")
+        mock_changed.assert_called_with("release")

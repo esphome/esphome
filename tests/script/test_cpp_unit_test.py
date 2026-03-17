@@ -1,4 +1,4 @@
-"""Unit tests for script/cpp_unit_test.py."""
+"""Unit tests for test_helpers.py manifest override functionality."""
 
 import os
 from pathlib import Path
@@ -8,12 +8,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-# Add the script directory to Python path so we can import cpp_unit_test
+# Add the script directory to Python path so we can import test_helpers
 sys.path.insert(
     0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "script"))
 )
 
-import cpp_unit_test  # noqa: E402
+import test_helpers  # noqa: E402
 
 from esphome.loader import ComponentManifest  # noqa: E402
 from esphome.testing import ComponentManifestOverride  # noqa: E402
@@ -31,7 +31,7 @@ def _make_component_manifest(*, to_code=None, dependencies=None) -> ComponentMan
 
 
 # ---------------------------------------------------------------------------
-# filter_components_without_tests
+# filter_components_with_files
 # ---------------------------------------------------------------------------
 
 
@@ -40,8 +40,7 @@ def test_filter_keeps_components_with_cpp_files(tmp_path: Path) -> None:
     comp_dir.mkdir()
     (comp_dir / "mycomp_test.cpp").write_text("")
 
-    with patch.object(cpp_unit_test, "COMPONENTS_TESTS_DIR", tmp_path):
-        result = cpp_unit_test.filter_components_without_tests(["mycomp"])
+    result = test_helpers.filter_components_with_files(["mycomp"], tmp_path)
 
     assert result == ["mycomp"]
 
@@ -51,15 +50,13 @@ def test_filter_keeps_components_with_h_files(tmp_path: Path) -> None:
     comp_dir.mkdir()
     (comp_dir / "helpers.h").write_text("")
 
-    with patch.object(cpp_unit_test, "COMPONENTS_TESTS_DIR", tmp_path):
-        result = cpp_unit_test.filter_components_without_tests(["mycomp"])
+    result = test_helpers.filter_components_with_files(["mycomp"], tmp_path)
 
     assert result == ["mycomp"]
 
 
 def test_filter_drops_components_without_test_dir(tmp_path: Path) -> None:
-    with patch.object(cpp_unit_test, "COMPONENTS_TESTS_DIR", tmp_path):
-        result = cpp_unit_test.filter_components_without_tests(["nodir"])
+    result = test_helpers.filter_components_with_files(["nodir"], tmp_path)
 
     assert result == []
 
@@ -69,8 +66,7 @@ def test_filter_drops_components_with_no_cpp_or_h(tmp_path: Path) -> None:
     comp_dir.mkdir()
     (comp_dir / "README.md").write_text("")
 
-    with patch.object(cpp_unit_test, "COMPONENTS_TESTS_DIR", tmp_path):
-        result = cpp_unit_test.filter_components_without_tests(["mycomp"])
+    result = test_helpers.filter_components_with_files(["mycomp"], tmp_path)
 
     assert result == []
 
@@ -86,13 +82,10 @@ def test_get_platform_components_discovers_subdirectory(tmp_path: Path) -> None:
     sensor_mod = MagicMock()
     sensor_mod.IS_PLATFORM_COMPONENT = True
 
-    with (
-        patch.object(cpp_unit_test, "COMPONENTS_TESTS_DIR", tmp_path),
-        patch(
-            "cpp_unit_test.get_component", return_value=ComponentManifest(sensor_mod)
-        ),
+    with patch(
+        "test_helpers.get_component", return_value=ComponentManifest(sensor_mod)
     ):
-        result = cpp_unit_test.get_platform_components(["bthome"])
+        result = test_helpers.get_platform_components(["bthome"], tmp_path)
 
     assert result == ["sensor.bthome"]
 
@@ -100,8 +93,7 @@ def test_get_platform_components_discovers_subdirectory(tmp_path: Path) -> None:
 def test_get_platform_components_skips_pycache(tmp_path: Path) -> None:
     (tmp_path / "bthome" / "__pycache__").mkdir(parents=True)
 
-    with patch.object(cpp_unit_test, "COMPONENTS_TESTS_DIR", tmp_path):
-        result = cpp_unit_test.get_platform_components(["bthome"])
+    result = test_helpers.get_platform_components(["bthome"], tmp_path)
 
     assert result == []
 
@@ -110,19 +102,18 @@ def test_get_platform_components_raises_for_invalid_domain(tmp_path: Path) -> No
     (tmp_path / "bthome" / "notadomain").mkdir(parents=True)
 
     with (
-        patch.object(cpp_unit_test, "COMPONENTS_TESTS_DIR", tmp_path),
-        patch("cpp_unit_test.get_component", return_value=None),
+        patch("test_helpers.get_component", return_value=None),
         pytest.raises(ValueError, match="notadomain"),
     ):
-        cpp_unit_test.get_platform_components(["bthome"])
+        test_helpers.get_platform_components(["bthome"], tmp_path)
 
 
 # ---------------------------------------------------------------------------
-# _build_testing_manifest
+# load_test_manifest_overrides
 # ---------------------------------------------------------------------------
 
 
-def test_build_testing_manifest_suppresses_to_code(tmp_path: Path) -> None:
+def test_load_suppresses_to_code(tmp_path: Path) -> None:
     """to_code is always set to None before the override is called."""
 
     async def real_to_code(config):
@@ -130,20 +121,21 @@ def test_build_testing_manifest_suppresses_to_code(tmp_path: Path) -> None:
 
     inner = _make_component_manifest(to_code=real_to_code)
 
-    with patch("cpp_unit_test.set_testing_manifest") as mock_set:
-        cpp_unit_test._build_testing_manifest(
-            inner,
-            cache_key="mycomp",
-            test_init=tmp_path / "nonexistent.py",
-        )
+    with (
+        patch("test_helpers.get_component", return_value=inner),
+        patch("test_helpers.set_testing_manifest") as mock_set,
+    ):
+        test_helpers.load_test_manifest_overrides(["mycomp"], tmp_path)
         installed: ComponentManifestOverride = mock_set.call_args[0][1]
 
     assert installed.to_code is None
 
 
-def test_build_testing_manifest_calls_override_fn(tmp_path: Path) -> None:
+def test_load_calls_override_fn(tmp_path: Path) -> None:
     """override_manifest() in test_init is called with the ComponentManifestOverride."""
-    init_py = tmp_path / "__init__.py"
+    comp_dir = tmp_path / "mycomp"
+    comp_dir.mkdir()
+    init_py = comp_dir / "__init__.py"
     init_py.write_text(
         textwrap.dedent("""\
         def override_manifest(manifest):
@@ -152,25 +144,28 @@ def test_build_testing_manifest_calls_override_fn(tmp_path: Path) -> None:
     )
 
     inner = _make_component_manifest()
+    override = ComponentManifestOverride(inner)
+    override.to_code = None
 
-    with patch("cpp_unit_test.set_testing_manifest") as mock_set:
-        cpp_unit_test._build_testing_manifest(
-            inner,
-            cache_key="mycomp",
-            test_init=init_py,
-        )
+    with (
+        patch("test_helpers.get_component", return_value=inner),
+        patch("test_helpers.set_testing_manifest") as mock_set,
+    ):
+        test_helpers.load_test_manifest_overrides(["mycomp"], tmp_path)
         installed: ComponentManifestOverride = mock_set.call_args[0][1]
 
     assert installed.dependencies == ["injected"]
 
 
-def test_build_testing_manifest_enable_codegen_in_override(tmp_path: Path) -> None:
+def test_load_enable_codegen_in_override(tmp_path: Path) -> None:
     """An override_manifest that calls enable_codegen() restores to_code."""
 
     async def real_to_code(config):
         pass
 
-    init_py = tmp_path / "__init__.py"
+    comp_dir = tmp_path / "mycomp"
+    comp_dir.mkdir()
+    init_py = comp_dir / "__init__.py"
     init_py.write_text(
         textwrap.dedent("""\
         def override_manifest(manifest):
@@ -180,36 +175,30 @@ def test_build_testing_manifest_enable_codegen_in_override(tmp_path: Path) -> No
 
     inner = _make_component_manifest(to_code=real_to_code)
 
-    with patch("cpp_unit_test.set_testing_manifest") as mock_set:
-        cpp_unit_test._build_testing_manifest(
-            inner,
-            cache_key="mycomp",
-            test_init=init_py,
-        )
+    with (
+        patch("test_helpers.get_component", return_value=inner),
+        patch("test_helpers.set_testing_manifest") as mock_set,
+    ):
+        test_helpers.load_test_manifest_overrides(["mycomp"], tmp_path)
         installed: ComponentManifestOverride = mock_set.call_args[0][1]
 
     assert installed.to_code is real_to_code
 
 
-def test_build_testing_manifest_no_override_file(tmp_path: Path) -> None:
+def test_load_no_override_file(tmp_path: Path) -> None:
     """No override file: manifest is wrapped and to_code suppressed, nothing else."""
     inner = _make_component_manifest()
 
-    with patch("cpp_unit_test.set_testing_manifest") as mock_set:
-        cpp_unit_test._build_testing_manifest(
-            inner,
-            cache_key="mycomp",
-            test_init=tmp_path / "nonexistent.py",
-        )
-        key, installed = mock_set.call_args[0]
+    with (
+        patch("test_helpers.get_component", return_value=inner),
+        patch("test_helpers.set_testing_manifest") as mock_set,
+    ):
+        test_helpers.load_test_manifest_overrides(["mycomp"], tmp_path)
 
+    mock_set.assert_called_once()
+    key, installed = mock_set.call_args[0]
     assert key == "mycomp"
     assert isinstance(installed, ComponentManifestOverride)
-
-
-# ---------------------------------------------------------------------------
-# load_test_manifest_overrides
-# ---------------------------------------------------------------------------
 
 
 def test_load_skips_already_wrapped(tmp_path: Path) -> None:
@@ -218,11 +207,10 @@ def test_load_skips_already_wrapped(tmp_path: Path) -> None:
     already_wrapped = ComponentManifestOverride(inner)
 
     with (
-        patch("cpp_unit_test.get_component", return_value=already_wrapped),
-        patch("cpp_unit_test.set_testing_manifest") as mock_set,
-        patch.object(cpp_unit_test, "COMPONENTS_TESTS_DIR", tmp_path),
+        patch("test_helpers.get_component", return_value=already_wrapped),
+        patch("test_helpers.set_testing_manifest") as mock_set,
     ):
-        cpp_unit_test.load_test_manifest_overrides(["mycomp"])
+        test_helpers.load_test_manifest_overrides(["mycomp"], tmp_path)
 
     mock_set.assert_not_called()
 
@@ -232,11 +220,10 @@ def test_load_skips_platform_component_already_wrapped(tmp_path: Path) -> None:
     already_wrapped = ComponentManifestOverride(inner)
 
     with (
-        patch("cpp_unit_test.get_platform", return_value=already_wrapped),
-        patch("cpp_unit_test.set_testing_manifest") as mock_set,
-        patch.object(cpp_unit_test, "COMPONENTS_TESTS_DIR", tmp_path),
+        patch("test_helpers.get_platform", return_value=already_wrapped),
+        patch("test_helpers.set_testing_manifest") as mock_set,
     ):
-        cpp_unit_test.load_test_manifest_overrides(["sensor.bthome"])
+        test_helpers.load_test_manifest_overrides(["sensor.bthome"], tmp_path)
 
     mock_set.assert_not_called()
 
@@ -245,11 +232,10 @@ def test_load_wraps_top_level_component(tmp_path: Path) -> None:
     inner = _make_component_manifest()
 
     with (
-        patch("cpp_unit_test.get_component", return_value=inner),
-        patch("cpp_unit_test.set_testing_manifest") as mock_set,
-        patch.object(cpp_unit_test, "COMPONENTS_TESTS_DIR", tmp_path),
+        patch("test_helpers.get_component", return_value=inner),
+        patch("test_helpers.set_testing_manifest") as mock_set,
     ):
-        cpp_unit_test.load_test_manifest_overrides(["mycomp"])
+        test_helpers.load_test_manifest_overrides(["mycomp"], tmp_path)
 
     mock_set.assert_called_once()
     key, installed = mock_set.call_args[0]
@@ -262,14 +248,54 @@ def test_load_wraps_platform_component(tmp_path: Path) -> None:
     inner = _make_component_manifest()
 
     with (
-        patch("cpp_unit_test.get_platform", return_value=inner),
-        patch("cpp_unit_test.set_testing_manifest") as mock_set,
-        patch.object(cpp_unit_test, "COMPONENTS_TESTS_DIR", tmp_path),
+        patch("test_helpers.get_platform", return_value=inner),
+        patch("test_helpers.set_testing_manifest") as mock_set,
     ):
-        cpp_unit_test.load_test_manifest_overrides(["sensor.bthome"])
+        test_helpers.load_test_manifest_overrides(["sensor.bthome"], tmp_path)
 
     mock_set.assert_called_once()
     key, installed = mock_set.call_args[0]
     assert key == "bthome.sensor"
     assert isinstance(installed, ComponentManifestOverride)
+    assert installed.to_code is None
+
+
+# ---------------------------------------------------------------------------
+# apply_codegen_overrides
+# ---------------------------------------------------------------------------
+
+
+def test_apply_codegen_enables_listed_components() -> None:
+    """Components in codegen_components get their to_code re-enabled."""
+
+    async def real_to_code(config):
+        pass
+
+    inner = _make_component_manifest(to_code=real_to_code)
+
+    with (
+        patch("test_helpers.get_component", return_value=inner),
+        patch("test_helpers.set_testing_manifest") as mock_set,
+    ):
+        test_helpers.apply_codegen_overrides(["mycomp"], {"mycomp"})
+        installed: ComponentManifestOverride = mock_set.call_args[0][1]
+
+    assert installed.to_code is real_to_code
+
+
+def test_apply_codegen_suppresses_unlisted_components() -> None:
+    """Components NOT in codegen_components have to_code suppressed."""
+
+    async def real_to_code(config):
+        pass
+
+    inner = _make_component_manifest(to_code=real_to_code)
+
+    with (
+        patch("test_helpers.get_component", return_value=inner),
+        patch("test_helpers.set_testing_manifest") as mock_set,
+    ):
+        test_helpers.apply_codegen_overrides(["mycomp"], set())
+        installed: ComponentManifestOverride = mock_set.call_args[0][1]
+
     assert installed.to_code is None
