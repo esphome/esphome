@@ -52,7 +52,7 @@ void HOT EPaperUC8179BWR::draw_pixel_at(int x, int y, Color color) {
 
 void EPaperUC8179BWR::fill(Color color) {
   if (this->get_clipping().is_set()) {
-    Display::fill(color);
+    esphome::epaper_spi::EPaperBase::fill(color);
     return;
   }
 
