@@ -54,7 +54,7 @@ def run_benchmarks(selected_components: list[str], build_only: bool = False) -> 
         project_root = Path(__file__).resolve().parent.parent
         codspeed_flags = [
             "-DCODSPEED_ENABLED",
-            "-DCODSPEED_SIMULATION",
+            "-DCODSPEED_ANALYSIS",
             f'-DCODSPEED_ROOT_DIR=\\"{project_root}\\"',
         ]
         pio_options = {

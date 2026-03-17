@@ -140,7 +140,7 @@ def _write_library_json(
                 # CodSpeed instrumentation flags
                 # https://codspeed.io/docs/benchmarks/cpp#custom-build-systems
                 "-DCODSPEED_ENABLED",
-                "-DCODSPEED_SIMULATION",
+                "-DCODSPEED_ANALYSIS",
                 f'-DCODSPEED_VERSION=\\"{version}\\"',
                 f'-DCODSPEED_ROOT_DIR=\\"{project_root}\\"',
                 '-DCODSPEED_MODE_DISPLAY=\\"simulation\\"',
