@@ -730,13 +730,13 @@ def _check_versions(config):
                 "Version needs to be explicitly set when a custom source or platform_version is used."
             )
 
+        platform_lookup = PLATFORM_VERSION_LOOKUP[value[CONF_VERSION]]
+        value[CONF_PLATFORM_VERSION] = _parse_platform_version(str(platform_lookup))
+
         if value[CONF_TYPE] == FRAMEWORK_ARDUINO:
             version = ARDUINO_FRAMEWORK_VERSION_LOOKUP[value[CONF_VERSION]]
         else:
             version = ESP_IDF_FRAMEWORK_VERSION_LOOKUP[value[CONF_VERSION]]
-
-        platform_lookup = PLATFORM_VERSION_LOOKUP[value[CONF_VERSION]]
-        value[CONF_PLATFORM_VERSION] = _parse_platform_version(str(platform_lookup))
     else:
         version = cv.Version.parse(cv.version_number(value[CONF_VERSION]))
 
