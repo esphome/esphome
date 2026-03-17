@@ -10,15 +10,6 @@ namespace esphome::benchmarks {
 // sub-microsecond benchmarks.
 static constexpr int kInnerIterations = 2000;
 
-// Component subclass that suppresses blocking warnings.
-// Under valgrind, 2000 inner iterations take long enough in wall clock
-// to trigger WarnIfComponentBlockingGuard. Setting the threshold to max
-// prevents log noise without affecting the benchmarked code path.
-class BenchComponent : public Component {
- public:
-  BenchComponent() { this->warn_if_blocking_over_ = UINT16_MAX; }
-};
-
 // --- Scheduler fast path: no work to do ---
 
 static void Scheduler_Call_NoWork(benchmark::State &state) {
@@ -39,7 +30,7 @@ BENCHMARK(Scheduler_Call_NoWork);
 
 static void Scheduler_Call_TimersNotDue(benchmark::State &state) {
   Scheduler scheduler;
-  BenchComponent dummy_component;
+  Component dummy_component;
 
   // Add some timeouts far in the future
   for (int i = 0; i < 10; i++) {
@@ -63,14 +54,13 @@ BENCHMARK(Scheduler_Call_TimersNotDue);
 
 static void Scheduler_Call_5IntervalsFiring(benchmark::State &state) {
   Scheduler scheduler;
-  BenchComponent dummy_component;
+  Component dummy_component;
   int fire_count = 0;
 
   // Benchmarks the heap-based scheduler dispatch with 5 callbacks firing.
   // Uses monotonically increasing fake time so intervals reliably fire every call.
-  // The first item per call triggers one WarnIfComponentBlockingGuard warning
-  // (fake now > real millis() causes underflow in finish()), but this is
-  // consistent overhead per iteration so CodSpeed regression detection works.
+  // USE_BENCHMARK ifdef in component.h disables WarnIfComponentBlockingGuard
+  // (fake now > real millis() would cause underflow in finish()).
   // interval=0 would cause an infinite loop (reschedules at same now).
   for (int i = 0; i < 5; i++) {
     scheduler.set_interval(&dummy_component, static_cast<uint32_t>(i), 1, [&fire_count]() { fire_count++; });
@@ -91,7 +81,7 @@ BENCHMARK(Scheduler_Call_5IntervalsFiring);
 
 static void Scheduler_NextScheduleIn(benchmark::State &state) {
   Scheduler scheduler;
-  BenchComponent dummy_component;
+  Component dummy_component;
 
   // Add some timeouts
   for (int i = 0; i < 10; i++) {
