@@ -100,11 +100,11 @@ class EntityBase {
   // Get whether this Entity should be hidden outside ESPHome
   bool is_internal() const { return this->flags_.internal; }
 
-  // Deprecated: set_internal() is unsafe at runtime. The internal flag may have already been read
-  // by components during setup and there is no guarantee the change will be observed. Clients
-  // (e.g. Home Assistant) are not notified of the change. Use the 'internal:' YAML key instead.
-  ESPDEPRECATED("set_internal() is unsafe at runtime and will be removed in 2027.3.0. "
-                "Use the 'internal:' YAML configuration key instead.",
+  // Deprecated: Calling set_internal() at runtime is undefined behavior. Components and clients
+  // are NOT notified of the change, the flag may have already been read during setup, and there
+  // is NO guarantee any consumer will observe the new value. Use the 'internal:' YAML key instead.
+  ESPDEPRECATED("set_internal() is undefined behavior at runtime — components and Home Assistant are NOT "
+                "notified. Use the 'internal:' YAML key instead. Will be removed in 2027.3.0.",
                 "2026.3.0")
   void set_internal(bool internal) { this->flags_.internal = internal; }
 
