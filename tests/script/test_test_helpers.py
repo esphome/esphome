@@ -1,4 +1,4 @@
-"""Unit tests for test_helpers.py manifest override functionality."""
+"""Unit tests for script/test_helpers.py manifest override and build helpers."""
 
 import os
 from pathlib import Path

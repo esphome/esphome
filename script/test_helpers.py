@@ -205,10 +205,11 @@ def create_host_config(
 
 def _wrap_manifest(
     comp_name: str,
-) -> None:
+) -> ComponentManifestOverride | None:
     """Wrap a component manifest in a ComponentManifestOverride with to_code suppressed.
 
-    If the manifest is already wrapped, this is a no-op.
+    If the manifest is already wrapped or not found, returns None.
+    Otherwise returns the newly created override after installing it.
     """
     if "." in comp_name:
         domain, component = comp_name.split(".", maxsplit=1)
@@ -219,11 +220,12 @@ def _wrap_manifest(
         cache_key = comp_name
 
     if manifest is None or isinstance(manifest, ComponentManifestOverride):
-        return
+        return None
 
     override = ComponentManifestOverride(manifest)
     override.to_code = None  # suppress by default
     set_testing_manifest(cache_key, override)
+    return override
 
 
 def apply_codegen_overrides(
@@ -237,17 +239,11 @@ def apply_codegen_overrides(
     the default for ``compile_and_get_binary``.
     """
     for comp_name in components:
-        _wrap_manifest(comp_name)
+        override = _wrap_manifest(comp_name)
 
         # Re-enable codegen for allowed components
-        if comp_name in codegen_components:
-            manifest = (
-                get_platform(*comp_name.split(".", maxsplit=1))
-                if "." in comp_name
-                else get_component(comp_name)
-            )
-            if isinstance(manifest, ComponentManifestOverride):
-                manifest.enable_codegen()
+        if override is not None and comp_name in codegen_components:
+            override.enable_codegen()
 
 
 def load_test_manifest_overrides(
@@ -262,7 +258,9 @@ def load_test_manifest_overrides(
     the override (e.g. ``manifest.enable_codegen()``).
     """
     for comp_name in components:
-        _wrap_manifest(comp_name)
+        override = _wrap_manifest(comp_name)
+        if override is None:
+            continue
 
         if "." in comp_name:
             domain, component = comp_name.split(".", maxsplit=1)
@@ -271,14 +269,6 @@ def load_test_manifest_overrides(
         else:
             cache_key = comp_name
             test_init = tests_dir / comp_name / "__init__.py"
-
-        manifest = (
-            get_platform(*comp_name.split(".", maxsplit=1))
-            if "." in comp_name
-            else get_component(comp_name)
-        )
-        if not isinstance(manifest, ComponentManifestOverride):
-            continue
 
         if test_init.is_file():
             spec = importlib.util.spec_from_file_location(
@@ -289,7 +279,7 @@ def load_test_manifest_overrides(
                 spec.loader.exec_module(mod)
                 override_fn = getattr(mod, "override_manifest", None)
                 if override_fn is not None:
-                    override_fn(manifest)
+                    override_fn(override)
 
 
 # Type alias for manifest override loaders
