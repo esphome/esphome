@@ -9,6 +9,7 @@ import { imageBreakpoints } from "./src/lib/breakpoints.ts";
 import { remarkAlert } from "remark-github-blockquote-alert";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import componentsJson from "./src/integrations/components-json.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -275,5 +276,6 @@ export default defineConfig({
       ],
     }),
     sitemap(),
+    componentsJson(),
   ],
 });
