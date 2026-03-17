@@ -230,7 +230,7 @@ static err_t pcb_detach_close(struct tcp_pcb *pcb) {
 /// override to IPADDR_TYPE_ANY after calling).
 /// Shared by both TCP (LWIPRawCommon) and UDP (LWIPRawUDPImpl) bind/sendto paths.
 static bool sockaddr_to_lwip(const struct sockaddr *addr, socklen_t addrlen, ip_addr_t *ip, uint16_t *port) {
-  if (addrlen < sizeof(sa_family_t))
+  if (addrlen < sizeof(struct sockaddr))
     return false;
 #if LWIP_IPV6
   if (addr->sa_family == AF_INET) {
