@@ -122,7 +122,8 @@ def load_component_yaml_configs(components: list[str], tests_dir: Path) -> dict:
 
     The ``esphome:`` key is special: its sub-keys are merged into the
     existing esphome config (e.g. to add ``areas:`` or ``devices:``).
-    Other base config keys (``host:``, ``logger:``) are not overridable.
+    Keys already present in the base config (e.g. ``host:``, ``logger:``)
+    are protected by ``setdefault`` in the caller.
 
     Args:
         components: List of component directory names
@@ -131,11 +132,6 @@ def load_component_yaml_configs(components: list[str], tests_dir: Path) -> dict:
     Returns:
         Merged dict of component configs to add to the base config
     """
-    # Note: components are processed in sorted order. For conflicting keys
-    # (e.g. two benchmark.yaml files both declaring sensor:), the first
-    # component alphabetically wins via setdefault(). This is fine for now
-    # with a single benchmark component (api) but would need a real merge
-    # strategy if multiple components declare overlapping configs.
     merged: dict = {}
     for component in components:
         yaml_path = tests_dir / component / BENCHMARK_YAML_FILENAME
@@ -145,9 +141,6 @@ def load_component_yaml_configs(components: list[str], tests_dir: Path) -> dict:
             component_config = yaml.safe_load(f)
         if component_config and isinstance(component_config, dict):
             for key, value in component_config.items():
-                if key in (HOST_KEY, LOGGER_KEY):
-                    # host: and logger: are not overridable
-                    continue
                 if key == ESPHOME_KEY and isinstance(value, dict):
                     # Merge esphome sub-keys rather than replacing
                     esphome_extra = merged.setdefault(ESPHOME_KEY, {})
