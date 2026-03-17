@@ -331,9 +331,8 @@ jobs:
         id: build
         run: |
           . venv/bin/activate
-          BENCHMARK_LIB=$(python script/setup_codspeed_lib.py)
-          BENCHMARK_LIB="$BENCHMARK_LIB" \
-            script/cpp_benchmark.py --all --build-only 2>&1 | tee /tmp/bench-build.log
+          export BENCHMARK_LIB_CONFIG=$(python script/setup_codspeed_lib.py)
+          script/cpp_benchmark.py --all --build-only 2>&1 | tee /tmp/bench-build.log
           BINARY=$(tail -1 /tmp/bench-build.log)
           echo "binary=$BINARY" >> $GITHUB_OUTPUT
 

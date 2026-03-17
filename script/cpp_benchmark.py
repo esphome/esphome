@@ -26,12 +26,26 @@ PLATFORMIO_OPTIONS = {
         "-DUSE_TIME_TIMEZONE",  # enable timezone code paths
         "-g",  # debug symbols for profiling
     ],
+    # Use deep+ LDF mode to ensure PlatformIO detects the benchmark
+    # library dependency from nested includes.
+    "lib_ldf_mode": "deep+",
 }
 
 
 def run_benchmarks(selected_components: list[str], build_only: bool = False) -> int:
-    # Allow CI to override the benchmark library (e.g. with CodSpeed's fork)
-    benchmark_lib = os.environ.get("BENCHMARK_LIB", PLATFORMIO_GOOGLE_BENCHMARK_LIB)
+    # Allow CI to override the benchmark library (e.g. with CodSpeed's fork).
+    # BENCHMARK_LIB_CONFIG is a JSON string from setup_codspeed_lib.py
+    # containing {"lib_path": "/path/to/google_benchmark"}.
+    lib_config_json = os.environ.get("BENCHMARK_LIB_CONFIG")
+
+    if lib_config_json:
+        import json
+
+        lib_config = json.loads(lib_config_json)
+        benchmark_lib = f"benchmark=symlink://{lib_config['lib_path']}"
+    else:
+        benchmark_lib = PLATFORMIO_GOOGLE_BENCHMARK_LIB
+
     return build_and_run(
         selected_components=selected_components,
         tests_dir=BENCHMARKS_DIR,
