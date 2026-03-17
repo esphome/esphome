@@ -1866,19 +1866,34 @@ template<typename T> class Parented {
  */
 class Mutex {
  public:
-  Mutex();
   Mutex(const Mutex &) = delete;
+  Mutex &operator=(const Mutex &) = delete;
+
+#if defined(USE_ESP8266) || defined(USE_RP2040)
+  // Single-threaded platforms: inline no-ops so the compiler eliminates all call overhead.
+  Mutex() = default;
+  ~Mutex() = default;
+  void lock() {}
+  bool try_lock() { return true; }
+  void unlock() {}
+#elif defined(USE_ESP32) || defined(USE_LIBRETINY)
+  // FreeRTOS platforms: inline to avoid out-of-line call overhead.
+  Mutex() { handle_ = xSemaphoreCreateMutex(); }
+  ~Mutex() = default;
+  void lock() { xSemaphoreTake(this->handle_, portMAX_DELAY); }
+  bool try_lock() { return xSemaphoreTake(this->handle_, 0) == pdTRUE; }
+  void unlock() { xSemaphoreGive(this->handle_); }
+
+ private:
+  SemaphoreHandle_t handle_;
+#else
+  Mutex();
   ~Mutex();
   void lock();
   bool try_lock();
   void unlock();
 
-  Mutex &operator=(const Mutex &) = delete;
-
  private:
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
-  SemaphoreHandle_t handle_;
-#else
   // d-pointer to store private data on new platforms
   void *handle_;  // NOLINT(clang-diagnostic-unused-private-field)
 #endif

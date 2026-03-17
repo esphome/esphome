@@ -473,6 +473,12 @@ class ProtoDecodableMessage : public ProtoMessage {
 
 class ProtoSize {
  public:
+  // Varint encoding thresholds: values below each threshold fit in N bytes
+  static constexpr uint32_t VARINT_THRESHOLD_1_BYTE = 1 << 7;   // 128
+  static constexpr uint32_t VARINT_THRESHOLD_2_BYTE = 1 << 14;  // 16384
+  static constexpr uint32_t VARINT_THRESHOLD_3_BYTE = 1 << 21;  // 2097152
+  static constexpr uint32_t VARINT_THRESHOLD_4_BYTE = 1 << 28;  // 268435456
+
   /**
    * @brief Calculates the size in bytes needed to encode a uint32_t value as a varint
    *
@@ -480,7 +486,7 @@ class ProtoSize {
    * @return The number of bytes needed to encode the value
    */
   static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE varint(uint32_t value) {
-    if (value < 128) [[likely]]
+    if (value < VARINT_THRESHOLD_1_BYTE) [[likely]]
       return 1;  // Fast path: 7 bits, most common case
     if (__builtin_is_constant_evaluated())
       return varint_wide(value);
@@ -492,11 +498,11 @@ class ProtoSize {
   static uint32_t varint_slow(uint32_t value) __attribute__((noinline));
   // Shared cascade for values >= 128 (used by both constexpr and noinline paths)
   static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE varint_wide(uint32_t value) {
-    if (value < 16384)
+    if (value < VARINT_THRESHOLD_2_BYTE)
       return 2;
-    if (value < 2097152)
+    if (value < VARINT_THRESHOLD_3_BYTE)
       return 3;
-    if (value < 268435456)
+    if (value < VARINT_THRESHOLD_4_BYTE)
       return 4;
     return 5;
   }
