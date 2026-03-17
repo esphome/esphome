@@ -26,9 +26,9 @@ create an `__init__.py` in your component's test directory and define `override_
 **Top-level component** (`tests/components/<component>/__init__.py`):
 
 ```python
-from esphome.loader import TestingComponentManifest
+from esphome.testing import ComponentManifestOverride
 
-def override_manifest(manifest: TestingComponentManifest) -> None:
+def override_manifest(manifest: ComponentManifestOverride) -> None:
     # Re-enable the component's own to_code (needed when the component must
     # emit C++ setup code that the test binary depends on at link time).
     manifest.enable_codegen()
@@ -37,9 +37,9 @@ def override_manifest(manifest: TestingComponentManifest) -> None:
 Or supply a lightweight stub instead of the real `to_code`:
 
 ```python
-from esphome.loader import TestingComponentManifest
+from esphome.testing import ComponentManifestOverride
 
-def override_manifest(manifest: TestingComponentManifest) -> None:
+def override_manifest(manifest: ComponentManifestOverride) -> None:
     async def to_code_testing(config):
         # Only emit what the C++ tests actually need
         pass
@@ -52,13 +52,13 @@ def override_manifest(manifest: TestingComponentManifest) -> None:
 e.g. `tests/components/my_sensor/sensor/__init__.py`):
 
 ```python
-from esphome.loader import TestingComponentManifest
+from esphome.testing import ComponentManifestOverride
 
-def override_manifest(manifest: TestingComponentManifest) -> None:
+def override_manifest(manifest: ComponentManifestOverride) -> None:
     manifest.enable_codegen()
 ```
 
-`override_manifest` receives a `TestingComponentManifest` that wraps the real manifest.
+`override_manifest` receives a `ComponentManifestOverride` that wraps the real manifest.
 Attribute assignments store an override; reads fall back to the real manifest when no
 override is present.
 

@@ -13,13 +13,9 @@ from esphome.__main__ import command_compile, parse_args
 from esphome.config import validate_config
 from esphome.const import CONF_PLATFORM
 from esphome.core import CORE
-from esphome.loader import (
-    TestingComponentManifest,
-    get_component,
-    get_platform,
-    set_testing_manifest,
-)
+from esphome.loader import get_component, get_platform
 from esphome.platformio_api import get_idedata
+from esphome.testing import ComponentManifestOverride, set_testing_manifest
 
 # This must coincide with the version in /platformio.ini
 PLATFORMIO_GOOGLE_TEST_LIB = "google/googletest@^1.15.2"
@@ -130,11 +126,11 @@ def get_platform_components(components: list[str]) -> list[str]:
 
 
 def _build_testing_manifest(
-    manifest: TestingComponentManifest,
+    manifest: ComponentManifestOverride,
     cache_key: str,
     test_init: Path,
 ) -> None:
-    """Wrap *manifest* in a TestingComponentManifest, suppress to_code, apply any
+    """Wrap *manifest* in a ComponentManifestOverride, suppress to_code, apply any
     override_manifest() found in *test_init*, then install it under *cache_key*.
 
     ``to_code`` is always suppressed first. An ``override_manifest`` function in
@@ -146,7 +142,7 @@ def _build_testing_manifest(
                    (top-level: component name; platform: ``"component.domain"``).
         test_init: Path to the ``__init__.py`` that may define ``override_manifest``.
     """
-    testing_manifest = TestingComponentManifest(manifest)
+    testing_manifest = ComponentManifestOverride(manifest)
     testing_manifest.to_code = None
 
     if test_init.is_file():
@@ -167,11 +163,11 @@ def load_test_manifest_overrides(components: list[str]) -> None:
     """Apply C++ testing restrictions and any per-component test overrides.
 
     For every component:
-    1. Wraps its manifest in a ``TestingComponentManifest`` and sets
+    1. Wraps its manifest in a ``ComponentManifestOverride`` and sets
        ``to_code = None`` for components not in ``CPP_TESTING_CODEGEN_COMPONENTS``
        so that code generation is suppressed during C++ unit test builds.
     2. If a test ``__init__.py`` exists and defines
-       ``override_manifest(manifest: TestingComponentManifest)``, calls it,
+       ``override_manifest(manifest: ComponentManifestOverride)``, calls it,
        allowing test code to restore or replace ``to_code``, add dependencies, etc.
 
     Already-processed components are skipped, so this is safe to call multiple
@@ -184,7 +180,7 @@ def load_test_manifest_overrides(components: list[str]) -> None:
             # "sensor.packet_transport" is stored as "packet_transport.sensor".
             domain, component = comp_name.split(".", maxsplit=1)
             manifest = get_platform(domain, component)
-            if manifest is None or isinstance(manifest, TestingComponentManifest):
+            if manifest is None or isinstance(manifest, ComponentManifestOverride):
                 continue
             _build_testing_manifest(
                 manifest,
@@ -194,7 +190,7 @@ def load_test_manifest_overrides(components: list[str]) -> None:
             )
         else:
             manifest = get_component(comp_name)
-            if manifest is None or isinstance(manifest, TestingComponentManifest):
+            if manifest is None or isinstance(manifest, ComponentManifestOverride):
                 continue
             _build_testing_manifest(
                 manifest,

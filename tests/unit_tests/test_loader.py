@@ -2,10 +2,11 @@
 
 from unittest.mock import MagicMock, patch
 
-from esphome.loader import ComponentManifest, TestingComponentManifest
+from esphome.loader import ComponentManifest
+from esphome.testing import ComponentManifestOverride
 
 # ---------------------------------------------------------------------------
-# TestingComponentManifest
+# ComponentManifestOverride
 # ---------------------------------------------------------------------------
 
 
@@ -20,14 +21,14 @@ def _make_manifest(*, to_code=None, dependencies=None) -> ComponentManifest:
 def test_testing_manifest_delegates_to_wrapped() -> None:
     """Unoverridden attributes fall through to the wrapped manifest."""
     inner = _make_manifest(dependencies=["wifi"])
-    tm = TestingComponentManifest(inner)
+    tm = ComponentManifestOverride(inner)
     assert tm.dependencies == ["wifi"]
 
 
 def test_testing_manifest_override_shadows_wrapped() -> None:
     """An assigned attribute shadows the wrapped value."""
     inner = _make_manifest(dependencies=["wifi"])
-    tm = TestingComponentManifest(inner)
+    tm = ComponentManifestOverride(inner)
     tm.dependencies = ["ble"]
     assert tm.dependencies == ["ble"]
     # Wrapped value unchanged
@@ -41,7 +42,7 @@ def test_testing_manifest_to_code_suppression() -> None:
         pass
 
     inner = _make_manifest(to_code=real_to_code)
-    tm = TestingComponentManifest(inner)
+    tm = ComponentManifestOverride(inner)
     tm.to_code = None
     assert tm.to_code is None
 
@@ -53,7 +54,7 @@ def test_testing_manifest_enable_codegen_removes_suppression() -> None:
         pass
 
     inner = _make_manifest(to_code=real_to_code)
-    tm = TestingComponentManifest(inner)
+    tm = ComponentManifestOverride(inner)
     tm.to_code = None
     assert tm.to_code is None
 
@@ -64,7 +65,7 @@ def test_testing_manifest_enable_codegen_removes_suppression() -> None:
 def test_testing_manifest_enable_codegen_preserves_other_overrides() -> None:
     """enable_codegen() only removes to_code; other overrides survive."""
     inner = _make_manifest(dependencies=["wifi"])
-    tm = TestingComponentManifest(inner)
+    tm = ComponentManifestOverride(inner)
     tm.to_code = None
     tm.dependencies = ["ble"]
 
@@ -81,7 +82,7 @@ def test_testing_manifest_restore_clears_all_overrides() -> None:
         pass
 
     inner = _make_manifest(to_code=real_to_code, dependencies=["wifi"])
-    tm = TestingComponentManifest(inner)
+    tm = ComponentManifestOverride(inner)
     tm.to_code = None
     tm.dependencies = ["ble"]
 

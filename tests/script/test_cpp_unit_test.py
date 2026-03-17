@@ -15,7 +15,8 @@ sys.path.insert(
 
 import cpp_unit_test  # noqa: E402
 
-from esphome.loader import ComponentManifest, TestingComponentManifest  # noqa: E402
+from esphome.loader import ComponentManifest  # noqa: E402
+from esphome.testing import ComponentManifestOverride  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -135,13 +136,13 @@ def test_build_testing_manifest_suppresses_to_code(tmp_path: Path) -> None:
             cache_key="mycomp",
             test_init=tmp_path / "nonexistent.py",
         )
-        installed: TestingComponentManifest = mock_set.call_args[0][1]
+        installed: ComponentManifestOverride = mock_set.call_args[0][1]
 
     assert installed.to_code is None
 
 
 def test_build_testing_manifest_calls_override_fn(tmp_path: Path) -> None:
-    """override_manifest() in test_init is called with the TestingComponentManifest."""
+    """override_manifest() in test_init is called with the ComponentManifestOverride."""
     init_py = tmp_path / "__init__.py"
     init_py.write_text(
         textwrap.dedent("""\
@@ -158,7 +159,7 @@ def test_build_testing_manifest_calls_override_fn(tmp_path: Path) -> None:
             cache_key="mycomp",
             test_init=init_py,
         )
-        installed: TestingComponentManifest = mock_set.call_args[0][1]
+        installed: ComponentManifestOverride = mock_set.call_args[0][1]
 
     assert installed.dependencies == ["injected"]
 
@@ -185,7 +186,7 @@ def test_build_testing_manifest_enable_codegen_in_override(tmp_path: Path) -> No
             cache_key="mycomp",
             test_init=init_py,
         )
-        installed: TestingComponentManifest = mock_set.call_args[0][1]
+        installed: ComponentManifestOverride = mock_set.call_args[0][1]
 
     assert installed.to_code is real_to_code
 
@@ -203,7 +204,7 @@ def test_build_testing_manifest_no_override_file(tmp_path: Path) -> None:
         key, installed = mock_set.call_args[0]
 
     assert key == "mycomp"
-    assert isinstance(installed, TestingComponentManifest)
+    assert isinstance(installed, ComponentManifestOverride)
 
 
 # ---------------------------------------------------------------------------
@@ -212,9 +213,9 @@ def test_build_testing_manifest_no_override_file(tmp_path: Path) -> None:
 
 
 def test_load_skips_already_wrapped(tmp_path: Path) -> None:
-    """Components already wrapped as TestingComponentManifest are not double-wrapped."""
+    """Components already wrapped as ComponentManifestOverride are not double-wrapped."""
     inner = _make_component_manifest()
-    already_wrapped = TestingComponentManifest(inner)
+    already_wrapped = ComponentManifestOverride(inner)
 
     with (
         patch("cpp_unit_test.get_component", return_value=already_wrapped),
@@ -228,7 +229,7 @@ def test_load_skips_already_wrapped(tmp_path: Path) -> None:
 
 def test_load_skips_platform_component_already_wrapped(tmp_path: Path) -> None:
     inner = _make_component_manifest()
-    already_wrapped = TestingComponentManifest(inner)
+    already_wrapped = ComponentManifestOverride(inner)
 
     with (
         patch("cpp_unit_test.get_platform", return_value=already_wrapped),
@@ -253,7 +254,7 @@ def test_load_wraps_top_level_component(tmp_path: Path) -> None:
     mock_set.assert_called_once()
     key, installed = mock_set.call_args[0]
     assert key == "mycomp"
-    assert isinstance(installed, TestingComponentManifest)
+    assert isinstance(installed, ComponentManifestOverride)
     assert installed.to_code is None
 
 
@@ -270,5 +271,5 @@ def test_load_wraps_platform_component(tmp_path: Path) -> None:
     mock_set.assert_called_once()
     key, installed = mock_set.call_args[0]
     assert key == "bthome.sensor"
-    assert isinstance(installed, TestingComponentManifest)
+    assert isinstance(installed, ComponentManifestOverride)
     assert installed.to_code is None

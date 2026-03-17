@@ -1,8 +1,8 @@
 import esphome.codegen as cg
-from esphome.loader import TestingComponentManifest
+from esphome.testing import ComponentManifestOverride
 
 
-def override_manifest(manifest: TestingComponentManifest) -> None:
+def override_manifest(manifest: ComponentManifestOverride) -> None:
     async def to_code(config):
         cg.add_build_flag("-DUSE_TIME_TIMEZONE")
 
