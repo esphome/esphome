@@ -512,13 +512,6 @@ void PollingComponent::set_update_interval(uint32_t update_interval) { this->upd
 
 void __attribute__((noinline, cold))
 WarnIfComponentBlockingGuard::warn_blocking(Component *component, uint32_t blocking_time) {
-  // Clamp underflowed values: if millis() < started_ (e.g. scheduler passes
-  // a `now` slightly ahead of real millis()), the subtraction wraps to ~4 billion.
-  // Clamping to uint16_t max lets should_warn_of_blocking() saturate the
-  // threshold and suppress further warnings.
-  if (blocking_time > std::numeric_limits<uint16_t>::max()) {
-    blocking_time = std::numeric_limits<uint16_t>::max();
-  }
   bool should_warn;
   if (component != nullptr) {
     should_warn = component->should_warn_of_blocking(blocking_time);
