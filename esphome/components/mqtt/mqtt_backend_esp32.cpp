@@ -84,7 +84,7 @@ void MQTTBackendESP32::loop() {
   // handle only 1 message per loop iteration
   Event *event = this->mqtt_event_queue_.pop();
   if (event != nullptr) {
-    mqtt_event_handler_(*event);
+    this->mqtt_event_handler_(*event);
     this->mqtt_event_pool_.release(event);
   }
 
