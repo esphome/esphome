@@ -529,49 +529,53 @@ class Scheduler {
   std::vector<SchedulerItem *> items_;
   std::vector<SchedulerItem *> to_add_;
 
+#ifndef ESPHOME_THREAD_SINGLE
   // Fast-path counter for process_to_add() to skip taking the lock when there is
   // nothing to add. Uses std::atomic on platforms that support it, plain uint32_t
   // otherwise. On non-atomic platforms, callers must hold the scheduler lock when
-  // mutating this counter.
+  // mutating this counter. Not needed on single-threaded platforms where we can
+  // check to_add_.empty() directly.
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
   std::atomic<uint32_t> to_add_count_{0};
 #else
   uint32_t to_add_count_{0};
 #endif
+#endif /* ESPHOME_THREAD_SINGLE */
 
   // Fast-path helper for process_to_add() to decide if it can try the lock-free path.
-  // - On ESPHOME_THREAD_MULTI_ATOMICS: performs a lock-free check via to_add_count_.
   // - On ESPHOME_THREAD_SINGLE: direct container check is safe (no concurrent writers).
+  // - On ESPHOME_THREAD_MULTI_ATOMICS: performs a lock-free check via to_add_count_.
   // - On ESPHOME_THREAD_MULTI_NO_ATOMICS: always returns false to force the caller
   //   down the locked path; this is NOT a lock-free emptiness check on that platform.
   bool to_add_empty_() const {
-#ifdef ESPHOME_THREAD_MULTI_ATOMICS
-    return this->to_add_count_.load(std::memory_order_relaxed) == 0;
-#elif defined(ESPHOME_THREAD_SINGLE)
-    // Single-threaded: no concurrent writers, direct check is safe
+#ifdef ESPHOME_THREAD_SINGLE
     return this->to_add_.empty();
+#elif defined(ESPHOME_THREAD_MULTI_ATOMICS)
+    return this->to_add_count_.load(std::memory_order_relaxed) == 0;
 #else
-  // Multi-threaded without atomics: must take lock; always indicate "not empty"
-  // so the caller does not attempt a lock-free path.
   return false;
 #endif
   }
 
-  // Increment to_add_count_ (caller must hold lock on non-atomic platforms)
+  // Increment to_add_count_ (no-op on single-threaded platforms)
   void to_add_count_increment_() {
-#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+#ifdef ESPHOME_THREAD_SINGLE
+    // No counter needed — to_add_empty_() checks the vector directly
+#elif defined(ESPHOME_THREAD_MULTI_ATOMICS)
     this->to_add_count_.fetch_add(1, std::memory_order_relaxed);
 #else
-    this->to_add_count_++;
+  this->to_add_count_++;
 #endif
   }
 
-  // Reset to_add_count_ (caller must hold lock)
+  // Reset to_add_count_ (no-op on single-threaded platforms)
   void to_add_count_clear_() {
-#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+#ifdef ESPHOME_THREAD_SINGLE
+    // No counter needed — to_add_empty_() checks the vector directly
+#elif defined(ESPHOME_THREAD_MULTI_ATOMICS)
     this->to_add_count_.store(0, std::memory_order_relaxed);
 #else
-    this->to_add_count_ = 0;
+  this->to_add_count_ = 0;
 #endif
   }
 
