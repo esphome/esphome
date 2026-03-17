@@ -134,6 +134,9 @@ def _write_library_json(
                 f"-I{core_include}",
                 f"-I{hooks_include}",
                 # google benchmark build flags
+                # -O2 is critical: without it, instrument_hooks_start_benchmark_inline
+                # doesn't get inlined and shows up as overhead in profiles
+                "-O2",
                 "-DNDEBUG",
                 "-DHAVE_STD_REGEX",
                 "-DHAVE_STEADY_CLOCK",
