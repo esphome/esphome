@@ -1,6 +1,7 @@
 #ifdef USE_ESP32
 
 #include "esphome/core/defines.h"
+#include "crash_handler.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "preferences.h"
@@ -21,9 +22,10 @@ extern "C" __attribute__((weak)) void initArduino() {}
 
 namespace esphome {
 
-void IRAM_ATTR HOT yield() { vPortYield(); }
-uint32_t IRAM_ATTR HOT millis() { return (uint32_t) (esp_timer_get_time() / 1000ULL); }
-void IRAM_ATTR HOT delay(uint32_t ms) { vTaskDelay(ms / portTICK_PERIOD_MS); }
+void HOT yield() { vPortYield(); }
+uint32_t IRAM_ATTR HOT millis() { return micros_to_millis(static_cast<uint64_t>(esp_timer_get_time())); }
+uint64_t HOT millis_64() { return micros_to_millis<uint64_t>(static_cast<uint64_t>(esp_timer_get_time())); }
+void HOT delay(uint32_t ms) { vTaskDelay(ms / portTICK_PERIOD_MS); }
 uint32_t IRAM_ATTR HOT micros() { return (uint32_t) esp_timer_get_time(); }
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
 void arch_restart() {
@@ -35,6 +37,11 @@ void arch_restart() {
 }
 
 void arch_init() {
+#ifdef USE_ESP32_CRASH_HANDLER
+  // Read crash data from previous boot before anything else
+  esp32::crash_handler_read_and_clear();
+#endif
+
   // Enable the task watchdog only on the loop task (from which we're currently running)
   esp_task_wdt_add(nullptr);
 
@@ -44,9 +51,11 @@ void arch_init() {
   esp_ota_mark_app_valid_cancel_rollback();
 #endif
 }
-void IRAM_ATTR HOT arch_feed_wdt() { esp_task_wdt_reset(); }
+void HOT arch_feed_wdt() { esp_task_wdt_reset(); }
 
 uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
+const char *progmem_read_ptr(const char *const *addr) { return *addr; }
+uint16_t progmem_read_uint16(const uint16_t *addr) { return *addr; }
 uint32_t arch_get_cpu_cycle_count() { return esp_cpu_get_cycle_count(); }
 uint32_t arch_get_cpu_freq_hz() {
   uint32_t freq = 0;

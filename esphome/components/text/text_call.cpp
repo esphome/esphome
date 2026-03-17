@@ -2,13 +2,17 @@
 #include "esphome/core/log.h"
 #include "text.h"
 
-namespace esphome {
-namespace text {
+namespace esphome::text {
 
 static const char *const TAG = "text";
 
 TextCall &TextCall::set_value(const std::string &value) {
   this->value_ = value;
+  return *this;
+}
+
+TextCall &TextCall::set_value(const char *value, size_t len) {
+  this->value_ = std::string(value, len);
   return *this;
 }
 
@@ -52,5 +56,4 @@ void TextCall::perform() {
   this->parent_->control(target_value);
 }
 
-}  // namespace text
-}  // namespace esphome
+}  // namespace esphome::text

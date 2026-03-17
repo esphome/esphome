@@ -12,6 +12,13 @@
 
 #ifdef USE_ESP32
 
+#include <esp_idf_version.h>
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+// mbedtls 4.0 (IDF 6.0) removed the legacy mbedtls AES API.
+// Use the PSA Crypto API instead.
+#define USE_BLE_TRACKER_PSA_AES
+#endif
+
 #include <esp_bt_defs.h>
 #include <esp_gap_ble_api.h>
 #include <esp_gattc_api.h>
@@ -107,7 +114,7 @@ class ESPBTDevice {
     for (auto &it : this->manufacturer_datas_) {
       auto res = ESPBLEiBeacon::from_manufacturer_data(it);
       if (res.has_value())
-        return *res;
+        return res;
     }
     return {};
   }

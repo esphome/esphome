@@ -19,14 +19,6 @@ class APIServerConnectionBase : public ProtoService {
  public:
 #endif
 
-  bool send_message(const ProtoMessage &msg, uint8_t message_type) {
-#ifdef HAS_PROTO_MESSAGE_DUMP
-    DumpBuffer dump_buf;
-    this->log_send_message_(msg.message_name(), msg.dump_to(dump_buf));
-#endif
-    return this->send_message_impl(msg, message_type);
-  }
-
   virtual void on_hello_request(const HelloRequest &value){};
 
   virtual void on_disconnect_request(){};
@@ -224,11 +216,28 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_infrared_rf_transmit_raw_timings_request(const InfraredRFTransmitRawTimingsRequest &value){};
 #endif
 
- protected:
-  void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;
-};
+#ifdef USE_SERIAL_PROXY
+  virtual void on_serial_proxy_configure_request(const SerialProxyConfigureRequest &value){};
+#endif
 
-class APIServerConnection : public APIServerConnectionBase {
+#ifdef USE_SERIAL_PROXY
+  virtual void on_serial_proxy_write_request(const SerialProxyWriteRequest &value){};
+#endif
+#ifdef USE_SERIAL_PROXY
+  virtual void on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &value){};
+#endif
+#ifdef USE_SERIAL_PROXY
+  virtual void on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &value){};
+#endif
+
+#ifdef USE_SERIAL_PROXY
+  virtual void on_serial_proxy_request(const SerialProxyRequest &value){};
+#endif
+
+#ifdef USE_BLUETOOTH_PROXY
+  virtual void on_bluetooth_set_connection_params_request(const BluetoothSetConnectionParamsRequest &value){};
+#endif
+
  protected:
   void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;
 };

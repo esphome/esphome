@@ -25,11 +25,7 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
   uint32_t range_end = ((upload_first_chunk_sent_ or this->tft_size_ < 4096) ? this->tft_size_ : 4096) - 1;
   ESP_LOGD(TAG, "Range start: %" PRIu32, range_start);
   if (range_size <= 0 or range_end <= range_start) {
-    ESP_LOGE(TAG, "Invalid range");
-    ESP_LOGD(TAG,
-             "Range end: %" PRIu32 "\n"
-             "Range size: %" PRIu32,
-             range_end, range_size);
+    ESP_LOGE(TAG, "Invalid range end: %" PRIu32 ", size: %" PRIu32, range_end, range_size);
     return -1;
   }
 
@@ -90,6 +86,12 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
       ESP_LOGD(TAG, "Upload: %0.2f%% (%" PRIu32 " left, heap: %" PRIu32 ")", upload_percentage, this->content_length_,
                EspClass::getFreeHeap());
       upload_first_chunk_sent_ = true;
+      if (recv_string.empty()) {
+        ESP_LOGW(TAG, "No response from display during upload");
+        allocator.deallocate(buffer, 4096);
+        buffer = nullptr;
+        return -1;
+      }
       if (recv_string[0] == 0x08 && recv_string.size() == 5) {  // handle partial upload request
         char hex_buf[format_hex_pretty_size(NEXTION_MAX_RESPONSE_LOG_BYTES)];
         ESP_LOGD(
@@ -138,11 +140,7 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
 }
 
 bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
-  ESP_LOGD(TAG,
-           "TFT upload requested\n"
-           "Exit reparse: %s\n"
-           "URL: %s",
-           YESNO(exit_reparse), this->tft_url_.c_str());
+  ESP_LOGD(TAG, "TFT upload requested, exit reparse: %s, URL: %s", YESNO(exit_reparse), this->tft_url_.c_str());
 
   if (this->connection_state_.is_updating_) {
     ESP_LOGW(TAG, "Upload in progress");
@@ -172,12 +170,9 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   ESP_LOGD(TAG, "Baud rate: %" PRIu32, baud_rate);
 
   // Define the configuration for the HTTP client
-  ESP_LOGV(TAG,
-           "Init HTTP client\n"
-           "Heap: %" PRIu32,
-           EspClass::getFreeHeap());
+  ESP_LOGV(TAG, "Init HTTP client, heap: %" PRIu32, EspClass::getFreeHeap());
   HTTPClient http_client;
-  http_client.setTimeout(15000);  // Yes 15 seconds.... Helps 8266s along
+  http_client.setTimeout(this->tft_upload_http_timeout_);
 
   bool begin_status = false;
 #ifdef USE_ESP8266
@@ -203,15 +198,15 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   http_client.collectHeaders(header_names, 1);
   ESP_LOGD(TAG, "URL: %s", this->tft_url_.c_str());
   http_client.setReuse(true);
-  // try up to 5 times. DNS sometimes needs a second try or so
+
   int tries = 1;
   int code = http_client.GET();
   delay(100);  // NOLINT
 
   App.feed_wdt();
-  while (code != 200 && code != 206 && tries <= 5) {
-    ESP_LOGW(TAG, "HTTP fail: URL: %s; Error: %s, retry %d/5", this->tft_url_.c_str(),
-             HTTPClient::errorToString(code).c_str(), tries);
+  while (code != 200 && code != 206 && tries <= this->tft_upload_http_retries_) {
+    ESP_LOGW(TAG, "HTTP fail: URL: %s; Error: %s, retry %d/%u", this->tft_url_.c_str(),
+             HTTPClient::errorToString(code).c_str(), tries, this->tft_upload_http_retries_);
 
     delay(250);  // NOLINT
     App.feed_wdt();
@@ -220,6 +215,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   }
 
   if (code != 200 and code != 206) {
+    ESP_LOGE(TAG, "HTTP request failed with status %d", code);
     return this->upload_end_(false);
   }
 
@@ -261,10 +257,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   this->reset_(false);
   delay(250);  // NOLINT
 
-  ESP_LOGV(TAG,
-           "Heap: %" PRIu32 "\n"
-           "Upload cmd: %s",
-           EspClass::getFreeHeap(), command);
+  ESP_LOGV(TAG, "Heap: %" PRIu32 ", upload cmd: %s", EspClass::getFreeHeap(), command);
   this->send_command_(command);
 
   if (baud_rate != this->original_baud_rate_) {

@@ -88,7 +88,7 @@ void NextionComponent::update_component_settings(bool force_update) {
     this->send_state_to_nextion();
   }
 
-  if (this->component_flags_.bco_needs_update || (force_update && this->component_flags_.bco2_is_set)) {
+  if (this->component_flags_.bco_needs_update || (force_update && this->component_flags_.bco_is_set)) {
     this->nextion_->set_component_background_color(this->variable_name_.c_str(), this->bco_);
     this->component_flags_.bco_needs_update = false;
   }

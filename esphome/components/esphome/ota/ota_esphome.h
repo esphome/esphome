@@ -2,7 +2,7 @@
 
 #include "esphome/core/defines.h"
 #ifdef USE_OTA
-#include "esphome/components/ota/ota_backend.h"
+#include "esphome/components/ota/ota_backend_factory.h"
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -12,7 +12,7 @@
 namespace esphome {
 
 /// ESPHomeOTAComponent provides a simple way to integrate Over-the-Air updates into your app using ArduinoOTA.
-class ESPHomeOTAComponent : public ota::OTAComponent {
+class ESPHomeOTAComponent final : public ota::OTAComponent {
  public:
   enum class OTAState : uint8_t {
     IDLE,
@@ -66,6 +66,7 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
     this->handshake_buf_pos_ = 0;  // Reset buffer position for next state
   }
 
+  void server_failed_(const LogString *msg);
   void log_socket_error_(const LogString *msg);
   void log_read_error_(const LogString *what);
   void log_start_(const LogString *phase);
@@ -83,9 +84,9 @@ class ESPHomeOTAComponent : public ota::OTAComponent {
   std::unique_ptr<uint8_t[]> auth_buf_;
 #endif  // USE_OTA_PASSWORD
 
-  std::unique_ptr<socket::Socket> server_;
+  socket::ListenSocket *server_{nullptr};
   std::unique_ptr<socket::Socket> client_;
-  std::unique_ptr<ota::OTABackend> backend_;
+  ota::OTABackendPtr backend_;
 
   uint32_t client_connect_time_{0};
   uint16_t port_;

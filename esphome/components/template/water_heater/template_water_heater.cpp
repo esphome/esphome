@@ -17,7 +17,7 @@ void TemplateWaterHeater::setup() {
     }
   }
   if (!this->current_temperature_f_.has_value() && !this->target_temperature_f_.has_value() &&
-      !this->mode_f_.has_value())
+      !this->mode_f_.has_value() && !this->away_f_.has_value() && !this->is_on_f_.has_value())
     this->disable_loop();
 }
 
@@ -26,11 +26,18 @@ water_heater::WaterHeaterTraits TemplateWaterHeater::traits() {
 
   if (!this->supported_modes_.empty()) {
     traits.set_supported_modes(this->supported_modes_);
+    traits.add_feature_flags(water_heater::WATER_HEATER_SUPPORTS_OPERATION_MODE);
   }
 
   traits.set_supports_current_temperature(true);
   if (this->target_temperature_f_.has_value()) {
     traits.add_feature_flags(water_heater::WATER_HEATER_SUPPORTS_TARGET_TEMPERATURE);
+  }
+  if (this->away_f_.has_value()) {
+    traits.set_supports_away_mode(true);
+  }
+  if (this->is_on_f_.has_value()) {
+    traits.add_feature_flags(water_heater::WATER_HEATER_SUPPORTS_ON_OFF);
   }
   return traits;
 }
@@ -62,6 +69,22 @@ void TemplateWaterHeater::loop() {
     }
   }
 
+  auto away = this->away_f_.call();
+  if (away.has_value()) {
+    if (*away != this->is_away()) {
+      this->set_state_flag_(water_heater::WATER_HEATER_STATE_AWAY, *away);
+      changed = true;
+    }
+  }
+
+  auto is_on = this->is_on_f_.call();
+  if (is_on.has_value()) {
+    if (*is_on != this->is_on()) {
+      this->set_state_flag_(water_heater::WATER_HEATER_STATE_ON, *is_on);
+      changed = true;
+    }
+  }
+
   if (changed) {
     this->publish_state();
   }
@@ -79,14 +102,28 @@ water_heater::WaterHeaterCallInternal TemplateWaterHeater::make_call() {
 }
 
 void TemplateWaterHeater::control(const water_heater::WaterHeaterCall &call) {
-  if (call.get_mode().has_value()) {
+  auto mode_val = call.get_mode();
+  if (mode_val.has_value()) {
     if (this->optimistic_) {
-      this->mode_ = *call.get_mode();
+      this->mode_ = *mode_val;
     }
   }
   if (!std::isnan(call.get_target_temperature())) {
     if (this->optimistic_) {
       this->target_temperature_ = call.get_target_temperature();
+    }
+  }
+
+  auto away_val = call.get_away();
+  if (away_val.has_value()) {
+    if (this->optimistic_) {
+      this->set_state_flag_(water_heater::WATER_HEATER_STATE_AWAY, *away_val);
+    }
+  }
+  auto on_val = call.get_on();
+  if (on_val.has_value()) {
+    if (this->optimistic_) {
+      this->set_state_flag_(water_heater::WATER_HEATER_STATE_ON, *on_val);
     }
   }
 

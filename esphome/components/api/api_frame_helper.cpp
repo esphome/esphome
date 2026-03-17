@@ -16,7 +16,12 @@ static const char *const TAG = "api.frame_helper";
 static constexpr size_t API_MAX_LOG_BYTES = 168;
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-#define HELPER_LOG(msg, ...) ESP_LOGVV(TAG, "%s (%s): " msg, this->client_name_, this->client_peername_, ##__VA_ARGS__)
+#define HELPER_LOG(msg, ...) \
+  do { \
+    char peername_buf[socket::SOCKADDR_STR_LEN]; \
+    this->get_peername_to(peername_buf); \
+    ESP_LOGVV(TAG, "%s (%s): " msg, this->client_name_, peername_buf, ##__VA_ARGS__); \
+  } while (0)
 #else
 #define HELPER_LOG(msg, ...) ((void) 0)
 #endif
@@ -108,10 +113,11 @@ APIError APIFrameHelper::loop() {
 
 // Common socket write error handling
 APIError APIFrameHelper::handle_socket_write_error_() {
-  if (errno == EWOULDBLOCK || errno == EAGAIN) {
+  const int err = errno;
+  if (err == EWOULDBLOCK || err == EAGAIN) {
     return APIError::WOULD_BLOCK;
   }
-  HELPER_LOG("Socket write failed with errno %d", errno);
+  HELPER_LOG("Socket write failed with errno %d", err);
   this->state_ = State::FAILED;
   return APIError::SOCKET_WRITE_FAILED;
 }
@@ -240,13 +246,20 @@ APIError APIFrameHelper::try_send_tx_buf_() {
   return APIError::OK;  // All buffers sent successfully
 }
 
+const char *APIFrameHelper::get_peername_to(std::span<char, socket::SOCKADDR_STR_LEN> buf) const {
+  if (this->socket_) {
+    this->socket_->getpeername_to(buf);
+  } else {
+    buf[0] = '\0';
+  }
+  return buf.data();
+}
+
 APIError APIFrameHelper::init_common_() {
   if (state_ != State::INITIALIZE || this->socket_ == nullptr) {
     HELPER_LOG("Bad state for init %d", (int) state_);
     return APIError::BAD_STATE;
   }
-  // Cache peername now while socket is valid - needed for error logging after socket failure
-  this->socket_->getpeername_to(this->client_peername_);
   int err = this->socket_->setblocking(false);
   if (err != 0) {
     state_ = State::FAILED;
@@ -266,11 +279,12 @@ APIError APIFrameHelper::init_common_() {
 
 APIError APIFrameHelper::handle_socket_read_result_(ssize_t received) {
   if (received == -1) {
-    if (errno == EWOULDBLOCK || errno == EAGAIN) {
+    const int err = errno;
+    if (err == EWOULDBLOCK || err == EAGAIN) {
       return APIError::WOULD_BLOCK;
     }
     state_ = State::FAILED;
-    HELPER_LOG("Socket read failed with errno %d", errno);
+    HELPER_LOG("Socket read failed with errno %d", err);
     return APIError::SOCKET_READ_FAILED;
   } else if (received == 0) {
     state_ = State::FAILED;

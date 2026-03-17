@@ -16,7 +16,8 @@ static const device *const WDT = DEVICE_DT_GET(DT_ALIAS(watchdog0));
 #endif
 
 void yield() { ::k_yield(); }
-uint32_t millis() { return k_ticks_to_ms_floor32(k_uptime_ticks()); }
+uint32_t millis() { return static_cast<uint32_t>(millis_64()); }
+uint64_t millis_64() { return static_cast<uint64_t>(k_uptime_get()); }
 uint32_t micros() { return k_ticks_to_us_floor32(k_uptime_ticks()); }
 void delayMicroseconds(uint32_t us) { ::k_usleep(us); }
 void delay(uint32_t ms) { ::k_msleep(ms); }
@@ -59,6 +60,8 @@ void arch_restart() { sys_reboot(SYS_REBOOT_COLD); }
 uint32_t arch_get_cpu_cycle_count() { return k_cycle_get_32(); }
 uint32_t arch_get_cpu_freq_hz() { return sys_clock_hw_cycles_per_sec(); }
 uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
+const char *progmem_read_ptr(const char *const *addr) { return *addr; }
+uint16_t progmem_read_uint16(const uint16_t *addr) { return *addr; }
 
 Mutex::Mutex() {
   auto *mutex = new k_mutex();
@@ -73,9 +76,7 @@ void Mutex::unlock() { k_mutex_unlock(static_cast<k_mutex *>(this->handle_)); }
 IRAM_ATTR InterruptLock::InterruptLock() { state_ = irq_lock(); }
 IRAM_ATTR InterruptLock::~InterruptLock() { irq_unlock(state_); }
 
-// Zephyr doesn't support lwIP core locking, so this is a no-op
-LwIPLock::LwIPLock() {}
-LwIPLock::~LwIPLock() {}
+// Zephyr LwIPLock is defined inline as a no-op in helpers.h
 
 uint32_t random_uint32() { return rand(); }  // NOLINT(cert-msc30-c, cert-msc50-cpp)
 bool random_bytes(uint8_t *data, size_t len) {

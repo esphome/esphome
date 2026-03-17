@@ -96,7 +96,7 @@ class HitachiClimate : public climate_ir::ClimateIR {
   void set_power_(bool on);
   uint8_t get_mode_();
   void set_mode_(uint8_t mode);
-  void set_temp_(uint8_t celsius, bool set_previous = false);
+  void set_temp_(uint8_t celsius, bool set_previous = true);
   uint8_t get_fan_();
   void set_fan_(uint8_t speed);
   void set_swing_v_toggle_(bool on);

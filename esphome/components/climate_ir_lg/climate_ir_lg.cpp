@@ -173,7 +173,7 @@ void LgIrClimate::transmit_state() {
   ESP_LOGD(TAG, "climate_lg_ir mode code: 0x%02X", this->mode);
 
   // Set fan speed
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON) {
     case climate::CLIMATE_FAN_HIGH:
       remote_state |= FAN_MAX;
       break;

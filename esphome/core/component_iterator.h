@@ -26,6 +26,7 @@ class ComponentIterator {
  public:
   void begin(bool include_internal = false);
   void advance();
+  bool completed() const { return this->state_ == IteratorState::NONE; }
   virtual bool on_begin();
 #ifdef USE_BINARY_SENSOR
   virtual bool on_binary_sensor(binary_sensor::BinarySensor *binary_sensor) = 0;
