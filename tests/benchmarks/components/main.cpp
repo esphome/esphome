@@ -20,6 +20,10 @@ void original_setup() {
 }
 
 void setup() {
+  // Run auto-generated initialization (App.pre_setup, area/device registration,
+  // looping_components_.init, etc.) so benchmarks that use App work correctly.
+  original_setup();
+
   // Log functions call global_logger->log_vprintf_() without a null check,
   // so we must set up a Logger before any test that triggers logging.
   static esphome::logger::Logger test_logger(0);
