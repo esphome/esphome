@@ -5,6 +5,11 @@
 
 namespace esphome::benchmarks {
 
+// Inner iteration count to amortize CodSpeed instrumentation overhead.
+// Without this, the ~60ns per-iteration valgrind start/stop cost dominates
+// sub-microsecond benchmarks.
+static constexpr int kInnerIterations = 1000;
+
 // --- Scheduler fast path: no work to do ---
 
 static void Scheduler_Call_NoWork(benchmark::State &state) {
@@ -12,9 +17,12 @@ static void Scheduler_Call_NoWork(benchmark::State &state) {
   uint32_t now = millis();
 
   for (auto _ : state) {
-    scheduler.call(now);
+    for (int i = 0; i < kInnerIterations; i++) {
+      scheduler.call(now);
+    }
     benchmark::DoNotOptimize(now);
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(Scheduler_Call_NoWork);
 
@@ -33,9 +41,12 @@ static void Scheduler_Call_TimersNotDue(benchmark::State &state) {
   uint32_t now = millis();
 
   for (auto _ : state) {
-    scheduler.call(now);
+    for (int i = 0; i < kInnerIterations; i++) {
+      scheduler.call(now);
+    }
     benchmark::DoNotOptimize(now);
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(Scheduler_Call_TimersNotDue);
 
@@ -54,9 +65,13 @@ static void Scheduler_NextScheduleIn(benchmark::State &state) {
   uint32_t now = millis();
 
   for (auto _ : state) {
-    auto result = scheduler.next_schedule_in(now);
+    optional<uint32_t> result;
+    for (int i = 0; i < kInnerIterations; i++) {
+      result = scheduler.next_schedule_in(now);
+    }
     benchmark::DoNotOptimize(result);
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(Scheduler_NextScheduleIn);
 

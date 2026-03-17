@@ -5,6 +5,11 @@
 
 namespace esphome::api::benchmarks {
 
+// Inner iteration count to amortize CodSpeed instrumentation overhead.
+// Without this, the ~60ns per-iteration valgrind start/stop cost dominates
+// sub-microsecond benchmarks.
+static constexpr int kInnerIterations = 1000;
+
 // --- HelloRequest decode (string + varint fields) ---
 
 static void Decode_HelloRequest(benchmark::State &state) {
@@ -21,9 +26,12 @@ static void Decode_HelloRequest(benchmark::State &state) {
 
   for (auto _ : state) {
     HelloRequest msg;
-    msg.decode(encoded, sizeof(encoded));
+    for (int i = 0; i < kInnerIterations; i++) {
+      msg.decode(encoded, sizeof(encoded));
+    }
     benchmark::DoNotOptimize(msg.api_version_major);
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(Decode_HelloRequest);
 
@@ -39,9 +47,12 @@ static void Decode_SwitchCommandRequest(benchmark::State &state) {
 
   for (auto _ : state) {
     SwitchCommandRequest msg;
-    msg.decode(encoded, sizeof(encoded));
+    for (int i = 0; i < kInnerIterations; i++) {
+      msg.decode(encoded, sizeof(encoded));
+    }
     benchmark::DoNotOptimize(msg.state);
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(Decode_SwitchCommandRequest);
 
@@ -110,9 +121,12 @@ static void Decode_LightCommandRequest(benchmark::State &state) {
 
   for (auto _ : state) {
     LightCommandRequest msg;
-    msg.decode(encoded, sizeof(encoded));
+    for (int i = 0; i < kInnerIterations; i++) {
+      msg.decode(encoded, sizeof(encoded));
+    }
     benchmark::DoNotOptimize(msg.brightness);
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(Decode_LightCommandRequest);
 

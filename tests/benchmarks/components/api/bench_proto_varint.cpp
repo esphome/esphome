@@ -5,66 +5,84 @@
 
 namespace esphome::api::benchmarks {
 
+// Inner iteration count to amortize CodSpeed instrumentation overhead.
+// Without this, the ~60ns per-iteration valgrind start/stop cost dominates
+// sub-microsecond benchmarks.
+static constexpr int kInnerIterations = 1000;
+
 // --- ProtoVarInt::parse() benchmarks ---
 
 static void ProtoVarInt_Parse_SingleByte(benchmark::State &state) {
-  // Single-byte varint (0-127) — the most common case (fast path)
   uint8_t buf[] = {0x42};  // value = 66
 
   for (auto _ : state) {
-    auto result = ProtoVarInt::parse(buf, sizeof(buf));
+    ProtoVarIntResult result{};
+    for (int i = 0; i < kInnerIterations; i++) {
+      result = ProtoVarInt::parse(buf, sizeof(buf));
+    }
     benchmark::DoNotOptimize(result);
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(ProtoVarInt_Parse_SingleByte);
 
 static void ProtoVarInt_Parse_TwoByte(benchmark::State &state) {
-  // Two-byte varint (128-16383)
   uint8_t buf[] = {0x80, 0x01};  // value = 128
 
   for (auto _ : state) {
-    auto result = ProtoVarInt::parse(buf, sizeof(buf));
+    ProtoVarIntResult result{};
+    for (int i = 0; i < kInnerIterations; i++) {
+      result = ProtoVarInt::parse(buf, sizeof(buf));
+    }
     benchmark::DoNotOptimize(result);
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(ProtoVarInt_Parse_TwoByte);
 
 static void ProtoVarInt_Parse_FiveByte(benchmark::State &state) {
-  // Five-byte varint (max uint32 = 4294967295)
   uint8_t buf[] = {0xFF, 0xFF, 0xFF, 0xFF, 0x0F};
 
   for (auto _ : state) {
-    auto result = ProtoVarInt::parse(buf, sizeof(buf));
+    ProtoVarIntResult result{};
+    for (int i = 0; i < kInnerIterations; i++) {
+      result = ProtoVarInt::parse(buf, sizeof(buf));
+    }
     benchmark::DoNotOptimize(result);
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(ProtoVarInt_Parse_FiveByte);
 
 // --- Varint encoding benchmarks ---
 
 static void Encode_Varint_Small(benchmark::State &state) {
-  // Value < 128 — single byte fast path
   APIBuffer buffer;
   buffer.resize(16);
 
   for (auto _ : state) {
-    ProtoWriteBuffer writer(&buffer, 0);
-    writer.encode_varint_raw(42);
+    for (int i = 0; i < kInnerIterations; i++) {
+      ProtoWriteBuffer writer(&buffer, 0);
+      writer.encode_varint_raw(42);
+    }
     benchmark::DoNotOptimize(buffer.data());
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(Encode_Varint_Small);
 
 static void Encode_Varint_Large(benchmark::State &state) {
-  // Value > 128 — multi-byte slow path
   APIBuffer buffer;
   buffer.resize(16);
 
   for (auto _ : state) {
-    ProtoWriteBuffer writer(&buffer, 0);
-    writer.encode_varint_raw(300);
+    for (int i = 0; i < kInnerIterations; i++) {
+      ProtoWriteBuffer writer(&buffer, 0);
+      writer.encode_varint_raw(300);
+    }
     benchmark::DoNotOptimize(buffer.data());
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(Encode_Varint_Large);
 
@@ -73,10 +91,13 @@ static void Encode_Varint_MaxUint32(benchmark::State &state) {
   buffer.resize(16);
 
   for (auto _ : state) {
-    ProtoWriteBuffer writer(&buffer, 0);
-    writer.encode_varint_raw(0xFFFFFFFF);
+    for (int i = 0; i < kInnerIterations; i++) {
+      ProtoWriteBuffer writer(&buffer, 0);
+      writer.encode_varint_raw(0xFFFFFFFF);
+    }
     benchmark::DoNotOptimize(buffer.data());
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(Encode_Varint_MaxUint32);
 
@@ -84,15 +105,25 @@ BENCHMARK(Encode_Varint_MaxUint32);
 
 static void ProtoSize_Varint_Small(benchmark::State &state) {
   for (auto _ : state) {
-    benchmark::DoNotOptimize(ProtoSize::varint(42));
+    uint32_t result = 0;
+    for (int i = 0; i < kInnerIterations; i++) {
+      result += ProtoSize::varint(42);
+    }
+    benchmark::DoNotOptimize(result);
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(ProtoSize_Varint_Small);
 
 static void ProtoSize_Varint_Large(benchmark::State &state) {
   for (auto _ : state) {
-    benchmark::DoNotOptimize(ProtoSize::varint(0xFFFFFFFF));
+    uint32_t result = 0;
+    for (int i = 0; i < kInnerIterations; i++) {
+      result += ProtoSize::varint(0xFFFFFFFF);
+    }
+    benchmark::DoNotOptimize(result);
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(ProtoSize_Varint_Large);
 

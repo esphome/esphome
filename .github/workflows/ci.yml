@@ -340,7 +340,6 @@ jobs:
         uses: CodSpeedHQ/action@281164b0f014a4e7badd2c02cecad9b595b70537 # v4
         with:
           run: ${{ steps.build.outputs.binary }}
-          token: ${{ secrets.CODSPEED_TOKEN }}
           mode: simulation
 
   clang-tidy-single:

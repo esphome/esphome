@@ -81,7 +81,7 @@ def filter_components_with_files(components: list[str], tests_dir: Path) -> list
             filtered_components.append(component)
         else:
             print(
-                f"WARNING: No files found for component '{component}' in {tests_dir}, skipping.",
+                f"WARNING: No files found for component '{component}' in {test_dir}, skipping.",
                 file=sys.stderr,
             )
     return filtered_components
@@ -284,7 +284,7 @@ def compile_and_get_binary(
             print(f"Error compiling {label} for {', '.join(components)}")
             return exit_code, None
     except Exception as e:
-        print(f"Error compiling {label} for {', '.join(components)}. Check path. : {e}")
+        print(f"Error compiling {label} for {', '.join(components)}: {e}")
         return EXIT_COMPILE_ERROR, None
 
     # After a successful compilation, locate the executable:

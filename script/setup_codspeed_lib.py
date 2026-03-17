@@ -171,6 +171,21 @@ def setup_codspeed_lib(output_dir: Path) -> None:
     """
     if not (output_dir / ".git").exists():
         _clone_repo(output_dir)
+    else:
+        # Verify the existing checkout matches the pinned SHA
+        result = subprocess.run(
+            ["git", "-C", str(output_dir), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0 or result.stdout.strip() != CODSPEED_CPP_SHA:
+            print(
+                f"Stale codspeed-cpp checkout, re-cloning at {CODSPEED_CPP_SHA}",
+                file=sys.stderr,
+            )
+            shutil.rmtree(output_dir)
+            _clone_repo(output_dir)
 
     benchmark_dir = output_dir / GOOGLE_BENCHMARK_SUBDIR
     lib_src = benchmark_dir / "src"

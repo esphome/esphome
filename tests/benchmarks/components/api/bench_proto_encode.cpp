@@ -5,6 +5,11 @@
 
 namespace esphome::api::benchmarks {
 
+// Inner iteration count to amortize CodSpeed instrumentation overhead.
+// Without this, the ~60ns per-iteration valgrind start/stop cost dominates
+// sub-microsecond benchmarks.
+static constexpr int kInnerIterations = 1000;
+
 // --- SensorStateResponse (highest frequency message) ---
 
 static void Encode_SensorStateResponse(benchmark::State &state) {
@@ -17,10 +22,13 @@ static void Encode_SensorStateResponse(benchmark::State &state) {
   buffer.resize(size);
 
   for (auto _ : state) {
-    ProtoWriteBuffer writer(&buffer, 0);
-    msg.encode(writer);
+    for (int i = 0; i < kInnerIterations; i++) {
+      ProtoWriteBuffer writer(&buffer, 0);
+      msg.encode(writer);
+    }
     benchmark::DoNotOptimize(buffer.data());
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(Encode_SensorStateResponse);
 
@@ -31,8 +39,13 @@ static void CalculateSize_SensorStateResponse(benchmark::State &state) {
   msg.missing_state = false;
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(msg.calculate_size());
+    uint32_t result = 0;
+    for (int i = 0; i < kInnerIterations; i++) {
+      result += msg.calculate_size();
+    }
+    benchmark::DoNotOptimize(result);
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(CalculateSize_SensorStateResponse);
 
@@ -45,12 +58,15 @@ static void CalcAndEncode_SensorStateResponse(benchmark::State &state) {
   msg.missing_state = false;
 
   for (auto _ : state) {
-    uint32_t size = msg.calculate_size();
-    buffer.resize(size);
-    ProtoWriteBuffer writer(&buffer, 0);
-    msg.encode(writer);
+    for (int i = 0; i < kInnerIterations; i++) {
+      uint32_t size = msg.calculate_size();
+      buffer.resize(size);
+      ProtoWriteBuffer writer(&buffer, 0);
+      msg.encode(writer);
+    }
     benchmark::DoNotOptimize(buffer.data());
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(CalcAndEncode_SensorStateResponse);
 
@@ -84,10 +100,13 @@ static void Encode_BinarySensorStateResponse(benchmark::State &state) {
   buffer.resize(size);
 
   for (auto _ : state) {
-    ProtoWriteBuffer writer(&buffer, 0);
-    msg.encode(writer);
+    for (int i = 0; i < kInnerIterations; i++) {
+      ProtoWriteBuffer writer(&buffer, 0);
+      msg.encode(writer);
+    }
     benchmark::DoNotOptimize(buffer.data());
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(Encode_BinarySensorStateResponse);
 
@@ -104,10 +123,13 @@ static void Encode_HelloResponse(benchmark::State &state) {
   buffer.resize(size);
 
   for (auto _ : state) {
-    ProtoWriteBuffer writer(&buffer, 0);
-    msg.encode(writer);
+    for (int i = 0; i < kInnerIterations; i++) {
+      ProtoWriteBuffer writer(&buffer, 0);
+      msg.encode(writer);
+    }
     benchmark::DoNotOptimize(buffer.data());
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(Encode_HelloResponse);
 
@@ -133,10 +155,13 @@ static void Encode_LightStateResponse(benchmark::State &state) {
   buffer.resize(size);
 
   for (auto _ : state) {
-    ProtoWriteBuffer writer(&buffer, 0);
-    msg.encode(writer);
+    for (int i = 0; i < kInnerIterations; i++) {
+      ProtoWriteBuffer writer(&buffer, 0);
+      msg.encode(writer);
+    }
     benchmark::DoNotOptimize(buffer.data());
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(Encode_LightStateResponse);
 
@@ -157,8 +182,13 @@ static void CalculateSize_LightStateResponse(benchmark::State &state) {
   msg.effect = StringRef::from_lit("rainbow");
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(msg.calculate_size());
+    uint32_t result = 0;
+    for (int i = 0; i < kInnerIterations; i++) {
+      result += msg.calculate_size();
+    }
+    benchmark::DoNotOptimize(result);
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(CalculateSize_LightStateResponse);
 
@@ -193,8 +223,13 @@ static void CalculateSize_DeviceInfoResponse(benchmark::State &state) {
   auto msg = make_device_info_response();
 
   for (auto _ : state) {
-    benchmark::DoNotOptimize(msg.calculate_size());
+    uint32_t result = 0;
+    for (int i = 0; i < kInnerIterations; i++) {
+      result += msg.calculate_size();
+    }
+    benchmark::DoNotOptimize(result);
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(CalculateSize_DeviceInfoResponse);
 
@@ -205,10 +240,13 @@ static void Encode_DeviceInfoResponse(benchmark::State &state) {
   buffer.resize(total_size);
 
   for (auto _ : state) {
-    ProtoWriteBuffer writer(&buffer, 0);
-    msg.encode(writer);
+    for (int i = 0; i < kInnerIterations; i++) {
+      ProtoWriteBuffer writer(&buffer, 0);
+      msg.encode(writer);
+    }
     benchmark::DoNotOptimize(buffer.data());
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(Encode_DeviceInfoResponse);
 
@@ -218,12 +256,15 @@ static void CalcAndEncode_DeviceInfoResponse(benchmark::State &state) {
   APIBuffer buffer;
 
   for (auto _ : state) {
-    uint32_t size = msg.calculate_size();
-    buffer.resize(size);
-    ProtoWriteBuffer writer(&buffer, 0);
-    msg.encode(writer);
+    for (int i = 0; i < kInnerIterations; i++) {
+      uint32_t size = msg.calculate_size();
+      buffer.resize(size);
+      ProtoWriteBuffer writer(&buffer, 0);
+      msg.encode(writer);
+    }
     benchmark::DoNotOptimize(buffer.data());
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(CalcAndEncode_DeviceInfoResponse);
 
@@ -232,13 +273,16 @@ static void CalcAndEncode_DeviceInfoResponse_Fresh(benchmark::State &state) {
   auto msg = make_device_info_response();
 
   for (auto _ : state) {
-    APIBuffer buffer;
-    uint32_t size = msg.calculate_size();
-    buffer.resize(size);
-    ProtoWriteBuffer writer(&buffer, 0);
-    msg.encode(writer);
-    benchmark::DoNotOptimize(buffer.data());
+    for (int i = 0; i < kInnerIterations; i++) {
+      APIBuffer buffer;
+      uint32_t size = msg.calculate_size();
+      buffer.resize(size);
+      ProtoWriteBuffer writer(&buffer, 0);
+      msg.encode(writer);
+      benchmark::DoNotOptimize(buffer.data());
+    }
   }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(CalcAndEncode_DeviceInfoResponse_Fresh);
 
