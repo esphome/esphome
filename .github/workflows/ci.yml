@@ -327,11 +327,39 @@ jobs:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
 
+      - name: Set up CodSpeed benchmark library
+        # CodSpeed requires their google_benchmark fork for instrumentation.
+        # Clone and create a PlatformIO-compatible library layout.
+        run: |
+          CODSPEED_SHA=d6b4111428ae1f1667fec9bff009522378d5d347
+          git clone https://github.com/CodSpeedHQ/codspeed-cpp.git /tmp/codspeed-cpp
+          git -C /tmp/codspeed-cpp checkout "$CODSPEED_SHA"
+          # Create library.json combining google_benchmark + codspeed core
+          cat > /tmp/codspeed-cpp/google_benchmark/library.json << 'LIBJSON'
+          {
+            "name": "benchmark",
+            "version": "0.0.0",
+            "build": {
+              "flags": [
+                "-I/tmp/codspeed-cpp/core/include",
+                "-I/tmp/codspeed-cpp/core/instrument-hooks",
+                "-DHAVE_STD_REGEX",
+                "-DHAVE_STEADY_CLOCK",
+                "-DBENCHMARK_STATIC_DEFINE"
+              ],
+              "srcFilter": ["+<src/*.cc>", "+</tmp/codspeed-cpp/core/src/*.cpp>"],
+              "includeDir": "include"
+            }
+          }
+          LIBJSON
+
       - name: Build benchmarks
         id: build
         run: |
           . venv/bin/activate
-          BINARY=$(script/cpp_benchmark.py --all --build-only 2>&1 | tail -1)
+          BENCHMARK_LIB="symlink:///tmp/codspeed-cpp/google_benchmark" \
+            script/cpp_benchmark.py --all --build-only 2>&1 | tee /tmp/bench-build.log
+          BINARY=$(tail -1 /tmp/bench-build.log)
           echo "binary=$BINARY" >> $GITHUB_OUTPUT
 
       - name: Run CodSpeed benchmarks

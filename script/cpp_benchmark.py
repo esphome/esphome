@@ -2,6 +2,7 @@
 """Build and run C++ benchmarks for ESPHome components using Google Benchmark."""
 
 import argparse
+import os
 from pathlib import Path
 import sys
 
@@ -29,13 +30,15 @@ PLATFORMIO_OPTIONS = {
 
 
 def run_benchmarks(selected_components: list[str], build_only: bool = False) -> int:
+    # Allow CI to override the benchmark library (e.g. with CodSpeed's fork)
+    benchmark_lib = os.environ.get("BENCHMARK_LIB", PLATFORMIO_GOOGLE_BENCHMARK_LIB)
     return build_and_run(
         selected_components=selected_components,
         tests_dir=BENCHMARKS_DIR,
         codegen_components=BENCHMARK_CODEGEN_COMPONENTS,
         config_prefix="cppbench",
         friendly_name="CPP Benchmarks",
-        libraries=PLATFORMIO_GOOGLE_BENCHMARK_LIB,
+        libraries=benchmark_lib,
         platformio_options=PLATFORMIO_OPTIONS,
         main_entry="main.cpp",
         label="benchmarks",
