@@ -126,7 +126,10 @@ SENDSPIN_SWITCH_ACTION_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "sendspin.switch", SendSwitchCommandAction, SENDSPIN_SWITCH_ACTION_SCHEMA
+    "sendspin.switch",
+    SendSwitchCommandAction,
+    SENDSPIN_SWITCH_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def sendspin_switch_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -147,6 +150,7 @@ SENDSPIN_GET_TRACK_PROGRESS_ACTION_SCHEMA = cv.Schema(
     "sendspin.get_track_progress",
     GetTrackProgressAction,
     SENDSPIN_GET_TRACK_PROGRESS_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def sendspin_get_track_progress_to_code(config, action_id, template_arg, args):
     cg.add_define("USE_SENDSPIN_METADATA", True)

@@ -100,11 +100,13 @@ SENDSPIN_SIMPLE_ACTION_SCHEMA = cv.Schema(
     "sendspin.media_source.enable_static_delay_adjustment",
     EnableStaticDelayAdjustmentAction,
     SENDSPIN_SIMPLE_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
     "sendspin.media_source.disable_static_delay_adjustment",
     DisableStaticDelayAdjustmentAction,
     SENDSPIN_SIMPLE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def sendspin_static_delay_adjustment_to_code(
     config, action_id, template_arg, args
