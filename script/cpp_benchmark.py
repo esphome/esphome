@@ -53,6 +53,7 @@ def run_benchmarks(selected_components: list[str], build_only: bool = False) -> 
         # CODSPEED_ROOT_DIR is used to display relative file paths in reports.
         project_root = Path(__file__).resolve().parent.parent
         codspeed_flags = [
+            "-DNDEBUG",
             "-DCODSPEED_ENABLED",
             "-DCODSPEED_ANALYSIS",
             f'-DCODSPEED_ROOT_DIR=\\"{project_root}\\"',

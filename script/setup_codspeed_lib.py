@@ -134,6 +134,7 @@ def _write_library_json(
                 f"-I{core_include}",
                 f"-I{hooks_include}",
                 # google benchmark build flags
+                "-DNDEBUG",
                 "-DHAVE_STD_REGEX",
                 "-DHAVE_STEADY_CLOCK",
                 "-DBENCHMARK_STATIC_DEFINE",
