@@ -595,6 +595,8 @@ def add_extra_build_file(filename: str, path: Path) -> bool:
 
 
 def _format_framework_arduino_version(ver: cv.Version) -> str:
+    if ver >= cv.Version(4, 0, 0):
+        return f"{ARDUINO_FRAMEWORK_PKG}@https://github.com/swoboda1337/arduino-esp32.git#v4"
     # 3.3.6+ changed filename from esp32-{ver}.zip to esp32-core-{ver}.tar.xz
     if ver >= cv.Version(3, 3, 6):
         filename = f"esp32-core-{ver}.tar.xz"
@@ -648,6 +650,9 @@ ARDUINO_FRAMEWORK_VERSION_LOOKUP = {
     "dev": cv.Version(3, 3, 7),
 }
 ARDUINO_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(
+        4, 0, 0
+    ): "https://github.com/swoboda1337/platform-espressif32.git#idf-v6.0",
     cv.Version(3, 3, 7): cv.Version(55, 3, 37),
     cv.Version(3, 3, 6): cv.Version(55, 3, 36),
     cv.Version(3, 3, 5): cv.Version(55, 3, 35),
