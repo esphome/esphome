@@ -317,7 +317,7 @@ jobs:
       - common
       - determine-jobs
     if: >-
-      (github.event_name == 'push' && github.ref == 'refs/heads/dev') ||
+      (github.event_name == 'push' && github.ref_name == 'dev') ||
       (github.event_name == 'pull_request' && needs.determine-jobs.outputs.benchmarks == 'true')
     steps:
       - name: Check out code from GitHub
