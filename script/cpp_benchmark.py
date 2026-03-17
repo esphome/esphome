@@ -27,9 +27,13 @@ CORE_BENCHMARKS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "core"
 BENCHMARK_CODEGEN_COMPONENTS = BASE_CODEGEN_COMPONENTS | {"json"}
 
 PLATFORMIO_OPTIONS = {
+    "build_unflags": [
+        "-Os",  # remove default size-opt
+    ],
     "build_flags": [
-        USE_TIME_TIMEZONE_FLAG,
+        "-O2",  # optimize for speed (CodSpeed recommends RelWithDebInfo)
         "-g",  # debug symbols for profiling
+        USE_TIME_TIMEZONE_FLAG,
     ],
     # Use deep+ LDF mode to ensure PlatformIO detects the benchmark
     # library dependency from nested includes.
