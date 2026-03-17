@@ -1846,7 +1846,7 @@ def test_should_run_benchmarks_benchmark_infra_change() -> None:
     """Test benchmarks trigger on benchmark infrastructure changes."""
     for infra_file in [
         "script/cpp_benchmark.py",
-        "script/test_helpers.py",
+        "script/build_helpers.py",
         "script/setup_codspeed_lib.py",
     ]:
         with patch.object(determine_jobs, "changed_files", return_value=[infra_file]):

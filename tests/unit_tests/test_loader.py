@@ -3,7 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 from esphome.loader import ComponentManifest
-from esphome.testing import ComponentManifestOverride
+from tests.testing_helpers import ComponentManifestOverride
 
 # ---------------------------------------------------------------------------
 # ComponentManifestOverride

@@ -26,7 +26,7 @@ create an `__init__.py` in your component's test directory and define `override_
 **Top-level component** (`tests/components/<component>/__init__.py`):
 
 ```python
-from esphome.testing import ComponentManifestOverride
+from tests.testing_helpers import ComponentManifestOverride
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:
     # Re-enable the component's own to_code (needed when the component must
@@ -37,7 +37,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
 Or supply a lightweight stub instead of the real `to_code`:
 
 ```python
-from esphome.testing import ComponentManifestOverride
+from tests.testing_helpers import ComponentManifestOverride
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:
     async def to_code_testing(config):
@@ -52,7 +52,7 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
 e.g. `tests/components/my_sensor/sensor/__init__.py`):
 
 ```python
-from esphome.testing import ComponentManifestOverride
+from tests.testing_helpers import ComponentManifestOverride
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:
     manifest.enable_codegen()

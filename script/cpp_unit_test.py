@@ -4,12 +4,12 @@ from functools import partial
 from pathlib import Path
 import sys
 
-from helpers import get_all_components, root_path
-from test_helpers import (
+from build_helpers import (
     PLATFORMIO_GOOGLE_TEST_LIB,
     build_and_run,
     load_test_manifest_overrides,
 )
+from helpers import get_all_components, root_path
 
 # Path to /tests/components
 COMPONENTS_TESTS_DIR: Path = Path(root_path) / "tests" / "components"

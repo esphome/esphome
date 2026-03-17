@@ -8,12 +8,12 @@ import os
 from pathlib import Path
 import sys
 
-from helpers import root_path
-from test_helpers import (
+from build_helpers import (
     PLATFORMIO_GOOGLE_BENCHMARK_LIB,
     build_and_run,
     load_test_manifest_overrides,
 )
+from helpers import root_path
 
 # Path to /tests/benchmarks/components
 BENCHMARKS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "components"

@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.testing import ComponentManifestOverride
+from tests.testing_helpers import ComponentManifestOverride
 
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:

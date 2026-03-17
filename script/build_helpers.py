@@ -10,8 +10,13 @@ from pathlib import Path
 import subprocess
 import sys
 
-from helpers import get_all_dependencies
+from helpers import get_all_dependencies, root_path as _root_path
 import yaml
+
+# Ensure the repo root is on sys.path so that ``tests.testing_helpers`` and
+# override ``__init__.py`` modules can ``from tests.testing_helpers import ...``.
+if _root_path not in sys.path:
+    sys.path.insert(0, _root_path)
 
 from esphome.__main__ import command_compile, parse_args
 from esphome.config import validate_config
@@ -19,7 +24,7 @@ from esphome.const import CONF_PLATFORM
 from esphome.core import CORE
 from esphome.loader import get_component, get_platform
 from esphome.platformio_api import get_idedata
-from esphome.testing import ComponentManifestOverride, set_testing_manifest
+from tests.testing_helpers import ComponentManifestOverride, set_testing_manifest
 
 # This must coincide with the version in /platformio.ini
 PLATFORMIO_GOOGLE_TEST_LIB = "google/googletest@^1.15.2"
