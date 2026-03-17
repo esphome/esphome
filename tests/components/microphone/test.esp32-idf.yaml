@@ -17,6 +17,6 @@ microphone:
     pdm: false
   - platform: i2s_audio
     id: mic_id_pdm
-    i2s_din_pin: GPIO34
+    i2s_din_pin: ${i2s_din_pin}
     adc_type: external
     pdm: true
