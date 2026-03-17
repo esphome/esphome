@@ -105,12 +105,12 @@ class USBCDCACMInstance : public uart::UARTComponent, public Parented<USBCDCACMC
   void uart_tx_process_();
 
   const device *uart_dev_;
-  uint8_t rx_ringbuf_data_[ESPHOME_CDC_RX_RING_BUFFER_SIZE];
-  uint8_t tx_ringbuf_data_[ESPHOME_CDC_TX_RING_BUFFER_SIZE];
-  ring_buf rx_ringbuf_;
-  ring_buf tx_ringbuf_;
   uint32_t dtr_{0};
   uint32_t rts_{0};
+  ring_buf rx_ringbuf_;
+  ring_buf tx_ringbuf_;
+  uint8_t rx_ringbuf_data_[ESPHOME_CDC_RX_RING_BUFFER_SIZE];
+  uint8_t tx_ringbuf_data_[ESPHOME_CDC_TX_RING_BUFFER_SIZE];
 #else
   TaskHandle_t usb_tx_task_handle_{nullptr};
 
