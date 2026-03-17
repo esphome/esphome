@@ -764,31 +764,24 @@ async def write_image(config, all_frames=False):
     return prog_arr, width, height, image_type, trans_value, frame_count
 
 
-async def _image_to_code(entry):
-    """
-    Convert a single image entry to code and return its metadata.
-    :param entry: The config entry for the image.
-    :return: An ImageMetaData object
-    """
-    prog_arr, width, height, image_type, trans_value, _ = await write_image(entry)
-    cg.new_Pvariable(entry[CONF_ID], prog_arr, width, height, image_type, trans_value)
-    return ImageMetaData(
-        width,
-        height,
-        entry[CONF_TYPE],
-        entry[CONF_TRANSPARENCY],
+def add_metadata(id: str, width: int, height: int, image_type: str, transparency):
+    all_metadata = CORE.data.setdefault(DOMAIN, {}).setdefault(KEY_METADATA, {})
+    all_metadata[str(id)] = ImageMetaData(
+        width=width, height=height, image_type=image_type, transparency=transparency
     )
 
 
 async def to_code(config):
     cg.add_define("USE_IMAGE")
     # By now the config will be a simple list.
-    # Use a subkey to allow for other data in the future
-    CORE.data[DOMAIN] = {
-        KEY_METADATA: {
-            entry[CONF_ID].id: await _image_to_code(entry) for entry in config
-        }
-    }
+    for entry in config:
+        prog_arr, width, height, image_type, trans_value, _ = await write_image(entry)
+        cg.new_Pvariable(
+            entry[CONF_ID], prog_arr, width, height, image_type, trans_value
+        )
+        add_metadata(
+            entry[CONF_ID], width, height, entry[CONF_TYPE], entry[CONF_TRANSPARENCY]
+        )
 
 
 def get_all_image_metadata() -> dict[str, ImageMetaData]:
