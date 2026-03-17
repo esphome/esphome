@@ -276,7 +276,7 @@ UARTFlushResult HostUartComponent::flush() {
   if (this->file_descriptor_ == -1) {
     return UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
   }
-  tcflush(this->file_descriptor_, TCIOFLUSH);
+  tcdrain(this->file_descriptor_);
   ESP_LOGV(TAG, "    Flushing");
   return UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
 }
