@@ -2,6 +2,7 @@
 """Build and run C++ benchmarks for ESPHome components using Google Benchmark."""
 
 import argparse
+from functools import partial
 import json
 import os
 from pathlib import Path
@@ -9,10 +10,9 @@ import sys
 
 from helpers import root_path
 from test_helpers import (
-    BASE_CODEGEN_COMPONENTS,
     PLATFORMIO_GOOGLE_BENCHMARK_LIB,
-    USE_TIME_TIMEZONE_FLAG,
     build_and_run,
+    load_test_manifest_overrides,
 )
 
 # Path to /tests/benchmarks/components
@@ -21,11 +21,6 @@ BENCHMARKS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "components"
 # Path to /tests/benchmarks/core (always included, not a component)
 CORE_BENCHMARKS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "core"
 
-# Additional codegen components beyond the base set.
-# json is needed because its to_code adds the ArduinoJson library
-# (auto-loaded by api, but cpp_testing suppresses to_code unless listed).
-BENCHMARK_CODEGEN_COMPONENTS = BASE_CODEGEN_COMPONENTS | {"json"}
-
 PLATFORMIO_OPTIONS = {
     "build_unflags": [
         "-Os",  # remove default size-opt
@@ -33,7 +28,6 @@ PLATFORMIO_OPTIONS = {
     "build_flags": [
         "-O2",  # optimize for speed (CodSpeed recommends RelWithDebInfo)
         "-g",  # debug symbols for profiling
-        USE_TIME_TIMEZONE_FLAG,
         "-DUSE_BENCHMARK",  # disable WarnIfComponentBlockingGuard in finish()
     ],
     # Use deep+ LDF mode to ensure PlatformIO detects the benchmark
@@ -73,7 +67,9 @@ def run_benchmarks(selected_components: list[str], build_only: bool = False) -> 
     return build_and_run(
         selected_components=selected_components,
         tests_dir=BENCHMARKS_DIR,
-        codegen_components=BENCHMARK_CODEGEN_COMPONENTS,
+        manifest_override_loader=partial(
+            load_test_manifest_overrides, tests_dir=BENCHMARKS_DIR
+        ),
         config_prefix="cppbench",
         friendly_name="CPP Benchmarks",
         libraries=benchmark_lib,

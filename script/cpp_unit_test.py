@@ -6,9 +6,7 @@ import sys
 
 from helpers import get_all_components, root_path
 from test_helpers import (
-    BASE_CODEGEN_COMPONENTS,
     PLATFORMIO_GOOGLE_TEST_LIB,
-    USE_TIME_TIMEZONE_FLAG,
     build_and_run,
     load_test_manifest_overrides,
 )
@@ -23,7 +21,6 @@ PLATFORMIO_OPTIONS = {
     ],
     "build_flags": [
         "-Og",  # optimize for debug
-        USE_TIME_TIMEZONE_FLAG,
         "-DESPHOME_DEBUG",  # enable debug assertions
         # Enable the address and undefined behavior sanitizers
         "-fsanitize=address",
@@ -41,16 +38,15 @@ def run_tests(selected_components: list[str]) -> int:
     return build_and_run(
         selected_components=selected_components,
         tests_dir=COMPONENTS_TESTS_DIR,
-        codegen_components=BASE_CODEGEN_COMPONENTS,
+        manifest_override_loader=partial(
+            load_test_manifest_overrides, tests_dir=COMPONENTS_TESTS_DIR
+        ),
         config_prefix="cpptests",
         friendly_name="CPP Unit Tests",
         libraries=PLATFORMIO_GOOGLE_TEST_LIB,
         platformio_options=PLATFORMIO_OPTIONS,
         main_entry="main.cpp",
         label="unit tests",
-        manifest_override_loader=partial(
-            load_test_manifest_overrides, tests_dir=COMPONENTS_TESTS_DIR
-        ),
     )
 
 

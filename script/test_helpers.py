@@ -39,15 +39,6 @@ LOGGER_KEY = "logger"
 # by component benchmark.yaml files. esphome: allows sub-key merging.
 BASE_CONFIG_KEYS = frozenset({ESPHOME_KEY, HOST_KEY, LOGGER_KEY})
 
-# Shared build flag — enables timezone code paths for testing/benchmarking.
-USE_TIME_TIMEZONE_FLAG = "-DUSE_TIME_TIMEZONE"
-
-# Components whose to_code should always run during C++ test/benchmark builds.
-# These are the minimal infrastructure components needed for host compilation.
-# Note: "core" is the esphome core config module (esphome/core/config.py),
-# which registers under package name "core" not "esphome".
-BASE_CODEGEN_COMPONENTS = {"core", "host", "logger"}
-
 # Exit codes
 EXIT_OK = 0
 EXIT_SKIPPED = 1
@@ -228,24 +219,6 @@ def _wrap_manifest(
     return override
 
 
-def apply_codegen_overrides(
-    components: list[str],
-    codegen_components: set[str],
-) -> None:
-    """Apply manifest overrides using a static codegen allowlist.
-
-    Every component gets its ``to_code`` suppressed, then components in
-    *codegen_components* have it re-enabled.  Used by benchmarks and as
-    the default for ``compile_and_get_binary``.
-    """
-    for comp_name in components:
-        override = _wrap_manifest(comp_name)
-
-        # Re-enable codegen for allowed components
-        if override is not None and comp_name in codegen_components:
-            override.enable_codegen()
-
-
 def load_test_manifest_overrides(
     components: list[str],
     tests_dir: Path,
@@ -289,18 +262,17 @@ ManifestOverrideLoader = Callable[[list[str]], None]
 def compile_and_get_binary(
     config: dict,
     components: list[str],
-    codegen_components: set[str],
     tests_dir: Path,
+    manifest_override_loader: ManifestOverrideLoader,
     label: str = "build",
-    manifest_override_loader: ManifestOverrideLoader | None = None,
 ) -> tuple[int, str | None]:
     """Compile an ESPHome configuration and return the binary path.
 
     Args:
         config: ESPHome configuration dict (already created via create_host_config)
         components: List of components to include in the build
-        codegen_components: Set of component names whose to_code should run
         tests_dir: Base directory for test files (used as config_path base)
+        manifest_override_loader: Callback to apply manifest overrides for components
         label: Label for log messages (e.g. "unit tests", "benchmarks")
 
     Returns:
@@ -329,24 +301,17 @@ def compile_and_get_binary(
 
     # Apply manifest overrides before dependency resolution so that any
     # dependency additions made by override_manifest() are picked up.
-    if manifest_override_loader is not None:
-        manifest_override_loader(components)
-    else:
-        apply_codegen_overrides(components, codegen_components)
+    manifest_override_loader(components)
 
     # Obtain possible dependencies BEFORE validate_config, because
     # get_all_dependencies calls CORE.reset() which clears build_path.
-    # Always include 'time' because USE_TIME_TIMEZONE is defined as a build flag,
-    # which causes core/time.h to include components/time/posix_tz.h.
+    # Always include 'time' because it is needed for timezone support.
     components_with_dependencies: list[str] = sorted(
         get_all_dependencies(set(components) | {"time"})
     )
 
     # Apply overrides for any transitively discovered dependencies.
-    if manifest_override_loader is not None:
-        manifest_override_loader(components_with_dependencies)
-    else:
-        apply_codegen_overrides(components_with_dependencies, codegen_components)
+    manifest_override_loader(components_with_dependencies)
 
     CORE.config_path = tests_dir / "dummy.yaml"
     CORE.dashboard = None
@@ -405,7 +370,7 @@ def compile_and_get_binary(
 def build_and_run(
     selected_components: list[str],
     tests_dir: Path,
-    codegen_components: set[str],
+    manifest_override_loader: ManifestOverrideLoader,
     config_prefix: str,
     friendly_name: str,
     libraries: str | list[str],
@@ -415,7 +380,6 @@ def build_and_run(
     build_only: bool = False,
     extra_run_args: list[str] | None = None,
     extra_include_dirs: list[Path] | None = None,
-    manifest_override_loader: ManifestOverrideLoader | None = None,
 ) -> int:
     """Build and optionally run a C++ test/benchmark binary.
 
@@ -425,7 +389,7 @@ def build_and_run(
     Args:
         selected_components: Components to include (directory names in tests_dir)
         tests_dir: Directory containing test/benchmark files
-        codegen_components: Components whose to_code should run
+        manifest_override_loader: Callback to apply manifest overrides for components
         config_prefix: Prefix for the config name (e.g. "cpptests", "cppbench")
         friendly_name: Human-readable name for the config
         libraries: PlatformIO library specification(s)
@@ -483,12 +447,7 @@ def build_and_run(
     )
 
     exit_code, program_path = compile_and_get_binary(
-        config,
-        components,
-        codegen_components,
-        tests_dir,
-        label,
-        manifest_override_loader=manifest_override_loader,
+        config, components, tests_dir, manifest_override_loader, label
     )
 
     if exit_code != EXIT_OK or program_path is None:
