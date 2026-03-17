@@ -442,8 +442,12 @@ class ProtoMessage {
   virtual const char *message_name() const { return "unknown"; }
 #endif
 
+#ifndef USE_HOST
  protected:
+#endif
   // Non-virtual destructor is protected to prevent polymorphic deletion.
+  // On host platform, made public to allow value-initialization of std::array
+  // members (e.g. DeviceInfoResponse::devices) without clang errors.
   ~ProtoMessage() = default;
 };
 
