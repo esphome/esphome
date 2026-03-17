@@ -11,6 +11,9 @@ from test_helpers import PLATFORMIO_GOOGLE_BENCHMARK_LIB, build_and_run
 # Path to /tests/benchmarks/components
 BENCHMARKS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "components"
 
+# Path to /tests/benchmarks/core (always included, not a component)
+CORE_BENCHMARKS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "core"
+
 # Components whose to_code should run during benchmark builds.
 # core/host/logger are infrastructure. json is needed because its
 # to_code adds the ArduinoJson library (it's auto-loaded by api but
@@ -37,6 +40,7 @@ def run_benchmarks(selected_components: list[str], build_only: bool = False) -> 
         main_entry="main.cpp",
         label="benchmarks",
         build_only=build_only,
+        extra_include_dirs=[CORE_BENCHMARKS_DIR],
     )
 
 

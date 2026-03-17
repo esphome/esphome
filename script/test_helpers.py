@@ -300,6 +300,7 @@ def build_and_run(
     label: str = "build",
     build_only: bool = False,
     extra_run_args: list[str] | None = None,
+    extra_include_dirs: list[Path] | None = None,
 ) -> int:
     """Build and optionally run a C++ test/benchmark binary.
 
@@ -318,6 +319,8 @@ def build_and_run(
         label: Label for log messages
         build_only: If True, print binary path and return without running
         extra_run_args: Extra arguments to pass to the binary
+        extra_include_dirs: Additional directories (relative to tests_dir)
+            whose .cpp files should be compiled
 
     Returns:
         Exit code
@@ -339,8 +342,18 @@ def build_and_run(
 
     components = sorted(components)
 
-    # Build include list: main entry point + component folders
+    # Build include list: main entry point + component folders + extra dirs
     includes: list[str] = [main_entry] + components
+    if extra_include_dirs:
+        for d in extra_include_dirs:
+            if d.is_dir() and (any(d.glob("*.cpp")) or any(d.glob("*.h"))):
+                # Use path relative to tests_dir for PlatformIO includes
+                try:
+                    rel = d.relative_to(tests_dir)
+                    includes.append(str(rel))
+                except ValueError:
+                    # Not relative to tests_dir, use absolute
+                    includes.append(str(d))
 
     # Discover platform sub-components
     try:
