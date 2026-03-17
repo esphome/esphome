@@ -67,21 +67,16 @@ static void Scheduler_Call_5IntervalsFiring(benchmark::State &state) {
   int fire_count = 0;
 
   // Add 5 intervals with 1ms period — they fire every call when time advances.
-  // No inner loop needed: 5 heap pops + 5 callbacks + 5 heap pushes per call
-  // is well above CodSpeed's ~60ns instrumentation overhead.
+  // We use monotonically increasing fake time (now++) so intervals reliably fire.
+  // The underflow guard in WarnIfComponentBlockingGuard::finish() (curr_time >= started_)
+  // prevents warn_blocking from firing when fake time exceeds real millis().
   // Note: interval=0 causes infinite loop (reschedules at same now, never breaks).
   for (int i = 0; i < 5; i++) {
     scheduler.set_interval(&dummy_component, static_cast<uint32_t>(i), 1, [&fire_count]() { fire_count++; });
   }
   scheduler.process_to_add();
 
-  // Monotonically increasing fake time so intervals are due every call.
-  // Can't use real millis() — it doesn't advance fast enough between calls.
-  // Warm-up call outside the benchmark to trigger the blocking guard once
-  // and ramp the component's warn_if_blocking_over_ threshold to max.
   uint32_t now = millis() + 100;
-  scheduler.call(now);
-  now++;
 
   for (auto _ : state) {
     scheduler.call(now);
