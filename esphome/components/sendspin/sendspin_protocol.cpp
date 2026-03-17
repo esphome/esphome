@@ -82,11 +82,11 @@ bool process_server_time_message(JsonObject root, int64_t timestamp, TimeTransmi
 
   int64_t client_transmitted = root["payload"]["client_transmitted"];
 
-  if (client_transmitted == time_replacement.transmitted_time) {
-    client_transmitted = time_replacement.actual_transmit_time;
-  } else {
-    ESP_LOGW(TAG, "Mismatched time message history");
+  if (client_transmitted != time_replacement.transmitted_time) {
+    ESP_LOGW(TAG, "Mismatched time message history, discarding measurement");
+    return false;
   }
+  client_transmitted = time_replacement.actual_transmit_time;
 
   const int64_t server_received = root["payload"]["server_received"];
   const int64_t server_transmitted = root["payload"]["server_transmitted"];

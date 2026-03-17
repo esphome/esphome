@@ -8,6 +8,7 @@
 #include "sendspin_connection.h"
 #include "sendspin_protocol.h"
 #include "sendspin_server_connection.h"
+#include "sendspin_time_burst.h"
 #include "sendspin_ws_server.h"
 
 #ifdef USE_SENDSPIN_PLAYER
@@ -257,7 +258,7 @@ class SendspinHub : public Component {
   void persist_static_delay_();
 #endif
 
-  void send_time_message_();
+  SendspinTimeBurst time_burst_;
 
   /// @brief Processes a sendspin binary message (payload owned by connection, read-only).
   void process_binary_message_(uint8_t *payload, size_t len);

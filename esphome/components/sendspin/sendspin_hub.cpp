@@ -26,16 +26,6 @@ static const char *const TAG = "sendspin.hub";
 
 static const size_t SENDSPIN_BINARY_CHUNK_HEADER_SIZE = 9;
 
-// Send time messages more frequently when the Kalman error is high
-static const int64_t KALMAN_ERROR_THRESHOLD_LOW_US = 1000;
-static const int64_t KALMAN_ERROR_THRESHOLD_MEDIUM_US = 2000;
-static const int64_t KALMAN_ERROR_THRESHOLD_HIGH_US = 5000;
-
-static const int64_t TIME_MESSAGE_DELAY_THRESHOLD_LOW_MS = 3000;
-static const int64_t TIME_MESSAGE_DELAY_THRESHOLD_MEDIUM_MS = 1000;
-static const int64_t TIME_MESSAGE_DELAY_THRESHOLD_HIGH_MS = 500;
-static const int64_t TIME_MESSAGE_DELAY_DEFAULT_MS = 200;
-
 static const UBaseType_t WEBSOCKET_TASK_PRIORITY = 17;
 
 void SendspinHub::setup() {
@@ -70,71 +60,28 @@ void SendspinHub::setup() {
   });
 }
 
-void SendspinHub::send_time_message_() {
-  // Check if we have an active connection with completed handshake
-  if (this->current_connection_ == nullptr || !this->current_connection_->is_connected() ||
-      !this->current_connection_->is_handshake_complete()) {
-    return;
-  }
-
-  // Check if a time message is already pending
-  if (this->current_connection_->is_pending_time_message()) {
-    return;
-  }
-
-  // Get time filter from current connection (connections own their time filters)
-  auto *time_filter = this->current_connection_->get_time_filter();
-  if (time_filter == nullptr) {
-    return;
-  }
-
-  const int64_t current_covariance = time_filter->get_covariance();  // use covariance to avoid unnecessary sqrt
-  int64_t delay_ms = TIME_MESSAGE_DELAY_DEFAULT_MS;
-
-  if (current_covariance < KALMAN_ERROR_THRESHOLD_LOW_US * KALMAN_ERROR_THRESHOLD_LOW_US) {
-    delay_ms = TIME_MESSAGE_DELAY_THRESHOLD_LOW_MS;
-  } else if (current_covariance < KALMAN_ERROR_THRESHOLD_MEDIUM_US * KALMAN_ERROR_THRESHOLD_MEDIUM_US) {
-    delay_ms = TIME_MESSAGE_DELAY_THRESHOLD_MEDIUM_MS;
-  } else if (current_covariance < KALMAN_ERROR_THRESHOLD_HIGH_US * KALMAN_ERROR_THRESHOLD_HIGH_US) {
-    delay_ms = TIME_MESSAGE_DELAY_THRESHOLD_HIGH_MS;
-  }
-
-  const int64_t time_since_last_ms =
-      (esp_timer_get_time() - this->current_connection_->get_last_sent_time_message()) / 1000LL;
-  if (time_since_last_ms <= delay_ms) {
-    return;
-  }
-
-  // Capture connection pointer for the callback
-  SendspinConnection *conn = this->current_connection_.get();
-  bool queued = conn->send_time_message([conn](bool success, int64_t actual_send_time) {
-    if (success) {
-      conn->get_last_time_message().actual_transmit_time = actual_send_time;
-    }
-    // Note: pending_time_message_ is cleared when we receive the response,
-    // not when the send completes, to handle response timeout correctly
-  });
-
-  if (queued) {
-    this->current_connection_->set_last_sent_time_message(esp_timer_get_time());
-    this->current_connection_->set_pending_time_message(true);
+void SendspinHub::loop() {
+  // Handle time synchronization for the active connection via burst strategy
+  if (this->current_connection_ != nullptr) {
+    auto result = this->time_burst_.loop(this->current_connection_.get());
 #ifdef USE_WIFI
-    if (!this->high_performance_networking_requested_for_time_ &&
+    if (result.sent && !this->high_performance_networking_requested_for_time_ &&
         wifi::global_wifi_component->request_high_performance()) {
       this->high_performance_networking_requested_for_time_ = true;
     }
+    if (result.burst_completed && this->high_performance_networking_requested_for_time_ &&
+        wifi::global_wifi_component->release_high_performance()) {
+      this->high_performance_networking_requested_for_time_ = false;
+    }
 #endif
-
 #ifdef USE_SENDSPIN_SENSOR
-    this->update_sendspin_sensor(
-        {.type = SendspinSensorTypes::KALMAN_ERROR, .value = static_cast<float>(time_filter->get_error())});
+    if (result.burst_completed) {
+      this->update_sendspin_sensor(
+          {.type = SendspinSensorTypes::KALMAN_ERROR,
+           .value = static_cast<float>(this->current_connection_->get_time_filter()->get_error())});
+    }
 #endif
   }
-}
-
-void SendspinHub::loop() {
-  // Handle time synchronization for the active connection
-  this->send_time_message_();
 
   // Start the WebSocket server when network is connected
   if (this->ws_server_ != nullptr && network::is_connected() && !this->ws_server_->is_started()) {
@@ -413,6 +360,7 @@ void SendspinHub::on_connection_lost_(SendspinConnection *conn) {
 
   if (this->current_connection_ != nullptr && this->current_connection_.get() == conn) {
     ESP_LOGI(TAG, "Current connection lost");
+    this->time_burst_.reset();
     this->cleanup_connection_state_();
     this->current_connection_.reset();
 
@@ -473,6 +421,7 @@ void SendspinHub::complete_handoff_(bool switch_to_new) {
     ESP_LOGD(TAG, "Completing handoff: switching to new server");
     // Disconnect current, promote pending to current
     if (this->current_connection_ != nullptr) {
+      this->time_burst_.reset();
       this->cleanup_connection_state_();
       auto old_current = std::move(this->current_connection_);
       this->current_connection_ = std::move(this->pending_connection_);
@@ -818,29 +767,22 @@ bool SendspinHub::process_json_message_(SendspinConnection *conn, const std::str
       break;
     }
     case SendspinServerToClientMessageType::SERVER_TIME: {
-      // Get time filter from the connection that sent this message
       if (conn == nullptr) {
         ESP_LOGW(TAG, "Received time message but no connection context");
         break;
       }
-      auto *time_filter = conn->get_time_filter();
-      if (time_filter == nullptr) {
-        ESP_LOGW(TAG, "Received time message but connection has no time filter");
-        break;
-      }
 
+      // peek_time_replacement() is thread-safe (backed by a FreeRTOS queue), so this
+      // can safely run on the callback thread without racing with send_time_message().
       int64_t offset;
       int64_t max_error;
-      if (process_server_time_message(root, timestamp, conn->get_last_time_message(), &offset, &max_error)) {
-        time_filter->update(offset, max_error, timestamp);
+      if (process_server_time_message(root, timestamp, conn->peek_time_replacement(), &offset, &max_error)) {
+        defer([this, offset, max_error, timestamp]() {
+          if (this->current_connection_ != nullptr) {
+            this->time_burst_.on_time_response(this->current_connection_.get(), offset, max_error, timestamp);
+          }
+        });
       }
-      conn->set_pending_time_message(false);
-#ifdef USE_WIFI
-      if (this->high_performance_networking_requested_for_time_ &&
-          wifi::global_wifi_component->release_high_performance()) {
-        this->high_performance_networking_requested_for_time_ = false;
-      }
-#endif
       break;
     }
     case SendspinServerToClientMessageType::SERVER_STATE: {

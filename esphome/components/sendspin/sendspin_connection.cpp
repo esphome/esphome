@@ -27,7 +27,13 @@ namespace sendspin {
 
 static const char *const TAG = "sendspin.connection";
 
-SendspinConnection::~SendspinConnection() { this->deallocate_websocket_payload_(); }
+SendspinConnection::~SendspinConnection() {
+  this->deallocate_websocket_payload_();
+  if (this->time_replacement_queue_ != nullptr) {
+    vQueueDelete(this->time_replacement_queue_);
+    this->time_replacement_queue_ = nullptr;
+  }
+}
 
 void SendspinConnection::deallocate_websocket_payload_() {
   if (this->websocket_payload_ != nullptr) {
@@ -45,13 +51,21 @@ void SendspinConnection::init_time_filter() {
   this->time_filter_ = make_unique<SendspinTimeFilter>(
       TIME_FILTER_PROCESS_STD_DEV, TIME_FILTER_DRIFT_PROCESS_STD_DEV, TIME_FILTER_FORGET_FACTOR,
       TIME_FILTER_ADAPTIVE_CUTOFF, TIME_FILTER_MIN_SAMPLES, TIME_FILTER_DRIFT_SIGNIFICANCE_THRESHOLD);
+  if (this->time_replacement_queue_ == nullptr) {
+    this->time_replacement_queue_ = xQueueCreate(1, sizeof(TimeTransmittedReplacement));
+  }
+}
+
+TimeTransmittedReplacement SendspinConnection::peek_time_replacement() const {
+  TimeTransmittedReplacement replacement{};
+  if (this->time_replacement_queue_ != nullptr) {
+    xQueuePeek(this->time_replacement_queue_, &replacement, 0);
+  }
+  return replacement;
 }
 
 bool SendspinConnection::send_time_message(SendCompleteCallback cb) {
   int64_t now = esp_timer_get_time();
-
-  this->last_time_message_.transmitted_time = now;
-  this->last_time_message_.actual_transmit_time = now;  // will be overwritten by callback
 
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   std::string serialized_text = json::build_json([now](JsonObject root) {
@@ -59,7 +73,22 @@ bool SendspinConnection::send_time_message(SendCompleteCallback cb) {
     root["payload"]["client_transmitted"] = now;
   });
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
-  return this->send_text_message(serialized_text, std::move(cb)) == ESP_OK;
+
+  // Wrap the caller's callback to push the time replacement into the queue
+  // after the message is actually sent. This is thread-safe: the queue handles
+  // synchronization between the send thread and the receive thread.
+  QueueHandle_t queue = this->time_replacement_queue_;
+  auto wrapped_cb = [now, queue, cb = std::move(cb)](bool success, int64_t actual_send_time) {
+    if (success && queue != nullptr) {
+      TimeTransmittedReplacement replacement{now, actual_send_time};
+      xQueueOverwrite(queue, &replacement);
+    }
+    if (cb) {
+      cb(success, actual_send_time);
+    }
+  };
+
+  return this->send_text_message(serialized_text, std::move(wrapped_cb)) == ESP_OK;
 }
 
 esp_err_t SendspinConnection::send_goodbye_reason(SendspinGoodbyeReason reason, SendCompleteCallback on_complete) {

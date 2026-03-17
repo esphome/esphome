@@ -21,6 +21,9 @@
 #include "sendspin_protocol.h"
 #include "sendspin_time_filter.h"
 
+#include <freertos/FreeRTOS.h>
+#include <freertos/queue.h>
+
 #include <functional>
 #include <memory>
 #include <string>
@@ -183,11 +186,11 @@ class SendspinConnection {
   /// @brief Sets the timestamp of the last sent time message.
   void set_last_sent_time_message(int64_t timestamp) { this->last_sent_time_message_ = timestamp; }
 
-  /// @brief Gets a reference to the last time message data.
-  TimeTransmittedReplacement &get_last_time_message() { return this->last_time_message_; }
-
-  /// @brief Gets a const reference to the last time message data.
-  const TimeTransmittedReplacement &get_last_time_message() const { return this->last_time_message_; }
+  /// @brief Thread-safe peek at the last time replacement data.
+  /// Uses a FreeRTOS queue (depth 1) so the send callback can write from any thread
+  /// while the receive handler reads from any thread without data races.
+  /// @return Copy of the last time replacement, or default-constructed if none available.
+  TimeTransmittedReplacement peek_time_replacement() const;
 
  protected:
   /// @brief Deallocates the websocket payload buffer if allocated.
@@ -215,7 +218,11 @@ class SendspinConnection {
   /// Time message state.
   bool pending_time_message_{false};
   int64_t last_sent_time_message_{0};
-  TimeTransmittedReplacement last_time_message_;
+
+  /// Thread-safe single-slot buffer for time replacement data.
+  /// Written by the send callback (which may run on httpd/websocket thread),
+  /// read by the receive handler (which may run on a different thread).
+  QueueHandle_t time_replacement_queue_{nullptr};
 
   /// @brief Allocates or grows the websocket payload buffer and returns a pointer to the write position.
   ///
