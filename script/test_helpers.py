@@ -389,7 +389,7 @@ def build_and_run(
         return exit_code
 
     if build_only:
-        print(program_path)
+        print(f"BUILD_BINARY={program_path}")
         return EXIT_OK
 
     # Run the binary
