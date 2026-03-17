@@ -61,9 +61,6 @@ def run_benchmarks(selected_components: list[str], build_only: bool = False) -> 
             **PLATFORMIO_OPTIONS,
             "build_flags": PLATFORMIO_OPTIONS["build_flags"] + codspeed_flags,
         }
-        print(f"CodSpeed library: {lib_config['lib_path']}", file=sys.stderr)
-        print(f"CodSpeed build flags: {codspeed_flags}", file=sys.stderr)
-        print(f"PlatformIO options: {pio_options}", file=sys.stderr)
     else:
         benchmark_lib = PLATFORMIO_GOOGLE_BENCHMARK_LIB
 
