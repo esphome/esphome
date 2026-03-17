@@ -135,7 +135,7 @@ class ESP32BLE : public Component {
 
   void enable();
   void disable();
-  bool is_active();
+  ESPHOME_ALWAYS_INLINE bool is_active() { return this->state_ == BLE_COMPONENT_STATE_ACTIVE; }
   void setup() override;
   void loop() override;
   void dump_config() override;
