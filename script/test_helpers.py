@@ -35,10 +35,6 @@ ESPHOME_KEY = "esphome"
 HOST_KEY = "host"
 LOGGER_KEY = "logger"
 
-# Base config keys that are always present and must not be fully overridden
-# by component benchmark.yaml files. esphome: allows sub-key merging.
-BASE_CONFIG_KEYS = frozenset({ESPHOME_KEY, HOST_KEY, LOGGER_KEY})
-
 # Exit codes
 EXIT_OK = 0
 EXIT_SKIPPED = 1
@@ -149,7 +145,7 @@ def load_component_yaml_configs(components: list[str], tests_dir: Path) -> dict:
             component_config = yaml.safe_load(f)
         if component_config and isinstance(component_config, dict):
             for key, value in component_config.items():
-                if key in BASE_CONFIG_KEYS - {ESPHOME_KEY}:
+                if key in (HOST_KEY, LOGGER_KEY):
                     # host: and logger: are not overridable
                     continue
                 if key == ESPHOME_KEY and isinstance(value, dict):
