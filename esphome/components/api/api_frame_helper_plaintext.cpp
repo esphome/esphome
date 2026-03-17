@@ -235,11 +235,6 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
   buffer->type = this->rx_header_parsed_type_;
   return APIError::OK;
 }
-APIError APIPlaintextFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
-  MessageInfo msg{type, 0, static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_)};
-  return write_protobuf_messages(buffer, std::span<const MessageInfo>(&msg, 1));
-}
-
 APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer,
                                                           std::span<const MessageInfo> messages) {
   APIError aerr = this->check_data_state_();
@@ -257,9 +252,11 @@ APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffe
   uint16_t total_write_len = 0;
 
   for (const auto &msg : messages) {
-    // Calculate varint sizes for header layout
-    uint8_t size_varint_len = api::ProtoSize::varint(static_cast<uint32_t>(msg.payload_size));
-    uint8_t type_varint_len = api::ProtoSize::varint(static_cast<uint32_t>(msg.message_type));
+    // Calculate varint sizes for header layout using inline ternary to avoid varint_slow call overhead
+    uint8_t size_varint_len = msg.payload_size < ProtoSize::VARINT_THRESHOLD_1_BYTE
+                                  ? 1
+                                  : (msg.payload_size < ProtoSize::VARINT_THRESHOLD_2_BYTE ? 2 : 3);
+    uint8_t type_varint_len = msg.message_type < ProtoSize::VARINT_THRESHOLD_1_BYTE ? 1 : 2;
     uint8_t total_header_len = 1 + size_varint_len + type_varint_len;
 
     // Calculate where to start writing the header
@@ -281,8 +278,8 @@ APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffe
     //
     // Example 3 (large values): total_header_len = 6, header_offset = 6 - 6 = 0
     // [0]    - 0x00 indicator byte
-    // [1-3]  - Payload size varint (3 bytes, for sizes 16384-2097151)
-    // [4-5]  - Message type varint (2 bytes, for types 128-32767)
+    // [1-3]  - Payload size varint (3 bytes, for sizes 16384-65535)
+    // [4-5]  - Message type varint (2 bytes, for types 128-16383)
     // [6...] - Actual payload data
     //
     // The message starts at offset + frame_header_padding_

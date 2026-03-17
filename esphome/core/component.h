@@ -6,6 +6,7 @@
 #include <string>
 
 #include "esphome/core/defines.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/optional.h"
@@ -575,9 +576,7 @@ class PollingComponent : public Component {
   uint32_t update_interval_;
 };
 
-#ifdef USE_RUNTIME_STATS
-uint32_t micros();  // Forward declare for inline constructor
-#endif
+// millis() and micros() are available via hal.h
 
 class WarnIfComponentBlockingGuard {
  public:
@@ -592,7 +591,18 @@ class WarnIfComponentBlockingGuard {
   }
 
   // Finish the timing operation and return the current time
-  uint32_t finish();
+  // Inlined: the fast path is just millis() + subtract + compare
+  inline uint32_t HOT finish() {
+    uint32_t curr_time = millis();
+    uint32_t blocking_time = curr_time - this->started_;
+#ifdef USE_RUNTIME_STATS
+    this->record_runtime_stats_();
+#endif
+    if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
+      warn_blocking(this->component_, blocking_time);
+    }
+    return curr_time;
+  }
 
   ~WarnIfComponentBlockingGuard() = default;
 
@@ -601,7 +611,12 @@ class WarnIfComponentBlockingGuard {
   Component *component_;
 #ifdef USE_RUNTIME_STATS
   uint32_t started_us_;
+  void record_runtime_stats_();
 #endif
+
+ private:
+  // Cold path for blocking warning - defined in component.cpp
+  static void __attribute__((noinline, cold)) warn_blocking(Component *component, uint32_t blocking_time);
 };
 
 // Function to clear setup priority overrides after all components are set up
