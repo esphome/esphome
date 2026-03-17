@@ -332,8 +332,8 @@ jobs:
         run: |
           . venv/bin/activate
           export BENCHMARK_LIB_CONFIG=$(python script/setup_codspeed_lib.py)
-          # --build-only prints the binary path as the last line of stdout
-          BINARY=$(script/cpp_benchmark.py --all --build-only | tail -1)
+          # --build-only prints BENCHMARK_BINARY=<path> to stdout
+          BINARY=$(script/cpp_benchmark.py --all --build-only | grep '^BENCHMARK_BINARY=' | tail -1 | cut -d= -f2-)
           echo "binary=$BINARY" >> $GITHUB_OUTPUT
 
       - name: Run CodSpeed benchmarks

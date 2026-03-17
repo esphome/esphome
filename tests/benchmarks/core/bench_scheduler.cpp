@@ -111,16 +111,20 @@ static void Scheduler_SetInterval(benchmark::State &state) {
 }
 BENCHMARK(Scheduler_SetInterval);
 
-// --- Scheduler: defer registration ---
+// --- Scheduler: defer registration (set_timeout with delay=0) ---
 
 static void Scheduler_Defer(benchmark::State &state) {
+  Scheduler scheduler;
   Component dummy_component;
 
+  // defer() is Component::defer which calls set_timeout(delay=0).
+  // Call set_timeout directly since defer() is protected.
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
-      dummy_component.defer(static_cast<uint32_t>(i % 5), []() {});
+      scheduler.set_timeout(&dummy_component, static_cast<uint32_t>(i % 5), 0, []() {});
     }
-    benchmark::DoNotOptimize(dummy_component);
+    scheduler.process_to_add();
+    benchmark::DoNotOptimize(scheduler);
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
