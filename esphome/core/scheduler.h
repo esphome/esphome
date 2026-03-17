@@ -551,9 +551,9 @@ class Scheduler {
     // Single-threaded: no concurrent writers, direct check is safe
     return this->to_add_.empty();
 #else
-    // Multi-threaded without atomics: must take lock; always indicate "not empty"
-    // so the caller does not attempt a lock-free path.
-    return false;
+  // Multi-threaded without atomics: must take lock; always indicate "not empty"
+  // so the caller does not attempt a lock-free path.
+  return false;
 #endif
   }
 
