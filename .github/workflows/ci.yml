@@ -338,6 +338,8 @@ jobs:
 
       - name: Run CodSpeed benchmarks
         uses: CodSpeedHQ/action@281164b0f014a4e7badd2c02cecad9b595b70537 # v4
+        env:
+          CODSPEED_LOG: debug
         with:
           run: ${{ steps.build.outputs.binary }}
           token: ${{ secrets.CODSPEED_TOKEN }}
