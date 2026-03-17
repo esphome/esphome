@@ -10,6 +10,15 @@ namespace esphome::benchmarks {
 // sub-microsecond benchmarks.
 static constexpr int kInnerIterations = 2000;
 
+// Component subclass that suppresses blocking warnings.
+// Under valgrind, 2000 inner iterations take long enough in wall clock
+// to trigger WarnIfComponentBlockingGuard. Setting the threshold to max
+// prevents log noise without affecting the benchmarked code path.
+class BenchComponent : public Component {
+ public:
+  BenchComponent() { this->warn_if_blocking_over_ = UINT16_MAX; }
+};
+
 // --- Scheduler fast path: no work to do ---
 
 static void Scheduler_Call_NoWork(benchmark::State &state) {
@@ -30,7 +39,7 @@ BENCHMARK(Scheduler_Call_NoWork);
 
 static void Scheduler_Call_TimersNotDue(benchmark::State &state) {
   Scheduler scheduler;
-  Component dummy_component;
+  BenchComponent dummy_component;
 
   // Add some timeouts far in the future
   for (int i = 0; i < 10; i++) {
@@ -54,7 +63,7 @@ BENCHMARK(Scheduler_Call_TimersNotDue);
 
 static void Scheduler_Call_5IntervalsFiring(benchmark::State &state) {
   Scheduler scheduler;
-  Component dummy_component;
+  BenchComponent dummy_component;
   int fire_count = 0;
 
   // Add 5 intervals with 1ms period — they fire every call when time advances
@@ -82,7 +91,7 @@ BENCHMARK(Scheduler_Call_5IntervalsFiring);
 
 static void Scheduler_NextScheduleIn(benchmark::State &state) {
   Scheduler scheduler;
-  Component dummy_component;
+  BenchComponent dummy_component;
 
   // Add some timeouts
   for (int i = 0; i < 10; i++) {
