@@ -23,6 +23,12 @@ namespace http_request {
 
 static const char *const TAG = "http_request.update";
 
+// Wraps UpdateInfo + error for the task→main-loop handoff.
+struct TaskResult {
+  update::UpdateInfo info;
+  const LogString *error_str{nullptr};
+};
+
 static const size_t MAX_READ_SIZE = 256;
 static constexpr uint32_t INITIAL_CHECK_INTERVAL_ID = 0;
 static constexpr uint32_t INITIAL_CHECK_INTERVAL_MS = 10000;
@@ -79,7 +85,8 @@ void HttpRequestUpdate::update_task(void *params) {
 
   // Allocate once — every path below returns via the single defer at the end.
   // On failure, error_str is set; on success it is nullptr.
-  auto *info = new update::UpdateInfo();
+  auto *result = new TaskResult();
+  auto *info = &result->info;
 
   auto container = this_update->request_parent_->get(this_update->source_url_);
 
@@ -87,7 +94,7 @@ void HttpRequestUpdate::update_task(void *params) {
     ESP_LOGE(TAG, "Failed to fetch manifest from %s", this_update->source_url_.c_str());
     if (container != nullptr)
       container->end();
-    info->error_str = LOG_STR("Failed to fetch manifest");
+    result->error_str = LOG_STR("Failed to fetch manifest");
     goto defer;  // NOLINT(cppcoreguidelines-avoid-goto)
   }
 
@@ -97,7 +104,7 @@ void HttpRequestUpdate::update_task(void *params) {
     if (data == nullptr) {
       ESP_LOGE(TAG, "Failed to allocate %zu bytes for manifest", container->content_length);
       container->end();
-      info->error_str = LOG_STR("Failed to allocate memory for manifest");
+      result->error_str = LOG_STR("Failed to allocate memory for manifest");
       goto defer;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
 
@@ -111,7 +118,7 @@ void HttpRequestUpdate::update_task(void *params) {
       }
       allocator.deallocate(data, container->content_length);
       container->end();
-      info->error_str = LOG_STR("Failed to read manifest");
+      result->error_str = LOG_STR("Failed to read manifest");
       goto defer;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
     size_t read_index = container->get_bytes_read();
@@ -165,7 +172,7 @@ void HttpRequestUpdate::update_task(void *params) {
 
     if (!valid) {
       ESP_LOGE(TAG, "Failed to parse JSON from %s", this_update->source_url_.c_str());
-      info->error_str = LOG_STR("Failed to parse manifest JSON");
+      result->error_str = LOG_STR("Failed to parse manifest JSON");
       goto defer;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
 
@@ -189,21 +196,24 @@ void HttpRequestUpdate::update_task(void *params) {
   }
 
 defer:
+  // Release container before vTaskDelete (which doesn't call destructors)
+  container.reset();
+
   // Defer to the main loop so all update_info_ and state_ writes happen on the
   // same thread as readers (API, MQTT, web server). This is a single defer for
   // both success and error paths to avoid multiple std::function instantiations.
   // Lambda captures only 2 pointers (8 bytes) — fits in std::function SBO on all platforms.
-  this_update->defer([this_update, info]() {
-    if (info->error_str != nullptr) {
-      this_update->status_set_error(info->error_str);
-      delete info;
+  this_update->defer([this_update, result]() {
+    if (result->error_str != nullptr) {
+      this_update->status_set_error(result->error_str);
+      delete result;
       return;
     }
 
     // Determine new state on main loop (avoids extra lambda captures from task)
     bool trigger_update_available = false;
     update::UpdateState new_state;
-    if (info->latest_version.empty() || info->latest_version == info->current_version) {
+    if (result->info.latest_version.empty() || result->info.latest_version == result->info.current_version) {
       new_state = update::UPDATE_STATE_NO_UPDATE;
     } else {
       new_state = update::UPDATE_STATE_AVAILABLE;
@@ -212,11 +222,9 @@ defer:
       }
     }
 
-    this_update->update_info_ = std::move(*info);
-    this_update->update_info_.has_progress = false;
-    this_update->update_info_.progress = 0.0f;
+    this_update->update_info_ = std::move(result->info);
     this_update->state_ = new_state;
-    delete info;
+    delete result;  // Safe: moved-from state is valid for destruction
 
     this_update->status_clear_error();
     this_update->publish_state();
