@@ -26,7 +26,11 @@ constexpr uint8_t WIRE_TYPE_MASK = 0b111;          // Mask to extract wire type 
 
 // Reinterpret float bits as uint32_t without floating-point comparison.
 // Used by both encode_float() and calc_float() to ensure identical zero checks.
-inline constexpr uint32_t float_to_raw(float value) { return __builtin_bit_cast(uint32_t, value); }
+inline uint32_t float_to_raw(float value) {
+  uint32_t raw;
+  memcpy(&raw, &value, sizeof(raw));
+  return raw;
+}
 
 // Helper functions for ZigZag encoding/decoding
 inline constexpr uint32_t encode_zigzag32(int32_t value) {
@@ -599,7 +603,7 @@ class ProtoSize {
   }
   static constexpr uint32_t calc_bool(uint32_t field_id_size, bool value) { return value ? field_id_size + 1 : 0; }
   static constexpr uint32_t calc_bool_force(uint32_t field_id_size) { return field_id_size + 1; }
-  static constexpr uint32_t calc_float(uint32_t field_id_size, float value) {
+  static uint32_t calc_float(uint32_t field_id_size, float value) {
     return float_to_raw(value) != 0 ? field_id_size + 4 : 0;
   }
   static constexpr uint32_t calc_fixed32(uint32_t field_id_size, uint32_t value) {
