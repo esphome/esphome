@@ -296,10 +296,14 @@ class Scheduler {
   SchedulerItem *get_item_from_pool_locked_();
 
  private:
-  // Helper to cancel items - must be called with lock held
+  // Helper to cancel matching items - must be called with lock held.
+  // When find_first=true, stops after the first match (used by set_timer_common_ where
+  // the cancel-before-add invariant guarantees at most one match).
+  // When find_first=false (default), cancels ALL matches (needed for DelayAction parallel
+  // mode where skip_cancel=true allows multiple items with the same key).
   // name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
   bool cancel_item_locked_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id,
-                           SchedulerItem::Type type, bool match_retry = false);
+                           SchedulerItem::Type type, bool match_retry = false, bool find_first = false);
 
   // Common implementation for cancel operations - handles locking
   bool cancel_item_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id,
@@ -507,18 +511,25 @@ class Scheduler {
 #endif
   }
 
-  // Helper to mark matching items in a container as removed
+  // Helper to mark matching items in a container as removed.
+  // When find_first=true, stops after the first match (used by set_timer_common_ where
+  // the cancel-before-add invariant guarantees at most one match).
+  // When find_first=false, marks ALL matches (needed for public cancel path where
+  // DelayAction parallel mode with skip_cancel=true can create multiple items with the same key).
   // name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
-  // Returns the number of items marked for removal
+  // Returns the number of items marked for removal.
   // IMPORTANT: Must be called with scheduler lock held
   __attribute__((noinline)) size_t mark_matching_items_removed_locked_(std::vector<SchedulerItem *> &container,
                                                                        Component *component, NameType name_type,
                                                                        const char *static_name, uint32_t hash_or_id,
-                                                                       SchedulerItem::Type type, bool match_retry) {
+                                                                       SchedulerItem::Type type, bool match_retry,
+                                                                       bool find_first = false) {
     size_t count = 0;
     for (auto *item : container) {
       if (this->matches_item_locked_(item, component, name_type, static_name, hash_or_id, type, match_retry)) {
         this->set_item_removed_(item, true);
+        if (find_first)
+          return 1;
         count++;
       }
     }
