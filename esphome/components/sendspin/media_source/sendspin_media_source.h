@@ -134,6 +134,9 @@ class SendspinMediaSource : public Component, public media_source::MediaSource, 
   /// @brief Decodes the current encoded chunk.
   DecodeResult sync_decode_audio_(SyncContext &sync_context);
 
+  /// @brief Drains stale audio from the ring buffer, preserving any codec header for the next task.
+  void sync_drain_stale_audio_();
+
   /// @brief Processes playback progress messages from the speaker to update buffered_frames and playtime.
   void sync_process_playback_progress_(SyncContext &sync_context);
 
@@ -147,6 +150,10 @@ class SendspinMediaSource : public Component, public media_source::MediaSource, 
   EventGroupHandle_t event_group_{nullptr};
   QueueHandle_t controls_queue_{nullptr};
   QueueHandle_t playback_progress_queue_{nullptr};
+
+  // Raw pointer to a codec header entry still checked out from the ring buffer.
+  // Held across task restarts so the new task can process it without re-draining.
+  AudioRingBufferEntry *pending_codec_header_{nullptr};
 
   // 8-bit members
   SendspinGenerationState generation_state_{SendspinGenerationState::IDLE};

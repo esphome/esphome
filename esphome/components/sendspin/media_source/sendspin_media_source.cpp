@@ -446,6 +446,24 @@ void SendspinMediaSource::sync_drain_until_codec_header_(SyncContext &sync_conte
   }
 }
 
+void SendspinMediaSource::sync_drain_stale_audio_() {
+  // Drain stale audio from the ring buffer to free space for the next stream's burst.
+  // If we encounter a codec header for the next stream, hold onto it (don't return it)
+  // so the next task can use it immediately without re-draining.
+  while (true) {
+    auto *entry = this->encoded_ring_buffer_->receive_chunk(0);
+    if (entry == nullptr) {
+      break;
+    }
+    if (entry->chunk_type != CHUNK_TYPE_ENCODED_AUDIO && entry->chunk_type != CHUNK_TYPE_DECODED_AUDIO) {
+      // Codec header for the next stream -- keep it checked out
+      this->pending_codec_header_ = entry;
+      break;
+    }
+    this->encoded_ring_buffer_->return_chunk(entry);
+  }
+}
+
 DecodeResult SendspinMediaSource::sync_decode_audio_(SyncContext &sync_context) {
   if (sync_context.decode_buffer != nullptr && sync_context.decode_buffer->available() > 0) {
     // Already have decoded audio
@@ -701,7 +719,13 @@ void SendspinMediaSource::sync_task(void *params) {
 
     xEventGroupSetBits(this_source->event_group_, EventGroupBits::TASK_RUNNING);
 
-    this_source->sync_drain_until_codec_header_(sync_context);
+    if (this_source->pending_codec_header_ != nullptr) {
+      // Use the codec header saved from the previous task's drain
+      sync_context.encoded_entry = this_source->pending_codec_header_;
+      this_source->pending_codec_header_ = nullptr;
+    } else {
+      this_source->sync_drain_until_codec_header_(sync_context);
+    }
     if (sync_context.encoded_entry != nullptr) {
       this_source->sync_decode_audio_(sync_context);
     }
@@ -739,9 +763,11 @@ void SendspinMediaSource::sync_task(void *params) {
       this_source->encoded_ring_buffer_->return_chunk(sync_context.encoded_entry);
       sync_context.encoded_entry = nullptr;
     }
+
   } while (false);
 
   xEventGroupSetBits(this_source->event_group_, EventGroupBits::TASK_STOPPING);
+  this_source->sync_drain_stale_audio_();
   xEventGroupSetBits(this_source->event_group_, EventGroupBits::TASK_STOPPED);
 
   while (true) {
