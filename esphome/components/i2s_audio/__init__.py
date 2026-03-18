@@ -176,10 +176,6 @@ def i2s_audio_component_schema(
                 *I2S_MODE_OPTIONS, lower=True
             ),
             cv.Optional(CONF_USE_APLL, default=False): cv.boolean,
-            cv.Optional(CONF_BITS_PER_CHANNEL, default="default"): cv.All(
-                cv.Any(cv.float_with_unit("bits", "bit"), "default"),
-                cv.one_of(*I2S_BITS_PER_CHANNEL),
-            ),
             cv.Optional(CONF_MCLK_MULTIPLE, default=256): cv.one_of(*I2S_MCLK_MULTIPLE),
         }
     )
