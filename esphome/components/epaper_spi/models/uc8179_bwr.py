@@ -23,17 +23,10 @@ class UC8179BWR(EpaperModel):
         sequence using the configured width/height values.
         """
         return (
-            # Reset device to defaults
-            (0x00, 0x00),
-            # Power setting: VRS_EN=1, VS_EN=1, VG_EN=1
-            (0x01, 0x07, 0x17),
-            # VCOM DC setting: -1.6V
-            (0x82, 0x1F),
-            # Panel setting: default for this panel
+            # Panel setting: BWR, LUT from OTP
             (0x00, 0x0F),
-            # VCOM and data interval setting
-            # Border control 0x43: black border with specific DDX settings
-            (0x50, 0x43, 0x00),
+            # VCOM and data interval: white border (B/W=LUTWK, Red=HiZ), CDI
+            (0x50, 0x77, 0x07),
         )
 
 
