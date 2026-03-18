@@ -106,10 +106,15 @@ std::vector<CdcEps> USBUartTypeCdcAcm::parse_descriptors(usb_device_handle_t dev
 }
 
 void RingBuffer::push(uint8_t item) {
+  if (this->get_free_space() == 0)
+    return;
   this->buffer_[this->insert_pos_] = item;
   this->insert_pos_ = (this->insert_pos_ + 1) % this->buffer_size_;
 }
 void RingBuffer::push(const uint8_t *data, size_t len) {
+  size_t free = this->get_free_space();
+  if (len > free)
+    len = free;
   for (size_t i = 0; i != len; i++) {
     this->buffer_[this->insert_pos_] = *data++;
     this->insert_pos_ = (this->insert_pos_ + 1) % this->buffer_size_;
@@ -155,11 +160,9 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
     size_t chunk_len = std::min(len, UsbOutputChunk::MAX_CHUNK_SIZE);
     memcpy(chunk->data, data, chunk_len);
     chunk->length = static_cast<uint8_t>(chunk_len);
-    if (!this->output_queue_.push(chunk)) {
-      this->output_pool_.release(chunk);
-      ESP_LOGE(TAG, "Output queue full - lost %zu bytes", len);
-      break;
-    }
+    // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+    // allocate() returned non-null, the queue cannot be full.
+    this->output_queue_.push(chunk);
     data += chunk_len;
     len -= chunk_len;
   }
@@ -315,7 +318,8 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
       chunk->channel = channel;
 
       // Push to lock-free queue for main loop processing
-      // Push always succeeds because pool size == queue size
+      // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+      // allocate() returned non-null, the queue cannot be full.
       this->usb_data_queue_.push(chunk);
 
       // Re-enable component loop to process the queued data
@@ -411,7 +415,7 @@ void USBUartTypeCdcAcm::on_connected() {
   for (auto *channel : this->channels_) {
     if (i == cdc_devs.size()) {
       ESP_LOGE(TAG, "No configuration found for channel %d", channel->index_);
-      this->status_set_warning("No configuration found for channel");
+      this->status_set_warning(LOG_STR("No configuration found for channel"));
       break;
     }
     channel->cdc_dev_ = cdc_devs[i++];

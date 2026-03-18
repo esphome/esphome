@@ -86,6 +86,12 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
       ESP_LOGD(TAG, "Upload: %0.2f%% (%" PRIu32 " left, heap: %" PRIu32 ")", upload_percentage, this->content_length_,
                EspClass::getFreeHeap());
       upload_first_chunk_sent_ = true;
+      if (recv_string.empty()) {
+        ESP_LOGW(TAG, "No response from display during upload");
+        allocator.deallocate(buffer, 4096);
+        buffer = nullptr;
+        return -1;
+      }
       if (recv_string[0] == 0x08 && recv_string.size() == 5) {  // handle partial upload request
         char hex_buf[format_hex_pretty_size(NEXTION_MAX_RESPONSE_LOG_BYTES)];
         ESP_LOGD(

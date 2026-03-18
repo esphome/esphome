@@ -619,6 +619,8 @@ void VoiceAssistant::start_playback_timeout_() {
     this->cancel_timeout("speaker-timeout");
     this->set_state_(State::RESPONSE_FINISHED, State::RESPONSE_FINISHED);
 
+    if (this->api_client_ == nullptr)
+      return;
     api::VoiceAssistantAnnounceFinished msg;
     msg.success = true;
     this->api_client_->send_message(msg);

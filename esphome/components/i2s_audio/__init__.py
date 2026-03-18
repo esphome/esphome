@@ -1,3 +1,5 @@
+from dataclasses import dataclass, field
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components.esp32 import (
@@ -25,6 +27,9 @@ import esphome.final_validate as fv
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["esp32"]
 MULTI_CONF = True
+
+CONF_PDM = "pdm"
+CONF_ADC_TYPE = "adc_type"
 
 CONF_I2S_DOUT_PIN = "i2s_dout_pin"
 CONF_I2S_DIN_PIN = "i2s_din_pin"
@@ -254,7 +259,65 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+@dataclass
+class I2SAudioData:
+    """I2S audio component state stored in CORE.data."""
+
+    port_map: dict[str, int] = field(default_factory=dict)
+
+
+def _get_data() -> I2SAudioData:
+    if CONF_I2S_AUDIO not in CORE.data:
+        CORE.data[CONF_I2S_AUDIO] = I2SAudioData()
+    return CORE.data[CONF_I2S_AUDIO]
+
+
+def _assign_ports() -> None:
+    """Assign I2S port numbers, prioritizing instances with microphone children.
+
+    Microphones (especially PDM) require port 0 on most ESP32 variants.
+    This runs once and stores the mapping in CORE.data.
+    """
+    data = _get_data()
+    if data.port_map:
+        return
+
+    full_config = fv.full_config.get()
+    i2s_configs = full_config[CONF_I2S_AUDIO]
+
+    # Find i2s_audio instances with microphones that require port 0
+    # (PDM and internal ADC only work on I2S port 0)
+    port0_parent_id = None
+    for mic_config in full_config.get("microphone", []):
+        if CONF_I2S_AUDIO_ID not in mic_config:
+            continue
+        if mic_config.get(CONF_PDM) or mic_config.get(CONF_ADC_TYPE) == "internal":
+            if port0_parent_id is not None:
+                raise cv.Invalid(
+                    "Only one PDM/ADC microphone is supported (requires I2S port 0)"
+                )
+            port0_parent_id = str(mic_config[CONF_I2S_AUDIO_ID])
+
+    # Assign ports: port 0 parent first (if any), rest get sequential
+    next_port = 0
+    if port0_parent_id is not None:
+        data.port_map[port0_parent_id] = next_port
+        next_port += 1
+    for config in i2s_configs:
+        config_id = str(config[CONF_ID])
+        if config_id != port0_parent_id:
+            data.port_map[config_id] = next_port
+            next_port += 1
+
+
 def _final_validate(_):
+    from esphome.components.esp32 import idf_version
+
+    if use_legacy() and idf_version() >= cv.Version(6, 0, 0):
+        raise cv.Invalid(
+            "The legacy I2S driver is not available in ESP-IDF 6.0+. "
+            "Set 'use_legacy: false' in i2s_audio configuration."
+        )
     i2s_audio_configs = fv.full_config.get()[CONF_I2S_AUDIO]
     variant = get_esp32_variant()
     if variant not in I2S_PORTS:
@@ -263,6 +326,7 @@ def _final_validate(_):
         raise cv.Invalid(
             f"Only {I2S_PORTS[variant]} I2S audio ports are supported on {variant}"
         )
+    _assign_ports()
 
 
 def use_legacy():
@@ -275,6 +339,12 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
+    # Assign I2S port from _final_validate computed mapping
+    data = _get_data()
+    if (port := data.port_map.get(str(config[CONF_ID]))) is None:
+        raise ValueError(f"No I2S port assigned for {config[CONF_ID]}")
+    cg.add(var.set_port(port))
 
     # Re-enable ESP-IDF's I2S driver (excluded by default to save compile time)
     include_builtin_idf_component("esp_driver_i2s")
