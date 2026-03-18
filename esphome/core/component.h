@@ -549,11 +549,9 @@ class PollingComponent : public Component {
 
   /** Manually set the update interval in ms for this polling object.
    *
-   * Override this if you want to do some validation for the update interval.
-   *
    * @param update_interval The update interval in ms.
    */
-  virtual void set_update_interval(uint32_t update_interval);
+  void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
 
   // ========== OVERRIDE METHODS ==========
   // (You'll only need this when creating your own custom sensor)

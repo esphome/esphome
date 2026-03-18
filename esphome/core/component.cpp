@@ -508,7 +508,6 @@ void PollingComponent::stop_poller() {
 }
 
 uint32_t PollingComponent::get_update_interval() const { return this->update_interval_; }
-void PollingComponent::set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
 
 void __attribute__((noinline, cold))
 WarnIfComponentBlockingGuard::warn_blocking(Component *component, uint32_t blocking_time) {
