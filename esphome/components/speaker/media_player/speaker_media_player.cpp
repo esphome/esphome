@@ -417,7 +417,7 @@ void SpeakerMediaPlayer::loop() {
               this->media_playlist_.pop_front();
             }
             // Only delay starting playback if moving on the next playlist item or repeating the current item
-            timeout_ms = this->announcement_playlist_delay_ms_;
+            timeout_ms = this->media_playlist_delay_ms_;
           }
           if (!this->media_playlist_.empty()) {
             PlaylistItem playlist_item = this->media_playlist_.front();
