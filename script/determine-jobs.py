@@ -388,7 +388,7 @@ BENCHMARKS_COMPONENTS_PATH = "tests/benchmarks/components"
 BENCHMARK_INFRASTRUCTURE_FILES = frozenset(
     {
         "script/cpp_benchmark.py",
-        "script/test_helpers.py",
+        "script/build_helpers.py",
         "script/setup_codspeed_lib.py",
     }
 )
@@ -402,7 +402,7 @@ def should_run_benchmarks(branch: str | None = None) -> bool:
     1. Core C++ files changed (esphome/core/*)
     2. A directly changed component has benchmark files (no dependency expansion)
     3. Benchmark infrastructure changed (tests/benchmarks/*, script/cpp_benchmark.py,
-       script/test_helpers.py, script/setup_codspeed_lib.py)
+       script/build_helpers.py, script/setup_codspeed_lib.py)
 
     Unlike unit tests, benchmarks do NOT expand to dependent components.
     Changing ``sensor`` does not trigger ``api`` benchmarks just because

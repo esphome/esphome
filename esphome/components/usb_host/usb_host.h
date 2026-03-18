@@ -144,7 +144,10 @@ class USBClient : public Component {
   // Lock-free event queue and pool for USB task to main loop communication
   // Must be public for access from static callbacks
   LockFreeQueue<UsbEvent, USB_EVENT_QUEUE_SIZE> event_queue;
-  EventPool<UsbEvent, USB_EVENT_QUEUE_SIZE> event_pool;
+  // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
+  // buffer that holds N-1 elements. This guarantees allocate() returns nullptr
+  // before push() can fail, preventing a pool slot leak.
+  EventPool<UsbEvent, USB_EVENT_QUEUE_SIZE - 1> event_pool;
 
  protected:
   // Process USB events from the queue. Returns true if any work was done.

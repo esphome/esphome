@@ -39,11 +39,11 @@ void BLEServer::loop() {
       // Start all services that are pending to start
       if (!this->services_to_start_.empty()) {
         size_t write_idx = 0;
-        for (auto service : this->services_to_start_) {
+        for (auto *service : this->services_to_start_) {
           if (service->is_created()) {
             service->start();  // Needs to be called once per characteristic in the service
           }
-          // Keep services still pending (drop those that are starting or running)
+          // Remove services that have started or are starting
           if (!service->is_starting() && !service->is_running()) {
             this->services_to_start_[write_idx++] = service;
           }

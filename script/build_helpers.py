@@ -2,21 +2,29 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import hashlib
+import importlib.util
 import os
 from pathlib import Path
 import subprocess
 import sys
 
-from helpers import get_all_dependencies
+from helpers import get_all_dependencies, root_path as _root_path
 import yaml
+
+# Ensure the repo root is on sys.path so that ``tests.testing_helpers`` and
+# override ``__init__.py`` modules can ``from tests.testing_helpers import ...``.
+if _root_path not in sys.path:
+    sys.path.insert(0, _root_path)
 
 from esphome.__main__ import command_compile, parse_args
 from esphome.config import validate_config
 from esphome.const import CONF_PLATFORM
 from esphome.core import CORE
-from esphome.loader import get_component
+from esphome.loader import get_component, get_platform
 from esphome.platformio_api import get_idedata
+from tests.testing_helpers import ComponentManifestOverride, set_testing_manifest
 
 # This must coincide with the version in /platformio.ini
 PLATFORMIO_GOOGLE_TEST_LIB = "google/googletest@^1.15.2"
@@ -31,19 +39,6 @@ PLATFORMIO_GOOGLE_BENCHMARK_LIB = (
 ESPHOME_KEY = "esphome"
 HOST_KEY = "host"
 LOGGER_KEY = "logger"
-
-# Base config keys that are always present and must not be fully overridden
-# by component benchmark.yaml files. esphome: allows sub-key merging.
-BASE_CONFIG_KEYS = frozenset({ESPHOME_KEY, HOST_KEY, LOGGER_KEY})
-
-# Shared build flag — enables timezone code paths for testing/benchmarking.
-USE_TIME_TIMEZONE_FLAG = "-DUSE_TIME_TIMEZONE"
-
-# Components whose to_code should always run during C++ test/benchmark builds.
-# These are the minimal infrastructure components needed for host compilation.
-# Note: "core" is the esphome core config module (esphome/core/config.py),
-# which registers under package name "core" not "esphome".
-BASE_CODEGEN_COMPONENTS = {"core", "host", "logger"}
 
 # Exit codes
 EXIT_OK = 0
@@ -110,6 +105,8 @@ def get_platform_components(components: list[str], tests_dir: Path) -> list[str]
             if not domain_dir.is_dir():
                 continue
             domain = domain_dir.name
+            if domain.startswith("__"):
+                continue
             domain_module = get_component(domain)
             if domain_module is None or not domain_module.is_platform_component:
                 raise ValueError(
@@ -130,7 +127,8 @@ def load_component_yaml_configs(components: list[str], tests_dir: Path) -> dict:
 
     The ``esphome:`` key is special: its sub-keys are merged into the
     existing esphome config (e.g. to add ``areas:`` or ``devices:``).
-    Other base config keys (``host:``, ``logger:``) are not overridable.
+    Keys already present in the base config (e.g. ``host:``, ``logger:``)
+    are protected by ``setdefault`` in the caller.
 
     Args:
         components: List of component directory names
@@ -139,11 +137,6 @@ def load_component_yaml_configs(components: list[str], tests_dir: Path) -> dict:
     Returns:
         Merged dict of component configs to add to the base config
     """
-    # Note: components are processed in sorted order. For conflicting keys
-    # (e.g. two benchmark.yaml files both declaring sensor:), the first
-    # component alphabetically wins via setdefault(). This is fine for now
-    # with a single benchmark component (api) but would need a real merge
-    # strategy if multiple components declare overlapping configs.
     merged: dict = {}
     for component in components:
         yaml_path = tests_dir / component / BENCHMARK_YAML_FILENAME
@@ -153,9 +146,6 @@ def load_component_yaml_configs(components: list[str], tests_dir: Path) -> dict:
             component_config = yaml.safe_load(f)
         if component_config and isinstance(component_config, dict):
             for key, value in component_config.items():
-                if key in BASE_CONFIG_KEYS - {ESPHOME_KEY}:
-                    # host: and logger: are not overridable
-                    continue
                 if key == ESPHOME_KEY and isinstance(value, dict):
                     # Merge esphome sub-keys rather than replacing
                     esphome_extra = merged.setdefault(ESPHOME_KEY, {})
@@ -198,11 +188,78 @@ def create_host_config(
     }
 
 
+def _wrap_manifest(
+    comp_name: str,
+) -> ComponentManifestOverride | None:
+    """Wrap a component manifest in a ComponentManifestOverride with to_code suppressed.
+
+    If the manifest is already wrapped or not found, returns None.
+    Otherwise returns the newly created override after installing it.
+    """
+    if "." in comp_name:
+        domain, component = comp_name.split(".", maxsplit=1)
+        manifest = get_platform(domain, component)
+        cache_key = f"{component}.{domain}"
+    else:
+        manifest = get_component(comp_name)
+        cache_key = comp_name
+
+    if manifest is None or isinstance(manifest, ComponentManifestOverride):
+        return None
+
+    override = ComponentManifestOverride(manifest)
+    override.to_code = None  # suppress by default
+    set_testing_manifest(cache_key, override)
+    return override
+
+
+def load_test_manifest_overrides(
+    components: list[str],
+    tests_dir: Path,
+) -> None:
+    """Apply per-component manifest overrides from test ``__init__.py`` files.
+
+    For every component, wraps its manifest and suppresses ``to_code``.
+    If the component's test directory contains an ``__init__.py`` that
+    defines ``override_manifest(manifest)``, it is called to customise
+    the override (e.g. ``manifest.enable_codegen()``).
+    """
+    for comp_name in components:
+        override = _wrap_manifest(comp_name)
+        if override is None:
+            continue
+
+        if "." in comp_name:
+            domain, component = comp_name.split(".", maxsplit=1)
+            cache_key = f"{component}.{domain}"
+            test_init = tests_dir / component / domain / "__init__.py"
+        else:
+            cache_key = comp_name
+            test_init = tests_dir / comp_name / "__init__.py"
+
+        if not test_init.is_file():
+            continue
+        spec = importlib.util.spec_from_file_location(
+            f"_test_manifest_override.{cache_key}", test_init
+        )
+        if spec is None or spec.loader is None:
+            continue
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        override_fn = getattr(mod, "override_manifest", None)
+        if override_fn is not None:
+            override_fn(override)
+
+
+# Type alias for manifest override loaders
+ManifestOverrideLoader = Callable[[list[str]], None]
+
+
 def compile_and_get_binary(
     config: dict,
     components: list[str],
-    codegen_components: set[str],
     tests_dir: Path,
+    manifest_override_loader: ManifestOverrideLoader,
     label: str = "build",
 ) -> tuple[int, str | None]:
     """Compile an ESPHome configuration and return the binary path.
@@ -210,8 +267,8 @@ def compile_and_get_binary(
     Args:
         config: ESPHome configuration dict (already created via create_host_config)
         components: List of components to include in the build
-        codegen_components: Set of component names whose to_code should run
         tests_dir: Base directory for test files (used as config_path base)
+        manifest_override_loader: Callback to apply manifest overrides for components
         label: Label for log messages (e.g. "unit tests", "benchmarks")
 
     Returns:
@@ -238,18 +295,21 @@ def compile_and_get_binary(
         else:
             config.setdefault(key, value)
 
+    # Apply manifest overrides before dependency resolution so that any
+    # dependency additions made by override_manifest() are picked up.
+    manifest_override_loader(components)
+
     # Obtain possible dependencies BEFORE validate_config, because
     # get_all_dependencies calls CORE.reset() which clears build_path.
-    # Always include 'time' because USE_TIME_TIMEZONE is defined as a build flag,
-    # which causes core/time.h to include components/time/posix_tz.h.
     components_with_dependencies: list[str] = sorted(
-        get_all_dependencies(set(components) | {"time"}, cpp_testing=True)
+        get_all_dependencies(set(components))
     )
+
+    # Apply overrides for any transitively discovered dependencies.
+    manifest_override_loader(components_with_dependencies)
 
     CORE.config_path = tests_dir / "dummy.yaml"
     CORE.dashboard = None
-    CORE.cpp_testing = True
-    CORE.cpp_testing_codegen = codegen_components
 
     # Validate config will expand the above with defaults:
     config = validate_config(config, {})
@@ -305,7 +365,7 @@ def compile_and_get_binary(
 def build_and_run(
     selected_components: list[str],
     tests_dir: Path,
-    codegen_components: set[str],
+    manifest_override_loader: ManifestOverrideLoader,
     config_prefix: str,
     friendly_name: str,
     libraries: str | list[str],
@@ -324,7 +384,7 @@ def build_and_run(
     Args:
         selected_components: Components to include (directory names in tests_dir)
         tests_dir: Directory containing test/benchmark files
-        codegen_components: Components whose to_code should run
+        manifest_override_loader: Callback to apply manifest overrides for components
         config_prefix: Prefix for the config name (e.g. "cpptests", "cppbench")
         friendly_name: Human-readable name for the config
         libraries: PlatformIO library specification(s)
@@ -382,7 +442,7 @@ def build_and_run(
     )
 
     exit_code, program_path = compile_and_get_binary(
-        config, components, codegen_components, tests_dir, label
+        config, components, tests_dir, manifest_override_loader, label
     )
 
     if exit_code != EXIT_OK or program_path is None:

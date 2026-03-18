@@ -615,10 +615,6 @@ class EsphomeCore:
         self.address_cache: AddressCache | None = None
         # Cached config hash (computed lazily)
         self._config_hash: int | None = None
-        # True if compiling for C++ unit tests
-        self.cpp_testing = False
-        # Allowlist of components whose to_code should run during C++ testing
-        self.cpp_testing_codegen: set[str] = set()
 
     def reset(self):
         from esphome.pins import PIN_SCHEMA_REGISTRY
@@ -648,8 +644,6 @@ class EsphomeCore:
         self.current_component = None
         self.address_cache = None
         self._config_hash = None
-        self.cpp_testing = False
-        self.cpp_testing_codegen = set()
         PIN_SCHEMA_REGISTRY.reset()
 
     @contextmanager
