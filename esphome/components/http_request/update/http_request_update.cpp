@@ -170,7 +170,7 @@ void HttpRequestUpdate::update_task(void *params) {
     }
 
     // Merge source_url_ and firmware_url
-    if (info->firmware_url.find("http") == std::string::npos) {
+    if (!info->firmware_url.empty() && info->firmware_url.find("http") == std::string::npos) {
       std::string path = info->firmware_url;
       if (path[0] == '/') {
         std::string domain = this_update->source_url_.substr(0, this_update->source_url_.find('/', 8));
