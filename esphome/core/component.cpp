@@ -209,7 +209,6 @@ bool Component::cancel_retry(uint32_t id) {
 #pragma GCC diagnostic pop
 }
 
-void Component::call_loop_() { this->loop(); }
 void Component::call_setup() { this->setup(); }
 void Component::call_dump_config_() {
   this->dump_config();
@@ -259,11 +258,11 @@ void Component::call() {
     case COMPONENT_STATE_SETUP:
       // State setup: Call first loop and set state to loop
       this->set_component_state_(COMPONENT_STATE_LOOP);
-      this->call_loop_();
+      this->loop();
       break;
     case COMPONENT_STATE_LOOP:
       // State loop: Call loop
-      this->call_loop_();
+      this->loop();
       break;
     case COMPONENT_STATE_FAILED:
       // State failed: Do nothing
