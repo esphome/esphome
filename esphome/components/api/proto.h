@@ -27,9 +27,12 @@ constexpr uint8_t WIRE_TYPE_MASK = 0b111;          // Mask to extract wire type 
 // Reinterpret float bits as uint32_t without floating-point comparison.
 // Used by both encode_float() and calc_float() to ensure identical zero checks.
 inline uint32_t float_to_raw(float value) {
-  uint32_t raw;
-  memcpy(&raw, &value, sizeof(raw));
-  return raw;
+  union {
+    float f;
+    uint32_t u;
+  } v;
+  v.f = value;
+  return v.u;
 }
 
 // Helper functions for ZigZag encoding/decoding
