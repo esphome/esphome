@@ -26,8 +26,8 @@ SendspinTimeFilter::SendspinTimeFilter(double process_std_dev, double drift_proc
       drift_process_variance_(drift_process_std_dev * drift_process_std_dev),
       forget_variance_factor_(forget_factor * forget_factor),
       adaptive_forgetting_cutoff_(adaptive_cutoff),
-      min_samples_for_forgetting_(min_samples),
-      drift_significance_threshold_squared_(drift_significance_threshold * drift_significance_threshold) {
+      drift_significance_threshold_squared_(drift_significance_threshold * drift_significance_threshold),
+      min_samples_for_forgetting_(min_samples) {
   this->reset();
 }
 
