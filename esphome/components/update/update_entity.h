@@ -16,7 +16,7 @@ struct UpdateInfo {
   std::string release_url;
   std::string firmware_url;
   std::string md5;
-  const LogString *error_str{nullptr};  // Set on fetch failure, nullptr on success
+  const LogString *error_str{nullptr};  // Set on update check failure, nullptr on success
   bool has_progress{false};
   float progress;
 };

@@ -85,6 +85,8 @@ void HttpRequestUpdate::update_task(void *params) {
 
   if (container == nullptr || container->status_code != HTTP_STATUS_OK) {
     ESP_LOGE(TAG, "Failed to fetch manifest from %s", this_update->source_url_.c_str());
+    if (container != nullptr)
+      container->end();
     info->error_str = LOG_STR("Failed to fetch manifest");
     goto defer;  // NOLINT(cppcoreguidelines-avoid-goto)
   }
