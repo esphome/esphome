@@ -366,11 +366,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
                 this->process_get_module_information_(&buffer[1], len - 1, &response[2], sizeof(response) - 2);
           }
 
-          if (response_len == 2) {
-            response[1] = 0x01;  // failure
-          } else {
-            response[1] = 0x00;  // success
-          }
+          response[1] = response_len == 2 ? 0x01 : 0x00;  // failure or success
 
           this->send_raw_command_(TuyaCommandType::EXTENDED_SERVICES, response, response_len);
           break;
