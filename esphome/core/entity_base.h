@@ -68,7 +68,7 @@ static constexpr uint8_t ENTITY_FIELD_ENTITY_CATEGORY_SHIFT = 26;
 class EntityBase {
  public:
   // Get the name of this Entity
-  const StringRef &get_name() const;
+  const StringRef &get_name() const { return this->name_; }
 
   // Get whether this Entity has its own name or it should use the device friendly_name.
   bool has_own_name() const { return this->flags_.has_own_name; }
@@ -86,7 +86,7 @@ class EntityBase {
   std::string get_object_id() const;
 
   // Get the unique Object ID of this Entity
-  uint32_t get_object_id_hash();
+  uint32_t get_object_id_hash() const { return this->object_id_hash_; }
 
   /// Get object_id with zero heap allocation
   /// For static case: returns StringRef to internal storage (buffer unused)
@@ -99,6 +99,14 @@ class EntityBase {
 
   // Get whether this Entity should be hidden outside ESPHome
   bool is_internal() const { return this->flags_.internal; }
+
+  // Deprecated: Calling set_internal() at runtime is undefined behavior. Components and clients
+  // are NOT notified of the change, the flag may have already been read during setup, and there
+  // is NO guarantee any consumer will observe the new value. Use the 'internal:' YAML key instead.
+  ESPDEPRECATED("set_internal() is undefined behavior at runtime — components and Home Assistant are NOT "
+                "notified. Use the 'internal:' YAML key instead. Will be removed in 2027.3.0.",
+                "2026.3.0")
+  void set_internal(bool internal) { this->flags_.internal = internal; }
 
   // Check if this object is declared to be disabled by default.
   // That means that when the device gets added to Home Assistant (or other clients) it should
