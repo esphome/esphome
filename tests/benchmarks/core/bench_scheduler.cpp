@@ -99,11 +99,21 @@ BENCHMARK(Scheduler_SetTimeout);
 static void Scheduler_SetInterval(benchmark::State &state) {
   Scheduler scheduler;
   Component dummy_component;
+  // Number of distinct interval keys; controls how many unique timers exist
+  // simultaneously and the drain cadence for process_to_add().
+  static constexpr int kKeyCount = 5;
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
-      scheduler.set_interval(&dummy_component, static_cast<uint32_t>(i % 5), 1000, []() {});
+      scheduler.set_interval(&dummy_component, static_cast<uint32_t>(i % kKeyCount), 1000, []() {});
+      // Drain to_add_ periodically to reflect production behavior where
+      // process_to_add() runs each main loop iteration. Without this,
+      // cancelled items accumulate in to_add_ causing O(n²) scan cost.
+      if ((i + 1) % kKeyCount == 0) {
+        scheduler.process_to_add();
+      }
     }
+    // Final drain in case kInnerIterations is not a multiple of 5
     scheduler.process_to_add();
     benchmark::DoNotOptimize(scheduler);
   }

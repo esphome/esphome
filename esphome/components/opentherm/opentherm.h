@@ -12,12 +12,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-// TODO: Migrate from legacy timer API (driver/timer.h) to GPTimer API (driver/gptimer.h)
-// The legacy timer API is deprecated in ESP-IDF 5.x. Migration would allow removing the
-// "driver" IDF component dependency. See:
-// https://docs.espressif.com/projects/esp-idf/en/latest/esp32/migration-guides/release-5.x/5.0/peripherals.html#id4
 #ifdef USE_ESP32
-#include "driver/timer.h"
+#include "driver/gptimer.h"
 #endif
 
 namespace esphome {
@@ -348,7 +344,11 @@ class OpenTherm {
   const char *operation_mode_to_str(OperationMode mode);
   const char *message_id_to_str(MessageId id);
 
+#ifdef USE_ESP32
+  static bool timer_isr(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_ctx);
+#else
   static bool timer_isr(OpenTherm *arg);
+#endif
 
 #ifdef ESP8266
   static void esp8266_timer_isr();
@@ -361,8 +361,12 @@ class OpenTherm {
   ISRInternalGPIOPin isr_out_pin_;
 
 #ifdef USE_ESP32
-  timer_group_t timer_group_;
-  timer_idx_t timer_idx_;
+  gptimer_handle_t timer_handle_{nullptr};
+  gptimer_alarm_config_t alarm_config_{
+      .alarm_count = 0,
+      .reload_count = 0,
+      .flags = {.auto_reload_on_alarm = true},
+  };
 #endif
 
   OperationMode mode_;
