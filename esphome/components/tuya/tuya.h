@@ -126,6 +126,7 @@ class Tuya : public Component, public uart::UARTDevice {
 
   void handle_command_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len);
   void send_raw_command_(TuyaCommand command);
+  void send_raw_command_(TuyaCommandType cmd, const uint8_t *payload, size_t len);
   void process_command_queue_();
   void send_command_(const TuyaCommand &command);
   void send_empty_command_(TuyaCommandType command);
@@ -138,7 +139,7 @@ class Tuya : public Component, public uart::UARTDevice {
   void send_wifi_status_();
   uint8_t get_wifi_status_code_();
   uint8_t get_wifi_rssi_();
-  std::string process_get_module_information_(const uint8_t *buffer, size_t len);
+  size_t process_get_module_information_(const uint8_t *buffer, size_t len, uint8_t *output, size_t output_size);
 
 #ifdef USE_TIME
   void send_local_time_();

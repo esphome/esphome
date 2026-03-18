@@ -22,6 +22,17 @@ static const int RECEIVE_TIMEOUT = 300;
 static const int MAX_RETRIES = 5;
 // Max bytes to log for datapoint values (larger values are truncated)
 static constexpr size_t MAX_DATAPOINT_LOG_BYTES = 16;
+// Max response size for GET_MODULE_INFORMATION: subcommand(1) + status(1) +
+// JSON: {"ap:":"smartlife","cc":"0","sn":"1234567890"} = 46 bytes
+static constexpr size_t MAX_MODULE_INFO_RESPONSE = 48;
+
+/// Append a string literal to a byte buffer without null terminator.
+static inline size_t buf_append_bytes(uint8_t *buf, size_t size, size_t pos, const char *str) {
+  while (*str && pos < size) {
+    buf[pos++] = *str++;
+  }
+  return pos;
+}
 
 void Tuya::setup() {
   this->set_interval("heartbeat", 15000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
@@ -317,10 +328,13 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       break;
     }
     case TuyaCommandType::GET_MAC_ADDRESS: {
-      std::vector<uint8_t> mac(6u);
-      get_mac_address_raw(mac.data());
-      this->send_command_(TuyaCommand{.cmd = TuyaCommandType::GET_MAC_ADDRESS, .payload = mac});
-      ESP_LOGV(TAG, "MAC address requested, reported as %s", format_hex_pretty(mac).c_str());
+      uint8_t mac[6];
+      get_mac_address_raw(mac);
+      this->send_raw_command_(TuyaCommandType::GET_MAC_ADDRESS, mac, sizeof(mac));
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+      char hex_buf[format_hex_pretty_size(6)];
+      ESP_LOGV(TAG, "MAC address requested, reported as %s", format_hex_pretty_to(hex_buf, mac, sizeof(mac)));
+#endif
       break;
     }
     case TuyaCommandType::EXTENDED_SERVICES: {
@@ -343,21 +357,22 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
           break;
         }
         case TuyaExtendedServicesCommandType::GET_MODULE_INFORMATION: {
-          std::vector<uint8_t> response_payload;
-          std::string module_info_str;
-          response_payload.push_back(static_cast<uint8_t>(TuyaExtendedServicesCommandType::GET_MODULE_INFORMATION));
+          uint8_t response[MAX_MODULE_INFO_RESPONSE];
+          response[0] = static_cast<uint8_t>(TuyaExtendedServicesCommandType::GET_MODULE_INFORMATION);
+          size_t response_len = 2;  // subcommand + status byte
+
           if (len >= 2) {
-            module_info_str = process_get_module_information_(&buffer[1], len - 1);
+            response_len +=
+                this->process_get_module_information_(&buffer[1], len - 1, &response[2], sizeof(response) - 2);
           }
 
-          if (module_info_str.empty()) {
-            response_payload.push_back(0x01);  // failure
+          if (response_len == 2) {
+            response[1] = 0x01;  // failure
           } else {
-            response_payload.push_back(0x00);  // success
-            response_payload.insert(response_payload.end(), module_info_str.begin(), module_info_str.end());
+            response[1] = 0x00;  // success
           }
 
-          send_raw_command_(TuyaCommand{.cmd = TuyaCommandType::EXTENDED_SERVICES, .payload = response_payload});
+          this->send_raw_command_(TuyaCommandType::EXTENDED_SERVICES, response, response_len);
           break;
         }
         default:
@@ -482,12 +497,16 @@ void Tuya::handle_datapoints_(const uint8_t *buffer, size_t len) {
 }
 
 void Tuya::send_raw_command_(TuyaCommand command) {
-  uint8_t len_hi = (uint8_t) (command.payload.size() >> 8);
-  uint8_t len_lo = (uint8_t) (command.payload.size() & 0xFF);
+  this->send_raw_command_(command.cmd, command.payload.data(), command.payload.size());
+}
+
+void Tuya::send_raw_command_(TuyaCommandType cmd, const uint8_t *payload, size_t len) {
+  uint8_t len_hi = (uint8_t) (len >> 8);
+  uint8_t len_lo = (uint8_t) (len & 0xFF);
   uint8_t version = 0;
 
   this->last_command_timestamp_ = millis();
-  switch (command.cmd) {
+  switch (cmd) {
     case TuyaCommandType::HEARTBEAT:
       this->expected_response_ = TuyaCommandType::HEARTBEAT;
       break;
@@ -507,18 +526,17 @@ void Tuya::send_raw_command_(TuyaCommand command) {
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   char hex_buf[format_hex_pretty_size(MAX_DATAPOINT_LOG_BYTES)];
-  ESP_LOGV(TAG, "Sending Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", static_cast<uint8_t>(command.cmd),
-           version, format_hex_pretty_to(hex_buf, command.payload.data(), command.payload.size()),
-           static_cast<uint8_t>(this->init_state_));
+  ESP_LOGV(TAG, "Sending Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", static_cast<uint8_t>(cmd), version,
+           format_hex_pretty_to(hex_buf, payload, len), static_cast<uint8_t>(this->init_state_));
 #endif
 
-  this->write_array({0x55, 0xAA, version, (uint8_t) command.cmd, len_hi, len_lo});
-  if (!command.payload.empty())
-    this->write_array(command.payload.data(), command.payload.size());
+  this->write_array({0x55, 0xAA, version, (uint8_t) cmd, len_hi, len_lo});
+  if (len > 0)
+    this->write_array(payload, len);
 
-  uint8_t checksum = 0x55 + 0xAA + (uint8_t) command.cmd + len_hi + len_lo;
-  for (auto &data : command.payload)
-    checksum += data;
+  uint8_t checksum = 0x55 + 0xAA + (uint8_t) cmd + len_hi + len_lo;
+  for (size_t i = 0; i < len; i++)
+    checksum += payload[i];
   this->write_byte(checksum);
 }
 
@@ -785,18 +803,17 @@ void Tuya::register_listener(uint8_t datapoint_id, const std::function<void(Tuya
 
 TuyaInitState Tuya::get_init_state() { return this->init_state_; }
 
-std::string Tuya::process_get_module_information_(const uint8_t *buffer, size_t len) {
-  // By default, we return an empty string indicating failure
+size_t Tuya::process_get_module_information_(const uint8_t *buffer, size_t len, uint8_t *output, size_t output_size) {
   bool want_ssid = false;
   bool want_country_code = false;
   bool want_sn = false;
 
   if (len == 0) {
-    return {};
+    return 0;
   }
 
-  if (buffer[0] == 0xFF)  // special case: get all information
-  {
+  if (buffer[0] == 0xFF) {
+    // special case: get all information
     want_ssid = true;
     want_country_code = true;
     want_sn = true;
@@ -819,30 +836,34 @@ std::string Tuya::process_get_module_information_(const uint8_t *buffer, size_t 
   }
 
   if (!want_ssid && !want_country_code && !want_sn) {
-    return {};
+    return 0;
   }
 
-  std::string module_info_str = "{";
+  // Build JSON response directly into output buffer
+  size_t pos = 0;
+  auto append = [&](const char *str) { pos = buf_append_bytes(output, output_size, pos, str); };
+
+  append("{");
+  bool need_comma = false;
 
   if (want_ssid) {
-    module_info_str += R"("ap:":"smartlife")";
+    append(R"("ap:":"smartlife")");
+    need_comma = true;
   }
   if (want_country_code) {
-    if (module_info_str.length() > 1) {
-      module_info_str.push_back(',');
-    }
-    module_info_str += R"("cc":"0")";  // 0 means China
+    if (need_comma)
+      append(",");
+    append(R"("cc":"0")");  // 0 means China
+    need_comma = true;
   }
   if (want_sn) {
-    if (module_info_str.length() > 1) {
-      module_info_str.push_back(',');
-    }
-    module_info_str += R"("sn":"1234567890")";
+    if (need_comma)
+      append(",");
+    append(R"("sn":"1234567890")");
   }
+  append("}");
 
-  module_info_str.push_back('}');
-
-  return module_info_str;
+  return pos;
 }
 
 }  // namespace tuya
