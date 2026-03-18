@@ -27,7 +27,7 @@ namespace sendspin {
 static const char *const TAG = "sendspin.client_connection";
 static const uint32_t WEBSOCKET_SEND_TIMEOUT_MS = 10;
 
-SendspinClientConnection::SendspinClientConnection(const std::string &url) : url_(url) {}
+SendspinClientConnection::SendspinClientConnection(std::string url) : url_(std::move(url)) {}
 
 SendspinClientConnection::~SendspinClientConnection() {
   if (this->client_ != nullptr) {
@@ -150,23 +150,23 @@ void SendspinClientConnection::websocket_event_handler(void *handler_args, esp_e
 
   switch (event_id) {
     case WEBSOCKET_EVENT_CONNECTED:
-      conn->handle_connected();
+      conn->handle_connected_();
       break;
     case WEBSOCKET_EVENT_DISCONNECTED:
-      conn->handle_disconnected();
+      conn->handle_disconnected_();
       break;
     case WEBSOCKET_EVENT_DATA:
-      conn->handle_data(static_cast<esp_websocket_event_data_t *>(event_data), receive_time);
+      conn->handle_data_(static_cast<esp_websocket_event_data_t *>(event_data), receive_time);
       break;
     case WEBSOCKET_EVENT_ERROR:
-      conn->handle_error();
+      conn->handle_error_();
       break;
     default:
       break;
   }
 }
 
-void SendspinClientConnection::handle_connected() {
+void SendspinClientConnection::handle_connected_() {
   ESP_LOGD(TAG, "WebSocket connected to %s", this->url_.c_str());
   this->connected_ = true;
 
@@ -176,7 +176,7 @@ void SendspinClientConnection::handle_connected() {
   }
 }
 
-void SendspinClientConnection::handle_disconnected() {
+void SendspinClientConnection::handle_disconnected_() {
   ESP_LOGD(TAG, "WebSocket disconnected from %s", this->url_.c_str());
   this->connected_ = false;
   this->client_hello_sent_ = false;
@@ -190,7 +190,7 @@ void SendspinClientConnection::handle_disconnected() {
   }
 }
 
-void SendspinClientConnection::handle_data(esp_websocket_event_data_t *data, int64_t receive_time) {
+void SendspinClientConnection::handle_data_(const esp_websocket_event_data_t *data, int64_t receive_time) {
   if (data == nullptr) {
     return;
   }
@@ -212,7 +212,7 @@ void SendspinClientConnection::handle_data(esp_websocket_event_data_t *data, int
     uint8_t *dest = this->prepare_receive_buffer_(prepare_len);
     if (dest == nullptr) {
       ESP_LOGE(TAG, "Allocation failed, dropping connection");
-      this->handle_disconnected();
+      this->handle_disconnected_();
       return;
     }
     std::memcpy(dest, data->data_ptr, data->data_len);
@@ -228,7 +228,7 @@ void SendspinClientConnection::handle_data(esp_websocket_event_data_t *data, int
   }
 }
 
-void SendspinClientConnection::handle_error() {
+void SendspinClientConnection::handle_error_() {
   ESP_LOGE(TAG, "WebSocket error on connection to %s", this->url_.c_str());
   // Error will typically be followed by a disconnect event
 }

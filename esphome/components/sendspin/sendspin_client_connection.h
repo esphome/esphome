@@ -46,7 +46,7 @@ class SendspinClientConnection : public SendspinConnection {
  public:
   /// @brief Constructs a client connection with the given server URL.
   /// @param url The WebSocket server URL (e.g., "ws://server.local:8927/sendspin").
-  explicit SendspinClientConnection(const std::string &url);
+  explicit SendspinClientConnection(std::string url);
 
   ~SendspinClientConnection() override;
 
@@ -62,7 +62,7 @@ class SendspinClientConnection : public SendspinConnection {
   /// @param reason The reason for disconnecting.
   /// @param on_complete Optional callback invoked after goodbye send completes (or fails).
   ///                    For client connections, goodbye is synchronous, so callback is invoked immediately.
-  void disconnect(SendspinGoodbyeReason reason, std::function<void()> on_complete = nullptr) override;
+  void disconnect(SendspinGoodbyeReason reason, std::function<void()> on_complete) override;
 
   /// @brief Checks if the websocket connection is established.
   /// @return true if connected, false otherwise.
@@ -72,7 +72,7 @@ class SendspinClientConnection : public SendspinConnection {
   /// @param msg The message string to send.
   /// @param cb Callback invoked after send completes.
   /// @return ESP_OK if sent successfully, error code otherwise.
-  esp_err_t send_text_message(const std::string &msg, SendCompleteCallback cb) override;
+  esp_err_t send_text_message(const std::string &message, SendCompleteCallback cb) override;
 
   // Client connection-specific configuration
 
@@ -89,18 +89,18 @@ class SendspinClientConnection : public SendspinConnection {
   static void websocket_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data);
 
   /// @brief Handles websocket connected event.
-  void handle_connected();
+  void handle_connected_();
 
   /// @brief Handles websocket disconnected event.
-  void handle_disconnected();
+  void handle_disconnected_();
 
   /// @brief Handles websocket data event.
   /// @param data Pointer to websocket event data.
   /// @param receive_time Timestamp when the event was received (for time synchronization).
-  void handle_data(esp_websocket_event_data_t *data, int64_t receive_time);
+  void handle_data_(const esp_websocket_event_data_t *data, int64_t receive_time);
 
   /// @brief Handles websocket error event.
-  void handle_error();
+  void handle_error_();
 
   /// @brief The WebSocket server URL.
   std::string url_;

@@ -166,7 +166,6 @@ inline const char *to_string(SendspinImageSource source) {
     case SendspinImageSource::ARTIST:
       return "artist";
     case SendspinImageSource::NONE:
-      return "none";
     default:
       return "none";
   }
@@ -583,7 +582,6 @@ inline const char *to_string(SendspinPlaybackState state) {
     case SendspinPlaybackState::PLAYING:
       return "playing";
     case SendspinPlaybackState::STOPPED:
-      return "stopped";
     default:
       return "stopped";
   }

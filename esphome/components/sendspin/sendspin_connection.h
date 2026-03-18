@@ -57,7 +57,7 @@ class SendspinConnection {
   /// @param on_complete Optional callback invoked after goodbye is sent (or send fails/times out).
   ///                    For server connections, invoked from httpd worker thread (use defer() if needed).
   ///                    For client connections, invoked synchronously in the calling thread.
-  virtual void disconnect(SendspinGoodbyeReason reason, std::function<void()> on_complete = nullptr) = 0;
+  virtual void disconnect(SendspinGoodbyeReason reason, std::function<void()> on_complete) = 0;
 
   /// @brief Checks if the transport connection is established.
   /// @return true if connected, false otherwise.
@@ -76,7 +76,7 @@ class SendspinConnection {
   /// @param msg The message string to send.
   /// @param cb Callback invoked after send completes (success, actual_send_time).
   /// @return ESP_OK if queued successfully, error code otherwise.
-  virtual esp_err_t send_text_message(const std::string &msg, SendCompleteCallback cb) = 0;
+  virtual esp_err_t send_text_message(const std::string &message, SendCompleteCallback cb) = 0;
 
   /// @brief Sends a time synchronization message with a completion callback.
   /// @param cb Callback invoked after send completes, providing actual send timestamp.

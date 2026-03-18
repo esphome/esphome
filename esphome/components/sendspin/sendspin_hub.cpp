@@ -269,12 +269,13 @@ void SendspinHub::send_client_command(SendspinControllerCommand command, std::op
 
 void SendspinHub::disconnect_from_server(SendspinGoodbyeReason reason) {
   if (this->current_connection_ != nullptr && this->current_connection_->is_connected()) {
-    this->current_connection_->disconnect(reason);
+    this->current_connection_->disconnect(reason, nullptr);
   }
 }
 
 // --- Connection management ---
 
+// NOLINTNEXTLINE(readability-identifier-naming)
 void SendspinHub::on_new_connection_(std::unique_ptr<SendspinServerConnection> conn) {
   conn->init_time_filter();
 
@@ -437,6 +438,7 @@ void SendspinHub::complete_handoff_(bool switch_to_new) {
   }
 }
 
+// NOLINTNEXTLINE(readability-identifier-naming)
 void SendspinHub::disconnect_and_release_(std::unique_ptr<SendspinConnection> conn, SendspinGoodbyeReason reason) {
   // Store as dying_connection_ so it remains findable by sockfd during the async goodbye send.
   // This prevents httpd from returning ESP_FAIL (and force-closing the socket) when the server

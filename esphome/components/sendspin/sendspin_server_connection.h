@@ -67,7 +67,7 @@ class SendspinServerConnection : public SendspinConnection {
   /// @param reason The reason for disconnecting (sent in goodbye message).
   /// @param on_complete Optional callback invoked after goodbye send completes (or fails).
   ///                    Invoked from httpd worker thread - use defer() if main loop context is needed.
-  void disconnect(SendspinGoodbyeReason reason, std::function<void()> on_complete = nullptr) override;
+  void disconnect(SendspinGoodbyeReason reason, std::function<void()> on_complete) override;
 
   /// @brief Checks if the socket connection is valid.
   /// @return true if connected, false otherwise.
@@ -77,7 +77,7 @@ class SendspinServerConnection : public SendspinConnection {
   /// @param msg The message string to send.
   /// @param cb Callback invoked after send completes.
   /// @return ESP_OK if queued successfully, error code otherwise.
-  esp_err_t send_text_message(const std::string &msg, SendCompleteCallback cb) override;
+  esp_err_t send_text_message(const std::string &message, SendCompleteCallback on_complete) override;
 
   /// @brief Triggers the underlying socket to close.
   ///

@@ -67,11 +67,7 @@ bool SendspinAudioRingBuffer::write_chunk(const uint8_t *data, size_t data_size,
 
   // Commit the entry
   result = xRingbufferSendComplete(this->ring_buffer_, acquired_memory);
-  if (result != pdTRUE) {
-    return false;
-  }
-
-  return true;
+  return result == pdTRUE;
 }
 
 AudioRingBufferEntry *SendspinAudioRingBuffer::receive_chunk(TickType_t ticks_to_wait) {

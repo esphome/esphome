@@ -11,7 +11,6 @@
 #include "esphome/components/audio/audio.h"
 #include "esphome/components/audio/audio_transfer_buffer.h"
 #include "esphome/components/media_source/media_source.h"
-#include "sendspin_decoder.h"
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
