@@ -598,9 +598,11 @@ class WarnIfComponentBlockingGuard {
 #ifdef USE_RUNTIME_STATS
     this->record_runtime_stats_();
 #endif
+#ifndef USE_BENCHMARK
     if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
       warn_blocking(this->component_, blocking_time);
     }
+#endif
     return curr_time;
   }
 
