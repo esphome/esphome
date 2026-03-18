@@ -168,6 +168,13 @@ def mock_run_miniterm() -> Generator[Mock]:
 
 
 @pytest.fixture
+def mock_wait_for_serial_port() -> Generator[Mock]:
+    """Mock _wait_for_serial_port for testing."""
+    with patch("esphome.__main__._wait_for_serial_port") as mock:
+        yield mock
+
+
+@pytest.fixture
 def mock_upload_using_esptool() -> Generator[Mock]:
     """Mock upload_using_esptool for testing."""
     with patch("esphome.__main__.upload_using_esptool") as mock:
@@ -1706,6 +1713,7 @@ def test_show_logs_serial(
     mock_get_port_type: Mock,
     mock_check_permissions: Mock,
     mock_run_miniterm: Mock,
+    mock_wait_for_serial_port: Mock,
 ) -> None:
     """Test show_logs with serial port."""
     setup_core(config={"logger": {}}, platform=PLATFORM_ESP32)

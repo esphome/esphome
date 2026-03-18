@@ -284,9 +284,9 @@ class Scheduler {
 #endif
   }
   // Cleanup logically deleted items from the scheduler
-  // Returns the number of items remaining after cleanup
+  // Returns true if items remain after cleanup
   // IMPORTANT: This method should only be called from the main thread (loop task).
-  size_t cleanup_();
+  bool cleanup_();
   // Remove and return the front item from the heap as a raw pointer.
   // Caller takes ownership and must either recycle or delete the item.
   // IMPORTANT: Caller must hold the scheduler lock before calling this function.
@@ -395,15 +395,9 @@ class Scheduler {
     // erase() on every pop, which would be O(n). The queue is processed once per loop -
     // any items added during processing are left for the next loop iteration.
 
-    // Snapshot the queue end point - only process items that existed at loop start
-    // Items added during processing (by callbacks or other threads) run next loop
-    // No lock needed: single consumer (main loop), stale read just means we process less this iteration
-    size_t defer_queue_end = this->defer_queue_.size();
-
     // Fast path: nothing to process, avoid lock entirely.
-    // Safe without lock: single consumer (main loop) reads front_, and a stale size() read
-    // from a concurrent push can only make us see fewer items — they'll be processed next loop.
-    if (this->defer_queue_front_ >= defer_queue_end)
+    // Worst case is a one-loop-iteration delay before newly deferred items are processed.
+    if (this->defer_empty_())
       return;
 
     // Merge lock acquisitions: instead of separate locks for move-out and recycle (2N+1 total),
@@ -412,6 +406,13 @@ class Scheduler {
     SchedulerItem *item;
 
     this->lock_.lock();
+    // Reset counter and snapshot queue end under lock
+    this->defer_count_clear_();
+    size_t defer_queue_end = this->defer_queue_.size();
+    if (this->defer_queue_front_ >= defer_queue_end) {
+      this->lock_.unlock();
+      return;
+    }
     while (this->defer_queue_front_ < defer_queue_end) {
       // Take ownership of the item, leaving nullptr in the vector slot.
       // This is safe because:
@@ -527,14 +528,150 @@ class Scheduler {
   Mutex lock_;
   std::vector<SchedulerItem *> items_;
   std::vector<SchedulerItem *> to_add_;
+
+#ifndef ESPHOME_THREAD_SINGLE
+  // Fast-path counter for process_to_add() to skip taking the lock when there is
+  // nothing to add. Uses std::atomic on platforms that support it, plain uint32_t
+  // otherwise. On non-atomic platforms, callers must hold the scheduler lock when
+  // mutating this counter. Not needed on single-threaded platforms where we can
+  // check to_add_.empty() directly.
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+  std::atomic<uint32_t> to_add_count_{0};
+#else
+  uint32_t to_add_count_{0};
+#endif
+#endif /* ESPHOME_THREAD_SINGLE */
+
+  // Fast-path helper for process_to_add() to decide if it can try the lock-free path.
+  // - On ESPHOME_THREAD_SINGLE: direct container check is safe (no concurrent writers).
+  // - On ESPHOME_THREAD_MULTI_ATOMICS: performs a lock-free check via to_add_count_.
+  // - On ESPHOME_THREAD_MULTI_NO_ATOMICS: always returns false to force the caller
+  //   down the locked path; this is NOT a lock-free emptiness check on that platform.
+  bool to_add_empty_() const {
+#ifdef ESPHOME_THREAD_SINGLE
+    return this->to_add_.empty();
+#elif defined(ESPHOME_THREAD_MULTI_ATOMICS)
+    return this->to_add_count_.load(std::memory_order_relaxed) == 0;
+#else
+  return false;
+#endif
+  }
+
+  // Increment to_add_count_ (no-op on single-threaded platforms)
+  void to_add_count_increment_() {
+#ifdef ESPHOME_THREAD_SINGLE
+    // No counter needed — to_add_empty_() checks the vector directly
+#elif defined(ESPHOME_THREAD_MULTI_ATOMICS)
+    this->to_add_count_.fetch_add(1, std::memory_order_relaxed);
+#else
+  this->to_add_count_++;
+#endif
+  }
+
+  // Reset to_add_count_ (no-op on single-threaded platforms)
+  void to_add_count_clear_() {
+#ifdef ESPHOME_THREAD_SINGLE
+    // No counter needed — to_add_empty_() checks the vector directly
+#elif defined(ESPHOME_THREAD_MULTI_ATOMICS)
+    this->to_add_count_.store(0, std::memory_order_relaxed);
+#else
+  this->to_add_count_ = 0;
+#endif
+  }
+
 #ifndef ESPHOME_THREAD_SINGLE
   // Single-core platforms don't need the defer queue and save ~32 bytes of RAM
   // Using std::vector instead of std::deque avoids 512-byte chunked allocations
   // Index tracking avoids O(n) erase() calls when draining the queue each loop
   std::vector<SchedulerItem *> defer_queue_;  // FIFO queue for defer() calls
   size_t defer_queue_front_{0};               // Index of first valid item in defer_queue_ (tracks consumed items)
-#endif                                        /* ESPHOME_THREAD_SINGLE */
+
+  // Fast-path counter for process_defer_queue_() to skip lock when nothing to process.
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+  std::atomic<uint32_t> defer_count_{0};
+#else
+  uint32_t defer_count_{0};
+#endif
+
+  bool defer_empty_() const {
+    // defer_queue_ only exists on multi-threaded platforms, so no ESPHOME_THREAD_SINGLE path
+    // ESPHOME_THREAD_MULTI_NO_ATOMICS: always take the lock
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+    return this->defer_count_.load(std::memory_order_relaxed) == 0;
+#else
+    return false;
+#endif
+  }
+
+  void defer_count_increment_() {
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+    this->defer_count_.fetch_add(1, std::memory_order_relaxed);
+#else
+    this->defer_count_++;
+#endif
+  }
+
+  void defer_count_clear_() {
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+    this->defer_count_.store(0, std::memory_order_relaxed);
+#else
+    this->defer_count_ = 0;
+#endif
+  }
+
+#endif /* ESPHOME_THREAD_SINGLE */
+
+  // Counter for items marked for removal. Incremented cross-thread in cancel_item_locked_().
+  // On ESPHOME_THREAD_MULTI_ATOMICS this is read without a lock in the cleanup_() fast path;
+  // on ESPHOME_THREAD_MULTI_NO_ATOMICS the fast path is disabled so cleanup_() always takes the lock.
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+  std::atomic<uint32_t> to_remove_{0};
+#else
   uint32_t to_remove_{0};
+#endif
+
+  // Lock-free check if there are items to remove (for fast-path in cleanup_)
+  bool to_remove_empty_() const {
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+    return this->to_remove_.load(std::memory_order_relaxed) == 0;
+#elif defined(ESPHOME_THREAD_SINGLE)
+    return this->to_remove_ == 0;
+#else
+  return false;  // Always take the lock path
+#endif
+  }
+
+  void to_remove_add_(uint32_t count) {
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+    this->to_remove_.fetch_add(count, std::memory_order_relaxed);
+#else
+    this->to_remove_ += count;
+#endif
+  }
+
+  void to_remove_decrement_() {
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+    this->to_remove_.fetch_sub(1, std::memory_order_relaxed);
+#else
+    this->to_remove_--;
+#endif
+  }
+
+  void to_remove_clear_() {
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+    this->to_remove_.store(0, std::memory_order_relaxed);
+#else
+    this->to_remove_ = 0;
+#endif
+  }
+
+  uint32_t to_remove_count_() const {
+#ifdef ESPHOME_THREAD_MULTI_ATOMICS
+    return this->to_remove_.load(std::memory_order_relaxed);
+#else
+    return this->to_remove_;
+#endif
+  }
 
   // Memory pool for recycling SchedulerItem objects to reduce heap churn.
   // Design decisions:

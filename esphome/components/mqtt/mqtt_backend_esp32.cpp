@@ -82,10 +82,16 @@ bool MQTTBackendESP32::initialize_() {
 void MQTTBackendESP32::loop() {
   // process new events
   // handle only 1 message per loop iteration
-  if (!mqtt_events_.empty()) {
-    auto &event = mqtt_events_.front();
-    mqtt_event_handler_(event);
-    mqtt_events_.pop();
+  Event *event = this->mqtt_event_queue_.pop();
+  if (event != nullptr) {
+    this->mqtt_event_handler_(*event);
+    this->mqtt_event_pool_.release(event);
+  }
+
+  // Log dropped inbound events (check is cheap - single atomic load in common case)
+  uint16_t inbound_dropped = this->mqtt_event_queue_.get_and_reset_dropped_count();
+  if (inbound_dropped > 0) {
+    ESP_LOGW(TAG, "Dropped %u inbound MQTT events", inbound_dropped);
   }
 
 #if defined(USE_MQTT_IDF_ENQUEUE)
@@ -183,10 +189,18 @@ void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
 void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id,
                                           void *event_data) {
   MQTTBackendESP32 *instance = static_cast<MQTTBackendESP32 *>(handler_args);
-  // queue event to decouple processing
+  // queue event to decouple processing from ESP-IDF MQTT task to main loop
   if (instance) {
-    auto event = *static_cast<esp_mqtt_event_t *>(event_data);
-    instance->mqtt_events_.emplace(event);
+    auto *event = instance->mqtt_event_pool_.allocate();
+    if (event == nullptr) {
+      // Pool exhausted, drop event (counted via queue's dropped counter)
+      instance->mqtt_event_queue_.increment_dropped_count();
+      return;
+    }
+    event->populate(*static_cast<esp_mqtt_event_t *>(event_data));
+    // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+    // allocate() returned non-null, the queue cannot be full.
+    instance->mqtt_event_queue_.push(event);
 
     // Wake main loop immediately to process MQTT event instead of waiting for select() timeout
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
@@ -226,14 +240,14 @@ void MQTTBackendESP32::esphome_mqtt_task(void *params) {
             break;
         }
       }
-      this_mqtt->mqtt_event_pool_.release(elem);
+      this_mqtt->mqtt_outbound_pool_.release(elem);
     }
   }
 }
 
 bool MQTTBackendESP32::enqueue_(MqttQueueTypeT type, const char *topic, int qos, bool retain, const char *payload,
                                 size_t len) {
-  auto *elem = this->mqtt_event_pool_.allocate();
+  auto *elem = this->mqtt_outbound_pool_.allocate();
 
   if (!elem) {
     // Queue is full - increment counter but don't log immediately.
@@ -253,7 +267,7 @@ bool MQTTBackendESP32::enqueue_(MqttQueueTypeT type, const char *topic, int qos,
   // Use the helper to allocate and copy data
   if (!elem->set_data(topic, payload, len)) {
     // Allocation failed, return elem to pool
-    this->mqtt_event_pool_.release(elem);
+    this->mqtt_outbound_pool_.release(elem);
     // Increment counter without logging to avoid cascade effect during memory pressure
     this->mqtt_queue_.increment_dropped_count();
     return false;
