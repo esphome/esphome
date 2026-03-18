@@ -9,6 +9,9 @@ static const char *const TAG = "template_climate";
 TemplateClimate::TemplateClimate()
     : set_mode_trigger_(new Trigger<climate::ClimateMode>()),
       set_target_temperature_trigger_(new Trigger<float>()),
+      set_target_temperature_low_trigger_(new Trigger<float>()),
+      set_target_temperature_high_trigger_(new Trigger<float>()),
+      set_target_humidity_trigger_(new Trigger<float>()),
       set_fan_mode_trigger_(new Trigger<climate::ClimateFanMode>()),
       set_swing_mode_trigger_(new Trigger<climate::ClimateSwingMode>()),
       set_preset_trigger_(new Trigger<climate::ClimatePreset>()) {}
@@ -21,10 +24,21 @@ void TemplateClimate::setup() {
   if (this->current_temperature_f_.has_value()) {
     this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
   }
+  if (this->current_humidity_f_.has_value()) {
+    this->traits_.set_supports_current_humidity(true);
+  }
+  if (this->target_humidity_f_.has_value()) {
+    this->traits_.set_supports_target_humidity(true);
+  }
+  if (this->target_temperature_low_f_.has_value()) {
+    this->traits_.set_supports_two_point_target_temperature(true);
+  }
   if (this->action_f_.has_value()) {
     this->traits_.set_supports_action(true);
   }
-  if (!this->current_temperature_f_.has_value() && !this->target_temperature_f_.has_value() &&
+  if (!this->current_temperature_f_.has_value() && !this->current_humidity_f_.has_value() &&
+      !this->target_temperature_f_.has_value() && !this->target_temperature_low_f_.has_value() &&
+      !this->target_temperature_high_f_.has_value() && !this->target_humidity_f_.has_value() &&
       !this->mode_f_.has_value() && !this->action_f_.has_value() && !this->fan_mode_f_.has_value() &&
       !this->swing_mode_f_.has_value() && !this->preset_f_.has_value()) {
     this->disable_loop();
@@ -41,9 +55,37 @@ void TemplateClimate::loop() {
     }
   }
 
+  if (auto val = this->current_humidity_f_()) {
+    if (!std::isnan(*val) && *val != this->current_humidity) {
+      this->current_humidity = *val;
+      changed = true;
+    }
+  }
+
   if (auto val = this->target_temperature_f_()) {
     if (!std::isnan(*val) && *val != this->target_temperature) {
       this->target_temperature = *val;
+      changed = true;
+    }
+  }
+
+  if (auto val = this->target_temperature_low_f_()) {
+    if (!std::isnan(*val) && *val != this->target_temperature_low) {
+      this->target_temperature_low = *val;
+      changed = true;
+    }
+  }
+
+  if (auto val = this->target_temperature_high_f_()) {
+    if (!std::isnan(*val) && *val != this->target_temperature_high) {
+      this->target_temperature_high = *val;
+      changed = true;
+    }
+  }
+
+  if (auto val = this->target_humidity_f_()) {
+    if (!std::isnan(*val) && *val != this->target_humidity) {
+      this->target_humidity = *val;
       changed = true;
     }
   }
@@ -102,9 +144,11 @@ void TemplateClimate::control(const climate::ClimateCall &call) {
   //   the next loop() read lambda to reflect the device's actual state.
   // When no read lambdas are configured, always update entity state immediately
   // since nothing will otherwise update it.
-  const bool has_state_lambdas = this->target_temperature_f_.has_value() || this->mode_f_.has_value() ||
-                                 this->action_f_.has_value() || this->fan_mode_f_.has_value() ||
-                                 this->swing_mode_f_.has_value() || this->preset_f_.has_value();
+  const bool has_state_lambdas =
+      this->target_temperature_f_.has_value() || this->target_temperature_low_f_.has_value() ||
+      this->target_temperature_high_f_.has_value() || this->target_humidity_f_.has_value() ||
+      this->mode_f_.has_value() || this->action_f_.has_value() || this->fan_mode_f_.has_value() ||
+      this->swing_mode_f_.has_value() || this->preset_f_.has_value();
   const bool apply_state = !has_state_lambdas || this->optimistic_;
 
   if (auto mode = call.get_mode()) {
@@ -117,6 +161,24 @@ void TemplateClimate::control(const climate::ClimateCall &call) {
     if (apply_state)
       this->target_temperature = *target_temp;
     this->set_target_temperature_trigger_->trigger(*target_temp);
+  }
+
+  if (auto target_temp_low = call.get_target_temperature_low()) {
+    if (apply_state)
+      this->target_temperature_low = *target_temp_low;
+    this->set_target_temperature_low_trigger_->trigger(*target_temp_low);
+  }
+
+  if (auto target_temp_high = call.get_target_temperature_high()) {
+    if (apply_state)
+      this->target_temperature_high = *target_temp_high;
+    this->set_target_temperature_high_trigger_->trigger(*target_temp_high);
+  }
+
+  if (auto target_humidity = call.get_target_humidity()) {
+    if (apply_state)
+      this->target_humidity = *target_humidity;
+    this->set_target_humidity_trigger_->trigger(*target_humidity);
   }
 
   if (auto fan_mode = call.get_fan_mode()) {

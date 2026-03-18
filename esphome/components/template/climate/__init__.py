@@ -16,24 +16,51 @@ from esphome.const import (
     CONF_SUPPORTED_SWING_MODES,
     CONF_SWING_MODE,
     CONF_TARGET_TEMPERATURE,
+    CONF_TARGET_TEMPERATURE_HIGH,
+    CONF_TARGET_TEMPERATURE_LOW,
 )
 
 from .. import template_ns
 
+CONF_CURRENT_HUMIDITY = "current_humidity"
+CONF_TARGET_HUMIDITY = "target_humidity"
 CONF_SET_FAN_MODE_ACTION = "set_fan_mode_action"
 CONF_SET_MODE_ACTION = "set_mode_action"
 CONF_SET_PRESET_ACTION = "set_preset_action"
 CONF_SET_SWING_MODE_ACTION = "set_swing_mode_action"
+CONF_SET_TARGET_HUMIDITY_ACTION = "set_target_humidity_action"
 CONF_SET_TARGET_TEMPERATURE_ACTION = "set_target_temperature_action"
+CONF_SET_TARGET_TEMPERATURE_HIGH_ACTION = "set_target_temperature_high_action"
+CONF_SET_TARGET_TEMPERATURE_LOW_ACTION = "set_target_temperature_low_action"
 
 TemplateClimate = template_ns.class_("TemplateClimate", climate.Climate, cg.Component)
 
-CONFIG_SCHEMA = (
+
+def _validate_two_point(config):
+    has_low = CONF_TARGET_TEMPERATURE_LOW in config
+    has_high = CONF_TARGET_TEMPERATURE_HIGH in config
+    if has_low != has_high:
+        raise cv.Invalid(
+            f"'{CONF_TARGET_TEMPERATURE_LOW}' and '{CONF_TARGET_TEMPERATURE_HIGH}' must be used together"
+        )
+    if (has_low or has_high) and CONF_TARGET_TEMPERATURE in config:
+        raise cv.Invalid(
+            f"'{CONF_TARGET_TEMPERATURE}' cannot be used together with "
+            f"'{CONF_TARGET_TEMPERATURE_LOW}'/'{CONF_TARGET_TEMPERATURE_HIGH}'"
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     climate.climate_schema(TemplateClimate)
     .extend(
         {
             cv.Optional(CONF_CURRENT_TEMPERATURE): cv.returning_lambda,
+            cv.Optional(CONF_CURRENT_HUMIDITY): cv.returning_lambda,
             cv.Optional(CONF_TARGET_TEMPERATURE): cv.returning_lambda,
+            cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.returning_lambda,
+            cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.returning_lambda,
+            cv.Optional(CONF_TARGET_HUMIDITY): cv.returning_lambda,
             cv.Optional(CONF_MODE): cv.returning_lambda,
             cv.Optional(CONF_ACTION): cv.returning_lambda,
             cv.Optional(CONF_FAN_MODE): cv.returning_lambda,
@@ -57,6 +84,15 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_SET_TARGET_TEMPERATURE_ACTION
             ): automation.validate_automation(single=True),
+            cv.Optional(
+                CONF_SET_TARGET_TEMPERATURE_LOW_ACTION
+            ): automation.validate_automation(single=True),
+            cv.Optional(
+                CONF_SET_TARGET_TEMPERATURE_HIGH_ACTION
+            ): automation.validate_automation(single=True),
+            cv.Optional(
+                CONF_SET_TARGET_HUMIDITY_ACTION
+            ): automation.validate_automation(single=True),
             cv.Optional(CONF_SET_FAN_MODE_ACTION): automation.validate_automation(
                 single=True
             ),
@@ -73,7 +109,8 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_OPTIMISTIC, default=True): cv.boolean,
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
+    _validate_two_point,
 )
 
 
@@ -90,6 +127,14 @@ async def to_code(config):
         )
         cg.add(var.set_current_temperature_lambda(template_))
 
+    if CONF_CURRENT_HUMIDITY in config:
+        template_ = await cg.process_lambda(
+            config[CONF_CURRENT_HUMIDITY],
+            [],
+            return_type=cg.optional.template(float),
+        )
+        cg.add(var.set_current_humidity_lambda(template_))
+
     if CONF_TARGET_TEMPERATURE in config:
         template_ = await cg.process_lambda(
             config[CONF_TARGET_TEMPERATURE],
@@ -97,6 +142,30 @@ async def to_code(config):
             return_type=cg.optional.template(float),
         )
         cg.add(var.set_target_temperature_lambda(template_))
+
+    if CONF_TARGET_TEMPERATURE_LOW in config:
+        template_ = await cg.process_lambda(
+            config[CONF_TARGET_TEMPERATURE_LOW],
+            [],
+            return_type=cg.optional.template(float),
+        )
+        cg.add(var.set_target_temperature_low_lambda(template_))
+
+    if CONF_TARGET_TEMPERATURE_HIGH in config:
+        template_ = await cg.process_lambda(
+            config[CONF_TARGET_TEMPERATURE_HIGH],
+            [],
+            return_type=cg.optional.template(float),
+        )
+        cg.add(var.set_target_temperature_high_lambda(template_))
+
+    if CONF_TARGET_HUMIDITY in config:
+        template_ = await cg.process_lambda(
+            config[CONF_TARGET_HUMIDITY],
+            [],
+            return_type=cg.optional.template(float),
+        )
+        cg.add(var.set_target_humidity_lambda(template_))
 
     if CONF_MODE in config:
         template_ = await cg.process_lambda(
@@ -162,6 +231,27 @@ async def to_code(config):
             var.get_set_target_temperature_trigger(),
             [(float, "x")],
             config[CONF_SET_TARGET_TEMPERATURE_ACTION],
+        )
+
+    if CONF_SET_TARGET_TEMPERATURE_LOW_ACTION in config:
+        await automation.build_automation(
+            var.get_set_target_temperature_low_trigger(),
+            [(float, "x")],
+            config[CONF_SET_TARGET_TEMPERATURE_LOW_ACTION],
+        )
+
+    if CONF_SET_TARGET_TEMPERATURE_HIGH_ACTION in config:
+        await automation.build_automation(
+            var.get_set_target_temperature_high_trigger(),
+            [(float, "x")],
+            config[CONF_SET_TARGET_TEMPERATURE_HIGH_ACTION],
+        )
+
+    if CONF_SET_TARGET_HUMIDITY_ACTION in config:
+        await automation.build_automation(
+            var.get_set_target_humidity_trigger(),
+            [(float, "x")],
+            config[CONF_SET_TARGET_HUMIDITY_ACTION],
         )
 
     if CONF_SET_FAN_MODE_ACTION in config:

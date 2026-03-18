@@ -1,0 +1,43 @@
+esphome:
+  name: tmpl-clim-two-point
+host:
+api:
+logger:
+
+# Globals simulate an external device that supports two-point (heat_cool) temperature control.
+# The device reports separate low/high target temperatures and the current temperature.
+globals:
+  - id: ext_mode
+    type: int
+    initial_value: "1"  # CLIMATE_MODE_HEAT_COOL
+  - id: ext_target_temp_low
+    type: float
+    initial_value: "18.0"
+  - id: ext_target_temp_high
+    type: float
+    initial_value: "24.0"
+
+climate:
+  - platform: template
+    id: test_climate
+    name: Test Two-Point Heatpump
+    optimistic: true
+    current_temperature: !lambda "return 21.0f;"
+    target_temperature_low: !lambda "return id(ext_target_temp_low);"
+    target_temperature_high: !lambda "return id(ext_target_temp_high);"
+    mode: !lambda "return static_cast<climate::ClimateMode>(id(ext_mode));"
+    supported_modes:
+      - "OFF"
+      - HEAT_COOL
+      - HEAT
+      - COOL
+    visual:
+      min_temperature: 16.0
+      max_temperature: 30.0
+      temperature_step: 0.5
+    set_mode_action:
+      - lambda: "id(ext_mode) = (int) x;"
+    set_target_temperature_low_action:
+      - lambda: "id(ext_target_temp_low) = x;"
+    set_target_temperature_high_action:
+      - lambda: "id(ext_target_temp_high) = x;"
