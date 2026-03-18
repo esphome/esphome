@@ -388,6 +388,9 @@ async def to_code(configs):
         metadata = get_image_metadata(image_id.id)
         image_type = IMAGE_TYPE[metadata.image_type]
         transparent = metadata.transparency != CONF_OPAQUE
+        if transparent:
+            # Internal draw layer will use ARGB8888
+            lv_image_formats.add("ARGB8888")
         if image_type == ImageBinary:
             lv_image_formats.add("I1")
         if image_type == ImageGrayscale:
