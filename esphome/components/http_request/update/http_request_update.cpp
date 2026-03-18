@@ -74,27 +74,27 @@ void HttpRequestUpdate::update() {
 #endif
 }
 
-// Fetch and parse the update manifest. Returns a heap-allocated UpdateInfo on success
-// (caller takes ownership), or nullptr on failure (with error_str set to the error message).
-// Separated from update_task so that all code paths converge at a single defer() call,
-// ensuring the allocated UpdateInfo is always passed to apply_manifest_result_main_loop_
-// which deletes it — preventing leaks regardless of which error path is taken.
-update::UpdateInfo *HttpRequestUpdate::fetch_manifest_(const LogString *&error_str) {
+// Fetch and parse the update manifest. Always returns a heap-allocated UpdateInfo
+// (caller takes ownership). On failure, error_str is set; on success it is nullptr.
+// Single allocation at the top ensures simple ownership — every path returns info.
+update::UpdateInfo *HttpRequestUpdate::fetch_manifest_() {
+  auto *info = new update::UpdateInfo();
+
   auto container = this->request_parent_->get(this->source_url_);
 
   if (container == nullptr || container->status_code != HTTP_STATUS_OK) {
     ESP_LOGE(TAG, "Failed to fetch manifest from %s", this->source_url_.c_str());
-    error_str = LOG_STR("Failed to fetch manifest");
-    return nullptr;
+    info->error_str = LOG_STR("Failed to fetch manifest");
+    return info;
   }
 
   RAMAllocator<uint8_t> allocator;
   uint8_t *data = allocator.allocate(container->content_length);
   if (data == nullptr) {
     ESP_LOGE(TAG, "Failed to allocate %zu bytes for manifest", container->content_length);
-    error_str = LOG_STR("Failed to allocate memory for manifest");
     container->end();
-    return nullptr;
+    info->error_str = LOG_STR("Failed to allocate memory for manifest");
+    return info;
   }
 
   auto read_result = http_read_fully(container.get(), data, container->content_length, MAX_READ_SIZE,
@@ -105,18 +105,16 @@ update::UpdateInfo *HttpRequestUpdate::fetch_manifest_(const LogString *&error_s
     } else {
       ESP_LOGE(TAG, "Error reading manifest: %d", read_result.error_code);
     }
-    error_str = LOG_STR("Failed to read manifest");
     allocator.deallocate(data, container->content_length);
     container->end();
-    return nullptr;
+    info->error_str = LOG_STR("Failed to read manifest");
+    return info;
   }
   size_t read_index = container->get_bytes_read();
   size_t content_length = container->content_length;
 
   container->end();
   container.reset();  // Release ownership of the container's shared_ptr
-
-  auto *info = new update::UpdateInfo();
 
   bool valid = false;
   {  // Scope to ensure JsonDocument is destroyed before deallocating buffer
@@ -162,10 +160,9 @@ update::UpdateInfo *HttpRequestUpdate::fetch_manifest_(const LogString *&error_s
   allocator.deallocate(data, content_length);
 
   if (!valid) {
-    delete info;
     ESP_LOGE(TAG, "Failed to parse JSON from %s", this->source_url_.c_str());
-    error_str = LOG_STR("Failed to parse manifest JSON");
-    return nullptr;
+    info->error_str = LOG_STR("Failed to parse manifest JSON");
+    return info;
   }
 
   // Merge source_url_ and firmware_url
@@ -192,41 +189,37 @@ update::UpdateInfo *HttpRequestUpdate::fetch_manifest_(const LogString *&error_s
 void HttpRequestUpdate::update_task(void *params) {
   HttpRequestUpdate *this_update = (HttpRequestUpdate *) params;
 
-  const LogString *error_str = nullptr;
-  auto *info = this_update->fetch_manifest_(error_str);
-
-  update::UpdateState new_state = update::UPDATE_STATE_UNKNOWN;
-  bool trigger_update_available = false;
-
-  if (info != nullptr) {
-    if (info->latest_version.empty() || info->latest_version == info->current_version) {
-      new_state = update::UPDATE_STATE_NO_UPDATE;
-    } else {
-      new_state = update::UPDATE_STATE_AVAILABLE;
-      if (this_update->state_ != update::UPDATE_STATE_AVAILABLE) {
-        trigger_update_available = true;
-      }
-    }
-  }
+  auto *info = this_update->fetch_manifest_();
 
   // Defer to the main loop so all update_info_ and state_ writes happen on the
   // same thread as readers (API, MQTT, web server). This is a single defer for
   // both success and error paths to avoid multiple std::function instantiations.
-  // Ownership of info transfers to apply_manifest_result_main_loop_.
-  this_update->defer([this_update, trigger_update_available, new_state, error_str, info]() {
-    this_update->apply_manifest_result_main_loop_(info, error_str, new_state, trigger_update_available);
-  });
+  // info == nullptr signals an error (specific error already logged by fetch_manifest_).
+  // Lambda captures only 2 pointers (8 bytes) — fits in std::function SBO on all platforms.
+  this_update->defer([this_update, info]() { this_update->apply_manifest_result_main_loop_(info); });
 
   UPDATE_RETURN;
 }
 
-void HttpRequestUpdate::apply_manifest_result_main_loop_(update::UpdateInfo *info, const LogString *error_str,
-                                                         update::UpdateState new_state, bool trigger_update_available) {
-  if (error_str != nullptr) {
+void HttpRequestUpdate::apply_manifest_result_main_loop_(update::UpdateInfo *info) {
+  if (info->error_str != nullptr) {
+    this->status_set_error(info->error_str);
     delete info;
-    this->status_set_error(error_str);
     return;
   }
+
+  // Determine new state on main loop (avoids extra lambda captures from task)
+  bool trigger_update_available = false;
+  update::UpdateState new_state;
+  if (info->latest_version.empty() || info->latest_version == info->current_version) {
+    new_state = update::UPDATE_STATE_NO_UPDATE;
+  } else {
+    new_state = update::UPDATE_STATE_AVAILABLE;
+    if (this->state_ != update::UPDATE_STATE_AVAILABLE) {
+      trigger_update_available = true;
+    }
+  }
+
   this->update_info_ = std::move(*info);
   this->update_info_.has_progress = false;
   this->update_info_.progress = 0.0f;
