@@ -1,7 +1,5 @@
 #include "sendspin_time_burst.h"
 
-#ifdef USE_ESP_IDF
-
 #include "sendspin_connection.h"
 #include "sendspin_time_filter.h"
 
@@ -113,5 +111,3 @@ void SendspinTimeBurst::reset() {
 
 }  // namespace sendspin
 }  // namespace esphome
-
-#endif

@@ -1,5 +1,3 @@
-#if defined(USE_ESP_IDF)
-
 #include "sendspin_protocol.h"
 
 #include "esphome/components/json/json_util.h"
@@ -720,5 +718,3 @@ std::string format_client_goodbye_message(SendspinGoodbyeReason reason) {
 
 }  // namespace sendspin
 }  // namespace esphome
-
-#endif

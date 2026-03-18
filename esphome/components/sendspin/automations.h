@@ -2,8 +2,6 @@
 
 #include "esphome/core/defines.h"
 
-#ifdef USE_ESP_IDF
-
 #include "esphome/core/automation.h"
 #include "sendspin_hub.h"
 
@@ -72,5 +70,3 @@ template<typename... Ts> class GetTrackProgressAction : public Action<Ts...>, pu
 
 }  // namespace sendspin
 }  // namespace esphome
-
-#endif  // USE_ESP_IDF

@@ -14,8 +14,6 @@
 
 #include "sendspin_ws_server.h"
 
-#if defined(USE_ESP_IDF)
-
 #include "sendspin_hub.h"
 #include "sendspin_server_connection.h"
 
@@ -182,5 +180,3 @@ esp_err_t SendspinWsServer::websocket_handler(httpd_req_t *req) {
 
 }  // namespace sendspin
 }  // namespace esphome
-
-#endif

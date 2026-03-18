@@ -14,10 +14,6 @@
 
 #pragma once
 
-#include "esphome/core/defines.h"
-
-#ifdef USE_ESP_IDF
-
 #include "sendspin_connection.h"
 
 #include <esp_http_server.h>
@@ -119,5 +115,3 @@ class SendspinServerConnection : public SendspinConnection {
 
 }  // namespace sendspin
 }  // namespace esphome
-
-#endif

@@ -14,8 +14,6 @@
 
 #include "sendspin_connection.h"
 
-#ifdef USE_ESP_IDF
-
 #include "esphome/components/json/json_util.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -151,5 +149,3 @@ void SendspinConnection::dispatch_completed_message_(bool is_text, int64_t recei
 
 }  // namespace sendspin
 }  // namespace esphome
-
-#endif

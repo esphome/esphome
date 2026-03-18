@@ -14,10 +14,6 @@
 
 #pragma once
 
-#include "esphome/core/defines.h"
-
-#ifdef USE_ESP_IDF
-
 #include "sendspin_connection.h"
 
 #include "esp_websocket_client.h"
@@ -123,5 +119,3 @@ class SendspinClientConnection : public SendspinConnection {
 
 }  // namespace sendspin
 }  // namespace esphome
-
-#endif

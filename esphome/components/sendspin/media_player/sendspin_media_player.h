@@ -2,7 +2,7 @@
 
 #include "esphome/core/defines.h"
 
-#if defined(USE_ESP_IDF) && defined(USE_MEDIA_PLAYER) && defined(USE_SENDSPIN_CONTROLLER)
+#if defined(USE_MEDIA_PLAYER) && defined(USE_SENDSPIN_CONTROLLER)
 
 #include "esphome/components/media_player/media_player.h"
 #include "esphome/components/sendspin/sendspin_hub.h"

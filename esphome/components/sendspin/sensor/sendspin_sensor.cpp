@@ -1,6 +1,6 @@
 #include "sendspin_sensor.h"
 
-#if defined(USE_ESP_IDF) && defined(USE_SENDSPIN_SENSOR)
+#ifdef USE_SENDSPIN_SENSOR
 
 #include <string>
 

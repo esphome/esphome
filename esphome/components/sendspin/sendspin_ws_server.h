@@ -14,10 +14,6 @@
 
 #pragma once
 
-#include "esphome/core/defines.h"
-
-#ifdef USE_ESP_IDF
-
 #include <esp_http_server.h>
 
 #include <functional>
@@ -139,5 +135,3 @@ class SendspinWsServer {
 
 }  // namespace sendspin
 }  // namespace esphome
-
-#endif

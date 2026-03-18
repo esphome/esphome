@@ -1,6 +1,6 @@
 #include "sendspin_audio_ring_buffer.h"
 
-#if defined(USE_ESP_IDF) && defined(USE_SENDSPIN_PLAYER)
+#if defined(USE_SENDSPIN_PLAYER)
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"

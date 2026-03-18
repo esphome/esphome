@@ -2,8 +2,6 @@
 
 #include "esphome/core/defines.h"
 
-#if defined(USE_ESP_IDF)
-
 #include "sendspin_client_connection.h"
 #include "sendspin_connection.h"
 #include "sendspin_protocol.h"
@@ -394,5 +392,3 @@ class SendspinHub : public Component {
 
 }  // namespace sendspin
 }  // namespace esphome
-
-#endif

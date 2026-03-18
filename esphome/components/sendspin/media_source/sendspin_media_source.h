@@ -5,6 +5,7 @@
 #if defined(USE_SENDSPIN_PLAYER) && defined(USE_SENDSPIN_CONTROLLER)
 
 #include "sendspin_audio_ring_buffer.h"
+#include "sendspin_decoder.h"
 #include "esphome/components/sendspin/sendspin_hub.h"
 
 #include "esphome/components/audio/audio.h"

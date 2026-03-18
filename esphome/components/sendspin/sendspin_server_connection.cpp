@@ -14,8 +14,6 @@
 
 #include "sendspin_server_connection.h"
 
-#if defined(USE_ESP_IDF)
-
 #include "esphome/core/log.h"
 
 #include "lwip/sockets.h"  // for setsockopt, IPPROTO_TCP, NODELAY
@@ -237,5 +235,3 @@ void SendspinServerConnection::async_send_text(void *arg) {
 
 }  // namespace sendspin
 }  // namespace esphome
-
-#endif

@@ -14,8 +14,6 @@
 
 #include "sendspin_client_connection.h"
 
-#if defined(USE_ESP_IDF)
-
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -237,5 +235,3 @@ void SendspinClientConnection::handle_error() {
 
 }  // namespace sendspin
 }  // namespace esphome
-
-#endif
