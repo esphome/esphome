@@ -74,127 +74,122 @@ void HttpRequestUpdate::update() {
 #endif
 }
 
-// Fetch and parse the update manifest. Always returns a heap-allocated UpdateInfo
-// (caller takes ownership). On failure, error_str is set; on success it is nullptr.
-// Single allocation at the top ensures simple ownership — every path returns info.
-update::UpdateInfo *HttpRequestUpdate::fetch_manifest_() {
-  auto *info = new update::UpdateInfo();
-
-  auto container = this->request_parent_->get(this->source_url_);
-
-  if (container == nullptr || container->status_code != HTTP_STATUS_OK) {
-    ESP_LOGE(TAG, "Failed to fetch manifest from %s", this->source_url_.c_str());
-    info->error_str = LOG_STR("Failed to fetch manifest");
-    return info;
-  }
-
-  RAMAllocator<uint8_t> allocator;
-  uint8_t *data = allocator.allocate(container->content_length);
-  if (data == nullptr) {
-    ESP_LOGE(TAG, "Failed to allocate %zu bytes for manifest", container->content_length);
-    container->end();
-    info->error_str = LOG_STR("Failed to allocate memory for manifest");
-    return info;
-  }
-
-  auto read_result = http_read_fully(container.get(), data, container->content_length, MAX_READ_SIZE,
-                                     this->request_parent_->get_timeout());
-  if (read_result.status != HttpReadStatus::OK) {
-    if (read_result.status == HttpReadStatus::TIMEOUT) {
-      ESP_LOGE(TAG, "Timeout reading manifest");
-    } else {
-      ESP_LOGE(TAG, "Error reading manifest: %d", read_result.error_code);
-    }
-    allocator.deallocate(data, container->content_length);
-    container->end();
-    info->error_str = LOG_STR("Failed to read manifest");
-    return info;
-  }
-  size_t read_index = container->get_bytes_read();
-  size_t content_length = container->content_length;
-
-  container->end();
-  container.reset();  // Release ownership of the container's shared_ptr
-
-  bool valid = false;
-  {  // Scope to ensure JsonDocument is destroyed before deallocating buffer
-    valid = json::parse_json(data, read_index, [info](JsonObject root) -> bool {
-      if (!root[ESPHOME_F("name")].is<const char *>() || !root[ESPHOME_F("version")].is<const char *>() ||
-          !root[ESPHOME_F("builds")].is<JsonArray>()) {
-        ESP_LOGE(TAG, "Manifest does not contain required fields");
-        return false;
-      }
-      info->title = root[ESPHOME_F("name")].as<std::string>();
-      info->latest_version = root[ESPHOME_F("version")].as<std::string>();
-
-      auto builds_array = root[ESPHOME_F("builds")].as<JsonArray>();
-      for (auto build : builds_array) {
-        if (!build[ESPHOME_F("chipFamily")].is<const char *>()) {
-          ESP_LOGE(TAG, "Manifest does not contain required fields");
-          return false;
-        }
-        if (build[ESPHOME_F("chipFamily")] == ESPHOME_VARIANT) {
-          if (!build[ESPHOME_F("ota")].is<JsonObject>()) {
-            ESP_LOGE(TAG, "Manifest does not contain required fields");
-            return false;
-          }
-          JsonObject ota = build[ESPHOME_F("ota")].as<JsonObject>();
-          if (!ota[ESPHOME_F("path")].is<const char *>() || !ota[ESPHOME_F("md5")].is<const char *>()) {
-            ESP_LOGE(TAG, "Manifest does not contain required fields");
-            return false;
-          }
-          info->firmware_url = ota[ESPHOME_F("path")].as<std::string>();
-          info->md5 = ota[ESPHOME_F("md5")].as<std::string>();
-
-          if (ota[ESPHOME_F("summary")].is<const char *>())
-            info->summary = ota[ESPHOME_F("summary")].as<std::string>();
-          if (ota[ESPHOME_F("release_url")].is<const char *>())
-            info->release_url = ota[ESPHOME_F("release_url")].as<std::string>();
-
-          return true;
-        }
-      }
-      return false;
-    });
-  }
-  allocator.deallocate(data, content_length);
-
-  if (!valid) {
-    ESP_LOGE(TAG, "Failed to parse JSON from %s", this->source_url_.c_str());
-    info->error_str = LOG_STR("Failed to parse manifest JSON");
-    return info;
-  }
-
-  // Merge source_url_ and firmware_url
-  if (info->firmware_url.find("http") == std::string::npos) {
-    std::string path = info->firmware_url;
-    if (path[0] == '/') {
-      std::string domain = this->source_url_.substr(0, this->source_url_.find('/', 8));
-      info->firmware_url = domain + path;
-    } else {
-      std::string domain = this->source_url_.substr(0, this->source_url_.rfind('/') + 1);
-      info->firmware_url = domain + path;
-    }
-  }
-
-#ifdef ESPHOME_PROJECT_VERSION
-  info->current_version = ESPHOME_PROJECT_VERSION;
-#else
-  info->current_version = ESPHOME_VERSION;
-#endif
-
-  return info;
-}
-
 void HttpRequestUpdate::update_task(void *params) {
   HttpRequestUpdate *this_update = (HttpRequestUpdate *) params;
 
-  auto *info = this_update->fetch_manifest_();
+  // Allocate once — every path below returns via the single defer at the end.
+  // On failure, error_str is set; on success it is nullptr.
+  auto *info = new update::UpdateInfo();
 
+  auto container = this_update->request_parent_->get(this_update->source_url_);
+
+  if (container == nullptr || container->status_code != HTTP_STATUS_OK) {
+    ESP_LOGE(TAG, "Failed to fetch manifest from %s", this_update->source_url_.c_str());
+    info->error_str = LOG_STR("Failed to fetch manifest");
+    goto defer;  // NOLINT(cppcoreguidelines-avoid-goto)
+  }
+
+  {
+    RAMAllocator<uint8_t> allocator;
+    uint8_t *data = allocator.allocate(container->content_length);
+    if (data == nullptr) {
+      ESP_LOGE(TAG, "Failed to allocate %zu bytes for manifest", container->content_length);
+      container->end();
+      info->error_str = LOG_STR("Failed to allocate memory for manifest");
+      goto defer;  // NOLINT(cppcoreguidelines-avoid-goto)
+    }
+
+    auto read_result = http_read_fully(container.get(), data, container->content_length, MAX_READ_SIZE,
+                                       this_update->request_parent_->get_timeout());
+    if (read_result.status != HttpReadStatus::OK) {
+      if (read_result.status == HttpReadStatus::TIMEOUT) {
+        ESP_LOGE(TAG, "Timeout reading manifest");
+      } else {
+        ESP_LOGE(TAG, "Error reading manifest: %d", read_result.error_code);
+      }
+      allocator.deallocate(data, container->content_length);
+      container->end();
+      info->error_str = LOG_STR("Failed to read manifest");
+      goto defer;  // NOLINT(cppcoreguidelines-avoid-goto)
+    }
+    size_t read_index = container->get_bytes_read();
+    size_t content_length = container->content_length;
+
+    container->end();
+    container.reset();  // Release ownership of the container's shared_ptr
+
+    bool valid = false;
+    {  // Scope to ensure JsonDocument is destroyed before deallocating buffer
+      valid = json::parse_json(data, read_index, [info](JsonObject root) -> bool {
+        if (!root[ESPHOME_F("name")].is<const char *>() || !root[ESPHOME_F("version")].is<const char *>() ||
+            !root[ESPHOME_F("builds")].is<JsonArray>()) {
+          ESP_LOGE(TAG, "Manifest does not contain required fields");
+          return false;
+        }
+        info->title = root[ESPHOME_F("name")].as<std::string>();
+        info->latest_version = root[ESPHOME_F("version")].as<std::string>();
+
+        auto builds_array = root[ESPHOME_F("builds")].as<JsonArray>();
+        for (auto build : builds_array) {
+          if (!build[ESPHOME_F("chipFamily")].is<const char *>()) {
+            ESP_LOGE(TAG, "Manifest does not contain required fields");
+            return false;
+          }
+          if (build[ESPHOME_F("chipFamily")] == ESPHOME_VARIANT) {
+            if (!build[ESPHOME_F("ota")].is<JsonObject>()) {
+              ESP_LOGE(TAG, "Manifest does not contain required fields");
+              return false;
+            }
+            JsonObject ota = build[ESPHOME_F("ota")].as<JsonObject>();
+            if (!ota[ESPHOME_F("path")].is<const char *>() || !ota[ESPHOME_F("md5")].is<const char *>()) {
+              ESP_LOGE(TAG, "Manifest does not contain required fields");
+              return false;
+            }
+            info->firmware_url = ota[ESPHOME_F("path")].as<std::string>();
+            info->md5 = ota[ESPHOME_F("md5")].as<std::string>();
+
+            if (ota[ESPHOME_F("summary")].is<const char *>())
+              info->summary = ota[ESPHOME_F("summary")].as<std::string>();
+            if (ota[ESPHOME_F("release_url")].is<const char *>())
+              info->release_url = ota[ESPHOME_F("release_url")].as<std::string>();
+
+            return true;
+          }
+        }
+        return false;
+      });
+    }
+    allocator.deallocate(data, content_length);
+
+    if (!valid) {
+      ESP_LOGE(TAG, "Failed to parse JSON from %s", this_update->source_url_.c_str());
+      info->error_str = LOG_STR("Failed to parse manifest JSON");
+      goto defer;  // NOLINT(cppcoreguidelines-avoid-goto)
+    }
+
+    // Merge source_url_ and firmware_url
+    if (info->firmware_url.find("http") == std::string::npos) {
+      std::string path = info->firmware_url;
+      if (path[0] == '/') {
+        std::string domain = this_update->source_url_.substr(0, this_update->source_url_.find('/', 8));
+        info->firmware_url = domain + path;
+      } else {
+        std::string domain = this_update->source_url_.substr(0, this_update->source_url_.rfind('/') + 1);
+        info->firmware_url = domain + path;
+      }
+    }
+
+#ifdef ESPHOME_PROJECT_VERSION
+    info->current_version = ESPHOME_PROJECT_VERSION;
+#else
+    info->current_version = ESPHOME_VERSION;
+#endif
+  }
+
+defer:
   // Defer to the main loop so all update_info_ and state_ writes happen on the
   // same thread as readers (API, MQTT, web server). This is a single defer for
   // both success and error paths to avoid multiple std::function instantiations.
-  // info == nullptr signals an error (specific error already logged by fetch_manifest_).
   // Lambda captures only 2 pointers (8 bytes) — fits in std::function SBO on all platforms.
   this_update->defer([this_update, info]() { this_update->apply_manifest_result_main_loop_(info); });
 

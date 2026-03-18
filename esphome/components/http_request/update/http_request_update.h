@@ -37,7 +37,6 @@ class HttpRequestUpdate final : public update::UpdateEntity, public PollingCompo
   std::string source_url_;
 
   static void update_task(void *params);
-  update::UpdateInfo *fetch_manifest_();
   void apply_manifest_result_main_loop_(update::UpdateInfo *info);
 #ifdef USE_ESP32
   TaskHandle_t update_task_handle_{nullptr};
