@@ -1,0 +1,114 @@
+# Components needed for API protobuf benchmarks.
+# Merged into the base config before validation so all
+# dependencies get proper defaults.
+#
+# esphome: sub-keys are merged into the base config.
+esphome:
+  areas:
+    - id: area_1
+      name: "Area 1"
+    - id: area_2
+      name: "Area 2"
+    - id: area_3
+      name: "Area 3"
+    - id: area_4
+      name: "Area 4"
+    - id: area_5
+      name: "Area 5"
+    - id: area_6
+      name: "Area 6"
+    - id: area_7
+      name: "Area 7"
+    - id: area_8
+      name: "Area 8"
+    - id: area_9
+      name: "Area 9"
+    - id: area_10
+      name: "Area 10"
+    - id: area_11
+      name: "Area 11"
+    - id: area_12
+      name: "Area 12"
+    - id: area_13
+      name: "Area 13"
+    - id: area_14
+      name: "Area 14"
+    - id: area_15
+      name: "Area 15"
+    - id: area_16
+      name: "Area 16"
+    - id: area_17
+      name: "Area 17"
+    - id: area_18
+      name: "Area 18"
+    - id: area_19
+      name: "Area 19"
+    - id: area_20
+      name: "Area 20"
+  devices:
+    - id: device_1
+      name: "Device 1"
+      area_id: area_1
+    - id: device_2
+      name: "Device 2"
+      area_id: area_2
+    - id: device_3
+      name: "Device 3"
+      area_id: area_3
+    - id: device_4
+      name: "Device 4"
+      area_id: area_4
+    - id: device_5
+      name: "Device 5"
+      area_id: area_5
+    - id: device_6
+      name: "Device 6"
+      area_id: area_6
+    - id: device_7
+      name: "Device 7"
+      area_id: area_7
+    - id: device_8
+      name: "Device 8"
+      area_id: area_8
+    - id: device_9
+      name: "Device 9"
+      area_id: area_9
+    - id: device_10
+      name: "Device 10"
+      area_id: area_10
+    - id: device_11
+      name: "Device 11"
+      area_id: area_11
+    - id: device_12
+      name: "Device 12"
+      area_id: area_12
+    - id: device_13
+      name: "Device 13"
+      area_id: area_13
+    - id: device_14
+      name: "Device 14"
+      area_id: area_14
+    - id: device_15
+      name: "Device 15"
+      area_id: area_15
+    - id: device_16
+      name: "Device 16"
+      area_id: area_16
+    - id: device_17
+      name: "Device 17"
+      area_id: area_17
+    - id: device_18
+      name: "Device 18"
+      area_id: area_18
+    - id: device_19
+      name: "Device 19"
+      area_id: area_19
+    - id: device_20
+      name: "Device 20"
+      area_id: area_20
+
+api:
+sensor:
+binary_sensor:
+light:
+switch:
