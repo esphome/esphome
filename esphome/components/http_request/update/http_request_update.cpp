@@ -68,6 +68,10 @@ void HttpRequestUpdate::update() {
   }
   this->cancel_interval(INITIAL_CHECK_INTERVAL_ID);
 #ifdef USE_ESP32
+  if (this->update_task_handle_ != nullptr) {
+    ESP_LOGW(TAG, "Update check already in progress");
+    return;
+  }
   xTaskCreate(HttpRequestUpdate::update_task, "update_task", 8192, (void *) this, 1, &this->update_task_handle_);
 #else
   this->update_task(this);
@@ -82,7 +86,10 @@ void HttpRequestUpdate::update_task(void *params) {
   if (container == nullptr || container->status_code != HTTP_STATUS_OK) {
     ESP_LOGE(TAG, "Failed to fetch manifest from %s", this_update->source_url_.c_str());
     // Defer to main loop to avoid race condition on component_state_ read-modify-write
-    this_update->defer([this_update]() { this_update->status_set_error(LOG_STR("Failed to fetch manifest")); });
+    this_update->defer([this_update]() {
+      this_update->clear_update_task_handle_();
+      this_update->status_set_error(LOG_STR("Failed to fetch manifest"));
+    });
     UPDATE_RETURN;
   }
 
@@ -91,8 +98,10 @@ void HttpRequestUpdate::update_task(void *params) {
   if (data == nullptr) {
     ESP_LOGE(TAG, "Failed to allocate %zu bytes for manifest", container->content_length);
     // Defer to main loop to avoid race condition on component_state_ read-modify-write
-    this_update->defer(
-        [this_update]() { this_update->status_set_error(LOG_STR("Failed to allocate memory for manifest")); });
+    this_update->defer([this_update]() {
+      this_update->clear_update_task_handle_();
+      this_update->status_set_error(LOG_STR("Failed to allocate memory for manifest"));
+    });
     container->end();
     UPDATE_RETURN;
   }
@@ -106,7 +115,10 @@ void HttpRequestUpdate::update_task(void *params) {
       ESP_LOGE(TAG, "Error reading manifest: %d", read_result.error_code);
     }
     // Defer to main loop to avoid race condition on component_state_ read-modify-write
-    this_update->defer([this_update]() { this_update->status_set_error(LOG_STR("Failed to read manifest")); });
+    this_update->defer([this_update]() {
+      this_update->clear_update_task_handle_();
+      this_update->status_set_error(LOG_STR("Failed to read manifest"));
+    });
     allocator.deallocate(data, container->content_length);
     container->end();
     UPDATE_RETURN;
@@ -163,7 +175,10 @@ void HttpRequestUpdate::update_task(void *params) {
   if (!valid) {
     ESP_LOGE(TAG, "Failed to parse JSON from %s", this_update->source_url_.c_str());
     // Defer to main loop to avoid race condition on component_state_ read-modify-write
-    this_update->defer([this_update]() { this_update->status_set_error(LOG_STR("Failed to parse manifest JSON")); });
+    this_update->defer([this_update]() {
+      this_update->clear_update_task_handle_();
+      this_update->status_set_error(LOG_STR("Failed to parse manifest JSON"));
+    });
     UPDATE_RETURN;
   }
 
@@ -203,6 +218,7 @@ void HttpRequestUpdate::update_task(void *params) {
   //   which can be corrupted if accessed concurrently from task and main loop threads
   // - update_available trigger to ensure consistent state when the trigger fires
   this_update->defer([this_update, trigger_update_available]() {
+    this_update->clear_update_task_handle_();
     this_update->update_info_.has_progress = false;
     this_update->update_info_.progress = 0.0f;
 
