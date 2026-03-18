@@ -110,7 +110,7 @@ class I2SAudioSpeaker : public I2SAudioOut, public speaker::Speaker, public Comp
   TaskHandle_t speaker_task_handle_{nullptr};
   EventGroupHandle_t event_group_{nullptr};
 
-  QueueHandle_t i2s_event_queue_;
+  QueueHandle_t i2s_event_queue_{nullptr};
 
   std::weak_ptr<RingBuffer> audio_ring_buffer_;
 
