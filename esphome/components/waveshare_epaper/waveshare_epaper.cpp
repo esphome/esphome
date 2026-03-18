@@ -382,8 +382,8 @@ void WaveshareEPaperBWYR::fill(Color color) {
   uint8_t pixel_bits = this->color_to_hex(color) & 0x03;
 
   const uint32_t bytes_per_line = this->get_width_internal() / 4;
-  for (uint32_t y = 0; y < this->get_height_internal(); ++y) {
-    for (uint32_t x = 0; x < this->get_width_internal(); ++x) {
+  for (int y = 0; y < this->get_height_internal(); ++y) {
+    for (int x = 0; x < this->get_width_internal(); ++x) {
       uint32_t pos = y * bytes_per_line + (x / 4);
       uint8_t shift = (3 - (x % 4)) * 2;
       this->buffer_[pos] &= ~(0x03 << shift);
