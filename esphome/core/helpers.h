@@ -1744,13 +1744,15 @@ constexpr float fahrenheit_to_celsius(float value) { return (value - 32.0f) / 1.
 template<typename... X> struct Callback;
 
 template<typename... Ts> struct Callback<void(Ts...)> {
-  // The inline storage path stores callable bytes in ctx via memcpy.
-  // This requires all bit patterns to be valid for void* (no trap representations).
+  // The inline storage path stores callable bytes in ctx_ via memcpy.
+  // sizeof equality with uintptr_t ensures void* can round-trip arbitrary bit patterns,
+  // which combined with flat address spaces on all ESPHome targets means no trap representations.
   static_assert(sizeof(void *) == sizeof(std::uintptr_t), "void* must be the same size as uintptr_t");
 
   void (*fn_)(void *, Ts...){nullptr};
   void *ctx_{nullptr};
 
+  /// Invoke the callback. Only valid on Callbacks created via create(), never on default-constructed instances.
   void call(Ts... args) const { this->fn_(this->ctx_, args...); }
 
   /// Create from any callable. Small trivially-copyable callables (like [this] lambdas)
@@ -1766,7 +1768,7 @@ template<typename... Ts> struct Callback<void(Ts...)> {
       cb.fn_ = [](void *c, Ts... args) {
         alignas(DecayF) char buf[sizeof(DecayF)];
         __builtin_memcpy(buf, &c, sizeof(DecayF));
-        (*reinterpret_cast<DecayF *>(buf))(args...);
+        (*std::launder(reinterpret_cast<DecayF *>(buf)))(args...);
       };
       return cb;
     } else {
