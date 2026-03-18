@@ -191,42 +191,40 @@ defer:
   // same thread as readers (API, MQTT, web server). This is a single defer for
   // both success and error paths to avoid multiple std::function instantiations.
   // Lambda captures only 2 pointers (8 bytes) — fits in std::function SBO on all platforms.
-  this_update->defer([this_update, info]() { this_update->apply_manifest_result_main_loop_(info); });
+  this_update->defer([this_update, info]() {
+    if (info->error_str != nullptr) {
+      this_update->status_set_error(info->error_str);
+      delete info;
+      return;
+    }
+
+    // Determine new state on main loop (avoids extra lambda captures from task)
+    bool trigger_update_available = false;
+    update::UpdateState new_state;
+    if (info->latest_version.empty() || info->latest_version == info->current_version) {
+      new_state = update::UPDATE_STATE_NO_UPDATE;
+    } else {
+      new_state = update::UPDATE_STATE_AVAILABLE;
+      if (this_update->state_ != update::UPDATE_STATE_AVAILABLE) {
+        trigger_update_available = true;
+      }
+    }
+
+    this_update->update_info_ = std::move(*info);
+    this_update->update_info_.has_progress = false;
+    this_update->update_info_.progress = 0.0f;
+    this_update->state_ = new_state;
+    delete info;
+
+    this_update->status_clear_error();
+    this_update->publish_state();
+
+    if (trigger_update_available) {
+      this_update->get_update_available_trigger()->trigger(this_update->update_info_);
+    }
+  });
 
   UPDATE_RETURN;
-}
-
-void HttpRequestUpdate::apply_manifest_result_main_loop_(update::UpdateInfo *info) {
-  if (info->error_str != nullptr) {
-    this->status_set_error(info->error_str);
-    delete info;
-    return;
-  }
-
-  // Determine new state on main loop (avoids extra lambda captures from task)
-  bool trigger_update_available = false;
-  update::UpdateState new_state;
-  if (info->latest_version.empty() || info->latest_version == info->current_version) {
-    new_state = update::UPDATE_STATE_NO_UPDATE;
-  } else {
-    new_state = update::UPDATE_STATE_AVAILABLE;
-    if (this->state_ != update::UPDATE_STATE_AVAILABLE) {
-      trigger_update_available = true;
-    }
-  }
-
-  this->update_info_ = std::move(*info);
-  this->update_info_.has_progress = false;
-  this->update_info_.progress = 0.0f;
-  this->state_ = new_state;
-  delete info;
-
-  this->status_clear_error();
-  this->publish_state();
-
-  if (trigger_update_available) {
-    this->get_update_available_trigger()->trigger(this->update_info_);
-  }
 }
 
 void HttpRequestUpdate::perform(bool force) {
