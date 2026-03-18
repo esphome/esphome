@@ -58,8 +58,11 @@ void OpenThreadComponent::on_state_changed_(otChangedFlags flags, void *context)
 
 // Gets the off-mesh routable address
 std::optional<otIp6Address> OpenThreadComponent::get_omr_address() {
-  InstanceLock lock = InstanceLock::acquire();
-  return this->get_omr_address_(lock);
+  auto lock = InstanceLock::acquire();
+  if (!lock) {
+    return std::nullopt;
+  }
+  return this->get_omr_address_(*lock);
 }
 
 std::optional<otIp6Address> OpenThreadComponent::get_omr_address_(InstanceLock &lock) {
@@ -123,8 +126,12 @@ void OpenThreadSrpComponent::srp_factory_reset_callback(otError err, const otSrp
 
 void OpenThreadSrpComponent::setup() {
   otError error;
-  InstanceLock lock = InstanceLock::acquire();
-  otInstance *instance = lock.get_instance();
+  auto lock = InstanceLock::acquire();
+  if (!lock) {
+    this->mark_failed();
+    return;
+  }
+  otInstance *instance = lock->get_instance();
 
   otSrpClientSetCallback(instance, OpenThreadSrpComponent::srp_callback, nullptr);
 
@@ -246,8 +253,12 @@ void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
   factory_reset_external_callback_ = callback;
   ESP_LOGD(TAG, "Start Removal SRP Host and Services");
   otError error;
-  InstanceLock lock = InstanceLock::acquire();
-  otInstance *instance = lock.get_instance();
+  auto lock = InstanceLock::acquire();
+  if (!lock) {
+    ESP_LOGW(TAG, "Failed to acquire lock for factory reset");
+    return;
+  }
+  otInstance *instance = lock->get_instance();
   otSrpClientSetCallback(instance, OpenThreadSrpComponent::srp_factory_reset_callback, this);
   error = otSrpClientRemoveHostAndServices(instance, true, true);
   if (error != OT_ERROR_NONE) {

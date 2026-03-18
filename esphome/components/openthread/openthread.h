@@ -89,7 +89,7 @@ class OpenThreadSrpComponent : public Component {
 class InstanceLock {
  public:
   static std::optional<InstanceLock> try_acquire(int delay);
-  static InstanceLock acquire();
+  static std::optional<InstanceLock> acquire(uint32_t timeout_ms = 10000);
   ~InstanceLock();
 
   // Returns the global openthread instance guarded by this lock

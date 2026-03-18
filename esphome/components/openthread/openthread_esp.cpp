@@ -224,14 +224,23 @@ std::optional<InstanceLock> InstanceLock::try_acquire(int delay) {
   return {};
 }
 
-InstanceLock InstanceLock::acquire() {
+std::optional<InstanceLock> InstanceLock::acquire(uint32_t timeout_ms) {
   // Wait for the lock to be created by ot_main() before attempting to acquire it.
   // esp_openthread_lock_acquire() will assert-crash if called before esp_openthread_init().
+  uint32_t start = millis();
   while (global_openthread_component == nullptr || !global_openthread_component->is_lock_initialized()) {
+    if (millis() - start > timeout_ms) {
+      ESP_LOGE(TAG, "Timeout waiting for OpenThread lock initialization");
+      return {};
+    }
     delay(10);
     esp_task_wdt_reset();
   }
   while (!esp_openthread_lock_acquire(100)) {
+    if (millis() - start > timeout_ms) {
+      ESP_LOGE(TAG, "Timeout acquiring OpenThread lock");
+      return {};
+    }
     esp_task_wdt_reset();
   }
   return InstanceLock();
