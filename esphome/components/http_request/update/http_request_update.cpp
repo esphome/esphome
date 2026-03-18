@@ -74,42 +74,41 @@ void HttpRequestUpdate::update() {
 #endif
 }
 
-void HttpRequestUpdate::update_task(void *params) {
-  HttpRequestUpdate *this_update = (HttpRequestUpdate *) params;
-
-  auto container = this_update->request_parent_->get(this_update->source_url_);
+// Fetch and parse the update manifest. Returns a heap-allocated UpdateInfo on success
+// (caller takes ownership), or nullptr on failure (with error_str set to the error message).
+// Separated from update_task so that all code paths converge at a single defer() call,
+// ensuring the allocated UpdateInfo is always passed to apply_manifest_result_main_loop_
+// which deletes it — preventing leaks regardless of which error path is taken.
+update::UpdateInfo *HttpRequestUpdate::fetch_manifest_(const LogString *&error_str) {
+  auto container = this->request_parent_->get(this->source_url_);
 
   if (container == nullptr || container->status_code != HTTP_STATUS_OK) {
-    ESP_LOGE(TAG, "Failed to fetch manifest from %s", this_update->source_url_.c_str());
-    // Defer to main loop to avoid race condition on component_state_ read-modify-write
-    this_update->defer([this_update]() { this_update->status_set_error(LOG_STR("Failed to fetch manifest")); });
-    UPDATE_RETURN;
+    ESP_LOGE(TAG, "Failed to fetch manifest from %s", this->source_url_.c_str());
+    error_str = LOG_STR("Failed to fetch manifest");
+    return nullptr;
   }
 
   RAMAllocator<uint8_t> allocator;
   uint8_t *data = allocator.allocate(container->content_length);
   if (data == nullptr) {
     ESP_LOGE(TAG, "Failed to allocate %zu bytes for manifest", container->content_length);
-    // Defer to main loop to avoid race condition on component_state_ read-modify-write
-    this_update->defer(
-        [this_update]() { this_update->status_set_error(LOG_STR("Failed to allocate memory for manifest")); });
+    error_str = LOG_STR("Failed to allocate memory for manifest");
     container->end();
-    UPDATE_RETURN;
+    return nullptr;
   }
 
   auto read_result = http_read_fully(container.get(), data, container->content_length, MAX_READ_SIZE,
-                                     this_update->request_parent_->get_timeout());
+                                     this->request_parent_->get_timeout());
   if (read_result.status != HttpReadStatus::OK) {
     if (read_result.status == HttpReadStatus::TIMEOUT) {
       ESP_LOGE(TAG, "Timeout reading manifest");
     } else {
       ESP_LOGE(TAG, "Error reading manifest: %d", read_result.error_code);
     }
-    // Defer to main loop to avoid race condition on component_state_ read-modify-write
-    this_update->defer([this_update]() { this_update->status_set_error(LOG_STR("Failed to read manifest")); });
+    error_str = LOG_STR("Failed to read manifest");
     allocator.deallocate(data, container->content_length);
     container->end();
-    UPDATE_RETURN;
+    return nullptr;
   }
   size_t read_index = container->get_bytes_read();
   size_t content_length = container->content_length;
@@ -117,16 +116,18 @@ void HttpRequestUpdate::update_task(void *params) {
   container->end();
   container.reset();  // Release ownership of the container's shared_ptr
 
+  auto *info = new update::UpdateInfo();
+
   bool valid = false;
   {  // Scope to ensure JsonDocument is destroyed before deallocating buffer
-    valid = json::parse_json(data, read_index, [this_update](JsonObject root) -> bool {
+    valid = json::parse_json(data, read_index, [info](JsonObject root) -> bool {
       if (!root[ESPHOME_F("name")].is<const char *>() || !root[ESPHOME_F("version")].is<const char *>() ||
           !root[ESPHOME_F("builds")].is<JsonArray>()) {
         ESP_LOGE(TAG, "Manifest does not contain required fields");
         return false;
       }
-      this_update->update_info_.title = root[ESPHOME_F("name")].as<std::string>();
-      this_update->update_info_.latest_version = root[ESPHOME_F("version")].as<std::string>();
+      info->title = root[ESPHOME_F("name")].as<std::string>();
+      info->latest_version = root[ESPHOME_F("version")].as<std::string>();
 
       auto builds_array = root[ESPHOME_F("builds")].as<JsonArray>();
       for (auto build : builds_array) {
@@ -144,13 +145,13 @@ void HttpRequestUpdate::update_task(void *params) {
             ESP_LOGE(TAG, "Manifest does not contain required fields");
             return false;
           }
-          this_update->update_info_.firmware_url = ota[ESPHOME_F("path")].as<std::string>();
-          this_update->update_info_.md5 = ota[ESPHOME_F("md5")].as<std::string>();
+          info->firmware_url = ota[ESPHOME_F("path")].as<std::string>();
+          info->md5 = ota[ESPHOME_F("md5")].as<std::string>();
 
           if (ota[ESPHOME_F("summary")].is<const char *>())
-            this_update->update_info_.summary = ota[ESPHOME_F("summary")].as<std::string>();
+            info->summary = ota[ESPHOME_F("summary")].as<std::string>();
           if (ota[ESPHOME_F("release_url")].is<const char *>())
-            this_update->update_info_.release_url = ota[ESPHOME_F("release_url")].as<std::string>();
+            info->release_url = ota[ESPHOME_F("release_url")].as<std::string>();
 
           return true;
         }
@@ -161,60 +162,83 @@ void HttpRequestUpdate::update_task(void *params) {
   allocator.deallocate(data, content_length);
 
   if (!valid) {
-    ESP_LOGE(TAG, "Failed to parse JSON from %s", this_update->source_url_.c_str());
-    // Defer to main loop to avoid race condition on component_state_ read-modify-write
-    this_update->defer([this_update]() { this_update->status_set_error(LOG_STR("Failed to parse manifest JSON")); });
-    UPDATE_RETURN;
+    delete info;
+    ESP_LOGE(TAG, "Failed to parse JSON from %s", this->source_url_.c_str());
+    error_str = LOG_STR("Failed to parse manifest JSON");
+    return nullptr;
   }
 
-  // Merge source_url_ and this_update->update_info_.firmware_url
-  if (this_update->update_info_.firmware_url.find("http") == std::string::npos) {
-    std::string path = this_update->update_info_.firmware_url;
+  // Merge source_url_ and firmware_url
+  if (info->firmware_url.find("http") == std::string::npos) {
+    std::string path = info->firmware_url;
     if (path[0] == '/') {
-      std::string domain = this_update->source_url_.substr(0, this_update->source_url_.find('/', 8));
-      this_update->update_info_.firmware_url = domain + path;
+      std::string domain = this->source_url_.substr(0, this->source_url_.find('/', 8));
+      info->firmware_url = domain + path;
     } else {
-      std::string domain = this_update->source_url_.substr(0, this_update->source_url_.rfind('/') + 1);
-      this_update->update_info_.firmware_url = domain + path;
+      std::string domain = this->source_url_.substr(0, this->source_url_.rfind('/') + 1);
+      info->firmware_url = domain + path;
     }
   }
 
 #ifdef ESPHOME_PROJECT_VERSION
-  this_update->update_info_.current_version = ESPHOME_PROJECT_VERSION;
+  info->current_version = ESPHOME_PROJECT_VERSION;
 #else
-  this_update->update_info_.current_version = ESPHOME_VERSION;
+  info->current_version = ESPHOME_VERSION;
 #endif
 
+  return info;
+}
+
+void HttpRequestUpdate::update_task(void *params) {
+  HttpRequestUpdate *this_update = (HttpRequestUpdate *) params;
+
+  const LogString *error_str = nullptr;
+  auto *info = this_update->fetch_manifest_(error_str);
+
+  update::UpdateState new_state = update::UPDATE_STATE_UNKNOWN;
   bool trigger_update_available = false;
 
-  if (this_update->update_info_.latest_version.empty() ||
-      this_update->update_info_.latest_version == this_update->update_info_.current_version) {
-    this_update->state_ = update::UPDATE_STATE_NO_UPDATE;
-  } else {
-    if (this_update->state_ != update::UPDATE_STATE_AVAILABLE) {
-      trigger_update_available = true;
+  if (info != nullptr) {
+    if (info->latest_version.empty() || info->latest_version == info->current_version) {
+      new_state = update::UPDATE_STATE_NO_UPDATE;
+    } else {
+      new_state = update::UPDATE_STATE_AVAILABLE;
+      if (this_update->state_ != update::UPDATE_STATE_AVAILABLE) {
+        trigger_update_available = true;
+      }
     }
-    this_update->state_ = update::UPDATE_STATE_AVAILABLE;
   }
 
-  // Defer to main loop to ensure thread-safe execution of:
-  // - status_clear_error() performs non-atomic read-modify-write on component_state_
-  // - publish_state() triggers API callbacks that write to the shared protobuf buffer
-  //   which can be corrupted if accessed concurrently from task and main loop threads
-  // - update_available trigger to ensure consistent state when the trigger fires
-  this_update->defer([this_update, trigger_update_available]() {
-    this_update->update_info_.has_progress = false;
-    this_update->update_info_.progress = 0.0f;
-
-    this_update->status_clear_error();
-    this_update->publish_state();
-
-    if (trigger_update_available) {
-      this_update->get_update_available_trigger()->trigger(this_update->update_info_);
-    }
+  // Defer to the main loop so all update_info_ and state_ writes happen on the
+  // same thread as readers (API, MQTT, web server). This is a single defer for
+  // both success and error paths to avoid multiple std::function instantiations.
+  // Ownership of info transfers to apply_manifest_result_main_loop_.
+  this_update->defer([this_update, trigger_update_available, new_state, error_str, info]() {
+    this_update->apply_manifest_result_main_loop_(info, error_str, new_state, trigger_update_available);
   });
 
   UPDATE_RETURN;
+}
+
+void HttpRequestUpdate::apply_manifest_result_main_loop_(update::UpdateInfo *info, const LogString *error_str,
+                                                         update::UpdateState new_state, bool trigger_update_available) {
+  if (error_str != nullptr) {
+    delete info;
+    this->status_set_error(error_str);
+    return;
+  }
+  this->update_info_ = std::move(*info);
+  this->update_info_.has_progress = false;
+  this->update_info_.progress = 0.0f;
+  this->state_ = new_state;
+  delete info;
+
+  this->status_clear_error();
+  this->publish_state();
+
+  if (trigger_update_available) {
+    this->get_update_available_trigger()->trigger(this->update_info_);
+  }
 }
 
 void HttpRequestUpdate::perform(bool force) {
