@@ -16,6 +16,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/static_task.h"
 
+#include <atomic>
 #include <freertos/FreeRTOS.h>
 #include <freertos/event_groups.h>
 #include <freertos/queue.h>
@@ -157,7 +158,7 @@ class SendspinMediaSource : public Component, public media_source::MediaSource, 
 
   // 8-bit members
   SendspinGenerationState generation_state_{SendspinGenerationState::IDLE};
-  bool pending_start_{false};
+  std::atomic<bool> pending_start_{false};
   bool task_stack_in_psram_{false};
 };
 

@@ -79,7 +79,7 @@ void SendspinMediaSource::setup() {
     switch (control_type) {
       case SendspinControls::START:
         this->pending_start_ = true;
-        this->request_play_uri_("sendspin://current");
+        this->enable_loop_soon_any_context();
         break;
       case SendspinControls::STOP:
         // Intentional fallthrough
@@ -206,7 +206,10 @@ void SendspinMediaSource::loop() {
       break;
     }
     case SendspinGenerationState::IDLE: {
-      // Nothing to do when idle
+      if (this->pending_start_) {
+        this->request_play_uri_("sendspin://current");
+        this->pending_start_ = false;
+      }
       break;
     }
   }
@@ -227,11 +230,7 @@ void SendspinMediaSource::handle_command(media_source::MediaSourceCommand comman
         xQueueSend(this->controls_queue_, &message, 0);
         this->enable_loop_soon_any_context();
       }
-      if (!this->pending_start_) {
-        this->parent_->update_state(SendspinClientState::EXTERNAL_SOURCE);
-      }
-      // Also tell the server to stop
-      this->parent_->send_client_command(SendspinControllerCommand::STOP, std::nullopt, std::nullopt);
+      this->parent_->update_state(SendspinClientState::EXTERNAL_SOURCE);
       break;
     }
     case media_source::MediaSourceCommand::PLAY:
