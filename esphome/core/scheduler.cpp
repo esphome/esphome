@@ -454,6 +454,61 @@ void Scheduler::compact_defer_queue_locked_() {
   // (saves ~156 bytes flash). Erasing from the end is O(1) - no shifting needed.
   this->defer_queue_.erase(this->defer_queue_.begin() + remaining, this->defer_queue_.end());
 }
+void HOT Scheduler::process_defer_queue_slow_path_(uint32_t &now) {
+  // Process defer queue to guarantee FIFO execution order for deferred items.
+  // Previously, defer() used the heap which gave undefined order for equal timestamps,
+  // causing race conditions on multi-core systems (ESP32, BK7200).
+  // With the defer queue:
+  // - Deferred items (delay=0) go directly to defer_queue_ in set_timer_common_
+  // - Items execute in exact order they were deferred (FIFO guarantee)
+  // - No deferred items exist in to_add_, so processing order doesn't affect correctness
+  // Single-core platforms don't use this queue and fall back to the heap-based approach.
+  //
+  // Note: Items cancelled via cancel_item_locked_() are marked with remove=true but still
+  // processed here. They are skipped during execution by should_skip_item_().
+  // This is intentional - no memory leak occurs.
+  //
+  // We use an index (defer_queue_front_) to track the read position instead of calling
+  // erase() on every pop, which would be O(n). The queue is processed once per loop -
+  // any items added during processing are left for the next loop iteration.
+
+  // Merge lock acquisitions: instead of separate locks for move-out and recycle (2N+1 total),
+  // recycle each item after re-acquiring the lock for the next iteration (N+1 total).
+  // The lock is held across: recycle → loop condition → move-out, then released for execution.
+  SchedulerItem *item;
+
+  this->lock_.lock();
+  // Reset counter and snapshot queue end under lock
+  this->defer_count_clear_();
+  size_t defer_queue_end = this->defer_queue_.size();
+  if (this->defer_queue_front_ >= defer_queue_end) {
+    this->lock_.unlock();
+    return;
+  }
+  while (this->defer_queue_front_ < defer_queue_end) {
+    // Take ownership of the item, leaving nullptr in the vector slot.
+    // This is safe because:
+    // 1. The vector is only cleaned up by cleanup_defer_queue_locked_() at the end of this function
+    // 2. Any code iterating defer_queue_ MUST check for nullptr items (see mark_matching_items_removed_locked_)
+    // 3. The lock protects concurrent access, but the nullptr remains until cleanup
+    item = this->defer_queue_[this->defer_queue_front_];
+    this->defer_queue_[this->defer_queue_front_] = nullptr;
+    this->defer_queue_front_++;
+    this->lock_.unlock();
+
+    // Execute callback without holding lock to prevent deadlocks
+    // if the callback tries to call defer() again
+    if (!this->should_skip_item_(item)) {
+      now = this->execute_item_(item, now);
+    }
+
+    this->lock_.lock();
+    this->recycle_item_main_loop_(item);
+  }
+  // Clean up the queue (lock already held from last recycle or initial acquisition)
+  this->cleanup_defer_queue_locked_();
+  this->lock_.unlock();
+}
 #endif /* not ESPHOME_THREAD_SINGLE */
 
 void HOT Scheduler::call(uint32_t now) {
@@ -613,11 +668,7 @@ void HOT Scheduler::call(uint32_t now) {
   }
 #endif
 }
-void HOT Scheduler::process_to_add() {
-  // Fast path: skip lock acquisition when nothing to add.
-  // Worst case is a one-loop-iteration delay before newly added items are processed.
-  if (this->to_add_empty_())
-    return;
+void HOT Scheduler::process_to_add_slow_path_() {
   LockGuard guard{this->lock_};
   for (auto *&it : this->to_add_) {
     if (is_item_removed_locked_(it)) {
@@ -633,13 +684,7 @@ void HOT Scheduler::process_to_add() {
   this->to_add_.clear();
   this->to_add_count_clear_();
 }
-bool HOT Scheduler::cleanup_() {
-  // Fast path: if nothing to remove, just check if items exist.
-  // Uses atomic load on platforms with atomics, falls back to always taking the lock otherwise.
-  // Worst case is a one-loop-iteration delay in cleanup.
-  if (this->to_remove_empty_())
-    return !this->items_.empty();
-
+bool HOT Scheduler::cleanup_slow_path_() {
   // We must hold the lock for the entire cleanup operation because:
   // 1. We're modifying items_ (via pop_raw_locked_) which requires exclusive access
   // 2. We're decrementing to_remove_ which is also modified by other threads
