@@ -77,6 +77,7 @@ class OTAComponent : public Component {
     // Pack state, error, and progress into a single uint32_t so the lambda
     // captures only [this, packed] (8 bytes) — intended to fit in std::function SBO on supported toolchains.
     // Layout: [state:8][error:8][progress_fixed:16] where progress is 0–10000 (0.01% resolution)
+    static_assert(OTA_ERROR <= 0xFF, "OTAState must fit in 8 bits for packing");
     uint32_t packed = (static_cast<uint32_t>(state) << 24) | (static_cast<uint32_t>(error) << 16) |
                       static_cast<uint16_t>(progress * 100.0f);
     this->defer([this, packed]() {
