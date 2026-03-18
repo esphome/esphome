@@ -202,7 +202,7 @@ defer:
   // Defer to the main loop so all update_info_ and state_ writes happen on the
   // same thread as readers (API, MQTT, web server). This is a single defer for
   // both success and error paths to avoid multiple std::function instantiations.
-  // Lambda captures only 2 pointers (8 bytes) — fits in std::function SBO on all platforms.
+  // Lambda captures only 2 pointers (8 bytes) — fits in std::function SBO on supported toolchains.
   this_update->defer([this_update, result]() {
     if (result->error_str != nullptr) {
       this_update->status_set_error(result->error_str);
