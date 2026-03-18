@@ -683,7 +683,7 @@ int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
       retry = 0;
     }
     if (this->cmd_reply_.error > 0) {
-      this->handle_cmd_error(error);
+      this->handle_cmd_error(this->cmd_reply_.error);
     }
   }
   return error;
