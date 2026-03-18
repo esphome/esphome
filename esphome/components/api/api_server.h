@@ -239,7 +239,7 @@ class APIServer final : public Component,
 
 #ifdef USE_API_NOISE
   bool update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg, const LogString *fail_log_msg,
-                         const psk_t &active_psk, bool make_active);
+                         bool make_active);
   // Load saved PSK from preferences and apply it. Returns true on success.
   bool load_and_apply_noise_psk_();
 #endif  // USE_API_NOISE

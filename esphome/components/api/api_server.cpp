@@ -512,7 +512,7 @@ void APIServer::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeo
 
 #ifdef USE_API_NOISE
 bool APIServer::update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg,
-                                  const LogString *fail_log_msg, const psk_t &active_psk, bool make_active) {
+                                  const LogString *fail_log_msg, bool make_active) {
   if (!this->noise_pref_.save(&new_psk)) {
     ESP_LOGW(TAG, "%s", LOG_STR_ARG(fail_log_msg));
     return false;
@@ -563,7 +563,7 @@ bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
   }
 
   SavedNoisePsk new_saved_psk{psk};
-  return this->update_noise_psk_(new_saved_psk, LOG_STR("Noise PSK saved"), LOG_STR("Failed to save Noise PSK"), psk,
+  return this->update_noise_psk_(new_saved_psk, LOG_STR("Noise PSK saved"), LOG_STR("Failed to save Noise PSK"),
                                  make_active);
 #endif
 }
@@ -575,8 +575,7 @@ bool APIServer::clear_noise_psk(bool make_active) {
   return false;
 #else
   SavedNoisePsk empty_psk{};
-  psk_t empty{};
-  return this->update_noise_psk_(empty_psk, LOG_STR("Noise PSK cleared"), LOG_STR("Failed to clear Noise PSK"), empty,
+  return this->update_noise_psk_(empty_psk, LOG_STR("Noise PSK cleared"), LOG_STR("Failed to clear Noise PSK"),
                                  make_active);
 #endif
 }
