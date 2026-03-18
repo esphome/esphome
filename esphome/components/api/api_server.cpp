@@ -46,10 +46,8 @@ void APIServer::setup() {
 
 #ifndef USE_API_NOISE_PSK_FROM_YAML
   // Only load saved PSK if not set from YAML
-  SavedNoisePsk noise_pref_saved{};
-  if (this->noise_pref_.load(&noise_pref_saved)) {
+  if (this->load_and_apply_noise_psk_()) {
     ESP_LOGD(TAG, "Loaded saved Noise PSK");
-    this->set_noise_psk(noise_pref_saved.psk);
   }
 #endif
 #endif
@@ -526,15 +524,28 @@ bool APIServer::update_noise_psk_(const SavedNoisePsk &new_psk, const LogString 
   }
   ESP_LOGD(TAG, "%s", LOG_STR_ARG(save_log_msg));
   if (make_active) {
-    this->set_timeout(100, [this, active_psk]() {
+    this->set_timeout(100, [this]() {
+      // Re-read the PSK from preferences rather than capturing the 32-byte array
+      // in the lambda (which would exceed std::function SBO and heap-allocate).
+      if (!this->load_and_apply_noise_psk_()) {
+        ESP_LOGW(TAG, "Failed to load saved PSK for activation");
+        return;
+      }
       ESP_LOGW(TAG, "Disconnecting all clients to reset PSK");
-      this->set_noise_psk(active_psk);
       for (auto &c : this->clients_) {
         DisconnectRequest req;
         c->send_message(req);
       }
     });
   }
+  return true;
+}
+
+bool APIServer::load_and_apply_noise_psk_() {
+  SavedNoisePsk saved{};
+  if (!this->noise_pref_.load(&saved))
+    return false;
+  this->set_noise_psk(saved.psk);
   return true;
 }
 
