@@ -12,6 +12,10 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+// TODO: Migrate from legacy timer API (driver/timer.h) to GPTimer API (driver/gptimer.h)
+// The legacy timer API is deprecated in ESP-IDF 5.x. Migration would allow removing the
+// "driver" IDF component dependency. See:
+// https://docs.espressif.com/projects/esp-idf/en/latest/esp32/migration-guides/release-5.x/5.0/peripherals.html#id4
 #ifdef USE_ESP32
 #include "driver/timer.h"
 #endif

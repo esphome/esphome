@@ -8,6 +8,8 @@ from pathlib import Path
 import platform
 import re
 import shutil
+import stat
+import sys
 import tempfile
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
@@ -35,6 +37,10 @@ IS_MACOS = platform.system() == "Darwin"
 IS_WINDOWS = platform.system() == "Windows"
 IS_LINUX = platform.system() == "Linux"
 
+# FNV-1 hash constants (must match C++ in esphome/core/helpers.h)
+FNV1_OFFSET_BASIS = 2166136261
+FNV1_PRIME = 16777619
+
 
 def ensure_unique_string(preferred_string, current_strings):
     test_string = preferred_string
@@ -49,8 +55,17 @@ def ensure_unique_string(preferred_string, current_strings):
     return test_string
 
 
+def fnv1_hash(string: str) -> int:
+    """FNV-1 32-bit hash function (multiply then XOR)."""
+    hash_value = FNV1_OFFSET_BASIS
+    for char in string:
+        hash_value = (hash_value * FNV1_PRIME) & 0xFFFFFFFF
+        hash_value ^= ord(char)
+    return hash_value
+
+
 def fnv1a_32bit_hash(string: str) -> int:
-    """FNV-1a 32-bit hash function.
+    """FNV-1a 32-bit hash function (XOR then multiply).
 
     Note: This uses 32-bit hash instead of 64-bit for several reasons:
     1. ESPHome targets 32-bit microcontrollers with limited RAM (often <320KB)
@@ -63,11 +78,20 @@ def fnv1a_32bit_hash(string: str) -> int:
     a handful of area_ids and device_ids (typically <10 areas and <100
     devices), making collisions virtually impossible.
     """
-    hash_value = 2166136261
+    hash_value = FNV1_OFFSET_BASIS
     for char in string:
         hash_value ^= ord(char)
-        hash_value = (hash_value * 16777619) & 0xFFFFFFFF
+        hash_value = (hash_value * FNV1_PRIME) & 0xFFFFFFFF
     return hash_value
+
+
+def fnv1_hash_object_id(name: str) -> int:
+    """Compute FNV-1 hash of name with snake_case + sanitize transformations.
+
+    IMPORTANT: Must produce same result as C++ fnv1_hash_object_id() in helpers.h.
+    Used for pre-computing entity object_id hashes at code generation time.
+    """
+    return fnv1_hash(sanitize(snake_case(name)))
 
 
 def strip_accents(value: str) -> str:
@@ -332,6 +356,23 @@ def is_ha_addon():
     return get_bool_env("ESPHOME_IS_HA_ADDON")
 
 
+def rmtree(path: Path | str) -> None:
+    """Remove a directory tree, handling read-only files on Windows.
+
+    On Windows, git pack files and other files may be marked read-only,
+    causing shutil.rmtree to fail. This handles that by removing the
+    read-only flag and retrying.
+    """
+
+    def _onerror(func, path, exc_info):
+        if os.access(path, os.W_OK):
+            raise exc_info[1].with_traceback(exc_info[2])
+        os.chmod(path, stat.S_IWUSR | stat.S_IRUSR)
+        func(path)
+
+    shutil.rmtree(path, onerror=_onerror)
+
+
 def walk_files(path: Path):
     for root, _, files in os.walk(path):
         for name in files:
@@ -459,8 +500,6 @@ def list_starts_with(list_, sub):
 
 def file_compare(path1: Path, path2: Path) -> bool:
     """Return True if the files path1 and path2 have the same contents."""
-    import stat
-
     try:
         stat1, stat2 = path1.stat(), path2.stat()
     except OSError:
@@ -545,6 +584,32 @@ _DISALLOWED_CHARS = re.compile(r"[^a-zA-Z0-9-_]")
 def sanitize(value):
     """Same behaviour as `helpers.cpp` method `str_sanitize`."""
     return _DISALLOWED_CHARS.sub("_", value)
+
+
+class ProgressBar:
+    """A simple terminal progress bar for upload operations."""
+
+    def __init__(self) -> None:
+        self.last_progress: int | None = None
+
+    def update(self, progress: float) -> None:
+        bar_length = 60
+        status = ""
+        if progress >= 1:
+            progress = 1
+            status = "Done...\r\n"
+        new_progress = int(progress * 100)
+        if new_progress == self.last_progress:
+            return
+        self.last_progress = new_progress
+        block = int(round(bar_length * progress))
+        text = f"\rUploading: [{'=' * block + ' ' * (bar_length - block)}] {new_progress}% {status}"
+        sys.stderr.write(text)
+        sys.stderr.flush()
+
+    def done(self) -> None:
+        sys.stderr.write("\n")
+        sys.stderr.flush()
 
 
 def docs_url(path: str) -> str:

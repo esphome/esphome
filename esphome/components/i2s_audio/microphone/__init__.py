@@ -13,9 +13,11 @@ from esphome.const import (
 )
 
 from .. import (
+    CONF_ADC_TYPE,
     CONF_I2S_DIN_PIN,
     CONF_LEFT,
     CONF_MONO,
+    CONF_PDM,
     CONF_RIGHT,
     I2SAudioIn,
     i2s_audio_component_schema,
@@ -29,9 +31,7 @@ CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["i2s_audio"]
 
 CONF_ADC_PIN = "adc_pin"
-CONF_ADC_TYPE = "adc_type"
 CONF_CORRECT_DC_OFFSET = "correct_dc_offset"
-CONF_PDM = "pdm"
 
 I2SAudioMicrophone = i2s_audio_ns.class_(
     "I2SAudioMicrophone", I2SAudioIn, microphone.Microphone, cg.Component
@@ -46,6 +46,12 @@ def _validate_esp32_variant(config):
     if config[CONF_ADC_TYPE] == "external":
         if config[CONF_PDM] and variant not in PDM_VARIANTS:
             raise cv.Invalid(f"{variant} does not support PDM")
+        if (
+            variant == esp32.VARIANT_ESP32
+            and config.get(CONF_BITS_PER_SAMPLE) == 8
+            and config.get(CONF_CHANNEL) in (CONF_LEFT, CONF_RIGHT)
+        ):
+            raise cv.Invalid("8-bit mono mode is not supported on ESP32")
         return config
     if config[CONF_ADC_TYPE] == "internal":
         if variant not in INTERNAL_ADC_VARIANTS:

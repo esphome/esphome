@@ -20,6 +20,7 @@ MULTI_CONF = True
 CONF_ROLE = "role"
 CONF_MODBUS_ID = "modbus_id"
 CONF_SEND_WAIT_TIME = "send_wait_time"
+CONF_TURNAROUND_TIME = "turnaround_time"
 
 ModbusRole = modbus_ns.enum("ModbusRole")
 MODBUS_ROLES = {
@@ -35,6 +36,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
             cv.Optional(
                 CONF_SEND_WAIT_TIME, default="250ms"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_TURNAROUND_TIME, default="100ms"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_DISABLE_CRC, default=False): cv.boolean,
         }
@@ -57,6 +61,7 @@ async def to_code(config):
         cg.add(var.set_flow_control_pin(pin))
 
     cg.add(var.set_send_wait_time(config[CONF_SEND_WAIT_TIME]))
+    cg.add(var.set_turnaround_time(config[CONF_TURNAROUND_TIME]))
     cg.add(var.set_disable_crc(config[CONF_DISABLE_CRC]))
 
 

@@ -3,6 +3,7 @@
 #include "driver/gpio.h"
 #include "deep_sleep_component.h"
 #include "esphome/core/log.h"
+#include <esp_idf_version.h>
 
 namespace esphome {
 namespace deep_sleep {
@@ -26,7 +27,7 @@ namespace deep_sleep {
 // - ext0: Single pin wakeup using RTC GPIO (esp_sleep_enable_ext0_wakeup)
 // - ext1: Multiple pin wakeup (esp_sleep_enable_ext1_wakeup)
 // - Touch: Touch pad wakeup (esp_sleep_enable_touchpad_wakeup)
-// - GPIO wakeup: GPIO wakeup for non-RTC pins (esp_deep_sleep_enable_gpio_wakeup)
+// - GPIO wakeup: GPIO wakeup for RTC pins
 
 static const char *const TAG = "deep_sleep";
 
@@ -127,24 +128,21 @@ void DeepSleepComponent::deep_sleep_() {
     defined(USE_ESP32_VARIANT_ESP32C61)
   if (this->wakeup_pin_ != nullptr) {
     const auto gpio_pin = gpio_num_t(this->wakeup_pin_->get_pin());
-    if (this->wakeup_pin_->get_flags() & gpio::FLAG_PULLUP) {
-      gpio_sleep_set_pull_mode(gpio_pin, GPIO_PULLUP_ONLY);
-    } else if (this->wakeup_pin_->get_flags() & gpio::FLAG_PULLDOWN) {
-      gpio_sleep_set_pull_mode(gpio_pin, GPIO_PULLDOWN_ONLY);
-    }
-    gpio_sleep_set_direction(gpio_pin, GPIO_MODE_INPUT);
-    gpio_hold_en(gpio_pin);
-#if !SOC_GPIO_SUPPORT_HOLD_SINGLE_IO_IN_DSLP
-    // Some ESP32 variants support holding a single GPIO during deep sleep without this function
-    // For those variants, gpio_hold_en() is sufficient to hold the pin state during deep sleep
-    gpio_deep_sleep_hold_en();
-#endif
+    // Make sure GPIO is in input mode, not all RTC GPIO pins are input by default
+    gpio_set_direction(gpio_pin, GPIO_MODE_INPUT);
     bool level = !this->wakeup_pin_->is_inverted();
     if (this->wakeup_pin_mode_ == WAKEUP_PIN_MODE_INVERT_WAKEUP && this->wakeup_pin_->digital_read()) {
       level = !level;
     }
-    esp_deep_sleep_enable_gpio_wakeup(1 << this->wakeup_pin_->get_pin(),
+    // Internal pullup/pulldown resistors are enabled automatically, when
+    // ESP_SLEEP_GPIO_ENABLE_INTERNAL_RESISTORS is set (by default it is)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    esp_sleep_enable_gpio_wakeup_on_hp_periph_powerdown(1ULL << this->wakeup_pin_->get_pin(),
+                                                        static_cast<esp_sleep_gpio_wake_up_mode_t>(level));
+#else
+    esp_deep_sleep_enable_gpio_wakeup(1ULL << this->wakeup_pin_->get_pin(),
                                       static_cast<esp_deepsleep_gpio_wake_up_mode_t>(level));
+#endif
   }
 #endif
 

@@ -340,8 +340,8 @@ void I2SAudioSpeaker::speaker_task(void *params) {
       const uint32_t read_delay =
           (this_speaker->current_stream_info_.frames_to_microseconds(frames_written) / 1000) / 2;
 
-      uint8_t *new_data = transfer_buffer->get_buffer_end();  // track start of any newly copied bytes
       size_t bytes_read = transfer_buffer->transfer_data_from_source(pdMS_TO_TICKS(read_delay));
+      uint8_t *new_data = transfer_buffer->get_buffer_end() - bytes_read;
 
       if (bytes_read > 0) {
         if (this_speaker->q15_volume_factor_ < INT16_MAX) {
@@ -372,15 +372,15 @@ void I2SAudioSpeaker::speaker_task(void *params) {
         }
 
 #ifdef USE_ESP32_VARIANT_ESP32
-        // For ESP32 8/16 bit mono mode samples need to be switched.
+        // For ESP32 16-bit mono mode, adjacent samples need to be swapped.
         if (this_speaker->current_stream_info_.get_channels() == 1 &&
-            this_speaker->current_stream_info_.get_bits_per_sample() <= 16) {
-          size_t len = bytes_read / sizeof(int16_t);
-          int16_t *tmp_buf = (int16_t *) new_data;
-          for (size_t i = 0; i < len; i += 2) {
-            int16_t tmp = tmp_buf[i];
-            tmp_buf[i] = tmp_buf[i + 1];
-            tmp_buf[i + 1] = tmp;
+            this_speaker->current_stream_info_.get_bits_per_sample() == 16) {
+          int16_t *samples = reinterpret_cast<int16_t *>(new_data);
+          size_t sample_count = bytes_read / sizeof(int16_t);
+          for (size_t i = 0; i + 1 < sample_count; i += 2) {
+            int16_t tmp = samples[i];
+            samples[i] = samples[i + 1];
+            samples[i + 1] = tmp;
           }
         }
 #endif

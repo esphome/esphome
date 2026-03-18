@@ -48,7 +48,6 @@ class BME68xBSEC2Component : public Component {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void loop() override;
 
   void set_algorithm_output(AlgorithmOutput algorithm_output) { this->algorithm_output_ = algorithm_output; }

@@ -9,6 +9,9 @@ static constexpr float XTAL_FREQUENCY = 26000000;
 static constexpr float RSSI_OFFSET = 74.0f;
 static constexpr float RSSI_STEP = 0.5f;
 
+static constexpr uint8_t FSCAL1_PLL_NOT_LOCKED = 0x3F;
+static constexpr uint8_t PLL_LOCK_RETRIES = 3;
+
 static constexpr uint8_t STATUS_CRC_OK_MASK = 0x80;
 static constexpr uint8_t STATUS_LQI_MASK = 0x7F;
 

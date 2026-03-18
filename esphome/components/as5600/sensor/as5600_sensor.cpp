@@ -22,8 +22,6 @@ static const uint8_t REGISTER_STATUS = 0x0B;     // 8 bytes  / R
 static const uint8_t REGISTER_AGC = 0x1A;        // 8 bytes  / R
 static const uint8_t REGISTER_MAGNITUDE = 0x1B;  // 16 bytes / R
 
-float AS5600Sensor::get_setup_priority() const { return setup_priority::DATA; }
-
 void AS5600Sensor::dump_config() {
   LOG_SENSOR("", "AS5600 Sensor", this);
   ESP_LOGCONFIG(TAG, "  Out of Range Mode: %u", this->out_of_range_mode_);

@@ -41,7 +41,7 @@ sensor:
 switch:
   - platform: micronova
     stove:
-      name: Stove on/off
+      name: Stove
 
 text_sensor:
   - platform: micronova

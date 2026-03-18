@@ -9,6 +9,7 @@ display:
     invert_colors: True
     cs_pin: 20
     dc_pin: 21
+    data_rate: 20MHz
     pages:
       - id: page1
         lambda: |-

@@ -49,7 +49,7 @@ class Number : public EntityBase {
    */
   virtual void control(float value) = 0;
 
-  CallbackManager<void(float)> state_callback_;
+  LazyCallbackManager<void(float)> state_callback_;
 };
 
 }  // namespace esphome::number

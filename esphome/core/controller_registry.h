@@ -119,6 +119,12 @@ class AlarmControlPanel;
 }
 #endif
 
+#ifdef USE_WATER_HEATER
+namespace water_heater {
+class WaterHeater;
+}
+#endif
+
 #ifdef USE_EVENT
 namespace event {
 class Event;
@@ -228,6 +234,10 @@ class ControllerRegistry {
   static void notify_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj);
 #endif
 
+#ifdef USE_WATER_HEATER
+  static void notify_water_heater_update(water_heater::WaterHeater *obj);
+#endif
+
 #ifdef USE_EVENT
   static void notify_event(event::Event *obj);
 #endif
@@ -237,6 +247,21 @@ class ControllerRegistry {
 #endif
 
  protected:
+  /** Type-erased dispatch function pointer.
+   *
+   * Each notify method passes a small trampoline that calls the
+   * correct virtual method on Controller. The shared notify() loop
+   * iterates controllers once, calling the trampoline for each.
+   */
+  using DispatchFunc = void (*)(Controller *, void *);
+
+  /** Shared dispatch loop - iterates controllers and calls dispatch for each.
+   *
+   * Marked noinline to ensure only one copy of the loop exists in flash,
+   * rather than being duplicated into each notify_*_update wrapper.
+   */
+  static void __attribute__((noinline)) notify(void *obj, DispatchFunc dispatch);
+
   static StaticVector<Controller *, CONTROLLER_REGISTRY_MAX> controllers;
 };
 
