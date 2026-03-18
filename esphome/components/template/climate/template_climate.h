@@ -25,6 +25,7 @@ class TemplateClimate final : public climate::Climate, public Component {
     this->target_temperature_f_.set(std::forward<F>(f));
   }
   template<typename F> void set_mode_lambda(F &&f) { this->mode_f_.set(std::forward<F>(f)); }
+  template<typename F> void set_action_lambda(F &&f) { this->action_f_.set(std::forward<F>(f)); }
   template<typename F> void set_fan_mode_lambda(F &&f) { this->fan_mode_f_.set(std::forward<F>(f)); }
   template<typename F> void set_swing_mode_lambda(F &&f) { this->swing_mode_f_.set(std::forward<F>(f)); }
   template<typename F> void set_preset_lambda(F &&f) { this->preset_f_.set(std::forward<F>(f)); }
@@ -63,6 +64,7 @@ class TemplateClimate final : public climate::Climate, public Component {
   TemplateLambda<float> current_temperature_f_;
   TemplateLambda<float> target_temperature_f_;
   TemplateLambda<climate::ClimateMode> mode_f_;
+  TemplateLambda<climate::ClimateAction> action_f_;
   TemplateLambda<climate::ClimateFanMode> fan_mode_f_;
   TemplateLambda<climate::ClimateSwingMode> swing_mode_f_;
   TemplateLambda<climate::ClimatePreset> preset_f_;

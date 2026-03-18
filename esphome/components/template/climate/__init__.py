@@ -3,6 +3,7 @@ import esphome.codegen as cg
 from esphome.components import climate
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ACTION,
     CONF_CURRENT_TEMPERATURE,
     CONF_FAN_MODE,
     CONF_ID,
@@ -34,6 +35,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_CURRENT_TEMPERATURE): cv.returning_lambda,
             cv.Optional(CONF_TARGET_TEMPERATURE): cv.returning_lambda,
             cv.Optional(CONF_MODE): cv.returning_lambda,
+            cv.Optional(CONF_ACTION): cv.returning_lambda,
             cv.Optional(CONF_FAN_MODE): cv.returning_lambda,
             cv.Optional(CONF_SWING_MODE): cv.returning_lambda,
             cv.Optional(CONF_PRESET): cv.returning_lambda,
@@ -103,6 +105,14 @@ async def to_code(config):
             return_type=cg.optional.template(climate.ClimateMode),
         )
         cg.add(var.set_mode_lambda(template_))
+
+    if CONF_ACTION in config:
+        template_ = await cg.process_lambda(
+            config[CONF_ACTION],
+            [],
+            return_type=cg.optional.template(climate.ClimateAction),
+        )
+        cg.add(var.set_action_lambda(template_))
 
     if CONF_FAN_MODE in config:
         template_ = await cg.process_lambda(

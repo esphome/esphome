@@ -21,9 +21,12 @@ void TemplateClimate::setup() {
   if (this->current_temperature_f_.has_value()) {
     this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
   }
+  if (this->action_f_.has_value()) {
+    this->traits_.set_supports_action(true);
+  }
   if (!this->current_temperature_f_.has_value() && !this->target_temperature_f_.has_value() &&
-      !this->mode_f_.has_value() && !this->fan_mode_f_.has_value() && !this->swing_mode_f_.has_value() &&
-      !this->preset_f_.has_value()) {
+      !this->mode_f_.has_value() && !this->action_f_.has_value() && !this->fan_mode_f_.has_value() &&
+      !this->swing_mode_f_.has_value() && !this->preset_f_.has_value()) {
     this->disable_loop();
   }
 }
@@ -48,6 +51,13 @@ void TemplateClimate::loop() {
   if (auto val = this->mode_f_()) {
     if (*val != this->mode) {
       this->mode = *val;
+      changed = true;
+    }
+  }
+
+  if (auto val = this->action_f_()) {
+    if (*val != this->action) {
+      this->action = *val;
       changed = true;
     }
   }
@@ -93,8 +103,8 @@ void TemplateClimate::control(const climate::ClimateCall &call) {
   // When no read lambdas are configured, always update entity state immediately
   // since nothing will otherwise update it.
   const bool has_state_lambdas = this->target_temperature_f_.has_value() || this->mode_f_.has_value() ||
-                                 this->fan_mode_f_.has_value() || this->swing_mode_f_.has_value() ||
-                                 this->preset_f_.has_value();
+                                 this->action_f_.has_value() || this->fan_mode_f_.has_value() ||
+                                 this->swing_mode_f_.has_value() || this->preset_f_.has_value();
   const bool apply_state = !has_state_lambdas || this->optimistic_;
 
   if (auto mode = call.get_mode()) {
