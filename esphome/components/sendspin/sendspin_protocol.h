@@ -37,7 +37,7 @@ enum class SendspinCodecFormat {
   UNSUPPORTED,
 };
 
-inline const char *to_string(SendspinCodecFormat format) {
+inline const char *to_cstr(SendspinCodecFormat format) {
   switch (format) {
     case SendspinCodecFormat::FLAC:
       return "flac";
@@ -73,7 +73,7 @@ enum class SendspinPlayerCommand {
   SET_STATIC_DELAY,
 };
 
-inline const char *to_string(SendspinPlayerCommand cmd) {
+inline const char *to_cstr(SendspinPlayerCommand cmd) {
   switch (cmd) {
     case SendspinPlayerCommand::VOLUME:
       return "volume";
@@ -130,7 +130,7 @@ enum class SendspinImageFormat {
   BMP,
 };
 
-inline const char *to_string(SendspinImageFormat format) {
+inline const char *to_cstr(SendspinImageFormat format) {
   switch (format) {
     case SendspinImageFormat::JPEG:
       return "jpeg";
@@ -159,7 +159,7 @@ enum class SendspinImageSource {
   NONE,
 };
 
-inline const char *to_string(SendspinImageSource source) {
+inline const char *to_cstr(SendspinImageSource source) {
   switch (source) {
     case SendspinImageSource::ALBUM:
       return "album";
@@ -240,7 +240,7 @@ enum class SendspinControllerCommand {
   SWITCH,
 };
 
-inline const char *to_string(SendspinControllerCommand cmd) {
+inline const char *to_cstr(SendspinControllerCommand cmd) {
   switch (cmd) {
     case SendspinControllerCommand::PLAY:
       return "play";
@@ -329,7 +329,7 @@ enum class SendspinRepeatMode {
   ALL,
 };
 
-inline const char *to_string(SendspinRepeatMode mode) {
+inline const char *to_cstr(SendspinRepeatMode mode) {
   switch (mode) {
     case SendspinRepeatMode::OFF:
       return "off";
@@ -373,7 +373,7 @@ enum class SendspinClientState {
   EXTERNAL_SOURCE,
 };
 
-inline const char *to_string(SendspinClientState state) {
+inline const char *to_cstr(SendspinClientState state) {
   switch (state) {
     case SendspinClientState::SYNCHRONIZED:
       return "synchronized";
@@ -436,7 +436,7 @@ enum class SendspinRole {
   VISUALIZER,
 };
 
-inline const char *to_string(SendspinRole role) {
+inline const char *to_cstr(SendspinRole role) {
   switch (role) {
     case SendspinRole::PLAYER:
       return "player@v1";
@@ -458,7 +458,7 @@ enum class SendspinConnectionReason {
   PLAYBACK,
 };
 
-inline const char *to_string(SendspinConnectionReason reason) {
+inline const char *to_cstr(SendspinConnectionReason reason) {
   switch (reason) {
     case SendspinConnectionReason::DISCOVERY:
       return "discovery";
@@ -484,7 +484,7 @@ enum class SendspinGoodbyeReason {
   USER_REQUEST,
 };
 
-inline const char *to_string(SendspinGoodbyeReason reason) {
+inline const char *to_cstr(SendspinGoodbyeReason reason) {
   switch (reason) {
     case SendspinGoodbyeReason::ANOTHER_SERVER:
       return "another_server";
@@ -577,7 +577,7 @@ enum class SendspinPlaybackState {
   STOPPED,
 };
 
-inline const char *to_string(SendspinPlaybackState state) {
+inline const char *to_cstr(SendspinPlaybackState state) {
   switch (state) {
     case SendspinPlaybackState::PLAYING:
       return "playing";

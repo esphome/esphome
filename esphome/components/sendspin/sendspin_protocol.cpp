@@ -588,14 +588,14 @@ std::string format_client_hello_message(const ClientHelloMessage *msg) {
     root["payload"]["version"] = msg->version;
     JsonArray supported_roles_list = root["payload"]["supported_roles"].to<JsonArray>();
     for (const auto &role : msg->supported_roles) {
-      supported_roles_list.add(to_string(role));
+      supported_roles_list.add(to_cstr(role));
     }
 #ifdef USE_SENDSPIN_PLAYER
     if (msg->player_v1_support.has_value()) {
       JsonArray formats_list = root["payload"]["player@v1_support"]["supported_formats"].to<JsonArray>();
       for (const auto &format : msg->player_v1_support.value().supported_formats) {
         JsonObject format_obj = formats_list.add<JsonObject>();
-        format_obj["codec"] = to_string(format.codec);
+        format_obj["codec"] = to_cstr(format.codec);
         format_obj["channels"] = format.channels;
         format_obj["sample_rate"] = format.sample_rate;
         format_obj["bit_depth"] = format.bit_depth;
@@ -603,7 +603,7 @@ std::string format_client_hello_message(const ClientHelloMessage *msg) {
       root["payload"]["player@v1_support"]["buffer_capacity"] = msg->player_v1_support.value().buffer_capacity;
       JsonArray commands_list = root["payload"]["player@v1_support"]["supported_commands"].to<JsonArray>();
       for (const auto &cmd : msg->player_v1_support.value().supported_commands) {
-        commands_list.add(to_string(cmd));
+        commands_list.add(to_cstr(cmd));
       }
     }
 #endif
@@ -612,8 +612,8 @@ std::string format_client_hello_message(const ClientHelloMessage *msg) {
       JsonArray channels_list = root["payload"]["artwork@v1_support"]["channels"].to<JsonArray>();
       for (const auto &channel : msg->artwork_v1_support.value().channels) {
         JsonObject channel_obj = channels_list.add<JsonObject>();
-        channel_obj["source"] = to_string(channel.source);
-        channel_obj["format"] = to_string(channel.format);
+        channel_obj["source"] = to_cstr(channel.source);
+        channel_obj["format"] = to_cstr(channel.format);
         channel_obj["media_width"] = channel.media_width;
         channel_obj["media_height"] = channel.media_height;
       }
@@ -627,7 +627,7 @@ std::string format_client_state_message(const ClientStateMessage *msg) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return json::build_json([msg](JsonObject root) {
     root["type"] = "client/state";
-    root["payload"]["state"] = to_string(msg->state);
+    root["payload"]["state"] = to_cstr(msg->state);
 #ifdef USE_SENDSPIN_PLAYER
     if (msg->player.has_value()) {
       const ClientPlayerStateObject &player_state = msg->player.value();
@@ -637,7 +637,7 @@ std::string format_client_state_message(const ClientStateMessage *msg) {
       if (!player_state.supported_commands.empty()) {
         JsonArray commands_list = root["payload"]["player"]["supported_commands"].to<JsonArray>();
         for (const auto &cmd : player_state.supported_commands) {
-          commands_list.add(to_string(cmd));
+          commands_list.add(to_cstr(cmd));
         }
       }
     }
@@ -654,7 +654,7 @@ std::string format_stream_request_format_message(const StreamRequestFormatMessag
     if (msg->player.has_value()) {
       const auto &player = msg->player.value();
       if (player.codec.has_value()) {
-        root["payload"]["player"]["codec"] = to_string(player.codec.value());
+        root["payload"]["player"]["codec"] = to_cstr(player.codec.value());
       }
       if (player.sample_rate.has_value()) {
         root["payload"]["player"]["sample_rate"] = player.sample_rate.value();
@@ -672,10 +672,10 @@ std::string format_stream_request_format_message(const StreamRequestFormatMessag
       const auto &artwork = msg->artwork.value();
       root["payload"]["artwork"]["channel"] = artwork.channel;
       if (artwork.source.has_value()) {
-        root["payload"]["artwork"]["source"] = to_string(artwork.source.value());
+        root["payload"]["artwork"]["source"] = to_cstr(artwork.source.value());
       }
       if (artwork.format.has_value()) {
-        root["payload"]["artwork"]["format"] = to_string(artwork.format.value());
+        root["payload"]["artwork"]["format"] = to_cstr(artwork.format.value());
       }
       if (artwork.media_width.has_value()) {
         root["payload"]["artwork"]["media_width"] = artwork.media_width.value();
@@ -695,7 +695,7 @@ std::string format_client_command_message(SendspinControllerCommand command, std
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return json::build_json([command, volume, mute](JsonObject root) {
     root["type"] = "client/command";
-    root["payload"]["controller"]["command"] = to_string(command);
+    root["payload"]["controller"]["command"] = to_cstr(command);
     if (command == SendspinControllerCommand::VOLUME && volume.has_value()) {
       root["payload"]["controller"]["volume"] = volume.value();
     }
@@ -711,7 +711,7 @@ std::string format_client_goodbye_message(SendspinGoodbyeReason reason) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   return json::build_json([reason](JsonObject root) {
     root["type"] = "client/goodbye";
-    root["payload"]["reason"] = to_string(reason);
+    root["payload"]["reason"] = to_cstr(reason);
   });
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }

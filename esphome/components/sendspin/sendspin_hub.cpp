@@ -322,7 +322,7 @@ void SendspinHub::on_new_connection_(std::unique_ptr<SendspinServerConnection> c
 
 void SendspinHub::on_connection_handshake_complete_(SendspinConnection *conn) {
   ESP_LOGI(TAG, "Connection handshake complete: server_id=%s, connection_reason=%s", conn->get_server_id().c_str(),
-           to_string(conn->get_connection_reason()));
+           to_cstr(conn->get_connection_reason()));
 
   // Send client state so server knows our current volume
 #ifdef USE_SENDSPIN_PLAYER
@@ -748,7 +748,7 @@ bool SendspinHub::process_json_message_(SendspinConnection *conn, const std::str
       if (process_server_hello_message(root, &hello_msg)) {
         this->server_information_ = std::move(hello_msg.server);
         ESP_LOGD(TAG, "Connected to server %s with id %s (reason: %s)", this->server_information_.name.c_str(),
-                 this->server_information_.server_id.c_str(), to_string(hello_msg.connection_reason));
+                 this->server_information_.server_id.c_str(), to_cstr(hello_msg.connection_reason));
 
         // Store server info in the connection that sent this message
         if (conn != nullptr) {
@@ -863,7 +863,7 @@ bool SendspinHub::process_json_message_(SendspinConnection *conn, const std::str
           }
 
           ESP_LOGD(TAG, "Group update - state: %s, id: %s, name: %s",
-                   this->group_state_.playback_state.has_value() ? to_string(this->group_state_.playback_state.value())
+                   this->group_state_.playback_state.has_value() ? to_cstr(this->group_state_.playback_state.value())
                                                                  : "unchanged",
                    this->group_state_.group_id.value_or("").c_str(),
                    this->group_state_.group_name.value_or("").c_str());
