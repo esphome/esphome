@@ -79,18 +79,18 @@ class SendspinWsServer {
 
   /// @brief Sets the callback to invoke when a new connection is accepted.
   /// @param callback The callback function.
-  void set_new_connection_callback(NewConnectionCallback callback) {
+  void set_new_connection_callback(NewConnectionCallback &&callback) {
     this->new_connection_callback_ = std::move(callback);
   }
 
   /// @brief Sets the callback to invoke when a socket closes.
   /// @param callback The callback function.
-  void set_connection_closed_callback(ConnectionClosedCallback callback) {
+  void set_connection_closed_callback(ConnectionClosedCallback &&callback) {
     this->connection_closed_callback_ = std::move(callback);
   }
 
   /// @brief Sets callback to find a connection by socket fd.
-  void set_find_connection_callback(FindConnectionCallback callback) {
+  void set_find_connection_callback(FindConnectionCallback &&callback) {
     this->find_connection_callback_ = std::move(callback);
   }
 
