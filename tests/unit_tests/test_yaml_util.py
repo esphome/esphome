@@ -6,6 +6,7 @@ import pytest
 
 from esphome import core, yaml_util
 from esphome.components import substitutions
+from esphome.config_helpers import Extend, Remove
 from esphome.core import EsphomeError
 from esphome.util import OrderedDict
 
@@ -401,3 +402,13 @@ def test_config_context_non_taggable(data) -> None:
 
     # Check that original data is preserved
     assert tagged_data == data
+
+
+def test_represent_extend() -> None:
+    """Test that Extend objects are dumped as plain !extend scalars."""
+    assert yaml_util.dump({"key": Extend("my_id")}) == "key: !extend 'my_id'\n"
+
+
+def test_represent_remove() -> None:
+    """Test that Remove objects are dumped as plain !remove scalars."""
+    assert yaml_util.dump({"key": Remove("my_id")}) == "key: !remove 'my_id'\n"

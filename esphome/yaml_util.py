@@ -657,12 +657,12 @@ class ESPHomeDumper(yaml.SafeDumper):
     def represent_extend(self, value):
         if is_secret(value.value):
             return self.represent_secret(value.value)
-        return self.represent_scalar(tag="!extend", value=value.value, style="|")
+        return self.represent_scalar(tag="!extend", value=value.value)
 
     def represent_remove(self, value):
         if is_secret(value.value):
             return self.represent_secret(value.value)
-        return self.represent_scalar(tag="!remove", value=value.value, style="|")
+        return self.represent_scalar(tag="!remove", value=value.value)
 
     def represent_id(self, value):
         if is_secret(value.id):
