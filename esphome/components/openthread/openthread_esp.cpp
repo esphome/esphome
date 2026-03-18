@@ -215,7 +215,7 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
 otInstance *OpenThreadComponent::get_openthread_instance_() { return esp_openthread_get_instance(); }
 
 std::optional<InstanceLock> InstanceLock::try_acquire(int delay) {
-  if (global_openthread_component == nullptr || !global_openthread_component->is_lock_initialized()) {
+  if (!global_openthread_component->is_lock_initialized()) {
     return {};
   }
   if (esp_openthread_lock_acquire(delay)) {
@@ -224,23 +224,20 @@ std::optional<InstanceLock> InstanceLock::try_acquire(int delay) {
   return {};
 }
 
-std::optional<InstanceLock> InstanceLock::acquire(uint32_t timeout_ms) {
+InstanceLock InstanceLock::acquire() {
   // Wait for the lock to be created by ot_main() before attempting to acquire it.
   // esp_openthread_lock_acquire() will assert-crash if called before esp_openthread_init().
+  constexpr uint32_t lock_init_timeout_ms = 10000;
   uint32_t start = millis();
-  while (global_openthread_component == nullptr || !global_openthread_component->is_lock_initialized()) {
-    if (millis() - start > timeout_ms) {
-      ESP_LOGE(TAG, "Timeout waiting for OpenThread lock initialization");
-      return {};
+  while (!global_openthread_component->is_lock_initialized()) {
+    if (millis() - start > lock_init_timeout_ms) {
+      ESP_LOGE(TAG, "OpenThread lock not initialized after %" PRIu32 "ms, aborting", lock_init_timeout_ms);
+      abort();
     }
     delay(10);
     esp_task_wdt_reset();
   }
   while (!esp_openthread_lock_acquire(100)) {
-    if (millis() - start > timeout_ms) {
-      ESP_LOGE(TAG, "Timeout acquiring OpenThread lock");
-      return {};
-    }
     esp_task_wdt_reset();
   }
   return InstanceLock();
