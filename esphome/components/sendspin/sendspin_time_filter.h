@@ -105,6 +105,10 @@ class SendspinTimeFilter {
   /// @return Standard deviation of the offset estimate in microseconds.
   int64_t get_error() const;
 
+  /// @brief Returns true if the filter has received at least one measurement.
+  /// @return True if the filter has been updated with at least one time measurement.
+  bool has_update() const;
+
   /// @brief Returns the offset variance in microseconds squared.
   ///
   /// Provides the raw variance value from the Kalman filter's covariance matrix. This represents the statistical

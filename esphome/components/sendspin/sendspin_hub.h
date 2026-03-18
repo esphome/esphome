@@ -194,6 +194,15 @@ class SendspinHub : public Component {
     return this->current_connection_->get_client_time(server_time);
   }
 
+  /// @brief Returns true if the time filter has received at least one measurement.
+  /// @return True if time synchronization has started, false if no connection or no measurements yet.
+  bool is_time_synced() const {
+    if (this->current_connection_ == nullptr) {
+      return false;
+    }
+    return this->current_connection_->is_time_synced();
+  }
+
   /// @brief Gets the current active connection (if any).
   /// @return Pointer to the current connection, or nullptr if none.
   SendspinConnection *get_current_connection() const { return this->current_connection_.get(); }

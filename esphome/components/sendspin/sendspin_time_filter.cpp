@@ -167,6 +167,11 @@ void SendspinTimeFilter::reset() {
   this->use_drift_ = false;
 }
 
+bool SendspinTimeFilter::has_update() const {
+  esphome::LockGuard lock(this->state_mutex_);
+  return this->count_ >= 1;
+}
+
 int64_t SendspinTimeFilter::get_error() const {
   esphome::LockGuard lock(this->state_mutex_);
   return std::round(sqrt(this->offset_covariance_));

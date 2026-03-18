@@ -549,6 +549,12 @@ SyncTaskState SendspinMediaSource::sync_handle_initial_sync_(SyncContext &sync_c
 }
 
 SyncTaskState SendspinMediaSource::sync_handle_load_chunk_(SyncContext &sync_context) {
+  if (!this->parent_->is_time_synced()) {
+    // Wait for the time filter to receive its first measurement before processing audio chunks.
+    // Without a valid time offset, server timestamps can't be correctly converted to client timestamps.
+    vTaskDelay(pdMS_TO_TICKS(15));
+    return SyncTaskState::LOAD_CHUNK;
+  }
   if (!this->sync_load_next_chunk_(sync_context)) {
     return SyncTaskState::LOAD_CHUNK;
   }

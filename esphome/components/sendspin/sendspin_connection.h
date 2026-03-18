@@ -138,6 +138,15 @@ class SendspinConnection {
     return this->time_filter_->compute_client_time(server_time);
   }
 
+  /// @brief Returns true if the time filter has received at least one measurement.
+  /// @return True if time synchronization has started, false otherwise.
+  bool is_time_synced() const {
+    if (this->time_filter_ == nullptr) {
+      return false;
+    }
+    return this->time_filter_->has_update();
+  }
+
   /// @brief Gets the time filter for this connection.
   /// @return Pointer to the time filter, or nullptr if not initialized.
   SendspinTimeFilter *get_time_filter() { return this->time_filter_.get(); }
