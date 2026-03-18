@@ -333,15 +333,19 @@ The media player has been redesigned around a modular **source-based architectur
 
 **Key Features:**
 
-- **Pluggable media sources** - Audio can come from embedded [audio_file](/components/audio_file) files, HTTP streams, or future sources like Sendspin, each as a separate component
+- **Pluggable media sources** - Audio sources are separate components that plug into the media player. This release includes the [audio_file](/components/media_source/audio_file) media source for embedded firmware files, with HTTP streams and Sendspin sources planned for future releases
 - **Dual pipeline support** - Separate media and announcement pipelines with independent speakers, formats, and sources, allowing announcements to play alongside music
 - **Full playlist management** - Enqueue, next/previous track navigation, repeat (off/one/all), and shuffle with Fisher-Yates algorithm
 - **Volume persistence** - Volume and mute state are saved across reboots with configurable min/max/increment
-- **Ogg Opus codec support** - The new microOpus library enables decoding Opus audio streams, completing the codec lineup alongside FLAC and MP3 ([#13967](https://github.com/esphome/esphome/pull/13967))
-- **Smarter codec builds** - The `codec_support_enabled` option now defaults to `needed`, building only the codecs your configuration actually requires instead of all three (users streaming arbitrary URLs should set `codec_support_enabled: all`)
 - **Expanded media player commands** - New `next`, `previous`, `repeat_all`, `shuffle`, `unshuffle`, `group_join`, and `clear_playlist` actions ([#12258](https://github.com/esphome/esphome/pull/12258))
 
 The [audio_file](/components/audio_file) component lets you embed audio files (local or from URLs) directly into firmware for instant playback without network access. Files are decoded directly from flash, saving two buffer copies compared to the previous approach.
+
+## Audio Playback Improvements
+
+- **Ogg Opus codec support** - The new microOpus library enables decoding Ogg Opus files, completing the codec lineup alongside FLAC and MP3 ([#13967](https://github.com/esphome/esphome/pull/13967))
+- **Smarter codec builds** - Only the codecs your configuration actually requires are built. The `speaker_source` media player does this automatically, while the `speaker` media player's `codec_support_enabled` option now defaults to `needed` (users streaming arbitrary URLs should set `codec_support_enabled: all`)
+- **Speaker media player on/off** - The speaker media player now supports explicit on/off power control ([#9295](https://github.com/esphome/esphome/pull/9295))
 
 ## Other Notable Features
 
@@ -350,7 +354,6 @@ The [audio_file](/components/audio_file) component lets you embed audio files (l
 - **Safe mode explicit boot success** - New `safe_mode.mark_boot_ok` action lets you explicitly notify safe mode that a boot is successful, solving the issue for deep sleep devices that boot and sleep within the safe mode timeout window ([#14306](https://github.com/esphome/esphome/pull/14306))
 - **CC1101 runtime configuration** - New actions to change frequency, modulation type, symbol rate, filter bandwidth, and other CC1101 radio settings on the fly ([#14141](https://github.com/esphome/esphome/pull/14141))
 - **ESP32 BLE authentication** - Configurable `min_key_size`, `max_key_size`, and `auth_req_mode` for BLE security ([#7138](https://github.com/esphome/esphome/pull/7138))
-- **Speaker media player on/off** - Media players now support explicit on/off power control ([#9295](https://github.com/esphome/esphome/pull/9295))
 - **Integration sensor set action** - New `set` method to publish and save a specific value to an integration sensor ([#13316](https://github.com/esphome/esphome/pull/13316))
 - **LPS22DF pressure sensor** - Support for the DF variant of the LPS22 pressure sensor family ([#14397](https://github.com/esphome/esphome/pull/14397))
 - **OpenThread TX power** - Configurable transmit power for OpenThread radios ([#14200](https://github.com/esphome/esphome/pull/14200))
@@ -634,6 +637,18 @@ The lists below are grouped by tag and may contain duplicates across sections.
 - [am43] Fix battery update throttle using wrong type [esphome#14864](https://github.com/esphome/esphome/pull/14864) by [@swoboda1337](https://github.com/swoboda1337)
 - [as3935] Fix ENERGY_MASK dropping bit 4 of lightning energy MMSB [esphome#14861](https://github.com/esphome/esphome/pull/14861) by [@swoboda1337](https://github.com/swoboda1337)
 - [core] Support both dot and dash separators in Version.parse [esphome#14858](https://github.com/esphome/esphome/pull/14858) by [@swoboda1337](https://github.com/swoboda1337)
+- [core] Small improvements [esphome#14884](https://github.com/esphome/esphome/pull/14884) by [@diorcety](https://github.com/diorcety)
+- [api] Fix ProtoMessage protected destructor compile error on host platform [esphome#14882](https://github.com/esphome/esphome/pull/14882) by [@bdraco](https://github.com/bdraco)
+- [speaker] Fix media playlist using announcement delay [esphome#14889](https://github.com/esphome/esphome/pull/14889) by [@swoboda1337](https://github.com/swoboda1337)
+- [core] Add back deprecated set_internal() for external projects [esphome#14887](https://github.com/esphome/esphome/pull/14887) by [@bdraco](https://github.com/bdraco)
+- [espnow] Fix EventPool/LockFreeQueue sizing off-by-one [esphome#14893](https://github.com/esphome/esphome/pull/14893) by [@bdraco](https://github.com/bdraco)
+- [usb_cdc_acm] Fix EventPool/LockFreeQueue sizing off-by-one [esphome#14894](https://github.com/esphome/esphome/pull/14894) by [@bdraco](https://github.com/bdraco)
+- [usb_host] Fix EventPool/LockFreeQueue sizing off-by-one [esphome#14896](https://github.com/esphome/esphome/pull/14896) by [@bdraco](https://github.com/bdraco)
+- [usb_uart] Fix EventPool/LockFreeQueue sizing off-by-one [esphome#14895](https://github.com/esphome/esphome/pull/14895) by [@bdraco](https://github.com/bdraco)
+- [esp32_ble] Fix EventPool/LockFreeQueue sizing off-by-one [esphome#14892](https://github.com/esphome/esphome/pull/14892) by [@bdraco](https://github.com/bdraco)
+- [esp32_ble_server] Remove vestigial semaphore from BLECharacteristic [esphome#14900](https://github.com/esphome/esphome/pull/14900) by [@bdraco](https://github.com/bdraco)
+- [mqtt] Fix data race on inbound event queue [esphome#14891](https://github.com/esphome/esphome/pull/14891) by [@bdraco](https://github.com/bdraco)
+- [scheduler] Fix UB in cross-thread counter/vector reads, add atomic fast-path [esphome#14880](https://github.com/esphome/esphome/pull/14880) by [@bdraco](https://github.com/bdraco)
 
 ### All changes
 
@@ -1139,6 +1154,18 @@ The lists below are grouped by tag and may contain duplicates across sections.
 - [am43] Fix battery update throttle using wrong type [esphome#14864](https://github.com/esphome/esphome/pull/14864) by [@swoboda1337](https://github.com/swoboda1337)
 - [as3935] Fix ENERGY_MASK dropping bit 4 of lightning energy MMSB [esphome#14861](https://github.com/esphome/esphome/pull/14861) by [@swoboda1337](https://github.com/swoboda1337)
 - [core] Support both dot and dash separators in Version.parse [esphome#14858](https://github.com/esphome/esphome/pull/14858) by [@swoboda1337](https://github.com/swoboda1337)
+- [core] Small improvements [esphome#14884](https://github.com/esphome/esphome/pull/14884) by [@diorcety](https://github.com/diorcety)
+- [api] Fix ProtoMessage protected destructor compile error on host platform [esphome#14882](https://github.com/esphome/esphome/pull/14882) by [@bdraco](https://github.com/bdraco)
+- [speaker] Fix media playlist using announcement delay [esphome#14889](https://github.com/esphome/esphome/pull/14889) by [@swoboda1337](https://github.com/swoboda1337)
+- [core] Add back deprecated set_internal() for external projects [esphome#14887](https://github.com/esphome/esphome/pull/14887) by [@bdraco](https://github.com/bdraco)
+- [espnow] Fix EventPool/LockFreeQueue sizing off-by-one [esphome#14893](https://github.com/esphome/esphome/pull/14893) by [@bdraco](https://github.com/bdraco)
+- [usb_cdc_acm] Fix EventPool/LockFreeQueue sizing off-by-one [esphome#14894](https://github.com/esphome/esphome/pull/14894) by [@bdraco](https://github.com/bdraco)
+- [usb_host] Fix EventPool/LockFreeQueue sizing off-by-one [esphome#14896](https://github.com/esphome/esphome/pull/14896) by [@bdraco](https://github.com/bdraco)
+- [usb_uart] Fix EventPool/LockFreeQueue sizing off-by-one [esphome#14895](https://github.com/esphome/esphome/pull/14895) by [@bdraco](https://github.com/bdraco)
+- [esp32_ble] Fix EventPool/LockFreeQueue sizing off-by-one [esphome#14892](https://github.com/esphome/esphome/pull/14892) by [@bdraco](https://github.com/bdraco)
+- [esp32_ble_server] Remove vestigial semaphore from BLECharacteristic [esphome#14900](https://github.com/esphome/esphome/pull/14900) by [@bdraco](https://github.com/bdraco)
+- [mqtt] Fix data race on inbound event queue [esphome#14891](https://github.com/esphome/esphome/pull/14891) by [@bdraco](https://github.com/bdraco)
+- [scheduler] Fix UB in cross-thread counter/vector reads, add atomic fast-path [esphome#14880](https://github.com/esphome/esphome/pull/14880) by [@bdraco](https://github.com/bdraco)
 
 </details>
 
