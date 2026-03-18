@@ -184,17 +184,17 @@ void WaveshareEPaper::fill(Color color) {
     this->buffer_[i] = fill;
 }
 uint8_t WaveshareEPaperBWYR::color_to_hex(Color color) {
-  if (color.red == 0 && color.green == 0 && color.blue == 0 ) {
-      return 0x0;  // Black
+  if (color.red == 0 && color.green == 0 && color.blue == 0) {
+    return 0x0;  // Black
   }
-  if (color.red > 127 && color.green > 127 && color.blue > 127 ) {
-      return 0x1;  // White
+  if (color.red > 127 && color.green > 127 && color.blue > 127) {
+    return 0x1;  // White
   }
-  if (color.red > 127 && color.green > 127 && color.blue < 128 ) {
-      return 0x2;  // Yellow
+  if (color.red > 127 && color.green > 127 && color.blue < 128) {
+    return 0x2;  // Yellow
   }
-  if (color.red > 127 && color.green < 128 && color.blue < 128 ) {
-      return 0x3;  // Red
+  if (color.red > 127 && color.green < 128 && color.blue < 128) {
+    return 0x3;  // Red
   }
   return 0x1;
 }
@@ -2639,9 +2639,9 @@ void WaveshareEPaper3P97InBWYR::init_display_() {
 
   // VCOM DC Setting
   this->command(0x06);
-  this->data(0x0F);	
-  this->data(0x8B);	
-  this->data(0x93);	
+  this->data(0x0F);
+  this->data(0x8B);
+  this->data(0x93);
   this->data(0xC1);
 
   // COMMAND VCOM AND DATA INTERVAL SETTING
@@ -2649,7 +2649,7 @@ void WaveshareEPaper3P97InBWYR::init_display_() {
   this->data(0x37);
 
   this->command(0x30);
-  this->data(0x08);	
+  this->data(0x08);
 
   // COMMAND RESOLUTION SETTING
   this->command(0x61);
@@ -2660,14 +2660,14 @@ void WaveshareEPaper3P97InBWYR::init_display_() {
 
   // COMMAND TCON SETTING
   this->command(0x62);
-  this->data(0x76); 
   this->data(0x76);
-  this->data(0x76); 
+  this->data(0x76);
+  this->data(0x76);
   this->data(0x5A);
-  this->data(0x9D); 
-  this->data(0x8A);	
-  this->data(0x76); 
-  this->data(0x62); 
+  this->data(0x9D);
+  this->data(0x8A);
+  this->data(0x76);
+  this->data(0x62);
 
   // Resolution setting
   this->command(0x65);
@@ -2676,30 +2676,30 @@ void WaveshareEPaper3P97InBWYR::init_display_() {
   this->data(0x00);
   this->data(0x00);
 
-  this->command(0xE0);	//0xE3
-  this->data(0x10);	
+  this->command(0xE0);  // 0xE3
+  this->data(0x10);
 
-  this->command(0xE7);	//0xE7
-  this->data(0xA4);	
+  this->command(0xE7);  // 0xE7
+  this->data(0xA4);
 
-  this->command(0xE9);	
+  this->command(0xE9);
   this->data(0x01);
 
-  this->command(0xEF);	
+  this->command(0xEF);
   this->data(0x01);
-  this->command(0xF6);	
+  this->command(0xF6);
   this->data(0x20);
 
-  this->command(0xEF);	
+  this->command(0xEF);
   this->data(0x00);
 
-  this->command(0xE0);	
+  this->command(0xE0);
   this->data(0x12);
 
-  this->command(0xE6);	
+  this->command(0xE6);
   this->data(92);
 
-  this->command(0xA5);	
+  this->command(0xA5);
   this->data(0x00);
   this->wait_until_idle_();
 
