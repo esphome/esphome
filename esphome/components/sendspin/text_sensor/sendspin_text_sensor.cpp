@@ -69,7 +69,9 @@ void SendspinTextSensor::setup() {
     case SendspinMetadataTypes::YEAR: {
       this->parent_->add_metadata_callback([this](const ServerMetadataStateObject &metadata) {
         if (metadata.year.has_value()) {
-          this->schedule_publish_(metadata, str_snprintf("%d", 6, metadata.year.value()));
+          char buf[7];
+          snprintf(buf, sizeof(buf), "%d", metadata.year.value());
+          this->schedule_publish_(metadata, buf);
         }
       });
       break;
@@ -77,7 +79,9 @@ void SendspinTextSensor::setup() {
     case SendspinMetadataTypes::TRACK: {
       this->parent_->add_metadata_callback([this](const ServerMetadataStateObject &metadata) {
         if (metadata.track.has_value()) {
-          this->schedule_publish_(metadata, str_snprintf("%d", 6, metadata.track.value()));
+          char buf[7];
+          snprintf(buf, sizeof(buf), "%d", metadata.track.value());
+          this->schedule_publish_(metadata, buf);
         }
       });
       break;
