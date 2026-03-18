@@ -42,7 +42,5 @@ UC8179BWR(
     "7.5IN-BV3-BWR-XSRUPB",
     width=800,
     height=480,
-    data_rate="10MHz",
-    minimum_update_interval="30s",
     invert_red=True,
 )
