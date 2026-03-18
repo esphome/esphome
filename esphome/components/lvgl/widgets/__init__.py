@@ -513,6 +513,12 @@ def collect_parts(config):
     return parts
 
 
+def _size_to_str(value):
+    if isinstance(value, float):
+        return f"lv_pct({int(value * 100)})"
+    return str(value)
+
+
 async def set_obj_properties(w: Widget, config):
     """Generate a list of C++ statements to apply properties to an lv_obj_t"""
 
@@ -528,12 +534,12 @@ async def set_obj_properties(w: Widget, config):
             w.set_style(CONF_PAD_COLUMN, pad_column)
         if layout_type == TYPE_GRID:
             wid = config[CONF_ID]
-            rows = [str(x) for x in layout[CONF_GRID_ROWS]]
+            rows = [_size_to_str(x) for x in layout[CONF_GRID_ROWS]]
             rows = "{" + ",".join(rows) + ", LV_GRID_TEMPLATE_LAST}"
             row_id = ID(f"{wid}_row_dsc", is_declaration=True, type=lv_coord_t)
             row_array = cg.static_const_array(row_id, cg.RawExpression(rows))
             w.set_style("grid_row_dsc_array", row_array)
-            columns = [str(x) for x in layout[CONF_GRID_COLUMNS]]
+            columns = [_size_to_str(x) for x in layout[CONF_GRID_COLUMNS]]
             columns = "{" + ",".join(columns) + ", LV_GRID_TEMPLATE_LAST}"
             column_id = ID(f"{wid}_column_dsc", is_declaration=True, type=lv_coord_t)
             column_array = cg.static_const_array(column_id, cg.RawExpression(columns))
