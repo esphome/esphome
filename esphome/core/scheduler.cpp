@@ -212,6 +212,14 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     this->cancel_item_locked_(component, name_type, static_name, hash_or_id, type);
   }
   target->push_back(item);
+  if (target == &this->to_add_) {
+    this->to_add_count_increment_();
+  }
+#ifndef ESPHOME_THREAD_SINGLE
+  else {
+    this->defer_count_increment_();
+  }
+#endif
 }
 
 void HOT Scheduler::set_timeout(Component *component, const char *name, uint32_t timeout,
@@ -388,7 +396,7 @@ optional<uint32_t> HOT Scheduler::next_schedule_in(uint32_t now) {
   // safe when called from the main thread. Other threads must not call this method.
 
   // If no items, return empty optional
-  if (this->cleanup_() == 0)
+  if (!this->cleanup_())
     return {};
 
   SchedulerItem *item = this->items_[0];
@@ -422,7 +430,7 @@ void Scheduler::full_cleanup_removed_items_() {
   this->items_.erase(this->items_.begin() + write, this->items_.end());
   // Rebuild the heap structure since items are no longer in heap order
   std::make_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
-  this->to_remove_ = 0;
+  this->to_remove_clear_();
 }
 
 #ifndef ESPHOME_THREAD_SINGLE
@@ -503,7 +511,7 @@ void HOT Scheduler::call(uint32_t now) {
 
   // If we still have too many cancelled items, do a full cleanup
   // This only happens if cancelled items are stuck in the middle/bottom of the heap
-  if (this->to_remove_ >= MAX_LOGICALLY_DELETED_ITEMS) {
+  if (this->to_remove_count_() >= MAX_LOGICALLY_DELETED_ITEMS) {
     this->full_cleanup_removed_items_();
   }
   while (!this->items_.empty()) {
@@ -530,7 +538,7 @@ void HOT Scheduler::call(uint32_t now) {
       LockGuard guard{this->lock_};
       if (is_item_removed_locked_(item)) {
         this->recycle_item_main_loop_(this->pop_raw_locked_());
-        this->to_remove_--;
+        this->to_remove_decrement_();
         continue;
       }
     }
@@ -539,7 +547,7 @@ void HOT Scheduler::call(uint32_t now) {
     if (is_item_removed_(item)) {
       LockGuard guard{this->lock_};
       this->recycle_item_main_loop_(this->pop_raw_locked_());
-      this->to_remove_--;
+      this->to_remove_decrement_();
       continue;
     }
 #endif
@@ -567,7 +575,7 @@ void HOT Scheduler::call(uint32_t now) {
 
     if (this->is_item_removed_locked_(executed_item)) {
       // We were removed/cancelled in the function call, recycle and continue
-      this->to_remove_--;
+      this->to_remove_decrement_();
       this->recycle_item_main_loop_(executed_item);
       continue;
     }
@@ -577,6 +585,7 @@ void HOT Scheduler::call(uint32_t now) {
       // Add new item directly to to_add_
       // since we have the lock held
       this->to_add_.push_back(executed_item);
+      this->to_add_count_increment_();
     } else {
       // Timeout completed - recycle it
       this->recycle_item_main_loop_(executed_item);
@@ -605,6 +614,10 @@ void HOT Scheduler::call(uint32_t now) {
 #endif
 }
 void HOT Scheduler::process_to_add() {
+  // Fast path: skip lock acquisition when nothing to add.
+  // Worst case is a one-loop-iteration delay before newly added items are processed.
+  if (this->to_add_empty_())
+    return;
   LockGuard guard{this->lock_};
   for (auto *&it : this->to_add_) {
     if (is_item_removed_locked_(it)) {
@@ -618,17 +631,14 @@ void HOT Scheduler::process_to_add() {
     std::push_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
   }
   this->to_add_.clear();
+  this->to_add_count_clear_();
 }
-size_t HOT Scheduler::cleanup_() {
-  // Fast path: if nothing to remove, just return the current size
-  // Reading to_remove_ without lock is safe because:
-  // 1. We only call this from the main thread during call()
-  // 2. If it's 0, there's definitely nothing to cleanup
-  // 3. If it becomes non-zero after we check, cleanup will happen on the next loop iteration
-  // 4. Not all platforms support atomics, so we accept this race in favor of performance
-  // 5. The worst case is a one-loop-iteration delay in cleanup, which is harmless
-  if (this->to_remove_ == 0)
-    return this->items_.size();
+bool HOT Scheduler::cleanup_() {
+  // Fast path: if nothing to remove, just check if items exist.
+  // Uses atomic load on platforms with atomics, falls back to always taking the lock otherwise.
+  // Worst case is a one-loop-iteration delay in cleanup.
+  if (this->to_remove_empty_())
+    return !this->items_.empty();
 
   // We must hold the lock for the entire cleanup operation because:
   // 1. We're modifying items_ (via pop_raw_locked_) which requires exclusive access
@@ -643,10 +653,10 @@ size_t HOT Scheduler::cleanup_() {
     SchedulerItem *item = this->items_[0];
     if (!this->is_item_removed_locked_(item))
       break;
-    this->to_remove_--;
+    this->to_remove_decrement_();
     this->recycle_item_main_loop_(this->pop_raw_locked_());
   }
-  return this->items_.size();
+  return !this->items_.empty();
 }
 Scheduler::SchedulerItem *HOT Scheduler::pop_raw_locked_() {
   std::pop_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
@@ -699,7 +709,7 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type
     size_t heap_cancelled = this->mark_matching_items_removed_locked_(this->items_, component, name_type, static_name,
                                                                       hash_or_id, type, match_retry);
     total_cancelled += heap_cancelled;
-    this->to_remove_ += heap_cancelled;
+    this->to_remove_add_(heap_cancelled);
   }
 
   // Cancel items in to_add_
