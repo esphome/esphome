@@ -183,6 +183,21 @@ void WaveshareEPaper::fill(Color color) {
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;
 }
+uint8_t WaveshareEPaperBWYR::color_to_hex(Color color) {
+  if (color.red == 0 && color.green == 0 && color.blue == 0 ) {
+      return 0x0;  // Black
+  }
+  if (color.red > 127 && color.green > 127 && color.blue > 127 ) {
+      return 0x1;  // White
+  }
+  if (color.red > 127 && color.green > 127 && color.blue < 128 ) {
+      return 0x2;  // Yellow
+  }
+  if (color.red > 127 && color.green < 128 && color.blue < 128 ) {
+      return 0x3;  // Red
+  }
+  return 0x1;
+}
 void WaveshareEPaper7C::setup() {
   this->init_internal_7c_(this->get_buffer_length_());
   this->setup_pins_();
@@ -331,6 +346,9 @@ uint32_t WaveshareEPaper::get_buffer_length_() {
 uint32_t WaveshareEPaperBWR::get_buffer_length_() {
   return this->get_width_controller() * this->get_height_internal() / 4u;
 }  // black and red buffer
+uint32_t WaveshareEPaperBWYR::get_buffer_length_() {
+  return this->get_width_controller() * this->get_height_internal() / 4u;
+}  // buffer for b w y r 2bit per pixel
 uint32_t WaveshareEPaper7C::get_buffer_length_() {
   return this->get_width_controller() * this->get_height_internal() / 8u * 3u;
 }  // 7 colors buffer, 1 pixel = 3 bits, we will store 8 pixels in 24 bits = 3 bytes
@@ -359,6 +377,31 @@ void HOT WaveshareEPaperBWR::draw_absolute_pixel_internal(int x, int y, Color co
   } else {
     this->buffer_[pos + buf_half_len] &= ~(0x80 >> subpos);
   }
+}
+void WaveshareEPaperBWYR::fill(Color color) {
+  uint8_t pixel_bits = this->color_to_hex(color) & 0x03;
+
+  const uint32_t bytes_per_line = this->get_width_internal() / 4;
+  for (uint32_t y = 0; y < this->get_height_internal(); ++y) {
+    for (uint32_t x = 0; x < this->get_width_internal(); ++x) {
+      uint32_t pos = y * bytes_per_line + (x / 4);
+      uint8_t shift = (3 - (x % 4)) * 2;
+      this->buffer_[pos] &= ~(0x03 << shift);
+      this->buffer_[pos] |= (pixel_bits << shift);
+    }
+  }
+}
+void HOT WaveshareEPaperBWYR::draw_absolute_pixel_internal(int x, int y, Color color) {
+  if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
+    return;
+
+  uint8_t pixel_bits = this->color_to_hex(color) & 0x03;
+
+  const uint32_t bytes_per_line = this->get_width_internal() / 4;
+  uint32_t pos = y * bytes_per_line + (x / 4);
+  uint8_t shift = (3 - (x % 4)) * 2;
+  this->buffer_[pos] &= ~(0x03 << shift);
+  this->buffer_[pos] |= (pixel_bits << shift);
 }
 void HOT WaveshareEPaper7C::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
@@ -2567,6 +2610,127 @@ static const uint8_t LUT_WHITE_TO_BLACK_4_2[] = {
     0x01, 0x00, 0x00, 0x01, 0x50, 0x0E, 0x0E, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
+
+// https://files.waveshare.com/wiki/3.97inch_e-Paper_HAT%2B_G/3in97_e-Paper_G.zip
+void WaveshareEPaper3P97InBWYR::initialize() { this->init_display_(); }
+bool WaveshareEPaper3P97InBWYR::wait_until_idle_() {
+  if (this->busy_pin_ == nullptr) {
+    return true;
+  }
+  const uint32_t start = millis();
+  while (this->busy_pin_->digital_read()) {
+    if (millis() - start > this->idle_timeout_()) {
+      ESP_LOGD(TAG, "Timeout while displaying image!");
+      return false;
+    }
+    App.feed_wdt();
+    delay(10);
+  }
+  delay(200);  // NOLINT
+  return true;
+}
+void WaveshareEPaper3P97InBWYR::init_display_() {
+  this->reset_();
+
+  // COMMAND POWER SETTING
+  this->command(0x00);
+  this->data(0x2B);
+  this->data(0x29);
+
+  // VCOM DC Setting
+  this->command(0x06);
+  this->data(0x0F);	
+  this->data(0x8B);	
+  this->data(0x93);	
+  this->data(0xC1);
+
+  // COMMAND VCOM AND DATA INTERVAL SETTING
+  this->command(0x50);
+  this->data(0x37);
+
+  this->command(0x30);
+  this->data(0x08);	
+
+  // COMMAND RESOLUTION SETTING
+  this->command(0x61);
+  this->data(0x03);  // source 800
+  this->data(0x20);
+  this->data(0x02);  // gate init 680
+  this->data(0xA8);
+
+  // COMMAND TCON SETTING
+  this->command(0x62);
+  this->data(0x76); 
+  this->data(0x76);
+  this->data(0x76); 
+  this->data(0x5A);
+  this->data(0x9D); 
+  this->data(0x8A);	
+  this->data(0x76); 
+  this->data(0x62); 
+
+  // Resolution setting
+  this->command(0x65);
+  this->data(0x00);
+  this->data(0x00);  // 800*480
+  this->data(0x00);
+  this->data(0x00);
+
+  this->command(0xE0);	//0xE3
+  this->data(0x10);	
+
+  this->command(0xE7);	//0xE7
+  this->data(0xA4);	
+
+  this->command(0xE9);	
+  this->data(0x01);
+
+  this->command(0xEF);	
+  this->data(0x01);
+  this->command(0xF6);	
+  this->data(0x20);
+
+  this->command(0xEF);	
+  this->data(0x00);
+
+  this->command(0xE0);	
+  this->data(0x12);
+
+  this->command(0xE6);	
+  this->data(92);
+
+  this->command(0xA5);	
+  this->data(0x00);
+  this->wait_until_idle_();
+
+  // POWER ON
+  this->command(0x04);
+  delay(100);  // NOLINT
+  this->wait_until_idle_();
+};
+void HOT WaveshareEPaper3P97InBWYR::display() {
+  this->init_display_();
+
+  this->command(0x10);
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+
+  this->command(0x12);  // Display Refresh
+  this->data(0x00);
+  this->wait_until_idle_();
+  this->deep_sleep();
+}
+int WaveshareEPaper3P97InBWYR::get_width_internal() { return 800; }
+int WaveshareEPaper3P97InBWYR::get_height_internal() { return 480; }
+void WaveshareEPaper3P97InBWYR::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 3.97in BWYR-Mode");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
 
 void WaveshareEPaper4P2In::initialize() {
   // https://www.waveshare.com/w/upload/7/7f/4.2inch-e-paper-b-specification.pdf - page 8

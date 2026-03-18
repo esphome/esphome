@@ -83,6 +83,18 @@ class WaveshareEPaperBWR : public WaveshareEPaperBase {
   uint32_t get_buffer_length_() override;
 };
 
+class WaveshareEPaperBWYR : public WaveshareEPaperBase {
+ public:
+  uint8_t color_to_hex(Color color);
+  void fill(Color color) override;
+
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
+
+ protected:
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
+  uint32_t get_buffer_length_() override;
+};
+
 class WaveshareEPaper7C : public WaveshareEPaperBase {
  public:
   uint8_t color_to_hex(Color color);
@@ -518,6 +530,45 @@ class GDEY042T81 : public WaveshareEPaper {
   void reset_();
   void update_full_();
   void update_part_();
+  void init_display_();
+};
+
+class WaveshareEPaper3P97InBWYR : public WaveshareEPaperBWYR {
+ public:
+
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    this->command(0x02);  // Power off
+    this->data(0x00);
+    this->command(0x07);  // Deep sleep
+    this->data(0xA5);
+  }
+
+  void clear_screen();
+
+ protected:
+  bool wait_until_idle_();
+
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+
+  void reset_() {
+    if (this->reset_pin_ != nullptr) {
+      this->reset_pin_->digital_write(true);
+      delay(200);  // NOLINT
+      this->reset_pin_->digital_write(false);
+      delay(5);
+      this->reset_pin_->digital_write(true);
+      delay(200);  // NOLINT
+    }
+  };
+
   void init_display_();
 };
 
