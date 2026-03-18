@@ -825,13 +825,6 @@ void LD2412Component::get_gate_threshold() {
   this->send_command_(CMD_QUERY_STATIC_GATE_SENS, nullptr, 0);
 }
 
-void LD2412Component::set_gate_still_threshold_number(uint8_t gate, number::Number *n) {
-  this->gate_still_threshold_numbers_[gate] = n;
-}
-
-void LD2412Component::set_gate_move_threshold_number(uint8_t gate, number::Number *n) {
-  this->gate_move_threshold_numbers_[gate] = n;
-}
 #endif
 
 void LD2412Component::set_light_out_control() {
