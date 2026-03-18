@@ -328,11 +328,11 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       break;
     }
     case TuyaCommandType::GET_MAC_ADDRESS: {
-      uint8_t mac[6];
+      uint8_t mac[MAC_ADDRESS_SIZE];
       get_mac_address_raw(mac);
       this->send_raw_command_(TuyaCommandType::GET_MAC_ADDRESS, mac, sizeof(mac));
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-      char hex_buf[format_hex_pretty_size(6)];
+      char hex_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
       ESP_LOGV(TAG, "MAC address requested, reported as %s", format_hex_pretty_to(hex_buf, mac, sizeof(mac)));
 #endif
       break;
