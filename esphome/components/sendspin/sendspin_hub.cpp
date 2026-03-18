@@ -168,7 +168,8 @@ bool SendspinHub::send_hello_message_(uint8_t remaining_attempts, SendspinConnec
   }
 
   ClientHelloMessage msg;
-  msg.client_id = get_mac_address_pretty();
+  char mac_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  msg.client_id = get_mac_address_pretty_into_buffer(mac_buf);
   msg.name = App.get_friendly_name();
 
   DeviceInfoObject device_info;
