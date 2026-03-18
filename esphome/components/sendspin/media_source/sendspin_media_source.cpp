@@ -233,7 +233,7 @@ void SendspinMediaSource::handle_command(media_source::MediaSourceCommand comman
       this->parent_->update_state(SendspinClientState::EXTERNAL_SOURCE);
       break;
     }
-    case media_source::MediaSourceCommand::PLAY:
+    case media_source::MediaSourceCommand::PLAY:  // NOLINT(bugprone-branch-clone)
       this->parent_->send_client_command(SendspinControllerCommand::PLAY, std::nullopt, std::nullopt);
       break;
     case media_source::MediaSourceCommand::PAUSE:
