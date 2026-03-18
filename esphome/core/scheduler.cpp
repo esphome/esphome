@@ -138,7 +138,8 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
     // Still need to cancel existing timer if we have a name/id
     if (!skip_cancel) {
       LockGuard guard{this->lock_};
-      this->cancel_item_locked_(component, name_type, static_name, hash_or_id, type);
+      this->cancel_item_locked_(component, name_type, static_name, hash_or_id, type, /* match_retry= */ false,
+                                /* find_first= */ true);
     }
     return;
   }
@@ -215,7 +216,8 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
 
   // Common epilogue: atomic cancel-and-add (unless skip_cancel is true)
   if (!skip_cancel) {
-    this->cancel_item_locked_(component, name_type, static_name, hash_or_id, type);
+    this->cancel_item_locked_(component, name_type, static_name, hash_or_id, type, /* match_retry= */ false,
+                              /* find_first= */ true);
   }
   target->push_back(item);
   if (target == &this->to_add_) {
@@ -729,13 +731,20 @@ uint32_t HOT Scheduler::execute_item_(SchedulerItem *item, uint32_t now) {
 bool HOT Scheduler::cancel_item_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id,
                                  SchedulerItem::Type type, bool match_retry) {
   LockGuard guard{this->lock_};
+  // Public cancel path uses default find_first=false to cancel ALL matches because
+  // DelayAction parallel mode (skip_cancel=true) can create multiple items with the same key.
   return this->cancel_item_locked_(component, name_type, static_name, hash_or_id, type, match_retry);
 }
 
-// Helper to cancel items - must be called with lock held
+// Helper to cancel matching items - must be called with lock held.
+// When find_first=true, stops after the first match and exits across containers
+// (used by set_timer_common_ where cancel-before-add guarantees at most one match).
+// When find_first=false, cancels ALL matches across all containers (needed for
+// public cancel path where DelayAction parallel mode can create duplicates).
 // name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
 bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type, const char *static_name,
-                                        uint32_t hash_or_id, SchedulerItem::Type type, bool match_retry) {
+                                        uint32_t hash_or_id, SchedulerItem::Type type, bool match_retry,
+                                        bool find_first) {
   // Early return if static string name is invalid
   if (name_type == NameType::STATIC_STRING && static_name == nullptr) {
     return false;
@@ -747,7 +756,9 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type
   // Mark items in defer queue as cancelled (they'll be skipped when processed)
   if (type == SchedulerItem::TIMEOUT) {
     total_cancelled += this->mark_matching_items_removed_locked_(this->defer_queue_, component, name_type, static_name,
-                                                                 hash_or_id, type, match_retry);
+                                                                 hash_or_id, type, match_retry, find_first);
+    if (find_first && total_cancelled > 0)
+      return true;
   }
 #endif /* not ESPHOME_THREAD_SINGLE */
 
@@ -758,14 +769,16 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type
   // Only the main loop in call() should recycle items after execution completes.
   if (!this->items_.empty()) {
     size_t heap_cancelled = this->mark_matching_items_removed_locked_(this->items_, component, name_type, static_name,
-                                                                      hash_or_id, type, match_retry);
+                                                                      hash_or_id, type, match_retry, find_first);
     total_cancelled += heap_cancelled;
     this->to_remove_add_(heap_cancelled);
+    if (find_first && total_cancelled > 0)
+      return true;
   }
 
   // Cancel items in to_add_
   total_cancelled += this->mark_matching_items_removed_locked_(this->to_add_, component, name_type, static_name,
-                                                               hash_or_id, type, match_retry);
+                                                               hash_or_id, type, match_retry, find_first);
 
   return total_cancelled > 0;
 }
