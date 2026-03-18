@@ -64,7 +64,7 @@ dependencies:
     rules:
       - if: "target in [esp32s2, esp32s3, esp32p4]"
   esphome/esp-hub75:
-    version: 0.3.4
+    version: 0.3.5
     rules:
       - if: "target in [esp32, esp32s2, esp32s3, esp32c6, esp32p4]"
   espressif/mqtt:
