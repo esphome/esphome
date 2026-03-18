@@ -294,50 +294,67 @@ MENU_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action("display_menu.up", UpAction, MENU_ACTION_SCHEMA)
+@automation.register_action(
+    "display_menu.up", UpAction, MENU_ACTION_SCHEMA, synchronous=True
+)
 async def menu_up_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("display_menu.down", DownAction, MENU_ACTION_SCHEMA)
+@automation.register_action(
+    "display_menu.down", DownAction, MENU_ACTION_SCHEMA, synchronous=True
+)
 async def menu_down_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("display_menu.left", LeftAction, MENU_ACTION_SCHEMA)
+@automation.register_action(
+    "display_menu.left", LeftAction, MENU_ACTION_SCHEMA, synchronous=True
+)
 async def menu_left_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("display_menu.right", RightAction, MENU_ACTION_SCHEMA)
+@automation.register_action(
+    "display_menu.right", RightAction, MENU_ACTION_SCHEMA, synchronous=True
+)
 async def menu_right_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("display_menu.enter", EnterAction, MENU_ACTION_SCHEMA)
+@automation.register_action(
+    "display_menu.enter", EnterAction, MENU_ACTION_SCHEMA, synchronous=True
+)
 async def menu_enter_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("display_menu.show", ShowAction, MENU_ACTION_SCHEMA)
+@automation.register_action(
+    "display_menu.show", ShowAction, MENU_ACTION_SCHEMA, synchronous=True
+)
 async def menu_show_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("display_menu.hide", HideAction, MENU_ACTION_SCHEMA)
+@automation.register_action(
+    "display_menu.hide", HideAction, MENU_ACTION_SCHEMA, synchronous=True
+)
 async def menu_hide_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action(
-    "display_menu.show_main", ShowMainAction, MENU_ACTION_SCHEMA
+    "display_menu.show_main",
+    ShowMainAction,
+    MENU_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def menu_show_main_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

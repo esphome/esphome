@@ -37,27 +37,6 @@ enum MicrophoneEventGroupBits : uint32_t {
 };
 
 void I2SAudioMicrophone::setup() {
-#ifdef USE_I2S_LEGACY
-#if SOC_I2S_SUPPORTS_ADC
-  if (this->adc_) {
-    if (this->parent_->get_port() != I2S_NUM_0) {
-      ESP_LOGE(TAG, "Internal ADC only works on I2S0");
-      this->mark_failed();
-      return;
-    }
-  } else
-#endif
-#endif
-  {
-    if (this->pdm_) {
-      if (this->parent_->get_port() != I2S_NUM_0) {
-        ESP_LOGE(TAG, "PDM only works on I2S0");
-        this->mark_failed();
-        return;
-      }
-    }
-  }
-
   this->active_listeners_semaphore_ = xSemaphoreCreateCounting(MAX_LISTENERS, MAX_LISTENERS);
   if (this->active_listeners_semaphore_ == nullptr) {
     ESP_LOGE(TAG, "Creating semaphore failed");
