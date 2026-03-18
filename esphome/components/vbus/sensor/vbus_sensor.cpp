@@ -48,8 +48,8 @@ void DeltaSolBSPlusSensor::handle_message(std::vector<uint8_t> &message) {
   if (this->operating_hours2_sensor_ != nullptr)
     this->operating_hours2_sensor_->publish_state(get_u16(message, 18));
   if (this->heat_quantity_sensor_ != nullptr) {
-    this->heat_quantity_sensor_->publish_state(get_u16(message, 20) + get_u16(message, 22) * 1000 +
-                                               get_u16(message, 24) * 1000000);
+    this->heat_quantity_sensor_->publish_state(get_u16(message, 20) + get_u16(message, 22) * 1000.0f +
+                                               get_u16(message, 24) * 1000000.0f);
   }
   if (this->time_sensor_ != nullptr)
     this->time_sensor_->publish_state(get_u16(message, 12));
@@ -130,8 +130,8 @@ void DeltaSolCSensor::handle_message(std::vector<uint8_t> &message) {
   if (this->operating_hours2_sensor_ != nullptr)
     this->operating_hours2_sensor_->publish_state(get_u16(message, 14));
   if (this->heat_quantity_sensor_ != nullptr) {
-    this->heat_quantity_sensor_->publish_state(get_u16(message, 16) + get_u16(message, 18) * 1000 +
-                                               get_u16(message, 20) * 1000000);
+    this->heat_quantity_sensor_->publish_state(get_u16(message, 16) + get_u16(message, 18) * 1000.0f +
+                                               get_u16(message, 20) * 1000000.0f);
   }
   if (this->time_sensor_ != nullptr)
     this->time_sensor_->publish_state(get_u16(message, 22));
@@ -163,7 +163,8 @@ void DeltaSolCS2Sensor::handle_message(std::vector<uint8_t> &message) {
   if (this->operating_hours_sensor_ != nullptr)
     this->operating_hours_sensor_->publish_state(get_u16(message, 14));
   if (this->heat_quantity_sensor_ != nullptr)
-    this->heat_quantity_sensor_->publish_state((get_u16(message, 26) << 16) + get_u16(message, 24));
+    this->heat_quantity_sensor_->publish_state((static_cast<uint32_t>(get_u16(message, 26)) << 16) |
+                                               get_u16(message, 24));
   if (this->version_sensor_ != nullptr)
     this->version_sensor_->publish_state(get_u16(message, 28) * 0.01f);
 }
@@ -205,7 +206,8 @@ void DeltaSolCS4Sensor::handle_message(std::vector<uint8_t> &message) {
   if (this->operating_hours2_sensor_ != nullptr)
     this->operating_hours2_sensor_->publish_state(get_u16(message, 14));
   if (this->heat_quantity_sensor_ != nullptr)
-    this->heat_quantity_sensor_->publish_state((get_u16(message, 30) << 16) + get_u16(message, 28));
+    this->heat_quantity_sensor_->publish_state((static_cast<uint32_t>(get_u16(message, 30)) << 16) |
+                                               get_u16(message, 28));
   if (this->time_sensor_ != nullptr)
     this->time_sensor_->publish_state(get_u16(message, 22));
   if (this->version_sensor_ != nullptr)
@@ -251,7 +253,8 @@ void DeltaSolCSPlusSensor::handle_message(std::vector<uint8_t> &message) {
   if (this->operating_hours2_sensor_ != nullptr)
     this->operating_hours2_sensor_->publish_state(get_u16(message, 14));
   if (this->heat_quantity_sensor_ != nullptr)
-    this->heat_quantity_sensor_->publish_state((get_u16(message, 30) << 16) + get_u16(message, 28));
+    this->heat_quantity_sensor_->publish_state((static_cast<uint32_t>(get_u16(message, 30)) << 16) |
+                                               get_u16(message, 28));
   if (this->time_sensor_ != nullptr)
     this->time_sensor_->publish_state(get_u16(message, 22));
   if (this->version_sensor_ != nullptr)
