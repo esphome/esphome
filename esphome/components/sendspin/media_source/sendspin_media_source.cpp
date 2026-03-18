@@ -576,15 +576,7 @@ SyncTaskState SendspinMediaSource::sync_handle_load_chunk_(SyncContext &sync_con
     return SyncTaskState::LOAD_CHUNK;
   }
   DecodeResult decode_result = this->sync_decode_audio_(sync_context);
-  if (decode_result == DecodeResult::SKIPPED) {
-#ifdef SENDSPIN_MEDIA_SOURCE_DEBUG
-    ESP_LOGD(TAG, "Skipped audio chunk: too late to play");
-#endif
-    return SyncTaskState::LOAD_CHUNK;
-  } else if (decode_result == DecodeResult::FAILED) {
-#ifdef SENDSPIN_MEDIA_SOURCE_DEBUG
-    ESP_LOGW(TAG, "Failed to decode audio chunk");
-#endif
+  if ((decode_result == DecodeResult::SKIPPED) || (decode_result == DecodeResult::FAILED)) {
     return SyncTaskState::LOAD_CHUNK;
   } else if (decode_result == DecodeResult::ALLOCATION_FAILED) {
     xEventGroupSetBits(this->event_group_, EventGroupBits::TASK_ERROR | EventGroupBits::COMMAND_STOP);
