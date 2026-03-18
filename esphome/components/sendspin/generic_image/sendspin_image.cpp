@@ -15,7 +15,7 @@ static const char *const TAG = "sendspin.generic_image";
 
 // Stack size for the decode task - TODO: Determine how much stack is actually necessary
 static const size_t DECODE_TASK_STACK_SIZE = 8192;
-static const UBaseType_t DECODE_TASK_PRIORITY = 1;
+static const UBaseType_t DECODE_TASK_PRIORITY = 2;
 
 SendspinImage::SendspinImage(int fixed_width, int fixed_height, runtime_image::ImageFormat format,
                              image::ImageType type, image::Transparency transparency, bool is_big_endian,
