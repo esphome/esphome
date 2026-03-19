@@ -38,8 +38,8 @@ esp32:
 - **cpu_frequency** (*Optional*, string): The CPU frequency to use. One of `40MHz`, `80MHz`, `160MHz`, `240MHz`,
   `360MHz` or `400MHz`. Defaults to `160MHz`. Not all values are available for all chips.
 
-- **partitions** (*Optional*, filename): The name of (optionally including the path to) the file containing the
-  partitioning scheme to be used. When not specified, partitions are automatically generated based on `flash_size`.
+- **partitions** (*Optional*, filename or list): A partition table CSV file or a list of custom partitions to add.
+  See [Partitions](#esp32-partitions).
 
 - **framework** (*Optional*): Options for the underlying framework used by ESPHome. See [Framework](#esp32-framework).
 
@@ -450,6 +450,38 @@ esp32:
   custom or patched version of the component.
 - **path** (*Optional*, string): The path of the component in the git repository or a local path to the
   component if `source` is not set.
+
+<span id="esp32-partitions"></span>
+
+## Partitions
+
+By default, ESPHome automatically generates a partition table based on `flash_size`. The `partitions` option allows you to either
+provide a custom partition table CSV file for full control over the layout, or add extra partitions to the auto-generated table.
+
+```yaml
+esp32:
+  partitions: my_partitions.csv
+```
+
+Alternatively, you can provide a list of custom partitions to append to the auto-generated table. The app partition size is
+automatically reduced to make room. Valid partition types and subtypes are documented in the
+[ESP-IDF partition tables documentation](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/partition-tables.html).
+
+```yaml
+esp32:
+  partitions:
+    - name: my_data
+      type: data
+      subtype: spiffs
+      size: 0x10000
+```
+
+### Configuration Variables
+
+- **name** (*Required*, string): Name of the partition. Cannot be any of the reserved names: `nvs`, `app0`, `app1`, `otadata`, `eeprom`, `spiffs`, `phy_init`.
+- **type** (*Required*, string or integer): Partition type. One of `app` or `data`, or a custom type as an integer between 0x40 and 0xFE.
+- **subtype** (*Required*, string or integer): Partition subtype. For `app` type: `factory` or `test`. For `data` type: `nvs`, `nvs_keys`, `spiffs`, `coredump`, `efuse`, `fat`, `undefined`, or `littlefs`. Can also be an integer between 0x0 and 0xFE.
+- **size** (*Required*, integer): Partition size in bytes. Must be 4KB (0x1000) aligned.
 
 ## GPIO Pin Numbering
 
