@@ -1188,9 +1188,11 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * This callback is invoked when a Nextion custom binary sensor frame is received,
    * providing the component name as the key and the decoded boolean value.
    *
-   * @param callback The void(const std::string &key, bool value) callback.
+   * @param callback The void(std::string) callback.
    */
-  void add_custom_binary_sensor_callback(std::function<void(const std::string &, bool)> &&callback);
+  template<typename F> void add_custom_binary_sensor_callback(F &&callback) {
+    this->custom_binary_sensor_callback_.add(std::forward<F>(callback));
+  }
 #endif  // USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
 
 #ifdef USE_NEXTION_TRIGGER_CUSTOM_SENSOR
@@ -1199,9 +1201,11 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * This callback is invoked when a Nextion custom sensor frame is received,
    * providing the component name as the key and the decoded integer value.
    *
-   * @param callback The void(const std::string &key, int32_t value) callback.
+   * @param callback The void(std::string) callback.
    */
-  void add_custom_sensor_callback(std::function<void(const std::string &, int32_t)> &&callback);
+  template<typename F> void add_custom_sensor_callback(F &&callback) {
+    this->custom_sensor_callback_.add(std::forward<F>(callback));
+  }
 #endif  // USE_NEXTION_TRIGGER_CUSTOM_SENSOR
 
 #ifdef USE_NEXTION_TRIGGER_CUSTOM_SWITCH
@@ -1210,9 +1214,11 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * This callback is invoked when a Nextion custom switch frame is received,
    * providing the component name as the key and the decoded boolean value.
    *
-   * @param callback The void(const std::string &key, bool value) callback.
+   * @param callback The void(std::string) callback.
    */
-  void add_custom_switch_callback(std::function<void(const std::string &, bool)> &&callback);
+  template<typename F> void add_custom_switch_callback(F &&callback) {
+    this->custom_switch_callback_.add(std::forward<F>(callback));
+  }
 #endif  // USE_NEXTION_TRIGGER_CUSTOM_SWITCH
 
 #ifdef USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
@@ -1221,9 +1227,11 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * This callback is invoked when a Nextion custom text sensor frame is received,
    * providing the component name as the key and the decoded text value.
    *
-   * @param callback The void(const std::string &key, const std::string &value) callback.
+   * @param callback The void(std::string) callback.
    */
-  void add_custom_text_sensor_callback(std::function<void(const std::string &, const std::string &)> &&callback);
+  template<typename F> void add_custom_text_sensor_callback(F &&callback) {
+    this->custom_text_sensor_callback_.add(std::forward<F>(callback));
+  }
 #endif  // USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
 
   void update_all_components();
@@ -1571,16 +1579,16 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   CallbackManager<void(uint8_t, uint8_t, bool)> touch_callback_{};
   CallbackManager<void()> buffer_overflow_callback_{};
 #ifdef USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
-  CallbackManager<void(const std::string &, bool)> custom_binary_sensor_callback_;
+  CallbackManager<void(const std::string &, bool)> custom_binary_sensor_callback_{};
 #endif  // USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
 #ifdef USE_NEXTION_TRIGGER_CUSTOM_SENSOR
-  CallbackManager<void(const std::string &, int32_t)> custom_sensor_callback_;
+  CallbackManager<void(const std::string &, int32_t)> custom_sensor_callback_{};
 #endif  // USE_NEXTION_TRIGGER_CUSTOM_SENSOR
 #ifdef USE_NEXTION_TRIGGER_CUSTOM_SWITCH
-  CallbackManager<void(const std::string &, bool)> custom_switch_callback_;
+  CallbackManager<void(const std::string &, bool)> custom_switch_callback_{};
 #endif  // USE_NEXTION_TRIGGER_CUSTOM_SWITCH
 #ifdef USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
-  CallbackManager<void(const std::string &, const std::string &)> custom_text_sensor_callback_;
+  CallbackManager<void(const std::string &, const std::string &)> custom_text_sensor_callback_{};
 #endif  // USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
 
   nextion_writer_t writer_;

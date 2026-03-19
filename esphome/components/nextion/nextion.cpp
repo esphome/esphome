@@ -238,31 +238,6 @@ void Nextion::add_buffer_overflow_event_callback(std::function<void()> &&callbac
   this->buffer_overflow_callback_.add(std::move(callback));
 }
 
-#ifdef USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
-void Nextion::add_custom_binary_sensor_callback(std::function<void(const std::string &, bool)> &&callback) {
-  this->custom_binary_sensor_callback_.add(std::move(callback));
-}
-#endif  // USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
-
-#ifdef USE_NEXTION_TRIGGER_CUSTOM_SENSOR
-void Nextion::add_custom_sensor_callback(std::function<void(const std::string &, int32_t)> &&callback) {
-  this->custom_sensor_callback_.add(std::move(callback));
-}
-#endif  // USE_NEXTION_TRIGGER_CUSTOM_SENSOR
-
-#ifdef USE_NEXTION_TRIGGER_CUSTOM_SWITCH
-void Nextion::add_custom_switch_callback(std::function<void(const std::string &, bool)> &&callback) {
-  this->custom_switch_callback_.add(std::move(callback));
-}
-#endif  // USE_NEXTION_TRIGGER_CUSTOM_SWITCH
-
-#ifdef USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
-void Nextion::add_custom_text_sensor_callback(
-    std::function<void(const std::string &, const std::string &)> &&callback) {
-  this->custom_text_sensor_callback_.add(std::move(callback));
-}
-#endif  // USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
-
 void Nextion::update_all_components() {
   if ((!this->is_setup() && !this->connection_state_.ignore_is_setup_) || this->is_sleeping())
     return;
