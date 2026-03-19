@@ -10,8 +10,12 @@ from typing import Any
 from esphome import codegen as cg, config_validation as cv
 from esphome.const import CONF_ITEMS
 from esphome.core import CORE, ID, Lambda
-from esphome.cpp_generator import LambdaExpression, MockObj
-from esphome.cpp_types import uint32
+from esphome.cpp_generator import (
+    CallExpression,
+    LambdaExpression,
+    MockObj,
+    MockObjClass,
+)
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.types import Expression, SafeExpType
 
@@ -21,8 +25,11 @@ LOGGER = logging.getLogger(__name__)
 lvgl_ns = cg.esphome_ns.namespace("lvgl")
 
 DOMAIN = "lvgl"
+KEY_COLOR_FORMATS = "color_formats"
 KEY_LV_DEFINES = "lv_defines"
+KEY_REMAPPED_USES = "remapped_uses"
 KEY_UPDATED_WIDGETS = "updated_widgets"
+KEY_WARNINGS = "warnings"
 
 
 def get_data(key, default=None):
@@ -33,8 +40,35 @@ def get_data(key, default=None):
     :return:
     """
     return CORE.data.setdefault(DOMAIN, {}).setdefault(
-        key, default if default is not None else {}
+        key, {} if default is None else default
     )
+
+
+def get_warnings():
+    return get_data(KEY_WARNINGS, set())
+
+
+def get_remapped_uses():
+    return get_data(KEY_REMAPPED_USES, set())
+
+
+def get_color_formats():
+    return get_data(KEY_COLOR_FORMATS, set())
+
+
+def add_warning(msg: str):
+    get_warnings().add(msg)
+
+
+class StaticCastExpression(Expression):
+    __slots__ = ("type", "exp")
+
+    def __init__(self, type: Any, exp: SafeExpType):
+        self.type = str(type)
+        self.exp = cg.safe_exp(exp)
+
+    def __str__(self):
+        return f"static_cast<{self.type}>({self.exp})"
 
 
 def add_define(macro, value="1"):
@@ -47,27 +81,43 @@ def add_define(macro, value="1"):
     lv_defines[macro] = value
 
 
+def is_defined(macro):
+    return macro in get_data(KEY_LV_DEFINES)
+
+
 def literal(arg) -> MockObj:
     if isinstance(arg, str):
         return MockObj(arg)
     return arg
 
 
-def static_cast(type, value):
-    return literal(f"static_cast<{type}>({value})")
+def addr(arg) -> MockObj:
+    return MockObj(f"&{arg}")
 
 
 def call_lambda(lamb: LambdaExpression):
+    """
+    Given a lambda, either reduce to a simple expression or call it, possibly with parameters
+    from the surrounding context
+    :param lamb:
+    :return:
+    """
     expr = lamb.content.strip()
     if expr.startswith("return") and expr.endswith(";"):
-        return expr[6:-1].strip()
-    # If lambda has parameters, call it with those parameter names
+        # Convert a lambda returning a simple expression to just that expression
+        expr = cg.RawExpression(expr[6:-1].strip())
+        # Don't cast if the return type is a class
+        if isinstance(lamb.return_type, MockObjClass):
+            return expr
+        return StaticCastExpression(lamb.return_type, expr)
+    # If lambda has parameters, call it with their names
     # Parameter names come from hardcoded component code (like "x", "it", "event")
     # not from user input, so they're safe to use directly
     if lamb.parameters and lamb.parameters.parameters:
-        param_names = ", ".join(str(param.id) for param in lamb.parameters.parameters)
-        return f"{lamb}({param_names})"
-    return f"{lamb}()"
+        return CallExpression(
+            lamb, *[MockObj(x.id) for x in lamb.parameters.parameters]
+        )
+    return CallExpression(lamb)
 
 
 class LValidator:
@@ -76,7 +126,7 @@ class LValidator:
     has `process()` to convert a value during code generation
     """
 
-    def __init__(self, validator, rtype, retmapper=None, requires=None):
+    def __init__(self, validator, rtype: MockObj, retmapper=None, requires=None):
         self.validator = validator
         self.rtype = rtype
         self.retmapper = retmapper
@@ -99,10 +149,9 @@ class LValidator:
             from .lvcode import get_lambda_context_args
 
             args = args or get_lambda_context_args()
-            return cg.RawExpression(
-                call_lambda(
-                    await cg.process_lambda(value, args, return_type=self.rtype)
-                )
+
+            return call_lambda(
+                await cg.process_lambda(value, args, return_type=self.rtype)
             )
         if self.retmapper is not None:
             return self.retmapper(value)
@@ -112,6 +161,8 @@ class LValidator:
             value = [
                 await cg.get_variable(x) if isinstance(x, ID) else x for x in value
             ]
+        if self.rtype is cg.int_:
+            value = int(value)
         return cg.safe_exp(value)
 
 
@@ -122,10 +173,11 @@ class LvConstant(LValidator):
     The property `one_of` has the single case validator, and `several_of` allows a list of constants.
     """
 
-    def __init__(self, prefix: str, *choices):
+    def __init__(self, prefix: str, *choices, typename=None):
         self.prefix = prefix
-        self.choices = choices
-        prefixed_choices = [prefix + v for v in choices]
+        self.choices = tuple(x.upper() for x in choices)
+        self.typename = typename or prefix.lower() + "t"
+        prefixed_choices = [prefix + v.upper() for v in choices]
         prefixed_validator = cv.one_of(*prefixed_choices, upper=True)
 
         @schema_extractor("one_of")
@@ -136,24 +188,30 @@ class LvConstant(LValidator):
                 return prefixed_validator(value)
             return self.prefix + cv.one_of(*choices, upper=True)(value)
 
-        super().__init__(validator, rtype=uint32)
+        super().__init__(validator, rtype=cg.uint32)
         self.retmapper = self.mapper
-        self.one_of = LValidator(validator, uint32, retmapper=self.mapper)
+        self.one_of = LValidator(validator, cg.uint32, retmapper=self.mapper)
         self.several_of = LValidator(
-            cv.ensure_list(self.one_of), uint32, retmapper=self.mapper
+            cv.ensure_list(self.one_of), cg.uint32, retmapper=self.mapper
         )
 
     def mapper(self, value):
         if not isinstance(value, list):
             value = [value]
-        return literal(
-            "|".join(
-                [
-                    str(v) if str(v).startswith(self.prefix) else self.prefix + str(v)
-                    for v in value
-                ]
-            ).upper()
-        )
+        value = [
+            (
+                str(v).upper()
+                if str(v).startswith(self.prefix)
+                else self.prefix + str(v).upper()
+            )
+            for v in value
+        ]
+        if len(value) == 1:
+            return literal(value[0])
+        value = literal("|".join(value))
+        if self.typename is None:
+            return value
+        return StaticCastExpression(self.typename, value)
 
     def extend(self, *choices):
         """
@@ -161,7 +219,14 @@ class LvConstant(LValidator):
         :param choices: The extra choices
         :return: A new LVConstant instance
         """
-        return LvConstant(self.prefix, *(self.choices + choices))
+        return LvConstant(
+            self.prefix, *(self.choices + choices), typename=self.typename
+        )
+
+    def __getattr__(self, item):
+        if item.upper() not in self.choices:
+            raise AttributeError(f"{item} not one of {self.choices}")
+        return self.mapper(item)
 
 
 # Parts
@@ -277,10 +342,12 @@ PARTS = (
     CONF_KNOB,
     CONF_SELECTED,
     CONF_ITEMS,
-    CONF_TICKS,
+    # CONF_TICKS,
     CONF_CURSOR,
     CONF_TEXTAREA_PLACEHOLDER,
 )
+
+LV_PART = LvConstant("LV_PART_", *(p.upper() for p in PARTS))
 
 KEYBOARD_MODES = LvConstant(
     "LV_KEYBOARD_MODE_",
@@ -359,6 +426,7 @@ OBJ_FLAGS = (
     "overflow_visible",
     "layout_1",
     "layout_2",
+    "send_draw_task_events",
     "widget_1",
     "widget_2",
     "user_1",
@@ -366,12 +434,14 @@ OBJ_FLAGS = (
     "user_3",
     "user_4",
 )
+LV_OBJ_FLAG = LvConstant("LV_OBJ_FLAG_", *OBJ_FLAGS)
 
 ARC_MODES = LvConstant("LV_ARC_MODE_", "NORMAL", "REVERSE", "SYMMETRICAL")
 BAR_MODES = LvConstant("LV_BAR_MODE_", "NORMAL", "SYMMETRICAL", "RANGE")
+SLIDER_MODES = LvConstant("LV_SLIDER_MODE_", "NORMAL", "SYMMETRICAL", "RANGE")
 
 BUTTONMATRIX_CTRLS = LvConstant(
-    "LV_BTNMATRIX_CTRL_",
+    "LV_BUTTONMATRIX_CTRL_",
     "HIDDEN",
     "NO_REPEAT",
     "DISABLED",
@@ -434,12 +504,16 @@ CONF_ACCEPTED_CHARS = "accepted_chars"
 CONF_ADJUSTABLE = "adjustable"
 CONF_ALIGN = "align"
 CONF_ALIGN_TO = "align_to"
+CONF_ANGLE_RANGE = "angle_range"
 CONF_ANIMATED = "animated"
 CONF_ANIMATION = "animation"
+CONF_ANIMATIONS = "animations"
 CONF_ANTIALIAS = "antialias"
 CONF_ARC_LENGTH = "arc_length"
 CONF_AUTO_START = "auto_start"
 CONF_BACKGROUND_STYLE = "background_style"
+CONF_BG_OPA = "bg_opa"
+CONF_BOTTOM_LAYER = "bottom_layer"
 CONF_BUTTON_STYLE = "button_style"
 CONF_DECIMAL_PLACES = "decimal_places"
 CONF_COLUMN = "column"
@@ -449,9 +523,11 @@ CONF_DISP_BG_IMAGE = "disp_bg_image"
 CONF_DISP_BG_OPA = "disp_bg_opa"
 CONF_BODY = "body"
 CONF_BUTTONS = "buttons"
-CONF_BYTE_ORDER = "byte_order"
 CONF_CHANGE_RATE = "change_rate"
 CONF_CLOSE_BUTTON = "close_button"
+CONF_COLOR_DEPTH = "color_depth"
+CONF_COLOR_END = "color_end"
+CONF_COLOR_START = "color_start"
 CONF_CONTAINER = "container"
 CONF_CONTROL = "control"
 CONF_DEFAULT_FONT = "default_font"
@@ -483,8 +559,10 @@ CONF_GRID_COLUMN_ALIGN = "grid_column_align"
 CONF_GRID_COLUMNS = "grid_columns"
 CONF_GRID_ROW_ALIGN = "grid_row_align"
 CONF_GRID_ROWS = "grid_rows"
+CONF_HEADER_BUTTONS = "header_buttons"
 CONF_HEADER_MODE = "header_mode"
 CONF_HOME = "home"
+CONF_INDICATORS = "indicators"
 CONF_INITIAL_FOCUS = "initial_focus"
 CONF_SELECTED_DIGIT = "selected_digit"
 CONF_KEY_CODE = "key_code"
@@ -496,6 +574,7 @@ CONF_LONG_PRESS_TIME = "long_press_time"
 CONF_LONG_PRESS_REPEAT_TIME = "long_press_repeat_time"
 CONF_LVGL_ID = "lvgl_id"
 CONF_LONG_MODE = "long_mode"
+CONF_MAJOR_TICKS_STYLE = "major_ticks_style"
 CONF_MSGBOXES = "msgboxes"
 CONF_OBJ = "obj"
 CONF_ONE_CHECKED = "one_checked"
@@ -517,12 +596,15 @@ CONF_PIVOT_Y = "pivot_y"
 CONF_PLACEHOLDER_TEXT = "placeholder_text"
 CONF_POINTS = "points"
 CONF_PREVIOUS = "previous"
+CONF_RADIUS = "radius"
 CONF_REPEAT_COUNT = "repeat_count"
 CONF_RECOLOR = "recolor"
 CONF_RESUME_ON_INPUT = "resume_on_input"
 CONF_RIGHT_BUTTON = "right_button"
 CONF_ROLLOVER = "rollover"
 CONF_ROOT_BACK_BTN = "root_back_btn"
+CONF_ROWS = "rows"
+CONF_SCALE = "scale"
 CONF_SCALE_LINES = "scale_lines"
 CONF_SCROLLBAR_MODE = "scrollbar_mode"
 CONF_SCROLL_DIR = "scroll_dir"
@@ -536,6 +618,7 @@ CONF_SRC = "src"
 CONF_START_ANGLE = "start_angle"
 CONF_START_VALUE = "start_value"
 CONF_STATES = "states"
+CONF_STRIDE = "stride"
 CONF_STYLE = "style"
 CONF_STYLES = "styles"
 CONF_STYLE_DEFINITIONS = "style_definitions"
@@ -544,6 +627,7 @@ CONF_SKIP = "skip"
 CONF_SYMBOL = "symbol"
 CONF_TAB_ID = "tab_id"
 CONF_TABS = "tabs"
+CONF_TICK_STYLE = "tick_style"
 CONF_TIME_FORMAT = "time_format"
 CONF_TILE = "tile"
 CONF_TILE_ID = "tile_id"
@@ -551,6 +635,8 @@ CONF_TILES = "tiles"
 CONF_TITLE = "title"
 CONF_TOP_LAYER = "top_layer"
 CONF_TOUCHSCREENS = "touchscreens"
+CONF_TRANSFORM_ROTATION = "transform_rotation"
+CONF_TRANSFORM_SCALE = "transform_scale"
 CONF_TRANSPARENCY_KEY = "transparency_key"
 CONF_THEME = "theme"
 CONF_UPDATE_ON_RELEASE = "update_on_release"
@@ -578,6 +664,16 @@ LV_KEYS = LvConstant(
     "END",
 )
 
+LV_SCALE_MODE = LvConstant(
+    "LV_SCALE_MODE_",
+    "HORIZONTAL_TOP",
+    "HORIZONTAL_BOTTOM",
+    "VERTICAL_LEFT",
+    "VERTICAL_RIGHT",
+    "ROUND_INNER",
+    "ROUND_OUTER",
+)
+
 
 DEFAULT_ESPHOME_FONT = "esphome_lv_default_font"
 
@@ -590,3 +686,29 @@ def join_enums(enums, prefix=""):
     if prefix:
         return literal("|".join(f"{prefix}{e.upper()}" for e in enums))
     return literal("|".join(f"(int){e.upper()}" for e in enums))
+
+
+# fmt: off
+LV_COLOR_FORMATS = (
+    "RGB565", "SWAPPED", "RGB565A8", "RGB888", "XRGB8888", "ARGB8888", "PREMULTIPLIED", "L8", "AL88", "A8", "I1",
+)
+
+LV_DEFINES = (
+    "LV_USE_FREERTOS_TASK_NOTIFY", "LV_DRAW_BUF_STRIDE_ALIGN", "LV_USE_DRAW_SW", "LV_DRAW_SW_DRAW_UNIT_CNT",
+    "LV_DRAW_SW_COMPLEX", "LV_USE_DRAW_PXP", "LV_USE_PXP_DRAW_THREAD", "LV_USE_DRAW_G2D",
+    "LV_USE_G2D_DRAW_THREAD", "LV_VG_LITE_USE_BOX_SHADOW", "LV_VG_LITE_THORVG_16PIXELS_ALIGN", "LV_LOG_USE_TIMESTAMP",
+    "LV_LOG_USE_FILE_LINE", "LV_USE_OBJ_ID_BUILTIN", "LV_USE_OBJ_PROPERTY_NAME", "LV_ATTRIBUTE_MEM_ALIGN_SIZE",
+    "LV_FONT_MONTSERRAT_14", "LV_USE_FONT_PLACEHOLDER", "LV_WIDGETS_HAS_DEFAULT_VALUE", "LV_USE_ARCLABEL",
+    "LV_USE_CALENDAR", "LV_USE_CALENDAR_HEADER_ARROW", "LV_USE_CALENDAR_HEADER_DROPDOWN", "LV_USE_CHART",
+    "LV_USE_LIST", "LV_USE_MENU", "LV_USE_MSGBOX", "LV_USE_SCALE",
+    "LV_USE_TABLE", "LV_USE_SPAN", "LV_USE_WIN", "LV_USE_THEME_DEFAULT",
+    "LV_THEME_DEFAULT_GROW", "LV_USE_THEME_SIMPLE", "LV_USE_THEME_MONO", "LV_USE_FLEX",
+    "LV_USE_GRID", "LV_USE_PROFILER_BUILTIN", "LV_PROFILER_BUILTIN_DEFAULT_ENABLE", "LV_PROFILER_LAYOUT",
+    "LV_PROFILER_REFR", "LV_PROFILER_DRAW", "LV_PROFILER_INDEV", "LV_PROFILER_DECODER",
+    "LV_PROFILER_FONT", "LV_PROFILER_FS", "LV_PROFILER_TIMER", "LV_PROFILER_CACHE",
+    "LV_PROFILER_EVENT", "LV_USE_OBSERVER", "LV_IME_PINYIN_USE_DEFAULT_DICT", "LV_IME_PINYIN_USE_K9_MODE",
+    "LV_FILE_EXPLORER_QUICK_ACCESS", "LV_TEST_SCREENSHOT_CREATE_REFERENCE_IMAGE", "LV_LINUX_FBDEV_MMAP",
+    "LV_USE_NUTTX_MOUSE_MOVE_STEP", "LV_USE_GENERIC_MIPI", "LV_BUILD_EXAMPLES", "LV_BUILD_DEMOS",
+    "LV_WAYLAND_USE_EGL", "LV_WAYLAND_USE_G2D", "LV_WAYLAND_USE_SHM", "LV_LINUX_DRM_USE_EGL",
+    "LV_USE_LZ4", "LV_USE_THORVG", "LV_SDL_USE_EGL", "LV_USE_EGL", "LV_LABEL_LONG_TXT_HINT", "LV_LABEL_TEXT_SELECTION",
+) + tuple(f"LV_DRAW_SW_SUPPORT_{f}" for f in LV_COLOR_FORMATS)
