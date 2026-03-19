@@ -508,11 +508,17 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   /// get if the module is offline, didn't respond the last command
   bool get_module_offline() { return module_offline_; }
   /// Set callback for commands
-  void add_on_command_sent_callback(std::function<void(int, int)> &&callback);
+  template<typename F> void add_on_command_sent_callback(F &&callback) {
+    this->command_sent_callback_.add(std::forward<F>(callback));
+  }
   /// Set callback for online changes
-  void add_on_online_callback(std::function<void(int, int)> &&callback);
+  template<typename F> void add_on_online_callback(F &&callback) {
+    this->online_callback_.add(std::forward<F>(callback));
+  }
   /// Set callback for offline changes
-  void add_on_offline_callback(std::function<void(int, int)> &&callback);
+  template<typename F> void add_on_offline_callback(F &&callback) {
+    this->offline_callback_.add(std::forward<F>(callback));
+  }
   /// called by esphome generated code to set the max_cmd_retries.
   void set_max_cmd_retries(uint8_t max_cmd_retries) { this->max_cmd_retries_ = max_cmd_retries; }
   /// get how many times a command will be (re)sent if no response is received
