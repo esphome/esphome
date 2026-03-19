@@ -61,20 +61,20 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
 #ifdef USE_SENSOR
   void set_rssi_sensor(sensor::Sensor *rssi_sensor) { rssi_sensor_ = rssi_sensor; }
 #endif
-  void add_on_sms_received_callback(std::function<void(std::string, std::string)> callback) {
-    this->sms_received_callback_.add(std::move(callback));
+  template<typename F> void add_on_sms_received_callback(F &&callback) {
+    this->sms_received_callback_.add(std::forward<F>(callback));
   }
-  void add_on_incoming_call_callback(std::function<void(std::string)> callback) {
-    this->incoming_call_callback_.add(std::move(callback));
+  template<typename F> void add_on_incoming_call_callback(F &&callback) {
+    this->incoming_call_callback_.add(std::forward<F>(callback));
   }
-  void add_on_call_connected_callback(std::function<void()> callback) {
-    this->call_connected_callback_.add(std::move(callback));
+  template<typename F> void add_on_call_connected_callback(F &&callback) {
+    this->call_connected_callback_.add(std::forward<F>(callback));
   }
-  void add_on_call_disconnected_callback(std::function<void()> callback) {
-    this->call_disconnected_callback_.add(std::move(callback));
+  template<typename F> void add_on_call_disconnected_callback(F &&callback) {
+    this->call_disconnected_callback_.add(std::forward<F>(callback));
   }
-  void add_on_ussd_received_callback(std::function<void(std::string)> callback) {
-    this->ussd_received_callback_.add(std::move(callback));
+  template<typename F> void add_on_ussd_received_callback(F &&callback) {
+    this->ussd_received_callback_.add(std::forward<F>(callback));
   }
   void send_sms(const std::string &recipient, const std::string &message);
   void send_ussd(const std::string &ussd_code);
