@@ -494,6 +494,13 @@ def hex_int(value):
     return HexInt(int_(value))
 
 
+def int_to_hex_string(value: int | str) -> str:
+    """Convert an integer to a hex string (e.g. 64 -> '0x40'). Pass-through strings."""
+    if isinstance(value, int):
+        return f"0x{value:X}"
+    return value
+
+
 def int_(value):
     """Validate that the config option is an integer.
 
