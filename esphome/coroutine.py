@@ -63,11 +63,11 @@ class CoroPriority(enum.IntEnum):
     resolution during code generation.
     """
 
-    # Logger early init - must run before all other code because:
-    # 1. All code assumes global_logger is ready for ESP_LOG* calls
-    # 2. Without this, any log call before logger init dereferences nullptr
+    # Early init - runs before platform init and before Application exists.
+    # Currently used only to connect logging so ESP_LOG* calls work
+    # immediately in all subsequent phases.
     # Examples: logger (1100)
-    LOGGER_INIT = 1100
+    EARLY_INIT = 1100
 
     # Platform initialization
     # Examples: esp32, esp8266, rp2040
