@@ -350,6 +350,8 @@ async def to_code(config: ConfigType) -> None:
     # pre_setup() sets global_logger and must run before any other code
     # that may call ESP_LOG* (e.g. setup_preferences contains ESP_LOGVV).
     cg.add(log.pre_setup())
+    initial_level = LOG_LEVELS[config.get(CONF_INITIAL_LEVEL, level)]
+    cg.add(log.set_log_level(initial_level))
 
     # Schedule the rest of logger setup at DIAGNOSTICS priority, after
     # Application is constructed (CORE priority) but before most components.
@@ -361,7 +363,6 @@ async def _late_logger_init(config: ConfigType) -> None:
     """Finish logger setup after Application is constructed."""
     log = await cg.get_variable(config[CONF_ID])
     level = config[CONF_LEVEL]
-    initial_level = LOG_LEVELS[config.get(CONF_INITIAL_LEVEL, level)]
     baud_rate: int = config[CONF_BAUD_RATE]
     if CORE.is_esp32 or CORE.is_libretiny or CORE.is_nrf52:
         task_log_buffer_size = config[CONF_TASK_LOG_BUFFER_SIZE]
@@ -374,8 +375,6 @@ async def _late_logger_init(config: ConfigType) -> None:
         cg.add(log.create_pthread_key())
         cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
         cg.add(log.init_log_buffer(64))  # Fixed 64 slots for host
-
-    cg.add(log.set_log_level(initial_level))
 
     # Enable runtime tag levels if logs are configured or explicitly enabled
     logs_config = config[CONF_LOGS]
