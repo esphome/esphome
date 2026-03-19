@@ -170,14 +170,18 @@ static uint8_t calc_checksum(void *data, size_t size) {
   return checksum;
 }
 
-static int get_firmware_int(const char *version_string) {
-  std::string version_str = version_string;
-  if (version_str[0] == 'v') {
-    version_str.erase(0, 1);
+static int32_t get_firmware_int(const char *version_string) {
+  // Convert "v1.5.4" -> 154 by skipping 'v' and '.', accumulating digits
+  const char *p = (*version_string == 'v') ? version_string + 1 : version_string;
+  int32_t result = 0;
+  for (; *p != '\0'; p++) {
+    if (*p == '.')
+      continue;
+    if (*p < '0' || *p > '9')
+      return 0;
+    result = result * 10 + (*p - '0');
   }
-  version_str.erase(remove(version_str.begin(), version_str.end(), '.'), version_str.end());
-  int version_integer = stoi(version_str);
-  return version_integer;
+  return result;
 }
 
 float LD2420Component::get_setup_priority() const { return setup_priority::BUS; }
@@ -683,7 +687,7 @@ int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
       retry = 0;
     }
     if (this->cmd_reply_.error > 0) {
-      this->handle_cmd_error(error);
+      this->handle_cmd_error(this->cmd_reply_.error);
     }
   }
   return error;

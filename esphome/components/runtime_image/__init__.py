@@ -11,6 +11,7 @@ from esphome.components.image import (
 )
 import esphome.config_validation as cv
 from esphome.const import CONF_FORMAT, CONF_ID, CONF_RESIZE, CONF_TYPE
+from esphome.core import CORE
 
 AUTO_LOAD = ["image"]
 CODEOWNERS = ["@guillempages", "@clydebarrow", "@kahrendt"]
@@ -74,7 +75,14 @@ class JPEGFormat(Format):
 
     def actions(self) -> None:
         cg.add_define("USE_RUNTIME_IMAGE_JPEG")
-        cg.add_library("JPEGDEC", None, "https://github.com/bitbank2/JPEGDEC#ca1e0f2")
+        cg.add_library("JPEGDEC", "1.8.4", "https://github.com/bitbank2/JPEGDEC#1.8.4")
+        if CORE.is_esp32:
+            from esphome.components.esp32 import add_idf_component
+
+            # JPEGDEC uses ESP32-S3 SIMD optimizations (guarded by board-level
+            # ARDUINO_ESP32S3_DEV define) that require esp-dsp headers.
+            # On Arduino this overwrites the stub; on IDF it adds the component.
+            add_idf_component(name="espressif/esp-dsp", ref="1.7.1")
 
 
 class PNGFormat(Format):

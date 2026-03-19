@@ -6,7 +6,7 @@
 namespace esphome {
 namespace preferences {
 
-class IntervalSyncer : public Component {
+class IntervalSyncer final : public Component {
  public:
   void set_write_interval(uint32_t write_interval) { this->write_interval_ = write_interval; }
   void setup() override {
