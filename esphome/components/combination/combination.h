@@ -1,10 +1,10 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/sensor/sensor.h"
 
 #include <functional>
-#include <vector>
 
 namespace esphome {
 namespace combination {
@@ -42,6 +42,7 @@ class CombinationNoParameterComponent : public CombinationComponent {
 // Base class for opertions that require one parameter to compute the combination
 class CombinationOneParameterComponent : public CombinationComponent {
  public:
+  void set_source_count(size_t count) { this->sensor_sources_.init(count); }
   void add_source(Sensor *sensor, std::function<float(float)> const &compute);
   void add_source(Sensor *sensor, float value);
 
@@ -55,7 +56,7 @@ class CombinationOneParameterComponent : public CombinationComponent {
   };
 
  protected:
-  std::vector<SensorSource> sensor_sources_;
+  FixedVector<SensorSource> sensor_sources_;
 };
 
 class KalmanCombinationComponent : public CombinationOneParameterComponent {
