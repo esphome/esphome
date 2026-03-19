@@ -11,15 +11,9 @@ void FloatOutput::set_max_power(float max_power) {
   this->max_power_ = clamp(max_power, this->min_power_, 1.0f);  // Clamp to MIN>=MAX>=1.0
 }
 
-float FloatOutput::get_max_power() const { return this->max_power_; }
-
 void FloatOutput::set_min_power(float min_power) {
   this->min_power_ = clamp(min_power, 0.0f, this->max_power_);  // Clamp to 0.0>=MIN>=MAX
 }
-
-void FloatOutput::set_zero_means_zero(bool zero_means_zero) { this->zero_means_zero_ = zero_means_zero; }
-
-float FloatOutput::get_min_power() const { return this->min_power_; }
 
 void FloatOutput::set_level(float state) {
   state = clamp(state, 0.0f, 1.0f);
