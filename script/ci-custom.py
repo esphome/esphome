@@ -891,13 +891,13 @@ def lint_no_powf_in_core(fname, match):
 
 
 @lint_re_check(
-    r"std\s*::\s*bind\s*\(" + CPP_RE_EOL,
+    r"[^\w]std\s*::\s*bind\s*\(" + CPP_RE_EOL,
     include=cpp_include,
 )
 def lint_no_std_bind(fname, match):
     return (
         f"{highlight('std::bind()')} is not allowed in new ESPHome code. "
-        f"Lambdas are clearer, produce smaller binaries, and fit within "
+        f"Lambdas are clearer, produce smaller binaries, and are more likely to fit within "
         f"the {highlight('std::function')} small-buffer optimization (avoiding heap allocation).\n"
         f"Please use a lambda instead.\n"
         f"  Before: {highlight('std::bind(&Class::method, this, std::placeholders::_1)')}\n"
