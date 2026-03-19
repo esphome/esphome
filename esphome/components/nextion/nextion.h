@@ -1188,7 +1188,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * This callback is invoked when a Nextion custom binary sensor frame is received,
    * providing the component name as the key and the decoded boolean value.
    *
-   * @param callback The void(std::string) callback.
+   * @param callback The void(const std::string &key, bool value) callback.
    */
   template<typename F> void add_custom_binary_sensor_callback(F &&callback) {
     this->custom_binary_sensor_callback_.add(std::forward<F>(callback));
@@ -1201,7 +1201,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * This callback is invoked when a Nextion custom sensor frame is received,
    * providing the component name as the key and the decoded integer value.
    *
-   * @param callback The void(std::string) callback.
+   * @param callback The void(const std::string &key, int value) callback.
    */
   template<typename F> void add_custom_sensor_callback(F &&callback) {
     this->custom_sensor_callback_.add(std::forward<F>(callback));
@@ -1214,7 +1214,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * This callback is invoked when a Nextion custom switch frame is received,
    * providing the component name as the key and the decoded boolean value.
    *
-   * @param callback The void(std::string) callback.
+   * @param callback The void(const std::string &key, bool value) callback.
    */
   template<typename F> void add_custom_switch_callback(F &&callback) {
     this->custom_switch_callback_.add(std::forward<F>(callback));
@@ -1227,7 +1227,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * This callback is invoked when a Nextion custom text sensor frame is received,
    * providing the component name as the key and the decoded text value.
    *
-   * @param callback The void(std::string) callback.
+   * @param callback The void(const std::string & key, const std::string & value) callback.
    */
   template<typename F> void add_custom_text_sensor_callback(F &&callback) {
     this->custom_text_sensor_callback_.add(std::forward<F>(callback));
