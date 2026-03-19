@@ -297,7 +297,10 @@ display:
         lambda: 'ESP_LOGD("display","Display went to sleep");'
     on_touch:
       then:
-        lambda: 'ESP_LOGD("display","Display was touched at %u,%u", x, y);' 
+        lambda: |-
+            ESP_LOGD("display",
+                "Display was touched at page %u, component %u, touch type: %s",
+                page_id, component_id, touch_type ? "press" : "release");
     on_wake:
       then:
         lambda: 'ESP_LOGD("display","Display woke up");'
