@@ -126,10 +126,13 @@ class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
   MeasurementRepeatRate repeat_rate_{MeasurementRepeatRate::REPEAT_RATE_500MS};
   float glass_attenuation_factor_{1.0};
 
+  uint32_t last_ps_high_trigger_time_{0};
+  uint32_t last_ps_low_trigger_time_{0};
   uint16_t ps_cooldown_time_s_{5};
-  PsGain ps_gain_{PsGain::PS_GAIN_16};
   uint16_t ps_threshold_high_{0xffff};
   uint16_t ps_threshold_low_{0x0000};
+  uint8_t read_data_tries_{0};
+  PsGain ps_gain_{PsGain::PS_GAIN_16};
 
   //
   //   Sensors for publishing data
@@ -157,12 +160,12 @@ class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
   CallbackManager<void()> on_ps_high_trigger_callback_;
   CallbackManager<void()> on_ps_low_trigger_callback_;
 
-  void add_on_ps_high_trigger_callback_(std::function<void()> callback) {
-    this->on_ps_high_trigger_callback_.add(std::move(callback));
+  template<typename F> void add_on_ps_high_trigger_callback_(F &&callback) {
+    this->on_ps_high_trigger_callback_.add(std::forward<F>(callback));
   }
 
-  void add_on_ps_low_trigger_callback_(std::function<void()> callback) {
-    this->on_ps_low_trigger_callback_.add(std::move(callback));
+  template<typename F> void add_on_ps_low_trigger_callback_(F &&callback) {
+    this->on_ps_low_trigger_callback_.add(std::forward<F>(callback));
   }
 };
 

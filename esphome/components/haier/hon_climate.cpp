@@ -114,14 +114,6 @@ void HonClimate::start_steri_cleaning() {
   }
 }
 
-void HonClimate::add_alarm_start_callback(std::function<void(uint8_t, const char *)> &&callback) {
-  this->alarm_start_callback_.add(std::move(callback));
-}
-
-void HonClimate::add_alarm_end_callback(std::function<void(uint8_t, const char *)> &&callback) {
-  this->alarm_end_callback_.add(std::move(callback));
-}
-
 haier_protocol::HandlerError HonClimate::get_device_version_answer_handler_(haier_protocol::FrameType request_type,
                                                                             haier_protocol::FrameType message_type,
                                                                             const uint8_t *data, size_t data_size) {
@@ -1375,9 +1367,8 @@ void HonClimate::process_protocol_reset() {
 
 bool HonClimate::should_get_big_data_() {
   if (this->big_data_sensors_ > 0) {
-    static uint8_t counter = 0;
-    counter = (counter + 1) % 3;
-    return counter == 1;
+    this->big_data_counter_ = (this->big_data_counter_ + 1) % 3;
+    return this->big_data_counter_ == 1;
   }
   return false;
 }

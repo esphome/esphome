@@ -30,7 +30,9 @@ class Text : public EntityBase {
   /// Instantiate a TextCall object to modify this text component's state.
   TextCall make_call() { return TextCall(this); }
 
-  void add_on_state_callback(std::function<void(const std::string &)> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
  protected:
   friend class TextCall;
