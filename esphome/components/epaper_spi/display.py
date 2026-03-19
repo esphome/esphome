@@ -73,7 +73,7 @@ def model_schema(config):
         model.get_default(CONF_MINIMUM_UPDATE_INTERVAL, "1s")
     )
     cv_dimensions = cv.Optional if model.get_default(CONF_WIDTH) else cv.Required
-    return display.FULL_DISPLAY_SCHEMA.extend(
+    schema = display.FULL_DISPLAY_SCHEMA.extend(
         spi.spi_device_schema(
             cs_pin_required=False,
             default_mode="MODE0",
@@ -108,9 +108,13 @@ def model_schema(config):
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=core.TimePeriod(milliseconds=500)),
             ),
-            model.option(CONF_INVERT_RED, cv.UNDEFINED): cv.boolean,
         }
     )
+    if model.get_default(CONF_INVERT_RED, None) is not None:
+        schema = schema.extend(
+            {model.option(CONF_INVERT_RED): cv.boolean}
+        )
+    return schema
 
 
 def customise_schema(config):
