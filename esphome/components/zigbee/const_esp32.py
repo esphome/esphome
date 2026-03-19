@@ -8,7 +8,7 @@ CONF_CLUSTERS = "clusters"
 CONF_ATTRIBUTES = "attributes"
 CONF_ENDPOINT = "endpoint"
 CONF_CLUSTER = "cluster"
-CONF_SCALE = "scale"
+SCALE = "scale"
 CONF_ATTRIBUTE_ID = "attribute_id"
 KEY_BS_EP = "binary_sensor_ep"
 

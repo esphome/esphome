@@ -41,11 +41,11 @@ from .const_esp32 import (
     CONF_ATTRIBUTES,
     CONF_CLUSTERS,
     CONF_NUM,
-    CONF_SCALE,
     DEVICE_ID,
     DEVICE_TYPE,
     KEY_BS_EP,
     ROLE,
+    SCALE,
 )
 from .zigbee_ep_esp32 import create_ep, ep_configs
 
@@ -187,7 +187,7 @@ async def attributes_to_code(
             cl[ROLE],
             attr[CONF_ATTRIBUTE_ID],
             ATTR_TYPE[attr[CONF_TYPE]],
-            attr.get(CONF_SCALE, 1),
+            attr.get(SCALE, 1),
             attr.get(CONF_MAX_LENGTH, 0),
         )
         await cg.register_component(attr_var, attr)
