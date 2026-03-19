@@ -74,7 +74,9 @@ class HaierClimateBase : public esphome::Component,
   void set_answer_timeout(uint32_t timeout);
   void set_send_wifi(bool send_wifi);
   void send_custom_command(const haier_protocol::HaierMessage &message);
-  void add_status_message_callback(std::function<void(const char *, size_t)> &&callback);
+  template<typename F> void add_status_message_callback(F &&callback) {
+    this->status_message_callback_.add(std::forward<F>(callback));
+  }
 
  protected:
   enum class ProtocolPhases {

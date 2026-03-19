@@ -11,14 +11,14 @@
 namespace esphome::spa06_base {
 
 // Read sizes. All other registers are size 1
-static const size_t SPA06_MEAS_LEN = 3;
-static const size_t SPA06_COEF_LEN = 21;
+constexpr size_t SPA06_MEAS_LEN = 3;
+constexpr size_t SPA06_COEF_LEN = 21;
 
 // Soft reset command (0b1001, 0x9)
-static const uint8_t SPA06_SOFT_RESET = 0x9;
+constexpr uint8_t SPA06_SOFT_RESET = 0x9;
 
 // SPA06 Register Addresses
-enum {
+enum Register : uint8_t {
   SPA06_PSR = 0x00,          // Pressure Reading MSB (or all 3)
   SPA06_PSR_B1 = 0x01,       // Pressure Reading LSB
   SPA06_PSR_B0 = 0x02,       // Pressure Reading XLSB (LSB: Pressure flag in FIFO)
@@ -72,7 +72,6 @@ enum SampleRate : uint8_t {
 
 // Measuring control config, set in MEAS_CFG register.
 // See datasheet pages 28-29
-
 enum MeasCrtl : uint8_t {
   MEASCRTL_IDLE = 0x0,
   MEASCRTL_PRES = 0x1,
@@ -83,8 +82,7 @@ enum MeasCrtl : uint8_t {
 };
 
 // Oversampling scale factors. See datasheet page 15.
-constexpr uint32_t OVERSAMPLING_K_LUT[8] PROGMEM = {524288, 1572864, 3670016, 7864320,
-                                                    253952, 516096,  1040384, 2088960};
+constexpr uint32_t OVERSAMPLING_K_LUT[8] = {524288, 1572864, 3670016, 7864320, 253952, 516096, 1040384, 2088960};
 PROGMEM_STRING_TABLE(MeasRateStrings, "1Hz", "2Hz", "4Hz", "8Hz", "16Hz", "32Hz", "64Hz", "128Hz", "1.5625Hz",
                      "3.125Hz", "6.25Hz", "12.5Hz", "25Hz", "50Hz", "100Hz", "200Hz");
 PROGMEM_STRING_TABLE(OversamplingStrings, "X1", "X2", "X4", "X8", "X16", "X32", "X64", "X128");
@@ -181,9 +179,6 @@ class SPA06Component : public PollingComponent {
   SampleRate pressure_rate_{SampleRate::SAMPLE_RATE_1};
   // Default conversion time: 27.6ms (16x pres) + 3.6ms (1x temp) ~ 32ms
   uint16_t conversion_time_{32};
-
-  // Protocol-related union-structs and read variables
-  uint8_t psr_tmp_read_[3] = {0, 0, 0};
 
   union {
     struct {

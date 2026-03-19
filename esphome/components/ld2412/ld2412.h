@@ -85,8 +85,10 @@ class LD2412Component : public Component, public uart::UARTDevice {
   void set_light_out_control();
   void set_basic_config();
 #ifdef USE_NUMBER
-  void set_gate_move_threshold_number(uint8_t gate, number::Number *n);
-  void set_gate_still_threshold_number(uint8_t gate, number::Number *n);
+  void set_gate_move_threshold_number(uint8_t gate, number::Number *n) { this->gate_move_threshold_numbers_[gate] = n; }
+  void set_gate_still_threshold_number(uint8_t gate, number::Number *n) {
+    this->gate_still_threshold_numbers_[gate] = n;
+  }
   void set_gate_threshold();
   void get_gate_threshold();
 #endif

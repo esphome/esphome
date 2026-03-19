@@ -74,7 +74,7 @@ class ZigbeeComponent : public Component {
     // endpoints are enumerated from 1
     this->callbacks_[endpoint - 1] = std::move(cb);
   }
-  void add_join_callback(std::function<void()> &&cb) { this->join_cb_.add(std::move(cb)); }
+  template<typename F> void add_join_callback(F &&cb) { this->join_cb_.add(std::forward<F>(cb)); }
   void zboss_signal_handler_esphome(zb_bufid_t bufid);
   void factory_reset();
   Trigger<> *get_join_trigger() { return &this->join_trigger_; };
