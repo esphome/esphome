@@ -324,7 +324,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(CoroPriority.LOGGER_INIT)
+@coroutine_with_priority(CoroPriority.EARLY_INIT)
 async def to_code(config: ConfigType) -> None:
     baud_rate: int = config[CONF_BAUD_RATE]
     level = config[CONF_LEVEL]
