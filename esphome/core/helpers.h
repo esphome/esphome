@@ -849,7 +849,7 @@ uint32_t random_uint32();
 /// Not thread-safe. Must only be called from the main loop.
 /// Not suitable for cryptographic use; use random_bytes() instead.
 float random_float();
-/// Generate \p len number of random bytes from the platform's hardware RNG.
+/// Generate \p len random bytes using the platform's secure RNG (hardware RNG or OS CSPRNG).
 /// Thread-safe. Suitable for cryptographic use.
 bool random_bytes(uint8_t *data, size_t len);
 
