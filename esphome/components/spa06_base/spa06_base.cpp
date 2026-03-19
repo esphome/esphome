@@ -30,7 +30,6 @@ void SPA06Component::dump_config() {
   }
   if (this->pressure_sensor_) {
     LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
-
     ESP_LOGCONFIG(TAG,
                   "  Oversampling: %s\n"
                   "  Rate: %s",
