@@ -158,9 +158,7 @@ class LvglComponent : public PollingComponent {
   void setup() override;
   void update() override;
   void loop() override;
-  void add_on_idle_callback(std::function<void(uint32_t)> &&callback) {
-    this->idle_callbacks_.add(std::move(callback));
-  }
+  template<typename F> void add_on_idle_callback(F &&callback) { this->idle_callbacks_.add(std::forward<F>(callback)); }
 
   static void monitor_cb(lv_disp_drv_t *disp_drv, uint32_t time, uint32_t px);
   static void render_start_cb(lv_disp_drv_t *disp_drv);
