@@ -340,54 +340,39 @@ async def to_code(config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
-    if custom_binary_sensor := config.get(CONF_ON_CUSTOM_BINARY_SENSOR, []):
-        cg.add_define("USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR")
-        for conf in custom_binary_sensor:
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-            await automation.build_automation(
-                trigger,
-                [
-                    (cg.std_string, "key"),
-                    (cg.bool_, "value"),
-                ],
-                conf,
-            )
-
-    if custom_sensor := config.get(CONF_ON_CUSTOM_SENSOR, []):
-        cg.add_define("USE_NEXTION_TRIGGER_CUSTOM_SENSOR")
-        for conf in custom_sensor:
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-            await automation.build_automation(
-                trigger,
-                [
-                    (cg.std_string, "key"),
-                    (cg.int32, "value"),
-                ],
-                conf,
-            )
-
-    if custom_switch := config.get(CONF_ON_CUSTOM_SWITCH, []):
-        cg.add_define("USE_NEXTION_TRIGGER_CUSTOM_SWITCH")
-        for conf in custom_switch:
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-            await automation.build_automation(
-                trigger,
-                [
-                    (cg.std_string, "key"),
-                    (cg.bool_, "value"),
-                ],
-                conf,
-            )
-
-    if custom_text := config.get(CONF_ON_CUSTOM_TEXT_SENSOR, []):
-        cg.add_define("USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR")
-        for conf in custom_text:
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-            await automation.build_automation(
-                trigger,
-                [
-                    (cg.std_string, "key"),
-                    (cg.std_string, "value"),
-                ],
-                conf,
-            )
+    # Register custom component triggers. Each tuple holds:
+    #   (conf_key, define_name, value_type)
+    for conf_key, define_name, value_type in (
+        (
+            CONF_ON_CUSTOM_BINARY_SENSOR,
+            "USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR",
+            cg.bool_,
+        ),
+        (
+            CONF_ON_CUSTOM_SENSOR,
+            "USE_NEXTION_TRIGGER_CUSTOM_SENSOR",
+            cg.int32,
+        ),
+        (
+            CONF_ON_CUSTOM_SWITCH,
+            "USE_NEXTION_TRIGGER_CUSTOM_SWITCH",
+            cg.bool_,
+        ),
+        (
+            CONF_ON_CUSTOM_TEXT_SENSOR,
+            "USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR",
+            cg.std_string,
+        ),
+    ):
+        if custom_items := config.get(conf_key, []):
+            cg.add_define(define_name)
+            for conf in custom_items:
+                trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+                await automation.build_automation(
+                    trigger,
+                    [
+                        (cg.std_string, "key"),
+                        (value_type, "value"),
+                    ],
+                    conf,
+                )
