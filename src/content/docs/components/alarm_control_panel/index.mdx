@@ -336,6 +336,30 @@ id(acp1).disarm(std::string("1234"));
 bool all_sensors_ready = id(acp1).get_all_sensors_ready();
 ```
 
+## MQTT Command Format
+
+When [MQTT](/components/mqtt) is enabled, the alarm control panel subscribes to a command topic. Commands can be sent as either a plain string or a JSON object.
+
+Plain string payloads set the alarm state directly:
+
+```bash
+mosquitto_pub -t "esphome/alarm_control_panel/my_alarm/command" -m "ARM_AWAY"
+```
+
+Valid plain string commands are: `ARM_AWAY`, `ARM_HOME`, `ARM_NIGHT`, `ARM_CUSTOM_BYPASS`, `DISARM`, `PENDING`, `TRIGGERED`.
+
+To include a PIN code with the command, send a JSON object with a required `state` key and an optional `code` key:
+
+```bash
+mosquitto_pub -t "esphome/alarm_control_panel/my_alarm/command" -m '{"state": "DISARM", "code": "1234"}'
+```
+
+```bash
+mosquitto_pub -t "esphome/alarm_control_panel/my_alarm/command" -m '{"state": "ARM_AWAY", "code": "1234"}'
+```
+
+The `code` is validated against the configured `codes` list. If `requires_code_to_arm` is `true`, arming commands must include a valid `code`.
+
 ## Platforms
 
 ## See Also
