@@ -68,16 +68,20 @@ BufferOverflowTrigger = nextion_ns.class_(
     "BufferOverflowTrigger", automation.Trigger.template()
 )
 CustomBinarySensorTrigger = nextion_ns.class_(
-    "CustomBinarySensorTrigger", automation.Trigger.template()
+    "CustomBinarySensorTrigger",
+    automation.Trigger.template(cg.std_string, cg.bool_),
 )
 CustomSensorTrigger = nextion_ns.class_(
-    "CustomSensorTrigger", automation.Trigger.template()
+    "CustomSensorTrigger",
+    automation.Trigger.template(cg.std_string, cg.float_),
 )
 CustomSwitchTrigger = nextion_ns.class_(
-    "CustomSwitchTrigger", automation.Trigger.template()
+    "CustomSwitchTrigger",
+    automation.Trigger.template(cg.std_string, cg.bool_),
 )
 CustomTextSensorTrigger = nextion_ns.class_(
-    "CustomTextSensorTrigger", automation.Trigger.template()
+    "CustomTextSensorTrigger",
+    automation.Trigger.template(cg.std_string, cg.std_string),
 )
 
 
