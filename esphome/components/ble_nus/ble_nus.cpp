@@ -67,6 +67,9 @@ bool BLENUS::read_array(uint8_t *data, size_t len) {
 
   // First, use the peek buffer if available
   if (this->has_peek_) {
+#ifdef USE_UART_DEBUGGER
+    this->debug_callback_.call(uart::UART_DIRECTION_RX, this->peek_buffer_);
+#endif
     data[0] = this->peek_buffer_;
     this->has_peek_ = false;
     data++;
@@ -101,10 +104,10 @@ size_t BLENUS::available() {
 }
 
 uart::FlushResult BLENUS::flush() {
-  constexpr uint32_t timeout_5sec = 5000;
+  constexpr uint32_t timeout_500ms = 500;
   uint32_t start = millis();
   while (atomic_get(&this->tx_status_) != TX_DISABLED && !ring_buf_is_empty(&global_ble_tx_ring_buf)) {
-    if (millis() - start > timeout_5sec) {
+    if (millis() - start > timeout_500ms) {
       ESP_LOGW(TAG, "Flush timeout");
       return uart::FlushResult::TIMEOUT;
     }

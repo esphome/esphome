@@ -42,10 +42,6 @@ StringRef Select::current_option() const {
   return this->has_state() ? StringRef(this->option_at(this->active_index_)) : StringRef();
 }
 
-void Select::add_on_state_callback(std::function<void(size_t)> &&callback) {
-  this->state_callback_.add(std::move(callback));
-}
-
 bool Select::has_option(const std::string &option) const { return this->index_of(option.c_str()).has_value(); }
 
 bool Select::has_option(const char *option) const { return this->index_of(option).has_value(); }

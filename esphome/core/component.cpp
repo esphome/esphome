@@ -209,7 +209,6 @@ bool Component::cancel_retry(uint32_t id) {
 #pragma GCC diagnostic pop
 }
 
-void Component::call_loop_() { this->loop(); }
 void Component::call_setup() { this->setup(); }
 void Component::call_dump_config_() {
   this->dump_config();
@@ -259,11 +258,11 @@ void Component::call() {
     case COMPONENT_STATE_SETUP:
       // State setup: Call first loop and set state to loop
       this->set_component_state_(COMPONENT_STATE_LOOP);
-      this->call_loop_();
+      this->loop();
       break;
     case COMPONENT_STATE_LOOP:
       // State loop: Call loop
-      this->call_loop_();
+      this->loop();
       break;
     case COMPONENT_STATE_FAILED:
       // State failed: Do nothing
@@ -322,11 +321,13 @@ void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
   // 8. Race condition with main loop is handled by clearing flag before processing
   this->pending_enable_loop_ = true;
   App.has_pending_enable_loop_requests_ = true;
-#if (defined(USE_LWIP_FAST_SELECT) && defined(USE_ESP32)) || (defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP))
+#if (defined(USE_LWIP_FAST_SELECT) && defined(USE_ESP32)) || \
+    ((defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP))
   // Wake the main loop from sleep. Without this, the main loop would not
   // wake until the select/delay timeout expires (~16ms).
   // ESP32: uses xPortInIsrContext() to choose the correct FreeRTOS notify API.
   // ESP8266: sets socket wake flag and calls esp_schedule() to exit esp_delay() early.
+  // RP2040: sets socket wake flag and calls __sev() to exit __wfe() early.
   Application::wake_loop_any_context();
 #endif
 }
@@ -390,6 +391,7 @@ bool Component::set_status_flag_(uint8_t flag) {
   return true;
 }
 
+void Component::status_set_warning() { this->status_set_warning((const LogString *) nullptr); }
 void Component::status_set_warning(const char *message) {
   if (!this->set_status_flag_(STATUS_LED_WARNING))
     return;
@@ -505,9 +507,9 @@ void PollingComponent::stop_poller() {
 }
 
 uint32_t PollingComponent::get_update_interval() const { return this->update_interval_; }
-void PollingComponent::set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
 
-static void __attribute__((noinline, cold)) warn_blocking(Component *component, uint32_t blocking_time) {
+void __attribute__((noinline, cold))
+WarnIfComponentBlockingGuard::warn_blocking(Component *component, uint32_t blocking_time) {
   bool should_warn;
   if (component != nullptr) {
     should_warn = component->should_warn_of_blocking(blocking_time);
@@ -521,10 +523,8 @@ static void __attribute__((noinline, cold)) warn_blocking(Component *component, 
   }
 }
 
-uint32_t WarnIfComponentBlockingGuard::finish() {
-  uint32_t curr_time = millis();
-  uint32_t blocking_time = curr_time - this->started_;
 #ifdef USE_RUNTIME_STATS
+void WarnIfComponentBlockingGuard::record_runtime_stats_() {
   // Use micros() for accurate sub-millisecond timing. millis() has insufficient
   // resolution — most components complete in microseconds but millis() only has
   // 1ms granularity, so results were essentially random noise.
@@ -532,12 +532,8 @@ uint32_t WarnIfComponentBlockingGuard::finish() {
     uint32_t duration_us = micros() - this->started_us_;
     global_runtime_stats->record_component_time(this->component_, duration_us);
   }
-#endif
-  if (blocking_time > WARN_IF_BLOCKING_OVER_MS) {
-    warn_blocking(this->component_, blocking_time);
-  }
-  return curr_time;
 }
+#endif
 
 #ifdef USE_SETUP_PRIORITY_OVERRIDE
 void clear_setup_priority_overrides() {

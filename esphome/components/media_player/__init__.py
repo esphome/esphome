@@ -177,6 +177,7 @@ MEDIA_PLAYER_CONDITION_SCHEMA = automation.maybe_simple_id(
         },
         key=CONF_MEDIA_URL,
     ),
+    synchronous=True,
 )
 async def media_player_play_media_action(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -206,7 +207,10 @@ def _register_command_actions():
             class_name, automation.Action, cg.Parented.template(MediaPlayer)
         )
         automation.register_action(
-            f"media_player.{action_name}", action_class, MEDIA_PLAYER_ACTION_SCHEMA
+            f"media_player.{action_name}",
+            action_class,
+            MEDIA_PLAYER_ACTION_SCHEMA,
+            synchronous=True,
         )(handler)
 
 
@@ -242,6 +246,7 @@ _register_state_conditions()
         },
         key=CONF_VOLUME,
     ),
+    synchronous=True,
 )
 async def media_player_volume_set_action(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

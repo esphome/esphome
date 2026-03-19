@@ -214,7 +214,14 @@ LightColorValues LightCall::validate_() {
   if (this->has_brightness() && this->brightness_ == 0.0f) {
     this->state_ = false;
     this->set_flag_(FLAG_HAS_STATE);
-    this->brightness_ = 1.0f;
+    if (color_mode & ColorCapability::BRIGHTNESS) {
+      // Reset brightness so the light has nonzero brightness when turned back on.
+      this->brightness_ = 1.0f;
+    } else {
+      // Light doesn't support brightness; clear the flag to avoid a spurious
+      // "brightness not supported" warning during capability validation.
+      this->clear_flag_(FLAG_HAS_BRIGHTNESS);
+    }
   }
 
   // Set color brightness to 100% if currently zero and a color is set.
@@ -506,7 +513,7 @@ color_mode_bitmask_t LightCall::get_suitable_color_modes_mask_() {
 
 LightCall &LightCall::set_effect(const char *effect, size_t len) {
   if (len == 4 && strncasecmp(effect, "none", 4) == 0) {
-    this->set_effect(0);
+    this->set_effect(uint32_t{0});
     return *this;
   }
 

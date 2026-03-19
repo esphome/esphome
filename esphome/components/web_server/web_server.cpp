@@ -415,7 +415,7 @@ void WebServer::setup() {
   this->set_interval(10000, [this]() {
     char buf[32];
     auto uptime = static_cast<uint32_t>(millis_64() / 1000);
-    buf_append_printf(buf, sizeof(buf), 0, "{\"uptime\":%u}", uptime);
+    buf_append_printf(buf, sizeof(buf), 0, "{\"uptime\":%" PRIu32 "}", uptime);
     this->events_.try_send_nodefer(buf, "ping", millis(), 30000);
   });
 }
@@ -2181,7 +2181,7 @@ json::SerializationBuffer<> WebServer::update_state_json_generator(WebServer *we
 }
 json::SerializationBuffer<> WebServer::update_all_json_generator(WebServer *web_server, void *source) {
   // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  return web_server->update_json_((update::UpdateEntity *) (source), DETAIL_STATE);
+  return web_server->update_json_((update::UpdateEntity *) (source), DETAIL_ALL);
 }
 json::SerializationBuffer<> WebServer::update_json_(update::UpdateEntity *obj, JsonDetail start_config) {
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson

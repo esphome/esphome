@@ -27,8 +27,6 @@ void MatrixKeypad::setup() {
 }
 
 void MatrixKeypad::loop() {
-  static uint32_t active_start = 0;
-  static int active_key = -1;
   uint32_t now = App.get_loop_component_start_time();
   int key = -1;
   bool error = false;
@@ -54,8 +52,8 @@ void MatrixKeypad::loop() {
   if (error)
     return;
 
-  if (key != active_key) {
-    if ((active_key != -1) && (this->pressed_key_ == active_key)) {
+  if (key != this->active_key_) {
+    if ((this->active_key_ != -1) && (this->pressed_key_ == this->active_key_)) {
       row = this->pressed_key_ / this->columns_.size();
       col = this->pressed_key_ % this->columns_.size();
       ESP_LOGD(TAG, "key @ row %d, col %d released", row, col);
@@ -70,13 +68,13 @@ void MatrixKeypad::loop() {
       this->pressed_key_ = -1;
     }
 
-    active_key = key;
+    this->active_key_ = key;
     if (key == -1)
       return;
-    active_start = now;
+    this->active_start_ = now;
   }
 
-  if ((this->pressed_key_ == key) || (now - active_start < this->debounce_time_))
+  if ((this->pressed_key_ == key) || (now - this->active_start_ < this->debounce_time_))
     return;
 
   row = key / this->columns_.size();

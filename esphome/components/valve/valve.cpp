@@ -125,7 +125,6 @@ bool ValveCall::get_stop() const { return this->stop_; }
 
 ValveCall Valve::make_call() { return {this}; }
 
-void Valve::add_on_state_callback(std::function<void()> &&f) { this->state_callback_.add(std::move(f)); }
 void Valve::publish_state(bool save) {
   this->position = clamp(this->position, 0.0f, 1.0f);
 

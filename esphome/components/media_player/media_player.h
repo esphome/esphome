@@ -155,7 +155,9 @@ class MediaPlayer : public EntityBase {
 
   void publish_state();
 
-  void add_on_state_callback(std::function<void()> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
   virtual bool is_muted() const { return false; }
 
