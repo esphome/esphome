@@ -139,7 +139,6 @@ bool CoverCall::get_stop() const { return this->stop_; }
 
 CoverCall Cover::make_call() { return {this}; }
 
-void Cover::add_on_state_callback(std::function<void()> &&f) { this->state_callback_.add(std::move(f)); }
 void Cover::publish_state(bool save) {
   this->position = clamp(this->position, 0.0f, 1.0f);
   this->tilt = clamp(this->tilt, 0.0f, 1.0f);

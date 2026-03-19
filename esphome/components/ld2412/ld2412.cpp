@@ -455,12 +455,10 @@ void LD2412Component::handle_periodic_data_() {
 }
 
 #ifdef USE_NUMBER
-std::function<void(void)> set_number_value(number::Number *n, float value) {
+void set_number_value(number::Number *n, float value) {
   if (n != nullptr && (!n->has_state() || n->state != value)) {
-    n->state = value;
-    return [n, value]() { n->publish_state(value); };
+    n->publish_state(value);
   }
-  return []() {};
 }
 #endif
 
@@ -504,6 +502,9 @@ bool LD2412Component::handle_ack_data_() {
       break;
 
     case CMD_QUERY_VERSION: {
+      if (this->buffer_pos_ < 12 + sizeof(this->version_)) {
+        return false;
+      }
       std::memcpy(this->version_, &this->buffer_data_[12], sizeof(this->version_));
       char version_s[20];
       ld24xx::format_version_str(this->version_, version_s);
@@ -596,13 +597,8 @@ bool LD2412Component::handle_ack_data_() {
 
     case CMD_QUERY_MOTION_GATE_SENS: {
 #ifdef USE_NUMBER
-      std::vector<std::function<void(void)>> updates;
-      updates.reserve(this->gate_still_threshold_numbers_.size());
-      for (size_t i = 0; i < this->gate_still_threshold_numbers_.size(); i++) {
-        updates.push_back(set_number_value(this->gate_move_threshold_numbers_[i], this->buffer_data_[10 + i]));
-      }
-      for (auto &update : updates) {
-        update();
+      for (size_t i = 0; i < this->gate_move_threshold_numbers_.size() && (10 + i) < this->buffer_pos_; i++) {
+        set_number_value(this->gate_move_threshold_numbers_[i], this->buffer_data_[10 + i]);
       }
 #endif
       break;
@@ -610,13 +606,8 @@ bool LD2412Component::handle_ack_data_() {
 
     case CMD_QUERY_STATIC_GATE_SENS: {
 #ifdef USE_NUMBER
-      std::vector<std::function<void(void)>> updates;
-      updates.reserve(this->gate_still_threshold_numbers_.size());
-      for (size_t i = 0; i < this->gate_still_threshold_numbers_.size(); i++) {
-        updates.push_back(set_number_value(this->gate_still_threshold_numbers_[i], this->buffer_data_[10 + i]));
-      }
-      for (auto &update : updates) {
-        update();
+      for (size_t i = 0; i < this->gate_still_threshold_numbers_.size() && (10 + i) < this->buffer_pos_; i++) {
+        set_number_value(this->gate_still_threshold_numbers_[i], this->buffer_data_[10 + i]);
       }
 #endif
       break;
@@ -625,20 +616,21 @@ bool LD2412Component::handle_ack_data_() {
     case CMD_QUERY_BASIC_CONF:  // Query parameters response
     {
 #ifdef USE_NUMBER
+      if (this->buffer_pos_ < 15) {
+        return false;
+      }
       /*
         Moving distance range: 9th byte
         Still distance range: 10th byte
       */
-      std::vector<std::function<void(void)>> updates;
-      updates.push_back(set_number_value(this->min_distance_gate_number_, this->buffer_data_[10]));
-      updates.push_back(set_number_value(this->max_distance_gate_number_, this->buffer_data_[11] - 1));
+      set_number_value(this->min_distance_gate_number_, this->buffer_data_[10]);
+      set_number_value(this->max_distance_gate_number_, this->buffer_data_[11] - 1);
       ESP_LOGV(TAG, "min_distance_gate_number_: %u, max_distance_gate_number_ %u", this->buffer_data_[10],
                this->buffer_data_[11]);
       /*
         None Duration: 11~12th bytes
       */
-      updates.push_back(
-          set_number_value(this->timeout_number_, encode_uint16(this->buffer_data_[13], this->buffer_data_[12])));
+      set_number_value(this->timeout_number_, encode_uint16(this->buffer_data_[13], this->buffer_data_[12]));
       ESP_LOGV(TAG, "timeout_number_: %u", encode_uint16(this->buffer_data_[13], this->buffer_data_[12]));
       /*
         Output pin configuration: 13th bytes
@@ -650,9 +642,6 @@ bool LD2412Component::handle_ack_data_() {
         this->out_pin_level_select_->publish_state(out_pin_level_str);
       }
 #endif
-      for (auto &update : updates) {
-        update();
-      }
 #endif
     } break;
     default:
@@ -836,13 +825,6 @@ void LD2412Component::get_gate_threshold() {
   this->send_command_(CMD_QUERY_STATIC_GATE_SENS, nullptr, 0);
 }
 
-void LD2412Component::set_gate_still_threshold_number(uint8_t gate, number::Number *n) {
-  this->gate_still_threshold_numbers_[gate] = n;
-}
-
-void LD2412Component::set_gate_move_threshold_number(uint8_t gate, number::Number *n) {
-  this->gate_move_threshold_numbers_[gate] = n;
-}
 #endif
 
 void LD2412Component::set_light_out_control() {
