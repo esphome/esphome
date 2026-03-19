@@ -297,7 +297,7 @@ display:
         lambda: 'ESP_LOGD("display","Display went to sleep");'
     on_touch:
       then:
-        lambda: 'ESP_LOGD("display","Display was touched at %u,%u", x, y);' 
+        lambda: 'ESP_LOGD("display","Display was touched at %u,%u", x, y);'
     on_wake:
       then:
         lambda: 'ESP_LOGD("display","Display woke up");'
