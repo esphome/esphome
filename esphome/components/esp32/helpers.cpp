@@ -14,7 +14,6 @@
 
 namespace esphome {
 
-uint32_t random_uint32() { return esp_random(); }
 bool random_bytes(uint8_t *data, size_t len) {
   esp_fill_random(data, len);
   return true;

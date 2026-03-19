@@ -16,15 +16,6 @@
 
 namespace esphome {
 
-uint32_t random_uint32() {
-  uint32_t result = 0;
-  for (uint8_t i = 0; i < 32; i++) {
-    result <<= 1;
-    result |= rosc_hw->randombit;
-  }
-  return result;
-}
-
 bool random_bytes(uint8_t *data, size_t len) {
   while (len-- != 0) {
     uint8_t result = 0;

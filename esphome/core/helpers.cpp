@@ -156,6 +156,25 @@ uint32_t fnv1_hash(const char *str) {
   return hash;
 }
 
+// SplitMix32 PRNG — MurmurHash3 finalizer with golden-ratio increment.
+// Provides fast, uniform, non-cryptographic random numbers.
+// Seeded lazily from the platform's hardware RNG via random_bytes().
+// ESP8266 uses os_random() instead (defined in esp8266/helpers.cpp).
+#ifndef USE_ESP8266
+static uint32_t splitmix32_state;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+uint32_t random_uint32() {
+  if (splitmix32_state == 0) {
+    random_bytes(reinterpret_cast<uint8_t *>(&splitmix32_state), sizeof(splitmix32_state));
+  }
+  splitmix32_state += 0x9e3779b9u;
+  uint32_t z = splitmix32_state;
+  z = (z ^ (z >> 16)) * 0x85ebca6bu;
+  z = (z ^ (z >> 13)) * 0xc2b2ae35u;
+  return z ^ (z >> 16);
+}
+#endif
+
 float random_float() { return static_cast<float>(random_uint32()) / static_cast<float>(UINT32_MAX); }
 
 // Strings
