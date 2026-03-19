@@ -1,0 +1,8 @@
+uart:
+  - id: uart_bus
+    tx_pin: GPIO17
+    rx_pin: GPIO16
+    baud_rate: 2400
+    parity: EVEN
+
+<<: !include common.yaml

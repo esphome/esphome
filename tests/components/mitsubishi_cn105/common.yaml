@@ -1,0 +1,4 @@
+climate:
+  - platform: mitsubishi_cn105
+    name: "AC Test"
+    uart_id: uart_bus
