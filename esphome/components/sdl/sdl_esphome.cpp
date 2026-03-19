@@ -5,6 +5,30 @@
 namespace esphome {
 namespace sdl {
 
+int Sdl::get_width() {
+  switch (this->rotation_) {
+    case display::DISPLAY_ROTATION_90_DEGREES:
+    case display::DISPLAY_ROTATION_270_DEGREES:
+      return this->get_height_internal();
+    case display::DISPLAY_ROTATION_0_DEGREES:
+    case display::DISPLAY_ROTATION_180_DEGREES:
+    default:
+      return this->get_width_internal();
+  }
+}
+
+int Sdl::get_height() {
+  switch (this->rotation_) {
+    case display::DISPLAY_ROTATION_0_DEGREES:
+    case display::DISPLAY_ROTATION_180_DEGREES:
+      return this->get_height_internal();
+    case display::DISPLAY_ROTATION_90_DEGREES:
+    case display::DISPLAY_ROTATION_270_DEGREES:
+    default:
+      return this->get_width_internal();
+  }
+}
+
 void Sdl::setup() {
   SDL_Init(SDL_INIT_VIDEO);
   this->window_ = SDL_CreateWindow(App.get_name().c_str(), this->pos_x_, this->pos_y_, this->width_, this->height_,
