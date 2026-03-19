@@ -43,8 +43,8 @@ class PN532 : public PollingComponent {
   void register_ontag_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
   void register_ontagremoved_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
 
-  void add_on_finished_write_callback(std::function<void()> callback) {
-    this->on_finished_write_callback_.add(std::move(callback));
+  template<typename F> void add_on_finished_write_callback(F &&callback) {
+    this->on_finished_write_callback_.add(std::forward<F>(callback));
   }
 
   bool is_writing() { return this->next_task_ != READ; };

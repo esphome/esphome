@@ -145,7 +145,7 @@ class LD2450Component : public Component, public uart::UARTDevice {
                       int32_t zone3_y1, int32_t zone3_x2, int32_t zone3_y2);
 
   /// Add a callback that will be called after each successfully processed periodic data frame.
-  void add_on_data_callback(std::function<void()> &&callback);
+  template<typename F> void add_on_data_callback(F &&callback) { this->data_callback_.add(std::forward<F>(callback)); }
 
  protected:
   void send_command_(uint8_t command_str, const uint8_t *command_value, uint8_t command_value_len);

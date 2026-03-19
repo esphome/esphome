@@ -307,15 +307,11 @@ template<typename T> class StatefulEntityBase : public EntityBase {
   virtual T get_state_default(T default_value) const { return this->state_.value_or(default_value); }
   void invalidate_state() { this->set_new_state({}); }
 
-  void add_full_state_callback(std::function<void(optional<T> previous, optional<T> current)> &&callback) {
-    if (this->full_state_callbacks_ == nullptr)
-      this->full_state_callbacks_ = new CallbackManager<void(optional<T> previous, optional<T> current)>();  // NOLINT
-    this->full_state_callbacks_->add(std::move(callback));
+  template<typename F> void add_full_state_callback(F &&callback) {
+    this->full_state_callbacks_.add(std::forward<F>(callback));
   }
-  void add_on_state_callback(std::function<void(T)> &&callback) {
-    if (this->state_callbacks_ == nullptr)
-      this->state_callbacks_ = new CallbackManager<void(T)>();  // NOLINT
-    this->state_callbacks_->add(std::move(callback));
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callbacks_.add(std::forward<F>(callback));
   }
 
   void set_trigger_on_initial_state(bool trigger_on_initial_state) {
@@ -333,21 +329,19 @@ template<typename T> class StatefulEntityBase : public EntityBase {
   virtual bool set_new_state(const optional<T> &new_state) {
     if (this->state_ != new_state) {
       // call the full state callbacks with the previous and new state
-      if (this->full_state_callbacks_ != nullptr)
-        this->full_state_callbacks_->call(this->state_, new_state);
+      this->full_state_callbacks_.call(this->state_, new_state);
       // trigger legacy callbacks only if the new state is valid and either the trigger on initial state is enabled or
       // the previous state was valid
       auto had_state = this->has_state();
       this->state_ = new_state;
-      if (this->state_callbacks_ != nullptr && new_state.has_value() && (this->trigger_on_initial_state_ || had_state))
-        this->state_callbacks_->call(new_state.value());
+      if (new_state.has_value() && (this->trigger_on_initial_state_ || had_state))
+        this->state_callbacks_.call(new_state.value());
       return true;
     }
     return false;
   }
   bool trigger_on_initial_state_{true};
-  // callbacks with full state and previous state
-  CallbackManager<void(optional<T> previous, optional<T> current)> *full_state_callbacks_{};
-  CallbackManager<void(T)> *state_callbacks_{};
+  LazyCallbackManager<void(optional<T> previous, optional<T> current)> full_state_callbacks_;
+  LazyCallbackManager<void(T)> state_callbacks_;
 };
 }  // namespace esphome

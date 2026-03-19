@@ -457,6 +457,9 @@ void SpeakerSourceMediaPlayer::process_control_queue_() {
       if (ps.playlist_index < ps.playlist.size()) {
         this->queue_play_current_(pipeline, ps.playlist_delay_ms);
       } else if (ps.repeat_mode == REPEAT_ALL && !ps.playlist.empty()) {
+        if (!ps.shuffle_indices.empty()) {
+          this->shuffle_playlist_(pipeline);
+        }
         ps.playlist_index = 0;
         this->queue_play_current_(pipeline, ps.playlist_delay_ms);
       }
