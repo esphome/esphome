@@ -221,6 +221,8 @@ void PacketTransport::setup() {
   }
 #ifdef USE_SENSOR
   for (auto &sensor : this->sensors_) {
+    // [&sensor] is safe: sensor refers to a vector element that is never modified after setup(),
+    // so the reference remains valid for the component's lifetime.
     sensor.sensor->add_on_state_callback([&sensor](float x) {
       sensor.parent->updated_ = true;
       sensor.updated = true;
@@ -229,6 +231,8 @@ void PacketTransport::setup() {
 #endif
 #ifdef USE_BINARY_SENSOR
   for (auto &sensor : this->binary_sensors_) {
+    // [&sensor] is safe: sensor refers to a vector element that is never modified after setup(),
+    // so the reference remains valid for the component's lifetime.
     sensor.sensor->add_on_state_callback([&sensor](bool value) {
       sensor.parent->updated_ = true;
       sensor.updated = true;
