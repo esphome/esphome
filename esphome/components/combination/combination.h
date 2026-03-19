@@ -46,16 +46,16 @@ class CombinationOneParameterComponent : public CombinationComponent {
   void add_source(Sensor *sensor, std::function<float(float)> const &compute);
   void add_source(Sensor *sensor, float value);
 
-  /// @brief Logs all source sensor's names in sensor_sources_
+  /// @brief Logs all source sensors' names in sensor_sources_
   void log_source_sensors() override;
 
+ protected:
   struct SensorSource {
     sensor::Sensor *sensor;
     std::function<float(float)> compute;
     CombinationOneParameterComponent *parent;
   };
 
- protected:
   FixedVector<SensorSource> sensor_sources_;
 };
 
