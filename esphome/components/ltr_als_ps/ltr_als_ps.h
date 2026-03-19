@@ -160,12 +160,12 @@ class LTRAlsPsComponent : public PollingComponent, public i2c::I2CDevice {
   CallbackManager<void()> on_ps_high_trigger_callback_;
   CallbackManager<void()> on_ps_low_trigger_callback_;
 
-  void add_on_ps_high_trigger_callback_(std::function<void()> callback) {
-    this->on_ps_high_trigger_callback_.add(std::move(callback));
+  template<typename F> void add_on_ps_high_trigger_callback_(F &&callback) {
+    this->on_ps_high_trigger_callback_.add(std::forward<F>(callback));
   }
 
-  void add_on_ps_low_trigger_callback_(std::function<void()> callback) {
-    this->on_ps_low_trigger_callback_.add(std::move(callback));
+  template<typename F> void add_on_ps_low_trigger_callback_(F &&callback) {
+    this->on_ps_low_trigger_callback_.add(std::forward<F>(callback));
   }
 };
 
