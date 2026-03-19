@@ -100,6 +100,14 @@ class EntityBase {
   // Get whether this Entity should be hidden outside ESPHome
   bool is_internal() const { return this->flags_.internal; }
 
+  // Deprecated: Calling set_internal() at runtime is undefined behavior. Components and clients
+  // are NOT notified of the change, the flag may have already been read during setup, and there
+  // is NO guarantee any consumer will observe the new value. Use the 'internal:' YAML key instead.
+  ESPDEPRECATED("set_internal() is undefined behavior at runtime — components and Home Assistant are NOT "
+                "notified. Use the 'internal:' YAML key instead. Will be removed in 2027.3.0.",
+                "2026.3.0")
+  void set_internal(bool internal) { this->flags_.internal = internal; }
+
   // Check if this object is declared to be disabled by default.
   // That means that when the device gets added to Home Assistant (or other clients) it should
   // not be added to the default view by default, and a user action is necessary to manually add it.

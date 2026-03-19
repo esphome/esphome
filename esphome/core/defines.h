@@ -185,7 +185,6 @@
 #ifdef USE_ARDUINO
 #define USE_PROMETHEUS
 #define USE_WIFI_WPA2_EAP
-#define USE_I2S_LEGACY
 #endif
 
 // Platforms with native 64-bit time sources (no rollover tracking needed)
@@ -353,6 +352,12 @@
 #define USE_SOCKET_IMPL_LWIP_TCP
 #define USE_RP2040_BLE
 #define USE_SPI
+#ifndef USE_ETHERNET
+#define USE_ETHERNET
+#endif
+#ifndef USE_ETHERNET_SPI
+#define USE_ETHERNET_SPI
+#endif
 #endif
 
 #ifdef USE_LIBRETINY

@@ -8,6 +8,8 @@
 #if defined(USE_WIFI)
 #include <WiFi.h>
 #include <pico/cyw43_arch.h>  // For cyw43_arch_lwip_begin/end (LwIPLock)
+#elif defined(USE_ETHERNET)
+#include <LwipEthernet.h>  // For ethernet_arch_lwip_begin/end (LwIPLock)
 #endif
 #include <hardware/structs/rosc.h>
 #include <hardware/sync.h>
@@ -40,18 +42,27 @@ bool random_bytes(uint8_t *data, size_t len) {
 IRAM_ATTR InterruptLock::InterruptLock() { state_ = save_and_disable_interrupts(); }
 IRAM_ATTR InterruptLock::~InterruptLock() { restore_interrupts(state_); }
 
-// On RP2040 (Pico W), arduino-pico sets PICO_CYW43_ARCH_THREADSAFE_BACKGROUND=1.
-// This means lwip callbacks run from a low-priority user IRQ context, not the
+// On RP2040, lwip callbacks run from a low-priority user IRQ context, not the
 // main loop (see low_priority_irq_handler() in pico-sdk
-// async_context_threadsafe_background.c). cyw43_arch_lwip_begin/end acquires the
-// async_context recursive mutex to prevent IRQ callbacks from firing during
-// critical sections. See esphome#10681.
+// async_context_threadsafe_background.c). This applies to both WiFi (CYW43) and
+// Ethernet (W5500) — both use async_context_threadsafe_background.
 //
-// When CYW43 is not available (non-WiFi RP2040 boards), this is a no-op since
+// Without locking, recv_fn() from IRQ context races with read_locked_() on the
+// main loop, corrupting the shared rx_buf_ pbuf chain (use-after-free, pbuf_cat
+// assertion failures). See esphome#10681.
+//
+// WiFi uses cyw43_arch_lwip_begin/end; Ethernet uses ethernet_arch_lwip_begin/end.
+// Both acquire the async_context recursive mutex to prevent IRQ callbacks from
+// firing during critical sections.
+//
+// When neither WiFi nor Ethernet is configured, this is a no-op since
 // there's no network stack and no lwip callbacks to race with.
 #if defined(USE_WIFI)
 LwIPLock::LwIPLock() { cyw43_arch_lwip_begin(); }
 LwIPLock::~LwIPLock() { cyw43_arch_lwip_end(); }
+#elif defined(USE_ETHERNET)
+LwIPLock::LwIPLock() { ethernet_arch_lwip_begin(); }
+LwIPLock::~LwIPLock() { ethernet_arch_lwip_end(); }
 #else
 LwIPLock::LwIPLock() {}
 LwIPLock::~LwIPLock() {}

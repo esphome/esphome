@@ -301,11 +301,12 @@ CONFIG_SCHEMA = cv.All(
             # Maximum queued send buffers per connection before dropping connection
             # Each buffer uses ~8-12 bytes overhead plus actual message size
             # Platform defaults based on available RAM and typical message rates:
+            # CONF_MAX_SEND_QUEUE defaults are power of 2 for efficient modulo
             cv.SplitDefault(
                 CONF_MAX_SEND_QUEUE,
-                esp8266=5,  # Limited RAM, need to fail fast
+                esp8266=4,  # Limited RAM, need to fail fast
                 esp32=8,  # More RAM, can buffer more
-                rp2040=5,  # Limited RAM
+                rp2040=8,  # Moderate RAM
                 bk72xx=8,  # Moderate RAM
                 nrf52=8,  # Moderate RAM
                 rtl87xx=8,  # Moderate RAM

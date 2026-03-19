@@ -178,7 +178,7 @@ template<typename N> N mask_and_shift_by_rightbit(N data, uint32_t mask) {
     return result;
   }
   for (size_t pos = 0; pos < sizeof(N) << 3; pos++) {
-    if ((mask & (1 << pos)) != 0)
+    if ((mask & (1UL << pos)) != 0)
       return result >> pos;
   }
   return 0;

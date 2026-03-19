@@ -244,7 +244,6 @@ esphome/components/hyt271/* @Philippe12
 esphome/components/i2c/* @esphome/core
 esphome/components/i2c_device/* @gabest11
 esphome/components/i2s_audio/* @jesserockz
-esphome/components/i2s_audio/media_player/* @jesserockz
 esphome/components/i2s_audio/microphone/* @jesserockz
 esphome/components/i2s_audio/speaker/* @jesserockz @kahrendt
 esphome/components/iaqcore/* @yozik04
