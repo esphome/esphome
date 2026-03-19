@@ -60,6 +60,8 @@ void KalmanCombinationComponent::dump_config() {
 
 void KalmanCombinationComponent::setup() {
   for (auto &source : this->sensor_sources_) {
+    // [&source] is safe: source refers to a FixedVector element that never reallocates,
+    // so the reference remains valid for the component's lifetime.
     source.sensor->add_on_state_callback([&source](float x) -> void {
       static_cast<KalmanCombinationComponent *>(source.parent)->correct_(x, source.compute(x));
     });
