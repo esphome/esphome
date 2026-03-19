@@ -301,32 +301,38 @@ void HonClimate::set_handlers() {
   // Set handlers
   this->haier_protocol_.set_answer_handler(
       haier_protocol::FrameType::GET_DEVICE_VERSION,
-      std::bind(&HonClimate::get_device_version_answer_handler_, this, std::placeholders::_1, std::placeholders::_2,
-                std::placeholders::_3, std::placeholders::_4));
+      [this](haier_protocol::FrameType req, haier_protocol::FrameType msg, const uint8_t *data, size_t size) {
+        return this->get_device_version_answer_handler_(req, msg, data, size);
+      });
   this->haier_protocol_.set_answer_handler(
       haier_protocol::FrameType::GET_DEVICE_ID,
-      std::bind(&HonClimate::get_device_id_answer_handler_, this, std::placeholders::_1, std::placeholders::_2,
-                std::placeholders::_3, std::placeholders::_4));
+      [this](haier_protocol::FrameType req, haier_protocol::FrameType msg, const uint8_t *data, size_t size) {
+        return this->get_device_id_answer_handler_(req, msg, data, size);
+      });
   this->haier_protocol_.set_answer_handler(
       haier_protocol::FrameType::CONTROL,
-      std::bind(&HonClimate::status_handler_, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,
-                std::placeholders::_4));
+      [this](haier_protocol::FrameType req, haier_protocol::FrameType msg, const uint8_t *data, size_t size) {
+        return this->status_handler_(req, msg, data, size);
+      });
   this->haier_protocol_.set_answer_handler(
       haier_protocol::FrameType::GET_MANAGEMENT_INFORMATION,
-      std::bind(&HonClimate::get_management_information_answer_handler_, this, std::placeholders::_1,
-                std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
+      [this](haier_protocol::FrameType req, haier_protocol::FrameType msg, const uint8_t *data, size_t size) {
+        return this->get_management_information_answer_handler_(req, msg, data, size);
+      });
   this->haier_protocol_.set_answer_handler(
       haier_protocol::FrameType::GET_ALARM_STATUS,
-      std::bind(&HonClimate::get_alarm_status_answer_handler_, this, std::placeholders::_1, std::placeholders::_2,
-                std::placeholders::_3, std::placeholders::_4));
+      [this](haier_protocol::FrameType req, haier_protocol::FrameType msg, const uint8_t *data, size_t size) {
+        return this->get_alarm_status_answer_handler_(req, msg, data, size);
+      });
   this->haier_protocol_.set_answer_handler(
       haier_protocol::FrameType::REPORT_NETWORK_STATUS,
-      std::bind(&HonClimate::report_network_status_answer_handler_, this, std::placeholders::_1, std::placeholders::_2,
-                std::placeholders::_3, std::placeholders::_4));
-  this->haier_protocol_.set_message_handler(
-      haier_protocol::FrameType::ALARM_STATUS,
-      std::bind(&HonClimate::alarm_status_message_handler_, this, std::placeholders::_1, std::placeholders::_2,
-                std::placeholders::_3));
+      [this](haier_protocol::FrameType req, haier_protocol::FrameType msg, const uint8_t *data, size_t size) {
+        return this->report_network_status_answer_handler_(req, msg, data, size);
+      });
+  this->haier_protocol_.set_message_handler(haier_protocol::FrameType::ALARM_STATUS,
+                                            [this](haier_protocol::FrameType type, const uint8_t *data, size_t size) {
+                                              return this->alarm_status_message_handler_(type, data, size);
+                                            });
 }
 
 void HonClimate::dump_config() {
