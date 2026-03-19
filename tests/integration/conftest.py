@@ -73,11 +73,6 @@ def shared_platformio_cache() -> Generator[Path]:
     test_cache_dir = Path.home() / ".esphome-integration-tests"
     cache_dir = test_cache_dir / "platformio"
 
-    # Create the temp directory that PlatformIO uses to avoid race conditions
-    # This ensures it exists and won't be deleted by parallel processes
-    platformio_tmp_dir = cache_dir / ".cache" / "tmp"
-    platformio_tmp_dir.mkdir(parents=True, exist_ok=True)
-
     # Use a lock file in the home directory to ensure only one process initializes the cache
     # This is needed when running with pytest-xdist
     # The lock file must be in a directory that already exists to avoid race conditions
@@ -87,8 +82,9 @@ def shared_platformio_cache() -> Generator[Path]:
     with open(lock_file, "w") as lock_fd:
         fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
 
-        # Check if cache needs initialization while holding the lock
-        if not cache_dir.exists() or not any(cache_dir.iterdir()):
+        # Check if the native platform is installed (the actual indicator of a populated cache)
+        native_platform = cache_dir / "platforms" / "native"
+        if not native_platform.exists():
             # Create the test cache directory if it doesn't exist
             test_cache_dir.mkdir(exist_ok=True)
 
@@ -197,6 +193,7 @@ async def yaml_config(request: pytest.FixtureRequest, unused_tcp_port: int) -> s
             "  platformio_options:\n"
             "    build_flags:\n"
             '      - "-DDEBUG"  # Enable assert() statements\n'
+            '      - "-DESPHOME_DEBUG"  # Enable ESPHOME_DEBUG_ASSERT checks\n'
             '      - "-DESPHOME_DEBUG_API"  # Enable API protocol asserts\n'
             '      - "-g"       # Add debug symbols',
         )

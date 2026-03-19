@@ -25,7 +25,7 @@ void log_text_sensor(const char *tag, const char *prefix, const char *type, Text
  public: \
   void set_##name##_text_sensor(text_sensor::TextSensor *text_sensor) { this->name##_text_sensor_ = text_sensor; }
 
-class TextSensor : public EntityBase, public EntityBase_DeviceClass {
+class TextSensor : public EntityBase {
  public:
   std::string state;
 
@@ -62,9 +62,11 @@ class TextSensor : public EntityBase, public EntityBase_DeviceClass {
   void clear_filters();
 #endif
 
-  void add_on_state_callback(std::function<void(const std::string &)> callback);
+  template<typename F> void add_on_state_callback(F &&callback) { this->callback_.add(std::forward<F>(callback)); }
   /// Add a callback that will be called every time the sensor sends a raw value.
-  void add_on_raw_state_callback(std::function<void(const std::string &)> callback);
+  template<typename F> void add_on_raw_state_callback(F &&callback) {
+    this->raw_callback_.add(std::forward<F>(callback));
+  }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)

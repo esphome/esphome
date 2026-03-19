@@ -13,6 +13,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_LN882X,
+    PLATFORM_RP2040,
     PLATFORM_RTL87XX,
     PlatformFramework,
 )
@@ -53,6 +54,7 @@ CONFIG_SCHEMA = cv.All(
             PLATFORM_ESP8266,
             PLATFORM_BK72XX,
             PLATFORM_LN882X,
+            PLATFORM_RP2040,
             PLATFORM_RTL87XX,
         ]
     ),
@@ -103,11 +105,8 @@ async def to_code(config):
     if config[CONF_COMPRESSION] == "gzip":
         cg.add_define("USE_CAPTIVE_PORTAL_GZIP")
 
-    if CORE.using_arduino:
-        if CORE.is_esp8266:
-            cg.add_library("DNSServer", None)
-        if CORE.is_libretiny:
-            cg.add_library("DNSServer", None)
+    if CORE.using_arduino and (CORE.is_esp8266 or CORE.is_libretiny or CORE.is_rp2040):
+        cg.add_library("DNSServer", None)
 
 
 # Only compile the ESP-IDF DNS server when using ESP-IDF framework

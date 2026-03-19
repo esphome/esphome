@@ -1,0 +1,187 @@
+esphome:
+  name: uart-mock-ld2420-test
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2420's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  id: mock_uart
+  baud_rate: 115200
+  auto_start: false
+  responses:
+    # Version-specific response: match the complete firmware version command TX.
+    # CMD_READ_VERSION (0x0000) TX = FD FC FB FA 02 00 00 00 04 03 02 01
+    # Returns "v2.0.0" → get_firmware_int = 200 >= 154 → energy mode
+    #
+    # Response layout:
+    #   [0-3]   FD FC FB FA = header
+    #   [4-5]   0C 00       = length 12
+    #   [6]     00          = cmd (CMD_READ_VERSION)
+    #   [7]     01          = status (ACK)
+    #   [8-9]   00 00       = error = 0
+    #   [10]    06          = ver_len = 6
+    #   [11]    00          = padding
+    #   [12-17] "v2.0.0"   = version string
+    #   [18-21] 04 03 02 01 = footer
+    - expect_tx:
+        [0xFD, 0xFC, 0xFB, 0xFA, 0x02, 0x00, 0x00, 0x00, 0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x0C, 0x00,
+          0x00, 0x01,
+          0x00, 0x00,
+          0x06, 0x00,
+          0x76, 0x32, 0x2E, 0x30, 0x2E, 0x30,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+    # Catch-all response: match any command footer (04 03 02 01).
+    # Returns a generic ACK with cmd=0xFF (CMD_ENABLE_CONF case in switch).
+    # All commands get unblocked via cmd_reply_.ack = true.
+    # Data fields stay zeroed (min_gate=0, max_gate=0, timeout=0, thresholds=0).
+    #
+    # Response layout:
+    #   [0-3]  FD FC FB FA = header
+    #   [4-5]  04 00       = length 4
+    #   [6]    FF          = cmd (handled as CMD_ENABLE_CONF)
+    #   [7]    01          = status (ACK)
+    #   [8-9]  00 00       = error = 0
+    #   [10-13] 04 03 02 01 = footer
+    - expect_tx: [0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x04, 0x00,
+          0xFF, 0x01,
+          0x00, 0x00,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+  injections:
+    # Phase 1 (t=100ms): Valid LD2420 energy mode data frame - happy path
+    # Buffer is clean (buffer_pos_=0). This frame should parse correctly.
+    # Presence: 1 (target detected), Distance: 100cm, Gate energies: all 0
+    #
+    # Energy frame layout (45 bytes):
+    #   [0-3]   F4 F3 F2 F1 = energy frame header
+    #   [4-5]   23 00       = length 35 (1+2+32)
+    #   [6]     01          = presence (1 = target)
+    #   [7-8]   64 00       = distance 100 (uint16_t LE)
+    #   [9-40]  00 00 x16   = 16 gate energies (uint16_t LE each)
+    #   [41-44] F8 F7 F6 F5 = energy frame footer
+    - delay: 100ms
+      inject_rx:
+        [
+          0xF4, 0xF3, 0xF2, 0xF1,
+          0x23, 0x00,
+          0x01,
+          0x64, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0xF8, 0xF7, 0xF6, 0xF5,
+        ]
+
+    # Phase 2 (t=300ms): Garbage bytes
+    # LD2420's readline_ does NOT check frame headers at position 0 (unlike LD2412),
+    # so these bytes accumulate in the buffer. buffer_pos_ goes from 0 to 7.
+    - delay: 200ms
+      inject_rx: [0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x11, 0x22]
+
+    # Phase 3 (t=400ms): Truncated energy frame WITH footer (13 bytes)
+    # This tests PR #14458 bug #3: missing length validation in handle_energy_mode_.
+    # The 7 garbage bytes from Phase 2 are still in the buffer (buffer_pos_=7).
+    # These 13 bytes are appended at positions 7-19 (buffer_pos_=20).
+    # Energy footer at positions 16-19 triggers handle_energy_mode_(buffer, 20).
+    #
+    # Pre-fix: handle_energy_mode_ reads 32 bytes of gate energy from buffer[9:40],
+    #          which is past the 20 actual bytes. Reads uninitialized data.
+    #          No "Energy frame too short" warning exists.
+    # Post-fix: len=20 < 41 → logs "Energy frame too short: 20 bytes", returns early.
+    #
+    # Frame: header + length + presence + distance + footer (no gate data)
+    - delay: 100ms
+      inject_rx:
+        [
+          0xF4, 0xF3, 0xF2, 0xF1,
+          0x23, 0x00,
+          0x01,
+          0x64, 0x00,
+          0xF8, 0xF7, 0xF6, 0xF5,
+        ]
+
+    # Phase 4 (t=600ms): Overflow - inject 50 bytes of 0xFF (MAX_LINE_LENGTH=50)
+    # After Phase 3, buffer_pos_=0 (reset after energy footer detection).
+    # 49 bytes fill positions 0-48 (buffer_pos_=49), 50th byte triggers overflow.
+    # Logs "Max command length exceeded; ignoring", buffer_pos_=0.
+    - delay: 200ms
+      inject_rx:
+        [
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        ]
+
+    # Phase 5 (t=1500ms): Valid frame after overflow - recovery test
+    # Buffer was reset by overflow. This valid frame should parse correctly.
+    # Presence: 1 (target), Distance: 50cm
+    # Delay=900ms ensures >1000ms gap from Phase 1 for REFRESH_RATE_MS throttle.
+    - delay: 900ms
+      inject_rx:
+        [
+          0xF4, 0xF3, 0xF2, 0xF1,
+          0x23, 0x00,
+          0x01,
+          0x32, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0xF8, 0xF7, 0xF6, 0xF5,
+        ]
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    on_press:
+      - lambda: 'id(mock_uart).start_scenario();'
+
+ld2420:
+  id: ld2420_dev
+  uart_id: mock_uart
+
+sensor:
+  - platform: ld2420
+    ld2420_id: ld2420_dev
+    moving_distance:
+      name: "Moving Distance"
+      filters:
+        - timeout:
+            timeout: 50ms
+            value: last
+        - throttle_with_priority: 50ms
+
+binary_sensor:
+  - platform: ld2420
+    ld2420_id: ld2420_dev
+    has_target:
+      name: "Has Target"
+      filters:
+        - settle: 50ms

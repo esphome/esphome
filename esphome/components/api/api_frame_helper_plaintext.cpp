@@ -64,8 +64,10 @@ APIError APIPlaintextFrameHelper::loop() {
   if (state_ != State::DATA) {
     return APIError::BAD_STATE;
   }
-  // Use base class implementation for buffer sending
-  return APIFrameHelper::loop();
+  if (!this->overflow_buf_.empty()) [[unlikely]] {
+    return this->drain_overflow_and_handle_errors_();
+  }
+  return APIError::OK;
 }
 
 /** Read a packet into the rx_buf_.
@@ -128,45 +130,44 @@ APIError APIPlaintextFrameHelper::try_read_frame_() {
 
     // Skip indicator byte at position 0
     uint8_t varint_pos = 1;
-    uint32_t consumed = 0;
 
-    auto msg_size_varint = ProtoVarInt::parse(&rx_header_buf_[varint_pos], rx_header_buf_pos_ - varint_pos, &consumed);
+    // rx_header_buf_pos_ >= 3 and varint_pos == 1, so len >= 2
+    auto msg_size_varint = ProtoVarInt::parse_non_empty(&rx_header_buf_[varint_pos], rx_header_buf_pos_ - varint_pos);
     if (!msg_size_varint.has_value()) {
       // not enough data there yet
       continue;
     }
 
-    if (msg_size_varint->as_uint32() > MAX_MESSAGE_SIZE) {
+    if (msg_size_varint.value > MAX_MESSAGE_SIZE) {
       state_ = State::FAILED;
-      HELPER_LOG("Bad packet: message size %" PRIu32 " exceeds maximum %u", msg_size_varint->as_uint32(),
-                 MAX_MESSAGE_SIZE);
+      HELPER_LOG("Bad packet: message size %" PRIu32 " exceeds maximum %u",
+                 static_cast<uint32_t>(msg_size_varint.value), MAX_MESSAGE_SIZE);
       return APIError::BAD_DATA_PACKET;
     }
-    rx_header_parsed_len_ = msg_size_varint->as_uint16();
+    rx_header_parsed_len_ = static_cast<uint16_t>(msg_size_varint.value);
 
     // Move to next varint position
-    varint_pos += consumed;
+    varint_pos += msg_size_varint.consumed;
 
-    auto msg_type_varint = ProtoVarInt::parse(&rx_header_buf_[varint_pos], rx_header_buf_pos_ - varint_pos, &consumed);
+    auto msg_type_varint = ProtoVarInt::parse(&rx_header_buf_[varint_pos], rx_header_buf_pos_ - varint_pos);
     if (!msg_type_varint.has_value()) {
       // not enough data there yet
       continue;
     }
-    if (msg_type_varint->as_uint32() > std::numeric_limits<uint16_t>::max()) {
+    if (msg_type_varint.value > std::numeric_limits<uint16_t>::max()) {
       state_ = State::FAILED;
-      HELPER_LOG("Bad packet: message type %" PRIu32 " exceeds maximum %u", msg_type_varint->as_uint32(),
-                 std::numeric_limits<uint16_t>::max());
+      HELPER_LOG("Bad packet: message type %" PRIu32 " exceeds maximum %u",
+                 static_cast<uint32_t>(msg_type_varint.value), std::numeric_limits<uint16_t>::max());
       return APIError::BAD_DATA_PACKET;
     }
-    rx_header_parsed_type_ = msg_type_varint->as_uint16();
+    rx_header_parsed_type_ = static_cast<uint16_t>(msg_type_varint.value);
     rx_header_parsed_ = true;
   }
   // header reading done
 
-  // Reserve space for body
-  if (this->rx_buf_.size() != this->rx_header_parsed_len_) {
-    this->rx_buf_.resize(this->rx_header_parsed_len_);
-  }
+  // Reserve space for body (+ null terminator so protobuf StringRef fields
+  // can be safely null-terminated in-place after decode)
+  this->rx_buf_.resize(this->rx_header_parsed_len_ + RX_BUF_NULL_TERMINATOR);
 
   if (rx_buf_len_ < rx_header_parsed_len_) {
     // more data to read
@@ -194,11 +195,11 @@ APIError APIPlaintextFrameHelper::try_read_frame_() {
 }
 
 APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
-  if (this->state_ != State::DATA) {
-    return APIError::WOULD_BLOCK;
-  }
+  APIError aerr = this->check_data_state_();
+  if (aerr != APIError::OK)
+    return aerr;
 
-  APIError aerr = this->try_read_frame_();
+  aerr = this->try_read_frame_();
   if (aerr != APIError::OK) {
     if (aerr == APIError::BAD_INDICATOR) {
       // Make sure to tell the remote that we don't
@@ -236,16 +237,11 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
   buffer->type = this->rx_header_parsed_type_;
   return APIError::OK;
 }
-APIError APIPlaintextFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
-  MessageInfo msg{type, 0, static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_)};
-  return write_protobuf_messages(buffer, std::span<const MessageInfo>(&msg, 1));
-}
-
 APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer,
                                                           std::span<const MessageInfo> messages) {
-  if (state_ != State::DATA) {
-    return APIError::BAD_STATE;
-  }
+  APIError aerr = this->check_data_state_();
+  if (aerr != APIError::OK)
+    return aerr;
 
   if (messages.empty()) {
     return APIError::OK;
@@ -258,9 +254,11 @@ APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffe
   uint16_t total_write_len = 0;
 
   for (const auto &msg : messages) {
-    // Calculate varint sizes for header layout
-    uint8_t size_varint_len = api::ProtoSize::varint(static_cast<uint32_t>(msg.payload_size));
-    uint8_t type_varint_len = api::ProtoSize::varint(static_cast<uint32_t>(msg.message_type));
+    // Calculate varint sizes for header layout using inline ternary to avoid varint_slow call overhead
+    uint8_t size_varint_len = msg.payload_size < ProtoSize::VARINT_THRESHOLD_1_BYTE
+                                  ? 1
+                                  : (msg.payload_size < ProtoSize::VARINT_THRESHOLD_2_BYTE ? 2 : 3);
+    uint8_t type_varint_len = msg.message_type < ProtoSize::VARINT_THRESHOLD_1_BYTE ? 1 : 2;
     uint8_t total_header_len = 1 + size_varint_len + type_varint_len;
 
     // Calculate where to start writing the header
@@ -282,8 +280,8 @@ APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffe
     //
     // Example 3 (large values): total_header_len = 6, header_offset = 6 - 6 = 0
     // [0]    - 0x00 indicator byte
-    // [1-3]  - Payload size varint (3 bytes, for sizes 16384-2097151)
-    // [4-5]  - Message type varint (2 bytes, for types 128-32767)
+    // [1-3]  - Payload size varint (3 bytes, for sizes 16384-65535)
+    // [4-5]  - Message type varint (2 bytes, for types 128-16383)
     // [6...] - Actual payload data
     //
     // The message starts at offset + frame_header_padding_

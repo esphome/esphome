@@ -44,7 +44,7 @@ const LogString *state_class_to_string(StateClass state_class);
  *
  * A sensor has unit of measurement and can use publish_state to send out a new value with the specified accuracy.
  */
-class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBase_UnitOfMeasurement {
+class Sensor : public EntityBase {
  public:
   explicit Sensor();
 
@@ -111,9 +111,11 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass, public EntityBa
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Add a callback that will be called every time a filtered value arrives.
-  void add_on_state_callback(std::function<void(float)> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) { this->callback_.add(std::forward<F>(callback)); }
   /// Add a callback that will be called every time the sensor sends a raw value.
-  void add_on_raw_state_callback(std::function<void(float)> &&callback);
+  template<typename F> void add_on_raw_state_callback(F &&callback) {
+    this->raw_callback_.add(std::forward<F>(callback));
+  }
 
   /** This member variable stores the last state that has passed through all filters.
    *

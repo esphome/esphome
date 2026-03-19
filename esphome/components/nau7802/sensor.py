@@ -117,16 +117,19 @@ NAU7802_CALIBRATE_SCHEMA = maybe_simple_id(
     "nau7802.calibrate_internal_offset",
     NAU7802CalbrateInternalOffsetAction,
     NAU7802_CALIBRATE_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
     "nau7802.calibrate_external_offset",
     NAU7802CalbrateExternalOffsetAction,
     NAU7802_CALIBRATE_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
     "nau7802.calibrate_gain",
     NAU7802CalbrateGainAction,
     NAU7802_CALIBRATE_SCHEMA,
+    synchronous=True,
 )
 async def nau7802_calibrate_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

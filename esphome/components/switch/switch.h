@@ -35,7 +35,7 @@ enum SwitchRestoreMode : uint8_t {
  * A switch is basically just a combination of a binary sensor (for reporting switch values)
  * and a write_state method that writes a state to the hardware.
  */
-class Switch : public EntityBase, public EntityBase_DeviceClass {
+class Switch : public EntityBase {
  public:
   explicit Switch();
 
@@ -93,7 +93,9 @@ class Switch : public EntityBase, public EntityBase_DeviceClass {
    *
    * @param callback The void(bool) callback.
    */
-  void add_on_state_callback(std::function<void(bool)> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
   /** Returns the initial state of the switch, as persisted previously,
     or empty if never persisted.
