@@ -2,7 +2,6 @@
 #ifdef USE_WIREGUARD
 #include <cinttypes>
 #include <ctime>
-#include <functional>
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
