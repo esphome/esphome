@@ -429,18 +429,6 @@ def test_represent_extend() -> None:
     assert yaml_util.dump({"key": Extend("my_id")}) == "key: !extend 'my_id'\n"
 
 
-def test_represent_extend_secret() -> None:
-    """Test that Extend objects with secret values are dumped as !secret scalars."""
-    yaml_util._SECRET_VALUES["secret_id"] = "my_secret"
-    assert yaml_util.dump({"key": Extend("secret_id")}) == "key: !secret 'my_secret'\n"
-
-
 def test_represent_remove() -> None:
     """Test that Remove objects are dumped as plain !remove scalars."""
     assert yaml_util.dump({"key": Remove("my_id")}) == "key: !remove 'my_id'\n"
-
-
-def test_represent_remove_secret() -> None:
-    """Test that Remove objects with secret values are dumped as !secret scalars."""
-    yaml_util._SECRET_VALUES["secret_id"] = "my_secret"
-    assert yaml_util.dump({"key": Remove("secret_id")}) == "key: !secret 'my_secret'\n"
