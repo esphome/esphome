@@ -12,10 +12,6 @@
 #include <lwip/dns.h>
 #include <lwip/netif.h>
 
-#ifdef USE_ETHERNET_ENC28J60
-#include <ENC28J60lwIP.h>
-#endif
-
 namespace esphome::ethernet {
 
 static const char *const TAG = "ethernet";
@@ -231,7 +227,7 @@ const char *EthernetComponent::get_eth_mac_address_pretty_into_buffer(
 
 eth_duplex_t EthernetComponent::get_duplex_mode() {
 #ifdef USE_ETHERNET_ENC28J60
-  // ENC28J60 supports full-duplex but defaults to half-duplex
+  // ENC28J60 is configured for full-duplex by the arduino-pico driver
   return ETH_DUPLEX_FULL;
 #else
   // W5500 is always full duplex
