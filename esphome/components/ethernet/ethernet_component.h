@@ -27,6 +27,8 @@ extern "C" eth_esp32_emac_config_t eth_esp32_emac_default_config(void);
 #include <W5500lwIP.h>
 #elif defined(USE_ETHERNET_ENC28J60)
 #include <ENC28J60lwIP.h>
+#else
+#error "Unsupported RP2040 SPI Ethernet type"
 #endif
 #endif
 
@@ -224,6 +226,8 @@ class EthernetComponent final : public Component {
   Wiznet5500lwIP *eth_{nullptr};
 #elif defined(USE_ETHERNET_ENC28J60)
   ENC28J60lwIP *eth_{nullptr};
+#else
+#error "Unsupported RP2040 SPI Ethernet type"
 #endif
   uint32_t last_link_check_{0};
   uint8_t clk_pin_;
