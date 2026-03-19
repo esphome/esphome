@@ -215,6 +215,7 @@ bool SendspinHub::send_hello_message_(uint8_t remaining_attempts, SendspinConnec
     supported_roles.push_back(SendspinRole::ARTWORK);
 
     std::vector<ArtworkChannelFormatObject> artwork_channels;
+    artwork_channels.reserve(this->preferred_image_formats_.size());
     for (const auto &pref : this->preferred_image_formats_) {
       artwork_channels.push_back({pref.source, pref.format, pref.width, pref.height});
     }
@@ -232,7 +233,7 @@ bool SendspinHub::send_hello_message_(uint8_t remaining_attempts, SendspinConnec
   std::string hello_message = format_client_hello_message(&msg);
 
   // Try to queue the message, with callback for when it's actually sent
-  esp_err_t err = conn->send_text_message(hello_message, [this, conn](bool success, int64_t actual_send_time) {
+  esp_err_t err = conn->send_text_message(hello_message, [conn](bool success, int64_t actual_send_time) {
     if (success) {
       // Mark connection's client hello as sent
       conn->set_client_hello_sent(true);
@@ -294,7 +295,7 @@ void SendspinHub::on_new_connection_(std::unique_ptr<SendspinServerConnection> c
     // WebSocket handshake completed - initiate hello handshake
     this->start(c);
   };
-  conn->on_disconnected = [this](SendspinConnection *c) {
+  conn->on_disconnected = [](SendspinConnection *c) {
     // This callback is invoked when the connection detects it's closed
     // The actual cleanup happens in on_connection_closed_ triggered by the server
   };
