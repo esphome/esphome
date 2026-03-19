@@ -156,8 +156,11 @@ uint32_t fnv1_hash(const char *str) {
   return hash;
 }
 
-// SplitMix32 PRNG — MurmurHash3 finalizer with golden-ratio increment.
-// Provides fast, uniform, non-cryptographic random numbers.
+// SplitMix32 — a fast, non-cryptographic PRNG from the SplitMix family
+// (Steele et al., 2014). Uses a Weyl sequence with golden-ratio increment
+// and the MurmurHash3 32-bit finalizer as output mixing function.
+// Reference: https://doi.org/10.1145/2714064.2660195
+// Test results: https://lemire.me/blog/2017/08/22/testing-non-cryptographic-random-number-generators-my-results/
 // Seeded lazily from the platform's secure RNG via random_bytes().
 // ESP8266 uses os_random() instead (defined in esp8266/helpers.cpp).
 #ifndef USE_ESP8266
