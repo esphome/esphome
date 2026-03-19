@@ -37,11 +37,14 @@ struct Provider {
 #endif
 };
 
+class PacketTransport;
+
 #ifdef USE_SENSOR
 struct Sensor {
   sensor::Sensor *sensor;
   const char *id;
   bool updated;
+  PacketTransport *parent;
 };
 #endif
 #ifdef USE_BINARY_SENSOR
@@ -49,10 +52,18 @@ struct BinarySensor {
   binary_sensor::BinarySensor *sensor;
   const char *id;
   bool updated;
+  PacketTransport *parent;
 };
 #endif
 
 class PacketTransport : public PollingComponent {
+#ifdef USE_SENSOR
+  friend struct Sensor;
+#endif
+#ifdef USE_BINARY_SENSOR
+  friend struct BinarySensor;
+#endif
+
  public:
   void setup() override;
   void loop() override;
@@ -61,7 +72,7 @@ class PacketTransport : public PollingComponent {
 
 #ifdef USE_SENSOR
   void add_sensor(const char *id, sensor::Sensor *sensor) {
-    Sensor st{sensor, id, true};
+    Sensor st{sensor, id, true, this};
     this->sensors_.push_back(st);
   }
   void add_remote_sensor(const char *hostname, const char *remote_id, sensor::Sensor *sensor) {
@@ -71,7 +82,7 @@ class PacketTransport : public PollingComponent {
 #endif
 #ifdef USE_BINARY_SENSOR
   void add_binary_sensor(const char *id, binary_sensor::BinarySensor *sensor) {
-    BinarySensor st{sensor, id, true};
+    BinarySensor st{sensor, id, true, this};
     this->binary_sensors_.push_back(st);
   }
 

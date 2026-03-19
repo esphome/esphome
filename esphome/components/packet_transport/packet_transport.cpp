@@ -221,16 +221,16 @@ void PacketTransport::setup() {
   }
 #ifdef USE_SENSOR
   for (auto &sensor : this->sensors_) {
-    sensor.sensor->add_on_state_callback([this, &sensor](float x) {
-      this->updated_ = true;
+    sensor.sensor->add_on_state_callback([&sensor](float x) {
+      sensor.parent->updated_ = true;
       sensor.updated = true;
     });
   }
 #endif
 #ifdef USE_BINARY_SENSOR
   for (auto &sensor : this->binary_sensors_) {
-    sensor.sensor->add_on_state_callback([this, &sensor](bool value) {
-      this->updated_ = true;
+    sensor.sensor->add_on_state_callback([&sensor](bool value) {
+      sensor.parent->updated_ = true;
       sensor.updated = true;
     });
   }
