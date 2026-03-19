@@ -12,8 +12,8 @@ from esphome.const import (
     PLATFORM_ESP32,
 )
 
-# json handles server messages, mdns for autodiscovering, media player for stream commands (for now is autoloaded), psram for memory
-AUTO_LOAD = ["audio", "json", "mdns", "media_player", "psram"]
+# audio for codec support, json for protocol messages, mdns for autodiscovery
+AUTO_LOAD = ["audio", "json", "mdns"]
 CODEOWNERS = ["@kahrendt"]
 DEPENDENCIES = ["network"]
 
