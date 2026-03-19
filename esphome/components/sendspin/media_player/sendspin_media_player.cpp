@@ -69,13 +69,15 @@ void SendspinMediaPlayer::control(const media_player::MediaPlayerCall &call) {
     return;
   }
 
-  if (call.get_volume().has_value()) {
-    uint8_t new_volume = static_cast<uint8_t>(std::roundf(call.get_volume().value() * 100.0f));
+  auto volume = call.get_volume();
+  if (volume.has_value()) {
+    uint8_t new_volume = static_cast<uint8_t>(std::roundf(volume.value() * 100.0f));
     this->parent_->send_client_command(SendspinControllerCommand::VOLUME, new_volume, std::nullopt);
   }
 
-  if (call.get_command().has_value()) {
-    switch (call.get_command().value()) {
+  auto command = call.get_command();
+  if (command.has_value()) {
+    switch (command.value()) {
       case media_player::MEDIA_PLAYER_COMMAND_TOGGLE:
         if (this->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING) {
           this->parent_->send_client_command(SendspinControllerCommand::PAUSE);

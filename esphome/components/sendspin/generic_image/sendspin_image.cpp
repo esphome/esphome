@@ -34,6 +34,10 @@ void SendspinImage::setup() {
     case runtime_image::PNG:
       this->sendspin_format_ = SendspinImageFormat::PNG;
       break;
+    case runtime_image::AUTO:
+      // AUTO is not supported for sendspin images; default to JPEG
+      this->sendspin_format_ = SendspinImageFormat::JPEG;
+      break;
   }
 
   // Register image preference with the hub

@@ -348,8 +348,7 @@ void SendspinHub::on_connection_closed_(int sockfd) {
   // Client connections use on_disconnected → on_connection_lost_() directly.
   if (this->current_connection_ != nullptr && this->current_connection_->get_sockfd() == sockfd) {
     this->on_connection_lost_(this->current_connection_.get());
-  }
-  if (this->pending_connection_ != nullptr && this->pending_connection_->get_sockfd() == sockfd) {
+  } else if (this->pending_connection_ != nullptr && this->pending_connection_->get_sockfd() == sockfd) {
     this->on_connection_lost_(this->pending_connection_.get());
   }
 }
@@ -642,23 +641,29 @@ bool SendspinHub::process_json_message_(SendspinConnection *conn, const std::str
         // Store the initial stream parameters
         this->current_stream_params_ = player_obj;
 
+        if (!player_obj.bit_depth.has_value() || !player_obj.channels.has_value() ||
+            !player_obj.sample_rate.has_value() || !player_obj.codec.has_value()) {
+          ESP_LOGE(TAG, "Stream start message missing required audio parameters");
+          break;
+        }
+
+        auto codec = player_obj.codec.value();
         audio::AudioStreamInfo stream_audio_stream_info(player_obj.bit_depth.value(), player_obj.channels.value(),
                                                         player_obj.sample_rate.value());
         bool header_sent = false;
 
-        if ((player_obj.codec.value() == SendspinCodecFormat::PCM) ||
-            (player_obj.codec.value() == SendspinCodecFormat::OPUS)) {
+        if ((codec == SendspinCodecFormat::PCM) || (codec == SendspinCodecFormat::OPUS)) {
           DummyHeader header;
           header.sample_rate = stream_audio_stream_info.get_sample_rate();
           header.bits_per_sample = stream_audio_stream_info.get_bits_per_sample();
           header.channels = stream_audio_stream_info.get_channels();
 
-          ChunkType chunk_type = (player_obj.codec.value() == SendspinCodecFormat::PCM) ? CHUNK_TYPE_PCM_DUMMY_HEADER
-                                                                                        : CHUNK_TYPE_OPUS_DUMMY_HEADER;
+          ChunkType chunk_type =
+              (codec == SendspinCodecFormat::PCM) ? CHUNK_TYPE_PCM_DUMMY_HEADER : CHUNK_TYPE_OPUS_DUMMY_HEADER;
 
           header_sent = this->send_audio_chunk_(reinterpret_cast<const uint8_t *>(&header), sizeof(DummyHeader), 0,
                                                 chunk_type, pdMS_TO_TICKS(100));
-        } else if (player_obj.codec.value() == SendspinCodecFormat::FLAC) {
+        } else if (codec == SendspinCodecFormat::FLAC) {
           if (!player_obj.codec_header.has_value()) {
             ESP_LOGE(TAG, "FLAC codec header missing");
             break;
