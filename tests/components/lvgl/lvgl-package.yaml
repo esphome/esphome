@@ -42,6 +42,11 @@ lvgl:
   disp_bg_color: color_id
   disp_bg_image: cat_image
   disp_bg_opa: cover
+  bottom_layer:
+    widgets:
+      - obj:
+          bg_color: 0x000000
+          bg_opa: cover
   theme:
     obj:
       border_width: 1
@@ -49,12 +54,14 @@ lvgl:
   gradients:
     - id: color_bar
       direction: hor
-      dither: err_diff
+      # dither: err_diff
       stops:
         - color: 0xFF0000
           position: 0
+          opa: 100%
         - color: 0xFFFF00
           position: 42
+          opa: 80%
         - color: 0x00FF00
           position: 84
         - color: 0x00FFFF
@@ -156,6 +163,16 @@ lvgl:
                   offset_x: !lambda return 20;
                   offset_y: !lambda return 20;
                   antialias: !lambda return true;
+    - id: msgbox_with_header_buttons
+      title: Header Buttons Test
+      body:
+        text: Testing header buttons
+      header_buttons:
+        - src: cat_image
+          on_click:
+            logger.log: Header button clicked
+      buttons:
+        - text: OK
     - id: simple_msgbox
       title: Simple
 
@@ -199,11 +216,11 @@ lvgl:
             text: Unloaded
         - lvgl.label.update:
             id: msgbox_label
-            text: "" # Empty text
+            text: ""  # Empty text
       on_all_events:
         logger.log:
           format: "Event %s"
-          args: ['lv_event_code_name_for(event->code).c_str()']
+          args: ['lv_event_code_name_for(event).c_str()']
       skip: true
       layout:
         type: Flex
@@ -241,7 +258,7 @@ lvgl:
             on_all_events:
               - logger.log:
                   format: "Event %s"
-                  args: ['lv_event_code_name_for(event->code).c_str()']
+                  args: ['lv_event_code_name_for(event).c_str()']
               - lvgl.animimg.update:
                   id: anim_img
                   src: !lambda "return {dog_image, cat_image};"
@@ -306,7 +323,6 @@ lvgl:
             anim_time: 1s
             bg_color: light_blue
             bg_grad_color: light_blue
-            bg_dither_mode: ordered
             bg_grad_dir: hor
             bg_grad_stop: 128
             bg_image_opa: transp
@@ -354,10 +370,18 @@ lvgl:
             text_line_space: 4
             text_opa: cover
             transform_angle: 180
+            transform_rotation: 90
             transform_height: 100
             transform_pivot_x: 50%
             transform_pivot_y: 50%
             transform_zoom: 0.5
+            transform_scale: 2.0
+            transform_scale_x: 1.5
+            transform_scale_y: 0.8
+            transform_skew_x: 10
+            transform_skew_y: 20
+            shadow_offset_x: 3
+            shadow_offset_y: 3
             translate_x: 10
             translate_y: 10
             max_height: 100
@@ -549,14 +573,16 @@ lvgl:
             arc_length: 120
             spin_time: 2s
             align: left_mid
+        - spinner:
+            align: right_mid
+            send_draw_task_events: true
         - image:
             id: lv_image
             src: cat_image
             align: top_left
             y: "50"
-            mode: real
-            zoom: 2.0
-            angle: 45
+            scale: 2.0
+            rotation: 45
         - tileview:
             id: tileview_id
             scrollbar_mode: active
@@ -661,8 +687,11 @@ lvgl:
                   src: cat_image
                   x: 100
                   y: 100
-                  angle: 90
-                  zoom: 2.0
+                  rotation: 90
+                  scale_x: 2.0
+                  scale_y: 1.5
+                  skew_x: 10
+                  skew_y: 5
                   pivot_x: 25
                   pivot_y: 25
               - lvgl.canvas.draw_line:
@@ -710,6 +739,9 @@ lvgl:
                 text:
                   format: "A string with a number %d"
                   args: ['(int)(random_uint32() % 1000)']
+                size: 120
+                dark_color: navy
+                light_color: white
 
         - slider:
             min_value: 0
@@ -928,7 +960,6 @@ lvgl:
                       grid_cell_row_pos: 0
                       grid_cell_column_pos: 0
                       src: !lambda return dog_image;
-                      mode: virtual
                       on_click:
                         then:
                           - lvgl.tabview.select:
@@ -1023,10 +1054,18 @@ lvgl:
                       text_color: 0xFFFFFF
                       scales:
                         - ticks:
-                            width: !lambda return 1;
+                            width: 1
                             count: 61
                             length: 20%
+                            radial_offset: 5
                             color: 0xFFFFFF
+                            major:
+                              stride: 5
+                              width: 2
+                              length: 8
+                              color: 0xC0C0C0
+                              radial_offset: 3
+                              label_gap: 6
                           range_from: 0
                           range_to: 60
                           angle_range: 360
@@ -1037,15 +1076,15 @@ lvgl:
                                 end_value: 60
                                 color_start: 0x0000bd
                                 color_end: 0xbd0000
-                                width: !lambda return 1;
+                                width: 1
                             - line:
                                 opa: 50%
                                 id: minute_hand
                                 color: 0xFF0000
-                                r_mod: !lambda return -1;
-                                width: !lambda return 3;
-                        -
-                          angle_range: 330
+                                length: 99%
+                                radial_offset: 2
+                                width: 1
+                        - angle_range: 330
                           rotation: 300
                           range_from: 1
                           range_to: 12
@@ -1069,7 +1108,7 @@ lvgl:
                                 value: 180
                                 width: 4
                                 color: 0xA0A0A0
-                                r_mod: -20
+                                length: 80%
                                 opa: 0%
     - id: page3
       layout: Horizontal

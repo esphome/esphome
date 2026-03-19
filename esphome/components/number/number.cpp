@@ -29,8 +29,4 @@ void Number::publish_state(float state) {
 #endif
 }
 
-void Number::add_on_state_callback(std::function<void(float)> &&callback) {
-  this->state_callback_.add(std::move(callback));
-}
-
 }  // namespace esphome::number

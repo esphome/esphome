@@ -14,7 +14,9 @@ class DateTimeBase : public EntityBase {
  public:
   virtual ESPTime state_as_esptime() const = 0;
 
-  void add_on_state_callback(std::function<void()> &&callback) { this->state_callback_.add(std::move(callback)); }
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
 #ifdef USE_TIME
   void set_rtc(time::RealTimeClock *rtc) { this->rtc_ = rtc; }
