@@ -404,11 +404,43 @@ def test_config_context_non_taggable(data) -> None:
     assert tagged_data == data
 
 
+def test_config_context_defaults_only() -> None:
+    """Test that defaults: key is popped and used as context vars when no explicit vars given."""
+    data = {"defaults": {"x": "1", "y": "2"}, "key": "value"}
+    tagged = yaml_util.add_context(data, None)
+
+    assert isinstance(tagged, yaml_util.ConfigContext)
+    assert tagged.vars == {"x": "1", "y": "2"}
+    assert "defaults" not in tagged
+
+
+def test_config_context_defaults_explicit_vars_override() -> None:
+    """Test that explicit vars take precedence over defaults: values."""
+    data = {"defaults": {"x": "default_x", "z": "default_z"}, "key": "value"}
+    tagged = yaml_util.add_context(data, {"x": "explicit_x", "w": "explicit_w"})
+
+    assert isinstance(tagged, yaml_util.ConfigContext)
+    assert tagged.vars == {"x": "explicit_x", "z": "default_z", "w": "explicit_w"}
+    assert "defaults" not in tagged
+
+
 def test_represent_extend() -> None:
     """Test that Extend objects are dumped as plain !extend scalars."""
     assert yaml_util.dump({"key": Extend("my_id")}) == "key: !extend 'my_id'\n"
 
 
+def test_represent_extend_secret() -> None:
+    """Test that Extend objects with secret values are dumped as !secret scalars."""
+    yaml_util._SECRET_VALUES["secret_id"] = "my_secret"
+    assert yaml_util.dump({"key": Extend("secret_id")}) == "key: !secret 'my_secret'\n"
+
+
 def test_represent_remove() -> None:
     """Test that Remove objects are dumped as plain !remove scalars."""
     assert yaml_util.dump({"key": Remove("my_id")}) == "key: !remove 'my_id'\n"
+
+
+def test_represent_remove_secret() -> None:
+    """Test that Remove objects with secret values are dumped as !secret scalars."""
+    yaml_util._SECRET_VALUES["secret_id"] = "my_secret"
+    assert yaml_util.dump({"key": Remove("secret_id")}) == "key: !secret 'my_secret'\n"
