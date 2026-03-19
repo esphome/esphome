@@ -1,9 +1,12 @@
-#include "nextion.h"
 #include <cinttypes>
+
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/core/util.h"
+
+#include "nextion.h"
 
 namespace esphome {
 namespace nextion {
@@ -700,7 +703,7 @@ void Nextion::process_nextion_commands_() {
         ESP_LOGN(TAG, "Switch %s: %s", ONOFF(to_process[index] != 0), variable_name.c_str());
 
 #ifdef USE_NEXTION_TRIGGER_CUSTOM_SWITCH
-        this->custom_switch_callback_.call(variable_name, to_process[index] != 0);
+        this->custom_switch_callback_.call(StringRef(variable_name), to_process[index] != 0);
 #endif  // USE_NEXTION_TRIGGER_CUSTOM_SWITCH
 
         for (auto *switchtype : this->switchtype_) {
@@ -733,7 +736,7 @@ void Nextion::process_nextion_commands_() {
         ESP_LOGN(TAG, "Sensor: %s=%d", variable_name.c_str(), value);
 
 #ifdef USE_NEXTION_TRIGGER_CUSTOM_SENSOR
-        this->custom_sensor_callback_.call(variable_name, value);
+        this->custom_sensor_callback_.call(StringRef(variable_name), value);
 #endif  // USE_NEXTION_TRIGGER_CUSTOM_SENSOR
 
         for (auto *sensor : this->sensortype_) {
@@ -775,7 +778,7 @@ void Nextion::process_nextion_commands_() {
         // this->textsensorq_.push_back(nq);
 
 #ifdef USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
-        this->custom_text_sensor_callback_.call(variable_name, text_value);
+        this->custom_text_sensor_callback_.call(StringRef(variable_name), StringRef(text_value));
 #endif  // USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
 
         for (auto *textsensortype : this->textsensortype_) {
@@ -806,7 +809,7 @@ void Nextion::process_nextion_commands_() {
         ESP_LOGN(TAG, "Binary sensor: %s=%s", variable_name.c_str(), ONOFF(to_process[index] != 0));
 
 #ifdef USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
-        this->custom_binary_sensor_callback_.call(variable_name, to_process[index] != 0);
+        this->custom_binary_sensor_callback_.call(StringRef(variable_name), to_process[index] != 0);
 #endif  // USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
 
         for (auto *binarysensortype : this->binarysensortype_) {

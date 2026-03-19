@@ -1,8 +1,8 @@
 #pragma once
 
-#include <string>
-
 #include "esphome/core/automation.h"
+#include "esphome/core/string_ref.h"
+
 #include "nextion.h"
 
 namespace esphome {
@@ -53,39 +53,39 @@ class TouchTrigger : public Trigger<uint8_t, uint8_t, bool> {
 };
 
 #ifdef USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
-class CustomBinarySensorTrigger : public Trigger<std::string, bool> {
+class CustomBinarySensorTrigger : public Trigger<StringRef, bool> {
  public:
   explicit CustomBinarySensorTrigger(Nextion *nextion) {
     nextion->add_custom_binary_sensor_callback(
-        [this](const std::string &key, bool value) { this->trigger(key, value); });
+        [this](const StringRef &key, bool value) { this->trigger(key, value); });
   }
 };
 #endif  // USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
 
 #ifdef USE_NEXTION_TRIGGER_CUSTOM_SENSOR
-class CustomSensorTrigger : public Trigger<std::string, int32_t> {
+class CustomSensorTrigger : public Trigger<StringRef, int32_t> {
  public:
   explicit CustomSensorTrigger(Nextion *nextion) {
-    nextion->add_custom_sensor_callback([this](const std::string &key, int32_t value) { this->trigger(key, value); });
+    nextion->add_custom_sensor_callback([this](const StringRef &key, int32_t value) { this->trigger(key, value); });
   }
 };
 #endif  // USE_NEXTION_TRIGGER_CUSTOM_SENSOR
 
 #ifdef USE_NEXTION_TRIGGER_CUSTOM_SWITCH
-class CustomSwitchTrigger : public Trigger<std::string, bool> {
+class CustomSwitchTrigger : public Trigger<StringRef, bool> {
  public:
   explicit CustomSwitchTrigger(Nextion *nextion) {
-    nextion->add_custom_switch_callback([this](const std::string &key, bool value) { this->trigger(key, value); });
+    nextion->add_custom_switch_callback([this](const StringRef &key, bool value) { this->trigger(key, value); });
   }
 };
 #endif  // USE_NEXTION_TRIGGER_CUSTOM_SWITCH
 
 #ifdef USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
-class CustomTextSensorTrigger : public Trigger<std::string, std::string> {
+class CustomTextSensorTrigger : public Trigger<StringRef, StringRef> {
  public:
   explicit CustomTextSensorTrigger(Nextion *nextion) {
     nextion->add_custom_text_sensor_callback(
-        [this](const std::string &key, const std::string &value) { this->trigger(key, value); });
+        [this](const StringRef &key, const StringRef &value) { this->trigger(key, value); });
   }
 };
 #endif  // USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR

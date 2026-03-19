@@ -69,19 +69,19 @@ BufferOverflowTrigger = nextion_ns.class_(
 )
 CustomBinarySensorTrigger = nextion_ns.class_(
     "CustomBinarySensorTrigger",
-    automation.Trigger.template(cg.std_string, cg.bool_),
+    automation.Trigger.template(cg.StringRef, cg.bool_),
 )
 CustomSensorTrigger = nextion_ns.class_(
     "CustomSensorTrigger",
-    automation.Trigger.template(cg.std_string, cg.float_),
+    automation.Trigger.template(cg.StringRef, cg.int32),  # also int32, not float_
 )
 CustomSwitchTrigger = nextion_ns.class_(
     "CustomSwitchTrigger",
-    automation.Trigger.template(cg.std_string, cg.bool_),
+    automation.Trigger.template(cg.StringRef, cg.bool_),
 )
 CustomTextSensorTrigger = nextion_ns.class_(
     "CustomTextSensorTrigger",
-    automation.Trigger.template(cg.std_string, cg.std_string),
+    automation.Trigger.template(cg.StringRef, cg.StringRef),
 )
 
 
@@ -361,7 +361,7 @@ async def to_code(config):
         (
             CONF_ON_CUSTOM_TEXT_SENSOR,
             "USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR",
-            cg.std_string,
+            cg.StringRef,
         ),
     ):
         if custom_items := config.get(conf_key, []):
@@ -371,7 +371,7 @@ async def to_code(config):
                 await automation.build_automation(
                     trigger,
                     [
-                        (cg.std_string, "key"),
+                        (cg.StringRef, "key"),
                         (value_type, "value"),
                     ],
                     conf,

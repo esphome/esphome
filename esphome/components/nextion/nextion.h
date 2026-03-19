@@ -4,14 +4,15 @@
 #include <string>
 #include <vector>
 
-#include "esphome/core/defines.h"
-#include "esphome/core/time.h"
-
 #include "esphome/components/uart/uart.h"
-#include "nextion_base.h"
-#include "nextion_component.h"
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/string_ref.h"
+#include "esphome/core/time.h"
+
+#include "nextion_base.h"
+#include "nextion_component.h"
 
 #ifdef USE_NEXTION_TFT_UPLOAD
 #ifdef USE_ESP32
@@ -1188,7 +1189,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * This callback is invoked when a Nextion custom binary sensor frame is received,
    * providing the component name as the key and the decoded boolean value.
    *
-   * @param callback The void(const std::string &key, bool value) callback.
+   * @param callback The void(const StringRef &key, bool value) callback.
    */
   template<typename F> void add_custom_binary_sensor_callback(F &&callback) {
     this->custom_binary_sensor_callback_.add(std::forward<F>(callback));
@@ -1201,7 +1202,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * This callback is invoked when a Nextion custom sensor frame is received,
    * providing the component name as the key and the decoded integer value.
    *
-   * @param callback The void(const std::string &key, int value) callback.
+   * @param callback The void(const StringRef &key, int value) callback.
    */
   template<typename F> void add_custom_sensor_callback(F &&callback) {
     this->custom_sensor_callback_.add(std::forward<F>(callback));
@@ -1214,7 +1215,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * This callback is invoked when a Nextion custom switch frame is received,
    * providing the component name as the key and the decoded boolean value.
    *
-   * @param callback The void(const std::string &key, bool value) callback.
+   * @param callback The void(const StringRef &key, bool value) callback.
    */
   template<typename F> void add_custom_switch_callback(F &&callback) {
     this->custom_switch_callback_.add(std::forward<F>(callback));
@@ -1227,7 +1228,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * This callback is invoked when a Nextion custom text sensor frame is received,
    * providing the component name as the key and the decoded text value.
    *
-   * @param callback The void(const std::string & key, const std::string & value) callback.
+   * @param callback The void(const StringRef &key, const StringRef &value) callback.
    */
   template<typename F> void add_custom_text_sensor_callback(F &&callback) {
     this->custom_text_sensor_callback_.add(std::forward<F>(callback));
