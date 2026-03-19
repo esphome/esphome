@@ -20,12 +20,6 @@ bool random_bytes(uint8_t *data, size_t len) {
   return true;
 }
 
-Mutex::Mutex() { handle_ = xSemaphoreCreateMutex(); }
-Mutex::~Mutex() {}
-void Mutex::lock() { xSemaphoreTake(this->handle_, portMAX_DELAY); }
-bool Mutex::try_lock() { return xSemaphoreTake(this->handle_, 0) == pdTRUE; }
-void Mutex::unlock() { xSemaphoreGive(this->handle_); }
-
 // only affects the executing core
 // so should not be used as a mutex lock, only to get accurate timing
 IRAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }

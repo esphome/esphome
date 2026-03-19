@@ -13,6 +13,14 @@ namespace esphome {
 // Events are allocated on first use and reused thereafter, growing to peak usage
 // @tparam T The type of objects managed by the pool (must have a release() method)
 // @tparam SIZE The maximum number of objects in the pool (1-255, limited by uint8_t)
+//
+// SIZING: When paired with a LockFreeQueue<T, Q_SIZE>, the pool SIZE should be
+// Q_SIZE - 1 (the queue's actual capacity, since the ring buffer reserves one slot).
+// This ensures allocate() returns nullptr before push() can fail, which:
+//  - Prevents the allocate-succeeds-but-push-fails mismatch that permanently
+//    leaks a pool slot (the element is never returned to the pool)
+//  - Avoids needing release() on the producer path after a failed push(),
+//    preserving the SPSC contract on the internal free list
 template<class T, uint8_t SIZE> class EventPool {
  public:
   EventPool() : total_created_(0) {}
