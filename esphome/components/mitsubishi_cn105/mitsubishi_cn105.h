@@ -119,9 +119,8 @@ class MitsubishiCN105 {
     uint8_t flags_{0};
   };
 
- private:
   void set_state_(State new_state);
-  static bool should_transition_(State from, State to);
+  static bool should_transition(State from, State to);
   void did_transition_(State from, State to);
   void cancel_waiting_and_transit_to_(State state);
 
@@ -135,7 +134,7 @@ class MitsubishiCN105 {
   void add_byte_to_read_buffer_(uint8_t value);
   bool process_incoming_packet_(const uint8_t *packet, uint8_t length, uint8_t received_checksum);
   bool parse_values_(const uint8_t *data, size_t length);
-  static std::optional<State> check_incoming_packet_(const uint8_t *packet, uint8_t length, uint8_t received_checksum);
+  static std::optional<State> check_incoming_packet(const uint8_t *packet, uint8_t length, uint8_t received_checksum);
 
   void apply_settings_();
 
@@ -148,11 +147,10 @@ class MitsubishiCN105 {
   template<typename T, size_t N, typename F>
   void apply_to_(UpdateFlag flag, const std::array<std::optional<T>, N> &table, uint8_t value, F &&callback) const;
 
-  static void dump_buffer_vv_(const char *prefix, const uint8_t *data, size_t len);
-  static const char *state_to_string_(State state);
-  static const char *update_flag_to_string_(UpdateFlag flag);
+  static void dump_buffer_vv(const char *prefix, const uint8_t *data, size_t len);
+  static const char *state_to_string(State state);
+  static const char *update_flag_to_string(UpdateFlag flag);
 
- private:
   MitsubishiCN105Transport &transport_;
 
   State state_{State::NOT_CONNECTED};

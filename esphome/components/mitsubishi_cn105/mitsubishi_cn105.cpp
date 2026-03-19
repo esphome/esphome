@@ -153,17 +153,17 @@ bool MitsubishiCN105::sync() {
 }
 
 void MitsubishiCN105::set_state_(State new_state) {
-  if (new_state != this->state_ && should_transition_(this->state_, new_state)) {
-    ESP_LOGD(TAG, "Did transition: %s -> %s", state_to_string_(this->state_), state_to_string_(new_state));
+  if (new_state != this->state_ && should_transition(this->state_, new_state)) {
+    ESP_LOGD(TAG, "Did transition: %s -> %s", state_to_string(this->state_), state_to_string(new_state));
     const auto prev_state = this->state_;
     this->state_ = new_state;
     this->did_transition_(prev_state, new_state);
   } else {
-    ESP_LOGW(TAG, "Ignoring transition %s -> %s", state_to_string_(this->state_), state_to_string_(new_state));
+    ESP_LOGW(TAG, "Ignoring transition %s -> %s", state_to_string(this->state_), state_to_string(new_state));
   }
 }
 
-bool MitsubishiCN105::should_transition_(State from, State to) {
+bool MitsubishiCN105::should_transition(State from, State to) {
   switch (to) {
     case State::CONNECTING:
       return from == State::NOT_CONNECTED || from == State::READ_TIMEOUT;
@@ -332,7 +332,7 @@ void MitsubishiCN105::connect_() {
 }
 
 void MitsubishiCN105::send_packet_(const uint8_t *packet, size_t size) {
-  dump_buffer_vv_("TX", packet, size);
+  dump_buffer_vv("TX", packet, size);
   this->transport_.write_array(packet, size);
   this->transport_.flush();
   this->write_timeout_start_ms_ = App.get_loop_component_start_time();
@@ -386,7 +386,7 @@ bool MitsubishiCN105::read_incoming_bytes_() {
     const uint8_t length = static_cast<uint8_t>(this->read_pos_);
     this->read_pos_ = 0;
 
-    dump_buffer_vv_("RX", this->read_buffer_, length);
+    dump_buffer_vv("RX", this->read_buffer_, length);
 
     return this->process_incoming_packet_(this->read_buffer_, length, received_checksum);
   }
@@ -395,7 +395,7 @@ bool MitsubishiCN105::read_incoming_bytes_() {
 }
 
 bool MitsubishiCN105::process_incoming_packet_(const uint8_t *packet, uint8_t length, uint8_t received_checksum) {
-  const auto status = check_incoming_packet_(packet, length, received_checksum);
+  const auto status = check_incoming_packet(packet, length, received_checksum);
   if (!status.has_value()) {
     return false;
   }
@@ -426,8 +426,8 @@ bool MitsubishiCN105::process_incoming_packet_(const uint8_t *packet, uint8_t le
   return false;
 }
 
-std::optional<MitsubishiCN105::State> MitsubishiCN105::check_incoming_packet_(const uint8_t *packet, uint8_t length,
-                                                                              uint8_t received_checksum) {
+std::optional<MitsubishiCN105::State> MitsubishiCN105::check_incoming_packet(const uint8_t *packet, uint8_t length,
+                                                                             uint8_t received_checksum) {
   // read_incoming_bytes_ ensures we have at least HEADER_LEN bytes in packet
   static_assert(HEADER_LEN > 3, "HEADER_LEN must be at least 4 to safely access packet[3]");
 
@@ -554,7 +554,7 @@ void MitsubishiCN105::add_byte_to_read_buffer_(uint8_t value) {
     ++this->read_pos_;
   } else {
     ESP_LOGW(TAG, "RX buffer overflow, resetting");
-    dump_buffer_vv_("RX partial: ", this->read_buffer_, this->read_pos_);
+    dump_buffer_vv("RX partial: ", this->read_buffer_, this->read_pos_);
     this->read_pos_ = 0;
   }
 }
@@ -613,7 +613,7 @@ template<typename T, size_t N, typename F>
 void MitsubishiCN105::apply_to_(UpdateFlag flag, const std::array<std::optional<T>, N> &table, uint8_t value,
                                 F &&callback) const {
   if (this->pending_updates_.has(flag)) {
-    ESP_LOGV(TAG, "Ignoring apply due pending update: flag=%s, value=%u", update_flag_to_string_(flag), value);
+    ESP_LOGV(TAG, "Ignoring apply due pending update: flag=%s, value=%u", update_flag_to_string(flag), value);
     return;
   }
 
@@ -621,7 +621,7 @@ void MitsubishiCN105::apply_to_(UpdateFlag flag, const std::array<std::optional<
     callback(*mapped);
   } else {
     callback(std::nullopt);
-    ESP_LOGW(TAG, "Lookup failed: flag=%s, value=%u", update_flag_to_string_(flag), value);
+    ESP_LOGW(TAG, "Lookup failed: flag=%s, value=%u", update_flag_to_string(flag), value);
   }
 }
 
@@ -638,18 +638,18 @@ std::optional<uint8_t> MitsubishiCN105::pending_update_for_(UpdateFlag flag, con
     }
   }
 
-  ESP_LOGW(TAG, "Reverse lookup failed: flag=%s, value=%d", update_flag_to_string_(flag), value);
+  ESP_LOGW(TAG, "Reverse lookup failed: flag=%s, value=%d", update_flag_to_string(flag), value);
   return std::nullopt;
 }
 
-void MitsubishiCN105::dump_buffer_vv_(const char *prefix, const uint8_t *data, size_t len) {
+void MitsubishiCN105::dump_buffer_vv(const char *prefix, const uint8_t *data, size_t len) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
   char buf[format_hex_pretty_size(READ_BUFFER_SIZE)];
 #endif
   ESP_LOGVV(TAG, "%s (%u): %s", prefix, (unsigned) len, format_hex_pretty_to(buf, data, len));
 }
 
-const char *MitsubishiCN105::state_to_string_(State state) {
+const char *MitsubishiCN105::state_to_string(State state) {
   switch (state) {
     case State::NOT_CONNECTED:
       return "Not connected";
@@ -675,7 +675,7 @@ const char *MitsubishiCN105::state_to_string_(State state) {
   return "Unknown";
 }
 
-const char *MitsubishiCN105::update_flag_to_string_(UpdateFlag flag) {
+const char *MitsubishiCN105::update_flag_to_string(UpdateFlag flag) {
   switch (flag) {
     case UpdateFlag::TEMPERATURE:
       return "TEMPERATURE";

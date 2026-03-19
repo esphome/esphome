@@ -36,7 +36,6 @@ class MitsubishiCN105Climate : public climate::Climate, public Component, public
  private:
   void apply_values_();
 
- private:
   UARTTransport transport_;
   MitsubishiCN105 hp_;
 
