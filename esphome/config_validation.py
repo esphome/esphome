@@ -314,7 +314,7 @@ class Version:
 
     @classmethod
     def parse(cls, value: str) -> Version:
-        match = re.match(r"^(\d+).(\d+).(\d+)-?(\w*)$", value)
+        match = re.match(r"^(\d+).(\d+).(\d+)[-.]?(\w*)$", value)
         if match is None:
             raise ValueError(f"Not a valid version number {value}")
         major = int(match[1])

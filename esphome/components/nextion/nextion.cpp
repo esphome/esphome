@@ -214,30 +214,6 @@ void Nextion::update() {
   }
 }
 
-void Nextion::add_sleep_state_callback(std::function<void()> &&callback) {
-  this->sleep_callback_.add(std::move(callback));
-}
-
-void Nextion::add_wake_state_callback(std::function<void()> &&callback) {
-  this->wake_callback_.add(std::move(callback));
-}
-
-void Nextion::add_setup_state_callback(std::function<void()> &&callback) {
-  this->setup_callback_.add(std::move(callback));
-}
-
-void Nextion::add_new_page_callback(std::function<void(uint8_t)> &&callback) {
-  this->page_callback_.add(std::move(callback));
-}
-
-void Nextion::add_touch_event_callback(std::function<void(uint8_t, uint8_t, bool)> &&callback) {
-  this->touch_callback_.add(std::move(callback));
-}
-
-void Nextion::add_buffer_overflow_event_callback(std::function<void()> &&callback) {
-  this->buffer_overflow_callback_.add(std::move(callback));
-}
-
 void Nextion::update_all_components() {
   if ((!this->is_setup() && !this->connection_state_.ignore_is_setup_) || this->is_sleeping())
     return;

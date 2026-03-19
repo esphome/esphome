@@ -356,14 +356,6 @@ ClimateCall &ClimateCall::set_swing_mode(optional<ClimateSwingMode> swing_mode) 
   return *this;
 }
 
-void Climate::add_on_state_callback(std::function<void(Climate &)> &&callback) {
-  this->state_callback_.add(std::move(callback));
-}
-
-void Climate::add_on_control_callback(std::function<void(ClimateCall &)> &&callback) {
-  this->control_callback_.add(std::move(callback));
-}
-
 // Random 32bit value; If this changes existing restore preferences are invalidated
 static const uint32_t RESTORE_STATE_VERSION = 0x848EA6ADUL;
 
