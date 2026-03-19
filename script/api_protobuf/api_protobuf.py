@@ -2094,7 +2094,7 @@ def build_message_type(
         public_content.append("#ifdef HAS_PROTO_MESSAGE_DUMP")
         snake_name = camel_to_snake(desc.name)
         public_content.append(
-            f'const char *message_name() const override {{ return "{snake_name}"; }}'
+            f'const LogString *message_name() const override {{ return LOG_STR("{snake_name}"); }}'
         )
         public_content.append("#endif")
 
@@ -2752,53 +2752,47 @@ class MessageDumpHelper {
 
 // Helper functions to reduce code duplication in dump methods
 // field_name parameters are PROGMEM pointers (flash on ESP8266, regular pointers on other platforms)
-// NOLINT: not all overloads are used in every build (depends on enabled components)
-// NOLINTNEXTLINE(clang-diagnostic-unused-function)
+// Not all overloads are used in every build (depends on enabled components)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
 static void dump_field(DumpBuffer &out, const char *field_name, int32_t value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%" PRId32 "\\n", value));
 }
 
-// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static void dump_field(DumpBuffer &out, const char *field_name, uint32_t value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%" PRIu32 "\\n", value));
 }
 
-// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static void dump_field(DumpBuffer &out, const char *field_name, float value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%g\\n", value));
 }
 
-// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static void dump_field(DumpBuffer &out, const char *field_name, uint64_t value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%" PRIu64 "\\n", value));
 }
 
-// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static void dump_field(DumpBuffer &out, const char *field_name, bool value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   out.append(YESNO(value));
   out.append("\\n");
 }
 
-// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static void dump_field(DumpBuffer &out, const char *field_name, const std::string &value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   out.append("'").append(value.c_str()).append("'");
   out.append("\\n");
 }
 
-// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static void dump_field(DumpBuffer &out, const char *field_name, StringRef value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   append_quoted_string(out, value);
   out.append("\\n");
 }
 
-// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static void dump_field(DumpBuffer &out, const char *field_name, const char *value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   out.append("'").append(value).append("'");
@@ -2815,13 +2809,13 @@ template<typename T> static void dump_field(DumpBuffer &out, const char *field_n
 // Helper for bytes fields - uses stack buffer to avoid heap allocation
 // Buffer sized for 160 bytes of data (480 chars with separators) to fit typical log buffer
 // field_name is a PROGMEM pointer (flash on ESP8266, regular pointer on other platforms)
-// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint8_t *data, size_t len, int indent = 2) {
   char hex_buf[format_hex_pretty_size(160)];
   append_field_prefix(out, field_name, indent);
   format_hex_pretty_to(hex_buf, data, len);
   out.append(hex_buf).append("\\n");
 }
+#pragma GCC diagnostic pop
 
 """
 
@@ -2993,7 +2987,7 @@ static const char *const TAG = "api.service";
     # Add logging helper method declarations
     hpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
     hpp += " protected:\n"
-    hpp += "  void log_send_message_(const char *name, const char *dump);\n"
+    hpp += "  void log_send_message_(const LogString *name, const char *dump);\n"
     hpp += (
         "  void log_receive_message_(const LogString *name, const ProtoMessage &msg);\n"
     )
@@ -3006,10 +3000,8 @@ static const char *const TAG = "api.service";
 
     # Add logging helper method implementations to cpp
     cpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
-    cpp += (
-        f"void {class_name}::log_send_message_(const char *name, const char *dump) {{\n"
-    )
-    cpp += '  ESP_LOGVV(TAG, "send_message %s: %s", name, dump);\n'
+    cpp += f"void {class_name}::log_send_message_(const LogString *name, const char *dump) {{\n"
+    cpp += '  ESP_LOGVV(TAG, "send_message %s: %s", LOG_STR_ARG(name), dump);\n'
     cpp += "}\n"
     cpp += f"void {class_name}::log_receive_message_(const LogString *name, const ProtoMessage &msg) {{\n"
     cpp += "  DumpBuffer dump_buf;\n"

@@ -457,7 +457,7 @@ class ProtoMessage {
   uint32_t calculate_size() const { return 0; }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   virtual const char *dump_to(DumpBuffer &out) const = 0;
-  virtual const char *message_name() const { return "unknown"; }
+  virtual const LogString *message_name() const { return LOG_STR("unknown"); }
 #endif
 
 #ifndef USE_HOST
