@@ -6,8 +6,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace host {
+namespace esphome::host {
 namespace fs = std::filesystem;
 
 static const char *const TAG = "host.preferences";
@@ -77,6 +76,8 @@ ESPPreferenceObject HostPreferences::make_preference(size_t length, uint32_t typ
 
 static HostPreferences s_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+HostPreferences *get_preferences() { return &s_preferences; }
+
 void setup_preferences() {
   host_preferences = &s_preferences;
   global_preferences = &s_preferences;
@@ -88,9 +89,11 @@ bool HostPreferenceBackend::save(const uint8_t *data, size_t len) {
 
 bool HostPreferenceBackend::load(uint8_t *data, size_t len) { return host_preferences->load(this->key_, data, len); }
 
-HostPreferences *host_preferences;
-}  // namespace host
+HostPreferences *host_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+}  // namespace esphome::host
+
+namespace esphome {
 ESPPreferences *global_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 }  // namespace esphome
 

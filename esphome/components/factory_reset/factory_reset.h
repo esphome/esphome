@@ -17,8 +17,8 @@ class FactoryResetComponent : public Component {
 
   void dump_config() override;
   void setup() override;
-  void add_increment_callback(std::function<void(uint8_t, uint8_t)> &&callback) {
-    this->increment_callback_.add(std::move(callback));
+  template<typename F> void add_increment_callback(F &&callback) {
+    this->increment_callback_.add(std::forward<F>(callback));
   }
 
  protected:

@@ -41,8 +41,17 @@ void arch_init();
 void arch_feed_wdt();
 uint32_t arch_get_cpu_cycle_count();
 uint32_t arch_get_cpu_freq_hz();
+
+#ifdef USE_ESP8266
+// ESP8266: pgm_read_* does real flash reads on Harvard architecture
 uint8_t progmem_read_byte(const uint8_t *addr);
 const char *progmem_read_ptr(const char *const *addr);
 uint16_t progmem_read_uint16(const uint16_t *addr);
+#else
+// All other platforms: PROGMEM is a no-op, so these are direct dereferences
+inline uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
+inline const char *progmem_read_ptr(const char *const *addr) { return *addr; }
+inline uint16_t progmem_read_uint16(const uint16_t *addr) { return *addr; }
+#endif
 
 }  // namespace esphome
