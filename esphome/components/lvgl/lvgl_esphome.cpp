@@ -555,8 +555,8 @@ void LvglComponent::setup() {
   auto *display = this->displays_[0];
   auto rounding = this->draw_rounding;
   // cater for displays with dimensions that don't divide by the required rounding
-  this->width_ = display->get_width();
-  this->height_ = display->get_height();
+  this->width_ = display->get_native_width();
+  this->height_ = display->get_native_height();
   auto width = (display->get_width() + rounding - 1) / rounding * rounding;
   auto height = (display->get_height() + rounding - 1) / rounding * rounding;
   auto frac = this->buffer_frac_;
