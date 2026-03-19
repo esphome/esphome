@@ -111,9 +111,7 @@ def model_schema(config):
         }
     )
     if model.get_default(CONF_INVERT_RED, None) is not None:
-        schema = schema.extend(
-            {model.option(CONF_INVERT_RED): cv.boolean}
-        )
+        schema = schema.extend({model.option(CONF_INVERT_RED): cv.boolean})
     return schema
 
 
