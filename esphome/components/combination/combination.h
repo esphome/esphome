@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 
+#include <functional>
 #include <vector>
 
 namespace esphome {
@@ -41,14 +42,20 @@ class CombinationNoParameterComponent : public CombinationComponent {
 // Base class for opertions that require one parameter to compute the combination
 class CombinationOneParameterComponent : public CombinationComponent {
  public:
-  void add_source(Sensor *sensor, std::function<float(float)> const &stddev);
-  void add_source(Sensor *sensor, float stddev);
+  void add_source(Sensor *sensor, std::function<float(float)> const &compute);
+  void add_source(Sensor *sensor, float value);
 
-  /// @brief Logs all source sensor's names in sensor_pairs_
+  /// @brief Logs all source sensor's names in sensor_sources_
   void log_source_sensors() override;
 
+  struct SensorSource {
+    sensor::Sensor *sensor;
+    std::function<float(float)> compute;
+    CombinationOneParameterComponent *parent;
+  };
+
  protected:
-  std::vector<std::pair<Sensor *, std::function<float(float)>>> sensor_pairs_;
+  std::vector<SensorSource> sensor_sources_;
 };
 
 class KalmanCombinationComponent : public CombinationOneParameterComponent {
