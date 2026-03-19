@@ -56,8 +56,7 @@ class TouchTrigger : public Trigger<uint8_t, uint8_t, bool> {
 class CustomBinarySensorTrigger : public Trigger<StringRef, bool> {
  public:
   explicit CustomBinarySensorTrigger(Nextion *nextion) {
-    nextion->add_custom_binary_sensor_callback(
-        [this](const StringRef &key, bool value) { this->trigger(key, value); });
+    nextion->add_custom_binary_sensor_callback([this](const StringRef &key, bool value) { this->trigger(key, value); });
   }
 };
 #endif  // USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
