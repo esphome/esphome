@@ -164,6 +164,9 @@ uint32_t fnv1_hash(const char *str) {
 static uint32_t splitmix32_state;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 uint32_t random_uint32() {
+  // State of 0 means unseeded. The state will wrap back to 0 after 2^32 calls,
+  // triggering one extra random_bytes() call — an acceptable trade-off vs. adding
+  // a separate bool flag (4 bytes BSS + branch on every call).
   if (splitmix32_state == 0) {
     random_bytes(reinterpret_cast<uint8_t *>(&splitmix32_state), sizeof(splitmix32_state));
   }
