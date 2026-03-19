@@ -552,11 +552,11 @@ void PacketTransport::dump_config() {
                 "  Ping-pong: %s",
                 this->platform_name_, YESNO(this->is_encrypted_()), YESNO(this->ping_pong_enable_));
 #ifdef USE_SENSOR
-  for (auto sensor : this->sensors_)
+  for (const auto &sensor : this->sensors_)
     ESP_LOGCONFIG(TAG, "  Sensor: %s", sensor.id);
 #endif
 #ifdef USE_BINARY_SENSOR
-  for (auto sensor : this->binary_sensors_)
+  for (const auto &sensor : this->binary_sensors_)
     ESP_LOGCONFIG(TAG, "  Binary Sensor: %s", sensor.id);
 #endif
   for (const auto &host : this->providers_) {
