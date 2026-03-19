@@ -58,13 +58,6 @@ struct BinarySensor {
 #endif
 
 class PacketTransport : public PollingComponent {
-#ifdef USE_SENSOR
-  friend struct Sensor;
-#endif
-#ifdef USE_BINARY_SENSOR
-  friend struct BinarySensor;
-#endif
-
  public:
   void setup() override;
   void loop() override;
