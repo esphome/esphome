@@ -172,6 +172,7 @@ uint32_t random_uint32() {
   // a separate bool flag (4 bytes BSS + branch on every call).
   if (splitmix32_state == 0) {
     random_bytes(reinterpret_cast<uint8_t *>(&splitmix32_state), sizeof(splitmix32_state));
+    splitmix32_state |= 1;  // ensure non-zero seed
   }
   splitmix32_state += 0x9e3779b9u;
   uint32_t z = splitmix32_state;
