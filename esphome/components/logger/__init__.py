@@ -329,7 +329,6 @@ async def to_code(config: ConfigType) -> None:
     baud_rate: int = config[CONF_BAUD_RATE]
     level = config[CONF_LEVEL]
     CORE.data.setdefault(CONF_LOGGER, {})[CONF_LEVEL] = level
-    initial_level = LOG_LEVELS[config.get(CONF_INITIAL_LEVEL, level)]
     tx_buffer_size = config[CONF_TX_BUFFER_SIZE]
     cg.add_define("ESPHOME_LOGGER_TX_BUFFER_SIZE", tx_buffer_size)
     log = cg.new_Pvariable(
@@ -348,10 +347,22 @@ async def to_code(config: ConfigType) -> None:
                 HARDWARE_UART_TO_UART_SELECTION[config[CONF_HARDWARE_UART]]
             )
         )
-    # pre_setup() must be called before init_log_buffer() because
-    # init_log_buffer() calls disable_loop() which may log at VV level,
-    # and global_logger must be set before any logging occurs.
+    # pre_setup() sets global_logger and must run before any other code
+    # that may call ESP_LOG* (e.g. setup_preferences contains ESP_LOGVV).
     cg.add(log.pre_setup())
+
+    # Schedule the rest of logger setup at DIAGNOSTICS priority, after
+    # Application is constructed (CORE priority) but before most components.
+    CORE.add_job(_late_logger_init, config)
+
+
+@coroutine_with_priority(CoroPriority.DIAGNOSTICS)
+async def _late_logger_init(config: ConfigType) -> None:
+    """Finish logger setup after Application is constructed."""
+    log = await cg.get_variable(config[CONF_ID])
+    level = config[CONF_LEVEL]
+    initial_level = LOG_LEVELS[config.get(CONF_INITIAL_LEVEL, level)]
+    baud_rate: int = config[CONF_BAUD_RATE]
     if CORE.is_esp32 or CORE.is_libretiny or CORE.is_nrf52:
         task_log_buffer_size = config[CONF_TASK_LOG_BUFFER_SIZE]
         if task_log_buffer_size > 0:
