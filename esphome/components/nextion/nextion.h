@@ -1580,16 +1580,16 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   CallbackManager<void(uint8_t, uint8_t, bool)> touch_callback_{};
   CallbackManager<void()> buffer_overflow_callback_{};
 #ifdef USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
-  CallbackManager<void(const std::string &, bool)> custom_binary_sensor_callback_{};
+  CallbackManager<void(StringRef, bool)> custom_binary_sensor_callback_{};
 #endif  // USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
 #ifdef USE_NEXTION_TRIGGER_CUSTOM_SENSOR
-  CallbackManager<void(const std::string &, int32_t)> custom_sensor_callback_{};
+  CallbackManager<void(StringRef, int32_t)> custom_sensor_callback_{};
 #endif  // USE_NEXTION_TRIGGER_CUSTOM_SENSOR
 #ifdef USE_NEXTION_TRIGGER_CUSTOM_SWITCH
-  CallbackManager<void(const std::string &, bool)> custom_switch_callback_{};
+  CallbackManager<void(StringRef, bool)> custom_switch_callback_{};
 #endif  // USE_NEXTION_TRIGGER_CUSTOM_SWITCH
 #ifdef USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
-  CallbackManager<void(const std::string &, const std::string &)> custom_text_sensor_callback_{};
+  CallbackManager<void(StringRef, StringRef)> custom_text_sensor_callback_{};
 #endif  // USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
 
   nextion_writer_t writer_;
