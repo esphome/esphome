@@ -56,6 +56,7 @@ from esphome.const import (
     PlatformFramework,
 )
 from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
+from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
 logger_ns = cg.esphome_ns.namespace("logger")
@@ -323,9 +324,9 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-@coroutine_with_priority(CoroPriority.DIAGNOSTICS)
-async def to_code(config):
-    baud_rate = config[CONF_BAUD_RATE]
+@coroutine_with_priority(CoroPriority.LOGGER_INIT)
+async def to_code(config: ConfigType) -> None:
+    baud_rate: int = config[CONF_BAUD_RATE]
     level = config[CONF_LEVEL]
     CORE.data.setdefault(CONF_LOGGER, {})[CONF_LEVEL] = level
     initial_level = LOG_LEVELS[config.get(CONF_INITIAL_LEVEL, level)]
