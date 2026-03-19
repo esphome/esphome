@@ -14,6 +14,10 @@
 
 #pragma once
 
+#include "esphome/core/defines.h"
+
+#ifdef USE_ESP32
+
 #include "esphome/core/helpers.h"
 
 #include <cstdint>
@@ -140,3 +144,5 @@ class SendspinTimeFilter {
   const uint8_t min_samples_for_forgetting_;
 };
 }  // namespace esphome::sendspin
+
+#endif  // USE_ESP32

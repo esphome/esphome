@@ -1,6 +1,6 @@
 #include "sendspin_media_player.h"
 
-#if defined(USE_MEDIA_PLAYER) && defined(USE_SENDSPIN_CONTROLLER)
+#if defined(USE_ESP32) && defined(USE_MEDIA_PLAYER) && defined(USE_SENDSPIN_CONTROLLER)
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"

@@ -2,6 +2,8 @@
 
 #include "esphome/core/defines.h"
 
+#ifdef USE_ESP32
+
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -689,3 +691,5 @@ std::string format_client_command_message(SendspinControllerCommand command,
 
 }  // namespace sendspin
 }  // namespace esphome
+
+#endif  // USE_ESP32

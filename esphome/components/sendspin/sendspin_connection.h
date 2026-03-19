@@ -16,6 +16,8 @@
 
 #include "esphome/core/defines.h"
 
+#ifdef USE_ESP32
+
 #include "sendspin_protocol.h"
 #include "sendspin_time_filter.h"
 
@@ -266,3 +268,5 @@ class SendspinConnection {
 
 }  // namespace sendspin
 }  // namespace esphome
+
+#endif  // USE_ESP32

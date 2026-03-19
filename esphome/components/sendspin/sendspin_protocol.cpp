@@ -1,5 +1,7 @@
 #include "sendspin_protocol.h"
 
+#ifdef USE_ESP32
+
 #include "esphome/components/json/json_util.h"
 #include "esphome/core/log.h"
 
@@ -718,3 +720,5 @@ std::string format_client_goodbye_message(SendspinGoodbyeReason reason) {
 
 }  // namespace sendspin
 }  // namespace esphome
+
+#endif  // USE_ESP32

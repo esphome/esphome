@@ -2,7 +2,7 @@
 
 #include "esphome/core/defines.h"
 
-#ifdef USE_SENDSPIN_ARTWORK
+#if defined(USE_ESP32) && defined(USE_SENDSPIN_ARTWORK)
 
 #include "esphome/components/sendspin/sendspin_hub.h"
 #include "esphome/components/sendspin/sendspin_protocol.h"

@@ -14,6 +14,8 @@
 
 #include "sendspin_time_filter.h"
 
+#ifdef USE_ESP32
+
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -182,3 +184,5 @@ int64_t SendspinTimeFilter::get_covariance() const {
   return std::round(this->offset_covariance_);
 }
 }  // namespace esphome::sendspin
+
+#endif  // USE_ESP32

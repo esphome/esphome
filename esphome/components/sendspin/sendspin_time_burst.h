@@ -1,5 +1,9 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
+#ifdef USE_ESP32
+
 #include <cstdint>
 #include <limits>
 
@@ -57,3 +61,5 @@ class SendspinTimeBurst {
 
 }  // namespace sendspin
 }  // namespace esphome
+
+#endif  // USE_ESP32

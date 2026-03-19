@@ -2,7 +2,7 @@
 
 #include "esphome/core/defines.h"
 
-#if defined(USE_SENDSPIN_PLAYER)
+#if defined(USE_ESP32) && defined(USE_SENDSPIN_PLAYER)
 
 #include "esphome/components/sendspin/sendspin_protocol.h"  // For ChunkType, DummyHeader, SendspinCodecFormat
 

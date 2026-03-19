@@ -1,5 +1,7 @@
 #include "sendspin_media_source.h"
 
+#if defined(USE_ESP32) && defined(USE_SENDSPIN_PLAYER) && defined(USE_SENDSPIN_CONTROLLER)
+
 #include "esphome/core/application.h"
 
 #include <algorithm>
@@ -769,3 +771,5 @@ void SendspinMediaSource::sync_task(void *params) {
 
 }  // namespace sendspin
 }  // namespace esphome
+
+#endif  // USE_ESP32 && USE_SENDSPIN_PLAYER && USE_SENDSPIN_CONTROLLER

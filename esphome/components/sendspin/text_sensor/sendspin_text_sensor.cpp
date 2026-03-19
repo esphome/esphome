@@ -1,6 +1,6 @@
 #include "sendspin_text_sensor.h"
 
-#if defined(USE_TEXT_SENSOR) && defined(USE_SENDSPIN_METADATA)
+#if defined(USE_ESP32) && defined(USE_TEXT_SENSOR) && defined(USE_SENDSPIN_METADATA)
 
 #include <esp_timer.h>
 

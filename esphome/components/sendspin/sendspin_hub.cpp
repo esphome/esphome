@@ -1,5 +1,7 @@
 #include "sendspin_hub.h"
 
+#ifdef USE_ESP32
+
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/ip_address.h"
 #include "esphome/components/network/util.h"
@@ -992,3 +994,5 @@ uint32_t SendspinHub::get_track_duration_ms() {
 
 }  // namespace sendspin
 }  // namespace esphome
+
+#endif  // USE_ESP32

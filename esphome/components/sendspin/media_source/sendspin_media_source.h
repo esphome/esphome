@@ -2,7 +2,7 @@
 
 #include "esphome/core/defines.h"
 
-#if defined(USE_SENDSPIN_PLAYER) && defined(USE_SENDSPIN_CONTROLLER)
+#if defined(USE_ESP32) && defined(USE_SENDSPIN_PLAYER) && defined(USE_SENDSPIN_CONTROLLER)
 
 #include "sendspin_audio_ring_buffer.h"
 #include "sendspin_decoder.h"

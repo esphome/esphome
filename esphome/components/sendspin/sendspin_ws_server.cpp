@@ -14,6 +14,8 @@
 
 #include "sendspin_ws_server.h"
 
+#ifdef USE_ESP32
+
 #include "sendspin_hub.h"
 #include "sendspin_server_connection.h"
 
@@ -180,3 +182,5 @@ esp_err_t SendspinWsServer::websocket_handler(httpd_req_t *req) {
 
 }  // namespace sendspin
 }  // namespace esphome
+
+#endif  // USE_ESP32
