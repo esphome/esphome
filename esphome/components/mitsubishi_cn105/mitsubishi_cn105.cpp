@@ -618,7 +618,7 @@ void MitsubishiCN105::apply_to_(UpdateFlag flag, const std::array<std::optional<
   }
 
   if (const auto mapped = (value < N) ? table[value] : std::nullopt) {
-    callback(*mapped);
+    callback(mapped);
   } else {
     callback(std::nullopt);
     ESP_LOGW(TAG, "Lookup failed: flag=%s, value=%u", update_flag_to_string(flag), value);
@@ -632,13 +632,13 @@ std::optional<uint8_t> MitsubishiCN105::pending_update_for_(UpdateFlag flag, con
     return std::nullopt;
   }
 
-  for (uint8_t i = 0; i < N; ++i) {
+  for (auto i = 0; i < N; ++i) {
     if (map[i] == value) {
       return i;
     }
   }
 
-  ESP_LOGW(TAG, "Reverse lookup failed: flag=%s, value=%d", update_flag_to_string(flag), value);
+  ESP_LOGW(TAG, "Reverse lookup failed: flag=%s, value=%d", update_flag_to_string(flag), static_cast<int>(value));
   return std::nullopt;
 }
 

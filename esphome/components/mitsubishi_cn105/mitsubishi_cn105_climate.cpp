@@ -190,7 +190,7 @@ void MitsubishiCN105Climate::apply_values_() {
   }
 
   if (const auto mapped = lookup(FAN_MODE_MAP, status.settings.fan_mode)) {
-    this->fan_mode = *mapped;
+    this->fan_mode = mapped;
   } else {
     ESP_LOGW(TAG, "Failed to map fan mode: %u", static_cast<uint8_t>(status.settings.fan_mode));
     is_valid = false;
