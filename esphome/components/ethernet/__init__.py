@@ -157,7 +157,6 @@ _IDF6_ETHERNET_COMPONENTS: dict[str, IDFRegistryComponent] = {
     "KSZ8081RNA": IDFRegistryComponent("espressif/ksz80xx", "1.0.0"),
     "W5500": IDFRegistryComponent("espressif/w5500", "1.0.1"),
     "DM9051": IDFRegistryComponent("espressif/dm9051", "1.0.0"),
-    "ENC28J60": IDFRegistryComponent("espressif/enc28j60", "1.0.1"),
 }
 
 SPI_ETHERNET_TYPES = ["W5500", "DM9051", "ENC28J60"]

@@ -226,13 +226,8 @@ const char *EthernetComponent::get_eth_mac_address_pretty_into_buffer(
 }
 
 eth_duplex_t EthernetComponent::get_duplex_mode() {
-#ifdef USE_ETHERNET_ENC28J60
-  // ENC28J60 is configured for full-duplex by the arduino-pico driver
+  // Both W5500 and ENC28J60 are full-duplex on RP2040
   return ETH_DUPLEX_FULL;
-#else
-  // W5500 is always full duplex
-  return ETH_DUPLEX_FULL;
-#endif
 }
 
 eth_speed_t EthernetComponent::get_link_speed() {
