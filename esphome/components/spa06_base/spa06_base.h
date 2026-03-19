@@ -18,7 +18,7 @@ constexpr size_t SPA06_COEF_LEN = 21;
 constexpr uint8_t SPA06_SOFT_RESET = 0x9;
 
 // SPA06 Register Addresses
-enum {
+enum Register : uint8_t {
   SPA06_PSR = 0x00,          // Pressure Reading MSB (or all 3)
   SPA06_PSR_B1 = 0x01,       // Pressure Reading LSB
   SPA06_PSR_B0 = 0x02,       // Pressure Reading XLSB (LSB: Pressure flag in FIFO)
@@ -72,7 +72,6 @@ enum SampleRate : uint8_t {
 
 // Measuring control config, set in MEAS_CFG register.
 // See datasheet pages 28-29
-
 enum MeasCrtl : uint8_t {
   MEASCRTL_IDLE = 0x0,
   MEASCRTL_PRES = 0x1,
