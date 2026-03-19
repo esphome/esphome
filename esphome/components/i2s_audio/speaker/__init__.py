@@ -15,7 +15,6 @@ from esphome.const import (
 )
 
 from .. import (
-    CONF_BITS_PER_CHANNEL,
     CONF_I2S_DOUT_PIN,
     CONF_I2S_MODE,
     CONF_LEFT,
@@ -208,8 +207,6 @@ def _final_validate(config):
             raise cv.Invalid("SPDIF mode requires 'i2s_comm_fmt: stand_i2s'")
         if config[CONF_MCLK_MULTIPLE] != 256:
             raise cv.Invalid("SPDIF mode requires 'mclk_multiple: 256'")
-        if config[CONF_BITS_PER_CHANNEL] != "default":
-            raise cv.Invalid("SPDIF mode requires 'bits_per_channel: default'")
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
