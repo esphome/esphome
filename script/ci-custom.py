@@ -890,6 +890,22 @@ def lint_no_powf_in_core(fname, match):
     )
 
 
+@lint_re_check(
+    r"[^\w]std\s*::\s*bind\s*\(" + CPP_RE_EOL,
+    include=cpp_include,
+)
+def lint_no_std_bind(fname, match):
+    return (
+        f"{highlight('std::bind()')} is not allowed in new ESPHome code. "
+        f"Lambdas are clearer, produce smaller binaries, and are more likely to fit within "
+        f"the {highlight('std::function')} small-buffer optimization (avoiding heap allocation).\n"
+        f"Please use a lambda instead.\n"
+        f"  Before: {highlight('std::bind(&Class::method, this, std::placeholders::_1)')}\n"
+        f"  After:  {highlight('[this](auto arg) { this->method(arg); }')}\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
 LOG_MULTILINE_RE = re.compile(r"ESP_LOG\w+\s*\(.*?;", re.DOTALL)
 LOG_BAD_CONTINUATION_RE = re.compile(r'\\n(?:[^ \\"\r\n\t]|"\s*\n\s*"[^ \\])')
 LOG_PERCENT_S_CONTINUATION_RE = re.compile(r'\\n(?:%s|"\s*\n\s*"%s)')
