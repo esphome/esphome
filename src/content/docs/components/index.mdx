@@ -109,6 +109,7 @@ ESPHome-specific components or components supporting ESPHome device provisioning
   ["StatsD", "/components/statsd/", "connection.svg", "dark-invert"],
   ["UDP", "/components/udp/", "udp.svg"],
   ["Packet Transport", "/components/packet_transport/", "packet_transport.svg", "dark-invert"],
+  ["Serial Proxy", "/components/serial_proxy/", "uart.svg", "dark-invert"],
   ["Zigbee End Device", "/components/zigbee/", "zigbee.svg"],
 ]} />
 
@@ -122,6 +123,7 @@ ESPHome-specific components or components supporting ESPHome device provisioning
   ["Bluetooth Proxy", "/components/bluetooth_proxy/", "bluetooth.svg", "dark-invert"],
   ["Improv via BLE", "/components/esp32_improv/", "improv.svg", "dark-invert"],
   ["Nordic UART Service (NUS)", "/components/ble_nus/", "bluetooth.svg", "dark-invert"],
+  ["RP2040 BLE", "/components/rp2040_ble/", "bluetooth.svg", "dark-invert"],
 ]} />
 
 ## Management and Monitoring
@@ -145,6 +147,7 @@ Install updates over-the-air (OTA).
   ["OTA Core", "/components/ota/", "system-update.svg", "dark-invert"],
   ["OTA Updates", "/components/ota/esphome/", "system-update.svg", "dark-invert"],
   ["OTA Updates via HTTP Request", "/components/ota/http_request/", "system-update.svg", "dark-invert"],
+  ["OTA Updates for nRF52", "/components/ota/zephyr_mcumgr/", "system-update.svg", "dark-invert"],
 ]} />
 
 ## Update Management
@@ -256,6 +259,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
   ["SDS011 Sensor", "/components/sensor/sds011/", "sds011.jpg", "Particulate"],
   ["SEN0321", "/components/sensor/sen0321/", "sen0321.jpg", "Ozone"],
   ["SEN5x", "/components/sensor/sen5x/", "sen54.jpg", "Temperature & Humidity & Volatile organics & NOx"],
+  ["SEN6x", "/components/sensor/sen6x/", "sen6x.webp", "Particulate & Temperature & Humidity & VOC & NOx & CO2"],
   ["SenseAir", "/components/sensor/senseair/", "senseair_s8.jpg", "CO2"],
   ["SFA30", "/components/sensor/sfa30/", "sfa30.jpg", "Formaldehyde"],
   ["SGP30", "/components/sensor/sgp30/", "sgp30.jpg", "CO2 & Volatile organics"],
@@ -379,6 +383,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
   ["BMP388 and BMP390", "/components/sensor/bmp3xx/", "bmp388.jpg", "Temperature & Pressure"],
   ["BMP581", "/components/sensor/bmp581/", "bmp581.jpg", "Temperature & Pressure"],
   ["Dallas DS18B20", "/components/sensor/dallas_temp/", "dallas.jpg", "Temperature"],
+  ["Dew Point", "/components/sensor/dew_point/", "water-drop.svg", "dark-invert"],
   ["DHT", "/components/sensor/dht/", "dht.jpg", "Temperature & Humidity"],
   ["DHT12", "/components/sensor/dht12/", "dht12.jpg", "Temperature & Humidity"],
   ["DPS310/DPS368", "/components/sensor/dps310/", "dps310.jpg", "Temperature & Pressure"],
@@ -387,6 +392,7 @@ Sensors are organized into categories; if a given sensor fits into more than one
   ["ENS210", "/components/sensor/ens210/", "ens210.jpg", "Temperature & Humidity"],
   ["HDC1080", "/components/sensor/hdc1080/", "hdc1080.jpg", "Temperature & Humidity"],
   ["HDC2010", "/components/sensor/hdc2010/", "hdc2010.png", "Temperature & Humidity"],
+  ["HDC302x", "/components/sensor/hdc302x/", "hdc302x.svg", "Temperature & Humidity"],
   ["HHCCJCY10 (MiFlora Pink)", "/components/sensor/xiaomi_hhccjcy10/", "xiaomi_hhccjcy10.jpg", "Soil moisture & Temperature & Light"],
   ["Honeywell ABP", "/components/sensor/honeywellabp/", "honeywellabp.jpg", "Pressure & Temperature"],
   ["Honeywell ABP2 I2C", "/components/sensor/honeywellabp2_i2c/", "honeywellabp.jpg", "Pressure & Temperature"],
@@ -884,6 +890,13 @@ Used for creating infrared (IR) remote control transmitters and/or receivers.
   ["Generic Output Lock", "/components/lock/output/", "upload.svg", "dark-invert"],
 ]} />
 
+## Media Source Components
+
+<ImgTable items={[
+  ["Media Source Core", "/components/media_source/", "folder-open.svg", "dark-invert"],
+  ["Audio File Media Source", "/components/media_source/audio_file/", "file-document-box.svg", "dark-invert"],
+]} />
+
 ## Media Player Components
 
 <ImgTable items={[
@@ -891,6 +904,7 @@ Used for creating infrared (IR) remote control transmitters and/or receivers.
   ["DFPlayer", "/components/dfplayer/", "dfplayer.svg", "dark-invert"],
   ["I2S Audio", "/components/media_player/i2s_audio/", "i2s_audio.svg"],
   ["Speaker", "/components/media_player/speaker/", "speaker.svg", "dark-invert"],
+  ["Speaker Source", "/components/media_player/speaker_source/", "speaker.svg", "dark-invert"],
 ]} />
 
 ## Microphone Components
@@ -1081,6 +1095,7 @@ ESPHome to cellular networks. **Does not encompass Wi-Fi.**
 ## Miscellaneous Components
 
 <ImgTable items={[
+  ["Audio File", "/components/audio_file/", "file-document-box.svg", "dark-invert"],
   ["Camera Encoder", "/components/camera/camera_encoder/", "camera.svg", "dark-invert"],
   ["ESP32 Camera", "/components/esp32_camera/", "camera.svg", "dark-invert"],
   ["Exposure Notifications", "/components/exposure_notifications/", "exposure_notifications.png"],

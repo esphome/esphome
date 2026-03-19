@@ -2,22 +2,20 @@
 description: "Changelog for ESPHome {VERSION}."
 title: "ESPHome {VERSION} - {DATE}"
 pagefind: false
-slug: "{VERSION}"
+slug: "changelog/{VERSION}"
 ---
 
-<!-- NOTE: When creating a new changelog, save this as a .mdx file -->
+import ImgTable from "@components/ImgTable.astro";
 
-import ImgTable from '@components/ImgTable.astro';
-
-<!-- MANUAL: Add featured components here -->
+{/* MANUAL: Add featured components here */}
 <ImgTable items={[
   // ["Component Name", "/components/path/", "image.png"],
 ]} />
 
 ## Release Overview
 
-<!-- RELEASE_OVERVIEW_START -->
-<!--
+{/* RELEASE_OVERVIEW_START */}
+{/*
   Generate 1-2 paragraphs providing a high-level summary of this release.
   Focus on the most significant changes and improvements.
 
@@ -26,11 +24,21 @@ import ImgTable from '@components/ImgTable.astro';
   - Highlight major themes (e.g., security, performance, new features)
   - Be specific about what users can expect
   - Keep it concise but informative
--->
-<!-- RELEASE_OVERVIEW_END -->
+*/}
+{/* RELEASE_OVERVIEW_END */}
 
-<!-- FEATURE_HIGHLIGHTS_START -->
-<!--
+## Upgrade Checklist
+
+{/* UPGRADE_CHECKLIST_START */}
+{/*
+  AI-generated checklist of actionable items for users upgrading to this version.
+  Generated from breaking changes and undocumented API changes.
+  Each item starts with "If you..." and gives a concise action.
+*/}
+{/* UPGRADE_CHECKLIST_END */}
+
+{/* FEATURE_HIGHLIGHTS_START */}
+{/*
   FEATURE HIGHLIGHT SECTIONS
 
   Detailed deep-dive sections for major features, appearing after Key Highlights
@@ -47,13 +55,13 @@ import ImgTable from '@components/ImgTable.astro';
   - Use [Component Name](/components/path/) for component links
   - Professional but enthusiastic tone
   - Order by importance (most impactful first)
--->
-<!-- FEATURE_HIGHLIGHTS_END -->
+*/}
+{/* FEATURE_HIGHLIGHTS_END */}
 
 ## Breaking Changes
 
-<!-- BREAKING_CHANGES_USERS_START -->
-<!--
+{/* BREAKING_CHANGES_USERS_START */}
+{/*
   USER-FACING BREAKING CHANGES
 
   For breaking changes that affect ESPHome users (YAML configuration changes,
@@ -68,13 +76,32 @@ import ImgTable from '@components/ImgTable.astro';
   - Start with the most impactful changes
   - Be clear and specific about what action users need to take
   - Use code blocks for YAML examples
--->
-<!-- BREAKING_CHANGES_USERS_END -->
+*/}
+{/* BREAKING_CHANGES_USERS_END */}
+
+### Undocumented API Changes
+
+{/* UNDOCUMENTED_API_CHANGES_START */}
+{/*
+  UNDOCUMENTED API CHANGES
+
+  For C++ API changes that don't affect YAML configurations but may affect
+  users with custom lambdas or external component developers. These are
+  changes to internal APIs that aren't covered by the breaking change policy
+  but are worth noting for advanced users.
+
+  Guidelines:
+  - Group related changes together
+  - Include before/after code examples where helpful
+  - Link to relevant PRs
+  - Explain who is affected (lambda users, external component developers)
+*/}
+{/* UNDOCUMENTED_API_CHANGES_END */}
 
 ### Breaking Changes for Developers
 
-<!-- BREAKING_CHANGES_DEVELOPERS_START -->
-<!--
+{/* BREAKING_CHANGES_DEVELOPERS_START */}
+{/*
   DEVELOPER-FACING BREAKING CHANGES
 
   For breaking changes that affect external component developers, C++ API users,
@@ -89,40 +116,46 @@ import ImgTable from '@components/ImgTable.astro';
   - Use C++ code blocks for examples
   - Be technical and precise
   - Focus on what external component developers need to change
--->
-<!-- BREAKING_CHANGES_DEVELOPERS_END -->
+*/}
+{/* BREAKING_CHANGES_DEVELOPERS_END */}
 
-<!-- markdownlint-disable MD013 -->
+{/* markdownlint-disable MD013 */}
 
 ## Full list of changes
 
 ### New Features
 
-<!-- AUTO_GENERATED_NEW_FEATURES_START -->
-<!-- This section is automatically generated from PR labels -->
-<!-- AUTO_GENERATED_NEW_FEATURES_END -->
+{/* AUTO_GENERATED_NEW_FEATURES_START */}
+{/* This section is automatically generated from PR labels */}
+{/* AUTO_GENERATED_NEW_FEATURES_END */}
 
 ### New Components
 
-<!-- AUTO_GENERATED_NEW_COMPONENTS_START -->
-<!-- This section is automatically generated from PR labels -->
-<!-- AUTO_GENERATED_NEW_COMPONENTS_END -->
+{/* AUTO_GENERATED_NEW_COMPONENTS_START */}
+{/* This section is automatically generated from PR labels */}
+{/* AUTO_GENERATED_NEW_COMPONENTS_END */}
 
 ### Breaking Changes
 
-<!-- AUTO_GENERATED_BREAKING_CHANGES_LIST_START -->
-<!-- This section is automatically generated from PR labels -->
-<!-- AUTO_GENERATED_BREAKING_CHANGES_LIST_END -->
+{/* AUTO_GENERATED_BREAKING_CHANGES_LIST_START */}
+{/* This section is automatically generated from PR labels */}
+{/* AUTO_GENERATED_BREAKING_CHANGES_LIST_END */}
+
+### Undocumented API Changes
+
+{/* AUTO_GENERATED_UNDOCUMENTED_API_CHANGES_LIST_START */}
+{/* This section is automatically generated from PR labels */}
+{/* AUTO_GENERATED_UNDOCUMENTED_API_CHANGES_LIST_END */}
 
 ### All changes
 
 <details>
 <summary></summary>
 
-<!-- AUTO_GENERATED_ALL_CHANGES_START -->
-<!-- This section is automatically generated from all merged PRs -->
-<!-- AUTO_GENERATED_ALL_CHANGES_END -->
+{/* AUTO_GENERATED_ALL_CHANGES_START */}
+{/* This section is automatically generated from all merged PRs */}
+{/* AUTO_GENERATED_ALL_CHANGES_END */}
 
 </details>
 
-<!-- markdownlint-enable MD013 -->
+{/* markdownlint-enable MD013 */}

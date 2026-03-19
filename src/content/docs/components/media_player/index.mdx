@@ -52,11 +52,13 @@ Configuration variables:
 All `media_player` actions can be used without specifying an `id` if you have only one `media_player` in
 your configuration YAML.
 
-The actions `turn_off` and `turn_on` are optional and based on the platform implementing the `supports_turn_off_on` trait.
+> [!NOTE]
+> Not all actions are supported by every media player platform. The availability of an action depends on the specific platform and its implemented features.
 
 Configuration variables:
 
 **id** (*Optional*, [ID](/guides/configuration-types#id)): The media player to control. Defaults to the only one in YAML.
+**announcement** (*Optional*, boolean): Whether to target announcements or regular media files, if supported by the media player. Defaults to `false`. Available on all command actions.
 
 <span id="media_player-play"></span>
 
@@ -100,10 +102,6 @@ This action pauses the current playback.
 
 This action stops the current playback.
 
-Configuration variables:
-
-**announcement** (*Optional*, boolean): Whether to target announcements or regular media files, if supported by the media player. Defaults to `false`.
-
 <span id="media_player-toggle"></span>
 
 ### `media_player.toggle` Action
@@ -133,6 +131,72 @@ This action will increase the volume of the media player.
 ### `media_player.volume_down` Action
 
 This action will decrease the volume of the media player.
+
+<span id="media_player-mute"></span>
+
+### `media_player.mute` Action
+
+This action will mute the media player.
+
+<span id="media_player-unmute"></span>
+
+### `media_player.unmute` Action
+
+This action will unmute the media player.
+
+<span id="media_player-next"></span>
+
+### `media_player.next` Action
+
+This action will skip to the next track.
+
+<span id="media_player-previous"></span>
+
+### `media_player.previous` Action
+
+This action will skip to the previous track.
+
+<span id="media_player-repeat_off"></span>
+
+### `media_player.repeat_off` Action
+
+This action will turn off repeat mode.
+
+<span id="media_player-repeat_one"></span>
+
+### `media_player.repeat_one` Action
+
+This action will set the media player to repeat the current track.
+
+<span id="media_player-repeat_all"></span>
+
+### `media_player.repeat_all` Action
+
+This action will set the media player to repeat all tracks.
+
+<span id="media_player-shuffle"></span>
+
+### `media_player.shuffle` Action
+
+This action will enable shuffle mode.
+
+<span id="media_player-unshuffle"></span>
+
+### `media_player.unshuffle` Action
+
+This action will disable shuffle mode.
+
+<span id="media_player-group_join"></span>
+
+### `media_player.group_join` Action
+
+This action will join the media player to a group.
+
+<span id="media_player-clear_playlist"></span>
+
+### `media_player.clear_playlist` Action
+
+This action will clear the media player's playlist.
 
 <span id="media_player-volume_set"></span>
 
@@ -339,6 +403,20 @@ on_...:
   if:
     condition:
       media_player.is_on:
+```
+
+<span id="media_player-is_muted_condition"></span>
+
+### `media_player.is_muted` Condition
+
+This condition checks if the media player is muted.
+
+```yaml
+# In some trigger:
+on_...:
+  if:
+    condition:
+      media_player.is_muted:
 ```
 
 ## Play media in order

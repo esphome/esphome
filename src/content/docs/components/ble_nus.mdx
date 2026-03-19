@@ -14,7 +14,12 @@ ble_nus:
 
 ## Configuration variables
 
-- **type** (*Optional*, string): Mode of operation. Must be set to ``logs`` to stream ESPHome logs over the BLE UART.
+- **type** (*Optional*, string): Mode of operation. One of `logs` or `uart`.
+  `logs` streams ESPHome logs. `uart` provides bi-directional communication. Defaults to `logs`.
+- **rx_buffer_size** (*Optional*, int): Size of the receive buffer in bytes. Range: 160-8192. Defaults to `512`.
+  Valid only for mode `uart`.
+- **tx_buffer_size** (*Optional*, int): Size of the transmit buffer in bytes. Range: 160-8192. Defaults to `512`.
+- **debug** (*Optional*, mapping): Options for debugging communication on the UART hub, see [Debugging](/components/uart#uart-debugging).
 
 ## Usage
 
@@ -30,6 +35,9 @@ Or connect to a specific BLE address:
 esphome logs d.yaml --device 00:11:22:33:44:55
 ```
 
+`uart` can be used with python BLE Serial
+
 ## See Also
 
-- Nordic UART Service [https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/bluetooth/services/nus.html](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/bluetooth/services/nus.html)
+- [Nordic UART Service](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/bluetooth/services/nus.html)
+- [BLE Serial](https://pypi.org/project/ble-serial)

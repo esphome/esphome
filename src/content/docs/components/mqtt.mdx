@@ -93,10 +93,6 @@ mqtt:
 - **shutdown_message** (*Optional*, [MQTTMessage](#mqtt-message)): The message to send when
   the node shuts down and the connection is closed cleanly. See [Last Will And Birth Messages](#mqtt-last_will_birth) for more information.
 
-- **ssl_fingerprints** (*Optional*, list): Only on ESP8266. A list of SHA1 hashes used
-  for verifying SSL connections. See [SSL Fingerprints](#mqtt-ssl_fingerprints).
-  for more information.
-
 - **certificate_authority** (*Optional*, string): Only on ESP32. CA certificate in PEM format. See
   [TLS (ESP32)](#mqtt-tls-idf) for more information.
 
@@ -357,33 +353,6 @@ mqtt:
 If the birth message and last will message have empty topics or topics
 that are different from each other, availability reporting will be
 disabled.
-
-<span id="mqtt-ssl_fingerprints"></span>
-
-## SSL Fingerprints
-
-On the ESP8266 you have the option to use SSL connections for MQTT. This feature
-will get expanded to the ESP32 once the base library, AsyncTCP, supports it. Please
-note that the SSL feature only checks the SHA1 hash of the SSL certificate to verify
-the integrity of the connection, so every time the certificate changes, you'll have to
-update the fingerprints variable. Additionally, SHA1 is known to be partially insecure
-and with some computing power the fingerprint can be faked.
-
-To get this fingerprint, first put the broker and port options in the configuration and
-then run the `mqtt-fingerprint` script of ESPHome to get the certificate:
-
-```bash
-esphome mqtt-fingerprint livingroom.yaml
-> SHA1 Fingerprint: a502ff13999f8b398ef1834f1123650b3236fc07
-> Copy above string into mqtt.ssl_fingerprints section of livingroom.yaml
-```
-
-```yaml
-mqtt:
-  # ...
-  ssl_fingerprints:
-    - a502ff13999f8b398ef1834f1123650b3236fc07
-```
 
 <span id="mqtt-tls-idf"></span>
 

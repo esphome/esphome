@@ -6,11 +6,13 @@ title: "RP2040 Platform"
 This component contains platform-specific options for the RP2040 platform.
 
 > [!NOTE]
-> Support for all aspects of ESPHome on the RP2040 is still in development.
+> The Raspberry Pi **Pico W** and other RP2040 boards with the Cypress **CYW43439** chip providing wireless
+> connectivity are supported and tested.
 >
-> Only the original model of Raspberry Pi Pico W board is supported, which has the Cypress **CYW43439** chip providing
-> wireless connectivity. It can be identified by a metallic shield encapsulating the radio circuitry. Pico W boards with
-> radio module chips like ESP8285 or similar (labelled as `RP2040 Pico W-2023` etc.), are not supported.
+> **RP2350 boards** (such as the Pico 2 and Pico 2 W) are supported.
+>
+> Boards using ESP-AT WiFi modules (such as ESP8285) are not supported. This includes Pico W clones
+> labelled as `RP2040 Pico W-2023` or similar that use an ESP radio chip instead of the CYW43439.
 >
 > Please search for or create an [issue](https://github.com/esphome/esphome/issues/new/choose) if you encounter an
 > unknown problem.
@@ -35,13 +37,110 @@ rp2040:
     platform_version: https://github.com/maxgerhardt/platform-raspberrypi.git
 ```
 
+## Initial Flashing (BOOTSEL Mode)
+
+To flash an RP2040 board for the first time over USB, you need to put it into **BOOTSEL mode**:
+
+1. Unplug the device from USB.
+2. Hold the **BOOT/BOOTSEL** button on the board.
+3. Plug in the USB cable while holding the button.
+4. Release the button — the device should appear as a USB drive (typically named `RPI-RP2`).
+
+Once in BOOTSEL mode, run `esphome run your_config.yaml`. ESPHome will automatically detect the
+mounted `RPI-RP2` volume and offer it as an upload target. The UF2 firmware will be copied to the
+device with a progress bar, and the device will automatically reboot into the new firmware.
+
+After the initial flash, subsequent updates can be done over-the-air (OTA) or via the serial
+port without needing to hold the BOOTSEL button — the `picotool` upload protocol will
+automatically reset the device into BOOTSEL mode.
+
 ## Configuration variables
 
-- **board** (**Required**, string): The board type. Valid option is `rpipicow`.
-- **watchdog_timeout** (*Optional*, string): The timeout to apply to the RP2040 watchdog (in seconds or milliseconds).
+- **board** (**Required**, string): The PlatformIO board identifier. Common boards include `rpipicow`
+  (Raspberry Pi Pico W), `rpipico` (Raspberry Pi Pico), `rpipico2w` (Raspberry Pi Pico 2 W), and
+  `rpipico2` (Raspberry Pi Pico 2). Over 140 boards from the
+  [arduino-pico](https://github.com/earlephilhower/arduino-pico) framework are supported. Any board
+  supported by the framework can be used here.
+- **watchdog_timeout** (*Optional*, [Time](/guides/configuration-types#time)): The timeout to apply to the RP2040 watchdog.
   When the device hangs for that period of time, it will reboot. Defaults to `8388ms` (maximum). Set to `0s` to
   disable the watchdog entirely.
+- **enable_full_printf** (*Optional*, boolean): Enable full `FILE*`-based printf support. By default, ESPHome wraps `printf()`, `vprintf()`, and `fprintf()` with lightweight stubs that use `vsnprintf()` + `fwrite()`, saving ~9.2 KB of flash. ESPHome logging uses `snprintf`/`vsnprintf`, not libc printf, so these functions are typically unused unless an external component calls them. Set to `true` only if an external component needs full `FILE*`-based printf. Defaults to `false`.
+
+## GPIO Pin Names
+
+ESPHome supports named GPIO pins for boards with known pin mappings. These names are automatically
+resolved to the correct GPIO number for your board:
+
+| Pin Name | Description             | Example (Pico W) |
+|----------|-------------------------|-------------------|
+| `LED`    | Onboard LED             | GPIO 64 (CYW43)   |
+| `SDA`    | Default I²C data        | GPIO 4             |
+| `SCL`    | Default I²C clock       | GPIO 5             |
+| `SDA1`   | Secondary I²C data      | GPIO 26            |
+| `SCL1`   | Secondary I²C clock     | GPIO 27            |
+| `MISO`   | Default SPI MISO        | GPIO 16            |
+| `MOSI`   | Default SPI MOSI        | GPIO 19            |
+| `SCK`    | Default SPI clock       | GPIO 18            |
+| `SS`     | Default SPI chip select | GPIO 17            |
+| `TX`     | Default UART TX         | GPIO 0             |
+| `RX`     | Default UART RX         | GPIO 1             |
+
+> [!NOTE]
+> On boards with the CYW43439 wireless chip (Pico W, Pico 2 W), the onboard LED is connected
+> to the wireless chip rather than a standard GPIO. It is accessible as pin 64 (or the `LED` pin name)
+> and only supports output mode.
+
+### Onboard LED Example
+
+```yaml
+rp2040:
+  board: rpipicow
+
+output:
+  - platform: gpio
+    pin: LED
+    id: led_output
+
+light:
+  - platform: binary
+    name: "Onboard LED"
+    output: led_output
+```
+
+## Serial Debugging
+
+By default, ESPHome logs over USB CDC (the same USB connection used for flashing). If the device fails to
+boot or USB CDC does not come up, you can use a hardware UART to get logs via a USB-to-serial adapter.
+
+Add the following to your configuration:
+
+```yaml
+logger:
+  hardware_uart: UART0
+  baud_rate: 115200
+```
+
+Then connect a USB-to-serial adapter to your board's UART0 pins:
+
+| Signal | Pico W Pin | Connect to Adapter |
+|--------|------------|--------------------|
+| TX     | GPIO 0     | RX                 |
+| RX     | GPIO 1     | TX                 |
+| GND    | Any GND    | GND                |
+
+> [!TIP]
+> The `TX` and `RX` [pin names](#gpio-pin-names) resolve to the default UART0 pins for your board.
+> If your board differs from the Pico W defaults above, search for your board name (e.g. `seeed_xiao_rp2040`)
+> in [boards.py](https://github.com/esphome/esphome/blob/dev/esphome/components/rp2040/boards.py) and look
+> for the `TX` and `RX` entries in its pin map. Note that the GPIO numbers may not match the labels
+> silkscreened on your board. For example, on the
+> [Seeed XIAO RP2040](https://wiki.seeedstudio.com/XIAO-RP2040/), TX (GPIO 0) and RX (GPIO 1) are
+> labelled **D6** and **D7** on the board — check your board's pinout diagram to find the right pins.
+
+Open a serial terminal at 115200 baud to view logs. This is especially useful for diagnosing boot
+failures, WiFi issues, or crashes that prevent USB from initializing.
 
 ## See Also
 
+- [RP2040 BLE Component](/components/rp2040_ble/)
 - [ESPHome Core Configuration](/components/esphome/)

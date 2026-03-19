@@ -70,6 +70,19 @@ display:
 - **tft_url** (*Optional*, string): The URL from which to download the TFT file for display firmware updates (Nextion
   OTA). See [Nextion Upload](#nextion_upload_tft).
 
+- **tft_upload_http_timeout** (*Optional*, [Time](/guides/configuration-types#time)): HTTP request timeout for TFT upload transfers.
+  Applies to each individual HTTP request during the upload process. Range: 1-65535ms. Defaults to `4.5s`.
+
+- **tft_upload_http_retries** (*Optional*, int): Number of retries for transient HTTP failures during TFT upload.
+  On Arduino, this applies to the initial connection request. On ESP-IDF, this applies to chunk read operations.
+  Range: 1-255. Defaults to `5`.
+
+- **tft_upload_watchdog_timeout** (*Optional*, [Time](/guides/configuration-types#time)): Temporarily adjusts the system watchdog timeout
+  for the duration of the TFT transfer process. The original timeout is automatically restored when the transfer
+  completes (whether successful or not). May be useful on slow connections or when transferring large TFT files.
+  Do not set this unless you are experiencing device reboots due to watchdog timeouts during TFT uploads;
+  doing so may prevent the device from rebooting due to a legitimate problem. Only available on ESP32.
+
 - **touch_sleep_timeout** (*Optional*, int): Sets internal No-touch-then-sleep timer in seconds.
   Range: 0 (disabled) or 3-65535 seconds (max: ~18 hours). Values 1-2 are auto-corrected to 3.
   When set, Nextion will automatically enter sleep mode after the specified period of no touch activity.
@@ -396,6 +409,22 @@ logging or other [automations](/automations/) will occur. This process uses the 
 
 You can use Home Assistant itself or any other web server to host the TFT file. When using HTTPS (generally
 recommended), you may notice reduced upload speeds as the encryption consumes more resources on the microcontroller.
+
+The HTTP timeout, retry count, and watchdog behavior during the upload can be customized using the
+`tft_upload_http_timeout`, `tft_upload_http_retries`, and `tft_upload_watchdog_timeout` configuration options.
+This can be helpful on slow or unreliable network connections.
+
+```yaml
+# Example configuration with TFT upload parameters
+display:
+  - platform: nextion
+    id: nextion1
+    uart_id: my_uart
+    tft_url: "http://192.168.1.100:8080/display.tft"
+    tft_upload_http_timeout: 20s
+    tft_upload_http_retries: 10
+    tft_upload_watchdog_timeout: 30s  # ESP32 only
+```
 
 We suggest using a [Template](/components/button/template/) to trigger this process. For example:
 

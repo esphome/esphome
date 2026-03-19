@@ -1,0 +1,62 @@
+---
+description: "Instructions for setting up audio files in ESPHome."
+title: "Audio File Component"
+sidebar:
+  label: "Audio File"
+---
+
+import APIRef from '@components/APIRef.astro';
+
+This component only works on ESP32 based chips.
+
+The `audio_file` component allows you to embed audio files directly into your device's firmware.
+Audio files can be sourced from local files or downloaded from a URL at compile time.
+The raw audio data is stored in flash memory and can be played back using the
+[Audio File media source](/components/media_source/audio_file/) platform.
+
+Supported audio formats are automatically detected and include:
+
+- WAV
+- MP3
+- FLAC
+- Opus (in an OGG container)
+
+```yaml
+# Example configuration entry
+audio_file:
+  - id: alert_sound
+    file: "sounds/alert.wav"
+  - id: timer_sound
+    file: "https://example.com/sounds/timer_finished.flac"
+  - id: doorbell
+    file:
+      type: local
+      path: "sounds/doorbell.mp3"
+```
+
+<span id="config-audio_file"></span>
+
+## Configuration variables
+
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID to use for referencing this audio file. This is also used as the file identifier when playing back through a media source.
+- **file** (**Required**): The audio file to embed. Can be a simple string or a mapping with a type key:
+
+  - **Simple form**: A string value. If it starts with `http://` or `https://`, it is treated as a web URL; otherwise, it is treated as a local file path relative to the configuration file.
+
+  - **Typed form**:
+
+    - **type** (**Required**, string): Either `local` or `web`.
+
+    **Local files**:
+
+    - **path** (**Required**, string): The path (relative to the configuration file) of the audio file.
+
+    **Web files**:
+
+    - **url** (**Required**, string): The URL to download the audio file from. The file is downloaded once at compile time and cached locally.
+
+## See Also
+
+- [Media Source Components](/components/media_source/)
+- [Audio File Media Source](/components/media_source/audio_file/)
+- <APIRef text="audio_file.h" path="esphome/components/audio_file/audio_file.h" />

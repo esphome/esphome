@@ -69,6 +69,10 @@ openthread:
 > [!NOTE]
 > esphome.ota does not work when poll_period > 0, instead use http_request.ota, timeout and watchdog_timeout need to be tested to find the correct values.  Values greater than 100sec may be required.
 
+- **output_power** (*Optional*, integer): The amount of TX power for the Thread 802.15.4 radio in dBm.
+  Range depends on the chip variant: ESP32-C5/C6 from ``-15dBm`` to ``20dBm``, ESP32-H2 from ``-24dBm`` to ``20dBm``.
+  Defaults to the platform default (typically ``0dBm``). Ensure the configured value complies with local regulatory limits.
+
 ## Dataset TLV Configuration
 
 It is also possible to supply the entire dataset TLVs from the Thread information in Home Assistant and the individual values will be automatically extracted from it.
@@ -95,9 +99,32 @@ See [https://openthread.io/guides/thread-primer/node-roles-and-types](https://op
 The Poll Period makes the device behave as a SED.  Follow on work is needed utilizing Power Management and/or Light Sleep capability in esp-idf.
 If the device is always awake, the API timeout is 60 seconds, so a ping request will force interaction with the parent when the poll period is greater than 60 seconds.
 
+## OpenThread ESP-IDF Logging
+
+The OpenThread log level is controlled by the ``log_level`` setting in the ESP-IDF framework configuration.
+The ESP-IDF log levels are mapped to OpenThread log levels as follows:
+
+| ESP-IDF Level | OpenThread Level |
+|---------------|------------------|
+| NONE          | NONE             |
+| ERROR         | CRIT             |
+| WARN          | WARN             |
+| INFO          | NOTE             |
+| DEBUG         | INFO             |
+| VERBOSE       | DEBG             |
+
+```yaml
+# Example ESP-IDF framework log_level setting
+esp32:
+  framework:
+    type: esp-idf
+    log_level: INFO
+```
+
 ## See Also
 
 - [OpenThread Info Text Sensor](/components/text_sensor/openthread_info/)
 - [Network component](/components/network/)
+- [ESP32 Platform](/components/esp32/)
 - [https://openthread.io/](https://openthread.io/)
 - <APIRef text="openthread.h" path="openthread/openthread.h" />

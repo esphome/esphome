@@ -20,6 +20,7 @@ esp32_hosted:
   d2_pin: GPIOXX
   d3_pin: GPIOXX
   active_high: true
+  sdio_frequency: 10MHz
 
 wifi:
   ssid: !secret wifi_ssid
@@ -43,6 +44,9 @@ wifi:
 - **reset_pin** (*Required*, [Pin](/guides/configuration-types#pin)): The reset pin of the co-processor.
 - **active_high** (*Required*, boolean): If enabled, the co-processor is active when reset is
   high. If disabled, the co-processor is active when reset is low.
+- **sdio_frequency** (*Optional*): Set the speed of communication between the master and
+  the slave. If you experience loss of communication, or reboots, then try reducing this value.
+  The value can be between 400KHz and 50MHz, with a default of 40MHz.
 
 ## Updating co-processor firmware
 

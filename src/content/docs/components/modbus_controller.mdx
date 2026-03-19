@@ -542,9 +542,11 @@ The response is mapped to the sensor based on `register_count` and offset in byt
 > These methods can be called from a lambda.
 >
 > Here is an example how to set config values to for an EPEVER Trace AN controller.
-> The code synchronizes the localtime of MCU to the epever controller
+> The code synchronizes the local time of the MCU to the epever controller.
 > The time is set by writing 12 bytes to register 0x9013.
 > Then battery charge settings are sent.
+>
+> This example requires a [time component](/components/time/) to be configured (e.g., `homeassistant`, `sntp`).
 >
 > ```yaml
 > esphome:
@@ -555,17 +557,16 @@ The response is mapped to the sensor based on `register_count` and offset in byt
 >     then:
 >       - lambda: |-
 >           // get local time and sync to controller
->           time_t now = ::time(nullptr);
->           struct tm *time_info = ::localtime(&now);
->           int seconds = time_info->tm_sec;
->           int minutes = time_info->tm_min;
->           int hour = time_info->tm_hour;
->           int day = time_info->tm_mday;
->           int month = time_info->tm_mon + 1;
->           int year = time_info->tm_year % 100;
+>           auto time = ESPTime::from_epoch_local(::time(nullptr));
+>           int seconds = time.second;
+>           int minutes = time.minute;
+>           int hour = time.hour;
+>           int day = time.day_of_month;
+>           int month = time.month;
+>           int year = time.year % 100;
 >           esphome::modbus_controller::ModbusController *controller = id(epever);
->           // if there is no internet connection localtime returns year 70
->           if (year != 70) {
+>           // if time is not yet synced, skip RTC update
+>           if (time.is_valid()) {
 >             // create the payload
 >             std::vector<uint16_t> rtc_data = {uint16_t((minutes << 8) | seconds), uint16_t((day << 8) | hour),
 >                                               uint16_t((year << 8) | month)};

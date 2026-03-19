@@ -53,6 +53,26 @@ on_...:
   - sensor.integration.reset:  my_integration_sensor
 ```
 
+<span id="sensor-integration-set_value_action"></span>
+
+## `sensor.integration.set_value` Action
+
+This [Action](/automations/actions#all-actions) allows you to set the integration sensor to a specific value.
+For example, it can be used to set the sensor to the battery capacity when it is fully charged.
+
+```yaml
+on_...:
+  - sensor.integration.set_value:
+      id: my_integration_sensor
+      value: 100
+```
+
+Configuration options:
+
+- **id** (**Required**, [ID](/guides/configuration-types#id)): The ID of the integration sensor.
+- **value** (**Required**, float, [templatable](/automations/templates)):
+  The value to set the integration sensor to.
+
 ## See Also
 
 - [Sensor Filters](/components/sensor#sensor-filters)
