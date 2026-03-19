@@ -632,7 +632,7 @@ std::optional<uint8_t> MitsubishiCN105::pending_update_for_(UpdateFlag flag, con
     return std::nullopt;
   }
 
-  for (auto i = 0; i < N; ++i) {
+  for (size_t i = 0; i < N; ++i) {
     if (map[i] == value) {
       return i;
     }
