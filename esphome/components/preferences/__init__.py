@@ -22,7 +22,7 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     write_interval = config[CONF_FLASH_WRITE_INTERVAL]
-    if write_interval == 0:
+    if write_interval.total_milliseconds == 0:
         cg.add_define("USE_PREFERENCES_SYNC_EVERY_LOOP")
     else:
         cg.add(var.set_write_interval(write_interval))
