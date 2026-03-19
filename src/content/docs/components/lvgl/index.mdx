@@ -11,7 +11,7 @@ import lvglSymbolsImg from './images/lvgl_symbols.png';
 import lvglBoxmodelImg from './images/lvgl_boxmodel.png';
 
 [LVGL](https://lvgl.io/) (Light and Versatile Graphics Library) is a free and open-source
-embedded graphics library to create beautiful UIs for any MCU, MPU and display type. ESPHome supports [LVGL version 8](https://docs.lvgl.io/8.4/).
+embedded graphics library to create beautiful UIs for any MCU, MPU and display type. ESPHome supports [LVGL version 9](https://docs.lvgl.io/9.5/).
 
 <Image src={lvglMainScreenshotImg} layout="constrained" alt="" />
 
@@ -22,7 +22,7 @@ To use LVGL with a [display](/components#display-hw) in ESPHome, you'll need an 
 The graphic display should be configured with `auto_clear_enabled: false` and should not have any `lambda` set.
 The LVGL component will take care of the display rendering. For most displays, the `update_interval` should be
 set to `never`, but note that some displays such as OLED and e-paper will need the update interval set to a suitable
-interval, or make use of the [`on_draw_end`](#on_draw_end) trigger to manually update the display.
+interval, or the `update_when_display_idle` option used, or make use of the [`on_draw_end`](#on_draw_end) trigger to manually update the display.
 
 For interactivity, a [Touchscreen](/components/touchscreen/) (capacitive highly preferred), a [Rotary Encoder](/components/sensor/rotary_encoder/) or a custom keypad made up from discrete [Binary Sensors](/components/binary_sensor/) can be used.
 
@@ -145,9 +145,9 @@ The following configuration variables apply to the main `lvgl` component, in ord
 - **draw_rounding** (*Optional*, int): An optional value to use for rounding draw areas to a specified boundary. Defaults to 2. Useful for displays that require draw windows to be on specified boundaries (usually powers of 2.)
 - **log_level** (*Optional*, string): Set the logger level specifically for the messages of the LVGL library: `TRACE`, `INFO`, `WARN`, `ERROR`, `USER`, `NONE`. Defaults to `WARN`.
 - **byte_order** (*Optional*, int16): The byte order of the data LVGL outputs; either `big_endian` or `little_endian`. Defaults to `big_endian`.
-- **disp_bg_color** (*Optional*, [color](#lvgl-color)): Solid color used to fill the background. Can be changed at runtime with the `lvgl.update` action.
-- **disp_bg_image** (*Optional*, [image](/components/image#display-image)): The ID of an existing image configuration, to be used as background wallpaper. To change the image at runtime use the `lvgl.update` action. Also see [`image`](/components/lvgl/widgets#lvgl-widget-image) for a note regarding supported image formats. May also be set to `none` to clear the background image.`
-- **disp_bg_opa** (*Optional*, [opacity](#lvgl-opacity)): Opacity of the background image or color of the display.
+- **disp_bg_color** (*Optional*, [color](#lvgl-color)): **Deprecated** — use `bottom_layer` with `bg_color` instead. Solid color used to fill the background.
+- **disp_bg_image** (*Optional*, [image](/components/image#display-image)): **Deprecated** — use `bottom_layer` with `bg_image_src` instead.
+- **disp_bg_opa** (*Optional*, [opacity](#lvgl-opacity)): **Deprecated** — use `bottom_layer` with `bg_opa` instead.
 - **default_font** (*Optional*, ID): The ID of the [font](#lvgl-fonts) used by default to render the text or symbols. Defaults to LVGL's internal `montserrat_14` if not specified.
 - **style_definitions** (*Optional*, list): A batch of style definitions to use in LVGL widget's `styles` configuration. See [below](#lvgl-theme) for more details.
 - **gradients** (*Optional*, list): A list of gradient definitions to use in *bg_grad* styles. See [below](#lvgl-gradients) for more details.
@@ -163,6 +163,10 @@ The following configuration variables apply to the main `lvgl` component, in ord
   - **layout** (*Optional*): See [Layouts](/components/lvgl/layouts#lvgl-layouts) for details. Defaults to `NONE`.
   - **widgets** (*Optional*, list): A list of [Widgets](/components/lvgl/widgets/) to be drawn on the page.
   - All other options from [Style properties](#lvgl-styling) to be applied to this page.
+- **bottom_layer** (*Optional*, list): A special layer placed behind all pages. Useful for setting a background color or image for the display. Replaces the deprecated `disp_bg_color`, `disp_bg_image` and `disp_bg_opa` options.
+  - **layout** (*Optional*): See [Layouts](/components/lvgl/layouts#lvgl-layouts) for details. Defaults to `NONE`.
+  - **widgets** (*Optional*, list): A list of [Widgets](/components/lvgl/widgets/) to be drawn on this layer.
+  - All other options from [Style properties](#lvgl-styling) to be applied to this layer.
 - **layout** (*Optional*): See [Layouts](/components/lvgl/layouts#lvgl-layouts) for details. Defaults to `NONE`.
 - All other options from [Style properties](#lvgl-styling) to be applied to all widgets directly.
 
@@ -339,10 +343,9 @@ as is used in YAML. This applies particularly to any value represented as a floa
 floating point, instead uses scaled integers. Properties with the following native types should be noted:
 
 - **opacity** LVGL opacity is an integer between 0 and 255.
-- **brightness** Similarly, an integer from 0 to 255.
 - **angle** LVGL angles are represented in 1/10 degree, so usually in the range 0 - 3600.
 - **color** LVGL uses an internal color type - to construct a color in a lambda use `lv_color_hex(0xRRGGBB)`.
-- **zoom** Zoom levels should be multiplied by 256 (valid range is 0 to 2560, corresponding to 0-10.0).
+- **scale** Scale levels should be multiplied by 256 (valid range is 0 to 2560, corresponding to 0-10.0).
 - **percentage** To convert a fractional value to a percentage, use `lv_pct(value * 100)`
 
 #### Style properties
@@ -391,18 +394,25 @@ These style properties may be applied to any widget, though not all widgets use 
 - **pad_column** (*Optional*, int16): Set the padding between the columns of the children elements, in pixels.
 - **radius** (*Optional*, uint16): The radius to be used to form the widget's rounded corners. 0 = no radius (square corners); 65535 (max) = pill shaped widget (true circle if it has same width and height, radius then should be set to half the width/height).
 - **shadow_color** (*Optional*, [color](#lvgl-color)): Color used to create a drop shadow under the widget. Defaults to `0` (black).
-- **shadow_ofs_x** (*Optional*, int16): Horizontal offset of the shadow, in pixels. Defaults to `0`.
-- **shadow_ofs_y** (*Optional*, int16): Vertical offset of the shadow, in pixels. Defaults to `0`.
+- **shadow_offset_x** (*Optional*, int16): Horizontal offset of the shadow, in pixels. Defaults to `0`.
+- **shadow_offset_y** (*Optional*, int16): Vertical offset of the shadow, in pixels. Defaults to `0`.
 - **shadow_opa** (*Optional*, [opacity](#lvgl-opacity)): Opacity of the shadow. Defaults to `COVER`.
 - **shadow_spread** (*Optional*, int16): Spread of the shadow, in pixels. Defaults to `0`.
 - **shadow_width** (*Optional*, int16): Width of the shadow, in pixels. Defaults to `0`.
-- **transform_angle** (*Optional*, 0-360): Transformation angle of the widget (eg. rotation)
-- **transform_height** (*Optional*, int16 or percentage): Transformation height of the widget (eg. stretching)
+- **transform_rotation** (*Optional*, 0-360): Transformation rotation angle of the widget.
+- **transform_height** (*Optional*, int16 or percentage): Transformation height of the widget (eg. stretching).
 - **transform_pivot_x** (*Optional*, int16): Horizontal anchor point of the transformation. Relative to the widget's top left corner.
 - **transform_pivot_y** (*Optional*, int16): Vertical anchor point of the transformation. Relative to the widget's top left corner.
-- **transform_zoom** (*Optional*, 0.1-10): Transformation zoom of the widget (eg. resizing)
+- **transform_scale** (*Optional*, 0.1-10): Transformation scale of the widget (uniform scaling).
+- **transform_scale_x** (*Optional*, 0.1-10): Horizontal transformation scale.
+- **transform_scale_y** (*Optional*, 0.1-10): Vertical transformation scale.
+- **transform_skew_x** (*Optional*, 0-360): Horizontal skew transformation angle.
+- **transform_skew_y** (*Optional*, 0-360): Vertical skew transformation angle.
 - **translate_x** (*Optional*, int16 or percentage): Movement of the widget with this value in horizontal direction.
 - **translate_y** (*Optional*, int16 or percentage): Movement of the widget with this value in vertical direction.
+
+> [!NOTE]
+> The property names `transform_angle`, `transform_zoom`, `shadow_ofs_x` and `shadow_ofs_y` are deprecated. Use `transform_rotation`, `transform_scale`, `shadow_offset_x` and `shadow_offset_y` respectively.
 
 <span id="lvgl-theme"></span>
 
@@ -517,10 +527,11 @@ A gradient is a sequence of colors which can be applied to an object using the `
  Each entry has the following options:
 
 - **id** (**Required**, [ID](/guides/configuration-types#id)): The ID with which you will be able to reference the gradient later.
-- **direction** (*Optional*, string): The direction of the gradient. Possible options are `none` (the default) `hor` or `ver`.
-- **dither** (*Optional*, string): A dithering selection. Possible options are `none` (the default) `err_diff` or `ordered`.
+- **direction** (**Required**, string): The direction of the gradient: `hor` (or `horizontal`) or `ver` (or `vertical`).
+- **dither** (*Optional*, string): **Deprecated** — dithering is not supported in LVGL 9.x and will be ignored.
 - **stops** (**Required**, list): A list of at least 2 color stop points. Each stop point has the following options:
   - **color** (**Required**, [Color](#lvgl-color)): The color of the stop point.
+  - **opa** (*Optional*, [opacity](#lvgl-opacity)): The opacity at this stop point. Defaults to `COVER` (fully opaque).
   - **position** (**Required**, float): The position of the stop point. Must be a float between 0.0 and 1.0, a percentage between 0% and 100%, or an integer between 0 and 255.
 
 ```yaml
@@ -628,16 +639,19 @@ on_...:
 
 ### `lvgl.update` Action
 
-This [action](/automations/actions#actions-action) allows changing/updating the `disp_bg_color` or `disp_bg_image` configuration variables of the main component, making it possible to change the background color or wallpaper at any time.
+This [action](/automations/actions#actions-action) allows changing/updating the background styling of the LVGL display layers at runtime. You can style the `top_layer` and/or `bottom_layer` using any [style properties](#lvgl-styling). The deprecated `disp_bg_color`, `disp_bg_image` and `disp_bg_opa` options are also still accepted but will be mapped to `bottom_layer` styling.
 
 ```yaml
 # Examples:
 on_...:
   then:
     - lvgl.update:
-        disp_bg_color: 0x0000FF
+        bottom_layer:
+          bg_color: 0x0000FF
+          bg_opa: cover
     - lvgl.update:
-        disp_bg_image: cat_image
+        top_layer:
+          opa: 0.5
 ```
 
 <span id="lvgl-page-next-previous-action"></span>

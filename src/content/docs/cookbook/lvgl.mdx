@@ -281,17 +281,17 @@ lvgl:
                           - line:
                               id: val_needle
                               width: 8
-                              r_mod: 12 # sets line length by this much difference from the scale default radius
+                              length: 112% # needle length relative to the scale default radius
                               value: -2
                           - arc: # first half of the scale background
                               color: 0xFF3000
-                              r_mod: 10 # radius difference from the scale default radius
+                              padding: 10 # offset from the scale default radius
                               width: 31
                               start_value: -10
                               end_value: 0
                           - arc: # second half of the scale background
                               color: 0x00FF00
-                              r_mod: 10
+                              padding: 10
                               width: 31
                               start_value: 0
                               end_value: 10
@@ -375,7 +375,7 @@ lvgl:
                         id: temperature_needle
                         width: 2
                         color: 0xFF0000
-                        r_mod: -4
+                        length: 96%
                     - tick_style:
                         start_value: -10
                         end_value: 40
@@ -461,7 +461,7 @@ lvgl:
                           - line:
                               id: temperature_needle
                               width: 8
-                              r_mod: 2
+                              length: 102%
                               value: -150
                 - obj: # to cover the middle part of meter indicator line
                     height: 123
@@ -1340,23 +1340,25 @@ lvgl:
 
 <span id="lvgl-cookbook-ckboxmark"></span>
 
-## Restore checkbox mark
+## Fix missing checkbox and chevron
 
-If you configure a custom font as the `default_font` used by LVGL and this font does not contain the
-[FontAwesome](https://fontawesome.com/) symbols, you may observe that some widgets won't display correctly; specifically
-[`checkbox`](/components/lvgl/widgets#lvgl-widget-checkbox) won't show the checkmark when it's checked.
+If you configure your custom font as the `default_font` used by LVGL, it will likely not contain the
+[FontAwesome](https://fontawesome.com/) symbols. You may observe that some widgets won't display correctly;
+specifically [`checkbox`](/components/lvgl/widgets#checkbox) won't show the checkmark when it's checked, and
+[`dropdown`](/components/lvgl/widgets#dropdown) won't show the chevron pointing downwards to open the list.
 
-To work around this issue, simply import only the checkmark symbol in the desired size and apply it through
-[Theme and style definitions](#lvgl-cookbook-theme) to all the checkboxes in the configuration:
+To work around this issue, simply import just the checkmark and chevron symbols in the desired size and apply
+them through [Theme and style definitions](#lvgl-cookbook-theme) to all the checkboxes and dropdowns in the configuration:
 
 ```yaml
 font:
   - file: 'fonts/FontAwesome5-Solid+Brands+Regular.woff'
     id: fontawesome_checkmark
-    size: 18
+    size: 16
     bpp: 4
     glyphs: [
-      "\uF00C", # ckeckmark, for checkbox
+      "\uF00C", # checkmark, for checkbox
+      "\uF078", # chevron down, for dropdown
       ]
 
 lvgl:
@@ -1366,6 +1368,10 @@ lvgl:
         indicator:
           checked:
             text_font: fontawesome_checkmark
+      dropdown:
+        indicator:
+          text_font: fontawesome_checkmark
+
 ```
 
 You could of course simply apply one of the built-in `montserrat_` packs, but that would not be beneficial on the
@@ -1674,7 +1680,7 @@ lvgl:
                             id: minute_hand
                             width: 3
                             color: 0xa6a6a6
-                            r_mod: -4
+                            length: 96%
                             value: 0
                     - range_from: 1 # hours scale for labels
                       range_to: 12
@@ -1701,7 +1707,7 @@ lvgl:
                             id: hour_hand
                             width: 5
                             color: 0xa6a6a6
-                            r_mod: -30
+                            length: 70%
                             value: 0
               - label:
                   styles: date_style

@@ -137,6 +137,7 @@ In addition to visual styling, each widget supports some boolean **flags** to in
 - **scroll_one** (*Optional*, boolean): allow scrolling only on `snappable` children.
 - **scroll_with_arrow** (*Optional*, boolean): allow scrolling the focused widget with arrow keys.
 - **scrollable** (*Optional*, boolean): the widget can become scrollable. Defaults to `true` (also see the `scrollbar_mode` property).
+- **send_draw_task_events** (*Optional*, boolean): enable sending draw task events for custom rendering.
 - **snappable** (*Optional*, boolean): if scroll snap is enabled on the parent it can snap to this widget.
 - **user_1**, **user_2**, **user_3**, **user_4** (*Optional*, boolean): custom flags, free to use by user.
 - **widget_1**, **widget_2** (*Optional*, boolean): custom flags, free to use by widget.
@@ -762,8 +763,12 @@ Where a list of points is required, this can be provided in the form of a list o
   - **x** (**Required**, int): X coordinate.
   - **y** (**Required**, int): Y coordinate.
   - **src** (**Required**, string): Image source.
-  - **angle** (*Optional*, 0-360): Rotation angle.
-  - **zoom** (*Optional*, float): Zoom factor 0.1-10.0 (default 1.0)
+  - **rotation** (*Optional*, 0-360): Rotation angle. (The deprecated name `angle` is also accepted.)
+  - **scale** (*Optional*, float): Uniform scale factor 0.1-10.0 (default 1.0). (The deprecated name `zoom` is also accepted.)
+  - **scale_x** (*Optional*, float): Horizontal scale factor 0.1-10.0.
+  - **scale_y** (*Optional*, float): Vertical scale factor 0.1-10.0.
+  - **skew_x** (*Optional*, 0-360): Horizontal skew angle.
+  - **skew_y** (*Optional*, 0-360): Vertical skew angle.
   - **pivot_x** (*Optional*, int): X pivot point for rotation.
   - **pivot_y** (*Optional*, int): Y pivot point for rotation.
 
@@ -980,14 +985,13 @@ Images are the basic widgets used to display images.
 **Configuration variables:**
 
 - **src** (**Required**, [image](/components/image#display-image)): The ID of an existing image configuration.
-- **angle** (*Optional*, 0-360): Rotation of the image. Defaults to `0.0`.
-- **antialias** (*Optional*): The quality of the angle or scale transformation. When anti-aliasing is enabled, the transformations are higher quality but slower. Defaults to `false`.
-- **mode** (*Optional*): Either `REAL` or `VIRTUAL`. With `VIRTUAL`, when the image is scaled or rotated, the real coordinates of the image object are not changed. The larger content simply overflows the object's boundaries. It also means the layouts are not affected the by the transformations. With `REAL`, if the width/height of the object is set to `SIZE_CONTENT`, the object's size will be set to the scaled and rotated size. If an explicit size is set, the overflowing content will be cropped. Defaults to `VIRTUAL`.
-- **offset_x** (*Optional*): Add a horrizontal offset to the image position.
+- **rotation** (*Optional*, 0-360): Rotation of the image. Defaults to `0.0`. (The deprecated name `angle` is also accepted.)
+- **antialias** (*Optional*): The quality of the rotation or scale transformation. When anti-aliasing is enabled, the transformations are higher quality but slower. Defaults to `false`.
+- **offset_x** (*Optional*): Add a horizontal offset to the image position.
 - **offset_y** (*Optional*): Add a vertical offset to the image position.
 - **pivot_x** (*Optional*): Horizontal position of the pivot point of rotation, in pixels, relative to the top left corner of the image. Defaults to the center of the image. Must be specified along with `pivot_y`.
 - **pivot_y** (*Optional*): Vertical position of the pivot point of rotation, in pixels, relative to the top left corner of the image. Defaults to the center of the image. Must be specified along with `pivot_x`
-- **zoom** (*Optional*, 0.1-10): Zoom of the image.
+- **scale** (*Optional*, 0.1-10): Scale of the image. (The deprecated name `zoom` is also accepted.)
 - **image_recolor** (*Optional*, [color](/components/lvgl#lvgl-color)): Color to mix with every pixel of an image Note that `image_recolor_opa` defaults to TRANSP, so it must also be set.
 - **image_recolor_opa** (*Optional*, [opacity](/components/lvgl#lvgl-opacity)): Opacity of the image recoloring.
 
@@ -1273,22 +1277,23 @@ The meter widget can visualize data in very flexible ways. It can use arcs, need
     - **arc** (*Optional*): Add a background arc the scale:
       - **color**: [Color](/components/lvgl#lvgl-color) to draw the arc. Defaults to `0` (black).
       - **end_value**: The value in the scale range to end drawing the arc to.
-      - **r_mod**: Adjust the position of the arc from the scale radius with this amount (can be negative). Defaults to `0`.
+      - **padding**: Adjust the position of the arc from the scale radius with this amount (can be negative). Defaults to `0`. (The deprecated name `r_mod` is also accepted.)
       - **start_value**: The value in the scale range to start drawing the arc from.
       - **width**: Arc width in pixels. Defaults to `4`.
-      - **opa**: Opacity of the arc. Defaults to 100%.
+      - **opa**: Opacity of the arc.
     - **image** (*Optional*): Add a rotating needle image to the scale:
       - **id**: Manually specify the [ID](/guides/configuration-types#id) used for updating the indicator value at runtime.
-      - **pivot_x**: Horizontal position of the pivot point of rotation, in pixels, relative to the top left corner of the image.
-      - **pivot_y**: Vertical position of the pivot point of rotation, in pixels, relative to the top left corner of the image.
+      - **pivot_x**: Horizontal position of the pivot point of rotation, in pixels, relative to the top left corner of the image. Defaults to `0`.
+      - **pivot_y**: Vertical position of the pivot point of rotation, in pixels, relative to the top left corner of the image. Defaults to the vertical center of the image.
       - **src**: The ID of an existing image configuration, representing a needle pointing to the right like `-o--->`.
       - **value**: The value in the scale range to show at start.
       - **opa**: Opacity of the image. Defaults to 100%.
     - **line** (*Optional*): Add a needle line to the scale. By default, the length of the line is the same as the scale's radius:
       - **color**: [Color](/components/lvgl#lvgl-color) for the needle line. Defaults to `0` (black).
       - **id**: Manually specify the [ID](/guides/configuration-types#id) used for updating the indicator value at runtime.
-      - **r_mod**: Adjust the length of the needle from the scale radius with this amount (can be negative). Defaults to `0`.
-      - **value**: The value in the scale range to show at start.
+      - **length**: Length of the needle as a percentage (e.g. `80%`) or pixels. Defaults to `100%` of the scale radius. (The deprecated name `r_mod` is also accepted.)
+      - **radial_offset**: Offset of the needle from the scale center, as a percentage or pixels. Defaults to `0`.
+      - **value**: The value in the scale range to show at start. Defaults to `0`.
       - **width**: Needle line width in pixels. Defaults to `4`.
       - **opa**: Opacity of the needle. Defaults to 100%.
     - **tick_style** (*Optional*): Add tick style modifications:
@@ -1298,6 +1303,7 @@ The meter widget can visualize data in very flexible ways. It can use arcs, need
       - **local**: If `true` the ticks' color will be faded from `color_start` to `color_end` in the start and end values specified above. If `false`, `color_start` and `color_end` will be mapped to the entire scale range (and only a *slice* of that color gradient will be visible in the indicator's start and end value range). Defaults to `false`.
       - **start_value**: The value in the scale range to modify the ticks from.
       - **width**: Modifies the `width` of the tick lines.
+  - **draw_ticks_on_top** (*Optional*): If `true`, the ticks and their labels will be drawn on top of the indicators, otherwise they will be drawn under the indicators. Defaults to `true`.
   - **range_from** (**Required**): The minimum value of the tick scale. Defaults to `0`.
   - **range_to** (**Required**): The maximum value of the tick scale. Defaults to `100`.
   - **rotation** (*Optional*): The rotation angle offset of the tick scale.
@@ -1305,11 +1311,13 @@ The meter widget can visualize data in very flexible ways. It can use arcs, need
     - **color** (*Optional*, [color](/components/lvgl#lvgl-color)): Color to draw the ticks. Required if `count` is greater than `0`. Defaults to `0x808080`.
     - **count** (**Required**): How many ticks to be on the scale. Defaults to `12`.
     - **length** (*Optional*): Tick line length in pixels. Required if `count` is greater than `0`. Defaults to `10`.
+    - **radial_offset** (*Optional*): Radial offset of the ticks from the default position, in pixels. Defaults to `0`.
     - **width** (*Optional*): Tick line width in pixels. Required if `count` is greater than `0`. Defaults to `2`.
     - **major** (*Optional*, list): If you want major ticks and value labels displayed:
       - **color**: [Color](/components/lvgl#lvgl-color) to draw the major ticks. Defaults to `0` (black).
       - **label_gap**: Label distance from the ticks with text proportional to the values of the tick line. Defaults to `4`.
       - **length**: Tick line length in pixels or percentage. Defaults to `15%`.
+      - **radial_offset** (*Optional*): Radial offset of the major ticks from the default position, in pixels. Defaults to `0`.
       - **stride**: How many minor ticks to skip when adding major ticks. Defaults to `3`.
       - **width**: Tick line width in pixels. Defaults to `5`.
     - Style options from [Style properties](/components/lvgl#lvgl-styling) for the tick *lines* and *labels* using the [`line`](#lvgl-widget-line) and [`label`](#lvgl-widget-label) text style properties.
@@ -1390,10 +1398,13 @@ The text will be broken into multiple lines automatically and the height will be
   - **body** (*Optional*, dict): The content of the body of the message box:
     - **text** (*Optional*, [Text property](#text-property)): The text to display in the body of the message box.
     - Style options from [Style properties](/components/lvgl#lvgl-styling). Uses all the typical background properties and the text properties.
-  - **buttons** (*Optional*, list): A list of buttons to show at the bottom of the message box:
+  - **buttons** (*Optional*, list): A list of footer buttons to show at the bottom of the message box. Each button is an individual widget (not a buttonmatrix) and supports full widget styling:
     - **text** (*Optional*, [Text property](#text-property)): Text to display on the button.
-    - See [`buttonmatrix`](#lvgl-widget-buttonmatrix) for other options for the buttons.
-  - **button_style** (*Optional*, dict): A style to apply to the buttons. Uses all the typical style properties. Buttons cannot be individually styled since they are part of a `buttonmatrix`.
+    - Style options and [triggers](#lvgl-automation-triggers) as for any [`button`](#lvgl-widget-button) widget.
+  - **header_buttons** (*Optional*, list): A list of image buttons to show in the header area of the message box:
+    - **src** (**Required**, [image](/components/image#display-image)): The ID of an image to display on the header button.
+    - Style options and [triggers](#lvgl-automation-triggers) as for any [`button`](#lvgl-widget-button) widget.
+  - **button_style** (*Optional*, dict): **Deprecated** — style the buttons directly instead.
   - **close_button** (*Optional*, boolean): Controls the presence of the close button to the top right of the message box. Defaults to true
 
 **Actions:**
@@ -1475,9 +1486,12 @@ Use this widget to generate and display a QR-code containing a string at run tim
 
 **Actions:**
 
-- `lvgl.qrcode.update` [action](/automations/actions#actions-action) updates the widget's `text` property to display a new QR-code.
+- `lvgl.qrcode.update` [action](/automations/actions#actions-action) updates the widget's properties to display a new QR-code.
   - **id** (**Required**): The ID of the qrcode widget to be updated.
   - **text** (*Optional*, [Text property](#text-property)): New text to be encoded in the QR.
+  - **size** (*Optional*, int16): New size of the QR-code.
+  - **dark_color** (*Optional*, [color](/components/lvgl#lvgl-color)): New color for the dark areas.
+  - **light_color** (*Optional*, [color](/components/lvgl#lvgl-color)): New color for the light areas.
   - Style options from [Style properties](/components/lvgl#lvgl-styling).
 
 **Triggers:**
@@ -1729,12 +1743,12 @@ The Spinner widget is a spinning arc over a ring.
 **Configuration variables:**
 
 - **arc_color** (*Optional*, [color](/components/lvgl#lvgl-color)): Color to draw the arcs.
-- **arc_length** (**Required**, 0-360): Length of the spinning arc in degrees.
+- **arc_length** (*Optional*, 0-360): Length of the spinning arc in degrees. Defaults to `200`.
 - **arc_opa** (*Optional*, [opacity](/components/lvgl#lvgl-opacity)): Opacity of the arc.
 - **arc_rounded** (*Optional*, boolean): Make the end points of the arcs rounded. `true` rounded, `false` perpendicular line ending.
 - **arc_width** (*Optional*, int16): Set the width of the arcs in pixels.
 - **indicator** (*Optional*, list): Settings for the indicator *part* to show the value. Supports a list of [styles](/components/lvgl#lvgl-styling) and state-based styles to customize. Draws *another arc using the arc style* properties. Its padding values are interpreted relative to the background arc.
-- **spin_time** (**Required**, [Time](/guides/configuration-types#time)): Duration of one cycle of the spin.
+- **spin_time** (*Optional*, [Time](/guides/configuration-types#time)): Duration of one cycle of the spin. Defaults to `2s`.
 - Style options from [Style properties](/components/lvgl#lvgl-styling).
 
 **Actions:**
@@ -1814,7 +1828,7 @@ See [Local light switch](/cookbook/lvgl#lvgl-cookbook-relay) for an example whic
 
 ## `tabview`
 
-The tab view object can be used to organize content in tabs. The tab buttons are internally generated with a [`buttonmatrix`](#lvgl-widget-buttonmatrix).
+The tab view object can be used to organize content in tabs.
 
 <Image src={lvglTabviewImg} layout="constrained" alt="" />
 
@@ -1828,8 +1842,8 @@ The tabs are indexed (zero-based) in the order they appear in the configuration 
   - **name** (**Required**): The text to be shown on the button corresponding to the tab.
   - **id** (*Optional*): An ID for the tab itself.
   - **widgets** (**Required**, list): A list of [Widgets](/components/lvgl/widgets/) to be drawn on the tab, as children.
-- **tab_style** (*Optional*): Style settings for the tabs.
-  - **items** (*Optional*, dict): Settings for the items *part*, the buttons all use the text and typical background style properties except translations and transformations.
+- **tab_style** (*Optional*): Style settings for the tab bar.
+  - **items** (*Optional*, dict): Style settings applied to each individual tab button.
 - **content_style** (*Optional*): Style settings for the content area.
 
 **Actions:**
@@ -2128,7 +2142,7 @@ ESPHome implements as universal triggers the following interaction events genera
 
 These triggers can be applied directly to any widget in the LVGL configuration, *given that the widget itself supports generating such events*. For the widgets having a value, the triggers return the current value in variable `x`  ; this variable may be used in lambdas defined within those triggers.
 
-Each trigger also deliver an `event` parameter, which is a pointer to the LVGL C type `lv_event_t`. This may be used in lambdas defined within those triggers. Refer to the [LVGL documentation](https://docs.lvgl.io/8.4/overview/event.html) for more information.
+Each trigger also deliver an `event` parameter, which is a pointer to the LVGL C type `lv_event_t`. This may be used in lambdas defined within those triggers. Refer to the [LVGL documentation](https://docs.lvgl.io/9.5/common-widget-features/events.html) for more information.
 
 There are additional triggers for pages - each page may have an `on_load` and `on_unload` trigger. These will be called
 when the page becomes active or inactive respectively.
