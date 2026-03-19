@@ -60,8 +60,7 @@ void MAX31865Sensor::update() {
   this->write_config_(0b11100000, 0b10100000);
 
   // Datasheet max conversion time is 55ms for 60Hz / 66ms for 50Hz
-  auto f = std::bind(&MAX31865Sensor::read_data_, this);
-  this->set_timeout("value", filter_ == FILTER_60HZ ? 55 : 66, f);
+  this->set_timeout("value", filter_ == FILTER_60HZ ? 55 : 66, [this]() { this->read_data_(); });
 }
 
 void MAX31865Sensor::setup() {
