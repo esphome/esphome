@@ -92,6 +92,7 @@
 #define USE_LVGL_MSGBOX
 #define USE_LVGL_ROLLER
 #define USE_LVGL_ROTARY_ENCODER
+#define USE_LVGL_SCALE
 #define USE_LVGL_SLIDER
 #define USE_LVGL_SPAN
 #define USE_LVGL_SPINBOX
@@ -185,7 +186,6 @@
 #ifdef USE_ARDUINO
 #define USE_PROMETHEUS
 #define USE_WIFI_WPA2_EAP
-#define USE_I2S_LEGACY
 #endif
 
 // Platforms with native 64-bit time sources (no rollover tracking needed)
