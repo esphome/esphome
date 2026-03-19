@@ -18,7 +18,6 @@ inline int32_t decode32(uint8_t xmsb, uint8_t msb, uint8_t lsb, uint8_t xlsb, si
 
 void SPA06Component::dump_config() {
   ESP_LOGCONFIG(TAG, "SPA06:");
-  // TODO: Read internal error code and print if not NONE
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG, "  Measurement conversion time: %ums", this->conversion_time_);
   if (this->temperature_sensor_) {
@@ -297,11 +296,12 @@ bool SPA06Component::read_temperature_and_pressure_(float &temperature, float &p
     return false;
   }
   // Read raw pressure from device
-  if (!this->spa_read_bytes(SPA06_PSR, this->psr_tmp_read_, 3)) {
+  uint8_t buf[3];
+  if (!this->spa_read_bytes(SPA06_PSR, buf, 3)) {
     return false;
   }
   // Calculate raw scaled pressure value
-  float p_raw_sc = (float) decode32(psr_tmp_read_[0], psr_tmp_read_[1], psr_tmp_read_[2], 0, 24) / (float) this->kp_;
+  float p_raw_sc = (float) decode32(buf[0], buf[1], buf[2], 0, 24) / (float) this->kp_;
 
   // Calculate full pressure values
   pressure = this->convert_pressure_(p_raw_sc, t_raw_sc);
@@ -309,11 +309,12 @@ bool SPA06Component::read_temperature_and_pressure_(float &temperature, float &p
 }
 
 bool SPA06Component::read_temperature_(float &temperature, float &t_raw_sc) {
-  if (!this->spa_read_bytes(SPA06_TMP, this->psr_tmp_read_, 3)) {
+  uint8_t buf[3];
+  if (!this->spa_read_bytes(SPA06_TMP, buf, 3)) {
     return false;
   }
 
-  t_raw_sc = (float) decode32(psr_tmp_read_[0], psr_tmp_read_[1], psr_tmp_read_[2], 0, 24) / (float) this->kt_;
+  t_raw_sc = (float) decode32(buf[0], buf[1], buf[2], 0, 24) / (float) this->kt_;
   temperature = this->convert_temperature_(t_raw_sc);
   return true;
 }
