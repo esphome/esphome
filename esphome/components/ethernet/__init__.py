@@ -222,7 +222,18 @@ def _validate(config):
 
     if CORE.is_esp32:
         if config[CONF_TYPE] in SPI_ETHERNET_TYPES:
-            if _is_framework_spi_polling_mode_supported():
+            # ENC28J60 driver does not support polling mode - interrupt is required
+            if config[CONF_TYPE] == "ENC28J60":
+                if CONF_POLLING_INTERVAL in config:
+                    raise cv.Invalid(
+                        f"'{CONF_POLLING_INTERVAL}' is not supported for ENC28J60. "
+                        f"'{CONF_INTERRUPT_PIN}' is required."
+                    )
+                if CONF_INTERRUPT_PIN not in config:
+                    raise cv.Invalid(
+                        f"'{CONF_INTERRUPT_PIN}' is a required option for ENC28J60."
+                    )
+            elif _is_framework_spi_polling_mode_supported():
                 if CONF_POLLING_INTERVAL in config and CONF_INTERRUPT_PIN in config:
                     raise cv.Invalid(
                         f"Cannot specify more than one of {CONF_INTERRUPT_PIN}, {CONF_POLLING_INTERVAL}"
