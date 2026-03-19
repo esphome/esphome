@@ -66,6 +66,13 @@ void esphome_lwip_wake_main_loop(void);
 /// @param px_higher_priority_task_woken Set to pdTRUE if a context switch is needed.
 void esphome_lwip_wake_main_loop_from_isr(int *px_higher_priority_task_woken);
 
+/// Set or clear TCP_NODELAY on a socket's tcp_pcb directly.
+/// Must be called with the TCPIP core lock held (LwIPLock in C++).
+/// This bypasses lwip_setsockopt() overhead (socket lookups, switch cascade,
+/// hooks, refcounting) — just a direct pcb->flags bit set/clear.
+/// Returns true if successful, false if sock/conn/pcb is NULL or the socket is not TCP.
+bool esphome_lwip_set_nodelay(struct lwip_sock *sock, bool enable);
+
 /// Wake the main loop task from any context (ISR, thread, or main loop).
 /// ESP32-only: uses xPortInIsrContext() to detect ISR context.
 /// LibreTiny lacks IRAM_ATTR support needed for ISR-safe paths.

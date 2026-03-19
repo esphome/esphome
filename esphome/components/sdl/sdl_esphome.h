@@ -37,11 +37,11 @@ class Sdl : public display::Display {
   int get_height() override { return this->height_; }
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void dump_config() override { LOG_DISPLAY("", "SDL", this); }
-  void add_key_listener(int32_t keycode, std::function<void(bool)> &&callback) {
+  template<typename F> void add_key_listener(int32_t keycode, F &&callback) {
     if (!this->key_callbacks_.count(keycode)) {
       this->key_callbacks_[keycode] = CallbackManager<void(bool)>();
     }
-    this->key_callbacks_[keycode].add(std::move(callback));
+    this->key_callbacks_[keycode].add(std::forward<F>(callback));
   }
 
   int mouse_x{};
