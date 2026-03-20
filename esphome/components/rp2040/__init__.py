@@ -42,8 +42,15 @@ def get_board() -> str:
 
 
 def board_has_wifi() -> bool:
-    """Return True if the configured board has WiFi (CYW43 wireless chip)."""
-    return boards.BOARDS.get(get_board(), {}).get("wifi", False)
+    """Return True if the configured board has WiFi (CYW43 wireless chip).
+
+    Returns True for unknown/custom boards to avoid rejecting valid
+    configurations for boards not in the generated list.
+    """
+    board_info = boards.BOARDS.get(get_board())
+    if board_info is None:
+        return True
+    return board_info.get("wifi", False)
 
 
 def set_core_data(config):
