@@ -1,5 +1,5 @@
 i2c:
-  - id: i2c_hdc1080
+  - id: i2c_hdc2080
     scl: ${scl_pin}
     sda: ${sda_pin}
 
