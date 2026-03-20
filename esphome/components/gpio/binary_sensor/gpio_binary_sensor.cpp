@@ -15,10 +15,10 @@ static const char *const TAG = "gpio.binary_sensor";
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
 static const LogString *const INTERRUPT_TYPE_STRINGS[] = {
-  LOG_STR("INTERRUPT[0]"),
-  LOG_STR("INTERRUPT[1]"),
-  LOG_STR("INTERRUPT[2]"),
-  LOG_STR("INTERRUPT[3]"),
+    LOG_STR("INTERRUPT[0]"),
+    LOG_STR("INTERRUPT[1]"),
+    LOG_STR("INTERRUPT[2]"),
+    LOG_STR("INTERRUPT[3]"),
 };
 
 static const LogString *interrupt_type_to_string(gpio::InterruptType type) {
