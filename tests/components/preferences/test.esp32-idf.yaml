@@ -1,2 +1,10 @@
 preferences:
+  id: prefs_syncer
   flash_write_interval: 20s
+
+esphome:
+  on_boot:
+    then:
+      - lambda: |-
+          prefs_syncer->stop_poller();
+          prefs_syncer->start_poller();
