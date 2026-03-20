@@ -34,13 +34,14 @@ static constexpr uint8_t SWIRE1 = 0x5A;
 static constexpr uint8_t SWIRE2 = 0x5B;
 static constexpr uint8_t PAGESEL = 0xFE;
 
-static constexpr uint8_t MADCTL_MY = 0x80;     // Bit 7 Bottom to top
-static constexpr uint8_t MADCTL_MX = 0x40;     // Bit 6 Right to left
-static constexpr uint8_t MADCTL_MV = 0x20;     // Bit 5 Swap axes
-static constexpr uint8_t MADCTL_RGB = 0x00;    // Bit 3 Red-Green-Blue pixel order
-static constexpr uint8_t MADCTL_BGR = 0x08;    // Bit 3 Blue-Green-Red pixel order
-static constexpr uint8_t MADCTL_XFLIP = 0x02;  // Mirror the display horizontally
-static constexpr uint8_t MADCTL_YFLIP = 0x01;  // Mirror the display vertically
+static constexpr uint8_t MADCTL_MY = 0x80;           // Bit 7 Bottom to top
+static constexpr uint8_t MADCTL_MX = 0x40;           // Bit 6 Right to left
+static constexpr uint8_t MADCTL_MV = 0x20;           // Bit 5 Swap axes
+static constexpr uint8_t MADCTL_RGB = 0x00;          // Bit 3 Red-Green-Blue pixel order
+static constexpr uint8_t MADCTL_BGR = 0x08;          // Bit 3 Blue-Green-Red pixel order
+static constexpr uint8_t MADCTL_XFLIP = 0x02;        // Mirror the display horizontally
+static constexpr uint8_t MADCTL_YFLIP = 0x01;        // Mirror the display vertically
+static constexpr uint16_t MADCTL_FLIP_FLAG = 0x100;  // controller uses axis flip bits
 
 static constexpr uint8_t DELAY_FLAG = 0xFF;
 // store a 16 bit value in a buffer, big endian.
@@ -83,7 +84,7 @@ void internal_dump_config(const char *model, int width, int height, int offset_w
  * buffer
  */
 template<typename BUFFERTYPE, PixelMode BUFFERPIXEL, bool IS_BIG_ENDIAN, PixelMode DISPLAYPIXEL, BusType BUS_TYPE,
-         int WIDTH, int HEIGHT, int OFFSET_WIDTH, int OFFSET_HEIGHT, uint8_t MADCTL>
+         int WIDTH, int HEIGHT, int OFFSET_WIDTH, int OFFSET_HEIGHT, uint16_t MADCTL>
 class MipiSpi : public display::Display,
                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                       spi::DATA_RATE_1MHZ> {
@@ -101,6 +102,10 @@ class MipiSpi : public display::Display,
   }
   void set_brightness(uint8_t brightness) {
     this->brightness_ = brightness;
+    this->reset_params_();
+  }
+  void set_rotation(display::DisplayRotation rotation) override {
+    this->rotation_ = rotation;
     this->reset_params_();
   }
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
@@ -174,13 +179,13 @@ class MipiSpi : public display::Display,
             break;
         }
         const auto *ptr = vec.data() + index;
-        esph_log_d(TAG, "Command %02X, length %d, byte %02X", cmd, num_args, arg_byte);
         this->write_command_(cmd, ptr, num_args);
         index += num_args;
         if (cmd == SLEEP_OUT)
           delay(10);
       }
     }
+    this->reset_params_();
     // init sequence no longer needed
     this->init_sequence_.clear();
   }
@@ -216,10 +221,13 @@ class MipiSpi : public display::Display,
 
   // Writes a command to the display, with the given bytes.
   void write_command_(uint8_t cmd, const uint8_t *bytes, size_t len) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
     char hex_buf[format_hex_pretty_size(MIPI_SPI_MAX_CMD_LOG_BYTES)];
-    esph_log_v(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
-#endif
+    // Don't spam the log after setup
+    if (this->init_sequence_.empty()) {
+      esph_log_v(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
+    } else {
+      esph_log_d(TAG, "Command %02X, length %d, bytes %s", cmd, len, format_hex_pretty_to(hex_buf, bytes, len));
+    }
     if constexpr (BUS_TYPE == BUS_TYPE_QUAD) {
       this->enable();
       this->write_cmd_addr_data(8, 0x02, 24, cmd << 8, bytes, len);
@@ -268,6 +276,29 @@ class MipiSpi : public display::Display,
     this->write_command_(this->invert_colors_ ? INVERT_ON : INVERT_OFF);
     if (this->brightness_.has_value())
       this->write_command_(BRIGHTNESS, this->brightness_.value());
+
+    // calculate new madctl value from base value adjusted for rotation
+    uint8_t madctl = MADCTL;  // lower 8 bits only
+    constexpr bool use_flips = (MADCTL & MADCTL_FLIP_FLAG) != 0;
+    constexpr uint8_t x_mask = use_flips ? MADCTL_XFLIP : MADCTL_MX;
+    constexpr uint8_t y_mask = use_flips ? MADCTL_YFLIP : MADCTL_MY;
+    switch (this->rotation_) {
+      default:
+        break;
+      case display::DISPLAY_ROTATION_90_DEGREES:
+        madctl ^= x_mask;     // flip X axis
+        madctl ^= MADCTL_MV;  // swap X and Y axes
+        break;
+      case display::DISPLAY_ROTATION_180_DEGREES:
+        madctl ^= x_mask;  // flip X axis
+        madctl ^= y_mask;  // flip Y axis
+        break;
+      case display::DISPLAY_ROTATION_270_DEGREES:
+        madctl ^= y_mask;     // flip Y axis
+        madctl ^= MADCTL_MV;  // swap X and Y axes
+        break;
+    }
+    this->write_command_(MADCTL_CMD, madctl);
   }
 
   // set the address window for the next data write
@@ -423,10 +454,10 @@ class MipiSpi : public display::Display,
  * @tparam ROUNDING The alignment requirement for drawing operations (e.g. 2 means that x coordinates must be even)
  */
 template<typename BUFFERTYPE, PixelMode BUFFERPIXEL, bool IS_BIG_ENDIAN, PixelMode DISPLAYPIXEL, BusType BUS_TYPE,
-         uint16_t WIDTH, uint16_t HEIGHT, int OFFSET_WIDTH, int OFFSET_HEIGHT, display::DisplayRotation ROTATION,
-         int FRACTION, unsigned ROUNDING>
+         uint16_t WIDTH, uint16_t HEIGHT, int OFFSET_WIDTH, int OFFSET_HEIGHT, uint16_t MADCTL,
+         display::DisplayRotation ROTATION, int FRACTION, unsigned ROUNDING>
 class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DISPLAYPIXEL, BUS_TYPE, WIDTH, HEIGHT,
-                                     OFFSET_WIDTH, OFFSET_HEIGHT> {
+                                     OFFSET_WIDTH, OFFSET_HEIGHT, MADCTL> {
  public:
   // these values define the buffer size needed to write in accordance with the chip pixel alignment
   // requirements. If the required rounding does not divide the width and height, we round up to the next multiple and
@@ -437,8 +468,8 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
   MipiSpiBuffer() { this->rotation_ = ROTATION; }
 
   void dump_config() override {
-    MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DISPLAYPIXEL, BUS_TYPE, WIDTH, HEIGHT, OFFSET_WIDTH,
-            OFFSET_HEIGHT>::dump_config();
+    MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DISPLAYPIXEL, BUS_TYPE, WIDTH, HEIGHT, OFFSET_WIDTH, OFFSET_HEIGHT,
+            MADCTL>::dump_config();
     esph_log_config(TAG,
                     "  Rotation: %d°\n"
                     "  Buffer pixels: %d bits\n"
@@ -450,8 +481,8 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
   }
 
   void setup() override {
-    MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DISPLAYPIXEL, BUS_TYPE, WIDTH, HEIGHT, OFFSET_WIDTH,
-            OFFSET_HEIGHT>::setup();
+    MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DISPLAYPIXEL, BUS_TYPE, WIDTH, HEIGHT, OFFSET_WIDTH, OFFSET_HEIGHT,
+            MADCTL>::setup();
     RAMAllocator<BUFFERTYPE> allocator{};
     this->buffer_ = allocator.allocate(BUFFER_WIDTH * BUFFER_HEIGHT / FRACTION);
     if (this->buffer_ == nullptr) {

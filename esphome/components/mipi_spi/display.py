@@ -343,48 +343,38 @@ def get_instance(config):
     rotation = (
         0 if model.rotation_as_transform(config) else config.get(CONF_ROTATION, 0)
     )
+    madctl = model.get_madctl(model.get_base_transform(config), config)
     templateargs = [
         buffer_type,
         bufferpixels,
         config[CONF_BYTE_ORDER] == "big_endian",
         display_pixel_mode,
         bus_type,
+        width,
+        height,
+        offset_width,
+        offset_height,
+        madctl,
     ]
     # If a buffer is required, use MipiSpiBuffer, otherwise use MipiSpi
     if requires_buffer(config):
         templateargs.extend(
             [
-                width,
-                height,
-                offset_width,
-                offset_height,
                 DISPLAY_ROTATIONS[rotation],
                 frac,
                 config[CONF_DRAW_ROUNDING],
             ]
         )
         return MipiSpiBuffer, templateargs
-    # Swap height and width if the display is rotated 90 or 270 degrees in software
-    if rotation in (90, 270):
-        width, height = height, width
-        offset_width, offset_height = offset_height, offset_width
-    templateargs.extend(
-        [
-            width,
-            height,
-            offset_width,
-            offset_height,
-        ]
-    )
     return MipiSpi, templateargs
 
 
 async def to_code(config):
     model = MODELS[config[CONF_MODEL]]
     var_id = config[CONF_ID]
+    init_sequence = model.get_sequence(config, False)
     var_id.type, templateargs = get_instance(config)
     var = cg.new_Pvariable(var_id, TemplateArguments(*templateargs))
-    init_sequence, _madctl = model.get_sequence(config)
     cg.add(var.set_init_sequence(init_sequence))
     if model.rotation_as_transform(config):
         if CONF_TRANSFORM in config:
