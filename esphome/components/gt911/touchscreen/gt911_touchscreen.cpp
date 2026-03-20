@@ -19,36 +19,80 @@ static const uint8_t GET_MAX_VALUES[2] = {0x80, 0x48};
 static const size_t MAX_TOUCHES = 5;  // max number of possible touches reported
 static const size_t MAX_BUTTONS = 4;  // max number of buttons scanned
 
+static constexpr uint8_t REG_CONFIG[2]  = {0x80, 0x47};  // config version register
+static constexpr uint8_t REG_PRODUCT[2] = {0x81, 0x40};  // product name register
+static constexpr uint8_t REG_FW_VER[2]  = {0x81, 0x44};  // firmware version register 
+static constexpr uint8_t REG_TP_RES[2]  = {0x80, 0x48};  // touch resolution register 
+
 #define ERROR_CHECK(err) \
   if ((err) != i2c::ERROR_OK) { \
     this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL)); \
     return; \
   }
 
+
 void GT911Touchscreen::setup() {
-  if (this->reset_pin_ != nullptr) {
-    // temporarily set the interrupt pin to output to control address selection
-    this->reset_pin_->setup();
-    this->reset_pin_->digital_write(false);
-    if (this->interrupt_pin_ != nullptr) {
-      this->interrupt_pin_->setup();
-      this->interrupt_pin_->pin_mode(gpio::FLAG_OUTPUT);
-      this->interrupt_pin_->digital_write(false);
-    }
-    delay(2);
-    this->reset_pin_->digital_write(true);
-    // wait at least T3+T4 ms as per the datasheet
-    this->set_timeout(5 + 50 + 1, [this] { this->setup_internal_(); });
+  if(true != this->init_sequence(this->use_primary_i2c_addr)){
+    ESP_LOGE(TAG, "Error: GT911 init sequence failed.");
     return;
   }
   this->setup_internal_();
 }
 
-void GT911Touchscreen::setup_internal_() {
-  if (this->interrupt_pin_ != nullptr) {
-    if (this->interrupt_pin_->is_internal())
-      this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT);
+/// @brief Perform GT911 reset/init sequence and configure INT pin for I2C address.
+/// @param use_primary_address true = primary (0x5D), false = secondary (0x14)
+/// @return true on success, false on error
+bool GT911Touchscreen::init_sequence(bool use_primary_i2c_address) {
+  // Init sequence according to Goodix GT911 (Rev.10, 2017-07-26)
+  ESP_LOGD(TAG, "Start GT911 Init sequence");
+
+  // STEP 1: Reset pin -> output, drive low
+  if (this->reset_pin_ == nullptr) {
+    ESP_LOGE(TAG, "Reset pin not initialized.");
+    return false;
   }
+  this->reset_pin_->setup();
+  this->reset_pin_->pin_mode(gpio::FLAG_OUTPUT);
+  this->reset_pin_->digital_write(false);
+
+  // STEP 2: INT pin -> output, set level depending on desired I2C address
+  if (this->interrupt_pin_ == nullptr) {
+    ESP_LOGE(TAG, "Interrupt pin not initialized.");
+    return false;
+  }
+  this->interrupt_pin_->setup();
+  this->interrupt_pin_->pin_mode(gpio::FLAG_OUTPUT);
+
+  // For primary address (0x5D) keep INT low during reset
+  if (true == use_primary_i2c_address) {
+    this->interrupt_pin_->digital_write(false);
+  }
+  // For secondary address (0x14) keep INT high during reset
+  else {
+    this->interrupt_pin_->digital_write(true);
+  }
+
+  // STEP 3: Wait for 100ms, then release reset
+  delay(100);
+  this->reset_pin_->digital_write(true);
+
+  // STEP 4: Wait T3 (>=5 ms)
+  delay(5);
+
+  // For secondary address, toggle INT after T3 (5ms)
+  if (true != use_primary_i2c_address) {
+    this->interrupt_pin_->digital_write(false);
+  }
+
+  // STEP 5: Wait T4 (>=50 ms) then set INT to input (floating)
+  delay(51);
+  this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT);
+
+  return true;
+}
+
+
+void GT911Touchscreen::setup_internal_() {
 
   uint8_t data[4];
   i2c::ErrorCode err = this->write(GET_SWITCHES, sizeof(GET_SWITCHES));
@@ -150,11 +194,51 @@ void GT911Touchscreen::update_touches() {
   }
 }
 
+void GT911Touchscreen::read_device_info(){
+  i2c::ErrorCode err;
+  uint8_t data[4];
+  // Read product name
+  err = this->write(REG_PRODUCT, sizeof(REG_PRODUCT));
+  ERROR_CHECK(err);
+  err = this->read(data, 4);
+  ERROR_CHECK(err);
+  ESP_LOGD(TAG, "product id: %c%c%c%c", data[0], data[1], data[2], data[3]);
+
+  // Read firmware version
+  memset(data, 0, sizeof(data));
+  err = this->write(REG_FW_VER, sizeof(REG_FW_VER));
+  ERROR_CHECK(err);
+  err = this->read(data, 2);
+  ERROR_CHECK(err);
+  ESP_LOGD(TAG, "firmware version: 0x%x%x", data[1], data[0]);
+
+  // Read config version
+  memset(data, 0, sizeof(data));
+  err = this->write(REG_CONFIG, sizeof(REG_CONFIG));
+  ERROR_CHECK(err);
+  err = this->read(data, 1);
+  ERROR_CHECK(err);
+  ESP_LOGD(TAG, "config version: 0x10%x", data[0]);
+
+  // Read touchpanel resolution
+  memset(data, 0, sizeof(data));
+  err = this->write(REG_TP_RES, sizeof(REG_TP_RES));
+  ERROR_CHECK(err);
+  err = this->read(data, 4);
+  ERROR_CHECK(err);
+  uint16_t xRes = data[0] | (data[1] << 8);
+  uint16_t yRes = data[2] | (data[3] << 8);
+  ESP_LOGD(TAG, "resolution: %u x %u", xRes, yRes);
+}
+
 void GT911Touchscreen::dump_config() {
   ESP_LOGCONFIG(TAG, "GT911 Touchscreen:");
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  this->read_device_info();
+
+
 }
 
 }  // namespace gt911
