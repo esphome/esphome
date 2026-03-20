@@ -73,9 +73,7 @@ class OTAComponent : public Component {
    * This should be used by OTA implementations that run in separate tasks
    * (like web_server OTA) to ensure listeners execute in the main loop.
    */
-  void notify_state_deferred_(OTAState state, float progress, uint8_t error) {
-    this->defer([this, state, progress, error]() { this->notify_state_(state, progress, error); });
-  }
+  void notify_state_deferred_(OTAState state, float progress, uint8_t error);
 
   std::vector<OTAStateListener *> state_listeners_;
 #endif

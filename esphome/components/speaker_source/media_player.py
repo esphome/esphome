@@ -1,6 +1,12 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import audio, media_player, media_source, speaker
+from esphome.components.const import (
+    CONF_VOLUME_INCREMENT,
+    CONF_VOLUME_INITIAL,
+    CONF_VOLUME_MAX,
+    CONF_VOLUME_MIN,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DELAY,
@@ -27,10 +33,6 @@ CONF_PIPELINE = "pipeline"
 CONF_ON_UNMUTE = "on_unmute"
 CONF_ON_VOLUME = "on_volume"
 CONF_SOURCES = "sources"
-CONF_VOLUME_INCREMENT = "volume_increment"
-CONF_VOLUME_INITIAL = "volume_initial"
-CONF_VOLUME_MAX = "volume_max"
-CONF_VOLUME_MIN = "volume_min"
 
 speaker_source_ns = cg.esphome_ns.namespace("speaker_source")
 

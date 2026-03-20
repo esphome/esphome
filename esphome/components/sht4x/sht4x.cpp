@@ -63,7 +63,7 @@ void SHT4XComponent::setup() {
     }
     ESP_LOGD(TAG, "Heater command: %x", this->heater_command_);
 
-    this->set_interval(heater_interval, std::bind(&SHT4XComponent::start_heater_, this));
+    this->set_interval(heater_interval, [this]() { this->start_heater_(); });
   }
 }
 
