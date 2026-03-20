@@ -8,6 +8,11 @@ on_beo4:
     - logger.log:
         format: "on_beo4: %u %u"
         args: ["x.source", "x.command"]
+on_brennenstuhl:
+  then:
+    - logger.log:
+        format: "on_brennenstuhl: %u"
+        args: ["x.code"]
 on_aeha:
   then:
     - logger.log:

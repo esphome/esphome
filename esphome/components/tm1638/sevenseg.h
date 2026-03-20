@@ -4,7 +4,7 @@ namespace esphome {
 namespace tm1638 {
 namespace TM1638Translation {
 
-const unsigned char SEVEN_SEG[] PROGMEM = {
+constexpr unsigned char SEVEN_SEG[] PROGMEM = {
     0x00, /* (space) */
     0x86, /* ! */
     0x22, /* " */

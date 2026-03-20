@@ -3,6 +3,7 @@
 #include "driver/gpio.h"
 #include "deep_sleep_component.h"
 #include "esphome/core/log.h"
+#include <esp_idf_version.h>
 
 namespace esphome {
 namespace deep_sleep {
@@ -26,7 +27,7 @@ namespace deep_sleep {
 // - ext0: Single pin wakeup using RTC GPIO (esp_sleep_enable_ext0_wakeup)
 // - ext1: Multiple pin wakeup (esp_sleep_enable_ext1_wakeup)
 // - Touch: Touch pad wakeup (esp_sleep_enable_touchpad_wakeup)
-// - GPIO wakeup: GPIO wakeup for RTC pins (esp_deep_sleep_enable_gpio_wakeup)
+// - GPIO wakeup: GPIO wakeup for RTC pins
 
 static const char *const TAG = "deep_sleep";
 
@@ -135,8 +136,13 @@ void DeepSleepComponent::deep_sleep_() {
     }
     // Internal pullup/pulldown resistors are enabled automatically, when
     // ESP_SLEEP_GPIO_ENABLE_INTERNAL_RESISTORS is set (by default it is)
-    esp_deep_sleep_enable_gpio_wakeup(1 << this->wakeup_pin_->get_pin(),
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+    esp_sleep_enable_gpio_wakeup_on_hp_periph_powerdown(1ULL << this->wakeup_pin_->get_pin(),
+                                                        static_cast<esp_sleep_gpio_wake_up_mode_t>(level));
+#else
+    esp_deep_sleep_enable_gpio_wakeup(1ULL << this->wakeup_pin_->get_pin(),
                                       static_cast<esp_deepsleep_gpio_wake_up_mode_t>(level));
+#endif
   }
 #endif
 

@@ -15,6 +15,12 @@ button:
         source: 0x01
         command: 0x0C
   - platform: template
+    name: brennenstuhl
+    id: button_a_on
+    on_press:
+      remote_transmitter.transmit_brennenstuhl:
+        code: 0xBD2E2C
+  - platform: template
     name: Drayton Thermostat On
     id: drayton_thermostat_on
     on_press:
