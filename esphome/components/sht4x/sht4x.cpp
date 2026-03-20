@@ -9,14 +9,12 @@ static const char *const TAG = "sht4x";
 static const uint8_t MEASURECOMMANDS[] = {0xFD, 0xF6, 0xE0};
 static const uint8_t SERIAL_NUMBER_COMMAND = 0x89;
 
-void SHT4XComponent::start_heater_() {
-  uint8_t cmd[] = {this->heater_command_};
-
-  ESP_LOGD(TAG, "Heater turning on");
-  if (this->write(cmd, 1) != i2c::ERROR_OK) {
-    this->status_set_error(LOG_STR("Failed to turn on heater"));
-  }
-}
+// Conversion constants from SHT4x datasheet
+static constexpr float TEMPERATURE_OFFSET = -45.0f;
+static constexpr float TEMPERATURE_SPAN = 175.0f;
+static constexpr float HUMIDITY_OFFSET = -6.0f;
+static constexpr float HUMIDITY_SPAN = 125.0f;
+static constexpr float RAW_MAX = 65535.0f;
 
 void SHT4XComponent::read_serial_number_() {
   uint16_t buffer[2];
@@ -39,8 +37,8 @@ void SHT4XComponent::setup() {
   this->read_serial_number_();
 
   if (std::isfinite(this->duty_cycle_) && this->duty_cycle_ > 0.0f) {
-    uint32_t heater_interval = static_cast<uint32_t>(static_cast<uint16_t>(this->heater_time_) / this->duty_cycle_);
-    ESP_LOGD(TAG, "Heater interval: %" PRIu32, heater_interval);
+    this->heater_interval_ = static_cast<uint32_t>(static_cast<uint16_t>(this->heater_time_) / this->duty_cycle_);
+    ESP_LOGD(TAG, "Heater interval: %" PRIu32, this->heater_interval_);
 
     if (this->heater_power_ == SHT4X_HEATERPOWER_HIGH) {
       if (this->heater_time_ == SHT4X_HEATERTIME_LONG) {
@@ -62,8 +60,6 @@ void SHT4XComponent::setup() {
       }
     }
     ESP_LOGD(TAG, "Heater command: %x", this->heater_command_);
-
-    this->set_interval(heater_interval, [this]() { this->start_heater_(); });
   }
 }
 
@@ -83,43 +79,59 @@ void SHT4XComponent::dump_config() {
 }
 
 void SHT4XComponent::update() {
-  // Send command
+  bool use_heater = false;
+
+  // Check if heater is due during this measurement cycle
+  if (this->heater_interval_ > 0) {
+    uint32_t now = millis();
+    if (now - this->last_heater_millis_ >= this->heater_interval_) {
+      use_heater = true;
+      this->last_heater_millis_ = now;
+    }
+  }
+
+  if (use_heater) {
+    // Heater command heats the sensor to remove condensation, then takes a
+    // measurement (per datasheet section 4.9). The measurement is taken while
+    // the sensor is still hot, so we must discard it — it does not reflect
+    // ambient conditions. The next regular update() cycle will provide a
+    // valid reading after the sensor has cooled.
+    ESP_LOGD(TAG, "Heater turning on");
+    if (!this->write_command(this->heater_command_)) {
+      this->status_set_warning(LOG_STR("Failed to send heater command"));
+      return;
+    }
+    return;
+  }
+
   if (!this->write_command(MEASURECOMMANDS[this->precision_])) {
-    // Warning will be printed only if warning status is not set yet
     this->status_set_warning(LOG_STR("Failed to send measurement command"));
     return;
   }
 
-  this->set_timeout(10, [this]() {
-    uint16_t buffer[2];
+  this->set_timeout(10, [this]() { this->read_and_publish_(); });
+}
 
-    // Read measurement
-    if (!this->read_data(buffer, 2)) {
-      // Using ESP_LOGW to force the warning to be printed
-      ESP_LOGW(TAG, "Sensor read failed");
-      this->status_set_warning();
-      return;
-    }
+void SHT4XComponent::read_and_publish_() {
+  uint16_t buffer[2];
 
-    this->status_clear_warning();
+  if (!this->read_data(buffer, 2)) {
+    ESP_LOGW(TAG, "Sensor read failed");
+    this->status_set_warning();
+    return;
+  }
 
-    // Evaluate and publish measurements
-    if (this->temp_sensor_ != nullptr) {
-      // Temp is contained in the first result word
-      float sensor_value_temp = buffer[0];
-      float temp = -45 + 175 * sensor_value_temp / 65535;
+  this->status_clear_warning();
 
-      this->temp_sensor_->publish_state(temp);
-    }
+  if (this->temp_sensor_ != nullptr) {
+    float temp = TEMPERATURE_OFFSET + TEMPERATURE_SPAN * static_cast<float>(buffer[0]) / RAW_MAX;
+    this->temp_sensor_->publish_state(temp);
+  }
 
-    if (this->humidity_sensor_ != nullptr) {
-      // Relative humidity is in the second result word
-      float sensor_value_rh = buffer[1];
-      float rh = -6 + 125 * sensor_value_rh / 65535;
-
-      this->humidity_sensor_->publish_state(rh);
-    }
-  });
+  if (this->humidity_sensor_ != nullptr) {
+    float rh = HUMIDITY_OFFSET + HUMIDITY_SPAN * static_cast<float>(buffer[1]) / RAW_MAX;
+    this->humidity_sensor_->publish_state(rh);
+  }
 }
 
 }  // namespace sht4x
