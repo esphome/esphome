@@ -86,11 +86,6 @@ void SHT4XComponent::update() {
     uint32_t now = millis();
     if (now - this->last_heater_millis_ >= this->heater_interval_) {
       use_heater = true;
-      // Ensure at least one normal measurement between heater cycles by
-      // pushing the next eligible heater time forward by one update interval.
-      // The configured duty cycle is a maximum, not an exact target.
-      uint32_t interval = std::max(this->heater_interval_, this->get_update_interval());
-      this->last_heater_millis_ = now - this->heater_interval_ + interval;
     }
   }
 
@@ -104,6 +99,12 @@ void SHT4XComponent::update() {
       this->status_set_warning(LOG_STR("Failed to send heater command"));
       return;
     }
+    // Only update timestamp after successful command. Ensure at least one
+    // normal measurement between heater cycles by pushing the next eligible
+    // heater time forward by at least one update interval.
+    uint32_t now = millis();
+    uint32_t interval = std::max(this->heater_interval_, this->get_update_interval());
+    this->last_heater_millis_ = now - this->heater_interval_ + interval;
     return;
   }
 
