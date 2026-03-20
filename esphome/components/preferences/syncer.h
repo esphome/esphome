@@ -12,10 +12,7 @@ class IntervalSyncer final : public Component {
   void loop() override { global_preferences->sync(); }
 #else
   void set_write_interval(uint32_t write_interval) { this->write_interval_ = write_interval; }
-  void setup() override {
-    this->set_interval(InternalSchedulerID::POLLING_UPDATE, this->write_interval_,
-                       []() { global_preferences->sync(); });
-  }
+  void setup() override { this->start_poller(); }
   /// Resume periodic preference syncing.
   void start_poller() {
     this->set_interval(InternalSchedulerID::POLLING_UPDATE, this->write_interval_,
