@@ -80,9 +80,6 @@ inline constexpr uint8_t STATUS_LED_ERROR = 0x10;
 // Component loop override flag uses bit 5 (set at registration time)
 inline constexpr uint8_t COMPONENT_HAS_LOOP = 0x20;
 
-// Remove before 2026.8.0
-enum class RetryResult { DONE, RETRY };
-
 inline constexpr uint16_t WARN_IF_BLOCKING_OVER_MS = 50U;
 
 class Component {
@@ -381,41 +378,6 @@ class Component {
   bool cancel_interval(const char *name);         // NOLINT
   bool cancel_interval(uint32_t id);              // NOLINT
   bool cancel_interval(InternalSchedulerID id);   // NOLINT
-
-  /// @deprecated set_retry is deprecated. Use set_timeout or set_interval instead. Removed in 2026.8.0.
-  // Remove before 2026.8.0
-  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
-                "2026.2.0")
-  void set_retry(const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,       // NOLINT
-                 std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor = 1.0f);  // NOLINT
-
-  // Remove before 2026.8.0
-  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
-                "2026.2.0")
-  void set_retry(const char *name, uint32_t initial_wait_time, uint8_t max_attempts,              // NOLINT
-                 std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor = 1.0f);  // NOLINT
-
-  // Remove before 2026.8.0
-  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
-                "2026.2.0")
-  void set_retry(uint32_t id, uint32_t initial_wait_time, uint8_t max_attempts,                   // NOLINT
-                 std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor = 1.0f);  // NOLINT
-
-  // Remove before 2026.8.0
-  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
-                "2026.2.0")
-  void set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult(uint8_t)> &&f,  // NOLINT
-                 float backoff_increase_factor = 1.0f);                                                      // NOLINT
-
-  // Remove before 2026.8.0
-  ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
-  bool cancel_retry(const std::string &name);  // NOLINT
-  // Remove before 2026.8.0
-  ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
-  bool cancel_retry(const char *name);  // NOLINT
-  // Remove before 2026.8.0
-  ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
-  bool cancel_retry(uint32_t id);  // NOLINT
 
   /** Set a timeout function with a unique name.
    *

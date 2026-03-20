@@ -16,14 +16,8 @@
 namespace esphome {
 
 class Component;
-struct RetryArgs;
-
-// Forward declaration of retry_handler - needs to be non-static for friend declaration
-void retry_handler(const std::shared_ptr<RetryArgs> &args);
 
 class Scheduler {
-  // Allow retry_handler to access protected members for internal retry mechanism
-  friend void ::esphome::retry_handler(const std::shared_ptr<RetryArgs> &args);
   // Allow DelayAction to call set_timer_common_ with skip_cancel=true for parallel script delays.
   // This is needed to fix issue #10264 where parallel scripts with delays interfere with each other.
   // We use friend instead of a public API because skip_cancel is dangerous - it can cause delays
@@ -91,32 +85,6 @@ class Scheduler {
                               SchedulerItem::INTERVAL);
   }
 
-  // Remove before 2026.8.0
-  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
-                "2026.2.0")
-  void set_retry(Component *component, const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,
-                 std::function<RetryResult(uint8_t)> func, float backoff_increase_factor = 1.0f);
-  // Remove before 2026.8.0
-  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
-                "2026.2.0")
-  void set_retry(Component *component, const char *name, uint32_t initial_wait_time, uint8_t max_attempts,
-                 std::function<RetryResult(uint8_t)> func, float backoff_increase_factor = 1.0f);
-  // Remove before 2026.8.0
-  ESPDEPRECATED("set_retry is deprecated and will be removed in 2026.8.0. Use set_timeout or set_interval instead.",
-                "2026.2.0")
-  void set_retry(Component *component, uint32_t id, uint32_t initial_wait_time, uint8_t max_attempts,
-                 std::function<RetryResult(uint8_t)> func, float backoff_increase_factor = 1.0f);
-
-  // Remove before 2026.8.0
-  ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
-  bool cancel_retry(Component *component, const std::string &name);
-  // Remove before 2026.8.0
-  ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
-  bool cancel_retry(Component *component, const char *name);
-  // Remove before 2026.8.0
-  ESPDEPRECATED("cancel_retry is deprecated and will be removed in 2026.8.0.", "2026.2.0")
-  bool cancel_retry(Component *component, uint32_t id);
-
   /// Get 64-bit millisecond timestamp (handles 32-bit millis() rollover)
   uint64_t millis_64() { return esphome::millis_64(); }
 
@@ -181,19 +149,17 @@ class Scheduler {
     // std::atomic<uint8_t> inlines correctly on all platforms.
     std::atomic<uint8_t> remove{0};
 
-    // Bit-packed fields (4 bits used, 4 bits padding in 1 byte)
+    // Bit-packed fields (3 bits used, 5 bits padding in 1 byte)
     enum Type : uint8_t { TIMEOUT, INTERVAL } type : 1;
     NameType name_type_ : 2;  // Discriminator for name_ union (0–3, see NameType enum)
-    bool is_retry : 1;        // True if this is a retry timeout
-                              // 4 bits padding
+                              // 5 bits padding
 #else
     // Single-threaded or multi-threaded without atomics: can pack all fields together
-    // Bit-packed fields (5 bits used, 3 bits padding in 1 byte)
+    // Bit-packed fields (4 bits used, 4 bits padding in 1 byte)
     enum Type : uint8_t { TIMEOUT, INTERVAL } type : 1;
     bool remove : 1;
     NameType name_type_ : 2;  // Discriminator for name_ union (0–3, see NameType enum)
-    bool is_retry : 1;        // True if this is a retry timeout
-                              // 3 bits padding
+                              // 4 bits padding
 #endif
 
     // Constructor
@@ -205,13 +171,11 @@ class Scheduler {
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
           // remove is initialized in the member declaration
           type(TIMEOUT),
-          name_type_(NameType::STATIC_STRING),
-          is_retry(false) {
+          name_type_(NameType::STATIC_STRING) {
 #else
           type(TIMEOUT),
           remove(false),
-          name_type_(NameType::STATIC_STRING),
-          is_retry(false) {
+          name_type_(NameType::STATIC_STRING) {
 #endif
       name_.static_name = nullptr;
     }
@@ -269,19 +233,7 @@ class Scheduler {
   // Common implementation for both timeout and interval
   // name_type determines storage type: STATIC_STRING uses static_name, others use hash_or_id
   void set_timer_common_(Component *component, SchedulerItem::Type type, NameType name_type, const char *static_name,
-                         uint32_t hash_or_id, uint32_t delay, std::function<void()> &&func, bool is_retry = false,
-                         bool skip_cancel = false);
-
-  // Common implementation for retry - Remove before 2026.8.0
-  // name_type determines storage type: STATIC_STRING uses static_name, others use hash_or_id
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  void set_retry_common_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id,
-                         uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult(uint8_t)> func,
-                         float backoff_increase_factor);
-#pragma GCC diagnostic pop
-  // Common implementation for cancel_retry
-  bool cancel_retry_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id);
+                         uint32_t hash_or_id, uint32_t delay, std::function<void()> &&func, bool skip_cancel = false);
 
   // Extend a 32-bit millis() value to 64-bit. Use when the caller already has a fresh now.
   // On platforms with native 64-bit time, ignores now and uses millis_64() directly.
@@ -327,11 +279,11 @@ class Scheduler {
   // mode where skip_cancel=true allows multiple items with the same key).
   // name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
   bool cancel_item_locked_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id,
-                           SchedulerItem::Type type, bool match_retry = false, bool find_first = false);
+                           SchedulerItem::Type type, bool find_first = false);
 
   // Common implementation for cancel operations - handles locking
   bool cancel_item_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id,
-                    SchedulerItem::Type type, bool match_retry = false);
+                    SchedulerItem::Type type);
 
   // Helper to check if two static string names match
   inline bool HOT names_match_static_(const char *name1, const char *name2) const {
@@ -347,14 +299,13 @@ class Scheduler {
   // IMPORTANT: Must be called with scheduler lock held
   inline bool HOT matches_item_locked_(SchedulerItem *item, Component *component, NameType name_type,
                                        const char *static_name, uint32_t hash_or_id, SchedulerItem::Type type,
-                                       bool match_retry, bool skip_removed = true) const {
+                                       bool skip_removed = true) const {
     // THREAD SAFETY: Check for nullptr first to prevent LoadProhibited crashes. On multi-threaded
     // platforms, items can be nulled in defer_queue_ during processing.
     // Fixes: https://github.com/esphome/esphome/issues/11940
     if (item == nullptr)
       return false;
-    if (item->component != component || item->type != type || (skip_removed && this->is_item_removed_locked_(item)) ||
-        (match_retry && !item->is_retry)) {
+    if (item->component != component || item->type != type || (skip_removed && this->is_item_removed_locked_(item))) {
       return false;
     }
     // Name type must match
@@ -389,13 +340,6 @@ class Scheduler {
   // Helper to calculate random offset for interval timers - extracted to reduce code size of set_timer_common_
   // IMPORTANT: Must not be inlined - called only for intervals, keeping it out of the hot path saves flash.
   uint32_t __attribute__((noinline)) calculate_interval_offset_(uint32_t delay);
-
-  // Helper to check if a retry was already cancelled - extracted to reduce code size of set_timer_common_
-  // Remove before 2026.8.0 along with all retry code.
-  // IMPORTANT: Must not be inlined - retry path is cold and deprecated.
-  // IMPORTANT: Caller must hold the scheduler lock before calling this function.
-  bool __attribute__((noinline))
-  is_retry_cancelled_locked_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id);
 
 #ifdef ESPHOME_DEBUG_SCHEDULER
   // Helper for debug logging in set_timer_common_ - extracted to reduce code size
@@ -498,11 +442,11 @@ class Scheduler {
   __attribute__((noinline)) size_t mark_matching_items_removed_locked_(std::vector<SchedulerItem *> &container,
                                                                        Component *component, NameType name_type,
                                                                        const char *static_name, uint32_t hash_or_id,
-                                                                       SchedulerItem::Type type, bool match_retry,
+                                                                       SchedulerItem::Type type,
                                                                        bool find_first = false) {
     size_t count = 0;
     for (auto *item : container) {
-      if (this->matches_item_locked_(item, component, name_type, static_name, hash_or_id, type, match_retry)) {
+      if (this->matches_item_locked_(item, component, name_type, static_name, hash_or_id, type)) {
         this->set_item_removed_(item, true);
         if (find_first)
           return 1;

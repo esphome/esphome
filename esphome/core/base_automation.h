@@ -194,7 +194,7 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
           this, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::NUMERIC_ID_INTERNAL, nullptr,
           static_cast<uint32_t>(InternalSchedulerID::DELAY_ACTION), this->delay_.value(),
           [this]() { this->play_next_(); },
-          /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
+          /* skip_cancel= */ this->num_running_ > 1);
     } else {
       // For delays with arguments, capture by value to preserve argument values
       // Arguments must be copied because original references may be invalid after delay
@@ -202,7 +202,7 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
       App.scheduler.set_timer_common_(this, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::NUMERIC_ID_INTERNAL,
                                       nullptr, static_cast<uint32_t>(InternalSchedulerID::DELAY_ACTION),
                                       this->delay_.value(x...), std::move(f),
-                                      /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
+                                      /* skip_cancel= */ this->num_running_ > 1);
     }
   }
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
