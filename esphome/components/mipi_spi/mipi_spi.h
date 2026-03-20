@@ -83,7 +83,7 @@ void internal_dump_config(const char *model, int width, int height, int offset_w
  * buffer
  */
 template<typename BUFFERTYPE, PixelMode BUFFERPIXEL, bool IS_BIG_ENDIAN, PixelMode DISPLAYPIXEL, BusType BUS_TYPE,
-         int WIDTH, int HEIGHT, int OFFSET_WIDTH, int OFFSET_HEIGHT>
+         int WIDTH, int HEIGHT, int OFFSET_WIDTH, int OFFSET_HEIGHT, uint8_t MADCTL>
 class MipiSpi : public display::Display,
                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                       spi::DATA_RATE_1MHZ> {
@@ -166,9 +166,6 @@ class MipiSpi : public display::Display,
           case INVERT_ON:
             this->invert_colors_ = true;
             break;
-          case MADCTL_CMD:
-            this->madctl_ = arg_byte;
-            break;
           case BRIGHTNESS:
             this->brightness_ = arg_byte;
             break;
@@ -206,7 +203,7 @@ class MipiSpi : public display::Display,
   }
 
   void dump_config() override {
-    internal_dump_config(this->model_, WIDTH, HEIGHT, OFFSET_WIDTH, OFFSET_HEIGHT, this->madctl_, this->invert_colors_,
+    internal_dump_config(this->model_, WIDTH, HEIGHT, OFFSET_WIDTH, OFFSET_HEIGHT, MADCTL, this->invert_colors_,
                          DISPLAYPIXEL * 8, IS_BIG_ENDIAN, this->brightness_, this->cs_, this->reset_pin_, this->dc_pin_,
                          this->mode_, this->data_rate_, BUS_TYPE);
   }
@@ -408,7 +405,6 @@ class MipiSpi : public display::Display,
   optional<uint8_t> brightness_{};
   const char *model_{"Unknown"};
   std::vector<uint8_t> init_sequence_{};
-  uint8_t madctl_{};
 };
 
 /**

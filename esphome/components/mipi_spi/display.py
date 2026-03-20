@@ -318,39 +318,6 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
-def get_transform(config):
-    """
-    Get the transformation configuration for the display.
-    :param config:
-    :return:
-    """
-    model = MODELS[config[CONF_MODEL]]
-    can_transform = model.rotation_as_transform(config)
-    transform = config.get(
-        CONF_TRANSFORM,
-        {
-            CONF_MIRROR_X: model.get_default(CONF_MIRROR_X, False),
-            CONF_MIRROR_Y: model.get_default(CONF_MIRROR_Y, False),
-            CONF_SWAP_XY: model.get_default(CONF_SWAP_XY, False),
-        },
-    )
-
-    # Can we use the MADCTL register to set the rotation?
-    if can_transform and CONF_TRANSFORM not in config:
-        rotation = config[CONF_ROTATION]
-        if rotation == 180:
-            transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
-            transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
-        elif rotation == 90:
-            transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
-            transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
-        else:
-            transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
-            transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
-        transform[CONF_TRANSFORM] = True
-    return transform
-
-
 def get_instance(config):
     """
     Get the type of MipiSpi instance to create based on the configuration,
