@@ -20,12 +20,6 @@ class HDC2080Component : public PollingComponent, public i2c::I2CDevice {
  protected:
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
-
-  enum State : uint8_t {
-    IDLE,
-    READ_TEMPERATURE,
-    READ_HUMIDITY,
-  } state_{IDLE};
 };
 
 }  // namespace hdc2080
