@@ -193,7 +193,6 @@ void Fan::apply_preset_mode_(const FanCall &call) {
   }
 }
 
-void Fan::add_on_state_callback(std::function<void()> &&callback) { this->state_callback_.add(std::move(callback)); }
 void Fan::publish_state() {
   auto traits = this->get_traits();
 
