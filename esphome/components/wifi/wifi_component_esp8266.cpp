@@ -95,9 +95,17 @@ bool WiFiComponent::wifi_apply_power_save_() {
   sleep_type_t power_save;
   switch (this->power_save_) {
     case WIFI_POWER_SAVE_LIGHT:
+      // MODEM_SLEEP_T: only the WiFi modem sleeps between DTIM beacons, CPU stays active.
+      // This matches ESP32's WIFI_PS_MIN_MODEM behavior for power_save_mode: LIGHT.
+      // Note: despite the confusing naming, ESP8266's LIGHT_SLEEP_T is MORE aggressive
+      // (suspends the CPU), while MODEM_SLEEP_T is the lighter option.
       power_save = MODEM_SLEEP_T;
       break;
     case WIFI_POWER_SAVE_HIGH:
+      // LIGHT_SLEEP_T: both WiFi modem AND CPU suspend between DTIM beacons.
+      // Most aggressive power saving but prevents TCP processing during sleep,
+      // which can cause 28-30s delays in noise handshakes.
+      // See https://github.com/esphome/esphome/issues/14999
       power_save = LIGHT_SLEEP_T;
       break;
     case WIFI_POWER_SAVE_NONE:
