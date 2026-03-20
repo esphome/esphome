@@ -66,7 +66,20 @@ def _pin_is_deep_sleep_wakeup(pin_num: int) -> bool:
 
     # Check single pin wakeup
     if "wakeup_pin" in deep_sleep_config:
-        return deep_sleep_config["wakeup_pin"][CONF_NUMBER] == pin_num
+        wakeup_pins = deep_sleep_config["wakeup_pin"]
+        # Newer schema: list of items shaped like {CONF_PIN: {CONF_NUMBER: ...}}
+        if isinstance(wakeup_pins, list):
+            for item in wakeup_pins:
+                if not isinstance(item, dict):
+                    continue
+                pin_cfg = item.get(CONF_PIN)
+                if isinstance(pin_cfg, dict) and pin_cfg.get(CONF_NUMBER) == pin_num:
+                    return True
+            return False
+        # Backward compatibility: single dict with CONF_NUMBER
+        if isinstance(wakeup_pins, dict):
+            return wakeup_pins.get(CONF_NUMBER) == pin_num
+        return False
 
     # Check esp32_ext1_wakeup pins
     if "esp32_ext1_wakeup" in deep_sleep_config:
