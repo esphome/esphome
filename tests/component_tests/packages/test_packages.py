@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from esphome.components.packages import CONFIG_SCHEMA, do_packages_pass, merge_packages
+from esphome.components.substitutions import do_substitution_pass
 import esphome.config as config_module
 from esphome.config import resolve_extend_remove
 from esphome.config_helpers import Extend, Remove
@@ -71,6 +72,7 @@ def fixture_basic_esphome():
 def packages_pass(config):
     """Wrapper around packages_pass that also resolves Extend and Remove."""
     config = do_packages_pass(config)
+    config = do_substitution_pass(config)
     config = merge_packages(config)
     resolve_extend_remove(config)
     return config

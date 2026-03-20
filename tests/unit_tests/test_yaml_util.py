@@ -25,7 +25,7 @@ def test_include_with_vars(fixture_path: Path) -> None:
     yaml_file = fixture_path / "yaml_util" / "includetest.yaml"
 
     actual = yaml_util.load_yaml(yaml_file)
-    substitutions.do_substitution_pass(actual, None)
+    actual = substitutions.do_substitution_pass(actual, None)
     assert actual["esphome"]["name"] == "original"
     assert actual["esphome"]["libraries"][0] == "Wire"
     assert actual["esp8266"]["board"] == "nodemcu"
