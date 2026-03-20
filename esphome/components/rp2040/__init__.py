@@ -23,6 +23,7 @@ from esphome.const import (
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, read_file, write_file_if_changed
 
+from . import boards
 from .const import (
     CONF_ENABLE_FULL_PRINTF,
     KEY_BOARD,
@@ -38,6 +39,16 @@ _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@jesserockz"]
 AUTO_LOAD = ["preferences"]
 IS_TARGET_PLATFORM = True
+
+
+def get_board() -> str:
+    """Return the configured board name."""
+    return CORE.data[KEY_RP2040][KEY_BOARD]
+
+
+def board_has_wifi() -> bool:
+    """Return True if the configured board has WiFi (CYW43 wireless chip)."""
+    return boards.BOARDS.get(get_board(), {}).get("wifi", False)
 
 
 def set_core_data(config):
