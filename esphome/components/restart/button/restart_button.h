@@ -6,7 +6,7 @@
 namespace esphome {
 namespace restart {
 
-class RestartButton : public button::Button, public Component {
+class RestartButton final : public button::Button, public Component {
  public:
   void dump_config() override;
 
