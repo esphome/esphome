@@ -17,7 +17,7 @@ void HDC2080Component::setup() {
   const uint8_t data = 0b00000000;  // automatic measurement mode disabled, heater off
 
   if (this->write_register(HDC2080_CMD_CONFIGURATION, &data, 1) != i2c::ERROR_OK) {
-    this->mark_failed("Communication failed");
+    this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
     return;
   }
 }
