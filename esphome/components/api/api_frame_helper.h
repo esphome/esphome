@@ -9,6 +9,7 @@
 #include "esphome/core/defines.h"
 #ifdef USE_API
 #include "esphome/components/api/api_buffer.h"
+#include "esphome/components/api/api_overflow_buffer.h"
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -104,9 +105,9 @@ class APIFrameHelper {
   }
   virtual ~APIFrameHelper() = default;
   virtual APIError init() = 0;
-  virtual APIError loop();
+  virtual APIError loop() = 0;
   virtual APIError read_packet(ReadPacketBuffer *buffer) = 0;
-  bool can_write_without_blocking() { return this->state_ == State::DATA && this->tx_buf_count_ == 0; }
+  bool can_write_without_blocking() { return this->state_ == State::DATA && this->overflow_buf_.empty(); }
   int getpeername(struct sockaddr *addr, socklen_t *addrlen) { return socket_->getpeername(addr, addrlen); }
   APIError close() {
     if (state_ == State::CLOSED)
@@ -189,28 +190,23 @@ class APIFrameHelper {
   }
 
  protected:
-  // Buffer containing data to be sent
-  struct SendBuffer {
-    std::unique_ptr<uint8_t[]> data;
-    uint16_t size{0};    // Total size of the buffer
-    uint16_t offset{0};  // Current offset within the buffer
-
-    // Using uint16_t reduces memory usage since ESPHome API messages are limited to UINT16_MAX (65535) bytes
-    uint16_t remaining() const { return size - offset; }
-    const uint8_t *current_data() const { return data.get() + offset; }
-  };
+  // Drain backlogged overflow data to the socket and handle errors.
+  // Called when overflow_buf_.empty() is false. Out-of-line to keep the
+  // fast path (empty check) inline at call sites.
+  // Returns OK for transient errors (WOULD_BLOCK), SOCKET_WRITE_FAILED for hard errors.
+  APIError drain_overflow_and_handle_errors_();
 
   // Common implementation for writing raw data to socket
   APIError write_raw_(const struct iovec *iov, int iovcnt, uint16_t total_write_len);
 
-  // Try to send data from the tx buffer
-  APIError try_send_tx_buf_();
-
-  // Helper method to buffer data from IOVs
-  void buffer_data_from_iov_(const struct iovec *iov, int iovcnt, uint16_t total_write_len, uint16_t offset);
-
-  // Common socket write error handling
-  APIError handle_socket_write_error_();
+  // Check if a socket write errno is a hard error (not WOULD_BLOCK/EAGAIN).
+  // Returns WOULD_BLOCK for transient errors, SOCKET_WRITE_FAILED for hard errors.
+  APIError check_socket_write_err_(int err) {
+    if (err == EWOULDBLOCK || err == EAGAIN)
+      return APIError::WOULD_BLOCK;
+    this->state_ = State::FAILED;
+    return APIError::SOCKET_WRITE_FAILED;
+  }
 
   // Socket ownership (4 bytes on 32-bit, 8 bytes on 64-bit)
   std::unique_ptr<socket::Socket> socket_;
@@ -245,8 +241,8 @@ class APIFrameHelper {
     return APIError::WOULD_BLOCK;
   }
 
-  // Containers (size varies, but typically 12+ bytes on 32-bit)
-  std::array<std::unique_ptr<SendBuffer>, API_MAX_SEND_QUEUE> tx_buf_;
+  // Backlog for unsent data when TCP send buffer is full (rarely used in production)
+  APIOverflowBuffer overflow_buf_;
   APIBuffer rx_buf_;
 
   // Client name buffer - stores name from Hello message or initial peername
@@ -257,9 +253,6 @@ class APIFrameHelper {
   State state_{State::INITIALIZE};
   uint8_t frame_header_padding_{0};
   uint8_t frame_footer_size_{0};
-  uint8_t tx_buf_head_{0};
-  uint8_t tx_buf_tail_{0};
-  uint8_t tx_buf_count_{0};
   // Nagle batching counter for log messages. 0 means NODELAY is enabled (immediate send).
   // Values 1..LOG_NAGLE_COUNT count log messages in the current Nagle batch.
   // After LOG_NAGLE_COUNT logs, we flush by re-enabling NODELAY and resetting to 0.

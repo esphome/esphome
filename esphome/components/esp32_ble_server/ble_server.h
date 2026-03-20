@@ -32,7 +32,7 @@ class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEv
   float get_setup_priority() const override;
   bool can_proceed() override;
 
-  bool is_running();
+  ESPHOME_ALWAYS_INLINE bool is_running() { return this->parent_->is_active() && this->state_ == RUNNING; }
 
   void set_manufacturer_data(const std::vector<uint8_t> &data) {
     this->manufacturer_data_ = data;

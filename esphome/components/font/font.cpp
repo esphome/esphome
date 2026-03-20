@@ -9,13 +9,87 @@ namespace font {
 static const char *const TAG = "font";
 
 #ifdef USE_LVGL_FONT
-const uint8_t *Font::get_glyph_bitmap(const lv_font_t *font, uint32_t unicode_letter) {
-  auto *fe = (Font *) font->dsc;
-  const auto *gd = fe->get_glyph_data_(unicode_letter);
+static const uint8_t OPA4_TABLE[16] = {0, 17, 34, 51, 68, 85, 102, 119, 136, 153, 170, 187, 204, 221, 238, 255};
+
+static const uint8_t OPA2_TABLE[4] = {0, 85, 170, 255};
+
+const void *Font::get_glyph_bitmap(lv_font_glyph_dsc_t *dsc, lv_draw_buf_t *draw_buf) {
+  const auto *font = dsc->resolved_font;
+  auto *const fe = (Font *) font->dsc;
+
+  const auto *gd = fe->get_glyph_data_(dsc->gid.index);
   if (gd == nullptr) {
     return nullptr;
   }
-  return gd->data;
+
+  const uint8_t *bitmap_in = gd->data;
+  uint8_t *bitmap_out_tmp = draw_buf->data;
+  int32_t i = 0;
+  int32_t x, y;
+  uint32_t stride = lv_draw_buf_width_to_stride(gd->width, LV_COLOR_FORMAT_A8);
+
+  switch (fe->get_bpp()) {
+    case 1: {
+      uint8_t mask = 0;
+      uint8_t byte = 0;
+      for (y = 0; y != gd->height; y++) {
+        for (x = 0; x != gd->width; x++) {
+          if (mask == 0) {
+            mask = 0x80;
+            byte = *bitmap_in++;
+          }
+          bitmap_out_tmp[x] = byte & mask ? 255 : 0;
+          mask >>= 1;
+        }
+        bitmap_out_tmp += stride;
+      }
+    } break;
+
+    case 2:
+      for (y = 0; y != gd->height; y++) {
+        for (x = 0; x != gd->width; x++, i++) {
+          switch (i & 0x3) {
+            default:
+              bitmap_out_tmp[x] = OPA2_TABLE[(*bitmap_in) >> 6];
+              break;
+            case 1:
+              bitmap_out_tmp[x] = OPA2_TABLE[((*bitmap_in) >> 4) & 0x3];
+              break;
+            case 2:
+              bitmap_out_tmp[x] = OPA2_TABLE[((*bitmap_in) >> 2) & 0x3];
+              break;
+            case 3:
+              bitmap_out_tmp[x] = OPA2_TABLE[((*bitmap_in) >> 0) & 0x3];
+              bitmap_in++;
+          }
+        }
+        bitmap_out_tmp += stride;
+      }
+      break;
+
+    case 4:
+      for (y = 0; y != gd->height; y++) {
+        for (x = 0; x != gd->width; x++, i++) {
+          i = i & 0x1;
+          if (i == 0) {
+            bitmap_out_tmp[x] = OPA4_TABLE[(*bitmap_in) >> 4];
+          } else if (i == 1) {
+            bitmap_out_tmp[x] = OPA4_TABLE[(*bitmap_in) & 0xF];
+            bitmap_in++;
+          }
+        }
+        bitmap_out_tmp += stride;
+      }
+      break;
+
+    case 8:
+      memcpy(bitmap_out_tmp, bitmap_in, gd->width * gd->height);
+      break;
+    default:
+      ESP_LOGD(TAG, "Unknown bpp: %d", fe->get_bpp());
+      break;
+  }
+  return draw_buf;
 }
 
 bool Font::get_glyph_dsc_cb(const lv_font_t *font, lv_font_glyph_dsc_t *dsc, uint32_t unicode_letter, uint32_t next) {
@@ -30,7 +104,8 @@ bool Font::get_glyph_dsc_cb(const lv_font_t *font, lv_font_glyph_dsc_t *dsc, uin
   dsc->box_w = gd->width;
   dsc->box_h = gd->height;
   dsc->is_placeholder = 0;
-  dsc->bpp = fe->get_bpp();
+  dsc->format = (lv_font_glyph_format_t) fe->get_bpp();
+  dsc->gid.index = unicode_letter;
   return true;
 }
 
