@@ -770,7 +770,7 @@ class MemoryAnalyzer:
         Skips scanning if ``_source_symbol_map`` was already populated by
         ``_parse_map_file()``.
         """
-        if self._source_symbol_map:
+        if self._source_symbol_map or not self.nm_path:
             return
 
         obj_dir = self._find_object_files_dir()
