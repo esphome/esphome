@@ -41,17 +41,6 @@ constexpr std::array<std::optional<ClimateFanMode>, 7> FAN_MODE_MAP = {{
     ClimateFanMode::SPEED_4   // 0x06
 }};
 
-constexpr std::array<std::optional<ClimateVaneMode>, 8> VANE_MODE_MAP = {{
-    ClimateVaneMode::AUTO,        // 0x00
-    ClimateVaneMode::POSITION_1,  // 0x01
-    ClimateVaneMode::POSITION_2,  // 0x02
-    ClimateVaneMode::POSITION_3,  // 0x03
-    ClimateVaneMode::POSITION_4,  // 0x04
-    ClimateVaneMode::POSITION_5,  // 0x05
-    std::nullopt,                 // 0x06
-    ClimateVaneMode::SWING        // 0x07
-}};
-
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
 
 const char *climate_mode_to_string(ClimateMode mode) {
@@ -87,28 +76,6 @@ const char *climate_fan_mode_to_string(ClimateFanMode mode) {
     case ClimateFanMode::SPEED_4:
       return "SPEED_4";
     case ClimateFanMode::UNKNOWN:
-      return "UNKNOWN";
-  }
-  return "INVALID";
-}
-
-const char *climate_vane_mode_to_string(ClimateVaneMode mode) {
-  switch (mode) {
-    case ClimateVaneMode::AUTO:
-      return "AUTO";
-    case ClimateVaneMode::POSITION_1:
-      return "1";
-    case ClimateVaneMode::POSITION_2:
-      return "2";
-    case ClimateVaneMode::POSITION_3:
-      return "3";
-    case ClimateVaneMode::POSITION_4:
-      return "4";
-    case ClimateVaneMode::POSITION_5:
-      return "5";
-    case ClimateVaneMode::SWING:
-      return "SWING";
-    case ClimateVaneMode::UNKNOWN:
       return "UNKNOWN";
   }
   return "INVALID";
@@ -284,10 +251,6 @@ void MitsubishiCN105::apply_settings_() {
     ESP_LOGV(TAG, "  fan_mode=%s", climate_fan_mode_to_string(settings.fan_mode));
   }
 
-  if (this->pending_updates_.has(UpdateFlag::VANE)) {
-    ESP_LOGV(TAG, "  vane=%s", climate_vane_mode_to_string(settings.vane));
-  }
-
   uint8_t packet[PACKET_SIZE] = {0xfc, 0x41, 0x01, 0x30, 0x10, 0x01};
 
   if (this->pending_updates_.has(UpdateFlag::POWER)) {
@@ -313,11 +276,6 @@ void MitsubishiCN105::apply_settings_() {
   if (const auto fan_mode = this->pending_update_for_(UpdateFlag::FAN, FAN_MODE_MAP, settings.fan_mode)) {
     packet[11] = *fan_mode;
     packet[6] |= 0x08;
-  }
-
-  if (const auto vane = this->pending_update_for_(UpdateFlag::VANE, VANE_MODE_MAP, settings.vane)) {
-    packet[12] = *vane;
-    packet[6] |= 0x10;
   }
 
   packet[PACKET_SIZE - 1] = checksum(packet, PACKET_SIZE - 1);
@@ -471,7 +429,6 @@ bool MitsubishiCN105::parse_values_(const uint8_t *data, size_t length) {
       const uint8_t temp_alt = data[11];
       const uint8_t temp_main = data[5];
       const uint8_t fan = data[6];
-      const uint8_t vane = data[7];
       const bool i_see = mode_raw > 0x08;
       const uint8_t mode = i_see ? static_cast<uint8_t>(mode_raw - 0x08) : mode_raw;
 
@@ -504,17 +461,11 @@ bool MitsubishiCN105::parse_values_(const uint8_t *data, size_t length) {
         this->current_status_.settings.fan_mode = fan_mode.value_or(ClimateFanMode::UNKNOWN);
       });
 
-      // Vane
-      this->apply_to_(UpdateFlag::VANE, VANE_MODE_MAP, vane, [this](const std::optional<ClimateVaneMode> &vane) {
-        this->current_status_.settings.vane = vane.value_or(ClimateVaneMode::UNKNOWN);
-      });
-
-      ESP_LOGV(TAG, "Parsed settings: power=%s(%u) mode=%s(%u) temp=%.1f fan=%s(%u) vane=%s(%u) i-see=%s",
+      ESP_LOGV(TAG, "Parsed settings: power=%s(%u) mode=%s(%u) temp=%.1f fan=%s(%u) i-see=%s",
                this->current_status_.settings.power_on ? "ON" : "OFF", power,
                climate_mode_to_string(this->current_status_.settings.mode), mode,
                this->current_status_.settings.target_temperature,
-               climate_fan_mode_to_string(this->current_status_.settings.fan_mode), fan,
-               climate_vane_mode_to_string(this->current_status_.settings.vane), vane, i_see ? "ON" : "OFF");
+               climate_fan_mode_to_string(this->current_status_.settings.fan_mode), fan, i_see ? "ON" : "OFF");
 
       return true;
     }
@@ -594,15 +545,6 @@ void MitsubishiCN105::set_fan_mode(ClimateFanMode fan_mode) {
   ESP_LOGV(TAG, "Setting fan mode to: %s", climate_fan_mode_to_string(fan_mode));
   this->current_status_.settings.fan_mode = fan_mode;
   this->pending_updates_.set(UpdateFlag::FAN);
-}
-
-void MitsubishiCN105::set_vane(ClimateVaneMode vane) {
-  if (vane == ClimateVaneMode::UNKNOWN) {
-    ESP_LOGW(TAG, "Setting invalid vane value");
-    return;
-  }
-  this->current_status_.settings.vane = vane;
-  this->pending_updates_.set(UpdateFlag::VANE);
 }
 
 void MitsubishiCN105::set_connection_state_callback(std::function<void(bool)> &&callback) {
@@ -685,8 +627,6 @@ const char *MitsubishiCN105::update_flag_to_string(UpdateFlag flag) {
       return "MODE";
     case UpdateFlag::FAN:
       return "FAN";
-    case UpdateFlag::VANE:
-      return "VANE";
     default:
       return "UNKNOWN";
   }

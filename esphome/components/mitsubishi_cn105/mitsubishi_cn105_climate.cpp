@@ -118,11 +118,6 @@ climate::ClimateTraits MitsubishiCN105Climate::traits() {
       climate::CLIMATE_FAN_HIGH,
   });
 
-  traits.set_supported_swing_modes({
-      climate::CLIMATE_SWING_OFF,
-      climate::CLIMATE_SWING_VERTICAL,
-  });
-
   traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
 
   traits.set_visual_min_temperature(16.0f);
@@ -149,21 +144,6 @@ void MitsubishiCN105Climate::control(const climate::ClimateCall &call) {
 
   if (const auto fan_mode = lookup_reverse(FAN_MODE_MAP, call.get_fan_mode())) {
     this->hp_.set_fan_mode(*fan_mode);
-  }
-
-  if (const auto swing_mode = call.get_swing_mode()) {
-    switch (*swing_mode) {
-      case climate::CLIMATE_SWING_OFF:
-        this->hp_.set_vane(this->last_non_swing_vane_);
-        break;
-
-      case climate::CLIMATE_SWING_VERTICAL:
-        this->hp_.set_vane(ClimateVaneMode::SWING);
-        break;
-
-      default:
-        break;
-    }
   }
 
   if (this->hp_.is_status_initialized()) {
@@ -194,15 +174,6 @@ void MitsubishiCN105Climate::apply_values_() {
   } else {
     ESP_LOGW(TAG, "Failed to map fan mode: %u", static_cast<uint8_t>(status.settings.fan_mode));
     is_valid = false;
-  }
-
-  if (status.settings.vane == ClimateVaneMode::SWING) {
-    this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
-  } else {
-    this->swing_mode = climate::CLIMATE_SWING_OFF;
-    if (status.settings.vane != ClimateVaneMode::UNKNOWN) {
-      this->last_non_swing_vane_ = status.settings.vane;
-    }
   }
 
   if (is_valid || this->has_state()) {

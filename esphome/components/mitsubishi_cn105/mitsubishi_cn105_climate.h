@@ -39,7 +39,6 @@ class MitsubishiCN105Climate : public climate::Climate, public Component, public
   UARTTransport transport_;
   MitsubishiCN105 hp_;
 
-  ClimateVaneMode last_non_swing_vane_{ClimateVaneMode::AUTO};
   uint8_t failed_connect_attempts_{0};
 };
 

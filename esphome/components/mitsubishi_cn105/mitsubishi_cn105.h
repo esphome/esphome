@@ -28,17 +28,6 @@ enum class ClimateFanMode : uint8_t {
   UNKNOWN,
 };
 
-enum class ClimateVaneMode : uint8_t {
-  AUTO,        // AUTO
-  POSITION_1,  // 1
-  POSITION_2,  // 2
-  POSITION_3,  // 3
-  POSITION_4,  // 4
-  POSITION_5,  // 5
-  SWING,       // SWING
-  UNKNOWN,
-};
-
 struct ClimateSettings {
   bool operator==(const ClimateSettings &) const = default;
 
@@ -46,7 +35,6 @@ struct ClimateSettings {
   float target_temperature{NAN};
   ClimateMode mode{ClimateMode::UNKNOWN};
   ClimateFanMode fan_mode{ClimateFanMode::UNKNOWN};
-  ClimateVaneMode vane{ClimateVaneMode::UNKNOWN};
 };
 
 struct ClimateStatus {
@@ -83,7 +71,6 @@ class MitsubishiCN105 {
   void set_power(bool power_on);
   void set_mode(ClimateMode mode);
   void set_fan_mode(ClimateFanMode fan_mode);
-  void set_vane(ClimateVaneMode vane);
 
   void set_connection_state_callback(std::function<void(bool)> &&callback);
 
@@ -106,7 +93,6 @@ class MitsubishiCN105 {
     POWER = 1 << 1,
     MODE = 1 << 2,
     FAN = 1 << 3,
-    VANE = 1 << 4,
   };
 
   struct UpdateFlags {
