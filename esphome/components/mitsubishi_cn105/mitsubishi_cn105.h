@@ -127,7 +127,6 @@ class MitsubishiCN105 {
 
   static void dump_buffer_vv(const char *prefix, const uint8_t *data, size_t len);
   static const char *state_to_string(State state);
-  static const char *update_flag_to_string(UpdateFlag flag);
 
   uart::UARTDevice &device_;
 

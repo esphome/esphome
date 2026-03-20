@@ -41,48 +41,6 @@ constexpr std::array<std::optional<ClimateFanMode>, 7> FAN_MODE_MAP = {{
     ClimateFanMode::SPEED_4   // 0x06
 }};
 
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-
-const char *climate_mode_to_string(ClimateMode mode) {
-  switch (mode) {
-    case ClimateMode::HEAT:
-      return "HEAT";
-    case ClimateMode::DRY:
-      return "DRY";
-    case ClimateMode::COOL:
-      return "COOL";
-    case ClimateMode::FAN_ONLY:
-      return "FAN_ONLY";
-    case ClimateMode::AUTO:
-      return "AUTO";
-    case ClimateMode::UNKNOWN:
-      return "UNKNOWN";
-  }
-  return "INVALID";
-}
-
-const char *climate_fan_mode_to_string(ClimateFanMode mode) {
-  switch (mode) {
-    case ClimateFanMode::AUTO:
-      return "AUTO";
-    case ClimateFanMode::QUIET:
-      return "QUIET";
-    case ClimateFanMode::SPEED_1:
-      return "SPEED_1";
-    case ClimateFanMode::SPEED_2:
-      return "SPEED_2";
-    case ClimateFanMode::SPEED_3:
-      return "SPEED_3";
-    case ClimateFanMode::SPEED_4:
-      return "SPEED_4";
-    case ClimateFanMode::UNKNOWN:
-      return "UNKNOWN";
-  }
-  return "INVALID";
-}
-
-#endif
-
 constexpr uint8_t checksum(const uint8_t *bytes, size_t length) {
   uint8_t sum = 0;
   while (length--) {
@@ -232,24 +190,6 @@ void MitsubishiCN105::cancel_waiting_and_transit_to_(State state) {
 
 void MitsubishiCN105::apply_settings_() {
   const auto settings = this->current_status_.settings;
-
-  ESP_LOGV(TAG, "Applying settings to AC:");
-
-  if (this->pending_updates_.has(UpdateFlag::POWER)) {
-    ESP_LOGV(TAG, "  power=%s", settings.power_on ? "ON" : "OFF");
-  }
-
-  if (this->pending_updates_.has(UpdateFlag::MODE)) {
-    ESP_LOGV(TAG, "  mode=%s", climate_mode_to_string(settings.mode));
-  }
-
-  if (this->pending_updates_.has(UpdateFlag::TEMPERATURE)) {
-    ESP_LOGV(TAG, "  target_temp=%.1f", settings.target_temperature);
-  }
-
-  if (this->pending_updates_.has(UpdateFlag::FAN)) {
-    ESP_LOGV(TAG, "  fan_mode=%s", climate_fan_mode_to_string(settings.fan_mode));
-  }
 
   uint8_t packet[PACKET_SIZE] = {0xfc, 0x41, 0x01, 0x30, 0x10, 0x01};
 
@@ -461,11 +401,9 @@ bool MitsubishiCN105::parse_values_(const uint8_t *data, size_t length) {
         this->current_status_.settings.fan_mode = fan_mode.value_or(ClimateFanMode::UNKNOWN);
       });
 
-      ESP_LOGV(TAG, "Parsed settings: power=%s(%u) mode=%s(%u) temp=%.1f fan=%s(%u) i-see=%s",
-               this->current_status_.settings.power_on ? "ON" : "OFF", power,
-               climate_mode_to_string(this->current_status_.settings.mode), mode,
-               this->current_status_.settings.target_temperature,
-               climate_fan_mode_to_string(this->current_status_.settings.fan_mode), fan, i_see ? "ON" : "OFF");
+      ESP_LOGV(TAG, "Parsed settings: power=%s(%u) mode=%u temp=%.1f fan=%u i-see=%s",
+               this->current_status_.settings.power_on ? "ON" : "OFF", power, mode,
+               this->current_status_.settings.target_temperature, fan, i_see ? "ON" : "OFF");
 
       return true;
     }
@@ -516,13 +454,11 @@ void MitsubishiCN105::set_target_temperature(float target_temperature) {
     return;
   }
   target_temperature = std::lroundf(target_temperature);
-  ESP_LOGV(TAG, "Setting temperature to: %.1f", target_temperature);
   this->current_status_.settings.target_temperature = target_temperature;
   this->pending_updates_.set(UpdateFlag::TEMPERATURE);
 }
 
 void MitsubishiCN105::set_power(bool power_on) {
-  ESP_LOGV(TAG, "Setting power to: %u", power_on);
   this->current_status_.settings.power_on = power_on;
   this->pending_updates_.set(UpdateFlag::POWER);
 }
@@ -532,7 +468,6 @@ void MitsubishiCN105::set_mode(ClimateMode mode) {
     ESP_LOGW(TAG, "Setting invalid mode value");
     return;
   }
-  ESP_LOGV(TAG, "Setting mode to: %s", climate_mode_to_string(mode));
   this->current_status_.settings.mode = mode;
   this->pending_updates_.set(UpdateFlag::MODE);
 }
@@ -542,7 +477,6 @@ void MitsubishiCN105::set_fan_mode(ClimateFanMode fan_mode) {
     ESP_LOGW(TAG, "Setting invalid fan mode value");
     return;
   }
-  ESP_LOGV(TAG, "Setting fan mode to: %s", climate_fan_mode_to_string(fan_mode));
   this->current_status_.settings.fan_mode = fan_mode;
   this->pending_updates_.set(UpdateFlag::FAN);
 }
@@ -555,7 +489,7 @@ template<typename T, size_t N, typename F>
 void MitsubishiCN105::apply_to_(UpdateFlag flag, const std::array<std::optional<T>, N> &table, uint8_t value,
                                 F &&callback) const {
   if (this->pending_updates_.has(flag)) {
-    ESP_LOGV(TAG, "Ignoring apply due pending update: flag=%s, value=%u", update_flag_to_string(flag), value);
+    ESP_LOGV(TAG, "Ignoring apply due pending update: flag=%d, value=%u", static_cast<int>(flag), value);
     return;
   }
 
@@ -563,7 +497,7 @@ void MitsubishiCN105::apply_to_(UpdateFlag flag, const std::array<std::optional<
     callback(mapped);
   } else {
     callback(std::nullopt);
-    ESP_LOGW(TAG, "Lookup failed: flag=%s, value=%u", update_flag_to_string(flag), value);
+    ESP_LOGW(TAG, "Lookup failed: flag=%d, value=%u", static_cast<int>(flag), value);
   }
 }
 
@@ -580,7 +514,7 @@ std::optional<uint8_t> MitsubishiCN105::pending_update_for_(UpdateFlag flag, con
     }
   }
 
-  ESP_LOGW(TAG, "Reverse lookup failed: flag=%s, value=%d", update_flag_to_string(flag), static_cast<int>(value));
+  ESP_LOGW(TAG, "Reverse lookup failed: flag=%d, value=%d", static_cast<int>(flag), static_cast<int>(value));
   return std::nullopt;
 }
 
@@ -615,21 +549,6 @@ const char *MitsubishiCN105::state_to_string(State state) {
       return "ReadTimeout";
   }
   return "Unknown";
-}
-
-const char *MitsubishiCN105::update_flag_to_string(UpdateFlag flag) {
-  switch (flag) {
-    case UpdateFlag::TEMPERATURE:
-      return "TEMPERATURE";
-    case UpdateFlag::POWER:
-      return "POWER";
-    case UpdateFlag::MODE:
-      return "MODE";
-    case UpdateFlag::FAN:
-      return "FAN";
-    default:
-      return "UNKNOWN";
-  }
 }
 
 }  // namespace mitsubishi_cn105
