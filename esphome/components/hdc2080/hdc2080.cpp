@@ -45,7 +45,7 @@ void HDC2080Component::update() {
   this->set_timeout(5, [this]() {
     uint8_t raw_data[4];
     if (this->read_register(HDC2080_CMD_TEMPERATURE, raw_data, 4) != i2c::ERROR_OK) {
-      this->status_set_warning("Communication failed");
+      this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
       return;
     }
     this->status_clear_warning();
