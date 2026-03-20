@@ -13,38 +13,19 @@ class IntervalSyncer final : public Component {
 #else
   void set_write_interval(uint32_t write_interval) { this->write_interval_ = write_interval; }
   void setup() override {
-    if (this->write_interval_ != 0) {
-      this->start_poller();
-      // When using interval-based syncing, we don't need the loop
-      this->disable_loop();
-    }
+    this->set_interval(InternalSchedulerID::POLLING_UPDATE, this->write_interval_,
+                       []() { global_preferences->sync(); });
   }
-  void loop() override {
-    if (this->write_interval_ == 0) {
-      global_preferences->sync();
-    }
+  /// Resume periodic preference syncing.
+  void start_poller() {
+    this->set_interval(InternalSchedulerID::POLLING_UPDATE, this->write_interval_,
+                       []() { global_preferences->sync(); });
   }
+  /// Suspend periodic preference syncing.
+  void stop_poller() { this->cancel_interval(InternalSchedulerID::POLLING_UPDATE); }
 #endif
   void on_shutdown() override { global_preferences->sync(); }
   float get_setup_priority() const override { return setup_priority::BUS; }
-  void start_poller() {
-    // Reregister interval.
-    if (this->write_interval_ != 0) {
-      this->set_interval(InternalSchedulerID::POLLING_UPDATE, this->write_interval_,
-                         []() { global_preferences->sync(); });
-    } else {
-      // doesn't do anything if state is not COMPONENT_STATE_LOOP_DONE
-      this->enable_loop();
-    }
-  }
-  void stop_poller() {
-    if (this->write_interval_ != 0) {
-      // Clear the interval to suspend component
-      this->cancel_interval(InternalSchedulerID::POLLING_UPDATE);
-    } else {
-      this->disable_loop();
-    }
-  }
 
 #ifndef USE_PREFERENCES_SYNC_EVERY_LOOP
  protected:
