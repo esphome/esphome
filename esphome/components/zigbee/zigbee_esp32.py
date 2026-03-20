@@ -1,4 +1,5 @@
 import copy
+import logging
 import re
 from typing import Any
 
@@ -50,6 +51,8 @@ from .const_esp32 import (
 )
 from .zigbee_ep_esp32 import create_ep, ep_configs
 
+_LOGGER = logging.getLogger(__name__)
+
 
 def get_c_size(bits: str, options: list[int]) -> str:
     return str([n for n in options if n >= int(bits)][0])
@@ -94,8 +97,20 @@ def validate_attributes(config: ConfigType) -> ConfigType:
 
 
 def final_validate_esp32(config: ConfigType) -> ConfigType:
-    if CONF_WIFI in fv.full_config.get() and CONF_AP in fv.full_config.get()[CONF_WIFI]:
-        raise cv.Invalid("Zigbee can't be used together with a Wifi Access Point.")
+    if CONF_WIFI in fv.full_config.get():
+        if config[CONF_ROUTER] and CONF_AP in fv.full_config.get()[CONF_WIFI]:
+            raise cv.Invalid(
+                "Only Zigbee End Device can be used together with a Wifi Access Point."
+            )
+        if CONF_AP in fv.full_config.get()[CONF_WIFI]:
+            _LOGGER.warning(
+                "Wifi Access Point might be unstable while Zigbee is active, use only as fallback."
+            )
+        elif config[CONF_ROUTER]:
+            _LOGGER.warning(
+                "The Zigbee Router might miss packets while Wifi is active and could destabilize "
+                "your network. Use only if Wifi is off most of the time."
+            )
     if CONF_PARTITIONS in fv.full_config.get() and not isinstance(
         fv.full_config.get()[CONF_PARTITIONS], list
     ):
@@ -106,7 +121,7 @@ def final_validate_esp32(config: ConfigType) -> ConfigType:
             partitions_tab = f.read()
             for partition, types in [
                 ("zb_storage", {"type": "data", "subtype": "fat", "size": 0x4000}),
-                ("zb_fct", {"type": "data", "subtype": "fat", "size": 0x400}),
+                ("zb_fct", {"type": "data", "subtype": "fat", "size": 0x1000}),
             ]:
                 if partition not in partitions_tab:
                     raise cv.Invalid(
