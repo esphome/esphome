@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from esphome import git, yaml_util
+from esphome.components.substitutions import ContextVars, push_context, substitute
 from esphome.components.substitutions.jinja import has_jinja
 from esphome.config_helpers import Remove, merge_config
 import esphome.config_validation as cv
@@ -38,37 +39,40 @@ def validate_has_jinja(value: Any):
     return value
 
 
-def valid_package_contents(allow_jinja: bool = True) -> Callable[[Any], dict]:
-    """Returns a validator that checks if a package_config that will be merged looks as
-    much as possible to a valid config to fail early on obvious mistakes."""
+def is_remote_package(package_config: Any) -> bool:
+    """Returns True if the package_config is a remote package definition."""
+    return CONF_URL in package_config
 
-    def validator(package_config: dict) -> dict:
-        if isinstance(package_config, dict):
-            if CONF_URL in package_config:
-                # If a URL key is found, then make sure the config conforms to a remote package schema:
-                return REMOTE_PACKAGE_SCHEMA(package_config)
 
-            # Validate manually since Voluptuous would regenerate dicts and lose metadata
-            # such as ESPHomeDataBase
-            for k, v in package_config.items():
-                if not isinstance(k, str):
-                    raise cv.Invalid("Package content keys must be strings")
-                if isinstance(v, (dict, list, Remove)):
-                    continue  # e.g. script: [], psram: !remove, logger: {level: debug}
-                if v is None:
-                    continue  # e.g. web_server:
-                if allow_jinja and isinstance(v, str) and has_jinja(v):
-                    # e.g: remote package shorthand:
-                    # package_name: github://esphome/repo/file.yaml@${ branch }, or:
-                    # switch: ${ expression that evals to a switch }
-                    continue
+def valid_package_contents(package_config: Any | dict) -> dict:
+    """Checks if a package_config that will be merged looks as
+    much as possible to a valid config to fail early on obvious mistakes.
+    """
 
-                raise cv.Invalid("Invalid component content in package definition")
-            return package_config
+    if isinstance(package_config, dict):
+        if is_remote_package(package_config):
+            # Package contents must not contain a root `url:` key
+            raise cv.Invalid("Remote package schema not expected here")
 
-        raise cv.Invalid("Package contents must be a dict")
+        # Validate manually since Voluptuous would regenerate dicts and lose metadata
+        # such as ESPHomeDataBase
+        for k, v in package_config.items():
+            if not isinstance(k, str):
+                raise cv.Invalid("Package content keys must be strings")
+            if isinstance(v, (dict, list, Remove)):
+                continue  # e.g. script: [], psram: !remove, logger: {level: debug}
+            if v is None:
+                continue  # e.g. web_server:
+            if isinstance(v, str) and has_jinja(v):
+                # e.g: remote package shorthand:
+                # package_name: github://esphome/repo/file.yaml@${ branch }, or:
+                # switch: ${ expression that evals to a switch }
+                continue
 
-    return validator
+            raise cv.Invalid("Invalid component content in package definition")
+        return package_config
+
+    raise cv.Invalid("Package contents must be a dict")
 
 
 def expand_file_to_files(config: dict):
@@ -105,7 +109,7 @@ def validate_source_shorthand(value):
     return REMOTE_PACKAGE_SCHEMA(conf)
 
 
-def deprecate_single_package(config):
+def deprecate_single_package(config: Any) -> Any:
     _LOGGER.warning(
         """
         Including a single package under `packages:`, i.e., `packages: !include mypackage.yaml` is deprecated.
@@ -158,10 +162,7 @@ REMOTE_PACKAGE_SCHEMA = cv.All(
 PACKAGE_SCHEMA = cv.Any(  # A package definition is either:
     validate_source_shorthand,  # A git URL shorthand string that expands to a remote package schema, or
     REMOTE_PACKAGE_SCHEMA,  # a valid remote package schema, or
-    validate_has_jinja,  # a Jinja string that may resolve to a package, or
-    valid_package_contents(
-        allow_jinja=True
-    ),  # Something that at least looks like an actual package, e.g. {wifi:{ssid: xxx}}
+    valid_package_contents,  # Something that at least looks like an actual package, e.g. {wifi:{ssid: xxx}}
     # which will have to be fully validated later as per each component's schema.
 )
 
@@ -205,7 +206,7 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
         for idx, file in enumerate(files):
             filename = file[CONF_PATH]
             yaml_file: Path = repo_dir / filename
-            vars = file.get(CONF_VARS, {})
+            vars = file.get(CONF_VARS)
 
             if not yaml_file.is_file():
                 raise cv.Invalid(
@@ -226,7 +227,7 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
                         raise cv.Invalid(
                             f"Current ESPHome Version is too old to use this package: {ESPHOME_VERSION} < {min_version}"
                         )
-                new_yaml = yaml_util.add_context(new_yaml, vars or None)
+                new_yaml = yaml_util.add_context(new_yaml, vars)
                 packages[f"{filename}{idx}"] = new_yaml
             except EsphomeError as e:
                 raise cv.Invalid(
@@ -255,28 +256,35 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
 
 
 def _walk_packages(
-    config: dict, callback: Callable[[dict], dict], validate_deprecated: bool = True
+    config: dict,
+    callback: Callable[[dict, Any], dict],
+    context: Any = None,
+    validate_deprecated: bool = True,
 ) -> dict:
+    """Walks the packages structure in priority order, invoking `callback` on each package definition found."""
     if CONF_PACKAGES not in config:
         return config
     packages = config[CONF_PACKAGES]
-
-    # The following block and `validate_deprecated` parameter can be safely removed
-    #  once single-package deprecation is effective
-    if validate_deprecated:
-        packages = CONFIG_SCHEMA(packages)
-
     with cv.prepend_path(CONF_PACKAGES):
         if isinstance(packages, dict):
             for package_name, package_config in reversed(packages.items()):
                 with cv.prepend_path(package_name):
-                    package_config = callback(package_config)
-                    packages[package_name] = _walk_packages(package_config, callback)
+                    try:
+                        packages[package_name] = callback(package_config, context)
+                    except cv.Invalid as err:
+                        if not validate_deprecated:
+                            raise err
+                        # This except block can be removed once the single-package inclusion, i.e.:
+                        # packages: !include package.yaml
+                        # deprecation period is over.
+                        config[CONF_PACKAGES] = [packages]
+                        return _walk_packages(
+                            deprecate_single_package(config), callback, context
+                        )
         elif isinstance(packages, list):
             for idx in reversed(range(len(packages))):
                 with cv.prepend_path(idx):
-                    package_config = callback(packages[idx])
-                    packages[idx] = _walk_packages(package_config, callback)
+                    packages[idx] = callback(packages[idx], context)
         else:
             raise cv.Invalid(
                 f"Packages must be a key to value mapping or list, got {type(packages)} instead"
@@ -285,41 +293,97 @@ def _walk_packages(
     return config
 
 
-def do_packages_pass(config: dict, skip_update: bool = False) -> dict:
+def _substitute_package_definition(
+    package_config: dict | str, context_vars: ContextVars
+) -> dict:
+    """If the package definition is a string (which may contain substitutions) or a remote package,
+    attempt to substitute any variables in it, since these could affect the URL, file paths, refs, etc.
+    This does not substitute inside the package contents itself, only the remote package definition fields
+    because the remote package has not been even been downloaded yet."""
+
+    if (
+        isinstance(package_config, str)
+        or isinstance(package_config, dict)
+        and is_remote_package(package_config)
+    ):
+        package_config = substitute(
+            item=package_config,
+            path=[],
+            parent_context=context_vars,
+            strict_undefined=False,
+        )
+    return package_config
+
+
+def do_packages_pass(
+    config: dict,
+    command_line_substitutions: dict[str, Any] | None = None,
+    skip_update: bool = False,
+) -> dict:
     """Processes, downloads and validates all packages in the config.
     Also extracts and merges all substitutions found in packages into the main config substitutions.
     """
     if CONF_PACKAGES not in config:
         return config
 
+    # original substitutions, as extracted from packages:
     substitutions = UserDict(config.pop(CONF_SUBSTITUTIONS, {}))
 
-    def process_package_callback(package_config: dict) -> dict:
-        """This will be called for each package found in the config."""
-        if isinstance(package_config, yaml_util.ConfigContext):
-            context_vars = package_config.vars
-            if CONF_PACKAGES in package_config or CONF_URL in package_config:
-                # Remote package definition: eagerly resolve before PACKAGE_SCHEMA validation.
-                from esphome.components.substitutions import ContextVars, substitute
+    # parent context for substitutions in package definitions. This will be updated during
+    # process_package_callback below as packages are explored and new substitutions are incorporated,
+    # so package definitions with lower priority, i.e., declared earlier, may depend on substitutions coming
+    # from packages with higher priority.
+    parent_context = UserDict(command_line_substitutions or {})
 
-                package_config = substitute(
-                    package_config,
-                    [],
-                    ContextVars(context_vars),
+    def update_substitutions_context(package_substitutions: dict[str, Any]) -> None:
+        for key, value in package_substitutions.items():
+            if key in parent_context:
+                continue
+            if isinstance(value, str):
+                parent_context[key] = substitute(
+                    item=value,
+                    path=[CONF_SUBSTITUTIONS, key],
+                    parent_context=parent_context,
                     strict_undefined=False,
                 )
-        package_config = PACKAGE_SCHEMA(package_config)
-        if isinstance(package_config, str):
-            return package_config  # Jinja string, skip processing
-        if CONF_URL in package_config:
-            package_config = _process_remote_package(package_config, skip_update)
-        # Extract substitutions from the package and merge them into the main substitutions:
-        substitutions.data = merge_config(
-            package_config.pop(CONF_SUBSTITUTIONS, {}), substitutions.data
-        )
-        return package_config
+            else:
+                parent_context[key] = value
 
-    _walk_packages(config, process_package_callback)
+    def process_package_callback(package_config: dict | str, context_vars: Any) -> dict:
+        """This will be called for each package found in the config."""
+        package_config = _substitute_package_definition(package_config, context_vars)
+
+        package_config = PACKAGE_SCHEMA(package_config)
+
+        if is_remote_package(package_config):
+            # This is a remote package definition. Replace it with the actual package contents:
+            package_config = _process_remote_package(package_config, skip_update)
+
+        # Extract substitutions from the package and merge them into the main substitutions:
+        package_substitutions = package_config.pop(CONF_SUBSTITUTIONS, {})
+        if package_substitutions:
+            substitutions.data = merge_config(package_substitutions, substitutions.data)
+            update_substitutions_context(package_substitutions)
+
+        if CONF_PACKAGES not in package_config:
+            # This package has no nested packages, so we're done.
+            return package_config
+
+        # push context in case there are vars in the root of the config, as a result of an
+        # !include with vars
+        context_vars = push_context(package_config, context_vars)
+
+        # push context in case the contents of the `packages` keys comes from an include with vars:
+        # packages: !include package_list.yaml (with vars)
+        context_vars = push_context(package_config[CONF_PACKAGES], context_vars)
+
+        return _walk_packages(package_config, process_package_callback, context_vars)
+
+    update_substitutions_context(substitutions)
+
+    context_vars = push_context(config[CONF_PACKAGES], ContextVars(parent_context))
+
+    _walk_packages(config, process_package_callback, context_vars)
 
     if substitutions:
         config[CONF_SUBSTITUTIONS] = substitutions.data
@@ -335,12 +399,10 @@ def merge_packages(config: dict) -> dict:
     # Build flat list of all package configs to merge in priority order:
     merge_list: list[dict] = []
 
-    validate_package = valid_package_contents(allow_jinja=False)
-
-    def process_package_callback(package_config: dict) -> dict:
+    def process_package_callback(package_config: dict, context: Any) -> dict:
         """This will be called for each package found in the config."""
-        merge_list.append(validate_package(package_config))
-        return package_config
+        merge_list.append(package_config)
+        return _walk_packages(package_config, process_package_callback)
 
     _walk_packages(config, process_package_callback, validate_deprecated=False)
     # Merge all packages into the main config:
