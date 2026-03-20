@@ -60,7 +60,7 @@ void GPIOBinarySensor::setup() {
     uint32_t deep_sleep_pin = deep_sleep::get_wakeup_pin();
     uint32_t current_pin = internal_pin->get_pin();
 
-    if (current_pin != deep_sleep_pin && deep_sleep_pin != UINT32_MAX) {
+    if (deep_sleep_pin != UINT32_MAX && current_pin == deep_sleep_pin) {
       this->use_interrupt_ = false;
     }
   }
