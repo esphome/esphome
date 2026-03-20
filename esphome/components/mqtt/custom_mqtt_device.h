@@ -6,8 +6,7 @@
 #include "esphome/core/component.h"
 #include "mqtt_client.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 /** This class is a helper class for custom components that communicate using
  * MQTT. It has 5 helper functions that you can use (square brackets indicate optional):
@@ -190,31 +189,35 @@ class CustomMQTTDevice {
 template<typename T>
 void CustomMQTTDevice::subscribe(const std::string &topic,
                                  void (T::*callback)(const std::string &, const std::string &), uint8_t qos) {
-  auto f = std::bind(callback, (T *) this, std::placeholders::_1, std::placeholders::_2);
-  global_mqtt_client->subscribe(topic, f, qos);
+  auto *obj = static_cast<T *>(this);
+  global_mqtt_client->subscribe(
+      topic, [obj, callback](const std::string &t, const std::string &payload) { (obj->*callback)(t, payload); }, qos);
 }
 template<typename T>
 void CustomMQTTDevice::subscribe(const std::string &topic, void (T::*callback)(const std::string &), uint8_t qos) {
-  auto f = std::bind(callback, (T *) this, std::placeholders::_2);
-  global_mqtt_client->subscribe(topic, f, qos);
+  auto *obj = static_cast<T *>(this);
+  global_mqtt_client->subscribe(
+      topic, [obj, callback](const std::string &, const std::string &payload) { (obj->*callback)(payload); }, qos);
 }
 template<typename T> void CustomMQTTDevice::subscribe(const std::string &topic, void (T::*callback)(), uint8_t qos) {
-  auto f = std::bind(callback, (T *) this);
-  global_mqtt_client->subscribe(topic, f, qos);
+  auto *obj = static_cast<T *>(this);
+  global_mqtt_client->subscribe(
+      topic, [obj, callback](const std::string &, const std::string &) { (obj->*callback)(); }, qos);
 }
 template<typename T>
 void CustomMQTTDevice::subscribe_json(const std::string &topic, void (T::*callback)(const std::string &, JsonObject),
                                       uint8_t qos) {
-  auto f = std::bind(callback, (T *) this, std::placeholders::_1, std::placeholders::_2);
-  global_mqtt_client->subscribe_json(topic, f, qos);
+  auto *obj = static_cast<T *>(this);
+  global_mqtt_client->subscribe_json(
+      topic, [obj, callback](const std::string &t, JsonObject root) { (obj->*callback)(t, root); }, qos);
 }
 template<typename T>
 void CustomMQTTDevice::subscribe_json(const std::string &topic, void (T::*callback)(JsonObject), uint8_t qos) {
-  auto f = std::bind(callback, (T *) this, std::placeholders::_2);
-  global_mqtt_client->subscribe_json(topic, f, qos);
+  auto *obj = static_cast<T *>(this);
+  global_mqtt_client->subscribe_json(
+      topic, [obj, callback](const std::string &, JsonObject root) { (obj->*callback)(root); }, qos);
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif  // USE_MQTT

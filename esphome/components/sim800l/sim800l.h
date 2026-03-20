@@ -61,20 +61,20 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
 #ifdef USE_SENSOR
   void set_rssi_sensor(sensor::Sensor *rssi_sensor) { rssi_sensor_ = rssi_sensor; }
 #endif
-  void add_on_sms_received_callback(std::function<void(std::string, std::string)> callback) {
-    this->sms_received_callback_.add(std::move(callback));
+  template<typename F> void add_on_sms_received_callback(F &&callback) {
+    this->sms_received_callback_.add(std::forward<F>(callback));
   }
-  void add_on_incoming_call_callback(std::function<void(std::string)> callback) {
-    this->incoming_call_callback_.add(std::move(callback));
+  template<typename F> void add_on_incoming_call_callback(F &&callback) {
+    this->incoming_call_callback_.add(std::forward<F>(callback));
   }
-  void add_on_call_connected_callback(std::function<void()> callback) {
-    this->call_connected_callback_.add(std::move(callback));
+  template<typename F> void add_on_call_connected_callback(F &&callback) {
+    this->call_connected_callback_.add(std::forward<F>(callback));
   }
-  void add_on_call_disconnected_callback(std::function<void()> callback) {
-    this->call_disconnected_callback_.add(std::move(callback));
+  template<typename F> void add_on_call_disconnected_callback(F &&callback) {
+    this->call_disconnected_callback_.add(std::forward<F>(callback));
   }
-  void add_on_ussd_received_callback(std::function<void(std::string)> callback) {
-    this->ussd_received_callback_.add(std::move(callback));
+  template<typename F> void add_on_ussd_received_callback(F &&callback) {
+    this->ussd_received_callback_.add(std::forward<F>(callback));
   }
   void send_sms(const std::string &recipient, const std::string &message);
   void send_ussd(const std::string &ussd_code);
@@ -107,11 +107,11 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   std::string recipient_;
   std::string outgoing_message_;
   std::string ussd_;
-  bool send_pending_;
-  bool dial_pending_;
-  bool connect_pending_;
-  bool disconnect_pending_;
-  bool send_ussd_pending_;
+  bool send_pending_{false};
+  bool dial_pending_{false};
+  bool connect_pending_{false};
+  bool disconnect_pending_{false};
+  bool send_ussd_pending_{false};
   uint8_t call_state_{6};
 
   CallbackManager<void(std::string, std::string)> sms_received_callback_;
@@ -162,7 +162,7 @@ template<typename... Ts> class Sim800LSendSmsAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(std::string, recipient)
   TEMPLATABLE_VALUE(std::string, message)
 
-  void play(Ts... x) {
+  void play(const Ts &...x) {
     auto recipient = this->recipient_.value(x...);
     auto message = this->message_.value(x...);
     this->parent_->send_sms(recipient, message);
@@ -177,7 +177,7 @@ template<typename... Ts> class Sim800LSendUssdAction : public Action<Ts...> {
   Sim800LSendUssdAction(Sim800LComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, ussd)
 
-  void play(Ts... x) {
+  void play(const Ts &...x) {
     auto ussd_code = this->ussd_.value(x...);
     this->parent_->send_ussd(ussd_code);
   }
@@ -191,7 +191,7 @@ template<typename... Ts> class Sim800LDialAction : public Action<Ts...> {
   Sim800LDialAction(Sim800LComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, recipient)
 
-  void play(Ts... x) {
+  void play(const Ts &...x) {
     auto recipient = this->recipient_.value(x...);
     this->parent_->dial(recipient);
   }
@@ -203,7 +203,7 @@ template<typename... Ts> class Sim800LConnectAction : public Action<Ts...> {
  public:
   Sim800LConnectAction(Sim800LComponent *parent) : parent_(parent) {}
 
-  void play(Ts... x) { this->parent_->connect(); }
+  void play(const Ts &...x) { this->parent_->connect(); }
 
  protected:
   Sim800LComponent *parent_;
@@ -213,7 +213,7 @@ template<typename... Ts> class Sim800LDisconnectAction : public Action<Ts...> {
  public:
   Sim800LDisconnectAction(Sim800LComponent *parent) : parent_(parent) {}
 
-  void play(Ts... x) { this->parent_->disconnect(); }
+  void play(const Ts &...x) { this->parent_->disconnect(); }
 
  protected:
   Sim800LComponent *parent_;

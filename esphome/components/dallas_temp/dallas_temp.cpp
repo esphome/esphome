@@ -44,14 +44,14 @@ void DallasTemperatureSensor::update() {
 
   this->send_command_(DALLAS_COMMAND_START_CONVERSION);
 
-  this->set_timeout(this->get_address_name(), this->millis_to_wait_for_conversion_(), [this] {
+  this->set_timeout(this->get_address_name().c_str(), this->millis_to_wait_for_conversion_(), [this] {
     if (!this->read_scratch_pad_() || !this->check_scratch_pad_()) {
       this->publish_state(NAN);
       return;
     }
 
     float tempc = this->get_temp_c_();
-    ESP_LOGD(TAG, "'%s': Got Temperature=%.1f°C", this->get_name().c_str(), tempc);
+    ESP_LOGD(TAG, "'%s': Got Temperature=%f°C", this->get_name().c_str(), tempc);
     this->publish_state(tempc);
   });
 }
@@ -64,14 +64,13 @@ bool DallasTemperatureSensor::read_scratch_pad_() {
     }
   } else {
     ESP_LOGW(TAG, "'%s' - reading scratch pad failed bus reset", this->get_name().c_str());
-    this->status_set_warning("bus reset failed");
+    this->status_set_warning(LOG_STR("bus reset failed"));
   }
   return success;
 }
 
 void DallasTemperatureSensor::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-  if (!this->check_address_())
+  if (!this->check_address_or_index_())
     return;
   if (!this->read_scratch_pad_())
     return;
@@ -125,7 +124,7 @@ bool DallasTemperatureSensor::check_scratch_pad_() {
             crc8(this->scratch_pad_, 8));
 #endif
   if (!chksum_validity) {
-    this->status_set_warning("scratch pad checksum invalid");
+    this->status_set_warning(LOG_STR("scratch pad checksum invalid"));
     ESP_LOGD(TAG, "Scratch pad: %02X.%02X.%02X.%02X.%02X.%02X.%02X.%02X.%02X (%02X)", this->scratch_pad_[0],
              this->scratch_pad_[1], this->scratch_pad_[2], this->scratch_pad_[3], this->scratch_pad_[4],
              this->scratch_pad_[5], this->scratch_pad_[6], this->scratch_pad_[7], this->scratch_pad_[8],
@@ -137,6 +136,9 @@ bool DallasTemperatureSensor::check_scratch_pad_() {
 float DallasTemperatureSensor::get_temp_c_() {
   int16_t temp = (this->scratch_pad_[1] << 8) | this->scratch_pad_[0];
   if ((this->address_ & 0xff) == DALLAS_MODEL_DS18S20) {
+    if (this->scratch_pad_[7] == 0) {
+      return NAN;
+    }
     return (temp >> 1) + (this->scratch_pad_[7] - this->scratch_pad_[6]) / float(this->scratch_pad_[7]) - 0.25;
   }
   switch (this->resolution_) {

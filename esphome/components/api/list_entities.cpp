@@ -5,9 +5,11 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
+#ifdef USE_API_USER_DEFINED_ACTIONS
+#include "user_services.h"
+#endif
 
-namespace esphome {
-namespace api {
+namespace esphome::api {
 
 // Generate entity handler implementations using macros
 #ifdef USE_BINARY_SENSOR
@@ -40,8 +42,8 @@ LIST_ENTITIES_HANDLER(lock, lock::Lock, ListEntitiesLockResponse)
 #ifdef USE_VALVE
 LIST_ENTITIES_HANDLER(valve, valve::Valve, ListEntitiesValveResponse)
 #endif
-#ifdef USE_ESP32_CAMERA
-LIST_ENTITIES_HANDLER(camera, esp32_camera::ESP32Camera, ListEntitiesCameraResponse)
+#ifdef USE_CAMERA
+LIST_ENTITIES_HANDLER(camera, camera::Camera, ListEntitiesCameraResponse)
 #endif
 #ifdef USE_CLIMATE
 LIST_ENTITIES_HANDLER(climate, climate::Climate, ListEntitiesClimateResponse)
@@ -71,6 +73,12 @@ LIST_ENTITIES_HANDLER(media_player, media_player::MediaPlayer, ListEntitiesMedia
 LIST_ENTITIES_HANDLER(alarm_control_panel, alarm_control_panel::AlarmControlPanel,
                       ListEntitiesAlarmControlPanelResponse)
 #endif
+#ifdef USE_WATER_HEATER
+LIST_ENTITIES_HANDLER(water_heater, water_heater::WaterHeater, ListEntitiesWaterHeaterResponse)
+#endif
+#ifdef USE_INFRARED
+LIST_ENTITIES_HANDLER(infrared, infrared::Infrared, ListEntitiesInfraredResponse)
+#endif
 #ifdef USE_EVENT
 LIST_ENTITIES_HANDLER(event, event::Event, ListEntitiesEventResponse)
 #endif
@@ -83,11 +91,12 @@ bool ListEntitiesIterator::on_end() { return this->client_->send_list_info_done(
 
 ListEntitiesIterator::ListEntitiesIterator(APIConnection *client) : client_(client) {}
 
+#ifdef USE_API_USER_DEFINED_ACTIONS
 bool ListEntitiesIterator::on_service(UserServiceDescriptor *service) {
   auto resp = service->encode_list_service_response();
   return this->client_->send_message(resp);
 }
+#endif
 
-}  // namespace api
-}  // namespace esphome
+}  // namespace esphome::api
 #endif

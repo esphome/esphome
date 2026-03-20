@@ -1,4 +1,3 @@
-#include <cstdio>
 #include <cstring>
 #include "md5.h"
 #ifdef USE_MD5
@@ -40,29 +39,43 @@ void MD5Digest::add(const uint8_t *data, size_t len) { br_md5_update(&this->ctx_
 void MD5Digest::calculate() { br_md5_out(&this->ctx_, this->digest_); }
 #endif  // USE_RP2040
 
-void MD5Digest::get_bytes(uint8_t *output) { memcpy(output, this->digest_, 16); }
-
-void MD5Digest::get_hex(char *output) {
-  for (size_t i = 0; i < 16; i++) {
-    sprintf(output + i * 2, "%02x", this->digest_[i]);
+#ifdef USE_HOST
+MD5Digest::~MD5Digest() {
+  if (this->ctx_) {
+    EVP_MD_CTX_free(this->ctx_);
   }
 }
 
-bool MD5Digest::equals_bytes(const uint8_t *expected) {
-  for (size_t i = 0; i < 16; i++) {
-    if (expected[i] != this->digest_[i]) {
-      return false;
-    }
+void MD5Digest::init() {
+  if (this->ctx_) {
+    EVP_MD_CTX_free(this->ctx_);
   }
-  return true;
+  this->ctx_ = EVP_MD_CTX_new();
+  EVP_DigestInit_ex(this->ctx_, EVP_md5(), nullptr);
+  this->calculated_ = false;
+  memset(this->digest_, 0, 16);
 }
 
-bool MD5Digest::equals_hex(const char *expected) {
-  uint8_t parsed[16];
-  if (!parse_hex(expected, parsed, 16))
-    return false;
-  return equals_bytes(parsed);
+void MD5Digest::add(const uint8_t *data, size_t len) {
+  if (!this->ctx_) {
+    this->init();
+  }
+  EVP_DigestUpdate(this->ctx_, data, len);
 }
+
+void MD5Digest::calculate() {
+  if (!this->ctx_) {
+    this->init();
+  }
+  if (!this->calculated_) {
+    unsigned int len = 16;
+    EVP_DigestFinal_ex(this->ctx_, this->digest_, &len);
+    this->calculated_ = true;
+  }
+}
+#else
+MD5Digest::~MD5Digest() = default;
+#endif  // USE_HOST
 
 }  // namespace md5
 }  // namespace esphome

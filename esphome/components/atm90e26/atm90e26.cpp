@@ -41,7 +41,6 @@ void ATM90E26Component::update() {
 }
 
 void ATM90E26Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->spi_setup();
 
   uint16_t mmode = 0x422;  // default values for everything but L/N line current gains
@@ -147,7 +146,6 @@ void ATM90E26Component::dump_config() {
   LOG_SENSOR("  ", "Active Reverse Energy A", this->reverse_active_energy_sensor_);
   LOG_SENSOR("  ", "Frequency", this->freq_sensor_);
 }
-float ATM90E26Component::get_setup_priority() const { return setup_priority::DATA; }
 
 uint16_t ATM90E26Component::read16_(uint8_t a_register) {
   uint8_t data[2];
@@ -199,7 +197,7 @@ float ATM90E26Component::get_reactive_power_() {
 float ATM90E26Component::get_power_factor_() {
   const uint16_t val = this->read16_(ATM90E26_REGISTER_POWERF);  // signed
   if (val & 0x8000) {
-    return -(val & 0x7FF) / 1000.0f;
+    return -(val & 0x7FFF) / 1000.0f;
   } else {
     return val / 1000.0f;
   }

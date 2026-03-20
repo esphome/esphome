@@ -13,8 +13,6 @@ class SPIDeviceComponent : public Component,
   void setup() override;
   void dump_config() override;
 
-  float get_setup_priority() const override;
-
  protected:
 };
 

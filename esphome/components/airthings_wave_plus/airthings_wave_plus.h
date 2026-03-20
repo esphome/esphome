@@ -9,13 +9,20 @@ namespace airthings_wave_plus {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
+enum WaveDeviceType : uint8_t { WAVE_PLUS = 0, WAVE_GEN2 = 1 };
+
 static const char *const SERVICE_UUID = "b42e1c08-ade7-11e4-89d3-123b93f75cba";
 static const char *const CHARACTERISTIC_UUID = "b42e2a68-ade7-11e4-89d3-123b93f75cba";
 static const char *const ACCESS_CONTROL_POINT_CHARACTERISTIC_UUID = "b42e2d06-ade7-11e4-89d3-123b93f75cba";
 
+static const char *const SERVICE_UUID_WAVE_RADON_GEN2 = "b42e4a8e-ade7-11e4-89d3-123b93f75cba";
+static const char *const CHARACTERISTIC_UUID_WAVE_RADON_GEN2 = "b42e4dcc-ade7-11e4-89d3-123b93f75cba";
+static const char *const ACCESS_CONTROL_POINT_CHARACTERISTIC_UUID_WAVE_RADON_GEN2 =
+    "b42e50d8-ade7-11e4-89d3-123b93f75cba";
+
 class AirthingsWavePlus : public airthings_wave_base::AirthingsWaveBase {
  public:
-  AirthingsWavePlus();
+  void setup() override;
 
   void dump_config() override;
 
@@ -23,12 +30,14 @@ class AirthingsWavePlus : public airthings_wave_base::AirthingsWaveBase {
   void set_radon_long_term(sensor::Sensor *radon_long_term) { radon_long_term_sensor_ = radon_long_term; }
   void set_co2(sensor::Sensor *co2) { co2_sensor_ = co2; }
   void set_illuminance(sensor::Sensor *illuminance) { illuminance_sensor_ = illuminance; }
+  void set_device_type(WaveDeviceType wave_device_type) { wave_device_type_ = wave_device_type; }
 
  protected:
   bool is_valid_radon_value_(uint16_t radon);
   bool is_valid_co2_value_(uint16_t co2);
 
   void read_sensors(uint8_t *raw_value, uint16_t value_len) override;
+  WaveDeviceType wave_device_type_{WaveDeviceType::WAVE_PLUS};
 
   sensor::Sensor *radon_sensor_{nullptr};
   sensor::Sensor *radon_long_term_sensor_{nullptr};

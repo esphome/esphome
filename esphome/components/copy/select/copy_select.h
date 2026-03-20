@@ -13,7 +13,7 @@ class CopySelect : public select::Select, public Component {
   void dump_config() override;
 
  protected:
-  void control(const std::string &value) override;
+  void control(size_t index) override;
 
   select::Select *source_;
 };

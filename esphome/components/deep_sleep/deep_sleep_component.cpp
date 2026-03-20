@@ -12,7 +12,6 @@ static const uint32_t TEARDOWN_TIMEOUT_DEEP_SLEEP_MS = 5000;
 bool global_has_deep_sleep = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void DeepSleepComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   global_has_deep_sleep = true;
 
   const optional<uint32_t> run_duration = get_run_duration_();
@@ -41,9 +40,11 @@ void DeepSleepComponent::loop() {
     this->begin_sleep();
 }
 
+#ifdef USE_LOOP_PRIORITY
 float DeepSleepComponent::get_loop_priority() const {
   return -100.0f;  // run after everything else is ready
 }
+#endif
 
 void DeepSleepComponent::set_sleep_duration(uint32_t time_ms) { this->sleep_duration_ = uint64_t(time_ms) * 1000; }
 

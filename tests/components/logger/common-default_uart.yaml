@@ -6,11 +6,16 @@ esphome:
           format: "Warning: Logger level is %d"
           args: [id(logger_id).get_log_level()]
       - logger.set_level: WARN
+      - logger.set_level:
+          level: ERROR
+          tag: mqtt.client
 
 logger:
   id: logger_id
   level: DEBUG
   initial_level: INFO
+  logs:
+    mqtt.component: WARN
 
 select:
   - platform: logger

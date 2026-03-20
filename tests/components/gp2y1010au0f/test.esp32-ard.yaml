@@ -1,5 +1,0 @@
-substitutions:
-  adc_pin: A0
-  output_pin: GPIO14
-
-<<: !include common.yaml

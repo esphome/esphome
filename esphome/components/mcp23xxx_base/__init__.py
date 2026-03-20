@@ -12,8 +12,9 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_PULLUP,
 )
-from esphome.core import coroutine
+from esphome.core import CORE, ID, coroutine
 
+AUTO_LOAD = ["gpio_expander"]
 CODEOWNERS = ["@jesserockz"]
 
 mcp23xxx_base_ns = cg.esphome_ns.namespace("mcp23xxx_base")
@@ -36,9 +37,11 @@ MCP23XXX_CONFIG_SCHEMA = cv.Schema(
 
 
 @coroutine
-async def register_mcp23xxx(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def register_mcp23xxx(config, num_pins):
+    id: ID = config[CONF_ID]
+    var = cg.new_Pvariable(id)
     await cg.register_component(var, config)
+    CORE.data.setdefault(CONF_MCP23XXX, {})[id.id] = num_pins
     cg.add(var.set_open_drain_ints(config[CONF_OPEN_DRAIN_INTERRUPT]))
     return var
 
@@ -73,9 +76,12 @@ MCP23XXX_PIN_SCHEMA = pins.gpio_base_schema(
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_MCP23XXX, MCP23XXX_PIN_SCHEMA)
 async def mcp23xxx_pin_to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    parent = await cg.get_variable(config[CONF_MCP23XXX])
+    parent_id: ID = config[CONF_MCP23XXX]
+    parent = await cg.get_variable(parent_id)
 
+    num_pins = cg.TemplateArguments(CORE.data[CONF_MCP23XXX][parent_id.id])
+
+    var = cg.new_Pvariable(config[CONF_ID], num_pins)
     cg.add(var.set_parent(parent))
 
     num = config[CONF_NUMBER]

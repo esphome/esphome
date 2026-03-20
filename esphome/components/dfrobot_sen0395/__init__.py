@@ -52,6 +52,7 @@ async def to_code(config):
             cv.GenerateID(): cv.use_id(DfrobotSen0395Component),
         }
     ),
+    synchronous=True,
 )
 async def dfrobot_sen0395_reset_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -74,8 +75,7 @@ def range_segment_list(input):
     if isinstance(input, list):
         for list_item in input:
             if isinstance(list_item, list):
-                for item in list_item:
-                    flat_list.append(item)
+                flat_list.extend(list_item)
             else:
                 flat_list.append(list_item)
     else:
@@ -152,6 +152,7 @@ MMWAVE_SETTINGS_SCHEMA = cv.Schema(
     "dfrobot_sen0395.settings",
     DfrobotSen0395SettingsAction,
     MMWAVE_SETTINGS_SCHEMA,
+    synchronous=True,
 )
 async def dfrobot_sen0395_settings_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

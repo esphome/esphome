@@ -2,7 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MIC_GAIN
-from esphome.core import coroutine_with_priority
+from esphome.core import CoroPriority, coroutine_with_priority
 
 CODEOWNERS = ["@kbx81"]
 IS_PLATFORM_COMPONENT = True
@@ -23,7 +23,10 @@ SET_MIC_GAIN_ACTION_SCHEMA = cv.maybe_simple_value(
 
 
 @automation.register_action(
-    "audio_adc.set_mic_gain", SetMicGainAction, SET_MIC_GAIN_ACTION_SCHEMA
+    "audio_adc.set_mic_gain",
+    SetMicGainAction,
+    SET_MIC_GAIN_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def audio_adc_set_mic_gain_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -35,7 +38,7 @@ async def audio_adc_set_mic_gain_to_code(config, action_id, template_arg, args):
     return var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_define("USE_AUDIO_ADC")
     cg.add_global(audio_adc_ns.using)

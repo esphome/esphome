@@ -7,8 +7,6 @@ namespace fs3000 {
 static const char *const TAG = "fs3000";
 
 void FS3000Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   if (model_ == FIVE) {
     // datasheet gives 9 points to interpolate from for the 1005 model
     static const uint16_t RAW_DATA_POINTS_1005[9] = {409, 915, 1522, 2066, 2523, 2908, 3256, 3572, 3686};

@@ -2,12 +2,12 @@
 
 We welcome contributions to the ESPHome suite of code and documentation!
 
-Please read our [contributing guide](https://esphome.io/guides/contributing.html) if you wish to contribute to the
+Please read our [contributing guide](https://developers.esphome.io/contributing/code/) if you wish to contribute to the
 project and be sure to join us on [Discord](https://discord.gg/KhAMKrd).
 
 **See also:**
 
-[Documentation](https://esphome.io) -- [Issues](https://github.com/esphome/issues/issues) -- [Feature requests](https://github.com/esphome/feature-requests/issues)
+[Documentation](https://esphome.io) -- [Issues](https://github.com/esphome/esphome/issues) -- [Feature requests](https://github.com/orgs/esphome/discussions)
 
 ---
 

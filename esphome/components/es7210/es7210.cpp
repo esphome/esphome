@@ -38,8 +38,6 @@ void ES7210::dump_config() {
 }
 
 void ES7210::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   // Software reset
   ES7210_ERROR_FAILED(this->write_byte(ES7210_RESET_REG00, 0xff));
   ES7210_ERROR_FAILED(this->write_byte(ES7210_RESET_REG00, 0x32));
@@ -99,12 +97,12 @@ bool ES7210::set_mic_gain(float mic_gain) {
 }
 
 bool ES7210::configure_sample_rate_() {
-  int mclk_fre = this->sample_rate_ * MCLK_DIV_FRE;
+  uint32_t mclk_fre = this->sample_rate_ * MCLK_DIV_FRE;
   int coeff = -1;
 
-  for (int i = 0; i < (sizeof(ES7210_COEFFICIENTS) / sizeof(ES7210_COEFFICIENTS[0])); ++i) {
+  for (size_t i = 0; i < (sizeof(ES7210_COEFFICIENTS) / sizeof(ES7210_COEFFICIENTS[0])); ++i) {
     if (ES7210_COEFFICIENTS[i].lrclk == this->sample_rate_ && ES7210_COEFFICIENTS[i].mclk == mclk_fre)
-      coeff = i;
+      coeff = static_cast<int>(i);
   }
 
   if (coeff >= 0) {
@@ -174,7 +172,7 @@ uint8_t ES7210::es7210_gain_reg_value_(float mic_gain) {
   // reg: 12 - 34.5dB, 13 - 36dB, 14 - 37.5dB
   mic_gain += 0.5;
   if (mic_gain <= 33.0) {
-    return (uint8_t) mic_gain / 3;
+    return (uint8_t) (mic_gain / 3);
   }
   if (mic_gain < 36.0) {
     return 12;

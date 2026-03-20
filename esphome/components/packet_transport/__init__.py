@@ -89,9 +89,10 @@ def validate_(config):
             raise cv.Invalid("No sensors or binary sensors to encrypt")
     elif config[CONF_ROLLING_CODE_ENABLE]:
         raise cv.Invalid("Rolling code requires an encryption key")
-    if config[CONF_PING_PONG_ENABLE]:
-        if not any(CONF_ENCRYPTION in p for p in config.get(CONF_PROVIDERS) or ()):
-            raise cv.Invalid("Ping-pong requires at least one encrypted provider")
+    if config[CONF_PING_PONG_ENABLE] and not any(
+        CONF_ENCRYPTION in p for p in config.get(CONF_PROVIDERS) or ()
+    ):
+        raise cv.Invalid("Ping-pong requires at least one encrypted provider")
     return config
 
 
@@ -120,15 +121,11 @@ def transport_schema(cls):
     return TRANSPORT_SCHEMA.extend({cv.GenerateID(): cv.declare_id(cls)})
 
 
-# Build a list of sensors for this platform
-CORE.data[DOMAIN] = {CONF_SENSORS: []}
-
-
 def get_sensors(transport_id):
     """Return the list of sensors for this platform."""
     return (
         sensor
-        for sensor in CORE.data[DOMAIN][CONF_SENSORS]
+        for sensor in CORE.data.setdefault(DOMAIN, {}).setdefault(CONF_SENSORS, [])
         if sensor[CONF_TRANSPORT_ID] == transport_id
     )
 
@@ -136,7 +133,8 @@ def get_sensors(transport_id):
 def validate_packet_transport_sensor(config):
     if CONF_NAME in config and CONF_INTERNAL not in config:
         raise cv.Invalid("Must provide internal: config when using name:")
-    CORE.data[DOMAIN][CONF_SENSORS].append(config)
+    conf_sensors = CORE.data.setdefault(DOMAIN, {}).setdefault(CONF_SENSORS, [])
+    conf_sensors.append(config)
     return config
 
 
@@ -178,17 +176,22 @@ async def register_packet_transport(var, config):
         if encryption := provider.get(CONF_ENCRYPTION):
             cg.add(var.set_provider_encryption(name, hash_encryption_key(encryption)))
 
+    is_provider = False
     for sens_conf in config.get(CONF_SENSORS, ()):
+        is_provider = True
         sens_id = sens_conf[CONF_ID]
         sensor = await cg.get_variable(sens_id)
         bcst_id = sens_conf.get(CONF_BROADCAST_ID, sens_id.id)
         cg.add(var.add_sensor(bcst_id, sensor))
     for sens_conf in config.get(CONF_BINARY_SENSORS, ()):
+        is_provider = True
         sens_id = sens_conf[CONF_ID]
         sensor = await cg.get_variable(sens_id)
         bcst_id = sens_conf.get(CONF_BROADCAST_ID, sens_id.id)
         cg.add(var.add_binary_sensor(bcst_id, sensor))
 
+    if is_provider:
+        cg.add(var.set_is_provider(True))
     if encryption := config.get(CONF_ENCRYPTION):
         cg.add(var.set_encryption_key(hash_encryption_key(encryption)))
     return providers

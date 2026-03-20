@@ -13,7 +13,7 @@ template<typename... Ts> class SetCurrentGlobalAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(uint8_t, brightness_global)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     this->max6956_->set_brightness_global(this->brightness_global_.value(x...));
     this->max6956_->write_brightness_global();
   }
@@ -28,7 +28,7 @@ template<typename... Ts> class SetCurrentModeAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(max6956::MAX6956CURRENTMODE, brightness_mode)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     this->max6956_->set_brightness_mode(this->brightness_mode_.value(x...));
     this->max6956_->write_brightness_mode();
   }

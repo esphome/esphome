@@ -78,7 +78,7 @@ static void spi_set_clock(uint32_t max_hz) {
   int source_clk = 0;
   int spi_clk = 0;
   int div = 0;
-  uint32_t param;
+  uint32_t param = PWD_SPI_CLK_BIT;
   if (max_hz > 4333000) {
     if (max_hz > 30000000) {
       spi_clk = 30000000;
@@ -121,8 +121,6 @@ void spi_dma_tx_finish_callback(unsigned int param) {
 }
 
 void BekenSPILEDStripLightOutput::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   size_t buffer_size = this->get_buffer_size_();
   size_t dma_buffer_size = (buffer_size * 8) + (2 * 64);
 

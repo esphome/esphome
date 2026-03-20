@@ -12,8 +12,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#if defined(ESP32) || defined(USE_ESP_IDF)
-#include "driver/timer.h"
+#ifdef USE_ESP32
+#include "driver/gptimer.h"
 #endif
 
 namespace esphome {
@@ -344,7 +344,11 @@ class OpenTherm {
   const char *operation_mode_to_str(OperationMode mode);
   const char *message_id_to_str(MessageId id);
 
+#ifdef USE_ESP32
+  static bool timer_isr(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_ctx);
+#else
   static bool timer_isr(OpenTherm *arg);
+#endif
 
 #ifdef ESP8266
   static void esp8266_timer_isr();
@@ -356,9 +360,13 @@ class OpenTherm {
   ISRInternalGPIOPin isr_in_pin_;
   ISRInternalGPIOPin isr_out_pin_;
 
-#if defined(ESP32) || defined(USE_ESP_IDF)
-  timer_group_t timer_group_;
-  timer_idx_t timer_idx_;
+#ifdef USE_ESP32
+  gptimer_handle_t timer_handle_{nullptr};
+  gptimer_alarm_config_t alarm_config_{
+      .alarm_count = 0,
+      .reload_count = 0,
+      .flags = {.auto_reload_on_alarm = true},
+  };
 #endif
 
   OperationMode mode_;
@@ -370,7 +378,7 @@ class OpenTherm {
   int32_t timeout_counter_;  // <0 no timeout
   int32_t device_timeout_;
 
-#if defined(ESP32) || defined(USE_ESP_IDF)
+#ifdef USE_ESP32
   esp_err_t timer_error_ = ESP_OK;
   TimerErrorType timer_error_type_ = TimerErrorType::NO_TIMER_ERROR;
 

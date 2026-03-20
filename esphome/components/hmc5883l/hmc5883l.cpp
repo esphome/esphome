@@ -22,7 +22,6 @@ static const uint8_t HMC5883L_REGISTER_IDENTIFICATION_B = 0x0B;
 static const uint8_t HMC5883L_REGISTER_IDENTIFICATION_C = 0x0C;
 
 void HMC5883LComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t id[3];
   if (!this->read_byte(HMC5883L_REGISTER_IDENTIFICATION_A, &id[0]) ||
       !this->read_byte(HMC5883L_REGISTER_IDENTIFICATION_B, &id[1]) ||
@@ -84,7 +83,6 @@ void HMC5883LComponent::dump_config() {
   LOG_SENSOR("  ", "Z Axis", this->z_sensor_);
   LOG_SENSOR("  ", "Heading", this->heading_sensor_);
 }
-float HMC5883LComponent::get_setup_priority() const { return setup_priority::DATA; }
 void HMC5883LComponent::update() {
   uint16_t raw_x, raw_y, raw_z;
   if (!this->read_byte_16(HMC5883L_REGISTER_DATA_X_MSB, &raw_x) ||
@@ -97,7 +95,7 @@ void HMC5883LComponent::update() {
   float mg_per_bit;
   switch (this->range_) {
     case HMC5883L_RANGE_88_UT:
-      mg_per_bit = 0.073f;
+      mg_per_bit = 0.73f;
       break;
     case HMC5883L_RANGE_130_UT:
       mg_per_bit = 0.92f;

@@ -21,4 +21,3 @@ binary_sensor:
   - platform: ble_presence
     irk: 1234567890abcdef1234567890abcdef
     name: "ESP32 BLE Tracker with Identity Resolving Key"
-

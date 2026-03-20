@@ -39,5 +39,29 @@ void LoopTestComponent::service_disable() {
   this->disable_loop();
 }
 
+// LoopTestUpdateComponent implementation
+void LoopTestUpdateComponent::setup() {
+  ESP_LOGI(TAG, "[%s] LoopTestUpdateComponent setup called", this->name_.c_str());
+}
+
+void LoopTestUpdateComponent::loop() {
+  this->loop_count_++;
+  ESP_LOGI(TAG, "[%s] LoopTestUpdateComponent loop count: %d", this->name_.c_str(), this->loop_count_);
+
+  // Disable loop after specified count to test component.update when loop is disabled
+  if (this->disable_loop_after_ > 0 && this->loop_count_ == this->disable_loop_after_) {
+    ESP_LOGI(TAG, "[%s] Disabling loop after %d iterations", this->name_.c_str(), this->disable_loop_after_);
+    this->disable_loop();
+  }
+}
+
+void LoopTestUpdateComponent::update() {
+  this->update_count_++;
+  // Check if loop is disabled by testing component state
+  bool loop_disabled = this->component_state_ == COMPONENT_STATE_LOOP_DONE;
+  ESP_LOGI(TAG, "[%s] LoopTestUpdateComponent update() called, count: %d, loop_disabled: %s", this->name_.c_str(),
+           this->update_count_, loop_disabled ? "YES" : "NO");
+}
+
 }  // namespace loop_test_component
 }  // namespace esphome

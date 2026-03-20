@@ -41,7 +41,6 @@ void HydreonRGxxComponent::dump_config() {
 }
 
 void HydreonRGxxComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   while (this->available() != 0) {
     this->read();
   }
@@ -284,8 +283,6 @@ void HydreonRGxxComponent::process_line_() {
     ESP_LOGI(TAG, "Got unknown line: %s", this->buffer_.c_str());
   }
 }
-
-float HydreonRGxxComponent::get_setup_priority() const { return setup_priority::DATA; }
 
 }  // namespace hydreon_rgxx
 }  // namespace esphome

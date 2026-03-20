@@ -12,10 +12,11 @@ void AnalogThresholdBinarySensor::setup() {
   // TRUE state is defined to be when sensor is >= threshold
   // so when undefined sensor value initialize to FALSE
   if (std::isnan(sensor_value)) {
+    this->raw_state_ = false;
     this->publish_initial_state(false);
   } else {
-    this->publish_initial_state(sensor_value >=
-                                (this->lower_threshold_.value() + this->upper_threshold_.value()) / 2.0f);
+    this->raw_state_ = sensor_value >= (this->lower_threshold_.value() + this->upper_threshold_.value()) / 2.0f;
+    this->publish_initial_state(this->raw_state_);
   }
 }
 
@@ -25,8 +26,10 @@ void AnalogThresholdBinarySensor::set_sensor(sensor::Sensor *analog_sensor) {
   this->sensor_->add_on_state_callback([this](float sensor_value) {
     // if there is an invalid sensor reading, ignore the change and keep the current state
     if (!std::isnan(sensor_value)) {
-      this->publish_state(sensor_value >=
-                          (this->state ? this->lower_threshold_.value() : this->upper_threshold_.value()));
+      // Use raw_state_ for hysteresis logic, not this->state which is post-filter
+      this->raw_state_ =
+          sensor_value >= (this->raw_state_ ? this->lower_threshold_.value() : this->upper_threshold_.value());
+      this->publish_state(this->raw_state_);
     }
   });
 }

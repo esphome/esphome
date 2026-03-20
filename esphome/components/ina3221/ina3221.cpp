@@ -22,7 +22,6 @@ static const uint8_t INA3221_REGISTER_CHANNEL3_BUS_VOLTAGE = 0x06;
 // A0 = SCL -> 0x43
 
 void INA3221Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   // Config Register
   // 0bx000000000000000 << 15 RESET Bit (1 -> trigger reset)
   if (!this->write_byte_16(INA3221_REGISTER_CONFIG, 0x8000)) {
@@ -114,7 +113,6 @@ void INA3221Component::update() {
   }
 }
 
-float INA3221Component::get_setup_priority() const { return setup_priority::DATA; }
 void INA3221Component::set_shunt_resistance(int channel, float resistance_ohm) {
   this->channels_[channel].shunt_resistance_ = resistance_ohm;
 }

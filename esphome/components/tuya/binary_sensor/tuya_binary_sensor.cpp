@@ -14,8 +14,10 @@ void TuyaBinarySensor::setup() {
 }
 
 void TuyaBinarySensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "Tuya Binary Sensor:");
-  ESP_LOGCONFIG(TAG, "  Binary Sensor has datapoint ID %u", this->sensor_id_);
+  ESP_LOGCONFIG(TAG,
+                "Tuya Binary Sensor:\n"
+                "  Binary Sensor has datapoint ID %u",
+                this->sensor_id_);
 }
 
 }  // namespace tuya

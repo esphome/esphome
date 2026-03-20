@@ -18,7 +18,6 @@ static const uint8_t TCS34725_REGISTER_ENABLE = TCS34725_COMMAND_BIT | 0x00;
 static const uint8_t TCS34725_REGISTER_CRGBDATAL = TCS34725_COMMAND_BIT | 0x14;
 
 void TCS34725Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t id;
   if (this->read_register(TCS34725_REGISTER_ID, &id, 1) != i2c::ERROR_OK) {
     this->mark_failed();
@@ -57,7 +56,6 @@ void TCS34725Component::dump_config() {
   LOG_SENSOR("  ", "Illuminance", this->illuminance_sensor_);
   LOG_SENSOR("  ", "Color Temperature", this->color_temperature_sensor_);
 }
-float TCS34725Component::get_setup_priority() const { return setup_priority::DATA; }
 
 /*!
  *  @brief  Converts the raw R/G/B values to color temperature in degrees

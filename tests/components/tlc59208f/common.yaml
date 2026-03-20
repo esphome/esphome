@@ -1,15 +1,13 @@
-i2c:
-  - id: i2c_tlc59208f
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 tlc59208f:
   - address: 0x20
     id: tlc59208f_1
+    i2c_id: i2c_bus
   - address: 0x22
     id: tlc59208f_2
+    i2c_id: i2c_bus
   - address: 0x24
     id: tlc59208f_3
+    i2c_id: i2c_bus
 
 output:
   - platform: tlc59208f

@@ -35,8 +35,6 @@ static const uint8_t INA260_REGISTER_MANUFACTURE_ID = 0xFE;
 static const uint8_t INA260_REGISTER_DEVICE_ID = 0xFF;
 
 void INA260Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   // Reset device on setup
   if (!this->write_byte_16(INA260_REGISTER_CONFIG, 0x8000)) {
     this->error_code_ = DEVICE_RESET_FAILED;
@@ -63,13 +61,13 @@ void INA260Component::setup() {
 }
 
 void INA260Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "INA260:");
+  ESP_LOGCONFIG(TAG,
+                "INA260:\n"
+                "  Manufacture ID: 0x%x\n"
+                "  Device ID: 0x%x",
+                this->manufacture_id_, this->device_id_);
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-
-  ESP_LOGCONFIG(TAG, "  Manufacture ID: 0x%x", this->manufacture_id_);
-  ESP_LOGCONFIG(TAG, "  Device ID: 0x%x", this->device_id_);
-
   LOG_SENSOR("  ", "Bus Voltage", this->bus_voltage_sensor_);
   LOG_SENSOR("  ", "Current", this->current_sensor_);
   LOG_SENSOR("  ", "Power", this->power_sensor_);

@@ -16,6 +16,7 @@ from esphome.const import (
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
+    DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_VOLTAGE,
     ICON_CURRENT_AC,
     ICON_LIGHTBULB,
@@ -78,6 +79,7 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
                 icon=ICON_LIGHTBULB,
                 accuracy_decimals=2,
+                device_class=DEVICE_CLASS_REACTIVE_POWER,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(

@@ -16,11 +16,7 @@ namespace rp2040_pwm {
 
 static const char *const TAG = "rp2040_pwm";
 
-void RP2040PWM::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
-  this->setup_pwm_();
-}
+void RP2040PWM::setup() { this->setup_pwm_(); }
 
 void RP2040PWM::setup_pwm_() {
   pwm_config config = pwm_get_default_config();
@@ -40,9 +36,11 @@ void RP2040PWM::setup_pwm_() {
 }
 
 void RP2040PWM::dump_config() {
-  ESP_LOGCONFIG(TAG, "RP2040 PWM:");
+  ESP_LOGCONFIG(TAG,
+                "RP2040 PWM:\n"
+                "  Frequency: %.1f Hz",
+                this->frequency_);
   LOG_PIN("  Pin: ", this->pin_);
-  ESP_LOGCONFIG(TAG, "  Frequency: %.1f Hz", this->frequency_);
   LOG_FLOAT_OUTPUT(this);
 }
 void HOT RP2040PWM::write_state(float state) {

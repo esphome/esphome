@@ -1,35 +1,28 @@
-i2c:
-  id: i2c_bus
-  scl: ${scl_pin}
-  sda: ${sda_pin}
-  scan: true
-  frequency: 600kHz
-
 #  component declaration
 wk2168_i2c:
-  - id: bridge_i2c
+  - id: wk2168_i2c_bridge
     i2c_id: i2c_bus
     address: 0x70
     uart:
-      - id: id0
+      - id: wk2168_i2c_uart0
         channel: 0
         baud_rate: 115200
         stop_bits: 1
         parity: none
-      - id: id1
+      - id: wk2168_i2c_uart1
         channel: 1
         baud_rate: 115200
-      - id: id2
+      - id: wk2168_i2c_uart2
         channel: 2
         baud_rate: 115200
-      - id: id3
+      - id: wk2168_i2c_uart3
         channel: 3
         baud_rate: 9600
 
 # Ensures a sensor doesn't break validation
 sensor:
   - platform: a02yyuw
-    uart_id: id3
+    uart_id: wk2168_i2c_uart3
     id: distance_sensor
 
 # individual binary_sensor inputs
@@ -37,14 +30,14 @@ binary_sensor:
   - platform: gpio
     name: "pin_0"
     pin:
-      wk2168_i2c: bridge_i2c
+      wk2168_i2c: wk2168_i2c_bridge
       number: 0
       mode:
         input: true
   - platform: gpio
     name: "pin_1"
     pin:
-      wk2168_i2c: bridge_i2c
+      wk2168_i2c: wk2168_i2c_bridge
       number: 1
       mode:
         input: true
@@ -55,14 +48,14 @@ switch:
   - platform: gpio
     name: "pin_2"
     pin:
-      wk2168_i2c: bridge_i2c
+      wk2168_i2c: wk2168_i2c_bridge
       number: 2
       mode:
         output: true
   - platform: gpio
     name: "pin_3"
     pin:
-      wk2168_i2c: bridge_i2c
+      wk2168_i2c: wk2168_i2c_bridge
       number: 3
       mode:
         output: true

@@ -9,17 +9,16 @@ from esphome.const import (
     CONF_GAIN_FACTOR,
     CONF_ID,
     CONF_MICROPHONE,
+    CONF_ON_DATA,
     CONF_TRIGGER_ID,
 )
 from esphome.core import CORE
-from esphome.coroutine import coroutine_with_priority
+from esphome.coroutine import CoroPriority, coroutine_with_priority
 
 AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@jesserockz", "@kahrendt"]
 
 IS_PLATFORM_COMPONENT = True
-
-CONF_ON_DATA = "on_data"
 
 microphone_ns = cg.esphome_ns.namespace("microphone")
 
@@ -191,19 +190,25 @@ async def microphone_action(config, action_id, template_arg, args):
 
 
 automation.register_action(
-    "microphone.capture", CaptureAction, MICROPHONE_ACTION_SCHEMA
+    "microphone.capture",
+    CaptureAction,
+    MICROPHONE_ACTION_SCHEMA,
+    synchronous=True,
 )(microphone_action)
 
 automation.register_action(
-    "microphone.stop_capture", StopCaptureAction, MICROPHONE_ACTION_SCHEMA
+    "microphone.stop_capture",
+    StopCaptureAction,
+    MICROPHONE_ACTION_SCHEMA,
+    synchronous=True,
 )(microphone_action)
 
-automation.register_action("microphone.mute", MuteAction, MICROPHONE_ACTION_SCHEMA)(
-    microphone_action
-)
-automation.register_action("microphone.unmute", UnmuteAction, MICROPHONE_ACTION_SCHEMA)(
-    microphone_action
-)
+automation.register_action(
+    "microphone.mute", MuteAction, MICROPHONE_ACTION_SCHEMA, synchronous=True
+)(microphone_action)
+automation.register_action(
+    "microphone.unmute", UnmuteAction, MICROPHONE_ACTION_SCHEMA, synchronous=True
+)(microphone_action)
 
 automation.register_condition(
     "microphone.is_capturing", IsCapturingCondition, MICROPHONE_ACTION_SCHEMA
@@ -213,7 +218,7 @@ automation.register_condition(
 )(microphone_action)
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(microphone_ns.using)
     cg.add_define("USE_MICROPHONE")

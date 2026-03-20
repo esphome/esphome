@@ -1,6 +1,6 @@
+from esphome.components.mipi import MODE_BGR
 from esphome.components.spi import TYPE_OCTAL
 
-from .. import MODE_BGR
 from .ili import ST7789V, ST7796
 
 ST7789V.extend(
@@ -56,5 +56,3 @@ ST7796.extend(
     backlight_pin=48,
     invert_colors=True,
 )
-
-models = {}

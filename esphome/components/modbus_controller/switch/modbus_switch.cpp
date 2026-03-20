@@ -1,10 +1,14 @@
 
 #include "modbus_switch.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 namespace esphome {
 namespace modbus_controller {
 
 static const char *const TAG = "modbus_controller.switch";
+
+// Maximum bytes to log in verbose hex output
+static constexpr size_t MODBUS_SWITCH_MAX_LOG_BYTES = 64;
 
 void ModbusSwitch::setup() {
   optional<bool> initial_state = Switch::get_initial_state_with_restore_mode();
@@ -71,7 +75,11 @@ void ModbusSwitch::write_state(bool state) {
     }
   }
   if (!data.empty()) {
-    ESP_LOGV(TAG, "Modbus Switch write raw: %s", format_hex_pretty(data).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    char hex_buf[format_hex_pretty_size(MODBUS_SWITCH_MAX_LOG_BYTES)];
+#endif
+    ESP_LOGV(TAG, "Modbus Switch write raw: %s",
+             format_hex_pretty_to(hex_buf, sizeof(hex_buf), data.data(), data.size()));
     cmd = ModbusCommandItem::create_custom_command(
         this->parent_, data,
         [this, cmd](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {

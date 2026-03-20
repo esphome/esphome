@@ -24,9 +24,8 @@ QwiicPIRComponent = qwiic_pir_ns.class_(
 
 
 def validate_no_debounce_unless_native(config):
-    if CONF_DEBOUNCE in config:
-        if config[CONF_DEBOUNCE_MODE] != "NATIVE":
-            raise cv.Invalid("debounce can only be set if debounce_mode is NATIVE")
+    if CONF_DEBOUNCE in config and config[CONF_DEBOUNCE_MODE] != "NATIVE":
+        raise cv.Invalid("debounce can only be set if debounce_mode is NATIVE")
     return config
 
 

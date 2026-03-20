@@ -3,4 +3,7 @@ substitutions:
   inc_pin: GPIO14
   ud_pin: GPIO15
 
+packages:
+  spi: !include ../../test_build_components/common/spi/esp32-idf.yaml
+
 <<: !include common.yaml

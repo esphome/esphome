@@ -40,8 +40,6 @@ void RP2040PIOLEDStripLightOutput::dma_write_complete_handler_() {
 }
 
 void RP2040PIOLEDStripLightOutput::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   size_t buffer_size = this->get_buffer_size_();
 
   RAMAllocator<uint8_t> allocator;
@@ -72,7 +70,7 @@ void RP2040PIOLEDStripLightOutput::setup() {
   // but there are only 4 state machines on each PIO so we can only have 4 strips per PIO
   uint offset = 0;
 
-  if (RP2040PIOLEDStripLightOutput::num_instance_[this->pio_ == pio0 ? 0 : 1] > 4) {
+  if (RP2040PIOLEDStripLightOutput::num_instance_[this->pio_ == pio0 ? 0 : 1] >= 4) {
     ESP_LOGE(TAG, "Too many instances of PIO program");
     this->mark_failed();
     return;

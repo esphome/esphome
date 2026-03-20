@@ -1,0 +1,2 @@
+# Camera is a base component auto-loaded by esp32_camera
+# The hardware configuration comes from the camera package

@@ -21,8 +21,6 @@ static const char *const TAG = "bme68x_bsec2.sensor";
 static const std::string IAQ_ACCURACY_STATES[4] = {"Stabilizing", "Uncertain", "Calibrating", "Calibrated"};
 
 void BME68xBSEC2Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   this->bsec_status_ = bsec_init_m(&this->bsec_instance_);
   if (this->bsec_status_ != BSEC_OK) {
     this->mark_failed();
@@ -72,6 +70,9 @@ void BME68xBSEC2Component::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication failed (BSEC2 status: %d, BME68X status: %d)", this->bsec_status_,
              this->bme68x_status_);
+    if (this->bsec_status_ == BSEC_I_SU_SUBSCRIBEDOUTPUTGATES) {
+      ESP_LOGE(TAG, "No sensors, add at least one sensor to the config");
+    }
   }
 
   if (this->algorithm_output_ != ALGORITHM_OUTPUT_IAQ) {
@@ -104,8 +105,6 @@ void BME68xBSEC2Component::dump_config() {
   LOG_TEXT_SENSOR("  ", "IAQ accuracy", this->iaq_accuracy_text_sensor_);
 #endif
 }
-
-float BME68xBSEC2Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void BME68xBSEC2Component::loop() {
   this->run_();
@@ -280,7 +279,8 @@ void BME68xBSEC2Component::run_() {
     uint32_t meas_dur = 0;
     meas_dur = bme68x_get_meas_dur(this->op_mode_, &bme68x_conf, &this->bme68x_);
     ESP_LOGV(TAG, "Queueing read in %uus", meas_dur);
-    this->set_timeout("read", meas_dur / 1000, [this, curr_time_ns]() { this->read_(curr_time_ns); });
+    this->trigger_time_ns_ = curr_time_ns;
+    this->set_timeout("read", meas_dur / 1000, [this]() { this->read_(this->trigger_time_ns_); });
   } else {
     ESP_LOGV(TAG, "Measurement not required");
     this->read_(curr_time_ns);
@@ -439,6 +439,7 @@ void BME68xBSEC2Component::publish_(const bsec_output_t *outputs, uint8_t num_ou
     }
   }
   if (update_accuracy) {
+    max_accuracy = std::min<uint8_t>(max_accuracy, std::size(IAQ_ACCURACY_STATES) - 1);
 #ifdef USE_SENSOR
     this->queue_push_(
         [this, max_accuracy]() { this->publish_sensor_(this->iaq_accuracy_sensor_, max_accuracy, true); });

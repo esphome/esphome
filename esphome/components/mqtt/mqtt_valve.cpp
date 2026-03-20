@@ -1,17 +1,31 @@
 #include "mqtt_valve.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include "mqtt_const.h"
 
 #ifdef USE_MQTT
 #ifdef USE_VALVE
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.valve";
 
 using namespace esphome::valve;
+
+static ProgmemStr valve_state_to_mqtt_str(ValveOperation operation, float position, bool supports_position) {
+  if (operation == VALVE_OPERATION_OPENING)
+    return ESPHOME_F("opening");
+  if (operation == VALVE_OPERATION_CLOSING)
+    return ESPHOME_F("closing");
+  if (position == VALVE_CLOSED)
+    return ESPHOME_F("closed");
+  if (position == VALVE_OPEN)
+    return ESPHOME_F("open");
+  if (supports_position)
+    return ESPHOME_F("open");
+  return ESPHOME_F("unknown");
+}
 
 MQTTValveComponent::MQTTValveComponent(Valve *valve) : valve_(valve) {}
 void MQTTValveComponent::setup() {
@@ -40,7 +54,7 @@ void MQTTValveComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT valve '%s':", this->valve_->get_name().c_str());
   auto traits = this->valve_->get_traits();
   bool has_command_topic = traits.get_supports_position();
-  LOG_MQTT_COMPONENT(true, has_command_topic)
+  LOG_MQTT_COMPONENT(true, has_command_topic);
   if (traits.get_supports_position()) {
     ESP_LOGCONFIG(TAG,
                   "  Position State Topic: '%s'\n"
@@ -49,9 +63,7 @@ void MQTTValveComponent::dump_config() {
   }
 }
 void MQTTValveComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
-  if (!this->valve_->get_device_class().empty())
-    root[MQTT_DEVICE_CLASS] = this->valve_->get_device_class();
-
+  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   auto traits = this->valve_->get_traits();
   if (traits.get_is_assumed_state()) {
     root[MQTT_OPTIMISTIC] = true;
@@ -60,33 +72,31 @@ void MQTTValveComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConf
     root[MQTT_POSITION_TOPIC] = this->get_position_state_topic();
     root[MQTT_SET_POSITION_TOPIC] = this->get_position_command_topic();
   }
+  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
-std::string MQTTValveComponent::component_type() const { return "valve"; }
+MQTT_COMPONENT_TYPE(MQTTValveComponent, "valve")
 const EntityBase *MQTTValveComponent::get_entity() const { return this->valve_; }
 
 bool MQTTValveComponent::send_initial_state() { return this->publish_state(); }
 bool MQTTValveComponent::publish_state() {
   auto traits = this->valve_->get_traits();
   bool success = true;
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
   if (traits.get_supports_position()) {
-    std::string pos = value_accuracy_to_string(roundf(this->valve_->position * 100), 0);
-    if (!this->publish(this->get_position_state_topic(), pos))
+    char pos[VALUE_ACCURACY_MAX_LEN];
+    size_t len = value_accuracy_to_buf(pos, roundf(this->valve_->position * 100), 0);
+    if (!this->publish(this->get_position_state_topic_to(topic_buf), pos, len))
       success = false;
   }
-  const char *state_s = this->valve_->current_operation == VALVE_OPERATION_OPENING   ? "opening"
-                        : this->valve_->current_operation == VALVE_OPERATION_CLOSING ? "closing"
-                        : this->valve_->position == VALVE_CLOSED                     ? "closed"
-                        : this->valve_->position == VALVE_OPEN                       ? "open"
-                        : traits.get_supports_position()                             ? "open"
-                                                                                     : "unknown";
-  if (!this->publish(this->get_state_topic_(), state_s))
+  if (!this->publish(this->get_state_topic_to_(topic_buf),
+                     valve_state_to_mqtt_str(this->valve_->current_operation, this->valve_->position,
+                                             traits.get_supports_position())))
     success = false;
   return success;
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

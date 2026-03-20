@@ -9,18 +9,18 @@ namespace esphome {
 namespace microphone {
 
 template<typename... Ts> class CaptureAction : public Action<Ts...>, public Parented<Microphone> {
-  void play(Ts... x) override { this->parent_->start(); }
+  void play(const Ts &...x) override { this->parent_->start(); }
 };
 
 template<typename... Ts> class StopCaptureAction : public Action<Ts...>, public Parented<Microphone> {
-  void play(Ts... x) override { this->parent_->stop(); }
+  void play(const Ts &...x) override { this->parent_->stop(); }
 };
 
 template<typename... Ts> class MuteAction : public Action<Ts...>, public Parented<Microphone> {
-  void play(Ts... x) override { this->parent_->set_mute_state(true); }
+  void play(const Ts &...x) override { this->parent_->set_mute_state(true); }
 };
 template<typename... Ts> class UnmuteAction : public Action<Ts...>, public Parented<Microphone> {
-  void play(Ts... x) override { this->parent_->set_mute_state(false); }
+  void play(const Ts &...x) override { this->parent_->set_mute_state(false); }
 };
 
 class DataTrigger : public Trigger<const std::vector<uint8_t> &> {
@@ -32,12 +32,12 @@ class DataTrigger : public Trigger<const std::vector<uint8_t> &> {
 
 template<typename... Ts> class IsCapturingCondition : public Condition<Ts...>, public Parented<Microphone> {
  public:
-  bool check(Ts... x) override { return this->parent_->is_running(); }
+  bool check(const Ts &...x) override { return this->parent_->is_running(); }
 };
 
 template<typename... Ts> class IsMutedCondition : public Condition<Ts...>, public Parented<Microphone> {
  public:
-  bool check(Ts... x) override { return this->parent_->get_mute_state(); }
+  bool check(const Ts &...x) override { return this->parent_->get_mute_state(); }
 };
 
 }  // namespace microphone

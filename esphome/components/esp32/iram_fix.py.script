@@ -1,0 +1,71 @@
+import os
+import re
+
+# pylint: disable=E0602
+Import("env")  # noqa
+
+# IRAM size for testing mode (2MB - large enough to accommodate grouped tests)
+TESTING_IRAM_SIZE = 0x200000
+
+
+def patch_idf_linker_script(source, target, env):
+    """Patch ESP-IDF linker script to increase IRAM size for testing mode."""
+    # Check if we're in testing mode by looking for the define
+    build_flags = env.get("BUILD_FLAGS", [])
+    testing_mode = any("-DESPHOME_TESTING_MODE" in flag for flag in build_flags)
+
+    if not testing_mode:
+        return
+
+    # For ESP-IDF, the linker scripts are generated in the build directory
+    build_dir = env.subst("$BUILD_DIR")
+
+    # The memory.ld file is directly in the build directory
+    memory_ld = os.path.join(build_dir, "memory.ld")
+
+    if not os.path.exists(memory_ld):
+        print(f"ESPHome: Warning - could not find linker script at {memory_ld}")
+        return
+
+    try:
+        with open(memory_ld, "r") as f:
+            content = f.read()
+    except OSError as e:
+        print(f"ESPHome: Error reading linker script: {e}")
+        return
+
+    # Check if this file contains iram0_0_seg
+    if 'iram0_0_seg' not in content:
+        print(f"ESPHome: Warning - iram0_0_seg not found in {memory_ld}")
+        return
+
+    # Look for iram0_0_seg definition and increase its length
+    # ESP-IDF format can be:
+    #   iram0_0_seg (RX) : org = 0x40080000, len = 0x20000 + 0x0
+    # or more complex with nested parentheses:
+    #   iram0_0_seg (RX) : org = (0x40370000 + 0x4000), len = (((0x403CB700 - (0x40378000 - 0x3FC88000)) - 0x3FC88000) + 0x8000 - 0x4000)
+    # We want to change len to TESTING_IRAM_SIZE for testing
+
+    # Use a more robust approach: find the line and manually parse it
+    lines = content.split('\n')
+    for i, line in enumerate(lines):
+        if 'iram0_0_seg' in line and 'len' in line:
+            # Find the position of "len = " and replace everything after it until the end of the statement
+            match = re.search(r'(iram0_0_seg\s*\([^)]*\)\s*:\s*org\s*=\s*(?:\([^)]+\)|0x[0-9a-fA-F]+)\s*,\s*len\s*=\s*)(.+?)(\s*)$', line)
+            if match:
+                lines[i] = f"{match.group(1)}{TESTING_IRAM_SIZE:#x}{match.group(3)}"
+                break
+
+    updated = '\n'.join(lines)
+
+    if updated != content:
+        with open(memory_ld, "w") as f:
+            f.write(updated)
+        print(f"ESPHome: Patched IRAM size to {TESTING_IRAM_SIZE:#x} in {memory_ld} for testing mode")
+    else:
+        print(f"ESPHome: Warning - could not patch iram0_0_seg in {memory_ld}")
+
+
+# Hook into the build process before linking
+# For ESP-IDF, we need to run this after the linker scripts are generated
+env.AddPreAction("$BUILD_DIR/${PROGNAME}.elf", patch_idf_linker_script)

@@ -13,7 +13,6 @@ void MCP23S08::set_device_address(uint8_t device_addr) {
 }
 
 void MCP23S08::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->spi_setup();
 
   this->enable();

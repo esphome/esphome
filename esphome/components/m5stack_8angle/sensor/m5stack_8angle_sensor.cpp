@@ -7,7 +7,7 @@ void M5Stack8AngleKnobSensor::update() {
   if (this->parent_ != nullptr) {
     int32_t raw_pos = this->parent_->read_knob_pos_raw(this->channel_, this->bits_);
     if (raw_pos == -1) {
-      this->status_set_warning("Could not read knob position from M5Stack 8Angle.");
+      this->status_set_warning(LOG_STR("Could not read knob position from M5Stack 8Angle."));
       return;
     }
     if (this->raw_) {

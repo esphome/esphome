@@ -4,25 +4,22 @@ binary_sensor:
     lambda: |-
       if (millis() > 10000) {
         return true;
-      } else {
-        return false;
       }
+      return false;
   - platform: template
     id: bin2
     lambda: |-
       if (millis() > 20000) {
         return true;
-      } else {
-        return false;
       }
+      return false;
   - platform: template
     id: bin3
     lambda: |-
       if (millis() > 30000) {
         return true;
-      } else {
-        return false;
       }
+      return false;
 
 sensor:
   - platform: binary_sensor_map

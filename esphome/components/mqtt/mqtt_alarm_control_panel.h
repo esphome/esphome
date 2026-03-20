@@ -8,8 +8,7 @@
 #include "mqtt_component.h"
 #include "esphome/components/alarm_control_panel/alarm_control_panel.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 class MQTTAlarmControlPanelComponent : public mqtt::MQTTComponent {
  public:
@@ -26,14 +25,13 @@ class MQTTAlarmControlPanelComponent : public mqtt::MQTTComponent {
   void dump_config() override;
 
  protected:
-  std::string component_type() const override;
+  const char *component_type() const override;
   const EntityBase *get_entity() const override;
 
   alarm_control_panel::AlarmControlPanel *alarm_control_panel_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

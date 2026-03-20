@@ -7,7 +7,6 @@ namespace sn74hc165 {
 static const char *const TAG = "sn74hc165";
 
 void SN74HC165Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   // initialize pins
   this->clock_pin_->setup();
   this->data_pin_->setup();
@@ -65,7 +64,9 @@ float SN74HC165Component::get_setup_priority() const { return setup_priority::IO
 
 bool SN74HC165GPIOPin::digital_read() { return this->parent_->digital_read_(this->pin_) != this->inverted_; }
 
-std::string SN74HC165GPIOPin::dump_summary() const { return str_snprintf("%u via SN74HC165", 18, pin_); }
+size_t SN74HC165GPIOPin::dump_summary(char *buffer, size_t len) const {
+  return buf_append_printf(buffer, len, 0, "%u via SN74HC165", this->pin_);
+}
 
 }  // namespace sn74hc165
 }  // namespace esphome

@@ -8,7 +8,6 @@ namespace duty_cycle {
 static const char *const TAG = "duty_cycle";
 
 void DutyCycleSensor::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->get_name().c_str());
   this->pin_->setup();
   this->store_.pin = this->pin_->to_isr();
   this->store_.last_level = this->pin_->digital_read();
@@ -43,8 +42,6 @@ void DutyCycleSensor::update() {
   }
   this->last_update_ = now;
 }
-
-float DutyCycleSensor::get_setup_priority() const { return setup_priority::DATA; }
 
 void IRAM_ATTR DutyCycleSensorStore::gpio_intr(DutyCycleSensorStore *arg) {
   const bool new_level = arg->pin.digital_read();

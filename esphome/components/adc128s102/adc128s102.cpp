@@ -8,10 +8,7 @@ static const char *const TAG = "adc128s102";
 
 float ADC128S102::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-void ADC128S102::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-  this->spi_setup();
-}
+void ADC128S102::setup() { this->spi_setup(); }
 
 void ADC128S102::dump_config() {
   ESP_LOGCONFIG(TAG, "ADC128S102:");
