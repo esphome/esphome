@@ -2,7 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
-#include <inttypes.h>
+#include <cinttypes>
 
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
