@@ -83,23 +83,24 @@ void TemplateAlarmControlPanel::setup() {
 }
 
 void TemplateAlarmControlPanel::loop() {
+  auto time_since_update = App.get_loop_component_start_time() - this->last_update_;
   // change from ARMING to ARMED_x after the arming_time_ has passed
   if (this->current_state_ == ACP_STATE_ARMING) {
-    if ((millis() - this->last_update_) > this->arming_delay_) {
+    if (time_since_update > this->arming_delay_) {
       this->auto_bypass_sensors_();
       this->publish_state(this->desired_state_);
     }
     return;
   }
   // change from PENDING to TRIGGERED after the delay_time_ has passed
-  if (this->current_state_ == ACP_STATE_PENDING && (millis() - this->last_update_) > this->pending_time_) {
+  if (this->current_state_ == ACP_STATE_PENDING && time_since_update > this->pending_time_) {
     this->publish_state(ACP_STATE_TRIGGERED);
     return;
   }
   auto next_state = this->current_state_;
   // reset triggered if all clear
   if (this->current_state_ == ACP_STATE_TRIGGERED && this->trigger_time_ > 0 &&
-      (millis() - this->last_update_) > this->trigger_time_) {
+      time_since_update > this->trigger_time_) {
     next_state = this->desired_state_;
   }
 
