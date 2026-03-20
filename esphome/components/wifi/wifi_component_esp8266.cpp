@@ -95,10 +95,10 @@ bool WiFiComponent::wifi_apply_power_save_() {
   sleep_type_t power_save;
   switch (this->power_save_) {
     case WIFI_POWER_SAVE_LIGHT:
-      power_save = LIGHT_SLEEP_T;
+      power_save = MODEM_SLEEP_T;
       break;
     case WIFI_POWER_SAVE_HIGH:
-      power_save = MODEM_SLEEP_T;
+      power_save = LIGHT_SLEEP_T;
       break;
     case WIFI_POWER_SAVE_NONE:
     default:
