@@ -61,13 +61,11 @@ CONFIG_SCHEMA = (
 
 
 def _pin_is_deep_sleep_wakeup(pin_num: int) -> bool:
-    """Check if pin is configured as deep_sleep wakeup pin.
-    
-    When allow_other_uses is True, a pin might be shared with multiple components.
-    However, if the pin is used as a deep_sleep wakeup, we allow interrupts since both
-    components use the pin for the same purpose (detecting state changes for wakeup).
-    This function checks both single-pin and ext1 multi-pin wakeup configurations.
-    """
+    # Check if pin is configured as deep_sleep wakeup pin.
+    # When allow_other_uses is True, a pin might be shared with multiple components.
+    # However, if the pin is used as a deep_sleep wakeup, we allow interrupts since both
+    # components use the pin for the same purpose (detecting state changes for wakeup).
+    # This function checks both single-pin and ext1 multi-pin wakeup configurations.
     if not CORE.config or "deep_sleep" not in CORE.config:
         return False
 
