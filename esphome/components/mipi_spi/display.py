@@ -356,6 +356,15 @@ def get_instance(config):
         offset_height,
         madctl,
     ]
+    has_writer = requires_buffer(config)
+    has_hardware_transform = model.transforms == {
+        CONF_MIRROR_X,
+        CONF_MIRROR_Y,
+        CONF_SWAP_XY,
+    }
+    display.add_metadata(
+        config[CONF_ID], width, height, has_writer, has_hardware_transform
+    )
     # If a buffer is required, use MipiSpiBuffer, otherwise use MipiSpi
     if requires_buffer(config):
         templateargs.extend(

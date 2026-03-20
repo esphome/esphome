@@ -1,6 +1,9 @@
+from dataclasses import dataclass
+
 from esphome import automation, core
 from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
+from esphome.components.const import KEY_METADATA
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
@@ -16,7 +19,9 @@ from esphome.const import (
     SCHEDULER_DONT_RUN,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import MockObj
 
+DOMAIN = "display"
 IS_PLATFORM_COMPONENT = True
 
 display_ns = cg.esphome_ns.namespace("display")
@@ -146,9 +151,43 @@ async def setup_display_core_(var, config):
         cg.add(var.show_test_card())
 
 
+# Storage of display metadata in a central location, accessible via the id
+
+
+@dataclass(frozen=True)
+class DisplayMetaData:
+    width: int
+    height: int
+    has_writer: bool
+    has_hardware_rotation: bool
+
+
+def get_all_display_metadata() -> dict[str, DisplayMetaData]:
+    """Get all image metadata."""
+    return CORE.data.setdefault(DOMAIN, {}).setdefault(KEY_METADATA, {})
+
+
+def get_display_metadata(display_id: str) -> DisplayMetaData | None:
+    """Get image metadata by ID for use by other components."""
+    return get_all_display_metadata().get(display_id)
+
+
+def add_metadata(
+    id: str | MockObj,
+    width: int,
+    height: int,
+    has_writer: bool,
+    has_hardware_rotation: bool = False,
+):
+    get_all_display_metadata()[str(id)] = DisplayMetaData(
+        width, height, has_writer, has_hardware_rotation
+    )
+
+
 async def register_display(var, config):
     await cg.register_component(var, config)
     await setup_display_core_(var, config)
+    print(get_all_display_metadata())
 
 
 @automation.register_action(
