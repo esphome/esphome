@@ -94,6 +94,22 @@ class DeepSleepComponent : public Component {
 #endif
     return UINT32_MAX;
   }
+
+  /// Check if the given pin is configured as a wakeup source.
+  bool is_wakeup_pin(uint32_t pin) const {
+    if (this->wakeup_pin_ != nullptr && this->wakeup_pin_->get_pin() == pin) {
+      return true;
+    }
+#if !defined(USE_ESP32_VARIANT_ESP32C2) && !defined(USE_ESP32_VARIANT_ESP32C3)
+    if (this->ext1_wakeup_.has_value() && pin < 64U) {
+      uint64_t mask = this->ext1_wakeup_->mask;
+      if (mask & (1ULL << pin)) {
+        return true;
+      }
+    }
+#endif
+    return false;
+  }
 #else
   uint32_t get_wakeup_pin() const { return UINT32_MAX; }
 #endif
