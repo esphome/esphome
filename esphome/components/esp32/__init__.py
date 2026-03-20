@@ -1924,8 +1924,11 @@ async def to_code(config):
     # IDF 6.0 switched from Newlib to PicolibC. The shim provides thread-local
     # stdin/stdout/stderr and getreent() for code compiled against Newlib.
     # ESPHome doesn't link against Newlib-built libraries that use stdio.
-    # If a component needs it (e.g. precompiled Newlib binaries), re-enable via
-    # sdkconfig_options: CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY: "y"
+    # If a component needs it (e.g. precompiled Newlib binaries), re-enable via:
+    #   esp32:
+    #     framework:
+    #       sdkconfig_options:
+    #         CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY: "y"
     if idf_version() >= cv.Version(6, 0, 0):
         add_idf_sdkconfig_option("CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY", False)
 
