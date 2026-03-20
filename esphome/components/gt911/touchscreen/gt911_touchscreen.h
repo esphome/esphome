@@ -42,8 +42,8 @@ class GT911Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice 
   /// @brief Execute the GT911 initialization sequence for address 0x5D.
   ///
   /// Performs the reset and startup procedure required by the GT911 when operating
-  /// at its 7‑bit I2C address 0x5D (0xBA 8-bit notation from datasheet). 
-  /// The function drives the reset and interrupt pins through the documented Goodix 
+  /// at its 7‑bit I2C address 0x5D (0xBA 8-bit notation from datasheet).
+  /// The function drives the reset and interrupt pins through the documented Goodix
   /// timing sequence and restores the interrupt pin to input mode once initialization is complete.
   bool init_sequence(bool use_primary_i2c_address);
   /// @brief Perform the internal setup routine for the GT911 touchscreen.
@@ -63,8 +63,8 @@ class GT911Touchscreen : public touchscreen::Touchscreen, public i2c::I2CDevice 
   GPIOPin *interrupt_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};
   std::vector<GT911ButtonListener *> button_listeners_;
-  uint8_t button_state_{0xFF};  // last button state. Initial FF guarantees first update.
-  bool use_primary_i2c_addr{true}; // use 0x5d by default
+  uint8_t button_state_{0xFF};      // last button state. Initial FF guarantees first update.
+  bool use_primary_i2c_addr{true};  // use 0x5d by default
 };
 
 }  // namespace gt911

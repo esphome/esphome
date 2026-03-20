@@ -37,4 +37,3 @@ async def to_code(config):
     # set use_primary_i2c_addr from YAML (true = 0x5D, false = 0x14)
     use_primary = config.get(CONF_USE_PRIMARY_ADDR, True)
     cg.add(var.set_use_primary_i2c_addr(use_primary))
-

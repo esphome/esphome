@@ -19,10 +19,10 @@ static const uint8_t GET_MAX_VALUES[2] = {0x80, 0x48};
 static const size_t MAX_TOUCHES = 5;  // max number of possible touches reported
 static const size_t MAX_BUTTONS = 4;  // max number of buttons scanned
 
-static constexpr uint8_t REG_CONFIG[2]  = {0x80, 0x47};  // config version register
+static constexpr uint8_t REG_CONFIG[2] = {0x80, 0x47};   // config version register
 static constexpr uint8_t REG_PRODUCT[2] = {0x81, 0x40};  // product name register
-static constexpr uint8_t REG_FW_VER[2]  = {0x81, 0x44};  // firmware version register 
-static constexpr uint8_t REG_TP_RES[2]  = {0x80, 0x48};  // touch resolution register 
+static constexpr uint8_t REG_FW_VER[2] = {0x81, 0x44};   // firmware version register
+static constexpr uint8_t REG_TP_RES[2] = {0x80, 0x48};   // touch resolution register
 
 #define ERROR_CHECK(err) \
   if ((err) != i2c::ERROR_OK) { \
@@ -30,9 +30,8 @@ static constexpr uint8_t REG_TP_RES[2]  = {0x80, 0x48};  // touch resolution reg
     return; \
   }
 
-
 void GT911Touchscreen::setup() {
-  if(true != this->init_sequence(this->use_primary_i2c_addr)){
+  if (true != this->init_sequence(this->use_primary_i2c_addr)) {
     ESP_LOGE(TAG, "Error: GT911 init sequence failed.");
     return;
   }
@@ -91,9 +90,7 @@ bool GT911Touchscreen::init_sequence(bool use_primary_i2c_address) {
   return true;
 }
 
-
 void GT911Touchscreen::setup_internal_() {
-
   uint8_t data[4];
   i2c::ErrorCode err = this->write(GET_SWITCHES, sizeof(GET_SWITCHES));
   if (err != i2c::ERROR_OK && this->address_ == PRIMARY_ADDRESS) {
@@ -194,7 +191,7 @@ void GT911Touchscreen::update_touches() {
   }
 }
 
-void GT911Touchscreen::read_device_info(){
+void GT911Touchscreen::read_device_info() {
   i2c::ErrorCode err;
   uint8_t data[4];
   // Read product name
@@ -237,8 +234,6 @@ void GT911Touchscreen::dump_config() {
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   this->read_device_info();
-
-
 }
 
 }  // namespace gt911
