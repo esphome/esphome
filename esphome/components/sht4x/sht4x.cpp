@@ -86,16 +86,19 @@ void SHT4XComponent::update() {
     uint32_t now = millis();
     if (now - this->last_heater_millis_ >= this->heater_interval_) {
       use_heater = true;
-      this->last_heater_millis_ = now;
+      // Ensure at least one normal measurement between heater cycles by
+      // pushing the next eligible heater time forward by one update interval.
+      // The configured duty cycle is a maximum, not an exact target.
+      uint32_t interval = std::max(this->heater_interval_, this->get_update_interval());
+      this->last_heater_millis_ = now - this->heater_interval_ + interval;
     }
   }
 
   if (use_heater) {
-    // Heater command heats the sensor to remove condensation, then takes a
-    // measurement (per datasheet section 4.9). The measurement is taken while
-    // the sensor is still hot, so we must discard it — it does not reflect
-    // ambient conditions. The next regular update() cycle will provide a
-    // valid reading after the sensor has cooled.
+    // Heater command heats the sensor to remove condensation (datasheet 4.9).
+    // The measurement it produces is taken while hot and does not reflect
+    // ambient conditions, so we skip this cycle. The next update() will
+    // take a regular reading after the sensor has cooled.
     ESP_LOGD(TAG, "Heater turning on");
     if (!this->write_command(this->heater_command_)) {
       this->status_set_warning(LOG_STR("Failed to send heater command"));
