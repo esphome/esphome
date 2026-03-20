@@ -65,21 +65,16 @@ constexpr uint8_t STARTUP_VOLUME_REG = 0x28;
 constexpr uint32_t RESET_SETTLE_DELAY_MS = 10;
 
 const char *const KATANA_REGISTER_NAMES[] = {
-    "ChipID", "Reset", "Vol_CH1", "Vol_CH2", "Mute", "DSP_Pgm", "Deemph", "DoP", "Format", "Command",
-    "MuteStr",
+    "ChipID", "Reset", "Vol_CH1", "Vol_CH2", "Mute", "DSP_Pgm", "Deemph", "DoP", "Format", "Command", "MuteStr",
 };
 
 constexpr uint8_t KATANA_LAST_REGISTER = KATANA_REG_MUTE_STREAM;
 
 }  // namespace
 
-bool ES9038Q2MKatana::write_register_(uint8_t reg, uint8_t value) {
-  return this->write_byte(reg, value);
-}
+bool ES9038Q2MKatana::write_register_(uint8_t reg, uint8_t value) { return this->write_byte(reg, value); }
 
-bool ES9038Q2MKatana::read_register_(uint8_t reg, uint8_t *value) {
-  return this->read_byte(reg, value);
-}
+bool ES9038Q2MKatana::read_register_(uint8_t reg, uint8_t *value) { return this->read_byte(reg, value); }
 
 uint8_t ES9038Q2MKatana::filter_shape_to_dsp_program_(FilterShape shape) const {
   switch (shape) {
@@ -343,9 +338,7 @@ bool ES9038Q2MKatana::set_volume(float volume) {
   return true;
 }
 
-float ES9038Q2MKatana::volume() {
-  return 1.0f - (static_cast<float>(this->volume_reg_) / 255.0f);
-}
+float ES9038Q2MKatana::volume() { return 1.0f - (static_cast<float>(this->volume_reg_) / 255.0f); }
 
 bool ES9038Q2MKatana::set_mute_state_(bool mute_state) {
   // As with volume, cache early requests until the device is ready.
