@@ -8,6 +8,8 @@ namespace ade7953_base {
 
 static const char *const TAG = "ade7953";
 
+constexpr uint16_t CONFIG_LOCK_BIT = 0x8000u;
+
 static const float ADE_POWER_FACTOR = 154.0f;
 static const float ADE_WATTSEC_POWER_FACTOR = ADE_POWER_FACTOR * ADE_POWER_FACTOR / 3600;
 
@@ -21,7 +23,7 @@ void ADE7953::setup() {
     // Lock communication interface (SPI or I2C)
     uint16_t config_v;
     this->ade_read_16(CONFIG_16, &config_v);
-    config_v &= 0x7FFF;  // Clear the lock bit
+    config_v &= static_cast<uint16_t>(~CONFIG_LOCK_BIT);  // Clear the lock bit
     this->ade_write_16(CONFIG_16, config_v);
     // Configure optimum settings according to datasheet
     this->ade_write_8(0x00FE, 0xAD);
