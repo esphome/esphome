@@ -9,7 +9,7 @@ namespace key_provider {
 /// interface for components that provide keypresses
 class KeyProvider {
  public:
-  void add_on_key_callback(std::function<void(uint8_t)> &&callback);
+  template<typename F> void add_on_key_callback(F &&callback) { this->key_callback_.add(std::forward<F>(callback)); }
 
  protected:
   void send_key_(uint8_t key);
