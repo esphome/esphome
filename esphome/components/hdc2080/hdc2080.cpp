@@ -38,7 +38,7 @@ void HDC2080Component::update() {
   }
   // start the conversion
   if (this->write_register(HDC2080_CMD_MEASUREMENT_CONFIGURATION, &data, 1) != i2c::ERROR_OK) {
-    this->status_set_warning("Communication failed");
+    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
     return;
   }
   // wait for conversion to complete 2ms should be enough, more is fine
