@@ -381,7 +381,10 @@ def write_cpp(code_s):
         code_format = CPP_BASE_FORMAT
 
     copy_src_tree()
+    # using namespace esphome must precede all variable declarations since
+    # codegen types assume this namespace is in scope (esphome_ns = global_ns).
     global_s = '#include "esphome.h"\n'
+    global_s += "using namespace esphome;\n"
     global_s += CORE.cpp_global_section
 
     full_file = f"{code_format[0] + CPP_INCLUDE_BEGIN}\n{global_s}{CPP_INCLUDE_END}"
