@@ -14,8 +14,20 @@ namespace gpio {
 static const char *const TAG = "gpio.binary_sensor";
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
-static const LogString *interrupt_type_to_string(gpio::InterruptType type) { return LOG_STR("INTERRUPT"); }
+static const LogString *const INTERRUPT_TYPE_STRINGS[] = {
+  LOG_STR("INTERRUPT[0]"),
+  LOG_STR("INTERRUPT[1]"),
+  LOG_STR("INTERRUPT[2]"),
+  LOG_STR("INTERRUPT[3]"),
+};
 
+static const LogString *interrupt_type_to_string(gpio::InterruptType type) {
+  const size_t index = static_cast<size_t>(type);
+  if (index < (sizeof(INTERRUPT_TYPE_STRINGS) / sizeof(INTERRUPT_TYPE_STRINGS[0]))) {
+    return INTERRUPT_TYPE_STRINGS[index];
+  }
+  return LOG_STR("INTERRUPT[?]");
+}
 static const LogString *gpio_mode_to_string(bool use_interrupt) {
   return use_interrupt ? LOG_STR("interrupt") : LOG_STR("polling");
 }
