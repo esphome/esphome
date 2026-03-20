@@ -6,6 +6,8 @@
 #include <functional>
 #include <optional>
 
+#include "esphome/components/uart/uart.h"
+
 namespace esphome {
 namespace mitsubishi_cn105 {
 
@@ -44,19 +46,9 @@ struct ClimateStatus {
   float room_temperature{NAN};
 };
 
-class MitsubishiCN105Transport {
- public:
-  virtual ~MitsubishiCN105Transport() = default;
-
-  virtual size_t available() = 0;
-  virtual void flush() = 0;
-  virtual bool read_byte(uint8_t *data) = 0;
-  virtual void write_array(const uint8_t *data, size_t len) = 0;
-};
-
 class MitsubishiCN105 {
  public:
-  explicit MitsubishiCN105(MitsubishiCN105Transport &transport) : transport_(transport) {}
+  explicit MitsubishiCN105(uart::UARTDevice &device) : device_(device) {}
 
   void init();
   bool sync();
@@ -137,7 +129,7 @@ class MitsubishiCN105 {
   static const char *state_to_string(State state);
   static const char *update_flag_to_string(UpdateFlag flag);
 
-  MitsubishiCN105Transport &transport_;
+  uart::UARTDevice &device_;
 
   State state_{State::NOT_CONNECTED};
   ClimateStatus current_status_;

@@ -8,21 +8,9 @@
 namespace esphome {
 namespace mitsubishi_cn105 {
 
-struct UARTTransport : MitsubishiCN105Transport {
-  explicit UARTTransport(uart::UARTDevice &device) : device_(device) {}
-
-  size_t available() override { return this->device_.available(); }
-  void flush() override { this->device_.flush(); }
-  bool read_byte(uint8_t *data) override { return this->device_.read_byte(data); }
-  void write_array(const uint8_t *data, size_t len) override { this->device_.write_array(data, len); }
-
- private:
-  uart::UARTDevice &device_;
-};
-
 class MitsubishiCN105Climate : public climate::Climate, public Component, public uart::UARTDevice {
  public:
-  explicit MitsubishiCN105Climate() : transport_(*this), hp_(transport_) {}
+  explicit MitsubishiCN105Climate() : hp_(*this) {}
 
   void setup() override;
   void loop() override;
@@ -36,10 +24,7 @@ class MitsubishiCN105Climate : public climate::Climate, public Component, public
  private:
   void apply_values_();
 
-  UARTTransport transport_;
   MitsubishiCN105 hp_;
-
-  uint8_t failed_connect_attempts_{0};
 };
 
 }  // namespace mitsubishi_cn105

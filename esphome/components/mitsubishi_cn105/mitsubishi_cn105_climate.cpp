@@ -70,20 +70,8 @@ void MitsubishiCN105Climate::dump_config() {
 void MitsubishiCN105Climate::setup() {
   this->hp_.set_connection_state_callback([this](bool connected) {
     if (connected) {
-      this->failed_connect_attempts_ = 0;
       this->status_clear_warning();
-      return;
-    }
-
-    if (this->failed_connect_attempts_ > 128) {
-      this->mark_failed(LOG_STR("No response from AC, try different baud rate or check connection"));
-      return;
-    }
-
-    ++this->failed_connect_attempts_;
-    ESP_LOGW(TAG, "Failed to connect, cntr=%u", this->failed_connect_attempts_);
-
-    if (this->failed_connect_attempts_ == 15) {
+    } else {
       this->status_set_warning("No response from AC");
     }
   });
@@ -177,12 +165,7 @@ void MitsubishiCN105Climate::apply_values_() {
   }
 
   if (is_valid || this->has_state()) {
-    if (!is_valid) {
-      ESP_LOGD(TAG, "Publishing partial climate state");
-    }
     this->publish_state();
-  } else {
-    ESP_LOGD(TAG, "Skipping publish_state(): no valid complete state available yet");
   }
 }
 

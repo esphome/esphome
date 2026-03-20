@@ -291,8 +291,8 @@ void MitsubishiCN105::connect_() {
 
 void MitsubishiCN105::send_packet_(const uint8_t *packet, size_t size) {
   dump_buffer_vv("TX", packet, size);
-  this->transport_.write_array(packet, size);
-  this->transport_.flush();
+  this->device_.write_array(packet, size);
+  this->device_.flush();
   this->write_timeout_start_ms_ = App.get_loop_component_start_time();
 }
 
@@ -304,9 +304,9 @@ void MitsubishiCN105::update_status_() {
 }
 
 bool MitsubishiCN105::read_incoming_bytes_() {
-  while (this->transport_.available() > 0) {
+  while (this->device_.available() > 0) {
     uint8_t value;
-    if (!this->transport_.read_byte(&value)) {
+    if (!this->device_.read_byte(&value)) {
       ESP_LOGW(TAG, "UART read failed while data available");
       return false;
     }
