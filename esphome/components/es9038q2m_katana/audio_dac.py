@@ -1,9 +1,8 @@
 import esphome.codegen as cg
 from esphome.components import audio_dac, i2c
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_SAMPLE_RATE
+from esphome.const import CONF_BITS_PER_SAMPLE, CONF_ID, CONF_SAMPLE_RATE
 
-CONF_BITS_PER_SAMPLE = "bits_per_sample"
 CONF_DEEMPHASIS = "deemphasis"
 CONF_DOP = "dop"
 CONF_DUMP_REGISTERS = "dump_registers"
