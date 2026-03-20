@@ -331,7 +331,13 @@ class DriverChip:
             return CONF_SWAP_XY in transforms and CONF_MIRROR_X in transforms
         return CONF_SWAP_XY in transforms and CONF_MIRROR_Y in transforms
 
-    def get_dimensions(self, config) -> tuple[int, int, int, int]:
+    def get_dimensions(self, config, swap: bool = True) -> tuple[int, int, int, int]:
+        """
+        Return the dimensions of the current model.
+        :param config: The current configuration
+        :param swap: If width/height should be swapped when axes are swapped.
+        :return:
+        """
         if CONF_DIMENSIONS in config:
             # Explicit dimensions, just use as is
             dimensions = config[CONF_DIMENSIONS]
@@ -363,7 +369,7 @@ class DriverChip:
             )
             offset_height = native_height - height - offset_height
         # Swap default dimensions if swap_xy is set, or if rotation is 90/270 and we are not using a buffer
-        if transform.get(CONF_SWAP_XY) is True:
+        if swap and transform.get(CONF_SWAP_XY) is True:
             width, height = height, width
             offset_height, offset_width = offset_width, offset_height
         return width, height, offset_width, offset_height

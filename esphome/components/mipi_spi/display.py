@@ -10,7 +10,7 @@ from esphome.components.const import (
     CONF_COLOR_DEPTH,
     CONF_DRAW_ROUNDING,
 )
-from esphome.components.display import CONF_SHOW_TEST_CARD, DISPLAY_ROTATIONS
+from esphome.components.display import CONF_SHOW_TEST_CARD
 from esphome.components.mipi import (
     CONF_PIXEL_MODE,
     CONF_USE_AXIS_FLIPS,
@@ -47,7 +47,6 @@ from esphome.const import (
     CONF_MIRROR_Y,
     CONF_MODEL,
     CONF_RESET_PIN,
-    CONF_ROTATION,
     CONF_SWAP_XY,
     CONF_TRANSFORM,
     CONF_WIDTH,
@@ -340,10 +339,13 @@ def get_instance(config):
         bus_type = BusTypes[bus_type]
     buffer_type = cg.uint8 if color_depth == 8 else cg.uint16
     frac = denominator(config)
-    rotation = (
-        0 if model.rotation_as_transform(config) else config.get(CONF_ROTATION, 0)
-    )
     madctl = model.get_madctl(model.get_base_transform(config), config)
+    has_writer = requires_buffer(config)
+    has_hardware_transform = model.transforms == {
+        CONF_MIRROR_X,
+        CONF_MIRROR_Y,
+        CONF_SWAP_XY,
+    }
     templateargs = [
         buffer_type,
         bufferpixels,
@@ -355,13 +357,8 @@ def get_instance(config):
         offset_width,
         offset_height,
         madctl,
+        has_hardware_transform,
     ]
-    has_writer = requires_buffer(config)
-    has_hardware_transform = model.transforms == {
-        CONF_MIRROR_X,
-        CONF_MIRROR_Y,
-        CONF_SWAP_XY,
-    }
     display.add_metadata(
         config[CONF_ID], width, height, has_writer, has_hardware_transform
     )
@@ -369,7 +366,6 @@ def get_instance(config):
     if requires_buffer(config):
         templateargs.extend(
             [
-                DISPLAY_ROTATIONS[rotation],
                 frac,
                 config[CONF_DRAW_ROUNDING],
             ]
@@ -385,11 +381,8 @@ async def to_code(config):
     var_id.type, templateargs = get_instance(config)
     var = cg.new_Pvariable(var_id, TemplateArguments(*templateargs))
     cg.add(var.set_init_sequence(init_sequence))
-    if model.rotation_as_transform(config):
-        if CONF_TRANSFORM in config:
-            LOGGER.warning("Use of 'transform' with 'rotation' is not recommended")
-        else:
-            config[CONF_ROTATION] = 0
+    if model.rotation_as_transform(config) and CONF_TRANSFORM in config:
+        LOGGER.warning("Use of 'transform' with 'rotation' is not recommended")
     cg.add(var.set_model(config[CONF_MODEL]))
     if enable_pin := config.get(CONF_ENABLE_PIN):
         enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]

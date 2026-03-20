@@ -187,7 +187,6 @@ def add_metadata(
 async def register_display(var, config):
     await cg.register_component(var, config)
     await setup_display_core_(var, config)
-    print(get_all_display_metadata())
 
 
 @automation.register_action(
