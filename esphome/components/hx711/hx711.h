@@ -44,7 +44,6 @@ class HX711Sensor : public sensor::Sensor, public PollingComponent {
   /// Logs warnings if update collisions or power issues are detected.
   void update() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void on_powerdown() override { this->power_down_internal_(); }
   /// @brief Logs the new gain setting and sets internal gain variable
   ///
