@@ -8,10 +8,7 @@
 #include "opentherm.h"
 #include "esphome/core/helpers.h"
 #include <cinttypes>
-// TODO: Migrate from legacy timer API (driver/timer.h) to GPTimer API (driver/gptimer.h)
-// The legacy timer API is deprecated in ESP-IDF 5.x. See opentherm.h for details.
 #ifdef USE_ESP32
-#include "driver/timer.h"
 #include "esp_err.h"
 #endif
 #ifdef ESP8266
@@ -33,10 +30,6 @@ OpenTherm *OpenTherm::instance = nullptr;
 OpenTherm::OpenTherm(InternalGPIOPin *in_pin, InternalGPIOPin *out_pin, int32_t device_timeout)
     : in_pin_(in_pin),
       out_pin_(out_pin),
-#ifdef USE_ESP32
-      timer_group_(TIMER_GROUP_0),
-      timer_idx_(TIMER_0),
-#endif
       mode_(OperationMode::IDLE),
       error_type_(ProtocolErrorType::NO_ERROR),
       capture_(0),
@@ -134,7 +127,12 @@ void IRAM_ATTR OpenTherm::read_() {
                               // period in OpenTherm.
 }
 
+#ifdef USE_ESP32
+bool IRAM_ATTR OpenTherm::timer_isr(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_ctx) {
+  auto *arg = static_cast<OpenTherm *>(user_ctx);
+#else
 bool IRAM_ATTR OpenTherm::timer_isr(OpenTherm *arg) {
+#endif
   if (arg->mode_ == OperationMode::LISTEN) {
     if (arg->timeout_counter_ == 0) {
       arg->mode_ = OperationMode::ERROR_TIMEOUT;
@@ -243,67 +241,35 @@ void IRAM_ATTR OpenTherm::write_bit_(uint8_t high, uint8_t clock) {
 #ifdef USE_ESP32
 
 bool OpenTherm::init_esp32_timer_() {
-  // Search for a free timer. Maybe unstable, we'll see.
-  int cur_timer = 0;
-  timer_group_t timer_group = TIMER_GROUP_0;
-  timer_idx_t timer_idx = TIMER_0;
-  bool timer_found = false;
-
-  for (; cur_timer < SOC_TIMER_GROUP_TOTAL_TIMERS; cur_timer++) {
-    timer_config_t temp_config;
-    timer_group = cur_timer < 2 ? TIMER_GROUP_0 : TIMER_GROUP_1;
-    timer_idx = cur_timer < 2 ? (timer_idx_t) cur_timer : (timer_idx_t) (cur_timer - 2);
-
-    auto err = timer_get_config(timer_group, timer_idx, &temp_config);
-    if (err == ESP_ERR_INVALID_ARG) {
-      // Error means timer was not initialized (or other things, but we are careful with our args)
-      timer_found = true;
-      break;
-    }
-
-    ESP_LOGD(TAG, "Timer %d:%d seems to be occupied, will try another", timer_group, timer_idx);
-  }
-
-  if (!timer_found) {
-    ESP_LOGE(TAG, "No free timer was found! OpenTherm cannot function without a timer.");
-    return false;
-  }
-
-  ESP_LOGD(TAG, "Found free timer %d:%d", timer_group, timer_idx);
-  this->timer_group_ = timer_group;
-  this->timer_idx_ = timer_idx;
-
-  timer_config_t const config = {
-      .alarm_en = TIMER_ALARM_EN,
-      .counter_en = TIMER_PAUSE,
-      .intr_type = TIMER_INTR_LEVEL,
-      .counter_dir = TIMER_COUNT_UP,
-      .auto_reload = TIMER_AUTORELOAD_EN,
-      .clk_src = TIMER_SRC_CLK_DEFAULT,
-      .divider = 80,
+  // 80MHz / 80 = 1MHz resolution (1µs per tick)
+  gptimer_config_t config = {
+      .clk_src = GPTIMER_CLK_SRC_DEFAULT,
+      .direction = GPTIMER_COUNT_UP,
+      .resolution_hz = 1000000,
   };
 
-  esp_err_t result;
-
-  result = timer_init(this->timer_group_, this->timer_idx_, &config);
+  esp_err_t result = gptimer_new_timer(&config, &this->timer_handle_);
   if (result != ESP_OK) {
-    const auto *error = esp_err_to_name(result);
-    ESP_LOGE(TAG, "Failed to init timer. Error: %s", error);
+    ESP_LOGE(TAG, "Failed to create timer: %s", esp_err_to_name(result));
     return false;
   }
 
-  result = timer_set_counter_value(this->timer_group_, this->timer_idx_, 0);
+  gptimer_event_callbacks_t cbs = {
+      .on_alarm = OpenTherm::timer_isr,
+  };
+  result = gptimer_register_event_callbacks(this->timer_handle_, &cbs, this);
   if (result != ESP_OK) {
-    const auto *error = esp_err_to_name(result);
-    ESP_LOGE(TAG, "Failed to set counter value. Error: %s", error);
+    ESP_LOGE(TAG, "Failed to register timer callback: %s", esp_err_to_name(result));
+    gptimer_del_timer(this->timer_handle_);
+    this->timer_handle_ = nullptr;
     return false;
   }
 
-  result = timer_isr_callback_add(this->timer_group_, this->timer_idx_, reinterpret_cast<bool (*)(void *)>(timer_isr),
-                                  this, 0);
+  result = gptimer_enable(this->timer_handle_);
   if (result != ESP_OK) {
-    const auto *error = esp_err_to_name(result);
-    ESP_LOGE(TAG, "Failed to register timer interrupt. Error: %s", error);
+    ESP_LOGE(TAG, "Failed to enable timer: %s", esp_err_to_name(result));
+    gptimer_del_timer(this->timer_handle_);
+    this->timer_handle_ = nullptr;
     return false;
   }
 
@@ -315,12 +281,13 @@ void IRAM_ATTR OpenTherm::start_esp32_timer_(uint64_t alarm_value) {
   this->timer_error_ = ESP_OK;
   this->timer_error_type_ = TimerErrorType::NO_TIMER_ERROR;
 
-  this->timer_error_ = timer_set_alarm_value(this->timer_group_, this->timer_idx_, alarm_value);
+  this->alarm_config_.alarm_count = alarm_value;
+  this->timer_error_ = gptimer_set_alarm_action(this->timer_handle_, &this->alarm_config_);
   if (this->timer_error_ != ESP_OK) {
     this->timer_error_type_ = TimerErrorType::SET_ALARM_VALUE_ERROR;
     return;
   }
-  this->timer_error_ = timer_start(this->timer_group_, this->timer_idx_);
+  this->timer_error_ = gptimer_start(this->timer_handle_);
   if (this->timer_error_ != ESP_OK) {
     this->timer_error_type_ = TimerErrorType::TIMER_START_ERROR;
   }
@@ -356,12 +323,12 @@ void IRAM_ATTR OpenTherm::stop_timer_() {
   this->timer_error_ = ESP_OK;
   this->timer_error_type_ = TimerErrorType::NO_TIMER_ERROR;
 
-  this->timer_error_ = timer_pause(this->timer_group_, this->timer_idx_);
+  this->timer_error_ = gptimer_stop(this->timer_handle_);
   if (this->timer_error_ != ESP_OK) {
     this->timer_error_type_ = TimerErrorType::TIMER_PAUSE_ERROR;
     return;
   }
-  this->timer_error_ = timer_set_counter_value(this->timer_group_, this->timer_idx_, 0);
+  this->timer_error_ = gptimer_set_raw_count(this->timer_handle_, 0);
   if (this->timer_error_ != ESP_OK) {
     this->timer_error_type_ = TimerErrorType::SET_COUNTER_VALUE_ERROR;
   }

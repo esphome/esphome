@@ -142,6 +142,7 @@ static constexpr uint32_t TEARDOWN_TIMEOUT_REBOOT_MS = 1000;  // 1 second for qu
 class Application {
  public:
 #ifdef ESPHOME_NAME_ADD_MAC_SUFFIX
+  // Called before Logger::pre_setup() — must not log (global_logger is not yet set).
   /// Pre-setup with MAC suffix: overwrites placeholder in mutable static buffers with actual MAC.
   void pre_setup(char *name, size_t name_len, char *friendly_name, size_t friendly_name_len) {
     arch_init();
@@ -163,6 +164,7 @@ class Application {
     this->friendly_name_ = StringRef(friendly_name, friendly_name_len);
   }
 #else
+  // Called before Logger::pre_setup() — must not log (global_logger is not yet set).
   /// Pre-setup without MAC suffix: StringRef points directly at const string literals in flash.
   void pre_setup(const char *name, size_t name_len, const char *friendly_name, size_t friendly_name_len) {
     arch_init();
@@ -593,7 +595,19 @@ class Application {
 
   void register_component_impl_(Component *comp, bool has_loop);
 
-  void calculate_looping_components_();
+  void calculate_looping_components_() {
+    // FixedVector capacity was pre-initialized by codegen with the exact count
+    // of components that override loop(), computed at C++ compile time.
+
+    // Add all components with loop override that aren't already LOOP_DONE
+    // Some components (like logger) may call disable_loop() during initialization
+    // before setup runs, so we need to respect their LOOP_DONE state
+    this->add_looping_components_by_state_(false);
+    this->looping_components_active_end_ = this->looping_components_.size();
+    // Then add any components that are already LOOP_DONE to the inactive section
+    // This handles components that called disable_loop() during initialization
+    this->add_looping_components_by_state_(true);
+  }
   void add_looping_components_by_state_(bool match_loop_done);
 
   // These methods are called by Component::disable_loop() and Component::enable_loop()

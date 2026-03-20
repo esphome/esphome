@@ -28,6 +28,7 @@ from esphome.const import (
     CONF_URL,
 )
 from esphome.core import CORE, HexInt
+from esphome.final_validate import full_config
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -84,7 +85,7 @@ class ImageEncoder:
 
     def __init__(self, width, height, transparency, dither, invert_alpha):
         """
-        :param width:  The image width in pixels
+        :param width:  The image width in pixels (or bytes)
         :param height:  The image height in pixels
         :param transparency: Transparency type
         :param dither: Dither method
@@ -93,11 +94,12 @@ class ImageEncoder:
         self.transparency = transparency
         self.width = width
         self.height = height
-        self.data = [0 for _ in range(width * height)]
+        self.data = [0] * width * height
         self.dither = dither
         self.index = 0
         self.invert_alpha = invert_alpha
         self.path = ""
+        self.big_endian = False
 
     def convert(self, image, path):
         """
@@ -119,12 +121,21 @@ class ImageEncoder:
         :return:
         """
 
+    def end_image(self):
+        """
+        Called at the end of the image.
+        :return:
+        """
+
+    def set_big_endian(self, big_endian: bool) -> None:
+        self.big_endian = big_endian
+
     @classmethod
     def is_endian(cls) -> bool:
         """
         Check if the image encoder supports endianness configuration
         """
-        return getattr(cls, "set_big_endian", None) is not None
+        return False
 
     @classmethod
     def get_options(cls) -> list[str]:
@@ -212,18 +223,21 @@ class ImageGrayscale(ImageEncoder):
 
 class ImageRGB565(ImageEncoder):
     def __init__(self, width, height, transparency, dither, invert_alpha):
-        stride = 3 if transparency == CONF_ALPHA_CHANNEL else 2
         super().__init__(
-            width * stride,
+            width * 2,
             height,
             transparency,
             dither,
             invert_alpha,
         )
-        self.big_endian = True
+        self.alpha = [0] * width * height
 
-    def set_big_endian(self, big_endian: bool) -> None:
-        self.big_endian = big_endian
+    @classmethod
+    def is_endian(cls) -> bool:
+        """
+        Check if the image encoder supports endianness configuration
+        """
+        return True
 
     def convert(self, image, path):
         return image.convert("RGBA")
@@ -233,6 +247,9 @@ class ImageRGB565(ImageEncoder):
         r = r >> 3
         g = g >> 2
         b = b >> 3
+        if self.invert_alpha:
+            a ^= 0xFF
+        self.alpha[self.index // 2] = a
         if self.transparency == CONF_CHROMA_KEY:
             if r == 0 and g == 1 and b == 0:
                 g = 0
@@ -251,11 +268,10 @@ class ImageRGB565(ImageEncoder):
             self.index += 1
             self.data[self.index] = rgb >> 8
             self.index += 1
+
+    def end_image(self):
         if self.transparency == CONF_ALPHA_CHANNEL:
-            if self.invert_alpha:
-                a ^= 0xFF
-            self.data[self.index] = a
-            self.index += 1
+            self.data.extend(self.alpha)
 
 
 class ImageRGB(ImageEncoder):
@@ -281,11 +297,11 @@ class ImageRGB(ImageEncoder):
                 r = 0
                 g = 1
                 b = 0
-        self.data[self.index] = r
+        self.data[self.index] = b
         self.index += 1
         self.data[self.index] = g
         self.index += 1
-        self.data[self.index] = b
+        self.data[self.index] = r
         self.index += 1
         if self.transparency == CONF_ALPHA_CHANNEL:
             if self.invert_alpha:
@@ -655,6 +671,24 @@ def _config_schema(value):
 CONFIG_SCHEMA = _config_schema
 
 
+def _final_validate(config):
+    """
+    For LVGL 9 the default byte order for RGB565 images is little-endian
+    :param config:
+    :return:
+    """
+    fv = full_config.get()
+    if "lvgl" in fv and not all(CONF_BYTE_ORDER in x for x in config):
+        config = config.copy()
+        for c in config:
+            if not c.get(CONF_BYTE_ORDER):
+                c[CONF_BYTE_ORDER] = "LITTLE_ENDIAN"
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
+
+
 async def write_image(config, all_frames=False):
     path = Path(config[CONF_FILE])
     if not path.is_file():
@@ -720,6 +754,7 @@ async def write_image(config, all_frames=False):
             for col in range(width):
                 encoder.encode(pixels[row * width + col])
             encoder.end_row()
+        encoder.end_image()
 
     rhs = [HexInt(x) for x in encoder.data]
     prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
@@ -729,31 +764,24 @@ async def write_image(config, all_frames=False):
     return prog_arr, width, height, image_type, trans_value, frame_count
 
 
-async def _image_to_code(entry):
-    """
-    Convert a single image entry to code and return its metadata.
-    :param entry: The config entry for the image.
-    :return: An ImageMetaData object
-    """
-    prog_arr, width, height, image_type, trans_value, _ = await write_image(entry)
-    cg.new_Pvariable(entry[CONF_ID], prog_arr, width, height, image_type, trans_value)
-    return ImageMetaData(
-        width,
-        height,
-        entry[CONF_TYPE],
-        entry[CONF_TRANSPARENCY],
+def add_metadata(id: str, width: int, height: int, image_type: str, transparency):
+    all_metadata = CORE.data.setdefault(DOMAIN, {}).setdefault(KEY_METADATA, {})
+    all_metadata[str(id)] = ImageMetaData(
+        width=width, height=height, image_type=image_type, transparency=transparency
     )
 
 
 async def to_code(config):
     cg.add_define("USE_IMAGE")
     # By now the config will be a simple list.
-    # Use a subkey to allow for other data in the future
-    CORE.data[DOMAIN] = {
-        KEY_METADATA: {
-            entry[CONF_ID].id: await _image_to_code(entry) for entry in config
-        }
-    }
+    for entry in config:
+        prog_arr, width, height, image_type, trans_value, _ = await write_image(entry)
+        cg.new_Pvariable(
+            entry[CONF_ID], prog_arr, width, height, image_type, trans_value
+        )
+        add_metadata(
+            entry[CONF_ID], width, height, entry[CONF_TYPE], entry[CONF_TRANSPARENCY]
+        )
 
 
 def get_all_image_metadata() -> dict[str, ImageMetaData]:

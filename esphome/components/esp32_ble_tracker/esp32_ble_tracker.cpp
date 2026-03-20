@@ -27,8 +27,14 @@
 #include <esp_coexist.h>
 #endif
 
+#ifdef USE_ESP32_BLE_DEVICE
+#ifdef USE_BLE_TRACKER_PSA_AES
+#include <psa/crypto.h>
+#else
 #define MBEDTLS_AES_ALT
 #include <aes_alt.h>
+#endif
+#endif  // USE_ESP32_BLE_DEVICE
 
 // bt_trace.h
 #undef TAG
@@ -738,23 +744,48 @@ void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
 }
 
 bool ESPBTDevice::resolve_irk(const uint8_t *irk) const {
-  uint8_t ecb_key[16];
-  uint8_t ecb_plaintext[16];
-  uint8_t ecb_ciphertext[16];
+  static constexpr size_t AES_BLOCK_SIZE = 16;
+  static constexpr size_t AES_KEY_BITS = 128;
+
+  uint8_t ecb_key[AES_BLOCK_SIZE];
+  uint8_t ecb_plaintext[AES_BLOCK_SIZE];
+  uint8_t ecb_ciphertext[AES_BLOCK_SIZE];
 
   uint64_t addr64 = esp32_ble::ble_addr_to_uint64(this->address_);
 
-  memcpy(&ecb_key, irk, 16);
-  memset(&ecb_plaintext, 0, 16);
+  memcpy(&ecb_key, irk, AES_BLOCK_SIZE);
+  memset(&ecb_plaintext, 0, AES_BLOCK_SIZE);
 
   ecb_plaintext[13] = (addr64 >> 40) & 0xff;
   ecb_plaintext[14] = (addr64 >> 32) & 0xff;
   ecb_plaintext[15] = (addr64 >> 24) & 0xff;
 
+#ifdef USE_BLE_TRACKER_PSA_AES
+  // Use PSA Crypto API (mbedtls 4.0 / IDF 6.0+)
+  psa_key_attributes_t attributes = PSA_KEY_ATTRIBUTES_INIT;
+  psa_set_key_type(&attributes, PSA_KEY_TYPE_AES);
+  psa_set_key_bits(&attributes, AES_KEY_BITS);
+  psa_set_key_usage_flags(&attributes, PSA_KEY_USAGE_ENCRYPT);
+  psa_set_key_algorithm(&attributes, PSA_ALG_ECB_NO_PADDING);
+
+  mbedtls_svc_key_id_t key_id;
+  if (psa_import_key(&attributes, ecb_key, AES_BLOCK_SIZE, &key_id) != PSA_SUCCESS) {
+    return false;
+  }
+
+  size_t output_length;
+  psa_status_t status = psa_cipher_encrypt(key_id, PSA_ALG_ECB_NO_PADDING, ecb_plaintext, AES_BLOCK_SIZE,
+                                           ecb_ciphertext, AES_BLOCK_SIZE, &output_length);
+  psa_destroy_key(key_id);
+  if (status != PSA_SUCCESS || output_length != AES_BLOCK_SIZE) {
+    return false;
+  }
+#else
+  // Use legacy mbedtls AES API (IDF < 6.0)
   mbedtls_aes_context ctx = {0, 0, {0}};
   mbedtls_aes_init(&ctx);
 
-  if (mbedtls_aes_setkey_enc(&ctx, ecb_key, 128) != 0) {
+  if (mbedtls_aes_setkey_enc(&ctx, ecb_key, AES_KEY_BITS) != 0) {
     mbedtls_aes_free(&ctx);
     return false;
   }
@@ -765,6 +796,7 @@ bool ESPBTDevice::resolve_irk(const uint8_t *irk) const {
   }
 
   mbedtls_aes_free(&ctx);
+#endif
 
   return ecb_ciphertext[15] == (addr64 & 0xff) && ecb_ciphertext[14] == ((addr64 >> 8) & 0xff) &&
          ecb_ciphertext[13] == ((addr64 >> 16) & 0xff);

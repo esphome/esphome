@@ -2,7 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-#define BMP280_ERROR_WRONG_CHIP_ID "Wrong chip ID"
+#define BMP280_ERROR_WRONG_CHIP_ID "Wrong chip ID or no response"
 
 namespace esphome {
 namespace bmp280_base {
