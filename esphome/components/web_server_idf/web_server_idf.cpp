@@ -121,7 +121,11 @@ void AsyncWebServer::begin() {
   if (this->server_) {
     this->end();
   }
+  // Default httpd stack is 4096. Increase to accommodate SerializationBuffer's
+  // 640-byte stack buffer used by web_server JSON request handlers.
+  constexpr size_t HTTPD_STACK_SIZE = 4096 + 256;
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+  config.stack_size = HTTPD_STACK_SIZE;
   config.server_port = this->port_;
   config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
   // Always enable LRU purging to handle socket exhaustion gracefully.
