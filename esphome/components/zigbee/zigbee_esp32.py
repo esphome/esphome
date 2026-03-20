@@ -23,6 +23,7 @@ from esphome.const import (
     CONF_WIFI,
 )
 from esphome.core import CORE
+from esphome.coroutine import CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
@@ -161,6 +162,23 @@ def zigbee_require_vfs_select(config: ConfigType) -> ConfigType:
     return config
 
 
+@coroutine_with_priority(CoroPriority.WORKAROUNDS)
+async def _zigbee_add_sdkconfigs(config: ConfigType) -> None:
+    """Add sdkconfigs late so they can overwrite esp32 defaults"""
+    add_idf_sdkconfig_option("CONFIG_ZB_ENABLED", True)
+    if config.get(CONF_ROUTER):
+        add_idf_sdkconfig_option("CONFIG_ZB_ZCZR", True)
+    else:
+        add_idf_sdkconfig_option("CONFIG_ZB_ZED", True)
+    add_idf_sdkconfig_option("CONFIG_ZB_RADIO_NATIVE", True)
+    if CONF_WIFI in CORE.config:
+        add_idf_sdkconfig_option("CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE", 4096)
+        cg.add_define("CONFIG_WIFI_COEX")
+    # The pre-built Zigbee library uses esp_log_default_level which requires
+    # dynamic log level control to be enabled
+    add_idf_sdkconfig_option("CONFIG_LOG_DYNAMIC_LEVEL_CONTROL", True)
+
+
 async def attributes_to_code(
     var: cg.Pvariable, ep_num: int, cl: dict[str, Any]
 ) -> None:
@@ -211,15 +229,9 @@ async def esp32_to_code(config: ConfigType) -> None:
         name="espressif/esp-zigbee-lib",
         ref="1.6.8",
     )
-    add_idf_sdkconfig_option("CONFIG_ZB_ENABLED", True)
-    if config.get(CONF_ROUTER):
-        add_idf_sdkconfig_option("CONFIG_ZB_ZCZR", True)
-    else:
-        add_idf_sdkconfig_option("CONFIG_ZB_ZED", True)
-    add_idf_sdkconfig_option("CONFIG_ZB_RADIO_NATIVE", True)
-    if CONF_WIFI in CORE.config:
-        add_idf_sdkconfig_option("CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE", 4096)
-        cg.add_define("CONFIG_WIFI_COEX")
+
+    # add sdkconfigs later so they can overwrite esp32 defaults
+    CORE.add_job(_zigbee_add_sdkconfigs, config)
 
     # add partitions for zigbee
     add_partition("zb_storage", "data", "fat", 0x4000)  # 16KB
@@ -251,7 +263,3 @@ async def esp32_to_code(config: ConfigType) -> None:
                 )
             )
             await attributes_to_code(var, ep[CONF_NUM], cl)
-    # The pre-built Zigbee library uses esp_log_default_level which requires
-    # dynamic log level control to be enabled
-    # Moved to end so this runs after esp32 component. Should probably await esp32 explicitly.
-    add_idf_sdkconfig_option("CONFIG_LOG_DYNAMIC_LEVEL_CONTROL", True)
