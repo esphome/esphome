@@ -1,0 +1,18 @@
+# pylint: disable=E0602
+Import("env")  # noqa
+
+import os
+
+# PlatformIO pre-build script: inject lwip_override include path so our
+# lwipopts.h shadows the framework's version during lwIP compilation.
+#
+# The arduino-pico builder uses -iprefix + -iwithprefixbefore for includes,
+# which takes priority over CPPPATH (-I). We must inject our path into the
+# CCFLAGS BEFORE the -iprefix flag to ensure our lwipopts.h is found first.
+
+lwip_dir = os.path.join(env["PROJECT_DIR"], "lwip_override")
+
+if os.path.isdir(lwip_dir):
+    # Insert -I<lwip_dir> at the beginning of CCFLAGS, before the framework's
+    # -iprefix/-iwithprefixbefore flags which would otherwise take priority.
+    env.Prepend(CCFLAGS=["-I", lwip_dir])

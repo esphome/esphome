@@ -289,12 +289,12 @@ def final_validate(config):
 def _consume_wifi_sockets(config: ConfigType) -> ConfigType:
     """Register UDP PCBs used internally by lwIP for DHCP and DNS.
 
-    Only needed on LibreTiny where we directly set MEMP_NUM_UDP_PCB (the raw
-    PCB pool shared by both application sockets and lwIP internals like DHCP/DNS).
-    On ESP32, CONFIG_LWIP_MAX_SOCKETS only controls the POSIX socket layer —
-    DHCP/DNS use raw udp_new() which bypasses it entirely.
+    Needed on LibreTiny and RP2040 where we directly set MEMP_NUM_UDP_PCB (the
+    raw PCB pool shared by both application sockets and lwIP internals like
+    DHCP/DNS). On ESP32, CONFIG_LWIP_MAX_SOCKETS only controls the POSIX socket
+    layer — DHCP/DNS use raw udp_new() which bypasses it entirely.
     """
-    if not (CORE.is_bk72xx or CORE.is_rtl87xx or CORE.is_ln882x):
+    if not (CORE.is_bk72xx or CORE.is_rtl87xx or CORE.is_ln882x or CORE.is_rp2040):
         return config
     from esphome.components import socket
 
