@@ -29,6 +29,7 @@ from .defines import (
     CONF_SCROLLBAR_MODE,
     CONF_TIME_FORMAT,
     LV_GRAD_DIR,
+    get_remapped_uses,
 )
 from .helpers import CONF_IF_NAN, requires_component, validate_printf
 from .layout import (
@@ -42,15 +43,16 @@ from .lvcode import LvglComponent, lv_event_t_ptr
 from .types import (
     LVEncoderListener,
     LvType,
-    WidgetType,
     lv_group_t,
     lv_obj_t,
     lv_pseudo_button_t,
     lv_style_t,
 )
+from .widgets import WidgetType
 
 # this will be populated later, in __init__.py to avoid circular imports.
 WIDGET_TYPES: dict = {}
+
 
 TIME_TEXT_SCHEMA = cv.Schema(
     {
@@ -176,23 +178,28 @@ STYLE_PROPS = {
     "height": lvalid.size,
     "image_recolor": lvalid.lv_color,
     "image_recolor_opa": lvalid.opacity,
-    "line_width": lvalid.lv_positive_int,
-    "line_dash_width": lvalid.lv_positive_int,
-    "line_dash_gap": lvalid.lv_positive_int,
-    "line_rounded": lvalid.lv_bool,
     "line_color": lvalid.lv_color,
+    "line_dash_gap": lvalid.lv_positive_int,
+    "line_dash_width": lvalid.lv_positive_int,
+    "line_opa": lvalid.opacity,
+    "line_rounded": lvalid.lv_bool,
+    "line_width": lvalid.lv_positive_int,
     "opa": lvalid.opacity,
     "opa_layered": lvalid.opacity,
     "outline_color": lvalid.lv_color,
     "outline_opa": lvalid.opacity,
     "outline_pad": lvalid.padding,
     "outline_width": lvalid.pixels,
+    "length": lvalid.pixels_or_percent,
     "pad_all": lvalid.padding,
     "pad_bottom": lvalid.padding,
     "pad_left": lvalid.padding,
     "pad_right": lvalid.padding,
     "pad_top": lvalid.padding,
+    "radial_offset": lvalid.size,
     "shadow_color": lvalid.lv_color,
+    "shadow_offset_x": lvalid.lv_int,
+    "shadow_offset_y": lvalid.lv_int,
     "shadow_ofs_x": lvalid.lv_int,
     "shadow_ofs_y": lvalid.lv_int,
     "shadow_opa": lvalid.opacity,
@@ -213,7 +220,13 @@ STYLE_PROPS = {
     "transform_height": lvalid.pixels_or_percent,
     "transform_pivot_x": lvalid.pixels_or_percent,
     "transform_pivot_y": lvalid.pixels_or_percent,
-    "transform_zoom": lvalid.zoom,
+    "transform_rotation": lvalid.lv_angle,
+    "transform_scale": lvalid.scale,
+    "transform_scale_x": lvalid.scale,
+    "transform_scale_y": lvalid.scale,
+    "transform_skew_x": lvalid.lv_angle,
+    "transform_skew_y": lvalid.lv_angle,
+    "transform_zoom": lvalid.scale,
     "translate_x": lvalid.pixels_or_percent,
     "translate_y": lvalid.pixels_or_percent,
     "max_height": lvalid.pixels_or_percent,
@@ -227,14 +240,22 @@ STYLE_PROPS = {
 }
 
 STYLE_REMAP = {
-    "bg_image_opa": "bg_img_opa",
-    "bg_image_recolor": "bg_img_recolor",
-    "bg_image_recolor_opa": "bg_img_recolor_opa",
-    "bg_image_src": "bg_img_src",
-    "bg_image_tiled": "bg_img_tiled",
-    "image_recolor": "img_recolor",
-    "image_recolor_opa": "img_recolor_opa",
+    "transform_angle": "transform_rotation",
+    "transform_zoom": "transform_scale",
+    "zoom": "scale",
+    "angle": "rotation",
+    "shadow_ofs_x": "shadow_offset_x",
+    "shadow_ofs_y": "shadow_offset_y",
+    "r_mod": "length",
 }
+
+
+def remap_property(prop):
+    if prop in STYLE_REMAP:
+        get_remapped_uses().add(prop)
+        return STYLE_REMAP[prop]
+    return prop
+
 
 # Complete object style schema
 STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).extend(
@@ -276,7 +297,7 @@ SET_STATE_SCHEMA = cv.Schema(
 )
 # Setting object flags
 FLAG_SCHEMA = cv.Schema({cv.Optional(flag): lvalid.lv_bool for flag in df.OBJ_FLAGS})
-FLAG_LIST = cv.ensure_list(df.LvConstant("LV_OBJ_FLAG_", *df.OBJ_FLAGS).one_of)
+FLAG_LIST = cv.ensure_list(df.LV_OBJ_FLAG.one_of)
 
 
 def part_schema(parts):
@@ -418,6 +439,17 @@ ALL_STYLES = {
 }
 
 
+def strip_defaults(schema: cv.Schema):
+    """
+    Take a schema and remove any default values, also convert Required to Optional.
+    Useful for converting an object schema to a modify schema
+    :param schema: The original Schema
+    :return: A new schema with no defaults and all items optional
+    """
+
+    return cv.Schema({cv.Optional(k): v for k, v in schema.schema.items()})
+
+
 def container_schema(widget_type: WidgetType, extras=None):
     """
     Create a schema for a container widget of a given type. All obj properties are available, plus
@@ -481,9 +513,9 @@ def any_widget_schema(extras=None):
                     container_validator, requires_component(required)
                 )
             # Apply custom validation
-            value = widget_type.validate(value or {})
             path = [key] if is_dict else [index, key]
             with prepend_path(path):
+                value = widget_type.validate(value or {})
                 result.append({key: container_validator(value)})
         return result
 

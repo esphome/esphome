@@ -407,10 +407,6 @@ void LD2450Component::restart_and_read_all_info() {
   this->set_timeout(1500, [this]() { this->read_all_info(); });
 }
 
-void LD2450Component::add_on_data_callback(std::function<void()> &&callback) {
-  this->data_callback_.add(std::move(callback));
-}
-
 // Send command with values to LD2450
 void LD2450Component::send_command_(uint8_t command, const uint8_t *command_value, uint8_t command_value_len) {
   ESP_LOGV(TAG, "Sending COMMAND %02X", command);

@@ -83,13 +83,6 @@ void TextSensor::clear_filters() {
 }
 #endif  // USE_TEXT_SENSOR_FILTER
 
-void TextSensor::add_on_state_callback(std::function<void(const std::string &)> callback) {
-  this->callback_.add(std::move(callback));
-}
-void TextSensor::add_on_raw_state_callback(std::function<void(const std::string &)> callback) {
-  this->raw_callback_.add(std::move(callback));
-}
-
 const std::string &TextSensor::get_state() const { return this->state; }
 const std::string &TextSensor::get_raw_state() const {
 #ifdef USE_TEXT_SENSOR_FILTER

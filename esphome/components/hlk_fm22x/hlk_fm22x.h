@@ -91,24 +91,23 @@ class HlkFm22xComponent : public PollingComponent, public uart::UARTDevice {
   void set_version_text_sensor(text_sensor::TextSensor *version_text_sensor) {
     this->version_text_sensor_ = version_text_sensor;
   }
-  void add_on_face_scan_matched_callback(std::function<void(int16_t, std::string)> callback) {
-    this->face_scan_matched_callback_.add(std::move(callback));
+  template<typename F> void add_on_face_scan_matched_callback(F &&callback) {
+    this->face_scan_matched_callback_.add(std::forward<F>(callback));
   }
-  void add_on_face_scan_unmatched_callback(std::function<void()> callback) {
-    this->face_scan_unmatched_callback_.add(std::move(callback));
+  template<typename F> void add_on_face_scan_unmatched_callback(F &&callback) {
+    this->face_scan_unmatched_callback_.add(std::forward<F>(callback));
   }
-  void add_on_face_scan_invalid_callback(std::function<void(uint8_t)> callback) {
-    this->face_scan_invalid_callback_.add(std::move(callback));
+  template<typename F> void add_on_face_scan_invalid_callback(F &&callback) {
+    this->face_scan_invalid_callback_.add(std::forward<F>(callback));
   }
-  void add_on_face_info_callback(
-      std::function<void(int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t)> callback) {
-    this->face_info_callback_.add(std::move(callback));
+  template<typename F> void add_on_face_info_callback(F &&callback) {
+    this->face_info_callback_.add(std::forward<F>(callback));
   }
-  void add_on_enrollment_done_callback(std::function<void(int16_t, uint8_t)> callback) {
-    this->enrollment_done_callback_.add(std::move(callback));
+  template<typename F> void add_on_enrollment_done_callback(F &&callback) {
+    this->enrollment_done_callback_.add(std::forward<F>(callback));
   }
-  void add_on_enrollment_failed_callback(std::function<void(uint8_t)> callback) {
-    this->enrollment_failed_callback_.add(std::move(callback));
+  template<typename F> void add_on_enrollment_failed_callback(F &&callback) {
+    this->enrollment_failed_callback_.add(std::forward<F>(callback));
   }
 
   void enroll_face(const std::string &name, HlkFm22xFaceDirection direction);
