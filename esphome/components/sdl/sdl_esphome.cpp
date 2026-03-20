@@ -70,6 +70,9 @@ void Sdl::draw_pixels_at(int x_start, int y_start, int w, int h, const uint8_t *
 }
 
 void Sdl::draw_pixel_at(int x, int y, Color color) {
+  if (!this->get_clipping().inside(x, y))
+    return;
+
   if (this->rotation_ == display::DISPLAY_ROTATION_180_DEGREES) {
     x = this->width_ - x - 1;
     y = this->height_ - y - 1;
@@ -82,9 +85,6 @@ void Sdl::draw_pixel_at(int x, int y, Color color) {
     y = this->height_ - x - 1;
     x = tmp;
   }
-
-  if (!this->get_clipping().inside(x, y))
-    return;
 
   SDL_Rect rect{x, y, 1, 1};
   auto data = (display::ColorUtil::color_to_565(color, display::COLOR_ORDER_RGB));
