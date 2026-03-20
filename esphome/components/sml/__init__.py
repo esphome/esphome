@@ -4,7 +4,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TRIGGER_ID
+from esphome.const import CONF_ID, CONF_ON_DATA, CONF_TRIGGER_ID
 
 CODEOWNERS = ["@alengwenus"]
 
@@ -17,7 +17,6 @@ MULTI_CONF = True
 CONF_SML_ID = "sml_id"
 CONF_OBIS_CODE = "obis_code"
 CONF_SERVER_ID = "server_id"
-CONF_ON_DATA = "on_data"
 
 sml_ns = cg.esphome_ns.namespace("sml")
 

@@ -182,15 +182,23 @@ void ImprovSerialComponent::write_data_(const uint8_t *data, const size_t size) 
 std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv::Command command) {
   std::vector<std::string> urls;
 #ifdef USE_IMPROV_SERIAL_NEXT_URL
-  if (!this->next_url_.empty()) {
-    urls.push_back(this->get_formatted_next_url_());
+  {
+    char url_buffer[384];
+    size_t len = this->get_formatted_next_url_(url_buffer, sizeof(url_buffer));
+    if (len > 0) {
+      urls.emplace_back(url_buffer, len);
+    }
   }
 #endif
 #ifdef USE_WEBSERVER
   for (auto &ip : wifi::global_wifi_component->wifi_sta_ip_addresses()) {
     if (ip.is_ip4()) {
-      std::string webserver_url = "http://" + ip.str() + ":" + to_string(USE_WEBSERVER_PORT);
-      urls.push_back(webserver_url);
+      char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+      ip.str_to(ip_buf);
+      // "http://" (7) + IP (40) + ":" (1) + port (5) + null (1) = 54
+      char webserver_url[7 + network::IP_ADDRESS_BUFFER_SIZE + 1 + 5 + 1];
+      snprintf(webserver_url, sizeof(webserver_url), "http://%s:%u", ip_buf, USE_WEBSERVER_PORT);
+      urls.emplace_back(webserver_url);
       break;
     }
   }
@@ -227,8 +235,8 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
   switch (command.command) {
     case improv::WIFI_SETTINGS: {
       wifi::WiFiAP sta{};
-      sta.set_ssid(command.ssid);
-      sta.set_password(command.password);
+      sta.set_ssid(command.ssid.c_str());
+      sta.set_password(command.password.c_str());
       this->connecting_sta_ = sta;
 
       wifi::global_wifi_component->set_sta(sta);
@@ -237,8 +245,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       ESP_LOGD(TAG, "Received settings: SSID=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                command.password.c_str());
 
-      auto f = std::bind(&ImprovSerialComponent::on_wifi_connect_timeout_, this);
-      this->set_timeout("wifi-connect-timeout", 30000, f);
+      this->set_timeout("wifi-connect-timeout", 30000, [this]() { this->on_wifi_connect_timeout_(); });
       return true;
     }
     case improv::GET_CURRENT_STATE:
@@ -259,14 +266,26 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       for (auto &scan : results) {
         if (scan.get_is_hidden())
           continue;
-        const std::string &ssid = scan.get_ssid();
-        if (std::find(networks.begin(), networks.end(), ssid) != networks.end())
+        const char *ssid_cstr = scan.get_ssid().c_str();
+        // Check if we've already sent this SSID
+        bool duplicate = false;
+        for (const auto &seen : networks) {
+          if (strcmp(seen.c_str(), ssid_cstr) == 0) {
+            duplicate = true;
+            break;
+          }
+        }
+        if (duplicate)
           continue;
+        // Only allocate std::string after confirming it's not a duplicate
+        std::string ssid(ssid_cstr);
         // Send each ssid separately to avoid overflowing the buffer
-        std::vector<uint8_t> data = improv::build_rpc_response(
-            improv::GET_WIFI_NETWORKS, {ssid, str_sprintf("%d", scan.get_rssi()), YESNO(scan.get_with_auth())}, false);
+        char rssi_buf[5];  // int8_t: -128 to 127, max 4 chars + null
+        *int8_to_str(rssi_buf, scan.get_rssi()) = '\0';
+        std::vector<uint8_t> data =
+            improv::build_rpc_response(improv::GET_WIFI_NETWORKS, {ssid, rssi_buf, YESNO(scan.get_with_auth())}, false);
         this->send_response_(data);
-        networks.push_back(ssid);
+        networks.push_back(std::move(ssid));
       }
       // Send empty response to signify the end of the list.
       std::vector<uint8_t> data =

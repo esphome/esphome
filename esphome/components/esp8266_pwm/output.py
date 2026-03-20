@@ -1,6 +1,7 @@
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import output
+from esphome.components.esp8266.const import require_waveform
 import esphome.config_validation as cv
 from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_NUMBER, CONF_PIN
 
@@ -34,7 +35,9 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-async def to_code(config):
+async def to_code(config) -> None:
+    require_waveform()
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await output.register_output(var, config)
@@ -54,6 +57,7 @@ async def to_code(config):
             cv.Required(CONF_FREQUENCY): cv.templatable(validate_frequency),
         }
     ),
+    synchronous=True,
 )
 async def esp8266_set_frequency_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

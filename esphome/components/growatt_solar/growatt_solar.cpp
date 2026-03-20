@@ -26,7 +26,7 @@ void GrowattSolar::update() {
   }
 
   // The bus might be slow, or there might be other devices, or other components might be talking to our device.
-  if (this->waiting_for_response()) {
+  if (!this->ready_for_immediate_send()) {
     this->waiting_to_update_ = true;
     return;
   }

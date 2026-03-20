@@ -1,5 +1,6 @@
 from ..defines import CONF_MAIN, CONF_OBJ, CONF_SCROLLBAR
-from ..types import WidgetType, lv_obj_t
+from ..types import lv_obj_t
+from . import WidgetType
 
 
 class ObjType(WidgetType):

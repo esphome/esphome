@@ -31,8 +31,7 @@ void PN532::setup() {
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG, "Found chip PN5%02X", version_data[0]);
-  ESP_LOGD(TAG, "Firmware ver. %d.%d", version_data[1], version_data[2]);
+  ESP_LOGD(TAG, "Found chip PN5%02X, Firmware v%d.%d", version_data[0], version_data[1], version_data[2]);
 
   if (!this->write_command_({
           PN532_COMMAND_SAMCONFIGURATION,
@@ -166,11 +165,11 @@ void PN532::loop() {
   }
 
   uint8_t nfcid_length = read[5];
-  std::vector<uint8_t> nfcid(read.begin() + 6, read.begin() + 6 + nfcid_length);
-  if (read.size() < 6U + nfcid_length) {
+  if (nfcid_length > nfc::NFC_UID_MAX_LENGTH || read.size() < 6U + nfcid_length) {
     // oops, pn532 returned invalid data
     return;
   }
+  nfc::NfcTagUid nfcid(read.begin() + 6, read.begin() + 6 + nfcid_length);
 
   bool report = true;
   for (auto *bin_sens : this->binary_sensors_) {
@@ -195,7 +194,8 @@ void PN532::loop() {
       trigger->process(tag);
 
     if (report) {
-      ESP_LOGD(TAG, "Found new tag '%s'", nfc::format_uid(nfcid).c_str());
+      char uid_buf[nfc::FORMAT_UID_BUFFER_SIZE];
+      ESP_LOGD(TAG, "Found new tag '%s'", nfc::format_uid_to(uid_buf, nfcid));
       if (tag->has_ndef_message()) {
         const auto &message = tag->get_ndef_message();
         const auto &records = message->get_records();
@@ -308,13 +308,13 @@ void PN532::send_nack_() {
 enum PN532ReadReady PN532::read_ready_(bool block) {
   if (this->rd_ready_ == READY) {
     if (block) {
-      this->rd_start_time_ = 0;
+      this->rd_start_time_.reset();
       this->rd_ready_ = WOULDBLOCK;
     }
     return READY;
   }
 
-  if (!this->rd_start_time_) {
+  if (!this->rd_start_time_.has_value()) {
     this->rd_start_time_ = millis();
   }
 
@@ -324,7 +324,7 @@ enum PN532ReadReady PN532::read_ready_(bool block) {
       break;
     }
 
-    if (millis() - this->rd_start_time_ > 100) {
+    if (millis() - *this->rd_start_time_ > 100) {
       ESP_LOGV(TAG, "Timed out waiting for readiness from PN532!");
       this->rd_ready_ = TIMEOUT;
       break;
@@ -340,7 +340,7 @@ enum PN532ReadReady PN532::read_ready_(bool block) {
 
   auto rdy = this->rd_ready_;
   if (block || rdy == TIMEOUT) {
-    this->rd_start_time_ = 0;
+    this->rd_start_time_.reset();
     this->rd_ready_ = WOULDBLOCK;
   }
   return rdy;
@@ -355,7 +355,7 @@ void PN532::turn_off_rf_() {
   });
 }
 
-std::unique_ptr<nfc::NfcTag> PN532::read_tag_(std::vector<uint8_t> &uid) {
+std::unique_ptr<nfc::NfcTag> PN532::read_tag_(nfc::NfcTagUid &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
 
   if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
@@ -390,7 +390,7 @@ void PN532::write_mode(nfc::NdefMessage *message) {
   ESP_LOGD(TAG, "Waiting to write next tag");
 }
 
-bool PN532::clean_tag_(std::vector<uint8_t> &uid) {
+bool PN532::clean_tag_(nfc::NfcTagUid &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
   if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
     return this->format_mifare_classic_mifare_(uid);
@@ -401,7 +401,7 @@ bool PN532::clean_tag_(std::vector<uint8_t> &uid) {
   return false;
 }
 
-bool PN532::format_tag_(std::vector<uint8_t> &uid) {
+bool PN532::format_tag_(nfc::NfcTagUid &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
   if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
     return this->format_mifare_classic_ndef_(uid);
@@ -412,7 +412,7 @@ bool PN532::format_tag_(std::vector<uint8_t> &uid) {
   return false;
 }
 
-bool PN532::write_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message) {
+bool PN532::write_tag_(nfc::NfcTagUid &uid, nfc::NdefMessage *message) {
   uint8_t type = nfc::guess_tag_type(uid.size());
   if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
     return this->write_mifare_classic_tag_(uid, message);
@@ -422,8 +422,6 @@ bool PN532::write_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message) {
   ESP_LOGE(TAG, "Unsupported Tag for formatting");
   return false;
 }
-
-float PN532::get_setup_priority() const { return setup_priority::DATA; }
 
 void PN532::dump_config() {
   ESP_LOGCONFIG(TAG, "PN532:");
@@ -445,7 +443,7 @@ void PN532::dump_config() {
   }
 }
 
-bool PN532BinarySensor::process(std::vector<uint8_t> &data) {
+bool PN532BinarySensor::process(const nfc::NfcTagUid &data) {
   if (data.size() != this->uid_.size())
     return false;
 

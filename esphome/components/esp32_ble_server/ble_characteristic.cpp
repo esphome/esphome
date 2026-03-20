@@ -16,13 +16,9 @@ BLECharacteristic::~BLECharacteristic() {
   for (auto *descriptor : this->descriptors_) {
     delete descriptor;  // NOLINT(cppcoreguidelines-owning-memory)
   }
-  vSemaphoreDelete(this->set_value_lock_);
 }
 
 BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) : uuid_(uuid) {
-  this->set_value_lock_ = xSemaphoreCreateBinary();
-  xSemaphoreGive(this->set_value_lock_);
-
   this->properties_ = (esp_gatt_char_prop_t) 0;
 
   this->set_broadcast_property((properties & PROPERTY_BROADCAST) != 0);
@@ -35,11 +31,7 @@ BLECharacteristic::BLECharacteristic(const ESPBTUUID uuid, uint32_t properties) 
 
 void BLECharacteristic::set_value(ByteBuffer buffer) { this->set_value(buffer.get_data()); }
 
-void BLECharacteristic::set_value(std::vector<uint8_t> &&buffer) {
-  xSemaphoreTake(this->set_value_lock_, 0L);
-  this->value_ = std::move(buffer);
-  xSemaphoreGive(this->set_value_lock_);
-}
+void BLECharacteristic::set_value(std::vector<uint8_t> &&buffer) { this->value_ = std::move(buffer); }
 
 void BLECharacteristic::set_value(std::initializer_list<uint8_t> data) {
   this->set_value(std::vector<uint8_t>(data));  // Delegate to move overload
@@ -109,7 +101,11 @@ void BLECharacteristic::do_create(BLEService *service) {
   esp_attr_control_t control;
   control.auto_rsp = ESP_GATT_RSP_BY_APP;
 
-  ESP_LOGV(TAG, "Creating characteristic - %s", this->uuid_.to_string().c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char uuid_buf[esp32_ble::UUID_STR_LEN];
+  this->uuid_.to_str(uuid_buf);
+  ESP_LOGV(TAG, "Creating characteristic - %s", uuid_buf);
+#endif
 
   esp_bt_uuid_t uuid = this->uuid_.get_uuid();
   esp_err_t err = esp_ble_gatts_add_char(service->get_handle(), &uuid, static_cast<esp_gatt_perm_t>(this->permissions_),
@@ -205,7 +201,11 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
 
       esp_gatt_rsp_t response;
       if (param->read.is_long) {
-        if (this->value_.size() - this->value_read_offset_ < max_offset) {
+        if (this->value_read_offset_ >= this->value_.size()) {
+          response.attr_value.len = 0;
+          response.attr_value.offset = this->value_read_offset_;
+          this->value_read_offset_ = 0;
+        } else if (this->value_.size() - this->value_read_offset_ < max_offset) {
           //  Last message in the chain
           response.attr_value.len = this->value_.size() - this->value_read_offset_;
           response.attr_value.offset = this->value_read_offset_;
@@ -242,9 +242,27 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
       if (this->handle_ != param->write.handle)
         break;
 
+      esp_gatt_status_t status = ESP_GATT_OK;
+
       if (param->write.is_prep) {
-        this->value_.insert(this->value_.end(), param->write.value, param->write.value + param->write.len);
-        this->write_event_ = true;
+        const size_t offset = param->write.offset;
+        const size_t write_len = param->write.len;
+        const size_t new_size = offset + write_len;
+        // Clean the buffer on the first prepared write event
+        if (offset == 0) {
+          this->value_.clear();
+        }
+
+        if (offset != this->value_.size()) {
+          status = ESP_GATT_INVALID_OFFSET;
+        } else if (new_size > ESP_GATT_MAX_ATTR_LEN) {
+          status = ESP_GATT_INVALID_ATTR_LEN;
+        } else {
+          if (this->value_.size() < new_size) {
+            this->value_.resize(new_size);
+          }
+          memcpy(this->value_.data() + offset, param->write.value, write_len);
+        }
       } else {
         this->set_value(ByteBuffer::wrap(param->write.value, param->write.len));
       }
@@ -259,7 +277,7 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
         memcpy(response.attr_value.value, param->write.value, param->write.len);
 
         esp_err_t err =
-            esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, &response);
+            esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, status, &response);
 
         if (err != ESP_OK) {
           ESP_LOGE(TAG, "esp_ble_gatts_send_response failed: %d", err);
@@ -276,16 +294,16 @@ void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt
     }
 
     case ESP_GATTS_EXEC_WRITE_EVT: {
-      if (!this->write_event_)
+      // BLE stack will guarantee that ESP_GATTS_EXEC_WRITE_EVT is only received after prepared writes
+      if (this->value_.empty())
         break;
-      this->write_event_ = false;
       if (param->exec_write.exec_write_flag == ESP_GATT_PREP_WRITE_EXEC) {
         if (this->on_write_callback_) {
           (*this->on_write_callback_)(this->value_, param->exec_write.conn_id);
         }
       }
-      esp_err_t err =
-          esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, nullptr);
+      esp_err_t err = esp_ble_gatts_send_response(gatts_if, param->exec_write.conn_id, param->exec_write.trans_id,
+                                                  ESP_GATT_OK, nullptr);
       if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_ble_gatts_send_response failed: %d", err);
       }

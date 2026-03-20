@@ -10,7 +10,6 @@ namespace ens210 {
 /// This class implements support for the ENS210 relative humidity and temperature i2c sensor.
 class ENS210Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  float get_setup_priority() const override;
   void dump_config() override;
   void setup() override;
   void update() override;

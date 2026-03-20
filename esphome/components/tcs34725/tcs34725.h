@@ -52,7 +52,6 @@ class TCS34725Component : public PollingComponent, public i2c::I2CDevice {
   }
 
   void setup() override;
-  float get_setup_priority() const override;
   void update() override;
   void dump_config() override;
 

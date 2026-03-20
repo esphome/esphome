@@ -224,7 +224,7 @@ def model_schema(config):
             }
         )
     if bus_mode != TYPE_SINGLE:
-        return cv.All(schema, cv.only_with_esp_idf)
+        return cv.All(schema, cv.only_on_esp32)
     return schema
 
 
@@ -443,6 +443,4 @@ async def to_code(config):
         )
         cg.add(var.set_writer(lambda_))
     await display.register_display(var, config)
-    await spi.register_spi_device(var, config)
-    # Displays are write-only, set the SPI device to write-only as well
-    cg.add(var.set_write_only(True))
+    await spi.register_spi_device(var, config, write_only=True)
