@@ -13,7 +13,7 @@ namespace esphome::api {
 static inline void append_quoted_string(DumpBuffer &out, const StringRef &ref) {
   out.append("'");
   if (!ref.empty()) {
-    out.append(ref.c_str());
+    out.append(ref.c_str(), ref.size());
   }
   out.append("'");
 }

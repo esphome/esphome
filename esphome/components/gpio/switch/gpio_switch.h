@@ -8,7 +8,7 @@
 namespace esphome {
 namespace gpio {
 
-class GPIOSwitch : public switch_::Switch, public Component {
+class GPIOSwitch final : public switch_::Switch, public Component {
  public:
   void set_pin(GPIOPin *pin) { pin_ = pin; }
 

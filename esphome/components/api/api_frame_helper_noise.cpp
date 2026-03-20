@@ -153,8 +153,10 @@ APIError APINoiseFrameHelper::loop() {
     }
   }
 
-  // Use base class implementation for buffer sending
-  return APIFrameHelper::loop();
+  if (!this->overflow_buf_.empty()) [[unlikely]] {
+    return this->drain_overflow_and_handle_errors_();
+  }
+  return APIError::OK;
 }
 
 /** Read a packet into the rx_buf_.
@@ -258,10 +260,13 @@ APIError APINoiseFrameHelper::state_action_() {
     // ignore contents, may be used in future for flags
     // Resize for: existing prologue + 2 size bytes + frame data
     size_t old_size = this->prologue_.size();
-    this->prologue_.resize(old_size + 2 + this->rx_buf_.size());
-    this->prologue_[old_size] = (uint8_t) (this->rx_buf_.size() >> 8);
-    this->prologue_[old_size + 1] = (uint8_t) this->rx_buf_.size();
-    std::memcpy(this->prologue_.data() + old_size + 2, this->rx_buf_.data(), this->rx_buf_.size());
+    size_t rx_size = this->rx_buf_.size();
+    this->prologue_.resize(old_size + 2 + rx_size);
+    this->prologue_[old_size] = (uint8_t) (rx_size >> 8);
+    this->prologue_[old_size + 1] = (uint8_t) rx_size;
+    if (rx_size > 0) {
+      std::memcpy(this->prologue_.data() + old_size + 2, this->rx_buf_.data(), rx_size);
+    }
 
     state_ = State::SERVER_HELLO;
   }
@@ -447,14 +452,6 @@ APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
   buffer->type = type;
   return APIError::OK;
 }
-APIError APINoiseFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
-  // Resize to include MAC space (required for Noise encryption)
-  buffer.get_buffer()->resize(buffer.get_buffer()->size() + frame_footer_size_);
-  MessageInfo msg{type, 0,
-                  static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_ - frame_footer_size_)};
-  return write_protobuf_messages(buffer, std::span<const MessageInfo>(&msg, 1));
-}
-
 APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) {
   APIError aerr = this->check_data_state_();
   if (aerr != APIError::OK)

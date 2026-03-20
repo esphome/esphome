@@ -9,9 +9,11 @@
 #include "esphome/core/defines.h"
 #ifdef USE_API
 #include "esphome/components/api/api_buffer.h"
+#include "esphome/components/api/api_overflow_buffer.h"
 #include "esphome/components/socket/socket.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "proto.h"
 
 namespace esphome::api {
 
@@ -36,8 +38,6 @@ static constexpr uint16_t RX_BUF_NULL_TERMINATOR = 1;
 // Maximum number of messages to batch in a single write operation
 // Must be >= MAX_INITIAL_PER_BATCH in api_connection.h (enforced by static_assert there)
 static constexpr size_t MAX_MESSAGES_PER_BATCH = 34;
-
-class ProtoWriteBuffer;
 
 // Max client name length (e.g., "Home Assistant 2026.1.0.dev0" = 28 chars)
 static constexpr size_t CLIENT_INFO_NAME_MAX_LEN = 32;
@@ -105,9 +105,9 @@ class APIFrameHelper {
   }
   virtual ~APIFrameHelper() = default;
   virtual APIError init() = 0;
-  virtual APIError loop();
+  virtual APIError loop() = 0;
   virtual APIError read_packet(ReadPacketBuffer *buffer) = 0;
-  bool can_write_without_blocking() { return this->state_ == State::DATA && this->tx_buf_count_ == 0; }
+  bool can_write_without_blocking() { return this->state_ == State::DATA && this->overflow_buf_.empty(); }
   int getpeername(struct sockaddr *addr, socklen_t *addrlen) { return socket_->getpeername(addr, addrlen); }
   APIError close() {
     if (state_ == State::CLOSED)
@@ -134,34 +134,41 @@ class APIFrameHelper {
   //
   // For log messages: Use Nagle to coalesce multiple small log packets into
   // fewer larger packets, reducing WiFi overhead. However, we limit batching
-  // to 3 messages to avoid excessive LWIP buffer pressure on memory-constrained
-  // devices like ESP8266. LWIP's TCP_OVERSIZE option coalesces the data into
-  // shared pbufs, but holding data too long waiting for Nagle's timer causes
-  // buffer exhaustion and dropped messages.
+  // to avoid excessive LWIP buffer pressure on memory-constrained devices.
+  // LWIP's TCP_OVERSIZE option coalesces the data into shared pbufs, but
+  // holding data too long waiting for Nagle's timer causes buffer exhaustion
+  // and dropped messages.
   //
-  // Flow: Log 1 (Nagle on) -> Log 2 (Nagle on) -> Log 3 (NODELAY, flush all)
+  // ESP32 (TCP_SND_BUF=4×MSS+) / RP2040 (8×MSS) / LibreTiny (4×MSS): 4 logs per cycle
+  // ESP8266 (2×MSS): 3 logs per cycle (tightest buffers)
+  //
+  // Flow (ESP32/RP2040/LT): Log 1 (Nagle on) -> Log 2 -> Log 3 -> Log 4 (NODELAY, flush)
+  // Flow (ESP8266):         Log 1 (Nagle on) -> Log 2 -> Log 3 (NODELAY, flush all)
   //
   void set_nodelay_for_message(bool is_log_message) {
     if (!is_log_message) {
-      if (this->nodelay_state_ != NODELAY_ON) {
+      if (this->nodelay_counter_) {
         this->set_nodelay_raw_(true);
-        this->nodelay_state_ = NODELAY_ON;
+        this->nodelay_counter_ = 0;
       }
       return;
     }
-
-    // Log messages 1-3: state transitions -1 -> 1 -> 2 -> -1 (flush on 3rd)
-    if (this->nodelay_state_ == NODELAY_ON) {
+    // Log message: enable Nagle on first, flush after LOG_NAGLE_COUNT
+    if (!this->nodelay_counter_)
       this->set_nodelay_raw_(false);
-      this->nodelay_state_ = 1;
-    } else if (this->nodelay_state_ >= LOG_NAGLE_COUNT) {
+    if (++this->nodelay_counter_ > LOG_NAGLE_COUNT) {
       this->set_nodelay_raw_(true);
-      this->nodelay_state_ = NODELAY_ON;
-    } else {
-      this->nodelay_state_++;
+      this->nodelay_counter_ = 0;
     }
   }
-  virtual APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) = 0;
+  APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
+    // Resize buffer to include footer space if needed (e.g. Noise MAC)
+    if (frame_footer_size_)
+      buffer.get_buffer()->resize(buffer.get_buffer()->size() + frame_footer_size_);
+    MessageInfo msg{type, 0,
+                    static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_ - frame_footer_size_)};
+    return write_protobuf_messages(buffer, std::span<const MessageInfo>(&msg, 1));
+  }
   // Write multiple protobuf messages in a single operation
   // messages contains (message_type, offset, length) for each message in the buffer
   // The buffer contains all messages with appropriate padding before each
@@ -183,28 +190,23 @@ class APIFrameHelper {
   }
 
  protected:
-  // Buffer containing data to be sent
-  struct SendBuffer {
-    std::unique_ptr<uint8_t[]> data;
-    uint16_t size{0};    // Total size of the buffer
-    uint16_t offset{0};  // Current offset within the buffer
-
-    // Using uint16_t reduces memory usage since ESPHome API messages are limited to UINT16_MAX (65535) bytes
-    uint16_t remaining() const { return size - offset; }
-    const uint8_t *current_data() const { return data.get() + offset; }
-  };
+  // Drain backlogged overflow data to the socket and handle errors.
+  // Called when overflow_buf_.empty() is false. Out-of-line to keep the
+  // fast path (empty check) inline at call sites.
+  // Returns OK for transient errors (WOULD_BLOCK), SOCKET_WRITE_FAILED for hard errors.
+  APIError drain_overflow_and_handle_errors_();
 
   // Common implementation for writing raw data to socket
   APIError write_raw_(const struct iovec *iov, int iovcnt, uint16_t total_write_len);
 
-  // Try to send data from the tx buffer
-  APIError try_send_tx_buf_();
-
-  // Helper method to buffer data from IOVs
-  void buffer_data_from_iov_(const struct iovec *iov, int iovcnt, uint16_t total_write_len, uint16_t offset);
-
-  // Common socket write error handling
-  APIError handle_socket_write_error_();
+  // Check if a socket write errno is a hard error (not WOULD_BLOCK/EAGAIN).
+  // Returns WOULD_BLOCK for transient errors, SOCKET_WRITE_FAILED for hard errors.
+  APIError check_socket_write_err_(int err) {
+    if (err == EWOULDBLOCK || err == EAGAIN)
+      return APIError::WOULD_BLOCK;
+    this->state_ = State::FAILED;
+    return APIError::SOCKET_WRITE_FAILED;
+  }
 
   // Socket ownership (4 bytes on 32-bit, 8 bytes on 64-bit)
   std::unique_ptr<socket::Socket> socket_;
@@ -239,8 +241,8 @@ class APIFrameHelper {
     return APIError::WOULD_BLOCK;
   }
 
-  // Containers (size varies, but typically 12+ bytes on 32-bit)
-  std::array<std::unique_ptr<SendBuffer>, API_MAX_SEND_QUEUE> tx_buf_;
+  // Backlog for unsent data when TCP send buffer is full (rarely used in production)
+  APIOverflowBuffer overflow_buf_;
   APIBuffer rx_buf_;
 
   // Client name buffer - stores name from Hello message or initial peername
@@ -251,15 +253,17 @@ class APIFrameHelper {
   State state_{State::INITIALIZE};
   uint8_t frame_header_padding_{0};
   uint8_t frame_footer_size_{0};
-  uint8_t tx_buf_head_{0};
-  uint8_t tx_buf_tail_{0};
-  uint8_t tx_buf_count_{0};
-  // Nagle batching state for log messages. NODELAY_ON (-1) means NODELAY is enabled
-  // (immediate send). Values 1-2 count log messages in the current Nagle batch.
-  // After LOG_NAGLE_COUNT logs, we switch to NODELAY to flush and reset.
-  static constexpr int8_t NODELAY_ON = -1;
-  static constexpr int8_t LOG_NAGLE_COUNT = 2;
-  int8_t nodelay_state_{NODELAY_ON};
+  // Nagle batching counter for log messages. 0 means NODELAY is enabled (immediate send).
+  // Values 1..LOG_NAGLE_COUNT count log messages in the current Nagle batch.
+  // After LOG_NAGLE_COUNT logs, we flush by re-enabling NODELAY and resetting to 0.
+  // ESP8266 has the tightest TCP send buffer (2×MSS) and needs conservative batching.
+  // ESP32 (4×MSS+), RP2040 (8×MSS), and LibreTiny (4×MSS) can coalesce more.
+#ifdef USE_ESP8266
+  static constexpr uint8_t LOG_NAGLE_COUNT = 2;
+#else
+  static constexpr uint8_t LOG_NAGLE_COUNT = 3;
+#endif
+  uint8_t nodelay_counter_{0};
 
   // Internal helper to set TCP_NODELAY socket option
   void set_nodelay_raw_(bool enable) {
