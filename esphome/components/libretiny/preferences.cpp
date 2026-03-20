@@ -9,7 +9,7 @@
 
 namespace esphome::libretiny {
 
-static const char *const TAG = "lt.preferences";
+static const char *const TAG = "preferences";
 
 // Buffer size for converting uint32_t to string: max "4294967295" (10 chars) + null terminator + 1 padding
 static constexpr size_t KEY_BUFFER_SIZE = 12;
