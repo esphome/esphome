@@ -236,6 +236,13 @@ class ProtoWriteBuffer {
    * Following https://protobuf.dev/programming-guides/encoding/#structure
    */
   void encode_field_raw(uint32_t field_id, uint32_t type) { this->encode_varint_raw((field_id << 3) | type); }
+  /// Write a single raw byte to the buffer (no tag, no encoding).
+  inline void write_raw_byte(uint8_t b) ESPHOME_ALWAYS_INLINE { *this->pos_++ = b; }
+  /// Write a raw 32-bit value in little-endian format (no tag, no zero check).
+  inline void write_fixed32_raw(uint32_t value) ESPHOME_ALWAYS_INLINE {
+    std::memcpy(this->pos_, &value, 4);
+    this->pos_ += 4;
+  }
   void encode_string(uint32_t field_id, const char *string, size_t len, bool force = false) {
     if (len == 0 && !force)
       return;
@@ -276,7 +283,7 @@ class ProtoWriteBuffer {
     this->debug_check_bounds_(1);
     *this->pos_++ = value ? 0x01 : 0x00;
   }
-  inline void encode_fixed32(uint32_t field_id, uint32_t value, bool force = false) ESPHOME_ALWAYS_INLINE {
+  void encode_fixed32(uint32_t field_id, uint32_t value, bool force = false) {
     if (value == 0 && !force)
       return;
 

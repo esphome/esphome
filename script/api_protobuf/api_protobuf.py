@@ -556,6 +556,19 @@ class Fixed32Type(TypeInfo):
         o += "out.append(buffer);"
         return o
 
+    @property
+    def encode_content(self) -> str:
+        tag = (self.number << 3) | (self.wire_type & 0b111)
+        if self.force and tag < 128:
+            # Emit raw byte writes: precomputed tag + direct memcpy
+            return (
+                f"buffer.write_raw_byte({tag});\n"
+                f"buffer.write_fixed32_raw(this->{self.field_name});"
+            )
+        if self.force:
+            return f"buffer.{self.encode_func}({self.number}, this->{self.field_name}, true);"
+        return f"buffer.{self.encode_func}({self.number}, this->{self.field_name});"
+
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
         if force:
