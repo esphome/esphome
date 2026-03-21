@@ -41,6 +41,9 @@
 #endif
 #endif
 #endif  // USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_RUNTIME_STATS
+#include "esphome/components/runtime_stats/runtime_stats.h"
+#endif
 #if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
 namespace esphome::socket {
 void socket_wake();              // NOLINT(readability-redundant-declaration)
@@ -958,14 +961,6 @@ inline void Application::drain_wake_notifications_() {
   }
 }
 #endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
-
-}  // namespace esphome
-
-#ifdef USE_RUNTIME_STATS
-#include "esphome/components/runtime_stats/runtime_stats.h"
-#endif
-
-namespace esphome {
 
 inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   uint8_t new_app_state = 0;
