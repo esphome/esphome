@@ -234,7 +234,7 @@ void APIConnection::loop() {
           this->last_traffic_ = now;
         }
         // read a packet
-        this->read_message(buffer.data_len, buffer.type, buffer.data);
+        this->read_message_(buffer.data_len, buffer.type, buffer.data);
         if (this->flags_.remove)
           return;
       }
