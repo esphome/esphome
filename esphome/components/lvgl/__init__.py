@@ -1,12 +1,30 @@
 import importlib
-import logging
 from pathlib import Path
 import pkgutil
 
 from esphome.automation import build_automation, validate_automation
 import esphome.codegen as cg
-from esphome.components.const import CONF_COLOR_DEPTH, CONF_DRAW_ROUNDING
+from esphome.components.const import (
+    CONF_BYTE_ORDER,
+    CONF_COLOR_DEPTH,
+    CONF_DRAW_ROUNDING,
+)
 from esphome.components.display import Display
+from esphome.components.esp32 import (
+    VARIANT_ESP32P4,
+    add_idf_component,
+    add_idf_sdkconfig_option,
+    get_esp32_variant,
+)
+from esphome.components.image import (
+    CONF_OPAQUE,
+    IMAGE_TYPE,
+    ImageBinary,
+    ImageGrayscale,
+    ImageRGB,
+    ImageRGB565,
+    get_image_metadata,
+)
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
@@ -21,7 +39,6 @@ from esphome.const import (
     CONF_PAGES,
     CONF_TIMEOUT,
     CONF_TRIGGER_ID,
-    CONF_TYPE,
 )
 from esphome.core import CORE, ID, Lambda
 from esphome.cpp_generator import MockObj
@@ -30,8 +47,7 @@ from esphome.helpers import write_file_if_changed
 from esphome.yaml_util import load_yaml
 
 from . import defines as df, helpers, lv_validation as lvalid, widgets
-from .automation import disp_update, focused_widgets, refreshed_widgets
-from .defines import add_define
+from .automation import focused_widgets, layers_to_code, lvgl_update, refreshed_widgets
 from .encoders import (
     ENCODERS_CONFIG,
     encoders_to_code,
@@ -45,12 +61,13 @@ from .lvcode import LvContext, LvglComponent, lvgl_static
 from .schemas import (
     DISP_BG_SCHEMA,
     FULL_STYLE_SCHEMA,
+    STYLE_REMAP,
     WIDGET_TYPES,
     any_widget_schema,
     container_schema,
     obj_schema,
 )
-from .styles import add_top_layer, styles_to_code, theme_to_code
+from .styles import styles_to_code, theme_to_code
 from .touchscreens import touchscreen_schema, touchscreens_to_code
 from .trigger import add_on_boot_triggers, generate_triggers
 from .types import IdleTrigger, PlainTrigger, lv_font_t, lv_group_t, lv_style_t, lvgl_ns
@@ -58,7 +75,7 @@ from .widgets import (
     LvScrActType,
     Widget,
     add_widgets,
-    get_scr_act,
+    get_screen_active,
     set_obj_properties,
     styles_used,
 )
@@ -84,7 +101,6 @@ DOMAIN = "lvgl"
 DEPENDENCIES = ["display"]
 AUTO_LOAD = ["key_provider"]
 CODEOWNERS = ["@clydebarrow"]
-LOGGER = logging.getLogger(__name__)
 HELLO_WORLD_FILE = "hello_world.yaml"
 
 
@@ -102,6 +118,7 @@ def as_macro(macro, value):
     return f"#define {macro} {value}"
 
 
+LVGL_VERSION = "9.5.0"
 LV_CONF_FILENAME = "lv_conf.h"
 LV_CONF_H_FORMAT = """\
 #pragma once
@@ -110,7 +127,17 @@ LV_CONF_H_FORMAT = """\
 
 
 def generate_lv_conf_h():
-    definitions = [as_macro(m, v) for m, v in df.get_data(df.KEY_LV_DEFINES).items()]
+    # Get all possible LV_ config defines based on the widgets used in the config, and the standard LVGL options
+    all_defines = set(
+        df.LV_DEFINES + tuple(f"LV_USE_{w.upper()}" for w in WIDGET_TYPES)
+    )
+    # Get the defines that are actually used based on the config
+    lv_defines = df.get_data(df.KEY_LV_DEFINES)
+    unused_defines = all_defines - set(lv_defines)
+    # Create the content of lv_conf.h with the used defines set to their value, and the unused defines disabled
+    definitions = [as_macro(m, v) for m, v in lv_defines.items()] + [
+        as_macro(m, "0") for m in unused_defines
+    ]
     definitions.sort()
     return LV_CONF_H_FORMAT.format("\n".join(definitions))
 
@@ -133,7 +160,7 @@ def multi_conf_validate(configs: list[dict]):
         for item in (
             CONF_LOG_LEVEL,
             CONF_COLOR_DEPTH,
-            df.CONF_BYTE_ORDER,
+            CONF_BYTE_ORDER,
             df.CONF_TRANSPARENCY_KEY,
         ):
             if base_config[item] != config[item]:
@@ -166,14 +193,7 @@ def final_validation(config_list):
                 )
         buffer_frac = config[CONF_BUFFER_SIZE]
         if CORE.is_esp32 and buffer_frac > 0.5 and PSRAM_DOMAIN not in global_config:
-            LOGGER.warning("buffer_size: may need to be reduced without PSRAM")
-        for image_id in lv_images_used:
-            path = global_config.get_path_for_id(image_id)[:-1]
-            image_conf = global_config.get_config_for_path(path)
-            if image_conf[CONF_TYPE] in ("RGBA", "RGB24"):
-                raise cv.Invalid(
-                    "Using RGBA or RGB24 in image config not compatible with LVGL", path
-                )
+            df.LOGGER.warning("buffer_size: may need to be reduced without PSRAM")
         for w in focused_widgets:
             path = global_config.get_path_for_id(w)
             widget_conf = global_config.get_config_for_path(path[:-1])
@@ -205,39 +225,48 @@ def final_validation(config_list):
 async def to_code(configs):
     config_0 = configs[0]
     # Global configuration
-    cg.add_library("lvgl/lvgl", "8.4.0")
+    if CORE.is_esp32:
+        if get_esp32_variant() == VARIANT_ESP32P4:
+            add_idf_sdkconfig_option("CONFIG_LV_DRAW_BUF_ALIGN", 64)
+            # disable use of PPA for fills until upstream bugs fixed
+            df.add_define("LV_USE_PPA", "0")
+            df.add_define("LV_DRAW_BUF_ALIGN", "64")
+        else:
+            df.add_define("LV_DRAW_BUF_ALIGN", "32")
+        add_idf_component(name="lvgl/lvgl", ref=LVGL_VERSION)
+    else:
+        df.add_define("LV_DRAW_BUF_ALIGN", "1")
+        cg.add_library("lvgl/lvgl", LVGL_VERSION)
+    df.add_define("LV_DRAW_BUF_STRIDE_ALIGN", "1")
+    df.add_define("LV_USE_DRAW_SW", "1")
+    df.add_define("LV_USE_STDLIB_SPRINTF", "LV_STDLIB_CLIB")
+    df.add_define("LV_USE_STDLIB_STRING", "LV_STDLIB_CLIB")
+    df.add_define("LV_USE_STDLIB_MALLOC", "LV_STDLIB_CUSTOM")
     cg.add_define("USE_LVGL")
     # suppress default enabling of extra widgets
-    add_define("_LV_KCONFIG_PRESENT")
+    # cg.add_define("LV_KCONFIG_PRESENT")
     # Always enable - lots of things use it.
-    add_define("LV_DRAW_COMPLEX", "1")
-    add_define("LV_TICK_CUSTOM", "1")
-    add_define("LV_TICK_CUSTOM_INCLUDE", '"esphome/components/lvgl/lvgl_hal.h"')
-    add_define("LV_TICK_CUSTOM_SYS_TIME_EXPR", "(lv_millis())")
-    add_define("LV_MEM_CUSTOM", "1")
-    add_define("LV_MEM_CUSTOM_ALLOC", "lv_custom_mem_alloc")
-    add_define("LV_MEM_CUSTOM_FREE", "lv_custom_mem_free")
-    add_define("LV_MEM_CUSTOM_REALLOC", "lv_custom_mem_realloc")
-    add_define("LV_MEM_CUSTOM_INCLUDE", '"esphome/components/lvgl/lvgl_hal.h"')
+    df.add_define("LV_DRAW_SW_COMPLEX", "1")
 
-    add_define(
+    df.add_define(
         "LV_LOG_LEVEL",
         f"LV_LOG_LEVEL_{df.LV_LOG_LEVELS[config_0[CONF_LOG_LEVEL]]}",
     )
+    df.add_define("LV_USE_LOG", "1")
     cg.add_define(
         "LVGL_LOG_LEVEL",
         cg.RawExpression(f"ESPHOME_LOG_LEVEL_{config_0[CONF_LOG_LEVEL]}"),
     )
-    add_define("LV_COLOR_DEPTH", config_0[CONF_COLOR_DEPTH])
+    df.add_define("LV_COLOR_DEPTH", config_0[CONF_COLOR_DEPTH])
     for font in helpers.lv_fonts_used:
-        add_define(f"LV_FONT_{font.upper()}")
+        df.add_define(f"LV_FONT_{font.upper()}")
 
     if config_0[CONF_COLOR_DEPTH] == 16:
-        add_define(
+        df.add_define(
             "LV_COLOR_16_SWAP",
-            "1" if config_0[df.CONF_BYTE_ORDER] == "big_endian" else "0",
+            "1" if config_0[CONF_BYTE_ORDER] == "big_endian" else "0",
         )
-    add_define(
+    df.add_define(
         "LV_COLOR_CHROMA_KEY",
         await lvalid.lv_color.process(config_0[df.CONF_TRANSPARENCY_KEY]),
     )
@@ -248,7 +277,7 @@ async def to_code(configs):
         await cg.get_variable(font)
     default_font = config_0[df.CONF_DEFAULT_FONT]
     if not lvalid.is_lv_font(default_font):
-        add_define(
+        df.add_define(
             "LV_FONT_CUSTOM_DECLARE", f"LV_FONT_DECLARE(*{df.DEFAULT_ESPHOME_FONT})"
         )
         globfont_id = ID(
@@ -262,9 +291,9 @@ async def to_code(configs):
             MockObj(await lvalid.lv_font.process(default_font), "->").get_lv_font(),
             static=False,
         )
-        add_define("LV_FONT_DEFAULT", df.DEFAULT_ESPHOME_FONT)
+        df.add_define("LV_FONT_DEFAULT", df.DEFAULT_ESPHOME_FONT)
     else:
-        add_define("LV_FONT_DEFAULT", await lvalid.lv_font.process(default_font))
+        df.add_define("LV_FONT_DEFAULT", await lvalid.lv_font.process(default_font))
     cg.add(lvgl_static.esphome_lvgl_init())
     default_group = get_default_group(config_0)
 
@@ -293,8 +322,9 @@ async def to_code(configs):
         await cg.register_component(lv_component, config)
         Widget.create(config[CONF_ID], lv_component, LvScrActType(), config)
 
-        lv_scr_act = get_scr_act(lv_component)
+        lv_scr_act = get_screen_active(lv_component)
         async with LvContext():
+            cg.add(lv_component.set_big_endian(config[CONF_BYTE_ORDER] == "big_endian"))
             await touchscreens_to_code(lv_component, config)
             await encoders_to_code(lv_component, config, default_group)
             await keypads_to_code(lv_component, config, default_group)
@@ -304,9 +334,10 @@ async def to_code(configs):
             await set_obj_properties(lv_scr_act, config)
             await add_widgets(lv_scr_act, config)
             await add_pages(lv_component, config)
-            await add_top_layer(lv_component, config)
+            await layers_to_code(lv_component, config)
+            await lvgl_update(lv_component, config)
             await msgboxes_to_code(lv_component, config)
-            await disp_update(lv_component.get_disp(), config)
+            # await disp_update(lv_component.get_disp(), config)
     # Set this directly since we are limited in how many methods can be added to the Widget class.
     Widget.widgets_completed = True
     async with LvContext():
@@ -336,15 +367,53 @@ async def to_code(configs):
     # This must be done after all widgets are created
     for comp in helpers.lvgl_components_required:
         cg.add_define(f"USE_LVGL_{comp.upper()}")
-    if {"transform_angle", "transform_zoom"} & styles_used:
-        add_define("LV_COLOR_SCREEN_TRANSP", "1")
+    lv_image_formats = df.get_color_formats().copy()
+    if {
+        "transform_rotation",
+        "transform_scale",
+        "transform_scale_x",
+        "transform_scale_y",
+    } & styles_used:
+        df.add_define("LV_COLOR_SCREEN_TRANSP", "1")
+        lv_image_formats.add("ARGB8888")
+    lv_image_formats.add(
+        "RGB565"
+    )  # Currently always need RGB565 for the display buffer
     for use in helpers.lv_uses:
-        add_define(f"LV_USE_{use.upper()}")
+        df.add_define(f"LV_USE_{use.upper()}")
         cg.add_define(f"USE_LVGL_{use.upper()}")
+
+    for image_id in lv_images_used:
+        await cg.get_variable(image_id)
+        metadata = get_image_metadata(image_id.id)
+        image_type = IMAGE_TYPE[metadata.image_type]
+        transparent = metadata.transparency != CONF_OPAQUE
+        if transparent:
+            # Internal draw layer will use ARGB8888
+            lv_image_formats.add("ARGB8888")
+        if image_type == ImageBinary:
+            lv_image_formats.add("I1")
+        if image_type == ImageGrayscale:
+            lv_image_formats.add("A8")
+        if image_type == ImageRGB565:
+            lv_image_formats.add("RGB565A8" if transparent else "RGB565")
+        if image_type == ImageRGB:
+            lv_image_formats.add("ARGB8888" if transparent else "RGB8888")
+    if df.is_defined("LV_GRADIENT_MAX_STOPS"):
+        lv_image_formats.add("RGB888")
+    for fmt in lv_image_formats:
+        df.add_define(f"LV_DRAW_SW_SUPPORT_{fmt}", "1")
     lv_conf_h_file = CORE.relative_src_path(LV_CONF_FILENAME)
     write_file_if_changed(lv_conf_h_file, generate_lv_conf_h())
     cg.add_build_flag("-DLV_CONF_H=1")
-    cg.add_build_flag(f'-DLV_CONF_PATH="{LV_CONF_FILENAME}"')
+    cg.add_build_flag(f'-DLV_CONF_PATH=\\"{LV_CONF_FILENAME}\\"')
+
+    for prop in df.get_remapped_uses():
+        df.LOGGER.warning(
+            "Property '%s' is deprecated, use '%s' instead", prop, STYLE_REMAP[prop]
+        )
+    for warning in df.get_warnings():
+        df.LOGGER.warning(warning)
 
 
 def display_schema(config):
@@ -357,7 +426,9 @@ def display_schema(config):
 
 def add_hello_world(config):
     if df.CONF_WIDGETS not in config and CONF_PAGES not in config:
-        LOGGER.info("No pages or widgets configured, creating default hello_world page")
+        df.LOGGER.info(
+            "No pages or widgets configured, creating default hello_world page"
+        )
         hello_world_path = Path(__file__).parent / HELLO_WORLD_FILE
         config[df.CONF_WIDGETS] = any_widget_schema()(load_yaml(hello_world_path))
     return config
@@ -395,8 +466,8 @@ LVGL_SCHEMA = cv.All(
                 cv.Optional(CONF_LOG_LEVEL, default="WARN"): cv.one_of(
                     *df.LV_LOG_LEVELS, upper=True
                 ),
-                cv.Optional(df.CONF_BYTE_ORDER, default="big_endian"): cv.one_of(
-                    "big_endian", "little_endian"
+                cv.Optional(CONF_BYTE_ORDER, default="big_endian"): cv.one_of(
+                    "big_endian", "little_endian", lower=True
                 ),
                 cv.Optional(df.CONF_STYLE_DEFINITIONS): cv.ensure_list(
                     cv.Schema({cv.Required(CONF_ID): cv.declare_id(lv_style_t)}).extend(
@@ -424,6 +495,7 @@ LVGL_SCHEMA = cv.All(
                 cv.Optional(df.CONF_MSGBOXES): cv.ensure_list(MSGBOX_SCHEMA),
                 cv.Optional(df.CONF_PAGE_WRAP, default=True): lv_bool,
                 cv.Optional(df.CONF_TOP_LAYER): container_schema(obj_spec),
+                cv.Optional(df.CONF_BOTTOM_LAYER): container_schema(obj_spec),
                 cv.Optional(
                     df.CONF_TRANSPARENCY_KEY, default=0x000400
                 ): lvalid.lv_color,

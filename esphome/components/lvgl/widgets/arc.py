@@ -18,7 +18,8 @@ from ..defines import (
     CONF_KNOB,
     CONF_MAIN,
     CONF_START_ANGLE,
-    literal,
+    LV_OBJ_FLAG,
+    LV_PART,
 )
 from ..lv_validation import (
     get_start_value,
@@ -28,8 +29,8 @@ from ..lv_validation import (
     lv_positive_int,
 )
 from ..lvcode import lv, lv_expr, lv_obj
-from ..types import LvNumber, NumberType
-from . import Widget
+from ..types import LvNumber
+from . import NumberType, Widget
 
 CONF_ARC = "arc"
 ARC_SCHEMA = cv.Schema(
@@ -71,39 +72,17 @@ class ArcType(NumberType):
         )
 
     async def to_code(self, w: Widget, config):
-        if CONF_MIN_VALUE in config and CONF_MAX_VALUE in config:
-            max_value = await lv_int.process(config[CONF_MAX_VALUE])
-            min_value = await lv_int.process(config[CONF_MIN_VALUE])
-            lv.arc_set_range(w.obj, min_value, max_value)
-        elif CONF_MIN_VALUE in config:
-            max_value = w.get_property(CONF_MAX_VALUE)
-            min_value = await lv_int.process(config[CONF_MIN_VALUE])
-            lv.arc_set_range(w.obj, min_value, max_value)
-        elif CONF_MAX_VALUE in config:
-            max_value = await lv_int.process(config[CONF_MAX_VALUE])
-            min_value = w.get_property(CONF_MIN_VALUE)
-            lv.arc_set_range(w.obj, min_value, max_value)
-
-        await w.set_property(
-            "bg_start_angle",
-            await lv_angle_degrees.process(config.get(CONF_START_ANGLE)),
-        )
-        await w.set_property(
-            "bg_end_angle", await lv_angle_degrees.process(config.get(CONF_END_ANGLE))
-        )
-        await w.set_property(
-            CONF_ROTATION, await lv_angle_degrees.process(config.get(CONF_ROTATION))
-        )
-        await w.set_property(CONF_MODE, config)
-        await w.set_property(
-            CONF_CHANGE_RATE,
-            await lv_positive_int.process(config.get(CONF_CHANGE_RATE)),
-        )
-
+        for prop, validator in ARC_MODIFY_SCHEMA.schema.items():
+            if prop != CONF_VALUE:
+                # start_angle and end_angle are mapped to bg_start_angle and bg_end_angle
+                prop = str(prop)
+                if prop.endswith("_angle"):
+                    prop = "bg_" + prop
+                await w.set_property(prop, config, processor=validator)
         if CONF_ADJUSTABLE in config:
             if not config[CONF_ADJUSTABLE]:
-                lv_obj.remove_style(w.obj, nullptr, literal("LV_PART_KNOB"))
-                w.clear_flag("LV_OBJ_FLAG_CLICKABLE")
+                lv_obj.remove_style(w.obj, nullptr, LV_PART.KNOB)
+                w.clear_flag(LV_OBJ_FLAG.CLICKABLE)
             elif CONF_GROUP not in config:
                 # For some reason arc does not get automatically added to the default group
                 lv.group_add_obj(lv_expr.group_get_default(), w.obj)

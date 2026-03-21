@@ -408,7 +408,6 @@ SYMBOL_PATTERNS = {
     ],
     "arduino_core": [
         "pinMode",
-        "resetPins",
         "millis",
         "micros",
         "delay(",  # More specific - Arduino delay function with parenthesis

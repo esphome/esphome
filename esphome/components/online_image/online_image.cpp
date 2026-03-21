@@ -228,14 +228,6 @@ void OnlineImage::end_connection_() {
   this->disable_loop();
 }
 
-void OnlineImage::add_on_finished_callback(std::function<void(bool)> &&callback) {
-  this->download_finished_callback_.add(std::move(callback));
-}
-
-void OnlineImage::add_on_error_callback(std::function<void()> &&callback) {
-  this->download_error_callback_.add(std::move(callback));
-}
-
 void OnlineImage::release() {
   // Clear cache headers
   this->etag_ = "";

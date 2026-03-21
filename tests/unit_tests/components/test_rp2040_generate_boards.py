@@ -59,6 +59,7 @@ def _add_board(
     vendor: str = "",
     name: str | None = None,
     pins_header: str | None = None,
+    extra_flags: str = "",
 ) -> None:
     """Add a board JSON and variant to the fake arduino-pico tree."""
     if variant is None:
@@ -69,11 +70,15 @@ def _add_board(
     json_dir = arduino_pico / "tools" / "json"
     variants_dir = arduino_pico / "variants"
 
+    build: dict = {
+        "mcu": mcu,
+        "variant": variant,
+    }
+    if extra_flags:
+        build["extra_flags"] = extra_flags
+
     board_json = {
-        "build": {
-            "mcu": mcu,
-            "variant": variant,
-        },
+        "build": build,
         "name": name,
         "vendor": vendor,
     }
@@ -271,3 +276,35 @@ def test_placeholder_pins_not_treated_as_virtual(arduino_pico: Path) -> None:
 
     assert "MISO" not in board_pins["badpin"]
     assert boards["badpin"]["max_virtual_pin"] == 64
+
+
+def test_cyw43_supported_flag_sets_wifi(arduino_pico: Path) -> None:
+    """Boards with PICO_CYW43_SUPPORTED=1 in extra_flags should have wifi=True."""
+    _add_board(
+        arduino_pico,
+        "rpipicow",
+        vendor="Raspberry Pi",
+        name="Pico W",
+        pins_header=PICOW_PINS_HEADER,
+        extra_flags="-DARDUINO_RASPBERRY_PI_PICO_W -DPICO_CYW43_SUPPORTED=1 -DCYW43_PIN_WL_DYNAMIC=1",
+    )
+
+    _, boards = load_boards(arduino_pico)
+
+    assert boards["rpipicow"]["wifi"] is True
+
+
+def test_board_without_cyw43_has_no_wifi(arduino_pico: Path) -> None:
+    """Boards without PICO_CYW43_SUPPORTED should not have wifi field."""
+    _add_board(
+        arduino_pico,
+        "rpipico",
+        vendor="Raspberry Pi",
+        name="Pico",
+        pins_header=PICO_PINS_HEADER,
+        extra_flags="-DARDUINO_RASPBERRY_PI_PICO",
+    )
+
+    _, boards = load_boards(arduino_pico)
+
+    assert "wifi" not in boards["rpipico"]

@@ -64,7 +64,11 @@ static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS *
 // A stalled handshake from a buggy client or network glitch holds a connection
 // slot, which can prevent legitimate clients from reconnecting. Also hardens
 // against the less likely case of intentional connection slot exhaustion.
-static constexpr uint32_t HANDSHAKE_TIMEOUT_MS = 15000;
+//
+// 60s is intentionally high: on ESP8266 with power_save_mode: LIGHT and weak
+// WiFi (-70 dBm+), TCP retransmissions push real-world handshake times to
+// 28-30s. See https://github.com/esphome/esphome/issues/14999
+static constexpr uint32_t HANDSHAKE_TIMEOUT_MS = 60000;
 
 static constexpr auto ESPHOME_VERSION_REF = StringRef::from_lit(ESPHOME_VERSION);
 
@@ -2025,8 +2029,7 @@ uint16_t APIConnection::encode_to_buffer(uint32_t calculated_size, MessageEncode
     // Batch message second or later
     // Add padding for previous message footer + this message header
     size_t current_size = shared_buf.size();
-    shared_buf.reserve(current_size + total_calculated_size);
-    shared_buf.resize(current_size + footer_size + header_padding);
+    shared_buf.reserve_and_resize(current_size + total_calculated_size, current_size + footer_size + header_padding);
   }
 
   // Pre-resize buffer to include payload, then encode through raw pointer

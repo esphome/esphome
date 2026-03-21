@@ -96,37 +96,52 @@ template<typename... Ts> class IsActiveCondition : public Condition<Ts...> {
 
 class DisplayMenuOnEnterTrigger : public Trigger<const MenuItem *> {
  public:
-  explicit DisplayMenuOnEnterTrigger(MenuItem *parent) {
-    parent->add_on_enter_callback([this, parent]() { this->trigger(parent); });
+  explicit DisplayMenuOnEnterTrigger(MenuItem *parent) : parent_(parent) {
+    parent->add_on_enter_callback([this]() { this->trigger(this->parent_); });
   }
+
+ protected:
+  MenuItem *parent_;
 };
 
 class DisplayMenuOnLeaveTrigger : public Trigger<const MenuItem *> {
  public:
-  explicit DisplayMenuOnLeaveTrigger(MenuItem *parent) {
-    parent->add_on_leave_callback([this, parent]() { this->trigger(parent); });
+  explicit DisplayMenuOnLeaveTrigger(MenuItem *parent) : parent_(parent) {
+    parent->add_on_leave_callback([this]() { this->trigger(this->parent_); });
   }
+
+ protected:
+  MenuItem *parent_;
 };
 
 class DisplayMenuOnValueTrigger : public Trigger<const MenuItem *> {
  public:
-  explicit DisplayMenuOnValueTrigger(MenuItem *parent) {
-    parent->add_on_value_callback([this, parent]() { this->trigger(parent); });
+  explicit DisplayMenuOnValueTrigger(MenuItem *parent) : parent_(parent) {
+    parent->add_on_value_callback([this]() { this->trigger(this->parent_); });
   }
+
+ protected:
+  MenuItem *parent_;
 };
 
 class DisplayMenuOnNextTrigger : public Trigger<const MenuItem *> {
  public:
-  explicit DisplayMenuOnNextTrigger(MenuItemCustom *parent) {
-    parent->add_on_next_callback([this, parent]() { this->trigger(parent); });
+  explicit DisplayMenuOnNextTrigger(MenuItemCustom *parent) : parent_(parent) {
+    parent->add_on_next_callback([this]() { this->trigger(this->parent_); });
   }
+
+ protected:
+  MenuItemCustom *parent_;
 };
 
 class DisplayMenuOnPrevTrigger : public Trigger<const MenuItem *> {
  public:
-  explicit DisplayMenuOnPrevTrigger(MenuItemCustom *parent) {
-    parent->add_on_prev_callback([this, parent]() { this->trigger(parent); });
+  explicit DisplayMenuOnPrevTrigger(MenuItemCustom *parent) : parent_(parent) {
+    parent->add_on_prev_callback([this]() { this->trigger(this->parent_); });
   }
+
+ protected:
+  MenuItemCustom *parent_;
 };
 
 }  // namespace display_menu_base

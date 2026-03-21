@@ -279,7 +279,8 @@ void BME68xBSEC2Component::run_() {
     uint32_t meas_dur = 0;
     meas_dur = bme68x_get_meas_dur(this->op_mode_, &bme68x_conf, &this->bme68x_);
     ESP_LOGV(TAG, "Queueing read in %uus", meas_dur);
-    this->set_timeout("read", meas_dur / 1000, [this, curr_time_ns]() { this->read_(curr_time_ns); });
+    this->trigger_time_ns_ = curr_time_ns;
+    this->set_timeout("read", meas_dur / 1000, [this]() { this->read_(this->trigger_time_ns_); });
   } else {
     ESP_LOGV(TAG, "Measurement not required");
     this->read_(curr_time_ns);

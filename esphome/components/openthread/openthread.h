@@ -11,6 +11,7 @@
 #include <openthread/instance.h>
 #include <openthread/thread.h>
 
+#include <atomic>
 #include <optional>
 #include <vector>
 
@@ -28,6 +29,8 @@ class OpenThreadComponent : public Component {
   float get_setup_priority() const override { return setup_priority::WIFI; }
 
   bool is_connected() const { return this->connected_; }
+  /// Returns true once esp_openthread_init() has completed and the OT lock is usable.
+  bool is_lock_initialized() const { return this->lock_initialized_; }
   network::IPAddresses get_ip_addresses();
   std::optional<otIp6Address> get_omr_address();
   void ot_main();
@@ -51,6 +54,7 @@ class OpenThreadComponent : public Component {
   uint32_t poll_period_{0};
 #endif
   std::optional<int8_t> output_power_{};
+  std::atomic<bool> lock_initialized_{false};
   bool teardown_started_{false};
   bool teardown_complete_{false};
   bool connected_{false};

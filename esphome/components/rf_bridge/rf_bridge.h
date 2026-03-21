@@ -49,11 +49,11 @@ class RFBridgeComponent : public uart::UARTDevice, public Component {
  public:
   void loop() override;
   void dump_config() override;
-  void add_on_code_received_callback(std::function<void(RFBridgeData)> callback) {
-    this->data_callback_.add(std::move(callback));
+  template<typename F> void add_on_code_received_callback(F &&callback) {
+    this->data_callback_.add(std::forward<F>(callback));
   }
-  void add_on_advanced_code_received_callback(std::function<void(RFBridgeAdvancedData)> callback) {
-    this->advanced_data_callback_.add(std::move(callback));
+  template<typename F> void add_on_advanced_code_received_callback(F &&callback) {
+    this->advanced_data_callback_.add(std::forward<F>(callback));
   }
   void send_code(RFBridgeData data);
   void send_advanced_code(const RFBridgeAdvancedData &data);
