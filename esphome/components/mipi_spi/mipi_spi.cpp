@@ -15,7 +15,7 @@ void internal_dump_config(const char *model, int width, int height, int offset_w
                 "  Swap X/Y: %s\n"
                 "  Mirror X: %s\n"
                 "  Mirror Y: %s\n"
-                "  Hardware_rotation: %s\n"
+                "  Hardware rotation: %s\n"
                 "  Invert colors: %s\n"
                 "  Color order: %s\n"
                 "  Display pixels: %d bits\n"

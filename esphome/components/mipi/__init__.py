@@ -448,7 +448,7 @@ class DriverChip:
         # This takes into account rotation if it can be implemented in the transform
         transform = self.get_transform(config)
         madctl = self.get_madctl(transform, config)
-        sequence.append((MADCTL, madctl))
+        sequence.append((MADCTL, madctl & 0xFF))
 
     def skip_command(self, command: str):
         """

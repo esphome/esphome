@@ -292,8 +292,8 @@ def _final_validate(config):
         height, width, _offset_width, _offset_height = model.get_dimensions(config)
 
         buffer_size = color_depth // 8 * width * height // frac
-        # Target a buffer size of 20kB
-        fraction = 20000.0 / buffer_size
+        # Target a buffer size of 20kB, except for large displays, which shouldn't end up here
+        fraction = min(20000.0, buffer_size // 16) / buffer_size
         config[CONF_BUFFER_SIZE] = 1.0 / next(
             x for x in range(2, 17) if fraction >= 1 / x
         )

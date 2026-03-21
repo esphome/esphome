@@ -331,14 +331,32 @@ class MipiSpi : public display::Display,
     this->write_command_(MADCTL_CMD, madctl);
   }
 
+  uint16_t get_offset_width_() {
+    if constexpr (HAS_HARDWARE_ROTATION) {
+      if (this->rotation_ == display::DISPLAY_ROTATION_90_DEGREES ||
+          this->rotation_ == display::DISPLAY_ROTATION_270_DEGREES)
+        return OFFSET_HEIGHT;
+    }
+    return OFFSET_WIDTH;
+  }
+
+  uint16_t get_offset_height_() {
+    if constexpr (HAS_HARDWARE_ROTATION) {
+      if (this->rotation_ == display::DISPLAY_ROTATION_90_DEGREES ||
+          this->rotation_ == display::DISPLAY_ROTATION_270_DEGREES)
+        return OFFSET_WIDTH;
+    }
+    return OFFSET_HEIGHT;
+  }
+
   // set the address window for the next data write
   void set_addr_window_(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2) {
     esph_log_v(TAG, "Set addr %d/%d, %d/%d", x1, y1, x2, y2);
     uint8_t buf[4];
-    x1 += OFFSET_WIDTH;
-    x2 += OFFSET_WIDTH;
-    y1 += OFFSET_HEIGHT;
-    y2 += OFFSET_HEIGHT;
+    x1 += get_offset_width_();
+    x2 += get_offset_width_();
+    y1 += get_offset_height_();
+    y2 += get_offset_height_();
     put16_be(buf, y1);
     put16_be(buf + 2, y2);
     this->write_command_(RASET, buf, sizeof buf);
