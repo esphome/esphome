@@ -375,8 +375,6 @@ async def to_code(config):
     var_id.type, templateargs = get_instance(config)
     var = cg.new_Pvariable(var_id, TemplateArguments(*templateargs))
     cg.add(var.set_init_sequence(init_sequence))
-    if model.rotation_as_transform(config) and CONF_TRANSFORM in config:
-        LOGGER.warning("Use of 'transform' with 'rotation' is not recommended")
     cg.add(var.set_model(config[CONF_MODEL]))
     if enable_pin := config.get(CONF_ENABLE_PIN):
         enable = [await cg.gpio_pin_expression(pin) for pin in enable_pin]

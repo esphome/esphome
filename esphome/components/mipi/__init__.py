@@ -462,7 +462,7 @@ class DriverChip:
         Use the default sequence from the model, if any, and append any custom sequence provided in the config.
         Append SLPOUT (if not already in the sequence) and DISPON to the end of the sequence
         MADCTL will be set if add_madctl is True
-        Returns a tuple of the init sequence and the MADCTL value before rotation is applied.
+        Returns the init sequence
         """
         sequence = list(self.initsequence or ())
         custom_sequence = config.get(CONF_INIT_SEQUENCE, [])
