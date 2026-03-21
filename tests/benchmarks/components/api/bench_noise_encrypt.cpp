@@ -85,6 +85,102 @@ BENCHMARK(NoiseEncrypt_MediumMessage);
 static void NoiseEncrypt_LargeMessage(benchmark::State &state) { noise_encrypt_bench(state, 1024); }
 BENCHMARK(NoiseEncrypt_LargeMessage);
 
+// Benchmark helper matching the exact pattern from
+// APINoiseFrameHelper::read_packet:
+//   - noise_buffer_init + noise_buffer_set_inout with capacity == size (decrypt shrinks)
+//   - No explicit set_nonce (production relies on internal nonce increment)
+//   - Error checking on decrypt return
+//
+// Uses a separate encrypt cipher to produce valid ciphertext each iteration,
+// then benchmarks only the decryption.
+static void noise_decrypt_bench(benchmark::State &state, size_t plaintext_size) {
+  NoiseCipherState *encrypt_cipher = create_cipher();
+  NoiseCipherState *decrypt_cipher = create_cipher();
+  if (encrypt_cipher == nullptr || decrypt_cipher == nullptr) {
+    state.SkipWithError("Failed to create cipher state");
+    if (encrypt_cipher)
+      noise_cipherstate_free(encrypt_cipher);
+    if (decrypt_cipher)
+      noise_cipherstate_free(decrypt_cipher);
+    return;
+  }
+
+  size_t mac_len = noise_cipherstate_get_mac_length(encrypt_cipher);
+  size_t buf_capacity = plaintext_size + mac_len;
+  auto buffer = std::make_unique<uint8_t[]>(buf_capacity);
+
+  // Pre-encrypt one message to get valid ciphertext + MAC
+  memset(buffer.get(), 0x42, plaintext_size);
+  NoiseBuffer setup_buf;
+  noise_buffer_init(setup_buf);
+  noise_buffer_set_inout(setup_buf, buffer.get(), plaintext_size, buf_capacity);
+  int err = noise_cipherstate_encrypt(encrypt_cipher, &setup_buf);
+  if (err != NOISE_ERROR_NONE) {
+    state.SkipWithError("Setup encrypt failed");
+    noise_cipherstate_free(encrypt_cipher);
+    noise_cipherstate_free(decrypt_cipher);
+    return;
+  }
+  size_t encrypted_size = setup_buf.size;
+
+  // Save the encrypted data as a template for each iteration
+  auto encrypted_template = std::make_unique<uint8_t[]>(encrypted_size);
+  memcpy(encrypted_template.get(), buffer.get(), encrypted_size);
+
+  // Decrypt the setup message to advance decrypt cipher nonce to 1
+  // (matches the encrypt cipher which is now at nonce 1)
+  NoiseBuffer decrypt_setup;
+  noise_buffer_init(decrypt_setup);
+  noise_buffer_set_inout(decrypt_setup, buffer.get(), encrypted_size, encrypted_size);
+  err = noise_cipherstate_decrypt(decrypt_cipher, &decrypt_setup);
+  if (err != NOISE_ERROR_NONE) {
+    state.SkipWithError("Setup decrypt failed");
+    noise_cipherstate_free(encrypt_cipher);
+    noise_cipherstate_free(decrypt_cipher);
+    return;
+  }
+
+  for (auto _ : state) {
+    for (int i = 0; i < kInnerIterations; i++) {
+      // Re-encrypt with encrypt cipher to get fresh ciphertext with correct nonce
+      memset(buffer.get(), 0x42, plaintext_size);
+      NoiseBuffer enc_buf;
+      noise_buffer_init(enc_buf);
+      noise_buffer_set_inout(enc_buf, buffer.get(), plaintext_size, buf_capacity);
+      noise_cipherstate_encrypt(encrypt_cipher, &enc_buf);
+
+      // Decrypt matching production pattern
+      NoiseBuffer mbuf;
+      noise_buffer_init(mbuf);
+      noise_buffer_set_inout(mbuf, buffer.get(), enc_buf.size, enc_buf.size);
+
+      err = noise_cipherstate_decrypt(decrypt_cipher, &mbuf);
+      if (err != NOISE_ERROR_NONE) {
+        state.SkipWithError("noise_cipherstate_decrypt failed");
+        noise_cipherstate_free(encrypt_cipher);
+        noise_cipherstate_free(decrypt_cipher);
+        return;
+      }
+    }
+    benchmark::DoNotOptimize(buffer[0]);
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+
+  noise_cipherstate_free(encrypt_cipher);
+  noise_cipherstate_free(decrypt_cipher);
+}
+
+// --- Decrypt benchmarks (matching read_packet path) ---
+
+static void NoiseDecrypt_SmallMessage(benchmark::State &state) { noise_decrypt_bench(state, 14); }
+BENCHMARK(NoiseDecrypt_SmallMessage);
+
+static void NoiseDecrypt_MediumMessage(benchmark::State &state) { noise_decrypt_bench(state, 128); }
+BENCHMARK(NoiseDecrypt_MediumMessage);
+
+static void NoiseDecrypt_LargeMessage(benchmark::State &state) { noise_decrypt_bench(state, 1024); }
+BENCHMARK(NoiseDecrypt_LargeMessage);
+
 }  // namespace esphome::api::benchmarks
 
 #endif  // USE_API_NOISE
