@@ -1,3 +1,4 @@
+#ifdef USE_HOST
 /* -*- mode: C; c-file-style: "gnu"; indent-tabs-mode: nil; -*- */
 /* dbus-print-message.h  Utility function to print out a message
  *
@@ -358,3 +359,4 @@ void print_message(DBusMessage *message, dbus_bool_t literal) {
 
 }  // namespace dbus
 }  // namespace esphome
+#endif

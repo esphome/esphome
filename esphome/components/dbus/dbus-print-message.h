@@ -1,4 +1,5 @@
 #pragma once
+#ifdef USE_HOST
 /* -*- mode: C; c-file-style: "gnu"; indent-tabs-mode: nil; -*- */
 /* dbus-print-message.h  Utility function to print out a message
  *
@@ -33,3 +34,4 @@ void print_iter(DBusMessageIter *iter, dbus_bool_t literal, int depth = 0);
 
 }  // namespace dbus
 }  // namespace esphome
+#endif
