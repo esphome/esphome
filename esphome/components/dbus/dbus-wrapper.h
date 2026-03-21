@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_HOST
+
 #include <string>
 #include <list>
 #include <dbus/dbus.h>
@@ -34,3 +36,5 @@ class DBusWrapper {
 
 }  // namespace dbus
 }  // namespace esphome
+
+#endif
