@@ -845,6 +845,13 @@ inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_
   // Process any pending enable_loop requests from ISRs
   // This must be done before marking in_loop_ = true to avoid race conditions
   if (this->has_pending_enable_loop_requests_) {
+    // Clear flag BEFORE processing to avoid race condition
+    // If ISR sets it during processing, we'll catch it next loop iteration
+    // This is safe because:
+    // 1. Each component has its own pending_enable_loop_ flag that we check
+    // 2. If we can't process a component (wrong state), enable_pending_loops_()
+    //    will set this flag back to true
+    // 3. Any new ISR requests during processing will set the flag again
     this->has_pending_enable_loop_requests_ = false;
     this->enable_pending_loops_();
   }
