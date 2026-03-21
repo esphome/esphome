@@ -237,6 +237,74 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
   buffer->type = this->rx_header_parsed_type_;
   return APIError::OK;
 }
+// Write plaintext header into pre-allocated padding before payload.
+// Returns pointer to start of frame (header + payload are contiguous).
+static inline uint8_t *write_plaintext_header(uint8_t *buf_start, const MessageInfo &msg,
+                                              uint8_t frame_header_padding) {
+  // Calculate varint sizes for header layout using inline ternary to avoid varint_slow call overhead
+  uint8_t size_varint_len = msg.payload_size < ProtoSize::VARINT_THRESHOLD_1_BYTE
+                                ? 1
+                                : (msg.payload_size < ProtoSize::VARINT_THRESHOLD_2_BYTE ? 2 : 3);
+  uint8_t type_varint_len = msg.message_type < ProtoSize::VARINT_THRESHOLD_1_BYTE ? 1 : 2;
+  uint8_t total_header_len = 1 + size_varint_len + type_varint_len;
+
+  // Calculate where to start writing the header
+  // The header starts at the latest possible position to minimize unused padding
+  //
+  // Example 1 (small values): total_header_len = 3, header_offset = 6 - 3 = 3
+  // [0-2]  - Unused padding
+  // [3]    - 0x00 indicator byte
+  // [4]    - Payload size varint (1 byte, for sizes 0-127)
+  // [5]    - Message type varint (1 byte, for types 0-127)
+  // [6...] - Actual payload data
+  //
+  // Example 2 (medium values): total_header_len = 4, header_offset = 6 - 4 = 2
+  // [0-1]  - Unused padding
+  // [2]    - 0x00 indicator byte
+  // [3-4]  - Payload size varint (2 bytes, for sizes 128-16383)
+  // [5]    - Message type varint (1 byte, for types 0-127)
+  // [6...] - Actual payload data
+  //
+  // Example 3 (large values): total_header_len = 6, header_offset = 6 - 6 = 0
+  // [0]    - 0x00 indicator byte
+  // [1-3]  - Payload size varint (3 bytes, for sizes 16384-65535)
+  // [4-5]  - Message type varint (2 bytes, for types 128-16383)
+  // [6...] - Actual payload data
+  //
+  // The message starts at offset + frame_header_padding
+  // So we write the header starting at offset + frame_header_padding - total_header_len
+  uint32_t header_offset = frame_header_padding - total_header_len;
+
+  // Write the plaintext header
+  buf_start[header_offset] = 0x00;  // indicator
+
+  // Encode varints directly into buffer
+  encode_varint_to_buffer(msg.payload_size, buf_start + header_offset + 1);
+  encode_varint_to_buffer(msg.message_type, buf_start + header_offset + 1 + size_varint_len);
+
+  return buf_start + header_offset;
+}
+
+// Outlined multi-message path to keep the single-message fast path's stack frame small.
+// The StaticVector<iovec, MAX_MESSAGES_PER_BATCH> would force a ~300-byte stack frame
+// even when only sending one message if it were in the same function.
+APIError __attribute__((noinline))
+APIPlaintextFrameHelper::write_protobuf_messages_batch_(uint8_t *buffer_data, std::span<const MessageInfo> messages) {
+  StaticVector<struct iovec, MAX_MESSAGES_PER_BATCH> iovs;
+  uint16_t total_write_len = 0;
+  const uint8_t padding = frame_header_padding_;
+
+  for (const auto &msg : messages) {
+    uint8_t *msg_start = write_plaintext_header(buffer_data + msg.offset, msg, padding);
+    uint8_t msg_header_len = static_cast<uint8_t>((buffer_data + msg.offset + padding) - msg_start);
+    size_t msg_len = static_cast<size_t>(msg_header_len + msg.payload_size);
+    iovs.push_back({msg_start, msg_len});
+    total_write_len += msg_len;
+  }
+
+  return write_raw_(iovs.data(), iovs.size(), total_write_len);
+}
+
 APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer,
                                                           std::span<const MessageInfo> messages) {
   APIError aerr = this->check_data_state_();
@@ -249,61 +317,19 @@ APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffe
 
   uint8_t *buffer_data = buffer.get_buffer()->data();
 
-  // Stack-allocated iovec array - no heap allocation
-  StaticVector<struct iovec, MAX_MESSAGES_PER_BATCH> iovs;
-  uint16_t total_write_len = 0;
-
-  for (const auto &msg : messages) {
-    // Calculate varint sizes for header layout using inline ternary to avoid varint_slow call overhead
-    uint8_t size_varint_len = msg.payload_size < ProtoSize::VARINT_THRESHOLD_1_BYTE
-                                  ? 1
-                                  : (msg.payload_size < ProtoSize::VARINT_THRESHOLD_2_BYTE ? 2 : 3);
-    uint8_t type_varint_len = msg.message_type < ProtoSize::VARINT_THRESHOLD_1_BYTE ? 1 : 2;
-    uint8_t total_header_len = 1 + size_varint_len + type_varint_len;
-
-    // Calculate where to start writing the header
-    // The header starts at the latest possible position to minimize unused padding
-    //
-    // Example 1 (small values): total_header_len = 3, header_offset = 6 - 3 = 3
-    // [0-2]  - Unused padding
-    // [3]    - 0x00 indicator byte
-    // [4]    - Payload size varint (1 byte, for sizes 0-127)
-    // [5]    - Message type varint (1 byte, for types 0-127)
-    // [6...] - Actual payload data
-    //
-    // Example 2 (medium values): total_header_len = 4, header_offset = 6 - 4 = 2
-    // [0-1]  - Unused padding
-    // [2]    - 0x00 indicator byte
-    // [3-4]  - Payload size varint (2 bytes, for sizes 128-16383)
-    // [5]    - Message type varint (1 byte, for types 0-127)
-    // [6...] - Actual payload data
-    //
-    // Example 3 (large values): total_header_len = 6, header_offset = 6 - 6 = 0
-    // [0]    - 0x00 indicator byte
-    // [1-3]  - Payload size varint (3 bytes, for sizes 16384-65535)
-    // [4-5]  - Message type varint (2 bytes, for types 128-16383)
-    // [6...] - Actual payload data
-    //
-    // The message starts at offset + frame_header_padding_
-    // So we write the header starting at offset + frame_header_padding_ - total_header_len
-    uint8_t *buf_start = buffer_data + msg.offset;
-    uint32_t header_offset = frame_header_padding_ - total_header_len;
-
-    // Write the plaintext header
-    buf_start[header_offset] = 0x00;  // indicator
-
-    // Encode varints directly into buffer
-    encode_varint_to_buffer(msg.payload_size, buf_start + header_offset + 1);
-    encode_varint_to_buffer(msg.message_type, buf_start + header_offset + 1 + size_varint_len);
-
-    // Add iovec for this message (header + payload)
-    size_t msg_len = static_cast<size_t>(total_header_len + msg.payload_size);
-    iovs.push_back({buf_start + header_offset, msg_len});
-    total_write_len += msg_len;
+  if (messages.size() == 1) [[likely]] {
+    // Peeled first iteration: single-message case (most common path via write_protobuf_packet)
+    // avoids StaticVector stack allocation and loop overhead
+    const auto &first = messages[0];
+    uint8_t *first_start = write_plaintext_header(buffer_data + first.offset, first, frame_header_padding_);
+    uint8_t first_header_len = static_cast<uint8_t>((buffer_data + first.offset + frame_header_padding_) - first_start);
+    size_t first_len = static_cast<size_t>(first_header_len + first.payload_size);
+    struct iovec iov = {first_start, first_len};
+    return write_raw_(&iov, 1, static_cast<uint16_t>(first_len));
   }
 
-  // Send all messages in one writev call
-  return write_raw_(iovs.data(), iovs.size(), total_write_len);
+  // Multiple messages: outlined to avoid large stack frame on single-message path
+  return write_protobuf_messages_batch_(buffer_data, messages);
 }
 
 }  // namespace esphome::api
