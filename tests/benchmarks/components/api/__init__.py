@@ -1,8 +1,12 @@
+import esphome.codegen as cg
 from tests.testing_helpers import ComponentManifestOverride
 
 
 def override_manifest(manifest: ComponentManifestOverride) -> None:
-    # api must run its to_code during benchmark builds because it
-    # defines USE_API, USE_API_PLAINTEXT, and USE_API_NOISE which
-    # are needed by the frame helper headers.
-    manifest.enable_codegen()
+    # Add USE_API_PLAINTEXT so frame helper headers compile.
+    # We cannot use enable_codegen() because the full api to_code
+    # brings in socket/network setup that fails in benchmark builds.
+    async def to_code(config):
+        cg.add_define("USE_API_PLAINTEXT")
+
+    manifest.to_code = to_code
