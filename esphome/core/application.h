@@ -43,7 +43,8 @@
 #endif  // USE_SOCKET_SELECT_SUPPORT
 #if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
 namespace esphome::socket {
-void socket_wake();  // NOLINT(readability-redundant-declaration)
+void socket_wake();              // NOLINT(readability-redundant-declaration)
+void socket_delay(uint32_t ms);  // NOLINT(readability-redundant-declaration)
 }  // namespace esphome::socket
 #endif
 #ifdef USE_BINARY_SENSOR
@@ -635,10 +636,11 @@ class Application {
   void feed_wdt_arch_();
 
   /// Perform a delay while also monitoring socket file descriptors for readiness
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_LWIP_FAST_SELECT)
-  inline void ESPHOME_ALWAYS_INLINE yield_with_select_(uint32_t delay_ms);
-#else
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
+  // select() fallback path is too complex to inline (host platform)
   void yield_with_select_(uint32_t delay_ms);
+#else
+  inline void ESPHOME_ALWAYS_INLINE yield_with_select_(uint32_t delay_ms);
 #endif
 
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
@@ -894,8 +896,10 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   }
 }
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_LWIP_FAST_SELECT)
+// Inline yield_with_select_ for all paths except the select() fallback
+#if !defined(USE_SOCKET_SELECT_SUPPORT) || defined(USE_LWIP_FAST_SELECT)
 inline void ESPHOME_ALWAYS_INLINE Application::yield_with_select_(uint32_t delay_ms) {
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_LWIP_FAST_SELECT)
   // Fast path (ESP32/LibreTiny): reads rcvevent directly from cached lwip_sock pointers.
   // Safe because this runs on the main loop which owns socket lifetime (create, read, close).
   if (delay_ms == 0) [[unlikely]] {
@@ -919,7 +923,16 @@ inline void ESPHOME_ALWAYS_INLINE Application::yield_with_select_(uint32_t delay
   // Without USE_WAKE_LOOP_THREADSAFE, only hooked socket callbacks wake the task —
   // background tasks won't call wake, so this degrades to a pure timeout (same as old select path).
   ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(delay_ms));
+#elif (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+  // No select support but can wake on socket activity
+  // ESP8266: via esp_schedule()
+  // RP2040: via __sev()/__wfe() hardware sleep/wake
+  socket::socket_delay(delay_ms);
+#else
+  // No select support, use regular delay
+  delay(delay_ms);
+#endif
 }
-#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_LWIP_FAST_SELECT)
+#endif  // !defined(USE_SOCKET_SELECT_SUPPORT) || defined(USE_LWIP_FAST_SELECT)
 
 }  // namespace esphome

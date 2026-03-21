@@ -550,13 +550,10 @@ void Application::unregister_socket_fd(int fd) {
 
 #endif
 
-// When USE_LWIP_FAST_SELECT is defined, yield_with_select_ is inlined in application.h
-#if !defined(USE_SOCKET_SELECT_SUPPORT) || !defined(USE_LWIP_FAST_SELECT)
+// Only the select() fallback path remains in the .cpp — all other paths are inlined in application.h
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
 void Application::yield_with_select_(uint32_t delay_ms) {
-  // Delay while monitoring sockets. When delay_ms is 0, always yield() to ensure other tasks run.
-#if defined(USE_SOCKET_SELECT_SUPPORT)
   // Fallback select() path (host platform and any future platforms without fast select).
-  // ESP32 and LibreTiny are excluded by the #if above — they use the fast path.
   if (!this->socket_fds_.empty()) [[likely]] {
     // Update fd_set if socket list has changed
     if (this->socket_fds_changed_) [[unlikely]] {
@@ -603,17 +600,8 @@ void Application::yield_with_select_(uint32_t delay_ms) {
   }
   // No sockets registered or select() failed - use regular delay
   delay(delay_ms);
-#elif (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
-  // No select support but can wake on socket activity
-  // ESP8266: via esp_schedule()
-  // RP2040: via __sev()/__wfe() hardware sleep/wake
-  socket::socket_delay(delay_ms);
-#else
-  // No select support, use regular delay
-  delay(delay_ms);
-#endif
 }
-#endif  // !defined(USE_SOCKET_SELECT_SUPPORT) || !defined(USE_LWIP_FAST_SELECT)
+#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
 
 // App storage — asm label shares the linker symbol with "extern Application App".
 // char[] is trivially destructible, so no __cxa_atexit or destructor chain is emitted.
