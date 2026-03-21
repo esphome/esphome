@@ -4,7 +4,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/ethernet/ethernet_component.h"
 
-#ifdef USE_ESP32
+#ifdef USE_ETHERNET
 
 namespace esphome::ethernet_info {
 
@@ -50,4 +50,4 @@ class MACAddressEthernetInfo final : public Component, public text_sensor::TextS
 
 }  // namespace esphome::ethernet_info
 
-#endif  // USE_ESP32
+#endif  // USE_ETHERNET

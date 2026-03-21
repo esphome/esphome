@@ -198,10 +198,6 @@ MediaPlayerCall &MediaPlayerCall::set_announcement(bool announce) {
   return *this;
 }
 
-void MediaPlayer::add_on_state_callback(std::function<void()> &&callback) {
-  this->state_callback_.add(std::move(callback));
-}
-
 void MediaPlayer::publish_state() {
   this->state_callback_.call();
 #if defined(USE_MEDIA_PLAYER) && defined(USE_CONTROLLER_REGISTRY)

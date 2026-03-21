@@ -8,6 +8,7 @@
 #include "esp_openthread_lock.h"
 
 #include "esp_task_wdt.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -70,7 +71,10 @@ void OpenThreadComponent::setup() {
                                     }};
 
   ESP_ERROR_CHECK(esp_openthread_start(&config));
-
+  // Mark lock as initialized so InstanceLock callers know it's safe to acquire.
+  // Must be set after esp_openthread_init() which creates the internal semaphore.
+  this->lock_initialized_ = true;
+  // Fetch OT instance once to avoid repeated call into OT stack
   otInstance *instance = esp_openthread_get_instance();
 
 #if CONFIG_OPENTHREAD_CLI_ESP_EXTENSION
@@ -122,7 +126,11 @@ void OpenThreadComponent::setup() {
   ESP_LOGD(TAG, "Thread Version: %" PRIu16, otThreadGetVersion());
 }
 
-int OpenThreadComponent::openthread_stop_() { return esp_openthread_stop(); }
+int OpenThreadComponent::openthread_stop_() {
+  // Clean up - reset lock flag before deinit destroys the semaphore
+  this->lock_initialized_ = false;
+  return esp_openthread_stop();
+}
 
 network::IPAddresses OpenThreadComponent::get_ip_addresses() {
   network::IPAddresses addresses;
@@ -142,6 +150,9 @@ network::IPAddresses OpenThreadComponent::get_ip_addresses() {
 otInstance *OpenThreadComponent::get_openthread_instance_() { return esp_openthread_get_instance(); }
 
 std::optional<InstanceLock> InstanceLock::try_acquire(int delay) {
+  if (!global_openthread_component->is_lock_initialized()) {
+    return {};
+  }
   if (esp_openthread_lock_acquire(delay)) {
     return InstanceLock();
   }
@@ -149,6 +160,18 @@ std::optional<InstanceLock> InstanceLock::try_acquire(int delay) {
 }
 
 InstanceLock InstanceLock::acquire() {
+  // Wait for the lock to be created by ot_main() before attempting to acquire it.
+  // esp_openthread_lock_acquire() will assert-crash if called before esp_openthread_init().
+  constexpr uint32_t lock_init_timeout_ms = 10000;
+  uint32_t start = millis();
+  while (!global_openthread_component->is_lock_initialized()) {
+    if (millis() - start > lock_init_timeout_ms) {
+      ESP_LOGE(TAG, "OpenThread lock not initialized after %" PRIu32 "ms, aborting", lock_init_timeout_ms);
+      abort();
+    }
+    delay(10);
+    esp_task_wdt_reset();
+  }
   while (!esp_openthread_lock_acquire(100)) {
     esp_task_wdt_reset();
   }
