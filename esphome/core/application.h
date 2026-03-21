@@ -628,7 +628,7 @@ class Application {
   void enable_component_loop_(Component *component);
   void enable_pending_loops_();
   void activate_looping_component_(uint16_t index);
-  void before_loop_tasks_(uint32_t loop_start_time);
+  inline void ESPHOME_ALWAYS_INLINE before_loop_tasks_(uint32_t loop_start_time);
   inline void ESPHOME_ALWAYS_INLINE after_loop_tasks_() { this->in_loop_ = false; }
 
   /// Process dump_config output one component per loop iteration.
@@ -829,6 +829,29 @@ inline void Application::drain_wake_notifications_() {
   }
 }
 #endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
+
+inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_start_time) {
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
+  // Drain wake notifications first to clear socket for next wake
+  this->drain_wake_notifications_();
+#endif
+
+  // Process scheduled tasks
+  this->scheduler.call(loop_start_time);
+
+  // Feed the watchdog timer
+  this->feed_wdt(loop_start_time);
+
+  // Process any pending enable_loop requests from ISRs
+  // This must be done before marking in_loop_ = true to avoid race conditions
+  if (this->has_pending_enable_loop_requests_) {
+    this->has_pending_enable_loop_requests_ = false;
+    this->enable_pending_loops_();
+  }
+
+  // Mark that we're in the loop for safe reentrant modifications
+  this->in_loop_ = true;
+}
 
 inline void ESPHOME_ALWAYS_INLINE Application::loop() {
   uint8_t new_app_state = 0;

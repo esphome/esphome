@@ -439,36 +439,6 @@ void Application::enable_pending_loops_() {
   }
 }
 
-void Application::before_loop_tasks_(uint32_t loop_start_time) {
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
-  // Drain wake notifications first to clear socket for next wake
-  this->drain_wake_notifications_();
-#endif
-
-  // Process scheduled tasks
-  this->scheduler.call(loop_start_time);
-
-  // Feed the watchdog timer
-  this->feed_wdt(loop_start_time);
-
-  // Process any pending enable_loop requests from ISRs
-  // This must be done before marking in_loop_ = true to avoid race conditions
-  if (this->has_pending_enable_loop_requests_) {
-    // Clear flag BEFORE processing to avoid race condition
-    // If ISR sets it during processing, we'll catch it next loop iteration
-    // This is safe because:
-    // 1. Each component has its own pending_enable_loop_ flag that we check
-    // 2. If we can't process a component (wrong state), enable_pending_loops_()
-    //    will set this flag back to true
-    // 3. Any new ISR requests during processing will set the flag again
-    this->has_pending_enable_loop_requests_ = false;
-    this->enable_pending_loops_();
-  }
-
-  // Mark that we're in the loop for safe reentrant modifications
-  this->in_loop_ = true;
-}
-
 #ifdef USE_LWIP_FAST_SELECT
 bool Application::register_socket(struct lwip_sock *sock) {
   // It modifies monitored_sockets_ without locking — must only be called from the main loop.
