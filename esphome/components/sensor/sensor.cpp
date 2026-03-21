@@ -79,11 +79,6 @@ void Sensor::publish_state(float state) {
 #endif
 }
 
-void Sensor::add_on_state_callback(std::function<void(float)> &&callback) { this->callback_.add(std::move(callback)); }
-void Sensor::add_on_raw_state_callback(std::function<void(float)> &&callback) {
-  this->raw_callback_.add(std::move(callback));
-}
-
 #ifdef USE_SENSOR_FILTER
 void Sensor::add_filter(Filter *filter) {
   // inefficient, but only happens once on every sensor setup and nobody's going to have massive amounts of
