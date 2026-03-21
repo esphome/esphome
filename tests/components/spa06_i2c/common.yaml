@@ -1,0 +1,15 @@
+sensor:
+  - platform: spa06_i2c
+    i2c_id: i2c_bus
+    address: 0x77
+    temperature:
+      id: spa06_i2c_temperature
+      name: Outside Temperature
+      sample_rate: 1
+      oversampling: NONE
+    pressure:
+      name: Outside Pressure
+      id: spa06_i2c_pressure
+      sample_rate: 25p4
+      oversampling: 16X
+    update_interval: 15s
