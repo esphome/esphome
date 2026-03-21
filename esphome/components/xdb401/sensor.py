@@ -12,7 +12,6 @@ from esphome.const import (
     UNIT_PASCAL,
 )
 
-CODEOWNERS = ["@dala318"]
 DEPENDENCIES = ["i2c"]
 
 xdb401_ns = cg.esphome_ns.namespace("xdb401")

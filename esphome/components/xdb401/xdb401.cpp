@@ -109,7 +109,7 @@ i2c::ErrorCode XDB401Component::read_pressure_(float &pressure) {
     ESP_LOGE(TAG, "Error reading pressure register");
     return err_code;
   }
-  ESP_LOGV(TAG, "Got pressure data: %s", format_hex_pretty(p_data, 3).c_str());
+  ESP_LOGV(TAG, "Got pressure data: %s", format_hex_pretty(p_data, 3).c_str());  // NOLINT
 
   // Byte-order high to low, byte 0 bit 8 is sign bit.
   // Shift one byte to much and then back to get sign correct.
@@ -130,7 +130,7 @@ i2c::ErrorCode XDB401Component::read_temperature_(float &temperature) {
     ESP_LOGE(TAG, "Error reading temperature register");
     return err_code;
   }
-  ESP_LOGV(TAG, "Got temperature data: %s", format_hex_pretty(t_data, 2).c_str());
+  ESP_LOGV(TAG, "Got temperature data: %s", format_hex_pretty(t_data, 2).c_str());  // NOLINT
 
   // Byte-order high to low, byte 0 bit 8 is sign bit.
   int16_t raw_temperature = ((t_data[0] << 8) | t_data[1]);
