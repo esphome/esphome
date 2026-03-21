@@ -62,8 +62,8 @@ async def test_light_constant_brightness(
     ):
         entities, _ = await client.list_entities_services()
         lights = [e for e in entities if isinstance(e, LightInfo)]
-        cb_light = next(e for e in lights if "cb_light" in e.object_id)
-        ncb_light = next(e for e in lights if "ncb_light" in e.object_id)
+        cb_light = next(e for e in lights if e.object_id.endswith("cb_light"))
+        ncb_light = next(e for e in lights if e.object_id.endswith("ncb_light"))
 
         # Use InitialStateHelper to wait for initial state broadcast
         initial_state_helper = InitialStateHelper(entities)
