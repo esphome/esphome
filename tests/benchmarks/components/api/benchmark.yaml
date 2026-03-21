@@ -108,7 +108,6 @@ esphome:
       area_id: area_20
 
 api:
-  encryption:
 sensor:
 binary_sensor:
 light:
