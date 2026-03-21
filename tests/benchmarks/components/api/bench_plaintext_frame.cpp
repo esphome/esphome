@@ -3,6 +3,8 @@
 
 #include <benchmark/benchmark.h>
 #include <fcntl.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -14,7 +16,7 @@ namespace esphome::api::benchmarks {
 
 static constexpr int kInnerIterations = 2000;
 
-// Helper to drain accumulated data from the read side of a socketpair
+// Helper to drain accumulated data from the read side of a socket
 // to prevent the write side from blocking.
 static void drain_socket(int fd) {
   char buf[65536];
@@ -22,28 +24,50 @@ static void drain_socket(int fd) {
   }
 }
 
-// Helper to create a non-blocking socketpair with an APIPlaintextFrameHelper
+// Helper to create a TCP loopback connection with an APIPlaintextFrameHelper
 // on the write end. Returns the helper and the read-side fd.
+// Uses real TCP sockets so TCP_NODELAY succeeds during init().
 static std::pair<std::unique_ptr<APIPlaintextFrameHelper>, int> create_plaintext_helper() {
-  int fds[2];
-  ::socketpair(AF_UNIX, SOCK_STREAM, 0, fds);
+  // Create a TCP listener on loopback
+  int listen_fd = ::socket(AF_INET, SOCK_STREAM, 0);
+  int opt = 1;
+  ::setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+  struct sockaddr_in addr {};
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+  addr.sin_port = 0;  // OS-assigned port
+  ::bind(listen_fd, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr));
+  ::listen(listen_fd, 1);
+
+  // Get the assigned port
+  socklen_t addr_len = sizeof(addr);
+  ::getsockname(listen_fd, reinterpret_cast<struct sockaddr *>(&addr), &addr_len);
+
+  // Connect from client side
+  int write_fd = ::socket(AF_INET, SOCK_STREAM, 0);
+  ::connect(write_fd, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr));
+
+  // Accept on server side (this is our read fd)
+  int read_fd = ::accept(listen_fd, nullptr, nullptr);
+  ::close(listen_fd);
 
   // Make both ends non-blocking
-  int flags0 = ::fcntl(fds[0], F_GETFL, 0);
-  ::fcntl(fds[0], F_SETFL, flags0 | O_NONBLOCK);
-  int flags1 = ::fcntl(fds[1], F_GETFL, 0);
-  ::fcntl(fds[1], F_SETFL, flags1 | O_NONBLOCK);
+  int flags = ::fcntl(write_fd, F_GETFL, 0);
+  ::fcntl(write_fd, F_SETFL, flags | O_NONBLOCK);
+  flags = ::fcntl(read_fd, F_GETFL, 0);
+  ::fcntl(read_fd, F_SETFL, flags | O_NONBLOCK);
 
   // Increase socket buffer sizes to reduce drain frequency
   int bufsize = 1024 * 1024;
-  ::setsockopt(fds[0], SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
-  ::setsockopt(fds[1], SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
+  ::setsockopt(write_fd, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
+  ::setsockopt(read_fd, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
 
-  auto sock = std::make_unique<socket::Socket>(fds[0]);
+  auto sock = std::make_unique<socket::Socket>(write_fd);
   auto helper = std::make_unique<APIPlaintextFrameHelper>(std::move(sock));
   helper->init();
 
-  return {std::move(helper), fds[1]};
+  return {std::move(helper), read_fd};
 }
 
 // --- Write a single SensorStateResponse through plaintext framing ---
@@ -72,7 +96,7 @@ static void PlaintextFrame_WriteSensorState(benchmark::State &state) {
       ProtoWriteBuffer writer(&buffer, padding);
       msg.encode(writer);
 
-      helper->write_protobuf_packet(38, writer);
+      helper->write_protobuf_packet(SensorStateResponse::MESSAGE_TYPE, writer);
 
       if ((i & 0xFF) == 0)
         drain_socket(read_fd);
@@ -116,7 +140,7 @@ static void PlaintextFrame_WriteBatch5(benchmark::State &state) {
         ProtoWriteBuffer writer(&buffer, offset + padding);
         msg.encode(writer);
 
-        messages[j] = MessageInfo(38, offset, size);
+        messages[j] = MessageInfo(SensorStateResponse::MESSAGE_TYPE, offset, size);
       }
 
       helper->write_protobuf_messages(ProtoWriteBuffer(&buffer, 0), std::span<const MessageInfo>(messages, 5));
