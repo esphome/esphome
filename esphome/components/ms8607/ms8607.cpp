@@ -281,9 +281,8 @@ void MS8607Component::request_read_temperature_() {
     return;
   }
 
-  auto f = std::bind(&MS8607Component::read_temperature_, this);
   // datasheet says 17.2ms max conversion time at OSR 8192
-  this->set_timeout("temperature", 20, f);
+  this->set_timeout("temperature", 20, [this]() { this->read_temperature_(); });
 }
 
 void MS8607Component::read_temperature_() {
@@ -303,9 +302,8 @@ void MS8607Component::request_read_pressure_(uint32_t d2_raw_temperature) {
     return;
   }
 
-  auto f = std::bind(&MS8607Component::read_pressure_, this, d2_raw_temperature);
   // datasheet says 17.2ms max conversion time at OSR 8192
-  this->set_timeout("pressure", 20, f);
+  this->set_timeout("pressure", 20, [this, d2_raw_temperature]() { this->read_pressure_(d2_raw_temperature); });
 }
 
 void MS8607Component::read_pressure_(uint32_t d2_raw_temperature) {
@@ -325,9 +323,8 @@ void MS8607Component::request_read_humidity_(float temperature_float) {
     return;
   }
 
-  auto f = std::bind(&MS8607Component::read_humidity_, this, temperature_float);
   // datasheet says 15.89ms max conversion time at OSR 8192
-  this->set_timeout("humidity", 20, f);
+  this->set_timeout("humidity", 20, [this, temperature_float]() { this->read_humidity_(temperature_float); });
 }
 
 void MS8607Component::read_humidity_(float temperature_float) {
