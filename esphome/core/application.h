@@ -413,7 +413,7 @@ class Application {
   void setup();
 
   /// Make a loop iteration. Call this in your loop() function.
-  void loop();
+  inline void ESPHOME_ALWAYS_INLINE loop();
 
   /// Get the name of this Application set by pre_setup().
   const StringRef &get_name() const { return this->name_; }
@@ -945,5 +945,74 @@ inline void Application::drain_wake_notifications_() {
   }
 }
 #endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
+
+}  // namespace esphome
+
+#ifdef USE_RUNTIME_STATS
+#include "esphome/components/runtime_stats/runtime_stats.h"
+#endif
+
+namespace esphome {
+
+inline void ESPHOME_ALWAYS_INLINE Application::loop() {
+  uint8_t new_app_state = 0;
+
+  // Get the initial loop time at the start
+  uint32_t last_op_end_time = millis();
+
+  this->before_loop_tasks_(last_op_end_time);
+
+  for (this->current_loop_index_ = 0; this->current_loop_index_ < this->looping_components_active_end_;
+       this->current_loop_index_++) {
+    Component *component = this->looping_components_[this->current_loop_index_];
+
+    // Update the cached time before each component runs
+    this->loop_component_start_time_ = last_op_end_time;
+
+    {
+      this->set_current_component(component);
+      WarnIfComponentBlockingGuard guard{component, last_op_end_time};
+      component->loop();
+      // Use the finish method to get the current time as the end time
+      last_op_end_time = guard.finish();
+    }
+    new_app_state |= component->get_component_state();
+    this->app_state_ |= new_app_state;
+    this->feed_wdt(last_op_end_time);
+  }
+
+  this->after_loop_tasks_();
+  this->app_state_ = new_app_state;
+
+#ifdef USE_RUNTIME_STATS
+  // Process any pending runtime stats printing after all components have run
+  // This ensures stats printing doesn't affect component timing measurements
+  if (global_runtime_stats != nullptr) {
+    global_runtime_stats->process_pending_stats(last_op_end_time);
+  }
+#endif
+
+  // Use the last component's end time instead of calling millis() again
+  auto elapsed = last_op_end_time - this->last_loop_;
+  if (elapsed >= this->loop_interval_ || HighFrequencyLoopRequester::is_high_frequency()) {
+    // Even if we overran the loop interval, we still need to select()
+    // to know if any sockets have data ready
+    this->yield_with_select_(0);
+  } else {
+    uint32_t delay_time = this->loop_interval_ - elapsed;
+    uint32_t next_schedule = this->scheduler.next_schedule_in(last_op_end_time).value_or(delay_time);
+    // next_schedule is max 0.5*delay_time
+    // otherwise interval=0 schedules result in constant looping with almost no sleep
+    next_schedule = std::max(next_schedule, delay_time / 2);
+    delay_time = std::min(next_schedule, delay_time);
+
+    this->yield_with_select_(delay_time);
+  }
+  this->last_loop_ = last_op_end_time;
+
+  if (this->dump_config_at_ < this->components_.size()) {
+    this->process_dump_config_();
+  }
+}
 
 }  // namespace esphome
