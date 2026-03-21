@@ -274,7 +274,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_noise_encryption_set_key_request(const NoiseEncryptionSetKeyRequest &msg);
 #endif
 
-  bool is_authenticated() {
+  bool is_authenticated() override {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::AUTHENTICATED;
   }
   bool is_connection_setup() override {
