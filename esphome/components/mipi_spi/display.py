@@ -51,7 +51,6 @@ from esphome.const import (
     CONF_TRANSFORM,
     CONF_WIDTH,
 )
-from esphome.core import CORE
 from esphome.cpp_generator import TemplateArguments
 from esphome.final_validate import full_config
 
@@ -112,7 +111,7 @@ DISPLAY_PIXEL_MODES = {
 def denominator(config):
     """
     Calculate the best denominator for a buffer size fraction.
-    The denominator must be a number between 2 and 16 that divides the display height evenly,
+    The denominator should be a number between 2 and 16 that divides the display height evenly,
     and the fraction represented by the denominator must be less than or equal to the given fraction.
     :config: The configuration dictionary containing the buffer size fraction and display dimensions
     :return: The denominator to use for the buffer size fraction
@@ -125,9 +124,8 @@ def denominator(config):
     try:
         return next(x for x in range(2, 17) if frac >= 1 / x and height % x == 0)
     except StopIteration:
-        raise cv.Invalid(
-            f"Buffer size fraction {frac} is not compatible with display height {height}"
-        ) from StopIteration
+        # No exact divisor, just use the closest.
+        return next(x for x in range(2, 17) if frac >= 1 / x)
 
 
 def model_schema(config):
@@ -299,17 +297,9 @@ def _final_validate(config):
         buffer_size = color_depth // 8 * width * height // frac
         # Target a buffer size of 20kB
         fraction = 20000.0 / buffer_size
-        try:
-            config[CONF_BUFFER_SIZE] = 1.0 / next(
-                x for x in range(2, 17) if fraction >= 1 / x and height % x == 0
-            )
-        except StopIteration:
-            # Either the screen is too big, or the height is not divisible by any of the fractions, so use 1.0
-            # PSRAM will be needed.
-            if CORE.is_esp32:
-                raise cv.Invalid(
-                    "PSRAM is required for this display"
-                ) from StopIteration
+        config[CONF_BUFFER_SIZE] = 1.0 / next(
+            x for x in range(2, 17) if fraction >= 1 / x
+        )
 
     return config
 
@@ -325,7 +315,16 @@ def get_instance(config):
     :return: type, template arguments
     """
     model = MODELS[config[CONF_MODEL]]
-    width, height, offset_width, offset_height = model.get_dimensions(config)
+    has_hardware_transform = config.get(
+        CONF_TRANSFORM
+    ) != CONF_DISABLED and model.transforms == {
+        CONF_MIRROR_X,
+        CONF_MIRROR_Y,
+        CONF_SWAP_XY,
+    }
+    width, height, offset_width, offset_height = model.get_dimensions(
+        config, not has_hardware_transform
+    )
 
     color_depth = int(config[CONF_COLOR_DEPTH].removesuffix("bit"))
     bufferpixels = COLOR_DEPTHS[color_depth]
@@ -341,11 +340,6 @@ def get_instance(config):
     frac = denominator(config)
     madctl = model.get_madctl(model.get_base_transform(config), config)
     has_writer = requires_buffer(config)
-    has_hardware_transform = model.transforms == {
-        CONF_MIRROR_X,
-        CONF_MIRROR_Y,
-        CONF_SWAP_XY,
-    }
     templateargs = [
         buffer_type,
         bufferpixels,

@@ -113,8 +113,17 @@ class MipiSpi : public display::Display,
   }
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
 
-  int get_width_internal() override { return WIDTH; }
-  int get_height_internal() override { return HEIGHT; }
+  // If hardware rotation is in use, the actual display width/height changes with rotation
+  int get_width_internal() override {
+    if constexpr (HAS_HARDWARE_ROTATION)
+      return get_width();
+    return WIDTH;
+  }
+  int get_height_internal() override {
+    if constexpr (HAS_HARDWARE_ROTATION)
+      return get_height();
+    return HEIGHT;
+  }
   void set_init_sequence(const std::vector<uint8_t> &sequence) { this->init_sequence_ = sequence; }
 
   // reset the display, and write the init sequence
@@ -211,9 +220,10 @@ class MipiSpi : public display::Display,
   }
 
   void dump_config() override {
-    internal_dump_config(this->model_, WIDTH, HEIGHT, OFFSET_WIDTH, OFFSET_HEIGHT, MADCTL, this->invert_colors_,
-                         DISPLAYPIXEL * 8, IS_BIG_ENDIAN, this->brightness_, this->cs_, this->reset_pin_, this->dc_pin_,
-                         this->mode_, this->data_rate_, BUS_TYPE, HAS_HARDWARE_ROTATION);
+    internal_dump_config(this->model_, this->get_width(), this->get_height(), OFFSET_WIDTH, OFFSET_HEIGHT, MADCTL,
+                         this->invert_colors_, DISPLAYPIXEL * 8, IS_BIG_ENDIAN, this->brightness_, this->cs_,
+                         this->reset_pin_, this->dc_pin_, this->mode_, this->data_rate_, BUS_TYPE,
+                         HAS_HARDWARE_ROTATION);
   }
 
  protected:
@@ -286,7 +296,6 @@ class MipiSpi : public display::Display,
     constexpr uint8_t x_mask = use_flips ? MADCTL_XFLIP : MADCTL_MX;
     constexpr uint8_t y_mask = use_flips ? MADCTL_YFLIP : MADCTL_MY;
     if constexpr (HAS_HARDWARE_ROTATION) {
-      esph_log_d(TAG, "Resetting MADCTL for rotation %d", this->rotation_);
       switch (this->rotation_) {
         default:
           break;
@@ -304,7 +313,7 @@ class MipiSpi : public display::Display,
           break;
       }
     }
-    esph_log_d(TAG, "Resetting MADCTL for rotation %d, value %X", this->rotation_, madctl);
+    esph_log_d(TAG, "Setting MADCTL for rotation %d, value %X", this->rotation_, madctl);
     this->write_command_(MADCTL_CMD, madctl);
   }
 
@@ -505,12 +514,13 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
     }
     // for updates with a small buffer, we repeatedly call the writer_ function, clipping the height to a fraction of
     // the display height,
-    for (this->start_line_ = 0; this->start_line_ < this->get_height();
-         this->start_line_ += this->get_height() / FRACTION) {
+    for (this->start_line_ = 0; this->start_line_ < this->get_height_internal();
+         this->start_line_ += this->get_height_internal() / FRACTION) {
 #if ESPHOME_LOG_LEVEL == ESPHOME_LOG_LEVEL_VERBOSE
       auto lap = millis();
 #endif
-      this->end_line_ = this->start_line_ + this->get_height() / FRACTION;
+      this->end_line_ =
+          clamp_at_most(this->start_line_ + this->get_height_internal() / FRACTION, this->get_height_internal());
       if (this->auto_clear_enabled_) {
         this->clear();
       }
@@ -537,10 +547,10 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
       int w = this->x_high_ - this->x_low_ + 1;
       int h = this->y_high_ - this->y_low_ + 1;
       this->write_to_display_(this->x_low_, this->y_low_, w, h, this->buffer_, this->x_low_,
-                              this->y_low_ - this->start_line_, round_buffer(this->get_width()) - w);
+                              this->y_low_ - this->start_line_, round_buffer(this->get_width_internal()) - w);
       // invalidate watermarks
-      this->x_low_ = this->get_width();
-      this->y_low_ = this->get_height();
+      this->x_low_ = this->get_width_internal();
+      this->y_low_ = this->get_height_internal();
       this->x_high_ = 0;
       this->y_high_ = 0;
 #if ESPHOME_LOG_LEVEL == ESPHOME_LOG_LEVEL_VERBOSE
@@ -571,9 +581,9 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
         x = tmp;
       }
     }
-    if (x < 0 || x >= this->get_width() || y < this->start_line_ || y >= this->end_line_)
+    if (x < 0 || x >= this->get_width_internal() || y < this->start_line_ || y >= this->end_line_)
       return;
-    this->buffer_[(y - this->start_line_) * round_buffer(this->get_width()) + x] = convert_color(color);
+    this->buffer_[(y - this->start_line_) * round_buffer(this->get_width_internal()) + x] = convert_color(color);
     if (x < this->x_low_) {
       this->x_low_ = x;
     }
@@ -598,9 +608,10 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
 
     this->x_low_ = 0;
     this->y_low_ = this->start_line_;
-    this->x_high_ = WIDTH - 1;
+    this->x_high_ = this->get_width_internal() - 1;
     this->y_high_ = this->end_line_ - 1;
-    std::fill_n(this->buffer_, this->get_height() * round_buffer(this->get_width()) / FRACTION, convert_color(color));
+    std::fill_n(this->buffer_, (this->end_line_ - this->start_line_) * round_buffer(this->get_width_internal()),
+                convert_color(color));
   }
 
   int get_width() override {
