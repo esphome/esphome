@@ -1,6 +1,6 @@
 #include "encryption.h"
 
-#if defined(USE_BTHOME_DECRYPTION) || defined(USE_BTHOME_ENCRYPTION)
+#ifdef USE_BTHOME_DECRYPTION
 
 #include "esphome/core/log.h"
 #include "mbedtls/ccm.h"
@@ -106,4 +106,4 @@ const uint8_t *bthome_decrypt(const uint8_t *ciphertext, size_t ciphertext_size,
 }  // namespace bthome
 }  // namespace esphome
 
-#endif  // USE_BTHOME_DECRYPTION || USE_BTHOME_ENCRYPTION
+#endif  // USE_BTHOME_DECRYPTION

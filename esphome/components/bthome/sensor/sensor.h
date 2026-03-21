@@ -1,6 +1,5 @@
 #pragma once
 #include "../remote_object.h"
-#include "../local_object.h"
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 

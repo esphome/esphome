@@ -6,8 +6,8 @@ def override_manifest(manifest: ComponentManifestOverride) -> None:
 
     # This function is executed instead of to_code() during c++ testing
     async def to_code_testing(config):
-        # During testing, enable encryption code unconditionally
-        cg.add_define("USE_BTHOME_ENCRYPTION")
+        # During testing, enable decryption code unconditionally.
+        # USE_BTHOME_DECRYPTION also enables bthome_encrypt (for use in tests only).
         cg.add_define("USE_BTHOME_DECRYPTION")
 
         # During testing, enable all sensor types unconditionally.
