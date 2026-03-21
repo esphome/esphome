@@ -10,6 +10,7 @@
 #include <pico/cyw43_arch.h>  // For cyw43_arch_lwip_begin/end (LwIPLock)
 #elif defined(USE_ETHERNET)
 #include <LwipEthernet.h>  // For ethernet_arch_lwip_begin/end (LwIPLock)
+#include "esphome/components/ethernet/ethernet_component.h"
 #endif
 #include <hardware/structs/rosc.h>
 #include <hardware/sync.h>
@@ -71,6 +72,8 @@ LwIPLock::~LwIPLock() {}
 void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
 #ifdef USE_WIFI
   WiFi.macAddress(mac);
+#elif defined(USE_ETHERNET)
+  ethernet::global_eth_component->get_eth_mac_address_raw(mac);
 #endif
 }
 
