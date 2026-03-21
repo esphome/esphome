@@ -1,5 +1,7 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
