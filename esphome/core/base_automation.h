@@ -236,6 +236,25 @@ template<typename... Ts> class StatelessLambdaAction : public Action<Ts...> {
   void (*f_)(Ts...);
 };
 
+/// Specialization for no-argument stateless lambdas (the most common case:
+/// button press, startup trigger, loop trigger, etc.).
+/// Overrides play_complex() to call play() non-virtually, eliminating one
+/// virtual dispatch frame from the call stack.
+template<> class StatelessLambdaAction<> : public Action<> {
+ public:
+  explicit StatelessLambdaAction(void (*f)()) : f_(f) {}
+
+  void play_complex() override {
+    this->num_running_++;
+    this->f_();
+    this->play_next_();
+  }
+  void play() override { this->f_(); }
+
+ protected:
+  void (*f_)();
+};
+
 /// Simple continuation action that calls play_next_ on a parent action.
 /// Used internally by IfAction, WhileAction, RepeatAction, etc. to chain actions.
 /// Memory: 4-8 bytes (parent pointer) vs 40 bytes (LambdaAction with std::function).
