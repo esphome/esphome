@@ -378,9 +378,10 @@ void Component::set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std:
 #pragma GCC diagnostic pop
 }
 bool Component::is_ready() const {
-  return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP ||
-         (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE ||
-         (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_SETUP;
+  // Bitmask check: valid states are SETUP(1), LOOP(2), LOOP_DONE(4)
+  // (1 << state) & 0b10110 checks membership in one instruction
+  return ((1u << (this->component_state_ & COMPONENT_STATE_MASK)) &
+          ((1u << COMPONENT_STATE_SETUP) | (1u << COMPONENT_STATE_LOOP) | (1u << COMPONENT_STATE_LOOP_DONE))) != 0;
 }
 bool Component::can_proceed() { return true; }
 bool Component::set_status_flag_(uint8_t flag) {
