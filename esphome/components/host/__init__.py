@@ -49,7 +49,3 @@ async def to_code(config):
     cg.add_platformio_option("platform", "platformio/native")
     cg.add_platformio_option("lib_ldf_mode", "off")
     cg.add_platformio_option("lib_compat_mode", "strict")
-
-
-# Emit the same code when compiling for tests
-to_code_testing = to_code
