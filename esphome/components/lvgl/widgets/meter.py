@@ -406,7 +406,7 @@ class MeterType(WidgetType):
                     lv.scale_section_set_style(
                         tvar, LV_PART.MAIN, await arc_style.get_var()
                     )
-                    lw = Widget(tvar, arc_indicator_type)
+                    lw = Widget.create(iid, tvar, arc_indicator_type)
                     await set_indicator_values(lw, v)
 
                 if t == CONF_TICK_STYLE:

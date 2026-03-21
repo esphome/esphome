@@ -33,8 +33,8 @@ class Sdl : public display::Display {
     this->pos_x_ = pos_x;
     this->pos_y_ = pos_y;
   }
-  int get_width() override { return this->width_; }
-  int get_height() override { return this->height_; }
+  int get_width() override;
+  int get_height() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void dump_config() override { LOG_DISPLAY("", "SDL", this); }
   template<typename F> void add_key_listener(int32_t keycode, F &&callback) {
