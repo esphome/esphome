@@ -476,11 +476,6 @@ void Application::before_loop_tasks_(uint32_t loop_start_time) {
   this->in_loop_ = true;
 }
 
-void Application::after_loop_tasks_() {
-  // Clear the in_loop_ flag to indicate we're done processing components
-  this->in_loop_ = false;
-}
-
 #ifdef USE_LWIP_FAST_SELECT
 bool Application::register_socket(struct lwip_sock *sock) {
   // It modifies monitored_sockets_ without locking — must only be called from the main loop.

@@ -618,7 +618,7 @@ class Application {
   void enable_pending_loops_();
   void activate_looping_component_(uint16_t index);
   void before_loop_tasks_(uint32_t loop_start_time);
-  void after_loop_tasks_();
+  inline void ESPHOME_ALWAYS_INLINE after_loop_tasks_() { this->in_loop_ = false; }
 
   /// Process dump_config output one component per loop iteration.
   /// Extracted from loop() to keep cold startup/reconnect logging out of the hot path.
