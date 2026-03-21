@@ -121,7 +121,10 @@ void AsyncWebServer::begin() {
   if (this->server_) {
     this->end();
   }
+  // Default httpd stack is defined by ESP-IDF. Increase to accommodate SerializationBuffer's
+  // 640-byte stack buffer used by web_server JSON request handlers.
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+  config.stack_size = config.stack_size + 256;
   config.server_port = this->port_;
   config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
   // Always enable LRU purging to handle socket exhaustion gracefully.

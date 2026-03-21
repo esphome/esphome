@@ -552,6 +552,7 @@ async def to_code(config):
     """
 
     # get the codepoints from glyphsets and flatten to a set of chrs.
+    cg.add_define("USE_FONT")
     point_set: set[str] = {
         chr(x)
         for x in flatten(

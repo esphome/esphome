@@ -117,7 +117,7 @@ class Valve : public EntityBase {
   /// Construct a new valve call used to control the valve.
   ValveCall make_call();
 
-  void add_on_state_callback(std::function<void()> &&f);
+  template<typename F> void add_on_state_callback(F &&f) { this->state_callback_.add(std::forward<F>(f)); }
 
   /** Publish the current state of the valve.
    *

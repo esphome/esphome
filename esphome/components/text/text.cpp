@@ -29,8 +29,4 @@ void Text::publish_state(const char *state, size_t len) {
 #endif
 }
 
-void Text::add_on_state_callback(std::function<void(const std::string &)> &&callback) {
-  this->state_callback_.add(std::move(callback));
-}
-
 }  // namespace esphome::text
