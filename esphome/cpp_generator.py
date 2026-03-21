@@ -579,10 +579,47 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     obj = MockObj(id_, "->")
     if type_ is not None:
         id_.type = type_
-    decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
-    CORE.add_global(decl)
-    assignment = AssignmentExpression(None, None, id_, rhs)
-    CORE.add(assignment)
+
+    # Check if the right-hand side expression is an instantiation via the 'new' operator.
+    # This typically happens when `.new(...)` is used to create a new object.
+    # We detect this by checking if the base of the CallExpression starts with "new ".
+    rhs_str = str(rhs)
+    is_new = rhs_str.startswith("new ")
+
+    if is_new:
+        # For 'new' allocations, we avoid dynamic heap allocation to prevent fragmentation.
+        # Instead, we statically allocate raw, aligned storage for the object and use
+        # raw placement new to initialize it in-place during setup().
+        # We must use raw placement new here because C++ cannot deduce types
+        # for brace-enclosed initializer lists passed to variadic templates.
+
+        call_str = rhs_str[4:]  # Strip "new " from "new Type<T>(args)"
+        the_type = id_.type if id_.type is not None else call_str.split("(")[0].strip()
+        storage_name = f"{id_.id}_storage_"
+
+        # Declare the static PlacementStorage
+        decl1 = RawStatement(
+            f"static esphome::PlacementStorage<{the_type}> {storage_name};"
+        )
+        CORE.add_global(decl1)
+
+        # Declare a constant pointer referencing the storage so it can be used identically to a standard pointer
+        decl2 = RawStatement(
+            f"static {the_type} *const {id_.id} = {storage_name}.get();"
+        )
+        CORE.add_global(decl2)
+
+        # Construct the object via raw placement new in setup()
+        assignment = RawStatement(f"new({id_.id}) {call_str};")
+        CORE.add(assignment)
+    else:
+        # For standard assignments (e.g. passing an existing pointer like '&my_struct' or 'nullptr'),
+        # we generate a standard static pointer and assign it directly.
+        decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
+        CORE.add_global(decl)
+        assignment = AssignmentExpression(None, None, id_, rhs)
+        CORE.add(assignment)
+
     CORE.register_variable(id_, obj)
     return obj
 

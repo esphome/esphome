@@ -11,9 +11,11 @@
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <new>
 #include <span>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 #include <concepts>
 #include <strings.h>
@@ -2219,6 +2221,41 @@ template<std::totally_ordered T, comparable_with<T> U> T clamp_at_most(T value, 
     return max;
   return value;
 }
+
+/**
+ * @brief Provides properly aligned, uninitialized static storage for a given type T.
+ *
+ * This struct is designed to replace dynamic heap allocations (`new T(...)`) for
+ * global or static singletons within ESPHome, preventing memory fragmentation.
+ * The underlying object must be explicitly constructed using placement new
+ * before access.
+ */
+template<class T> struct PlacementStorage {
+  /// @brief Raw byte storage, strictly aligned for type T.
+  alignas(T) unsigned char data[sizeof(T)];
+
+  /**
+   * @brief Safely retrieves a pointer to the constructed object.
+   * @return T* Pointer to the underlying object.
+   */
+  constexpr T *get() { return reinterpret_cast<T *>(data); }
+
+  /**
+   * @brief Safely retrieves a const pointer to the constructed object.
+   * @return const T* Const pointer to the underlying object.
+   */
+  constexpr const T *get() const { return reinterpret_cast<const T *>(data); }
+
+  /// @brief Member access operator pointing to the underlying object.
+  constexpr T *operator->() { return get(); }
+  /// @brief Const member access operator pointing to the underlying object.
+  constexpr const T *operator->() const { return get(); }
+
+  /// @brief Dereference operator yielding a reference to the underlying object.
+  constexpr T &operator*() { return *get(); }
+  /// @brief Const dereference operator yielding a const reference to the underlying object.
+  constexpr const T &operator*() const { return *get(); }
+};
 
 /// @name Internal functions
 ///@{
