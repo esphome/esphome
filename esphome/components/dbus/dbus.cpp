@@ -1,3 +1,5 @@
+#ifdef USE_HOST
+
 #include "dbus.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -81,3 +83,4 @@ void DBus::loop() {
 
 }  // namespace dbus
 }  // namespace esphome
+#endif

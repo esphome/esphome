@@ -1,3 +1,5 @@
+#ifdef USE_HOST
+
 #include "dbus-wrapper.h"
 #include "dbus-print-message.h"
 #include <cassert>
@@ -578,3 +580,4 @@ void DBus::loop() {
 
 }  // namespace dbus
 }  // namespace esphome
+#endif

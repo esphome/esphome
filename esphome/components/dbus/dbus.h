@@ -1,4 +1,5 @@
 #pragma once
+#ifdef USE_HOST
 
 #include <string>
 #include <list>
@@ -40,3 +41,4 @@ class DBus : public Component, public DBusWrapper {
 
 }  // namespace dbus
 }  // namespace esphome
+#endif
