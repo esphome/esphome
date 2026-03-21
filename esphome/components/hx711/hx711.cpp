@@ -52,7 +52,7 @@ void HX711Sensor::loop() {
     if (this->gain_ == HX711Gain::HX711_GAIN_128) {
       this->start_settle_timeout_();
     } else if (!this->read_sensor_(nullptr, true, true)) {
-      this->mark_failed_internal_("power-up can't set gain");
+      this->mark_failed_internal_(LOG_STR("power-up can't set gain"));
     }
 
     this->hx711_state_flags_.power_up_sequence_running = false;
@@ -324,7 +324,7 @@ bool HX711Sensor::start_measurement_ready_timeout_() {
     this->set_timeout(TIMEOUT_NAME_MEASUREMENT_READY, this->measurement_ready_timeout_ms_, [this]() {
       this->hx711_state_flags_.measurement_ready_timeout_active = false;
       this->power_down_internal_();
-      this->mark_failed("ready timeout");
+      this->mark_failed(LOG_STR("ready timeout"));
     });
     return true;
   }
@@ -332,7 +332,7 @@ bool HX711Sensor::start_measurement_ready_timeout_() {
   return false;
 }
 
-void HX711Sensor::mark_failed_internal_(const char *message) {
+void HX711Sensor::mark_failed_internal_(const LogString *message) {
   if (this->is_failed())
     return;
   this->power_down_internal_();

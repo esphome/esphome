@@ -107,8 +107,8 @@ class HX711Sensor : public sensor::Sensor, public PollingComponent {
 
  protected:
   /// @brief Logs error, powers down the HX711 and marks component as failed.
-  /// @param[in] message Pointer to C-style null terminated string error message.
-  void mark_failed_internal_(const char *message);
+  /// @param[in] message Pointer to LogString error message.
+  void mark_failed_internal_(const LogString *message);
 
   /// @brief Starts the measurement-ready timeout for the HX711 sensor.
   ///
