@@ -31,6 +31,20 @@ static const char *const TAG = "openthread";
 namespace esphome::openthread {
 
 void OpenThreadComponent::setup() {
+#if CONFIG_PM_ENABLE
+  esp_err_t ret = esp_pm_lock_create(ESP_PM_CPU_FREQ_MAX, 0, "otsetup", &(this->s_cli_pm_lock_));
+  if (ret == ESP_OK) {
+    esp_pm_lock_acquire(this->s_cli_pm_lock_);
+    ESP_LOGI(TAG, "Successfully created otsetup pm lock");
+  } else {
+    if (this->s_cli_pm_lock_ != NULL) {
+      esp_pm_lock_delete(this->s_cli_pm_lock_);
+      this->s_cli_pm_lock_ = NULL;
+    }
+    ESP_LOGW(TAG, "Failed to create otsetup pm lock");
+  }
+#endif
+
   // Used eventfds:
   // * netif
   // * ot task queue
@@ -124,12 +138,29 @@ void OpenThreadComponent::setup() {
   ESP_ERROR_CHECK(esp_openthread_auto_start(dataset.mLength > 0 ? &dataset : nullptr));
 
   // Register state change callback to update connected_ reactively instead of polling
+#if CONFIG_PM_ENABLE
+  otSetStateChangedCallback(instance, OpenThreadComponent::on_state_changed_pm_, this);
+#else
   otSetStateChangedCallback(instance, OpenThreadComponent::on_state_changed_, this);
+#endif
 
   esp_openthread_lock_release();
 
   ESP_LOGD(TAG, "Thread Version: %" PRIu16, otThreadGetVersion());
 }
+
+#if CONFIG_PM_ENABLE
+void OpenThreadComponent::on_state_changed_pm_(otChangedFlags flags, void *context) {
+  auto *self = static_cast<OpenThreadComponent *>(context);
+  self->on_state_changed_(flags, context);
+  if (self->connected_ && self->s_cli_pm_lock_ != NULL) {
+    esp_pm_lock_release(self->s_cli_pm_lock_);
+    esp_pm_lock_delete(self->s_cli_pm_lock_);
+    self->s_cli_pm_lock_ = NULL;
+    ESP_LOGI(TAG, "Removed otsetup pm lock");
+  }
+}
+#endif
 
 int OpenThreadComponent::openthread_stop_() {
   // Clean up - reset lock flag before deinit destroys the semaphore
