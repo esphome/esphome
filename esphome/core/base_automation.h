@@ -217,6 +217,11 @@ template<typename... Ts> class LambdaAction : public Action<Ts...> {
  public:
   explicit LambdaAction(std::function<void(Ts...)> &&f) : f_(std::move(f)) {}
 
+  void play_complex(const Ts &...x) override {
+    this->num_running_++;
+    this->f_(x...);
+    this->play_next_(x...);
+  }
   void play(const Ts &...x) override { this->f_(x...); }
 
  protected:
@@ -230,6 +235,11 @@ template<typename... Ts> class StatelessLambdaAction : public Action<Ts...> {
  public:
   explicit StatelessLambdaAction(void (*f)(Ts...)) : f_(f) {}
 
+  void play_complex(const Ts &...x) override {
+    this->num_running_++;
+    this->f_(x...);
+    this->play_next_(x...);
+  }
   void play(const Ts &...x) override { this->f_(x...); }
 
  protected:
@@ -243,6 +253,11 @@ template<typename... Ts> class ContinuationAction : public Action<Ts...> {
  public:
   explicit ContinuationAction(Action<Ts...> *parent) : parent_(parent) {}
 
+  void play_complex(const Ts &...x) override {
+    this->num_running_++;
+    this->parent_->play_next_(x...);
+    this->play_next_(x...);
+  }
   void play(const Ts &...x) override { this->parent_->play_next_(x...); }
 
  protected:
