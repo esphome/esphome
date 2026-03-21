@@ -217,9 +217,11 @@ template<typename... Ts> class LambdaAction : public Action<Ts...> {
  public:
   explicit LambdaAction(std::function<void(Ts...)> &&f) : f_(std::move(f)) {}
 
+  // Override play_complex to call play() non-virtually (qualified call),
+  // eliminating one virtual dispatch frame from the call stack.
   void play_complex(const Ts &...x) override {
     this->num_running_++;
-    this->f_(x...);
+    LambdaAction::play(x...);
     this->play_next_(x...);
   }
   void play(const Ts &...x) override { this->f_(x...); }
@@ -235,9 +237,11 @@ template<typename... Ts> class StatelessLambdaAction : public Action<Ts...> {
  public:
   explicit StatelessLambdaAction(void (*f)(Ts...)) : f_(f) {}
 
+  // Override play_complex to call play() non-virtually (qualified call),
+  // eliminating one virtual dispatch frame from the call stack.
   void play_complex(const Ts &...x) override {
     this->num_running_++;
-    this->f_(x...);
+    StatelessLambdaAction::play(x...);
     this->play_next_(x...);
   }
   void play(const Ts &...x) override { this->f_(x...); }
@@ -253,9 +257,11 @@ template<typename... Ts> class ContinuationAction : public Action<Ts...> {
  public:
   explicit ContinuationAction(Action<Ts...> *parent) : parent_(parent) {}
 
+  // Override play_complex to call play() non-virtually (qualified call),
+  // eliminating one virtual dispatch frame from the call stack.
   void play_complex(const Ts &...x) override {
     this->num_running_++;
-    this->parent_->play_next_(x...);
+    ContinuationAction::play(x...);
     this->play_next_(x...);
   }
   void play(const Ts &...x) override { this->parent_->play_next_(x...); }
