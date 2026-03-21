@@ -148,7 +148,7 @@ class MQTTComponent : public Component {
   void schedule_resend_state();
 
   /// Check if a resend is pending (called by MQTTClientComponent to rate-limit work)
-  bool resend_pending() const { return this->resend_state_; }
+  bool is_resend_pending() const { return this->resend_state_; }
 
   /// Process pending resend if needed (called by MQTTClientComponent)
   void process_resend();

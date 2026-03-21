@@ -404,7 +404,7 @@ void MQTTClientComponent::loop() {
         {
           uint8_t resend_count = 0;
           for (MQTTComponent *component : this->children_) {
-            if (component->resend_pending()) {
+            if (component->is_resend_pending()) {
               component->process_resend();
               if (++resend_count >= MAX_RESENDS_PER_LOOP)
                 break;
