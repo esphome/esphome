@@ -54,9 +54,14 @@ static void PlaintextFrame_WriteSensorState(benchmark::State &state) {
   auto [helper, read_fd] = create_plaintext_helper();
   uint8_t padding = helper->frame_header_padding();
 
+  // Pre-init buffer to typical TCP MSS size to avoid benchmarking
+  // heap allocation — in real use the buffer is reused across writes.
+  APIBuffer buffer;
+  buffer.reserve(1460);
+
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
-      APIBuffer buffer;
+      buffer.clear();
       SensorStateResponse msg;
       msg.key = 0x12345678;
       msg.state = 23.5f;
@@ -89,9 +94,14 @@ static void PlaintextFrame_WriteBatch5(benchmark::State &state) {
   uint8_t padding = helper->frame_header_padding();
   uint8_t footer = helper->frame_footer_size();
 
+  // Pre-init buffer to typical TCP MSS size to avoid benchmarking
+  // heap allocation — in real use the buffer is reused across writes.
+  APIBuffer buffer;
+  buffer.reserve(1460);
+
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
-      APIBuffer buffer;
+      buffer.clear();
       MessageInfo messages[5] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0}};
 
       for (int j = 0; j < 5; j++) {
