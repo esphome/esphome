@@ -40,7 +40,6 @@ void DBusTextSensor::update() {
 
 float DBusTextSensor::get_setup_priority() const { return setup_priority::DATA; }
 // void DBusTextSensor::set_hide_timestamp(bool hide_timestamp) { this->hide_timestamp_ = hide_timestamp; }
-// std::string DBusTextSensor::unique_id() { return get_mac_address() + "-dbus"; }
 void DBusTextSensor::dump_config() { LOG_TEXT_SENSOR("", "dbus Text Sensor", this); }
 
 void DBusTextSensor::loop() {
