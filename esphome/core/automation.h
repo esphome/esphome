@@ -322,7 +322,7 @@ template<typename... Ts> class Automation;
 template<typename... Ts> class Trigger {
  public:
   /// Inform the parent automation that the event has triggered.
-  __attribute__((always_inline)) void trigger(const Ts &...x) {
+  void trigger(const Ts &...x) {
     if (this->automation_parent_ == nullptr)
       return;
     this->automation_parent_->trigger(x...);
@@ -429,7 +429,7 @@ template<typename... Ts> class ActionList {
       this->add_action(action);
     }
   }
-  __attribute__((always_inline)) void play(const Ts &...x) {
+  void play(const Ts &...x) {
     if (this->actions_begin_ != nullptr)
       this->actions_begin_->play_complex(x...);
   }
@@ -473,7 +473,7 @@ template<typename... Ts> class Automation {
 
   void stop() { this->actions_.stop(); }
 
-  __attribute__((always_inline)) void trigger(const Ts &...x) { this->actions_.play(x...); }
+  void trigger(const Ts &...x) { this->actions_.play(x...); }
 
   bool is_running() { return this->actions_.is_running(); }
 
