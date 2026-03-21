@@ -30,7 +30,7 @@ static const char *const TAG = "mqtt";
 
 // Maximum number of MQTT component resends per loop iteration.
 // Limits work to avoid triggering the task watchdog on reconnect.
-static constexpr uint8_t MAX_RESENDS_PER_LOOP = 4;
+static constexpr uint8_t MAX_RESENDS_PER_LOOP = 8;
 
 // Disconnect reason strings indexed by MQTTClientDisconnectReason enum (0-8)
 PROGMEM_STRING_TABLE(MQTTDisconnectReasonStrings, "TCP disconnected", "Unacceptable Protocol Version",
