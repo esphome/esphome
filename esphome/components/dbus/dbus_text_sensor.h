@@ -1,4 +1,5 @@
 #pragma once
+#ifdef USE_HOST
 
 #include <string.h>
 #include <list>
@@ -53,3 +54,4 @@ class DBusTextSensor : public text_sensor::TextSensor, public PollingComponent, 
 
 }  // namespace dbus
 }  // namespace esphome
+#endif

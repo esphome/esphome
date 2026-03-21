@@ -1,3 +1,5 @@
+#ifdef USE_HOST
+
 #include "dbus_text_sensor.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -64,3 +66,4 @@ void DBusTextSensor::loop() {
 
 }  // namespace dbus
 }  // namespace esphome
+#endif

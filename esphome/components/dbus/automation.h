@@ -1,4 +1,5 @@
 #pragma once
+#ifdef USE_HOST
 
 #include "esphome/core/automation.h"
 #include "dbus.h"
@@ -30,3 +31,4 @@ template<typename... Ts> class DBusSendAction : public Action<Ts...>, public Par
 
 }  // namespace dbus
 }  // namespace esphome
+#endif
