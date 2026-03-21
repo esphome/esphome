@@ -87,17 +87,15 @@ void OpenThreadComponent::setup() {
   // lock
   esp_openthread_lock_acquire(portMAX_DELAY);
   this->apply_linkmode(instance);
+
   if (this->output_power_.has_value()) {
     if (const auto err = otPlatRadioSetTransmitPower(instance, *this->output_power_); err != OT_ERROR_NONE) {
       ESP_LOGE(TAG, "Failed to set power: %s", otThreadErrorToString(err));
     }
   }
-
-  // Register state change callback to update connected_ reactively instead of polling
-  otSetStateChangedCallback(instance, OpenThreadComponent::on_state_changed_, this);
-
   ESP_LOGI(TAG, "Activating dataset...");
-  otOperationalDatasetTlvs dataset;
+  otOperationalDatasetTlvs dataset = {};
+
 #ifndef USE_OPENTHREAD_FORCE_DATASET
   // Check if openthread has a valid dataset from a previous execution
   otError error = otDatasetGetActiveTlvs(instance, &dataset);
@@ -108,6 +106,7 @@ void OpenThreadComponent::setup() {
     ESP_LOGI(TAG, "Found existing dataset, ignoring config (force_dataset: true to override)");
   }
 #endif
+
 #ifdef USE_OPENTHREAD_TLVS
   if (dataset.mLength == 0) {
     // If we didn't have an active dataset, and we have tlvs, parse it and pass it to esp_openthread_auto_start
@@ -120,7 +119,13 @@ void OpenThreadComponent::setup() {
     dataset.mLength = len;
   }
 #endif
-  ESP_ERROR_CHECK(esp_openthread_auto_start((error == OT_ERROR_NONE) ? &dataset : NULL));
+
+  // Pass the existing dataset, or NULL which will use the preprocessor definitions
+  ESP_ERROR_CHECK(esp_openthread_auto_start(dataset.mLength > 0 ? &dataset : nullptr));
+
+  // Register state change callback to update connected_ reactively instead of polling
+  otSetStateChangedCallback(instance, OpenThreadComponent::on_state_changed_, this);
+
   esp_openthread_lock_release();
 
   ESP_LOGD(TAG, "Thread Version: %" PRIu16, otThreadGetVersion());
