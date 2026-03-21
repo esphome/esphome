@@ -697,7 +697,7 @@ inline void ProtoLengthDelimited::decode_to_message(ProtoDecodableMessage &msg) 
 
 template<typename T> const char *proto_enum_to_string(T value);
 
-// ProtoService removed — all methods moved to APIServerConnectionBase.
-// APIConnection is the only concrete class; virtual dispatch was unnecessary.
+// ProtoService removed — its methods were inlined into APIConnection.
+// APIConnection is the concrete server-side implementation; the extra virtual layer was unnecessary.
 
 }  // namespace esphome::api

@@ -55,8 +55,8 @@ class APIConnection final : public APIServerConnectionBase {
   void loop();
 
  protected:
-  // Override read_message here (instead of in APIServerConnectionBase) so the
-  // compiler can devirtualize and inline on_* handler calls within this class.
+  // read_message_ is defined here (instead of in APIServerConnectionBase) so the
+  // compiler can devirtualize and inline on_* handler calls within this final class.
   void read_message_(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data);
 
   // Auth helpers defined here (not in ProtoService) so the compiler can
