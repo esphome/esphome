@@ -283,19 +283,15 @@ void ESPTime::recalc_timestamp_local() {
   bool dst_valid = time::is_in_dst(utc_if_dst, tz);
   bool std_valid = !time::is_in_dst(utc_if_std, tz);
 
-  if (dst_valid && std_valid) {
-    // Ambiguous time (repeated hour during fall-back) - prefer standard time
-    this->timestamp = utc_if_std;
-  } else if (dst_valid) {
+  if (dst_valid && !std_valid) {
     // Only DST interpretation is valid
     this->timestamp = utc_if_dst;
-  } else if (std_valid) {
-    // Only standard interpretation is valid
-    this->timestamp = utc_if_std;
   } else {
-    // Invalid time (skipped hour during spring-forward)
-    // libc normalizes forward: 02:30 CST -> 08:30 UTC -> 03:30 CDT
-    // Using std offset achieves this since the UTC result falls during DST
+    // All other cases use standard offset:
+    // - Both valid (ambiguous fall-back repeated hour): prefer standard time
+    // - Only standard valid: straightforward
+    // - Neither valid (spring-forward skipped hour): std offset normalizes
+    //   forward to match libc mktime(), e.g. 02:30 CST -> 03:30 CDT
     this->timestamp = utc_if_std;
   }
 #else

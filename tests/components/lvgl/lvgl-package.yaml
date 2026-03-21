@@ -37,7 +37,11 @@ lvgl:
   on_resume:
     logger.log: LVGL has resumed
   on_boot:
-    logger.log: LVGL has started
+    - logger.log: LVGL has started
+    - lvgl.indicator.update:
+        id: meter_arc_indicator
+        start_value: 0
+        end_value: 180
   bg_color: light_blue
   disp_bg_color: color_id
   disp_bg_image: cat_image
@@ -1110,6 +1114,12 @@ lvgl:
                                 color: 0xA0A0A0
                                 length: 80%
                                 opa: 0%
+                            - arc:
+                                id: meter_arc_indicator
+                                color: 0xFF0000
+                                width: 6
+                                start_value: 0
+                                end_value: 360
     - id: page3
       layout: Horizontal
       pad_all: 6px
