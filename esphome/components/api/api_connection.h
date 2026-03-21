@@ -49,7 +49,7 @@ class APIConnection final : public APIServerConnectionBase {
   friend class APIServer;
   friend class ListEntitiesIterator;
   APIConnection(std::unique_ptr<socket::Socket> socket, APIServer *parent);
-  virtual ~APIConnection();
+  ~APIConnection();
 
   void start();
   void loop();
@@ -57,7 +57,7 @@ class APIConnection final : public APIServerConnectionBase {
  protected:
   // Override read_message here (instead of in APIServerConnectionBase) so the
   // compiler can devirtualize and inline on_* handler calls within this class.
-  void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data);
+  void read_message_(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data);
 
   // Auth helpers defined here (not in ProtoService) so the compiler can
   // devirtualize is_connection_setup()/on_no_setup_connection() calls

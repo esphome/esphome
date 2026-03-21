@@ -3055,7 +3055,7 @@ static const char *const TAG = "api.service";
     # can devirtualize and inline the on_* handler calls within the same class.
     # APIConnection declares the override in api_connection.h.
 
-    out = "void APIConnection::read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {\n"
+    out = "void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {\n"
 
     # Auth check block before dispatch switch
     out += "  // Check authentication/connection requirements\n"
