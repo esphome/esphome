@@ -194,7 +194,6 @@ struct VariantTreeToDbusMessage {
         const char *dummy = NULL;
         if (std::holds_alternative<int>(value.data)) {
           type = 'i';
-#warning testen geht des & da ???
           data = (void **) &std::get<int>(value.data);
         } else if (std::holds_alternative<unsigned int>(value.data)) {
           type = 'u';
