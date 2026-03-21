@@ -1,3 +1,6 @@
+#include "esphome/core/defines.h"
+#ifdef USE_API_PLAINTEXT
+
 #include <benchmark/benchmark.h>
 #include <fcntl.h>
 #include <sys/socket.h>
@@ -122,3 +125,5 @@ static void PlaintextFrame_WriteBatch5(benchmark::State &state) {
 BENCHMARK(PlaintextFrame_WriteBatch5);
 
 }  // namespace esphome::api::benchmarks
+
+#endif  // USE_API_PLAINTEXT
