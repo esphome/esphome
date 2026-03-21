@@ -124,8 +124,12 @@ class HonClimate : public HaierClimateBase {
   void set_extra_sensors_packet_bytes_size(size_t size) { this->extra_sensors_packet_bytes_ = size; };
   void set_status_message_header_size(size_t size) { this->status_message_header_size_ = size; };
   void set_control_method(HonControlMethod method) { this->control_method_ = method; };
-  void add_alarm_start_callback(std::function<void(uint8_t, const char *)> &&callback);
-  void add_alarm_end_callback(std::function<void(uint8_t, const char *)> &&callback);
+  template<typename F> void add_alarm_start_callback(F &&callback) {
+    this->alarm_start_callback_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_alarm_end_callback(F &&callback) {
+    this->alarm_end_callback_.add(std::forward<F>(callback));
+  }
   float get_active_alarm_count() const { return this->active_alarm_count_; }
 
  protected:

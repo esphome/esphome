@@ -201,6 +201,9 @@ class MemoryAnalyzer:
         self._cswtch_symbols: list[tuple[str, int, str, str]] = []
         # Library symbol mapping: symbol_name -> library_name
         self._lib_symbol_map: dict[str, str] = {}
+        # Source file symbol mapping: symbol_name -> component_name
+        # Used for extern "C" and other symbols without C++ namespace
+        self._source_symbol_map: dict[str, str] = {}
         # Library dir to name mapping: "lib641" -> "espsoftwareserial",
         # "espressif__mdns" -> "mdns"
         self._lib_hash_to_name: dict[str, str] = {}
@@ -214,6 +217,7 @@ class MemoryAnalyzer:
         self._parse_sections()
         self._parse_symbols()
         self._scan_libraries()
+        self._scan_source_symbols()
         self._categorize_symbols()
         self._analyze_cswtch_symbols()
         self._analyze_sdk_libraries()
@@ -362,6 +366,11 @@ class MemoryAnalyzer:
         # Check library symbol map (more accurate than heuristic patterns)
         if lib_name := self._lib_symbol_map.get(symbol_name):
             return f"{_COMPONENT_PREFIX_LIB}{lib_name}"
+
+        # Check source file mapping (catches extern "C" functions in ESPHome sources)
+        # Must be before heuristic patterns since source attribution is authoritative
+        if component := self._source_symbol_map.get(symbol_name):
+            return component
 
         # Check against symbol patterns
         for component, patterns in SYMBOL_PATTERNS.items():
@@ -653,6 +662,7 @@ class MemoryAnalyzer:
             return None
 
         symbol_map: dict[str, str] = {}
+        source_symbol_map: dict[str, str] = {}
         current_symbol: str | None = None
         section_prefixes = (".text.", ".rodata.", ".data.", ".bss.", ".literal.")
 
@@ -688,9 +698,18 @@ class MemoryAnalyzer:
                     if dir_key in source_path:
                         symbol_map[current_symbol] = lib_name
                         break
+                else:
+                    # Map ESPHome source files to components for extern "C"
+                    # and other symbols without C++ namespace
+                    component = self._source_file_to_component(source_path)
+                    if component.startswith(
+                        (_COMPONENT_PREFIX_ESPHOME, _COMPONENT_PREFIX_EXTERNAL)
+                    ):
+                        source_symbol_map[current_symbol] = component
 
             current_symbol = None
 
+        self._source_symbol_map = source_symbol_map
         return symbol_map or None
 
     def _scan_libraries(self) -> None:
@@ -740,6 +759,112 @@ class MemoryAnalyzer:
             len(self._lib_symbol_map),
             len(libraries),
         )
+
+    def _scan_source_symbols(self) -> None:
+        """Scan ESPHome source object files to map extern "C" symbols to components.
+
+        When no linker map file is available, this uses ``nm`` to scan ``.o`` files
+        under ``src/esphome/`` and build a symbol-to-component mapping. This catches
+        ``extern "C"`` functions and other symbols that lack C++ namespace prefixes.
+
+        Skips scanning if ``_source_symbol_map`` was already populated by
+        ``_parse_map_file()``.
+        """
+        if self._source_symbol_map or not self.nm_path:
+            return
+
+        obj_dir = self._find_object_files_dir()
+        if obj_dir is None:
+            return
+
+        # Find ESPHome source object files
+        esphome_src_dir = obj_dir / "src" / "esphome"
+        if not esphome_src_dir.is_dir():
+            return
+
+        obj_files = sorted(esphome_src_dir.rglob("*.o"))
+        if not obj_files:
+            return
+
+        # Run nm with --print-file-name to get file:symbol mapping
+        result = run_tool(
+            [self.nm_path, "--print-file-name", "-g", "--defined-only"]
+            + [str(f) for f in obj_files],
+        )
+        if result is None or result.returncode != 0:
+            _LOGGER.debug("nm scan of source objects failed")
+            return
+
+        self._source_symbol_map = self._parse_nm_source_output(result.stdout, obj_dir)
+        if self._source_symbol_map:
+            _LOGGER.info(
+                "Built source symbol map from nm: %d symbols",
+                len(self._source_symbol_map),
+            )
+
+    def _parse_nm_source_output(self, output: str, base_dir: Path) -> dict[str, str]:
+        """Parse nm output to map non-namespaced symbols to ESPHome components.
+
+        Extracts global defined symbols from ESPHome source object files that
+        don't use C++ namespacing (e.g. ``extern "C"`` functions).
+
+        Args:
+            output: Raw stdout from ``nm --print-file-name -g --defined-only``
+                or ``nm --print-file-name -S``.
+            base_dir: Build directory for computing relative paths.
+
+        Returns:
+            Dict mapping symbol names to component names.
+        """
+        source_map: dict[str, str] = {}
+        for line in output.splitlines():
+            # Format: /path/to/file.o: addr type name
+            #     or: /path/to/file.o: addr size type name (with -S)
+            colon_idx = line.rfind(".o:")
+            if colon_idx == -1:
+                continue
+
+            file_path = line[: colon_idx + 2]
+            fields = line[colon_idx + 3 :].split()
+            if len(fields) < 3:
+                continue
+
+            # With -S flag, format is: addr size type name
+            # Without -S flag: addr type name
+            # type is a single char; size is hex digits
+            # Detect by checking if fields[1] is a single uppercase letter (type)
+            if len(fields[1]) == 1 and fields[1].isalpha():
+                # addr type name
+                sym_type = fields[1]
+                symbol_name = fields[2]
+            elif len(fields) >= 4:
+                # addr size type name
+                sym_type = fields[2]
+                symbol_name = fields[3]
+            else:
+                continue
+
+            # Only global defined symbols (uppercase type)
+            if not sym_type.isupper() or sym_type == "U":
+                continue
+
+            # Skip symbols already in esphome:: namespace
+            if symbol_name.startswith("_ZN7esphome"):
+                continue
+
+            # Make path relative to base_dir for _source_file_to_component
+            try:
+                rel_path = str(Path(file_path).relative_to(base_dir))
+            except ValueError:
+                continue
+
+            component = self._source_file_to_component(rel_path)
+            if component.startswith(
+                (_COMPONENT_PREFIX_ESPHOME, _COMPONENT_PREFIX_EXTERNAL)
+            ):
+                source_map[symbol_name] = component
+
+        return source_map
 
     def _find_object_files_dir(self) -> Path | None:
         """Find the directory containing object files for this build.

@@ -92,6 +92,7 @@
 #define USE_LVGL_MSGBOX
 #define USE_LVGL_ROLLER
 #define USE_LVGL_ROTARY_ENCODER
+#define USE_LVGL_SCALE
 #define USE_LVGL_SLIDER
 #define USE_LVGL_SPAN
 #define USE_LVGL_SPINBOX
@@ -117,6 +118,7 @@
 #define USE_NUMBER
 #define USE_OUTPUT
 #define USE_POWER_SUPPLY
+#define USE_PREFERENCES_SYNC_EVERY_LOOP
 #define USE_QR_CODE
 #define USE_SAFE_MODE_CALLBACK
 #define USE_SELECT
@@ -185,7 +187,6 @@
 #ifdef USE_ARDUINO
 #define USE_PROMETHEUS
 #define USE_WIFI_WPA2_EAP
-#define USE_I2S_LEGACY
 #endif
 
 // Platforms with native 64-bit time sources (no rollover tracking needed)
@@ -281,6 +282,8 @@
 #define USE_ETHERNET_SPI
 #define USE_ETHERNET_SPI_POLLING_SUPPORT
 #define USE_ETHERNET_OPENETH
+#define USE_ETHERNET_W5500
+#define USE_ETHERNET_DM9051
 #define CONFIG_ETH_SPI_ETHERNET_W5500 1
 #define CONFIG_ETH_SPI_ETHERNET_DM9051 1
 #define CONFIG_ETH_USE_ESP32_EMAC 1
@@ -351,6 +354,12 @@
 #define USE_SOCKET_IMPL_LWIP_TCP
 #define USE_RP2040_BLE
 #define USE_SPI
+#ifndef USE_ETHERNET
+#define USE_ETHERNET
+#endif
+#ifndef USE_ETHERNET_SPI
+#define USE_ETHERNET_SPI
+#endif
 #endif
 
 #ifdef USE_LIBRETINY

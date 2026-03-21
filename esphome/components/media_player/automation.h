@@ -80,12 +80,15 @@ class StateTrigger : public Trigger<> {
 
 template<MediaPlayerState State> class MediaPlayerStateTrigger : public Trigger<> {
  public:
-  explicit MediaPlayerStateTrigger(MediaPlayer *player) {
-    player->add_on_state_callback([this, player]() {
-      if (player->state == State)
+  explicit MediaPlayerStateTrigger(MediaPlayer *player) : player_(player) {
+    player->add_on_state_callback([this]() {
+      if (this->player_->state == State)
         this->trigger();
     });
   }
+
+ protected:
+  MediaPlayer *player_;
 };
 
 using IdleTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_IDLE>;

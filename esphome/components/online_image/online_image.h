@@ -65,8 +65,12 @@ class OnlineImage : public PollingComponent,
    */
   void release();
 
-  void add_on_finished_callback(std::function<void(bool)> &&callback);
-  void add_on_error_callback(std::function<void()> &&callback);
+  template<typename F> void add_on_finished_callback(F &&callback) {
+    this->download_finished_callback_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_on_error_callback(F &&callback) {
+    this->download_error_callback_.add(std::forward<F>(callback));
+  }
 
  protected:
   bool validate_url_(const std::string &url);
