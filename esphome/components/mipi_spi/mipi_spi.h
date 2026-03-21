@@ -113,6 +113,20 @@ class MipiSpi : public display::Display,
   }
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
 
+  int get_width() override {
+    if (this->rotation_ == display::DISPLAY_ROTATION_90_DEGREES ||
+        this->rotation_ == display::DISPLAY_ROTATION_270_DEGREES)
+      return HEIGHT;
+    return WIDTH;
+  }
+
+  int get_height() override {
+    if (this->rotation_ == display::DISPLAY_ROTATION_90_DEGREES ||
+        this->rotation_ == display::DISPLAY_ROTATION_270_DEGREES)
+      return WIDTH;
+    return HEIGHT;
+  }
+
   // If hardware rotation is in use, the actual display width/height changes with rotation
   int get_width_internal() override {
     if constexpr (HAS_HARDWARE_ROTATION)
@@ -612,20 +626,6 @@ class MipiSpiBuffer : public MipiSpi<BUFFERTYPE, BUFFERPIXEL, IS_BIG_ENDIAN, DIS
     this->y_high_ = this->end_line_ - 1;
     std::fill_n(this->buffer_, (this->end_line_ - this->start_line_) * round_buffer(this->get_width_internal()),
                 convert_color(color));
-  }
-
-  int get_width() override {
-    if (this->rotation_ == display::DISPLAY_ROTATION_90_DEGREES ||
-        this->rotation_ == display::DISPLAY_ROTATION_270_DEGREES)
-      return HEIGHT;
-    return WIDTH;
-  }
-
-  int get_height() override {
-    if (this->rotation_ == display::DISPLAY_ROTATION_90_DEGREES ||
-        this->rotation_ == display::DISPLAY_ROTATION_270_DEGREES)
-      return WIDTH;
-    return HEIGHT;
   }
 
  protected:

@@ -118,15 +118,7 @@ void MipiRgbSpi::dump_config() {
   MipiRgb::dump_config();
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
-  ESP_LOGCONFIG(TAG,
-                "  SPI Data rate: %uMHz"
-                "\n  Mirror X: %s"
-                "\n  Mirror Y: %s"
-                "\n  Swap X/Y: %s"
-                "\n  Color Order: %s",
-                (unsigned) (this->data_rate_ / 1000000), YESNO(this->madctl_ & (MADCTL_XFLIP | MADCTL_MX)),
-                YESNO(this->madctl_ & (MADCTL_YFLIP | MADCTL_MY | MADCTL_ML)), YESNO(this->madctl_ & MADCTL_MV),
-                this->madctl_ & MADCTL_BGR ? "BGR" : "RGB");
+  ESP_LOGCONFIG(TAG, "  SPI Data rate: %uMHz", (unsigned) (this->data_rate_ / 1000000));
 }
 
 #endif  // USE_SPI

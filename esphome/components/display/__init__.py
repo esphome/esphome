@@ -163,12 +163,12 @@ class DisplayMetaData:
 
 
 def get_all_display_metadata() -> dict[str, DisplayMetaData]:
-    """Get all image metadata."""
+    """Get all display metadata."""
     return CORE.data.setdefault(DOMAIN, {}).setdefault(KEY_METADATA, {})
 
 
 def get_display_metadata(display_id: str) -> DisplayMetaData | None:
-    """Get image metadata by ID for use by other components."""
+    """Get display metadata by ID for use by other components."""
     return get_all_display_metadata().get(display_id)
 
 

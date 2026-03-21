@@ -392,9 +392,6 @@ void MIPI_DSI::dump_config() {
                 "\n  Model: %s"
                 "\n  Width: %u"
                 "\n  Height: %u"
-                "\n  Mirror X: %s"
-                "\n  Mirror Y: %s"
-                "\n  Swap X/Y: %s"
                 "\n  Rotation: %d degrees"
                 "\n  DSI Lanes: %u"
                 "\n  Lane Bit Rate: %.0fMbps"
@@ -406,14 +403,11 @@ void MIPI_DSI::dump_config() {
                 "\n  VSync Front Porch: %u"
                 "\n  Buffer Color Depth: %d bit"
                 "\n  Display Pixel Mode: %d bit"
-                "\n  Color Order: %s"
                 "\n  Invert Colors: %s"
                 "\n  Pixel Clock: %.1fMHz",
-                this->model_, this->width_, this->height_, YESNO(this->madctl_ & (MADCTL_XFLIP | MADCTL_MX)),
-                YESNO(this->madctl_ & (MADCTL_YFLIP | MADCTL_MY)), YESNO(this->madctl_ & MADCTL_MV), this->rotation_,
-                this->lanes_, this->lane_bit_rate_, this->hsync_pulse_width_, this->hsync_back_porch_,
-                this->hsync_front_porch_, this->vsync_pulse_width_, this->vsync_back_porch_, this->vsync_front_porch_,
-                (3 - this->color_depth_) * 8, this->pixel_mode_, this->madctl_ & MADCTL_BGR ? "BGR" : "RGB",
+                this->model_, this->width_, this->height_, this->rotation_, this->lanes_, this->lane_bit_rate_,
+                this->hsync_pulse_width_, this->hsync_back_porch_, this->hsync_front_porch_, this->vsync_pulse_width_,
+                this->vsync_back_porch_, this->vsync_front_porch_, (3 - this->color_depth_) * 8, this->pixel_mode_,
                 YESNO(this->invert_colors_), this->pclk_frequency_);
   LOG_PIN("  Reset Pin ", this->reset_pin_);
 }

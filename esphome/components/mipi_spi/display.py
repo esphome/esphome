@@ -118,9 +118,9 @@ def denominator(config):
     """
     model = MODELS[config[CONF_MODEL]]
     frac = config.get(CONF_BUFFER_SIZE)
-    if frac is None or frac > 0.75:
+    _width, height, _offset_width, _offset_height = model.get_dimensions(config)
+    if frac is None or frac > 0.75 or height < 32:
         return 1
-    height, _width, _offset_width, _offset_height = model.get_dimensions(config)
     try:
         return next(x for x in range(2, 17) if frac >= 1 / x and height % x == 0)
     except StopIteration:
@@ -284,12 +284,9 @@ def _final_validate(config):
         config[CONF_SHOW_TEST_CARD] = True
 
     if PSRAM_DOMAIN not in global_config and CONF_BUFFER_SIZE not in config:
-        if not requires_buffer(config):
-            return config  # No buffer needed, so no need to set a buffer size
         # If PSRAM is not enabled, choose a small buffer size by default
         if not requires_buffer(config):
-            # not our problem.
-            return config
+            return config  # No buffer needed, so no need to set a buffer size
         color_depth = get_color_depth(config)
         frac = denominator(config)
         height, width, _offset_width, _offset_height = model.get_dimensions(config)
