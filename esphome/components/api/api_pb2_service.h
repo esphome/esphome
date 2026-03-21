@@ -8,7 +8,7 @@
 
 namespace esphome::api {
 
-class APIServerConnectionBase : public ProtoService {
+class APIServerConnectionBase {
  public:
 #ifdef HAS_PROTO_MESSAGE_DUMP
  protected:

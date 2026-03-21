@@ -2982,7 +2982,7 @@ static const char *const TAG = "api.service";
 
     class_name = "APIServerConnectionBase"
 
-    hpp += f"class {class_name} : public ProtoService {{\n"
+    hpp += f"class {class_name} {{\n"
     hpp += " public:\n"
 
     # Add logging helper method declarations
