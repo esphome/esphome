@@ -842,10 +842,15 @@ template<typename ReturnT = uint32_t> inline constexpr ESPHOME_ALWAYS_INLINE Ret
 }
 
 /// Return a random 32-bit unsigned integer.
+/// Not thread-safe. Must only be called from the main loop.
+/// Not suitable for cryptographic use; use random_bytes() instead.
 uint32_t random_uint32();
 /// Return a random float between 0 and 1.
+/// Not thread-safe. Must only be called from the main loop.
+/// Not suitable for cryptographic use; use random_bytes() instead.
 float random_float();
-/// Generate \p len number of random bytes.
+/// Generate \p len random bytes using the platform's secure RNG (hardware RNG or OS CSPRNG).
+/// Thread-safe. Suitable for cryptographic use.
 bool random_bytes(uint8_t *data, size_t len);
 
 ///@}

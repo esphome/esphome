@@ -7,7 +7,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/gpio.h"
 #include "driver/gpio.h"
+#include "esp_private/gpio.h"
 #include "soc/gpio_num.h"
+#include "soc/uart_pins.h"
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
 #include "esphome/core/application.h"
@@ -20,6 +22,20 @@
 namespace esphome::uart {
 
 static const char *const TAG = "uart.idf";
+
+/// Check if a pin number matches one of the default UART0 GPIO pins.
+/// These pins may have residual IOMUX state from the ROM bootloader that
+/// must be cleared before UART reconfiguration.
+///
+/// ESP-IDF's uart_set_pin() has an asymmetry: when routing TX via GPIO matrix,
+/// it calls gpio_func_sel(PIN_FUNC_GPIO) to clear IOMUX, but for RX it only
+/// calls gpio_input_enable() which does NOT clear the IOMUX function select.
+/// If a default UART0 TX pin (configured as TX via IOMUX during boot) is later
+/// reassigned as RX via GPIO matrix, the old IOMUX TX function remains active,
+/// causing TX data to loop back into RX on the same pin.
+static constexpr bool is_default_uart0_pin(int8_t pin_num) {
+  return pin_num == U0TXD_GPIO_NUM || pin_num == U0RXD_GPIO_NUM;
+}
 
 uart_config_t IDFUARTComponent::get_config_() {
   uart_parity_t parity = UART_PARITY_DISABLE;
@@ -131,6 +147,19 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     return;
   }
 
+  int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
+  int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
+  int8_t flow_control = this->flow_control_pin_ != nullptr ? this->flow_control_pin_->get_pin() : -1;
+
+  // Clear residual IOMUX function on UART0 default pins left by the ROM bootloader.
+  // See is_default_uart0_pin() comment for details on the ESP-IDF uart_set_pin() bug.
+  if (is_default_uart0_pin(tx)) {
+    gpio_func_sel(static_cast<gpio_num_t>(tx), PIN_FUNC_GPIO);
+  }
+  if (is_default_uart0_pin(rx)) {
+    gpio_func_sel(static_cast<gpio_num_t>(rx), PIN_FUNC_GPIO);
+  }
+
   auto setup_pin_if_needed = [](InternalGPIOPin *pin) {
     if (!pin) {
       return;
@@ -145,10 +174,6 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   if (this->rx_pin_ != this->tx_pin_) {
     setup_pin_if_needed(this->tx_pin_);
   }
-
-  int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
-  int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
-  int8_t flow_control = this->flow_control_pin_ != nullptr ? this->flow_control_pin_->get_pin() : -1;
 
   uint32_t invert = 0;
   if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted()) {
