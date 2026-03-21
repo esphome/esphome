@@ -67,8 +67,7 @@ void VBus::loop() {
         }
         septet_spread(this->buffer_.data(), 7, 6, this->buffer_[13]);
         uint16_t id = (this->buffer_[8] << 8) + this->buffer_[7];
-        uint32_t value =
-            (this->buffer_[12] << 24) + (this->buffer_[11] << 16) + (this->buffer_[10] << 8) + this->buffer_[9];
+        uint32_t value = encode_uint32(this->buffer_[12], this->buffer_[11], this->buffer_[10], this->buffer_[9]);
         ESP_LOGV(TAG, "P1 C%04x %04x->%04x: %04x %04" PRIx32 " (%" PRIu32 ")", this->command_, this->source_,
                  this->dest_, id, value, value);
       } else if ((this->protocol_ == 0x10) && (this->buffer_.size() == 9)) {

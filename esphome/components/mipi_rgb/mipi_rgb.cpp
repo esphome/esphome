@@ -158,8 +158,16 @@ void MipiRgb::common_setup_() {
   }
   config.data_width = data_pin_count;
   config.disp_gpio_num = GPIO_NUM_NC;
-  config.hsync_gpio_num = static_cast<gpio_num_t>(this->hsync_pin_->get_pin());
-  config.vsync_gpio_num = static_cast<gpio_num_t>(this->vsync_pin_->get_pin());
+  if (this->hsync_pin_) {
+    config.hsync_gpio_num = static_cast<gpio_num_t>(this->hsync_pin_->get_pin());
+  } else {
+    config.hsync_gpio_num = GPIO_NUM_NC;
+  }
+  if (this->vsync_pin_) {
+    config.vsync_gpio_num = static_cast<gpio_num_t>(this->vsync_pin_->get_pin());
+  } else {
+    config.vsync_gpio_num = GPIO_NUM_NC;
+  }
   if (this->de_pin_) {
     config.de_gpio_num = static_cast<gpio_num_t>(this->de_pin_->get_pin());
   } else {
