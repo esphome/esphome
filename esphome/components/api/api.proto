@@ -316,7 +316,7 @@ message ListEntitiesBinarySensorResponse {
   option (ifdef) = "USE_BINARY_SENSOR";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
@@ -334,7 +334,7 @@ message BinarySensorStateResponse {
   option (ifdef) = "USE_BINARY_SENSOR";
   option (no_delay) = true;
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   bool state = 2;
   // If the binary sensor does not have a valid state yet.
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
@@ -350,7 +350,7 @@ message ListEntitiesCoverResponse {
   option (ifdef) = "USE_COVER";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
@@ -383,7 +383,7 @@ message CoverStateResponse {
   option (ifdef) = "USE_COVER";
   option (no_delay) = true;
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   // legacy: state has been removed in 1.13
   // clients/servers must still send/accept it until the next protocol change
   // Deprecated in API version 1.1
@@ -409,7 +409,7 @@ message CoverCommandRequest {
   option (no_delay) = true;
   option (base_class) = "CommandProtoMessage";
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
 
   // legacy: command has been removed in 1.13
   // clients/servers must still send/accept it until the next protocol change
@@ -434,7 +434,7 @@ message ListEntitiesFanResponse {
   option (ifdef) = "USE_FAN";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
@@ -466,7 +466,7 @@ message FanStateResponse {
   option (ifdef) = "USE_FAN";
   option (no_delay) = true;
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   bool state = 2;
   bool oscillating = 3;
   // Deprecated in API version 1.6
@@ -483,7 +483,7 @@ message FanCommandRequest {
   option (no_delay) = true;
   option (base_class) = "CommandProtoMessage";
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   bool has_state = 2;
   bool state = 3;
   // Deprecated in API version 1.6
@@ -522,7 +522,7 @@ message ListEntitiesLightResponse {
   option (ifdef) = "USE_LIGHT";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
@@ -551,7 +551,7 @@ message LightStateResponse {
   option (ifdef) = "USE_LIGHT";
   option (no_delay) = true;
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   bool state = 2;
   float brightness = 3;
   ColorMode color_mode = 11;
@@ -573,7 +573,7 @@ message LightCommandRequest {
   option (no_delay) = true;
   option (base_class) = "CommandProtoMessage";
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   bool has_state = 2;
   bool state = 3;
   bool has_brightness = 4;
@@ -627,7 +627,7 @@ message ListEntitiesSensorResponse {
   option (ifdef) = "USE_SENSOR";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
@@ -651,7 +651,7 @@ message SensorStateResponse {
   option (ifdef) = "USE_SENSOR";
   option (no_delay) = true;
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   float state = 2;
   // If the sensor does not have a valid state yet.
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
@@ -667,7 +667,7 @@ message ListEntitiesSwitchResponse {
   option (ifdef) = "USE_SWITCH";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
@@ -685,7 +685,7 @@ message SwitchStateResponse {
   option (ifdef) = "USE_SWITCH";
   option (no_delay) = true;
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   bool state = 2;
   uint32 device_id = 3 [(field_ifdef) = "USE_DEVICES"];
 }
@@ -696,7 +696,7 @@ message SwitchCommandRequest {
   option (no_delay) = true;
   option (base_class) = "CommandProtoMessage";
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   bool state = 2;
   uint32 device_id = 3 [(field_ifdef) = "USE_DEVICES"];
 }
@@ -709,7 +709,7 @@ message ListEntitiesTextSensorResponse {
   option (ifdef) = "USE_TEXT_SENSOR";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
@@ -726,7 +726,7 @@ message TextSensorStateResponse {
   option (ifdef) = "USE_TEXT_SENSOR";
   option (no_delay) = true;
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   string state = 2;
   // If the text sensor does not have a valid state yet.
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
@@ -922,7 +922,7 @@ message ListEntitiesServicesResponse {
   option (ifdef) = "USE_API_USER_DEFINED_ACTIONS";
 
   string name = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   repeated ListEntitiesServicesArgument args = 3 [(fixed_vector) = true];
   SupportsResponseType supports_response = 4;
 }
@@ -945,7 +945,7 @@ message ExecuteServiceRequest {
   option (no_delay) = true;
   option (ifdef) = "USE_API_USER_DEFINED_ACTIONS";
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   repeated ExecuteServiceArgument args = 2 [(fixed_vector) = true];
   uint32 call_id = 3 [(field_ifdef) = "USE_API_USER_DEFINED_ACTION_RESPONSES"];
   bool return_response = 4 [(field_ifdef) = "USE_API_USER_DEFINED_ACTION_RESPONSES"];
@@ -972,7 +972,7 @@ message ListEntitiesCameraResponse {
   option (ifdef) = "USE_CAMERA";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
   bool disabled_by_default = 5;
@@ -987,7 +987,7 @@ message CameraImageResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_CAMERA";
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   bytes data = 2;
   bool done = 3;
   uint32 device_id = 4 [(field_ifdef) = "USE_DEVICES"];
@@ -1057,7 +1057,7 @@ message ListEntitiesClimateResponse {
   option (ifdef) = "USE_CLIMATE";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
@@ -1095,7 +1095,7 @@ message ClimateStateResponse {
   option (ifdef) = "USE_CLIMATE";
   option (no_delay) = true;
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   ClimateMode mode = 2;
   float current_temperature = 3;
   float target_temperature = 4;
@@ -1121,7 +1121,7 @@ message ClimateCommandRequest {
   option (no_delay) = true;
   option (base_class) = "CommandProtoMessage";
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   bool has_mode = 2;
   ClimateMode mode = 3;
   bool has_target_temperature = 4;
@@ -1168,7 +1168,7 @@ message ListEntitiesWaterHeaterResponse {
   option (ifdef) = "USE_WATER_HEATER";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   string icon = 4 [(field_ifdef) = "USE_ENTITY_ICON"];
   bool disabled_by_default = 5;
@@ -1189,7 +1189,7 @@ message WaterHeaterStateResponse {
   option (ifdef) = "USE_WATER_HEATER";
   option (no_delay) = true;
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   float current_temperature = 2;
   float target_temperature = 3;
   WaterHeaterMode mode = 4;
@@ -1219,7 +1219,7 @@ message WaterHeaterCommandRequest {
   option (no_delay) = true;
   option (base_class) = "CommandProtoMessage";
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   // Bitmask of which fields are set (see WaterHeaterCommandHasField)
   uint32 has_fields = 2;
   WaterHeaterMode mode = 3;
@@ -1244,7 +1244,7 @@ message ListEntitiesNumberResponse {
   option (ifdef) = "USE_NUMBER";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
@@ -1266,7 +1266,7 @@ message NumberStateResponse {
   option (ifdef) = "USE_NUMBER";
   option (no_delay) = true;
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   float state = 2;
   // If the number does not have a valid state yet.
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
@@ -1280,7 +1280,7 @@ message NumberCommandRequest {
   option (no_delay) = true;
   option (base_class) = "CommandProtoMessage";
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   float state = 2;
   uint32 device_id = 3 [(field_ifdef) = "USE_DEVICES"];
 }
@@ -1293,7 +1293,7 @@ message ListEntitiesSelectResponse {
   option (ifdef) = "USE_SELECT";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
@@ -1310,7 +1310,7 @@ message SelectStateResponse {
   option (ifdef) = "USE_SELECT";
   option (no_delay) = true;
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   string state = 2;
   // If the select does not have a valid state yet.
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
@@ -1324,7 +1324,7 @@ message SelectCommandRequest {
   option (no_delay) = true;
   option (base_class) = "CommandProtoMessage";
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   string state = 2;
   uint32 device_id = 3 [(field_ifdef) = "USE_DEVICES"];
 }
@@ -1337,7 +1337,7 @@ message ListEntitiesSirenResponse {
   option (ifdef) = "USE_SIREN";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
@@ -1356,7 +1356,7 @@ message SirenStateResponse {
   option (ifdef) = "USE_SIREN";
   option (no_delay) = true;
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   bool state = 2;
   uint32 device_id = 3 [(field_ifdef) = "USE_DEVICES"];
 }
@@ -1367,7 +1367,7 @@ message SirenCommandRequest {
   option (no_delay) = true;
   option (base_class) = "CommandProtoMessage";
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   bool has_state = 2;
   bool state = 3;
   bool has_tone = 4;
@@ -1400,7 +1400,7 @@ message ListEntitiesLockResponse {
   option (ifdef) = "USE_LOCK";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
@@ -1422,7 +1422,7 @@ message LockStateResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_LOCK";
   option (no_delay) = true;
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   LockState state = 2;
   uint32 device_id = 3 [(field_ifdef) = "USE_DEVICES"];
 }
@@ -1432,7 +1432,7 @@ message LockCommandRequest {
   option (ifdef) = "USE_LOCK";
   option (no_delay) = true;
   option (base_class) = "CommandProtoMessage";
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   LockCommand command = 2;
 
   // Not yet implemented:
@@ -1449,7 +1449,7 @@ message ListEntitiesButtonResponse {
   option (ifdef) = "USE_BUTTON";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
@@ -1466,7 +1466,7 @@ message ButtonCommandRequest {
   option (no_delay) = true;
   option (base_class) = "CommandProtoMessage";
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   uint32 device_id = 2 [(field_ifdef) = "USE_DEVICES"];
 }
 
@@ -1516,7 +1516,7 @@ message ListEntitiesMediaPlayerResponse {
   option (ifdef) = "USE_MEDIA_PLAYER";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
@@ -1538,7 +1538,7 @@ message MediaPlayerStateResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_MEDIA_PLAYER";
   option (no_delay) = true;
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   MediaPlayerState state = 2;
   float volume = 3;
   bool muted = 4;
@@ -1551,7 +1551,7 @@ message MediaPlayerCommandRequest {
   option (no_delay) = true;
   option (base_class) = "CommandProtoMessage";
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
 
   bool has_command = 2;
   MediaPlayerCommand command = 3;
@@ -2104,7 +2104,7 @@ message ListEntitiesAlarmControlPanelResponse {
   option (ifdef) = "USE_ALARM_CONTROL_PANEL";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
@@ -2122,7 +2122,7 @@ message AlarmControlPanelStateResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_ALARM_CONTROL_PANEL";
   option (no_delay) = true;
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   AlarmControlPanelState state = 2;
   uint32 device_id = 3 [(field_ifdef) = "USE_DEVICES"];
 }
@@ -2133,7 +2133,7 @@ message AlarmControlPanelCommandRequest {
   option (ifdef) = "USE_ALARM_CONTROL_PANEL";
   option (no_delay) = true;
   option (base_class) = "CommandProtoMessage";
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   AlarmControlPanelStateCommand command = 2;
   string code = 3;
   uint32 device_id = 4 [(field_ifdef) = "USE_DEVICES"];
@@ -2151,7 +2151,7 @@ message ListEntitiesTextResponse {
   option (ifdef) = "USE_TEXT";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
@@ -2171,7 +2171,7 @@ message TextStateResponse {
   option (ifdef) = "USE_TEXT";
   option (no_delay) = true;
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   string state = 2;
   // If the Text does not have a valid state yet.
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
@@ -2185,7 +2185,7 @@ message TextCommandRequest {
   option (no_delay) = true;
   option (base_class) = "CommandProtoMessage";
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   string state = 2;
   uint32 device_id = 3 [(field_ifdef) = "USE_DEVICES"];
 }
@@ -2199,7 +2199,7 @@ message ListEntitiesDateResponse {
   option (ifdef) = "USE_DATETIME_DATE";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
@@ -2215,7 +2215,7 @@ message DateStateResponse {
   option (ifdef) = "USE_DATETIME_DATE";
   option (no_delay) = true;
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   // If the date does not have a valid state yet.
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
   bool missing_state = 2;
@@ -2231,7 +2231,7 @@ message DateCommandRequest {
   option (no_delay) = true;
   option (base_class) = "CommandProtoMessage";
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   uint32 year = 2;
   uint32 month = 3;
   uint32 day = 4;
@@ -2246,7 +2246,7 @@ message ListEntitiesTimeResponse {
   option (ifdef) = "USE_DATETIME_TIME";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
@@ -2262,7 +2262,7 @@ message TimeStateResponse {
   option (ifdef) = "USE_DATETIME_TIME";
   option (no_delay) = true;
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   // If the time does not have a valid state yet.
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
   bool missing_state = 2;
@@ -2278,7 +2278,7 @@ message TimeCommandRequest {
   option (no_delay) = true;
   option (base_class) = "CommandProtoMessage";
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   uint32 hour = 2;
   uint32 minute = 3;
   uint32 second = 4;
@@ -2293,7 +2293,7 @@ message ListEntitiesEventResponse {
   option (ifdef) = "USE_EVENT";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
@@ -2311,7 +2311,7 @@ message EventResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_EVENT";
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   string event_type = 2;
   uint32 device_id = 3 [(field_ifdef) = "USE_DEVICES"];
 }
@@ -2324,7 +2324,7 @@ message ListEntitiesValveResponse {
   option (ifdef) = "USE_VALVE";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
@@ -2351,7 +2351,7 @@ message ValveStateResponse {
   option (ifdef) = "USE_VALVE";
   option (no_delay) = true;
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   float position = 2;
   ValveOperation current_operation = 3;
   uint32 device_id = 4 [(field_ifdef) = "USE_DEVICES"];
@@ -2364,7 +2364,7 @@ message ValveCommandRequest {
   option (no_delay) = true;
   option (base_class) = "CommandProtoMessage";
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   bool has_position = 2;
   float position = 3;
   bool stop = 4;
@@ -2379,7 +2379,7 @@ message ListEntitiesDateTimeResponse {
   option (ifdef) = "USE_DATETIME_DATETIME";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
@@ -2395,7 +2395,7 @@ message DateTimeStateResponse {
   option (ifdef) = "USE_DATETIME_DATETIME";
   option (no_delay) = true;
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   // If the datetime does not have a valid state yet.
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
   bool missing_state = 2;
@@ -2409,7 +2409,7 @@ message DateTimeCommandRequest {
   option (no_delay) = true;
   option (base_class) = "CommandProtoMessage";
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   fixed32 epoch_seconds = 2;
   uint32 device_id = 3 [(field_ifdef) = "USE_DEVICES"];
 }
@@ -2422,7 +2422,7 @@ message ListEntitiesUpdateResponse {
   option (ifdef) = "USE_UPDATE";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   reserved 4; // Deprecated: was string unique_id
 
@@ -2439,7 +2439,7 @@ message UpdateStateResponse {
   option (ifdef) = "USE_UPDATE";
   option (no_delay) = true;
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   bool missing_state = 2;
   bool in_progress = 3;
   bool has_progress = 4;
@@ -2463,7 +2463,7 @@ message UpdateCommandRequest {
   option (no_delay) = true;
   option (base_class) = "CommandProtoMessage";
 
-  fixed32 key = 1;
+  fixed32 key = 1 [(force) = true];
   UpdateCommand command = 2;
   uint32 device_id = 3 [(field_ifdef) = "USE_DEVICES"];
 }
@@ -2505,7 +2505,7 @@ message ListEntitiesInfraredResponse {
   option (ifdef) = "USE_INFRARED";
 
   string object_id = 1;
-  fixed32 key = 2;
+  fixed32 key = 2 [(force) = true];
   string name = 3;
   string icon = 4 [(field_ifdef) = "USE_ENTITY_ICON"];
   bool disabled_by_default = 5;
@@ -2521,7 +2521,7 @@ message InfraredRFTransmitRawTimingsRequest {
   option (ifdef) = "USE_IR_RF";
 
   uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];
-  fixed32 key = 2;                                       // Key identifying the transmitter instance
+  fixed32 key = 2 [(force) = true];                                       // Key identifying the transmitter instance
   uint32 carrier_frequency = 3;                          // Carrier frequency in Hz
   uint32 repeat_count = 4;                               // Number of times to transmit (1 = once, 2 = twice, etc.)
   repeated sint32 timings = 5 [packed = true, (packed_buffer) = true];  // Raw timings in microseconds (zigzag-encoded): positive = mark (LED/TX on), negative = space (LED/TX off)
@@ -2535,7 +2535,7 @@ message InfraredRFReceiveEvent {
   option (no_delay) = true;
 
   uint32 device_id = 1 [(field_ifdef) = "USE_DEVICES"];
-  fixed32 key = 2;                                    // Key identifying the receiver instance
+  fixed32 key = 2 [(force) = true];                                    // Key identifying the receiver instance
   repeated sint32 timings = 3 [packed = true, (container_pointer_no_template) = "std::vector<int32_t>"];  // Raw timings in microseconds (zigzag-encoded): alternating mark/space periods
 }
 
