@@ -43,7 +43,11 @@ def test_add_metadata_hardware_rotation_default():
 def test_get_display_metadata_missing_returns_none():
     """Test that querying a non-existent ID returns None."""
     with patch("esphome.components.display.CORE.data", {}):
-        assert get_display_metadata("no_such_display") is None
+        data = get_display_metadata("no_such_display")
+        assert data.width == 0
+        assert data.height == 0
+        assert data.has_writer is False
+        assert data.has_hardware_rotation is False
 
 
 def test_add_multiple_displays():

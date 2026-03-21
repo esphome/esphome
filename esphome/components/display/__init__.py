@@ -156,10 +156,10 @@ async def setup_display_core_(var, config):
 
 @dataclass(frozen=True)
 class DisplayMetaData:
-    width: int
-    height: int
-    has_writer: bool
-    has_hardware_rotation: bool
+    width: int = 0
+    height: int = 0
+    has_writer: bool = False
+    has_hardware_rotation: bool = False
 
 
 def get_all_display_metadata() -> dict[str, DisplayMetaData]:
@@ -169,7 +169,7 @@ def get_all_display_metadata() -> dict[str, DisplayMetaData]:
 
 def get_display_metadata(display_id: str) -> DisplayMetaData | None:
     """Get display metadata by ID for use by other components."""
-    return get_all_display_metadata().get(display_id)
+    return get_all_display_metadata().get(display_id, DisplayMetaData())
 
 
 def add_metadata(
