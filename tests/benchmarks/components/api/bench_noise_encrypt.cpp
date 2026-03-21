@@ -88,11 +88,12 @@ BENCHMARK(NoiseEncrypt_LargeMessage);
 // Benchmark helper matching the exact pattern from
 // APINoiseFrameHelper::read_packet:
 //   - noise_buffer_init + noise_buffer_set_inout with capacity == size (decrypt shrinks)
-//   - No explicit set_nonce (production relies on internal nonce increment)
 //   - Error checking on decrypt return
 //
-// Uses a separate encrypt cipher to produce valid ciphertext each iteration,
-// then benchmarks only the decryption.
+// Pre-encrypts kInnerIterations messages with sequential nonces before the
+// timed loop. Each outer iteration re-inits the decrypt key to reset the
+// nonce back to 0, then decrypts all pre-encrypted messages in sequence.
+// The init_key cost is amortized over kInnerIterations decrypts.
 static void noise_decrypt_bench(benchmark::State &state, size_t plaintext_size) {
   NoiseCipherState *encrypt_cipher = create_cipher();
   NoiseCipherState *decrypt_cipher = create_cipher();
@@ -106,55 +107,45 @@ static void noise_decrypt_bench(benchmark::State &state, size_t plaintext_size) 
   }
 
   size_t mac_len = noise_cipherstate_get_mac_length(encrypt_cipher);
-  size_t buf_capacity = plaintext_size + mac_len;
-  auto buffer = std::make_unique<uint8_t[]>(buf_capacity);
+  size_t encrypted_size = plaintext_size + mac_len;
 
-  // Pre-encrypt one message to get valid ciphertext + MAC
-  memset(buffer.get(), 0x42, plaintext_size);
-  NoiseBuffer setup_buf;
-  noise_buffer_init(setup_buf);
-  noise_buffer_set_inout(setup_buf, buffer.get(), plaintext_size, buf_capacity);
-  int err = noise_cipherstate_encrypt(encrypt_cipher, &setup_buf);
-  if (err != NOISE_ERROR_NONE) {
-    state.SkipWithError("Setup encrypt failed");
-    noise_cipherstate_free(encrypt_cipher);
-    noise_cipherstate_free(decrypt_cipher);
-    return;
+  // Pre-encrypt kInnerIterations messages with sequential nonces (0..N-1).
+  auto ciphertexts = std::make_unique<uint8_t[]>(encrypted_size * kInnerIterations);
+  for (int i = 0; i < kInnerIterations; i++) {
+    uint8_t *ct = ciphertexts.get() + i * encrypted_size;
+    memset(ct, 0x42, plaintext_size);
+    NoiseBuffer enc_buf;
+    noise_buffer_init(enc_buf);
+    noise_buffer_set_inout(enc_buf, ct, plaintext_size, encrypted_size);
+    int err = noise_cipherstate_encrypt(encrypt_cipher, &enc_buf);
+    if (err != NOISE_ERROR_NONE) {
+      state.SkipWithError("Pre-encrypt failed");
+      noise_cipherstate_free(encrypt_cipher);
+      noise_cipherstate_free(decrypt_cipher);
+      return;
+    }
   }
-  size_t encrypted_size = setup_buf.size;
 
-  // Save the encrypted data as a template for each iteration
-  auto encrypted_template = std::make_unique<uint8_t[]>(encrypted_size);
-  memcpy(encrypted_template.get(), buffer.get(), encrypted_size);
-
-  // Decrypt the setup message to advance decrypt cipher nonce to 1
-  // (matches the encrypt cipher which is now at nonce 1)
-  NoiseBuffer decrypt_setup;
-  noise_buffer_init(decrypt_setup);
-  noise_buffer_set_inout(decrypt_setup, buffer.get(), encrypted_size, encrypted_size);
-  err = noise_cipherstate_decrypt(decrypt_cipher, &decrypt_setup);
-  if (err != NOISE_ERROR_NONE) {
-    state.SkipWithError("Setup decrypt failed");
-    noise_cipherstate_free(encrypt_cipher);
-    noise_cipherstate_free(decrypt_cipher);
-    return;
-  }
+  // Working buffer — decrypt modifies in place
+  auto buffer = std::make_unique<uint8_t[]>(encrypted_size);
+  static constexpr uint8_t KEY[32] = {0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB,
+                                      0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB,
+                                      0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB};
 
   for (auto _ : state) {
+    // Reset nonce to 0 by re-initing the key (amortized over kInnerIterations)
+    noise_cipherstate_init_key(decrypt_cipher, KEY, sizeof(KEY));
+
     for (int i = 0; i < kInnerIterations; i++) {
-      // Re-encrypt with encrypt cipher to get fresh ciphertext with correct nonce
-      memset(buffer.get(), 0x42, plaintext_size);
-      NoiseBuffer enc_buf;
-      noise_buffer_init(enc_buf);
-      noise_buffer_set_inout(enc_buf, buffer.get(), plaintext_size, buf_capacity);
-      noise_cipherstate_encrypt(encrypt_cipher, &enc_buf);
+      // Copy ciphertext into working buffer (decrypt modifies in place)
+      memcpy(buffer.get(), ciphertexts.get() + i * encrypted_size, encrypted_size);
 
       // Decrypt matching production pattern
       NoiseBuffer mbuf;
       noise_buffer_init(mbuf);
-      noise_buffer_set_inout(mbuf, buffer.get(), enc_buf.size, enc_buf.size);
+      noise_buffer_set_inout(mbuf, buffer.get(), encrypted_size, encrypted_size);
 
-      err = noise_cipherstate_decrypt(decrypt_cipher, &mbuf);
+      int err = noise_cipherstate_decrypt(decrypt_cipher, &mbuf);
       if (err != NOISE_ERROR_NONE) {
         state.SkipWithError("noise_cipherstate_decrypt failed");
         noise_cipherstate_free(encrypt_cipher);
