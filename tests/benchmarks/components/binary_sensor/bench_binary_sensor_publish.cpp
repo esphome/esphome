@@ -44,7 +44,7 @@ static void BinarySensorPublish_WithCallback(benchmark::State &state) {
   BinarySensor sensor;
 
   int callback_count = 0;
-  sensor.add_on_state_callback([&callback_count](bool value) { callback_count++; });
+  sensor.add_on_state_callback([&callback_count](bool) { callback_count++; });
 
   sensor.publish_initial_state(false);
 
