@@ -448,7 +448,7 @@ std::string DBusWrapper::get_property(DBusMessage *msg, const std::string &searc
 #else
         printf("get_property : %i\n", (int) i);
 #endif
-        return std::to_string(i);
+        return std::to_string(i);  // NOLINT << not relevant for host...
         break;
       }
       case DBUS_TYPE_BOOLEAN: {
