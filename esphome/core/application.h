@@ -27,6 +27,13 @@
 #ifdef USE_SOCKET_SELECT_SUPPORT
 #ifdef USE_LWIP_FAST_SELECT
 #include "esphome/core/lwip_fast_select.h"
+#ifdef USE_ESP32
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#else
+#include <FreeRTOS.h>
+#include <task.h>
+#endif
 #else
 #include <sys/select.h>
 #ifdef USE_WAKE_LOOP_THREADSAFE
@@ -628,7 +635,11 @@ class Application {
   void feed_wdt_arch_();
 
   /// Perform a delay while also monitoring socket file descriptors for readiness
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_LWIP_FAST_SELECT)
+  inline void ESPHOME_ALWAYS_INLINE yield_with_select_(uint32_t delay_ms);
+#else
   void yield_with_select_(uint32_t delay_ms);
+#endif
 
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
   void setup_wake_loop_threadsafe_();       // Create wake notification socket
@@ -882,5 +893,33 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
     this->process_dump_config_();
   }
 }
+
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_LWIP_FAST_SELECT)
+inline void ESPHOME_ALWAYS_INLINE Application::yield_with_select_(uint32_t delay_ms) {
+  // Fast path (ESP32/LibreTiny): reads rcvevent directly from cached lwip_sock pointers.
+  // Safe because this runs on the main loop which owns socket lifetime (create, read, close).
+  if (delay_ms == 0) [[unlikely]] {
+    yield();
+    return;
+  }
+
+  // Check if any socket already has pending data before sleeping.
+  // If a socket still has unread data (rcvevent > 0) but the task notification was already
+  // consumed, ulTaskNotifyTake would block until timeout — adding up to delay_ms latency.
+  // This scan preserves select() semantics: return immediately when any fd is ready.
+  for (struct lwip_sock *sock : this->monitored_sockets_) {
+    if (esphome_lwip_socket_has_data(sock)) {
+      yield();
+      return;
+    }
+  }
+
+  // Sleep with instant wake via FreeRTOS task notification.
+  // Woken by: callback wrapper (socket data arrives), wake_loop_threadsafe() (other tasks), or timeout.
+  // Without USE_WAKE_LOOP_THREADSAFE, only hooked socket callbacks wake the task —
+  // background tasks won't call wake, so this degrades to a pure timeout (same as old select path).
+  ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(delay_ms));
+}
+#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_LWIP_FAST_SELECT)
 
 }  // namespace esphome
