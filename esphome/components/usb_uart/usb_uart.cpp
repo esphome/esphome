@@ -160,11 +160,9 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
     size_t chunk_len = std::min(len, UsbOutputChunk::MAX_CHUNK_SIZE);
     memcpy(chunk->data, data, chunk_len);
     chunk->length = static_cast<uint8_t>(chunk_len);
-    if (!this->output_queue_.push(chunk)) {
-      this->output_pool_.release(chunk);
-      ESP_LOGE(TAG, "Output queue full - lost %zu bytes", len);
-      break;
-    }
+    // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+    // allocate() returned non-null, the queue cannot be full.
+    this->output_queue_.push(chunk);
     data += chunk_len;
     len -= chunk_len;
   }
@@ -320,7 +318,8 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
       chunk->channel = channel;
 
       // Push to lock-free queue for main loop processing
-      // Push always succeeds because pool size == queue size
+      // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+      // allocate() returned non-null, the queue cannot be full.
       this->usb_data_queue_.push(chunk);
 
       // Re-enable component loop to process the queued data
