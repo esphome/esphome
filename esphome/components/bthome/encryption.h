@@ -4,14 +4,14 @@
 #include <array>
 #include "esphome/core/defines.h"
 
-#ifdef USE_BTHOME_DECRYPTION
+#if defined(USE_BTHOME_DECRYPTION) || defined(USE_BTHOME_ENCRYPTION)
 #include "remote_device.h"
 #include "bthome.h"
 
 namespace esphome {
 namespace bthome {
 
-// Encrypt BTHome payload data (used in tests to generate ciphertext for decrypt tests)
+// Encrypt BTHome payload data
 // Returns pointer to encrypted packet on success, nullptr on failure
 // encrypted_size is set to the total size (ciphertext + counter + mic), header is NOT included
 const uint8_t *bthome_encrypt(const uint8_t *plaintext, size_t plaintext_size, MacAddressPtr source_address,
@@ -26,4 +26,4 @@ const uint8_t *bthome_decrypt(const uint8_t *ciphertext, size_t ciphertext_size,
 }  // namespace bthome
 }  // namespace esphome
 
-#endif  // USE_BTHOME_DECRYPTION
+#endif  // USE_BTHOME_DECRYPTION || USE_BTHOME_ENCRYPTION
