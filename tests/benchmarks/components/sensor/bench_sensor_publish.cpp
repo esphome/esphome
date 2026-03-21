@@ -53,24 +53,27 @@ static void SensorPublish_WithCallback(benchmark::State &state) {
 }
 BENCHMARK(SensorPublish_WithCallback);
 
-// --- Sensor::publish_state() with alternating values ---
-// Forces has_state transition on first call and state change every iteration.
-// Tests the full path including has_state flag management.
+// --- Sensor::publish_state() with the same value every time ---
+// Steady-state pattern: sensor reports an unchanged reading.
+// Sensor doesn't dedup today, so this exercises the same code path
+// as changing values, but tracks the common real-world pattern
+// separately for regression detection.
 
-static void SensorPublish_StateChange(benchmark::State &state) {
+static void SensorPublish_SameValue(benchmark::State &state) {
   TestSensor sensor;
   sensor.configure("test_sensor");
 
+  // Warm up so has_state is already set
+  sensor.publish_state(23.5f);
+
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
-      // Alternate between two values to force state change every time
-      float value = (i & 1) ? 23.5f : 42.0f;
-      sensor.publish_state(value);
+      sensor.publish_state(23.5f);
     }
     benchmark::DoNotOptimize(sensor.state);
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
-BENCHMARK(SensorPublish_StateChange);
+BENCHMARK(SensorPublish_SameValue);
 
 }  // namespace esphome::benchmarks
