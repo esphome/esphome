@@ -57,7 +57,7 @@ class APIConnection final : public APIServerConnectionBase {
  protected:
   // Override read_message here (instead of in APIServerConnectionBase) so the
   // compiler can devirtualize and inline on_* handler calls within this class.
-  void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;
+  void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data);
 
   // Auth helpers defined here (not in ProtoService) so the compiler can
   // devirtualize is_connection_setup()/on_no_setup_connection() calls
@@ -286,10 +286,10 @@ class APIConnection final : public APIServerConnectionBase {
   void on_noise_encryption_set_key_request(const NoiseEncryptionSetKeyRequest &msg);
 #endif
 
-  bool is_authenticated() override {
+  bool is_authenticated() {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::AUTHENTICATED;
   }
-  bool is_connection_setup() override {
+  bool is_connection_setup() {
     return static_cast<ConnectionState>(this->flags_.connection_state) == ConnectionState::CONNECTED ||
            this->is_authenticated();
   }
@@ -302,8 +302,8 @@ class APIConnection final : public APIServerConnectionBase {
            (this->client_api_version_major_ == major && this->client_api_version_minor_ >= minor);
   }
 
-  void on_fatal_error() override;
-  void on_no_setup_connection() override;
+  void on_fatal_error();
+  void on_no_setup_connection();
 
   // Function pointer type for type-erased message encoding
   using MessageEncodeFn = void (*)(const void *, ProtoWriteBuffer &);
@@ -342,7 +342,7 @@ class APIConnection final : public APIServerConnectionBase {
       return true;
     return this->try_to_clear_buffer_slow_(log_out_of_space);
   }
-  bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) override;
+  bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type);
 
   const char *get_name() const { return this->helper_->get_client_name(); }
   /// Get peer name (IP address) into caller-provided buffer, returns buf for convenience
