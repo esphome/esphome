@@ -88,7 +88,15 @@ def _get_or_create_gamma_table(gamma_correct):
 
     if gamma_correct > 0:
         forward = [
-            HexInt(min(65535, int(round((i / 255.0) ** gamma_correct * 65535))))
+            # Clamp non-zero indices to minimum of 1 to preserve the invariant
+            # that non-zero input always produces non-zero output. Without this,
+            # small brightness values (e.g. 1%) get quantized to exactly 0.0,
+            # which breaks zero_means_zero logic in FloatOutput.
+            HexInt(
+                max(1, min(65535, int(round((i / 255.0) ** gamma_correct * 65535))))
+                if i > 0
+                else HexInt(0)
+            )
             for i in range(256)
         ]
     else:
