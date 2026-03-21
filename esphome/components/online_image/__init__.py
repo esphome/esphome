@@ -5,12 +5,14 @@ import esphome.codegen as cg
 from esphome.components import runtime_image
 from esphome.components.const import CONF_REQUEST_HEADERS
 from esphome.components.http_request import CONF_HTTP_REQUEST_ID, HttpRequestComponent
+from esphome.components.image import CONF_TRANSPARENCY, add_metadata
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
     CONF_ID,
     CONF_ON_ERROR,
     CONF_TRIGGER_ID,
+    CONF_TYPE,
     CONF_URL,
 )
 from esphome.core import Lambda
@@ -131,6 +133,13 @@ async def online_image_action_to_code(config, action_id, template_arg, args):
 async def to_code(config):
     # Use the enhanced helper function to get all runtime image parameters
     settings = await runtime_image.process_runtime_image_config(config)
+    add_metadata(
+        config[CONF_ID],
+        settings.width,
+        settings.height,
+        config[CONF_TYPE],
+        config[CONF_TRANSPARENCY],
+    )
 
     url = config[CONF_URL]
     var = cg.new_Pvariable(
