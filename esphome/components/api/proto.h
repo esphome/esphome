@@ -276,7 +276,7 @@ class ProtoWriteBuffer {
     this->debug_check_bounds_(1);
     *this->pos_++ = value ? 0x01 : 0x00;
   }
-  void encode_fixed32(uint32_t field_id, uint32_t value, bool force = false) {
+  inline void encode_fixed32(uint32_t field_id, uint32_t value, bool force = false) ESPHOME_ALWAYS_INLINE {
     if (value == 0 && !force)
       return;
 
