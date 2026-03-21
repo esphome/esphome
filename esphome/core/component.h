@@ -294,7 +294,9 @@ class Component {
    *
    * Returns LOG_STR("<unknown>") if source not set
    */
-  const LogString *get_component_log_str() const;
+  const LogString *get_component_log_str() const {
+    return this->component_source_ == nullptr ? LOG_STR("<unknown>") : this->component_source_;
+  }
 
   bool should_warn_of_blocking(uint32_t blocking_time);
 
