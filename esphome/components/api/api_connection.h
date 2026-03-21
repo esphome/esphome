@@ -59,6 +59,18 @@ class APIConnection final : public APIServerConnectionBase {
   // compiler can devirtualize and inline on_* handler calls within this class.
   void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;
 
+  // Auth helpers defined here (not in ProtoService) so the compiler can
+  // devirtualize is_connection_setup()/on_no_setup_connection() calls
+  // within this final class.
+  inline bool check_connection_setup_() {
+    if (!this->is_connection_setup()) {
+      this->on_no_setup_connection();
+      return false;
+    }
+    return true;
+  }
+  inline bool check_authenticated_() { return this->check_connection_setup_(); }
+
  public:
   bool send_list_info_done() {
     return this->schedule_message_(nullptr, ListEntitiesDoneResponse::MESSAGE_TYPE,
