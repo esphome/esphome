@@ -20,15 +20,16 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  *
  */
-#ifndef DBUS_PRINT_MESSAGE_H
-#define DBUS_PRINT_MESSAGE_H
-
 #include <stdio.h>
 #include <string.h>
 #include <dbus/dbus.h>
+
+namespace esphome {
+namespace dbus {
 
 void print_message(DBusMessage *message, dbus_bool_t literal);
 
 void print_iter(DBusMessageIter *iter, dbus_bool_t literal, int depth = 0);
 
-#endif /* DBUS_PRINT_MESSAGE_H */
+}  // namespace dbus
+}  // namespace esphome

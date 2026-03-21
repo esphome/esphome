@@ -24,6 +24,9 @@
 
 #include <cstdlib>
 
+namespace esphome {
+namespace dbus {
+
 static const char *type_to_name(int message_type) {
   switch (message_type) {
     case DBUS_MESSAGE_TYPE_SIGNAL:
@@ -39,7 +42,7 @@ static const char *type_to_name(int message_type) {
   }
 }
 
-#define INDENT 3
+static const int INDENT = 3;
 
 static void indent(int depth) {
   while (depth-- > 0)
@@ -80,7 +83,7 @@ static void print_hex(unsigned char *bytes, unsigned int len, int depth) {
   printf("]\n");
 }
 
-#define DEFAULT_SIZE 100
+static const int DEFAULT_SIZE = 100;
 
 static void print_ay(DBusMessageIter *iter, int depth) {
   /* Not using DBusString because it's not public API. It's 2009, and I'm
@@ -352,3 +355,6 @@ void print_message(DBusMessage *message, dbus_bool_t literal) {
 
   printf("print_message done\n");
 }
+
+}  // namespace dbus
+}  // namespace esphome
