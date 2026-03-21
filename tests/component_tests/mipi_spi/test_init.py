@@ -204,11 +204,6 @@ def test_transform_and_init_sequence_errors(
             r"extra keys not allowed @ data\['brightness'\]",
             id="brightness_not_supported",
         ),
-        pytest.param(
-            {"model": "T-DISPLAY-S3-PRO"},
-            "PSRAM is required for this display",
-            id="psram_required",
-        ),
     ],
 )
 def test_esp32s3_specific_errors(
@@ -319,7 +314,7 @@ def test_native_generation(
 
     main_cpp = generate_main(component_fixture_path("native.yaml"))
     assert (
-        "mipi_spi::MipiSpiBuffer<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_QUAD, 360, 360, 0, 1, display::DISPLAY_ROTATION_0_DEGREES, 1, 1>()"
+        "mipi_spi::MipiSpiBuffer<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_QUAD, 360, 360, 0, 1, 0, true, 1, 1>()"
         in main_cpp
     )
     assert "set_init_sequence({240, 1, 8, 242" in main_cpp
@@ -335,7 +330,7 @@ def test_lvgl_generation(
 
     main_cpp = generate_main(component_fixture_path("lvgl.yaml"))
     assert (
-        "mipi_spi::MipiSpi<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_SINGLE, 128, 160, 0, 0>();"
+        "mipi_spi::MipiSpi<uint16_t, mipi_spi::PIXEL_MODE_16, true, mipi_spi::PIXEL_MODE_16, mipi_spi::BUS_TYPE_SINGLE, 128, 160, 0, 0, 0, true>();"
         in main_cpp
     )
     assert "set_init_sequence({1, 0, 10, 255, 177" in main_cpp
