@@ -79,63 +79,44 @@ void SHT4XComponent::dump_config() {
 }
 
 void SHT4XComponent::update() {
-  bool use_heater = false;
-
-  // Check if heater is due during this measurement cycle
-  if (this->heater_interval_ > 0) {
-    uint32_t now = millis();
-    if (now - this->last_heater_millis_ >= this->heater_interval_) {
-      use_heater = true;
-    }
-  }
-
-  if (use_heater) {
-    // Heater command heats the sensor to remove condensation (datasheet 4.9).
-    // The measurement it produces is taken while hot and does not reflect
-    // ambient conditions, so we skip this cycle. The next update() will
-    // take a regular reading after the sensor has cooled.
-    ESP_LOGD(TAG, "Heater turning on");
-    if (!this->write_command(this->heater_command_)) {
-      this->status_set_warning(LOG_STR("Failed to send heater command"));
-      return;
-    }
-    // Only update timestamp after successful command. Ensure at least one
-    // normal measurement between heater cycles by pushing the next eligible
-    // heater time forward by at least one update interval.
-    uint32_t now = millis();
-    uint32_t interval = std::max(this->heater_interval_, this->get_update_interval());
-    this->last_heater_millis_ = now - this->heater_interval_ + interval;
-    return;
-  }
-
   if (!this->write_command(MEASURECOMMANDS[this->precision_])) {
     this->status_set_warning(LOG_STR("Failed to send measurement command"));
     return;
   }
 
-  this->set_timeout(10, [this]() { this->read_and_publish_(); });
-}
+  this->set_timeout(10, [this]() {
+    uint16_t buffer[2];
 
-void SHT4XComponent::read_and_publish_() {
-  uint16_t buffer[2];
+    if (!this->read_data(buffer, 2)) {
+      ESP_LOGW(TAG, "Sensor read failed");
+      this->status_set_warning();
+      return;
+    }
 
-  if (!this->read_data(buffer, 2)) {
-    ESP_LOGW(TAG, "Sensor read failed");
-    this->status_set_warning();
-    return;
-  }
+    this->status_clear_warning();
 
-  this->status_clear_warning();
+    if (this->temp_sensor_ != nullptr) {
+      float temp = TEMPERATURE_OFFSET + TEMPERATURE_SPAN * static_cast<float>(buffer[0]) / RAW_MAX;
+      this->temp_sensor_->publish_state(temp);
+    }
 
-  if (this->temp_sensor_ != nullptr) {
-    float temp = TEMPERATURE_OFFSET + TEMPERATURE_SPAN * static_cast<float>(buffer[0]) / RAW_MAX;
-    this->temp_sensor_->publish_state(temp);
-  }
+    if (this->humidity_sensor_ != nullptr) {
+      float rh = HUMIDITY_OFFSET + HUMIDITY_SPAN * static_cast<float>(buffer[1]) / RAW_MAX;
+      this->humidity_sensor_->publish_state(rh);
+    }
 
-  if (this->humidity_sensor_ != nullptr) {
-    float rh = HUMIDITY_OFFSET + HUMIDITY_SPAN * static_cast<float>(buffer[1]) / RAW_MAX;
-    this->humidity_sensor_->publish_state(rh);
-  }
+    // Fire heater after measurement to maximize cooldown time before the next reading.
+    // The heater command produces a measurement that we don't need (datasheet 4.9).
+    if (this->heater_interval_ > 0) {
+      uint32_t now = millis();
+      if (now - this->last_heater_millis_ >= this->heater_interval_) {
+        ESP_LOGD(TAG, "Heater turning on");
+        if (this->write_command(this->heater_command_)) {
+          this->last_heater_millis_ = now;
+        }
+      }
+    }
+  });
 }
 
 }  // namespace sht4x

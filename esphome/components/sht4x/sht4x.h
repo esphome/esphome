@@ -36,7 +36,6 @@ class SHT4XComponent : public PollingComponent, public sensirion_common::Sensiri
   float duty_cycle_;
 
   void read_serial_number_();
-  void read_and_publish_();
   uint8_t heater_command_;
   uint32_t heater_interval_{0};
   uint32_t last_heater_millis_{0};
