@@ -81,19 +81,26 @@ def _get_data() -> LightData:
     return CORE.data[DOMAIN]
 
 
+def compute_gamma_table(gamma_correct):
+    """Compute 256-entry uint16 gamma forward lookup table.
+
+    This is the single source of truth for gamma table values used by both
+    production codegen and benchmarks.
+    """
+    if gamma_correct > 0:
+        return [
+            HexInt(min(65535, int(round((i / 255.0) ** gamma_correct * 65535))))
+            for i in range(256)
+        ]
+    return [HexInt(int(round(i / 255.0 * 65535))) for i in range(256)]
+
+
 def _get_or_create_gamma_table(gamma_correct):
     data = _get_data()
     if gamma_correct in data.gamma_tables:
         return data.gamma_tables[gamma_correct]
 
-    if gamma_correct > 0:
-        forward = [
-            HexInt(min(65535, int(round((i / 255.0) ** gamma_correct * 65535))))
-            for i in range(256)
-        ]
-    else:
-        forward = [HexInt(int(round(i / 255.0 * 65535))) for i in range(256)]
-
+    forward = compute_gamma_table(gamma_correct)
     gamma_str = f"{gamma_correct}".replace(".", "_")
     fwd_id = ID(f"gamma_{gamma_str}_fwd", is_declaration=True, type=cg.uint16)
     fwd_arr = cg.progmem_array(fwd_id, forward)
