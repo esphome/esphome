@@ -12,6 +12,9 @@
 #include "crypto1.h"
 #include <cstring>
 
+namespace esphome {
+namespace st25r {
+
 // ── LFSR feedback polynomial masks ─────────────────────────────────────────
 // The 48-bit Crypto1 LFSR uses two interleaved 24-bit words (odd/even).
 // These masks select the tap positions in each half-word; the new LFSR bit is
@@ -110,3 +113,6 @@ uint32_t prng_successor(uint32_t x, uint32_t n) {
     x = x >> 1 | (x >> 16 ^ x >> 18 ^ x >> 19 ^ x >> 21) << 31;
   return x = swapendian(x);
 }
+
+}  // namespace st25r
+}  // namespace esphome

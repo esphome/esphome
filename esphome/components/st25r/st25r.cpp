@@ -109,8 +109,8 @@ void ST25R::setup() {
   if (this->status_binary_sensor_ != nullptr) {
     this->status_binary_sensor_->publish_initial_state(false);
   }
-  ESP_LOGI(TAG, "Starting reset_chip()...");
-  if (!this->reset_chip()) {
+  ESP_LOGI(TAG, "Starting reset_chip_()...");
+  if (!this->reset_chip_()) {
     ESP_LOGE(TAG, "Failed to reset chip");
     this->mark_failed();
     return;
@@ -170,11 +170,11 @@ void ST25R::update() {
 
   // NFC-V (ISO 15693) blocking inventory — runs before NFC-A scan
   if (this->nfcv_enabled_)
-    this->nfcv_scan();
+    this->nfcv_scan_();
 
   // NFC-B (ISO 14443B) blocking SENSB_REQ — runs before NFC-A scan
   if (this->nfcb_enabled_)
-    this->nfcb_scan();
+    this->nfcb_scan_();
 
   // If previous scan activated ISO-DEP (RATS), send S-Block DESELECT to return
   // the card to IDLE state. Without this, ISO-DEP cards ignore subsequent WUPAs.
@@ -198,14 +198,14 @@ void ST25R::update() {
 }
 
 bool ST25R::transceive_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms) {
-  return this->transceive_ex(data, len, resp, resp_len, true, timeout_ms);
+  return this->transceive_ex_(data, len, resp, resp_len, true, timeout_ms);
 }
 
 bool ST25R::transceive_no_crc_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms) {
-  return this->transceive_ex(data, len, resp, resp_len, false, timeout_ms);
+  return this->transceive_ex_(data, len, resp, resp_len, false, timeout_ms);
 }
 
-bool ST25R::transceive_ex(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, bool with_crc, uint32_t timeout_ms) {
+bool ST25R::transceive_ex_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, bool with_crc, uint32_t timeout_ms) {
   this->write_command(ST25R_CMD_CLEAR_FIFO);
   this->write_command(ST25R_CMD_RESET_RX_GAIN);  // reset AGC/squelch per datasheet transceive sequence
   // Clear ALL IRQ registers so IRQ pin goes low — required for ISR rising-edge to fire
@@ -270,7 +270,7 @@ bool ST25R::transceive_ex(const uint8_t *data, size_t len, uint8_t *resp, uint8_
 // data/parity: len plaintext bytes + precomputed parity bits.
 // resp/resp_parity: decoded response bytes and their parity bits.
 // Adapted from mf1_send_receive_raw (MIT, suut/rfal-mifare-classic).
-bool ST25R::transceive_mifare(const uint8_t *data, const uint8_t *parity,
+bool ST25R::transceive_mifare_(const uint8_t *data, const uint8_t *parity,
                                 uint8_t len,
                                 uint8_t *resp, uint8_t *resp_parity,
                                 uint8_t &resp_len,
@@ -335,7 +335,7 @@ bool ST25R::transceive_mifare(const uint8_t *data, const uint8_t *parity,
 // ── mifare_authenticate_ ─────────────────────────────────────────────────────
 // Three-pass mutual authentication per ISO 14443-3 / NXP AN10609.
 // Protocol flow from mf1_authenticate() (MIT, suut/rfal-mifare-classic).
-bool ST25R::mifare_authenticate(uint8_t block, bool key_b, uint64_t key,
+bool ST25R::mifare_authenticate_(uint8_t block, bool key_b, uint64_t key,
                                   const uint8_t *uid, uint8_t uid_len,
                                   struct Crypto1State *cs) {
   // ── Step 1: send AUTHENT command (plain text, with CRC) ──────────────────
@@ -381,7 +381,7 @@ bool ST25R::mifare_authenticate(uint8_t block, bool key_b, uint64_t key,
   // ── Step 3: send nr+ar (encrypted, manual parity, no CRC) ────────────────
   uint8_t at[4] = {}, at_par[4] = {};
   uint8_t at_len = 0;
-  if (!this->transceive_mifare(nr_ar, nr_ar_par, 8, at, at_par, at_len) || at_len < 4) {
+  if (!this->transceive_mifare_(nr_ar, nr_ar_par, 8, at, at_par, at_len) || at_len < 4) {
     ESP_LOGW(TAG, "Mifare auth: no AT from tag (block %u)", block);
     return false;
   }
@@ -400,9 +400,9 @@ bool ST25R::mifare_authenticate(uint8_t block, bool key_b, uint64_t key,
 }
 
 // ── mifare_read_block_ ───────────────────────────────────────────────────────
-// Read one 16-byte block after a successful mifare_authenticate().
+// Read one 16-byte block after a successful mifare_authenticate_().
 // Protocol flow from mf1_send_receive_encrypted (MIT, suut/rfal-mifare-classic).
-bool ST25R::mifare_read_block(uint8_t block, uint8_t *data,
+bool ST25R::mifare_read_block_(uint8_t block, uint8_t *data,
                                 struct Crypto1State *cs) {
   // Build: READ(0x30) + block + CRC_A — then encrypt all 4 bytes + CRC
   uint8_t cmd[4];
@@ -421,7 +421,7 @@ bool ST25R::mifare_read_block(uint8_t block, uint8_t *data,
   // Response: 16 data bytes + 2 CRC bytes = 18 bytes, all encrypted
   uint8_t rx_enc[18] = {}, rx_par[18] = {};
   uint8_t rx_len = 0;
-  if (!this->transceive_mifare(enc, enc_par, 4, rx_enc, rx_par, rx_len) || rx_len < 18) {
+  if (!this->transceive_mifare_(enc, enc_par, 4, rx_enc, rx_par, rx_len) || rx_len < 18) {
     ESP_LOGW(TAG, "Mifare read block %u failed (got %u bytes)", block, rx_len);
     return false;
   }
@@ -446,20 +446,20 @@ bool ST25R::mifare_read_block(uint8_t block, uint8_t *data,
   return true;
 }
 
-std::unique_ptr<nfc::NfcTag> ST25R::read_tag(std::vector<uint8_t> &uid) {
+std::unique_ptr<nfc::NfcTag> ST25R::read_tag_(std::vector<uint8_t> &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
   ESP_LOGI(TAG, "read_tag_: UID length=%zu, guessed type=%d, SAK=0x%02X", uid.size(), type, this->last_sak_);
 
   // ISO-DEP capable (SAK bit 5 set) → try Type 4 NDEF read
   if (this->last_sak_ & 0x20) {
     ESP_LOGI(TAG, "ISO-DEP capable tag (SAK & 0x20) — trying Type 4 NDEF");
-    return this->read_tag_type4(uid);
+    return this->read_tag_type4_(uid);
   }
 
   if (type == nfc::TAG_TYPE_MIFARE_CLASSIC) {
     ESP_LOGI(TAG, "Mifare Classic detected - attempting authentication");
     struct Crypto1State cs = {};
-    bool auth_ok = this->mifare_authenticate(0, false, this->mifare_key_a_,
+    bool auth_ok = this->mifare_authenticate_(0, false, this->mifare_key_a_,
                                               uid.data(), (uint8_t) uid.size(), &cs);
     nfc::NfcTagUid nfc_uid(uid.begin(), uid.end());
     if (!auth_ok) {
@@ -470,8 +470,8 @@ std::unique_ptr<nfc::NfcTag> ST25R::read_tag(std::vector<uint8_t> &uid) {
     ESP_LOGI(TAG, "Mifare Classic: Auth successful, reading blocks 1 and 2");
     // Read blocks 1 and 2 (block 0 is manufacturer data; block 3 is sector trailer)
     uint8_t block1[16] = {}, block2[16] = {};
-    bool b1 = this->mifare_read_block(1, block1, &cs);
-    bool b2 = b1 && this->mifare_read_block(2, block2, &cs);
+    bool b1 = this->mifare_read_block_(1, block1, &cs);
+    bool b2 = b1 && this->mifare_read_block_(2, block2, &cs);
 
     if (!b1) {
       ESP_LOGW(TAG, "Mifare Classic: block read failed");
@@ -637,10 +637,10 @@ void ST25R::loop() {
     this->irq_status_ = 0;
   }
 
-  this->process_state();
+  this->process_state_();
 }
 
-void ST25R::process_state() {
+void ST25R::process_state_() {
   switch (this->state_) {
     case STATE_IDLE:
       break;
@@ -659,7 +659,7 @@ void ST25R::process_state() {
           // anticol_resume_ is cleared inside: use saved prefix for this one anticol round
           this->anticol_resume_ = false;
 
-          this->send_anticol_frame();
+          this->send_anticol_frame_();
           this->state_ = STATE_ANTICOL;
           this->last_state_change_ = millis();
       } else if (this->irq_status_ & IRQ_NRE) {
@@ -667,7 +667,7 @@ void ST25R::process_state() {
           ESP_LOGD(TAG, "WUPA NRE (no tag): IRQ=0x%02X", this->irq_status_);
           this->irq_status_ = 0;
           this->state_ = STATE_IDLE;
-          this->finalize_scan();
+          this->finalize_scan_();
       } else if (millis() - this->last_state_change_ > 100) {
           // No tag responded and NRE fast-path didn't fire (real ST25R3916:
           // NRE is in IRQ_TIMER, not IRQ_MAIN).  Read ALL IRQ registers so the
@@ -676,11 +676,11 @@ void ST25R::process_state() {
           uint8_t irq_t = this->read_register(IRQ_TIMER);
           uint8_t irq_e = this->read_register(IRQ_ERROR);
           ESP_LOGD(TAG, "WUPA timeout: IRQ=0x%02X IRQ_T=0x%02X IRQ_E=0x%02X FIFO=%u",
-                   this->irq_status_, irq_t, irq_e, this->read_fifo_status1());
+                   this->irq_status_, irq_t, irq_e, this->read_fifo_status1_());
           this->irq_status_ = 0;
           this->irq_triggered_ = false;
           this->state_ = STATE_IDLE;
-          this->finalize_scan();
+          this->finalize_scan_();
       }
       break;
     }
@@ -690,27 +690,27 @@ void ST25R::process_state() {
         uint8_t max_prefix_val = (1 << (this->anticol_col_pos_ + 1)) - 1;
         if (this->anticol_col_pos_ > 0 && this->anticol_prefix_val_ < max_prefix_val) {
           this->anticol_prefix_val_++;
-          this->apply_anticol_prefix();
+          this->apply_anticol_prefix_();
           // Send WUPA before each new prefix attempt — some cards (e.g. Mifare Classic) leave
           // the READY state quickly after responding to an anticol they don't match.
           this->anticol_resume_ = true;
-          this->start_wupa();
+          this->start_wupa_();
           this->state_ = STATE_WUPA;
           this->last_state_change_ = millis();
           return;
         }
         this->state_ = STATE_IDLE;
-        this->finalize_scan();
+        this->finalize_scan_();
         return;
       }
 
       if (this->irq_status_ != 0 && (this->irq_status_ & (IRQ_RXE | IRQ_COL | IRQ_TXE))) {
         delay(5);
-        uint8_t f1 = this->read_fifo_status1();
+        uint8_t f1 = this->read_fifo_status1_();
         bool has_collision = (this->irq_status_ & IRQ_COL) != 0;
 
         if (has_collision) {
-          uint8_t col_raw = this->read_collision_display();
+          uint8_t col_raw = this->read_collision_display_();
           uint8_t c_byte = (col_raw >> 4) & 0x0F;
           uint8_t c_bit  = (col_raw >> 1) & 0x07;
           // col_pos_abs is from start of TX frame (SEL + NVB = 2 bytes = 16 bits)
@@ -722,9 +722,9 @@ void ST25R::process_state() {
           // FIFO bytes during collision are unreliable — brute-force all 2^(col_pos+1) prefixes
           this->anticol_col_pos_ = uid_col_pos;
           this->anticol_prefix_val_ = 0;
-          this->apply_anticol_prefix();
+          this->apply_anticol_prefix_();
 
-          this->send_anticol_frame();
+          this->send_anticol_frame_();
           this->last_state_change_ = millis();
 
         } else if (f1 >= 5) {
@@ -763,15 +763,15 @@ void ST25R::process_state() {
           }
 
           // Clear anticollision mode before SELECT (ST25R3916: ISO14443A_CONF=0x00;
-          // ST25R300: no-op here — handled via RX_PROTOCOL1 inside transceive_ex()).
-          this->pre_select();
+          // ST25R300: no-op here — handled via RX_PROTOCOL1 inside transceive_ex_()).
+          this->pre_select_();
 
           uint8_t sak_buf[3];
           uint8_t sak_len = 0;
           if (!this->transceive_(sel_pk, 7, sak_buf, sak_len) || sak_len == 0) {
             ESP_LOGW(TAG, "SELECT failed (no SAK)");
             this->state_ = STATE_IDLE;
-            this->finalize_scan();
+            this->finalize_scan_();
             return;
           }
           uint8_t sak = sak_buf[0];
@@ -788,14 +788,14 @@ void ST25R::process_state() {
             if (this->cascade_level_ > 2) {
               ESP_LOGE(TAG, "Too many cascade levels");
               this->state_ = STATE_IDLE;
-              this->finalize_scan();
+              this->finalize_scan_();
               return;
             }
             this->anticol_prefix_full_ = 0;
             this->anticol_prefix_bits_ = 0;
             this->anticol_col_pos_ = 0;
             this->anticol_prefix_val_ = 0;
-            this->send_anticol_frame();
+            this->send_anticol_frame_();
             this->state_ = STATE_ANTICOL;
             this->last_state_change_ = millis();
           } else {
@@ -804,7 +804,7 @@ void ST25R::process_state() {
             if (uid_bytes_len != 4 && uid_bytes_len != 7) {
               ESP_LOGW(TAG, "Discarding invalid UID len=%zu (%s)", uid_bytes_len, this->current_uid_.c_str());
               this->state_ = STATE_IDLE;
-              this->finalize_scan();
+              this->finalize_scan_();
               return;
             }
 
@@ -815,13 +815,13 @@ void ST25R::process_state() {
               std::vector<uint8_t> uid_bytes;
               for (size_t i = 0; i < this->current_uid_.length(); i += 2)
                 uid_bytes.push_back((uint8_t) strtol(this->current_uid_.substr(i, 2).c_str(), nullptr, 16));
-              this->tags_data_[this->current_uid_] = this->read_tag(uid_bytes);
+              this->tags_data_[this->current_uid_] = this->read_tag_(uid_bytes);
             }
 
             this->tags_this_scan_.insert(this->current_uid_);
 
-            // HALT: send [0x50, 0x00] + CRC via chip-specific send_halt()
-            this->send_halt();
+            // HALT: send [0x50, 0x00] + CRC via chip-specific send_halt_()
+            this->send_halt_();
 
             // Determine the CL1 collision state so we can resume the multi-tag tree traversal.
             // If we went through cascade (CL2), restore the saved CL1 state.
@@ -846,24 +846,24 @@ void ST25R::process_state() {
               this->current_uid_ = "";
               this->anticol_col_pos_ = resume_col_pos;
               this->anticol_prefix_val_ = resume_prefix_val + 1;
-              this->apply_anticol_prefix();
+              this->apply_anticol_prefix_();
 
               uint8_t max_val = (1 << (resume_col_pos + 1)) - 1;
               if (this->anticol_prefix_val_ > max_val) {
                 // All branches at this collision level exhausted — done
                 this->state_ = STATE_IDLE;
-                this->finalize_scan();
+                this->finalize_scan_();
                 return;
               }
               // Send WUPA (not REQA) so all tags — including those in HALT — wake up.
               // Some cards (e.g. Mifare Classic) return to HALT after a non-matching SELECT,
               // so REQA would not wake them.
               this->anticol_resume_ = true;
-              this->start_wupa();
+              this->start_wupa_();
             } else {
               // No prior collision: this was the only tag — scan complete
               this->state_ = STATE_IDLE;
-              this->finalize_scan();
+              this->finalize_scan_();
               return;
             }
             this->state_ = STATE_WUPA;
@@ -875,13 +875,13 @@ void ST25R::process_state() {
     }
 
     case STATE_REINITIALIZING:
-      this->reinitialize();
+      this->reinitialize_();
       this->state_ = STATE_IDLE;
       break;
   }
 }
 
-void ST25R::finalize_scan() {
+void ST25R::finalize_scan_() {
   ESP_LOGD(TAG, "finalize_scan_: this_scan=%zu present=%zu", this->tags_this_scan_.size(), this->present_tags_.size());
   // Increment miss counters for tags not seen this scan; fire on_tag_removed when threshold reached
   std::vector<std::string> to_remove;
@@ -942,7 +942,7 @@ void ST25R::finalize_scan() {
   this->tags_this_scan_.clear();
 }
 
-bool ST25R::wait_for_irq(uint8_t mask, uint32_t timeout_ms) {
+bool ST25R::wait_for_irq_(uint8_t mask, uint32_t timeout_ms) {
   uint32_t start = millis();
   while (millis() - start < timeout_ms) {
     if (this->irq_triggered_) {
@@ -953,7 +953,7 @@ bool ST25R::wait_for_irq(uint8_t mask, uint32_t timeout_ms) {
   return false;
 }
 
-bool ST25R::reset_chip() {
+bool ST25R::reset_chip_() {
   // Verify IC identity BEFORE SET_DEFAULT — if bus is down, don't clear registers.
   // IC_IDENTITY is read-only and unaffected by SET_DEFAULT.
   uint8_t ic_identity = this->read_register(IC_IDENTITY);
@@ -971,7 +971,7 @@ bool ST25R::reset_chip() {
   this->is_b_version_ = is_b_version;
   // ST25R3916 (0x28) and ST25R3916B (0x30) both have Automatic Antenna Tuning (AAT)
   // with varicap DAC outputs on ANT_TUNE_A/B (0x26/0x27).  Variants without AAT
-  // (e.g. ST25R300/500/501 — see feature matrix) use their own reset_chip() override and
+  // (e.g. ST25R300/500/501 — see feature matrix) use their own reset_chip_() override and
   // never reach this code, but set the flag explicitly to represent the capability.
   this->has_aat_ = true;
   ESP_LOGI(TAG, "IC identity match: 0x%02X (ST25R3916%s)", ic_identity, is_b_version ? "B" : "");
@@ -1047,7 +1047,7 @@ bool ST25R::reset_chip() {
 
   if (this->rf_field_enabled_) {
     ESP_LOGV(TAG, "  reset_: Enabling RF field");
-    this->field_on();
+    this->field_on_();
   }
   delay(10);
 
@@ -1055,13 +1055,13 @@ bool ST25R::reset_chip() {
   // Confirmed +10mm range on STEVAL-MB17149B (varicap-equipped board).
   // Boards without varicaps see no effect (harmless). Disable via YAML: aat_enabled: false
   if (this->aat_enabled_)
-    this->aat_tune();
+    this->aat_tune_();
 
   ESP_LOGV(TAG, "  reset_: Complete");
   return true;
 }
 
-void ST25R::reinitialize() {
+void ST25R::reinitialize_() {
   this->reinitialization_attempts_++;
   ESP_LOGW(TAG, "Reinitializing ST25R (attempt %u)...", this->reinitialization_attempts_);
   if (this->reset_pin_ != nullptr) {
@@ -1070,7 +1070,7 @@ void ST25R::reinitialize() {
     this->reset_pin_->digital_write(false);
     delay(10);
   }
-  if (this->reset_chip()) {
+  if (this->reset_chip_()) {
     ESP_LOGI(TAG, "Reinitialize succeeded after %u attempt(s)", this->reinitialization_attempts_);
     this->health_check_failures_ = 0;
     this->reinitialization_attempts_ = 0;
@@ -1086,7 +1086,7 @@ void ST25R::reinitialize() {
   }
 }
 
-void ST25R::apply_anticol_prefix() {
+void ST25R::apply_anticol_prefix_() {
   // Decode anticol_prefix_val_ (bit N..0) into prefix arrays
   // anticol_col_pos_ = N: prefix covers bits 0..N (N+1 bits total)
   // bit position i of prefix = (anticol_prefix_val_ >> i) & 1
@@ -1102,7 +1102,7 @@ void ST25R::apply_anticol_prefix() {
   }
 }
 
-void ST25R::send_anticol_frame() {
+void ST25R::send_anticol_frame_() {
   uint8_t sel_cmds[] = {0x93, 0x95, 0x97};
   uint8_t sel = sel_cmds[this->cascade_level_];
 
@@ -1141,20 +1141,20 @@ void ST25R::send_anticol_frame() {
 
 // ── Default virtual helpers (ST25R3916 implementations) ──────────────────────
 
-void ST25R::pre_select() {
+void ST25R::pre_select_() {
   // ST25R3916: clear antcl bit in ISO14443A_CONF so SELECT uses normal (non-anticol) framing
   this->write_register(ISO14443A_CONF, 0x00);
 }
 
-uint8_t ST25R::read_fifo_status1() {
+uint8_t ST25R::read_fifo_status1_() {
   return this->read_register(FIFO_STATUS1);
 }
 
-uint8_t ST25R::read_collision_display() {
+uint8_t ST25R::read_collision_display_() {
   return this->read_register(COLLISION_DISPLAY);
 }
 
-void ST25R::send_halt() {
+void ST25R::send_halt_() {
   // HALT: send [0x50, 0x00] + CRC; tag has no response.
   // Don't use transceive_() here — it blocks waiting for a non-existent response.
   uint8_t halt_cmd[2] = {0x50, 0x00};
@@ -1169,7 +1169,7 @@ void ST25R::send_halt() {
   delay(10);  // wait for HALT frame to be transmitted (~2ms for 4 bytes)
 }
 
-void ST25R::start_wupa() {
+void ST25R::start_wupa_() {
   // Clear FIFO + IRQs, then transmit WUPA.
   this->write_command(ST25R_CMD_CLEAR_FIFO);
   this->read_register(IRQ_MAIN);
@@ -1180,7 +1180,7 @@ void ST25R::start_wupa() {
   this->write_command(ST25R_CMD_TRANSMIT_WUPA);
 }
 
-void ST25R::field_on() {
+void ST25R::field_on_() {
   this->write_register(OP_CONTROL, 0x88); // en=1, tx_en=1
   delay(10);
   this->write_command(ST25R_CMD_FIELD_ON);
@@ -1191,10 +1191,10 @@ void ST25R::field_on() {
 
 // ── AAT (Automatic Antenna Tuning) hill-climbing optimizer ───────────────────
 // Based on RFAL st25r3916AatTune() (AN5322). Iteratively adjusts ANT_TUNE_A/B
-// to maximize RF field amplitude (AD_CONV_RESULT). Runs once after field_on()
-// during reset_chip() on chips with AAT hardware (ST25R3916/3916B).
+// to maximize RF field amplitude (AD_CONV_RESULT). Runs once after field_on_()
+// during reset_chip_() on chips with AAT hardware (ST25R3916/3916B).
 
-void ST25R::aat_tune() {
+void ST25R::aat_tune_() {
   if (!this->has_aat_) return;
 
   uint8_t a = this->ant_tune_a_;
@@ -1270,7 +1270,7 @@ void ST25R::aat_tune() {
 
 // ── ISO 14443-4 (ISO-DEP / Type 4 tags) ─────────────────────────────────────
 
-bool ST25R::isodep_activate(uint8_t *ats, uint8_t &ats_len) {
+bool ST25R::isodep_activate_(uint8_t *ats, uint8_t &ats_len) {
   // Send RATS: 0xE0, FSDI=8 (256 bytes) | DID=0
   uint8_t rats[] = {0xE0, 0x80};
   uint8_t resp[64];
@@ -1288,10 +1288,41 @@ bool ST25R::isodep_activate(uint8_t *ats, uint8_t &ats_len) {
   this->isodep_block_number_ = 0;
 
   ESP_LOGD(TAG, "ISO-DEP: ATS received, TL=%u", resp[0]);
+
+  // PPS (Protocol and Parameter Selection) — negotiate higher bit rate if supported
+  if (resp_len >= 2) {
+    uint8_t t0 = resp[1];
+    uint8_t fsci = t0 & 0x0F;
+    bool has_ta = t0 & 0x10;
+    if (has_ta && resp_len >= 3) {
+      uint8_t ta = resp[2];
+      // TA bits[6:4] = DS (PCD→PICC speeds), bits[2:0] = DR (PICC→PCD speeds)
+      // Try 424 kbps if supported (bit 2 of DS and DR)
+      uint8_t pps_dsi = 0, pps_dri = 0;
+      if (ta & 0x40) pps_dsi = 2;       // 424 kbps PCD→PICC
+      else if (ta & 0x20) pps_dsi = 1;  // 212 kbps
+      if (ta & 0x04) pps_dri = 2;       // 424 kbps PICC→PCD
+      else if (ta & 0x02) pps_dri = 1;  // 212 kbps
+
+      if (pps_dsi > 0 || pps_dri > 0) {
+        // PPS: PPSS(0xD0|CID) + PPS0(0x11) + PPS1(DSI<<2|DRI)
+        uint8_t pps[] = {0xD0, 0x11, (uint8_t)((pps_dsi << 2) | pps_dri)};
+        uint8_t pps_resp[4];
+        uint8_t pps_len = 0;
+        if (this->transceive_(pps, sizeof(pps), pps_resp, pps_len) && pps_len >= 1 && (pps_resp[0] & 0xF0) == 0xD0) {
+          // Update BIT_RATE register for the negotiated speed
+          uint8_t br = (pps_dsi << 4) | pps_dri;
+          this->write_register(BIT_RATE, br);
+          ESP_LOGI(TAG, "ISO-DEP PPS: negotiated DSI=%u DRI=%u (BR=0x%02X)", pps_dsi, pps_dri, br);
+        }
+      }
+    }
+  }
+
   return true;
 }
 
-bool ST25R::isodep_transceive(const uint8_t *apdu, size_t apdu_len, uint8_t *resp, uint8_t &resp_len) {
+bool ST25R::isodep_transceive_(const uint8_t *apdu, size_t apdu_len, uint8_t *resp, uint8_t &resp_len) {
   // Wrap APDU in I-Block: [PCB][APDU...]
   uint8_t frame[64];
   if (apdu_len + 1 > sizeof(frame)) return false;
@@ -1323,11 +1354,11 @@ bool ST25R::isodep_transceive(const uint8_t *apdu, size_t apdu_len, uint8_t *res
   return true;
 }
 
-std::unique_ptr<nfc::NfcTag> ST25R::read_tag_type4(std::vector<uint8_t> &uid) {
+std::unique_ptr<nfc::NfcTag> ST25R::read_tag_type4_(std::vector<uint8_t> &uid) {
   uint8_t ats[64];
   uint8_t ats_len = 0;
 
-  if (!this->isodep_activate(ats, ats_len)) {
+  if (!this->isodep_activate_(ats, ats_len)) {
     nfc::NfcTagUid nfc_uid(uid.begin(), uid.end());
     return make_unique<nfc::NfcTag>(nfc_uid);
   }
@@ -1337,12 +1368,12 @@ std::unique_ptr<nfc::NfcTag> ST25R::read_tag_type4(std::vector<uint8_t> &uid) {
 
   // Step 1: SELECT NDEF Application (AID = D276000085010100 for v2, try v1 as fallback)
   uint8_t select_app[] = {0x00, 0xA4, 0x04, 0x00, 0x07, 0xD2, 0x76, 0x00, 0x00, 0x85, 0x01, 0x01, 0x00};
-  if (!this->isodep_transceive(select_app, sizeof(select_app), resp, resp_len) ||
+  if (!this->isodep_transceive_(select_app, sizeof(select_app), resp, resp_len) ||
       resp_len < 2 || resp[resp_len - 2] != 0x90 || resp[resp_len - 1] != 0x00) {
     // Try v1 AID
     select_app[11] = 0x00;  // D276000085010100 → D276000085010000
     resp_len = 0;
-    if (!this->isodep_transceive(select_app, sizeof(select_app), resp, resp_len) ||
+    if (!this->isodep_transceive_(select_app, sizeof(select_app), resp, resp_len) ||
         resp_len < 2 || resp[resp_len - 2] != 0x90 || resp[resp_len - 1] != 0x00) {
       ESP_LOGD(TAG, "T4T: SELECT NDEF app failed");
       nfc::NfcTagUid nfc_uid(uid.begin(), uid.end());
@@ -1353,7 +1384,7 @@ std::unique_ptr<nfc::NfcTag> ST25R::read_tag_type4(std::vector<uint8_t> &uid) {
   // Step 2: SELECT CC File (0xE103)
   uint8_t select_cc[] = {0x00, 0xA4, 0x00, 0x0C, 0x02, 0xE1, 0x03};
   resp_len = 0;
-  if (!this->isodep_transceive(select_cc, sizeof(select_cc), resp, resp_len) ||
+  if (!this->isodep_transceive_(select_cc, sizeof(select_cc), resp, resp_len) ||
       resp_len < 2 || resp[resp_len - 2] != 0x90) {
     ESP_LOGD(TAG, "T4T: SELECT CC failed");
     nfc::NfcTagUid nfc_uid(uid.begin(), uid.end());
@@ -1363,7 +1394,7 @@ std::unique_ptr<nfc::NfcTag> ST25R::read_tag_type4(std::vector<uint8_t> &uid) {
   // Step 3: READ BINARY CC (15 bytes)
   uint8_t read_cc[] = {0x00, 0xB0, 0x00, 0x00, 0x0F};
   resp_len = 0;
-  if (!this->isodep_transceive(read_cc, sizeof(read_cc), resp, resp_len) ||
+  if (!this->isodep_transceive_(read_cc, sizeof(read_cc), resp, resp_len) ||
       resp_len < 17) {  // 15 data + SW1 SW2
     ESP_LOGD(TAG, "T4T: READ CC failed (resp_len=%u)", resp_len);
     nfc::NfcTagUid nfc_uid(uid.begin(), uid.end());
@@ -1379,7 +1410,7 @@ std::unique_ptr<nfc::NfcTag> ST25R::read_tag_type4(std::vector<uint8_t> &uid) {
   // Step 4: SELECT NDEF File
   uint8_t select_ndef[] = {0x00, 0xA4, 0x00, 0x0C, 0x02, (uint8_t)(ndef_file_id >> 8), (uint8_t)(ndef_file_id & 0xFF)};
   resp_len = 0;
-  if (!this->isodep_transceive(select_ndef, sizeof(select_ndef), resp, resp_len) ||
+  if (!this->isodep_transceive_(select_ndef, sizeof(select_ndef), resp, resp_len) ||
       resp_len < 2 || resp[resp_len - 2] != 0x90) {
     ESP_LOGD(TAG, "T4T: SELECT NDEF file failed");
     nfc::NfcTagUid nfc_uid(uid.begin(), uid.end());
@@ -1389,7 +1420,7 @@ std::unique_ptr<nfc::NfcTag> ST25R::read_tag_type4(std::vector<uint8_t> &uid) {
   // Step 5: READ NDEF Length (first 2 bytes)
   uint8_t read_nlen[] = {0x00, 0xB0, 0x00, 0x00, 0x02};
   resp_len = 0;
-  if (!this->isodep_transceive(read_nlen, sizeof(read_nlen), resp, resp_len) ||
+  if (!this->isodep_transceive_(read_nlen, sizeof(read_nlen), resp, resp_len) ||
       resp_len < 4) {  // 2 data + SW1 SW2
     ESP_LOGD(TAG, "T4T: READ NLEN failed");
     nfc::NfcTagUid nfc_uid(uid.begin(), uid.end());
@@ -1406,7 +1437,7 @@ std::unique_ptr<nfc::NfcTag> ST25R::read_tag_type4(std::vector<uint8_t> &uid) {
   // Step 6: READ NDEF Data
   uint8_t read_ndef[] = {0x00, 0xB0, 0x00, 0x02, (uint8_t)ndef_len};
   resp_len = 0;
-  if (!this->isodep_transceive(read_ndef, sizeof(read_ndef), resp, resp_len) ||
+  if (!this->isodep_transceive_(read_ndef, sizeof(read_ndef), resp, resp_len) ||
       resp_len < ndef_len + 2) {
     ESP_LOGD(TAG, "T4T: READ NDEF data failed");
     nfc::NfcTagUid nfc_uid(uid.begin(), uid.end());
@@ -1420,7 +1451,7 @@ std::unique_ptr<nfc::NfcTag> ST25R::read_tag_type4(std::vector<uint8_t> &uid) {
 
 // ── NFC-B (ISO 14443B) for ST25R3916 ─────────────────────────────────────────
 
-void ST25R::configure_nfcb_mode() {
+void ST25R::configure_nfcb_mode_() {
   // MODE: om=0x02 (ISO14443B) in bits[6:3] = 0x10, tr_am=1 (AM modulation) bit7 = 0x80
   this->write_register(MODE, 0x90);
   this->write_register(BIT_RATE, 0x00);  // 106 kbps
@@ -1436,8 +1467,8 @@ void ST25R::configure_nfcb_mode() {
   this->write_register(CORR_CONF2, 0x00);
 }
 
-void ST25R::nfcb_scan() {
-  this->configure_nfcb_mode();
+void ST25R::nfcb_scan_() {
+  this->configure_nfcb_mode_();
 
   // SENSB_REQ (ALLB_REQ): cmd=0x05, AFI=0x00 (any), PARAM=0x08 (1 slot + WUPB)
   uint8_t sensb_req[] = {0x05, 0x00, 0x08};
@@ -1476,7 +1507,7 @@ void ST25R::nfcb_scan() {
   }
 
   // Restore NFC-A mode
-  this->restore_nfca_mode();
+  this->restore_nfca_mode_();
   // Also restore TX_DRIVER to OOK (am_mod=0)
   uint8_t d_res_restore = (15 - this->rf_power_) & 0x0F;
   this->write_register(TX_DRIVER_CONF, d_res_restore);
@@ -1506,7 +1537,7 @@ void ST25R::nfcb_scan() {
 // ── NFC-V (ISO 15693) streaming mode for ST25R3916 ──────────────────────────
 
 // ISO 15693 CRC-16 CCITT (preset=0xFFFF, poly=0x8408, result inverted)
-uint16_t ST25R::iso15693_crc(const uint8_t *data, size_t len) {
+uint16_t ST25R::iso15693_crc_(const uint8_t *data, size_t len) {
   uint16_t crc = 0xFFFF;
   for (size_t i = 0; i < len; i++) {
     uint8_t d = data[i] ^ (uint8_t)(crc & 0xFF);
@@ -1521,7 +1552,7 @@ static const uint8_t ISO15693_1OF4_SOF = 0x21;
 static const uint8_t ISO15693_1OF4_EOF = 0x04;
 static const uint8_t ISO15693_1OF4_MAP[4] = {0x02, 0x08, 0x20, 0x80};
 
-size_t ST25R::iso15693_encode_1of4(const uint8_t *data, size_t len, bool add_crc,
+size_t ST25R::iso15693_encode_1of4_(const uint8_t *data, size_t len, bool add_crc,
                                      uint8_t *out, size_t out_max) {
   size_t pos = 0;
   if (out_max < 1 + (len + 2) * 4 + 1) return 0;
@@ -1540,7 +1571,7 @@ size_t ST25R::iso15693_encode_1of4(const uint8_t *data, size_t len, bool add_crc
 
   // Encode CRC
   if (add_crc) {
-    uint16_t crc = iso15693_crc(data, len);
+    uint16_t crc = iso15693_crc_(data, len);
     uint8_t crc_bytes[2] = {(uint8_t)(crc & 0xFF), (uint8_t)(crc >> 8)};
     for (int c = 0; c < 2; c++) {
       uint8_t b = crc_bytes[c];
@@ -1557,7 +1588,7 @@ size_t ST25R::iso15693_encode_1of4(const uint8_t *data, size_t len, bool add_crc
 }
 
 // Manchester VICC decoding: subcarrier stream → payload bytes
-size_t ST25R::iso15693_decode_manchester(const uint8_t *in, size_t in_len, uint8_t *out, size_t out_max) {
+size_t ST25R::iso15693_decode_manchester_(const uint8_t *in, size_t in_len, uint8_t *out, size_t out_max) {
   if (in_len == 0 || out_max == 0) return 0;
 
   // Check SOF: first 5 bits should be 0x17 (10111 = 3 unmodulated + 2 modulated)
@@ -1590,7 +1621,7 @@ size_t ST25R::iso15693_decode_manchester(const uint8_t *in, size_t in_len, uint8
   return bp / 8;  // return complete bytes
 }
 
-void ST25R::configure_nfcv_stream_mode() {
+void ST25R::configure_nfcv_stream_mode_() {
   // RFAL NFC-V analog config: RX_CONF1=0x13, RX_CONF2=0x2D, CORR_CONF1=0x13, CORR_CONF2=0x01
   this->write_register(RX_CONF1, 0x13);
   this->write_register(RX_CONF2, 0x2D);
@@ -1615,7 +1646,7 @@ void ST25R::configure_nfcv_stream_mode() {
   this->write_register(UNDERSHOOT_CONF2, 0x00);
 }
 
-void ST25R::restore_nfca_mode() {
+void ST25R::restore_nfca_mode_() {
   // Restore NFC-A 106 settings
   this->write_register(MODE, 0x08);
   this->write_register(RX_CONF1, 0x08);
@@ -1631,7 +1662,7 @@ void ST25R::restore_nfca_mode() {
   this->write_register(UNDERSHOOT_CONF2, 0x03);
 }
 
-bool ST25R::transceive_nfcv_stream(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
+bool ST25R::transceive_nfcv_stream_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
                                      uint32_t timeout_ms) {
   // Encode command using 1-of-4 coding with CRC
   uint8_t coded[128];
@@ -1642,7 +1673,7 @@ bool ST25R::transceive_nfcv_stream(const uint8_t *data, size_t len, uint8_t *res
   cmd_buf[0] |= 0x02;   // high data rate
   cmd_buf[0] &= ~0x01;  // single subcarrier
 
-  size_t coded_len = iso15693_encode_1of4(cmd_buf, len, true, coded, sizeof(coded));
+  size_t coded_len = iso15693_encode_1of4_(cmd_buf, len, true, coded, sizeof(coded));
   if (coded_len == 0) return false;
 
   this->write_command(ST25R_CMD_STOP_ALL);
@@ -1673,10 +1704,10 @@ bool ST25R::transceive_nfcv_stream(const uint8_t *data, size_t len, uint8_t *res
         this->read_fifo(raw, fifo_len);
         // Decode Manchester
         uint8_t decoded[32];
-        size_t dec_len = iso15693_decode_manchester(raw, fifo_len, decoded, sizeof(decoded));
+        size_t dec_len = iso15693_decode_manchester_(raw, fifo_len, decoded, sizeof(decoded));
         if (dec_len >= 3) {  // At least flags + CRC(2)
           // Verify CRC
-          uint16_t crc = iso15693_crc(decoded, dec_len - 2);
+          uint16_t crc = iso15693_crc_(decoded, dec_len - 2);
           if ((crc & 0xFF) == decoded[dec_len - 2] && (crc >> 8) == decoded[dec_len - 1]) {
             // Strip CRC
             resp_len = dec_len - 2;
@@ -1695,14 +1726,14 @@ bool ST25R::transceive_nfcv_stream(const uint8_t *data, size_t len, uint8_t *res
   return false;
 }
 
-void ST25R::nfcv_scan() {
-  this->configure_nfcv_stream_mode();
+void ST25R::nfcv_scan_() {
+  this->configure_nfcv_stream_mode_();
 
   uint8_t inv_req[] = {0x26, 0x01, 0x00};  // flags, INVENTORY, mask_len=0
   uint8_t resp[16];
   uint8_t resp_len = 0;
 
-  if (this->transceive_nfcv_stream(inv_req, sizeof(inv_req), resp, resp_len, 30)) {
+  if (this->transceive_nfcv_stream_(inv_req, sizeof(inv_req), resp, resp_len, 30)) {
     if (resp_len >= 10 && !(resp[0] & 0x01)) {
       // Parse UID (bytes 2-9, LSB-first → reverse for display)
       char uid_str[17];
@@ -1711,7 +1742,7 @@ void ST25R::nfcv_scan() {
       uid_str[16] = '\0';
       ESP_LOGI(TAG, "NFC-V tag: %s (DSFID=0x%02X)", uid_str, resp[1]);
 
-      // Add to tags_this_scan_ — finalize_scan() handles on_tag/on_tag_removed
+      // Add to tags_this_scan_ — finalize_scan_() handles on_tag/on_tag_removed
       std::string uid_string(uid_str);
       this->tags_this_scan_.insert(uid_string);
 
@@ -1726,7 +1757,7 @@ void ST25R::nfcv_scan() {
       uint8_t blk_len = 0;
       std::vector<uint8_t> ndef_data;
 
-      if (this->transceive_nfcv_stream(blk_req, sizeof(blk_req), blk_resp, blk_len, 20) &&
+      if (this->transceive_nfcv_stream_(blk_req, sizeof(blk_req), blk_resp, blk_len, 20) &&
           blk_len >= 5 && !(blk_resp[0] & 0x01)) {
         // CC: byte1=magic(0xE1), byte2=ver+access, byte3=size(*8), byte4=features
         if (blk_resp[1] == 0xE1) {
@@ -1738,7 +1769,7 @@ void ST25R::nfcv_scan() {
           for (uint8_t blk = 1; blk <= total_blocks; blk++) {
             blk_req[2] = blk;
             blk_len = 0;
-            if (this->transceive_nfcv_stream(blk_req, sizeof(blk_req), blk_resp, blk_len, 20) &&
+            if (this->transceive_nfcv_stream_(blk_req, sizeof(blk_req), blk_resp, blk_len, 20) &&
                 blk_len >= 5 && !(blk_resp[0] & 0x01)) {
               for (int k = 1; k < 5 && k < blk_len; k++)
                 ndef_data.push_back(blk_resp[k]);
@@ -1784,7 +1815,7 @@ void ST25R::nfcv_scan() {
     }
   }
 
-  this->restore_nfca_mode();
+  this->restore_nfca_mode_();
 }
 
 bool ST25R::ndef_write(nfc::NdefMessage *message, bool format) {
@@ -1793,7 +1824,7 @@ bool ST25R::ndef_write(nfc::NdefMessage *message, bool format) {
   if (!this->present_tags_.empty()) {
     const std::string &last_uid = this->present_tags_.rbegin()->first;
     if (last_uid.length() == 16) {
-      return this->nfcv_ndef_write(message);
+      return this->nfcv_ndef_write_(message);
     }
   }
 
@@ -1816,7 +1847,7 @@ bool ST25R::ndef_write(nfc::NdefMessage *message, bool format) {
       ESP_LOGE(TAG, "Failed to write CC page during format");
       return false;
     }
-    delay(50);
+    delay(10);
   }
 
   if (message == nullptr) {
@@ -1876,11 +1907,11 @@ bool ST25R::ndef_write(nfc::NdefMessage *message, bool format) {
   return true;
 }
 
-bool ST25R::nfcv_ndef_write(nfc::NdefMessage *message) {
+bool ST25R::nfcv_ndef_write_(nfc::NdefMessage *message) {
   // NFC-V Type 5 NDEF write via WRITE_SINGLE_BLOCK (0x21)
   // Block 0 = CC, blocks 1+ = NDEF TLV data
 
-  this->configure_nfcv_stream_mode();
+  this->configure_nfcv_stream_mode_();
 
   std::vector<uint8_t> payload;
   if (message != nullptr) {
@@ -1907,9 +1938,9 @@ bool ST25R::nfcv_ndef_write(nfc::NdefMessage *message) {
   uint8_t resp[4];
   uint8_t resp_len = 0;
 
-  if (!this->transceive_nfcv_stream(write_req, sizeof(write_req), resp, resp_len, 25)) {
+  if (!this->transceive_nfcv_stream_(write_req, sizeof(write_req), resp, resp_len, 25)) {
     ESP_LOGE(TAG, "NFC-V: failed to write CC (block 0)");
-    this->restore_nfca_mode();
+    this->restore_nfca_mode_();
     return false;
   }
 
@@ -1925,7 +1956,7 @@ bool ST25R::nfcv_ndef_write(nfc::NdefMessage *message) {
 
     bool success = false;
     for (uint8_t retry = 0; retry < 3; retry++) {
-      if (this->transceive_nfcv_stream(write_req, sizeof(write_req), resp, resp_len, 25)) {
+      if (this->transceive_nfcv_stream_(write_req, sizeof(write_req), resp, resp_len, 25)) {
         success = true;
         break;
       }
@@ -1933,13 +1964,13 @@ bool ST25R::nfcv_ndef_write(nfc::NdefMessage *message) {
     }
     if (!success) {
       ESP_LOGE(TAG, "NFC-V: failed to write block %u", blk);
-      this->restore_nfca_mode();
+      this->restore_nfca_mode_();
       return false;
     }
   }
 
   ESP_LOGI(TAG, "NFC-V NDEF write successful!");
-  this->restore_nfca_mode();
+  this->restore_nfca_mode_();
   return true;
 }
 
@@ -1952,7 +1983,7 @@ bool ST25R::send_apdu(const uint8_t *apdu, size_t apdu_len, uint8_t *resp, uint8
     ESP_LOGW(TAG, "send_apdu: tag not ISO-DEP capable (SAK=0x%02X)", this->last_sak_);
     return false;
   }
-  return this->isodep_transceive(apdu, apdu_len, resp, resp_len);
+  return this->isodep_transceive_(apdu, apdu_len, resp, resp_len);
 }
 
 void ST25R::dump_config() {

@@ -126,11 +126,11 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   void dump_config() override;
   void update() override;
   void loop() override;
-  void process_state();
+  void process_state_();
   float get_setup_priority() const override { return setup_priority::DATA; }
 
   bool ndef_write(nfc::NdefMessage *message, bool format = false);
-  virtual bool nfcv_ndef_write(nfc::NdefMessage *message);  // NFC-V Type 5 WRITE_SINGLE_BLOCK path
+  virtual bool nfcv_ndef_write_(nfc::NdefMessage *message);  // NFC-V Type 5 WRITE_SINGLE_BLOCK path
   bool clean_tag();
 
   /// Send an APDU via ISO-DEP (ISO 14443-4) I-Block framing.
@@ -183,58 +183,58 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   virtual void read_fifo(uint8_t *data, size_t len) = 0;
 
   // Chip-specific overrides — each uses the ST25R3916 default or can be overridden
-  virtual bool reset_chip();
-  virtual void reinitialize();
-  virtual void send_anticol_frame();
-  virtual bool transceive_ex(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, bool with_crc, uint32_t timeout_ms);
-  virtual std::unique_ptr<nfc::NfcTag> read_tag(std::vector<uint8_t> &uid);
+  virtual bool reset_chip_();
+  virtual void reinitialize_();
+  virtual void send_anticol_frame_();
+  virtual bool transceive_ex_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, bool with_crc, uint32_t timeout_ms);
+  virtual std::unique_ptr<nfc::NfcTag> read_tag_(std::vector<uint8_t> &uid);
 
-  // Virtual helpers used by the shared process_state() to abstract chip differences
-  virtual void send_halt();                  // encode and transmit the ISO14443A HALT command
-  virtual void start_wupa();                 // clear chip state and transmit WUPA
-  virtual void pre_select();                 // clear anticol mode before SELECT (chip-specific register)
-  virtual uint8_t read_fifo_status1();       // read the chip's FIFO byte count register
-  virtual uint8_t read_collision_display();  // read the chip's collision position register
+  // Virtual helpers used by the shared process_state_() to abstract chip differences
+  virtual void send_halt_();                  // encode and transmit the ISO14443A HALT command
+  virtual void start_wupa_();                 // clear chip state and transmit WUPA
+  virtual void pre_select_();                 // clear anticol mode before SELECT (chip-specific register)
+  virtual uint8_t read_fifo_status1_();       // read the chip's FIFO byte count register
+  virtual uint8_t read_collision_display_();  // read the chip's collision position register
 
-  void field_on();
-  void finalize_scan();
+  void field_on_();
+  void finalize_scan_();
 
   // Automatic Antenna Tuning — hill-climbing optimizer for ANT_TUNE_A/B
-  void aat_tune();
+  void aat_tune_();
 
   // ISO 14443-4 (ISO-DEP / Type 4 tags)
-  bool isodep_activate(uint8_t *ats, uint8_t &ats_len);  // Send RATS, parse ATS
-  bool isodep_transceive(const uint8_t *apdu, size_t apdu_len, uint8_t *resp, uint8_t &resp_len);
-  std::unique_ptr<nfc::NfcTag> read_tag_type4(std::vector<uint8_t> &uid);
+  bool isodep_activate_(uint8_t *ats, uint8_t &ats_len);  // Send RATS, parse ATS
+  bool isodep_transceive_(const uint8_t *apdu, size_t apdu_len, uint8_t *resp, uint8_t &resp_len);
+  std::unique_ptr<nfc::NfcTag> read_tag_type4_(std::vector<uint8_t> &uid);
   uint8_t isodep_block_number_{0};
 
   // NFC-B (ISO 14443B) support
-  void nfcb_scan();
-  void configure_nfcb_mode();
+  void nfcb_scan_();
+  void configure_nfcb_mode_();
 
   // NFC-V (ISO 15693) support for ST25R3916 — streaming mode
-  void nfcv_scan();
-  void configure_nfcv_stream_mode();
-  void restore_nfca_mode();
-  bool transceive_nfcv_stream(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
+  void nfcv_scan_();
+  void configure_nfcv_stream_mode_();
+  void restore_nfca_mode_();
+  bool transceive_nfcv_stream_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
                                uint32_t timeout_ms = 30);
   // ISO 15693 encoding/decoding helpers
-  static uint16_t iso15693_crc(const uint8_t *data, size_t len);
-  static size_t iso15693_encode_1of4(const uint8_t *data, size_t len, bool add_crc, uint8_t *out, size_t out_max);
-  static size_t iso15693_decode_manchester(const uint8_t *in, size_t in_len, uint8_t *out, size_t out_max);
-  void apply_anticol_prefix();
-  bool wait_for_irq(uint8_t mask, uint32_t timeout_ms);
+  static uint16_t iso15693_crc_(const uint8_t *data, size_t len);
+  static size_t iso15693_encode_1of4_(const uint8_t *data, size_t len, bool add_crc, uint8_t *out, size_t out_max);
+  static size_t iso15693_decode_manchester_(const uint8_t *in, size_t in_len, uint8_t *out, size_t out_max);
+  void apply_anticol_prefix_();
+  bool wait_for_irq_(uint8_t mask, uint32_t timeout_ms);
   bool transceive_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms = 150);
   bool transceive_no_crc_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms = 150);
   // Mifare Classic — raw transceive with manual parity (no chip CRC/parity).
   // Adapted from mf1.c (MIT, github.com/suut/rfal-mifare-classic)
-  bool transceive_mifare(const uint8_t *data, const uint8_t *parity, uint8_t len,
+  bool transceive_mifare_(const uint8_t *data, const uint8_t *parity, uint8_t len,
                           uint8_t *resp, uint8_t *resp_parity, uint8_t &resp_len,
                           uint32_t timeout_ms = 15);
-  bool mifare_authenticate(uint8_t block, bool key_b, uint64_t key,
+  bool mifare_authenticate_(uint8_t block, bool key_b, uint64_t key,
                             const uint8_t *uid, uint8_t uid_len,
                             struct Crypto1State *cs);
-  bool mifare_read_block(uint8_t block, uint8_t *data, struct Crypto1State *cs);
+  bool mifare_read_block_(uint8_t block, uint8_t *data, struct Crypto1State *cs);
   static void isr(ST25R *arg);
   
   GPIOPin *reset_pin_{nullptr};

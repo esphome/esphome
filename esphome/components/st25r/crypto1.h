@@ -1,5 +1,8 @@
 #pragma once
-#include <stdint.h>
+#include <cstdint>
+
+namespace esphome {
+namespace st25r {
 
 /*
  * Crypto1 stream cipher implementation.
@@ -37,3 +40,6 @@ uint32_t crypto1_word(struct Crypto1State *s, uint32_t in, int is_encrypted);
 
 // Advance the tag PRNG n steps (used to predict tag nonce responses)
 uint32_t prng_successor(uint32_t x, uint32_t n);
+
+}  // namespace st25r
+}  // namespace esphome
