@@ -2235,11 +2235,12 @@ template<class T> struct PlacementStorage {
   /// @brief Raw byte storage, strictly aligned for type T.
   alignas(T) unsigned char data[sizeof(T)];
 
-  /// @brief Retrieves a pointer to the constructed object.
-  T *get() { return std::launder(reinterpret_cast<T *>(data)); }
+  /// @brief Retrieves a pointer to the storage as the target type.
+  /// The caller must ensure the object has been constructed via placement new before dereferencing.
+  T *get() { return reinterpret_cast<T *>(data); }
 
-  /// @brief Retrieves a const pointer to the constructed object.
-  const T *get() const { return std::launder(reinterpret_cast<const T *>(data)); }
+  /// @brief Retrieves a const pointer to the storage as the target type.
+  const T *get() const { return reinterpret_cast<const T *>(data); }
 };
 
 /// @name Internal functions

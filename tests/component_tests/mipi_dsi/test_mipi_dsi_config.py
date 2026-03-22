@@ -119,6 +119,10 @@ def test_code_generation(
 
     main_cpp = generate_main(component_fixture_path("mipi_dsi.yaml"))
     assert (
+        "static esphome::PlacementStorage<mipi_dsi::MIPI_DSI> p4_nano_storage_;"
+        in main_cpp
+    )
+    assert (
         "static mipi_dsi::MIPI_DSI *const p4_nano = p4_nano_storage_.get();" in main_cpp
     )
     assert (
