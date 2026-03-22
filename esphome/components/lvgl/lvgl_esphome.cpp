@@ -674,7 +674,7 @@ void LvglComponent::static_flush_cb(lv_display_t *disp_drv, const lv_area_t *are
  * @param width
  */
 void lv_scale_draw_event_cb(lv_event_t *e, uint16_t range_start, uint16_t range_end, lv_color_t color_start,
-                            lv_color_t color_end, uint16_t width, bool local) {
+                            lv_color_t color_end, int width, bool local) {
   auto *scale = static_cast<lv_obj_t *>(lv_event_get_target(e));
   lv_draw_task_t *task = lv_event_get_draw_task(e);
 

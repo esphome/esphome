@@ -366,7 +366,7 @@ class MeterType(WidgetType):
             lv.scale_set_range(scale_var, range_from, range_to)
 
             angle_range = await lv_angle_degrees.process(scale_conf[CONF_ANGLE_RANGE])
-            if rotation := scale_conf.get(CONF_ROTATION):
+            if (rotation := scale_conf.get(CONF_ROTATION)) is not None:
                 rotation = await lv_angle_degrees.process(rotation)
             else:
                 rotation = 90 + (360 - angle_range) / 2
@@ -413,7 +413,6 @@ class MeterType(WidgetType):
                     # No object created for this
                     color_start = await lv_color.process(v[CONF_COLOR_START])
                     color_end = await lv_color.process(v[CONF_COLOR_END])
-                    width = await size.process(v[CONF_WIDTH])
                     local = v[CONF_LOCAL]
                     if color_start and color_end:
                         async with LambdaContext(
@@ -425,7 +424,7 @@ class MeterType(WidgetType):
                                 end_value,
                                 color_start,
                                 color_end,
-                                width,
+                                v[CONF_WIDTH],
                                 local,
                             )
                         lv_obj.add_event_cb(
