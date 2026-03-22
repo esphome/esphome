@@ -51,13 +51,16 @@ template<typename... Ts> class LockCondition : public Condition<Ts...> {
 
 template<LockState State> class LockStateTrigger : public Trigger<> {
  public:
-  explicit LockStateTrigger(Lock *a_lock) {
-    a_lock->add_on_state_callback([this, a_lock]() {
-      if (a_lock->state == State) {
+  explicit LockStateTrigger(Lock *a_lock) : lock_(a_lock) {
+    a_lock->add_on_state_callback([this]() {
+      if (this->lock_->state == State) {
         this->trigger();
       }
     });
   }
+
+ protected:
+  Lock *lock_;
 };
 
 using LockLockTrigger = LockStateTrigger<LockState::LOCK_STATE_LOCKED>;

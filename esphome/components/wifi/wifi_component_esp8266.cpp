@@ -735,7 +735,7 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
     }
   }
   ESP_LOGV(TAG, "Scan complete: %zu found, %zu stored%s", total, this->scan_result_.size(),
-           needs_full ? "" : " (filtered)");
+           needs_full ? LOG_STR_LITERAL("") : LOG_STR_LITERAL(" (filtered)"));
   this->scan_done_ = true;
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
   this->pending_.scan_complete = true;  // Defer listener callbacks to main loop
