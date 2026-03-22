@@ -261,5 +261,6 @@ async def to_code(config):
     if CONF_RESET_DURATION in config:
         cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
     elif config[CONF_MODEL] == "2.90inv2":
-        # Default 200ms reset for Rev2.1 when using R2 driver (matches prior Type A default)
+        # WaveshareEPaper2P9InV2R2 sets reset_duration_=10 ms in its constructor; when the user
+        # omits reset_duration, restore the 200 ms default used by WaveshareEPaperBase/other models.
         cg.add(var.set_reset_duration(200))

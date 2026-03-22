@@ -1341,18 +1341,16 @@ void WaveshareEPaper2P9InB::initialize() {
 }
 void HOT WaveshareEPaper2P9InB::display() {
   // Power on each frame: display() ends with 0x02 (power off); without this the next
-  // update talks to the panel while off and the image never changes (MH-ET / 2.9in-b).
+  // update talks to the panel while off and the image never updates (esphome/issues#2334).
   this->command(0x04);
   this->wait_until_idle_();
 
-  // BWR buffer is two planes (see WaveshareEPaperBWR::draw_absolute_pixel_internal).
-  const uint32_t plane_len = this->get_buffer_length_() >> 1;
-
+  // Single-plane framebuffer (WaveshareEPaper): full bitmap to 0x10, fixed red plane to 0x13.
   // COMMAND DATA START TRANSMISSION 1 (B/W data)
   this->command(0x10);
   delay(2);
   this->start_data_();
-  this->write_array(this->buffer_, plane_len);
+  this->write_array(this->buffer_, this->get_buffer_length_());
   this->end_data_();
   delay(2);
 
@@ -1360,7 +1358,8 @@ void HOT WaveshareEPaper2P9InB::display() {
   this->command(0x13);
   delay(2);
   this->start_data_();
-  this->write_array(this->buffer_ + plane_len, plane_len);
+  for (size_t i = 0; i < this->get_buffer_length_(); i++)
+    this->write_byte(0x00);
   this->end_data_();
   delay(2);
 
@@ -1630,13 +1629,12 @@ void HOT WaveshareEPaper2P9InBV3::display() {
   this->command(0x04);
   this->wait_until_idle_();
 
-  const uint32_t plane_len = this->get_buffer_length_() >> 1;
-
+  // Single-plane framebuffer (WaveshareEPaper): full bitmap to 0x10, fixed red plane to 0x13.
   // COMMAND DATA START TRANSMISSION 1 (B/W data)
   this->command(0x10);
   delay(2);
   this->start_data_();
-  this->write_array(this->buffer_, plane_len);
+  this->write_array(this->buffer_, this->get_buffer_length_());
   this->end_data_();
   this->command(0x92);
   delay(2);
@@ -1645,7 +1643,8 @@ void HOT WaveshareEPaper2P9InBV3::display() {
   this->command(0x13);
   delay(2);
   this->start_data_();
-  this->write_array(this->buffer_ + plane_len, plane_len);
+  for (size_t i = 0; i < this->get_buffer_length_(); i++)
+    this->write_byte(0xFF);
   this->end_data_();
   this->command(0x92);
   delay(2);
