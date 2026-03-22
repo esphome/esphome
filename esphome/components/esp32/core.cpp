@@ -2,6 +2,7 @@
 
 #include "esphome/core/defines.h"
 #include "crash_handler.h"
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "preferences.h"
@@ -15,7 +16,6 @@
 #include <freertos/task.h>
 
 void setup();  // NOLINT(readability-redundant-declaration)
-void loop();   // NOLINT(readability-redundant-declaration)
 
 // Weak stub for initArduino - overridden when the Arduino component is present
 extern "C" __attribute__((weak)) void initArduino() {}
@@ -65,7 +65,7 @@ TaskHandle_t loop_task_handle = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-
 void loop_task(void *pv_params) {
   setup();
   while (true) {
-    loop();
+    App.loop();
   }
 }
 
