@@ -580,9 +580,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     if type_ is not None:
         id_.type = type_
 
-    is_new = isinstance(rhs, MockObj) and rhs._is_new_expr
-
-    if is_new:
+    if isinstance(rhs, MockObj) and rhs._is_new_expr:
         # For 'new' allocations, use placement new into static storage
         # to avoid heap fragmentation on embedded devices.
         the_type = id_.type
