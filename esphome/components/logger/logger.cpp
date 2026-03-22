@@ -165,18 +165,12 @@ Logger::Logger(uint32_t baud_rate) : baud_rate_(baud_rate) {
 this->main_thread_ = pthread_self();
 #endif
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
-  this->init_log_buffer_(task_log_buffer_size);
-#endif
-}
-#ifdef USE_ESPHOME_TASK_LOG_BUFFER
-void Logger::init_log_buffer_(size_t total_buffer_size) {
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
-  this->log_buffer_ = new logger::TaskLogBuffer(total_buffer_size);
-  // Note: we don't call disable_loop_when_buffer_empty_() here because this is called
-  // from the constructor before the component is registered with App. The loop will
-  // self-disable on its first iteration when it finds no messages to process.
-}
+  this->log_buffer_ = new logger::TaskLogBuffer(task_log_buffer_size);
+  // Note: we don't disable loop here because the component isn't registered with App yet.
+  // The loop self-disables on its first iteration when it finds no messages to process.
 #endif
+}
 
 #if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
 void Logger::loop() {
