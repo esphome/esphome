@@ -152,13 +152,20 @@ inline uint8_t Logger::level_for(const char *tag) {
   return this->current_level_;
 }
 
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+Logger::Logger(uint32_t baud_rate, size_t task_log_buffer_size) : baud_rate_(baud_rate) {
+#else
 Logger::Logger(uint32_t baud_rate) : baud_rate_(baud_rate) {
+#endif
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
   this->main_task_ = xTaskGetCurrentTaskHandle();
 #elif defined(USE_ZEPHYR)
   this->main_task_ = k_current_get();
 #elif defined(USE_HOST)
-  this->main_thread_ = pthread_self();
+this->main_thread_ = pthread_self();
+#endif
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+  this->init_log_buffer(task_log_buffer_size);
 #endif
 }
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
