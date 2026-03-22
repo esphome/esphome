@@ -598,13 +598,11 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
                 MockObj(f"{storage_id.id}.get()"),
             )
         )
-        # Extract args from the CallExpression and rebuild as placement new
+        # Extract args from the CallExpression and rebuild as placement new.
+        # Template args are already encoded in the_type (e.g. GlobalsComponent<int>),
+        # so we only pass the constructor args, not template_args.
         call_expr = rhs.base  # CallExpression("new Type", args...)
-        placement_args: list[Expression] = []
-        if call_expr.template_args is not None:
-            placement_args.append(call_expr.template_args)
-        placement_args.extend(call_expr.args)
-        placement_new = CallExpression(f"new({id_.id}) {the_type}", *placement_args)
+        placement_new = CallExpression(f"new({id_.id}) {the_type}", *call_expr.args)
         CORE.add(ExpressionStatement(placement_new))
     else:
         decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
