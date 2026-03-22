@@ -413,6 +413,7 @@ class MeterType(WidgetType):
                     # No object created for this
                     color_start = await lv_color.process(v[CONF_COLOR_START])
                     color_end = await lv_color.process(v[CONF_COLOR_END])
+                    width = await size.process(v[CONF_WIDTH])
                     local = v[CONF_LOCAL]
                     if color_start and color_end:
                         async with LambdaContext(
@@ -424,6 +425,7 @@ class MeterType(WidgetType):
                                 end_value,
                                 color_start,
                                 color_end,
+                                width,
                                 local,
                             )
                         lv_obj.add_event_cb(
