@@ -1,5 +1,6 @@
 #ifdef USE_HOST
 
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "preferences.h"
@@ -18,6 +19,11 @@ uint32_t IRAM_ATTR HOT millis() {
   time_t seconds = spec.tv_sec;
   uint32_t ms = round(spec.tv_nsec / 1e6);
   return ((uint32_t) seconds) * 1000U + ms;
+}
+uint64_t millis_64() {
+  struct timespec spec;
+  clock_gettime(CLOCK_MONOTONIC, &spec);
+  return static_cast<uint64_t>(spec.tv_sec) * 1000ULL + static_cast<uint64_t>(spec.tv_nsec) / 1000000ULL;
 }
 void HOT delay(uint32_t ms) {
   struct timespec ts;
@@ -52,7 +58,6 @@ void HOT arch_feed_wdt() {
   // pass
 }
 
-uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
 uint32_t arch_get_cpu_cycle_count() {
   struct timespec spec;
   clock_gettime(CLOCK_MONOTONIC, &spec);

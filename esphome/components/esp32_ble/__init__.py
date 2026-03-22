@@ -21,6 +21,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, CoroPriority, TimePeriod, coroutine_with_priority
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@jesserockz", "@Rapsssito", "@bdraco"]
@@ -188,6 +189,9 @@ def register_bt_logger(*loggers: BTLoggers) -> None:
 
 CONF_BLE_ID = "ble_id"
 CONF_IO_CAPABILITY = "io_capability"
+CONF_AUTH_REQ_MODE = "auth_req_mode"
+CONF_MAX_KEY_SIZE = "max_key_size"
+CONF_MIN_KEY_SIZE = "min_key_size"
 CONF_ADVERTISING = "advertising"
 CONF_ADVERTISING_CYCLE_TIME = "advertising_cycle_time"
 CONF_DISABLE_BT_LOGS = "disable_bt_logs"
@@ -238,6 +242,18 @@ IO_CAPABILITY = {
     "display_yes_no": IoCapability.IO_CAP_IO,
 }
 
+AuthReqMode = esp32_ble_ns.enum("AuthReqMode")
+AUTH_REQ_MODE = {
+    "no_bond": AuthReqMode.AUTH_REQ_NO_BOND,
+    "bond": AuthReqMode.AUTH_REQ_BOND,
+    "mitm": AuthReqMode.AUTH_REQ_MITM,
+    "bond_mitm": AuthReqMode.AUTH_REQ_BOND_MITM,
+    "sc_only": AuthReqMode.AUTH_REQ_SC_ONLY,
+    "sc_bond": AuthReqMode.AUTH_REQ_SC_BOND,
+    "sc_mitm": AuthReqMode.AUTH_REQ_SC_MITM,
+    "sc_mitm_bond": AuthReqMode.AUTH_REQ_SC_MITM_BOND,
+}
+
 esp_power_level_t = cg.global_ns.enum("esp_power_level_t")
 
 TX_POWER_LEVELS = {
@@ -258,6 +274,10 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_IO_CAPABILITY, default="none"): cv.enum(
             IO_CAPABILITY, lower=True
         ),
+        # note: no defaults so we can action them not being present
+        cv.Optional(CONF_AUTH_REQ_MODE): cv.enum(AUTH_REQ_MODE, lower=True),
+        cv.Optional(CONF_MAX_KEY_SIZE): cv.int_range(min=7, max=16),
+        cv.Optional(CONF_MIN_KEY_SIZE): cv.int_range(min=7, max=16),
         cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
         cv.Optional(CONF_ADVERTISING, default=False): cv.boolean,
         cv.Optional(
@@ -277,6 +297,23 @@ CONFIG_SCHEMA = cv.Schema(
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
+
+
+def _validate_key_sizes(config: ConfigType) -> ConfigType:
+    if (
+        CONF_MIN_KEY_SIZE in config
+        and CONF_MAX_KEY_SIZE in config
+        and config[CONF_MIN_KEY_SIZE] > config[CONF_MAX_KEY_SIZE]
+    ):
+        raise cv.Invalid(
+            f"min_key_size ({config[CONF_MIN_KEY_SIZE]}) must be "
+            f"less than or equal to "
+            f"max_key_size ({config[CONF_MAX_KEY_SIZE]})"
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(CONFIG_SCHEMA, _validate_key_sizes)
 
 
 bt_uuid16_format = "XXXX"
@@ -413,16 +450,16 @@ def final_validation(config):
         add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID", True)
         add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_BLUEDROID_HCI_VHCI", True)
 
-    # Check if BLE Server is needed
-    has_ble_server = "esp32_ble_server" in full_config
-
     # Check if BLE Client is needed (via esp32_ble_tracker or esp32_ble_client)
     has_ble_client = (
         "esp32_ble_tracker" in full_config or "esp32_ble_client" in full_config
     )
 
+    # Check if BLE Server is needed
+    has_ble_server = "esp32_ble_server" in full_config
+
     # ESP-IDF BLE stack requires GATT Server to be enabled when GATT Client is enabled
-    # This is an internal dependency in the Bluedroid stack (tested ESP-IDF 5.4.2-5.5.1)
+    # This is an internal dependency in the Bluedroid stack
     # See: https://github.com/espressif/esp-idf/issues/17724
     add_idf_sdkconfig_option("CONFIG_BT_GATTS_ENABLE", has_ble_server or has_ble_client)
     add_idf_sdkconfig_option("CONFIG_BT_GATTC_ENABLE", has_ble_client)
@@ -487,6 +524,21 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
     cg.add(var.set_io_capability(config[CONF_IO_CAPABILITY]))
+
+    if (
+        CONF_AUTH_REQ_MODE in config
+        or CONF_MAX_KEY_SIZE in config
+        or CONF_MIN_KEY_SIZE in config
+    ):
+        cg.add_define("ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS", None)
+
+    if CONF_AUTH_REQ_MODE in config:
+        cg.add(var.set_auth_req(config[CONF_AUTH_REQ_MODE]))
+    if CONF_MAX_KEY_SIZE in config:
+        cg.add(var.set_max_key_size(config[CONF_MAX_KEY_SIZE]))
+    if CONF_MIN_KEY_SIZE in config:
+        cg.add(var.set_min_key_size(config[CONF_MIN_KEY_SIZE]))
+
     cg.add(var.set_advertising_cycle_time(config[CONF_ADVERTISING_CYCLE_TIME]))
     if (name := config.get(CONF_NAME)) is not None:
         cg.add(var.set_name(name))
@@ -552,11 +604,15 @@ async def ble_enabled_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg)
 
 
-@automation.register_action("ble.enable", BLEEnableAction, cv.Schema({}))
+@automation.register_action(
+    "ble.enable", BLEEnableAction, cv.Schema({}), synchronous=True
+)
 async def ble_enable_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg)
 
 
-@automation.register_action("ble.disable", BLEDisableAction, cv.Schema({}))
+@automation.register_action(
+    "ble.disable", BLEDisableAction, cv.Schema({}), synchronous=True
+)
 async def ble_disable_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg)

@@ -10,6 +10,7 @@
 
 #include <span>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #ifdef USE_LIBRETINY
@@ -17,7 +18,7 @@
 #endif
 
 #if defined(USE_ESP32) && defined(USE_WIFI_WPA2_EAP)
-#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
 #include <esp_eap_client.h>
 #else
 #include <esp_wpa2.h>
@@ -43,6 +44,10 @@ extern "C" {
 }
 
 #include <WiFi.h>
+#endif
+
+#if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
+#include <esp_wifi_types.h>
 #endif
 
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
@@ -219,6 +224,14 @@ class CompactString {
 };
 
 static_assert(sizeof(CompactString) == 20, "CompactString must be exactly 20 bytes");
+// CompactString is not trivially copyable (non-trivial destructor/copy for heap case).
+// However, its layout has no self-referential pointers: storage_[] contains either inline
+// data or an external heap pointer — never a pointer to itself. This is unlike libstdc++
+// std::string SSO where _M_p points to _M_local_buf within the same object.
+// This property allows memcpy-based permutation sorting where each element ends up in
+// exactly one slot (no ownership duplication). These asserts document that layout property.
+static_assert(std::is_standard_layout<CompactString>::value, "CompactString must be standard layout");
+static_assert(!std::is_polymorphic<CompactString>::value, "CompactString must not have vtable");
 
 class WiFiAP {
   friend class WiFiComponent;
@@ -386,7 +399,7 @@ class WiFiPowerSaveListener {
 };
 
 /// This component is responsible for managing the ESP WiFi interface.
-class WiFiComponent : public Component {
+class WiFiComponent final : public Component {
  public:
   /// Construct a WiFiComponent.
   WiFiComponent();
@@ -424,17 +437,16 @@ class WiFiComponent : public Component {
 
   void retry_connect();
 
-#ifdef USE_RP2040
-  bool can_proceed() override;
-#endif
-
   void set_reboot_timeout(uint32_t reboot_timeout);
 
-  bool is_connected();
+  bool is_connected() const { return this->connected_; }
 
   void set_power_save_mode(WiFiPowerSaveMode power_save);
   void set_min_auth_mode(WifiMinAuthMode min_auth_mode) { min_auth_mode_ = min_auth_mode; }
   void set_output_power(float output_power) { output_power_ = output_power; }
+#if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
+  void set_band_mode(wifi_band_mode_t band_mode) { this->band_mode_ = band_mode; }
+#endif
 
   void set_passive_scan(bool passive);
 
@@ -451,7 +463,9 @@ class WiFiComponent : public Component {
   void restart_adapter();
   /// WIFI setup_priority.
   float get_setup_priority() const override;
+#ifdef USE_LOOP_PRIORITY
   float get_loop_priority() const override;
+#endif
 
   /// Reconnect WiFi if required.
   void loop() override;
@@ -652,11 +666,16 @@ class WiFiComponent : public Component {
   bool wifi_sta_pre_setup_();
   bool wifi_apply_output_power_(float output_power);
   bool wifi_apply_power_save_();
+#if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
+  bool wifi_apply_band_mode_();
+#endif
   bool wifi_sta_ip_config_(const optional<ManualIP> &manual_ip);
   bool wifi_apply_hostname_();
   bool wifi_sta_connect_(const WiFiAP &ap);
   void wifi_pre_setup_();
-  WiFiSTAConnectStatus wifi_sta_connect_status_();
+  WiFiSTAConnectStatus wifi_sta_connect_status_() const;
+  bool is_connected_() const;
+  void update_connected_state_();
   bool wifi_scan_start_(bool passive);
 
 #ifdef USE_WIFI_AP
@@ -774,6 +793,9 @@ class WiFiComponent : public Component {
   // 1-byte enums and integers
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
   WiFiPowerSaveMode power_save_{WIFI_POWER_SAVE_NONE};
+#if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
+  wifi_band_mode_t band_mode_{WIFI_BAND_MODE_AUTO};
+#endif
   WifiMinAuthMode min_auth_mode_{WIFI_MIN_AUTH_MODE_WPA2};
   WiFiRetryPhase retry_phase_{WiFiRetryPhase::INITIAL_CONNECT};
   uint8_t num_retried_{0};
@@ -830,6 +852,7 @@ class WiFiComponent : public Component {
   bool has_completed_scan_after_captive_portal_start_{
       false};  // Tracks if we've completed a scan after captive portal started
   bool skip_cooldown_next_cycle_{false};
+  bool connected_{false};
   bool post_connect_roaming_{true};  // Enabled by default
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   bool is_high_performance_mode_{false};

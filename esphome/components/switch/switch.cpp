@@ -3,8 +3,7 @@
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace switch_ {
+namespace esphome::switch_ {
 
 static const char *const TAG = "switch";
 
@@ -70,9 +69,6 @@ void Switch::publish_state(bool state) {
 }
 bool Switch::assumed_state() { return false; }
 
-void Switch::add_on_state_callback(std::function<void(bool)> &&callback) {
-  this->state_callback_.add(std::move(callback));
-}
 void Switch::set_inverted(bool inverted) { this->inverted_ = inverted; }
 bool Switch::is_inverted() const { return this->inverted_; }
 
@@ -107,5 +103,4 @@ void log_switch(const char *tag, const char *prefix, const char *type, Switch *o
   }
 }
 
-}  // namespace switch_
-}  // namespace esphome
+}  // namespace esphome::switch_

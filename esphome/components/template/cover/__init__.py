@@ -125,6 +125,7 @@ async def to_code(config):
             cv.Optional(CONF_TILT): cv.templatable(cv.zero_to_one_float),
         }
     ),
+    synchronous=True,
 )
 async def cover_template_publish_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

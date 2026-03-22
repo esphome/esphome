@@ -105,18 +105,37 @@ void RP2040UartComponent::setup() {
     }
   }
 
+  // Determine which hardware UART to use. A pin that is not specified
+  // should not prevent hardware UART selection — one-way UART is valid.
+  // When both pins are configured, both must be HW-capable and agree on UART number.
+  // When only one pin is configured (nullptr other), use that pin's HW UART.
+  // If a pin is configured but not HW-capable (inverted/invalid), fall back to SerialPIO.
+  int8_t hw_uart = -1;
+  const bool tx_configured = (this->tx_pin_ != nullptr);
+  const bool rx_configured = (this->rx_pin_ != nullptr);
+
+  if (tx_configured && rx_configured) {
+    // Both pins configured — both must map to the same hardware UART
+    if (tx_hw != -1 && rx_hw != -1 && tx_hw == rx_hw) {
+      hw_uart = tx_hw;
+    }
+  } else if (tx_configured) {
+    hw_uart = tx_hw;
+  } else if (rx_configured) {
+    hw_uart = rx_hw;
+  }
+
 #ifdef USE_LOGGER
-  if (tx_hw == rx_hw && logger::global_logger->get_uart() == tx_hw) {
-    ESP_LOGD(TAG, "Using SerialPIO as UART%d is taken by the logger", tx_hw);
-    tx_hw = -1;
-    rx_hw = -1;
+  if (hw_uart != -1 && logger::global_logger->get_uart() == hw_uart) {
+    ESP_LOGD(TAG, "Using SerialPIO as UART%d is taken by the logger", hw_uart);
+    hw_uart = -1;
   }
 #endif
 
-  if (tx_hw == -1 || rx_hw == -1 || tx_hw != rx_hw) {
+  if (hw_uart == -1) {
     ESP_LOGV(TAG, "Using SerialPIO");
-    pin_size_t tx = this->tx_pin_ == nullptr ? SerialPIO::NOPIN : this->tx_pin_->get_pin();
-    pin_size_t rx = this->rx_pin_ == nullptr ? SerialPIO::NOPIN : this->rx_pin_->get_pin();
+    pin_size_t tx = this->tx_pin_ == nullptr ? NOPIN : this->tx_pin_->get_pin();
+    pin_size_t rx = this->rx_pin_ == nullptr ? NOPIN : this->rx_pin_->get_pin();
     auto *serial = new SerialPIO(tx, rx, this->rx_buffer_size_);  // NOLINT(cppcoreguidelines-owning-memory)
     serial->begin(this->baud_rate_, config);
     if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted())
@@ -127,13 +146,15 @@ void RP2040UartComponent::setup() {
   } else {
     ESP_LOGV(TAG, "Using Hardware Serial");
     SerialUART *serial;
-    if (tx_hw == 0) {
+    if (hw_uart == 0) {
       serial = &Serial1;
     } else {
       serial = &Serial2;
     }
-    serial->setTX(this->tx_pin_->get_pin());
-    serial->setRX(this->rx_pin_->get_pin());
+    if (this->tx_pin_ != nullptr)
+      serial->setTX(this->tx_pin_->get_pin());
+    if (this->rx_pin_ != nullptr)
+      serial->setRX(this->rx_pin_->get_pin());
     serial->setFIFOSize(this->rx_buffer_size_);
     serial->begin(this->baud_rate_, config);
     this->serial_ = serial;
@@ -187,9 +208,10 @@ bool RP2040UartComponent::read_array(uint8_t *data, size_t len) {
   return true;
 }
 size_t RP2040UartComponent::available() { return this->serial_->available(); }
-void RP2040UartComponent::flush() {
+FlushResult RP2040UartComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing");
   this->serial_->flush();
+  return FlushResult::ASSUMED_SUCCESS;
 }
 
 }  // namespace esphome::uart

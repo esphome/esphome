@@ -91,7 +91,7 @@ const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFE
   return buffer.data();
 }
 
-const char *DebugComponent::get_wakeup_cause_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
+const char *DebugComponent::get_wakeup_cause_(std::span<char, WAKEUP_CAUSE_BUFFER_SIZE> buffer) {
   // ESP8266 doesn't have detailed wakeup cause like ESP32
   return "";
 }
@@ -128,14 +128,16 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   // NOLINTEND(readability-static-accessed-through-instance)
 
   ESP_LOGD(TAG,
-           "Chip ID: 0x%08" PRIX32 "\n"
-           "SDK Version: %s\n"
-           "Core Version: %s\n"
-           "Boot Version=%u Mode=%u\n"
-           "CPU Frequency: %u\n"
-           "Flash Chip ID=0x%08" PRIX32 "\n"
-           "Reset Reason: %s\n"
-           "Reset Info: %s",
+           "ESP8266 debug info:\n"
+           "  Chip ID: 0x%08" PRIX32 "\n"
+           "  SDK Version: %s\n"
+           "  Core Version: %s\n"
+           "  Boot Version: %u\n"
+           "  Boot Mode: %u\n"
+           "  CPU Frequency: %u\n"
+           "  Flash Chip ID: 0x%08" PRIX32 "\n"
+           "  Reset Reason: %s\n"
+           "  Reset Info: %s",
            chip_id, sdk_version, get_core_version_str(core_version_buffer), boot_version, boot_mode, cpu_freq,
            flash_chip_id, reset_reason, get_reset_info_str(reset_info_buffer, resetInfo.reason));
 

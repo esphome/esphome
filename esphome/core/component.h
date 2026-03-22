@@ -5,6 +5,8 @@
 #include <functional>
 #include <string>
 
+#include "esphome/core/defines.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/optional.h"
@@ -75,6 +77,8 @@ inline constexpr uint8_t STATUS_LED_MASK = 0x18;
 inline constexpr uint8_t STATUS_LED_OK = 0x00;
 inline constexpr uint8_t STATUS_LED_WARNING = 0x08;
 inline constexpr uint8_t STATUS_LED_ERROR = 0x10;
+// Component loop override flag uses bit 5 (set at registration time)
+inline constexpr uint8_t COMPONENT_HAS_LOOP = 0x20;
 
 // Remove before 2026.8.0
 enum class RetryResult { DONE, RETRY };
@@ -117,7 +121,9 @@ class Component {
    *
    * @return The loop priority of this component
    */
+#ifdef USE_LOOP_PRIORITY
   virtual float get_loop_priority() const;
+#endif
 
   void call();
 
@@ -137,7 +143,7 @@ class Component {
    */
   virtual void on_powerdown() {}
 
-  uint8_t get_component_state() const;
+  uint8_t get_component_state() const { return this->component_state_; }
 
   /** Reset this component back to the construction state to allow setup to run again.
    *
@@ -149,7 +155,7 @@ class Component {
    *
    * @return True if in loop state, false otherwise.
    */
-  bool is_in_loop_state() const;
+  bool is_in_loop_state() const { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP; }
 
   /** Check if this component is idle.
    * Being idle means being in LOOP_DONE state.
@@ -157,7 +163,7 @@ class Component {
    *
    * @return True if the component is idle
    */
-  bool is_idle() const;
+  bool is_idle() const { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE; }
 
   /** Mark this component as failed. Any future timeouts/intervals/setup/loop will no longer be called.
    *
@@ -225,17 +231,18 @@ class Component {
    */
   void enable_loop_soon_any_context();
 
-  bool is_failed() const;
+  bool is_failed() const { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED; }
 
   bool is_ready() const;
 
   virtual bool can_proceed();
 
-  bool status_has_warning() const;
+  bool status_has_warning() const { return this->component_state_ & STATUS_LED_WARNING; }
 
-  bool status_has_error() const;
+  bool status_has_error() const { return this->component_state_ & STATUS_LED_ERROR; }
 
-  void status_set_warning(const char *message = nullptr);
+  void status_set_warning();  // Set warning flag without message
+  void status_set_warning(const char *message);
   void status_set_warning(const LogString *message);
 
   void status_set_error();  // Set error flag without message
@@ -246,9 +253,17 @@ class Component {
   void status_set_error(const char *message);
   void status_set_error(const LogString *message);
 
-  void status_clear_warning();
+  void status_clear_warning() {
+    if ((this->component_state_ & STATUS_LED_WARNING) == 0)
+      return;
+    this->status_clear_warning_slow_path_();
+  }
 
-  void status_clear_error();
+  void status_clear_error() {
+    if ((this->component_state_ & STATUS_LED_ERROR) == 0)
+      return;
+    this->status_clear_error_slow_path_();
+  }
 
   /** Set warning status flag and automatically clear it after a timeout.
    *
@@ -268,7 +283,7 @@ class Component {
    */
   void status_momentary_error(const char *name, uint32_t length = 5000);
 
-  bool has_overridden_loop() const;
+  bool has_overridden_loop() const { return (this->component_state_ & COMPONENT_HAS_LOOP) != 0; }
 
   /** Set where this component was loaded from for some debug messages.
    *
@@ -279,19 +294,29 @@ class Component {
    *
    * Returns LOG_STR("<unknown>") if source not set
    */
-  const LogString *get_component_log_str() const;
+  const LogString *get_component_log_str() const {
+    return this->component_source_ == nullptr ? LOG_STR("<unknown>") : this->component_source_;
+  }
 
   bool should_warn_of_blocking(uint32_t blocking_time);
 
  protected:
   friend class Application;
 
-  void call_loop_();
   virtual void call_setup();
-  virtual void call_dump_config();
+  void call_dump_config_();
 
   /// Helper to set component state (clears state bits and sets new state)
-  void set_component_state_(uint8_t state);
+  inline void set_component_state_(uint8_t state) {
+    this->component_state_ &= ~COMPONENT_STATE_MASK;
+    this->component_state_ |= state;
+  }
+
+  /// Helper to set a status LED flag on both this component and the app.
+  /// Returns true if the flag was newly set, false if it was already set.
+  /// Note: Callers often use the return value to decide whether to log a warning/error,
+  /// so once a flag is set, subsequent (potentially different) messages may be suppressed.
+  bool set_status_flag_(uint8_t flag);
 
   /** Set an interval function with a unique name. Empty name means no cancelling possible.
    *
@@ -491,6 +516,9 @@ class Component {
   bool cancel_defer(const char *name);         // NOLINT
   bool cancel_defer(uint32_t id);              // NOLINT
 
+  void status_clear_warning_slow_path_();
+  void status_clear_error_slow_path_();
+
   // Ordered for optimal packing on 32-bit systems
   const LogString *component_source_{nullptr};
   uint16_t warn_if_blocking_over_{WARN_IF_BLOCKING_OVER_MS};  ///< Warn if blocked for this many ms (max 65.5s)
@@ -498,7 +526,8 @@ class Component {
   /// Bits 0-2: Component state (0x00=CONSTRUCTION, 0x01=SETUP, 0x02=LOOP, 0x03=FAILED, 0x04=LOOP_DONE)
   /// Bit 3: STATUS_LED_WARNING
   /// Bit 4: STATUS_LED_ERROR
-  /// Bits 5-7: Unused - reserved for future expansion
+  /// Bit 5: Has overridden loop() (set at registration time)
+  /// Bits 6-7: Unused - reserved for future expansion
   uint8_t component_state_{0x00};
   volatile bool pending_enable_loop_{false};  ///< ISR-safe flag for enable_loop_soon_any_context
 };
@@ -521,11 +550,9 @@ class PollingComponent : public Component {
 
   /** Manually set the update interval in ms for this polling object.
    *
-   * Override this if you want to do some validation for the update interval.
-   *
    * @param update_interval The update interval in ms.
    */
-  virtual void set_update_interval(uint32_t update_interval);
+  void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
 
   // ========== OVERRIDE METHODS ==========
   // (You'll only need this when creating your own custom sensor)
@@ -548,19 +575,49 @@ class PollingComponent : public Component {
   uint32_t update_interval_;
 };
 
+// millis() and micros() are available via hal.h
+
 class WarnIfComponentBlockingGuard {
  public:
   WarnIfComponentBlockingGuard(Component *component, uint32_t start_time)
-      : started_(start_time), component_(component) {}
+      : started_(start_time),
+        component_(component)
+#ifdef USE_RUNTIME_STATS
+        ,
+        started_us_(micros())
+#endif
+  {
+  }
 
   // Finish the timing operation and return the current time
-  uint32_t finish();
+  // Inlined: the fast path is just millis() + subtract + compare
+  inline uint32_t HOT finish() {
+    uint32_t curr_time = millis();
+    uint32_t blocking_time = curr_time - this->started_;
+#ifdef USE_RUNTIME_STATS
+    this->record_runtime_stats_();
+#endif
+#ifndef USE_BENCHMARK
+    if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
+      warn_blocking(this->component_, blocking_time);
+    }
+#endif
+    return curr_time;
+  }
 
   ~WarnIfComponentBlockingGuard() = default;
 
  protected:
   uint32_t started_;
   Component *component_;
+#ifdef USE_RUNTIME_STATS
+  uint32_t started_us_;
+  void record_runtime_stats_();
+#endif
+
+ private:
+  // Cold path for blocking warning - defined in component.cpp
+  static void __attribute__((noinline, cold)) warn_blocking(Component *component, uint32_t blocking_time);
 };
 
 // Function to clear setup priority overrides after all components are set up
