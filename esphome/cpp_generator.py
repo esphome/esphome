@@ -580,7 +580,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     if type_ is not None:
         id_.type = type_
 
-    if isinstance(rhs, MockObj) and rhs._is_new_expr:
+    if isinstance(rhs, MockObj) and rhs.is_new_expr:
         # For 'new' allocations, use placement new into static storage
         # to avoid heap fragmentation on embedded devices.
         the_type = id_.type
@@ -825,12 +825,12 @@ class MockObj(Expression):
     Mostly consists of magic methods that allow ESPHome's codegen syntax.
     """
 
-    __slots__ = ("base", "op", "_is_new_expr")
+    __slots__ = ("base", "op", "is_new_expr")
 
-    def __init__(self, base, op=".", is_new_expr=False):
+    def __init__(self, base, op=".", is_new_expr=False) -> None:
         self.base = base
         self.op = op
-        self._is_new_expr = is_new_expr
+        self.is_new_expr = is_new_expr
 
     def __getattr__(self, attr: str) -> "MockObj":
         # prevent python dunder methods being replaced by mock objects
@@ -845,7 +845,7 @@ class MockObj(Expression):
 
     def __call__(self, *args: SafeExpType) -> "MockObj":
         call = CallExpression(self.base, *args)
-        return MockObj(call, self.op, is_new_expr=self._is_new_expr)
+        return MockObj(call, self.op, is_new_expr=self.is_new_expr)
 
     def __str__(self):
         return str(self.base)
