@@ -14,6 +14,7 @@ CONF_POINTS = "points"
 CONF_POINT_LIST_ID = "point_list_id"
 
 lv_point_t = cg.global_ns.struct("lv_point_t")
+lv_point_precise_t = cg.global_ns.struct("lv_point_precise_t")
 
 
 LINE_SCHEMA = {
@@ -23,10 +24,7 @@ LINE_SCHEMA = {
 
 async def process_coord(coord):
     if isinstance(coord, Lambda):
-        coord = call_lambda(await cg.process_lambda(coord, [], return_type=lv_coord_t))
-        if not coord.endswith("()"):
-            coord = f"static_cast<lv_coord_t>({coord})"
-        return cg.RawExpression(coord)
+        return call_lambda(await cg.process_lambda(coord, [], return_type=lv_coord_t))
     return cg.safe_exp(coord)
 
 
