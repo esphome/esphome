@@ -191,10 +191,17 @@ def _notify_old_style(config):
 
 
 # The dev and latest branches will be at *least* this version, which is what matters.
+# Use GitHub releases directly to avoid PlatformIO moderation delays.
 ARDUINO_VERSIONS = {
-    "dev": (cv.Version(1, 9, 2), "https://github.com/libretiny-eu/libretiny.git"),
-    "latest": (cv.Version(1, 9, 2), "libretiny"),
-    "recommended": (cv.Version(1, 9, 2), None),
+    "dev": (cv.Version(1, 12, 1), "https://github.com/libretiny-eu/libretiny.git"),
+    "latest": (
+        cv.Version(1, 12, 1),
+        "https://github.com/libretiny-eu/libretiny.git#v1.12.1",
+    ),
+    "recommended": (
+        cv.Version(1, 12, 1),
+        "https://github.com/libretiny-eu/libretiny.git#v1.12.1",
+    ),
 }
 
 
@@ -381,5 +388,12 @@ async def component_to_code(config):
         cg.add_platformio_option(
             "custom_options.sys_config#h", _BK7231N_SYS_CONFIG_OPTIONS
         )
+
+    # Disable LWIP statistics to save RAM - not needed in production
+    # Must explicitly disable all sub-stats to avoid redefinition warnings
+    cg.add_platformio_option(
+        "custom_options.lwip",
+        ["LWIP_STATS=0", "MEM_STATS=0", "MEMP_STATS=0"],
+    )
 
     await cg.register_component(var, config)

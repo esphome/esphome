@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import mqtt, web_server
+from esphome.components import mqtt, web_server, zigbee
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ABOVE,
@@ -189,6 +189,7 @@ validate_unit_of_measurement = cv.string_strict
 _NUMBER_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
     .extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA)
+    .extend(zigbee.NUMBER_SCHEMA)
     .extend(
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTNumberComponent),
@@ -214,6 +215,7 @@ _NUMBER_SCHEMA = (
 
 
 _NUMBER_SCHEMA.add_extra(entity_duplicate_validator("number"))
+_NUMBER_SCHEMA.add_extra(zigbee.validate_number)
 
 
 def number_schema(
@@ -276,6 +278,8 @@ async def setup_number_core_(
         await mqtt.register_mqtt_component(mqtt_, config)
     if web_server_config := config.get(CONF_WEB_SERVER):
         await web_server.add_entity_config(var, web_server_config)
+
+    await zigbee.setup_number(var, config, min_value, max_value, step)
 
 
 async def register_number(

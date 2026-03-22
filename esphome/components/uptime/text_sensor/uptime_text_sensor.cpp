@@ -9,17 +9,12 @@ namespace uptime {
 
 static const char *const TAG = "uptime.sensor";
 
-// Clamp position to valid buffer range when snprintf indicates truncation
-static size_t clamp_buffer_pos(size_t pos, size_t buf_size) { return pos < buf_size ? pos : buf_size - 1; }
-
 static void append_unit(char *buf, size_t buf_size, size_t &pos, const char *separator, unsigned value,
                         const char *label) {
   if (pos > 0) {
-    pos += snprintf(buf + pos, buf_size - pos, "%s", separator);
-    pos = clamp_buffer_pos(pos, buf_size);
+    pos = buf_append_printf(buf, buf_size, pos, "%s", separator);
   }
-  pos += snprintf(buf + pos, buf_size - pos, "%u%s", value, label);
-  pos = clamp_buffer_pos(pos, buf_size);
+  pos = buf_append_printf(buf, buf_size, pos, "%u%s", value, label);
 }
 
 void UptimeTextSensor::setup() {

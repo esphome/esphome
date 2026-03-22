@@ -14,10 +14,7 @@ void log_binary_sensor(const char *tag, const char *prefix, const char *type, Bi
   }
 
   ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
-
-  if (!obj->get_device_class_ref().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class_ref().c_str());
-  }
+  LOG_ENTITY_DEVICE_CLASS(tag, prefix, *obj);
 }
 
 void BinarySensor::publish_state(bool new_state) {

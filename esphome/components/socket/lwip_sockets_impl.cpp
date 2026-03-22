@@ -11,19 +11,13 @@ namespace esphome::socket {
 
 class LwIPSocketImpl final : public Socket {
  public:
-  LwIPSocketImpl(int fd, bool monitor_loop = false) : fd_(fd) {
-#ifdef USE_SOCKET_SELECT_SUPPORT
+  LwIPSocketImpl(int fd, bool monitor_loop = false) {
+    this->fd_ = fd;
     // Register new socket with the application for select() if monitoring requested
     if (monitor_loop && this->fd_ >= 0) {
       // Only set loop_monitored_ to true if registration succeeds
       this->loop_monitored_ = App.register_socket_fd(this->fd_);
-    } else {
-      this->loop_monitored_ = false;
     }
-#else
-    // Without select support, ignore monitor_loop parameter
-    (void) monitor_loop;
-#endif
   }
   ~LwIPSocketImpl() override {
     if (!this->closed_) {
@@ -49,12 +43,10 @@ class LwIPSocketImpl final : public Socket {
   int bind(const struct sockaddr *addr, socklen_t addrlen) override { return lwip_bind(this->fd_, addr, addrlen); }
   int close() override {
     if (!this->closed_) {
-#ifdef USE_SOCKET_SELECT_SUPPORT
       // Unregister from select() before closing if monitored
       if (this->loop_monitored_) {
         App.unregister_socket_fd(this->fd_);
       }
-#endif
       int ret = lwip_close(this->fd_);
       this->closed_ = true;
       return ret;
@@ -97,23 +89,6 @@ class LwIPSocketImpl final : public Socket {
     lwip_fcntl(this->fd_, F_SETFL, fl);
     return 0;
   }
-
-  int get_fd() const override { return this->fd_; }
-
-#ifdef USE_SOCKET_SELECT_SUPPORT
-  bool ready() const override {
-    if (!this->loop_monitored_)
-      return true;
-    return App.is_socket_ready(this->fd_);
-  }
-#endif
-
- protected:
-  int fd_;
-  bool closed_{false};
-#ifdef USE_SOCKET_SELECT_SUPPORT
-  bool loop_monitored_{false};
-#endif
 };
 
 // Helper to create a socket with optional monitoring

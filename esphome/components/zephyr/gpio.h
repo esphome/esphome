@@ -2,7 +2,7 @@
 
 #ifdef USE_ZEPHYR
 #include "esphome/core/hal.h"
-struct device;
+#include <zephyr/device.h>
 namespace esphome {
 namespace zephyr {
 

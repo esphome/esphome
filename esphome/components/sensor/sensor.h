@@ -32,6 +32,7 @@ enum StateClass : uint8_t {
   STATE_CLASS_TOTAL = 3,
   STATE_CLASS_MEASUREMENT_ANGLE = 4
 };
+constexpr uint8_t STATE_CLASS_LAST = static_cast<uint8_t>(STATE_CLASS_MEASUREMENT_ANGLE);
 
 const LogString *state_class_to_string(StateClass state_class);
 

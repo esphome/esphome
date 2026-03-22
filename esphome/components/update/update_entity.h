@@ -27,6 +27,8 @@ enum UpdateState : uint8_t {
   UPDATE_STATE_INSTALLING,
 };
 
+const LogString *update_state_to_string(UpdateState state);
+
 class UpdateEntity : public EntityBase, public EntityBase_DeviceClass {
  public:
   void publish_state();

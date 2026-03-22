@@ -18,8 +18,7 @@ void TemplateDate::setup() {
     state = this->initial_value_;
   } else {
     datetime::DateEntityRestoreState temp;
-    this->pref_ =
-        global_preferences->make_preference<datetime::DateEntityRestoreState>(194434030U ^ this->get_preference_hash());
+    this->pref_ = this->make_entity_preference<datetime::DateEntityRestoreState>(194434030U);
     if (this->pref_.load(&temp)) {
       temp.apply(this);
       return;
@@ -63,7 +62,7 @@ void TemplateDate::control(const datetime::DateCall &call) {
   if (has_day)
     value.day_of_month = *call.get_day();
 
-  this->set_trigger_->trigger(value);
+  this->set_trigger_.trigger(value);
 
   if (this->optimistic_) {
     if (has_year)

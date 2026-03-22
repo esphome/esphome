@@ -11,7 +11,7 @@
 
 namespace esphome::sprinkler {
 
-const std::string MIN_STR = "min";
+inline constexpr const char *MIN_STR = "min";
 
 enum SprinklerState : uint8_t {
   // NOTE: these states are used by both SprinklerValveOperator and Sprinkler (the controller)!
@@ -49,7 +49,7 @@ struct SprinklerQueueItem {
 };
 
 struct SprinklerTimer {
-  const std::string name;
+  const char *name;
   bool active;
   uint32_t time;
   uint32_t start_time;
@@ -76,7 +76,7 @@ class SprinklerControllerNumber : public number::Number, public Component {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
 
-  Trigger<float> *get_set_trigger() const { return set_trigger_; }
+  Trigger<float> *get_set_trigger() { return &this->set_trigger_; }
   void set_initial_value(float initial_value) { initial_value_ = initial_value; }
   void set_restore_value(bool restore_value) { this->restore_value_ = restore_value; }
 
@@ -84,7 +84,7 @@ class SprinklerControllerNumber : public number::Number, public Component {
   void control(float value) override;
   float initial_value_{NAN};
   bool restore_value_{true};
-  Trigger<float> *set_trigger_ = new Trigger<float>();
+  Trigger<float> set_trigger_;
 
   ESPPreferenceObject pref_;
 };
@@ -97,8 +97,8 @@ class SprinklerControllerSwitch : public switch_::Switch, public Component {
   void dump_config() override;
 
   void set_state_lambda(std::function<optional<bool>()> &&f);
-  Trigger<> *get_turn_on_trigger() const;
-  Trigger<> *get_turn_off_trigger() const;
+  Trigger<> *get_turn_on_trigger() { return &this->turn_on_trigger_; }
+  Trigger<> *get_turn_off_trigger() { return &this->turn_off_trigger_; }
   void loop() override;
 
   float get_setup_priority() const override;
@@ -107,8 +107,8 @@ class SprinklerControllerSwitch : public switch_::Switch, public Component {
   void write_state(bool state) override;
 
   optional<std::function<optional<bool>()>> f_;
-  Trigger<> *turn_on_trigger_;
-  Trigger<> *turn_off_trigger_;
+  Trigger<> turn_on_trigger_;
+  Trigger<> turn_off_trigger_;
   Trigger<> *prev_trigger_{nullptr};
 };
 
@@ -176,7 +176,7 @@ class SprinklerValveRunRequest {
 class Sprinkler : public Component {
  public:
   Sprinkler();
-  Sprinkler(const std::string &name);
+  Sprinkler(const char *name);
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -504,7 +504,7 @@ class Sprinkler : public Component {
   uint32_t start_delay_{0};
   uint32_t stop_delay_{0};
 
-  std::string name_;
+  const char *name_{""};
 
   /// Sprinkler controller state
   SprinklerState state_{IDLE};

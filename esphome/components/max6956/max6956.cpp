@@ -162,7 +162,7 @@ void MAX6956GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this-
 bool MAX6956GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
 void MAX6956GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
 size_t MAX6956GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return snprintf(buffer, len, "%u via Max6956", this->pin_);
+  return buf_append_printf(buffer, len, 0, "%u via Max6956", this->pin_);
 }
 
 }  // namespace max6956

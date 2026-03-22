@@ -15,9 +15,9 @@ class TemplateLock final : public lock::Lock, public Component {
   void dump_config() override;
 
   template<typename F> void set_state_lambda(F &&f) { this->f_.set(std::forward<F>(f)); }
-  Trigger<> *get_lock_trigger() const;
-  Trigger<> *get_unlock_trigger() const;
-  Trigger<> *get_open_trigger() const;
+  Trigger<> *get_lock_trigger() { return &this->lock_trigger_; }
+  Trigger<> *get_unlock_trigger() { return &this->unlock_trigger_; }
+  Trigger<> *get_open_trigger() { return &this->open_trigger_; }
   void set_optimistic(bool optimistic);
   void loop() override;
 
@@ -29,9 +29,9 @@ class TemplateLock final : public lock::Lock, public Component {
 
   TemplateLambda<lock::LockState> f_;
   bool optimistic_{false};
-  Trigger<> *lock_trigger_;
-  Trigger<> *unlock_trigger_;
-  Trigger<> *open_trigger_;
+  Trigger<> lock_trigger_;
+  Trigger<> unlock_trigger_;
+  Trigger<> open_trigger_;
   Trigger<> *prev_trigger_{nullptr};
 };
 

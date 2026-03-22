@@ -182,7 +182,9 @@ void EPaperBase::process_state_() {
       this->set_state_(EPaperState::RESET);
       break;
     case EPaperState::INITIALISE:
-      this->initialise(this->update_count_ != 0);
+      if (!this->initialise(this->update_count_ != 0)) {
+        return;  // Not done yet, come back next loop
+      }
       this->set_state_(EPaperState::TRANSFER_DATA);
       break;
     case EPaperState::TRANSFER_DATA:
@@ -239,11 +241,9 @@ void EPaperBase::start_data_() {
 
 void EPaperBase::on_safe_shutdown() { this->deep_sleep(); }
 
-void EPaperBase::initialise(bool partial) {
+void EPaperBase::send_init_sequence_(const uint8_t *sequence, size_t length) {
   size_t index = 0;
 
-  auto *sequence = this->init_sequence_;
-  auto length = this->init_sequence_length_;
   while (index != length) {
     if (length - index < 2) {
       this->mark_failed(LOG_STR("Malformed init sequence"));
@@ -264,6 +264,11 @@ void EPaperBase::initialise(bool partial) {
       index += num_args;
     }
   }
+}
+
+bool EPaperBase::initialise(bool partial) {
+  this->send_init_sequence_(this->init_sequence_, this->init_sequence_length_);
+  return true;
 }
 
 /**

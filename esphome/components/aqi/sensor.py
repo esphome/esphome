@@ -13,14 +13,11 @@ from . import AQI_CALCULATION_TYPE, CONF_CALCULATION_TYPE, aqi_ns
 CODEOWNERS = ["@jasstrong"]
 DEPENDENCIES = ["sensor"]
 
-UNIT_INDEX = "index"
-
 AQISensor = aqi_ns.class_("AQISensor", sensor.Sensor, cg.Component)
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
         AQISensor,
-        unit_of_measurement=UNIT_INDEX,
         accuracy_decimals=0,
         device_class=DEVICE_CLASS_AQI,
         state_class=STATE_CLASS_MEASUREMENT,

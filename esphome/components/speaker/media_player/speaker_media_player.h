@@ -84,9 +84,9 @@ class SpeakerMediaPlayer : public Component,
     this->media_format_ = media_format;
   }
 
-  Trigger<> *get_mute_trigger() const { return this->mute_trigger_; }
-  Trigger<> *get_unmute_trigger() const { return this->unmute_trigger_; }
-  Trigger<float> *get_volume_trigger() const { return this->volume_trigger_; }
+  Trigger<> *get_mute_trigger() { return &this->mute_trigger_; }
+  Trigger<> *get_unmute_trigger() { return &this->unmute_trigger_; }
+  Trigger<float> *get_volume_trigger() { return &this->volume_trigger_; }
 
   void play_file(audio::AudioFile *media_file, bool announcement, bool enqueue);
 
@@ -111,6 +111,9 @@ class SpeakerMediaPlayer : public Component,
   /// Returns true if the media player has only the announcement pipeline defined, false if both the announcement and
   /// media pipelines are defined.
   inline bool single_pipeline_() { return (this->media_speaker_ == nullptr); }
+
+  /// Stops the media pipeline and polls until stopped to unpause it, avoiding an audible glitch.
+  void stop_and_unpause_media_();
 
   // Processes commands from media_control_command_queue_.
   void watch_media_commands_();
@@ -141,6 +144,8 @@ class SpeakerMediaPlayer : public Component,
 
   bool is_paused_{false};
   bool is_muted_{false};
+  uint8_t unpause_media_remaining_{0};
+  uint8_t unpause_announcement_remaining_{0};
 
   // The amount to change the volume on volume up/down commands
   float volume_increment_;
@@ -154,9 +159,9 @@ class SpeakerMediaPlayer : public Component,
   // Used to save volume/mute state for restoration on reboot
   ESPPreferenceObject pref_;
 
-  Trigger<> *mute_trigger_ = new Trigger<>();
-  Trigger<> *unmute_trigger_ = new Trigger<>();
-  Trigger<float> *volume_trigger_ = new Trigger<float>();
+  Trigger<> mute_trigger_;
+  Trigger<> unmute_trigger_;
+  Trigger<float> volume_trigger_;
 };
 
 }  // namespace speaker

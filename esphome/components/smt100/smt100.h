@@ -17,8 +17,6 @@ class SMT100Component : public PollingComponent, public uart::UARTDevice {
   void loop() override;
   void update() override;
 
-  float get_setup_priority() const override;
-
   void set_counts_sensor(sensor::Sensor *counts_sensor) { this->counts_sensor_ = counts_sensor; }
   void set_permittivity_sensor(sensor::Sensor *permittivity_sensor) {
     this->permittivity_sensor_ = permittivity_sensor;

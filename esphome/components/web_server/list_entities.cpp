@@ -143,7 +143,7 @@ bool ListEntitiesIterator::on_water_heater(water_heater::WaterHeater *obj) {
 
 #ifdef USE_INFRARED
 bool ListEntitiesIterator::on_infrared(infrared::Infrared *obj) {
-  // Infrared web_server support not yet implemented - this stub acknowledges the entity
+  this->events_->deferrable_send_state(obj, "state_detail_all", WebServer::infrared_all_json_generator);
   return true;
 }
 #endif

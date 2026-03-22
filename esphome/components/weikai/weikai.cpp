@@ -4,18 +4,12 @@
 /// @details The classes declared in this file can be used by the Weikai family
 
 #include "weikai.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace weikai {
 
 static const char *const TAG = "weikai";
-
-/// @brief convert an int to binary representation as C++ std::string
-/// @param val integer to convert
-/// @return a std::string
-inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
-/// Convert std::string to C string
-#define I2S2CS(val) (i2s(val).c_str())
 
 /// @brief measure the time elapsed between two calls
 /// @param last_time time of the previous call
@@ -170,17 +164,18 @@ void WeikaiComponent::test_gpio_input_() {
   static bool init_input{false};
   static uint8_t state{0};
   uint8_t value;
+  char bin_buf[9];  // 8 binary digits + null
   if (!init_input) {
     init_input = true;
     // set all pins in input mode
     this->reg(WKREG_GPDIR, 0) = 0x00;
     ESP_LOGI(TAG, "initializing all pins to input mode");
     state = this->reg(WKREG_GPDAT, 0);
-    ESP_LOGI(TAG, "initial input data state = %02X (%s)", state, I2S2CS(state));
+    ESP_LOGI(TAG, "initial input data state = %02X (%s)", state, format_bin_to(bin_buf, state));
   }
   value = this->reg(WKREG_GPDAT, 0);
   if (value != state) {
-    ESP_LOGI(TAG, "Input data changed from %02X to %02X (%s)", state, value, I2S2CS(value));
+    ESP_LOGI(TAG, "Input data changed from %02X to %02X (%s)", state, value, format_bin_to(bin_buf, value));
     state = value;
   }
 }
@@ -188,6 +183,7 @@ void WeikaiComponent::test_gpio_input_() {
 void WeikaiComponent::test_gpio_output_() {
   static bool init_output{false};
   static uint8_t state{0};
+  char bin_buf[9];  // 8 binary digits + null
   if (!init_output) {
     init_output = true;
     // set all pins in output mode
@@ -198,7 +194,7 @@ void WeikaiComponent::test_gpio_output_() {
   }
   state = ~state;
   this->reg(WKREG_GPDAT, 0) = state;
-  ESP_LOGI(TAG, "Flipping all outputs to %02X (%s)", state, I2S2CS(state));
+  ESP_LOGI(TAG, "Flipping all outputs to %02X (%s)", state, format_bin_to(bin_buf, state));
   delay(100);  // NOLINT
 }
 #endif
@@ -208,7 +204,9 @@ void WeikaiComponent::test_gpio_output_() {
 ///////////////////////////////////////////////////////////////////////////////
 bool WeikaiComponent::read_pin_val_(uint8_t pin) {
   this->input_state_ = this->reg(WKREG_GPDAT, 0);
-  ESP_LOGVV(TAG, "reading input pin %u = %u in_state %s", pin, this->input_state_ & (1 << pin), I2S2CS(input_state_));
+  char bin_buf[9];
+  ESP_LOGVV(TAG, "reading input pin %u = %u in_state %s", pin, this->input_state_ & (1 << pin),
+            format_bin_to(bin_buf, this->input_state_));
   return this->input_state_ & (1 << pin);
 }
 
@@ -218,7 +216,9 @@ void WeikaiComponent::write_pin_val_(uint8_t pin, bool value) {
   } else {
     this->output_state_ &= ~(1 << pin);
   }
-  ESP_LOGVV(TAG, "writing output pin %d with %d out_state %s", pin, uint8_t(value), I2S2CS(this->output_state_));
+  char bin_buf[9];
+  ESP_LOGVV(TAG, "writing output pin %d with %d out_state %s", pin, uint8_t(value),
+            format_bin_to(bin_buf, this->output_state_));
   this->reg(WKREG_GPDAT, 0) = this->output_state_;
 }
 
@@ -232,7 +232,8 @@ void WeikaiComponent::set_pin_direction_(uint8_t pin, gpio::Flags flags) {
       ESP_LOGE(TAG, "pin %d direction invalid", pin);
     }
   }
-  ESP_LOGVV(TAG, "setting pin %d direction to %d pin_config=%s", pin, flags, I2S2CS(this->pin_config_));
+  char bin_buf[9];
+  ESP_LOGVV(TAG, "setting pin %d direction to %d pin_config=%s", pin, flags, format_bin_to(bin_buf, this->pin_config_));
   this->reg(WKREG_GPDIR, 0) = this->pin_config_;  // TODO check ~
 }
 
@@ -241,12 +242,11 @@ void WeikaiGPIOPin::setup() {
                 flags_ == gpio::FLAG_INPUT          ? "Input"
                 : this->flags_ == gpio::FLAG_OUTPUT ? "Output"
                                                     : "NOT SPECIFIED");
-  // ESP_LOGCONFIG(TAG, "Setting GPIO pins mode to '%s' %02X", I2S2CS(this->flags_), this->flags_);
   this->pin_mode(this->flags_);
 }
 
 size_t WeikaiGPIOPin::dump_summary(char *buffer, size_t len) const {
-  return snprintf(buffer, len, "%u via WeiKai %s", this->pin_, this->parent_->get_name());
+  return buf_append_printf(buffer, len, 0, "%u via WeiKai %s", this->pin_, this->parent_->get_name());
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -297,8 +297,9 @@ void WeikaiChannel::set_line_param_() {
       break;  // no parity 000x
   }
   this->reg(WKREG_LCR) = lcr;  // write LCR
+  char bin_buf[9];
   ESP_LOGV(TAG, "    line config: %d data_bits, %d stop_bits, parity %s register [%s]", this->data_bits_,
-           this->stop_bits_, p2s(this->parity_), I2S2CS(lcr));
+           this->stop_bits_, p2s(this->parity_), format_bin_to(bin_buf, lcr));
 }
 
 void WeikaiChannel::set_baudrate_() {
@@ -334,7 +335,8 @@ size_t WeikaiChannel::tx_in_fifo_() {
   if (tfcnt == 0) {
     uint8_t const fsr = this->reg(WKREG_FSR);
     if (fsr & FSR_TFFULL) {
-      ESP_LOGVV(TAG, "tx FIFO full FSR=%s", I2S2CS(fsr));
+      char bin_buf[9];
+      ESP_LOGVV(TAG, "tx FIFO full FSR=%s", format_bin_to(bin_buf, fsr));
       tfcnt = FIFO_SIZE;
     }
   }
@@ -346,14 +348,15 @@ size_t WeikaiChannel::rx_in_fifo_() {
   size_t available = this->reg(WKREG_RFCNT);
   uint8_t const fsr = this->reg(WKREG_FSR);
   if (fsr & (FSR_RFOE | FSR_RFLB | FSR_RFFE | FSR_RFPE)) {
+    char bin_buf[9];
     if (fsr & FSR_RFOE)
-      ESP_LOGE(TAG, "Receive data overflow FSR=%s", I2S2CS(fsr));
+      ESP_LOGE(TAG, "Receive data overflow FSR=%s", format_bin_to(bin_buf, fsr));
     if (fsr & FSR_RFLB)
-      ESP_LOGE(TAG, "Receive line break FSR=%s", I2S2CS(fsr));
+      ESP_LOGE(TAG, "Receive line break FSR=%s", format_bin_to(bin_buf, fsr));
     if (fsr & FSR_RFFE)
-      ESP_LOGE(TAG, "Receive frame error FSR=%s", I2S2CS(fsr));
+      ESP_LOGE(TAG, "Receive frame error FSR=%s", format_bin_to(bin_buf, fsr));
     if (fsr & FSR_RFPE)
-      ESP_LOGE(TAG, "Receive parity error FSR=%s", I2S2CS(fsr));
+      ESP_LOGE(TAG, "Receive parity error FSR=%s", format_bin_to(bin_buf, fsr));
   }
   if ((available == 0) && (fsr & FSR_RFDAT)) {
     // here we should be very careful because we can have something like this:
@@ -362,11 +365,13 @@ size_t WeikaiChannel::rx_in_fifo_() {
     // -  so to be sure we need to do another read of RFCNT and if it is still zero -> buffer full
     available = this->reg(WKREG_RFCNT);
     if (available == 0) {  // still zero ?
-      ESP_LOGV(TAG, "rx FIFO is full FSR=%s", I2S2CS(fsr));
+      char bin_buf[9];
+      ESP_LOGV(TAG, "rx FIFO is full FSR=%s", format_bin_to(bin_buf, fsr));
       available = FIFO_SIZE;
     }
   }
-  ESP_LOGVV(TAG, "rx FIFO contain %d bytes - FSR status=%s", available, I2S2CS(fsr));
+  char bin_buf2[9];
+  ESP_LOGVV(TAG, "rx FIFO contain %d bytes - FSR status=%s", available, format_bin_to(bin_buf2, fsr));
   return available;
 }
 
@@ -396,7 +401,7 @@ bool WeikaiChannel::peek_byte(uint8_t *buffer) {
   return this->receive_buffer_.peek(*buffer);
 }
 
-int WeikaiChannel::available() {
+size_t WeikaiChannel::available() {
   size_t available = this->receive_buffer_.count();
   if (!available)
     available = xfer_fifo_to_buffer_();

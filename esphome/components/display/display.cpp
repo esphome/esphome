@@ -9,8 +9,7 @@ namespace esphome {
 namespace display {
 static const char *const TAG = "display";
 
-const Color COLOR_OFF(0, 0, 0, 0);
-const Color COLOR_ON(255, 255, 255, 255);
+// COLOR_OFF and COLOR_ON are now inline constexpr in display.h
 
 void Display::fill(Color color) { this->filled_rectangle(0, 0, this->get_width(), this->get_height(), color); }
 void Display::clear() { this->fill(COLOR_OFF); }

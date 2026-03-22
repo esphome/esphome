@@ -141,6 +141,9 @@ class LD2450Component : public Component, public uart::UARTDevice {
                       int32_t zone2_x1, int32_t zone2_y1, int32_t zone2_x2, int32_t zone2_y2, int32_t zone3_x1,
                       int32_t zone3_y1, int32_t zone3_x2, int32_t zone3_y2);
 
+  /// Add a callback that will be called after each successfully processed periodic data frame.
+  void add_on_data_callback(std::function<void()> &&callback);
+
  protected:
   void send_command_(uint8_t command_str, const uint8_t *command_value, uint8_t command_value_len);
   void set_config_mode_(bool enable);
@@ -190,6 +193,15 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #ifdef USE_TEXT_SENSOR
   std::array<text_sensor::TextSensor *, 3> direction_text_sensors_{};
 #endif
+
+  LazyCallbackManager<void()> data_callback_;
+};
+
+class LD2450DataTrigger : public Trigger<> {
+ public:
+  explicit LD2450DataTrigger(LD2450Component *parent) {
+    parent->add_on_data_callback([this]() { this->trigger(); });
+  }
 };
 
 }  // namespace esphome::ld2450

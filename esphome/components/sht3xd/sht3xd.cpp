@@ -72,8 +72,6 @@ void SHT3XDComponent::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
-float SHT3XDComponent::get_setup_priority() const { return setup_priority::DATA; }
-
 void SHT3XDComponent::update() {
   if (this->status_has_warning()) {
     ESP_LOGD(TAG, "Retrying to reconnect the sensor.");

@@ -197,6 +197,7 @@ async def yaml_config(request: pytest.FixtureRequest, unused_tcp_port: int) -> s
             "  platformio_options:\n"
             "    build_flags:\n"
             '      - "-DDEBUG"  # Enable assert() statements\n'
+            '      - "-DESPHOME_DEBUG_API"  # Enable API protocol asserts\n'
             '      - "-g"       # Add debug symbols',
         )
 

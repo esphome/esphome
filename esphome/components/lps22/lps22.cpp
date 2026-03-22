@@ -38,22 +38,29 @@ void LPS22Component::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+static constexpr uint32_t INTERVAL_READ = 0;
+
 void LPS22Component::update() {
   uint8_t value = 0x00;
   this->read_register(CTRL_REG2, &value, 1);
   value |= CTRL_REG2_ONE_SHOT_MASK;
   this->write_register(CTRL_REG2, &value, 1);
-  this->set_retry(READ_INTERVAL, READ_ATTEMPTS, [this](uint8_t _) { return this->try_read_(); });
+  this->read_attempts_remaining_ = READ_ATTEMPTS;
+  this->set_interval(INTERVAL_READ, READ_INTERVAL, [this]() { this->try_read_(); });
 }
 
-RetryResult LPS22Component::try_read_() {
+void LPS22Component::try_read_() {
   uint8_t value = 0x00;
   this->read_register(STATUS, &value, 1);
   const uint8_t expected_status_mask = STATUS_T_DA_MASK | STATUS_P_DA_MASK;
   if ((value & expected_status_mask) != expected_status_mask) {
     ESP_LOGD(TAG, "STATUS not ready: %x", value);
-    return RetryResult::RETRY;
+    if (--this->read_attempts_remaining_ == 0) {
+      this->cancel_interval(INTERVAL_READ);
+    }
+    return;
   }
+  this->cancel_interval(INTERVAL_READ);
 
   if (this->temperature_sensor_ != nullptr) {
     uint8_t t_buf[2]{0};
@@ -68,7 +75,6 @@ RetryResult LPS22Component::try_read_() {
     uint32_t p_lsb = encode_uint24(p_buf[2], p_buf[1], p_buf[0]);
     this->pressure_sensor_->publish_state(PRESSURE_SCALE * static_cast<float>(p_lsb));
   }
-  return RetryResult::DONE;
 }
 
 }  // namespace lps22

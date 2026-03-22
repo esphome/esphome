@@ -5,48 +5,41 @@
 
 #ifdef USE_OUTPUT
 #include "esphome/components/output/float_output.h"
-#endif
+#endif  // USE_OUTPUT
 
 #ifdef USE_SPEAKER
 #include "esphome/components/speaker/speaker.h"
-#endif
+#endif  // USE_SPEAKER
 
-namespace esphome {
-namespace rtttl {
+namespace esphome::rtttl {
 
-enum State : uint8_t {
-  STATE_STOPPED = 0,
-  STATE_INIT,
-  STATE_STARTING,
-  STATE_RUNNING,
-  STATE_STOPPING,
+enum class State : uint8_t {
+  STOPPED = 0,
+  INIT,
+  STARTING,
+  RUNNING,
+  STOPPING,
 };
-
-#ifdef USE_SPEAKER
-static const size_t SAMPLE_BUFFER_SIZE = 2048;
-
-struct SpeakerSample {
-  int8_t left{0};
-  int8_t right{0};
-};
-#endif
 
 class Rtttl : public Component {
  public:
 #ifdef USE_OUTPUT
   void set_output(output::FloatOutput *output) { this->output_ = output; }
-#endif
+#endif  // USE_OUTPUT
+
 #ifdef USE_SPEAKER
   void set_speaker(speaker::Speaker *speaker) { this->speaker_ = speaker; }
-#endif
-  float get_gain() { return gain_; }
-  void set_gain(float gain) { this->gain_ = clamp(gain, 0.0f, 1.0f); }
+#endif  // USE_SPEAKER
+
+  void dump_config() override;
+  void loop() override;
   void play(std::string rtttl);
   void stop();
-  void dump_config() override;
 
-  bool is_playing() { return this->state_ != State::STATE_STOPPED; }
-  void loop() override;
+  float get_gain() { return this->gain_; }
+  void set_gain(float gain) { this->gain_ = clamp(gain, 0.0f, 1.0f); }
+
+  bool is_playing() { return this->state_ != State::STOPPED; }
 
   void add_on_finished_playback_callback(std::function<void()> callback) {
     this->on_finished_playback_callback_.add(std::move(callback));
@@ -90,12 +83,12 @@ class Rtttl : public Component {
   /// The gain of the output.
   float gain_{0.6f};
   /// The current state of the RTTTL player.
-  State state_{State::STATE_STOPPED};
+  State state_{State::STOPPED};
 
 #ifdef USE_OUTPUT
   /// The output to write the sound to.
   output::FloatOutput *output_;
-#endif
+#endif  // USE_OUTPUT
 
 #ifdef USE_SPEAKER
   /// The speaker to write the sound to.
@@ -110,8 +103,7 @@ class Rtttl : public Component {
   int samples_count_{0};
   /// The number of samples for the gap between notes.
   int samples_gap_{0};
-
-#endif
+#endif  // USE_SPEAKER
 
   /// The callback to call when playback is finished.
   CallbackManager<void()> on_finished_playback_callback_;
@@ -145,5 +137,4 @@ class FinishedPlaybackTrigger : public Trigger<> {
   }
 };
 
-}  // namespace rtttl
-}  // namespace esphome
+}  // namespace esphome::rtttl

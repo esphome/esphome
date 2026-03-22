@@ -11,7 +11,7 @@
 
 namespace esphome {
 
-void IRAM_ATTR HOT yield() { ::sched_yield(); }
+void HOT yield() { ::sched_yield(); }
 uint32_t IRAM_ATTR HOT millis() {
   struct timespec spec;
   clock_gettime(CLOCK_MONOTONIC, &spec);
@@ -19,7 +19,7 @@ uint32_t IRAM_ATTR HOT millis() {
   uint32_t ms = round(spec.tv_nsec / 1e6);
   return ((uint32_t) seconds) * 1000U + ms;
 }
-void IRAM_ATTR HOT delay(uint32_t ms) {
+void HOT delay(uint32_t ms) {
   struct timespec ts;
   ts.tv_sec = ms / 1000;
   ts.tv_nsec = (ms % 1000) * 1000000;
@@ -48,7 +48,7 @@ void arch_restart() { exit(0); }
 void arch_init() {
   // pass
 }
-void IRAM_ATTR HOT arch_feed_wdt() {
+void HOT arch_feed_wdt() {
   // pass
 }
 

@@ -137,8 +137,7 @@ CONFIG_SCHEMA = cv.Schema(
 @coroutine_with_priority(CoroPriority.NETWORK)
 async def to_code(config):
     cg.add_define("USE_NETWORK")
-    if CORE.using_arduino and CORE.is_esp32:
-        cg.add_library("Networking", None)
+    # ESP32 with Arduino uses ESP-IDF network APIs directly, no Arduino Network library needed
 
     # Apply high performance networking settings
     # Config can explicitly enable/disable, or default to component-driven behavior

@@ -57,6 +57,16 @@ inline uint16_t count_packed_varints(const uint8_t *data, size_t len) {
   return count;
 }
 
+/// Encode a varint directly into a pre-allocated buffer.
+/// Caller must ensure buffer has space (use ProtoSize::varint() to calculate).
+inline void encode_varint_to_buffer(uint32_t val, uint8_t *buffer) {
+  while (val > 0x7F) {
+    *buffer++ = static_cast<uint8_t>(val | 0x80);
+    val >>= 7;
+  }
+  *buffer = static_cast<uint8_t>(val);
+}
+
 /*
  * StringRef Ownership Model for API Protocol Messages
  * ===================================================
@@ -93,17 +103,17 @@ class ProtoVarInt {
   ProtoVarInt() : value_(0) {}
   explicit ProtoVarInt(uint64_t value) : value_(value) {}
 
+  /// Parse a varint from buffer. consumed must be a valid pointer (not null).
   static optional<ProtoVarInt> parse(const uint8_t *buffer, uint32_t len, uint32_t *consumed) {
-    if (len == 0) {
-      if (consumed != nullptr)
-        *consumed = 0;
+#ifdef ESPHOME_DEBUG_API
+    assert(consumed != nullptr);
+#endif
+    if (len == 0)
       return {};
-    }
 
     // Most common case: single-byte varint (values 0-127)
     if ((buffer[0] & 0x80) == 0) {
-      if (consumed != nullptr)
-        *consumed = 1;
+      *consumed = 1;
       return ProtoVarInt(buffer[0]);
     }
 
@@ -112,20 +122,21 @@ class ProtoVarInt {
     uint64_t result = buffer[0] & 0x7F;
     uint8_t bitpos = 7;
 
+    // A 64-bit varint is at most 10 bytes (ceil(64/7)). Reject overlong encodings
+    // to avoid undefined behavior from shifting uint64_t by >= 64 bits.
+    uint32_t max_len = std::min(len, uint32_t(10));
+
     // Start from the second byte since we've already processed the first
-    for (uint32_t i = 1; i < len; i++) {
+    for (uint32_t i = 1; i < max_len; i++) {
       uint8_t val = buffer[i];
       result |= uint64_t(val & 0x7F) << uint64_t(bitpos);
       bitpos += 7;
       if ((val & 0x80) == 0) {
-        if (consumed != nullptr)
-          *consumed = i + 1;
+        *consumed = i + 1;
         return ProtoVarInt(result);
       }
     }
 
-    if (consumed != nullptr)
-      *consumed = 0;
     return {};  // Incomplete or invalid varint
   }
 
@@ -148,50 +159,6 @@ class ProtoVarInt {
   constexpr int64_t as_sint64() const {
     // with ZigZag encoding
     return decode_zigzag64(this->value_);
-  }
-  /**
-   * Encode the varint value to a pre-allocated buffer without bounds checking.
-   *
-   * @param buffer The pre-allocated buffer to write the encoded varint to
-   * @param len The size of the buffer in bytes
-   *
-   * @note The caller is responsible for ensuring the buffer is large enough
-   *       to hold the encoded value. Use ProtoSize::varint() to calculate
-   *       the exact size needed before calling this method.
-   * @note No bounds checking is performed for performance reasons.
-   */
-  void encode_to_buffer_unchecked(uint8_t *buffer, size_t len) {
-    uint64_t val = this->value_;
-    if (val <= 0x7F) {
-      buffer[0] = val;
-      return;
-    }
-    size_t i = 0;
-    while (val && i < len) {
-      uint8_t temp = val & 0x7F;
-      val >>= 7;
-      if (val) {
-        buffer[i++] = temp | 0x80;
-      } else {
-        buffer[i++] = temp;
-      }
-    }
-  }
-  void encode(std::vector<uint8_t> &out) {
-    uint64_t val = this->value_;
-    if (val <= 0x7F) {
-      out.push_back(val);
-      return;
-    }
-    while (val) {
-      uint8_t temp = val & 0x7F;
-      val >>= 7;
-      if (val) {
-        out.push_back(temp | 0x80);
-      } else {
-        out.push_back(temp);
-      }
-    }
   }
 
  protected:
@@ -252,8 +219,20 @@ class ProtoWriteBuffer {
  public:
   ProtoWriteBuffer(std::vector<uint8_t> *buffer) : buffer_(buffer) {}
   void write(uint8_t value) { this->buffer_->push_back(value); }
-  void encode_varint_raw(ProtoVarInt value) { value.encode(*this->buffer_); }
-  void encode_varint_raw(uint32_t value) { this->encode_varint_raw(ProtoVarInt(value)); }
+  void encode_varint_raw(uint32_t value) {
+    while (value > 0x7F) {
+      this->buffer_->push_back(static_cast<uint8_t>(value | 0x80));
+      value >>= 7;
+    }
+    this->buffer_->push_back(static_cast<uint8_t>(value));
+  }
+  void encode_varint_raw_64(uint64_t value) {
+    while (value > 0x7F) {
+      this->buffer_->push_back(static_cast<uint8_t>(value | 0x80));
+      value >>= 7;
+    }
+    this->buffer_->push_back(static_cast<uint8_t>(value));
+  }
   /**
    * Encode a field key (tag/wire type combination).
    *
@@ -303,13 +282,13 @@ class ProtoWriteBuffer {
     if (value == 0 && !force)
       return;
     this->encode_field_raw(field_id, 0);  // type 0: Varint - uint64
-    this->encode_varint_raw(ProtoVarInt(value));
+    this->encode_varint_raw_64(value);
   }
   void encode_bool(uint32_t field_id, bool value, bool force = false) {
     if (!value && !force)
       return;
     this->encode_field_raw(field_id, 0);  // type 0: Varint - bool
-    this->write(0x01);
+    this->buffer_->push_back(value ? 0x01 : 0x00);
   }
   void encode_fixed32(uint32_t field_id, uint32_t value, bool force = false) {
     if (value == 0 && !force)
@@ -401,6 +380,20 @@ class DumpBuffer {
 
   const char *c_str() const { return buf_; }
   size_t size() const { return pos_; }
+
+  /// Get writable buffer pointer for use with buf_append_printf
+  char *data() { return buf_; }
+  /// Get current position for use with buf_append_printf
+  size_t pos() const { return pos_; }
+  /// Update position after buf_append_printf call
+  void set_pos(size_t pos) {
+    if (pos >= CAPACITY) {
+      pos_ = CAPACITY - 1;
+    } else {
+      pos_ = pos;
+    }
+    buf_[pos_] = '\0';
+  }
 
  private:
   void append_impl_(const char *str, size_t len) {
@@ -920,13 +913,15 @@ inline void ProtoWriteBuffer::encode_message(uint32_t field_id, const ProtoMessa
   this->buffer_->resize(this->buffer_->size() + varint_length_bytes);
 
   // Write the length varint directly
-  ProtoVarInt(msg_length_bytes).encode_to_buffer_unchecked(this->buffer_->data() + begin, varint_length_bytes);
+  encode_varint_to_buffer(msg_length_bytes, this->buffer_->data() + begin);
 
   // Now encode the message content - it will append to the buffer
   value.encode(*this);
 
+#ifdef ESPHOME_DEBUG_API
   // Verify that the encoded size matches what we calculated
   assert(this->buffer_->size() == begin + varint_length_bytes + msg_length_bytes);
+#endif
 }
 
 // Implementation of decode_to_message - must be after ProtoDecodableMessage is defined
@@ -943,32 +938,16 @@ class ProtoService {
   virtual bool is_connection_setup() = 0;
   virtual void on_fatal_error() = 0;
   virtual void on_no_setup_connection() = 0;
-  /**
-   * Create a buffer with a reserved size.
-   * @param reserve_size The number of bytes to pre-allocate in the buffer. This is a hint
-   *                     to optimize memory usage and avoid reallocations during encoding.
-   *                     Implementations should aim to allocate at least this size.
-   * @return A ProtoWriteBuffer object with the reserved size.
-   */
-  virtual ProtoWriteBuffer create_buffer(uint32_t reserve_size) = 0;
   virtual bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) = 0;
   virtual void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) = 0;
-
-  // Optimized method that pre-allocates buffer based on message size
-  bool send_message_(const ProtoMessage &msg, uint8_t message_type) {
-    ProtoSize size;
-    msg.calculate_size(size);
-    uint32_t msg_size = size.get_size();
-
-    // Create a pre-sized buffer
-    auto buffer = this->create_buffer(msg_size);
-
-    // Encode message into the buffer
-    msg.encode(buffer);
-
-    // Send the buffer
-    return this->send_buffer(buffer, message_type);
-  }
+  /**
+   * Send a protobuf message by calculating its size, allocating a buffer, encoding, and sending.
+   * This is the implementation method - callers should use send_message() which adds logging.
+   * @param msg The protobuf message to send.
+   * @param message_type The message type identifier.
+   * @return True if the message was sent successfully, false otherwise.
+   */
+  virtual bool send_message_impl(const ProtoMessage &msg, uint8_t message_type) = 0;
 
   // Authentication helper methods
   inline bool check_connection_setup_() {

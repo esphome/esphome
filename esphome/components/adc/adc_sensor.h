@@ -68,11 +68,6 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   /// This method is called during the ESPHome setup process to log the configuration.
   void dump_config() override;
 
-  /// Return the setup priority for this component.
-  /// Components with higher priority are initialized earlier during setup.
-  /// @return A float representing the setup priority.
-  float get_setup_priority() const override;
-
 #ifdef USE_ZEPHYR
   /// Set the ADC channel to be used by the ADC sensor.
   /// @param channel Pointer to an adc_dt_spec structure representing the ADC channel.

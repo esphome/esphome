@@ -79,13 +79,17 @@ async def setup_conf(config, key):
 
 async def to_code(config):
     # Request specific WiFi listeners based on which sensors are configured
+    # Each sensor needs its own listener slot - call request for EACH sensor
+
     # SSID and BSSID use WiFiConnectStateListener
-    if CONF_SSID in config or CONF_BSSID in config:
-        wifi.request_wifi_connect_state_listener()
+    for key in (CONF_SSID, CONF_BSSID):
+        if key in config:
+            wifi.request_wifi_connect_state_listener()
 
     # IP address and DNS use WiFiIPStateListener
-    if CONF_IP_ADDRESS in config or CONF_DNS_ADDRESS in config:
-        wifi.request_wifi_ip_state_listener()
+    for key in (CONF_IP_ADDRESS, CONF_DNS_ADDRESS):
+        if key in config:
+            wifi.request_wifi_ip_state_listener()
 
     # Scan results use WiFiScanResultsListener
     if CONF_SCAN_RESULTS in config:

@@ -515,8 +515,7 @@ haier_protocol::HaierMessage HonClimate::get_power_message(bool state) {
 void HonClimate::initialization() {
   HaierClimateBase::initialization();
   constexpr uint32_t restore_settings_version = 0x57EB59DDUL;
-  this->hon_rtc_ =
-      global_preferences->make_preference<HonSettings>(this->get_preference_hash() ^ restore_settings_version);
+  this->hon_rtc_ = this->make_entity_preference<HonSettings>(restore_settings_version);
   HonSettings recovered;
   if (this->hon_rtc_.load(&recovered)) {
     this->settings_ = recovered;

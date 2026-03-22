@@ -30,8 +30,6 @@ void KamstrupKMPComponent::dump_config() {
   this->check_uart_settings(1200, 2, uart::UART_CONFIG_PARITY_NONE, 8);
 }
 
-float KamstrupKMPComponent::get_setup_priority() const { return setup_priority::DATA; }
-
 void KamstrupKMPComponent::update() {
   if (this->heat_energy_sensor_ != nullptr) {
     this->command_queue_.push(CMD_HEAT_ENERGY);

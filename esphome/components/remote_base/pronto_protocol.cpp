@@ -59,18 +59,18 @@ bool ProntoData::operator==(const ProntoData &rhs) const {
 }
 
 // DO NOT EXPORT from this file
-static const uint16_t MICROSECONDS_T_MAX = 0xFFFFU;
-static const uint16_t LEARNED_TOKEN = 0x0000U;
-static const uint16_t LEARNED_NON_MODULATED_TOKEN = 0x0100U;
-static const uint16_t BITS_IN_HEXADECIMAL = 4U;
-static const uint16_t DIGITS_IN_PRONTO_NUMBER = 4U;
-static const uint16_t NUMBERS_IN_PREAMBLE = 4U;
-static const uint16_t HEX_MASK = 0xFU;
-static const uint32_t REFERENCE_FREQUENCY = 4145146UL;
-static const uint16_t FALLBACK_FREQUENCY = 64767U;  // To use with frequency = 0;
-static const uint32_t MICROSECONDS_IN_SECONDS = 1000000UL;
-static const uint16_t PRONTO_DEFAULT_GAP = 45000;
-static const uint16_t MARK_EXCESS_MICROS = 20;
+static constexpr uint16_t MICROSECONDS_T_MAX = 0xFFFFU;
+static constexpr uint16_t LEARNED_TOKEN = 0x0000U;
+static constexpr uint16_t LEARNED_NON_MODULATED_TOKEN = 0x0100U;
+static constexpr uint16_t BITS_IN_HEXADECIMAL = 4U;
+static constexpr uint16_t DIGITS_IN_PRONTO_NUMBER = 4U;
+static constexpr uint16_t NUMBERS_IN_PREAMBLE = 4U;
+static constexpr uint16_t HEX_MASK = 0xFU;
+static constexpr uint32_t REFERENCE_FREQUENCY = 4145146UL;
+static constexpr uint16_t FALLBACK_FREQUENCY = 64767U;  // To use with frequency = 0;
+static constexpr uint32_t MICROSECONDS_IN_SECONDS = 1000000UL;
+static constexpr uint16_t PRONTO_DEFAULT_GAP = 45000;
+static constexpr uint16_t MARK_EXCESS_MICROS = 20;
 static constexpr size_t PRONTO_LOG_CHUNK_SIZE = 230;
 
 static uint16_t to_frequency_k_hz(uint16_t code) {

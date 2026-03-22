@@ -74,7 +74,7 @@ void WebServer::set_css_url(const char *css_url) { this->css_url_ = css_url; }
 void WebServer::set_js_url(const char *js_url) { this->js_url_ = js_url; }
 
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
-  AsyncResponseStream *stream = request->beginResponseStream("text/html");
+  AsyncResponseStream *stream = request->beginResponseStream(ESPHOME_F("text/html"));
   const std::string &title = App.get_name();
   stream->print(ESPHOME_F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><meta "
                           "name=viewport content=\"width=device-width, initial-scale=1,user-scalable=no\"><title>"));

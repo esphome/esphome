@@ -134,25 +134,23 @@ ErrorCode ArduinoI2CBus::write_readv(uint8_t address, const uint8_t *write_buffe
     for (size_t j = 0; j != read_count; j++)
       read_buffer[j] = wire_->read();
   }
-  switch (status) {
-    case 0:
-      return ERROR_OK;
-    case 1:
-      // transmit buffer not large enough
-      ESP_LOGVV(TAG, "TX failed: buffer not large enough");
-      return ERROR_UNKNOWN;
-    case 2:
-    case 3:
-      ESP_LOGVV(TAG, "TX failed: not acknowledged: %d", status);
-      return ERROR_NOT_ACKNOWLEDGED;
-    case 5:
-      ESP_LOGVV(TAG, "TX failed: timeout");
-      return ERROR_UNKNOWN;
-    case 4:
-    default:
-      ESP_LOGVV(TAG, "TX failed: unknown error %u", status);
-      return ERROR_UNKNOWN;
+  // Avoid switch to prevent compiler-generated lookup table in RAM on ESP8266
+  if (status == 0)
+    return ERROR_OK;
+  if (status == 1) {
+    ESP_LOGVV(TAG, "TX failed: buffer not large enough");
+    return ERROR_UNKNOWN;
   }
+  if (status == 2 || status == 3) {
+    ESP_LOGVV(TAG, "TX failed: not acknowledged: %u", status);
+    return ERROR_NOT_ACKNOWLEDGED;
+  }
+  if (status == 5) {
+    ESP_LOGVV(TAG, "TX failed: timeout");
+    return ERROR_UNKNOWN;
+  }
+  ESP_LOGVV(TAG, "TX failed: unknown error %u", status);
+  return ERROR_UNKNOWN;
 }
 
 /// Perform I2C bus recovery, see:

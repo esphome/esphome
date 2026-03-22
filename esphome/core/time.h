@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <ctime>
 #include <span>
 #include <string>
@@ -80,11 +81,20 @@ struct ESPTime {
   }
 
   /** Convert a string to ESPTime struct as specified by the format argument.
-   * @param time_to_parse null-terminated c string formatet like this: 2020-08-25 05:30:00.
+   * @param time_to_parse c string formatted like this: 2020-08-25 05:30:00.
+   * @param len length of the string (not including null terminator if present)
    * @param esp_time an instance of a ESPTime struct
-   * @return the success sate of the parsing
+   * @return the success state of the parsing
    */
-  static bool strptime(const std::string &time_to_parse, ESPTime &esp_time);
+  static bool strptime(const char *time_to_parse, size_t len, ESPTime &esp_time);
+  /// @copydoc strptime(const char *, size_t, ESPTime &)
+  static bool strptime(const char *time_to_parse, ESPTime &esp_time) {
+    return strptime(time_to_parse, strlen(time_to_parse), esp_time);
+  }
+  /// @copydoc strptime(const char *, size_t, ESPTime &)
+  static bool strptime(const std::string &time_to_parse, ESPTime &esp_time) {
+    return strptime(time_to_parse.c_str(), time_to_parse.size(), esp_time);
+  }
 
   /// Convert a C tm struct instance with a C unix epoch timestamp to an ESPTime instance.
   static ESPTime from_c_tm(struct tm *c_tm, time_t c_time);

@@ -14,18 +14,9 @@ void log_number(const char *tag, const char *prefix, const char *type, Number *o
   }
 
   ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
-
-  if (!obj->get_icon_ref().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, obj->get_icon_ref().c_str());
-  }
-
-  if (!obj->traits.get_unit_of_measurement_ref().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Unit of Measurement: '%s'", prefix, obj->traits.get_unit_of_measurement_ref().c_str());
-  }
-
-  if (!obj->traits.get_device_class_ref().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->traits.get_device_class_ref().c_str());
-  }
+  LOG_ENTITY_ICON(tag, prefix, *obj);
+  LOG_ENTITY_UNIT_OF_MEASUREMENT(tag, prefix, obj->traits);
+  LOG_ENTITY_DEVICE_CLASS(tag, prefix, obj->traits);
 }
 
 void Number::publish_state(float state) {

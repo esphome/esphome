@@ -233,8 +233,6 @@ void BME680Component::dump_config() {
   }
 }
 
-float BME680Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void BME680Component::update() {
   uint8_t meas_control = 0;  // No need to fetch, we're setting all fields
   meas_control |= (this->temperature_oversampling_ & 0b111) << 5;

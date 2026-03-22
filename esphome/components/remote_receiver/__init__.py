@@ -65,6 +65,8 @@ RemoteReceiverComponent = remote_receiver_ns.class_(
 def validate_config(config):
     if CORE.is_esp32:
         variant = esp32.get_esp32_variant()
+        if variant in esp32_rmt.VARIANTS_NO_RMT:
+            return config
         if variant in (esp32.VARIANT_ESP32, esp32.VARIANT_ESP32S2):
             max_idle = 65535
         else:
@@ -110,6 +112,8 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             cv.SplitDefault(
                 CONF_BUFFER_SIZE,
                 esp32="10000b",
+                esp32_c2="1000b",
+                esp32_c61="1000b",
                 esp8266="1000b",
                 bk72xx="1000b",
                 ln882x="1000b",
@@ -131,9 +135,11 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             cv.SplitDefault(
                 CONF_RMT_SYMBOLS,
                 esp32=192,
+                esp32_c2=cv.UNDEFINED,
                 esp32_c3=96,
                 esp32_c5=96,
                 esp32_c6=96,
+                esp32_c61=cv.UNDEFINED,
                 esp32_h2=96,
                 esp32_p4=192,
                 esp32_s2=192,
@@ -145,6 +151,8 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             cv.SplitDefault(
                 CONF_RECEIVE_SYMBOLS,
                 esp32=192,
+                esp32_c2=cv.UNDEFINED,
+                esp32_c61=cv.UNDEFINED,
             ): cv.All(cv.only_on_esp32, cv.int_range(min=2)),
             cv.Optional(CONF_USE_DMA): cv.All(
                 esp32.only_on_variant(
@@ -152,24 +160,48 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
                 ),
                 cv.boolean,
             ),
-            cv.SplitDefault(CONF_CARRIER_DUTY_PERCENT, esp32=100): cv.All(
+            cv.SplitDefault(
+                CONF_CARRIER_DUTY_PERCENT,
+                esp32=100,
+                esp32_c2=cv.UNDEFINED,
+                esp32_c61=cv.UNDEFINED,
+            ): cv.All(
                 cv.only_on_esp32,
                 cv.percentage_int,
                 cv.Range(min=1, max=100),
             ),
-            cv.SplitDefault(CONF_CARRIER_FREQUENCY, esp32="0Hz"): cv.All(
-                cv.only_on_esp32, cv.frequency, cv.int_
-            ),
+            cv.SplitDefault(
+                CONF_CARRIER_FREQUENCY,
+                esp32="0Hz",
+                esp32_c2=cv.UNDEFINED,
+                esp32_c61=cv.UNDEFINED,
+            ): cv.All(cv.only_on_esp32, cv.frequency, cv.int_),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
+    .add_extra(
+        esp32_rmt.validate_rmt_not_supported(
+            [
+                CONF_CLOCK_RESOLUTION,
+                CONF_USE_DMA,
+                CONF_RMT_SYMBOLS,
+                CONF_FILTER_SYMBOLS,
+                CONF_RECEIVE_SYMBOLS,
+                CONF_CARRIER_DUTY_PERCENT,
+                CONF_CARRIER_FREQUENCY,
+            ]
+        )
+    )
     .add_extra(validate_config)
 )
 
 
 async def to_code(config):
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
-    if CORE.is_esp32:
+    if CORE.is_esp32 and esp32.get_esp32_variant() not in esp32_rmt.VARIANTS_NO_RMT:
+        # Re-enable ESP-IDF's RMT driver (excluded by default to save compile time)
+        esp32.include_builtin_idf_component("esp_driver_rmt")
+
         var = cg.new_Pvariable(config[CONF_ID], pin)
         cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
         cg.add(var.set_receive_symbols(config[CONF_RECEIVE_SYMBOLS]))
@@ -210,6 +242,8 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_IDF,
         },
         "remote_receiver.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
             PlatformFramework.ESP8266_ARDUINO,
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,

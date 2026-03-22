@@ -99,7 +99,6 @@ class BME680Component : public PollingComponent, public i2c::I2CDevice {
   // (In most use cases you won't need these)
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
 
  protected:

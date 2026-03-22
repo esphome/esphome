@@ -11,6 +11,7 @@
 
 #if defined(USE_ESP32) && defined(USE_OTA_ROLLBACK)
 #include <esp_ota_ops.h>
+#include <esp_system.h>
 #endif
 
 namespace esphome::safe_mode {
@@ -54,6 +55,10 @@ void SafeModeComponent::dump_config() {
              "OTA rollback detected! Rolled back from partition '%s'\n"
              "The device reset before the boot was marked successful",
              last_invalid->label);
+    if (esp_reset_reason() == ESP_RST_BROWNOUT) {
+      ESP_LOGW(TAG, "Last reset was due to brownout - check your power supply!\n"
+                    "See https://esphome.io/guides/faq.html#brownout-detector-was-triggered");
+    }
   }
 #endif
 }

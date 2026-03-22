@@ -35,86 +35,73 @@ MEDIA_PLAYER_FORMAT_PURPOSE_ENUM = {
     "announcement": MediaPlayerFormatPurpose.PURPOSE_ANNOUNCEMENT,
 }
 
-
-PlayAction = media_player_ns.class_(
-    "PlayAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-PlayMediaAction = media_player_ns.class_(
-    "PlayMediaAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-ToggleAction = media_player_ns.class_(
-    "ToggleAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-PauseAction = media_player_ns.class_(
-    "PauseAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-StopAction = media_player_ns.class_(
-    "StopAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-VolumeUpAction = media_player_ns.class_(
-    "VolumeUpAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-VolumeDownAction = media_player_ns.class_(
-    "VolumeDownAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-VolumeSetAction = media_player_ns.class_(
-    "VolumeSetAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-TurnOnAction = media_player_ns.class_(
-    "TurnOnAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-TurnOffAction = media_player_ns.class_(
-    "TurnOffAction", automation.Action, cg.Parented.template(MediaPlayer)
-)
-
+# Local config key constants
 CONF_ANNOUNCEMENT = "announcement"
 CONF_ON_PLAY = "on_play"
 CONF_ON_PAUSE = "on_pause"
 CONF_ON_ANNOUNCEMENT = "on_announcement"
 CONF_MEDIA_URL = "media_url"
 
-StateTrigger = media_player_ns.class_("StateTrigger", automation.Trigger.template())
-IdleTrigger = media_player_ns.class_("IdleTrigger", automation.Trigger.template())
-PlayTrigger = media_player_ns.class_("PlayTrigger", automation.Trigger.template())
-PauseTrigger = media_player_ns.class_("PauseTrigger", automation.Trigger.template())
-AnnoucementTrigger = media_player_ns.class_(
-    "AnnouncementTrigger", automation.Trigger.template()
+# Command actions that all share the same schema and codegen handler
+_COMMAND_ACTIONS = [
+    "play",
+    "pause",
+    "stop",
+    "toggle",
+    "volume_up",
+    "volume_down",
+    "turn_on",
+    "turn_off",
+    "next",
+    "previous",
+    "mute",
+    "unmute",
+    "repeat_off",
+    "repeat_one",
+    "repeat_all",
+    "shuffle",
+    "unshuffle",
+    "group_join",
+    "clear_playlist",
+]
+
+# State triggers: (config_key, C++ class name)
+_STATE_TRIGGERS = [
+    (CONF_ON_STATE, "StateTrigger"),
+    (CONF_ON_IDLE, "IdleTrigger"),
+    (CONF_ON_PLAY, "PlayTrigger"),
+    (CONF_ON_PAUSE, "PauseTrigger"),
+    (CONF_ON_ANNOUNCEMENT, "AnnouncementTrigger"),
+    (CONF_ON_TURN_ON, "OnTrigger"),
+    (CONF_ON_TURN_OFF, "OffTrigger"),
+]
+
+# State conditions that all share the same schema and codegen handler
+_STATE_CONDITIONS = [
+    "idle",
+    "paused",
+    "playing",
+    "announcing",
+    "on",
+    "off",
+    "muted",
+]
+
+# Special action classes with custom schemas/handlers
+PlayMediaAction = media_player_ns.class_(
+    "PlayMediaAction", automation.Action, cg.Parented.template(MediaPlayer)
 )
-OnTrigger = media_player_ns.class_("OnTrigger", automation.Trigger.template())
-OffTrigger = media_player_ns.class_("OffTrigger", automation.Trigger.template())
-IsIdleCondition = media_player_ns.class_("IsIdleCondition", automation.Condition)
-IsPausedCondition = media_player_ns.class_("IsPausedCondition", automation.Condition)
-IsPlayingCondition = media_player_ns.class_("IsPlayingCondition", automation.Condition)
-IsAnnouncingCondition = media_player_ns.class_(
-    "IsAnnouncingCondition", automation.Condition
+VolumeSetAction = media_player_ns.class_(
+    "VolumeSetAction", automation.Action, cg.Parented.template(MediaPlayer)
 )
-IsOnCondition = media_player_ns.class_("IsOnCondition", automation.Condition)
-IsOffCondition = media_player_ns.class_("IsOffCondition", automation.Condition)
 
 
 async def setup_media_player_core_(var, config):
     await setup_entity(var, config, "media_player")
-    for conf in config.get(CONF_ON_STATE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_IDLE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_PLAY, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_PAUSE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_ANNOUNCEMENT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_TURN_ON, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_TURN_OFF, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+    for conf_key, _ in _STATE_TRIGGERS:
+        for conf in config.get(conf_key, []):
+            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+            await automation.build_automation(trigger, [], conf)
 
 
 async def register_media_player(var, config):
@@ -133,41 +120,14 @@ async def new_media_player(config, *args):
 
 _MEDIA_PLAYER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
     {
-        cv.Optional(CONF_ON_STATE): automation.validate_automation(
+        cv.Optional(conf_key): automation.validate_automation(
             {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                    media_player_ns.class_(class_name, automation.Trigger.template())
+                ),
             }
-        ),
-        cv.Optional(CONF_ON_IDLE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(IdleTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_PLAY): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PlayTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_PAUSE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PauseTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_ANNOUNCEMENT): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(AnnoucementTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OnTrigger),
-            }
-        ),
-        cv.Optional(CONF_ON_TURN_OFF): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(OffTrigger),
-            }
-        ),
+        )
+        for conf_key, class_name in _STATE_TRIGGERS
     }
 )
 
@@ -228,56 +188,48 @@ async def media_player_play_media_action(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action("media_player.play", PlayAction, MEDIA_PLAYER_ACTION_SCHEMA)
-@automation.register_action(
-    "media_player.toggle", ToggleAction, MEDIA_PLAYER_ACTION_SCHEMA
-)
-@automation.register_action(
-    "media_player.pause", PauseAction, MEDIA_PLAYER_ACTION_SCHEMA
-)
-@automation.register_action("media_player.stop", StopAction, MEDIA_PLAYER_ACTION_SCHEMA)
-@automation.register_action(
-    "media_player.volume_up", VolumeUpAction, MEDIA_PLAYER_ACTION_SCHEMA
-)
-@automation.register_action(
-    "media_player.volume_down", VolumeDownAction, MEDIA_PLAYER_ACTION_SCHEMA
-)
-@automation.register_action(
-    "media_player.turn_on", TurnOnAction, MEDIA_PLAYER_ACTION_SCHEMA
-)
-@automation.register_action(
-    "media_player.turn_off", TurnOffAction, MEDIA_PLAYER_ACTION_SCHEMA
-)
-async def media_player_action(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    announcement = await cg.templatable(config[CONF_ANNOUNCEMENT], args, cg.bool_)
-    cg.add(var.set_announcement(announcement))
-    return var
+def _snake_to_camel(name):
+    return "".join(word.capitalize() for word in name.split("_"))
 
 
-@automation.register_condition(
-    "media_player.is_idle", IsIdleCondition, MEDIA_PLAYER_CONDITION_SCHEMA
-)
-@automation.register_condition(
-    "media_player.is_paused", IsPausedCondition, MEDIA_PLAYER_CONDITION_SCHEMA
-)
-@automation.register_condition(
-    "media_player.is_playing", IsPlayingCondition, MEDIA_PLAYER_CONDITION_SCHEMA
-)
-@automation.register_condition(
-    "media_player.is_announcing", IsAnnouncingCondition, MEDIA_PLAYER_CONDITION_SCHEMA
-)
-@automation.register_condition(
-    "media_player.is_on", IsOnCondition, MEDIA_PLAYER_CONDITION_SCHEMA
-)
-@automation.register_condition(
-    "media_player.is_off", IsOffCondition, MEDIA_PLAYER_CONDITION_SCHEMA
-)
-async def media_player_condition(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    await cg.register_parented(var, config[CONF_ID])
-    return var
+def _register_command_actions():
+    async def handler(config, action_id, template_arg, args):
+        var = cg.new_Pvariable(action_id, template_arg)
+        await cg.register_parented(var, config[CONF_ID])
+        announcement = await cg.templatable(config[CONF_ANNOUNCEMENT], args, cg.bool_)
+        cg.add(var.set_announcement(announcement))
+        return var
+
+    for action_name in _COMMAND_ACTIONS:
+        class_name = f"{_snake_to_camel(action_name)}Action"
+        action_class = media_player_ns.class_(
+            class_name, automation.Action, cg.Parented.template(MediaPlayer)
+        )
+        automation.register_action(
+            f"media_player.{action_name}", action_class, MEDIA_PLAYER_ACTION_SCHEMA
+        )(handler)
+
+
+_register_command_actions()
+
+
+def _register_state_conditions():
+    async def handler(config, action_id, template_arg, args):
+        var = cg.new_Pvariable(action_id, template_arg)
+        await cg.register_parented(var, config[CONF_ID])
+        return var
+
+    for condition_name in _STATE_CONDITIONS:
+        class_name = f"Is{_snake_to_camel(condition_name)}Condition"
+        condition_class = media_player_ns.class_(class_name, automation.Condition)
+        automation.register_condition(
+            f"media_player.is_{condition_name}",
+            condition_class,
+            MEDIA_PLAYER_CONDITION_SCHEMA,
+        )(handler)
+
+
+_register_state_conditions()
 
 
 @automation.register_action(

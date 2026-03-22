@@ -7,13 +7,7 @@ using namespace esphome::cover;
 
 static const char *const TAG = "template.cover";
 
-TemplateCover::TemplateCover()
-    : open_trigger_(new Trigger<>()),
-      close_trigger_(new Trigger<>),
-      stop_trigger_(new Trigger<>()),
-      toggle_trigger_(new Trigger<>()),
-      position_trigger_(new Trigger<float>()),
-      tilt_trigger_(new Trigger<float>()) {}
+TemplateCover::TemplateCover() = default;
 void TemplateCover::setup() {
   switch (this->restore_mode_) {
     case COVER_NO_RESTORE:
@@ -62,22 +56,22 @@ void TemplateCover::loop() {
 void TemplateCover::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 void TemplateCover::set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
 float TemplateCover::get_setup_priority() const { return setup_priority::HARDWARE; }
-Trigger<> *TemplateCover::get_open_trigger() const { return this->open_trigger_; }
-Trigger<> *TemplateCover::get_close_trigger() const { return this->close_trigger_; }
-Trigger<> *TemplateCover::get_stop_trigger() const { return this->stop_trigger_; }
-Trigger<> *TemplateCover::get_toggle_trigger() const { return this->toggle_trigger_; }
+Trigger<> *TemplateCover::get_open_trigger() { return &this->open_trigger_; }
+Trigger<> *TemplateCover::get_close_trigger() { return &this->close_trigger_; }
+Trigger<> *TemplateCover::get_stop_trigger() { return &this->stop_trigger_; }
+Trigger<> *TemplateCover::get_toggle_trigger() { return &this->toggle_trigger_; }
 void TemplateCover::dump_config() { LOG_COVER("", "Template Cover", this); }
 void TemplateCover::control(const CoverCall &call) {
   if (call.get_stop()) {
     this->stop_prev_trigger_();
-    this->stop_trigger_->trigger();
-    this->prev_command_trigger_ = this->stop_trigger_;
+    this->stop_trigger_.trigger();
+    this->prev_command_trigger_ = &this->stop_trigger_;
     this->publish_state();
   }
   if (call.get_toggle().has_value()) {
     this->stop_prev_trigger_();
-    this->toggle_trigger_->trigger();
-    this->prev_command_trigger_ = this->toggle_trigger_;
+    this->toggle_trigger_.trigger();
+    this->prev_command_trigger_ = &this->toggle_trigger_;
     this->publish_state();
   }
   if (call.get_position().has_value()) {
@@ -85,13 +79,13 @@ void TemplateCover::control(const CoverCall &call) {
     this->stop_prev_trigger_();
 
     if (pos == COVER_OPEN) {
-      this->open_trigger_->trigger();
-      this->prev_command_trigger_ = this->open_trigger_;
+      this->open_trigger_.trigger();
+      this->prev_command_trigger_ = &this->open_trigger_;
     } else if (pos == COVER_CLOSED) {
-      this->close_trigger_->trigger();
-      this->prev_command_trigger_ = this->close_trigger_;
+      this->close_trigger_.trigger();
+      this->prev_command_trigger_ = &this->close_trigger_;
     } else {
-      this->position_trigger_->trigger(pos);
+      this->position_trigger_.trigger(pos);
     }
 
     if (this->optimistic_) {
@@ -101,7 +95,7 @@ void TemplateCover::control(const CoverCall &call) {
 
   if (call.get_tilt().has_value()) {
     auto tilt = *call.get_tilt();
-    this->tilt_trigger_->trigger(tilt);
+    this->tilt_trigger_.trigger(tilt);
 
     if (this->optimistic_) {
       this->tilt = tilt;
@@ -119,8 +113,8 @@ CoverTraits TemplateCover::get_traits() {
   traits.set_supports_tilt(this->has_tilt_);
   return traits;
 }
-Trigger<float> *TemplateCover::get_position_trigger() const { return this->position_trigger_; }
-Trigger<float> *TemplateCover::get_tilt_trigger() const { return this->tilt_trigger_; }
+Trigger<float> *TemplateCover::get_position_trigger() { return &this->position_trigger_; }
+Trigger<float> *TemplateCover::get_tilt_trigger() { return &this->tilt_trigger_; }
 void TemplateCover::set_has_stop(bool has_stop) { this->has_stop_ = has_stop; }
 void TemplateCover::set_has_toggle(bool has_toggle) { this->has_toggle_ = has_toggle; }
 void TemplateCover::set_has_position(bool has_position) { this->has_position_ = has_position; }

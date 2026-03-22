@@ -62,7 +62,7 @@ class RealTimeClock : public PollingComponent {
   void apply_timezone_();
 #endif
 
-  CallbackManager<void()> time_sync_callback_;
+  LazyCallbackManager<void()> time_sync_callback_;
 };
 
 template<typename... Ts> class TimeHasTimeCondition : public Condition<Ts...> {

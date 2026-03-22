@@ -2,42 +2,31 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::lock {
 
 static const char *const TAG = "lock";
 
+// Lock state strings indexed by LockState enum (0-5): NONE(UNKNOWN), LOCKED, UNLOCKED, JAMMED, LOCKING, UNLOCKING
+// Index 0 is UNKNOWN (for LOCK_STATE_NONE), also used as fallback for out-of-range
+PROGMEM_STRING_TABLE(LockStateStrings, "UNKNOWN", "LOCKED", "UNLOCKED", "JAMMED", "LOCKING", "UNLOCKING");
+
 const LogString *lock_state_to_string(LockState state) {
-  switch (state) {
-    case LOCK_STATE_LOCKED:
-      return LOG_STR("LOCKED");
-    case LOCK_STATE_UNLOCKED:
-      return LOG_STR("UNLOCKED");
-    case LOCK_STATE_JAMMED:
-      return LOG_STR("JAMMED");
-    case LOCK_STATE_LOCKING:
-      return LOG_STR("LOCKING");
-    case LOCK_STATE_UNLOCKING:
-      return LOG_STR("UNLOCKING");
-    case LOCK_STATE_NONE:
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  return LockStateStrings::get_log_str(static_cast<uint8_t>(state), 0);
 }
 
 Lock::Lock() : state(LOCK_STATE_NONE) {}
 LockCall Lock::make_call() { return LockCall(this); }
 
-void Lock::lock() {
+void Lock::set_state_(LockState state) {
   auto call = this->make_call();
-  call.set_state(LOCK_STATE_LOCKED);
+  call.set_state(state);
   this->control(call);
 }
-void Lock::unlock() {
-  auto call = this->make_call();
-  call.set_state(LOCK_STATE_UNLOCKED);
-  this->control(call);
-}
+
+void Lock::lock() { this->set_state_(LOCK_STATE_LOCKED); }
+void Lock::unlock() { this->set_state_(LOCK_STATE_UNLOCKED); }
 void Lock::open() {
   if (traits.get_supports_open()) {
     ESP_LOGD(TAG, "'%s' Opening.", this->get_name().c_str());
@@ -86,21 +75,21 @@ LockCall &LockCall::set_state(optional<LockState> state) {
   this->state_ = state;
   return *this;
 }
-LockCall &LockCall::set_state(const std::string &state) {
-  if (str_equals_case_insensitive(state, "LOCKED")) {
+LockCall &LockCall::set_state(const char *state) {
+  if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("LOCKED")) == 0) {
     this->set_state(LOCK_STATE_LOCKED);
-  } else if (str_equals_case_insensitive(state, "UNLOCKED")) {
+  } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("UNLOCKED")) == 0) {
     this->set_state(LOCK_STATE_UNLOCKED);
-  } else if (str_equals_case_insensitive(state, "JAMMED")) {
+  } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("JAMMED")) == 0) {
     this->set_state(LOCK_STATE_JAMMED);
-  } else if (str_equals_case_insensitive(state, "LOCKING")) {
+  } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("LOCKING")) == 0) {
     this->set_state(LOCK_STATE_LOCKING);
-  } else if (str_equals_case_insensitive(state, "UNLOCKING")) {
+  } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("UNLOCKING")) == 0) {
     this->set_state(LOCK_STATE_UNLOCKING);
-  } else if (str_equals_case_insensitive(state, "NONE")) {
+  } else if (ESPHOME_strcasecmp_P(state, ESPHOME_PSTR("NONE")) == 0) {
     this->set_state(LOCK_STATE_NONE);
   } else {
-    ESP_LOGW(TAG, "'%s' - Unrecognized state %s", this->parent_->get_name().c_str(), state.c_str());
+    ESP_LOGW(TAG, "'%s' - Unrecognized state %s", this->parent_->get_name().c_str(), state);
   }
   return *this;
 }

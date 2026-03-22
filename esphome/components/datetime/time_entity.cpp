@@ -74,9 +74,9 @@ TimeCall &TimeCall::set_time(uint8_t hour, uint8_t minute, uint8_t second) {
 
 TimeCall &TimeCall::set_time(ESPTime time) { return this->set_time(time.hour, time.minute, time.second); };
 
-TimeCall &TimeCall::set_time(const std::string &time) {
+TimeCall &TimeCall::set_time(const char *time, size_t len) {
   ESPTime val{};
-  if (!ESPTime::strptime(time, val)) {
+  if (!ESPTime::strptime(time, len, val)) {
     ESP_LOGE(TAG, "Could not convert the time string to an ESPTime object");
     return *this;
   }

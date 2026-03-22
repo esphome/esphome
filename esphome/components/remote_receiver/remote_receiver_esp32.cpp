@@ -2,16 +2,14 @@
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
+#include <soc/soc_caps.h>
+#if SOC_RMT_SUPPORTED
 #include <driver/gpio.h>
+#include <esp_clk_tree.h>
 
 namespace esphome::remote_receiver {
 
 static const char *const TAG = "remote_receiver.esp32";
-#ifdef USE_ESP32_VARIANT_ESP32H2
-static const uint32_t RMT_CLK_FREQ = 32000000;
-#else
-static const uint32_t RMT_CLK_FREQ = 80000000;
-#endif
 
 static bool IRAM_ATTR HOT rmt_callback(rmt_channel_handle_t channel, const rmt_rx_done_event_data_t *event, void *arg) {
   RemoteReceiverComponentStore *store = (RemoteReceiverComponentStore *) arg;
@@ -98,7 +96,10 @@ void RemoteReceiverComponent::setup() {
   }
 
   uint32_t event_size = sizeof(rmt_rx_done_event_data_t);
-  uint32_t max_filter_ns = 255u * 1000 / (RMT_CLK_FREQ / 1000000);
+  uint32_t rmt_freq;
+  esp_clk_tree_src_get_freq_hz((soc_module_clk_t) RMT_CLK_SRC_DEFAULT, ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED,
+                               &rmt_freq);
+  uint32_t max_filter_ns = UINT8_MAX * 1000u / (rmt_freq / 1000000);
   memset(&this->store_.config, 0, sizeof(this->store_.config));
   this->store_.config.signal_range_min_ns = std::min(this->filter_us_ * 1000, max_filter_ns);
   this->store_.config.signal_range_max_ns = this->idle_us_ * 1000;
@@ -249,4 +250,5 @@ void RemoteReceiverComponent::decode_rmt_(rmt_symbol_word_t *item, size_t item_c
 
 }  // namespace esphome::remote_receiver
 
-#endif
+#endif  // SOC_RMT_SUPPORTED
+#endif  // USE_ESP32

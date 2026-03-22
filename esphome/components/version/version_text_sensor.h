@@ -11,7 +11,6 @@ class VersionTextSensor : public text_sensor::TextSensor, public Component {
   void set_hide_timestamp(bool hide_timestamp);
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
 
  protected:
   bool hide_timestamp_{false};

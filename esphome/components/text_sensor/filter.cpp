@@ -9,19 +9,18 @@ namespace text_sensor {
 static const char *const TAG = "text_sensor.filter";
 
 // Filter
-void Filter::input(const std::string &value) {
+void Filter::input(std::string value) {
   ESP_LOGVV(TAG, "Filter(%p)::input(%s)", this, value.c_str());
-  optional<std::string> out = this->new_value(value);
-  if (out.has_value())
-    this->output(*out);
+  if (this->new_value(value))
+    this->output(value);
 }
-void Filter::output(const std::string &value) {
+void Filter::output(std::string &value) {
   if (this->next_ == nullptr) {
     ESP_LOGVV(TAG, "Filter(%p)::output(%s) -> SENSOR", this, value.c_str());
     this->parent_->internal_send_state_to_frontend(value);
   } else {
     ESP_LOGVV(TAG, "Filter(%p)::output(%s) -> %p", this, value.c_str(), this->next_);
-    this->next_->input(value);
+    this->next_->input(std::move(value));
   }
 }
 void Filter::initialize(TextSensor *parent, Filter *next) {
@@ -35,43 +34,48 @@ LambdaFilter::LambdaFilter(lambda_filter_t lambda_filter) : lambda_filter_(std::
 const lambda_filter_t &LambdaFilter::get_lambda_filter() const { return this->lambda_filter_; }
 void LambdaFilter::set_lambda_filter(const lambda_filter_t &lambda_filter) { this->lambda_filter_ = lambda_filter; }
 
-optional<std::string> LambdaFilter::new_value(std::string value) {
-  auto it = this->lambda_filter_(value);
-  ESP_LOGVV(TAG, "LambdaFilter(%p)::new_value(%s) -> %s", this, value.c_str(), it.value_or("").c_str());
-  return it;
+bool LambdaFilter::new_value(std::string &value) {
+  auto result = this->lambda_filter_(value);
+  if (result.has_value()) {
+    ESP_LOGVV(TAG, "LambdaFilter(%p)::new_value(%s) -> %s (continue)", this, value.c_str(), result->c_str());
+    value = std::move(*result);
+    return true;
+  }
+  ESP_LOGVV(TAG, "LambdaFilter(%p)::new_value(%s) -> (stop)", this, value.c_str());
+  return false;
 }
 
 // ToUpperFilter
-optional<std::string> ToUpperFilter::new_value(std::string value) {
+bool ToUpperFilter::new_value(std::string &value) {
   for (char &c : value)
     c = ::toupper(c);
-  return value;
+  return true;
 }
 
 // ToLowerFilter
-optional<std::string> ToLowerFilter::new_value(std::string value) {
+bool ToLowerFilter::new_value(std::string &value) {
   for (char &c : value)
     c = ::tolower(c);
-  return value;
+  return true;
 }
 
 // Append
-optional<std::string> AppendFilter::new_value(std::string value) {
+bool AppendFilter::new_value(std::string &value) {
   value.append(this->suffix_);
-  return value;
+  return true;
 }
 
 // Prepend
-optional<std::string> PrependFilter::new_value(std::string value) {
+bool PrependFilter::new_value(std::string &value) {
   value.insert(0, this->prefix_);
-  return value;
+  return true;
 }
 
 // Substitute
 SubstituteFilter::SubstituteFilter(const std::initializer_list<Substitution> &substitutions)
     : substitutions_(substitutions) {}
 
-optional<std::string> SubstituteFilter::new_value(std::string value) {
+bool SubstituteFilter::new_value(std::string &value) {
   for (const auto &sub : this->substitutions_) {
     // Compute lengths once per substitution (strlen is fast, called infrequently)
     const size_t from_len = strlen(sub.from);
@@ -84,20 +88,20 @@ optional<std::string> SubstituteFilter::new_value(std::string value) {
       pos += to_len;
     }
   }
-  return value;
+  return true;
 }
 
 // Map
 MapFilter::MapFilter(const std::initializer_list<Substitution> &mappings) : mappings_(mappings) {}
 
-optional<std::string> MapFilter::new_value(std::string value) {
+bool MapFilter::new_value(std::string &value) {
   for (const auto &mapping : this->mappings_) {
     if (value == mapping.from) {
       value.assign(mapping.to);
-      return value;
+      return true;
     }
   }
-  return value;  // Pass through if no match
+  return true;  // Pass through if no match
 }
 
 }  // namespace text_sensor

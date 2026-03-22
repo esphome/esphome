@@ -147,6 +147,8 @@ enum WaterHeaterCommandHasField : uint32_t {
   WATER_HEATER_COMMAND_HAS_STATE = 4,
   WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_LOW = 8,
   WATER_HEATER_COMMAND_HAS_TARGET_TEMPERATURE_HIGH = 16,
+  WATER_HEATER_COMMAND_HAS_ON_STATE = 32,
+  WATER_HEATER_COMMAND_HAS_AWAY_STATE = 64,
 };
 #ifdef USE_NUMBER
 enum NumberMode : uint32_t {
@@ -440,19 +442,6 @@ class PingResponse final : public ProtoMessage {
 
  protected:
 };
-class DeviceInfoRequest final : public ProtoMessage {
- public:
-  static constexpr uint8_t MESSAGE_TYPE = 9;
-  static constexpr uint8_t ESTIMATED_SIZE = 0;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "device_info_request"; }
-#endif
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *dump_to(DumpBuffer &out) const override;
-#endif
-
- protected:
-};
 #ifdef USE_AREAS
 class AreaInfo final : public ProtoMessage {
  public:
@@ -546,38 +535,12 @@ class DeviceInfoResponse final : public ProtoMessage {
 
  protected:
 };
-class ListEntitiesRequest final : public ProtoMessage {
- public:
-  static constexpr uint8_t MESSAGE_TYPE = 11;
-  static constexpr uint8_t ESTIMATED_SIZE = 0;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "list_entities_request"; }
-#endif
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *dump_to(DumpBuffer &out) const override;
-#endif
-
- protected:
-};
 class ListEntitiesDoneResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 19;
   static constexpr uint8_t ESTIMATED_SIZE = 0;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *message_name() const override { return "list_entities_done_response"; }
-#endif
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *dump_to(DumpBuffer &out) const override;
-#endif
-
- protected:
-};
-class SubscribeStatesRequest final : public ProtoMessage {
- public:
-  static constexpr uint8_t MESSAGE_TYPE = 20;
-  static constexpr uint8_t ESTIMATED_SIZE = 0;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "subscribe_states_request"; }
 #endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
@@ -1037,19 +1000,6 @@ class NoiseEncryptionSetKeyResponse final : public ProtoMessage {
 };
 #endif
 #ifdef USE_API_HOMEASSISTANT_SERVICES
-class SubscribeHomeassistantServicesRequest final : public ProtoMessage {
- public:
-  static constexpr uint8_t MESSAGE_TYPE = 34;
-  static constexpr uint8_t ESTIMATED_SIZE = 0;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "subscribe_homeassistant_services_request"; }
-#endif
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *dump_to(DumpBuffer &out) const override;
-#endif
-
- protected:
-};
 class HomeassistantServiceMap final : public ProtoMessage {
  public:
   StringRef key{};
@@ -1117,19 +1067,6 @@ class HomeassistantActionResponse final : public ProtoDecodableMessage {
 };
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
-class SubscribeHomeAssistantStatesRequest final : public ProtoMessage {
- public:
-  static constexpr uint8_t MESSAGE_TYPE = 38;
-  static constexpr uint8_t ESTIMATED_SIZE = 0;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "subscribe_home_assistant_states_request"; }
-#endif
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *dump_to(DumpBuffer &out) const override;
-#endif
-
- protected:
-};
 class SubscribeHomeAssistantStateResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 39;
@@ -2160,19 +2097,6 @@ class BluetoothGATTNotifyDataResponse final : public ProtoMessage {
 
  protected:
 };
-class SubscribeBluetoothConnectionsFreeRequest final : public ProtoMessage {
- public:
-  static constexpr uint8_t MESSAGE_TYPE = 80;
-  static constexpr uint8_t ESTIMATED_SIZE = 0;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "subscribe_bluetooth_connections_free_request"; }
-#endif
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *dump_to(DumpBuffer &out) const override;
-#endif
-
- protected:
-};
 class BluetoothConnectionsFreeResponse final : public ProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 81;
@@ -2273,19 +2197,6 @@ class BluetoothDeviceUnpairingResponse final : public ProtoMessage {
   int32_t error{0};
   void encode(ProtoWriteBuffer buffer) const override;
   void calculate_size(ProtoSize &size) const override;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *dump_to(DumpBuffer &out) const override;
-#endif
-
- protected:
-};
-class UnsubscribeBluetoothLEAdvertisementsRequest final : public ProtoMessage {
- public:
-  static constexpr uint8_t MESSAGE_TYPE = 87;
-  static constexpr uint8_t ESTIMATED_SIZE = 0;
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  const char *message_name() const override { return "unsubscribe_bluetooth_le_advertisements_request"; }
-#endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif

@@ -247,8 +247,6 @@ void TSL2591Component::set_power_save_mode(bool enable) { this->power_save_mode_
 
 void TSL2591Component::set_name(const char *name) { this->name_ = name; }
 
-float TSL2591Component::get_setup_priority() const { return setup_priority::DATA; }
-
 bool TSL2591Component::is_adc_valid() {
   uint8_t status;
   if (!this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_STATUS, &status)) {

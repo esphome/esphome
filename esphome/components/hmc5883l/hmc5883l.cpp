@@ -83,7 +83,6 @@ void HMC5883LComponent::dump_config() {
   LOG_SENSOR("  ", "Z Axis", this->z_sensor_);
   LOG_SENSOR("  ", "Heading", this->heading_sensor_);
 }
-float HMC5883LComponent::get_setup_priority() const { return setup_priority::DATA; }
 void HMC5883LComponent::update() {
   uint16_t raw_x, raw_y, raw_z;
   if (!this->read_byte_16(HMC5883L_REGISTER_DATA_X_MSB, &raw_x) ||

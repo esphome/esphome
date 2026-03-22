@@ -51,7 +51,6 @@ class ESP32TouchComponent : public Component {
   void setup() override;
   void dump_config() override;
   void loop() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void on_shutdown() override;
 

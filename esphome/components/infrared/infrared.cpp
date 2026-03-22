@@ -19,12 +19,12 @@ InfraredCall &InfraredCall::set_carrier_frequency(uint32_t frequency) {
 InfraredCall &InfraredCall::set_raw_timings(const std::vector<int32_t> &timings) {
   this->raw_timings_ = &timings;
   this->packed_data_ = nullptr;
-  this->base85_ptr_ = nullptr;
+  this->base64url_ptr_ = nullptr;
   return *this;
 }
 
-InfraredCall &InfraredCall::set_raw_timings_base85(const std::string &base85) {
-  this->base85_ptr_ = &base85;
+InfraredCall &InfraredCall::set_raw_timings_base64url(const std::string &base64url) {
+  this->base64url_ptr_ = &base64url;
   this->raw_timings_ = nullptr;
   this->packed_data_ = nullptr;
   return *this;
@@ -35,7 +35,7 @@ InfraredCall &InfraredCall::set_raw_timings_packed(const uint8_t *data, uint16_t
   this->packed_length_ = length;
   this->packed_count_ = count;
   this->raw_timings_ = nullptr;
-  this->base85_ptr_ = nullptr;
+  this->base64url_ptr_ = nullptr;
   return *this;
 }
 
@@ -101,13 +101,22 @@ void Infrared::control(const InfraredCall &call) {
                                                call.get_packed_count());
     ESP_LOGD(TAG, "Transmitting packed raw timings: count=%u, repeat=%u", call.get_packed_count(),
              call.get_repeat_count());
-  } else if (call.is_base85()) {
-    // Decode base85 directly into transmit buffer (zero heap allocations)
-    if (!transmit_data->set_data_from_base85(call.get_base85_data())) {
-      ESP_LOGE(TAG, "Invalid base85 data");
+  } else if (call.is_base64url()) {
+    // Decode base64url (URL-safe) into transmit buffer
+    if (!transmit_data->set_data_from_base64url(call.get_base64url_data())) {
+      ESP_LOGE(TAG, "Invalid base64url data");
       return;
     }
-    ESP_LOGD(TAG, "Transmitting base85 raw timings: count=%zu, repeat=%u", transmit_data->get_data().size(),
+    // Sanity check: validate timing values are within reasonable bounds
+    constexpr int32_t max_timing_us = 500000;  // 500ms absolute max
+    for (int32_t timing : transmit_data->get_data()) {
+      int32_t abs_timing = timing < 0 ? -timing : timing;
+      if (abs_timing > max_timing_us) {
+        ESP_LOGE(TAG, "Invalid timing value: %d µs (max %d)", timing, max_timing_us);
+        return;
+      }
+    }
+    ESP_LOGD(TAG, "Transmitting base64url raw timings: count=%zu, repeat=%u", transmit_data->get_data().size(),
              call.get_repeat_count());
   } else {
     // From vector (lambdas/automations)

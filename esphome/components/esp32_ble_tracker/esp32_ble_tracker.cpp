@@ -105,15 +105,13 @@ void ESP32BLETracker::loop() {
   }
 
   // Check for scan timeout - moved here from scheduler to avoid false reboots
-  // when the loop is blocked
+  // when the loop is blocked. This must run every iteration for safety.
   if (this->scanner_state_ == ScannerState::RUNNING) {
     switch (this->scan_timeout_state_) {
       case ScanTimeoutState::MONITORING: {
-        uint32_t now = App.get_loop_component_start_time();
-        uint32_t timeout_ms = this->scan_duration_ * 2000;
         // Robust time comparison that handles rollover correctly
         // This works because unsigned arithmetic wraps around predictably
-        if ((now - this->scan_start_time_) > timeout_ms) {
+        if ((App.get_loop_component_start_time() - this->scan_start_time_) > this->scan_timeout_ms_) {
           // First time we've seen the timeout exceeded - wait one more loop iteration
           // This ensures all components have had a chance to process pending events
           // This is because esp32_ble may not have run yet and called
@@ -128,13 +126,31 @@ void ESP32BLETracker::loop() {
         ESP_LOGE(TAG, "Scan never terminated, rebooting");
         App.reboot();
         break;
-
       case ScanTimeoutState::INACTIVE:
-        // This case should be unreachable - scanner and timeout states are always synchronized
         break;
     }
   }
 
+  // Fast path: skip expensive client state counting and processing
+  // if no state has changed since last loop iteration.
+  //
+  // How state changes ensure we reach the code below:
+  // - handle_scanner_failure_(): scanner_state_ becomes FAILED via set_scanner_state_(), or
+  //   scan_set_param_failed_ requires scanner_state_==RUNNING which can only be reached via
+  //   set_scanner_state_(RUNNING) in gap_scan_start_complete_() (scan params are set during
+  //   STARTING, not RUNNING, so version is always incremented before this condition is true)
+  // - start_scan_(): scanner_state_ becomes IDLE via set_scanner_state_() in cleanup_scan_state_()
+  // - try_promote_discovered_clients_(): client enters DISCOVERED via set_state(), or
+  //   connecting client finishes (state change), or scanner reaches RUNNING/IDLE
+  //
+  // All conditions that affect the logic below are tied to state changes that increment
+  // state_version_, so the fast path is safe.
+  if (this->state_version_ == this->last_processed_version_) {
+    return;
+  }
+  this->last_processed_version_ = this->state_version_;
+
+  // State changed - do full processing
   ClientStateCounts counts = this->count_client_states_();
   if (counts != this->client_state_counts_) {
     this->client_state_counts_ = counts;
@@ -142,6 +158,7 @@ void ESP32BLETracker::loop() {
              this->client_state_counts_.discovered, this->client_state_counts_.disconnecting);
   }
 
+  // Scanner failure: reached when set_scanner_state_(FAILED) or scan_set_param_failed_ set
   if (this->scanner_state_ == ScannerState::FAILED ||
       (this->scan_set_param_failed_ && this->scanner_state_ == ScannerState::RUNNING)) {
     this->handle_scanner_failure_();
@@ -160,6 +177,8 @@ void ESP32BLETracker::loop() {
 
   */
 
+  // Start scan: reached when scanner_state_ becomes IDLE (via set_scanner_state_()) and
+  // all clients are idle (their state changes increment version when they finish)
   if (this->scanner_state_ == ScannerState::IDLE && !counts.connecting && !counts.disconnecting && !counts.discovered) {
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
     this->update_coex_preference_(false);
@@ -168,8 +187,9 @@ void ESP32BLETracker::loop() {
       this->start_scan_(false);  // first = false
     }
   }
-  // If there is a discovered client and no connecting
-  // clients, then promote the discovered client to ready to connect.
+  // Promote discovered clients: reached when a client's state becomes DISCOVERED (via set_state()),
+  // or when a blocking condition clears (connecting client finishes, scanner reaches RUNNING/IDLE).
+  // All these trigger state_version_ increment, so we'll process and check promotion eligibility.
   // We check both RUNNING and IDLE states because:
   // - RUNNING: gap_scan_event_handler initiates stop_scan_() but promotion can happen immediately
   // - IDLE: Scanner has already stopped (naturally or by gap_scan_event_handler)
@@ -236,6 +256,7 @@ void ESP32BLETracker::start_scan_(bool first) {
   // Start timeout monitoring in loop() instead of using scheduler
   // This prevents false reboots when the loop is blocked
   this->scan_start_time_ = App.get_loop_component_start_time();
+  this->scan_timeout_ms_ = this->scan_duration_ * 2000;
   this->scan_timeout_state_ = ScanTimeoutState::MONITORING;
 
   esp_err_t err = esp_ble_gap_set_scan_params(&this->scan_params_);
@@ -253,6 +274,10 @@ void ESP32BLETracker::start_scan_(bool first) {
 void ESP32BLETracker::register_client(ESPBTClient *client) {
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
   client->app_id = ++this->app_id_;
+  // Give client a pointer to our state_version_ so it can notify us of state changes.
+  // This enables loop() fast-path optimization - we skip expensive work when no state changed.
+  // Safe because ESP32BLETracker (singleton) outlives all registered clients.
+  client->set_tracker_state_version(&this->state_version_);
   this->clients_.push_back(client);
   this->recalculate_advertisement_parser_types();
 #endif
@@ -382,6 +407,7 @@ void ESP32BLETracker::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
 
 void ESP32BLETracker::set_scanner_state_(ScannerState state) {
   this->scanner_state_ = state;
+  this->state_version_++;
   for (auto *listener : this->scanner_state_listeners_) {
     listener->on_scanner_state(state);
   }

@@ -41,8 +41,6 @@ void AS3935Component::dump_config() {
 #endif
 }
 
-float AS3935Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void AS3935Component::loop() {
   if (!this->irq_pin_->digital_read())
     return;

@@ -77,8 +77,6 @@ void GDK101Component::dump_config() {
 #endif  // USE_TEXT_SENSOR
 }
 
-float GDK101Component::get_setup_priority() const { return setup_priority::DATA; }
-
 bool GDK101Component::read_bytes_with_retry_(uint8_t a_register, uint8_t *data, uint8_t len) {
   uint8_t retry = NUMBER_OF_READ_RETRIES;
   bool status = false;
@@ -163,9 +161,10 @@ bool GDK101Component::read_fw_version_(uint8_t *data) {
       return false;
     }
 
-    const std::string fw_version_str = str_sprintf("%d.%d", data[0], data[1]);
-
-    this->fw_version_text_sensor_->publish_state(fw_version_str);
+    // max 8: "255.255" (7 chars) + null
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%d.%d", data[0], data[1]);
+    this->fw_version_text_sensor_->publish_state(buf);
   }
 #endif  // USE_TEXT_SENSOR
   return true;

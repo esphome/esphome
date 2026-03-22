@@ -181,8 +181,6 @@ void BME680BSECComponent::dump_config() {
   LOG_SENSOR("  ", "Breath VOC Equivalent", this->breath_voc_equivalent_sensor_);
 }
 
-float BME680BSECComponent::get_setup_priority() const { return setup_priority::DATA; }
-
 void BME680BSECComponent::loop() {
   this->run_();
 

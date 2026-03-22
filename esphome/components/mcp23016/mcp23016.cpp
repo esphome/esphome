@@ -100,7 +100,7 @@ void MCP23016GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this
 bool MCP23016GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
 void MCP23016GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
 size_t MCP23016GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return snprintf(buffer, len, "%u via MCP23016", this->pin_);
+  return buf_append_printf(buffer, len, 0, "%u via MCP23016", this->pin_);
 }
 
 }  // namespace mcp23016
