@@ -242,9 +242,13 @@ def test_image_generation(
     main_cpp = generate_main(component_config_path("image_test.yaml"))
     assert "uint8_t_id[] PROGMEM = {0x24, 0x21, 0x24, 0x21" in main_cpp
     assert (
-        "static esphome::PlacementStorage<image::Image> cat_img_storage_;" in main_cpp
+        "alignas(image::Image) static unsigned char cat_img_storage_[sizeof(image::Image)];"
+        in main_cpp
     )
-    assert "static image::Image *const cat_img = cat_img_storage_.get();" in main_cpp
+    assert (
+        "static image::Image *const cat_img = reinterpret_cast<image::Image *>(cat_img_storage_);"
+        in main_cpp
+    )
     assert (
         "new(cat_img) image::Image(uint8_t_id, 32, 24, image::IMAGE_TYPE_RGB565, image::TRANSPARENCY_OPAQUE);"
         in main_cpp

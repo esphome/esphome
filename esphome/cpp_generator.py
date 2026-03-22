@@ -584,18 +584,20 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
         # For 'new' allocations, use placement new into static storage
         # to avoid heap fragmentation on embedded devices.
         the_type = id_.type
-        storage_type = MockObj(f"esphome::PlacementStorage<{the_type}>")
-        storage_id = ID(f"{id_.id}_storage_", type=storage_type)
+        storage_name = f"{id_.id}_storage_"
 
+        # Declare aligned byte array for the object storage
         CORE.add_global(
-            VariableDeclarationExpression(storage_type, "", storage_id, static=True)
+            RawStatement(
+                f"alignas({the_type}) static unsigned char {storage_name}[sizeof({the_type})];"
+            )
         )
         CORE.add_global(
             AssignmentExpression(
                 f"static {the_type}",
                 "*const ",
                 id_,
-                MockObj(f"{storage_id.id}.get()"),
+                MockObj(f"reinterpret_cast<{the_type} *>({storage_name})"),
             )
         )
         # Extract args from the CallExpression and rebuild as placement new.

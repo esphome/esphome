@@ -11,11 +11,9 @@
 #include <iterator>
 #include <limits>
 #include <memory>
-#include <new>
 #include <span>
 #include <string>
 #include <type_traits>
-#include <utility>
 #include <vector>
 #include <concepts>
 #include <strings.h>
@@ -2231,27 +2229,6 @@ template<std::totally_ordered T, comparable_with<T> U> T clamp_at_most(T value, 
     return max;
   return value;
 }
-
-/**
- * @brief Provides properly aligned, uninitialized static storage for a given type T.
- *
- * This struct is designed to replace dynamic heap allocations (`new T(...)`) for
- * global or static singletons within ESPHome, preventing memory fragmentation.
- * The underlying object must be explicitly constructed using placement new
- * before access. No destructor is called — this is intentional since ESPHome
- * singletons live for the entire device lifetime.
- */
-template<class T> struct PlacementStorage {
-  /// @brief Raw byte storage, strictly aligned for type T.
-  alignas(T) unsigned char data[sizeof(T)];
-
-  /// @brief Retrieves a pointer to the storage as the target type.
-  /// The caller must ensure the object has been constructed via placement new before dereferencing.
-  T *get() { return reinterpret_cast<T *>(data); }
-
-  /// @brief Retrieves a const pointer to the storage as the target type.
-  const T *get() const { return reinterpret_cast<const T *>(data); }
-};
 
 /// @name Internal functions
 ///@{
