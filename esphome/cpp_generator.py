@@ -594,7 +594,11 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
         # for brace-enclosed initializer lists passed to variadic templates.
 
         call_str = rhs_str[4:]  # Strip "new " from "new Type<T>(args)"
-        the_type = id_.type if id_.type is not None else call_str.split("(")[0].strip()
+        the_type = (
+            id_.type
+            if id_.type is not None
+            else call_str.split("(", maxsplit=1)[0].strip()
+        )
         storage_name = f"{id_.id}_storage_"
 
         # Declare the static PlacementStorage
