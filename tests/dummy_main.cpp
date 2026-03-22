@@ -3,9 +3,9 @@
 // matter at all, as long as it compiles).
 // Not used during runtime nor for CI.
 
+#include <esphome/components/esphome/ota/ota_esphome.h>
 #include <esphome/components/gpio/switch/gpio_switch.h>
 #include <esphome/components/logger/logger.h>
-#include <esphome/components/esphome/ota/ota_esphome.h>
 #include <esphome/components/wifi/wifi_component.h>
 #include <esphome/core/application.h>
 
@@ -15,7 +15,7 @@ void setup() {
   static char name[] = "livingroom";
   static char friendly_name[] = "LivingRoom";
   App.pre_setup(name, sizeof(name) - 1, friendly_name, sizeof(friendly_name) - 1);
-  auto *log = new logger::Logger(115200);  // NOLINT
+  auto *log = new logger::Logger(115200, 64);  // NOLINT
   log->pre_setup();
   log->set_uart_selection(logger::UART_SELECTION_UART0);
   App.register_component_(log);
