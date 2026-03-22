@@ -162,7 +162,7 @@ Logger::Logger(uint32_t baud_rate) : baud_rate_(baud_rate) {
 #elif defined(USE_ZEPHYR)
   this->main_task_ = k_current_get();
 #elif defined(USE_HOST)
-  this->main_thread_ = pthread_self();
+this->main_thread_ = pthread_self();
 #endif
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   this->init_log_buffer_(task_log_buffer_size);
