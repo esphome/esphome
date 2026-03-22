@@ -10,7 +10,7 @@
  */
 
 #include "crypto1.h"
-#include <string.h>
+#include <cstring>
 
 // ── LFSR feedback polynomial masks ─────────────────────────────────────────
 // The 48-bit Crypto1 LFSR uses two interleaved 24-bit words (odd/even).
@@ -98,12 +98,15 @@ uint32_t crypto1_word(struct Crypto1State *s, uint32_t in, int is_encrypted) {
 // ── Tag PRNG ───────────────────────────────────────────────────────────────
 // 32-bit Galois LFSR used to generate the tag's nonce sequence.
 // Taps at bits 16, 18, 19, 21 (0-indexed from LSB, big-endian byte order).
-#define SWAPENDIAN(x) \
-  (x = (x >> 8 & 0x00ff00ffu) | (x & 0x00ff00ffu) << 8, x = x >> 16 | x << 16)
+static inline uint32_t swapendian(uint32_t x) {
+  x = ((x >> 8) & 0x00ff00ffu) | ((x & 0x00ff00ffu) << 8);
+  x = (x >> 16) | (x << 16);
+  return x;
+}
 
 uint32_t prng_successor(uint32_t x, uint32_t n) {
-  SWAPENDIAN(x);
+  x = swapendian(x);
   while (n--)
     x = x >> 1 | (x >> 16 ^ x >> 18 ^ x >> 19 ^ x >> 21) << 31;
-  return SWAPENDIAN(x);
+  return x = swapendian(x);
 }
