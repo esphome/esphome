@@ -470,9 +470,9 @@ class WiFiComponent final : public Component {
   /// Reconnect WiFi if required.
   void loop() override;
 
-  bool has_sta() const;
-  bool has_ap() const;
-  bool is_ap_active() const;
+  bool has_sta() const { return !this->sta_.empty(); }
+  bool has_ap() const { return this->has_ap_; }
+  bool is_ap_active() const { return this->ap_started_; }
 
 #ifdef USE_WIFI_11KV_SUPPORT
   void set_btm(bool btm);
