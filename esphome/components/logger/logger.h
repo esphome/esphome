@@ -143,9 +143,10 @@ enum UARTSelection : uint8_t {
  */
 class Logger final : public Component {
  public:
-  explicit Logger(uint32_t baud_rate);
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
-  void init_log_buffer(size_t total_buffer_size);
+  explicit Logger(uint32_t baud_rate, size_t task_log_buffer_size);
+#else
+  explicit Logger(uint32_t baud_rate);
 #endif
 #if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
   void loop() override;

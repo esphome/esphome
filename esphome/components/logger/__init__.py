@@ -331,11 +331,27 @@ async def to_code(config: ConfigType) -> None:
     CORE.data.setdefault(CONF_LOGGER, {})[CONF_LEVEL] = level
     tx_buffer_size = config[CONF_TX_BUFFER_SIZE]
     cg.add_define("ESPHOME_LOGGER_TX_BUFFER_SIZE", tx_buffer_size)
-    log = cg.new_Pvariable(
-        config[CONF_ID],
-        baud_rate,
-    )
-    if CORE.is_esp32:
+    # Determine task log buffer size and define USE_ESPHOME_TASK_LOG_BUFFER early
+    # so the constructor can allocate the buffer immediately, preventing a race
+    # where another task logs before the buffer is initialized.
+    task_log_buffer_size = 0
+    if CORE.is_esp32 or CORE.is_libretiny or CORE.is_nrf52:
+        task_log_buffer_size = config[CONF_TASK_LOG_BUFFER_SIZE]
+    elif CORE.is_host:
+        task_log_buffer_size = 64  # Fixed 64 slots for host
+    if task_log_buffer_size > 0:
+        cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
+        log = cg.new_Pvariable(
+            config[CONF_ID],
+            baud_rate,
+            task_log_buffer_size,
+        )
+    else:
+        log = cg.new_Pvariable(
+            config[CONF_ID],
+            baud_rate,
+        )
+    if CORE.is_esp32 or CORE.is_host:
         cg.add(log.create_pthread_key())
     # set_uart_selection() must be called before pre_setup() because
     # pre_setup() switches on uart_ to decide which hardware to initialize
@@ -364,17 +380,10 @@ async def _late_logger_init(config: ConfigType) -> None:
     log = await cg.get_variable(config[CONF_ID])
     level = config[CONF_LEVEL]
     baud_rate: int = config[CONF_BAUD_RATE]
-    if CORE.is_esp32 or CORE.is_libretiny or CORE.is_nrf52:
-        task_log_buffer_size = config[CONF_TASK_LOG_BUFFER_SIZE]
+    if CORE.using_zephyr:
+        task_log_buffer_size = config.get(CONF_TASK_LOG_BUFFER_SIZE, 0)
         if task_log_buffer_size > 0:
-            cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
-            cg.add(log.init_log_buffer(task_log_buffer_size))
-            if CORE.using_zephyr:
-                zephyr_add_prj_conf("MPSC_PBUF", True)
-    elif CORE.is_host:
-        cg.add(log.create_pthread_key())
-        cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
-        cg.add(log.init_log_buffer(64))  # Fixed 64 slots for host
+            zephyr_add_prj_conf("MPSC_PBUF", True)
 
     # Enable runtime tag levels if logs are configured or explicitly enabled
     logs_config = config[CONF_LOGS]
