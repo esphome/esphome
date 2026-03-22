@@ -81,18 +81,32 @@ def _get_data() -> LightData:
     return CORE.data[DOMAIN]
 
 
+def generate_gamma_table(gamma_correct: float) -> list[HexInt]:
+    """Generate a 256-entry uint16 gamma lookup table.
+
+    For gamma > 0, non-zero indices are clamped to a minimum of 1 to preserve
+    the invariant that non-zero input always produces non-zero output. Without
+    this, small brightness values (e.g. 1%) get quantized to exactly 0.0,
+    which breaks zero_means_zero logic in FloatOutput.
+    """
+    if gamma_correct > 0:
+        return [
+            HexInt(
+                max(1, min(65535, int(round((i / 255.0) ** gamma_correct * 65535))))
+                if i > 0
+                else HexInt(0)
+            )
+            for i in range(256)
+        ]
+    return [HexInt(int(round(i / 255.0 * 65535))) for i in range(256)]
+
+
 def _get_or_create_gamma_table(gamma_correct):
     data = _get_data()
     if gamma_correct in data.gamma_tables:
         return data.gamma_tables[gamma_correct]
 
-    if gamma_correct > 0:
-        forward = [
-            HexInt(min(65535, int(round((i / 255.0) ** gamma_correct * 65535))))
-            for i in range(256)
-        ]
-    else:
-        forward = [HexInt(int(round(i / 255.0 * 65535))) for i in range(256)]
+    forward = generate_gamma_table(gamma_correct)
 
     gamma_str = f"{gamma_correct}".replace(".", "_")
     fwd_id = ID(f"gamma_{gamma_str}_fwd", is_declaration=True, type=cg.uint16)

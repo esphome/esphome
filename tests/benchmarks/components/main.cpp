@@ -26,7 +26,7 @@ void setup() {
 
   // Log functions call global_logger->log_vprintf_() without a null check,
   // so we must set up a Logger before any test that triggers logging.
-  static esphome::logger::Logger test_logger(0);
+  static esphome::logger::Logger test_logger(0, 64);
   test_logger.set_log_level(ESPHOME_LOG_LEVEL);
   test_logger.pre_setup();
 
