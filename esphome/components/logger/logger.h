@@ -354,7 +354,7 @@ class Logger final : public Component {
   std::vector<LoggerLevelListener *> level_listeners_;  // Log level change listeners
 #endif
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
-  void init_log_buffer(size_t total_buffer_size);
+  void init_log_buffer_(size_t total_buffer_size);
   logger::TaskLogBuffer *log_buffer_{nullptr};  // Allocated once, never freed
 #endif
 

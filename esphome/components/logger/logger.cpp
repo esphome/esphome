@@ -165,11 +165,11 @@ Logger::Logger(uint32_t baud_rate) : baud_rate_(baud_rate) {
 this->main_thread_ = pthread_self();
 #endif
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
-  this->init_log_buffer(task_log_buffer_size);
+  this->init_log_buffer_(task_log_buffer_size);
 #endif
 }
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
-void Logger::init_log_buffer(size_t total_buffer_size) {
+void Logger::init_log_buffer_(size_t total_buffer_size) {
   // Host uses slot count instead of byte size
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
   this->log_buffer_ = new logger::TaskLogBuffer(total_buffer_size);
