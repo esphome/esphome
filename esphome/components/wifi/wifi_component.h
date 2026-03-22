@@ -263,8 +263,8 @@ class WiFiAP {
 #ifdef USE_WIFI_WPA2_EAP
   const optional<EAPAuth> &get_eap() const;
 #endif  // USE_WIFI_WPA2_EAP
-  uint8_t get_channel() const;
-  bool has_channel() const;
+  uint8_t get_channel() const { return this->channel_; }
+  bool has_channel() const { return this->channel_ != 0; }
   int8_t get_priority() const { return priority_; }
 #ifdef USE_WIFI_MANUAL_IP
   const optional<ManualIP> &get_manual_ip() const;
