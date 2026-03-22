@@ -1,0 +1,10 @@
+st25r_spi:
+  id: st25r_nfcc_spi
+  cs_pin: ${cs_pin}
+  update_interval: 1s
+
+binary_sensor:
+  - platform: st25r
+    st25r_id: st25r_nfcc_spi
+    name: ST25R NFC Tag
+    uid: 74-10-37-94
