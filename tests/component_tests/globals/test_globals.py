@@ -16,12 +16,12 @@ def test_globals_placement_new_with_template_args(
     # Globals uses Pvariable with Type.new(template_args, initial_value)
     # which exercises the template_args preservation in placement new.
     assert "static globals::GlobalsComponent<int> *const my_global_int" in main_cpp
-    assert "PlacementStorage<globals::GlobalsComponent<int>>" in main_cpp
+    assert "sizeof(globals::GlobalsComponent<int>)" in main_cpp
     assert "new(my_global_int) globals::GlobalsComponent<int>" in main_cpp
 
     # Verify initial value is passed as constructor arg
     assert "42" in main_cpp
 
     # Check other globals are also generated
-    assert "PlacementStorage<globals::GlobalsComponent<float>>" in main_cpp
-    assert "PlacementStorage<globals::GlobalsComponent<bool>>" in main_cpp
+    assert "sizeof(globals::GlobalsComponent<float>)" in main_cpp
+    assert "sizeof(globals::GlobalsComponent<bool>)" in main_cpp

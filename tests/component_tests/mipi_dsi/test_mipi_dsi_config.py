@@ -119,11 +119,12 @@ def test_code_generation(
 
     main_cpp = generate_main(component_fixture_path("mipi_dsi.yaml"))
     assert (
-        "static esphome::PlacementStorage<mipi_dsi::MIPI_DSI> p4_nano_storage_;"
+        "alignas(mipi_dsi::MIPI_DSI) static unsigned char p4_nano_storage_[sizeof(mipi_dsi::MIPI_DSI)];"
         in main_cpp
     )
     assert (
-        "static mipi_dsi::MIPI_DSI *const p4_nano = p4_nano_storage_.get();" in main_cpp
+        "static mipi_dsi::MIPI_DSI *const p4_nano = reinterpret_cast<mipi_dsi::MIPI_DSI *>(p4_nano_storage_);"
+        in main_cpp
     )
     assert (
         "new(p4_nano) mipi_dsi::MIPI_DSI(800, 1280, display::COLOR_BITNESS_565, 16);"
