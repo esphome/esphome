@@ -170,16 +170,11 @@ this->main_thread_ = pthread_self();
 }
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
 void Logger::init_log_buffer_(size_t total_buffer_size) {
-  // Host uses slot count instead of byte size
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
   this->log_buffer_ = new logger::TaskLogBuffer(total_buffer_size);
-
-#if !(defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
-  // Start with loop disabled when using task buffer
-  // The loop will be enabled automatically when messages arrive
-  // Zephyr with USB CDC needs loop active to poll port readiness via cdc_loop_()
-  this->disable_loop_when_buffer_empty_();
-#endif
+  // Note: we don't call disable_loop_when_buffer_empty_() here because this is called
+  // from the constructor before the component is registered with App. The loop will
+  // self-disable on its first iteration when it finds no messages to process.
 }
 #endif
 
