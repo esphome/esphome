@@ -580,49 +580,29 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     if type_ is not None:
         id_.type = type_
 
-    # Check if the right-hand side expression is an instantiation via the 'new' operator.
-    # This typically happens when `.new(...)` is used to create a new object.
-    # We detect this by checking if the base of the CallExpression starts with "new ".
-    rhs_str = str(rhs)
-    is_new = rhs_str.startswith("new ")
+    is_new = isinstance(rhs, MockObj) and rhs._is_new_expr
 
     if is_new:
-        # For 'new' allocations, we avoid dynamic heap allocation to prevent fragmentation.
-        # Instead, we statically allocate raw, aligned storage for the object and use
-        # raw placement new to initialize it in-place during setup().
-        # We must use raw placement new here because C++ cannot deduce types
-        # for brace-enclosed initializer lists passed to variadic templates.
-
-        call_str = rhs_str[4:]  # Strip "new " from "new Type<T>(args)"
-        the_type = (
-            id_.type
-            if id_.type is not None
-            else call_str.split("(", maxsplit=1)[0].strip()
-        )
+        # For 'new' allocations, use placement new into static storage
+        # to avoid heap fragmentation on embedded devices.
         storage_name = f"{id_.id}_storage_"
+        the_type = id_.type
 
-        # Declare the static PlacementStorage
-        decl1 = RawStatement(
-            f"static esphome::PlacementStorage<{the_type}> {storage_name};"
+        CORE.add_global(
+            RawStatement(
+                f"static esphome::PlacementStorage<{the_type}> {storage_name};"
+            )
         )
-        CORE.add_global(decl1)
-
-        # Declare a constant pointer referencing the storage so it can be used identically to a standard pointer
-        decl2 = RawStatement(
-            f"static {the_type} *const {id_.id} = {storage_name}.get();"
+        CORE.add_global(
+            RawStatement(f"static {the_type} *const {id_.id} = {storage_name}.get();")
         )
-        CORE.add_global(decl2)
-
-        # Construct the object via raw placement new in setup()
-        assignment = RawStatement(f"new({id_.id}) {call_str};")
-        CORE.add(assignment)
+        # Strip "new " prefix to get "Type(args)" for placement new
+        rhs_str = str(rhs)
+        CORE.add(RawStatement(f"new({id_.id}) {rhs_str[4:]};"))
     else:
-        # For standard assignments (e.g. passing an existing pointer like '&my_struct' or 'nullptr'),
-        # we generate a standard static pointer and assign it directly.
         decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
         CORE.add_global(decl)
-        assignment = AssignmentExpression(None, None, id_, rhs)
-        CORE.add(assignment)
+        CORE.add(AssignmentExpression(None, None, id_, rhs))
 
     CORE.register_variable(id_, obj)
     return obj
@@ -840,11 +820,12 @@ class MockObj(Expression):
     Mostly consists of magic methods that allow ESPHome's codegen syntax.
     """
 
-    __slots__ = ("base", "op")
+    __slots__ = ("base", "op", "_is_new_expr")
 
-    def __init__(self, base, op="."):
+    def __init__(self, base, op=".", is_new_expr=False):
         self.base = base
         self.op = op
+        self._is_new_expr = is_new_expr
 
     def __getattr__(self, attr: str) -> "MockObj":
         # prevent python dunder methods being replaced by mock objects
@@ -859,7 +840,7 @@ class MockObj(Expression):
 
     def __call__(self, *args: SafeExpType) -> "MockObj":
         call = CallExpression(self.base, *args)
-        return MockObj(call, self.op)
+        return MockObj(call, self.op, is_new_expr=self._is_new_expr)
 
     def __str__(self):
         return str(self.base)
@@ -873,7 +854,7 @@ class MockObj(Expression):
 
     @property
     def new(self) -> "MockObj":
-        return MockObj(f"new {self.base}", "->")
+        return MockObj(f"new {self.base}", "->", is_new_expr=True)
 
     def template(self, *args: SafeExpType) -> "MockObj":
         """Apply template parameters to this object."""
