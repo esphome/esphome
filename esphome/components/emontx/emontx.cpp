@@ -186,8 +186,9 @@ void EmonTx::parse_json_(const std::string &data) {
       const char *tag = sensor_pair.first;
       sensor::Sensor *sensor_ptr = sensor_pair.second;
 
-      if (root[tag].is<JsonVariant>()) {
-        float value = root[tag];
+      auto val = root[tag];
+      if (val.is<JsonVariant>()) {
+        float value = val;
         ESP_LOGV(TAG, "Updating sensor '%s' with value: %.2f", tag, value);
         sensor_ptr->publish_state(value);
       }
