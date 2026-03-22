@@ -1252,7 +1252,7 @@ class ExecuteServiceArgument final : public ProtoDecodableMessage {
   FixedVector<int32_t> int_array{};
   FixedVector<float> float_array{};
   FixedVector<std::string> string_array{};
-  void decode(const uint8_t *buffer, size_t length) override;
+  void decode(const uint8_t *buffer, size_t length);
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
@@ -1277,7 +1277,7 @@ class ExecuteServiceRequest final : public ProtoDecodableMessage {
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
   bool return_response{false};
 #endif
-  void decode(const uint8_t *buffer, size_t length) override;
+  void decode(const uint8_t *buffer, size_t length);
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
