@@ -369,13 +369,14 @@ class MeterType(WidgetType):
             if (rotation := scale_conf.get(CONF_ROTATION)) is not None:
                 rotation = await lv_angle_degrees.process(rotation)
             else:
-                rotation = 90 + (360 - angle_range) / 2
+                rotation = 90 + (360 - angle_range) // 2
 
             # Set angle range
             lv.scale_set_angle_range(
                 scale_var,
                 angle_range,
             )
+            rotation = await lv_int.process(rotation)
             lv.scale_set_rotation(scale_var, rotation)
 
             # Handle indicators as sections
