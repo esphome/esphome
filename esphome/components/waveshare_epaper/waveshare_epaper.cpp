@@ -1340,11 +1340,19 @@ void WaveshareEPaper2P9InB::initialize() {
   // EPD hardware init end
 }
 void HOT WaveshareEPaper2P9InB::display() {
+  // Power on each frame: display() ends with 0x02 (power off); without this the next
+  // update talks to the panel while off and the image never changes (MH-ET / 2.9in-b).
+  this->command(0x04);
+  this->wait_until_idle_();
+
+  // BWR buffer is two planes (see WaveshareEPaperBWR::draw_absolute_pixel_internal).
+  const uint32_t plane_len = this->get_buffer_length_() >> 1;
+
   // COMMAND DATA START TRANSMISSION 1 (B/W data)
   this->command(0x10);
   delay(2);
   this->start_data_();
-  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->write_array(this->buffer_, plane_len);
   this->end_data_();
   delay(2);
 
@@ -1352,8 +1360,7 @@ void HOT WaveshareEPaper2P9InB::display() {
   this->command(0x13);
   delay(2);
   this->start_data_();
-  for (size_t i = 0; i < this->get_buffer_length_(); i++)
-    this->write_byte(0x00);
+  this->write_array(this->buffer_ + plane_len, plane_len);
   this->end_data_();
   delay(2);
 
@@ -1619,11 +1626,17 @@ void WaveshareEPaper2P9InBV3::initialize() {
   this->data(0x77);
 }
 void HOT WaveshareEPaper2P9InBV3::display() {
+  // Power on each frame (see WaveshareEPaper2P9InB::display).
+  this->command(0x04);
+  this->wait_until_idle_();
+
+  const uint32_t plane_len = this->get_buffer_length_() >> 1;
+
   // COMMAND DATA START TRANSMISSION 1 (B/W data)
   this->command(0x10);
   delay(2);
   this->start_data_();
-  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->write_array(this->buffer_, plane_len);
   this->end_data_();
   this->command(0x92);
   delay(2);
@@ -1632,8 +1645,7 @@ void HOT WaveshareEPaper2P9InBV3::display() {
   this->command(0x13);
   delay(2);
   this->start_data_();
-  for (size_t i = 0; i < this->get_buffer_length_(); i++)
-    this->write_byte(0xFF);
+  this->write_array(this->buffer_ + plane_len, plane_len);
   this->end_data_();
   this->command(0x92);
   delay(2);
@@ -1813,6 +1825,11 @@ void WaveshareEPaper2P9InV2R2::display() {
   }
 
   this->at_update_ = (this->at_update_ + 1) % this->full_update_every_;
+}
+
+uint32_t WaveshareEPaper2P9InV2R2::idle_timeout_() {
+  // BUSY can stay asserted > 1 s during refresh; base default caused false timeouts (issues #2334).
+  return 10000;
 }
 
 void WaveshareEPaper2P9InV2R2::write_lut_(const uint8_t *lut, const uint8_t size) {
