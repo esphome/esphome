@@ -41,8 +41,8 @@ void MAX31856Sensor::update() {
   this->one_shot_temperature_();
 
   // Datasheet max conversion time for 1 shot is 155ms for 60Hz / 185ms for 50Hz
-  auto f = std::bind(&MAX31856Sensor::read_thermocouple_temperature_, this);
-  this->set_timeout("MAX31856Sensor::read_thermocouple_temperature_", filter_ == FILTER_60HZ ? 155 : 185, f);
+  this->set_timeout("MAX31856Sensor::read_thermocouple_temperature_", filter_ == FILTER_60HZ ? 155 : 185,
+                    [this]() { this->read_thermocouple_temperature_(); });
 }
 
 void MAX31856Sensor::read_thermocouple_temperature_() {

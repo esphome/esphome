@@ -6,6 +6,7 @@
 #include <string>
 
 #include "esphome/core/defines.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/optional.h"
@@ -240,7 +241,8 @@ class Component {
 
   bool status_has_error() const { return this->component_state_ & STATUS_LED_ERROR; }
 
-  void status_set_warning(const char *message = nullptr);
+  void status_set_warning();  // Set warning flag without message
+  void status_set_warning(const char *message);
   void status_set_warning(const LogString *message);
 
   void status_set_error();  // Set error flag without message
@@ -292,14 +294,15 @@ class Component {
    *
    * Returns LOG_STR("<unknown>") if source not set
    */
-  const LogString *get_component_log_str() const;
+  const LogString *get_component_log_str() const {
+    return this->component_source_ == nullptr ? LOG_STR("<unknown>") : this->component_source_;
+  }
 
   bool should_warn_of_blocking(uint32_t blocking_time);
 
  protected:
   friend class Application;
 
-  void call_loop_();
   virtual void call_setup();
   void call_dump_config_();
 
@@ -547,11 +550,9 @@ class PollingComponent : public Component {
 
   /** Manually set the update interval in ms for this polling object.
    *
-   * Override this if you want to do some validation for the update interval.
-   *
    * @param update_interval The update interval in ms.
    */
-  virtual void set_update_interval(uint32_t update_interval);
+  void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
 
   // ========== OVERRIDE METHODS ==========
   // (You'll only need this when creating your own custom sensor)
@@ -574,9 +575,7 @@ class PollingComponent : public Component {
   uint32_t update_interval_;
 };
 
-#ifdef USE_RUNTIME_STATS
-uint32_t micros();  // Forward declare for inline constructor
-#endif
+// millis() and micros() are available via hal.h
 
 class WarnIfComponentBlockingGuard {
  public:
@@ -591,7 +590,20 @@ class WarnIfComponentBlockingGuard {
   }
 
   // Finish the timing operation and return the current time
-  uint32_t finish();
+  // Inlined: the fast path is just millis() + subtract + compare
+  inline uint32_t HOT finish() {
+    uint32_t curr_time = millis();
+    uint32_t blocking_time = curr_time - this->started_;
+#ifdef USE_RUNTIME_STATS
+    this->record_runtime_stats_();
+#endif
+#ifndef USE_BENCHMARK
+    if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
+      warn_blocking(this->component_, blocking_time);
+    }
+#endif
+    return curr_time;
+  }
 
   ~WarnIfComponentBlockingGuard() = default;
 
@@ -600,7 +612,12 @@ class WarnIfComponentBlockingGuard {
   Component *component_;
 #ifdef USE_RUNTIME_STATS
   uint32_t started_us_;
+  void record_runtime_stats_();
 #endif
+
+ private:
+  // Cold path for blocking warning - defined in component.cpp
+  static void __attribute__((noinline, cold)) warn_blocking(Component *component, uint32_t blocking_time);
 };
 
 // Function to clear setup priority overrides after all components are set up
