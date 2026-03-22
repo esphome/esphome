@@ -585,20 +585,25 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     if is_new:
         # For 'new' allocations, use placement new into static storage
         # to avoid heap fragmentation on embedded devices.
-        storage_name = f"{id_.id}_storage_"
         the_type = id_.type
+        storage_type = MockObj(f"esphome::PlacementStorage<{the_type}>")
+        storage_id = ID(f"{id_.id}_storage_", type=storage_type)
 
         CORE.add_global(
-            RawStatement(
-                f"static esphome::PlacementStorage<{the_type}> {storage_name};"
-            )
+            VariableDeclarationExpression(storage_type, "", storage_id, static=True)
         )
         CORE.add_global(
-            RawStatement(f"static {the_type} *const {id_.id} = {storage_name}.get();")
+            AssignmentExpression(
+                f"static {the_type}",
+                "*const ",
+                id_,
+                MockObj(f"{storage_id.id}.get()"),
+            )
         )
-        # Strip "new " prefix to get "Type(args)" for placement new
-        rhs_str = str(rhs)
-        CORE.add(RawStatement(f"new({id_.id}) {rhs_str[4:]};"))
+        # Extract args from the CallExpression and rebuild as placement new
+        call_expr = rhs.base  # CallExpression("new Type", args...)
+        placement_new = CallExpression(f"new({id_.id}) {the_type}", *call_expr.args)
+        CORE.add(ExpressionStatement(placement_new))
     else:
         decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
         CORE.add_global(decl)
