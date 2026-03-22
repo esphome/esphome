@@ -376,7 +376,6 @@ class MeterType(WidgetType):
                 scale_var,
                 angle_range,
             )
-            rotation = await lv_int.process(rotation)
             lv.scale_set_rotation(scale_var, rotation)
 
             # Handle indicators as sections
