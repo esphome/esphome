@@ -280,7 +280,7 @@ SWIPE_TRIGGERS = tuple(
 
 
 LV_ANIM = LvConstant(
-    "LV_SCR_LOAD_ANIM_",
+    "LV_SCREEN_LOAD_ANIM_",
     "NONE",
     "OVER_LEFT",
     "OVER_RIGHT",
