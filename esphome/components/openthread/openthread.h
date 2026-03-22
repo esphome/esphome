@@ -15,10 +15,6 @@
 #include <optional>
 #include <vector>
 
-#if defined(USE_ESP32) && CONFIG_PM_ENABLE
-#include "esp_pm.h"
-#endif
-
 namespace esphome::openthread {
 
 class InstanceLock;
@@ -67,10 +63,6 @@ class OpenThreadComponent : public Component {
   bool teardown_started_{false};
   bool teardown_complete_{false};
   bool connected_{false};
-#if defined(USE_ESP32) && CONFIG_PM_ENABLE
-  esp_pm_lock_handle_t s_cli_pm_lock_{nullptr};
-  static void on_state_changed_pm_(otChangedFlags flags, void *context);
-#endif
 
  private:
   // Stores a pointer to a string literal (static storage duration).
