@@ -20,7 +20,7 @@ def validate_uid(value):
             x = int(x, 16)
         except ValueError as err:
             raise cv.Invalid(
-                "Valid characters for parts of a UID are 0123456789ABCDEF."
+                "Valid characters for parts of a UID are 0-9, A-F (case-insensitive)."
             ) from err
         if x < 0 or x > 255:
             raise cv.Invalid(

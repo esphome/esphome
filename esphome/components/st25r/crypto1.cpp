@@ -19,11 +19,11 @@ namespace st25r {
 // The 48-bit Crypto1 LFSR uses two interleaved 24-bit words (odd/even).
 // These masks select the tap positions in each half-word; the new LFSR bit is
 // evenparity(LF_POLY_ODD & odd) XOR evenparity(LF_POLY_EVEN & even) XOR input.
-#define LF_POLY_ODD  (0x29CE5C)
-#define LF_POLY_EVEN (0x870804)
+static constexpr uint32_t LF_POLY_ODD = 0x29CE5C;  //
+static constexpr uint32_t LF_POLY_EVEN = 0x870804; //
 
-#define BIT(x, n)   (((x) >> (n)) & 1)
-#define BEBIT(x, n) BIT((x), (n) ^ 24)
+#define crypto1_getbit(x, n)   (((x) >> (n)) & 1)
+#define crypto1_bebit(x, n) crypto1_getbit((x), (n) ^ 24)
 
 static inline uint8_t evenparity32(uint32_t x) {
 #if defined(__GNUC__)
@@ -49,7 +49,7 @@ int crypto1_filter(uint32_t const x) {
   f |= 0x3c8b0 >> (x >>  8  & 0xf) &  4;
   f |= 0x1e458 >> (x >> 12  & 0xf) &  2;
   f |= 0x0d938 >> (x >> 16  & 0xf) &  1;
-  return BIT(0xEC57E80A, f);
+  return crypto1_getbit(0xEC57E80A, f);
 }
 
 // ── Initialise ─────────────────────────────────────────────────────────────
@@ -59,8 +59,8 @@ void crypto1_init(struct Crypto1State *s, uint64_t key) {
   s->odd = 0;
   s->even = 0;
   for (int i = 47; i > 0; i -= 2) {
-    s->odd  = s->odd  << 1 | BIT(key, (i - 1) ^ 7);
-    s->even = s->even << 1 | BIT(key,  i       ^ 7);
+    s->odd  = s->odd  << 1 | crypto1_getbit(key, (i - 1) ^ 7);
+    s->even = s->even << 1 | crypto1_getbit(key,  i       ^ 7);
   }
 }
 
@@ -86,7 +86,7 @@ uint8_t crypto1_bit(struct Crypto1State *s, uint8_t in, int is_encrypted) {
 uint8_t crypto1_byte(struct Crypto1State *s, uint8_t in, int is_encrypted) {
   uint8_t ret = 0;
   for (int i = 0; i < 8; i++)
-    ret |= (uint8_t)(crypto1_bit(s, BIT(in, i), is_encrypted) << i);
+    ret |= (uint8_t)(crypto1_bit(s, crypto1_getbit(in, i), is_encrypted) << i);
   return ret;
 }
 
@@ -94,7 +94,7 @@ uint8_t crypto1_byte(struct Crypto1State *s, uint8_t in, int is_encrypted) {
 uint32_t crypto1_word(struct Crypto1State *s, uint32_t in, int is_encrypted) {
   uint32_t ret = 0;
   for (int i = 0; i < 32; i++)
-    ret |= (uint32_t)(crypto1_bit(s, BEBIT(in, i), is_encrypted) << (24 ^ i));
+    ret |= (uint32_t)(crypto1_bit(s, crypto1_bebit(in, i), is_encrypted) << (24 ^ i));
   return ret;
 }
 

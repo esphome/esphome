@@ -55,7 +55,7 @@ class ST25R300 : public st25r::ST25R {
   void configure_nfcb_mode_();
   void configure_nfcv_mode_();
   void configure_nfca_mode_();
-  bool transceive_nfcv_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
+  bool transceive_blocking_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
                         uint32_t timeout_ms = 25);
 
   static void isr(ST25R300 *arg);

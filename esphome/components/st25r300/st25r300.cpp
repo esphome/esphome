@@ -134,10 +134,12 @@ void ST25R300::loop() {
     uint8_t r2 = this->read_register(ST25R300_REG_IRQ_STATUS2);
     this->irq_status1_ |= r1;
     this->irq_status2_ |= r2;
+    this->read_register(ST25R300_REG_IRQ_STATUS3);  // Clear IRQ3 (DCT/OSC) to release IRQ pin
     ESP_LOGV(TAG, "IRQ triggered, IRQ1=0x%02X IRQ2=0x%02X state=%d", r1, r2, this->state_);
   } else if (this->state_ == STATE_WUPA || this->state_ == STATE_ANTICOL) {
     this->irq_status1_ |= this->read_register(ST25R300_REG_IRQ_STATUS1);
     this->irq_status2_ |= this->read_register(ST25R300_REG_IRQ_STATUS2);
+    this->read_register(ST25R300_REG_IRQ_STATUS3);  // Clear IRQ3
     if (this->irq_status1_ != 0 || this->irq_status2_ != 0) {
       ESP_LOGV(TAG, "IRQ polled, IRQ1=0x%02X IRQ2=0x%02X state=%d",
                this->irq_status1_, this->irq_status2_, this->state_);
@@ -620,7 +622,7 @@ void ST25R300::configure_nfca_mode_() {
   this->write_register(ST25R300_REG_NRT_CONF3, 0x23);
 }
 
-bool ST25R300::transceive_nfcv_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
+bool ST25R300::transceive_blocking_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
                                  uint32_t timeout_ms) {
   this->write_command(ST25R300_CMD_CLEAR_FIFO);
   this->write_command(ST25R300_CMD_CLEAR_RX_GAIN);
@@ -675,7 +677,7 @@ void ST25R300::nfcv_scan_() {
   uint8_t resp_len = 0;
 
   // Single-tag inventory (multi-tag requires STAY_QUIET + field cycling)
-  if (this->transceive_nfcv_(inv_req, sizeof(inv_req), resp, resp_len, 25) &&
+  if (this->transceive_blocking_(inv_req, sizeof(inv_req), resp, resp_len, 25) &&
       resp_len >= 10 && !(resp[0] & 0x01)) {
 
     // UID is bytes 2-9, transmitted LSB-first — reverse for display
@@ -702,7 +704,7 @@ void ST25R300::nfcv_scan_() {
     uint8_t blk_len = 0;
     std::vector<uint8_t> ndef_data;
 
-    if (this->transceive_nfcv_(blk_req, sizeof(blk_req), blk_resp, blk_len, 20) &&
+    if (this->transceive_blocking_(blk_req, sizeof(blk_req), blk_resp, blk_len, 20) &&
         blk_len >= 5 && !(blk_resp[0] & 0x01)) {
       if (blk_resp[1] == 0xE1) {  // NDEF magic uint8_t in CC
         uint8_t cc_size = blk_resp[3];
@@ -712,7 +714,7 @@ void ST25R300::nfcv_scan_() {
         for (uint8_t blk = 1; blk <= total_blocks; blk++) {
           blk_req[2] = blk;
           blk_len = 0;
-          if (this->transceive_nfcv_(blk_req, sizeof(blk_req), blk_resp, blk_len, 20) &&
+          if (this->transceive_blocking_(blk_req, sizeof(blk_req), blk_resp, blk_len, 20) &&
               blk_len >= 5 && !(blk_resp[0] & 0x01)) {
             for (int k = 1; k < 5 && k < blk_len; k++)
               ndef_data.push_back(blk_resp[k]);
@@ -790,7 +792,7 @@ bool ST25R300::nfcv_ndef_write(nfc::NdefMessage *message) {
   uint8_t resp[4];
   uint8_t resp_len = 0;
 
-  if (!this->transceive_nfcv_(write_req, sizeof(write_req), resp, resp_len, 25)) {
+  if (!this->transceive_blocking_(write_req, sizeof(write_req), resp, resp_len, 25)) {
     ESP_LOGE(TAG, "NFC-V: failed to write CC (block 0)");
     this->configure_nfca_mode_();
     return false;
@@ -807,7 +809,7 @@ bool ST25R300::nfcv_ndef_write(nfc::NdefMessage *message) {
 
     bool success = false;
     for (uint8_t retry = 0; retry < 3; retry++) {
-      if (this->transceive_nfcv_(write_req, sizeof(write_req), resp, resp_len, 25)) {
+      if (this->transceive_blocking_(write_req, sizeof(write_req), resp, resp_len, 25)) {
         success = true;
         break;
       }
@@ -848,7 +850,7 @@ void ST25R300::nfcb_scan_() {
   uint8_t resp[16];
   uint8_t resp_len = 0;
 
-  if (this->transceive_nfcv_(sensb_req, sizeof(sensb_req), resp, resp_len, 20) &&
+  if (this->transceive_blocking_(sensb_req, sizeof(sensb_req), resp, resp_len, 20) &&
       resp_len >= 12 && resp[0] == 0x50) {
     // ATQB: uint8_t 0 = 0x50, bytes 1-4 = PUPI
     char uid_str[9];
