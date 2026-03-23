@@ -995,14 +995,13 @@ def validate_config(
             result.add_error(err)
             return result
 
-    CORE.raw_config = config
-
     # 1. Load substitutions
     if CONF_SUBSTITUTIONS in config or command_line_substitutions:
         result.add_output_path([CONF_SUBSTITUTIONS], CONF_SUBSTITUTIONS)
     try:
         config = do_substitution_pass(config, command_line_substitutions)
     except vol.Invalid as err:
+        CORE.raw_config = config
         result.add_error(err)
         return result
 
