@@ -76,40 +76,6 @@ def _restore_data_base(value: Any, orig_value: ESPHomeDataBase) -> ESPHomeDataBa
     return value
 
 
-def _expand_jinja(
-    value: str,
-    orig_value: str,
-    path: SubstitutionPath,
-    context_vars: ContextVars,
-    strict_undefined: bool,
-    errors: ErrList | None,
-) -> Any:
-    if has_jinja(value):
-        try:
-            # Invoke the jinja engine to evaluate the expression.
-            value = jinja.expand(value, context_vars)
-        except UndefinedError as err:
-            if strict_undefined:
-                raise err
-            if errors is not None:
-                errors.append((err, path, value))
-            return value
-        except JinjaError as err:
-            raise cv.Invalid(
-                f"{err.error_name()} Error evaluating jinja expression '{value}': {str(err.parent())}."
-                f"\nEvaluation stack: (most recent evaluation last)\n{err.stack_trace_str()}"
-                f"\nRelevant context:\n{err.context_trace_str()}"
-                f"\nSee {'->'.join(str(x) for x in path)}",
-                path,
-            )
-        # If the original, unexpanded string, contained document metadata (ESPHomeDatabase),
-        # assign this same document metadata to the resulting value.
-        if isinstance(orig_value, ESPHomeDataBase):
-            value = _restore_data_base(value, orig_value)
-
-    return value
-
-
 def _expand_substitutions(
     value: str,
     path: SubstitutionPath,
@@ -126,10 +92,28 @@ def _expand_substitutions(
     while True:
         m: Match[str] = cv.VARIABLE_PROG.search(value, search_pos)
         if not m:
-            # No more variable substitutions found. See if the remainder looks like a jinja template
-            value = _expand_jinja(
-                value, orig_value, path, context_vars, strict_undefined, errors
-            )
+            # No more $var references — check if the result contains a jinja expression
+            if has_jinja(value):
+                try:
+                    value = jinja.expand(value, context_vars)
+                except UndefinedError as err:
+                    if strict_undefined:
+                        raise err
+                    if errors is not None:
+                        errors.append((err, path, value))
+                    break
+                except JinjaError as err:
+                    raise cv.Invalid(
+                        f"{err.error_name()} Error evaluating jinja expression"
+                        f" '{value}': {str(err.parent())}."
+                        f"\nEvaluation stack: (most recent evaluation last)"
+                        f"\n{err.stack_trace_str()}"
+                        f"\nRelevant context:\n{err.context_trace_str()}"
+                        f"\nSee {'->'.join(str(x) for x in path)}",
+                        path,
+                    )
+                if isinstance(orig_value, ESPHomeDataBase):
+                    value = _restore_data_base(value, orig_value)
             break
 
         match_start, match_end = m.span(0)
