@@ -138,19 +138,17 @@ def _expand_substitutions(
             name = name[1:-1]
         sub: Any = context_vars.get(name, Missing)
         if sub is Missing:
-            # Try see if there is a resolver
             resolver = context_vars.get(Resolver)
             if resolver:
                 sub = resolver(name)
-
-            if sub is Missing:
-                err = UndefinedError(f"'{name}' is undefined")
-                if strict_undefined:
-                    raise err
-                if errors is not None:
-                    errors.append((err, path, value))
-                i = j
-                continue
+        if sub is Missing:
+            err = UndefinedError(f"'{name}' is undefined")
+            if strict_undefined:
+                raise err
+            if errors is not None:
+                errors.append((err, path, value))
+            i = j
+            continue
 
         if i == 0 and j == len(value):
             # The variable spans the whole expression, e.g., "${varName}". Return its resolved value directly
