@@ -191,11 +191,13 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         for i, (_, demangled, size, section, component) in enumerate(top_symbols):
             # Format section label
             section_label = f"[{section[1:]}]" if section else ""
-            # Truncate demangled name if too long
+            # Format storage symbols readably
+            display_name = _format_pstorage_name(demangled)
+            # Truncate if too long
             demangled_display = (
-                f"{demangled[:truncate_limit]}..."
-                if len(demangled) > self.COL_TOP_SYMBOL_NAME
-                else demangled
+                f"{display_name[:truncate_limit]}..."
+                if len(display_name) > self.COL_TOP_SYMBOL_NAME
+                else display_name
             )
             lines.append(
                 f"{i + 1:>2}. {size:>7,} B {section_label:<8} {demangled_display:<{self.COL_TOP_SYMBOL_NAME}} {component}"
