@@ -25,13 +25,17 @@ def patch_segment(lines, segment_name, new_size):
     Returns:
         True if patched, False otherwise
     """
-    pattern = rf'({re.escape(segment_name)}\s*\([^)]*\)\s*:\s*org\s*=\s*(?:\([^)]+\)|0x[0-9a-fA-F]+)\s*,\s*len\s*=\s*)(.+?)(\s*)$'
+    # Match segment definition with any org expression (including nested parens)
+    # and capture everything up to and including "len = " so we can replace the len value
+    pattern = rf'({re.escape(segment_name)}\s*\([^)]*\)\s*:\s*org\s*=\s*.+?,\s*len\s*=\s*)(.+?)(\s*)$'
     for i, line in enumerate(lines):
         if segment_name in line and 'len' in line:
             match = re.search(pattern, line)
             if match:
-                lines[i] = f"{match.group(1)}{new_size:#x}{match.group(3)}"
-                return True
+                new_line = f"{match.group(1)}{new_size:#x}{match.group(3)}"
+                if new_line != line:
+                    lines[i] = new_line
+                    return True
     return False
 
 
