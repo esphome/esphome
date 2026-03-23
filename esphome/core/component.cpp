@@ -274,6 +274,10 @@ void Component::call() {
       break;
   }
 }
+const LogString *Component::get_component_log_str() const {
+  return this->component_source_index_ == 0 ? LOG_STR("<unknown>")
+                                            : component_source_lookup(this->component_source_index_);
+}
 bool Component::should_warn_of_blocking(uint32_t blocking_time) {
   // Convert centisecond threshold to milliseconds for comparison
   uint32_t threshold_ms = static_cast<uint32_t>(this->warn_if_blocking_over_) * 10U;
@@ -544,6 +548,6 @@ void clear_setup_priority_overrides() {
 #endif
 
 // Weak default for component_source_lookup - overridden by generated code
-__attribute__((weak)) const LogString *component_source_lookup(uint16_t) { return LOG_STR("<unknown>"); }
+__attribute__((weak)) const LogString *component_source_lookup(uint8_t) { return LOG_STR("<unknown>"); }
 
 }  // namespace esphome

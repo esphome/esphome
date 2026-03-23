@@ -26,8 +26,8 @@ _LOGGER = logging.getLogger(__name__)
 
 _COMPONENT_SOURCE_DOMAIN = "component_source_pool"
 
-# Maximum unique component source names (9-bit index, 0 = not set)
-_MAX_COMPONENT_SOURCES = 510
+# Maximum unique component source names (8-bit index, 0 = not set)
+_MAX_COMPONENT_SOURCES = 0xFF  # 255
 
 
 @dataclass
@@ -71,9 +71,12 @@ def register_component_source(name: str) -> int:
         return pool.sources[name]
     idx = len(pool.sources) + 1
     if idx > _MAX_COMPONENT_SOURCES:
-        raise ValueError(
-            f"Too many unique component source names (max {_MAX_COMPONENT_SOURCES}), got {idx}: '{name}'"
+        _LOGGER.warning(
+            "Too many unique component source names (max %d), '%s' will show as '<unknown>'",
+            _MAX_COMPONENT_SOURCES,
+            name,
         )
+        return 0
     pool.sources[name] = idx
     _ensure_source_table_registered()
     return idx
@@ -107,7 +110,7 @@ def _generate_source_table_code(
 
     entries = ", ".join(var_names)
     lines.append(f"static const char *const {table_var}[] PROGMEM = {{{entries}}};")
-    lines.append(f"const LogString *{lookup_fn}(uint16_t index) {{")
+    lines.append(f"const LogString *{lookup_fn}(uint8_t index) {{")
     lines.append(f'  if (index == 0 || index > {count}) return LOG_STR("<unknown>");')
     lines.append("  return reinterpret_cast<const LogString *>(")
     lines.append(f"    progmem_read_ptr(&{table_var}[index - 1]));")

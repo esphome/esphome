@@ -23,7 +23,7 @@ async def test_register_component(monkeypatch):
     app_mock = Mock(register_component_=Mock(return_value=var))
     monkeypatch.setattr(ch, "App", app_mock)
 
-    core_mock = Mock(component_ids=["foo.bar"])
+    core_mock = Mock(component_ids=["foo.bar"], data={})
     monkeypatch.setattr(ch, "CORE", core_mock)
 
     add_mock = Mock()
@@ -59,7 +59,7 @@ async def test_register_component__with_setup_priority(monkeypatch):
     app_mock = Mock(register_component_=Mock(return_value=var))
     monkeypatch.setattr(ch, "App", app_mock)
 
-    core_mock = Mock(component_ids=["foo.bar"])
+    core_mock = Mock(component_ids=["foo.bar"], data={})
     monkeypatch.setattr(ch, "CORE", core_mock)
 
     add_mock = Mock()
