@@ -24,9 +24,7 @@ VALID_SPI_MODES = {3: "MODE3", "3": "MODE3", "MODE3": "MODE3"}
 def check_spi_mode(config):
     spi_mode = config.get(CONF_SPI_MODE)
     if spi_mode not in VALID_SPI_MODES:
-        _LOGGER.warning(
-            "SPA06 only supports SPI mode3. Sensor may not work correctly or at all."
-        )
+        raise cv.Invalid("SPA06 only supports SPI mode 3")
     return config
 
 
