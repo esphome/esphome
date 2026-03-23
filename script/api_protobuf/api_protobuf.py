@@ -3059,9 +3059,7 @@ namespace esphome::api {
     cpp = FILE_HEADER
     cpp += """\
 #include "api_pb2_service.h"
-#ifdef USE_API
 #include "api_connection.h"
-#endif
 #include "esphome/core/log.h"
 
 namespace esphome::api {
@@ -3167,8 +3165,7 @@ static const char *const TAG = "api.service";
     # can devirtualize and inline the on_* handler calls within the same class.
     # APIConnection declares this method in api_connection.h.
 
-    out = "#ifdef USE_API\n"
-    out += "void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {\n"
+    out = "void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {\n"
 
     # Auth check block before dispatch switch
     out += "  // Check authentication/connection requirements\n"
@@ -3213,7 +3210,6 @@ static const char *const TAG = "api.service";
     out += "      break;\n"
     out += "  }\n"
     out += "}\n"
-    out += "#endif  // USE_API\n"
     cpp += out
     hpp += "};\n"
 
