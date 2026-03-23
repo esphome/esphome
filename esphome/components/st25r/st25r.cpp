@@ -225,10 +225,10 @@ bool ST25R::transceive_ex(const uint8_t *data, size_t len, uint8_t *resp, uint8_
   this->irq_triggered_ = false;
   if (with_crc) {
     this->write_command(ST25R_CMD_TRANSMIT_WITH_CRC);
-    ESP_LOGV(TAG, "  transceive_: Transmitting %d bytes with CRC: %02X %02X", len, data[0], data[1]);
+    ESP_LOGV(TAG, "  transceive_: Transmitting %zu bytes with CRC", len);
   } else {
     this->write_command(ST25R_CMD_TRANSMIT_WITHOUT_CRC);
-    ESP_LOGV(TAG, "  transceive_: Transmitting %d bytes without CRC: %02X %02X", len, data[0], data[1]);
+    ESP_LOGV(TAG, "  transceive_: Transmitting %zu bytes without CRC", len);
   }
 
   uint32_t start = millis();
@@ -1831,13 +1831,15 @@ void ST25R::nfcv_scan_() {
 }
 
 bool ST25R::ndef_write(nfc::NdefMessage *message, bool format) {
-  // Check if the most recent tag is NFC-V (8-octet UID = 16 hex chars)
-  // If so, use the NFC-V WRITE_SINGLE_BLOCK path
-  if (!this->present_tags_.empty()) {
-    const std::string &last_uid = this->present_tags_.rbegin()->first;
-    if (last_uid.length() == 16) {
+  // Route to NFC-V write path if a single NFC-V tag is present (16 hex chars = 8-octet UID)
+  if (this->present_tags_.size() == 1) {
+    const std::string &uid = this->present_tags_.begin()->first;
+    if (uid.length() == 16) {
       return this->nfcv_ndef_write(message);
     }
+  } else if (this->present_tags_.size() > 1) {
+    ESP_LOGW(TAG, "Multiple tags present; cannot determine which tag to write NDEF to");
+    return false;
   }
 
   // NFC-A Type 2 NDEF write (NTAG / Ultralight)

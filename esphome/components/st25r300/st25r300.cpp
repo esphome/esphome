@@ -634,27 +634,26 @@ bool ST25R300::transceive_nfcv_(const uint8_t *data, size_t len, uint8_t *resp, 
   this->irq_triggered_ = false;
   this->write_command(ST25R300_CMD_TRANSMIT_DATA);
 
-  // Wait for response
+  // Wait for response — use ISR flag if available, fallback to polling
   uint32_t start = millis();
   while (millis() - start < timeout_ms) {
     if (this->irq_triggered_) {
       this->irq_triggered_ = false;
-      uint8_t r1 = this->read_register(ST25R300_REG_IRQ_STATUS1);
-      uint8_t r2 = this->read_register(ST25R300_REG_IRQ_STATUS2);
-      ESP_LOGV(TAG, "NFC-V IRQ: r1=0x%02X r2=0x%02X", r1, r2);
-      if (r1 & ST25R300_IRQ1_RXE) {
-        // Read FIFO
-        uint8_t fifo_len = this->read_register(ST25R300_REG_FIFO_STATUS1);
-        if (fifo_len > 0 && fifo_len <= 64) {
-          resp_len = fifo_len;
-          this->read_fifo(resp, fifo_len);
-          return true;
-        }
-        return false;
+    }
+    // Always poll IRQ registers (ISR may not fire if pin not configured or edge missed)
+    uint8_t r1 = this->read_register(ST25R300_REG_IRQ_STATUS1);
+    uint8_t r2 = this->read_register(ST25R300_REG_IRQ_STATUS2);
+    if (r1 & ST25R300_IRQ1_RXE) {
+      uint8_t fifo_len = this->read_register(ST25R300_REG_FIFO_STATUS1);
+      if (fifo_len > 0 && fifo_len <= 64) {
+        resp_len = fifo_len;
+        this->read_fifo(resp, fifo_len);
+        return true;
       }
-      if (r2 & ST25R300_IRQ2_NRE) {
-        return false;  // No response
-      }
+      return false;
+    }
+    if (r2 & ST25R300_IRQ2_NRE) {
+      return false;
     }
     delay(1);
   }
