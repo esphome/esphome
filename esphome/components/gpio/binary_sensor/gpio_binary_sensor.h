@@ -8,10 +8,10 @@
 namespace esphome {
 namespace gpio {
 
-// Store class for ISR data (no vtables, ISR-safe)
+// Store class for ISR data and configuration (no vtables, ISR-safe)
 class GPIOBinarySensorStore {
  public:
-  void setup(InternalGPIOPin *pin, gpio::InterruptType type, Component *component);
+  void setup(InternalGPIOPin *pin, Component *component);
 
   static void gpio_intr(GPIOBinarySensorStore *arg);
 

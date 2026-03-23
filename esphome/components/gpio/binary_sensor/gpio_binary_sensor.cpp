@@ -33,7 +33,7 @@ void IRAM_ATTR GPIOBinarySensorStore::gpio_intr(GPIOBinarySensorStore *arg) {
   }
 }
 
-void GPIOBinarySensorStore::setup(InternalGPIOPin *pin, gpio::InterruptType type, Component *component) {
+void GPIOBinarySensorStore::setup(InternalGPIOPin *pin, Component *component) {
   pin->setup();
   this->isr_pin_ = pin->to_isr();
   this->component_ = component;
@@ -42,7 +42,7 @@ void GPIOBinarySensorStore::setup(InternalGPIOPin *pin, gpio::InterruptType type
   this->state_ = pin->digital_read();
 
   // Attach interrupt - from this point on, any changes will be caught by the interrupt
-  pin->attach_interrupt(&GPIOBinarySensorStore::gpio_intr, this, type);
+  pin->attach_interrupt(&GPIOBinarySensorStore::gpio_intr, this, this->interrupt_type_);
 }
 
 void GPIOBinarySensor::setup() {
@@ -53,7 +53,7 @@ void GPIOBinarySensor::setup() {
 
   if (this->store_.use_interrupt_) {
     auto *internal_pin = static_cast<InternalGPIOPin *>(this->pin_);
-    this->store_.setup(internal_pin, this->store_.interrupt_type_, this);
+    this->store_.setup(internal_pin, this);
     this->publish_initial_state(this->store_.get_state());
   } else {
     this->pin_->setup();
