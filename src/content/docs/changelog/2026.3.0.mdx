@@ -493,6 +493,40 @@ Several core virtual interfaces have been replaced with compile-time dispatch fo
 For detailed migration guides and API documentation, see the [ESPHome Developers Documentation](https://developers.esphome.io/).
 {/* BREAKING_CHANGES_DEVELOPERS_END */}
 
+## Release 2026.3.1 - March 23
+
+<details>
+<summary></summary>
+
+- Bump aioesphomeapi from 44.5.2 to 44.6.0 [esphome#14927](https://github.com/esphome/esphome/pull/14927) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- [http_request] Prevent double update task launch [esphome#14910](https://github.com/esphome/esphome/pull/14910) by [@bdraco](https://github.com/bdraco)
+- [ble_client] Fix RSSI sensor reporting same value for all clients [esphome#14939](https://github.com/esphome/esphome/pull/14939) by [@swoboda1337](https://github.com/swoboda1337)
+- [openthread] Guard InstanceLock against uninitialized semaphore [esphome#14940](https://github.com/esphome/esphome/pull/14940) by [@swoboda1337](https://github.com/swoboda1337)
+- Bump aioesphomeapi from 44.6.0 to 44.6.1 [esphome#14954](https://github.com/esphome/esphome/pull/14954) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- [time] Fix lookup of top-level IANA timezone keys like UTC and GMT [esphome#14952](https://github.com/esphome/esphome/pull/14952) by [@bdraco](https://github.com/bdraco)
+- [logger] Fix ESP8266 crash with VERY_VERBOSE log level [esphome#14980](https://github.com/esphome/esphome/pull/14980) by [@bdraco](https://github.com/bdraco)
+- [sdl] Fix get_width()/height() when rotation used [esphome#14950](https://github.com/esphome/esphome/pull/14950) by [@clydebarrow](https://github.com/clydebarrow)
+- [uart] Fix UART0 default pin IOMUX loopback on ESP32 [esphome#14978](https://github.com/esphome/esphome/pull/14978) by [@bdraco](https://github.com/bdraco)
+- [ld2450] Fix zone target counts including untracked ghost targets [esphome#15026](https://github.com/esphome/esphome/pull/15026) by [@kroehre](https://github.com/kroehre)
+- Bump aioesphomeapi from 44.6.1 to 44.6.2 [esphome#15027](https://github.com/esphome/esphome/pull/15027) by [@dependabot[bot]](https://github.com/apps/dependabot)
+- [api] Increase noise handshake timeout to 60s for slow WiFi environments [esphome#15022](https://github.com/esphome/esphome/pull/15022) by [@bdraco](https://github.com/bdraco)
+- [wifi] Fix ESP8266 power_save_mode mapping (LIGHT/HIGH were swapped) [esphome#15029](https://github.com/esphome/esphome/pull/15029) by [@bdraco](https://github.com/bdraco) (breaking-change)
+- [esp32_touch] Fix initial state never published when sensor untouched [esphome#15032](https://github.com/esphome/esphome/pull/15032) by [@swoboda1337](https://github.com/swoboda1337)
+- [web_server] Increase httpd task stack size to prevent stack overflow [esphome#14997](https://github.com/esphome/esphome/pull/14997) by [@bdraco](https://github.com/bdraco)
+- [core] Add copy() method to StringRef for std::string compatibility [esphome#15028](https://github.com/esphome/esphome/pull/15028) by [@bdraco](https://github.com/bdraco)
+- [time] Fix timezone_offset() and recalc_timestamp_local() always returning UTC [esphome#14996](https://github.com/esphome/esphome/pull/14996) by [@bdraco](https://github.com/bdraco)
+- [analog_threshhold] add missing header [esphome#15058](https://github.com/esphome/esphome/pull/15058) by [@ssieb](https://github.com/ssieb)
+- [mqtt] Rate-limit component resends to prevent task WDT on reconnect [esphome#15061](https://github.com/esphome/esphome/pull/15061) by [@bdraco](https://github.com/bdraco)
+- [light] Fix constant_brightness broken by gamma LUT refactor [esphome#15048](https://github.com/esphome/esphome/pull/15048) by [@bdraco](https://github.com/bdraco)
+- [sht4x] Fix heater causing measurement jitter [esphome#15030](https://github.com/esphome/esphome/pull/15030) by [@bdraco](https://github.com/bdraco)
+- [uart] Fix RTL87xx compilation failure due to SUCCESS macro collision [esphome#15054](https://github.com/esphome/esphome/pull/15054) by [@bdraco](https://github.com/bdraco)
+- [light] Fix gamma LUT quantizing small brightness to zero [esphome#15060](https://github.com/esphome/esphome/pull/15060) by [@bdraco](https://github.com/bdraco)
+- [ultrasonic] Fix ISR edge detection with debounce and trigger filtering [esphome#15014](https://github.com/esphome/esphome/pull/15014) by [@swoboda1337](https://github.com/swoboda1337)
+- [logger] Fix race condition in task log buffer initialization [esphome#15071](https://github.com/esphome/esphome/pull/15071) by [@bdraco](https://github.com/bdraco)
+- [pmsx003] Keep active-mode reads aligned [esphome#14832](https://github.com/esphome/esphome/pull/14832) by [@jkoelker](https://github.com/jkoelker)
+
+</details>
+
 {/* markdownlint-disable MD013 */}
 
 ## Full list of changes
