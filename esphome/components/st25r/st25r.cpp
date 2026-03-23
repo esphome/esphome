@@ -994,10 +994,18 @@ bool ST25R::reset_chip() {
   this->write_command(ST25R_CMD_MEASURE_VDD);  // 0xDF
   delay(5);
   uint8_t vdd_raw = this->read_register(AD_CONV_RESULT);
-  uint16_t vdd_mv = (uint16_t)vdd_raw * 23U + (((uint16_t)vdd_raw * 4U + 5U) / 10U);
-  bool sup3v = (vdd_mv < 3600);
-  ESP_LOGI(TAG, "  reset_: VDD measured: %u mV (raw=0x%02X) → sup3V=%s",
-           vdd_mv, vdd_raw, sup3v ? "3.3V" : "5V");
+  bool sup3v;
+  if (vdd_raw == 0) {
+    // Measurement failed (raw=0 indicates no valid reading) — fall back to config
+    sup3v = this->supply_3v3_;
+    ESP_LOGW(TAG, "  reset_: VDD measurement failed (raw=0x00), using supply_3v3=%s",
+             sup3v ? "3.3V" : "5V");
+  } else {
+    uint16_t vdd_mv = (uint16_t)vdd_raw * 23U + (((uint16_t)vdd_raw * 4U + 5U) / 10U);
+    sup3v = (vdd_mv < 3600);
+    ESP_LOGI(TAG, "  reset_: VDD measured: %u mV (raw=0x%02X) → sup3V=%s",
+             vdd_mv, vdd_raw, sup3v ? "3.3V" : "5V");
+  }
 
   ESP_LOGV(TAG, "  reset_: Configuring registers");
   this->write_register(IO_CONF1, 0x07);  // Disable MCU_CLK + LF clock (RFAL default)
@@ -1458,7 +1466,8 @@ std::unique_ptr<nfc::NfcTag> ST25R::read_tag_type4_(std::vector<uint8_t> &uid) {
 
   ESP_LOGI(TAG, "T4T NDEF: %u bytes read", ndef_len);
   nfc::NfcTagUid nfc_uid(uid.begin(), uid.end());
-  return make_unique<nfc::NfcTag>(nfc_uid);
+  std::vector<uint8_t> ndef_data(resp, resp + ndef_len);
+  return make_unique<nfc::NfcTag>(nfc_uid, "NFC Forum Type 4", ndef_data);
 }
 
 // ── NFC-B (ISO 14443B) for ST25R3916 ─────────────────────────────────────────
@@ -1805,7 +1814,9 @@ void ST25R::nfcv_scan_() {
               size_t ndef_start = i + 2;
               if (ndef_start + ndef_len <= ndef_data.size()) {
                 ESP_LOGI(TAG, "NFC-V NDEF: %u bytes", ndef_len);
-                auto tag = make_unique<nfc::NfcTag>(nfc_uid);
+                std::vector<uint8_t> ndef_payload(ndef_data.begin() + ndef_start,
+                                                  ndef_data.begin() + ndef_start + ndef_len);
+                auto tag = make_unique<nfc::NfcTag>(nfc_uid, "NFC Forum Type 5", ndef_payload);
                 this->tags_data_[uid_string] = std::move(tag);
               }
               break;

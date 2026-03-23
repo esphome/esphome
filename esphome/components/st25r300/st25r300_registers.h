@@ -125,6 +125,7 @@ enum ST25R300Command : uint8_t {
   ST25R300_CMD_START_MRT        = 0xE7, // start mask-receive timer (also starts NRT if nrt≠0)
   ST25R300_CMD_START_NRT        = 0xE9, // start no-response timer
   ST25R300_CMD_STOP_NRT         = 0xEB, // stop no-response timer
+  ST25R300_CMD_SENSE_RF         = 0x7D, // measure RF field strength → SENSE_RF register
 };
 
 // ── FIFO SPI access bytes ────────────────────────────────────────────────────

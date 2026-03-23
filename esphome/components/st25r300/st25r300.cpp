@@ -90,6 +90,8 @@ void ST25R300::update() {
     this->write_register(ST25R300_REG_OPERATION, ST25R300_OP_ALL_ON);
 
   if (this->rf_field_enabled_ && this->field_strength_sensor_ != nullptr) {
+    this->write_command(ST25R300_CMD_SENSE_RF);
+    delay(1);  // allow ADC conversion to complete
     uint8_t sense = this->read_register(ST25R300_REG_SENSE_RF);
     this->field_strength_sensor_->publish_state(sense);
   }
@@ -157,7 +159,8 @@ void ST25R300::loop() {
 }
 
 // ── send_short_frame_ ─────────────────────────────────────────────────────────
-bool ST25R300::send_short_frame_(uint8_t byte7, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms) {
+bool ST25R300::send_short_frame_(uint8_t byte7, uint8_t * /*resp*/, uint8_t &resp_len,
+                                 uint32_t /*timeout_ms*/) {
   this->write_register(ST25R300_REG_TX_PROTOCOL1, 0x00);  // no CRC, no parity
   // b_rx_sof+b_rx_eof MUST be set for Manchester framing; no CRC for ATQA
   this->write_register(ST25R300_REG_RX_PROTOCOL1,
@@ -732,7 +735,9 @@ void ST25R300::nfcv_scan_() {
             size_t ndef_start = i + 2;
             if (ndef_start + ndef_len <= ndef_data.size()) {
               ESP_LOGI(TAG, "NFC-V NDEF: %u bytes", ndef_len);
-              auto tag = make_unique<nfc::NfcTag>(nfc_uid);
+              std::vector<uint8_t> ndef_payload(ndef_data.begin() + ndef_start,
+                                                ndef_data.begin() + ndef_start + ndef_len);
+              auto tag = make_unique<nfc::NfcTag>(nfc_uid, "NFC Forum Type 5", ndef_payload);
               this->tags_data_[uid_string] = std::move(tag);
             }
             break;
