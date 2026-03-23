@@ -384,7 +384,7 @@ def merge_component_configs(
     # Write merged config
     output_file.parent.mkdir(parents=True, exist_ok=True)
     yaml_content = yaml_util.dump(merged_config_data)
-    output_file.write_text(yaml_content)
+    output_file.write_text(yaml_content, encoding="utf-8")
 
     print(f"Successfully merged {len(component_names)} components into {output_file}")
 

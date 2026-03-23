@@ -3,6 +3,7 @@
 CODEOWNERS = ["@esphome/core"]
 
 CONF_BYTE_ORDER = "byte_order"
+CONF_CLIMATE_ID = "climate_id"
 BYTE_ORDER_LITTLE = "little_endian"
 BYTE_ORDER_BIG = "big_endian"
 
@@ -20,6 +21,10 @@ CONF_REQUEST_HEADERS = "request_headers"
 CONF_ROWS = "rows"
 CONF_STOP_BITS = "stop_bits"
 CONF_USE_PSRAM = "use_psram"
+CONF_VOLUME_INCREMENT = "volume_increment"
+CONF_VOLUME_INITIAL = "volume_initial"
+CONF_VOLUME_MAX = "volume_max"
+CONF_VOLUME_MIN = "volume_min"
 
 ICON_CURRENT_DC = "mdi:current-dc"
 ICON_SOLAR_PANEL = "mdi:solar-panel"

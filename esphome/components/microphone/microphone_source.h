@@ -7,7 +7,6 @@
 #include <bitset>
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <vector>
 
 namespace esphome {
@@ -47,7 +46,21 @@ class MicrophoneSource {
   /// @param channel 0-indexed channel number to enable
   void add_channel(uint8_t channel) { this->channels_.set(channel); }
 
-  void add_data_callback(std::function<void(const std::vector<uint8_t> &)> &&data_callback);
+  template<typename F> void add_data_callback(F &&data_callback) {
+    this->mic_->add_data_callback([this, data_callback](const std::vector<uint8_t> &data) {
+      if (this->enabled_ || this->passive_) {
+        if (this->processed_samples_.use_count() == 0) {
+          // Create vector if its unused
+          this->processed_samples_ = std::make_shared<std::vector<uint8_t>>();
+        }
+
+        // Take temporary ownership of samples vector to avoid deallocation before the callback finishes
+        std::shared_ptr<std::vector<uint8_t>> output_samples = this->processed_samples_;
+        this->process_audio_(data, *output_samples);
+        data_callback(*output_samples);
+      }
+    });
+  }
 
   void set_gain_factor(int32_t gain_factor) { this->gain_factor_ = clamp<int32_t>(gain_factor, 1, MAX_GAIN_FACTOR); }
   int32_t get_gain_factor() { return this->gain_factor_; }

@@ -13,7 +13,7 @@ from .defines import (
 )
 from .helpers import add_lv_use
 from .lvcode import LambdaContext, LocalVariable, lv
-from .schemas import ALL_STYLES, FULL_STYLE_SCHEMA, STYLE_REMAP
+from .schemas import ALL_STYLES, FULL_STYLE_SCHEMA, remap_property
 from .types import ObjUpdateAction, lv_obj_t, lv_style_t
 from .widgets import (
     Widget,
@@ -26,6 +26,10 @@ from .widgets import (
 from .widgets.obj import obj_spec
 
 
+def has_style_props(config) -> bool:
+    return any(prop in config for prop in ALL_STYLES)
+
+
 async def style_set(svar, style):
     for prop, validator in ALL_STYLES.items():
         if (value := style.get(prop)) is not None:
@@ -33,22 +37,44 @@ async def style_set(svar, style):
                 value = await validator.process(value)
             if isinstance(value, list):
                 value = "|".join(value)
-            remapped_prop = STYLE_REMAP.get(prop, prop)
-            lv.call(f"style_set_{remapped_prop}", svar, literal(value))
+            lv.call(f"style_set_{remap_property(prop)}", svar, literal(value))
 
 
-async def create_style(style, id_name):
+async def create_style(id_name, style=None):
     style_id = ID(id_name, True, lv_style_t)
     svar = cg.new_Pvariable(style_id)
     lv.style_init(svar)
-    await style_set(svar, style)
+    if style:
+        await style_set(svar, style)
     return svar
+
+
+class LVStyle:
+    """
+    A class to lazily create a named style
+    """
+
+    named_styles = {}
+
+    def __init__(self, id_name, style=None):
+        self.id_name = id_name
+        self.style = style
+        self._style_var = None
+
+    async def get_var(self):
+        if self._style_var is None:
+            self._style_var = await create_style(self.id_name + "_style", self.style)
+        return self._style_var
+
+    @classmethod
+    def get_style(cls, id_name):
+        return cls.named_styles.setdefault(id_name, LVStyle(id_name))
 
 
 async def styles_to_code(config):
     """Convert styles to C__ code."""
     for style in config.get(CONF_STYLE_DEFINITIONS, ()):
-        await create_style(style, style[CONF_ID].id)
+        await create_style(style[CONF_ID].id, style)
 
 
 @automation.register_action(
@@ -81,8 +107,7 @@ async def theme_to_code(config):
             for part, states in collect_parts(style).items():
                 styles[part] = {
                     state: await create_style(
-                        props,
-                        "_lv_theme_style_" + w_name + "_" + part + "_" + state,
+                        "_lv_theme_style_" + w_name + "_" + part + "_" + state, props
                     )
                     for state, props in states.items()
                 }
@@ -90,7 +115,7 @@ async def theme_to_code(config):
 
 
 async def add_top_layer(lv_component, config):
-    top_layer = lv.disp_get_layer_top(lv_component.get_disp())
+    top_layer = lv.disp_get_layer_top(lv_component.var.get_disp())
     if top_conf := config.get(CONF_TOP_LAYER):
         with LocalVariable("top_layer", lv_obj_t, top_layer) as top_layer_obj:
             top_w = Widget(top_layer_obj, obj_spec, top_conf)

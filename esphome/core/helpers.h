@@ -301,7 +301,7 @@ template<typename T, size_t N> class StaticVector {
 /// Not thread-safe. All access (push/pop/iteration) must occur from a single
 /// context, or the caller must provide external synchronization.
 template<typename T, size_t N> class StaticRingBuffer {
-  using index_type = std::conditional_t<(N <= 255), uint8_t, uint16_t>;
+  using index_type = std::conditional_t<(N <= std::numeric_limits<uint8_t>::max()), uint8_t, uint16_t>;
 
  public:
   class Iterator {
@@ -356,6 +356,13 @@ template<typename T, size_t N> class StaticRingBuffer {
   index_type size() const { return this->count_; }
   bool empty() const { return this->count_ == 0; }
 
+  /// Clear all elements (reset to empty)
+  void clear() {
+    this->head_ = 0;
+    this->tail_ = 0;
+    this->count_ = 0;
+  }
+
   Iterator begin() { return Iterator(this, 0); }
   Iterator end() { return Iterator(this, this->count_); }
   ConstIterator begin() const { return ConstIterator(this, 0); }
@@ -366,6 +373,128 @@ template<typename T, size_t N> class StaticRingBuffer {
   index_type head_{0};
   index_type tail_{0};
   index_type count_{0};
+};
+
+/// Fixed-capacity circular buffer - allocates once at runtime, never reallocates.
+/// Runtime-sized equivalent of StaticRingBuffer - use when capacity is only known at initialization.
+/// Supports FIFO push/pop and iteration over queued elements.
+/// Not thread-safe.
+template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()> class FixedRingBuffer {
+  using index_type = std::conditional_t<
+      (MAX_CAPACITY <= std::numeric_limits<uint8_t>::max()), uint8_t,
+      std::conditional_t<(MAX_CAPACITY <= std::numeric_limits<uint16_t>::max()), uint16_t, uint32_t>>;
+
+ public:
+  class Iterator {
+   public:
+    Iterator(FixedRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
+    T &operator*() { return buf_->data_[(buf_->head_ + pos_) % buf_->capacity_]; }
+    Iterator &operator++() {
+      ++pos_;
+      return *this;
+    }
+    bool operator!=(const Iterator &other) const { return pos_ != other.pos_; }
+
+   private:
+    FixedRingBuffer *buf_;
+    index_type pos_;
+  };
+
+  class ConstIterator {
+   public:
+    ConstIterator(const FixedRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
+    const T &operator*() const { return buf_->data_[(buf_->head_ + pos_) % buf_->capacity_]; }
+    ConstIterator &operator++() {
+      ++pos_;
+      return *this;
+    }
+    bool operator!=(const ConstIterator &other) const { return pos_ != other.pos_; }
+
+   private:
+    const FixedRingBuffer *buf_;
+    index_type pos_;
+  };
+
+  FixedRingBuffer() = default;
+  ~FixedRingBuffer() {
+    if constexpr (std::is_trivially_copyable<T>::value && std::is_trivially_default_constructible<T>::value) {
+      ::operator delete(this->data_);
+    } else {
+      delete[] this->data_;
+    }
+  }
+
+  // Disable copy
+  FixedRingBuffer(const FixedRingBuffer &) = delete;
+  FixedRingBuffer &operator=(const FixedRingBuffer &) = delete;
+
+  /// Allocate capacity - can only be called once
+  void init(index_type capacity) {
+    if constexpr (std::is_trivially_copyable<T>::value && std::is_trivially_default_constructible<T>::value) {
+      // Raw allocation without initialization (elements are written before read)
+      // NOLINTNEXTLINE(bugprone-sizeof-expression)
+      this->data_ = static_cast<T *>(::operator new(capacity * sizeof(T)));
+    } else {
+      this->data_ = new T[capacity];
+    }
+    this->capacity_ = capacity;
+  }
+
+  /// Push a value. Returns false if full.
+  bool push(const T &value) {
+    if (this->count_ >= this->capacity_)
+      return false;
+    this->data_[this->tail_] = value;
+    this->tail_ = (this->tail_ + 1) % this->capacity_;
+    ++this->count_;
+    return true;
+  }
+
+  /// Push a value, overwriting the oldest if full.
+  void push_overwrite(const T &value) {
+    this->data_[this->tail_] = value;
+    this->tail_ = (this->tail_ + 1) % this->capacity_;
+    if (this->count_ >= this->capacity_) {
+      // Buffer full - advance head to drop oldest, count stays at capacity
+      this->head_ = this->tail_;
+    } else {
+      ++this->count_;
+    }
+  }
+
+  /// Remove the oldest element.
+  void pop() {
+    if (this->count_ > 0) {
+      this->head_ = (this->head_ + 1) % this->capacity_;
+      --this->count_;
+    }
+  }
+
+  T &front() { return this->data_[this->head_]; }
+  const T &front() const { return this->data_[this->head_]; }
+  index_type size() const { return this->count_; }
+  bool empty() const { return this->count_ == 0; }
+  index_type capacity() const { return this->capacity_; }
+  bool full() const { return this->count_ == this->capacity_; }
+
+  /// Clear all elements (reset to empty, keep capacity)
+  void clear() {
+    this->head_ = 0;
+    this->tail_ = 0;
+    this->count_ = 0;
+  }
+
+  Iterator begin() { return Iterator(this, 0); }
+  Iterator end() { return Iterator(this, this->count_); }
+  ConstIterator begin() const { return ConstIterator(this, 0); }
+  ConstIterator end() const { return ConstIterator(this, this->count_); }
+
+ protected:
+  T *data_{nullptr};
+  index_type head_{0};
+  index_type tail_{0};
+  index_type count_{0};
+  index_type capacity_{0};
 };
 
 /// Fixed-capacity vector - allocates once at runtime, never reallocates
@@ -713,10 +842,15 @@ template<typename ReturnT = uint32_t> inline constexpr ESPHOME_ALWAYS_INLINE Ret
 }
 
 /// Return a random 32-bit unsigned integer.
+/// Not thread-safe. Must only be called from the main loop.
+/// Not suitable for cryptographic use; use random_bytes() instead.
 uint32_t random_uint32();
 /// Return a random float between 0 and 1.
+/// Not thread-safe. Must only be called from the main loop.
+/// Not suitable for cryptographic use; use random_bytes() instead.
 float random_float();
-/// Generate \p len number of random bytes.
+/// Generate \p len random bytes using the platform's secure RNG (hardware RNG or OS CSPRNG).
+/// Thread-safe. Suitable for cryptographic use.
 bool random_bytes(uint8_t *data, size_t len);
 
 ///@}
@@ -941,6 +1075,28 @@ __attribute__((format(printf, 4, 5))) inline size_t buf_append_printf(char *buf,
   return std::min(pos + static_cast<size_t>(written), size);
 }
 #endif
+
+/// Safely append a string to buffer without format parsing, returning new position (capped at size).
+/// More efficient than buf_append_printf for plain string literals.
+/// @param buf Output buffer
+/// @param size Total buffer size
+/// @param pos Current position in buffer
+/// @param str String to append (must not be null)
+/// @return New position after appending (capped at size on overflow)
+inline size_t buf_append_str(char *buf, size_t size, size_t pos, const char *str) {
+  if (pos >= size) {
+    return size;
+  }
+  size_t remaining = size - pos - 1;  // reserve space for null terminator
+  size_t len = strlen(str);
+  if (len > remaining) {
+    len = remaining;
+  }
+  memcpy(buf + pos, str, len);
+  pos += len;
+  buf[pos] = '\0';
+  return pos;
+}
 
 /// Concatenate a name with a separator and suffix using an efficient stack-based approach.
 /// This avoids multiple heap allocations during string construction.
@@ -1578,6 +1734,54 @@ constexpr float fahrenheit_to_celsius(float value) { return (value - 32.0f) / 1.
 /// @name Utilities
 /// @{
 
+/// Lightweight type-erased callback (8 bytes on 32-bit) that avoids std::function overhead.
+/// No null check, no exceptions, no heap allocation for small trivially-copyable callables.
+///
+/// With C++20 if constexpr, automatically detects [this] lambdas (sizeof <= sizeof(void*),
+/// trivially copyable) and stores them inline. Larger callables are heap-allocated.
+template<typename... X> struct Callback;
+
+template<typename... Ts> struct Callback<void(Ts...)> {
+  // The inline storage path stores callable bytes in ctx_ via memcpy.
+  // sizeof equality with uintptr_t ensures void* can round-trip arbitrary bit patterns,
+  // which combined with flat address spaces on all ESPHome targets means no trap representations.
+  static_assert(sizeof(void *) == sizeof(std::uintptr_t), "void* must be the same size as uintptr_t");
+
+  void (*fn_)(void *, Ts...){nullptr};
+  void *ctx_{nullptr};
+
+  /// Invoke the callback. Only valid on Callbacks created via create(), never on default-constructed instances.
+  void call(Ts... args) const { this->fn_(this->ctx_, args...); }
+
+  /// Create from any callable. Small trivially-copyable callables (like [this] lambdas)
+  /// are stored inline in the ctx pointer without heap allocation.
+  template<typename F> static Callback create(F &&callable) {
+    using DecayF = std::decay_t<F>;
+    if constexpr (sizeof(DecayF) <= sizeof(void *) && std::is_trivially_copyable_v<DecayF>) {
+      // Small trivial callable (e.g. [this]() { this->method(); }) - store inline in ctx.
+      // Safe under C++20 (P0593R6): byte copy into aligned storage implicitly
+      // creates objects of implicit-lifetime types (trivially copyable qualifies).
+      Callback cb;  // fn and ctx are zero-initialized by default
+      // Decay callable to a local variable first. When F is a function reference
+      // (e.g. void(&)(int)), &callable would point at machine code, not a pointer variable.
+      DecayF decayed = std::forward<F>(callable);
+      __builtin_memcpy(&cb.ctx_, &decayed, sizeof(DecayF));
+      cb.fn_ = [](void *c, Ts... args) {
+        alignas(DecayF) char buf[sizeof(DecayF)];
+        __builtin_memcpy(buf, &c, sizeof(DecayF));
+        (*std::launder(reinterpret_cast<DecayF *>(buf)))(args...);
+      };
+      return cb;
+    } else {
+      // Large or non-trivial callable - heap allocate.
+      // Intentionally never freed: callbacks in ESPHome are registered during setup()
+      // and live for device lifetime. Same lifetime as the previous std::function approach.
+      auto *stored = new DecayF(std::forward<F>(callable));
+      return {[](void *c, Ts... args) { (*static_cast<DecayF *>(c))(args...); }, static_cast<void *>(stored)};
+    }
+  }
+};
+
 template<typename... X> class CallbackManager;
 
 /** Helper class to allow having multiple subscribers to a callback.
@@ -1586,13 +1790,14 @@ template<typename... X> class CallbackManager;
  */
 template<typename... Ts> class CallbackManager<void(Ts...)> {
  public:
-  /// Add a callback to the list.
-  void add(std::function<void(Ts...)> &&callback) { this->callbacks_.push_back(std::move(callback)); }
+  /// Add any callable. Small trivially-copyable callables (like [this] lambdas)
+  /// are stored inline without heap allocation or std::function.
+  template<typename F> void add(F &&callback) { this->add_(Callback<void(Ts...)>::create(std::forward<F>(callback))); }
 
-  /// Call all callbacks in this manager.
+  /// Call all callbacks in this manager. No null check on invoke.
   void call(Ts... args) {
     for (auto &cb : this->callbacks_)
-      cb(args...);
+      cb.call(args...);
   }
   size_t size() const { return this->callbacks_.size(); }
 
@@ -1600,7 +1805,10 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
   void operator()(Ts... args) { call(args...); }
 
  protected:
-  std::vector<std::function<void(Ts...)>> callbacks_;
+  template<typename...> friend class LazyCallbackManager;
+  /// Non-template core to avoid code duplication per lambda type.
+  void add_(Callback<void(Ts...)> cb) { this->callbacks_.push_back(cb); }
+  std::vector<Callback<void(Ts...)>> callbacks_;
 };
 
 template<typename... X> class LazyCallbackManager;
@@ -1633,13 +1841,8 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
   LazyCallbackManager(LazyCallbackManager &&) = delete;
   LazyCallbackManager &operator=(LazyCallbackManager &&) = delete;
 
-  /// Add a callback to the list. Allocates the underlying CallbackManager on first use.
-  void add(std::function<void(Ts...)> &&callback) {
-    if (!this->callbacks_) {
-      this->callbacks_ = new CallbackManager<void(Ts...)>();
-    }
-    this->callbacks_->add(std::move(callback));
-  }
+  /// Add any callable. Allocates the underlying CallbackManager on first use.
+  template<typename F> void add(F &&callback) { this->add_(Callback<void(Ts...)>::create(std::forward<F>(callback))); }
 
   /// Call all callbacks in this manager. No-op if no callbacks registered.
   void call(Ts... args) {
@@ -1658,6 +1861,13 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
   void operator()(Ts... args) { this->call(args...); }
 
  protected:
+  /// Non-template core to avoid code duplication per lambda type.
+  void add_(Callback<void(Ts...)> cb) {
+    if (!this->callbacks_) {
+      this->callbacks_ = new CallbackManager<void(Ts...)>();
+    }
+    this->callbacks_->add_(cb);
+  }
   CallbackManager<void(Ts...)> *callbacks_{nullptr};
 };
 
@@ -1715,19 +1925,34 @@ template<typename T> class Parented {
  */
 class Mutex {
  public:
-  Mutex();
   Mutex(const Mutex &) = delete;
+  Mutex &operator=(const Mutex &) = delete;
+
+#if defined(USE_ESP8266) || defined(USE_RP2040)
+  // Single-threaded platforms: inline no-ops so the compiler eliminates all call overhead.
+  Mutex() = default;
+  ~Mutex() = default;
+  void lock() {}
+  bool try_lock() { return true; }
+  void unlock() {}
+#elif defined(USE_ESP32) || defined(USE_LIBRETINY)
+  // FreeRTOS platforms: inline to avoid out-of-line call overhead.
+  Mutex() { handle_ = xSemaphoreCreateMutex(); }
+  ~Mutex() = default;
+  void lock() { xSemaphoreTake(this->handle_, portMAX_DELAY); }
+  bool try_lock() { return xSemaphoreTake(this->handle_, 0) == pdTRUE; }
+  void unlock() { xSemaphoreGive(this->handle_); }
+
+ private:
+  SemaphoreHandle_t handle_;
+#else
+  Mutex();
   ~Mutex();
   void lock();
   bool try_lock();
   void unlock();
 
-  Mutex &operator=(const Mutex &) = delete;
-
  private:
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
-  SemaphoreHandle_t handle_;
-#else
   // d-pointer to store private data on new platforms
   void *handle_;  // NOLINT(clang-diagnostic-unused-private-field)
 #endif
@@ -1779,19 +2004,27 @@ class InterruptLock {
 
 /** Helper class to lock the lwIP TCPIP core when making lwIP API calls from non-TCPIP threads.
  *
- * This is needed on multi-threaded platforms (ESP32) when CONFIG_LWIP_TCPIP_CORE_LOCKING is enabled.
- * It ensures thread-safe access to lwIP APIs.
+ * This is needed on multi-threaded platforms (ESP32) when CONFIG_LWIP_TCPIP_CORE_LOCKING is enabled,
+ * and on RP2040 when CYW43 WiFi is active (cyw43_arch_lwip_begin/end).
  *
- * @note This follows the same pattern as InterruptLock - platform-specific implementations in helpers.cpp
+ * On platforms without lwIP core locking (ESP8266, LibreTiny, Zephyr),
+ * this is a no-op defined inline so the compiler can eliminate all call overhead.
  */
 class LwIPLock {
  public:
-  LwIPLock();
-  ~LwIPLock();
-
-  // Delete copy constructor and copy assignment operator to prevent accidental copying
   LwIPLock(const LwIPLock &) = delete;
   LwIPLock &operator=(const LwIPLock &) = delete;
+
+#if defined(USE_ESP32) || defined(USE_RP2040)
+  // Platforms with potential lwIP core locking — out-of-line implementations in helpers.cpp
+  LwIPLock();
+  ~LwIPLock();
+#else
+  // No lwIP core locking — inline no-ops (empty bodies instead of = default
+  // to prevent clang-tidy unused-variable warnings at call sites)
+  LwIPLock() {}
+  ~LwIPLock() {}
+#endif
 };
 
 /** Helper class to request `loop()` to be called as fast as possible.

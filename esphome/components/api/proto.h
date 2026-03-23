@@ -236,6 +236,21 @@ class ProtoWriteBuffer {
    * Following https://protobuf.dev/programming-guides/encoding/#structure
    */
   void encode_field_raw(uint32_t field_id, uint32_t type) { this->encode_varint_raw((field_id << 3) | type); }
+  /// Write a precomputed tag byte + 32-bit value in one operation.
+  /// Tag must be a single-byte varint (< 128). No zero check.
+  inline void write_tag_and_fixed32(uint8_t tag, uint32_t value) ESPHOME_ALWAYS_INLINE {
+    this->debug_check_bounds_(5);
+    this->pos_[0] = tag;
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    std::memcpy(this->pos_ + 1, &value, 4);
+#else
+    this->pos_[1] = static_cast<uint8_t>(value & 0xFF);
+    this->pos_[2] = static_cast<uint8_t>((value >> 8) & 0xFF);
+    this->pos_[3] = static_cast<uint8_t>((value >> 16) & 0xFF);
+    this->pos_[4] = static_cast<uint8_t>((value >> 24) & 0xFF);
+#endif
+    this->pos_ += 5;
+  }
   void encode_string(uint32_t field_id, const char *string, size_t len, bool force = false) {
     if (len == 0 && !force)
       return;
@@ -276,8 +291,7 @@ class ProtoWriteBuffer {
     this->debug_check_bounds_(1);
     *this->pos_++ = value ? 0x01 : 0x00;
   }
-  // noinline: 51 call sites; inlining causes net code growth vs a single out-of-line copy
-  __attribute__((noinline)) void encode_fixed32(uint32_t field_id, uint32_t value, bool force = false) {
+  void encode_fixed32(uint32_t field_id, uint32_t value, bool force = false) {
     if (value == 0 && !force)
       return;
 
@@ -442,8 +456,12 @@ class ProtoMessage {
   virtual const char *message_name() const { return "unknown"; }
 #endif
 
+#ifndef USE_HOST
  protected:
+#endif
   // Non-virtual destructor is protected to prevent polymorphic deletion.
+  // On host platform, made public to allow value-initialization of std::array
+  // members (e.g. DeviceInfoResponse::devices) without clang errors.
   ~ProtoMessage() = default;
 };
 
@@ -473,6 +491,12 @@ class ProtoDecodableMessage : public ProtoMessage {
 
 class ProtoSize {
  public:
+  // Varint encoding thresholds: values below each threshold fit in N bytes
+  static constexpr uint32_t VARINT_THRESHOLD_1_BYTE = 1 << 7;   // 128
+  static constexpr uint32_t VARINT_THRESHOLD_2_BYTE = 1 << 14;  // 16384
+  static constexpr uint32_t VARINT_THRESHOLD_3_BYTE = 1 << 21;  // 2097152
+  static constexpr uint32_t VARINT_THRESHOLD_4_BYTE = 1 << 28;  // 268435456
+
   /**
    * @brief Calculates the size in bytes needed to encode a uint32_t value as a varint
    *
@@ -480,7 +504,7 @@ class ProtoSize {
    * @return The number of bytes needed to encode the value
    */
   static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE varint(uint32_t value) {
-    if (value < 128) [[likely]]
+    if (value < VARINT_THRESHOLD_1_BYTE) [[likely]]
       return 1;  // Fast path: 7 bits, most common case
     if (__builtin_is_constant_evaluated())
       return varint_wide(value);
@@ -492,11 +516,11 @@ class ProtoSize {
   static uint32_t varint_slow(uint32_t value) __attribute__((noinline));
   // Shared cascade for values >= 128 (used by both constexpr and noinline paths)
   static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE varint_wide(uint32_t value) {
-    if (value < 16384)
+    if (value < VARINT_THRESHOLD_2_BYTE)
       return 2;
-    if (value < 2097152)
+    if (value < VARINT_THRESHOLD_3_BYTE)
       return 3;
-    if (value < 268435456)
+    if (value < VARINT_THRESHOLD_4_BYTE)
       return 4;
     return 5;
   }
@@ -602,7 +626,7 @@ class ProtoSize {
   static constexpr uint32_t calc_sint32(uint32_t field_id_size, int32_t value) {
     return value ? field_id_size + varint(encode_zigzag32(value)) : 0;
   }
-  static constexpr uint32_t calc_sint32_force(uint32_t field_id_size, int32_t value) {
+  static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE calc_sint32_force(uint32_t field_id_size, int32_t value) {
     return field_id_size + varint(encode_zigzag32(value));
   }
   static constexpr uint32_t calc_int64(uint32_t field_id_size, int64_t value) {
@@ -614,13 +638,13 @@ class ProtoSize {
   static constexpr uint32_t calc_uint64(uint32_t field_id_size, uint64_t value) {
     return value ? field_id_size + varint(value) : 0;
   }
-  static constexpr uint32_t calc_uint64_force(uint32_t field_id_size, uint64_t value) {
+  static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE calc_uint64_force(uint32_t field_id_size, uint64_t value) {
     return field_id_size + varint(value);
   }
   static constexpr uint32_t calc_length(uint32_t field_id_size, size_t len) {
     return len ? field_id_size + varint(static_cast<uint32_t>(len)) + static_cast<uint32_t>(len) : 0;
   }
-  static constexpr uint32_t calc_length_force(uint32_t field_id_size, size_t len) {
+  static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE calc_length_force(uint32_t field_id_size, size_t len) {
     return field_id_size + varint(static_cast<uint32_t>(len)) + static_cast<uint32_t>(len);
   }
   static constexpr uint32_t calc_sint64(uint32_t field_id_size, int64_t value) {
@@ -638,7 +662,8 @@ class ProtoSize {
   static constexpr uint32_t calc_message(uint32_t field_id_size, uint32_t nested_size) {
     return nested_size ? field_id_size + varint(nested_size) + nested_size : 0;
   }
-  static constexpr uint32_t calc_message_force(uint32_t field_id_size, uint32_t nested_size) {
+  static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE calc_message_force(uint32_t field_id_size,
+                                                                            uint32_t nested_size) {
     return field_id_size + varint(nested_size) + nested_size;
   }
 };
@@ -686,26 +711,7 @@ inline void ProtoLengthDelimited::decode_to_message(ProtoDecodableMessage &msg) 
 
 template<typename T> const char *proto_enum_to_string(T value);
 
-class ProtoService {
- public:
- protected:
-  virtual bool is_authenticated() = 0;
-  virtual bool is_connection_setup() = 0;
-  virtual void on_fatal_error() = 0;
-  virtual void on_no_setup_connection() = 0;
-  virtual bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) = 0;
-  virtual void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) = 0;
-
-  // Authentication helper methods
-  inline bool check_connection_setup_() {
-    if (!this->is_connection_setup()) {
-      this->on_no_setup_connection();
-      return false;
-    }
-    return true;
-  }
-
-  inline bool check_authenticated_() { return this->check_connection_setup_(); }
-};
+// ProtoService removed — its methods were inlined into APIConnection.
+// APIConnection is the concrete server-side implementation; the extra virtual layer was unnecessary.
 
 }  // namespace esphome::api

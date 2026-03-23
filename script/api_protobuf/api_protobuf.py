@@ -254,14 +254,17 @@ class TypeInfo(ABC):
     def dump(self, name: str) -> str:
         """Dump the value to the output."""
 
+    def calculate_tag(self) -> int:
+        """Calculate the protobuf tag (field_id << 3 | wire_type)."""
+        return (self.number << 3) | (self.wire_type & 0b111)
+
     def calculate_field_id_size(self) -> int:
         """Calculates the size of a field ID in bytes.
 
         Returns:
             The number of bytes needed to encode the field ID
         """
-        # Calculate the tag by combining field_id and wire_type
-        tag = (self.number << 3) | (self.wire_type & 0b111)
+        tag = self.calculate_tag()
 
         # Calculate the varint size
         if tag < 128:
@@ -556,6 +559,16 @@ class Fixed32Type(TypeInfo):
         o += "out.append(buffer);"
         return o
 
+    @property
+    def encode_content(self) -> str:
+        tag = self.calculate_tag()
+        if self.force and tag < 128:
+            # Emit combined tag+value write: precomputed tag + direct memcpy
+            return f"buffer.write_tag_and_fixed32({tag}, this->{self.field_name});"
+        if self.force:
+            return f"buffer.{self.encode_func}({self.number}, this->{self.field_name}, true);"
+        return f"buffer.{self.encode_func}({self.number}, this->{self.field_name});"
+
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
         if force:
@@ -642,7 +655,7 @@ class StringType(TypeInfo):
         # For SOURCE_BOTH, check if StringRef is set (sending) or use string (received)
         return (
             f"if (!this->{self.field_name}_ref_.empty()) {{"
-            f'  out.append("\'").append(this->{self.field_name}_ref_.c_str()).append("\'");'
+            f'  out.append("\'").append(this->{self.field_name}_ref_.c_str(), this->{self.field_name}_ref_.size()).append("\'");'
             f"}} else {{"
             f'  out.append("\'").append(this->{self.field_name}).append("\'");'
             f"}}"
@@ -2595,7 +2608,7 @@ def build_service_message_type(
         is_empty = not has_fields
         if is_empty:
             EMPTY_MESSAGES.add(mt.name)
-        hout += f"virtual void {func}({'' if is_empty else f'const {mt.name} &value'}){{}};\n"
+        hout += f"void {func}({'' if is_empty else f'const {mt.name} &value'}){{}};\n"
         case = ""
         if not is_empty:
             case += f"{mt.name} msg;\n"
@@ -2705,7 +2718,7 @@ namespace esphome::api {
 static inline void append_quoted_string(DumpBuffer &out, const StringRef &ref) {
   out.append("'");
   if (!ref.empty()) {
-    out.append(ref.c_str());
+    out.append(ref.c_str(), ref.size());
   }
   out.append("'");
 }
@@ -2947,6 +2960,7 @@ namespace esphome::api {
     cpp = FILE_HEADER
     cpp += """\
 #include "api_pb2_service.h"
+#include "api_connection.h"
 #include "esphome/core/log.h"
 
 namespace esphome::api {
@@ -2957,7 +2971,7 @@ static const char *const TAG = "api.service";
 
     class_name = "APIServerConnectionBase"
 
-    hpp += f"class {class_name} : public ProtoService {{\n"
+    hpp += f"class {class_name} {{\n"
     hpp += " public:\n"
 
     # Add logging helper method declarations
@@ -3050,11 +3064,11 @@ static const char *const TAG = "api.service";
                 result += "#endif\n"
         return result
 
-    # Generate read_message with auth check before dispatch
-    hpp += " protected:\n"
-    hpp += "  void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;\n"
+    # Generate read_message_ as APIConnection method (not base class) so the compiler
+    # can devirtualize and inline the on_* handler calls within the same class.
+    # APIConnection declares this method in api_connection.h.
 
-    out = f"void {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {{\n"
+    out = "void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {\n"
 
     # Auth check block before dispatch switch
     out += "  // Check authentication/connection requirements\n"

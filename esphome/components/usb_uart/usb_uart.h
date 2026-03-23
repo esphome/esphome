@@ -140,7 +140,7 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override { return this->input_buffer_.get_available(); }
-  uart::FlushResult flush() override;
+  uart::UARTFlushResult flush() override;
   void check_logger_conflict() override {}
   void set_parity(UARTParityOptions parity) { this->parity_ = parity; }
   void set_debug(bool debug) { this->debug_ = debug; }
@@ -158,7 +158,10 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   // Larger structures first (8+ bytes)
   RingBuffer input_buffer_;
   LockFreeQueue<UsbOutputChunk, USB_OUTPUT_CHUNK_COUNT> output_queue_;
-  EventPool<UsbOutputChunk, USB_OUTPUT_CHUNK_COUNT> output_pool_;
+  // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
+  // buffer that holds N-1 elements. This guarantees allocate() returns nullptr
+  // before push() can fail, preventing a pool slot leak.
+  EventPool<UsbOutputChunk, USB_OUTPUT_CHUNK_COUNT - 1> output_pool_;
   std::function<void()> rx_callback_{};
   CdcEps cdc_dev_{};
   StringRef debug_prefix_{};
@@ -190,7 +193,8 @@ class USBUartComponent : public usb_host::USBClient {
   // Lock-free data transfer from USB task to main loop
   static constexpr int USB_DATA_QUEUE_SIZE = 32;
   LockFreeQueue<UsbDataChunk, USB_DATA_QUEUE_SIZE> usb_data_queue_;
-  EventPool<UsbDataChunk, USB_DATA_QUEUE_SIZE> chunk_pool_;
+  // Pool sized to queue capacity (SIZE-1) — see USBUartChannel::output_pool_ comment.
+  EventPool<UsbDataChunk, USB_DATA_QUEUE_SIZE - 1> chunk_pool_;
 
  protected:
   std::vector<USBUartChannel *> channels_{};

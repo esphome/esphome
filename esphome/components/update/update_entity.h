@@ -40,7 +40,9 @@ class UpdateEntity : public EntityBase {
   const UpdateInfo &update_info = update_info_;
   const UpdateState &state = state_;
 
-  void add_on_state_callback(std::function<void()> &&callback) { this->state_callback_.add(std::move(callback)); }
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
   Trigger<const UpdateInfo &> *get_update_available_trigger() {
     if (!update_available_trigger_) {
       update_available_trigger_ = std::make_unique<Trigger<const UpdateInfo &>>();
