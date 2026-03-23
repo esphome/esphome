@@ -34,6 +34,7 @@ void BinarySensor::publish_initial_state(bool new_state) {
 }
 bool BinarySensor::set_new_state(const optional<bool> &new_state) {
   if (StatefulEntityBase::set_new_state(new_state)) {
+    // weirdly, this file could be compiled even without USE_BINARY_SENSOR defined
 #if defined(USE_BINARY_SENSOR) && defined(USE_CONTROLLER_REGISTRY)
     ControllerRegistry::notify_binary_sensor_update(this);
 #endif
