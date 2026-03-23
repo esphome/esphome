@@ -2545,7 +2545,8 @@ void GDEY042T81::dump_config() {
 // Product page:
 //  - https://www.elecrow.com/wiki/CrowPanel_ESP32_E-paper_5.79-inch_HMI_Display.html
 // Datasheet:
-//  - https://github.com/Elecrow-RD/CrowPanel-ESP32-5.79-E-paper-HMI-Display-with-272-792/raw/master/Datasheet/SSD1683_Datasheet.pdf
+//  -
+//  https://github.com/Elecrow-RD/CrowPanel-ESP32-5.79-E-paper-HMI-Display-with-272-792/raw/master/Datasheet/SSD1683_Datasheet.pdf
 // Reference code:
 //  - https://github.com/Elecrow-RD/CrowPanel-ESP32-5.79-E-paper-HMI-Display-with-272-792
 // ========================================================
@@ -2584,13 +2585,13 @@ void DIS08792E::init_display_() {
 
   this->command(0x44);
   this->data(0);
-  this->data(this->get_height_internal()/2/8);
+  this->data(this->get_height_internal() / 2 / 8);
 
   this->command(0x45);
   this->data(0);
   this->data(0);
-  this->data((this->get_width_internal()-1) & 0xFF);
-  this->data((this->get_width_internal()-1) >> 8);
+  this->data((this->get_width_internal() - 1) & 0xFF);
+  this->data((this->get_width_internal() - 1) >> 8);
 
   this->command(0x4E);
   this->data(0);
@@ -2604,17 +2605,17 @@ void DIS08792E::init_display_() {
   this->data(0b110);
 
   this->command(0x44 | 0x80);
-  this->data(this->get_height_internal()/2/8);
+  this->data(this->get_height_internal() / 2 / 8);
   this->data(0);
 
   this->command(0x45 | 0x80);
   this->data(0);
   this->data(0);
-  this->data((this->get_width_internal()-1) & 0xFF);
-  this->data((this->get_width_internal()-1) >> 8);
+  this->data((this->get_width_internal() - 1) & 0xFF);
+  this->data((this->get_width_internal() - 1) >> 8);
 
   this->command(0x4E | 0x80);
-  this->data(this->get_height_internal()/2/8);
+  this->data(this->get_height_internal() / 2 / 8);
   this->command(0x4F | 0x80);
   this->data(0);
   this->data(0);
@@ -2624,7 +2625,7 @@ void DIS08792E::init_display_() {
 
 void DIS08792E::update_full_() {
   this->command(0x3C);
-  this->data(this->buffer_[0]?0b101:0b100);
+  this->data(this->buffer_[0] ? 0b101 : 0b100);
 
   this->command(0x21);
   this->data(0b01000000);
@@ -2664,27 +2665,27 @@ void HOT DIS08792E::display() {
     return;
   }
 
-  const uint32_t lines = this->get_height_internal()/8,    // 99 lines,
-                 line_bytes = this->get_width_internal();  // 272×8 pixels (= 272 bytes) each
+  const uint32_t lines = this->get_height_internal() / 8,  // 99 lines,
+      line_bytes = this->get_width_internal();             // 272×8 pixels (= 272 bytes) each
 
   this->command(0x24);
   this->start_data_();
-  this->write_array(this->buffer_, (lines/2 + 1)*line_bytes);  // lines 0-49
+  this->write_array(this->buffer_, (lines / 2 + 1) * line_bytes);  // lines 0-49
   this->end_data_();
 
   this->command(0x26);
   this->start_data_();
-  this->write_array(this->buffer_, (lines/2 + 1)*line_bytes);  // lines 0-49
+  this->write_array(this->buffer_, (lines / 2 + 1) * line_bytes);  // lines 0-49
   this->end_data_();
 
   this->command(0x24 | 0x80);
   this->start_data_();
-  this->write_array((this->buffer_ + lines/2*line_bytes), (lines/2 + 1)*line_bytes);  // lines 49-99
+  this->write_array((this->buffer_ + lines / 2 * line_bytes), (lines / 2 + 1) * line_bytes);  // lines 49-99
   this->end_data_();
 
   this->command(0x26 | 0x80);
   this->start_data_();
-  this->write_array((this->buffer_ + lines/2*line_bytes), (lines/2 + 1)*line_bytes);  // lines 49-99
+  this->write_array((this->buffer_ + lines / 2 * line_bytes), (lines / 2 + 1) * line_bytes);  // lines 49-99
   this->end_data_();
 
   if (this->full_update_every_ == 1 || this->at_update_ == 0) {
@@ -2704,7 +2705,7 @@ void HOT DIS08792E::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x < 0 || y < 0 || x >= this->get_width_internal() || y >= this->get_height_internal())
     return;
 
-  const uint32_t pos = (x + y/8*this->get_width_controller());
+  const uint32_t pos = (x + y / 8 * this->get_width_controller());
   const uint8_t subpos = (y & 0x07);
   if (!color.is_on()) {
     this->buffer_[pos] |= (0x80 >> subpos);
