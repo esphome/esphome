@@ -29,12 +29,11 @@ def patch_segment(lines, segment_name, new_size):
     # and capture everything up to and including "len = " so we can replace the len value
     pattern = rf'({re.escape(segment_name)}\s*\([^)]*\)\s*:\s*org\s*=\s*.+?,\s*len\s*=\s*)(.+?)(\s*)$'
     for i, line in enumerate(lines):
-        if segment_name in line and 'len' in line:
-            if match := re.search(pattern, line):
-                new_line = f"{match.group(1)}{new_size:#x}{match.group(3)}"
-                if new_line != line:
-                    lines[i] = new_line
-                    return True
+        if segment_name in line and 'len' in line and (match := re.search(pattern, line)):
+            new_line = f"{match.group(1)}{new_size:#x}{match.group(3)}"
+            if new_line != line:
+                lines[i] = new_line
+                return True
     return False
 
 
