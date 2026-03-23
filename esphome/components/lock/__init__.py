@@ -37,9 +37,11 @@ LockUnlockTrigger = lock_ns.class_("LockUnlockTrigger", automation.Trigger.templ
 LockState = lock_ns.enum("LockState")
 
 LOCK_STATES = {
+    "OPEN": LockState.LOCK_STATE_OPEN,
     "LOCKED": LockState.LOCK_STATE_LOCKED,
     "UNLOCKED": LockState.LOCK_STATE_UNLOCKED,
     "JAMMED": LockState.LOCK_STATE_JAMMED,
+    "OPENING": LockState.LOCK_STATE_OPENING,
     "LOCKING": LockState.LOCK_STATE_LOCKING,
     "UNLOCKING": LockState.LOCK_STATE_UNLOCKING,
 }

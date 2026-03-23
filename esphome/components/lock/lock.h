@@ -26,7 +26,9 @@ enum LockState : uint8_t {
   LOCK_STATE_UNLOCKED = 2,
   LOCK_STATE_JAMMED = 3,
   LOCK_STATE_LOCKING = 4,
-  LOCK_STATE_UNLOCKING = 5
+  LOCK_STATE_UNLOCKING = 5,
+  LOCK_STATE_OPENING = 6,
+  LOCK_STATE_OPEN = 7,
 };
 const LogString *lock_state_to_string(LockState state);
 
