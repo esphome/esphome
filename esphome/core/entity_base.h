@@ -303,7 +303,6 @@ void log_entity_unit_of_measurement(const char *tag, const char *prefix, const E
  *   - set_state_value(): store a new value (called only when the state actually changes)
  *   - get_trigger_on_initial_state() / set_trigger_on_initial_state(): control initial callback behavior
  *   - on_state_changed() (optional override): called after state updates, for logging/notifications
- *   - invalidate_state(): must be defined out-of-line in subclass .cpp to avoid template bloat
  *
  * This class does not store the state value — subclasses own their storage. Whether a state
  * has been set is tracked by EntityBase::has_state().
@@ -322,8 +321,7 @@ template<typename T> class StatefulEntityBase : public EntityBase {
   /// Return the current state if available, otherwise return the provided default.
   T get_state_default(T default_value) const { return this->has_state() ? this->get_state() : default_value; }
   /// Clear the state — sets has_state() to false and fires callbacks with nullopt.
-  /// Defined out-of-line in subclass .cpp to avoid inlining set_new_state_ template code at every call site.
-  void invalidate_state();
+  void invalidate_state() { this->set_new_state_({}); }
 
   template<typename F> void add_full_state_callback(F &&callback) {
     this->full_state_callbacks_.add(std::forward<F>(callback));
