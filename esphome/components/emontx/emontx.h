@@ -7,10 +7,6 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/json/json_util.h"
 
-#ifdef USE_API
-#include "esphome/components/api/custom_api_device.h"
-#endif
-
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
@@ -24,13 +20,7 @@ namespace esphome::emontx {
  * The EmonTx processes incoming data frames via UART,
  * extracts tags and values, and publishes them to registered sensors.
  */
-class EmonTx : public PollingComponent,
-               public uart::UARTDevice
-#ifdef USE_API
-    ,
-               public api::CustomAPIDevice
-#endif
-{
+class EmonTx : public PollingComponent, public uart::UARTDevice {
  public:
   EmonTx() = default;
 
@@ -70,9 +60,6 @@ class EmonTx : public PollingComponent,
   ParseState state_{ParseState::OFF};
 
   void parse_json_(const std::string &data);
-
-  // Service callback wrapper (register_service requires std::string by value)
-  void on_send_command_service_(std::string command) { this->send_command(command); }  // NOLINT
 
   LazyCallbackManager<void(JsonObject, const std::string &)> json_callbacks_;
   LazyCallbackManager<void(const std::string &)> data_callbacks_;

@@ -3,7 +3,7 @@
 #include "esphome/core/application.h"
 #include "esphome/components/json/json_util.h"
 
-#ifdef USE_API
+#ifdef USE_API_HOMEASSISTANT_SERVICES
 #include "esphome/components/api/api_server.h"
 #include "esphome/components/api/homeassistant_service.h"
 #endif
@@ -18,7 +18,6 @@ static const char *const TAG = "emontx";
  * @details Sets up the initial state of the component by:
  * 1. Setting the state machine to OFF
  * 2. Pre-allocating buffer memory to avoid reallocation overhead
- * 3. Registering the send_command service (when config_panel is enabled)
  *
  * This method is called once during device startup. After setup completes,
  * the component will wait for update() to be called before starting to
@@ -32,14 +31,6 @@ void EmonTx::setup() {
   // 198 bytes should be enough to contain a full session in historical mode with
   // three phases. But go with 1024 just to be sure.
   this->buffer_.reserve(1024);
-
-#ifdef USE_API_CUSTOM_SERVICES
-  // Auto-register send_command service when config_panel is enabled
-  // Uses a lambda wrapper because register_service requires std::string by value
-  if (this->config_panel_) {
-    this->register_service(&EmonTx::on_send_command_service_, "send_command", {"command"});
-  }
-#endif
 }
 
 /**

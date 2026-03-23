@@ -130,7 +130,9 @@ async def to_code(config):
     cg.add(var.set_config_panel(config[CONF_CONFIG_PANEL]))
 
     # Enable HomeAssistant services feature when config_panel is enabled
-    # This defines USE_API_HOMEASSISTANT_SERVICES which enables the event firing code
+    # USE_API_HOMEASSISTANT_SERVICES enables the event firing code in C++
+    # Note: USE_API_CUSTOM_SERVICES (for send_command service) requires the user
+    # to set 'custom_services: true' in the 'api:' section of their YAML
     if config[CONF_CONFIG_PANEL]:
         cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
 
@@ -171,7 +173,10 @@ EMONTX_SEND_COMMAND_ACTION_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "emontx.send_command", EmonTxSendCommandAction, EMONTX_SEND_COMMAND_ACTION_SCHEMA
+    "emontx.send_command",
+    EmonTxSendCommandAction,
+    EMONTX_SEND_COMMAND_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def emontx_send_command_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
