@@ -29,8 +29,8 @@ class ST25R300 : public st25r::ST25R {
   bool reset_chip() override;
   void reinitialize() override;
   void send_anticol_frame() override;
-  bool transceive_ex(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
-                      bool with_crc, uint32_t timeout_ms) override;
+  bool transceive_ex(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, bool with_crc,
+                     uint32_t timeout_ms) override;
   std::unique_ptr<nfc::NfcTag> read_tag(std::vector<uint8_t> &uid) override;
   bool nfcv_ndef_write(nfc::NdefMessage *message) override;
   void send_halt() override;
@@ -43,10 +43,8 @@ class ST25R300 : public st25r::ST25R {
   // ST25R300 has no dedicated WUPA/REQA command; must be done via FIFO + TRANSMIT_DATA.
   bool send_short_frame_(uint8_t byte7, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms = 10);
 
-  bool transceive_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
-                   uint32_t timeout_ms = 150);
-  bool transceive_no_crc_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
-                           uint32_t timeout_ms = 150);
+  bool transceive_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms = 150);
+  bool transceive_no_crc_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms = 150);
 
   // NFC-V (ISO 15693) blocking inventory scan — called from update() before NFC-A
   void nfcv_scan_();
@@ -56,7 +54,7 @@ class ST25R300 : public st25r::ST25R {
   void configure_nfcv_mode_();
   void configure_nfca_mode_();
   bool transceive_blocking_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
-                        uint32_t timeout_ms = 25);
+                            uint32_t timeout_ms = 25);
 
   static void isr(ST25R300 *arg);
 

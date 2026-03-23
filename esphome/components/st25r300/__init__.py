@@ -1,17 +1,19 @@
 from esphome import automation, pins
 import esphome.codegen as cg
+from esphome.components import (
+    binary_sensor as binary_sensor_,
+    sensor as sensor_,
+    st25r as st25r_,
+)
 import esphome.config_validation as cv
-from esphome.components import binary_sensor as binary_sensor_
-from esphome.components import sensor as sensor_
-from esphome.components import st25r as st25r_
 from esphome.const import (
     CONF_ID,
+    CONF_IRQ_PIN,
     CONF_ON_TAG,
     CONF_ON_TAG_REMOVED,
-    CONF_TRIGGER_ID,
-    CONF_IRQ_PIN,
     CONF_RESET_PIN,
     CONF_STATUS,
+    CONF_TRIGGER_ID,
 )
 
 CODEOWNERS = ["@JohnMcLear"]
@@ -52,7 +54,9 @@ ST25R300_SCHEMA = cv.Schema(
         cv.Optional(CONF_RF_POWER, default=15): cv.int_range(min=0, max=15),
         cv.Optional(CONF_RX_GAIN_BOOST, default=False): cv.boolean,
         cv.Optional(CONF_HEALTH_CHECK_ENABLED, default=True): cv.boolean,
-        cv.Optional(CONF_HEALTH_CHECK_INTERVAL, default="60s"): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_HEALTH_CHECK_INTERVAL, default="60s"
+        ): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_MAX_FAILED_CHECKS, default=3): cv.int_range(min=1, max=255),
         cv.Optional(CONF_AUTO_RESET_ON_FAILURE, default=True): cv.boolean,
         cv.Optional(CONF_NFCV_ENABLED, default=True): cv.boolean,
@@ -66,7 +70,9 @@ ST25R300_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_ON_TAG_REMOVED): automation.validate_automation(
             {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ST25R300TagRemovedTrigger),
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                    ST25R300TagRemovedTrigger
+                ),
             }
         ),
     }
@@ -105,16 +111,12 @@ async def setup_st25r300(var, config):
     for conf in config.get(CONF_ON_TAG, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         cg.add(var.register_on_tag_trigger(trigger))
-        await automation.build_automation(
-            trigger, [(cg.std_string, "x")], conf
-        )
+        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
 
     for conf in config.get(CONF_ON_TAG_REMOVED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         cg.add(var.register_on_tag_removed_trigger(trigger))
-        await automation.build_automation(
-            trigger, [(cg.std_string, "x")], conf
-        )
+        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
 
 
 @automation.register_action(
@@ -134,7 +136,9 @@ async def st25r300_ndef_write_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
     cg.add(var.set_parent(parent))
     template_ = await cg.process_lambda(
-        config["ndef_message"], args, return_type=cg.RawExpression("esphome::nfc::NdefMessage *")
+        config["ndef_message"],
+        args,
+        return_type=cg.RawExpression("esphome::nfc::NdefMessage *"),
     )
     cg.add(var.set_message(template_))
     cg.add(var.set_format(config["format"]))

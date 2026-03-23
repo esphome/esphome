@@ -35,7 +35,7 @@ uint8_t ST25RI2c::read_register(uint8_t reg) {
 }
 
 void ST25RI2c::write_register(uint8_t reg, uint8_t value) {
-  uint8_t data[2] = { (uint8_t)(0x00 | (reg & 0x3F)), value };
+  uint8_t data[2] = {(uint8_t) (0x00 | (reg & 0x3F)), value};
   auto err = this->i2c::I2CDevice::write(data, 2);
   if (err != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "write_register(0x%02X, 0x%02X): I2C error %d", reg, value, (int) err);

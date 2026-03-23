@@ -11,16 +11,14 @@ namespace st25r300 {
 
 static const char *const TAG = "st25r300";
 
-void ST25R300::isr(ST25R300 *arg) {
-  arg->irq_triggered_ = true;
-}
+void ST25R300::isr(ST25R300 *arg) { arg->irq_triggered_ = true; }
 
 void ST25R300::setup() {
   ESP_LOGI(TAG, "Setting up ST25R300...");
   if (this->reset_pin_ != nullptr) {
     ESP_LOGI(TAG, "Cycling reset pin...");
     this->reset_pin_->setup();
-    this->reset_pin_->digital_write(true);   // assert reset
+    this->reset_pin_->digital_write(true);  // assert reset
     delay(10);
     this->reset_pin_->digital_write(false);  // release reset
     delay(10);
@@ -45,7 +43,8 @@ void ST25R300::setup() {
 }
 
 void ST25R300::update() {
-  if (this->is_failed() || this->state_ != STATE_IDLE) return;
+  if (this->is_failed() || this->state_ != STATE_IDLE)
+    return;
 
   // Health check: verify chip identity at the configured interval (default 60s),
   // independent of the tag scan rate.  Uses ST25R300-specific IC identity value
@@ -58,8 +57,8 @@ void ST25R300::update() {
       this->last_health_check_ms_ = now;
       uint8_t ic_identity = this->read_register(ST25R300_REG_IC_IDENTITY);
       if ((ic_identity & ST25R300_IC_TYPE_MASK) != ST25R300_IC_TYPE_VAL) {
-        ESP_LOGW(TAG, "Health check failed: IC identity 0x%02X (failures: %u/%u)",
-                 ic_identity, this->health_check_failures_ + 1, this->max_failed_checks_);
+        ESP_LOGW(TAG, "Health check failed: IC identity 0x%02X (failures: %u/%u)", ic_identity,
+                 this->health_check_failures_ + 1, this->max_failed_checks_);
         this->health_check_failures_++;
         if (this->status_binary_sensor_ != nullptr)
           this->status_binary_sensor_->publish_state(false);
@@ -127,13 +126,14 @@ void ST25R300::update() {
 // Overrides base to translate ST25R300's three IRQ registers into the normalized
 // irq_status_ uint8_t used by the shared process_state() state machine.
 void ST25R300::loop() {
-  if (this->is_failed()) return;
+  if (this->is_failed())
+    return;
 
   if (this->irq_triggered_) {
     this->irq_triggered_ = false;
     uint8_t r1 = this->read_register(ST25R300_REG_IRQ_STATUS1);
     uint8_t r2 = this->read_register(ST25R300_REG_IRQ_STATUS2);
-  this->read_register(ST25R300_REG_IRQ_STATUS3);
+    this->read_register(ST25R300_REG_IRQ_STATUS3);
     this->irq_status1_ |= r1;
     this->irq_status2_ |= r2;
     this->read_register(ST25R300_REG_IRQ_STATUS3);  // Clear IRQ3 (DCT/OSC) to release IRQ pin
@@ -141,11 +141,11 @@ void ST25R300::loop() {
   } else if (this->state_ == STATE_WUPA || this->state_ == STATE_ANTICOL) {
     this->irq_status1_ |= this->read_register(ST25R300_REG_IRQ_STATUS1);
     this->irq_status2_ |= this->read_register(ST25R300_REG_IRQ_STATUS2);
-  this->read_register(ST25R300_REG_IRQ_STATUS3);
+    this->read_register(ST25R300_REG_IRQ_STATUS3);
     this->read_register(ST25R300_REG_IRQ_STATUS3);  // Clear IRQ3
     if (this->irq_status1_ != 0 || this->irq_status2_ != 0) {
-      ESP_LOGV(TAG, "IRQ polled, IRQ1=0x%02X IRQ2=0x%02X state=%d",
-               this->irq_status1_, this->irq_status2_, this->state_);
+      ESP_LOGV(TAG, "IRQ polled, IRQ1=0x%02X IRQ2=0x%02X state=%d", this->irq_status1_, this->irq_status2_,
+               this->state_);
     }
   } else {
     this->irq_status1_ = 0;
@@ -154,23 +154,25 @@ void ST25R300::loop() {
 
   // Translate accumulated ST25R300 IRQ bits into the base class normalized format
   uint8_t n = 0;
-  if (this->irq_status1_ & ST25R300_IRQ1_RXE) n |= IRQ_RXE;
-  if (this->irq_status1_ & ST25R300_IRQ1_TXE) n |= IRQ_TXE;
-  if (this->irq_status1_ & ST25R300_IRQ1_COL) n |= IRQ_COL;
-  if (this->irq_status2_ & ST25R300_IRQ2_NRE) n |= IRQ_NRE;
+  if (this->irq_status1_ & ST25R300_IRQ1_RXE)
+    n |= IRQ_RXE;
+  if (this->irq_status1_ & ST25R300_IRQ1_TXE)
+    n |= IRQ_TXE;
+  if (this->irq_status1_ & ST25R300_IRQ1_COL)
+    n |= IRQ_COL;
+  if (this->irq_status2_ & ST25R300_IRQ2_NRE)
+    n |= IRQ_NRE;
   this->irq_status_ = n;
 
   this->process_state();
 }
 
 // ── send_short_frame_ ─────────────────────────────────────────────────────────
-bool ST25R300::send_short_frame_(uint8_t byte7, uint8_t * /*resp*/, uint8_t &resp_len,
-                                 uint32_t /*timeout_ms*/) {
+bool ST25R300::send_short_frame_(uint8_t byte7, uint8_t * /*resp*/, uint8_t &resp_len, uint32_t /*timeout_ms*/) {
   this->write_register(ST25R300_REG_TX_PROTOCOL1, 0x00);  // no CRC, no parity
   // b_rx_sof+b_rx_eof MUST be set for Manchester framing; no CRC for ATQA
   this->write_register(ST25R300_REG_RX_PROTOCOL1,
-                       ST25R300_RX_PROT1_B_RX_SOF | ST25R300_RX_PROT1_B_RX_EOF |
-                       ST25R300_RX_PROT1_A_RX_PAR);  // 0x38
+                       ST25R300_RX_PROT1_B_RX_SOF | ST25R300_RX_PROT1_B_RX_EOF | ST25R300_RX_PROT1_A_RX_PAR);  // 0x38
 
   // CLEAR_FIFO (not STOP_ALL): STOP_ALL disables the RX decoder, preventing ATQA reception
   this->write_command(ST25R300_CMD_CLEAR_FIFO);
@@ -194,8 +196,8 @@ bool ST25R300::send_short_frame_(uint8_t byte7, uint8_t * /*resp*/, uint8_t &res
   this->irq_status1_ |= this->read_register(ST25R300_REG_IRQ_STATUS1);
   this->irq_status2_ |= this->read_register(ST25R300_REG_IRQ_STATUS2);
   this->read_register(ST25R300_REG_IRQ_STATUS3);
-  ESP_LOGV(TAG, "ssf @700us: FIFO=%u IRQ1=0x%02X IRQ2=0x%02X",
-           this->read_register(ST25R300_REG_FIFO_STATUS1), this->irq_status1_, this->irq_status2_);
+  ESP_LOGV(TAG, "ssf @700us: FIFO=%u IRQ1=0x%02X IRQ2=0x%02X", this->read_register(ST25R300_REG_FIFO_STATUS1),
+           this->irq_status1_, this->irq_status2_);
 
   // Wait out the NRT (5ms) then do a final IRQ sweep to catch late arrivals
   delay(10);
@@ -207,18 +209,17 @@ bool ST25R300::send_short_frame_(uint8_t byte7, uint8_t * /*resp*/, uint8_t &res
 }
 
 // ── transceive_ / transceive_no_crc_ ─────────────────────────────────────────
-bool ST25R300::transceive_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
-                            uint32_t timeout_ms) {
+bool ST25R300::transceive_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms) {
   return this->transceive_ex(data, len, resp, resp_len, true, timeout_ms);
 }
 bool ST25R300::transceive_no_crc_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
-                                   uint32_t timeout_ms) {
+                                  uint32_t timeout_ms) {
   return this->transceive_ex(data, len, resp, resp_len, false, timeout_ms);
 }
 
 // ── transceive_ex_ ────────────────────────────────────────────────────────────
-bool ST25R300::transceive_ex(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
-                               bool with_crc, uint32_t timeout_ms) {
+bool ST25R300::transceive_ex(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, bool with_crc,
+                             uint32_t timeout_ms) {
   this->write_command(ST25R300_CMD_CLEAR_FIFO);
   this->write_command(ST25R300_CMD_CLEAR_RX_GAIN);
   this->read_register(ST25R300_REG_IRQ_STATUS1);
@@ -226,20 +227,20 @@ bool ST25R300::transceive_ex(const uint8_t *data, size_t len, uint8_t *resp, uin
   this->read_register(ST25R300_REG_IRQ_STATUS3);
   this->read_register(ST25R300_REG_IRQ_STATUS3);
 
-  this->write_register(ST25R300_REG_TX_FRAME1, (uint8_t)((len >> 5) & 0xFF));
-  this->write_register(ST25R300_REG_TX_FRAME2, (uint8_t)((len & 0x1F) << 3));  // full bytes, 0 partial bits
+  this->write_register(ST25R300_REG_TX_FRAME1, (uint8_t) ((len >> 5) & 0xFF));
+  this->write_register(ST25R300_REG_TX_FRAME2, (uint8_t) ((len & 0x1F) << 3));  // full bytes, 0 partial bits
 
   if (with_crc) {
     this->write_register(ST25R300_REG_TX_PROTOCOL1,
                          ST25R300_TX_PROT1_A_TX_PAR | ST25R300_TX_PROT1_TX_CRC);  // 0x60
     this->write_register(ST25R300_REG_RX_PROTOCOL1,
-                         ST25R300_RX_PROT1_B_RX_SOF | ST25R300_RX_PROT1_B_RX_EOF |
-                         ST25R300_RX_PROT1_A_RX_PAR | ST25R300_RX_PROT1_RX_CRC);  // 0x3C
+                         ST25R300_RX_PROT1_B_RX_SOF | ST25R300_RX_PROT1_B_RX_EOF | ST25R300_RX_PROT1_A_RX_PAR |
+                             ST25R300_RX_PROT1_RX_CRC);  // 0x3C
   } else {
     this->write_register(ST25R300_REG_TX_PROTOCOL1, 0x00);
-    this->write_register(ST25R300_REG_RX_PROTOCOL1,
-                         ST25R300_RX_PROT1_B_RX_SOF | ST25R300_RX_PROT1_B_RX_EOF |
-                         ST25R300_RX_PROT1_A_RX_PAR);  // 0x38, no CRC
+    this->write_register(
+        ST25R300_REG_RX_PROTOCOL1,
+        ST25R300_RX_PROT1_B_RX_SOF | ST25R300_RX_PROT1_B_RX_EOF | ST25R300_RX_PROT1_A_RX_PAR);  // 0x38, no CRC
   }
 
   this->write_fifo(data, len);
@@ -254,20 +255,23 @@ bool ST25R300::transceive_ex(const uint8_t *data, size_t len, uint8_t *resp, uin
     this->irq_triggered_ = false;
     uint8_t irq1 = this->read_register(ST25R300_REG_IRQ_STATUS1);
     uint8_t irq2 = this->read_register(ST25R300_REG_IRQ_STATUS2);
-  this->read_register(ST25R300_REG_IRQ_STATUS3);
+    this->read_register(ST25R300_REG_IRQ_STATUS3);
 
-    if (irq1 & ST25R300_IRQ1_TXE) tx_done = true;
+    if (irq1 & ST25R300_IRQ1_TXE)
+      tx_done = true;
 
     if (tx_done) {
       uint8_t f1 = this->read_register(ST25R300_REG_FIFO_STATUS1);
       if (f1 > 0) {
-        uint8_t to_read = std::min((uint8_t)(64 - resp_len), f1);
+        uint8_t to_read = std::min((uint8_t) (64 - resp_len), f1);
         this->read_fifo(resp + resp_len, to_read);
         resp_len += to_read;
         start = millis();
       }
-      if (irq1 & ST25R300_IRQ1_RXE) return resp_len > 0;
-      if (irq2 & ST25R300_IRQ2_NRE) return resp_len > 0;
+      if (irq1 & ST25R300_IRQ1_RXE)
+        return resp_len > 0;
+      if (irq2 & ST25R300_IRQ2_NRE)
+        return resp_len > 0;
     }
     delay(1);
   }
@@ -295,8 +299,15 @@ std::unique_ptr<nfc::NfcTag> ST25R300::read_tag(std::vector<uint8_t> &uid) {
       bool terminator_found = false;
 
       for (size_t i = 0; i < 16; i++) {
-        if (data[i] == 0x03) { tlv_index = i; found = true; break; }
-        if (data[i] == 0xFE) { terminator_found = true; break; }
+        if (data[i] == 0x03) {
+          tlv_index = i;
+          found = true;
+          break;
+        }
+        if (data[i] == 0xFE) {
+          terminator_found = true;
+          break;
+        }
       }
 
       if (!found && !terminator_found) {
@@ -306,39 +317,49 @@ std::unique_ptr<nfc::NfcTag> ST25R300::read_tag(std::vector<uint8_t> &uid) {
           if (this->transceive_(read_cmd, 2, buffer, len) && len >= 16) {
             data.insert(data.end(), buffer, buffer + 16);
             for (size_t i = data.size() - 16; i < data.size(); i++) {
-              if (data[i] == 0x03) { tlv_index = i; found = true; break; }
-              if (data[i] == 0xFE) { terminator_found = true; break; }
+              if (data[i] == 0x03) {
+                tlv_index = i;
+                found = true;
+                break;
+              }
+              if (data[i] == 0xFE) {
+                terminator_found = true;
+                break;
+              }
             }
           }
-          if (found || terminator_found) break;
+          if (found || terminator_found)
+            break;
         }
       }
 
       if (found) {
         while (data.size() <= tlv_index + 3) {
-          read_cmd[1] = (uint8_t)(data.size() / 4);
+          read_cmd[1] = (uint8_t) (data.size() / 4);
           delay(10);
-          if (!this->transceive_(read_cmd, 2, buffer, len) || len < 16) break;
+          if (!this->transceive_(read_cmd, 2, buffer, len) || len < 16)
+            break;
           data.insert(data.end(), buffer, buffer + 16);
         }
         if (tlv_index + 1 < data.size()) {
           size_t msg_len, msg_start;
           if (data[tlv_index + 1] == 0xFF && tlv_index + 3 < data.size()) {
-            msg_len   = ((size_t)data[tlv_index + 2] << 8) | data[tlv_index + 3];
+            msg_len = ((size_t) data[tlv_index + 2] << 8) | data[tlv_index + 3];
             msg_start = tlv_index + 4;
           } else {
-            msg_len   = data[tlv_index + 1];
+            msg_len = data[tlv_index + 1];
             msg_start = tlv_index + 2;
           }
           while (data.size() < msg_start + msg_len) {
-            read_cmd[1] = (uint8_t)(data.size() / 4);
+            read_cmd[1] = (uint8_t) (data.size() / 4);
             delay(10);
-            if (!this->transceive_(read_cmd, 2, buffer, len) || len < 16) break;
+            if (!this->transceive_(read_cmd, 2, buffer, len) || len < 16)
+              break;
             data.insert(data.end(), buffer, buffer + 16);
           }
           if (data.size() >= msg_start + msg_len) {
-            std::vector<uint8_t> ndef_data(data.begin() + (int)msg_start,
-                                           data.begin() + (int)msg_start + (int)msg_len);
+            std::vector<uint8_t> ndef_data(data.begin() + (int) msg_start,
+                                           data.begin() + (int) msg_start + (int) msg_len);
             nfc::NfcTagUid nfc_uid(uid.begin(), uid.end());
             if (msg_len > 0) {
               ESP_LOGD(TAG, "read_tag_: NDEF found, %zu bytes at TLV offset %zu", msg_len, tlv_index);
@@ -361,13 +382,9 @@ std::unique_ptr<nfc::NfcTag> ST25R300::read_tag(std::vector<uint8_t> &uid) {
 
 // ── Virtual helper overrides ───────────────────────────────────────────────────
 
-uint8_t ST25R300::read_fifo_status1() {
-  return this->read_register(ST25R300_REG_FIFO_STATUS1);
-}
+uint8_t ST25R300::read_fifo_status1() { return this->read_register(ST25R300_REG_FIFO_STATUS1); }
 
-uint8_t ST25R300::read_collision_display() {
-  return this->read_register(ST25R300_REG_COLLISION_DISPLAY);
-}
+uint8_t ST25R300::read_collision_display() { return this->read_register(ST25R300_REG_COLLISION_DISPLAY); }
 
 void ST25R300::pre_select() {
   // No-op: ST25R300 manages RX mode (antcl) via RX_PROTOCOL1 inside transceive_ex().
@@ -384,8 +401,7 @@ void ST25R300::send_halt() {
   // TX_FRAME must be written before FIFO data (per datasheet)
   this->write_register(ST25R300_REG_TX_FRAME1, 0x00);
   this->write_register(ST25R300_REG_TX_FRAME2, 0x10);  // 2 full bytes
-  this->write_register(ST25R300_REG_TX_PROTOCOL1,
-                       ST25R300_TX_PROT1_A_TX_PAR | ST25R300_TX_PROT1_TX_CRC);
+  this->write_register(ST25R300_REG_TX_PROTOCOL1, ST25R300_TX_PROT1_A_TX_PAR | ST25R300_TX_PROT1_TX_CRC);
   this->write_fifo(halt_cmd, 2);
   this->write_command(ST25R300_CMD_TRANSMIT_DATA);
   delay(10);
@@ -430,8 +446,8 @@ void ST25R300::send_anticol_frame() {
   // a_rx_par MUST be set: without it, parity bits from 9-bit NFC-A bytes are packed into FIFO
   // alongside data bits, garbling the UID. a_rx_par strips parity before FIFO write.
   this->write_register(ST25R300_REG_RX_PROTOCOL1,
-                       ST25R300_RX_PROT1_B_RX_SOF | ST25R300_RX_PROT1_B_RX_EOF |
-                       ST25R300_RX_PROT1_A_RX_PAR | ST25R300_RX_PROT1_ANTCL);  // 0x39
+                       ST25R300_RX_PROT1_B_RX_SOF | ST25R300_RX_PROT1_B_RX_EOF | ST25R300_RX_PROT1_A_RX_PAR |
+                           ST25R300_RX_PROT1_ANTCL);                            // 0x39
   this->write_register(ST25R300_REG_TX_PROTOCOL1, ST25R300_TX_PROT1_A_TX_PAR);  // parity, no CRC
 
   // CLEAR_FIFO (not STOP_ALL): STOP_ALL disables the RX decoder, preventing collision detection.
@@ -446,7 +462,7 @@ void ST25R300::send_anticol_frame() {
   this->irq_status2_ = 0;
   // TX_FRAME must be written before FIFO data
   this->write_register(ST25R300_REG_TX_FRAME1, ntx_n >> 5);
-  this->write_register(ST25R300_REG_TX_FRAME2, (uint8_t)(((ntx_n & 0x1F) << 3) | (ntx_b & 0x07)));
+  this->write_register(ST25R300_REG_TX_FRAME2, (uint8_t) (((ntx_n & 0x1F) << 3) | (ntx_b & 0x07)));
   this->write_fifo(frame, frame_len);
   this->write_command(ST25R300_CMD_TRANSMIT_DATA);
 }
@@ -474,7 +490,8 @@ bool ST25R300::reset_chip() {
   // Wait for oscillator stable (I_osc in IRQ_STATUS3, bit0)
   uint32_t osc_start = millis();
   while (millis() - osc_start < 50) {
-    if (this->read_register(ST25R300_REG_IRQ_STATUS3) & ST25R300_IRQ3_OSC) break;
+    if (this->read_register(ST25R300_REG_IRQ_STATUS3) & ST25R300_IRQ3_OSC)
+      break;
     delay(1);
   }
 
@@ -491,12 +508,12 @@ bool ST25R300::reset_chip() {
 
   // Step 5: Configure for NFC-A / ISO14443A
   this->write_register(ST25R300_REG_GENERAL_CONF, 0x00);  // differential antenna, no RFO2
-  this->write_register(ST25R300_REG_PROTOCOL1, 0x01);      // om=1: NFC-A reader/initiator
+  this->write_register(ST25R300_REG_PROTOCOL1, 0x01);     // om=1: NFC-A reader/initiator
   this->write_register(ST25R300_REG_TX_PROTOCOL1,
                        ST25R300_TX_PROT1_A_TX_PAR | ST25R300_TX_PROT1_TX_CRC);  // 0x60
   this->write_register(ST25R300_REG_RX_PROTOCOL1,
-                       ST25R300_RX_PROT1_B_RX_SOF | ST25R300_RX_PROT1_B_RX_EOF |
-                       ST25R300_RX_PROT1_A_RX_PAR | ST25R300_RX_PROT1_RX_CRC);  // 0x3C
+                       ST25R300_RX_PROT1_B_RX_SOF | ST25R300_RX_PROT1_B_RX_EOF | ST25R300_RX_PROT1_A_RX_PAR |
+                           ST25R300_RX_PROT1_RX_CRC);  // 0x3C
 
   // RX path analog and correlator — tuned for NFC-A 106kbps (RFAL ST25R500 analogConfigTbl)
   uint8_t rx_ana1 = 0x73 | (this->rx_gain_boost_ ? 0x04 : 0x00);
@@ -528,8 +545,7 @@ bool ST25R300::reset_chip() {
   this->write_register(ST25R300_REG_NRT_CONF3, 0x23);  // nrt[7:0] = 0x0423 = 1059 steps ≈ 5ms
 
   if (this->rf_field_enabled_) {
-    this->write_register(ST25R300_REG_OPERATION,
-                         ST25R300_OP_EN | ST25R300_OP_VDDDR_EN | ST25R300_OP_TX_EN);
+    this->write_register(ST25R300_REG_OPERATION, ST25R300_OP_EN | ST25R300_OP_VDDDR_EN | ST25R300_OP_TX_EN);
     delay(5);
     this->write_command(ST25R300_CMD_FIELD_ON);
     delay(10);
@@ -580,43 +596,42 @@ void ST25R300::dump_config() {
   }
   LOG_UPDATE_INTERVAL(this);
   uint8_t ic_id = this->read_register(ST25R300_REG_IC_IDENTITY);
-  ESP_LOGCONFIG(TAG, "  IC Identity (live): 0x%02X (chip_type=0x%02X)", ic_id,
-                ic_id & ST25R300_IC_TYPE_MASK);
+  ESP_LOGCONFIG(TAG, "  IC Identity (live): 0x%02X (chip_type=0x%02X)", ic_id, ic_id & ST25R300_IC_TYPE_MASK);
 }
 
 // ── NFC-V (ISO 15693) support ────────────────────────────────────────────────
 
 void ST25R300::configure_nfcv_mode_() {
-  this->write_register(ST25R300_REG_GENERAL_CONF, 0x02);    // nfc_n=2 (NFC-V subcarrier config)
-  this->write_register(ST25R300_REG_PROTOCOL1, 0x05);      // om=5: NFC-V/ISO15693
-  this->write_register(ST25R300_REG_TX_PROTOCOL1, 0x20);   // tx_crc only (no parity)
+  this->write_register(ST25R300_REG_GENERAL_CONF, 0x02);  // nfc_n=2 (NFC-V subcarrier config)
+  this->write_register(ST25R300_REG_PROTOCOL1, 0x05);     // om=5: NFC-V/ISO15693
+  this->write_register(ST25R300_REG_TX_PROTOCOL1, 0x20);  // tx_crc only (no parity)
   this->write_register(ST25R300_REG_RX_PROTOCOL1,
                        ST25R300_RX_PROT1_B_RX_SOF | ST25R300_RX_PROT1_B_RX_EOF |
-                       ST25R300_RX_PROT1_RX_CRC);  // 0x34: SOF+EOF+CRC (no parity, no antcl)
+                           ST25R300_RX_PROT1_RX_CRC);  // 0x34: SOF+EOF+CRC (no parity, no antcl)
   // TX modulation: OOK (97% ASK) for NFC-V 26kbps — RFAL analogConfigTbl
   this->write_register(ST25R300_REG_TX_MOD1, 0x00);  // am_mod=0 → OOK
   // RX analog + correlator: RFAL ST25R500 NFC-V 26kbps profile
   this->write_register(ST25R300_REG_RX_ANALOG1, 0x71);  // dig_clk_dly=7, hpf_ctrl=1
-  this->write_register(0x0D, 0x50);  // RX_DIG: lpf_coef + hpf_coef for NFC-V
-  this->write_register(0x0E, 0xD0);  // CORR1
-  this->write_register(0x0F, 0x2A);  // CORR2
-  this->write_register(0x10, 0x08);  // CORR3: start_wait=8
-  this->write_register(0x11, 0xAA);  // CORR4: coll_lvl=A, data_lvl=A
-  this->write_register(0x12, 0xCC);  // CORR5
-  this->write_register(0x13, 0x10);  // CORR6
+  this->write_register(0x0D, 0x50);                     // RX_DIG: lpf_coef + hpf_coef for NFC-V
+  this->write_register(0x0E, 0xD0);                     // CORR1
+  this->write_register(0x0F, 0x2A);                     // CORR2
+  this->write_register(0x10, 0x08);                     // CORR3: start_wait=8
+  this->write_register(0x11, 0xAA);                     // CORR4: coll_lvl=A, data_lvl=A
+  this->write_register(0x12, 0xCC);                     // CORR5
+  this->write_register(0x13, 0x10);                     // CORR6
   // NRT: ~20ms for NFC-V (4233 steps at 4.72µs/step)
   this->write_register(ST25R300_REG_NRT_CONF2, 0x10);
   this->write_register(ST25R300_REG_NRT_CONF3, 0x89);
 }
 
 void ST25R300::configure_nfca_mode_() {
-  this->write_register(ST25R300_REG_GENERAL_CONF, 0x00);    // nfc_n=0 (NFC-A)
-  this->write_register(ST25R300_REG_PROTOCOL1, 0x01);      // om=1: NFC-A
+  this->write_register(ST25R300_REG_GENERAL_CONF, 0x00);  // nfc_n=0 (NFC-A)
+  this->write_register(ST25R300_REG_PROTOCOL1, 0x01);     // om=1: NFC-A
   this->write_register(ST25R300_REG_TX_PROTOCOL1,
                        ST25R300_TX_PROT1_A_TX_PAR | ST25R300_TX_PROT1_TX_CRC);  // 0x60
   this->write_register(ST25R300_REG_RX_PROTOCOL1,
-                       ST25R300_RX_PROT1_B_RX_SOF | ST25R300_RX_PROT1_B_RX_EOF |
-                       ST25R300_RX_PROT1_A_RX_PAR | ST25R300_RX_PROT1_RX_CRC);  // 0x3C
+                       ST25R300_RX_PROT1_B_RX_SOF | ST25R300_RX_PROT1_B_RX_EOF | ST25R300_RX_PROT1_A_RX_PAR |
+                           ST25R300_RX_PROT1_RX_CRC);  // 0x3C
   // Restore NFC-A TX modulation + RX analog + correlator
   this->write_register(ST25R300_REG_TX_MOD1, 0x70);  // am_mod=7 (20% ASK)
   uint8_t rx_ana1 = 0x73 | (this->rx_gain_boost_ ? 0x04 : 0x00);
@@ -634,7 +649,7 @@ void ST25R300::configure_nfca_mode_() {
 }
 
 bool ST25R300::transceive_blocking_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
-                                 uint32_t timeout_ms) {
+                                    uint32_t timeout_ms) {
   this->write_command(ST25R300_CMD_CLEAR_FIFO);
   this->write_command(ST25R300_CMD_CLEAR_RX_GAIN);
 
@@ -660,7 +675,7 @@ bool ST25R300::transceive_blocking_(const uint8_t *data, size_t len, uint8_t *re
     // Always poll IRQ registers (ISR may not fire if pin not configured or edge missed)
     uint8_t r1 = this->read_register(ST25R300_REG_IRQ_STATUS1);
     uint8_t r2 = this->read_register(ST25R300_REG_IRQ_STATUS2);
-  this->read_register(ST25R300_REG_IRQ_STATUS3);
+    this->read_register(ST25R300_REG_IRQ_STATUS3);
     if (r1 & ST25R300_IRQ1_RXE) {
       uint8_t fifo_len = this->read_register(ST25R300_REG_FIFO_STATUS1);
       if (fifo_len > 0 && fifo_len <= 64) {
@@ -690,9 +705,7 @@ void ST25R300::nfcv_scan_() {
   uint8_t resp_len = 0;
 
   // Single-tag inventory (multi-tag requires STAY_QUIET + field cycling)
-  if (this->transceive_blocking_(inv_req, sizeof(inv_req), resp, resp_len, 25) &&
-      resp_len >= 10 && !(resp[0] & 0x01)) {
-
+  if (this->transceive_blocking_(inv_req, sizeof(inv_req), resp, resp_len, 25) && resp_len >= 10 && !(resp[0] & 0x01)) {
     // UID is bytes 2-9, transmitted LSB-first — reverse for display
     char uid_str[17];
     for (int j = 0; j < 8; j++) {
@@ -717,18 +730,19 @@ void ST25R300::nfcv_scan_() {
     uint8_t blk_len = 0;
     std::vector<uint8_t> ndef_data;
 
-    if (this->transceive_blocking_(blk_req, sizeof(blk_req), blk_resp, blk_len, 20) &&
-        blk_len >= 5 && !(blk_resp[0] & 0x01)) {
+    if (this->transceive_blocking_(blk_req, sizeof(blk_req), blk_resp, blk_len, 20) && blk_len >= 5 &&
+        !(blk_resp[0] & 0x01)) {
       if (blk_resp[1] == 0xE1) {  // NDEF magic uint8_t in CC
         uint8_t cc_size = blk_resp[3];
         uint8_t total_blocks = (cc_size * 8) / 4;
-        if (total_blocks > 64) total_blocks = 64;
+        if (total_blocks > 64)
+          total_blocks = 64;
 
         for (uint8_t blk = 1; blk <= total_blocks; blk++) {
           blk_req[2] = blk;
           blk_len = 0;
-          if (this->transceive_blocking_(blk_req, sizeof(blk_req), blk_resp, blk_len, 20) &&
-              blk_len >= 5 && !(blk_resp[0] & 0x01)) {
+          if (this->transceive_blocking_(blk_req, sizeof(blk_req), blk_resp, blk_len, 20) && blk_len >= 5 &&
+              !(blk_resp[0] & 0x01)) {
             for (int k = 1; k < 5 && k < blk_len; k++)
               ndef_data.push_back(blk_resp[k]);
           } else {
@@ -757,7 +771,8 @@ void ST25R300::nfcv_scan_() {
             }
             break;
           }
-          if (ndef_data[i] == 0xFE) break;
+          if (ndef_data[i] == 0xFE)
+            break;
         }
       }
 
@@ -785,22 +800,24 @@ bool ST25R300::nfcv_ndef_write(nfc::NdefMessage *message) {
     std::vector<uint8_t> ndef_data = message->encode();
     payload.push_back(0x03);
     if (ndef_data.size() < 255) {
-      payload.push_back((uint8_t)ndef_data.size());
+      payload.push_back((uint8_t) ndef_data.size());
     } else {
       payload.push_back(0xFF);
-      payload.push_back((uint8_t)((ndef_data.size() >> 8) & 0xFF));
-      payload.push_back((uint8_t)(ndef_data.size() & 0xFF));
+      payload.push_back((uint8_t) ((ndef_data.size() >> 8) & 0xFF));
+      payload.push_back((uint8_t) (ndef_data.size() & 0xFF));
     }
     payload.insert(payload.end(), ndef_data.begin(), ndef_data.end());
   }
   payload.push_back(0xFE);
-  while (payload.size() % 4 != 0) payload.push_back(0);
+  while (payload.size() % 4 != 0)
+    payload.push_back(0);
 
   ESP_LOGD(TAG, "NFC-V NDEF write: %zu bytes in %zu blocks", payload.size(), payload.size() / 4);
 
   // Write CC to block 0
   uint8_t cc_size = (payload.size() + 4) / 8;
-  if (cc_size == 0) cc_size = 1;
+  if (cc_size == 0)
+    cc_size = 1;
   uint8_t write_req[7] = {0x02, 0x21, 0x00, 0xE1, 0x40, cc_size, 0x00};
   uint8_t resp[4];
   uint8_t resp_len = 0;
@@ -843,11 +860,11 @@ bool ST25R300::nfcv_ndef_write(nfc::NdefMessage *message) {
 // ── NFC-B (ISO 14443B) support ───────────────────────────────────────────────
 
 void ST25R300::configure_nfcb_mode_() {
-  this->write_register(ST25R300_REG_PROTOCOL1, 0x02);      // om=2: NFC-B/ISO14443B
-  this->write_register(ST25R300_REG_TX_PROTOCOL1, 0x20);   // tx_crc only (no parity for NFC-B)
+  this->write_register(ST25R300_REG_PROTOCOL1, 0x02);     // om=2: NFC-B/ISO14443B
+  this->write_register(ST25R300_REG_TX_PROTOCOL1, 0x20);  // tx_crc only (no parity for NFC-B)
   this->write_register(ST25R300_REG_RX_PROTOCOL1,
                        ST25R300_RX_PROT1_B_RX_SOF | ST25R300_RX_PROT1_B_RX_EOF |
-                       ST25R300_RX_PROT1_RX_CRC);  // 0x34: SOF+EOF+CRC (no parity)
+                           ST25R300_RX_PROT1_RX_CRC);  // 0x34: SOF+EOF+CRC (no parity)
   // NFC-B uses AM modulation (10% ASK), not OOK
   this->write_register(ST25R300_REG_TX_MOD1, 0x70);  // am_mod=7 (12% ASK)
   // NRT: ~20ms for NFC-B response
@@ -863,8 +880,8 @@ void ST25R300::nfcb_scan_() {
   uint8_t resp[16];
   uint8_t resp_len = 0;
 
-  if (this->transceive_blocking_(sensb_req, sizeof(sensb_req), resp, resp_len, 20) &&
-      resp_len >= 12 && resp[0] == 0x50) {
+  if (this->transceive_blocking_(sensb_req, sizeof(sensb_req), resp, resp_len, 20) && resp_len >= 12 &&
+      resp[0] == 0x50) {
     // ATQB: uint8_t 0 = 0x50, bytes 1-4 = PUPI
     char uid_str[9];
     snprintf(uid_str, sizeof(uid_str), "%02X%02X%02X%02X", resp[1], resp[2], resp[3], resp[4]);

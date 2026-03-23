@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import st25r, spi
+from esphome.components import spi, st25r
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 

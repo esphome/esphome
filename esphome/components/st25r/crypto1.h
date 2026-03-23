@@ -24,16 +24,16 @@ struct Crypto1State {
 };
 
 // Initialise state from 48-bit key (MSB of key → first LFSR bit loaded)
-void  crypto1_init(struct Crypto1State *s, uint64_t key);
+void crypto1_init(struct Crypto1State *s, uint64_t key);
 
 // Output filter function — operates on the odd half of the state
-int   crypto1_filter(uint32_t x);
+int crypto1_filter(uint32_t x);
 
 // Clock one bit; in=plaintext input bit; is_encrypted=1 during encrypted phase
-uint8_t  crypto1_bit(struct Crypto1State *s, uint8_t in, int is_encrypted);
+uint8_t crypto1_bit(struct Crypto1State *s, uint8_t in, int is_encrypted);
 
 // Clock eight bits LSB-first
-uint8_t  crypto1_byte(struct Crypto1State *s, uint8_t in, int is_encrypted);
+uint8_t crypto1_byte(struct Crypto1State *s, uint8_t in, int is_encrypted);
 
 // Clock 32 bits using ISO 14443A big-endian bit ordering (used for nonce words)
 uint32_t crypto1_word(struct Crypto1State *s, uint32_t in, int is_encrypted);

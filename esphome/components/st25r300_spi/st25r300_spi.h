@@ -15,8 +15,8 @@ namespace st25r300_spi {
 //   Direct command: send command byte directly (0x60-0x7F or 0xE2-0xEF range)
 // SPI Mode 1: CPOL=0, CPHA=1 (CLOCK_PHASE_TRAILING) — same as ST25R3916
 class ST25R300Spi : public st25r300::ST25R300,
-                    public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                          spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_200KHZ> {
+                    public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_TRAILING,
+                                          spi::DATA_RATE_200KHZ> {
  public:
   void setup() override;
   void dump_config() override;

@@ -43,24 +43,24 @@ enum ST25RRegister : uint8_t {
   NUM_TX_BYTES1 = 0x22,
   NUM_TX_BYTES2 = 0x23,
   AD_CONV_RESULT = 0x25,
-  ANT_TUNE_A = 0x26,   // Antenna tuning DAC A (Space A): V = (0.044 + 0.868 * val/255) * VDD_A; default 0x80
-  ANT_TUNE_B = 0x27,   // Antenna tuning DAC B (Space A): same formula; default 0x80
+  ANT_TUNE_A = 0x26,  // Antenna tuning DAC A (Space A): V = (0.044 + 0.868 * val/255) * VDD_A; default 0x80
+  ANT_TUNE_B = 0x27,  // Antenna tuning DAC B (Space A): same formula; default 0x80
   TX_DRIVER_CONF = 0x28,
-  PT_MOD = 0x29,        // PT modulation (Space A): RFO resistance in modulated state
+  PT_MOD = 0x29,                  // PT modulation (Space A): RFO resistance in modulated state
   FIELD_THRESHOLD_ACTV = 0x2A,    // External field detector activation threshold
   FIELD_THRESHOLD_DEACTV = 0x2B,  // External field detector deactivation threshold
   IC_IDENTITY = 0x3F,
   // Space B registers (bit 0x40 set → SPI prefix 0xFB before address)
-  EMD_SUP_CONF = 0x45,      // (Space B 0x05) EMD suppression config
-  CORR_CONF1 = 0x4C,        // (Space B 0x0C) Correlator configuration 1
-  CORR_CONF2 = 0x4D,        // (Space B 0x0D) Correlator configuration 2
+  EMD_SUP_CONF = 0x45,       // (Space B 0x05) EMD suppression config
+  CORR_CONF1 = 0x4C,         // (Space B 0x0C) Correlator configuration 1
+  CORR_CONF2 = 0x4D,         // (Space B 0x0D) Correlator configuration 2
   AUX_MOD = 0x68,            // (Space B 0x28) Aux modulation setting
   RES_AM_MOD = 0x6A,         // (Space B 0x2A) Resistive AM modulation
-  OVERSHOOT_CONF1 = 0x70,   // (Space B 0x30) Overshoot protection config 1
-  OVERSHOOT_CONF2 = 0x71,   // (Space B 0x31) Overshoot protection config 2
-  UNDERSHOOT_CONF1 = 0x72,  // (Space B 0x32) Undershoot protection config 1
-  UNDERSHOOT_CONF2 = 0x73,  // (Space B 0x33) Undershoot protection config 2
-  REGULATOR_CONTROL = 0x2C, // Regulated voltage control (Space A)
+  OVERSHOOT_CONF1 = 0x70,    // (Space B 0x30) Overshoot protection config 1
+  OVERSHOOT_CONF2 = 0x71,    // (Space B 0x31) Overshoot protection config 2
+  UNDERSHOOT_CONF1 = 0x72,   // (Space B 0x32) Undershoot protection config 1
+  UNDERSHOOT_CONF2 = 0x73,   // (Space B 0x33) Undershoot protection config 2
+  REGULATOR_CONTROL = 0x2C,  // Regulated voltage control (Space A)
 };
 
 // ST25R Commands
@@ -166,9 +166,7 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   void set_aat_enabled(bool v) { this->aat_enabled_ = v; }
 
   void register_on_tag_trigger(ST25RTagTrigger *trig) { this->on_tag_triggers_.push_back(trig); }
-  void register_on_tag_removed_trigger(ST25RTagRemovedTrigger *trig) {
-    this->on_tag_removed_triggers_.push_back(trig);
-  }
+  void register_on_tag_removed_trigger(ST25RTagRemovedTrigger *trig) { this->on_tag_removed_triggers_.push_back(trig); }
   void register_tag(ST25RBinarySensor *tag) { this->binary_sensors_.push_back(tag); }
   void set_status_binary_sensor(binary_sensor::BinarySensor *sensor) { this->status_binary_sensor_ = sensor; }
   void set_field_strength_sensor(sensor::Sensor *sensor) { this->field_strength_sensor_ = sensor; }
@@ -186,7 +184,8 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   virtual bool reset_chip();
   virtual void reinitialize();
   virtual void send_anticol_frame();
-  virtual bool transceive_ex(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, bool with_crc, uint32_t timeout_ms);
+  virtual bool transceive_ex(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, bool with_crc,
+                             uint32_t timeout_ms);
   virtual std::unique_ptr<nfc::NfcTag> read_tag(std::vector<uint8_t> &uid);
 
   // Virtual helpers used by the shared process_state() to abstract chip differences
@@ -228,11 +227,9 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   bool transceive_no_crc_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms = 150);
   // Mifare Classic — raw transceive with manual parity (no chip CRC/parity).
   // Adapted from mf1.c (MIT, github.com/suut/rfal-mifare-classic)
-  bool transceive_mifare_(const uint8_t *data, const uint8_t *parity, uint8_t len,
-                          uint8_t *resp, uint8_t *resp_parity, uint8_t &resp_len,
-                          uint32_t timeout_ms = 15);
-  bool mifare_authenticate_(uint8_t block, bool key_b, uint64_t key,
-                            const uint8_t *uid, uint8_t uid_len,
+  bool transceive_mifare_(const uint8_t *data, const uint8_t *parity, uint8_t len, uint8_t *resp, uint8_t *resp_parity,
+                          uint8_t &resp_len, uint32_t timeout_ms = 15);
+  bool mifare_authenticate_(uint8_t block, bool key_b, uint64_t key, const uint8_t *uid, uint8_t uid_len,
                             struct Crypto1State *cs);
   bool mifare_read_block_(uint8_t block, uint8_t *data, struct Crypto1State *cs);
   static void isr(ST25R *arg);
@@ -268,16 +265,16 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   // Multi-tag tracking
   // present_tags_: UID → consecutive miss count (0 = seen this or prior scan)
   std::map<std::string, uint8_t> present_tags_;
-  std::set<std::string> tags_this_scan_;  // UIDs found in current scan cycle
+  std::set<std::string> tags_this_scan_;                           // UIDs found in current scan cycle
   std::map<std::string, std::unique_ptr<nfc::NfcTag>> tags_data_;  // UID → last read NfcTag
 
   // IRQ_MAIN (0x1A) bit definitions per Table 62
-  static const uint8_t IRQ_OSC     = 0x80;  // bit7: oscillator stable
-  static const uint8_t IRQ_WL      = 0x40;  // bit6: FIFO water level
-  static const uint8_t IRQ_RXS     = 0x20;  // bit5: start of receive
-  static const uint8_t IRQ_RXE     = 0x10;  // bit4: end of receive ← tag response
-  static const uint8_t IRQ_TXE     = 0x08;  // bit3: end of transmission
-  static const uint8_t IRQ_COL     = 0x04;  // bit2: bit collision ← anticollision
+  static const uint8_t IRQ_OSC = 0x80;      // bit7: oscillator stable
+  static const uint8_t IRQ_WL = 0x40;       // bit6: FIFO water level
+  static const uint8_t IRQ_RXS = 0x20;      // bit5: start of receive
+  static const uint8_t IRQ_RXE = 0x10;      // bit4: end of receive ← tag response
+  static const uint8_t IRQ_TXE = 0x08;      // bit3: end of transmission
+  static const uint8_t IRQ_COL = 0x04;      // bit2: bit collision ← anticollision
   static const uint8_t IRQ_RX_REST = 0x02;  // bit1: automatic reception restart
   // NRE (no-response timer expired): set in irq_status_ by derived class overrides
   // (e.g. ST25R300 translates its IRQ_STATUS2 NRE bit here). ST25R3916 uses millis() timeout.
@@ -290,17 +287,17 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
   uint8_t last_sak_{0};  // SAK from most recent SELECT (bit5=0x20 → ISO-DEP capable)
 
   // Anticollision loop state
-  uint8_t anticol_prefix_[5]{};   // UID prefix bytes being used to narrow search
-  uint8_t anticol_prefix_full_;   // complete prefix bytes
-  uint8_t anticol_prefix_bits_;   // partial bits in last prefix byte
-  uint8_t anticol_col_pos_{0};    // collision bit position (bits 0..col_pos are prefix)
-  uint8_t anticol_prefix_val_{0}; // current prefix value being tried (brute-forced)
+  uint8_t anticol_prefix_[5]{};    // UID prefix bytes being used to narrow search
+  uint8_t anticol_prefix_full_;    // complete prefix bytes
+  uint8_t anticol_prefix_bits_;    // partial bits in last prefix byte
+  uint8_t anticol_col_pos_{0};     // collision bit position (bits 0..col_pos are prefix)
+  uint8_t anticol_prefix_val_{0};  // current prefix value being tried (brute-forced)
 
   // Multi-tag tree traversal: saved CL1 collision state for resuming after cascade CL2
   uint8_t saved_col_pos_{0};
   uint8_t saved_prefix_val_{0};
   bool saved_anticol_valid_{false};
-  bool anticol_resume_{false};    // when true: STATE_WUPA uses saved prefix instead of resetting
+  bool anticol_resume_{false};  // when true: STATE_WUPA uses saved prefix instead of resetting
 
   std::vector<ST25RTagTrigger *> on_tag_triggers_;
   std::vector<ST25RTagRemovedTrigger *> on_tag_removed_triggers_;

@@ -8,8 +8,8 @@ namespace esphome {
 namespace st25r_spi {
 
 class ST25RSpi : public st25r::ST25R,
-                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                       spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_200KHZ> {
+                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_TRAILING,
+                                       spi::DATA_RATE_200KHZ> {
  public:
   void setup() override;
   void dump_config() override;
