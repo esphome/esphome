@@ -35,7 +35,7 @@ void SPA06SPIComponent::protocol_reset() {
 // is not used and replaced by a read/write bit (RW = ‘0’ for write and RW = ‘1’ for read).
 // Example: address 0xF7 is accessed by using SPI register address 0x77. For write access,
 // the byte 0x77 is transferred, for read access, the byte 0xF7 is transferred.
-// The expressions SPA06_SPI_R (OR with register) and SPA06_SPI_W (AND with register)
+// The expressions SPA06_SPI_READ (| with register) and SPA06_SPI_WRITE (& with register)
 // are defined for readability.
 
 bool SPA06SPIComponent::spa_read_byte(uint8_t a_register, uint8_t *data) {
