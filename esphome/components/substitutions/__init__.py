@@ -304,7 +304,7 @@ def substitute(
         return item  # do not substitute inside literal blocks
 
     # Push the current item's context onto the context stack
-    context_vars = push_context(item, parent_context)
+    context_vars = push_context(item, parent_context, errors)
 
     result = item
 

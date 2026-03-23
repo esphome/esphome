@@ -522,6 +522,7 @@ def test_config_context_unresolvable_warns(
     with caplog.at_level(logging.WARNING):
         substitutions.do_substitution_pass(config)
 
+    assert "Could not resolve substitution variable 'a'" in caplog.text
     assert "'undefined' is undefined" in caplog.text
 
 
