@@ -155,9 +155,14 @@ def _final_validate(config: ConfigType) -> ConfigType:
     if not data.effect_refs:
         return config
 
+    # Drain the list so we only validate once even though
+    # FINAL_VALIDATE_SCHEMA runs for each light platform instance.
+    refs = data.effect_refs
+    data.effect_refs = []
+
     fconf = fv.full_config.get()
 
-    for ref in data.effect_refs:
+    for ref in refs:
         try:
             light_path = fconf.get_path_for_id(ref.light_id)[:-1]
             light_config = fconf.get_config_for_path(light_path)
