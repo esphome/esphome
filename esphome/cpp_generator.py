@@ -584,7 +584,7 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
         # For 'new' allocations, use placement new into static storage
         # to avoid heap fragmentation on embedded devices.
         the_type = id_.type
-        storage_name = f"{id_.id}_storage_"
+        storage_name = f"{id_.id}__pstorage"
 
         # Declare aligned byte array for the object storage
         CORE.add_global(
@@ -603,7 +603,10 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
         # Extract args from the CallExpression and rebuild as placement new.
         # Template args are already encoded in the_type (e.g. GlobalsComponent<int>),
         # so we only pass the constructor args, not template_args.
-        call_expr = rhs.base  # CallExpression("new Type", args...)
+        call_expr = rhs.base
+        assert isinstance(call_expr, CallExpression), (
+            f"Expected CallExpression for placement new, got {type(call_expr)}"
+        )
         placement_new = CallExpression(f"new({id_.id}) {the_type}", *call_expr.args)
         CORE.add(ExpressionStatement(placement_new))
     else:
