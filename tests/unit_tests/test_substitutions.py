@@ -10,9 +10,10 @@ from esphome import config as config_module, yaml_util
 from esphome.components import substitutions
 from esphome.components.packages import do_packages_pass, merge_packages
 from esphome.config import resolve_extend_remove
-from esphome.config_helpers import merge_config
+from esphome.config_helpers import Extend, merge_config
+import esphome.config_validation as cv
 from esphome.const import CONF_SUBSTITUTIONS
-from esphome.core import CORE
+from esphome.core import CORE, Lambda
 from esphome.util import OrderedDict
 
 _LOGGER = logging.getLogger(__name__)
@@ -144,7 +145,7 @@ def test_substitutions_fixtures(
 
     config = do_packages_pass(config)
 
-    substitutions.do_substitution_pass(config, command_line_substitutions)
+    config = substitutions.do_substitution_pass(config, command_line_substitutions)
 
     config = merge_packages(config)
 
@@ -206,7 +207,7 @@ def test_substitutions_with_command_line_maintains_ordered_dict() -> None:
     command_line_subs = {"var2": "override", "var3": "new_value"}
 
     # Call do_substitution_pass with command line substitutions
-    substitutions.do_substitution_pass(config, command_line_subs)
+    config = substitutions.do_substitution_pass(config, command_line_subs)
 
     # Verify that config is still an OrderedDict
     assert isinstance(config, OrderedDict), "Config should remain an OrderedDict"
@@ -234,7 +235,7 @@ def test_substitutions_without_command_line_maintains_ordered_dict() -> None:
     config["other_key"] = "other_value"
 
     # Call without command line substitutions
-    substitutions.do_substitution_pass(config, None)
+    config = substitutions.do_substitution_pass(config, None)
 
     # Verify that config is still an OrderedDict
     assert isinstance(config, OrderedDict), "Config should remain an OrderedDict"
@@ -268,7 +269,7 @@ def test_substitutions_after_merge_config_maintains_ordered_dict() -> None:
     )
 
     # Now try to run substitution pass on the merged config
-    substitutions.do_substitution_pass(merged_config, None)
+    merged_config = substitutions.do_substitution_pass(merged_config, None)
 
     # Should not raise AttributeError
     assert isinstance(merged_config, OrderedDict), (
@@ -279,7 +280,7 @@ def test_substitutions_after_merge_config_maintains_ordered_dict() -> None:
 
 
 def test_validate_config_with_command_line_substitutions_maintains_ordered_dict(
-    tmp_path,
+    tmp_path: Path,
 ) -> None:
     """Test that validate_config preserves OrderedDict when merging command-line substitutions.
 
@@ -288,7 +289,7 @@ def test_validate_config_with_command_line_substitutions_maintains_ordered_dict(
     """
     # Create a minimal valid config
     test_config = OrderedDict()
-    test_config["esphome"] = {"name": "test_device", "platform": "ESP32"}
+    test_config["esphome"] = {"name": "test_device"}
     test_config[CONF_SUBSTITUTIONS] = OrderedDict({"var1": "value1", "var2": "value2"})
     test_config["esp32"] = {"board": "esp32dev"}
 
@@ -314,17 +315,11 @@ def test_validate_config_with_command_line_substitutions_maintains_ordered_dict(
     assert result[CONF_SUBSTITUTIONS]["var3"] == "new_value"
 
 
-def test_validate_config_without_command_line_substitutions_maintains_ordered_dict(
-    tmp_path,
-) -> None:
-    """Test that validate_config preserves OrderedDict without command-line substitutions.
-
-    This tests the code path in config.py where result[CONF_SUBSTITUTIONS] is set
-    using merge_dicts_ordered() when command_line_substitutions is None.
-    """
+def _get_test_minimal_valid_config(tmp_path: Path) -> OrderedDict:
+    """Helper to create a minimal valid config for testing."""
     # Create a minimal valid config
     test_config = OrderedDict()
-    test_config["esphome"] = {"name": "test_device", "platform": "ESP32"}
+    test_config["esphome"] = {"name": "test_device"}
     test_config[CONF_SUBSTITUTIONS] = OrderedDict({"var1": "value1", "var2": "value2"})
     test_config["esp32"] = {"board": "esp32dev"}
 
@@ -332,6 +327,19 @@ def test_validate_config_without_command_line_substitutions_maintains_ordered_di
     test_yaml = tmp_path / "test.yaml"
     test_yaml.write_text("# test config")
     CORE.config_path = test_yaml
+    return test_config
+
+
+def test_validate_config_without_command_line_substitutions_maintains_ordered_dict(
+    tmp_path: Path,
+) -> None:
+    """Test that validate_config preserves OrderedDict without command-line substitutions.
+
+    This tests the code path in config.py where result[CONF_SUBSTITUTIONS] is set
+    using merge_dicts_ordered() when command_line_substitutions is None.
+    """
+
+    test_config = _get_test_minimal_valid_config(tmp_path)
 
     # Call validate_config without command line substitutions
     result = config_module.validate_config(test_config, None)
@@ -384,3 +392,205 @@ def test_merge_config_preserves_ordered_dict() -> None:
     assert not isinstance(result, OrderedDict), (
         "dict + dict should not return OrderedDict"
     )
+
+
+def test_substitution_pass_error_gets_captured(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """vol.Invalid from do_substitution_pass is captured by validate_config."""
+
+    # Patch the target: in config_module.do_substitution_pass (NOT where it's defined)
+    def fake_do_substitution_pass(*args, **kwargs):
+        raise cv.Invalid("Error in do_substitutions_pass!!")
+
+    monkeypatch.setattr(
+        config_module, "do_substitution_pass", fake_do_substitution_pass
+    )
+
+    # Prepare minimal config + no CLI substitutions
+    config = _get_test_minimal_valid_config(tmp_path)
+
+    # Call the function under test
+    result = config_module.validate_config(config, None)
+
+    # Now assert that add_error was called with the vol.Invalid
+
+    assert "Error in do_substitutions_pass!!" in str(result.get_error_for_path([]))
+
+
+@pytest.mark.parametrize(
+    "value", ["", "   ", "1foo", "9VAR", "0abc", "$1foo", "$9VAR", "$0abc"]
+)
+def test_validate_substitution_key_empty_raises(value: str) -> None:
+    """Empty (or all-whitespace) substitution keys are rejected."""
+    with pytest.raises(cv.Invalid):
+        substitutions.validate_substitution_key(value)
+
+
+@pytest.mark.parametrize(
+    "input_value, expected_output",
+    [
+        ("$FOO_bar9", "FOO_bar9"),  # Valid key with leading '$'
+        ("Foo_bar9", "Foo_bar9"),  # Normal valid key
+    ],
+)
+def test_validate_substitution_key_valid(
+    input_value: str, expected_output: str
+) -> None:
+    """Valid substitution keys are accepted with optional leading '$'."""
+    result = substitutions.validate_substitution_key(input_value)
+    assert result == expected_output
+
+
+def test_circular_dependency_warnings(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Circular substitution references produce warnings naming the cause."""
+    config = OrderedDict(
+        {
+            CONF_SUBSTITUTIONS: OrderedDict({"x": "${y}", "y": "${x}"}),
+            "key": "value",
+        }
+    )
+    with caplog.at_level(logging.WARNING):
+        substitutions.do_substitution_pass(config)
+
+    assert "Could not resolve substitution variable 'x'" in caplog.text
+    assert "'y' is undefined" in caplog.text
+    assert "Could not resolve substitution variable 'y'" in caplog.text
+    assert "'x' is undefined" in caplog.text
+    # Verify path includes location
+    assert "substitutions->x" in caplog.text
+    assert "substitutions->y" in caplog.text
+
+
+def test_missing_dependency_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A substitution referencing an undefined variable warns with the cause."""
+    config = OrderedDict(
+        {
+            CONF_SUBSTITUTIONS: OrderedDict({"a": "${missing}"}),
+            "key": "value",
+        }
+    )
+    with caplog.at_level(logging.WARNING):
+        substitutions.do_substitution_pass(config)
+
+    assert "Could not resolve substitution variable 'a'" in caplog.text
+    assert "'missing' is undefined" in caplog.text
+    assert "substitutions->a" in caplog.text
+
+
+def test_undefined_variable_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A reference to an undefined variable in config values produces a warning."""
+    config = OrderedDict(
+        {
+            "key": "${undefined_var}",
+        }
+    )
+    with caplog.at_level(logging.WARNING):
+        substitutions.do_substitution_pass(config)
+
+    assert "'undefined_var' is undefined" in caplog.text
+
+
+def test_password_field_warnings_suppressed(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Undefined variables in password fields should not produce warnings."""
+    config = OrderedDict(
+        {
+            "password": "${undefined_var}",
+        }
+    )
+    with caplog.at_level(logging.WARNING):
+        substitutions.do_substitution_pass(config)
+
+    assert caplog.text == ""
+
+
+def test_config_context_unresolvable_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Unresolvable vars in a ConfigContext produce warnings via push_context."""
+    inner = OrderedDict({"key": "${a}"})
+    yaml_util.add_context(inner, {"a": "${undefined}"})
+    config = OrderedDict({"items": [inner]})
+    with caplog.at_level(logging.WARNING):
+        substitutions.do_substitution_pass(config)
+
+    assert "Could not resolve substitution variable 'a'" in caplog.text
+    assert "'undefined' is undefined" in caplog.text
+
+
+def test_non_string_substitution_value_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Undefined vars in non-string contexts (e.g. dict keys) produce warnings."""
+    config = OrderedDict(
+        {
+            "items": {"${undefined_key}": "value"},
+        }
+    )
+    with caplog.at_level(logging.WARNING):
+        substitutions.do_substitution_pass(config)
+
+    assert "'undefined_key' is undefined" in caplog.text
+
+
+def test_lambda_substitution() -> None:
+    """Substitution inside a Lambda value should be expanded."""
+    lam = Lambda("return ${var};")
+    config = OrderedDict(
+        {
+            CONF_SUBSTITUTIONS: OrderedDict({"var": "42"}),
+            "lambda": lam,
+        }
+    )
+    substitutions.do_substitution_pass(config)
+    assert lam.value == "return 42;"
+
+
+def test_lambda_no_substitution_unchanged() -> None:
+    """A Lambda with no variable references should not be mutated."""
+    lam = Lambda("return 1;")
+    original_value = lam.value
+    config = OrderedDict(
+        {
+            CONF_SUBSTITUTIONS: OrderedDict({"var": "42"}),
+            "lambda": lam,
+        }
+    )
+    substitutions.do_substitution_pass(config)
+    assert lam.value is original_value
+
+
+def test_extend_substitution() -> None:
+    """Substitution inside an Extend value should be expanded."""
+    ext = Extend("${component_id}")
+    config = OrderedDict(
+        {
+            CONF_SUBSTITUTIONS: OrderedDict({"component_id": "my_sensor"}),
+            "sensor": ext,
+        }
+    )
+    substitutions.do_substitution_pass(config)
+    assert ext.value == "my_sensor"
+
+
+def test_do_substitution_pass_substitutions_must_be_mapping_from_config() -> None:
+    """Non-mapping substitutions raises cv.Invalid."""
+    config = OrderedDict(
+        {
+            CONF_SUBSTITUTIONS: ["not", "a", "mapping"],
+            "other": "value",
+        }
+    )
+
+    with pytest.raises(
+        cv.Invalid, match="Substitutions must be a key to value mapping"
+    ):
+        substitutions.do_substitution_pass(config)

@@ -226,7 +226,7 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
                         raise cv.Invalid(
                             f"Current ESPHome Version is too old to use this package: {ESPHOME_VERSION} < {min_version}"
                         )
-                new_yaml = yaml_util.substitute_vars(new_yaml, vars)
+                new_yaml = yaml_util.add_context(new_yaml, vars or None)
                 packages[f"{filename}{idx}"] = new_yaml
             except EsphomeError as e:
                 raise cv.Invalid(
@@ -296,6 +296,13 @@ def do_packages_pass(config: dict, skip_update: bool = False) -> dict:
 
     def process_package_callback(package_config: dict) -> dict:
         """This will be called for each package found in the config."""
+        if isinstance(package_config, yaml_util.ConfigContext):
+            context_vars = package_config.vars
+            if CONF_PACKAGES in package_config or CONF_URL in package_config:
+                # Remote package definition: eagerly resolve before PACKAGE_SCHEMA validation.
+                from esphome.components.substitutions import substitute_context_vars
+
+                substitute_context_vars(package_config, context_vars)
         package_config = PACKAGE_SCHEMA(package_config)
         if isinstance(package_config, str):
             return package_config  # Jinja string, skip processing
