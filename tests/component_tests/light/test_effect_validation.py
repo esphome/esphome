@@ -12,9 +12,10 @@ from esphome.components.light import (
     available_effects_str,
     find_effect_index,
 )
-from esphome.config import Config
-from esphome.const import CONF_EFFECTS, CONF_ID, CONF_NAME
-from esphome.core import ID
+from esphome.components.light.automation import _record_effect_ref
+from esphome.config import Config, path_context
+from esphome.const import CONF_EFFECT, CONF_EFFECTS, CONF_ID, CONF_NAME
+from esphome.core import ID, Lambda
 import esphome.final_validate as fv
 
 
@@ -223,3 +224,68 @@ class TestFinalValidateEffectRefs:
             assert data.effect_refs == []
         finally:
             fv.full_config.reset(token)
+
+
+class TestRecordEffectRef:
+    """Tests for _record_effect_ref schema validator."""
+
+    def test_records_static_effect(self) -> None:
+        """Static effect name should be recorded."""
+        light_id = ID("led1", is_declaration=True)
+        token = path_context.set(["esphome"])
+        try:
+            config = {CONF_ID: light_id, CONF_EFFECT: "Fast Pulse"}
+            result = _record_effect_ref(config)
+            assert result is config
+            data = _get_data()
+            assert len(data.effect_refs) == 1
+            assert data.effect_refs[0].effect_name == "Fast Pulse"
+            assert data.effect_refs[0].light_id is light_id
+            assert data.effect_refs[0].component_path == ["esphome"]
+        finally:
+            path_context.reset(token)
+
+    def test_skips_lambda(self) -> None:
+        """Lambda effect should not be recorded."""
+        token = path_context.set(["esphome"])
+        try:
+            config = {
+                CONF_ID: ID("led1", is_declaration=True),
+                CONF_EFFECT: Lambda("return effect;"),
+            }
+            _record_effect_ref(config)
+            assert _get_data().effect_refs == []
+        finally:
+            path_context.reset(token)
+
+    def test_skips_none(self) -> None:
+        """Effect 'None' should not be recorded."""
+        token = path_context.set(["esphome"])
+        try:
+            config = {
+                CONF_ID: ID("led1", is_declaration=True),
+                CONF_EFFECT: "None",
+            }
+            _record_effect_ref(config)
+            assert _get_data().effect_refs == []
+        finally:
+            path_context.reset(token)
+
+    def test_skips_none_case_insensitive(self) -> None:
+        """Effect 'none' (lowercase) should not be recorded."""
+        token = path_context.set(["esphome"])
+        try:
+            config = {
+                CONF_ID: ID("led1", is_declaration=True),
+                CONF_EFFECT: "none",
+            }
+            _record_effect_ref(config)
+            assert _get_data().effect_refs == []
+        finally:
+            path_context.reset(token)
+
+    def test_skips_no_effect(self) -> None:
+        """Config without effect key should be a no-op."""
+        config = {CONF_ID: ID("led1", is_declaration=True)}
+        _record_effect_ref(config)
+        assert _get_data().effect_refs == []

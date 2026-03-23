@@ -79,7 +79,7 @@ class EffectRef:
 
     light_id: ID
     effect_name: str
-    component_path: list  # path_context when the action was validated
+    component_path: list[str | int]  # path_context when the action was validated
 
 
 @dataclass
