@@ -194,19 +194,39 @@ def _push_context(
     parent_context: ContextVars,
     errors: ErrList | None = None,
 ) -> tuple[ContextVars, dict[str, Any]]:
-    """Returns a new context vars mapping with the given vars overriding those of the parent context, along
-    with a version of `local_vars` resolved and sorted in dependency order.
-    The below loops iterate exactly once if vars are already sorted in dependency order, i.e.,
-    no var depends on another var defined later. Otherwise dependencies are resolved
-    recursively.
+    """Resolve local_vars and layer them on top of parent_context.
+
+    Returns ``(child_context, resolved_vars)`` where *child_context* is a
+    new :class:`ChainMap` whose front map is *resolved_vars* (an
+    :class:`OrderedDict` of successfully-resolved variables).
+
+    Variables may reference each other (e.g. ``b: ${a + 1}``).
+    Dependencies are resolved recursively via a *resolver* callback
+    that Jinja invokes on cache-miss.  If vars are already in
+    dependency order, the loop iterates exactly once per variable.
+
+    The ChainMap stack used during resolution is::
+
+        resolver_context  →  resolved_vars  →  parent maps …
+              ↑                    ↑
+        holds Resolver       filled as vars
+        callback               are resolved
     """
+    # Vars still waiting to be resolved — popped one-by-one by resolve().
     unresolved_vars = local_vars.copy()
+    # Accumulates resolved values in dependency order; becomes the front
+    # map of the returned child context so later lookups find them first.
     resolved_vars = OrderedDict()
+    # The context callees will search: resolved_vars (initially empty)
+    # shadowing whatever the parent already provides.
     context_vars = parent_context.new_child(resolved_vars)
 
-    # Contains vars that could not be resolved due to missing or circular dependencies.
-    unresolvables: dict[str, Any] = {}
+    # Vars that failed resolution (missing or circular references).
+    # Maps name → (original_value, cause_error) for deferred warnings.
+    unresolvables: dict[str, tuple[Any, UndefinedError]] = {}
 
+    # One extra child layer so the Resolver callback lives in its own
+    # map and doesn't pollute resolved_vars.
     resolver_context = context_vars.new_child()
 
     def resolve(key: str) -> Any:
