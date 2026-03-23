@@ -863,7 +863,16 @@ bool mac_address_is_valid(const uint8_t *mac) {
       is_all_ones = false;
     }
   }
-  return !(is_all_zeros || is_all_ones);
+  if (is_all_zeros || is_all_ones) {
+    return false;
+  }
+  // Reject multicast MACs (bit 0 of first byte set) - device MACs must be unicast.
+  // This catches garbage data from corrupted eFuse custom MAC areas, which often
+  // has random values that would otherwise pass the all-zeros/all-ones check.
+  if (mac[0] & 0x01) {
+    return false;
+  }
+  return true;
 }
 
 void IRAM_ATTR HOT delay_microseconds_safe(uint32_t us) {

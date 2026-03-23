@@ -1762,7 +1762,10 @@ template<typename... Ts> struct Callback<void(Ts...)> {
       // Safe under C++20 (P0593R6): byte copy into aligned storage implicitly
       // creates objects of implicit-lifetime types (trivially copyable qualifies).
       Callback cb;  // fn and ctx are zero-initialized by default
-      __builtin_memcpy(&cb.ctx_, &callable, sizeof(DecayF));
+      // Decay callable to a local variable first. When F is a function reference
+      // (e.g. void(&)(int)), &callable would point at machine code, not a pointer variable.
+      DecayF decayed = std::forward<F>(callable);
+      __builtin_memcpy(&cb.ctx_, &decayed, sizeof(DecayF));
       cb.fn_ = [](void *c, Ts... args) {
         alignas(DecayF) char buf[sizeof(DecayF)];
         __builtin_memcpy(buf, &c, sizeof(DecayF));

@@ -30,12 +30,17 @@ enum UARTDirection {
 const LogString *parity_to_str(UARTParityOptions parity);
 
 /// Result of a flush() call.
+// Some vendor SDKs (e.g., Realtek) define SUCCESS as a macro.
+// Save and restore around the enum to avoid collisions with our scoped enum value.
+#pragma push_macro("SUCCESS")
+#undef SUCCESS
 enum class FlushResult {
   SUCCESS,          ///< Confirmed: all bytes left the TX FIFO.
   TIMEOUT,          ///< Confirmed: timed out before TX completed.
   FAILED,           ///< Confirmed: driver or hardware error.
   ASSUMED_SUCCESS,  ///< Platform cannot report result; success is assumed.
 };
+#pragma pop_macro("SUCCESS")
 
 class UARTComponent {
  public:
