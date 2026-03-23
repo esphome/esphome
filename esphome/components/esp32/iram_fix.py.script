@@ -30,8 +30,7 @@ def patch_segment(lines, segment_name, new_size):
     pattern = rf'({re.escape(segment_name)}\s*\([^)]*\)\s*:\s*org\s*=\s*.+?,\s*len\s*=\s*)(.+?)(\s*)$'
     for i, line in enumerate(lines):
         if segment_name in line and 'len' in line:
-            match = re.search(pattern, line)
-            if match:
+            if match := re.search(pattern, line):
                 new_line = f"{match.group(1)}{new_size:#x}{match.group(3)}"
                 if new_line != line:
                     lines[i] = new_line
