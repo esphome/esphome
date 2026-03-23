@@ -297,14 +297,29 @@ void log_entity_device_class(const char *tag, const char *prefix, const EntityBa
 #define LOG_ENTITY_UNIT_OF_MEASUREMENT(tag, prefix, obj) log_entity_unit_of_measurement(tag, prefix, obj)
 void log_entity_unit_of_measurement(const char *tag, const char *prefix, const EntityBase &obj);
 
-/**
- * An entity that has a state.
- * @tparam T The type of the state
+/** Base class for entities that track a typed state value with change-detection and callbacks.
+ *
+ * Subclasses must implement:
+ *   - get_state(): return a const reference to the current value
+ *   - set_state_value_(): store a new value (called only when the state actually changes)
+ *
+ * State tracking uses EntityBase::flags_.has_state (not optional<T>) to avoid redundant storage.
+ * Subclasses own their storage — this class never allocates memory for the state value itself.
+ *
+ * Callback behavior:
+ *   - full_state_callbacks_: fired on every change, receives optional<T> previous and current
+ *   - state_callbacks_: fired only when the new state has a value, and either this is not the
+ *     first state (had_state) or trigger_on_initial_state is set
+ *
+ * @tparam T The type of the state value
  */
 template<typename T> class StatefulEntityBase : public EntityBase {
  public:
+  /// Return the current state value. Only valid when has_state() is true.
   virtual const T &get_state() const = 0;
+  /// Return the current state if available, otherwise return the provided default.
   T get_state_default(T default_value) const { return this->has_state() ? this->get_state() : default_value; }
+  /// Clear the state — sets has_state() to false and fires callbacks with nullopt.
   void invalidate_state() { this->set_new_state({}); }
 
   template<typename F> void add_full_state_callback(F &&callback) {
@@ -314,24 +329,21 @@ template<typename T> class StatefulEntityBase : public EntityBase {
     this->state_callbacks_.add(std::forward<F>(callback));
   }
 
+  /// Control whether state_callbacks_ fire on the very first state (before any previous state exists).
   void set_trigger_on_initial_state(bool trigger_on_initial_state) {
     this->flags_.trigger_on_initial_state = trigger_on_initial_state;
   }
 
  protected:
-  /**
-   * Set a new state for this entity. This will trigger callbacks only if the new state is different from the previous.
+  /** Apply a new state, de-duplicating and firing callbacks as needed.
    *
-   * @param new_state The new state.
-   * @return True if the state was changed, false if it was the same as before.
+   * Pass nullopt to invalidate (clear) the state. Pass a value to set it.
+   * Returns true if the state actually changed, false if it was the same.
    */
   virtual bool set_new_state(const optional<T> &new_state) {
     optional<T> old_state = this->has_state() ? optional<T>(this->get_state()) : nullopt;
     if (old_state != new_state) {
-      // call the full state callbacks with the previous and new state
       this->full_state_callbacks_.call(old_state, new_state);
-      // trigger legacy callbacks only if the new state is valid and either the trigger on initial state is enabled or
-      // the previous state was valid
       auto had_state = this->has_state();
       this->set_has_state(new_state.has_value());
       if (new_state.has_value()) {
@@ -343,7 +355,7 @@ template<typename T> class StatefulEntityBase : public EntityBase {
     }
     return false;
   }
-  /// Subclasses implement this to store the actual value.
+  /// Subclasses implement this to store the actual value into their own storage.
   virtual void set_state_value_(const T &value) = 0;
   LazyCallbackManager<void(optional<T> previous, optional<T> current)> full_state_callbacks_;
   LazyCallbackManager<void(T)> state_callbacks_;
