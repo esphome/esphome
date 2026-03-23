@@ -443,6 +443,72 @@ def test_validate_substitution_key_valid(input_value, expected_output):
     assert result == expected_output
 
 
+def test_circular_dependency_warnings(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Circular substitution references produce warnings naming the cause."""
+    config = OrderedDict(
+        {
+            CONF_SUBSTITUTIONS: OrderedDict({"x": "${y}", "y": "${x}"}),
+            "key": "value",
+        }
+    )
+    with caplog.at_level(logging.WARNING):
+        substitutions.do_substitution_pass(config)
+
+    assert "Could not resolve substitution variable 'x'" in caplog.text
+    assert "'y' is undefined" in caplog.text
+    assert "Could not resolve substitution variable 'y'" in caplog.text
+    assert "'x' is undefined" in caplog.text
+
+
+def test_missing_dependency_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A substitution referencing an undefined variable warns with the cause."""
+    config = OrderedDict(
+        {
+            CONF_SUBSTITUTIONS: OrderedDict({"a": "${missing}"}),
+            "key": "value",
+        }
+    )
+    with caplog.at_level(logging.WARNING):
+        substitutions.do_substitution_pass(config)
+
+    assert "Could not resolve substitution variable 'a'" in caplog.text
+    assert "'missing' is undefined" in caplog.text
+
+
+def test_undefined_variable_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A reference to an undefined variable in config values produces a warning."""
+    config = OrderedDict(
+        {
+            "key": "${undefined_var}",
+        }
+    )
+    with caplog.at_level(logging.WARNING):
+        substitutions.do_substitution_pass(config)
+
+    assert "'undefined_var' is undefined" in caplog.text
+
+
+def test_password_field_warnings_suppressed(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Undefined variables in password fields should not produce warnings."""
+    config = OrderedDict(
+        {
+            "password": "${undefined_var}",
+        }
+    )
+    with caplog.at_level(logging.WARNING):
+        substitutions.do_substitution_pass(config)
+
+    assert caplog.text == ""
+
+
 def test_do_substitution_pass_substitutions_must_be_mapping_from_config():
     """
     If config[CONF_SUBSTITUTIONS] is not a mapping, cv.Invalid should be raised with a helpful message.
