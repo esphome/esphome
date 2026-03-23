@@ -345,6 +345,14 @@ def _warn_unresolved_variables(errors: ErrList) -> None:
 def do_substitution_pass(
     config: dict, command_line_substitutions: dict | None = None
 ) -> dict:
+    """Run the substitution pass over the entire config.
+
+    Extracts the ``substitutions:`` block, merges in any command-line
+    overrides, resolves inter-variable dependencies, then walks the
+    config tree replacing all ``$var`` / ``${expr}`` references.
+    Returns the (mutated) config dict with resolved substitutions
+    restored at the front.
+    """
     # Extract substitutions from config, overriding with substitutions coming from command line:
     # Use merge_dicts_ordered to preserve OrderedDict type for move_to_end()
     substitutions = config.pop(CONF_SUBSTITUTIONS, {})
