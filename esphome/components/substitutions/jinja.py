@@ -16,9 +16,9 @@ TemplateSyntaxError = jinja.TemplateSyntaxError
 TemplateRuntimeError = jinja.TemplateRuntimeError
 UndefinedError = jinja.UndefinedError
 Undefined = jinja.Undefined
-Resolver = (
-    ".resolver"  # Sentinel key; dots are invalid in substitution names so no collision
-)
+# Sentinel key for resolver callback in ContextVars.
+# Dots are invalid in substitution names so this can never collide with user keys.
+Resolver = ".resolver"
 
 
 _LOGGER = logging.getLogger(__name__)
