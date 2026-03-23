@@ -1,5 +1,1 @@
 sensor:
-  - platform: template
-    name: "bench_sensor"
-    filters:
-      - offset: 0
