@@ -138,8 +138,9 @@ class ConfigContext:
             self.clear()
             self.update(n)
         elif isinstance(self, list):
-            for i in range(len(self)):
-                self[i] = add_context(self[i], self.vars)
+            for i, item in enumerate(self):
+                # pylint: disable=unsupported-assignment-operation
+                self[i] = add_context(item, self.vars)
 
 
 class IncludeFile:
@@ -147,8 +148,8 @@ class IncludeFile:
         self,
         parent_file: Path,
         file: Path,
-        vars: dict[str, Any] | None = None,
-        yaml_loader=Callable[[Path], dict[str, Any]],
+        vars: dict[str, Any] | None,
+        yaml_loader: Callable[[Path], dict[str, Any]],
     ) -> None:
         self.parent_file = parent_file
         self.file = file
