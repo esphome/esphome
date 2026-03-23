@@ -5,8 +5,6 @@ from esphome.const import CONF_SOURCE_ID
 
 from .. import Number, number_ns
 
-CODEOWNERS = ["@clydebarrow"]
-
 NumberSensor = number_ns.class_("NumberSensor", sensor.Sensor, cg.Component)
 
 
