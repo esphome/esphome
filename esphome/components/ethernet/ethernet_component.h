@@ -103,8 +103,8 @@ class EthernetComponent final : public Component {
 
   network::IPAddresses get_ip_addresses();
   network::IPAddress get_dns_address(uint8_t num);
-  const char *get_use_address() const;
-  void set_use_address(const char *use_address);
+  const char *get_use_address() const { return this->use_address_; }
+  void set_use_address(const char *use_address) { this->use_address_ = use_address; }
   void get_eth_mac_address_raw(uint8_t *mac);
   // Remove before 2026.9.0
   ESPDEPRECATED("Use get_eth_mac_address_pretty_into_buffer() instead. Removed in 2026.9.0", "2026.3.0")
