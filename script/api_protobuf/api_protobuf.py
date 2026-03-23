@@ -248,7 +248,7 @@ class TypeInfo(ABC):
     @property
     def dump_content(self) -> str:
         # Default implementation - subclasses can override if they need special handling
-        return f'dump_field(out, "{self.name}", {self.dump_field_value(f"this->{self.field_name}")});'
+        return f'dump_field(out, ESPHOME_PSTR("{self.name}"), {self.dump_field_value(f"this->{self.field_name}")});'
 
     @abstractmethod
     def dump(self, name: str) -> str:
@@ -665,14 +665,14 @@ class StringType(TypeInfo):
     def dump_content(self) -> str:
         # For SOURCE_CLIENT only, use std::string
         if not self._needs_encode:
-            return f'dump_field(out, "{self.name}", this->{self.field_name});'
+            return f'dump_field(out, ESPHOME_PSTR("{self.name}"), this->{self.field_name});'
 
         # For SOURCE_SERVER, use StringRef with _ref_ suffix
         if not self._needs_decode:
-            return f'dump_field(out, "{self.name}", this->{self.field_name}_ref_);'
+            return f'dump_field(out, ESPHOME_PSTR("{self.name}"), this->{self.field_name}_ref_);'
 
         # For SOURCE_BOTH, we need custom logic
-        o = f'out.append("  {self.name}: ");\n'
+        o = f'out.append(2, \' \').append_p(ESPHOME_PSTR("{self.name}")).append(": ");\n'
         o += self.dump(f"this->{self.field_name}") + "\n"
         o += 'out.append("\\n");'
         return o
@@ -745,7 +745,7 @@ class MessageType(TypeInfo):
 
     @property
     def dump_content(self) -> str:
-        o = f'out.append("  {self.name}: ");\n'
+        o = f'out.append(2, \' \').append_p(ESPHOME_PSTR("{self.name}")).append(": ");\n'
         o += f"this->{self.field_name}.dump_to(out);\n"
         o += 'out.append("\\n");'
         return o
@@ -831,7 +831,7 @@ class BytesType(TypeInfo):
         # For SOURCE_CLIENT only, always use std::string
         if not self._needs_encode:
             return (
-                f'dump_bytes_field(out, "{self.name}", '
+                f'dump_bytes_field(out, ESPHOME_PSTR("{self.name}"), '
                 f"reinterpret_cast<const uint8_t*>(this->{self.field_name}.data()), "
                 f"this->{self.field_name}.size());"
             )
@@ -839,17 +839,17 @@ class BytesType(TypeInfo):
         # For SOURCE_SERVER, always use pointer/length
         if not self._needs_decode:
             return (
-                f'dump_bytes_field(out, "{self.name}", '
+                f'dump_bytes_field(out, ESPHOME_PSTR("{self.name}"), '
                 f"this->{self.field_name}_ptr_, this->{self.field_name}_len_);"
             )
 
         # For SOURCE_BOTH, check if pointer is set (sending) or use string (received)
         return (
             f"if (this->{self.field_name}_ptr_ != nullptr) {{\n"
-            f'  dump_bytes_field(out, "{self.name}", '
+            f'  dump_bytes_field(out, ESPHOME_PSTR("{self.name}"), '
             f"this->{self.field_name}_ptr_, this->{self.field_name}_len_);\n"
             f"}} else {{\n"
-            f'  dump_bytes_field(out, "{self.name}", '
+            f'  dump_bytes_field(out, ESPHOME_PSTR("{self.name}"), '
             f"reinterpret_cast<const uint8_t*>(this->{self.field_name}.data()), "
             f"this->{self.field_name}.size());\n"
             f"}}"
@@ -928,7 +928,7 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
     @property
     def dump_content(self) -> str:
         return (
-            f'dump_bytes_field(out, "{self.name}", '
+            f'dump_bytes_field(out, ESPHOME_PSTR("{self.name}"), '
             f"this->{self.field_name}, this->{self.field_name}_len);"
         )
 
@@ -976,7 +976,7 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
 
     @property
     def dump_content(self) -> str:
-        return f'dump_field(out, "{self.name}", this->{self.field_name});'
+        return f'dump_field(out, ESPHOME_PSTR("{self.name}"), this->{self.field_name});'
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         return f"size += ProtoSize::calc_length({self.calculate_field_id_size()}, this->{self.field_name}.size());"
@@ -1036,12 +1036,12 @@ class PackedBufferTypeInfo(TypeInfo):
     def dump_content(self) -> str:
         """Dump shows buffer info but not decoded values."""
         return (
-            f'out.append("  {self.name}: ");\n'
-            + 'out.append("packed buffer [");\n'
+            f'out.append(2, \' \').append_p(ESPHOME_PSTR("{self.name}")).append(": ");\n'
+            + 'out.append_p(ESPHOME_PSTR("packed buffer ["));\n'
             + f"append_uint(out, this->{self.field_name}_count_);\n"
-            + 'out.append(" values, ");\n'
+            + 'out.append_p(ESPHOME_PSTR(" values, "));\n'
             + f"append_uint(out, this->{self.field_name}_length_);\n"
-            + 'out.append(" bytes]\\n");'
+            + 'out.append_p(ESPHOME_PSTR(" bytes]\\n"));'
         )
 
     def dump(self, name: str) -> str:
@@ -1134,7 +1134,7 @@ class FixedArrayBytesType(TypeInfo):
     @property
     def dump_content(self) -> str:
         return (
-            f'dump_bytes_field(out, "{self.name}", '
+            f'dump_bytes_field(out, ESPHOME_PSTR("{self.name}"), '
             f"this->{self.field_name}, this->{self.field_name}_len);"
         )
 
@@ -1204,7 +1204,7 @@ class EnumType(TypeInfo):
         return f"buffer.{self.encode_func}({self.number}, static_cast<uint32_t>(this->{self.field_name}));"
 
     def dump(self, name: str) -> str:
-        return f"out.append(proto_enum_to_string<{self.cpp_type}>({name}));"
+        return f"out.append_p(proto_enum_to_string<{self.cpp_type}>({name}));"
 
     def dump_field_value(self, value: str) -> str:
         # Enums need explicit cast for the template
@@ -1326,15 +1326,15 @@ def _generate_array_dump_content(
     # Check if underlying type can use dump_field
     if is_const_char_ptr:
         # Special case for const char* - use it directly
-        o += f'  dump_field(out, "{name}", it, 4);\n'
+        o += f'  dump_field(out, ESPHOME_PSTR("{name}"), it, 4);\n'
     elif ti.can_use_dump_field():
         # For types that have dump_field overloads, use them with extra indent
         # std::vector<bool> iterators return proxy objects, need explicit cast
         value_expr = "static_cast<bool>(it)" if is_bool else ti.dump_field_value("it")
-        o += f'  dump_field(out, "{name}", {value_expr}, 4);\n'
+        o += f'  dump_field(out, ESPHOME_PSTR("{name}"), {value_expr}, 4);\n'
     else:
         # For complex types (messages, bytes), use the old pattern
-        o += f'  out.append("  {name}: ");\n'
+        o += f'  out.append(4, \' \').append_p(ESPHOME_PSTR("{name}")).append(": ");\n'
         o += indent(ti.dump("it")) + "\n"
         o += '  out.append("\\n");\n'
     o += "}"
@@ -1543,9 +1543,9 @@ class FixedArrayWithLengthRepeatedType(FixedArrayRepeatedType):
         o = f"for (uint16_t i = 0; i < this->{self.field_name}_len; i++) {{\n"
         # Check if underlying type can use dump_field
         if self._ti.can_use_dump_field():
-            o += f'  dump_field(out, "{self.name}", {self._ti.dump_field_value(f"this->{self.field_name}[i]")}, 4);\n'
+            o += f'  dump_field(out, ESPHOME_PSTR("{self.name}"), {self._ti.dump_field_value(f"this->{self.field_name}[i]")}, 4);\n'
         else:
-            o += f'  out.append("  {self.name}: ");\n'
+            o += f'  out.append(4, \' \').append_p(ESPHOME_PSTR("{self.name}")).append(": ");\n'
             o += indent(self._ti.dump(f"this->{self.field_name}[i]")) + "\n"
             o += '  out.append("\\n");\n'
         o += "}"
@@ -2023,9 +2023,9 @@ def build_enum_type(desc, enum_ifdef_map) -> tuple[str, str, str]:
     dump_cpp += "  switch (value) {\n"
     for v in desc.value:
         dump_cpp += f"    case enums::{v.name}:\n"
-        dump_cpp += f'      return "{v.name}";\n'
+        dump_cpp += f'      return ESPHOME_PSTR("{v.name}");\n'
     dump_cpp += "    default:\n"
-    dump_cpp += '      return "UNKNOWN";\n'
+    dump_cpp += '      return ESPHOME_PSTR("UNKNOWN");\n'
     dump_cpp += "  }\n"
     dump_cpp += "}\n"
 
@@ -2107,7 +2107,7 @@ def build_message_type(
         public_content.append("#ifdef HAS_PROTO_MESSAGE_DUMP")
         snake_name = camel_to_snake(desc.name)
         public_content.append(
-            f'const char *message_name() const override {{ return "{snake_name}"; }}'
+            f'const LogString *message_name() const override {{ return LOG_STR("{snake_name}"); }}'
         )
         public_content.append("#endif")
 
@@ -2315,12 +2315,12 @@ def build_message_type(
     if dump:
         # Always use MessageDumpHelper for consistent output formatting
         dump_impl += "\n"
-        dump_impl += f'  MessageDumpHelper helper(out, "{desc.name}");\n'
+        dump_impl += f'  MessageDumpHelper helper(out, ESPHOME_PSTR("{desc.name}"));\n'
         dump_impl += indent("\n".join(dump)) + "\n"
         dump_impl += "  return out.c_str();\n"
     else:
         dump_impl += "\n"
-        dump_impl += f'  out.append("{desc.name} {{}}");\n'
+        dump_impl += f'  out.append_p(ESPHOME_PSTR("{desc.name} {{}}"));\n'
         dump_impl += "  return out.c_str();\n"
     dump_impl += "}\n"
 
@@ -2707,12 +2707,28 @@ namespace esphome::api {
     dump_cpp += """\
 #include "api_pb2.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 
 #include <cinttypes>
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
 
 namespace esphome::api {
+
+#ifdef USE_ESP8266
+// Out-of-line to avoid inlining strlen_P/memcpy_P at every call site
+void DumpBuffer::append_p_esp8266(const char *str) {
+  size_t len = strlen_P(str);
+  size_t space = CAPACITY - 1 - pos_;
+  if (len > space)
+    len = space;
+  if (len > 0) {
+    memcpy_P(buf_ + pos_, str, len);
+    pos_ += len;
+    buf_[pos_] = '\\0';
+  }
+}
+#endif
 
 // Helper function to append a quoted string, handling empty StringRef
 static inline void append_quoted_string(DumpBuffer &out, const StringRef &ref) {
@@ -2724,8 +2740,9 @@ static inline void append_quoted_string(DumpBuffer &out, const StringRef &ref) {
 }
 
 // Common helpers for dump_field functions
+// field_name is a PROGMEM pointer (flash on ESP8266, regular pointer on other platforms)
 static inline void append_field_prefix(DumpBuffer &out, const char *field_name, int indent) {
-  out.append(indent, ' ').append(field_name).append(": ");
+  out.append(indent, ' ').append_p(field_name).append(": ");
 }
 
 static inline void append_uint(DumpBuffer &out, uint32_t value) {
@@ -2733,10 +2750,11 @@ static inline void append_uint(DumpBuffer &out, uint32_t value) {
 }
 
 // RAII helper for message dump formatting
+// message_name is a PROGMEM pointer (flash on ESP8266, regular pointer on other platforms)
 class MessageDumpHelper {
  public:
   MessageDumpHelper(DumpBuffer &out, const char *message_name) : out_(out) {
-    out_.append(message_name);
+    out_.append_p(message_name);
     out_.append(" {\\n");
   }
   ~MessageDumpHelper() { out_.append(" }"); }
@@ -2746,6 +2764,10 @@ class MessageDumpHelper {
 };
 
 // Helper functions to reduce code duplication in dump methods
+// field_name parameters are PROGMEM pointers (flash on ESP8266, regular pointers on other platforms)
+// Not all overloads are used in every build (depends on enabled components)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
 static void dump_field(DumpBuffer &out, const char *field_name, int32_t value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%" PRId32 "\\n", value));
@@ -2790,21 +2812,23 @@ static void dump_field(DumpBuffer &out, const char *field_name, const char *valu
   out.append("\\n");
 }
 
-template<typename T>
-static void dump_field(DumpBuffer &out, const char *field_name, T value, int indent = 2) {
+// proto_enum_to_string returns PROGMEM pointers, so use append_p
+template<typename T> static void dump_field(DumpBuffer &out, const char *field_name, T value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
-  out.append(proto_enum_to_string<T>(value));
+  out.append_p(proto_enum_to_string<T>(value));
   out.append("\\n");
 }
 
 // Helper for bytes fields - uses stack buffer to avoid heap allocation
 // Buffer sized for 160 bytes of data (480 chars with separators) to fit typical log buffer
+// field_name is a PROGMEM pointer (flash on ESP8266, regular pointer on other platforms)
 static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint8_t *data, size_t len, int indent = 2) {
   char hex_buf[format_hex_pretty_size(160)];
   append_field_prefix(out, field_name, indent);
   format_hex_pretty_to(hex_buf, data, len);
   out.append(hex_buf).append("\\n");
 }
+#pragma GCC diagnostic pop
 
 """
 
@@ -2977,7 +3001,7 @@ static const char *const TAG = "api.service";
     # Add logging helper method declarations
     hpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
     hpp += " protected:\n"
-    hpp += "  void log_send_message_(const char *name, const char *dump);\n"
+    hpp += "  void log_send_message_(const LogString *name, const char *dump);\n"
     hpp += (
         "  void log_receive_message_(const LogString *name, const ProtoMessage &msg);\n"
     )
@@ -2990,10 +3014,8 @@ static const char *const TAG = "api.service";
 
     # Add logging helper method implementations to cpp
     cpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
-    cpp += (
-        f"void {class_name}::log_send_message_(const char *name, const char *dump) {{\n"
-    )
-    cpp += '  ESP_LOGVV(TAG, "send_message %s: %s", name, dump);\n'
+    cpp += f"void {class_name}::log_send_message_(const LogString *name, const char *dump) {{\n"
+    cpp += '  ESP_LOGVV(TAG, "send_message %s: %s", LOG_STR_ARG(name), dump);\n'
     cpp += "}\n"
     cpp += f"void {class_name}::log_receive_message_(const LogString *name, const ProtoMessage &msg) {{\n"
     cpp += "  DumpBuffer dump_buf;\n"

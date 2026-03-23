@@ -5,6 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
 #include <cassert>
@@ -400,6 +401,23 @@ class DumpBuffer {
     return *this;
   }
 
+  /// Append a PROGMEM string (flash-safe on ESP8266, regular append on other platforms)
+  DumpBuffer &append_p(const char *str) {
+    if (str) {
+#ifdef USE_ESP8266
+      append_p_esp8266(str);
+#else
+      append_impl_(str, strlen(str));
+#endif
+    }
+    return *this;
+  }
+
+#ifdef USE_ESP8266
+  /// Out-of-line ESP8266 PROGMEM append to avoid inlining strlen_P/memcpy_P at every call site
+  void append_p_esp8266(const char *str);
+#endif
+
   const char *c_str() const { return buf_; }
   size_t size() const { return pos_; }
 
@@ -445,7 +463,7 @@ class ProtoMessage {
   uint32_t calculate_size() const { return 0; }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   virtual const char *dump_to(DumpBuffer &out) const = 0;
-  virtual const char *message_name() const { return "unknown"; }
+  virtual const LogString *message_name() const { return LOG_STR("unknown"); }
 #endif
 
 #ifndef USE_HOST
