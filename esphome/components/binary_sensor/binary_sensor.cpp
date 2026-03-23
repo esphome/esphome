@@ -34,11 +34,11 @@ void BinarySensor::publish_initial_state(bool new_state) {
 }
 // Defined out-of-line to prevent set_new_state template from being inlined at each call site,
 // which would duplicate ~189 bytes of template code per caller (publish_state, Filter::output, etc.)
-void BinarySensor::send_state_internal(bool new_state) { this->set_new_state(new_state); }
-void BinarySensor::invalidate_state() { this->set_new_state({}); }
+void BinarySensor::send_state_internal(bool new_state) { this->set_new_state_(new_state); }
+void BinarySensor::invalidate_state() { this->set_new_state_({}); }
 
-void BinarySensor::on_state_changed_(const optional<bool> &old_state, const optional<bool> &new_state, bool had_state) {
-  StatefulEntityBase::on_state_changed_(old_state, new_state, had_state);
+void BinarySensor::on_state_changed(const optional<bool> &old_state, const optional<bool> &new_state, bool had_state) {
+  StatefulEntityBase::on_state_changed(old_state, new_state, had_state);
 #if defined(USE_BINARY_SENSOR) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_binary_sensor_update(this);
 #endif

@@ -68,14 +68,14 @@ class BinarySensor : public StatefulEntityBase<bool> {
 
  protected:
   bool get_trigger_on_initial_state() const override { return this->trigger_on_initial_state_; }
-  void set_state_value_(const bool &value) override { this->state = value; }
+  void set_state_value(const bool &value) override { this->state = value; }
 
   bool trigger_on_initial_state_{true};
 #ifdef USE_BINARY_SENSOR_FILTER
   Filter *filter_list_{nullptr};
 #endif
 
-  void on_state_changed_(const optional<bool> &old_state, const optional<bool> &new_state, bool had_state) override;
+  void on_state_changed(const optional<bool> &old_state, const optional<bool> &new_state, bool had_state) override;
 };
 
 class BinarySensorInitiallyOff : public BinarySensor {
