@@ -166,6 +166,8 @@ def _resolve_effect_index(config: ConfigType) -> int:
     available_str = (
         ", ".join(f"'{name}'" for name in available) if available else "none"
     )
+    # Should never reach here — effect names are validated during config
+    # validation in FINAL_VALIDATE_SCHEMA. This is a safety net.
     raise EsphomeError(
         f"Effect '{original_name}' not found for light '{light_id}'. "
         f"Available effects: {available_str}"
