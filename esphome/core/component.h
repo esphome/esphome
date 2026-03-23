@@ -529,7 +529,7 @@ class Component {
   void status_clear_error_slow_path_();
 
   // Ordered for optimal packing on 32-bit systems (8 bytes total with vtable)
-  uint8_t component_source_index_{0};                        ///< Lower 8 bits of 9-bit component source index
+  uint8_t component_source_index_{0};  ///< Index into component source PROGMEM lookup table (0 = not set)
   uint8_t warn_if_blocking_over_{WARN_IF_BLOCKING_OVER_CS};  ///< Warn threshold in centiseconds (max 2550ms)
   /// State of this component - each bit has a purpose:
   /// Bits 0-2: Component state (0x00=CONSTRUCTION, 0x01=SETUP, 0x02=LOOP, 0x03=FAILED, 0x04=LOOP_DONE)
