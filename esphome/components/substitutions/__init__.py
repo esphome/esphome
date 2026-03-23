@@ -216,8 +216,8 @@ def _push_context(
             return Missing
         try:
             value = _try_substitute(value, resolver_context)
-        except UndefinedError:
-            unresolvables[key] = value
+        except UndefinedError as err:
+            unresolvables[key] = (value, err)
             return Missing
         resolved_vars[key] = value
         return value
@@ -230,14 +230,12 @@ def _push_context(
     while unresolved_vars:
         resolve(next(iter(unresolved_vars)))
 
-    resolved_vars.update(unresolvables)
-
-    if errors is not None:
-        for name, value in unresolvables.items():
+    for name, (value, cause) in unresolvables.items():
+        resolved_vars[name] = value
+        if errors is not None:
             _handle_undefined(
                 err=UndefinedError(
-                    f"Could not resolve substitution variable '{name}'"
-                    " due to missing or circular dependencies."
+                    f"Could not resolve substitution variable '{name}': {cause}"
                 ),
                 path=[],
                 value=value,
@@ -322,7 +320,11 @@ def _substitute_item(
 
 
 def substitute_context_vars(node: Any, context_vars: dict[str, Any]) -> None:
-    """Eagerly substitute context vars into a config node in-place."""
+    """Eagerly substitute context vars into a config node in-place.
+
+    Undefined variables are silently ignored — this is used before
+    the main substitution pass when not all variables are visible yet.
+    """
     _substitute_item(node, [], ContextVars(context_vars), strict_undefined=False)
 
 
