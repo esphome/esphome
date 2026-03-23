@@ -9,32 +9,31 @@ TESTING_IRAM_SIZE = 0x200000  # 2MB
 TESTING_DRAM_SIZE = 0x200000  # 2MB
 
 
-def patch_segment(lines, segment_name, new_size):
-    """Patch a memory segment's length in linker script lines.
+def patch_segment(content, segment_name, new_size):
+    """Patch a memory segment's length in linker script content.
 
-    ESP-IDF format can be:
+    Handles both single-line and multi-line segment definitions, e.g.:
       iram0_0_seg (RX) : org = 0x40080000, len = 0x20000 + 0x0
-    or more complex with nested parentheses:
-      iram0_0_seg (RX) : org = (0x40370000 + 0x4000), len = ((...) + 0x8000 - 0x4000)
+    or split across lines:
+      dram0_0_seg (RW) : org = 0x3FFB0000 + 0xdb5c,
+                                       len = 0x2c200 - 0xdb5c
 
     Args:
-        lines: List of linker script lines
+        content: Full linker script content as string
         segment_name: Name of the segment (e.g., 'iram0_0_seg')
         new_size: New size as integer
 
     Returns:
-        True if patched, False otherwise
+        Tuple of (new_content, was_patched)
     """
-    # Match segment definition with any org expression (including nested parens)
-    # and capture everything up to and including "len = " so we can replace the len value
-    pattern = rf'({re.escape(segment_name)}\s*\([^)]*\)\s*:\s*org\s*=\s*.+?,\s*len\s*=\s*)(.+?)(\s*)$'
-    for i, line in enumerate(lines):
-        if segment_name in line and 'len' in line and (match := re.search(pattern, line)):
-            new_line = f"{match.group(1)}{new_size:#x}{match.group(3)}"
-            if new_line != line:
-                lines[i] = new_line
-                return True
-    return False
+    # Match segment name through to "len = <value>" allowing newlines between org and len
+    pattern = rf'({re.escape(segment_name)}\s*\([^)]*\)\s*:\s*org\s*=\s*.+?,\s*len\s*=\s*)(\S+[^\n]*)'
+    if match := re.search(pattern, content, re.DOTALL):
+        replacement = f"{match.group(1)}{new_size:#x}"
+        new_content = content[:match.start()] + replacement + content[match.end():]
+        if new_content != content:
+            return new_content, True
+    return content, False
 
 
 def patch_idf_linker_script(source, target, env):
@@ -63,19 +62,19 @@ def patch_idf_linker_script(source, target, env):
         print(f"ESPHome: Error reading linker script: {e}")
         return
 
-    lines = content.split('\n')
     patches = []
 
-    if patch_segment(lines, 'iram0_0_seg', TESTING_IRAM_SIZE):
+    content, patched = patch_segment(content, 'iram0_0_seg', TESTING_IRAM_SIZE)
+    if patched:
         patches.append(f"IRAM={TESTING_IRAM_SIZE:#x}")
 
-    if patch_segment(lines, 'dram0_0_seg', TESTING_DRAM_SIZE):
+    content, patched = patch_segment(content, 'dram0_0_seg', TESTING_DRAM_SIZE)
+    if patched:
         patches.append(f"DRAM={TESTING_DRAM_SIZE:#x}")
 
     if patches:
-        updated = '\n'.join(lines)
         with open(memory_ld, "w") as f:
-            f.write(updated)
+            f.write(content)
         print(f"ESPHome: Patched {', '.join(patches)} in {memory_ld} for testing mode")
     else:
         print(f"ESPHome: Warning - could not patch memory segments in {memory_ld}")
