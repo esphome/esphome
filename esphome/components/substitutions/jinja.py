@@ -4,7 +4,6 @@ from itertools import chain, islice
 import logging
 import math
 import re
-import secrets
 from types import GeneratorType
 from typing import Any
 
@@ -17,7 +16,9 @@ TemplateSyntaxError = jinja.TemplateSyntaxError
 TemplateRuntimeError = jinja.TemplateRuntimeError
 UndefinedError = jinja.UndefinedError
 Undefined = jinja.Undefined
-Resolver = "__resolver__" + secrets.token_hex(16)
+Resolver = (
+    ".resolver"  # Sentinel key; dots are invalid in substitution names so no collision
+)
 
 
 _LOGGER = logging.getLogger(__name__)
