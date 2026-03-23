@@ -9,12 +9,12 @@ static const char *const TAG = "st25r_i2c";
 
 void ST25RI2c::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ST25R I2C...");
-  
+
   // Wake up chip - send a dummy byte and ignore the result
   uint8_t dummy = 0x00;
   this->i2c::I2CDevice::write(&dummy, 1);
   delay(10);
-  
+
   st25r::ST25R::setup();
 }
 

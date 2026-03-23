@@ -99,7 +99,7 @@ ST25R_SCHEMA = cv.Schema(
 
 async def setup_st25r(var, config):
     await cg.register_component(var, config)
-    
+
     if CONF_IRQ_PIN in config:
         irq = await cg.gpio_pin_expression(config[CONF_IRQ_PIN])
         cg.add(var.set_irq_pin(irq))
@@ -107,7 +107,7 @@ async def setup_st25r(var, config):
     if CONF_RESET_PIN in config:
         reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
         cg.add(var.set_reset_pin(reset))
-    
+
     cg.add(var.set_rf_field_enabled(config[CONF_RF_FIELD_ENABLED]))
     cg.add(var.set_rf_power(config[CONF_RF_POWER]))
     cg.add(var.set_supply_3v3(config[CONF_SUPPLY_3V3]))

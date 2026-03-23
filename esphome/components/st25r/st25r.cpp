@@ -15,7 +15,7 @@
  *   https://github.com/suut/rfal-mifare-classic/blob/master/mf1/mf1.c
  *
  * ST25R3916 9-bit parity interleaving (mf1_encode/decode_parity_st25r3916):
- *   Each byte is stored as 9 bits in the FIFO: 8 data bits then 1 parity bit.
+ *   Each octet is stored as 9 bits in the FIFO: 8 data bits then 1 parity bit.
  *   CRC and parity are both handled manually; ISO14443A_CONF bits no_tx_par
  *   (bit6) and no_rx_par (bit7) must be set before transmitting/receiving.
  */
@@ -45,7 +45,7 @@ static const uint8_t ODD_PARITY[256] = {
 };
 
 // ── 9-bit parity pack/unpack ─────────────────────────────────────────────────
-// Each byte → 9 bits in the buffer: data bits 0..7 then parity bit.
+// Each octet → 9 bits in the buffer: data bits 0..7 then parity bit.
 // Adapted from mf1_encode/decode_parity_st25r3916 (MIT, suut/rfal-mifare-classic)
 
 static void mifare_pack_parity(const uint8_t *in, const uint8_t *par,
@@ -96,10 +96,10 @@ void ST25R::setup() {
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(true);
     delay(10);
-    this->reset_pin_->digital_write(false); 
+    this->reset_pin_->digital_write(false);
     delay(10);
   }
-  
+
   if (this->irq_pin_ != nullptr) {
     ESP_LOGI(TAG, "Configuring IRQ pin...");
     this->irq_pin_->setup();
@@ -316,7 +316,7 @@ bool ST25R::transceive_mifare_(const uint8_t *data, const uint8_t *parity,
 
         // We need to know how many bits arrived; use FIFO_STATUS2 fifo_lb
         uint8_t fs2 = this->read_register(FIFO_STATUS2);
-        uint8_t last_bits = (fs2 >> 1) & 0x07;  // fifo_lb: bits in last byte (0 = full byte)
+        uint8_t last_bits = (fs2 >> 1) & 0x07;  // fifo_lb: bits in last octet (0 = full byte)
         uint16_t rx_bits = (uint16_t)(rx_bytes * 8) - (last_bits ? (uint8_t)(8 - last_bits) : 0);
 
         resp_len = mifare_unpack_parity(rx_fifo, resp, resp_parity, rx_bits);
@@ -432,7 +432,7 @@ bool ST25R::mifare_read_block_(uint8_t block, uint8_t *data,
     plain[i] = crypto1_byte(cs, 0, 0) ^ rx_enc[i];
     uint8_t exp_par = (uint8_t)(crypto1_bit(cs, 0, 0) ^ ODD_PARITY[plain[i]]);
     if (rx_par[i] != exp_par) {
-      ESP_LOGW(TAG, "Mifare read block %u: parity error at byte %d", block, i);
+      ESP_LOGW(TAG, "Mifare read block %u: parity error at octet %d", block, i);
       return false;
     }
   }
@@ -486,7 +486,7 @@ std::unique_ptr<nfc::NfcTag> ST25R::read_tag_(std::vector<uint8_t> &uid) {
              block2[8],block2[9],block2[10],block2[11],block2[12],block2[13],block2[14],block2[15]);
 
     // Look for NFC Forum Type 2 NDEF TLV (0x03) in the data area
-    // On Mifare Classic the NDEF data starts at block 1 byte 0 when
+    // On Mifare Classic the NDEF data starts at block 1 octet 0 when
     // the card is formatted as NFC Forum Type 2 / Mifare Classic NDEF.
     std::vector<uint8_t> raw;
     raw.insert(raw.end(), block1, block1 + 16);
@@ -516,16 +516,16 @@ std::unique_ptr<nfc::NfcTag> ST25R::read_tag_(std::vector<uint8_t> &uid) {
     uint8_t buffer[16];
     uint8_t len;
 
-    uint8_t read_cmd[2] = {0x30, 0x00}; 
+    uint8_t read_cmd[2] = {0x30, 0x00};
     if (this->transceive_(read_cmd, 2, buffer, len) && len >= 16) {
       ESP_LOGD(TAG, "  Read page 0-3 success");
       data.insert(data.end(), buffer, buffer + 16); // Only keep data, skip CRC
-      
+
       size_t tlv_index = 0;
       bool found = false;
       bool terminator_found = false;
 
-      for (size_t i = 0; i < 16; i++) { 
+      for (size_t i = 0; i < 16; i++) {
         if (data[i] == 0x03) {
           tlv_index = i;
           found = true;
@@ -1108,7 +1108,7 @@ void ST25R::send_anticol_frame_() {
 
   // NVB: high nibble = complete bytes in frame (SEL + NVB + complete UID prefix bytes only)
   //      low nibble  = partial bits (0 = full bytes only)
-  // NOTE: partial byte is NOT counted in high nibble — it goes into FIFO but NVB only counts complete bytes
+  // NOTE: partial octet is NOT counted in high nibble — it goes into FIFO but NVB only counts complete bytes
   uint8_t nvb_high = 2 + this->anticol_prefix_full_;
   uint8_t nvb = (nvb_high << 4) | this->anticol_prefix_bits_;
 
@@ -1121,7 +1121,7 @@ void ST25R::send_anticol_frame_() {
   if (this->anticol_prefix_bits_ > 0)
     frame[frame_len++] = this->anticol_prefix_[this->anticol_prefix_full_];
 
-  // NUM_TX_BYTES: N full bytes + B partial bits (B>0 means one extra partial byte is in FIFO)
+  // NUM_TX_BYTES: N full bytes + B partial bits (B>0 means one extra partial octet is in FIFO)
   // N = SEL + NVB + complete UID prefix bytes only (NOT counting the partial byte)
   uint8_t ntx_n = 2 + this->anticol_prefix_full_;
   uint8_t ntx_b = this->anticol_prefix_bits_;
@@ -1341,7 +1341,7 @@ bool ST25R::isodep_transceive_(const uint8_t *apdu, size_t apdu_len, uint8_t *re
   // Toggle block number for next exchange
   this->isodep_block_number_ ^= 1;
 
-  // Strip PCB byte, check for I-Block response
+  // Strip PCB octet, check for I-Block response
   if ((raw_resp[0] & 0xC0) != 0x00) {
     // Not an I-Block — might be R-Block or S-Block
     ESP_LOGD(TAG, "ISO-DEP: non-I-Block response PCB=0x%02X", raw_resp[0]);
@@ -1514,7 +1514,7 @@ void ST25R::nfcb_scan_() {
 
   if (resp_len < 12 || resp[0] != 0x50) return;
 
-  // Parse ATQB: byte 0 = 0x50, bytes 1-4 = PUPI
+  // Parse ATQB: octet 0 = 0x50, octets 1-4 = PUPI
   char uid_str[9];
   snprintf(uid_str, sizeof(uid_str), "%02X%02X%02X%02X", resp[1], resp[2], resp[3], resp[4]);
   ESP_LOGI(TAG, "NFC-B tag: %s (ATQB len=%u)", uid_str, resp_len);
@@ -1547,7 +1547,7 @@ uint16_t ST25R::iso15693_crc_(const uint8_t *data, size_t len) {
   return ~crc;
 }
 
-// 1-of-4 VCD encoding: each byte → 4 output bytes (SOF + data + CRC + EOF)
+// 1-of-4 VCD encoding: each octet → 4 output bytes (SOF + data + CRC + EOF)
 static const uint8_t ISO15693_1OF4_SOF = 0x21;
 static const uint8_t ISO15693_1OF4_EOF = 0x04;
 static const uint8_t ISO15693_1OF4_MAP[4] = {0x02, 0x08, 0x20, 0x80};
@@ -1680,7 +1680,7 @@ bool ST25R::transceive_nfcv_stream_(const uint8_t *data, size_t len, uint8_t *re
   this->write_command(ST25R_CMD_CLEAR_FIFO);
 
   // Set TX frame: total sub-bits (not bytes!)
-  // For 1-of-4: each coded byte = 1 sub-bit in stream mode
+  // For 1-of-4: each coded octet = 1 sub-bit in stream mode
   uint16_t subbits = coded_len;
   this->write_register(NUM_TX_BYTES1, subbits >> 5);
   this->write_register(NUM_TX_BYTES2, (subbits & 0x1F) << 3);
@@ -1819,7 +1819,7 @@ void ST25R::nfcv_scan_() {
 }
 
 bool ST25R::ndef_write(nfc::NdefMessage *message, bool format) {
-  // Check if the most recent tag is NFC-V (8-byte UID = 16 hex chars)
+  // Check if the most recent tag is NFC-V (8-octet UID = 16 hex chars)
   // If so, use the NFC-V WRITE_SINGLE_BLOCK path
   if (!this->present_tags_.empty()) {
     const std::string &last_uid = this->present_tags_.rbegin()->first;
@@ -1866,7 +1866,7 @@ bool ST25R::ndef_write(nfc::NdefMessage *message, bool format) {
 
   std::vector<uint8_t> ndef_data = message->encode();
   std::vector<uint8_t> payload;
-  
+
   // Build TLV structure
   payload.push_back(0x03); // NDEF TLV
   if (ndef_data.size() < 255) {
@@ -1888,7 +1888,7 @@ bool ST25R::ndef_write(nfc::NdefMessage *message, bool format) {
     uint8_t page = 4 + (i / 4);
     uint8_t write_cmd[6] = {0xA2, page, payload[i], payload[i+1], payload[i+2], payload[i+3]};
     bool success = false;
-    
+
     for (uint8_t retry = 0; retry < 3; retry++) {
       delay(20);
       if (this->transceive_(write_cmd, 6, buffer, len) && (len > 0 && (buffer[0] & 0x0F) == 0x0A)) {

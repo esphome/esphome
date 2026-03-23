@@ -236,7 +236,7 @@ class ST25R : public PollingComponent, public nfc::Nfcc {
                             struct Crypto1State *cs);
   bool mifare_read_block_(uint8_t block, uint8_t *data, struct Crypto1State *cs);
   static void isr(ST25R *arg);
-  
+
   GPIOPin *reset_pin_{nullptr};
   InternalGPIOPin *irq_pin_{nullptr};
 
