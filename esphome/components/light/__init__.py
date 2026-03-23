@@ -24,6 +24,7 @@ from esphome.const import (
     CONF_ID,
     CONF_INITIAL_STATE,
     CONF_MQTT_ID,
+    CONF_NAME,
     CONF_ON_STATE,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
@@ -41,6 +42,8 @@ from esphome.const import (
 from esphome.core import CORE, ID, CoroPriority, HexInt, coroutine_with_priority
 from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
+import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 from .automation import LIGHT_STATE_SCHEMA
 from .effects import (
@@ -71,8 +74,18 @@ DOMAIN = "light"
 
 
 @dataclass
+class EffectRef:
+    """A pending effect name reference from a light action to validate."""
+
+    light_id: str
+    effect_name: str
+    component_path: list  # path_context when the action was validated
+
+
+@dataclass
 class LightData:
     gamma_tables: dict = field(default_factory=dict)  # gamma_value -> fwd_arr
+    effect_refs: list[EffectRef] = field(default_factory=list)
 
 
 def _get_data() -> LightData:
@@ -113,6 +126,52 @@ def _get_or_create_gamma_table(gamma_correct):
     fwd_arr = cg.progmem_array(fwd_id, forward)
     data.gamma_tables[gamma_correct] = fwd_arr
     return fwd_arr
+
+
+def _final_validate(config: ConfigType) -> ConfigType:
+    """Validate all recorded effect name references against their target lights."""
+    data = _get_data()
+    if not data.effect_refs:
+        return config
+
+    fconf = fv.full_config.get()
+
+    for ref in data.effect_refs:
+        try:
+            light_path = fconf.get_path_for_id(ref.light_id)[:-1]
+            light_config = fconf.get_config_for_path(light_path)
+        except KeyError:
+            # Light ID not found — ID validation will have already reported this
+            continue
+
+        effects = light_config.get(CONF_EFFECTS, [])
+        effect_name_lower = ref.effect_name.lower()
+
+        found = False
+        for effect_conf in effects:
+            key = next(iter(effect_conf))
+            if effect_conf[key][CONF_NAME].lower() == effect_name_lower:
+                found = True
+                break
+
+        if not found:
+            available = [
+                effect_conf[next(iter(effect_conf))][CONF_NAME]
+                for effect_conf in effects
+            ]
+            available_str = (
+                ", ".join(f"'{name}'" for name in available) if available else "none"
+            )
+            raise cv.FinalExternalInvalid(
+                f"Effect '{ref.effect_name}' not found for light "
+                f"'{ref.light_id}'. Available effects: {available_str}",
+                path=[cv.ROOT_CONFIG_PATH] + ref.component_path,
+            )
+
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 LightRestoreMode = light_ns.enum("LightRestoreMode")
