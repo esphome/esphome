@@ -22,8 +22,8 @@ _LOGGER = logging.getLogger(__name__)
 ContextVars = ChainMap[str, Any]
 SubstitutionPath = list[int | str]
 ErrList = list[tuple[UndefinedError, SubstitutionPath, str]]
-# Module-level instance is safe: Jinja holds no mutable state between expand() calls.
-# All per-call state (context_vars, context_trace) is passed as arguments or stack-saved.
+# Module-level instance is safe: context_vars is passed per-call, and context_trace
+# is stack-saved/restored within expand(). Not thread-safe — only use from one thread.
 jinja = Jinja()
 
 
@@ -33,6 +33,8 @@ def validate_substitution_key(value):
         raise cv.Invalid("Substitution key must not be empty")
     if value[0] == "$":
         value = value[1:]
+    if not value:
+        raise cv.Invalid("Substitution key must not be empty")
     if value[0].isdigit():
         raise cv.Invalid("First character in substitutions cannot be a digit.")
     for char in value:
@@ -366,12 +368,11 @@ def do_substitution_pass(
         )
 
         replace_keys = []
-        for key, value in substitutions.items():
+        for key in substitutions:
             with cv.prepend_path(key):
                 sub = validate_substitution_key(key)
                 if sub != key:
                     replace_keys.append((key, sub))
-                substitutions[key] = value
         for old, new in replace_keys:
             substitutions[new] = substitutions[old]
             del substitutions[old]
