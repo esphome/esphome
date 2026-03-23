@@ -61,6 +61,7 @@ class BinarySensor : public StatefulEntityBase<bool> {
   /// Return whether this binary sensor has outputted a state.
   virtual bool is_status_binary_sensor() const;
 
+  /// The current state of this binary sensor. Also used as the backing storage for StatefulEntityBase.
   bool state{};
 
  protected:
