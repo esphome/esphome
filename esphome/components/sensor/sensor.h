@@ -97,10 +97,12 @@ class Sensor : public EntityBase {
   /// Getter-syntax for .state.
   float get_state() const { return this->state; }
   /// Getter-syntax for .raw_state
+  float get_raw_state() const {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  float get_raw_state() const { return this->raw_state; }
+    return this->raw_state;
 #pragma GCC diagnostic pop
+  }
 
   /** Publish a new state to the front-end.
    *
