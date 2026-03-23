@@ -4,7 +4,7 @@ dependencies:
   esphome/esp-audio-libs:
     version: 2.0.3
   esphome/micro-opus:
-    version: 0.3.5
+    version: 0.3.6
   espressif/esp-dsp:
     version: "1.7.1"
   espressif/esp-tflite-micro:

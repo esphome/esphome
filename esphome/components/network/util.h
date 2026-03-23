@@ -54,7 +54,29 @@ ESPHOME_ALWAYS_INLINE inline bool is_connected() {
 /// Return whether the network is disabled (only wifi for now)
 bool is_disabled();
 /// Get the active network hostname
-const char *get_use_address();
+ESPHOME_ALWAYS_INLINE inline const char *get_use_address() {
+  // Global component pointers are guaranteed to be set by component constructors when USE_* is defined
+#ifdef USE_ETHERNET
+  return ethernet::global_eth_component->get_use_address();
+#endif
+
+#ifdef USE_MODEM
+  return modem::global_modem_component->get_use_address();
+#endif
+
+#ifdef USE_WIFI
+  return wifi::global_wifi_component->get_use_address();
+#endif
+
+#ifdef USE_OPENTHREAD
+  return openthread::global_openthread_component->get_use_address();
+#endif
+
+#if !defined(USE_ETHERNET) && !defined(USE_MODEM) && !defined(USE_WIFI) && !defined(USE_OPENTHREAD)
+  // Fallback when no network component is defined (e.g., host platform)
+  return "";
+#endif
+}
 IPAddresses get_ip_addresses();
 
 }  // namespace esphome::network
