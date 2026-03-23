@@ -122,9 +122,9 @@ def _expand_substitutions(
 
     orig_value = value
 
-    i = 0
+    search_pos = 0
     while True:
-        m: Match[str] = cv.VARIABLE_PROG.search(value, i)
+        m: Match[str] = cv.VARIABLE_PROG.search(value, search_pos)
         if not m:
             # No more variable substitutions found. See if the remainder looks like a jinja template
             value = _expand_jinja(
@@ -132,7 +132,7 @@ def _expand_substitutions(
             )
             break
 
-        i, j = m.span(0)
+        match_start, match_end = m.span(0)
         name: str = m.group(1)
         if name.startswith("{") and name.endswith("}"):
             name = name[1:-1]
@@ -147,18 +147,18 @@ def _expand_substitutions(
                 raise err
             if errors is not None:
                 errors.append((err, path, value))
-            i = j
+            search_pos = match_end
             continue
 
-        if i == 0 and j == len(value):
-            # The variable spans the whole expression, e.g., "${varName}". Return its resolved value directly
-            # to conserve its type.
+        if match_start == 0 and match_end == len(value):
+            # The variable spans the whole expression, e.g., "${varName}".
+            # Return its resolved value directly to conserve its type.
             value = sub
             break
 
-        tail = value[j:]
-        value = value[:i] + str(sub)
-        i = len(value)
+        tail = value[match_end:]
+        value = value[:match_start] + str(sub)
+        search_pos = len(value)
         value += tail
 
     # orig_value can also already be a lambda with esp_range info, and only
