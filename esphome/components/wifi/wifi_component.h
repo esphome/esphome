@@ -815,6 +815,7 @@ class WiFiComponent final : public Component {
   bool error_from_callback_{false};
   RetryHiddenMode retry_hidden_mode_{RetryHiddenMode::BLIND_RETRY};
   RoamingState roaming_state_{RoamingState::IDLE};
+  bssid_t roaming_target_bssid_{};  // BSSID of the AP we're trying to roam to
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   WiFiPowerSaveMode configured_power_save_{WIFI_POWER_SAVE_NONE};
 #endif
