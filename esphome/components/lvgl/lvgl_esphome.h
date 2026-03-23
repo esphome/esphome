@@ -163,7 +163,7 @@ class LvglComponent : public PollingComponent {
   static void render_end_cb(lv_event_t *event);
   static void render_start_cb(lv_event_t *event);
   void dump_config() override;
-  lv_disp_t *get_disp() { return this->disp_; }
+  lv_display_t *get_disp() { return this->disp_; }
   lv_obj_t *get_screen_active() { return lv_display_get_screen_active(this->disp_); }
   // Pause or resume the display.
   // @param paused If true, pause the display. If false, resume the display.

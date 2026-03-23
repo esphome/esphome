@@ -172,18 +172,18 @@ void LvglComponent::add_page(LvPageType *page) {
   page->setup(this->pages_.size() - 1);
 }
 
-void LvglComponent::show_page(size_t index, lv_scr_load_anim_t anim, uint32_t time) {
+void LvglComponent::show_page(size_t index, lv_screen_load_anim_t anim, uint32_t time) {
   if (index >= this->pages_.size())
     return;
   this->current_page_ = index;
   if (anim == LV_SCREEN_LOAD_ANIM_NONE) {
-    lv_scr_load(this->pages_[this->current_page_]->obj);
+    lv_screen_load(this->pages_[this->current_page_]->obj);
   } else {
-    lv_scr_load_anim(this->pages_[this->current_page_]->obj, anim, time, 0, false);
+    lv_screen_load_anim(this->pages_[this->current_page_]->obj, anim, time, 0, false);
   }
 }
 
-void LvglComponent::show_next_page(lv_scr_load_anim_t anim, uint32_t time) {
+void LvglComponent::show_next_page(lv_screen_load_anim_t anim, uint32_t time) {
   if (this->pages_.empty() || (this->current_page_ == this->pages_.size() - 1 && !this->page_wrap_))
     return;
   size_t start = this->current_page_;
@@ -195,7 +195,7 @@ void LvglComponent::show_next_page(lv_scr_load_anim_t anim, uint32_t time) {
   this->show_page(this->current_page_, anim, time);
 }
 
-void LvglComponent::show_prev_page(lv_scr_load_anim_t anim, uint32_t time) {
+void LvglComponent::show_prev_page(lv_screen_load_anim_t anim, uint32_t time) {
   if (this->pages_.empty() || (this->current_page_ == 0 && !this->page_wrap_))
     return;
   size_t start = this->current_page_;

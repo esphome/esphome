@@ -29,7 +29,7 @@ lv_tile_t = LvType("lv_tileview_tile_t")
 lv_tileview_t = LvType(
     "lv_tileview_t",
     largs=[(lv_obj_t_ptr, "tile")],
-    lvalue=lambda w: w.get_property("tile_act"),
+    lvalue=lambda w: w.get_property("tile_active"),
     has_on_value=True,
 )
 
@@ -85,7 +85,7 @@ class TileviewType(WidgetType):
             await add_widgets(tile, tile_conf)
         if tiles:
             # Set the first tile as active
-            lv_obj.set_tile_id(
+            lv.tileview_set_tile_by_index(
                 w.obj, tiles[0][CONF_COLUMN], tiles[0][CONF_ROW], literal("LV_ANIM_OFF")
             )
 
@@ -122,11 +122,11 @@ async def tileview_select(config, action_id, template_arg, args):
     async def do_select(w: Widget):
         if tile := config.get(CONF_TILE_ID):
             tile = await cg.get_variable(tile)
-            lv_obj.set_tile(w.obj, tile, literal(config[CONF_ANIMATED]))
+            lv.tileview_set_tile(w.obj, tile, literal(config[CONF_ANIMATED]))
         else:
             row = await lv_int.process(config[CONF_ROW])
             column = await lv_int.process(config[CONF_COLUMN])
-            lv_obj.set_tile_id(
+            lv.tileview_set_tile_by_index(
                 widgets[0].obj, column, row, literal(config[CONF_ANIMATED])
             )
         lv.event_send(w.obj, LV_EVENT.VALUE_CHANGED, cg.nullptr)
