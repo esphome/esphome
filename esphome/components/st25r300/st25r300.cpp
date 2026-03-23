@@ -673,23 +673,8 @@ void ST25R300::nfcv_scan_() {
   uint8_t resp_len = 0;
 
   // Single-tag inventory (multi-tag requires STAY_QUIET + field cycling)
-  {
-    resp_len = 0;
-    if (!this->transceive_nfcv_(inv_req, sizeof(inv_req), resp, resp_len, 25)) {
-      break;  // No more tags
-    }
-
-    // Response (CRC stripped by chip): flags(1) + DSFID(1) + UID(8) = 10 bytes
-    if (resp_len < 10) {
-      ESP_LOGW(TAG, "NFC-V: short inventory response (%u bytes)", resp_len);
-      break;
-    }
-
-    // Check flags uint8_t — bit0=error
-    if (resp[0] & 0x01) {
-      ESP_LOGD(TAG, "NFC-V: inventory error flag set (0x%02X)", resp[0]);
-      break;
-    }
+  if (this->transceive_nfcv_(inv_req, sizeof(inv_req), resp, resp_len, 25) &&
+      resp_len >= 10 && !(resp[0] & 0x01)) {
 
     // UID is bytes 2-9, transmitted LSB-first — reverse for display
     char uid_str[17];
@@ -767,7 +752,6 @@ void ST25R300::nfcv_scan_() {
       for (auto *trigger : this->on_tag_triggers_)
         trigger->trigger(uid_string);
     }
-
   }
 
   // Switch back to NFC-A mode for the main scan
