@@ -65,10 +65,11 @@ StateClass Sensor::get_state_class() {
   return StateClass::STATE_CLASS_NONE;
 }
 
+void Sensor::publish_state(float state) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-void Sensor::publish_state(float state) {
   this->raw_state = state;
+#pragma GCC diagnostic pop
 #ifdef USE_SENSOR_FILTER
   this->raw_callback_.call(state);
 #endif
@@ -85,7 +86,6 @@ void Sensor::publish_state(float state) {
   }
 #endif
 }
-#pragma GCC diagnostic pop
 
 #ifdef USE_SENSOR_FILTER
 void Sensor::add_filter(Filter *filter) {
