@@ -103,6 +103,19 @@ def test_generate_source_table_code_empty():
     assert _generate_source_table_code("TBL", "lookup", {}) == ""
 
 
+def test_generate_source_table_code_non_empty():
+    from esphome.cpp_helpers import _generate_source_table_code
+
+    code = _generate_source_table_code("TBL", "lookup", {"wifi": 1, "api": 2})
+    assert "PROGMEM" in code
+    assert "wifi" in code
+    assert "api" in code
+    assert "lookup" in code
+    assert "index == 0" in code
+    assert "progmem_read_ptr" in code
+    assert "index > 2" in code
+
+
 @pytest.mark.asyncio
 async def test_generate_component_source_table_empty_pool(monkeypatch):
     """Test that _generate_component_source_table does nothing with an empty pool."""
