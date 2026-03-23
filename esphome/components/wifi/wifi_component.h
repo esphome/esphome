@@ -790,8 +790,7 @@ class WiFiComponent final : public Component {
   uint32_t last_connected_{0};
   uint32_t reboot_timeout_{};
   uint32_t roaming_last_check_{0};
-  uint32_t roaming_scan_end_{0};    // Timestamp when last roaming scan completed
-  bssid_t roaming_target_bssid_{};  // BSSID of the AP we're trying to roam to
+  uint32_t roaming_scan_end_{0};  // Timestamp when last roaming scan completed
 #ifdef USE_WIFI_AP
   uint32_t ap_timeout_{};
 #endif
@@ -816,6 +815,7 @@ class WiFiComponent final : public Component {
   bool error_from_callback_{false};
   RetryHiddenMode retry_hidden_mode_{RetryHiddenMode::BLIND_RETRY};
   RoamingState roaming_state_{RoamingState::IDLE};
+  bssid_t roaming_target_bssid_{};  // BSSID of the AP we're trying to roam to
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   WiFiPowerSaveMode configured_power_save_{WIFI_POWER_SAVE_NONE};
 #endif

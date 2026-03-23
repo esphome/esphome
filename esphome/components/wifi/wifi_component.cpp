@@ -1591,7 +1591,9 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
       // (e.g., first connect failed but scan-based retry found and connected to the same better AP)
       bssid_t current_bssid = this->wifi_bssid();
       if (this->roaming_target_bssid_ != bssid_t{} && current_bssid == this->roaming_target_bssid_) {
-        ESP_LOGD(TAG, "Roam successful (via retry)");
+        char bssid_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+        format_mac_addr_upper(current_bssid.data(), bssid_buf);
+        ESP_LOGD(TAG, "Roam successful (via retry) to %s", bssid_buf);
         this->roaming_attempts_ = 0;
       } else {
         // Failed roam, reconnected to different AP - keep attempts to prevent ping-pong
@@ -1603,6 +1605,7 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     }
     this->roaming_state_ = RoamingState::IDLE;
     this->roaming_target_bssid_ = {};
+    this->roaming_scan_end_ = 0;
 
     // Clear all priority penalties - the next reconnect will happen when an AP disconnects,
     // which means the landscape has likely changed and previous tracked failures are stale
