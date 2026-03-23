@@ -272,9 +272,6 @@ void Component::call() {
       break;
   }
 }
-const LogString *Component::get_component_log_str() const {
-  return this->component_source_ == nullptr ? LOG_STR("<unknown>") : this->component_source_;
-}
 bool Component::should_warn_of_blocking(uint32_t blocking_time) {
   if (blocking_time > this->warn_if_blocking_over_) {
     // Prevent overflow when adding increment - if we're about to overflow, just max out
