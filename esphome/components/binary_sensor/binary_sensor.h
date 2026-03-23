@@ -74,7 +74,7 @@ class BinarySensor : public StatefulEntityBase<bool> {
   Filter *filter_list_{nullptr};
 #endif
 
-  bool set_new_state(const optional<bool> &new_state) override;
+  void on_state_changed_(const optional<bool> &old_state, const optional<bool> &new_state, bool had_state) override;
 };
 
 class BinarySensorInitiallyOff : public BinarySensor {

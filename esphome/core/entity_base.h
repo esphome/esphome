@@ -342,8 +342,8 @@ template<typename T> class StatefulEntityBase : public EntityBase {
    * Pass nullopt to invalidate (clear) the state. Pass a value to set it.
    * Returns true if the state actually changed, false if it was the same.
    */
-  virtual bool set_new_state(const optional<T> &new_state) {
-    // Access flags_ directly to avoid virtual/function call overhead in this hot path
+  bool set_new_state(const optional<T> &new_state) {
+    // Access flags_ directly to avoid function call overhead in this hot path
     bool had_state = this->flags_.has_state;
     if (new_state.has_value()) {
       if (had_state && this->get_state() == new_state.value())
@@ -358,10 +358,14 @@ template<typename T> class StatefulEntityBase : public EntityBase {
     if (new_state.has_value()) {
       this->set_state_value_(new_state.value());
     }
+    this->on_state_changed_(old_state, new_state, had_state);
+    return true;
+  }
+  /// Called after state storage is updated. Subclasses override for logging/notifications.
+  virtual void on_state_changed_(const optional<T> &old_state, const optional<T> &new_state, bool had_state) {
     this->full_state_callbacks_.call(old_state, new_state);
     if (new_state.has_value() && (this->get_trigger_on_initial_state() || had_state))
       this->state_callbacks_.call(new_state.value());
-    return true;
   }
   /// Subclasses implement this to store the actual value into their own storage.
   virtual void set_state_value_(const T &value) = 0;

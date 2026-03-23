@@ -33,16 +33,12 @@ void BinarySensor::publish_initial_state(bool new_state) {
   this->publish_state(new_state);
 }
 
-bool BinarySensor::set_new_state(const optional<bool> &new_state) {
-  if (StatefulEntityBase::set_new_state(new_state)) {
-    // weirdly, this file could be compiled even without USE_BINARY_SENSOR defined
+void BinarySensor::on_state_changed_(const optional<bool> &old_state, const optional<bool> &new_state, bool had_state) {
+  StatefulEntityBase::on_state_changed_(old_state, new_state, had_state);
 #if defined(USE_BINARY_SENSOR) && defined(USE_CONTROLLER_REGISTRY)
-    ControllerRegistry::notify_binary_sensor_update(this);
+  ControllerRegistry::notify_binary_sensor_update(this);
 #endif
-    ESP_LOGD(TAG, "'%s' >> %s", this->get_name().c_str(), ONOFFMAYBE(new_state));
-    return true;
-  }
-  return false;
+  ESP_LOGD(TAG, "'%s' >> %s", this->get_name().c_str(), ONOFFMAYBE(new_state));
 }
 
 #ifdef USE_BINARY_SENSOR_FILTER
