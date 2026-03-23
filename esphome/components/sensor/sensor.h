@@ -116,7 +116,8 @@ class Sensor : public EntityBase {
   /// Add a callback that will be called every time a filtered value arrives.
   template<typename F> void add_on_state_callback(F &&callback) { this->callback_.add(std::forward<F>(callback)); }
   /// Add a callback that will be called every time the sensor sends a raw value.
-  /// Without filters, raw state equals filtered state so this delegates to the regular callback.
+  /// When USE_SENSOR_FILTER is not enabled, delegates to the regular callback
+  /// since raw state equals filtered state without filter support compiled in.
   template<typename F> void add_on_raw_state_callback(F &&callback) {
 #ifdef USE_SENSOR_FILTER
     this->raw_callback_.add(std::forward<F>(callback));
