@@ -293,6 +293,11 @@ def _substitute_item(
     return None
 
 
+def substitute_context_vars(node: Any, context_vars: dict[str, Any]) -> None:
+    """Eagerly substitute context vars into a config node in-place."""
+    _substitute_item(node, [], ContextVars(context_vars), strict_undefined=False)
+
+
 def _log_errors(errors: ErrList) -> None:
     for err, path, expression in errors:
         if "password" in path:
