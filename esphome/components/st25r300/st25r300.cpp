@@ -35,8 +35,8 @@ void ST25R300::setup() {
   if (this->status_binary_sensor_ != nullptr)
     this->status_binary_sensor_->publish_initial_state(false);
 
-  ESP_LOGI(TAG, "Starting reset_chip_()...");
-  if (!this->reset_chip_()) {
+  ESP_LOGI(TAG, "Starting reset_chip()...");
+  if (!this->reset_chip()) {
     ESP_LOGE(TAG, "Failed to reset/init ST25R300");
     this->mark_failed();
     return;
@@ -122,7 +122,7 @@ void ST25R300::update() {
 
 // ── loop ──────────────────────────────────────────────────────────────────────
 // Overrides base to translate ST25R300's three IRQ registers into the normalized
-// irq_status_ uint8_t used by the shared process_state_() state machine.
+// irq_status_ uint8_t used by the shared process_state() state machine.
 void ST25R300::loop() {
   if (this->is_failed()) return;
 
@@ -153,7 +153,7 @@ void ST25R300::loop() {
   if (this->irq_status2_ & ST25R300_IRQ2_NRE) n |= IRQ_NRE;
   this->irq_status_ = n;
 
-  this->process_state_();
+  this->process_state();
 }
 
 // ── send_short_frame_ ─────────────────────────────────────────────────────────
@@ -198,15 +198,15 @@ bool ST25R300::send_short_frame_(uint8_t byte7, uint8_t *resp, uint8_t &resp_len
 // ── transceive_ / transceive_no_crc_ ─────────────────────────────────────────
 bool ST25R300::transceive_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
                             uint32_t timeout_ms) {
-  return this->transceive_ex_(data, len, resp, resp_len, true, timeout_ms);
+  return this->transceive_ex(data, len, resp, resp_len, true, timeout_ms);
 }
 bool ST25R300::transceive_no_crc_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
                                    uint32_t timeout_ms) {
-  return this->transceive_ex_(data, len, resp, resp_len, false, timeout_ms);
+  return this->transceive_ex(data, len, resp, resp_len, false, timeout_ms);
 }
 
 // ── transceive_ex_ ────────────────────────────────────────────────────────────
-bool ST25R300::transceive_ex_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
+bool ST25R300::transceive_ex(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
                                bool with_crc, uint32_t timeout_ms) {
   this->write_command(ST25R300_CMD_CLEAR_FIFO);
   this->write_command(ST25R300_CMD_CLEAR_RX_GAIN);
@@ -264,7 +264,7 @@ bool ST25R300::transceive_ex_(const uint8_t *data, size_t len, uint8_t *resp, ui
 // ── read_tag_ ─────────────────────────────────────────────────────────────────
 // ST25R300 supports NFC Forum Type 2 (NTAG) only.
 // Mifare Classic authentication is not implemented for ST25R300 (different MAC engine).
-std::unique_ptr<nfc::NfcTag> ST25R300::read_tag_(std::vector<uint8_t> &uid) {
+std::unique_ptr<nfc::NfcTag> ST25R300::read_tag(std::vector<uint8_t> &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
   ESP_LOGI(TAG, "read_tag_: UID length=%zu, guessed type=%d", uid.size(), type);
 
@@ -348,20 +348,20 @@ std::unique_ptr<nfc::NfcTag> ST25R300::read_tag_(std::vector<uint8_t> &uid) {
 
 // ── Virtual helper overrides ───────────────────────────────────────────────────
 
-uint8_t ST25R300::read_fifo_status1_() {
+uint8_t ST25R300::read_fifo_status1() {
   return this->read_register(ST25R300_REG_FIFO_STATUS1);
 }
 
-uint8_t ST25R300::read_collision_display_() {
+uint8_t ST25R300::read_collision_display() {
   return this->read_register(ST25R300_REG_COLLISION_DISPLAY);
 }
 
-void ST25R300::pre_select_() {
-  // No-op: ST25R300 manages RX mode (antcl) via RX_PROTOCOL1 inside transceive_ex_().
+void ST25R300::pre_select() {
+  // No-op: ST25R300 manages RX mode (antcl) via RX_PROTOCOL1 inside transceive_ex().
   // There is no separate "anticol mode" register to clear before SELECT.
 }
 
-void ST25R300::send_halt_() {
+void ST25R300::send_halt() {
   uint8_t halt_cmd[2] = {0x50, 0x00};
   this->write_command(ST25R300_CMD_CLEAR_FIFO);
   this->read_register(ST25R300_REG_IRQ_STATUS1);
@@ -377,7 +377,7 @@ void ST25R300::send_halt_() {
   delay(10);
 }
 
-void ST25R300::start_wupa_() {
+void ST25R300::start_wupa() {
   // Clear FIFO + IRQs + chip accumulators, then transmit WUPA as short frame
   this->write_command(ST25R300_CMD_CLEAR_FIFO);
   this->read_register(ST25R300_REG_IRQ_STATUS1);
@@ -393,7 +393,7 @@ void ST25R300::start_wupa_() {
 }
 
 // ── send_anticol_frame_ ───────────────────────────────────────────────────────
-void ST25R300::send_anticol_frame_() {
+void ST25R300::send_anticol_frame() {
   uint8_t sel_cmds[] = {0x93, 0x95, 0x97};
   uint8_t sel = sel_cmds[this->cascade_level_];
 
@@ -436,7 +436,7 @@ void ST25R300::send_anticol_frame_() {
 }
 
 // ── reset_ ────────────────────────────────────────────────────────────────────
-bool ST25R300::reset_chip_() {
+bool ST25R300::reset_chip() {
   // Verify IC identity BEFORE SET_DEFAULT — if bus is down, don't clear registers.
   uint8_t ic_identity = this->read_register(ST25R300_REG_IC_IDENTITY);
   ESP_LOGD(TAG, "  reset_: IC identity read: 0x%02X", ic_identity);
@@ -524,7 +524,7 @@ bool ST25R300::reset_chip_() {
 }
 
 // ── reinitialize_ ─────────────────────────────────────────────────────────────
-void ST25R300::reinitialize_() {
+void ST25R300::reinitialize() {
   this->reinitialization_attempts_++;
   ESP_LOGW(TAG, "Reinitializing ST25R300 (attempt %u)...", this->reinitialization_attempts_);
   if (this->reset_pin_ != nullptr) {
@@ -533,7 +533,7 @@ void ST25R300::reinitialize_() {
     this->reset_pin_->digital_write(false);
     delay(10);
   }
-  if (this->reset_chip_()) {
+  if (this->reset_chip()) {
     ESP_LOGI(TAG, "Reinitialize succeeded after %u attempt(s)", this->reinitialization_attempts_);
     this->health_check_failures_ = 0;
     this->reinitialization_attempts_ = 0;
@@ -774,7 +774,7 @@ void ST25R300::nfcv_scan_() {
   this->configure_nfca_mode_();
 }
 
-bool ST25R300::nfcv_ndef_write_(nfc::NdefMessage *message) {
+bool ST25R300::nfcv_ndef_write(nfc::NdefMessage *message) {
   this->configure_nfcv_mode_();
 
   std::vector<uint8_t> payload;

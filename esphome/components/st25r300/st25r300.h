@@ -26,18 +26,18 @@ class ST25R300 : public st25r::ST25R {
   virtual void read_fifo(uint8_t *data, size_t len) = 0;
 
   // Chip-specific overrides
-  bool reset_chip_() override;
-  void reinitialize_() override;
-  void send_anticol_frame_() override;
-  bool transceive_ex_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
+  bool reset_chip() override;
+  void reinitialize() override;
+  void send_anticol_frame() override;
+  bool transceive_ex(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len,
                       bool with_crc, uint32_t timeout_ms = 150) override;
-  std::unique_ptr<nfc::NfcTag> read_tag_(std::vector<uint8_t> &uid) override;
-  bool nfcv_ndef_write_(nfc::NdefMessage *message) override;
-  void send_halt_() override;
-  void start_wupa_() override;
-  void pre_select_() override;  // no-op: ST25R300 manages mode in transceive_ex_()
-  uint8_t read_fifo_status1_() override;
-  uint8_t read_collision_display_() override;
+  std::unique_ptr<nfc::NfcTag> read_tag(std::vector<uint8_t> &uid) override;
+  bool nfcv_ndef_write(nfc::NdefMessage *message) override;
+  void send_halt() override;
+  void start_wupa() override;
+  void pre_select() override;  // no-op: ST25R300 manages mode in transceive_ex()
+  uint8_t read_fifo_status1() override;
+  uint8_t read_collision_display() override;
 
   // ST25R300-specific: send a 7-bit ISO14443A short frame (WUPA=0x52 or REQA=0x26).
   // ST25R300 has no dedicated WUPA/REQA command; must be done via FIFO + TRANSMIT_DATA.

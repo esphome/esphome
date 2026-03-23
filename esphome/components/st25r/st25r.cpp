@@ -109,8 +109,8 @@ void ST25R::setup() {
   if (this->status_binary_sensor_ != nullptr) {
     this->status_binary_sensor_->publish_initial_state(false);
   }
-  ESP_LOGI(TAG, "Starting reset_chip_()...");
-  if (!this->reset_chip_()) {
+  ESP_LOGI(TAG, "Starting reset_chip()...");
+  if (!this->reset_chip()) {
     ESP_LOGE(TAG, "Failed to reset chip");
     this->mark_failed();
     return;
@@ -198,14 +198,14 @@ void ST25R::update() {
 }
 
 bool ST25R::transceive_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms) {
-  return this->transceive_ex_(data, len, resp, resp_len, true, timeout_ms);
+  return this->transceive_ex(data, len, resp, resp_len, true, timeout_ms);
 }
 
 bool ST25R::transceive_no_crc_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, uint32_t timeout_ms) {
-  return this->transceive_ex_(data, len, resp, resp_len, false, timeout_ms);
+  return this->transceive_ex(data, len, resp, resp_len, false, timeout_ms);
 }
 
-bool ST25R::transceive_ex_(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, bool with_crc, uint32_t timeout_ms) {
+bool ST25R::transceive_ex(const uint8_t *data, size_t len, uint8_t *resp, uint8_t &resp_len, bool with_crc, uint32_t timeout_ms) {
   this->write_command(ST25R_CMD_CLEAR_FIFO);
   this->write_command(ST25R_CMD_RESET_RX_GAIN);  // reset AGC/squelch per datasheet transceive sequence
   // Clear ALL IRQ registers so IRQ pin goes low — required for ISR rising-edge to fire
@@ -446,7 +446,7 @@ bool ST25R::mifare_read_block_(uint8_t block, uint8_t *data,
   return true;
 }
 
-std::unique_ptr<nfc::NfcTag> ST25R::read_tag_(std::vector<uint8_t> &uid) {
+std::unique_ptr<nfc::NfcTag> ST25R::read_tag(std::vector<uint8_t> &uid) {
   uint8_t type = nfc::guess_tag_type(uid.size());
   ESP_LOGI(TAG, "read_tag_: UID length=%zu, guessed type=%d, SAK=0x%02X", uid.size(), type, this->last_sak_);
 
@@ -637,10 +637,10 @@ void ST25R::loop() {
     this->irq_status_ = 0;
   }
 
-  this->process_state_();
+  this->process_state();
 }
 
-void ST25R::process_state_() {
+void ST25R::process_state() {
   switch (this->state_) {
     case STATE_IDLE:
       break;
@@ -659,7 +659,7 @@ void ST25R::process_state_() {
           // anticol_resume_ is cleared inside: use saved prefix for this one anticol round
           this->anticol_resume_ = false;
 
-          this->send_anticol_frame_();
+          this->send_anticol_frame();
           this->state_ = STATE_ANTICOL;
           this->last_state_change_ = millis();
       } else if (this->irq_status_ & IRQ_NRE) {
@@ -676,7 +676,7 @@ void ST25R::process_state_() {
           uint8_t irq_t = this->read_register(IRQ_TIMER);
           uint8_t irq_e = this->read_register(IRQ_ERROR);
           ESP_LOGD(TAG, "WUPA timeout: IRQ=0x%02X IRQ_T=0x%02X IRQ_E=0x%02X FIFO=%u",
-                   this->irq_status_, irq_t, irq_e, this->read_fifo_status1_());
+                   this->irq_status_, irq_t, irq_e, this->read_fifo_status1());
           this->irq_status_ = 0;
           this->irq_triggered_ = false;
           this->state_ = STATE_IDLE;
@@ -694,7 +694,7 @@ void ST25R::process_state_() {
           // Send WUPA before each new prefix attempt — some cards (e.g. Mifare Classic) leave
           // the READY state quickly after responding to an anticol they don't match.
           this->anticol_resume_ = true;
-          this->start_wupa_();
+          this->start_wupa();
           this->state_ = STATE_WUPA;
           this->last_state_change_ = millis();
           return;
@@ -706,11 +706,11 @@ void ST25R::process_state_() {
 
       if (this->irq_status_ != 0 && (this->irq_status_ & (IRQ_RXE | IRQ_COL | IRQ_TXE))) {
         delay(5);
-        uint8_t f1 = this->read_fifo_status1_();
+        uint8_t f1 = this->read_fifo_status1();
         bool has_collision = (this->irq_status_ & IRQ_COL) != 0;
 
         if (has_collision) {
-          uint8_t col_raw = this->read_collision_display_();
+          uint8_t col_raw = this->read_collision_display();
           uint8_t c_byte = (col_raw >> 4) & 0x0F;
           uint8_t c_bit  = (col_raw >> 1) & 0x07;
           // col_pos_abs is from start of TX frame (SEL + NVB = 2 bytes = 16 bits)
@@ -724,7 +724,7 @@ void ST25R::process_state_() {
           this->anticol_prefix_val_ = 0;
           this->apply_anticol_prefix_();
 
-          this->send_anticol_frame_();
+          this->send_anticol_frame();
           this->last_state_change_ = millis();
 
         } else if (f1 >= 5) {
@@ -763,8 +763,8 @@ void ST25R::process_state_() {
           }
 
           // Clear anticollision mode before SELECT (ST25R3916: ISO14443A_CONF=0x00;
-          // ST25R300: no-op here — handled via RX_PROTOCOL1 inside transceive_ex_()).
-          this->pre_select_();
+          // ST25R300: no-op here — handled via RX_PROTOCOL1 inside transceive_ex()).
+          this->pre_select();
 
           uint8_t sak_buf[3];
           uint8_t sak_len = 0;
@@ -795,7 +795,7 @@ void ST25R::process_state_() {
             this->anticol_prefix_bits_ = 0;
             this->anticol_col_pos_ = 0;
             this->anticol_prefix_val_ = 0;
-            this->send_anticol_frame_();
+            this->send_anticol_frame();
             this->state_ = STATE_ANTICOL;
             this->last_state_change_ = millis();
           } else {
@@ -815,13 +815,13 @@ void ST25R::process_state_() {
               std::vector<uint8_t> uid_bytes;
               for (size_t i = 0; i < this->current_uid_.length(); i += 2)
                 uid_bytes.push_back((uint8_t) strtol(this->current_uid_.substr(i, 2).c_str(), nullptr, 16));
-              this->tags_data_[this->current_uid_] = this->read_tag_(uid_bytes);
+              this->tags_data_[this->current_uid_] = this->read_tag(uid_bytes);
             }
 
             this->tags_this_scan_.insert(this->current_uid_);
 
-            // HALT: send [0x50, 0x00] + CRC via chip-specific send_halt_()
-            this->send_halt_();
+            // HALT: send [0x50, 0x00] + CRC via chip-specific send_halt()
+            this->send_halt();
 
             // Determine the CL1 collision state so we can resume the multi-tag tree traversal.
             // If we went through cascade (CL2), restore the saved CL1 state.
@@ -859,7 +859,7 @@ void ST25R::process_state_() {
               // Some cards (e.g. Mifare Classic) return to HALT after a non-matching SELECT,
               // so REQA would not wake them.
               this->anticol_resume_ = true;
-              this->start_wupa_();
+              this->start_wupa();
             } else {
               // No prior collision: this was the only tag — scan complete
               this->state_ = STATE_IDLE;
@@ -875,7 +875,7 @@ void ST25R::process_state_() {
     }
 
     case STATE_REINITIALIZING:
-      this->reinitialize_();
+      this->reinitialize();
       this->state_ = STATE_IDLE;
       break;
   }
@@ -953,7 +953,7 @@ bool ST25R::wait_for_irq_(uint8_t mask, uint32_t timeout_ms) {
   return false;
 }
 
-bool ST25R::reset_chip_() {
+bool ST25R::reset_chip() {
   // Verify IC identity BEFORE SET_DEFAULT — if bus is down, don't clear registers.
   // IC_IDENTITY is read-only and unaffected by SET_DEFAULT.
   uint8_t ic_identity = this->read_register(IC_IDENTITY);
@@ -971,7 +971,7 @@ bool ST25R::reset_chip_() {
   this->is_b_version_ = is_b_version;
   // ST25R3916 (0x28) and ST25R3916B (0x30) both have Automatic Antenna Tuning (AAT)
   // with varicap DAC outputs on ANT_TUNE_A/B (0x26/0x27).  Variants without AAT
-  // (e.g. ST25R300/500/501 — see feature matrix) use their own reset_chip_() override and
+  // (e.g. ST25R300/500/501 — see feature matrix) use their own reset_chip() override and
   // never reach this code, but set the flag explicitly to represent the capability.
   this->has_aat_ = true;
   ESP_LOGI(TAG, "IC identity match: 0x%02X (ST25R3916%s)", ic_identity, is_b_version ? "B" : "");
@@ -1061,7 +1061,7 @@ bool ST25R::reset_chip_() {
   return true;
 }
 
-void ST25R::reinitialize_() {
+void ST25R::reinitialize() {
   this->reinitialization_attempts_++;
   ESP_LOGW(TAG, "Reinitializing ST25R (attempt %u)...", this->reinitialization_attempts_);
   if (this->reset_pin_ != nullptr) {
@@ -1070,7 +1070,7 @@ void ST25R::reinitialize_() {
     this->reset_pin_->digital_write(false);
     delay(10);
   }
-  if (this->reset_chip_()) {
+  if (this->reset_chip()) {
     ESP_LOGI(TAG, "Reinitialize succeeded after %u attempt(s)", this->reinitialization_attempts_);
     this->health_check_failures_ = 0;
     this->reinitialization_attempts_ = 0;
@@ -1102,7 +1102,7 @@ void ST25R::apply_anticol_prefix_() {
   }
 }
 
-void ST25R::send_anticol_frame_() {
+void ST25R::send_anticol_frame() {
   uint8_t sel_cmds[] = {0x93, 0x95, 0x97};
   uint8_t sel = sel_cmds[this->cascade_level_];
 
@@ -1141,20 +1141,20 @@ void ST25R::send_anticol_frame_() {
 
 // ── Default virtual helpers (ST25R3916 implementations) ──────────────────────
 
-void ST25R::pre_select_() {
+void ST25R::pre_select() {
   // ST25R3916: clear antcl bit in ISO14443A_CONF so SELECT uses normal (non-anticol) framing
   this->write_register(ISO14443A_CONF, 0x00);
 }
 
-uint8_t ST25R::read_fifo_status1_() {
+uint8_t ST25R::read_fifo_status1() {
   return this->read_register(FIFO_STATUS1);
 }
 
-uint8_t ST25R::read_collision_display_() {
+uint8_t ST25R::read_collision_display() {
   return this->read_register(COLLISION_DISPLAY);
 }
 
-void ST25R::send_halt_() {
+void ST25R::send_halt() {
   // HALT: send [0x50, 0x00] + CRC; tag has no response.
   // Don't use transceive_() here — it blocks waiting for a non-existent response.
   uint8_t halt_cmd[2] = {0x50, 0x00};
@@ -1169,7 +1169,7 @@ void ST25R::send_halt_() {
   delay(10);  // wait for HALT frame to be transmitted (~2ms for 4 bytes)
 }
 
-void ST25R::start_wupa_() {
+void ST25R::start_wupa() {
   // Clear FIFO + IRQs, then transmit WUPA.
   this->write_command(ST25R_CMD_CLEAR_FIFO);
   this->read_register(IRQ_MAIN);
@@ -1192,7 +1192,7 @@ void ST25R::field_on_() {
 // ── AAT (Automatic Antenna Tuning) hill-climbing optimizer ───────────────────
 // Based on RFAL st25r3916AatTune() (AN5322). Iteratively adjusts ANT_TUNE_A/B
 // to maximize RF field amplitude (AD_CONV_RESULT). Runs once after field_on_()
-// during reset_chip_() on chips with AAT hardware (ST25R3916/3916B).
+// during reset_chip() on chips with AAT hardware (ST25R3916/3916B).
 
 void ST25R::aat_tune_() {
   if (!this->has_aat_) return;
@@ -1537,7 +1537,7 @@ void ST25R::nfcb_scan_() {
 // ── NFC-V (ISO 15693) streaming mode for ST25R3916 ──────────────────────────
 
 // ISO 15693 CRC-16 CCITT (preset=0xFFFF, poly=0x8408, result inverted)
-uint16_t ST25R::iso15693_crc_(const uint8_t *data, size_t len) {
+uint16_t ST25R::iso15693_crc(const uint8_t *data, size_t len) {
   uint16_t crc = 0xFFFF;
   for (size_t i = 0; i < len; i++) {
     uint8_t d = data[i] ^ (uint8_t)(crc & 0xFF);
@@ -1552,7 +1552,7 @@ static const uint8_t ISO15693_1OF4_SOF = 0x21;
 static const uint8_t ISO15693_1OF4_EOF = 0x04;
 static const uint8_t ISO15693_1OF4_MAP[4] = {0x02, 0x08, 0x20, 0x80};
 
-size_t ST25R::iso15693_encode_1of4_(const uint8_t *data, size_t len, bool add_crc,
+size_t ST25R::iso15693_encode_1of4(const uint8_t *data, size_t len, bool add_crc,
                                      uint8_t *out, size_t out_max) {
   size_t pos = 0;
   if (out_max < 1 + (len + 2) * 4 + 1) return 0;
@@ -1571,7 +1571,7 @@ size_t ST25R::iso15693_encode_1of4_(const uint8_t *data, size_t len, bool add_cr
 
   // Encode CRC
   if (add_crc) {
-    uint16_t crc = iso15693_crc_(data, len);
+    uint16_t crc = iso15693_crc(data, len);
     uint8_t crc_bytes[2] = {(uint8_t)(crc & 0xFF), (uint8_t)(crc >> 8)};
     for (int c = 0; c < 2; c++) {
       uint8_t b = crc_bytes[c];
@@ -1588,7 +1588,7 @@ size_t ST25R::iso15693_encode_1of4_(const uint8_t *data, size_t len, bool add_cr
 }
 
 // Manchester VICC decoding: subcarrier stream → payload bytes
-size_t ST25R::iso15693_decode_manchester_(const uint8_t *in, size_t in_len, uint8_t *out, size_t out_max) {
+size_t ST25R::iso15693_decode_manchester(const uint8_t *in, size_t in_len, uint8_t *out, size_t out_max) {
   if (in_len == 0 || out_max == 0) return 0;
 
   // Check SOF: first 5 bits should be 0x17 (10111 = 3 unmodulated + 2 modulated)
@@ -1673,7 +1673,7 @@ bool ST25R::transceive_nfcv_stream_(const uint8_t *data, size_t len, uint8_t *re
   cmd_buf[0] |= 0x02;   // high data rate
   cmd_buf[0] &= ~0x01;  // single subcarrier
 
-  size_t coded_len = iso15693_encode_1of4_(cmd_buf, len, true, coded, sizeof(coded));
+  size_t coded_len = iso15693_encode_1of4(cmd_buf, len, true, coded, sizeof(coded));
   if (coded_len == 0) return false;
 
   this->write_command(ST25R_CMD_STOP_ALL);
@@ -1704,10 +1704,10 @@ bool ST25R::transceive_nfcv_stream_(const uint8_t *data, size_t len, uint8_t *re
         this->read_fifo(raw, fifo_len);
         // Decode Manchester
         uint8_t decoded[32];
-        size_t dec_len = iso15693_decode_manchester_(raw, fifo_len, decoded, sizeof(decoded));
+        size_t dec_len = iso15693_decode_manchester(raw, fifo_len, decoded, sizeof(decoded));
         if (dec_len >= 3) {  // At least flags + CRC(2)
           // Verify CRC
-          uint16_t crc = iso15693_crc_(decoded, dec_len - 2);
+          uint16_t crc = iso15693_crc(decoded, dec_len - 2);
           if ((crc & 0xFF) == decoded[dec_len - 2] && (crc >> 8) == decoded[dec_len - 1]) {
             // Strip CRC
             resp_len = dec_len - 2;
@@ -1824,7 +1824,7 @@ bool ST25R::ndef_write(nfc::NdefMessage *message, bool format) {
   if (!this->present_tags_.empty()) {
     const std::string &last_uid = this->present_tags_.rbegin()->first;
     if (last_uid.length() == 16) {
-      return this->nfcv_ndef_write_(message);
+      return this->nfcv_ndef_write(message);
     }
   }
 
@@ -1907,7 +1907,7 @@ bool ST25R::ndef_write(nfc::NdefMessage *message, bool format) {
   return true;
 }
 
-bool ST25R::nfcv_ndef_write_(nfc::NdefMessage *message) {
+bool ST25R::nfcv_ndef_write(nfc::NdefMessage *message) {
   // NFC-V Type 5 NDEF write via WRITE_SINGLE_BLOCK (0x21)
   // Block 0 = CC, blocks 1+ = NDEF TLV data
 
