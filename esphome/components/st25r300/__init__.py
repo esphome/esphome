@@ -18,30 +18,16 @@ CODEOWNERS = ["@JohnMcLear"]
 AUTO_LOAD = ["st25r", "binary_sensor", "sensor", "nfc"]
 MULTI_CONF = True
 
-CONF_ST25R300_ID = "st25r300_id"
 CONF_RF_FIELD_ENABLED = "rf_field_enabled"
 CONF_RF_POWER = "rf_power"
 CONF_RX_GAIN_BOOST = "rx_gain_boost"
 CONF_FIELD_STRENGTH = "field_strength"
-CONF_MIFARE_KEY_A = "mifare_key_a"
-CONF_MIFARE_KEY_B = "mifare_key_b"
 CONF_HEALTH_CHECK_ENABLED = "health_check_enabled"
 CONF_HEALTH_CHECK_INTERVAL = "health_check_interval"
 CONF_MAX_FAILED_CHECKS = "max_failed_checks"
 CONF_AUTO_RESET_ON_FAILURE = "auto_reset_on_failure"
 CONF_NFCV_ENABLED = "nfcv_enabled"
 CONF_NFCB_ENABLED = "nfcb_enabled"
-
-
-def _validate_mifare_key(value):
-    value = cv.string_strict(value)
-    if len(value) != 12:
-        raise cv.Invalid(f"Mifare key must be exactly 12 hex characters, got {len(value)}")
-    try:
-        int(value, 16)
-    except ValueError as err:
-        raise cv.Invalid("Mifare key must contain only hex characters (0-9, A-F)") from err
-    return value.upper()
 
 
 st25r300_ns = cg.esphome_ns.namespace("st25r300")
@@ -65,8 +51,6 @@ ST25R300_SCHEMA = cv.Schema(
         cv.Optional(CONF_RF_FIELD_ENABLED, default=True): cv.boolean,
         cv.Optional(CONF_RF_POWER, default=15): cv.int_range(min=0, max=15),
         cv.Optional(CONF_RX_GAIN_BOOST, default=False): cv.boolean,
-        cv.Optional(CONF_MIFARE_KEY_A, default="FFFFFFFFFFFF"): _validate_mifare_key,
-        cv.Optional(CONF_MIFARE_KEY_B, default="FFFFFFFFFFFF"): _validate_mifare_key,
         cv.Optional(CONF_HEALTH_CHECK_ENABLED, default=True): cv.boolean,
         cv.Optional(CONF_HEALTH_CHECK_INTERVAL, default="60s"): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_MAX_FAILED_CHECKS, default=3): cv.int_range(min=1, max=255),
@@ -103,8 +87,6 @@ async def setup_st25r300(var, config):
     cg.add(var.set_rf_field_enabled(config[CONF_RF_FIELD_ENABLED]))
     cg.add(var.set_rf_power(config[CONF_RF_POWER]))
     cg.add(var.set_rx_gain_boost(config[CONF_RX_GAIN_BOOST]))
-    cg.add(var.set_mifare_key_a(int(config[CONF_MIFARE_KEY_A], 16)))
-    cg.add(var.set_mifare_key_b(int(config[CONF_MIFARE_KEY_B], 16)))
     cg.add(var.set_health_check_enabled(config[CONF_HEALTH_CHECK_ENABLED]))
     cg.add(var.set_health_check_interval(config[CONF_HEALTH_CHECK_INTERVAL]))
     cg.add(var.set_max_failed_checks(config[CONF_MAX_FAILED_CHECKS]))
