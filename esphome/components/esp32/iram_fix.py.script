@@ -4,12 +4,39 @@ import re
 # pylint: disable=E0602
 Import("env")  # noqa
 
-# IRAM size for testing mode (2MB - large enough to accommodate grouped tests)
-TESTING_IRAM_SIZE = 0x200000
+# Memory sizes for testing mode (large enough to accommodate grouped tests)
+TESTING_IRAM_SIZE = 0x200000  # 2MB
+TESTING_DRAM_SIZE = 0x200000  # 2MB
+
+
+def patch_segment(lines, segment_name, new_size):
+    """Patch a memory segment's length in linker script lines.
+
+    ESP-IDF format can be:
+      iram0_0_seg (RX) : org = 0x40080000, len = 0x20000 + 0x0
+    or more complex with nested parentheses:
+      iram0_0_seg (RX) : org = (0x40370000 + 0x4000), len = ((...) + 0x8000 - 0x4000)
+
+    Args:
+        lines: List of linker script lines
+        segment_name: Name of the segment (e.g., 'iram0_0_seg')
+        new_size: New size as integer
+
+    Returns:
+        True if patched, False otherwise
+    """
+    pattern = rf'({re.escape(segment_name)}\s*\([^)]*\)\s*:\s*org\s*=\s*(?:\([^)]+\)|0x[0-9a-fA-F]+)\s*,\s*len\s*=\s*)(.+?)(\s*)$'
+    for i, line in enumerate(lines):
+        if segment_name in line and 'len' in line:
+            match = re.search(pattern, line)
+            if match:
+                lines[i] = f"{match.group(1)}{new_size:#x}{match.group(3)}"
+                return True
+    return False
 
 
 def patch_idf_linker_script(source, target, env):
-    """Patch ESP-IDF linker script to increase IRAM size for testing mode."""
+    """Patch ESP-IDF linker script to increase IRAM and DRAM size for testing mode."""
     # Check if we're in testing mode by looking for the define
     build_flags = env.get("BUILD_FLAGS", [])
     testing_mode = any("-DESPHOME_TESTING_MODE" in flag for flag in build_flags)
@@ -34,36 +61,22 @@ def patch_idf_linker_script(source, target, env):
         print(f"ESPHome: Error reading linker script: {e}")
         return
 
-    # Check if this file contains iram0_0_seg
-    if 'iram0_0_seg' not in content:
-        print(f"ESPHome: Warning - iram0_0_seg not found in {memory_ld}")
-        return
-
-    # Look for iram0_0_seg definition and increase its length
-    # ESP-IDF format can be:
-    #   iram0_0_seg (RX) : org = 0x40080000, len = 0x20000 + 0x0
-    # or more complex with nested parentheses:
-    #   iram0_0_seg (RX) : org = (0x40370000 + 0x4000), len = (((0x403CB700 - (0x40378000 - 0x3FC88000)) - 0x3FC88000) + 0x8000 - 0x4000)
-    # We want to change len to TESTING_IRAM_SIZE for testing
-
-    # Use a more robust approach: find the line and manually parse it
     lines = content.split('\n')
-    for i, line in enumerate(lines):
-        if 'iram0_0_seg' in line and 'len' in line:
-            # Find the position of "len = " and replace everything after it until the end of the statement
-            match = re.search(r'(iram0_0_seg\s*\([^)]*\)\s*:\s*org\s*=\s*(?:\([^)]+\)|0x[0-9a-fA-F]+)\s*,\s*len\s*=\s*)(.+?)(\s*)$', line)
-            if match:
-                lines[i] = f"{match.group(1)}{TESTING_IRAM_SIZE:#x}{match.group(3)}"
-                break
+    patches = []
 
-    updated = '\n'.join(lines)
+    if patch_segment(lines, 'iram0_0_seg', TESTING_IRAM_SIZE):
+        patches.append(f"IRAM={TESTING_IRAM_SIZE:#x}")
 
-    if updated != content:
+    if patch_segment(lines, 'dram0_0_seg', TESTING_DRAM_SIZE):
+        patches.append(f"DRAM={TESTING_DRAM_SIZE:#x}")
+
+    if patches:
+        updated = '\n'.join(lines)
         with open(memory_ld, "w") as f:
             f.write(updated)
-        print(f"ESPHome: Patched IRAM size to {TESTING_IRAM_SIZE:#x} in {memory_ld} for testing mode")
+        print(f"ESPHome: Patched {', '.join(patches)} in {memory_ld} for testing mode")
     else:
-        print(f"ESPHome: Warning - could not patch iram0_0_seg in {memory_ld}")
+        print(f"ESPHome: Warning - could not patch memory segments in {memory_ld}")
 
 
 # Hook into the build process before linking
