@@ -75,6 +75,31 @@ def _restore_data_base(value: Any, orig_value: ESPHomeDataBase) -> ESPHomeDataBa
     return value
 
 
+def _resolve_var(name: str, context_vars: ContextVars) -> Any:
+    """Look up a substitution variable, falling back to the resolver callback."""
+    sub = context_vars.get(name, Missing)
+    if sub is Missing:
+        resolver = context_vars.get(Resolver)
+        if resolver:
+            sub = resolver(name)
+    return sub
+
+
+def _handle_undefined(
+    name: str,
+    path: SubstitutionPath,
+    value: str,
+    strict_undefined: bool,
+    errors: ErrList | None,
+) -> None:
+    """Raise or record an undefined variable error."""
+    err = UndefinedError(f"'{name}' is undefined")
+    if strict_undefined:
+        raise err
+    if errors is not None:
+        errors.append((err, path, value))
+
+
 def _expand_substitutions(
     value: str,
     path: SubstitutionPath,
@@ -94,17 +119,9 @@ def _expand_substitutions(
         name: str = m.group(1)
         if name.startswith("{") and name.endswith("}"):
             name = name[1:-1]
-        sub: Any = context_vars.get(name, Missing)
+        sub = _resolve_var(name, context_vars)
         if sub is Missing:
-            resolver = context_vars.get(Resolver)
-            if resolver:
-                sub = resolver(name)
-        if sub is Missing:
-            err = UndefinedError(f"'{name}' is undefined")
-            if strict_undefined:
-                raise err
-            if errors is not None:
-                errors.append((err, path, value))
+            _handle_undefined(name, path, value, strict_undefined, errors)
             search_pos = match_end
             continue
 
