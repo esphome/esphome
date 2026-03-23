@@ -381,8 +381,8 @@ def _warn_unresolved_variables(errors: ErrList) -> None:
 
 
 def do_substitution_pass(
-    config: dict, command_line_substitutions: dict | None = None
-) -> dict:
+    config: OrderedDict, command_line_substitutions: dict[str, Any] | None = None
+) -> OrderedDict:
     """Run the substitution pass over the entire config.
 
     Extracts the ``substitutions:`` block, merges in any command-line
