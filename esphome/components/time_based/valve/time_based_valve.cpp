@@ -1,0 +1,125 @@
+#include "time_based_valve.h"
+#include "esphome/core/log.h"
+
+namespace esphome::time_based {
+
+using namespace esphome::valve;
+
+static const char *const TAG = "time_based.valve";
+
+TimeBasedValve::TimeBasedValve() = default;
+
+void TimeBasedValve::setup() {
+  switch (this->restore_mode_) {
+    case VALVE_NO_RESTORE:
+      break;
+    case VALVE_RESTORE: {
+      auto restore = this->restore_state_();
+      if (restore.has_value())
+        restore->apply(this);
+      break;
+    }
+    case VALVE_RESTORE_AND_CALL: {
+      auto restore = this->restore_state_();
+      if (restore.has_value()) {
+        restore->to_call(this).perform();
+      }
+      break;
+    }
+  }
+  if (!this->state_f_.has_value())
+    this->disable_loop();
+}
+
+void TimeBasedValve::loop() {
+  bool changed = false;
+
+  auto s = this->state_f_();
+  if (s.has_value()) {
+    auto pos = clamp(*s, 0.0f, 1.0f);
+    if (pos != this->position) {
+      this->position = pos;
+      changed = true;
+    }
+  }
+
+  if (changed)
+    this->publish_state();
+}
+
+void TimeBasedValve::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
+void TimeBasedValve::set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
+float TimeBasedValve::get_setup_priority() const { return setup_priority::HARDWARE; }
+
+Trigger<> *TimeBasedValve::get_open_trigger() { return &this->open_trigger_; }
+Trigger<> *TimeBasedValve::get_close_trigger() { return &this->close_trigger_; }
+Trigger<> *TimeBasedValve::get_stop_trigger() { return &this->stop_trigger_; }
+Trigger<> *TimeBasedValve::get_toggle_trigger() { return &this->toggle_trigger_; }
+
+void TimeBasedValve::dump_config() {
+  LOG_VALVE("", "Template Valve", this);
+  ESP_LOGCONFIG(TAG,
+                "  Has position: %s\n"
+                "  Optimistic: %s",
+                YESNO(this->has_position_), YESNO(this->optimistic_));
+}
+
+void TimeBasedValve::control(const ValveCall &call) {
+  if (call.get_stop()) {
+    this->stop_prev_trigger_();
+    this->stop_trigger_.trigger();
+    this->prev_command_trigger_ = &this->stop_trigger_;
+    this->publish_state();
+  }
+  if (call.get_toggle().has_value()) {
+    this->stop_prev_trigger_();
+    this->toggle_trigger_.trigger();
+    this->prev_command_trigger_ = &this->toggle_trigger_;
+    this->publish_state();
+  }
+  auto pos_val = call.get_position();
+  if (pos_val.has_value()) {
+    auto pos = *pos_val;
+    this->stop_prev_trigger_();
+
+    if (pos == VALVE_OPEN) {
+      this->open_trigger_.trigger();
+      this->prev_command_trigger_ = &this->open_trigger_;
+    } else if (pos == VALVE_CLOSED) {
+      this->close_trigger_.trigger();
+      this->prev_command_trigger_ = &this->close_trigger_;
+    } else {
+      this->position_trigger_.trigger(pos);
+    }
+
+    if (this->optimistic_) {
+      this->position = pos;
+    }
+  }
+
+  this->publish_state();
+}
+
+ValveTraits TimeBasedValve::get_traits() {
+  auto traits = ValveTraits();
+  traits.set_is_assumed_state(this->assumed_state_);
+  traits.set_supports_stop(this->has_stop_);
+  traits.set_supports_toggle(this->has_toggle_);
+  traits.set_supports_position(this->has_position_);
+  return traits;
+}
+
+Trigger<float> *TimeBasedValve::get_position_trigger() { return &this->position_trigger_; }
+
+void TimeBasedValve::set_has_stop(bool has_stop) { this->has_stop_ = has_stop; }
+void TimeBasedValve::set_has_toggle(bool has_toggle) { this->has_toggle_ = has_toggle; }
+void TimeBasedValve::set_has_position(bool has_position) { this->has_position_ = has_position; }
+
+void TimeBasedValve::stop_prev_trigger_() {
+  if (this->prev_command_trigger_ != nullptr) {
+    this->prev_command_trigger_->stop_action();
+    this->prev_command_trigger_ = nullptr;
+  }
+}
+
+}  // namespace esphome::time_based
