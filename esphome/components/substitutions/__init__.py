@@ -118,6 +118,20 @@ def _expand_substitutions(
     strict_undefined: bool,
     errors: ErrList | None,
 ) -> Any:
+    """Expand ``$var``, ``${var}``, and Jinja expressions in a string.
+
+    Works in two phases:
+
+    1. **Simple substitution** — scan for ``$name`` / ``${name}`` tokens
+       and replace them with the value from *context_vars*.  If the token
+       spans the entire string, return the raw value (preserving type).
+    2. **Jinja evaluation** — if the result still contains Jinja syntax
+       (e.g. ``${a * b}``), render it through the Jinja engine with the
+       full *context_vars* as template variables.
+
+    Returns the expanded value (may be a non-string type) or the
+    original *value* unchanged if there is nothing to substitute.
+    """
     if "$" not in value:
         return value
 
