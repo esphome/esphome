@@ -177,7 +177,7 @@ INDICATOR_ARC_SCHEMA = cv.Schema(
         cv.Optional(CONF_VALUE): lv_float,
         cv.Optional(CONF_START_VALUE): lv_float,
         cv.Optional(CONF_END_VALUE): lv_float,
-        cv.Optional(CONF_OPA): opacity,
+        cv.Optional(CONF_OPA, default=1.0): opacity,
     }
 ).add_extra(cv.has_at_most_one_key(CONF_VALUE, CONF_START_VALUE))
 
@@ -247,7 +247,7 @@ SCALE_SCHEMA = cv.Schema(
         cv.Optional(CONF_RANGE_FROM, default=0.0): lv_int,
         cv.Optional(CONF_RANGE_TO, default=100.0): lv_int,
         cv.Optional(CONF_ANGLE_RANGE, default=270): lv_angle_degrees,
-        cv.Optional(CONF_ROTATION, default=0): lv_angle_degrees,
+        cv.Optional(CONF_ROTATION): lv_angle_degrees,
         cv.Optional(CONF_INDICATORS): cv.ensure_list(INDICATOR_SCHEMA),
         cv.Optional(CONF_DRAW_TICKS_ON_TOP, default=True): bool,
     }
@@ -329,7 +329,7 @@ class MeterType(WidgetType):
         )
 
     def get_uses(self):
-        return CONF_SCALE, CONF_LINE
+        return CONF_SCALE, CONF_LINE, CONF_IMAGE
 
     def validate(self, value):
         return cv.has_at_most_one_key(CONF_INDICATOR, CONF_PIVOT)(value)
@@ -366,16 +366,17 @@ class MeterType(WidgetType):
             lv.scale_set_range(scale_var, range_from, range_to)
 
             angle_range = await lv_angle_degrees.process(scale_conf[CONF_ANGLE_RANGE])
-            rotation = await lv_angle_degrees.process(scale_conf[CONF_ROTATION])
+            if (rotation := scale_conf.get(CONF_ROTATION)) is not None:
+                rotation = await lv_angle_degrees.process(rotation)
+            else:
+                rotation = 90 + (360 - angle_range) // 2
+
             # Set angle range
             lv.scale_set_angle_range(
                 scale_var,
                 angle_range,
             )
-
-            # Set rotation if specified
-            if rotation:
-                lv.scale_set_rotation(scale_var, rotation)
+            lv.scale_set_rotation(scale_var, rotation)
 
             # Handle indicators as sections
             for indicator in scale_conf.get(CONF_INDICATORS, ()):
@@ -393,10 +394,9 @@ class MeterType(WidgetType):
                     props = {
                         "arc_width": v[CONF_WIDTH],
                         "arc_color": v[CONF_COLOR],
+                        "arc_opa": v[CONF_OPA],
                         "arc_rounded": v.get("arc_rounded", False),
                     }
-                    if (opa := v.get(CONF_OPA)) is not None:
-                        props["arc_opa"] = opa
                     if CONF_R_MOD in v:
                         get_warnings().add(
                             "The 'r_mod' indicator property is not supported in LVGL 9.x and will be ignored."
@@ -424,6 +424,7 @@ class MeterType(WidgetType):
                                 end_value,
                                 color_start,
                                 color_end,
+                                v[CONF_WIDTH],
                                 local,
                             )
                         lv_obj.add_event_cb(

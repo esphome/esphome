@@ -579,10 +579,41 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     obj = MockObj(id_, "->")
     if type_ is not None:
         id_.type = type_
-    decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
-    CORE.add_global(decl)
-    assignment = AssignmentExpression(None, None, id_, rhs)
-    CORE.add(assignment)
+
+    if isinstance(rhs, MockObj) and rhs.is_new_expr:
+        # For 'new' allocations, use placement new into static storage
+        # to avoid heap fragmentation on embedded devices.
+        the_type = id_.type
+        storage_name = f"{id_.id}__pstorage"
+
+        # Declare aligned byte array for the object storage
+        CORE.add_global(
+            RawStatement(
+                f"alignas({the_type}) static unsigned char {storage_name}[sizeof({the_type})];"
+            )
+        )
+        CORE.add_global(
+            AssignmentExpression(
+                f"static {the_type}",
+                "*const ",
+                id_,
+                MockObj(f"reinterpret_cast<{the_type} *>({storage_name})"),
+            )
+        )
+        # Extract args from the CallExpression and rebuild as placement new.
+        # Template args are already encoded in the_type (e.g. GlobalsComponent<int>),
+        # so we only pass the constructor args, not template_args.
+        call_expr = rhs.base
+        assert isinstance(call_expr, CallExpression), (
+            f"Expected CallExpression for placement new, got {type(call_expr)}"
+        )
+        placement_new = CallExpression(f"new({id_.id}) {the_type}", *call_expr.args)
+        CORE.add(ExpressionStatement(placement_new))
+    else:
+        decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
+        CORE.add_global(decl)
+        CORE.add(AssignmentExpression(None, None, id_, rhs))
+
     CORE.register_variable(id_, obj)
     return obj
 
@@ -799,11 +830,12 @@ class MockObj(Expression):
     Mostly consists of magic methods that allow ESPHome's codegen syntax.
     """
 
-    __slots__ = ("base", "op")
+    __slots__ = ("base", "op", "is_new_expr")
 
-    def __init__(self, base, op="."):
+    def __init__(self, base, op=".", is_new_expr=False) -> None:
         self.base = base
         self.op = op
+        self.is_new_expr = is_new_expr
 
     def __getattr__(self, attr: str) -> "MockObj":
         # prevent python dunder methods being replaced by mock objects
@@ -818,7 +850,7 @@ class MockObj(Expression):
 
     def __call__(self, *args: SafeExpType) -> "MockObj":
         call = CallExpression(self.base, *args)
-        return MockObj(call, self.op)
+        return MockObj(call, self.op, is_new_expr=self.is_new_expr)
 
     def __str__(self):
         return str(self.base)
@@ -832,7 +864,7 @@ class MockObj(Expression):
 
     @property
     def new(self) -> "MockObj":
-        return MockObj(f"new {self.base}", "->")
+        return MockObj(f"new {self.base}", "->", is_new_expr=True)
 
     def template(self, *args: SafeExpType) -> "MockObj":
         """Apply template parameters to this object."""
