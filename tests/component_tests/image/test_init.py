@@ -242,11 +242,11 @@ def test_image_generation(
     main_cpp = generate_main(component_config_path("image_test.yaml"))
     assert "uint8_t_id[] PROGMEM = {0x24, 0x21, 0x24, 0x21" in main_cpp
     assert (
-        "alignas(image::Image) static unsigned char cat_img__pstorage[sizeof(image::Image)];"
+        "alignas(image::Image) static unsigned char image__cat_img__pstorage[sizeof(image::Image)];"
         in main_cpp
     )
     assert (
-        "static image::Image *const cat_img = reinterpret_cast<image::Image *>(cat_img__pstorage);"
+        "static image::Image *const cat_img = reinterpret_cast<image::Image *>(image__cat_img__pstorage);"
         in main_cpp
     )
     assert (
