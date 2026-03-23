@@ -402,7 +402,7 @@ def do_substitution_pass(
             substitutions, command_line_substitutions or {}
         )
 
-        replace_keys = []
+        replace_keys: list[tuple[str, str]] = []
         for key in substitutions:
             with cv.prepend_path(key):
                 sub = validate_substitution_key(key)
