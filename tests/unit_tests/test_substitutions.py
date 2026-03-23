@@ -397,10 +397,7 @@ def test_merge_config_preserves_ordered_dict() -> None:
 def test_substitution_pass_error_gets_captured(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """
-    If do_substitution_pass() raises vol.Invalid,
-    config.py should catch it and call result.add_error().
-    """
+    """vol.Invalid from do_substitution_pass is captured by validate_config."""
 
     # Patch the target: in config_module.do_substitution_pass (NOT where it's defined)
     def fake_do_substitution_pass(*args, **kwargs):
@@ -440,7 +437,7 @@ def test_validate_substitution_key_empty_raises(value: str) -> None:
 def test_validate_substitution_key_valid(
     input_value: str, expected_output: str
 ) -> None:
-    """Test valid substitution keys with and without a leading '$'."""
+    """Valid substitution keys are accepted with optional leading '$'."""
     result = substitutions.validate_substitution_key(input_value)
     assert result == expected_output
 
@@ -552,9 +549,7 @@ def test_extend_substitution() -> None:
 
 
 def test_do_substitution_pass_substitutions_must_be_mapping_from_config() -> None:
-    """
-    If config[CONF_SUBSTITUTIONS] is not a mapping, cv.Invalid should be raised with a helpful message.
-    """
+    """Non-mapping substitutions raises cv.Invalid."""
     config = {
         CONF_SUBSTITUTIONS: ["not", "a", "mapping"],
         "other": "value",
