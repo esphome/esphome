@@ -97,6 +97,12 @@ def test_register_component_source_deduplicates(monkeypatch):
     assert idx3 == 1  # deduplicated
 
 
+def test_generate_source_table_code_empty():
+    from esphome.cpp_helpers import _generate_source_table_code
+
+    assert _generate_source_table_code("TBL", "lookup", {}) == ""
+
+
 def test_register_component_source_overflow_warns(monkeypatch, caplog):
     # Pre-fill pool to max
     pool = ComponentSourcePool(
