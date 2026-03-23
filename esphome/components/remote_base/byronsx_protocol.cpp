@@ -8,11 +8,11 @@ namespace remote_base {
 
 static const char *const TAG = "remote.byronsx";
 
-static const uint32_t BIT_TIME_US = 333;
-static const uint8_t NBITS_ADDRESS = 8;
-static const uint8_t NBITS_COMMAND = 4;
-static const uint8_t NBITS_START_BIT = 1;
-static const uint8_t NBITS_DATA = NBITS_ADDRESS + NBITS_COMMAND /*+ NBITS_COMMAND*/;
+static constexpr uint32_t BIT_TIME_US = 333;
+static constexpr uint8_t NBITS_ADDRESS = 8;
+static constexpr uint8_t NBITS_COMMAND = 4;
+static constexpr uint8_t NBITS_START_BIT = 1;
+static constexpr uint8_t NBITS_DATA = NBITS_ADDRESS + NBITS_COMMAND /*+ NBITS_COMMAND*/;
 
 /*
 ByronSX Protocol

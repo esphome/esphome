@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <cstring>
 #include <vector>
 
 #include "esphome/core/automation.h"
@@ -17,7 +18,7 @@
 namespace esphome::template_ {
 
 #ifdef USE_BINARY_SENSOR
-enum BinarySensorFlags : uint16_t {
+enum BinarySensorFlags : uint8_t {
   BINARY_SENSOR_MODE_NORMAL = 1 << 0,
   BINARY_SENSOR_MODE_BYPASS_ARMED_HOME = 1 << 1,
   BINARY_SENSOR_MODE_BYPASS_ARMED_NIGHT = 1 << 2,
@@ -25,7 +26,7 @@ enum BinarySensorFlags : uint16_t {
   BINARY_SENSOR_MODE_BYPASS_AUTO = 1 << 4,
 };
 
-enum AlarmSensorType : uint16_t {
+enum AlarmSensorType : uint8_t {
   ALARM_SENSOR_TYPE_DELAYED = 0,
   ALARM_SENSOR_TYPE_INSTANT,
   ALARM_SENSOR_TYPE_DELAYED_FOLLOWER,
@@ -40,14 +41,11 @@ enum TemplateAlarmControlPanelRestoreMode {
 };
 
 #ifdef USE_BINARY_SENSOR
-struct SensorDataStore {
-  bool last_chime_state;
-};
-
 struct SensorInfo {
-  uint16_t flags;
+  uint8_t flags;
   AlarmSensorType type;
-  uint8_t store_index;
+  bool chime_active;
+  bool auto_bypassed;
 };
 
 struct AlarmSensor {
@@ -67,7 +65,9 @@ class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControl
   bool get_requires_code_to_arm() const override { return this->requires_code_to_arm_; }
   bool get_all_sensors_ready() { return this->sensors_ready_; };
   void set_restore_mode(TemplateAlarmControlPanelRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
-  void bypass_before_arming();
+  // Remove before 2026.10.0
+  ESPDEPRECATED("bypass_before_arming() is deprecated and will be removed in 2026.10.0", "2026.4.0")
+  void bypass_before_arming() { this->auto_bypass_sensors_(); }
 
 #ifdef USE_BINARY_SENSOR
   /** Initialize the sensors vector with the specified capacity.
@@ -82,15 +82,18 @@ class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControl
    * @param flags The OR of BinarySensorFlags for the sensor.
    * @param type The sensor type which determines its triggering behaviour.
    */
-  void add_sensor(binary_sensor::BinarySensor *sensor, uint16_t flags = 0,
+  void add_sensor(binary_sensor::BinarySensor *sensor, uint8_t flags = 0,
                   AlarmSensorType type = ALARM_SENSOR_TYPE_DELAYED);
 #endif
 
-  /** add a code
+  /** Set the codes (from initializer list).
    *
-   * @param code The code
+   * @param codes The list of valid codes
    */
-  void add_code(const std::string &code) { this->codes_.push_back(code); }
+  void set_codes(std::initializer_list<const char *> codes) { this->codes_ = codes; }
+
+  // Deleted overload to catch incorrect std::string usage at compile time
+  void set_codes(std::initializer_list<std::string> codes) = delete;
 
   /** set requires a code to arm
    *
@@ -137,11 +140,6 @@ class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControl
 #ifdef USE_BINARY_SENSOR
   // List of binary sensors with their alarm-specific info
   FixedVector<AlarmSensor> sensors_;
-  // a list of automatically bypassed sensors
-  std::vector<uint8_t> bypassed_sensor_indicies_;
-  // Per sensor data store
-  std::vector<SensorDataStore> sensor_data_;
-  uint8_t next_store_index_ = 0;
 #endif
   TemplateAlarmControlPanelRestoreMode restore_mode_{};
 
@@ -155,8 +153,8 @@ class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControl
   uint32_t pending_time_;
   // the time in trigger
   uint32_t trigger_time_;
-  // a list of codes
-  std::vector<std::string> codes_;
+  // a list of codes (const char* pointers to string literals in flash)
+  FixedVector<const char *> codes_;
   // requires a code to arm
   bool requires_code_to_arm_ = false;
   bool supports_arm_home_ = false;
@@ -166,6 +164,8 @@ class TemplateAlarmControlPanel final : public alarm_control_panel::AlarmControl
   bool is_code_valid_(optional<std::string> code);
 
   void arm_(optional<std::string> code, alarm_control_panel::AlarmControlPanelState state, uint32_t delay);
+  void auto_bypass_sensors_();
+  void clear_auto_bypassed_sensors_();
 };
 
 }  // namespace esphome::template_

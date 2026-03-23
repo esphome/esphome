@@ -2,6 +2,7 @@
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 #include <map>
 #include <string>
 
@@ -43,8 +44,17 @@ template<typename K, typename V> class Mapping {
       esph_log_e(TAG, "Key '%p' not found in mapping", key);
     } else if constexpr (std::is_same_v<K, std::string>) {
       esph_log_e(TAG, "Key '%s' not found in mapping", key.c_str());
+    } else if constexpr (std::is_integral_v<K>) {
+      char buf[24];  // enough for 64-bit integer
+      if constexpr (std::is_unsigned_v<K>) {
+        buf_append_printf(buf, sizeof(buf), 0, "%" PRIu64, static_cast<uint64_t>(key));
+      } else {
+        buf_append_printf(buf, sizeof(buf), 0, "%" PRId64, static_cast<int64_t>(key));
+      }
+      esph_log_e(TAG, "Key '%s' not found in mapping", buf);
     } else {
-      esph_log_e(TAG, "Key '%s' not found in mapping", to_string(key).c_str());
+      // All supported key types are handled above - this should never be reached
+      static_assert(sizeof(K) == 0, "Unsupported key type for Mapping error logging");
     }
     return {};
   }

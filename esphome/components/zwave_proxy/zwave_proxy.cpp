@@ -12,6 +12,9 @@ namespace esphome::zwave_proxy {
 
 static const char *const TAG = "zwave_proxy";
 
+// Maximum bytes to log in very verbose hex output (168 * 3 = 504, under TX buffer size of 512)
+static constexpr size_t ZWAVE_MAX_LOG_BYTES = 168;
+
 static constexpr uint8_t ZWAVE_COMMAND_GET_NETWORK_IDS = 0x20;
 // GET_NETWORK_IDS response: [SOF][LENGTH][TYPE][CMD][HOME_ID(4)][NODE_ID][...]
 static constexpr uint8_t ZWAVE_COMMAND_TYPE_RESPONSE = 0x01;    // Response type field value
@@ -87,7 +90,7 @@ void ZWaveProxy::process_uart_() {
   while (this->available()) {
     uint8_t byte;
     if (!this->read_byte(&byte)) {
-      this->status_set_warning("UART read failed");
+      this->status_set_warning(LOG_STR("UART read failed"));
       return;
     }
     if (this->parse_byte_(byte)) {
@@ -102,7 +105,7 @@ void ZWaveProxy::process_uart_() {
           this->buffer_[1] >= ZWAVE_MIN_GET_NETWORK_IDS_LENGTH && this->buffer_[0] == ZWAVE_FRAME_TYPE_START) {
         // Store the 4-byte Home ID, which starts at offset 4, and notify connected clients if it changed
         // The frame parser has already validated the checksum and ensured all bytes are present
-        if (this->set_home_id(&this->buffer_[4])) {
+        if (this->set_home_id_(&this->buffer_[4])) {
           this->send_homeid_changed_msg_();
         }
       }
@@ -116,17 +119,18 @@ void ZWaveProxy::process_uart_() {
           // If this is a data frame, use frame length indicator + 2 (for SoF + checksum), else assume 1 for ACK/NAK/CAN
           this->outgoing_proto_msg_.data_len = this->buffer_[0] == ZWAVE_FRAME_TYPE_START ? this->buffer_[1] + 2 : 1;
         }
-        this->api_connection_->send_message(this->outgoing_proto_msg_, api::ZWaveProxyFrame::MESSAGE_TYPE);
+        this->api_connection_->send_message(this->outgoing_proto_msg_);
       }
     }
   }
 }
 
 void ZWaveProxy::dump_config() {
+  char hex_buf[format_hex_pretty_size(ZWAVE_HOME_ID_SIZE)];
   ESP_LOGCONFIG(TAG,
                 "Z-Wave Proxy:\n"
                 "  Home ID: %s",
-                format_hex_pretty(this->home_id_.data(), this->home_id_.size(), ':', false).c_str());
+                format_hex_pretty_to(hex_buf, this->home_id_.data(), this->home_id_.size()));
 }
 
 void ZWaveProxy::api_connection_authenticated(api::APIConnection *conn) {
@@ -161,23 +165,40 @@ void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::en
   }
 }
 
-bool ZWaveProxy::set_home_id(const uint8_t *new_home_id) {
+bool ZWaveProxy::set_home_id_(const uint8_t *new_home_id) {
   if (std::memcmp(this->home_id_.data(), new_home_id, this->home_id_.size()) == 0) {
     ESP_LOGV(TAG, "Home ID unchanged");
     return false;  // No change
   }
   std::memcpy(this->home_id_.data(), new_home_id, this->home_id_.size());
-  ESP_LOGI(TAG, "Home ID: %s", format_hex_pretty(this->home_id_.data(), this->home_id_.size(), ':', false).c_str());
+  char hex_buf[format_hex_pretty_size(ZWAVE_HOME_ID_SIZE)];
+  ESP_LOGI(TAG, "Home ID: %s", format_hex_pretty_to(hex_buf, this->home_id_.data(), this->home_id_.size()));
   this->home_id_ready_ = true;
   return true;  // Home ID was changed
 }
 
 void ZWaveProxy::send_frame(const uint8_t *data, size_t length) {
-  if (length == 1 && data[0] == this->last_response_) {
-    ESP_LOGV(TAG, "Skipping sending duplicate response: 0x%02X", data[0]);
+  // Safety: validate pointer before any access
+  if (data == nullptr) {
+    ESP_LOGE(TAG, "Null data pointer");
     return;
   }
-  ESP_LOGVV(TAG, "Sending: %s", format_hex_pretty(data, length).c_str());
+  if (length == 0) {
+    ESP_LOGE(TAG, "Length 0");
+    return;
+  }
+
+  // Skip duplicate single-byte responses (ACK/NAK/CAN)
+  if (length == 1 && data[0] == this->last_response_) {
+    ESP_LOGV(TAG, "Response already sent: 0x%02X", data[0]);
+    return;
+  }
+
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+  char hex_buf[format_hex_pretty_size(ZWAVE_MAX_LOG_BYTES)];
+#endif
+  ESP_LOGVV(TAG, "Sending: %s", format_hex_pretty_to(hex_buf, data, length));
+
   this->write_array(data, length);
 }
 
@@ -188,7 +209,7 @@ void ZWaveProxy::send_homeid_changed_msg_(api::APIConnection *conn) {
   msg.data_len = this->home_id_.size();
   if (conn != nullptr) {
     // Send to specific connection
-    conn->send_message(msg, api::ZWaveProxyRequest::MESSAGE_TYPE);
+    conn->send_message(msg);
   } else if (api::global_api_server != nullptr) {
     // We could add code to manage a second subscription type, but, since this message is
     //  very infrequent and small, we simply send it to all clients
@@ -250,13 +271,20 @@ bool ZWaveProxy::parse_byte_(uint8_t byte) {
         this->parsing_state_ = ZWAVE_PARSING_STATE_SEND_NAK;
       } else {
         this->parsing_state_ = ZWAVE_PARSING_STATE_SEND_ACK;
-        ESP_LOGVV(TAG, "Received frame: %s", format_hex_pretty(this->buffer_.data(), this->buffer_index_).c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+        char hex_buf[format_hex_pretty_size(ZWAVE_MAX_LOG_BYTES)];
+#endif
+        ESP_LOGVV(TAG, "Received frame: %s", format_hex_pretty_to(hex_buf, this->buffer_.data(), this->buffer_index_));
         frame_completed = true;
       }
       this->response_handler_();
       break;
     }
     case ZWAVE_PARSING_STATE_READ_BL_MENU:
+      if (this->buffer_index_ >= this->buffer_.size()) {
+        this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_START;
+        break;
+      }
       this->buffer_[this->buffer_index_++] = byte;
       if (!byte) {
         this->parsing_state_ = ZWAVE_PARSING_STATE_WAIT_START;
@@ -318,7 +346,7 @@ void ZWaveProxy::parse_start_(uint8_t byte) {
     this->buffer_[0] = byte;
     this->outgoing_proto_msg_.data = this->buffer_.data();
     this->outgoing_proto_msg_.data_len = 1;
-    this->api_connection_->send_message(this->outgoing_proto_msg_, api::ZWaveProxyFrame::MESSAGE_TYPE);
+    this->api_connection_->send_message(this->outgoing_proto_msg_);
   }
 }
 

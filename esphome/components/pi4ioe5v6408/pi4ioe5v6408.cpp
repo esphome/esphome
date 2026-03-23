@@ -144,9 +144,10 @@ bool PI4IOE5V6408Component::write_gpio_modes_() {
   }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGV(TAG,
-           "Wrote GPIO modes: 0b" BYTE_TO_BINARY_PATTERN "\n"
-           "Wrote GPIO pullup/pulldown: 0b" BYTE_TO_BINARY_PATTERN "\n"
-           "Wrote GPIO pull enable: 0b" BYTE_TO_BINARY_PATTERN,
+           "Wrote GPIO config:\n"
+           "  modes: 0b" BYTE_TO_BINARY_PATTERN "\n"
+           "  pullup/pulldown: 0b" BYTE_TO_BINARY_PATTERN "\n"
+           "  pull enable: 0b" BYTE_TO_BINARY_PATTERN,
            BYTE_TO_BINARY(this->mode_mask_), BYTE_TO_BINARY(this->pull_up_down_mask_),
            BYTE_TO_BINARY(this->pull_enable_mask_));
 #endif
@@ -164,7 +165,9 @@ bool PI4IOE5V6408GPIOPin::digital_read() { return this->parent_->digital_read(th
 void PI4IOE5V6408GPIOPin::digital_write(bool value) {
   this->parent_->digital_write(this->pin_, value != this->inverted_);
 }
-std::string PI4IOE5V6408GPIOPin::dump_summary() const { return str_sprintf("%u via PI4IOE5V6408", this->pin_); }
+size_t PI4IOE5V6408GPIOPin::dump_summary(char *buffer, size_t len) const {
+  return buf_append_printf(buffer, len, 0, "%u via PI4IOE5V6408", this->pin_);
+}
 
 }  // namespace pi4ioe5v6408
 }  // namespace esphome

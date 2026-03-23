@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import i2c
 import esphome.config_validation as cv
-from esphome.const import CONF_CHANNEL, CONF_CHANNELS, CONF_ID, CONF_SCAN
+from esphome.const import CONF_CHANNEL, CONF_CHANNELS, CONF_ID
 
 CODEOWNERS = ["@andreashergert1984"]
 
@@ -18,7 +18,6 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(TCA9548AComponent),
-            cv.Optional(CONF_SCAN): cv.invalid("This option has been removed"),
             cv.Optional(CONF_CHANNELS, default=[]): cv.ensure_list(
                 {
                     cv.Required(CONF_BUS_ID): cv.declare_id(TCA9548AChannel),

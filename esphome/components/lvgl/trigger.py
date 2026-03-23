@@ -30,7 +30,7 @@ from .lvcode import (
     lvgl_static,
 )
 from .types import LV_EVENT
-from .widgets import LvScrActType, get_scr_act, widget_map
+from .widgets import LvScrActType, get_screen_active, widget_map
 
 
 async def add_on_boot_triggers(triggers):
@@ -48,7 +48,7 @@ async def generate_triggers():
 
     for w in widget_map.values():
         if isinstance(w.type, LvScrActType):
-            w = get_scr_act(w.var)
+            w = get_screen_active(w.var)
 
         if w.config:
             for event, conf in {

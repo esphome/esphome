@@ -45,8 +45,8 @@ void DateTimeEntity::publish_state() {
     return;
   }
   this->set_has_state(true);
-  ESP_LOGD(TAG, "'%s': Sending datetime %04u-%02u-%02u %02d:%02d:%02d", this->get_name().c_str(), this->year_,
-           this->month_, this->day_, this->hour_, this->minute_, this->second_);
+  ESP_LOGD(TAG, "'%s' >> %04u-%02u-%02u %02d:%02d:%02d", this->get_name().c_str(), this->year_, this->month_,
+           this->day_, this->hour_, this->minute_, this->second_);
   this->state_callback_.call();
 #if defined(USE_DATETIME_DATETIME) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_datetime_update(this);
@@ -163,9 +163,9 @@ DateTimeCall &DateTimeCall::set_datetime(ESPTime datetime) {
                             datetime.second);
 };
 
-DateTimeCall &DateTimeCall::set_datetime(const std::string &datetime) {
+DateTimeCall &DateTimeCall::set_datetime(const char *datetime, size_t len) {
   ESPTime val{};
-  if (!ESPTime::strptime(datetime, val)) {
+  if (!ESPTime::strptime(datetime, len, val)) {
     ESP_LOGE(TAG, "Could not convert the time string to an ESPTime object");
     return *this;
   }

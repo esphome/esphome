@@ -1,4 +1,5 @@
 #include "xiaomi_cgd1.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
@@ -8,11 +9,14 @@ namespace xiaomi_cgd1 {
 
 static const char *const TAG = "xiaomi_cgd1";
 
+static constexpr size_t CGD1_BINDKEY_SIZE = 16;
+
 void XiaomiCGD1::dump_config() {
+  char bindkey_hex[format_hex_pretty_size(CGD1_BINDKEY_SIZE)];
   ESP_LOGCONFIG(TAG,
                 "Xiaomi CGD1\n"
                 "  Bindkey: %s",
-                format_hex_pretty(this->bindkey_, 16).c_str());
+                format_hex_pretty_to(bindkey_hex, this->bindkey_, CGD1_BINDKEY_SIZE, '.'));
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
@@ -23,7 +27,9 @@ bool XiaomiCGD1::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
   }
-  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", device.address_str().c_str());
+  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  const char *addr_str = device.address_str_to(addr_buf);
+  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", addr_str);
 
   bool success = false;
   for (auto &service_data : device.get_service_datas()) {
@@ -42,7 +48,7 @@ bool XiaomiCGD1::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     if (!(xiaomi_ble::parse_xiaomi_message(service_data.data, *res))) {
       continue;
     }
-    if (!(xiaomi_ble::report_xiaomi_results(res, device.address_str()))) {
+    if (!(xiaomi_ble::report_xiaomi_results(res, addr_str))) {
       continue;
     }
     if (res->temperature.has_value() && this->temperature_ != nullptr)
@@ -57,17 +63,7 @@ bool XiaomiCGD1::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   return success;
 }
 
-void XiaomiCGD1::set_bindkey(const std::string &bindkey) {
-  memset(bindkey_, 0, 16);
-  if (bindkey.size() != 32) {
-    return;
-  }
-  char temp[3] = {0};
-  for (int i = 0; i < 16; i++) {
-    strncpy(temp, &(bindkey.c_str()[i * 2]), 2);
-    bindkey_[i] = std::strtoul(temp, nullptr, 16);
-  }
-}
+void XiaomiCGD1::set_bindkey(const char *bindkey) { parse_hex(bindkey, this->bindkey_, sizeof(this->bindkey_)); }
 
 }  // namespace xiaomi_cgd1
 }  // namespace esphome

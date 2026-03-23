@@ -2,18 +2,20 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/wifi/wifi_component.h"
 #ifdef USE_WIFI
+#include <span>
 namespace esphome::wifi_signal {
 
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
 class WiFiSignalSensor : public sensor::Sensor, public PollingComponent, public wifi::WiFiConnectStateListener {
 #else
 class WiFiSignalSensor : public sensor::Sensor, public PollingComponent {
 #endif
  public:
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
   void setup() override { wifi::global_wifi_component->add_connect_state_listener(this); }
 #endif
   void update() override {
@@ -26,9 +28,9 @@ class WiFiSignalSensor : public sensor::Sensor, public PollingComponent {
 
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
-#ifdef USE_WIFI_LISTENERS
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
   // WiFiConnectStateListener interface - update RSSI immediately on connect
-  void on_wifi_connect_state(const std::string &ssid, const wifi::bssid_t &bssid) override { this->update(); }
+  void on_wifi_connect_state(StringRef ssid, std::span<const uint8_t, 6> bssid) override { this->update(); }
 #endif
 };
 

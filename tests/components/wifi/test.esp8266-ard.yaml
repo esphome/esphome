@@ -1,5 +1,6 @@
 wifi:
   min_auth_mode: WPA2
+  post_connect_roaming: true
 
 packages:
   - !include common.yaml

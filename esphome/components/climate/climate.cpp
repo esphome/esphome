@@ -173,14 +173,17 @@ ClimateCall &ClimateCall::set_mode(ClimateMode mode) {
   return *this;
 }
 
-ClimateCall &ClimateCall::set_mode(const std::string &mode) {
+ClimateCall &ClimateCall::set_mode(const std::string &mode) { return this->set_mode(mode.c_str(), mode.size()); }
+
+ClimateCall &ClimateCall::set_mode(const char *mode, size_t len) {
+  StringRef mode_ref(mode, len);
   for (const auto &mode_entry : CLIMATE_MODES_BY_STR) {
-    if (str_equals_case_insensitive(mode, mode_entry.str)) {
+    if (str_equals_case_insensitive(mode_ref, mode_entry.str)) {
       this->set_mode(static_cast<ClimateMode>(mode_entry.value));
       return *this;
     }
   }
-  ESP_LOGW(TAG, "'%s' - Unrecognized mode %s", this->parent_->get_name().c_str(), mode.c_str());
+  ESP_LOGW(TAG, "'%s' - Unrecognized mode %.*s", this->parent_->get_name().c_str(), (int) len, mode);
   return *this;
 }
 
@@ -266,13 +269,18 @@ ClimateCall &ClimateCall::set_swing_mode(ClimateSwingMode swing_mode) {
 }
 
 ClimateCall &ClimateCall::set_swing_mode(const std::string &swing_mode) {
+  return this->set_swing_mode(swing_mode.c_str(), swing_mode.size());
+}
+
+ClimateCall &ClimateCall::set_swing_mode(const char *swing_mode, size_t len) {
+  StringRef mode_ref(swing_mode, len);
   for (const auto &mode_entry : CLIMATE_SWING_MODES_BY_STR) {
-    if (str_equals_case_insensitive(swing_mode, mode_entry.str)) {
+    if (str_equals_case_insensitive(mode_ref, mode_entry.str)) {
       this->set_swing_mode(static_cast<ClimateSwingMode>(mode_entry.value));
       return *this;
     }
   }
-  ESP_LOGW(TAG, "'%s' - Unrecognized swing mode %s", this->parent_->get_name().c_str(), swing_mode.c_str());
+  ESP_LOGW(TAG, "'%s' - Unrecognized swing mode %.*s", this->parent_->get_name().c_str(), (int) len, swing_mode);
   return *this;
 }
 
@@ -348,20 +356,11 @@ ClimateCall &ClimateCall::set_swing_mode(optional<ClimateSwingMode> swing_mode) 
   return *this;
 }
 
-void Climate::add_on_state_callback(std::function<void(Climate &)> &&callback) {
-  this->state_callback_.add(std::move(callback));
-}
-
-void Climate::add_on_control_callback(std::function<void(ClimateCall &)> &&callback) {
-  this->control_callback_.add(std::move(callback));
-}
-
 // Random 32bit value; If this changes existing restore preferences are invalidated
 static const uint32_t RESTORE_STATE_VERSION = 0x848EA6ADUL;
 
 optional<ClimateDeviceRestoreState> Climate::restore_state_() {
-  this->rtc_ = global_preferences->make_preference<ClimateDeviceRestoreState>(this->get_preference_hash() ^
-                                                                              RESTORE_STATE_VERSION);
+  this->rtc_ = this->make_entity_preference<ClimateDeviceRestoreState>(RESTORE_STATE_VERSION);
   ClimateDeviceRestoreState recovered{};
   if (!this->rtc_.load(&recovered))
     return {};
@@ -369,7 +368,7 @@ optional<ClimateDeviceRestoreState> Climate::restore_state_() {
 }
 
 void Climate::save_state_() {
-#if (defined(USE_ESP_IDF) || (defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0))) && \
+#if (defined(USE_ESP32) || (defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0))) && \
     !defined(CLANG_TIDY)
 #pragma GCC diagnostic ignored "-Wclass-memaccess"
 #define TEMP_IGNORE_MEMACCESS
@@ -436,7 +435,7 @@ void Climate::save_state_() {
 }
 
 void Climate::publish_state() {
-  ESP_LOGD(TAG, "'%s' - Sending state:", this->name_.c_str());
+  ESP_LOGD(TAG, "'%s' >>", this->name_.c_str());
   auto traits = this->get_traits();
 
   ESP_LOGD(TAG, "  Mode: %s", LOG_STR_ARG(climate_mode_to_string(this->mode)));
@@ -682,19 +681,19 @@ bool Climate::set_fan_mode_(ClimateFanMode mode) {
   return set_primary_mode(this->fan_mode, this->custom_fan_mode_, mode);
 }
 
-bool Climate::set_custom_fan_mode_(const char *mode) {
+bool Climate::set_custom_fan_mode_(const char *mode, size_t len) {
   auto traits = this->get_traits();
-  return set_custom_mode<ClimateFanMode>(this->custom_fan_mode_, this->fan_mode, traits.find_custom_fan_mode_(mode),
-                                         this->has_custom_fan_mode());
+  return set_custom_mode<ClimateFanMode>(this->custom_fan_mode_, this->fan_mode,
+                                         traits.find_custom_fan_mode_(mode, len), this->has_custom_fan_mode());
 }
 
 void Climate::clear_custom_fan_mode_() { this->custom_fan_mode_ = nullptr; }
 
 bool Climate::set_preset_(ClimatePreset preset) { return set_primary_mode(this->preset, this->custom_preset_, preset); }
 
-bool Climate::set_custom_preset_(const char *preset) {
+bool Climate::set_custom_preset_(const char *preset, size_t len) {
   auto traits = this->get_traits();
-  return set_custom_mode<ClimatePreset>(this->custom_preset_, this->preset, traits.find_custom_preset_(preset),
+  return set_custom_mode<ClimatePreset>(this->custom_preset_, this->preset, traits.find_custom_preset_(preset, len),
                                         this->has_custom_preset());
 }
 

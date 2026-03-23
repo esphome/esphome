@@ -1,3 +1,5 @@
+import logging
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.config_helpers import filter_source_files_from_platform
@@ -16,7 +18,14 @@ from esphome.coroutine import CoroPriority
 OTA_STATE_LISTENER_KEY = "ota_state_listener"
 
 CODEOWNERS = ["@esphome/core"]
-AUTO_LOAD = ["md5", "safe_mode"]
+
+
+def AUTO_LOAD() -> list[str]:
+    components = ["safe_mode"]
+    if not CORE.using_zephyr:
+        components.extend(["md5"])
+    return components
+
 
 IS_PLATFORM_COMPONENT = True
 
@@ -26,6 +35,8 @@ CONF_ON_END = "on_end"
 CONF_ON_PROGRESS = "on_progress"
 CONF_ON_STATE_CHANGE = "on_state_change"
 
+
+_LOGGER = logging.getLogger(__name__)
 
 ota_ns = cg.esphome_ns.namespace("ota")
 OTAComponent = ota_ns.class_("OTAComponent", cg.Component)
@@ -44,6 +55,10 @@ def _ota_final_validate(config):
     if len(config) < 1:
         raise cv.Invalid(
             f"At least one platform must be specified for '{CONF_OTA}'; add '{CONF_PLATFORM}: {CONF_ESPHOME}' for original OTA functionality"
+        )
+    if CORE.is_host:
+        _LOGGER.warning(
+            "OTA not available for platform 'host'. OTA functionality disabled."
         )
 
 
@@ -148,7 +163,7 @@ FILTER_SOURCE_FILES = filter_source_files_from_platform(
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
-        "ota_backend_arduino_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
+        "ota_backend_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
         "ota_backend_arduino_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
         "ota_backend_arduino_libretiny.cpp": {
             PlatformFramework.BK72XX_ARDUINO,
