@@ -305,7 +305,6 @@ void log_entity_unit_of_measurement(const char *tag, const char *prefix, const E
  *   - get_state(): return a const reference to the current value
  *   - set_state_value(): store a new value (called only when the state actually changes)
  *   - get_trigger_on_initial_state(): return whether callbacks should fire on the first state
- *   - set_trigger_on_initial_state(): store the value (subclass decides how)
  *
  * Subclasses may override set_new_state() to add behavior (logging, notifications) after calling
  * the base implementation. Since set_new_state() is virtual, callers like invalidate_state() and
@@ -334,10 +333,6 @@ template<typename T> class StatefulEntityBase : public EntityBase {
   template<typename F> void add_on_state_callback(F &&callback) {
     this->state_callbacks_.add(std::forward<F>(callback));
   }
-
-  /// Control whether state_callbacks_ fire on the very first state (before any previous state exists).
-  /// Subclasses decide how to store the value.
-  virtual void set_trigger_on_initial_state(bool value) = 0;
 
  protected:
   /// Subclasses return whether callbacks should fire on the very first state.

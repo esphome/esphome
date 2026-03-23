@@ -35,7 +35,7 @@ class BinarySensor : public StatefulEntityBase<bool> {
   explicit BinarySensor() = default;
 
   const bool &get_state() const override { return this->state; }
-  void set_trigger_on_initial_state(bool value) override { this->trigger_on_initial_state_ = value; }
+  void set_trigger_on_initial_state(bool value) { this->trigger_on_initial_state_ = value; }
 
   /** Publish a new state to the front-end.
    *
