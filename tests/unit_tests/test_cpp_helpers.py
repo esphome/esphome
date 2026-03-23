@@ -103,6 +103,18 @@ def test_generate_source_table_code_empty():
     assert _generate_source_table_code("TBL", "lookup", {}) == ""
 
 
+@pytest.mark.asyncio
+async def test_generate_component_source_table_empty_pool(monkeypatch):
+    """Test that _generate_component_source_table does nothing with an empty pool."""
+    from esphome.cpp_helpers import _generate_component_source_table
+
+    monkeypatch.setattr(ch, "CORE", Mock(data={}))
+    add_global_mock = Mock()
+    monkeypatch.setattr(ch, "add_global", add_global_mock)
+    await _generate_component_source_table()
+    add_global_mock.assert_not_called()
+
+
 def test_register_component_source_overflow_warns(monkeypatch, caplog):
     # Pre-fill pool to max
     pool = ComponentSourcePool(
