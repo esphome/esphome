@@ -83,7 +83,9 @@ class TrackerContext(jinja.runtime.Context):
     def resolve_or_missing(self, key):
         val = super().resolve_or_missing(key)
         if val is Missing:
-            # Try see if there is a resolver
+            # Variable not in the template context — check if a resolver callback
+            # was registered (by _push_context) to lazily resolve dependencies
+            # between substitution variables in the same block.
             resolver = super().resolve_or_missing(Resolver)
             if resolver is not Missing:
                 val = resolver(key)
@@ -138,9 +140,7 @@ def _concat_nodes_override(values: Iterator[Any]) -> Any:
 
 
 class Jinja(jinja.Environment):
-    """
-    Wraps a Jinja environment.
-    """
+    """Jinja environment configured for ESPHome substitution expressions."""
 
     # jinja environment customization overrides
     code_generator_class = NativeCodeGenerator
