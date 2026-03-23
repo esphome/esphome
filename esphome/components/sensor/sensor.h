@@ -133,8 +133,8 @@ class Sensor : public EntityBase {
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  /// @deprecated Use get_raw_state() instead. This member will be removed in ESPHome 2027.1.0.
-  ESPDEPRECATED("Use get_raw_state() instead of .raw_state. Will be removed in 2027.1.0", "2026.7.0")
+  /// @deprecated Use get_raw_state() instead. This member will be removed in ESPHome 2026.10.0.
+  ESPDEPRECATED("Use get_raw_state() instead of .raw_state. Will be removed in 2026.10.0", "2026.4.0")
   float raw_state;
 #pragma GCC diagnostic pop
 
