@@ -298,23 +298,23 @@ void log_entity_unit_of_measurement(const char *tag, const char *prefix, const E
 
 /** Base class for entities that track a typed state value with change-detection and callbacks.
  *
+ * This class does not store the state value — subclasses own their storage. Whether a state
+ * has been set is tracked by EntityBase::has_state().
+ *
  * Subclasses must implement:
  *   - get_state(): return a const reference to the current value
  *   - set_state_value(): store a new value (called only when the state actually changes)
  *   - get_trigger_on_initial_state() / set_trigger_on_initial_state(): control initial callback behavior
  *
- * Subclasses may override set_new_state() for additional behavior (logging, notifications).
- *
- * This class does not store the state value — subclasses own their storage. Whether a state
- * has been set is tracked by EntityBase::has_state().
+ * Subclasses may override set_new_state() to add behavior (logging, notifications) after calling
+ * the base implementation. Since set_new_state() is virtual, callers like invalidate_state() and
+ * send_state_internal() dispatch through the vtable to the subclass override in the .cpp,
+ * avoiding template code bloat at inline call sites.
  *
  * Callback behavior:
  *   - full_state_callbacks_: fired on every change, receives optional<T> previous and current
  *   - state_callbacks_: fired only when the new state has a value, and either this is not the
  *     first state (had_state) or trigger_on_initial_state is set
- *
- * invalidate_state() and callers of set_new_state() should be defined out-of-line in the
- * subclass .cpp to avoid inlining the template body (~189 bytes) at every call site.
  *
  * @tparam T The type of the state value
  */
