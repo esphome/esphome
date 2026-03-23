@@ -2465,11 +2465,12 @@ void WiFiComponent::process_roaming_scan_() {
 
   WiFiAP roam_params = *selected;
   apply_scan_result_to_params(roam_params, *best);
-  this->release_scan_results_();
 
   // Mark as roaming attempt - affects retry behavior if connection fails
   this->roaming_state_ = RoamingState::CONNECTING;
-  this->roaming_target_bssid_ = best->get_bssid();
+  this->roaming_target_bssid_ = best->get_bssid();  // Must read before releasing scan results
+
+  this->release_scan_results_();
 
   // Connect directly - wifi_sta_connect_ handles disconnect internally
   this->start_connecting(roam_params);
