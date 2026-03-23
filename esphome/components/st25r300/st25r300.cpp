@@ -672,8 +672,8 @@ void ST25R300::nfcv_scan_() {
   uint8_t resp[12];
   uint8_t resp_len = 0;
 
-  // Loop: inventory → record UID → stay quiet → repeat until no response
-  for (int i = 0; i < 16; i++) {  // max 16 NFC-V tags per scan
+  // Single-tag inventory (multi-tag requires STAY_QUIET + field cycling)
+  {
     resp_len = 0;
     if (!this->transceive_nfcv_(inv_req, sizeof(inv_req), resp, resp_len, 25)) {
       break;  // No more tags
@@ -768,7 +768,6 @@ void ST25R300::nfcv_scan_() {
         trigger->trigger(uid_string);
     }
 
-    break;  // One tag per scan for now
   }
 
   // Switch back to NFC-A mode for the main scan
