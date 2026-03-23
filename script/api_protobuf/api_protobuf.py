@@ -254,14 +254,17 @@ class TypeInfo(ABC):
     def dump(self, name: str) -> str:
         """Dump the value to the output."""
 
+    def calculate_tag(self) -> int:
+        """Calculate the protobuf tag (field_id << 3 | wire_type)."""
+        return (self.number << 3) | (self.wire_type & 0b111)
+
     def calculate_field_id_size(self) -> int:
         """Calculates the size of a field ID in bytes.
 
         Returns:
             The number of bytes needed to encode the field ID
         """
-        # Calculate the tag by combining field_id and wire_type
-        tag = (self.number << 3) | (self.wire_type & 0b111)
+        tag = self.calculate_tag()
 
         # Calculate the varint size
         if tag < 128:
@@ -555,6 +558,16 @@ class Fixed32Type(TypeInfo):
         o = f'snprintf(buffer, sizeof(buffer), "%" PRIu32, {name});\n'
         o += "out.append(buffer);"
         return o
+
+    @property
+    def encode_content(self) -> str:
+        tag = self.calculate_tag()
+        if self.force and tag < 128:
+            # Emit combined tag+value write: precomputed tag + direct memcpy
+            return f"buffer.write_tag_and_fixed32({tag}, this->{self.field_name});"
+        if self.force:
+            return f"buffer.{self.encode_func}({self.number}, this->{self.field_name}, true);"
+        return f"buffer.{self.encode_func}({self.number}, this->{self.field_name});"
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
