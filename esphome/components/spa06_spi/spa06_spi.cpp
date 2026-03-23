@@ -2,18 +2,28 @@
 #include <cstddef>
 
 #include "spa06_spi.h"
-#include <esphome/components/spa06_base/spa06_base.h>
+#include "esphome/components/spa06_base/spa06_base.h"
+#include "esphome/components/spi/spi.h"
+
+#ifdef LOG_SPI_DEVICE
+#pragma message("[spa06_spi] LOG_SPI_DEVICE already defined")
+#else
+#define LOG_SPI_DEVICE(this) ESP_LOGCONFIG(TAG, "  CS Pin: %d", esphome::spi::Utility::get_pin_no(this->cs_));
+#endif
+
+// OR (|) register with SPA06_SPI_READ for read.
+inline constexpr uint8_t SPA06_SPI_READ = 0x80;
+
+// AND (&) register with SPA06_SPI_WRITE for write.
+inline constexpr uint8_t SPA06_SPI_WRITE = 0x7F;
 
 namespace esphome::spa06_spi {
 
-uint8_t set_bit(uint8_t num, uint8_t position) {
-  uint8_t mask = 1 << position;
-  return num | mask;
-}
+static const char *const TAG = "spa06_spi";
 
-uint8_t clear_bit(uint8_t num, uint8_t position) {
-  uint8_t mask = 1 << position;
-  return num & ~mask;
+void SPA06SPIComponent::dump_config() {
+  SPA06Component::dump_config();
+  LOG_SPI_DEVICE(this)
 }
 
 void SPA06SPIComponent::setup() {
@@ -31,10 +41,12 @@ void SPA06SPIComponent::protocol_reset() {
 // is not used and replaced by a read/write bit (RW = ‘0’ for write and RW = ‘1’ for read).
 // Example: address 0xF7 is accessed by using SPI register address 0x77. For write access,
 // the byte 0x77 is transferred, for read access, the byte 0xF7 is transferred.
+// The expressions SPA06_SPI_R (OR with register) and SPA06_SPI_W (AND with register)
+// are defined for readability.
 
 bool SPA06SPIComponent::spa_read_byte(uint8_t a_register, uint8_t *data) {
   this->enable();
-  this->transfer_byte(set_bit(a_register, 7));
+  this->transfer_byte(a_register | SPA06_SPI_READ);
   *data = this->transfer_byte(0);
   this->disable();
   return true;
@@ -42,7 +54,7 @@ bool SPA06SPIComponent::spa_read_byte(uint8_t a_register, uint8_t *data) {
 
 bool SPA06SPIComponent::spa_write_byte(uint8_t a_register, uint8_t data) {
   this->enable();
-  this->transfer_byte(clear_bit(a_register, 7));
+  this->transfer_byte(a_register & SPA06_SPI_WRITE);
   this->transfer_byte(data);
   this->disable();
   return true;
@@ -50,7 +62,7 @@ bool SPA06SPIComponent::spa_write_byte(uint8_t a_register, uint8_t data) {
 
 bool SPA06SPIComponent::spa_read_bytes(uint8_t a_register, uint8_t *data, size_t len) {
   this->enable();
-  this->transfer_byte(set_bit(a_register, 7));
+  this->transfer_byte(a_register | SPA06_SPI_READ);
   this->read_array(data, len);
   this->disable();
   return true;
@@ -58,7 +70,7 @@ bool SPA06SPIComponent::spa_read_bytes(uint8_t a_register, uint8_t *data, size_t
 
 bool SPA06SPIComponent::spa_write_bytes(uint8_t a_register, uint8_t *data, size_t len) {
   this->enable();
-  this->transfer_byte(clear_bit(a_register, 7));
+  this->transfer_byte(a_register & SPA06_SPI_WRITE);
   this->write_array(data, len);
   this->disable();
   return true;

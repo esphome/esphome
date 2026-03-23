@@ -13,6 +13,7 @@ class SPA06SPIComponent : public spa06_base::SPA06Component,
   bool spa_write_byte(uint8_t a_register, uint8_t data) override;
   bool spa_read_bytes(uint8_t a_register, uint8_t *data, size_t len) override;
   bool spa_write_bytes(uint8_t a_register, uint8_t *data, size_t len) override;
+  void dump_config() override;
 
  protected:
   void protocol_reset() override;
