@@ -93,27 +93,28 @@ def _expand_substitutions(
         m: Match[str] = cv.VARIABLE_PROG.search(value, search_pos)
         if not m:
             # No more $var references — check if the result contains a jinja expression
-            if has_jinja(value):
-                try:
-                    value = jinja.expand(value, context_vars)
-                except UndefinedError as err:
-                    if strict_undefined:
-                        raise err
-                    if errors is not None:
-                        errors.append((err, path, value))
-                    break
-                except JinjaError as err:
-                    raise cv.Invalid(
-                        f"{err.error_name()} Error evaluating jinja expression"
-                        f" '{value}': {str(err.parent())}."
-                        f"\nEvaluation stack: (most recent evaluation last)"
-                        f"\n{err.stack_trace_str()}"
-                        f"\nRelevant context:\n{err.context_trace_str()}"
-                        f"\nSee {'->'.join(str(x) for x in path)}",
-                        path,
-                    )
-                if isinstance(orig_value, ESPHomeDataBase):
-                    value = _restore_data_base(value, orig_value)
+            if not has_jinja(value):
+                break
+            try:
+                value = jinja.expand(value, context_vars)
+            except UndefinedError as err:
+                if strict_undefined:
+                    raise err
+                if errors is not None:
+                    errors.append((err, path, value))
+                break
+            except JinjaError as err:
+                raise cv.Invalid(
+                    f"{err.error_name()} Error evaluating jinja expression"
+                    f" '{value}': {str(err.parent())}."
+                    f"\nEvaluation stack: (most recent evaluation last)"
+                    f"\n{err.stack_trace_str()}"
+                    f"\nRelevant context:\n{err.context_trace_str()}"
+                    f"\nSee {'->'.join(str(x) for x in path)}",
+                    path,
+                )
+            if isinstance(orig_value, ESPHomeDataBase):
+                value = _restore_data_base(value, orig_value)
             break
 
         match_start, match_end = m.span(0)
