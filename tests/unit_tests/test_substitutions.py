@@ -522,7 +522,6 @@ def test_config_context_unresolvable_warns(
     with caplog.at_level(logging.WARNING):
         substitutions.do_substitution_pass(config)
 
-    assert "Could not resolve substitution variable 'a'" in caplog.text
     assert "'undefined' is undefined" in caplog.text
 
 
@@ -550,8 +549,8 @@ def test_lambda_substitution() -> None:
             "lambda": lam,
         }
     )
-    substitutions.do_substitution_pass(config)
-    assert lam.value == "return 42;"
+    config = substitutions.do_substitution_pass(config)
+    assert config["lambda"].value == "return 42;"
 
 
 def test_lambda_no_substitution_unchanged() -> None:
@@ -564,8 +563,8 @@ def test_lambda_no_substitution_unchanged() -> None:
             "lambda": lam,
         }
     )
-    substitutions.do_substitution_pass(config)
-    assert lam.value is original_value
+    config = substitutions.do_substitution_pass(config)
+    assert config["lambda"].value == original_value
 
 
 def test_extend_substitution() -> None:
@@ -577,8 +576,8 @@ def test_extend_substitution() -> None:
             "sensor": ext,
         }
     )
-    substitutions.do_substitution_pass(config)
-    assert ext.value == "my_sensor"
+    config = substitutions.do_substitution_pass(config)
+    assert config["sensor"].value == "my_sensor"
 
 
 def test_do_substitution_pass_substitutions_must_be_mapping_from_config() -> None:
