@@ -803,7 +803,7 @@ void ST25R::process_state() {
           } else {
             // Tag fully selected — validate UID length (must be 4 or 7 bytes; 3-byte = CL1 glitch)
             size_t uid_bytes_len = this->current_uid_.length() / 2;
-            if (uid_bytes_len != 4 && uid_bytes_len != 7) {
+            if (uid_bytes_len != 4 && uid_bytes_len != 7 && uid_bytes_len != 10) {
               ESP_LOGW(TAG, "Discarding invalid UID len=%zu (%s)", uid_bytes_len, this->current_uid_.c_str());
               this->state_ = STATE_IDLE;
               this->finalize_scan_();
@@ -1421,8 +1421,8 @@ std::unique_ptr<nfc::NfcTag> ST25R::read_tag_type4_(std::vector<uint8_t> &uid) {
     return make_unique<nfc::NfcTag>(nfc_uid);
   }
 
-  // Parse CC: bytes 7-8 = NDEF file ID, bytes 9-10 = max NDEF size
-  // CC TLV at offset 7: type(1) + len(1) + fileID(2) + maxSize(2) + readAccess(1) + writeAccess(1)
+  // Parse CC: resp[0..1]=CCLEN, [2]=ver, [3]=MLe, [4]=MLc, [5..6]=TLV header,
+  // [7..8]=TLV type+len, [9..10]=NDEF file ID, [11..12]=max NDEF size
   uint16_t ndef_file_id = ((uint16_t)resp[9] << 8) | resp[10];
   uint16_t max_ndef_size = ((uint16_t)resp[11] << 8) | resp[12];
   ESP_LOGD(TAG, "T4T CC: NDEF file=0x%04X, max_size=%u", ndef_file_id, max_ndef_size);
