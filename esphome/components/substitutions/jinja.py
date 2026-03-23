@@ -1,5 +1,5 @@
 from ast import literal_eval
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from itertools import chain, islice
 import math
 import re
@@ -161,7 +161,7 @@ class Jinja(jinja.Environment):
 
         self.globals = {**self.globals, **SAFE_GLOBALS}
 
-    def expand(self, content_str: str, context_vars: dict) -> Any:
+    def expand(self, content_str: str, context_vars: Mapping[str, Any]) -> Any:
         """
         Renders a string that may contain Jinja expressions or statements
         Returns the resulting value if all variables and expressions could be resolved.
