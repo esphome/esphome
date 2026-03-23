@@ -302,7 +302,8 @@ void log_entity_unit_of_measurement(const char *tag, const char *prefix, const E
  *   - get_state(): return a const reference to the current value
  *   - set_state_value(): store a new value (called only when the state actually changes)
  *   - get_trigger_on_initial_state() / set_trigger_on_initial_state(): control initial callback behavior
- *   - on_state_changed() (optional override): called after state updates, for logging/notifications
+ *
+ * Subclasses may override set_new_state() for additional behavior (logging, notifications).
  *
  * This class does not store the state value — subclasses own their storage. Whether a state
  * has been set is tracked by EntityBase::has_state().
@@ -311,6 +312,9 @@ void log_entity_unit_of_measurement(const char *tag, const char *prefix, const E
  *   - full_state_callbacks_: fired on every change, receives optional<T> previous and current
  *   - state_callbacks_: fired only when the new state has a value, and either this is not the
  *     first state (had_state) or trigger_on_initial_state is set
+ *
+ * invalidate_state() and callers of set_new_state() should be defined out-of-line in the
+ * subclass .cpp to avoid inlining the template body (~189 bytes) at every call site.
  *
  * @tparam T The type of the state value
  */
@@ -321,7 +325,7 @@ template<typename T> class StatefulEntityBase : public EntityBase {
   /// Return the current state if available, otherwise return the provided default.
   T get_state_default(T default_value) const { return this->has_state() ? this->get_state() : default_value; }
   /// Clear the state — sets has_state() to false and fires callbacks with nullopt.
-  void invalidate_state() { this->set_new_state_({}); }
+  void invalidate_state() { this->set_new_state({}); }
 
   template<typename F> void add_full_state_callback(F &&callback) {
     this->full_state_callbacks_.add(std::forward<F>(callback));
@@ -342,8 +346,9 @@ template<typename T> class StatefulEntityBase : public EntityBase {
    *
    * Pass nullopt to invalidate (clear) the state. Pass a value to set it.
    * Returns true if the state actually changed, false if it was the same.
+   * Subclasses may override to add logging/notifications after calling the base.
    */
-  bool set_new_state_(const optional<T> &new_state) {
+  virtual bool set_new_state(const optional<T> &new_state) {
     // Access flags_ directly to avoid function call overhead in this hot path
     bool had_state = this->flags_.has_state;
     if (new_state.has_value()) {
@@ -362,14 +367,10 @@ template<typename T> class StatefulEntityBase : public EntityBase {
     if (new_state.has_value()) {
       this->set_state_value(new_state.value());
     }
-    this->on_state_changed(old_state, new_state, had_state);
-    return true;
-  }
-  /// Called after state storage is updated. Subclasses override for logging/notifications.
-  virtual void on_state_changed(const optional<T> &old_state, const optional<T> &new_state, bool had_state) {
     this->full_state_callbacks_.call(old_state, new_state);
     if (new_state.has_value() && (this->get_trigger_on_initial_state() || had_state))
       this->state_callbacks_.call(new_state.value());
+    return true;
   }
   /// Subclasses implement this to store the actual value into their own storage.
   virtual void set_state_value(const T &value) = 0;

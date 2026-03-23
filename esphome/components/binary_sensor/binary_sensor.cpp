@@ -32,17 +32,19 @@ void BinarySensor::publish_initial_state(bool new_state) {
   this->invalidate_state();
   this->publish_state(new_state);
 }
-// Defined out-of-line to prevent set_new_state template from being inlined at each call site,
-// which would duplicate ~189 bytes of template code per caller (publish_state, Filter::output, etc.)
-void BinarySensor::send_state_internal(bool new_state) { this->set_new_state_(new_state); }
-void BinarySensor::invalidate_state() { this->set_new_state_({}); }
+// Defined out-of-line: set_new_state is virtual so callers in other TUs (filter.cpp, automation.h)
+// dispatch here without inlining the ~189 byte template body at each call site.
+void BinarySensor::send_state_internal(bool new_state) { this->set_new_state(new_state); }
 
-void BinarySensor::on_state_changed(const optional<bool> &old_state, const optional<bool> &new_state, bool had_state) {
-  StatefulEntityBase::on_state_changed(old_state, new_state, had_state);
+bool BinarySensor::set_new_state(const optional<bool> &new_state) {
+  if (StatefulEntityBase::set_new_state(new_state)) {
 #if defined(USE_BINARY_SENSOR) && defined(USE_CONTROLLER_REGISTRY)
-  ControllerRegistry::notify_binary_sensor_update(this);
+    ControllerRegistry::notify_binary_sensor_update(this);
 #endif
-  ESP_LOGD(TAG, "'%s' >> %s", this->get_name().c_str(), ONOFFMAYBE(new_state));
+    ESP_LOGD(TAG, "'%s' >> %s", this->get_name().c_str(), ONOFFMAYBE(new_state));
+    return true;
+  }
+  return false;
 }
 
 #ifdef USE_BINARY_SENSOR_FILTER
