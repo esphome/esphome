@@ -1,7 +1,6 @@
 from ast import literal_eval
 from collections.abc import Iterator
 from itertools import chain, islice
-import logging
 import math
 import re
 from types import GeneratorType
@@ -20,8 +19,6 @@ Undefined = jinja.Undefined
 # Dots are invalid in substitution names so this can never collide with user keys.
 Resolver = ".resolver"
 
-
-_LOGGER = logging.getLogger(__name__)
 
 DETECT_JINJA = r"(\$\{)"
 detect_jinja_re = re.compile(
