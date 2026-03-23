@@ -100,27 +100,27 @@ ESPHome-specific components or components supporting ESPHome device provisioning
 
 <ImgTable items={[
   ["Network Core", "/components/network/", "server-network.svg", "dark-invert"],
-  ["Native API", "/components/api/", "server-network.svg", "dark-invert"],
-  ["MQTT", "/components/mqtt/", "mqtt.png"],
   ["ESP-NOW", "/components/espnow/", "esp-now.svg"],
   ["HTTP Request", "/components/http_request/", "connection.svg", "dark-invert"],
   ["mDNS", "/components/mdns/", "radio-tower.svg", "dark-invert"],
-  ["WireGuard", "/components/wireguard/", "wireguard_custom_logo.svg", "dark-invert"],
-  ["StatsD", "/components/statsd/", "connection.svg", "dark-invert"],
-  ["UDP", "/components/udp/", "udp.svg"],
+  ["MQTT", "/components/mqtt/", "mqtt.png"],
+  ["Native API", "/components/api/", "server-network.svg", "dark-invert"],
   ["Packet Transport", "/components/packet_transport/", "packet_transport.svg", "dark-invert"],
   ["Serial Proxy", "/components/serial_proxy/", "uart.svg", "dark-invert"],
+  ["StatsD", "/components/statsd/", "connection.svg", "dark-invert"],
+  ["UDP", "/components/udp/", "udp.svg"],
+  ["WireGuard", "/components/wireguard/", "wireguard_custom_logo.svg", "dark-invert"],
   ["Zigbee End Device", "/components/zigbee/", "zigbee.svg"],
 ]} />
 
 ## Bluetooth/BLE
 
 <ImgTable items={[
+  ["Bluetooth Proxy", "/components/bluetooth_proxy/", "bluetooth.svg", "dark-invert"],
   ["ESP32 BLE Beacon", "/components/esp32_ble_beacon/", "bluetooth.svg", "dark-invert"],
   ["ESP32 BLE Client", "/components/ble_client/", "bluetooth.svg", "dark-invert"],
-  ["ESP32 BLE Tracker", "/components/esp32_ble_tracker/", "bluetooth.svg", "dark-invert"],
   ["ESP32 BLE Server", "/components/esp32_ble_server/", "bluetooth.svg", "dark-invert"],
-  ["Bluetooth Proxy", "/components/bluetooth_proxy/", "bluetooth.svg", "dark-invert"],
+  ["ESP32 BLE Tracker", "/components/esp32_ble_tracker/", "bluetooth.svg", "dark-invert"],
   ["Improv via BLE", "/components/esp32_improv/", "improv.svg", "dark-invert"],
   ["Nordic UART Service (NUS)", "/components/ble_nus/", "bluetooth.svg", "dark-invert"],
   ["RP2040 BLE", "/components/rp2040_ble/", "bluetooth.svg", "dark-invert"],
@@ -130,13 +130,13 @@ ESPHome-specific components or components supporting ESPHome device provisioning
 
 <ImgTable items={[
   ["Debug", "/components/debug/", "bug-report.svg", "dark-invert"],
-  ["Logger", "/components/logger/", "file-document-box.svg", "dark-invert"],
-  ["Syslog", "/components/syslog/", "file-document-box.svg", "dark-invert"],
-  ["Prometheus", "/components/prometheus/", "prometheus.svg"],
-  ["StatsD", "/components/statsd/", "connection.svg", "dark-invert"],
-  ["Safe Mode", "/components/safe_mode/", "restart-alert.svg", "dark-invert"],
-  ["Web Server", "/components/web_server/", "http.svg"],
   ["ESP32 Camera Web Server", "/components/esp32_camera_web_server/", "camera.svg", "dark-invert"],
+  ["Logger", "/components/logger/", "file-document-box.svg", "dark-invert"],
+  ["Prometheus", "/components/prometheus/", "prometheus.svg"],
+  ["Safe Mode", "/components/safe_mode/", "restart-alert.svg", "dark-invert"],
+  ["StatsD", "/components/statsd/", "connection.svg", "dark-invert"],
+  ["Syslog", "/components/syslog/", "file-document-box.svg", "dark-invert"],
+  ["Web Server", "/components/web_server/", "http.svg"],
 ]} />
 
 ## Update Installation
@@ -168,8 +168,8 @@ Create update entities simplifying management of OTA updates.
   ["I²S Audio", "/components/i2s_audio/", "i2s_audio.svg"],
   ["OpenTherm", "/components/opentherm/", "opentherm.png"],
   ["SPI Bus", "/components/spi/", "spi.svg"],
-  ["UART", "/components/uart/", "uart.svg"],
   ["TinyUSB", "/components/tinyusb/", "usb.svg", "dark-invert"],
+  ["UART", "/components/uart/", "uart.svg"],
   ["USB CDC-ACM", "/components/usb_cdc_acm/", "usb.svg", "dark-invert"],
   ["USB Host", "/components/usb_host/", "usb.svg", "dark-invert"],
   ["USB UART", "/components/usb_uart/", "usb.svg", "dark-invert"],
@@ -234,8 +234,8 @@ Sensors are organized into categories; if a given sensor fits into more than one
 ### Air Quality
 
 <ImgTable items={[
-  ["Air Quality Index", "/components/sensor/aqi/", "aqi.svg"],
   ["AGS10", "/components/sensor/ags10/", "ags10.jpg", "Volatile Organic Compound Sensor"],
+  ["Air Quality Index", "/components/sensor/aqi/", "aqi.svg"],
   ["AirThings BLE", "/components/sensor/airthings_ble/", "airthings_logo.png", "Radon", "CO2", "Volatile organics"],
   ["CCS811", "/components/sensor/ccs811/", "ccs811.jpg", "CO2 & Volatile organics"],
   ["CM1106", "/components/sensor/cm1106/", "cm1106.png", "CO2"],
@@ -375,9 +375,9 @@ Sensors are organized into categories; if a given sensor fits into more than one
   ["b-parasite", "/components/sensor/b_parasite/", "b_parasite.jpg", "Moisture & Temperature & Humidity & Light"],
   ["BH1900NUX", "/components/sensor/bh1900nux/", "bh1900nux-evk-001.png", "Temperature"],
   ["BME280", "/components/sensor/bme280/", "bme280.jpg", "Temperature & Humidity & Pressure"],
-  ["BME68x via BSEC2", "/components/sensor/bme68x_bsec2/", "bme680.jpg", "Temperature & Humidity & Pressure & Gas"],
-  ["BME680 via BSEC", "/components/sensor/bme680_bsec/", "bme680.jpg", "Temperature & Humidity & Pressure & Gas"],
   ["BME680", "/components/sensor/bme680/", "bme680.jpg", "Temperature & Humidity & Pressure & Gas"],
+  ["BME680 via BSEC", "/components/sensor/bme680_bsec/", "bme680.jpg", "Temperature & Humidity & Pressure & Gas"],
+  ["BME68x via BSEC2", "/components/sensor/bme68x_bsec2/", "bme680.jpg", "Temperature & Humidity & Pressure & Gas"],
   ["BMP085", "/components/sensor/bmp085/", "bmp180.jpg", "Temperature & Pressure"],
   ["BMP280", "/components/sensor/bmp280/", "bmp280.jpg", "Temperature & Pressure"],
   ["BMP388 and BMP390", "/components/sensor/bmp3xx/", "bmp388.jpg", "Temperature & Pressure"],
@@ -429,8 +429,8 @@ Sensors are organized into categories; if a given sensor fits into more than one
   ["STS3X", "/components/sensor/sts3x/", "sts3x.jpg", "Temperature"],
   ["STTS22H", "/components/sensor/stts22h/", "stts22h.jpg", "Temperature"],
   ["TC74", "/components/sensor/tc74/", "tc74.jpg", "Temperature"],
-  ["TEE501", "/components/sensor/tee501/", "TEE501.png", "Temperature"],
   ["TE-M3200", "/components/sensor/tem3200/", "tem3200.jpg", "Temperature & Pressure"],
+  ["TEE501", "/components/sensor/tee501/", "TEE501.png", "Temperature"],
   ["TMP102", "/components/sensor/tmp102/", "tmp102.jpg", "Temperature"],
   ["TMP1075", "/components/sensor/tmp1075/", "tmp1075.jpg", "Temperature"],
   ["TMP117", "/components/sensor/tmp117/", "tmp117.jpg", "Temperature"],
@@ -510,8 +510,8 @@ Sensors are organized into categories; if a given sensor fits into more than one
   ["Resol VBus", "/components/vbus/", "resol_deltasol_bs_plus.jpg"],
   ["Rotary Encoder", "/components/sensor/rotary_encoder/", "rotary_encoder.jpg"],
   ["SMT100", "/components/sensor/smt100/", "smt100.jpg", "Moisture & Temperature"],
-  ["SY6970", "/components/sensor/sy6970/", "sy6970.jpg", "Battery charge IC"],
   ["Sound Level", "/components/sensor/sound_level/", "waveform.svg", "dark-invert"],
+  ["SY6970", "/components/sensor/sy6970/", "sy6970.jpg", "Battery charge IC"],
   ["Tuya Sensor", "/components/sensor/tuya/", "tuya.png"],
   ["TX20", "/components/sensor/tx20/", "tx20.jpg", "Wind speed & Wind direction"],
   ["uFire EC sensor", "/components/sensor/ufire_ec/", "ufire_ec.png", "EC & Temperature"],
@@ -528,11 +528,11 @@ Sensors are organized into categories; if a given sensor fits into more than one
   ["LD2412", "/components/sensor/ld2412/", "ld2412.jpg", "Motion & Presence"],
   ["LD2420", "/components/sensor/ld2420/", "ld2420.jpg", "Motion & Presence"],
   ["LD2450", "/components/sensor/ld2450/", "ld2450.png", "Motion & Presence"],
-  ["RD-03D", "/components/sensor/rd03d/", "rd03d.webp", "Motion & Presence"],
   ["MPU6050", "/components/sensor/mpu6050/", "mpu6050.jpg", "Accelerometer & Gyroscope"],
   ["MPU6886", "/components/sensor/mpu6886/", "mpu6886.jpg", "Accelerometer & Gyroscope"],
   ["MSA301", "/components/sensor/msa3xx/", "msa301.jpg", "Accelerometer"],
   ["MSA311", "/components/sensor/msa3xx/", "msa311.jpg", "Accelerometer"],
+  ["RD-03D", "/components/sensor/rd03d/", "rd03d.webp", "Motion & Presence"],
   ["RuuviTag", "/components/sensor/ruuvitag/", "ruuvitag.jpg", "Temperature & Humidity & Accelerometer"],
   ["Seeed Studio MR24HPC1 mmWave", "/components/seeed_mr24hpc1/", "seeed-mr24hpc1.jpg", "Motion & Presence"],
 ]} />
@@ -569,9 +569,9 @@ Binary Sensors are organized into categories; if a given sensor fits into more t
   ["Template Binary Sensor", "/components/binary_sensor/template/", "description.svg", "dark-invert"],
   ["GPIO", "/components/binary_sensor/gpio/", "gpio.svg"],
   ["Home Assistant", "/components/binary_sensor/homeassistant/", "home-assistant.svg", "dark-invert"],
+  ["Host SDL2", "/components/binary_sensor/sdl/", "sdl.png"],
   ["Status", "/components/binary_sensor/status/", "server-network.svg", "dark-invert"],
   ["Switch", "/components/binary_sensor/switch/", "electric-switch.svg", "dark-invert"],
-  ["Host SDL2", "/components/binary_sensor/sdl/", "sdl.png"],
 ]} />
 
 ### Capacitive Touch
@@ -611,9 +611,9 @@ Often known as "tag" or "card" readers within the community.
   ["Touchscreen Core", "/components/touchscreen/", "touch.svg", "dark-invert"],
   ["FT5X06", "/components/touchscreen/ft5x06/", "indicator.jpg"],
   ["GT911", "/components/touchscreen/gt911/", "esp32_s3_box_3.png"],
+  ["LVGL widget", "/components/binary_sensor/lvgl/", "lvgl_c_bns.png"],
   ["Nextion Binary Sensor", "/components/binary_sensor/nextion/", "nextion.jpg"],
   ["TT21100", "/components/touchscreen/tt21100/", "esp32-s3-korvo-2-lcd.png"],
-  ["LVGL widget", "/components/binary_sensor/lvgl/", "lvgl_c_bns.png"],
 ]} />
 
 ### Presence Detection
@@ -725,16 +725,16 @@ Often known as "tag" or "card" readers within the community.
 
 <ImgTable items={[
   ["Display Core", "/components/display/", "folder-open.svg", "dark-invert"],
+  ["Animation", "/components/animation/", "image-multiple-outline.svg", "dark-invert"],
+  ["Display Menu Core", "/components/display_menu/", "folder-open.svg", "dark-invert"],
   ["Font Renderer", "/components/font/", "format-font.svg", "dark-invert"],
   ["Graph", "/components/graph/", "chart-line.svg", "dark-invert"],
-  ["QR Code", "/components/qr_code/", "qr-code.svg", "dark-invert"],
-  ["Image", "/components/image/", "image-outline.svg", "dark-invert"],
-  ["Animation", "/components/animation/", "image-multiple-outline.svg", "dark-invert"],
-  ["Online Image", "/components/online_image/", "image-sync-outline.svg", "dark-invert"],
-  ["Display Menu Core", "/components/display_menu/", "folder-open.svg", "dark-invert"],
   ["Graphical Display Menu", "/components/display_menu/graphical_display_menu/", "graphical_display_menu.png"],
+  ["Image", "/components/image/", "image-outline.svg", "dark-invert"],
   ["LCD Menu", "/components/display_menu/lcd_menu/", "lcd_menu.png"],
   ["LVGL Graphics", "/components/lvgl/", "lvgl.png"],
+  ["Online Image", "/components/online_image/", "image-sync-outline.svg", "dark-invert"],
+  ["QR Code", "/components/qr_code/", "qr-code.svg", "dark-invert"],
 ]} />
 
 <span id="display-hw"></span>
@@ -743,22 +743,22 @@ Often known as "tag" or "card" readers within the community.
 
 <ImgTable items={[
   ["Addressable Light", "/components/display/addressable_light/", "addressable_light.jpg"],
-  ["MIPI DSI Displays", "/components/display/mipi_dsi/", "tab5.jpg"],
-  ["MIPI RGB Displays", "/components/display/mipi_rgb/", "t4-s3.jpg"],
-  ["MIPI SPI Displays", "/components/display/mipi_spi/", "t4-s3.jpg"],
   ["ePaper SPI Displays", "/components/display/epaper_spi/", "waveshare_epaper.jpg"],
-  ["ILI9xxx", "/components/display/ili9xxx/", "ili9341.jpg"],
+  ["Host SDL2 display", "/components/display/sdl/", "sdl.png"],
+  ["HUB75 LED Matrix", "/components/display/hub75/", "hub75.svg"],
   ["ILI9341", "/components/display/ili9xxx/", "ili9341.svg"],
   ["ILI9342", "/components/display/ili9xxx/", "ili9342.svg"],
   ["ILI9481", "/components/display/ili9xxx/", "ili9481.svg"],
   ["ILI9486", "/components/display/ili9xxx/", "ili9341.jpg"],
   ["ILI9488", "/components/display/ili9xxx/", "ili9488.svg"],
-  ["WSPICOLCD", "/components/display/ili9xxx/", "ili9488.svg"],
-  ["HUB75 LED Matrix", "/components/display/hub75/", "hub75.svg"],
+  ["ILI9xxx", "/components/display/ili9xxx/", "ili9341.jpg"],
   ["Inkplate", "/components/display/inkplate/", "inkplate6.jpg"],
   ["LCD Display", "/components/display/lcd_display/", "lcd.jpg"],
-  ["MAX7219 Dot Matrix", "/components/display/max7219digit/", "max7219digit.jpg"],
   ["MAX7219", "/components/display/max7219/", "max7219.jpg"],
+  ["MAX7219 Dot Matrix", "/components/display/max7219digit/", "max7219digit.jpg"],
+  ["MIPI DSI Displays", "/components/display/mipi_dsi/", "tab5.jpg"],
+  ["MIPI RGB Displays", "/components/display/mipi_rgb/", "t4-s3.jpg"],
+  ["MIPI SPI Displays", "/components/display/mipi_spi/", "t4-s3.jpg"],
   ["Nextion", "/components/display/nextion/", "nextion.jpg"],
   ["PCD8544 (Nokia 5110/ 3310)", "/components/display/pcd8544/", "pcd8544.jpg"],
   ["PVVX MiThermometer", "/components/display/pvvx_mithermometer/", "xiaomi_lywsd03mmc.jpg"],
@@ -781,7 +781,7 @@ Often known as "tag" or "card" readers within the community.
   ["TM1638", "/components/display/tm1638/", "tm1638.jpg"],
   ["TM1651 Battery Display", "/components/tm1651/", "tm1651_battery_display.jpg"],
   ["Waveshare E-Paper", "/components/display/waveshare_epaper/", "waveshare_epaper.jpg"],
-  ["Host SDL2 display", "/components/display/sdl/", "sdl.png"],
+  ["WSPICOLCD", "/components/display/ili9xxx/", "ili9488.svg"],
 ]} />
 
 ## Electromechanical
@@ -990,6 +990,7 @@ Used for creating infrared (IR) remote control transmitters and/or receivers.
   ["Generic Output Switch", "/components/switch/output/", "upload.svg", "dark-invert"],
   ["GPIO Switch", "/components/switch/gpio/", "gpio.svg"],
   ["H-bridge Switch", "/components/switch/hbridge/", "hbridge-relay.jpg"],
+  ["Home Assistant", "/components/switch/homeassistant/", "home-assistant.svg", "dark-invert"],
   ["LVGL Widget", "/components/switch/lvgl/", "lvgl_c_swi.png"],
   ["Modbus Switch", "/components/switch/modbus_controller/", "modbus.png"],
   ["Nextion Switch", "/components/switch/nextion/", "nextion.jpg"],
@@ -998,7 +999,6 @@ Used for creating infrared (IR) remote control transmitters and/or receivers.
   ["Shutdown Switch", "/components/switch/shutdown/", "power_settings.svg", "dark-invert"],
   ["Tuya Switch", "/components/switch/tuya/", "tuya.png"],
   ["UART Switch", "/components/switch/uart/", "uart.svg"],
-  ["Home Assistant", "/components/switch/homeassistant/", "home-assistant.svg", "dark-invert"],
 ]} />
 
 ## Text Components
@@ -1040,8 +1040,8 @@ Used for creating infrared (IR) remote control transmitters and/or receivers.
   ["GPS Time", "/components/time/gps/", "crosshairs-gps.svg", "dark-invert"],
   ["Home Assistant Time", "/components/time/homeassistant/", "home-assistant.svg", "dark-invert"],
   ["PCF85063 RTC", "/components/time/pcf85063/", "clock-outline.svg", "dark-invert"],
-  ["RX8130 RTC", "/components/time/rx8130/", "clock-outline.svg", "dark-invert"],
   ["PCF8563 RTC", "/components/time/pcf8563/", "clock-outline.svg", "dark-invert"],
+  ["RX8130 RTC", "/components/time/rx8130/", "clock-outline.svg", "dark-invert"],
   ["SNTP", "/components/time/sntp/", "clock-outline.svg", "dark-invert"],
   ["Zigbee Time", "/components/time/zigbee/", "zigbee.svg"],
 ]} />
@@ -1051,9 +1051,9 @@ Used for creating infrared (IR) remote control transmitters and/or receivers.
 <ImgTable items={[
   ["Touchscreen Core", "/components/touchscreen/", "folder-open.svg", "dark-invert"],
   ["AXS15231", "/components/touchscreen/axs15231/", "axs15231.svg"],
+  ["CHSC6X", "/components/touchscreen/chsc6x/", "chsc6x.png"],
   ["CST226", "/components/touchscreen/cst226/", "t4-s3.jpg"],
   ["CST816", "/components/touchscreen/cst816/", "cst816.jpg"],
-  ["CHSC6X", "/components/touchscreen/chsc6x/", "chsc6x.png"],
   ["EKTF2232", "/components/touchscreen/ektf2232/", "ektf2232.svg", "Inkplate 6 Plus"],
   ["FT63X6", "/components/touchscreen/ft63x6/", "wt32-sc01.png"],
   ["GT911", "/components/touchscreen/gt911/", "esp32_s3_box_3.png"],
@@ -1116,17 +1116,17 @@ ESPHome to cellular networks. **Does not encompass Wi-Fi.**
 ## Cookbook
 
 <ImgTable items={[
+  ["Arduino Port Extender", "/cookbook/arduino_port_extender/", "arduino_logo.svg"],
+  ["BME280 Environment extras", "/cookbook/bme280_environment/", "bme280.jpg"],
+  ["EHMTX a matrix status/text display", "/cookbook/ehmtx/", "ehmtx.jpg"],
+  ["ESP32 Water Leak Detector", "/cookbook/leak-detector-m5stickC/", "leak-detector-m5stickC_main_index.jpg"],
+  ["Garage Door Template Cover", "/cookbook/garage-door/", "garage-variant.svg", "dark-invert"],
   ["Lambda Magic: Tips and Tricks", "/cookbook/lambda_magic/", "head-lightbulb-outline.svg", "dark-invert"],
   ["LVGL Recipes", "/cookbook/lvgl/", "lvgl.png"],
-  ["Garage Door Template Cover", "/cookbook/garage-door/", "garage-variant.svg", "dark-invert"],
-  ["Time & Temperature on OLED Display", "/cookbook/display_time_temp_oled/", "display_time_temp_oled_2.jpg"],
-  ["ESP32 Water Leak Detector", "/cookbook/leak-detector-m5stickC/", "leak-detector-m5stickC_main_index.jpg"],
-  ["BME280 Environment extras", "/cookbook/bme280_environment/", "bme280.jpg"],
   ["Non-Invasive Power Meter", "/cookbook/power_meter/", "power_meter.jpg"],
-  ["Sonoff Fishpond Pump", "/cookbook/sonoff-fishpond-pump/", "cookbook-sonoff-fishpond-pump.jpg"],
-  ["Arduino Port Extender", "/cookbook/arduino_port_extender/", "arduino_logo.svg"],
-  ["EHMTX a matrix status/text display", "/cookbook/ehmtx/", "ehmtx.jpg"],
   ["Pulse Catcher", "/cookbook/pulse-catcher/", "pulses.png"],
+  ["Sonoff Fishpond Pump", "/cookbook/sonoff-fishpond-pump/", "cookbook-sonoff-fishpond-pump.jpg"],
+  ["Time & Temperature on OLED Display", "/cookbook/display_time_temp_oled/", "display_time_temp_oled_2.jpg"],
 ]} />
 
 ## Contributing
