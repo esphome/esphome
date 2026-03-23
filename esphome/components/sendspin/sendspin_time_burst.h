@@ -44,7 +44,7 @@ class SendspinTimeBurst {
  protected:
   static const uint8_t BURST_SIZE = 8;
   static const int64_t BURST_INTERVAL_MS = 10000;
-  static const int64_t RESPONSE_TIMEOUT_MS = 1000;
+  static const int64_t RESPONSE_TIMEOUT_MS = 10000;
 
   uint8_t burst_index_{BURST_SIZE};  // starts "complete" so first loop triggers a burst
   int64_t last_burst_complete_time_{0};
