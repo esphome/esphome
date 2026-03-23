@@ -584,7 +584,16 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
         # For 'new' allocations, use placement new into static storage
         # to avoid heap fragmentation on embedded devices.
         the_type = id_.type
-        storage_name = f"{id_.id}__pstorage"
+        # Extract component namespace from type for memory analysis attribution
+        type_str = str(the_type)
+        # Strip leading esphome:: to get the component namespace
+        # e.g. esphome::dsmr::Dsmr -> dsmr, logger::Logger -> logger
+        bare = type_str.removeprefix("esphome::")
+        if "::" in bare:
+            component_ns = bare.split("::", maxsplit=1)[0].rstrip("_")
+        else:
+            component_ns = "esphome"
+        storage_name = f"{component_ns}__{id_.id}__pstorage"
 
         # Declare aligned byte array for the object storage
         CORE.add_global(
