@@ -236,6 +236,21 @@ class ProtoWriteBuffer {
    * Following https://protobuf.dev/programming-guides/encoding/#structure
    */
   void encode_field_raw(uint32_t field_id, uint32_t type) { this->encode_varint_raw((field_id << 3) | type); }
+  /// Write a precomputed tag byte + 32-bit value in one operation.
+  /// Tag must be a single-byte varint (< 128). No zero check.
+  inline void write_tag_and_fixed32(uint8_t tag, uint32_t value) ESPHOME_ALWAYS_INLINE {
+    this->debug_check_bounds_(5);
+    this->pos_[0] = tag;
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    std::memcpy(this->pos_ + 1, &value, 4);
+#else
+    this->pos_[1] = static_cast<uint8_t>(value & 0xFF);
+    this->pos_[2] = static_cast<uint8_t>((value >> 8) & 0xFF);
+    this->pos_[3] = static_cast<uint8_t>((value >> 16) & 0xFF);
+    this->pos_[4] = static_cast<uint8_t>((value >> 24) & 0xFF);
+#endif
+    this->pos_ += 5;
+  }
   void encode_string(uint32_t field_id, const char *string, size_t len, bool force = false) {
     if (len == 0 && !force)
       return;
@@ -276,8 +291,7 @@ class ProtoWriteBuffer {
     this->debug_check_bounds_(1);
     *this->pos_++ = value ? 0x01 : 0x00;
   }
-  // noinline: 51 call sites; inlining causes net code growth vs a single out-of-line copy
-  __attribute__((noinline)) void encode_fixed32(uint32_t field_id, uint32_t value, bool force = false) {
+  void encode_fixed32(uint32_t field_id, uint32_t value, bool force = false) {
     if (value == 0 && !force)
       return;
 
