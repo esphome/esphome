@@ -298,7 +298,7 @@ def substitute(
     strict_undefined: bool,
     errors: ErrList | None = None,
 ) -> Any:
-    """Returns a substituted version of `item`."""
+    """Returns a recursively substituted version of `item`."""
 
     if isinstance(item, ESPLiteralValue):
         return item  # do not substitute inside literal blocks
@@ -308,15 +308,12 @@ def substitute(
 
     result = item
 
-    # If the item is a list, iterate over its elements and substitute recursively
     if isinstance(item, list):
-        result = []
-        for i, it in enumerate(item):
-            result.append(
-                substitute(it, path + [i], context_vars, strict_undefined, errors)
-            )
+        result = [
+            substitute(it, path + [i], context_vars, strict_undefined, errors)
+            for i, it in enumerate(item)
+        ]
 
-    # If the item is a dictionary, substitute keys and values recursively
     elif isinstance(item, dict):
         result = OrderedDict()
         for k, v in item.items():
@@ -324,18 +321,16 @@ def substitute(
             k = substitute(k, path + [k], context_vars, strict_undefined, errors)
             result[k] = merge_config(result.get(k), v)
 
-    # If the item is a string, attempt to expand substitutions
     elif isinstance(item, str):
         result = _expand_substitutions(
             item, path, context_vars, strict_undefined, errors
         )
 
-    # If the item is a special type (Lambda, Extend, Remove) with a value, substitute its value
     elif isinstance(item, (core.Lambda, Extend, Remove)) and item.value:
         value = _expand_substitutions(
             item.value, path, context_vars, strict_undefined, errors
         )
-        if item.value is not value:
+        if item.value != value:
             result = type(item)(value)
 
     if isinstance(item, ESPHomeDataBase):
@@ -369,7 +364,7 @@ def do_substitution_pass(
     Extracts the ``substitutions:`` block, merges in any command-line
     overrides, resolves inter-variable dependencies, then walks the
     config tree replacing all ``$var`` / ``${expr}`` references.
-    Returns the (mutated) config dict with resolved substitutions
+    Returns a new config dict with resolved substitutions
     restored at the front.
     """
     # Extract substitutions from config, overriding with substitutions coming from command line:
