@@ -158,7 +158,11 @@ _IDF6_ETHERNET_COMPONENTS: dict[str, IDFRegistryComponent] = {
     "W5500": IDFRegistryComponent("espressif/w5500", "1.0.1"),
     "DM9051": IDFRegistryComponent("espressif/dm9051", "1.0.0"),
     "ENC28J60": IDFRegistryComponent("espressif/enc28j60", "1.0.1"),
+    "LAN8670": IDFRegistryComponent("espressif/lan867x", "2.0.0"),
 }
+
+# These types are always external IDF components (never built-in to ESP-IDF)
+_ALWAYS_EXTERNAL_IDF_COMPONENTS = {"LAN8670", "ENC28J60"}
 
 SPI_ETHERNET_TYPES = ["W5500", "DM9051", "ENC28J60"]
 # RP2040-supported SPI ethernet types
@@ -549,11 +553,7 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
     # Re-enable ESP-IDF's Ethernet driver (excluded by default to save compile time)
     include_builtin_idf_component("esp_eth")
 
-    if config[CONF_TYPE] == "LAN8670":
-        # Add LAN867x 10BASE-T1S PHY support component
-        add_idf_component(name="espressif/lan867x", ref="2.0.0")
-    elif config[CONF_TYPE] == "ENC28J60":
-        # ENC28J60 is always an external component (never built-in to ESP-IDF)
+    if config[CONF_TYPE] in _ALWAYS_EXTERNAL_IDF_COMPONENTS:
         component = _IDF6_ETHERNET_COMPONENTS[config[CONF_TYPE]]
         add_idf_component(name=component.name, ref=component.version)
     elif idf_version() >= cv.Version(6, 0, 0) and (
