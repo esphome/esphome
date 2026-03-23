@@ -1519,16 +1519,16 @@ void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
       resp.instance = msg.instance;
       resp.type = enums::SERIAL_PROXY_REQUEST_TYPE_FLUSH;
       switch (proxies[msg.instance]->flush_port()) {
-        case uart::FlushResult::SUCCESS:
+        case uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS:
           resp.status = enums::SERIAL_PROXY_STATUS_OK;
           break;
-        case uart::FlushResult::ASSUMED_SUCCESS:
+        case uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS:
           resp.status = enums::SERIAL_PROXY_STATUS_ASSUMED_SUCCESS;
           break;
-        case uart::FlushResult::TIMEOUT:
+        case uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT:
           resp.status = enums::SERIAL_PROXY_STATUS_TIMEOUT;
           break;
-        case uart::FlushResult::FAILED:
+        case uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED:
           resp.status = enums::SERIAL_PROXY_STATUS_ERROR;
           break;
       }
