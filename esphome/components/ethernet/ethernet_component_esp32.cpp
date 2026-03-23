@@ -219,9 +219,7 @@ void EthernetComponent::setup() {
 #endif
 #elif defined(USE_ETHERNET_ENC28J60)
   enc28j60_config.int_gpio_num = this->interrupt_pin_;
-#ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
-  enc28j60_config.poll_period_ms = this->polling_interval_;
-#endif
+  // ENC28J60 does not support poll_period_ms
 #endif
 
   phy_config.phy_addr = this->phy_addr_spi_;
