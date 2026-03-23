@@ -157,6 +157,7 @@ _IDF6_ETHERNET_COMPONENTS: dict[str, IDFRegistryComponent] = {
     "KSZ8081RNA": IDFRegistryComponent("espressif/ksz80xx", "1.0.0"),
     "W5500": IDFRegistryComponent("espressif/w5500", "1.0.1"),
     "DM9051": IDFRegistryComponent("espressif/dm9051", "1.0.0"),
+    "ENC28J60": IDFRegistryComponent("espressif/enc28j60", "1.0.1"),
 }
 
 SPI_ETHERNET_TYPES = ["W5500", "DM9051", "ENC28J60"]
@@ -553,7 +554,8 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
         add_idf_component(name="espressif/lan867x", ref="2.0.0")
     elif config[CONF_TYPE] == "ENC28J60":
         # ENC28J60 is always an external component (never built-in to ESP-IDF)
-        add_idf_component(name="espressif/enc28j60", ref="1.0.1")
+        component = _IDF6_ETHERNET_COMPONENTS[config[CONF_TYPE]]
+        add_idf_component(name=component.name, ref=component.version)
     elif idf_version() >= cv.Version(6, 0, 0) and (
         # IDF 6.0 moved per-chip PHY/MAC drivers to the Espressif Component Registry
         component := _IDF6_ETHERNET_COMPONENTS.get(config[CONF_TYPE])
