@@ -668,18 +668,18 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   // nearby APs, not do a thorough survey. This also reduces off-channel time
   // which can cause Beacon Timeout disconnects on some APs.
   // Roaming times match the ESP32 IDF scan defaults.
-  static constexpr uint32_t SCAN_PASSIVE_DEFAULT = 500;
-  static constexpr uint32_t SCAN_PASSIVE_ROAMING = 300;
-  static constexpr uint32_t SCAN_ACTIVE_MIN_DEFAULT = 400;
-  static constexpr uint32_t SCAN_ACTIVE_MAX_DEFAULT = 500;
-  static constexpr uint32_t SCAN_ACTIVE_MIN_ROAMING = 100;
-  static constexpr uint32_t SCAN_ACTIVE_MAX_ROAMING = 300;
+  static constexpr uint32_t SCAN_PASSIVE_DEFAULT_MS = 500;
+  static constexpr uint32_t SCAN_PASSIVE_ROAMING_MS = 300;
+  static constexpr uint32_t SCAN_ACTIVE_MIN_DEFAULT_MS = 400;
+  static constexpr uint32_t SCAN_ACTIVE_MAX_DEFAULT_MS = 500;
+  static constexpr uint32_t SCAN_ACTIVE_MIN_ROAMING_MS = 100;
+  static constexpr uint32_t SCAN_ACTIVE_MAX_ROAMING_MS = 300;
   bool roaming = this->roaming_state_ == RoamingState::SCANNING;
   if (passive) {
-    config.scan_time.passive = roaming ? SCAN_PASSIVE_ROAMING : SCAN_PASSIVE_DEFAULT;
+    config.scan_time.passive = roaming ? SCAN_PASSIVE_ROAMING_MS : SCAN_PASSIVE_DEFAULT_MS;
   } else {
-    config.scan_time.active.min = roaming ? SCAN_ACTIVE_MIN_ROAMING : SCAN_ACTIVE_MIN_DEFAULT;
-    config.scan_time.active.max = roaming ? SCAN_ACTIVE_MAX_ROAMING : SCAN_ACTIVE_MAX_DEFAULT;
+    config.scan_time.active.min = roaming ? SCAN_ACTIVE_MIN_ROAMING_MS : SCAN_ACTIVE_MIN_DEFAULT_MS;
+    config.scan_time.active.max = roaming ? SCAN_ACTIVE_MAX_ROAMING_MS : SCAN_ACTIVE_MAX_DEFAULT_MS;
   }
 #endif
   bool ret = wifi_station_scan(&config, &WiFiComponent::s_wifi_scan_done_callback);
