@@ -348,9 +348,8 @@ template<typename T> class StatefulEntityBase : public EntityBase {
     if (new_state.has_value()) {
       if (had_state && this->get_state() == new_state.value())
         return false;  // same value, no change
-    } else {
-      if (!had_state)
-        return false;  // already invalidated, no change
+    } else if (!had_state) {
+      return false;  // already invalidated, no change
     }
     // State changed — capture old state, then update storage before firing callbacks
     // so callback code can inspect the entity's current state via get_state()/has_state()
