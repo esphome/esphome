@@ -82,12 +82,14 @@ async def test_register_component__with_setup_priority(monkeypatch):
     assert core_mock.component_ids == []
 
 
-def test_register_component_source_empty_name(monkeypatch):
+def test_register_component_source_empty_name(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ch, "CORE", Mock(data={}))
     assert register_component_source("") == 0
 
 
-def test_register_component_source_deduplicates(monkeypatch):
+def test_register_component_source_deduplicates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(ch, "CORE", Mock(data={}))
     idx1 = register_component_source("wifi")
     idx2 = register_component_source("api")
@@ -97,13 +99,13 @@ def test_register_component_source_deduplicates(monkeypatch):
     assert idx3 == 1  # deduplicated
 
 
-def test_generate_source_table_code_empty():
+def test_generate_source_table_code_empty() -> None:
     from esphome.cpp_helpers import _generate_source_table_code
 
     assert _generate_source_table_code("TBL", "lookup", {}) == ""
 
 
-def test_generate_source_table_code_non_empty():
+def test_generate_source_table_code_non_empty() -> None:
     from esphome.cpp_helpers import _generate_source_table_code
 
     code = _generate_source_table_code("TBL", "lookup", {"wifi": 1, "api": 2})
@@ -117,7 +119,9 @@ def test_generate_source_table_code_non_empty():
 
 
 @pytest.mark.asyncio
-async def test_generate_component_source_table_empty_pool(monkeypatch):
+async def test_generate_component_source_table_empty_pool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Test that _generate_component_source_table does nothing with an empty pool."""
     from esphome.cpp_helpers import _generate_component_source_table
 
@@ -128,7 +132,9 @@ async def test_generate_component_source_table_empty_pool(monkeypatch):
     add_global_mock.assert_not_called()
 
 
-def test_register_component_source_overflow_warns(monkeypatch, caplog):
+def test_register_component_source_overflow_warns(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
     # Pre-fill pool to max
     pool = ComponentSourcePool(
         sources={f"comp_{i}": i + 1 for i in range(0xFF)},
