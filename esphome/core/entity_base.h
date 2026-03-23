@@ -352,15 +352,16 @@ template<typename T> class StatefulEntityBase : public EntityBase {
       if (!had_state)
         return false;  // already invalidated, no change
     }
-    // State changed — construct optionals only for callbacks that need them
+    // State changed — capture old state, then update storage before firing callbacks
+    // so callback code can inspect the entity's current state via get_state()/has_state()
     optional<T> old_state = had_state ? optional<T>(this->get_state()) : nullopt;
-    this->full_state_callbacks_.call(old_state, new_state);
     this->set_has_state(new_state.has_value());
     if (new_state.has_value()) {
       this->set_state_value_(new_state.value());
-      if (this->get_trigger_on_initial_state() || had_state)
-        this->state_callbacks_.call(new_state.value());
     }
+    this->full_state_callbacks_.call(old_state, new_state);
+    if (new_state.has_value() && (this->get_trigger_on_initial_state() || had_state))
+      this->state_callbacks_.call(new_state.value());
     return true;
   }
   /// Subclasses implement this to store the actual value into their own storage.
