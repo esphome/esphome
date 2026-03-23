@@ -87,24 +87,30 @@ template<typename... Ts> class ValveIsClosedCondition : public Condition<Ts...> 
 
 class ValveOpenTrigger : public Trigger<> {
  public:
-  ValveOpenTrigger(Valve *a_valve) {
-    a_valve->add_on_state_callback([this, a_valve]() {
-      if (a_valve->is_fully_open()) {
+  ValveOpenTrigger(Valve *a_valve) : valve_(a_valve) {
+    a_valve->add_on_state_callback([this]() {
+      if (this->valve_->is_fully_open()) {
         this->trigger();
       }
     });
   }
+
+ protected:
+  Valve *valve_;
 };
 
 class ValveClosedTrigger : public Trigger<> {
  public:
-  ValveClosedTrigger(Valve *a_valve) {
-    a_valve->add_on_state_callback([this, a_valve]() {
-      if (a_valve->is_fully_closed()) {
+  ValveClosedTrigger(Valve *a_valve) : valve_(a_valve) {
+    a_valve->add_on_state_callback([this]() {
+      if (this->valve_->is_fully_closed()) {
         this->trigger();
       }
     });
   }
+
+ protected:
+  Valve *valve_;
 };
 
 }  // namespace valve

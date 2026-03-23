@@ -322,7 +322,9 @@ template<typename... Ts> class Automation;
 template<typename... Ts> class Trigger {
  public:
   /// Inform the parent automation that the event has triggered.
-  void trigger(const Ts &...x) {
+  // Force-inline: collapses the Trigger→Automation→ActionList forwarding
+  // chain into a single frame, reducing automation call stack depth.
+  inline void trigger(const Ts &...x) ESPHOME_ALWAYS_INLINE {
     if (this->automation_parent_ == nullptr)
       return;
     this->automation_parent_->trigger(x...);
@@ -429,7 +431,9 @@ template<typename... Ts> class ActionList {
       this->add_action(action);
     }
   }
-  void play(const Ts &...x) {
+  // Force-inline: part of the Trigger→Automation→ActionList forwarding
+  // chain collapsed to reduce automation call stack depth.
+  inline void play(const Ts &...x) ESPHOME_ALWAYS_INLINE {
     if (this->actions_begin_ != nullptr)
       this->actions_begin_->play_complex(x...);
   }
@@ -473,7 +477,9 @@ template<typename... Ts> class Automation {
 
   void stop() { this->actions_.stop(); }
 
-  void trigger(const Ts &...x) { this->actions_.play(x...); }
+  // Force-inline: part of the Trigger→Automation→ActionList forwarding
+  // chain collapsed to reduce automation call stack depth.
+  inline void trigger(const Ts &...x) ESPHOME_ALWAYS_INLINE { this->actions_.play(x...); }
 
   bool is_running() { return this->actions_.is_running(); }
 

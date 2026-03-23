@@ -1,15 +1,9 @@
-import sys
-
 from esphome import automation, codegen as cg
-from esphome.automation import register_action
-from esphome.config_validation import Schema
-from esphome.const import CONF_MAX_VALUE, CONF_MIN_VALUE, CONF_TEXT, CONF_VALUE
-from esphome.core import EsphomeError
-from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.const import CONF_TEXT, CONF_VALUE
+from esphome.cpp_generator import MockObj
 from esphome.cpp_types import esphome_ns
 
 from .defines import lvgl_ns
-from .lvcode import lv_expr
 
 
 class LvType(cg.MockObjClass):
@@ -25,6 +19,10 @@ class LvType(cg.MockObjClass):
         if len(self.args) == 0:
             return None
         return [arg[0] for arg in self.args]
+
+    @property
+    def name(self):
+        return self.base.removeprefix("lv_").removesuffix("_t")
 
 
 class LvNumber(LvType):
@@ -63,6 +61,7 @@ lv_obj_base_t = cg.global_ns.class_("lv_obj_t", lv_pseudo_button_t)
 lv_obj_t_ptr = lv_obj_base_t.operator("ptr")
 lv_disp_t = cg.global_ns.struct("lv_disp_t")
 lv_color_t = cg.global_ns.struct("lv_color_t")
+lv_opa_t = cg.global_ns.struct("lv_opa_t")
 lv_group_t = cg.global_ns.struct("lv_group_t")
 LVTouchListener = lvgl_ns.class_("LVTouchListener")
 LVEncoderListener = lvgl_ns.class_("LVEncoderListener")
@@ -70,10 +69,11 @@ lv_obj_t = LvType("lv_obj_t")
 lv_page_t = LvType("LvPageType", parents=(LvCompound,))
 lv_img_t = LvType("lv_img_t")
 lv_gradient_t = LvType("lv_grad_dsc_t")
+lv_event_t = LvType("lv_event_t")
 
 LV_EVENT = MockObj(base="LV_EVENT_", op="")
 LV_STATE = MockObj(base="LV_STATE_", op="")
-LV_BTNMATRIX_CTRL = MockObj(base="LV_BTNMATRIX_CTRL_", op="")
+LV_BTNMATRIX_CTRL = MockObj(base="LV_BUTTONMATRIX_CTRL_", op="")
 
 
 class LvText(LvType):
@@ -93,7 +93,7 @@ class LvBoolean(LvType):
         super().__init__(
             *args,
             largs=[(cg.bool_, "x")],
-            lvalue=lambda w: w.is_checked(),
+            lvalue=lambda w: w.has_state(LV_STATE.CHECKED),
             has_on_value=True,
             **kwargs,
         )
@@ -110,137 +110,3 @@ class LvSelect(LvType):
             parents=parens,
             **kwargs,
         )
-
-
-class WidgetType:
-    """
-    Describes a type of Widget, e.g. "bar" or "line"
-    """
-
-    def __init__(
-        self,
-        name: str,
-        w_type: LvType,
-        parts: tuple,
-        schema=None,
-        modify_schema=None,
-        lv_name=None,
-        is_mock: bool = False,
-    ):
-        """
-        :param name: The widget name, e.g. "bar"
-        :param w_type: The C type of the widget
-        :param parts: What parts this widget supports
-        :param schema: The config schema for defining a widget
-        :param modify_schema: A schema to update the widget, defaults to the same as the schema
-        :param lv_name: The name of the LVGL widget in the LVGL library, if different from the name
-        :param is_mock: Whether this widget is a mock widget, i.e. not a real LVGL widget
-        """
-        self.name = name
-        self.lv_name = lv_name or name
-        self.w_type = w_type
-        self.parts = parts
-        if not isinstance(schema, Schema):
-            schema = Schema(schema or {})
-        self.schema = schema
-        if modify_schema is None:
-            modify_schema = schema
-        if not isinstance(modify_schema, Schema):
-            modify_schema = Schema(modify_schema)
-        self.modify_schema = modify_schema
-        self.mock_obj = MockObj(f"lv_{self.lv_name}", "_")
-
-        # Local import to avoid circular import
-        from .automation import update_to_code
-        from .schemas import WIDGET_TYPES, base_update_schema
-
-        if not is_mock:
-            if self.name in WIDGET_TYPES:
-                raise EsphomeError(f"Duplicate definition of widget type '{self.name}'")
-            WIDGET_TYPES[self.name] = self
-
-            # Register the update action automatically, adding widget-specific properties
-            register_action(
-                f"lvgl.{self.name}.update",
-                ObjUpdateAction,
-                base_update_schema(self, self.parts).extend(self.modify_schema),
-                synchronous=True,
-            )(update_to_code)
-
-    @property
-    def animated(self):
-        return False
-
-    @property
-    def required_component(self):
-        return None
-
-    def is_compound(self):
-        return self.w_type.inherits_from(LvCompound)
-
-    async def to_code(self, w, config: dict):
-        """
-        Generate code for a given widget
-        :param w: The widget
-        :param config: Its configuration
-        """
-
-    async def obj_creator(self, parent: MockObjClass, config: dict):
-        """
-        Create an instance of the widget type
-        :param parent: The parent to which it should be attached
-        :param config:  Its configuration
-        :return: Generated code as a single text line
-        """
-        return lv_expr.call(f"{self.lv_name}_create", parent)
-
-    def on_create(self, var: MockObj, config: dict):
-        """
-        Called from to_code when the widget is created, to set up any initial properties
-        :param var: The variable representing the widget
-        :param config: Its configuration
-        """
-
-    def get_uses(self):
-        """
-        Get a list of other widgets used by this one
-        :return:
-        """
-        return ()
-
-    def get_max(self, config: dict):
-        return sys.maxsize
-
-    def get_min(self, config: dict):
-        return -sys.maxsize
-
-    def get_step(self, config: dict):
-        return 1
-
-    def get_scale(self, config: dict):
-        return 1.0
-
-    def validate(self, value):
-        """
-        Provides an opportunity for custom validation for a given widget type
-        :param value:
-        :return:
-        """
-        return value
-
-    def final_validate(self, widget, update_config, widget_config, path):
-        """
-        Allow final validation for a given widget type update action
-        :param widget: A widget
-        :param update_config: The configuration for the update action
-        :param widget_config: The configuration for the widget itself
-        :param path: The path to the widget, for error reporting
-        """
-
-
-class NumberType(WidgetType):
-    def get_max(self, config: dict):
-        return int(config.get(CONF_MAX_VALUE, 100))
-
-    def get_min(self, config: dict):
-        return int(config.get(CONF_MIN_VALUE, 0))
