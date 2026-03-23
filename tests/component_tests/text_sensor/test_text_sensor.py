@@ -13,7 +13,8 @@ def test_text_sensor_is_setup(generate_main):
     main_cpp = generate_main("tests/component_tests/text_sensor/test_text_sensor.yaml")
 
     # Then
-    assert "new template_::TemplateTextSensor();" in main_cpp
+    assert "static template_::TemplateTextSensor *const" in main_cpp
+    assert ") template_::TemplateTextSensor();" in main_cpp
     assert "App.register_text_sensor" in main_cpp
 
 
