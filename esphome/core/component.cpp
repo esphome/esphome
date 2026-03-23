@@ -275,8 +275,7 @@ void Component::call() {
   }
 }
 const LogString *Component::get_component_log_str() const {
-  return this->component_source_index_ == 0 ? LOG_STR("<unknown>")
-                                            : component_source_lookup(this->component_source_index_);
+  return component_source_lookup(this->component_source_index_);
 }
 bool Component::should_warn_of_blocking(uint32_t blocking_time) {
   // Convert centisecond threshold to milliseconds for comparison
