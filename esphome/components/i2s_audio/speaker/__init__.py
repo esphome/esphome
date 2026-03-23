@@ -26,7 +26,6 @@ from .. import (
     i2s_audio_component_schema,
     i2s_audio_ns,
     register_i2s_audio_component,
-    use_legacy,
     validate_mclk_divisible_by_3,
 )
 
@@ -166,13 +165,12 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _final_validate(config):
-    if not use_legacy():
-        if config[CONF_DAC_TYPE] == "internal":
-            raise cv.Invalid("Internal DAC is only compatible with legacy i2s driver")
-        if config[CONF_I2S_COMM_FMT] == "stand_max":
-            raise cv.Invalid(
-                "I2S standard max format only implemented with legacy i2s driver."
-            )
+    if config[CONF_DAC_TYPE] == "internal":
+        raise cv.Invalid(
+            "Internal DAC is no longer supported. Use an external I2S DAC instead."
+        )
+    if config[CONF_I2S_COMM_FMT] == "stand_max":
+        raise cv.Invalid("I2S standard max format is no longer supported.")
 
 
 FINAL_VALIDATE_SCHEMA = _final_validate
@@ -184,21 +182,13 @@ async def to_code(config):
     await register_i2s_audio_component(var, config)
     await speaker.register_speaker(var, config)
 
-    if config[CONF_DAC_TYPE] == "internal":
-        cg.add(var.set_internal_dac_mode(config[CONF_MODE]))
-    else:
-        cg.add(var.set_dout_pin(config[CONF_I2S_DOUT_PIN]))
-        if use_legacy():
-            cg.add(
-                var.set_i2s_comm_fmt(I2C_COMM_FMT_OPTIONS[config[CONF_I2S_COMM_FMT]])
-            )
-        else:
-            fmt = "std"  # equals stand_i2s, stand_pcm_long, i2s_msb, pcm_long
-            if config[CONF_I2S_COMM_FMT] in ["stand_msb", "i2s_lsb"]:
-                fmt = "msb"
-            elif config[CONF_I2S_COMM_FMT] in ["stand_pcm_short", "pcm_short", "pcm"]:
-                fmt = "pcm"
-            cg.add(var.set_i2s_comm_fmt(fmt))
+    cg.add(var.set_dout_pin(config[CONF_I2S_DOUT_PIN]))
+    fmt = "std"  # equals stand_i2s, stand_pcm_long, i2s_msb, pcm_long
+    if config[CONF_I2S_COMM_FMT] in ["stand_msb", "i2s_lsb"]:
+        fmt = "msb"
+    elif config[CONF_I2S_COMM_FMT] in ["stand_pcm_short", "pcm_short", "pcm"]:
+        fmt = "pcm"
+    cg.add(var.set_i2s_comm_fmt(fmt))
     if config[CONF_TIMEOUT] != CONF_NEVER:
         cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add(var.set_buffer_duration(config[CONF_BUFFER_DURATION]))

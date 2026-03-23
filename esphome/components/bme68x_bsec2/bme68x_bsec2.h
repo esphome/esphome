@@ -116,6 +116,8 @@ class BME68xBSEC2Component : public Component {
   int8_t bme68x_status_{BME68X_OK};
 
   int64_t last_time_ms_{0};
+  int64_t trigger_time_ns_{0};  // Stored for set_timeout lambda to help avoid heap allocation on supported 32-bit
+                                // toolchains with small std::function SBO
   uint32_t millis_overflow_counter_{0};
 
   std::queue<std::function<void()>> queue_;
