@@ -41,7 +41,9 @@ def validate_substitution_key(value: Any) -> str:
     for char in value:
         if char not in VALID_SUBSTITUTIONS_CHARACTERS:
             raise cv.Invalid(
-                f"Substitution must only consist of upper/lowercase characters, the underscore and numbers. The character '{char}' cannot be used"
+                f"Substitution must only consist of upper/lowercase characters,"
+                f" the underscore and numbers."
+                f" The character '{char}' cannot be used"
             )
     return value
 
