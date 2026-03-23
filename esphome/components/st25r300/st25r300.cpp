@@ -83,6 +83,7 @@ void ST25R300::update() {
   this->read_register(ST25R300_REG_IRQ_STATUS1);
   this->read_register(ST25R300_REG_IRQ_STATUS2);
   this->read_register(ST25R300_REG_IRQ_STATUS3);
+  this->read_register(ST25R300_REG_IRQ_STATUS3);
   this->write_command(ST25R300_CMD_CLEAR_FIFO);
   this->write_command(ST25R300_CMD_CLEAR_RX_GAIN);
 
@@ -132,6 +133,7 @@ void ST25R300::loop() {
     this->irq_triggered_ = false;
     uint8_t r1 = this->read_register(ST25R300_REG_IRQ_STATUS1);
     uint8_t r2 = this->read_register(ST25R300_REG_IRQ_STATUS2);
+  this->read_register(ST25R300_REG_IRQ_STATUS3);
     this->irq_status1_ |= r1;
     this->irq_status2_ |= r2;
     this->read_register(ST25R300_REG_IRQ_STATUS3);  // Clear IRQ3 (DCT/OSC) to release IRQ pin
@@ -139,6 +141,7 @@ void ST25R300::loop() {
   } else if (this->state_ == STATE_WUPA || this->state_ == STATE_ANTICOL) {
     this->irq_status1_ |= this->read_register(ST25R300_REG_IRQ_STATUS1);
     this->irq_status2_ |= this->read_register(ST25R300_REG_IRQ_STATUS2);
+  this->read_register(ST25R300_REG_IRQ_STATUS3);
     this->read_register(ST25R300_REG_IRQ_STATUS3);  // Clear IRQ3
     if (this->irq_status1_ != 0 || this->irq_status2_ != 0) {
       ESP_LOGV(TAG, "IRQ polled, IRQ1=0x%02X IRQ2=0x%02X state=%d",
@@ -174,6 +177,7 @@ bool ST25R300::send_short_frame_(uint8_t byte7, uint8_t * /*resp*/, uint8_t &res
   this->read_register(ST25R300_REG_IRQ_STATUS1);
   this->read_register(ST25R300_REG_IRQ_STATUS2);
   this->read_register(ST25R300_REG_IRQ_STATUS3);
+  this->read_register(ST25R300_REG_IRQ_STATUS3);
   this->write_command(ST25R300_CMD_CLEAR_RX_GAIN);
   this->irq_triggered_ = false;
 
@@ -189,6 +193,7 @@ bool ST25R300::send_short_frame_(uint8_t byte7, uint8_t * /*resp*/, uint8_t &res
   delayMicroseconds(700);
   this->irq_status1_ |= this->read_register(ST25R300_REG_IRQ_STATUS1);
   this->irq_status2_ |= this->read_register(ST25R300_REG_IRQ_STATUS2);
+  this->read_register(ST25R300_REG_IRQ_STATUS3);
   ESP_LOGV(TAG, "ssf @700us: FIFO=%u IRQ1=0x%02X IRQ2=0x%02X",
            this->read_register(ST25R300_REG_FIFO_STATUS1), this->irq_status1_, this->irq_status2_);
 
@@ -196,6 +201,7 @@ bool ST25R300::send_short_frame_(uint8_t byte7, uint8_t * /*resp*/, uint8_t &res
   delay(10);
   this->irq_status1_ |= this->read_register(ST25R300_REG_IRQ_STATUS1);
   this->irq_status2_ |= this->read_register(ST25R300_REG_IRQ_STATUS2);
+  this->read_register(ST25R300_REG_IRQ_STATUS3);
   resp_len = 0;
   return true;
 }
@@ -217,6 +223,7 @@ bool ST25R300::transceive_ex(const uint8_t *data, size_t len, uint8_t *resp, uin
   this->write_command(ST25R300_CMD_CLEAR_RX_GAIN);
   this->read_register(ST25R300_REG_IRQ_STATUS1);
   this->read_register(ST25R300_REG_IRQ_STATUS2);
+  this->read_register(ST25R300_REG_IRQ_STATUS3);
   this->read_register(ST25R300_REG_IRQ_STATUS3);
 
   this->write_register(ST25R300_REG_TX_FRAME1, (uint8_t)((len >> 5) & 0xFF));
@@ -247,6 +254,7 @@ bool ST25R300::transceive_ex(const uint8_t *data, size_t len, uint8_t *resp, uin
     this->irq_triggered_ = false;
     uint8_t irq1 = this->read_register(ST25R300_REG_IRQ_STATUS1);
     uint8_t irq2 = this->read_register(ST25R300_REG_IRQ_STATUS2);
+  this->read_register(ST25R300_REG_IRQ_STATUS3);
 
     if (irq1 & ST25R300_IRQ1_TXE) tx_done = true;
 
@@ -372,6 +380,7 @@ void ST25R300::send_halt() {
   this->read_register(ST25R300_REG_IRQ_STATUS1);
   this->read_register(ST25R300_REG_IRQ_STATUS2);
   this->read_register(ST25R300_REG_IRQ_STATUS3);
+  this->read_register(ST25R300_REG_IRQ_STATUS3);
   // TX_FRAME must be written before FIFO data (per datasheet)
   this->write_register(ST25R300_REG_TX_FRAME1, 0x00);
   this->write_register(ST25R300_REG_TX_FRAME2, 0x10);  // 2 full bytes
@@ -387,6 +396,7 @@ void ST25R300::start_wupa() {
   this->write_command(ST25R300_CMD_CLEAR_FIFO);
   this->read_register(ST25R300_REG_IRQ_STATUS1);
   this->read_register(ST25R300_REG_IRQ_STATUS2);
+  this->read_register(ST25R300_REG_IRQ_STATUS3);
   this->read_register(ST25R300_REG_IRQ_STATUS3);
   this->irq_triggered_ = false;
   this->irq_status1_ = 0;
@@ -428,6 +438,7 @@ void ST25R300::send_anticol_frame() {
   this->write_command(ST25R300_CMD_CLEAR_FIFO);
   this->read_register(ST25R300_REG_IRQ_STATUS1);
   this->read_register(ST25R300_REG_IRQ_STATUS2);
+  this->read_register(ST25R300_REG_IRQ_STATUS3);
   this->read_register(ST25R300_REG_IRQ_STATUS3);
   this->write_command(ST25R300_CMD_CLEAR_RX_GAIN);
   this->irq_triggered_ = false;
@@ -636,6 +647,7 @@ bool ST25R300::transceive_blocking_(const uint8_t *data, size_t len, uint8_t *re
 
   this->read_register(ST25R300_REG_IRQ_STATUS1);
   this->read_register(ST25R300_REG_IRQ_STATUS2);
+  this->read_register(ST25R300_REG_IRQ_STATUS3);
   this->irq_triggered_ = false;
   this->write_command(ST25R300_CMD_TRANSMIT_DATA);
 
@@ -648,6 +660,7 @@ bool ST25R300::transceive_blocking_(const uint8_t *data, size_t len, uint8_t *re
     // Always poll IRQ registers (ISR may not fire if pin not configured or edge missed)
     uint8_t r1 = this->read_register(ST25R300_REG_IRQ_STATUS1);
     uint8_t r2 = this->read_register(ST25R300_REG_IRQ_STATUS2);
+  this->read_register(ST25R300_REG_IRQ_STATUS3);
     if (r1 & ST25R300_IRQ1_RXE) {
       uint8_t fifo_len = this->read_register(ST25R300_REG_FIFO_STATUS1);
       if (fifo_len > 0 && fifo_len <= 64) {
