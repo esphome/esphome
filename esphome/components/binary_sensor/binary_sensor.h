@@ -57,7 +57,8 @@ class BinarySensor : public StatefulEntityBase<bool> {
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
-  void send_state_internal(bool new_state) { this->set_new_state(new_state); }
+  /// Defined in .cpp to avoid inlining set_new_state template code at every call site.
+  void send_state_internal(bool new_state);
 
   /// Return whether this binary sensor has outputted a state.
   virtual bool is_status_binary_sensor() const;

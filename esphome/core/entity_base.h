@@ -320,7 +320,8 @@ template<typename T> class StatefulEntityBase : public EntityBase {
   /// Return the current state if available, otherwise return the provided default.
   T get_state_default(T default_value) const { return this->has_state() ? this->get_state() : default_value; }
   /// Clear the state — sets has_state() to false and fires callbacks with nullopt.
-  void invalidate_state() { this->set_new_state({}); }
+  /// Defined out-of-line in subclass .cpp to avoid inlining set_new_state template code at every call site.
+  void invalidate_state();
 
   template<typename F> void add_full_state_callback(F &&callback) {
     this->full_state_callbacks_.add(std::forward<F>(callback));
