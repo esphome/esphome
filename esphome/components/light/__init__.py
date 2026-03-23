@@ -128,6 +128,27 @@ def _get_or_create_gamma_table(gamma_correct):
     return fwd_arr
 
 
+def find_effect_index(effects: list, effect_name: str) -> int | None:
+    """Find the 1-based index of an effect by name (case-insensitive).
+
+    Returns the 1-based index if found, or None if not found.
+    """
+    effect_name_lower = effect_name.lower()
+    for i, effect_conf in enumerate(effects):
+        key = next(iter(effect_conf))
+        if effect_conf[key][CONF_NAME].lower() == effect_name_lower:
+            return i + 1
+    return None
+
+
+def available_effects_str(effects: list) -> str:
+    """Return a comma-separated string of available effect names."""
+    available = [
+        effect_conf[next(iter(effect_conf))][CONF_NAME] for effect_conf in effects
+    ]
+    return ", ".join(f"'{name}'" for name in available) if available else "none"
+
+
 def _final_validate(config: ConfigType) -> ConfigType:
     """Validate all recorded effect name references against their target lights."""
     data = _get_data()
@@ -145,26 +166,12 @@ def _final_validate(config: ConfigType) -> ConfigType:
             continue
 
         effects = light_config.get(CONF_EFFECTS, [])
-        effect_name_lower = ref.effect_name.lower()
 
-        found = False
-        for effect_conf in effects:
-            key = next(iter(effect_conf))
-            if effect_conf[key][CONF_NAME].lower() == effect_name_lower:
-                found = True
-                break
-
-        if not found:
-            available = [
-                effect_conf[next(iter(effect_conf))][CONF_NAME]
-                for effect_conf in effects
-            ]
-            available_str = (
-                ", ".join(f"'{name}'" for name in available) if available else "none"
-            )
+        if find_effect_index(effects, ref.effect_name) is None:
             raise cv.FinalExternalInvalid(
                 f"Effect '{ref.effect_name}' not found for light "
-                f"'{ref.light_id}'. Available effects: {available_str}",
+                f"'{ref.light_id}'. "
+                f"Available effects: {available_effects_str(effects)}",
                 path=[cv.ROOT_CONFIG_PATH] + ref.component_path,
             )
 

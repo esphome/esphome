@@ -18,7 +18,6 @@ from esphome.const import (
     CONF_LIMIT_MODE,
     CONF_MAX_BRIGHTNESS,
     CONF_MIN_BRIGHTNESS,
-    CONF_NAME,
     CONF_RANGE_FROM,
     CONF_RANGE_TO,
     CONF_RED,
@@ -148,29 +147,23 @@ def _resolve_effect_index(config: ConfigType) -> int:
     Effect index 0 means "None" (no effect). Effects are 1-indexed matching
     the C++ convention in LightState.
     """
+    from . import available_effects_str, find_effect_index
+
     original_name = config[CONF_EFFECT]
-    effect_name = original_name.lower()
-    if effect_name == "none":
+    if original_name.lower() == "none":
         return 0
     light_id = config[CONF_ID]
     light_path = CORE.config.get_path_for_id(light_id)[:-1]
     light_config = CORE.config.get_config_for_path(light_path)
     effects = light_config.get(CONF_EFFECTS, [])
-    for i, effect_conf in enumerate(effects):
-        key = next(iter(effect_conf))
-        if effect_conf[key][CONF_NAME].lower() == effect_name:
-            return i + 1
-    available = [
-        effect_conf[next(iter(effect_conf))][CONF_NAME] for effect_conf in effects
-    ]
-    available_str = (
-        ", ".join(f"'{name}'" for name in available) if available else "none"
-    )
+    index = find_effect_index(effects, original_name)
+    if index is not None:
+        return index
     # Should never reach here — effect names are validated during config
     # validation in FINAL_VALIDATE_SCHEMA. This is a safety net.
     raise EsphomeError(
         f"Effect '{original_name}' not found for light '{light_id}'. "
-        f"Available effects: {available_str}"
+        f"Available effects: {available_effects_str(effects)}"
     )
 
 
