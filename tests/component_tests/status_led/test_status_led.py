@@ -13,11 +13,11 @@ def test_status_led_generation(
     """Test status_led generation."""
     main_cpp = generate_main(component_config_path("status_led_test.yaml"))
     assert (
-        "alignas(status_led::StatusLED) static unsigned char status_led_statusled_id__pstorage[sizeof(status_led::StatusLED)];"
+        "alignas(status_led::StatusLED) static unsigned char status_led__status_led_statusled_id__pstorage[sizeof(status_led::StatusLED)];"
         in main_cpp
     )
     assert (
-        "static status_led::StatusLED *const status_led_statusled_id = reinterpret_cast<status_led::StatusLED *>(status_led_statusled_id__pstorage);"
+        "static status_led::StatusLED *const status_led_statusled_id = reinterpret_cast<status_led::StatusLED *>(status_led__status_led_statusled_id__pstorage);"
         in main_cpp
     )
     assert "new(status_led_statusled_id) status_led::StatusLED(" in main_cpp
