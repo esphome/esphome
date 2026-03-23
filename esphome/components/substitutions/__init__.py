@@ -75,6 +75,12 @@ def _restore_data_base(value: Any, orig_value: ESPHomeDataBase) -> ESPHomeDataBa
     return value
 
 
+def _try_substitute(value: Any, context: ContextVars) -> Any:
+    """Substitute variables in value, returning the result or the original if unchanged."""
+    result = _substitute_item(value, [], context, strict_undefined=True)
+    return result if result is not None else value
+
+
 def _resolve_var(name: str, context_vars: ContextVars) -> Any:
     """Look up a substitution variable, falling back to the resolver callback."""
     sub = context_vars.get(name, Missing)
@@ -190,18 +196,15 @@ def _push_context(
     resolver_context = context_vars.new_child()
 
     def resolve(key: str) -> Any:
-        """Resolves the given variable, recursively resolving dependencies as needed."""
+        """Resolve a variable, recursively resolving any dependencies it references."""
         value = unresolved_vars.pop(key, Missing)
         if value is Missing:
             return Missing
         try:
-            result = _substitute_item(value, [], resolver_context, True)
-            if result is not None:
-                value = result
+            value = _try_substitute(value, resolver_context)
         except UndefinedError:
             unresolvables[key] = value
             return Missing
-
         resolved_vars[key] = value
         return value
 
