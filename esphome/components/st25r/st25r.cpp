@@ -1358,15 +1358,15 @@ bool ST25R::isodep_transceive_(const uint8_t *apdu, size_t apdu_len, uint8_t *re
     return false;
   }
 
-  // Toggle block number for next exchange
-  this->isodep_block_number_ ^= 1;
-
   // Strip PCB octet, check for I-Block response
   if ((raw_resp[0] & 0xC0) != 0x00) {
-    // Not an I-Block — might be R-Block or S-Block
+    // Not an I-Block — might be R-Block or S-Block; don't toggle block number
     ESP_LOGD(TAG, "ISO-DEP: non-I-Block response PCB=0x%02X", raw_resp[0]);
     return false;
   }
+
+  // Valid I-Block received — toggle block number for next exchange
+  this->isodep_block_number_ ^= 1;
 
   // Response: [PCB][data...][SW1][SW2]  (CRC already stripped by transceive_)
   resp_len = raw_len - 1;  // strip PCB

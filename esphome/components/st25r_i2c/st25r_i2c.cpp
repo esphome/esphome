@@ -1,4 +1,5 @@
 #include "st25r_i2c.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include <cstring>
 
