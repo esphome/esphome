@@ -125,10 +125,9 @@ async def _generate_component_source_table() -> None:
     Runs after all component to_code() calls have registered their sources.
     """
     pool = _get_source_pool()
-    code = _generate_source_table_code(
+    if code := _generate_source_table_code(
         "COMP_SRC_TABLE", "component_source_lookup", pool.sources
-    )
-    if code:
+    ):
         add_global(
             RawStatement(f"namespace esphome {{\n{code}}}  // namespace esphome")
         )
