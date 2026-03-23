@@ -22,6 +22,8 @@ _ESP_32_ESP32_S3R8_PSRAM_PINS = {
     37: "SPIDQS",
 }
 
+_ESP_32S3_USB_JTAG_PINS = {19, 20}
+
 _ESP_32S3_STRAPPING_PINS = {0, 3, 45, 46}
 
 _LOGGER = logging.getLogger(__name__)
@@ -45,6 +47,12 @@ def esp32_s3_validate_gpio_pin(value):
         # These pins are not exposed in GPIO mux (reason unknown)
         # but they're missing from IO_MUX list in datasheet
         raise cv.Invalid(f"The pin GPIO{value} is not usable on ESP32-S3s.")
+    if value in _ESP_32S3_USB_JTAG_PINS:
+        _LOGGER.warning(
+            "GPIO%d is reserved for the USB-Serial-JTAG interface.\n"
+            "To use this pin as GPIO, USB-Serial-JTAG will be disabled.",
+            value,
+        )
 
     return value
 

@@ -8,7 +8,7 @@ _ESP32H2_SPI_FLASH_PINS = {6, 7, 15, 16, 17, 18, 19, 20, 21}
 
 _ESP32H2_USB_JTAG_PINS = {26, 27}
 
-_ESP32H2_STRAPPING_PINS = {2, 3, 8, 9, 25}
+_ESP32H2_STRAPPING_PINS = {8, 9, 25}
 
 _LOGGER = logging.getLogger(__name__)
 
