@@ -1,0 +1,156 @@
+---
+description: "Instructions for setting up SPA06-003 temperature and pressure sensors with ESPHome"
+title: "SPA06-003 Temperature+Pressure Sensor"
+---
+
+import { Image } from 'astro:assets';
+import Figure from '@components/Figure.astro';
+
+The `spa06` sensor platform allows you to use your Goermicro SPA06-003
+([datasheet](https://cdn-shop.adafruit.com/product-files/6420/spa06-003.PDF), [Adafruit](https://www.adafruit.com/product/6420) or [Seeed](https://www.seeedstudio.com/Grove-Temperature-and-Barometer-Sensor-SPA06-003-p-6441.html)) temperature and pressure sensors with ESPHome. An [I²C](/components/i2c) or [SPI](/components/spi) bus is
+required to be set up in your configuration for this sensor to work.
+
+<Figure
+  src="/images/spa06.jpg"
+  alt=""
+  caption="SPA06 Temperature and Pressure Sensor (Adafruit breakout)."
+  layout="constrained"
+  width={300}
+  height={200}
+/>
+
+## Example Configuration
+
+### Over I²C
+
+```yaml
+# Example configuration entry for I2C connection
+sensor:
+  - platform: spa06_i2c
+    temperature:
+      name: "Indoor Temperature"
+    pressure:
+      name: "Indoor Pressure"
+```
+
+
+### Over SPI
+
+```yaml
+# Example configuration entry for SPI connection
+sensor:
+  - platform: spa06_spi
+    cs_pin: 12
+    temperature:
+      name: "Indoor Temperature"
+    pressure:
+      name: "Indoor Pressure"
+```
+
+### Configuration variables
+
+- **temperature** (*Optional*): The information for the temperature sensor.
+
+  - **oversampling** (*Optional*): The oversampling rate for the temperature sensor.
+    See [Oversampling Options](#spa06-oversampling).
+
+  - **sample_rate** (*Optional*): The internal sample rate for the temperature sensor.
+    See [Sample Rate](#spa06-sample-rate).
+
+  - All other options from [Sensor](/components/sensor).
+
+- **pressure** (*Optional*): The information for the pressure sensor.
+
+  - **oversampling** (*Optional*): The oversampling rate for the pressure sensor.
+    See [Oversampling Options](#spa06-oversampling).
+
+  - **sample_rate** (*Optional*): The internal sample rate for the pressure sensor.
+    See [Sample Rate](#spa06-sample-rate).
+
+  - All other options from [Sensor](/components/sensor).
+
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the
+  sensor. Defaults to `60s`.
+
+- **address** (*Optional*, int, I²C only): Manually specify the I²C address of
+  the sensor. Defaults to `0x77`. Another address can be `0x76`.
+
+- **cs_pin** (*Required*, SPI only): Specify the chip select pin to use for this sensor.
+
+- **i2c_bus** (*Optional*, str) *(I²C only)*: Manually specify the I²C bus to use, if your device has multiple I²C buses.
+
+- **spi_bus** (*Optional*, str) *(SPI only)*: Manually specify the SPI bus to use, if your device has multiple SPI buses
+
+
+<span id="spa06-oversampling"></span>
+
+## Oversampling Options
+
+By default, the SPA06 sensor oversamples pressure measurements by 16 and does not oversample temperature measurements. Higher oversampling rates can increase precision at the expense of slower update times and potentially higher current consumption. Possible oversampling values include:
+
+- `NONE` (sensor is sampled once, default for temperature)
+- `2x`
+- `4x`
+- `8x`
+- `16x` (default for pressure)
+- `32x`
+- `64x`
+- `128x`
+
+The datasheet (page 19) provides a table showing the tradeoff for oversampling:
+
+### Oversampling Settings
+
+| Oversampling setting  | Measurement Time (ms) | Pressure Precision (PaRMS) |
+| --------------------- | --------------------- | -------------------------- |
+| `NONE`                | 3.6                   | 2                          |
+| `2x`                  | 5.2                   | 1                          |
+| `4x`                  | 8.4                   | 0.7                        |
+| `8x`                  | 14.8                  | 0.6                        |
+| `16x`                 | 27.6                  | 0.5                        |
+| `32x`                 | 53.2                  | 0.4                        |
+| `64x`                 | 104.4                 | 0.3                        |
+| `128x`                | 206.8                 | 0.2                        |
+
+
+<span id="spa06-sample-rate"></span>
+
+## Sample Rate Options
+
+The SPA06 can sample measurements as frequently as 200 samples per second and as infrequently
+as 1 sample per second. Note that if `update_interval` is a higher rate than the sensor sample
+rate, the sensor will report data from the previous reading.
+The full list of sample options are as follows:
+
+- `1`: 1 Hz (default)
+- `2`: 2 Hz
+- `4`: 4 Hz
+- `8`: 8 Hz
+- `16`: 16 Hz
+- `32`: 32 Hz
+- `64`: 64 Hz
+- `128`: 128 Hz
+- `25p16`: 25 samples per 16 seconds (~1.56 Hz)
+- `25p8`: 25 samples per 8 seconds (~3.13 Hz)
+- `25p4`: 25 samples per 4 seconds (6.25 Hz)
+- `25p2`: 25 samples per 2 seconds (12.5 Hz)
+- `25`: 25 Hz
+- `50`: 50 Hz
+- `100`: 100 Hz
+- `200`: 200 Hz
+
+> [!WARNING]
+> The SPA06 sensor has a limit on the number of samples it can take per second, based on the
+> oversampling and sample rate configuration for temperature and pressure sensors
+> (datasheet page 26). Configured rates must meet the following equation:
+> 
+> $$ 1 > t_T \times r_T + t_P \times r_P $$
+> 
+> Where $t_T$ is the equivalent measurement time for the configured temperature oversampling
+> rate, $r_T$ is the temperature sample rate in hertz, $t_P$ is the equivalent measurement
+> time for the configured pressure oversampling rate, and $r_P$ is the pressure sample rate
+> in hertz. If pressure is not configured, $t_P \times r_P$ is equal to 0.
+
+## See Also
+
+- [Sensor Filters](/components/sensor#sensor-filters)
