@@ -124,7 +124,10 @@ This document provides essential context for AI models interacting with this pro
     *   **Indentation:** Use spaces (two per indentation level), not tabs
     *   **Type aliases:** Prefer `using type_t = int;` over `typedef int type_t;`
     *   **Line length:** Wrap lines at no more than 120 characters
-    *   **Constructor parameters vs setters:** Component properties that are both **required** and **invariant** (never change after construction) should be constructor parameters rather than set via setter methods. This makes the dependency explicit and prevents use of the object in an incompletely-initialized state. In code generation, pass these as arguments to `cg.new_Pvariable()`.
+    *   **Constructor parameters vs setters:** Component properties that are both **required** and **invariant**
+        (never change after construction) should be constructor parameters rather than set via setter methods.
+        This makes the dependency explicit and prevents use of the object in an incompletely-initialized state.
+        In code generation, pass these as arguments to `cg.new_Pvariable()`.
         ```cpp
         // Good - required invariant dependency as constructor parameter
         class TextTextSensor : public text_sensor::TextSensor, public Component {
