@@ -127,7 +127,7 @@ This document provides essential context for AI models interacting with this pro
     *   **Constructor parameters vs setters:** Component properties that are both **required** and **invariant**
         (never change after construction) should be constructor parameters rather than set via setter methods.
         This makes the dependency explicit and prevents use of the object in an incompletely-initialized state.
-        In code generation, pass these as arguments to `cg.new_Pvariable()`.
+        In code generation, when calling `cg.new_Pvariable()` or the relevant helper function to create the component, pass these as arguments.
         ```cpp
         // Good - required invariant dependency as constructor parameter
         class SourceTextSensor : public text_sensor::TextSensor, public Component {
