@@ -347,24 +347,29 @@ template<typename T> class StatefulEntityBase : public EntityBase {
   virtual bool set_new_state(const optional<T> &new_state) {
     // Access flags_ directly to avoid function call overhead in this hot path
     bool had_state = this->flags_.has_state;
+    // Cache get_state() result to avoid calling the virtual method twice
+    T current{};
+    if (had_state)
+      current = this->get_state();
     if (new_state.has_value()) {
-      if (had_state && this->get_state() == new_state.value())
+      if (had_state && current == new_state.value())
         return false;  // same value, no change
     } else if (!had_state) {
       return false;  // already invalidated, no change
     }
     // State changed — update storage before firing callbacks so callback code
     // can inspect the entity's current state via get_state()/has_state()
-    // Only construct old_state optional when full_state_callbacks need it
-    optional<T> old_state;
-    if (!this->full_state_callbacks_.empty())
-      old_state = had_state ? optional<T>(this->get_state()) : nullopt;
     this->flags_.has_state = new_state.has_value();
     if (new_state.has_value()) {
       this->set_state_value(new_state.value());
     }
-    this->full_state_callbacks_.call(old_state, new_state);
-    if (new_state.has_value() && (this->get_trigger_on_initial_state() || had_state))
+    // Only construct old_state and call full_state_callbacks when callbacks are registered
+    if (!this->full_state_callbacks_.empty()) {
+      optional<T> old_state = had_state ? optional<T>(current) : nullopt;
+      this->full_state_callbacks_.call(old_state, new_state);
+    }
+    // had_state first: on every change except the first, skips the virtual call
+    if (new_state.has_value() && (had_state || this->get_trigger_on_initial_state()))
       this->state_callbacks_.call(new_state.value());
     return true;
   }
