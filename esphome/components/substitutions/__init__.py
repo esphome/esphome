@@ -6,6 +6,7 @@ from esphome import core
 from esphome.config_helpers import Extend, Remove, merge_config, merge_dicts_ordered
 import esphome.config_validation as cv
 from esphome.const import CONF_SUBSTITUTIONS, VALID_SUBSTITUTIONS_CHARACTERS
+from esphome.types import ConfigType
 from esphome.util import OrderedDict
 from esphome.yaml_util import (
     ConfigContext,
@@ -27,7 +28,7 @@ ErrList = list[tuple[UndefinedError, SubstitutionPath, Any]]
 jinja = Jinja()
 
 
-def validate_substitution_key(value):
+def validate_substitution_key(value: Any) -> str:
     value = cv.string(value)
     if not value:
         raise cv.Invalid("Substitution key must not be empty")
@@ -52,8 +53,8 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
-    pass
+async def to_code(config: ConfigType) -> None:
+    """No runtime code generation needed — substitutions are resolved at config time."""
 
 
 def _restore_data_base(value: Any, orig_value: ESPHomeDataBase) -> ESPHomeDataBase:
