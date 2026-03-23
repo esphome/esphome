@@ -152,8 +152,7 @@ class ProtoVarInt {
 #endif
 };
 
-// Forward declarations for decode_to_message and related encoding helpers
-class ProtoDecodableMessage;
+// Forward declarations for encoding helpers
 class ProtoMessage;
 class ProtoSize;
 
@@ -166,16 +165,9 @@ class ProtoLengthDelimited {
   const uint8_t *data() const { return this->value_; }
   size_t size() const { return this->length_; }
 
-  /**
-   * Decode the length-delimited data into an existing ProtoDecodableMessage instance.
-   *
-   * This method allows decoding without templates, enabling use in contexts
-   * where the message type is not known at compile time. The ProtoDecodableMessage's
-   * decode() method will be called with the raw data and length.
-   *
-   * @param msg The ProtoDecodableMessage instance to decode into
-   */
-  void decode_to_message(ProtoDecodableMessage &msg) const;
+  /// Decode the length-delimited data into a message instance.
+  /// Template preserves concrete type so decode() resolves statically.
+  template<typename T> void decode_to_message(T &msg) const;
 
  protected:
   const uint8_t *const value_;
@@ -468,7 +460,7 @@ class ProtoMessage {
 // Base class for messages that support decoding
 class ProtoDecodableMessage : public ProtoMessage {
  public:
-  virtual void decode(const uint8_t *buffer, size_t length);
+  void decode(const uint8_t *buffer, size_t length);
 
   /**
    * Count occurrences of a repeated field in a protobuf buffer.
@@ -704,8 +696,8 @@ template<typename T> inline void ProtoWriteBuffer::encode_optional_sub_message(u
   this->encode_optional_sub_message(field_id, value.calculate_size(), &value, &proto_encode_msg<T>);
 }
 
-// Implementation of decode_to_message - must be after ProtoDecodableMessage is defined
-inline void ProtoLengthDelimited::decode_to_message(ProtoDecodableMessage &msg) const {
+// Template decode_to_message - preserves concrete type so decode() resolves statically
+template<typename T> void ProtoLengthDelimited::decode_to_message(T &msg) const {
   msg.decode(this->value_, this->length_);
 }
 

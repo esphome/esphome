@@ -5,7 +5,9 @@ namespace esphome {
 namespace gpio {
 
 static const char *const TAG = "switch.gpio";
+#ifdef USE_GPIO_SWITCH_INTERLOCK
 static constexpr uint32_t INTERLOCK_TIMEOUT_ID = 0;
+#endif
 
 float GPIOSwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
 void GPIOSwitch::setup() {
@@ -28,6 +30,7 @@ void GPIOSwitch::setup() {
 void GPIOSwitch::dump_config() {
   LOG_SWITCH("", "GPIO Switch", this);
   LOG_PIN("  Pin: ", this->pin_);
+#ifdef USE_GPIO_SWITCH_INTERLOCK
   if (!this->interlock_.empty()) {
     ESP_LOGCONFIG(TAG, "  Interlocks:");
     for (auto *lock : this->interlock_) {
@@ -36,8 +39,10 @@ void GPIOSwitch::dump_config() {
       ESP_LOGCONFIG(TAG, "    %s", lock->get_name().c_str());
     }
   }
+#endif
 }
 void GPIOSwitch::write_state(bool state) {
+#ifdef USE_GPIO_SWITCH_INTERLOCK
   if (state != this->inverted_) {
     // Turning ON, check interlocking
 
@@ -64,11 +69,15 @@ void GPIOSwitch::write_state(bool state) {
     // re-activations
     this->cancel_timeout(INTERLOCK_TIMEOUT_ID);
   }
+#endif
 
   this->pin_->digital_write(state);
   this->publish_state(state);
 }
+
+#ifdef USE_GPIO_SWITCH_INTERLOCK
 void GPIOSwitch::set_interlock(const std::initializer_list<Switch *> &interlock) { this->interlock_ = interlock; }
+#endif
 
 }  // namespace gpio
 }  // namespace esphome
