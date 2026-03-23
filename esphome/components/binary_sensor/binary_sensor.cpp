@@ -33,9 +33,7 @@ void BinarySensor::publish_initial_state(bool new_state) {
   this->publish_state(new_state);
 }
 void BinarySensor::send_state_internal(bool new_state) {
-  // copy the new state to the visible property for backwards compatibility, before any callbacks
-  this->state = new_state;
-  // Note that set_new_state_ de-dups and will only trigger callbacks if the state has actually changed
+  // set_new_state handles de-duplication, updating this->state via set_state_value_(), and triggering callbacks
   this->set_new_state(new_state);
 }
 

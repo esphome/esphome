@@ -32,7 +32,9 @@ void log_binary_sensor(const char *tag, const char *prefix, const char *type, Bi
  */
 class BinarySensor : public StatefulEntityBase<bool> {
  public:
-  explicit BinarySensor(){};
+  explicit BinarySensor() { this->flags_.trigger_on_initial_state = true; }
+
+  const bool &get_state() const override { return this->state; }
 
   /** Publish a new state to the front-end.
    *
@@ -59,11 +61,11 @@ class BinarySensor : public StatefulEntityBase<bool> {
   /// Return whether this binary sensor has outputted a state.
   virtual bool is_status_binary_sensor() const;
 
-  // For backward compatibility, provide an accessible property
-
   bool state{};
 
  protected:
+  void set_state_value_(const bool &value) override { this->state = value; }
+
 #ifdef USE_BINARY_SENSOR_FILTER
   Filter *filter_list_{nullptr};
 #endif
@@ -73,7 +75,7 @@ class BinarySensor : public StatefulEntityBase<bool> {
 
 class BinarySensorInitiallyOff : public BinarySensor {
  public:
-  bool has_state() const override { return true; }
+  BinarySensorInitiallyOff() { this->set_has_state(true); }
 };
 
 }  // namespace esphome::binary_sensor

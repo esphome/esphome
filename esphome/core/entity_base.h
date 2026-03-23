@@ -266,8 +266,9 @@ class EntityBase {
     uint8_t internal : 1;
     uint8_t disabled_by_default : 1;
     uint8_t has_state : 1;
-    uint8_t entity_category : 2;  // Supports up to 4 categories
-    uint8_t reserved : 2;         // Reserved for future use
+    uint8_t entity_category : 2;           // Supports up to 4 categories
+    uint8_t trigger_on_initial_state : 1;  // Whether callbacks fire on first state (StatefulEntityBase)
+    uint8_t reserved : 1;                  // Reserved for future use
   } flags_{};
   // String table indices — packed into the 3 padding bytes after flags_
 #ifdef USE_ENTITY_DEVICE_CLASS
@@ -302,9 +303,8 @@ void log_entity_unit_of_measurement(const char *tag, const char *prefix, const E
  */
 template<typename T> class StatefulEntityBase : public EntityBase {
  public:
-  virtual bool has_state() const { return this->state_.has_value(); }
-  virtual const T &get_state() const { return this->state_.value(); }  // NOLINT(bugprone-unchecked-optional-access)
-  virtual T get_state_default(T default_value) const { return this->state_.value_or(default_value); }
+  virtual const T &get_state() const = 0;
+  T get_state_default(T default_value) const { return this->has_state() ? this->get_state() : default_value; }
   void invalidate_state() { this->set_new_state({}); }
 
   template<typename F> void add_full_state_callback(F &&callback) {
@@ -315,11 +315,10 @@ template<typename T> class StatefulEntityBase : public EntityBase {
   }
 
   void set_trigger_on_initial_state(bool trigger_on_initial_state) {
-    this->trigger_on_initial_state_ = trigger_on_initial_state;
+    this->flags_.trigger_on_initial_state = trigger_on_initial_state;
   }
 
  protected:
-  optional<T> state_{};
   /**
    * Set a new state for this entity. This will trigger callbacks only if the new state is different from the previous.
    *
@@ -327,20 +326,25 @@ template<typename T> class StatefulEntityBase : public EntityBase {
    * @return True if the state was changed, false if it was the same as before.
    */
   virtual bool set_new_state(const optional<T> &new_state) {
-    if (this->state_ != new_state) {
+    optional<T> old_state = this->has_state() ? optional<T>(this->get_state()) : nullopt;
+    if (old_state != new_state) {
       // call the full state callbacks with the previous and new state
-      this->full_state_callbacks_.call(this->state_, new_state);
+      this->full_state_callbacks_.call(old_state, new_state);
       // trigger legacy callbacks only if the new state is valid and either the trigger on initial state is enabled or
       // the previous state was valid
       auto had_state = this->has_state();
-      this->state_ = new_state;
-      if (new_state.has_value() && (this->trigger_on_initial_state_ || had_state))
-        this->state_callbacks_.call(new_state.value());
+      this->set_has_state(new_state.has_value());
+      if (new_state.has_value()) {
+        this->set_state_value_(new_state.value());
+        if (this->flags_.trigger_on_initial_state || had_state)
+          this->state_callbacks_.call(new_state.value());
+      }
       return true;
     }
     return false;
   }
-  bool trigger_on_initial_state_{true};
+  /// Subclasses implement this to store the actual value.
+  virtual void set_state_value_(const T &value) = 0;
   LazyCallbackManager<void(optional<T> previous, optional<T> current)> full_state_callbacks_;
   LazyCallbackManager<void(T)> state_callbacks_;
 };
