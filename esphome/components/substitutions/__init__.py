@@ -218,11 +218,16 @@ def _push_context(
     resolved_vars.update(unresolvables)
 
     if errors is not None:
-        for name, value in unresolvables.items():
-            err = UndefinedError(
-                f"Could not resolve substitution variable '{name}' due to missing or circular dependencies.",
+        errors.extend(
+            (
+                UndefinedError(
+                    f"Could not resolve substitution variable '{name}' due to missing or circular dependencies.",
+                ),
+                [],
+                value,
             )
-            errors.append((err, [], value))
+            for name, value in unresolvables.items()
+        )
 
     return context_vars, resolved_vars
 
