@@ -583,10 +583,12 @@ def test_extend_substitution() -> None:
 
 def test_do_substitution_pass_substitutions_must_be_mapping_from_config() -> None:
     """Non-mapping substitutions raises cv.Invalid."""
-    config = {
-        CONF_SUBSTITUTIONS: ["not", "a", "mapping"],
-        "other": "value",
-    }
+    config = OrderedDict(
+        {
+            CONF_SUBSTITUTIONS: ["not", "a", "mapping"],
+            "other": "value",
+        }
+    )
 
     with pytest.raises(
         cv.Invalid, match="Substitutions must be a key to value mapping"

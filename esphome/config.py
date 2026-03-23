@@ -1011,6 +1011,8 @@ def validate_config(
 
         config = merge_packages(config)
 
+    # Remove substitutions from config during validation to prevent
+    # re-substitution. Re-added to result at the end of this function.
     substitutions = config.pop(CONF_SUBSTITUTIONS, None)
     CORE.raw_config = config
 

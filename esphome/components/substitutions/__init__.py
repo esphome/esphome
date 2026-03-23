@@ -367,7 +367,7 @@ def _warn_unresolved_variables(errors: ErrList) -> None:
         if "password" in path:
             continue
         location: str = "->".join(str(x) for x in path)
-        if isinstance(expression, ESPHomeDataBase):
+        if isinstance(expression, ESPHomeDataBase) and expression.esp_range is not None:
             location += f" in {str(expression.esp_range.start_mark)}"
 
         _LOGGER.warning(
