@@ -170,10 +170,10 @@ bool LibreTinyUARTComponent::read_array(uint8_t *data, size_t len) {
 }
 
 size_t LibreTinyUARTComponent::available() { return this->serial_->available(); }
-FlushResult LibreTinyUARTComponent::flush() {
+UARTFlushResult LibreTinyUARTComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing");
   this->serial_->flush();
-  return FlushResult::ASSUMED_SUCCESS;
+  return UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
 }
 
 void LibreTinyUARTComponent::check_logger_conflict() {
