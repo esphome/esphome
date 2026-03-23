@@ -564,8 +564,8 @@ def test_lambda_no_substitution_unchanged() -> None:
             "lambda": lam,
         }
     )
-    config = substitutions.do_substitution_pass(config)
-    assert config["lambda"].value == original_value
+    substitutions.do_substitution_pass(config)
+    assert lam.value is original_value
 
 
 def test_extend_substitution() -> None:

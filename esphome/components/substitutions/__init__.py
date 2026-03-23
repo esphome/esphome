@@ -335,7 +335,8 @@ def substitute(
         value = _expand_substitutions(
             item.value, path, context_vars, strict_undefined, errors
         )
-        result = type(item)(value)
+        if item.value is not value:
+            result = type(item)(value)
 
     if isinstance(item, ESPHomeDataBase):
         result = make_data_base(result, item)
