@@ -266,9 +266,8 @@ class EntityBase {
     uint8_t internal : 1;
     uint8_t disabled_by_default : 1;
     uint8_t has_state : 1;
-    uint8_t entity_category : 2;           // Supports up to 4 categories
-    uint8_t trigger_on_initial_state : 1;  // Whether callbacks fire on first state (StatefulEntityBase)
-    uint8_t reserved : 1;                  // Reserved for future use
+    uint8_t entity_category : 2;  // Supports up to 4 categories
+    uint8_t reserved : 2;         // Reserved for future use
   } flags_{};
   // String table indices — packed into the 3 padding bytes after flags_
 #ifdef USE_ENTITY_DEVICE_CLASS
@@ -330,11 +329,13 @@ template<typename T> class StatefulEntityBase : public EntityBase {
   }
 
   /// Control whether state_callbacks_ fire on the very first state (before any previous state exists).
-  void set_trigger_on_initial_state(bool trigger_on_initial_state) {
-    this->flags_.trigger_on_initial_state = trigger_on_initial_state;
-  }
+  /// Subclasses must implement set_trigger_on_initial_state() to store this value.
+  virtual void set_trigger_on_initial_state(bool value) = 0;
 
  protected:
+  /// Subclasses return whether callbacks should fire on the very first state.
+  virtual bool get_trigger_on_initial_state() const = 0;
+
   /** Apply a new state, de-duplicating and firing callbacks as needed.
    *
    * Pass nullopt to invalidate (clear) the state. Pass a value to set it.
@@ -348,7 +349,7 @@ template<typename T> class StatefulEntityBase : public EntityBase {
       this->set_has_state(new_state.has_value());
       if (new_state.has_value()) {
         this->set_state_value_(new_state.value());
-        if (this->flags_.trigger_on_initial_state || had_state)
+        if (this->get_trigger_on_initial_state() || had_state)
           this->state_callbacks_.call(new_state.value());
       }
       return true;

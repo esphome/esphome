@@ -32,9 +32,10 @@ void log_binary_sensor(const char *tag, const char *prefix, const char *type, Bi
  */
 class BinarySensor : public StatefulEntityBase<bool> {
  public:
-  explicit BinarySensor() { this->flags_.trigger_on_initial_state = true; }
+  explicit BinarySensor() = default;
 
   const bool &get_state() const override { return this->state; }
+  void set_trigger_on_initial_state(bool value) override { this->trigger_on_initial_state_ = value; }
 
   /** Publish a new state to the front-end.
    *
@@ -65,8 +66,10 @@ class BinarySensor : public StatefulEntityBase<bool> {
   bool state{};
 
  protected:
+  bool get_trigger_on_initial_state() const override { return this->trigger_on_initial_state_; }
   void set_state_value_(const bool &value) override { this->state = value; }
 
+  bool trigger_on_initial_state_{true};
 #ifdef USE_BINARY_SENSOR_FILTER
   Filter *filter_list_{nullptr};
 #endif
