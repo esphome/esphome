@@ -175,7 +175,7 @@ def _push_context(
     local_vars: dict[str, Any],
     parent_context: ContextVars,
     errors: ErrList | None = None,
-) -> ContextVars:
+) -> tuple[ContextVars, dict[str, Any]]:
     """Returns a new context vars mapping with the given vars overriding those of the parent context, along
     with a version of `local_vars` resolved and sorted in dependency order.
     The below loops iterate exactly once if vars are already sorted in dependency order, i.e.,
@@ -293,7 +293,7 @@ def _substitute_item(
     return None
 
 
-def _log_errors(errors: ErrList):
+def _log_errors(errors: ErrList) -> None:
     for err, path, expression in errors:
         if "password" in path:
             continue
