@@ -121,7 +121,10 @@ void AsyncWebServer::begin() {
   if (this->server_) {
     this->end();
   }
+  // Default httpd stack is defined by ESP-IDF. Increase to accommodate SerializationBuffer's
+  // 640-byte stack buffer used by web_server JSON request handlers.
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+  config.stack_size = config.stack_size + 256;
   config.server_port = this->port_;
   config.uri_match_fn = [](const char * /*unused*/, const char * /*unused*/, size_t /*unused*/) { return true; };
   // Always enable LRU purging to handle socket exhaustion gracefully.
@@ -257,19 +260,6 @@ StringRef AsyncWebServerRequest::url_to(std::span<char, URL_BUF_SIZE> buffer) co
   // Decode URL-encoded characters in-place (e.g., %20 -> space)
   size_t decoded_len = url_decode(buffer.data());
   return StringRef(buffer.data(), decoded_len);
-}
-
-void AsyncWebServerRequest::send(AsyncWebServerResponse *response) {
-  httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
-}
-
-void AsyncWebServerRequest::send(int code, const char *content_type, const char *content) {
-  this->init_response_(nullptr, code, content_type);
-  if (content) {
-    httpd_resp_send(*this, content, HTTPD_RESP_USE_STRLEN);
-  } else {
-    httpd_resp_send(*this, nullptr, 0);
-  }
 }
 
 void AsyncWebServerRequest::redirect(const std::string &url) {

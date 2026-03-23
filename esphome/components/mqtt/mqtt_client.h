@@ -366,14 +366,14 @@ class MQTTJsonMessageTrigger : public Trigger<JsonObjectConst> {
 
 class MQTTConnectTrigger : public Trigger<bool> {
  public:
-  explicit MQTTConnectTrigger(MQTTClientComponent *&client) {
+  explicit MQTTConnectTrigger(MQTTClientComponent *client) {
     client->set_on_connect([this](bool session_present) { this->trigger(session_present); });
   }
 };
 
 class MQTTDisconnectTrigger : public Trigger<MQTTClientDisconnectReason> {
  public:
-  explicit MQTTDisconnectTrigger(MQTTClientComponent *&client) {
+  explicit MQTTDisconnectTrigger(MQTTClientComponent *client) {
     client->set_on_disconnect([this](MQTTClientDisconnectReason reason) { this->trigger(reason); });
   }
 };
@@ -405,15 +405,14 @@ template<typename... Ts> class MQTTPublishJsonAction : public Action<Ts...> {
   void set_payload(std::function<void(Ts..., JsonObject)> payload) { this->payload_ = payload; }
 
   void play(const Ts &...x) override {
-    auto f = std::bind(&MQTTPublishJsonAction<Ts...>::encode_, this, x..., std::placeholders::_1);
     auto topic = this->topic_.value(x...);
     auto qos = this->qos_.value(x...);
     auto retain = this->retain_.value(x...);
-    this->parent_->publish_json(topic, f, qos, retain);
+    this->parent_->publish_json(
+        topic, [this, x...](JsonObject root) { this->payload_(x..., root); }, qos, retain);
   }
 
  protected:
-  void encode_(Ts... x, JsonObject root) { this->payload_(x..., root); }
   std::function<void(Ts..., JsonObject)> payload_;
   MQTTClientComponent *parent_;
 };
