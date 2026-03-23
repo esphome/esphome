@@ -8,7 +8,7 @@ def test_deep_sleep_setup(generate_main):
     main_cpp = generate_main("tests/component_tests/deep_sleep/test_deep_sleep1.yaml")
 
     assert (
-        "static deep_sleep::DeepSleepComponent *const deepsleep = reinterpret_cast<deep_sleep::DeepSleepComponent *>(deepsleep__pstorage);"
+        "static deep_sleep::DeepSleepComponent *const deepsleep = reinterpret_cast<deep_sleep::DeepSleepComponent *>(deep_sleep__deepsleep__pstorage);"
         in main_cpp
     )
     assert "new(deepsleep) deep_sleep::DeepSleepComponent();" in main_cpp
