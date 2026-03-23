@@ -2608,7 +2608,7 @@ def build_service_message_type(
         is_empty = not has_fields
         if is_empty:
             EMPTY_MESSAGES.add(mt.name)
-        hout += f"virtual void {func}({'' if is_empty else f'const {mt.name} &value'}){{}};\n"
+        hout += f"void {func}({'' if is_empty else f'const {mt.name} &value'}){{}};\n"
         case = ""
         if not is_empty:
             case += f"{mt.name} msg;\n"
@@ -2960,6 +2960,7 @@ namespace esphome::api {
     cpp = FILE_HEADER
     cpp += """\
 #include "api_pb2_service.h"
+#include "api_connection.h"
 #include "esphome/core/log.h"
 
 namespace esphome::api {
@@ -2970,7 +2971,7 @@ static const char *const TAG = "api.service";
 
     class_name = "APIServerConnectionBase"
 
-    hpp += f"class {class_name} : public ProtoService {{\n"
+    hpp += f"class {class_name} {{\n"
     hpp += " public:\n"
 
     # Add logging helper method declarations
@@ -3063,11 +3064,11 @@ static const char *const TAG = "api.service";
                 result += "#endif\n"
         return result
 
-    # Generate read_message with auth check before dispatch
-    hpp += " protected:\n"
-    hpp += "  void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;\n"
+    # Generate read_message_ as APIConnection method (not base class) so the compiler
+    # can devirtualize and inline the on_* handler calls within the same class.
+    # APIConnection declares this method in api_connection.h.
 
-    out = f"void {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {{\n"
+    out = "void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {\n"
 
     # Auth check block before dispatch switch
     out += "  // Check authentication/connection requirements\n"
