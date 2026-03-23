@@ -280,7 +280,7 @@ def test_substitutions_after_merge_config_maintains_ordered_dict() -> None:
 
 
 def test_validate_config_with_command_line_substitutions_maintains_ordered_dict(
-    tmp_path,
+    tmp_path: Path,
 ) -> None:
     """Test that validate_config preserves OrderedDict when merging command-line substitutions.
 
@@ -396,7 +396,7 @@ def test_merge_config_preserves_ordered_dict() -> None:
 
 def test_substitution_pass_error_gets_captured(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-):
+) -> None:
     """
     If do_substitution_pass() raises vol.Invalid,
     config.py should catch it and call result.add_error().
@@ -424,7 +424,7 @@ def test_substitution_pass_error_gets_captured(
 @pytest.mark.parametrize(
     "value", ["", "   ", "1foo", "9VAR", "0abc", "$1foo", "$9VAR", "$0abc"]
 )
-def test_validate_substitution_key_empty_raises(value):
+def test_validate_substitution_key_empty_raises(value: str) -> None:
     """Empty (or all-whitespace) substitution keys are rejected."""
     with pytest.raises(cv.Invalid):
         substitutions.validate_substitution_key(value)
@@ -437,7 +437,9 @@ def test_validate_substitution_key_empty_raises(value):
         ("Foo_bar9", "Foo_bar9"),  # Normal valid key
     ],
 )
-def test_validate_substitution_key_valid(input_value, expected_output):
+def test_validate_substitution_key_valid(
+    input_value: str, expected_output: str
+) -> None:
     """Test valid substitution keys with and without a leading '$'."""
     result = substitutions.validate_substitution_key(input_value)
     assert result == expected_output
@@ -549,7 +551,7 @@ def test_extend_substitution() -> None:
     assert ext.value == "my_sensor"
 
 
-def test_do_substitution_pass_substitutions_must_be_mapping_from_config():
+def test_do_substitution_pass_substitutions_must_be_mapping_from_config() -> None:
     """
     If config[CONF_SUBSTITUTIONS] is not a mapping, cv.Invalid should be raised with a helpful message.
     """
