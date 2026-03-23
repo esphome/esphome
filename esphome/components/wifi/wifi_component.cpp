@@ -287,19 +287,25 @@ bool CompactString::operator==(const StringRef &other) const {
 /// │    │  (counter reset to 0)            │    │  (retry_connect called) │
 /// │    └──────────────────────────────────┘    └───────────┬─────────────┘
 /// │                                                        │             │
-/// │                                                        ↓             │
-/// │                                            ┌───────────────────────┐ │
-/// │                                            │  → IDLE               │ │
-/// │                                            │  (counter preserved!) │ │
-/// │                                            └───────────────────────┘ │
+/// │                                              ┌─────────┴─────────┐   │
+/// │                                              ↓                   ↓   │
+/// │                                      on target BSSID    on other AP  │
+/// │                                              │                   │   │
+/// │                                              ↓                   ↓   │
+/// │                                   ┌──────────────────┐ ┌────────────┐│
+/// │                                   │  → IDLE          │ │  → IDLE    ││
+/// │                                   │  (counter reset) │ │  (counter  ││
+/// │                                   │  (roam worked!)  │ │  preserved)││
+/// │                                   └──────────────────┘ └────────────┘│
 /// │                                                                      │
 /// │  Key behaviors:                                                      │
 /// │  - After 3 checks: attempts >= 3, stop checking                      │
 /// │  - Non-roaming disconnect: clear_roaming_state_() resets counter     │
-/// │  - Disconnect during scan (SCANNING→RECONNECTING): counter preserved  │
+/// │  - Disconnect during scan (SCANNING→RECONNECTING): counter preserved │
 /// │  - Disconnect after scan (within grace period): counter preserved    │
 /// │  - Roaming success (CONNECTING→IDLE): counter reset (can roam again) │
-/// │  - Roaming fail (RECONNECTING→IDLE): counter preserved (ping-pong)   │
+/// │  - Roaming success via retry (on target BSSID): counter reset        │
+/// │  - Roaming fail (RECONNECTING on other AP): counter preserved        │
 /// └──────────────────────────────────────────────────────────────────────┘
 
 // Use if-chain instead of switch to avoid jump table in RODATA (wastes RAM on ESP8266)
@@ -1577,17 +1583,26 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     // Only preserve attempts if reconnecting after a failed roam attempt
     // This prevents ping-pong between APs when a roam target is unreachable
     if (this->roaming_state_ == RoamingState::CONNECTING) {
-      // Successful roam to better AP - reset attempts so we can roam again later
+      // Successful roam to better AP on first try - reset attempts so we can roam again later
       ESP_LOGD(TAG, "Roam successful");
       this->roaming_attempts_ = 0;
     } else if (this->roaming_state_ == RoamingState::RECONNECTING) {
-      // Failed roam, reconnected via normal recovery - keep attempts to prevent ping-pong
-      ESP_LOGD(TAG, "Reconnected after failed roam (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
+      // Check if we ended up on the roam target despite needing a retry
+      // (e.g., first connect failed but scan-based retry found and connected to the same better AP)
+      bssid_t current_bssid = this->wifi_bssid();
+      if (this->roaming_target_bssid_ != bssid_t{} && current_bssid == this->roaming_target_bssid_) {
+        ESP_LOGD(TAG, "Roam successful (via retry)");
+        this->roaming_attempts_ = 0;
+      } else {
+        // Failed roam, reconnected to different AP - keep attempts to prevent ping-pong
+        ESP_LOGD(TAG, "Reconnected after failed roam (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
+      }
     } else {
       // Normal connection (boot, credentials changed, etc.)
       this->roaming_attempts_ = 0;
     }
     this->roaming_state_ = RoamingState::IDLE;
+    this->roaming_target_bssid_ = {};
 
     // Clear all priority penalties - the next reconnect will happen when an AP disconnects,
     // which means the landscape has likely changed and previous tracked failures are stale
@@ -2317,6 +2332,7 @@ void WiFiComponent::clear_roaming_state_() {
   this->roaming_attempts_ = 0;
   this->roaming_last_check_ = 0;
   this->roaming_scan_end_ = 0;
+  this->roaming_target_bssid_ = {};
   this->roaming_state_ = RoamingState::IDLE;
 }
 
@@ -2453,6 +2469,7 @@ void WiFiComponent::process_roaming_scan_() {
 
   // Mark as roaming attempt - affects retry behavior if connection fails
   this->roaming_state_ = RoamingState::CONNECTING;
+  this->roaming_target_bssid_ = best->get_bssid();
 
   // Connect directly - wifi_sta_connect_ handles disconnect internally
   this->start_connecting(roam_params);

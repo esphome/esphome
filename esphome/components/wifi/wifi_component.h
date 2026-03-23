@@ -790,7 +790,8 @@ class WiFiComponent final : public Component {
   uint32_t last_connected_{0};
   uint32_t reboot_timeout_{};
   uint32_t roaming_last_check_{0};
-  uint32_t roaming_scan_end_{0};  // Timestamp when last roaming scan completed
+  uint32_t roaming_scan_end_{0};    // Timestamp when last roaming scan completed
+  bssid_t roaming_target_bssid_{};  // BSSID of the AP we're trying to roam to
 #ifdef USE_WIFI_AP
   uint32_t ap_timeout_{};
 #endif
