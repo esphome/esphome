@@ -23,7 +23,13 @@ extern "C" eth_esp32_emac_config_t eth_esp32_emac_default_config(void);
 #endif  // USE_ESP32
 
 #ifdef USE_RP2040
+#if defined(USE_ETHERNET_W5500)
 #include <W5500lwIP.h>
+#elif defined(USE_ETHERNET_ENC28J60)
+#include <ENC28J60lwIP.h>
+#else
+#error "Unsupported RP2040 SPI Ethernet type"
+#endif
 #endif
 
 namespace esphome::ethernet {
@@ -57,6 +63,7 @@ enum EthernetType : uint8_t {
   ETHERNET_TYPE_OPENETH,
   ETHERNET_TYPE_DM9051,
   ETHERNET_TYPE_LAN8670,
+  ETHERNET_TYPE_ENC28J60,
 };
 
 struct ManualIP {
@@ -215,7 +222,13 @@ class EthernetComponent final : public Component {
 
 #ifdef USE_RP2040
   static constexpr uint32_t LINK_CHECK_INTERVAL = 500;  // ms between link/IP polls
+#if defined(USE_ETHERNET_W5500)
   Wiznet5500lwIP *eth_{nullptr};
+#elif defined(USE_ETHERNET_ENC28J60)
+  ENC28J60lwIP *eth_{nullptr};
+#else
+#error "Unsupported RP2040 SPI Ethernet type"
+#endif
   uint32_t last_link_check_{0};
   uint8_t clk_pin_;
   uint8_t miso_pin_;

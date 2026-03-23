@@ -2275,7 +2275,7 @@ def build_message_type(
         o += "}\n"
         cpp += o
         # Generate the decode() declaration in header (public method)
-        prot = "void decode(const uint8_t *buffer, size_t length) override;"
+        prot = "void decode(const uint8_t *buffer, size_t length);"
         public_content.append(prot)
 
     # Only generate encode method if this message needs encoding and has fields
