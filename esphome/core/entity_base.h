@@ -301,9 +301,10 @@ void log_entity_unit_of_measurement(const char *tag, const char *prefix, const E
  * Subclasses must implement:
  *   - get_state(): return a const reference to the current value
  *   - set_state_value_(): store a new value (called only when the state actually changes)
+ *   - get_trigger_on_initial_state() / set_trigger_on_initial_state(): control initial callback behavior
  *
- * State tracking uses EntityBase::flags_.has_state (not optional<T>) to avoid redundant storage.
- * Subclasses own their storage — this class never allocates memory for the state value itself.
+ * This class does not store the state value — subclasses own their storage. Whether a state
+ * has been set is tracked by EntityBase::has_state().
  *
  * Callback behavior:
  *   - full_state_callbacks_: fired on every change, receives optional<T> previous and current
