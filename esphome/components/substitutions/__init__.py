@@ -253,6 +253,13 @@ def _substitute_item(
     strict_undefined: bool,
     errors: ErrList | None = None,
 ) -> Any | None:
+    """Recursively substitute variables in a config item.
+
+    Walks dicts, lists, strings, Lambdas, Extend, and Remove nodes,
+    replacing variable references with values from context_vars.
+    Mutates containers in-place; returns a replacement value for
+    strings/scalars, or None if the item was unchanged.
+    """
     if isinstance(item, ESPLiteralValue):
         return None  # do not substitute inside literal blocks
 
@@ -260,14 +267,14 @@ def _substitute_item(
     context_vars = push_context(item, parent_context)
 
     if isinstance(item, list):
-        for i, it in enumerate(item):
+        for idx, it in enumerate(item):
             sub = _substitute_item(
-                it, path + [i], context_vars, strict_undefined, errors
+                it, path + [idx], context_vars, strict_undefined, errors
             )
             if sub is not None:
-                item[i] = sub
+                item[idx] = sub
     elif isinstance(item, dict):
-        replace_keys = []
+        replace_keys: list[tuple[str, Any]] = []
         for k, v in item.items():
             if path or k != CONF_SUBSTITUTIONS:
                 sub = _substitute_item(
@@ -304,7 +311,8 @@ def substitute_context_vars(node: Any, context_vars: dict[str, Any]) -> None:
     _substitute_item(node, [], ContextVars(context_vars), strict_undefined=False)
 
 
-def _log_errors(errors: ErrList) -> None:
+def _warn_unresolved_variables(errors: ErrList) -> None:
+    """Log warnings for unresolved substitution variables, skipping password fields."""
     for err, path, expression in errors:
         if "password" in path:
             continue
@@ -353,11 +361,10 @@ def do_substitution_pass(
     _substitute_item(config, [], parent_context, False, errors)
 
     if errors:
-        _log_errors(errors)
+        _warn_unresolved_variables(errors)
 
-    if (
-        substitutions
-    ):  # for readability, restore substitutions, if any, to front of dict
+    # Restore substitutions to front of dict for readability
+    if substitutions:
         config[CONF_SUBSTITUTIONS] = substitutions
         config.move_to_end(CONF_SUBSTITUTIONS, last=False)
     return config
