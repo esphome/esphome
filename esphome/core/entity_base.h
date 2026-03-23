@@ -298,13 +298,18 @@ void log_entity_unit_of_measurement(const char *tag, const char *prefix, const E
 
 /** Base class for entities that track a typed state value with change-detection and callbacks.
  *
- * Subclasses must implement:
- *   - get_state(): return a const reference to the current value
- *   - set_state_value_(): store a new value (called only when the state actually changes)
- *   - get_trigger_on_initial_state() / set_trigger_on_initial_state(): control initial callback behavior
- *
  * This class does not store the state value — subclasses own their storage. Whether a state
  * has been set is tracked by EntityBase::has_state().
+ *
+ * Subclasses must implement:
+ *   - get_state(): return a const reference to the current value
+ *   - set_state_value(): store a new value (called only when the state actually changes)
+ *   - get_trigger_on_initial_state(): return whether callbacks should fire on the first state
+ *
+ * Subclasses may override set_new_state() to add behavior (logging, notifications) after calling
+ * the base implementation. Since set_new_state() is virtual, callers like invalidate_state() and
+ * send_state_internal() dispatch through the vtable to the subclass override in the .cpp,
+ * avoiding template code bloat at inline call sites.
  *
  * Callback behavior:
  *   - full_state_callbacks_: fired on every change, receives optional<T> previous and current
@@ -329,10 +334,6 @@ template<typename T> class StatefulEntityBase : public EntityBase {
     this->state_callbacks_.add(std::forward<F>(callback));
   }
 
-  /// Control whether state_callbacks_ fire on the very first state (before any previous state exists).
-  /// Subclasses must implement set_trigger_on_initial_state() to store this value.
-  virtual void set_trigger_on_initial_state(bool value) = 0;
-
  protected:
   /// Subclasses return whether callbacks should fire on the very first state.
   virtual bool get_trigger_on_initial_state() const = 0;
@@ -341,30 +342,38 @@ template<typename T> class StatefulEntityBase : public EntityBase {
    *
    * Pass nullopt to invalidate (clear) the state. Pass a value to set it.
    * Returns true if the state actually changed, false if it was the same.
+   * Subclasses may override to add logging/notifications after calling the base.
    */
   virtual bool set_new_state(const optional<T> &new_state) {
-    // Access flags_ directly to avoid virtual/function call overhead in this hot path
+    // Access flags_ directly to avoid function call overhead in this hot path
     bool had_state = this->flags_.has_state;
+    // Use pointer to avoid requiring T to be default-constructible
+    const T *current = had_state ? &this->get_state() : nullptr;
     if (new_state.has_value()) {
-      if (had_state && this->get_state() == new_state.value())
+      if (current != nullptr && *current == new_state.value())
         return false;  // same value, no change
     } else if (!had_state) {
       return false;  // already invalidated, no change
     }
-    // State changed — capture old state, then update storage before firing callbacks
-    // so callback code can inspect the entity's current state via get_state()/has_state()
-    optional<T> old_state = had_state ? optional<T>(this->get_state()) : nullopt;
+    // Capture old_state before set_state_value — current pointer aliases subclass storage
+    bool has_full_cbs = !this->full_state_callbacks_.empty();
+    optional<T> old_state;
+    if (has_full_cbs)
+      old_state = current != nullptr ? optional<T>(*current) : nullopt;
+    // Update storage before firing callbacks so callback code can inspect current state
     this->flags_.has_state = new_state.has_value();
     if (new_state.has_value()) {
-      this->set_state_value_(new_state.value());
+      this->set_state_value(new_state.value());
     }
-    this->full_state_callbacks_.call(old_state, new_state);
-    if (new_state.has_value() && (this->get_trigger_on_initial_state() || had_state))
+    if (has_full_cbs)
+      this->full_state_callbacks_.call(old_state, new_state);
+    // had_state first: on every change except the first, skips the virtual call
+    if (new_state.has_value() && (had_state || this->get_trigger_on_initial_state()))
       this->state_callbacks_.call(new_state.value());
     return true;
   }
   /// Subclasses implement this to store the actual value into their own storage.
-  virtual void set_state_value_(const T &value) = 0;
+  virtual void set_state_value(const T &value) = 0;
   LazyCallbackManager<void(optional<T> previous, optional<T> current)> full_state_callbacks_;
   LazyCallbackManager<void(T)> state_callbacks_;
 };

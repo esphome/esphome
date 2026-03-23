@@ -35,7 +35,7 @@ class BinarySensor : public StatefulEntityBase<bool> {
   explicit BinarySensor() = default;
 
   const bool &get_state() const override { return this->state; }
-  void set_trigger_on_initial_state(bool value) override { this->trigger_on_initial_state_ = value; }
+  void set_trigger_on_initial_state(bool value) { this->trigger_on_initial_state_ = value; }
 
   /** Publish a new state to the front-end.
    *
@@ -57,7 +57,12 @@ class BinarySensor : public StatefulEntityBase<bool> {
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
-  void send_state_internal(bool new_state) { this->set_new_state(new_state); }
+  void send_state_internal(bool new_state) {
+    // Fast path: skip virtual dispatch when state hasn't changed
+    if (this->flags_.has_state && this->state == new_state)
+      return;
+    this->set_new_state(new_state);
+  }
 
   /// Return whether this binary sensor has outputted a state.
   virtual bool is_status_binary_sensor() const;
@@ -67,7 +72,7 @@ class BinarySensor : public StatefulEntityBase<bool> {
 
  protected:
   bool get_trigger_on_initial_state() const override { return this->trigger_on_initial_state_; }
-  void set_state_value_(const bool &value) override { this->state = value; }
+  void set_state_value(const bool &value) override { this->state = value; }
 
   bool trigger_on_initial_state_{true};
 #ifdef USE_BINARY_SENSOR_FILTER
