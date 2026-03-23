@@ -304,7 +304,8 @@ void log_entity_unit_of_measurement(const char *tag, const char *prefix, const E
  * Subclasses must implement:
  *   - get_state(): return a const reference to the current value
  *   - set_state_value(): store a new value (called only when the state actually changes)
- *   - get_trigger_on_initial_state() / set_trigger_on_initial_state(): control initial callback behavior
+ *   - get_trigger_on_initial_state(): return whether callbacks should fire on the first state
+ *   - set_trigger_on_initial_state(): store the value (subclass decides how)
  *
  * Subclasses may override set_new_state() to add behavior (logging, notifications) after calling
  * the base implementation. Since set_new_state() is virtual, callers like invalidate_state() and
@@ -335,7 +336,7 @@ template<typename T> class StatefulEntityBase : public EntityBase {
   }
 
   /// Control whether state_callbacks_ fire on the very first state (before any previous state exists).
-  /// Subclasses must implement set_trigger_on_initial_state() to store this value.
+  /// Subclasses decide how to store the value.
   virtual void set_trigger_on_initial_state(bool value) = 0;
 
  protected:
