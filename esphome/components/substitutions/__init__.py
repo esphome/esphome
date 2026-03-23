@@ -308,50 +308,45 @@ def _substitute_item(
     Mutates containers in-place; returns a replacement value for
     strings/scalars, or None if the item was unchanged.
     """
-    if isinstance(item, ESPLiteralValue):
-        return None  # do not substitute inside literal blocks
 
-    # Push the current item's context onto the context stack
-    context_vars = push_context(item, parent_context, errors)
+    def _walk(item: Any, path: SubstitutionPath, parent_ctx: ContextVars) -> Any | None:
+        if isinstance(item, ESPLiteralValue):
+            return None  # do not substitute inside literal blocks
 
-    if isinstance(item, list):
-        for idx, it in enumerate(item):
-            sub = _substitute_item(
-                it, path + [idx], context_vars, strict_undefined, errors
-            )
-            if sub is not None:
-                item[idx] = sub
-    elif isinstance(item, dict):
-        replace_keys: list[tuple[str, Any]] = []
-        for k, v in item.items():
-            if path or k != CONF_SUBSTITUTIONS:
-                sub = _substitute_item(
-                    k, path + [k], context_vars, strict_undefined, errors
-                )
+        ctx = push_context(item, parent_ctx, errors)
+
+        if isinstance(item, list):
+            for idx, it in enumerate(item):
+                sub = _walk(it, path + [idx], ctx)
                 if sub is not None:
-                    replace_keys.append((k, sub))
-            sub = _substitute_item(
-                v, path + [k], context_vars, strict_undefined, errors
-            )
-            if sub is not None:
-                item[k] = sub
-        for old, new in replace_keys:
-            if str(new) == str(old):
-                item[new] = item[old]
-            else:
-                item[new] = merge_config(item.get(new), item.get(old))
-                del item[old]
-    elif isinstance(item, str):
-        sub = _expand_substitutions(item, path, context_vars, strict_undefined, errors)
-        if not isinstance(sub, str) or sub != item:
-            return sub
-    elif isinstance(item, (core.Lambda, Extend, Remove)) and item.value:
-        sub = _expand_substitutions(
-            item.value, path, context_vars, strict_undefined, errors
-        )
-        if sub != item.value:
-            item.value = sub
-    return None
+                    item[idx] = sub
+        elif isinstance(item, dict):
+            replace_keys: list[tuple[str, Any]] = []
+            for k, v in item.items():
+                if path or k != CONF_SUBSTITUTIONS:
+                    sub = _walk(k, path + [k], ctx)
+                    if sub is not None:
+                        replace_keys.append((k, sub))
+                sub = _walk(v, path + [k], ctx)
+                if sub is not None:
+                    item[k] = sub
+            for old, new in replace_keys:
+                if str(new) == str(old):
+                    item[new] = item[old]
+                else:
+                    item[new] = merge_config(item.get(new), item.get(old))
+                    del item[old]
+        elif isinstance(item, str):
+            sub = _expand_substitutions(item, path, ctx, strict_undefined, errors)
+            if not isinstance(sub, str) or sub != item:
+                return sub
+        elif isinstance(item, (core.Lambda, Extend, Remove)) and item.value:
+            sub = _expand_substitutions(item.value, path, ctx, strict_undefined, errors)
+            if sub != item.value:
+                item.value = sub
+        return None
+
+    return _walk(item, path, parent_context)
 
 
 def substitute_context_vars(node: Any, context_vars: dict[str, Any]) -> None:
