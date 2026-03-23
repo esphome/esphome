@@ -343,19 +343,25 @@ template<typename T> class StatefulEntityBase : public EntityBase {
    * Returns true if the state actually changed, false if it was the same.
    */
   virtual bool set_new_state(const optional<T> &new_state) {
-    optional<T> old_state = this->has_state() ? optional<T>(this->get_state()) : nullopt;
-    if (old_state != new_state) {
-      this->full_state_callbacks_.call(old_state, new_state);
-      auto had_state = this->has_state();
-      this->set_has_state(new_state.has_value());
-      if (new_state.has_value()) {
-        this->set_state_value_(new_state.value());
-        if (this->get_trigger_on_initial_state() || had_state)
-          this->state_callbacks_.call(new_state.value());
-      }
-      return true;
+    // Compare without constructing optional — avoid unnecessary codegen
+    bool had_state = this->has_state();
+    if (new_state.has_value()) {
+      if (had_state && this->get_state() == new_state.value())
+        return false;  // same value, no change
+    } else {
+      if (!had_state)
+        return false;  // already invalidated, no change
     }
-    return false;
+    // State changed — construct optionals only for callbacks that need them
+    optional<T> old_state = had_state ? optional<T>(this->get_state()) : nullopt;
+    this->full_state_callbacks_.call(old_state, new_state);
+    this->set_has_state(new_state.has_value());
+    if (new_state.has_value()) {
+      this->set_state_value_(new_state.value());
+      if (this->get_trigger_on_initial_state() || had_state)
+        this->state_callbacks_.call(new_state.value());
+    }
+    return true;
   }
   /// Subclasses implement this to store the actual value into their own storage.
   virtual void set_state_value_(const T &value) = 0;
