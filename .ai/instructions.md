@@ -130,16 +130,16 @@ This document provides essential context for AI models interacting with this pro
         In code generation, pass these as arguments to `cg.new_Pvariable()`.
         ```cpp
         // Good - required invariant dependency as constructor parameter
-        class TextTextSensor : public text_sensor::TextSensor, public Component {
+        class SourceTextSensor : public text_sensor::TextSensor, public Component {
          public:
-          explicit TextTextSensor(text::Text *source) : source_(source) {}
+          explicit SourceTextSensor(text::Text *source) : source_(source) {}
          protected:
           text::Text *source_;
         };
         ```
         ```cpp
         // Bad - required invariant dependency as setter
-        class TextTextSensor : public text_sensor::TextSensor, public Component {
+        class SourceTextSensor : public text_sensor::TextSensor, public Component {
          public:
           void set_source(text::Text *source) { this->source_ = source; }
          protected:
