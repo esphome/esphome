@@ -23,6 +23,8 @@ _LOGGER = logging.getLogger(__name__)
 ContextVars = ChainMap[str, Any]
 SubstitutionPath = list[int | str]
 ErrList = list[tuple[UndefinedError, SubstitutionPath, str]]
+# Module-level instance is safe: Jinja holds no mutable state between expand() calls.
+# All per-call state (context_vars, context_trace) is passed as arguments or stack-saved.
 jinja = Jinja()
 
 
@@ -221,7 +223,8 @@ def _push_context(
         errors.extend(
             (
                 UndefinedError(
-                    f"Could not resolve substitution variable '{name}' due to missing or circular dependencies.",
+                    f"Could not resolve substitution variable '{name}'"
+                    " due to missing or circular dependencies."
                 ),
                 [],
                 value,
