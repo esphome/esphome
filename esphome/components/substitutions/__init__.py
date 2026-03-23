@@ -314,7 +314,7 @@ def _substitute_item(
         sub = _expand_substitutions(
             item.value, path, context_vars, strict_undefined, errors
         )
-        if sub != item:
+        if sub != item.value:
             item.value = sub
     return None
 

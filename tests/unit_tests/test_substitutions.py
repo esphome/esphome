@@ -10,10 +10,10 @@ from esphome import config as config_module, yaml_util
 from esphome.components import substitutions
 from esphome.components.packages import do_packages_pass, merge_packages
 from esphome.config import resolve_extend_remove
-from esphome.config_helpers import merge_config
+from esphome.config_helpers import Extend, merge_config
 import esphome.config_validation as cv
 from esphome.const import CONF_SUBSTITUTIONS
-from esphome.core import CORE
+from esphome.core import CORE, Lambda
 from esphome.util import OrderedDict
 
 _LOGGER = logging.getLogger(__name__)
@@ -507,6 +507,46 @@ def test_password_field_warnings_suppressed(
         substitutions.do_substitution_pass(config)
 
     assert caplog.text == ""
+
+
+def test_lambda_substitution() -> None:
+    """Substitution inside a Lambda value should be expanded."""
+    lam = Lambda("return ${var};")
+    config = OrderedDict(
+        {
+            CONF_SUBSTITUTIONS: OrderedDict({"var": "42"}),
+            "lambda": lam,
+        }
+    )
+    substitutions.do_substitution_pass(config)
+    assert lam.value == "return 42;"
+
+
+def test_lambda_no_substitution_unchanged() -> None:
+    """A Lambda with no variable references should not be mutated."""
+    lam = Lambda("return 1;")
+    original_value = lam.value
+    config = OrderedDict(
+        {
+            CONF_SUBSTITUTIONS: OrderedDict({"var": "42"}),
+            "lambda": lam,
+        }
+    )
+    substitutions.do_substitution_pass(config)
+    assert lam.value is original_value
+
+
+def test_extend_substitution() -> None:
+    """Substitution inside an Extend value should be expanded."""
+    ext = Extend("${component_id}")
+    config = OrderedDict(
+        {
+            CONF_SUBSTITUTIONS: OrderedDict({"component_id": "my_sensor"}),
+            "sensor": ext,
+        }
+    )
+    substitutions.do_substitution_pass(config)
+    assert ext.value == "my_sensor"
 
 
 def test_do_substitution_pass_substitutions_must_be_mapping_from_config():
