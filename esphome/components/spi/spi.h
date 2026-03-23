@@ -34,6 +34,8 @@ using SPIInterface = void *;  // Stub for platforms without SPI (e.g., Zephyr)
  */
 namespace esphome::spi {
 
+#define LOG_SPI_DEVICE(this) ESP_LOGCONFIG(TAG, "  CS Pin: %d", esphome::spi::Utility::get_pin_no(this->cs_));
+
 /// The bit-order for SPI devices. This defines how the data read from and written to the device is interpreted.
 enum SPIBitOrder {
   /// The least significant bit is transmitted/received first.
