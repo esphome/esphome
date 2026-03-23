@@ -307,9 +307,10 @@ void log_entity_unit_of_measurement(const char *tag, const char *prefix, const E
  *   - get_trigger_on_initial_state(): return whether callbacks should fire on the first state
  *
  * Subclasses may override set_new_state() to add behavior (logging, notifications) after calling
- * the base implementation. Since set_new_state() is virtual, callers like invalidate_state() and
- * send_state_internal() dispatch through the vtable to the subclass override in the .cpp,
- * avoiding template code bloat at inline call sites.
+ * the base implementation. Since set_new_state() is virtual, callers like invalidate_state()
+ * dispatch through the vtable to the subclass override in the .cpp, avoiding template code
+ * bloat at inline call sites. Subclasses may also add a fast-path dedup check before calling
+ * set_new_state() to skip virtual dispatch entirely when the state hasn't changed.
  *
  * Callback behavior:
  *   - full_state_callbacks_: fired on every change, receives optional<T> previous and current
