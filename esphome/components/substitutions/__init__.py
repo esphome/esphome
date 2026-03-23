@@ -21,7 +21,7 @@ _LOGGER = logging.getLogger(__name__)
 
 ContextVars = ChainMap[str, Any]
 SubstitutionPath = list[int | str]
-ErrList = list[tuple[UndefinedError, SubstitutionPath, str]]
+ErrList = list[tuple[UndefinedError, SubstitutionPath, Any]]
 # Module-level instance is safe: context_vars is passed per-call, and context_trace
 # is stack-saved/restored within expand(). Not thread-safe — only use from one thread.
 jinja = Jinja()
@@ -257,7 +257,7 @@ def _push_context(
                 err=UndefinedError(
                     f"Could not resolve substitution variable '{name}': {cause}"
                 ),
-                path=[],
+                path=["substitutions", name],
                 value=value,
                 strict_undefined=False,
                 errors=errors,
@@ -297,7 +297,7 @@ def _substitute_item(
         return None  # do not substitute inside literal blocks
 
     # Push the current item's context onto the context stack
-    context_vars = push_context(item, parent_context)
+    context_vars = push_context(item, parent_context, errors)
 
     if isinstance(item, list):
         for idx, it in enumerate(item):

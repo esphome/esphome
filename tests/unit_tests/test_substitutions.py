@@ -459,6 +459,9 @@ def test_circular_dependency_warnings(
     assert "'y' is undefined" in caplog.text
     assert "Could not resolve substitution variable 'y'" in caplog.text
     assert "'x' is undefined" in caplog.text
+    # Verify path includes location
+    assert "substitutions->x" in caplog.text
+    assert "substitutions->y" in caplog.text
 
 
 def test_missing_dependency_warning(
@@ -476,6 +479,7 @@ def test_missing_dependency_warning(
 
     assert "Could not resolve substitution variable 'a'" in caplog.text
     assert "'missing' is undefined" in caplog.text
+    assert "substitutions->a" in caplog.text
 
 
 def test_undefined_variable_warning(
@@ -506,6 +510,35 @@ def test_password_field_warnings_suppressed(
         substitutions.do_substitution_pass(config)
 
     assert caplog.text == ""
+
+
+def test_config_context_unresolvable_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Unresolvable vars in a ConfigContext produce warnings via push_context."""
+    inner = OrderedDict({"key": "${a}"})
+    yaml_util.add_context(inner, {"a": "${undefined}"})
+    config = OrderedDict({"items": [inner]})
+    with caplog.at_level(logging.WARNING):
+        substitutions.do_substitution_pass(config)
+
+    assert "Could not resolve substitution variable 'a'" in caplog.text
+    assert "'undefined' is undefined" in caplog.text
+
+
+def test_non_string_substitution_value_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Undefined vars in non-string contexts (e.g. dict keys) produce warnings."""
+    config = OrderedDict(
+        {
+            "items": {"${undefined_key}": "value"},
+        }
+    )
+    with caplog.at_level(logging.WARNING):
+        substitutions.do_substitution_pass(config)
+
+    assert "'undefined_key' is undefined" in caplog.text
 
 
 def test_lambda_substitution() -> None:
