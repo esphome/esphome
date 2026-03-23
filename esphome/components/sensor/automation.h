@@ -13,12 +13,14 @@ class SensorStateTrigger : public Trigger<float> {
   }
 };
 
+#ifdef USE_SENSOR_FILTER
 class SensorRawStateTrigger : public Trigger<float> {
  public:
   explicit SensorRawStateTrigger(Sensor *parent) {
     parent->add_on_raw_state_callback([this](float value) { this->trigger(value); });
   }
 };
+#endif
 
 template<typename... Ts> class SensorPublishAction : public Action<Ts...> {
  public:

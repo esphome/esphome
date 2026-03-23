@@ -95,9 +95,12 @@ class Sensor : public EntityBase {
 #endif
 
   /// Getter-syntax for .state.
-  float get_state() const;
+  float get_state() const { return this->state; }
   /// Getter-syntax for .raw_state
-  float get_raw_state() const;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  float get_raw_state() const { return this->raw_state; }
+#pragma GCC diagnostic pop
 
   /** Publish a new state to the front-end.
    *
@@ -112,10 +115,12 @@ class Sensor : public EntityBase {
   // (In most use cases you won't need these)
   /// Add a callback that will be called every time a filtered value arrives.
   template<typename F> void add_on_state_callback(F &&callback) { this->callback_.add(std::forward<F>(callback)); }
+#ifdef USE_SENSOR_FILTER
   /// Add a callback that will be called every time the sensor sends a raw value.
   template<typename F> void add_on_raw_state_callback(F &&callback) {
     this->raw_callback_.add(std::forward<F>(callback));
   }
+#endif
 
   /** This member variable stores the last state that has passed through all filters.
    *
@@ -126,17 +131,20 @@ class Sensor : public EntityBase {
    */
   float state;
 
-  /** This member variable stores the current raw state of the sensor, without any filters applied.
-   *
-   * Unlike .state,this will be updated immediately when publish_state is called.
-   */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+  /// @deprecated Use get_raw_state() instead. This member will be removed in ESPHome 2027.1.0.
+  ESPDEPRECATED("Use get_raw_state() instead of .raw_state. Will be removed in 2027.1.0", "2026.7.0")
   float raw_state;
+#pragma GCC diagnostic pop
 
   void internal_send_state_to_frontend(float state);
 
  protected:
+#ifdef USE_SENSOR_FILTER
   LazyCallbackManager<void(float)> raw_callback_;  ///< Storage for raw state callbacks.
-  LazyCallbackManager<void(float)> callback_;      ///< Storage for filtered state callbacks.
+#endif
+  LazyCallbackManager<void(float)> callback_;  ///< Storage for filtered state callbacks.
 
 #ifdef USE_SENSOR_FILTER
   Filter *filter_list_{nullptr};  ///< Store all active filters.

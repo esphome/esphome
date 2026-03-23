@@ -901,6 +901,7 @@ async def _build_sensor_automations(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(float, "x")], conf)
     for conf in config.get(CONF_ON_RAW_VALUE, []):
+        cg.add_define("USE_SENSOR_FILTER")
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(float, "x")], conf)
     for conf in config.get(CONF_ON_VALUE_RANGE, []):

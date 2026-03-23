@@ -4,6 +4,10 @@
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
 
+// Suppress deprecation warnings for internal access to .state and .raw_state
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 namespace esphome::sensor {
 
 static const char *const TAG = "sensor";
@@ -64,7 +68,9 @@ StateClass Sensor::get_state_class() {
 
 void Sensor::publish_state(float state) {
   this->raw_state = state;
+#ifdef USE_SENSOR_FILTER
   this->raw_callback_.call(state);
+#endif
 
   ESP_LOGV(TAG, "'%s': Received new state %f", this->name_.c_str(), state);
 
@@ -110,8 +116,6 @@ void Sensor::clear_filters() {
   this->filter_list_ = nullptr;
 }
 #endif  // USE_SENSOR_FILTER
-float Sensor::get_state() const { return this->state; }
-float Sensor::get_raw_state() const { return this->raw_state; }
 
 void Sensor::internal_send_state_to_frontend(float state) {
   this->set_has_state(true);
@@ -123,5 +127,7 @@ void Sensor::internal_send_state_to_frontend(float state) {
   ControllerRegistry::notify_sensor_update(this);
 #endif
 }
+
+#pragma GCC diagnostic pop
 
 }  // namespace esphome::sensor
