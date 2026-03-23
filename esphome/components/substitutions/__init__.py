@@ -29,6 +29,7 @@ jinja = Jinja()
 
 
 def validate_substitution_key(value: Any) -> str:
+    """Validate and normalize a substitution key, stripping a leading ``$`` if present."""
     value = cv.string(value)
     if not value:
         raise cv.Invalid("Substitution key must not be empty")
