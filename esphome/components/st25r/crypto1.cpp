@@ -111,7 +111,7 @@ uint32_t prng_successor(uint32_t x, uint32_t n) {
   x = swapendian(x);
   while (n--)
     x = x >> 1 | (x >> 16 ^ x >> 18 ^ x >> 19 ^ x >> 21) << 31;
-  return x = swapendian(x);
+  return swapendian(x);
 }
 
 }  // namespace st25r

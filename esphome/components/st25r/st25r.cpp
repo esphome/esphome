@@ -813,7 +813,7 @@ void ST25R::process_state() {
             // Read tag data on first detection only (auth + NDEF read if Mifare)
             if (!this->present_tags_.count(this->current_uid_)) {
               std::vector<uint8_t> uid_bytes;
-              for (size_t i = 0; i < this->current_uid_.length(); i += 2)
+              for (size_t i = 0; i < this->current_uid_.length(); i += 2)  // NOLINT(modernize-loop-convert)
                 uid_bytes.push_back((uint8_t) strtol(this->current_uid_.substr(i, 2).c_str(), nullptr, 16));
               this->tags_data_[this->current_uid_] = this->read_tag(uid_bytes);
             }
@@ -877,6 +877,10 @@ void ST25R::process_state() {
     case STATE_REINITIALIZING:
       this->reinitialize();
       this->state_ = STATE_IDLE;
+      break;
+
+    case STATE_SELECT:
+    default:
       break;
   }
 }
@@ -1222,7 +1226,7 @@ void ST25R::aat_tune_() {
     bool improved = false;
 
     // Try 4 directions: A±step, B±step
-    struct Dir { int16_t da; int16_t db; };
+    struct Dir { int da; int db; };
     Dir dirs[] = {
       {step_a, 0}, {-step_a, 0},
       {0, step_b}, {0, -step_b}
@@ -1292,17 +1296,23 @@ bool ST25R::isodep_activate_(uint8_t *ats, uint8_t &ats_len) {
   // PPS (Protocol and Parameter Selection) — negotiate higher bit rate if supported
   if (resp_len >= 2) {
     uint8_t t0 = resp[1];
-    uint8_t fsci = t0 & 0x0F;
-    bool has_ta = t0 & 0x10;
+    bool has_ta = (t0 & 0x10) != 0;
     if (has_ta && resp_len >= 3) {
       uint8_t ta = resp[2];
       // TA bits[6:4] = DS (PCD→PICC speeds), bits[2:0] = DR (PICC→PCD speeds)
       // Try 424 kbps if supported (bit 2 of DS and DR)
-      uint8_t pps_dsi = 0, pps_dri = 0;
-      if (ta & 0x40) pps_dsi = 2;       // 424 kbps PCD→PICC
-      else if (ta & 0x20) pps_dsi = 1;  // 212 kbps
-      if (ta & 0x04) pps_dri = 2;       // 424 kbps PICC→PCD
-      else if (ta & 0x02) pps_dri = 1;  // 212 kbps
+      uint8_t pps_dsi = 0;
+      uint8_t pps_dri = 0;
+      if (ta & 0x40) {
+        pps_dsi = 2;       // 424 kbps PCD→PICC
+      } else if (ta & 0x20) {
+        pps_dsi = 1;       // 212 kbps
+      }
+      if (ta & 0x04) {
+        pps_dri = 2;       // 424 kbps PICC→PCD
+      } else if (ta & 0x02) {
+        pps_dri = 1;       // 212 kbps
+      }
 
       if (pps_dsi > 0 || pps_dri > 0) {
         // PPS: PPSS(0xD0|CID) + PPS0(0x11) + PPS1(DSI<<2|DRI)
