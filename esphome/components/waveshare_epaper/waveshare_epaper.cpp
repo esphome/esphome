@@ -2540,6 +2540,192 @@ void GDEY042T81::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+// ========================================================
+//     CrowPanel 5.79in black/white DIS08792E (SSD1683)
+// Product page:
+//  - https://www.elecrow.com/wiki/CrowPanel_ESP32_E-paper_5.79-inch_HMI_Display.html
+// Datasheet:
+//  - https://github.com/Elecrow-RD/CrowPanel-ESP32-5.79-E-paper-HMI-Display-with-272-792/raw/master/Datasheet/SSD1683_Datasheet.pdf
+// Reference code:
+//  - https://github.com/Elecrow-RD/CrowPanel-ESP32-5.79-E-paper-HMI-Display-with-272-792
+// ========================================================
+
+DIS08792E::DIS08792E() { this->reset_duration_ = 10; }
+
+void DIS08792E::initialize() {
+  this->init_display_();
+  ESP_LOGD(TAG, "Initialization complete, set the display to deep sleep");
+  this->deep_sleep();
+}
+
+void DIS08792E::reset_() {
+  if (this->reset_pin_ != nullptr) {
+    this->reset_pin_->digital_write(false);
+    delay(reset_duration_);  // NOLINT
+    this->reset_pin_->digital_write(true);
+    delay(reset_duration_);  // NOLINT
+  }
+}
+
+void DIS08792E::init_display_() {
+  this->reset_();
+  this->wait_until_idle_();
+
+  this->command(0x12);  // SWRESET
+  this->wait_until_idle_();
+
+  this->command(0x18);
+  this->data(0x80);
+
+  // Primary
+
+  this->command(0x11);
+  this->data(0b111);
+
+  this->command(0x44);
+  this->data(0);
+  this->data(this->get_height_internal()/2/8);
+
+  this->command(0x45);
+  this->data(0);
+  this->data(0);
+  this->data((this->get_width_internal()-1) & 0xFF);
+  this->data((this->get_width_internal()-1) >> 8);
+
+  this->command(0x4E);
+  this->data(0);
+  this->command(0x4F);
+  this->data(0);
+  this->data(0);
+
+  // Secondary
+
+  this->command(0x11 | 0x80);
+  this->data(0b110);
+
+  this->command(0x44 | 0x80);
+  this->data(this->get_height_internal()/2/8);
+  this->data(0);
+
+  this->command(0x45 | 0x80);
+  this->data(0);
+  this->data(0);
+  this->data((this->get_width_internal()-1) & 0xFF);
+  this->data((this->get_width_internal()-1) >> 8);
+
+  this->command(0x4E | 0x80);
+  this->data(this->get_height_internal()/2/8);
+  this->command(0x4F | 0x80);
+  this->data(0);
+  this->data(0);
+
+  this->wait_until_idle_();
+}
+
+void DIS08792E::update_full_() {
+  this->command(0x3C);
+  this->data(this->buffer_[0]?0b101:0b100);
+
+  this->command(0x21);
+  this->data(0b01000000);
+  this->data(0b10000);
+
+  this->command(0x22);
+  this->data(0xF7);
+  this->wait_until_idle_();
+
+  this->command(0x20);
+  this->wait_until_idle_();
+}
+
+void DIS08792E::update_part_() {
+  this->command(0x3C);
+  this->data(0x80);
+
+  this->command(0x21);
+  this->data(0b10000000);
+  this->data(0b10000);
+
+  this->command(0x22);
+  this->data(0xFF);
+  this->wait_until_idle_();
+
+  this->command(0x20);
+  this->wait_until_idle_();
+}
+
+void HOT DIS08792E::display() {
+  ESP_LOGD(TAG, "Wake up the display");
+  this->init_display_();
+
+  if (!this->wait_until_idle_()) {
+    this->status_set_warning();
+    ESP_LOGE(TAG, "Failed to perform update, display is busy");
+    return;
+  }
+
+  const uint32_t lines = this->get_height_internal()/8,    // 99 lines,
+                 line_bytes = this->get_width_internal();  // 272×8 pixels (= 272 bytes) each
+
+  this->command(0x24);
+  this->start_data_();
+  this->write_array(this->buffer_, (lines/2 + 1)*line_bytes);  // lines 0-49
+  this->end_data_();
+
+  this->command(0x26);
+  this->start_data_();
+  this->write_array(this->buffer_, (lines/2 + 1)*line_bytes);  // lines 0-49
+  this->end_data_();
+
+  this->command(0x24 | 0x80);
+  this->start_data_();
+  this->write_array((this->buffer_ + lines/2*line_bytes), (lines/2 + 1)*line_bytes);  // lines 49-99
+  this->end_data_();
+
+  this->command(0x26 | 0x80);
+  this->start_data_();
+  this->write_array((this->buffer_ + lines/2*line_bytes), (lines/2 + 1)*line_bytes);  // lines 49-99
+  this->end_data_();
+
+  if (this->full_update_every_ == 1 || this->at_update_ == 0) {
+    ESP_LOGD(TAG, "Full update");
+    this->update_full_();
+  } else {
+    ESP_LOGD(TAG, "Partial update");
+    this->update_part_();
+  }
+
+  this->at_update_ = (this->at_update_ + 1) % this->full_update_every_;
+  this->wait_until_idle_();
+  ESP_LOGD(TAG, "Set the display back to deep sleep");
+  this->deep_sleep();
+}
+void HOT DIS08792E::draw_absolute_pixel_internal(int x, int y, Color color) {
+  if (x < 0 || y < 0 || x >= this->get_width_internal() || y >= this->get_height_internal())
+    return;
+
+  const uint32_t pos = (x + y/8*this->get_width_controller());
+  const uint8_t subpos = (y & 0x07);
+  if (!color.is_on()) {
+    this->buffer_[pos] |= (0x80 >> subpos);
+  } else {
+    this->buffer_[pos] &= ~(0x80 >> subpos);
+  }
+}
+void DIS08792E::set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
+int DIS08792E::get_width_internal() { return 272; }
+int DIS08792E::get_height_internal() { return 792; }
+uint32_t DIS08792E::idle_timeout_() { return 5000; }
+void DIS08792E::dump_config() {
+  LOG_DISPLAY("", "CrowPanel E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 5.79in B/W DIS08792E");
+  ESP_LOGCONFIG(TAG, "  Full Update Every: %" PRIu32, this->full_update_every_);
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
 static const uint8_t LUT_VCOM_DC_4_2[] = {
     0x00, 0x17, 0x00, 0x00, 0x00, 0x02, 0x00, 0x17, 0x17, 0x00, 0x00, 0x02, 0x00, 0x0A, 0x01,
     0x00, 0x00, 0x01, 0x00, 0x0E, 0x0E, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,

@@ -1099,5 +1099,38 @@ class WaveshareEPaper13P3InK : public WaveshareEPaper {
   uint32_t idle_timeout_() override;
 };
 
+class DIS08792E : public WaveshareEPaper {
+ public:
+  DIS08792E();
+
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    this->command(0x10);
+    this->data(0x01);
+  }
+
+  void set_full_update_every(uint32_t full_update_every);
+
+ protected:
+  uint32_t full_update_every_{30};
+  uint32_t at_update_{0};
+
+  int get_width_internal() override;
+  int get_height_internal() override;
+  uint32_t idle_timeout_() override;
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
+
+ private:
+  void reset_();
+  void update_full_();
+  void update_part_();
+  void init_display_();
+};
+
 }  // namespace waveshare_epaper
 }  // namespace esphome
