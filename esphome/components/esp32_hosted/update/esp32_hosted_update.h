@@ -44,6 +44,7 @@ class Esp32HostedUpdate : public update::UpdateEntity, public PollingComponent {
   // HTTP mode helpers
   bool fetch_manifest_();
   bool stream_firmware_to_coprocessor_();
+  uint8_t initial_check_remaining_{0};
 #else
   // Embedded mode members
   const uint8_t *firmware_data_{nullptr};

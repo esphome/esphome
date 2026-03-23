@@ -15,8 +15,8 @@ void log_number(const char *tag, const char *prefix, const char *type, Number *o
 
   ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
   LOG_ENTITY_ICON(tag, prefix, *obj);
-  LOG_ENTITY_UNIT_OF_MEASUREMENT(tag, prefix, obj->traits);
-  LOG_ENTITY_DEVICE_CLASS(tag, prefix, obj->traits);
+  LOG_ENTITY_UNIT_OF_MEASUREMENT(tag, prefix, *obj);
+  LOG_ENTITY_DEVICE_CLASS(tag, prefix, *obj);
 }
 
 void Number::publish_state(float state) {
@@ -27,10 +27,6 @@ void Number::publish_state(float state) {
 #if defined(USE_NUMBER) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_number_update(this);
 #endif
-}
-
-void Number::add_on_state_callback(std::function<void(float)> &&callback) {
-  this->state_callback_.add(std::move(callback));
 }
 
 }  // namespace esphome::number

@@ -23,17 +23,11 @@ const LogString *valve_command_to_str(float pos) {
     return LOG_STR("UNKNOWN");
   }
 }
+// Valve operation strings indexed by ValveOperation enum (0-2): IDLE, OPENING, CLOSING, plus UNKNOWN
+PROGMEM_STRING_TABLE(ValveOperationStrings, "IDLE", "OPENING", "CLOSING", "UNKNOWN");
+
 const LogString *valve_operation_to_str(ValveOperation op) {
-  switch (op) {
-    case VALVE_OPERATION_IDLE:
-      return LOG_STR("IDLE");
-    case VALVE_OPERATION_OPENING:
-      return LOG_STR("OPENING");
-    case VALVE_OPERATION_CLOSING:
-      return LOG_STR("CLOSING");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  return ValveOperationStrings::get_log_str(static_cast<uint8_t>(op), ValveOperationStrings::LAST_INDEX);
 }
 
 Valve::Valve() : position{VALVE_OPEN} {}
@@ -131,7 +125,6 @@ bool ValveCall::get_stop() const { return this->stop_; }
 
 ValveCall Valve::make_call() { return {this}; }
 
-void Valve::add_on_state_callback(std::function<void()> &&f) { this->state_callback_.add(std::move(f)); }
 void Valve::publish_state(bool save) {
   this->position = clamp(this->position, 0.0f, 1.0f);
 

@@ -1,6 +1,7 @@
 #include "vbus.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <algorithm>
 #include <cinttypes>
 
 namespace esphome {
@@ -66,8 +67,7 @@ void VBus::loop() {
         }
         septet_spread(this->buffer_.data(), 7, 6, this->buffer_[13]);
         uint16_t id = (this->buffer_[8] << 8) + this->buffer_[7];
-        uint32_t value =
-            (this->buffer_[12] << 24) + (this->buffer_[11] << 16) + (this->buffer_[10] << 8) + this->buffer_[9];
+        uint32_t value = encode_uint32(this->buffer_[12], this->buffer_[11], this->buffer_[10], this->buffer_[9]);
         ESP_LOGV(TAG, "P1 C%04x %04x->%04x: %04x %04" PRIx32 " (%" PRIu32 ")", this->command_, this->source_,
                  this->dest_, id, value, value);
       } else if ((this->protocol_ == 0x10) && (this->buffer_.size() == 9)) {
@@ -86,6 +86,9 @@ void VBus::loop() {
           this->state_ = 0;
           ESP_LOGD(TAG, "P1 empty message");
         }
+      } else if (this->buffer_.size() > 15) {
+        ESP_LOGW(TAG, "Unknown protocol 0x%02x, discarding", this->protocol_);
+        this->state_ = 0;
       }
       continue;
     }
@@ -106,9 +109,10 @@ void VBus::loop() {
         continue;
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
       char hex_buf[format_hex_size(VBUS_MAX_LOG_BYTES)];
+      size_t log_bytes = std::min(this->buffer_.size(), static_cast<size_t>(VBUS_MAX_LOG_BYTES));
 #endif
       ESP_LOGV(TAG, "P2 C%04x %04x->%04x: %s", this->command_, this->source_, this->dest_,
-               format_hex_to(hex_buf, this->buffer_.data(), this->buffer_.size()));
+               format_hex_to(hex_buf, this->buffer_.data(), log_bytes));
       for (auto &listener : this->listeners_)
         listener->on_message(this->command_, this->source_, this->dest_, this->buffer_);
       this->state_ = 0;

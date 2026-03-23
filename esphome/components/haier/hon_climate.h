@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <queue>
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
@@ -29,10 +30,10 @@ enum class CleaningState : uint8_t {
 enum class HonControlMethod { MONITOR_ONLY = 0, SET_GROUP_PARAMETERS, SET_SINGLE_PARAMETER };
 
 struct HonSettings {
-  hon_protocol::VerticalSwingMode last_vertiacal_swing;
-  hon_protocol::HorizontalSwingMode last_horizontal_swing;
-  bool beeper_state;
-  bool quiet_mode_state;
+  hon_protocol::VerticalSwingMode last_vertiacal_swing{hon_protocol::VerticalSwingMode::CENTER};
+  hon_protocol::HorizontalSwingMode last_horizontal_swing{hon_protocol::HorizontalSwingMode::CENTER};
+  bool beeper_state{true};
+  bool quiet_mode_state{false};
 };
 
 class HonClimate : public HaierClimateBase {
@@ -123,8 +124,12 @@ class HonClimate : public HaierClimateBase {
   void set_extra_sensors_packet_bytes_size(size_t size) { this->extra_sensors_packet_bytes_ = size; };
   void set_status_message_header_size(size_t size) { this->status_message_header_size_ = size; };
   void set_control_method(HonControlMethod method) { this->control_method_ = method; };
-  void add_alarm_start_callback(std::function<void(uint8_t, const char *)> &&callback);
-  void add_alarm_end_callback(std::function<void(uint8_t, const char *)> &&callback);
+  template<typename F> void add_alarm_start_callback(F &&callback) {
+    this->alarm_start_callback_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_alarm_end_callback(F &&callback) {
+    this->alarm_end_callback_.add(std::forward<F>(callback));
+  }
   float get_active_alarm_count() const { return this->active_alarm_count_; }
 
  protected:
@@ -187,9 +192,10 @@ class HonClimate : public HaierClimateBase {
   float active_alarm_count_{NAN};
   std::chrono::steady_clock::time_point last_alarm_request_;
   int big_data_sensors_{0};
+  uint8_t big_data_counter_{0};
   esphome::optional<hon_protocol::VerticalSwingMode> current_vertical_swing_{};
   esphome::optional<hon_protocol::HorizontalSwingMode> current_horizontal_swing_{};
-  HonSettings settings_;
+  HonSettings settings_{};
   ESPPreferenceObject hon_rtc_;
   SwitchState quiet_mode_state_{SwitchState::OFF};
 };

@@ -83,7 +83,8 @@ class LockCall {
   /// Set the state of the lock device.
   LockCall &set_state(optional<LockState> state);
   /// Set the state of the lock device based on a string.
-  LockCall &set_state(const std::string &state);
+  LockCall &set_state(const char *state);
+  LockCall &set_state(const std::string &state) { return this->set_state(state.c_str()); }
 
   void perform();
 
@@ -149,7 +150,9 @@ class Lock : public EntityBase {
    *
    * @param callback The void(bool) callback.
    */
-  void add_on_state_callback(std::function<void()> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
  protected:
   friend LockCall;

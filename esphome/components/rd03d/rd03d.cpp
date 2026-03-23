@@ -1,4 +1,5 @@
 #include "rd03d.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cmath>
 
@@ -80,37 +81,47 @@ void RD03DComponent::dump_config() {
 }
 
 void RD03DComponent::loop() {
-  while (this->available()) {
-    uint8_t byte = this->read();
-    ESP_LOGVV(TAG, "Received byte: 0x%02X, buffer_pos: %d", byte, this->buffer_pos_);
+  // Read all available bytes in batches to reduce UART call overhead.
+  size_t avail = this->available();
+  uint8_t buf[64];
+  while (avail > 0) {
+    size_t to_read = std::min(avail, sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
+    }
+    avail -= to_read;
+    for (size_t i = 0; i < to_read; i++) {
+      uint8_t byte = buf[i];
+      ESP_LOGVV(TAG, "Received byte: 0x%02X, buffer_pos: %d", byte, this->buffer_pos_);
 
-    // Check if we're looking for frame header
-    if (this->buffer_pos_ < FRAME_HEADER_SIZE) {
-      if (byte == FRAME_HEADER[this->buffer_pos_]) {
-        this->buffer_[this->buffer_pos_++] = byte;
-      } else if (byte == FRAME_HEADER[0]) {
-        // Start over if we see a potential new header
-        this->buffer_[0] = byte;
-        this->buffer_pos_ = 1;
-      } else {
+      // Check if we're looking for frame header
+      if (this->buffer_pos_ < FRAME_HEADER_SIZE) {
+        if (byte == FRAME_HEADER[this->buffer_pos_]) {
+          this->buffer_[this->buffer_pos_++] = byte;
+        } else if (byte == FRAME_HEADER[0]) {
+          // Start over if we see a potential new header
+          this->buffer_[0] = byte;
+          this->buffer_pos_ = 1;
+        } else {
+          this->buffer_pos_ = 0;
+        }
+        continue;
+      }
+
+      // Accumulate data bytes
+      this->buffer_[this->buffer_pos_++] = byte;
+
+      // Check if we have a complete frame
+      if (this->buffer_pos_ == FRAME_SIZE) {
+        // Validate footer
+        if (this->buffer_[FRAME_SIZE - 2] == FRAME_FOOTER[0] && this->buffer_[FRAME_SIZE - 1] == FRAME_FOOTER[1]) {
+          this->process_frame_();
+        } else {
+          ESP_LOGW(TAG, "Invalid frame footer: 0x%02X 0x%02X (expected 0x55 0xCC)", this->buffer_[FRAME_SIZE - 2],
+                   this->buffer_[FRAME_SIZE - 1]);
+        }
         this->buffer_pos_ = 0;
       }
-      continue;
-    }
-
-    // Accumulate data bytes
-    this->buffer_[this->buffer_pos_++] = byte;
-
-    // Check if we have a complete frame
-    if (this->buffer_pos_ == FRAME_SIZE) {
-      // Validate footer
-      if (this->buffer_[FRAME_SIZE - 2] == FRAME_FOOTER[0] && this->buffer_[FRAME_SIZE - 1] == FRAME_FOOTER[1]) {
-        this->process_frame_();
-      } else {
-        ESP_LOGW(TAG, "Invalid frame footer: 0x%02X 0x%02X (expected 0x55 0xCC)", this->buffer_[FRAME_SIZE - 2],
-                 this->buffer_[FRAME_SIZE - 1]);
-      }
-      this->buffer_pos_ = 0;
     }
   }
 }
@@ -132,18 +143,15 @@ void RD03DComponent::process_frame_() {
     // Header is 4 bytes, each target is 8 bytes
     uint8_t offset = FRAME_HEADER_SIZE + (i * TARGET_DATA_SIZE);
 
-    // Extract raw bytes for this target
-    // Note: Despite datasheet Table 5-2 showing order as X, Y, Speed, Resolution,
-    // actual radar output has Resolution before Speed (verified empirically -
-    // stationary targets were showing non-zero speed with original field order)
+    // Extract raw bytes for this target (per datasheet Table 5-2: X, Y, Speed, Resolution)
     uint8_t x_low = this->buffer_[offset + 0];
     uint8_t x_high = this->buffer_[offset + 1];
     uint8_t y_low = this->buffer_[offset + 2];
     uint8_t y_high = this->buffer_[offset + 3];
-    uint8_t res_low = this->buffer_[offset + 4];
-    uint8_t res_high = this->buffer_[offset + 5];
-    uint8_t speed_low = this->buffer_[offset + 6];
-    uint8_t speed_high = this->buffer_[offset + 7];
+    uint8_t speed_low = this->buffer_[offset + 4];
+    uint8_t speed_high = this->buffer_[offset + 5];
+    uint8_t res_low = this->buffer_[offset + 6];
+    uint8_t res_high = this->buffer_[offset + 7];
 
     // Decode values per RD-03D format
     int16_t x = decode_value(x_low, x_high);

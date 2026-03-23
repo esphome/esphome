@@ -235,7 +235,6 @@ void RotaryEncoderSensor::loop() {
   }
 }
 
-float RotaryEncoderSensor::get_setup_priority() const { return setup_priority::DATA; }
 void RotaryEncoderSensor::set_restore_mode(RotaryEncoderRestoreMode restore_mode) {
   this->restore_mode_ = restore_mode;
 }

@@ -18,11 +18,11 @@ class TemplateValve final : public valve::Valve, public Component {
   TemplateValve();
 
   template<typename F> void set_state_lambda(F &&f) { this->state_f_.set(std::forward<F>(f)); }
-  Trigger<> *get_open_trigger() const;
-  Trigger<> *get_close_trigger() const;
-  Trigger<> *get_stop_trigger() const;
-  Trigger<> *get_toggle_trigger() const;
-  Trigger<float> *get_position_trigger() const;
+  Trigger<> *get_open_trigger();
+  Trigger<> *get_close_trigger();
+  Trigger<> *get_stop_trigger();
+  Trigger<> *get_toggle_trigger();
+  Trigger<float> *get_position_trigger();
   void set_optimistic(bool optimistic);
   void set_assumed_state(bool assumed_state);
   void set_has_stop(bool has_stop);
@@ -45,14 +45,14 @@ class TemplateValve final : public valve::Valve, public Component {
   TemplateLambda<float> state_f_;
   bool assumed_state_{false};
   bool optimistic_{false};
-  Trigger<> *open_trigger_;
-  Trigger<> *close_trigger_;
+  Trigger<> open_trigger_;
+  Trigger<> close_trigger_;
   bool has_stop_{false};
   bool has_toggle_{false};
-  Trigger<> *stop_trigger_;
-  Trigger<> *toggle_trigger_;
+  Trigger<> stop_trigger_;
+  Trigger<> toggle_trigger_;
   Trigger<> *prev_command_trigger_{nullptr};
-  Trigger<float> *position_trigger_;
+  Trigger<float> position_trigger_;
   bool has_position_{false};
 };
 

@@ -13,16 +13,16 @@ static const char *const TAG = "remote.symphony";
 // footer-gap handling used there.
 
 // Symphony protocol timing specifications (tuned to handset captures)
-static const uint32_t BIT_ZERO_HIGH_US = 460;  // short
-static const uint32_t BIT_ZERO_LOW_US = 1260;  // long
-static const uint32_t BIT_ONE_HIGH_US = 1260;  // long
-static const uint32_t BIT_ONE_LOW_US = 460;    // short
-static const uint32_t CARRIER_FREQUENCY = 38000;
+static constexpr uint32_t BIT_ZERO_HIGH_US = 460;  // short
+static constexpr uint32_t BIT_ZERO_LOW_US = 1260;  // long
+static constexpr uint32_t BIT_ONE_HIGH_US = 1260;  // long
+static constexpr uint32_t BIT_ONE_LOW_US = 460;    // short
+static constexpr uint32_t CARRIER_FREQUENCY = 38000;
 
 // IRremoteESP8266 reference: kSymphonyFooterGap = 4 * (mark + space)
-static const uint32_t FOOTER_GAP_US = 4 * (BIT_ZERO_HIGH_US + BIT_ZERO_LOW_US);
+static constexpr uint32_t FOOTER_GAP_US = 4 * (BIT_ZERO_HIGH_US + BIT_ZERO_LOW_US);
 // Typical inter-frame gap (~34.8 ms observed)
-static const uint32_t INTER_FRAME_GAP_US = 34760;
+static constexpr uint32_t INTER_FRAME_GAP_US = 34760;
 
 void SymphonyProtocol::encode(RemoteTransmitData *dst, const SymphonyData &data) {
   dst->set_carrier_frequency(CARRIER_FREQUENCY);

@@ -371,7 +371,12 @@ async def to_code(config):
     if on_timer_tick := config.get(CONF_ON_TIMER_TICK):
         await automation.build_automation(
             var.get_timer_tick_trigger(),
-            [(cg.std_vector.template(Timer), "timers")],
+            [
+                (
+                    cg.std_vector.template(Timer).operator("const").operator("ref"),
+                    "timers",
+                )
+            ],
             on_timer_tick,
         )
         has_timers = True
@@ -388,6 +393,7 @@ VOICE_ASSISTANT_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(VoiceAssis
     "voice_assistant.start_continuous",
     StartContinuousAction,
     VOICE_ASSISTANT_ACTION_SCHEMA,
+    synchronous=True,
 )
 @register_action(
     "voice_assistant.start",
@@ -398,6 +404,7 @@ VOICE_ASSISTANT_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(VoiceAssis
             cv.Optional(CONF_WAKE_WORD): cv.templatable(cv.string),
         }
     ),
+    synchronous=True,
 )
 async def voice_assistant_listen_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -410,7 +417,9 @@ async def voice_assistant_listen_to_code(config, action_id, template_arg, args):
     return var
 
 
-@register_action("voice_assistant.stop", StopAction, VOICE_ASSISTANT_ACTION_SCHEMA)
+@register_action(
+    "voice_assistant.stop", StopAction, VOICE_ASSISTANT_ACTION_SCHEMA, synchronous=True
+)
 async def voice_assistant_stop_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])

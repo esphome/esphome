@@ -55,15 +55,15 @@ void HomeassistantNumber::step_retrieved_(StringRef step) {
 }
 
 void HomeassistantNumber::setup() {
-  api::global_api_server->subscribe_home_assistant_state(
-      this->entity_id_, nullptr, std::bind(&HomeassistantNumber::state_changed_, this, std::placeholders::_1));
+  api::global_api_server->subscribe_home_assistant_state(this->entity_id_, nullptr,
+                                                         [this](StringRef state) { this->state_changed_(state); });
 
-  api::global_api_server->get_home_assistant_state(
-      this->entity_id_, "min", std::bind(&HomeassistantNumber::min_retrieved_, this, std::placeholders::_1));
-  api::global_api_server->get_home_assistant_state(
-      this->entity_id_, "max", std::bind(&HomeassistantNumber::max_retrieved_, this, std::placeholders::_1));
-  api::global_api_server->get_home_assistant_state(
-      this->entity_id_, "step", std::bind(&HomeassistantNumber::step_retrieved_, this, std::placeholders::_1));
+  api::global_api_server->get_home_assistant_state(this->entity_id_, "min",
+                                                   [this](StringRef min) { this->min_retrieved_(min); });
+  api::global_api_server->get_home_assistant_state(this->entity_id_, "max",
+                                                   [this](StringRef max) { this->max_retrieved_(max); });
+  api::global_api_server->get_home_assistant_state(this->entity_id_, "step",
+                                                   [this](StringRef step) { this->step_retrieved_(step); });
 }
 
 void HomeassistantNumber::dump_config() {

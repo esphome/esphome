@@ -10,9 +10,6 @@ namespace esphome::cover {
 
 static const char *const TAG = "cover";
 
-const float COVER_OPEN = 1.0f;
-const float COVER_CLOSED = 0.0f;
-
 const LogString *cover_command_to_str(float pos) {
   if (pos == COVER_OPEN) {
     return LOG_STR("OPEN");
@@ -22,17 +19,11 @@ const LogString *cover_command_to_str(float pos) {
     return LOG_STR("UNKNOWN");
   }
 }
+// Cover operation strings indexed by CoverOperation enum (0-2): IDLE, OPENING, CLOSING, plus UNKNOWN
+PROGMEM_STRING_TABLE(CoverOperationStrings, "IDLE", "OPENING", "CLOSING", "UNKNOWN");
+
 const LogString *cover_operation_to_str(CoverOperation op) {
-  switch (op) {
-    case COVER_OPERATION_IDLE:
-      return LOG_STR("IDLE");
-    case COVER_OPERATION_OPENING:
-      return LOG_STR("OPENING");
-    case COVER_OPERATION_CLOSING:
-      return LOG_STR("CLOSING");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  return CoverOperationStrings::get_log_str(static_cast<uint8_t>(op), CoverOperationStrings::LAST_INDEX);
 }
 
 Cover::Cover() : position{COVER_OPEN} {}
@@ -148,7 +139,6 @@ bool CoverCall::get_stop() const { return this->stop_; }
 
 CoverCall Cover::make_call() { return {this}; }
 
-void Cover::add_on_state_callback(std::function<void()> &&f) { this->state_callback_.add(std::move(f)); }
 void Cover::publish_state(bool save) {
   this->position = clamp(this->position, 0.0f, 1.0f);
   this->tilt = clamp(this->tilt, 0.0f, 1.0f);

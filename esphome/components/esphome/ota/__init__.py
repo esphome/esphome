@@ -97,8 +97,9 @@ def _consume_ota_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for OTA component."""
     from esphome.components import socket
 
-    # OTA needs 1 listening socket (client connections are temporary during updates)
-    socket.consume_sockets(1, "ota")(config)
+    # OTA needs 1 listening socket. The active transfer connection during an update
+    # uses a TCP PCB from the general pool, covered by MIN_TCP_SOCKETS headroom.
+    socket.consume_sockets(1, "ota", socket.SocketType.TCP_LISTEN)(config)
     return config
 
 

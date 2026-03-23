@@ -186,7 +186,7 @@ void SX127x::configure_fsk_ook_() {
   } else {
     this->write_register_(REG_PREAMBLE_DETECT, PREAMBLE_DETECTOR_OFF);
   }
-  this->write_register_(REG_PREAMBLE_SIZE_MSB, this->preamble_size_ >> 16);
+  this->write_register_(REG_PREAMBLE_SIZE_MSB, this->preamble_size_ >> 8);
   this->write_register_(REG_PREAMBLE_SIZE_LSB, this->preamble_size_ & 0xFF);
 
   // config sync generation and setup ook threshold
@@ -214,7 +214,7 @@ void SX127x::configure_lora_() {
 
   // config preamble
   if (this->preamble_size_ >= 6) {
-    this->write_register_(REG_PREAMBLE_LEN_MSB, this->preamble_size_ >> 16);
+    this->write_register_(REG_PREAMBLE_LEN_MSB, this->preamble_size_ >> 8);
     this->write_register_(REG_PREAMBLE_LEN_LSB, this->preamble_size_ & 0xFF);
   }
 
@@ -260,6 +260,11 @@ SX127xError SX127x::transmit_packet(const std::vector<uint8_t> &packet) {
     return SX127xError::INVALID_PARAMS;
   }
 
+  if (this->dio0_pin_ == nullptr) {
+    ESP_LOGE(TAG, "DIO0 pin not configured, cannot wait for transmit completion");
+    return SX127xError::INVALID_PARAMS;
+  }
+
   SX127xError ret = SX127xError::NONE;
   if (this->modulation_ == MOD_LORA) {
     this->set_mode_standby();
@@ -300,7 +305,7 @@ void SX127x::call_listeners_(const std::vector<uint8_t> &packet, float rssi, flo
   for (auto &listener : this->listeners_) {
     listener->on_packet(packet, rssi, snr);
   }
-  this->packet_trigger_->trigger(packet, rssi, snr);
+  this->packet_trigger_.trigger(packet, rssi, snr);
 }
 
 void SX127x::loop() {
