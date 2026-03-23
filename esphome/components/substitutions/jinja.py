@@ -5,7 +5,6 @@ import logging
 import math
 import re
 import secrets
-import threading
 from types import GeneratorType
 from typing import Any
 
@@ -137,9 +136,9 @@ def _concat_nodes_override(values: Iterator[Any]) -> Any:
     return raw
 
 
-class Jinja(threading.local, jinja.Environment):
+class Jinja(jinja.Environment):
     """
-    Wraps a Jinja environment in a thread-safe manner
+    Wraps a Jinja environment.
     """
 
     # jinja environment customization overrides
@@ -147,7 +146,6 @@ class Jinja(threading.local, jinja.Environment):
     concat = staticmethod(_concat_nodes_override)
 
     def __init__(self) -> None:
-        threading.local.__init__(self)
         super().__init__(
             trim_blocks=True,
             lstrip_blocks=True,
