@@ -26,6 +26,8 @@ constexpr uint8_t WIRE_TYPE_MASK = 0b111;          // Mask to extract wire type 
 
 // Reinterpret float bits as uint32_t without floating-point comparison.
 // Used by both encode_float() and calc_float() to ensure identical zero checks.
+// Uses union type-punning which is a GCC/Clang extension (not standard C++),
+// but bit_cast/memcpy don't optimize to a no-op on xtensa-gcc (ESP8266).
 inline uint32_t float_to_raw(float value) {
   union {
     float f;
@@ -313,7 +315,7 @@ class ProtoWriteBuffer {
     uint32_t raw = float_to_raw(value);
     if (raw == 0 && !force)
       return;
-    this->encode_fixed32(field_id, raw);
+    this->encode_fixed32(field_id, raw, force);
   }
   void encode_int32(uint32_t field_id, int32_t value, bool force = false) {
     if (value < 0) {
