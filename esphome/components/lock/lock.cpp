@@ -10,7 +10,8 @@ static const char *const TAG = "lock";
 
 // Lock state strings indexed by LockState enum.
 // Index 0 is UNKNOWN (for LOCK_STATE_NONE), also used as fallback for out-of-range
-PROGMEM_STRING_TABLE(LockStateStrings, "UNKNOWN", "LOCKED", "UNLOCKED", "JAMMED", "LOCKING", "UNLOCKING", "OPENING", "OPEN");
+PROGMEM_STRING_TABLE(LockStateStrings, "UNKNOWN", "LOCKED", "UNLOCKED", "JAMMED", "LOCKING", "UNLOCKING", "OPENING",
+                     "OPEN");
 
 const LogString *lock_state_to_string(LockState state) {
   return LockStateStrings::get_log_str(static_cast<uint8_t>(state), 0);
