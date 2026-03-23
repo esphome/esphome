@@ -711,26 +711,7 @@ inline void ProtoLengthDelimited::decode_to_message(ProtoDecodableMessage &msg) 
 
 template<typename T> const char *proto_enum_to_string(T value);
 
-class ProtoService {
- public:
- protected:
-  virtual bool is_authenticated() = 0;
-  virtual bool is_connection_setup() = 0;
-  virtual void on_fatal_error() = 0;
-  virtual void on_no_setup_connection() = 0;
-  virtual bool send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) = 0;
-  virtual void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) = 0;
-
-  // Authentication helper methods
-  inline bool check_connection_setup_() {
-    if (!this->is_connection_setup()) {
-      this->on_no_setup_connection();
-      return false;
-    }
-    return true;
-  }
-
-  inline bool check_authenticated_() { return this->check_connection_setup_(); }
-};
+// ProtoService removed — its methods were inlined into APIConnection.
+// APIConnection is the concrete server-side implementation; the extra virtual layer was unnecessary.
 
 }  // namespace esphome::api
