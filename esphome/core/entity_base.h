@@ -343,8 +343,8 @@ template<typename T> class StatefulEntityBase : public EntityBase {
    * Returns true if the state actually changed, false if it was the same.
    */
   virtual bool set_new_state(const optional<T> &new_state) {
-    // Compare without constructing optional — avoid unnecessary codegen
-    bool had_state = this->has_state();
+    // Access flags_ directly to avoid virtual/function call overhead in this hot path
+    bool had_state = this->flags_.has_state;
     if (new_state.has_value()) {
       if (had_state && this->get_state() == new_state.value())
         return false;  // same value, no change
@@ -354,7 +354,7 @@ template<typename T> class StatefulEntityBase : public EntityBase {
     // State changed — capture old state, then update storage before firing callbacks
     // so callback code can inspect the entity's current state via get_state()/has_state()
     optional<T> old_state = had_state ? optional<T>(this->get_state()) : nullopt;
-    this->set_has_state(new_state.has_value());
+    this->flags_.has_state = new_state.has_value();
     if (new_state.has_value()) {
       this->set_state_value_(new_state.value());
     }
