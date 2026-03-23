@@ -1593,11 +1593,15 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
       if (this->roaming_target_bssid_ != bssid_t{} && current_bssid == this->roaming_target_bssid_) {
         char bssid_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
         format_mac_addr_upper(current_bssid.data(), bssid_buf);
-        ESP_LOGD(TAG, "Roam successful (via retry) to %s", bssid_buf);
+        ESP_LOGD(TAG, "Roam successful (via retry, attempt %u/%u) to %s", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS,
+                 bssid_buf);
         this->roaming_attempts_ = 0;
-      } else {
-        // Failed roam, reconnected to different AP - keep attempts to prevent ping-pong
+      } else if (this->roaming_target_bssid_ != bssid_t{}) {
+        // Failed roam to specific target, reconnected to different AP - keep attempts to prevent ping-pong
         ESP_LOGD(TAG, "Reconnected after failed roam (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
+      } else {
+        // Reconnected after scan-induced disconnect (no roam target) - keep attempts
+        ESP_LOGD(TAG, "Reconnected after roam scan (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
       }
     } else {
       // Normal connection (boot, credentials changed, etc.)
