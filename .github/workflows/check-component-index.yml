@@ -1,0 +1,184 @@
+name: Check Component Index Order
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+    paths:
+      - 'src/content/docs/components/index.mdx'
+
+permissions:
+  pull-requests: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  BOT_NAME: "github-actions[bot]"
+  REVIEW_MARKER: "ImgTable blocks are not in alphabetical order"
+
+jobs:
+  check:
+    name: Component Index Ordering
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout the BASE branch (trusted code) — the script runs from here.
+      - name: Checkout base branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      # Sparse-checkout only the index file from the PR head into a
+      # separate directory. No untrusted code is executed.
+      - name: Checkout PR index file
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          sparse-checkout: src/content/docs/components/index.mdx
+          path: pr-head
+
+      - name: Set up Node.js
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: '20'
+
+      - name: Check ordering
+        id: check
+        run: |
+          set +e
+          node script/check_component_index.mjs --suggestions \
+            --file pr-head/src/content/docs/components/index.mdx \
+            > /tmp/suggestions.json
+          EXIT_CODE=$?
+          set -e
+
+          if [ "$EXIT_CODE" -eq 0 ]; then
+            echo "sorted=true" >> "$GITHUB_OUTPUT"
+          elif [ "$EXIT_CODE" -eq 1 ]; then
+            echo "sorted=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::check_component_index.mjs failed with exit code $EXIT_CODE"
+            exit "$EXIT_CODE"
+          fi
+
+      - name: Post or dismiss review
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        env:
+          SORTED: ${{ steps.check.outputs.sorted }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        with:
+          script: |
+            const fs = require('fs');
+            const { owner, repo } = context.repo;
+            const pr_number = parseInt(process.env.PR_NUMBER);
+            const sorted = process.env.SORTED === 'true';
+
+            // Helper: find the most recent active bot review for this check.
+            // Only returns reviews in CHANGES_REQUESTED state (not dismissed).
+            async function findActiveBotReview() {
+              const { data: reviews } = await github.rest.pulls.listReviews({
+                owner,
+                repo,
+                pull_number: pr_number
+              });
+              return reviews
+                .filter(r =>
+                  r.user.login === process.env.BOT_NAME &&
+                  r.state === 'CHANGES_REQUESTED' &&
+                  r.body && r.body.includes(process.env.REVIEW_MARKER)
+                )
+                .sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at))[0];
+            }
+
+            if (sorted) {
+              console.log('All ImgTable blocks are correctly sorted.');
+              const botReview = await findActiveBotReview();
+              if (botReview) {
+                console.log('Dismissing previous review', botReview.id);
+                await github.rest.pulls.dismissReview({
+                  owner,
+                  repo,
+                  pull_number: pr_number,
+                  review_id: botReview.id,
+                  message: 'Component index ordering has been fixed — dismissing review.'
+                });
+              }
+              return;
+            }
+
+            // Read the suggestions JSON produced by the script
+            const data = JSON.parse(fs.readFileSync('/tmp/suggestions.json', 'utf-8'));
+            console.log(`Found ${data.suggestions.length} unsorted table(s).`);
+
+            // Build inline suggestion comments
+            const comments = data.suggestions.map(s => ({
+              path: data.file,
+              start_line: s.startLine,
+              line: s.endLine,
+              side: 'RIGHT',
+              start_side: 'RIGHT',
+              body: [
+                `**${s.section}**: items are not in alphabetical order.`,
+                '',
+                '```suggestion',
+                s.body,
+                '```'
+              ].join('\n')
+            }));
+
+            // Check if an active bot review already exists with the same suggestions.
+            // If so, skip posting a duplicate review.
+            const existingReview = await findActiveBotReview();
+            if (existingReview) {
+              const { data: existingComments } = await github.rest.pulls.listReviewComments({
+                owner,
+                repo,
+                pull_number: pr_number,
+                per_page: 100
+              });
+              const reviewComments = existingComments
+                .filter(c => c.pull_request_review_id === existingReview.id)
+                .map(c => ({ path: c.path, start_line: c.start_line, line: c.line, body: c.body }));
+
+              const newFingerprint = JSON.stringify(comments.map(c => ({ path: c.path, start_line: c.start_line, line: c.line, body: c.body })));
+              const existingFingerprint = JSON.stringify(reviewComments);
+
+              if (newFingerprint === existingFingerprint) {
+                console.log('Active review already has identical suggestions — skipping.');
+                return;
+              }
+
+              console.log('Suggestions have changed — dismissing stale review', existingReview.id);
+              await github.rest.pulls.dismissReview({
+                owner,
+                repo,
+                pull_number: pr_number,
+                review_id: existingReview.id,
+                message: 'Superseded by updated review on latest push.'
+              });
+            }
+
+            // Create REQUEST_CHANGES review with inline suggestions
+            await github.rest.pulls.createReview({
+              owner,
+              repo,
+              pull_number: pr_number,
+              commit_id: process.env.HEAD_SHA,
+              event: 'REQUEST_CHANGES',
+              body: [
+                `### ${process.env.REVIEW_MARKER}`,
+                '',
+                `Found ${data.suggestions.length} ImgTable block(s) with incorrect ordering below **Network Protocols**.`,
+                'Each table has at most one Core item (matching the section name, e.g. "Sensor Core" for the Sensor section), pinned first, followed by Template items (names starting with "Template "), then all remaining items sorted alphabetically.',
+                '',
+                'You can fix this automatically by running:',
+                '```',
+                'node script/check_component_index.mjs --fix',
+                '```',
+                '',
+                'See the inline suggestions below for the correct order in each section.'
+              ].join('\n'),
+              comments
+            });
+
+            console.log('Posted REQUEST_CHANGES review with inline suggestions.');
