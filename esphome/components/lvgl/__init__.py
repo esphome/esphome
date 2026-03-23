@@ -411,6 +411,7 @@ async def to_code(configs):
     cg.add_build_flag("-DLV_CONF_H=1")
     # handle windows paths in a way that doesn't break the generated C++
     lv_conf_h_path = str(lv_conf_h_file).replace("\\", "\\\\")
+    print(lv_conf_h_path)
     cg.add_build_flag(f'-DLV_CONF_PATH=\\"{lv_conf_h_path}\\"')
     cg.add_build_flag("-DLV_KCONFIG_IGNORE")
 
