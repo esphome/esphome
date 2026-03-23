@@ -159,26 +159,44 @@ jobs:
             }
 
             // Create REQUEST_CHANGES review with inline suggestions
-            await github.rest.pulls.createReview({
-              owner,
-              repo,
-              pull_number: pr_number,
-              commit_id: process.env.HEAD_SHA,
-              event: 'REQUEST_CHANGES',
-              body: [
-                `### ${process.env.REVIEW_MARKER}`,
-                '',
-                `Found ${data.suggestions.length} ImgTable block(s) with incorrect ordering below **Network Protocols**.`,
-                'Each table has at most one Core item (matching the section name, e.g. "Sensor Core" for the Sensor section), pinned first, followed by Template items (names starting with "Template "), then all remaining items sorted alphabetically.',
-                '',
-                'You can fix this automatically by running:',
-                '```',
-                'node script/check_component_index.mjs --fix',
-                '```',
-                '',
-                'See the inline suggestions below for the correct order in each section.'
-              ].join('\n'),
-              comments
-            });
+            const reviewBody = [
+              `### ${process.env.REVIEW_MARKER}`,
+              '',
+              `Found ${data.suggestions.length} ImgTable block(s) with incorrect ordering below **Network Protocols**.`,
+              'Each table has at most one Core item (matching the section name, e.g. "Sensor Core" for the Sensor section), pinned first, followed by Template items (names starting with "Template "), then all remaining items sorted alphabetically.',
+              '',
+              'You can fix this automatically by running:',
+              '```',
+              'node script/check_component_index.mjs --fix',
+              '```',
+            ];
 
-            console.log('Posted REQUEST_CHANGES review with inline suggestions.');
+            try {
+              await github.rest.pulls.createReview({
+                owner,
+                repo,
+                pull_number: pr_number,
+                commit_id: process.env.HEAD_SHA,
+                event: 'REQUEST_CHANGES',
+                body: [...reviewBody, '', 'See the inline suggestions below for the correct order in each section.'].join('\n'),
+                comments
+              });
+              console.log('Posted REQUEST_CHANGES review with inline suggestions.');
+            } catch (e) {
+              if (e?.status === 422) {
+                // Inline suggestions fail when unsorted lines are outside the PR diff.
+                // Fall back to a review without inline comments.
+                console.log(`Inline suggestions failed with 422, posting review without inline comments.`);
+                await github.rest.pulls.createReview({
+                  owner,
+                  repo,
+                  pull_number: pr_number,
+                  commit_id: process.env.HEAD_SHA,
+                  event: 'REQUEST_CHANGES',
+                  body: [...reviewBody, '', 'The unsorted blocks are outside this PR\'s diff. Try merging the latest base branch first, or run the fix command above.'].join('\n'),
+                });
+                console.log('Posted REQUEST_CHANGES review without inline suggestions.');
+              } else {
+                throw e;
+              }
+            }
