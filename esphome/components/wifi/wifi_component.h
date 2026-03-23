@@ -263,8 +263,8 @@ class WiFiAP {
 #ifdef USE_WIFI_WPA2_EAP
   const optional<EAPAuth> &get_eap() const;
 #endif  // USE_WIFI_WPA2_EAP
-  uint8_t get_channel() const;
-  bool has_channel() const;
+  uint8_t get_channel() const { return this->channel_; }
+  bool has_channel() const { return this->channel_ != 0; }
   int8_t get_priority() const { return priority_; }
 #ifdef USE_WIFI_MANUAL_IP
   const optional<ManualIP> &get_manual_ip() const;
@@ -470,9 +470,9 @@ class WiFiComponent final : public Component {
   /// Reconnect WiFi if required.
   void loop() override;
 
-  bool has_sta() const;
-  bool has_ap() const;
-  bool is_ap_active() const;
+  bool has_sta() const { return !this->sta_.empty(); }
+  bool has_ap() const { return this->has_ap_; }
+  bool is_ap_active() const { return this->ap_started_; }
 
 #ifdef USE_WIFI_11KV_SUPPORT
   void set_btm(bool btm);
@@ -481,8 +481,8 @@ class WiFiComponent final : public Component {
 
   network::IPAddress get_dns_address(int num);
   network::IPAddresses get_ip_addresses();
-  const char *get_use_address() const;
-  void set_use_address(const char *use_address);
+  const char *get_use_address() const { return this->use_address_; }
+  void set_use_address(const char *use_address) { this->use_address_ = use_address; }
 
   const wifi_scan_vector_t<WiFiScanResult> &get_scan_result() const { return scan_result_; }
 
