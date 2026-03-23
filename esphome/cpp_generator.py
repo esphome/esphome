@@ -565,6 +565,29 @@ def new_variable(
     return obj
 
 
+def _extract_component_ns(type_str: str) -> str:
+    """Extract the component namespace from a fully-qualified C++ type string.
+
+    Strips leading ``esphome::`` and template arguments, then returns
+    the first namespace segment.  Falls back to ``"esphome"`` when the
+    type has no namespace qualifier (after stripping templates).
+
+    Examples::
+
+        esphome::dsmr::Dsmr                                        -> dsmr
+        esphome::logger::Logger                                     -> logger
+        esphome::Automation<std::optional<bool>, std::optional<bool>> -> esphome
+        Logger                                                      -> esphome
+    """
+    bare = type_str.removeprefix("esphome::")
+    # Strip template arguments before namespace extraction to avoid
+    # matching :: inside template params (e.g. Automation<std::optional<bool>>)
+    bare_no_template = bare.split("<", maxsplit=1)[0]
+    if "::" in bare_no_template:
+        return bare_no_template.split("::", maxsplit=1)[0].rstrip("_")
+    return "esphome"
+
+
 def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     """Declare a new pointer variable in the code generation.
 
@@ -584,7 +607,9 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
         # For 'new' allocations, use placement new into static storage
         # to avoid heap fragmentation on embedded devices.
         the_type = id_.type
-        storage_name = f"{id_.id}__pstorage"
+        # Extract component namespace from type for memory analysis attribution
+        component_ns = _extract_component_ns(str(the_type))
+        storage_name = f"{component_ns}__{id_.id}__pstorage"
 
         # Declare aligned byte array for the object storage
         CORE.add_global(
