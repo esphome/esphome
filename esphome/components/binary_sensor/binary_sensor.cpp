@@ -32,7 +32,6 @@ void BinarySensor::publish_initial_state(bool new_state) {
   this->invalidate_state();
   this->publish_state(new_state);
 }
-void BinarySensor::send_state_internal(bool new_state) { this->set_new_state(new_state); }
 
 bool BinarySensor::set_new_state(const optional<bool> &new_state) {
   if (StatefulEntityBase::set_new_state(new_state)) {
