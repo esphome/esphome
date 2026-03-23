@@ -150,7 +150,11 @@ def available_effects_str(effects: list) -> str:
 
 
 def _final_validate(config: ConfigType) -> ConfigType:
-    """Validate all recorded effect name references against their target lights."""
+    """Validate all recorded effect name references against their target lights.
+
+    This runs once per light platform instance. If no light platform is configured,
+    this never runs — but the ID validator will catch the missing light ID separately.
+    """
     data = _get_data()
     if not data.effect_refs:
         return config
