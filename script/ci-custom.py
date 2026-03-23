@@ -963,6 +963,7 @@ def lint_log_multiline_continuation(fname, content):
         "esphome/components/nextion/nextion_base.h",
         "esphome/components/select/select.h",
         "esphome/components/sensor/sensor.h",
+        "esphome/components/spi/spi.h",
         "esphome/components/stepper/stepper.h",
         "esphome/components/switch/switch.h",
         "esphome/components/text/text.h",
