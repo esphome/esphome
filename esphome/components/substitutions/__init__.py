@@ -1,31 +1,50 @@
+from collections import ChainMap
 import logging
-from re import Match
 from typing import Any
 
 from esphome import core
 from esphome.config_helpers import Extend, Remove, merge_config, merge_dicts_ordered
 import esphome.config_validation as cv
 from esphome.const import CONF_SUBSTITUTIONS, VALID_SUBSTITUTIONS_CHARACTERS
-from esphome.yaml_util import ESPHomeDataBase, ESPLiteralValue, make_data_base
+from esphome.types import ConfigType
+from esphome.util import OrderedDict
+from esphome.yaml_util import (
+    ConfigContext,
+    ESPHomeDataBase,
+    ESPLiteralValue,
+    make_data_base,
+)
 
-from .jinja import Jinja, JinjaError, JinjaStr, has_jinja
+from .jinja import Jinja, JinjaError, Missing, Resolver, UndefinedError, has_jinja
 
 CODEOWNERS = ["@esphome/core"]
 _LOGGER = logging.getLogger(__name__)
 
+ContextVars = ChainMap[str, Any]
+SubstitutionPath = list[int | str]
+ErrList = list[tuple[UndefinedError, SubstitutionPath, Any]]
+# Module-level instance is safe: context_vars is passed per-call, and context_trace
+# is stack-saved/restored within expand(). Not thread-safe — only use from one thread.
+jinja = Jinja()
 
-def validate_substitution_key(value):
+
+def validate_substitution_key(value: Any) -> str:
+    """Validate and normalize a substitution key, stripping a leading ``$`` if present."""
     value = cv.string(value)
     if not value:
         raise cv.Invalid("Substitution key must not be empty")
     if value[0] == "$":
         value = value[1:]
+    if not value:
+        raise cv.Invalid("Substitution key must not be empty")
     if value[0].isdigit():
         raise cv.Invalid("First character in substitutions cannot be a digit.")
     for char in value:
         if char not in VALID_SUBSTITUTIONS_CHARACTERS:
             raise cv.Invalid(
-                f"Substitution must only consist of upper/lowercase characters, the underscore and numbers. The character '{char}' cannot be used"
+                f"Substitution must only consist of upper/lowercase characters,"
+                f" the underscore and numbers."
+                f" The character '{char}' cannot be used"
             )
     return value
 
@@ -37,8 +56,8 @@ CONFIG_SCHEMA = cv.Schema(
 )
 
 
-async def to_code(config):
-    pass
+async def to_code(config: ConfigType) -> None:
+    """No runtime code generation needed — substitutions are resolved at config time."""
 
 
 def _restore_data_base(value: Any, orig_value: ESPHomeDataBase) -> ESPHomeDataBase:
@@ -62,90 +81,121 @@ def _restore_data_base(value: Any, orig_value: ESPHomeDataBase) -> ESPHomeDataBa
     return value
 
 
-def _expand_jinja(
-    value: str | JinjaStr,
-    orig_value: str | JinjaStr,
-    path,
-    jinja: Jinja,
-    ignore_missing: bool,
-) -> Any:
-    if has_jinja(value):
-        # If the original value passed in to this function is a JinjaStr, it means it contains an unresolved
-        # Jinja expression from a previous pass.
-        if isinstance(orig_value, JinjaStr):
-            # Rebuild the JinjaStr in case it was lost while replacing substitutions.
-            value = JinjaStr(value, orig_value.upvalues)
-        try:
-            # Invoke the jinja engine to evaluate the expression.
-            value, err = jinja.expand(value)
-            if err is not None and not ignore_missing and "password" not in path:
-                _LOGGER.warning(
-                    "Found '%s' (see %s) which looks like an expression,"
-                    " but could not resolve all the variables: %s",
-                    value,
-                    "->".join(str(x) for x in path),
-                    err.message,
-                )
-        except JinjaError as err:
-            raise cv.Invalid(
-                f"{err.error_name()} Error evaluating jinja expression '{value}': {str(err.parent())}."
-                f"\nEvaluation stack: (most recent evaluation last)\n{err.stack_trace_str()}"
-                f"\nRelevant context:\n{err.context_trace_str()}"
-                f"\nSee {'->'.join(str(x) for x in path)}",
-                path,
-            )
-        # If the original, unexpanded string, contained document metadata (ESPHomeDatabase),
-        # assign this same document metadata to the resulting value.
-        if isinstance(orig_value, ESPHomeDataBase):
-            value = _restore_data_base(value, orig_value)
+def _try_substitute(value: Any, context: ContextVars) -> Any:
+    """Substitute variables in value, returning the result or the original if unchanged."""
+    result = _substitute_item(value, [], context, strict_undefined=True)
+    return result if result is not None else value
 
-    return value
+
+def _resolve_var(name: str, context_vars: ContextVars) -> Any:
+    """Look up a substitution variable, falling back to the resolver callback."""
+    sub = context_vars.get(name, Missing)
+    if sub is Missing:
+        resolver = context_vars.get(Resolver)
+        if resolver:
+            sub = resolver(name)
+    return sub
+
+
+def _handle_undefined(
+    err: UndefinedError,
+    path: SubstitutionPath,
+    value: Any,
+    strict_undefined: bool,
+    errors: ErrList | None,
+) -> None:
+    """Handle an undefined variable.
+
+    In strict mode, raises immediately. Otherwise, appends to the errors
+    list for deferred warning at the end of the substitution pass.
+    """
+    if strict_undefined:
+        raise err
+    if errors is not None:
+        errors.append((err, path, value))
 
 
 def _expand_substitutions(
-    substitutions: dict, value: str, path, jinja: Jinja, ignore_missing: bool
+    value: str,
+    path: SubstitutionPath,
+    context_vars: ContextVars,
+    strict_undefined: bool,
+    errors: ErrList | None,
 ) -> Any:
+    """Expand ``$var``, ``${var}``, and Jinja expressions in a string.
+
+    Works in two phases:
+
+    1. **Simple substitution** — scan for ``$name`` / ``${name}`` tokens
+       and replace them with the value from *context_vars*.  If the token
+       spans the entire string, return the raw value (preserving type).
+    2. **Jinja evaluation** — if the result still contains Jinja syntax
+       (e.g. ``${a * b}``), render it through the Jinja engine with the
+       full *context_vars* as template variables.
+
+    Returns the expanded value (may be a non-string type) or the
+    original *value* unchanged if there is nothing to substitute.
+    """
     if "$" not in value:
         return value
 
     orig_value = value
 
-    i = 0
-    while True:
-        m: Match[str] = cv.VARIABLE_PROG.search(value, i)
-        if not m:
-            # No more variable substitutions found. See if the remainder looks like a jinja template
-            value = _expand_jinja(value, orig_value, path, jinja, ignore_missing)
-            break
-
-        i, j = m.span(0)
+    # Phase 1: Replace $var and ${var} references
+    search_pos = 0
+    while (m := cv.VARIABLE_PROG.search(value, search_pos)) is not None:
+        match_start, match_end = m.span(0)
         name: str = m.group(1)
         if name.startswith("{") and name.endswith("}"):
             name = name[1:-1]
-        if name not in substitutions:
-            if not ignore_missing and "password" not in path:
-                _LOGGER.warning(
-                    "Found '%s' (see %s) which looks like a substitution, but '%s' was "
-                    "not declared",
-                    orig_value,
-                    "->".join(str(x) for x in path),
-                    name,
-                )
-            i = j
+        sub = _resolve_var(name, context_vars)
+        if sub is Missing:
+            _handle_undefined(
+                err=UndefinedError(f"'{name}' is undefined"),
+                path=path,
+                value=value,
+                strict_undefined=strict_undefined,
+                errors=errors,
+            )
+            search_pos = match_end
             continue
 
-        sub: Any = substitutions[name]
-
-        if i == 0 and j == len(value):
-            # The variable spans the whole expression, e.g., "${varName}". Return its resolved value directly
-            # to conserve its type.
+        if match_start == 0 and match_end == len(value):
+            # The variable spans the whole expression, e.g., "${varName}".
+            # Return its resolved value directly to conserve its type.
             value = sub
             break
 
-        tail = value[j:]
-        value = value[:i] + str(sub)
-        i = len(value)
+        tail = value[match_end:]
+        value = value[:match_start] + str(sub)
+        search_pos = len(value)
         value += tail
+
+    # Phase 2: Evaluate any remaining jinja expressions (e.g., "${a * b}")
+    if isinstance(value, str) and has_jinja(value):
+        try:
+            value = jinja.expand(value, context_vars)
+        except UndefinedError as err:
+            _handle_undefined(
+                err=err,
+                path=path,
+                value=value,
+                strict_undefined=strict_undefined,
+                errors=errors,
+            )
+        except JinjaError as err:
+            raise cv.Invalid(
+                f"{err.error_name()} Error evaluating jinja expression"
+                f" '{value}': {str(err.parent())}."
+                f"\nEvaluation stack: (most recent evaluation last)"
+                f"\n{err.stack_trace_str()}"
+                f"\nRelevant context:\n{err.context_trace_str()}"
+                f"\nSee {'->'.join(str(x) for x in path)}",
+                path,
+            )
+        else:
+            if isinstance(orig_value, ESPHomeDataBase):
+                value = _restore_data_base(value, orig_value)
 
     # orig_value can also already be a lambda with esp_range info, and only
     # a plain string is sent in orig_value
@@ -157,83 +207,221 @@ def _expand_substitutions(
     return value
 
 
+def _push_context(
+    local_vars: dict[str, Any],
+    parent_context: ContextVars,
+    errors: ErrList | None = None,
+) -> tuple[ContextVars, dict[str, Any]]:
+    """Resolve local_vars and layer them on top of parent_context.
+
+    Returns ``(child_context, resolved_vars)`` where *child_context* is a
+    new :class:`ChainMap` whose front map is *resolved_vars* (an
+    :class:`OrderedDict` of successfully-resolved variables).
+
+    Variables may reference each other (e.g. ``b: ${a + 1}``).
+    Dependencies are resolved recursively via a *resolver* callback
+    that Jinja invokes on cache-miss.  If vars are already in
+    dependency order, the loop iterates exactly once per variable.
+
+    The ChainMap stack used during resolution is::
+
+        resolver_context  →  resolved_vars  →  parent maps …
+              ↑                    ↑
+        holds Resolver       filled as vars
+        callback               are resolved
+    """
+    # Vars still waiting to be resolved — popped one-by-one by resolve().
+    unresolved_vars = local_vars.copy()
+    # Accumulates resolved values in dependency order; becomes the front
+    # map of the returned child context so later lookups find them first.
+    resolved_vars = OrderedDict()
+    # The context callees will search: resolved_vars (initially empty)
+    # shadowing whatever the parent already provides.
+    context_vars = parent_context.new_child(resolved_vars)
+
+    # Vars that failed resolution (missing or circular references).
+    # Maps name → (original_value, cause_error) for deferred warnings.
+    unresolvables: dict[str, tuple[Any, UndefinedError]] = {}
+
+    # One extra child layer so the Resolver callback lives in its own
+    # map and doesn't pollute resolved_vars.
+    resolver_context = context_vars.new_child()
+
+    def resolve(key: str) -> Any:
+        """Resolve a variable, recursively resolving any dependencies it references."""
+        value = unresolved_vars.pop(key, Missing)
+        if value is Missing:
+            return Missing
+        try:
+            value = _try_substitute(value, resolver_context)
+        except UndefinedError as err:
+            unresolvables[key] = (value, err)
+            return Missing
+        resolved_vars[key] = value
+        return value
+
+    # Set up the resolver for use during substitution
+    resolver_context[Resolver] = resolve
+
+    # Resolve all variables, recursively resolving dependencies as needed.
+    # Each call to resolve() resolves that variable and any variables it depends on.
+    while unresolved_vars:
+        resolve(next(iter(unresolved_vars)))
+
+    for name, (value, cause) in unresolvables.items():
+        resolved_vars[name] = value
+        if errors is not None:
+            _handle_undefined(
+                err=UndefinedError(
+                    f"Could not resolve substitution variable '{name}': {cause}"
+                ),
+                path=["substitutions", name],
+                value=value,
+                strict_undefined=False,
+                errors=errors,
+            )
+
+    return context_vars, resolved_vars
+
+
+def push_context(
+    config_node: Any,
+    parent_context: ContextVars,
+    errors: ErrList | None = None,
+) -> ContextVars:
+    """Returns the context vars this config node must be evaluated with."""
+    if isinstance(config_node, ConfigContext):
+        return _push_context(config_node.vars, parent_context, errors)[0]
+
+    # This node does not define any vars itself, so just return parent context
+    return parent_context
+
+
 def _substitute_item(
-    substitutions: dict,
     item: Any,
-    path: list[int | str],
-    jinja: Jinja,
-    ignore_missing: bool,
+    path: SubstitutionPath,
+    parent_context: ContextVars,
+    strict_undefined: bool,
+    errors: ErrList | None = None,
 ) -> Any | None:
-    if isinstance(item, ESPLiteralValue):
-        return None  # do not substitute inside literal blocks
-    if isinstance(item, list):
-        for i, it in enumerate(item):
-            sub = _substitute_item(substitutions, it, path + [i], jinja, ignore_missing)
-            if sub is not None:
-                item[i] = sub
-    elif isinstance(item, dict):
-        replace_keys = []
-        for k, v in item.items():
-            if path or k != CONF_SUBSTITUTIONS:
-                sub = _substitute_item(
-                    substitutions, k, path + [k], jinja, ignore_missing
-                )
+    """Recursively substitute variables in a config item.
+
+    Walks dicts, lists, strings, Lambdas, Extend, and Remove nodes,
+    replacing variable references with values from context_vars.
+    Mutates containers in-place; returns a replacement value for
+    strings/scalars, or None if the item was unchanged.
+    """
+
+    def _walk(item: Any, path: SubstitutionPath, parent_ctx: ContextVars) -> Any | None:
+        if isinstance(item, ESPLiteralValue):
+            return None  # do not substitute inside literal blocks
+
+        ctx = push_context(item, parent_ctx, errors)
+
+        if isinstance(item, list):
+            for idx, it in enumerate(item):
+                sub = _walk(it, path + [idx], ctx)
                 if sub is not None:
-                    replace_keys.append((k, sub))
-            sub = _substitute_item(substitutions, v, path + [k], jinja, ignore_missing)
-            if sub is not None:
-                item[k] = sub
-        for old, new in replace_keys:
-            if str(new) == str(old):
-                item[new] = item[old]
-            else:
-                item[new] = merge_config(item.get(old), item.get(new))
-                del item[old]
-    elif isinstance(item, str):
-        sub = _expand_substitutions(substitutions, item, path, jinja, ignore_missing)
-        if isinstance(sub, JinjaStr) or sub != item:
-            return sub
-    elif isinstance(item, (core.Lambda, Extend, Remove)):
-        sub = _expand_substitutions(
-            substitutions, item.value, path, jinja, ignore_missing
+                    item[idx] = sub
+        elif isinstance(item, dict):
+            replace_keys: list[tuple[str, Any]] = []
+            for k, v in item.items():
+                if path or k != CONF_SUBSTITUTIONS:
+                    sub = _walk(k, path + [k], ctx)
+                    if sub is not None:
+                        replace_keys.append((k, sub))
+                sub = _walk(v, path + [k], ctx)
+                if sub is not None:
+                    item[k] = sub
+            for old, new in replace_keys:
+                if str(new) == str(old):
+                    item[new] = item[old]
+                else:
+                    item[new] = merge_config(item.get(new), item.get(old))
+                    del item[old]
+        elif isinstance(item, str):
+            sub = _expand_substitutions(item, path, ctx, strict_undefined, errors)
+            if not isinstance(sub, str) or sub != item:
+                return sub
+        elif isinstance(item, (core.Lambda, Extend, Remove)) and item.value:
+            sub = _expand_substitutions(item.value, path, ctx, strict_undefined, errors)
+            if sub != item.value:
+                item.value = sub
+        return None
+
+    return _walk(item, path, parent_context)
+
+
+def substitute_context_vars(node: Any, context_vars: dict[str, Any]) -> None:
+    """Eagerly substitute context vars into a config node in-place.
+
+    Undefined variables are silently ignored — this is used before
+    the main substitution pass when not all variables are visible yet.
+    """
+    _substitute_item(node, [], ContextVars(context_vars), strict_undefined=False)
+
+
+def _warn_unresolved_variables(errors: ErrList) -> None:
+    """Log warnings for unresolved substitution variables, skipping password fields."""
+    for err, path, expression in errors:
+        if "password" in path:
+            continue
+        location: str = "->".join(str(x) for x in path)
+        if isinstance(expression, ESPHomeDataBase) and expression.esp_range is not None:
+            location += f" in {str(expression.esp_range.start_mark)}"
+
+        _LOGGER.warning(
+            "The string '%s' looks like an expression,"
+            " but could not resolve all the variables: %s (see %s)",
+            expression,
+            err.message,
+            location,
         )
-        if sub != item:
-            item.value = sub
-    return None
 
 
 def do_substitution_pass(
-    config: dict, command_line_substitutions: dict, ignore_missing: bool = False
-) -> None:
-    if CONF_SUBSTITUTIONS not in config and not command_line_substitutions:
-        return
+    config: OrderedDict, command_line_substitutions: dict[str, Any] | None = None
+) -> OrderedDict:
+    """Run the substitution pass over the entire config.
 
-    # Merge substitutions in config, overriding with substitutions coming from command line:
+    Extracts the ``substitutions:`` block, merges in any command-line
+    overrides, resolves inter-variable dependencies, then walks the
+    config tree replacing all ``$var`` / ``${expr}`` references.
+    Returns the (mutated) config dict with resolved substitutions
+    restored at the front.
+    """
+    # Extract substitutions from config, overriding with substitutions coming from command line:
     # Use merge_dicts_ordered to preserve OrderedDict type for move_to_end()
-    substitutions = merge_dicts_ordered(
-        config.get(CONF_SUBSTITUTIONS, {}), command_line_substitutions or {}
-    )
-    with cv.prepend_path("substitutions"):
+    substitutions = config.pop(CONF_SUBSTITUTIONS, {})
+    with cv.prepend_path(CONF_SUBSTITUTIONS):
         if not isinstance(substitutions, dict):
             raise cv.Invalid(
                 f"Substitutions must be a key to value mapping, got {type(substitutions)}"
             )
+        substitutions = merge_dicts_ordered(
+            substitutions, command_line_substitutions or {}
+        )
 
-        replace_keys = []
-        for key, value in substitutions.items():
+        replace_keys: list[tuple[str, str]] = []
+        for key in substitutions:
             with cv.prepend_path(key):
                 sub = validate_substitution_key(key)
                 if sub != key:
                     replace_keys.append((key, sub))
-                substitutions[key] = value
         for old, new in replace_keys:
             substitutions[new] = substitutions[old]
             del substitutions[old]
 
-    config[CONF_SUBSTITUTIONS] = substitutions
-    # Move substitutions to the first place to replace substitutions in them correctly
-    config.move_to_end(CONF_SUBSTITUTIONS, False)
+    errors: ErrList = []  # Collect undefined errors during substitution
+    parent_context, substitutions = _push_context(substitutions, ContextVars(), errors)
 
-    # Create a Jinja environment that will consider substitutions in scope:
-    jinja = Jinja(substitutions)
-    _substitute_item(substitutions, config, [], jinja, ignore_missing)
+    _substitute_item(config, [], parent_context, False, errors)
+
+    if errors:
+        _warn_unresolved_variables(errors)
+
+    # Restore substitutions to front of dict for readability
+    if substitutions:
+        config[CONF_SUBSTITUTIONS] = substitutions
+        config.move_to_end(CONF_SUBSTITUTIONS, last=False)
+    return config
