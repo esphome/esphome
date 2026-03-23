@@ -131,11 +131,11 @@ def _expand_substitutions(
         sub = _resolve_var(name, context_vars)
         if sub is Missing:
             _handle_undefined(
-                UndefinedError(f"'{name}' is undefined"),
-                path,
-                value,
-                strict_undefined,
-                errors,
+                err=UndefinedError(f"'{name}' is undefined"),
+                path=path,
+                value=value,
+                strict_undefined=strict_undefined,
+                errors=errors,
             )
             search_pos = match_end
             continue
@@ -156,7 +156,13 @@ def _expand_substitutions(
         try:
             value = jinja.expand(value, context_vars)
         except UndefinedError as err:
-            _handle_undefined(err, path, value, strict_undefined, errors)
+            _handle_undefined(
+                err=err,
+                path=path,
+                value=value,
+                strict_undefined=strict_undefined,
+                errors=errors,
+            )
         except JinjaError as err:
             raise cv.Invalid(
                 f"{err.error_name()} Error evaluating jinja expression"
@@ -227,14 +233,14 @@ def _push_context(
     if errors is not None:
         for name, value in unresolvables.items():
             _handle_undefined(
-                UndefinedError(
+                err=UndefinedError(
                     f"Could not resolve substitution variable '{name}'"
                     " due to missing or circular dependencies."
                 ),
-                [],
-                value,
-                False,
-                errors,
+                path=[],
+                value=value,
+                strict_undefined=False,
+                errors=errors,
             )
 
     return context_vars, resolved_vars
