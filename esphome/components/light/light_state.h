@@ -360,7 +360,7 @@ class LightState : public EntityBase, public Component {
   /// Whether the light value should be written in the next cycle.
   bool next_write_{true};
   // for effects, true if a transformer (transition) is active.
-  bool is_transformer_active_ = false;
+  bool is_transformer_active_{false};
   /// Restore mode of the light.
   LightRestoreMode restore_mode_;
 };
