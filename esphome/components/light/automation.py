@@ -100,7 +100,7 @@ LIGHT_CONTROL_ACTION_SCHEMA = LIGHT_STATE_SCHEMA.extend(
 )
 
 
-def _record_effect_ref(config):
+def _record_effect_ref(config: ConfigType) -> ConfigType:
     """Record a static effect name reference for later cross-component validation."""
     if CONF_EFFECT not in config:
         return config
