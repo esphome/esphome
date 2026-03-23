@@ -31,11 +31,15 @@ void EthernetComponent::setup() {
     reset_pin.digital_write(false);
     delay(1);  // NOLINT
     reset_pin.digital_write(true);
-    delay(10);  // NOLINT - wait for W5500 to initialize after reset
+    delay(10);  // NOLINT - wait for chip to initialize after reset
   }
 
-  // Create the W5500 device instance
+  // Create the SPI Ethernet device instance
+#if defined(USE_ETHERNET_W5500)
   this->eth_ = new Wiznet5500lwIP(this->cs_pin_, SPI, this->interrupt_pin_);  // NOLINT
+#elif defined(USE_ETHERNET_ENC28J60)
+  this->eth_ = new ENC28J60lwIP(this->cs_pin_, SPI, this->interrupt_pin_);  // NOLINT
+#endif
 
   // Set hostname before begin() so the LWIP netif gets it
   this->eth_->hostname(App.get_name().c_str());
@@ -61,7 +65,7 @@ void EthernetComponent::setup() {
   }
 
   if (!success) {
-    ESP_LOGE(TAG, "Failed to initialize W5500 Ethernet");
+    ESP_LOGE(TAG, "Failed to initialize Ethernet");
     delete this->eth_;  // NOLINT(cppcoreguidelines-owning-memory)
     this->eth_ = nullptr;
     this->mark_failed();
@@ -164,9 +168,15 @@ void EthernetComponent::loop() {
 }
 
 void EthernetComponent::dump_config() {
+  const char *type_str = "Unknown";
+#if defined(USE_ETHERNET_W5500)
+  type_str = "W5500";
+#elif defined(USE_ETHERNET_ENC28J60)
+  type_str = "ENC28J60";
+#endif
   ESP_LOGCONFIG(TAG,
                 "Ethernet:\n"
-                "  Type: W5500\n"
+                "  Type: %s\n"
                 "  Connected: %s\n"
                 "  CLK Pin: %u\n"
                 "  MISO Pin: %u\n"
@@ -174,7 +184,7 @@ void EthernetComponent::dump_config() {
                 "  CS Pin: %u\n"
                 "  IRQ Pin: %d\n"
                 "  Reset Pin: %d",
-                YESNO(this->is_connected()), this->clk_pin_, this->miso_pin_, this->mosi_pin_, this->cs_pin_,
+                type_str, YESNO(this->is_connected()), this->clk_pin_, this->miso_pin_, this->mosi_pin_, this->cs_pin_,
                 this->interrupt_pin_, this->reset_pin_);
   this->dump_connect_params_();
 }
@@ -216,13 +226,18 @@ const char *EthernetComponent::get_eth_mac_address_pretty_into_buffer(
 }
 
 eth_duplex_t EthernetComponent::get_duplex_mode() {
-  // W5500 is always full duplex
+  // Both W5500 and ENC28J60 are full-duplex on RP2040
   return ETH_DUPLEX_FULL;
 }
 
 eth_speed_t EthernetComponent::get_link_speed() {
+#ifdef USE_ETHERNET_ENC28J60
+  // ENC28J60 is 10Mbps only
+  return ETH_SPEED_10M;
+#else
   // W5500 is always 100Mbps
   return ETH_SPEED_100M;
+#endif
 }
 
 bool EthernetComponent::powerdown() {

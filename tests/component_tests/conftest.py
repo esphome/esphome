@@ -134,7 +134,7 @@ def generate_main() -> Generator[Callable[[str | Path], str]]:
         CORE.config_path = Path(path)
         CORE.config = read_config({})
         generate_cpp_contents(CORE.config)
-        return CORE.cpp_main_section
+        return CORE.cpp_global_section + CORE.cpp_main_section
 
     yield generator
 

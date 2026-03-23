@@ -31,7 +31,9 @@ void TextSensor::publish_state(const char *state, size_t len) {
     if (len != this->state.size() || memcmp(state, this->state.data(), len) != 0) {
       this->state.assign(state, len);
     }
+#ifdef USE_TEXT_SENSOR_FILTER
     this->raw_callback_.call(this->state);
+#endif
     ESP_LOGV(TAG, "'%s': Received new state %s", this->name_.c_str(), this->state.c_str());
     this->notify_frontend_();
 #ifdef USE_TEXT_SENSOR_FILTER
