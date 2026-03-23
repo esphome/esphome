@@ -9,8 +9,8 @@
 #include <cinttypes>
 #include <cstring>
 #include <atomic>
-namespace esphome {
-namespace usb_host {
+#include <span>
+namespace esphome::usb_host {
 
 #pragma GCC diagnostic ignored "-Wparentheses"
 
@@ -39,37 +39,46 @@ static void print_ep_desc(const usb_ep_desc_t *ep_desc) {
       break;
   }
 
-  ESP_LOGV(TAG, "\t\t*** Endpoint descriptor ***");
-  ESP_LOGV(TAG, "\t\tbLength %d", ep_desc->bLength);
-  ESP_LOGV(TAG, "\t\tbDescriptorType %d", ep_desc->bDescriptorType);
-  ESP_LOGV(TAG, "\t\tbEndpointAddress 0x%x\tEP %d %s", ep_desc->bEndpointAddress, USB_EP_DESC_GET_EP_NUM(ep_desc),
-           USB_EP_DESC_GET_EP_DIR(ep_desc) ? "IN" : "OUT");
-  ESP_LOGV(TAG, "\t\tbmAttributes 0x%x\t%s", ep_desc->bmAttributes, ep_type_str);
-  ESP_LOGV(TAG, "\t\twMaxPacketSize %d", ep_desc->wMaxPacketSize);
-  ESP_LOGV(TAG, "\t\tbInterval %d", ep_desc->bInterval);
+  ESP_LOGV(TAG,
+           "\t\t*** Endpoint descriptor ***\n"
+           "\t\tbLength %d\n"
+           "\t\tbDescriptorType %d\n"
+           "\t\tbEndpointAddress 0x%x\tEP %d %s\n"
+           "\t\tbmAttributes 0x%x\t%s\n"
+           "\t\twMaxPacketSize %d\n"
+           "\t\tbInterval %d",
+           ep_desc->bLength, ep_desc->bDescriptorType, ep_desc->bEndpointAddress, USB_EP_DESC_GET_EP_NUM(ep_desc),
+           USB_EP_DESC_GET_EP_DIR(ep_desc) ? "IN" : "OUT", ep_desc->bmAttributes, ep_type_str, ep_desc->wMaxPacketSize,
+           ep_desc->bInterval);
 }
 
 static void usbh_print_intf_desc(const usb_intf_desc_t *intf_desc) {
-  ESP_LOGV(TAG, "\t*** Interface descriptor ***");
-  ESP_LOGV(TAG, "\tbLength %d", intf_desc->bLength);
-  ESP_LOGV(TAG, "\tbDescriptorType %d", intf_desc->bDescriptorType);
-  ESP_LOGV(TAG, "\tbInterfaceNumber %d", intf_desc->bInterfaceNumber);
-  ESP_LOGV(TAG, "\tbAlternateSetting %d", intf_desc->bAlternateSetting);
-  ESP_LOGV(TAG, "\tbNumEndpoints %d", intf_desc->bNumEndpoints);
-  ESP_LOGV(TAG, "\tbInterfaceClass 0x%x", intf_desc->bInterfaceProtocol);
-  ESP_LOGV(TAG, "\tiInterface %d", intf_desc->iInterface);
+  ESP_LOGV(TAG,
+           "\t*** Interface descriptor ***\n"
+           "\tbLength %d\n"
+           "\tbDescriptorType %d\n"
+           "\tbInterfaceNumber %d\n"
+           "\tbAlternateSetting %d\n"
+           "\tbNumEndpoints %d\n"
+           "\tbInterfaceClass 0x%x\n"
+           "\tiInterface %d",
+           intf_desc->bLength, intf_desc->bDescriptorType, intf_desc->bInterfaceNumber, intf_desc->bAlternateSetting,
+           intf_desc->bNumEndpoints, intf_desc->bInterfaceProtocol, intf_desc->iInterface);
 }
 
 static void usbh_print_cfg_desc(const usb_config_desc_t *cfg_desc) {
-  ESP_LOGV(TAG, "*** Configuration descriptor ***");
-  ESP_LOGV(TAG, "bLength %d", cfg_desc->bLength);
-  ESP_LOGV(TAG, "bDescriptorType %d", cfg_desc->bDescriptorType);
-  ESP_LOGV(TAG, "wTotalLength %d", cfg_desc->wTotalLength);
-  ESP_LOGV(TAG, "bNumInterfaces %d", cfg_desc->bNumInterfaces);
-  ESP_LOGV(TAG, "bConfigurationValue %d", cfg_desc->bConfigurationValue);
-  ESP_LOGV(TAG, "iConfiguration %d", cfg_desc->iConfiguration);
-  ESP_LOGV(TAG, "bmAttributes 0x%x", cfg_desc->bmAttributes);
-  ESP_LOGV(TAG, "bMaxPower %dmA", cfg_desc->bMaxPower * 2);
+  ESP_LOGV(TAG,
+           "*** Configuration descriptor ***\n"
+           "  bLength %d\n"
+           "  bDescriptorType %d\n"
+           "  wTotalLength %d\n"
+           "  bNumInterfaces %d\n"
+           "  bConfigurationValue %d\n"
+           "  iConfiguration %d\n"
+           "  bmAttributes 0x%x\n"
+           "  bMaxPower %dmA",
+           cfg_desc->bLength, cfg_desc->bDescriptorType, cfg_desc->wTotalLength, cfg_desc->bNumInterfaces,
+           cfg_desc->bConfigurationValue, cfg_desc->iConfiguration, cfg_desc->bmAttributes, cfg_desc->bMaxPower * 2);
 }
 
 static void usb_client_print_device_descriptor(const usb_device_desc_t *devc_desc) {
@@ -77,21 +86,27 @@ static void usb_client_print_device_descriptor(const usb_device_desc_t *devc_des
     return;
   }
 
-  ESP_LOGV(TAG, "*** Device descriptor ***");
-  ESP_LOGV(TAG, "bLength %d", devc_desc->bLength);
-  ESP_LOGV(TAG, "bDescriptorType %d", devc_desc->bDescriptorType);
-  ESP_LOGV(TAG, "bcdUSB %d.%d0", ((devc_desc->bcdUSB >> 8) & 0xF), ((devc_desc->bcdUSB >> 4) & 0xF));
-  ESP_LOGV(TAG, "bDeviceClass 0x%x", devc_desc->bDeviceClass);
-  ESP_LOGV(TAG, "bDeviceSubClass 0x%x", devc_desc->bDeviceSubClass);
-  ESP_LOGV(TAG, "bDeviceProtocol 0x%x", devc_desc->bDeviceProtocol);
-  ESP_LOGV(TAG, "bMaxPacketSize0 %d", devc_desc->bMaxPacketSize0);
-  ESP_LOGV(TAG, "idVendor 0x%x", devc_desc->idVendor);
-  ESP_LOGV(TAG, "idProduct 0x%x", devc_desc->idProduct);
-  ESP_LOGV(TAG, "bcdDevice %d.%d0", ((devc_desc->bcdDevice >> 8) & 0xF), ((devc_desc->bcdDevice >> 4) & 0xF));
-  ESP_LOGV(TAG, "iManufacturer %d", devc_desc->iManufacturer);
-  ESP_LOGV(TAG, "iProduct %d", devc_desc->iProduct);
-  ESP_LOGV(TAG, "iSerialNumber %d", devc_desc->iSerialNumber);
-  ESP_LOGV(TAG, "bNumConfigurations %d", devc_desc->bNumConfigurations);
+  ESP_LOGV(TAG,
+           "*** Device descriptor ***\n"
+           "  bLength %d\n"
+           "  bDescriptorType %d\n"
+           "  bcdUSB %d.%d0\n"
+           "  bDeviceClass 0x%x\n"
+           "  bDeviceSubClass 0x%x\n"
+           "  bDeviceProtocol 0x%x\n"
+           "  bMaxPacketSize0 %d\n"
+           "  idVendor 0x%x\n"
+           "  idProduct 0x%x\n"
+           "  bcdDevice %d.%d0\n"
+           "  iManufacturer %d\n"
+           "  iProduct %d\n"
+           "  iSerialNumber %d\n"
+           "  bNumConfigurations %d",
+           devc_desc->bLength, devc_desc->bDescriptorType, ((devc_desc->bcdUSB >> 8) & 0xF),
+           ((devc_desc->bcdUSB >> 4) & 0xF), devc_desc->bDeviceClass, devc_desc->bDeviceSubClass,
+           devc_desc->bDeviceProtocol, devc_desc->bMaxPacketSize0, devc_desc->idVendor, devc_desc->idProduct,
+           ((devc_desc->bcdDevice >> 8) & 0xF), ((devc_desc->bcdDevice >> 4) & 0xF), devc_desc->iManufacturer,
+           devc_desc->iProduct, devc_desc->iSerialNumber, devc_desc->bNumConfigurations);
 }
 
 static void usb_client_print_config_descriptor(const usb_config_desc_t *cfg_desc,
@@ -127,18 +142,23 @@ static void usb_client_print_config_descriptor(const usb_config_desc_t *cfg_desc
   } while (next_desc != NULL);
 }
 #endif
-static std::string get_descriptor_string(const usb_str_desc_t *desc) {
-  char buffer[256];
-  if (desc == nullptr)
+// USB string descriptors: bLength (uint8_t, max 255) includes the 2-byte header (bLength and bDescriptorType).
+// Character count = (bLength - 2) / 2, max 126 chars + null terminator.
+static constexpr size_t DESC_STRING_BUF_SIZE = 128;
+
+static const char *get_descriptor_string(const usb_str_desc_t *desc, std::span<char, DESC_STRING_BUF_SIZE> buffer) {
+  if (desc == nullptr || desc->bLength < 2)
     return "(unspecified)";
-  char *p = buffer;
-  for (int i = 0; i != desc->bLength / 2; i++) {
+  int char_count = (desc->bLength - 2) / 2;
+  char *p = buffer.data();
+  char *end = p + buffer.size() - 1;
+  for (int i = 0; i != char_count && p < end; i++) {
     auto c = desc->wData[i];
     if (c < 0x100)
       *p++ = static_cast<char>(c);
   }
   *p = '\0';
-  return {buffer};
+  return buffer.data();
 }
 
 // CALLBACK CONTEXT: USB task (called from usb_host_client_handle_events in USB task)
@@ -173,8 +193,12 @@ static void client_event_cb(const usb_host_client_event_msg_t *event_msg, void *
       return;
   }
 
-  // Push to lock-free queue (always succeeds since pool size == queue size)
+  // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+  // allocate() returned non-null, the queue cannot be full.
   client->event_queue.push(event);
+
+  // Re-enable component loop to process the queued event
+  client->enable_loop_soon_any_context();
 
   // Wake main loop immediately to process USB event instead of waiting for select() timeout
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
@@ -222,10 +246,13 @@ void USBClient::usb_task_loop() const {
   }
 }
 
-void USBClient::loop() {
+bool USBClient::process_usb_events_() {
+  bool had_work = false;
+
   // Process any events from the USB task
   UsbEvent *event;
   while ((event = this->event_queue.pop()) != nullptr) {
+    had_work = true;
     switch (event->type) {
       case EVENT_DEVICE_NEW:
         this->on_opened(event->data.device_new.address);
@@ -244,60 +271,72 @@ void USBClient::loop() {
     ESP_LOGW(TAG, "Dropped %u USB events due to queue overflow", dropped);
   }
 
-  switch (this->state_) {
-    case USB_CLIENT_OPEN: {
-      int err;
-      ESP_LOGD(TAG, "Open device %d", this->device_addr_);
-      err = usb_host_device_open(this->handle_, this->device_addr_, &this->device_handle_);
-      if (err != ESP_OK) {
-        ESP_LOGW(TAG, "Device open failed: %s", esp_err_to_name(err));
-        this->state_ = USB_CLIENT_INIT;
-        break;
-      }
-      ESP_LOGD(TAG, "Get descriptor device %d", this->device_addr_);
-      const usb_device_desc_t *desc;
-      err = usb_host_get_device_descriptor(this->device_handle_, &desc);
-      if (err != ESP_OK) {
-        ESP_LOGW(TAG, "Device get_desc failed: %s", esp_err_to_name(err));
-        this->disconnect();
-      } else {
-        ESP_LOGD(TAG, "Device descriptor: vid %X pid %X", desc->idVendor, desc->idProduct);
-        if (desc->idVendor == this->vid_ && desc->idProduct == this->pid_ || this->vid_ == 0 && this->pid_ == 0) {
-          usb_device_info_t dev_info;
-          err = usb_host_device_info(this->device_handle_, &dev_info);
-          if (err != ESP_OK) {
-            ESP_LOGW(TAG, "Device info failed: %s", esp_err_to_name(err));
-            this->disconnect();
-            break;
-          }
-          this->state_ = USB_CLIENT_CONNECTED;
-          ESP_LOGD(TAG, "Device connected: Manuf: %s; Prod: %s; Serial: %s",
-                   get_descriptor_string(dev_info.str_desc_manufacturer).c_str(),
-                   get_descriptor_string(dev_info.str_desc_product).c_str(),
-                   get_descriptor_string(dev_info.str_desc_serial_num).c_str());
+  if (this->state_ == USB_CLIENT_OPEN) {
+    had_work = true;
+    this->handle_open_state_();
+  }
+
+  return had_work;
+}
+
+void USBClient::loop() {
+  if (!this->process_usb_events_()) {
+    this->disable_loop();
+  }
+}
+
+void USBClient::handle_open_state_() {
+  int err;
+  ESP_LOGD(TAG, "Open device %d", this->device_addr_);
+  err = usb_host_device_open(this->handle_, this->device_addr_, &this->device_handle_);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Device open failed: %s", esp_err_to_name(err));
+    this->state_ = USB_CLIENT_INIT;
+    return;
+  }
+  ESP_LOGD(TAG, "Get descriptor device %d", this->device_addr_);
+  const usb_device_desc_t *desc;
+  err = usb_host_get_device_descriptor(this->device_handle_, &desc);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Device get_desc failed: %s", esp_err_to_name(err));
+    this->disconnect();
+    return;
+  }
+  ESP_LOGD(TAG, "Device descriptor: vid %X pid %X", desc->idVendor, desc->idProduct);
+  if (desc->idVendor != this->vid_ || desc->idProduct != this->pid_) {
+    if (this->vid_ != 0 || this->pid_ != 0) {
+      ESP_LOGD(TAG, "Not our device, closing");
+      this->disconnect();
+      return;
+    }
+  }
+  usb_device_info_t dev_info;
+  err = usb_host_device_info(this->device_handle_, &dev_info);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Device info failed: %s", esp_err_to_name(err));
+    this->disconnect();
+    return;
+  }
+  this->state_ = USB_CLIENT_CONNECTED;
+  char buf_manuf[DESC_STRING_BUF_SIZE];
+  char buf_product[DESC_STRING_BUF_SIZE];
+  char buf_serial[DESC_STRING_BUF_SIZE];
+  ESP_LOGD(TAG, "Device connected: Manuf: %s; Prod: %s; Serial: %s",
+           get_descriptor_string(dev_info.str_desc_manufacturer, buf_manuf),
+           get_descriptor_string(dev_info.str_desc_product, buf_product),
+           get_descriptor_string(dev_info.str_desc_serial_num, buf_serial));
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-          const usb_device_desc_t *device_desc;
-          err = usb_host_get_device_descriptor(this->device_handle_, &device_desc);
-          if (err == ESP_OK)
-            usb_client_print_device_descriptor(device_desc);
-          const usb_config_desc_t *config_desc;
-          err = usb_host_get_active_config_descriptor(this->device_handle_, &config_desc);
-          if (err == ESP_OK)
-            usb_client_print_config_descriptor(config_desc, nullptr);
+  const usb_device_desc_t *device_desc;
+  err = usb_host_get_device_descriptor(this->device_handle_, &device_desc);
+  if (err == ESP_OK)
+    usb_client_print_device_descriptor(device_desc);
+  const usb_config_desc_t *config_desc;
+  err = usb_host_get_active_config_descriptor(this->device_handle_, &config_desc);
+  if (err == ESP_OK)
+    usb_client_print_config_descriptor(config_desc, nullptr);
 #endif
-          this->on_connected();
-        } else {
-          ESP_LOGD(TAG, "Not our device, closing");
-          this->disconnect();
-        }
-      }
-      break;
-    }
-
-    default:
-      break;
-  }
+  this->on_connected();
 }
 
 void USBClient::on_opened(uint8_t addr) {
@@ -386,9 +425,9 @@ bool USBClient::control_transfer(uint8_t type, uint8_t request, uint16_t value, 
   if (trq == nullptr)
     return false;
   auto length = data.size();
-  if (length > sizeof(trq->transfer->data_buffer_size) - SETUP_PACKET_SIZE) {
+  if (length > trq->transfer->data_buffer_size - SETUP_PACKET_SIZE) {
     ESP_LOGE(TAG, "Control transfer data size too large: %u > %u", length,
-             sizeof(trq->transfer->data_buffer_size) - sizeof(usb_setup_packet_t));
+             trq->transfer->data_buffer_size - SETUP_PACKET_SIZE);
     this->release_trq(trq);
     return false;
   }
@@ -454,6 +493,11 @@ bool USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, u
     ESP_LOGE(TAG, "Too many requests queued");
     return false;
   }
+  if (length > trq->transfer->data_buffer_size) {
+    ESP_LOGE(TAG, "transfer_in: data length %u exceeds buffer size %u", length, trq->transfer->data_buffer_size);
+    this->release_trq(trq);
+    return false;
+  }
   trq->callback = callback;
   trq->transfer->callback = transfer_callback;
   trq->transfer->bEndpointAddress = ep_address | USB_DIR_IN;
@@ -469,9 +513,13 @@ bool USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, u
 
 /**
  * Performs an output transfer operation.
- * THREAD CONTEXT: Called from main loop thread only
- * - USB UART output uses defer() to ensure main loop context
- * - Modbus and other components call from loop()
+ * THREAD CONTEXT: Called from both USB task and main loop threads.
+ * - USB task: output transfer callback restarts output directly (no defer)
+ * - Main loop: initial output trigger from write_array() and loop()
+ * Thread safety is ensured by:
+ * - get_trq_() uses atomic CAS (multi-consumer safe)
+ * - claimed trq slot is exclusively owned until submission
+ * - usb_host_transfer_submit() is safe to call from any task context
  *
  * @param ep_address The endpoint address.
  * @param callback The callback function to be called when the transfer is complete.
@@ -484,6 +532,11 @@ bool USBClient::transfer_out(uint8_t ep_address, const transfer_cb_t &callback, 
   auto *trq = this->get_trq_();
   if (trq == nullptr) {
     ESP_LOGE(TAG, "Too many requests queued");
+    return false;
+  }
+  if (length > trq->transfer->data_buffer_size) {
+    ESP_LOGE(TAG, "transfer_out: data length %u exceeds buffer size %u", length, trq->transfer->data_buffer_size);
+    this->release_trq(trq);
     return false;
   }
   trq->callback = callback;
@@ -529,6 +582,5 @@ void USBClient::release_trq(TransferRequest *trq) {
   this->trq_in_use_.fetch_and(mask, std::memory_order_release);
 }
 
-}  // namespace usb_host
-}  // namespace esphome
+}  // namespace esphome::usb_host
 #endif  // USE_ESP32_VARIANT_ESP32P4 || USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3

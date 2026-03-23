@@ -22,7 +22,8 @@ namespace adc {
 
 #ifdef USE_ESP32
 // clang-format off
-#if (ESP_IDF_VERSION_MAJOR == 5 && \
+#if ESP_IDF_VERSION_MAJOR >= 6 || \
+    (ESP_IDF_VERSION_MAJOR == 5 && \
      ((ESP_IDF_VERSION_MINOR == 0 && ESP_IDF_VERSION_PATCH >= 5) || \
       (ESP_IDF_VERSION_MINOR == 1 && ESP_IDF_VERSION_PATCH >= 3) || \
       (ESP_IDF_VERSION_MINOR >= 2)) \
@@ -67,11 +68,6 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   /// Output the configuration details of the ADC sensor for debugging purposes.
   /// This method is called during the ESPHome setup process to log the configuration.
   void dump_config() override;
-
-  /// Return the setup priority for this component.
-  /// Components with higher priority are initialized earlier during setup.
-  /// @return A float representing the setup priority.
-  float get_setup_priority() const override;
 
 #ifdef USE_ZEPHYR
   /// Set the ADC channel to be used by the ADC sensor.

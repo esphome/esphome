@@ -120,7 +120,11 @@ class NullPin : public GPIOPin {
 
   void digital_write(bool value) override {}
 
-  std::string dump_summary() const override { return std::string(); }
+  size_t dump_summary(char *buffer, size_t len) const override {
+    if (len > 0)
+      buffer[0] = '\0';
+    return 0;
+  }
 
  protected:
   static GPIOPin *const NULL_PIN;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

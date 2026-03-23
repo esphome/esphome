@@ -3,8 +3,7 @@
 #ifdef USE_LIBRETINY
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace libretiny {
+namespace esphome::libretiny {
 
 class ArduinoInternalGPIOPin : public InternalGPIOPin {
  public:
@@ -16,7 +15,7 @@ class ArduinoInternalGPIOPin : public InternalGPIOPin {
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
-  std::string dump_summary() const override;
+  size_t dump_summary(char *buffer, size_t len) const override;
   void detach_interrupt() const override;
   ISRInternalGPIOPin to_isr() const override;
   uint8_t get_pin() const override { return pin_; }
@@ -31,7 +30,6 @@ class ArduinoInternalGPIOPin : public InternalGPIOPin {
   gpio::Flags flags_{};
 };
 
-}  // namespace libretiny
-}  // namespace esphome
+}  // namespace esphome::libretiny
 
 #endif  // USE_LIBRETINY

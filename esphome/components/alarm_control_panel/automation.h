@@ -3,8 +3,7 @@
 #include "esphome/core/automation.h"
 #include "alarm_control_panel.h"
 
-namespace esphome {
-namespace alarm_control_panel {
+namespace esphome::alarm_control_panel {
 
 /// Trigger on any state change
 class StateTrigger : public Trigger<> {
@@ -67,15 +66,7 @@ template<typename... Ts> class ArmAwayAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(std::string, code)
 
-  void play(const Ts &...x) override {
-    auto call = this->alarm_control_panel_->make_call();
-    auto code = this->code_.optional_value(x...);
-    if (code.has_value()) {
-      call.set_code(code.value());
-    }
-    call.arm_away();
-    call.perform();
-  }
+  void play(const Ts &...x) override { this->alarm_control_panel_->arm_away(this->code_.optional_value(x...)); }
 
  protected:
   AlarmControlPanel *alarm_control_panel_;
@@ -87,15 +78,7 @@ template<typename... Ts> class ArmHomeAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(std::string, code)
 
-  void play(const Ts &...x) override {
-    auto call = this->alarm_control_panel_->make_call();
-    auto code = this->code_.optional_value(x...);
-    if (code.has_value()) {
-      call.set_code(code.value());
-    }
-    call.arm_home();
-    call.perform();
-  }
+  void play(const Ts &...x) override { this->alarm_control_panel_->arm_home(this->code_.optional_value(x...)); }
 
  protected:
   AlarmControlPanel *alarm_control_panel_;
@@ -107,15 +90,7 @@ template<typename... Ts> class ArmNightAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(std::string, code)
 
-  void play(const Ts &...x) override {
-    auto call = this->alarm_control_panel_->make_call();
-    auto code = this->code_.optional_value(x...);
-    if (code.has_value()) {
-      call.set_code(code.value());
-    }
-    call.arm_night();
-    call.perform();
-  }
+  void play(const Ts &...x) override { this->alarm_control_panel_->arm_night(this->code_.optional_value(x...)); }
 
  protected:
   AlarmControlPanel *alarm_control_panel_;
@@ -165,5 +140,4 @@ template<typename... Ts> class AlarmControlPanelCondition : public Condition<Ts.
   AlarmControlPanel *parent_;
 };
 
-}  // namespace alarm_control_panel
-}  // namespace esphome
+}  // namespace esphome::alarm_control_panel

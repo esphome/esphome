@@ -51,8 +51,8 @@ class DFPlayer : public uart::UARTDevice, public Component {
   bool is_playing() { return is_playing_; }
   void dump_config() override;
 
-  void add_on_finished_playback_callback(std::function<void()> callback) {
-    this->on_finished_playback_callback_.add(std::move(callback));
+  template<typename F> void add_on_finished_playback_callback(F &&callback) {
+    this->on_finished_playback_callback_.add(std::forward<F>(callback));
   }
 
  protected:

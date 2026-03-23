@@ -5,6 +5,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/optional.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/string_ref.h"
 #include "fan_traits.h"
 
 namespace esphome {
@@ -90,11 +91,13 @@ class FanCall {
 };
 
 struct FanRestoreState {
+  static constexpr uint8_t NO_PRESET = UINT8_MAX;
+
   bool state;
   int speed;
   bool oscillating;
   FanDirection direction;
-  uint8_t preset_mode;
+  uint8_t preset_mode{NO_PRESET};
 
   /// Convert this struct to a fan call that can be performed.
   FanCall to_call(Fan &fan);
@@ -119,7 +122,9 @@ class Fan : public EntityBase {
   FanCall make_call();
 
   /// Register a callback that will be called each time the state changes.
-  void add_on_state_callback(std::function<void()> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
   void publish_state();
 
@@ -128,8 +133,11 @@ class Fan : public EntityBase {
   /// Set the restore mode of this fan.
   void set_restore_mode(FanRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
 
-  /// Get the current preset mode (returns pointer to string stored in traits, or nullptr if not set)
-  const char *get_preset_mode() const { return this->preset_mode_; }
+  /// Get the current preset mode.
+  /// Returns a StringRef of the string stored in traits, or empty ref if not set.
+  /// The returned ref points to string literals from codegen (static storage).
+  /// Traits are set once at startup and valid for the lifetime of the program.
+  StringRef get_preset_mode() const { return StringRef::from_maybe_nullptr(this->preset_mode_); }
 
   /// Check if a preset mode is currently active
   bool has_preset_mode() const { return this->preset_mode_ != nullptr; }
@@ -146,11 +154,15 @@ class Fan : public EntityBase {
   void dump_traits_(const char *tag, const char *prefix);
 
   /// Set the preset mode (finds and stores pointer from traits). Returns true if changed.
+  /// Passing nullptr or empty string clears the preset mode.
+  bool set_preset_mode_(const char *preset_mode, size_t len);
   bool set_preset_mode_(const char *preset_mode);
-  /// Set the preset mode (finds and stores pointer from traits). Returns true if changed.
   bool set_preset_mode_(const std::string &preset_mode);
+  bool set_preset_mode_(StringRef preset_mode);
   /// Clear the preset mode
   void clear_preset_mode_();
+  /// Apply preset mode from a FanCall (handles speed-clears-preset convention)
+  void apply_preset_mode_(const FanCall &call);
   /// Find and return the matching preset mode pointer from traits, or nullptr if not found.
   const char *find_preset_mode_(const char *preset_mode);
   const char *find_preset_mode_(const char *preset_mode, size_t len);

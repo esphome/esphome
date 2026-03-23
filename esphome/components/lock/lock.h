@@ -14,9 +14,7 @@ class Lock;
 #define LOG_LOCK(prefix, type, obj) \
   if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    if (!(obj)->get_icon_ref().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon_ref().c_str()); \
-    } \
+    LOG_ENTITY_ICON(TAG, prefix, *(obj)); \
     if ((obj)->traits.get_assumed_state()) { \
       ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
     } \
@@ -85,7 +83,8 @@ class LockCall {
   /// Set the state of the lock device.
   LockCall &set_state(optional<LockState> state);
   /// Set the state of the lock device based on a string.
-  LockCall &set_state(const std::string &state);
+  LockCall &set_state(const char *state);
+  LockCall &set_state(const std::string &state) { return this->set_state(state.c_str()); }
 
   void perform();
 
@@ -151,10 +150,15 @@ class Lock : public EntityBase {
    *
    * @param callback The void(bool) callback.
    */
-  void add_on_state_callback(std::function<void()> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
  protected:
   friend LockCall;
+
+  /// Helper for lock/unlock convenience methods
+  void set_state_(LockState state);
 
   /** Perform the open latch action with hardware. This method is optional to implement
    * when creating a new lock.

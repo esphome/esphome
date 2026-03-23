@@ -1,6 +1,71 @@
 esphome:
   on_boot:
     then:
+      # Test LightEffect::get_name() returns StringRef
+      - lambda: |-
+          // Test LightEffect::get_name() returns StringRef
+          auto &effects = id(test_monochromatic_light).get_effects();
+          if (!effects.empty()) {
+            // Test: get_name() returns StringRef
+            StringRef name = effects[0]->get_name();
+
+            // Test: comparison with string literal works directly
+            if (name == "Strobe") {
+              ESP_LOGI("test", "Found Strobe effect");
+            }
+
+            // Test: safe logging with %.*s format
+            ESP_LOGI("test", "Effect name: %.*s", (int) name.size(), name.c_str());
+
+            // Test: .c_str() for functions expecting const char*
+            ESP_LOGI("test", "Effect: %s", name.c_str());
+
+            // Test: explicit conversion to std::string
+            std::string name_str(name.c_str(), name.size());
+            ESP_LOGI("test", "As string: %s", name_str.c_str());
+
+            // Test: size() method
+            ESP_LOGI("test", "Name length: %d", (int) name.size());
+          }
+
+      # Test LightState::get_effect_name() returns StringRef
+      - lambda: |-
+          // Test LightState::get_effect_name() returns StringRef
+          StringRef current_effect = id(test_monochromatic_light).get_effect_name();
+
+          // Test: comparison with "None" works directly
+          if (current_effect == "None") {
+            ESP_LOGI("test", "No effect active");
+          }
+
+          // Test: safe logging
+          ESP_LOGI("test", "Current effect: %.*s", (int) current_effect.size(), current_effect.c_str());
+
+      # Test str_equals_case_insensitive with StringRef
+      - lambda: |-
+          // Test str_equals_case_insensitive(StringRef, StringRef)
+          auto &effects = id(test_monochromatic_light).get_effects();
+          if (!effects.empty()) {
+            StringRef name = effects[0]->get_name();
+
+            // Test: case-insensitive comparison
+            if (str_equals_case_insensitive(name, "STROBE")) {
+              ESP_LOGI("test", "Case-insensitive match works");
+            }
+
+            // Test: case-insensitive with StringRef from string
+            std::string search = "strobe";
+            if (str_equals_case_insensitive(StringRef(search.c_str(), search.size()), name)) {
+              ESP_LOGI("test", "Reverse comparison works");
+            }
+          }
+
+      # Test set_effect with const char* doesn't cause ambiguous overload (issue #14728)
+      - lambda: |-
+          auto call = id(test_monochromatic_light).turn_on();
+          call.set_effect("None");
+          call.perform();
+
       - light.toggle: test_binary_light
       - light.turn_off: test_rgb_light
       - light.turn_on:
@@ -12,6 +77,32 @@ esphome:
       - light.control:
           id: test_monochromatic_light
           state: on
+      # Test static effect name resolution at codegen time
+      - light.turn_on:
+          id: test_monochromatic_light
+          effect: Strobe
+      - light.turn_on:
+          id: test_monochromatic_light
+          effect: none
+      # Test resolving a different effect on the same light
+      - light.control:
+          id: test_monochromatic_light
+          effect: My Flicker
+      # Test effect: None (capitalized)
+      - light.control:
+          id: test_monochromatic_light
+          effect: None
+      # Test effect lambda with no args (on_boot has empty Ts...)
+      - light.turn_on:
+          id: test_monochromatic_light
+          effect: !lambda 'return "Strobe";'
+      # Test effect lambda with non-empty args (repeat passes uint32_t iteration)
+      - repeat:
+          count: 3
+          then:
+            - light.turn_on:
+                id: test_monochromatic_light
+                effect: !lambda 'return iteration > 1 ? "Strobe" : "none";'
       - light.dim_relative:
           id: test_monochromatic_light
           relative_brightness: 5%

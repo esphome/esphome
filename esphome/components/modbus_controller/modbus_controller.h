@@ -178,7 +178,7 @@ template<typename N> N mask_and_shift_by_rightbit(N data, uint32_t mask) {
     return result;
   }
   for (size_t pos = 0; pos < sizeof(N) << 3; pos++) {
-    if ((mask & (1 << pos)) != 0)
+    if ((mask & (1UL << pos)) != 0)
       return result >> pos;
   }
   return 0;
@@ -271,24 +271,31 @@ class ServerRegister {
 
   // Formats a raw value into a string representation based on the value type for debugging
   std::string format_value(int64_t value) const {
+    // max 44: float with %.1f can be up to 42 chars (3.4e38 → 39 integer digits + sign + decimal + 1 digit)
+    // plus null terminator = 43, rounded to 44 for 4-byte alignment
+    char buf[44];
     switch (this->value_type) {
       case SensorValueType::U_WORD:
       case SensorValueType::U_DWORD:
       case SensorValueType::U_DWORD_R:
       case SensorValueType::U_QWORD:
       case SensorValueType::U_QWORD_R:
-        return std::to_string(static_cast<uint64_t>(value));
+        buf_append_printf(buf, sizeof(buf), 0, "%" PRIu64, static_cast<uint64_t>(value));
+        return buf;
       case SensorValueType::S_WORD:
       case SensorValueType::S_DWORD:
       case SensorValueType::S_DWORD_R:
       case SensorValueType::S_QWORD:
       case SensorValueType::S_QWORD_R:
-        return std::to_string(value);
+        buf_append_printf(buf, sizeof(buf), 0, "%" PRId64, value);
+        return buf;
       case SensorValueType::FP32_R:
       case SensorValueType::FP32:
-        return str_sprintf("%.1f", bit_cast<float>(static_cast<uint32_t>(value)));
+        buf_append_printf(buf, sizeof(buf), 0, "%.1f", bit_cast<float>(static_cast<uint32_t>(value)));
+        return buf;
       default:
-        return std::to_string(value);
+        buf_append_printf(buf, sizeof(buf), 0, "%" PRId64, value);
+        return buf;
     }
   }
 
@@ -501,11 +508,17 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   /// get if the module is offline, didn't respond the last command
   bool get_module_offline() { return module_offline_; }
   /// Set callback for commands
-  void add_on_command_sent_callback(std::function<void(int, int)> &&callback);
+  template<typename F> void add_on_command_sent_callback(F &&callback) {
+    this->command_sent_callback_.add(std::forward<F>(callback));
+  }
   /// Set callback for online changes
-  void add_on_online_callback(std::function<void(int, int)> &&callback);
+  template<typename F> void add_on_online_callback(F &&callback) {
+    this->online_callback_.add(std::forward<F>(callback));
+  }
   /// Set callback for offline changes
-  void add_on_offline_callback(std::function<void(int, int)> &&callback);
+  template<typename F> void add_on_offline_callback(F &&callback) {
+    this->offline_callback_.add(std::forward<F>(callback));
+  }
   /// called by esphome generated code to set the max_cmd_retries.
   void set_max_cmd_retries(uint8_t max_cmd_retries) { this->max_cmd_retries_ = max_cmd_retries; }
   /// get how many times a command will be (re)sent if no response is received

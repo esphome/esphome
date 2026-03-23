@@ -1,0 +1,33 @@
+esphome:
+  name: udp-test
+
+host:
+
+api:
+  services:
+    - service: send_udp_message
+      then:
+        - udp.write:
+            id: test_udp
+            data: "HELLO_UDP_TEST"
+    - service: send_udp_bytes
+      then:
+        - udp.write:
+            id: test_udp
+            data: [0x55, 0x44, 0x50, 0x5F, 0x42, 0x59, 0x54, 0x45, 0x53]  # "UDP_BYTES"
+
+logger:
+  level: DEBUG
+
+udp:
+  - id: test_udp
+    addresses:
+      - "127.0.0.1"
+      - "127.0.0.2"
+    port:
+      listen_port: UDP_LISTEN_PORT_PLACEHOLDER
+      broadcast_port: UDP_BROADCAST_PORT_PLACEHOLDER
+    on_receive:
+      - logger.log:
+          format: "Received UDP: %d bytes"
+          args: [data.size()]
