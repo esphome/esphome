@@ -92,14 +92,17 @@ def _resolve_var(name: str, context_vars: ContextVars) -> Any:
 
 
 def _handle_undefined(
-    name: str,
+    err: UndefinedError,
     path: SubstitutionPath,
-    value: str,
+    value: Any,
     strict_undefined: bool,
     errors: ErrList | None,
 ) -> None:
-    """Raise or record an undefined variable error."""
-    err = UndefinedError(f"'{name}' is undefined")
+    """Handle an undefined variable.
+
+    In strict mode, raises immediately. Otherwise, appends to the errors
+    list for deferred warning at the end of the substitution pass.
+    """
     if strict_undefined:
         raise err
     if errors is not None:
@@ -127,7 +130,13 @@ def _expand_substitutions(
             name = name[1:-1]
         sub = _resolve_var(name, context_vars)
         if sub is Missing:
-            _handle_undefined(name, path, value, strict_undefined, errors)
+            _handle_undefined(
+                UndefinedError(f"'{name}' is undefined"),
+                path,
+                value,
+                strict_undefined,
+                errors,
+            )
             search_pos = match_end
             continue
 
@@ -147,10 +156,7 @@ def _expand_substitutions(
         try:
             value = jinja.expand(value, context_vars)
         except UndefinedError as err:
-            if strict_undefined:
-                raise err
-            if errors is not None:
-                errors.append((err, path, value))
+            _handle_undefined(err, path, value, strict_undefined, errors)
         except JinjaError as err:
             raise cv.Invalid(
                 f"{err.error_name()} Error evaluating jinja expression"
@@ -219,17 +225,17 @@ def _push_context(
     resolved_vars.update(unresolvables)
 
     if errors is not None:
-        errors.extend(
-            (
+        for name, value in unresolvables.items():
+            _handle_undefined(
                 UndefinedError(
                     f"Could not resolve substitution variable '{name}'"
                     " due to missing or circular dependencies."
                 ),
                 [],
                 value,
+                False,
+                errors,
             )
-            for name, value in unresolvables.items()
-        )
 
     return context_vars, resolved_vars
 
