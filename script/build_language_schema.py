@@ -158,7 +158,7 @@ def register_known_schema(module, name, schema):
     if module not in output:
         output[module] = {S_SCHEMAS: {}}
     config = convert_config(schema, f"{module}/{name}")
-    if S_TYPE not in config and name != "FINAL_VALIDATE_SCHEMA":
+    if S_TYPE not in config and name != "FINAL_VALIDATE_SCHEMA" and module != "core":
         print(f"Config var without type: {module}.{name}")
 
     output[module][S_SCHEMAS][name] = config
@@ -246,9 +246,16 @@ def add_module_registries(domain, module):
                     if len(parts) == 2:
                         reg_domain = parts[0]
                         reg_entry_name = parts[1]
-                    else:
-                        reg_domain = ".".join([parts[1], parts[0]])
-                        reg_entry_name = parts[2]
+                    elif len(parts) == 3:
+                        # is a platform or a component?
+                        if parts[0] in schema_core[S_PLATFORMS]:
+                            reg_domain = ".".join([parts[1], parts[0]])
+                            reg_entry_name = parts[2]
+                        elif parts[0] in schema_core[S_COMPONENTS]:
+                            reg_domain = parts[0]
+                            reg_entry_name = ".".join([parts[1], parts[2]])
+                        else:
+                            print(f"registry {name} is unknown")
 
                 if reg_domain not in output:
                     output[reg_domain] = {}
@@ -564,7 +571,6 @@ def shrink():
                 else:
                     arr_s.pop(S_EXTENDS)
                     arr_s |= key_s[S_SCHEMA]
-                    print(x)
 
     # simple types should be spread on each component,
     # for enums so far these are logger.is_log_level, cover.validate_cover_state and pulse_counter.sensor.COUNT_MODE_SCHEMA
@@ -648,7 +654,6 @@ def build_schema():
             platforms[domain] = {}
         elif manifest.config_schema is not None:
             if is_cv_invalid(manifest.config_schema):
-                print(f"Skipping CONFIG_SCHEMA = cv.Invalid {domain}")
                 continue
             output[domain] = {S_SCHEMAS: {S_CONFIG_SCHEMA: {}}}
 
@@ -680,8 +685,6 @@ def build_schema():
                         output[platform][S_COMPONENTS][domain]["dependencies"] = (
                             platform_manifest.dependencies
                         )
-                else:
-                    print(f"No schemas registered for {domain}.{platform}")
 
     # Do registries
     add_module_registries("core", automation)
@@ -724,6 +727,12 @@ def build_schema():
     # bundle core inside esphome
     data["esphome"]["core"] = data.pop("core")["core"]
 
+    if GENERATED_ID_TYPES:
+        print(
+            "Unconsumed id_type matchers:",
+            [id_type for _, id_type in GENERATED_ID_TYPES],
+        )
+
     if args.check:  # do not gen files
         return
 
@@ -757,6 +766,30 @@ def convert_config(schema, path):
     converted = {}
     convert(schema, converted, path)
     return converted
+
+
+GENERATED_ID_TYPES = [
+    (
+        lambda p: p.startswith("i2c/CONFIG_SCHEMA/") and p.endswith("/id"),
+        {"class": "i2c::I2CBus", "parents": ["Component"]},
+    ),
+    (
+        lambda p: p == "uart/CONFIG_SCHEMA/val 1/ext0/all/id",
+        {"class": "uart::UARTComponent", "parents": ["Component"]},
+    ),
+    (
+        lambda p: p == "http_request/CONFIG_SCHEMA/val 1/ext0/all/id",
+        {"class": "http_request::HttpRequestComponent", "parents": ["Component"]},
+    ),
+    (
+        lambda p: (
+            p
+            == "uptime.sensor/CONFIG_SCHEMA/type_timestamp/ext0/ext1/all/time_id/val 1"
+        ),
+        {},
+    ),
+    (lambda p: p == "esp_ldo/action/voltage.adjust/all/all/id", {}),
+]
 
 
 def convert(schema, config_var, path):
@@ -886,8 +919,6 @@ def convert(schema, config_var, path):
                             schema({"delay": "1s"})
                         except cv.Invalid:
                             config_var["has_required_var"] = True
-                else:
-                    print("figure out " + path)
         elif schema_type == "effects":
             config_var[S_TYPE] = "registry"
             config_var["registry"] = "light.effects"
@@ -924,8 +955,6 @@ def convert(schema, config_var, path):
                         "id"
                     ]["id_type"]["class"]
                     config_var[S_TYPE] = "use_id"
-                else:
-                    print("TODO deferred?")
             elif isinstance(data, str):
                 # TODO: Figure out why pipsolar does this
                 config_var["use_id_type"] = data
@@ -935,23 +964,11 @@ def convert(schema, config_var, path):
         else:
             raise TypeError("Unknown extracted schema type")
     elif config_var.get("key") == "GeneratedID":
-        if path.startswith("i2c/CONFIG_SCHEMA/") and path.endswith("/id"):
-            config_var["id_type"] = {
-                "class": "i2c::I2CBus",
-                "parents": ["Component"],
-            }
-        elif path == "uart/CONFIG_SCHEMA/val 1/ext0/all/id":
-            config_var["id_type"] = {
-                "class": "uart::UARTComponent",
-                "parents": ["Component"],
-            }
-        elif path == "http_request/CONFIG_SCHEMA/val 1/ext0/all/id":
-            config_var["id_type"] = {
-                "class": "http_request::HttpRequestComponent",
-                "parents": ["Component"],
-            }
-        elif path == "pins/esp32/val 1/id":
-            config_var["id_type"] = "pin"
+        for i, (matcher, id_type) in enumerate(GENERATED_ID_TYPES):
+            if matcher(path):
+                config_var["id_type"] = id_type
+                GENERATED_ID_TYPES.pop(i)
+                break
         else:
             print("Cannot determine id_type for " + path)
 
