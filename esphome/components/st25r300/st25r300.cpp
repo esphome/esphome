@@ -705,6 +705,7 @@ void ST25R300::nfcv_scan_() {
 
     // Try to read NDEF (Type 5 tag) via READ_SINGLE_BLOCK
     std::vector<uint8_t> uid_bytes;
+    uid_bytes.reserve(8);
     for (int j = 0; j < 8; j++)
       uid_bytes.push_back(resp[9 - j]);
 

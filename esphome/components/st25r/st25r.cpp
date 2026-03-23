@@ -757,8 +757,10 @@ void ST25R::process_state() {
               char buf[3]; snprintf(buf, sizeof(buf), "%02X", full_uid[i]); this->current_uid_ += buf;
             }
           } else {
-            for (int i = 0; i < 4; i++) {
-              char buf[3]; snprintf(buf, sizeof(buf), "%02X", full_uid[i]); this->current_uid_ += buf;
+            for (unsigned char i : full_uid) {
+              char buf[3];
+              snprintf(buf, sizeof(buf), "%02X", i);
+              this->current_uid_ += buf;
             }
           }
 
@@ -1583,8 +1585,7 @@ size_t ST25R::iso15693_encode_1of4(const uint8_t *data, size_t len, bool add_crc
   if (add_crc) {
     uint16_t crc = iso15693_crc(data, len);
     uint8_t crc_bytes[2] = {(uint8_t)(crc & 0xFF), (uint8_t)(crc >> 8)};
-    for (int c = 0; c < 2; c++) {
-      uint8_t b = crc_bytes[c];
+    for (unsigned char b : crc_bytes) {
       for (int j = 0; j < 4; j++) {
         out[pos++] = ISO15693_1OF4_MAP[b & 0x03];
         b >>= 2;
@@ -1758,6 +1759,7 @@ void ST25R::nfcv_scan_() {
 
       // Try to read NDEF (Type 5 tag) via READ_SINGLE_BLOCK
       std::vector<uint8_t> uid_bytes;
+      uid_bytes.reserve(8);
       for (int j = 0; j < 8; j++)
         uid_bytes.push_back(resp[9 - j]);
 
