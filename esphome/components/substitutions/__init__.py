@@ -1,6 +1,5 @@
 from collections import ChainMap
 import logging
-from re import Match
 from typing import Any
 
 from esphome import core
@@ -88,35 +87,9 @@ def _expand_substitutions(
 
     orig_value = value
 
+    # Phase 1: Replace $var and ${var} references
     search_pos = 0
-    while True:
-        m: Match[str] = cv.VARIABLE_PROG.search(value, search_pos)
-        if not m:
-            # No more $var references — check if the result contains a jinja expression
-            if not has_jinja(value):
-                break
-            try:
-                value = jinja.expand(value, context_vars)
-            except UndefinedError as err:
-                if strict_undefined:
-                    raise err
-                if errors is not None:
-                    errors.append((err, path, value))
-                break
-            except JinjaError as err:
-                raise cv.Invalid(
-                    f"{err.error_name()} Error evaluating jinja expression"
-                    f" '{value}': {str(err.parent())}."
-                    f"\nEvaluation stack: (most recent evaluation last)"
-                    f"\n{err.stack_trace_str()}"
-                    f"\nRelevant context:\n{err.context_trace_str()}"
-                    f"\nSee {'->'.join(str(x) for x in path)}",
-                    path,
-                )
-            if isinstance(orig_value, ESPHomeDataBase):
-                value = _restore_data_base(value, orig_value)
-            break
-
+    while (m := cv.VARIABLE_PROG.search(value, search_pos)) is not None:
         match_start, match_end = m.span(0)
         name: str = m.group(1)
         if name.startswith("{") and name.endswith("}"):
@@ -145,6 +118,29 @@ def _expand_substitutions(
         value = value[:match_start] + str(sub)
         search_pos = len(value)
         value += tail
+
+    # Phase 2: Evaluate any remaining jinja expressions (e.g., "${a * b}")
+    if isinstance(value, str) and has_jinja(value):
+        try:
+            value = jinja.expand(value, context_vars)
+        except UndefinedError as err:
+            if strict_undefined:
+                raise err
+            if errors is not None:
+                errors.append((err, path, value))
+        except JinjaError as err:
+            raise cv.Invalid(
+                f"{err.error_name()} Error evaluating jinja expression"
+                f" '{value}': {str(err.parent())}."
+                f"\nEvaluation stack: (most recent evaluation last)"
+                f"\n{err.stack_trace_str()}"
+                f"\nRelevant context:\n{err.context_trace_str()}"
+                f"\nSee {'->'.join(str(x) for x in path)}",
+                path,
+            )
+        else:
+            if isinstance(orig_value, ESPHomeDataBase):
+                value = _restore_data_base(value, orig_value)
 
     # orig_value can also already be a lambda with esp_range info, and only
     # a plain string is sent in orig_value
