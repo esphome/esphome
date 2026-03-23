@@ -5,12 +5,6 @@
 #include "esphome/components/spa06_base/spa06_base.h"
 #include "esphome/components/spi/spi.h"
 
-#ifdef LOG_SPI_DEVICE
-#pragma message("[spa06_spi] LOG_SPI_DEVICE already defined")
-#else
-#define LOG_SPI_DEVICE(this) ESP_LOGCONFIG(TAG, "  CS Pin: %d", esphome::spi::Utility::get_pin_no(this->cs_));
-#endif
-
 // OR (|) register with SPA06_SPI_READ for read.
 inline constexpr uint8_t SPA06_SPI_READ = 0x80;
 
