@@ -56,13 +56,28 @@ void DateTimeEntity::publish_state() {
 DateTimeCall DateTimeEntity::make_call() { return DateTimeCall(this); }
 
 ESPTime DateTimeEntity::state_as_esptime() const {
-  ESPTime obj;
+  ESPTime obj{};
   obj.year = this->year_;
   obj.month = this->month_;
   obj.day_of_month = this->day_;
   obj.hour = this->hour_;
   obj.minute = this->minute_;
   obj.second = this->second_;
+  // Compute day_of_year from month and day
+  uint16_t doy = 0;
+  for (uint8_t i = 1; i < this->month_; i++)
+    doy += days_in_month(i, this->year_);
+  doy += this->day_;
+  obj.day_of_year = doy;
+  // Compute day_of_week from local date fields using Tomohiko Sakamoto's algorithm
+  // Returns 0=Sunday..6=Saturday; ESPTime uses 1=Sunday..7=Saturday
+  {
+    static constexpr uint8_t t[] = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
+    int y = this->year_;
+    if (this->month_ < 3)
+      y--;
+    obj.day_of_week = static_cast<uint8_t>((y + y / 4 - y / 100 + y / 400 + t[this->month_ - 1] + this->day_) % 7) + 1;
+  }
   obj.recalc_timestamp_local();
   return obj;
 }
