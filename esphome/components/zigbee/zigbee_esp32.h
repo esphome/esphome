@@ -6,6 +6,7 @@
 
 #include <map>
 #include <tuple>
+#include <atomic>
 
 #include "esp_zigbee_core.h"
 #include "zboss_api.h"
@@ -71,8 +72,8 @@ class ZigbeeComponent : public Component {
 
   bool is_started() { return this->started_; }
   bool is_connected() { return this->connected_; }
-  bool connected_ = false;
-  bool started_ = false;
+  std::atomic<bool> connected_ = false;
+  std::atomic<bool> started_ = false;
 
   struct {
     std::string model;

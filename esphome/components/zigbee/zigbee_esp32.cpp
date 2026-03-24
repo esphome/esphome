@@ -16,7 +16,7 @@
 
 namespace esphome::zigbee {
 
-ZigbeeComponent *zigbeeC;
+static ZigbeeComponent *global_zigbee = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 uint8_t *get_zcl_string(const char *str, uint8_t max_size, bool use_max_size) {
   uint8_t str_len = static_cast<uint8_t>(strlen(str));
@@ -48,13 +48,13 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
     case ESP_ZB_BDB_SIGNAL_DEVICE_REBOOT:
       if (err_status == ESP_OK) {
         ESP_LOGD(TAG, "Device started up in %sfactory-reset mode", esp_zb_bdb_is_factory_new() ? "" : "non ");
-        zigbeeC->started_ = true;
+        global_zigbee->started_ = true;
         if (esp_zb_bdb_is_factory_new()) {
           ESP_LOGD(TAG, "Start network steering");
           esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_NETWORK_STEERING);
         } else {
           ESP_LOGD(TAG, "Device rebooted");
-          zigbeeC->connected_ = true;
+          global_zigbee->connected_ = true;
         }
       } else {
         ESP_LOGE(TAG, "FIRST_START.  Device started up in %sfactory-reset mode with an error %d (%s)",
@@ -69,7 +69,7 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct) {
         steering_retry_count = 0;
         ESP_LOGI(TAG, "Joined network successfully (PAN ID: 0x%04hx, Channel:%d)", esp_zb_get_pan_id(),
                  esp_zb_get_current_channel());
-        zigbeeC->connected_ = true;
+        global_zigbee->connected_ = true;
       } else {
         ESP_LOGI(TAG, "Network steering was not successful (status: %s)", esp_err_to_name(err_status));
         if (steering_retry_count < 10) {
@@ -154,16 +154,16 @@ esp_zb_attribute_list_t *ZigbeeComponent::create_basic_cluster_() {
       .zcl_version = ESP_ZB_ZCL_BASIC_ZCL_VERSION_DEFAULT_VALUE,
       .power_source = 0,
   };
-  uint8_t *ManufacturerName = get_zcl_string(this->basic_cluster_data_.manufacturer.c_str(), 32);
-  uint8_t *ModelIdentifier = get_zcl_string(this->basic_cluster_data_.model.c_str(), 32);
-  uint8_t *DateCode = get_zcl_string(this->basic_cluster_data_.date.c_str(), 16);
+  uint8_t *manufacturer_name = get_zcl_string(this->basic_cluster_data_.manufacturer.c_str(), 32);
+  uint8_t *model_identifier = get_zcl_string(this->basic_cluster_data_.model.c_str(), 32);
+  uint8_t *date_code = get_zcl_string(this->basic_cluster_data_.date.c_str(), 16);
   esp_zb_attribute_list_t *attr_list = esp_zb_basic_cluster_create(&basic_cluster_cfg);
-  esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_NAME_ID, ManufacturerName);
-  esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_MODEL_IDENTIFIER_ID, ModelIdentifier);
-  esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_DATE_CODE_ID, DateCode);
-  delete[] ManufacturerName;
-  delete[] ModelIdentifier;
-  delete[] DateCode;
+  esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_NAME_ID, manufacturer_name);
+  esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_MODEL_IDENTIFIER_ID, model_identifier);
+  esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_DATE_CODE_ID, date_code);
+  delete[] manufacturer_name;
+  delete[] model_identifier;
+  delete[] date_code;
   return attr_list;
 }
 
@@ -186,7 +186,7 @@ static void esp_zb_task_(void *pvParameters) {
 }
 
 void ZigbeeComponent::setup() {
-  zigbeeC = this;
+  global_zigbee = this;
   esp_zb_platform_config_t config = {
       .radio_config = ESP_ZB_DEFAULT_RADIO_CONFIG(),
       .host_config = ESP_ZB_DEFAULT_HOST_CONFIG(),
