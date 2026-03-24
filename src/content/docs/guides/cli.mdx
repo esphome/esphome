@@ -67,9 +67,10 @@ The `esphome run <CONFIG>` command is the most common command for ESPHome. It
 
 #### Options
 
-**`--device UPLOAD_PORT`**
-: Manually specify the upload port/IP to use. For example `/dev/cu.SLAB_USBtoUART`, or `192.168.1.176`
-to perform an OTA.
+**`--device DEVICE`**
+: Manually specify the port/IP to use for upload and logging. For example `/dev/cu.SLAB_USBtoUART`, or `192.168.1.176`
+to perform an OTA. You can also specify `OTA` to resolve the address from MQTT, DNS or mDNS.
+This prevents the interactive prompt when multiple options exist.
 
 Multiple `--device` options can be specified to provide fallback addresses. ESPHome will
 try each address in order until one succeeds. This is particularly useful for devices with
@@ -137,9 +138,10 @@ The `esphome upload <CONFIG>` validates the configuration and uploads the most r
 
 #### Options
 
-**`--device UPLOAD_PORT`**
+**`--device DEVICE`**
 : Manually specify the upload port/IP address to use. For example `/dev/cu.SLAB_USBtoUART`, or `192.168.1.176`
-to perform an OTA.
+to perform an OTA. You can also specify `OTA` to resolve the address from MQTT, DNS or mDNS.
+This prevents the interactive prompt when multiple options exist.
 
 Multiple `--device` options can be specified to provide fallback addresses. ESPHome will
 try each address in order until one succeeds.
@@ -270,8 +272,10 @@ The `esphome logs <CONFIG>` command validates the configuration and shows all lo
 : Manually set the client id.
 
 
-**`--device SERIAL_PORT`**
+**`--device DEVICE`**
 : Manually specify a serial port/IP to use. For example `/dev/cu.SLAB_USBtoUART`.
+You can also specify `OTA` to resolve the address from MQTT, DNS or mDNS.
+This prevents the interactive prompt when multiple options exist.
 
 Multiple `--device` options can be specified to provide fallback addresses. When using the
 native API for logs, all addresses are passed to the API client which uses the Happy Eyeballs
