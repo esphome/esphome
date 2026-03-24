@@ -1,195 +1,55 @@
 #!/usr/bin/env python3
 import argparse
-import hashlib
+from functools import partial
 import os
 from pathlib import Path
-import subprocess
 import sys
 
-from helpers import get_all_components, get_all_dependencies, root_path
-
-from esphome.__main__ import command_compile, parse_args
-from esphome.config import validate_config
-from esphome.core import CORE
-from esphome.platformio_api import get_idedata
-from esphome.yaml_util import load_yaml
-
-# This must coincide with the version in /platformio.ini
-PLATFORMIO_GOOGLE_TEST_LIB = "google/googletest@^1.15.2"
+from build_helpers import (
+    PLATFORMIO_GOOGLE_TEST_LIB,
+    build_and_run,
+    load_test_manifest_overrides,
+)
+from helpers import get_all_components, root_path
 
 # Path to /tests/components
 COMPONENTS_TESTS_DIR: Path = Path(root_path) / "tests" / "components"
 
-
-def hash_components(components: list[str]) -> str:
-    key = ",".join(components)
-    return hashlib.sha256(key.encode()).hexdigest()[:16]
-
-
-def filter_components_without_tests(components: list[str]) -> list[str]:
-    """Filter out components that do not have a corresponding test file.
-
-    This is done by checking if the component's directory contains at
-    least a .cpp file.
-    """
-    filtered_components: list[str] = []
-    for component in components:
-        test_dir = COMPONENTS_TESTS_DIR / component
-        if test_dir.is_dir() and any(test_dir.glob("*.cpp")):
-            filtered_components.append(component)
-        else:
-            print(
-                f"WARNING: No tests found for component '{component}', skipping.",
-                file=sys.stderr,
-            )
-    return filtered_components
-
-
-# Name of optional per-component YAML config merged into the test build
-# before validation so that platform defines (USE_SENSOR, etc.) are generated.
-CPP_TEST_CONFIG_FILE = "cpp_test.yaml"
-
-
-def load_component_test_configs(components: list[str]) -> dict:
-    """Load cpp_test.yaml files from test component directories.
-
-    These configs are merged into the base test config *before* validation
-    so that entity registration runs during code generation, which causes
-    the corresponding USE_* defines to be emitted.
-    """
-    merged: dict = {}
-    for component in components:
-        config_file = COMPONENTS_TESTS_DIR / component / CPP_TEST_CONFIG_FILE
-        if not config_file.exists():
-            continue
-        component_config = load_yaml(config_file)
-        if not component_config:
-            continue
-        for key, value in component_config.items():
-            if (
-                key in merged
-                and isinstance(merged[key], list)
-                and isinstance(value, list)
-            ):
-                merged[key].extend(value)
-            else:
-                merged[key] = value
-    return merged
-
-
-def create_test_config(config_name: str, includes: list[str]) -> dict:
-    """Create ESPHome test configuration for C++ unit tests.
-
-    Args:
-        config_name: Unique name for this test configuration
-        includes: List of include folders for the test build
-
-    Returns:
-        Configuration dict for ESPHome
-    """
-    return {
-        "esphome": {
-            "name": config_name,
-            "friendly_name": "CPP Unit Tests",
-            "libraries": PLATFORMIO_GOOGLE_TEST_LIB,
-            "platformio_options": {
-                "build_type": "debug",
-                "build_unflags": [
-                    "-Os",  # remove size-opt flag
-                ],
-                "build_flags": [
-                    "-Og",  # optimize for debug
-                    "-DUSE_TIME_TIMEZONE",  # enable timezone code paths for testing
-                ],
-                "debug_build_flags": [  # only for debug builds
-                    "-g3",  # max debug info
-                    "-ggdb3",
-                ],
-            },
-            "includes": includes,
-        },
-        "host": {},
-        "logger": {"level": "DEBUG"},
-    }
+PLATFORMIO_OPTIONS = {
+    "build_type": "debug",
+    "build_unflags": [
+        "-Os",  # remove size-opt flag
+    ],
+    "build_flags": [
+        "-Og",  # optimize for debug
+        "-DESPHOME_DEBUG",  # enable debug assertions
+        # Enable the address and undefined behavior sanitizers
+        "-fsanitize=address",
+        "-fsanitize=undefined",
+        "-fno-omit-frame-pointer",
+    ],
+    "debug_build_flags": [  # only for debug builds
+        "-g3",  # max debug info
+        "-ggdb3",
+    ],
+}
 
 
 def run_tests(selected_components: list[str]) -> int:
-    # Skip tests on Windows
-    if os.name == "nt":
-        print("Skipping esphome tests on Windows", file=sys.stderr)
-        return 1
-
-    # Remove components that do not have tests
-    components = filter_components_without_tests(selected_components)
-
-    if len(components) == 0:
-        print(
-            "No components specified or no tests found for the specified components.",
-            file=sys.stderr,
-        )
-        return 0
-
-    components = sorted(components)
-
-    # Obtain possible dependencies for the requested components.
-    # Always include 'time' because USE_TIME_TIMEZONE is defined as a build flag,
-    # which causes core/time.h to include components/time/posix_tz.h.
-    components_with_dependencies = sorted(
-        get_all_dependencies(set(components) | {"time"})
+    os.environ["ASAN_OPTIONS"] = "detect_leaks=0"
+    return build_and_run(
+        selected_components=selected_components,
+        tests_dir=COMPONENTS_TESTS_DIR,
+        manifest_override_loader=partial(
+            load_test_manifest_overrides, tests_dir=COMPONENTS_TESTS_DIR
+        ),
+        config_prefix="cpptests",
+        friendly_name="CPP Unit Tests",
+        libraries=PLATFORMIO_GOOGLE_TEST_LIB,
+        platformio_options=PLATFORMIO_OPTIONS,
+        main_entry="main.cpp",
+        label="unit tests",
     )
-
-    # Build a list of include folders, one folder per component containing tests.
-    # A special replacement main.cpp is located in /tests/components/main.cpp
-    includes: list[str] = ["main.cpp"] + components
-
-    # Create a unique name for this config based on the actual components being tested
-    # to maximize cache during testing
-    config_name: str = "cpptests-" + hash_components(components)
-
-    config = create_test_config(config_name, includes)
-
-    # Merge component-specific test configs (e.g. sensor instances) before
-    # validation so that entity registration and USE_* defines work.
-    extra_config = load_component_test_configs(components)
-    config.update(extra_config)
-
-    CORE.config_path = COMPONENTS_TESTS_DIR / "dummy.yaml"
-    CORE.dashboard = None
-
-    # Validate config will expand the above with defaults:
-    config = validate_config(config, {})
-
-    # Add all components and dependencies to the base configuration after validation, so their files
-    # are added to the build.  Use setdefault to avoid overwriting entries that were
-    # already validated (e.g. sensor instances from cpp_test.yaml).
-    for key in components_with_dependencies:
-        config.setdefault(key, {})
-
-    print(f"Testing components: {', '.join(components)}")
-    CORE.config = config
-    args = parse_args(["program", "compile", str(CORE.config_path)])
-    try:
-        exit_code: int = command_compile(args, config)
-
-        if exit_code != 0:
-            print(f"Error compiling unit tests for {', '.join(components)}")
-            return exit_code
-    except Exception as e:
-        print(
-            f"Error compiling unit tests for {', '.join(components)}. Check path. : {e}"
-        )
-        return 2
-
-    # After a successful compilation, locate the executable and run it:
-    idedata = get_idedata(config)
-    if idedata is None:
-        print("Cannot find executable")
-        return 1
-
-    program_path: str = idedata.raw["prog_path"]
-    run_cmd: list[str] = [program_path]
-    run_proc = subprocess.run(run_cmd, check=False)
-    return run_proc.returncode
 
 
 def main() -> None:

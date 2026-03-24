@@ -1,7 +1,6 @@
 #include "esphome/core/defines.h"
 #ifdef USE_OPENTHREAD
 #include "openthread.h"
-#include "esp_openthread.h"
 
 #include <freertos/portmacro.h>
 
@@ -51,7 +50,7 @@ void OpenThreadComponent::on_state_changed_(otChangedFlags flags, void *context)
     auto *self = static_cast<OpenThreadComponent *>(context);
     // This runs on the OpenThread task thread with the OT lock held,
     // so we can safely call otThreadGetDeviceRole directly.
-    otInstance *instance = esp_openthread_get_instance();
+    otInstance *instance = self->get_openthread_instance_();
     otDeviceRole role = otThreadGetDeviceRole(instance);
     self->connected_ = role >= OT_DEVICE_ROLE_CHILD;
   }
@@ -233,16 +232,12 @@ bool OpenThreadComponent::teardown() {
     otSrpClientClearHostAndServices(instance);
     otSrpClientBuffersFreeAllServices(instance);
     global_openthread_component = nullptr;
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
     ESP_LOGD(TAG, "Exit main loop ");
-    int error = esp_openthread_mainloop_exit();
+    int error = this->openthread_stop_();
     if (error != ESP_OK) {
       ESP_LOGW(TAG, "Failed attempt to stop main loop %d", error);
       this->teardown_complete_ = true;
     }
-#else
-    this->teardown_complete_ = true;
-#endif
   }
   return this->teardown_complete_;
 }
@@ -261,12 +256,6 @@ void OpenThreadComponent::on_factory_reset(std::function<void()> callback) {
   }
   ESP_LOGD(TAG, "Waiting on Confirmation Removal SRP Host and Services");
 }
-
-// set_use_address() is guaranteed to be called during component setup by Python code generation,
-// so use_address_ will always be valid when get_use_address() is called - no fallback needed.
-const char *OpenThreadComponent::get_use_address() const { return this->use_address_; }
-
-void OpenThreadComponent::set_use_address(const char *use_address) { this->use_address_ = use_address; }
 
 }  // namespace esphome::openthread
 #endif

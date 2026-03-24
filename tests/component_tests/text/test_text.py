@@ -1,4 +1,6 @@
-"""Tests for the binary sensor component."""
+"""Tests for the text component."""
+
+from tests.component_tests.helpers import INTERNAL_BIT, extract_packed_value
 
 
 def test_text_is_setup(generate_main):
@@ -11,7 +13,8 @@ def test_text_is_setup(generate_main):
     main_cpp = generate_main("tests/component_tests/text/test_text.yaml")
 
     # Then
-    assert "new template_::TemplateText();" in main_cpp
+    assert "static template_::TemplateText *const" in main_cpp
+    assert ") template_::TemplateText();" in main_cpp
     assert "App.register_text" in main_cpp
 
 
@@ -25,7 +28,7 @@ def test_text_sets_mandatory_fields(generate_main):
     main_cpp = generate_main("tests/component_tests/text/test_text.yaml")
 
     # Then
-    assert 'it_1->set_name("test 1 text",' in main_cpp
+    assert 'it_1->configure_entity_("test 1 text",' in main_cpp
 
 
 def test_text_config_value_internal_set(generate_main):
@@ -37,9 +40,9 @@ def test_text_config_value_internal_set(generate_main):
     # When
     main_cpp = generate_main("tests/component_tests/text/test_text.yaml")
 
-    # Then
-    assert "it_2->set_internal(false);" in main_cpp
-    assert "it_3->set_internal(true);" in main_cpp
+    # Then: it_2 has internal: false, it_3 has internal: true
+    assert extract_packed_value(main_cpp, "it_2") & INTERNAL_BIT == 0
+    assert extract_packed_value(main_cpp, "it_3") & INTERNAL_BIT != 0
 
 
 def test_text_config_value_mode_set(generate_main):

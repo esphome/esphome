@@ -3,6 +3,7 @@ esphome:
 
 host:
 api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
 logger:
   level: VERBOSE
 
@@ -102,6 +103,18 @@ uart_mock:
           0xF8, 0xF7, 0xF6, 0xF5,
         ]
 
+# Common filter definitions
+.sensor_filters: &sensor_filters
+  filters:
+    - timeout:
+        timeout: 50ms
+        value: last
+    - throttle_with_priority: 50ms
+
+.binary_filters: &binary_filters
+  filters:
+    - settle: 50ms
+
 ld2412:
   id: ld2412_dev
   uart_id: mock_uart
@@ -111,107 +124,56 @@ sensor:
     ld2412_id: ld2412_dev
     moving_distance:
       name: "Moving Distance"
-      filters:
-        - timeout:
-            timeout: 50ms
-            value: last
-        - throttle_with_priority: 50ms
+      <<: *sensor_filters
     still_distance:
       name: "Still Distance"
-      filters:
-        - timeout:
-            timeout: 50ms
-            value: last
-        - throttle_with_priority: 50ms
+      <<: *sensor_filters
     moving_energy:
       name: "Moving Energy"
-      filters:
-        - timeout:
-            timeout: 50ms
-            value: last
-        - throttle_with_priority: 50ms
+      <<: *sensor_filters
     still_energy:
       name: "Still Energy"
-      filters:
-        - timeout:
-            timeout: 50ms
-            value: last
-        - throttle_with_priority: 50ms
+      <<: *sensor_filters
     detection_distance:
       name: "Detection Distance"
-      filters:
-        - timeout:
-            timeout: 50ms
-            value: last
-        - throttle_with_priority: 50ms
+      <<: *sensor_filters
     light:
       name: "Light"
-      filters:
-        - timeout:
-            timeout: 50ms
-            value: last
-        - throttle_with_priority: 50ms
+      <<: *sensor_filters
     gate_0:
       move_energy:
         name: "Gate 0 Move Energy"
-        filters:
-          - timeout:
-              timeout: 50ms
-              value: last
-          - throttle_with_priority: 50ms
+        <<: *sensor_filters
       still_energy:
         name: "Gate 0 Still Energy"
-        filters:
-          - timeout:
-              timeout: 50ms
-              value: last
-          - throttle_with_priority: 50ms
+        <<: *sensor_filters
     gate_1:
       move_energy:
         name: "Gate 1 Move Energy"
-        filters:
-          - timeout:
-              timeout: 50ms
-              value: last
-          - throttle_with_priority: 50ms
+        <<: *sensor_filters
       still_energy:
         name: "Gate 1 Still Energy"
-        filters:
-          - timeout:
-              timeout: 50ms
-              value: last
-          - throttle_with_priority: 50ms
+        <<: *sensor_filters
     gate_2:
       move_energy:
         name: "Gate 2 Move Energy"
-        filters:
-          - timeout:
-              timeout: 50ms
-              value: last
-          - throttle_with_priority: 50ms
+        <<: *sensor_filters
       still_energy:
         name: "Gate 2 Still Energy"
-        filters:
-          - timeout:
-              timeout: 50ms
-              value: last
-          - throttle_with_priority: 50ms
+        <<: *sensor_filters
 
 binary_sensor:
   - platform: ld2412
     ld2412_id: ld2412_dev
     has_target:
       name: "Has Target"
-      filters:
-        - settle: 50ms
+      <<: *binary_filters
     has_moving_target:
       name: "Has Moving Target"
-      filters:
-        - settle: 50ms
+      <<: *binary_filters
     has_still_target:
       name: "Has Still Target"
-      filters:
-        - settle: 50ms
+      <<: *binary_filters
 
 button:
   - platform: template

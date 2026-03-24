@@ -18,7 +18,7 @@
 #endif
 
 #if defined(USE_ESP32) && defined(USE_WIFI_WPA2_EAP)
-#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
 #include <esp_eap_client.h>
 #else
 #include <esp_wpa2.h>
@@ -263,8 +263,8 @@ class WiFiAP {
 #ifdef USE_WIFI_WPA2_EAP
   const optional<EAPAuth> &get_eap() const;
 #endif  // USE_WIFI_WPA2_EAP
-  uint8_t get_channel() const;
-  bool has_channel() const;
+  uint8_t get_channel() const { return this->channel_; }
+  bool has_channel() const { return this->channel_ != 0; }
   int8_t get_priority() const { return priority_; }
 #ifdef USE_WIFI_MANUAL_IP
   const optional<ManualIP> &get_manual_ip() const;
@@ -399,7 +399,7 @@ class WiFiPowerSaveListener {
 };
 
 /// This component is responsible for managing the ESP WiFi interface.
-class WiFiComponent : public Component {
+class WiFiComponent final : public Component {
  public:
   /// Construct a WiFiComponent.
   WiFiComponent();
@@ -437,10 +437,6 @@ class WiFiComponent : public Component {
 
   void retry_connect();
 
-#ifdef USE_RP2040
-  bool can_proceed() override;
-#endif
-
   void set_reboot_timeout(uint32_t reboot_timeout);
 
   bool is_connected() const { return this->connected_; }
@@ -474,9 +470,9 @@ class WiFiComponent : public Component {
   /// Reconnect WiFi if required.
   void loop() override;
 
-  bool has_sta() const;
-  bool has_ap() const;
-  bool is_ap_active() const;
+  bool has_sta() const { return !this->sta_.empty(); }
+  bool has_ap() const { return this->has_ap_; }
+  bool is_ap_active() const { return this->ap_started_; }
 
 #ifdef USE_WIFI_11KV_SUPPORT
   void set_btm(bool btm);
@@ -485,8 +481,8 @@ class WiFiComponent : public Component {
 
   network::IPAddress get_dns_address(int num);
   network::IPAddresses get_ip_addresses();
-  const char *get_use_address() const;
-  void set_use_address(const char *use_address);
+  const char *get_use_address() const { return this->use_address_; }
+  void set_use_address(const char *use_address) { this->use_address_ = use_address; }
 
   const wifi_scan_vector_t<WiFiScanResult> &get_scan_result() const { return scan_result_; }
 

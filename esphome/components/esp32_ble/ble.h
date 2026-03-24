@@ -35,7 +35,16 @@ static constexpr uint8_t MAX_BLE_QUEUE_SIZE = 100;  // 64 + 36 (ring buffer size
 static constexpr uint8_t MAX_BLE_QUEUE_SIZE = 88;  // 64 + 24 (ring buffer size without PSRAM)
 #endif
 
-uint64_t ble_addr_to_uint64(const esp_bd_addr_t address);
+inline uint64_t ble_addr_to_uint64(const esp_bd_addr_t address) {
+  uint64_t u = 0;
+  u |= uint64_t(address[0] & 0xFF) << 40;
+  u |= uint64_t(address[1] & 0xFF) << 32;
+  u |= uint64_t(address[2] & 0xFF) << 24;
+  u |= uint64_t(address[3] & 0xFF) << 16;
+  u |= uint64_t(address[4] & 0xFF) << 8;
+  u |= uint64_t(address[5] & 0xFF) << 0;
+  return u;
+}
 
 // NOLINTNEXTLINE(modernize-use-using)
 typedef struct {
@@ -126,7 +135,7 @@ class ESP32BLE : public Component {
 
   void enable();
   void disable();
-  bool is_active();
+  ESPHOME_ALWAYS_INLINE bool is_active() { return this->state_ == BLE_COMPONENT_STATE_ACTIVE; }
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -212,7 +221,13 @@ class ESP32BLE : public Component {
 
   // Large objects (size depends on template parameters, but typically aligned to 4 bytes)
   esphome::LockFreeQueue<BLEEvent, MAX_BLE_QUEUE_SIZE> ble_events_;
-  esphome::EventPool<BLEEvent, MAX_BLE_QUEUE_SIZE> ble_event_pool_;
+  // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
+  // buffer that holds N-1 elements (one slot distinguishes full from empty).
+  // This guarantees allocate() returns nullptr before push() can fail, which:
+  //  1. Prevents leaking a pool slot (the Nth allocate succeeds but push fails)
+  //  2. Avoids needing release() on the producer path after a failed push(),
+  //     preserving the SPSC contract on the pool's internal free list
+  esphome::EventPool<BLEEvent, MAX_BLE_QUEUE_SIZE - 1> ble_event_pool_;
 
   // 4-byte aligned members
 #ifdef USE_ESP32_BLE_ADVERTISING

@@ -587,7 +587,7 @@ def _build_config_struct(
 async def to_code(config: ConfigType) -> None:
     add_idf_component(
         name="esphome/esp-hub75",
-        ref="0.3.2",
+        ref="0.3.5",
     )
 
     # Set compile-time configuration via build flags (so external library sees them)
@@ -652,6 +652,7 @@ async def to_code(config: ConfigType) -> None:
         },
         key=CONF_BRIGHTNESS,
     ),
+    synchronous=True,
 )
 async def hub75_set_brightness_to_code(
     config: ConfigType,

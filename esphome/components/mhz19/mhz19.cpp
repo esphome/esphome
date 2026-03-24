@@ -16,6 +16,7 @@ static const uint8_t MHZ19_COMMAND_DETECTION_RANGE_0_2000PPM[] = {0xFF, 0x01, 0x
 static const uint8_t MHZ19_COMMAND_DETECTION_RANGE_0_5000PPM[] = {0xFF, 0x01, 0x99, 0x00, 0x00, 0x00, 0x13, 0x88};
 static const uint8_t MHZ19_COMMAND_DETECTION_RANGE_0_10000PPM[] = {0xFF, 0x01, 0x99, 0x00, 0x00, 0x00, 0x27, 0x10};
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
 static const LogString *detection_range_to_log_string(MHZ19DetectionRange range) {
   switch (range) {
     case MHZ19_DETECTION_RANGE_0_2000PPM:
@@ -28,6 +29,7 @@ static const LogString *detection_range_to_log_string(MHZ19DetectionRange range)
       return LOG_STR("default");
   }
 }
+#endif
 
 uint8_t mhz19_checksum(const uint8_t *command) {
   uint8_t sum = 0;
