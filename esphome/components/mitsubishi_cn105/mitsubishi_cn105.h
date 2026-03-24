@@ -11,43 +11,43 @@
 namespace esphome {
 namespace mitsubishi_cn105 {
 
-enum class ClimateMode : uint8_t {
-  HEAT,
-  DRY,
-  COOL,
-  FAN_ONLY,
-  AUTO,
-  UNKNOWN,
-};
-
-enum class ClimateFanMode : uint8_t {
-  AUTO,
-  QUIET,
-  SPEED_1,
-  SPEED_2,
-  SPEED_3,
-  SPEED_4,
-  UNKNOWN,
-};
-
-struct ClimateSettings {
-  bool operator==(const ClimateSettings &) const = default;
-
-  bool power_on{false};
-  float target_temperature{NAN};
-  ClimateMode mode{ClimateMode::UNKNOWN};
-  ClimateFanMode fan_mode{ClimateFanMode::UNKNOWN};
-};
-
-struct ClimateStatus {
-  bool operator==(const ClimateStatus &) const = default;
-
-  ClimateSettings settings{};
-  float room_temperature{NAN};
-};
-
 class MitsubishiCN105 {
  public:
+  enum class Mode : uint8_t {
+    HEAT,
+    DRY,
+    COOL,
+    FAN_ONLY,
+    AUTO,
+    UNKNOWN,
+  };
+
+  enum class FanMode : uint8_t {
+    AUTO,
+    QUIET,
+    SPEED_1,
+    SPEED_2,
+    SPEED_3,
+    SPEED_4,
+    UNKNOWN,
+  };
+
+  struct Settings {
+    bool operator==(const Settings &) const = default;
+
+    bool power_on{false};
+    float target_temperature{NAN};
+    Mode mode{Mode::UNKNOWN};
+    FanMode fan_mode{FanMode::UNKNOWN};
+  };
+
+  struct Status {
+    bool operator==(const Status &) const = default;
+
+    Settings settings{};
+    float room_temperature{NAN};
+  };
+
   explicit MitsubishiCN105(uart::UARTDevice &device) : device_(device) {}
 
   void init();
@@ -56,13 +56,13 @@ class MitsubishiCN105 {
   uint32_t get_update_interval() const { return this->update_interval_ms_; }
   void set_update_interval(uint32_t interval_ms) { this->update_interval_ms_ = interval_ms; }
 
-  const ClimateStatus &status() const { return this->current_status_; }
+  const Status &status() const { return this->current_status_; }
   bool is_status_initialized() const { return this->status_initialized_; }
 
   void set_target_temperature(float target_temperature);
   void set_power(bool power_on);
-  void set_mode(ClimateMode mode);
-  void set_fan_mode(ClimateFanMode fan_mode);
+  void set_mode(Mode mode);
+  void set_fan_mode(FanMode fan_mode);
 
   void set_connection_state_callback(std::function<void(bool)> &&callback);
 
@@ -131,7 +131,7 @@ class MitsubishiCN105 {
   uart::UARTDevice &device_;
 
   State state_{State::NOT_CONNECTED};
-  ClimateStatus current_status_;
+  Status current_status_;
   UpdateFlags pending_updates_;
 
   static constexpr size_t READ_BUFFER_SIZE = 32;

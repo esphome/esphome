@@ -8,21 +8,21 @@ static const char *const TAG = "mitsubishi_cn105.climate";
 
 namespace {
 
-constexpr std::array<std::pair<ClimateMode, climate::ClimateMode>, 5> MODE_MAP{{
-    {ClimateMode::AUTO, climate::CLIMATE_MODE_AUTO},
-    {ClimateMode::HEAT, climate::CLIMATE_MODE_HEAT},
-    {ClimateMode::DRY, climate::CLIMATE_MODE_DRY},
-    {ClimateMode::COOL, climate::CLIMATE_MODE_COOL},
-    {ClimateMode::FAN_ONLY, climate::CLIMATE_MODE_FAN_ONLY},
+constexpr std::array<std::pair<MitsubishiCN105::Mode, climate::ClimateMode>, 5> MODE_MAP{{
+    {MitsubishiCN105::Mode::AUTO, climate::CLIMATE_MODE_AUTO},
+    {MitsubishiCN105::Mode::HEAT, climate::CLIMATE_MODE_HEAT},
+    {MitsubishiCN105::Mode::DRY, climate::CLIMATE_MODE_DRY},
+    {MitsubishiCN105::Mode::COOL, climate::CLIMATE_MODE_COOL},
+    {MitsubishiCN105::Mode::FAN_ONLY, climate::CLIMATE_MODE_FAN_ONLY},
 }};
 
-constexpr std::array<std::pair<ClimateFanMode, climate::ClimateFanMode>, 6> FAN_MODE_MAP{{
-    {ClimateFanMode::AUTO, climate::CLIMATE_FAN_AUTO},
-    {ClimateFanMode::QUIET, climate::CLIMATE_FAN_QUIET},
-    {ClimateFanMode::SPEED_1, climate::CLIMATE_FAN_LOW},
-    {ClimateFanMode::SPEED_2, climate::CLIMATE_FAN_MEDIUM},
-    {ClimateFanMode::SPEED_3, climate::CLIMATE_FAN_MIDDLE},
-    {ClimateFanMode::SPEED_4, climate::CLIMATE_FAN_HIGH},
+constexpr std::array<std::pair<MitsubishiCN105::FanMode, climate::ClimateFanMode>, 6> FAN_MODE_MAP{{
+    {MitsubishiCN105::FanMode::AUTO, climate::CLIMATE_FAN_AUTO},
+    {MitsubishiCN105::FanMode::QUIET, climate::CLIMATE_FAN_QUIET},
+    {MitsubishiCN105::FanMode::SPEED_1, climate::CLIMATE_FAN_LOW},
+    {MitsubishiCN105::FanMode::SPEED_2, climate::CLIMATE_FAN_MEDIUM},
+    {MitsubishiCN105::FanMode::SPEED_3, climate::CLIMATE_FAN_MIDDLE},
+    {MitsubishiCN105::FanMode::SPEED_4, climate::CLIMATE_FAN_HIGH},
 }};
 
 template<typename Left, typename Right, std::size_t N>

@@ -19,26 +19,26 @@ constexpr uint8_t INFO_MODE_ROOM_TEMP = 0x03;  // current room temperature
 
 constexpr std::array<uint8_t, 2> INFO_MODE = {{INFO_MODE_SETTINGS, INFO_MODE_ROOM_TEMP}};
 
-constexpr std::array<std::optional<ClimateMode>, 9> MODE_MAP = {{
-    std::nullopt,           // 0x00
-    ClimateMode::HEAT,      // 0x01
-    ClimateMode::DRY,       // 0x02
-    ClimateMode::COOL,      // 0x03
-    std::nullopt,           // 0x04
-    std::nullopt,           // 0x05
-    std::nullopt,           // 0x06
-    ClimateMode::FAN_ONLY,  // 0x07
-    ClimateMode::AUTO       // 0x08
+constexpr std::array<std::optional<MitsubishiCN105::Mode>, 9> MODE_MAP = {{
+    std::nullopt,                     // 0x00
+    MitsubishiCN105::Mode::HEAT,      // 0x01
+    MitsubishiCN105::Mode::DRY,       // 0x02
+    MitsubishiCN105::Mode::COOL,      // 0x03
+    std::nullopt,                     // 0x04
+    std::nullopt,                     // 0x05
+    std::nullopt,                     // 0x06
+    MitsubishiCN105::Mode::FAN_ONLY,  // 0x07
+    MitsubishiCN105::Mode::AUTO       // 0x08
 }};
 
-constexpr std::array<std::optional<ClimateFanMode>, 7> FAN_MODE_MAP = {{
-    ClimateFanMode::AUTO,     // 0x00
-    ClimateFanMode::QUIET,    // 0x01
-    ClimateFanMode::SPEED_1,  // 0x02
-    ClimateFanMode::SPEED_2,  // 0x03
-    std::nullopt,             // 0x04
-    ClimateFanMode::SPEED_3,  // 0x05
-    ClimateFanMode::SPEED_4   // 0x06
+constexpr std::array<std::optional<MitsubishiCN105::FanMode>, 7> FAN_MODE_MAP = {{
+    MitsubishiCN105::FanMode::AUTO,     // 0x00
+    MitsubishiCN105::FanMode::QUIET,    // 0x01
+    MitsubishiCN105::FanMode::SPEED_1,  // 0x02
+    MitsubishiCN105::FanMode::SPEED_2,  // 0x03
+    std::nullopt,                       // 0x04
+    MitsubishiCN105::FanMode::SPEED_3,  // 0x05
+    MitsubishiCN105::FanMode::SPEED_4   // 0x06
 }};
 
 constexpr uint8_t checksum(const uint8_t *bytes, size_t length) {
@@ -79,7 +79,7 @@ bool MitsubishiCN105::sync() {
 
 void MitsubishiCN105::set_state_(State new_state) {
   if (new_state != this->state_ && should_transition(this->state_, new_state)) {
-    ESP_LOGD(TAG, "Did transition: %s -> %s", state_to_string(this->state_), state_to_string(new_state));
+    ESP_LOGV(TAG, "Did transition: %s -> %s", state_to_string(this->state_), state_to_string(new_state));
     const auto prev_state = this->state_;
     this->state_ = new_state;
     this->did_transition_(prev_state, new_state);
@@ -317,7 +317,15 @@ bool MitsubishiCN105::process_incoming_packet_(const uint8_t *packet, uint8_t le
   this->set_state_(State::STATUS_UPDATED);
 
   if (previous != this->current_status_ && this->status_initialized_) {
-    ESP_LOGD(TAG, "Status changed");
+    ESP_LOGD(TAG,
+             "Status changed: "
+             "power=%s->%s mode=%u->%u target=%.1f->%.1f fan=%u->%u room=%.1f->%.1f",
+             previous.settings.power_on ? "ON" : "OFF", this->current_status_.settings.power_on ? "ON" : "OFF",
+             static_cast<uint8_t>(previous.settings.mode), static_cast<uint8_t>(this->current_status_.settings.mode),
+             previous.settings.target_temperature, this->current_status_.settings.target_temperature,
+             static_cast<uint8_t>(previous.settings.fan_mode),
+             static_cast<uint8_t>(this->current_status_.settings.fan_mode), previous.room_temperature,
+             this->current_status_.room_temperature);
     return true;
   }
 
@@ -392,13 +400,13 @@ bool MitsubishiCN105::parse_values_(const uint8_t *data, size_t length) {
       }
 
       // Mode
-      this->apply_to_(UpdateFlag::MODE, MODE_MAP, mode, [this](const std::optional<ClimateMode> &mode) {
-        this->current_status_.settings.mode = mode.value_or(ClimateMode::UNKNOWN);
+      this->apply_to_(UpdateFlag::MODE, MODE_MAP, mode, [this](const std::optional<Mode> &mode) {
+        this->current_status_.settings.mode = mode.value_or(Mode::UNKNOWN);
       });
 
       // Fan
-      this->apply_to_(UpdateFlag::FAN, FAN_MODE_MAP, fan, [this](const std::optional<ClimateFanMode> &fan_mode) {
-        this->current_status_.settings.fan_mode = fan_mode.value_or(ClimateFanMode::UNKNOWN);
+      this->apply_to_(UpdateFlag::FAN, FAN_MODE_MAP, fan, [this](const std::optional<FanMode> &fan_mode) {
+        this->current_status_.settings.fan_mode = fan_mode.value_or(FanMode::UNKNOWN);
       });
 
       ESP_LOGV(TAG, "Parsed settings: power=%s(%u) mode=%u temp=%.1f fan=%u i-see=%s",
@@ -463,8 +471,8 @@ void MitsubishiCN105::set_power(bool power_on) {
   this->pending_updates_.set(UpdateFlag::POWER);
 }
 
-void MitsubishiCN105::set_mode(ClimateMode mode) {
-  if (mode == ClimateMode::UNKNOWN) {
+void MitsubishiCN105::set_mode(Mode mode) {
+  if (mode == Mode::UNKNOWN) {
     ESP_LOGW(TAG, "Setting invalid mode value");
     return;
   }
@@ -472,8 +480,8 @@ void MitsubishiCN105::set_mode(ClimateMode mode) {
   this->pending_updates_.set(UpdateFlag::MODE);
 }
 
-void MitsubishiCN105::set_fan_mode(ClimateFanMode fan_mode) {
-  if (fan_mode == ClimateFanMode::UNKNOWN) {
+void MitsubishiCN105::set_fan_mode(FanMode fan_mode) {
+  if (fan_mode == FanMode::UNKNOWN) {
     ESP_LOGW(TAG, "Setting invalid fan mode value");
     return;
   }
