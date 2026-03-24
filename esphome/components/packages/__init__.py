@@ -300,9 +300,14 @@ def do_packages_pass(config: dict, skip_update: bool = False) -> dict:
             context_vars = package_config.vars
             if CONF_PACKAGES in package_config or CONF_URL in package_config:
                 # Remote package definition: eagerly resolve before PACKAGE_SCHEMA validation.
-                from esphome.components.substitutions import substitute_context_vars
+                from esphome.components.substitutions import ContextVars, substitute
 
-                substitute_context_vars(package_config, context_vars)
+                package_config = substitute(
+                    package_config,
+                    [],
+                    ContextVars(context_vars),
+                    strict_undefined=False,
+                )
         package_config = PACKAGE_SCHEMA(package_config)
         if isinstance(package_config, str):
             return package_config  # Jinja string, skip processing

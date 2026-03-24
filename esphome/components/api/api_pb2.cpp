@@ -2249,10 +2249,14 @@ bool SubscribeBluetoothLEAdvertisementsRequest::decode_varint(uint32_t field_id,
   return true;
 }
 void BluetoothLERawAdvertisement::encode(ProtoWriteBuffer &buffer) const {
-  buffer.encode_uint64(1, this->address, true);
-  buffer.encode_sint32(2, this->rssi, true);
+  buffer.write_raw_byte(8);
+  buffer.encode_varint_raw_64(this->address);
+  buffer.write_raw_byte(16);
+  buffer.encode_varint_raw(encode_zigzag32(this->rssi));
   buffer.encode_uint32(3, this->address_type);
-  buffer.encode_bytes(4, this->data, this->data_len, true);
+  buffer.write_raw_byte(34);
+  buffer.encode_varint_raw(this->data_len);
+  buffer.encode_raw(this->data, this->data_len);
 }
 uint32_t BluetoothLERawAdvertisement::calculate_size() const {
   uint32_t size = 0;
