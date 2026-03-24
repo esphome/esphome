@@ -83,8 +83,8 @@ void EthernetComponent::setup() {
   // or via GPIO interrupt when one is provided.
 
   // Don't set started_ here — let the link polling in loop() set it
-  // when the W5500 link is actually up. Setting it prematurely causes
-  // a "Starting → Stopped → Starting" log sequence because the W5500
+  // when the link is actually up. Setting it prematurely causes
+  // a "Starting → Stopped → Starting" log sequence because the chip
   // needs time after begin() before the PHY link is ready.
 }
 
@@ -238,7 +238,7 @@ const char *EthernetComponent::get_eth_mac_address_pretty_into_buffer(
 }
 
 eth_duplex_t EthernetComponent::get_duplex_mode() {
-  // Both W5500 and ENC28J60 are full-duplex on RP2040
+  // W5100, W5500, and ENC28J60 are full-duplex on RP2040
   return ETH_DUPLEX_FULL;
 }
 
