@@ -245,15 +245,15 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
     if revert is not None:
         # If loading fails, the cached checkout may be stale — revert and retry once.
         try:
-            return {"packages": get_packages(files)}
+            return {CONF_PACKAGES: get_packages(files)}
         except cv.Invalid:
             revert()
         try:
-            return {"packages": get_packages(files)}
+            return {CONF_PACKAGES: get_packages(files)}
         except cv.Invalid as err:
             raise cv.Invalid(f"Failed to load packages. {err}", path=err.path) from err
 
-    return {"packages": get_packages(files)}
+    return {CONF_PACKAGES: get_packages(files)}
 
 
 def _walk_packages(
