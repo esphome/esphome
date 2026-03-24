@@ -100,9 +100,7 @@ CELL_SCHEMA = cv.Schema(
 )
 
 CONFIG_SCHEMA = (
-    PYLONTECH_COMPONENT_SCHEMA.extend(
-        {cv.GenerateID(): cv.declare_id(PylontechSensor)}
-    )
+    PYLONTECH_COMPONENT_SCHEMA.extend({cv.GenerateID(): cv.declare_id(PylontechSensor)})
     .extend({cv.Optional(marker): schema for marker, schema in TYPES.items()})
     .extend(
         {
