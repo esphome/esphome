@@ -46,15 +46,8 @@ async def test_light_control_action(
         async def press_and_wait(button_name: str) -> Any:
             """Press a button and wait for light state change."""
             btn = buttons[button_name]
-            # Register future before sending command to avoid race
-            loop = asyncio.get_running_loop()
-            future: asyncio.Future[Any] = loop.create_future()
-            state_futures[light.key] = future
-            try:
-                client.button_command(btn.key)
-                return await asyncio.wait_for(future, 5.0)
-            finally:
-                state_futures.pop(light.key, None)
+            client.button_command(btn.key)
+            return await wait_for_state(light.key)
 
         # Test 1: light.turn_on with RGB constants
         state = await press_and_wait("Turn On RGB")
