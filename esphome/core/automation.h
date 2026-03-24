@@ -353,27 +353,15 @@ template<typename... Ts> class ActionList;
 template<typename... Ts> class Action {
  public:
   virtual void play_complex(const Ts &...x) {
-    this->num_running_++;
     this->play(x...);
     this->play_next_(x...);
   }
-  virtual void stop_complex() {
-    if (num_running_) {
-      this->stop();
-      this->num_running_ = 0;
-    }
-    this->stop_next_();
-  }
-  /// Check if this or any of the following actions are currently running.
-  virtual bool is_running() { return this->num_running_ > 0 || this->is_running_next_(); }
-
-  /// The total number of actions that are currently running in this plus any of
-  /// the following actions in the chain.
-  int num_running_total() {
-    int total = this->num_running_;
-    if (this->next_ != nullptr)
-      total += this->next_->num_running_total();
-    return total;
+  virtual void stop_complex() { this->stop_next_(); }
+  virtual bool is_running() { return this->is_running_next_(); }
+  virtual int num_running_total() {
+    if (this->next_ == nullptr)
+      return 0;
+    return this->next_->num_running_total();
   }
 
  protected:
@@ -382,11 +370,8 @@ template<typename... Ts> class Action {
 
   virtual void play(const Ts &...x) = 0;
   void play_next_(const Ts &...x) {
-    if (this->num_running_ > 0) {
-      this->num_running_--;
-      if (this->next_ != nullptr) {
-        this->next_->play_complex(x...);
-      }
+    if (this->next_ != nullptr) {
+      this->next_->play_complex(x...);
     }
   }
   template<size_t... S> void play_next_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
@@ -410,9 +395,57 @@ template<typename... Ts> class Action {
   }
 
   Action<Ts...> *next_{nullptr};
+};
 
-  /// The number of instances of this sequence in the list of actions
-  /// that is currently being executed.
+/** Action that tracks execution count for actions that defer play_next_().
+ *
+ * Actions like DelayAction (timer callback) or WaitUntilAction (loop polling)
+ * may have play_next_() called after the initial play_complex() returns.
+ * The num_running_ counter guards against chaining after stop() is called
+ * between the initial call and the deferred callback.
+ *
+ * Adds 4 bytes (int num_running_) to the action instance.
+ * Only inherit from this if your action defers play_next_() to a later point.
+ */
+template<typename... Ts> class TrackedAction : public Action<Ts...> {
+ public:
+  void play_complex(const Ts &...x) override {
+    this->num_running_++;
+    this->play(x...);
+    this->play_next_(x...);
+  }
+  void stop_complex() override {
+    if (this->num_running_) {
+      this->stop();
+      this->num_running_ = 0;
+    }
+    this->stop_next_();
+  }
+  bool is_running() override { return this->num_running_ > 0 || this->is_running_next_(); }
+  int num_running_total() override {
+    int total = this->num_running_;
+    if (this->next_ != nullptr)
+      total += this->next_->num_running_total();
+    return total;
+  }
+
+ protected:
+  /// Shadows Action::play_next_ with a guarded version that checks num_running_.
+  void play_next_(const Ts &...x) {
+    if (this->num_running_ > 0) {
+      this->num_running_--;
+      if (this->next_ != nullptr) {
+        this->next_->play_complex(x...);
+      }
+    }
+  }
+  template<size_t... S> void play_next_tuple_(const std::tuple<Ts...> &tuple, std::index_sequence<S...> /*unused*/) {
+    this->play_next_(std::get<S>(tuple)...);
+  }
+  void play_next_tuple_(const std::tuple<Ts...> &tuple) {
+    this->play_next_tuple_(tuple, std::make_index_sequence<sizeof...(Ts)>{});
+  }
+
   int num_running_{0};
 };
 

@@ -171,7 +171,7 @@ class ProjectUpdateTrigger : public Trigger<std::string>, public Component {
 };
 #endif
 
-template<typename... Ts> class DelayAction : public Action<Ts...>, public Component {
+template<typename... Ts> class DelayAction : public TrackedAction<Ts...>, public Component {
  public:
   explicit DelayAction() = default;
 
@@ -279,14 +279,13 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
   }
 
   void play_complex(const Ts &...x) override {
-    this->num_running_++;
     if (this->condition_->check(x...)) {
-      if (!this->then_.empty() && this->num_running_ > 0) {
+      if (!this->then_.empty()) {
         this->then_.play(x...);
         return;
       }
     } else if constexpr (HasElse) {
-      if (!this->else_.empty() && this->num_running_ > 0) {
+      if (!this->else_.empty()) {
         this->else_.play(x...);
         return;
       }
@@ -311,7 +310,7 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
   [[no_unique_address]] std::conditional_t<HasElse, ActionList<Ts...>, NoElse> else_;
 };
 
-template<typename... Ts> class WhileAction : public Action<Ts...> {
+template<typename... Ts> class WhileAction : public TrackedAction<Ts...> {
  public:
   WhileAction(Condition<Ts...> *condition) : condition_(condition) {}
 
@@ -324,14 +323,11 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
 
   void play_complex(const Ts &...x) override {
     this->num_running_++;
-    // Initial condition check
     if (!this->condition_->check(x...)) {
-      // If new condition check failed, stop loop if running
       this->then_.stop();
       this->play_next_(x...);
       return;
     }
-
     if (this->num_running_ > 0) {
       this->then_.play(x...);
     }
@@ -350,10 +346,8 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
 // Implementation of WhileLoopContinuation::play
 template<typename... Ts> void WhileLoopContinuation<Ts...>::play(const Ts &...x) {
   if (this->parent_->num_running_ > 0 && this->parent_->condition_->check(x...)) {
-    // play again
     this->parent_->then_.play(x...);
   } else {
-    // condition false, play next
     this->parent_->play_next_(x...);
   }
 }
@@ -373,7 +367,7 @@ template<typename... Ts> class RepeatLoopContinuation : public Action<uint32_t, 
   RepeatAction<Ts...> *parent_;
 };
 
-template<typename... Ts> class RepeatAction : public Action<Ts...> {
+template<typename... Ts> class RepeatAction : public TrackedAction<Ts...> {
  public:
   TEMPLATABLE_VALUE(uint32_t, count)
 
@@ -419,7 +413,7 @@ template<typename... Ts> void RepeatLoopContinuation<Ts...>::play(const uint32_t
  * (e.g., rapid button presses, high-frequency sensor updates), so we use
  * queue-based storage for correctness.
  */
-template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Component {
+template<typename... Ts> class WaitUntilAction : public TrackedAction<Ts...>, public Component {
  public:
   WaitUntilAction(Condition<Ts...> *condition) : condition_(condition) {}
 

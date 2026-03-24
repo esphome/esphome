@@ -272,7 +272,7 @@ template<class C, typename... Ts> class IsRunningCondition : public Condition<Ts
  * (e.g., rapid button presses, high-frequency sensor updates), so we use
  * queue-based storage for correctness.
  */
-template<class C, typename... Ts> class ScriptWaitAction : public Action<Ts...>, public Component {
+template<class C, typename... Ts> class ScriptWaitAction : public TrackedAction<Ts...>, public Component {
  public:
   ScriptWaitAction(C *script) : script_(script) {}
 

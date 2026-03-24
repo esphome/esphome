@@ -9,7 +9,7 @@
 
 namespace esphome::espnow {
 
-template<typename... Ts> class SendAction : public Action<Ts...>, public Parented<ESPNowComponent> {
+template<typename... Ts> class SendAction : public TrackedAction<Ts...>, public Parented<ESPNowComponent> {
   TEMPLATABLE_VALUE(peer_address_t, address);
   TEMPLATABLE_VALUE(std::vector<uint8_t>, data);
 

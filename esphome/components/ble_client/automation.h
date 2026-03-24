@@ -94,7 +94,7 @@ class BLEClientNumericComparisonRequestTrigger : public Trigger<uint32_t>, publi
 };
 
 // implement the ble_client.ble_write action.
-template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, public BLEClientNode {
+template<typename... Ts> class BLEClientWriteAction : public TrackedAction<Ts...>, public BLEClientNode {
  public:
   BLEClientWriteAction(BLEClient *ble_client) {
     ble_client->register_ble_node(this);
@@ -315,7 +315,7 @@ template<typename... Ts> class BLEClientRemoveBondAction : public Action<Ts...> 
   BLEClient *parent_{nullptr};
 };
 
-template<typename... Ts> class BLEClientConnectAction : public Action<Ts...>, public BLEClientNode {
+template<typename... Ts> class BLEClientConnectAction : public TrackedAction<Ts...>, public BLEClientNode {
  public:
   BLEClientConnectAction(BLEClient *ble_client) {
     ble_client->register_ble_node(this);
@@ -364,7 +364,7 @@ template<typename... Ts> class BLEClientConnectAction : public Action<Ts...>, pu
   std::tuple<Ts...> var_{};
 };
 
-template<typename... Ts> class BLEClientDisconnectAction : public Action<Ts...>, public BLEClientNode {
+template<typename... Ts> class BLEClientDisconnectAction : public TrackedAction<Ts...>, public BLEClientNode {
  public:
   BLEClientDisconnectAction(BLEClient *ble_client) {
     ble_client->register_ble_node(this);
