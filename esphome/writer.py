@@ -441,30 +441,39 @@ def clean_build(clear_pio_cache: bool = True):
             rmtree(cache_dir)
 
 
-def clean_all(configuration: list[str]):
+def _get_custom_build_dir(item: Path, data_dir: Path) -> Path | None:
+    """Parse a YAML config to find a custom build directory."""
     from esphome import yaml_util
 
+    try:
+        raw = yaml_util.load_yaml(item)
+    except (EsphomeError, OSError) as e:
+        _LOGGER.debug("Could not parse %s to find build_path: %s", item, e)
+        return None
+    if not isinstance(raw, dict):
+        return None
+    esphome_conf = raw.get("esphome", {})
+    if not isinstance(esphome_conf, dict):
+        return None
+    build_path = esphome_conf.get("build_path")
+    if build_path:
+        return data_dir / build_path
+    name = esphome_conf.get("name", "")
+    if "ESPHOME_BUILD_PATH" in os.environ and name:
+        return data_dir / Path(get_str_env("ESPHOME_BUILD_PATH", "build")) / name
+    return None
+
+
+def clean_all(configuration: list[str]):
     data_dirs = []
     for config in configuration:
         item = Path(config)
         if item.is_file() and item.suffix in (".yaml", ".yml"):
             data_dir = item.parent / ".esphome"
             data_dirs.append(data_dir)
-            # Check for custom build_path in YAML config
-            try:
-                raw = yaml_util.load_yaml(item)
-                if isinstance(raw, dict):
-                    esphome_conf = raw.get("esphome", {})
-                    if isinstance(esphome_conf, dict):
-                        build_path = esphome_conf.get("build_path")
-                        name = esphome_conf.get("name", "")
-                        if build_path:
-                            data_dirs.append(data_dir / build_path)
-                        elif "ESPHOME_BUILD_PATH" in os.environ and name:
-                            env_path = Path(get_str_env("ESPHOME_BUILD_PATH", "build"))
-                            data_dirs.append(data_dir / env_path / name)
-            except (EsphomeError, OSError) as e:
-                _LOGGER.debug("Could not parse %s to find build_path: %s", item, e)
+            custom = _get_custom_build_dir(item, data_dir)
+            if custom:
+                data_dirs.append(custom)
         else:
             data_dirs.append(item / ".esphome")
     if is_ha_addon():
