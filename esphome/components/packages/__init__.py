@@ -224,7 +224,7 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
         return new_yaml
 
     def get_packages(files: list[dict[str, Any]]) -> dict:
-        packages = {}
+        packages: dict[str, Any] = {}
         for idx, file in enumerate(files):
             filename = file[CONF_PATH]
             yaml_file: Path = repo_dir / filename
