@@ -468,8 +468,7 @@ def clean_all(configuration: list[str]):
         if item.is_file() and item.suffix in (".yaml", ".yml"):
             data_dir = item.parent / ".esphome"
             data_dirs.append(data_dir)
-            custom = _get_custom_build_dir(item, data_dir)
-            if custom:
+            if custom := _get_custom_build_dir(item, data_dir):
                 data_dirs.append(custom)
         else:
             data_dirs.append(item / ".esphome")
