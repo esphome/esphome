@@ -39,7 +39,7 @@ def validate_has_jinja(value: Any):
     return value
 
 
-def is_remote_package(package_config: Any) -> bool:
+def is_remote_package(package_config: dict) -> bool:
     """Returns True if the package_config is a remote package definition."""
     return CONF_URL in package_config
 
@@ -109,7 +109,7 @@ def validate_source_shorthand(value):
     return REMOTE_PACKAGE_SCHEMA(conf)
 
 
-def deprecate_single_package(config: Any) -> Any:
+def deprecate_single_package(config: dict) -> dict:
     _LOGGER.warning(
         """
         Including a single package under `packages:`, i.e., `packages: !include mypackage.yaml` is deprecated.
