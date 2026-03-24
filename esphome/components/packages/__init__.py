@@ -238,24 +238,17 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
             packages[f"{filename}{idx}"] = new_yaml
         return packages
 
-    packages: dict | None = None
-    error: cv.Invalid | str = ""
-
     try:
-        packages = get_packages(files)
-    except cv.Invalid as e:
-        error = e
-        try:
-            if revert is not None:
-                revert()
-                packages = get_packages(files)
-        except cv.Invalid as er:
-            error = er
-
-    if packages is None:
-        raise cv.Invalid(f"Failed to load packages. {error}", path=error.path)
-
-    return {"packages": packages}
+        return {"packages": get_packages(files)}
+    except cv.Invalid:
+        if revert is None:
+            raise
+        # Cached checkout may be stale — revert and retry once.
+        revert()
+    try:
+        return {"packages": get_packages(files)}
+    except cv.Invalid as err:
+        raise cv.Invalid(f"Failed to load packages. {err}", path=err.path) from err
 
 
 def _walk_packages(
