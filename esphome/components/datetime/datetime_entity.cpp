@@ -56,7 +56,7 @@ void DateTimeEntity::publish_state() {
 DateTimeCall DateTimeEntity::make_call() { return DateTimeCall(this); }
 
 ESPTime DateTimeEntity::state_as_esptime() const {
-  ESPTime obj{};
+  ESPTime obj;
   obj.year = this->year_;
   obj.month = this->month_;
   obj.day_of_month = this->day_;
