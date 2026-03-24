@@ -442,17 +442,30 @@ def clean_build(clear_pio_cache: bool = True):
 
 
 def clean_all(configuration: list[str]):
+    from esphome import yaml_util
+
     data_dirs = []
     for config in configuration:
         item = Path(config)
         if item.is_file() and item.suffix in (".yaml", ".yml"):
             data_dirs.append(item.parent / ".esphome")
+            # Check for build_path in YAML config
+            try:
+                raw = yaml_util.load_yaml(item)
+                if isinstance(raw, dict):
+                    build_path = raw.get("esphome", {}).get("build_path")
+                    if build_path:
+                        data_dirs.append(Path(build_path))
+            except Exception:
+                pass
         else:
             data_dirs.append(item / ".esphome")
     if is_ha_addon():
         data_dirs.append(Path("/data"))
     if "ESPHOME_DATA_DIR" in os.environ:
         data_dirs.append(Path(get_str_env("ESPHOME_DATA_DIR", None)))
+    if "ESPHOME_BUILD_PATH" in os.environ:
+        data_dirs.append(Path(get_str_env("ESPHOME_BUILD_PATH", None)))
 
     # Clean build dir
     for dir in data_dirs:
