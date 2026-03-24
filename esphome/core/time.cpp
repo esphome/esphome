@@ -237,16 +237,13 @@ void ESPTime::recalc_timestamp_utc(bool use_day_of_year) {
     this->timestamp = -1;
     return;
   }
-  if (use_day_of_year) {
-    if (this->day_of_year == 0 || this->day_of_year > 366) {
-      this->timestamp = -1;
-      return;
-    }
-  } else {
-    if (this->day_of_month == 0 || this->day_of_month > days_in_month(this->month, this->year)) {
-      this->timestamp = -1;
-      return;
-    }
+  if (use_day_of_year && (this->day_of_year == 0 || this->day_of_year > 366)) {
+    this->timestamp = -1;
+    return;
+  }
+  if (!use_day_of_year && (this->day_of_month == 0 || this->day_of_month > days_in_month(this->month, this->year))) {
+    this->timestamp = -1;
+    return;
   }
 
   for (int i = 1970; i < this->year; i++)
