@@ -39,8 +39,12 @@ def is_remote_package(package_config: dict) -> bool:
 
 
 def valid_package_contents(package_config: dict) -> dict:
-    """Checks if a package_config that will be merged looks as
-    much as possible to a valid config to fail early on obvious mistakes.
+    """Validate that a package looks like a plausible ESPHome config fragment.
+
+    Rejects non-dict values, remote package schemas (which should have been
+    handled earlier), non-string keys, and scalar values that aren't Jinja
+    expressions. This is a lightweight check to catch obvious mistakes before
+    full component validation runs later.
     """
 
     if not isinstance(package_config, dict):
@@ -253,8 +257,8 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
 
 def _walk_packages(
     config: dict,
-    callback: Callable[[dict, Any], dict],
-    context: Any = None,
+    callback: Callable[[dict, ContextVars | None], dict],
+    context: ContextVars | None = None,
     validate_deprecated: bool = True,
 ) -> dict:
     """Walks the packages structure in priority order, invoking ``callback`` on each package definition found.
@@ -290,8 +294,8 @@ def _walk_packages(
 
 def _walk_package_dict(
     packages: dict,
-    callback: Callable[[dict, Any], dict],
-    context: Any,
+    callback: Callable[[dict, ContextVars | None], dict],
+    context: ContextVars | None,
 ) -> cv.Invalid | None:
     """Iterate a packages dict in reverse priority order, invoking callback on each entry.
 
@@ -308,8 +312,8 @@ def _walk_package_dict(
 
 def _walk_package_list(
     packages: list,
-    callback: Callable[[dict, Any], dict],
-    context: Any,
+    callback: Callable[[dict, ContextVars | None], dict],
+    context: ContextVars | None,
 ) -> None:
     """Iterate a packages list in reverse priority order, invoking callback on each entry."""
     for idx in reversed(range(len(packages))):
@@ -395,7 +399,7 @@ def do_packages_pass(
     # from packages with higher priority.
     parent_context = UserDict(command_line_substitutions or {})
 
-    def _resolve_package(package_config: dict | str, context_vars: Any) -> dict:
+    def _resolve_package(package_config: dict | str, context_vars: ContextVars) -> dict:
         """Substitute variables in the definition and fetch remote packages."""
         package_config = _substitute_package_definition(package_config, context_vars)
         package_config = PACKAGE_SCHEMA(package_config)
@@ -409,7 +413,9 @@ def do_packages_pass(
             substitutions.data = merge_config(subs, substitutions.data)
             _update_substitutions_context(parent_context, subs)
 
-    def process_package_callback(package_config: dict | str, context_vars: Any) -> dict:
+    def process_package_callback(
+        package_config: dict | str, context_vars: ContextVars | None
+    ) -> dict:
         """Resolve a single package and recurse into any nested packages."""
         package_config = _resolve_package(package_config, context_vars)
         _collect_substitutions(package_config)
@@ -449,7 +455,9 @@ def merge_packages(config: dict) -> dict:
     # Build flat list of all package configs to merge in priority order:
     merge_list: list[dict] = []
 
-    def process_package_callback(package_config: dict, context: Any) -> dict:
+    def process_package_callback(
+        package_config: dict, context: ContextVars | None
+    ) -> dict:
         """This will be called for each package found in the config."""
         merge_list.append(package_config)
         return _walk_packages(package_config, process_package_callback)
