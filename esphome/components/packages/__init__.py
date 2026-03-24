@@ -365,60 +365,53 @@ def _update_substitutions_context(
         )
 
 
-def do_packages_pass(
-    config: dict,
-    command_line_substitutions: dict[str, Any] | None = None,
-    skip_update: bool = False,
-) -> dict:
-    """Load, validate, and flatten all packages in the config.
+class _PackageProcessor:
+    """Stateful processor that resolves packages and collects substitutions.
 
     Walks the ``packages:`` tree in reverse-priority order (highest priority last).
     For each package entry:
 
-    1. Substitute variables in remote package definitions (URLs, refs, paths)
-       so they can be fetched.
-    2. Validate the entry against ``PACKAGE_SCHEMA`` and download remote packages.
-    3. Extract ``substitutions:`` from the package and merge them into the
-       shared substitution context (earlier packages have lower priority).
+    1. Substitute variables in remote package definitions (URLs, refs, paths).
+    2. Validate against ``PACKAGE_SCHEMA`` and download remote packages.
+    3. Extract ``substitutions:`` and merge into the shared context
+       (earlier packages have lower priority).
     4. Recurse into any nested ``packages:`` keys.
 
     Command-line substitutions take the highest priority and are never overridden.
-
-    Returns the config with all packages loaded in-place (but not yet merged)
-    and a consolidated ``substitutions:`` block restored at the front.
     """
-    if CONF_PACKAGES not in config:
-        return config
 
-    # original substitutions, as extracted from packages:
-    substitutions = UserDict(config.pop(CONF_SUBSTITUTIONS, {}))
+    def __init__(
+        self,
+        substitutions: UserDict,
+        command_line_substitutions: dict[str, Any] | None,
+        skip_update: bool,
+    ) -> None:
+        self.substitutions = substitutions
+        self.parent_context = UserDict(command_line_substitutions or {})
+        self.skip_update = skip_update
 
-    # parent context for substitutions in package definitions. This will be updated during
-    # process_package_callback below as packages are explored and new substitutions are incorporated,
-    # so package definitions with lower priority, i.e., declared earlier, may depend on substitutions coming
-    # from packages with higher priority.
-    parent_context = UserDict(command_line_substitutions or {})
-
-    def _resolve_package(package_config: dict | str, context_vars: ContextVars) -> dict:
+    def resolve_package(
+        self, package_config: dict | str, context_vars: ContextVars
+    ) -> dict:
         """Substitute variables in the definition and fetch remote packages."""
         package_config = _substitute_package_definition(package_config, context_vars)
         package_config = PACKAGE_SCHEMA(package_config)
         if is_remote_package(package_config):
-            package_config = _process_remote_package(package_config, skip_update)
+            package_config = _process_remote_package(package_config, self.skip_update)
         return package_config
 
-    def _collect_substitutions(package_config: dict) -> None:
+    def collect_substitutions(self, package_config: dict) -> None:
         """Extract substitutions from a package and merge into the shared context."""
         if subs := package_config.pop(CONF_SUBSTITUTIONS, {}):
-            substitutions.data = merge_config(subs, substitutions.data)
-            _update_substitutions_context(parent_context, subs)
+            self.substitutions.data = merge_config(subs, self.substitutions.data)
+            _update_substitutions_context(self.parent_context, subs)
 
-    def process_package_callback(
-        package_config: dict | str, context_vars: ContextVars | None
+    def process_package(
+        self, package_config: dict | str, context_vars: ContextVars | None
     ) -> dict:
         """Resolve a single package and recurse into any nested packages."""
-        package_config = _resolve_package(package_config, context_vars)
-        _collect_substitutions(package_config)
+        package_config = self.resolve_package(package_config, context_vars)
+        self.collect_substitutions(package_config)
 
         if CONF_PACKAGES not in package_config:
             return package_config
@@ -426,12 +419,32 @@ def do_packages_pass(
         # Push context from !include vars on the package root and on the packages key
         context_vars = push_context(package_config, context_vars)
         context_vars = push_context(package_config[CONF_PACKAGES], context_vars)
-        return _walk_packages(package_config, process_package_callback, context_vars)
+        return _walk_packages(package_config, self.process_package, context_vars)
 
-    _update_substitutions_context(parent_context, substitutions)
 
-    context_vars = push_context(config[CONF_PACKAGES], ContextVars(parent_context))
-    _walk_packages(config, process_package_callback, context_vars)
+def do_packages_pass(
+    config: dict,
+    command_line_substitutions: dict[str, Any] | None = None,
+    skip_update: bool = False,
+) -> dict:
+    """Load, validate, and flatten all packages in the config.
+
+    Returns the config with all packages loaded in-place (but not yet merged)
+    and a consolidated ``substitutions:`` block restored at the front.
+    """
+    if CONF_PACKAGES not in config:
+        return config
+
+    substitutions = UserDict(config.pop(CONF_SUBSTITUTIONS, {}))
+    processor = _PackageProcessor(
+        substitutions, command_line_substitutions, skip_update
+    )
+    _update_substitutions_context(processor.parent_context, substitutions)
+
+    context_vars = push_context(
+        config[CONF_PACKAGES], ContextVars(processor.parent_context)
+    )
+    _walk_packages(config, processor.process_package, context_vars)
 
     if substitutions:
         config[CONF_SUBSTITUTIONS] = substitutions.data
