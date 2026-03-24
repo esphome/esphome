@@ -265,8 +265,10 @@ async def setup_light_core_(light_var, config, output_var):
     if (initial_state_config := config.get(CONF_INITIAL_STATE)) is not None:
         # Emit a stateless lambda that constructs the initial state — values live
         # in flash as code, not stored in the LightState object (~40 bytes saved).
-        color_mode_str = initial_state_config.get(CONF_COLOR_MODE)
-        color_mode_expr = COLOR_MODES.get(color_mode_str, ColorMode.UNKNOWN)
+        # Map config string to C++ enum; defaults to UNKNOWN if not specified
+        color_mode_expr = COLOR_MODES.get(
+            initial_state_config.get(CONF_COLOR_MODE), ColorMode.UNKNOWN
+        )
         initial_state = LightStateRTCState(
             color_mode_expr,
             initial_state_config.get(CONF_STATE, False),
