@@ -81,12 +81,6 @@ def _restore_data_base(value: Any, orig_value: ESPHomeDataBase) -> ESPHomeDataBa
     return value
 
 
-def _try_substitute(value: Any, context: ContextVars) -> Any:
-    """Substitute variables in value, returning the result or the original if unchanged."""
-    result = _substitute_item(value, [], context, strict_undefined=True)
-    return result if result is not None else value
-
-
 def _resolve_var(name: str, context_vars: ContextVars) -> Any:
     """Look up a substitution variable, falling back to the resolver callback."""
     sub = context_vars.get(name, Missing)
@@ -253,7 +247,7 @@ def _push_context(
         if value is Missing:
             return Missing
         try:
-            value = _try_substitute(value, resolver_context)
+            value = substitute(value, [], resolver_context, True)
         except UndefinedError as err:
             unresolvables[key] = (value, err)
             return Missing
@@ -297,68 +291,51 @@ def push_context(
     return parent_context
 
 
-def _substitute_item(
+def substitute(
     item: Any,
     path: SubstitutionPath,
     parent_context: ContextVars,
     strict_undefined: bool,
     errors: ErrList | None = None,
-) -> Any | None:
-    """Recursively substitute variables in a config item.
+) -> Any:
+    """Returns a recursively substituted version of `item`."""
 
-    Walks dicts, lists, strings, Lambdas, Extend, and Remove nodes,
-    replacing variable references with values from context_vars.
-    Mutates containers in-place; returns a replacement value for
-    strings/scalars, or None if the item was unchanged.
-    """
+    if isinstance(item, ESPLiteralValue):
+        return item  # do not substitute inside literal blocks
 
-    def _walk(item: Any, path: SubstitutionPath, parent_ctx: ContextVars) -> Any | None:
-        if isinstance(item, ESPLiteralValue):
-            return None  # do not substitute inside literal blocks
+    # Push the current item's context onto the context stack
+    context_vars = push_context(item, parent_context, errors)
 
-        ctx = push_context(item, parent_ctx, errors)
+    result = item
 
-        if isinstance(item, list):
-            for idx, it in enumerate(item):
-                sub = _walk(it, path + [idx], ctx)
-                if sub is not None:
-                    item[idx] = sub
-        elif isinstance(item, dict):
-            replace_keys: list[tuple[str, Any]] = []
-            for k, v in item.items():
-                if path or k != CONF_SUBSTITUTIONS:
-                    sub = _walk(k, path + [k], ctx)
-                    if sub is not None:
-                        replace_keys.append((k, sub))
-                sub = _walk(v, path + [k], ctx)
-                if sub is not None:
-                    item[k] = sub
-            for old, new in replace_keys:
-                if str(new) == str(old):
-                    item[new] = item[old]
-                else:
-                    item[new] = merge_config(item.get(new), item.get(old))
-                    del item[old]
-        elif isinstance(item, str):
-            sub = _expand_substitutions(item, path, ctx, strict_undefined, errors)
-            if not isinstance(sub, str) or sub != item:
-                return sub
-        elif isinstance(item, (core.Lambda, Extend, Remove)) and item.value:
-            sub = _expand_substitutions(item.value, path, ctx, strict_undefined, errors)
-            if sub != item.value:
-                item.value = sub
-        return None
+    if isinstance(item, list):
+        result = [
+            substitute(it, path + [i], context_vars, strict_undefined, errors)
+            for i, it in enumerate(item)
+        ]
 
-    return _walk(item, path, parent_context)
+    elif isinstance(item, dict):
+        result = OrderedDict()
+        for k, v in item.items():
+            v = substitute(v, path + [k], context_vars, strict_undefined, errors)
+            k = substitute(k, path + [k], context_vars, strict_undefined, errors)
+            result[k] = merge_config(result.get(k), v)
 
+    elif isinstance(item, str):
+        result = _expand_substitutions(
+            item, path, context_vars, strict_undefined, errors
+        )
 
-def substitute_context_vars(node: Any, context_vars: dict[str, Any]) -> None:
-    """Eagerly substitute context vars into a config node in-place.
+    elif isinstance(item, (core.Lambda, Extend, Remove)) and item.value:
+        value = _expand_substitutions(
+            item.value, path, context_vars, strict_undefined, errors
+        )
+        if item.value != value:
+            result = type(item)(value)
 
-    Undefined variables are silently ignored — this is used before
-    the main substitution pass when not all variables are visible yet.
-    """
-    _substitute_item(node, [], ContextVars(context_vars), strict_undefined=False)
+    if isinstance(item, ESPHomeDataBase):
+        result = make_data_base(result, item)
+    return result
 
 
 def _warn_unresolved_variables(errors: ErrList) -> None:
@@ -387,7 +364,7 @@ def do_substitution_pass(
     Extracts the ``substitutions:`` block, merges in any command-line
     overrides, resolves inter-variable dependencies, then walks the
     config tree replacing all ``$var`` / ``${expr}`` references.
-    Returns the (mutated) config dict with resolved substitutions
+    Returns a new config dict with resolved substitutions
     restored at the front.
     """
     # Extract substitutions from config, overriding with substitutions coming from command line:
@@ -415,7 +392,7 @@ def do_substitution_pass(
     errors: ErrList = []  # Collect undefined errors during substitution
     parent_context, substitutions = _push_context(substitutions, ContextVars(), errors)
 
-    _substitute_item(config, [], parent_context, False, errors)
+    config = substitute(config, [], parent_context, False, errors)
 
     if errors:
         _warn_unresolved_variables(errors)
