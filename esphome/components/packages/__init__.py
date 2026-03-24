@@ -272,21 +272,16 @@ def _walk_packages(
         )
 
     with cv.prepend_path(CONF_PACKAGES):
-        if isinstance(packages, dict):
-            result = _walk_package_dict(packages, callback, context)
-            if result is not None and validate_deprecated:
-                # Fallback: treat the dict as a single deprecated package.
-                # This except block can be removed once the single-package inclusion, i.e.:
-                # packages: !include package.yaml
-                # deprecation period is over.
-                config[CONF_PACKAGES] = [packages]
-                return _walk_packages(
-                    deprecate_single_package(config), callback, context
-                )
-            if result is not None:
-                raise result
-        else:
+        if not isinstance(packages, dict):
             _walk_package_list(packages, callback, context)
+        elif (result := _walk_package_dict(packages, callback, context)) is not None:
+            if not validate_deprecated:
+                raise result
+            # Fallback: treat the dict as a single deprecated package.
+            # This block can be removed once the single-package
+            # deprecation period (2026.7.0) is over.
+            config[CONF_PACKAGES] = [packages]
+            return _walk_packages(deprecate_single_package(config), callback, context)
 
     config[CONF_PACKAGES] = packages
     return config
