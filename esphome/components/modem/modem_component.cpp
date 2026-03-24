@@ -28,11 +28,6 @@
     return; \
   }
 
-#define ESPMODEM_ERROR_CHECK(err, message) \
-  if ((err) != command_result::OK) { \
-    ESP_LOGE(TAG, message ": %s", command_result_to_string(err).c_str()); \
-  }
-
 namespace esphome {
 namespace modem {
 
@@ -416,30 +411,11 @@ ModemComponentState ModemComponent::handle_state_connected_() {
     ESP_LOGW(TAG, "Lost IP");
     this->loop_delay_(this->modem_handler->connect_retry_delay);
     return ModemComponentState::MODEM_DISCONNECTED;
-    // return ModemComponentState::MODEM_DISABLING;
   }
-  // if ((millis() - this->last_health_check_) > 30000) {
-  //   this->last_health_check_ = millis();
-  //   this->modem_handler->modem_log_status();
-  // }
-  // this->loop_delay_(2000);
   return ModemComponentState::MODEM_CONNECTED;
 }
 
-ModemComponentState ModemComponent::handle_state_disconnected_() { return ModemComponentState::MODEM_DISABLING; }
-
-// FIXME: to remove (but keep cb)
-ModemComponentState ModemComponent::handle_state_not_responding_() {
-  ESP_LOGW(TAG, "Modem not responding, attempting a reset");
-  return ModemComponentState::MODEM_DISABLING;  // Reset via disable/enable cycle
-}
-
 ModemComponentState ModemComponent::handle_state_disabling_() {
-  // if (this->modem_handler->dce->get_mode() != esp_modem::modem_mode::COMMAND_MODE) {
-  //   ESP_LOGI(TAG, "DISABLE: -> command mode");
-  //   this->modem_handler->dce->set_mode(esp_modem::modem_mode::COMMAND_MODE);
-  // }
-
   this->modem_handler->dce->set_mode(modem_mode::CMUX_MANUAL_EXIT);
 
   // turn off radio.It can take up to 2 min to get lost IP event.
@@ -473,14 +449,8 @@ void ModemComponent::on_enter_state_(ModemComponentState state) {
   // - DISABLED: no modem timeouts active, no retries pending.
   switch (state) {
     case ModemComponentState::MODEM_ENABLING:
-      this->enabling_retry_ = 3;
       set_timeout("modem_timeout", this->timeout_,
                   [this]() { this->abort_("Modem was not able to connect (timeout)"); });
-      break;
-    case ModemComponentState::MODEM_START_PPP:
-      this->status_set_warning("Starting connection");
-      // ESP_LOGI(TAG, "%s", this->modem_handler->modem_network_status_string().c_str());
-      this->modem_handler->modem_log_status();
       break;
     case ModemComponentState::MODEM_WAIT_IP:
       this->wait_ip_retry_ = 10;

@@ -108,8 +108,8 @@ class ModemComponent : public Component, public uart::UARTComponent {
   ModemComponentState handle_state_start_ppp_();
   ModemComponentState handle_state_wait_ip_();
   ModemComponentState handle_state_connected_();
-  ModemComponentState handle_state_disconnected_();
-  ModemComponentState handle_state_not_responding_();
+  ModemComponentState handle_state_disconnected_() { return ModemComponentState::MODEM_DISABLING; }
+  ModemComponentState handle_state_not_responding_() { return ModemComponentState::MODEM_DISABLING; }
   ModemComponentState handle_state_disabling_();
   ModemComponentState handle_state_disabled_();
 
@@ -135,9 +135,7 @@ class ModemComponent : public Component, public uart::UARTComponent {
   ModemComponentState component_last_state_{ModemComponentState::MODEM_DISABLED};
   ModemComponentState target_state_{ModemComponentState::MODEM_DISABLED};  // Stable target state
 
-  uint32_t last_health_check_{0};
   uint32_t next_loop_millis_{0};
-  uint8_t enabling_retry_{0};
   uint8_t wait_ip_retry_{0};
 
   ModemRestoreState modem_restore_state_{};
