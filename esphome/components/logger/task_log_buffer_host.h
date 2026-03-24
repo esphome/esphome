@@ -11,7 +11,6 @@
 #include <cstdarg>
 #include <cstddef>
 #include <cstring>
-#include <memory>
 #include <pthread.h>
 
 namespace esphome::logger {
@@ -74,9 +73,7 @@ class TaskLogBuffer {
     inline char *text_data() { return this->text; }
   };
 
-  /// Constructor that takes the number of message slots
-  explicit TaskLogBuffer(size_t slot_count);
-  ~TaskLogBuffer();
+  TaskLogBuffer() = default;
 
   // NOT thread-safe - get next message from buffer, only call from main loop
   // Returns true if a message was retrieved, false if buffer is empty
@@ -96,7 +93,7 @@ class TaskLogBuffer {
   }
 
   // Get the buffer size (number of slots)
-  inline size_t size() const { return slot_count_; }
+  static constexpr size_t size() { return ESPHOME_TASK_LOG_BUFFER_SIZE; }
 
  private:
   // Acquire a slot for writing (thread-safe)
@@ -106,8 +103,7 @@ class TaskLogBuffer {
   // Commit a slot after writing (thread-safe)
   void commit_write_slot_(int slot_index);
 
-  std::unique_ptr<LogMessage[]> slots_;  // Pre-allocated message slots
-  size_t slot_count_;                    // Number of slots
+  LogMessage slots_[ESPHOME_TASK_LOG_BUFFER_SIZE];  // Pre-allocated message slots in BSS
 
   // Lock-free indices using atomics
   // - reserve_index_: Next slot to reserve (producers CAS this to claim slots)
