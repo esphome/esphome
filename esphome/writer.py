@@ -463,8 +463,8 @@ def clean_all(configuration: list[str]):
                         elif "ESPHOME_BUILD_PATH" in os.environ and name:
                             env_path = Path(get_str_env("ESPHOME_BUILD_PATH", "build"))
                             data_dirs.append(data_dir / env_path / name)
-            except (EsphomeError, OSError):
-                pass
+            except (EsphomeError, OSError) as e:
+                _LOGGER.debug("Could not parse %s to find build_path: %s", item, e)
         else:
             data_dirs.append(item / ".esphome")
     if is_ha_addon():
