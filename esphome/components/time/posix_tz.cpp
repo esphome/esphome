@@ -4,7 +4,6 @@
 
 #include "posix_tz.h"
 #include <cctype>
-#include "esphome/core/time.h"
 
 namespace esphome::time {
 
@@ -71,8 +70,19 @@ int days_in_month(int year, int month) {
   }
 }
 
-// Day of week (0 = Sunday) - wraps core esphome::day_of_week() which returns 1=Sunday
-int day_of_week(int year, int month, int day) { return ::esphome::day_of_week(year, month, day) - 1; }
+// Zeller-like algorithm for day of week (0 = Sunday)
+int __attribute__((noinline)) day_of_week(int year, int month, int day) {
+  // Adjust for January/February
+  if (month < 3) {
+    month += 12;
+    year--;
+  }
+  int k = year % 100;
+  int j = year / 100;
+  int h = (day + (13 * (month + 1)) / 5 + k + k / 4 + j / 4 - 2 * j) % 7;
+  // Convert from Zeller (0=Sat) to standard (0=Sun)
+  return ((h + 6) % 7);
+}
 
 void __attribute__((noinline)) epoch_to_tm_utc(time_t epoch, struct tm *out_tm) {
   // Days since epoch

@@ -1,5 +1,4 @@
 #include "time.h"  // NOLINT
-#include "hal.h"
 #include "helpers.h"
 
 #include <algorithm>
@@ -11,27 +10,6 @@ uint8_t days_in_month(uint8_t month, uint16_t year) {
   if (month == 2 && (year % 4 == 0) && (year % 100 != 0 || year % 400 == 0))
     return 29;
   return DAYS_IN_MONTH[month];
-}
-
-uint8_t day_of_week(uint16_t year, uint8_t month, uint8_t day) {
-  if (month == 0 || month > 12 || day == 0)
-    return 0;  // invalid
-  // Tomohiko Sakamoto's algorithm
-  // https://en.wikipedia.org/wiki/Determination_of_the_day_of_the_week#Sakamoto's_methods
-  static const uint8_t OFFSETS[] PROGMEM = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
-  static constexpr int DAYS_PER_WEEK = 7;
-  static constexpr int MARCH = 3;
-  static constexpr int LEAP_CYCLE_4 = 4;
-  static constexpr int LEAP_CYCLE_100 = 100;
-  static constexpr int LEAP_CYCLE_400 = 400;
-  int y = year;
-  if (month < MARCH)
-    y--;
-  // Algorithm returns 0=Sunday..6=Saturday; +1 for ESPTime's 1=Sunday..7=Saturday
-  return static_cast<uint8_t>((y + y / LEAP_CYCLE_4 - y / LEAP_CYCLE_100 + y / LEAP_CYCLE_400 +
-                               progmem_read_byte(&OFFSETS[month - 1]) + day) %
-                              DAYS_PER_WEEK) +
-         1;
 }
 
 size_t ESPTime::strftime(char *buffer, size_t buffer_len, const char *format) {
