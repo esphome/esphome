@@ -3,7 +3,7 @@
   command = "sed -i \"s|{{API_DOCS_URL}}|${API_DOCS_URL}|g\" netlify.toml && npm run build"
 
 [build.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "24"
   API_DOCS_URL = "https://api-docs.esphome.io"
 
 [context.beta]
