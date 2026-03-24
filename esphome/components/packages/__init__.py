@@ -247,8 +247,8 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
     except cv.Invalid:
         if revert is None:
             raise
-        # Cached checkout may be stale — revert and retry once.
-        revert()
+    # Cached checkout may be stale — revert and retry once.
+    revert()
     try:
         return {"packages": get_packages(files)}
     except cv.Invalid as err:
@@ -394,7 +394,12 @@ class _PackageProcessor:
     def resolve_package(
         self, package_config: dict | str, context_vars: ContextVars | None
     ) -> dict:
-        """Substitute variables in the definition and fetch remote packages."""
+        """Substitute variables in the definition and fetch remote packages.
+
+        The input may be a ``str`` (git shorthand or Jinja expression) or a
+        ``dict`` (remote or local package).  After ``PACKAGE_SCHEMA`` validation
+        the result is always a ``dict``.
+        """
         package_config = _substitute_package_definition(package_config, context_vars)
         package_config = PACKAGE_SCHEMA(package_config)
         if is_remote_package(package_config):
