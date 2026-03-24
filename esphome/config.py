@@ -989,7 +989,11 @@ def validate_config(
 
         result.add_output_path([CONF_PACKAGES], CONF_PACKAGES)
         try:
-            config = do_packages_pass(config, skip_update=skip_external_update)
+            config = do_packages_pass(
+                config,
+                command_line_substitutions=command_line_substitutions,
+                skip_update=skip_external_update,
+            )
         except vol.Invalid as err:
             result.update(config)
             result.add_error(err)
