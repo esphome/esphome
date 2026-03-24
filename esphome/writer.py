@@ -18,7 +18,6 @@ from esphome.core import CORE, EsphomeError
 from esphome.helpers import (
     copy_file_if_changed,
     cpp_string_escape,
-    get_str_env,
     is_ha_addon,
     read_file,
     rmtree,
@@ -473,10 +472,10 @@ def clean_all(configuration: list[str]):
             data_dirs.append(item / ".esphome")
     if is_ha_addon():
         data_dirs.append(Path("/data"))
-    if "ESPHOME_DATA_DIR" in os.environ:
-        data_dirs.append(Path(get_str_env("ESPHOME_DATA_DIR", None)))
-    if "ESPHOME_BUILD_PATH" in os.environ:
-        data_dirs.append(Path(get_str_env("ESPHOME_BUILD_PATH", None)))
+    if os.environ.get("ESPHOME_DATA_DIR"):
+        data_dirs.append(Path(os.environ["ESPHOME_DATA_DIR"]))
+    if os.environ.get("ESPHOME_BUILD_PATH"):
+        data_dirs.append(Path(os.environ["ESPHOME_BUILD_PATH"]))
 
     # Clean build dir
     for dir in data_dirs:
