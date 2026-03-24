@@ -322,22 +322,6 @@ class LightState : public EntityBase, public Component {
   FixedVector<LightEffect *> effects_;
   /// Object used to store the persisted values of the light.
   ESPPreferenceObject rtc_;
-  /// Value for storing the index of the currently active effect. 0 if no effect is active
-  uint32_t active_effect_index_{};
-  /// Default transition length for all transitions in ms.
-  uint32_t default_transition_length_{};
-  /// Transition length to use for flash transitions.
-  uint32_t flash_transition_length_{};
-  /// Gamma correction factor for the light.
-  float gamma_correct_{};
-#ifdef USE_LIGHT_GAMMA_LUT
-  const uint16_t *gamma_table_{nullptr};
-#endif  // USE_LIGHT_GAMMA_LUT
-
-  /// Whether the light value should be written in the next cycle.
-  bool next_write_{true};
-  // for effects, true if a transformer (transition) is active.
-  bool is_transformer_active_ = false;
 
   /** Listeners for remote values changes.
    *
@@ -361,6 +345,22 @@ class LightState : public EntityBase, public Component {
   /// Initial state of the light.
   optional<LightStateRTCState> initial_state_{};
 
+  /// Value for storing the index of the currently active effect. 0 if no effect is active
+  uint32_t active_effect_index_{};
+  /// Default transition length for all transitions in ms.
+  uint32_t default_transition_length_{};
+  /// Transition length to use for flash transitions.
+  uint32_t flash_transition_length_{};
+  /// Gamma correction factor for the light.
+  float gamma_correct_{};
+#ifdef USE_LIGHT_GAMMA_LUT
+  const uint16_t *gamma_table_{nullptr};
+#endif  // USE_LIGHT_GAMMA_LUT
+
+  /// Whether the light value should be written in the next cycle.
+  bool next_write_{true};
+  // for effects, true if a transformer (transition) is active.
+  bool is_transformer_active_{false};
   /// Restore mode of the light.
   LightRestoreMode restore_mode_;
 };

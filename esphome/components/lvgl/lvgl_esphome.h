@@ -71,7 +71,7 @@ inline void lv_style_set_text_font(lv_style_t *style, const font::Font *font) {
   lv_style_set_text_font(style, font->get_lv_font());
 }
 #endif
-#ifdef USE_IMAGE
+#if defined(USE_LVGL_IMAGE) && defined(USE_IMAGE)
 // Shortcut / overload, so that the source of an image can easily be updated
 // from within a lambda.
 inline void lv_image_set_src(lv_obj_t *obj, esphome::image::Image *image) {
