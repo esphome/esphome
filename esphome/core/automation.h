@@ -361,11 +361,11 @@ template<typename... Ts> class Action {
     this->stop_next_();
   }
   virtual bool is_running() { return this->is_running_next_(); }
-  virtual int num_running_total() {
-    if (this->next_ == nullptr)
-      return 0;
-    return this->next_->num_running_total();
-  }
+  /// Number of concurrent executions tracked by this action (0 for synchronous actions).
+  virtual int num_running() const { return 0; }
+
+  /// Get the next action in the chain (for ActionList traversal).
+  Action<Ts...> *get_next() const { return this->next_; }
 
  protected:
   friend ActionList<Ts...>;
@@ -425,12 +425,7 @@ template<typename... Ts> class TrackedAction : public Action<Ts...> {
     this->stop_next_();
   }
   bool is_running() override { return this->num_running_ > 0 || this->is_running_next_(); }
-  int num_running_total() override {
-    int total = this->num_running_;
-    if (this->next_ != nullptr)
-      total += this->next_->num_running_total();
-    return total;
-  }
+  int num_running() const override { return this->num_running_; }
 
  protected:
   /// Shadows Action::play_next_ with a guarded version that checks num_running_.
@@ -488,11 +483,13 @@ template<typename... Ts> class ActionList {
       return false;
     return this->actions_begin_->is_running();
   }
-  /// Return the number of actions in this action list that are currently running.
+  /// Return the total number of concurrent executions across all actions in this list.
   int num_running() {
-    if (this->actions_begin_ == nullptr)
-      return 0;
-    return this->actions_begin_->num_running_total();
+    int total = 0;
+    for (auto *action = this->actions_begin_; action != nullptr; action = action->get_next()) {
+      total += action->num_running();
+    }
+    return total;
   }
 
  protected:
