@@ -128,32 +128,32 @@ sensor:
     icon: "mdi:gauge"
     # calculation: comp_gas = log(R_gas[ohm]) + 0.04 log(Ohm)/%rh * hum[%rh]
     lambda: |-
-      return log(id(gas_resistance).state) + 0.04 *  id(humidity).state;
+      return log(id(gas_resistance).get_state()) + 0.04 *  id(humidity).get_state();
     state_class: "measurement"
 text_sensor:
   - platform: template
     name: "BME680 IAQ Classification"
     icon: "mdi:checkbox-marked-circle-outline"
     lambda: |-
-      if (int(id(iaq).state) <= 50) {
+      if (int(id(iaq).get_state()) <= 50) {
         return {"Excellent"};
       }
-      else if (int(id(iaq).state) <= 100) {
+      else if (int(id(iaq).get_state()) <= 100) {
         return {"Good"};
       }
-      else if (int(id(iaq).state) <= 150) {
+      else if (int(id(iaq).get_state()) <= 150) {
         return {"Lightly polluted"};
       }
-      else if (int(id(iaq).state) <= 200) {
+      else if (int(id(iaq).get_state()) <= 200) {
         return {"Moderately polluted"};
       }
-      else if (int(id(iaq).state) <= 250) {
+      else if (int(id(iaq).get_state()) <= 250) {
         return {"Heavily polluted"};
       }
-      else if (int(id(iaq).state) <= 350) {
+      else if (int(id(iaq).get_state()) <= 350) {
         return {"Severely polluted"};
       }
-      else if (int(id(iaq).state) <= 500) {
+      else if (int(id(iaq).get_state()) <= 500) {
         return {"Extremely polluted"};
       }
       else {

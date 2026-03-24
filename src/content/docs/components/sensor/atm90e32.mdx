@@ -731,7 +731,7 @@ sensor:
   - platform: template
     name: ${friendly_name} Total Amps
     id: totalAmps
-    lambda: return id(ct1Amps).state + id(ct2Amps).state + id(ct3Amps).state + id(ct4Amps).state + id(ct5Amps).state + id(ct6Amps).state ;
+    lambda: return id(ct1Amps).get_state() + id(ct2Amps).get_state() + id(ct3Amps).get_state() + id(ct4Amps).get_state() + id(ct5Amps).get_state() + id(ct6Amps).get_state() ;
     accuracy_decimals: 2
     unit_of_measurement: A
     device_class: current
@@ -740,7 +740,7 @@ sensor:
   - platform: template
     name: ${friendly_name} Total Watts
     id: totalWatts
-    lambda: return id(ct1Watts).state + id(ct2Watts).state + id(ct3Watts).state + id(ct4Watts).state + id(ct5Watts).state + id(ct6Watts).state ;
+    lambda: return id(ct1Watts).get_state() + id(ct2Watts).get_state() + id(ct3Watts).get_state() + id(ct4Watts).get_state() + id(ct5Watts).get_state() + id(ct6Watts).get_state() ;
     accuracy_decimals: 1
     unit_of_measurement: W
     device_class: power
@@ -994,7 +994,7 @@ sensor:
   - platform: template
     name: ${disp_name} Total Amps Main
     id: totalAmpsMain
-    lambda: return id(ct1Amps).state + id(ct2Amps).state + id(ct3Amps).state + id(ct4Amps).state + id(ct5Amps).state + id(ct6Amps).state ;
+    lambda: return id(ct1Amps).get_state() + id(ct2Amps).get_state() + id(ct3Amps).get_state() + id(ct4Amps).get_state() + id(ct5Amps).get_state() + id(ct6Amps).get_state() ;
     accuracy_decimals: 2
     unit_of_measurement: A
     device_class: current
@@ -1003,7 +1003,7 @@ sensor:
   - platform: template
     name: ${disp_name} Total Amps Add-on
     id: totalAmpsAddOn
-    lambda: return id(ct7Amps).state + id(ct8Amps).state + id(ct9Amps).state + id(ct10Amps).state + id(ct11Amps).state + id(ct12Amps).state ;
+    lambda: return id(ct7Amps).get_state() + id(ct8Amps).get_state() + id(ct9Amps).get_state() + id(ct10Amps).get_state() + id(ct11Amps).get_state() + id(ct12Amps).get_state() ;
     accuracy_decimals: 2
     unit_of_measurement: A
     device_class: current
@@ -1012,7 +1012,7 @@ sensor:
   - platform: template
     name: ${disp_name} Total Amps
     id: totalAmps
-    lambda: return id(totalAmpsMain).state + id(totalAmpsAddOn).state ;
+    lambda: return id(totalAmpsMain).get_state() + id(totalAmpsAddOn).get_state() ;
     accuracy_decimals: 2
     unit_of_measurement: A
     device_class: current
@@ -1022,7 +1022,7 @@ sensor:
   - platform: template
     name: ${disp_name} Total Watts Main
     id: totalWattsMain
-    lambda: return id(ct1Watts).state + id(ct2Watts).state + id(ct3Watts).state + id(ct4Watts).state + id(ct5Watts).state + id(ct6Watts).state ;
+    lambda: return id(ct1Watts).get_state() + id(ct2Watts).get_state() + id(ct3Watts).get_state() + id(ct4Watts).get_state() + id(ct5Watts).get_state() + id(ct6Watts).get_state() ;
     accuracy_decimals: 1
     unit_of_measurement: W
     device_class: power
@@ -1031,7 +1031,7 @@ sensor:
   - platform: template
     name: ${disp_name} Total Watts Add-on
     id: totalWattsAddOn
-    lambda: return id(ct7Watts).state + id(ct8Watts).state + id(ct9Watts).state + id(ct10Watts).state + id(ct11Watts).state + id(ct12Watts).state ;
+    lambda: return id(ct7Watts).get_state() + id(ct8Watts).get_state() + id(ct9Watts).get_state() + id(ct10Watts).get_state() + id(ct11Watts).get_state() + id(ct12Watts).get_state() ;
     accuracy_decimals: 1
     unit_of_measurement: W
     device_class: power
@@ -1040,7 +1040,7 @@ sensor:
   - platform: template
     name: ${disp_name} Total Watts
     id: totalWatts
-    lambda: return id(totalWattsMain).state + id(totalWattsAddOn).state ;
+    lambda: return id(totalWattsMain).get_state() + id(totalWattsAddOn).get_state() ;
     accuracy_decimals: 1
     unit_of_measurement: W
     device_class: power
