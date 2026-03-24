@@ -413,13 +413,16 @@ async def if_action_to_code(
     template_arg: cg.TemplateArguments,
     args: TemplateArgsType,
 ) -> MockObj:
+    has_else = CONF_ELSE in config
+    # Prepend HasElse bool to template arguments: IfAction<HasElse, Ts...>
+    if_template_arg = cg.TemplateArguments(has_else, *template_arg)
     cond_conf = next(el for el in config if el in (CONF_ANY, CONF_ALL, CONF_CONDITION))
     condition = await build_condition(config[cond_conf], template_arg, args)
-    var = cg.new_Pvariable(action_id, template_arg, condition)
+    var = cg.new_Pvariable(action_id, if_template_arg, condition)
     if CONF_THEN in config:
         actions = await build_action_list(config[CONF_THEN], template_arg, args)
         cg.add(var.add_then(actions))
-    if CONF_ELSE in config:
+    if has_else:
         actions = await build_action_list(config[CONF_ELSE], template_arg, args)
         cg.add(var.add_else(actions))
     return var
