@@ -322,27 +322,28 @@ def _walk_package_list(
 
 
 def _substitute_package_definition(
-    package_config: dict | str, context_vars: ContextVars
-) -> dict:
-    """If the package definition is a string (which may contain substitutions) or a remote package,
-    attempt to substitute any variables in it, since these could affect the URL, file paths, refs, etc.
-    This does not substitute inside the package contents itself, only the remote package definition fields
-    because the remote package has not been even been downloaded yet."""
+    package_config: dict | str, context_vars: ContextVars | None
+) -> dict | str:
+    """Substitute variables in a package definition string or remote package dict.
 
+    Only substitutes strings and remote package dicts (URLs, refs, paths).
+    Local package contents are left untouched — they will be substituted
+    later during the main substitution pass.
+    """
     if isinstance(package_config, str) or (
         isinstance(package_config, dict) and is_remote_package(package_config)
     ):
         package_config = substitute(
             item=package_config,
             path=[],
-            parent_context=context_vars,
+            parent_context=context_vars or ContextVars(),
             strict_undefined=False,
         )
     return package_config
 
 
 def _update_substitutions_context(
-    parent_context: dict[str, Any],
+    parent_context: UserDict,
     package_substitutions: dict[str, Any],
 ) -> None:
     """Resolve and add new substitutions to the parent context.
@@ -360,7 +361,7 @@ def _update_substitutions_context(
         parent_context[key] = substitute(
             item=value,
             path=[CONF_SUBSTITUTIONS, key],
-            parent_context=parent_context,
+            parent_context=ContextVars(parent_context),
             strict_undefined=False,
         )
 
@@ -391,7 +392,7 @@ class _PackageProcessor:
         self.skip_update = skip_update
 
     def resolve_package(
-        self, package_config: dict | str, context_vars: ContextVars
+        self, package_config: dict | str, context_vars: ContextVars | None
     ) -> dict:
         """Substitute variables in the definition and fetch remote packages."""
         package_config = _substitute_package_definition(package_config, context_vars)
