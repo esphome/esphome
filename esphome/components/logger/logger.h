@@ -369,7 +369,7 @@ class Logger final : public Component {
   // Large buffers placed last to keep frequently-accessed member offsets small
   char tx_buffer_[ESPHOME_LOGGER_TX_BUFFER_SIZE + 1];  // +1 for null terminator
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
-  logger::TaskLogBuffer log_buffer_;  // Task log buffer storage in BSS (no heap allocation)
+  logger::TaskLogBuffer log_buffer_;  // Embedded in Logger (no separate heap allocation)
 #endif
 
   // --- get_thread_name_ overloads (per-platform) ---

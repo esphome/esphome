@@ -9,7 +9,7 @@ namespace esphome::logger {
 
 TaskLogBuffer::TaskLogBuffer() {
   // Create mutex for thread-safe access
-  // Storage is a member array (lives in BSS), no heap allocation needed
+  // Storage is a member array (embedded in Logger), no heap allocation needed
   this->mutex_ = xSemaphoreCreateMutex();
 }
 

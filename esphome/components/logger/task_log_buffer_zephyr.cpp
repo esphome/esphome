@@ -18,7 +18,7 @@ static inline uint32_t get_wlen(const mpsc_pbuf_generic *item) {
 }
 
 TaskLogBuffer::TaskLogBuffer() {
-  // Storage is a member array (lives in BSS), no heap allocation needed
+  // Storage is a member array (embedded in Logger), no heap allocation needed
   this->mpsc_config_.buf = this->buf_storage_;
   this->mpsc_config_.size = BUF_WORD_COUNT;
   this->mpsc_config_.flags = MPSC_PBUF_MODE_OVERWRITE;

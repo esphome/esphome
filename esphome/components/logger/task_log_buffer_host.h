@@ -49,9 +49,6 @@ namespace esphome::logger {
  */
 class TaskLogBuffer {
  public:
-  // Default number of message slots - host has plenty of memory
-  static constexpr size_t DEFAULT_SLOT_COUNT = 64;
-
   // Structure for a log message (fixed size for lock-free operation)
   struct LogMessage {
     // Size constants
@@ -103,7 +100,7 @@ class TaskLogBuffer {
   // Commit a slot after writing (thread-safe)
   void commit_write_slot_(int slot_index);
 
-  LogMessage slots_[ESPHOME_TASK_LOG_BUFFER_SIZE];  // Pre-allocated message slots in BSS
+  LogMessage slots_[ESPHOME_TASK_LOG_BUFFER_SIZE];  // Embedded in Logger (no separate heap allocation)
 
   // Lock-free indices using atomics
   // - reserve_index_: Next slot to reserve (producers CAS this to claim slots)

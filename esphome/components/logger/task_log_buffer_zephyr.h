@@ -53,8 +53,9 @@ class TaskLogBuffer {
                                 const char *format, va_list args);
 
  protected:
+  // Round up byte size to 32-bit word count for mpsc_pbuf alignment requirement
   static constexpr size_t BUF_WORD_COUNT = (ESPHOME_TASK_LOG_BUFFER_SIZE + 3) / sizeof(uint32_t);
-  uint32_t buf_storage_[BUF_WORD_COUNT];  // Buffer storage in BSS
+  uint32_t buf_storage_[BUF_WORD_COUNT];  // Embedded in Logger (no separate heap allocation)
   mpsc_pbuf_buffer_config mpsc_config_{};
   mpsc_pbuf_buffer log_buffer_{};
   const mpsc_pbuf_generic *current_token_{};

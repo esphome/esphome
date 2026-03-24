@@ -9,7 +9,7 @@ namespace esphome::logger {
 
 TaskLogBuffer::TaskLogBuffer() {
   // Create a static ring buffer with RINGBUF_TYPE_NOSPLIT for message integrity
-  // Storage is a member array (lives in BSS), no heap allocation needed
+  // Storage is a member array (embedded in Logger), no heap allocation needed
   this->ring_buffer_ =
       xRingbufferCreateStatic(sizeof(this->storage_), RINGBUF_TYPE_NOSPLIT, this->storage_, &this->structure_);
 }

@@ -332,7 +332,7 @@ async def to_code(config: ConfigType) -> None:
     tx_buffer_size = config[CONF_TX_BUFFER_SIZE]
     cg.add_define("ESPHOME_LOGGER_TX_BUFFER_SIZE", tx_buffer_size)
     # Determine task log buffer size. The buffer is a direct member of Logger
-    # (lives in BSS), so it's available from program start with no heap allocation.
+    # (no separate heap allocation).
     task_log_buffer_size = 0
     if CORE.is_esp32 or CORE.is_libretiny or CORE.is_nrf52:
         task_log_buffer_size = config[CONF_TASK_LOG_BUFFER_SIZE]

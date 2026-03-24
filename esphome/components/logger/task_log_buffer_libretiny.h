@@ -86,7 +86,7 @@ class TaskLogBuffer {
   // Calculate available contiguous space at write position
   size_t available_contiguous_space() const;
 
-  uint8_t storage_[ESPHOME_TASK_LOG_BUFFER_SIZE];  // Buffer storage in BSS
+  uint8_t storage_[ESPHOME_TASK_LOG_BUFFER_SIZE];  // Embedded in Logger (no separate heap allocation)
   size_t head_{0};                                 // Write position
   size_t tail_{0};                                 // Read position
 

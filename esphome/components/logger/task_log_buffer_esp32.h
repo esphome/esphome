@@ -70,7 +70,7 @@ class TaskLogBuffer {
  private:
   RingbufHandle_t ring_buffer_{nullptr};           // FreeRTOS ring buffer handle
   StaticRingbuffer_t structure_;                   // Static structure for the ring buffer
-  uint8_t storage_[ESPHOME_TASK_LOG_BUFFER_SIZE];  // Buffer storage in BSS
+  uint8_t storage_[ESPHOME_TASK_LOG_BUFFER_SIZE];  // Embedded in Logger (no separate heap allocation)
 
   // Atomic counter for message tracking (only differences matter)
   std::atomic<uint16_t> message_counter_{0};    // Incremented when messages are committed
