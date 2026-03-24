@@ -174,7 +174,15 @@ CONFIG_SCHEMA = cv.Any(  # under `packages:` we can have either:
 
 
 def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
-    # When skip_update is True, use NEVER_REFRESH to prevent updates
+    """Clone/update a git repo and load the YAML files listed in the package definition.
+
+    Returns ``{"packages": {<filename>: <loaded_yaml>, ...}}`` so the caller
+    can recurse into the loaded packages. Each loaded YAML node is tagged
+    with any ``vars:`` from the file entry via :func:`yaml_util.add_context`.
+
+    If loading fails after cloning, attempts a revert and retry in case
+    a prior cached checkout is stale.
+    """
     actual_refresh = git.NEVER_REFRESH if skip_update else config[CONF_REFRESH]
     repo_dir, revert = git.clone_or_update(
         url=config[CONF_URL],
@@ -184,7 +192,7 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
         username=config.get(CONF_USERNAME),
         password=config.get(CONF_PASSWORD),
     )
-    files = []
+    files: list[dict[str, Any]] = []
 
     if base_path := config.get(CONF_PATH):
         repo_dir = repo_dir / base_path
@@ -230,8 +238,8 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
             packages[f"{filename}{idx}"] = new_yaml
         return packages
 
-    packages = None
-    error = ""
+    packages: dict | None = None
+    error: cv.Invalid | str = ""
 
     try:
         packages = get_packages(files)
@@ -433,7 +441,15 @@ def do_packages_pass(
 
 
 def merge_packages(config: dict) -> dict:
-    """Merges all packages into the main config and removes the `packages:` key."""
+    """Flatten the ``packages:`` tree into the main config.
+
+    Collects every package (including nested ones) into a flat list in
+    priority order, then merges them into *config* using :func:`merge_config`.
+    Higher-priority packages (declared later) override lower-priority ones.
+
+    The ``packages:`` key is removed from the returned config.
+    Must be called after :func:`do_packages_pass` has resolved all packages.
+    """
     if CONF_PACKAGES not in config:
         return config
 
