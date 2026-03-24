@@ -2,7 +2,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 import esphome.codegen as cg
-from esphome.const import CONF_LIBRETINY
+
 
 @dataclass
 class LibreTinyComponent:
