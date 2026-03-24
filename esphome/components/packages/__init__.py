@@ -359,15 +359,15 @@ def _update_substitutions_context(
     for key, value in package_substitutions.items():
         if key in parent_context:
             continue
-        if isinstance(value, str):
-            parent_context[key] = substitute(
-                item=value,
-                path=[CONF_SUBSTITUTIONS, key],
-                parent_context=parent_context,
-                strict_undefined=False,
-            )
-        else:
+        if not isinstance(value, str):
             parent_context[key] = value
+            continue
+        parent_context[key] = substitute(
+            item=value,
+            path=[CONF_SUBSTITUTIONS, key],
+            parent_context=parent_context,
+            strict_undefined=False,
+        )
 
 
 def do_packages_pass(
