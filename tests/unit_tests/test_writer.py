@@ -966,6 +966,31 @@ def test_clean_all_with_env_build_path(
 
 
 @patch("esphome.writer.CORE")
+def test_clean_all_ignores_empty_env_vars(
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test clean_all ignores empty ESPHOME_BUILD_PATH/ESPHOME_DATA_DIR."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    # Create a file in cwd that must NOT be cleaned
+    marker = tmp_path / "important.txt"
+    marker.write_text("do not delete")
+
+    from esphome.writer import clean_all
+
+    with patch.dict(
+        os.environ,
+        {"ESPHOME_BUILD_PATH": "", "ESPHOME_DATA_DIR": ""},
+    ):
+        clean_all([str(config_dir)])
+
+    # Empty env vars must not cause cwd to be cleaned
+    assert marker.exists()
+
+
+@patch("esphome.writer.CORE")
 def test_clean_all(
     mock_core: MagicMock,
     tmp_path: Path,
