@@ -5,6 +5,7 @@ namespace esphome::packet_transport::testing {
 TEST(PacketTransportSensorTest, AddSensor) {
   TestablePacketTransport transport;
   sensor::Sensor s;
+  transport.set_sensor_count(1);
   transport.add_sensor("temp", &s);
   ASSERT_EQ(transport.sensors_.size(), 1u);
   EXPECT_STREQ(transport.sensors_[0].id, "temp");
@@ -26,6 +27,7 @@ TEST(PacketTransportSensorTest, UnencryptedSensorRoundTrip) {
   encoder.init_for_test("sender");
   sensor::Sensor local_sensor;
   local_sensor.state = 42.5f;
+  encoder.set_sensor_count(1);
   encoder.add_sensor("temp", &local_sensor);
 
   encoder.send_data_(true);
@@ -53,6 +55,7 @@ TEST(PacketTransportSensorTest, EncryptedSensorRoundTrip) {
   encoder.set_encryption_key(key);
   sensor::Sensor local_sensor;
   local_sensor.state = 99.9f;
+  encoder.set_sensor_count(1);
   encoder.add_sensor("temp", &local_sensor);
 
   encoder.send_data_(true);
@@ -77,6 +80,7 @@ TEST(PacketTransportSensorTest, SendDataOnlyUpdated) {
   sensor::Sensor s1, s2;
   s1.state = 1.0f;
   s2.state = 2.0f;
+  encoder.set_sensor_count(2);
   encoder.add_sensor("s1", &s1);
   encoder.add_sensor("s2", &s2);
 
@@ -111,6 +115,7 @@ TEST(PacketTransportSensorTest, PingKeyIncludedInTransmittedPacket) {
   responder.set_encryption_key(key);
   sensor::Sensor local_sensor;
   local_sensor.state = 77.7f;
+  responder.set_sensor_count(1);
   responder.add_sensor("temp", &local_sensor);
 
   // Requester sends a MAGIC_PING that the responder processes
@@ -148,6 +153,7 @@ TEST(PacketTransportSensorTest, MissingPingKeyBlocksSensorData) {
   responder.set_encryption_key(key);
   sensor::Sensor local_sensor;
   local_sensor.state = 77.7f;
+  responder.set_sensor_count(1);
   responder.add_sensor("temp", &local_sensor);
   responder.send_data_(true);
   ASSERT_EQ(responder.sent_packets.size(), 1u);

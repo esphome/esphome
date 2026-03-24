@@ -214,4 +214,4 @@ async def to_code(config):
         cg.add_define("USE_AUDIO_MP3_SUPPORT")
     if data.opus_support:
         cg.add_define("USE_AUDIO_OPUS_SUPPORT")
-        add_idf_component(name="esphome/micro-opus", ref="0.3.5")
+        add_idf_component(name="esphome/micro-opus", ref="0.3.6")
