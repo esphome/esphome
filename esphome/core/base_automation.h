@@ -303,6 +303,18 @@ template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
     }
   }
 
+  bool is_running() override {
+    if (this->then_.is_running()) {
+      return true;
+    }
+    if constexpr (HasElse) {
+      if (this->else_.is_running()) {
+        return true;
+      }
+    }
+    return this->is_running_next_();
+  }
+
  protected:
   Condition<Ts...> *condition_;
   ActionList<Ts...> then_;

@@ -356,7 +356,10 @@ template<typename... Ts> class Action {
     this->play(x...);
     this->play_next_(x...);
   }
-  virtual void stop_complex() { this->stop_next_(); }
+  virtual void stop_complex() {
+    this->stop();
+    this->stop_next_();
+  }
   virtual bool is_running() { return this->is_running_next_(); }
   virtual int num_running_total() {
     if (this->next_ == nullptr)
