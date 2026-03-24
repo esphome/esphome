@@ -6,11 +6,10 @@ using namespace esphome::valve;
 
 static const char *const TAG = "time_based.valve";
 
-TimeBasedValve::TimeBasedValve() = default;
-
 void TimeBasedValve::setup() {
   switch (this->restore_mode_) {
     case VALVE_NO_RESTORE:
+      this->position = NAN;
       break;
     case VALVE_RESTORE: {
       auto restore = this->restore_state_();
@@ -69,6 +68,12 @@ ValveTraits TimeBasedValve::get_traits() {
   traits.set_supports_toggle(true);
   traits.set_supports_position(true);
   return traits;
+}
+
+void TimeBasedValve::reset_position() {
+  this->measured_position_ = 0;
+  this->measured_position_min_ = 0;
+  this->measured_position_max_ = 0;
 }
 
 void TimeBasedValve::stop_prev_trigger_() {
@@ -133,7 +138,6 @@ void TimeBasedValve::start_direction_(ValveOperation dir) {
   this->current_operation = dir;
 
   const uint32_t now = millis();
-  this->start_dir_time_ = now;
   this->last_recompute_time_ = now;
 
   this->stop_prev_trigger_();
@@ -170,10 +174,27 @@ void TimeBasedValve::recompute_position_() {
   }
 
   const uint32_t now = millis();
-  this->position += dir * (now - this->last_recompute_time_) / this->duration_;
-  this->position = clamp(this->position, 0.0f, 1.0f);
-
+  float distance = dir * (now - this->last_recompute_time_) / this->duration_;
   this->last_recompute_time_ = now;
+
+  bool duration_traveled = (this->measured_position_max_ - this->measured_position_min_) >= this->duration_;
+  if (!duration_traveled) {
+    this->measured_position_ += distance;
+    if (this->measured_position_ > this->measured_position_max_) {
+      this->measured_position_max_ = this->measured_position_;
+    }
+    if (this->measured_position_ < this->measured_position_min_) {
+      this->measured_position_min_ = this->measured_position_;
+    }
+    return;
+  }
+
+  if (this->position == NAN) {
+    this->position = dir > 0 ? 1 : 0;
+  } else {
+    this->position += distance;
+    this->position = clamp(this->position, 0.0f, 1.0f);
+  }
 }
 
 }  // namespace esphome::time_based

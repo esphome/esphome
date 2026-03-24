@@ -25,6 +25,7 @@ class TimeBasedValve final : public valve::Valve, public Component {
   Trigger<> *get_close_trigger();
   Trigger<> *get_stop_trigger();
   void set_restore_mode(TimeBasedValveRestoreMode restore_mode) { restore_mode_ = restore_mode; }
+  void reset_position();
 
  protected:
   void control(const valve::ValveCall &call) override;
@@ -40,8 +41,10 @@ class TimeBasedValve final : public valve::Valve, public Component {
   uint32_t last_publish_time_{0};
   uint32_t last_recompute_time_{0};
   valve::ValveOperation last_operation_{valve::VALVE_OPERATION_OPENING};
-  uint32_t start_dir_time_{0};
   float target_position_{0};
+  float measured_position_{0};
+  float measured_position_max_{0};
+  float measured_position_min_{0};
   Trigger<> open_trigger_;
   Trigger<> close_trigger_;
   Trigger<> stop_trigger_;
