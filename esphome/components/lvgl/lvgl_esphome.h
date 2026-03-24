@@ -53,7 +53,7 @@ extern std::string lv_event_code_name_for(lv_event_t *event);
 lv_obj_t *lv_container_create(lv_obj_t *parent);
 #ifdef USE_LVGL_SCALE
 void lv_scale_draw_event_cb(lv_event_t *e, uint16_t range_start, uint16_t range_end, lv_color_t color_start,
-                            lv_color_t color_end, bool local);
+                            lv_color_t color_end, int width, bool local);
 #endif
 #if LV_COLOR_DEPTH == 16
 static const display::ColorBitness LV_BITNESS = display::ColorBitness::COLOR_BITNESS_565;
@@ -71,7 +71,7 @@ inline void lv_style_set_text_font(lv_style_t *style, const font::Font *font) {
   lv_style_set_text_font(style, font->get_lv_font());
 }
 #endif
-#ifdef USE_IMAGE
+#if defined(USE_LVGL_IMAGE) && defined(USE_IMAGE)
 // Shortcut / overload, so that the source of an image can easily be updated
 // from within a lambda.
 inline void lv_image_set_src(lv_obj_t *obj, esphome::image::Image *image) {

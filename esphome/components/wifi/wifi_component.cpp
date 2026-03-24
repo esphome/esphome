@@ -269,11 +269,11 @@ bool CompactString::operator==(const StringRef &other) const {
 /// │                              │                                       │
 /// │               ┌──────────────┼──────────────┐                        │
 /// │               ↓              ↓              ↓                        │
-/// │         scan error    no better AP    +10 dB better AP               │
+/// │         disconnect    no better AP    +10 dB better AP               │
 /// │               │              │              │                        │
 /// │               ↓              ↓              ↓                        │
 /// │    ┌──────────────────────────────┐  ┌──────────────────────────┐    │
-/// │    │  → IDLE                      │  │        CONNECTING        │    │
+/// │    │  → RECONNECTING              │  │        CONNECTING        │    │
 /// │    │  (counter preserved)         │  │  (process_roaming_scan_) │    │
 /// │    └──────────────────────────────┘  └────────────┬─────────────┘    │
 /// │                                                  │                   │
@@ -296,7 +296,7 @@ bool CompactString::operator==(const StringRef &other) const {
 /// │  Key behaviors:                                                      │
 /// │  - After 3 checks: attempts >= 3, stop checking                      │
 /// │  - Non-roaming disconnect: clear_roaming_state_() resets counter     │
-/// │  - Scan error (SCANNING→IDLE): counter preserved                     │
+/// │  - Disconnect during scan (SCANNING→RECONNECTING): counter preserved  │
 /// │  - Roaming success (CONNECTING→IDLE): counter reset (can roam again) │
 /// │  - Roaming fail (RECONNECTING→IDLE): counter preserved (ping-pong)   │
 /// └──────────────────────────────────────────────────────────────────────┘
@@ -871,9 +871,6 @@ void WiFiComponent::loop() {
 
 WiFiComponent::WiFiComponent() { global_wifi_component = this; }
 
-bool WiFiComponent::has_ap() const { return this->has_ap_; }
-bool WiFiComponent::is_ap_active() const { return this->ap_started_; }
-bool WiFiComponent::has_sta() const { return !this->sta_.empty(); }
 #ifdef USE_WIFI_11KV_SUPPORT
 void WiFiComponent::set_btm(bool btm) { this->btm_ = btm; }
 void WiFiComponent::set_rrm(bool rrm) { this->rrm_ = rrm; }
@@ -894,10 +891,6 @@ network::IPAddress WiFiComponent::get_dns_address(int num) {
     return this->wifi_dns_ip_(num);
   return {};
 }
-// set_use_address() is guaranteed to be called during component setup by Python code generation,
-// so use_address_ will always be valid when get_use_address() is called - no fallback needed.
-const char *WiFiComponent::get_use_address() const { return this->use_address_; }
-void WiFiComponent::set_use_address(const char *use_address) { this->use_address_ = use_address; }
 
 #ifdef USE_WIFI_AP
 void WiFiComponent::setup_ap_config_() {
@@ -2075,9 +2068,10 @@ void WiFiComponent::retry_connect() {
     ESP_LOGD(TAG, "Roam failed, reconnecting (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
     this->roaming_state_ = RoamingState::RECONNECTING;
   } else if (this->roaming_state_ == RoamingState::SCANNING) {
-    // Roam scan failed (e.g., scan error on ESP8266) - go back to idle, keep counter
-    ESP_LOGD(TAG, "Roam scan failed (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
-    this->roaming_state_ = RoamingState::IDLE;
+    // Disconnected during roam scan - transition to RECONNECTING so the attempts
+    // counter is preserved when reconnection succeeds (IDLE would reset it)
+    ESP_LOGD(TAG, "Disconnected during roam scan (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
+    this->roaming_state_ = RoamingState::RECONNECTING;
   } else if (this->roaming_state_ == RoamingState::IDLE) {
     // Not a roaming-triggered reconnect, reset state
     this->clear_roaming_state_();
@@ -2250,8 +2244,6 @@ bool WiFiAP::has_bssid() const { return this->bssid_ != bssid_t{}; }
 #ifdef USE_WIFI_WPA2_EAP
 const optional<EAPAuth> &WiFiAP::get_eap() const { return this->eap_; }
 #endif
-uint8_t WiFiAP::get_channel() const { return this->channel_; }
-bool WiFiAP::has_channel() const { return this->channel_ != 0; }
 #ifdef USE_WIFI_MANUAL_IP
 const optional<ManualIP> &WiFiAP::get_manual_ip() const { return this->manual_ip_; }
 #endif

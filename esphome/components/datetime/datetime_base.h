@@ -33,9 +33,12 @@ class DateTimeBase : public EntityBase {
 
 class DateTimeStateTrigger : public Trigger<ESPTime> {
  public:
-  explicit DateTimeStateTrigger(DateTimeBase *parent) {
-    parent->add_on_state_callback([this, parent]() { this->trigger(parent->state_as_esptime()); });
+  explicit DateTimeStateTrigger(DateTimeBase *parent) : parent_(parent) {
+    parent->add_on_state_callback([this]() { this->trigger(this->parent_->state_as_esptime()); });
   }
+
+ protected:
+  DateTimeBase *parent_;
 };
 
 }  // namespace esphome::datetime
