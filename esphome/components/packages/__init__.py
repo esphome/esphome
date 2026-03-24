@@ -242,18 +242,18 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
             packages[f"{filename}{idx}"] = new_yaml
         return packages
 
-    if revert is None:
-        return {"packages": get_packages(files)}
+    if revert is not None:
+        # If loading fails, the cached checkout may be stale — revert and retry once.
+        try:
+            return {"packages": get_packages(files)}
+        except cv.Invalid:
+            revert()
+        try:
+            return {"packages": get_packages(files)}
+        except cv.Invalid as err:
+            raise cv.Invalid(f"Failed to load packages. {err}", path=err.path) from err
 
-    # If loading fails, the cached checkout may be stale — revert and retry once.
-    try:
-        return {"packages": get_packages(files)}
-    except cv.Invalid:
-        revert()
-    try:
-        return {"packages": get_packages(files)}
-    except cv.Invalid as err:
-        raise cv.Invalid(f"Failed to load packages. {err}", path=err.path) from err
+    return {"packages": get_packages(files)}
 
 
 def _walk_packages(
@@ -372,13 +372,14 @@ def _update_substitutions_context(
 class _PackageProcessor:
     """Stateful processor that resolves packages and collects substitutions.
 
-    Walks the ``packages:`` tree in reverse-priority order (highest priority last).
-    For each package entry:
+    Packages are processed highest-priority first (later-declared before
+    earlier-declared) so that their substitutions are available when
+    resolving lower-priority package definitions.  For each entry:
 
     1. Substitute variables in remote package definitions (URLs, refs, paths).
     2. Validate against ``PACKAGE_SCHEMA`` and download remote packages.
     3. Extract ``substitutions:`` and merge into the shared context
-       (earlier packages have lower priority).
+       (higher-priority packages win on conflicts).
     4. Recurse into any nested ``packages:`` keys.
 
     Command-line substitutions take the highest priority and are never overridden.
