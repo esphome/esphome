@@ -2,7 +2,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 import esphome.codegen as cg
-
+from esphome.const import CONF_LIBRETINY
 
 @dataclass
 class LibreTinyComponent:
@@ -14,7 +14,6 @@ class LibreTinyComponent:
     supports_atomics: bool = False  # True for Cortex-M4(F) with LDREX/STREX
 
 
-CONF_LIBRETINY = "libretiny"
 CONF_LOGLEVEL = "loglevel"
 CONF_SDK_SILENT = "sdk_silent"
 CONF_GPIO_RECOVER = "gpio_recover"
