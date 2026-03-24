@@ -195,40 +195,39 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
         else:
             files.append(file)
 
-    def get_packages(files) -> dict:
+    def _load_package_yaml(yaml_file: Path, filename: str) -> dict:
+        """Load a YAML file from a remote package, validating min_version."""
+        try:
+            new_yaml = yaml_util.load_yaml(yaml_file)
+        except EsphomeError as e:
+            raise cv.Invalid(
+                f"{filename} is not a valid YAML file."
+                f" Please check the file contents.\n{e}"
+            ) from e
+        esphome_config = new_yaml.get(CONF_ESPHOME) or {}
+        min_version = esphome_config.get(CONF_MIN_VERSION)
+        if min_version is not None and cv.Version.parse(min_version) > cv.Version.parse(
+            ESPHOME_VERSION
+        ):
+            raise cv.Invalid(
+                f"Current ESPHome Version is too old to use"
+                f" this package: {ESPHOME_VERSION} < {min_version}"
+            )
+        return new_yaml
+
+    def get_packages(files: list[dict[str, Any]]) -> dict:
         packages = {}
         for idx, file in enumerate(files):
             filename = file[CONF_PATH]
             yaml_file: Path = repo_dir / filename
-            vars = file.get(CONF_VARS)
-
             if not yaml_file.is_file():
                 raise cv.Invalid(
                     f"{filename} does not exist in repository",
                     path=[CONF_FILES, idx, CONF_PATH],
                 )
-
-            try:
-                new_yaml = yaml_util.load_yaml(yaml_file)
-                if (
-                    CONF_ESPHOME in new_yaml
-                    and CONF_MIN_VERSION in new_yaml[CONF_ESPHOME]
-                ):
-                    min_version = new_yaml[CONF_ESPHOME][CONF_MIN_VERSION]
-                    if cv.Version.parse(min_version) > cv.Version.parse(
-                        ESPHOME_VERSION
-                    ):
-                        raise cv.Invalid(
-                            f"Current ESPHome Version is too old to use"
-                            f" this package: {ESPHOME_VERSION} < {min_version}"
-                        )
-                new_yaml = yaml_util.add_context(new_yaml, vars)
-                packages[f"{filename}{idx}"] = new_yaml
-            except EsphomeError as e:
-                raise cv.Invalid(
-                    f"{filename} is not a valid YAML file."
-                    f" Please check the file contents.\n{e}"
-                ) from e
+            new_yaml = _load_package_yaml(yaml_file, filename)
+            new_yaml = yaml_util.add_context(new_yaml, file.get(CONF_VARS))
+            packages[f"{filename}{idx}"] = new_yaml
         return packages
 
     packages = None
