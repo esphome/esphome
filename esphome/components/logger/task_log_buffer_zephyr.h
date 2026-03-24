@@ -40,7 +40,7 @@ class TaskLogBuffer {
   inline bool HOT has_messages() { return mpsc_pbuf_is_pending(&this->log_buffer_); }
 
   // Get the total buffer size in bytes
-  static constexpr size_t size() { return sizeof(buf_storage_); }
+  static constexpr size_t size() { return BUF_WORD_COUNT * sizeof(uint32_t); }
 
   // NOT thread-safe - borrow a message from the ring buffer, only call from main loop
   bool borrow_message_main_loop(LogMessage *&message, uint16_t &text_length);
