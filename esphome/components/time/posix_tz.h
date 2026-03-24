@@ -118,7 +118,7 @@ void julian_to_month_day(int julian_day, int &month, int &day);
 void day_of_year_to_month_day(int day_of_year, int year, int &month, int &day);
 
 /// Calculate day of week for any date (0 = Sunday)
-/// Uses a simplified algorithm that works for years 1970-2099
+/// Wraps esphome::day_of_week() with 0-indexed result for internal POSIX TZ use
 int day_of_week(int year, int month, int day);
 
 /// Get the number of days in a month

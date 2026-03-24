@@ -14,6 +14,7 @@ uint8_t days_in_month(uint8_t month, uint16_t year) {
 
 uint8_t day_of_week(uint16_t year, uint8_t month, uint8_t day) {
   // Tomohiko Sakamoto's algorithm
+  // https://en.wikipedia.org/wiki/Determination_of_the_day_of_the_week#Sakamoto's_methods
   static constexpr uint8_t OFFSETS[] = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
   static constexpr int DAYS_PER_WEEK = 7;
   static constexpr int MARCH = 3;

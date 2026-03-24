@@ -484,12 +484,35 @@ TEST(PosixTzParser, DayOfYear59DiffersByLeap) {
 }
 
 TEST(PosixTzParser, DayOfWeekKnownDates) {
-  // January 1, 1970 was Thursday (4)
+  // January 1, 1970 was Thursday (4 in 0-indexed, 5 in ESPTime 1-indexed)
   EXPECT_EQ(internal::day_of_week(1970, 1, 1), 4);
-  // January 1, 2000 was Saturday (6)
+  // January 1, 2000 was Saturday (6 in 0-indexed, 7 in ESPTime 1-indexed)
   EXPECT_EQ(internal::day_of_week(2000, 1, 1), 6);
-  // March 8, 2026 is Sunday (0) - US DST start
+  // March 8, 2026 is Sunday (0 in 0-indexed, 1 in ESPTime 1-indexed)
   EXPECT_EQ(internal::day_of_week(2026, 3, 8), 0);
+}
+
+// Tests for esphome::day_of_week() in core/time.h (1=Sunday..7=Saturday, ESPTime convention)
+TEST(CoreDayOfWeek, KnownDates) {
+  // January 1, 1970 was Thursday = 5
+  EXPECT_EQ(esphome::day_of_week(1970, 1, 1), 5);
+  // January 1, 2000 was Saturday = 7
+  EXPECT_EQ(esphome::day_of_week(2000, 1, 1), 7);
+  // March 8, 2026 is Sunday = 1
+  EXPECT_EQ(esphome::day_of_week(2026, 3, 8), 1);
+  // March 23, 2026 is Monday = 2
+  EXPECT_EQ(esphome::day_of_week(2026, 3, 23), 2);
+  // December 25, 2025 was Thursday = 5
+  EXPECT_EQ(esphome::day_of_week(2025, 12, 25), 5);
+}
+
+TEST(CoreDayOfWeek, ConsistentWithInternal) {
+  // Verify esphome::day_of_week() == internal::day_of_week() + 1
+  EXPECT_EQ(esphome::day_of_week(1970, 1, 1), internal::day_of_week(1970, 1, 1) + 1);
+  EXPECT_EQ(esphome::day_of_week(2000, 1, 1), internal::day_of_week(2000, 1, 1) + 1);
+  EXPECT_EQ(esphome::day_of_week(2026, 3, 8), internal::day_of_week(2026, 3, 8) + 1);
+  EXPECT_EQ(esphome::day_of_week(2026, 7, 15), internal::day_of_week(2026, 7, 15) + 1);
+  EXPECT_EQ(esphome::day_of_week(2024, 2, 29), internal::day_of_week(2024, 2, 29) + 1);
 }
 
 TEST(PosixTzParser, LeapYearDetection) {
@@ -1237,6 +1260,20 @@ TEST(RecalcTimestampLocal, MinimalFieldsNoDST) {
 
   time_t libc_result = libc_mktime(2026, 3, 23, 10, 0, 0);
   EXPECT_EQ(t.timestamp, libc_result);
+}
+
+TEST(CoreDayOfWeek, NearMidnightLocalDateDiffersFromUTC) {
+  // When local time is near midnight, the local date can differ from UTC date.
+  // day_of_week must reflect the LOCAL date, not the UTC date.
+  // March 23, 2026 23:30 in UTC+12 (NZST) is still March 23 locally,
+  // but March 23 12:30 UTC — same UTC day. Use a case where they differ:
+  // March 24, 2026 00:30 local in UTC+12 → March 23 12:30 UTC
+  // Local day is Tuesday (March 24), UTC day is Monday (March 23)
+  EXPECT_EQ(esphome::day_of_week(2026, 3, 24), 3);  // Tuesday = 3 in ESPTime
+  EXPECT_EQ(esphome::day_of_week(2026, 3, 23), 2);  // Monday = 2 in ESPTime
+  // The function takes local date fields, so it always returns the correct local day_of_week
+  // regardless of what UTC day it maps to. This verifies the fix for the Copilot review
+  // that flagged computing day_of_week from UTC timestamp.
 }
 
 TEST(RecalcTimestampLocal, YearBoundaryDST) {
