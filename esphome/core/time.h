@@ -80,14 +80,16 @@ struct ESPTime {
   bool is_valid() const { return this->year >= 2019 && this->fields_in_range(); }
 
   /// Check if time fields are in range.
-  /// When check_day_fields is false, day_of_week and day_of_year are not checked
-  /// (they are not always available, e.g. when constructing from date/time fields only).
-  bool fields_in_range(bool check_day_fields = true) const {
+  /// @param check_day_of_week validate day_of_week (not always available when constructing from date/time fields)
+  /// @param check_day_of_year validate day_of_year (not always available when constructing from date/time fields)
+  bool fields_in_range(bool check_day_of_week = true, bool check_day_of_year = true) const {
     bool valid = this->second < 61 && this->minute < 60 && this->hour < 24 && this->month > 0 && this->month < 13 &&
                  this->day_of_month > 0 && this->day_of_month <= days_in_month(this->month, this->year);
-    if (check_day_fields) {
-      valid =
-          valid && this->day_of_week > 0 && this->day_of_week < 8 && this->day_of_year > 0 && this->day_of_year < 367;
+    if (check_day_of_week) {
+      valid = valid && this->day_of_week > 0 && this->day_of_week < 8;
+    }
+    if (check_day_of_year) {
+      valid = valid && this->day_of_year > 0 && this->day_of_year < 367;
     }
     return valid;
   }
