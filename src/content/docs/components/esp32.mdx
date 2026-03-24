@@ -159,6 +159,20 @@ esp32:
   To find your chip's revision, check the ESPHome boot logs for a line like `ESP32 Chip: ESP32 r3.0, 2 core(s)`
   or use `esptool.py chip_id`.
 
+- **sram1_as_iram** (*Optional*, boolean): Use the SRAM1 memory region as additional IRAM, providing an extra **40 KB of IRAM**.
+  This reclaims memory that was previously reserved for the bootloader's DRAM and not available to the application.
+  The extra IRAM expands the flash cache window for XIP (execute in place), reducing cache misses and improving
+  performance for all code running from flash (WiFi, BLE, API server, etc.). It also helps avoid IRAM overflow
+  compile errors (`section '.iram0.text' will not fit in region 'iram0_0_seg'`). Since this memory was never part
+  of the heap, there is **no cost to free heap/DRAM**.
+  **Valid only on original ESP32 with** `esp-idf` **framework.** Defaults to `false`.
+
+  **Important:** This requires a bootloader from ESP-IDF v5.1 or later. Flashing via USB automatically updates the
+  bootloader, but OTA updates do not. If the device has an older bootloader, enabling this option will cause the
+  device to **fail to boot**. If you have previously flashed your device via USB with a recent version of ESPHome,
+  the bootloader is already compatible. ESPHome will log a suggestion at boot if it detects a compatible bootloader
+  and this option is not yet enabled.
+
 - **enable_idf_experimental_features** (*Optional*, boolean): Can be set to `true` to enable experimental features. Use of
   experimental features may cause instability or other issues.
 
@@ -368,6 +382,9 @@ esp32:
       # Filesystem and peripheral options
       disable_fatfs: true  # Saves code size (auto-enabled by SD card components)
       disable_regi2c_in_iram: true  # Saves IRAM
+
+      # ESP32 (original) only options
+      # sram1_as_iram: true  # +40 KB IRAM (requires bootloader from ESP-IDF >= 5.1)
 ```
 
 **Example for development/debugging with JTAG:**
