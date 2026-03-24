@@ -1,8 +1,9 @@
 #pragma once
 
-#include "esphome/core/component.h"
+#include "esphome/core/application.h"
 #include "esphome/core/automation.h"
-#include "esphome/core/template_lambda.h"
+#include "esphome/core/component.h"
+#include "esphome/core/log.h"
 #include "esphome/components/valve/valve.h"
 
 namespace esphome::time_based {
@@ -15,45 +16,36 @@ enum TimeBasedValveRestoreMode {
 
 class TimeBasedValve final : public valve::Valve, public Component {
  public:
-  TimeBasedValve();
-
-  template<typename F> void set_state_lambda(F &&f) { this->state_f_.set(std::forward<F>(f)); }
-  Trigger<> *get_open_trigger();
-  Trigger<> *get_close_trigger();
-  Trigger<> *get_stop_trigger();
-  Trigger<> *get_toggle_trigger();
-  Trigger<float> *get_position_trigger();
-  void set_optimistic(bool optimistic);
-  void set_assumed_state(bool assumed_state);
-  void set_has_stop(bool has_stop);
-  void set_has_position(bool has_position);
-  void set_has_toggle(bool has_toggle);
-  void set_restore_mode(TimeBasedValveRestoreMode restore_mode) { restore_mode_ = restore_mode; }
-
   void setup() override;
   void loop() override;
   void dump_config() override;
-
   float get_setup_priority() const override;
+
+  Trigger<> *get_open_trigger();
+  Trigger<> *get_close_trigger();
+  Trigger<> *get_stop_trigger();
+  void set_restore_mode(TimeBasedValveRestoreMode restore_mode) { restore_mode_ = restore_mode; }
 
  protected:
   void control(const valve::ValveCall &call) override;
   valve::ValveTraits get_traits() override;
+
   void stop_prev_trigger_();
+  void start_direction_(valve::ValveOperation dir);
+  bool is_at_target_() const;
+  void recompute_position_();
 
   TimeBasedValveRestoreMode restore_mode_{VALVE_NO_RESTORE};
-  TemplateLambda<float> state_f_;
-  bool assumed_state_{false};
-  bool optimistic_{false};
+  uint32_t duration_;
+  uint32_t last_publish_time_{0};
+  uint32_t last_recompute_time_{0};
+  valve::ValveOperation last_operation_{valve::VALVE_OPERATION_OPENING};
+  uint32_t start_dir_time_{0};
+  float target_position_{0};
   Trigger<> open_trigger_;
   Trigger<> close_trigger_;
-  bool has_stop_{false};
-  bool has_toggle_{false};
   Trigger<> stop_trigger_;
-  Trigger<> toggle_trigger_;
   Trigger<> *prev_command_trigger_{nullptr};
-  Trigger<float> position_trigger_;
-  bool has_position_{false};
 };
 
 }  // namespace esphome::time_based
