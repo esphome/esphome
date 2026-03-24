@@ -283,6 +283,8 @@ def _walk_packages(
             if not validate_deprecated:
                 raise result
             # Fallback: treat the dict as a single deprecated package.
+            # Note: this catches *any* cv.Invalid from the callback, which may
+            # mask real validation errors in named package dicts.
             # This block can be removed once the single-package
             # deprecation period (2026.7.0) is over.
             config[CONF_PACKAGES] = [packages]
