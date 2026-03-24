@@ -346,6 +346,30 @@ def _substitute_package_definition(
     return package_config
 
 
+def _update_substitutions_context(
+    parent_context: dict[str, Any],
+    package_substitutions: dict[str, Any],
+) -> None:
+    """Resolve and add new substitutions to the parent context.
+
+    Skips keys already present (higher-priority sources win).
+    String values are substituted against the current context so that
+    cross-references between substitutions are expanded when possible.
+    """
+    for key, value in package_substitutions.items():
+        if key in parent_context:
+            continue
+        if isinstance(value, str):
+            parent_context[key] = substitute(
+                item=value,
+                path=[CONF_SUBSTITUTIONS, key],
+                parent_context=parent_context,
+                strict_undefined=False,
+            )
+        else:
+            parent_context[key] = value
+
+
 def do_packages_pass(
     config: dict,
     command_line_substitutions: dict[str, Any] | None = None,
@@ -366,54 +390,31 @@ def do_packages_pass(
     # from packages with higher priority.
     parent_context = UserDict(command_line_substitutions or {})
 
-    def update_substitutions_context(package_substitutions: dict[str, Any]) -> None:
-        for key, value in package_substitutions.items():
-            if key in parent_context:
-                continue
-            if isinstance(value, str):
-                parent_context[key] = substitute(
-                    item=value,
-                    path=[CONF_SUBSTITUTIONS, key],
-                    parent_context=parent_context,
-                    strict_undefined=False,
-                )
-            else:
-                parent_context[key] = value
-
     def process_package_callback(package_config: dict | str, context_vars: Any) -> dict:
         """This will be called for each package found in the config."""
         package_config = _substitute_package_definition(package_config, context_vars)
-
         package_config = PACKAGE_SCHEMA(package_config)
 
         if is_remote_package(package_config):
-            # This is a remote package definition. Replace it with the actual package contents:
             package_config = _process_remote_package(package_config, skip_update)
 
         # Extract substitutions from the package and merge them into the main substitutions:
         package_substitutions = package_config.pop(CONF_SUBSTITUTIONS, {})
         if package_substitutions:
             substitutions.data = merge_config(package_substitutions, substitutions.data)
-            update_substitutions_context(package_substitutions)
+            _update_substitutions_context(parent_context, package_substitutions)
 
         if CONF_PACKAGES not in package_config:
-            # This package has no nested packages, so we're done.
             return package_config
 
-        # push context in case there are vars in the root of the config, as a result of an
-        # !include with vars
+        # Push context from !include vars on the package root and on the packages key itself
         context_vars = push_context(package_config, context_vars)
-
-        # push context in case the contents of the `packages` keys comes from an include with vars:
-        # packages: !include package_list.yaml (with vars)
         context_vars = push_context(package_config[CONF_PACKAGES], context_vars)
-
         return _walk_packages(package_config, process_package_callback, context_vars)
 
-    update_substitutions_context(substitutions)
+    _update_substitutions_context(parent_context, substitutions)
 
     context_vars = push_context(config[CONF_PACKAGES], ContextVars(parent_context))
-
     _walk_packages(config, process_package_callback, context_vars)
 
     if substitutions:
