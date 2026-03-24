@@ -458,9 +458,6 @@ def _get_custom_build_dir(item: Path, data_dir: Path) -> Path | None:
     build_path = esphome_conf.get("build_path")
     if build_path:
         return data_dir / build_path
-    name = esphome_conf.get("name", "")
-    if "ESPHOME_BUILD_PATH" in os.environ and name:
-        return data_dir / Path(get_str_env("ESPHOME_BUILD_PATH", "build")) / name
     return None
 
 
@@ -480,6 +477,8 @@ def clean_all(configuration: list[str]):
         data_dirs.append(Path("/data"))
     if "ESPHOME_DATA_DIR" in os.environ:
         data_dirs.append(Path(get_str_env("ESPHOME_DATA_DIR", None)))
+    if "ESPHOME_BUILD_PATH" in os.environ:
+        data_dirs.append(Path(get_str_env("ESPHOME_BUILD_PATH", "build")))
 
     # Clean build dir
     for dir in data_dirs:
