@@ -19,6 +19,7 @@ from esphome.const import (
 from .. import CONF_BATTERY, CONF_PYLONTECH_ID, PYLONTECH_COMPONENT_SCHEMA, pylontech_ns
 
 PylontechSensor = pylontech_ns.class_("PylontechSensor", cg.Component)
+PylontechCellSensor = pylontech_ns.class_("PylontechCellSensor")
 
 CONF_COULOMB = "coulomb"
 CONF_TEMPERATURE_LOW = "temperature_low"
@@ -26,6 +27,8 @@ CONF_TEMPERATURE_HIGH = "temperature_high"
 CONF_VOLTAGE_LOW = "voltage_low"
 CONF_VOLTAGE_HIGH = "voltage_high"
 CONF_MOS_TEMPERATURE = "mos_temperature"
+CONF_CELLS = "cells"
+CONF_CELL = "cell"
 
 NUM_CELLS = 15
 
@@ -78,25 +81,35 @@ TYPES: dict[str, cv.Schema] = {
     ),
 }
 
-# Cell-level sensors from the "bat N" command (cell_0_voltage .. cell_14_voltage, etc.)
-CELL_TYPES: dict[str, cv.Schema] = {}
-for _i in range(NUM_CELLS):
-    CELL_TYPES[f"cell_{_i}_voltage"] = sensor.sensor_schema(
-        unit_of_measurement=UNIT_VOLT,
-        accuracy_decimals=3,
-        device_class=DEVICE_CLASS_VOLTAGE,
-    )
-    CELL_TYPES[f"cell_{_i}_temperature"] = sensor.sensor_schema(
-        unit_of_measurement=UNIT_CELSIUS,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_TEMPERATURE,
-    )
+# Cell-level sensor schema (nested under "cells:" list)
+CELL_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(PylontechCellSensor),
+        cv.Required(CONF_CELL): cv.int_range(min=0, max=NUM_CELLS - 1),
+        cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
+            unit_of_measurement=UNIT_VOLT,
+            accuracy_decimals=3,
+            device_class=DEVICE_CLASS_VOLTAGE,
+        ),
+        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+            unit_of_measurement=UNIT_CELSIUS,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_TEMPERATURE,
+        ),
+    }
+)
 
-ALL_TYPES = {**TYPES, **CELL_TYPES}
-
-CONFIG_SCHEMA = PYLONTECH_COMPONENT_SCHEMA.extend(
-    {cv.GenerateID(): cv.declare_id(PylontechSensor)}
-).extend({cv.Optional(marker): schema for marker, schema in ALL_TYPES.items()})
+CONFIG_SCHEMA = (
+    PYLONTECH_COMPONENT_SCHEMA.extend(
+        {cv.GenerateID(): cv.declare_id(PylontechSensor)}
+    )
+    .extend({cv.Optional(marker): schema for marker, schema in TYPES.items()})
+    .extend(
+        {
+            cv.Optional(CONF_CELLS): cv.ensure_list(CELL_SCHEMA),
+        }
+    )
+)
 
 
 async def to_code(config):
@@ -109,21 +122,20 @@ async def to_code(config):
             sens = await sensor.new_sensor(marker_config)
             cg.add(getattr(bat, f"set_{marker}_sensor")(sens))
 
-    # Register cell sensors and request cell data from the parent component
-    has_cells = False
-    for i in range(NUM_CELLS):
-        v_key = f"cell_{i}_voltage"
-        t_key = f"cell_{i}_temperature"
-        if v_config := config.get(v_key):
-            sens = await sensor.new_sensor(v_config)
-            cg.add(bat.set_cell_voltage_sensor(i, sens))
-            has_cells = True
-        if t_config := config.get(t_key):
-            sens = await sensor.new_sensor(t_config)
-            cg.add(bat.set_cell_temperature_sensor(i, sens))
-            has_cells = True
-
-    if has_cells:
-        cg.add(paren.request_cell_data(config[CONF_BATTERY]))
-
     cg.add(paren.register_listener(bat))
+
+    # Register cell sensors as individual listeners
+    if CONF_CELLS in config:
+        cg.add(paren.set_cell_data_enabled(True))
+        cg.add(paren.request_cell_data(config[CONF_BATTERY]))
+        for cell_config in config[CONF_CELLS]:
+            cell = cg.new_Pvariable(
+                cell_config[CONF_ID], config[CONF_BATTERY], cell_config[CONF_CELL]
+            )
+            if v_config := cell_config.get(CONF_VOLTAGE):
+                sens = await sensor.new_sensor(v_config)
+                cg.add(cell.set_voltage_sensor(sens))
+            if t_config := cell_config.get(CONF_TEMPERATURE):
+                sens = await sensor.new_sensor(t_config)
+                cg.add(cell.set_temperature_sensor(sens))
+            cg.add(paren.register_listener(cell))

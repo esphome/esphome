@@ -10,7 +10,6 @@ namespace esphome {
 namespace pylontech {
 
 static const uint8_t NUM_BUFFERS = 32;
-static const uint8_t NUM_CELLS = 15;
 static const uint8_t TEXT_SENSOR_MAX_LEN = 14;
 
 class PylontechListener {
@@ -51,6 +50,9 @@ class PylontechComponent : public PollingComponent, public uart::UARTDevice {
 
   void register_listener(PylontechListener *listener) { this->listeners_.push_back(listener); }
 
+  void set_cell_data_enabled(bool enabled) { this->cell_data_enabled_ = enabled; }
+  bool is_cell_data_enabled() const { return this->cell_data_enabled_; }
+
   /// Register a battery number for cell-level data retrieval via the "bat N" command.
   void request_cell_data(int bat_num) {
     if (std::find(this->bat_batteries_.begin(), this->bat_batteries_.end(), bat_num) == this->bat_batteries_.end()) {
@@ -80,6 +82,7 @@ class PylontechComponent : public PollingComponent, public uart::UARTDevice {
   std::vector<int> bat_batteries_{};
   int current_bat_index_ = 0;
   bool send_next_bat_ = false;
+  bool cell_data_enabled_ = false;
 };
 
 }  // namespace pylontech

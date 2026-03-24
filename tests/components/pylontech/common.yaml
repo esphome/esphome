@@ -15,14 +15,17 @@ sensor:
     mos_temperature:
       id: pyl01_mos_temperature
     # Cell-level sensors from "bat N" command
-    cell_0_voltage:
-      id: pyl01_cell_0_voltage
-    cell_0_temperature:
-      id: pyl01_cell_0_temperature
-    cell_14_voltage:
-      id: pyl01_cell_14_voltage
-    cell_14_temperature:
-      id: pyl01_cell_14_temperature
+    cells:
+      - cell: 0
+        voltage:
+          id: pyl01_cell_0_voltage
+        temperature:
+          id: pyl01_cell_0_temperature
+      - cell: 14
+        voltage:
+          id: pyl01_cell_14_voltage
+        temperature:
+          id: pyl01_cell_14_temperature
   - platform: pylontech
     pylontech_id: pylontech1
     battery: 1

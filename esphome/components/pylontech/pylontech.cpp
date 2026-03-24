@@ -53,7 +53,9 @@ static auto make_tokenizer(const char *&cursor) {
   };
 }
 
+void PylontechListener::on_line_read(LineContents *line) {}
 void PylontechListener::on_cell_line_read(CellLineContents *line) {}
+void PylontechListener::dump_config() {}
 
 PylontechComponent::PylontechComponent() {}
 
@@ -147,7 +149,7 @@ void PylontechComponent::process_line_(std::string &buffer) {
   // Check for end-of-response marker "$$"
   if (buffer.find("$$") != std::string::npos) {
     if (this->state_ == State::PWR_SENT) {
-      if (!this->bat_batteries_.empty()) {
+      if (this->cell_data_enabled_ && !this->bat_batteries_.empty()) {
         this->current_bat_index_ = 0;
         this->send_next_bat_ = true;
       } else {
@@ -247,7 +249,16 @@ void PylontechComponent::parse_pwr_line_(std::string &buffer) {
   get_token(token_buf);  // Skip Time
   get_token(token_buf);  // Skip B.V.St
   get_token(token_buf);  // Skip B.T.St
-  PARSE_INT(l.mostempr, "Mostempr");
+  {
+    get_token(token_buf);
+    if (token_buf[0] != '-' || token_buf[1] != '\0') {
+      auto val = parse_number<int>(token_buf);
+      if (val.has_value()) {
+        l.mostempr = val.value();
+      }
+    }
+    // MosTempr may be "-" for batteries without MOS temperature sensor
+  }
 
   ESP_LOGD(TAG, "successful line %s", buffer.substr(0, buffer.size() - 2).c_str());
 
