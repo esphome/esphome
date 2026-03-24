@@ -19,6 +19,10 @@ template<typename T> bool increment_time_value(T &current, uint16_t begin, uint1
 
 uint8_t days_in_month(uint8_t month, uint16_t year);
 
+/// Calculate day of week from date fields.
+/// Returns 1=Sunday, 2=Monday, ..., 7=Saturday (ESPTime convention).
+uint8_t day_of_week(uint16_t year, uint8_t month, uint8_t day);
+
 /// A more user-friendly version of struct tm from time.h
 struct ESPTime {
   /// Buffer size required for strftime output

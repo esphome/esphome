@@ -12,6 +12,24 @@ uint8_t days_in_month(uint8_t month, uint16_t year) {
   return DAYS_IN_MONTH[month];
 }
 
+uint8_t day_of_week(uint16_t year, uint8_t month, uint8_t day) {
+  // Tomohiko Sakamoto's algorithm
+  static constexpr uint8_t OFFSETS[] = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
+  static constexpr int DAYS_PER_WEEK = 7;
+  static constexpr int MARCH = 3;
+  static constexpr int LEAP_CYCLE_4 = 4;
+  static constexpr int LEAP_CYCLE_100 = 100;
+  static constexpr int LEAP_CYCLE_400 = 400;
+  int y = year;
+  if (month < MARCH)
+    y--;
+  // Algorithm returns 0=Sunday..6=Saturday; +1 for ESPTime's 1=Sunday..7=Saturday
+  return static_cast<uint8_t>(
+             (y + y / LEAP_CYCLE_4 - y / LEAP_CYCLE_100 + y / LEAP_CYCLE_400 + OFFSETS[month - 1] + day) %
+             DAYS_PER_WEEK) +
+         1;
+}
+
 size_t ESPTime::strftime(char *buffer, size_t buffer_len, const char *format) {
   struct tm c_tm = this->to_c_tm();
   return ::strftime(buffer, buffer_len, format, &c_tm);
