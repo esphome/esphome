@@ -17,7 +17,46 @@ uint8_t day_of_week(uint16_t year, uint8_t month, uint8_t day) {
     return 0;  // invalid
   // Tomohiko Sakamoto's algorithm
   // https://en.wikipedia.org/wiki/Determination_of_the_day_of_the_week#Sakamoto's_methods
-  static constexpr uint8_t OFFSETS[] = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
+  // Month offsets encoded in a switch to avoid a lookup table in RAM on ESP8266
+  uint8_t offset;
+  switch (month) {
+    case 1:
+      offset = 0;
+      break;  // January
+    case 2:
+      offset = 3;
+      break;  // February
+    case 3:
+      offset = 2;
+      break;  // March
+    case 4:
+      offset = 5;
+      break;  // April
+    case 5:
+      offset = 0;
+      break;  // May
+    case 6:
+      offset = 3;
+      break;  // June
+    case 7:
+      offset = 5;
+      break;  // July
+    case 8:
+      offset = 1;
+      break;  // August
+    case 9:
+      offset = 4;
+      break;  // September
+    case 10:
+      offset = 6;
+      break;  // October
+    case 11:
+      offset = 2;
+      break;  // November
+    default:
+      offset = 4;
+      break;  // December
+  }
   static constexpr int DAYS_PER_WEEK = 7;
   static constexpr int MARCH = 3;
   static constexpr int LEAP_CYCLE_4 = 4;
@@ -27,9 +66,8 @@ uint8_t day_of_week(uint16_t year, uint8_t month, uint8_t day) {
   if (month < MARCH)
     y--;
   // Algorithm returns 0=Sunday..6=Saturday; +1 for ESPTime's 1=Sunday..7=Saturday
-  return static_cast<uint8_t>(
-             (y + y / LEAP_CYCLE_4 - y / LEAP_CYCLE_100 + y / LEAP_CYCLE_400 + OFFSETS[month - 1] + day) %
-             DAYS_PER_WEEK) +
+  return static_cast<uint8_t>((y + y / LEAP_CYCLE_4 - y / LEAP_CYCLE_100 + y / LEAP_CYCLE_400 + offset + day) %
+                              DAYS_PER_WEEK) +
          1;
 }
 
