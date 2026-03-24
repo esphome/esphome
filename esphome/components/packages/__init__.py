@@ -242,13 +242,14 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
             packages[f"{filename}{idx}"] = new_yaml
         return packages
 
+    if revert is None:
+        return {"packages": get_packages(files)}
+
+    # If loading fails, the cached checkout may be stale — revert and retry once.
     try:
         return {"packages": get_packages(files)}
     except cv.Invalid:
-        if revert is None:
-            raise
-    # Cached checkout may be stale — revert and retry once.
-    revert()
+        revert()
     try:
         return {"packages": get_packages(files)}
     except cv.Invalid as err:

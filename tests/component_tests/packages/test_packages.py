@@ -1122,6 +1122,35 @@ def test_merge_packages_invalid_nested_type_raises() -> None:
         merge_packages(config)
 
 
+@patch("esphome.yaml_util.load_yaml")
+@patch("pathlib.Path.is_file")
+@patch("esphome.git.clone_or_update")
+def test_remote_packages_no_revert(
+    mock_clone_or_update, mock_is_file, mock_load_yaml
+) -> None:
+    """Remote packages with revert=None load without retry logic."""
+    mock_clone_or_update.return_value = (Path("/tmp/noexists"), None)
+    mock_is_file.return_value = True
+    mock_load_yaml.return_value = OrderedDict(
+        {CONF_SENSOR: [{CONF_PLATFORM: TEST_SENSOR_PLATFORM_1, CONF_NAME: "test"}]}
+    )
+
+    config = {
+        CONF_PACKAGES: {
+            "pkg": {
+                CONF_URL: "https://github.com/esphome/repo",
+                CONF_REF: "main",
+                CONF_FILES: [{CONF_PATH: "file.yaml"}],
+                CONF_REFRESH: "1d",
+            }
+        }
+    }
+    actual = packages_pass(config)
+    assert actual[CONF_SENSOR] == [
+        {CONF_PLATFORM: TEST_SENSOR_PLATFORM_1, CONF_NAME: "test"}
+    ]
+
+
 def test_raw_config_contains_merged_esphome_from_package(tmp_path) -> None:
     """Test that CORE.raw_config contains esphome section from merged package.
 
