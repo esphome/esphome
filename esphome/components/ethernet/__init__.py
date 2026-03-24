@@ -166,6 +166,7 @@ _IDF6_ETHERNET_COMPONENTS: dict[str, IDFRegistryComponent] = {
 # These types are always external IDF components (never built-in to ESP-IDF)
 _ALWAYS_EXTERNAL_IDF_COMPONENTS = {"LAN8670", "ENC28J60"}
 
+# ESP32-only SPI ethernet types (W5100 is RP2040-only, no ESP-IDF driver)
 SPI_ETHERNET_TYPES = {"W5500", "DM9051", "ENC28J60"}
 # RP2040-supported SPI ethernet types
 RP2040_SPI_ETHERNET_TYPES = {"W5100", "W5500", "ENC28J60"}
