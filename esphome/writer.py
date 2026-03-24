@@ -472,10 +472,10 @@ def clean_all(configuration: list[str]):
             data_dirs.append(item / ".esphome")
     if is_ha_addon():
         data_dirs.append(Path("/data"))
-    if os.environ.get("ESPHOME_DATA_DIR"):
-        data_dirs.append(Path(os.environ["ESPHOME_DATA_DIR"]))
-    if os.environ.get("ESPHOME_BUILD_PATH"):
-        data_dirs.append(Path(os.environ["ESPHOME_BUILD_PATH"]))
+    if env_data_dir := os.environ.get("ESPHOME_DATA_DIR"):
+        data_dirs.append(Path(env_data_dir))
+    if env_build_path := os.environ.get("ESPHOME_BUILD_PATH"):
+        data_dirs.append(Path(env_build_path))
 
     # Clean build dir
     for dir in data_dirs:
