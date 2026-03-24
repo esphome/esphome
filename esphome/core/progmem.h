@@ -91,26 +91,6 @@ template<FixedString... Strs> struct ProgmemStringTable {
 // Forward declaration for LogString (defined in log.h)
 struct LogString;
 
-/**
- * Hides the pointer's origin from the compiler's static analysis.
- * Use this to suppress "not a nul-terminated string" warnings
- * when you know the pointer is safe.
- */
-#if __cplusplus >= 201703L
-// C++17 and above: Use the standard library
-#define LAUNDER_STR(p) std::launder(p)
-#elif defined(__GNUC__) || defined(__clang__)
-// Pre-C++17 or GCC/Clang: Use the assembly barrier
-#define LAUNDER_STR(p) \
-  ([](auto x) { \
-    __asm__("" : "+r"(x)); \
-    return x; \
-  }(p))
-#else
-// Fallback for other compilers/versions
-#define LAUNDER_STR(p) (p)
-#endif
-
 /// Instantiate a ProgmemStringTable with PROGMEM storage.
 /// Creates: Name::get_progmem_str(idx, fallback), Name::get_log_str(idx, fallback)
 /// If idx >= COUNT, returns string at fallback. Use LAST_INDEX for common patterns.
