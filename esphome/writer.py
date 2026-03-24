@@ -455,8 +455,7 @@ def _get_custom_build_dir(item: Path, data_dir: Path) -> Path | None:
     esphome_conf = raw.get("esphome", {})
     if not isinstance(esphome_conf, dict):
         return None
-    build_path = esphome_conf.get("build_path")
-    if build_path:
+    if build_path := esphome_conf.get("build_path"):
         return data_dir / build_path
     return None
 
