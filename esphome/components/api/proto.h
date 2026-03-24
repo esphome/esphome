@@ -5,6 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
 #include <cassert>
@@ -152,8 +153,7 @@ class ProtoVarInt {
 #endif
 };
 
-// Forward declarations for decode_to_message and related encoding helpers
-class ProtoDecodableMessage;
+// Forward declarations for encoding helpers
 class ProtoMessage;
 class ProtoSize;
 
@@ -166,16 +166,9 @@ class ProtoLengthDelimited {
   const uint8_t *data() const { return this->value_; }
   size_t size() const { return this->length_; }
 
-  /**
-   * Decode the length-delimited data into an existing ProtoDecodableMessage instance.
-   *
-   * This method allows decoding without templates, enabling use in contexts
-   * where the message type is not known at compile time. The ProtoDecodableMessage's
-   * decode() method will be called with the raw data and length.
-   *
-   * @param msg The ProtoDecodableMessage instance to decode into
-   */
-  void decode_to_message(ProtoDecodableMessage &msg) const;
+  /// Decode the length-delimited data into a message instance.
+  /// Template preserves concrete type so decode() resolves statically.
+  template<typename T> void decode_to_message(T &msg) const;
 
  protected:
   const uint8_t *const value_;
@@ -236,6 +229,17 @@ class ProtoWriteBuffer {
    * Following https://protobuf.dev/programming-guides/encoding/#structure
    */
   void encode_field_raw(uint32_t field_id, uint32_t type) { this->encode_varint_raw((field_id << 3) | type); }
+  /// Write a single precomputed tag byte. Tag must be < 128.
+  inline void write_raw_byte(uint8_t b) ESPHOME_ALWAYS_INLINE {
+    this->debug_check_bounds_(1);
+    *this->pos_++ = b;
+  }
+  /// Write raw bytes to the buffer (no tag, no length prefix).
+  inline void encode_raw(const void *data, size_t len) ESPHOME_ALWAYS_INLINE {
+    this->debug_check_bounds_(len);
+    std::memcpy(this->pos_, data, len);
+    this->pos_ += len;
+  }
   /// Write a precomputed tag byte + 32-bit value in one operation.
   /// Tag must be a single-byte varint (< 128). No zero check.
   inline void write_tag_and_fixed32(uint8_t tag, uint32_t value) ESPHOME_ALWAYS_INLINE {
@@ -408,6 +412,23 @@ class DumpBuffer {
     return *this;
   }
 
+  /// Append a PROGMEM string (flash-safe on ESP8266, regular append on other platforms)
+  DumpBuffer &append_p(const char *str) {
+    if (str) {
+#ifdef USE_ESP8266
+      append_p_esp8266(str);
+#else
+      append_impl_(str, strlen(str));
+#endif
+    }
+    return *this;
+  }
+
+#ifdef USE_ESP8266
+  /// Out-of-line ESP8266 PROGMEM append to avoid inlining strlen_P/memcpy_P at every call site
+  void append_p_esp8266(const char *str);
+#endif
+
   const char *c_str() const { return buf_; }
   size_t size() const { return pos_; }
 
@@ -453,7 +474,7 @@ class ProtoMessage {
   uint32_t calculate_size() const { return 0; }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   virtual const char *dump_to(DumpBuffer &out) const = 0;
-  virtual const char *message_name() const { return "unknown"; }
+  virtual const LogString *message_name() const { return LOG_STR("unknown"); }
 #endif
 
 #ifndef USE_HOST
@@ -468,7 +489,7 @@ class ProtoMessage {
 // Base class for messages that support decoding
 class ProtoDecodableMessage : public ProtoMessage {
  public:
-  virtual void decode(const uint8_t *buffer, size_t length);
+  void decode(const uint8_t *buffer, size_t length);
 
   /**
    * Count occurrences of a repeated field in a protobuf buffer.
@@ -704,8 +725,8 @@ template<typename T> inline void ProtoWriteBuffer::encode_optional_sub_message(u
   this->encode_optional_sub_message(field_id, value.calculate_size(), &value, &proto_encode_msg<T>);
 }
 
-// Implementation of decode_to_message - must be after ProtoDecodableMessage is defined
-inline void ProtoLengthDelimited::decode_to_message(ProtoDecodableMessage &msg) const {
+// Template decode_to_message - preserves concrete type so decode() resolves statically
+template<typename T> void ProtoLengthDelimited::decode_to_message(T &msg) const {
   msg.decode(this->value_, this->length_);
 }
 
