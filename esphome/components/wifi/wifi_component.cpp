@@ -2407,7 +2407,7 @@ void WiFiComponent::check_roaming_(uint32_t now) {
   // Guard: skip scan if signal is already good (no meaningful improvement possible)
   int8_t rssi = this->wifi_rssi();
   if (rssi > ROAMING_GOOD_RSSI) {
-    ESP_LOGV(TAG, "Roam check skipped, signal good (%d dBm, attempt %u/%u)", rssi, this->roaming_attempts_,
+    ESP_LOGD(TAG, "Roam check skipped, signal good (%d dBm, attempt %u/%u)", rssi, this->roaming_attempts_,
              ROAMING_MAX_ATTEMPTS);
     return;
   }
