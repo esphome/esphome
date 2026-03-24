@@ -28,7 +28,7 @@ void XDB401Component::setup() {
   float pressure;
   i2c::ErrorCode err_code = this->read_(temperature, pressure);
   if (err_code != i2c::ERROR_OK) {
-    this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
+    this->mark_failed(LOG_STR("static string literal"));
     return;
   }
   this->comm_err_counter_ = 0;
