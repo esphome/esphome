@@ -476,7 +476,7 @@ def clean_all(configuration: list[str]):
     if "ESPHOME_DATA_DIR" in os.environ:
         data_dirs.append(Path(get_str_env("ESPHOME_DATA_DIR", None)))
     if "ESPHOME_BUILD_PATH" in os.environ:
-        data_dirs.append(Path(get_str_env("ESPHOME_BUILD_PATH", "build")))
+        data_dirs.append(Path(get_str_env("ESPHOME_BUILD_PATH", None)))
 
     # Clean build dir
     for dir in data_dirs:
