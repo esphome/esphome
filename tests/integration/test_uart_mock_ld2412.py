@@ -79,9 +79,15 @@ async def test_uart_mock_ld2412(
         ],
     )
 
-    # Signal when we see recovery frame values
+    # Signal when we see all recovery frame values
     recovery_received = collector.add_waiter(
-        lambda: pytest.approx(50.0) in collector.sensor_states["moving_distance"]
+        lambda: (
+            pytest.approx(50.0) in collector.sensor_states["moving_distance"]
+            and pytest.approx(75.0) in collector.sensor_states["still_distance"]
+            and pytest.approx(100.0) in collector.sensor_states["moving_energy"]
+            and pytest.approx(80.0) in collector.sensor_states["still_energy"]
+            and pytest.approx(50.0) in collector.sensor_states["detection_distance"]
+        )
     )
 
     async with (
@@ -150,23 +156,12 @@ async def test_uart_mock_ld2412(
         )
 
         # Recovery frame: moving=50, still=75, energy=100/80, detect=50
-        recovery_idx = next(
-            i
-            for i, v in enumerate(collector.sensor_states["moving_distance"])
-            if v == pytest.approx(50.0)
-        )
-        assert collector.sensor_states["still_distance"][recovery_idx] == pytest.approx(
-            75.0
-        )
-        assert collector.sensor_states["moving_energy"][recovery_idx] == pytest.approx(
-            100.0
-        )
-        assert collector.sensor_states["still_energy"][recovery_idx] == pytest.approx(
-            80.0
-        )
-        assert collector.sensor_states["detection_distance"][
-            recovery_idx
-        ] == pytest.approx(50.0)
+        # Check values exist (waiter already ensured all are present)
+        assert pytest.approx(50.0) in collector.sensor_states["moving_distance"]
+        assert pytest.approx(75.0) in collector.sensor_states["still_distance"]
+        assert pytest.approx(100.0) in collector.sensor_states["moving_energy"]
+        assert pytest.approx(80.0) in collector.sensor_states["still_energy"]
+        assert pytest.approx(50.0) in collector.sensor_states["detection_distance"]
 
         # Verify binary sensors detected targets (from Phase 1 frame)
         assert collector.binary_states["has_target"][0] is True

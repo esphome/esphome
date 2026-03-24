@@ -152,29 +152,25 @@ inline uint8_t Logger::level_for(const char *tag) {
   return this->current_level_;
 }
 
+#ifdef USE_ESPHOME_TASK_LOG_BUFFER
+Logger::Logger(uint32_t baud_rate, size_t task_log_buffer_size) : baud_rate_(baud_rate) {
+#else
 Logger::Logger(uint32_t baud_rate) : baud_rate_(baud_rate) {
+#endif
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
   this->main_task_ = xTaskGetCurrentTaskHandle();
 #elif defined(USE_ZEPHYR)
   this->main_task_ = k_current_get();
 #elif defined(USE_HOST)
-  this->main_thread_ = pthread_self();
+this->main_thread_ = pthread_self();
 #endif
-}
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
-void Logger::init_log_buffer(size_t total_buffer_size) {
-  // Host uses slot count instead of byte size
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
-  this->log_buffer_ = new logger::TaskLogBuffer(total_buffer_size);
-
-#if !(defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
-  // Start with loop disabled when using task buffer
-  // The loop will be enabled automatically when messages arrive
-  // Zephyr with USB CDC needs loop active to poll port readiness via cdc_loop_()
-  this->disable_loop_when_buffer_empty_();
+  this->log_buffer_ = new logger::TaskLogBuffer(task_log_buffer_size);
+  // Note: we don't disable loop here because the component isn't registered with App yet.
+  // The loop self-disables on its first iteration when it finds no messages to process.
 #endif
 }
-#endif
 
 #if defined(USE_ESPHOME_TASK_LOG_BUFFER) || (defined(USE_ZEPHYR) && defined(USE_LOGGER_UART_SELECTION_USB_CDC))
 void Logger::loop() {
