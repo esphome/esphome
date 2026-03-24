@@ -125,7 +125,7 @@ struct LogString;
     static const char *get_(uint8_t idx, uint8_t fallback) { \
       if (idx >= COUNT) \
         idx = fallback; \
-      return LAUNDER_STR(&BLOB[::esphome::progmem_read_byte(&OFFSETS[idx])]); \
+      return std::launder(&BLOB[::esphome::progmem_read_byte(&OFFSETS[idx])]); \
     } \
     static ::ProgmemStr get_progmem_str(uint8_t idx, uint8_t fallback) { \
       return reinterpret_cast<::ProgmemStr>(get_(idx, fallback)); \
