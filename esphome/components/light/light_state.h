@@ -188,8 +188,9 @@ class LightState : public EntityBase, public Component {
   /// Set the restore mode of this light
   void set_restore_mode(LightRestoreMode restore_mode);
 
-  /// Set the initial state of this light
-  void set_initial_state(const LightStateRTCState &initial_state);
+  /// Set a callback to populate the initial state defaults during setup.
+  /// The callback is called once, then cleared. Values live in flash as code.
+  void set_initial_state(void (*callback)(LightStateRTCState &));
 
   /// Return whether the light has any effects that meet the trait requirements.
   bool supports_effects();
@@ -342,8 +343,9 @@ class LightState : public EntityBase, public Component {
    */
   std::unique_ptr<std::vector<LightTargetStateReachedListener *>> target_state_reached_listeners_;
 
-  /// Initial state of the light.
-  optional<LightStateRTCState> initial_state_{};
+  /// Callback to populate initial state defaults — called once during setup, then cleared.
+  /// Values live in flash as function body; no per-instance data storage beyond this pointer.
+  void (*initial_state_callback_)(LightStateRTCState &){nullptr};
 
   /// Value for storing the index of the currently active effect. 0 if no effect is active
   uint32_t active_effect_index_{};
