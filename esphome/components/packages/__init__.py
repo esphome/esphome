@@ -33,12 +33,6 @@ _LOGGER = logging.getLogger(__name__)
 DOMAIN = CONF_PACKAGES
 
 
-def validate_has_jinja(value: Any):
-    if not isinstance(value, str) or not has_jinja(value):
-        raise cv.Invalid("string does not contain Jinja syntax")
-    return value
-
-
 def is_remote_package(package_config: dict) -> bool:
     """Returns True if the package_config is a remote package definition."""
     return CONF_URL in package_config
@@ -225,13 +219,15 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
                         ESPHOME_VERSION
                     ):
                         raise cv.Invalid(
-                            f"Current ESPHome Version is too old to use this package: {ESPHOME_VERSION} < {min_version}"
+                            f"Current ESPHome Version is too old to use"
+                            f" this package: {ESPHOME_VERSION} < {min_version}"
                         )
                 new_yaml = yaml_util.add_context(new_yaml, vars)
                 packages[f"{filename}{idx}"] = new_yaml
             except EsphomeError as e:
                 raise cv.Invalid(
-                    f"{filename} is not a valid YAML file. Please check the file contents.\n{e}"
+                    f"{filename} is not a valid YAML file."
+                    f" Please check the file contents.\n{e}"
                 ) from e
         return packages
 
