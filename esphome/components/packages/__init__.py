@@ -425,6 +425,7 @@ class _PackageProcessor:
 
 def do_packages_pass(
     config: dict,
+    *,
     command_line_substitutions: dict[str, Any] | None = None,
     skip_update: bool = False,
 ) -> dict:

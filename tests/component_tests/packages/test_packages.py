@@ -986,7 +986,7 @@ def test_packages_merge_substitutions() -> None:
         },
     }
 
-    actual = do_packages_pass(config, {})
+    actual = do_packages_pass(config, command_line_substitutions={})
     assert actual == expected
 
 
