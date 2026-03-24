@@ -63,7 +63,8 @@ ESPTime DateTimeEntity::state_as_esptime() const {
   obj.hour = this->hour_;
   obj.minute = this->minute_;
   obj.second = this->second_;
-  // Compute day_of_year from month and day
+  // Compute day_of_year and day_of_week for callers that inspect these fields
+  // (e.g., strftime, to_c_tm). Not needed for timestamp calculation itself.
   uint16_t doy = 0;
   for (uint8_t i = 1; i < this->month_; i++)
     doy += days_in_month(i, this->year_);

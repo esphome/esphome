@@ -4,6 +4,7 @@
 
 #include "posix_tz.h"
 #include <cctype>
+#include "esphome/core/time.h"
 
 namespace esphome::time {
 

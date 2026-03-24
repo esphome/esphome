@@ -1272,8 +1272,8 @@ TEST(CoreDayOfWeek, NearMidnightLocalDateDiffersFromUTC) {
   EXPECT_EQ(esphome::day_of_week(2026, 3, 24), 3);  // Tuesday = 3 in ESPTime
   EXPECT_EQ(esphome::day_of_week(2026, 3, 23), 2);  // Monday = 2 in ESPTime
   // The function takes local date fields, so it always returns the correct local day_of_week
-  // regardless of what UTC day it maps to. This verifies the fix for the Copilot review
-  // that flagged computing day_of_week from UTC timestamp.
+  // regardless of what UTC day it maps to. This ensures day_of_week is derived from local
+  // calendar fields rather than from the UTC timestamp.
 }
 
 TEST(RecalcTimestampLocal, YearBoundaryDST) {
