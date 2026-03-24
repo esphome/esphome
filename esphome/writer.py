@@ -448,15 +448,22 @@ def clean_all(configuration: list[str]):
     for config in configuration:
         item = Path(config)
         if item.is_file() and item.suffix in (".yaml", ".yml"):
-            data_dirs.append(item.parent / ".esphome")
-            # Check for build_path in YAML config
+            data_dir = item.parent / ".esphome"
+            data_dirs.append(data_dir)
+            # Check for custom build_path in YAML config
             try:
                 raw = yaml_util.load_yaml(item)
                 if isinstance(raw, dict):
-                    build_path = raw.get("esphome", {}).get("build_path")
-                    if build_path:
-                        data_dirs.append(Path(build_path))
-            except Exception:
+                    esphome_conf = raw.get("esphome", {})
+                    if isinstance(esphome_conf, dict):
+                        build_path = esphome_conf.get("build_path")
+                        name = esphome_conf.get("name", "")
+                        if build_path:
+                            data_dirs.append(data_dir / build_path)
+                        elif "ESPHOME_BUILD_PATH" in os.environ and name:
+                            env_path = Path(get_str_env("ESPHOME_BUILD_PATH", "build"))
+                            data_dirs.append(data_dir / env_path / name)
+            except (EsphomeError, OSError):
                 pass
         else:
             data_dirs.append(item / ".esphome")
@@ -464,8 +471,6 @@ def clean_all(configuration: list[str]):
         data_dirs.append(Path("/data"))
     if "ESPHOME_DATA_DIR" in os.environ:
         data_dirs.append(Path(get_str_env("ESPHOME_DATA_DIR", None)))
-    if "ESPHOME_BUILD_PATH" in os.environ:
-        data_dirs.append(Path(get_str_env("ESPHOME_BUILD_PATH", None)))
 
     # Clean build dir
     for dir in data_dirs:

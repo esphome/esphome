@@ -872,11 +872,11 @@ def test_clean_all_with_yaml_build_path(
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test clean_all cleans build_path specified in YAML config."""
+    """Test clean_all cleans absolute build_path specified in YAML config."""
     config_dir = tmp_path / "config"
     config_dir.mkdir()
 
-    # Create a custom build path directory with contents
+    # Create an absolute custom build path directory with contents
     custom_build = tmp_path / "custom_build"
     custom_build.mkdir()
     (custom_build / "firmware.bin").write_text("x")
@@ -885,6 +885,7 @@ def test_clean_all_with_yaml_build_path(
     (sub / "file.txt").write_text("x")
 
     yaml_file = config_dir / "test.yaml"
+    # Absolute build_path: data_dir / absolute = absolute (Python Path behavior)
     yaml_file.write_text(f"esphome:\n  name: test\n  build_path: {custom_build}\n")
 
     # Also create the normal .esphome dir
@@ -937,7 +938,7 @@ def test_clean_all_with_env_build_path(
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test clean_all cleans ESPHOME_BUILD_PATH directory."""
+    """Test clean_all cleans ESPHOME_BUILD_PATH/<name> directory."""
     config_dir = tmp_path / "config"
     config_dir.mkdir()
 
@@ -945,23 +946,31 @@ def test_clean_all_with_env_build_path(
     build_dir.mkdir()
     (build_dir / "dummy.txt").write_text("x")
 
-    # Create env build path directory
-    env_build = tmp_path / "env_build"
+    # ESPHOME_BUILD_PATH is a base; actual build dir is <base>/<name>
+    # With absolute path: data_dir / absolute / name = absolute / name
+    env_base = tmp_path / "env_builds"
+    env_base.mkdir()
+    env_build = env_base / "mydevice"
     env_build.mkdir()
     (env_build / "firmware.bin").write_text("x")
+
+    yaml_file = config_dir / "test.yaml"
+    yaml_file.write_text("esphome:\n  name: mydevice\n")
 
     from esphome.writer import clean_all
 
     with (
         caplog.at_level("INFO"),
-        patch.dict(os.environ, {"ESPHOME_BUILD_PATH": str(env_build)}),
+        patch.dict(os.environ, {"ESPHOME_BUILD_PATH": str(env_base)}),
     ):
-        clean_all([str(config_dir)])
+        clean_all([str(yaml_file)])
 
-    # Both should be cleaned
+    # .esphome and ESPHOME_BUILD_PATH/<name> should be cleaned
     assert not (build_dir / "dummy.txt").exists()
     assert env_build.exists()
     assert not (env_build / "firmware.bin").exists()
+    # Base dir should NOT be cleaned (only per-device subdir)
+    assert env_base.exists()
 
 
 @patch("esphome.writer.CORE")
