@@ -105,6 +105,8 @@ struct LogString;
     static const char *get_(uint8_t idx, uint8_t fallback) { \
       if (idx >= COUNT) \
         idx = fallback; \
+       // std::launder is used here to prevent the inter-procedural analysis that
+       // causes the false positive that the string is not null terminated
       return std::launder(&BLOB[::esphome::progmem_read_byte(&OFFSETS[idx])]); \
     } \
     static ::ProgmemStr get_progmem_str(uint8_t idx, uint8_t fallback) { \
