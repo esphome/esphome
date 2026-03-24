@@ -1050,6 +1050,32 @@ def test_package_merge() -> None:
     assert actual == expected
 
 
+def test_packages_invalid_type_raises() -> None:
+    """Packages that are not a dict or list raise cv.Invalid."""
+    config = {
+        CONF_PACKAGES: "not_a_dict_or_list",
+    }
+    with pytest.raises(
+        cv.Invalid, match="Packages must be a key to value mapping or list"
+    ):
+        do_packages_pass(config)
+
+
+def test_merge_packages_invalid_nested_type_raises() -> None:
+    """Invalid nested packages type during merge raises cv.Invalid."""
+    config = {
+        CONF_PACKAGES: {
+            "pkg": {
+                CONF_PACKAGES: "invalid",
+            },
+        },
+    }
+    with pytest.raises(
+        cv.Invalid, match="Packages must be a key to value mapping or list"
+    ):
+        merge_packages(config)
+
+
 def test_raw_config_contains_merged_esphome_from_package(tmp_path) -> None:
     """Test that CORE.raw_config contains esphome section from merged package.
 
