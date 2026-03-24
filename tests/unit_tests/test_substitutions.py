@@ -581,6 +581,40 @@ def test_extend_substitution() -> None:
     assert config["sensor"].value == "my_sensor"
 
 
+def test_substitute_does_not_mutate_input() -> None:
+    """substitute() must return a new tree without modifying the original."""
+    inner_list = ["${var}", "static"]
+    inner_dict = OrderedDict({"key": "${var}"})
+    lam = Lambda("return ${var};")
+    config = OrderedDict(
+        {
+            "a_list": inner_list,
+            "a_dict": inner_dict,
+            "a_lambda": lam,
+            "plain": "${var}",
+        }
+    )
+    context = substitutions.ContextVars({"var": "replaced"})
+    result = substitutions.substitute(config, [], context, strict_undefined=True)
+
+    # Result has substitutions applied
+    assert result["plain"] == "replaced"
+    assert result["a_list"] == ["replaced", "static"]
+    assert result["a_dict"]["key"] == "replaced"
+    assert result["a_lambda"].value == "return replaced;"
+
+    # Original input is untouched
+    assert config["plain"] == "${var}"
+    assert inner_list == ["${var}", "static"]
+    assert inner_dict["key"] == "${var}"
+    assert lam.value == "return ${var};"
+
+    # Containers are new objects, not the originals
+    assert result["a_list"] is not inner_list
+    assert result["a_dict"] is not inner_dict
+    assert result["a_lambda"] is not lam
+
+
 def test_do_substitution_pass_substitutions_must_be_mapping_from_config() -> None:
     """Non-mapping substitutions raises cv.Invalid."""
     config = OrderedDict(
