@@ -270,32 +270,60 @@ def _walk_packages(
     if CONF_PACKAGES not in config:
         return config
     packages = config[CONF_PACKAGES]
+
+    if not isinstance(packages, (dict, list)):
+        raise cv.Invalid(
+            f"Packages must be a key to value mapping or list, got {type(packages)} instead"
+        )
+
     with cv.prepend_path(CONF_PACKAGES):
         if isinstance(packages, dict):
-            for package_name, package_config in reversed(packages.items()):
-                with cv.prepend_path(package_name):
-                    try:
-                        packages[package_name] = callback(package_config, context)
-                    except cv.Invalid as err:
-                        if not validate_deprecated:
-                            raise err
-                        # This except block can be removed once the single-package inclusion, i.e.:
-                        # packages: !include package.yaml
-                        # deprecation period is over.
-                        config[CONF_PACKAGES] = [packages]
-                        return _walk_packages(
-                            deprecate_single_package(config), callback, context
-                        )
-        elif isinstance(packages, list):
-            for idx in reversed(range(len(packages))):
-                with cv.prepend_path(idx):
-                    packages[idx] = callback(packages[idx], context)
+            result = _walk_package_dict(packages, callback, context)
+            if result is not None and validate_deprecated:
+                # Fallback: treat the dict as a single deprecated package.
+                # This except block can be removed once the single-package inclusion, i.e.:
+                # packages: !include package.yaml
+                # deprecation period is over.
+                config[CONF_PACKAGES] = [packages]
+                return _walk_packages(
+                    deprecate_single_package(config), callback, context
+                )
+            if result is not None:
+                raise result
         else:
-            raise cv.Invalid(
-                f"Packages must be a key to value mapping or list, got {type(packages)} instead"
-            )
+            _walk_package_list(packages, callback, context)
+
     config[CONF_PACKAGES] = packages
     return config
+
+
+def _walk_package_dict(
+    packages: dict,
+    callback: Callable[[dict, Any], dict],
+    context: Any,
+) -> cv.Invalid | None:
+    """Iterate a packages dict in reverse priority order, invoking callback on each entry.
+
+    Returns ``None`` on success, or the first :class:`cv.Invalid` error if a callback fails.
+    """
+    for package_name, package_config in reversed(packages.items()):
+        with cv.prepend_path(package_name):
+            try:
+                packages[package_name] = callback(package_config, context)
+            except cv.Invalid as err:
+                return err
+    return None
+
+
+def _walk_package_list(
+    packages: list,
+    callback: Callable[[dict, Any], dict],
+    context: Any,
+) -> None:
+    """Iterate a packages list in reverse priority order, invoking callback on each entry."""
+    for idx in reversed(range(len(packages))):
+        with cv.prepend_path(idx):
+            packages[idx] = callback(packages[idx], context)
 
 
 def _substitute_package_definition(
