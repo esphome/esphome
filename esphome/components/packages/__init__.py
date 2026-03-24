@@ -256,6 +256,35 @@ def _process_remote_package(config: dict, skip_update: bool = False) -> dict:
     return {CONF_PACKAGES: get_packages(files)}
 
 
+def _walk_package_dict(
+    packages: dict,
+    callback: Callable[[dict, ContextVars | None], dict],
+    context: ContextVars | None,
+) -> cv.Invalid | None:
+    """Iterate a packages dict in reverse priority order, invoking callback on each entry.
+
+    Returns ``None`` on success, or the first :class:`cv.Invalid` error if a callback fails.
+    """
+    for package_name, package_config in reversed(packages.items()):
+        with cv.prepend_path(package_name):
+            try:
+                packages[package_name] = callback(package_config, context)
+            except cv.Invalid as err:
+                return err
+    return None
+
+
+def _walk_package_list(
+    packages: list,
+    callback: Callable[[dict, ContextVars | None], dict],
+    context: ContextVars | None,
+) -> None:
+    """Iterate a packages list in reverse priority order, invoking callback on each entry."""
+    for idx in reversed(range(len(packages))):
+        with cv.prepend_path(idx):
+            packages[idx] = callback(packages[idx], context)
+
+
 def _walk_packages(
     config: dict,
     callback: Callable[[dict, ContextVars | None], dict],
@@ -293,35 +322,6 @@ def _walk_packages(
 
     config[CONF_PACKAGES] = packages
     return config
-
-
-def _walk_package_dict(
-    packages: dict,
-    callback: Callable[[dict, ContextVars | None], dict],
-    context: ContextVars | None,
-) -> cv.Invalid | None:
-    """Iterate a packages dict in reverse priority order, invoking callback on each entry.
-
-    Returns ``None`` on success, or the first :class:`cv.Invalid` error if a callback fails.
-    """
-    for package_name, package_config in reversed(packages.items()):
-        with cv.prepend_path(package_name):
-            try:
-                packages[package_name] = callback(package_config, context)
-            except cv.Invalid as err:
-                return err
-    return None
-
-
-def _walk_package_list(
-    packages: list,
-    callback: Callable[[dict, ContextVars | None], dict],
-    context: ContextVars | None,
-) -> None:
-    """Iterate a packages list in reverse priority order, invoking callback on each entry."""
-    for idx in reversed(range(len(packages))):
-        with cv.prepend_path(idx):
-            packages[idx] = callback(packages[idx], context)
 
 
 def _substitute_package_definition(
