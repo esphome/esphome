@@ -231,17 +231,11 @@ void ESPTime::increment_day() {
 
 void ESPTime::recalc_timestamp_utc(bool use_day_of_year) {
   time_t res = 0;
-  // Validate only the fields actually used for timestamp calculation.
-  // day_of_week is never used; day_of_year is only used when use_day_of_year is true.
-  if (this->second >= 61 || this->minute >= 60 || this->hour >= 24 || this->month == 0 || this->month > 12) {
+  if (!this->fields_in_range(false)) {
     this->timestamp = -1;
     return;
   }
   if (use_day_of_year && (this->day_of_year == 0 || this->day_of_year > 366)) {
-    this->timestamp = -1;
-    return;
-  }
-  if (!use_day_of_year && (this->day_of_month == 0 || this->day_of_month > days_in_month(this->month, this->year))) {
     this->timestamp = -1;
     return;
   }
