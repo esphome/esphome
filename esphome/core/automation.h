@@ -512,16 +512,23 @@ template<typename... Ts> class Automation {
 
   // Force-inline: part of the Trigger→Automation→ActionList forwarding
   // chain collapsed to reduce automation call stack depth.
-  inline void trigger(const Ts &...x) ESPHOME_ALWAYS_INLINE { this->actions_.play(x...); }
+  inline void trigger(const Ts &...x) ESPHOME_ALWAYS_INLINE {
+    this->executing_++;
+    this->actions_.play(x...);
+    this->executing_--;
+  }
 
-  bool is_running() { return this->actions_.is_running(); }
+  /// Tracks both synchronous execution (executing_ > 0) and deferred actions.
+  bool is_running() { return this->executing_ > 0 || this->actions_.is_running(); }
 
-  /// Return the number of actions in the action part of this automation that are currently running.
-  int num_running() { return this->actions_.num_running(); }
+  /// Count of concurrent executions: synchronous depth + deferred action count.
+  int num_running() { return this->executing_ + this->actions_.num_running(); }
 
  protected:
   Trigger<Ts...> *trigger_;
   ActionList<Ts...> actions_;
+  /// Tracks synchronous execution depth for reentrant safety (e.g., script calling itself).
+  int executing_{0};
 };
 
 }  // namespace esphome
