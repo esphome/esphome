@@ -1061,6 +1061,52 @@ def test_packages_invalid_type_raises() -> None:
         do_packages_pass(config)
 
 
+@pytest.mark.parametrize(
+    "invalid_package",
+    [
+        6,
+        "some string",
+        True,
+    ],
+)
+def test_invalid_package_contents_rejected(invalid_package: object) -> None:
+    """Invalid package contents are rejected by PACKAGE_SCHEMA during do_packages_pass."""
+    config = {
+        CONF_PACKAGES: {
+            "some_package": invalid_package,
+        },
+    }
+    with pytest.raises(cv.Invalid):
+        do_packages_pass(config)
+
+
+@pytest.mark.xfail(
+    reason="Deprecated single-package fallback swallows these errors. "
+    "Remove xfail when single-package deprecation is removed (2026.7.0).",
+    strict=True,
+)
+@pytest.mark.parametrize(
+    "invalid_package",
+    [
+        None,
+        ["some string"],
+        {"some_component": 8},
+        {3: 2},
+    ],
+)
+def test_invalid_package_contents_masked_by_deprecation(
+    invalid_package: object,
+) -> None:
+    """These invalid packages are swallowed by the deprecated single-package fallback."""
+    config = {
+        CONF_PACKAGES: {
+            "some_package": invalid_package,
+        },
+    }
+    with pytest.raises(cv.Invalid):
+        do_packages_pass(config)
+
+
 def test_merge_packages_invalid_nested_type_raises() -> None:
     """Invalid nested packages type during merge raises cv.Invalid."""
     config = {
