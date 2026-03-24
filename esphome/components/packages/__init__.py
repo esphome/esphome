@@ -44,35 +44,35 @@ def is_remote_package(package_config: Any) -> bool:
     return CONF_URL in package_config
 
 
-def valid_package_contents(package_config: Any | dict) -> dict:
+def valid_package_contents(package_config: dict) -> dict:
     """Checks if a package_config that will be merged looks as
     much as possible to a valid config to fail early on obvious mistakes.
     """
 
-    if isinstance(package_config, dict):
-        if is_remote_package(package_config):
-            # Package contents must not contain a root `url:` key
-            raise cv.Invalid("Remote package schema not expected here")
+    if not isinstance(package_config, dict):
+        raise cv.Invalid("Package contents must be a dict")
 
-        # Validate manually since Voluptuous would regenerate dicts and lose metadata
-        # such as ESPHomeDataBase
-        for k, v in package_config.items():
-            if not isinstance(k, str):
-                raise cv.Invalid("Package content keys must be strings")
-            if isinstance(v, (dict, list, Remove)):
-                continue  # e.g. script: [], psram: !remove, logger: {level: debug}
-            if v is None:
-                continue  # e.g. web_server:
-            if isinstance(v, str) and has_jinja(v):
-                # e.g: remote package shorthand:
-                # package_name: github://esphome/repo/file.yaml@${ branch }, or:
-                # switch: ${ expression that evals to a switch }
-                continue
+    if is_remote_package(package_config):
+        # Package contents must not contain a root `url:` key
+        raise cv.Invalid("Remote package schema not expected here")
 
-            raise cv.Invalid("Invalid component content in package definition")
-        return package_config
+    # Validate manually since Voluptuous would regenerate dicts and lose metadata
+    # such as ESPHomeDataBase
+    for k, v in package_config.items():
+        if not isinstance(k, str):
+            raise cv.Invalid("Package content keys must be strings")
+        if isinstance(v, (dict, list, Remove)):
+            continue  # e.g. script: [], psram: !remove, logger: {level: debug}
+        if v is None:
+            continue  # e.g. web_server:
+        if isinstance(v, str) and has_jinja(v):
+            # e.g: remote package shorthand:
+            # package_name: github://esphome/repo/file.yaml@${ branch }, or:
+            # switch: ${ expression that evals to a switch }
+            continue
 
-    raise cv.Invalid("Package contents must be a dict")
+        raise cv.Invalid("Invalid component content in package definition")
+    return package_config
 
 
 def expand_file_to_files(config: dict):
@@ -261,7 +261,12 @@ def _walk_packages(
     context: Any = None,
     validate_deprecated: bool = True,
 ) -> dict:
-    """Walks the packages structure in priority order, invoking `callback` on each package definition found."""
+    """Walks the packages structure in priority order, invoking ``callback`` on each package definition found.
+
+    This function only iterates over the immediate ``packages:`` entries in *config*.
+    If packages may contain nested ``packages:`` keys, the *callback* is responsible
+    for recursing by calling ``_walk_packages`` on the returned package config.
+    """
     if CONF_PACKAGES not in config:
         return config
     packages = config[CONF_PACKAGES]
@@ -301,10 +306,8 @@ def _substitute_package_definition(
     This does not substitute inside the package contents itself, only the remote package definition fields
     because the remote package has not been even been downloaded yet."""
 
-    if (
-        isinstance(package_config, str)
-        or isinstance(package_config, dict)
-        and is_remote_package(package_config)
+    if isinstance(package_config, str) or (
+        isinstance(package_config, dict) and is_remote_package(package_config)
     ):
         package_config = substitute(
             item=package_config,
