@@ -93,15 +93,20 @@ void EthernetComponent::loop() {
   const uint32_t now = App.get_loop_component_start_time();
 
   // Throttle link/IP polling to avoid excessive SPI transactions.
-  // W5500 reads PHY register via SPI on every linkStatus() call.
-  // W5100 can't detect link (isLinkDetectable() is false, returns Unknown).
+  // W5500/ENC28J60 read PHY register via SPI on every linkStatus() call.
+  // W5100 can't detect link state, so we skip the SPI read and assume link-up.
   // connected() reads netif->ip_addr without LwIPLock, but this is a single
   // 32-bit aligned read (atomic on ARM) — worst case is a one-iteration-stale
   // value, which is benign for polling.
   if (this->eth_ != nullptr && now - this->last_link_check_ >= LINK_CHECK_INTERVAL) {
     this->last_link_check_ = now;
-    // W5100 returns Unknown (isLinkDetectable() is false), treat as link-up
-    bool link_up = this->eth_->linkStatus() != LinkOFF;
+#if defined(USE_ETHERNET_W5100)
+    // W5100 can't detect link (isLinkDetectable() returns false), so linkStatus()
+    // returns Unknown — assume link is up after successful begin()
+    bool link_up = true;
+#else
+    bool link_up = this->eth_->linkStatus() == LinkON;
+#endif
     bool has_ip = this->eth_->connected();
 
     if (!link_up) {
