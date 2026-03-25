@@ -25,7 +25,7 @@ from esphome.const import (
 )
 from esphome.types import ConfigType
 
-from .. import CONF_EMONTX_ID, CONF_TAG_NAME, EmonTx, emontx_ns, register_sensor
+from .. import CONF_EMONTX_ID, CONF_TAG_NAME, EmonTx, emontx_ns
 
 EmonTxSensor = emontx_ns.class_("EmonTxSensor", sensor.Sensor, cg.Component)
 
@@ -122,12 +122,7 @@ def apply_tag_defaults(config):
     return config
 
 
-def _register_with_hub(config: ConfigType) -> ConfigType:
-    register_sensor(str(config[CONF_EMONTX_ID]))
-    return config
-
-
-CONFIG_SCHEMA = cv.All(BASE_SCHEMA, apply_tag_defaults, _register_with_hub)
+CONFIG_SCHEMA = cv.All(BASE_SCHEMA, apply_tag_defaults)
 
 
 async def to_code(config: ConfigType) -> None:

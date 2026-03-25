@@ -56,12 +56,6 @@ def _get_data() -> EmonTxData:
     return CORE.data[DOMAIN]
 
 
-def register_sensor(hub_id: str) -> None:
-    """Called by the sensor platform to register itself with its hub."""
-    data = _get_data()
-    data.sensor_counts[hub_id] = data.sensor_counts.get(hub_id, 0) + 1
-
-
 # Main configuration schema
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -88,6 +82,15 @@ CONFIG_SCHEMA = (
 
 def final_validate(config: ConfigType) -> ConfigType:
     full_config = fv.full_config.get()
+
+    # Count sensors registered to this hub (IDs are resolved at final_validate stage)
+    hub_id = str(config[CONF_ID])
+    sensor_count = sum(
+        1
+        for s in full_config.get("sensor", [])
+        if s.get("platform") == "emontx" and str(s.get(CONF_EMONTX_ID)) == hub_id
+    )
+    _get_data().sensor_counts[hub_id] = sensor_count
 
     # Ensure UART RX buffer size is large enough to handle data bursts from firmware
     for uart_conf in full_config["uart"]:
@@ -124,7 +127,7 @@ async def to_code(config: ConfigType) -> None:
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    # Initialize sensor storage with count from register_sensor calls
+    # Initialize sensor storage with count from final_validate
     sensor_count = _get_data().sensor_counts.get(str(config[CONF_ID]), 0)
     if sensor_count > 0:
         cg.add(var.init_sensors(sensor_count))
