@@ -79,6 +79,7 @@ from ..types import (
 from . import Widget, WidgetType, get_widgets, widget_to_code
 from .arc import CONF_ARC
 from .img import CONF_IMAGE
+from .label import CONF_LABEL
 from .line import CONF_LINE
 
 CONF_ANGLE_RANGE = "angle_range"
@@ -222,12 +223,31 @@ INDICATOR_SCHEMA = cv.Schema(
     }
 )
 
+
+def _scale_validate(config):
+    if indicators := config.get(CONF_INDICATORS):
+        style_index = next(
+            (
+                i
+                for i, indicator in enumerate(indicators)
+                if CONF_TICK_STYLE in indicator
+            ),
+            -1,
+        )
+        if style_index >= 0 and CONF_TICKS not in config:
+            raise cv.Invalid(
+                "'tick_style' can't be applied if the enclosing scale has no 'ticks' configured",
+                path=[CONF_INDICATORS, style_index],
+            )
+    return config
+
+
 SCALE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(lv_scale_t),
         cv.Optional(CONF_TICKS): cv.Schema(
             {
-                cv.Optional(CONF_COUNT, default=12): cv.positive_int,
+                cv.Optional(CONF_COUNT, default=12): cv.int_range(min=2),
                 cv.Optional(CONF_WIDTH, default=2): cv.positive_int,
                 cv.Optional(CONF_LENGTH, default=10): size,
                 cv.Optional(CONF_RADIAL_OFFSET, default=0): size,
@@ -251,7 +271,7 @@ SCALE_SCHEMA = cv.Schema(
         cv.Optional(CONF_INDICATORS): cv.ensure_list(INDICATOR_SCHEMA),
         cv.Optional(CONF_DRAW_TICKS_ON_TOP, default=True): bool,
     }
-)
+).add_extra(_scale_validate)
 
 METER_SCHEMA = {
     cv.Optional(CONF_PIVOT): STATE_SCHEMA,
@@ -259,17 +279,14 @@ METER_SCHEMA = {
     cv.Optional(CONF_SCALES): cv.ensure_list(SCALE_SCHEMA),
 }
 
+# Only handling light style at the moment
 LIGHT_STYLE = LVStyle(
     "lv_meter_light",
     {
         "bg_opa": 1.0,
-        "bg_color": 0xEEEEEE,
-        "line_width": 1,
-        "line_color": 0xEEEEEE,
-        "arc_width": 2,
-        "arc_color": 0xEEEEEE,
+        "bg_color": 0xFFFFFF,
         "pad_all": 10,
-        "border_width": 2,
+        "border_width": 3,
         "border_color": 0xEEEEEE,
         "radius": "LV_RADIUS_CIRCLE",
     },
@@ -329,7 +346,7 @@ class MeterType(WidgetType):
         )
 
     def get_uses(self):
-        return CONF_SCALE, CONF_LINE, CONF_IMAGE
+        return CONF_SCALE, CONF_LINE, CONF_IMAGE, CONF_LABEL
 
     def validate(self, value):
         return cv.has_at_most_one_key(CONF_INDICATOR, CONF_PIVOT)(value)
@@ -478,6 +495,8 @@ class MeterType(WidgetType):
                     await iw.set_property(CONF_SRC, await lv_image.process(src))
                     await set_indicator_values(iw, v)
 
+            # Hide the scale line
+            lv.obj_set_style_arc_opa(scale_var, LV_OPA.TRANSP, LV_PART.MAIN)
             if ticks := scale_conf.get(CONF_TICKS):
                 # Set total tick count
                 lv.scale_set_total_tick_count(scale_var, ticks[CONF_COUNT])
@@ -503,8 +522,6 @@ class MeterType(WidgetType):
                     LV_PART.ITEMS,
                 )
 
-                # Hide the scale line
-                lv.obj_set_style_arc_opa(scale_var, LV_OPA.TRANSP, LV_PART.MAIN)
                 if CONF_MAJOR in ticks:
                     major = ticks[CONF_MAJOR]
                     # Set major tick frequency
@@ -547,7 +564,11 @@ class MeterType(WidgetType):
                 else:
                     lv.scale_set_major_tick_every(scale_var, 0)
             else:
-                lv.scale_set_total_tick_count(scale_var, 0)
+                # Must have at least 2 ticks otherwise the scale isn't even drawn
+                lv.scale_set_total_tick_count(scale_var, 2)
+                # Hide the ticks by making them 0 width
+                lv_obj.set_style_line_width(scale_var, 0, LV_PART.ITEMS)
+                lv.scale_set_major_tick_every(scale_var, 0)
 
         # Add a pivot
         # Get the default style

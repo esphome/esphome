@@ -673,14 +673,14 @@ void LvglComponent::static_flush_cb(lv_display_t *disp_drv, const lv_area_t *are
  * @param color_end  The color to apply to the last tick
  * @param width
  */
-void lv_scale_draw_event_cb(lv_event_t *e, uint16_t range_start, uint16_t range_end, lv_color_t color_start,
+void lv_scale_draw_event_cb(lv_event_t *e, int16_t range_start, int16_t range_end, lv_color_t color_start,
                             lv_color_t color_end, int width, bool local) {
   auto *scale = static_cast<lv_obj_t *>(lv_event_get_target(e));
   lv_draw_task_t *task = lv_event_get_draw_task(e);
 
   if (lv_draw_task_get_type(task) == LV_DRAW_TASK_TYPE_LINE) {
     auto *line_dsc = static_cast<lv_draw_line_dsc_t *>(lv_draw_task_get_draw_dsc(task));
-    auto tick = line_dsc->base.id1;
+    int tick = line_dsc->base.id2;
     if (tick >= range_start && tick <= range_end) {
       unsigned range = range_end - range_start;
       if (local) {

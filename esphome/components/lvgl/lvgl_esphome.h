@@ -52,7 +52,7 @@ extern std::string lv_event_code_name_for(lv_event_t *event);
 
 lv_obj_t *lv_container_create(lv_obj_t *parent);
 #ifdef USE_LVGL_SCALE
-void lv_scale_draw_event_cb(lv_event_t *e, uint16_t range_start, uint16_t range_end, lv_color_t color_start,
+void lv_scale_draw_event_cb(lv_event_t *e, int16_t range_start, int16_t range_end, lv_color_t color_start,
                             lv_color_t color_end, int width, bool local);
 #endif
 #if LV_COLOR_DEPTH == 16
