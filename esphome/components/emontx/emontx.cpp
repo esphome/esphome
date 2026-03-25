@@ -6,73 +6,17 @@ namespace esphome::emontx {
 
 static const char *const TAG = "emontx";
 
-/**
- * @brief Initializes the EmonTx component.
- *
- * @details Sets up the initial state of the component by:
- * 1. Setting the state machine to OFF
- * 2. Pre-allocating buffer memory to avoid reallocation overhead
- *
- * This method is called once during device startup. After setup completes,
- * the component will wait for update() to be called before starting to
- * process any incoming data.
- */
-void EmonTx::setup() {
-  this->state_ = ParseState::OFF;
-
-  // Pre-allocate buffer to maximum size to prevent reallocation overhead
-  // during JSON message collection.
-  // 198 bytes should be enough to contain a full session in historical mode with
-  // three phases. But go with 1024 just to be sure.
-  this->buffer_.reserve(1024);
-}
-
-/**
- * @brief Activates the state machine for continuous JSON data processing.
- *
- * @details This method is called periodically according to the update_interval configured
- * in the YAML. It activates the component if it's in OFF state (initial startup or after
- * component.suspend).
- *
- * Once activated, the state machine runs continuously in loop(), processing all incoming
- * JSON objects without waiting for subsequent update() calls. This prevents data loss
- * when multiple JSON messages arrive between polling intervals.
- *
- * The update_interval serves as a heartbeat/watchdog rather than controlling data processing.
- */
-void EmonTx::update() {
-  ESP_LOGD(TAG, "Updating EmonTx state...");
-
-  if (this->state_ == ParseState::OFF) {
-    this->buffer_.clear();
-    this->state_ = ParseState::WAITING_FOR_START;
-    ESP_LOGD(TAG, "EmonTx activated and ready to receive data.");
-  } else {
-    ESP_LOGV(TAG, "EmonTx already active (state: %d)", static_cast<int>(this->state_));
-  }
-}
+void EmonTx::setup() { this->buffer_pos_ = 0; }
 
 /**
  * @brief Implements the main loop for parsing data from the serial port.
  *
- * @details The loop continuously processes incoming UART data line-by-line:
- * - OFF: Component is inactive, waiting for update() to activate it.
- * - WAITING_FOR_START: Component is active, reading and processing serial lines.
- *
- * Each line received is processed as follows:
+ * @details Continuously processes incoming UART data line-by-line:
  * 1. Fire on_data callbacks for all received lines
- * 2. If line starts with '{', parse as JSON and update sensors/listeners
- *
- * This continuous processing ensures no data is lost when multiple messages
- * arrive in quick succession between polling intervals.
+ * 2. If line starts with '{', parse as JSON and update sensors/callbacks
  */
 void EmonTx::loop() {
-  if (this->state_ == ParseState::OFF) {
-    return;
-  }
-
   // Read all available data to prevent UART buffer overflow
-  // No artificial limit - drain the hardware buffer completely each loop
   while (this->available() > 0) {
     uint8_t received = this->read();
 
@@ -80,18 +24,9 @@ void EmonTx::loop() {
       continue;  // Ignore CR
     } else if (received == '\n') {
       // End of line - process the buffer
-      if (!this->buffer_.empty()) {
-        // Use static string to avoid repeated allocations
-        // Reserve same capacity as buffer_ to maintain allocation across swaps
-        static std::string line = []() {
-          std::string s;
-          s.reserve(1024);
-          return s;
-        }();
-        // Swap pointers with buffer_ (O(1), zero copy, both reuse allocations)
-        line.swap(this->buffer_);
-        // Clear buffer_ for next line (it now contains old line data from previous iteration)
-        this->buffer_.clear();
+      if (this->buffer_pos_ > 0) {
+        std::string line(this->buffer_.data(), this->buffer_pos_);
+        this->buffer_pos_ = 0;
 
         ESP_LOGD(TAG, "Received line: %s", line.c_str());
 
@@ -99,18 +34,18 @@ void EmonTx::loop() {
         this->data_callbacks_.call(line);
 
         // Check if this line is JSON (starts with '{')
-        if (!line.empty() && line[0] == '{') {
+        if (line[0] == '{') {
           ESP_LOGV(TAG, "Line is JSON, parsing...");
           this->parse_json_(line);
         }
       }
     } else {
       // Regular character - add to buffer
-      if (this->buffer_.length() >= 1024) {
-        ESP_LOGW(TAG, "Buffer overflow (>1024 bytes), discarding buffer");
-        this->buffer_.clear();
+      if (this->buffer_pos_ >= MAX_LINE_LENGTH) {
+        ESP_LOGW(TAG, "Buffer overflow (>%zu bytes), discarding buffer", MAX_LINE_LENGTH);
+        this->buffer_pos_ = 0;
       } else {
-        this->buffer_ += static_cast<char>(received);
+        this->buffer_[this->buffer_pos_++] = static_cast<char>(received);
       }
     }
   }

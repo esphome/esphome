@@ -12,32 +12,14 @@ uart:
 
 button:
   - platform: template
-    name: Poller component suspend test
-    on_press:
-      - component.suspend: test_emontx
-      - delay: 20s
-      - component.update: test_emontx
-      - delay: 20s
-      - component.resume: test_emontx
-      - delay: 20s
-      - component.resume:
-          id: test_emontx
-          update_interval: 2s
-      - delay: 20s
-      - component.resume:
-          id: test_emontx
-          update_interval: !lambda return 2500;
-  - platform: template
     name: Send command test
     on_press:
       - emontx.send_command:
           id: test_emontx
           command: "v"
 
-# EmonTx without EmonCMS configuration
 emontx:
   id: test_emontx
-  update_interval: 60s
 
 sensor:
   - platform: emontx

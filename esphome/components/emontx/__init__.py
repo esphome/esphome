@@ -6,10 +6,12 @@ from esphome.const import (
     CONF_COMMAND,
     CONF_ID,
     CONF_ON_DATA,
+    CONF_PLATFORM,
     CONF_RX_BUFFER_SIZE,
     CONF_TRIGGER_ID,
     CONF_UART_ID,
 )
+from esphome.core import CORE
 import esphome.final_validate as fv
 
 AUTO_LOAD = ["json"]
@@ -17,7 +19,7 @@ CODEOWNERS = ["@FredM67", "@TrystanLea", "@glynhudson"]
 DEPENDENCIES = ["uart"]
 
 emontx_ns = cg.esphome_ns.namespace("emontx")
-EmonTx = emontx_ns.class_("EmonTx", cg.PollingComponent, uart.UARTDevice)
+EmonTx = emontx_ns.class_("EmonTx", cg.Component, uart.UARTDevice)
 
 # Add trigger class for on_json
 EmonTxJsonTrigger = emontx_ns.class_(
@@ -55,18 +57,30 @@ CONFIG_SCHEMA = (
             ),
         }
     )
-    .extend(cv.polling_component_schema("10s"))
+    .extend(cv.COMPONENT_SCHEMA)
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 
 
 def final_validate(config):
+    # Count sensors for this emontx instance and store for to_code
+    full_config = fv.full_config.get()
+    sensor_count = 0
+    hub_id = config[CONF_ID]
+    for sensor_conf in full_config.get("sensor", []):
+        if (
+            sensor_conf.get(CONF_PLATFORM) == "emontx"
+            and sensor_conf.get(CONF_EMONTX_ID) == hub_id
+        ):
+            sensor_count += 1
+    if "emontx" not in CORE.data:
+        CORE.data["emontx"] = {}
+    CORE.data["emontx"][str(hub_id)] = sensor_count
+
     # Ensure UART RX buffer size is large enough to handle data bursts from firmware
     # The firmware can send ~2KB of configuration data in bursts which would
     # overflow the default 256-byte buffer causing data loss and corruption
     MINIMUM_RX_BUFFER_SIZE = 2048
-
-    full_config = fv.full_config.get()
 
     # Find the UART component config and ensure rx_buffer_size is adequate
     for uart_conf in full_config["uart"]:
@@ -119,6 +133,11 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
+
+    # Initialize sensor storage with exact count from final_validate
+    sensor_count = CORE.data.get("emontx", {}).get(str(config[CONF_ID]), 0)
+    if sensor_count > 0:
+        cg.add(var.init_sensors(sensor_count))
 
     # Process on_json triggers
     if CONF_ON_JSON in config:
