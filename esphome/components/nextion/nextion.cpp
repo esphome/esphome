@@ -50,10 +50,10 @@ bool Nextion::check_connect_() {
     return true;
 
 #ifdef USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
-  ESP_LOGW(TAG, "Connected (no handshake)");  // Log the connection status without handshake
-  this->is_connected_ = true;                 // Set the connection status to true
-  return true;                                // Return true indicating the connection is set
-#else                                         // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
+  ESP_LOGW(TAG, "Connected (no handshake)");     // Log the connection status without handshake
+  this->connection_state_.is_connected_ = true;  // Set the connection status to true
+  return true;                                   // Return true indicating the connection is set
+#else                                            // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
   if (this->comok_sent_ == 0) {
     this->reset_(false);
 
@@ -212,30 +212,6 @@ void Nextion::update() {
   if (this->writer_.has_value()) {
     (*this->writer_)(*this);
   }
-}
-
-void Nextion::add_sleep_state_callback(std::function<void()> &&callback) {
-  this->sleep_callback_.add(std::move(callback));
-}
-
-void Nextion::add_wake_state_callback(std::function<void()> &&callback) {
-  this->wake_callback_.add(std::move(callback));
-}
-
-void Nextion::add_setup_state_callback(std::function<void()> &&callback) {
-  this->setup_callback_.add(std::move(callback));
-}
-
-void Nextion::add_new_page_callback(std::function<void(uint8_t)> &&callback) {
-  this->page_callback_.add(std::move(callback));
-}
-
-void Nextion::add_touch_event_callback(std::function<void(uint8_t, uint8_t, bool)> &&callback) {
-  this->touch_callback_.add(std::move(callback));
-}
-
-void Nextion::add_buffer_overflow_event_callback(std::function<void()> &&callback) {
-  this->buffer_overflow_callback_.add(std::move(callback));
 }
 
 void Nextion::update_all_components() {

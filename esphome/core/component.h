@@ -294,14 +294,15 @@ class Component {
    *
    * Returns LOG_STR("<unknown>") if source not set
    */
-  const LogString *get_component_log_str() const;
+  const LogString *get_component_log_str() const {
+    return this->component_source_ == nullptr ? LOG_STR("<unknown>") : this->component_source_;
+  }
 
   bool should_warn_of_blocking(uint32_t blocking_time);
 
  protected:
   friend class Application;
 
-  void call_loop_();
   virtual void call_setup();
   void call_dump_config_();
 
@@ -549,11 +550,9 @@ class PollingComponent : public Component {
 
   /** Manually set the update interval in ms for this polling object.
    *
-   * Override this if you want to do some validation for the update interval.
-   *
    * @param update_interval The update interval in ms.
    */
-  virtual void set_update_interval(uint32_t update_interval);
+  void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
 
   // ========== OVERRIDE METHODS ==========
   // (You'll only need this when creating your own custom sensor)
@@ -598,9 +597,11 @@ class WarnIfComponentBlockingGuard {
 #ifdef USE_RUNTIME_STATS
     this->record_runtime_stats_();
 #endif
+#ifndef USE_BENCHMARK
     if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
       warn_blocking(this->component_, blocking_time);
     }
+#endif
     return curr_time;
   }
 
