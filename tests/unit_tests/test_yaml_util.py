@@ -448,3 +448,98 @@ def test_represent_extend() -> None:
 def test_represent_remove() -> None:
     """Test that Remove objects are dumped as plain !remove scalars."""
     assert yaml_util.dump({"key": Remove("my_id")}) == "key: !remove 'my_id'\n"
+
+
+# ── IncludeFile unit tests ──────────────────────────────────────────────────
+
+
+def test_include_file_repr(tmp_path: Path) -> None:
+    """repr() includes the filename so it appears usefully in error messages."""
+    parent = tmp_path / "main.yaml"
+    include = yaml_util.IncludeFile(parent, "some/nested.yaml", None, lambda _: {})
+    assert repr(include) == "IncludeFile(some/nested.yaml)"
+
+
+def test_include_file_load_caches_result(tmp_path: Path) -> None:
+    """load() invokes the yaml_loader only once; subsequent calls return the cached object."""
+    parent = tmp_path / "main.yaml"
+    content = {"key": "value"}
+    call_count = 0
+
+    def counting_loader(_):
+        nonlocal call_count
+        call_count += 1
+        return content
+
+    include = yaml_util.IncludeFile(parent, "child.yaml", None, counting_loader)
+    first = include.load()
+    second = include.load()
+
+    assert call_count == 1
+    assert first is second
+
+
+@pytest.mark.parametrize(
+    "filename, expected",
+    [
+        ("device-${platform}.yaml", True),
+        ("$platform.yaml", True),
+        ("device.yaml", False),
+        ("path/to/device.yaml", False),
+    ],
+)
+def test_include_file_has_filename_substitutions(
+    tmp_path: Path, filename: str, expected: bool
+) -> None:
+    """has_filename_substitutions() detects $ anywhere in the filename."""
+    parent = tmp_path / "main.yaml"
+    include = yaml_util.IncludeFile(parent, filename, None, lambda _: {})
+    assert include.has_filename_substitutions() == expected
+
+
+def test_include_in_list_context() -> None:
+    """!include of a file returning a list is handled correctly,
+    including when that list itself contains a nested IncludeFile."""
+    parent = Path("/fake/main.yaml")
+
+    # The nested IncludeFile resolves to a plain string value
+    inner = yaml_util.IncludeFile(parent, "inner.yaml", None, lambda _: "gamma")
+
+    # The outer IncludeFile returns a list whose last element is itself an IncludeFile,
+    # exercising the substitution pass's ability to recurse into loaded content.
+    outer = yaml_util.IncludeFile(
+        parent, "items.yaml", None, lambda _: ["alpha", "beta", inner]
+    )
+
+    config = OrderedDict({"values": outer})
+    config = substitutions.do_substitution_pass(config)
+
+    assert config["values"] == ["alpha", "beta", "gamma"]
+
+
+def test_include_plain_filename_loads_after_deferred_refactor() -> None:
+    """!include with a plain filename (no $ expressions) still loads correctly.
+
+    Regression guard: the deferred-loading refactor must not break the simple case.
+    """
+    parent = Path("/fake/main.yaml")
+    include = yaml_util.IncludeFile(
+        parent, "child.yaml", None, lambda _: {"answer": 42}
+    )
+
+    config = OrderedDict({"result": include})
+    config = substitutions.do_substitution_pass(config)
+
+    assert config["result"]["answer"] == 42
+
+
+def test_yaml_merge_include_with_filename_substitution_raises() -> None:
+    """<<: !include ${expr} raises a clear error — substitutions in merge-key filenames
+    are not yet supported, and the error message must say so."""
+    import io
+
+    yaml_text = "base:\n  existing: value\n  <<: !include ${filename}.yaml\n"
+    with pytest.raises(EsphomeError, match="not supported yet"):
+        yaml_util.parse_yaml(
+            Path("/fake/main.yaml"), io.StringIO(yaml_text), lambda _: {}
+        )

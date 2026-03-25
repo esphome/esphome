@@ -405,11 +405,24 @@ class _PackageProcessor:
     def resolve_package(
         self, package_config: dict | str, context_vars: ContextVars | None
     ) -> dict:
-        """Substitute variables in the definition and fetch remote packages.
+        """Resolve a package definition to a concrete ``dict`` and fetch remote packages.
 
         The input may be a ``str`` (git shorthand or Jinja expression), a
-        ``dict`` (remote or local package) or an ``IncludeFile`` to be loaded.
-        After ``PACKAGE_SCHEMA`` validation the result is always a ``dict``.
+        ``dict`` (remote or local package), or an ``IncludeFile`` whose filename
+        may itself contain substitution expressions.
+
+        The loop handles the case where loading an ``IncludeFile`` yields another
+        ``IncludeFile`` (e.g. a chain of deferred includes).  Each iteration:
+
+        1. If the current value is an ``IncludeFile``, load it — resolving any
+           substitutions in its filename first.
+        2. Substitute variables in the resulting value (for strings and remote
+           package dicts).
+        3. Validate against ``PACKAGE_SCHEMA``.  If the result is a ``dict``,
+           the loop exits; otherwise another iteration is needed.
+
+        Raises ``cv.Invalid`` if the chain has not resolved to a ``dict`` after
+        ``MAX_INCLUDE_DEPTH`` iterations.
         """
         for _ in range(MAX_INCLUDE_DEPTH):
             if isinstance(package_config, yaml_util.IncludeFile):
