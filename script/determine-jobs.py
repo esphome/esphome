@@ -890,6 +890,7 @@ def main() -> None:
             "fastled_clockless",
             "fastled_spi",
             "neopixelbus",
+            "esp32_camera",
         }
         solo_components = [
             c for c in changed_components_with_tests if c in solo_batch_components
