@@ -4,8 +4,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-namespace esphome {
-namespace xdb401 {
+namespace esphome::xdb401 {
 
 /// This class implements support for the xdb401 pressure and temperature i2c sensors.
 class XDB401Component : public PollingComponent, public i2c::I2CDevice {
