@@ -112,7 +112,7 @@ i2c::ErrorCode XDB401Component::read_pressure_(float &pressure) {
   ESP_LOGV(TAG, "Got pressure data: %s", format_hex_pretty(p_data, 3).c_str());  // NOLINT
 
   // Byte-order high to low, byte 0 bit 8 is sign bit.
-  // Shift one byte to much and then back to get sign correct.
+  // Shift one byte too much and then back to get sign correct.
   int32_t raw_pressure = ((p_data[0] << 24) | (p_data[1] << 16) | (p_data[2] << 8)) >> 8;
   ESP_LOGD(TAG, "Pressure data raw %i", raw_pressure);
 
