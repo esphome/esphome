@@ -43,9 +43,6 @@ lvgl:
         start_value: 0
         end_value: 180
   bg_color: light_blue
-  disp_bg_color: color_id
-  disp_bg_image: cat_image
-  disp_bg_opa: cover
   bottom_layer:
     widgets:
       - obj:
@@ -58,7 +55,6 @@ lvgl:
   gradients:
     - id: color_bar
       direction: hor
-      # dither: err_diff
       stops:
         - color: 0xFF0000
           position: 0
@@ -143,12 +139,11 @@ lvgl:
       body:
         text: This is a sample messagebox
         bg_color: 0x808080
-      button_style:
-        bg_color: 0xff00
-        border_width: 4
       buttons:
         - id: msgbox_button
           text: Button
+          bg_color: 0x00ff00
+          border_width: 4
         - id: msgbox_apply
           text: "Close"
           on_click:
@@ -160,8 +155,8 @@ lvgl:
                   bg_opa: !lambda return 0.5;
               - lvgl.image.update:
                   id: lv_image
-                  zoom: !lambda return 512;
-                  angle: !lambda return 100;
+                  scale: !lambda return 512;
+                  rotation: !lambda return 100;
                   pivot_x: !lambda return 20;
                   pivot_y: !lambda return 20;
                   offset_x: !lambda return 20;
@@ -287,8 +282,8 @@ lvgl:
               then:
                 - lvgl.animimg.stop: anim_img
                 - lvgl.update:
-                    disp_bg_color: 0xffff00
-                    disp_bg_image: none
+                    bottom_layer:
+                      bg_color: 0xffff00
                 - lvgl.widget.show: message_box
         - label:
             text: "Hello shiny day"
@@ -361,8 +356,6 @@ lvgl:
             pad_right: 10px
             pad_top: 10px
             shadow_color: light_blue
-            shadow_ofs_x: 5
-            shadow_ofs_y: 5
             shadow_opa: cover
             shadow_spread: 5
             shadow_width: 10
@@ -373,12 +366,10 @@ lvgl:
             text_letter_space: 4
             text_line_space: 4
             text_opa: cover
-            transform_angle: 180
             transform_rotation: 90
             transform_height: 100
             transform_pivot_x: 50%
             transform_pivot_y: 50%
-            transform_zoom: 0.5
             transform_scale: 2.0
             transform_scale_x: 1.5
             transform_scale_y: 0.8
@@ -470,11 +461,11 @@ lvgl:
             id: button_button
             width: 20%
             height: 10%
-            transform_angle: !lambda return(180*100);
+            transform_rotation: !lambda return(180*100);
             arc_width: !lambda return 4;
             border_width: !lambda return 6;
-            shadow_ofs_x: !lambda return 6;
-            shadow_ofs_y: !lambda return 6;
+            shadow_offset_x: !lambda return 6;
+            shadow_offset_y: !lambda return 6;
             shadow_spread: !lambda return 6;
             shadow_width: !lambda return 6;
             pressed:
@@ -646,8 +637,8 @@ lvgl:
                   border_opa: 80%
                   shadow_color: black
                   shadow_width: 10
-                  shadow_ofs_x: 5
-                  shadow_ofs_y: 5
+                  shadow_offset_x: 5
+                  shadow_offset_y: 5
                   shadow_spread: 4
                   shadow_opa: cover
                   outline_color: red
