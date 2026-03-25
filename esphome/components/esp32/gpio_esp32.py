@@ -28,7 +28,11 @@ def esp32_validate_gpio_pin(value: int) -> int:
         raise cv.Invalid(f"Invalid pin number: {value} (must be 0-39)")
     if value in _ESP_SDIO_PINS:
         raise cv.Invalid(
-            f"This pin cannot be used on ESP32s and is already used by the flash interface (function: {_ESP_SDIO_PINS[value]})"
+            f"This pin cannot be used on ESP32s and is already used by the flash interface"
+            f" (function: {_ESP_SDIO_PINS[value]})."
+            f" If you are using an ESP32 module that uses a different flash pin"
+            f" configuration (e.g. ESP32-PICO-V3-02), you can set"
+            f" 'ignore_pin_validation_error: true' to bypass this check."
         )
     if 9 <= value <= 10:
         _LOGGER.warning(

@@ -38,7 +38,7 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WHITE,
 )
-from esphome.core import CORE, ID, CoroPriority, HexInt, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, HexInt, Lambda, coroutine_with_priority
 from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
 
@@ -81,18 +81,32 @@ def _get_data() -> LightData:
     return CORE.data[DOMAIN]
 
 
+def generate_gamma_table(gamma_correct: float) -> list[HexInt]:
+    """Generate a 256-entry uint16 gamma lookup table.
+
+    For gamma > 0, non-zero indices are clamped to a minimum of 1 to preserve
+    the invariant that non-zero input always produces non-zero output. Without
+    this, small brightness values (e.g. 1%) get quantized to exactly 0.0,
+    which breaks zero_means_zero logic in FloatOutput.
+    """
+    if gamma_correct > 0:
+        return [
+            HexInt(
+                max(1, min(65535, int(round((i / 255.0) ** gamma_correct * 65535))))
+                if i > 0
+                else HexInt(0)
+            )
+            for i in range(256)
+        ]
+    return [HexInt(int(round(i / 255.0 * 65535))) for i in range(256)]
+
+
 def _get_or_create_gamma_table(gamma_correct):
     data = _get_data()
     if gamma_correct in data.gamma_tables:
         return data.gamma_tables[gamma_correct]
 
-    if gamma_correct > 0:
-        forward = [
-            HexInt(min(65535, int(round((i / 255.0) ** gamma_correct * 65535))))
-            for i in range(256)
-        ]
-    else:
-        forward = [HexInt(int(round(i / 255.0 * 65535))) for i in range(256)]
+    forward = generate_gamma_table(gamma_correct)
 
     gamma_str = f"{gamma_correct}".replace(".", "_")
     fwd_id = ID(f"gamma_{gamma_str}_fwd", is_declaration=True, type=cg.uint16)
@@ -248,6 +262,8 @@ async def setup_light_core_(light_var, config, output_var):
     cg.add(light_var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
     if (initial_state_config := config.get(CONF_INITIAL_STATE)) is not None:
+        # Emit a stateless lambda that constructs the initial state — values live
+        # in flash as code, not stored in the LightState object (~40 bytes saved).
         initial_state = LightStateRTCState(
             initial_state_config.get(CONF_COLOR_MODE, ColorMode.UNKNOWN),
             initial_state_config.get(CONF_STATE, False),
@@ -261,7 +277,13 @@ async def setup_light_core_(light_var, config, output_var):
             initial_state_config.get(CONF_COLD_WHITE, 1.0),
             initial_state_config.get(CONF_WARM_WHITE, 1.0),
         )
-        cg.add(light_var.set_initial_state(initial_state))
+        args = [(LightStateRTCState.operator("ref"), "s")]
+        lamb = await cg.process_lambda(
+            Lambda(f"s = {initial_state};"),
+            args,
+            return_type=cg.void,
+        )
+        cg.add(light_var.set_initial_state(lamb))
 
     if (
         default_transition_length := config.get(CONF_DEFAULT_TRANSITION_LENGTH)

@@ -75,9 +75,12 @@ class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
 
 class GraphicalDisplayMenuOnRedrawTrigger : public Trigger<const GraphicalDisplayMenu *> {
  public:
-  explicit GraphicalDisplayMenuOnRedrawTrigger(GraphicalDisplayMenu *parent) {
-    parent->add_on_redraw_callback([this, parent]() { this->trigger(parent); });
+  explicit GraphicalDisplayMenuOnRedrawTrigger(GraphicalDisplayMenu *parent) : parent_(parent) {
+    parent->add_on_redraw_callback([this]() { this->trigger(this->parent_); });
   }
+
+ protected:
+  GraphicalDisplayMenu *parent_;
 };
 
 }  // namespace graphical_display_menu

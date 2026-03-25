@@ -140,7 +140,7 @@ class USBUartChannel : public uart::UARTComponent, public Parented<USBUartCompon
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
   size_t available() override { return this->input_buffer_.get_available(); }
-  uart::FlushResult flush() override;
+  uart::UARTFlushResult flush() override;
   void check_logger_conflict() override {}
   void set_parity(UARTParityOptions parity) { this->parity_ = parity; }
   void set_debug(bool debug) { this->debug_ = debug; }

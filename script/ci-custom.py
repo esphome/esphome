@@ -525,6 +525,29 @@ def lint_constants_usage():
     return errs
 
 
+# Maximum allowed CONF_ constants in esphome/const.py.
+# This file is frozen — new constants go in esphome/components/const/__init__.py.
+# Decrease this number when constants are moved out of const.py.
+CONST_PY_MAX_CONF = 1011
+
+
+@lint_content_check(include=["esphome/const.py"])
+def lint_const_py_frozen(fname, content):
+    """Block new CONF_ constants from being added to esphome/const.py.
+
+    New constants should go in esphome/components/const/__init__.py instead.
+    """
+    count = sum(1 for line in content.splitlines() if line.startswith("CONF_"))
+    if count > CONST_PY_MAX_CONF:
+        return (
+            "esphome/const.py is frozen. "
+            "Add new constants to esphome/components/const/__init__.py instead."
+        )
+    if count < CONST_PY_MAX_CONF:
+        return f"CONST_PY_MAX_CONF in ci-custom.py should be updated to {count}."
+    return None
+
+
 def relative_cpp_search_text(fname: Path, content) -> str:
     parts = fname.parts
     integration = parts[2]
@@ -890,6 +913,22 @@ def lint_no_powf_in_core(fname, match):
     )
 
 
+@lint_re_check(
+    r"[^\w]std\s*::\s*bind\s*\(" + CPP_RE_EOL,
+    include=cpp_include,
+)
+def lint_no_std_bind(fname, match):
+    return (
+        f"{highlight('std::bind()')} is not allowed in new ESPHome code. "
+        f"Lambdas are clearer, produce smaller binaries, and are more likely to fit within "
+        f"the {highlight('std::function')} small-buffer optimization (avoiding heap allocation).\n"
+        f"Please use a lambda instead.\n"
+        f"  Before: {highlight('std::bind(&Class::method, this, std::placeholders::_1)')}\n"
+        f"  After:  {highlight('[this](auto arg) { this->method(arg); }')}\n"
+        f"(If strictly necessary, add `// NOLINT` to the end of the line)"
+    )
+
+
 LOG_MULTILINE_RE = re.compile(r"ESP_LOG\w+\s*\(.*?;", re.DOTALL)
 LOG_BAD_CONTINUATION_RE = re.compile(r'\\n(?:[^ \\"\r\n\t]|"\s*\n\s*"[^ \\])')
 LOG_PERCENT_S_CONTINUATION_RE = re.compile(r'\\n(?:%s|"\s*\n\s*"%s)')
@@ -947,6 +986,7 @@ def lint_log_multiline_continuation(fname, content):
         "esphome/components/nextion/nextion_base.h",
         "esphome/components/select/select.h",
         "esphome/components/sensor/sensor.h",
+        "esphome/components/spi/spi.h",
         "esphome/components/stepper/stepper.h",
         "esphome/components/switch/switch.h",
         "esphome/components/text/text.h",

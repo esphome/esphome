@@ -250,9 +250,17 @@ STYLE_REMAP = {
 }
 
 
-def remap_property(prop):
+def remap_property(prop, record=True):
+    """
+    Remap an old style property to new style property.
+    Optionally record the use of the deprecated property.
+    :param prop: Name of the style property to remap.
+    :param record: Whether to record the use of the deprecated property.
+    :return: The remapped property name, or ``prop`` if no remapping exists.
+    """
     if prop in STYLE_REMAP:
-        get_remapped_uses().add(prop)
+        if record:
+            get_remapped_uses().add(prop)
         return STYLE_REMAP[prop]
     return prop
 
