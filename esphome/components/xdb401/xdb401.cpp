@@ -138,7 +138,7 @@ i2c::ErrorCode XDB401Component::read_temperature_(float &temperature) {
 
   // Convert signed integer to floating point and scale to percent (of range)?
   // temperature = (float) raw_temperature / (float) 0x100;
-  // Convert signed integer to floating point and scale to Celcius
+  // Convert signed integer to floating point and scale to Celsius
   temperature = (float) raw_temperature / SCALE_TEMPERATURE;
 
   return err_code;
