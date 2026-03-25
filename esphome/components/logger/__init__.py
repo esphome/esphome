@@ -3,6 +3,7 @@ import re
 from esphome import automation
 from esphome.automation import LambdaAction, StatelessLambdaAction
 import esphome.codegen as cg
+from esphome.components.const import CONF_LIBRETINY
 from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
@@ -59,7 +60,6 @@ from esphome.const import (
     PLATFORM_RTL87XX,
     PlatformFramework,
 )
-from esphome.components.const import CONF_LIBRETINY
 from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
 from esphome.types import ConfigType
 
