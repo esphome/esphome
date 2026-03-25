@@ -43,6 +43,202 @@ esp32:
 
 - **framework** (*Optional*): Options for the underlying framework used by ESPHome. See [Framework](#esp32-framework).
 
+## Variants
+
+ESPHome supports the following ESP32 variants. Use the `variant` configuration option to select the correct one
+for your hardware.
+
+### ESP32
+
+The original ESP32 is Espressif's flagship dual-core chip with the most mature and well-tested support in ESPHome.
+It includes Wi-Fi, Classic Bluetooth, and BLE, plus a built-in Ethernet MAC for wired networking with an external PHY.
+It does not have native USB; an external USB-to-serial chip is required for programming and serial console.
+
+- **CPU:** Xtensa LX6 dual-core, up to 240 MHz
+- **Wi-Fi:** 802.11 b/g/n 2.4 GHz
+- **Bluetooth:** Classic Bluetooth 4.2 + BLE 4.2
+- **USB:** None (external USB-to-serial required)
+- **Ethernet:** Built-in MAC (requires external PHY)
+- **GPIO:** 34 usable pins
+- **UART:** 3
+- **I2C:** 2
+- **SPI:** 2 (4 controllers total, 2 general-purpose)
+- **I2S:** 2
+- **ADC:** 18 channels
+- **DAC:** 2 channels
+- **Capacitive touch:** 10 pins
+
+### ESP32-S2
+
+The ESP32-S2 is a single-core variant with native USB OTG and a larger set of GPIO pins. It does not
+include any Bluetooth/BLE support.
+
+- **CPU:** Xtensa LX7 single-core, up to 240 MHz
+- **Wi-Fi:** 802.11 b/g/n 2.4 GHz
+- **Bluetooth:** None
+- **USB:** Native USB OTG host mode (Full Speed); CDC/TinyUSB peripheral mode.
+- **Ethernet:** None built-in (SPI-based controllers supported)
+- **GPIO:** 43 usable pins
+- **UART:** 2
+- **I2C:** 2
+- **SPI:** 4
+- **I2S:** 1
+- **ADC:** 20 channels
+- **DAC:** 2 channels
+- **Capacitive touch:** 14 pins
+
+### ESP32-S3
+
+The ESP32-S3 is a dual-core update to the original ESP32 with BLE 5.0, native USB OTG, and AI vector
+instruction extensions that are particularly useful for machine learning applications such as
+[Micro Wake Word](/components/micro_wake_word). It does not include Classic Bluetooth.
+
+- **CPU:** Xtensa LX7 dual-core, up to 240 MHz
+- **Wi-Fi:** 802.11 b/g/n 2.4 GHz
+- **Bluetooth:** BLE 5.0
+- **USB:** Native USB OTG host mode (Full Speed); USB Serial/JTAG peripheral mode
+- **Ethernet:** None built-in (SPI-based controllers supported)
+- **GPIO:** 45 usable pins
+- **UART:** 3
+- **I2C:** 2
+- **SPI:** 4
+- **I2S:** 2
+- **ADC:** 20 channels
+- **DAC:** None
+- **Capacitive touch:** 14 pins
+- **AI vector instructions:** Yes
+
+### ESP32-C2
+
+The ESP32-C2 is a low-cost, space-saving RISC-V chip with a reduced peripheral set, targeting simple
+Wi-Fi + BLE IoT applications.
+
+- **CPU:** RISC-V single-core, up to 120 MHz
+- **Wi-Fi:** 802.11 b/g/n 2.4 GHz
+- **Bluetooth:** BLE 5.0
+- **USB:** None (UART only)
+- **Ethernet:** None built-in (SPI-based controllers supported)
+- **GPIO:** 15 usable pins
+- **UART:** 2
+- **I2C:** 1
+- **SPI:** 2
+- **I2S:** None
+- **ADC:** 5 channels
+- **DAC:** None
+
+### ESP32-C3
+
+The ESP32-C3 is a single-core RISC-V chip designed as a modern, low-cost replacement for the ESP8266.
+It provides Wi-Fi and BLE in a simple package with built-in USB Serial/JTAG.
+
+- **CPU:** RISC-V single-core, up to 160 MHz
+- **Wi-Fi:** 802.11 b/g/n 2.4 GHz
+- **Bluetooth:** BLE 5.0
+- **USB:** USB Serial/JTAG
+- **Ethernet:** None built-in (SPI-based controllers supported)
+- **GPIO:** 22 usable pins
+- **UART:** 2
+- **I2C:** 1
+- **SPI:** 3
+- **I2S:** 1
+- **ADC:** 6 channels
+- **DAC:** None
+
+### ESP32-C5
+
+The ESP32-C5 is a RISC-V chip with dual-band Wi-Fi 6 support (both 2.4 GHz and 5 GHz) and BLE 5.0,
+plus a low-power coprocessor for sleep-mode tasks.
+
+- **CPU:** RISC-V HP core, up to 240 MHz + LP core, up to 40 MHz
+- **Wi-Fi:** 802.11 b/g/n/ax 2.4 GHz + 5 GHz (Wi-Fi 6)
+- **Bluetooth:** BLE 5.0
+- **USB:** USB Serial/JTAG
+- **Ethernet:** None built-in (SPI-based controllers supported)
+- **GPIO:** 31 usable pins
+- **UART:** 3
+- **I2C:** 2
+- **SPI:** 3
+- **I2S:** 1
+- **ADC:** 7 channels
+- **DAC:** None
+
+### ESP32-C6
+
+The ESP32-C6 is a RISC-V chip with Wi-Fi 6 (2.4 GHz), BLE 5.0, and a built-in 802.15.4 radio for
+Thread and Zigbee mesh networking. It also includes a low-power coprocessor.
+
+- **CPU:** RISC-V HP core up to 160 MHz + LP core up to 20 MHz
+- **Wi-Fi:** 802.11 b/g/n/ax 2.4 GHz (Wi-Fi 6)
+- **Bluetooth:** BLE 5.0
+- **802.15.4:** Thread and Zigbee
+- **USB:** USB Serial/JTAG
+- **Ethernet:** None built-in (SPI-based controllers supported)
+- **GPIO:** 31 usable pins
+- **UART:** 3
+- **I2C:** 2
+- **SPI:** 3
+- **I2S:** 1
+- **ADC:** 7 channels
+- **DAC:** None
+
+### ESP32-C61
+
+The ESP32-C61 is a lower-cost variant of the ESP32-C6 with Wi-Fi 6 (2.4 GHz) and BLE 5.4. It does
+not include the 802.15.4 radio (no Thread or Zigbee).
+
+- **CPU:** RISC-V single-core, up to 160 MHz
+- **Wi-Fi:** 802.11 b/g/n/ax 2.4 GHz (Wi-Fi 6)
+- **Bluetooth:** BLE 5.4
+- **802.15.4:** None
+- **USB:** USB Serial/JTAG
+- **Ethernet:** None built-in (SPI-based controllers supported)
+- **GPIO:** 26 usable pins
+- **UART:** 3
+- **I2C:** 2
+- **SPI:** 3
+- **I2S:** 1
+- **ADC:** 7 channels
+- **DAC:** None
+
+### ESP32-H2
+
+The ESP32-H2 is a RISC-V chip with BLE 5.3 and a built-in 802.15.4 radio for Thread and Zigbee.
+It does not include Wi-Fi and is suited for low-power mesh networking applications.
+
+- **CPU:** RISC-V single-core, up to 96 MHz
+- **Wi-Fi:** None
+- **Bluetooth:** BLE 5.3
+- **802.15.4:** Thread and Zigbee
+- **USB:** USB Serial/JTAG
+- **Ethernet:** None built-in (SPI-based controllers supported)
+- **GPIO:** 26 usable pins
+- **UART:** 2
+- **I2C:** 2
+- **SPI:** 2
+- **I2S:** None
+- **ADC:** 5 channels
+- **DAC:** None
+
+### ESP32-P4
+
+The ESP32-P4 is a high-performance dual-core RISC-V chip focused on edge computing, image processing,
+and rich display/camera interfaces. It does not have built-in Wi-Fi or Bluetooth — a separate co-processor
+chip is required for wireless connectivity via [ESP-Hosted](/components/esp32_hosted).
+
+- **CPU:** RISC-V HP dual-core @ up to 400 MHz + LP core @ up to 40 MHz
+- **Wi-Fi:** None (requires co-processor via ESP-Hosted)
+- **Bluetooth:** None (requires co-processor via ESP-Hosted)
+- **USB:** Native USB OTG host mode (Full Speed + High Speed); USB Serial/JTAG peripheral mode
+- **Ethernet:** Built-in MAC (requires external PHY)
+- **GPIO:** 54 usable pins
+- **UART:** 3
+- **I2C:** 3
+- **SPI:** 4
+- **I2S:** 3
+- **ADC:** 7 channels
+- **DAC:** None
+- **MIPI DSI/CSI:** Yes (display and camera interfaces)
+
 <span id="esp32-framework"></span>
 
 ## Framework
