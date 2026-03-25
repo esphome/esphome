@@ -557,12 +557,24 @@ def binary_sensor_schema(
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _build_binary_sensor_automations(var, config):
     for conf in config.get(CONF_ON_PRESS, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            var,
+            "add_on_state_callback",
+            [],
+            conf,
+            callback_args=[(bool, "state")],
+            condition="state",
+        )
 
     for conf in config.get(CONF_ON_RELEASE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            var,
+            "add_on_state_callback",
+            [],
+            conf,
+            callback_args=[(bool, "state")],
+            condition="!state",
+        )
 
     for conf in config.get(CONF_ON_CLICK, []):
         trigger = cg.new_Pvariable(
@@ -593,13 +605,14 @@ async def _build_binary_sensor_automations(var, config):
         await automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_STATE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(bool, "x")], conf)
+        await automation.build_callback_automation(
+            var, "add_on_state_callback", [(bool, "x")], conf
+        )
 
     for conf in config.get(CONF_ON_STATE_CHANGE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger,
+        await automation.build_callback_automation(
+            var,
+            "add_full_state_callback",
             [
                 (cg.optional.template(bool), "x_previous"),
                 (cg.optional.template(bool), "x"),

@@ -91,8 +91,9 @@ def button_schema(
 @setup_entity("button")
 async def setup_button_core_(var, config):
     for conf in config.get(CONF_ON_PRESS, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            var, "add_on_press_callback", [], conf
+        )
 
     setup_device_class(config)
 

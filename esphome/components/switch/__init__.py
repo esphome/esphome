@@ -148,14 +148,27 @@ def switch_schema(
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _build_switch_automations(var, config):
     for conf in config.get(CONF_ON_STATE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(bool, "x")], conf)
+        await automation.build_callback_automation(
+            var, "add_on_state_callback", [(bool, "x")], conf
+        )
     for conf in config.get(CONF_ON_TURN_ON, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            var,
+            "add_on_state_callback",
+            [],
+            conf,
+            callback_args=[(bool, "state")],
+            condition="state",
+        )
     for conf in config.get(CONF_ON_TURN_OFF, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            var,
+            "add_on_state_callback",
+            [],
+            conf,
+            callback_args=[(bool, "state")],
+            condition="!state",
+        )
 
 
 @setup_entity("switch")

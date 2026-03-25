@@ -470,6 +470,7 @@ template<typename... Ts> class ActionList {
 
 template<typename... Ts> class Automation {
  public:
+  Automation() = default;
   explicit Automation(Trigger<Ts...> *trigger) : trigger_(trigger) { this->trigger_->set_automation_parent(this); }
 
   void add_action(Action<Ts...> *action) { this->actions_.add_action(action); }
@@ -487,7 +488,7 @@ template<typename... Ts> class Automation {
   int num_running() { return this->actions_.num_running(); }
 
  protected:
-  Trigger<Ts...> *trigger_;
+  Trigger<Ts...> *trigger_{nullptr};
   ActionList<Ts...> actions_;
 };
 

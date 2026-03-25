@@ -661,3 +661,48 @@ async def build_automation(
     actions = await build_action_list(config[CONF_THEN], templ, args)
     cg.add(obj.add_actions(actions))
     return obj
+
+
+async def build_callback_automation(
+    parent: MockObj,
+    callback_method: str,
+    args: TemplateArgsType,
+    config: ConfigType,
+    callback_args: TemplateArgsType | None = None,
+    condition: str | None = None,
+) -> None:
+    """Build an Automation and register it as a callback on the parent.
+
+    Eliminates the need for a Trigger wrapper object by registering the
+    automation's trigger() directly as a callback on the parent component.
+
+    :param parent: The component object (e.g., button, sensor).
+    :param callback_method: Name of the callback method (e.g., "add_on_press_callback").
+    :param args: Automation template args as list of (type, name) tuples.
+    :param config: The automation config dict.
+    :param callback_args: Lambda parameter types if different from args (e.g., for
+        conditional triggers where the callback receives (bool state) but the
+        automation is Automation<> with no args). Defaults to args.
+    :param condition: Optional C++ condition. Use callback arg names directly
+        (e.g., "state", "!state").
+    """
+    arg_types = [arg[0] for arg in args]
+    templ = cg.TemplateArguments(*arg_types)
+    obj = cg.new_Pvariable(config[CONF_AUTOMATION_ID], templ)
+    actions = await build_action_list(config[CONF_THEN], templ, args)
+    cg.add(obj.add_actions(actions))
+    # Build trigger call expression: automation->trigger(arg1, arg2, ...)
+    trigger_args = [MockObj(arg[1], "") for arg in args]
+    trigger_expr = obj.trigger(*trigger_args)
+    if condition is not None:
+        body = [f"if ({condition}) {{ ", trigger_expr, "; }"]
+    else:
+        body = [trigger_expr, ";"]
+    # Use callback_args for the lambda parameters if provided (e.g., when the
+    # callback signature differs from the automation args due to filtering).
+    lambda_params = callback_args if callback_args is not None else args
+    # ESPHome codegen allocates all variables as static pointers, so they
+    # are accessible without explicit lambda capture. Using "" avoids
+    # -Wcapture-of-non-automatic-storage-duration warnings.
+    lambda_expr = LambdaExpression(body, lambda_params, capture="")
+    cg.add(getattr(parent, callback_method)(lambda_expr))
