@@ -223,6 +223,25 @@ INDICATOR_SCHEMA = cv.Schema(
     }
 )
 
+
+def _scale_validate(config):
+    if indicators := config.get(CONF_INDICATORS):
+        style_index = next(
+            (
+                i
+                for i, indicator in enumerate(indicators)
+                if CONF_TICK_STYLE in indicator
+            ),
+            -1,
+        )
+        if style_index >= 0 and CONF_TICKS not in config:
+            raise cv.Invalid(
+                "'tick_style' can't be applied if the enclosing scale has no 'ticks' configured",
+                path=[CONF_INDICATORS, style_index],
+            )
+    return config
+
+
 SCALE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(lv_scale_t),
@@ -252,7 +271,7 @@ SCALE_SCHEMA = cv.Schema(
         cv.Optional(CONF_INDICATORS): cv.ensure_list(INDICATOR_SCHEMA),
         cv.Optional(CONF_DRAW_TICKS_ON_TOP, default=True): bool,
     }
-)
+).add_extra(_scale_validate)
 
 METER_SCHEMA = {
     cv.Optional(CONF_PIVOT): STATE_SCHEMA,
