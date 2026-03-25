@@ -56,6 +56,7 @@ from ..lv_validation import (
     lv_float,
     lv_image,
     lv_int,
+    lv_positive_int,
     opacity,
     padding,
     pixels,
@@ -88,6 +89,8 @@ CONF_COLOR_START = "color_start"
 CONF_DRAW_TICKS_ON_TOP = "draw_ticks_on_top"
 CONF_IMAGE_ID = "image_id"
 CONF_INDICATORS = "indicators"
+CONF_DASH_GAP = "dash_gap"
+CONF_DASH_WIDTH = "dash_width"
 CONF_LINE_ID = "line_id"
 CONF_ROUNDED = "rounded"
 CONF_LABEL_GAP = "label_gap"
@@ -137,6 +140,8 @@ INDICATOR_LINE_SCHEMA = cv.Schema(
         cv.Optional(CONF_WIDTH, default=4): cv.int_,
         cv.Optional(CONF_COLOR, default=0): lv_color,
         cv.Optional(CONF_ROUNDED, default=True): lv_color,
+        cv.Optional(CONF_DASH_GAP): lv_positive_int,
+        cv.Optional(CONF_DASH_WIDTH): lv_positive_int,
         cv.Optional(CONF_R_MOD): padding,
         cv.Optional(CONF_LENGTH): pixels_or_percent_validator,
         cv.Optional(CONF_RADIAL_OFFSET, 0): pixels_or_percent_validator,
@@ -473,6 +478,9 @@ class MeterType(WidgetType):
                         CONF_LENGTH: length,
                         CONF_RADIAL_OFFSET: v[CONF_RADIAL_OFFSET],
                     }
+                    for option in (CONF_DASH_WIDTH, CONF_DASH_GAP):
+                        if option in v:
+                            props["line_" + option] = v[option]
                     lw = await widget_to_code(props, line_indicator_type, scale_var)
                     await set_indicator_values(lw, v)
 
