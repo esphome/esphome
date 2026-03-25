@@ -158,7 +158,7 @@ EMONTX_SEND_COMMAND_ACTION_SCHEMA = cv.Schema(
 )
 async def emontx_send_command_action_to_code(
     config: ConfigType, action_id, template_arg, args
-):
+) -> None:
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.std_string)

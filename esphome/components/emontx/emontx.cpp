@@ -42,14 +42,11 @@ void EmonTx::loop() {
           this->parse_json_(this->buffer_.data(), len);
         }
       }
+    } else if (this->buffer_pos_ >= MAX_LINE_LENGTH) {
+      ESP_LOGW(TAG, "Buffer overflow (>%zu bytes), discarding buffer", MAX_LINE_LENGTH);
+      this->buffer_pos_ = 0;
     } else {
-      // Regular character - add to buffer
-      if (this->buffer_pos_ >= MAX_LINE_LENGTH) {
-        ESP_LOGW(TAG, "Buffer overflow (>%zu bytes), discarding buffer", MAX_LINE_LENGTH);
-        this->buffer_pos_ = 0;
-      } else {
-        this->buffer_[this->buffer_pos_++] = static_cast<char>(received);
-      }
+      this->buffer_[this->buffer_pos_++] = static_cast<char>(received);
     }
   }
 }
