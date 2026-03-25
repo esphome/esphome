@@ -455,6 +455,9 @@ async def to_code(config: ConfigType) -> None:
             cg.add_define("USE_API_PLAINTEXT")
         cg.add_define("USE_API_NOISE")
         cg.add_library("esphome/noise-c", "0.1.11")
+        # Enable optimized memzero/memcmp in libsodium instead of volatile byte loops
+        cg.add_build_flag("-DHAVE_WEAK_SYMBOLS=1")
+        cg.add_build_flag("-DHAVE_INLINE_ASM=1")
     else:
         cg.add_define("USE_API_PLAINTEXT")
 
