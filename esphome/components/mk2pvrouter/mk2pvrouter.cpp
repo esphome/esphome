@@ -96,12 +96,12 @@ bool Mk2PVRouter::read_chars_until_(bool drop, uint8_t c) {
     if (drop)
       continue;
     /*
-     * Internal buffer is full, switch to OFF mode.
-     * Data will be retrieved on next update.
+     * Internal buffer is full, switch to WAITING_FOR_START mode.
+     * Data will be retrieved on next frame.
      */
     if (this->buf_index_ >= (sizeof(this->buf_) - 1)) {
       ESP_LOGW(TAG, "Internal buffer full");
-      this->state_ = State::OFF;
+      this->state_ = State::WAITING_FOR_START;
       return false;
     }
     this->buf_[this->buf_index_++] = received;
@@ -111,50 +111,40 @@ bool Mk2PVRouter::read_chars_until_(bool drop, uint8_t c) {
 }
 
 /**
- * @brief Initializes the Mk2PVRouter by setting the initial state to OFF.
+ * @brief Initializes the Mk2PVRouter by setting the initial state.
  */
-void Mk2PVRouter::setup() { this->state_ = State::OFF; }
-
-/**
- * @brief Updates the Mk2PVRouter state. Resets the buffer index and transitions the state from OFF to ON.
- */
-void Mk2PVRouter::update() {
-  if (this->state_ == State::OFF) {
-    this->buf_index_ = 0;
-    this->state_ = State::ON;
-  }
+void Mk2PVRouter::setup() {
+  this->buf_index_ = 0;
+  this->state_ = State::WAITING_FOR_START;
 }
 
 /**
  * @brief Implements the main state machine for processing incoming data.
  *
  * @details The state machine transitions through the following states:
- * - OFF: Does nothing.
- * - ON: Reads characters until the start frame (0x2) is found.
+ * - WAITING_FOR_START: Reads characters until the start frame (0x2) is found.
  * - START_FRAME_RECEIVED: Reads characters until the end frame (0x3) is found.
  * - END_FRAME_RECEIVED: Processes the buffer to extract groups, validate CRC, and publish values.
  */
 void Mk2PVRouter::loop() {
   switch (this->state_) {
-    case State::OFF:
-      break;
-    case State::ON:
-      ESP_LOGVV(TAG, "State transition: ON -> START_FRAME_RECEIVED");
+    case State::WAITING_FOR_START:
+      ESP_LOGVV(TAG, "State: WAITING_FOR_START");
       /* Dequeue chars until start frame (0x2) */
       if (this->read_chars_until_(true, START_FRAME))
         this->state_ = State::START_FRAME_RECEIVED;
       break;
     case State::START_FRAME_RECEIVED:
-      ESP_LOGVV(TAG, "State transition: START_FRAME_RECEIVED -> END_FRAME_RECEIVED");
+      ESP_LOGVV(TAG, "State: START_FRAME_RECEIVED");
       /* Dequeue chars until end frame (0x3) */
       if (this->read_chars_until_(false, END_FRAME))
         this->state_ = State::END_FRAME_RECEIVED;
       break;
     case State::END_FRAME_RECEIVED:
-      ESP_LOGVV(TAG, "State transition: END_FRAME_RECEIVED -> DoWork");
+      ESP_LOGVV(TAG, "State: END_FRAME_RECEIVED -> processing");
 
       if (this->buf_index_ == 0) {
-        this->state_ = State::OFF;
+        this->state_ = State::WAITING_FOR_START;
         break;
       }
 
@@ -209,7 +199,8 @@ void Mk2PVRouter::loop() {
         if (buf_finger >= buf_end)
           break;
       }
-      this->state_ = State::OFF;
+      this->buf_index_ = 0;
+      this->state_ = State::WAITING_FOR_START;
       break;
   }
 }

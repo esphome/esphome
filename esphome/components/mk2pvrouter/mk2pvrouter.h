@@ -1,10 +1,10 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/uart/uart.h"
 
 #include <cstring>
-#include <vector>
 
 namespace esphome::mk2pvrouter {
 /*
@@ -15,9 +15,9 @@ namespace esphome::mk2pvrouter {
  * - Line format: \n<tag>\t<value>\t<crc>\r (8-15 bytes per line)
  * - Multi-phase with all features: ~150-200 bytes
  */
-static const uint8_t MAX_TAG_SIZE = 8;     // S_MC (4) + digit (1) + null (1) + margin (2)
-static const uint8_t MAX_VAL_SIZE = 8;     // -10000 (6) + null (1) + margin (1)
-static const uint16_t MAX_BUF_SIZE = 256;  // Full frame with all features enabled
+static constexpr uint8_t MAX_TAG_SIZE = 8;     // S_MC (4) + digit (1) + null (1) + margin (2)
+static constexpr uint8_t MAX_VAL_SIZE = 8;     // -10000 (6) + null (1) + margin (1)
+static constexpr uint16_t MAX_BUF_SIZE = 256;  // Full frame with all features enabled
 
 /**
  * @class Mk2PVRouterListener
@@ -43,33 +43,32 @@ class Mk2PVRouterListener {
  * The Mk2PVRouter processes incoming data frames via UART, validates their CRC,
  * extracts tags and values, and publishes them to registered listeners.
  */
-class Mk2PVRouter : public PollingComponent, public uart::UARTDevice {
+class Mk2PVRouter : public Component, public uart::UARTDevice {
  public:
   Mk2PVRouter() = default;
+  void init_listeners(size_t count) { this->mk2pvrouter_listeners_.init(count); }
   void register_mk2pvrouter_listener(Mk2PVRouterListener *listener);
   void loop() override;
   void setup() override;
-  void update() override;
   void dump_config() override;
 
  protected:
   static constexpr size_t CRC_SUFFIX_LEN = 1;
   static constexpr uint32_t BAUD_RATE = 9600;
 
-  std::vector<Mk2PVRouterListener *> mk2pvrouter_listeners_{};
+  FixedVector<Mk2PVRouterListener *> mk2pvrouter_listeners_{};
   char buf_[MAX_BUF_SIZE];
   size_t buf_index_{0};
   char tag_[MAX_TAG_SIZE];
   char val_[MAX_VAL_SIZE];
 
   enum class State {
-    OFF,
-    ON,
+    WAITING_FOR_START,
     START_FRAME_RECEIVED,
     END_FRAME_RECEIVED,
   };
 
-  State state_{State::OFF};
+  State state_{State::WAITING_FOR_START};
 
   bool read_chars_until_(bool drop, uint8_t c);
   uint8_t calculate_crc_(const char *grp, size_t grp_len);

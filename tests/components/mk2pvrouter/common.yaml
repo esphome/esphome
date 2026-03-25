@@ -5,25 +5,6 @@ uart:
 
 mk2pvrouter:
   id: test_mk2pvrouter
-  update_interval: 60s
-
-button:
-  - platform: template
-    name: Poller component suspend test
-    on_press:
-      - component.suspend: test_mk2pvrouter
-      - delay: 20s
-      - component.update: test_mk2pvrouter
-      - delay: 20s
-      - component.resume: test_mk2pvrouter
-      - delay: 20s
-      - component.resume:
-          id: test_mk2pvrouter
-          update_interval: 2s
-      - delay: 20s
-      - component.resume:
-          id: test_mk2pvrouter
-          update_interval: !lambda return 2500;
 
 sensor:
   # Test single-letter tags (exact matches)
