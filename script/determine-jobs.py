@@ -887,12 +887,13 @@ def main() -> None:
         # Components that must run in their own batch (known to fail,
         # should not take down other components)
         solo_batch_components = {
+            "camera",
+            "camera_encoder",
+            "esp32_camera",
+            "esp32_camera_web_server",
             "fastled_clockless",
             "fastled_spi",
             "neopixelbus",
-            "esp32_camera",
-            "esp32_camera_web_server",
-            "camera_encoder",
         }
         solo_components = [
             c for c in changed_components_with_tests if c in solo_batch_components
