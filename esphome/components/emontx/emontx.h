@@ -4,6 +4,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/json/json_util.h"
 
@@ -15,6 +16,7 @@
 
 namespace esphome::emontx {
 
+/// Maximum line length in bytes (plus one byte reserved for null terminator)
 static constexpr size_t MAX_LINE_LENGTH = 1024;
 
 /**
@@ -32,11 +34,11 @@ class EmonTx : public Component, public uart::UARTDevice {
   void setup() override;
   void dump_config() override;
 
-  void add_on_json_callback(std::function<void(JsonObject, const std::string &)> &&callback) {
+  void add_on_json_callback(std::function<void(JsonObject, StringRef)> &&callback) {
     this->json_callbacks_.add(std::move(callback));
   }
 
-  void add_on_data_callback(std::function<void(const std::string &)> &&callback) {
+  void add_on_data_callback(std::function<void(StringRef)> &&callback) {
     this->data_callbacks_.add(std::move(callback));
   }
 
@@ -49,15 +51,15 @@ class EmonTx : public Component, public uart::UARTDevice {
 #endif
 
  protected:
-  void parse_json_(const std::string &data);
+  void parse_json_(const char *data, size_t len);
 
 #ifdef USE_SENSOR
   FixedVector<std::pair<const char *, sensor::Sensor *>> sensors_{};
 #endif
-  LazyCallbackManager<void(JsonObject, const std::string &)> json_callbacks_;
-  LazyCallbackManager<void(const std::string &)> data_callbacks_;
+  LazyCallbackManager<void(JsonObject, StringRef)> json_callbacks_;
+  LazyCallbackManager<void(StringRef)> data_callbacks_;
   size_t buffer_pos_{0};
-  std::array<char, MAX_LINE_LENGTH> buffer_{};
+  std::array<char, MAX_LINE_LENGTH + 1> buffer_{};
 };
 
 // Action to send command to emonTx

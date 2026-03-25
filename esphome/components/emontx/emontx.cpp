@@ -25,18 +25,21 @@ void EmonTx::loop() {
     } else if (received == '\n') {
       // End of line - process the buffer
       if (this->buffer_pos_ > 0) {
-        std::string line(this->buffer_.data(), this->buffer_pos_);
+        // Null-terminate for safe logging and c_str() use
+        size_t len = this->buffer_pos_;
+        this->buffer_[len] = '\0';
         this->buffer_pos_ = 0;
 
+        StringRef line(this->buffer_.data(), len);
         ESP_LOGD(TAG, "Received line: %s", line.c_str());
 
         // Fire data callbacks for all received lines
         this->data_callbacks_.call(line);
 
         // Check if this line is JSON (starts with '{')
-        if (line[0] == '{') {
+        if (this->buffer_[0] == '{') {
           ESP_LOGV(TAG, "Line is JSON, parsing...");
-          this->parse_json_(line);
+          this->parse_json_(this->buffer_.data(), len);
         }
       }
     } else {
@@ -51,38 +54,20 @@ void EmonTx::loop() {
   }
 }
 
-/**
- * @brief Parses a JSON string and updates associated sensors.
- *
- * @details This method takes a string containing JSON data and attempts to parse it.
- * If parsing is successful, it performs the following operations:
- * 1. Updates all registered sensors that have matching keys in the JSON
- * 2. Executes all registered JSON callbacks, passing the parsed JsonObject
- *
- * @param data The JSON string to parse
- */
-void EmonTx::parse_json_(const std::string &data) {
-  ESP_LOGV(TAG, "Parsing JSON: %s", data.c_str());
-
-  bool success = json::parse_json(data, [this, &data](JsonObject root) {
+void EmonTx::parse_json_(const char *data, size_t len) {
+  bool success = json::parse_json(reinterpret_cast<const uint8_t *>(data), len, [this, data, len](JsonObject root) {
 #ifdef USE_SENSOR
-    // Update all registered sensors
     for (auto &sensor_pair : this->sensors_) {
-      const char *tag = sensor_pair.first;
-      sensor::Sensor *sensor_ptr = sensor_pair.second;
-
-      auto val = root[tag];
+      auto val = root[sensor_pair.first];
       if (val.is<JsonVariant>()) {
         float value = val;
-        ESP_LOGV(TAG, "Updating sensor '%s' with value: %.2f", tag, value);
-        sensor_ptr->publish_state(value);
+        ESP_LOGV(TAG, "Updating sensor '%s' with value: %.2f", sensor_pair.first, value);
+        sensor_pair.second->publish_state(value);
       }
     }
 #endif
 
-    // Execute all registered JSON callbacks
-    this->json_callbacks_.call(root, data);
-
+    this->json_callbacks_.call(root, StringRef(data, len));
     return true;
   });
 
