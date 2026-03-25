@@ -64,8 +64,10 @@ APIError APIPlaintextFrameHelper::loop() {
   if (state_ != State::DATA) {
     return APIError::BAD_STATE;
   }
-  // Use base class implementation for buffer sending
-  return APIFrameHelper::loop();
+  if (!this->overflow_buf_.empty()) [[unlikely]] {
+    return this->drain_overflow_and_handle_errors_();
+  }
+  return APIError::OK;
 }
 
 /** Read a packet into the rx_buf_.

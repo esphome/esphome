@@ -1,7 +1,3 @@
-substitutions:
-  x: 10
-  y: 20
-  z: 30
 values_from_repo1_main:
   - package_name: package1
     x: 3
@@ -28,3 +24,20 @@ values_from_repo1_main:
     y: 20
     z: 5
     volume: 1000
+  - package_name: package6
+    x: 12
+    y: 13
+    z: 5
+    volume: 780
+  - package_name: default
+    x: 10
+    y: 20
+    z: 5
+    volume: 1000
+substitutions:
+  x: 10
+  y: 20
+  z: 30
+  my_repo: repo1
+  my_file: file1
+  my_ref: main

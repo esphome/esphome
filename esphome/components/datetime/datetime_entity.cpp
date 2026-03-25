@@ -60,6 +60,9 @@ ESPTime DateTimeEntity::state_as_esptime() const {
   obj.year = this->year_;
   obj.month = this->month_;
   obj.day_of_month = this->day_;
+  obj.day_of_week = 0;
+  obj.day_of_year = 0;
+  obj.is_dst = false;
   obj.hour = this->hour_;
   obj.minute = this->minute_;
   obj.second = this->second_;

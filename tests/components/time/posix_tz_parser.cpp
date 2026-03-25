@@ -1036,8 +1036,6 @@ static time_t esptime_recalc_local(int year, int month, int day, int hour, int m
   t.hour = hour;
   t.minute = min;
   t.second = sec;
-  t.day_of_week = 1;  // Placeholder for fields_in_range()
-  t.day_of_year = 1;
   t.recalc_timestamp_local();
   return t.timestamp;
 }
@@ -1185,6 +1183,60 @@ TEST(RecalcTimestampLocal, NonDefaultTransitionTime) {
   libc_result = libc_mktime(2026, 3, 8, 4, 0, 0);
   esp_result = esptime_recalc_local(2026, 3, 8, 4, 0, 0);
   EXPECT_EQ(esp_result, libc_result);
+}
+
+TEST(RecalcTimestampLocal, MinimalFieldsWithoutDayOfWeekOrYear) {
+  // Regression test for issue #15115: DateTimeEntity::state_as_esptime() constructs
+  // an ESPTime with only year/month/day/hour/minute/second set (no day_of_week or
+  // day_of_year). recalc_timestamp_local() must work without those fields.
+  const char *tz_str = "CET-1CEST,M3.5.0,M10.5.0";
+  setenv("TZ", tz_str, 1);
+  tzset();
+  time::ParsedTimezone tz{};
+  ASSERT_TRUE(parse_posix_tz(tz_str, tz));
+  set_global_tz(tz);
+
+  // Construct ESPTime with only date/time fields (like state_as_esptime does)
+  ESPTime t{};
+  t.year = 2026;
+  t.month = 3;
+  t.day_of_month = 20;
+  t.hour = 23;
+  t.minute = 14;
+  t.second = 55;
+  // day_of_week and day_of_year are deliberately left as 0
+  t.recalc_timestamp_local();
+
+  // Must NOT return -1 (the bug: fields_in_range() rejected valid times)
+  EXPECT_NE(t.timestamp, -1);
+
+  // Verify against libc
+  time_t libc_result = libc_mktime(2026, 3, 20, 23, 14, 55);
+  EXPECT_EQ(t.timestamp, libc_result);
+}
+
+TEST(RecalcTimestampLocal, MinimalFieldsNoDST) {
+  // Same test but with a timezone that has no DST
+  const char *tz_str = "IST-5:30";
+  setenv("TZ", tz_str, 1);
+  tzset();
+  time::ParsedTimezone tz{};
+  ASSERT_TRUE(parse_posix_tz(tz_str, tz));
+  set_global_tz(tz);
+
+  ESPTime t{};
+  t.year = 2026;
+  t.month = 3;
+  t.day_of_month = 23;
+  t.hour = 10;
+  t.minute = 0;
+  t.second = 0;
+  t.recalc_timestamp_local();
+
+  EXPECT_NE(t.timestamp, -1);
+
+  time_t libc_result = libc_mktime(2026, 3, 23, 10, 0, 0);
+  EXPECT_EQ(t.timestamp, libc_result);
 }
 
 TEST(RecalcTimestampLocal, YearBoundaryDST) {

@@ -15,7 +15,7 @@ from ..defines import (
     TILE_DIRECTIONS,
     literal,
 )
-from ..lv_validation import animated, lv_int, lv_pct
+from ..lv_validation import animated, lv_int, pixels_or_percent
 from ..lvcode import lv, lv_assign, lv_expr, lv_obj, lv_Pvariable
 from ..schemas import container_schema
 from ..types import LV_EVENT, LvType, ObjUpdateAction, lv_obj_t, lv_obj_t_ptr
@@ -68,17 +68,19 @@ class TileviewType(WidgetType):
             w_id = tile_conf[CONF_ID]
             tile_obj = lv_Pvariable(lv_obj_t, w_id)
             tile = Widget.create(w_id, tile_obj, tile_spec, tile_conf)
-            dirs = tile_conf[CONF_DIR]
-            if isinstance(dirs, list):
-                dirs = "|".join(dirs)
+            dirs = await TILE_DIRECTIONS.process(tile_conf[CONF_DIR])
             row_pos = tile_conf[CONF_ROW]
             col_pos = tile_conf[CONF_COLUMN]
             lv_assign(
                 tile_obj,
-                lv_expr.tileview_add_tile(w.obj, col_pos, row_pos, literal(dirs)),
+                lv_expr.tileview_add_tile(w.obj, col_pos, row_pos, dirs),
             )
             # Bugfix for LVGL 8.x
-            lv_obj.set_pos(tile_obj, lv_pct(col_pos * 100), lv_pct(row_pos * 100))
+            lv_obj.set_pos(
+                tile_obj,
+                await pixels_or_percent.process(float(col_pos)),
+                await pixels_or_percent.process(float(row_pos)),
+            )
             await set_obj_properties(tile, tile_conf)
             await add_widgets(tile, tile_conf)
         if tiles:

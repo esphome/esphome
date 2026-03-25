@@ -31,7 +31,9 @@ void TextSensor::publish_state(const char *state, size_t len) {
     if (len != this->state.size() || memcmp(state, this->state.data(), len) != 0) {
       this->state.assign(state, len);
     }
+#ifdef USE_TEXT_SENSOR_FILTER
     this->raw_callback_.call(this->state);
+#endif
     ESP_LOGV(TAG, "'%s': Received new state %s", this->name_.c_str(), this->state.c_str());
     this->notify_frontend_();
 #ifdef USE_TEXT_SENSOR_FILTER
@@ -82,13 +84,6 @@ void TextSensor::clear_filters() {
   this->filter_list_ = nullptr;
 }
 #endif  // USE_TEXT_SENSOR_FILTER
-
-void TextSensor::add_on_state_callback(std::function<void(const std::string &)> callback) {
-  this->callback_.add(std::move(callback));
-}
-void TextSensor::add_on_raw_state_callback(std::function<void(const std::string &)> callback) {
-  this->raw_callback_.add(std::move(callback));
-}
 
 const std::string &TextSensor::get_state() const { return this->state; }
 const std::string &TextSensor::get_raw_state() const {
