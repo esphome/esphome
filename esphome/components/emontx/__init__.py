@@ -1,3 +1,5 @@
+from dataclasses import dataclass, field
+
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
@@ -38,6 +40,20 @@ CONF_EMONTX_ID = "emontx_id"
 CONF_TAG_NAME = "tag_name"
 CONF_ON_JSON = "on_json"
 
+DOMAIN = "emontx"
+
+
+@dataclass
+class EmonTxData:
+    sensor_counts: dict[str, int] = field(default_factory=dict)
+
+
+def _get_data() -> EmonTxData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = EmonTxData()
+    return CORE.data[DOMAIN]
+
+
 # Main configuration schema
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -73,9 +89,7 @@ def final_validate(config):
             and sensor_conf.get(CONF_EMONTX_ID) == hub_id
         ):
             sensor_count += 1
-    if "emontx" not in CORE.data:
-        CORE.data["emontx"] = {}
-    CORE.data["emontx"][str(hub_id)] = sensor_count
+    _get_data().sensor_counts[str(hub_id)] = sensor_count
 
     # Ensure UART RX buffer size is large enough to handle data bursts from firmware
     # The firmware can send ~2KB of configuration data in bursts which would
@@ -135,7 +149,7 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
 
     # Initialize sensor storage with exact count from final_validate
-    sensor_count = CORE.data.get("emontx", {}).get(str(config[CONF_ID]), 0)
+    sensor_count = _get_data().sensor_counts.get(str(config[CONF_ID]), 0)
     if sensor_count > 0:
         cg.add(var.init_sensors(sensor_count))
 
