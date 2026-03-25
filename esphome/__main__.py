@@ -1046,7 +1046,11 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
     ):
         from esphome.components.api.client import run_logs
 
-        return run_logs(config, network_devices)
+        return run_logs(
+            config,
+            network_devices,
+            subscribe_states=not getattr(args, "no_states", False),
+        )
 
     if port_type in (PortType.NETWORK, PortType.MQTT) and has_mqtt_logging():
         from esphome import mqtt
@@ -1663,6 +1667,11 @@ def parse_args(argv):
         action="store_true",
         help="Reset the device before starting serial logs.",
         default=os.getenv("ESPHOME_SERIAL_LOGGING_RESET"),
+    )
+    parser_logs.add_argument(
+        "--no-states",
+        action="store_true",
+        help="Do not show entity state changes in log output.",
     )
 
     parser_discover = subparsers.add_parser(
