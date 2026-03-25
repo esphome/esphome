@@ -123,7 +123,7 @@ i2c::ErrorCode XDB401Component::read_pressure_(float &pressure) {
 }
 
 i2c::ErrorCode XDB401Component::read_temperature_(float &temperature) {
-  // Read 2 bytes from senesor at address 0x09
+  // Read 2 bytes from sensor at address 0x09
   uint8_t t_data[2]{};
   i2c::ErrorCode err_code = this->read_register(REG_TEMPERATURE, t_data, 2);
   if (err_code != i2c::ERROR_OK) {
