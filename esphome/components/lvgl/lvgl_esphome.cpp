@@ -691,7 +691,6 @@ void lv_scale_draw_event_cb(lv_event_t *e, int16_t range_start, int16_t range_en
         // total tick count is guaranteed to be at least 2.
         ratio = (line_dsc->base.id1 * 255) / (lv_scale_get_total_tick_count(scale) - 1);
       }
-      ESP_LOGD(TAG, "Drawing tick %d ratio %d (range %d-%d)", tick, ratio, range_start, range_end);
       line_dsc->color = lv_color_mix(color_end, color_start, ratio);
       line_dsc->width += width;
     }
