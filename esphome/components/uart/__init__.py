@@ -33,6 +33,7 @@ from esphome.const import (
     PLATFORM_HOST,
     PlatformFramework,
 )
+from esphome.components.const import CONF_LIBRETINY
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.yaml_util import make_data_base
@@ -52,8 +53,6 @@ def AUTO_LOAD() -> list[str]:
         return ["socket"]
     return []
 
-
-CONF_LIBRETINY = "libretiny"
 
 uart_ns = cg.esphome_ns.namespace("uart")
 UARTComponent = uart_ns.class_("UARTComponent")

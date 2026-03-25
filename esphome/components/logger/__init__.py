@@ -59,6 +59,7 @@ from esphome.const import (
     PLATFORM_RTL87XX,
     PlatformFramework,
 )
+from esphome.components.const import CONF_LIBRETINY
 from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
 from esphome.types import ConfigType
 
@@ -103,7 +104,6 @@ USB_CDC = "USB_CDC"
 DEFAULT = "DEFAULT"
 
 CONF_INITIAL_LEVEL = "initial_level"
-CONF_LIBRETINY = "libretiny"
 CONF_LOGGER_ID = "logger_id"
 CONF_RUNTIME_TAG_LEVELS = "runtime_tag_levels"
 CONF_TASK_LOG_BUFFER_SIZE = "task_log_buffer_size"
