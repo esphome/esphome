@@ -30,8 +30,8 @@ def esp32_c3_validate_gpio_pin(value: int) -> int:
         )
     if value in _ESP32C3_USB_JTAG_PINS:
         _LOGGER.warning(
-            "GPIO%d is reserved for the USB-Serial-JTAG interface.\n"
-            "To use this pin as GPIO, USB-Serial-JTAG will be disabled.",
+            "GPIO%d is used by the USB-Serial-JTAG interface."
+            " Using this pin as GPIO will conflict with USB-Serial-JTAG.",
             value,
         )
 
