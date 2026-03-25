@@ -16,6 +16,7 @@ from ..lv_validation import lv_bool, lv_int, lv_text
 from ..schemas import TEXT_SCHEMA
 from ..types import LvText
 from . import Widget, WidgetType
+from .label import CONF_LABEL
 
 CONF_TEXTAREA = "textarea"
 
@@ -45,6 +46,9 @@ class TextareaType(WidgetType):
             ),
             TEXTAREA_SCHEMA,
         )
+
+    def get_uses(self):
+        return (CONF_LABEL,)
 
     async def to_code(self, w: Widget, config: dict):
         for prop in (CONF_TEXT, CONF_PLACEHOLDER_TEXT, CONF_ACCEPTED_CHARS):
