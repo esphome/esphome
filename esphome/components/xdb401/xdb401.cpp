@@ -152,9 +152,7 @@ void XDB401Component::update() {
   if (err_code != i2c::ERROR_OK) {
     this->status_set_warning("I2C Communication Failed");
     if (this->comm_err_counter_ > MARK_FAIL_AFTER) {
-      // this->mark_failed("Too many consecutive I2C communication errors");  // Need latest dev
-      this->mark_failed();
-      ESP_LOGE(TAG, "Too many consecutive I2C communication errors");
+      this->mark_failed(LOG_STR("Too many consecutive I2C communication errors"));
     } else {
       this->comm_err_counter_++;
     }
