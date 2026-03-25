@@ -260,17 +260,14 @@ METER_SCHEMA = {
     cv.Optional(CONF_SCALES): cv.ensure_list(SCALE_SCHEMA),
 }
 
+# Only handling light style at the moment
 LIGHT_STYLE = LVStyle(
     "lv_meter_light",
     {
         "bg_opa": 1.0,
-        "bg_color": 0xEEEEEE,
-        "line_width": 1,
-        "line_color": 0xEEEEEE,
-        "arc_width": 2,
-        "arc_color": 0xEEEEEE,
+        "bg_color": 0xFFFFFF,
         "pad_all": 10,
-        "border_width": 2,
+        "border_width": 3,
         "border_color": 0xEEEEEE,
         "radius": "LV_RADIUS_CIRCLE",
     },
