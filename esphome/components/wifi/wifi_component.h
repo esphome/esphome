@@ -774,6 +774,8 @@ class WiFiComponent final : public Component {
   SemaphoreHandle_t high_performance_semaphore_{nullptr};
 #endif
 
+  static constexpr uint8_t FIRST_5GHZ_CHANNEL = 36;
+
   // Post-connect roaming constants
   static constexpr uint32_t ROAMING_CHECK_INTERVAL = 5 * 60 * 1000;  // 5 minutes
   static constexpr int8_t ROAMING_MIN_IMPROVEMENT = 10;              // dB

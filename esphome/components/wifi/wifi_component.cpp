@@ -2223,6 +2223,14 @@ bool WiFiComponent::load_fast_connect_settings_(WiFiAP &params) {
     params.set_hidden(false);
 
     ESP_LOGD(TAG, "Loaded fast_connect settings");
+#if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
+    if ((this->band_mode_ == WIFI_BAND_MODE_5G_ONLY && fast_connect_save.channel < FIRST_5GHZ_CHANNEL) ||
+        (this->band_mode_ == WIFI_BAND_MODE_2G_ONLY && fast_connect_save.channel >= FIRST_5GHZ_CHANNEL)) {
+      ESP_LOGW(TAG, "Saved channel %u not allowed by band mode, ignoring fast_connect", fast_connect_save.channel);
+      this->selected_sta_index_ = -1;
+      return false;
+    }
+#endif
     return true;
   }
 
