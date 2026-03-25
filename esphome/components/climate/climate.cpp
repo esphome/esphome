@@ -46,45 +46,45 @@ constexpr StringToUint8 CLIMATE_SWING_MODES_BY_STR[] = {
 
 void ClimateCall::perform() {
   this->parent_->control_callback_.call(*this);
-  ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   this->validate_();
   if (this->mode_.has_value()) {
     const LogString *mode_s = climate_mode_to_string(*this->mode_);
-    ESP_LOGD(TAG, "  Mode: %s", LOG_STR_ARG(mode_s));
+    ESP_LOGV(TAG, "  Mode: %s", LOG_STR_ARG(mode_s));
   }
   if (this->custom_fan_mode_ != nullptr) {
     this->fan_mode_.reset();
-    ESP_LOGD(TAG, " Custom Fan: %s", this->custom_fan_mode_);
+    ESP_LOGV(TAG, " Custom Fan: %s", this->custom_fan_mode_);
   }
   if (this->fan_mode_.has_value()) {
     this->custom_fan_mode_ = nullptr;
     const LogString *fan_mode_s = climate_fan_mode_to_string(*this->fan_mode_);
-    ESP_LOGD(TAG, "  Fan: %s", LOG_STR_ARG(fan_mode_s));
+    ESP_LOGV(TAG, "  Fan: %s", LOG_STR_ARG(fan_mode_s));
   }
   if (this->custom_preset_ != nullptr) {
     this->preset_.reset();
-    ESP_LOGD(TAG, " Custom Preset: %s", this->custom_preset_);
+    ESP_LOGV(TAG, " Custom Preset: %s", this->custom_preset_);
   }
   if (this->preset_.has_value()) {
     this->custom_preset_ = nullptr;
     const LogString *preset_s = climate_preset_to_string(*this->preset_);
-    ESP_LOGD(TAG, "  Preset: %s", LOG_STR_ARG(preset_s));
+    ESP_LOGV(TAG, "  Preset: %s", LOG_STR_ARG(preset_s));
   }
   if (this->swing_mode_.has_value()) {
     const LogString *swing_mode_s = climate_swing_mode_to_string(*this->swing_mode_);
-    ESP_LOGD(TAG, "  Swing: %s", LOG_STR_ARG(swing_mode_s));
+    ESP_LOGV(TAG, "  Swing: %s", LOG_STR_ARG(swing_mode_s));
   }
   if (this->target_temperature_.has_value()) {
-    ESP_LOGD(TAG, "  Target Temperature: %.2f", *this->target_temperature_);
+    ESP_LOGV(TAG, "  Target Temperature: %.2f", *this->target_temperature_);
   }
   if (this->target_temperature_low_.has_value()) {
-    ESP_LOGD(TAG, "  Target Temperature Low: %.2f", *this->target_temperature_low_);
+    ESP_LOGV(TAG, "  Target Temperature Low: %.2f", *this->target_temperature_low_);
   }
   if (this->target_temperature_high_.has_value()) {
-    ESP_LOGD(TAG, "  Target Temperature High: %.2f", *this->target_temperature_high_);
+    ESP_LOGV(TAG, "  Target Temperature High: %.2f", *this->target_temperature_high_);
   }
   if (this->target_humidity_.has_value()) {
-    ESP_LOGD(TAG, "  Target Humidity: %.0f", *this->target_humidity_);
+    ESP_LOGV(TAG, "  Target Humidity: %.0f", *this->target_humidity_);
   }
   this->parent_->control(*this);
 }
@@ -435,43 +435,43 @@ void Climate::save_state_() {
 }
 
 void Climate::publish_state() {
-  ESP_LOGD(TAG, "'%s' >>", this->name_.c_str());
+  ESP_LOGV(TAG, "'%s' >>", this->name_.c_str());
   auto traits = this->get_traits();
 
-  ESP_LOGD(TAG, "  Mode: %s", LOG_STR_ARG(climate_mode_to_string(this->mode)));
+  ESP_LOGV(TAG, "  Mode: %s", LOG_STR_ARG(climate_mode_to_string(this->mode)));
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_ACTION)) {
-    ESP_LOGD(TAG, "  Action: %s", LOG_STR_ARG(climate_action_to_string(this->action)));
+    ESP_LOGV(TAG, "  Action: %s", LOG_STR_ARG(climate_action_to_string(this->action)));
   }
   if (traits.get_supports_fan_modes() && this->fan_mode.has_value()) {
-    ESP_LOGD(TAG, "  Fan Mode: %s", LOG_STR_ARG(climate_fan_mode_to_string(this->fan_mode.value())));
+    ESP_LOGV(TAG, "  Fan Mode: %s", LOG_STR_ARG(climate_fan_mode_to_string(this->fan_mode.value())));
   }
   if (!traits.get_supported_custom_fan_modes().empty() && this->has_custom_fan_mode()) {
-    ESP_LOGD(TAG, "  Custom Fan Mode: %s", this->custom_fan_mode_);
+    ESP_LOGV(TAG, "  Custom Fan Mode: %s", this->custom_fan_mode_);
   }
   if (traits.get_supports_presets() && this->preset.has_value()) {
-    ESP_LOGD(TAG, "  Preset: %s", LOG_STR_ARG(climate_preset_to_string(this->preset.value())));
+    ESP_LOGV(TAG, "  Preset: %s", LOG_STR_ARG(climate_preset_to_string(this->preset.value())));
   }
   if (!traits.get_supported_custom_presets().empty() && this->has_custom_preset()) {
-    ESP_LOGD(TAG, "  Custom Preset: %s", this->custom_preset_);
+    ESP_LOGV(TAG, "  Custom Preset: %s", this->custom_preset_);
   }
   if (traits.get_supports_swing_modes()) {
-    ESP_LOGD(TAG, "  Swing Mode: %s", LOG_STR_ARG(climate_swing_mode_to_string(this->swing_mode)));
+    ESP_LOGV(TAG, "  Swing Mode: %s", LOG_STR_ARG(climate_swing_mode_to_string(this->swing_mode)));
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE)) {
-    ESP_LOGD(TAG, "  Current Temperature: %.2f°C", this->current_temperature);
+    ESP_LOGV(TAG, "  Current Temperature: %.2f°C", this->current_temperature);
   }
   if (traits.has_feature_flags(CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
                                CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
-    ESP_LOGD(TAG, "  Target Temperature: Low: %.2f°C High: %.2f°C", this->target_temperature_low,
+    ESP_LOGV(TAG, "  Target Temperature: Low: %.2f°C High: %.2f°C", this->target_temperature_low,
              this->target_temperature_high);
   } else {
-    ESP_LOGD(TAG, "  Target Temperature: %.2f°C", this->target_temperature);
+    ESP_LOGV(TAG, "  Target Temperature: %.2f°C", this->target_temperature);
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_HUMIDITY)) {
-    ESP_LOGD(TAG, "  Current Humidity: %.0f%%", this->current_humidity);
+    ESP_LOGV(TAG, "  Current Humidity: %.0f%%", this->current_humidity);
   }
   if (traits.has_feature_flags(climate::CLIMATE_SUPPORTS_TARGET_HUMIDITY)) {
-    ESP_LOGD(TAG, "  Target Humidity: %.0f%%", this->target_humidity);
+    ESP_LOGV(TAG, "  Target Humidity: %.0f%%", this->target_humidity);
   }
 
   // Send state to frontend
