@@ -1,5 +1,4 @@
-substitutions:
-  scl_pin: GPIO22
-  sda_pin: GPIO21
+packages:
+  i2c: !include ../../test_build_components/common/i2c/esp32-ard.yaml
 
 <<: !include common.yaml
