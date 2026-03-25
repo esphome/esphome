@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import climate, uart
 import esphome.config_validation as cv
-from esphome.const import CONF_BAUD_RATE, CONF_ID, CONF_UART_ID, CONF_UPDATE_INTERVAL
+from esphome.const import CONF_BAUD_RATE, CONF_ID, CONF_UART_ID
 
 mitsubishi_ns = cg.esphome_ns.namespace("mitsubishi_cn105")
 
@@ -28,13 +28,7 @@ def _validate_uart_baud_rate(config):
 
 CONFIG_SCHEMA = (
     climate.climate_schema(MitsubishiCN105Climate)
-    .extend(
-        {
-            cv.Optional(
-                CONF_UPDATE_INTERVAL, default="1s"
-            ): cv.positive_time_period_milliseconds,
-        }
-    )
+    .extend(cv.polling_component_schema("1s"))
     .extend(uart.UART_DEVICE_SCHEMA)
 )
 
@@ -56,5 +50,3 @@ async def to_code(config):
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
     await climate.register_climate(var, config)
-
-    cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))

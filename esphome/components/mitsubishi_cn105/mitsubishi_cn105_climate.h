@@ -5,8 +5,7 @@
 #include "esphome/components/uart/uart.h"
 #include "mitsubishi_cn105.h"
 
-namespace esphome {
-namespace mitsubishi_cn105 {
+namespace esphome::mitsubishi_cn105 {
 
 class MitsubishiCN105Climate : public climate::Climate, public Component, public uart::UARTDevice {
  public:
@@ -27,5 +26,4 @@ class MitsubishiCN105Climate : public climate::Climate, public Component, public
   MitsubishiCN105 hp_;
 };
 
-}  // namespace mitsubishi_cn105
-}  // namespace esphome
+}  // namespace esphome::mitsubishi_cn105

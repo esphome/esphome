@@ -8,8 +8,7 @@
 
 #include "esphome/components/uart/uart.h"
 
-namespace esphome {
-namespace mitsubishi_cn105 {
+namespace esphome::mitsubishi_cn105 {
 
 class MitsubishiCN105 {
  public:
@@ -100,7 +99,7 @@ class MitsubishiCN105 {
   void set_state_(State new_state);
   static bool should_transition(State from, State to);
   void did_transition_(State from, State to);
-  void cancel_waiting_and_transit_to_(State state);
+  void cancel_waiting_and_transition_to_(State state);
 
   void connect_();
 
@@ -149,5 +148,4 @@ class MitsubishiCN105 {
   std::function<void(bool)> connection_state_callback_{};
 };
 
-}  // namespace mitsubishi_cn105
-}  // namespace esphome
+}  // namespace esphome::mitsubishi_cn105

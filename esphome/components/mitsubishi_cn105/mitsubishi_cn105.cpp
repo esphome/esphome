@@ -3,12 +3,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace mitsubishi_cn105 {
+namespace esphome::mitsubishi_cn105 {
 
 static const char *const TAG = "mitsubishi_cn105.driver";
-
-namespace {
 
 constexpr size_t PACKET_SIZE = 22;
 constexpr size_t HEADER_LEN = 5;
@@ -19,7 +16,7 @@ constexpr uint8_t INFO_MODE_ROOM_TEMP = 0x03;  // current room temperature
 
 constexpr std::array<uint8_t, 2> INFO_MODE = {{INFO_MODE_SETTINGS, INFO_MODE_ROOM_TEMP}};
 
-constexpr std::array<std::optional<MitsubishiCN105::Mode>, 9> MODE_MAP = {{
+static constexpr std::array<std::optional<MitsubishiCN105::Mode>, 9> MODE_MAP = {{
     std::nullopt,                     // 0x00
     MitsubishiCN105::Mode::HEAT,      // 0x01
     MitsubishiCN105::Mode::DRY,       // 0x02
@@ -31,7 +28,7 @@ constexpr std::array<std::optional<MitsubishiCN105::Mode>, 9> MODE_MAP = {{
     MitsubishiCN105::Mode::AUTO       // 0x08
 }};
 
-constexpr std::array<std::optional<MitsubishiCN105::FanMode>, 7> FAN_MODE_MAP = {{
+static constexpr std::array<std::optional<MitsubishiCN105::FanMode>, 7> FAN_MODE_MAP = {{
     MitsubishiCN105::FanMode::AUTO,     // 0x00
     MitsubishiCN105::FanMode::QUIET,    // 0x01
     MitsubishiCN105::FanMode::SPEED_1,  // 0x02
@@ -41,7 +38,7 @@ constexpr std::array<std::optional<MitsubishiCN105::FanMode>, 7> FAN_MODE_MAP = 
     MitsubishiCN105::FanMode::SPEED_4   // 0x06
 }};
 
-constexpr uint8_t checksum(const uint8_t *bytes, size_t length) {
+static constexpr uint8_t checksum(const uint8_t *bytes, size_t length) {
   uint8_t sum = 0;
   while (length--) {
     sum += *bytes++;
@@ -49,19 +46,17 @@ constexpr uint8_t checksum(const uint8_t *bytes, size_t length) {
   return static_cast<uint8_t>(0xFC - sum);
 }
 
-}  // namespace
-
 void MitsubishiCN105::init() { this->set_state_(State::CONNECTING); }
 
 bool MitsubishiCN105::sync() {
   if (const auto status_update_start_ms = this->status_update_start_ms_) {
-    if (pending_updates_.any()) {
-      this->cancel_waiting_and_transit_to_(State::APPLYING_SETTINGS);
+    if (this->pending_updates_.any()) {
+      this->cancel_waiting_and_transition_to_(State::APPLYING_SETTINGS);
       return false;
     }
 
     if ((App.get_loop_component_start_time() - *status_update_start_ms) >= this->update_interval_ms_) {
-      this->cancel_waiting_and_transit_to_(State::UPDATING_STATUS);
+      this->cancel_waiting_and_transition_to_(State::UPDATING_STATUS);
       return false;
     }
   }
@@ -183,7 +178,7 @@ void MitsubishiCN105::did_transition_(State from, State to) {
   }
 }
 
-void MitsubishiCN105::cancel_waiting_and_transit_to_(State state) {
+void MitsubishiCN105::cancel_waiting_and_transition_to_(State state) {
   this->status_update_start_ms_.reset();
   this->set_state_(state);
 }
@@ -232,7 +227,6 @@ void MitsubishiCN105::connect_() {
 void MitsubishiCN105::send_packet_(const uint8_t *packet, size_t size) {
   dump_buffer_vv("TX", packet, size);
   this->device_.write_array(packet, size);
-  this->device_.flush();
   this->write_timeout_start_ms_ = App.get_loop_component_start_time();
 }
 
@@ -258,7 +252,7 @@ bool MitsubishiCN105::read_incoming_bytes_() {
       if (value == 0xFC) {
         this->add_byte_to_read_buffer_(value);
       } else {
-        ESP_LOGW(TAG, "RX ignoring preamble: %02X", value);
+        ESP_LOGD(TAG, "RX ignoring preamble: %02X", value);
       }
       continue;
     }
@@ -310,26 +304,32 @@ bool MitsubishiCN105::process_incoming_packet_(const uint8_t *packet, uint8_t le
 
   const auto previous = this->current_status_;
 
-  if (!this->parse_values_(packet + HEADER_LEN, length - HEADER_LEN)) {
+  const uint8_t *payload = packet + HEADER_LEN;
+  if (!this->parse_values_(payload, length - HEADER_LEN)) {
     return false;
   }
 
-  this->set_state_(State::STATUS_UPDATED);
-
-  if (previous != this->current_status_ && this->status_initialized_) {
-    ESP_LOGD(TAG,
-             "Status changed: "
-             "power=%s->%s mode=%u->%u target=%.1f->%.1f fan=%u->%u room=%.1f->%.1f",
-             previous.settings.power_on ? "ON" : "OFF", this->current_status_.settings.power_on ? "ON" : "OFF",
-             static_cast<uint8_t>(previous.settings.mode), static_cast<uint8_t>(this->current_status_.settings.mode),
-             previous.settings.target_temperature, this->current_status_.settings.target_temperature,
-             static_cast<uint8_t>(previous.settings.fan_mode),
-             static_cast<uint8_t>(this->current_status_.settings.fan_mode), previous.room_temperature,
-             this->current_status_.room_temperature);
-    return true;
+  // Transition to STATUS_UPDATED only if the received status update matches the requested type
+  // while parsed values can still be published if changed
+  if (*payload == INFO_MODE[this->info_mode_index_]) {
+    this->set_state_(State::STATUS_UPDATED);
   }
 
-  return false;
+  if (previous == this->current_status_ || !this->status_initialized_) {
+    return false;
+  }
+
+  ESP_LOGD(TAG,
+           "Status changed: "
+           "power=%s->%s mode=%u->%u target=%.1f->%.1f fan=%u->%u room=%.1f->%.1f",
+           previous.settings.power_on ? "ON" : "OFF", this->current_status_.settings.power_on ? "ON" : "OFF",
+           static_cast<uint8_t>(previous.settings.mode), static_cast<uint8_t>(this->current_status_.settings.mode),
+           previous.settings.target_temperature, this->current_status_.settings.target_temperature,
+           static_cast<uint8_t>(previous.settings.fan_mode),
+           static_cast<uint8_t>(this->current_status_.settings.fan_mode), previous.room_temperature,
+           this->current_status_.room_temperature);
+
+  return true;
 }
 
 std::optional<MitsubishiCN105::State> MitsubishiCN105::check_incoming_packet(const uint8_t *packet, uint8_t length,
@@ -450,7 +450,7 @@ void MitsubishiCN105::add_byte_to_read_buffer_(uint8_t value) {
     this->read_buffer_[this->read_pos_] = value;
     ++this->read_pos_;
   } else {
-    ESP_LOGW(TAG, "RX buffer overflow, resetting");
+    ESP_LOGD(TAG, "RX buffer overflow, resetting");
     dump_buffer_vv("RX partial: ", this->read_buffer_, this->read_pos_);
     this->read_pos_ = 0;
   }
@@ -461,7 +461,7 @@ void MitsubishiCN105::set_target_temperature(float target_temperature) {
     ESP_LOGW(TAG, "Setting temperature out-of-range: %.1f", target_temperature);
     return;
   }
-  target_temperature = std::lroundf(target_temperature);
+  target_temperature = std::roundf(target_temperature);
   this->current_status_.settings.target_temperature = target_temperature;
   this->pending_updates_.set(UpdateFlag::TEMPERATURE);
 }
@@ -529,8 +529,8 @@ std::optional<uint8_t> MitsubishiCN105::pending_update_for_(UpdateFlag flag, con
 void MitsubishiCN105::dump_buffer_vv(const char *prefix, const uint8_t *data, size_t len) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
   char buf[format_hex_pretty_size(READ_BUFFER_SIZE)];
-#endif
   ESP_LOGVV(TAG, "%s (%u): %s", prefix, (unsigned) len, format_hex_pretty_to(buf, data, len));
+#endif
 }
 
 const char *MitsubishiCN105::state_to_string(State state) {
@@ -559,5 +559,4 @@ const char *MitsubishiCN105::state_to_string(State state) {
   return "Unknown";
 }
 
-}  // namespace mitsubishi_cn105
-}  // namespace esphome
+}  // namespace esphome::mitsubishi_cn105

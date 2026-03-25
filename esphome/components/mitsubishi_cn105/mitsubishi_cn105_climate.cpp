@@ -1,14 +1,11 @@
 #include "mitsubishi_cn105_climate.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace mitsubishi_cn105 {
+namespace esphome::mitsubishi_cn105 {
 
 static const char *const TAG = "mitsubishi_cn105.climate";
 
-namespace {
-
-constexpr std::array<std::pair<MitsubishiCN105::Mode, climate::ClimateMode>, 5> MODE_MAP{{
+static constexpr std::array<std::pair<MitsubishiCN105::Mode, climate::ClimateMode>, 5> MODE_MAP{{
     {MitsubishiCN105::Mode::AUTO, climate::CLIMATE_MODE_AUTO},
     {MitsubishiCN105::Mode::HEAT, climate::CLIMATE_MODE_HEAT},
     {MitsubishiCN105::Mode::DRY, climate::CLIMATE_MODE_DRY},
@@ -16,7 +13,7 @@ constexpr std::array<std::pair<MitsubishiCN105::Mode, climate::ClimateMode>, 5> 
     {MitsubishiCN105::Mode::FAN_ONLY, climate::CLIMATE_MODE_FAN_ONLY},
 }};
 
-constexpr std::array<std::pair<MitsubishiCN105::FanMode, climate::ClimateFanMode>, 6> FAN_MODE_MAP{{
+static constexpr std::array<std::pair<MitsubishiCN105::FanMode, climate::ClimateFanMode>, 6> FAN_MODE_MAP{{
     {MitsubishiCN105::FanMode::AUTO, climate::CLIMATE_FAN_AUTO},
     {MitsubishiCN105::FanMode::QUIET, climate::CLIMATE_FAN_QUIET},
     {MitsubishiCN105::FanMode::SPEED_1, climate::CLIMATE_FAN_LOW},
@@ -26,7 +23,7 @@ constexpr std::array<std::pair<MitsubishiCN105::FanMode, climate::ClimateFanMode
 }};
 
 template<typename Left, typename Right, std::size_t N>
-constexpr std::optional<Right> lookup(const std::array<std::pair<Left, Right>, N> &map, Left key) {
+static constexpr std::optional<Right> lookup(const std::array<std::pair<Left, Right>, N> &map, Left key) {
   for (const auto &entry : map) {
     if (entry.first == key) {
       return entry.second;
@@ -36,7 +33,7 @@ constexpr std::optional<Right> lookup(const std::array<std::pair<Left, Right>, N
 }
 
 template<typename Left, typename Right, std::size_t N>
-constexpr std::optional<Left> lookup_reverse(const std::array<std::pair<Left, Right>, N> &map, Right key) {
+static constexpr std::optional<Left> lookup_reverse(const std::array<std::pair<Left, Right>, N> &map, Right key) {
   for (const auto &entry : map) {
     if (entry.second == key) {
       return entry.first;
@@ -46,12 +43,10 @@ constexpr std::optional<Left> lookup_reverse(const std::array<std::pair<Left, Ri
 }
 
 template<typename Left, typename Right, std::size_t N>
-constexpr std::optional<Left> lookup_reverse(const std::array<std::pair<Left, Right>, N> &map,
-                                             const std::optional<Right> &key) {
+static constexpr std::optional<Left> lookup_reverse(const std::array<std::pair<Left, Right>, N> &map,
+                                                    const std::optional<Right> &key) {
   return key.has_value() ? lookup_reverse(map, *key) : std::nullopt;
 }
-
-}  // namespace
 
 void MitsubishiCN105Climate::dump_config() {
   LOG_CLIMATE("", "Mitsubishi CN105 Climate", this);
@@ -169,5 +164,4 @@ void MitsubishiCN105Climate::apply_values_() {
   }
 }
 
-}  // namespace mitsubishi_cn105
-}  // namespace esphome
+}  // namespace esphome::mitsubishi_cn105
