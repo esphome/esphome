@@ -11,7 +11,8 @@ namespace esphome::time_based {
 enum TimeBasedValveRestoreMode {
   VALVE_NO_RESTORE,
   VALVE_RESTORE,
-  VALVE_RESTORE_AND_CALL,
+  VALVE_ALWAYS_OPEN,
+  VALVE_ALWAYS_CLOSED,
 };
 
 class TimeBasedValve final : public valve::Valve, public Component {
@@ -19,7 +20,6 @@ class TimeBasedValve final : public valve::Valve, public Component {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override;
 
   Trigger<> *get_open_trigger();
   Trigger<> *get_close_trigger();

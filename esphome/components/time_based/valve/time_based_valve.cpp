@@ -7,9 +7,9 @@ using namespace esphome::valve;
 static const char *const TAG = "time_based.valve";
 
 void TimeBasedValve::setup() {
+  this->position = NAN;
   switch (this->restore_mode_) {
     case VALVE_NO_RESTORE:
-      this->position = NAN;
       break;
     case VALVE_RESTORE: {
       auto restore = this->restore_state_();
@@ -17,13 +17,12 @@ void TimeBasedValve::setup() {
         restore->apply(this);
       break;
     }
-    case VALVE_RESTORE_AND_CALL: {
-      auto restore = this->restore_state_();
-      if (restore.has_value()) {
-        restore->to_call(this).perform();
-      }
+    case VALVE_ALWAYS_OPEN:
+      this->start_direction_(VALVE_OPERATION_OPENING);
       break;
-    }
+    case VALVE_ALWAYS_CLOSED:
+      this->start_direction_(VALVE_OPERATION_CLOSING);
+      break;
   }
 }
 
@@ -52,8 +51,6 @@ void TimeBasedValve::loop() {
              this->measured_position_max_);
   }
 }
-
-float TimeBasedValve::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 Trigger<> *TimeBasedValve::get_open_trigger() { return &this->open_trigger_; }
 Trigger<> *TimeBasedValve::get_close_trigger() { return &this->close_trigger_; }
@@ -192,8 +189,8 @@ void TimeBasedValve::recompute_position_() {
   float distance = dir * (now - this->last_recompute_time_);
   this->last_recompute_time_ = now;
 
-  bool duration_traveled = (this->measured_position_max_ - this->measured_position_min_) >= this->duration_;
-  if (!duration_traveled) {
+  bool endstop_reached = (this->measured_position_max_ - this->measured_position_min_) >= this->duration_;
+  if (!endstop_reached) {
     this->measured_position_ += distance;
     if (this->measured_position_ > this->measured_position_max_) {
       this->measured_position_max_ = this->measured_position_;
@@ -201,14 +198,22 @@ void TimeBasedValve::recompute_position_() {
     if (this->measured_position_ < this->measured_position_min_) {
       this->measured_position_min_ = this->measured_position_;
     }
-    return;
   }
 
-  if (std::isnan(this->position)) {
+  if (endstop_reached && std::isnan(this->position)) {
+    // Full duration traveled -> position is now known
     this->position = dir > 0 ? VALVE_OPEN : VALVE_CLOSED;
-  } else {
-    this->position += distance / this->duration_;
+    return;
+  }
+  if (std::isnan(this->position))
+    return;
+
+  this->position += distance / this->duration_;
+  if (endstop_reached) {
     this->position = clamp(this->position, 0.0f, 1.0f);
+  } else {
+    // Full duration not traveled yet -> keep value below target
+    this->position = clamp(this->position, 0.01f, 0.99f);
   }
 }
 
