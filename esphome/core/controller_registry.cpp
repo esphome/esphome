@@ -10,24 +10,24 @@ StaticVector<Controller *, CONTROLLER_REGISTRY_MAX> ControllerRegistry::controll
 
 void ControllerRegistry::register_controller(Controller *controller) { controllers.push_back(controller); }
 
-void ControllerRegistry::notify(void *obj, DispatchFunc dispatch) {
-  for (auto *controller : controllers) {
-    dispatch(controller, obj);
-  }
-}
-
-// Macro for standard registry notification dispatch - calls on_<entity_name>_update()
-// Each wrapper passes a small trampoline lambda that calls the correct virtual method.
+// Each notify method directly iterates controllers and calls the virtual method.
+// This avoids the overhead of a shared noinline dispatch loop with function pointer
+// indirection. The loop is tiny (~20 bytes per entity type) so the flash cost of
+// duplicating it is negligible compared to eliminating two levels of indirection
+// (noinline call + function pointer) from every state publish.
 // NOLINTBEGIN(bugprone-macro-parentheses)
 #define CONTROLLER_REGISTRY_NOTIFY(entity_type, entity_name) \
   void ControllerRegistry::notify_##entity_name##_update(entity_type *obj) { \
-    notify(obj, [](Controller *c, void *o) { c->on_##entity_name##_update(static_cast<entity_type *>(o)); }); \
+    for (auto *controller : controllers) { \
+      controller->on_##entity_name##_update(obj); \
+    } \
   }
 
-// Macro for entities where controller method has no "_update" suffix (Event, Update)
 #define CONTROLLER_REGISTRY_NOTIFY_NO_UPDATE_SUFFIX(entity_type, entity_name) \
   void ControllerRegistry::notify_##entity_name(entity_type *obj) { \
-    notify(obj, [](Controller *c, void *o) { c->on_##entity_name(static_cast<entity_type *>(o)); }); \
+    for (auto *controller : controllers) { \
+      controller->on_##entity_name(obj); \
+    } \
   }
 // NOLINTEND(bugprone-macro-parentheses)
 
