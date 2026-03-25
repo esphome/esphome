@@ -406,13 +406,13 @@ class _PackageProcessor:
     ) -> dict:
         """Substitute variables in the definition and fetch remote packages.
 
-        The input may be a ``str`` (git shorthand or Jinja expression) or a
-        ``dict`` (remote or local package).  After ``PACKAGE_SCHEMA`` validation
-        the result is always a ``dict``.
+        The input may be a ``str`` (git shorthand or Jinja expression), a
+        ``dict`` (remote or local package) or an ``IncludeFile`` to be loaded.
+        After ``PACKAGE_SCHEMA`` validation the result is always a ``dict``.
         """
         while True:
             if isinstance(package_config, yaml_util.IncludeFile):
-                package_config = resolve_include(package_config, [], context_vars)
+                package_config, _ = resolve_include(package_config, [], context_vars)
 
             package_config = _substitute_package_definition(
                 package_config, context_vars

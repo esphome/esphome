@@ -299,14 +299,20 @@ def resolve_include(
     context_vars: ContextVars,
     strict_undefined: bool = True,
     errors: ErrList | None = None,
-):
-    """Returns the contents of the included file after resolving substitutions
-    in the filename, if any."""
-    include.file = _expand_substitutions(
-        include.file, path + [".file"], context_vars, strict_undefined, errors
+) -> tuple[Any, str]:
+    """Returns the contents of the included file and the actual filename after resolving substitutions
+    in it, if any."""
+    filename = str(
+        _expand_substitutions(
+            str(include.file), path + [".file"], context_vars, strict_undefined, errors
+        )
     )
+    if filename != str(include.file):
+        include = IncludeFile(
+            include.parent_file, filename, include.vars, include.yaml_loader
+        )
     try:
-        return include.load()
+        return include.load(), filename
     except esphome.core.EsphomeError as err:
         raise cv.Invalid(
             f"Error including file '{include.file}': {str(err)}",
@@ -357,9 +363,11 @@ def substitute(
             result = type(item)(value)
 
     elif isinstance(item, IncludeFile):
-        content = resolve_include(item, path, context_vars, strict_undefined, errors)
+        content, filename = resolve_include(
+            item, path, context_vars, strict_undefined, errors
+        )
         result = substitute(
-            content, path + [f"<{item.file}>"], context_vars, strict_undefined
+            content, path + [f"<{filename}>"], context_vars, strict_undefined, errors
         )
 
     if isinstance(item, ESPHomeDataBase):

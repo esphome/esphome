@@ -147,12 +147,12 @@ class IncludeFile:
     def __init__(
         self,
         parent_file: Path,
-        file: Path,
+        file: Path | str,
         vars: dict[str, Any] | None,
         yaml_loader: Callable[[Path], dict[str, Any]],
     ) -> None:
         self.parent_file = parent_file
-        self.file = file
+        self.file = Path(file)
         self.vars = vars
         self.yaml_loader = yaml_loader
         self.content = None
@@ -163,6 +163,9 @@ class IncludeFile:
         self.content = self.yaml_loader(Path(self.parent_file.parent / self.file))
         self.content = add_context(self.content, self.vars)
         return self.content
+
+    def has_filename_substitutions(self) -> bool:
+        return "$" in str(self.file)
 
 
 def _add_data_ref(fn):
@@ -275,6 +278,17 @@ class ESPHomeLoaderMixin:
 
             # This is a merge key, resolve value and add to merge_pairs
             value = self.construct_object(value_node)
+
+            if isinstance(value, IncludeFile):
+                if value.has_filename_substitutions():
+                    raise yaml.constructor.ConstructorError(
+                        "While constructing a mapping",
+                        node.start_mark,
+                        "Substitution in include filename with merge keys is not supported yet.",
+                        value_node.start_mark,
+                    )
+                value = value.load()
+
             if isinstance(value, ConfigContext):
                 # Since the parent dict/list will disappear, propagate
                 # context to children now to retain context vars
@@ -298,14 +312,10 @@ class ESPHomeLoaderMixin:
                         item.copy_context_to_children()
                     merge_pairs.extend(item.items())
             else:
-                extra_message = ""
-                if isinstance(value, IncludeFile):
-                    extra_message = " Substitution in include filename with merge keys is not supported yet."
-
                 raise yaml.constructor.ConstructorError(
                     "While constructing a mapping",
                     node.start_mark,
-                    f"Expected a mapping or list of mappings for merging, but found {type(value)}.{extra_message}",
+                    f"Expected a mapping or list of mappings for merging, but found {type(value)}",
                     value_node.start_mark,
                 )
 
@@ -387,10 +397,7 @@ class ESPHomeLoaderMixin:
         else:
             file, vars = node.value, None
 
-        include = IncludeFile(self.name, file, vars, self.yaml_loader)
-        if "$" in str(file):
-            return include  # file name has substitutions, defer loading
-        return include.load()
+        return IncludeFile(self.name, file, vars, self.yaml_loader)
 
     @_add_data_ref
     def construct_include_dir_list(self, node: yaml.Node) -> list[dict[str, Any]]:
