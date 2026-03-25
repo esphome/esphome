@@ -887,12 +887,9 @@ def main() -> None:
         # Components that must run in their own batch (known to fail,
         # should not take down other components)
         solo_batch_components = {
-            "wireguard",
-            "hub75",
             "fastled_clockless",
             "fastled_spi",
             "neopixelbus",
-            "i2s_audio",
         }
         solo_components = [
             c for c in changed_components_with_tests if c in solo_batch_components
