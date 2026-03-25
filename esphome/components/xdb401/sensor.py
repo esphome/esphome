@@ -54,4 +54,4 @@ async def to_code(config):
 
     if pressure_config := config.get(CONF_PRESSURE):
         sens = await sensor.new_sensor(pressure_config)
-        cg.add(var.set_raw_pressure_sensor(sens))
+        cg.add(var.set_pressure_sensor(sens))
