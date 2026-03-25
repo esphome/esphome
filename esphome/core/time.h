@@ -79,11 +79,19 @@ struct ESPTime {
   /// Check if this ESPTime is valid (all fields in range and year is greater than or equal to 2019)
   bool is_valid() const { return this->year >= 2019 && this->fields_in_range(); }
 
-  /// Check if all time fields of this ESPTime are in range.
-  bool fields_in_range() const {
-    return this->second < 61 && this->minute < 60 && this->hour < 24 && this->day_of_week > 0 &&
-           this->day_of_week < 8 && this->day_of_year > 0 && this->day_of_year < 367 && this->month > 0 &&
-           this->month < 13 && this->day_of_month > 0 && this->day_of_month <= days_in_month(this->month, this->year);
+  /// Check if time fields are in range.
+  /// @param check_day_of_week validate day_of_week (not always available when constructing from date/time fields)
+  /// @param check_day_of_year validate day_of_year (not always available when constructing from date/time fields)
+  bool fields_in_range(bool check_day_of_week = true, bool check_day_of_year = true) const {
+    bool valid = this->second < 61 && this->minute < 60 && this->hour < 24 && this->month > 0 && this->month < 13 &&
+                 this->day_of_month > 0 && this->day_of_month <= days_in_month(this->month, this->year);
+    if (check_day_of_week) {
+      valid = valid && this->day_of_week > 0 && this->day_of_week < 8;
+    }
+    if (check_day_of_year) {
+      valid = valid && this->day_of_year > 0 && this->day_of_year < 367;
+    }
+    return valid;
   }
 
   /** Convert a string to ESPTime struct as specified by the format argument.

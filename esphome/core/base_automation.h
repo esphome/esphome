@@ -264,7 +264,7 @@ template<typename... Ts> class WhileLoopContinuation : public Action<Ts...> {
   WhileAction<Ts...> *parent_;
 };
 
-template<typename... Ts> class IfAction : public Action<Ts...> {
+template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
  public:
   explicit IfAction(Condition<Ts...> *condition) : condition_(condition) {}
 
@@ -273,27 +273,25 @@ template<typename... Ts> class IfAction : public Action<Ts...> {
     this->then_.add_action(new ContinuationAction<Ts...>(this));
   }
 
-  void add_else(const std::initializer_list<Action<Ts...> *> &actions) {
+  void add_else(const std::initializer_list<Action<Ts...> *> &actions) requires(HasElse) {
     this->else_.add_actions(actions);
     this->else_.add_action(new ContinuationAction<Ts...>(this));
   }
 
   void play_complex(const Ts &...x) override {
     this->num_running_++;
-    bool res = this->condition_->check(x...);
-    if (res) {
-      if (this->then_.empty()) {
-        this->play_next_(x...);
-      } else if (this->num_running_ > 0) {
+    if (this->condition_->check(x...)) {
+      if (!this->then_.empty() && this->num_running_ > 0) {
         this->then_.play(x...);
+        return;
       }
-    } else {
-      if (this->else_.empty()) {
-        this->play_next_(x...);
-      } else if (this->num_running_ > 0) {
+    } else if constexpr (HasElse) {
+      if (!this->else_.empty() && this->num_running_ > 0) {
         this->else_.play(x...);
+        return;
       }
     }
+    this->play_next_(x...);
   }
 
   void play(const Ts &...x) override { /* ignore - see play_complex */
@@ -301,13 +299,16 @@ template<typename... Ts> class IfAction : public Action<Ts...> {
 
   void stop() override {
     this->then_.stop();
-    this->else_.stop();
+    if constexpr (HasElse) {
+      this->else_.stop();
+    }
   }
 
  protected:
   Condition<Ts...> *condition_;
   ActionList<Ts...> then_;
-  ActionList<Ts...> else_;
+  struct NoElse {};
+  [[no_unique_address]] std::conditional_t<HasElse, ActionList<Ts...>, NoElse> else_;
 };
 
 template<typename... Ts> class WhileAction : public Action<Ts...> {
