@@ -32,6 +32,7 @@ async def to_code(config):
     cg.add(var.set_pin(pin))
 
     if CONF_INTERLOCK in config:
+        cg.add_define("USE_GPIO_SWITCH_INTERLOCK")
         interlock = []
         for it in config[CONF_INTERLOCK]:
             lock = await cg.get_variable(it)
