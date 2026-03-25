@@ -7,7 +7,7 @@ using namespace esphome::valve;
 static const char *const TAG = "time_based.valve";
 
 void TimeBasedValve::setup() {
-  this->position = NAN;
+  this->reset_position();
   switch (this->restore_mode_) {
     case VALVE_NO_RESTORE:
       break;
@@ -71,6 +71,7 @@ ValveTraits TimeBasedValve::get_traits() {
 }
 
 void TimeBasedValve::reset_position() {
+  this->position = NAN;
   this->measured_position_ = 0;
   this->measured_position_min_ = 0;
   this->measured_position_max_ = 0;
