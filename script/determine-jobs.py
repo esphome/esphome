@@ -892,6 +892,7 @@ def main() -> None:
             "neopixelbus",
             "esp32_camera",
             "esp32_camera_web_server",
+            "camera_encoder",
         }
         solo_components = [
             c for c in changed_components_with_tests if c in solo_batch_components
