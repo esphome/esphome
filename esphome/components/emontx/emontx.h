@@ -58,7 +58,7 @@ class EmonTx : public Component, public uart::UARTDevice {
 #endif
   LazyCallbackManager<void(JsonObject, StringRef)> json_callbacks_;
   LazyCallbackManager<void(StringRef)> data_callbacks_;
-  size_t buffer_pos_{0};
+  uint16_t buffer_pos_{0};
   std::array<char, MAX_LINE_LENGTH + 1> buffer_{};
 };
 

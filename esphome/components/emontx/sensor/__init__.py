@@ -23,8 +23,9 @@ from esphome.const import (
     UNIT_WATT,
     UNIT_WATT_HOURS,
 )
+from esphome.types import ConfigType
 
-from .. import CONF_EMONTX_ID, CONF_TAG_NAME, EmonTx, emontx_ns
+from .. import CONF_EMONTX_ID, CONF_TAG_NAME, EmonTx, emontx_ns, register_sensor
 
 EmonTxSensor = emontx_ns.class_("EmonTxSensor", sensor.Sensor, cg.Component)
 
@@ -121,12 +122,17 @@ def apply_tag_defaults(config):
     return config
 
 
-CONFIG_SCHEMA = cv.All(BASE_SCHEMA, apply_tag_defaults)
+def _register_with_hub(config: ConfigType) -> ConfigType:
+    register_sensor(str(config[CONF_EMONTX_ID]))
+    return config
 
 
-async def to_code(config):
+CONFIG_SCHEMA = cv.All(BASE_SCHEMA, apply_tag_defaults, _register_with_hub)
+
+
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await sensor.register_sensor(var, config)
-    emontx = await cg.get_variable(config[CONF_EMONTX_ID])
-    cg.add(emontx.register_sensor(config[CONF_TAG_NAME], var))
+    hub = await cg.get_variable(config[CONF_EMONTX_ID])
+    cg.add(hub.register_sensor(config[CONF_TAG_NAME], var))

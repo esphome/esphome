@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_COMMAND,
     CONF_ID,
     CONF_ON_DATA,
-    CONF_PLATFORM,
     CONF_RX_BUFFER_SIZE,
     CONF_TRIGGER_ID,
     CONF_UART_ID,
@@ -57,6 +56,12 @@ def _get_data() -> EmonTxData:
     return CORE.data[DOMAIN]
 
 
+def register_sensor(hub_id: str) -> None:
+    """Called by the sensor platform to register itself with its hub."""
+    data = _get_data()
+    data.sensor_counts[hub_id] = data.sensor_counts.get(hub_id, 0) + 1
+
+
 # Main configuration schema
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -81,23 +86,13 @@ CONFIG_SCHEMA = (
 )
 
 
-def final_validate(config: ConfigType):
-    # Count sensors for this emontx instance and store for to_code
+def final_validate(config: ConfigType) -> ConfigType:
     full_config = fv.full_config.get()
-    sensor_count = 0
-    hub_id = config[CONF_ID]
-    for sensor_conf in full_config.get("sensor", []):
-        if (
-            sensor_conf.get(CONF_PLATFORM) == "emontx"
-            and sensor_conf.get(CONF_EMONTX_ID) == hub_id
-        ):
-            sensor_count += 1
-    _get_data().sensor_counts[str(hub_id)] = sensor_count
 
     # Ensure UART RX buffer size is large enough to handle data bursts from firmware
     for uart_conf in full_config["uart"]:
         if uart_conf[CONF_ID] == config[CONF_UART_ID]:
-            current_buffer_size = uart_conf.get(CONF_RX_BUFFER_SIZE, 256)
+            current_buffer_size = uart_conf[CONF_RX_BUFFER_SIZE]
             if current_buffer_size < MINIMUM_RX_BUFFER_SIZE:
                 raise cv.Invalid(
                     f"Component emontx requires UART '{config[CONF_UART_ID]}' to have "
@@ -124,40 +119,25 @@ def final_validate(config: ConfigType):
 FINAL_VALIDATE_SCHEMA = final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    # Initialize sensor storage with exact count from final_validate
+    # Initialize sensor storage with count from register_sensor calls
     sensor_count = _get_data().sensor_counts.get(str(config[CONF_ID]), 0)
     if sensor_count > 0:
         cg.add(var.init_sensors(sensor_count))
 
-    # Process on_json triggers
-    if CONF_ON_JSON in config:
-        for conf in config[CONF_ON_JSON]:
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-            await automation.build_automation(
-                trigger,
-                [
-                    (cg.JsonObject, "json"),
-                    (cg.std_string, "raw_json"),
-                ],
-                conf,
-            )
-
-    # Process on_data triggers
-    if CONF_ON_DATA in config:
-        for conf in config[CONF_ON_DATA]:
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-            await automation.build_automation(
-                trigger,
-                [
-                    (cg.std_string, "data"),
-                ],
-                conf,
-            )
+    # Process trigger automations
+    for conf_key, args in (
+        (CONF_ON_JSON, [(cg.JsonObject, "json"), (cg.std_string, "raw_json")]),
+        (CONF_ON_DATA, [(cg.std_string, "data")]),
+    ):
+        if conf_key in config:
+            for conf in config[conf_key]:
+                trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+                await automation.build_automation(trigger, args, conf)
 
 
 # Action: emontx.send_command
@@ -176,7 +156,9 @@ EMONTX_SEND_COMMAND_ACTION_SCHEMA = cv.Schema(
     EMONTX_SEND_COMMAND_ACTION_SCHEMA,
     synchronous=True,
 )
-async def emontx_send_command_action_to_code(config, action_id, template_arg, args):
+async def emontx_send_command_action_to_code(
+    config: ConfigType, action_id, template_arg, args
+):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.std_string)
