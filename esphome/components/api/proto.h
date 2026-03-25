@@ -229,6 +229,17 @@ class ProtoWriteBuffer {
    * Following https://protobuf.dev/programming-guides/encoding/#structure
    */
   void encode_field_raw(uint32_t field_id, uint32_t type) { this->encode_varint_raw((field_id << 3) | type); }
+  /// Write a single precomputed tag byte. Tag must be < 128.
+  inline void write_raw_byte(uint8_t b) ESPHOME_ALWAYS_INLINE {
+    this->debug_check_bounds_(1);
+    *this->pos_++ = b;
+  }
+  /// Write raw bytes to the buffer (no tag, no length prefix).
+  inline void encode_raw(const void *data, size_t len) ESPHOME_ALWAYS_INLINE {
+    this->debug_check_bounds_(len);
+    std::memcpy(this->pos_, data, len);
+    this->pos_ += len;
+  }
   /// Write a precomputed tag byte + 32-bit value in one operation.
   /// Tag must be a single-byte varint (< 128). No zero check.
   inline void write_tag_and_fixed32(uint8_t tag, uint32_t value) ESPHOME_ALWAYS_INLINE {

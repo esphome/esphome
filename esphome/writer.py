@@ -18,7 +18,6 @@ from esphome.core import CORE, EsphomeError
 from esphome.helpers import (
     copy_file_if_changed,
     cpp_string_escape,
-    get_str_env,
     is_ha_addon,
     read_file,
     rmtree,
@@ -441,18 +440,42 @@ def clean_build(clear_pio_cache: bool = True):
             rmtree(cache_dir)
 
 
+def _get_custom_build_dir(item: Path, data_dir: Path) -> Path | None:
+    """Parse a YAML config to find a custom build directory."""
+    from esphome import yaml_util
+
+    try:
+        raw = yaml_util.load_yaml(item)
+    except (EsphomeError, OSError) as e:
+        _LOGGER.debug("Could not parse %s to find build_path: %s", item, e)
+        return None
+    if not isinstance(raw, dict):
+        return None
+    esphome_conf = raw.get("esphome", {})
+    if not isinstance(esphome_conf, dict):
+        return None
+    if build_path := esphome_conf.get("build_path"):
+        return data_dir / build_path
+    return None
+
+
 def clean_all(configuration: list[str]):
     data_dirs = []
     for config in configuration:
         item = Path(config)
         if item.is_file() and item.suffix in (".yaml", ".yml"):
-            data_dirs.append(item.parent / ".esphome")
+            data_dir = item.parent / ".esphome"
+            data_dirs.append(data_dir)
+            if custom := _get_custom_build_dir(item, data_dir):
+                data_dirs.append(custom)
         else:
             data_dirs.append(item / ".esphome")
     if is_ha_addon():
         data_dirs.append(Path("/data"))
-    if "ESPHOME_DATA_DIR" in os.environ:
-        data_dirs.append(Path(get_str_env("ESPHOME_DATA_DIR", None)))
+    if env_data_dir := os.environ.get("ESPHOME_DATA_DIR"):
+        data_dirs.append(Path(env_data_dir))
+    if env_build_path := os.environ.get("ESPHOME_BUILD_PATH"):
+        data_dirs.append(Path(env_build_path))
 
     # Clean build dir
     for dir in data_dirs:

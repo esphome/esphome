@@ -221,8 +221,58 @@ class TypeInfo(ABC):
 
     decode_64bit = None
 
+    # Mapping from encode_func to raw encode expression template.
+    # When a forced field has a single-byte tag, the code generator emits
+    # write_raw_byte(tag) + raw encode instead of the full encode_* method,
+    # eliminating the zero-check branch and encode_field_raw indirection.
+    # {value} is replaced with the actual field expression.
+    RAW_ENCODE_MAP: dict[str, str] = {
+        "encode_uint32": "buffer.encode_varint_raw({value});",
+        "encode_uint64": "buffer.encode_varint_raw_64({value});",
+        "encode_sint32": "buffer.encode_varint_raw(encode_zigzag32({value}));",
+        "encode_sint64": "buffer.encode_varint_raw_64(encode_zigzag64({value}));",
+        "encode_int64": "buffer.encode_varint_raw_64(static_cast<uint64_t>({value}));",
+        "encode_bool": "buffer.write_raw_byte({value} ? 0x01 : 0x00);",
+    }
+
+    def _encode_with_precomputed_tag(self, value_expr: str) -> str | None:
+        """Try to emit a precomputed-tag encode for a forced field.
+
+        Returns the raw encode string if the tag is a single byte and the
+        encode_func has a known raw equivalent, or None otherwise.
+        """
+        if not self.force:
+            return None
+        tag = self.calculate_tag()
+        if tag >= 128:
+            return None
+        raw_expr = self.RAW_ENCODE_MAP.get(self.encode_func)
+        if raw_expr is None:
+            return None
+        return f"buffer.write_raw_byte({tag});\n{raw_expr.format(value=value_expr)}"
+
+    def _encode_bytes_with_precomputed_tag(
+        self, data_expr: str, len_expr: str
+    ) -> str | None:
+        """Try to emit a precomputed-tag encode for a forced bytes/string field.
+
+        Returns the raw encode string if the tag is a single byte, or None.
+        """
+        if not self.force:
+            return None
+        tag = self.calculate_tag()
+        if tag >= 128:
+            return None
+        return (
+            f"buffer.write_raw_byte({tag});\n"
+            f"buffer.encode_varint_raw({len_expr});\n"
+            f"buffer.encode_raw({data_expr}, {len_expr});"
+        )
+
     @property
     def encode_content(self) -> str:
+        if result := self._encode_with_precomputed_tag(f"this->{self.field_name}"):
+            return result
         if self.force:
             return f"buffer.{self.encode_func}({self.number}, this->{self.field_name}, true);"
         return f"buffer.{self.encode_func}({self.number}, this->{self.field_name});"
@@ -635,6 +685,11 @@ class StringType(TypeInfo):
     @property
     def encode_content(self) -> str:
         # Use the StringRef
+        if result := self._encode_bytes_with_precomputed_tag(
+            f"this->{self.field_name}_ref_.c_str()",
+            f"this->{self.field_name}_ref_.size()",
+        ):
+            return result
         if self.force:
             return f"buffer.encode_string({self.number}, this->{self.field_name}_ref_, true);"
         return f"buffer.encode_string({self.number}, this->{self.field_name}_ref_);"
@@ -801,6 +856,10 @@ class BytesType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
+        if result := self._encode_bytes_with_precomputed_tag(
+            f"this->{self.field_name}_ptr_", f"this->{self.field_name}_len_"
+        ):
+            return result
         if self.force:
             return f"buffer.encode_bytes({self.number}, this->{self.field_name}_ptr_, this->{self.field_name}_len_, true);"
         return f"buffer.encode_bytes({self.number}, this->{self.field_name}_ptr_, this->{self.field_name}_len_);"
@@ -908,6 +967,10 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
 
     @property
     def encode_content(self) -> str:
+        if result := self._encode_bytes_with_precomputed_tag(
+            f"this->{self.field_name}", f"this->{self.field_name}_len"
+        ):
+            return result
         if self.force:
             return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len, true);"
         return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len);"
@@ -957,6 +1020,10 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
 
     @property
     def encode_content(self) -> str:
+        if result := self._encode_bytes_with_precomputed_tag(
+            f"this->{self.field_name}.c_str()", f"this->{self.field_name}.size()"
+        ):
+            return result
         if self.force:
             return (
                 f"buffer.encode_string({self.number}, this->{self.field_name}, true);"
@@ -1124,6 +1191,10 @@ class FixedArrayBytesType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
+        if result := self._encode_bytes_with_precomputed_tag(
+            f"this->{self.field_name}", f"this->{self.field_name}_len"
+        ):
+            return result
         if self.force:
             return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len, true);"
         return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len);"
@@ -1199,6 +1270,10 @@ class EnumType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
+        if result := self._encode_with_precomputed_tag(
+            f"static_cast<uint32_t>(this->{self.field_name})"
+        ):
+            return result
         if self.force:
             return f"buffer.{self.encode_func}({self.number}, static_cast<uint32_t>(this->{self.field_name}), true);"
         return f"buffer.{self.encode_func}({self.number}, static_cast<uint32_t>(this->{self.field_name}));"
