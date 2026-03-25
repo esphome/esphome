@@ -102,7 +102,7 @@ i2c::ErrorCode XDB401Component::set_meas_mode_() {
 }
 
 i2c::ErrorCode XDB401Component::read_pressure_(float &pressure) {
-  // Read 3 bytes from senesor at address 0x06
+  // Read 3 bytes from sensor at address 0x06
   uint8_t p_data[3]{};
   i2c::ErrorCode err_code = this->read_register(REG_PRESSURE, p_data, 3);
   if (err_code != i2c::ERROR_OK) {
