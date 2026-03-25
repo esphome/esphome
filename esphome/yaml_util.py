@@ -132,11 +132,11 @@ class ConfigContext:
     def copy_context_to_children(self):
         """Propagate context to children."""
         if isinstance(self, dict):
-            n = {}
+            tagged = {}
             for k, v in self.items():
-                n[add_context(k, self.vars)] = add_context(v, self.vars)
+                tagged[add_context(k, self.vars)] = add_context(v, self.vars)
             self.clear()
-            self.update(n)
+            self.update(tagged)
         elif isinstance(self, list):
             for i, item in enumerate(self):
                 # pylint: disable=unsupported-assignment-operation
@@ -155,9 +155,12 @@ class IncludeFile:
         self.file = Path(file)
         self.vars = vars
         self.yaml_loader = yaml_loader
-        self.content = None
+        self.content: Any = None
 
-    def load(self) -> dict[str, Any]:
+    def __repr__(self) -> str:
+        return f"IncludeFile({self.file})"
+
+    def load(self) -> Any:
         if self.content is not None:
             return self.content
         self.content = self.yaml_loader(Path(self.parent_file.parent / self.file))

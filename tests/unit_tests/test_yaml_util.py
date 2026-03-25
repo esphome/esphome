@@ -75,7 +75,7 @@ def test_parsing_with_custom_loader(fixture_path):
 
     with yaml_file.open(encoding="utf-8") as f_handle:
         config = yaml_util.parse_yaml(yaml_file, f_handle, custom_loader)
-        # substite config to expand includes:
+        # substitute config to expand includes:
         substitutions.substitute(config, [], {}, False)
 
     assert len(loader_calls) == 3

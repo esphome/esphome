@@ -300,8 +300,10 @@ def resolve_include(
     strict_undefined: bool = True,
     errors: ErrList | None = None,
 ) -> tuple[Any, str]:
-    """Returns the contents of the included file and the actual filename after resolving substitutions
-    in it, if any."""
+    """Resolve an include, substituting the filename if needed.
+
+    Returns the loaded content and the resolved filename.
+    """
     filename = str(
         _expand_substitutions(
             str(include.file), path + [".file"], context_vars, strict_undefined, errors
@@ -315,7 +317,7 @@ def resolve_include(
         return include.load(), filename
     except esphome.core.EsphomeError as err:
         raise cv.Invalid(
-            f"Error including file '{include.file}': {str(err)}",
+            f"Error including file '{include.file}': {err}",
             path + [f"<{include.file}>"],
         ) from err
 
