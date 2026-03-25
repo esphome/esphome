@@ -147,7 +147,7 @@ void MitsubishiCN105::did_transition_(State from, State to) {
       if (++this->info_mode_index_ >= INFO_MODE.size()) {
         this->info_mode_index_ = 0;
       }
-      if (pending_updates_.any() && this->status_initialized_) {
+      if (this->pending_updates_.any() && this->status_initialized_) {
         this->set_state_(State::APPLYING_SETTINGS);
       } else if (this->info_mode_index_ != 0) {
         this->set_state_(State::UPDATING_STATUS);
