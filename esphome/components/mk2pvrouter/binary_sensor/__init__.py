@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 from esphome.const import CONF_ID
+from esphome.types import ConfigType
 
 from .. import (
     CONF_MK2PVROUTER_ID,
@@ -18,7 +19,7 @@ CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(Mk2PVRouterBinarySensor).exte
 )
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_TAG_NAME])
     await cg.register_component(var, config)
     await binary_sensor.register_binary_sensor(var, config)

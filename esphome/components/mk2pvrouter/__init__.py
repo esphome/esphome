@@ -49,19 +49,19 @@ def _get_data() -> Mk2PVRouterData:
     return CORE.data[DOMAIN]
 
 
-def final_validate(config: ConfigType):
-    # Count listeners for this mk2pvrouter instance and store for to_code
+def final_validate(config: ConfigType) -> ConfigType:
     full_config = fv.full_config.get()
-    hub_id = config[CONF_ID]
-    listener_count = 0
-    for platform_key in ("sensor", "binary_sensor", "text_sensor"):
-        for entry in full_config.get(platform_key, []):
-            if (
-                entry.get(CONF_PLATFORM) == "mk2pvrouter"
-                and entry.get(CONF_MK2PVROUTER_ID) == hub_id
-            ):
-                listener_count += 1
-    _get_data().listener_counts[str(hub_id)] = listener_count
+
+    # Count listeners for this hub (IDs are resolved at final_validate stage)
+    hub_id = str(config[CONF_ID])
+    listener_count = sum(
+        1
+        for platform_key in ("sensor", "binary_sensor", "text_sensor")
+        for entry in full_config.get(platform_key, [])
+        if entry.get(CONF_PLATFORM) == "mk2pvrouter"
+        and str(entry.get(CONF_MK2PVROUTER_ID)) == hub_id
+    )
+    _get_data().listener_counts[hub_id] = listener_count
 
     # Validate UART settings
     schema = uart.final_validate_device_schema(
@@ -73,7 +73,7 @@ def final_validate(config: ConfigType):
 FINAL_VALIDATE_SCHEMA = final_validate
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
