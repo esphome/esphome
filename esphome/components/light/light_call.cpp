@@ -62,9 +62,9 @@ static const LogString *color_mode_to_human(ColorMode color_mode) {
 }
 
 // Helper to log percentage values
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
 static void log_percent(const LogString *param, float value) {
-  ESP_LOGD(TAG, "  %s: %.0f%%", LOG_STR_ARG(param), value * 100.0f);
+  ESP_LOGV(TAG, "  %s: %.0f%%", LOG_STR_ARG(param), value * 100.0f);
 }
 #else
 #define log_percent(param, value)
@@ -76,20 +76,20 @@ void LightCall::perform() {
   const bool publish = this->get_publish_();
 
   if (publish) {
-    ESP_LOGD(TAG, "'%s' Setting:", name);
+    ESP_LOGV(TAG, "'%s' Setting:", name);
 
     // Only print color mode when it's being changed
     ColorMode current_color_mode = this->parent_->remote_values.get_color_mode();
     ColorMode target_color_mode = this->has_color_mode() ? this->color_mode_ : current_color_mode;
     if (target_color_mode != current_color_mode) {
-      ESP_LOGD(TAG, "  Color mode: %s", LOG_STR_ARG(color_mode_to_human(v.get_color_mode())));
+      ESP_LOGV(TAG, "  Color mode: %s", LOG_STR_ARG(color_mode_to_human(v.get_color_mode())));
     }
 
     // Only print state when it's being changed
     bool current_state = this->parent_->remote_values.is_on();
     bool target_state = this->has_state() ? this->state_ : current_state;
     if (target_state != current_state) {
-      ESP_LOGD(TAG, "  State: %s", ONOFF(v.is_on()));
+      ESP_LOGV(TAG, "  State: %s", ONOFF(v.is_on()));
     }
 
     if (this->has_brightness()) {
@@ -100,7 +100,7 @@ void LightCall::perform() {
       log_percent(LOG_STR("Color brightness"), v.get_color_brightness());
     }
     if (this->has_red() || this->has_green() || this->has_blue()) {
-      ESP_LOGD(TAG, "  Red: %.0f%%, Green: %.0f%%, Blue: %.0f%%", v.get_red() * 100.0f, v.get_green() * 100.0f,
+      ESP_LOGV(TAG, "  Red: %.0f%%, Green: %.0f%%, Blue: %.0f%%", v.get_red() * 100.0f, v.get_green() * 100.0f,
                v.get_blue() * 100.0f);
     }
 
@@ -108,11 +108,11 @@ void LightCall::perform() {
       log_percent(LOG_STR("White"), v.get_white());
     }
     if (this->has_color_temperature()) {
-      ESP_LOGD(TAG, "  Color temperature: %.1f mireds", v.get_color_temperature());
+      ESP_LOGV(TAG, "  Color temperature: %.1f mireds", v.get_color_temperature());
     }
 
     if (this->has_cold_white() || this->has_warm_white()) {
-      ESP_LOGD(TAG, "  Cold white: %.0f%%, warm white: %.0f%%", v.get_cold_white() * 100.0f,
+      ESP_LOGV(TAG, "  Cold white: %.0f%%, warm white: %.0f%%", v.get_cold_white() * 100.0f,
                v.get_warm_white() * 100.0f);
     }
   }
@@ -120,20 +120,20 @@ void LightCall::perform() {
   if (this->has_flash_()) {
     // FLASH
     if (publish) {
-      ESP_LOGD(TAG, "  Flash length: %.1fs", this->flash_length_ / 1e3f);
+      ESP_LOGV(TAG, "  Flash length: %.1fs", this->flash_length_ / 1e3f);
     }
 
     this->parent_->start_flash_(v, this->flash_length_, publish);
   } else if (this->has_transition_()) {
     // TRANSITION
     if (publish) {
-      ESP_LOGD(TAG, "  Transition length: %.1fs", this->transition_length_ / 1e3f);
+      ESP_LOGV(TAG, "  Transition length: %.1fs", this->transition_length_ / 1e3f);
     }
 
     // Special case: Transition and effect can be set when turning off
     if (this->has_effect_()) {
       if (publish) {
-        ESP_LOGD(TAG, "  Effect: 'None'");
+        ESP_LOGV(TAG, "  Effect: 'None'");
       }
       this->parent_->stop_effect_();
     }
@@ -150,7 +150,7 @@ void LightCall::perform() {
     }
 
     if (publish) {
-      ESP_LOGD(TAG, "  Effect: '%.*s'", (int) effect_s.size(), effect_s.c_str());
+      ESP_LOGV(TAG, "  Effect: '%.*s'", (int) effect_s.size(), effect_s.c_str());
     }
 
     this->parent_->start_effect_(this->effect_);
