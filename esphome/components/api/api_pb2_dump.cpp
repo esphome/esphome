@@ -2572,6 +2572,7 @@ const char *ListEntitiesInfraredResponse::dump_to(DumpBuffer &out) const {
   dump_field(out, ESPHOME_PSTR("device_id"), this->device_id);
 #endif
   dump_field(out, ESPHOME_PSTR("capabilities"), this->capabilities);
+  dump_field(out, ESPHOME_PSTR("receiver_frequency"), this->receiver_frequency);
   return out.c_str();
 }
 #endif
