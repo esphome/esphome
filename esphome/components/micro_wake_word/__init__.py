@@ -462,6 +462,7 @@ async def to_code(config):
 
     cg.add_library(
         "ESPMicroSpeechFeatures",
+        None,
         "https://github.com/swoboda1337/ESPMicroSpeechFeatures.git#fix-stdint-include",
     )
 
