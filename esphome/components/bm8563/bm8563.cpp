@@ -56,7 +56,6 @@ void BM8563::read_time() {
   ESPTime rtc_time;
   this->get_time_(rtc_time);
   this->get_date_(rtc_time);
-  rtc_time.day_of_year = 1;  // unused by recalc_timestamp_utc, but needs to be valid
   ESP_LOGD(TAG, "Read time: %i-%i-%i %i, %i:%i:%i", rtc_time.year, rtc_time.month, rtc_time.day_of_month,
            rtc_time.day_of_week, rtc_time.hour, rtc_time.minute, rtc_time.second);
 

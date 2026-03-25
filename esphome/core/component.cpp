@@ -209,7 +209,6 @@ bool Component::cancel_retry(uint32_t id) {
 #pragma GCC diagnostic pop
 }
 
-void Component::call_loop_() { this->loop(); }
 void Component::call_setup() { this->setup(); }
 void Component::call_dump_config_() {
   this->dump_config();
@@ -259,11 +258,11 @@ void Component::call() {
     case COMPONENT_STATE_SETUP:
       // State setup: Call first loop and set state to loop
       this->set_component_state_(COMPONENT_STATE_LOOP);
-      this->call_loop_();
+      this->loop();
       break;
     case COMPONENT_STATE_LOOP:
       // State loop: Call loop
-      this->call_loop_();
+      this->loop();
       break;
     case COMPONENT_STATE_FAILED:
       // State failed: Do nothing
@@ -272,9 +271,6 @@ void Component::call() {
     default:
       break;
   }
-}
-const LogString *Component::get_component_log_str() const {
-  return this->component_source_ == nullptr ? LOG_STR("<unknown>") : this->component_source_;
 }
 bool Component::should_warn_of_blocking(uint32_t blocking_time) {
   if (blocking_time > this->warn_if_blocking_over_) {
@@ -379,9 +375,10 @@ void Component::set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std:
 #pragma GCC diagnostic pop
 }
 bool Component::is_ready() const {
-  return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP ||
-         (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE ||
-         (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_SETUP;
+  // Bitmask check: valid states are SETUP(1), LOOP(2), LOOP_DONE(4)
+  // (1 << state) & 0b10110 checks membership in one instruction
+  return ((1u << (this->component_state_ & COMPONENT_STATE_MASK)) &
+          ((1u << COMPONENT_STATE_SETUP) | (1u << COMPONENT_STATE_LOOP) | (1u << COMPONENT_STATE_LOOP_DONE))) != 0;
 }
 bool Component::can_proceed() { return true; }
 bool Component::set_status_flag_(uint8_t flag) {
@@ -508,7 +505,6 @@ void PollingComponent::stop_poller() {
 }
 
 uint32_t PollingComponent::get_update_interval() const { return this->update_interval_; }
-void PollingComponent::set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
 
 void __attribute__((noinline, cold))
 WarnIfComponentBlockingGuard::warn_blocking(Component *component, uint32_t blocking_time) {
