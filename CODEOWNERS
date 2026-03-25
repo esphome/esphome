@@ -112,6 +112,7 @@ esphome/components/ch423/* @dwmw2
 esphome/components/chsc6x/* @kkosik20
 esphome/components/climate/* @esphome/core
 esphome/components/climate_ir/* @glmnet
+esphome/components/climate_ir_siemens_ira211/* @fonix232
 esphome/components/cm1106/* @andrewjswan
 esphome/components/color_temperature/* @jesserockz
 esphome/components/combination/* @Cat-Ion @kahrendt

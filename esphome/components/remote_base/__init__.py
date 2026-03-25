@@ -15,12 +15,14 @@ from esphome.const import (
     CONF_DELTA,
     CONF_DEVICE,
     CONF_FAMILY,
+    CONF_FAN_MODE,
     CONF_GROUP,
     CONF_ID,
     CONF_INDEX,
     CONF_INVERTED,
     CONF_LEVEL,
     CONF_MAGNITUDE,
+    CONF_MODE,
     CONF_NBITS,
     CONF_ONE,
     CONF_PROTOCOL,
@@ -32,6 +34,7 @@ from esphome.const import (
     CONF_SOURCE,
     CONF_STATE,
     CONF_SYNC,
+    CONF_TEMPERATURE,
     CONF_TIMES,
     CONF_TRIGGER_ID,
     CONF_TYPE_ID,
@@ -2238,3 +2241,85 @@ async def Toto_action(var, config, args):
         cg.add(var.set_send_times(template_))
         template_ = await cg.templatable(36000, args, cg.uint32)
         cg.add(var.set_send_wait(template_))
+
+
+# --- IRA211 ---
+(
+    IRA211Data,
+    IRA211BinarySensor,
+    IRA211Trigger,
+    IRA211Action,
+    IRA211Dumper,
+) = declare_protocol("IRA211")
+
+CONF_TEMP_TENTHS = "temp_tenths"
+
+IRA211CommandEnum = ns.enum("IRA211Command", is_class=True)
+IRA211_COMMANDS = {
+    "TEMP_UP": IRA211CommandEnum.TEMP_UP,
+    "TEMP_DOWN": IRA211CommandEnum.TEMP_DOWN,
+    "MODE": IRA211CommandEnum.MODE,
+    "FAN": IRA211CommandEnum.FAN,
+    "POWER": IRA211CommandEnum.POWER,
+    "SYNC": IRA211CommandEnum.SYNC,
+}
+
+IRA211ModeEnum = ns.enum("IRA211Mode", is_class=True)
+IRA211_MODES = {
+    "PROTECTION": IRA211ModeEnum.PROTECTION,
+    "TIMER": IRA211ModeEnum.TIMER,
+    "COMFORT": IRA211ModeEnum.COMFORT,
+}
+
+IRA211FanEnum = ns.enum("IRA211Fan", is_class=True)
+IRA211_FAN_SPEEDS = {
+    "AUTO": IRA211FanEnum.FAN_AUTO,
+    "LOW": IRA211FanEnum.FAN_LOW,
+    "MEDIUM": IRA211FanEnum.FAN_MEDIUM,
+    "HIGH": IRA211FanEnum.FAN_HIGH,
+}
+
+IRA211_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_COMMAND): cv.enum(IRA211_COMMANDS, upper=True),
+        cv.Optional(CONF_TEMPERATURE, default=20): cv.int_range(min=5, max=35),
+        cv.Optional(CONF_TEMP_TENTHS, default=0): cv.one_of(0, 5, int=True),
+        cv.Optional(CONF_MODE, default="COMFORT"): cv.enum(IRA211_MODES, upper=True),
+        cv.Optional(CONF_FAN_MODE, default="AUTO"): cv.enum(
+            IRA211_FAN_SPEEDS, upper=True
+        ),
+    }
+)
+
+
+@register_binary_sensor("ira211", IRA211BinarySensor, IRA211_SCHEMA)
+def ira211_binary_sensor(var, config):
+    cg.add(var.set_command(config[CONF_COMMAND]))
+    cg.add(var.set_temperature(config[CONF_TEMPERATURE], config[CONF_TEMP_TENTHS]))
+    cg.add(var.set_mode(config[CONF_MODE]))
+    cg.add(var.set_fan(config[CONF_FAN_MODE]))
+    cg.add(var.finalize())
+
+
+@register_trigger("ira211", IRA211Trigger, IRA211Data)
+def ira211_trigger(var, config):
+    pass
+
+
+@register_dumper("ira211", IRA211Dumper)
+def ira211_dumper(var, config):
+    pass
+
+
+@register_action("ira211", IRA211Action, IRA211_SCHEMA)
+async def ira211_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_COMMAND], args, IRA211CommandEnum)
+    cg.add(var.set_command(template_))
+    template_ = await cg.templatable(config[CONF_TEMPERATURE], args, cg.uint8)
+    cg.add(var.set_temperature(template_))
+    template_ = await cg.templatable(config[CONF_TEMP_TENTHS], args, cg.uint8)
+    cg.add(var.set_temp_tenths(template_))
+    template_ = await cg.templatable(config[CONF_MODE], args, IRA211ModeEnum)
+    cg.add(var.set_mode(template_))
+    template_ = await cg.templatable(config[CONF_FAN_MODE], args, IRA211FanEnum)
+    cg.add(var.set_fan(template_))
