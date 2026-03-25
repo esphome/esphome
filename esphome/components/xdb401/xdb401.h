@@ -26,5 +26,4 @@ class XDB401Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *pressure_sensor_{nullptr};
 };
 
-}  // namespace xdb401
-}  // namespace esphome
+}  // namespace esphome::xdb401
