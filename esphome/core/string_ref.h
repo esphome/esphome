@@ -76,6 +76,15 @@ class StringRef {
   constexpr bool empty() const { return len_ == 0; }
   constexpr const_reference operator[](size_type pos) const { return *(base_ + pos); }
 
+  /// Copy characters to destination buffer (std::string::copy-like, but returns 0 instead of throwing on out-of-range)
+  size_type copy(char *dest, size_type count, size_type pos = 0) const {
+    if (pos >= len_)
+      return 0;
+    size_type actual = (count > len_ - pos) ? len_ - pos : count;
+    std::memcpy(dest, base_ + pos, actual);
+    return actual;
+  }
+
   std::string str() const { return std::string(base_, len_); }
   const uint8_t *byte() const { return reinterpret_cast<const uint8_t *>(base_); }
 
