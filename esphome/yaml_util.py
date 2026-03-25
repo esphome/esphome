@@ -158,7 +158,7 @@ class IncludeFile:
         self.content: Any = None
 
     def __repr__(self) -> str:
-        return f"IncludeFile({self.file})"
+        return f"IncludeFile({self.file.as_posix()})"
 
     def load(self) -> Any:
         if self.content is not None:
