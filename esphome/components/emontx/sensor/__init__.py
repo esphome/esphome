@@ -91,8 +91,8 @@ BASE_SCHEMA = sensor.sensor_schema(
 )
 
 
-def apply_tag_defaults(config):
-    """Apply defaults based on tag prefix if applicable, but don't restrict any tags"""
+def apply_tag_defaults(config: ConfigType) -> ConfigType:
+    """Apply defaults based on tag prefix if applicable, but don't restrict any tags."""
     tag = config[CONF_TAG_NAME]
 
     # Skip if tag is too short
