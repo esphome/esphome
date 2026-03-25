@@ -83,7 +83,7 @@ void Logger::log_vprintf_non_main_thread_(uint8_t level, const char *tag, int li
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // For non-main threads/tasks, queue the message for callbacks
   message_sent =
-      this->log_buffer_->send_message_thread_safe(level, tag, static_cast<uint16_t>(line), thread_name, format, args);
+      this->log_buffer_.send_message_thread_safe(level, tag, static_cast<uint16_t>(line), thread_name, format, args);
   if (message_sent) {
     // Enable logger loop to process the buffered message
     // This is safe to call from any context including ISRs
@@ -152,23 +152,13 @@ inline uint8_t Logger::level_for(const char *tag) {
   return this->current_level_;
 }
 
-#ifdef USE_ESPHOME_TASK_LOG_BUFFER
-Logger::Logger(uint32_t baud_rate, size_t task_log_buffer_size) : baud_rate_(baud_rate) {
-#else
 Logger::Logger(uint32_t baud_rate) : baud_rate_(baud_rate) {
-#endif
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
   this->main_task_ = xTaskGetCurrentTaskHandle();
 #elif defined(USE_ZEPHYR)
   this->main_task_ = k_current_get();
 #elif defined(USE_HOST)
-this->main_thread_ = pthread_self();
-#endif
-#ifdef USE_ESPHOME_TASK_LOG_BUFFER
-  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) - allocated once, never freed
-  this->log_buffer_ = new logger::TaskLogBuffer(task_log_buffer_size);
-  // Note: we don't disable loop here because the component isn't registered with App yet.
-  // The loop self-disables on its first iteration when it finds no messages to process.
+  this->main_thread_ = pthread_self();
 #endif
 }
 
@@ -184,16 +174,16 @@ void Logger::loop() {
 void Logger::process_messages_() {
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
   // Process any buffered messages when available
-  if (this->log_buffer_->has_messages()) {
+  if (this->log_buffer_.has_messages()) {
     logger::TaskLogBuffer::LogMessage *message;
     uint16_t text_length;
-    while (this->log_buffer_->borrow_message_main_loop(message, text_length)) {
+    while (this->log_buffer_.borrow_message_main_loop(message, text_length)) {
       const char *thread_name = message->thread_name[0] != '\0' ? message->thread_name : nullptr;
       LogBuffer buf{this->tx_buffer_, ESPHOME_LOGGER_TX_BUFFER_SIZE};
       this->format_buffered_message_and_notify_(message->level, message->tag, message->line, thread_name,
                                                 message->text_data(), text_length, buf);
       // Release the message to allow other tasks to use it as soon as possible
-      this->log_buffer_->release_message_main_loop();
+      this->log_buffer_.release_message_main_loop();
       this->write_log_buffer_to_console_(buf);
     }
   }
@@ -239,13 +229,11 @@ void Logger::dump_config() {
                 this->baud_rate_, LOG_STR_ARG(get_uart_selection_()));
 #endif
 #ifdef USE_ESPHOME_TASK_LOG_BUFFER
-  if (this->log_buffer_) {
 #ifdef USE_HOST
-    ESP_LOGCONFIG(TAG, "  Task Log Buffer Slots: %u", static_cast<unsigned int>(this->log_buffer_->size()));
+  ESP_LOGCONFIG(TAG, "  Task Log Buffer Slots: %u", static_cast<unsigned int>(this->log_buffer_.size()));
 #else
-    ESP_LOGCONFIG(TAG, "  Task Log Buffer Size: %u bytes", static_cast<unsigned int>(this->log_buffer_->size()));
+  ESP_LOGCONFIG(TAG, "  Task Log Buffer Size: %u bytes", static_cast<unsigned int>(this->log_buffer_.size()));
 #endif
-  }
 #endif
 
 #ifdef USE_LOGGER_RUNTIME_TAG_LEVELS

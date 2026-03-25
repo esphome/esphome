@@ -1160,13 +1160,13 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
   /** Add a callback to be notified when the nextion changes pages.
    *
-   * @param callback The void(std::string) callback.
+   * @param callback The void(uint8_t) callback.
    */
   template<typename F> void add_new_page_callback(F &&callback) { this->page_callback_.add(std::forward<F>(callback)); }
 
   /** Add a callback to be notified when Nextion has a touch event.
    *
-   * @param callback The void() callback.
+   * @param callback The void(uint8_t, uint8_t, bool) callback.
    */
   template<typename F> void add_touch_event_callback(F &&callback) {
     this->touch_callback_.add(std::forward<F>(callback));
