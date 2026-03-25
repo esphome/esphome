@@ -79,8 +79,7 @@ int __wrap_vfprintf(FILE *stream, const char *fmt, va_list ap) {
 int __wrap_fprintf(FILE *stream, const char *fmt, ...) {
   va_list ap;
   va_start(ap, fmt);
-  char buf[PRINTF_BUFFER_SIZE];
-  int len = write_printf_buffer(stream, buf, vsnprintf(buf, sizeof(buf), fmt, ap));
+  int len = __wrap_vfprintf(stream, fmt, ap);
   va_end(ap);
   return len;
 }
