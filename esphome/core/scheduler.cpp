@@ -166,7 +166,13 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
   item->component = component;
   item->set_name(name_type, static_name, hash_or_id);
   item->type = type;
-  item->callback = std::move(func);
+  // Use destroy + placement-new instead of move-assignment.
+  // GCC's std::function::operator=(function&&) does a full swap dance even when the
+  // target is empty. Since recycled/new items always have an empty callback, we can
+  // destroy the empty one (no-op) and move-construct directly, saving ~40 bytes of
+  // swap/destructor code on Xtensa.
+  item->callback.~function();
+  new (&item->callback) std::function<void()>(std::move(func));
   // Reset remove flag - recycled items may have been cancelled (remove=true) in previous use
   this->set_item_removed_(item, false);
   item->is_retry = is_retry;

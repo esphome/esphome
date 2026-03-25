@@ -158,7 +158,7 @@ class WidgetType:
             await self.on_create(var, config)
 
         w = Widget.create(wid, var, self, config)
-        if theme := theme_widget_map.get(self.w_type.name):
+        if theme := theme_widget_map.get(self.name):
             for part, states in theme.items():
                 part = "LV_PART_" + part.upper()
                 for state, style in states.items():
