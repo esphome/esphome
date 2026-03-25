@@ -89,6 +89,7 @@ CONF_DRAW_TICKS_ON_TOP = "draw_ticks_on_top"
 CONF_IMAGE_ID = "image_id"
 CONF_INDICATORS = "indicators"
 CONF_LINE_ID = "line_id"
+CONF_ROUNDED = "rounded"
 CONF_LABEL_GAP = "label_gap"
 CONF_MAJOR = "major"
 CONF_METER = "meter"
@@ -135,6 +136,7 @@ INDICATOR_LINE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_WIDTH, default=4): cv.int_,
         cv.Optional(CONF_COLOR, default=0): lv_color,
+        cv.Optional(CONF_ROUNDED, default=True): lv_color,
         cv.Optional(CONF_R_MOD): padding,
         cv.Optional(CONF_LENGTH): pixels_or_percent_validator,
         cv.Optional(CONF_RADIAL_OFFSET, 0): pixels_or_percent_validator,
@@ -466,7 +468,7 @@ class MeterType(WidgetType):
                         CONF_OPA: v[CONF_OPA],
                         CONF_LINE_WIDTH: v[CONF_WIDTH],
                         "line_color": v[CONF_COLOR],
-                        "line_rounded": True,
+                        "line_rounded": v[CONF_ROUNDED],
                         CONF_ALIGN: CHILD_ALIGNMENTS.TOP_LEFT,
                         CONF_LENGTH: length,
                         CONF_RADIAL_OFFSET: v[CONF_RADIAL_OFFSET],
