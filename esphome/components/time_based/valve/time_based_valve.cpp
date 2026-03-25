@@ -38,7 +38,7 @@ void TimeBasedValve::loop() {
 
   if (this->is_at_target_()) {
     if (this->target_position_ == VALVE_OPEN || this->target_position_ == VALVE_CLOSED) {
-      this->current_operation = VALVE_OPERATION_IDLE;
+      this->start_direction_(VALVE_OPERATION_IDLE);
     }
     this->publish_state();
   }
@@ -47,6 +47,9 @@ void TimeBasedValve::loop() {
   if (now - this->last_publish_time_ > 1000) {
     this->publish_state(false);
     this->last_publish_time_ = now;
+
+    ESP_LOGV(TAG, "Pos: %.1f Min: %.1f Max: %.1f", this->measured_position_, this->measured_position_min_,
+             this->measured_position_max_);
   }
 }
 
@@ -106,7 +109,19 @@ void TimeBasedValve::control(const ValveCall &call) {
   if (pos_val.has_value()) {
     auto pos = *pos_val;
     if (pos != this->position) {
-      auto op = pos < this->position ? VALVE_OPERATION_CLOSING : VALVE_OPERATION_OPENING;
+      ValveOperation op;
+      if (std::isnan(this->position)) {
+        // If current position is unknown, only full open and close are possible
+        if (pos != VALVE_CLOSED && pos != VALVE_OPEN)
+          return;
+        op = pos == VALVE_CLOSED ? VALVE_OPERATION_CLOSING : VALVE_OPERATION_OPENING;
+      } else {
+        op = pos < this->position ? VALVE_OPERATION_CLOSING : VALVE_OPERATION_OPENING;
+      }
+      if (this->current_operation != VALVE_OPERATION_IDLE && this->current_operation != op) {
+        // Stop before direction change
+        this->start_direction_(VALVE_OPERATION_IDLE);
+      }
       this->target_position_ = pos;
       this->start_direction_(op);
     }
@@ -174,7 +189,7 @@ void TimeBasedValve::recompute_position_() {
   }
 
   const uint32_t now = millis();
-  float distance = dir * (now - this->last_recompute_time_) / this->duration_;
+  float distance = dir * (now - this->last_recompute_time_);
   this->last_recompute_time_ = now;
 
   bool duration_traveled = (this->measured_position_max_ - this->measured_position_min_) >= this->duration_;
@@ -189,10 +204,10 @@ void TimeBasedValve::recompute_position_() {
     return;
   }
 
-  if (this->position == NAN) {
-    this->position = dir > 0 ? 1 : 0;
+  if (std::isnan(this->position)) {
+    this->position = dir > 0 ? VALVE_OPEN : VALVE_CLOSED;
   } else {
-    this->position += distance;
+    this->position += distance / this->duration_;
     this->position = clamp(this->position, 0.0f, 1.0f);
   }
 }

@@ -24,6 +24,7 @@ class TimeBasedValve final : public valve::Valve, public Component {
   Trigger<> *get_open_trigger();
   Trigger<> *get_close_trigger();
   Trigger<> *get_stop_trigger();
+  void set_duration(uint32_t duration) { this->duration_ = duration; }
   void set_restore_mode(TimeBasedValveRestoreMode restore_mode) { restore_mode_ = restore_mode; }
   void reset_position();
 
