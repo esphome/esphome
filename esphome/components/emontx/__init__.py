@@ -15,6 +15,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 AUTO_LOAD = ["json"]
 CODEOWNERS = ["@FredM67", "@TrystanLea", "@glynhudson"]
@@ -41,6 +42,8 @@ CONF_TAG_NAME = "tag_name"
 CONF_ON_JSON = "on_json"
 
 DOMAIN = "emontx"
+
+MINIMUM_RX_BUFFER_SIZE = 2048
 
 
 @dataclass
@@ -78,7 +81,7 @@ CONFIG_SCHEMA = (
 )
 
 
-def final_validate(config):
+def final_validate(config: ConfigType):
     # Count sensors for this emontx instance and store for to_code
     full_config = fv.full_config.get()
     sensor_count = 0
@@ -92,8 +95,6 @@ def final_validate(config):
     _get_data().sensor_counts[str(hub_id)] = sensor_count
 
     # Ensure UART RX buffer size is large enough to handle data bursts from firmware
-    MINIMUM_RX_BUFFER_SIZE = 2048
-
     for uart_conf in full_config["uart"]:
         if uart_conf[CONF_ID] == config[CONF_UART_ID]:
             current_buffer_size = uart_conf.get(CONF_RX_BUFFER_SIZE, 256)
