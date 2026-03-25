@@ -331,9 +331,8 @@ async def to_code(config: ConfigType) -> None:
     CORE.data.setdefault(CONF_LOGGER, {})[CONF_LEVEL] = level
     tx_buffer_size = config[CONF_TX_BUFFER_SIZE]
     cg.add_define("ESPHOME_LOGGER_TX_BUFFER_SIZE", tx_buffer_size)
-    # Determine task log buffer size and define USE_ESPHOME_TASK_LOG_BUFFER early
-    # so the constructor can allocate the buffer immediately, preventing a race
-    # where another task logs before the buffer is initialized.
+    # Determine task log buffer size. The buffer is a direct member of Logger
+    # (no separate heap allocation).
     task_log_buffer_size = 0
     if CORE.is_esp32 or CORE.is_libretiny or CORE.is_nrf52:
         task_log_buffer_size = config[CONF_TASK_LOG_BUFFER_SIZE]
@@ -341,16 +340,11 @@ async def to_code(config: ConfigType) -> None:
         task_log_buffer_size = 64  # Fixed 64 slots for host
     if task_log_buffer_size > 0:
         cg.add_define("USE_ESPHOME_TASK_LOG_BUFFER")
-        log = cg.new_Pvariable(
-            config[CONF_ID],
-            baud_rate,
-            task_log_buffer_size,
-        )
-    else:
-        log = cg.new_Pvariable(
-            config[CONF_ID],
-            baud_rate,
-        )
+        cg.add_define("ESPHOME_TASK_LOG_BUFFER_SIZE", task_log_buffer_size)
+    log = cg.new_Pvariable(
+        config[CONF_ID],
+        baud_rate,
+    )
     if CORE.is_esp32 or CORE.is_host:
         cg.add(log.create_pthread_key())
     # set_uart_selection() must be called before pre_setup() because

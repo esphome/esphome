@@ -379,12 +379,11 @@ FULL_CPU_FREQUENCIES = set(itertools.chain.from_iterable(CPU_FREQUENCIES.values(
 def set_core_data(config):
     cpu_frequency = config.get(CONF_CPU_FREQUENCY, None)
     variant = config[CONF_VARIANT]
-    # if not specified in config, set to 160MHz if supported, the fastest otherwise
+    # if not specified in config, default to the maximum supported frequency
+    # (ESP32-P4 engineering samples are limited to 360MHz, non-engineering can do 400MHz)
     if cpu_frequency is None:
         choices = CPU_FREQUENCIES[variant]
-        if "160MHZ" in choices:
-            cpu_frequency = "160MHZ"
-        elif "360MHZ" in choices:
+        if variant == VARIANT_ESP32P4 and config.get(CONF_ENGINEERING_SAMPLE):
             cpu_frequency = "360MHZ"
         else:
             cpu_frequency = choices[-1]
