@@ -324,6 +324,9 @@ bool IDFUARTComponent::peek_byte(uint8_t *data) {
 }
 
 bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
+  if (len == 0) {
+    return false;
+  }
   size_t length_to_read = len;
   int32_t read_len = 0;
   if (!this->check_read_timeout_(len))
@@ -331,11 +334,10 @@ bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
   if (this->has_peek_) {
     length_to_read--;
     *data = this->peek_byte_;
-    data++;
     this->has_peek_ = false;
   }
   if (length_to_read > 0)
-    read_len = uart_read_bytes(this->uart_num_, data, length_to_read, 20 / portTICK_PERIOD_MS);
+    read_len = uart_read_bytes(this->uart_num_, data + (len - length_to_read), length_to_read, 20 / portTICK_PERIOD_MS);
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
     this->debug_callback_.call(UART_DIRECTION_RX, data[i]);

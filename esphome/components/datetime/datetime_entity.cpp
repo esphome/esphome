@@ -45,7 +45,7 @@ void DateTimeEntity::publish_state() {
     return;
   }
   this->set_has_state(true);
-  ESP_LOGD(TAG, "'%s' >> %04u-%02u-%02u %02d:%02d:%02d", this->get_name().c_str(), this->year_, this->month_,
+  ESP_LOGV(TAG, "'%s' >> %04u-%02u-%02u %02d:%02d:%02d", this->get_name().c_str(), this->year_, this->month_,
            this->day_, this->hour_, this->minute_, this->second_);
   this->state_callback_.call();
 #if defined(USE_DATETIME_DATETIME) && defined(USE_CONTROLLER_REGISTRY)
@@ -127,25 +127,25 @@ void DateTimeCall::validate_() {
 
 void DateTimeCall::perform() {
   this->validate_();
-  ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
 
   if (this->year_.has_value()) {
-    ESP_LOGD(TAG, " Year: %d", *this->year_);
+    ESP_LOGV(TAG, " Year: %d", *this->year_);
   }
   if (this->month_.has_value()) {
-    ESP_LOGD(TAG, " Month: %d", *this->month_);
+    ESP_LOGV(TAG, " Month: %d", *this->month_);
   }
   if (this->day_.has_value()) {
-    ESP_LOGD(TAG, " Day: %d", *this->day_);
+    ESP_LOGV(TAG, " Day: %d", *this->day_);
   }
   if (this->hour_.has_value()) {
-    ESP_LOGD(TAG, " Hour: %d", *this->hour_);
+    ESP_LOGV(TAG, " Hour: %d", *this->hour_);
   }
   if (this->minute_.has_value()) {
-    ESP_LOGD(TAG, " Minute: %d", *this->minute_);
+    ESP_LOGV(TAG, " Minute: %d", *this->minute_);
   }
   if (this->second_.has_value()) {
-    ESP_LOGD(TAG, " Second: %d", *this->second_);
+    ESP_LOGV(TAG, " Second: %d", *this->second_);
   }
   this->parent_->control(*this);
 }
