@@ -305,7 +305,6 @@ display:
       then:
         lambda: 'ESP_LOGD("display","Display woke up");'
     update_interval: 5s
-    skip_connection_handshake: true
     start_up_page: 1
     startup_override_ms: 10000ms  # Wait 10s for display ready
     touch_sleep_timeout: 3
