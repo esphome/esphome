@@ -1,13 +1,11 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
+from esphome.components.const import CONF_LIBRETINY
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_VERSION,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_CELLPHONE_ARROW_DOWN,
-)
-from esphome.components.const import (
-    CONF_LIBRETINY
 )
 
 from .const import LTComponent
