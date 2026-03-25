@@ -3,7 +3,6 @@ wifi:
   password: password1
 
 api:
-  custom_services: true
 
 uart:
   - id: uart_emontx
@@ -39,7 +38,6 @@ button:
 emontx:
   id: test_emontx
   update_interval: 60s
-  config_panel: true
 
 sensor:
   - platform: emontx

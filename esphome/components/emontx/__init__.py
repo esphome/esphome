@@ -35,15 +35,12 @@ EmonTxSendCommandAction = emontx_ns.class_("EmonTxSendCommandAction", automation
 CONF_EMONTX_ID = "emontx_id"
 CONF_TAG_NAME = "tag_name"
 CONF_ON_JSON = "on_json"
-CONF_CONFIG_PANEL = "config_panel"
 
 # Main configuration schema
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(EmonTx),
-            # Enable config panel - automatically fires esphome.emontx_raw events
-            cv.Optional(CONF_CONFIG_PANEL, default=False): cv.boolean,
             # Add on_json trigger for handling JSON data
             cv.Optional(CONF_ON_JSON): automation.validate_automation(
                 {
@@ -64,9 +61,6 @@ CONFIG_SCHEMA = (
 
 
 def final_validate(config):
-    # TX is required if config_panel is enabled (send_command action requires config_panel)
-    require_tx = config.get(CONF_CONFIG_PANEL, False)
-
     # Ensure UART RX buffer size is large enough to handle data bursts from firmware
     # The firmware can send ~2KB of configuration data in bursts which would
     # overflow the default 256-byte buffer causing data loss and corruption
@@ -109,7 +103,7 @@ def final_validate(config):
     schema = uart.final_validate_device_schema(
         "emontx",
         baud_rate=115200,
-        require_tx=require_tx,
+        require_tx=False,
         require_rx=True,
         data_bits=8,
         parity="NONE",
@@ -125,16 +119,6 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-
-    # Set config_panel option
-    cg.add(var.set_config_panel(config[CONF_CONFIG_PANEL]))
-
-    # Enable HomeAssistant services feature when config_panel is enabled
-    # USE_API_HOMEASSISTANT_SERVICES enables the event firing code in C++
-    # Note: USE_API_CUSTOM_SERVICES (for send_command service) requires the user
-    # to set 'custom_services: true' in the 'api:' section of their YAML
-    if config[CONF_CONFIG_PANEL]:
-        cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
 
     # Process on_json triggers
     if CONF_ON_JSON in config:
