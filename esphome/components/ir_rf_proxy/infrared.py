@@ -4,12 +4,9 @@ from typing import Any
 
 import esphome.codegen as cg
 from esphome.components import infrared, remote_receiver, remote_transmitter
+from esphome.components.const import CONF_RECEIVER_FREQUENCY
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_CARRIER_DUTY_PERCENT,
-    CONF_FREQUENCY,
-    CONF_RECEIVER_FREQUENCY,
-)
+from esphome.const import CONF_CARRIER_DUTY_PERCENT, CONF_FREQUENCY
 import esphome.final_validate as fv
 
 from . import CONF_REMOTE_RECEIVER_ID, CONF_REMOTE_TRANSMITTER_ID, ir_rf_proxy_ns
