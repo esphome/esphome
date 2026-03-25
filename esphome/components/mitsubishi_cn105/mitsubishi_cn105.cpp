@@ -268,14 +268,14 @@ bool MitsubishiCN105::read_incoming_bytes_() {
     const size_t expected_len_without_checksum = HEADER_LEN + static_cast<size_t>(data_len);
 
     // Read payload (without checksum)
-    if (this->read_pos_ < expected_len_without_checksum) {
+    if (static_cast<size_t>(this->read_pos_) < expected_len_without_checksum) {
       this->add_byte_to_read_buffer_(value);
       continue;
     }
 
     // Packet complete: current byte (value) is checksum
     const uint8_t received_checksum = value;
-    const uint8_t length = static_cast<uint8_t>(this->read_pos_);
+    const uint8_t length = this->read_pos_;
     this->read_pos_ = 0;
 
     dump_buffer_vv("RX", this->read_buffer_, length);
