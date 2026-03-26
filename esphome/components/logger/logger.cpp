@@ -244,6 +244,21 @@ void Logger::dump_config() {
 #ifdef USE_ZEPHYR
   dump_crash_();
 #endif
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+  if (this->current_level_ >= ESPHOME_LOG_LEVEL_VERY_VERBOSE) {
+    ESP_LOGW(TAG, "VERY_VERBOSE logging is active. This will significantly impact device performance and may cause "
+                  "connection instability. This level is intended for short-term debugging only. "
+                  "Set the log level to DEBUG or lower for long-term use.");
+  } else if (this->current_level_ >= ESPHOME_LOG_LEVEL_VERBOSE) {
+    ESP_LOGI(TAG, "VERBOSE logging is active. This will impact device performance and is intended for short-term "
+                  "debugging only. Set the log level to DEBUG or lower for long-term use.");
+  }
+#elif ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  if (this->current_level_ >= ESPHOME_LOG_LEVEL_VERBOSE) {
+    ESP_LOGI(TAG, "VERBOSE logging is active. This will impact device performance and is intended for short-term "
+                  "debugging only. Set the log level to DEBUG or lower for long-term use.");
+  }
+#endif
 }
 
 void Logger::set_log_level(uint8_t level) {
