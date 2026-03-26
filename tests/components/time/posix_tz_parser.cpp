@@ -752,11 +752,21 @@ TEST(RecalcTimestampLocal, MinimalFieldsWithoutDayOfWeekOrYear) {
   // Regression test for issue #15115: DateTimeEntity::state_as_esptime() constructs
   // an ESPTime with only year/month/day/hour/minute/second set (no day_of_week or
   // day_of_year). recalc_timestamp_local() must work without those fields.
-  const char *tz_str = "CET-1CEST,M3.5.0,M10.5.0";
-  setenv("TZ", tz_str, 1);
+  setenv("TZ", "CET-1CEST,M3.5.0,M10.5.0", 1);
   tzset();
   time::ParsedTimezone tz{};
-  ASSERT_TRUE(parse_posix_tz(tz_str, tz));
+  tz.std_offset_seconds = -1 * 3600;  // CET-1 = UTC+1
+  tz.dst_offset_seconds = -2 * 3600;  // CEST = UTC+2
+  tz.dst_start.type = DSTRuleType::MONTH_WEEK_DAY;
+  tz.dst_start.month = 3;
+  tz.dst_start.week = 5;
+  tz.dst_start.day_of_week = 0;
+  tz.dst_start.time_seconds = 2 * 3600;
+  tz.dst_end.type = DSTRuleType::MONTH_WEEK_DAY;
+  tz.dst_end.month = 10;
+  tz.dst_end.week = 5;
+  tz.dst_end.day_of_week = 0;
+  tz.dst_end.time_seconds = 2 * 3600;
   set_global_tz(tz);
 
   // Construct ESPTime with only date/time fields (like state_as_esptime does)
@@ -780,11 +790,11 @@ TEST(RecalcTimestampLocal, MinimalFieldsWithoutDayOfWeekOrYear) {
 
 TEST(RecalcTimestampLocal, MinimalFieldsNoDST) {
   // Same test but with a timezone that has no DST
-  const char *tz_str = "IST-5:30";
-  setenv("TZ", tz_str, 1);
+  setenv("TZ", "IST-5:30", 1);
   tzset();
   time::ParsedTimezone tz{};
-  ASSERT_TRUE(parse_posix_tz(tz_str, tz));
+  tz.std_offset_seconds = -(5 * 3600 + 30 * 60);  // IST-5:30 = UTC+5:30
+  // No DST
   set_global_tz(tz);
 
   ESPTime t{};
