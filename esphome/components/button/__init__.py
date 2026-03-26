@@ -10,7 +10,6 @@ from esphome.const import (
     CONF_ID,
     CONF_MQTT_ID,
     CONF_ON_PRESS,
-    CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_IDENTIFY,
@@ -41,10 +40,6 @@ ButtonPtr = Button.operator("ptr")
 
 PressAction = button_ns.class_("PressAction", automation.Action)
 
-ButtonPressTrigger = button_ns.class_(
-    "ButtonPressTrigger", automation.Trigger.template()
-)
-
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
 
@@ -55,11 +50,7 @@ _BUTTON_SCHEMA = (
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTButtonComponent),
             cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
-            cv.Optional(CONF_ON_PRESS): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ButtonPressTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_PRESS): automation.validate_automation({}),
         }
     )
 )
@@ -91,8 +82,9 @@ def button_schema(
 @setup_entity("button")
 async def setup_button_core_(var, config):
     for conf in config.get(CONF_ON_PRESS, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            var, "add_on_press_callback", [], conf
+        )
 
     setup_device_class(config)
 
