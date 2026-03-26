@@ -560,8 +560,13 @@ RxEvaluationResult LD2410Srx::evaluate_size_(uint16_t end_pos) {
         this->size_field_size_ = FRAME_DATA_LENGTH_SIZE;
         if (end_pos - 1 >= this->header_footer_size_ + this->size_field_size_) {
           this->payload_size_ = read_int(this->rcv_buffer_, this->header_footer_size_, 2);
+          uint16_t overhead = 2 * this->header_footer_size_ + this->size_field_size_;
+          if (this->payload_size_ > RX_TX_BUFFER_SIZE - overhead) {
+            this->msg_ = "payload size exceeds buffer capacity";
+            return RxEvaluationResult::NOK;
+          }
           this->payload_pos_ = this->header_footer_size_ + this->size_field_size_;
-          this->expected_frame_size_ = 2 * this->header_footer_size_ + this->size_field_size_ + this->payload_size_;
+          this->expected_frame_size_ = overhead + this->payload_size_;
         }
       }
       break;

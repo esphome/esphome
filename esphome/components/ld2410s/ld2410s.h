@@ -383,6 +383,8 @@ class LD2410S : public Component, public uart::UARTDevice {
   static void append_gate_thresholds(uint8_t *data, uint16_t &insert_position, uint16_t sub_command,
                                      const uint32_t *thresholds_array) {
     if (sub_command != NO_SUB_CMD) {
+      if (sub_command >= 16)
+        return;
       append_seq_data(data, insert_position, &sub_command);
       append_seq_data(data, insert_position, &thresholds_array[sub_command]);
     } else {
