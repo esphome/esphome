@@ -11,7 +11,7 @@ CONF_RESPONSE_SPEED = "response_speed"
 LD2410sResponseSpeedSelect = ld2410s_ns.class_(
     "LD2410sResponseSpeedSelect", cg.Component
 )
-LD2410sExecCommandSelect = ld2410s_ns.class_("LD241s0ExecCommandSelect", cg.Component)
+LD2410sExecCommandSelect = ld2410s_ns.class_("LD2410sExecCommandSelect", cg.Component)
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_LD2410S_ID): cv.use_id(LD2410S),

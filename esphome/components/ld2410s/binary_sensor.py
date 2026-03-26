@@ -26,4 +26,4 @@ async def to_code(config):
         cg.add(ld2410s.set_presence_binary_sensor(sens))
     if calibration_running_config := config.get(HAS_CALIBRATION_RUNNING):
         sens = await binary_sensor.new_binary_sensor(calibration_running_config)
-        cg.add(ld2410s.set_calibration_runing_binary_sensor(sens))
+        cg.add(ld2410s.set_calibration_running_binary_sensor(sens))

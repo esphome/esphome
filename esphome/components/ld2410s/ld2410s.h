@@ -210,7 +210,7 @@ class LD2410S : public Component, public uart::UARTDevice {
   SUB_SENSOR(calibration_progress)
 #endif
 #ifdef USE_BINARY_SENSOR
-  SUB_BINARY_SENSOR(calibration_runing)
+  SUB_BINARY_SENSOR(calibration_running)
 #endif
 #ifdef USE_TEXT_SENSOR
   SUB_TEXT_SENSOR(fw_version)
@@ -325,7 +325,7 @@ class LD2410S : public Component, public uart::UARTDevice {
   void publish_distance_(uint16_t distance, bool force_publish = false);
   void publish_presence_(bool presence, bool force_publish = false);
   void publish_calibration_progress_(uint16_t calibration_progress, bool force_publish = false);
-  void publish_calibration_runing_(bool running, bool force_publish = false);
+  void publish_calibration_running_(bool running, bool force_publish = false);
   void publish_energy_values_(bool force_publish = false);
   void publish_fw_version_(const std::string &version, bool force_publish = false);
   void publish_threshold_trigger_(bool force_publish = false);

@@ -184,7 +184,7 @@ void LD2410S::parse_ack_config_start_(const uint8_t *data) {
   uint16_t read_position = 0;
   uint16_t protocol_version = 0;
   uint16_t buffer_size = 0;
-  read_seq_data(data, read_position, &protocol_version);  // does not exist it both documents
+  read_seq_data(data, read_position, &protocol_version);  // does not exist in both documents
   read_seq_data(data, read_position, &buffer_size);
 
   ESP_LOGD(TAG, "CONFIG MODE ENABLED, protocol_version:%d  buffer_size:%d", protocol_version, buffer_size);
@@ -227,7 +227,7 @@ void LD2410S::parse_ack_fw_read_(const uint8_t *data) {
   uint16_t major_v = 0;
   uint16_t minor_v = 0;
   uint16_t patch_v = 0;
-  read_seq_data(data, read_position, &equipment_type);  // does not exist it both documents
+  read_seq_data(data, read_position, &equipment_type);  // does not exist in both documents
   read_seq_data(data, read_position, &major_v);
   read_seq_data(data, read_position, &minor_v);
   read_seq_data(data, read_position, &patch_v);
@@ -298,11 +298,11 @@ void LD2410S::publish_calibration_progress_(uint16_t calibration_progress, bool 
   }
 #endif
 }
-void LD2410S::publish_calibration_runing_(bool running, bool force_publish) {
+void LD2410S::publish_calibration_running_(bool running, bool force_publish) {
 #ifdef USE_BINARY_SENSOR
-  if (this->calibration_runing_binary_sensor_ != nullptr) {
-    if (this->calibration_runing_binary_sensor_->state != running || force_publish) {
-      this->calibration_runing_binary_sensor_->publish_state(running);
+  if (this->calibration_running_binary_sensor_ != nullptr) {
+    if (this->calibration_running_binary_sensor_->state != running || force_publish) {
+      this->calibration_running_binary_sensor_->publish_state(running);
     }
   }
 #endif
