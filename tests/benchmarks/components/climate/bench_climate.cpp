@@ -21,6 +21,8 @@ class BenchClimate : public climate::Climate {
 };
 
 // Helper to create a typical HVAC climate device for benchmarks.
+// Note: setup() is not called (no preferences backend), so save_state_()
+// is effectively a no-op. This benchmarks the call/validation path, not persistence.
 static void setup_hvac_climate(BenchClimate &climate) {
   climate.configure("test_climate");
   climate.traits_.set_supported_modes({
@@ -118,8 +120,8 @@ static void ClimateCall_SetTemperature(benchmark::State &state) {
 }
 BENCHMARK(ClimateCall_SetTemperature);
 
-// --- ClimateCall::perform() mode change with fan and preset ---
-// Exercises the full validation path with multiple fields set.
+// --- ClimateCall::perform() mode change with fan ---
+// Exercises the validation path with multiple fields set.
 
 static void ClimateCall_ModeChange(benchmark::State &state) {
   BenchClimate climate;
