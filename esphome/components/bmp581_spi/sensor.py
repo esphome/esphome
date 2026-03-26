@@ -31,10 +31,7 @@ BMP581SPIComponent = bmp581_ns.class_(
 def check_spi_mode(config):
     spi_mode = config.get(CONF_SPI_MODE)
     if spi_mode not in VALID_SPI_MODES:
-        _LOGGER.warning(
-            "BMP581 only supports SPI mode0 and mode3. "
-            "Sensor may not work correctly or at all."
-        )
+        raise cv.Invalid("BMP581 only supports SPI mode 3")
     return config
 
 
