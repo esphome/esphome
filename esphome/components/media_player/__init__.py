@@ -9,7 +9,6 @@ from esphome.const import (
     CONF_ON_STATE,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
-    CONF_TRIGGER_ID,
     CONF_VOLUME,
 )
 from esphome.core import CORE
@@ -65,15 +64,21 @@ _COMMAND_ACTIONS = [
     "clear_playlist",
 ]
 
-# State triggers: (config_key, C++ class name)
+StateAnyForwarder = media_player_ns.class_("StateAnyForwarder")
+StateEnterForwarder = media_player_ns.class_("StateEnterForwarder")
+
+# State triggers: (config_key, state enum or None for any-state)
 _STATE_TRIGGERS = [
-    (CONF_ON_STATE, "StateTrigger"),
-    (CONF_ON_IDLE, "IdleTrigger"),
-    (CONF_ON_PLAY, "PlayTrigger"),
-    (CONF_ON_PAUSE, "PauseTrigger"),
-    (CONF_ON_ANNOUNCEMENT, "AnnouncementTrigger"),
-    (CONF_ON_TURN_ON, "OnTrigger"),
-    (CONF_ON_TURN_OFF, "OffTrigger"),
+    (CONF_ON_STATE, None),
+    (CONF_ON_IDLE, "media_player::MediaPlayerState::MEDIA_PLAYER_STATE_IDLE"),
+    (CONF_ON_PLAY, "media_player::MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING"),
+    (CONF_ON_PAUSE, "media_player::MediaPlayerState::MEDIA_PLAYER_STATE_PAUSED"),
+    (
+        CONF_ON_ANNOUNCEMENT,
+        "media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING",
+    ),
+    (CONF_ON_TURN_ON, "media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ON"),
+    (CONF_ON_TURN_OFF, "media_player::MediaPlayerState::MEDIA_PLAYER_STATE_OFF"),
 ]
 
 # State conditions that all share the same schema and codegen handler
@@ -98,10 +103,15 @@ VolumeSetAction = media_player_ns.class_(
 
 @setup_entity("media_player")
 async def setup_media_player_core_(var, config):
-    for conf_key, _ in _STATE_TRIGGERS:
+    for conf_key, state_enum in _STATE_TRIGGERS:
         for conf in config.get(conf_key, []):
-            trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-            await automation.build_automation(trigger, [], conf)
+            if state_enum is None:
+                forwarder = StateAnyForwarder
+            else:
+                forwarder = StateEnterForwarder.template(cg.RawExpression(state_enum))
+            await automation.build_callback_automation(
+                var, "add_on_state_callback", [], conf, forwarder=forwarder
+            )
 
 
 async def register_media_player(var, config):
@@ -120,14 +130,8 @@ async def new_media_player(config, *args):
 
 _MEDIA_PLAYER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
     {
-        cv.Optional(conf_key): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    media_player_ns.class_(class_name, automation.Trigger.template())
-                ),
-            }
-        )
-        for conf_key, class_name in _STATE_TRIGGERS
+        cv.Optional(conf_key): automation.validate_automation({})
+        for conf_key, _ in _STATE_TRIGGERS
     }
 )
 

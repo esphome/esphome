@@ -199,7 +199,7 @@ MediaPlayerCall &MediaPlayerCall::set_announcement(bool announce) {
 }
 
 void MediaPlayer::publish_state() {
-  this->state_callback_.call();
+  this->state_callback_.call(this->state);
 #if defined(USE_MEDIA_PLAYER) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_media_player_update(this);
 #endif
