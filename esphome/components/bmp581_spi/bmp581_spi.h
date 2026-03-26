@@ -18,7 +18,7 @@ class BMP581SPIComponent : public esphome::bmp581_base::BMP581Component,
   void dump_config() override;
 
  protected:
-  void activate_protocol() override;
+  void activate_interface() override;
 };
 
 }  // namespace esphome::bmp581_spi

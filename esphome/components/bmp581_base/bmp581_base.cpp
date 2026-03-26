@@ -469,14 +469,14 @@ bool BMP581Component::read_temperature_and_pressure_(float &temperature, float &
 }
 
 bool BMP581Component::reset_() {
-  // - activates protocol (only relevant for SPI mode)
+  // - activates interface (only relevant for SPI mode)
   // - writes reset command to the command register
   // - waits for sensor to complete reset
-  // - activates protocol (only relevant for SPI mode)
+  // - activates interface (only relevant for SPI mode)
   // - returns the Power-On-Reboot interrupt status, which is asserted if successful
 
-  // Activates protocol if necessary (i.e., SPI)
-  this->activate_protocol();
+  // Activates interface if necessary (SPI only)
+  this->activate_interface();
   // writes reset command to BMP's command register
   if (!this->bmp_write_byte(BMP581_COMMAND, RESET_COMMAND)) {
     ESP_LOGE(TAG, "Failed to write reset command");
@@ -487,8 +487,8 @@ bool BMP581Component::reset_() {
   //  - round up to 3 ms
   delay(3);
 
-  // Activates protocol if necessary (i.e., SPI)
-  this->activate_protocol();
+  // Activates interface if necessary (SPI only)
+  this->activate_interface();
 
   // read interrupt status register
   if (!this->bmp_read_byte(BMP581_INT_STATUS, &this->int_status_.reg)) {
