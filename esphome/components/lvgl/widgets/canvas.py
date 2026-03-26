@@ -369,7 +369,9 @@ def _scale_map(config):
 
 
 def _get_prop_validator(prop):
-    return STYLE_PROPS.get(f"transform_{remap_property(prop)}") or STYLE_PROPS.get(prop)
+    return STYLE_PROPS.get(
+        f"transform_{remap_property(prop, False)}"
+    ) or STYLE_PROPS.get(prop)
 
 
 def _prop_validator(prop):

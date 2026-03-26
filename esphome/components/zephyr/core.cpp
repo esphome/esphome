@@ -75,7 +75,6 @@ IRAM_ATTR InterruptLock::~InterruptLock() { irq_unlock(state_); }
 
 // Zephyr LwIPLock is defined inline as a no-op in helpers.h
 
-uint32_t random_uint32() { return rand(); }  // NOLINT(cert-msc30-c, cert-msc50-cpp)
 bool random_bytes(uint8_t *data, size_t len) {
   sys_rand_get(data, len);
   return true;

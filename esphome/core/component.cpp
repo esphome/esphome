@@ -227,9 +227,6 @@ void Component::call() {
       break;
   }
 }
-const LogString *Component::get_component_log_str() const {
-  return this->component_source_ == nullptr ? LOG_STR("<unknown>") : this->component_source_;
-}
 bool Component::should_warn_of_blocking(uint32_t blocking_time) {
   if (blocking_time > this->warn_if_blocking_over_) {
     // Prevent overflow when adding increment - if we're about to overflow, just max out
@@ -326,9 +323,10 @@ void Component::set_interval(uint32_t interval, std::function<void()> &&f) {  //
   App.scheduler.set_interval(this, static_cast<const char *>(nullptr), interval, std::move(f));
 }
 bool Component::is_ready() const {
-  return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP ||
-         (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE ||
-         (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_SETUP;
+  // Bitmask check: valid states are SETUP(1), LOOP(2), LOOP_DONE(4)
+  // (1 << state) & 0b10110 checks membership in one instruction
+  return ((1u << (this->component_state_ & COMPONENT_STATE_MASK)) &
+          ((1u << COMPONENT_STATE_SETUP) | (1u << COMPONENT_STATE_LOOP) | (1u << COMPONENT_STATE_LOOP_DONE))) != 0;
 }
 bool Component::can_proceed() { return true; }
 bool Component::set_status_flag_(uint8_t flag) {

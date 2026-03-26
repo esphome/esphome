@@ -172,14 +172,18 @@ void LvglComponent::add_page(LvPageType *page) {
   page->setup(this->pages_.size() - 1);
 }
 
-void LvglComponent::show_page(size_t index, lv_scr_load_anim_t anim, uint32_t time) {
+void LvglComponent::show_page(size_t index, lv_screen_load_anim_t anim, uint32_t time) {
   if (index >= this->pages_.size())
     return;
   this->current_page_ = index;
-  lv_scr_load_anim(this->pages_[this->current_page_]->obj, anim, time, 0, false);
+  if (anim == LV_SCREEN_LOAD_ANIM_NONE) {
+    lv_screen_load(this->pages_[this->current_page_]->obj);
+  } else {
+    lv_screen_load_anim(this->pages_[this->current_page_]->obj, anim, time, 0, false);
+  }
 }
 
-void LvglComponent::show_next_page(lv_scr_load_anim_t anim, uint32_t time) {
+void LvglComponent::show_next_page(lv_screen_load_anim_t anim, uint32_t time) {
   if (this->pages_.empty() || (this->current_page_ == this->pages_.size() - 1 && !this->page_wrap_))
     return;
   size_t start = this->current_page_;
@@ -191,7 +195,7 @@ void LvglComponent::show_next_page(lv_scr_load_anim_t anim, uint32_t time) {
   this->show_page(this->current_page_, anim, time);
 }
 
-void LvglComponent::show_prev_page(lv_scr_load_anim_t anim, uint32_t time) {
+void LvglComponent::show_prev_page(lv_screen_load_anim_t anim, uint32_t time) {
   if (this->pages_.empty() || (this->current_page_ == 0 && !this->page_wrap_))
     return;
   size_t start = this->current_page_;
@@ -262,8 +266,8 @@ void LvglComponent::flush_cb_(lv_display_t *disp_drv, const lv_area_t *area, uin
   if (!this->is_paused()) {
     auto now = millis();
     this->draw_buffer_(area, reinterpret_cast<lv_color_data *>(color_p));
-    ESP_LOGV(TAG, "flush_cb, area=%d/%d, %d/%d took %dms", area->x1, area->y1, lv_area_get_width(area),
-             lv_area_get_height(area), (int) (millis() - now));
+    ESP_LOGV(TAG, "flush_cb, area=%d/%d, %d/%d took %dms", (int) area->x1, (int) area->y1,
+             (int) lv_area_get_width(area), (int) lv_area_get_height(area), (int) (millis() - now));
   }
   lv_display_flush_ready(disp_drv);
 }
@@ -619,7 +623,7 @@ void LvglComponent::setup() {
   // Rotation will be handled by our drawing function, so reset the display rotation.
   for (auto *disp : this->displays_)
     disp->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
-  this->show_page(0, LV_SCR_LOAD_ANIM_NONE, 0);
+  this->show_page(0, LV_SCREEN_LOAD_ANIM_NONE, 0);
   lv_display_trigger_activity(this->disp_);
 }
 
@@ -667,15 +671,16 @@ void LvglComponent::static_flush_cb(lv_display_t *disp_drv, const lv_area_t *are
  * @param e The event data
  * @param color_start The color to apply to the first tick
  * @param color_end  The color to apply to the last tick
+ * @param width
  */
-void lv_scale_draw_event_cb(lv_event_t *e, uint16_t range_start, uint16_t range_end, lv_color_t color_start,
-                            lv_color_t color_end, bool local) {
+void lv_scale_draw_event_cb(lv_event_t *e, int16_t range_start, int16_t range_end, lv_color_t color_start,
+                            lv_color_t color_end, int width, bool local) {
   auto *scale = static_cast<lv_obj_t *>(lv_event_get_target(e));
   lv_draw_task_t *task = lv_event_get_draw_task(e);
 
   if (lv_draw_task_get_type(task) == LV_DRAW_TASK_TYPE_LINE) {
     auto *line_dsc = static_cast<lv_draw_line_dsc_t *>(lv_draw_task_get_draw_dsc(task));
-    auto tick = line_dsc->base.id1;
+    int tick = line_dsc->base.id2;
     if (tick >= range_start && tick <= range_end) {
       unsigned range = range_end - range_start;
       if (local) {
@@ -687,6 +692,7 @@ void lv_scale_draw_event_cb(lv_event_t *e, uint16_t range_start, uint16_t range_
         range = 1;
       auto ratio = (tick * 255) / range;
       line_dsc->color = lv_color_mix(color_end, color_start, ratio);
+      line_dsc->width += width;
     }
   }
 }

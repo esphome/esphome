@@ -40,20 +40,20 @@ void MCP9600Component::setup() {
   }
 
   bool success = this->write_byte(MCP9600_REGISTER_STATUS, 0x00);
-  success |= this->write_byte(MCP9600_REGISTER_SENSOR_CONFIG, uint8_t(0x00 | thermocouple_type_ << 4));
-  success |= this->write_byte(MCP9600_REGISTER_CONFIG, 0x00);
-  success |= this->write_byte(MCP9600_REGISTER_ALERT1_CONFIG, 0x00);
-  success |= this->write_byte(MCP9600_REGISTER_ALERT2_CONFIG, 0x00);
-  success |= this->write_byte(MCP9600_REGISTER_ALERT3_CONFIG, 0x00);
-  success |= this->write_byte(MCP9600_REGISTER_ALERT4_CONFIG, 0x00);
-  success |= this->write_byte(MCP9600_REGISTER_ALERT1_HYSTERESIS, 0x00);
-  success |= this->write_byte(MCP9600_REGISTER_ALERT2_HYSTERESIS, 0x00);
-  success |= this->write_byte(MCP9600_REGISTER_ALERT3_HYSTERESIS, 0x00);
-  success |= this->write_byte(MCP9600_REGISTER_ALERT4_HYSTERESIS, 0x00);
-  success |= this->write_byte_16(MCP9600_REGISTER_ALERT1_LIMIT, 0x0000);
-  success |= this->write_byte_16(MCP9600_REGISTER_ALERT2_LIMIT, 0x0000);
-  success |= this->write_byte_16(MCP9600_REGISTER_ALERT3_LIMIT, 0x0000);
-  success |= this->write_byte_16(MCP9600_REGISTER_ALERT4_LIMIT, 0x0000);
+  success &= this->write_byte(MCP9600_REGISTER_SENSOR_CONFIG, uint8_t(0x00 | thermocouple_type_ << 4));
+  success &= this->write_byte(MCP9600_REGISTER_CONFIG, 0x00);
+  success &= this->write_byte(MCP9600_REGISTER_ALERT1_CONFIG, 0x00);
+  success &= this->write_byte(MCP9600_REGISTER_ALERT2_CONFIG, 0x00);
+  success &= this->write_byte(MCP9600_REGISTER_ALERT3_CONFIG, 0x00);
+  success &= this->write_byte(MCP9600_REGISTER_ALERT4_CONFIG, 0x00);
+  success &= this->write_byte(MCP9600_REGISTER_ALERT1_HYSTERESIS, 0x00);
+  success &= this->write_byte(MCP9600_REGISTER_ALERT2_HYSTERESIS, 0x00);
+  success &= this->write_byte(MCP9600_REGISTER_ALERT3_HYSTERESIS, 0x00);
+  success &= this->write_byte(MCP9600_REGISTER_ALERT4_HYSTERESIS, 0x00);
+  success &= this->write_byte_16(MCP9600_REGISTER_ALERT1_LIMIT, 0x0000);
+  success &= this->write_byte_16(MCP9600_REGISTER_ALERT2_LIMIT, 0x0000);
+  success &= this->write_byte_16(MCP9600_REGISTER_ALERT3_LIMIT, 0x0000);
+  success &= this->write_byte_16(MCP9600_REGISTER_ALERT4_LIMIT, 0x0000);
 
   if (!success) {
     this->error_code_ = FAILED_TO_UPDATE_CONFIGURATION;
