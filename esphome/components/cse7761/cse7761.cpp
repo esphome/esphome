@@ -43,10 +43,10 @@ static constexpr uint8_t CSE7761_REG_POWERSC = 0x75;      // (2) Apparent power 
 static constexpr uint8_t CSE7761_REG_ENERGYAC = 0x76;     // (2) Channel A energy conversion coefficient
 static constexpr uint8_t CSE7761_REG_ENERGYBC = 0x77;     // (2) Channel B energy conversion coefficient
 
-static constexpr uint8_t CSE7761_SPECIAL_COMMAND = 0xEA;    // Start special command
-static constexpr uint8_t CSE7761_CMD_RESET = 0x96;          // Reset command, after receiving the command, the chip resets
-static constexpr uint8_t CSE7761_CMD_CHAN_A_SELECT = 0x5A;   // Current channel A setting command
-static constexpr uint8_t CSE7761_CMD_CHAN_B_SELECT = 0xA5;   // Current channel B setting command
+static constexpr uint8_t CSE7761_SPECIAL_COMMAND = 0xEA;  // Start special command
+static constexpr uint8_t CSE7761_CMD_RESET = 0x96;        // Reset command, after receiving the command, the chip resets
+static constexpr uint8_t CSE7761_CMD_CHAN_A_SELECT = 0x5A;  // Current channel A setting command
+static constexpr uint8_t CSE7761_CMD_CHAN_B_SELECT = 0xA5;  // Current channel B setting command
 static constexpr uint8_t CSE7761_CMD_CLOSE_WRITE = 0xDC;    // Close write operation
 static constexpr uint8_t CSE7761_CMD_ENABLE_WRITE = 0xE5;   // Enable write operation
 
