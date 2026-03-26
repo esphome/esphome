@@ -1,0 +1,10 @@
+one_wire:
+  - platform: gpio
+    pin: ${one_wire_pin}
+
+text_sensor:
+  - platform: dallas_ibutton
+    name: Dallas iButton 1
+  - platform: dallas_ibutton
+    name: Dallas iButton 2
+    reset_value_after: 5s
