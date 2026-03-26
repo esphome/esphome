@@ -11,7 +11,7 @@
 #include "esp_log.h"
 
 #include "tusb.h"
-#include "tusb_cdc_acm.h"
+#include "tinyusb_cdc_acm.h"
 
 namespace esphome::usb_cdc_acm {
 
@@ -140,7 +140,6 @@ void USBCDCACMInstance::setup() {
 
   // Configure this CDC interface
   const tinyusb_config_cdcacm_t acm_cfg = {
-      .usb_dev = TINYUSB_USBDEV_0,
       .cdc_port = static_cast<tinyusb_cdcacm_itf_t>(this->itf_),
       .callback_rx = &tinyusb_cdc_rx_callback,
       .callback_rx_wanted_char = NULL,
@@ -148,9 +147,9 @@ void USBCDCACMInstance::setup() {
       .callback_line_coding_changed = &tinyusb_cdc_line_coding_changed_callback,
   };
 
-  esp_err_t result = tusb_cdc_acm_init(&acm_cfg);
+  esp_err_t result = tinyusb_cdcacm_init(&acm_cfg);
   if (result != ESP_OK) {
-    ESP_LOGE(TAG, "tusb_cdc_acm_init failed: %d", result);
+    ESP_LOGE(TAG, "tinyusb_cdcacm_init failed: %d", result);
     this->parent_->mark_failed();
     return;
   }
@@ -326,10 +325,10 @@ size_t USBCDCACMInstance::available() {
   return waiting + (this->has_peek_ ? 1 : 0);
 }
 
-uart::FlushResult USBCDCACMInstance::flush() {
+uart::UARTFlushResult USBCDCACMInstance::flush() {
   // Wait for TX ring buffer to be empty
   if (this->usb_tx_ringbuf_ == nullptr) {
-    return uart::FlushResult::ASSUMED_SUCCESS;
+    return uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
   }
 
   UBaseType_t waiting = 1;
@@ -343,10 +342,10 @@ uart::FlushResult USBCDCACMInstance::flush() {
   // Also wait for USB to finish transmitting
   esp_err_t err = tinyusb_cdcacm_write_flush(static_cast<tinyusb_cdcacm_itf_t>(this->itf_), pdMS_TO_TICKS(100));
   if (err == ESP_OK)
-    return uart::FlushResult::SUCCESS;
+    return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
   if (err == ESP_ERR_TIMEOUT)
-    return uart::FlushResult::TIMEOUT;
-  return uart::FlushResult::FAILED;
+    return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
+  return uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED;
 }
 
 void USBCDCACMInstance::check_logger_conflict() {}

@@ -44,7 +44,6 @@ void RemoteReceiverComponent::setup() {
   channel.intr_priority = 0;
   channel.flags.invert_in = 0;
   channel.flags.with_dma = this->with_dma_;
-  channel.flags.io_loop_back = 0;
   esp_err_t error = rmt_new_rx_channel(&channel, &this->channel_);
   if (error != ESP_OK) {
     this->error_code_ = error;

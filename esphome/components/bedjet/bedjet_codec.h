@@ -183,7 +183,7 @@ class BedjetCodec {
 
   BedjetPacket packet_;
 
-  BedjetStatusPacket *status_packet_;
+  BedjetStatusPacket *status_packet_{nullptr};
   BedjetStatusPacket buf_;
 };
 
