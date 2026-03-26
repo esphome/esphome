@@ -159,18 +159,18 @@ class ClimateTraits {
   // Remove before 2026.11.0
   ESPDEPRECATED("Call set_supported_custom_fan_modes() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
   void set_supported_custom_fan_modes(std::initializer_list<const char *> modes) {
-    this->owned_custom_fan_modes_ = modes;
-    this->supported_custom_fan_modes_ = &this->owned_custom_fan_modes_;
+    this->owned_custom_modes_.fan_modes = modes;
+    this->supported_custom_fan_modes_ = &this->owned_custom_modes_.fan_modes;
   }
   // Remove before 2026.11.0
   ESPDEPRECATED("Call set_supported_custom_fan_modes() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
   void set_supported_custom_fan_modes(const std::vector<const char *> &modes) {
-    this->owned_custom_fan_modes_ = modes;
-    this->supported_custom_fan_modes_ = &this->owned_custom_fan_modes_;
+    this->owned_custom_modes_.fan_modes = modes;
+    this->supported_custom_fan_modes_ = &this->owned_custom_modes_.fan_modes;
   }
 
   const std::vector<const char *> &get_supported_custom_fan_modes() const {
-    return this->supported_custom_fan_modes_ ? *this->supported_custom_fan_modes_ : this->owned_custom_fan_modes_;
+    return this->supported_custom_fan_modes_ ? *this->supported_custom_fan_modes_ : this->owned_custom_modes_.fan_modes;
   }
   bool supports_custom_fan_mode(const char *custom_fan_mode) const {
     return this->supported_custom_fan_modes_ && vector_contains(*this->supported_custom_fan_modes_, custom_fan_mode);
@@ -192,18 +192,18 @@ class ClimateTraits {
   // Remove before 2026.11.0
   ESPDEPRECATED("Call set_supported_custom_presets() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
   void set_supported_custom_presets(std::initializer_list<const char *> presets) {
-    this->owned_custom_presets_ = presets;
-    this->supported_custom_presets_ = &this->owned_custom_presets_;
+    this->owned_custom_modes_.presets = presets;
+    this->supported_custom_presets_ = &this->owned_custom_modes_.presets;
   }
   // Remove before 2026.11.0
   ESPDEPRECATED("Call set_supported_custom_presets() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
   void set_supported_custom_presets(const std::vector<const char *> &presets) {
-    this->owned_custom_presets_ = presets;
-    this->supported_custom_presets_ = &this->owned_custom_presets_;
+    this->owned_custom_modes_.presets = presets;
+    this->supported_custom_presets_ = &this->owned_custom_modes_.presets;
   }
 
   const std::vector<const char *> &get_supported_custom_presets() const {
-    return this->supported_custom_presets_ ? *this->supported_custom_presets_ : this->owned_custom_presets_;
+    return this->supported_custom_presets_ ? *this->supported_custom_presets_ : this->owned_custom_modes_.presets;
   }
   bool supports_custom_preset(const char *custom_preset) const {
     return this->supported_custom_presets_ && vector_contains(*this->supported_custom_presets_, custom_preset);
@@ -309,8 +309,18 @@ class ClimateTraits {
    */
   const std::vector<const char *> *supported_custom_fan_modes_{nullptr};
   const std::vector<const char *> *supported_custom_presets_{nullptr};
-  std::vector<const char *> owned_custom_fan_modes_{};  ///< Compat: used when deprecated setters are called on traits
-  std::vector<const char *> owned_custom_presets_{};    ///< Compat: used when deprecated setters are called on traits
+  /** Compat storage for deprecated setters — skipped on copy to avoid overhead.
+   * Remove in 2026.11.0 along with the deprecated overloads.
+   */
+  struct OwnedCustomModes {
+    std::vector<const char *> fan_modes;
+    std::vector<const char *> presets;
+    OwnedCustomModes() = default;
+    OwnedCustomModes(const OwnedCustomModes &) {}  // NOLINT - no-op copy: compat data is not propagated
+    OwnedCustomModes &operator=(const OwnedCustomModes &) { return *this; }  // NOLINT
+    OwnedCustomModes(OwnedCustomModes &&) = default;
+    OwnedCustomModes &operator=(OwnedCustomModes &&) = default;
+  } owned_custom_modes_;
 };
 
 }  // namespace esphome::climate
