@@ -35,13 +35,13 @@ static constexpr uint8_t CSE7761_REG_SYSSTATUS = 0x43;  // (1) System status reg
 
 static constexpr uint8_t CSE7761_REG_COEFFCHKSUM = 0x6F;  // (2) Coefficient checksum
 static constexpr uint8_t CSE7761_REG_RMSIAC = 0x70;       // (2) Channel A effective current conversion coefficient
-static constexpr uint8_t CSE7761_REG_RMSIBC      = 0x71;  // (2) Channel B effective current conversion coefficient
-static constexpr uint8_t CSE7761_REG_RMSUC       = 0x72;  // (2) Effective voltage conversion coefficient
-static constexpr uint8_t CSE7761_REG_POWERPAC    = 0x73;  // (2) Channel A active power conversion coefficient
-static constexpr uint8_t CSE7761_REG_POWERPBC    = 0x74;  // (2) Channel B active power conversion coefficient
-static constexpr uint8_t CSE7761_REG_POWERSC     = 0x75;  // (2) Apparent power conversion coefficient
-static constexpr uint8_t CSE7761_REG_ENERGYAC    = 0x76;  // (2) Channel A energy conversion coefficient
-static constexpr uint8_t CSE7761_REG_ENERGYBC    = 0x77;  // (2) Channel B energy conversion coefficient
+static constexpr uint8_t CSE7761_REG_RMSIBC = 0x71;       // (2) Channel B effective current conversion coefficient
+static constexpr uint8_t CSE7761_REG_RMSUC = 0x72;        // (2) Effective voltage conversion coefficient
+static constexpr uint8_t CSE7761_REG_POWERPAC = 0x73;     // (2) Channel A active power conversion coefficient
+static constexpr uint8_t CSE7761_REG_POWERPBC = 0x74;     // (2) Channel B active power conversion coefficient
+static constexpr uint8_t CSE7761_REG_POWERSC = 0x75;      // (2) Apparent power conversion coefficient
+static constexpr uint8_t CSE7761_REG_ENERGYAC = 0x76;     // (2) Channel A energy conversion coefficient
+static constexpr uint8_t CSE7761_REG_ENERGYBC = 0x77;     // (2) Channel B energy conversion coefficient
 
 static constexpr uint8_t CSE7761_SPECIAL_COMMAND = 0xEA;  // Start special command
 static constexpr uint8_t CSE7761_CMD_RESET = 0x96;        // Reset command, after receiving the command, the chip resets
@@ -99,7 +99,7 @@ void CSE7761Component::write_(uint8_t reg, uint16_t data) {
     uint8_t crc = 0;
     for (uint32_t i = 0; i < len; i++) {
       crc += buffer[i];
-    if (data <= 0xFF) {
+    }
     buffer[len] = ~crc;
     len++;
   }
@@ -128,12 +128,12 @@ bool CSE7761Component::read_once_(uint8_t reg, uint8_t size, uint32_t *value) {
     ESP_LOGD(TAG, "Received 0 bytes for register %hhu", reg);
     return false;
   }
-  for (uint32_t i = 0; i <= size; i++) {
-    int byte = this->read();
-    if (byte > -1 && rcvd < sizeof(buffer) - 1) {
-      buffer[rcvd++] = byte;
-    }
-  }or (uint32_t i = 0; i < rcvd; i++) {
+
+  rcvd--;
+  uint32_t result = 0;
+  // CRC check
+  uint8_t crc = 0xA5 + reg;
+  for (uint32_t i = 0; i < rcvd; i++) {
     result = (result << 8) | buffer[i];
     crc += buffer[i];
   }
@@ -229,7 +229,7 @@ void CSE7761Component::get_data_() {
   // The effective value of current and voltage Rms is a 24-bit signed number,
   // the highest bit is 0 for valid data,
   //   and when the highest bit is 1, the reading will be processed as zero
-  // The active power parameter PowerA/B is in two’s complement format, 32-bit
+  // The active power parameter PowerA/B is in two's complement format, 32-bit
   // data, the highest bit is Sign bit.
   uint32_t value = this->read_(CSE7761_REG_RMSU, 3);
   this->data_.voltage_rms = (value >= 0x800000) ? 0 : value;
