@@ -42,7 +42,7 @@ void Lock::publish_state(LockState state) {
   this->state = state;
   this->rtc_.save(&this->state);
   ESP_LOGV(TAG, "'%s' >> %s", this->name_.c_str(), LOG_STR_ARG(lock_state_to_string(state)));
-  this->state_callback_.call();
+  this->state_callback_.call(state);
 #if defined(USE_LOCK) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_lock_update(this);
 #endif
