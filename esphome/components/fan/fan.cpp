@@ -148,9 +148,9 @@ const char *Fan::find_preset_mode_(const char *preset_mode) {
 }
 
 const char *Fan::find_preset_mode_(const char *preset_mode, size_t len) {
-  if (preset_mode == nullptr || len == 0)
+  if (preset_mode == nullptr || len == 0 || !this->supported_preset_modes_)
     return nullptr;
-  for (const char *mode : this->supported_preset_modes_) {
+  for (const char *mode : *this->supported_preset_modes_) {
     if (strncmp(mode, preset_mode, len) == 0 && mode[len] == '\0')
       return mode;
   }
@@ -274,10 +274,10 @@ void Fan::save_state_() {
   state.direction = this->direction;
   state.preset_mode = FanRestoreState::NO_PRESET;
 
-  if (this->has_preset_mode()) {
+  if (this->has_preset_mode() && this->supported_preset_modes_) {
     // Find index of current preset mode (pointer comparison is safe since preset is from our vector)
-    for (size_t i = 0; i < this->supported_preset_modes_.size(); i++) {
-      if (this->supported_preset_modes_[i] == this->preset_mode_) {
+    for (size_t i = 0; i < this->supported_preset_modes_->size(); i++) {
+      if ((*this->supported_preset_modes_)[i] == this->preset_mode_) {
         state.preset_mode = i;
         break;
       }

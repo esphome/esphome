@@ -132,10 +132,15 @@ class Fan : public EntityBase {
 
   /// Set the supported preset modes (stored on Fan, referenced by FanTraits via pointer).
   void set_supported_preset_modes(std::initializer_list<const char *> preset_modes) {
-    this->supported_preset_modes_ = preset_modes;
+    if (!this->supported_preset_modes_)
+      this->supported_preset_modes_ =
+          new std::vector<const char *>();  // NOLINT - intentional leak, entity lives forever
+    *this->supported_preset_modes_ = preset_modes;
   }
   void set_supported_preset_modes(const std::vector<const char *> &preset_modes) {
-    this->supported_preset_modes_ = preset_modes;
+    if (!this->supported_preset_modes_)
+      this->supported_preset_modes_ = new std::vector<const char *>();  // NOLINT
+    *this->supported_preset_modes_ = preset_modes;
   }
 
   /// Set the restore mode of this fan.
@@ -179,8 +184,8 @@ class Fan : public EntityBase {
   ESPPreferenceObject rtc_;
   FanRestoreMode restore_mode_;
 
-  /// Preset mode storage — owned by Fan, referenced by FanTraits via pointer.
-  std::vector<const char *> supported_preset_modes_;
+  /// Preset mode storage — allocated on first use, never freed (entity lives forever).
+  std::vector<const char *> *supported_preset_modes_{nullptr};
 
  private:
   const char *preset_mode_{nullptr};
