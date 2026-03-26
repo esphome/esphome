@@ -3041,11 +3041,12 @@ class ZWaveProxyRequest final : public ProtoDecodableMessage {
 class ListEntitiesInfraredResponse final : public InfoResponseProtoMessage {
  public:
   static constexpr uint8_t MESSAGE_TYPE = 135;
-  static constexpr uint8_t ESTIMATED_SIZE = 44;
+  static constexpr uint8_t ESTIMATED_SIZE = 48;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("list_entities_infrared_response"); }
 #endif
   uint32_t capabilities{0};
+  uint32_t receiver_frequency{0};
   void encode(ProtoWriteBuffer &buffer) const;
   uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP
