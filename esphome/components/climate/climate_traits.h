@@ -157,8 +157,8 @@ class ClimateTraits {
   }
 
   const std::vector<const char *> &get_supported_custom_fan_modes() const {
-    static const std::vector<const char *> empty;
-    return this->supported_custom_fan_modes_ ? *this->supported_custom_fan_modes_ : empty;
+    static const std::vector<const char *> EMPTY;
+    return this->supported_custom_fan_modes_ ? *this->supported_custom_fan_modes_ : EMPTY;
   }
   bool supports_custom_fan_mode(const char *custom_fan_mode) const {
     return this->supported_custom_fan_modes_ && vector_contains(*this->supported_custom_fan_modes_, custom_fan_mode);
@@ -178,8 +178,8 @@ class ClimateTraits {
   }
 
   const std::vector<const char *> &get_supported_custom_presets() const {
-    static const std::vector<const char *> empty;
-    return this->supported_custom_presets_ ? *this->supported_custom_presets_ : empty;
+    static const std::vector<const char *> EMPTY;
+    return this->supported_custom_presets_ ? *this->supported_custom_presets_ : EMPTY;
   }
   bool supports_custom_preset(const char *custom_preset) const {
     return this->supported_custom_presets_ && vector_contains(*this->supported_custom_presets_, custom_preset);
