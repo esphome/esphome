@@ -232,9 +232,9 @@ void GT911Touchscreen::read_device_info_() {
   ERROR_CHECK(err);
   err = this->read(data, 4);
   ERROR_CHECK(err);
-  uint16_t xRes = data[0] | (data[1] << 8);
-  uint16_t yRes = data[2] | (data[3] << 8);
-  ESP_LOGD(TAG, "resolution: %u x %u", xRes, yRes);
+  uint16_t x_res = data[0] | (data[1] << 8);
+  uint16_t y_res = data[2] | (data[3] << 8);
+  ESP_LOGD(TAG, "resolution: %u x %u", x_res, y_res);
 }
 
 void GT911Touchscreen::dump_config() {
