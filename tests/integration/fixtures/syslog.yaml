@@ -1,0 +1,43 @@
+esphome:
+  name: syslog-test
+
+host:
+
+api:
+  services:
+    - service: log_long_message
+      then:
+        - lambda: |-
+            // Log a message that exceeds 508 bytes to test truncation
+            ESP_LOGI("trunctest", "START|%s|END",
+              "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+              "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+              "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
+              "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD"
+              "EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE"
+              "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF");
+    - service: log_short_message
+      then:
+        - lambda: |-
+            // Log a short message that should arrive complete (not truncated)
+            ESP_LOGI("shorttest", "BEGIN|SHORT_MESSAGE_CONTENT|FINISH");
+
+logger:
+  level: DEBUG
+
+time:
+  - platform: host
+    id: host_time
+
+udp:
+  - id: syslog_udp
+    addresses:
+      - "127.0.0.1"
+
+syslog:
+  udp_id: syslog_udp
+  time_id: host_time
+  port: SYSLOG_PORT_PLACEHOLDER
+  level: DEBUG
+  strip: true
+  facility: 16

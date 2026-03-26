@@ -3,8 +3,7 @@
 #include "esphome/components/number/number.h"
 #include "../ld2410.h"
 
-namespace esphome {
-namespace ld2410 {
+namespace esphome::ld2410 {
 
 class GateThresholdNumber : public number::Number, public Parented<LD2410Component> {
  public:
@@ -15,5 +14,4 @@ class GateThresholdNumber : public number::Number, public Parented<LD2410Compone
   void control(float value) override;
 };
 
-}  // namespace ld2410
-}  // namespace esphome
+}  // namespace esphome::ld2410

@@ -5,11 +5,16 @@
 #include "esphome/components/logger/logger.h"
 
 namespace esphome::logger {
-class LoggerLevelSelect : public Component, public select::Select, public Parented<Logger> {
+class LoggerLevelSelect final : public Component,
+                                public select::Select,
+                                public Parented<Logger>,
+                                public LoggerLevelListener {
  public:
-  void publish_state(int level);
   void setup() override;
   void control(size_t index) override;
+
+  // LoggerLevelListener interface
+  void on_log_level_change(uint8_t level) override;
 
  protected:
   // Convert log level to option index (skip CONFIG at level 4)

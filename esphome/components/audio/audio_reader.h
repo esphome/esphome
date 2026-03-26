@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "audio.h"
 #include "audio_transfer_buffer.h"
@@ -57,11 +57,6 @@ class AudioReader {
  protected:
   /// @brief Monitors the http client events to attempt determining the file type from the Content-Type header
   static esp_err_t http_event_handler(esp_http_client_event_t *evt);
-
-  /// @brief Determines the audio file type from the http header's Content-Type key
-  /// @param content_type string with the Content-Type key
-  /// @return AudioFileType of the url, if it can be determined. If not, return AudioFileType::NONE.
-  static AudioFileType get_audio_type(const char *content_type);
 
   AudioReaderState file_read_();
   AudioReaderState http_read_();

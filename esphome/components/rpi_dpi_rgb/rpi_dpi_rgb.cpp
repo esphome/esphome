@@ -1,6 +1,8 @@
 #ifdef USE_ESP32_VARIANT_ESP32S3
 #include "rpi_dpi_rgb.h"
+#include "esphome/core/gpio.h"
 #include "esphome/core/log.h"
+#include <driver/gpio.h>
 
 namespace esphome {
 namespace rpi_dpi_rgb {
@@ -24,14 +26,14 @@ void RpiDpiRgb::setup() {
   config.clk_src = LCD_CLK_SRC_PLL160M;
   size_t data_pin_count = sizeof(this->data_pins_) / sizeof(this->data_pins_[0]);
   for (size_t i = 0; i != data_pin_count; i++) {
-    config.data_gpio_nums[i] = this->data_pins_[i]->get_pin();
+    config.data_gpio_nums[i] = static_cast<gpio_num_t>(this->data_pins_[i]->get_pin());
   }
   config.data_width = data_pin_count;
-  config.disp_gpio_num = -1;
-  config.hsync_gpio_num = this->hsync_pin_->get_pin();
-  config.vsync_gpio_num = this->vsync_pin_->get_pin();
-  config.de_gpio_num = this->de_pin_->get_pin();
-  config.pclk_gpio_num = this->pclk_pin_->get_pin();
+  config.disp_gpio_num = GPIO_NUM_NC;
+  config.hsync_gpio_num = static_cast<gpio_num_t>(this->hsync_pin_->get_pin());
+  config.vsync_gpio_num = static_cast<gpio_num_t>(this->vsync_pin_->get_pin());
+  config.de_gpio_num = static_cast<gpio_num_t>(this->de_pin_->get_pin());
+  config.pclk_gpio_num = static_cast<gpio_num_t>(this->pclk_pin_->get_pin());
   esp_err_t err = esp_lcd_new_rgb_panel(&config, &this->handle_);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "lcd_new_rgb_panel failed: %s", esp_err_to_name(err));
@@ -126,14 +128,19 @@ void RpiDpiRgb::draw_pixel_at(int x, int y, Color color) {
 
 void RpiDpiRgb::dump_config() {
   ESP_LOGCONFIG("", "RPI_DPI_RGB LCD");
-  ESP_LOGCONFIG(TAG, "  Height: %u", this->height_);
-  ESP_LOGCONFIG(TAG, "  Width: %u", this->width_);
+  ESP_LOGCONFIG(TAG,
+                "  Height: %u\n"
+                "  Width: %u",
+                this->height_, this->width_);
   LOG_PIN("  DE Pin: ", this->de_pin_);
   LOG_PIN("  Enable Pin: ", this->enable_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   size_t data_pin_count = sizeof(this->data_pins_) / sizeof(this->data_pins_[0]);
-  for (size_t i = 0; i != data_pin_count; i++)
-    ESP_LOGCONFIG(TAG, "  Data pin %d: %s", i, (this->data_pins_[i])->dump_summary().c_str());
+  char pin_summary[GPIO_SUMMARY_MAX_LEN];
+  for (size_t i = 0; i != data_pin_count; i++) {
+    this->data_pins_[i]->dump_summary(pin_summary, sizeof(pin_summary));
+    ESP_LOGCONFIG(TAG, "  Data pin %d: %s", i, pin_summary);
+  }
 }
 
 void RpiDpiRgb::reset_display_() const {

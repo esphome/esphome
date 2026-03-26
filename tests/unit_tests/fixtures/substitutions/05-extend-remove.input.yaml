@@ -37,6 +37,10 @@ packages:
                 id: object5
                 x: 10
                 y: 11
+            - obj:
+                id: ["Invalid ID"]
+            - obj:
+                id: {"invalid": "id"}
 
 some_component:
   - id: !extend ${A}

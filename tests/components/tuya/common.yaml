@@ -38,11 +38,14 @@ light:
     dimmer_datapoint: 2
     min_value_datapoint: 3
     color_temperature_datapoint: 4
+    color_datapoint: 5
     min_value: 1
     max_value: 100
     cold_white_color_temperature: 153 mireds
     warm_white_color_temperature: 500 mireds
     gamma_correct: 1
+    color_type: RGB
+    color_type_lowercase: true
 
 number:
   - platform: tuya

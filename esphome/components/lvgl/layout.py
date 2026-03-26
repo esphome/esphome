@@ -36,6 +36,8 @@ from .defines import (
 )
 from .lv_validation import padding, size
 
+CONF_MULTIPLE_WIDGETS_PER_CELL = "multiple_widgets_per_cell"
+
 cell_alignments = LV_CELL_ALIGNMENTS.one_of
 grid_alignments = LV_GRID_ALIGNMENTS.one_of
 flex_alignments = LV_FLEX_ALIGNMENTS.one_of
@@ -86,8 +88,8 @@ grid_spec = cv.Any(size, LvConstant("LV_GRID_", "CONTENT").one_of, grid_free_spa
 GRID_CELL_SCHEMA = {
     cv.Optional(CONF_GRID_CELL_ROW_POS): cv.positive_int,
     cv.Optional(CONF_GRID_CELL_COLUMN_POS): cv.positive_int,
-    cv.Optional(CONF_GRID_CELL_ROW_SPAN, default=1): cv.positive_int,
-    cv.Optional(CONF_GRID_CELL_COLUMN_SPAN, default=1): cv.positive_int,
+    cv.Optional(CONF_GRID_CELL_ROW_SPAN): cv.int_range(min=1),
+    cv.Optional(CONF_GRID_CELL_COLUMN_SPAN): cv.int_range(min=1),
     cv.Optional(CONF_GRID_CELL_X_ALIGN): grid_alignments,
     cv.Optional(CONF_GRID_CELL_Y_ALIGN): grid_alignments,
 }
@@ -170,10 +172,14 @@ class DirectionalLayout(FlexLayout):
 
     def validate(self, config):
         assert config[CONF_LAYOUT].lower() == self.direction
-        config[CONF_LAYOUT] = {
+        layout = {
             **FLEX_HV_STYLE,
             CONF_FLEX_FLOW: "LV_FLEX_FLOW_" + self.flow.upper(),
         }
+        if pad_all := config.get("pad_all"):
+            layout[CONF_PAD_ROW] = pad_all
+            layout[CONF_PAD_COLUMN] = pad_all
+        config[CONF_LAYOUT] = layout
         return config
 
 
@@ -192,12 +198,8 @@ class GridLayout(Layout):
                     {
                         cv.Optional(CONF_GRID_CELL_ROW_POS): cv.positive_int,
                         cv.Optional(CONF_GRID_CELL_COLUMN_POS): cv.positive_int,
-                        cv.Optional(
-                            CONF_GRID_CELL_ROW_SPAN, default=1
-                        ): cv.positive_int,
-                        cv.Optional(
-                            CONF_GRID_CELL_COLUMN_SPAN, default=1
-                        ): cv.positive_int,
+                        cv.Optional(CONF_GRID_CELL_ROW_SPAN): cv.int_range(min=1),
+                        cv.Optional(CONF_GRID_CELL_COLUMN_SPAN): cv.int_range(min=1),
                         cv.Optional(
                             CONF_GRID_CELL_X_ALIGN, default="center"
                         ): grid_alignments,
@@ -220,12 +222,13 @@ class GridLayout(Layout):
                 cv.Optional(CONF_GRID_ROW_ALIGN): grid_alignments,
                 cv.Optional(CONF_PAD_ROW): padding,
                 cv.Optional(CONF_PAD_COLUMN): padding,
+                cv.Optional(CONF_MULTIPLE_WIDGETS_PER_CELL, default=False): cv.boolean,
             },
             {
                 cv.Optional(CONF_GRID_CELL_ROW_POS): cv.positive_int,
                 cv.Optional(CONF_GRID_CELL_COLUMN_POS): cv.positive_int,
-                cv.Optional(CONF_GRID_CELL_ROW_SPAN, default=1): cv.positive_int,
-                cv.Optional(CONF_GRID_CELL_COLUMN_SPAN, default=1): cv.positive_int,
+                cv.Optional(CONF_GRID_CELL_ROW_SPAN): cv.int_range(min=1),
+                cv.Optional(CONF_GRID_CELL_COLUMN_SPAN): cv.int_range(min=1),
                 cv.Optional(CONF_GRID_CELL_X_ALIGN): grid_alignments,
                 cv.Optional(CONF_GRID_CELL_Y_ALIGN): grid_alignments,
             },
@@ -263,6 +266,7 @@ class GridLayout(Layout):
         # should be guaranteed to be a dict at this point
         assert isinstance(layout, dict)
         assert layout.get(CONF_TYPE).lower() == TYPE_GRID
+        allow_multiple = layout.get(CONF_MULTIPLE_WIDGETS_PER_CELL, False)
         rows = len(layout[CONF_GRID_ROWS])
         columns = len(layout[CONF_GRID_COLUMNS])
         used_cells = [[None] * columns for _ in range(rows)]
@@ -291,15 +295,20 @@ class GridLayout(Layout):
                 w[CONF_GRID_CELL_ROW_POS] = row
                 w[CONF_GRID_CELL_COLUMN_POS] = column
 
-            for i in range(w[CONF_GRID_CELL_ROW_SPAN]):
-                for j in range(w[CONF_GRID_CELL_COLUMN_SPAN]):
+            row_span = w.get(CONF_GRID_CELL_ROW_SPAN, 1)
+            column_span = w.get(CONF_GRID_CELL_COLUMN_SPAN, 1)
+            for i in range(row_span):
+                for j in range(column_span):
                     if row + i >= rows or column + j >= columns:
                         raise cv.Invalid(
-                            f"Cell at {row}/{column} span {w[CONF_GRID_CELL_ROW_SPAN]}x{w[CONF_GRID_CELL_COLUMN_SPAN]} "
+                            f"Cell at {row}/{column} span {row_span}x{column_span} "
                             f"exceeds grid size {rows}x{columns}",
                             [CONF_WIDGETS, index],
                         )
-                    if used_cells[row + i][column + j] is not None:
+                    if (
+                        not allow_multiple
+                        and used_cells[row + i][column + j] is not None
+                    ):
                         raise cv.Invalid(
                             f"Cell span {row + i}/{column + j} already occupied by widget at index {used_cells[row + i][column + j]}",
                             [CONF_WIDGETS, index],

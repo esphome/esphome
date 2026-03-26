@@ -1,4 +1,4 @@
 climate:
   - platform: zhlt01
-    name: ZH/LT-01 Climate
+    name: ZH-LT-01 Climate
     transmitter_id: xmitr

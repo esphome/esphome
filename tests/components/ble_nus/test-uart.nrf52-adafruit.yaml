@@ -1,0 +1,4 @@
+ble_nus:
+  type: uart
+  tx_buffer_size: 160
+  rx_buffer_size: 160

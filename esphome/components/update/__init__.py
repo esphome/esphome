@@ -15,7 +15,11 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    setup_device_class,
+    setup_entity,
+)
 from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@jesserockz"]
@@ -28,6 +32,9 @@ UpdateInfo = update_ns.struct("UpdateInfo")
 
 PerformAction = update_ns.class_(
     "PerformAction", automation.Action, cg.Parented.template(UpdateEntity)
+)
+CheckAction = update_ns.class_(
+    "CheckAction", automation.Action, cg.Parented.template(UpdateEntity)
 )
 IsAvailableCondition = update_ns.class_(
     "IsAvailableCondition", automation.Condition, cg.Parented.template(UpdateEntity)
@@ -84,11 +91,9 @@ def update_schema(
     return _UPDATE_SCHEMA.extend(schema)
 
 
+@setup_entity("update")
 async def setup_update_core_(var, config):
-    await setup_entity(var, config, "update")
-
-    if device_class_config := config.get(CONF_DEVICE_CLASS):
-        cg.add(var.set_device_class(device_class_config))
+    setup_device_class(config)
 
     if on_update_available := config.get(CONF_ON_UPDATE_AVAILABLE):
         await automation.build_automation(
@@ -133,6 +138,7 @@ async def to_code(config):
             cv.Optional(CONF_FORCE_UPDATE, default=False): cv.templatable(cv.boolean),
         }
     ),
+    synchronous=True,
 )
 async def update_perform_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -140,6 +146,22 @@ async def update_perform_action_to_code(config, action_id, template_arg, args):
 
     force = await cg.templatable(config[CONF_FORCE_UPDATE], args, cg.bool_)
     cg.add(var.set_force(force))
+    return var
+
+
+@automation.register_action(
+    "update.check",
+    CheckAction,
+    automation.maybe_simple_id(
+        {
+            cv.GenerateID(): cv.use_id(UpdateEntity),
+        }
+    ),
+    synchronous=True,
+)
+async def update_check_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
     return var
 
 

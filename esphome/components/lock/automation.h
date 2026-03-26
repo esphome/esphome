@@ -4,8 +4,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace lock {
+namespace esphome::lock {
 
 template<typename... Ts> class LockAction : public Action<Ts...> {
  public:
@@ -50,27 +49,21 @@ template<typename... Ts> class LockCondition : public Condition<Ts...> {
   bool state_;
 };
 
-class LockLockTrigger : public Trigger<> {
+template<LockState State> class LockStateTrigger : public Trigger<> {
  public:
-  LockLockTrigger(Lock *a_lock) {
-    a_lock->add_on_state_callback([this, a_lock]() {
-      if (a_lock->state == LockState::LOCK_STATE_LOCKED) {
+  explicit LockStateTrigger(Lock *a_lock) : lock_(a_lock) {
+    a_lock->add_on_state_callback([this]() {
+      if (this->lock_->state == State) {
         this->trigger();
       }
     });
   }
+
+ protected:
+  Lock *lock_;
 };
 
-class LockUnlockTrigger : public Trigger<> {
- public:
-  LockUnlockTrigger(Lock *a_lock) {
-    a_lock->add_on_state_callback([this, a_lock]() {
-      if (a_lock->state == LockState::LOCK_STATE_UNLOCKED) {
-        this->trigger();
-      }
-    });
-  }
-};
+using LockLockTrigger = LockStateTrigger<LockState::LOCK_STATE_LOCKED>;
+using LockUnlockTrigger = LockStateTrigger<LockState::LOCK_STATE_UNLOCKED>;
 
-}  // namespace lock
-}  // namespace esphome
+}  // namespace esphome::lock

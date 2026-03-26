@@ -118,8 +118,7 @@ async def to_code(config):
     var = await alarm_control_panel.new_alarm_control_panel(config)
     await cg.register_component(var, config)
     if CONF_CODES in config:
-        for acode in config[CONF_CODES]:
-            cg.add(var.add_code(acode))
+        cg.add(var.set_codes(config[CONF_CODES]))
         if CONF_REQUIRES_CODE_TO_ARM in config:
             cg.add(var.set_requires_code_to_arm(config[CONF_REQUIRES_CODE_TO_ARM]))
 
@@ -137,7 +136,11 @@ async def to_code(config):
         cg.add(var.set_arming_night_time(config[CONF_ARMING_NIGHT_TIME]))
         supports_arm_night = True
 
-    for sensor in config.get(CONF_BINARY_SENSORS, []):
+    if sensors := config.get(CONF_BINARY_SENSORS, []):
+        # Initialize FixedVector with the exact number of sensors
+        cg.add(var.init_sensors(len(sensors)))
+
+    for sensor in sensors:
         bs = await cg.get_variable(sensor[CONF_INPUT])
 
         flags = BinarySensorFlags[FLAG_NORMAL]

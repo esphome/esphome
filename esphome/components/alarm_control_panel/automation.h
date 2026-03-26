@@ -3,9 +3,9 @@
 #include "esphome/core/automation.h"
 #include "alarm_control_panel.h"
 
-namespace esphome {
-namespace alarm_control_panel {
+namespace esphome::alarm_control_panel {
 
+/// Trigger on any state change
 class StateTrigger : public Trigger<> {
  public:
   explicit StateTrigger(AlarmControlPanel *alarm_control_panel) {
@@ -13,55 +13,30 @@ class StateTrigger : public Trigger<> {
   }
 };
 
-class TriggeredTrigger : public Trigger<> {
+/// Template trigger that fires when entering a specific state
+template<AlarmControlPanelState State> class StateEnterTrigger : public Trigger<> {
  public:
-  explicit TriggeredTrigger(AlarmControlPanel *alarm_control_panel) {
-    alarm_control_panel->add_on_triggered_callback([this]() { this->trigger(); });
+  explicit StateEnterTrigger(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {
+    alarm_control_panel->add_on_state_callback([this]() {
+      if (this->alarm_control_panel_->get_state() == State)
+        this->trigger();
+    });
   }
+
+ protected:
+  AlarmControlPanel *alarm_control_panel_;
 };
 
-class ArmingTrigger : public Trigger<> {
- public:
-  explicit ArmingTrigger(AlarmControlPanel *alarm_control_panel) {
-    alarm_control_panel->add_on_arming_callback([this]() { this->trigger(); });
-  }
-};
+// Type aliases for state-specific triggers
+using TriggeredTrigger = StateEnterTrigger<ACP_STATE_TRIGGERED>;
+using ArmingTrigger = StateEnterTrigger<ACP_STATE_ARMING>;
+using PendingTrigger = StateEnterTrigger<ACP_STATE_PENDING>;
+using ArmedHomeTrigger = StateEnterTrigger<ACP_STATE_ARMED_HOME>;
+using ArmedNightTrigger = StateEnterTrigger<ACP_STATE_ARMED_NIGHT>;
+using ArmedAwayTrigger = StateEnterTrigger<ACP_STATE_ARMED_AWAY>;
+using DisarmedTrigger = StateEnterTrigger<ACP_STATE_DISARMED>;
 
-class PendingTrigger : public Trigger<> {
- public:
-  explicit PendingTrigger(AlarmControlPanel *alarm_control_panel) {
-    alarm_control_panel->add_on_pending_callback([this]() { this->trigger(); });
-  }
-};
-
-class ArmedHomeTrigger : public Trigger<> {
- public:
-  explicit ArmedHomeTrigger(AlarmControlPanel *alarm_control_panel) {
-    alarm_control_panel->add_on_armed_home_callback([this]() { this->trigger(); });
-  }
-};
-
-class ArmedNightTrigger : public Trigger<> {
- public:
-  explicit ArmedNightTrigger(AlarmControlPanel *alarm_control_panel) {
-    alarm_control_panel->add_on_armed_night_callback([this]() { this->trigger(); });
-  }
-};
-
-class ArmedAwayTrigger : public Trigger<> {
- public:
-  explicit ArmedAwayTrigger(AlarmControlPanel *alarm_control_panel) {
-    alarm_control_panel->add_on_armed_away_callback([this]() { this->trigger(); });
-  }
-};
-
-class DisarmedTrigger : public Trigger<> {
- public:
-  explicit DisarmedTrigger(AlarmControlPanel *alarm_control_panel) {
-    alarm_control_panel->add_on_disarmed_callback([this]() { this->trigger(); });
-  }
-};
-
+/// Trigger when leaving TRIGGERED state (alarm cleared)
 class ClearedTrigger : public Trigger<> {
  public:
   explicit ClearedTrigger(AlarmControlPanel *alarm_control_panel) {
@@ -69,6 +44,7 @@ class ClearedTrigger : public Trigger<> {
   }
 };
 
+/// Trigger on chime event (zone opened while disarmed)
 class ChimeTrigger : public Trigger<> {
  public:
   explicit ChimeTrigger(AlarmControlPanel *alarm_control_panel) {
@@ -76,6 +52,7 @@ class ChimeTrigger : public Trigger<> {
   }
 };
 
+/// Trigger on ready state change
 class ReadyTrigger : public Trigger<> {
  public:
   explicit ReadyTrigger(AlarmControlPanel *alarm_control_panel) {
@@ -89,15 +66,7 @@ template<typename... Ts> class ArmAwayAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(std::string, code)
 
-  void play(const Ts &...x) override {
-    auto call = this->alarm_control_panel_->make_call();
-    auto code = this->code_.optional_value(x...);
-    if (code.has_value()) {
-      call.set_code(code.value());
-    }
-    call.arm_away();
-    call.perform();
-  }
+  void play(const Ts &...x) override { this->alarm_control_panel_->arm_away(this->code_.optional_value(x...)); }
 
  protected:
   AlarmControlPanel *alarm_control_panel_;
@@ -109,15 +78,7 @@ template<typename... Ts> class ArmHomeAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(std::string, code)
 
-  void play(const Ts &...x) override {
-    auto call = this->alarm_control_panel_->make_call();
-    auto code = this->code_.optional_value(x...);
-    if (code.has_value()) {
-      call.set_code(code.value());
-    }
-    call.arm_home();
-    call.perform();
-  }
+  void play(const Ts &...x) override { this->alarm_control_panel_->arm_home(this->code_.optional_value(x...)); }
 
  protected:
   AlarmControlPanel *alarm_control_panel_;
@@ -129,15 +90,7 @@ template<typename... Ts> class ArmNightAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(std::string, code)
 
-  void play(const Ts &...x) override {
-    auto call = this->alarm_control_panel_->make_call();
-    auto code = this->code_.optional_value(x...);
-    if (code.has_value()) {
-      call.set_code(code.value());
-    }
-    call.arm_night();
-    call.perform();
-  }
+  void play(const Ts &...x) override { this->alarm_control_panel_->arm_night(this->code_.optional_value(x...)); }
 
  protected:
   AlarmControlPanel *alarm_control_panel_;
@@ -187,5 +140,4 @@ template<typename... Ts> class AlarmControlPanelCondition : public Condition<Ts.
   AlarmControlPanel *parent_;
 };
 
-}  // namespace alarm_control_panel
-}  // namespace esphome
+}  // namespace esphome::alarm_control_panel

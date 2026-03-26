@@ -73,8 +73,6 @@ void CSE7761Component::dump_config() {
   this->check_uart_settings(38400, 1, uart::UART_CONFIG_PARITY_EVEN, 8);
 }
 
-float CSE7761Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void CSE7761Component::update() {
   if (this->data_.ready) {
     this->get_data_();
@@ -166,7 +164,8 @@ uint32_t CSE7761Component::coefficient_by_unit_(uint32_t unit) {
   }
   switch (unit) {
     case RMS_UC:
-      return 0x400000 * 100 / this->data_.coefficient[RMS_UC];
+      coeff = this->data_.coefficient[RMS_UC];
+      return coeff ? 0x400000 * 100 / coeff : 0;
     case RMS_IAC:
       return (0x800000 * 100 / (this->data_.coefficient[RMS_IAC] * coeff)) * 10;  // Stay within 32 bits
     case POWER_PAC:

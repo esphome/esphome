@@ -63,16 +63,26 @@ void Inkplate::initialize_() {
   if (buffer_size == 0)
     return;
 
-  if (this->partial_buffer_ != nullptr)
+  if (this->partial_buffer_ != nullptr) {
     allocator.deallocate(this->partial_buffer_, buffer_size);
-  if (this->partial_buffer_2_ != nullptr)
+    this->partial_buffer_ = nullptr;
+  }
+  if (this->partial_buffer_2_ != nullptr) {
     allocator.deallocate(this->partial_buffer_2_, buffer_size * 2);
-  if (this->buffer_ != nullptr)
+    this->partial_buffer_2_ = nullptr;
+  }
+  if (this->buffer_ != nullptr) {
     allocator.deallocate(this->buffer_, buffer_size);
-  if (this->glut_ != nullptr)
+    this->buffer_ = nullptr;
+  }
+  if (this->glut_ != nullptr) {
     allocator32.deallocate(this->glut_, 256 * 9);
-  if (this->glut2_ != nullptr)
+    this->glut_ = nullptr;
+  }
+  if (this->glut2_ != nullptr) {
     allocator32.deallocate(this->glut2_, 256 * 9);
+    this->glut2_ = nullptr;
+  }
 
   this->buffer_ = allocator.allocate(buffer_size);
   if (this->buffer_ == nullptr) {
@@ -219,7 +229,7 @@ void Inkplate::eink_off_() {
   this->oe_pin_->digital_write(false);
   this->gmod_pin_->digital_write(false);
 
-  GPIO.out &= ~(this->get_data_pin_mask_() | (1 << this->cl_pin_->get_pin()) | (1 << this->le_pin_->get_pin()));
+  GPIO.out_w1tc = this->get_data_pin_mask_() | (1UL << this->cl_pin_->get_pin()) | (1UL << this->le_pin_->get_pin());
   this->ckv_pin_->digital_write(false);
   this->sph_pin_->digital_write(false);
   this->spv_pin_->digital_write(false);
@@ -292,6 +302,13 @@ bool Inkplate::read_power_status_() {
 void Inkplate::fill(Color color) {
   ESP_LOGV(TAG, "Fill called");
   uint32_t start_time = millis();
+
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    ESP_LOGV(TAG, "Fill finished (%ums)", millis() - start_time);
+    return;
+  }
 
   if (this->greyscale_) {
     uint8_t fill = ((color.red * 2126 / 10000) + (color.green * 7152 / 10000) + (color.blue * 722 / 10000)) >> 5;
@@ -390,7 +407,7 @@ void Inkplate::display1b_() {
       break;
   }
 
-  uint32_t clock = (1 << this->cl_pin_->get_pin());
+  uint32_t clock = (1UL << this->cl_pin_->get_pin());
   uint32_t data_mask = this->get_data_pin_mask_();
   ESP_LOGV(TAG, "Display1b start loops (%ums)", millis() - start_time);
 
@@ -558,7 +575,7 @@ void Inkplate::display3b_() {
       break;
   }
 
-  uint32_t clock = (1 << this->cl_pin_->get_pin());
+  uint32_t clock = (1UL << this->cl_pin_->get_pin());
   uint32_t data_mask = this->get_data_pin_mask_();
   uint32_t pos;
   uint32_t data;
@@ -629,7 +646,7 @@ bool Inkplate::partial_update_() {
   int rep = (this->model_ == INKPLATE_6_V2) ? 6 : 5;
 
   eink_on_();
-  uint32_t clock = (1 << this->cl_pin_->get_pin());
+  uint32_t clock = (1UL << this->cl_pin_->get_pin());
   uint32_t data_mask = this->get_data_pin_mask_();
   for (int k = 0; k < rep; k++) {
     vscan_start_();
@@ -687,7 +704,7 @@ void Inkplate::vscan_start_() {
 }
 
 void Inkplate::hscan_start_(uint32_t d) {
-  uint8_t clock = (1 << this->cl_pin_->get_pin());
+  uint32_t clock = (1UL << this->cl_pin_->get_pin());
   this->sph_pin_->digital_write(false);
   GPIO.out_w1ts = d | clock;
   GPIO.out_w1tc = this->get_data_pin_mask_() | clock;
@@ -734,7 +751,7 @@ void Inkplate::clean_fast_(uint8_t c, uint8_t rep) {
 
   uint32_t send = ((data & 0b00000011) << 4) | (((data & 0b00001100) >> 2) << 18) | (((data & 0b00010000) >> 4) << 23) |
                   (((data & 0b11100000) >> 5) << 25);
-  uint32_t clock = (1 << this->cl_pin_->get_pin());
+  uint32_t clock = (1UL << this->cl_pin_->get_pin());
 
   for (int k = 0; k < rep; k++) {
     vscan_start_();

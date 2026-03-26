@@ -12,17 +12,7 @@ esphome:
           canbus_id: esp32_internal_can
           can_id: 0x100
           data: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]
-      - canbus.send:
-          # Extended ID explicit
-          canbus_id: esp32_internal_can_2
-          use_extended_id: true
-          can_id: 0x100
-          data: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]
-      - canbus.send:
-          # Standard ID by default
-          canbus_id: esp32_internal_can_2
-          can_id: 0x100
-          data: [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]
+      # Note: esp32_internal_can_2 uses LISTENONLY mode, so no send actions
 
 canbus:
   - platform: esp32_can
@@ -31,6 +21,7 @@ canbus:
     tx_pin: GPIO7
     can_id: 4
     bit_rate: 50kbps
+    mode: NORMAL
     on_frame:
       - can_id: 500
         then:
@@ -62,6 +53,7 @@ canbus:
     tx_pin: GPIO9
     can_id: 4
     bit_rate: 50kbps
+    mode: LISTENONLY
     on_frame:
       - can_id: 500
         then:
