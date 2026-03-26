@@ -41,12 +41,6 @@ inline const char *vector_find(const std::vector<const char *> &vec, const char 
   return nullptr;
 }
 
-/// Shared empty vector for returning const references when no custom modes are set.
-inline const std::vector<const char *> &get_empty_custom_modes() {
-  static const std::vector<const char *> INSTANCE;
-  return INSTANCE;
-}
-
 /** This class contains all static data for climate devices.
  *
  * All climate devices must support these features:
@@ -162,8 +156,21 @@ class ClimateTraits {
     this->supported_custom_fan_modes_ = modes;
   }
 
+  // Remove before 2027.1.0
+  ESPDEPRECATED("Call set_supported_custom_fan_modes() on the Climate entity instead. Removed in 2027.1.0", "2026.7.0")
+  void set_supported_custom_fan_modes(std::initializer_list<const char *> modes) {
+    this->owned_custom_fan_modes_ = modes;
+    this->supported_custom_fan_modes_ = &this->owned_custom_fan_modes_;
+  }
+  // Remove before 2027.1.0
+  ESPDEPRECATED("Call set_supported_custom_fan_modes() on the Climate entity instead. Removed in 2027.1.0", "2026.7.0")
+  void set_supported_custom_fan_modes(const std::vector<const char *> &modes) {
+    this->owned_custom_fan_modes_ = modes;
+    this->supported_custom_fan_modes_ = &this->owned_custom_fan_modes_;
+  }
+
   const std::vector<const char *> &get_supported_custom_fan_modes() const {
-    return this->supported_custom_fan_modes_ ? *this->supported_custom_fan_modes_ : get_empty_custom_modes();
+    return this->supported_custom_fan_modes_ ? *this->supported_custom_fan_modes_ : this->owned_custom_fan_modes_;
   }
   bool supports_custom_fan_mode(const char *custom_fan_mode) const {
     return this->supported_custom_fan_modes_ && vector_contains(*this->supported_custom_fan_modes_, custom_fan_mode);
@@ -182,8 +189,21 @@ class ClimateTraits {
     this->supported_custom_presets_ = presets;
   }
 
+  // Remove before 2027.1.0
+  ESPDEPRECATED("Call set_supported_custom_presets() on the Climate entity instead. Removed in 2027.1.0", "2026.7.0")
+  void set_supported_custom_presets(std::initializer_list<const char *> presets) {
+    this->owned_custom_presets_ = presets;
+    this->supported_custom_presets_ = &this->owned_custom_presets_;
+  }
+  // Remove before 2027.1.0
+  ESPDEPRECATED("Call set_supported_custom_presets() on the Climate entity instead. Removed in 2027.1.0", "2026.7.0")
+  void set_supported_custom_presets(const std::vector<const char *> &presets) {
+    this->owned_custom_presets_ = presets;
+    this->supported_custom_presets_ = &this->owned_custom_presets_;
+  }
+
   const std::vector<const char *> &get_supported_custom_presets() const {
-    return this->supported_custom_presets_ ? *this->supported_custom_presets_ : get_empty_custom_modes();
+    return this->supported_custom_presets_ ? *this->supported_custom_presets_ : this->owned_custom_presets_;
   }
   bool supports_custom_preset(const char *custom_preset) const {
     return this->supported_custom_presets_ && vector_contains(*this->supported_custom_presets_, custom_preset);
@@ -289,6 +309,8 @@ class ClimateTraits {
    */
   const std::vector<const char *> *supported_custom_fan_modes_{nullptr};
   const std::vector<const char *> *supported_custom_presets_{nullptr};
+  std::vector<const char *> owned_custom_fan_modes_{};  ///< Compat: used when deprecated setters are called on traits
+  std::vector<const char *> owned_custom_presets_{};    ///< Compat: used when deprecated setters are called on traits
 };
 
 }  // namespace esphome::climate
