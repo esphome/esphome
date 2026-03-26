@@ -477,7 +477,6 @@ def parse_yaml(
     file_name: Path, file_handle: TextIOWrapper, yaml_loader=_load_yaml_internal
 ) -> Any:
     """Parse a YAML file."""
-    content = None
     try:
         content = _load_yaml_internal_with_type(
             ESPHomeLoader, file_name, file_handle, yaml_loader
@@ -659,5 +658,4 @@ ESPHomeDumper.add_multi_representer(Extend, ESPHomeDumper.represent_extend)
 ESPHomeDumper.add_multi_representer(Remove, ESPHomeDumper.represent_remove)
 ESPHomeDumper.add_multi_representer(core.ID, ESPHomeDumper.represent_id)
 ESPHomeDumper.add_multi_representer(uuid.UUID, ESPHomeDumper.represent_stringify)
-ESPHomeDumper.add_multi_representer(Path, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(PurePath, ESPHomeDumper.represent_stringify)
