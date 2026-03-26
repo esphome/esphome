@@ -18,7 +18,9 @@ _ESP32C6_SPI_PSRAM_PINS = {
     30: "SPID",
 }
 
-_ESP32C6_STRAPPING_PINS = {8, 9, 15}
+_ESP32C6_USB_JTAG_PINS = {12, 13}
+
+_ESP32C6_STRAPPING_PINS = {4, 5, 8, 9, 15}
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,6 +31,12 @@ def esp32_c6_validate_gpio_pin(value: int) -> int:
     if value in _ESP32C6_SPI_PSRAM_PINS:
         raise cv.Invalid(
             f"This pin cannot be used on ESP32-C6s and is already used by the SPI/PSRAM interface (function: {_ESP32C6_SPI_PSRAM_PINS[value]})"
+        )
+    if value in _ESP32C6_USB_JTAG_PINS:
+        _LOGGER.warning(
+            "GPIO%d is used by the USB-Serial-JTAG interface."
+            " Using this pin as GPIO will conflict with USB-Serial-JTAG.",
+            value,
         )
 
     return value

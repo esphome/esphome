@@ -530,10 +530,11 @@ void LD2450Component::handle_periodic_data_() {
     }
 #endif
 
-    // Store target info for zone target count
-    this->target_info_[index].x = tx;
-    this->target_info_[index].y = ty;
-    this->target_info_[index].is_moving = is_moving;
+    // Store target info for zone target count. Zero out untracked targets (td==0)
+    // so stale coordinates don't produce ghost counts in count_targets_in_zone_().
+    this->target_info_[index].x = (td > 0) ? tx : 0;
+    this->target_info_[index].y = (td > 0) ? ty : 0;
+    this->target_info_[index].is_moving = (td > 0) && is_moving;
 
   }  // End loop thru targets
 

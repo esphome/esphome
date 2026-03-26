@@ -213,14 +213,14 @@ size_t ESP8266UartComponent::available() {
     return this->sw_serial_->available();
   }
 }
-FlushResult ESP8266UartComponent::flush() {
+UARTFlushResult ESP8266UartComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing");
   if (this->hw_serial_ != nullptr) {
     this->hw_serial_->flush();
   } else {
     this->sw_serial_->flush();
   }
-  return FlushResult::ASSUMED_SUCCESS;
+  return UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
 }
 void ESP8266SoftwareSerial::setup(InternalGPIOPin *tx_pin, InternalGPIOPin *rx_pin, uint32_t baud_rate,
                                   uint8_t stop_bits, uint32_t data_bits, UARTParityOptions parity,
