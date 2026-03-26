@@ -131,11 +131,4 @@ template<typename... Ts> class IsPlayingCondition : public Condition<Ts...>, pub
   bool check(const Ts &...x) override { return this->parent_->is_playing(); }
 };
 
-class FinishedPlaybackTrigger : public Trigger<> {
- public:
-  explicit FinishedPlaybackTrigger(Rtttl *parent) {
-    parent->add_on_finished_playback_callback([this]() { this->trigger(); });
-  }
-};
-
 }  // namespace esphome::rtttl
