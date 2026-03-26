@@ -81,7 +81,9 @@ const uint32_t YASHIMA_CARRIER_FREQUENCY = 38000;
 
 climate::ClimateTraits YashimaClimate::traits() {
   auto traits = climate::ClimateTraits();
-  traits.set_supports_current_temperature(this->sensor_ != nullptr);
+  if (this->sensor_ != nullptr) {
+    traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
+  }
 
   traits.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_HEAT_COOL});
   if (supports_cool_)
@@ -89,7 +91,6 @@ climate::ClimateTraits YashimaClimate::traits() {
   if (supports_heat_)
     traits.add_supported_mode(climate::CLIMATE_MODE_HEAT);
 
-  traits.set_supports_two_point_target_temperature(false);
   traits.set_visual_min_temperature(YASHIMA_TEMP_MIN);
   traits.set_visual_max_temperature(YASHIMA_TEMP_MAX);
   traits.set_visual_temperature_step(1);
@@ -119,10 +120,12 @@ void YashimaClimate::setup() {
 }
 
 void YashimaClimate::control(const climate::ClimateCall &call) {
-  if (call.get_mode().has_value())
-    this->mode = *call.get_mode();
-  if (call.get_target_temperature().has_value())
-    this->target_temperature = *call.get_target_temperature();
+  auto call_mode = call.get_mode();
+  if (call_mode.has_value())
+    this->mode = *call_mode;
+  auto call_target = call.get_target_temperature();
+  if (call_target.has_value())
+    this->target_temperature = *call_target;
 
   this->transmit_state_();
   this->publish_state();

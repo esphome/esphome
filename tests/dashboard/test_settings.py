@@ -1,13 +1,16 @@
-"""Tests for dashboard settings Path-related functionality."""
+"""Tests for DashboardSettings (path resolution and authentication)."""
 
 from __future__ import annotations
 
+from argparse import Namespace
 from pathlib import Path
 import tempfile
 
 import pytest
 
+from esphome.core import CORE
 from esphome.dashboard.settings import DashboardSettings
+from esphome.dashboard.util.password import password_hash
 
 
 @pytest.fixture
@@ -159,3 +162,126 @@ def test_rel_path_with_numeric_args(dashboard_settings: DashboardSettings) -> No
     result = dashboard_settings.rel_path("123", "456.789")
     expected = dashboard_settings.config_dir / "123" / "456.789"
     assert result == expected
+
+
+def test_config_path_parent_resolves_to_config_dir(tmp_path: Path) -> None:
+    """Test that CORE.config_path.parent resolves to config_dir after parse_args.
+
+    This is a regression test for issue #11280 where binary download failed
+    when using packages with secrets after the Path migration in 2025.10.0.
+
+    The issue was that after switching from os.path to Path:
+    - Before: os.path.dirname("/config/.") → "/config"
+    - After: Path("/config/.").parent → Path("/") (normalized first!)
+
+    The fix uses a sentinel file so .parent returns the correct directory:
+    - Fixed: Path("/config/___DASHBOARD_SENTINEL___.yaml").parent → Path("/config")
+    """
+    # Create test directory structure with secrets and packages
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    # Create secrets.yaml with obviously fake test values
+    secrets_file = config_dir / "secrets.yaml"
+    secrets_file.write_text(
+        "wifi_ssid: TEST-DUMMY-SSID\n"
+        "wifi_password: not-a-real-password-just-for-testing\n"
+    )
+
+    # Create package file that uses secrets
+    package_file = config_dir / "common.yaml"
+    package_file.write_text(
+        "wifi:\n  ssid: !secret wifi_ssid\n  password: !secret wifi_password\n"
+    )
+
+    # Create main device config that includes the package
+    device_config = config_dir / "test-device.yaml"
+    device_config.write_text(
+        "esphome:\n  name: test-device\n\npackages:\n  common: !include common.yaml\n"
+    )
+
+    # Set up dashboard settings with our test config directory
+    settings = DashboardSettings()
+    args = Namespace(
+        configuration=str(config_dir),
+        password=None,
+        username=None,
+        ha_addon=False,
+        verbose=False,
+    )
+    settings.parse_args(args)
+
+    # Verify that CORE.config_path.parent correctly points to the config directory
+    # This is critical for secret resolution in yaml_util.py which does:
+    #   main_config_dir = CORE.config_path.parent
+    #   main_secret_yml = main_config_dir / "secrets.yaml"
+    assert CORE.config_path.parent == config_dir.resolve()
+    assert (CORE.config_path.parent / "secrets.yaml").exists()
+    assert (CORE.config_path.parent / "common.yaml").exists()
+
+    # Verify that CORE.config_path itself uses the sentinel file
+    assert CORE.config_path.name == "___DASHBOARD_SENTINEL___.yaml"
+    assert not CORE.config_path.exists()  # Sentinel file doesn't actually exist
+
+
+@pytest.fixture
+def auth_settings(dashboard_settings: DashboardSettings) -> DashboardSettings:
+    """Create DashboardSettings with auth configured, based on dashboard_settings."""
+    dashboard_settings.username = "admin"
+    dashboard_settings.using_password = True
+    dashboard_settings.password_hash = password_hash("correctpassword")
+    return dashboard_settings
+
+
+def test_check_password_correct_credentials(auth_settings: DashboardSettings) -> None:
+    """Test check_password returns True for correct username and password."""
+    assert auth_settings.check_password("admin", "correctpassword") is True
+
+
+def test_check_password_wrong_password(auth_settings: DashboardSettings) -> None:
+    """Test check_password returns False for wrong password."""
+    assert auth_settings.check_password("admin", "wrongpassword") is False
+
+
+def test_check_password_wrong_username(auth_settings: DashboardSettings) -> None:
+    """Test check_password returns False for wrong username."""
+    assert auth_settings.check_password("notadmin", "correctpassword") is False
+
+
+def test_check_password_both_wrong(auth_settings: DashboardSettings) -> None:
+    """Test check_password returns False when both are wrong."""
+    assert auth_settings.check_password("notadmin", "wrongpassword") is False
+
+
+def test_check_password_no_auth(dashboard_settings: DashboardSettings) -> None:
+    """Test check_password returns True when auth is not configured."""
+    assert dashboard_settings.check_password("anyone", "anything") is True
+
+
+def test_check_password_non_ascii_username(
+    dashboard_settings: DashboardSettings,
+) -> None:
+    """Test check_password handles non-ASCII usernames without TypeError."""
+    dashboard_settings.username = "\u00e9l\u00e8ve"
+    dashboard_settings.using_password = True
+    dashboard_settings.password_hash = password_hash("pass")
+    assert dashboard_settings.check_password("\u00e9l\u00e8ve", "pass") is True
+    assert dashboard_settings.check_password("\u00e9l\u00e8ve", "wrong") is False
+    assert dashboard_settings.check_password("other", "pass") is False
+
+
+def test_check_password_ha_addon_no_password(
+    dashboard_settings: DashboardSettings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test check_password doesn't crash in HA add-on mode without a password.
+
+    In HA add-on mode, using_ha_addon_auth can be True while using_password
+    is False, leaving password_hash as b"". This must not raise TypeError
+    in hmac.compare_digest.
+    """
+    monkeypatch.delenv("DISABLE_HA_AUTHENTICATION", raising=False)
+    dashboard_settings.on_ha_addon = True
+    dashboard_settings.using_password = False
+    # password_hash stays as default b""
+    assert dashboard_settings.check_password("anyone", "anything") is False

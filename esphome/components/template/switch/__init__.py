@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
     CONF_OPTIMISTIC,
-    CONF_RESTORE_STATE,
     CONF_STATE,
     CONF_TURN_OFF_ACTION,
     CONF_TURN_ON_ACTION,
@@ -43,9 +42,6 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_TURN_ON_ACTION): automation.validate_automation(
                 single=True
-            ),
-            cv.Optional(CONF_RESTORE_STATE): cv.invalid(
-                "The restore_state option has been removed in 2023.7.0. Use the restore_mode option instead"
             ),
         }
     )
@@ -84,6 +80,7 @@ async def to_code(config):
             cv.Required(CONF_STATE): cv.templatable(cv.boolean),
         }
     ),
+    synchronous=True,
 )
 async def switch_template_publish_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

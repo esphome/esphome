@@ -21,12 +21,12 @@ font:
     id: roboto_greek
     size: 20
     glyphs: ["\u0300", "\u00C5", "\U000000C7"]
-  - file: "https://github.com/IdreesInc/Monocraft/releases/download/v3.0/Monocraft.ttf"
+  - file: "https://media.esphome.io/tests/fonts/Monocraft.ttf"
     id: monocraft
     size: 20
   - file:
       type: web
-      url: "https://github.com/IdreesInc/Monocraft/releases/download/v3.0/Monocraft.ttf"
+      url: "https://media.esphome.io/tests/fonts/Monocraft.ttf"
     id: monocraft2
     size: 24
   - file: $component_dir/Monocraft.ttf

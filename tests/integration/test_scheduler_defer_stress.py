@@ -92,7 +92,7 @@ async def test_scheduler_defer_stress(
         assert run_stress_test_service is not None, "run_stress_test service not found"
 
         # Call the run_stress_test service to start the test
-        client.execute_service(run_stress_test_service, {})
+        await client.execute_service(run_stress_test_service, {})
 
         # Wait for all defers to execute (should be quick)
         try:

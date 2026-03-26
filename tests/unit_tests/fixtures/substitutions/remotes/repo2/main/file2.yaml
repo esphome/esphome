@@ -1,0 +1,10 @@
+packages:
+  - url: https://github.com/esphome/repo1
+    ref: main
+    files:
+      - path: file1.yaml
+        vars:
+          package_name: ${package_name}_from_repo2
+          x: ${a}
+          y: ${b}
+          z: ${c}

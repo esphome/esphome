@@ -1,6 +1,7 @@
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import key_provider
+from esphome.components.const import CONF_ROWS
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_ON_KEY, CONF_PIN, CONF_TRIGGER_ID
 
@@ -19,7 +20,6 @@ MatrixKeyTrigger = matrix_keypad_ns.class_(
 )
 
 CONF_KEYPAD_ID = "keypad_id"
-CONF_ROWS = "rows"
 CONF_COLUMNS = "columns"
 CONF_KEYS = "keys"
 CONF_DEBOUNCE_TIME = "debounce_time"

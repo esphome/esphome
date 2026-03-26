@@ -36,7 +36,7 @@ template<typename... Ts> class ResetEnergyAction : public Action<Ts...> {
  public:
   ResetEnergyAction(PZEMDC *pzemdc) : pzemdc_(pzemdc) {}
 
-  void play(Ts... x) override { this->pzemdc_->reset_energy(); }
+  void play(const Ts &...x) override { this->pzemdc_->reset_energy(); }
 
  protected:
   PZEMDC *pzemdc_;

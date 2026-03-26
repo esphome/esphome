@@ -2,6 +2,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <limits>
 
 using esphome::i2c::ErrorCode;
 
@@ -28,30 +29,30 @@ bool operator!=(const GainTimePair &lhs, const GainTimePair &rhs) {
 
 template<typename T, size_t size> T get_next(const T (&array)[size], const T val) {
   size_t i = 0;
-  size_t idx = -1;
-  while (idx == -1 && i < size) {
+  size_t idx = std::numeric_limits<size_t>::max();
+  while (idx == std::numeric_limits<size_t>::max() && i < size) {
     if (array[i] == val) {
       idx = i;
       break;
     }
     i++;
   }
-  if (idx == -1 || i + 1 >= size)
+  if (idx == std::numeric_limits<size_t>::max() || i + 1 >= size)
     return val;
   return array[i + 1];
 }
 
 template<typename T, size_t size> T get_prev(const T (&array)[size], const T val) {
   size_t i = size - 1;
-  size_t idx = -1;
-  while (idx == -1 && i > 0) {
+  size_t idx = std::numeric_limits<size_t>::max();
+  while (idx == std::numeric_limits<size_t>::max() && i > 0) {
     if (array[i] == val) {
       idx = i;
       break;
     }
     i--;
   }
-  if (idx == -1 || i == 0)
+  if (idx == std::numeric_limits<size_t>::max() || i == 0)
     return val;
   return array[i - 1];
 }
@@ -145,7 +146,6 @@ void LTRAlsPs501Component::update() {
 
 void LTRAlsPs501Component::loop() {
   ErrorCode err = i2c::ERROR_OK;
-  static uint8_t tries{0};
 
   switch (this->state_) {
     case State::DELAYED_SETUP:
@@ -173,21 +173,21 @@ void LTRAlsPs501Component::loop() {
       break;
 
     case State::WAITING_FOR_DATA:
-      if (this->is_als_data_ready_(this->als_readings_) == DataAvail::DATA_OK) {
-        tries = 0;
+      if (this->is_als_data_ready_(this->als_readings_) == LtrDataAvail::LTR_DATA_OK) {
+        this->tries_ = 0;
         ESP_LOGV(TAG, "Reading sensor data assuming gain = %.0fx, time = %d ms",
                  get_gain_coeff(this->als_readings_.gain), get_itime_ms(this->als_readings_.integration_time));
         this->read_sensor_data_(this->als_readings_);
         this->apply_lux_calculation_(this->als_readings_);
         this->state_ = State::DATA_COLLECTED;
-      } else if (tries >= MAX_TRIES) {
+      } else if (this->tries_ >= MAX_TRIES) {
         ESP_LOGW(TAG, "Can't get data after several tries. Aborting.");
-        tries = 0;
+        this->tries_ = 0;
         this->status_set_warning();
         this->state_ = State::IDLE;
         return;
       } else {
-        tries++;
+        this->tries_++;
       }
       break;
 
@@ -229,21 +229,21 @@ void LTRAlsPs501Component::loop() {
 }
 
 void LTRAlsPs501Component::check_and_trigger_ps_() {
-  static uint32_t last_high_trigger_time{0};
-  static uint32_t last_low_trigger_time{0};
   uint16_t ps_data = this->read_ps_data_();
   uint32_t now = millis();
 
   if (ps_data != this->ps_readings_) {
     this->ps_readings_ = ps_data;
     // Higher values - object is closer to sensor
-    if (ps_data > this->ps_threshold_high_ && now - last_high_trigger_time >= this->ps_cooldown_time_s_ * 1000) {
-      last_high_trigger_time = now;
+    if (ps_data > this->ps_threshold_high_ &&
+        now - this->last_ps_high_trigger_time_ >= this->ps_cooldown_time_s_ * 1000) {
+      this->last_ps_high_trigger_time_ = now;
       ESP_LOGD(TAG, "Proximity high threshold triggered. Value = %d, Trigger level = %d", ps_data,
                this->ps_threshold_high_);
       this->on_ps_high_trigger_callback_.call();
-    } else if (ps_data < this->ps_threshold_low_ && now - last_low_trigger_time >= this->ps_cooldown_time_s_ * 1000) {
-      last_low_trigger_time = now;
+    } else if (ps_data < this->ps_threshold_low_ &&
+               now - this->last_ps_low_trigger_time_ >= this->ps_cooldown_time_s_ * 1000) {
+      this->last_ps_low_trigger_time_ = now;
       ESP_LOGD(TAG, "Proximity low threshold triggered. Value = %d, Trigger level = %d", ps_data,
                this->ps_threshold_low_);
       this->on_ps_low_trigger_callback_.call();
@@ -378,18 +378,18 @@ void LTRAlsPs501Component::configure_integration_time_(IntegrationTime501 time) 
   }
 }
 
-DataAvail LTRAlsPs501Component::is_als_data_ready_(AlsReadings &data) {
+LtrDataAvail LTRAlsPs501Component::is_als_data_ready_(AlsReadings &data) {
   AlsPsStatusRegister als_status{0};
   als_status.raw = this->reg((uint8_t) CommandRegisters::ALS_PS_STATUS).get();
   if (!als_status.als_new_data)
-    return DataAvail::NO_DATA;
+    return LtrDataAvail::LTR_NO_DATA;
   ESP_LOGV(TAG, "Data ready, reported gain is %.0fx", get_gain_coeff(als_status.gain));
   if (data.gain != als_status.gain) {
     ESP_LOGW(TAG, "Actual gain differs from requested (%.0f)", get_gain_coeff(data.gain));
-    return DataAvail::BAD_DATA;
+    return LtrDataAvail::LTR_BAD_DATA;
   }
   data.gain = als_status.gain;
-  return DataAvail::DATA_OK;
+  return LtrDataAvail::LTR_DATA_OK;
 }
 
 void LTRAlsPs501Component::read_sensor_data_(AlsReadings &data) {

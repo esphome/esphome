@@ -155,7 +155,8 @@ void SX126x::configure() {
   }
 
   // check silicon version to make sure hw is ok
-  this->read_register_(REG_VERSION_STRING, (uint8_t *) this->version_, 16);
+  this->read_register_(REG_VERSION_STRING, (uint8_t *) this->version_, sizeof(this->version_));
+  this->version_[sizeof(this->version_) - 1] = '\0';
   if (strncmp(this->version_, "SX126", 5) != 0 && strncmp(this->version_, "LLCC68", 6) != 0) {
     this->mark_failed();
     return;
@@ -217,7 +218,7 @@ void SX126x::configure() {
     this->write_opcode_(RADIO_SET_MODULATIONPARAMS, buf, 4);
 
     // set packet params and sync word
-    this->set_packet_params_(this->payload_length_);
+    this->set_packet_params_(this->get_max_packet_size());
     if (this->sync_value_.size() == 2) {
       this->write_register_(REG_LORA_SYNCWORD, this->sync_value_.data(), this->sync_value_.size());
     }
@@ -235,8 +236,18 @@ void SX126x::configure() {
     buf[7] = (fdev >> 0) & 0xFF;
     this->write_opcode_(RADIO_SET_MODULATIONPARAMS, buf, 8);
 
+    // set crc params
+    if (this->crc_enable_) {
+      buf[0] = this->crc_initial_ >> 8;
+      buf[1] = this->crc_initial_ & 0xFF;
+      this->write_register_(REG_CRC_INITIAL, buf, 2);
+      buf[0] = this->crc_polynomial_ >> 8;
+      buf[1] = this->crc_polynomial_ & 0xFF;
+      this->write_register_(REG_CRC_POLYNOMIAL, buf, 2);
+    }
+
     // set packet params and sync word
-    this->set_packet_params_(this->payload_length_);
+    this->set_packet_params_(this->get_max_packet_size());
     if (!this->sync_value_.empty()) {
       this->write_register_(REG_GFSK_SYNCWORD, this->sync_value_.data(), this->sync_value_.size());
     }
@@ -274,9 +285,13 @@ void SX126x::set_packet_params_(uint8_t payload_length) {
     buf[2] = (this->preamble_detect_ > 0) ? ((this->preamble_detect_ - 1) | 0x04) : 0x00;
     buf[3] = this->sync_value_.size() * 8;
     buf[4] = 0x00;
-    buf[5] = 0x00;
+    buf[5] = (this->payload_length_ > 0) ? 0x00 : 0x01;
     buf[6] = payload_length;
-    buf[7] = this->crc_enable_ ? 0x06 : 0x01;
+    if (this->crc_enable_) {
+      buf[7] = (this->crc_inverted_ ? 0x04 : 0x00) + (this->crc_size_ & 0x02);
+    } else {
+      buf[7] = 0x01;
+    }
     buf[8] = 0x00;
     this->write_opcode_(RADIO_SET_PACKETPARAMS, buf, 9);
   }
@@ -314,6 +329,9 @@ SX126xError SX126x::transmit_packet(const std::vector<uint8_t> &packet) {
   buf[0] = 0xFF;
   buf[1] = 0xFF;
   this->write_opcode_(RADIO_CLR_IRQSTATUS, buf, 2);
+  if (this->payload_length_ == 0) {
+    this->set_packet_params_(this->get_max_packet_size());
+  }
   if (this->rx_start_) {
     this->set_mode_rx();
   } else {
@@ -326,7 +344,7 @@ void SX126x::call_listeners_(const std::vector<uint8_t> &packet, float rssi, flo
   for (auto &listener : this->listeners_) {
     listener->on_packet(packet, rssi, snr);
   }
-  this->packet_trigger_->trigger(packet, rssi, snr);
+  this->packet_trigger_.trigger(packet, rssi, snr);
 }
 
 void SX126x::loop() {
@@ -510,7 +528,9 @@ void SX126x::dump_config() {
                   this->spreading_factor_, cr, this->preamble_size_);
   }
   if (!this->sync_value_.empty()) {
-    ESP_LOGCONFIG(TAG, "  Sync Value: 0x%s", format_hex(this->sync_value_).c_str());
+    char hex_buf[17];  // 8 bytes max = 16 hex chars + null
+    ESP_LOGCONFIG(TAG, "  Sync Value: 0x%s",
+                  format_hex_to(hex_buf, this->sync_value_.data(), this->sync_value_.size()));
   }
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Configuring SX126x failed");

@@ -2,13 +2,13 @@
 
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
+#ifdef USE_BINARY_SENSOR_FILTER
 #include "esphome/components/binary_sensor/filter.h"
+#endif
 
-#include <vector>
+#include <initializer_list>
 
-namespace esphome {
-
-namespace binary_sensor {
+namespace esphome::binary_sensor {
 
 class BinarySensor;
 void log_binary_sensor(const char *tag, const char *prefix, const char *type, BinarySensor *obj);
@@ -30,7 +30,7 @@ void log_binary_sensor(const char *tag, const char *prefix, const char *type, Bi
  * The sub classes should notify the front-end of new states via the publish_state() method which
  * handles inverted inputs for you.
  */
-class BinarySensor : public StatefulEntityBase<bool>, public EntityBase_DeviceClass {
+class BinarySensor : public StatefulEntityBase<bool> {
  public:
   explicit BinarySensor(){};
 
@@ -47,8 +47,10 @@ class BinarySensor : public StatefulEntityBase<bool>, public EntityBase_DeviceCl
    */
   void publish_initial_state(bool new_state);
 
+#ifdef USE_BINARY_SENSOR_FILTER
   void add_filter(Filter *filter);
-  void add_filters(const std::vector<Filter *> &filters);
+  void add_filters(std::initializer_list<Filter *> filters);
+#endif
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -62,7 +64,11 @@ class BinarySensor : public StatefulEntityBase<bool>, public EntityBase_DeviceCl
   bool state{};
 
  protected:
+#ifdef USE_BINARY_SENSOR_FILTER
   Filter *filter_list_{nullptr};
+#endif
+
+  bool set_new_state(const optional<bool> &new_state) override;
 };
 
 class BinarySensorInitiallyOff : public BinarySensor {
@@ -70,5 +76,4 @@ class BinarySensorInitiallyOff : public BinarySensor {
   bool has_state() const override { return true; }
 };
 
-}  // namespace binary_sensor
-}  // namespace esphome
+}  // namespace esphome::binary_sensor

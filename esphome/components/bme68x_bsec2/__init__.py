@@ -139,7 +139,7 @@ CONFIG_SCHEMA_BASE = (
             cv.Optional(CONF_SUPPLY_VOLTAGE, default="3.3V"): cv.enum(
                 VOLTAGE_OPTIONS, upper=True
             ),
-            cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature,
+            cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature_delta,
             cv.Optional(
                 CONF_STATE_SAVE_INTERVAL, default="6hours"
             ): cv.positive_time_period_minutes,
@@ -178,13 +178,16 @@ async def to_code_base(config):
     bsec2_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
     cg.add(var.set_bsec2_configuration(bsec2_arr, len(rhs)))
 
-    # Although this component does not use SPI, the BSEC2 Arduino library requires the SPI library
+    # The BSEC2 and BME68x Arduino libraries unconditionally include Wire.h and
+    # SPI.h in their source files, so these libraries must be available even though
+    # ESPHome uses its own I2C/SPI abstractions instead of the Arduino ones.
     if core.CORE.using_arduino:
+        cg.add_library("Wire", None)
         cg.add_library("SPI", None)
     cg.add_library(
         "BME68x Sensor library",
-        "1.3.40408",
-        "https://github.com/boschsensortec/Bosch-BME68x-Library",
+        None,
+        "https://github.com/boschsensortec/Bosch-BME68x-Library#v1.3.40408",
     )
     cg.add_library(
         "BSEC2 Software Library",

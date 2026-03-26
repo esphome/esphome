@@ -1,10 +1,3 @@
-uart:
-  - id: uart_he60r
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 1200
-    parity: EVEN
-
 cover:
   - platform: he60r
     id: garage_door

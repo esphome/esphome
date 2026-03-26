@@ -1,0 +1,58 @@
+esphome:
+  name: test-batch-window-filters
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: DEBUG
+
+# Template sensor that we'll use to publish values
+sensor:
+  - platform: template
+    name: "Source Sensor"
+    id: source_sensor
+    accuracy_decimals: 2
+
+  # Batch window filters (window_size == send_every) - use streaming filters
+  - platform: copy
+    source_id: source_sensor
+    name: "Min Sensor"
+    id: min_sensor
+    filters:
+      - min:
+          window_size: 5
+          send_every: 5
+          send_first_at: 1
+
+  - platform: copy
+    source_id: source_sensor
+    name: "Max Sensor"
+    id: max_sensor
+    filters:
+      - max:
+          window_size: 5
+          send_every: 5
+          send_first_at: 1
+
+  - platform: copy
+    source_id: source_sensor
+    name: "Moving Avg Sensor"
+    id: moving_avg_sensor
+    filters:
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 5
+          send_first_at: 1
+
+# Button to trigger publishing test values
+button:
+  - platform: template
+    name: "Publish Values Button"
+    id: publish_button
+    on_press:
+      - lambda: |-
+          // Publish 10 values: 1.0, 2.0, ..., 10.0
+          for (int i = 1; i <= 10; i++) {
+            id(source_sensor).publish_state(float(i));
+          }

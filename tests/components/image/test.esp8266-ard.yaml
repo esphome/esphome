@@ -1,12 +1,10 @@
-spi:
-  - id: spi_main_lcd
-    clk_pin: 14
-    mosi_pin: 13
-    miso_pin: 12
+packages:
+  spi: !include ../../test_build_components/common/spi/esp8266-ard.yaml
 
 display:
   - platform: ili9xxx
     id: main_lcd
+    spi_id: spi_bus
     model: ili9342
     cs_pin: 5
     dc_pin: 15

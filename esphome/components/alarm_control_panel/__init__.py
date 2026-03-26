@@ -172,12 +172,6 @@ def alarm_control_panel_schema(
     return _ALARM_CONTROL_PANEL_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-ALARM_CONTROL_PANEL_SCHEMA = alarm_control_panel_schema(AlarmControlPanel)
-ALARM_CONTROL_PANEL_SCHEMA.add_extra(
-    cv.deprecated_schema_constant("alarm_control_panel")
-)
-
 ALARM_CONTROL_PANEL_ACTION_SCHEMA = maybe_simple_id(
     {
         cv.GenerateID(): cv.use_id(AlarmControlPanel),
@@ -192,8 +186,8 @@ ALARM_CONTROL_PANEL_CONDITION_SCHEMA = maybe_simple_id(
 )
 
 
+@setup_entity("alarm_control_panel")
 async def setup_alarm_control_panel_core_(var, config):
-    await setup_entity(var, config, "alarm_control_panel")
     for conf in config.get(CONF_ON_STATE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
@@ -249,7 +243,10 @@ async def new_alarm_control_panel(config, *args):
 
 
 @automation.register_action(
-    "alarm_control_panel.arm_away", ArmAwayAction, ALARM_CONTROL_PANEL_ACTION_SCHEMA
+    "alarm_control_panel.arm_away",
+    ArmAwayAction,
+    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def alarm_action_arm_away_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -261,7 +258,10 @@ async def alarm_action_arm_away_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "alarm_control_panel.arm_home", ArmHomeAction, ALARM_CONTROL_PANEL_ACTION_SCHEMA
+    "alarm_control_panel.arm_home",
+    ArmHomeAction,
+    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def alarm_action_arm_home_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -273,7 +273,10 @@ async def alarm_action_arm_home_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "alarm_control_panel.arm_night", ArmNightAction, ALARM_CONTROL_PANEL_ACTION_SCHEMA
+    "alarm_control_panel.arm_night",
+    ArmNightAction,
+    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def alarm_action_arm_night_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -285,7 +288,10 @@ async def alarm_action_arm_night_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "alarm_control_panel.disarm", DisarmAction, ALARM_CONTROL_PANEL_ACTION_SCHEMA
+    "alarm_control_panel.disarm",
+    DisarmAction,
+    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def alarm_action_disarm_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -297,7 +303,10 @@ async def alarm_action_disarm_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "alarm_control_panel.pending", PendingAction, ALARM_CONTROL_PANEL_ACTION_SCHEMA
+    "alarm_control_panel.pending",
+    PendingAction,
+    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def alarm_action_pending_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -305,7 +314,10 @@ async def alarm_action_pending_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "alarm_control_panel.triggered", TriggeredAction, ALARM_CONTROL_PANEL_ACTION_SCHEMA
+    "alarm_control_panel.triggered",
+    TriggeredAction,
+    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def alarm_action_trigger_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -313,7 +325,10 @@ async def alarm_action_trigger_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "alarm_control_panel.chime", ChimeAction, ALARM_CONTROL_PANEL_ACTION_SCHEMA
+    "alarm_control_panel.chime",
+    ChimeAction,
+    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def alarm_action_chime_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -321,7 +336,10 @@ async def alarm_action_chime_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "alarm_control_panel.ready", ReadyAction, ALARM_CONTROL_PANEL_ACTION_SCHEMA
+    "alarm_control_panel.ready",
+    ReadyAction,
+    ALARM_CONTROL_PANEL_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_condition(
     "alarm_control_panel.ready",

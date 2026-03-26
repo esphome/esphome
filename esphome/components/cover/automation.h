@@ -4,14 +4,13 @@
 #include "esphome/core/automation.h"
 #include "cover.h"
 
-namespace esphome {
-namespace cover {
+namespace esphome::cover {
 
 template<typename... Ts> class OpenAction : public Action<Ts...> {
  public:
   explicit OpenAction(Cover *cover) : cover_(cover) {}
 
-  void play(Ts... x) override { this->cover_->make_call().set_command_open().perform(); }
+  void play(const Ts &...x) override { this->cover_->make_call().set_command_open().perform(); }
 
  protected:
   Cover *cover_;
@@ -21,7 +20,7 @@ template<typename... Ts> class CloseAction : public Action<Ts...> {
  public:
   explicit CloseAction(Cover *cover) : cover_(cover) {}
 
-  void play(Ts... x) override { this->cover_->make_call().set_command_close().perform(); }
+  void play(const Ts &...x) override { this->cover_->make_call().set_command_close().perform(); }
 
  protected:
   Cover *cover_;
@@ -31,7 +30,7 @@ template<typename... Ts> class StopAction : public Action<Ts...> {
  public:
   explicit StopAction(Cover *cover) : cover_(cover) {}
 
-  void play(Ts... x) override { this->cover_->make_call().set_command_stop().perform(); }
+  void play(const Ts &...x) override { this->cover_->make_call().set_command_stop().perform(); }
 
  protected:
   Cover *cover_;
@@ -41,7 +40,7 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
  public:
   explicit ToggleAction(Cover *cover) : cover_(cover) {}
 
-  void play(Ts... x) override { this->cover_->make_call().set_command_toggle().perform(); }
+  void play(const Ts &...x) override { this->cover_->make_call().set_command_toggle().perform(); }
 
  protected:
   Cover *cover_;
@@ -55,7 +54,7 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(float, position)
   TEMPLATABLE_VALUE(float, tilt)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto call = this->cover_->make_call();
     if (this->stop_.has_value())
       call.set_stop(this->stop_.value(x...));
@@ -77,7 +76,7 @@ template<typename... Ts> class CoverPublishAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(float, tilt)
   TEMPLATABLE_VALUE(CoverOperation, current_operation)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     if (this->position_.has_value())
       this->cover_->position = this->position_.value(x...);
     if (this->tilt_.has_value())
@@ -91,45 +90,55 @@ template<typename... Ts> class CoverPublishAction : public Action<Ts...> {
   Cover *cover_;
 };
 
-template<typename... Ts> class CoverIsOpenCondition : public Condition<Ts...> {
+template<bool OPEN, typename... Ts> class CoverPositionCondition : public Condition<Ts...> {
  public:
-  CoverIsOpenCondition(Cover *cover) : cover_(cover) {}
-  bool check(Ts... x) override { return this->cover_->is_fully_open(); }
+  CoverPositionCondition(Cover *cover) : cover_(cover) {}
+
+  bool check(const Ts &...x) override { return this->cover_->position == (OPEN ? COVER_OPEN : COVER_CLOSED); }
 
  protected:
   Cover *cover_;
 };
 
-template<typename... Ts> class CoverIsClosedCondition : public Condition<Ts...> {
+template<typename... Ts> using CoverIsOpenCondition = CoverPositionCondition<true, Ts...>;
+template<typename... Ts> using CoverIsClosedCondition = CoverPositionCondition<false, Ts...>;
+
+template<bool OPEN> class CoverPositionTrigger : public Trigger<> {
  public:
-  CoverIsClosedCondition(Cover *cover) : cover_(cover) {}
-  bool check(Ts... x) override { return this->cover_->is_fully_closed(); }
+  CoverPositionTrigger(Cover *a_cover) : cover_(a_cover) {
+    a_cover->add_on_state_callback([this]() {
+      if (this->cover_->position != this->last_position_) {
+        this->last_position_ = this->cover_->position;
+        if (this->cover_->position == (OPEN ? COVER_OPEN : COVER_CLOSED))
+          this->trigger();
+      }
+    });
+  }
 
  protected:
   Cover *cover_;
+  float last_position_{NAN};
 };
 
-class CoverOpenTrigger : public Trigger<> {
+using CoverOpenedTrigger = CoverPositionTrigger<true>;
+using CoverClosedTrigger = CoverPositionTrigger<false>;
+
+template<CoverOperation OP> class CoverTrigger : public Trigger<> {
  public:
-  CoverOpenTrigger(Cover *a_cover) {
-    a_cover->add_on_state_callback([this, a_cover]() {
-      if (a_cover->is_fully_open()) {
-        this->trigger();
+  CoverTrigger(Cover *a_cover) : cover_(a_cover) {
+    a_cover->add_on_state_callback([this]() {
+      auto current_op = this->cover_->current_operation;
+      if (current_op == OP) {
+        if (!this->last_operation_.has_value() || this->last_operation_.value() != OP) {
+          this->trigger();
+        }
       }
+      this->last_operation_ = current_op;
     });
   }
-};
 
-class CoverClosedTrigger : public Trigger<> {
- public:
-  CoverClosedTrigger(Cover *a_cover) {
-    a_cover->add_on_state_callback([this, a_cover]() {
-      if (a_cover->is_fully_closed()) {
-        this->trigger();
-      }
-    });
-  }
+ protected:
+  Cover *cover_;
+  optional<CoverOperation> last_operation_{};
 };
-
-}  // namespace cover
-}  // namespace esphome
+}  // namespace esphome::cover

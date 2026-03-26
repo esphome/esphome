@@ -11,7 +11,7 @@ class SensitivitySelect : public select::Select, public Parented<MR60FDA2Compone
   SensitivitySelect() = default;
 
  protected:
-  void control(const std::string &value) override;
+  void control(size_t index) override;
 };
 
 }  // namespace seeed_mr60fda2

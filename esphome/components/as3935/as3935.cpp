@@ -41,8 +41,6 @@ void AS3935Component::dump_config() {
 #endif
 }
 
-float AS3935Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void AS3935Component::loop() {
   if (!this->irq_pin_->digital_read())
     return;
@@ -305,12 +303,14 @@ bool AS3935Component::calibrate_oscillator() {
 }
 
 void AS3935Component::tune_antenna() {
-  ESP_LOGI(TAG, "Starting antenna tuning");
   uint8_t div_ratio = this->read_div_ratio();
   uint8_t tune_val = this->read_capacitance();
-  ESP_LOGI(TAG, "Division Ratio is set to: %d", div_ratio);
-  ESP_LOGI(TAG, "Internal Capacitor is set to: %d", tune_val);
-  ESP_LOGI(TAG, "Displaying oscillator on INT pin. Measure its frequency - multiply value by Division Ratio");
+  ESP_LOGI(TAG,
+           "Starting antenna tuning\n"
+           "  Division Ratio is set to: %d\n"
+           "  Internal Capacitor is set to: %d\n"
+           "  Displaying oscillator on INT pin. Measure its frequency - multiply value by Division Ratio",
+           div_ratio, tune_val);
   this->display_oscillator(true, ANTFREQ);
 }
 

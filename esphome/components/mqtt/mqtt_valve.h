@@ -8,8 +8,7 @@
 
 #include "esphome/components/valve/valve.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 class MQTTValveComponent : public mqtt::MQTTComponent {
  public:
@@ -28,14 +27,13 @@ class MQTTValveComponent : public mqtt::MQTTComponent {
   void dump_config() override;
 
  protected:
-  std::string component_type() const override;
+  const char *component_type() const override;
   const EntityBase *get_entity() const override;
 
   valve::Valve *valve_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

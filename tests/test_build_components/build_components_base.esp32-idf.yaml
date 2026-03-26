@@ -3,9 +3,13 @@ esphome:
   friendly_name: $component_name
 
 esp32:
-  board: nodemcu-32s
+  # Use board with 8MB flash for testing large component groups
+  board: esp32-pico-devkitm-2
   framework:
     type: esp-idf
+  # Use custom partition table with larger app partitions (3MB each)
+  # Default IDF partitions only allow 1.75MB which is too small for grouped tests
+  partitions: ../partitions_testing.csv
 
 logger:
   level: VERY_VERBOSE

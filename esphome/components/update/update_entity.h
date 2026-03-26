@@ -27,7 +27,9 @@ enum UpdateState : uint8_t {
   UPDATE_STATE_INSTALLING,
 };
 
-class UpdateEntity : public EntityBase, public EntityBase_DeviceClass {
+const LogString *update_state_to_string(UpdateState state);
+
+class UpdateEntity : public EntityBase {
  public:
   void publish_state();
 
@@ -38,7 +40,9 @@ class UpdateEntity : public EntityBase, public EntityBase_DeviceClass {
   const UpdateInfo &update_info = update_info_;
   const UpdateState &state = state_;
 
-  void add_on_state_callback(std::function<void()> &&callback) { this->state_callback_.add(std::move(callback)); }
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
   Trigger<const UpdateInfo &> *get_update_available_trigger() {
     if (!update_available_trigger_) {
       update_available_trigger_ = std::make_unique<Trigger<const UpdateInfo &>>();
@@ -50,7 +54,7 @@ class UpdateEntity : public EntityBase, public EntityBase_DeviceClass {
   UpdateState state_{UPDATE_STATE_UNKNOWN};
   UpdateInfo update_info_;
 
-  CallbackManager<void()> state_callback_{};
+  LazyCallbackManager<void()> state_callback_{};
   std::unique_ptr<Trigger<const UpdateInfo &>> update_available_trigger_{nullptr};
 };
 

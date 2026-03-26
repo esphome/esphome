@@ -1,12 +1,7 @@
-i2c:
-  - id: i2c_gl_r01_i2c
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: gl_r01_i2c
+    i2c_id: i2c_bus
     id: tof
     name: "ToF sensor"
-    i2c_id: i2c_gl_r01_i2c
     address: 0x74
     update_interval: 15s

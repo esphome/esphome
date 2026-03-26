@@ -8,7 +8,7 @@ Camera *Camera::global_camera = nullptr;
 
 Camera::Camera() {
   if (global_camera != nullptr) {
-    this->status_set_error("Multiple cameras are configured, but only one is supported.");
+    this->status_set_error(LOG_STR("Multiple cameras are configured, but only one is supported."));
     this->mark_failed();
     return;
   }

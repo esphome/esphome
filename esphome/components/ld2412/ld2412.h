@@ -29,8 +29,7 @@
 
 #include <array>
 
-namespace esphome {
-namespace ld2412 {
+namespace esphome::ld2412 {
 
 using namespace ld24xx;
 
@@ -86,8 +85,10 @@ class LD2412Component : public Component, public uart::UARTDevice {
   void set_light_out_control();
   void set_basic_config();
 #ifdef USE_NUMBER
-  void set_gate_move_threshold_number(uint8_t gate, number::Number *n);
-  void set_gate_still_threshold_number(uint8_t gate, number::Number *n);
+  void set_gate_move_threshold_number(uint8_t gate, number::Number *n) { this->gate_move_threshold_numbers_[gate] = n; }
+  void set_gate_still_threshold_number(uint8_t gate, number::Number *n) {
+    this->gate_still_threshold_numbers_[gate] = n;
+  }
   void set_gate_threshold();
   void get_gate_threshold();
 #endif
@@ -99,8 +100,8 @@ class LD2412Component : public Component, public uart::UARTDevice {
   void read_all_info();
   void restart_and_read_all_info();
   void set_bluetooth(bool enable);
-  void set_distance_resolution(const std::string &state);
-  void set_baud_rate(const std::string &state);
+  void set_distance_resolution(const char *state);
+  void set_baud_rate(const char *state);
   void factory_reset();
   void start_dynamic_background_correction();
 
@@ -137,5 +138,4 @@ class LD2412Component : public Component, public uart::UARTDevice {
 #endif
 };
 
-}  // namespace ld2412
-}  // namespace esphome
+}  // namespace esphome::ld2412

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/components/climate_ir/climate_ir.h"
+#include "esphome/components/remote_base/toshiba_ac_protocol.h"
 
 namespace esphome {
 namespace toshiba {
@@ -10,6 +11,7 @@ enum Model {
   MODEL_GENERIC = 0,           // Temperature range is from 17 to 30
   MODEL_RAC_PT1411HWRU_C = 1,  // Temperature range is from 16 to 30
   MODEL_RAC_PT1411HWRU_F = 2,  // Temperature range is from 16 to 30
+  MODEL_RAS_2819T = 3,         // RAS-2819T protocol variant, temperature range 18 to 30
 };
 
 // Supported temperature ranges
@@ -19,6 +21,8 @@ const float TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN = 16.0;
 const float TOSHIBA_RAC_PT1411HWRU_TEMP_C_MAX = 30.0;
 const float TOSHIBA_RAC_PT1411HWRU_TEMP_F_MIN = 60.0;
 const float TOSHIBA_RAC_PT1411HWRU_TEMP_F_MAX = 86.0;
+const float TOSHIBA_RAS_2819T_TEMP_C_MIN = 18.0;
+const float TOSHIBA_RAS_2819T_TEMP_C_MAX = 30.0;
 
 class ToshibaClimate : public climate_ir::ClimateIR {
  public:
@@ -35,6 +39,9 @@ class ToshibaClimate : public climate_ir::ClimateIR {
   void transmit_generic_();
   void transmit_rac_pt1411hwru_();
   void transmit_rac_pt1411hwru_temp_(bool cs_state = true, bool cs_send_update = true);
+  void transmit_ras_2819t_();
+  // Process RAS-2819T IR command data
+  bool process_ras_2819t_command_(const remote_base::ToshibaAcData &toshiba_data);
   // Returns the header if valid, else returns zero
   uint8_t is_valid_rac_pt1411hwru_header_(const uint8_t *message);
   // Returns true if message is a valid RAC-PT1411HWRU IR message, regardless if first or second packet
@@ -43,16 +50,31 @@ class ToshibaClimate : public climate_ir::ClimateIR {
   bool compare_rac_pt1411hwru_packets_(const uint8_t *message1, const uint8_t *message2);
   bool on_receive(remote_base::RemoteReceiveData data) override;
 
+ private:
+  // RAS-2819T state tracking for swing mode optimization
+  climate::ClimateSwingMode last_swing_mode_{climate::CLIMATE_SWING_OFF};
+  climate::ClimateMode last_mode_{climate::CLIMATE_MODE_OFF};
+  optional<climate::ClimateFanMode> last_fan_mode_{};
+  float last_target_temperature_{24.0f};
+
   float temperature_min_() {
-    return (this->model_ == MODEL_GENERIC) ? TOSHIBA_GENERIC_TEMP_C_MIN : TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN;
+    if (this->model_ == MODEL_RAC_PT1411HWRU_C || this->model_ == MODEL_RAC_PT1411HWRU_F)
+      return TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN;
+    if (this->model_ == MODEL_RAS_2819T)
+      return TOSHIBA_RAS_2819T_TEMP_C_MIN;
+    return TOSHIBA_GENERIC_TEMP_C_MIN;  // Default to GENERIC for unknown models
   }
   float temperature_max_() {
-    return (this->model_ == MODEL_GENERIC) ? TOSHIBA_GENERIC_TEMP_C_MAX : TOSHIBA_RAC_PT1411HWRU_TEMP_C_MAX;
+    if (this->model_ == MODEL_RAC_PT1411HWRU_C || this->model_ == MODEL_RAC_PT1411HWRU_F)
+      return TOSHIBA_RAC_PT1411HWRU_TEMP_C_MAX;
+    if (this->model_ == MODEL_RAS_2819T)
+      return TOSHIBA_RAS_2819T_TEMP_C_MAX;
+    return TOSHIBA_GENERIC_TEMP_C_MAX;  // Default to GENERIC for unknown models
   }
-  std::set<climate::ClimateSwingMode> toshiba_swing_modes_() {
+  climate::ClimateSwingModeMask toshiba_swing_modes_() {
     return (this->model_ == MODEL_GENERIC)
-               ? std::set<climate::ClimateSwingMode>{}
-               : std::set<climate::ClimateSwingMode>{climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL};
+               ? climate::ClimateSwingModeMask()
+               : climate::ClimateSwingModeMask{climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL};
   }
   void encode_(remote_base::RemoteTransmitData *data, const uint8_t *message, uint8_t nbytes, uint8_t repeat);
   bool decode_(remote_base::RemoteReceiveData *data, uint8_t *message, uint8_t nbytes);

@@ -42,9 +42,7 @@ def validate_connections(config):
             )
     elif config[CONF_ACTIVE]:
         connection_slots: int = config[CONF_CONNECTION_SLOTS]
-        esp32_ble_tracker.consume_connection_slots(connection_slots, "bluetooth_proxy")(
-            config
-        )
+        esp32_ble.consume_connection_slots(connection_slots, "bluetooth_proxy")(config)
 
         return {
             **config,
@@ -65,11 +63,11 @@ CONFIG_SCHEMA = cv.All(
                     default=DEFAULT_CONNECTION_SLOTS,
                 ): cv.All(
                     cv.positive_int,
-                    cv.Range(min=1, max=esp32_ble_tracker.IDF_MAX_CONNECTIONS),
+                    cv.Range(min=1, max=esp32_ble.IDF_MAX_CONNECTIONS),
                 ),
                 cv.Optional(CONF_CONNECTIONS): cv.All(
                     cv.ensure_list(CONNECTION_SCHEMA),
-                    cv.Length(min=1, max=esp32_ble_tracker.IDF_MAX_CONNECTIONS),
+                    cv.Length(min=1, max=esp32_ble.IDF_MAX_CONNECTIONS),
                 ),
             }
         )

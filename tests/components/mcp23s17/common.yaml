@@ -1,9 +1,3 @@
-spi:
-  - id: spi_mcp23s17
-    clk_pin: ${clk_pin}
-    mosi_pin: ${mosi_pin}
-    miso_pin: ${miso_pin}
-
 mcp23s17:
   - id: mcp23s17_hub
     cs_pin: ${cs_pin}

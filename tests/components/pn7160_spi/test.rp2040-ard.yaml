@@ -6,4 +6,7 @@ substitutions:
   irq_pin: GPIO15
   ven_pin: GPIO16
 
+packages:
+  spi: !include ../../test_build_components/common/spi/rp2040-ard.yaml
+
 <<: !include common.yaml

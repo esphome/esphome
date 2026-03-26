@@ -7,16 +7,21 @@
 namespace esphome {
 namespace pca9685 {
 
+enum class PhaseBalancer {
+  NONE = 0x00,
+  LINEAR = 0x01,
+};
+
 /// Inverts polarity of channel output signal
-extern const uint8_t PCA9685_MODE_INVERTED;
+inline constexpr uint8_t PCA9685_MODE_INVERTED = 0x10;
 /// Channel update happens upon ACK (post-set) rather than on STOP (endTransmission)
-extern const uint8_t PCA9685_MODE_OUTPUT_ONACK;
+inline constexpr uint8_t PCA9685_MODE_OUTPUT_ONACK = 0x08;
 /// Use a totem-pole (push-pull) style output rather than an open-drain structure.
-extern const uint8_t PCA9685_MODE_OUTPUT_TOTEM_POLE;
+inline constexpr uint8_t PCA9685_MODE_OUTPUT_TOTEM_POLE = 0x04;
 /// For active low output enable, sets channel output to high-impedance state
-extern const uint8_t PCA9685_MODE_OUTNE_HIGHZ;
+inline constexpr uint8_t PCA9685_MODE_OUTNE_HIGHZ = 0x02;
 /// Similarly, sets channel output to high if in totem-pole mode, otherwise
-extern const uint8_t PCA9685_MODE_OUTNE_LOW;
+inline constexpr uint8_t PCA9685_MODE_OUTNE_LOW = 0x01;
 
 class PCA9685Output;
 
@@ -47,6 +52,7 @@ class PCA9685Output : public Component, public i2c::I2CDevice {
   void loop() override;
   void set_extclk(bool extclk) { this->extclk_ = extclk; }
   void set_frequency(float frequency) { this->frequency_ = frequency; }
+  void set_phase_balancer(PhaseBalancer balancer) { this->balancer_ = balancer; }
 
  protected:
   friend PCA9685Channel;
@@ -60,6 +66,7 @@ class PCA9685Output : public Component, public i2c::I2CDevice {
   float frequency_;
   uint8_t mode_;
   bool extclk_ = false;
+  PhaseBalancer balancer_ = PhaseBalancer::LINEAR;
 
   uint8_t min_channel_{0xFF};
   uint8_t max_channel_{0x00};

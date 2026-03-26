@@ -1,0 +1,13 @@
+spi:
+  - id: three_spi
+    interface: spi3
+    clk_pin:
+      number: 47
+    mosi_pin:
+      number: 40
+  - id: hw_spi
+    interface: hardware
+    clk_pin:
+      number: 0
+    miso_pin:
+      number: 41
