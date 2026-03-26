@@ -1,5 +1,8 @@
 #include "ld2410s.h"
 
+#include <cinttypes>
+#include <cstring>
+
 namespace esphome::ld2410s {
 
 #ifdef LD2410S_V2
@@ -226,7 +229,8 @@ void LD2410S::parse_ack_fw_read_(const uint8_t *data) {
   read_seq_data(data, read_position, &major_v);
   read_seq_data(data, read_position, &minor_v);
   read_seq_data(data, read_position, &patch_v);
-  std::string version = "v" + std::to_string(major_v) + "." + std::to_string(minor_v) + "." + std::to_string(patch_v);
+  char version[20];
+  snprintf(version, sizeof(version), "v%u.%u.%u", major_v, minor_v, patch_v);
 
   this->publish_fw_version_(version);
 }
@@ -367,10 +371,12 @@ std::string LD2410S::format_int(uint32_t *in, uint8_t len, uint8_t min_w) {
     if (i > 0)
       result += ',';
 
-    std::string num = std::to_string(in[i]);
+    char num[12];
+    snprintf(num, sizeof(num), "%" PRIu32, in[i]);
+    size_t num_len = strlen(num);
 
-    if (num.length() < min_w)
-      result += std::string(min_w - num.length(), '0');
+    if (num_len < min_w)
+      result += std::string(min_w - num_len, '0');
 
     result += num;
   }

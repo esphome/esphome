@@ -39,8 +39,9 @@ void LD2410S::send_() {
       break;
 
     case TxCmdState::SEND:
+      char hex_buf[format_hex_pretty_size(RX_TX_BUFFER_SIZE)];
       ESP_LOGVV(TAG, ">   [loop:%d] cmd:%04x > %s", this->loop_count_, this->tx_schedule_.get_command(),
-                format_hex_pretty(this->tx_frame_, this->tx_frame_size_, ' ').c_str());
+                format_hex_pretty_to(hex_buf, this->tx_frame_, this->tx_frame_size_, ' '));
       this->write_array(this->tx_frame_, this->tx_frame_size_);
       this->flush();
 
@@ -262,14 +263,16 @@ void LD2410S::parse_() {
       break;
 
     default:
+      char hex_buf[format_hex_pretty_size(RX_TX_BUFFER_SIZE)];
       ESP_LOGD(TAG, "Received Unknown package type!!! < %s",
-               format_hex_pretty(this->rx_.frame_data(), this->rx_.frame_size(), ' ').c_str());
+               format_hex_pretty_to(hex_buf, this->rx_.frame_data(), this->rx_.frame_size(), ' '));
       break;
   }
 }
 void LD2410S::parse_short_data_frame_() {
+  char hex_buf[format_hex_pretty_size(RX_TX_BUFFER_SIZE)];
   ESP_LOGVV(TAG, "<   [loop:%d] short data < %s", this->loop_count_,
-            format_hex_pretty(this->rx_.frame_data(), this->rx_.frame_size(), ' ').c_str());
+            format_hex_pretty_to(hex_buf, this->rx_.frame_data(), this->rx_.frame_size(), ' '));
 
   const bool presence_state = this->rx_.payload_data()[0] > 1;
   uint16_t distance = encode_uint16(this->rx_.payload_data()[2], this->rx_.payload_data()[1]);
@@ -286,8 +289,9 @@ void LD2410S::parse_data_frame_() {
   switch (this->rx_.payload_data()[0]) {
     case 0x01:  // standard data
     {
+      char hex_buf[format_hex_pretty_size(RX_TX_BUFFER_SIZE)];
       ESP_LOGVV(TAG, "<   [loop:%d] std data < %s", this->loop_count_,
-                format_hex_pretty(this->rx_.frame_data(), this->rx_.frame_size(), ' ').c_str());
+                format_hex_pretty_to(hex_buf, this->rx_.frame_data(), this->rx_.frame_size(), ' '));
 
       const bool presence_state = this->rx_.payload_data()[1] > 1;
 
@@ -308,8 +312,9 @@ void LD2410S::parse_data_frame_() {
     case 0x03:  // calibration progress
     {
 #ifdef LD2410S_V2
+      char hex_buf[format_hex_pretty_size(RX_TX_BUFFER_SIZE)];
       ESP_LOGVV(TAG, "<   [loop:%d] std calibration < %s", this->loop_count_,
-                format_hex_pretty(this->rx_.frame_data(), this->rx_.frame_size(), ' ').c_str());
+                format_hex_pretty_to(hex_buf, this->rx_.frame_data(), this->rx_.frame_size(), ' '));
 
       uint16_t progress = encode_uint16(this->rx_.payload_data()[2], this->rx_.payload_data()[1]);
 
@@ -328,8 +333,9 @@ void LD2410S::parse_data_frame_() {
     }
 
     default:
+      char hex_buf[format_hex_pretty_size(RX_TX_BUFFER_SIZE)];
       ESP_LOGV(TAG, "<XX [loop:%d] std, Unknown std frame type < %s", this->loop_count_,
-               format_hex_pretty(this->rx_.frame_data(), this->rx_.frame_size(), ' ').c_str());
+               format_hex_pretty_to(hex_buf, this->rx_.frame_data(), this->rx_.frame_size(), ' '));
       break;
   }
 }
@@ -342,12 +348,13 @@ void LD2410S::parse_cmd_frame_() {
   read_seq_data(data_start, read_position, &command_word);
   read_seq_data(data_start, read_position, &ack);
 
+  char hex_buf[format_hex_pretty_size(RX_TX_BUFFER_SIZE)];
   if (ack == 0x0000) {
     ESP_LOGVV(TAG, "<   [loop:%d] cmd:%04x < %s", this->loop_count_, command_word,
-              format_hex_pretty(this->rx_.frame_data(), this->rx_.frame_size(), ' ').c_str());
+              format_hex_pretty_to(hex_buf, this->rx_.frame_data(), this->rx_.frame_size(), ' '));
   } else {
     ESP_LOGD(TAG, "<XX [loop:%d] cmd:%04x Failed ack:%04x < %s", this->loop_count_, command_word, ack,
-             format_hex_pretty(this->rx_.frame_data(), this->rx_.frame_size(), ' ').c_str());
+             format_hex_pretty_to(hex_buf, this->rx_.frame_data(), this->rx_.frame_size(), ' '));
   }
 
   this->tx_schedule_.verify_response(command_word, this->loop_count_);
@@ -457,8 +464,9 @@ RxEvaluationResult LD2410Srx::receive_byte(uint32_t loop_count, uint8_t byte) {
 
     case RxEvaluationResult::NOK:
     default:
+      char hex_buf[format_hex_pretty_size(RX_TX_BUFFER_SIZE)];
       ESP_LOGV(TAG, "<XX [loop:%d] %s < %s", loop_count, this->msg_.c_str(),
-               format_hex_pretty(this->rcv_buffer_, end_pos_ + 1, ' ').c_str());
+               format_hex_pretty_to(hex_buf, this->rcv_buffer_, end_pos_ + 1, ' '));
       this->reset();
       result = RxEvaluationResult::UNKNOWN;
       break;
@@ -556,7 +564,9 @@ RxEvaluationResult LD2410Srx::evaluate_size_(uint16_t end_pos) {
     return RxEvaluationResult::UNKNOWN;  // not enough data yet to determine size
 
   } else if (end_pos > this->expected_frame_size_) {
-    this->msg_ = "rx passed the expected frame, expected:" + to_string(this->expected_frame_size_);
+    char msg_buf[48];
+    snprintf(msg_buf, sizeof(msg_buf), "rx passed the expected frame, expected:%u", this->expected_frame_size_);
+    this->msg_ = msg_buf;
     return RxEvaluationResult::NOK;  // passed the end of short data frame
 
   } else {
