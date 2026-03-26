@@ -137,6 +137,9 @@ UpdateComponentAction = cg.esphome_ns.class_("UpdateComponentAction", Action)
 SuspendComponentAction = cg.esphome_ns.class_("SuspendComponentAction", Action)
 ResumeComponentAction = cg.esphome_ns.class_("ResumeComponentAction", Action)
 Automation = cg.esphome_ns.class_("Automation")
+TriggerForwarder = cg.esphome_ns.class_("TriggerForwarder")
+TriggerOnTrueForwarder = cg.esphome_ns.class_("TriggerOnTrueForwarder")
+TriggerOnFalseForwarder = cg.esphome_ns.class_("TriggerOnFalseForwarder")
 
 LambdaCondition = cg.esphome_ns.class_("LambdaCondition", Condition)
 StatelessLambdaCondition = cg.esphome_ns.class_("StatelessLambdaCondition", Condition)
@@ -661,3 +664,56 @@ async def build_automation(
     actions = await build_action_list(config[CONF_THEN], templ, args)
     cg.add(obj.add_actions(actions))
     return obj
+
+
+async def build_callback_automation(
+    parent: MockObj,
+    callback_method: str,
+    args: TemplateArgsType,
+    config: ConfigType,
+    forwarder: MockObjClass | None = None,
+    forwarder_extra_args: list | None = None,
+) -> None:
+    """Build an Automation and register it as a callback on the parent.
+
+    Eliminates the need for a Trigger wrapper object by registering the
+    automation's trigger() directly as a callback on the parent component.
+
+    Uses template forwarder structs so the compiler deduplicates the operator()
+    body across all call sites with the same signature.
+
+    :param parent: The component object (e.g., button, sensor).
+    :param callback_method: Name of the callback method (e.g., "add_on_press_callback").
+    :param args: Automation template args as list of (type, name) tuples.
+    :param config: The automation config dict.
+    :param forwarder: Optional forwarder type to use instead of the default
+        TriggerForwarder<Ts...>. Pass any struct type whose aggregate init takes
+        an Automation pointer as the first field (e.g., TriggerOnTrueForwarder,
+        or a custom component-defined forwarder).
+    :param forwarder_extra_args: Optional list of extra MockObj args to pass to the
+        forwarder after the automation pointer in aggregate init. For example,
+        a lock forwarder needs the lock entity pointer: [lock_var].
+    """
+    arg_types = [arg[0] for arg in args]
+    templ = cg.TemplateArguments(*arg_types)
+    obj = cg.new_Pvariable(config[CONF_AUTOMATION_ID], templ)
+    actions = await build_action_list(config[CONF_THEN], templ, args)
+    cg.add(obj.add_actions(actions))
+    # Use template forwarder structs for deduplication. The compiler generates
+    # one operator() per forwarder type; different automation pointers are just
+    # data in the struct.
+    if forwarder is None:
+        forwarder = (
+            TriggerForwarder.template(templ)
+            if arg_types
+            else TriggerForwarder.template()
+        )
+    init_args = str(obj)
+    if forwarder_extra_args:
+        extra = ", ".join(str(a) for a in forwarder_extra_args)
+        init_args = f"{init_args}, {extra}"
+    cg.add(
+        getattr(parent, callback_method)(
+            cg.RawExpression(f"{forwarder}{{{init_args}}}")
+        )
+    )

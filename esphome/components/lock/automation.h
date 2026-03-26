@@ -66,4 +66,14 @@ template<LockState State> class LockStateTrigger : public Trigger<> {
 using LockLockTrigger = LockStateTrigger<LockState::LOCK_STATE_LOCKED>;
 using LockUnlockTrigger = LockStateTrigger<LockState::LOCK_STATE_UNLOCKED>;
 
+/// Forwarder that triggers an Automation<> when a Lock reaches a specific state.
+template<LockState State> struct LockStateForwarder {
+  Automation<> *automation;
+  Lock *lock;
+  void operator()() const {
+    if (this->lock->state == State)
+      this->automation->trigger();
+  }
+};
+
 }  // namespace esphome::lock

@@ -248,8 +248,9 @@ def number_schema(
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _build_number_automations(var, config):
     for conf in config.get(CONF_ON_VALUE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(float, "x")], conf)
+        await automation.build_callback_automation(
+            var, "add_on_state_callback", [(float, "x")], conf
+        )
     for conf in config.get(CONF_ON_VALUE_RANGE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await cg.register_component(trigger, conf)
