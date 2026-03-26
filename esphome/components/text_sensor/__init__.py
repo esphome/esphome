@@ -184,15 +184,14 @@ async def build_filters(config):
 
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _build_text_sensor_automations(var, config):
-    for conf in config.get(CONF_ON_VALUE, []):
-        await automation.build_callback_automation(
-            var, "add_on_state_callback", [(cg.std_string, "x")], conf
-        )
-
-    for conf in config.get(CONF_ON_RAW_VALUE, []):
-        await automation.build_callback_automation(
-            var, "add_on_raw_state_callback", [(cg.std_string, "x")], conf
-        )
+    for conf_key, callback in (
+        (CONF_ON_VALUE, "add_on_state_callback"),
+        (CONF_ON_RAW_VALUE, "add_on_raw_state_callback"),
+    ):
+        for conf in config.get(conf_key, []):
+            await automation.build_callback_automation(
+                var, callback, [(cg.std_string, "x")], conf
+            )
 
 
 @setup_entity("text_sensor")

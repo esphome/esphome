@@ -529,23 +529,14 @@ def binary_sensor_schema(
 
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _build_binary_sensor_automations(var, config):
-    for conf in config.get(CONF_ON_PRESS, []):
-        await automation.build_callback_automation(
-            var,
-            "add_on_state_callback",
-            [],
-            conf,
-            forwarder=automation.TriggerOnTrueForwarder,
-        )
-
-    for conf in config.get(CONF_ON_RELEASE, []):
-        await automation.build_callback_automation(
-            var,
-            "add_on_state_callback",
-            [],
-            conf,
-            forwarder=automation.TriggerOnFalseForwarder,
-        )
+    for conf_key, forwarder in (
+        (CONF_ON_PRESS, automation.TriggerOnTrueForwarder),
+        (CONF_ON_RELEASE, automation.TriggerOnFalseForwarder),
+    ):
+        for conf in config.get(conf_key, []):
+            await automation.build_callback_automation(
+                var, "add_on_state_callback", [], conf, forwarder=forwarder
+            )
 
     for conf in config.get(CONF_ON_CLICK, []):
         trigger = cg.new_Pvariable(
