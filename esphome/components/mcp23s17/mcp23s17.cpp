@@ -6,6 +6,11 @@ namespace mcp23s17 {
 
 static const char *const TAG = "mcp23s17";
 
+// IOCON register bits
+static constexpr uint8_t IOCON_SEQOP = 0x20;  // Sequential operation mode
+static constexpr uint8_t IOCON_HAEN = 0x08;   // Hardware address enable
+static constexpr uint8_t IOCON_ODR = 0x04;    // Open-drain output for INT pin
+
 void MCP23S17::set_device_address(uint8_t device_addr) {
   if (device_addr != 0) {
     this->device_opcode_ |= ((device_addr & 0b111) << 1);
@@ -19,14 +24,14 @@ void MCP23S17::setup() {
   uint8_t cmd = 0b01000000;
   this->transfer_byte(cmd);
   this->transfer_byte(mcp23x17_base::MCP23X17_IOCONA);
-  this->transfer_byte(0b00011000);  // Enable HAEN pins for addressing
+  this->transfer_byte(IOCON_SEQOP | IOCON_HAEN);
   this->disable();
 
   this->enable();
   cmd = 0b01001000;
   this->transfer_byte(cmd);
   this->transfer_byte(mcp23x17_base::MCP23X17_IOCONA);
-  this->transfer_byte(0b00011000);  // Enable HAEN pins for addressing
+  this->transfer_byte(IOCON_SEQOP | IOCON_HAEN);
   this->disable();
 
   // Read current output register state
@@ -35,8 +40,8 @@ void MCP23S17::setup() {
 
   if (this->open_drain_ints_) {
     // enable open-drain interrupt pins, 3.3V-safe
-    this->write_reg(mcp23x17_base::MCP23X17_IOCONA, 0x04);
-    this->write_reg(mcp23x17_base::MCP23X17_IOCONB, 0x04);
+    this->write_reg(mcp23x17_base::MCP23X17_IOCONA, IOCON_SEQOP | IOCON_HAEN | IOCON_ODR);
+    this->write_reg(mcp23x17_base::MCP23X17_IOCONB, IOCON_SEQOP | IOCON_HAEN | IOCON_ODR);
   }
 }
 
