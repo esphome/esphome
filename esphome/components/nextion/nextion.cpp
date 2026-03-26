@@ -277,7 +277,7 @@ void Nextion::print_queue_members_() {
       ESP_LOGN(TAG, "Queue null");
     } else {
       ESP_LOGN(TAG, "Queue type: %d:%s, name: %s", i->component->get_queue_type(),
-               i->component->get_queue_type_string(), i->component->get_variable_name());
+               i->component->get_queue_type_string(), i->component->get_variable_name().c_str());
     }
   }
   ESP_LOGN(TAG, "*******************************************");
@@ -349,7 +349,7 @@ void Nextion::process_pending_in_queue_() {
     if (this->send_command_(front_item->pending_command)) {
       // Command sent successfully, clear the pending command
       front_item->pending_command.clear();
-      ESP_LOGVV(TAG, "Pending command sent: %s", front_item->component->get_variable_name());
+      ESP_LOGVV(TAG, "Pending command sent: %s", front_item->component->get_variable_name().c_str());
     }
   }
 }
@@ -371,7 +371,7 @@ bool Nextion::remove_from_q_(bool report_empty) {
   }
   NextionComponentBase *component = nb->component;
 
-  ESP_LOGN(TAG, "Removed: %s", component->get_variable_name());
+  ESP_LOGN(TAG, "Removed: %s", component->get_variable_name().c_str());
 
   if (component->get_queue_type() == NextionQueueType::NO_RESULT) {
     if (component->get_variable_name() == "sleep_wake") {
@@ -599,9 +599,9 @@ void Nextion::process_nextion_commands_() {
         NextionComponentBase *component = nb->component;
 
         if (component->get_queue_type() != NextionQueueType::TEXT_SENSOR) {
-          ESP_LOGE(TAG, "String return but '%s' not text sensor", component->get_variable_name());
+          ESP_LOGE(TAG, "String return but '%s' not text sensor", component->get_variable_name().c_str());
         } else {
-          ESP_LOGN(TAG, "String resp: '%s' id: %s type: %s", to_process.c_str(), component->get_variable_name(),
+          ESP_LOGN(TAG, "String resp: '%s' id: %s type: %s", to_process.c_str(), component->get_variable_name().c_str(),
                    component->get_queue_type_string());
         }
 
@@ -640,10 +640,10 @@ void Nextion::process_nextion_commands_() {
         if (component->get_queue_type() != NextionQueueType::SENSOR &&
             component->get_queue_type() != NextionQueueType::BINARY_SENSOR &&
             component->get_queue_type() != NextionQueueType::SWITCH) {
-          ESP_LOGE(TAG, "Numeric return but '%s' invalid type %d", component->get_variable_name(),
+          ESP_LOGE(TAG, "Numeric return but '%s' invalid type %d", component->get_variable_name().c_str(),
                    component->get_queue_type());
         } else {
-          ESP_LOGN(TAG, "Numeric: %s type %d:%s val %d", component->get_variable_name(), component->get_queue_type(),
+          ESP_LOGN(TAG, "Numeric: %s type %d:%s val %d", component->get_variable_name().c_str(), component->get_queue_type(),
                    component->get_queue_type_string(), value);
           component->set_state_from_int(value, true, false);
         }
@@ -841,14 +841,14 @@ void Nextion::process_nextion_commands_() {
       if (ms - this->nextion_queue_[i]->queue_time > this->max_q_age_ms_) {
         if (this->nextion_queue_[i]->queue_time == 0) {
           ESP_LOGD(TAG, "Remove old queue '%s':'%s' (t=0)", component->get_queue_type_string(),
-                   component->get_variable_name());
+                   component->get_variable_name().c_str());
         }
 
         if (component->get_variable_name() == "sleep_wake") {
           this->is_sleeping_ = false;
         }
 
-        ESP_LOGD(TAG, "Remove old queue '%s':'%s'", component->get_queue_type_string(), component->get_variable_name());
+        ESP_LOGD(TAG, "Remove old queue '%s':'%s'", component->get_queue_type_string(), component->get_variable_name().c_str());
 
         if (component->get_queue_type() == NextionQueueType::NO_RESULT) {
           if (component->get_variable_name() == "sleep_wake") {
@@ -1043,7 +1043,7 @@ void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
 
   this->nextion_queue_.push_back(nextion_queue);
 
-  ESP_LOGN(TAG, "Queue NORESULT: %s", nextion_queue->component->get_variable_name());
+  ESP_LOGN(TAG, "Queue NORESULT: %s", nextion_queue->component->get_variable_name().c_str());
 }
 
 /**
@@ -1210,7 +1210,7 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
 
 #ifdef USE_NEXTION_MAX_QUEUE_SIZE
   if (this->max_queue_size_ > 0 && this->nextion_queue_.size() >= this->max_queue_size_) {
-    ESP_LOGW(TAG, "Queue full (%zu), drop GET: %s", this->nextion_queue_.size(), component->get_variable_name());
+    ESP_LOGW(TAG, "Queue full (%zu), drop GET: %s", this->nextion_queue_.size(), component->get_variable_name().c_str());
     return;
   }
 #endif
@@ -1226,7 +1226,7 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
   nextion_queue->component = component;
   nextion_queue->queue_time = App.get_loop_component_start_time();
 
-  ESP_LOGN(TAG, "Queue %s: %s", component->get_queue_type_string(), component->get_variable_name());
+  ESP_LOGN(TAG, "Queue %s: %s", component->get_queue_type_string(), component->get_variable_name().c_str());
 
   std::string command = "get " + component->get_variable_name_to_send();
 
