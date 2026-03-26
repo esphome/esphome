@@ -700,9 +700,5 @@ async def build_callback_automation(
     # one operator() per forwarder type; different automation pointers are just
     # data in the struct.
     if forwarder is None:
-        forwarder = (
-            TriggerForwarder.template(templ)
-            if arg_types
-            else TriggerForwarder.template()
-        )
+        forwarder = TriggerForwarder.template(templ)
     cg.add(getattr(parent, callback_method)(cg.RawExpression(f"{forwarder}{{{obj}}}")))
