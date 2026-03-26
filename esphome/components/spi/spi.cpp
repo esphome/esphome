@@ -118,4 +118,12 @@ uint16_t SPIDelegateBitBash::transfer_(uint16_t data, size_t num_bits) {
   return out_data;
 }
 
+#if !defined(USE_ESP32) && !defined(USE_ARDUINO)
+// Stub for unsupported platforms (host, Zephyr, etc.) - hardware SPI is unavailable
+SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
+                              const std::vector<uint8_t> &data_pins) {
+  return nullptr;
+}
+#endif
+
 }  // namespace esphome::spi
