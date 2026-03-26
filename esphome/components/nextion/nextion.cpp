@@ -90,7 +90,7 @@ bool Nextion::check_connect_() {
 #endif  // NEXTION_PROTOCOL_LOG
 
     ESP_LOGW(TAG, "Not connected");
-    comok_sent_ = 0;
+    this->comok_sent_ = 0;
     return false;
   }
 
