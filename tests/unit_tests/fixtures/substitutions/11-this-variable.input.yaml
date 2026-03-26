@@ -1,5 +1,6 @@
 substitutions:
   some_file: some_file.txt
+  this_dir_name: ${ this.dir.name }
 
 test_list:
   - Current dir is: ${ this.dir.name }
