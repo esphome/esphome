@@ -1,5 +1,10 @@
 esp32:
   variant: esp32s3
+  partitions:
+    - name: my_data
+      type: data
+      subtype: spiffs
+      size: 0x1000
   framework:
     type: esp-idf
     advanced:

@@ -134,8 +134,17 @@ class AsyncWebServerRequest {
 
   void redirect(const std::string &url);
 
-  void send(AsyncWebServerResponse *response);
-  void send(int code, const char *content_type = nullptr, const char *content = nullptr);
+  inline void ESPHOME_ALWAYS_INLINE send(AsyncWebServerResponse *response) {
+    httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
+  }
+  inline void ESPHOME_ALWAYS_INLINE send(int code, const char *content_type = nullptr, const char *content = nullptr) {
+    this->init_response_(nullptr, code, content_type);
+    if (content) {
+      httpd_resp_send(*this, content, HTTPD_RESP_USE_STRLEN);
+    } else {
+      httpd_resp_send(*this, nullptr, 0);
+    }
+  }
   // NOLINTNEXTLINE(readability-identifier-naming)
   AsyncWebServerResponse *beginResponse(int code, const char *content_type) {
     auto *res = new AsyncWebServerResponseEmpty(this);  // NOLINT(cppcoreguidelines-owning-memory)

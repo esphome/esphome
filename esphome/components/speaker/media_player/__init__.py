@@ -7,6 +7,12 @@ from pathlib import Path
 from esphome import automation, external_files
 import esphome.codegen as cg
 from esphome.components import audio, esp32, media_player, network, ota, psram, speaker
+from esphome.components.const import (
+    CONF_VOLUME_INCREMENT,
+    CONF_VOLUME_INITIAL,
+    CONF_VOLUME_MAX,
+    CONF_VOLUME_MIN,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -15,6 +21,8 @@ from esphome.const import (
     CONF_FORMAT,
     CONF_ID,
     CONF_NUM_CHANNELS,
+    CONF_ON_TURN_OFF,
+    CONF_ON_TURN_ON,
     CONF_PATH,
     CONF_RAW_DATA_ID,
     CONF_SAMPLE_RATE,
@@ -53,10 +61,6 @@ CONF_ON_MUTE = "on_mute"
 CONF_ON_UNMUTE = "on_unmute"
 CONF_ON_VOLUME = "on_volume"
 CONF_STREAM = "stream"
-CONF_VOLUME_INCREMENT = "volume_increment"
-CONF_VOLUME_INITIAL = "volume_initial"
-CONF_VOLUME_MIN = "volume_min"
-CONF_VOLUME_MAX = "volume_max"
 
 
 speaker_ns = cg.esphome_ns.namespace("speaker")
@@ -401,6 +405,9 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    if CONF_ON_TURN_OFF in config or CONF_ON_TURN_ON in config:
+        cg.add_define("USE_SPEAKER_MEDIA_PLAYER_ON_OFF", True)
+
     var = await media_player.new_media_player(config)
     await cg.register_component(var, config)
 
@@ -500,6 +507,7 @@ async def to_code(config):
         },
         key=CONF_MEDIA_FILE,
     ),
+    synchronous=True,
 )
 async def play_on_device_media_media_action(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

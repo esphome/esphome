@@ -33,15 +33,14 @@ class TaskLogBuffer {
     // Methods for accessing message contents
     inline char *text_data() { return reinterpret_cast<char *>(this) + sizeof(LogMessage); }
   };
-  // Constructor that takes a total buffer size
-  explicit TaskLogBuffer(size_t total_buffer_size);
-  ~TaskLogBuffer();
+  TaskLogBuffer();
+  ~TaskLogBuffer() = default;
 
   // Check if there are messages ready to be processed using an atomic counter for performance
   inline bool HOT has_messages() { return mpsc_pbuf_is_pending(&this->log_buffer_); }
 
   // Get the total buffer size in bytes
-  inline size_t size() const { return this->mpsc_config_.size * sizeof(uint32_t); }
+  static constexpr size_t size() { return BUF_WORD_COUNT * sizeof(uint32_t); }
 
   // NOT thread-safe - borrow a message from the ring buffer, only call from main loop
   bool borrow_message_main_loop(LogMessage *&message, uint16_t &text_length);
@@ -54,6 +53,9 @@ class TaskLogBuffer {
                                 const char *format, va_list args);
 
  protected:
+  // Round up byte size to 32-bit word count for mpsc_pbuf alignment requirement
+  static constexpr size_t BUF_WORD_COUNT = (ESPHOME_TASK_LOG_BUFFER_SIZE + 3) / sizeof(uint32_t);
+  uint32_t buf_storage_[BUF_WORD_COUNT];  // Embedded in Logger (no separate heap allocation)
   mpsc_pbuf_buffer_config mpsc_config_{};
   mpsc_pbuf_buffer log_buffer_{};
   const mpsc_pbuf_generic *current_token_{};

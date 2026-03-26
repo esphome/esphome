@@ -81,8 +81,6 @@ void ESP32BLE::disable() {
   this->state_ = BLE_COMPONENT_STATE_DISABLE;
 }
 
-bool ESP32BLE::is_active() { return this->state_ == BLE_COMPONENT_STATE_ACTIVE; }
-
 #ifdef USE_ESP32_BLE_ADVERTISING
 void ESP32BLE::advertising_start() {
   this->advertising_init_();
@@ -273,7 +271,7 @@ bool ESP32BLE::ble_setup_() {
       device_name = this->name_;
     }
   } else {
-    const std::string &app_name = App.get_name();
+    const auto &app_name = App.get_name();
     size_t name_len = app_name.length();
     if (name_len > 20) {
       if (App.is_name_add_mac_suffix_enabled()) {
@@ -451,7 +449,7 @@ void ESP32BLE::loop() {
             ESP_LOGV(TAG, "gap_event_handler - %d", gap_event);
 #ifdef ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT
             {
-              esp_ble_gap_cb_param_t *param;
+              esp_ble_gap_cb_param_t *param = NULL;
               // clang-format off
               switch (gap_event) {
                 // All three scan complete events have the same structure with just status
@@ -575,8 +573,9 @@ template<typename... Args> void enqueue_ble_event(Args... args) {
   load_ble_event(event, args...);
 
   // Push the event to the queue
+  // Push always succeeds: pool is sized to queue capacity (N-1), so if
+  // allocate() returned non-null, the queue is guaranteed to have room.
   global_ble->ble_events_.push(event);
-  // Push always succeeds because we're the only producer and the pool ensures we never exceed queue size
 }
 
 // Explicit template instantiations for the friend function
@@ -725,17 +724,6 @@ void ESP32BLE::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "Bluetooth stack is not enabled");
   }
-}
-
-uint64_t ble_addr_to_uint64(const esp_bd_addr_t address) {
-  uint64_t u = 0;
-  u |= uint64_t(address[0] & 0xFF) << 40;
-  u |= uint64_t(address[1] & 0xFF) << 32;
-  u |= uint64_t(address[2] & 0xFF) << 24;
-  u |= uint64_t(address[3] & 0xFF) << 16;
-  u |= uint64_t(address[4] & 0xFF) << 8;
-  u |= uint64_t(address[5] & 0xFF) << 0;
-  return u;
 }
 
 ESP32BLE *global_ble = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

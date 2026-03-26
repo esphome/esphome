@@ -22,7 +22,11 @@ from esphome.const import (
     DEVICE_CLASS_SWITCH,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    setup_device_class,
+    setup_entity,
+)
 from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@esphome/core"]
@@ -154,9 +158,8 @@ async def _build_switch_automations(var, config):
         await automation.build_automation(trigger, [], conf)
 
 
+@setup_entity("switch")
 async def setup_switch_core_(var, config):
-    await setup_entity(var, config, "switch")
-
     if (inverted := config.get(CONF_INVERTED)) is not None:
         cg.add(var.set_inverted(inverted))
 
@@ -169,8 +172,7 @@ async def setup_switch_core_(var, config):
     if web_server_config := config.get(CONF_WEB_SERVER):
         await web_server.add_entity_config(var, web_server_config)
 
-    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
-        cg.add(var.set_device_class(device_class))
+    setup_device_class(config)
 
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
     await zigbee.setup_switch(var, config)
@@ -204,7 +206,7 @@ SWITCH_CONTROL_ACTION_SCHEMA = automation.maybe_simple_id(
 
 
 @automation.register_action(
-    "switch.control", ControlAction, SWITCH_CONTROL_ACTION_SCHEMA
+    "switch.control", ControlAction, SWITCH_CONTROL_ACTION_SCHEMA, synchronous=True
 )
 async def switch_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -214,9 +216,15 @@ async def switch_control_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action("switch.toggle", ToggleAction, SWITCH_ACTION_SCHEMA)
-@automation.register_action("switch.turn_off", TurnOffAction, SWITCH_ACTION_SCHEMA)
-@automation.register_action("switch.turn_on", TurnOnAction, SWITCH_ACTION_SCHEMA)
+@automation.register_action(
+    "switch.toggle", ToggleAction, SWITCH_ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "switch.turn_off", TurnOffAction, SWITCH_ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "switch.turn_on", TurnOnAction, SWITCH_ACTION_SCHEMA, synchronous=True
+)
 async def switch_toggle_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)

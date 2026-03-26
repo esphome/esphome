@@ -19,18 +19,14 @@ void Text::publish_state(const char *state, size_t len) {
     this->state.assign(state, len);
   }
   if (this->traits.get_mode() == TEXT_MODE_PASSWORD) {
-    ESP_LOGD(TAG, "'%s' >> " LOG_SECRET("'%s'"), this->get_name().c_str(), this->state.c_str());
+    ESP_LOGV(TAG, "'%s' >> " LOG_SECRET("'%s'"), this->get_name().c_str(), this->state.c_str());
   } else {
-    ESP_LOGD(TAG, "'%s' >> '%s'", this->get_name().c_str(), this->state.c_str());
+    ESP_LOGV(TAG, "'%s' >> '%s'", this->get_name().c_str(), this->state.c_str());
   }
   this->state_callback_.call(this->state);
 #if defined(USE_TEXT) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_text_update(this);
 #endif
-}
-
-void Text::add_on_state_callback(std::function<void(const std::string &)> &&callback) {
-  this->state_callback_.add(std::move(callback));
 }
 
 }  // namespace esphome::text

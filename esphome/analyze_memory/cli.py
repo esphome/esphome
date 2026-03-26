@@ -15,12 +15,24 @@ from . import (
     _COMPONENT_PREFIX_ESPHOME,
     _COMPONENT_PREFIX_EXTERNAL,
     _COMPONENT_PREFIX_LIB,
+    _PSTORAGE_SUFFIX,
     RAM_SECTIONS,
     MemoryAnalyzer,
 )
 
 if TYPE_CHECKING:
     from . import ComponentMemory
+
+
+def _format_pstorage_name(name: str) -> str:
+    """Format a __pstorage symbol as 'storage for {id}'."""
+    if not name.endswith(_PSTORAGE_SUFFIX):
+        return name
+    prefix = name[: -len(_PSTORAGE_SUFFIX)]
+    # Strip component namespace prefix: {component}__{id} -> {id}
+    dunder_pos = prefix.find("__")
+    var_id = prefix[dunder_pos + 2 :] if dunder_pos != -1 else prefix
+    return f"storage for {var_id}"
 
 
 class MemoryAnalyzerCLI(MemoryAnalyzer):
@@ -148,11 +160,14 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         If section is one of the RAM sections (.data or .bss), a label like
         " [data]" or " [bss]" is appended. For non-RAM sections or when
         section is None, no section label is added.
+
+        Placement new storage symbols are formatted as "storage for {id}".
         """
+        display_name = _format_pstorage_name(demangled)
         section_label = ""
         if section in RAM_SECTIONS:
             section_label = f" [{section[1:]}]"  # .data -> [data], .bss -> [bss]
-        return f"{demangled} ({size:,} B){section_label}"
+        return f"{display_name} ({size:,} B){section_label}"
 
     def _add_top_symbols(self, lines: list[str]) -> None:
         """Add a section showing the top largest symbols in the binary."""
@@ -175,11 +190,13 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         for i, (_, demangled, size, section, component) in enumerate(top_symbols):
             # Format section label
             section_label = f"[{section[1:]}]" if section else ""
-            # Truncate demangled name if too long
+            # Format storage symbols readably
+            display_name = _format_pstorage_name(demangled)
+            # Truncate if too long
             demangled_display = (
-                f"{demangled[:truncate_limit]}..."
-                if len(demangled) > self.COL_TOP_SYMBOL_NAME
-                else demangled
+                f"{display_name[:truncate_limit]}..."
+                if len(display_name) > self.COL_TOP_SYMBOL_NAME
+                else display_name
             )
             lines.append(
                 f"{i + 1:>2}. {size:>7,} B {section_label:<8} {demangled_display:<{self.COL_TOP_SYMBOL_NAME}} {component}"
@@ -230,6 +247,110 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                 ):
                     lines.append(f"    {size:>6,} B  {sym_name}")
             lines.append("")
+
+    # Number of top called functions to show
+    TOP_CALLS_LIMIT: int = 50
+    # Number of inlining candidates to show
+    INLINE_CANDIDATES_LIMIT: int = 25
+    # Maximum function size in bytes to consider for inlining
+    INLINE_SIZE_THRESHOLD: int = 16
+
+    def _build_symbol_sizes(self) -> dict[str, int]:
+        """Build a size lookup from all component symbols: mangled_name -> size."""
+        return {
+            symbol: size
+            for symbols in self._component_symbols.values()
+            for symbol, _, size, _ in symbols
+        }
+
+    def _format_call_row(
+        self, index: int, mangled: str, count: int, symbol_sizes: dict[str, int]
+    ) -> str:
+        """Format a single row for call frequency tables."""
+        demangled = self._demangle_cache.get(mangled, mangled)
+        if len(demangled) > 80:
+            demangled = f"{demangled[:77]}..."
+        size = symbol_sizes.get(mangled)
+        size_str = f"{size:>5,} B" if size is not None else "      ?"
+        return f"{index:>3}  {count:>5}  {size_str}  {demangled}"
+
+    def _add_call_table_header(self, lines: list[str]) -> None:
+        """Add the header row for call frequency tables."""
+        lines.append(f"{'#':>3}  {'Calls':>5}  {'Size':>7}  Function")
+        lines.append(f"{'---':>3}  {'-----':>5}  {'-------':>7}  {'-' * 60}")
+
+    def _add_function_call_analysis(self, lines: list[str]) -> None:
+        """Add function call frequency analysis section.
+
+        Shows the most frequently called functions by call site count.
+        """
+        self._add_section_header(lines, "Top Called Functions")
+
+        symbol_sizes = self._build_symbol_sizes()
+
+        # Sort by call count descending
+        sorted_calls = sorted(
+            self._function_call_counts.items(), key=lambda x: x[1], reverse=True
+        )
+
+        self._add_call_table_header(lines)
+
+        for i, (mangled, count) in enumerate(sorted_calls[: self.TOP_CALLS_LIMIT]):
+            lines.append(self._format_call_row(i + 1, mangled, count, symbol_sizes))
+
+        total_calls = sum(self._function_call_counts.values())
+        lines.append("")
+        lines.append(
+            f"Total: {len(self._function_call_counts)} unique targets, "
+            f"{total_calls:,} call sites"
+        )
+        lines.append("")
+
+    def _add_inline_candidates(self, lines: list[str]) -> None:
+        """Add inlining candidates section.
+
+        Shows frequently called functions that are small enough to benefit
+        from inlining (< 16 bytes). These are the best candidates for
+        reducing call overhead.
+        """
+        self._add_section_header(
+            lines,
+            f"Inlining Candidates (<{self.INLINE_SIZE_THRESHOLD} B, by call count)",
+        )
+
+        symbol_sizes = self._build_symbol_sizes()
+
+        # Filter to small functions with known size, sort by call count
+        candidates = sorted(
+            (
+                (mangled, count)
+                for mangled, count in self._function_call_counts.items()
+                if mangled in symbol_sizes
+                and symbol_sizes[mangled] < self.INLINE_SIZE_THRESHOLD
+            ),
+            key=lambda x: x[1],
+            reverse=True,
+        )
+
+        if not candidates:
+            lines.append("No candidates found.")
+            lines.append("")
+            return
+
+        self._add_call_table_header(lines)
+
+        for i, (mangled, count) in enumerate(
+            candidates[: self.INLINE_CANDIDATES_LIMIT]
+        ):
+            lines.append(self._format_call_row(i + 1, mangled, count, symbol_sizes))
+
+        lines.append("")
+        lines.append(
+            f"Showing top {min(len(candidates), self.INLINE_CANDIDATES_LIMIT)} "
+            f"of {len(candidates)} functions under "
+            f"{self.INLINE_SIZE_THRESHOLD} B"
+        )
+        lines.append("")
 
     def generate_report(self, detailed: bool = False) -> str:
         """Generate a formatted memory report."""
@@ -469,15 +590,16 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                 lines.append(f"Total size: {comp_mem.flash_total:,} B")
                 lines.append("")
 
-                # Show all symbols above threshold for better visibility
+                # Show symbols above threshold, always include storage symbols
                 large_symbols = [
                     (sym, dem, size, sec)
                     for sym, dem, size, sec in sorted_symbols
                     if size > self.SYMBOL_SIZE_THRESHOLD
+                    or dem.endswith(_PSTORAGE_SUFFIX)
                 ]
 
                 lines.append(
-                    f"{comp_name} Symbols > {self.SYMBOL_SIZE_THRESHOLD} B ({len(large_symbols)} symbols):"
+                    f"{comp_name} Symbols > {self.SYMBOL_SIZE_THRESHOLD} B & storage ({len(large_symbols)} symbols):"
                 )
                 for i, (symbol, demangled, size, section) in enumerate(large_symbols):
                     lines.append(
@@ -500,7 +622,10 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
             # Sort by size descending
             sorted_ram_syms = sorted(ram_syms, key=lambda x: x[2], reverse=True)
             large_ram_syms = [
-                s for s in sorted_ram_syms if s[2] > self.RAM_SYMBOL_SIZE_THRESHOLD
+                s
+                for s in sorted_ram_syms
+                if s[2] > self.RAM_SYMBOL_SIZE_THRESHOLD
+                or s[1].endswith(_PSTORAGE_SUFFIX)
             ]
 
             lines.append(f"{name} ({mem.ram_total:,} B total RAM):")
@@ -518,13 +643,14 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
                 for symbol, demangled, size, section in large_ram_syms[:10]:
                     # Format section label consistently by stripping leading dot
                     section_label = section.lstrip(".") if section else ""
+                    display_name = _format_pstorage_name(demangled)
                     # Add ellipsis if name is truncated
-                    demangled_display = (
-                        f"{demangled[:70]}..." if len(demangled) > 70 else demangled
+                    display_name = (
+                        f"{display_name[:70]}..."
+                        if len(display_name) > 70
+                        else display_name
                     )
-                    lines.append(
-                        f"    {size:>6,} B [{section_label}] {demangled_display}"
-                    )
+                    lines.append(f"    {size:>6,} B [{section_label}] {display_name}")
                 if len(large_ram_syms) > 10:
                     lines.append(f"    ... and {len(large_ram_syms) - 10} more")
             lines.append("")
@@ -532,6 +658,11 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
         # CSWTCH (GCC switch table) analysis
         if self._cswtch_symbols:
             self._add_cswtch_analysis(lines)
+
+        # Function call frequency analysis
+        if self._function_call_counts:
+            self._add_function_call_analysis(lines)
+            self._add_inline_candidates(lines)
 
         lines.append(
             "Note: This analysis covers symbols in the ELF file. Some runtime allocations may not be included."

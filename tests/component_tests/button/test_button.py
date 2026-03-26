@@ -1,5 +1,7 @@
 """Tests for the button component"""
 
+from tests.component_tests.helpers import INTERNAL_BIT, extract_packed_value
+
 
 def test_button_is_setup(generate_main):
     """
@@ -11,7 +13,8 @@ def test_button_is_setup(generate_main):
     main_cpp = generate_main("tests/component_tests/button/test_button.yaml")
 
     # Then
-    assert "new wake_on_lan::WakeOnLanButton();" in main_cpp
+    assert "static wake_on_lan::WakeOnLanButton *const" in main_cpp
+    assert ") wake_on_lan::WakeOnLanButton();" in main_cpp
     assert "App.register_button" in main_cpp
     assert "App.register_component" in main_cpp
 
@@ -26,7 +29,7 @@ def test_button_sets_mandatory_fields(generate_main):
     main_cpp = generate_main("tests/component_tests/button/test_button.yaml")
 
     # Then
-    assert 'wol_1->set_name("wol_test_1",' in main_cpp
+    assert 'wol_1->configure_entity_("wol_test_1",' in main_cpp
     assert "wol_2->set_macaddr(18, 52, 86, 120, 144, 171);" in main_cpp
 
 
@@ -39,6 +42,6 @@ def test_button_config_value_internal_set(generate_main):
     # When
     main_cpp = generate_main("tests/component_tests/button/test_button.yaml")
 
-    # Then
-    assert "wol_1->set_internal(true);" in main_cpp
-    assert "wol_2->set_internal(false);" in main_cpp
+    # Then: wol_1 has internal: true, wol_2 has internal: false
+    assert extract_packed_value(main_cpp, "wol_1") & INTERNAL_BIT != 0
+    assert extract_packed_value(main_cpp, "wol_2") & INTERNAL_BIT == 0
