@@ -111,13 +111,13 @@ static void LightCall_ToggleOnOff_MQTT(benchmark::State &state) {
 }
 BENCHMARK(LightCall_ToggleOnOff_MQTT);
 
-// --- LightCall::perform() with color temperature via MQTT/automations ---
+// --- LightCall::perform() with color temperature via MQTT ---
 // Exercises the transform_parameters_() path that converts color_temperature
-// to cold/warm white fractions. This path is hit by MQTT clients,
-// automations, and state restoration — not by modern HA which converts
-// color temp to CW/WW client-side.
+// to cold/warm white fractions. MQTT never sends color_mode, so this also
+// hits compute_color_mode_() every call. Modern HA avoids this path entirely
+// by converting color temp to CW/WW client-side.
 
-static void LightCall_ColorTemperature(benchmark::State &state) {
+static void LightCall_ColorTemperature_MQTT(benchmark::State &state) {
   BenchLightOutput output;
   TestLightState light(&output);
   setup_rgbww_light(output, light);
@@ -128,17 +128,13 @@ static void LightCall_ColorTemperature(benchmark::State &state) {
     for (int i = 0; i < kInnerIterations; i++) {
       // Sweep through color temperature range
       float ct = 153.0f + static_cast<float>(i % 348);
-      light.make_call()
-          .set_color_mode(light::ColorMode::RGB_COLD_WARM_WHITE)
-          .set_color_temperature(ct)
-          .set_transition_length(0)
-          .perform();
+      light.make_call().set_color_temperature(ct).set_transition_length(0).perform();
     }
     benchmark::DoNotOptimize(light.remote_values);
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
-BENCHMARK(LightCall_ColorTemperature);
+BENCHMARK(LightCall_ColorTemperature_MQTT);
 
 // --- LightCall::perform() with 1s transition (Home Assistant API path) ---
 // Exercises start_transition_() which allocates a LightTransformer.
