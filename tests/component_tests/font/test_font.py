@@ -189,10 +189,37 @@ def test_chinese_glyphs_as_individual_list_items():
         validate_font_config(config)
 
 
+# ---------- YAML parsing ----------
+
+
+def test_yaml_long_latin_glyphs_parsed_and_validated(tmp_path):
+    """200 Latin Extended chars on a single YAML line are parsed intact and pass validation."""
+    from esphome.yaml_util import load_yaml
+
+    latin_long = "".join(chr(cp) for cp in range(0x100, 0x1C8))
+    yaml_file = tmp_path / "font_test.yaml"
+    yaml_file.write_text(
+        f'font:\n  - file: "NotoSans-Regular.ttf"\n    glyphs: "{latin_long}"\n',
+        encoding="utf-8",
+    )
+
+    parsed = load_yaml(yaml_file)
+    raw_glyphs = parsed["font"][0]["glyphs"]
+
+    # YAML must preserve every Unicode character on the single line
+    assert raw_glyphs == latin_long
+    assert len(raw_glyphs) == 200
+
+    # Feed through validate_font_config to confirm all glyphs are accepted
+    config = _make_config([raw_glyphs])
+    result = validate_font_config(config)
+    assert result is not None
+
+
 # ---------- to_code generation ----------
 
 
-# 199 unique Latin Extended characters (U+0100..U+01C7), all present in NotoSans
+# 200 unique Latin Extended characters (U+0100..U+01C7), all present in NotoSans
 LATIN_LONG = "".join(chr(cp) for cp in range(0x100, 0x1C8))
 
 
@@ -218,7 +245,7 @@ def mock_cg():
 @pytest.mark.asyncio
 async def test_to_code_long_latin_generates_all_glyphs(mock_cg):
     """to_code must generate glyph data for every character in a long Latin string."""
-    glyph_count = len(LATIN_LONG)  # 199
+    glyph_count = len(LATIN_LONG)  # 200
     config = _make_config([LATIN_LONG])
     config[CONF_ID] = MagicMock()
     config[CONF_RAW_DATA_ID] = MagicMock()
