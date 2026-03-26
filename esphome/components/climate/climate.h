@@ -236,24 +236,37 @@ class Climate : public EntityBase {
 
   /// Set the supported custom fan modes (stored on Climate, referenced by ClimateTraits).
   void set_supported_custom_fan_modes(std::initializer_list<const char *> modes) {
-    this->supported_custom_fan_modes_ = modes;
+    if (!this->supported_custom_fan_modes_)
+      this->supported_custom_fan_modes_ =
+          new std::vector<const char *>();  // NOLINT - intentional leak, entity lives forever
+    *this->supported_custom_fan_modes_ = modes;
   }
   void set_supported_custom_fan_modes(const std::vector<const char *> &modes) {
-    this->supported_custom_fan_modes_ = modes;
+    if (!this->supported_custom_fan_modes_)
+      this->supported_custom_fan_modes_ = new std::vector<const char *>();  // NOLINT
+    *this->supported_custom_fan_modes_ = modes;
   }
   template<size_t N> void set_supported_custom_fan_modes(const char *const (&modes)[N]) {
-    this->supported_custom_fan_modes_.assign(modes, modes + N);
+    if (!this->supported_custom_fan_modes_)
+      this->supported_custom_fan_modes_ = new std::vector<const char *>();  // NOLINT
+    this->supported_custom_fan_modes_->assign(modes, modes + N);
   }
 
   /// Set the supported custom presets (stored on Climate, referenced by ClimateTraits).
   void set_supported_custom_presets(std::initializer_list<const char *> presets) {
-    this->supported_custom_presets_ = presets;
+    if (!this->supported_custom_presets_)
+      this->supported_custom_presets_ = new std::vector<const char *>();  // NOLINT
+    *this->supported_custom_presets_ = presets;
   }
   void set_supported_custom_presets(const std::vector<const char *> &presets) {
-    this->supported_custom_presets_ = presets;
+    if (!this->supported_custom_presets_)
+      this->supported_custom_presets_ = new std::vector<const char *>();  // NOLINT
+    *this->supported_custom_presets_ = presets;
   }
   template<size_t N> void set_supported_custom_presets(const char *const (&presets)[N]) {
-    this->supported_custom_presets_.assign(presets, presets + N);
+    if (!this->supported_custom_presets_)
+      this->supported_custom_presets_ = new std::vector<const char *>();  // NOLINT
+    this->supported_custom_presets_->assign(presets, presets + N);
   }
 
   /// Check if a custom fan mode is currently active.
@@ -366,11 +379,11 @@ class Climate : public EntityBase {
   LazyCallbackManager<void(ClimateCall &)> control_callback_{};
   ESPPreferenceObject rtc_;
 
-  /** Custom mode storage - owned by Climate, referenced by ClimateTraits via pointer.
+  /** Custom mode storage — allocated on first use, never freed (entity lives forever).
    * Pointers in these vectors must point to string literals or static data.
    */
-  std::vector<const char *> supported_custom_fan_modes_;
-  std::vector<const char *> supported_custom_presets_;
+  std::vector<const char *> *supported_custom_fan_modes_{nullptr};
+  std::vector<const char *> *supported_custom_presets_{nullptr};
 
 #ifdef USE_CLIMATE_VISUAL_OVERRIDES
   float visual_min_temperature_override_{NAN};

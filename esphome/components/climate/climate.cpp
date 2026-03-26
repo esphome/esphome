@@ -485,10 +485,10 @@ void Climate::publish_state() {
 ClimateTraits Climate::get_traits() {
   auto traits = this->traits();
   // Wire custom mode pointers from Climate-owned storage
-  if (!this->supported_custom_fan_modes_.empty())
-    traits.set_supported_custom_fan_modes(&this->supported_custom_fan_modes_);
-  if (!this->supported_custom_presets_.empty())
-    traits.set_supported_custom_presets(&this->supported_custom_presets_);
+  if (this->supported_custom_fan_modes_)
+    traits.set_supported_custom_fan_modes(this->supported_custom_fan_modes_);
+  if (this->supported_custom_presets_)
+    traits.set_supported_custom_presets(this->supported_custom_presets_);
 #ifdef USE_CLIMATE_VISUAL_OVERRIDES
   if (!std::isnan(this->visual_min_temperature_override_)) {
     traits.set_visual_min_temperature(this->visual_min_temperature_override_);
@@ -706,7 +706,8 @@ const char *Climate::find_custom_fan_mode_(const char *custom_fan_mode) {
 }
 
 const char *Climate::find_custom_fan_mode_(const char *custom_fan_mode, size_t len) {
-  return vector_find(this->supported_custom_fan_modes_, custom_fan_mode, len);
+  return this->supported_custom_fan_modes_ ? vector_find(*this->supported_custom_fan_modes_, custom_fan_mode, len)
+                                           : nullptr;
 }
 
 const char *Climate::find_custom_preset_(const char *custom_preset) {
@@ -714,7 +715,7 @@ const char *Climate::find_custom_preset_(const char *custom_preset) {
 }
 
 const char *Climate::find_custom_preset_(const char *custom_preset, size_t len) {
-  return vector_find(this->supported_custom_presets_, custom_preset, len);
+  return this->supported_custom_presets_ ? vector_find(*this->supported_custom_presets_, custom_preset, len) : nullptr;
 }
 
 void Climate::dump_traits_(const char *tag) {
