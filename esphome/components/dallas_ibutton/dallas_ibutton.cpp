@@ -78,7 +78,8 @@ void DallasIbuttonComponent::update() {
 
     ESP_LOGD(TAG, "Found iButton: %s (Type: %s)", address_string, this->get_device_type(address_array[0]));
     this->publish_state(address_string);
-    strcpy(this->last_address_, address_string);
+    // strcpy(this->last_address_, address_string);
+    strlcpy(this->last_address_, address_string, sizeof(this->last_address_));
     break;
   }
 
