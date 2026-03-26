@@ -110,18 +110,37 @@ bool Nextion::check_connect_() {
     const std::string field = response.substr(start, end - start);
     switch (field_idx++) {
 #ifdef USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
-      case 2: this->device_model_ = field; break;
-      case 3: this->firmware_version_ = field; break;
-      case 5: this->serial_number_ = field; break;
-      case 6: this->flash_size_ = field; break;
-#else  // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
-      case 0: ESP_LOGI(TAG, "Connect info:"); break;
-      case 2: ESP_LOGI(TAG, "  Device Model:   %s", field.c_str()); break;
-      case 3: ESP_LOGI(TAG, "  FW Version:     %s", field.c_str()); break;
-      case 5: ESP_LOGI(TAG, "  Serial Number:  %s", field.c_str()); break;
-      case 6: ESP_LOGI(TAG, "  Flash Size:     %s", field.c_str()); break;
+      case 2:
+        this->device_model_ = field;
+        break;
+      case 3:
+        this->firmware_version_ = field;
+        break;
+      case 5:
+        this->serial_number_ = field;
+        break;
+      case 6:
+        this->flash_size_ = field;
+        break;
+#else   // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
+      case 0:
+        ESP_LOGI(TAG, "Connect info:");
+        break;
+      case 2:
+        ESP_LOGI(TAG, "  Device Model:   %s", field.c_str());
+        break;
+      case 3:
+        ESP_LOGI(TAG, "  FW Version:     %s", field.c_str());
+        break;
+      case 5:
+        ESP_LOGI(TAG, "  Serial Number:  %s", field.c_str());
+        break;
+      case 6:
+        ESP_LOGI(TAG, "  Flash Size:     %s", field.c_str());
+        break;
 #endif  // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
-      default: break;
+      default:
+        break;
     }
     ++field_count;
   }
