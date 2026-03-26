@@ -50,7 +50,7 @@ void LD2410S::send_() {
 
       break;
 
-    case TxCmdState::ERROR:
+    case TxCmdState::FAILED:
       ESP_LOGD(TAG, ">XX [loop:%d] Scheduling command send failed!!!, re-initializing...", this->loop_count_);
       this->tx_schedule_.reset_schedule();
 #ifdef LD2410S_V2
@@ -66,7 +66,7 @@ void LD2410S::send_() {
       this->flush();
       break;
 
-    case TxCmdState::EMPTY:
+    case TxCmdState::IDLE:
       if (!this->init_done_) {
         this->init_done_ = true;
         ESP_LOGV(TAG, "+++ [loop:%d] Setup done", this->loop_count_);
@@ -642,7 +642,7 @@ void LD2410Sschedule::append(uint16_t command, uint16_t sub_command) {
     ESP_LOGW(TAG, "++: pos:[%d], cmd:%04x, Schedule buffer overflow, reseting buffer !!!", this->last_ - 1, command);
 
     this->reset_schedule();
-    this->state_ = TxCmdState::ERROR;
+    this->state_ = TxCmdState::FAILED;
     return;
   }
 
@@ -683,7 +683,7 @@ void LD2410Sschedule::append(uint16_t command, uint16_t sub_command) {
     this->append(CONFIG_MODE_END_CMD);
   }
 
-  if (this->state_ == TxCmdState::EMPTY) {
+  if (this->state_ == TxCmdState::IDLE) {
     this->state_ = TxCmdState::SCHEDULED;
   }
 }
@@ -732,7 +732,7 @@ TxCmdState LD2410Sschedule::check_state(uint32_t loop_count) {
                 "Reseting buffer!!!",
                 loop_count, this->active_, this->last_ - 1, this->get_command(), this->retry_count_,
                 this->restart_count_);
-            this->state_ = TxCmdState::ERROR;
+            this->state_ = TxCmdState::FAILED;
             this->retry_count_ = 0;
             this->restart_count_ = 0;
             this->active_ = 0;
@@ -742,7 +742,7 @@ TxCmdState LD2410Sschedule::check_state(uint32_t loop_count) {
       }
       break;
 
-    case TxCmdState::EMPTY:
+    case TxCmdState::IDLE:
     default:
       break;
   }
@@ -818,7 +818,7 @@ uint16_t LD2410Sschedule::get_command() { return this->commands_[this->active_].
 uint16_t LD2410Sschedule::get_sub_command() { return this->commands_[this->active_].sub_command; }
 // Resets schedule buffer
 void LD2410Sschedule::reset_schedule() {
-  if (this->state_ == TxCmdState::EMPTY)
+  if (this->state_ == TxCmdState::IDLE)
     return;
 
   std::memset(this->commands_, 0x88, this->last_ * sizeof(TxTaskT));
@@ -827,7 +827,7 @@ void LD2410Sschedule::reset_schedule() {
   this->time_started_ = App.get_loop_component_start_time();
   this->retry_count_ = 0;
   this->restart_count_ = 0;
-  this->state_ = TxCmdState::EMPTY;
+  this->state_ = TxCmdState::IDLE;
   ESP_LOGV(TAG, "::: Schedule cleared");
 }
 

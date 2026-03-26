@@ -128,7 +128,7 @@ static const uint32_t TX_PAUSE_TIMEOUT = 100;          // pause after receiving 
 #pragma endregion
 
 #pragma region enum
-enum class TxCmdState { EMPTY, SCHEDULED, SEND, SENT, ERROR };
+enum class TxCmdState { IDLE, SCHEDULED, SEND, SENT, FAILED };
 enum class RxFrameType { UNKNOWN, SHORT_DATA_FRAME, STD_DATA_FRAME, CMD_FRAME, NOK };
 enum class RxEvaluationResult { UNKNOWN, OK, NOK };
 #pragma endregion
@@ -193,7 +193,7 @@ class LD2410Sschedule {
   uint8_t restart_count_{0};
   uint8_t active_{0};
   uint8_t last_{0};
-  TxCmdState state_ = TxCmdState::EMPTY;
+  TxCmdState state_ = TxCmdState::IDLE;
   bool config_mode_{true};
 };
 
