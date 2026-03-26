@@ -6,8 +6,6 @@ from unittest.mock import patch
 import pytest
 
 from esphome.automation import (
-    TRIGGER_ON_FALSE,
-    TRIGGER_ON_TRUE,
     TriggerForwarder,
     TriggerOnFalseForwarder,
     TriggerOnTrueForwarder,
@@ -188,7 +186,8 @@ def test_has_non_synchronous_actions_dict_input(
 def _build_forwarder(
     automation_name: str,
     args: list[tuple[str, str]],
-    bool_filter: str | None = None,
+    forwarder: MockObj | None = None,
+    extra_args: list[str] | None = None,
 ) -> str:
     """Build a trigger forwarder expression the same way build_callback_automation does.
 
@@ -197,14 +196,16 @@ def _build_forwarder(
     import esphome.codegen as cg
 
     obj = MockObj(automation_name, "->")
-    if bool_filter == TRIGGER_ON_TRUE:
-        return f"{TriggerOnTrueForwarder}{{{obj}}}"
-    if bool_filter == TRIGGER_ON_FALSE:
-        return f"{TriggerOnFalseForwarder}{{{obj}}}"
-    arg_types = [RawExpression(t) for t, _ in args]
-    templ = cg.TemplateArguments(*arg_types) if arg_types else cg.TemplateArguments()
-    forwarder_type = TriggerForwarder.template(templ)
-    return f"{forwarder_type}{{{obj}}}"
+    if forwarder is None:
+        arg_types = [RawExpression(t) for t, _ in args]
+        templ = (
+            cg.TemplateArguments(*arg_types) if arg_types else cg.TemplateArguments()
+        )
+        forwarder = TriggerForwarder.template(templ)
+    init_args = str(obj)
+    if extra_args:
+        init_args += ", " + ", ".join(extra_args)
+    return f"{forwarder}{{{init_args}}}"
 
 
 def test_trigger_forwarder_no_args() -> None:
@@ -227,13 +228,13 @@ def test_trigger_forwarder_single_bool_arg() -> None:
 
 def test_trigger_forwarder_on_true() -> None:
     """Binary_sensor on_press / switch on_turn_on: TriggerOnTrueForwarder."""
-    result = _build_forwarder("auto_1", [], bool_filter=TRIGGER_ON_TRUE)
+    result = _build_forwarder("auto_1", [], forwarder=TriggerOnTrueForwarder)
     assert result == "TriggerOnTrueForwarder{auto_1}"
 
 
 def test_trigger_forwarder_on_false() -> None:
     """Binary_sensor on_release / switch on_turn_off: TriggerOnFalseForwarder."""
-    result = _build_forwarder("auto_1", [], bool_filter=TRIGGER_ON_FALSE)
+    result = _build_forwarder("auto_1", [], forwarder=TriggerOnFalseForwarder)
     assert result == "TriggerOnFalseForwarder{auto_1}"
 
 
@@ -250,3 +251,12 @@ def test_trigger_forwarder_string_arg() -> None:
     """Text_sensor on_value: TriggerForwarder<std::string>."""
     result = _build_forwarder("auto_1", [("std::string", "x")])
     assert result == "TriggerForwarder<std::string>{auto_1}"
+
+
+def test_trigger_forwarder_custom_with_extra_args() -> None:
+    """Lock on_lock: custom forwarder with extra args for entity pointer."""
+    lock_forwarder = MockObj("LockStateForwarder<LOCK_STATE_LOCKED>", "")
+    result = _build_forwarder(
+        "auto_1", [], forwarder=lock_forwarder, extra_args=["lock_var"]
+    )
+    assert result == "LockStateForwarder<LOCK_STATE_LOCKED>{auto_1, lock_var}"

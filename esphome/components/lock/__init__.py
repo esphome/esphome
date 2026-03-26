@@ -35,6 +35,7 @@ LockLockTrigger = lock_ns.class_("LockLockTrigger", automation.Trigger.template(
 LockUnlockTrigger = lock_ns.class_("LockUnlockTrigger", automation.Trigger.template())
 
 LockState = lock_ns.enum("LockState")
+LockStateForwarder = lock_ns.class_("LockStateForwarder")
 
 LOCK_STATES = {
     "LOCKED": LockState.LOCK_STATE_LOCKED,
@@ -94,11 +95,23 @@ def lock_schema(
 @setup_entity("lock")
 async def _setup_lock_core(var, config):
     for conf in config.get(CONF_ON_LOCK, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            var,
+            "add_on_state_callback",
+            [],
+            conf,
+            forwarder=LockStateForwarder.template(LockState.LOCK_STATE_LOCKED),
+            forwarder_extra_args=[var],
+        )
     for conf in config.get(CONF_ON_UNLOCK, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            var,
+            "add_on_state_callback",
+            [],
+            conf,
+            forwarder=LockStateForwarder.template(LockState.LOCK_STATE_UNLOCKED),
+            forwarder_extra_args=[var],
+        )
 
     if mqtt_id := config.get(CONF_MQTT_ID):
         mqtt_ = cg.new_Pvariable(mqtt_id, var)

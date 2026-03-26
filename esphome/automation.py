@@ -666,33 +666,33 @@ async def build_automation(
     return obj
 
 
-TRIGGER_ON_TRUE = "on_true"
-TRIGGER_ON_FALSE = "on_false"
-
-
 async def build_callback_automation(
     parent: MockObj,
     callback_method: str,
     args: TemplateArgsType,
     config: ConfigType,
-    bool_filter: str | None = None,
+    forwarder: MockObjClass | None = None,
+    forwarder_extra_args: list | None = None,
 ) -> None:
     """Build an Automation and register it as a callback on the parent.
 
     Eliminates the need for a Trigger wrapper object by registering the
     automation's trigger() directly as a callback on the parent component.
 
-    Uses template forwarder structs (TriggerForwarder, TriggerOnTrueForwarder,
-    TriggerOnFalseForwarder) so the compiler deduplicates the operator() body
-    across all call sites with the same signature.
+    Uses template forwarder structs so the compiler deduplicates the operator()
+    body across all call sites with the same signature.
 
     :param parent: The component object (e.g., button, sensor).
     :param callback_method: Name of the callback method (e.g., "add_on_press_callback").
     :param args: Automation template args as list of (type, name) tuples.
     :param config: The automation config dict.
-    :param bool_filter: Optional bool filter. Use TRIGGER_ON_TRUE to trigger only
-        when the bool callback arg is true, TRIGGER_ON_FALSE for false.
-        The automation will be Automation<> (no args) while the callback receives bool.
+    :param forwarder: Optional forwarder type to use instead of the default
+        TriggerForwarder<Ts...>. Pass any struct type whose aggregate init takes
+        an Automation pointer as the first field (e.g., TriggerOnTrueForwarder,
+        or a custom component-defined forwarder).
+    :param forwarder_extra_args: Optional list of extra MockObj args to pass to the
+        forwarder after the automation pointer in aggregate init. For example,
+        a lock forwarder needs the lock entity pointer: [lock_var].
     """
     arg_types = [arg[0] for arg in args]
     templ = cg.TemplateArguments(*arg_types)
@@ -702,15 +702,18 @@ async def build_callback_automation(
     # Use template forwarder structs for deduplication. The compiler generates
     # one operator() per forwarder type; different automation pointers are just
     # data in the struct.
-    if bool_filter == TRIGGER_ON_TRUE:
-        forwarder = cg.RawExpression(f"{TriggerOnTrueForwarder}{{{obj}}}")
-    elif bool_filter == TRIGGER_ON_FALSE:
-        forwarder = cg.RawExpression(f"{TriggerOnFalseForwarder}{{{obj}}}")
-    else:
-        forwarder_type = (
+    if forwarder is None:
+        forwarder = (
             TriggerForwarder.template(templ)
             if arg_types
             else TriggerForwarder.template()
         )
-        forwarder = cg.RawExpression(f"{forwarder_type}{{{obj}}}")
-    cg.add(getattr(parent, callback_method)(forwarder))
+    init_args = str(obj)
+    if forwarder_extra_args:
+        extra = ", ".join(str(a) for a in forwarder_extra_args)
+        init_args = f"{init_args}, {extra}"
+    cg.add(
+        getattr(parent, callback_method)(
+            cg.RawExpression(f"{forwarder}{{{init_args}}}")
+        )
+    )

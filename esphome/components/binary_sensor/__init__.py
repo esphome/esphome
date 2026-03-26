@@ -562,7 +562,7 @@ async def _build_binary_sensor_automations(var, config):
             "add_on_state_callback",
             [],
             conf,
-            bool_filter=automation.TRIGGER_ON_TRUE,
+            forwarder=automation.TriggerOnTrueForwarder,
         )
 
     for conf in config.get(CONF_ON_RELEASE, []):
@@ -571,7 +571,7 @@ async def _build_binary_sensor_automations(var, config):
             "add_on_state_callback",
             [],
             conf,
-            bool_filter=automation.TRIGGER_ON_FALSE,
+            forwarder=automation.TriggerOnFalseForwarder,
         )
 
     for conf in config.get(CONF_ON_CLICK, []):
