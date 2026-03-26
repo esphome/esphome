@@ -24,7 +24,7 @@ void MCP23S17::setup() {
   if (this->open_drain_ints_) {
     iocon |= IOCON_ODR;
   }
-  // Write IOCON to both addresses (0 and 1) since HAEN isn't enabled yet
+  // Write IOCON to addresses 0 and 4 since HAEN isn't enabled yet
   this->enable();
   this->transfer_byte(0b01000000);
   this->transfer_byte(mcp23x17_base::MCP23X17_IOCONA);
