@@ -163,7 +163,7 @@ class LvglComponent : public PollingComponent {
   static void render_end_cb(lv_event_t *event);
   static void render_start_cb(lv_event_t *event);
   void dump_config() override;
-  lv_disp_t *get_disp() { return this->disp_; }
+  lv_display_t *get_disp() { return this->disp_; }
   lv_obj_t *get_screen_active() { return lv_display_get_screen_active(this->disp_); }
   // Pause or resume the display.
   // @param paused If true, pause the display. If false, resume the display.
@@ -189,9 +189,9 @@ class LvglComponent : public PollingComponent {
                            lv_event_code_t event3);
 
   void add_page(LvPageType *page);
-  void show_page(size_t index, lv_scr_load_anim_t anim, uint32_t time);
-  void show_next_page(lv_scr_load_anim_t anim, uint32_t time);
-  void show_prev_page(lv_scr_load_anim_t anim, uint32_t time);
+  void show_page(size_t index, lv_screen_load_anim_t anim, uint32_t time);
+  void show_next_page(lv_screen_load_anim_t anim, uint32_t time);
+  void show_prev_page(lv_screen_load_anim_t anim, uint32_t time);
   void set_page_wrap(bool wrap) { this->page_wrap_ = wrap; }
   void set_big_endian(bool big_endian) { this->big_endian_ = big_endian; }
   size_t get_current_page() const;

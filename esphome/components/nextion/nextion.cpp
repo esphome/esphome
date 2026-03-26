@@ -50,10 +50,10 @@ bool Nextion::check_connect_() {
     return true;
 
 #ifdef USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
-  ESP_LOGW(TAG, "Connected (no handshake)");  // Log the connection status without handshake
-  this->is_connected_ = true;                 // Set the connection status to true
-  return true;                                // Return true indicating the connection is set
-#else                                         // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
+  ESP_LOGW(TAG, "Connected (no handshake)");     // Log the connection status without handshake
+  this->connection_state_.is_connected_ = true;  // Set the connection status to true
+  return true;                                   // Return true indicating the connection is set
+#else                                            // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
   if (this->comok_sent_ == 0) {
     this->reset_(false);
 
