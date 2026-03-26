@@ -9,8 +9,8 @@ namespace esphome::api {
 static const char *const TAG = "api.service";
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
-void APIServerConnectionBase::log_send_message_(const char *name, const char *dump) {
-  ESP_LOGVV(TAG, "send_message %s: %s", name, dump);
+void APIServerConnectionBase::log_send_message_(const LogString *name, const char *dump) {
+  ESP_LOGVV(TAG, "send_message %s: %s", LOG_STR_ARG(name), dump);
 }
 void APIServerConnectionBase::log_receive_message_(const LogString *name, const ProtoMessage &msg) {
   DumpBuffer dump_buf;

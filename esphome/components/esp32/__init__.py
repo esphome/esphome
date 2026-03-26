@@ -97,6 +97,7 @@ CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
 CONF_MINIMUM_CHIP_REVISION = "minimum_chip_revision"
 CONF_RELEASE = "release"
+CONF_SRAM1_AS_IRAM = "sram1_as_iram"
 CONF_SUBTYPE = "subtype"
 
 ARDUINO_FRAMEWORK_NAME = "framework-arduinoespressif32"
@@ -378,12 +379,11 @@ FULL_CPU_FREQUENCIES = set(itertools.chain.from_iterable(CPU_FREQUENCIES.values(
 def set_core_data(config):
     cpu_frequency = config.get(CONF_CPU_FREQUENCY, None)
     variant = config[CONF_VARIANT]
-    # if not specified in config, set to 160MHz if supported, the fastest otherwise
+    # if not specified in config, default to the maximum supported frequency
+    # (ESP32-P4 engineering samples are limited to 360MHz, non-engineering can do 400MHz)
     if cpu_frequency is None:
         choices = CPU_FREQUENCIES[variant]
-        if "160MHZ" in choices:
-            cpu_frequency = "160MHZ"
-        elif "360MHZ" in choices:
+        if variant == VARIANT_ESP32P4 and config.get(CONF_ENGINEERING_SAMPLE):
             cpu_frequency = "360MHZ"
         else:
             cpu_frequency = choices[-1]
@@ -884,6 +884,13 @@ def final_validate(config):
                 path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_MINIMUM_CHIP_REVISION],
             )
         )
+    if config[CONF_VARIANT] != VARIANT_ESP32 and advanced[CONF_SRAM1_AS_IRAM]:
+        errs.append(
+            cv.Invalid(
+                f"'{CONF_SRAM1_AS_IRAM}' is only supported on {VARIANT_ESP32}",
+                path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_SRAM1_AS_IRAM],
+            )
+        )
     if (
         config[CONF_VARIANT] != VARIANT_ESP32P4
         and config.get(CONF_ENGINEERING_SAMPLE) is not None
@@ -1131,6 +1138,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_MINIMUM_CHIP_REVISION): cv.one_of(
                     *ESP32_CHIP_REVISIONS
                 ),
+                cv.Optional(CONF_SRAM1_AS_IRAM, default=False): cv.boolean,
                 # DHCP server is needed for WiFi AP mode. When WiFi component is used,
                 # it will handle disabling DHCP server when AP is not configured.
                 # Default to false (disabled) when WiFi is not used.
@@ -1579,7 +1587,7 @@ async def to_code(config):
         if conf[CONF_ADVANCED][CONF_ENABLE_FULL_PRINTF]:
             cg.add_define("USE_FULL_PRINTF")
         else:
-            for symbol in ("vprintf", "printf", "fprintf"):
+            for symbol in ("vprintf", "printf", "fprintf", "vfprintf"):
                 cg.add_build_flag(f"-Wl,--wrap={symbol}")
     else:
         cg.add_build_flag("-DUSE_ARDUINO")
@@ -1655,6 +1663,16 @@ async def to_code(config):
             for rev, flag in ESP32_CHIP_REVISIONS.items():
                 add_idf_sdkconfig_option(flag, rev == min_rev)
             cg.add_define("USE_ESP32_MIN_CHIP_REVISION_SET")
+
+    # Use SRAM1 region as IRAM on ESP32 (original) variant
+    # This provides an additional 40KB of IRAM by using SRAM1 memory that was previously
+    # reserved for bootloader DRAM. Requires a bootloader from ESP-IDF v5.1 or later.
+    # WARNING: If the device has an old bootloader (pre-v5.1), the app will fail to boot.
+    # A USB flash will update the bootloader automatically. OTA updates do not.
+    # See: https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/performance/ram-usage.html
+    if variant == VARIANT_ESP32 and conf[CONF_ADVANCED][CONF_SRAM1_AS_IRAM]:
+        add_idf_sdkconfig_option("CONFIG_ESP_SYSTEM_ESP32_SRAM1_REGION_AS_IRAM", True)
+        cg.add_define("USE_ESP32_SRAM1_AS_IRAM")
     add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_SINGLE_APP", False)
     add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_CUSTOM", True)
     add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_CUSTOM_FILENAME", "partitions.csv")

@@ -38,7 +38,7 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WHITE,
 )
-from esphome.core import CORE, ID, CoroPriority, HexInt, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, HexInt, Lambda, coroutine_with_priority
 from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
 
@@ -262,6 +262,8 @@ async def setup_light_core_(light_var, config, output_var):
     cg.add(light_var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
     if (initial_state_config := config.get(CONF_INITIAL_STATE)) is not None:
+        # Emit a stateless lambda that constructs the initial state — values live
+        # in flash as code, not stored in the LightState object (~40 bytes saved).
         initial_state = LightStateRTCState(
             initial_state_config.get(CONF_COLOR_MODE, ColorMode.UNKNOWN),
             initial_state_config.get(CONF_STATE, False),
@@ -275,7 +277,13 @@ async def setup_light_core_(light_var, config, output_var):
             initial_state_config.get(CONF_COLD_WHITE, 1.0),
             initial_state_config.get(CONF_WARM_WHITE, 1.0),
         )
-        cg.add(light_var.set_initial_state(initial_state))
+        args = [(LightStateRTCState.operator("ref"), "s")]
+        lamb = await cg.process_lambda(
+            Lambda(f"s = {initial_state};"),
+            args,
+            return_type=cg.void,
+        )
+        cg.add(light_var.set_initial_state(lamb))
 
     if (
         default_transition_length := config.get(CONF_DEFAULT_TRANSITION_LENGTH)

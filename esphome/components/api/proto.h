@@ -5,6 +5,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 #include "esphome/core/string_ref.h"
 
 #include <cassert>
@@ -228,6 +229,17 @@ class ProtoWriteBuffer {
    * Following https://protobuf.dev/programming-guides/encoding/#structure
    */
   void encode_field_raw(uint32_t field_id, uint32_t type) { this->encode_varint_raw((field_id << 3) | type); }
+  /// Write a single precomputed tag byte. Tag must be < 128.
+  inline void write_raw_byte(uint8_t b) ESPHOME_ALWAYS_INLINE {
+    this->debug_check_bounds_(1);
+    *this->pos_++ = b;
+  }
+  /// Write raw bytes to the buffer (no tag, no length prefix).
+  inline void encode_raw(const void *data, size_t len) ESPHOME_ALWAYS_INLINE {
+    this->debug_check_bounds_(len);
+    std::memcpy(this->pos_, data, len);
+    this->pos_ += len;
+  }
   /// Write a precomputed tag byte + 32-bit value in one operation.
   /// Tag must be a single-byte varint (< 128). No zero check.
   inline void write_tag_and_fixed32(uint8_t tag, uint32_t value) ESPHOME_ALWAYS_INLINE {
@@ -400,6 +412,23 @@ class DumpBuffer {
     return *this;
   }
 
+  /// Append a PROGMEM string (flash-safe on ESP8266, regular append on other platforms)
+  DumpBuffer &append_p(const char *str) {
+    if (str) {
+#ifdef USE_ESP8266
+      append_p_esp8266(str);
+#else
+      append_impl_(str, strlen(str));
+#endif
+    }
+    return *this;
+  }
+
+#ifdef USE_ESP8266
+  /// Out-of-line ESP8266 PROGMEM append to avoid inlining strlen_P/memcpy_P at every call site
+  void append_p_esp8266(const char *str);
+#endif
+
   const char *c_str() const { return buf_; }
   size_t size() const { return pos_; }
 
@@ -445,7 +474,7 @@ class ProtoMessage {
   uint32_t calculate_size() const { return 0; }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   virtual const char *dump_to(DumpBuffer &out) const = 0;
-  virtual const char *message_name() const { return "unknown"; }
+  virtual const LogString *message_name() const { return LOG_STR("unknown"); }
 #endif
 
 #ifndef USE_HOST

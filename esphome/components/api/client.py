@@ -32,7 +32,11 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_run_logs(config: dict[str, Any], addresses: list[str]) -> None:
+async def async_run_logs(
+    config: dict[str, Any],
+    addresses: list[str],
+    subscribe_states: bool = True,
+) -> None:
     """Run the logs command in the event loop."""
     conf = config["api"]
     name = config["esphome"]["name"]
@@ -89,14 +93,20 @@ async def async_run_logs(config: dict[str, Any], addresses: list[str]) -> None:
                     config, raw_line, backtrace_state=backtrace_state
                 )
 
-    stop = await async_run(cli, on_log, name=name)
+    stop = await async_run(cli, on_log, name=name, subscribe_states=subscribe_states)
     try:
         await asyncio.Event().wait()
     finally:
         await stop()
 
 
-def run_logs(config: dict[str, Any], addresses: list[str]) -> None:
+def run_logs(
+    config: dict[str, Any],
+    addresses: list[str],
+    subscribe_states: bool = True,
+) -> None:
     """Run the logs command."""
     with contextlib.suppress(KeyboardInterrupt):
-        asyncio.run(async_run_logs(config, addresses))
+        asyncio.run(
+            async_run_logs(config, addresses, subscribe_states=subscribe_states)
+        )

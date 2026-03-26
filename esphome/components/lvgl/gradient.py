@@ -31,7 +31,7 @@ GRADIENT_SCHEMA = cv.ensure_list(
             cv.Required(CONF_DIRECTION): cv.one_of(
                 "HOR", "HORIZONTAL", "VER", "VERTICAL", upper=True
             ),
-            cv.Optional(CONF_DITHER, default="NONE"): LV_DITHER.one_of,
+            cv.Optional(CONF_DITHER): LV_DITHER.one_of,
             cv.Required(CONF_STOPS): cv.All(
                 [
                     cv.Schema(
