@@ -35,12 +35,8 @@ class NextionComponentBase {
   virtual ~NextionComponentBase() = default;
 
   void set_variable_name(const std::string &variable_name, const std::string &variable_name_to_send = "") {
-    variable_name_ = variable_name;
-    if (variable_name_to_send.empty()) {
-      variable_name_to_send_ = variable_name;
-    } else {
-      variable_name_to_send_ = variable_name_to_send;
-    }
+    this->variable_name_ = variable_name;
+    this->variable_name_to_send_ = variable_name_to_send.empty() ? variable_name : variable_name_to_send;
   }
 
   virtual void update_component_settings(){};
@@ -65,7 +61,7 @@ class NextionComponentBase {
   virtual void set_state(const std::string &state, bool publish, bool send_to_nextion){};
 
   uint8_t get_component_id() const { return this->component_id_; }
-  void set_component_id(uint8_t component_id) { component_id_ = component_id; }
+  void set_component_id(uint8_t component_id) { this->component_id_ = component_id; }
 
   uint8_t get_wave_channel_id() const { return this->wave_chan_id_; }
   void set_wave_channel_id(uint8_t wave_chan_id) { this->wave_chan_id_ = wave_chan_id; }

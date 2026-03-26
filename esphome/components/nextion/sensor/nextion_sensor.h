@@ -17,7 +17,7 @@ class NextionSensor : public NextionComponent, public sensor::Sensor, public Pol
   void update() override;
   void add_to_wave_buffer(float state);
   void set_precision(uint8_t precision) { this->precision_ = precision; }
-  void set_component_id(uint8_t component_id) { component_id_ = component_id; }
+  void set_component_id(uint8_t component_id) { this->component_id_ = component_id; }
   void set_wave_channel_id(uint8_t wave_chan_id) { this->wave_chan_id_ = wave_chan_id; }
   void set_wave_max_value(uint32_t wave_maxvalue) { this->wave_maxvalue_ = wave_maxvalue; }
   void process_sensor(const std::string &variable_name, int state) override;
