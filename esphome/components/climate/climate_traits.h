@@ -41,6 +41,12 @@ inline const char *vector_find(const std::vector<const char *> &vec, const char 
   return nullptr;
 }
 
+/// Shared empty vector for returning const references when no custom modes are set.
+inline const std::vector<const char *> &get_empty_custom_modes() {
+  static const std::vector<const char *> INSTANCE;
+  return INSTANCE;
+}
+
 /** This class contains all static data for climate devices.
  *
  * All climate devices must support these features:
@@ -157,8 +163,7 @@ class ClimateTraits {
   }
 
   const std::vector<const char *> &get_supported_custom_fan_modes() const {
-    static const std::vector<const char *> EMPTY;
-    return this->supported_custom_fan_modes_ ? *this->supported_custom_fan_modes_ : EMPTY;
+    return this->supported_custom_fan_modes_ ? *this->supported_custom_fan_modes_ : get_empty_custom_modes();
   }
   bool supports_custom_fan_mode(const char *custom_fan_mode) const {
     return this->supported_custom_fan_modes_ && vector_contains(*this->supported_custom_fan_modes_, custom_fan_mode);
@@ -178,8 +183,7 @@ class ClimateTraits {
   }
 
   const std::vector<const char *> &get_supported_custom_presets() const {
-    static const std::vector<const char *> EMPTY;
-    return this->supported_custom_presets_ ? *this->supported_custom_presets_ : EMPTY;
+    return this->supported_custom_presets_ ? *this->supported_custom_presets_ : get_empty_custom_modes();
   }
   bool supports_custom_preset(const char *custom_preset) const {
     return this->supported_custom_presets_ && vector_contains(*this->supported_custom_presets_, custom_preset);
