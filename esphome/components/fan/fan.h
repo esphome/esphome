@@ -130,6 +130,14 @@ class Fan : public EntityBase {
 
   virtual FanTraits get_traits() = 0;
 
+  /// Set the supported preset modes (stored on Fan, referenced by FanTraits via pointer).
+  void set_supported_preset_modes(std::initializer_list<const char *> preset_modes) {
+    this->supported_preset_modes_ = preset_modes;
+  }
+  void set_supported_preset_modes(const std::vector<const char *> &preset_modes) {
+    this->supported_preset_modes_ = preset_modes;
+  }
+
   /// Set the restore mode of this fan.
   void set_restore_mode(FanRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
 
@@ -170,6 +178,9 @@ class Fan : public EntityBase {
   LazyCallbackManager<void()> state_callback_{};
   ESPPreferenceObject rtc_;
   FanRestoreMode restore_mode_;
+
+  /// Preset mode storage — owned by Fan, referenced by FanTraits via pointer.
+  std::vector<const char *> supported_preset_modes_;
 
  private:
   const char *preset_mode_{nullptr};
