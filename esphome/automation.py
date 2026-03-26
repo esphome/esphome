@@ -671,7 +671,7 @@ async def build_callback_automation(
     callback_method: str,
     args: TemplateArgsType,
     config: ConfigType,
-    forwarder: MockObjClass | None = None,
+    forwarder: MockObj | MockObjClass | None = None,
 ) -> None:
     """Build an Automation and register it as a callback on the parent.
 
