@@ -42,10 +42,9 @@ static void setup_rgbww_light(BenchLightOutput &output, TestLightState &light) {
   light.set_restore_mode(light::LIGHT_ALWAYS_OFF);
 }
 
-// --- LightCall::perform() with instant RGB color change (no transition) ---
-// Measures the full call path: validation, color mode computation,
-// parameter transforms, set_immediately_, publish, and save.
-// This is the path taken when a user changes the light color via the API.
+// --- LightCall::perform() with instant RGB color change (Home Assistant API path) ---
+// Measures the full call path: validation, set_immediately_, publish, and save.
+// HA sends color_mode explicitly since API 1.6.
 
 static void LightCall_RGBInstant(benchmark::State &state) {
   BenchLightOutput output;
@@ -58,7 +57,13 @@ static void LightCall_RGBInstant(benchmark::State &state) {
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
       float v = static_cast<float>(i % 256) / 255.0f;
-      light.make_call().set_red(v).set_green(1.0f - v).set_blue(v * 0.5f).set_transition_length(0).perform();
+      light.make_call()
+          .set_color_mode(light::ColorMode::RGB_COLD_WARM_WHITE)
+          .set_red(v)
+          .set_green(1.0f - v)
+          .set_blue(v * 0.5f)
+          .set_transition_length(0)
+          .perform();
     }
     benchmark::DoNotOptimize(light.remote_values);
   }
