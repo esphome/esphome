@@ -105,17 +105,18 @@ template<typename... Ts> using CoverIsClosedCondition = CoverPositionCondition<f
 
 template<bool OPEN> class CoverPositionTrigger : public Trigger<> {
  public:
-  CoverPositionTrigger(Cover *a_cover) {
-    a_cover->add_on_state_callback([this, a_cover]() {
-      if (a_cover->position != this->last_position_) {
-        this->last_position_ = a_cover->position;
-        if (a_cover->position == (OPEN ? COVER_OPEN : COVER_CLOSED))
+  CoverPositionTrigger(Cover *a_cover) : cover_(a_cover) {
+    a_cover->add_on_state_callback([this]() {
+      if (this->cover_->position != this->last_position_) {
+        this->last_position_ = this->cover_->position;
+        if (this->cover_->position == (OPEN ? COVER_OPEN : COVER_CLOSED))
           this->trigger();
       }
     });
   }
 
  protected:
+  Cover *cover_;
   float last_position_{NAN};
 };
 
@@ -124,9 +125,9 @@ using CoverClosedTrigger = CoverPositionTrigger<false>;
 
 template<CoverOperation OP> class CoverTrigger : public Trigger<> {
  public:
-  CoverTrigger(Cover *a_cover) {
-    a_cover->add_on_state_callback([this, a_cover]() {
-      auto current_op = a_cover->current_operation;
+  CoverTrigger(Cover *a_cover) : cover_(a_cover) {
+    a_cover->add_on_state_callback([this]() {
+      auto current_op = this->cover_->current_operation;
       if (current_op == OP) {
         if (!this->last_operation_.has_value() || this->last_operation_.value() != OP) {
           this->trigger();
@@ -137,6 +138,7 @@ template<CoverOperation OP> class CoverTrigger : public Trigger<> {
   }
 
  protected:
+  Cover *cover_;
   optional<CoverOperation> last_operation_{};
 };
 }  // namespace esphome::cover

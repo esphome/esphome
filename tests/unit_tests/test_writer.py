@@ -867,6 +867,130 @@ def test_clean_all_with_yaml_file(
 
 
 @patch("esphome.writer.CORE")
+def test_clean_all_with_yaml_build_path(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_all cleans absolute build_path specified in YAML config."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    # Create an absolute custom build path directory with contents
+    custom_build = tmp_path / "custom_build"
+    custom_build.mkdir()
+    (custom_build / "firmware.bin").write_text("x")
+    sub = custom_build / "subdir"
+    sub.mkdir()
+    (sub / "file.txt").write_text("x")
+
+    yaml_file = config_dir / "test.yaml"
+    # Absolute build_path: data_dir / absolute = absolute (Python Path behavior)
+    yaml_file.write_text(f"esphome:\n  name: test\n  build_path: {custom_build}\n")
+
+    # Also create the normal .esphome dir
+    build_dir = config_dir / ".esphome"
+    build_dir.mkdir()
+    (build_dir / "dummy.txt").write_text("x")
+
+    from esphome.writer import clean_all
+
+    with caplog.at_level("INFO"):
+        clean_all([str(yaml_file)])
+
+    # Both .esphome and custom build_path should be cleaned
+    assert build_dir.exists()
+    assert not (build_dir / "dummy.txt").exists()
+    assert custom_build.exists()
+    assert not (custom_build / "firmware.bin").exists()
+    assert not sub.exists()
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_with_yaml_parse_error(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_all still cleans .esphome when YAML parse fails."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    yaml_file = config_dir / "test.yaml"
+    yaml_file.write_text("invalid: yaml: content: [")
+
+    build_dir = config_dir / ".esphome"
+    build_dir.mkdir()
+    (build_dir / "dummy.txt").write_text("x")
+
+    from esphome.writer import clean_all
+
+    with caplog.at_level("INFO"):
+        clean_all([str(yaml_file)])
+
+    # .esphome should still be cleaned despite YAML parse failure
+    assert build_dir.exists()
+    assert not (build_dir / "dummy.txt").exists()
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_with_env_build_path(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_all cleans ESPHOME_BUILD_PATH directory."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    build_dir = config_dir / ".esphome"
+    build_dir.mkdir()
+    (build_dir / "dummy.txt").write_text("x")
+
+    # Create env build path directory
+    env_build = tmp_path / "env_build"
+    env_build.mkdir()
+    (env_build / "firmware.bin").write_text("x")
+
+    from esphome.writer import clean_all
+
+    with (
+        caplog.at_level("INFO"),
+        patch.dict(os.environ, {"ESPHOME_BUILD_PATH": str(env_build)}),
+    ):
+        clean_all([str(config_dir)])
+
+    # Both should be cleaned
+    assert not (build_dir / "dummy.txt").exists()
+    assert env_build.exists()
+    assert not (env_build / "firmware.bin").exists()
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_ignores_empty_env_vars(
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test clean_all ignores empty ESPHOME_BUILD_PATH/ESPHOME_DATA_DIR."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    # Create a file in cwd that must NOT be cleaned
+    marker = tmp_path / "important.txt"
+    marker.write_text("do not delete")
+
+    from esphome.writer import clean_all
+
+    with patch.dict(
+        os.environ,
+        {"ESPHOME_BUILD_PATH": "", "ESPHOME_DATA_DIR": ""},
+    ):
+        clean_all([str(config_dir)])
+
+    # Empty env vars must not cause cwd to be cleaned
+    assert marker.exists()
+
+
+@patch("esphome.writer.CORE")
 def test_clean_all(
     mock_core: MagicMock,
     tmp_path: Path,
