@@ -2,7 +2,6 @@ import esphome.codegen as cg
 from esphome.components import one_wire, text_sensor
 import esphome.config_validation as cv
 
-CODEOWNERS = ["@EinRainerZufall"]
 DEPENDENCIES = ["one_wire"]
 
 dallas_ibutton_ns = cg.esphome_ns.namespace("dallas_ibutton")

@@ -7,7 +7,7 @@
 namespace esphome {
 namespace dallas_ibutton {
 
-static const char *TAG = "dallas_ibutton";
+static const char *const TAG = "dallas_ibutton";
 
 static const uint8_t DALLAS_COMMAND_SEARCH_ROM = 0xF0;
 static const uint8_t DALLAS_COMMAND_MATCH_ROM = 0x55;
