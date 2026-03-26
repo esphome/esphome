@@ -1,6 +1,6 @@
 #pragma once
 
-#include <deque>
+#include <list>
 #include <vector>
 
 #include "esphome/core/defines.h"
@@ -1393,8 +1393,8 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void process_pending_in_queue_();
 #endif  // USE_NEXTION_COMMAND_SPACING
 
-  std::deque<NextionQueue *> nextion_queue_;
-  std::deque<NextionQueue *> waveform_queue_;
+  std::list<NextionQueue *, RAMAllocator<NextionQueue *>> nextion_queue_;
+  std::list<NextionQueue *, RAMAllocator<NextionQueue *>> waveform_queue_;
   uint16_t recv_ret_string_(std::string &response, uint32_t timeout, bool recv_flag);
   void all_components_send_state_(bool force_update = false);
   uint32_t comok_sent_ = 0;
