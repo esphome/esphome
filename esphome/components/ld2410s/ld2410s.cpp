@@ -274,6 +274,9 @@ void LD2410S::parse_short_data_frame_() {
   ESP_LOGVV(TAG, "<   [loop:%d] short data < %s", this->loop_count_,
             format_hex_pretty_to(hex_buf, this->rx_.frame_data(), this->rx_.frame_size(), ' '));
 
+  if (this->rx_.payload_size() < 3)
+    return;
+
   const bool presence_state = this->rx_.payload_data()[0] > 1;
   uint16_t distance = encode_uint16(this->rx_.payload_data()[2], this->rx_.payload_data()[1]);
 
@@ -286,9 +289,15 @@ void LD2410S::parse_short_data_frame_() {
 #endif
 }
 void LD2410S::parse_data_frame_() {
+  if (this->rx_.payload_size() < 1)
+    return;
+
   switch (this->rx_.payload_data()[0]) {
     case 0x01:  // standard data
     {
+      if (this->rx_.payload_size() < 4)
+        break;
+
       char hex_buf[format_hex_pretty_size(RX_TX_BUFFER_SIZE)];
       ESP_LOGVV(TAG, "<   [loop:%d] std data < %s", this->loop_count_,
                 format_hex_pretty_to(hex_buf, this->rx_.frame_data(), this->rx_.frame_size(), ' '));
@@ -303,7 +312,8 @@ void LD2410S::parse_data_frame_() {
       this->publish_distance_(distance);
       this->publish_presence_(presence_state);
 
-      this->parse_data_energy_values_read_(&this->rx_.payload_data()[6]);
+      if (this->rx_.payload_size() >= 7)
+        this->parse_data_energy_values_read_(&this->rx_.payload_data()[6]);
 #endif
 
       break;
@@ -312,6 +322,9 @@ void LD2410S::parse_data_frame_() {
     case 0x03:  // calibration progress
     {
 #ifdef LD2410S_V2
+      if (this->rx_.payload_size() < 3)
+        break;
+
       char hex_buf[format_hex_pretty_size(RX_TX_BUFFER_SIZE)];
       ESP_LOGVV(TAG, "<   [loop:%d] std calibration < %s", this->loop_count_,
                 format_hex_pretty_to(hex_buf, this->rx_.frame_data(), this->rx_.frame_size(), ' '));
@@ -456,7 +469,7 @@ RxEvaluationResult LD2410Srx::receive_byte(uint32_t loop_count, uint8_t byte) {
 
     case RxEvaluationResult::UNKNOWN:
       this->end_pos_++;
-      if (this->end_pos_ > RX_TX_BUFFER_SIZE) {
+      if (this->end_pos_ >= RX_TX_BUFFER_SIZE) {
         ESP_LOGV(TAG, "XX< [loop:%d] Received data buffer overflow, resetting", loop_count);
         this->reset();
       }
@@ -743,6 +756,12 @@ TxCmdState LD2410Sschedule::check_state(uint32_t loop_count) {
       break;
 
     case TxCmdState::IDLE:
+      // schedule has passed the end
+      if (this->last_ > 0 && !this->config_mode_ && this->active_ >= this->last_ - 1) {
+        this->reset_schedule();
+      }
+      break;
+
     default:
       break;
   }

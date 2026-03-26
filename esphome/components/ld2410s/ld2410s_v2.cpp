@@ -113,7 +113,9 @@ void LD2410S::set_threshold_hold(float threshold_hold) {
   this->publish_threshold_hold_();
 }
 void LD2410S::set_threshold_selected_gate(float threshold_selected_gate) {
-  this->thresholds_selected_gate_ = threshold_selected_gate;
+  if (threshold_selected_gate < 0 || threshold_selected_gate >= 16)
+    return;
+  this->thresholds_selected_gate_ = static_cast<uint8_t>(threshold_selected_gate);
 #ifdef USE_NUMBER
   this->threshold_selected_gate_number_->publish_state(this->thresholds_selected_gate_);
   this->threshold_trigger_number_->publish_state(this->thresholds_trigger_[this->thresholds_selected_gate_]);
