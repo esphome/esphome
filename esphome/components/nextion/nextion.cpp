@@ -932,7 +932,7 @@ void Nextion::all_components_send_state_(bool force_update) {
       binarysensortype->send_state_to_nextion();
   }
   for (auto *sensortype : this->sensortype_) {
-    if ((force_update || sensortype->get_needs_to_send_update()) && sensortype->get_wave_chan_id() == 0)
+    if ((force_update || sensortype->get_needs_to_send_update()) && sensortype->get_wave_channel_id() == 0)
       sensortype->send_state_to_nextion();
   }
   for (auto *switchtype : this->switchtype_) {

@@ -91,7 +91,6 @@ class NextionComponentBase {
   // Remove before 2026.10.0
   ESPDEPRECATED("Use get_wave_channel_id() instead. Will be removed in 2026.10.0", "2026.4.0")
   uint8_t get_wave_chan_id() { return this->get_wave_channel_id(); }
-   void set_wave_max_length(int wave_max_length) { this->wave_max_length_ = wave_max_length; }
   void set_wave_max_length(int wave_max_length) { this->wave_max_length_ = wave_max_length; }
 
  protected:
