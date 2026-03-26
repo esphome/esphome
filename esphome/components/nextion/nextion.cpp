@@ -643,8 +643,8 @@ void Nextion::process_nextion_commands_() {
           ESP_LOGE(TAG, "Numeric return but '%s' invalid type %d", component->get_variable_name().c_str(),
                    component->get_queue_type());
         } else {
-          ESP_LOGN(TAG, "Numeric: %s type %d:%s val %d", component->get_variable_name().c_str(), component->get_queue_type(),
-                   component->get_queue_type_string(), value);
+          ESP_LOGN(TAG, "Numeric: %s type %d:%s val %d", component->get_variable_name().c_str(),
+                   component->get_queue_type(), component->get_queue_type_string(), value);
           component->set_state_from_int(value, true, false);
         }
 
@@ -848,7 +848,8 @@ void Nextion::process_nextion_commands_() {
           this->is_sleeping_ = false;
         }
 
-        ESP_LOGD(TAG, "Remove old queue '%s':'%s'", component->get_queue_type_string(), component->get_variable_name().c_str());
+        ESP_LOGD(TAG, "Remove old queue '%s':'%s'", component->get_queue_type_string(),
+                 component->get_variable_name().c_str());
 
         if (component->get_queue_type() == NextionQueueType::NO_RESULT) {
           if (component->get_variable_name() == "sleep_wake") {
@@ -1210,7 +1211,8 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
 
 #ifdef USE_NEXTION_MAX_QUEUE_SIZE
   if (this->max_queue_size_ > 0 && this->nextion_queue_.size() >= this->max_queue_size_) {
-    ESP_LOGW(TAG, "Queue full (%zu), drop GET: %s", this->nextion_queue_.size(), component->get_variable_name().c_str());
+    ESP_LOGW(TAG, "Queue full (%zu), drop GET: %s", this->nextion_queue_.size(),
+             component->get_variable_name().c_str());
     return;
   }
 #endif
