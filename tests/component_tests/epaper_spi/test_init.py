@@ -289,3 +289,56 @@ def test_model_with_full_update_every(
             "full_update_every": 10,
         }
     )
+
+
+def test_busy_pin_input_mode_ssd1677(
+    set_core_config: SetCoreConfigCallable,
+    set_component_config: Callable[[str, Any], None],
+) -> None:
+    """Test that busy_pin has input mode and cs/dc/reset pins have output mode for ssd1677."""
+    set_core_config(
+        PlatformFramework.ESP32_IDF,
+        platform_data={KEY_BOARD: "esp32dev", KEY_VARIANT: VARIANT_ESP32},
+    )
+
+    # Configure SPI component which is required by epaper_spi
+    set_component_config("spi", {"id": "spi_bus", "clk_pin": 18, "mosi_pin": 19})
+
+    result = run_schema_validation(
+        {
+            "id": "test_display",
+            "model": "ssd1677",
+            "dc_pin": 21,
+            "busy_pin": 22,
+            "reset_pin": 23,
+            "cs_pin": 5,
+            "dimensions": {
+                "width": 200,
+                "height": 200,
+            },
+        }
+    )
+
+    # Verify that busy_pin has input mode set
+    assert CONF_BUSY_PIN in result
+    busy_pin_config = result[CONF_BUSY_PIN]
+    assert "mode" in busy_pin_config
+    assert busy_pin_config["mode"]["input"] is True
+
+    # Verify that cs_pin has output mode set
+    assert CONF_CS_PIN in result
+    cs_pin_config = result[CONF_CS_PIN]
+    assert "mode" in cs_pin_config
+    assert cs_pin_config["mode"]["output"] is True
+
+    # Verify that dc_pin has output mode set
+    assert CONF_DC_PIN in result
+    dc_pin_config = result[CONF_DC_PIN]
+    assert "mode" in dc_pin_config
+    assert dc_pin_config["mode"]["output"] is True
+
+    # Verify that reset_pin has output mode set
+    assert CONF_RESET_PIN in result
+    reset_pin_config = result[CONF_RESET_PIN]
+    assert "mode" in reset_pin_config
+    assert reset_pin_config["mode"]["output"] is True

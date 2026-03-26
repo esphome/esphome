@@ -23,7 +23,5 @@ void SPIDeviceComponent::dump_config() {
   }
 }
 
-float SPIDeviceComponent::get_setup_priority() const { return setup_priority::DATA; }
-
 }  // namespace spi_device
 }  // namespace esphome

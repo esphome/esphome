@@ -152,7 +152,7 @@ void ES8388::dump_config() {
 
 bool ES8388::set_volume(float volume) {
   volume = clamp(volume, 0.0f, 1.0f);
-  uint8_t value = remap<uint8_t, float>(volume, 0.0f, 1.0f, -96, 0);
+  uint8_t value = remap<uint8_t, float>(volume, 0.0f, 1.0f, 192, 0);
   ESP_LOGD(TAG, "Setting ES8388_DACCONTROL4 / ES8388_DACCONTROL5 to 0x%02X (volume: %f)", value, volume);
   ES8388_ERROR_CHECK(this->write_byte(ES8388_DACCONTROL4, value));
   ES8388_ERROR_CHECK(this->write_byte(ES8388_DACCONTROL5, value));
@@ -163,7 +163,7 @@ bool ES8388::set_volume(float volume) {
 float ES8388::volume() {
   uint8_t value;
   ES8388_ERROR_CHECK(this->read_byte(ES8388_DACCONTROL4, &value));
-  return remap<float, uint8_t>(value, -96, 0, 0.0f, 1.0f);
+  return remap<float, uint8_t>(value, 192, 0, 0.0f, 1.0f);
 }
 
 bool ES8388::set_mute_state_(bool mute_state) {
@@ -209,9 +209,10 @@ bool ES8388::set_dac_output(DacOutputLine line) {
   };
 
   ESP_LOGV(TAG,
-           "Setting ES8388_DACPOWER to 0x%02X\n"
-           "Setting ES8388_DACCONTROL24 / ES8388_DACCONTROL25 to 0x%02X\n"
-           "Setting ES8388_DACCONTROL26 / ES8388_DACCONTROL27  to 0x%02X",
+           "DAC output config:\n"
+           "  DACPOWER: 0x%02X\n"
+           "  DACCONTROL24/25: 0x%02X\n"
+           "  DACCONTROL26/27: 0x%02X",
            dac_power, reg_out1, reg_out2);
 
   ES8388_ERROR_CHECK(this->write_byte(ES8388_DACCONTROL24, reg_out1));  // LOUT1VOL

@@ -31,8 +31,6 @@ void HM3301Component::dump_config() {
   LOG_SENSOR("  ", "AQI", this->aqi_sensor_);
 }
 
-float HM3301Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void HM3301Component::update() {
   if (this->read(data_buffer_, 29) != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Read result failed");

@@ -114,7 +114,5 @@ void SDP3XComponent::read_pressure_() {
   this->status_clear_warning();
 }
 
-float SDP3XComponent::get_setup_priority() const { return setup_priority::DATA; }
-
 }  // namespace sdp3x
 }  // namespace esphome

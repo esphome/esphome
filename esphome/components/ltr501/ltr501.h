@@ -74,6 +74,7 @@ class LTRAlsPs501Component : public PollingComponent, public i2c::I2CDevice {
     READY_TO_PUBLISH,
     KEEP_PUBLISHING
   } state_{State::NOT_INITIALIZED};
+  uint8_t tries_{0};
 
   LtrType ltr_type_{LtrType::LTR_TYPE_ALS_ONLY};
 
@@ -130,6 +131,8 @@ class LTRAlsPs501Component : public PollingComponent, public i2c::I2CDevice {
   PsGain501 ps_gain_{PsGain501::PS_GAIN_1};
   uint16_t ps_threshold_high_{0xffff};
   uint16_t ps_threshold_low_{0x0000};
+  uint32_t last_ps_high_trigger_time_{0};
+  uint32_t last_ps_low_trigger_time_{0};
 
   //
   //   Sensors for publishing data
@@ -157,12 +160,12 @@ class LTRAlsPs501Component : public PollingComponent, public i2c::I2CDevice {
   CallbackManager<void()> on_ps_high_trigger_callback_;
   CallbackManager<void()> on_ps_low_trigger_callback_;
 
-  void add_on_ps_high_trigger_callback_(std::function<void()> callback) {
-    this->on_ps_high_trigger_callback_.add(std::move(callback));
+  template<typename F> void add_on_ps_high_trigger_callback_(F &&callback) {
+    this->on_ps_high_trigger_callback_.add(std::forward<F>(callback));
   }
 
-  void add_on_ps_low_trigger_callback_(std::function<void()> callback) {
-    this->on_ps_low_trigger_callback_.add(std::move(callback));
+  template<typename F> void add_on_ps_low_trigger_callback_(F &&callback) {
+    this->on_ps_low_trigger_callback_.add(std::forward<F>(callback));
   }
 };
 

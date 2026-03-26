@@ -49,17 +49,6 @@ enum OTAState {
   OTA_ERROR,
 };
 
-class OTABackend {
- public:
-  virtual ~OTABackend() = default;
-  virtual OTAResponseTypes begin(size_t image_size) = 0;
-  virtual void set_update_md5(const char *md5) = 0;
-  virtual OTAResponseTypes write(uint8_t *data, size_t len) = 0;
-  virtual OTAResponseTypes end() = 0;
-  virtual void abort() = 0;
-  virtual bool supports_compression() = 0;
-};
-
 /** Listener interface for OTA state changes.
  *
  * Components can implement this interface to receive OTA state updates
@@ -84,9 +73,7 @@ class OTAComponent : public Component {
    * This should be used by OTA implementations that run in separate tasks
    * (like web_server OTA) to ensure listeners execute in the main loop.
    */
-  void notify_state_deferred_(OTAState state, float progress, uint8_t error) {
-    this->defer([this, state, progress, error]() { this->notify_state_(state, progress, error); });
-  }
+  void notify_state_deferred_(OTAState state, float progress, uint8_t error);
 
   std::vector<OTAStateListener *> state_listeners_;
 #endif
@@ -130,7 +117,5 @@ OTAGlobalCallback *get_global_ota_callback();
 // - notify_state_deferred_() when in separate task (e.g., web_server OTA)
 // This ensures proper listener execution in all contexts.
 #endif
-std::unique_ptr<ota::OTABackend> make_ota_backend();
-
 }  // namespace ota
 }  // namespace esphome

@@ -11,7 +11,6 @@
 #include <cstdarg>
 #include <cstddef>
 #include <cstring>
-#include <memory>
 #include <pthread.h>
 
 namespace esphome::logger {
@@ -21,12 +20,12 @@ namespace esphome::logger {
  *
  * Threading Model: Multi-Producer Single-Consumer (MPSC)
  * - Multiple threads can safely call send_message_thread_safe() concurrently
- * - Only the main loop thread calls get_message_main_loop() and release_message_main_loop()
+ * - Only the main loop thread calls borrow_message_main_loop() and release_message_main_loop()
  *
  *   Producers (multiple threads)              Consumer (main loop only)
  *            │                                        │
  *            ▼                                        ▼
- *     acquire_write_slot_()                  get_message_main_loop()
+ *     acquire_write_slot_()                  bool borrow_message_main_loop()
  *       CAS on reserve_index_                  read write_index_
  *            │                                   check ready flag
  *            ▼                                        │
@@ -48,11 +47,8 @@ namespace esphome::logger {
  * - Atomic CAS for slot reservation allows multiple producers without locks
  * - Single consumer (main loop) processes messages in order
  */
-class TaskLogBufferHost {
+class TaskLogBuffer {
  public:
-  // Default number of message slots - host has plenty of memory
-  static constexpr size_t DEFAULT_SLOT_COUNT = 64;
-
   // Structure for a log message (fixed size for lock-free operation)
   struct LogMessage {
     // Size constants
@@ -71,22 +67,22 @@ class TaskLogBufferHost {
       thread_name[0] = '\0';
       text[0] = '\0';
     }
+    inline char *text_data() { return this->text; }
   };
 
-  /// Constructor that takes the number of message slots
-  explicit TaskLogBufferHost(size_t slot_count);
-  ~TaskLogBufferHost();
+  TaskLogBuffer() = default;
 
   // NOT thread-safe - get next message from buffer, only call from main loop
   // Returns true if a message was retrieved, false if buffer is empty
-  bool get_message_main_loop(LogMessage **message);
+  bool borrow_message_main_loop(LogMessage *&message, uint16_t &text_length);
 
   // NOT thread-safe - release the message after processing, only call from main loop
   void release_message_main_loop();
 
   // Thread-safe - send a message to the buffer from any thread
   // Returns true if message was queued, false if buffer is full
-  bool send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, const char *format, va_list args);
+  bool send_message_thread_safe(uint8_t level, const char *tag, uint16_t line, const char *thread_name,
+                                const char *format, va_list args);
 
   // Check if there are messages ready to be processed
   inline bool HOT has_messages() const {
@@ -94,7 +90,7 @@ class TaskLogBufferHost {
   }
 
   // Get the buffer size (number of slots)
-  inline size_t size() const { return slot_count_; }
+  static constexpr size_t size() { return ESPHOME_TASK_LOG_BUFFER_SIZE; }
 
  private:
   // Acquire a slot for writing (thread-safe)
@@ -104,8 +100,7 @@ class TaskLogBufferHost {
   // Commit a slot after writing (thread-safe)
   void commit_write_slot_(int slot_index);
 
-  std::unique_ptr<LogMessage[]> slots_;  // Pre-allocated message slots
-  size_t slot_count_;                    // Number of slots
+  LogMessage slots_[ESPHOME_TASK_LOG_BUFFER_SIZE];  // Embedded in Logger (no separate heap allocation)
 
   // Lock-free indices using atomics
   // - reserve_index_: Next slot to reserve (producers CAS this to claim slots)

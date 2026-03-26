@@ -12,7 +12,6 @@ class OPT3001Sensor : public sensor::Sensor, public PollingComponent, public i2c
  public:
   void dump_config() override;
   void update() override;
-  float get_setup_priority() const override;
 
  protected:
   // checks if one-shot is complete before reading the result and returning it

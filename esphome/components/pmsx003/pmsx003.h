@@ -8,10 +8,13 @@
 namespace esphome::pmsx003 {
 
 enum class Type : uint8_t {
-  PMSX003 = 0,
+  PMS1003 = 0,
+  PMS3003,
+  PMSX003,  // PMS5003, PMS6003, PMS7003, PMSA003 (NOT PMSA003I - see `pmsa003i` component)
   PMS5003S,
   PMS5003T,
   PMS5003ST,
+  PMS9003M,
 };
 
 enum class Command : uint8_t {

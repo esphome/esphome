@@ -1,14 +1,10 @@
-from collections.abc import Callable
 import importlib
 import json
 import logging
 import os
 from pathlib import Path
 import re
-import shutil
-import stat
 import time
-from types import TracebackType
 
 from esphome import loader
 from esphome.config import iter_component_configs, iter_components
@@ -22,9 +18,9 @@ from esphome.core import CORE, EsphomeError
 from esphome.helpers import (
     copy_file_if_changed,
     cpp_string_escape,
-    get_str_env,
     is_ha_addon,
     read_file,
+    rmtree,
     walk_files,
     write_file,
     write_file_if_changed,
@@ -384,7 +380,10 @@ def write_cpp(code_s):
         code_format = CPP_BASE_FORMAT
 
     copy_src_tree()
+    # using namespace esphome must precede all variable declarations since
+    # codegen types assume this namespace is in scope (esphome_ns = global_ns).
     global_s = '#include "esphome.h"\n'
+    global_s += "using namespace esphome;\n"
     global_s += CORE.cpp_global_section
 
     full_file = f"{code_format[0] + CPP_INCLUDE_BEGIN}\n{global_s}{CPP_INCLUDE_END}"
@@ -404,23 +403,6 @@ def clean_cmake_cache():
             pioenvs_cmake_path.unlink()
 
 
-def _rmtree_error_handler(
-    func: Callable[[str], object],
-    path: str,
-    exc_info: tuple[type[BaseException], BaseException, TracebackType | None],
-) -> None:
-    """Error handler for shutil.rmtree to handle read-only files on Windows.
-
-    On Windows, git pack files and other files may be marked read-only,
-    causing shutil.rmtree to fail with "Access is denied". This handler
-    removes the read-only flag and retries the deletion.
-    """
-    if os.access(path, os.W_OK):
-        raise exc_info[1].with_traceback(exc_info[2])
-    os.chmod(path, stat.S_IWUSR | stat.S_IRUSR)
-    func(path)
-
-
 def clean_build(clear_pio_cache: bool = True):
     # Allow skipping cache cleaning for integration tests
     if os.environ.get("ESPHOME_SKIP_CLEAN_BUILD"):
@@ -430,11 +412,11 @@ def clean_build(clear_pio_cache: bool = True):
     pioenvs = CORE.relative_pioenvs_path()
     if pioenvs.is_dir():
         _LOGGER.info("Deleting %s", pioenvs)
-        shutil.rmtree(pioenvs, onerror=_rmtree_error_handler)
+        rmtree(pioenvs)
     piolibdeps = CORE.relative_piolibdeps_path()
     if piolibdeps.is_dir():
         _LOGGER.info("Deleting %s", piolibdeps)
-        shutil.rmtree(piolibdeps, onerror=_rmtree_error_handler)
+        rmtree(piolibdeps)
     dependencies_lock = CORE.relative_build_path("dependencies.lock")
     if dependencies_lock.is_file():
         _LOGGER.info("Deleting %s", dependencies_lock)
@@ -455,7 +437,26 @@ def clean_build(clear_pio_cache: bool = True):
         cache_dir = Path(config.get("platformio", "cache_dir"))
         if cache_dir.is_dir():
             _LOGGER.info("Deleting PlatformIO cache %s", cache_dir)
-            shutil.rmtree(cache_dir, onerror=_rmtree_error_handler)
+            rmtree(cache_dir)
+
+
+def _get_custom_build_dir(item: Path, data_dir: Path) -> Path | None:
+    """Parse a YAML config to find a custom build directory."""
+    from esphome import yaml_util
+
+    try:
+        raw = yaml_util.load_yaml(item)
+    except (EsphomeError, OSError) as e:
+        _LOGGER.debug("Could not parse %s to find build_path: %s", item, e)
+        return None
+    if not isinstance(raw, dict):
+        return None
+    esphome_conf = raw.get("esphome", {})
+    if not isinstance(esphome_conf, dict):
+        return None
+    if build_path := esphome_conf.get("build_path"):
+        return data_dir / build_path
+    return None
 
 
 def clean_all(configuration: list[str]):
@@ -463,13 +464,28 @@ def clean_all(configuration: list[str]):
     for config in configuration:
         item = Path(config)
         if item.is_file() and item.suffix in (".yaml", ".yml"):
-            data_dirs.append(item.parent / ".esphome")
+            data_dir = item.parent / ".esphome"
+            data_dirs.append(data_dir)
+            if custom := _get_custom_build_dir(item, data_dir):
+                data_dirs.append(custom)
         else:
             data_dirs.append(item / ".esphome")
     if is_ha_addon():
         data_dirs.append(Path("/data"))
-    if "ESPHOME_DATA_DIR" in os.environ:
-        data_dirs.append(Path(get_str_env("ESPHOME_DATA_DIR", None)))
+    if env_data_dir := os.environ.get("ESPHOME_DATA_DIR"):
+        data_dirs.append(Path(env_data_dir))
+    if env_build_path := os.environ.get("ESPHOME_BUILD_PATH"):
+        data_dirs.append(Path(env_build_path))
+    if not data_dirs:
+        # No config files or known data dirs, check current directory
+        cwd_esphome = Path.cwd() / ".esphome"
+        if cwd_esphome.is_dir():
+            data_dirs.append(cwd_esphome)
+        else:
+            _LOGGER.warning(
+                "No configuration files specified and no .esphome directory found in current directory. "
+                "Pass YAML files or a configuration directory to clean build artifacts."
+            )
 
     # Clean build dir
     for dir in data_dirs:
@@ -480,7 +496,7 @@ def clean_all(configuration: list[str]):
                 if item.is_file() and not item.name.endswith(".json"):
                     item.unlink()
                 elif item.is_dir() and item.name != "storage":
-                    shutil.rmtree(item, onerror=_rmtree_error_handler)
+                    rmtree(item)
 
     # Clean PlatformIO project files
     try:
@@ -494,7 +510,7 @@ def clean_all(configuration: list[str]):
             path = Path(config.get("platformio", pio_dir))
             if path.is_dir():
                 _LOGGER.info("Deleting PlatformIO %s %s", pio_dir, path)
-                shutil.rmtree(path, onerror=_rmtree_error_handler)
+                rmtree(path)
 
 
 GITIGNORE_CONTENT = """# Gitignore settings for ESPHome
