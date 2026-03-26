@@ -66,10 +66,32 @@ static void LightCall_RGBInstant(benchmark::State &state) {
 }
 BENCHMARK(LightCall_RGBInstant);
 
-// --- LightCall::perform() turn on/off cycle ---
-// Measures the state toggle path including validation and publish.
+// --- LightCall::perform() turn on/off cycle (Home Assistant API path) ---
+// HA sends color_mode explicitly since API 1.6, skipping compute_color_mode_().
 
 static void LightCall_ToggleOnOff(benchmark::State &state) {
+  BenchLightOutput output;
+  TestLightState light(&output);
+  setup_rgbww_light(output, light);
+
+  for (auto _ : state) {
+    for (int i = 0; i < kInnerIterations; i++) {
+      light.make_call()
+          .set_state(i % 2 == 0)
+          .set_color_mode(light::ColorMode::RGB_COLD_WARM_WHITE)
+          .set_transition_length(0)
+          .perform();
+    }
+    benchmark::DoNotOptimize(light.remote_values);
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(LightCall_ToggleOnOff);
+
+// --- LightCall::perform() turn on/off via MQTT ---
+// MQTT never sends color_mode, so compute_color_mode_() runs every call.
+
+static void LightCall_ToggleOnOff_MQTT(benchmark::State &state) {
   BenchLightOutput output;
   TestLightState light(&output);
   setup_rgbww_light(output, light);
@@ -82,7 +104,7 @@ static void LightCall_ToggleOnOff(benchmark::State &state) {
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
-BENCHMARK(LightCall_ToggleOnOff);
+BENCHMARK(LightCall_ToggleOnOff_MQTT);
 
 // --- LightCall::perform() with color temperature via MQTT/automations ---
 // Exercises the transform_parameters_() path that converts color_temperature
@@ -112,6 +134,34 @@ static void LightCall_ColorTemperature(benchmark::State &state) {
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(LightCall_ColorTemperature);
+
+// --- LightCall::perform() with 1s transition (Home Assistant API path) ---
+// Exercises start_transition_() which allocates a LightTransformer.
+// This is the default HA path when transition_length > 0.
+
+static void LightCall_Transition(benchmark::State &state) {
+  BenchLightOutput output;
+  TestLightState light(&output);
+  setup_rgbww_light(output, light);
+
+  light.make_call().set_state(true).set_brightness(1.0f).set_transition_length(0).perform();
+
+  for (auto _ : state) {
+    for (int i = 0; i < kInnerIterations; i++) {
+      float v = static_cast<float>(i % 256) / 255.0f;
+      light.make_call()
+          .set_color_mode(light::ColorMode::RGB_COLD_WARM_WHITE)
+          .set_red(v)
+          .set_green(1.0f - v)
+          .set_blue(v * 0.5f)
+          .set_transition_length(1000)
+          .perform();
+    }
+    benchmark::DoNotOptimize(light.remote_values);
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(LightCall_Transition);
 
 // --- LightCall::perform() with cold/warm white (Home Assistant API path) ---
 // Mirrors what modern HA sends: explicit color_mode with direct cold_white
