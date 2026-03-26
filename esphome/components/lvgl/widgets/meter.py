@@ -257,14 +257,14 @@ SCALE_SCHEMA = cv.Schema(
                 cv.Optional(CONF_COUNT, default=12): cv.int_range(min=2),
                 cv.Optional(CONF_WIDTH, default=2): cv.positive_int,
                 cv.Optional(CONF_LENGTH, default=10): size,
-                cv.Optional(CONF_RADIAL_OFFSET, default=0): size,
+                cv.Optional(CONF_RADIAL_OFFSET): size,
                 cv.Optional(CONF_COLOR, default=0x808080): lv_color,
                 cv.Optional(CONF_MAJOR): cv.Schema(
                     {
                         cv.Optional(CONF_STRIDE, default=3): cv.positive_int,
                         cv.Optional(CONF_WIDTH, default=5): size,
                         cv.Optional(CONF_LENGTH, default="15%"): size,
-                        cv.Optional(CONF_RADIAL_OFFSET, default=0): size,
+                        cv.Optional(CONF_RADIAL_OFFSET): size,
                         cv.Optional(CONF_COLOR, default=0): lv_color,
                         cv.Optional(CONF_LABEL_GAP, default=4): size,
                     }
@@ -476,8 +476,9 @@ class MeterType(WidgetType):
                         "line_rounded": v[CONF_ROUNDED],
                         CONF_ALIGN: CHILD_ALIGNMENTS.TOP_LEFT,
                         CONF_LENGTH: length,
-                        CONF_RADIAL_OFFSET: v[CONF_RADIAL_OFFSET],
                     }
+                    if radial_offset := v.get(CONF_RADIAL_OFFSET):
+                        props[CONF_RADIAL_OFFSET] = await pixels.process(radial_offset)
                     for option in (CONF_DASH_WIDTH, CONF_DASH_GAP):
                         if option in v:
                             props["line_" + option] = v[option]
@@ -521,11 +522,12 @@ class MeterType(WidgetType):
                 lv_obj.set_style_line_width(
                     scale_var, await size.process(ticks[CONF_WIDTH]), LV_PART.ITEMS
                 )
-                lv_obj.set_style_radial_offset(
-                    scale_var,
-                    await size.process(ticks[CONF_RADIAL_OFFSET]),
-                    LV_PART.ITEMS,
-                )
+                if radial_offset := ticks.get(CONF_RADIAL_OFFSET):
+                    lv_obj.set_style_radial_offset(
+                        scale_var,
+                        await size.process(radial_offset),
+                        LV_PART.ITEMS,
+                    )
                 lv_obj.set_style_line_color(
                     scale_var,
                     await lv_color.process(ticks[CONF_COLOR]),
