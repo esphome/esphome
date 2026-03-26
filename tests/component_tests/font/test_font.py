@@ -79,7 +79,7 @@ def _load_font():
 
 def test_flatten_splits_chinese_string_into_chars():
     """A single string of 200 Chinese characters must become 200 individual chars."""
-    result = flatten([list(CHINESE_200)])
+    result = flatten([CHINESE_200])
     assert len(result) == 200
     assert all(len(c) == 1 for c in result)
     assert result[0] == "\u4e00"
