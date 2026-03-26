@@ -156,14 +156,14 @@ class ClimateTraits {
     this->supported_custom_fan_modes_ = modes;
   }
 
-  // Remove before 2027.1.0
-  ESPDEPRECATED("Call set_supported_custom_fan_modes() on the Climate entity instead. Removed in 2027.1.0", "2026.7.0")
+  // Remove before 2026.11.0
+  ESPDEPRECATED("Call set_supported_custom_fan_modes() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
   void set_supported_custom_fan_modes(std::initializer_list<const char *> modes) {
     this->owned_custom_fan_modes_ = modes;
     this->supported_custom_fan_modes_ = &this->owned_custom_fan_modes_;
   }
-  // Remove before 2027.1.0
-  ESPDEPRECATED("Call set_supported_custom_fan_modes() on the Climate entity instead. Removed in 2027.1.0", "2026.7.0")
+  // Remove before 2026.11.0
+  ESPDEPRECATED("Call set_supported_custom_fan_modes() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
   void set_supported_custom_fan_modes(const std::vector<const char *> &modes) {
     this->owned_custom_fan_modes_ = modes;
     this->supported_custom_fan_modes_ = &this->owned_custom_fan_modes_;
@@ -189,14 +189,14 @@ class ClimateTraits {
     this->supported_custom_presets_ = presets;
   }
 
-  // Remove before 2027.1.0
-  ESPDEPRECATED("Call set_supported_custom_presets() on the Climate entity instead. Removed in 2027.1.0", "2026.7.0")
+  // Remove before 2026.11.0
+  ESPDEPRECATED("Call set_supported_custom_presets() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
   void set_supported_custom_presets(std::initializer_list<const char *> presets) {
     this->owned_custom_presets_ = presets;
     this->supported_custom_presets_ = &this->owned_custom_presets_;
   }
-  // Remove before 2027.1.0
-  ESPDEPRECATED("Call set_supported_custom_presets() on the Climate entity instead. Removed in 2027.1.0", "2026.7.0")
+  // Remove before 2026.11.0
+  ESPDEPRECATED("Call set_supported_custom_presets() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
   void set_supported_custom_presets(const std::vector<const char *> &presets) {
     this->owned_custom_presets_ = presets;
     this->supported_custom_presets_ = &this->owned_custom_presets_;
