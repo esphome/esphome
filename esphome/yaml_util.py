@@ -492,7 +492,12 @@ def parse_yaml(
     # Add built-in context variables scoped to this file
     return add_context(
         content,
-        {"this": {"file": PurePath(file_name), "dir": PurePath(file_name.parent)}},
+        {
+            "this": {
+                "file": PurePath(file_name),
+                "dir": PurePath(file_name.parent.absolute()),
+            }
+        },
     )
 
 
