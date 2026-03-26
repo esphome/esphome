@@ -353,6 +353,9 @@ void LD2410S::parse_data_frame_() {
   }
 }
 void LD2410S::parse_cmd_frame_() {
+  if (this->rx_.payload_size() < 4)
+    return;
+
   uint8_t *data_start = this->rx_.payload_data();
   uint16_t read_position = 0;
   uint16_t command_word = 0;
