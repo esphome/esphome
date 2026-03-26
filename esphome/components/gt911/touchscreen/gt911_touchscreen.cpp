@@ -37,12 +37,11 @@ void GT911Touchscreen::setup() {
     return;
 =======
   if (this->interrupt_pin_ != nullptr) {
-    if(!this->init_sequence_(this->use_primary_i2c_addr_)){
+    if (!this->init_sequence_(this->use_primary_i2c_addr_)) {
       ESP_LOGE(TAG, "Error: GT911 init sequence failed.");
       return;
     }
-  }
-  else{
+  } else {
     ESP_LOGE(TAG, "Interrupt pin not initialized.");
     // No return!
     // GPIO 34,35,36 and 39 are used in some configurations
@@ -83,7 +82,7 @@ bool GT911Touchscreen::init_sequence_(bool use_primary_i2c_address) {
   }
 
   // STEP 3: Wait for 100ms, then release reset
-  delay(100); // NOLINT
+  delay(100);  // NOLINT
   this->reset_pin_->digital_write(true);
 
   // STEP 4: Wait T3 (>=5 ms)
@@ -104,15 +103,14 @@ bool GT911Touchscreen::init_sequence_(bool use_primary_i2c_address) {
 void GT911Touchscreen::setup_internal_() {
   uint8_t data[4];
 
-  if(this->use_primary_i2c_addr_){
+  if (this->use_primary_i2c_addr_) {
     this->address_ = PRIMARY_ADDRESS;
-  }
-  else{
+  } else {
     this->address_ = SECONDARY_ADDRESS;
   }
 
-   i2c::ErrorCode err = this->write(GET_SWITCHES, sizeof(GET_SWITCHES));
-  
+  i2c::ErrorCode err = this->write(GET_SWITCHES, sizeof(GET_SWITCHES));
+
   if (err == i2c::ERROR_OK) {
     err = this->read(data, 1);
     if (err == i2c::ERROR_OK) {
@@ -211,7 +209,7 @@ void GT911Touchscreen::update_touches() {
 <<<<<<< HEAD
 void GT911Touchscreen::read_device_info() {
 =======
-void GT911Touchscreen::read_device_info_(){
+void GT911Touchscreen::read_device_info_() {
 >>>>>>> 9e9abe143 (- Fixed esphome code analysis violations)
   i2c::ErrorCode err;
   uint8_t data[4];
