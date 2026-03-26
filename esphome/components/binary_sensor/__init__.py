@@ -562,8 +562,7 @@ async def _build_binary_sensor_automations(var, config):
             "add_on_state_callback",
             [],
             conf,
-            callback_args=[(bool, "state")],
-            condition="state",
+            bool_filter=automation.TRIGGER_ON_TRUE,
         )
 
     for conf in config.get(CONF_ON_RELEASE, []):
@@ -572,8 +571,7 @@ async def _build_binary_sensor_automations(var, config):
             "add_on_state_callback",
             [],
             conf,
-            callback_args=[(bool, "state")],
-            condition="!state",
+            bool_filter=automation.TRIGGER_ON_FALSE,
         )
 
     for conf in config.get(CONF_ON_CLICK, []):

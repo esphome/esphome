@@ -492,4 +492,29 @@ template<typename... Ts> class Automation {
   ActionList<Ts...> actions_;
 };
 
+/// Callback forwarder that triggers an Automation directly.
+/// One operator() instantiation per Automation<Ts...> signature, shared across all call sites.
+template<typename... Ts> struct TriggerForwarder {
+  Automation<Ts...> *automation;
+  void operator()(Ts... args) const { this->automation->trigger(args...); }
+};
+
+/// Callback forwarder that triggers an Automation<> only when the bool arg is true.
+struct TriggerOnTrueForwarder {
+  Automation<> *automation;
+  void operator()(bool state) const {
+    if (state)
+      this->automation->trigger();
+  }
+};
+
+/// Callback forwarder that triggers an Automation<> only when the bool arg is false.
+struct TriggerOnFalseForwarder {
+  Automation<> *automation;
+  void operator()(bool state) const {
+    if (!state)
+      this->automation->trigger();
+  }
+};
+
 }  // namespace esphome

@@ -137,6 +137,9 @@ UpdateComponentAction = cg.esphome_ns.class_("UpdateComponentAction", Action)
 SuspendComponentAction = cg.esphome_ns.class_("SuspendComponentAction", Action)
 ResumeComponentAction = cg.esphome_ns.class_("ResumeComponentAction", Action)
 Automation = cg.esphome_ns.class_("Automation")
+TriggerForwarder = cg.esphome_ns.class_("TriggerForwarder")
+TriggerOnTrueForwarder = cg.esphome_ns.class_("TriggerOnTrueForwarder")
+TriggerOnFalseForwarder = cg.esphome_ns.class_("TriggerOnFalseForwarder")
 
 LambdaCondition = cg.esphome_ns.class_("LambdaCondition", Condition)
 StatelessLambdaCondition = cg.esphome_ns.class_("StatelessLambdaCondition", Condition)
@@ -663,46 +666,51 @@ async def build_automation(
     return obj
 
 
+TRIGGER_ON_TRUE = "on_true"
+TRIGGER_ON_FALSE = "on_false"
+
+
 async def build_callback_automation(
     parent: MockObj,
     callback_method: str,
     args: TemplateArgsType,
     config: ConfigType,
-    callback_args: TemplateArgsType | None = None,
-    condition: str | None = None,
+    bool_filter: str | None = None,
 ) -> None:
     """Build an Automation and register it as a callback on the parent.
 
     Eliminates the need for a Trigger wrapper object by registering the
     automation's trigger() directly as a callback on the parent component.
 
+    Uses template forwarder structs (TriggerForwarder, TriggerOnTrueForwarder,
+    TriggerOnFalseForwarder) so the compiler deduplicates the operator() body
+    across all call sites with the same signature.
+
     :param parent: The component object (e.g., button, sensor).
     :param callback_method: Name of the callback method (e.g., "add_on_press_callback").
     :param args: Automation template args as list of (type, name) tuples.
     :param config: The automation config dict.
-    :param callback_args: Lambda parameter types if different from args (e.g., for
-        conditional triggers where the callback receives (bool state) but the
-        automation is Automation<> with no args). Defaults to args.
-    :param condition: Optional C++ condition. Use callback arg names directly
-        (e.g., "state", "!state").
+    :param bool_filter: Optional bool filter. Use TRIGGER_ON_TRUE to trigger only
+        when the bool callback arg is true, TRIGGER_ON_FALSE for false.
+        The automation will be Automation<> (no args) while the callback receives bool.
     """
     arg_types = [arg[0] for arg in args]
     templ = cg.TemplateArguments(*arg_types)
     obj = cg.new_Pvariable(config[CONF_AUTOMATION_ID], templ)
     actions = await build_action_list(config[CONF_THEN], templ, args)
     cg.add(obj.add_actions(actions))
-    # Build trigger call expression: automation->trigger(arg1, arg2, ...)
-    trigger_args = [MockObj(arg[1], "") for arg in args]
-    trigger_expr = obj.trigger(*trigger_args)
-    if condition is not None:
-        body = [f"if ({condition}) {{ ", trigger_expr, "; }"]
+    # Use template forwarder structs for deduplication. The compiler generates
+    # one operator() per forwarder type; different automation pointers are just
+    # data in the struct.
+    if bool_filter == TRIGGER_ON_TRUE:
+        forwarder = cg.RawExpression(f"{TriggerOnTrueForwarder}{{{obj}}}")
+    elif bool_filter == TRIGGER_ON_FALSE:
+        forwarder = cg.RawExpression(f"{TriggerOnFalseForwarder}{{{obj}}}")
     else:
-        body = [trigger_expr, ";"]
-    # Use callback_args for the lambda parameters if provided (e.g., when the
-    # callback signature differs from the automation args due to filtering).
-    lambda_params = callback_args if callback_args is not None else args
-    # ESPHome codegen allocates all variables as static pointers, so they
-    # are accessible without explicit lambda capture. Using "" avoids
-    # -Wcapture-of-non-automatic-storage-duration warnings.
-    lambda_expr = LambdaExpression(body, lambda_params, capture="")
-    cg.add(getattr(parent, callback_method)(lambda_expr))
+        forwarder_type = (
+            TriggerForwarder.template(templ)
+            if arg_types
+            else TriggerForwarder.template()
+        )
+        forwarder = cg.RawExpression(f"{forwarder_type}{{{obj}}}")
+    cg.add(getattr(parent, callback_method)(forwarder))

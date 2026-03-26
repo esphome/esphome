@@ -5,8 +5,15 @@ from unittest.mock import patch
 
 import pytest
 
-from esphome.automation import has_non_synchronous_actions
-from esphome.cpp_generator import LambdaExpression, MockObj, RawExpression
+from esphome.automation import (
+    TRIGGER_ON_FALSE,
+    TRIGGER_ON_TRUE,
+    TriggerForwarder,
+    TriggerOnFalseForwarder,
+    TriggerOnTrueForwarder,
+    has_non_synchronous_actions,
+)
+from esphome.cpp_generator import MockObj, RawExpression
 from esphome.util import RegistryEntry
 
 
@@ -178,94 +185,68 @@ def test_has_non_synchronous_actions_dict_input(
     assert has_non_synchronous_actions({"logger.log": "hello"}) is False
 
 
-def _build_trigger_lambda(
+def _build_forwarder(
     automation_name: str,
     args: list[tuple[str, str]],
-    callback_args: list[tuple[str, str]] | None = None,
-    condition: str | None = None,
+    bool_filter: str | None = None,
 ) -> str:
-    """Build a trigger callback lambda the same way build_callback_automation does.
+    """Build a trigger forwarder expression the same way build_callback_automation does.
 
-    Mirrors the logic in automation.build_callback_automation lines 694-708.
+    Mirrors the forwarder selection logic in automation.build_callback_automation.
     """
+    import esphome.codegen as cg
+
     obj = MockObj(automation_name, "->")
-    # Convert string type names to RawExpression (matching real codegen where
-    # types are MockObj/MockObjClass objects, not plain strings)
-    typed_args = [(RawExpression(t), n) for t, n in args]
-    trigger_args = [MockObj(arg[1], "") for arg in args]
-    trigger_expr = obj.trigger(*trigger_args)
-    if condition is not None:
-        body = [f"if ({condition}) {{ ", trigger_expr, "; }"]
-    else:
-        body = [trigger_expr, ";"]
-    lambda_params = (
-        [(RawExpression(t), n) for t, n in callback_args]
-        if callback_args is not None
-        else typed_args
-    )
-    lambda_expr = LambdaExpression(body, lambda_params, capture="")
-    return str(lambda_expr)
+    if bool_filter == TRIGGER_ON_TRUE:
+        return f"{TriggerOnTrueForwarder}{{{obj}}}"
+    if bool_filter == TRIGGER_ON_FALSE:
+        return f"{TriggerOnFalseForwarder}{{{obj}}}"
+    arg_types = [RawExpression(t) for t, _ in args]
+    templ = cg.TemplateArguments(*arg_types) if arg_types else cg.TemplateArguments()
+    forwarder_type = TriggerForwarder.template(templ)
+    return f"{forwarder_type}{{{obj}}}"
 
 
-def test_trigger_callback_lambda_no_args() -> None:
-    """Button on_press: no args, no condition."""
-    result = _build_trigger_lambda("auto_1", [])
-    assert result == "[]() {\n  auto_1->trigger();\n}"
+def test_trigger_forwarder_no_args() -> None:
+    """Button on_press: TriggerForwarder<> with no args."""
+    result = _build_forwarder("auto_1", [])
+    assert result == "TriggerForwarder<>{auto_1}"
 
 
-def test_trigger_callback_lambda_single_float_arg() -> None:
-    """Sensor on_value: single float arg."""
-    result = _build_trigger_lambda("auto_1", [("float", "x")])
-    assert result == "[](float x) {\n  auto_1->trigger(x);\n}"
+def test_trigger_forwarder_single_float_arg() -> None:
+    """Sensor on_value: TriggerForwarder<float>."""
+    result = _build_forwarder("auto_1", [("float", "x")])
+    assert result == "TriggerForwarder<float>{auto_1}"
 
 
-def test_trigger_callback_lambda_single_bool_arg() -> None:
-    """Switch on_state / binary_sensor on_state: single bool arg."""
-    result = _build_trigger_lambda("auto_1", [("bool", "x")])
-    assert result == "[](bool x) {\n  auto_1->trigger(x);\n}"
+def test_trigger_forwarder_single_bool_arg() -> None:
+    """Switch on_state: TriggerForwarder<bool>."""
+    result = _build_forwarder("auto_1", [("bool", "x")])
+    assert result == "TriggerForwarder<bool>{auto_1}"
 
 
-def test_trigger_callback_lambda_condition_true() -> None:
-    """Binary_sensor on_press: condition filters on state=true."""
-    result = _build_trigger_lambda(
-        "auto_1",
-        [],
-        callback_args=[("bool", "state")],
-        condition="state",
-    )
-    assert result == ("[](bool state) {\n  if (state) { auto_1->trigger(); }\n}")
+def test_trigger_forwarder_on_true() -> None:
+    """Binary_sensor on_press / switch on_turn_on: TriggerOnTrueForwarder."""
+    result = _build_forwarder("auto_1", [], bool_filter=TRIGGER_ON_TRUE)
+    assert result == "TriggerOnTrueForwarder{auto_1}"
 
 
-def test_trigger_callback_lambda_condition_false() -> None:
-    """Binary_sensor on_release: condition filters on state=false."""
-    result = _build_trigger_lambda(
-        "auto_1",
-        [],
-        callback_args=[("bool", "state")],
-        condition="!state",
-    )
-    assert result == ("[](bool state) {\n  if (!state) { auto_1->trigger(); }\n}")
+def test_trigger_forwarder_on_false() -> None:
+    """Binary_sensor on_release / switch on_turn_off: TriggerOnFalseForwarder."""
+    result = _build_forwarder("auto_1", [], bool_filter=TRIGGER_ON_FALSE)
+    assert result == "TriggerOnFalseForwarder{auto_1}"
 
 
-def test_trigger_callback_lambda_multiple_args() -> None:
-    """Binary_sensor on_state_change: two optional<bool> args."""
-    result = _build_trigger_lambda(
+def test_trigger_forwarder_multiple_args() -> None:
+    """Binary_sensor on_state_change: TriggerForwarder with two args."""
+    result = _build_forwarder(
         "auto_1",
         [("optional<bool>", "x_previous"), ("optional<bool>", "x")],
     )
-    assert result == (
-        "[](optional<bool> x_previous, optional<bool> x) {\n"
-        "  auto_1->trigger(x_previous, x);\n}"
-    )
+    assert result == "TriggerForwarder<optional<bool>, optional<bool>>{auto_1}"
 
 
-def test_trigger_callback_lambda_string_arg() -> None:
-    """Text_sensor on_value: std::string arg."""
-    result = _build_trigger_lambda("auto_1", [("std::string", "x")])
-    assert result == "[](std::string x) {\n  auto_1->trigger(x);\n}"
-
-
-def test_trigger_callback_lambda_empty_capture() -> None:
-    """All generated lambdas use empty capture to avoid static storage warnings."""
-    result = _build_trigger_lambda("auto_1", [("float", "x")])
-    assert result.startswith("[](")
+def test_trigger_forwarder_string_arg() -> None:
+    """Text_sensor on_value: TriggerForwarder<std::string>."""
+    result = _build_forwarder("auto_1", [("std::string", "x")])
+    assert result == "TriggerForwarder<std::string>{auto_1}"

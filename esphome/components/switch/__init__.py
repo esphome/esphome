@@ -157,8 +157,7 @@ async def _build_switch_automations(var, config):
             "add_on_state_callback",
             [],
             conf,
-            callback_args=[(bool, "state")],
-            condition="state",
+            bool_filter=automation.TRIGGER_ON_TRUE,
         )
     for conf in config.get(CONF_ON_TURN_OFF, []):
         await automation.build_callback_automation(
@@ -166,8 +165,7 @@ async def _build_switch_automations(var, config):
             "add_on_state_callback",
             [],
             conf,
-            callback_args=[(bool, "state")],
-            condition="!state",
+            bool_filter=automation.TRIGGER_ON_FALSE,
         )
 
 
