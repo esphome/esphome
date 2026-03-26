@@ -201,11 +201,4 @@ class LD2450Component : public Component, public uart::UARTDevice {
   LazyCallbackManager<void()> data_callback_;
 };
 
-class LD2450DataTrigger : public Trigger<> {
- public:
-  explicit LD2450DataTrigger(LD2450Component *parent) {
-    parent->add_on_data_callback([this]() { this->trigger(); });
-  }
-};
-
 }  // namespace esphome::ld2450
