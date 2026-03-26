@@ -200,11 +200,7 @@ void GT911Touchscreen::update_touches() {
   }
 }
 
-<<<<<<< HEAD
-void GT911Touchscreen::read_device_info() {
-=======
 void GT911Touchscreen::read_device_info_() {
->>>>>>> 9e9abe143 (- Fixed esphome code analysis violations)
   i2c::ErrorCode err;
   uint8_t data[4];
   // Read product name
@@ -246,13 +242,9 @@ void GT911Touchscreen::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-<<<<<<< HEAD
-  this->read_device_info();
-=======
   this->read_device_info_();
 
 
->>>>>>> 9e9abe143 (- Fixed esphome code analysis violations)
 }
 
 }  // namespace gt911
