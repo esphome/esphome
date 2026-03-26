@@ -415,7 +415,8 @@ void Nextion::process_nextion_commands_() {
 #ifdef NEXTION_PROTOCOL_LOG
   this->print_queue_members_();
 #endif
-  while ((to_process_length = this->command_data_.find(COMMAND_DELIMITER)) != std::string::npos) {
+  while ((to_process_length = this->command_data_.find(
+          reinterpret_cast<const char *>(COMMAND_DELIMITER), 0, sizeof(COMMAND_DELIMITER))) != std::string::npos) {
 #ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
     if (++commands_processed > this->max_commands_per_loop_) {
       ESP_LOGW(TAG, "Command processing limit exceeded");
@@ -423,8 +424,8 @@ void Nextion::process_nextion_commands_() {
     }
 #endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
     ESP_LOGN(TAG, "queue size: %zu", this->nextion_queue_.size());
-    while (to_process_length + COMMAND_DELIMITER.length() < this->command_data_.length() &&
-           static_cast<uint8_t>(this->command_data_[to_process_length + COMMAND_DELIMITER.length()]) == 0xFF) {
+    while (to_process_length + sizeof(COMMAND_DELIMITER) < this->command_data_.length() &&
+           static_cast<uint8_t>(this->command_data_[to_process_length + sizeof(COMMAND_DELIMITER)]) == 0xFF) {
       ++to_process_length;
       ESP_LOGN(TAG, "Add 0xFF");
     }
@@ -829,7 +830,7 @@ void Nextion::process_nextion_commands_() {
         break;
     }
 
-    this->command_data_.erase(0, to_process_length + COMMAND_DELIMITER.length() + 1);
+    this->command_data_.erase(0, to_process_length + sizeof(COMMAND_DELIMITER) + 1);
   }
 
   const uint32_t ms = App.get_loop_component_start_time();
