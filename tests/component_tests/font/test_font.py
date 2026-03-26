@@ -216,6 +216,37 @@ def test_yaml_long_latin_glyphs_parsed_and_validated(tmp_path):
     assert result is not None
 
 
+@pytest.mark.parametrize(
+    "glyphs_str",
+    [
+        " ABC",  # space at start
+        "AB CD",  # space in middle
+        "ABC ",  # space at end
+    ],
+    ids=["start", "middle", "end"],
+)
+def test_yaml_space_in_glyphs_preserved(tmp_path, glyphs_str):
+    """A space character in a glyphs string must survive YAML round-trip and validation."""
+    from esphome.yaml_util import load_yaml
+
+    yaml_file = tmp_path / "font_test.yaml"
+    yaml_file.write_text(
+        f'font:\n  - file: "NotoSans-Regular.ttf"\n    glyphs: "{glyphs_str}"\n',
+        encoding="utf-8",
+    )
+
+    parsed = load_yaml(yaml_file)
+    raw_glyphs = parsed["font"][0]["glyphs"]
+
+    assert raw_glyphs == glyphs_str
+    assert " " in raw_glyphs
+
+    # Space and ASCII letters are all in NotoSans — validation must pass
+    config = _make_config([raw_glyphs])
+    result = validate_font_config(config)
+    assert result is not None
+
+
 # ---------- to_code generation ----------
 
 
