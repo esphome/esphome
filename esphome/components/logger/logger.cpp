@@ -244,6 +244,10 @@ void Logger::dump_config() {
 #ifdef USE_ZEPHYR
   dump_crash_();
 #endif
+  // Warn users that VERBOSE/VERY_VERBOSE logging impacts performance.
+  // The compiled log level (ESPHOME_LOG_LEVEL) is what matters here — even if
+  // initial_level is set lower at runtime, log messages at the compiled level
+  // are still formatted (vsnprintf) and written to UART which is blocking.
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
   if (this->current_level_ >= ESPHOME_LOG_LEVEL_VERY_VERBOSE) {
     ESP_LOGW(TAG, "VERY_VERBOSE logging is active. This will significantly impact device performance and may cause "
