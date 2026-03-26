@@ -22,6 +22,9 @@ class IrRfProxy : public infrared::Infrared {
   /// Check if this is RF mode (non-zero frequency)
   bool is_rf() const { return this->frequency_khz_ > 0; }
 
+  /// Set the receiver's hardware demodulation frequency in Hz (metadata only, does not affect hardware)
+  void set_receiver_frequency(uint32_t frequency_hz) { this->get_traits().set_receiver_frequency_hz(frequency_hz); }
+
  protected:
   // RF frequency in kHz (Hz / 1000); 0 = infrared, non-zero = RF
   uint32_t frequency_khz_{0};
