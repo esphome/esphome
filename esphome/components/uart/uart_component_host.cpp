@@ -235,16 +235,14 @@ bool HostUartComponent::read_array(uint8_t *data, size_t len) {
   }
   if (!this->check_read_timeout_(len))
     return false;
-  uint8_t *data_ptr = data;
   size_t length_to_read = len;
   if (this->has_peek_) {
     length_to_read--;
-    *data_ptr = this->peek_byte_;
-    data_ptr++;
+    *data = this->peek_byte_;
     this->has_peek_ = false;
   }
   if (length_to_read > 0) {
-    int sz = ::read(this->file_descriptor_, data_ptr, length_to_read);
+    int sz = ::read(this->file_descriptor_, data + (len - length_to_read), length_to_read);
     if (sz == -1) {
       this->update_error_(strerror(errno));
       return false;
