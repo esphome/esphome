@@ -1,0 +1,9 @@
+sensor:
+  - platform: bmp581_spi
+    cs_pin: ${cs_pin}
+    temperature:
+      name: BMP581 Temperature
+      iir_filter: 2x
+    pressure:
+      name: BMP581 Pressure
+      oversampling: 128x
