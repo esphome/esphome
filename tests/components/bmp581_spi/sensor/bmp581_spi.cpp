@@ -1,4 +1,4 @@
-#include "common.h"
+#include "../common.h"
 
 namespace esphome::bmp581_spi::testing {
 
