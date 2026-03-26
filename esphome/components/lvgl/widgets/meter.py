@@ -548,11 +548,12 @@ class MeterType(WidgetType):
                         await size.process(major[CONF_LENGTH]),
                         LV_PART.INDICATOR,
                     )
-                    lv_obj.set_style_radial_offset(
-                        scale_var,
-                        await size.process(ticks[CONF_RADIAL_OFFSET]),
-                        LV_PART.INDICATOR,
-                    )
+                    if radial_offset := ticks.get(CONF_RADIAL_OFFSET):
+                        lv_obj.set_style_radial_offset(
+                            scale_var,
+                            await size.process(radial_offset),
+                            LV_PART.INDICATOR,
+                        )
                     lv_obj.set_style_line_width(
                         scale_var,
                         await size.process(major[CONF_WIDTH]),
