@@ -20,6 +20,7 @@ static const uint16_t SPS30_CMD_START_FAN_CLEANING = 0x5607;
 static const uint16_t SPS30_CMD_SOFT_RESET = 0xD304;
 static const size_t SERIAL_NUMBER_LENGTH = 8;
 static const uint8_t MAX_SKIPPED_DATA_CYCLES_BEFORE_ERROR = 5;
+static const uint32_t SPS30_WARM_UP_SEC = 30;
 
 void SPS30Component::setup() {
   this->write_command(SPS30_CMD_SOFT_RESET);
@@ -63,6 +64,8 @@ void SPS30Component::setup() {
       this->status_clear_warning();
       this->skipped_data_read_cycles_ = 0;
       this->start_continuous_measurement_();
+      this->next_state_ms_ = millis() + SPS30_WARM_UP_SEC * 1000;
+      this->next_state_ = READ;
       this->setup_complete_ = true;
     });
   });
@@ -101,6 +104,9 @@ void SPS30Component::dump_config() {
                 "  Serial number: %s\n"
                 "  Firmware version v%0d.%0d",
                 this->serial_number_, this->raw_firmware_version_ >> 8, this->raw_firmware_version_ & 0xFF);
+  if (this->idle_interval_.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Idle interval: %us", this->idle_interval_.value() / 1000);
+  }
   LOG_SENSOR("  ", "PM1.0 Weight Concentration", this->pm_1_0_sensor_);
   LOG_SENSOR("  ", "PM2.5 Weight Concentration", this->pm_2_5_sensor_);
   LOG_SENSOR("  ", "PM4 Weight Concentration", this->pm_4_0_sensor_);
@@ -132,6 +138,26 @@ void SPS30Component::update() {
     }
     return;
   }
+
+  // If its not time to take an action, do nothing.
+  const uint32_t update_start_ms = millis();
+  if (this->next_state_ != NONE && (int32_t) (this->next_state_ms_ - update_start_ms) > 0) {
+    ESP_LOGD(TAG, "Sensor waiting for %ums before transitioning to state %d.", (this->next_state_ms_ - update_start_ms),
+             this->next_state_);
+    return;
+  }
+
+  switch (this->next_state_) {
+    case WAKE:
+      this->start_measurement();
+      return;
+    case NONE:
+      return;
+    case READ:
+      // Read logic continues below
+      break;
+  }
+
   /// Check if measurement is ready before reading the value
   if (!this->write_command(SPS30_CMD_GET_DATA_READY_STATUS)) {
     this->status_set_warning();
@@ -211,6 +237,16 @@ void SPS30Component::update() {
 
     this->status_clear_warning();
     this->skipped_data_read_cycles_ = 0;
+
+    // Stop measurements and wait if we have an idle interval.  If not using idle mode, let the next state just execute
+    // on next update.
+    if (this->idle_interval_.has_value()) {
+      this->stop_measurement();
+      this->next_state_ms_ = millis() + this->idle_interval_.value();
+      this->next_state_ = WAKE;
+    } else {
+      this->next_state_ms_ = millis();
+    }
   });
 }
 
@@ -218,6 +254,26 @@ bool SPS30Component::start_continuous_measurement_() {
   if (!this->write_command(SPS30_CMD_START_CONTINUOUS_MEASUREMENTS, SPS30_CMD_START_CONTINUOUS_MEASUREMENTS_ARG)) {
     ESP_LOGE(TAG, "Error initiating measurements");
     return false;
+  }
+  ESP_LOGD(TAG, "Started measurements");
+
+  // Notify the state machine to wait the warm up interval before reading
+  this->next_state_ms_ = millis() + SPS30_WARM_UP_SEC * 1000;
+  this->next_state_ = READ;
+  return true;
+}
+
+bool SPS30Component::start_measurement() { return start_continuous_measurement_(); }
+
+bool SPS30Component::stop_measurement() {
+  if (!write_command(SPS30_CMD_STOP_MEASUREMENTS)) {
+    ESP_LOGE(TAG, "Error stopping measurements");
+    return false;
+  } else {
+    ESP_LOGD(TAG, "Stopped measurements");
+    // Exit the state machine if measurement is stopped.
+    this->next_state_ms_ = 0;
+    this->next_state_ = NONE;
   }
   return true;
 }

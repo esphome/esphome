@@ -5,6 +5,7 @@ import json  # noqa: E402
 import os  # noqa: E402
 import pathlib  # noqa: E402
 import shutil  # noqa: E402
+from glob import glob  # noqa: E402
 
 
 def merge_factory_bin(source, target, env):
@@ -126,3 +127,14 @@ def esp32_copy_ota_bin(source, target, env):
 # Run merge first, then ota copy second
 env.AddPostAction("$BUILD_DIR/${PROGNAME}.bin", merge_factory_bin)  # noqa: F821
 env.AddPostAction("$BUILD_DIR/${PROGNAME}.bin", esp32_copy_ota_bin)  # noqa: F821
+
+# Find server certificates in managed components and generate .S files.
+# Workaround for PlatformIO not processing target_add_binary_data() from managed component CMakeLists.
+project_dir = env.subst("$PROJECT_DIR")
+managed_components = os.path.join(project_dir, "managed_components")
+if os.path.isdir(managed_components):
+    for cert_file in glob(os.path.join(managed_components, "**/server_certs/*.crt"), recursive=True):
+        try:
+            env.FileToAsm(cert_file, FILE_TYPE="TEXT")
+        except Exception as e:
+            print(f"Error processing {os.path.basename(cert_file)}: {e}")

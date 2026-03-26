@@ -1,6 +1,10 @@
 esphome:
   on_boot:
     then:
+      - wait_until:
+          condition:
+            api.connected:
+              state_subscription_only: true
       - homeassistant.event:
           event: esphome.button_pressed
           data:
@@ -177,6 +181,99 @@ api:
             else:
               - logger.log: "Skipped loops"
         - logger.log: "After combined test"
+    # ==========================================================================
+    # supports_response: status (auto-detected - api.respond without data)
+    # Has call_id only - reports success/error without data payload
+    # ==========================================================================
+    - action: test_respond_status
+      then:
+        - api.respond:
+            success: true
+        - logger.log:
+            format: "Status response sent (call_id=%d)"
+            args: [call_id]
+
+    - action: test_respond_status_error
+      variables:
+        error_msg: string
+      then:
+        - api.respond:
+            success: false
+            error_message: !lambda 'return error_msg;'
+
+    # ==========================================================================
+    # supports_response: optional (auto-detected - api.respond with data)
+    # Has call_id and return_response - client decides if it wants response
+    # ==========================================================================
+    - action: test_respond_optional
+      variables:
+        sensor_name: string
+        value: float
+      then:
+        - logger.log:
+            format: "Optional response (call_id=%d, return_response=%d)"
+            args: [call_id, return_response]
+        - api.respond:
+            data: !lambda |-
+              root["sensor"] = sensor_name;
+              root["value"] = value;
+              root["unit"] = "°C";
+
+    - action: test_respond_optional_conditional
+      variables:
+        do_succeed: bool
+      then:
+        - if:
+            condition:
+              lambda: 'return do_succeed;'
+            then:
+              - api.respond:
+                  success: true
+                  data: !lambda |-
+                    root["status"] = "ok";
+            else:
+              - api.respond:
+                  success: false
+                  error_message: "Operation failed"
+
+    # ==========================================================================
+    # supports_response: only (explicit - always expects data response)
+    # Has call_id only - response is always expected with data
+    # ==========================================================================
+    - action: test_respond_only
+      supports_response: only
+      variables:
+        input: string
+      then:
+        - logger.log:
+            format: "Only response (call_id=%d)"
+            args: [call_id]
+        - api.respond:
+            data: !lambda |-
+              root["input"] = input;
+              root["processed"] = true;
+
+    - action: test_respond_only_nested
+      supports_response: only
+      then:
+        - api.respond:
+            data: !lambda |-
+              root["config"]["wifi"] = "connected";
+              root["config"]["api"] = true;
+              root["items"][0] = "item1";
+              root["items"][1] = "item2";
+
+    # ==========================================================================
+    # supports_response: none (no api.respond action)
+    # No call_id or return_response - just user variables
+    # ==========================================================================
+    - action: test_no_response
+      variables:
+        message: string
+      then:
+        - logger.log:
+            format: "No response action: %s"
+            args: [message.c_str()]
 
 event:
   - platform: template

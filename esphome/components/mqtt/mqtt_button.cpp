@@ -6,8 +6,7 @@
 #ifdef USE_MQTT
 #ifdef USE_BUTTON
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.button";
 
@@ -31,20 +30,13 @@ void MQTTButtonComponent::dump_config() {
 }
 
 void MQTTButtonComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
-  // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
   config.state_topic = false;
-  const auto device_class = this->button_->get_device_class_ref();
-  if (!device_class.empty()) {
-    root[MQTT_DEVICE_CLASS] = device_class;
-  }
-  // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 }
 
-std::string MQTTButtonComponent::component_type() const { return "button"; }
+MQTT_COMPONENT_TYPE(MQTTButtonComponent, "button")
 const EntityBase *MQTTButtonComponent::get_entity() const { return this->button_; }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

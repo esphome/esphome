@@ -127,30 +127,30 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   void set_enrolling_binary_sensor(binary_sensor::BinarySensor *enrolling_binary_sensor) {
     this->enrolling_binary_sensor_ = enrolling_binary_sensor;
   }
-  void add_on_finger_scan_start_callback(std::function<void()> callback) {
-    this->finger_scan_start_callback_.add(std::move(callback));
+  template<typename F> void add_on_finger_scan_start_callback(F &&callback) {
+    this->finger_scan_start_callback_.add(std::forward<F>(callback));
   }
-  void add_on_finger_scan_matched_callback(std::function<void(uint16_t, uint16_t)> callback) {
-    this->finger_scan_matched_callback_.add(std::move(callback));
+  template<typename F> void add_on_finger_scan_matched_callback(F &&callback) {
+    this->finger_scan_matched_callback_.add(std::forward<F>(callback));
   }
-  void add_on_finger_scan_unmatched_callback(std::function<void()> callback) {
-    this->finger_scan_unmatched_callback_.add(std::move(callback));
+  template<typename F> void add_on_finger_scan_unmatched_callback(F &&callback) {
+    this->finger_scan_unmatched_callback_.add(std::forward<F>(callback));
   }
-  void add_on_finger_scan_misplaced_callback(std::function<void()> callback) {
-    this->finger_scan_misplaced_callback_.add(std::move(callback));
+  template<typename F> void add_on_finger_scan_misplaced_callback(F &&callback) {
+    this->finger_scan_misplaced_callback_.add(std::forward<F>(callback));
   }
-  void add_on_finger_scan_invalid_callback(std::function<void()> callback) {
-    this->finger_scan_invalid_callback_.add(std::move(callback));
+  template<typename F> void add_on_finger_scan_invalid_callback(F &&callback) {
+    this->finger_scan_invalid_callback_.add(std::forward<F>(callback));
   }
-  void add_on_enrollment_scan_callback(std::function<void(uint8_t, uint16_t)> callback) {
-    this->enrollment_scan_callback_.add(std::move(callback));
+  template<typename F> void add_on_enrollment_scan_callback(F &&callback) {
+    this->enrollment_scan_callback_.add(std::forward<F>(callback));
   }
-  void add_on_enrollment_done_callback(std::function<void(uint16_t)> callback) {
-    this->enrollment_done_callback_.add(std::move(callback));
+  template<typename F> void add_on_enrollment_done_callback(F &&callback) {
+    this->enrollment_done_callback_.add(std::forward<F>(callback));
   }
 
-  void add_on_enrollment_failed_callback(std::function<void(uint16_t)> callback) {
-    this->enrollment_failed_callback_.add(std::move(callback));
+  template<typename F> void add_on_enrollment_failed_callback(F &&callback) {
+    this->enrollment_failed_callback_.add(std::forward<F>(callback));
   }
 
   void enroll_fingerprint(uint16_t finger_id, uint8_t num_buffers);
@@ -169,7 +169,7 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   bool set_password_();
   bool get_parameters_();
   void get_fingerprint_count_();
-  uint8_t transfer_(std::vector<uint8_t> *p_data_buffer);
+  uint8_t transfer_(std::vector<uint8_t> &data_buffer);
   uint8_t send_command_();
   void sensor_wakeup_();
   void sensor_sleep_();
@@ -190,7 +190,7 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   bool is_sensor_awake_ = false;
   uint32_t last_transfer_ms_ = 0;
   uint32_t last_aura_led_control_ = 0;
-  uint16_t last_aura_led_duration_ = 0;
+  uint32_t last_aura_led_duration_ = 0;
   uint16_t system_identifier_code_ = 0;
   uint32_t idle_period_to_sleep_ms_ = UINT32_MAX;
   sensor::Sensor *fingerprint_count_sensor_{nullptr};

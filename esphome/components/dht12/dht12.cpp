@@ -49,7 +49,7 @@ void DHT12Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
-float DHT12Component::get_setup_priority() const { return setup_priority::DATA; }
+
 bool DHT12Component::read_data_(uint8_t *data) {
   if (!this->read_bytes(0, data, 5)) {
     ESP_LOGW(TAG, "Updating DHT12 failed!");

@@ -4,6 +4,7 @@ wifi:
 
 time:
   - platform: sntp
+    id: sntp_time
 
 mqtt:
   broker: "192.168.178.84"
@@ -56,10 +57,14 @@ mqtt:
     - mqtt.publish:
         topic: some/topic
         payload: Hello
+    - lambda: |-
+        ESP_LOGD("MQTT", "Session present %d", session_present);
   on_disconnect:
     - mqtt.publish:
         topic: some/topic
         payload: Good-bye
+    - lambda: |-
+        ESP_LOGD("MQTT", "Disconnect reason %d", reason);
   publish_nan_as_none: false
 
 binary_sensor:
@@ -86,6 +91,7 @@ button:
   - platform: template
     name: "Template Button"
     state_topic: some/topic/button
+    command_topic: !lambda return "some/topic/button/command";
     qos: 2
     on_press:
       - mqtt.disable
@@ -213,11 +219,59 @@ cover:
     name: Template Cover
     state_topic: some/topic/cover
     qos: 2
+    mqtt_json_state_payload: true
     lambda: |-
       if (id(some_binary_sensor).state) {
         return COVER_OPEN;
       }
       return COVER_CLOSED;
+    open_action:
+      - logger.log: open_action
+    close_action:
+      - logger.log: close_action
+    stop_action:
+      - logger.log: stop_action
+    optimistic: true
+  - platform: template
+    name: Template Cover with Position and Tilt
+    state_topic: some/topic/cover_pt
+    position_state_topic: some/topic/cover_pt/position
+    position_command_topic: some/topic/cover_pt/position/set
+    tilt_state_topic: some/topic/cover_pt/tilt
+    tilt_command_topic: some/topic/cover_pt/tilt/set
+    qos: 2
+    has_position: true
+    lambda: |-
+      if (id(some_binary_sensor).state) {
+        return COVER_OPEN;
+      }
+      return COVER_CLOSED;
+    position_action:
+      - logger.log: position_action
+    tilt_action:
+      - logger.log: tilt_action
+    open_action:
+      - logger.log: open_action
+    close_action:
+      - logger.log: close_action
+    stop_action:
+      - logger.log: stop_action
+    optimistic: true
+  - platform: template
+    name: Template Cover with Position and Tilt JSON
+    state_topic: some/topic/cover_pt_json
+    qos: 2
+    mqtt_json_state_payload: true
+    has_position: true
+    lambda: |-
+      if (id(some_binary_sensor).state) {
+        return COVER_OPEN;
+      }
+      return COVER_CLOSED;
+    position_action:
+      - logger.log: position_action
+    tilt_action:
+      - logger.log: tilt_action
     open_action:
       - logger.log: open_action
     close_action:
@@ -290,7 +344,7 @@ event:
 fan:
   - platform: template
     name: Template Fan
-    state_topic: some/topic/fan
+    state_topic: !lambda return "some/topic/fan";
     direction_state_topic: some/topic/direction/state
     direction_command_topic: some/topic/direction/command
     qos: 2

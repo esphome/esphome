@@ -1,6 +1,9 @@
+from collections.abc import Callable
+
 from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
 from esphome.components.time import RealTimeClock
+from esphome.config_validation import prepend_path
 from esphome.const import (
     CONF_ARGS,
     CONF_FORMAT,
@@ -19,7 +22,15 @@ from esphome.core import TimePeriod
 from esphome.core.config import StartupTrigger
 
 from . import defines as df, lv_validation as lvalid
-from .defines import CONF_TIME_FORMAT, LV_GRAD_DIR
+from .defines import (
+    CONF_SCROLL_DIR,
+    CONF_SCROLL_SNAP_X,
+    CONF_SCROLL_SNAP_Y,
+    CONF_SCROLLBAR_MODE,
+    CONF_TIME_FORMAT,
+    LV_GRAD_DIR,
+    get_remapped_uses,
+)
 from .helpers import CONF_IF_NAN, requires_component, validate_printf
 from .layout import (
     FLEX_OBJ_SCHEMA,
@@ -32,15 +43,16 @@ from .lvcode import LvglComponent, lv_event_t_ptr
 from .types import (
     LVEncoderListener,
     LvType,
-    WidgetType,
     lv_group_t,
     lv_obj_t,
     lv_pseudo_button_t,
     lv_style_t,
 )
+from .widgets import WidgetType
 
 # this will be populated later, in __init__.py to avoid circular imports.
 WIDGET_TYPES: dict = {}
+
 
 TIME_TEXT_SCHEMA = cv.Schema(
     {
@@ -166,23 +178,28 @@ STYLE_PROPS = {
     "height": lvalid.size,
     "image_recolor": lvalid.lv_color,
     "image_recolor_opa": lvalid.opacity,
-    "line_width": lvalid.lv_positive_int,
-    "line_dash_width": lvalid.lv_positive_int,
-    "line_dash_gap": lvalid.lv_positive_int,
-    "line_rounded": lvalid.lv_bool,
     "line_color": lvalid.lv_color,
+    "line_dash_gap": lvalid.lv_positive_int,
+    "line_dash_width": lvalid.lv_positive_int,
+    "line_opa": lvalid.opacity,
+    "line_rounded": lvalid.lv_bool,
+    "line_width": lvalid.lv_positive_int,
     "opa": lvalid.opacity,
     "opa_layered": lvalid.opacity,
     "outline_color": lvalid.lv_color,
     "outline_opa": lvalid.opacity,
     "outline_pad": lvalid.padding,
     "outline_width": lvalid.pixels,
+    "length": lvalid.pixels_or_percent,
     "pad_all": lvalid.padding,
     "pad_bottom": lvalid.padding,
     "pad_left": lvalid.padding,
     "pad_right": lvalid.padding,
     "pad_top": lvalid.padding,
+    "radial_offset": lvalid.size,
     "shadow_color": lvalid.lv_color,
+    "shadow_offset_x": lvalid.lv_int,
+    "shadow_offset_y": lvalid.lv_int,
     "shadow_ofs_x": lvalid.lv_int,
     "shadow_ofs_y": lvalid.lv_int,
     "shadow_opa": lvalid.opacity,
@@ -203,7 +220,13 @@ STYLE_PROPS = {
     "transform_height": lvalid.pixels_or_percent,
     "transform_pivot_x": lvalid.pixels_or_percent,
     "transform_pivot_y": lvalid.pixels_or_percent,
-    "transform_zoom": lvalid.zoom,
+    "transform_rotation": lvalid.lv_angle,
+    "transform_scale": lvalid.scale,
+    "transform_scale_x": lvalid.scale,
+    "transform_scale_y": lvalid.scale,
+    "transform_skew_x": lvalid.lv_angle,
+    "transform_skew_y": lvalid.lv_angle,
+    "transform_zoom": lvalid.scale,
     "translate_x": lvalid.pixels_or_percent,
     "translate_y": lvalid.pixels_or_percent,
     "max_height": lvalid.pixels_or_percent,
@@ -217,14 +240,30 @@ STYLE_PROPS = {
 }
 
 STYLE_REMAP = {
-    "bg_image_opa": "bg_img_opa",
-    "bg_image_recolor": "bg_img_recolor",
-    "bg_image_recolor_opa": "bg_img_recolor_opa",
-    "bg_image_src": "bg_img_src",
-    "bg_image_tiled": "bg_img_tiled",
-    "image_recolor": "img_recolor",
-    "image_recolor_opa": "img_recolor_opa",
+    "transform_angle": "transform_rotation",
+    "transform_zoom": "transform_scale",
+    "zoom": "scale",
+    "angle": "rotation",
+    "shadow_ofs_x": "shadow_offset_x",
+    "shadow_ofs_y": "shadow_offset_y",
+    "r_mod": "length",
 }
+
+
+def remap_property(prop, record=True):
+    """
+    Remap an old style property to new style property.
+    Optionally record the use of the deprecated property.
+    :param prop: Name of the style property to remap.
+    :param record: Whether to record the use of the deprecated property.
+    :return: The remapped property name, or ``prop`` if no remapping exists.
+    """
+    if prop in STYLE_REMAP:
+        if record:
+            get_remapped_uses().add(prop)
+        return STYLE_REMAP[prop]
+    return prop
+
 
 # Complete object style schema
 STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).extend(
@@ -233,8 +272,18 @@ STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).ex
         cv.Optional(df.CONF_SCROLLBAR_MODE): df.LvConstant(
             "LV_SCROLLBAR_MODE_", "OFF", "ON", "ACTIVE", "AUTO"
         ).one_of,
+        cv.Optional(CONF_SCROLL_DIR): df.SCROLL_DIRECTIONS.one_of,
+        cv.Optional(CONF_SCROLL_SNAP_X): df.SNAP_DIRECTIONS.one_of,
+        cv.Optional(CONF_SCROLL_SNAP_Y): df.SNAP_DIRECTIONS.one_of,
     }
 )
+
+OBJ_PROPERTIES = {
+    CONF_SCROLL_SNAP_X,
+    CONF_SCROLL_SNAP_Y,
+    CONF_SCROLL_DIR,
+    CONF_SCROLLBAR_MODE,
+}
 
 # Also allow widget specific properties for use in style definitions
 FULL_STYLE_SCHEMA = STYLE_SCHEMA.extend(
@@ -256,7 +305,7 @@ SET_STATE_SCHEMA = cv.Schema(
 )
 # Setting object flags
 FLAG_SCHEMA = cv.Schema({cv.Optional(flag): lvalid.lv_bool for flag in df.OBJ_FLAGS})
-FLAG_LIST = cv.ensure_list(df.LvConstant("LV_OBJ_FLAG_", *df.OBJ_FLAGS).one_of)
+FLAG_LIST = cv.ensure_list(df.LV_OBJ_FLAG.one_of)
 
 
 def part_schema(parts):
@@ -293,19 +342,36 @@ def automation_schema(typ: LvType):
     }
 
 
-def base_update_schema(widget_type, parts):
+def _update_widget(widget_type: WidgetType) -> Callable[[dict], dict]:
     """
-    Create a schema for updating a widgets style properties, states and flags
+    During validation of update actions, create a map of action types to affected widgets
+    for use in final validation.
+    :param widget_type:
+    :return:
+    """
+
+    def validator(value: dict) -> dict:
+        df.get_data(df.KEY_UPDATED_WIDGETS).setdefault(widget_type, []).append(value)
+        return value
+
+    return validator
+
+
+def base_update_schema(widget_type: WidgetType | LvType, parts):
+    """
+    Create a schema for updating a widget's style properties, states and flags.
     :param widget_type: The type of the ID
     :param parts:  The allowable parts to specify
     :return:
     """
-    return part_schema(parts).extend(
+
+    w_type = widget_type.w_type if isinstance(widget_type, WidgetType) else widget_type
+    schema = part_schema(parts).extend(
         {
             cv.Required(CONF_ID): cv.ensure_list(
                 cv.maybe_simple_value(
                     {
-                        cv.Required(CONF_ID): cv.use_id(widget_type),
+                        cv.Required(CONF_ID): cv.use_id(w_type),
                     },
                     key=CONF_ID,
                 )
@@ -314,11 +380,9 @@ def base_update_schema(widget_type, parts):
         }
     )
 
-
-def create_modify_schema(widget_type):
-    return base_update_schema(widget_type.w_type, widget_type.parts).extend(
-        widget_type.modify_schema
-    )
+    if isinstance(widget_type, WidgetType):
+        schema.add_extra(_update_widget(widget_type))
+    return schema
 
 
 def obj_schema(widget_type: WidgetType):
@@ -383,6 +447,17 @@ ALL_STYLES = {
 }
 
 
+def strip_defaults(schema: cv.Schema):
+    """
+    Take a schema and remove any default values, also convert Required to Optional.
+    Useful for converting an object schema to a modify schema
+    :param schema: The original Schema
+    :return: A new schema with no defaults and all items optional
+    """
+
+    return cv.Schema({cv.Optional(k): v for k, v in schema.schema.items()})
+
+
 def container_schema(widget_type: WidgetType, extras=None):
     """
     Create a schema for a container widget of a given type. All obj properties are available, plus
@@ -401,6 +476,7 @@ def container_schema(widget_type: WidgetType, extras=None):
     schema = schema.extend(widget_type.schema)
 
     def validator(value):
+        value = value or {}
         return append_layout_schema(schema, value)(value)
 
     return validator
@@ -422,7 +498,10 @@ def any_widget_schema(extras=None):
     def validator(value):
         if isinstance(value, dict):
             # Convert to list
+            is_dict = True
             value = [{k: v} for k, v in value.items()]
+        else:
+            is_dict = False
         if not isinstance(value, list):
             raise cv.Invalid("Expected a list of widgets")
         result = []
@@ -442,8 +521,10 @@ def any_widget_schema(extras=None):
                     container_validator, requires_component(required)
                 )
             # Apply custom validation
-            value = widget_type.validate(value or {})
-            result.append({key: container_validator(value)})
+            path = [key] if is_dict else [index, key]
+            with prepend_path(path):
+                value = widget_type.validate(value or {})
+                result.append({key: container_validator(value)})
         return result
 
     return validator

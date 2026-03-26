@@ -1,0 +1,13 @@
+esp32_ble_tracker:
+
+sensor:
+  - platform: thermopro_ble
+    mac_address: FE:74:B8:6A:97:B7
+    temperature:
+      name: "ThermoPro Temperature"
+    humidity:
+      name: "ThermoPro Humidity"
+    battery_level:
+      name: "ThermoPro Battery Level"
+    signal_strength:
+      name: "ThermoPro Signal Strength"

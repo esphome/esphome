@@ -6,8 +6,7 @@
 #include "esphome/core/log.h"
 #include "uart_component.h"
 
-namespace esphome {
-namespace uart {
+namespace esphome::uart {
 
 class HostUartComponent : public UARTComponent, public Component {
  public:
@@ -18,8 +17,8 @@ class HostUartComponent : public UARTComponent, public Component {
   void write_array(const uint8_t *data, size_t len) override;
   bool peek_byte(uint8_t *data) override;
   bool read_array(uint8_t *data, size_t len) override;
-  int available() override;
-  void flush() override;
+  size_t available() override;
+  UARTFlushResult flush() override;
   void set_name(std::string port_name) { port_name_ = port_name; };
 
  protected:
@@ -32,7 +31,5 @@ class HostUartComponent : public UARTComponent, public Component {
   uint8_t peek_byte_;
 };
 
-}  // namespace uart
-}  // namespace esphome
-
+}  // namespace esphome::uart
 #endif  // USE_HOST
