@@ -2,7 +2,6 @@
 #ifdef USE_WIREGUARD
 #include <cinttypes>
 #include <ctime>
-#include <functional>
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -48,8 +47,8 @@ void Wireguard::setup() {
   if (this->wg_initialized_ == ESP_OK) {
     ESP_LOGI(TAG, "Initialized");
     this->wg_peer_offline_time_ = millis();
-    this->srctime_->add_on_time_sync_callback(std::bind(&Wireguard::start_connection_, this));
-    this->defer(std::bind(&Wireguard::start_connection_, this));  // defer to avoid blocking setup
+    this->srctime_->add_on_time_sync_callback([this]() { this->start_connection_(); });
+    this->defer([this]() { this->start_connection_(); });  // defer to avoid blocking setup
 
 #ifdef USE_TEXT_SENSOR
     if (this->address_sensor_ != nullptr) {
@@ -206,7 +205,7 @@ void Wireguard::enable() {
 
 void Wireguard::disable() {
   this->enabled_ = false;
-  this->defer(std::bind(&Wireguard::stop_connection_, this));  // defer to avoid blocking running loop
+  this->defer([this]() { this->stop_connection_(); });  // defer to avoid blocking running loop
   ESP_LOGI(TAG, "Disabled");
   this->publish_enabled_state();
 }

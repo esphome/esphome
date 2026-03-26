@@ -68,7 +68,7 @@ void RX8130Component::dump_config() {
 void RX8130Component::read_time() {
   uint8_t date[7];
   if (this->read_register(RX8130_REG_SEC, date, 7) != i2c::ERROR_OK) {
-    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   ESPTime rtc_time{
@@ -77,11 +77,8 @@ void RX8130Component::read_time() {
       .hour = bcd2dec(date[2] & 0x3f),
       .day_of_week = static_cast<uint8_t>((date[3] & 0x7f) ? __builtin_ctz(date[3] & 0x7f) + 1 : 1),
       .day_of_month = bcd2dec(date[4] & 0x3f),
-      .day_of_year = 1,  // ignored by recalc_timestamp_utc(false)
       .month = bcd2dec(date[5] & 0x1f),
       .year = static_cast<uint16_t>(bcd2dec(date[6]) + 2000),
-      .is_dst = false,  // not used
-      .timestamp = 0    // overwritten by recalc_timestamp_utc(false)
   };
   rtc_time.recalc_timestamp_utc(false);
   if (!rtc_time.is_valid()) {
@@ -109,7 +106,7 @@ void RX8130Component::write_time() {
   buff[6] = dec2bcd(now.year % 100);
   this->stop_(true);
   if (this->write_register(RX8130_REG_SEC, buff, 7) != i2c::ERROR_OK) {
-    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   } else {
     ESP_LOGD(TAG, "Wrote UTC time: %04d-%02d-%02d %02d:%02d:%02d", now.year, now.month, now.day_of_month, now.hour,
              now.minute, now.second);
@@ -120,7 +117,7 @@ void RX8130Component::write_time() {
 void RX8130Component::stop_(bool stop) {
   const uint8_t data = stop ? RX8130_BIT_CTRL_STOP : RX8130_CLEAR_FLAGS;
   if (this->write_register(RX8130_REG_CTRL0, &data, 1) != i2c::ERROR_OK) {
-    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
   }
 }
 

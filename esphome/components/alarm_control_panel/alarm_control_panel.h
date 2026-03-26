@@ -37,25 +37,24 @@ class AlarmControlPanel : public EntityBase {
    *
    * @param callback The callback function
    */
-  void add_on_state_callback(std::function<void()> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
-  /** Add a callback for when the state of the alarm_control_panel clears from triggered
-   *
-   * @param callback The callback function
-   */
-  void add_on_cleared_callback(std::function<void()> &&callback);
+  /** Add a callback for when the state of the alarm_control_panel clears from triggered. */
+  template<typename F> void add_on_cleared_callback(F &&callback) {
+    this->cleared_callback_.add(std::forward<F>(callback));
+  }
 
-  /** Add a callback for when a chime zone goes from closed to open
-   *
-   * @param callback The callback function
-   */
-  void add_on_chime_callback(std::function<void()> &&callback);
+  /** Add a callback for when a chime zone goes from closed to open. */
+  template<typename F> void add_on_chime_callback(F &&callback) {
+    this->chime_callback_.add(std::forward<F>(callback));
+  }
 
-  /** Add a callback for when a ready state changes
-   *
-   * @param callback The callback function
-   */
-  void add_on_ready_callback(std::function<void()> &&callback);
+  /** Add a callback for when a ready state changes. */
+  template<typename F> void add_on_ready_callback(F &&callback) {
+    this->ready_callback_.add(std::forward<F>(callback));
+  }
 
   /** A numeric representation of the supported features as per HomeAssistant
    *

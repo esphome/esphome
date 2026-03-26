@@ -20,6 +20,5 @@ void Button::press() {
   this->press_action();
   this->press_callback_.call();
 }
-void Button::add_on_press_callback(std::function<void()> &&callback) { this->press_callback_.add(std::move(callback)); }
 
 }  // namespace esphome::button
