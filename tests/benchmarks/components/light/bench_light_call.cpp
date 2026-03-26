@@ -1,0 +1,165 @@
+#include <benchmark/benchmark.h>
+
+#include "esphome/components/light/light_output.h"
+#include "esphome/components/light/light_state.h"
+
+namespace esphome::benchmarks {
+
+// Inner iteration count to amortize CodSpeed instrumentation overhead.
+static constexpr int kInnerIterations = 2000;
+
+// Minimal LightOutput for benchmarking — no real hardware interaction.
+class BenchLightOutput : public light::LightOutput {
+ public:
+  light::LightTraits get_traits() override { return this->traits_; }
+  void write_state(light::LightState *state) override { this->write_count_++; }
+
+  light::LightTraits traits_;
+  int write_count_{0};
+};
+
+// Test subclass to access protected configure_entity_() for benchmark setup.
+class TestLightState : public light::LightState {
+ public:
+  using LightState::LightState;
+  void configure(const char *name) { this->configure_entity_(name, 0x12345678, 0); }
+};
+
+// Helper to create a configured RGBWW light state for benchmarks.
+static void setup_rgbww_light(BenchLightOutput &output, TestLightState &light) {
+  output.traits_.set_supported_color_modes({light::ColorMode::RGB_COLD_WARM_WHITE});
+  output.traits_.set_min_mireds(153.0f);
+  output.traits_.set_max_mireds(500.0f);
+  light.configure("test_light");
+  light.set_default_transition_length(0);
+  light.set_gamma_correct(2.8f);
+  light.set_restore_mode(light::LIGHT_ALWAYS_OFF);
+}
+
+// --- LightCall::perform() with instant RGB color change (no transition) ---
+// Measures the full call path: validation, color mode computation,
+// parameter transforms, set_immediately_, publish, and save.
+// This is the path taken when a user changes the light color via the API.
+
+static void LightCall_RGBInstant(benchmark::State &state) {
+  BenchLightOutput output;
+  TestLightState light(&output);
+  setup_rgbww_light(output, light);
+
+  // Turn on first so subsequent calls are color changes
+  light.make_call().set_state(true).set_brightness(1.0f).set_color_brightness(1.0f).set_transition_length(0).perform();
+
+  for (auto _ : state) {
+    for (int i = 0; i < kInnerIterations; i++) {
+      float v = static_cast<float>(i % 256) / 255.0f;
+      light.make_call().set_red(v).set_green(1.0f - v).set_blue(v * 0.5f).set_transition_length(0).perform();
+    }
+    benchmark::DoNotOptimize(output.write_count_);
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(LightCall_RGBInstant);
+
+// --- LightCall::perform() turn on/off cycle ---
+// Measures the state toggle path including validation and publish.
+
+static void LightCall_ToggleOnOff(benchmark::State &state) {
+  BenchLightOutput output;
+  TestLightState light(&output);
+  setup_rgbww_light(output, light);
+
+  for (auto _ : state) {
+    for (int i = 0; i < kInnerIterations; i++) {
+      light.make_call().set_state(i % 2 == 0).set_transition_length(0).perform();
+    }
+    benchmark::DoNotOptimize(output.write_count_);
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(LightCall_ToggleOnOff);
+
+// --- LightCall::perform() with color temperature change ---
+// Exercises the transform_parameters_ path that converts color temperature
+// to cold/warm white fractions — a common real-world operation.
+
+static void LightCall_ColorTemperature(benchmark::State &state) {
+  BenchLightOutput output;
+  TestLightState light(&output);
+  setup_rgbww_light(output, light);
+
+  light.make_call().set_state(true).set_brightness(1.0f).set_transition_length(0).perform();
+
+  for (auto _ : state) {
+    for (int i = 0; i < kInnerIterations; i++) {
+      // Sweep through color temperature range
+      float ct = 153.0f + static_cast<float>(i % 348);
+      light.make_call()
+          .set_color_mode(light::ColorMode::RGB_COLD_WARM_WHITE)
+          .set_color_temperature(ct)
+          .set_transition_length(0)
+          .perform();
+    }
+    benchmark::DoNotOptimize(output.write_count_);
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(LightCall_ColorTemperature);
+
+// --- LightState::publish_state() with a remote values listener ---
+// Measures listener notification overhead.
+
+static void LightPublish_WithListener(benchmark::State &state) {
+  BenchLightOutput output;
+  TestLightState light(&output);
+  setup_rgbww_light(output, light);
+
+  struct TestListener : public light::LightRemoteValuesListener {
+    void on_light_remote_values_update() override { count_++; }
+    int count_{0};
+  } listener;
+  light.add_remote_values_listener(&listener);
+
+  for (auto _ : state) {
+    for (int i = 0; i < kInnerIterations; i++) {
+      light.publish_state();
+    }
+    benchmark::DoNotOptimize(listener.count_);
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(LightPublish_WithListener);
+
+// --- current_values_as_rgbww with gamma correction ---
+// Measures the output conversion path that real light drivers call
+// from write_state() to get hardware PWM values.
+
+static void LightOutput_RGBWW(benchmark::State &state) {
+  BenchLightOutput output;
+  TestLightState light(&output);
+  setup_rgbww_light(output, light);
+
+  light.make_call()
+      .set_state(true)
+      .set_brightness(0.8f)
+      .set_color_brightness(0.6f)
+      .set_red(1.0f)
+      .set_green(0.5f)
+      .set_blue(0.2f)
+      .set_cold_white(0.7f)
+      .set_warm_white(0.3f)
+      .set_transition_length(0)
+      .perform();
+
+  float r, g, b, cw, ww;
+  for (auto _ : state) {
+    for (int i = 0; i < kInnerIterations; i++) {
+      light.current_values_as_rgbww(&r, &g, &b, &cw, &ww);
+    }
+    benchmark::DoNotOptimize(r);
+    benchmark::DoNotOptimize(cw);
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(LightOutput_RGBWW);
+
+}  // namespace esphome::benchmarks
