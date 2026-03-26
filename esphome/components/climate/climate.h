@@ -336,6 +336,7 @@ class Climate : public EntityBase {
    * called from publish_state()
    */
   void save_state_(const ClimateTraits &traits);
+  void save_state_() { this->save_state_(this->traits()); }
 
   void dump_traits_(const char *tag);
 
