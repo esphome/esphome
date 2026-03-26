@@ -9,7 +9,7 @@ from ipaddress import _BaseAddress, _BaseNetwork
 import logging
 import math
 import os
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Any
 import uuid
 
@@ -477,8 +477,9 @@ def parse_yaml(
     file_name: Path, file_handle: TextIOWrapper, yaml_loader=_load_yaml_internal
 ) -> Any:
     """Parse a YAML file."""
+    content = None
     try:
-        return _load_yaml_internal_with_type(
+        content = _load_yaml_internal_with_type(
             ESPHomeLoader, file_name, file_handle, yaml_loader
         )
     except EsphomeError:
@@ -486,9 +487,14 @@ def parse_yaml(
         # readable exceptions
         # Rewind the stream so we can try again
         file_handle.seek(0, 0)
-        return _load_yaml_internal_with_type(
+        content = _load_yaml_internal_with_type(
             ESPHomePurePythonLoader, file_name, file_handle, yaml_loader
         )
+    # Add built-in context variables scoped to this file
+    return add_context(
+        content,
+        {"this": {"file": PurePath(file_name), "dir": PurePath(file_name.parent)}},
+    )
 
 
 def _load_yaml_internal_with_type(
@@ -654,3 +660,4 @@ ESPHomeDumper.add_multi_representer(Remove, ESPHomeDumper.represent_remove)
 ESPHomeDumper.add_multi_representer(core.ID, ESPHomeDumper.represent_id)
 ESPHomeDumper.add_multi_representer(uuid.UUID, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(Path, ESPHomeDumper.represent_stringify)
+ESPHomeDumper.add_multi_representer(PurePath, ESPHomeDumper.represent_stringify)

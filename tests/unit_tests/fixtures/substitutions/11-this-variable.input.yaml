@@ -1,0 +1,8 @@
+substitutions:
+  some_file: some_file.txt
+
+test_list:
+  - Current dir is: ${ this.dir.name }
+  - Current file is: ${ this.file.name }
+  - Parent dir is: ${ this.dir.parent.name }
+  - Last three parts of path: ${ (this.dir / some_file).parts[-3:] | list}
