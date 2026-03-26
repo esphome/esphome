@@ -31,11 +31,6 @@ static constexpr uint8_t REG_TP_RES[2] = {0x80, 0x48};   // touch resolution reg
   }
 
 void GT911Touchscreen::setup() {
-<<<<<<< HEAD
-  if (true != this->init_sequence(this->use_primary_i2c_addr)) {
-    ESP_LOGE(TAG, "Error: GT911 init sequence failed.");
-    return;
-=======
   if (this->interrupt_pin_ != nullptr) {
     if (!this->init_sequence_(this->use_primary_i2c_addr_)) {
       ESP_LOGE(TAG, "Error: GT911 init sequence failed.");
@@ -47,7 +42,6 @@ void GT911Touchscreen::setup() {
     // GPIO 34,35,36 and 39 are used in some configurations
     // These GPIO cannot be confiured as OUPUT pin.
     // However, it seems that GT911 might work by skipping the init sequence.
->>>>>>> 9e9abe143 (- Fixed esphome code analysis violations)
   }
   this->setup_internal_();
 }
