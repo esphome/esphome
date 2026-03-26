@@ -91,17 +91,17 @@ ClimateTraits AirConditioner::traits() {
   traits.set_supported_modes(this->supported_modes_);
   traits.set_supported_swing_modes(this->supported_swing_modes_);
   traits.set_supported_presets(this->supported_presets_);
-  if (!this->supported_custom_presets_.empty())
-    traits.set_supported_custom_presets(this->supported_custom_presets_);
-  if (!this->supported_custom_fan_modes_.empty())
-    traits.set_supported_custom_fan_modes(this->supported_custom_fan_modes_);
+  // Custom fan modes and presets are stored on Climate base class and wired via get_traits()
   /* + MINIMAL SET OF CAPABILITIES */
   traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_AUTO);
   traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_LOW);
   traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_MEDIUM);
   traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_HIGH);
-  if (this->base_.getAutoconfStatus() == dudanov::midea::AUTOCONF_OK)
+  if (this->base_.getAutoconfStatus() == dudanov::midea::AUTOCONF_OK) {
     Converters::to_climate_traits(traits, this->base_.getCapabilities());
+    if (this->base_.getCapabilities().supportFrostProtectionPreset())
+      this->set_supported_custom_presets({Constants::FREEZE_PROTECTION});
+  }
   if (!traits.get_supported_modes().empty())
     traits.add_supported_mode(ClimateMode::CLIMATE_MODE_OFF);
   if (!traits.get_supported_swing_modes().empty())

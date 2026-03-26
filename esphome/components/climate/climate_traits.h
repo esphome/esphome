@@ -147,27 +147,21 @@ class ClimateTraits {
   void add_supported_fan_mode(ClimateFanMode mode) { this->supported_fan_modes_.insert(mode); }
   bool supports_fan_mode(ClimateFanMode fan_mode) const { return this->supported_fan_modes_.count(fan_mode); }
   bool get_supports_fan_modes() const {
-    return !this->supported_fan_modes_.empty() || !this->supported_custom_fan_modes_.empty();
+    return !this->supported_fan_modes_.empty() ||
+           (this->supported_custom_fan_modes_ && !this->supported_custom_fan_modes_->empty());
   }
   const ClimateFanModeMask &get_supported_fan_modes() const { return this->supported_fan_modes_; }
 
-  void set_supported_custom_fan_modes(std::initializer_list<const char *> modes) {
+  void set_supported_custom_fan_modes(const std::vector<const char *> *modes) {
     this->supported_custom_fan_modes_ = modes;
   }
-  void set_supported_custom_fan_modes(const std::vector<const char *> &modes) {
-    this->supported_custom_fan_modes_ = modes;
-  }
-  template<size_t N> void set_supported_custom_fan_modes(const char *const (&modes)[N]) {
-    this->supported_custom_fan_modes_.assign(modes, modes + N);
-  }
 
-  // Deleted overloads to catch incorrect std::string usage at compile time with clear error messages
-  void set_supported_custom_fan_modes(const std::vector<std::string> &modes) = delete;
-  void set_supported_custom_fan_modes(std::initializer_list<std::string> modes) = delete;
-
-  const std::vector<const char *> &get_supported_custom_fan_modes() const { return this->supported_custom_fan_modes_; }
+  const std::vector<const char *> &get_supported_custom_fan_modes() const {
+    static const std::vector<const char *> empty;
+    return this->supported_custom_fan_modes_ ? *this->supported_custom_fan_modes_ : empty;
+  }
   bool supports_custom_fan_mode(const char *custom_fan_mode) const {
-    return vector_contains(this->supported_custom_fan_modes_, custom_fan_mode);
+    return this->supported_custom_fan_modes_ && vector_contains(*this->supported_custom_fan_modes_, custom_fan_mode);
   }
   bool supports_custom_fan_mode(const std::string &custom_fan_mode) const {
     return this->supports_custom_fan_mode(custom_fan_mode.c_str());
@@ -179,23 +173,16 @@ class ClimateTraits {
   bool get_supports_presets() const { return !this->supported_presets_.empty(); }
   const ClimatePresetMask &get_supported_presets() const { return this->supported_presets_; }
 
-  void set_supported_custom_presets(std::initializer_list<const char *> presets) {
+  void set_supported_custom_presets(const std::vector<const char *> *presets) {
     this->supported_custom_presets_ = presets;
   }
-  void set_supported_custom_presets(const std::vector<const char *> &presets) {
-    this->supported_custom_presets_ = presets;
-  }
-  template<size_t N> void set_supported_custom_presets(const char *const (&presets)[N]) {
-    this->supported_custom_presets_.assign(presets, presets + N);
-  }
 
-  // Deleted overloads to catch incorrect std::string usage at compile time with clear error messages
-  void set_supported_custom_presets(const std::vector<std::string> &presets) = delete;
-  void set_supported_custom_presets(std::initializer_list<std::string> presets) = delete;
-
-  const std::vector<const char *> &get_supported_custom_presets() const { return this->supported_custom_presets_; }
+  const std::vector<const char *> &get_supported_custom_presets() const {
+    static const std::vector<const char *> empty;
+    return this->supported_custom_presets_ ? *this->supported_custom_presets_ : empty;
+  }
   bool supports_custom_preset(const char *custom_preset) const {
-    return vector_contains(this->supported_custom_presets_, custom_preset);
+    return this->supported_custom_presets_ && vector_contains(*this->supported_custom_presets_, custom_preset);
   }
   bool supports_custom_preset(const std::string &custom_preset) const {
     return this->supports_custom_preset(custom_preset.c_str());
@@ -264,7 +251,8 @@ class ClimateTraits {
     return this->find_custom_fan_mode_(custom_fan_mode, strlen(custom_fan_mode));
   }
   const char *find_custom_fan_mode_(const char *custom_fan_mode, size_t len) const {
-    return vector_find(this->supported_custom_fan_modes_, custom_fan_mode, len);
+    return this->supported_custom_fan_modes_ ? vector_find(*this->supported_custom_fan_modes_, custom_fan_mode, len)
+                                             : nullptr;
   }
 
   /// Find and return the matching custom preset pointer from supported presets, or nullptr if not found
@@ -273,7 +261,8 @@ class ClimateTraits {
     return this->find_custom_preset_(custom_preset, strlen(custom_preset));
   }
   const char *find_custom_preset_(const char *custom_preset, size_t len) const {
-    return vector_find(this->supported_custom_presets_, custom_preset, len);
+    return this->supported_custom_presets_ ? vector_find(*this->supported_custom_presets_, custom_preset, len)
+                                           : nullptr;
   }
 
   uint32_t feature_flags_{0};
@@ -289,16 +278,13 @@ class ClimateTraits {
   climate::ClimateSwingModeMask supported_swing_modes_;
   climate::ClimatePresetMask supported_presets_;
 
-  /** Custom mode storage using const char* pointers to eliminate std::string overhead.
+  /** Custom mode storage - pointers to vectors owned by the Climate base class.
    *
-   * Pointers must remain valid for the ClimateTraits lifetime. Safe patterns:
-   *  - String literals: set_supported_custom_fan_modes({"Turbo", "Silent"})
-   *  - Static const data: static const char* MODE = "Eco";
-   *
-   * Climate class setters validate pointers are from these vectors before storing.
+   * ClimateTraits does not own this data; Climate stores the vectors and
+   * get_traits() wires these pointers automatically.
    */
-  std::vector<const char *> supported_custom_fan_modes_;
-  std::vector<const char *> supported_custom_presets_;
+  const std::vector<const char *> *supported_custom_fan_modes_{nullptr};
+  const std::vector<const char *> *supported_custom_presets_{nullptr};
 };
 
 }  // namespace esphome::climate

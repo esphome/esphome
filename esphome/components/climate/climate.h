@@ -234,6 +234,28 @@ class Climate : public EntityBase {
   void set_visual_max_humidity_override(float visual_max_humidity_override);
 #endif
 
+  /// Set the supported custom fan modes (stored on Climate, referenced by ClimateTraits).
+  void set_supported_custom_fan_modes(std::initializer_list<const char *> modes) {
+    this->supported_custom_fan_modes_ = modes;
+  }
+  void set_supported_custom_fan_modes(const std::vector<const char *> &modes) {
+    this->supported_custom_fan_modes_ = modes;
+  }
+  template<size_t N> void set_supported_custom_fan_modes(const char *const (&modes)[N]) {
+    this->supported_custom_fan_modes_.assign(modes, modes + N);
+  }
+
+  /// Set the supported custom presets (stored on Climate, referenced by ClimateTraits).
+  void set_supported_custom_presets(std::initializer_list<const char *> presets) {
+    this->supported_custom_presets_ = presets;
+  }
+  void set_supported_custom_presets(const std::vector<const char *> &presets) {
+    this->supported_custom_presets_ = presets;
+  }
+  template<size_t N> void set_supported_custom_presets(const char *const (&presets)[N]) {
+    this->supported_custom_presets_.assign(presets, presets + N);
+  }
+
   /// Check if a custom fan mode is currently active.
   bool has_custom_fan_mode() const { return this->custom_fan_mode_ != nullptr; }
 
@@ -336,13 +358,20 @@ class Climate : public EntityBase {
    * called from publish_state()
    */
   void save_state_(const ClimateTraits &traits);
-  void save_state_() { this->save_state_(this->traits()); }
+  void save_state_() { this->save_state_(this->get_traits()); }
 
   void dump_traits_(const char *tag);
 
   LazyCallbackManager<void(Climate &)> state_callback_{};
   LazyCallbackManager<void(ClimateCall &)> control_callback_{};
   ESPPreferenceObject rtc_;
+
+  /** Custom mode storage - owned by Climate, referenced by ClimateTraits via pointer.
+   * Pointers in these vectors must point to string literals or static data.
+   */
+  std::vector<const char *> supported_custom_fan_modes_;
+  std::vector<const char *> supported_custom_presets_;
+
 #ifdef USE_CLIMATE_VISUAL_OVERRIDES
   float visual_min_temperature_override_{NAN};
   float visual_max_temperature_override_{NAN};
@@ -355,14 +384,14 @@ class Climate : public EntityBase {
  private:
   /** The active custom fan mode (private - enforces use of safe setters).
    *
-   * Points to an entry in traits.supported_custom_fan_modes_ or nullptr.
+   * Points to an entry in supported_custom_fan_modes_ or nullptr.
    * Use get_custom_fan_mode() to read, set_custom_fan_mode_() to modify.
    */
   const char *custom_fan_mode_{nullptr};
 
   /** The active custom preset (private - enforces use of safe setters).
    *
-   * Points to an entry in traits.supported_custom_presets_ or nullptr.
+   * Points to an entry in supported_custom_presets_ or nullptr.
    * Use get_custom_preset() to read, set_custom_preset_() to modify.
    */
   const char *custom_preset_{nullptr};

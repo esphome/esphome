@@ -105,14 +105,14 @@ class DemoClimate : public climate::Climate, public Component {
             climate::CLIMATE_FAN_DIFFUSE,
             climate::CLIMATE_FAN_QUIET,
         });
-        traits.set_supported_custom_fan_modes({"Auto Low", "Auto High"});
+        this->set_supported_custom_fan_modes({"Auto Low", "Auto High"});
         traits.set_supported_swing_modes({
             climate::CLIMATE_SWING_OFF,
             climate::CLIMATE_SWING_BOTH,
             climate::CLIMATE_SWING_VERTICAL,
             climate::CLIMATE_SWING_HORIZONTAL,
         });
-        traits.set_supported_custom_presets({"My Preset"});
+        this->set_supported_custom_presets({"My Preset"});
         break;
       case DemoClimateType::TYPE_3:
         traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE |
@@ -123,7 +123,7 @@ class DemoClimate : public climate::Climate, public Component {
             climate::CLIMATE_MODE_HEAT,
             climate::CLIMATE_MODE_HEAT_COOL,
         });
-        traits.set_supported_custom_fan_modes({"Auto Low", "Auto High"});
+        this->set_supported_custom_fan_modes({"Auto Low", "Auto High"});
         traits.set_supported_swing_modes({
             climate::CLIMATE_SWING_OFF,
             climate::CLIMATE_SWING_HORIZONTAL,
