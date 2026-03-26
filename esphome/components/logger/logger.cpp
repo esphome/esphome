@@ -245,23 +245,15 @@ void Logger::dump_config() {
   dump_crash_();
 #endif
   // Warn users that VERBOSE/VERY_VERBOSE logging impacts performance.
-  // The compiled log level (ESPHOME_LOG_LEVEL) is what matters here — even if
-  // initial_level is set lower at runtime, log messages at the compiled level
-  // are still formatted (vsnprintf) and written to UART which is blocking.
+  // Only the compiled log level matters — all log calls up to this level
+  // are in the binary and will be formatted (vsnprintf) and block UART.
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-  if (this->current_level_ >= ESPHOME_LOG_LEVEL_VERY_VERBOSE) {
-    ESP_LOGW(TAG, "VERY_VERBOSE logging is active. This will significantly impact device performance and may cause "
-                  "connection instability. This level is intended for short-term debugging only. "
-                  "Set the log level to DEBUG or lower for long-term use.");
-  } else if (this->current_level_ >= ESPHOME_LOG_LEVEL_VERBOSE) {
-    ESP_LOGI(TAG, "VERBOSE logging is active. This will impact device performance and is intended for short-term "
-                  "debugging only. Set the log level to DEBUG or lower for long-term use.");
-  }
+  ESP_LOGW(TAG, "VERY_VERBOSE logging is active. This will significantly impact device performance and may cause "
+                "connection instability. This level is intended for short-term debugging only. "
+                "Set the log level to DEBUG or lower for long-term use.");
 #elif ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  if (this->current_level_ >= ESPHOME_LOG_LEVEL_VERBOSE) {
-    ESP_LOGI(TAG, "VERBOSE logging is active. This will impact device performance and is intended for short-term "
-                  "debugging only. Set the log level to DEBUG or lower for long-term use.");
-  }
+  ESP_LOGI(TAG, "VERBOSE logging is active. This will impact device performance and is intended for short-term "
+                "debugging only. Set the log level to DEBUG or lower for long-term use.");
 #endif
 }
 
