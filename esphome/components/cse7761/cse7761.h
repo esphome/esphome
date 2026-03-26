@@ -37,6 +37,7 @@ class CSE7761Component : public PollingComponent, public uart::UARTDevice {
   void set_model(CSE7761Model model) { this->data_.model = model; }
   void setup() override;
   void dump_config() override;
+  float get_setup_priority() const override;
   void update() override;
 
  protected:
