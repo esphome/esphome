@@ -1549,6 +1549,7 @@ uint16_t APIConnection::try_send_infrared_info(EntityBase *entity, APIConnection
   auto *infrared = static_cast<infrared::Infrared *>(entity);
   ListEntitiesInfraredResponse msg;
   msg.capabilities = infrared->get_capability_flags();
+  msg.receiver_frequency = infrared->get_traits().get_receiver_frequency_hz();
   return fill_and_encode_entity_info(infrared, msg, conn, remaining_size);
 }
 #endif
