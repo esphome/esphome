@@ -29,6 +29,7 @@ static void setup_fan(BenchFan &fan) {
   fan.traits_.set_speed(true);
   fan.traits_.set_supported_speed_count(6);
   fan.traits_.set_direction(true);
+  fan.set_restore_mode(fan::FanRestoreMode::NO_RESTORE);
   fan.traits_.set_supported_preset_modes({
       "auto",
       "sleep",
