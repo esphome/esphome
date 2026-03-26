@@ -672,7 +672,6 @@ async def build_callback_automation(
     args: TemplateArgsType,
     config: ConfigType,
     forwarder: MockObjClass | None = None,
-    forwarder_extra_args: list | None = None,
 ) -> None:
     """Build an Automation and register it as a callback on the parent.
 
@@ -680,7 +679,9 @@ async def build_callback_automation(
     automation's trigger() directly as a callback on the parent component.
 
     Uses template forwarder structs so the compiler deduplicates the operator()
-    body across all call sites with the same signature.
+    body across all call sites with the same signature. The forwarder must be
+    pointer-sized (single Automation* field) to fit inline in Callback::ctx_
+    and avoid heap allocation.
 
     :param parent: The component object (e.g., button, sensor).
     :param callback_method: Name of the callback method (e.g., "add_on_press_callback").
@@ -688,11 +689,7 @@ async def build_callback_automation(
     :param config: The automation config dict.
     :param forwarder: Optional forwarder type to use instead of the default
         TriggerForwarder<Ts...>. Pass any struct type whose aggregate init takes
-        an Automation pointer as the first field (e.g., TriggerOnTrueForwarder,
-        or a custom component-defined forwarder).
-    :param forwarder_extra_args: Optional list of extra MockObj args to pass to the
-        forwarder after the automation pointer in aggregate init. For example,
-        a lock forwarder needs the lock entity pointer: [lock_var].
+        a single Automation pointer (e.g., TriggerOnTrueForwarder).
     """
     arg_types = [arg[0] for arg in args]
     templ = cg.TemplateArguments(*arg_types)
@@ -708,12 +705,4 @@ async def build_callback_automation(
             if arg_types
             else TriggerForwarder.template()
         )
-    init_args = str(obj)
-    if forwarder_extra_args:
-        extra = ", ".join(str(a) for a in forwarder_extra_args)
-        init_args = f"{init_args}, {extra}"
-    cg.add(
-        getattr(parent, callback_method)(
-            cg.RawExpression(f"{forwarder}{{{init_args}}}")
-        )
-    )
+    cg.add(getattr(parent, callback_method)(cg.RawExpression(f"{forwarder}{{{obj}}}")))

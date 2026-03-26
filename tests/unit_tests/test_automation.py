@@ -187,7 +187,6 @@ def _build_forwarder(
     automation_name: str,
     args: list[tuple[str, str]],
     forwarder: MockObj | None = None,
-    extra_args: list[str] | None = None,
 ) -> str:
     """Build a trigger forwarder expression the same way build_callback_automation does.
 
@@ -202,10 +201,7 @@ def _build_forwarder(
             cg.TemplateArguments(*arg_types) if arg_types else cg.TemplateArguments()
         )
         forwarder = TriggerForwarder.template(templ)
-    init_args = str(obj)
-    if extra_args:
-        init_args += ", " + ", ".join(extra_args)
-    return f"{forwarder}{{{init_args}}}"
+    return f"{forwarder}{{{obj}}}"
 
 
 def test_trigger_forwarder_no_args() -> None:
@@ -253,10 +249,8 @@ def test_trigger_forwarder_string_arg() -> None:
     assert result == "TriggerForwarder<std::string>{auto_1}"
 
 
-def test_trigger_forwarder_custom_with_extra_args() -> None:
-    """Lock on_lock: custom forwarder with extra args for entity pointer."""
-    lock_forwarder = MockObj("LockStateForwarder<LOCK_STATE_LOCKED>", "")
-    result = _build_forwarder(
-        "auto_1", [], forwarder=lock_forwarder, extra_args=["lock_var"]
-    )
-    assert result == "LockStateForwarder<LOCK_STATE_LOCKED>{auto_1, lock_var}"
+def test_trigger_forwarder_custom_type() -> None:
+    """Custom forwarder type passed directly."""
+    custom = MockObj("MyForwarder", "")
+    result = _build_forwarder("auto_1", [], forwarder=custom)
+    assert result == "MyForwarder{auto_1}"
