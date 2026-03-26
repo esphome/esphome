@@ -148,13 +148,19 @@ const char *Fan::find_preset_mode_(const char *preset_mode) {
 }
 
 const char *Fan::find_preset_mode_(const char *preset_mode, size_t len) {
-  if (preset_mode == nullptr || len == 0 || !this->supported_preset_modes_)
+  if (preset_mode == nullptr || len == 0) {
     return nullptr;
-  for (const char *mode : *this->supported_preset_modes_) {
-    if (strncmp(mode, preset_mode, len) == 0 && mode[len] == '\0')
-      return mode;
   }
-  return nullptr;
+  if (this->supported_preset_modes_) {
+    for (const char *mode : *this->supported_preset_modes_) {
+      if (strncmp(mode, preset_mode, len) == 0 && mode[len] == '\0') {
+        return mode;
+      }
+    }
+    return nullptr;
+  }
+  // Fallback for deprecated path: external components may set modes on FanTraits directly
+  return this->get_traits().find_preset_mode(preset_mode, len);
 }
 
 bool Fan::set_preset_mode_(const char *preset_mode, size_t len) {
@@ -274,10 +280,12 @@ void Fan::save_state_() {
   state.direction = this->direction;
   state.preset_mode = FanRestoreState::NO_PRESET;
 
-  if (this->has_preset_mode() && this->supported_preset_modes_) {
-    // Find index of current preset mode (pointer comparison is safe since preset is from our vector)
-    for (size_t i = 0; i < this->supported_preset_modes_->size(); i++) {
-      if ((*this->supported_preset_modes_)[i] == this->preset_mode_) {
+  if (this->has_preset_mode()) {
+    // Use Fan-owned vector, or fall back to traits for deprecated path
+    const auto &preset_modes =
+        this->supported_preset_modes_ ? *this->supported_preset_modes_ : this->get_traits().supported_preset_modes();
+    for (size_t i = 0; i < preset_modes.size(); i++) {
+      if (preset_modes[i] == this->preset_mode_) {
         state.preset_mode = i;
         break;
       }

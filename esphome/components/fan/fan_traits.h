@@ -33,7 +33,8 @@ class FanTraits {
   void set_direction(bool direction) { this->direction_ = direction; }
   /// Return the preset modes supported by the fan.
   const std::vector<const char *> &supported_preset_modes() const {
-    return this->preset_modes_ ? *this->preset_modes_ : this->owned_preset_modes_.modes;
+    static const std::vector<const char *> EMPTY_VECTOR;
+    return this->preset_modes_ ? *this->preset_modes_ : EMPTY_VECTOR;
   }
   /// Set the preset modes pointer (points to vector owned by Fan base class).
   void set_supported_preset_modes(const std::vector<const char *> *preset_modes) { this->preset_modes_ = preset_modes; }
@@ -41,20 +42,17 @@ class FanTraits {
   // Remove before 2026.11.0
   ESPDEPRECATED("Call set_supported_preset_modes() on the Fan entity instead. Removed in 2026.11.0", "2026.5.0")
   void set_supported_preset_modes(std::initializer_list<const char *> preset_modes) {
-    this->owned_preset_modes_.modes = preset_modes;
-    this->preset_modes_ = &this->owned_preset_modes_.modes;
+    // NOLINT - intentional leak: pointer must survive copies of FanTraits
+    this->preset_modes_ = new std::vector<const char *>(preset_modes);  // NOLINT
   }
   // Remove before 2026.11.0
   ESPDEPRECATED("Call set_supported_preset_modes() on the Fan entity instead. Removed in 2026.11.0", "2026.5.0")
   void set_supported_preset_modes(const std::vector<const char *> &preset_modes) {
-    this->owned_preset_modes_.modes = preset_modes;
-    this->preset_modes_ = &this->owned_preset_modes_.modes;
+    this->preset_modes_ = new std::vector<const char *>(preset_modes);  // NOLINT
   }
 
   /// Return if preset modes are supported
-  bool supports_preset_modes() const {
-    return (this->preset_modes_ && !this->preset_modes_->empty()) || !this->owned_preset_modes_.modes.empty();
-  }
+  bool supports_preset_modes() const { return this->preset_modes_ && !this->preset_modes_->empty(); }
   /// Find and return the matching preset mode pointer from supported modes, or nullptr if not found.
   const char *find_preset_mode(const char *preset_mode) const {
     return this->find_preset_mode(preset_mode, preset_mode ? strlen(preset_mode) : 0);
@@ -62,7 +60,10 @@ class FanTraits {
   const char *find_preset_mode(const char *preset_mode, size_t len) const {
     if (preset_mode == nullptr || len == 0)
       return nullptr;
-    const auto &modes = this->preset_modes_ ? *this->preset_modes_ : this->owned_preset_modes_.modes;
+    if (!this->preset_modes_) {
+      return nullptr;
+    }
+    const auto &modes = *this->preset_modes_;
     for (const char *mode : modes) {
       if (strncmp(mode, preset_mode, len) == 0 && mode[len] == '\0') {
         return mode;  // Return pointer from traits
@@ -77,17 +78,6 @@ class FanTraits {
   bool direction_{false};
   int speed_count_{};
   const std::vector<const char *> *preset_modes_{nullptr};
-  /** Compat storage for deprecated setters — skipped on copy to avoid overhead.
-   * Remove in 2026.11.0 along with the deprecated overloads.
-   */
-  struct OwnedPresetModes {
-    std::vector<const char *> modes;
-    OwnedPresetModes() = default;
-    OwnedPresetModes(const OwnedPresetModes &) {}  // NOLINT - no-op copy: compat data is not propagated
-    OwnedPresetModes &operator=(const OwnedPresetModes &) { return *this; }  // NOLINT
-    OwnedPresetModes(OwnedPresetModes &&) = default;
-    OwnedPresetModes &operator=(OwnedPresetModes &&) = default;
-  } owned_preset_modes_;
 };
 
 }  // namespace fan
