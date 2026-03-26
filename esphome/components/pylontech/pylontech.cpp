@@ -149,7 +149,7 @@ void PylontechComponent::process_line_(std::string &buffer) {
   // Check for end-of-response marker "$$"
   if (buffer.find("$$") != std::string::npos) {
     if (this->state_ == State::PWR_SENT) {
-      if (this->cell_data_enabled_ && !this->bat_batteries_.empty()) {
+      if (this->cell_polling_enabled_ && !this->bat_batteries_.empty()) {
         this->current_bat_index_ = 0;
         this->send_next_bat_ = true;
       } else {
@@ -331,7 +331,7 @@ void PylontechComponent::parse_cell_line_(std::string &buffer) {
     c.balancing = (token_buf[0] == 'Y');
   }
 
-  ESP_LOGV(TAG, "bat %d cell %d: %dmV %dmA %d.%03d°C %d%% %dmAH bal=%c", c.bat_num, c.cell_num, c.volt, c.curr,
+  ESP_LOGD(TAG, "bat %d cell %d: %dmV %dmA %d.%03d°C %d%% %dmAH bal=%c", c.bat_num, c.cell_num, c.volt, c.curr,
            c.tempr / 1000, c.tempr % 1000, c.soc, c.coulomb, c.balancing ? 'Y' : 'N');
 
   for (PylontechListener *listener : this->listeners_) {

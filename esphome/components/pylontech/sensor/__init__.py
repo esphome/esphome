@@ -124,7 +124,7 @@ async def to_code(config):
 
     # Register cell sensors as individual listeners
     if CONF_CELLS in config:
-        cg.add(paren.set_cell_data_enabled(True))
+        cg.add(paren.set_cell_polling_enabled(True))
         cg.add(paren.request_cell_data(config[CONF_BATTERY]))
         for cell_config in config[CONF_CELLS]:
             cell = cg.new_Pvariable(
