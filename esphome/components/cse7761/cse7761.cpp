@@ -102,60 +102,61 @@ void CSE7761Component::write_(uint8_t reg, uint16_t data) {
     len++;
   }
 
-      this->write_array(buffer, len);
-    }
-
-  if (!rcvd) {
-    ESP_LOGD(TAG, "Received 0 bytes for register %hhu", reg);
-    return false;
-  }
-
-  rcvd--;
-  uint32_t result = 0;
-  // CRC check
-  uint8_t crc = 0xA5 + reg;
-  for (uint32_t i = 0; i < rcvd; i++) {
-    result = (result << 8) | buffer[i];
-    crc += buffer[i];
-  }
-  crc = ~crc;
-  if (crc != buffer[rcvd]) {
-    return false;
-  }
-
-    uint32_t CSE7761Component::read_(uint8_t reg, uint8_t size) {
-      bool result = false;  // Start loop
-      uint8_t retry = 3;    // Retry up to three times
-      uint32_t value = 0;   // Default no value
-      while (!result && retry > 0) {
-        retry--;
-        if (this->read_once_(reg, size, &value))
-          return value;
-      }
-      ESP_LOGE(TAG, "Reading register %hhu failed!", reg);
-      return value;
-    }
-
-    // EMUCON (0x01): See cse7761_registers.md for full bit-field reference.
-    // 0x1183 — Tsensor off, comparator off, Pmode=00 (algebraic sum), ZXD1=1 (both zero crossings),
-    //          ZXD0=0 (positive), HPF enabled for all channels, PBRUN=1, PARUN=1
-    this->write_(CSE7761_REG_EMUCON | 0x80, 0x1183);
-
-    // EMUCON2 (0x13): See cse7761_registers.md for full bit-field reference.
-    // 0x0FE5 — Energy not cleared after read (UART mode), DUPSEL=27.3Hz, CHS_IB=current,
-    //          PfactorEN=1, WaveEN=1, ZxEN=1 (required for frequency measurement)
-    this->write_(CSE7761_REG_EMUCON2 | 0x80, 0x0FE5);
-
-    // PULSE1SEL (0x1D): Left at default 0x3210. Not written.
-    // Uncomment below to output voltage zero-crossing signal on Pulse2 pin (P2Sel=0x9):
-    // this->write_(CSE7761_REG_PULSE1SEL | 0x80, 0x3290);
-
-  } else {
-    ESP_LOGD(TAG, "Write failed at chip_init");
-    return false;
-  }
-  return true;
+  this->write_array(buffer, len);
 }
+
+if (!rcvd) {
+  ESP_LOGD(TAG, "Received 0 bytes for register %hhu", reg);
+  return false;
+}
+
+rcvd--;
+uint32_t result = 0;
+// CRC check
+uint8_t crc = 0xA5 + reg;
+for (uint32_t i = 0; i < rcvd; i++) {
+  result = (result << 8) | buffer[i];
+  crc += buffer[i];
+}
+crc = ~crc;
+if (crc != buffer[rcvd]) {
+  return false;
+}
+
+uint32_t CSE7761Component::read_(uint8_t reg, uint8_t size) {
+  bool result = false;  // Start loop
+  uint8_t retry = 3;    // Retry up to three times
+  uint32_t value = 0;   // Default no value
+  while (!result && retry > 0) {
+    retry--;
+    if (this->read_once_(reg, size, &value))
+      return value;
+  }
+  ESP_LOGE(TAG, "Reading register %hhu failed!", reg);
+  return value;
+}
+
+// EMUCON (0x01): See cse7761_registers.md for full bit-field reference.
+// 0x1183 — Tsensor off, comparator off, Pmode=00 (algebraic sum), ZXD1=1 (both zero crossings),
+//          ZXD0=0 (positive), HPF enabled for all channels, PBRUN=1, PARUN=1
+this->write_(CSE7761_REG_EMUCON | 0x80, 0x1183);
+
+// EMUCON2 (0x13): See cse7761_registers.md for full bit-field reference.
+// 0x0FE5 — Energy not cleared after read (UART mode), DUPSEL=27.3Hz, CHS_IB=current,
+//          PfactorEN=1, WaveEN=1, ZxEN=1 (required for frequency measurement)
+this->write_(CSE7761_REG_EMUCON2 | 0x80, 0x0FE5);
+
+// PULSE1SEL (0x1D): Left at default 0x3210. Not written.
+// Uncomment below to output voltage zero-crossing signal on Pulse2 pin (P2Sel=0x9):
+// this->write_(CSE7761_REG_PULSE1SEL | 0x80, 0x3290);
+
+}  // namespace cse7761
+else {
+  ESP_LOGD(TAG, "Write failed at chip_init");
+  return false;
+}
+return true;
+}  // namespace esphome
 
 void CSE7761Component::get_data_() {
   // The effective value of current and voltage Rms is a 24-bit signed number,
