@@ -79,7 +79,7 @@ void MitsubishiCN105::set_state_(State new_state) {
     this->state_ = new_state;
     this->did_transition_(prev_state, new_state);
   } else {
-    ESP_LOGW(TAG, "Ignoring transition %s -> %s", state_to_string(this->state_), state_to_string(new_state));
+    ESP_LOGD(TAG, "Ignoring transition %s -> %s", state_to_string(this->state_), state_to_string(new_state));
   }
 }
 
@@ -298,7 +298,7 @@ bool MitsubishiCN105::process_incoming_packet_(const uint8_t *packet, uint8_t le
   }
 
   if (length <= HEADER_LEN) {
-    ESP_LOGW(TAG, "RX status packet too short (len=%u)", (unsigned) length);
+    ESP_LOGD(TAG, "RX status packet too short (len=%u)", (unsigned) length);
     return false;
   }
 
@@ -338,13 +338,13 @@ std::optional<MitsubishiCN105::State> MitsubishiCN105::check_incoming_packet(con
   static_assert(HEADER_LEN > 3, "HEADER_LEN must be at least 4 to safely access packet[3]");
 
   if (packet[2] != 0x01 || packet[3] != 0x30) {
-    ESP_LOGW(TAG, "RX invalid: header mismatch (b2=%02X b3=%02X)", (unsigned) packet[2], (unsigned) packet[3]);
+    ESP_LOGD(TAG, "RX invalid: header mismatch (b2=%02X b3=%02X)", (unsigned) packet[2], (unsigned) packet[3]);
     return std::nullopt;
   }
 
   const uint8_t calculated_checksum = checksum(packet, length);
   if (calculated_checksum != received_checksum) {
-    ESP_LOGW(TAG, "RX invalid: checksum mismatch (recv=%02X calc=%02X)", (unsigned) received_checksum,
+    ESP_LOGD(TAG, "RX invalid: checksum mismatch (recv=%02X calc=%02X)", (unsigned) received_checksum,
              (unsigned) calculated_checksum);
     return std::nullopt;
   }
@@ -357,7 +357,7 @@ std::optional<MitsubishiCN105::State> MitsubishiCN105::check_incoming_packet(con
     case 0x7A:
       return State::CONNECTED;
     default:
-      ESP_LOGW(TAG, "RX invalid: unknown packet type 0x%02X (len=%u)", (unsigned) packet[1], (unsigned) length);
+      ESP_LOGD(TAG, "RX invalid: unknown packet type 0x%02X (len=%u)", (unsigned) packet[1], (unsigned) length);
       return std::nullopt;
   }
 }
@@ -368,7 +368,7 @@ bool MitsubishiCN105::parse_values_(const uint8_t *data, size_t length) {
     case INFO_MODE_SETTINGS: {
       // Accesses up to data[11]
       if (length < 12) {
-        ESP_LOGW(TAG, "Settings payload too short: len=%u (expected >=12)", (unsigned) length);
+        ESP_LOGD(TAG, "Settings payload too short: len=%u (expected >=12)", (unsigned) length);
         return false;
       }
 
@@ -419,7 +419,7 @@ bool MitsubishiCN105::parse_values_(const uint8_t *data, size_t length) {
     case INFO_MODE_ROOM_TEMP: {
       // Accesses up to data[6]
       if (length < 7) {
-        ESP_LOGW(TAG, "Room temperature payload too short: len=%u (expected >=7)", (unsigned) length);
+        ESP_LOGD(TAG, "Room temperature payload too short: len=%u (expected >=7)", (unsigned) length);
         return false;
       }
 
@@ -458,7 +458,7 @@ void MitsubishiCN105::add_byte_to_read_buffer_(uint8_t value) {
 
 void MitsubishiCN105::set_target_temperature(float target_temperature) {
   if (target_temperature < 16 || target_temperature > 31) {
-    ESP_LOGW(TAG, "Setting temperature out-of-range: %.1f", target_temperature);
+    ESP_LOGD(TAG, "Setting temperature out-of-range: %.1f", target_temperature);
     return;
   }
   target_temperature = std::roundf(target_temperature);
@@ -473,7 +473,7 @@ void MitsubishiCN105::set_power(bool power_on) {
 
 void MitsubishiCN105::set_mode(Mode mode) {
   if (mode == Mode::UNKNOWN) {
-    ESP_LOGW(TAG, "Setting invalid mode value");
+    ESP_LOGD(TAG, "Setting invalid mode value");
     return;
   }
   this->current_status_.settings.mode = mode;
@@ -482,7 +482,7 @@ void MitsubishiCN105::set_mode(Mode mode) {
 
 void MitsubishiCN105::set_fan_mode(FanMode fan_mode) {
   if (fan_mode == FanMode::UNKNOWN) {
-    ESP_LOGW(TAG, "Setting invalid fan mode value");
+    ESP_LOGD(TAG, "Setting invalid fan mode value");
     return;
   }
   this->current_status_.settings.fan_mode = fan_mode;
@@ -505,7 +505,7 @@ void MitsubishiCN105::apply_to_(UpdateFlag flag, const std::array<std::optional<
     callback(mapped);
   } else {
     callback(std::nullopt);
-    ESP_LOGW(TAG, "Lookup failed: flag=%d, value=%u", static_cast<int>(flag), value);
+    ESP_LOGD(TAG, "Lookup failed: flag=%d, value=%u", static_cast<int>(flag), value);
   }
 }
 
@@ -522,7 +522,7 @@ std::optional<uint8_t> MitsubishiCN105::pending_update_for_(UpdateFlag flag, con
     }
   }
 
-  ESP_LOGW(TAG, "Reverse lookup failed: flag=%d, value=%d", static_cast<int>(flag), static_cast<int>(value));
+  ESP_LOGD(TAG, "Reverse lookup failed: flag=%d, value=%d", static_cast<int>(flag), static_cast<int>(value));
   return std::nullopt;
 }
 
