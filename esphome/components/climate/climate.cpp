@@ -706,8 +706,11 @@ const char *Climate::find_custom_fan_mode_(const char *custom_fan_mode) {
 }
 
 const char *Climate::find_custom_fan_mode_(const char *custom_fan_mode, size_t len) {
-  return this->supported_custom_fan_modes_ ? vector_find(*this->supported_custom_fan_modes_, custom_fan_mode, len)
-                                           : nullptr;
+  if (this->supported_custom_fan_modes_) {
+    return vector_find(*this->supported_custom_fan_modes_, custom_fan_mode, len);
+  }
+  // Fallback for deprecated path: external components may set modes on ClimateTraits directly
+  return this->get_traits().find_custom_fan_mode_(custom_fan_mode, len);
 }
 
 const char *Climate::find_custom_preset_(const char *custom_preset) {
@@ -715,7 +718,11 @@ const char *Climate::find_custom_preset_(const char *custom_preset) {
 }
 
 const char *Climate::find_custom_preset_(const char *custom_preset, size_t len) {
-  return this->supported_custom_presets_ ? vector_find(*this->supported_custom_presets_, custom_preset, len) : nullptr;
+  if (this->supported_custom_presets_) {
+    return vector_find(*this->supported_custom_presets_, custom_preset, len);
+  }
+  // Fallback for deprecated path: external components may set modes on ClimateTraits directly
+  return this->get_traits().find_custom_preset_(custom_preset, len);
 }
 
 void Climate::dump_traits_(const char *tag) {

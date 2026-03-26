@@ -159,18 +159,18 @@ class ClimateTraits {
   // Remove before 2026.11.0
   ESPDEPRECATED("Call set_supported_custom_fan_modes() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
   void set_supported_custom_fan_modes(std::initializer_list<const char *> modes) {
-    this->owned_custom_modes_.fan_modes = modes;
-    this->supported_custom_fan_modes_ = &this->owned_custom_modes_.fan_modes;
+    // NOLINT - intentional leak: pointer must survive copies of ClimateTraits
+    this->supported_custom_fan_modes_ = new std::vector<const char *>(modes);  // NOLINT
   }
   // Remove before 2026.11.0
   ESPDEPRECATED("Call set_supported_custom_fan_modes() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
   void set_supported_custom_fan_modes(const std::vector<const char *> &modes) {
-    this->owned_custom_modes_.fan_modes = modes;
-    this->supported_custom_fan_modes_ = &this->owned_custom_modes_.fan_modes;
+    this->supported_custom_fan_modes_ = new std::vector<const char *>(modes);  // NOLINT
   }
 
   const std::vector<const char *> &get_supported_custom_fan_modes() const {
-    return this->supported_custom_fan_modes_ ? *this->supported_custom_fan_modes_ : this->owned_custom_modes_.fan_modes;
+    static const std::vector<const char *> EMPTY_VECTOR;
+    return this->supported_custom_fan_modes_ ? *this->supported_custom_fan_modes_ : EMPTY_VECTOR;
   }
   bool supports_custom_fan_mode(const char *custom_fan_mode) const {
     return this->supported_custom_fan_modes_ && vector_contains(*this->supported_custom_fan_modes_, custom_fan_mode);
@@ -192,18 +192,17 @@ class ClimateTraits {
   // Remove before 2026.11.0
   ESPDEPRECATED("Call set_supported_custom_presets() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
   void set_supported_custom_presets(std::initializer_list<const char *> presets) {
-    this->owned_custom_modes_.presets = presets;
-    this->supported_custom_presets_ = &this->owned_custom_modes_.presets;
+    this->supported_custom_presets_ = new std::vector<const char *>(presets);  // NOLINT
   }
   // Remove before 2026.11.0
   ESPDEPRECATED("Call set_supported_custom_presets() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
   void set_supported_custom_presets(const std::vector<const char *> &presets) {
-    this->owned_custom_modes_.presets = presets;
-    this->supported_custom_presets_ = &this->owned_custom_modes_.presets;
+    this->supported_custom_presets_ = new std::vector<const char *>(presets);  // NOLINT
   }
 
   const std::vector<const char *> &get_supported_custom_presets() const {
-    return this->supported_custom_presets_ ? *this->supported_custom_presets_ : this->owned_custom_modes_.presets;
+    static const std::vector<const char *> EMPTY_VECTOR;
+    return this->supported_custom_presets_ ? *this->supported_custom_presets_ : EMPTY_VECTOR;
   }
   bool supports_custom_preset(const char *custom_preset) const {
     return this->supported_custom_presets_ && vector_contains(*this->supported_custom_presets_, custom_preset);
@@ -309,18 +308,6 @@ class ClimateTraits {
    */
   const std::vector<const char *> *supported_custom_fan_modes_{nullptr};
   const std::vector<const char *> *supported_custom_presets_{nullptr};
-  /** Compat storage for deprecated setters — skipped on copy to avoid overhead.
-   * Remove in 2026.11.0 along with the deprecated overloads.
-   */
-  struct OwnedCustomModes {
-    std::vector<const char *> fan_modes;
-    std::vector<const char *> presets;
-    OwnedCustomModes() = default;
-    OwnedCustomModes(const OwnedCustomModes &) {}  // NOLINT - no-op copy: compat data is not propagated
-    OwnedCustomModes &operator=(const OwnedCustomModes &) { return *this; }  // NOLINT
-    OwnedCustomModes(OwnedCustomModes &&) = default;
-    OwnedCustomModes &operator=(OwnedCustomModes &&) = default;
-  } owned_custom_modes_;
 };
 
 }  // namespace esphome::climate
