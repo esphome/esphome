@@ -13,7 +13,7 @@ namespace pulse_counter_ulp {
 static const char *const TAG = "pulse_counter_ulp";
 
 namespace {
-const char *to_string(CountMode count_mode) {
+const char *countmode_to_string(CountMode count_mode) {
   switch (count_mode) {
     case CountMode::DISABLE:
       return "disable";
@@ -149,8 +149,9 @@ void PulseCounterUlpSensor::dump_config() {
                 "  Sleep Duration: %" PRIu32 " µs\n"
                 "  Debounce: %" PRIu16 "\n"
                 "  Edges Wakeup: %" PRIu16,
-                to_string(this->config_.rising_edge_mode_), to_string(this->config_.falling_edge_mode_),
-                this->config_.sleep_duration_ / microseconds{1}, this->config_.debounce_, this->config_.edges_wakeup_);
+                countmode_to_string(this->config_.rising_edge_mode_),
+                countmode_to_string(this->config_.falling_edge_mode_), this->config_.sleep_duration_ / microseconds{1},
+                this->config_.debounce_, this->config_.edges_wakeup_);
   LOG_UPDATE_INTERVAL(this);
 }
 
