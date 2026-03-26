@@ -32,6 +32,7 @@ infrared:
   - platform: ir_rf_proxy
     name: IR Proxy Receiver
     id: ir_proxy_rx
+    receiver_frequency: 38kHz
     remote_receiver_id: ir_rx
 ```
 
@@ -47,6 +48,11 @@ infrared:
   a non-zero value for RF hardware. Defaults to `0` (infrared). This value is used to distinguish between IR and RF
   hardware types and is passed to Home Assistant, allowing it to identify integrations this IR/RF proxy instance can
   potentially support.
+- **receiver_frequency** (*Optional*, frequency): The demodulation frequency of the IR receiver hardware (for example,
+  `38kHz` for a TSOP38238). This value has **no effect on hardware** — it is metadata reported to API clients (such as
+  Home Assistant) so they can determine which IR protocols are compatible with the receiver. Only valid with
+  `remote_receiver_id`; a validation error will occur if used with `remote_transmitter_id`. Omit if the demodulation
+  frequency is unknown or not relevant.
 
   All other configuration variables from [infrared](/components/infrared).
 
@@ -95,7 +101,9 @@ Reception is non-blocking, allowing other listeners to also process signals simu
 
 The IR/RF proxy can work with both infrared and RF hardware:
 
-- **Infrared**: Do not set `frequency` (or set `frequency: 0`, which is the default) and use standard IR LEDs/receivers
+- **Infrared**: Do not set `frequency` (or set `frequency: 0`, which is the default) and use standard IR LEDs/receivers.
+  For receivers, you can set `receiver_frequency` to declare the demodulation frequency of the hardware (for example,
+  `38kHz` for a TSOP38238).
 - **RF**: Set `frequency` to match your RF hardware (for example, `315 MHz` for 315 MHz or `433 MHz` for 433.92 MHz)
 
 You can create separate instances for different purposes:
