@@ -100,31 +100,33 @@ bool Nextion::check_connect_() {
 
   ESP_LOGN(TAG, "connect: %s", response.c_str());
 
-  size_t start;
+  // Parse the comok response fields directly, avoiding a heap-allocated vector.
+  uint8_t field_count = 0;
+  uint8_t field_idx = 0;
+  size_t start = 0;
   size_t end = 0;
-  std::vector<std::string> connect_info;
   while ((start = response.find_first_not_of(',', end)) != std::string::npos) {
     end = response.find(',', start);
-    connect_info.push_back(response.substr(start, end - start));
-  }
-
-  this->is_detected_ = (connect_info.size() == 7);
-  if (this->is_detected_) {
-    ESP_LOGN(TAG, "Connect info: %zu", connect_info.size());
+    const std::string field = response.substr(start, end - start);
+    switch (field_idx++) {
 #ifdef USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
-    this->device_model_ = connect_info[2];
-    this->firmware_version_ = connect_info[3];
-    this->serial_number_ = connect_info[5];
-    this->flash_size_ = connect_info[6];
-#else   // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
-    ESP_LOGI(TAG,
-             "  Device Model:   %s\n"
-             "  FW Version:     %s\n"
-             "  Serial Number:  %s\n"
-             "  Flash Size:     %s\n",
-             connect_info[2].c_str(), connect_info[3].c_str(), connect_info[5].c_str(), connect_info[6].c_str());
+      case 2: this->device_model_ = field; break;
+      case 3: this->firmware_version_ = field; break;
+      case 5: this->serial_number_ = field; break;
+      case 6: this->flash_size_ = field; break;
+#else  // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
+      case 0: ESP_LOGI(TAG, "Connect info:"); break;
+      case 2: ESP_LOGI(TAG, "  Device Model:   %s", field.c_str()); break;
+      case 3: ESP_LOGI(TAG, "  FW Version:     %s", field.c_str()); break;
+      case 5: ESP_LOGI(TAG, "  Serial Number:  %s", field.c_str()); break;
+      case 6: ESP_LOGI(TAG, "  Flash Size:     %s", field.c_str()); break;
 #endif  // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
-  } else {
+      default: break;
+    }
+    ++field_count;
+  }
+  this->is_detected_ = (field_count == 7);
+  if (!this->is_detected_) {
     ESP_LOGE(TAG, "Bad connect value: '%s'", response.c_str());
   }
 
