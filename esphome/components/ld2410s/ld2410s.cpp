@@ -383,6 +383,8 @@ void LD2410S::parse_cmd_frame_() {
 #ifdef LD2410S_V2
 
     case CONFIG_MODE_START_CMD | CMD_CONFIRMATION:
+      if (this->rx_.payload_size() < 8)
+        break;
       this->parse_ack_config_start_(data);
       break;
 
@@ -419,22 +421,32 @@ void LD2410S::parse_cmd_frame_() {
       // Read command acknowledgements
 
     case CFG_PARAMS_READ_CMD | CMD_CONFIRMATION:
+      if (this->rx_.payload_size() < 28)
+        break;
       this->parse_ack_config_read_(data);
       break;
 
     case CFG_FW_READ_CMD | CMD_CONFIRMATION:
+      if (this->rx_.payload_size() < 14)
+        break;
       this->parse_ack_fw_read_(data);
       break;
 
     case CFG_GATE_THRESHOLD_TRIGGER_READ_CMD | CMD_CONFIRMATION:
+      if (this->rx_.payload_size() < 68)
+        break;
       this->parse_ack_threshold_trigger_read_(data);
       break;
 
     case CFG_GATE_THRESHOLD_HOLD_READ_CMD | CMD_CONFIRMATION:
+      if (this->rx_.payload_size() < 68)
+        break;
       this->parse_ack_threshold_hold_read_(data);
       break;
 
     case CFG_GATE_THRESHOLD_SNR_READ_CMD | CMD_CONFIRMATION:
+      if (this->rx_.payload_size() < 68)
+        break;
       this->parse_ack_threshold_snr_read_(data);
       break;
 #endif
@@ -656,8 +668,12 @@ int LD2410Srx::read_int(const uint8_t *buffer, size_t pos, size_t len) {
 
 // Appends new task to schedule
 void LD2410Sschedule::append(uint16_t command, uint16_t sub_command) {
-  ESP_LOGV(TAG, "append => cmd:%04x, prev_cmd:%04x, active:%d, last:%d", command,
-           this->commands_[this->last_ - 1].command, this->active_, this->last_);
+  if (this->last_ > 0) {
+    ESP_LOGV(TAG, "append => cmd:%04x, prev_cmd:%04x, active:%d, last:%d", command,
+             this->commands_[this->last_ - 1].command, this->active_, this->last_);
+  } else {
+    ESP_LOGV(TAG, "append => cmd:%04x, prev_cmd:none, active:%d, last:%d", command, this->active_, this->last_);
+  }
 
   if (this->last_ >= TX_SCHEDULE_BUFFER_SIZE) {
     ESP_LOGW(TAG, "++: pos:[%d], cmd:%04x, Schedule buffer overflow, resetting buffer !!!", this->last_ - 1, command);
