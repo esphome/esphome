@@ -475,7 +475,7 @@ bool BMP581Component::reset_() {
   // - activates interface (only relevant for SPI mode)
   // - returns the Power-On-Reboot interrupt status, which is asserted if successful
 
-  // Activates interface if necessary (SPI only)
+  // Activates communication interface (SPI only)
   this->activate_interface();
   // writes reset command to BMP's command register
   if (!this->bmp_write_byte(BMP581_COMMAND, RESET_COMMAND)) {
@@ -487,7 +487,7 @@ bool BMP581Component::reset_() {
   //  - round up to 3 ms
   delay(3);
 
-  // Activates interface if necessary (SPI only)
+  // Reactivates communication interface after reset (SPI only)
   this->activate_interface();
 
   // read interrupt status register
