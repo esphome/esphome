@@ -20,20 +20,18 @@ void MCP23S08::set_device_address(uint8_t device_addr) {
 void MCP23S08::setup() {
   this->spi_setup();
 
+  uint8_t iocon = IOCON_SEQOP | IOCON_HAEN;
+  if (this->open_drain_ints_) {
+    iocon |= IOCON_ODR;
+  }
   this->enable();
-  uint8_t cmd = 0b01000000;
-  this->transfer_byte(cmd);
+  this->transfer_byte(0b01000000);
   this->transfer_byte(mcp23x08_base::MCP23X08_IOCON);
-  this->transfer_byte(IOCON_SEQOP | IOCON_HAEN);
+  this->transfer_byte(iocon);
   this->disable();
 
   // Read current output register state
   this->read_reg(mcp23x08_base::MCP23X08_OLAT, &this->olat_);
-
-  if (this->open_drain_ints_) {
-    // enable open-drain interrupt pins, 3.3V-safe
-    this->write_reg(mcp23x08_base::MCP23X08_IOCON, IOCON_SEQOP | IOCON_HAEN | IOCON_ODR);
-  }
 }
 
 void MCP23S08::dump_config() {
