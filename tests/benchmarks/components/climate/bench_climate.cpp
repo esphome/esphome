@@ -54,6 +54,9 @@ static void setup_hvac_climate(BenchClimate &climate) {
   climate.traits_.set_visual_target_temperature_step(0.5f);
   climate.traits_.set_visual_current_temperature_step(0.1f);
   climate.traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE | climate::CLIMATE_SUPPORTS_ACTION);
+  // Custom modes use the new API — stored on Climate entity, zero-copy in get_traits()
+  climate.set_supported_custom_fan_modes({"Turbo", "Silent", "Eco"});
+  climate.set_supported_custom_presets({"My Preset", "Night Mode"});
 }
 
 // --- Climate::publish_state() with temperature update ---
