@@ -701,4 +701,7 @@ async def build_callback_automation(
     # data in the struct.
     if forwarder is None:
         forwarder = TriggerForwarder.template(templ)
+    # RawExpression for aggregate init — both forwarder and obj are codegen
+    # MockObjs (not user input), and there's no Expression type for positional
+    # aggregate initialization (StructInitializer uses named fields).
     cg.add(getattr(parent, callback_method)(cg.RawExpression(f"{forwarder}{{{obj}}}")))
