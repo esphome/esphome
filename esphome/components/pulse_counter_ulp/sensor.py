@@ -3,11 +3,11 @@ from pathlib import Path
 from esphome import automation, pins
 import esphome.codegen as cg
 from esphome.components import esp32, sensor
+from esphome.components.const import CONF_EDGES_WAKEUP
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_COUNT_MODE,
     CONF_DEBOUNCE,
-    CONF_EDGES_WAKEUP,
     CONF_FALLING_EDGE,
     CONF_ID,
     CONF_PIN,
