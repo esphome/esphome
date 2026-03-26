@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from esphome.automation import has_non_synchronous_actions
+from esphome.cpp_generator import LambdaExpression, MockObj, RawExpression
 from esphome.util import RegistryEntry
 
 
@@ -175,3 +176,96 @@ def test_has_non_synchronous_actions_dict_input(
     """Direct dict input (single action)."""
     assert has_non_synchronous_actions({"delay": "1s"}) is True
     assert has_non_synchronous_actions({"logger.log": "hello"}) is False
+
+
+def _build_trigger_lambda(
+    automation_name: str,
+    args: list[tuple[str, str]],
+    callback_args: list[tuple[str, str]] | None = None,
+    condition: str | None = None,
+) -> str:
+    """Build a trigger callback lambda the same way build_callback_automation does.
+
+    Mirrors the logic in automation.build_callback_automation lines 694-708.
+    """
+    obj = MockObj(automation_name, "->")
+    # Convert string type names to RawExpression (matching real codegen where
+    # types are MockObj/MockObjClass objects, not plain strings)
+    typed_args = [(RawExpression(t), n) for t, n in args]
+    trigger_args = [MockObj(arg[1], "") for arg in args]
+    trigger_expr = obj.trigger(*trigger_args)
+    if condition is not None:
+        body = [f"if ({condition}) {{ ", trigger_expr, "; }"]
+    else:
+        body = [trigger_expr, ";"]
+    lambda_params = (
+        [(RawExpression(t), n) for t, n in callback_args]
+        if callback_args is not None
+        else typed_args
+    )
+    lambda_expr = LambdaExpression(body, lambda_params, capture="")
+    return str(lambda_expr)
+
+
+def test_trigger_callback_lambda_no_args() -> None:
+    """Button on_press: no args, no condition."""
+    result = _build_trigger_lambda("auto_1", [])
+    assert result == "[]() {\n  auto_1->trigger();\n}"
+
+
+def test_trigger_callback_lambda_single_float_arg() -> None:
+    """Sensor on_value: single float arg."""
+    result = _build_trigger_lambda("auto_1", [("float", "x")])
+    assert result == "[](float x) {\n  auto_1->trigger(x);\n}"
+
+
+def test_trigger_callback_lambda_single_bool_arg() -> None:
+    """Switch on_state / binary_sensor on_state: single bool arg."""
+    result = _build_trigger_lambda("auto_1", [("bool", "x")])
+    assert result == "[](bool x) {\n  auto_1->trigger(x);\n}"
+
+
+def test_trigger_callback_lambda_condition_true() -> None:
+    """Binary_sensor on_press: condition filters on state=true."""
+    result = _build_trigger_lambda(
+        "auto_1",
+        [],
+        callback_args=[("bool", "state")],
+        condition="state",
+    )
+    assert result == ("[](bool state) {\n  if (state) { auto_1->trigger(); }\n}")
+
+
+def test_trigger_callback_lambda_condition_false() -> None:
+    """Binary_sensor on_release: condition filters on state=false."""
+    result = _build_trigger_lambda(
+        "auto_1",
+        [],
+        callback_args=[("bool", "state")],
+        condition="!state",
+    )
+    assert result == ("[](bool state) {\n  if (!state) { auto_1->trigger(); }\n}")
+
+
+def test_trigger_callback_lambda_multiple_args() -> None:
+    """Binary_sensor on_state_change: two optional<bool> args."""
+    result = _build_trigger_lambda(
+        "auto_1",
+        [("optional<bool>", "x_previous"), ("optional<bool>", "x")],
+    )
+    assert result == (
+        "[](optional<bool> x_previous, optional<bool> x) {\n"
+        "  auto_1->trigger(x_previous, x);\n}"
+    )
+
+
+def test_trigger_callback_lambda_string_arg() -> None:
+    """Text_sensor on_value: std::string arg."""
+    result = _build_trigger_lambda("auto_1", [("std::string", "x")])
+    assert result == "[](std::string x) {\n  auto_1->trigger(x);\n}"
+
+
+def test_trigger_callback_lambda_empty_capture() -> None:
+    """All generated lambdas use empty capture to avoid static storage warnings."""
+    result = _build_trigger_lambda("auto_1", [("float", "x")])
+    assert result.startswith("[](")
