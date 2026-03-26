@@ -101,9 +101,13 @@ class InfraredTraits {
   bool get_supports_receiver() const { return this->supports_receiver_; }
   void set_supports_receiver(bool supports) { this->supports_receiver_ = supports; }
 
+  uint32_t get_receiver_frequency_hz() const { return this->receiver_frequency_hz_; }
+  void set_receiver_frequency_hz(uint32_t freq) { this->receiver_frequency_hz_ = freq; }
+
  protected:
   bool supports_transmitter_{false};
   bool supports_receiver_{false};
+  uint32_t receiver_frequency_hz_{0};  // Demodulation frequency of the IR receiver in Hz (0 = unspecified)
 };
 
 /// Infrared - Base class for infrared remote control implementations

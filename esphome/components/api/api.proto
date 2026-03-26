@@ -2512,6 +2512,7 @@ message ListEntitiesInfraredResponse {
   EntityCategory entity_category = 6;
   uint32 device_id = 7 [(field_ifdef) = "USE_DEVICES"];
   uint32 capabilities = 8;  // Bitfield of InfraredCapabilityFlags
+  uint32 receiver_frequency = 9;  // Demodulation frequency of the IR receiver in Hz (0 = unspecified)
 }
 
 // Command to transmit infrared/RF data using raw timings
