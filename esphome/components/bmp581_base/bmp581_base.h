@@ -89,6 +89,7 @@ class BMP581Component : public PollingComponent {
 
   // Interface activation function. Only used for SPI interface; no-op for I2C.
   virtual void activate_interface() {}
+
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *pressure_sensor_{nullptr};
 
