@@ -243,8 +243,6 @@ void GT911Touchscreen::dump_config() {
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   this->read_device_info_();
-
-
 }
 
 }  // namespace gt911
