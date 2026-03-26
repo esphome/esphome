@@ -78,9 +78,11 @@ static void LightCall_ToggleOnOff(benchmark::State &state) {
 }
 BENCHMARK(LightCall_ToggleOnOff);
 
-// --- LightCall::perform() with color temperature change ---
-// Exercises the transform_parameters_ path that converts color temperature
-// to cold/warm white fractions — a common real-world operation.
+// --- LightCall::perform() with color temperature via MQTT/automations ---
+// Exercises the transform_parameters_() path that converts color_temperature
+// to cold/warm white fractions. This path is hit by MQTT clients,
+// automations, and state restoration — not by modern HA which converts
+// color temp to CW/WW client-side.
 
 static void LightCall_ColorTemperature(benchmark::State &state) {
   BenchLightOutput output;
@@ -104,6 +106,34 @@ static void LightCall_ColorTemperature(benchmark::State &state) {
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(LightCall_ColorTemperature);
+
+// --- LightCall::perform() with cold/warm white (Home Assistant API path) ---
+// Mirrors what modern HA sends: explicit color_mode with direct cold_white
+// and warm_white values. HA converts color temp to CW/WW client-side for
+// CWWW lights (API >= 1.6), so this is the primary HA path.
+
+static void LightCall_ColdWarmWhite(benchmark::State &state) {
+  BenchLightOutput output;
+  TestLightState light(&output);
+  setup_rgbww_light(output, light);
+
+  light.make_call().set_state(true).set_brightness(1.0f).set_transition_length(0).perform();
+
+  for (auto _ : state) {
+    for (int i = 0; i < kInnerIterations; i++) {
+      float frac = static_cast<float>(i % 256) / 255.0f;
+      light.make_call()
+          .set_color_mode(light::ColorMode::RGB_COLD_WARM_WHITE)
+          .set_cold_white(1.0f - frac)
+          .set_warm_white(frac)
+          .set_transition_length(0)
+          .perform();
+    }
+    benchmark::DoNotOptimize(output.write_count_);
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(LightCall_ColdWarmWhite);
 
 // --- LightState::publish_state() with a remote values listener ---
 // Measures listener notification overhead.
