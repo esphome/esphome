@@ -2,7 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_MESSAGE, CONF_TRIGGER_ID
+from esphome.const import CONF_ID, CONF_MESSAGE
 
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@glmnet"]
@@ -10,28 +10,6 @@ MULTI_CONF = True
 
 sim800l_ns = cg.esphome_ns.namespace("sim800l")
 Sim800LComponent = sim800l_ns.class_("Sim800LComponent", cg.Component)
-
-Sim800LReceivedMessageTrigger = sim800l_ns.class_(
-    "Sim800LReceivedMessageTrigger",
-    automation.Trigger.template(cg.std_string, cg.std_string),
-)
-Sim800LIncomingCallTrigger = sim800l_ns.class_(
-    "Sim800LIncomingCallTrigger",
-    automation.Trigger.template(cg.std_string),
-)
-Sim800LCallConnectedTrigger = sim800l_ns.class_(
-    "Sim800LCallConnectedTrigger",
-    automation.Trigger.template(),
-)
-Sim800LCallDisconnectedTrigger = sim800l_ns.class_(
-    "Sim800LCallDisconnectedTrigger",
-    automation.Trigger.template(),
-)
-
-Sim800LReceivedUssdTrigger = sim800l_ns.class_(
-    "Sim800LReceivedUssdTrigger",
-    automation.Trigger.template(cg.std_string),
-)
 
 # Actions
 Sim800LSendSmsAction = sim800l_ns.class_("Sim800LSendSmsAction", automation.Action)
@@ -55,41 +33,11 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(Sim800LComponent),
-            cv.Optional(CONF_ON_SMS_RECEIVED): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        Sim800LReceivedMessageTrigger
-                    ),
-                }
-            ),
-            cv.Optional(CONF_ON_INCOMING_CALL): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        Sim800LIncomingCallTrigger
-                    ),
-                }
-            ),
-            cv.Optional(CONF_ON_CALL_CONNECTED): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        Sim800LCallConnectedTrigger
-                    ),
-                }
-            ),
-            cv.Optional(CONF_ON_CALL_DISCONNECTED): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        Sim800LCallDisconnectedTrigger
-                    ),
-                }
-            ),
-            cv.Optional(CONF_ON_USSD_RECEIVED): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        Sim800LReceivedUssdTrigger
-                    ),
-                }
-            ),
+            cv.Optional(CONF_ON_SMS_RECEIVED): automation.validate_automation({}),
+            cv.Optional(CONF_ON_INCOMING_CALL): automation.validate_automation({}),
+            cv.Optional(CONF_ON_CALL_CONNECTED): automation.validate_automation({}),
+            cv.Optional(CONF_ON_CALL_DISCONNECTED): automation.validate_automation({}),
+            cv.Optional(CONF_ON_USSD_RECEIVED): automation.validate_automation({}),
         }
     )
     .extend(cv.polling_component_schema("5s"))
@@ -106,23 +54,28 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
 
     for conf in config.get(CONF_ON_SMS_RECEIVED, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(cg.std_string, "message"), (cg.std_string, "sender")], conf
+        await automation.build_callback_automation(
+            var,
+            "add_on_sms_received_callback",
+            [(cg.std_string, "message"), (cg.std_string, "sender")],
+            conf,
         )
     for conf in config.get(CONF_ON_INCOMING_CALL, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.std_string, "caller_id")], conf)
+        await automation.build_callback_automation(
+            var, "add_on_incoming_call_callback", [(cg.std_string, "caller_id")], conf
+        )
     for conf in config.get(CONF_ON_CALL_CONNECTED, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            var, "add_on_call_connected_callback", [], conf
+        )
     for conf in config.get(CONF_ON_CALL_DISCONNECTED, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-
+        await automation.build_callback_automation(
+            var, "add_on_call_disconnected_callback", [], conf
+        )
     for conf in config.get(CONF_ON_USSD_RECEIVED, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.std_string, "ussd")], conf)
+        await automation.build_callback_automation(
+            var, "add_on_ussd_received_callback", [(cg.std_string, "ussd")], conf
+        )
 
 
 SIM800L_SEND_SMS_SCHEMA = cv.Schema(
