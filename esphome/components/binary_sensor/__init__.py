@@ -266,6 +266,7 @@ async def delayed_off_filter_to_code(config, filter_id):
                 ): cv.positive_time_period_milliseconds,
             }
         ),
+        cv.Length(max=254),
     ),
 )
 async def autorepeat_filter_to_code(config, filter_id):
@@ -294,7 +295,7 @@ async def autorepeat_filter_to_code(config, filter_id):
                 ),
             )
         ]
-    var = cg.new_Pvariable(filter_id, timings)
+    var = cg.new_Pvariable(filter_id, cg.TemplateArguments(len(timings)), timings)
     await cg.register_component(var, {})
     return var
 
