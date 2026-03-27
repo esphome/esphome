@@ -139,7 +139,7 @@ INDICATOR_LINE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_WIDTH, default=4): cv.int_,
         cv.Optional(CONF_COLOR, default=0): lv_color,
-        cv.Optional(CONF_ROUNDED, default=True): lv_color,
+        cv.Optional(CONF_ROUNDED, default=True): lv_bool,
         cv.Optional(CONF_DASH_GAP): lv_positive_int,
         cv.Optional(CONF_DASH_WIDTH): lv_positive_int,
         cv.Optional(CONF_R_MOD): padding,
@@ -478,7 +478,9 @@ class MeterType(WidgetType):
                         CONF_LENGTH: length,
                     }
                     if radial_offset := v.get(CONF_RADIAL_OFFSET):
-                        props[CONF_RADIAL_OFFSET] = await pixels.process(radial_offset)
+                        props[CONF_RADIAL_OFFSET] = await pixels_or_percent.process(
+                            radial_offset
+                        )
                     for option in (CONF_DASH_WIDTH, CONF_DASH_GAP):
                         if option in v:
                             props["line_" + option] = v[option]
