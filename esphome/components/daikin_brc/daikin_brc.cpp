@@ -20,11 +20,11 @@ void DaikinBrcClimate::transmit_state() {
                                                           0xDA, 0x17, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00,
                                                           0x00, 0x00, 0x00, 0x00, 0x20, 0x00};
 
-  // Sub-unit addressing (byte 3 in both preamble and state frame)
+  // Sub-unit addressing (index 3 in both preamble and state frame)
   remote_state[3] = 0x18 | this->sub_unit_;
   remote_state[10] = 0x18 | this->sub_unit_;
 
-  // Recalculate preamble checksum (byte 6 = sum of bytes 0-5)
+  // Recalculate preamble checksum (index 6 = sum of indices 0-5)
   remote_state[6] = 0;
   for (int i = 0; i < DAIKIN_BRC_PREAMBLE_SIZE - 1; i++) {
     remote_state[6] += remote_state[i];
