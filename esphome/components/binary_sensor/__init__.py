@@ -120,10 +120,6 @@ BinarySensorInitiallyOff = binary_sensor_ns.class_(
 BinarySensorPtr = BinarySensor.operator("ptr")
 
 # Triggers
-PressTrigger = binary_sensor_ns.class_("PressTrigger", automation.Trigger.template())
-ReleaseTrigger = binary_sensor_ns.class_(
-    "ReleaseTrigger", automation.Trigger.template()
-)
 ClickTrigger = binary_sensor_ns.class_("ClickTrigger", automation.Trigger.template())
 DoubleClickTrigger = binary_sensor_ns.class_(
     "DoubleClickTrigger", automation.Trigger.template()
@@ -132,13 +128,6 @@ MultiClickTrigger = binary_sensor_ns.class_(
     "MultiClickTrigger", automation.Trigger.template(), cg.Component
 )
 MultiClickTriggerEvent = binary_sensor_ns.struct("MultiClickTriggerEvent")
-StateTrigger = binary_sensor_ns.class_(
-    "StateTrigger", automation.Trigger.template(bool)
-)
-StateChangeTrigger = binary_sensor_ns.class_(
-    "StateChangeTrigger",
-    automation.Trigger.template(cg.optional.template(bool), cg.optional.template(bool)),
-)
 
 BinarySensorPublishAction = binary_sensor_ns.class_(
     "BinarySensorPublishAction", automation.Action
@@ -458,16 +447,8 @@ _BINARY_SENSOR_SCHEMA = (
             ): cv.boolean,
             cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
             cv.Optional(CONF_FILTERS): validate_filters,
-            cv.Optional(CONF_ON_PRESS): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PressTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_RELEASE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ReleaseTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_PRESS): automation.validate_automation({}),
+            cv.Optional(CONF_ON_RELEASE): automation.validate_automation({}),
             cv.Optional(CONF_ON_CLICK): cv.All(
                 automation.validate_automation(
                     {
@@ -509,16 +490,8 @@ _BINARY_SENSOR_SCHEMA = (
                     ): cv.positive_time_period_milliseconds,
                 }
             ),
-            cv.Optional(CONF_ON_STATE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_STATE_CHANGE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateChangeTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_STATE_CHANGE): automation.validate_automation({}),
         }
     )
 )
@@ -556,13 +529,14 @@ def binary_sensor_schema(
 
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _build_binary_sensor_automations(var, config):
-    for conf in config.get(CONF_ON_PRESS, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_RELEASE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+    for conf_key, forwarder in (
+        (CONF_ON_PRESS, automation.TriggerOnTrueForwarder),
+        (CONF_ON_RELEASE, automation.TriggerOnFalseForwarder),
+    ):
+        for conf in config.get(conf_key, []):
+            await automation.build_callback_automation(
+                var, "add_on_state_callback", [], conf, forwarder=forwarder
+            )
 
     for conf in config.get(CONF_ON_CLICK, []):
         trigger = cg.new_Pvariable(
@@ -593,13 +567,14 @@ async def _build_binary_sensor_automations(var, config):
         await automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_STATE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(bool, "x")], conf)
+        await automation.build_callback_automation(
+            var, "add_on_state_callback", [(bool, "x")], conf
+        )
 
     for conf in config.get(CONF_ON_STATE_CHANGE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger,
+        await automation.build_callback_automation(
+            var,
+            "add_full_state_callback",
             [
                 (cg.optional.template(bool), "x_previous"),
                 (cg.optional.template(bool), "x"),
