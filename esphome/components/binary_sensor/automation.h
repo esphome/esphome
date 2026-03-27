@@ -115,9 +115,9 @@ class MultiClickTriggerBase : public Trigger<>, public Component {
 
   BinarySensor *parent_;
   const MultiClickTriggerEvent *timing_{nullptr};
-  size_t timing_count_{0};
   uint32_t invalid_cooldown_{1000};
   optional<size_t> at_index_{};
+  uint8_t timing_count_{0};
   bool last_state_{false};
   bool is_in_cooldown_{false};
   bool is_valid_{false};

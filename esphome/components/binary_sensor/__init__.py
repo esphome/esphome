@@ -266,6 +266,7 @@ async def delayed_off_filter_to_code(config, filter_id):
                 ): cv.positive_time_period_milliseconds,
             }
         ),
+        cv.Length(max=255),
     ),
 )
 async def autorepeat_filter_to_code(config, filter_id):
@@ -502,7 +503,9 @@ _BINARY_SENSOR_SCHEMA = (
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MultiClickTrigger),
                     cv.Required(CONF_TIMING): cv.All(
-                        [parse_multi_click_timing_str], validate_multi_click_timing
+                        [parse_multi_click_timing_str],
+                        validate_multi_click_timing,
+                        cv.Length(max=255),
                     ),
                     cv.Optional(
                         CONF_INVALID_COOLDOWN, default="1s"

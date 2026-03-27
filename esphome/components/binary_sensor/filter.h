@@ -99,7 +99,7 @@ class AutorepeatFilterBase : public Filter, public Component {
   void next_value_(bool val);
 
   const AutorepeatFilterTiming *timings_{nullptr};
-  size_t timings_count_{0};
+  uint8_t timings_count_{0};
   uint8_t active_timing_{0};
 };
 
