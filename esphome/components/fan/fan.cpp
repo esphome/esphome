@@ -15,8 +15,14 @@ static const char *const TAG = "fan";
 static const std::vector<const char *> EMPTY_PRESET_MODES;  // NOLINT
 
 const std::vector<const char *> &FanTraits::supported_preset_modes() const {
-  // Compat: return empty ref when pointer is null. Remove in 2026.11.0 (change return to const vector *).
-  return this->preset_modes_ ? *this->preset_modes_ : EMPTY_PRESET_MODES;
+  if (this->preset_modes_) {
+    return *this->preset_modes_;
+  }
+  // Compat: fall back to owned vector from deprecated setters. Remove in 2026.11.0 (change return to const vector *).
+  if (!this->compat_preset_modes_.empty()) {
+    return this->compat_preset_modes_;
+  }
+  return EMPTY_PRESET_MODES;
 }
 
 // Fan direction strings indexed by FanDirection enum (0-1): FORWARD, REVERSE, plus UNKNOWN

@@ -39,31 +39,32 @@ class FanTraits {
   // Remove before 2026.11.0
   ESPDEPRECATED("Call set_supported_preset_modes() on the Fan entity instead. Removed in 2026.11.0", "2026.5.0")
   void set_supported_preset_modes(std::initializer_list<const char *> preset_modes) {
-    // NOLINT - intentional leak: pointer must survive copies of FanTraits
-    this->preset_modes_ = new std::vector<const char *>(preset_modes);  // NOLINT
+    // Compat: store in owned vector. Copies copy the vector (same cost as before this PR).
+    this->compat_preset_modes_ = preset_modes;
   }
   // Remove before 2026.11.0
   ESPDEPRECATED("Call set_supported_preset_modes() on the Fan entity instead. Removed in 2026.11.0", "2026.5.0")
   void set_supported_preset_modes(const std::vector<const char *> &preset_modes) {
-    this->preset_modes_ = new std::vector<const char *>(preset_modes);  // NOLINT
+    this->compat_preset_modes_ = preset_modes;
   }
 
   /// Return if preset modes are supported
-  bool supports_preset_modes() const { return this->preset_modes_ && !this->preset_modes_->empty(); }
+  bool supports_preset_modes() const {
+    return (this->preset_modes_ && !this->preset_modes_->empty()) || !this->compat_preset_modes_.empty();
+  }
   /// Find and return the matching preset mode pointer from supported modes, or nullptr if not found.
   const char *find_preset_mode(const char *preset_mode) const {
     return this->find_preset_mode(preset_mode, preset_mode ? strlen(preset_mode) : 0);
   }
   const char *find_preset_mode(const char *preset_mode, size_t len) const {
-    if (preset_mode == nullptr || len == 0)
-      return nullptr;
-    if (!this->preset_modes_) {
+    if (preset_mode == nullptr || len == 0) {
       return nullptr;
     }
-    const auto &modes = *this->preset_modes_;
+    // Check pointer-based storage (new path) then compat owned vector (deprecated path)
+    const auto &modes = this->preset_modes_ ? *this->preset_modes_ : this->compat_preset_modes_;
     for (const char *mode : modes) {
       if (strncmp(mode, preset_mode, len) == 0 && mode[len] == '\0') {
-        return mode;  // Return pointer from traits
+        return mode;
       }
     }
     return nullptr;
@@ -75,6 +76,9 @@ class FanTraits {
   bool direction_{false};
   int speed_count_{};
   const std::vector<const char *> *preset_modes_{nullptr};
+  // Compat: owned storage for deprecated setters. Copies copy the vector (same cost as pre-PR).
+  // Remove in 2026.11.0.
+  std::vector<const char *> compat_preset_modes_;
 };
 
 }  // namespace fan

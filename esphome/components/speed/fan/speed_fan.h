@@ -17,7 +17,10 @@ class SpeedFan : public Component, public fan::Fan {
   void set_oscillating(output::BinaryOutput *oscillating) { this->oscillating_ = oscillating; }
   void set_direction(output::BinaryOutput *direction) { this->direction_ = direction; }
   void set_preset_modes(std::initializer_list<const char *> presets) { this->set_supported_preset_modes(presets); }
-  fan::FanTraits get_traits() override { return this->traits_; }
+  fan::FanTraits get_traits() override {
+    this->wire_preset_modes_(this->traits_);
+    return this->traits_;
+  }
 
  protected:
   void control(const fan::FanCall &call) override;
