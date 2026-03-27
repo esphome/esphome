@@ -3,7 +3,6 @@
 #include "esphome/core/defines.h"
 #ifdef USE_BINARY_SENSOR_FILTER
 
-#include <array>
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -87,55 +86,19 @@ struct AutorepeatFilterTiming {
   uint32_t time_on;
 };
 
-template<size_t N> class AutorepeatFilter : public Filter, public Component {
-  static constexpr uint32_t TIMING_ID = 0;
-  static constexpr uint32_t ON_OFF_ID = 1;
-
+class AutorepeatFilter : public Filter, public Component {
  public:
-  explicit AutorepeatFilter(std::initializer_list<AutorepeatFilterTiming> timings) {
-    size_t i = 0;
-    for (const auto &t : timings) {
-      if (i >= N)
-        break;
-      this->timings_[i++] = t;
-    }
-  }
+  explicit AutorepeatFilter(std::initializer_list<AutorepeatFilterTiming> timings);
 
-  optional<bool> new_value(bool value) override {
-    if (value) {
-      if (this->active_timing_ != 0)
-        return {};
-      this->next_timing_();
-      return true;
-    } else {
-      this->cancel_timeout(TIMING_ID);
-      this->cancel_timeout(ON_OFF_ID);
-      this->active_timing_ = 0;
-      return false;
-    }
-  }
+  optional<bool> new_value(bool value) override;
 
-  float get_setup_priority() const override { return setup_priority::HARDWARE; }
+  float get_setup_priority() const override;
 
  protected:
-  void next_timing_() {
-    if (this->active_timing_ < N) {
-      this->set_timeout(TIMING_ID, this->timings_[this->active_timing_].delay, [this]() { this->next_timing_(); });
-    }
-    if (this->active_timing_ <= N) {
-      this->active_timing_++;
-    }
-    if (this->active_timing_ == 2)
-      this->next_value_(false);
-  }
+  void next_timing_();
+  void next_value_(bool val);
 
-  void next_value_(bool val) {
-    const AutorepeatFilterTiming &timing = this->timings_[this->active_timing_ - 2];
-    this->output(val);
-    this->set_timeout(ON_OFF_ID, val ? timing.time_on : timing.time_off, [this, val]() { this->next_value_(!val); });
-  }
-
-  std::array<AutorepeatFilterTiming, N> timings_{};
+  FixedVector<AutorepeatFilterTiming> timings_;
   uint8_t active_timing_{0};
 };
 

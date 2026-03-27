@@ -1,8 +1,6 @@
 #pragma once
 
-#include <array>
 #include <cinttypes>
-#include <span>
 #include <utility>
 
 #include "esphome/core/component.h"
@@ -91,10 +89,9 @@ class DoubleClickTrigger : public Trigger<> {
   uint32_t max_length_;  /// Maximum length of click. 0 means no maximum.
 };
 
-/// Non-template base for MultiClickTrigger (keeps large method bodies out of the header).
-class MultiClickTriggerBase : public Trigger<>, public Component {
+class MultiClickTrigger : public Trigger<>, public Component {
  public:
-  MultiClickTriggerBase(BinarySensor *parent, std::span<MultiClickTriggerEvent> timing)
+  explicit MultiClickTrigger(BinarySensor *parent, std::initializer_list<MultiClickTriggerEvent> timing)
       : parent_(parent), timing_(timing) {}
 
   void setup() override {
@@ -116,29 +113,12 @@ class MultiClickTriggerBase : public Trigger<>, public Component {
   void trigger_();
 
   BinarySensor *parent_;
-  std::span<MultiClickTriggerEvent> timing_;
+  FixedVector<MultiClickTriggerEvent> timing_;
   uint32_t invalid_cooldown_{1000};
   optional<size_t> at_index_{};
   bool last_state_{false};
   bool is_in_cooldown_{false};
   bool is_valid_{false};
-};
-
-/// Template wrapper that provides inline std::array storage for timing events.
-template<size_t N> class MultiClickTrigger : public MultiClickTriggerBase {
- public:
-  MultiClickTrigger(BinarySensor *parent, std::initializer_list<MultiClickTriggerEvent> timing)
-      : MultiClickTriggerBase(parent, timing_storage_) {
-    size_t i = 0;
-    for (const auto &t : timing) {
-      if (i >= N)
-        break;
-      this->timing_storage_[i++] = t;
-    }
-  }
-
- protected:
-  std::array<MultiClickTriggerEvent, N> timing_storage_{};
 };
 
 class StateTrigger : public Trigger<bool> {
