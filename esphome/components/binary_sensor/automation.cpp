@@ -32,7 +32,7 @@ void MultiClickTriggerBase::on_state_(bool state) {
       ESP_LOGV(TAG, "START min=%" PRIu32 " max=%" PRIu32, evt.min_length, evt.max_length);
       ESP_LOGV(TAG, "Multi Click: Starting multi click action!");
       this->at_index_ = 1;
-      if (this->timing_.size() == 1 && evt.max_length == 4294967294UL) {
+      if (this->timing_count_ == 1 && evt.max_length == 4294967294UL) {
         this->set_timeout(MULTICLICK_TRIGGER_ID, evt.min_length, [this]() { this->trigger_(); });
       } else {
         this->schedule_is_valid_(evt.min_length);
@@ -50,7 +50,7 @@ void MultiClickTriggerBase::on_state_(bool state) {
     return;
   }
 
-  if (*this->at_index_ == this->timing_.size()) {
+  if (*this->at_index_ == this->timing_count_) {
     this->trigger_();
     return;
   }
@@ -61,7 +61,7 @@ void MultiClickTriggerBase::on_state_(bool state) {
     ESP_LOGV(TAG, "A i=%zu min=%" PRIu32 " max=%" PRIu32, *this->at_index_, evt.min_length, evt.max_length);  // NOLINT
     this->schedule_is_valid_(evt.min_length);
     this->schedule_is_not_valid_(evt.max_length);
-  } else if (*this->at_index_ + 1 != this->timing_.size()) {
+  } else if (*this->at_index_ + 1 != this->timing_count_) {
     ESP_LOGV(TAG, "B i=%zu min=%" PRIu32, *this->at_index_, evt.min_length);  // NOLINT
     this->cancel_timeout(MULTICLICK_IS_NOT_VALID_ID);
     this->schedule_is_valid_(evt.min_length);

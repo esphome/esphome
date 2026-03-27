@@ -2,7 +2,6 @@
 
 #include <array>
 #include <cinttypes>
-#include <span>
 #include <utility>
 
 #include "esphome/core/component.h"
@@ -115,7 +114,8 @@ class MultiClickTriggerBase : public Trigger<>, public Component {
   void trigger_();
 
   BinarySensor *parent_;
-  std::span<const MultiClickTriggerEvent> timing_;
+  const MultiClickTriggerEvent *timing_{nullptr};
+  size_t timing_count_{0};
   uint32_t invalid_cooldown_{1000};
   optional<size_t> at_index_{};
   bool last_state_{false};
@@ -134,8 +134,8 @@ template<size_t N> class MultiClickTrigger : public MultiClickTriggerBase {
         break;
       this->timing_storage_[i++] = t;
     }
-    // Set span after storage is populated (avoids UB from referencing unconstructed member in base init)
-    this->timing_ = this->timing_storage_;
+    this->timing_ = this->timing_storage_.data();
+    this->timing_count_ = N;
   }
 
  protected:
