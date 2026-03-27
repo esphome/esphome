@@ -2,7 +2,10 @@
 
 Verifies that external components using the old traits.set_supported_custom_fan_modes()
 and traits.set_supported_custom_presets() API still work correctly during the
-deprecation period (removed in 2026.11.0).
+deprecation period.
+
+Remove this entire test file and the legacy_climate_component external component
+in 2026.11.0 when the deprecated ClimateTraits setters are removed.
 """
 
 from __future__ import annotations
