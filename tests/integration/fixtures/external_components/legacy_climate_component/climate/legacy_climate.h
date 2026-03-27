@@ -16,8 +16,6 @@ class LegacyClimate : public climate::Climate, public Component {
     this->publish_state();
   }
 
-  float get_setup_priority() const override { return setup_priority::LATE; }
-
  protected:
   climate::ClimateTraits traits() override {
     auto traits = climate::ClimateTraits();
