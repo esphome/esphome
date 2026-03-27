@@ -29,9 +29,6 @@ class NextionComponentBase;
 
 using nextion_writer_t = display::DisplayWriter<Nextion>;
 
-// Nextion command terminator: three consecutive 0xFF bytes (per Nextion Instruction Set v1.1).
-static constexpr uint8_t COMMAND_DELIMITER[3] = {0xFF, 0xFF, 0xFF};
-
 #ifdef USE_NEXTION_COMMAND_SPACING
 class NextionCommandPacer {
  public:

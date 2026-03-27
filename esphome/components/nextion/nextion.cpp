@@ -10,6 +10,11 @@ namespace nextion {
 
 static const char *const TAG = "nextion";
 
+// Nextion command terminator: three consecutive 0xFF bytes (per Nextion Instruction Set v1.1).
+static constexpr uint8_t COMMAND_DELIMITER[3] = {0xFF, 0xFF, 0xFF};
+static constexpr const char *DELIMITER_STR = reinterpret_cast<const char *>(COMMAND_DELIMITER);
+static constexpr size_t DELIMITER_SIZE = sizeof(COMMAND_DELIMITER);
+
 void Nextion::setup() {
   this->is_setup_ = false;
   this->connection_state_.ignore_is_setup_ = true;
@@ -415,8 +420,7 @@ void Nextion::process_nextion_commands_() {
 #ifdef NEXTION_PROTOCOL_LOG
   this->print_queue_members_();
 #endif
-  while ((to_process_length = this->command_data_.find(reinterpret_cast<const char *>(COMMAND_DELIMITER), 0,
-                                                       sizeof(COMMAND_DELIMITER))) != std::string::npos) {
+  while ((to_process_length = this->command_data_.find(DELIMITER_STR, 0, DELIMITER_SIZE)) != std::string::npos) {
 #ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
     if (++commands_processed > this->max_commands_per_loop_) {
       ESP_LOGW(TAG, "Command processing limit exceeded");
@@ -424,8 +428,8 @@ void Nextion::process_nextion_commands_() {
     }
 #endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
     ESP_LOGN(TAG, "queue size: %zu", this->nextion_queue_.size());
-    while (to_process_length + sizeof(COMMAND_DELIMITER) < this->command_data_.length() &&
-           static_cast<uint8_t>(this->command_data_[to_process_length + sizeof(COMMAND_DELIMITER)]) == 0xFF) {
+    while (to_process_length + DELIMITER_SIZE < this->command_data_.length() &&
+           static_cast<uint8_t>(this->command_data_[to_process_length + DELIMITER_SIZE]) == 0xFF) {
       ++to_process_length;
       ESP_LOGN(TAG, "Add 0xFF");
     }
@@ -830,7 +834,7 @@ void Nextion::process_nextion_commands_() {
         break;
     }
 
-    this->command_data_.erase(0, to_process_length + sizeof(COMMAND_DELIMITER) + 1);
+    this->command_data_.erase(0, to_process_length + DELIMITER_SIZE + 1);
   }
 
   const uint32_t ms = App.get_loop_component_start_time();
