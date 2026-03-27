@@ -26,6 +26,7 @@ class TimeBasedValve final : public valve::Valve, public Component {
   Trigger<> *get_stop_trigger();
   void set_duration(uint32_t duration) { this->duration_ = duration; }
   void set_restore_mode(TimeBasedValveRestoreMode restore_mode) { restore_mode_ = restore_mode; }
+  void set_position(float position, bool relative = false);
   void reset_position();
 
  protected:
@@ -43,6 +44,7 @@ class TimeBasedValve final : public valve::Valve, public Component {
   uint32_t last_recompute_time_{0};
   valve::ValveOperation last_operation_{valve::VALVE_OPERATION_OPENING};
   float target_position_{0};
+  bool target_position_relative_{0};
   float measured_position_{0};
   float measured_position_max_{0};
   float measured_position_min_{0};
