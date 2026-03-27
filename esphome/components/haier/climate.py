@@ -456,6 +456,25 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_ALARM_START,
+        "add_alarm_start_callback",
+        [(cg.uint8, "code"), (cg.const_char_ptr, "message")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_ALARM_END,
+        "add_alarm_end_callback",
+        [(cg.uint8, "code"), (cg.const_char_ptr, "message")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_STATUS_MESSAGE,
+        "add_status_message_callback",
+        [(cg.const_char_ptr, "data"), (cg.size_t, "data_size")],
+    ),
+)
+
+
 async def to_code(config):
     cg.add(haier_ns.init_haier_protocol_logging())
     var = await climate.new_climate(config)
@@ -497,26 +516,6 @@ async def to_code(config):
         cg.add(
             var.set_status_message_header_size(config[CONF_STATUS_MESSAGE_HEADER_SIZE])
         )
-    for conf in config.get(CONF_ON_ALARM_START, []):
-        await automation.build_callback_automation(
-            var,
-            "add_alarm_start_callback",
-            [(cg.uint8, "code"), (cg.const_char_ptr, "message")],
-            conf,
-        )
-    for conf in config.get(CONF_ON_ALARM_END, []):
-        await automation.build_callback_automation(
-            var,
-            "add_alarm_end_callback",
-            [(cg.uint8, "code"), (cg.const_char_ptr, "message")],
-            conf,
-        )
-    for conf in config.get(CONF_ON_STATUS_MESSAGE, []):
-        await automation.build_callback_automation(
-            var,
-            "add_status_message_callback",
-            [(cg.const_char_ptr, "data"), (cg.size_t, "data_size")],
-            conf,
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
     # https://github.com/paveldn/HaierProtocol
     cg.add_library("pavlodn/HaierProtocol", "0.9.31")
