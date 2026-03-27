@@ -113,8 +113,7 @@ bool Nextion::check_connect_() {
   while ((start = response.find_first_not_of(',', end)) != std::string::npos) {
     end = response.find(',', start);
     if (field_idx < 7) {
-      fields[field_idx].assign(response, start,
-                               end == std::string::npos ? response.size() - start : end - start);
+      fields[field_idx].assign(response, start, end == std::string::npos ? response.size() - start : end - start);
     }
     ++field_idx;
     ++field_count;
@@ -127,7 +126,7 @@ bool Nextion::check_connect_() {
     this->firmware_version_ = fields[3];
     this->serial_number_ = fields[5];
     this->flash_size_ = fields[6];
-#else  // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
+#else   // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
     ESP_LOGI(TAG,
              "  Device Model:   %s\n"
              "  FW Version:     %s\n"
