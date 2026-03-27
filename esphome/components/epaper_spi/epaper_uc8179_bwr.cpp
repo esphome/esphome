@@ -40,8 +40,8 @@ void HOT EPaperUC8179BWR::draw_pixel_at(int x, int y, Color color) {
   }
 
   // Update red plane (second half of buffer)
-  // invert_red_: when true, 0 = red, 1 = no red (OTP-inverted panels)
-  //              when false, 1 = red, 0 = no red (standard polarity)
+  // invert_red_: when true, 0 = red (required by some panels with DDX=11)
+  //              when false, 1 = red (standard polarity)
   bool red_active = (bwr == BwrColor::RED) != this->invert_red_;
   if (red_active) {
     this->buffer_[red_offset + pos] |= bit;
@@ -87,18 +87,17 @@ void EPaperUC8179BWR::fill(Color color) {
 
 void EPaperUC8179BWR::clear() { this->fill(COLOR_ON); }
 
-bool EPaperUC8179BWR::initialise(bool partial) {
-  // Run the user/model init sequence first
-  EPaperBase::initialise(partial);
-  // Send resolution command (0x61) last so it is not overwritten by init sequence
-  const uint8_t res_data[] = {
-      static_cast<uint8_t>(this->width_ >> 8),
-      static_cast<uint8_t>(this->width_ & 0xFF),
-      static_cast<uint8_t>(this->height_ >> 8),
-      static_cast<uint8_t>(this->height_ & 0xFF),
-  };
-  this->cmd_data(0x61, res_data, sizeof(res_data));
-  return true;
+void EPaperUC8179BWR::loop() {
+  if (this->waiting_for_idle_) {
+    if (this->state_ == EPaperState::POWER_OFF || this->state_ == EPaperState::DEEP_SLEEP) {
+      // BWR refresh takes ~30s but the display refreshes autonomously after
+      // the refresh command (0x12). Don't wait - just proceed with shutdown.
+      // The old waveshare driver always timed out here (~1s) and moved on
+      // otherwise we're stuck waiting for the busy pin to go idle, which never happens after refresh.
+      this->waiting_for_idle_ = false;
+    }
+  }
+  EPaperBase::loop();
 }
 
 bool EPaperUC8179BWR::reset() {
@@ -108,7 +107,6 @@ bool EPaperUC8179BWR::reset() {
 
   if (this->state_ == EPaperState::RESET) {
     this->reset_pin_->digital_write(true);
-    this->reset_duration_ = 200;
     return false;  // Come back for RESET_END
   }
   // RESET_END state
@@ -194,8 +192,8 @@ void EPaperUC8179BWR::refresh_screen(bool partial) {
 }
 
 void EPaperUC8179BWR::power_off() {
-  ESP_LOGV(TAG, "Power off");
-  this->command(0x02);
+  // UC8179: skip power off command (0x02) - deep_sleep handles shutdown.
+  // Sending 0x02 causes the busy pin to remain asserted, blocking the state machine.
 }
 
 void EPaperUC8179BWR::deep_sleep() {

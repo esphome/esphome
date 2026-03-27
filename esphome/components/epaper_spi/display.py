@@ -42,7 +42,6 @@ DEPENDENCIES = ["spi"]
 
 CONF_INIT_SEQUENCE_ID = "init_sequence_id"
 CONF_MINIMUM_UPDATE_INTERVAL = "minimum_update_interval"
-CONF_INVERT_RED = "invert_red"
 
 epaper_spi_ns = cg.esphome_ns.namespace("epaper_spi")
 EPaperBase = epaper_spi_ns.class_(
@@ -73,7 +72,7 @@ def model_schema(config):
         model.get_default(CONF_MINIMUM_UPDATE_INTERVAL, "1s")
     )
     cv_dimensions = cv.Optional if model.get_default(CONF_WIDTH) else cv.Required
-    schema = display.FULL_DISPLAY_SCHEMA.extend(
+    return display.FULL_DISPLAY_SCHEMA.extend(
         spi.spi_device_schema(
             cs_pin_required=False,
             default_mode="MODE0",
@@ -108,11 +107,9 @@ def model_schema(config):
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=core.TimePeriod(milliseconds=500)),
             ),
+            **model.get_config_schema(),
         }
     )
-    if model.get_default(CONF_INVERT_RED, None) is not None:
-        schema = schema.extend({model.option(CONF_INVERT_RED): cv.boolean})
-    return schema
 
 
 def customise_schema(config):
@@ -201,8 +198,6 @@ async def to_code(config):
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
     if CONF_RESET_DURATION in config:
         cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
-    if CONF_INVERT_RED in config:
-        cg.add(var.set_invert_red(config[CONF_INVERT_RED]))
     if transform := config.get(CONF_TRANSFORM):
         transform[CONF_SWAP_XY] = False
     else:

@@ -35,6 +35,10 @@ class EpaperModel:
     def get_constructor_args(self, config) -> tuple:
         return ()
 
+    def get_config_schema(self) -> dict:
+        """Return additional config schema entries specific to this model."""
+        return {}
+
     def get_dimensions(self, config) -> tuple[int, int]:
         if CONF_DIMENSIONS in config:
             # Explicit dimensions, just use as is
