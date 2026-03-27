@@ -107,9 +107,8 @@ def model_schema(config):
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=core.TimePeriod(milliseconds=500)),
             ),
-            **model.get_config_schema(),
         }
-    )
+    ).extend(model.get_config_schema())
 
 
 def customise_schema(config):
