@@ -853,7 +853,7 @@ void Nextion::process_nextion_commands_() {
           this->is_sleeping_ = false;
         }
 
-        if (this->nextion_queue_[i]->pending_command.empty()) {
+        if ((*it)->pending_command.empty()) {
           ESP_LOGD(TAG, "Remove old queue '%s':'%s'", component->get_queue_type_string().c_str(),
                    component->get_variable_name().c_str());
         } else {
