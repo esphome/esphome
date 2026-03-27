@@ -222,10 +222,10 @@ MultiplyFilter::MultiplyFilter(TemplatableValue<float> multiplier) : multiplier_
 
 optional<float> MultiplyFilter::new_value(float value) { return value * this->multiplier_.value(); }
 
-uint32_t get_loop_component_start_time_() { return App.get_loop_component_start_time(); }
+uint32_t get_loop_component_start_time() { return App.get_loop_component_start_time(); }
 
 // ValueListFilter helper (non-template, shared by all ValueListFilter<N> instantiations)
-bool value_list_matches_any_(Sensor *parent, float sensor_value, TemplatableValue<float> *values, size_t count) {
+bool value_list_matches_any(Sensor *parent, float sensor_value, TemplatableValue<float> *values, size_t count) {
   int8_t accuracy = parent->get_accuracy_decimals();
   float accuracy_mult = pow10_int(accuracy);
   float rounded_sensor = roundf(accuracy_mult * sensor_value);
@@ -361,7 +361,7 @@ void HeartbeatFilter::setup() {
 
 float HeartbeatFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-optional<float> calibrate_linear_compute_(const std::array<float, 3> *functions, size_t count, float value) {
+optional<float> calibrate_linear_compute(const std::array<float, 3> *functions, size_t count, float value) {
   for (size_t i = 0; i < count; i++) {
     if (!std::isfinite(functions[i][2]) || value < functions[i][2])
       return (value * functions[i][0]) + functions[i][1];
@@ -369,7 +369,7 @@ optional<float> calibrate_linear_compute_(const std::array<float, 3> *functions,
   return NAN;
 }
 
-optional<float> calibrate_polynomial_compute_(const float *coefficients, size_t count, float value) {
+optional<float> calibrate_polynomial_compute(const float *coefficients, size_t count, float value) {
   float res = 0.0f;
   float x = 1.0f;
   for (size_t i = 0; i < count; i++) {

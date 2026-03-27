@@ -330,10 +330,10 @@ class MultiplyFilter : public Filter {
 };
 
 /// Non-template helper for value matching (implementation in filter.cpp)
-bool value_list_matches_any_(Sensor *parent, float sensor_value, TemplatableValue<float> *values, size_t count);
+bool value_list_matches_any(Sensor *parent, float sensor_value, TemplatableValue<float> *values, size_t count);
 
 /// Non-template helper to get cached loop start time (avoids circular include of application.h)
-uint32_t get_loop_component_start_time_();
+uint32_t get_loop_component_start_time();
 
 /** Base class for filters that compare sensor values against a fixed list of configured values.
  *
@@ -355,7 +355,7 @@ template<size_t N> class ValueListFilter : public Filter {
 
   /// Check if sensor value matches any configured value (with accuracy rounding)
   bool value_matches_any_(float sensor_value) {
-    return value_list_matches_any_(this->parent_, sensor_value, this->values_.data(), N);
+    return value_list_matches_any(this->parent_, sensor_value, this->values_.data(), N);
   }
 
   std::array<TemplatableValue<float>, N> values_{};
@@ -393,7 +393,7 @@ template<size_t N> class ThrottleWithPriorityFilter : public ValueListFilter<N> 
       : ValueListFilter<N>(prioritized_values), min_time_between_inputs_(min_time_between_inputs) {}
 
   optional<float> new_value(float value) override {
-    const uint32_t now = get_loop_component_start_time_();
+    const uint32_t now = get_loop_component_start_time();
     if (this->last_input_ == 0 || now - this->last_input_ >= this->min_time_between_inputs_ ||
         this->value_matches_any_(value)) {
       this->last_input_ = now;
@@ -545,8 +545,8 @@ template<size_t N> class OrFilter : public Filter {
 };
 
 /// Non-template helpers for calibration filters (implementation in filter.cpp)
-optional<float> calibrate_linear_compute_(const std::array<float, 3> *functions, size_t count, float value);
-optional<float> calibrate_polynomial_compute_(const float *coefficients, size_t count, float value);
+optional<float> calibrate_linear_compute(const std::array<float, 3> *functions, size_t count, float value);
+optional<float> calibrate_polynomial_compute(const float *coefficients, size_t count, float value);
 
 template<size_t N> class CalibrateLinearFilter : public Filter {
  public:
@@ -559,7 +559,7 @@ template<size_t N> class CalibrateLinearFilter : public Filter {
     }
   }
   optional<float> new_value(float value) override {
-    return calibrate_linear_compute_(this->linear_functions_.data(), N, value);
+    return calibrate_linear_compute(this->linear_functions_.data(), N, value);
   }
 
  protected:
@@ -577,7 +577,7 @@ template<size_t N> class CalibratePolynomialFilter : public Filter {
     }
   }
   optional<float> new_value(float value) override {
-    return calibrate_polynomial_compute_(this->coefficients_.data(), N, value);
+    return calibrate_polynomial_compute(this->coefficients_.data(), N, value);
   }
 
  protected:
