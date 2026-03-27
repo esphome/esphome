@@ -3,14 +3,15 @@
 #include <list>
 #include <vector>
 
-#include "esphome/core/defines.h"
-#include "esphome/core/time.h"
-
-#include "esphome/components/uart/uart.h"
-#include "nextion_base.h"
-#include "nextion_component.h"
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
+#include "esphome/components/uart/uart.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/time.h"
+
+#include "nextion_base.h"
+#include "nextion_component.h"
 
 #ifdef USE_NEXTION_TFT_UPLOAD
 #ifdef USE_ESP32
