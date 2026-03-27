@@ -66,19 +66,17 @@ _COMMAND_ACTIONS = [
 
 StateAnyForwarder = media_player_ns.class_("StateAnyForwarder")
 StateEnterForwarder = media_player_ns.class_("StateEnterForwarder")
+MediaPlayerState = media_player_ns.enum("MediaPlayerState")
 
 # State triggers: (config_key, state enum or None for any-state)
 _STATE_TRIGGERS = [
     (CONF_ON_STATE, None),
-    (CONF_ON_IDLE, "media_player::MediaPlayerState::MEDIA_PLAYER_STATE_IDLE"),
-    (CONF_ON_PLAY, "media_player::MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING"),
-    (CONF_ON_PAUSE, "media_player::MediaPlayerState::MEDIA_PLAYER_STATE_PAUSED"),
-    (
-        CONF_ON_ANNOUNCEMENT,
-        "media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING",
-    ),
-    (CONF_ON_TURN_ON, "media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ON"),
-    (CONF_ON_TURN_OFF, "media_player::MediaPlayerState::MEDIA_PLAYER_STATE_OFF"),
+    (CONF_ON_IDLE, MediaPlayerState.MEDIA_PLAYER_STATE_IDLE),
+    (CONF_ON_PLAY, MediaPlayerState.MEDIA_PLAYER_STATE_PLAYING),
+    (CONF_ON_PAUSE, MediaPlayerState.MEDIA_PLAYER_STATE_PAUSED),
+    (CONF_ON_ANNOUNCEMENT, MediaPlayerState.MEDIA_PLAYER_STATE_ANNOUNCING),
+    (CONF_ON_TURN_ON, MediaPlayerState.MEDIA_PLAYER_STATE_ON),
+    (CONF_ON_TURN_OFF, MediaPlayerState.MEDIA_PLAYER_STATE_OFF),
 ]
 
 # State conditions that all share the same schema and codegen handler
@@ -108,7 +106,7 @@ async def setup_media_player_core_(var, config):
             if state_enum is None:
                 forwarder = StateAnyForwarder
             else:
-                forwarder = StateEnterForwarder.template(cg.RawExpression(state_enum))
+                forwarder = StateEnterForwarder.template(state_enum)
             await automation.build_callback_automation(
                 var, "add_on_state_callback", [], conf, forwarder=forwarder
             )
