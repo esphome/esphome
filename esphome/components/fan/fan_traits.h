@@ -55,7 +55,11 @@ class FanTraits {
 
   /// Return if preset modes are supported
   bool supports_preset_modes() const {
-    return (this->preset_modes_ && !this->preset_modes_->empty()) || !this->compat_preset_modes_.empty();
+    // Same precedence as supported_preset_modes() getter
+    if (this->preset_modes_) {
+      return !this->preset_modes_->empty();
+    }
+    return !this->compat_preset_modes_.empty();
   }
   /// Find and return the matching preset mode pointer from supported modes, or nullptr if not found.
   const char *find_preset_mode(const char *preset_mode) const {
