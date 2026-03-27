@@ -349,6 +349,7 @@ lvgl:
             drop_shadow_opa: cover
             drop_shadow_quality: precision
             drop_shadow_radius: 10
+            ext_click_area: 100px
             height: 50%
             image_opa: cover
             image_recolor: light_blue

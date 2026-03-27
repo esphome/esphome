@@ -12,6 +12,7 @@ from esphome.const import (
 from .defines import (
     CONF_ALIGN,
     CONF_ALIGN_TO,
+    CONF_EXT_CLICK_AREA,
     DIRECTIONS,
     LV_EVENT_MAP,
     LV_EVENT_TRIGGERS,
@@ -96,6 +97,8 @@ async def generate_triggers():
                 x = align_to[CONF_X]
                 y = align_to[CONF_Y]
                 lv.obj_align_to(w.obj, target, align, x, y)
+            if ext_click_area := w.config.get(CONF_EXT_CLICK_AREA):
+                lv.obj_set_ext_click_area(w.obj, ext_click_area)
 
 
 async def add_trigger(conf, w, *events, is_selected=None):

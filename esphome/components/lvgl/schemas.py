@@ -432,6 +432,7 @@ def obj_schema(widget_type: WidgetType):
     return (
         part_schema(widget_type.parts)
         .extend(ALIGN_TO_SCHEMA)
+        .extend({cv.Optional(df.CONF_EXT_CLICK_AREA): lvalid.pixels})
         .extend(automation_schema(widget_type.w_type))
         .extend(
             {
