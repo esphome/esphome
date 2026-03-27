@@ -212,17 +212,14 @@ void ATM90E32Component::setup() {
           : voltage_nominal *
                 (this->has_threshold_voltage_peak_pct_ ? this->threshold_voltage_peak_pct_ : DEFAULT_VOLTAGE_PEAK_PCT);
 
-  const float frequency_nominal_hz =
-      this->has_threshold_frequency_nominal_hz_ ? this->threshold_frequency_nominal_hz_
-                                                : static_cast<float>(this->line_freq_);
-  const float frequency_low_hz =
-      this->has_threshold_frequency_low_hz_
-          ? this->threshold_frequency_low_hz_
-          : (frequency_nominal_hz - DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ);
-  const float frequency_high_hz =
-      this->has_threshold_frequency_high_hz_
-          ? this->threshold_frequency_high_hz_
-          : (frequency_nominal_hz + DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ);
+  const float frequency_nominal_hz = this->has_threshold_frequency_nominal_hz_ ? this->threshold_frequency_nominal_hz_
+                                                                               : static_cast<float>(this->line_freq_);
+  const float frequency_low_hz = this->has_threshold_frequency_low_hz_
+                                     ? this->threshold_frequency_low_hz_
+                                     : (frequency_nominal_hz - DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ);
+  const float frequency_high_hz = this->has_threshold_frequency_high_hz_
+                                      ? this->threshold_frequency_high_hz_
+                                      : (frequency_nominal_hz + DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ);
   const float current_peak_a =
       this->has_threshold_current_peak_a_ ? this->threshold_current_peak_a_ : DEFAULT_CURRENT_PEAK_A;
   this->active_current_peak_threshold_a_ = current_peak_a;
@@ -236,8 +233,8 @@ void ATM90E32Component::setup() {
   const uint16_t low_thresh = calculate_frequency_threshold_from_hz(frequency_low_hz);
   const uint16_t high_thresh = calculate_frequency_threshold_from_hz(frequency_high_hz);
 
-  ESP_LOGD(TAG, "Threshold frequency: low %.2f Hz -> 0x%04" PRIX16 ", high %.2f Hz -> 0x%04" PRIX16,
-           frequency_low_hz, low_thresh, frequency_high_hz, high_thresh);
+  ESP_LOGD(TAG, "Threshold frequency: low %.2f Hz -> 0x%04" PRIX16 ", high %.2f Hz -> 0x%04" PRIX16, frequency_low_hz,
+           low_thresh, frequency_high_hz, high_thresh);
   ESP_LOGD(TAG, "Threshold voltage sag: %.1f%% (%.2f V RMS, gain %u) -> 0x%04" PRIX16,
            (sag_voltage / voltage_nominal) * 100.0f, sag_voltage, this->phase_[0].voltage_gain_, sagth);
   ESP_LOGD(TAG, "Threshold voltage peak: %.1f%% (%.2f V RMS, gain %u) -> 0x%04" PRIX16,

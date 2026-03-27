@@ -294,42 +294,41 @@ def _validate_thresholds(config):
 
     return config
 
-CONFIG_SCHEMA = (
-    cv.All(
-        cv.Schema(
-            {
-                cv.GenerateID(): cv.declare_id(ATM90E32Component),
-                cv.Optional(CONF_PHASE_A): ATM90E32_PHASE_SCHEMA,
-                cv.Optional(CONF_PHASE_B): ATM90E32_PHASE_SCHEMA,
-                cv.Optional(CONF_PHASE_C): ATM90E32_PHASE_SCHEMA,
-                cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
-                    unit_of_measurement=UNIT_HERTZ,
-                    icon=ICON_CURRENT_AC,
-                    accuracy_decimals=1,
-                    state_class=STATE_CLASS_MEASUREMENT,
-                ),
-                cv.Optional(CONF_CHIP_TEMPERATURE): sensor.sensor_schema(
-                    unit_of_measurement=UNIT_CELSIUS,
-                    accuracy_decimals=1,
-                    device_class=DEVICE_CLASS_TEMPERATURE,
-                    state_class=STATE_CLASS_MEASUREMENT,
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Required(CONF_LINE_FREQUENCY): cv.enum(LINE_FREQS, upper=True),
-                cv.Optional(CONF_CURRENT_PHASES, default="3"): cv.enum(
-                    CURRENT_PHASES, upper=True
-                ),
-                cv.Optional(CONF_GAIN_PGA, default="1X"): cv.enum(PGA_GAINS, upper=True),
-                cv.Optional(CONF_PEAK_CURRENT_SIGNED, default=False): cv.boolean,
-                cv.Optional(CONF_ENABLE_OFFSET_CALIBRATION, default=False): cv.boolean,
-                cv.Optional(CONF_ENABLE_GAIN_CALIBRATION, default=False): cv.boolean,
-                cv.Optional(CONF_THRESHOLDS): THRESHOLDS_SCHEMA,
-            }
-        )
-        .extend(cv.polling_component_schema("60s"))
-        .extend(spi.spi_device_schema()),
-        _validate_thresholds,
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(ATM90E32Component),
+            cv.Optional(CONF_PHASE_A): ATM90E32_PHASE_SCHEMA,
+            cv.Optional(CONF_PHASE_B): ATM90E32_PHASE_SCHEMA,
+            cv.Optional(CONF_PHASE_C): ATM90E32_PHASE_SCHEMA,
+            cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(
+                unit_of_measurement=UNIT_HERTZ,
+                icon=ICON_CURRENT_AC,
+                accuracy_decimals=1,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_CHIP_TEMPERATURE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_CELSIUS,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_TEMPERATURE,
+                state_class=STATE_CLASS_MEASUREMENT,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Required(CONF_LINE_FREQUENCY): cv.enum(LINE_FREQS, upper=True),
+            cv.Optional(CONF_CURRENT_PHASES, default="3"): cv.enum(
+                CURRENT_PHASES, upper=True
+            ),
+            cv.Optional(CONF_GAIN_PGA, default="1X"): cv.enum(PGA_GAINS, upper=True),
+            cv.Optional(CONF_PEAK_CURRENT_SIGNED, default=False): cv.boolean,
+            cv.Optional(CONF_ENABLE_OFFSET_CALIBRATION, default=False): cv.boolean,
+            cv.Optional(CONF_ENABLE_GAIN_CALIBRATION, default=False): cv.boolean,
+            cv.Optional(CONF_THRESHOLDS): THRESHOLDS_SCHEMA,
+        }
     )
+    .extend(cv.polling_component_schema("60s"))
+    .extend(spi.spi_device_schema()),
+    _validate_thresholds,
 )
 
 
@@ -402,7 +401,9 @@ async def to_code(config):
         if CONF_VOLTAGE_SAG_V in thresholds:
             cg.add(var.set_threshold_voltage_sag_v(thresholds[CONF_VOLTAGE_SAG_V]))
         if CONF_VOLTAGE_PEAK_PCT in thresholds:
-            cg.add(var.set_threshold_voltage_peak_pct(thresholds[CONF_VOLTAGE_PEAK_PCT]))
+            cg.add(
+                var.set_threshold_voltage_peak_pct(thresholds[CONF_VOLTAGE_PEAK_PCT])
+            )
         if CONF_VOLTAGE_PEAK_V in thresholds:
             cg.add(var.set_threshold_voltage_peak_v(thresholds[CONF_VOLTAGE_PEAK_V]))
         if CONF_CURRENT_PEAK in thresholds:
@@ -414,10 +415,10 @@ async def to_code(config):
                 )
             )
         if CONF_FREQUENCY_LOW_HZ in thresholds:
-            cg.add(var.set_threshold_frequency_low_hz(thresholds[CONF_FREQUENCY_LOW_HZ]))
+            cg.add(
+                var.set_threshold_frequency_low_hz(thresholds[CONF_FREQUENCY_LOW_HZ])
+            )
         if CONF_FREQUENCY_HIGH_HZ in thresholds:
             cg.add(
-                var.set_threshold_frequency_high_hz(
-                    thresholds[CONF_FREQUENCY_HIGH_HZ]
-                )
+                var.set_threshold_frequency_high_hz(thresholds[CONF_FREQUENCY_HIGH_HZ])
             )
