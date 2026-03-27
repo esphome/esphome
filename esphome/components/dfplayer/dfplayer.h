@@ -171,12 +171,5 @@ template<typename... Ts> class DFPlayerIsPlayingCondition : public Condition<Ts.
   bool check(const Ts &...x) override { return this->parent_->is_playing(); }
 };
 
-class DFPlayerFinishedPlaybackTrigger : public Trigger<> {
- public:
-  explicit DFPlayerFinishedPlaybackTrigger(DFPlayer *parent) {
-    parent->add_on_finished_playback_callback([this]() { this->trigger(); });
-  }
-};
-
 }  // namespace dfplayer
 }  // namespace esphome
