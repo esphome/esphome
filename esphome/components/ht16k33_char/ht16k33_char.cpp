@@ -391,8 +391,8 @@ uint16_t HT16k33CharComponent::send_to_display_common_(i2c::I2CDevice *display, 
               // This case covers if we are scrolling the display and the first character in the first display is a
               // special character. In this instance, we want to skip over that character, or the scrolling will end
               // up choppy. To do this, we increment the first_char_location_ variable.
-              
-			  //Not implemented yet.
+
+              // Not implemented yet.
               continue;
           }
         }
