@@ -30,7 +30,7 @@ async def test_legacy_fan_compat(
     )
 
     async with run_compiled(yaml_config), api_client_connected() as client:
-        entities, services = await client.list_entities_services()
+        entities, _ = await client.list_entities_services()
 
         fan_infos = [e for e in entities if isinstance(e, FanInfo)]
         assert len(fan_infos) == 1, f"Expected 1 fan entity, got {len(fan_infos)}"
