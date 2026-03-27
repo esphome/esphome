@@ -7,9 +7,9 @@ These displays use the UC8179 controller with separate B/W and Red data planes.
 Commands 0x10 (B/W) and 0x13 (Red) are used for data transmission.
 """
 
-from . import EpaperModel
-
 import esphome.config_validation as cv
+
+from . import EpaperModel
 
 CONF_INVERT_RED = "invert_red"
 
