@@ -50,7 +50,6 @@ void HT16k33CharComponent::setup() {
 }
 
 void HT16k33CharComponent::update() {
-  uint16_t current_buffer_location;
 
   // This checks if the lambda function is defined. If it is not defined, we don't do anything.
   if (this->writer_.has_value()) {
@@ -65,16 +64,14 @@ void HT16k33CharComponent::update() {
     //     the display will not be showing anything yet, and we need to run the update_display()
     //     function to show the initial contents.
     if (this->scroll_state_ == HT16K33_SCROLL_STATE_STATIC) {
-      current_buffer_location = this->update_display();
+      this->update_display();
     }
   }
 }
 
 void HT16k33CharComponent::loop() {
-  uint32_t now;
-  uint8_t current_buffer_location;
 
-  if ((this->scroll_state_ == HT16K33_SCROLL_STATE_STATIC)) {
+  if (this->scroll_state_ == HT16K33_SCROLL_STATE_STATIC) {
     // Check this first. If the display is static, we don't need to do anything in this function.
     return;
   }
@@ -452,7 +449,6 @@ void HT16k33CharComponent::add_char(const char *char_to_add, uint16_t char_code)
  *    total buffer length (in bytes) exceede char_buffer_max_size_, the string is truncated to prevent this.
  ************************************/
 uint8_t HT16k33CharComponent::print(uint16_t start_pos, bool clear_buffer, const char *str) {
-  size_t old_message_size = this->message_buffer_.length();
   uint16_t len = strlen(str);
 
   if (clear_buffer) {
