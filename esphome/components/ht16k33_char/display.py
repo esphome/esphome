@@ -1,7 +1,13 @@
 import esphome.codegen as cg
 from esphome.components import display, i2c
 import esphome.config_validation as cv
-from esphome.const import CONF_BRIGHTNESS, CONF_DEVICE, CONF_ID, CONF_LAMBDA
+from esphome.const import (
+    CONF_BRIGHTNESS,
+    CONF_CONTINUOUS,
+    CONF_DEVICE,
+    CONF_ID,
+    CONF_LAMBDA,
+)
 
 DEPENDENCIES = ["i2c"]
 
@@ -32,7 +38,6 @@ HT16k33Char_BaseClassType = ht16k33_char_ns.class_(
 #   these functions are used to flip the bits around in the provided character code to match the wiring of that device.
 def format_none(input_code):
     return input_code
-
 
 def validate_added_chars(value_to_validate):
     # Check if the value is a dictionary
@@ -85,7 +90,7 @@ HT16K33_DEVICE_TYPES = {
     "ADAFRUIT_7_SEG_.56IN": {
         "CLASS_NAME": "Adafruit7Seg",
         "FORMAT_FUNCTION": format_none,
-    }
+    },
 }
 
 HT16k33Char_BaseClassTypeRef = HT16k33Char_BaseClassType.operator("ref")
@@ -100,6 +105,17 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_BRIGHTNESS, default=15): cv.int_range(min=1, max=16),
             cv.Optional(CONF_SECONDARY_DISPLAYS): cv.ensure_list(CONFIG_SECONDARY),
+            cv.Optional(CONF_CONTINUOUS, default=False): cv.boolean,
+            cv.Optional(CONF_SCROLL, default=False): cv.boolean,
+            cv.Optional(
+                CONF_SCROLL_SPEED, default="1s"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_SCROLL_DWELL, default="2s"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_SCROLL_DELAY, default="5s"
+            ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_ADD_CHARACTERS): validate_added_chars,
             cv.Optional(CONF_REMOVE_CHARACTERS): validate_removed_chars,
         }
@@ -129,6 +145,13 @@ async def to_code(config):
             return_type=cg.void,
         )
         cg.add(var.set_writer(lambda_))
+
+    if config[CONF_SCROLL]:
+        cg.add(var.set_scroll(True))
+        cg.add(var.set_continuous(config[CONF_CONTINUOUS]))
+        cg.add(var.set_scroll_speed(config[CONF_SCROLL_SPEED]))
+        cg.add(var.set_scroll_dwell(config[CONF_SCROLL_DWELL]))
+        cg.add(var.set_scroll_delay(config[CONF_SCROLL_DELAY]))
 
     if CONF_SECONDARY_DISPLAYS in config:
         for conf in config[CONF_SECONDARY_DISPLAYS]:
