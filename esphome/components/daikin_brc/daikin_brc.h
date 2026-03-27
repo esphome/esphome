@@ -61,6 +61,8 @@ class DaikinBrcClimate : public climate_ir::ClimateIR {
     this->fahrenheit_ = value;
     this->temperature_step_ = value ? 0.5f : 1.0f;
   }
+  /// Set sub-unit index for multi-unit systems (0-5)
+  void set_sub_unit(uint8_t value) { this->sub_unit_ = value; }
 
  protected:
   uint8_t mode_button_ = 0x00;
@@ -76,6 +78,7 @@ class DaikinBrcClimate : public climate_ir::ClimateIR {
   bool on_receive(remote_base::RemoteReceiveData data) override;
   bool parse_state_frame_(const uint8_t frame[]);
   bool fahrenheit_{false};
+  uint8_t sub_unit_{0};
 };
 
 }  // namespace daikin_brc

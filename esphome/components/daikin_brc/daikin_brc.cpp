@@ -20,13 +20,23 @@ void DaikinBrcClimate::transmit_state() {
                                                           0xDA, 0x17, 0x18, 0x00, 0x00, 0x00, 0x00, 0x00,
                                                           0x00, 0x00, 0x00, 0x00, 0x20, 0x00};
 
+  // Sub-unit addressing (byte 3 in both preamble and state frame)
+  remote_state[3] = 0x18 | this->sub_unit_;
+  remote_state[10] = 0x18 | this->sub_unit_;
+
+  // Recalculate preamble checksum (byte 6 = sum of bytes 0-5)
+  remote_state[6] = 0;
+  for (int i = 0; i < DAIKIN_BRC_PREAMBLE_SIZE - 1; i++) {
+    remote_state[6] += remote_state[i];
+  }
+
   remote_state[12] = this->alt_mode_();
   remote_state[13] = this->mode_button_;
   remote_state[14] = this->operation_mode_();
   remote_state[17] = this->temperature_();
   remote_state[18] = this->fan_speed_swing_();
 
-  // Calculate checksum
+  // Calculate state frame checksum
   for (int i = DAIKIN_BRC_PREAMBLE_SIZE; i < DAIKIN_BRC_TRANSMIT_FRAME_SIZE - 1; i++) {
     remote_state[DAIKIN_BRC_TRANSMIT_FRAME_SIZE - 1] += remote_state[i];
   }
@@ -257,8 +267,8 @@ bool DaikinBrcClimate::on_receive(remote_base::RemoteReceiveData data) {
       if (byte != 0x17)
         return false;
     } else if (pos == 3) {
-      // frame header
-      if (byte != 0x18)
+      // frame header (low 3 bits encode sub-unit index)
+      if ((byte & 0xF8) != 0x18)
         return false;
     } else if (pos == 4) {
       // frame type
