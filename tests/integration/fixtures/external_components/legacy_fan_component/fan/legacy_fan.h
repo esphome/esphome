@@ -3,8 +3,7 @@
 #include "esphome/components/fan/fan.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace legacy_fan_test {
+namespace esphome::legacy_fan_test {
 
 /// Test fan that uses the DEPRECATED FanTraits setters for preset modes.
 /// This validates backward compatibility for external components that haven't migrated.
@@ -45,5 +44,4 @@ class LegacyFan : public fan::Fan, public Component {
   }
 };
 
-}  // namespace legacy_fan_test
-}  // namespace esphome
+}  // namespace esphome::legacy_fan_test
