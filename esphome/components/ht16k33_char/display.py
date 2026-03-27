@@ -1,13 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import display, i2c
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_BRIGHTNESS,
-    CONF_CONTINUOUS,
-    CONF_DEVICE,
-    CONF_ID,
-    CONF_LAMBDA,
-)
+from esphome.const import CONF_BRIGHTNESS, CONF_DEVICE, CONF_ID, CONF_LAMBDA
 
 DEPENDENCIES = ["i2c"]
 

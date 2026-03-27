@@ -79,7 +79,7 @@ void HT16k33CharComponent::loop() {
     return;
   }
 
-  //Code to implement scrolling goes here (some day).
+  // Code to implement scrolling goes here (some day).
 }
 
 void HT16k33CharComponent::dump_config() {
