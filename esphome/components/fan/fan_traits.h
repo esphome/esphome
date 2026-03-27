@@ -9,7 +9,11 @@ namespace esphome {
 
 namespace fan {
 
+class Fan;  // Forward declaration
+
 class FanTraits {
+  friend class Fan;  // Allow Fan to access protected pointer setter
+
  public:
   FanTraits() = default;
   FanTraits(bool oscillation, bool speed, bool direction, int speed_count)
@@ -33,9 +37,6 @@ class FanTraits {
   void set_direction(bool direction) { this->direction_ = direction; }
   // Compat: returns const ref with empty fallback. In 2026.11.0 change to return const vector *.
   const std::vector<const char *> &supported_preset_modes() const;
-  /// Set the preset modes pointer (points to vector owned by Fan base class).
-  void set_supported_preset_modes(const std::vector<const char *> *preset_modes) { this->preset_modes_ = preset_modes; }
-
   // Remove before 2026.11.0
   ESPDEPRECATED("Call set_supported_preset_modes() on the Fan entity instead. Removed in 2026.11.0", "2026.5.0")
   void set_supported_preset_modes(std::initializer_list<const char *> preset_modes) {
@@ -75,6 +76,9 @@ class FanTraits {
   }
 
  protected:
+  /// Set the preset modes pointer (only Fan::wire_preset_modes_() should call this).
+  void set_supported_preset_modes(const std::vector<const char *> *preset_modes) { this->preset_modes_ = preset_modes; }
+
   bool oscillation_{false};
   bool speed_{false};
   bool direction_{false};
