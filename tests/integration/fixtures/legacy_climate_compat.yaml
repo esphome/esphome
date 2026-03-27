@@ -1,0 +1,21 @@
+esphome:
+  name: legacy-climate-compat
+  platformio_options:
+    build_flags:
+      - "-DUSE_HOST"
+
+host:
+api:
+logger:
+  level: DEBUG
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [legacy_climate_component]
+
+climate:
+  - platform: legacy_climate_component
+    name: "Legacy Climate"
+    id: legacy_climate
