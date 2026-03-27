@@ -126,7 +126,8 @@ struct Substitution {
 bool substitute_filter_apply(const Substitution *substitutions, size_t count, std::string &value);
 bool map_filter_apply(const Substitution *mappings, size_t count, std::string &value);
 
-/// A simple filter that replaces a substring with another substring
+/// A simple filter that replaces a substring with another substring.
+/// N is set by code generation to match the exact number of substitutions configured in YAML.
 template<size_t N> class SubstituteFilter : public Filter {
  public:
   explicit SubstituteFilter(const std::initializer_list<Substitution> &substitutions) {
@@ -166,6 +167,8 @@ template<size_t N> class SubstituteFilter : public Filter {
  * - Faster for typical ESPHome usage (2-10 mappings common, 20+ rare)
  *
  * Break-even point: ~35-40 mappings, but ESPHome configs rarely exceed 20
+ *
+ * N is set by code generation to match the exact number of mappings configured in YAML.
  */
 template<size_t N> class MapFilter : public Filter {
  public:
