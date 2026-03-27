@@ -92,12 +92,11 @@ optional<bool> AutorepeatFilterBase::new_value(bool value) {
 }
 
 void AutorepeatFilterBase::next_timing_() {
-  const auto *timings = this->get_timings_();
-  const size_t count = this->get_timings_count_();
-  if (this->active_timing_ < count) {
-    this->set_timeout(AUTOREPEAT_TIMING_ID, timings[this->active_timing_].delay, [this]() { this->next_timing_(); });
+  if (this->active_timing_ < this->timings_count_) {
+    this->set_timeout(AUTOREPEAT_TIMING_ID, this->timings_[this->active_timing_].delay,
+                      [this]() { this->next_timing_(); });
   }
-  if (this->active_timing_ <= count) {
+  if (this->active_timing_ <= this->timings_count_) {
     this->active_timing_++;
   }
   if (this->active_timing_ == 2)
@@ -105,7 +104,7 @@ void AutorepeatFilterBase::next_timing_() {
 }
 
 void AutorepeatFilterBase::next_value_(bool val) {
-  const AutorepeatFilterTiming &timing = this->get_timings_()[this->active_timing_ - 2];
+  const AutorepeatFilterTiming &timing = this->timings_[this->active_timing_ - 2];
   this->output(val);
   this->set_timeout(AUTOREPEAT_ON_OFF_ID, val ? timing.time_on : timing.time_off,
                     [this, val]() { this->next_value_(!val); });
