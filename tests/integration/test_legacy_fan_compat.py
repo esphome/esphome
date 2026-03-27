@@ -1,7 +1,10 @@
 """Integration test for backward compatibility of deprecated FanTraits setters.
 
 Verifies that external components using the old traits.set_supported_preset_modes()
-API still work correctly during the deprecation period (removed in 2026.11.0).
+API still work correctly during the deprecation period.
+
+Remove this entire test file and the legacy_fan_component external component
+in 2026.11.0 when the deprecated FanTraits setters are removed.
 """
 
 from __future__ import annotations
