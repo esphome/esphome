@@ -8,11 +8,7 @@ from esphome.types import ConfigType
 legacy_fan_ns = cg.esphome_ns.namespace("legacy_fan_test")
 LegacyFan = legacy_fan_ns.class_("LegacyFan", fan.Fan, cg.Component)
 
-CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(LegacyFan),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = fan.fan_schema(LegacyFan).extend(cv.COMPONENT_SCHEMA)
 
 
 async def to_code(config: ConfigType) -> None:

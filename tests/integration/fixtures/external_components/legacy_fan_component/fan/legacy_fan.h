@@ -17,8 +17,6 @@ class LegacyFan : public fan::Fan, public Component {
     this->publish_state();
   }
 
-  float get_setup_priority() const override { return setup_priority::LATE; }
-
   fan::FanTraits get_traits() override {
     auto traits = fan::FanTraits(false, true, false, 3);
 
