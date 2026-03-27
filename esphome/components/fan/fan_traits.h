@@ -31,11 +31,8 @@ class FanTraits {
   bool supports_direction() const { return this->direction_; }
   /// Set whether this fan supports changing direction
   void set_direction(bool direction) { this->direction_ = direction; }
-  /// Return the preset modes supported by the fan.
-  const std::vector<const char *> &supported_preset_modes() const {
-    static const std::vector<const char *> EMPTY_VECTOR;
-    return this->preset_modes_ ? *this->preset_modes_ : EMPTY_VECTOR;
-  }
+  // Compat: returns const ref with empty fallback. In 2026.11.0 change to return const vector *.
+  const std::vector<const char *> &supported_preset_modes() const;
   /// Set the preset modes pointer (points to vector owned by Fan base class).
   void set_supported_preset_modes(const std::vector<const char *> *preset_modes) { this->preset_modes_ = preset_modes; }
 

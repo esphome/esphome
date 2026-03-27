@@ -179,6 +179,7 @@ class Fan : public EntityBase {
   ESPPreferenceObject rtc_;
   FanRestoreMode restore_mode_;
 
+ private:
   /// Lazy-allocate preset modes vector (never freed — entity lives forever).
   std::vector<const char *> &ensure_preset_modes_() {
     if (!this->supported_preset_modes_) {
@@ -188,8 +189,6 @@ class Fan : public EntityBase {
   }
 
   std::vector<const char *> *supported_preset_modes_{nullptr};
-
- private:
   const char *preset_mode_{nullptr};
 };
 

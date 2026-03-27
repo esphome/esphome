@@ -9,6 +9,16 @@ namespace fan {
 
 static const char *const TAG = "fan";
 
+// Compat: shared empty vector for getter when no preset modes are set.
+// Remove in 2026.11.0 when deprecated FanTraits setters are removed
+// and getter can return const vector * instead of const vector &.
+static const std::vector<const char *> EMPTY_PRESET_MODES;  // NOLINT
+
+const std::vector<const char *> &FanTraits::supported_preset_modes() const {
+  // Compat: return empty ref when pointer is null. Remove in 2026.11.0 (change return to const vector *).
+  return this->preset_modes_ ? *this->preset_modes_ : EMPTY_PRESET_MODES;
+}
+
 // Fan direction strings indexed by FanDirection enum (0-1): FORWARD, REVERSE, plus UNKNOWN
 PROGMEM_STRING_TABLE(FanDirectionStrings, "FORWARD", "REVERSE", "UNKNOWN");
 
