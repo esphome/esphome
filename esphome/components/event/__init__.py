@@ -10,7 +10,6 @@ from esphome.const import (
     CONF_ID,
     CONF_MQTT_ID,
     CONF_ON_EVENT,
-    CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
     DEVICE_CLASS_BUTTON,
     DEVICE_CLASS_DOORBELL,
@@ -41,8 +40,6 @@ EventPtr = Event.operator("ptr")
 
 TriggerEventAction = event_ns.class_("TriggerEventAction", automation.Action)
 
-EventTrigger = event_ns.class_("EventTrigger", automation.Trigger.template())
-
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
 _EVENT_SCHEMA = (
@@ -53,11 +50,7 @@ _EVENT_SCHEMA = (
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTEventComponent),
             cv.GenerateID(): cv.declare_id(Event),
             cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
-            cv.Optional(CONF_ON_EVENT): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(EventTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_EVENT): automation.validate_automation({}),
         }
     )
 )
@@ -92,8 +85,9 @@ def event_schema(
 @setup_entity("event")
 async def setup_event_core_(var, config, *, event_types: list[str]):
     for conf in config.get(CONF_ON_EVENT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.StringRef, "event_type")], conf)
+        await automation.build_callback_automation(
+            var, "add_on_event_callback", [(cg.StringRef, "event_type")], conf
+        )
 
     cg.add(var.set_event_types(event_types))
 
