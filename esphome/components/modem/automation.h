@@ -10,17 +10,6 @@ namespace esphome {
 namespace modem {
 
 // Triggers
-class ModemOnNotRespondingTrigger : public Trigger<> {
- public:
-  explicit ModemOnNotRespondingTrigger(ModemComponent *parent) {
-    parent->add_on_state_callback([this, parent](ModemComponentState state) {
-      if (!parent->is_failed() && state == ModemComponentState::MODEM_NOT_RESPONDING) {
-        this->trigger();
-      }
-    });
-  }
-};
-
 class ModemOnConnectTrigger : public Trigger<> {
  public:
   explicit ModemOnConnectTrigger(ModemComponent *parent) {
@@ -36,29 +25,7 @@ class ModemOnDisconnectTrigger : public Trigger<> {
  public:
   explicit ModemOnDisconnectTrigger(ModemComponent *parent) {
     parent->add_on_state_callback([this, parent](ModemComponentState state) {
-      if (!parent->is_failed() && state == ModemComponentState::MODEM_DISCONNECTED) {
-        this->trigger();
-      }
-    });
-  }
-};
-
-class ModemOnEnableTrigger : public Trigger<> {
- public:
-  explicit ModemOnEnableTrigger(ModemComponent *parent) {
-    parent->add_on_state_callback([this, parent](ModemComponentState state) {
-      if (!parent->is_failed() && state == ModemComponentState::MODEM_ENABLING) {
-        this->trigger();
-      }
-    });
-  }
-};
-
-class ModemOnDisableTrigger : public Trigger<> {
- public:
-  explicit ModemOnDisableTrigger(ModemComponent *parent) {
-    parent->add_on_state_callback([this, parent](ModemComponentState state) {
-      if (!parent->is_failed() && state == ModemComponentState::MODEM_DISABLED) {
+      if (!parent->is_failed() && state == ModemComponentState::MODEM_DISCONNECTING) {
         this->trigger();
       }
     });

@@ -41,9 +41,6 @@ CONF_DTR_PIN = "dtr_pin"
 CONF_RTS_PIN = "rts_pin"
 CONF_CTS_PIN = "cts_pin"
 CONF_INIT_AT = "init_at"
-CONF_ON_NOT_RESPONDING = "on_not_responding"
-CONF_ON_ENABLE = "on_enable"
-CONF_ON_DISABLE = "on_disable"
 CONF_ON_SYNC = "on_sync"
 CONF_DTE_BUFFER_SIZE = "dte_buffer_size"
 CONF_URC = "urc"
@@ -63,20 +60,11 @@ ModemComponent = modem_ns.class_("ModemComponent", cg.Component, uart.UARTCompon
 
 # Triggers
 ModemComponentState = modem_ns.enum("ModemComponentState")
-ModemOnNotRespondingTrigger = modem_ns.class_(
-    "ModemOnNotRespondingTrigger", automation.Trigger.template()
-)
 ModemOnConnectTrigger = modem_ns.class_(
     "ModemOnConnectTrigger", automation.Trigger.template()
 )
 ModemOnDisconnectTrigger = modem_ns.class_(
     "ModemOnDisconnectTrigger", automation.Trigger.template()
-)
-ModemOnEnableTrigger = modem_ns.class_(
-    "ModemOnEnableTrigger", automation.Trigger.template()
-)
-ModemOnDisableTrigger = modem_ns.class_(
-    "ModemOnDisableTrigger", automation.Trigger.template()
 )
 ModemOnSyncTrigger = modem_ns.class_(
     "ModemOnSyncTrigger", automation.Trigger.template()
@@ -122,13 +110,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="10min"
             ): cv.positive_time_period_milliseconds,
-            cv.Optional(CONF_ON_NOT_RESPONDING): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        ModemOnNotRespondingTrigger
-                    )
-                }
-            ),
             cv.Optional(CONF_ON_CONNECT): automation.validate_automation(
                 {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModemOnConnectTrigger)}
             ),
@@ -138,12 +119,6 @@ CONFIG_SCHEMA = cv.All(
                         ModemOnDisconnectTrigger
                     )
                 }
-            ),
-            cv.Optional(CONF_ON_ENABLE): automation.validate_automation(
-                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModemOnEnableTrigger)}
-            ),
-            cv.Optional(CONF_ON_DISABLE): automation.validate_automation(
-                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModemOnDisableTrigger)}
             ),
             cv.Optional(CONF_ON_SYNC): automation.validate_automation(
                 {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModemOnSyncTrigger)}
@@ -288,11 +263,8 @@ async def to_code(config):
         cg.add(var.set_dte_buffer_size(dte_buffer_size))
 
     for conf_key in [
-        CONF_ON_NOT_RESPONDING,
         CONF_ON_CONNECT,
         CONF_ON_DISCONNECT,
-        CONF_ON_ENABLE,
-        CONF_ON_DISABLE,
         CONF_ON_SYNC,
     ]:
         for conf in config.get(conf_key, []):

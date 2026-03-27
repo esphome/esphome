@@ -10,12 +10,12 @@ modem:
   pin_code: "0000"
   enable_on_boot: True
   reboot_timeout: 5min
-  on_not_responding:
-    logger.log: "modem not responding"
   on_connect:
     logger.log: "modem connected"
   on_disconnect:
     logger.log: "modem disconnected"
+  on_sync:
+    logger.log: "modem synced - ready for AT commands"
 
 packages:
   - !include common.yaml

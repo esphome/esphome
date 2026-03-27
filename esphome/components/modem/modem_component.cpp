@@ -148,38 +148,32 @@ void ModemComponent::loop() {
 
 ModemComponentState ModemComponent::compute_next_state_() {
   // Priority 1: If target = DISABLED and we're not there, descend
-  if (this->is_going_down_()) {
+  if (this->target_state_ == ModemComponentState::MODEM_DISABLED) {
     if (this->component_state_ == ModemComponentState::MODEM_DISABLED) {
       return ModemComponentState::MODEM_DISABLED;  // Stay
     }
-    if (this->component_state_ != ModemComponentState::MODEM_DISABLING) {
-      return ModemComponentState::MODEM_DISABLING;  // Start descent
+    if (this->component_state_ != ModemComponentState::MODEM_DISCONNECTING) {
+      return ModemComponentState::MODEM_DISCONNECTING;  // Start descent
     }
-    // Otherwise we're already in DISABLING, let handler manage
+    // Otherwise we're already in DISCONNECTING, let handler manage
   }
 
   // Priority 2: Execute current state logic
   switch (this->component_state_) {
-    case ModemComponentState::MODEM_ENABLING:
-      return this->handle_state_enabling_();
     case ModemComponentState::MODEM_DISABLED:
       return this->handle_state_disabled_();
+    case ModemComponentState::MODEM_ENABLING:
+      return this->handle_state_enabling_();
     case ModemComponentState::MODEM_SYNCED:
       return this->handle_state_synced_();
-    case ModemComponentState::MODEM_INIT_NETWORK:
-      return this->handle_state_init_network_();
-    case ModemComponentState::MODEM_START_PPP:
-      return this->handle_state_start_ppp_();
+    case ModemComponentState::MODEM_CONNECTING:
+      return this->handle_state_connecting_();
     case ModemComponentState::MODEM_WAIT_IP:
       return this->handle_state_wait_ip_();
     case ModemComponentState::MODEM_CONNECTED:
       return this->handle_state_connected_();
-    case ModemComponentState::MODEM_DISCONNECTED:
-      return this->handle_state_disconnected_();
-    case ModemComponentState::MODEM_NOT_RESPONDING:
-      return this->handle_state_not_responding_();
-    case ModemComponentState::MODEM_DISABLING:
-      return this->handle_state_disabling_();
+    case ModemComponentState::MODEM_DISCONNECTING:
+      return this->handle_state_disconnecting_();
   }
 
   return this->component_state_;  // Fallback
@@ -242,7 +236,7 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
       ESP_LOGD(TAG, "Trying other baud rate");
       for (int b : bauds) {
         if (!try_autobaud(b)) {
-          ESP_LOGD(TAG, "Modem responded a baud %d", b);
+          ESP_LOGD(TAG, "Modem responded at baud %d", b);
           return ModemComponentState::MODEM_ENABLING;
         }
       }
@@ -267,6 +261,7 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
 
   if (this->modem_handler->dce->sync() != esp_modem::command_result::OK) {
     ESP_LOGW(TAG, "Waiting SYNC");
+    this->loop_delay_(1000);
     return ModemComponentState::MODEM_ENABLING;
   }
 
@@ -313,7 +308,7 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
         global_preferences->sync();
       } else {
         ESP_LOGE(TAG, "Failed to sync modem at baud rate %d.", this->modem_handler->baud_rate);
-        return ModemComponentState::MODEM_NOT_RESPONDING;
+        return ModemComponentState::MODEM_DISCONNECTING;
       }
     } else {
       ESP_LOGW(TAG, "Failed to set modem baud rate to %d. Using %d.", this->modem_handler->baud_rate,
@@ -326,9 +321,10 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
   return ModemComponentState::MODEM_SYNCED;
 }
 
-ModemComponentState ModemComponent::handle_state_synced_() { return ModemComponentState::MODEM_INIT_NETWORK; }
+ModemComponentState ModemComponent::handle_state_synced_() { return ModemComponentState::MODEM_CONNECTING; }
 
-ModemComponentState ModemComponent::handle_state_init_network_() {
+ModemComponentState ModemComponent::handle_state_connecting_() {
+  // Merges INIT_NETWORK and START_PPP states
   if (this->modem_handler->dce->sync() != esp_modem::command_result::OK) {
     ESP_LOGW(TAG, "Modem not synced during network init");
     return ModemComponentState::MODEM_ENABLING;
@@ -341,21 +337,20 @@ ModemComponentState ModemComponent::handle_state_init_network_() {
 
   this->modem_handler->dce->get_network_attachment_state(attachement_state);
 
-  if (attachement_state) {
-    ESP_LOGI(TAG, "Modem initialized and ready");
-    return ModemComponentState::MODEM_START_PPP;
+  if (!attachement_state) {
+    ESP_LOGW(TAG, "Modem not yet ready to connect");
+    this->modem_handler->modem_log_status();
+    this->loop_delay_(4000);
+    return ModemComponentState::MODEM_CONNECTING;
   }
-  ESP_LOGW(TAG, "Modem not yet ready to connect");
-  this->modem_handler->modem_log_status();
-  this->loop_delay_(4000);
-  return ModemComponentState::MODEM_INIT_NETWORK;
-}
 
-ModemComponentState ModemComponent::handle_state_start_ppp_() {
+  ESP_LOGI(TAG, "Modem initialized and ready, starting PPP");
+
   if (!this->modem_handler->dce->set_mode(esp_modem::modem_mode::CMUX_MODE)) {
     ESP_LOGE(TAG, "Failed to enter PPP. Resetting modem.");
-    return ModemComponentState::MODEM_DISABLING;  // Reset via disable/enable cycle
+    return ModemComponentState::MODEM_DISCONNECTING;
   }
+
   return ModemComponentState::MODEM_WAIT_IP;
 }
 
@@ -372,19 +367,19 @@ ModemComponentState ModemComponent::handle_state_wait_ip_() {
     return ModemComponentState::MODEM_WAIT_IP;
   }
   ESP_LOGE(TAG, "Unable to get IP address");
-  return ModemComponentState::MODEM_DISABLING;
+  return ModemComponentState::MODEM_DISCONNECTING;
 }
 
 ModemComponentState ModemComponent::handle_state_connected_() {
   if (!this->modem_handler->network_infos.got_ip) {
     ESP_LOGW(TAG, "Lost IP");
     this->loop_delay_(this->modem_handler->connect_retry_delay);
-    return ModemComponentState::MODEM_DISCONNECTED;
+    return ModemComponentState::MODEM_DISCONNECTING;
   }
   return ModemComponentState::MODEM_CONNECTED;
 }
 
-ModemComponentState ModemComponent::handle_state_disabling_() {
+ModemComponentState ModemComponent::handle_state_disconnecting_() {
   this->modem_handler->dce->set_mode(modem_mode::CMUX_MANUAL_EXIT);
 
   // turn off radio.It can take up to 2 min to get lost IP event.
@@ -401,13 +396,9 @@ void ModemComponent::transition_to_(ModemComponentState next_state) {
     return;
   }
   ModemComponentState previous_state = this->component_state_;
-  this->on_exit_state_(previous_state);
   this->component_state_ = next_state;
-  // ESP_LOGV(TAG, "State change: %s -> %s", state_to_string(previous_state).c_str(),
-  // state_to_string(next_state).c_str());
   ESP_LOGD(TAG, "State change: %d -> %d", static_cast<int>(previous_state), static_cast<int>(next_state));
   this->on_state_callback_.call(next_state);
-  this->component_last_state_ = next_state;
   this->on_enter_state_(next_state);
 }
 
@@ -429,8 +420,8 @@ void ModemComponent::on_enter_state_(ModemComponentState state) {
       this->status_clear_warning();
       this->dump_connect_params_();
       break;
-    case ModemComponentState::MODEM_DISABLING:
-      ESP_LOGI(TAG, "Disabling modem");
+    case ModemComponentState::MODEM_DISCONNECTING:
+      ESP_LOGI(TAG, "Disconnecting modem");
       cancel_timeout("modem_timeout");
       this->loop_delay_(this->modem_handler->command_delay);
       break;
@@ -442,8 +433,6 @@ void ModemComponent::on_enter_state_(ModemComponentState state) {
       break;
   }
 }
-
-void ModemComponent::on_exit_state_(ModemComponentState state) {}
 
 void ModemComponent::abort_(const std::string &message) {
   ESP_LOGE(TAG, "Aborting: %s.", message.c_str());

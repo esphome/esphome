@@ -18,16 +18,13 @@ namespace esphome {
 namespace modem {
 
 enum class ModemComponentState {
+  MODEM_DISABLED,
   MODEM_ENABLING,
   MODEM_SYNCED,
-  MODEM_INIT_NETWORK,
-  MODEM_START_PPP,
+  MODEM_CONNECTING,  // Merges INIT_NETWORK + START_PPP
   MODEM_WAIT_IP,
   MODEM_CONNECTED,
-  MODEM_DISCONNECTED,
-  MODEM_NOT_RESPONDING,
-  MODEM_DISABLING,
-  MODEM_DISABLED,
+  MODEM_DISCONNECTING,  // Renamed from DISABLING
 };
 
 struct ModemRestoreState {
@@ -86,20 +83,16 @@ class ModemComponent : public Component {
 
  protected:
   // ===== State handler methods =====
+  ModemComponentState handle_state_disabled_();
   ModemComponentState handle_state_enabling_();
   ModemComponentState handle_state_synced_();
-  ModemComponentState handle_state_init_network_();
-  ModemComponentState handle_state_start_ppp_();
+  ModemComponentState handle_state_connecting_();  // Merges INIT_NETWORK + START_PPP
   ModemComponentState handle_state_wait_ip_();
   ModemComponentState handle_state_connected_();
-  ModemComponentState handle_state_disconnected_() { return ModemComponentState::MODEM_DISABLING; }
-  ModemComponentState handle_state_not_responding_() { return ModemComponentState::MODEM_DISABLING; }
-  ModemComponentState handle_state_disabling_();
-  ModemComponentState handle_state_disabled_();
+  ModemComponentState handle_state_disconnecting_();
 
   void transition_to_(ModemComponentState next_state);
   void on_enter_state_(ModemComponentState state);
-  void on_exit_state_(ModemComponentState state);
 
   // target_state_ model helpers
   ModemComponentState compute_next_state_();
@@ -116,7 +109,6 @@ class ModemComponent : public Component {
 
   // Changes will trigger user callback
   ModemComponentState component_state_{ModemComponentState::MODEM_DISABLED};
-  ModemComponentState component_last_state_{ModemComponentState::MODEM_DISABLED};
   ModemComponentState target_state_{ModemComponentState::MODEM_DISABLED};  // Stable target state
 
   uint32_t next_loop_millis_{0};
