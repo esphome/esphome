@@ -97,7 +97,7 @@ class MitsubishiCN105 {
     uint8_t flags_{0};
   };
 
-  virtual uint32_t now_() const { return App.get_loop_component_start_time(); }
+  virtual uint32_t now() const { return App.get_loop_component_start_time(); }
 
   void set_state_(State new_state);
   static bool should_transition(State from, State to);

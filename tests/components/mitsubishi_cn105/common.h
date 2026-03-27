@@ -46,7 +46,7 @@ class TestableMitsubishiCN105 : public MitsubishiCN105 {
   uint32_t current_time_ms{0};
 
  protected:
-  uint32_t now_() const override { return this->current_time_ms; }
+  uint32_t now() const override { return this->current_time_ms; }
 };
 
 }  // namespace esphome::mitsubishi_cn105::testing

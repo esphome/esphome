@@ -54,14 +54,13 @@ bool MitsubishiCN105::sync() {
       return false;
     }
 
-    if ((this->now_() - *status_update_start_ms) >= this->update_interval_ms_) {
+    if ((this->now() - *status_update_start_ms) >= this->update_interval_ms_) {
       this->cancel_waiting_and_transition_to_(State::UPDATING_STATUS);
       return false;
     }
   }
 
-  if (this->write_timeout_start_ms_.has_value() &&
-      (this->now_() - *this->write_timeout_start_ms_) >= WRITE_TIMEOUT_MS) {
+  if (this->write_timeout_start_ms_.has_value() && (this->now() - *this->write_timeout_start_ms_) >= WRITE_TIMEOUT_MS) {
     this->write_timeout_start_ms_.reset();
     this->read_pos_ = 0;
     this->set_state_(State::READ_TIMEOUT);
@@ -158,7 +157,7 @@ void MitsubishiCN105::did_transition_(State from, State to) {
     }
 
     case State::SCHEDULE_NEXT_STATUS_UPDATE:
-      this->status_update_start_ms_ = this->now_();
+      this->status_update_start_ms_ = this->now();
       this->set_state_(State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
       break;
 
@@ -226,7 +225,7 @@ void MitsubishiCN105::connect_() {
 void MitsubishiCN105::send_packet_(const uint8_t *packet, size_t size) {
   dump_buffer_vv("TX", packet, size);
   this->device_.write_array(packet, size);
-  this->write_timeout_start_ms_ = this->now_();
+  this->write_timeout_start_ms_ = this->now();
 }
 
 void MitsubishiCN105::update_status_() {
