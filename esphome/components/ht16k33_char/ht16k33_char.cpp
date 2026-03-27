@@ -25,11 +25,6 @@ static const char *const TAG = "ht16k33_char";
 
 // States for the scrolling state machine.
 static const uint8_t HT16K33_SCROLL_STATE_STATIC = 0;
-static const uint8_t HT16K33_SCROLL_STATE_START = 1;
-static const uint8_t HT16K33_SCROLL_STATE_SCROLLING = 2;
-static const uint8_t HT16K33_SCROLL_STATE_END = 3;
-static const uint8_t HT16K33_SCROLL_STATE_FIRST_START = 4;
-static const uint8_t HT16K33_SCROLL_STATE_STOPPED = 5;
 
 // Return a setup priority. More info here: https://esphome.io/api/namespaceesphome_1_1setup__priority
 float HT16k33CharComponent::get_setup_priority() const { return setup_priority::PROCESSOR; }
@@ -51,18 +46,7 @@ void HT16k33CharComponent::setup() {
   this->blank();
   this->fist_char_location_ = 0;
 
-  // Check to see if we need to scroll the display.
-  if (!(this->scroll_)) {
-    // Scrolling is off.
-    this->scroll_state_ = HT16K33_SCROLL_STATE_STATIC;
-  } else if (this->continuous_) {
-    // If the state is continuous, there is no start and end delay. Go directly into the scrolling.
-    this->scroll_state_ = HT16K33_SCROLL_STATE_SCROLLING;
-    this->last_scroll_ = App.get_loop_component_start_time();
-  } else {
-    this->scroll_state_ = HT16K33_SCROLL_STATE_FIRST_START;
-    this->last_scroll_ = App.get_loop_component_start_time();
-  }
+  this->scroll_state_ = HT16K33_SCROLL_STATE_STATIC;
 }
 
 void HT16k33CharComponent::update() {
@@ -80,17 +64,8 @@ void HT16k33CharComponent::update() {
     //   - if we are in the state 'FIRST_START' this means we just started the device. In that state,
     //     the display will not be showing anything yet, and we need to run the update_display()
     //     function to show the initial contents.
-    if ((this->scroll_state_ == HT16K33_SCROLL_STATE_STATIC) ||
-        (this->scroll_state_ == HT16K33_SCROLL_STATE_FIRST_START) ||
-        (this->scroll_state_ == HT16K33_SCROLL_STATE_STOPPED)) {
-      this->last_scroll_ = App.get_loop_component_start_time();
+    if (this->scroll_state_ == HT16K33_SCROLL_STATE_STATIC) {
       current_buffer_location = this->update_display();
-
-      if ((this->fist_char_location_ == 0) && (current_buffer_location >= this->message_buffer_.length()) &&
-          (this->scroll_state_ == HT16K33_SCROLL_STATE_FIRST_START)) {
-        // We reached the end of the char buffer before we reached the end of the display.
-        this->scroll_state_ = HT16K33_SCROLL_STATE_STOPPED;
-      }
     }
   }
 }
@@ -99,7 +74,7 @@ void HT16k33CharComponent::loop() {
   uint32_t now;
   uint8_t current_buffer_location;
 
-  if ((this->scroll_state_ == HT16K33_SCROLL_STATE_STATIC) || (this->scroll_state_ == HT16K33_SCROLL_STATE_STOPPED)) {
+  if ((this->scroll_state_ == HT16K33_SCROLL_STATE_STATIC)) {
     // Check this first. If the display is static, we don't need to do anything in this function.
     return;
   }
@@ -416,12 +391,8 @@ uint16_t HT16k33CharComponent::send_to_display_common_(i2c::I2CDevice *display, 
               // This case covers if we are scrolling the display and the first character in the first display is a
               // special character. In this instance, we want to skip over that character, or the scrolling will end
               // up choppy. To do this, we increment the first_char_location_ variable.
-              special_character_found = true;
-              if ((this->fist_char_location_ == (char_buffer_location - 1)) &&
-                  (this->scroll_state_ != HT16K33_SCROLL_STATE_STATIC) &&
-                  (this->scroll_state_ != HT16K33_SCROLL_STATE_STOPPED)) {
-                this->fist_char_location_++;  // All special characters are single byte only.
-              }
+              
+			  //Not implemented yet.
               continue;
           }
         }
@@ -506,12 +477,6 @@ uint8_t HT16k33CharComponent::print(uint16_t start_pos, bool clear_buffer, const
     this->message_buffer_.insert(start_pos, str, len);
   } else {
     this->message_buffer_.insert(start_pos, str, len);
-  }
-
-  if ((this->message_buffer_.size() != old_message_size) && (this->scroll_state_ != HT16K33_SCROLL_STATE_STATIC)) {
-    // If the new message is a different size from the old one, we restart the scrolling.
-    this->scroll_state_ = HT16K33_SCROLL_STATE_FIRST_START;
-    this->fist_char_location_ = 0;
   }
 
   return len;

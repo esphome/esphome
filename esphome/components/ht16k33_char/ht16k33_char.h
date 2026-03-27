@@ -56,12 +56,6 @@ class HT16k33CharComponent : public PollingComponent, public i2c::I2CDevice {
   // We iterate through the displays_ to address individual displays during runtime.
   void add_secondary_display(i2c::I2CDevice *display) { this->displays_.push_back(display); }
 
-  void set_scroll(bool scroll) { this->scroll_ = scroll; }
-  void set_continuous(bool continuous) { this->continuous_ = continuous; }
-  void set_scroll_speed(uint32_t scroll_speed) { this->scroll_speed_ = scroll_speed; }
-  void set_scroll_dwell(uint32_t scroll_dwell) { this->scroll_dwell_ = scroll_dwell; }
-  void set_scroll_delay(uint32_t scroll_delay) { this->scroll_delay_ = scroll_delay; }
-
   void brightness(uint8_t brightness_to_set);
   void set_blink(uint8_t blink_state);
   void display_off(bool turn_off);
