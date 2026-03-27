@@ -50,7 +50,6 @@ void HT16k33CharComponent::setup() {
 }
 
 void HT16k33CharComponent::update() {
-
   // This checks if the lambda function is defined. If it is not defined, we don't do anything.
   if (this->writer_.has_value()) {
     // This line is responsible for calling the lambda code.
@@ -70,7 +69,6 @@ void HT16k33CharComponent::update() {
 }
 
 void HT16k33CharComponent::loop() {
-
   if (this->scroll_state_ == HT16K33_SCROLL_STATE_STATIC) {
     // Check this first. If the display is static, we don't need to do anything in this function.
     return;
