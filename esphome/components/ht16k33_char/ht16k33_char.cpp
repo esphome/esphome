@@ -104,63 +104,7 @@ void HT16k33CharComponent::loop() {
     return;
   }
 
-  now = App.get_loop_component_start_time();
-
-  if (this->last_scroll_ > now) {
-    // This will happen when the millis() function overflows. (approx every 50 days)
-    //  I don't know if App.get_loop_component_start_time() handles this, but if it doesnt,
-    //  this check should keep the code from misbehaving in this instance.
-    this->last_scroll_ = now;
-    return;
-  }
-
-  switch (this->scroll_state_) {
-    case HT16K33_SCROLL_STATE_START:
-    case HT16K33_SCROLL_STATE_FIRST_START:
-      if ((now - this->last_scroll_) >= this->scroll_delay_) {
-        // Start scrolling
-        this->last_scroll_ = now;
-        this->fist_char_location_ += this->char_len_(this->message_buffer_[this->fist_char_location_]);
-        current_buffer_location = this->update_display();
-
-        // This handles if there is only a single scroll, it skips directly to STATE_END.
-        if (!(this->continuous_) && ((current_buffer_location + 1) > this->message_buffer_.length())) {
-          this->scroll_state_ = HT16K33_SCROLL_STATE_END;
-        } else {
-          this->scroll_state_ = HT16K33_SCROLL_STATE_SCROLLING;
-        }
-      }
-      break;
-
-    case HT16K33_SCROLL_STATE_SCROLLING:
-      if ((now - this->last_scroll_) >= this->scroll_speed_) {
-        // Scroll to the next character.
-        this->last_scroll_ = now;
-        this->fist_char_location_ += this->char_len_(this->message_buffer_[this->fist_char_location_]);
-        if (this->fist_char_location_ > this->message_buffer_.length()) {
-          // This only happens in continuous mode.
-          this->fist_char_location_ = 0;
-        }
-        current_buffer_location = this->update_display();
-
-        if (!(this->continuous_) && ((current_buffer_location + 1) > this->message_buffer_.length())) {
-          // We have reached the end of the stuff to display. Go to the end delay.
-          // The display does not need to be updated here.
-          this->scroll_state_ = HT16K33_SCROLL_STATE_END;
-        }
-      }
-      break;
-
-    case HT16K33_SCROLL_STATE_END:
-      if ((now - this->last_scroll_) >= this->scroll_dwell_) {
-        // Go back to the begining
-        this->last_scroll_ = now;
-        this->scroll_state_ = HT16K33_SCROLL_STATE_START;
-        this->fist_char_location_ = 0;
-        this->update_display();
-      }
-      break;
-  }
+  //Code to implement scrolling goes here (some day).
 }
 
 void HT16k33CharComponent::dump_config() {
