@@ -225,7 +225,7 @@ optional<float> MultiplyFilter::new_value(float value) { return value * this->mu
 uint32_t get_loop_component_start_time() { return App.get_loop_component_start_time(); }
 
 // ValueListFilter helper (non-template, shared by all ValueListFilter<N> instantiations)
-bool value_list_matches_any(Sensor *parent, float sensor_value, TemplatableValue<float> *values, size_t count) {
+bool value_list_matches_any(Sensor *parent, float sensor_value, const TemplatableValue<float> *values, size_t count) {
   int8_t accuracy = parent->get_accuracy_decimals();
   float accuracy_mult = pow10_int(accuracy);
   float rounded_sensor = roundf(accuracy_mult * sensor_value);

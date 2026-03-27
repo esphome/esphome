@@ -330,7 +330,7 @@ class MultiplyFilter : public Filter {
 };
 
 /// Non-template helper for value matching (implementation in filter.cpp)
-bool value_list_matches_any(Sensor *parent, float sensor_value, TemplatableValue<float> *values, size_t count);
+bool value_list_matches_any(Sensor *parent, float sensor_value, const TemplatableValue<float> *values, size_t count);
 
 /// Non-template helper to get cached loop start time (avoids circular include of application.h)
 uint32_t get_loop_component_start_time();
