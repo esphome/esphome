@@ -12,7 +12,6 @@ static const char *const TAG = "nextion";
 
 // Nextion command terminator: three consecutive 0xFF bytes (per Nextion Instruction Set v1.1).
 static constexpr uint8_t COMMAND_DELIMITER[3] = {0xFF, 0xFF, 0xFF};
-static constexpr const char *DELIMITER_STR = reinterpret_cast<const char *>(COMMAND_DELIMITER);
 static constexpr size_t DELIMITER_SIZE = sizeof(COMMAND_DELIMITER);
 
 void Nextion::setup() {
@@ -420,7 +419,7 @@ void Nextion::process_nextion_commands_() {
 #ifdef NEXTION_PROTOCOL_LOG
   this->print_queue_members_();
 #endif
-  while ((to_process_length = this->command_data_.find(DELIMITER_STR, 0, DELIMITER_SIZE)) != std::string::npos) {
+  while ((to_process_length = this->command_data_.find(reinterpret_cast<const char *>(COMMAND_DELIMITER), 0, DELIMITER_SIZE)) != std::string::npos) {
 #ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
     if (++commands_processed > this->max_commands_per_loop_) {
       ESP_LOGW(TAG, "Command processing limit exceeded");
