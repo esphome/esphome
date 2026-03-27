@@ -30,12 +30,6 @@ class FactoryResetComponent : public Component {
   uint8_t required_count_;  // The number of boot attempts before fast boot is enabled
 };
 
-class FastBootTrigger : public Trigger<uint8_t, uint8_t> {
- public:
-  explicit FastBootTrigger(FactoryResetComponent *parent) {
-    parent->add_increment_callback([this](uint8_t current, uint8_t target) { this->trigger(current, target); });
-  }
-};
 }  // namespace esphome::factory_reset
 
 #endif  // !defined(USE_RP2040) && !defined(USE_HOST)
