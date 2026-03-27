@@ -8,6 +8,14 @@ button:
 
 emontx:
   id: test_emontx
+  on_json:
+    - then:
+        - logger.log: "Got JSON"
+  on_data:
+    - then:
+        - logger.log:
+            format: "Got data: %s"
+            args: [data.c_str()]
 
 sensor:
   - platform: emontx
