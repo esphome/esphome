@@ -59,7 +59,7 @@ class PIDSimulator : public PollingComponent, public output::FloatOutput {
       delayed_temps.erase(delayed_temps.begin());
     float prev_temp = this->delayed_temps[0];
     float alpha = 0.1f;
-    float ret = (1 - alpha) * prev_temp + alpha * prev_temp;
+    float ret = (1 - alpha) * prev_temp + alpha * temperature;
     return ret;
   }
 
