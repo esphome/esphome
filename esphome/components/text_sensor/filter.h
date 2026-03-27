@@ -3,6 +3,7 @@
 #include "esphome/core/defines.h"
 #ifdef USE_TEXT_SENSOR_FILTER
 
+#include <array>
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -121,14 +122,27 @@ struct Substitution {
   const char *to;
 };
 
+/// Non-template helpers (implementation in filter.cpp)
+bool substitute_filter_apply_(const Substitution *substitutions, size_t count, std::string &value);
+bool map_filter_apply_(const Substitution *mappings, size_t count, std::string &value);
+
 /// A simple filter that replaces a substring with another substring
-class SubstituteFilter : public Filter {
+template<size_t N> class SubstituteFilter : public Filter {
  public:
-  explicit SubstituteFilter(const std::initializer_list<Substitution> &substitutions);
-  bool new_value(std::string &value) override;
+  explicit SubstituteFilter(const std::initializer_list<Substitution> &substitutions) {
+    size_t i = 0;
+    for (const auto &s : substitutions) {
+      if (i >= N)
+        break;
+      this->substitutions_[i++] = s;
+    }
+  }
+  bool new_value(std::string &value) override {
+    return substitute_filter_apply_(this->substitutions_.data(), N, value);
+  }
 
  protected:
-  FixedVector<Substitution> substitutions_;
+  std::array<Substitution, N> substitutions_{};
 };
 
 /** A filter that maps values from one set to another
@@ -155,13 +169,20 @@ class SubstituteFilter : public Filter {
  *
  * Break-even point: ~35-40 mappings, but ESPHome configs rarely exceed 20
  */
-class MapFilter : public Filter {
+template<size_t N> class MapFilter : public Filter {
  public:
-  explicit MapFilter(const std::initializer_list<Substitution> &mappings);
-  bool new_value(std::string &value) override;
+  explicit MapFilter(const std::initializer_list<Substitution> &mappings) {
+    size_t i = 0;
+    for (const auto &m : mappings) {
+      if (i >= N)
+        break;
+      this->mappings_[i++] = m;
+    }
+  }
+  bool new_value(std::string &value) override { return map_filter_apply_(this->mappings_.data(), N, value); }
 
  protected:
-  FixedVector<Substitution> mappings_;
+  std::array<Substitution, N> mappings_{};
 };
 
 }  // namespace esphome::text_sensor
