@@ -989,9 +989,11 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   }
   // When scanning while connected (roaming), return to home channel between
   // each scanned channel to maintain the connection (helps with BLE/WiFi coexistence)
+#ifdef CONFIG_SOC_WIFI_SUPPORTED
   if (this->roaming_state_ == RoamingState::SCANNING) {
     config.coex_background_scan = true;
   }
+#endif
 
   esp_err_t err = esp_wifi_scan_start(&config, false);
   if (err != ESP_OK) {
