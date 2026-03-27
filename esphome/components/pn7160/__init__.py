@@ -52,14 +52,6 @@ SetWriteMessageAction = pn7160_ns.class_("SetWriteMessageAction", automation.Act
 SetWriteModeAction = pn7160_ns.class_("SetWriteModeAction", automation.Action)
 
 
-PN7160OnEmulatedTagScanTrigger = pn7160_ns.class_(
-    "PN7160OnEmulatedTagScanTrigger", automation.Trigger.template()
-)
-
-PN7160OnFinishedWriteTrigger = pn7160_ns.class_(
-    "PN7160OnFinishedWriteTrigger", automation.Trigger.template()
-)
-
 PN7160IsWritingCondition = pn7160_ns.class_(
     "PN7160IsWritingCondition", automation.Condition
 )
@@ -85,20 +77,8 @@ SET_MESSAGE_ACTION_SCHEMA = cv.Schema(
 PN7160_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(PN7160),
-        cv.Optional(CONF_ON_EMULATED_TAG_SCAN): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    PN7160OnEmulatedTagScanTrigger
-                ),
-            }
-        ),
-        cv.Optional(CONF_ON_FINISHED_WRITE): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                    PN7160OnFinishedWriteTrigger
-                ),
-            }
-        ),
+        cv.Optional(CONF_ON_EMULATED_TAG_SCAN): automation.validate_automation({}),
+        cv.Optional(CONF_ON_FINISHED_WRITE): automation.validate_automation({}),
         cv.Optional(CONF_ON_TAG): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(nfc.NfcOnTagTrigger),
@@ -227,12 +207,14 @@ async def setup_pn7160(var, config):
         )
 
     for conf in config.get(CONF_ON_EMULATED_TAG_SCAN, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            var, "add_on_emulated_tag_scan_callback", [], conf
+        )
 
     for conf in config.get(CONF_ON_FINISHED_WRITE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            var, "add_on_finished_write_callback", [], conf
+        )
 
 
 @automation.register_condition(
