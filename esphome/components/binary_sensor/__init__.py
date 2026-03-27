@@ -255,7 +255,7 @@ async def delayed_off_filter_to_code(config, filter_id):
                 ): cv.positive_time_period_milliseconds,
             }
         ),
-        cv.Length(max=255),
+        cv.Length(max=253),
     ),
 )
 async def autorepeat_filter_to_code(config, filter_id):
