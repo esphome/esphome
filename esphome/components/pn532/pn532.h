@@ -133,13 +133,6 @@ class PN532BinarySensor : public binary_sensor::BinarySensor {
   bool found_{false};
 };
 
-class PN532OnFinishedWriteTrigger : public Trigger<> {
- public:
-  explicit PN532OnFinishedWriteTrigger(PN532 *parent) {
-    parent->add_on_finished_write_callback([this]() { this->trigger(); });
-  }
-};
-
 template<typename... Ts> class PN532IsWritingCondition : public Condition<Ts...>, public Parented<PN532> {
  public:
   bool check(const Ts &...x) override { return this->parent_->is_writing(); }
