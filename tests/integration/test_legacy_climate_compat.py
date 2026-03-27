@@ -35,7 +35,7 @@ async def test_legacy_climate_compat(
     loop = asyncio.get_running_loop()
 
     async with run_compiled(yaml_config), api_client_connected() as client:
-        entities, services = await client.list_entities_services()
+        entities, _ = await client.list_entities_services()
         initial_state_helper = InitialStateHelper(entities)
 
         climate_infos = [e for e in entities if isinstance(e, ClimateInfo)]
