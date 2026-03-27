@@ -15,7 +15,6 @@ from esphome.const import (
     CONF_STORE_BASELINE,
     CONF_TEMPERATURE_SOURCE,
     CONF_VOC,
-    CONF_VOC_BASELINE,
     DEVICE_CLASS_AQI,
     ICON_RADIATOR,
     STATE_CLASS_MEASUREMENT,
@@ -83,7 +82,6 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(NOX_SENSOR),
             cv.Optional(CONF_STORE_BASELINE, default=True): cv.boolean,
-            cv.Optional(CONF_VOC_BASELINE): cv.hex_uint16_t,
             cv.Optional(CONF_COMPENSATION): cv.Schema(
                 {
                     cv.Required(CONF_HUMIDITY_SOURCE): cv.use_id(sensor.Sensor),
@@ -111,9 +109,6 @@ async def to_code(config):
         cg.add(var.set_temperature_sensor(sens))
 
     cg.add(var.set_store_baseline(config[CONF_STORE_BASELINE]))
-
-    if CONF_VOC_BASELINE in config:
-        cg.add(var.set_voc_baseline(CONF_VOC_BASELINE))
 
     if CONF_VOC in config:
         sens = await sensor.new_sensor(config[CONF_VOC])
