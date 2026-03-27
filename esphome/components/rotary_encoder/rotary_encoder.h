@@ -118,19 +118,5 @@ template<typename... Ts> class RotaryEncoderSetValueAction : public Action<Ts...
   RotaryEncoderSensor *encoder_;
 };
 
-class RotaryEncoderClockwiseTrigger : public Trigger<> {
- public:
-  explicit RotaryEncoderClockwiseTrigger(RotaryEncoderSensor *parent) {
-    parent->add_on_clockwise_callback([this]() { this->trigger(); });
-  }
-};
-
-class RotaryEncoderAnticlockwiseTrigger : public Trigger<> {
- public:
-  explicit RotaryEncoderAnticlockwiseTrigger(RotaryEncoderSensor *parent) {
-    parent->add_on_anticlockwise_callback([this]() { this->trigger(); });
-  }
-};
-
 }  // namespace rotary_encoder
 }  // namespace esphome
