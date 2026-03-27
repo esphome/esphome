@@ -1,7 +1,6 @@
 #include "mitsubishi_cn105.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
-#include "esphome/core/application.h"
 
 namespace esphome::mitsubishi_cn105 {
 
@@ -55,14 +54,14 @@ bool MitsubishiCN105::sync() {
       return false;
     }
 
-    if ((App.get_loop_component_start_time() - *status_update_start_ms) >= this->update_interval_ms_) {
+    if ((this->now_() - *status_update_start_ms) >= this->update_interval_ms_) {
       this->cancel_waiting_and_transition_to_(State::UPDATING_STATUS);
       return false;
     }
   }
 
   if (this->write_timeout_start_ms_.has_value() &&
-      (App.get_loop_component_start_time() - *this->write_timeout_start_ms_) >= WRITE_TIMEOUT_MS) {
+      (this->now_() - *this->write_timeout_start_ms_) >= WRITE_TIMEOUT_MS) {
     this->write_timeout_start_ms_.reset();
     this->read_pos_ = 0;
     this->set_state_(State::READ_TIMEOUT);
@@ -159,7 +158,7 @@ void MitsubishiCN105::did_transition_(State from, State to) {
     }
 
     case State::SCHEDULE_NEXT_STATUS_UPDATE:
-      this->status_update_start_ms_ = App.get_loop_component_start_time();
+      this->status_update_start_ms_ = this->now_();
       this->set_state_(State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
       break;
 
@@ -227,7 +226,7 @@ void MitsubishiCN105::connect_() {
 void MitsubishiCN105::send_packet_(const uint8_t *packet, size_t size) {
   dump_buffer_vv("TX", packet, size);
   this->device_.write_array(packet, size);
-  this->write_timeout_start_ms_ = App.get_loop_component_start_time();
+  this->write_timeout_start_ms_ = this->now_();
 }
 
 void MitsubishiCN105::update_status_() {
@@ -425,16 +424,14 @@ bool MitsubishiCN105::parse_values_(const uint8_t *data, size_t length) {
 
       const uint8_t room_main = data[3];
       const uint8_t room_alt = data[6];
-      float room_temp;
 
       if (room_alt != 0x00) {
-        room_temp = (static_cast<float>(room_alt) - 128.0f) / 2.0f;
+        this->current_status_.room_temperature = (static_cast<float>(room_alt) - 128.0f) / 2.0f;
       } else {
-        room_temp = static_cast<float>(room_main) + 10.0f;
+        this->current_status_.room_temperature = static_cast<float>(room_main) + 10.0f;
       }
 
-      this->current_status_.room_temperature = room_temp;
-      ESP_LOGV(TAG, "Parsed room temperature=%.1f", room_temp);
+      ESP_LOGV(TAG, "Parsed room temperature=%.1f", this->current_status_.room_temperature);
 
       return true;
     }

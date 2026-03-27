@@ -6,6 +6,7 @@
 #include <functional>
 #include <optional>
 
+#include "esphome/core/application.h"
 #include "esphome/components/uart/uart.h"
 
 namespace esphome::mitsubishi_cn105 {
@@ -65,7 +66,7 @@ class MitsubishiCN105 {
 
   void set_connection_state_callback(std::function<void(bool)> &&callback);
 
- private:
+ protected:
   enum class State : uint8_t {
     NOT_CONNECTED,
     CONNECTING,
@@ -95,6 +96,8 @@ class MitsubishiCN105 {
    private:
     uint8_t flags_{0};
   };
+
+  virtual uint32_t now_() const { return App.get_loop_component_start_time(); }
 
   void set_state_(State new_state);
   static bool should_transition(State from, State to);
@@ -133,10 +136,6 @@ class MitsubishiCN105 {
   Status current_status_;
   UpdateFlags pending_updates_;
 
-  static constexpr size_t READ_BUFFER_SIZE = 32;
-  uint8_t read_buffer_[READ_BUFFER_SIZE];
-  uint8_t read_pos_{0};
-
   bool status_initialized_{false};
   uint8_t info_mode_index_{0};
   uint32_t update_interval_ms_{1000};
@@ -146,6 +145,11 @@ class MitsubishiCN105 {
   std::optional<uint32_t> write_timeout_start_ms_;
 
   std::function<void(bool)> connection_state_callback_{};
+
+ private:
+  static constexpr size_t READ_BUFFER_SIZE = 32;
+  uint8_t read_buffer_[READ_BUFFER_SIZE];
+  uint8_t read_pos_{0};
 };
 
 }  // namespace esphome::mitsubishi_cn105
