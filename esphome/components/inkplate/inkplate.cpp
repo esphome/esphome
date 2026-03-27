@@ -229,7 +229,7 @@ void Inkplate::eink_off_() {
   this->oe_pin_->digital_write(false);
   this->gmod_pin_->digital_write(false);
 
-  GPIO.out &= ~(this->get_data_pin_mask_() | (1UL << this->cl_pin_->get_pin()) | (1UL << this->le_pin_->get_pin()));
+  GPIO.out_w1tc = this->get_data_pin_mask_() | (1UL << this->cl_pin_->get_pin()) | (1UL << this->le_pin_->get_pin());
   this->ckv_pin_->digital_write(false);
   this->sph_pin_->digital_write(false);
   this->spv_pin_->digital_write(false);

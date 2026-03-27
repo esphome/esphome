@@ -52,7 +52,7 @@ extern std::string lv_event_code_name_for(lv_event_t *event);
 
 lv_obj_t *lv_container_create(lv_obj_t *parent);
 #ifdef USE_LVGL_SCALE
-void lv_scale_draw_event_cb(lv_event_t *e, uint16_t range_start, uint16_t range_end, lv_color_t color_start,
+void lv_scale_draw_event_cb(lv_event_t *e, int16_t range_start, int16_t range_end, lv_color_t color_start,
                             lv_color_t color_end, int width, bool local);
 #endif
 #if LV_COLOR_DEPTH == 16
@@ -71,7 +71,7 @@ inline void lv_style_set_text_font(lv_style_t *style, const font::Font *font) {
   lv_style_set_text_font(style, font->get_lv_font());
 }
 #endif
-#ifdef USE_IMAGE
+#if defined(USE_LVGL_IMAGE) && defined(USE_IMAGE)
 // Shortcut / overload, so that the source of an image can easily be updated
 // from within a lambda.
 inline void lv_image_set_src(lv_obj_t *obj, esphome::image::Image *image) {
@@ -163,7 +163,7 @@ class LvglComponent : public PollingComponent {
   static void render_end_cb(lv_event_t *event);
   static void render_start_cb(lv_event_t *event);
   void dump_config() override;
-  lv_disp_t *get_disp() { return this->disp_; }
+  lv_display_t *get_disp() { return this->disp_; }
   lv_obj_t *get_screen_active() { return lv_display_get_screen_active(this->disp_); }
   // Pause or resume the display.
   // @param paused If true, pause the display. If false, resume the display.
@@ -189,9 +189,9 @@ class LvglComponent : public PollingComponent {
                            lv_event_code_t event3);
 
   void add_page(LvPageType *page);
-  void show_page(size_t index, lv_scr_load_anim_t anim, uint32_t time);
-  void show_next_page(lv_scr_load_anim_t anim, uint32_t time);
-  void show_prev_page(lv_scr_load_anim_t anim, uint32_t time);
+  void show_page(size_t index, lv_screen_load_anim_t anim, uint32_t time);
+  void show_next_page(lv_screen_load_anim_t anim, uint32_t time);
+  void show_prev_page(lv_screen_load_anim_t anim, uint32_t time);
   void set_page_wrap(bool wrap) { this->page_wrap_ = wrap; }
   void set_big_endian(bool big_endian) { this->big_endian_ = big_endian; }
   size_t get_current_page() const;

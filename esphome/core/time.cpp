@@ -231,7 +231,7 @@ void ESPTime::increment_day() {
 
 void ESPTime::recalc_timestamp_utc(bool use_day_of_year) {
   time_t res = 0;
-  if (!this->fields_in_range()) {
+  if (!this->fields_in_range(false, use_day_of_year)) {
     this->timestamp = -1;
     return;
   }

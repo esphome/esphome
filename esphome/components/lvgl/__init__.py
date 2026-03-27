@@ -226,6 +226,9 @@ async def to_code(configs):
     config_0 = configs[0]
     # Global configuration
     if CORE.is_esp32:
+        # Skip compiling lvgl examples
+        add_idf_sdkconfig_option("CONFIG_LV_BUILD_EXAMPLES", False)
+        add_idf_sdkconfig_option("CONFIG_LV_BUILD_DEMOS", False)
         if get_esp32_variant() == VARIANT_ESP32P4:
             add_idf_sdkconfig_option("CONFIG_LV_DRAW_BUF_ALIGN", 64)
             # disable use of PPA for fills until upstream bugs fixed
@@ -406,7 +409,10 @@ async def to_code(configs):
     lv_conf_h_file = CORE.relative_src_path(LV_CONF_FILENAME)
     write_file_if_changed(lv_conf_h_file, generate_lv_conf_h())
     cg.add_build_flag("-DLV_CONF_H=1")
-    cg.add_build_flag(f'-DLV_CONF_PATH=\\"{LV_CONF_FILENAME}\\"')
+    # handle windows paths in a way that doesn't break the generated C++
+    lv_conf_h_path = Path(lv_conf_h_file).as_posix()
+    cg.add_build_flag(f'-DLV_CONF_PATH=\\"{lv_conf_h_path}\\"')
+    cg.add_build_flag("-DLV_KCONFIG_IGNORE")
 
     for prop in df.get_remapped_uses():
         df.LOGGER.warning(
