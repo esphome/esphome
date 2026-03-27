@@ -8,13 +8,25 @@ namespace esphome::climate {
 static const std::vector<const char *> EMPTY_CUSTOM_MODES;  // NOLINT
 
 const std::vector<const char *> &ClimateTraits::get_supported_custom_fan_modes() const {
-  // Compat: return empty ref when pointer is null. Remove in 2026.11.0 (change return to const vector *).
-  return this->supported_custom_fan_modes_ ? *this->supported_custom_fan_modes_ : EMPTY_CUSTOM_MODES;
+  if (this->supported_custom_fan_modes_) {
+    return *this->supported_custom_fan_modes_;
+  }
+  // Compat: fall back to owned vector from deprecated setters. Remove in 2026.11.0.
+  if (!this->compat_custom_fan_modes_.empty()) {
+    return this->compat_custom_fan_modes_;
+  }
+  return EMPTY_CUSTOM_MODES;
 }
 
 const std::vector<const char *> &ClimateTraits::get_supported_custom_presets() const {
-  // Compat: return empty ref when pointer is null. Remove in 2026.11.0 (change return to const vector *).
-  return this->supported_custom_presets_ ? *this->supported_custom_presets_ : EMPTY_CUSTOM_MODES;
+  if (this->supported_custom_presets_) {
+    return *this->supported_custom_presets_;
+  }
+  // Compat: fall back to owned vector from deprecated setters. Remove in 2026.11.0.
+  if (!this->compat_custom_presets_.empty()) {
+    return this->compat_custom_presets_;
+  }
+  return EMPTY_CUSTOM_MODES;
 }
 
 int8_t ClimateTraits::get_target_temperature_accuracy_decimals() const {
