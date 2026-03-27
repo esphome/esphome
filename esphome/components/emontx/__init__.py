@@ -9,7 +9,6 @@ from esphome.const import (
     CONF_ID,
     CONF_ON_DATA,
     CONF_RX_BUFFER_SIZE,
-    CONF_TRIGGER_ID,
     CONF_UART_ID,
 )
 from esphome.core import CORE
@@ -22,16 +21,6 @@ DEPENDENCIES = ["uart"]
 
 emontx_ns = cg.esphome_ns.namespace("emontx")
 EmonTx = emontx_ns.class_("EmonTx", cg.Component, uart.UARTDevice)
-
-# Add trigger class for on_json
-EmonTxJsonTrigger = emontx_ns.class_(
-    "EmonTxJsonTrigger", automation.Trigger.template(cg.JsonObject)
-)
-
-# Add trigger class for on_data (fires for every serial line - raw data)
-EmonTxDataTrigger = emontx_ns.class_(
-    "EmonTxDataTrigger", automation.Trigger.template(cg.std_string)
-)
 
 # Action to send command to emonTx
 EmonTxSendCommandAction = emontx_ns.class_("EmonTxSendCommandAction", automation.Action)
@@ -61,18 +50,8 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(EmonTx),
-            # Add on_json trigger for handling JSON data
-            cv.Optional(CONF_ON_JSON): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(EmonTxJsonTrigger),
-                }
-            ),
-            # Add on_data trigger for handling all serial lines (plain text + JSON)
-            cv.Optional(CONF_ON_DATA): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(EmonTxDataTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_JSON): automation.validate_automation({}),
+            cv.Optional(CONF_ON_DATA): automation.validate_automation({}),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -132,15 +111,16 @@ async def to_code(config: ConfigType) -> None:
     if sensor_count > 0:
         cg.add(var.init_sensors(sensor_count))
 
-    # Process trigger automations
-    for conf_key, args in (
-        (CONF_ON_JSON, [(cg.JsonObject, "json"), (cg.std_string, "raw_json")]),
-        (CONF_ON_DATA, [(cg.std_string, "data")]),
+    for conf_key, callback_method, args in (
+        (
+            CONF_ON_JSON,
+            "add_on_json_callback",
+            [(cg.JsonObject, "json"), (cg.std_string, "raw_json")],
+        ),
+        (CONF_ON_DATA, "add_on_data_callback", [(cg.std_string, "data")]),
     ):
-        if conf_key in config:
-            for conf in config[conf_key]:
-                trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-                await automation.build_automation(trigger, args, conf)
+        for conf in config.get(conf_key, []):
+            await automation.build_callback_automation(var, callback_method, args, conf)
 
 
 # Action: emontx.send_command

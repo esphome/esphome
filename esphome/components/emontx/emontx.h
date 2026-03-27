@@ -34,13 +34,9 @@ class EmonTx : public Component, public uart::UARTDevice {
   void setup() override;
   void dump_config() override;
 
-  void add_on_json_callback(std::function<void(JsonObject, StringRef)> &&callback) {
-    this->json_callbacks_.add(std::move(callback));
-  }
+  template<typename F> void add_on_json_callback(F &&callback) { this->json_callbacks_.add(std::forward<F>(callback)); }
 
-  void add_on_data_callback(std::function<void(StringRef)> &&callback) {
-    this->data_callbacks_.add(std::move(callback));
-  }
+  template<typename F> void add_on_data_callback(F &&callback) { this->data_callbacks_.add(std::forward<F>(callback)); }
 
   // Send command to emonTx via UART
   void send_command(const std::string &command);
