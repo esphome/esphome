@@ -95,6 +95,7 @@ class AutorepeatFilterBase : public Filter, public Component {
   float get_setup_priority() const override;
 
  protected:
+  AutorepeatFilterBase() = default;
   void next_timing_();
   void next_value_(bool val);
 
@@ -114,7 +115,7 @@ template<size_t N> class AutorepeatFilter : public AutorepeatFilterBase {
       this->timings_storage_[i++] = t;
     }
     this->timings_ = this->timings_storage_.data();
-    this->timings_count_ = N;
+    this->timings_count_ = i;
   }
 
  protected:

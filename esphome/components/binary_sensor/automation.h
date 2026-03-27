@@ -135,7 +135,7 @@ template<size_t N> class MultiClickTrigger : public MultiClickTriggerBase {
       this->timing_storage_[i++] = t;
     }
     this->timing_ = this->timing_storage_.data();
-    this->timing_count_ = N;
+    this->timing_count_ = i;
   }
 
  protected:

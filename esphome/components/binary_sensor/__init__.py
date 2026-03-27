@@ -505,7 +505,7 @@ _BINARY_SENSOR_SCHEMA = (
                     cv.Required(CONF_TIMING): cv.All(
                         [parse_multi_click_timing_str],
                         validate_multi_click_timing,
-                        cv.Length(max=255),
+                        cv.Length(min=1, max=255),
                     ),
                     cv.Optional(
                         CONF_INVALID_COOLDOWN, default="1s"
