@@ -690,9 +690,15 @@ ARDUINO_IDF_VERSION_LOOKUP = {
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
     "recommended": cv.Version(5, 5, 3, "1"),
     "latest": cv.Version(5, 5, 3, "1"),
-    "dev": cv.Version(5, 5, 3, "1"),
+    "dev": cv.Version(5, 5, 4),
 }
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(
+        6, 0, 0
+    ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    cv.Version(
+        5, 5, 4
+    ): "https://github.com/pioarduino/platform-espressif32.git#develop",
     cv.Version(5, 5, 3, "1"): cv.Version(55, 3, 37),
     cv.Version(5, 5, 3): cv.Version(55, 3, 37),
     cv.Version(5, 5, 2): cv.Version(55, 3, 37),
@@ -1587,7 +1593,7 @@ async def to_code(config):
         if conf[CONF_ADVANCED][CONF_ENABLE_FULL_PRINTF]:
             cg.add_define("USE_FULL_PRINTF")
         else:
-            for symbol in ("vprintf", "printf", "fprintf"):
+            for symbol in ("vprintf", "printf", "fprintf", "vfprintf"):
                 cg.add_build_flag(f"-Wl,--wrap={symbol}")
     else:
         cg.add_build_flag("-DUSE_ARDUINO")
