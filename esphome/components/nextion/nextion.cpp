@@ -858,7 +858,7 @@ void Nextion::process_nextion_commands_() {
                    component->get_variable_name().c_str());
         } else {
           ESP_LOGD(TAG, "Remove old queue '%s':'%s' cmd:'%s'", component->get_queue_type_string().c_str(),
-                   component->get_variable_name().c_str(), this->nextion_queue_[i]->pending_command.c_str());
+                   component->get_variable_name().c_str(), (*it)->pending_command.c_str());
         }
 
         if (component->get_queue_type() == NextionQueueType::NO_RESULT) {
