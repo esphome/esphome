@@ -92,7 +92,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_COMMANDS_PER_LOOP): cv.uint16_t,
             cv.Optional(CONF_MAX_QUEUE_SIZE): cv.positive_int,
             cv.Optional(CONF_ON_BUFFER_OVERFLOW): automation.validate_automation({}),
-            cv.Optional(CONF_ON_CUSTOM_BINARY_SENSOR): automation.validate_automation({}),
+            cv.Optional(CONF_ON_CUSTOM_BINARY_SENSOR): automation.validate_automation(
+                {}
+            ),
             cv.Optional(CONF_ON_CUSTOM_SENSOR): automation.validate_automation({}),
             cv.Optional(CONF_ON_CUSTOM_SWITCH): automation.validate_automation({}),
             cv.Optional(CONF_ON_CUSTOM_TEXT_SENSOR): automation.validate_automation({}),
