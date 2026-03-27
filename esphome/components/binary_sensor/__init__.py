@@ -294,7 +294,7 @@ async def autorepeat_filter_to_code(config, filter_id):
                 ),
             )
         ]
-    var = cg.new_Pvariable(filter_id, timings)
+    var = cg.new_Pvariable(filter_id, cg.TemplateArguments(len(timings)), timings)
     await cg.register_component(var, {})
     return var
 
@@ -586,7 +586,9 @@ async def _build_binary_sensor_automations(var, config):
             )
             for tim in conf[CONF_TIMING]
         ]
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, timings)
+        trigger = cg.new_Pvariable(
+            conf[CONF_TRIGGER_ID], cg.TemplateArguments(len(timings)), var, timings
+        )
         if CONF_INVALID_COOLDOWN in conf:
             cg.add(trigger.set_invalid_cooldown(conf[CONF_INVALID_COOLDOWN]))
         await cg.register_component(trigger, conf)
