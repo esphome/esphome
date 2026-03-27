@@ -153,10 +153,6 @@ class ClimateTraits {
   }
   const ClimateFanModeMask &get_supported_fan_modes() const { return this->supported_fan_modes_; }
 
-  void set_supported_custom_fan_modes(const std::vector<const char *> *modes) {
-    this->supported_custom_fan_modes_ = modes;
-  }
-
   // Remove before 2026.11.0
   ESPDEPRECATED("Call set_supported_custom_fan_modes() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
   void set_supported_custom_fan_modes(std::initializer_list<const char *> modes) {
@@ -189,10 +185,6 @@ class ClimateTraits {
   bool supports_preset(ClimatePreset preset) const { return this->supported_presets_.count(preset); }
   bool get_supports_presets() const { return !this->supported_presets_.empty(); }
   const ClimatePresetMask &get_supported_presets() const { return this->supported_presets_; }
-
-  void set_supported_custom_presets(const std::vector<const char *> *presets) {
-    this->supported_custom_presets_ = presets;
-  }
 
   // Remove before 2026.11.0
   ESPDEPRECATED("Call set_supported_custom_presets() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
@@ -274,6 +266,14 @@ class ClimateTraits {
     } else {
       this->supported_swing_modes_.erase(mode);
     }
+  }
+
+  /// Set custom mode pointers (only Climate::get_traits() should call these).
+  void set_supported_custom_fan_modes(const std::vector<const char *> *modes) {
+    this->supported_custom_fan_modes_ = modes;
+  }
+  void set_supported_custom_presets(const std::vector<const char *> *presets) {
+    this->supported_custom_presets_ = presets;
   }
 
   /// Find and return the matching custom fan mode pointer from supported modes, or nullptr if not found

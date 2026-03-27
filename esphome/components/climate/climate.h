@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vector>
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
