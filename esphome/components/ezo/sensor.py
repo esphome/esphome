@@ -2,7 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TRIGGER_ID
+from esphome.const import CONF_ID
 
 CODEOWNERS = ["@ssieb"]
 
@@ -21,61 +21,16 @@ EZOSensor = ezo_ns.class_(
     "EZOSensor", sensor.Sensor, cg.PollingComponent, i2c.I2CDevice
 )
 
-CustomTrigger = ezo_ns.class_(
-    "CustomTrigger", automation.Trigger.template(cg.std_string)
-)
-
-
-TTrigger = ezo_ns.class_("TTrigger", automation.Trigger.template(cg.std_string))
-
-SlopeTrigger = ezo_ns.class_("SlopeTrigger", automation.Trigger.template(cg.std_string))
-
-CalibrationTrigger = ezo_ns.class_(
-    "CalibrationTrigger", automation.Trigger.template(cg.std_string)
-)
-
-DeviceInformationTrigger = ezo_ns.class_(
-    "DeviceInformationTrigger", automation.Trigger.template(cg.std_string)
-)
-
-LedTrigger = ezo_ns.class_("LedTrigger", automation.Trigger.template(cg.bool_))
-
 CONFIG_SCHEMA = (
     sensor.sensor_schema(EZOSensor)
     .extend(
         {
-            cv.Optional(CONF_ON_CUSTOM): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CustomTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_CALIBRATION): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CalibrationTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_SLOPE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SlopeTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_T): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_DEVICE_INFORMATION): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        DeviceInformationTrigger
-                    ),
-                }
-            ),
-            cv.Optional(CONF_ON_LED): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LedTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_CUSTOM): automation.validate_automation({}),
+            cv.Optional(CONF_ON_CALIBRATION): automation.validate_automation({}),
+            cv.Optional(CONF_ON_SLOPE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_T): automation.validate_automation({}),
+            cv.Optional(CONF_ON_DEVICE_INFORMATION): automation.validate_automation({}),
+            cv.Optional(CONF_ON_LED): automation.validate_automation({}),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -90,25 +45,26 @@ async def to_code(config):
     await i2c.register_i2c_device(var, config)
 
     for conf in config.get(CONF_ON_CUSTOM, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
-
+        await automation.build_callback_automation(
+            var, "add_custom_callback", [(cg.std_string, "x")], conf
+        )
     for conf in config.get(CONF_ON_LED, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(bool, "x")], conf)
-
+        await automation.build_callback_automation(
+            var, "add_led_state_callback", [(bool, "x")], conf
+        )
     for conf in config.get(CONF_ON_DEVICE_INFORMATION, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
-
+        await automation.build_callback_automation(
+            var, "add_device_infomation_callback", [(cg.std_string, "x")], conf
+        )
     for conf in config.get(CONF_ON_SLOPE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
-
+        await automation.build_callback_automation(
+            var, "add_slope_callback", [(cg.std_string, "x")], conf
+        )
     for conf in config.get(CONF_ON_CALIBRATION, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
-
+        await automation.build_callback_automation(
+            var, "add_calibration_callback", [(cg.std_string, "x")], conf
+        )
     for conf in config.get(CONF_ON_T, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+        await automation.build_callback_automation(
+            var, "add_t_callback", [(cg.std_string, "x")], conf
+        )
