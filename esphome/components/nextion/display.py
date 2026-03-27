@@ -275,35 +275,39 @@ async def to_code(config):
         )
 
     # Register custom component triggers. Each tuple holds:
-    #   (conf_key, define_name, value_type)
-    for conf_key, define_name, value_type in (
+    #   (conf_key, define_name, value_type, callback_name)
+    for conf_key, define_name, value_type, callback_name in (
         (
             CONF_ON_CUSTOM_BINARY_SENSOR,
             "USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR",
             cg.bool_,
+            "add_custom_binary_sensor_callback",
         ),
         (
             CONF_ON_CUSTOM_SENSOR,
             "USE_NEXTION_TRIGGER_CUSTOM_SENSOR",
             cg.int32,
+            "add_custom_sensor_callback",
         ),
         (
             CONF_ON_CUSTOM_SWITCH,
             "USE_NEXTION_TRIGGER_CUSTOM_SWITCH",
             cg.bool_,
+            "add_custom_switch_callback",
         ),
         (
             CONF_ON_CUSTOM_TEXT_SENSOR,
             "USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR",
             cg.StringRef,
+            "add_custom_text_sensor_callback",
         ),
     ):
         if custom_items := config.get(conf_key, []):
             cg.add_define(define_name)
             for conf in custom_items:
-                trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-                await automation.build_automation(
-                    trigger,
+                await automation.build_callback_automation(
+                    var,
+                    callback_name,
                     [
                         (cg.StringRef, "key"),
                         (value_type, "value"),
