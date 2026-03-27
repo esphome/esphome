@@ -164,6 +164,12 @@ class ClimateTraits {
   void set_supported_custom_fan_modes(const std::vector<const char *> &modes) {
     this->compat_custom_fan_modes_ = modes;
   }
+  // Remove before 2026.11.0
+  template<size_t N>
+  ESPDEPRECATED("Call set_supported_custom_fan_modes() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
+  void set_supported_custom_fan_modes(const char *const (&modes)[N]) {
+    this->compat_custom_fan_modes_.assign(modes, modes + N);
+  }
 
   // Deleted overloads to catch incorrect std::string usage at compile time with clear error messages
   void set_supported_custom_fan_modes(const std::vector<std::string> &modes) = delete;
@@ -195,6 +201,12 @@ class ClimateTraits {
   ESPDEPRECATED("Call set_supported_custom_presets() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
   void set_supported_custom_presets(const std::vector<const char *> &presets) {
     this->compat_custom_presets_ = presets;
+  }
+  // Remove before 2026.11.0
+  template<size_t N>
+  ESPDEPRECATED("Call set_supported_custom_presets() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
+  void set_supported_custom_presets(const char *const (&presets)[N]) {
+    this->compat_custom_presets_.assign(presets, presets + N);
   }
 
   // Deleted overloads to catch incorrect std::string usage at compile time with clear error messages
