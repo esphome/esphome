@@ -3,8 +3,7 @@
 #include "esphome/components/climate/climate.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace legacy_climate_test {
+namespace esphome::legacy_climate_test {
 
 /// Test climate that uses the DEPRECATED ClimateTraits setters for custom modes.
 /// This validates backward compatibility for external components that haven't migrated.
@@ -55,5 +54,4 @@ class LegacyClimate : public climate::Climate, public Component {
   }
 };
 
-}  // namespace legacy_climate_test
-}  // namespace esphome
+}  // namespace esphome::legacy_climate_test
