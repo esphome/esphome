@@ -147,9 +147,14 @@ class ClimateTraits {
   void add_supported_fan_mode(ClimateFanMode mode) { this->supported_fan_modes_.insert(mode); }
   bool supports_fan_mode(ClimateFanMode fan_mode) const { return this->supported_fan_modes_.count(fan_mode); }
   bool get_supports_fan_modes() const {
-    return !this->supported_fan_modes_.empty() ||
-           (this->supported_custom_fan_modes_ && !this->supported_custom_fan_modes_->empty()) ||
-           !this->compat_custom_fan_modes_.empty();  // Compat: remove in 2026.11.0
+    if (!this->supported_fan_modes_.empty()) {
+      return true;
+    }
+    // Same precedence as get_supported_custom_fan_modes() getter
+    if (this->supported_custom_fan_modes_) {
+      return !this->supported_custom_fan_modes_->empty();
+    }
+    return !this->compat_custom_fan_modes_.empty();  // Compat: remove in 2026.11.0
   }
   const ClimateFanModeMask &get_supported_fan_modes() const { return this->supported_fan_modes_; }
 

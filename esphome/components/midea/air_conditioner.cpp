@@ -24,10 +24,22 @@ template<typename T> void update_property(T &property, const T &value, bool &fla
 }
 
 void AirConditioner::on_status_change() {
-  // Set frost protection custom preset once when autoconf completes
+  // Add frost protection custom preset once when autoconf completes (merge, don't overwrite)
   if (this->base_.getAutoconfStatus() == dudanov::midea::AUTOCONF_OK &&
       this->base_.getCapabilities().supportFrostProtectionPreset() && !this->frost_protection_set_) {
-    this->set_supported_custom_presets({Constants::FREEZE_PROTECTION});
+    auto presets = this->get_traits().get_supported_custom_presets();
+    bool found = false;
+    for (const char *p : presets) {
+      if (strcmp(p, Constants::FREEZE_PROTECTION) == 0) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      std::vector<const char *> merged(presets.begin(), presets.end());
+      merged.push_back(Constants::FREEZE_PROTECTION);
+      this->set_supported_custom_presets(merged);
+    }
     this->frost_protection_set_ = true;
   }
   bool need_publish = false;
