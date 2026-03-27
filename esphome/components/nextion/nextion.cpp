@@ -241,7 +241,7 @@ bool Nextion::send_command(const char *command) {
     return false;
 
   if (this->send_command_(command)) {
-    this->add_no_result_to_queue_("send_command");
+    this->add_no_result_to_queue_(__func__);
     return true;
   }
   return false;
@@ -262,7 +262,7 @@ bool Nextion::send_command_printf(const char *format, ...) {
   }
 
   if (this->send_command_(buffer)) {
-    this->add_no_result_to_queue_("send_command_printf");
+    this->add_no_result_to_queue_(__func__);
     return true;
   }
   return false;
@@ -845,16 +845,28 @@ void Nextion::process_nextion_commands_() {
       NextionComponentBase *component = this->nextion_queue_[i]->component;
       if (ms - this->nextion_queue_[i]->queue_time > this->max_q_age_ms_) {
         if (this->nextion_queue_[i]->queue_time == 0) {
-          ESP_LOGD(TAG, "Remove old queue '%s':'%s' (t=0)", component->get_queue_type_string().c_str(),
-                   component->get_variable_name().c_str());
+          if (this->nextion_queue_[i]->pending_command.empty()) {
+            ESP_LOGD(TAG, "Remove old queue '%s':'%s' (t=0)",
+                    component->get_queue_type_string(), component->get_variable_name().c_str());
+          } else {
+            ESP_LOGD(TAG, "Remove old queue '%s':'%s' cmd:'%s' (t=0)",
+                    component->get_queue_type_string(), component->get_variable_name().c_str(),
+                    this->nextion_queue_[i]->pending_command.c_str());
+          }
         }
 
         if (component->get_variable_name() == "sleep_wake") {
           this->is_sleeping_ = false;
         }
 
-        ESP_LOGD(TAG, "Remove old queue '%s':'%s'", component->get_queue_type_string().c_str(),
-                 component->get_variable_name().c_str());
+        if (this->nextion_queue_[i]->pending_command.empty()) {
+          ESP_LOGD(TAG, "Remove old queue '%s':'%s'",
+                  component->get_queue_type_string(), component->get_variable_name().c_str());
+        } else {
+          ESP_LOGD(TAG, "Remove old queue '%s':'%s' cmd:'%s'",
+                  component->get_queue_type_string(), component->get_variable_name().c_str(),
+                  this->nextion_queue_[i]->pending_command.c_str());
+        }
 
         if (component->get_queue_type() == NextionQueueType::NO_RESULT) {
           if (component->get_variable_name() == "sleep_wake") {
