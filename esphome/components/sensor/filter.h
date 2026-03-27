@@ -498,6 +498,10 @@ class DeltaFilter : public Filter {
   float last_value_{NAN};
 };
 
+/// Non-template helpers for OrFilter (implementation in filter.cpp)
+void or_filter_initialize(Filter **filters, size_t count, Sensor *parent, Filter *phi);
+optional<float> or_filter_new_value(Filter **filters, size_t count, float value, bool &has_value);
+
 /// N is set by code generation to match the exact number of filters configured in YAML.
 template<size_t N> class OrFilter : public Filter {
  public:
@@ -512,17 +516,11 @@ template<size_t N> class OrFilter : public Filter {
 
   void initialize(Sensor *parent, Filter *next) override {
     Filter::initialize(parent, next);
-    for (auto *filter : this->filters_) {
-      filter->initialize(parent, &this->phi_);
-    }
-    this->phi_.initialize(parent, nullptr);
+    or_filter_initialize(this->filters_.data(), N, parent, &this->phi_);
   }
 
   optional<float> new_value(float value) override {
-    this->has_value_ = false;
-    for (auto *filter : this->filters_)
-      filter->input(value);
-    return {};
+    return or_filter_new_value(this->filters_.data(), N, value, this->has_value_);
   }
 
  protected:

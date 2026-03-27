@@ -259,6 +259,21 @@ optional<float> ThrottleFilter::new_value(float value) {
   return {};
 }
 
+// OrFilter helpers
+void or_filter_initialize(Filter **filters, size_t count, Sensor *parent, Filter *phi) {
+  for (size_t i = 0; i < count; i++) {
+    filters[i]->initialize(parent, phi);
+  }
+  phi->initialize(parent, nullptr);
+}
+
+optional<float> or_filter_new_value(Filter **filters, size_t count, float value, bool &has_value) {
+  has_value = false;
+  for (size_t i = 0; i < count; i++)
+    filters[i]->input(value);
+  return {};
+}
+
 // DeltaFilter
 DeltaFilter::DeltaFilter(float min_a0, float min_a1, float max_a0, float max_a1)
     : min_a0_(min_a0), min_a1_(min_a1), max_a0_(max_a0), max_a1_(max_a1) {}
