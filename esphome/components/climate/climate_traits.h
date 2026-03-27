@@ -281,10 +281,10 @@ class ClimateTraits {
   }
 
   /// Set custom mode pointers (only Climate::get_traits() should call these).
-  void set_supported_custom_fan_modes(const std::vector<const char *> *modes) {
+  void set_supported_custom_fan_modes_(const std::vector<const char *> *modes) {
     this->supported_custom_fan_modes_ = modes;
   }
-  void set_supported_custom_presets(const std::vector<const char *> *presets) {
+  void set_supported_custom_presets_(const std::vector<const char *> *presets) {
     this->supported_custom_presets_ = presets;
   }
 
