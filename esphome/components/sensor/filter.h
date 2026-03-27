@@ -340,7 +340,8 @@ uint32_t get_loop_component_start_time();
  * Templated on N (the number of values) so the list is stored inline in a std::array,
  * avoiding heap allocation and the overhead of FixedVector (saves 4 bytes per instance).
  *
- * @tparam N Number of values in the filter list (known at code-generation time).
+ * @tparam N Number of values in the filter list, set by code generation to match
+ *           the exact number of values configured in YAML.
  */
 template<size_t N> class ValueListFilter : public Filter {
  protected:
@@ -497,6 +498,7 @@ class DeltaFilter : public Filter {
   float last_value_{NAN};
 };
 
+/// N is set by code generation to match the exact number of filters configured in YAML.
 template<size_t N> class OrFilter : public Filter {
  public:
   explicit OrFilter(std::initializer_list<Filter *> filters) {
@@ -548,6 +550,7 @@ template<size_t N> class OrFilter : public Filter {
 optional<float> calibrate_linear_compute(const std::array<float, 3> *functions, size_t count, float value);
 optional<float> calibrate_polynomial_compute(const float *coefficients, size_t count, float value);
 
+/// N is set by code generation to match the exact number of calibration segments.
 template<size_t N> class CalibrateLinearFilter : public Filter {
  public:
   explicit CalibrateLinearFilter(std::initializer_list<std::array<float, 3>> linear_functions) {
@@ -566,6 +569,7 @@ template<size_t N> class CalibrateLinearFilter : public Filter {
   std::array<std::array<float, 3>, N> linear_functions_{};
 };
 
+/// N is set by code generation to match the exact number of polynomial coefficients.
 template<size_t N> class CalibratePolynomialFilter : public Filter {
  public:
   explicit CalibratePolynomialFilter(std::initializer_list<float> coefficients) {
