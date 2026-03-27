@@ -15,6 +15,11 @@ AUTO_LOAD = ["binary_sensor", "nfc"]
 MULTI_CONF = True
 
 CONF_PN532_ID = "pn532_id"
+CONF_HEALTH_CHECK_ENABLED = "health_check_enabled"
+CONF_HEALTH_CHECK_INTERVAL = "health_check_interval"
+CONF_MAX_FAILED_CHECKS = "max_failed_checks"
+CONF_AUTO_RESET_ON_FAILURE = "auto_reset_on_failure"
+CONF_RF_FIELD_ENABLED = "rf_field_enabled"
 
 pn532_ns = cg.esphome_ns.namespace("pn532")
 PN532 = pn532_ns.class_("PN532", cg.PollingComponent)
@@ -47,6 +52,13 @@ PN532_SCHEMA = cv.Schema(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(nfc.NfcOnTagTrigger),
             }
         ),
+        cv.Optional(CONF_HEALTH_CHECK_ENABLED, default=True): cv.boolean,
+        cv.Optional(
+            CONF_HEALTH_CHECK_INTERVAL, default="60s"
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_MAX_FAILED_CHECKS, default=3): cv.positive_int,
+        cv.Optional(CONF_AUTO_RESET_ON_FAILURE, default=True): cv.boolean,
+        cv.Optional(CONF_RF_FIELD_ENABLED, default=False): cv.boolean,
     }
 ).extend(cv.polling_component_schema("1s"))
 
@@ -62,6 +74,11 @@ def CONFIG_SCHEMA(conf):
 async def setup_pn532(var, config):
     await cg.register_component(var, config)
 
+    cg.add(var.set_max_failed_checks(config[CONF_MAX_FAILED_CHECKS]))
+    cg.add(var.set_auto_reset(config[CONF_AUTO_RESET_ON_FAILURE]))
+    cg.add(var.set_health_check_enabled(config[CONF_HEALTH_CHECK_ENABLED]))
+    cg.add(var.set_health_check_interval(config[CONF_HEALTH_CHECK_INTERVAL]))
+    cg.add(var.set_rf_field_enabled(config[CONF_RF_FIELD_ENABLED]))
     for conf in config.get(CONF_ON_TAG, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         cg.add(var.register_ontag_trigger(trigger))
