@@ -113,9 +113,10 @@ class MultiClickTriggerBase : public Trigger<>, public Component {
   void schedule_is_not_valid_(uint32_t max_length);
   void trigger_();
 
+  virtual const MultiClickTriggerEvent *get_timing_() const = 0;
+  virtual size_t get_timing_count_() const = 0;
+
   BinarySensor *parent_;
-  const MultiClickTriggerEvent *timing_{nullptr};
-  size_t timing_count_{0};
   uint32_t invalid_cooldown_{1000};
   optional<size_t> at_index_{};
   bool last_state_{false};
@@ -132,14 +133,14 @@ template<size_t N> class MultiClickTrigger : public MultiClickTriggerBase {
     for (const auto &t : timing) {
       if (i >= N)
         break;
-      this->timing_storage_[i++] = t;
+      this->timing_[i++] = t;
     }
-    this->timing_ = this->timing_storage_.data();
-    this->timing_count_ = N;
   }
 
  protected:
-  std::array<MultiClickTriggerEvent, N> timing_storage_{};
+  const MultiClickTriggerEvent *get_timing_() const override { return this->timing_.data(); }
+  size_t get_timing_count_() const override { return N; }
+  std::array<MultiClickTriggerEvent, N> timing_{};
 };
 
 class StateTrigger : public Trigger<bool> {

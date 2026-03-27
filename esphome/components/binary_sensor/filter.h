@@ -94,11 +94,11 @@ class AutorepeatFilterBase : public Filter, public Component {
   float get_setup_priority() const override;
 
  protected:
+  virtual const AutorepeatFilterTiming *get_timings_() const = 0;
+  virtual size_t get_timings_count_() const = 0;
   void next_timing_();
   void next_value_(bool val);
 
-  const AutorepeatFilterTiming *timings_{nullptr};
-  size_t timings_count_{0};
   uint8_t active_timing_{0};
 };
 
@@ -110,14 +110,14 @@ template<size_t N> class AutorepeatFilter : public AutorepeatFilterBase {
     for (const auto &t : timings) {
       if (i >= N)
         break;
-      this->timings_storage_[i++] = t;
+      this->timings_[i++] = t;
     }
-    this->timings_ = this->timings_storage_.data();
-    this->timings_count_ = N;
   }
 
  protected:
-  std::array<AutorepeatFilterTiming, N> timings_storage_{};
+  const AutorepeatFilterTiming *get_timings_() const override { return this->timings_.data(); }
+  size_t get_timings_count_() const override { return N; }
+  std::array<AutorepeatFilterTiming, N> timings_{};
 };
 
 class LambdaFilter : public Filter {
