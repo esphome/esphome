@@ -385,7 +385,7 @@ void LightCall::transform_parameters_() {
       !(this->color_mode_ & ColorCapability::WHITE) &&                                  //
       !(this->color_mode_ & ColorCapability::COLOR_TEMPERATURE) &&                      //
       min_mireds > 0.0f && max_mireds > 0.0f) {
-    ESP_LOGD(TAG, "'%s': setting cold/warm white channels using white/color temperature values",
+    ESP_LOGV(TAG, "'%s': setting cold/warm white channels using white/color temperature values",
              this->parent_->get_name().c_str());
     // Only compute cold_white/warm_white from color_temperature if they're not already explicitly set.
     // This is important for state restoration, where both color_temperature and cold_white/warm_white
@@ -432,7 +432,7 @@ ColorMode LightCall::compute_color_mode_() {
 
   // Don't change if the current mode is in the intersection (suitable AND supported)
   if (ColorModeMask::mask_contains(intersection, current_mode)) {
-    ESP_LOGI(TAG, "'%s': color mode not specified; retaining %s", this->parent_->get_name().c_str(),
+    ESP_LOGV(TAG, "'%s': color mode not specified; retaining %s", this->parent_->get_name().c_str(),
              LOG_STR_ARG(color_mode_to_human(current_mode)));
     return current_mode;
   }
@@ -440,7 +440,7 @@ ColorMode LightCall::compute_color_mode_() {
   // Use the preferred suitable mode.
   if (intersection != 0) {
     ColorMode mode = ColorModeMask::first_value_from_mask(intersection);
-    ESP_LOGI(TAG, "'%s': color mode not specified; using %s", this->parent_->get_name().c_str(),
+    ESP_LOGV(TAG, "'%s': color mode not specified; using %s", this->parent_->get_name().c_str(),
              LOG_STR_ARG(color_mode_to_human(mode)));
     return mode;
   }
