@@ -7,7 +7,6 @@
 #include "esphome/components/display/display_color_utils.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/defines.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/time.h"
 
 #include "nextion_base.h"
@@ -1394,8 +1393,8 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void process_pending_in_queue_();
 #endif  // USE_NEXTION_COMMAND_SPACING
 
-  std::list<NextionQueue *, RAMAllocator<NextionQueue *>> nextion_queue_;
-  std::list<NextionQueue *, RAMAllocator<NextionQueue *>> waveform_queue_;
+  std::list<NextionQueue *> nextion_queue_;
+  std::list<NextionQueue *> waveform_queue_;
   uint16_t recv_ret_string_(std::string &response, uint32_t timeout, bool recv_flag);
   void all_components_send_state_(bool force_update = false);
   uint32_t comok_sent_ = 0;
