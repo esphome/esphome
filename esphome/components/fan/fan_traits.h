@@ -40,7 +40,7 @@ class FanTraits {
   // Remove before 2026.11.0
   ESPDEPRECATED("Call set_supported_preset_modes() on the Fan entity instead. Removed in 2026.11.0", "2026.5.0")
   void set_supported_preset_modes(std::initializer_list<const char *> preset_modes) {
-    // Compat: store in owned vector. Copies copy the vector (same cost as before this PR).
+    // Compat: store in owned vector. Copies copy the vector (deprecated path still copies this vector).
     this->compat_preset_modes_ = preset_modes;
   }
   // Remove before 2026.11.0
@@ -90,7 +90,7 @@ class FanTraits {
   bool direction_{false};
   int speed_count_{};
   const std::vector<const char *> *preset_modes_{nullptr};
-  // Compat: owned storage for deprecated setters. Copies copy the vector (same cost as pre-PR).
+  // Compat: owned storage for deprecated setters. Copies copy the vector (copies include this vector).
   // Remove in 2026.11.0.
   std::vector<const char *> compat_preset_modes_;
 };
