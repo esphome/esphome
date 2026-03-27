@@ -307,6 +307,8 @@ void Fan::save_state_() {
       }
     } else {
       // Compat: fall back to traits for deprecated path. Remove in 2026.11.0.
+      // Pointer comparison works because preset_mode_ and the compat vector both
+      // hold pointers to string literals in .rodata (stable addresses).
       auto traits = this->get_traits();
       const auto &preset_modes = traits.supported_preset_modes();
       for (size_t i = 0; i < preset_modes.size(); i++) {
