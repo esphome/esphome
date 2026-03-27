@@ -29,8 +29,6 @@ class NextionComponentBase;
 
 using nextion_writer_t = display::DisplayWriter<Nextion>;
 
-static const std::string COMMAND_DELIMITER{static_cast<char>(255), static_cast<char>(255), static_cast<char>(255)};
-
 #ifdef USE_NEXTION_COMMAND_SPACING
 class NextionCommandPacer {
  public:
