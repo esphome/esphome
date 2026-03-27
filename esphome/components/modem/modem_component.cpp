@@ -235,9 +235,9 @@ ModemComponentState ModemComponent::handle_state_enabling_() {
     case modem_mode::UNDEF:
       ESP_LOGD(TAG, "Trying other baud rate");
       for (int b : bauds) {
-        if (!try_autobaud(b)) {
+        if (try_autobaud(b)) {
           ESP_LOGD(TAG, "Modem responded at baud %d", b);
-          return ModemComponentState::MODEM_ENABLING;
+          break;  // Exit loop and fall through to COMMAND_MODE
         }
       }
 
