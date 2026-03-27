@@ -137,6 +137,9 @@ UpdateComponentAction = cg.esphome_ns.class_("UpdateComponentAction", Action)
 SuspendComponentAction = cg.esphome_ns.class_("SuspendComponentAction", Action)
 ResumeComponentAction = cg.esphome_ns.class_("ResumeComponentAction", Action)
 Automation = cg.esphome_ns.class_("Automation")
+TriggerForwarder = cg.esphome_ns.class_("TriggerForwarder")
+TriggerOnTrueForwarder = cg.esphome_ns.class_("TriggerOnTrueForwarder")
+TriggerOnFalseForwarder = cg.esphome_ns.class_("TriggerOnFalseForwarder")
 
 LambdaCondition = cg.esphome_ns.class_("LambdaCondition", Condition)
 StatelessLambdaCondition = cg.esphome_ns.class_("StatelessLambdaCondition", Condition)
@@ -661,3 +664,44 @@ async def build_automation(
     actions = await build_action_list(config[CONF_THEN], templ, args)
     cg.add(obj.add_actions(actions))
     return obj
+
+
+async def build_callback_automation(
+    parent: MockObj,
+    callback_method: str,
+    args: TemplateArgsType,
+    config: ConfigType,
+    forwarder: MockObj | MockObjClass | None = None,
+) -> None:
+    """Build an Automation and register it as a callback on the parent.
+
+    Eliminates the need for a Trigger wrapper object by registering the
+    automation's trigger() directly as a callback on the parent component.
+
+    Uses template forwarder structs so the compiler deduplicates the operator()
+    body across all call sites with the same signature. The forwarder must be
+    pointer-sized (single Automation* field) to fit inline in Callback::ctx_
+    and avoid heap allocation.
+
+    :param parent: The component object (e.g., button, sensor).
+    :param callback_method: Name of the callback method (e.g., "add_on_press_callback").
+    :param args: Automation template args as list of (type, name) tuples.
+    :param config: The automation config dict.
+    :param forwarder: Optional forwarder type to use instead of the default
+        TriggerForwarder<Ts...>. Pass any struct type whose aggregate init takes
+        a single Automation pointer (e.g., TriggerOnTrueForwarder).
+    """
+    arg_types = [arg[0] for arg in args]
+    templ = cg.TemplateArguments(*arg_types)
+    obj = cg.new_Pvariable(config[CONF_AUTOMATION_ID], templ)
+    actions = await build_action_list(config[CONF_THEN], templ, args)
+    cg.add(obj.add_actions(actions))
+    # Use template forwarder structs for deduplication. The compiler generates
+    # one operator() per forwarder type; different automation pointers are just
+    # data in the struct.
+    if forwarder is None:
+        forwarder = TriggerForwarder.template(templ)
+    # RawExpression for aggregate init — both forwarder and obj are codegen
+    # MockObjs (not user input), and there's no Expression type for positional
+    # aggregate initialization (StructInitializer uses named fields).
+    cg.add(getattr(parent, callback_method)(cg.RawExpression(f"{forwarder}{{{obj}}}")))
