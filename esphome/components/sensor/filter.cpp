@@ -361,6 +361,24 @@ void HeartbeatFilter::setup() {
 
 float HeartbeatFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
+optional<float> calibrate_linear_compute_(const std::array<float, 3> *functions, size_t count, float value) {
+  for (size_t i = 0; i < count; i++) {
+    if (!std::isfinite(functions[i][2]) || value < functions[i][2])
+      return (value * functions[i][0]) + functions[i][1];
+  }
+  return NAN;
+}
+
+optional<float> calibrate_polynomial_compute_(const float *coefficients, size_t count, float value) {
+  float res = 0.0f;
+  float x = 1.0f;
+  for (size_t i = 0; i < count; i++) {
+    res += x * coefficients[i];
+    x *= value;
+  }
+  return res;
+}
+
 ClampFilter::ClampFilter(float min, float max, bool ignore_out_of_range)
     : min_(min), max_(max), ignore_out_of_range_(ignore_out_of_range) {}
 optional<float> ClampFilter::new_value(float value) {

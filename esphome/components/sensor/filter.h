@@ -544,6 +544,10 @@ template<size_t N> class OrFilter : public Filter {
   bool has_value_{false};
 };
 
+/// Non-template helpers for calibration filters (implementation in filter.cpp)
+optional<float> calibrate_linear_compute_(const std::array<float, 3> *functions, size_t count, float value);
+optional<float> calibrate_polynomial_compute_(const float *coefficients, size_t count, float value);
+
 template<size_t N> class CalibrateLinearFilter : public Filter {
  public:
   explicit CalibrateLinearFilter(std::initializer_list<std::array<float, 3>> linear_functions) {
@@ -555,11 +559,7 @@ template<size_t N> class CalibrateLinearFilter : public Filter {
     }
   }
   optional<float> new_value(float value) override {
-    for (const auto &f : this->linear_functions_) {
-      if (!std::isfinite(f[2]) || value < f[2])
-        return (value * f[0]) + f[1];
-    }
-    return NAN;
+    return calibrate_linear_compute_(this->linear_functions_.data(), N, value);
   }
 
  protected:
@@ -577,13 +577,7 @@ template<size_t N> class CalibratePolynomialFilter : public Filter {
     }
   }
   optional<float> new_value(float value) override {
-    float res = 0.0f;
-    float x = 1.0f;
-    for (const auto &coefficient : this->coefficients_) {
-      res += x * coefficient;
-      x *= value;
-    }
-    return res;
+    return calibrate_polynomial_compute_(this->coefficients_.data(), N, value);
   }
 
  protected:
