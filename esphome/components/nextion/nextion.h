@@ -1,16 +1,16 @@
 #pragma once
 
-#include <deque>
+#include <list>
 #include <vector>
 
+#include "esphome/components/display/display.h"
+#include "esphome/components/display/display_color_utils.h"
+#include "esphome/components/uart/uart.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/time.h"
 
-#include "esphome/components/uart/uart.h"
 #include "nextion_base.h"
 #include "nextion_component.h"
-#include "esphome/components/display/display.h"
-#include "esphome/components/display/display_color_utils.h"
 
 #ifdef USE_NEXTION_TFT_UPLOAD
 #ifdef USE_ESP32
@@ -1391,8 +1391,8 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void process_pending_in_queue_();
 #endif  // USE_NEXTION_COMMAND_SPACING
 
-  std::deque<NextionQueue *> nextion_queue_;
-  std::deque<NextionQueue *> waveform_queue_;
+  std::list<NextionQueue *> nextion_queue_;
+  std::list<NextionQueue *> waveform_queue_;
   uint16_t recv_ret_string_(std::string &response, uint32_t timeout, bool recv_flag);
   void all_components_send_state_(bool force_update = false);
   uint32_t comok_sent_ = 0;
