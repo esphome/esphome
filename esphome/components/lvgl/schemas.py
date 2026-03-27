@@ -146,7 +146,7 @@ def point_schema(value):
 
 
 # All LVGL styles and their validators
-STYLE_PROPS = {
+BASE_PROPS = {
     "align": df.CHILD_ALIGNMENTS.one_of,
     "anim_duration": lvalid.lv_milliseconds,
     "arc_color": lvalid.lv_color,
@@ -237,8 +237,6 @@ STYLE_PROPS = {
     "shadow_color": lvalid.lv_color,
     "shadow_offset_x": lvalid.lv_int,
     "shadow_offset_y": lvalid.lv_int,
-    "shadow_ofs_x": lvalid.lv_int,
-    "shadow_ofs_y": lvalid.lv_int,
     "shadow_opa": lvalid.opacity,
     "shadow_spread": lvalid.lv_int,
     "shadow_width": lvalid.lv_positive_int,
@@ -256,7 +254,6 @@ STYLE_PROPS = {
     "text_outline_stroke_color": lvalid.lv_color,
     "text_outline_stroke_opa": lvalid.opacity,
     "text_outline_stroke_width": lvalid.lv_positive_int,
-    "transform_angle": lvalid.lv_angle,
     "transform_height": lvalid.pixels_or_percent,
     "transform_pivot_x": lvalid.pixels_or_percent,
     "transform_pivot_y": lvalid.pixels_or_percent,
@@ -267,7 +264,6 @@ STYLE_PROPS = {
     "transform_skew_x": lvalid.lv_angle,
     "transform_skew_y": lvalid.lv_angle,
     "transform_width": lvalid.pixels_or_percent,
-    "transform_zoom": lvalid.scale,
     "translate_radial": lvalid.lv_int,
     "translate_x": lvalid.pixels_or_percent,
     "translate_y": lvalid.pixels_or_percent,
@@ -285,6 +281,10 @@ STYLE_REMAP = {
     "shadow_ofs_x": "shadow_offset_x",
     "shadow_ofs_y": "shadow_offset_y",
     "r_mod": "length",
+}
+
+STYLE_PROPS = BASE_PROPS | {
+    p: BASE_PROPS[v] for p, v in STYLE_REMAP.items() if v in BASE_PROPS
 }
 
 

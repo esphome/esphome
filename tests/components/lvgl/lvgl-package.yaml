@@ -232,7 +232,7 @@ lvgl:
         - roller:
             id: lv_roller
             visible_row_count: 2
-            anim_time: 500ms
+            anim_duration: 500ms
             options:
               - Nov
               - Dec
