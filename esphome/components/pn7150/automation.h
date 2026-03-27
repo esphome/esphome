@@ -7,20 +7,6 @@
 namespace esphome {
 namespace pn7150 {
 
-class PN7150OnEmulatedTagScanTrigger : public Trigger<> {
- public:
-  explicit PN7150OnEmulatedTagScanTrigger(PN7150 *parent) {
-    parent->add_on_emulated_tag_scan_callback([this]() { this->trigger(); });
-  }
-};
-
-class PN7150OnFinishedWriteTrigger : public Trigger<> {
- public:
-  explicit PN7150OnFinishedWriteTrigger(PN7150 *parent) {
-    parent->add_on_finished_write_callback([this]() { this->trigger(); });
-  }
-};
-
 template<typename... Ts> class PN7150IsWritingCondition : public Condition<Ts...>, public Parented<PN7150> {
  public:
   bool check(const Ts &...x) override { return this->parent_->is_writing(); }
