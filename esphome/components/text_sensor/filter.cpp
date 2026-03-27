@@ -74,7 +74,7 @@ bool PrependFilter::new_value(std::string &value) {
 }
 
 // Substitute / Map — non-template helpers for template filters
-bool substitute_filter_apply_(const Substitution *substitutions, size_t count, std::string &value) {
+bool substitute_filter_apply(const Substitution *substitutions, size_t count, std::string &value) {
   for (size_t i = 0; i < count; i++) {
     const size_t from_len = strlen(substitutions[i].from);
     const size_t to_len = strlen(substitutions[i].to);
@@ -87,7 +87,7 @@ bool substitute_filter_apply_(const Substitution *substitutions, size_t count, s
   return true;
 }
 
-bool map_filter_apply_(const Substitution *mappings, size_t count, std::string &value) {
+bool map_filter_apply(const Substitution *mappings, size_t count, std::string &value) {
   for (size_t i = 0; i < count; i++) {
     if (value == mappings[i].from) {
       value.assign(mappings[i].to);

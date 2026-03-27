@@ -123,8 +123,8 @@ struct Substitution {
 };
 
 /// Non-template helpers (implementation in filter.cpp)
-bool substitute_filter_apply_(const Substitution *substitutions, size_t count, std::string &value);
-bool map_filter_apply_(const Substitution *mappings, size_t count, std::string &value);
+bool substitute_filter_apply(const Substitution *substitutions, size_t count, std::string &value);
+bool map_filter_apply(const Substitution *mappings, size_t count, std::string &value);
 
 /// A simple filter that replaces a substring with another substring
 template<size_t N> class SubstituteFilter : public Filter {
@@ -137,9 +137,7 @@ template<size_t N> class SubstituteFilter : public Filter {
       this->substitutions_[i++] = s;
     }
   }
-  bool new_value(std::string &value) override {
-    return substitute_filter_apply_(this->substitutions_.data(), N, value);
-  }
+  bool new_value(std::string &value) override { return substitute_filter_apply(this->substitutions_.data(), N, value); }
 
  protected:
   std::array<Substitution, N> substitutions_{};
@@ -179,7 +177,7 @@ template<size_t N> class MapFilter : public Filter {
       this->mappings_[i++] = m;
     }
   }
-  bool new_value(std::string &value) override { return map_filter_apply_(this->mappings_.data(), N, value); }
+  bool new_value(std::string &value) override { return map_filter_apply(this->mappings_.data(), N, value); }
 
  protected:
   std::array<Substitution, N> mappings_{};
