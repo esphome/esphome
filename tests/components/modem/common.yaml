@@ -15,4 +15,4 @@ esphome:
             not:
               modem.connected:
           then:
-            modem.reset
+            logger.log: modem not connected
