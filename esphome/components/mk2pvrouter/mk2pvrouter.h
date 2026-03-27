@@ -56,19 +56,18 @@ class Mk2PVRouter : public Component, public uart::UARTDevice {
   static constexpr size_t CRC_SUFFIX_LEN = 1;
   static constexpr uint32_t BAUD_RATE = 9600;
 
-  FixedVector<Mk2PVRouterListener *> mk2pvrouter_listeners_{};
-  char buf_[MAX_BUF_SIZE];
-  size_t buf_index_{0};
-  char tag_[MAX_TAG_SIZE];
-  char val_[MAX_VAL_SIZE];
-
-  enum class State {
+  enum class State : uint8_t {
     WAITING_FOR_START,
     START_FRAME_RECEIVED,
     END_FRAME_RECEIVED,
   };
 
+  FixedVector<Mk2PVRouterListener *> mk2pvrouter_listeners_{};
+  uint16_t buf_index_{0};
   State state_{State::WAITING_FOR_START};
+  char tag_[MAX_TAG_SIZE];
+  char val_[MAX_VAL_SIZE];
+  char buf_[MAX_BUF_SIZE];  // Large buffer last to reduce padding
 
   bool read_chars_until_(bool drop, uint8_t c);
   uint8_t calculate_crc_(const char *grp, size_t grp_len);
