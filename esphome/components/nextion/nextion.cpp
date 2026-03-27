@@ -10,6 +10,10 @@ namespace nextion {
 
 static const char *const TAG = "nextion";
 
+// Nextion command terminator: three consecutive 0xFF bytes (per Nextion Instruction Set v1.1).
+static constexpr uint8_t COMMAND_DELIMITER[3] = {0xFF, 0xFF, 0xFF};
+static constexpr size_t DELIMITER_SIZE = sizeof(COMMAND_DELIMITER);
+
 void Nextion::setup() {
   this->is_setup_ = false;
   this->connection_state_.ignore_is_setup_ = true;
@@ -90,7 +94,7 @@ bool Nextion::check_connect_() {
 #endif  // NEXTION_PROTOCOL_LOG
 
     ESP_LOGW(TAG, "Not connected");
-    comok_sent_ = 0;
+    this->comok_sent_ = 0;
     return false;
   }
 
@@ -415,7 +419,8 @@ void Nextion::process_nextion_commands_() {
 #ifdef NEXTION_PROTOCOL_LOG
   this->print_queue_members_();
 #endif
-  while ((to_process_length = this->command_data_.find(COMMAND_DELIMITER)) != std::string::npos) {
+  while ((to_process_length = this->command_data_.find(reinterpret_cast<const char *>(COMMAND_DELIMITER), 0,
+                                                       DELIMITER_SIZE)) != std::string::npos) {
 #ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
     if (++commands_processed > this->max_commands_per_loop_) {
       ESP_LOGW(TAG, "Command processing limit exceeded");
@@ -423,8 +428,8 @@ void Nextion::process_nextion_commands_() {
     }
 #endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
     ESP_LOGN(TAG, "queue size: %zu", this->nextion_queue_.size());
-    while (to_process_length + COMMAND_DELIMITER.length() < this->command_data_.length() &&
-           static_cast<uint8_t>(this->command_data_[to_process_length + COMMAND_DELIMITER.length()]) == 0xFF) {
+    while (to_process_length + DELIMITER_SIZE < this->command_data_.length() &&
+           static_cast<uint8_t>(this->command_data_[to_process_length + DELIMITER_SIZE]) == 0xFF) {
       ++to_process_length;
       ESP_LOGN(TAG, "Add 0xFF");
     }
@@ -829,17 +834,17 @@ void Nextion::process_nextion_commands_() {
         break;
     }
 
-    this->command_data_.erase(0, to_process_length + COMMAND_DELIMITER.length() + 1);
+    this->command_data_.erase(0, to_process_length + DELIMITER_SIZE + 1);
   }
 
   const uint32_t ms = App.get_loop_component_start_time();
 
   if (this->max_q_age_ms_ > 0 && !this->nextion_queue_.empty() &&
       ms - this->nextion_queue_.front()->queue_time > this->max_q_age_ms_) {
-    for (size_t i = 0; i < this->nextion_queue_.size(); i++) {
-      NextionComponentBase *component = this->nextion_queue_[i]->component;
-      if (ms - this->nextion_queue_[i]->queue_time > this->max_q_age_ms_) {
-        if (this->nextion_queue_[i]->queue_time == 0) {
+    for (auto it = this->nextion_queue_.begin(); it != this->nextion_queue_.end();) {
+      NextionComponentBase *component = (*it)->component;
+      if (ms - (*it)->queue_time > this->max_q_age_ms_) {
+        if ((*it)->queue_time == 0) {
           ESP_LOGD(TAG, "Remove old queue '%s':'%s' (t=0)", component->get_queue_type_string().c_str(),
                    component->get_variable_name().c_str());
         }
@@ -858,10 +863,8 @@ void Nextion::process_nextion_commands_() {
           delete component;  // NOLINT(cppcoreguidelines-owning-memory)
         }
 
-        delete this->nextion_queue_[i];  // NOLINT(cppcoreguidelines-owning-memory)
-
-        this->nextion_queue_.erase(this->nextion_queue_.begin() + i);
-        i--;
+        delete *it;  // NOLINT(cppcoreguidelines-owning-memory)
+        it = this->nextion_queue_.erase(it);
 
       } else {
         break;
