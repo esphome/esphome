@@ -3,6 +3,7 @@
 import esphome.codegen as cg
 from esphome.components import fan
 import esphome.config_validation as cv
+from esphome.types import ConfigType
 
 legacy_fan_ns = cg.esphome_ns.namespace("legacy_fan_test")
 LegacyFan = legacy_fan_ns.class_("LegacyFan", fan.Fan, cg.Component)
@@ -14,6 +15,6 @@ CONFIG_SCHEMA = fan.FAN_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-async def to_code(config):
+async def to_code(config: ConfigType) -> None:
     var = await fan.new_fan(config)
     await cg.register_component(var, config)
