@@ -169,6 +169,10 @@ class ClimateTraits {
     this->compat_custom_fan_modes_ = modes;
   }
 
+  // Deleted overloads to catch incorrect std::string usage at compile time with clear error messages
+  void set_supported_custom_fan_modes(const std::vector<std::string> &modes) = delete;
+  void set_supported_custom_fan_modes(std::initializer_list<std::string> modes) = delete;
+
   // Compat: returns const ref with empty fallback. In 2026.11.0 change to return const vector *.
   const std::vector<const char *> &get_supported_custom_fan_modes() const;
   bool supports_custom_fan_mode(const char *custom_fan_mode) const {
@@ -200,6 +204,10 @@ class ClimateTraits {
   void set_supported_custom_presets(const std::vector<const char *> &presets) {
     this->compat_custom_presets_ = presets;
   }
+
+  // Deleted overloads to catch incorrect std::string usage at compile time with clear error messages
+  void set_supported_custom_presets(const std::vector<std::string> &presets) = delete;
+  void set_supported_custom_presets(std::initializer_list<std::string> presets) = delete;
 
   // Compat: returns const ref with empty fallback. In 2026.11.0 change to return const vector *.
   const std::vector<const char *> &get_supported_custom_presets() const;
