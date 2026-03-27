@@ -77,7 +77,9 @@ class FanTraits {
 
  protected:
   /// Set the preset modes pointer (only Fan::wire_preset_modes_() should call this).
-  void set_supported_preset_modes(const std::vector<const char *> *preset_modes) { this->preset_modes_ = preset_modes; }
+  void set_supported_preset_modes_(const std::vector<const char *> *preset_modes) {
+    this->preset_modes_ = preset_modes;
+  }
 
   bool oscillation_{false};
   bool speed_{false};
