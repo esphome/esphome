@@ -846,12 +846,11 @@ void Nextion::process_nextion_commands_() {
       if (ms - this->nextion_queue_[i]->queue_time > this->max_q_age_ms_) {
         if (this->nextion_queue_[i]->queue_time == 0) {
           if (this->nextion_queue_[i]->pending_command.empty()) {
-            ESP_LOGD(TAG, "Remove old queue '%s':'%s' (t=0)",
-                    component->get_queue_type_string(), component->get_variable_name().c_str());
+            ESP_LOGD(TAG, "Remove old queue '%s':'%s' (t=0)", component->get_queue_type_string(),
+                     component->get_variable_name().c_str());
           } else {
-            ESP_LOGD(TAG, "Remove old queue '%s':'%s' cmd:'%s' (t=0)",
-                    component->get_queue_type_string(), component->get_variable_name().c_str(),
-                    this->nextion_queue_[i]->pending_command.c_str());
+            ESP_LOGD(TAG, "Remove old queue '%s':'%s' cmd:'%s' (t=0)", component->get_queue_type_string(),
+                     component->get_variable_name().c_str(), this->nextion_queue_[i]->pending_command.c_str());
           }
         }
 
@@ -860,12 +859,11 @@ void Nextion::process_nextion_commands_() {
         }
 
         if (this->nextion_queue_[i]->pending_command.empty()) {
-          ESP_LOGD(TAG, "Remove old queue '%s':'%s'",
-                  component->get_queue_type_string(), component->get_variable_name().c_str());
+          ESP_LOGD(TAG, "Remove old queue '%s':'%s'", component->get_queue_type_string(),
+                   component->get_variable_name().c_str());
         } else {
-          ESP_LOGD(TAG, "Remove old queue '%s':'%s' cmd:'%s'",
-                  component->get_queue_type_string(), component->get_variable_name().c_str(),
-                  this->nextion_queue_[i]->pending_command.c_str());
+          ESP_LOGD(TAG, "Remove old queue '%s':'%s' cmd:'%s'", component->get_queue_type_string(),
+                   component->get_variable_name().c_str(), this->nextion_queue_[i]->pending_command.c_str());
         }
 
         if (component->get_queue_type() == NextionQueueType::NO_RESULT) {
