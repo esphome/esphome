@@ -20,26 +20,28 @@ void MCP23S17::set_device_address(uint8_t device_addr) {
 void MCP23S17::setup() {
   this->spi_setup();
 
-  uint8_t iocon = IOCON_SEQOP | IOCON_HAEN;
-  if (this->open_drain_ints_) {
-    iocon |= IOCON_ODR;
-  }
-  // Write IOCON to addresses 0 and 4 since HAEN isn't enabled yet
+  // Enable HAEN (broadcast to addresses 0 and 4 since HAEN isn't active yet)
   this->enable();
   this->transfer_byte(0b01000000);
   this->transfer_byte(mcp23x17_base::MCP23X17_IOCONA);
-  this->transfer_byte(iocon);
+  this->transfer_byte(IOCON_SEQOP | IOCON_HAEN);
   this->disable();
 
   this->enable();
   this->transfer_byte(0b01001000);
   this->transfer_byte(mcp23x17_base::MCP23X17_IOCONA);
-  this->transfer_byte(iocon);
+  this->transfer_byte(IOCON_SEQOP | IOCON_HAEN);
   this->disable();
 
   // Read current output register state
   this->read_reg(mcp23x17_base::MCP23X17_OLATA, &this->olat_a_);
   this->read_reg(mcp23x17_base::MCP23X17_OLATB, &this->olat_b_);
+
+  if (this->open_drain_ints_) {
+    // enable open-drain interrupt pins, 3.3V-safe (addressed, only this chip)
+    this->write_reg(mcp23x17_base::MCP23X17_IOCONA, IOCON_SEQOP | IOCON_HAEN | IOCON_ODR);
+    this->write_reg(mcp23x17_base::MCP23X17_IOCONB, IOCON_SEQOP | IOCON_HAEN | IOCON_ODR);
+  }
 }
 
 void MCP23S17::dump_config() {
