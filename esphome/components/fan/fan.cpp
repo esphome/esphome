@@ -297,9 +297,11 @@ void Fan::save_state_() {
   state.preset_mode = FanRestoreState::NO_PRESET;
 
   if (this->has_preset_mode()) {
-    // Use Fan-owned vector, or fall back to traits for deprecated path
+    // Use Fan-owned vector, or fall back to traits for deprecated path.
+    // Keep traits alive so the reference to compat_preset_modes_ doesn't dangle.
+    auto traits = this->supported_preset_modes_ ? FanTraits() : this->get_traits();
     const auto &preset_modes =
-        this->supported_preset_modes_ ? *this->supported_preset_modes_ : this->get_traits().supported_preset_modes();
+        this->supported_preset_modes_ ? *this->supported_preset_modes_ : traits.supported_preset_modes();
     for (size_t i = 0; i < preset_modes.size(); i++) {
       if (preset_modes[i] == this->preset_mode_) {
         state.preset_mode = i;
