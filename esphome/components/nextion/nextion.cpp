@@ -100,7 +100,7 @@ bool Nextion::check_connect_() {
 
   ESP_LOGN(TAG, "connect: %s", response.c_str());
 
-// Parse the comok response fields directly, avoiding a heap-allocated vector.
+  // Parse the comok response fields directly, avoiding a heap-allocated vector.
   size_t field_count = 0;
   size_t field_idx = 0;
   size_t start = 0;
