@@ -39,6 +39,7 @@ HT16k33Char_BaseClassType = ht16k33_char_ns.class_(
 def format_none(input_code):
     return input_code
 
+
 def validate_added_chars(value_to_validate):
     # Check if the value is a dictionary
     if not isinstance(value_to_validate, dict):
