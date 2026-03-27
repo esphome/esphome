@@ -366,6 +366,16 @@ class Climate : public EntityBase {
   LazyCallbackManager<void(ClimateCall &)> control_callback_{};
   ESPPreferenceObject rtc_;
 
+#ifdef USE_CLIMATE_VISUAL_OVERRIDES
+  float visual_min_temperature_override_{NAN};
+  float visual_max_temperature_override_{NAN};
+  float visual_target_temperature_step_override_{NAN};
+  float visual_current_temperature_step_override_{NAN};
+  float visual_min_humidity_override_{NAN};
+  float visual_max_humidity_override_{NAN};
+#endif
+
+ private:
   /// Lazy-allocate custom mode vectors (never freed — entity lives forever).
   std::vector<const char *> &ensure_custom_fan_modes_() {
     if (!this->supported_custom_fan_modes_) {
@@ -383,16 +393,6 @@ class Climate : public EntityBase {
   std::vector<const char *> *supported_custom_fan_modes_{nullptr};
   std::vector<const char *> *supported_custom_presets_{nullptr};
 
-#ifdef USE_CLIMATE_VISUAL_OVERRIDES
-  float visual_min_temperature_override_{NAN};
-  float visual_max_temperature_override_{NAN};
-  float visual_target_temperature_step_override_{NAN};
-  float visual_current_temperature_step_override_{NAN};
-  float visual_min_humidity_override_{NAN};
-  float visual_max_humidity_override_{NAN};
-#endif
-
- private:
   /** The active custom fan mode (private - enforces use of safe setters).
    *
    * Points to an entry in supported_custom_fan_modes_ or nullptr.

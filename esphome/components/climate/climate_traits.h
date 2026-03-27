@@ -168,10 +168,8 @@ class ClimateTraits {
     this->supported_custom_fan_modes_ = new std::vector<const char *>(modes);  // NOLINT
   }
 
-  const std::vector<const char *> &get_supported_custom_fan_modes() const {
-    static const std::vector<const char *> EMPTY_VECTOR;
-    return this->supported_custom_fan_modes_ ? *this->supported_custom_fan_modes_ : EMPTY_VECTOR;
-  }
+  // Compat: returns const ref with empty fallback. In 2026.11.0 change to return const vector *.
+  const std::vector<const char *> &get_supported_custom_fan_modes() const;
   bool supports_custom_fan_mode(const char *custom_fan_mode) const {
     return this->supported_custom_fan_modes_ && vector_contains(*this->supported_custom_fan_modes_, custom_fan_mode);
   }
@@ -200,10 +198,8 @@ class ClimateTraits {
     this->supported_custom_presets_ = new std::vector<const char *>(presets);  // NOLINT
   }
 
-  const std::vector<const char *> &get_supported_custom_presets() const {
-    static const std::vector<const char *> EMPTY_VECTOR;
-    return this->supported_custom_presets_ ? *this->supported_custom_presets_ : EMPTY_VECTOR;
-  }
+  // Compat: returns const ref with empty fallback. In 2026.11.0 change to return const vector *.
+  const std::vector<const char *> &get_supported_custom_presets() const;
   bool supports_custom_preset(const char *custom_preset) const {
     return this->supported_custom_presets_ && vector_contains(*this->supported_custom_presets_, custom_preset);
   }
