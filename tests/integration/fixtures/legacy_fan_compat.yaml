@@ -1,0 +1,21 @@
+esphome:
+  name: legacy-fan-compat
+  platformio_options:
+    build_flags:
+      - "-DUSE_HOST"
+
+host:
+api:
+logger:
+  level: DEBUG
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+    components: [legacy_fan_component]
+
+fan:
+  - platform: legacy_fan_component
+    name: "Legacy Fan"
+    id: legacy_fan
