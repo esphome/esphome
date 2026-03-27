@@ -1,8 +1,5 @@
 esphome:
   name: legacy-fan-compat
-  platformio_options:
-    build_flags:
-      - "-DUSE_HOST"
 
 host:
 api:
