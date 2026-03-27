@@ -129,18 +129,4 @@ template<typename... Ts> class OnlineImageReleaseAction : public Action<Ts...> {
   OnlineImage *parent_;
 };
 
-class DownloadFinishedTrigger : public Trigger<bool> {
- public:
-  explicit DownloadFinishedTrigger(OnlineImage *parent) {
-    parent->add_on_finished_callback([this](bool cached) { this->trigger(cached); });
-  }
-};
-
-class DownloadErrorTrigger : public Trigger<> {
- public:
-  explicit DownloadErrorTrigger(OnlineImage *parent) {
-    parent->add_on_error_callback([this]() { this->trigger(); });
-  }
-};
-
 }  // namespace esphome::online_image
