@@ -10,7 +10,6 @@ from esphome.const import (
     CONF_PIN_B,
     CONF_RESOLUTION,
     CONF_RESTORE_MODE,
-    CONF_TRIGGER_ID,
     CONF_VALUE,
     ICON_ROTATE_RIGHT,
     UNIT_STEPS,
@@ -41,13 +40,6 @@ RotaryEncoderSensor = rotary_encoder_ns.class_(
 )
 RotaryEncoderSetValueAction = rotary_encoder_ns.class_(
     "RotaryEncoderSetValueAction", automation.Action
-)
-
-RotaryEncoderClockwiseTrigger = rotary_encoder_ns.class_(
-    "RotaryEncoderClockwiseTrigger", automation.Trigger
-)
-RotaryEncoderAnticlockwiseTrigger = rotary_encoder_ns.class_(
-    "RotaryEncoderAnticlockwiseTrigger", automation.Trigger
 )
 
 
@@ -81,20 +73,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RESTORE_MODE, default="RESTORE_DEFAULT_ZERO"): cv.enum(
                 RESTORE_MODES, upper=True, space="_"
             ),
-            cv.Optional(CONF_ON_CLOCKWISE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        RotaryEncoderClockwiseTrigger
-                    ),
-                }
-            ),
-            cv.Optional(CONF_ON_ANTICLOCKWISE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        RotaryEncoderAnticlockwiseTrigger
-                    ),
-                }
-            ),
+            cv.Optional(CONF_ON_CLOCKWISE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_ANTICLOCKWISE): automation.validate_automation({}),
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
@@ -123,11 +103,13 @@ async def to_code(config):
         cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
 
     for conf in config.get(CONF_ON_CLOCKWISE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            var, "add_on_clockwise_callback", [], conf
+        )
     for conf in config.get(CONF_ON_ANTICLOCKWISE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            var, "add_on_anticlockwise_callback", [], conf
+        )
 
 
 @automation.register_action(
