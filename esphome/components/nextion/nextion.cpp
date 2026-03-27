@@ -241,7 +241,7 @@ bool Nextion::send_command(const char *command) {
     return false;
 
   if (this->send_command_(command)) {
-    this->add_no_result_to_queue_(__func__);
+    this->add_no_result_to_queue_("command");
     return true;
   }
   return false;
@@ -262,7 +262,7 @@ bool Nextion::send_command_printf(const char *format, ...) {
   }
 
   if (this->send_command_(buffer)) {
-    this->add_no_result_to_queue_(__func__);
+    this->add_no_result_to_queue_("command_printf");
     return true;
   }
   return false;
