@@ -161,7 +161,7 @@ class ClimateTraits {
   // Remove before 2026.11.0
   ESPDEPRECATED("Call set_supported_custom_fan_modes() on the Climate entity instead. Removed in 2026.11.0", "2026.5.0")
   void set_supported_custom_fan_modes(std::initializer_list<const char *> modes) {
-    // Compat: store in owned vector. Copies copy the vector (same cost as before this PR).
+    // Compat: store in owned vector. Copies copy the vector (deprecated path still copies this vector).
     this->compat_custom_fan_modes_ = modes;
   }
   // Remove before 2026.11.0
@@ -339,7 +339,7 @@ class ClimateTraits {
    */
   const std::vector<const char *> *supported_custom_fan_modes_{nullptr};
   const std::vector<const char *> *supported_custom_presets_{nullptr};
-  // Compat: owned storage for deprecated setters. Copies copy the vector (same cost as pre-PR).
+  // Compat: owned storage for deprecated setters. Copies copy the vector (copies include this vector).
   // Remove in 2026.11.0.
   std::vector<const char *> compat_custom_fan_modes_;
   std::vector<const char *> compat_custom_presets_;
