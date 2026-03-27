@@ -326,7 +326,7 @@ void Nextion::qrcode(uint16_t x1, uint16_t y1, const char *content, uint16_t siz
 void Nextion::qrcode(uint16_t x1, uint16_t y1, const char *content, uint16_t size, Color background_color,
                      Color foreground_color, int32_t logo_pic, uint8_t border_width) {
   this->add_no_result_to_queue_with_printf_(
-      __func__ "qrcode %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu8 ",%" PRIu8 ",\"%s\"", x1,
+      __func__, "qrcode %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu8 ",%" PRIu8 ",\"%s\"", x1,
       y1, size, display::ColorUtil::color_to_565(background_color), display::ColorUtil::color_to_565(foreground_color),
       logo_pic, border_width, content);
 }
