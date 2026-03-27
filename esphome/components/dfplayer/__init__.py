@@ -2,16 +2,13 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_DEVICE, CONF_FILE, CONF_ID, CONF_TRIGGER_ID, CONF_VOLUME
+from esphome.const import CONF_DEVICE, CONF_FILE, CONF_ID, CONF_VOLUME
 
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@glmnet"]
 
 dfplayer_ns = cg.esphome_ns.namespace("dfplayer")
 DFPlayer = dfplayer_ns.class_("DFPlayer", cg.Component)
-DFPlayerFinishedPlaybackTrigger = dfplayer_ns.class_(
-    "DFPlayerFinishedPlaybackTrigger", automation.Trigger.template()
-)
 DFPlayerIsPlayingCondition = dfplayer_ns.class_(
     "DFPlayerIsPlayingCondition", automation.Condition
 )
@@ -58,13 +55,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(DFPlayer),
-            cv.Optional(CONF_ON_FINISHED_PLAYBACK): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        DFPlayerFinishedPlaybackTrigger
-                    ),
-                }
-            ),
+            cv.Optional(CONF_ON_FINISHED_PLAYBACK): automation.validate_automation({}),
         }
     ).extend(uart.UART_DEVICE_SCHEMA)
 )
@@ -79,8 +70,9 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
 
     for conf in config.get(CONF_ON_FINISHED_PLAYBACK, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            var, "add_on_finished_playback_callback", [], conf
+        )
 
 
 @automation.register_action(
