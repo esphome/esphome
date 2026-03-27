@@ -1079,7 +1079,7 @@ lvgl:
                         - ticks:
                             width: 1
                             count: 61
-                            length: 20%
+                            length: 20
                             radial_offset: 5
                             color: 0xFFFFFF
                             major:
