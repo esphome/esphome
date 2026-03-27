@@ -362,7 +362,7 @@ async def register_modbus_device(var, config):
 def function_code_to_register(function_code):
     FUNCTION_CODE_TYPE_MAP = {
         "read_coils": ModbusRegisterType.COIL,
-        "read_discrete_inputs": ModbusRegisterType.DISCRETE,
+        "read_discrete_inputs": ModbusRegisterType.DISCRETE_INPUT,
         "read_holding_registers": ModbusRegisterType.HOLDING,
         "read_input_registers": ModbusRegisterType.READ,
         "write_single_coil": ModbusRegisterType.COIL,
