@@ -92,13 +92,23 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   return ret;
 }
 bool WiFiComponent::wifi_apply_power_save_() {
+  // ESP8266 sleep types have confusing names — LIGHT_SLEEP_T is the MORE aggressive mode.
+  // SDK enum: NONE_SLEEP_T=0, LIGHT_SLEEP_T=1, MODEM_SLEEP_T=2
+  //   https://github.com/esp8266/Arduino/blob/3.1.2/tools/sdk/include/user_interface.h#L447-L451
+  // Arduino ESP32 compat confirms: WIFI_PS_MIN_MODEM=MODEM_SLEEP, WIFI_PS_MAX_MODEM=LIGHT_SLEEP
+  //   https://github.com/esp8266/Arduino/blob/3.1.2/libraries/ESP8266WiFi/src/ESP8266WiFiType.h#L53-L55
   sleep_type_t power_save;
   switch (this->power_save_) {
     case WIFI_POWER_SAVE_LIGHT:
-      power_save = LIGHT_SLEEP_T;
+      // MODEM_SLEEP_T: only the WiFi modem sleeps between DTIM beacons, CPU stays active.
+      // Matches ESP32's WIFI_PS_MIN_MODEM.
+      power_save = MODEM_SLEEP_T;
       break;
     case WIFI_POWER_SAVE_HIGH:
-      power_save = MODEM_SLEEP_T;
+      // LIGHT_SLEEP_T: both WiFi modem AND CPU suspend between DTIM beacons.
+      // Most aggressive — prevents TCP processing during sleep. Matches ESP32's WIFI_PS_MAX_MODEM.
+      // See https://github.com/esphome/esphome/issues/14999
+      power_save = LIGHT_SLEEP_T;
       break;
     case WIFI_POWER_SAVE_NONE:
     default:
@@ -654,11 +664,22 @@ bool WiFiComponent::wifi_scan_start_(bool passive) {
   config.show_hidden = 1;
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
   config.scan_type = passive ? WIFI_SCAN_TYPE_PASSIVE : WIFI_SCAN_TYPE_ACTIVE;
+  // Use shorter dwell times for roaming scans - we only need to detect strong
+  // nearby APs, not do a thorough survey. This also reduces off-channel time
+  // which can cause Beacon Timeout disconnects on some APs.
+  // Roaming times match the ESP32 IDF scan defaults.
+  static constexpr uint32_t SCAN_PASSIVE_DEFAULT_MS = 500;
+  static constexpr uint32_t SCAN_PASSIVE_ROAMING_MS = 300;
+  static constexpr uint32_t SCAN_ACTIVE_MIN_DEFAULT_MS = 400;
+  static constexpr uint32_t SCAN_ACTIVE_MAX_DEFAULT_MS = 500;
+  static constexpr uint32_t SCAN_ACTIVE_MIN_ROAMING_MS = 100;
+  static constexpr uint32_t SCAN_ACTIVE_MAX_ROAMING_MS = 300;
+  bool roaming = this->roaming_state_ == RoamingState::SCANNING;
   if (passive) {
-    config.scan_time.passive = 500;
+    config.scan_time.passive = roaming ? SCAN_PASSIVE_ROAMING_MS : SCAN_PASSIVE_DEFAULT_MS;
   } else {
-    config.scan_time.active.min = 400;
-    config.scan_time.active.max = 500;
+    config.scan_time.active.min = roaming ? SCAN_ACTIVE_MIN_ROAMING_MS : SCAN_ACTIVE_MIN_DEFAULT_MS;
+    config.scan_time.active.max = roaming ? SCAN_ACTIVE_MAX_ROAMING_MS : SCAN_ACTIVE_MAX_DEFAULT_MS;
   }
 #endif
   bool ret = wifi_station_scan(&config, &WiFiComponent::s_wifi_scan_done_callback);
@@ -725,7 +746,7 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
     }
   }
   ESP_LOGV(TAG, "Scan complete: %zu found, %zu stored%s", total, this->scan_result_.size(),
-           needs_full ? "" : " (filtered)");
+           needs_full ? LOG_STR_LITERAL("") : LOG_STR_LITERAL(" (filtered)"));
   this->scan_done_ = true;
 #ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
   this->pending_.scan_complete = true;  // Defer listener callbacks to main loop

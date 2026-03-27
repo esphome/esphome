@@ -74,6 +74,8 @@ from esphome.util import (
 
 _LOGGER = logging.getLogger(__name__)
 
+ESPHOME_COMMAND = [sys.executable, "-m", "esphome"]
+
 # Maximum buffer size for serial log reading to prevent unbounded memory growth
 SERIAL_BUFFER_MAX_SIZE = 65536
 
@@ -919,9 +921,11 @@ def _wait_for_serial_port(
     """
 
     def _port_found() -> bool:
-        ports = get_serial_ports()
         if port is not None:
-            return any(p.path == port for p in ports)
+            if os.name == "posix":
+                return os.path.exists(port)
+            return any(p.path == port for p in get_serial_ports())
+        ports = get_serial_ports()
         if known_ports is not None:
             return any(p.path not in known_ports for p in ports)
         return bool(ports)
@@ -1042,7 +1046,11 @@ def show_logs(config: ConfigType, args: ArgsProtocol, devices: list[str]) -> int
     ):
         from esphome.components.api.client import run_logs
 
-        return run_logs(config, network_devices)
+        return run_logs(
+            config,
+            network_devices,
+            subscribe_states=not getattr(args, "no_states", False),
+        )
 
     if port_type in (PortType.NETWORK, PortType.MQTT) and has_mqtt_logging():
         from esphome import mqtt
@@ -1305,9 +1313,8 @@ def command_update_all(args: ArgsProtocol) -> int | None:
     files = list_yaml_files(args.configuration)
 
     def build_command(f):
-        if CORE.dashboard:
-            return ["esphome", "--dashboard", "run", f, "--no-logs", "--device", "OTA"]
-        return ["esphome", "run", f, "--no-logs", "--device", "OTA"]
+        dashboard = ["--dashboard"] if CORE.dashboard else []
+        return [*ESPHOME_COMMAND, *dashboard, "run", f, "--no-logs", "--device", "OTA"]
 
     return run_multiple_configs(files, build_command)
 
@@ -1456,7 +1463,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
 
     new_path.write_text(new_raw, encoding="utf-8")
 
-    rc = run_external_process("esphome", "config", str(new_path))
+    rc = run_external_process(*ESPHOME_COMMAND, "config", str(new_path))
     if rc != 0:
         print(color(AnsiFore.BOLD_RED, "Rename failed. Reverting changes."))
         new_path.unlink()
@@ -1474,7 +1481,7 @@ def command_rename(args: ArgsProtocol, config: ConfigType) -> int | None:
         cli_args.insert(0, "--dashboard")
 
     try:
-        rc = run_external_process("esphome", *cli_args)
+        rc = run_external_process(*ESPHOME_COMMAND, *cli_args)
     except KeyboardInterrupt:
         rc = 1
     if rc != 0:
@@ -1660,6 +1667,11 @@ def parse_args(argv):
         action="store_true",
         help="Reset the device before starting serial logs.",
         default=os.getenv("ESPHOME_SERIAL_LOGGING_RESET"),
+    )
+    parser_logs.add_argument(
+        "--no-states",
+        action="store_true",
+        help="Do not show entity state changes in log output.",
     )
 
     parser_discover = subparsers.add_parser(
@@ -1871,7 +1883,7 @@ def run_esphome(argv):
         # argv[0] is the program path, skip it since we prefix with "esphome"
         def build_command(f):
             return (
-                ["esphome"]
+                [*ESPHOME_COMMAND]
                 + [arg for arg in argv[1:] if arg not in args.configuration]
                 + [str(f)]
             )

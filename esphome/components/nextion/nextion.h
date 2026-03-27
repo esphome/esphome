@@ -29,8 +29,6 @@ class NextionComponentBase;
 
 using nextion_writer_t = display::DisplayWriter<Nextion>;
 
-static const std::string COMMAND_DELIMITER{static_cast<char>(255), static_cast<char>(255), static_cast<char>(255)};
-
 #ifdef USE_NEXTION_COMMAND_SPACING
 class NextionCommandPacer {
  public:
@@ -1138,37 +1136,47 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * @param callback The void() callback.
    */
-  void add_sleep_state_callback(std::function<void()> &&callback);
+  template<typename F> void add_sleep_state_callback(F &&callback) {
+    this->sleep_callback_.add(std::forward<F>(callback));
+  }
 
   /** Add a callback to be notified of wake state changes.
    *
    * @param callback The void() callback.
    */
-  void add_wake_state_callback(std::function<void()> &&callback);
+  template<typename F> void add_wake_state_callback(F &&callback) {
+    this->wake_callback_.add(std::forward<F>(callback));
+  }
 
   /** Add a callback to be notified when the nextion completes its initialize setup.
    *
    * @param callback The void() callback.
    */
-  void add_setup_state_callback(std::function<void()> &&callback);
+  template<typename F> void add_setup_state_callback(F &&callback) {
+    this->setup_callback_.add(std::forward<F>(callback));
+  }
 
   /** Add a callback to be notified when the nextion changes pages.
    *
-   * @param callback The void(std::string) callback.
+   * @param callback The void(uint8_t) callback.
    */
-  void add_new_page_callback(std::function<void(uint8_t)> &&callback);
+  template<typename F> void add_new_page_callback(F &&callback) { this->page_callback_.add(std::forward<F>(callback)); }
 
   /** Add a callback to be notified when Nextion has a touch event.
    *
-   * @param callback The void() callback.
+   * @param callback The void(uint8_t, uint8_t, bool) callback.
    */
-  void add_touch_event_callback(std::function<void(uint8_t, uint8_t, bool)> &&callback);
+  template<typename F> void add_touch_event_callback(F &&callback) {
+    this->touch_callback_.add(std::forward<F>(callback));
+  }
 
   /** Add a callback to be notified when the nextion reports a buffer overflow.
    *
    * @param callback The void() callback.
    */
-  void add_buffer_overflow_event_callback(std::function<void()> &&callback);
+  template<typename F> void add_buffer_overflow_event_callback(F &&callback) {
+    this->buffer_overflow_callback_.add(std::forward<F>(callback));
+  }
 
   void update_all_components();
 

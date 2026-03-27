@@ -360,11 +360,16 @@ void ESP32TouchComponent::loop() {
   }
 
   // Publish initial OFF state for sensors that haven't received events yet
+  bool all_initial_published = true;
   for (auto *child : this->children_) {
     this->publish_initial_state_if_needed_(child, now);
+    if (!child->initial_state_published_) {
+      all_initial_published = false;
+    }
   }
 
-  if (!this->setup_mode_) {
+  // Only disable loop once all initial states are published
+  if (!this->setup_mode_ && all_initial_published) {
     this->disable_loop();
   }
 }

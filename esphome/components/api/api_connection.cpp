@@ -64,7 +64,11 @@ static constexpr uint32_t KEEPALIVE_DISCONNECT_TIMEOUT = (KEEPALIVE_TIMEOUT_MS *
 // A stalled handshake from a buggy client or network glitch holds a connection
 // slot, which can prevent legitimate clients from reconnecting. Also hardens
 // against the less likely case of intentional connection slot exhaustion.
-static constexpr uint32_t HANDSHAKE_TIMEOUT_MS = 15000;
+//
+// 60s is intentionally high: on ESP8266 with power_save_mode: LIGHT and weak
+// WiFi (-70 dBm+), TCP retransmissions push real-world handshake times to
+// 28-30s. See https://github.com/esphome/esphome/issues/14999
+static constexpr uint32_t HANDSHAKE_TIMEOUT_MS = 60000;
 
 static constexpr auto ESPHOME_VERSION_REF = StringRef::from_lit(ESPHOME_VERSION);
 
@@ -230,7 +234,7 @@ void APIConnection::loop() {
           this->last_traffic_ = now;
         }
         // read a packet
-        this->read_message(buffer.data_len, buffer.type, buffer.data);
+        this->read_message_(buffer.data_len, buffer.type, buffer.data);
         if (this->flags_.remove)
           return;
       }
@@ -1515,16 +1519,16 @@ void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
       resp.instance = msg.instance;
       resp.type = enums::SERIAL_PROXY_REQUEST_TYPE_FLUSH;
       switch (proxies[msg.instance]->flush_port()) {
-        case uart::FlushResult::SUCCESS:
+        case uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS:
           resp.status = enums::SERIAL_PROXY_STATUS_OK;
           break;
-        case uart::FlushResult::ASSUMED_SUCCESS:
+        case uart::UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS:
           resp.status = enums::SERIAL_PROXY_STATUS_ASSUMED_SUCCESS;
           break;
-        case uart::FlushResult::TIMEOUT:
+        case uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT:
           resp.status = enums::SERIAL_PROXY_STATUS_TIMEOUT;
           break;
-        case uart::FlushResult::FAILED:
+        case uart::UARTFlushResult::UART_FLUSH_RESULT_FAILED:
           resp.status = enums::SERIAL_PROXY_STATUS_ERROR;
           break;
       }
@@ -1545,6 +1549,7 @@ uint16_t APIConnection::try_send_infrared_info(EntityBase *entity, APIConnection
   auto *infrared = static_cast<infrared::Infrared *>(entity);
   ListEntitiesInfraredResponse msg;
   msg.capabilities = infrared->get_capability_flags();
+  msg.receiver_frequency = infrared->get_traits().get_receiver_frequency_hz();
   return fill_and_encode_entity_info(infrared, msg, conn, remaining_size);
 }
 #endif
@@ -2025,8 +2030,7 @@ uint16_t APIConnection::encode_to_buffer(uint32_t calculated_size, MessageEncode
     // Batch message second or later
     // Add padding for previous message footer + this message header
     size_t current_size = shared_buf.size();
-    shared_buf.reserve(current_size + total_calculated_size);
-    shared_buf.resize(current_size + footer_size + header_padding);
+    shared_buf.reserve_and_resize(current_size + total_calculated_size, current_size + footer_size + header_padding);
   }
 
   // Pre-resize buffer to include payload, then encode through raw pointer

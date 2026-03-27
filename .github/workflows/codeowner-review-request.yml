@@ -13,6 +13,9 @@ on:
   # Needs to be pull_request_target to get write permissions
   pull_request_target:
     types: [opened, reopened, synchronize, ready_for_review]
+    branches-ignore:
+      - release
+      - beta
 
 permissions:
   pull-requests: write

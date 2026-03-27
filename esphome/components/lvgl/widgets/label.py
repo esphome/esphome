@@ -11,8 +11,8 @@ from ..defines import (
 )
 from ..lv_validation import lv_bool, lv_text
 from ..schemas import TEXT_SCHEMA
-from ..types import LvText, WidgetType
-from . import Widget
+from ..types import LvText
+from . import Widget, WidgetType
 
 CONF_LABEL = "label"
 

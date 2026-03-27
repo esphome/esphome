@@ -91,11 +91,10 @@ void DaikinArcClimate::transmit_state() {
   remote_state[5] = this->operation_mode_() | 0x08;
   remote_state[6] = this->temperature_();
   remote_state[7] = this->humidity_();
-  static uint8_t last_humidity = 0x66;
-  if (remote_state[7] != last_humidity && this->mode != climate::CLIMATE_MODE_OFF) {
+  if (remote_state[7] != this->last_humidity_ && this->mode != climate::CLIMATE_MODE_OFF) {
     ESP_LOGD(TAG, "Set Humditiy: %d, %d\n", (int) this->target_humidity, (int) remote_state[7]);
     remote_header[9] |= 0x10;
-    last_humidity = remote_state[7];
+    this->last_humidity_ = remote_state[7];
   }
   uint16_t fan_speed = this->fan_speed_();
   remote_state[8] = fan_speed >> 8;

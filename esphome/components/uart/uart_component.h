@@ -30,11 +30,11 @@ enum UARTDirection {
 const LogString *parity_to_str(UARTParityOptions parity);
 
 /// Result of a flush() call.
-enum class FlushResult {
-  SUCCESS,          ///< Confirmed: all bytes left the TX FIFO.
-  TIMEOUT,          ///< Confirmed: timed out before TX completed.
-  FAILED,           ///< Confirmed: driver or hardware error.
-  ASSUMED_SUCCESS,  ///< Platform cannot report result; success is assumed.
+enum class UARTFlushResult {
+  UART_FLUSH_RESULT_SUCCESS,          ///< Confirmed: all bytes left the TX FIFO.
+  UART_FLUSH_RESULT_TIMEOUT,          ///< Confirmed: timed out before TX completed.
+  UART_FLUSH_RESULT_FAILED,           ///< Confirmed: driver or hardware error.
+  UART_FLUSH_RESULT_ASSUMED_SUCCESS,  ///< Platform cannot report result; success is assumed.
 };
 
 class UARTComponent {
@@ -82,8 +82,8 @@ class UARTComponent {
   virtual size_t available() = 0;
 
   // Pure virtual method to block until all bytes have been written to the UART bus.
-  // @return FlushResult indicating whether the flush was confirmed, timed out, failed, or assumed successful.
-  virtual FlushResult flush() = 0;
+  // @return UARTFlushResult indicating whether the flush was confirmed, timed out, failed, or assumed successful.
+  virtual UARTFlushResult flush() = 0;
 
   // Sets the maximum time to wait for TX to drain during flush().
   // Only meaningful on ESP32 (IDF). Other platforms ignore this value.
@@ -190,9 +190,7 @@ class UARTComponent {
 #endif  // USE_ESP8266 || USE_ESP32
 
 #ifdef USE_UART_DEBUGGER
-  void add_debug_callback(std::function<void(UARTDirection, uint8_t)> &&callback) {
-    this->debug_callback_.add(std::move(callback));
-  }
+  template<typename F> void add_debug_callback(F &&callback) { this->debug_callback_.add(std::forward<F>(callback)); }
 #endif
 
  protected:

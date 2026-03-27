@@ -68,7 +68,7 @@ static constexpr uint8_t ENTITY_FIELD_ENTITY_CATEGORY_SHIFT = 26;
 class EntityBase {
  public:
   // Get the name of this Entity
-  const StringRef &get_name() const;
+  const StringRef &get_name() const { return this->name_; }
 
   // Get whether this Entity has its own name or it should use the device friendly_name.
   bool has_own_name() const { return this->flags_.has_own_name; }
@@ -86,7 +86,7 @@ class EntityBase {
   std::string get_object_id() const;
 
   // Get the unique Object ID of this Entity
-  uint32_t get_object_id_hash();
+  uint32_t get_object_id_hash() const { return this->object_id_hash_; }
 
   /// Get object_id with zero heap allocation
   /// For static case: returns StringRef to internal storage (buffer unused)
@@ -99,6 +99,14 @@ class EntityBase {
 
   // Get whether this Entity should be hidden outside ESPHome
   bool is_internal() const { return this->flags_.internal; }
+
+  // Deprecated: Calling set_internal() at runtime is undefined behavior. Components and clients
+  // are NOT notified of the change, the flag may have already been read during setup, and there
+  // is NO guarantee any consumer will observe the new value. Use the 'internal:' YAML key instead.
+  ESPDEPRECATED("set_internal() is undefined behavior at runtime — components and Home Assistant are NOT "
+                "notified. Use the 'internal:' YAML key instead. Will be removed in 2027.3.0.",
+                "2026.3.0")
+  void set_internal(bool internal) { this->flags_.internal = internal; }
 
   // Check if this object is declared to be disabled by default.
   // That means that when the device gets added to Home Assistant (or other clients) it should
@@ -299,15 +307,11 @@ template<typename T> class StatefulEntityBase : public EntityBase {
   virtual T get_state_default(T default_value) const { return this->state_.value_or(default_value); }
   void invalidate_state() { this->set_new_state({}); }
 
-  void add_full_state_callback(std::function<void(optional<T> previous, optional<T> current)> &&callback) {
-    if (this->full_state_callbacks_ == nullptr)
-      this->full_state_callbacks_ = new CallbackManager<void(optional<T> previous, optional<T> current)>();  // NOLINT
-    this->full_state_callbacks_->add(std::move(callback));
+  template<typename F> void add_full_state_callback(F &&callback) {
+    this->full_state_callbacks_.add(std::forward<F>(callback));
   }
-  void add_on_state_callback(std::function<void(T)> &&callback) {
-    if (this->state_callbacks_ == nullptr)
-      this->state_callbacks_ = new CallbackManager<void(T)>();  // NOLINT
-    this->state_callbacks_->add(std::move(callback));
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callbacks_.add(std::forward<F>(callback));
   }
 
   void set_trigger_on_initial_state(bool trigger_on_initial_state) {
@@ -325,21 +329,19 @@ template<typename T> class StatefulEntityBase : public EntityBase {
   virtual bool set_new_state(const optional<T> &new_state) {
     if (this->state_ != new_state) {
       // call the full state callbacks with the previous and new state
-      if (this->full_state_callbacks_ != nullptr)
-        this->full_state_callbacks_->call(this->state_, new_state);
+      this->full_state_callbacks_.call(this->state_, new_state);
       // trigger legacy callbacks only if the new state is valid and either the trigger on initial state is enabled or
       // the previous state was valid
       auto had_state = this->has_state();
       this->state_ = new_state;
-      if (this->state_callbacks_ != nullptr && new_state.has_value() && (this->trigger_on_initial_state_ || had_state))
-        this->state_callbacks_->call(new_state.value());
+      if (new_state.has_value() && (this->trigger_on_initial_state_ || had_state))
+        this->state_callbacks_.call(new_state.value());
       return true;
     }
     return false;
   }
   bool trigger_on_initial_state_{true};
-  // callbacks with full state and previous state
-  CallbackManager<void(optional<T> previous, optional<T> current)> *full_state_callbacks_{};
-  CallbackManager<void(T)> *state_callbacks_{};
+  LazyCallbackManager<void(optional<T> previous, optional<T> current)> full_state_callbacks_;
+  LazyCallbackManager<void(T)> state_callbacks_;
 };
 }  // namespace esphome

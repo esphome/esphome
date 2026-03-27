@@ -322,7 +322,9 @@ template<typename... Ts> class Automation;
 template<typename... Ts> class Trigger {
  public:
   /// Inform the parent automation that the event has triggered.
-  void trigger(const Ts &...x) {
+  // Force-inline: collapses the Trigger→Automation→ActionList forwarding
+  // chain into a single frame, reducing automation call stack depth.
+  inline void trigger(const Ts &...x) ESPHOME_ALWAYS_INLINE {
     if (this->automation_parent_ == nullptr)
       return;
     this->automation_parent_->trigger(x...);
@@ -429,7 +431,9 @@ template<typename... Ts> class ActionList {
       this->add_action(action);
     }
   }
-  void play(const Ts &...x) {
+  // Force-inline: part of the Trigger→Automation→ActionList forwarding
+  // chain collapsed to reduce automation call stack depth.
+  inline void play(const Ts &...x) ESPHOME_ALWAYS_INLINE {
     if (this->actions_begin_ != nullptr)
       this->actions_begin_->play_complex(x...);
   }
@@ -466,14 +470,18 @@ template<typename... Ts> class ActionList {
 
 template<typename... Ts> class Automation {
  public:
-  explicit Automation(Trigger<Ts...> *trigger) : trigger_(trigger) { this->trigger_->set_automation_parent(this); }
+  /// Default constructor for use with TriggerForwarder (no Trigger object needed).
+  Automation() = default;
+  explicit Automation(Trigger<Ts...> *trigger) { trigger->set_automation_parent(this); }
 
   void add_action(Action<Ts...> *action) { this->actions_.add_action(action); }
   void add_actions(const std::initializer_list<Action<Ts...> *> &actions) { this->actions_.add_actions(actions); }
 
   void stop() { this->actions_.stop(); }
 
-  void trigger(const Ts &...x) { this->actions_.play(x...); }
+  // Force-inline: part of the Trigger→Automation→ActionList forwarding
+  // chain collapsed to reduce automation call stack depth.
+  inline void trigger(const Ts &...x) ESPHOME_ALWAYS_INLINE { this->actions_.play(x...); }
 
   bool is_running() { return this->actions_.is_running(); }
 
@@ -481,8 +489,44 @@ template<typename... Ts> class Automation {
   int num_running() { return this->actions_.num_running(); }
 
  protected:
-  Trigger<Ts...> *trigger_;
   ActionList<Ts...> actions_;
 };
+
+/// Callback forwarder that triggers an Automation directly.
+/// One operator() instantiation per Automation<Ts...> signature, shared across all call sites.
+/// Must stay pointer-sized to fit inline in Callback::ctx_ without heap allocation.
+template<typename... Ts> struct TriggerForwarder {
+  Automation<Ts...> *automation;
+  void operator()(const Ts &...args) const { this->automation->trigger(args...); }
+};
+
+/// Callback forwarder that triggers an Automation<> only when the bool arg is true.
+/// Must stay pointer-sized to fit inline in Callback::ctx_ without heap allocation.
+struct TriggerOnTrueForwarder {
+  Automation<> *automation;
+  void operator()(bool state) const {
+    if (state)
+      this->automation->trigger();
+  }
+};
+
+/// Callback forwarder that triggers an Automation<> only when the bool arg is false.
+/// Must stay pointer-sized to fit inline in Callback::ctx_ without heap allocation.
+struct TriggerOnFalseForwarder {
+  Automation<> *automation;
+  void operator()(bool state) const {
+    if (!state)
+      this->automation->trigger();
+  }
+};
+
+// Ensure forwarders fit in Callback::ctx_ (pointer-sized inline storage).
+// If these fail, the forwarder would heap-allocate in Callback::create().
+static_assert(sizeof(TriggerForwarder<>) <= sizeof(void *));
+static_assert(sizeof(TriggerOnTrueForwarder) <= sizeof(void *));
+static_assert(sizeof(TriggerOnFalseForwarder) <= sizeof(void *));
+static_assert(std::is_trivially_copyable_v<TriggerForwarder<>>);
+static_assert(std::is_trivially_copyable_v<TriggerOnTrueForwarder>);
+static_assert(std::is_trivially_copyable_v<TriggerOnFalseForwarder>);
 
 }  // namespace esphome
