@@ -35,6 +35,7 @@ AlarmControlPanel = alarm_control_panel_ns.class_("AlarmControlPanel", cg.Entity
 
 StateAnyForwarder = alarm_control_panel_ns.class_("StateAnyForwarder")
 StateEnterForwarder = alarm_control_panel_ns.class_("StateEnterForwarder")
+AlarmControlPanelState = alarm_control_panel_ns.enum("AlarmControlPanelState")
 
 ArmAwayAction = alarm_control_panel_ns.class_("ArmAwayAction", automation.Action)
 ArmHomeAction = alarm_control_panel_ns.class_("ArmHomeAction", automation.Action)
@@ -117,13 +118,13 @@ async def setup_alarm_control_panel_core_(var, config):
             var, "add_on_state_callback", [], conf, forwarder=StateAnyForwarder
         )
     _STATE_ENTER_MAP = {
-        CONF_ON_TRIGGERED: "ACP_STATE_TRIGGERED",
-        CONF_ON_ARMING: "ACP_STATE_ARMING",
-        CONF_ON_PENDING: "ACP_STATE_PENDING",
-        CONF_ON_ARMED_HOME: "ACP_STATE_ARMED_HOME",
-        CONF_ON_ARMED_NIGHT: "ACP_STATE_ARMED_NIGHT",
-        CONF_ON_ARMED_AWAY: "ACP_STATE_ARMED_AWAY",
-        CONF_ON_DISARMED: "ACP_STATE_DISARMED",
+        CONF_ON_TRIGGERED: AlarmControlPanelState.ACP_STATE_TRIGGERED,
+        CONF_ON_ARMING: AlarmControlPanelState.ACP_STATE_ARMING,
+        CONF_ON_PENDING: AlarmControlPanelState.ACP_STATE_PENDING,
+        CONF_ON_ARMED_HOME: AlarmControlPanelState.ACP_STATE_ARMED_HOME,
+        CONF_ON_ARMED_NIGHT: AlarmControlPanelState.ACP_STATE_ARMED_NIGHT,
+        CONF_ON_ARMED_AWAY: AlarmControlPanelState.ACP_STATE_ARMED_AWAY,
+        CONF_ON_DISARMED: AlarmControlPanelState.ACP_STATE_DISARMED,
     }
     for conf_key, state_enum in _STATE_ENTER_MAP.items():
         for conf in config.get(conf_key, []):
@@ -132,7 +133,7 @@ async def setup_alarm_control_panel_core_(var, config):
                 "add_on_state_callback",
                 [],
                 conf,
-                forwarder=StateEnterForwarder.template(cg.RawExpression(state_enum)),
+                forwarder=StateEnterForwarder.template(state_enum),
             )
     for conf in config.get(CONF_ON_CLEARED, []):
         await automation.build_callback_automation(
