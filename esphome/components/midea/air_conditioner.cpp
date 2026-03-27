@@ -24,6 +24,12 @@ template<typename T> void update_property(T &property, const T &value, bool &fla
 }
 
 void AirConditioner::on_status_change() {
+  // Set frost protection custom preset once when autoconf completes
+  if (this->base_.getAutoconfStatus() == dudanov::midea::AUTOCONF_OK &&
+      this->base_.getCapabilities().supportFrostProtectionPreset() && !this->frost_protection_set_) {
+    this->set_supported_custom_presets({Constants::FREEZE_PROTECTION});
+    this->frost_protection_set_ = true;
+  }
   bool need_publish = false;
   update_property(this->target_temperature, this->base_.getTargetTemp(), need_publish);
   update_property(this->current_temperature, this->base_.getIndoorTemp(), need_publish);
@@ -99,8 +105,6 @@ ClimateTraits AirConditioner::traits() {
   traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_HIGH);
   if (this->base_.getAutoconfStatus() == dudanov::midea::AUTOCONF_OK) {
     Converters::to_climate_traits(traits, this->base_.getCapabilities());
-    if (this->base_.getCapabilities().supportFrostProtectionPreset())
-      this->set_supported_custom_presets({Constants::FREEZE_PROTECTION});
   }
   if (!traits.get_supported_modes().empty())
     traits.add_supported_mode(ClimateMode::CLIMATE_MODE_OFF);

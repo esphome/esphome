@@ -44,10 +44,10 @@ class LegacyClimate : public climate::Climate, public Component {
     if (call.get_target_temperature().has_value()) {
       this->target_temperature = *call.get_target_temperature();
     }
-    if (call.get_custom_fan_mode() != nullptr) {
+    if (call.has_custom_fan_mode()) {
       this->set_custom_fan_mode_(call.get_custom_fan_mode());
     }
-    if (call.get_custom_preset() != nullptr) {
+    if (call.has_custom_preset()) {
       this->set_custom_preset_(call.get_custom_preset());
     }
     this->publish_state();

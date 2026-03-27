@@ -55,6 +55,7 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner>,
   ClimateModeMask supported_modes_{};
   ClimateSwingModeMask supported_swing_modes_{};
   ClimatePresetMask supported_presets_{};
+  bool frost_protection_set_{false};
   Sensor *outdoor_sensor_{nullptr};
   Sensor *humidity_sensor_{nullptr};
   Sensor *power_sensor_{nullptr};

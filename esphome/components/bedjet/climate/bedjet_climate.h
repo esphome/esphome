@@ -48,16 +48,8 @@ class BedJetClimate : public climate::Climate, public BedJetClient, public Polli
         // Climate doesn't have a "TURBO" mode, but we can use the BOOST preset instead.
         climate::CLIMATE_PRESET_BOOST,
     });
-    // Custom fan modes and presets are stored on Climate base class and wired via get_traits()
-    // It would be better if we had a slider for the fan modes.
-    this->set_supported_custom_fan_modes(BEDJET_FAN_STEP_NAMES);
-    // String literals are stored in rodata and valid for program lifetime
-    this->set_supported_custom_presets({
-        this->heating_mode_ == HEAT_MODE_EXTENDED ? "LTD HT" : "EXT HT",
-        "M1",
-        "M2",
-        "M3",
-    });
+    // Custom fan modes and presets are set once in setup(), stored on Climate base class,
+    // and wired automatically via get_traits()
     traits.set_visual_min_temperature(19.0);
     traits.set_visual_max_temperature(43.0);
     traits.set_visual_temperature_step(1.0);
