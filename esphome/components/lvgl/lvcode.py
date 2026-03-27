@@ -253,14 +253,10 @@ class MockLv:
     A mock object that can be used to generate LVGL calls.
     """
 
-    # Mapping for LVGL 9
-    ATTR_MAP = {"event_send": "obj_send_event", "dither": "bg_dither_mode"}
-
     def __init__(self, base):
         self.base = base
 
     def __getattr__(self, attr: str) -> "MockLv":
-        attr = MockLv.ATTR_MAP.get(attr, attr)
         return MockLv(f"{self.base}{attr}")
 
     def append(self, expression):
@@ -314,7 +310,6 @@ class ReturnStatement(ExpressionStatement):
 
 class LvExpr(MockLv):
     def __getattr__(self, attr: str) -> "MockLv":
-        attr = MockLv.ATTR_MAP.get(attr, attr)
         return LvExpr(f"{self.base}{attr}")
 
     def append(self, expression):
