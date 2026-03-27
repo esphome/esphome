@@ -105,6 +105,7 @@ class AutorepeatFilterBase : public Filter, public Component {
 };
 
 /// Template wrapper that provides inline std::array storage for timings.
+/// N is set by code generation to match the exact number of timings configured in YAML.
 template<size_t N> class AutorepeatFilter : public AutorepeatFilterBase {
  public:
   explicit AutorepeatFilter(std::initializer_list<AutorepeatFilterTiming> timings) {
@@ -115,7 +116,7 @@ template<size_t N> class AutorepeatFilter : public AutorepeatFilterBase {
       this->timings_storage_[i++] = t;
     }
     this->timings_ = this->timings_storage_.data();
-    this->timings_count_ = i;
+    this->timings_count_ = N;
   }
 
  protected:

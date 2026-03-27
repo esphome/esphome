@@ -124,6 +124,7 @@ class MultiClickTriggerBase : public Trigger<>, public Component {
 };
 
 /// Template wrapper that provides inline std::array storage for timing events.
+/// N is set by code generation to match the exact number of timing events configured in YAML.
 template<size_t N> class MultiClickTrigger : public MultiClickTriggerBase {
  public:
   MultiClickTrigger(BinarySensor *parent, std::initializer_list<MultiClickTriggerEvent> timing)
@@ -135,7 +136,7 @@ template<size_t N> class MultiClickTrigger : public MultiClickTriggerBase {
       this->timing_storage_[i++] = t;
     }
     this->timing_ = this->timing_storage_.data();
-    this->timing_count_ = i;
+    this->timing_count_ = N;
   }
 
  protected:
