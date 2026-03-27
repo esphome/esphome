@@ -3,6 +3,7 @@
 #include "esphome/core/defines.h"
 #ifdef USE_SENSOR_FILTER
 
+#include <array>
 #include <utility>
 #include <vector>
 #include "esphome/core/automation.h"
@@ -328,28 +329,49 @@ class MultiplyFilter : public Filter {
   TemplatableValue<float> multiplier_;
 };
 
-/** Base class for filters that compare sensor values against a list of configured values.
+/// Non-template helper for value matching (implementation in filter.cpp)
+bool value_list_matches_any_(Sensor *parent, float sensor_value, TemplatableValue<float> *values, size_t count);
+
+/// Non-template helper to get cached loop start time (avoids circular include of application.h)
+uint32_t get_loop_component_start_time_();
+
+/** Base class for filters that compare sensor values against a fixed list of configured values.
  *
- * This base class provides common functionality for filters that need to check if a sensor
- * value matches any value in a configured list, with proper handling of NaN values and
- * accuracy-based rounding for comparisons.
+ * Templated on N (the number of values) so the list is stored inline in a std::array,
+ * avoiding heap allocation and the overhead of FixedVector (saves 4 bytes per instance).
+ *
+ * @tparam N Number of values in the filter list (known at code-generation time).
  */
-class ValueListFilter : public Filter {
+template<size_t N> class ValueListFilter : public Filter {
  protected:
-  explicit ValueListFilter(std::initializer_list<TemplatableValue<float>> values);
+  explicit ValueListFilter(std::initializer_list<TemplatableValue<float>> values) {
+    size_t i = 0;
+    for (const auto &v : values) {
+      if (i >= N)
+        break;
+      this->values_[i++] = v;
+    }
+  }
 
   /// Check if sensor value matches any configured value (with accuracy rounding)
-  bool value_matches_any_(float sensor_value);
+  bool value_matches_any_(float sensor_value) {
+    return value_list_matches_any_(this->parent_, sensor_value, this->values_.data(), N);
+  }
 
-  FixedVector<TemplatableValue<float>> values_;
+  std::array<TemplatableValue<float>, N> values_{};
 };
 
 /// A simple filter that only forwards the filter chain if it doesn't receive `value_to_filter_out`.
-class FilterOutValueFilter : public ValueListFilter {
+template<size_t N> class FilterOutValueFilter : public ValueListFilter<N> {
  public:
-  explicit FilterOutValueFilter(std::initializer_list<TemplatableValue<float>> values_to_filter_out);
+  explicit FilterOutValueFilter(std::initializer_list<TemplatableValue<float>> values_to_filter_out)
+      : ValueListFilter<N>(values_to_filter_out) {}
 
-  optional<float> new_value(float value) override;
+  optional<float> new_value(float value) override {
+    if (this->value_matches_any_(value))
+      return {};   // Filter out
+    return value;  // Pass through
+  }
 };
 
 class ThrottleFilter : public Filter {
@@ -364,12 +386,21 @@ class ThrottleFilter : public Filter {
 };
 
 /// Same as 'throttle' but will immediately publish values contained in `value_to_prioritize`.
-class ThrottleWithPriorityFilter : public ValueListFilter {
+template<size_t N> class ThrottleWithPriorityFilter : public ValueListFilter<N> {
  public:
   explicit ThrottleWithPriorityFilter(uint32_t min_time_between_inputs,
-                                      std::initializer_list<TemplatableValue<float>> prioritized_values);
+                                      std::initializer_list<TemplatableValue<float>> prioritized_values)
+      : ValueListFilter<N>(prioritized_values), min_time_between_inputs_(min_time_between_inputs) {}
 
-  optional<float> new_value(float value) override;
+  optional<float> new_value(float value) override {
+    const uint32_t now = get_loop_component_start_time_();
+    if (this->last_input_ == 0 || now - this->last_input_ >= this->min_time_between_inputs_ ||
+        this->value_matches_any_(value)) {
+      this->last_input_ = now;
+      return value;
+    }
+    return {};
+  }
 
  protected:
   uint32_t last_input_{0};
@@ -466,45 +497,97 @@ class DeltaFilter : public Filter {
   float last_value_{NAN};
 };
 
-class OrFilter : public Filter {
+template<size_t N> class OrFilter : public Filter {
  public:
-  explicit OrFilter(std::initializer_list<Filter *> filters);
+  explicit OrFilter(std::initializer_list<Filter *> filters) {
+    size_t i = 0;
+    for (auto *f : filters) {
+      if (i >= N)
+        break;
+      this->filters_[i++] = f;
+    }
+  }
 
-  void initialize(Sensor *parent, Filter *next) override;
+  void initialize(Sensor *parent, Filter *next) override {
+    Filter::initialize(parent, next);
+    for (auto *filter : this->filters_) {
+      filter->initialize(parent, &this->phi_);
+    }
+    this->phi_.initialize(parent, nullptr);
+  }
 
-  optional<float> new_value(float value) override;
+  optional<float> new_value(float value) override {
+    this->has_value_ = false;
+    for (auto *filter : this->filters_)
+      filter->input(value);
+    return {};
+  }
 
  protected:
   class PhiNode : public Filter {
    public:
-    PhiNode(OrFilter *or_parent);
-    optional<float> new_value(float value) override;
+    PhiNode(OrFilter *or_parent) : or_parent_(or_parent) {}
+    optional<float> new_value(float value) override {
+      if (!this->or_parent_->has_value_) {
+        this->or_parent_->output(value);
+        this->or_parent_->has_value_ = true;
+      }
+      return {};
+    }
 
    protected:
     OrFilter *or_parent_;
   };
 
-  FixedVector<Filter *> filters_;
-  PhiNode phi_;
+  std::array<Filter *, N> filters_{};
+  PhiNode phi_{this};
   bool has_value_{false};
 };
 
-class CalibrateLinearFilter : public Filter {
+template<size_t N> class CalibrateLinearFilter : public Filter {
  public:
-  explicit CalibrateLinearFilter(std::initializer_list<std::array<float, 3>> linear_functions);
-  optional<float> new_value(float value) override;
+  explicit CalibrateLinearFilter(std::initializer_list<std::array<float, 3>> linear_functions) {
+    size_t i = 0;
+    for (const auto &f : linear_functions) {
+      if (i >= N)
+        break;
+      this->linear_functions_[i++] = f;
+    }
+  }
+  optional<float> new_value(float value) override {
+    for (const auto &f : this->linear_functions_) {
+      if (!std::isfinite(f[2]) || value < f[2])
+        return (value * f[0]) + f[1];
+    }
+    return NAN;
+  }
 
  protected:
-  FixedVector<std::array<float, 3>> linear_functions_;
+  std::array<std::array<float, 3>, N> linear_functions_{};
 };
 
-class CalibratePolynomialFilter : public Filter {
+template<size_t N> class CalibratePolynomialFilter : public Filter {
  public:
-  explicit CalibratePolynomialFilter(std::initializer_list<float> coefficients);
-  optional<float> new_value(float value) override;
+  explicit CalibratePolynomialFilter(std::initializer_list<float> coefficients) {
+    size_t i = 0;
+    for (float c : coefficients) {
+      if (i >= N)
+        break;
+      this->coefficients_[i++] = c;
+    }
+  }
+  optional<float> new_value(float value) override {
+    float res = 0.0f;
+    float x = 1.0f;
+    for (const auto &coefficient : this->coefficients_) {
+      res += x * coefficient;
+      x *= value;
+    }
+    return res;
+  }
 
  protected:
-  FixedVector<float> coefficients_;
+  std::array<float, N> coefficients_{};
 };
 
 class ClampFilter : public Filter {
