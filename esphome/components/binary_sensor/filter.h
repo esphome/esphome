@@ -87,56 +87,37 @@ struct AutorepeatFilterTiming {
   uint32_t time_on;
 };
 
-template<size_t N> class AutorepeatFilter : public Filter, public Component {
-  static constexpr uint32_t TIMING_ID = 0;
-  static constexpr uint32_t ON_OFF_ID = 1;
+/// Non-template base for AutorepeatFilter (keeps method bodies out of the header).
+class AutorepeatFilterBase : public Filter, public Component {
+ public:
+  optional<bool> new_value(bool value) override;
+  float get_setup_priority() const override;
 
+ protected:
+  void next_timing_();
+  void next_value_(bool val);
+
+  const AutorepeatFilterTiming *timings_{nullptr};
+  size_t timings_count_{0};
+  uint8_t active_timing_{0};
+};
+
+/// Template wrapper that provides inline std::array storage for timings.
+template<size_t N> class AutorepeatFilter : public AutorepeatFilterBase {
  public:
   explicit AutorepeatFilter(std::initializer_list<AutorepeatFilterTiming> timings) {
     size_t i = 0;
     for (const auto &t : timings) {
       if (i >= N)
         break;
-      this->timings_[i++] = t;
+      this->timings_storage_[i++] = t;
     }
+    this->timings_ = this->timings_storage_.data();
+    this->timings_count_ = N;
   }
-
-  optional<bool> new_value(bool value) override {
-    if (value) {
-      if (this->active_timing_ != 0)
-        return {};
-      this->next_timing_();
-      return true;
-    } else {
-      this->cancel_timeout(TIMING_ID);
-      this->cancel_timeout(ON_OFF_ID);
-      this->active_timing_ = 0;
-      return false;
-    }
-  }
-
-  float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
  protected:
-  void next_timing_() {
-    if (this->active_timing_ < N) {
-      this->set_timeout(TIMING_ID, this->timings_[this->active_timing_].delay, [this]() { this->next_timing_(); });
-    }
-    if (this->active_timing_ <= N) {
-      this->active_timing_++;
-    }
-    if (this->active_timing_ == 2)
-      this->next_value_(false);
-  }
-
-  void next_value_(bool val) {
-    const AutorepeatFilterTiming &timing = this->timings_[this->active_timing_ - 2];
-    this->output(val);
-    this->set_timeout(ON_OFF_ID, val ? timing.time_on : timing.time_off, [this, val]() { this->next_value_(!val); });
-  }
-
-  std::array<AutorepeatFilterTiming, N> timings_{};
-  uint8_t active_timing_{0};
+  std::array<AutorepeatFilterTiming, N> timings_storage_{};
 };
 
 class LambdaFilter : public Filter {

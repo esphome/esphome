@@ -94,8 +94,7 @@ class DoubleClickTrigger : public Trigger<> {
 /// Non-template base for MultiClickTrigger (keeps large method bodies out of the header).
 class MultiClickTriggerBase : public Trigger<>, public Component {
  public:
-  MultiClickTriggerBase(BinarySensor *parent, std::span<MultiClickTriggerEvent> timing)
-      : parent_(parent), timing_(timing) {}
+  explicit MultiClickTriggerBase(BinarySensor *parent) : parent_(parent) {}
 
   void setup() override {
     this->last_state_ = this->parent_->get_state_default(false);
@@ -116,7 +115,7 @@ class MultiClickTriggerBase : public Trigger<>, public Component {
   void trigger_();
 
   BinarySensor *parent_;
-  std::span<MultiClickTriggerEvent> timing_;
+  std::span<const MultiClickTriggerEvent> timing_;
   uint32_t invalid_cooldown_{1000};
   optional<size_t> at_index_{};
   bool last_state_{false};
@@ -128,13 +127,15 @@ class MultiClickTriggerBase : public Trigger<>, public Component {
 template<size_t N> class MultiClickTrigger : public MultiClickTriggerBase {
  public:
   MultiClickTrigger(BinarySensor *parent, std::initializer_list<MultiClickTriggerEvent> timing)
-      : MultiClickTriggerBase(parent, timing_storage_) {
+      : MultiClickTriggerBase(parent) {
     size_t i = 0;
     for (const auto &t : timing) {
       if (i >= N)
         break;
       this->timing_storage_[i++] = t;
     }
+    // Set span after storage is populated (avoids UB from referencing unconstructed member in base init)
+    this->timing_ = this->timing_storage_;
   }
 
  protected:

@@ -73,6 +73,45 @@ float DelayedOffFilter::get_setup_priority() const { return setup_priority::HARD
 
 optional<bool> InvertFilter::new_value(bool value) { return !value; }
 
+// AutorepeatFilterBase
+constexpr uint32_t AUTOREPEAT_TIMING_ID = 0;
+constexpr uint32_t AUTOREPEAT_ON_OFF_ID = 1;
+
+optional<bool> AutorepeatFilterBase::new_value(bool value) {
+  if (value) {
+    if (this->active_timing_ != 0)
+      return {};
+    this->next_timing_();
+    return true;
+  } else {
+    this->cancel_timeout(AUTOREPEAT_TIMING_ID);
+    this->cancel_timeout(AUTOREPEAT_ON_OFF_ID);
+    this->active_timing_ = 0;
+    return false;
+  }
+}
+
+void AutorepeatFilterBase::next_timing_() {
+  if (this->active_timing_ < this->timings_count_) {
+    this->set_timeout(AUTOREPEAT_TIMING_ID, this->timings_[this->active_timing_].delay,
+                      [this]() { this->next_timing_(); });
+  }
+  if (this->active_timing_ <= this->timings_count_) {
+    this->active_timing_++;
+  }
+  if (this->active_timing_ == 2)
+    this->next_value_(false);
+}
+
+void AutorepeatFilterBase::next_value_(bool val) {
+  const AutorepeatFilterTiming &timing = this->timings_[this->active_timing_ - 2];
+  this->output(val);
+  this->set_timeout(AUTOREPEAT_ON_OFF_ID, val ? timing.time_on : timing.time_off,
+                    [this, val]() { this->next_value_(!val); });
+}
+
+float AutorepeatFilterBase::get_setup_priority() const { return setup_priority::HARDWARE; }
+
 LambdaFilter::LambdaFilter(std::function<optional<bool>(bool)> f) : f_(std::move(f)) {}
 
 optional<bool> LambdaFilter::new_value(bool value) { return this->f_(value); }
