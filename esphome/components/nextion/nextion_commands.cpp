@@ -185,7 +185,7 @@ void Nextion::set_backlight_brightness(float brightness) {
 
 void Nextion::set_auto_wake_on_touch(bool auto_wake_on_touch) {
   this->connection_state_.auto_wake_on_touch_ = auto_wake_on_touch;
-  this->add_no_result_to_queue_with_set_(__func__, "thup", auto_wake_on_touch ? 1 : 0);
+  this->add_no_result_to_queue_with_set(__func__, "thup", auto_wake_on_touch ? 1 : 0);
 }
 
 // General Component
