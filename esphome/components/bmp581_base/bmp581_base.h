@@ -87,6 +87,9 @@ class BMP581Component : public PollingComponent {
   virtual bool bmp_read_bytes(uint8_t a_register, uint8_t *data, size_t len) = 0;
   virtual bool bmp_write_bytes(uint8_t a_register, uint8_t *data, size_t len) = 0;
 
+  // Interface activation function. Only used for SPI interface; no-op for I2C.
+  virtual void activate_interface() {}
+
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *pressure_sensor_{nullptr};
 

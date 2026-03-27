@@ -350,7 +350,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       // For V3_WITHOUT_CACHE, we already set fast params before connecting
       // No need to update them again here
       this->log_event_("Searching for services");
-      esp_ble_gattc_search_service(esp_gattc_if, param->cfg_mtu.conn_id, nullptr);
+      esp_ble_gattc_search_service(esp_gattc_if, param->open.conn_id, nullptr);
       break;
     }
     case ESP_GATTC_CONNECT_EVT: {
