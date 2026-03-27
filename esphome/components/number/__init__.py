@@ -155,9 +155,6 @@ Number = number_ns.class_("Number", cg.EntityBase)
 NumberPtr = Number.operator("ptr")
 
 # Triggers
-NumberStateTrigger = number_ns.class_(
-    "NumberStateTrigger", automation.Trigger.template(cg.float_)
-)
 ValueRangeTrigger = number_ns.class_(
     "ValueRangeTrigger", automation.Trigger.template(cg.float_), cg.Component
 )
@@ -198,11 +195,7 @@ _NUMBER_SCHEMA = (
     .extend(
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTNumberComponent),
-            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(NumberStateTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation({}),
             cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
@@ -248,8 +241,9 @@ def number_schema(
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _build_number_automations(var, config):
     for conf in config.get(CONF_ON_VALUE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(float, "x")], conf)
+        await automation.build_callback_automation(
+            var, "add_on_state_callback", [(float, "x")], conf
+        )
     for conf in config.get(CONF_ON_VALUE_RANGE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await cg.register_component(trigger, conf)

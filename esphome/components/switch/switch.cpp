@@ -61,7 +61,7 @@ void Switch::publish_state(bool state) {
   if (restore_mode & RESTORE_MODE_PERSISTENT_MASK)
     this->rtc_.save(&this->state);
 
-  ESP_LOGD(TAG, "'%s' >> %s", this->name_.c_str(), ONOFF(this->state));
+  ESP_LOGV(TAG, "'%s' >> %s", this->name_.c_str(), ONOFF(this->state));
   this->state_callback_.call(this->state);
 #if defined(USE_SWITCH) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_switch_update(this);
