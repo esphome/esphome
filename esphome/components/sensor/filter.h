@@ -3,6 +3,7 @@
 #include "esphome/core/defines.h"
 #ifdef USE_SENSOR_FILTER
 
+#include <array>
 #include <utility>
 #include <vector>
 #include "esphome/core/automation.h"
@@ -328,28 +329,50 @@ class MultiplyFilter : public Filter {
   TemplatableValue<float> multiplier_;
 };
 
-/** Base class for filters that compare sensor values against a list of configured values.
+/// Non-template helper for value matching (implementation in filter.cpp)
+bool value_list_matches_any(Sensor *parent, float sensor_value, const TemplatableValue<float> *values, size_t count);
+
+/// Non-template helper to get cached loop start time (avoids circular include of application.h)
+uint32_t get_loop_component_start_time();
+
+/** Base class for filters that compare sensor values against a fixed list of configured values.
  *
- * This base class provides common functionality for filters that need to check if a sensor
- * value matches any value in a configured list, with proper handling of NaN values and
- * accuracy-based rounding for comparisons.
+ * Templated on N (the number of values) so the list is stored inline in a std::array,
+ * avoiding heap allocation and the overhead of FixedVector.
+ *
+ * @tparam N Number of values in the filter list, set by code generation to match
+ *           the exact number of values configured in YAML.
  */
-class ValueListFilter : public Filter {
+template<size_t N> class ValueListFilter : public Filter {
  protected:
-  explicit ValueListFilter(std::initializer_list<TemplatableValue<float>> values);
+  explicit ValueListFilter(std::initializer_list<TemplatableValue<float>> values) {
+    size_t i = 0;
+    for (const auto &v : values) {
+      if (i >= N)
+        break;
+      this->values_[i++] = v;
+    }
+  }
 
   /// Check if sensor value matches any configured value (with accuracy rounding)
-  bool value_matches_any_(float sensor_value);
+  bool value_matches_any_(float sensor_value) {
+    return value_list_matches_any(this->parent_, sensor_value, this->values_.data(), N);
+  }
 
-  FixedVector<TemplatableValue<float>> values_;
+  std::array<TemplatableValue<float>, N> values_{};
 };
 
 /// A simple filter that only forwards the filter chain if it doesn't receive `value_to_filter_out`.
-class FilterOutValueFilter : public ValueListFilter {
+template<size_t N> class FilterOutValueFilter : public ValueListFilter<N> {
  public:
-  explicit FilterOutValueFilter(std::initializer_list<TemplatableValue<float>> values_to_filter_out);
+  explicit FilterOutValueFilter(std::initializer_list<TemplatableValue<float>> values_to_filter_out)
+      : ValueListFilter<N>(values_to_filter_out) {}
 
-  optional<float> new_value(float value) override;
+  optional<float> new_value(float value) override {
+    if (this->value_matches_any_(value))
+      return {};   // Filter out
+    return value;  // Pass through
+  }
 };
 
 class ThrottleFilter : public Filter {
@@ -364,12 +387,21 @@ class ThrottleFilter : public Filter {
 };
 
 /// Same as 'throttle' but will immediately publish values contained in `value_to_prioritize`.
-class ThrottleWithPriorityFilter : public ValueListFilter {
+template<size_t N> class ThrottleWithPriorityFilter : public ValueListFilter<N> {
  public:
   explicit ThrottleWithPriorityFilter(uint32_t min_time_between_inputs,
-                                      std::initializer_list<TemplatableValue<float>> prioritized_values);
+                                      std::initializer_list<TemplatableValue<float>> prioritized_values)
+      : ValueListFilter<N>(prioritized_values), min_time_between_inputs_(min_time_between_inputs) {}
 
-  optional<float> new_value(float value) override;
+  optional<float> new_value(float value) override {
+    const uint32_t now = get_loop_component_start_time();
+    if (this->last_input_ == 0 || now - this->last_input_ >= this->min_time_between_inputs_ ||
+        this->value_matches_any_(value)) {
+      this->last_input_ = now;
+      return value;
+    }
+    return {};
+  }
 
  protected:
   uint32_t last_input_{0};
