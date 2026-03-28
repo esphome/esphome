@@ -94,11 +94,11 @@ class AutorepeatFilterBase : public Filter, public Component {
  public:
   optional<bool> new_value(bool value) override;
   float get_setup_priority() const override;
+  AutorepeatFilterBase(const AutorepeatFilterBase &) = delete;
+  AutorepeatFilterBase &operator=(const AutorepeatFilterBase &) = delete;
 
  protected:
   AutorepeatFilterBase() = default;
-  AutorepeatFilterBase(const AutorepeatFilterBase &) = delete;
-  AutorepeatFilterBase &operator=(const AutorepeatFilterBase &) = delete;
   void next_timing_();
   void next_value_(bool val);
 
