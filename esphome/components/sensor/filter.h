@@ -474,13 +474,7 @@ optional<float> or_filter_new_value(Filter **filters, size_t count, float value,
 /// N is set by code generation to match the exact number of filters configured in YAML.
 template<size_t N> class OrFilter : public Filter {
  public:
-  explicit OrFilter(std::initializer_list<Filter *> filters) {
-    ESPHOME_DEBUG_ASSERT(filters.size() == N);
-    size_t i = 0;
-    for (auto *f : filters) {
-      this->filters_[i++] = f;
-    }
-  }
+  explicit OrFilter(std::initializer_list<Filter *> filters) { init_array_from(this->filters_, filters); }
 
   void initialize(Sensor *parent, Filter *next) override {
     Filter::initialize(parent, next);
