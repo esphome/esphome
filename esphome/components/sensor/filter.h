@@ -508,10 +508,9 @@ template<size_t N> class CalibratePolynomialFilter : public Filter {
   explicit CalibratePolynomialFilter(std::initializer_list<float> coefficients) {
     size_t i = 0;
     for (float c : coefficients) {
-      if (i >= N)
-        break;
       this->coefficients_[i++] = c;
     }
+    ESPHOME_DEBUG_ASSERT(i == N);
   }
   optional<float> new_value(float value) override {
     return calibrate_polynomial_compute(this->coefficients_.data(), N, value);
