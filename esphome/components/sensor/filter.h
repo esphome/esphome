@@ -556,12 +556,7 @@ optional<float> calibrate_polynomial_compute(const float *coefficients, size_t c
 template<size_t N> class CalibratePolynomialFilter : public Filter {
  public:
   explicit CalibratePolynomialFilter(std::initializer_list<float> coefficients) {
-    size_t i = 0;
-    for (float c : coefficients) {
-      if (i >= N)
-        break;
-      this->coefficients_[i++] = c;
-    }
+    init_array_from(this->coefficients_, coefficients);
   }
   optional<float> new_value(float value) override {
     return calibrate_polynomial_compute(this->coefficients_.data(), N, value);
