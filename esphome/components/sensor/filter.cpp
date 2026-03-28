@@ -222,8 +222,6 @@ MultiplyFilter::MultiplyFilter(TemplatableValue<float> multiplier) : multiplier_
 
 optional<float> MultiplyFilter::new_value(float value) { return value * this->multiplier_.value(); }
 
-uint32_t get_loop_component_start_time() { return App.get_loop_component_start_time(); }
-
 // ValueListFilter helper (non-template, shared by all ValueListFilter<N> instantiations)
 bool value_list_matches_any(Sensor *parent, float sensor_value, const TemplatableValue<float> *values, size_t count) {
   int8_t accuracy = parent->get_accuracy_decimals();

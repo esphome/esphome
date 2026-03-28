@@ -332,8 +332,14 @@ class MultiplyFilter : public Filter {
 /// Non-template helper for value matching (implementation in filter.cpp)
 bool value_list_matches_any(Sensor *parent, float sensor_value, const TemplatableValue<float> *values, size_t count);
 
-/// Non-template helper to get cached loop start time (avoids circular include of application.h)
-uint32_t get_loop_component_start_time();
+}  // namespace esphome::sensor
+// Forward declaration — avoids circular include of application.h.
+// Template bodies are only instantiated in main.cpp where Application is fully defined.
+namespace esphome {
+class Application;
+extern Application App;
+}  // namespace esphome
+namespace esphome::sensor {
 
 /** Base class for filters that compare sensor values against a fixed list of configured values.
  *
@@ -389,7 +395,7 @@ template<size_t N> class ThrottleWithPriorityFilter : public ValueListFilter<N> 
       : ValueListFilter<N>(prioritized_values), min_time_between_inputs_(min_time_between_inputs) {}
 
   optional<float> new_value(float value) override {
-    const uint32_t now = get_loop_component_start_time();
+    const uint32_t now = App.get_loop_component_start_time();
     if (this->last_input_ == 0 || now - this->last_input_ >= this->min_time_between_inputs_ ||
         this->value_matches_any_(value)) {
       this->last_input_ = now;
