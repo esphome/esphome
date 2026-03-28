@@ -50,7 +50,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CH2_ACTIVE, False): cv.boolean,
             cv.Optional(CONF_SUMMER_MODE_ACTIVE, False): cv.boolean,
             cv.Optional(CONF_DHW_BLOCK, False): cv.boolean,
-            cv.Optional(CONF_COMMUNICATION_DELAY, default="100ms"): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_COMMUNICATION_DELAY, default="100ms"
+            ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_SYNC_MODE, False): cv.boolean,
             cv.Optional(CONF_BEFORE_SEND): automation.validate_automation(
                 {

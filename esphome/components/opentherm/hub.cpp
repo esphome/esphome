@@ -319,7 +319,8 @@ void OpenthermHub::check_timings_(uint32_t cur_time) {
 
 bool OpenthermHub::should_skip_loop_(uint32_t cur_time) const {
   if (this->last_conversation_end_ > 0 && (cur_time - this->last_conversation_end_) < this->communication_delay_) {
-    ESP_LOGV(TAG, "Less than %d ms elapsed since last convo, skipping this iteration", (int) this->communication_delay_);
+    ESP_LOGV(TAG, "Less than %d ms elapsed since last convo, skipping this iteration",
+             (int) this->communication_delay_);
     return true;
   }
 
