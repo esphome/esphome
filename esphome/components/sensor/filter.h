@@ -499,45 +499,77 @@ class DeltaFilter : public Filter {
   float last_value_{NAN};
 };
 
-class OrFilter : public Filter {
+/// Non-template helpers for OrFilter (implementation in filter.cpp)
+void or_filter_initialize(Filter **filters, size_t count, Sensor *parent, Filter *phi);
+optional<float> or_filter_new_value(Filter **filters, size_t count, float value, bool &has_value);
+
+/// N is set by code generation to match the exact number of filters configured in YAML.
+template<size_t N> class OrFilter : public Filter {
  public:
-  explicit OrFilter(std::initializer_list<Filter *> filters);
+  explicit OrFilter(std::initializer_list<Filter *> filters) { init_array_from(this->filters_, filters); }
 
-  void initialize(Sensor *parent, Filter *next) override;
+  void initialize(Sensor *parent, Filter *next) override {
+    Filter::initialize(parent, next);
+    or_filter_initialize(this->filters_.data(), N, parent, &this->phi_);
+  }
 
-  optional<float> new_value(float value) override;
+  optional<float> new_value(float value) override {
+    return or_filter_new_value(this->filters_.data(), N, value, this->has_value_);
+  }
 
  protected:
   class PhiNode : public Filter {
    public:
-    PhiNode(OrFilter *or_parent);
-    optional<float> new_value(float value) override;
+    PhiNode(OrFilter *or_parent) : or_parent_(or_parent) {}
+    optional<float> new_value(float value) override {
+      if (!this->or_parent_->has_value_) {
+        this->or_parent_->output(value);
+        this->or_parent_->has_value_ = true;
+      }
+      return {};
+    }
 
    protected:
     OrFilter *or_parent_;
   };
 
-  FixedVector<Filter *> filters_;
-  PhiNode phi_;
+  std::array<Filter *, N> filters_{};
+  PhiNode phi_{this};
   bool has_value_{false};
 };
 
-class CalibrateLinearFilter : public Filter {
+/// Non-template helper for linear calibration (implementation in filter.cpp)
+optional<float> calibrate_linear_compute(const std::array<float, 3> *functions, size_t count, float value);
+
+/// N is set by code generation to match the exact number of calibration segments.
+template<size_t N> class CalibrateLinearFilter : public Filter {
  public:
-  explicit CalibrateLinearFilter(std::initializer_list<std::array<float, 3>> linear_functions);
-  optional<float> new_value(float value) override;
+  explicit CalibrateLinearFilter(std::initializer_list<std::array<float, 3>> linear_functions) {
+    init_array_from(this->linear_functions_, linear_functions);
+  }
+  optional<float> new_value(float value) override {
+    return calibrate_linear_compute(this->linear_functions_.data(), N, value);
+  }
 
  protected:
-  FixedVector<std::array<float, 3>> linear_functions_;
+  std::array<std::array<float, 3>, N> linear_functions_{};
 };
 
-class CalibratePolynomialFilter : public Filter {
+/// Non-template helper for polynomial calibration (implementation in filter.cpp)
+optional<float> calibrate_polynomial_compute(const float *coefficients, size_t count, float value);
+
+/// N is set by code generation to match the exact number of polynomial coefficients.
+template<size_t N> class CalibratePolynomialFilter : public Filter {
  public:
-  explicit CalibratePolynomialFilter(std::initializer_list<float> coefficients);
-  optional<float> new_value(float value) override;
+  explicit CalibratePolynomialFilter(std::initializer_list<float> coefficients) {
+    init_array_from(this->coefficients_, coefficients);
+  }
+  optional<float> new_value(float value) override {
+    return calibrate_polynomial_compute(this->coefficients_.data(), N, value);
+  }
 
  protected:
-  FixedVector<float> coefficients_;
+  std::array<float, N> coefficients_{};
 };
 
 class ClampFilter : public Filter {

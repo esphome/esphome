@@ -238,12 +238,6 @@ Sensor = sensor_ns.class_("Sensor", cg.EntityBase)
 SensorPtr = Sensor.operator("ptr")
 
 # Triggers
-SensorStateTrigger = sensor_ns.class_(
-    "SensorStateTrigger", automation.Trigger.template(cg.float_)
-)
-SensorRawStateTrigger = sensor_ns.class_(
-    "SensorRawStateTrigger", automation.Trigger.template(cg.float_)
-)
 ValueRangeTrigger = sensor_ns.class_(
     "ValueRangeTrigger", automation.Trigger.template(cg.float_), cg.Component
 )
@@ -316,18 +310,8 @@ _SENSOR_SCHEMA = (
                 cv.Any(None, cv.positive_time_period_milliseconds),
             ),
             cv.Optional(CONF_FILTERS): validate_filters,
-            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SensorStateTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        SensorRawStateTrigger
-                    ),
-                }
-            ),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation({}),
             cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
@@ -636,7 +620,7 @@ async def delta_filter_to_code(config, filter_id):
 @FILTER_REGISTRY.register("or", OrFilter, validate_filters)
 async def or_filter_to_code(config, filter_id):
     filters = await build_filters(config)
-    return cg.new_Pvariable(filter_id, filters)
+    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(filters)), filters)
 
 
 @FILTER_REGISTRY.register(
@@ -786,7 +770,9 @@ async def calibrate_linear_filter_to_code(config, filter_id):
         linear_functions = [[k, b, float("NaN")]]
     elif config[CONF_METHOD] == "exact":
         linear_functions = map_linear(x, y)
-    return cg.new_Pvariable(filter_id, linear_functions)
+    return cg.new_Pvariable(
+        filter_id, cg.TemplateArguments(len(linear_functions)), linear_functions
+    )
 
 
 CONF_DEGREE = "degree"
@@ -824,7 +810,7 @@ async def calibrate_polynomial_filter_to_code(config, filter_id):
     # Column vector
     b = [[v] for v in y]
     res = [v[0] for v in _lstsq(a, b)]
-    return cg.new_Pvariable(filter_id, res)
+    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(res)), res)
 
 
 def validate_clamp(config):
@@ -899,12 +885,14 @@ async def build_filters(config):
 
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _build_sensor_automations(var, config):
-    for conf in config.get(CONF_ON_VALUE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(float, "x")], conf)
-    for conf in config.get(CONF_ON_RAW_VALUE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(float, "x")], conf)
+    for conf_key, callback in (
+        (CONF_ON_VALUE, "add_on_state_callback"),
+        (CONF_ON_RAW_VALUE, "add_on_raw_state_callback"),
+    ):
+        for conf in config.get(conf_key, []):
+            await automation.build_callback_automation(
+                var, callback, [(float, "x")], conf
+            )
     for conf in config.get(CONF_ON_VALUE_RANGE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await cg.register_component(trigger, conf)
