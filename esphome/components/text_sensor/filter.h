@@ -165,11 +165,11 @@ bool map_filter_apply(const Substitution *mappings, size_t count, std::string &v
 template<size_t N> class MapFilter : public Filter {
  public:
   explicit MapFilter(const std::initializer_list<Substitution> &mappings) {
+    ESPHOME_DEBUG_ASSERT(mappings.size() == N);
     size_t i = 0;
     for (const auto &m : mappings) {
       this->mappings_[i++] = m;
     }
-    ESPHOME_DEBUG_ASSERT(i == N);
   }
   bool new_value(std::string &value) override { return map_filter_apply(this->mappings_.data(), N, value); }
 
