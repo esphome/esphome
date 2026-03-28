@@ -419,11 +419,16 @@ template<typename... Ts> class Action {
 template<typename... Ts> class ActionList {
  public:
   void add_action(Action<Ts...> *action) {
-    // Walk to end of chain - action lists are short and only built during setup()
-    Action<Ts...> **tail = &this->actions_begin_;
-    while (*tail != nullptr)
-      tail = &(*tail)->next_;
-    *tail = action;
+    if (this->actions_begin_ == nullptr) {
+      this->actions_begin_ = action;
+    } else {
+      // Walk to end of chain - action lists are short and only built during setup().
+      // Note: intentionally not using pointer-to-pointer idiom here as it generates larger code.
+      auto *it = this->actions_begin_;
+      while (it->next_ != nullptr)
+        it = it->next_;
+      it->next_ = action;
+    }
   }
   void add_actions(const std::initializer_list<Action<Ts...> *> &actions) {
     // Find tail once, then append all actions in a single pass
