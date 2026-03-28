@@ -131,11 +131,7 @@ bool substitute_filter_apply(const Substitution *substitutions, size_t count, st
 template<size_t N> class SubstituteFilter : public Filter {
  public:
   explicit SubstituteFilter(const std::initializer_list<Substitution> &substitutions) {
-    ESPHOME_DEBUG_ASSERT(substitutions.size() == N);
-    size_t i = 0;
-    for (const auto &s : substitutions) {
-      this->substitutions_[i++] = s;
-    }
+    init_array_from(this->substitutions_, substitutions);
   }
   bool new_value(std::string &value) override { return substitute_filter_apply(this->substitutions_.data(), N, value); }
 
