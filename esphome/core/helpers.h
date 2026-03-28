@@ -1834,6 +1834,9 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
 
   /// Call all callbacks in this manager.
   inline void ESPHOME_ALWAYS_INLINE call(Ts... args) {
+    if (this->size_ == 0) {
+      return;
+    }
     for (auto *it = this->data_, *end = it + this->size_; it != end; ++it) {
       it->call(args...);
     }
