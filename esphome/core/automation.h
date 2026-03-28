@@ -419,12 +419,15 @@ template<typename... Ts> class Action {
 template<typename... Ts> class ActionList {
  public:
   void add_action(Action<Ts...> *action) {
-    if (this->actions_end_ == nullptr) {
+    if (this->actions_begin_ == nullptr) {
       this->actions_begin_ = action;
     } else {
-      this->actions_end_->next_ = action;
+      // Walk to end of chain - action lists are short and only built during setup()
+      auto *it = this->actions_begin_;
+      while (it->next_ != nullptr)
+        it = it->next_;
+      it->next_ = action;
     }
-    this->actions_end_ = action;
   }
   void add_actions(const std::initializer_list<Action<Ts...> *> &actions) {
     for (auto *action : actions) {
@@ -465,7 +468,6 @@ template<typename... Ts> class ActionList {
   }
 
   Action<Ts...> *actions_begin_{nullptr};
-  Action<Ts...> *actions_end_{nullptr};
 };
 
 template<typename... Ts> class Automation {
