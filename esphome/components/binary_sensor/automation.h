@@ -131,11 +131,7 @@ template<size_t N> class MultiClickTrigger : public MultiClickTriggerBase {
  public:
   MultiClickTrigger(BinarySensor *parent, std::initializer_list<MultiClickTriggerEvent> timing)
       : MultiClickTriggerBase(parent) {
-    ESPHOME_DEBUG_ASSERT(timing.size() == N);
-    size_t i = 0;
-    for (const auto &t : timing) {
-      this->timing_storage_[i++] = t;
-    }
+    init_array_from(this->timing_storage_, timing);
     this->timing_ = this->timing_storage_.data();
     this->timing_count_ = N;
   }
