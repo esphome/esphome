@@ -12,7 +12,6 @@ from esphome.const import (
     CONF_PROTOCOL,
     CONF_RAW,
     CONF_SYNC,
-    CONF_TRIGGER_ID,
 )
 
 DEPENDENCIES = ["uart"]
@@ -25,14 +24,6 @@ RFBridgeComponent = rf_bridge_ns.class_(
 
 RFBridgeData = rf_bridge_ns.struct("RFBridgeData")
 RFBridgeAdvancedData = rf_bridge_ns.struct("RFBridgeAdvancedData")
-
-RFBridgeReceivedCodeTrigger = rf_bridge_ns.class_(
-    "RFBridgeReceivedCodeTrigger", automation.Trigger.template(RFBridgeData)
-)
-RFBridgeReceivedAdvancedCodeTrigger = rf_bridge_ns.class_(
-    "RFBridgeReceivedAdvancedCodeTrigger",
-    automation.Trigger.template(RFBridgeAdvancedData),
-)
 
 RFBridgeSendCodeAction = rf_bridge_ns.class_(
     "RFBridgeSendCodeAction", automation.Action
@@ -65,19 +56,9 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(RFBridgeComponent),
-            cv.Optional(CONF_ON_CODE_RECEIVED): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        RFBridgeReceivedCodeTrigger
-                    ),
-                }
-            ),
+            cv.Optional(CONF_ON_CODE_RECEIVED): automation.validate_automation({}),
             cv.Optional(CONF_ON_ADVANCED_CODE_RECEIVED): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        RFBridgeReceivedAdvancedCodeTrigger
-                    ),
-                }
+                {}
             ),
         }
     )
@@ -92,13 +73,15 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
 
     for conf in config.get(CONF_ON_CODE_RECEIVED, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(RFBridgeData, "data")], conf)
-
+        await automation.build_callback_automation(
+            var, "add_on_code_received_callback", [(RFBridgeData, "data")], conf
+        )
     for conf in config.get(CONF_ON_ADVANCED_CODE_RECEIVED, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(RFBridgeAdvancedData, "data")], conf
+        await automation.build_callback_automation(
+            var,
+            "add_on_advanced_code_received_callback",
+            [(RFBridgeAdvancedData, "data")],
+            conf,
         )
 
 

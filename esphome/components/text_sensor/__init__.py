@@ -14,7 +14,6 @@ from esphome.const import (
     CONF_ON_VALUE,
     CONF_STATE,
     CONF_TO,
-    CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
     DEVICE_CLASS_DATE,
     DEVICE_CLASS_EMPTY,
@@ -42,12 +41,6 @@ text_sensor_ns = cg.esphome_ns.namespace("text_sensor")
 TextSensor = text_sensor_ns.class_("TextSensor", cg.EntityBase)
 TextSensorPtr = TextSensor.operator("ptr")
 
-TextSensorStateTrigger = text_sensor_ns.class_(
-    "TextSensorStateTrigger", automation.Trigger.template(cg.std_string)
-)
-TextSensorStateRawTrigger = text_sensor_ns.class_(
-    "TextSensorStateRawTrigger", automation.Trigger.template(cg.std_string)
-)
 TextSensorPublishAction = text_sensor_ns.class_(
     "TextSensorPublishAction", automation.Action
 )
@@ -150,20 +143,8 @@ _TEXT_SENSOR_SCHEMA = (
             cv.GenerateID(): cv.declare_id(TextSensor),
             cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
             cv.Optional(CONF_FILTERS): validate_filters,
-            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        TextSensorStateTrigger
-                    ),
-                }
-            ),
-            cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        TextSensorStateRawTrigger
-                    ),
-                }
-            ),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation({}),
         }
     )
 )
@@ -203,13 +184,14 @@ async def build_filters(config):
 
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _build_text_sensor_automations(var, config):
-    for conf in config.get(CONF_ON_VALUE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
-
-    for conf in config.get(CONF_ON_RAW_VALUE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+    for conf_key, callback in (
+        (CONF_ON_VALUE, "add_on_state_callback"),
+        (CONF_ON_RAW_VALUE, "add_on_raw_state_callback"),
+    ):
+        for conf in config.get(conf_key, []):
+            await automation.build_callback_automation(
+                var, callback, [(cg.std_string, "x")], conf
+            )
 
 
 @setup_entity("text_sensor")

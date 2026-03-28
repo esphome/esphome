@@ -367,7 +367,7 @@ optional<ClimateDeviceRestoreState> Climate::restore_state_() {
   return recovered;
 }
 
-void Climate::save_state_() {
+void Climate::save_state_(const ClimateTraits &traits) {
 #if (defined(USE_ESP32) || (defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0))) && \
     !defined(CLANG_TIDY)
 #pragma GCC diagnostic ignored "-Wclass-memaccess"
@@ -382,7 +382,6 @@ void Climate::save_state_() {
 #endif
 
   state.mode = this->mode;
-  auto traits = this->get_traits();
   if (traits.has_feature_flags(CLIMATE_SUPPORTS_TWO_POINT_TARGET_TEMPERATURE |
                                CLIMATE_REQUIRES_TWO_POINT_TARGET_TEMPERATURE)) {
     state.target_temperature_low = this->target_temperature_low;
@@ -480,7 +479,7 @@ void Climate::publish_state() {
   ControllerRegistry::notify_climate_update(this);
 #endif
   // Save state
-  this->save_state_();
+  this->save_state_(traits);
 }
 
 ClimateTraits Climate::get_traits() {

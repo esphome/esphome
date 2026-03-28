@@ -177,12 +177,5 @@ class HaierClimateBase : public esphome::Component,
   ESPPreferenceObject base_rtc_;
 };
 
-class StatusMessageTrigger : public Trigger<const char *, size_t> {
- public:
-  explicit StatusMessageTrigger(HaierClimateBase *parent) {
-    parent->add_status_message_callback([this](const char *data, size_t data_size) { this->trigger(data, data_size); });
-  }
-};
-
 }  // namespace haier
 }  // namespace esphome
