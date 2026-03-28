@@ -246,16 +246,14 @@ bool value_list_matches_any(Sensor *parent, float sensor_value, const Templatabl
   return false;
 }
 
-bool throttle_check_and_update(uint32_t &last_input, uint32_t min_time_between_inputs) {
+bool throttle_check_with_priority(uint32_t &last_input, uint32_t min_time_between_inputs, bool is_prioritized) {
   const uint32_t now = App.get_loop_component_start_time();
-  if (last_input == 0 || now - last_input >= min_time_between_inputs) {
+  if (last_input == 0 || now - last_input >= min_time_between_inputs || is_prioritized) {
     last_input = now;
     return true;
   }
   return false;
 }
-
-void throttle_update_timestamp(uint32_t &last_input) { last_input = App.get_loop_component_start_time(); }
 
 // ThrottleFilter
 ThrottleFilter::ThrottleFilter(uint32_t min_time_between_inputs) : min_time_between_inputs_(min_time_between_inputs) {}

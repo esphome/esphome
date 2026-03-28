@@ -378,12 +378,9 @@ class ThrottleFilter : public Filter {
   uint32_t min_time_between_inputs_;
 };
 
-/// Returns true if throttle time has expired or this is the first input.
-/// Implementation in filter.cpp (accesses App without circular include).
-bool throttle_check_and_update(uint32_t &last_input, uint32_t min_time_between_inputs);
-
-/// Update last_input timestamp to current loop time. Implementation in filter.cpp.
-void throttle_update_timestamp(uint32_t &last_input);
+/// Check throttle and optionally allow prioritized values through.
+/// Always updates last_input when returning true. Implementation in filter.cpp.
+bool throttle_check_with_priority(uint32_t &last_input, uint32_t min_time_between_inputs, bool is_prioritized);
 
 /// Same as 'throttle' but will immediately publish values contained in `value_to_prioritize`.
 template<size_t N> class ThrottleWithPriorityFilter : public ValueListFilter<N> {
@@ -393,9 +390,8 @@ template<size_t N> class ThrottleWithPriorityFilter : public ValueListFilter<N> 
       : ValueListFilter<N>(prioritized_values), min_time_between_inputs_(min_time_between_inputs) {}
 
   optional<float> new_value(float value) override {
-    if (throttle_check_and_update(this->last_input_, this->min_time_between_inputs_) ||
-        this->value_matches_any_(value)) {
-      throttle_update_timestamp(this->last_input_);
+    if (throttle_check_with_priority(this->last_input_, this->min_time_between_inputs_,
+                                     this->value_matches_any_(value))) {
       return value;
     }
     return {};
