@@ -144,6 +144,9 @@ template<size_t N> class SubstituteFilter : public Filter {
   std::array<Substitution, N> substitutions_{};
 };
 
+/// Non-template helper (implementation in filter.cpp)
+bool map_filter_apply(const Substitution *mappings, size_t count, std::string &value);
+
 /** A filter that maps values from one set to another
  *
  * Uses linear search instead of std::map for typical small datasets (2-20 mappings).
@@ -167,14 +170,23 @@ template<size_t N> class SubstituteFilter : public Filter {
  * - Faster for typical ESPHome usage (2-10 mappings common, 20+ rare)
  *
  * Break-even point: ~35-40 mappings, but ESPHome configs rarely exceed 20
+ *
+ * N is set by code generation to match the exact number of mappings configured in YAML.
  */
-class MapFilter : public Filter {
+template<size_t N> class MapFilter : public Filter {
  public:
-  explicit MapFilter(const std::initializer_list<Substitution> &mappings);
-  bool new_value(std::string &value) override;
+  explicit MapFilter(const std::initializer_list<Substitution> &mappings) {
+    size_t i = 0;
+    for (const auto &m : mappings) {
+      if (i >= N)
+        break;
+      this->mappings_[i++] = m;
+    }
+  }
+  bool new_value(std::string &value) override { return map_filter_apply(this->mappings_.data(), N, value); }
 
  protected:
-  FixedVector<Substitution> mappings_;
+  std::array<Substitution, N> mappings_{};
 };
 
 }  // namespace esphome::text_sensor
