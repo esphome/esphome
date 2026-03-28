@@ -94,6 +94,7 @@ class BL0942 : public PollingComponent, public uart::UARTDevice {
   void set_line_freq(LineFrequency freq) { this->line_freq_ = freq; }
   void set_address(uint8_t address) { this->address_ = address; }
   void set_reset(bool reset) { this->reset_ = reset; }
+  void set_cf_native_size(bool native) { this->cf_cnt_native_size_ = native; }
   void set_current_reference(float current_ref) {
     this->current_reference_ = current_ref;
     this->current_reference_set_ = true;
@@ -139,6 +140,7 @@ class BL0942 : public PollingComponent, public uart::UARTDevice {
   bool energy_reference_set_ = false;
   uint8_t address_ = 0;
   bool reset_ = false;
+  bool cf_cnt_native_size_ = false;
   LineFrequency line_freq_ = LINE_FREQUENCY_50HZ;
   optional<uint32_t> rx_start_{};
   uint32_t prev_cf_cnt_ = 0;
