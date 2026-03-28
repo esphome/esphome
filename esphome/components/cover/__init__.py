@@ -37,7 +37,11 @@ from esphome.const import (
     DEVICE_CLASS_WINDOW,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    setup_device_class,
+    setup_entity,
+)
 from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType, TemplateArgsType
 
@@ -190,11 +194,9 @@ def cover_schema(
     return _COVER_SCHEMA.extend(schema)
 
 
+@setup_entity("cover")
 async def setup_cover_core_(var, config):
-    await setup_entity(var, config, "cover")
-
-    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
-        cg.add(var.set_device_class(device_class))
+    setup_device_class(config)
 
     if CONF_ON_OPEN in config:
         _LOGGER.warning(
@@ -248,25 +250,33 @@ COVER_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action("cover.open", OpenAction, COVER_ACTION_SCHEMA)
+@automation.register_action(
+    "cover.open", OpenAction, COVER_ACTION_SCHEMA, synchronous=True
+)
 async def cover_open_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("cover.close", CloseAction, COVER_ACTION_SCHEMA)
+@automation.register_action(
+    "cover.close", CloseAction, COVER_ACTION_SCHEMA, synchronous=True
+)
 async def cover_close_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("cover.stop", StopAction, COVER_ACTION_SCHEMA)
+@automation.register_action(
+    "cover.stop", StopAction, COVER_ACTION_SCHEMA, synchronous=True
+)
 async def cover_stop_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("cover.toggle", ToggleAction, COVER_ACTION_SCHEMA)
+@automation.register_action(
+    "cover.toggle", ToggleAction, COVER_ACTION_SCHEMA, synchronous=True
+)
 async def cover_toggle_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
@@ -283,7 +293,9 @@ COVER_CONTROL_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action("cover.control", ControlAction, COVER_CONTROL_ACTION_SCHEMA)
+@automation.register_action(
+    "cover.control", ControlAction, COVER_CONTROL_ACTION_SCHEMA, synchronous=True
+)
 async def cover_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)

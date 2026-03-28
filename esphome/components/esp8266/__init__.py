@@ -6,6 +6,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
     CONF_BOARD_FLASH_MODE,
+    CONF_ENABLE_FULL_PRINTF,
     CONF_FRAMEWORK,
     CONF_PLATFORM_VERSION,
     CONF_SOURCE,
@@ -179,6 +180,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_ENABLE_SERIAL): cv.boolean,
             cv.Optional(CONF_ENABLE_SERIAL1): cv.boolean,
+            cv.Optional(CONF_ENABLE_FULL_PRINTF, default=False): cv.boolean,
         }
     ),
     set_core_data,
@@ -205,6 +207,7 @@ async def to_code(config):
             "pre:testing_mode.py",
             "pre:exclude_updater.py",
             "pre:exclude_waveform.py",
+            "pre:remove_float_scanf.py",
             "post:post_build.py",
         ],
     )
@@ -258,6 +261,14 @@ async def to_code(config):
     # we pretend it has much larger memory to test that components compile together
     if CORE.testing_mode:
         cg.add_build_flag("-DESPHOME_TESTING_MODE")
+
+    # Wrap FILE*-based printf functions to eliminate newlib's _vfiprintf_r
+    # (~1.6 KB). See printf_stubs.cpp for implementation.
+    if config.get(CONF_ENABLE_FULL_PRINTF):
+        cg.add_define("USE_FULL_PRINTF")
+    else:
+        for symbol in ("vprintf", "printf", "fprintf"):
+            cg.add_build_flag(f"-Wl,--wrap={symbol}")
 
     cg.add_platformio_option("board_build.flash_mode", config[CONF_BOARD_FLASH_MODE])
 
@@ -341,4 +352,9 @@ def copy_files() -> None:
     copy_file_if_changed(
         exclude_waveform_file,
         CORE.relative_build_path("exclude_waveform.py"),
+    )
+    remove_float_scanf_file = dir / "remove_float_scanf.py.script"
+    copy_file_if_changed(
+        remove_float_scanf_file,
+        CORE.relative_build_path("remove_float_scanf.py"),
     )

@@ -87,7 +87,8 @@ void on_send_report(const uint8_t *mac_addr, esp_now_send_status_t status)
 
   // Push the packet to the queue
   global_esp_now->receive_packet_queue_.push(packet);
-  // Push always because we're the only producer and the pool ensures we never exceed queue size
+  // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+  // allocate() returned non-null, the queue cannot be full.
 
   // Wake main loop immediately to process ESP-NOW send event instead of waiting for select() timeout
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
@@ -109,7 +110,8 @@ void on_data_received(const esp_now_recv_info_t *info, const uint8_t *data, int 
 
   // Push the packet to the queue
   global_esp_now->receive_packet_queue_.push(packet);
-  // Push always because we're the only producer and the pool ensures we never exceed queue size
+  // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+  // allocate() returned non-null, the queue cannot be full.
 
   // Wake main loop immediately to process ESP-NOW receive event instead of waiting for select() timeout
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)

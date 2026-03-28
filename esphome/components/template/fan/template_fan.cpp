@@ -20,14 +20,18 @@ void TemplateFan::setup() {
 void TemplateFan::dump_config() { LOG_FAN("", "Template Fan", this); }
 
 void TemplateFan::control(const fan::FanCall &call) {
-  if (call.get_state().has_value())
-    this->state = *call.get_state();
-  if (call.get_speed().has_value() && (this->speed_count_ > 0))
-    this->speed = *call.get_speed();
-  if (call.get_oscillating().has_value() && this->has_oscillating_)
-    this->oscillating = *call.get_oscillating();
-  if (call.get_direction().has_value() && this->has_direction_)
-    this->direction = *call.get_direction();
+  auto call_state = call.get_state();
+  if (call_state.has_value())
+    this->state = *call_state;
+  auto call_speed = call.get_speed();
+  if (call_speed.has_value() && (this->speed_count_ > 0))
+    this->speed = *call_speed;
+  auto call_oscillating = call.get_oscillating();
+  if (call_oscillating.has_value() && this->has_oscillating_)
+    this->oscillating = *call_oscillating;
+  auto call_direction = call.get_direction();
+  if (call_direction.has_value() && this->has_direction_)
+    this->direction = *call_direction;
   this->apply_preset_mode_(call);
 
   this->publish_state();

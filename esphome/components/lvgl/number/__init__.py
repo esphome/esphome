@@ -52,9 +52,9 @@ async def to_code(config):
         await value.get_lambda(),
         event_code,
         config[CONF_RESTORE_VALUE],
-        max_value=widget.get_max(),
-        min_value=widget.get_min(),
-        step=widget.get_step(),
+        max_value=widget.type.get_max(widget.config),
+        min_value=widget.type.get_min(widget.config),
+        step=widget.type.get_step(widget.config),
     )
     async with LambdaContext(EVENT_ARG) as event:
         event.add(var.on_value())

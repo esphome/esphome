@@ -124,17 +124,10 @@ void HostUartComponent::setup() {
   fcntl(this->file_descriptor_, F_SETFL, 0);
   struct termios options;
   tcgetattr(this->file_descriptor_, &options);
+  cfmakeraw(&options);
   options.c_cflag &= ~CRTSCTS;
   options.c_cflag |= CREAD | CLOCAL;
-  options.c_lflag &= ~ICANON;
-  options.c_lflag &= ~ECHO;
-  options.c_lflag &= ~ECHOE;
-  options.c_lflag &= ~ECHONL;
-  options.c_lflag &= ~ISIG;
-  options.c_iflag &= ~(IXON | IXOFF | IXANY);
-  options.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL);
-  options.c_oflag &= ~OPOST;
-  options.c_oflag &= ~ONLCR;
+  options.c_iflag &= ~(IXOFF | IXANY);
   // Set data bits
   options.c_cflag &= ~CSIZE;  // Mask the character size bits
   switch (this->data_bits_) {
@@ -242,16 +235,14 @@ bool HostUartComponent::read_array(uint8_t *data, size_t len) {
   }
   if (!this->check_read_timeout_(len))
     return false;
-  uint8_t *data_ptr = data;
   size_t length_to_read = len;
   if (this->has_peek_) {
     length_to_read--;
-    *data_ptr = this->peek_byte_;
-    data_ptr++;
+    *data = this->peek_byte_;
     this->has_peek_ = false;
   }
   if (length_to_read > 0) {
-    int sz = ::read(this->file_descriptor_, data_ptr, length_to_read);
+    int sz = ::read(this->file_descriptor_, data + (len - length_to_read), length_to_read);
     if (sz == -1) {
       this->update_error_(strerror(errno));
       return false;
@@ -281,12 +272,13 @@ size_t HostUartComponent::available() {
   return result;
 };
 
-void HostUartComponent::flush() {
+UARTFlushResult HostUartComponent::flush() {
   if (this->file_descriptor_ == -1) {
-    return;
+    return UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
   }
   tcflush(this->file_descriptor_, TCIOFLUSH);
   ESP_LOGV(TAG, "    Flushing");
+  return UARTFlushResult::UART_FLUSH_RESULT_ASSUMED_SUCCESS;
 }
 
 void HostUartComponent::update_error_(const std::string &error) {

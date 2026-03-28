@@ -12,7 +12,7 @@ namespace ota {
 
 static const char *const TAG = "ota.arduino_libretiny";
 
-std::unique_ptr<ota::OTABackend> make_ota_backend() { return make_unique<ota::ArduinoLibreTinyOTABackend>(); }
+std::unique_ptr<ArduinoLibreTinyOTABackend> make_ota_backend() { return make_unique<ArduinoLibreTinyOTABackend>(); }
 
 OTAResponseTypes ArduinoLibreTinyOTABackend::begin(size_t image_size) {
   // Handle UPDATE_SIZE_UNKNOWN (0) which is used by web server OTA

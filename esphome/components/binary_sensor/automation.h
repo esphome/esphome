@@ -96,8 +96,7 @@ class MultiClickTrigger : public Trigger<>, public Component {
 
   void setup() override {
     this->last_state_ = this->parent_->get_state_default(false);
-    auto f = std::bind(&MultiClickTrigger::on_state_, this, std::placeholders::_1);
-    this->parent_->add_on_state_callback(f);
+    this->parent_->add_on_state_callback([this](bool state) { this->on_state_(state); });
   }
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }

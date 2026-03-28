@@ -25,7 +25,10 @@ void TemplateLock::control(const lock::LockCall &call) {
     this->prev_trigger_->stop_action();
   }
 
-  auto state = *call.get_state();
+  auto opt_state = call.get_state();
+  if (!opt_state.has_value())
+    return;
+  auto state = *opt_state;
   if (state == LOCK_STATE_LOCKED) {
     this->prev_trigger_ = &this->lock_trigger_;
     this->lock_trigger_.trigger();

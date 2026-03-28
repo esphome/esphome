@@ -7,7 +7,7 @@ namespace esphome {
 namespace ili9xxx {
 
 // clang-format off
-static const uint8_t PROGMEM INITCMD_M5STACK[] = {
+static constexpr uint8_t PROGMEM INITCMD_M5STACK[] = {
   0xEF, 3, 0x03, 0x80, 0x02,
   0xCF, 3, 0x00, 0xC1, 0x30,
   0xED, 4, 0x64, 0x03, 0x12, 0x81,
@@ -37,7 +37,7 @@ static const uint8_t PROGMEM INITCMD_M5STACK[] = {
   0x00                                   // End of list
 };
 
-static const uint8_t PROGMEM INITCMD_M5CORE[] = {
+static constexpr uint8_t PROGMEM INITCMD_M5CORE[] = {
   ILI9XXX_SETEXTC, 3, 0xFF,0x93,0x42,   // Turn on the external command
   ILI9XXX_PWCTR1 , 2, 0x12, 0x12,
   ILI9XXX_PWCTR2 , 1, 0x03,
@@ -56,7 +56,7 @@ static const uint8_t PROGMEM INITCMD_M5CORE[] = {
 
 
 
-static const uint8_t PROGMEM INITCMD_ILI9341[] = {
+static constexpr uint8_t PROGMEM INITCMD_ILI9341[] = {
   0xEF, 3, 0x03, 0x80, 0x02,
   0xCF, 3, 0x00, 0xC1, 0x30,
   0xED, 4, 0x64, 0x03, 0x12, 0x81,
@@ -86,7 +86,7 @@ static const uint8_t PROGMEM INITCMD_ILI9341[] = {
   0x00                                   // End of list
 };
 
-static const uint8_t PROGMEM INITCMD_ILI9481[] = {
+static constexpr uint8_t PROGMEM INITCMD_ILI9481[] = {
   ILI9XXX_SLPOUT ,  0x80,    // Exit sleep mode
   ILI9XXX_PWSET  , 3, 0x07, 0x41, 0x1D,
   ILI9XXX_VMCTR  , 3, 0x00, 0x1C, 0x1F,
@@ -105,7 +105,7 @@ static const uint8_t PROGMEM INITCMD_ILI9481[] = {
   0x00 // end
 };
 
-static const uint8_t PROGMEM INITCMD_ILI9481_18[] = {
+static constexpr uint8_t PROGMEM INITCMD_ILI9481_18[] = {
     ILI9XXX_SLPOUT ,  0x80,    // Exit sleep mode
     ILI9XXX_PWSET  , 3, 0x07, 0x41, 0x1D,
     ILI9XXX_VMCTR  , 3, 0x00, 0x1C, 0x1F,
@@ -124,7 +124,7 @@ static const uint8_t PROGMEM INITCMD_ILI9481_18[] = {
     0x00 // end
 };
 
-static const uint8_t PROGMEM INITCMD_ILI9486[] = {
+static constexpr uint8_t PROGMEM INITCMD_ILI9486[] = {
   ILI9XXX_SLPOUT, 0x80,
   ILI9XXX_PIXFMT, 1, 0x55,
   ILI9XXX_PWCTR3, 1, 0x44,
@@ -173,7 +173,7 @@ static const uint8_t INITCMD_WAVESHARE_RES_3_5[] = {
     0x00                                   // End of list
 };
 
-static const uint8_t PROGMEM INITCMD_ILI9488_A[] = {
+static constexpr uint8_t PROGMEM INITCMD_ILI9488_A[] = {
   ILI9XXX_GMCTRP1,15, 0x00, 0x03, 0x09, 0x08, 0x16, 0x0A, 0x3F, 0x78, 0x4C, 0x09, 0x0A, 0x08, 0x16, 0x1A, 0x0F,
   ILI9XXX_GMCTRN1,15, 0x00, 0x16, 0x19, 0x03, 0x0F, 0x05, 0x32, 0x45, 0x46, 0x04, 0x0E, 0x0D, 0x35, 0x37, 0x0F,
 
@@ -206,7 +206,7 @@ static const uint8_t PROGMEM INITCMD_ILI9488_A[] = {
   0x00 // end
 };
 
-static const uint8_t PROGMEM INITCMD_ST7796[] = {
+static constexpr uint8_t PROGMEM INITCMD_ST7796[] = {
   // This ST7796S initilization routine was copied from https://github.com/prenticedavid/Adafruit_ST7796S_kbv/blob/master/Adafruit_ST7796S_kbv.cpp
   ILI9XXX_SWRESET, 0x80,         // Soft reset, then delay 150 ms
   ILI9XXX_CSCON, 1, 0xC3,              // ?? Unlock Manufacturer
@@ -226,7 +226,7 @@ static const uint8_t PROGMEM INITCMD_ST7796[] = {
   0x00                                   // End of list
 };
 
-static const uint8_t PROGMEM INITCMD_S3BOX[] = {
+static constexpr uint8_t PROGMEM INITCMD_S3BOX[] = {
   0xEF, 3, 0x03, 0x80, 0x02,
   0xCF, 3, 0x00, 0xC1, 0x30,
   0xED, 4, 0x64, 0x03, 0x12, 0x81,
@@ -256,7 +256,7 @@ static const uint8_t PROGMEM INITCMD_S3BOX[] = {
   0x00                                   // End of list
 };
 
-static const uint8_t PROGMEM INITCMD_S3BOXLITE[] = {
+static constexpr uint8_t PROGMEM INITCMD_S3BOXLITE[] = {
   0xEF, 3, 0x03, 0x80, 0x02,
   0xCF, 3, 0x00, 0xC1, 0x30,
   0xED, 4, 0x64, 0x03, 0x12, 0x81,
@@ -286,7 +286,7 @@ static const uint8_t PROGMEM INITCMD_S3BOXLITE[] = {
   0x00                                   // End of list
 };
 
-static const uint8_t PROGMEM INITCMD_ST7789V[] = {
+static constexpr uint8_t PROGMEM INITCMD_ST7789V[] = {
   ILI9XXX_SLPOUT  , 0x80,                // Exit Sleep
   ILI9XXX_DISPON  , 0x80,                // Display on
   ILI9XXX_MADCTL  , 1, 0x08,             // Memory Access Control, BGR
@@ -313,7 +313,7 @@ static const uint8_t PROGMEM INITCMD_ST7789V[] = {
   0x00                                   // End of list
 };
 
-static const uint8_t PROGMEM INITCMD_GC9A01A[] = {
+static constexpr uint8_t PROGMEM INITCMD_GC9A01A[] = {
   0xEF, 0,
   0xEB, 1, 0x14, // ?
   0xFE, 0,
@@ -367,7 +367,7 @@ static const uint8_t PROGMEM INITCMD_GC9A01A[] = {
   0x00                  // End of list
 };
 
-static const uint8_t PROGMEM INITCMD_GC9D01N[] = {
+static constexpr uint8_t PROGMEM INITCMD_GC9D01N[] = {
   // Enable Inter_command
   0xFE, 0,          // Inter Register Enable 1 (FEh)
   0xEF, 0,          // Inter Register Enable 2 (EFh)
@@ -426,7 +426,7 @@ static const uint8_t PROGMEM INITCMD_GC9D01N[] = {
   0x00                    // End of list
 };
 
-static const uint8_t PROGMEM INITCMD_ST7735[] = {
+static constexpr uint8_t PROGMEM INITCMD_ST7735[] = {
     ILI9XXX_SWRESET, 0,         // Soft reset, then delay 10ms
     ILI9XXX_DELAY(10),
     ILI9XXX_SLPOUT  , 0,                // Exit Sleep, delay

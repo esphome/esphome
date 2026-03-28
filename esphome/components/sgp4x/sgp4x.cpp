@@ -35,13 +35,9 @@ void SGP4xComponent::setup() {
     this->self_test_time_ = SPG40_SELFTEST_TIME;
     this->measure_time_ = SGP40_MEASURE_TIME;
     if (this->nox_sensor_) {
-      ESP_LOGE(TAG, "SGP41 required for NOx");
-      // disable the sensor
-      this->nox_sensor_->set_disabled_by_default(true);
-      // make sure it's not visible in HA
-      this->nox_sensor_->set_internal(true);
-      this->nox_sensor_->state = NAN;
-      // remove pointer to sensor
+      ESP_LOGE(TAG, "SGP41 required for NOx, disabling NOx sensor");
+      // Drop the pointer so update() never publishes to it.
+      // The entity remains registered but will never receive state updates.
       this->nox_sensor_ = nullptr;
     }
   } else if (featureset == SGP41_FEATURESET) {
@@ -128,6 +124,7 @@ void SGP4xComponent::self_test_() {
     }
 
     this->self_test_complete_ = true;
+    this->nox_conditioning_start_ = millis();
     ESP_LOGD(TAG, "Self-test complete");
   });
 }
@@ -165,7 +162,6 @@ void SGP4xComponent::update_gas_indices_() {
 
 void SGP4xComponent::measure_raw_() {
   float humidity = NAN;
-  static uint32_t nox_conditioning_start = millis();
 
   if (!this->self_test_complete_) {
     ESP_LOGW(TAG, "Self-test incomplete");
@@ -195,15 +191,16 @@ void SGP4xComponent::measure_raw_() {
     response_words = 1;
   } else {
     // SGP41 sensor must use NOx conditioning command for the first 10 seconds
-    if (millis() - nox_conditioning_start < 10000) {
+    if (this->nox_conditioning_start_.has_value() && millis() - *this->nox_conditioning_start_ < 10000) {
       command = SGP41_CMD_NOX_CONDITIONING;
       response_words = 1;
     } else {
+      this->nox_conditioning_start_.reset();
       command = SGP41_CMD_MEASURE_RAW;
       response_words = 2;
     }
   }
-  uint16_t rhticks = llround((uint16_t) ((humidity * 65535) / 100));
+  uint16_t rhticks = (uint16_t) llround((humidity * 65535) / 100);
   uint16_t tempticks = (uint16_t) (((temperature + 45) * 65535) / 175);
   // first parameter are the relative humidity ticks
   data[0] = rhticks;

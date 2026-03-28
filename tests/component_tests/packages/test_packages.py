@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from esphome.components.packages import CONFIG_SCHEMA, do_packages_pass, merge_packages
+from esphome.components.substitutions import do_substitution_pass
 import esphome.config as config_module
 from esphome.config import resolve_extend_remove
 from esphome.config_helpers import Extend, Remove
@@ -36,6 +37,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.util import OrderedDict
+from esphome.yaml_util import add_context
 
 # Test strings
 TEST_DEVICE_NAME = "test_device_name"
@@ -69,8 +71,9 @@ def fixture_basic_esphome():
 
 
 def packages_pass(config):
-    """Wrapper around packages_pass that also resolves Extend and Remove."""
+    """Passes the config through the packages processing steps."""
     config = do_packages_pass(config)
+    config = do_substitution_pass(config)
     config = merge_packages(config)
     resolve_extend_remove(config)
     return config
@@ -706,6 +709,85 @@ def test_remote_packages_with_files_list(
 @patch("esphome.yaml_util.load_yaml")
 @patch("pathlib.Path.is_file")
 @patch("esphome.git.clone_or_update")
+def test_remote_packages_with_files_list_and_substitutions(
+    mock_clone_or_update, mock_is_file, mock_load_yaml
+) -> None:
+    """
+    Ensures that packages are loaded as mixed list of dictionary and strings
+    """
+    # Mock the response from git.clone_or_update
+    mock_revert = MagicMock()
+    mock_clone_or_update.return_value = (Path("/tmp/noexists"), mock_revert)
+
+    # Mock the response from pathlib.Path.is_file
+    mock_is_file.return_value = True
+
+    # Mock the response from esphome.yaml_util.load_yaml
+    mock_load_yaml.side_effect = [
+        OrderedDict(
+            {
+                CONF_SENSOR: [
+                    {
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: TEST_SENSOR_NAME_1,
+                    }
+                ]
+            }
+        ),
+        OrderedDict(
+            {
+                CONF_SENSOR: [
+                    {
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: TEST_SENSOR_NAME_2,
+                    }
+                ]
+            }
+        ),
+    ]
+
+    # Define the input config
+    config = {
+        CONF_PACKAGES: {
+            "package1": add_context(
+                {
+                    CONF_URL: r"${url}",
+                    CONF_REF: r"${branch}",
+                    CONF_FILES: [
+                        {CONF_PATH: r"$file"},
+                        "sensor2.yaml",
+                    ],
+                    CONF_REFRESH: "1d",
+                },
+                {
+                    "branch": "main",
+                    "file": TEST_YAML_FILENAME,
+                    "url": "https://github.com/esphome/non-existant-repo",
+                },
+            )
+        }
+    }
+
+    expected = {
+        CONF_SENSOR: [
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                CONF_NAME: TEST_SENSOR_NAME_1,
+            },
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                CONF_NAME: TEST_SENSOR_NAME_2,
+            },
+        ]
+    }
+
+    actual = packages_pass(config)
+    assert actual == expected
+
+
+@patch("esphome.yaml_util.load_yaml")
+@patch("pathlib.Path.is_file")
+@patch("esphome.git.clone_or_update")
 def test_remote_packages_with_files_and_vars(
     mock_clone_or_update, mock_is_file, mock_load_yaml
 ) -> None:
@@ -904,7 +986,7 @@ def test_packages_merge_substitutions() -> None:
         },
     }
 
-    actual = do_packages_pass(config)
+    actual = do_packages_pass(config, command_line_substitutions={})
     assert actual == expected
 
 
@@ -968,31 +1050,105 @@ def test_package_merge() -> None:
     assert actual == expected
 
 
+def test_packages_invalid_type_raises() -> None:
+    """Packages that are not a dict or list raise cv.Invalid."""
+    config = {
+        CONF_PACKAGES: "not_a_dict_or_list",
+    }
+    with pytest.raises(
+        cv.Invalid, match="Packages must be a key to value mapping or list"
+    ):
+        do_packages_pass(config)
+
+
 @pytest.mark.parametrize(
     "invalid_package",
     [
         6,
         "some string",
-        ["some string"],
-        None,
         True,
-        {"some_component": 8},
-        {3: 2},
-        {"some_component": r"${unevaluated expression}"},
     ],
 )
-def test_package_merge_invalid(invalid_package) -> None:
-    """
-    Tests that trying to merge an invalid package raises an error.
-    """
+def test_invalid_package_contents_rejected(invalid_package: object) -> None:
+    """Invalid package contents are rejected by PACKAGE_SCHEMA during do_packages_pass."""
     config = {
         CONF_PACKAGES: {
             "some_package": invalid_package,
         },
     }
-
     with pytest.raises(cv.Invalid):
+        do_packages_pass(config)
+
+
+@pytest.mark.xfail(
+    reason="Deprecated single-package fallback swallows these errors. "
+    "Remove xfail when single-package deprecation is removed (2026.7.0).",
+    strict=True,
+)
+@pytest.mark.parametrize(
+    "invalid_package",
+    [
+        None,
+        ["some string"],
+        {"some_component": 8},
+        {3: 2},
+    ],
+)
+def test_invalid_package_contents_masked_by_deprecation(
+    invalid_package: object,
+) -> None:
+    """These invalid packages are swallowed by the deprecated single-package fallback."""
+    config = {
+        CONF_PACKAGES: {
+            "some_package": invalid_package,
+        },
+    }
+    with pytest.raises(cv.Invalid):
+        do_packages_pass(config)
+
+
+def test_merge_packages_invalid_nested_type_raises() -> None:
+    """Invalid nested packages type during merge raises cv.Invalid."""
+    config = {
+        CONF_PACKAGES: {
+            "pkg": {
+                CONF_PACKAGES: "invalid",
+            },
+        },
+    }
+    with pytest.raises(
+        cv.Invalid, match="Packages must be a key to value mapping or list"
+    ):
         merge_packages(config)
+
+
+@patch("esphome.yaml_util.load_yaml")
+@patch("pathlib.Path.is_file")
+@patch("esphome.git.clone_or_update")
+def test_remote_packages_no_revert(
+    mock_clone_or_update, mock_is_file, mock_load_yaml
+) -> None:
+    """Remote packages with revert=None load without retry logic."""
+    mock_clone_or_update.return_value = (Path("/tmp/noexists"), None)
+    mock_is_file.return_value = True
+    mock_load_yaml.return_value = OrderedDict(
+        {CONF_SENSOR: [{CONF_PLATFORM: TEST_SENSOR_PLATFORM_1, CONF_NAME: "test"}]}
+    )
+
+    config = {
+        CONF_PACKAGES: {
+            "pkg": {
+                CONF_URL: "https://github.com/esphome/repo",
+                CONF_REF: "main",
+                CONF_FILES: [{CONF_PATH: "file.yaml"}],
+                CONF_REFRESH: "1d",
+            }
+        }
+    }
+    actual = packages_pass(config)
+    assert actual[CONF_SENSOR] == [
+        {CONF_PLATFORM: TEST_SENSOR_PLATFORM_1, CONF_NAME: "test"}
+    ]
 
 
 def test_raw_config_contains_merged_esphome_from_package(tmp_path) -> None:

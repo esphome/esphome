@@ -2,6 +2,7 @@
 #ifdef USE_ZEPHYR
 #include <climits>
 #include "esphome/core/log.h"
+#include <esphome/components/zephyr/reset_reason.h>
 #include <zephyr/drivers/hwinfo.h>
 #include <hal/nrf_power.h>
 #include <cstdint>
@@ -14,16 +15,6 @@ namespace esphome::debug {
 static const char *const TAG = "debug";
 constexpr std::uintptr_t MBR_PARAM_PAGE_ADDR = 0xFFC;
 constexpr std::uintptr_t MBR_BOOTLOADER_ADDR = 0xFF8;
-
-static size_t append_reset_reason(char *buf, size_t size, size_t pos, bool set, const char *reason) {
-  if (!set) {
-    return pos;
-  }
-  if (pos > 0) {
-    pos = buf_append_printf(buf, size, pos, ", ");
-  }
-  return buf_append_printf(buf, size, pos, "%s", reason);
-}
 
 static inline uint32_t read_mem_u32(uintptr_t addr) {
   return *reinterpret_cast<volatile uint32_t *>(addr);  // NOLINT(performance-no-int-to-ptr)
@@ -57,44 +48,12 @@ static inline uint32_t sd_version_get() {
 }
 
 const char *DebugComponent::get_reset_reason_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
-  char *buf = buffer.data();
-  const size_t size = RESET_REASON_BUFFER_SIZE;
-
-  uint32_t cause;
-  auto ret = hwinfo_get_reset_cause(&cause);
-  if (ret) {
-    ESP_LOGE(TAG, "Unable to get reset cause: %d", ret);
-    buf[0] = '\0';
-    return buf;
-  }
-  size_t pos = 0;
-
-  pos = append_reset_reason(buf, size, pos, cause & RESET_PIN, "External pin");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_SOFTWARE, "Software reset");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_BROWNOUT, "Brownout (drop in voltage)");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_POR, "Power-on reset (POR)");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_WATCHDOG, "Watchdog timer expiration");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_DEBUG, "Debug event");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_SECURITY, "Security violation");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_LOW_POWER_WAKE, "Waking up from low power mode");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_CPU_LOCKUP, "CPU lock-up detected");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_PARITY, "Parity error");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_PLL, "PLL error");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_CLOCK, "Clock error");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_HARDWARE, "Hardware reset");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_USER, "User reset");
-  pos = append_reset_reason(buf, size, pos, cause & RESET_TEMPERATURE, "Temperature reset");
-
-  // Ensure null termination if nothing was written
-  if (pos == 0) {
-    buf[0] = '\0';
-  }
-
+  const char *buf = zephyr::get_reset_reason(buffer);
   ESP_LOGD(TAG, "Reset Reason: %s", buf);
   return buf;
 }
 
-const char *DebugComponent::get_wakeup_cause_(std::span<char, RESET_REASON_BUFFER_SIZE> buffer) {
+const char *DebugComponent::get_wakeup_cause_(std::span<char, WAKEUP_CAUSE_BUFFER_SIZE> buffer) {
   // Zephyr doesn't have detailed wakeup cause like ESP32
   return "";
 }
@@ -120,13 +79,13 @@ static void fa_cb(const struct flash_area *fa, void *user_data) {
 void DebugComponent::log_partition_info_() {
 #if CONFIG_FLASH_MAP_LABELS
   ESP_LOGCONFIG(TAG, "ID | Device     | Device Name               "
-                     "| Label                   | Offset     | Size\n"
-                     "--------------------------------------------"
+                     "| Label                   | Offset     | Size");
+  ESP_LOGCONFIG(TAG, "--------------------------------------------"
                      "-----------------------------------------------");
 #else
   ESP_LOGCONFIG(TAG, "ID | Device     | Device Name               "
-                     "| Offset     | Size\n"
-                     "-----------------------------------------"
+                     "| Offset     | Size");
+  ESP_LOGCONFIG(TAG, "-----------------------------------------"
                      "------------------------------");
 #endif
   flash_area_foreach(fa_cb, nullptr);
@@ -325,11 +284,12 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
   char mac_pretty[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
   get_mac_address_pretty_into_buffer(mac_pretty);
   ESP_LOGD(TAG,
-           "Code page size: %u, code size: %u, device id: 0x%08x%08x\n"
-           "Encryption root: 0x%08x%08x%08x%08x, Identity Root: 0x%08x%08x%08x%08x\n"
-           "Device address type: %s, address: %s\n"
-           "Part code: nRF%x, version: %c%c%c%c, package: %s\n"
-           "RAM: %ukB, Flash: %ukB, production test: %sdone",
+           "nRF debug info:\n"
+           "  Code page size: %u, code size: %u, device id: 0x%08x%08x\n"
+           "  Encryption root: 0x%08x%08x%08x%08x, Identity Root: 0x%08x%08x%08x%08x\n"
+           "  Device address type: %s, address: %s\n"
+           "  Part code: nRF%x, version: %c%c%c%c, package: %s\n"
+           "  RAM: %ukB, Flash: %ukB, production test: %sdone",
            NRF_FICR->CODEPAGESIZE, NRF_FICR->CODESIZE, NRF_FICR->DEVICEID[1], NRF_FICR->DEVICEID[0], NRF_FICR->ER[0],
            NRF_FICR->ER[1], NRF_FICR->ER[2], NRF_FICR->ER[3], NRF_FICR->IR[0], NRF_FICR->IR[1], NRF_FICR->IR[2],
            NRF_FICR->IR[3], (NRF_FICR->DEVICEADDRTYPE & 0x1 ? "Random" : "Public"), mac_pretty, NRF_FICR->INFO.PART,
@@ -340,23 +300,22 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
                          (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_CONNECT_Msk) == UICR_PSELRESET_CONNECT_Connected
                                                                                       << UICR_PSELRESET_CONNECT_Pos;
   ESP_LOGD(
-      TAG, "GPIO as NFC pins: %s, GPIO as nRESET pin: %s",
+      TAG, "  GPIO as NFC pins: %s, GPIO as nRESET pin: %s",
       YESNO((NRF_UICR->NFCPINS & UICR_NFCPINS_PROTECT_Msk) == (UICR_NFCPINS_PROTECT_NFC << UICR_NFCPINS_PROTECT_Pos)),
       YESNO(n_reset_enabled));
   if (n_reset_enabled) {
     uint8_t port = (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_PORT_Msk) >> UICR_PSELRESET_PORT_Pos;
     uint8_t pin = (NRF_UICR->PSELRESET[0] & UICR_PSELRESET_PIN_Msk) >> UICR_PSELRESET_PIN_Pos;
-    ESP_LOGD(TAG, "nRESET port P%u.%02u", port, pin);
+    ESP_LOGD(TAG, "  nRESET port P%u.%02u", port, pin);
   }
 #ifdef USE_BOOTLOADER_MCUBOOT
-  ESP_LOGD(TAG, "bootloader: mcuboot");
+  ESP_LOGD(TAG, "  Bootloader: mcuboot");
 #else
-  ESP_LOGD(TAG, "bootloader: Adafruit, version %u.%u.%u", (BOOTLOADER_VERSION_REGISTER >> 16) & 0xFF,
+  ESP_LOGD(TAG, "  Bootloader: Adafruit, version %u.%u.%u", (BOOTLOADER_VERSION_REGISTER >> 16) & 0xFF,
            (BOOTLOADER_VERSION_REGISTER >> 8) & 0xFF, BOOTLOADER_VERSION_REGISTER & 0xFF);
-  ESP_LOGD(TAG,
-           "MBR bootloader addr 0x%08x, UICR bootloader addr 0x%08x\n"
-           "MBR param page addr 0x%08x, UICR param page addr 0x%08x",
-           read_mem_u32(MBR_BOOTLOADER_ADDR), NRF_UICR->NRFFW[0], read_mem_u32(MBR_PARAM_PAGE_ADDR),
+  ESP_LOGD(TAG, "  MBR bootloader addr 0x%08x, UICR bootloader addr 0x%08x", read_mem_u32(MBR_BOOTLOADER_ADDR),
+           NRF_UICR->NRFFW[0]);
+  ESP_LOGD(TAG, "  MBR param page addr 0x%08x, UICR param page addr 0x%08x", read_mem_u32(MBR_PARAM_PAGE_ADDR),
            NRF_UICR->NRFFW[1]);
   if (is_sd_present()) {
     uint32_t const sd_id = sd_id_get();
@@ -367,7 +326,7 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
     ver[1] = (sd_version - ver[0] * 1000000) / 1000;
     ver[2] = (sd_version - ver[0] * 1000000 - ver[1] * 1000);
 
-    ESP_LOGD(TAG, "SoftDevice: S%u %u.%u.%u", sd_id, ver[0], ver[1], ver[2]);
+    ESP_LOGD(TAG, "  SoftDevice: S%u %u.%u.%u", sd_id, ver[0], ver[1], ver[2]);
 #ifdef USE_SOFTDEVICE_ID
 #ifdef USE_SOFTDEVICE_VERSION
     if (USE_SOFTDEVICE_ID != sd_id || USE_SOFTDEVICE_VERSION != ver[0]) {
@@ -393,10 +352,8 @@ size_t DebugComponent::get_device_info_(std::span<char, DEVICE_INFO_BUFFER_SIZE>
     }
     return res;
   };
-  ESP_LOGD(TAG,
-           "NRFFW %s\n"
-           "NRFHW %s",
-           uicr(NRF_UICR->NRFFW, 13).c_str(), uicr(NRF_UICR->NRFHW, 12).c_str());
+  ESP_LOGD(TAG, "  NRFFW %s", uicr(NRF_UICR->NRFFW, 13).c_str());
+  ESP_LOGD(TAG, "  NRFHW %s", uicr(NRF_UICR->NRFHW, 12).c_str());
 
   return pos;
 }
