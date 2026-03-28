@@ -503,7 +503,7 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
 
 /// Initialize a std::array from an initializer_list. Uses memcpy for trivially copyable types (optimal codegen),
 /// falls back to element-wise copy for non-trivially copyable types (e.g. TemplatableValue).
-/// N is set by code generation; ESPHOME_DEBUG_ASSERT catches mismatches in debug/integration tests.
+/// N is set by code generation; assert catches mismatches in debug/integration tests.
 template<typename T, size_t N> inline void init_array_from(std::array<T, N> &dest, std::initializer_list<T> src) {
 #ifdef ESPHOME_DEBUG
   assert(src.size() == N);

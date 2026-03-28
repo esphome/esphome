@@ -222,15 +222,6 @@ MultiplyFilter::MultiplyFilter(TemplatableValue<float> multiplier) : multiplier_
 
 optional<float> MultiplyFilter::new_value(float value) { return value * this->multiplier_.value(); }
 
-bool throttle_check_and_update(uint32_t &last_input, uint32_t min_time_between_inputs) {
-  const uint32_t now = App.get_loop_component_start_time();
-  if (last_input == 0 || now - last_input >= min_time_between_inputs) {
-    last_input = now;
-    return true;
-  }
-  return false;
-}
-
 // ValueListFilter helper (non-template, shared by all ValueListFilter<N> instantiations)
 bool value_list_matches_any(Sensor *parent, float sensor_value, const TemplatableValue<float> *values, size_t count) {
   int8_t accuracy = parent->get_accuracy_decimals();
@@ -266,6 +257,17 @@ optional<float> ThrottleFilter::new_value(float value) {
   return {};
 }
 
+// ThrottleWithPriorityFilter helper (non-template, keeps App access in .cpp)
+optional<float> throttle_with_priority_new_value(Sensor *parent, float value, const TemplatableValue<float> *values,
+                                                 size_t count, uint32_t &last_input, uint32_t min_time_between_inputs) {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (last_input == 0 || now - last_input >= min_time_between_inputs ||
+      value_list_matches_any(parent, value, values, count)) {
+    last_input = now;
+    return value;
+  }
+  return {};
+}
 // DeltaFilter
 DeltaFilter::DeltaFilter(float min_a0, float min_a1, float max_a0, float max_a1)
     : min_a0_(min_a0), min_a1_(min_a1), max_a0_(max_a0), max_a1_(max_a1) {}
