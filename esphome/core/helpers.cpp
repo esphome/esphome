@@ -22,6 +22,19 @@ namespace esphome {
 
 static const char *const TAG = "helpers";
 
+__attribute__((noinline, cold)) void *callback_manager_grow(void *data, uint16_t size, uint16_t &capacity,
+                                                            size_t elem_size) {
+  ESPHOME_DEBUG_ASSERT(size < UINT16_MAX);
+  uint16_t new_cap = size + 1;
+  auto *new_data = ::operator new(new_cap *elem_size);
+  if (data) {
+    __builtin_memcpy(new_data, data, size * elem_size);
+    ::operator delete(data);
+  }
+  capacity = new_cap;
+  return new_data;
+}
+
 static const uint16_t CRC16_A001_LE_LUT_L[] = {0x0000, 0xc0c1, 0xc181, 0x0140, 0xc301, 0x03c0, 0x0280, 0xc241,
                                                0xc601, 0x06c0, 0x0780, 0xc741, 0x0500, 0xc5c1, 0xc481, 0x0440};
 static const uint16_t CRC16_A001_LE_LUT_H[] = {0x0000, 0xcc01, 0xd801, 0x1400, 0xf001, 0x3c00, 0x2800, 0xe401,
