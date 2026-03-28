@@ -27,6 +27,13 @@
 #ifdef USE_SOCKET_SELECT_SUPPORT
 #ifdef USE_LWIP_FAST_SELECT
 #include "esphome/core/lwip_fast_select.h"
+#ifdef USE_ESP32
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#else
+#include <FreeRTOS.h>
+#include <task.h>
+#endif
 #else
 #include <sys/select.h>
 #ifdef USE_WAKE_LOOP_THREADSAFE
@@ -34,9 +41,13 @@
 #endif
 #endif
 #endif  // USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_RUNTIME_STATS
+#include "esphome/components/runtime_stats/runtime_stats.h"
+#endif
 #if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
 namespace esphome::socket {
-void socket_wake();  // NOLINT(readability-redundant-declaration)
+void socket_wake();              // NOLINT(readability-redundant-declaration)
+void socket_delay(uint32_t ms);  // NOLINT(readability-redundant-declaration)
 }  // namespace esphome::socket
 #endif
 #ifdef USE_BINARY_SENSOR
@@ -293,7 +304,7 @@ class Application {
   void setup();
 
   /// Make a loop iteration. Call this in your loop() function.
-  void loop();
+  inline void ESPHOME_ALWAYS_INLINE loop();
 
   /// Get the name of this Application set by pre_setup().
   const StringRef &get_name() const { return this->name_; }
@@ -617,8 +628,8 @@ class Application {
   void enable_component_loop_(Component *component);
   void enable_pending_loops_();
   void activate_looping_component_(uint16_t index);
-  void before_loop_tasks_(uint32_t loop_start_time);
-  void after_loop_tasks_();
+  inline void ESPHOME_ALWAYS_INLINE before_loop_tasks_(uint32_t loop_start_time);
+  inline void ESPHOME_ALWAYS_INLINE after_loop_tasks_() { this->in_loop_ = false; }
 
   /// Process dump_config output one component per loop iteration.
   /// Extracted from loop() to keep cold startup/reconnect logging out of the hot path.
@@ -628,7 +639,12 @@ class Application {
   void feed_wdt_arch_();
 
   /// Perform a delay while also monitoring socket file descriptors for readiness
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
+  // select() fallback path is too complex to inline (host platform)
   void yield_with_select_(uint32_t delay_ms);
+#else
+  inline void ESPHOME_ALWAYS_INLINE yield_with_select_(uint32_t delay_ms);
+#endif
 
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
   void setup_wake_loop_threadsafe_();       // Create wake notification socket
@@ -813,5 +829,135 @@ inline void Application::drain_wake_notifications_() {
   }
 }
 #endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
+
+inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_start_time) {
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
+  // Drain wake notifications first to clear socket for next wake
+  this->drain_wake_notifications_();
+#endif
+
+  // Process scheduled tasks
+  this->scheduler.call(loop_start_time);
+
+  // Feed the watchdog timer
+  this->feed_wdt(loop_start_time);
+
+  // Process any pending enable_loop requests from ISRs
+  // This must be done before marking in_loop_ = true to avoid race conditions
+  if (this->has_pending_enable_loop_requests_) {
+    // Clear flag BEFORE processing to avoid race condition
+    // If ISR sets it during processing, we'll catch it next loop iteration
+    // This is safe because:
+    // 1. Each component has its own pending_enable_loop_ flag that we check
+    // 2. If we can't process a component (wrong state), enable_pending_loops_()
+    //    will set this flag back to true
+    // 3. Any new ISR requests during processing will set the flag again
+    this->has_pending_enable_loop_requests_ = false;
+    this->enable_pending_loops_();
+  }
+
+  // Mark that we're in the loop for safe reentrant modifications
+  this->in_loop_ = true;
+}
+
+inline void ESPHOME_ALWAYS_INLINE Application::loop() {
+  uint8_t new_app_state = 0;
+
+  // Get the initial loop time at the start
+  uint32_t last_op_end_time = millis();
+
+  this->before_loop_tasks_(last_op_end_time);
+
+  for (this->current_loop_index_ = 0; this->current_loop_index_ < this->looping_components_active_end_;
+       this->current_loop_index_++) {
+    Component *component = this->looping_components_[this->current_loop_index_];
+
+    // Update the cached time before each component runs
+    this->loop_component_start_time_ = last_op_end_time;
+
+    {
+      this->set_current_component(component);
+      WarnIfComponentBlockingGuard guard{component, last_op_end_time};
+      component->loop();
+      // Use the finish method to get the current time as the end time
+      last_op_end_time = guard.finish();
+    }
+    new_app_state |= component->get_component_state();
+    this->app_state_ |= new_app_state;
+    this->feed_wdt(last_op_end_time);
+  }
+
+  this->after_loop_tasks_();
+  this->app_state_ = new_app_state;
+
+#ifdef USE_RUNTIME_STATS
+  // Process any pending runtime stats printing after all components have run
+  // This ensures stats printing doesn't affect component timing measurements
+  if (global_runtime_stats != nullptr) {
+    global_runtime_stats->process_pending_stats(last_op_end_time);
+  }
+#endif
+
+  // Use the last component's end time instead of calling millis() again
+  auto elapsed = last_op_end_time - this->last_loop_;
+  if (elapsed >= this->loop_interval_ || HighFrequencyLoopRequester::is_high_frequency()) {
+    // Even if we overran the loop interval, we still need to select()
+    // to know if any sockets have data ready
+    this->yield_with_select_(0);
+  } else {
+    uint32_t delay_time = this->loop_interval_ - elapsed;
+    uint32_t next_schedule = this->scheduler.next_schedule_in(last_op_end_time).value_or(delay_time);
+    // next_schedule is max 0.5*delay_time
+    // otherwise interval=0 schedules result in constant looping with almost no sleep
+    next_schedule = std::max(next_schedule, delay_time / 2);
+    delay_time = std::min(next_schedule, delay_time);
+
+    this->yield_with_select_(delay_time);
+  }
+  this->last_loop_ = last_op_end_time;
+
+  if (this->dump_config_at_ < this->components_.size()) {
+    this->process_dump_config_();
+  }
+}
+
+// Inline yield_with_select_ for all paths except the select() fallback
+#if !defined(USE_SOCKET_SELECT_SUPPORT) || defined(USE_LWIP_FAST_SELECT)
+inline void ESPHOME_ALWAYS_INLINE Application::yield_with_select_(uint32_t delay_ms) {
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_LWIP_FAST_SELECT)
+  // Fast path (ESP32/LibreTiny): reads rcvevent directly from cached lwip_sock pointers.
+  // Safe because this runs on the main loop which owns socket lifetime (create, read, close).
+  if (delay_ms == 0) [[unlikely]] {
+    yield();
+    return;
+  }
+
+  // Check if any socket already has pending data before sleeping.
+  // If a socket still has unread data (rcvevent > 0) but the task notification was already
+  // consumed, ulTaskNotifyTake would block until timeout — adding up to delay_ms latency.
+  // This scan preserves select() semantics: return immediately when any fd is ready.
+  for (struct lwip_sock *sock : this->monitored_sockets_) {
+    if (esphome_lwip_socket_has_data(sock)) {
+      yield();
+      return;
+    }
+  }
+
+  // Sleep with instant wake via FreeRTOS task notification.
+  // Woken by: callback wrapper (socket data arrives), wake_loop_threadsafe() (other tasks), or timeout.
+  // Without USE_WAKE_LOOP_THREADSAFE, only hooked socket callbacks wake the task —
+  // background tasks won't call wake, so this degrades to a pure timeout (same as old select path).
+  ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(delay_ms));
+#elif (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+  // No select support but can wake on socket activity
+  // ESP8266: via esp_schedule()
+  // RP2040: via __sev()/__wfe() hardware sleep/wake
+  socket::socket_delay(delay_ms);
+#else
+  // No select support, use regular delay
+  delay(delay_ms);
+#endif
+}
+#endif  // !defined(USE_SOCKET_SELECT_SUPPORT) || defined(USE_LWIP_FAST_SELECT)
 
 }  // namespace esphome

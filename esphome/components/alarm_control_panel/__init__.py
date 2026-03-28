@@ -10,7 +10,6 @@ from esphome.const import (
     CONF_ID,
     CONF_MQTT_ID,
     CONF_ON_STATE,
-    CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
@@ -34,39 +33,9 @@ CONF_ON_READY = "on_ready"
 alarm_control_panel_ns = cg.esphome_ns.namespace("alarm_control_panel")
 AlarmControlPanel = alarm_control_panel_ns.class_("AlarmControlPanel", cg.EntityBase)
 
-StateTrigger = alarm_control_panel_ns.class_(
-    "StateTrigger", automation.Trigger.template()
-)
-TriggeredTrigger = alarm_control_panel_ns.class_(
-    "TriggeredTrigger", automation.Trigger.template()
-)
-ClearedTrigger = alarm_control_panel_ns.class_(
-    "ClearedTrigger", automation.Trigger.template()
-)
-ArmingTrigger = alarm_control_panel_ns.class_(
-    "ArmingTrigger", automation.Trigger.template()
-)
-PendingTrigger = alarm_control_panel_ns.class_(
-    "PendingTrigger", automation.Trigger.template()
-)
-ArmedHomeTrigger = alarm_control_panel_ns.class_(
-    "ArmedHomeTrigger", automation.Trigger.template()
-)
-ArmedNightTrigger = alarm_control_panel_ns.class_(
-    "ArmedNightTrigger", automation.Trigger.template()
-)
-ArmedAwayTrigger = alarm_control_panel_ns.class_(
-    "ArmedAwayTrigger", automation.Trigger.template()
-)
-DisarmedTrigger = alarm_control_panel_ns.class_(
-    "DisarmedTrigger", automation.Trigger.template()
-)
-ChimeTrigger = alarm_control_panel_ns.class_(
-    "ChimeTrigger", automation.Trigger.template()
-)
-ReadyTrigger = alarm_control_panel_ns.class_(
-    "ReadyTrigger", automation.Trigger.template()
-)
+StateAnyForwarder = alarm_control_panel_ns.class_("StateAnyForwarder")
+StateEnterForwarder = alarm_control_panel_ns.class_("StateEnterForwarder")
+AlarmControlPanelState = alarm_control_panel_ns.enum("AlarmControlPanelState")
 
 ArmAwayAction = alarm_control_panel_ns.class_("ArmAwayAction", automation.Action)
 ArmHomeAction = alarm_control_panel_ns.class_("ArmHomeAction", automation.Action)
@@ -89,61 +58,17 @@ _ALARM_CONTROL_PANEL_SCHEMA = (
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(
                 mqtt.MQTTAlarmControlPanelComponent
             ),
-            cv.Optional(CONF_ON_STATE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_TRIGGERED): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TriggeredTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_ARMING): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ArmingTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_PENDING): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PendingTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_ARMED_HOME): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ArmedHomeTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_ARMED_NIGHT): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ArmedNightTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_ARMED_AWAY): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ArmedAwayTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_DISARMED): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DisarmedTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_CLEARED): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ClearedTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_CHIME): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ChimeTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_READY): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ReadyTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_TRIGGERED): automation.validate_automation({}),
+            cv.Optional(CONF_ON_ARMING): automation.validate_automation({}),
+            cv.Optional(CONF_ON_PENDING): automation.validate_automation({}),
+            cv.Optional(CONF_ON_ARMED_HOME): automation.validate_automation({}),
+            cv.Optional(CONF_ON_ARMED_NIGHT): automation.validate_automation({}),
+            cv.Optional(CONF_ON_ARMED_AWAY): automation.validate_automation({}),
+            cv.Optional(CONF_ON_DISARMED): automation.validate_automation({}),
+            cv.Optional(CONF_ON_CLEARED): automation.validate_automation({}),
+            cv.Optional(CONF_ON_CHIME): automation.validate_automation({}),
+            cv.Optional(CONF_ON_READY): automation.validate_automation({}),
         }
     )
 )
@@ -189,38 +114,39 @@ ALARM_CONTROL_PANEL_CONDITION_SCHEMA = maybe_simple_id(
 @setup_entity("alarm_control_panel")
 async def setup_alarm_control_panel_core_(var, config):
     for conf in config.get(CONF_ON_STATE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_TRIGGERED, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_ARMING, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_PENDING, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_ARMED_HOME, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_ARMED_NIGHT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_ARMED_AWAY, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_DISARMED, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            var, "add_on_state_callback", [], conf, forwarder=StateAnyForwarder
+        )
+    _STATE_ENTER_MAP = {
+        CONF_ON_TRIGGERED: AlarmControlPanelState.ACP_STATE_TRIGGERED,
+        CONF_ON_ARMING: AlarmControlPanelState.ACP_STATE_ARMING,
+        CONF_ON_PENDING: AlarmControlPanelState.ACP_STATE_PENDING,
+        CONF_ON_ARMED_HOME: AlarmControlPanelState.ACP_STATE_ARMED_HOME,
+        CONF_ON_ARMED_NIGHT: AlarmControlPanelState.ACP_STATE_ARMED_NIGHT,
+        CONF_ON_ARMED_AWAY: AlarmControlPanelState.ACP_STATE_ARMED_AWAY,
+        CONF_ON_DISARMED: AlarmControlPanelState.ACP_STATE_DISARMED,
+    }
+    for conf_key, state_enum in _STATE_ENTER_MAP.items():
+        for conf in config.get(conf_key, []):
+            await automation.build_callback_automation(
+                var,
+                "add_on_state_callback",
+                [],
+                conf,
+                forwarder=StateEnterForwarder.template(state_enum),
+            )
     for conf in config.get(CONF_ON_CLEARED, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            var, "add_on_cleared_callback", [], conf
+        )
     for conf in config.get(CONF_ON_CHIME, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            var, "add_on_chime_callback", [], conf
+        )
     for conf in config.get(CONF_ON_READY, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            var, "add_on_ready_callback", [], conf
+        )
     if web_server_config := config.get(CONF_WEB_SERVER):
         await web_server.add_entity_config(var, web_server_config)
     if mqtt_id := config.get(CONF_MQTT_ID):

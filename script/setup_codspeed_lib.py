@@ -205,7 +205,13 @@ def setup_codspeed_lib(output_dir: Path) -> None:
     if hooks_dist_c.exists():
         _copy_if_missing(hooks_dist_c, lib_src / "instrument_hooks.c")
 
-    # 4. Write library.json
+    # 4. Copy instrument-hooks headers (core.h, callgrind.h, valgrind.h) next to
+    #    measurement.hpp so they are found before any same-named headers from
+    #    other libraries (e.g. libsodium's core.h).
+    for header in hooks_include.glob("*.h"):
+        _copy_if_missing(header, core_include / header.name)
+
+    # 5. Write library.json
     version = _read_codspeed_version(output_dir / CORE_CMAKE)
     _write_library_json(
         benchmark_dir, core_include, hooks_include, version, project_root

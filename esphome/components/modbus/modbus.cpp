@@ -415,10 +415,10 @@ void Modbus::clear_rx_buffer_(const LogString *reason, bool warn) {
   size_t at = this->rx_buffer_.size();
   if (at > 0) {
     if (warn) {
-      ESP_LOGW(TAG, "Clearing buffer of %" PRIu32 " bytes - %s %" PRIu32 "ms after last send", at, LOG_STR_ARG(reason),
+      ESP_LOGW(TAG, "Clearing buffer of %zu bytes - %s %" PRIu32 "ms after last send", at, LOG_STR_ARG(reason),
                millis() - this->last_send_);
     } else {
-      ESP_LOGV(TAG, "Clearing buffer of %" PRIu32 " bytes - %s %" PRIu32 "ms after last send", at, LOG_STR_ARG(reason),
+      ESP_LOGV(TAG, "Clearing buffer of %zu bytes - %s %" PRIu32 "ms after last send", at, LOG_STR_ARG(reason),
                millis() - this->last_send_);
     }
     this->rx_buffer_.clear();

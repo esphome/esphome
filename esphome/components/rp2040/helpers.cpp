@@ -10,20 +10,12 @@
 #include <pico/cyw43_arch.h>  // For cyw43_arch_lwip_begin/end (LwIPLock)
 #elif defined(USE_ETHERNET)
 #include <LwipEthernet.h>  // For ethernet_arch_lwip_begin/end (LwIPLock)
+#include "esphome/components/ethernet/ethernet_component.h"
 #endif
 #include <hardware/structs/rosc.h>
 #include <hardware/sync.h>
 
 namespace esphome {
-
-uint32_t random_uint32() {
-  uint32_t result = 0;
-  for (uint8_t i = 0; i < 32; i++) {
-    result <<= 1;
-    result |= rosc_hw->randombit;
-  }
-  return result;
-}
 
 bool random_bytes(uint8_t *data, size_t len) {
   while (len-- != 0) {
@@ -71,6 +63,8 @@ LwIPLock::~LwIPLock() {}
 void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
 #ifdef USE_WIFI
   WiFi.macAddress(mac);
+#elif defined(USE_ETHERNET)
+  ethernet::global_eth_component->get_eth_mac_address_raw(mac);
 #endif
 }
 
