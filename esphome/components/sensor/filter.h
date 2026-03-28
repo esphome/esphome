@@ -544,13 +544,26 @@ template<size_t N> class OrFilter : public Filter {
   bool has_value_{false};
 };
 
-class CalibrateLinearFilter : public Filter {
+/// Non-template helper for linear calibration (implementation in filter.cpp)
+optional<float> calibrate_linear_compute(const std::array<float, 3> *functions, size_t count, float value);
+
+/// N is set by code generation to match the exact number of calibration segments.
+template<size_t N> class CalibrateLinearFilter : public Filter {
  public:
-  explicit CalibrateLinearFilter(std::initializer_list<std::array<float, 3>> linear_functions);
-  optional<float> new_value(float value) override;
+  explicit CalibrateLinearFilter(std::initializer_list<std::array<float, 3>> linear_functions) {
+    size_t i = 0;
+    for (const auto &f : linear_functions) {
+      if (i >= N)
+        break;
+      this->linear_functions_[i++] = f;
+    }
+  }
+  optional<float> new_value(float value) override {
+    return calibrate_linear_compute(this->linear_functions_.data(), N, value);
+  }
 
  protected:
-  FixedVector<std::array<float, 3>> linear_functions_;
+  std::array<std::array<float, 3>, N> linear_functions_{};
 };
 
 class CalibratePolynomialFilter : public Filter {
