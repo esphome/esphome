@@ -1786,29 +1786,77 @@ template<typename... X> class CallbackManager;
 
 /** Helper class to allow having multiple subscribers to a callback.
  *
+ * Uses a trivial-copyable-specialized container instead of std::vector to avoid
+ * template bloat (_M_realloc_insert, exception-safe copies). Since Callback is
+ * trivially copyable (just {fn_ptr, ctx_ptr}), reallocation is a plain memcpy.
+ * Uses uint16_t for size/capacity (8 bytes on 32-bit vs 12 for std::vector).
+ * Grows to exact size on each add — callbacks are registered during setup()
+ * and most instances have only 1-2 callbacks, so slack capacity is wasteful.
+ *
  * @tparam Ts The arguments for the callbacks, wrapped in void().
  */
 template<typename... Ts> class CallbackManager<void(Ts...)> {
+  using CbType = Callback<void(Ts...)>;
+  static_assert(std::is_trivially_copyable_v<CbType>, "Callback must be trivially copyable");
+
  public:
+  CallbackManager() = default;
+  ~CallbackManager() { delete[] this->data_; }
+
+  // Non-copyable (would alias data_), movable (for std::map support)
+  CallbackManager(const CallbackManager &) = delete;
+  CallbackManager &operator=(const CallbackManager &) = delete;
+  CallbackManager(CallbackManager &&other) noexcept
+      : data_(other.data_), size_(other.size_), capacity_(other.capacity_) {
+    other.data_ = nullptr;
+    other.size_ = 0;
+    other.capacity_ = 0;
+  }
+  CallbackManager &operator=(CallbackManager &&other) noexcept {
+    if (this != &other) {
+      delete[] this->data_;
+      this->data_ = other.data_;
+      this->size_ = other.size_;
+      this->capacity_ = other.capacity_;
+      other.data_ = nullptr;
+      other.size_ = 0;
+      other.capacity_ = 0;
+    }
+    return *this;
+  }
+
   /// Add any callable. Small trivially-copyable callables (like [this] lambdas)
   /// are stored inline without heap allocation or std::function.
-  template<typename F> void add(F &&callback) { this->add_(Callback<void(Ts...)>::create(std::forward<F>(callback))); }
-
-  /// Call all callbacks in this manager. No null check on invoke.
-  void call(Ts... args) {
-    for (auto &cb : this->callbacks_)
-      cb.call(args...);
-  }
-  size_t size() const { return this->callbacks_.size(); }
+  template<typename F> void add(F &&callback) { this->add_(CbType::create(std::forward<F>(callback))); }
 
   /// Call all callbacks in this manager.
-  void operator()(Ts... args) { call(args...); }
+  void call(Ts... args) {
+    for (uint16_t i = 0; i < this->size_; i++)
+      this->data_[i].call(args...);
+  }
+  uint16_t size() const { return this->size_; }
+
+  /// Call all callbacks in this manager.
+  void operator()(Ts... args) { this->call(args...); }
 
  protected:
   template<typename...> friend class LazyCallbackManager;
   /// Non-template core to avoid code duplication per lambda type.
-  void add_(Callback<void(Ts...)> cb) { this->callbacks_.push_back(cb); }
-  std::vector<Callback<void(Ts...)>> callbacks_;
+  void add_(CbType cb) {
+    if (this->size_ == this->capacity_) {
+      auto *new_data = new CbType[this->size_ + 1];
+      if (this->data_) {
+        __builtin_memcpy(new_data, this->data_, this->size_ * sizeof(CbType));
+        delete[] this->data_;
+      }
+      this->data_ = new_data;
+      this->capacity_ = this->size_ + 1;
+    }
+    this->data_[this->size_++] = cb;
+  }
+  CbType *data_{nullptr};
+  uint16_t size_{0};
+  uint16_t capacity_{0};
 };
 
 template<typename... X> class LazyCallbackManager;
@@ -1820,7 +1868,7 @@ template<typename... X> class LazyCallbackManager;
  * from API and web_server components).
  *
  * Memory overhead comparison (32-bit systems):
- * - CallbackManager: 12 bytes (empty std::vector)
+ * - CallbackManager: 8 bytes (pointer + uint16 size + uint16 capacity)
  * - LazyCallbackManager: 4 bytes (nullptr pointer)
  *
  * Uses plain pointer instead of unique_ptr to avoid template instantiation overhead.
