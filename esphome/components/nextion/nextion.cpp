@@ -498,12 +498,11 @@ void Nextion::process_nextion_commands_() {
           NextionComponentBase *component = nb->component;
           ESP_LOGW(TAG, "Invalid waveform ID %d/ch %d", component->get_component_id(),
                    component->get_wave_channel_id());
-          ESP_LOGN(TAG, "Remove waveform ID %d/ch %d", component->get_component_id(),
-                   component->get_wave_channel_id());
+          ESP_LOGN(TAG, "Remove waveform ID %d/ch %d", component->get_component_id(), component->get_wave_channel_id());
           delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
           this->waveform_queue_.pop();
         }
-#else  // USE_NEXTION_WAVEFORM
+#else   // USE_NEXTION_WAVEFORM
         ESP_LOGW(TAG, "Waveform ID/ch error but waveform not enabled");
 #endif  // USE_NEXTION_WAVEFORM
         break;
@@ -829,7 +828,7 @@ void Nextion::process_nextion_commands_() {
         component->clear_wave_buffer(buffer_to_send);
         delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
         this->waveform_queue_.pop();
-#else  // USE_NEXTION_WAVEFORM
+#else   // USE_NEXTION_WAVEFORM
         ESP_LOGW(TAG, "Waveform transmit ready but waveform not enabled");
 #endif  // USE_NEXTION_WAVEFORM
         break;
