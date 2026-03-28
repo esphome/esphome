@@ -945,11 +945,12 @@ void Nextion::all_components_send_state_(bool force_update) {
   }
   for (auto *sensortype : this->sensortype_) {
 #ifdef USE_NEXTION_WAVEFORM
-    if ((force_update || sensortype->get_needs_to_send_update()) && sensortype->get_wave_channel_id() == UINT8_MAX)
+    if ((force_update || sensortype->get_needs_to_send_update()) && sensortype->get_wave_channel_id() == UINT8_MAX) {
 #else   // USE_NEXTION_WAVEFORM
-    if (force_update || sensortype->get_needs_to_send_update())
+    if (force_update || sensortype->get_needs_to_send_update()) {
 #endif  // USE_NEXTION_WAVEFORM
       sensortype->send_state_to_nextion();
+    }
   }
   for (auto *switchtype : this->switchtype_) {
     if (force_update || switchtype->get_needs_to_send_update())
