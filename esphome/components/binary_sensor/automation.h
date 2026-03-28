@@ -133,10 +133,9 @@ template<size_t N> class MultiClickTrigger : public MultiClickTriggerBase {
       : MultiClickTriggerBase(parent) {
     size_t i = 0;
     for (const auto &t : timing) {
-      if (i >= N)
-        break;
       this->timing_storage_[i++] = t;
     }
+    ESPHOME_DEBUG_ASSERT(i == N);
     this->timing_ = this->timing_storage_.data();
     this->timing_count_ = N;
   }
