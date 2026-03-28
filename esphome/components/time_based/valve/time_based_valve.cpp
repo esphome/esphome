@@ -76,14 +76,16 @@ void TimeBasedValve::reset_position() {
 }
 
 void TimeBasedValve::set_position(float position, bool relative) {
-  if (position == this->position && !relative)
-    return;
-  this->target_position_relative_ = relative;
-
   ValveOperation op;
+
   if (relative) {
     op = position < 0 ? VALVE_OPERATION_CLOSING : VALVE_OPERATION_OPENING;
+    if (op == VALVE_OPERATION_CLOSING && this->position == VALVE_CLOSED ||
+        op == VALVE_OPERATION_OPENING && this->position == VALVE_OPEN)
+      return;
   } else {
+    if (position == this->position)
+      return;
     if (std::isnan(this->position)) {
       // If current position is unknown, only full open and close are possible
       if (position != VALVE_CLOSED && position != VALVE_OPEN)
@@ -99,6 +101,7 @@ void TimeBasedValve::set_position(float position, bool relative) {
     this->start_direction_(VALVE_OPERATION_IDLE);
   }
 
+  this->target_position_relative_ = relative;
   this->target_position_ = relative ? this->measured_position_ + position : position;
   this->start_direction_(op);
 }
@@ -201,7 +204,7 @@ void TimeBasedValve::recompute_position_() {
 
   bool endstop_reached = (this->measured_position_max_ - this->measured_position_min_) >= 1;
   this->measured_position_ += distance;
-  clamp(this->measured_position_, -1.0f, 1.0f);
+  this->measured_position_ = clamp(this->measured_position_, -1.0f, 1.0f);
   if (!endstop_reached) {
     if (this->measured_position_ > this->measured_position_max_) {
       this->measured_position_max_ = this->measured_position_;
