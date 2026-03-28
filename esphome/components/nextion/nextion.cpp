@@ -109,11 +109,11 @@ bool Nextion::check_connect_() {
   size_t field_idx = 0;
   size_t start = 0;
   size_t end = 0;
-  std::string fields[7];
+  std::string connect_info[7];
   while ((start = response.find_first_not_of(',', end)) != std::string::npos) {
     end = response.find(',', start);
     if (field_idx < 7) {
-      fields[field_idx].assign(response, start, end == std::string::npos ? response.size() - start : end - start);
+      connect_info[field_idx].assign(response, start, end == std::string::npos ? response.size() - start : end - start);
     }
     ++field_idx;
     ++field_count;
@@ -122,17 +122,17 @@ bool Nextion::check_connect_() {
   if (this->is_detected_) {
     ESP_LOGN(TAG, "Connect info: %zu fields", field_count);
 #ifdef USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
-    this->device_model_ = fields[2];
-    this->firmware_version_ = fields[3];
-    this->serial_number_ = fields[5];
-    this->flash_size_ = fields[6];
+    this->device_model_ = connect_info[2];
+    this->firmware_version_ = connect_info[3];
+    this->serial_number_ = connect_info[5];
+    this->flash_size_ = connect_info[6];
 #else   // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
     ESP_LOGI(TAG,
              "  Device Model:   %s\n"
              "  FW Version:     %s\n"
              "  Serial Number:  %s\n"
              "  Flash Size:     %s\n",
-             fields[2].c_str(), fields[3].c_str(), fields[5].c_str(), fields[6].c_str());
+             connect_info[2].c_str(), connect_info[3].c_str(), connect_info[5].c_str(), connect_info[6].c_str());
 #endif  // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
   } else {
     ESP_LOGE(TAG, "Bad connect value: '%s'", response.c_str());
