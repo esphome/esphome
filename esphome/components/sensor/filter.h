@@ -506,11 +506,11 @@ optional<float> calibrate_polynomial_compute(const float *coefficients, size_t c
 template<size_t N> class CalibratePolynomialFilter : public Filter {
  public:
   explicit CalibratePolynomialFilter(std::initializer_list<float> coefficients) {
+    ESPHOME_DEBUG_ASSERT(coefficients.size() == N);
     size_t i = 0;
     for (float c : coefficients) {
       this->coefficients_[i++] = c;
     }
-    ESPHOME_DEBUG_ASSERT(i == N);
   }
   optional<float> new_value(float value) override {
     return calibrate_polynomial_compute(this->coefficients_.data(), N, value);
