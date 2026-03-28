@@ -1833,7 +1833,7 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
   template<typename F> void add(F &&callback) { this->add_(CbType::create(std::forward<F>(callback))); }
 
   /// Call all callbacks in this manager.
-  void call(Ts... args) {
+  inline void ESPHOME_ALWAYS_INLINE call(Ts... args) {
     for (auto *it = this->data_, *end = it + this->size_; it != end; ++it) {
       it->call(args...);
     }
