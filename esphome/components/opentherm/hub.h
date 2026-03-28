@@ -70,6 +70,7 @@ class OpenthermHub : public Component {
 
   uint32_t last_conversation_start_ = 0;
   uint32_t last_conversation_end_ = 0;
+  uint32_t communication_delay_{100};
   OperationMode last_mode_ = IDLE;
   OpenthermData last_request_;
 
@@ -119,6 +120,7 @@ class OpenthermHub : public Component {
   // Setters for the input and output OpenTherm interface pins
   void set_in_pin(InternalGPIOPin *in_pin) { this->in_pin_ = in_pin; }
   void set_out_pin(InternalGPIOPin *out_pin) { this->out_pin_ = out_pin; }
+  void set_communication_delay(uint32_t communication_delay) { this->communication_delay_ = communication_delay; }
 
   OPENTHERM_SENSOR_LIST(OPENTHERM_SET_SENSOR, )
 

@@ -15,6 +15,7 @@ MULTI_CONF = True
 
 CONF_IN_PIN = "in_pin"
 CONF_OUT_PIN = "out_pin"
+CONF_COMMUNICATION_DELAY = "communication_delay"
 CONF_CH_ENABLE = "ch_enable"
 CONF_DHW_ENABLE = "dhw_enable"
 CONF_COOLING_ENABLE = "cooling_enable"
@@ -49,6 +50,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CH2_ACTIVE, False): cv.boolean,
             cv.Optional(CONF_SUMMER_MODE_ACTIVE, False): cv.boolean,
             cv.Optional(CONF_DHW_BLOCK, False): cv.boolean,
+            cv.Optional(CONF_COMMUNICATION_DELAY, default="100ms"): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_SYNC_MODE, False): cv.boolean,
             cv.Optional(CONF_BEFORE_SEND): automation.validate_automation(
                 {
@@ -97,9 +99,13 @@ async def to_code(config: dict[str, Any]) -> None:
         CONF_ID,
         CONF_IN_PIN,
         CONF_OUT_PIN,
+        CONF_COMMUNICATION_DELAY,
         CONF_BEFORE_SEND,
         CONF_BEFORE_PROCESS_RESPONSE,
     }
+
+    cg.add(var.set_communication_delay(config[CONF_COMMUNICATION_DELAY]))
+
     input_sensors = []
     settings = []
     for key, value in config.items():
