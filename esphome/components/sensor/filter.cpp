@@ -383,14 +383,11 @@ optional<float> calibrate_linear_compute(const std::array<float, 3> *functions, 
   return NAN;
 }
 
-CalibratePolynomialFilter::CalibratePolynomialFilter(std::initializer_list<float> coefficients)
-    : coefficients_(coefficients) {}
-
-optional<float> CalibratePolynomialFilter::new_value(float value) {
+optional<float> calibrate_polynomial_compute(const float *coefficients, size_t count, float value) {
   float res = 0.0f;
   float x = 1.0f;
-  for (const auto &coefficient : this->coefficients_) {
-    res += x * coefficient;
+  for (size_t i = 0; i < count; i++) {
+    res += x * coefficients[i];
     x *= value;
   }
   return res;

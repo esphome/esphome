@@ -810,7 +810,7 @@ async def calibrate_polynomial_filter_to_code(config, filter_id):
     # Column vector
     b = [[v] for v in y]
     res = [v[0] for v in _lstsq(a, b)]
-    return cg.new_Pvariable(filter_id, res)
+    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(res)), res)
 
 
 def validate_clamp(config):

@@ -566,13 +566,26 @@ template<size_t N> class CalibrateLinearFilter : public Filter {
   std::array<std::array<float, 3>, N> linear_functions_{};
 };
 
-class CalibratePolynomialFilter : public Filter {
+/// Non-template helper for polynomial calibration (implementation in filter.cpp)
+optional<float> calibrate_polynomial_compute(const float *coefficients, size_t count, float value);
+
+/// N is set by code generation to match the exact number of polynomial coefficients.
+template<size_t N> class CalibratePolynomialFilter : public Filter {
  public:
-  explicit CalibratePolynomialFilter(std::initializer_list<float> coefficients);
-  optional<float> new_value(float value) override;
+  explicit CalibratePolynomialFilter(std::initializer_list<float> coefficients) {
+    size_t i = 0;
+    for (float c : coefficients) {
+      if (i >= N)
+        break;
+      this->coefficients_[i++] = c;
+    }
+  }
+  optional<float> new_value(float value) override {
+    return calibrate_polynomial_compute(this->coefficients_.data(), N, value);
+  }
 
  protected:
-  FixedVector<float> coefficients_;
+  std::array<float, N> coefficients_{};
 };
 
 class ClampFilter : public Filter {
