@@ -112,11 +112,11 @@ class AutorepeatFilterBase : public Filter, public Component {
 template<size_t N> class AutorepeatFilter : public AutorepeatFilterBase {
  public:
   explicit AutorepeatFilter(std::initializer_list<AutorepeatFilterTiming> timings) {
+    ESPHOME_DEBUG_ASSERT(timings.size() == N);
     size_t i = 0;
     for (const auto &t : timings) {
       this->timings_storage_[i++] = t;
     }
-    ESPHOME_DEBUG_ASSERT(i == N);
     this->timings_ = this->timings_storage_.data();
     this->timings_count_ = N;
   }
