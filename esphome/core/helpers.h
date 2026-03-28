@@ -420,7 +420,7 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
     if constexpr (std::is_trivially_copyable<T>::value && std::is_trivially_default_constructible<T>::value) {
       ::operator delete(this->data_);
     } else {
-      ::operator delete(this->data_);
+      delete[] this->data_;
     }
   }
 
