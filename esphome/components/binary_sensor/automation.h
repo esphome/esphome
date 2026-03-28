@@ -105,10 +105,10 @@ class MultiClickTriggerBase : public Trigger<>, public Component {
   void set_invalid_cooldown(uint32_t invalid_cooldown) { this->invalid_cooldown_ = invalid_cooldown; }
 
   void cancel();
-
- protected:
   MultiClickTriggerBase(const MultiClickTriggerBase &) = delete;
   MultiClickTriggerBase &operator=(const MultiClickTriggerBase &) = delete;
+
+ protected:
   void on_state_(bool state);
   void schedule_cooldown_();
   void schedule_is_valid_(uint32_t min_length);
