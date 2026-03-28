@@ -246,13 +246,15 @@ bool value_list_matches_any(Sensor *parent, float sensor_value, const Templatabl
   return false;
 }
 
-bool throttle_check_with_priority(uint32_t &last_input, uint32_t min_time_between_inputs, bool is_prioritized) {
+optional<float> throttle_with_priority_new_value(Sensor *parent, float value, const TemplatableValue<float> *values,
+                                                 size_t count, uint32_t &last_input, uint32_t min_time_between_inputs) {
   const uint32_t now = App.get_loop_component_start_time();
-  if (last_input == 0 || now - last_input >= min_time_between_inputs || is_prioritized) {
+  if (last_input == 0 || now - last_input >= min_time_between_inputs ||
+      value_list_matches_any(parent, value, values, count)) {
     last_input = now;
-    return true;
+    return value;
   }
-  return false;
+  return {};
 }
 
 // ThrottleFilter

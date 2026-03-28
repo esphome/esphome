@@ -378,9 +378,9 @@ class ThrottleFilter : public Filter {
   uint32_t min_time_between_inputs_;
 };
 
-/// Check throttle and optionally allow prioritized values through.
-/// Always updates last_input when returning true. Implementation in filter.cpp.
-bool throttle_check_with_priority(uint32_t &last_input, uint32_t min_time_between_inputs, bool is_prioritized);
+/// Non-template helper for ThrottleWithPriorityFilter (implementation in filter.cpp)
+optional<float> throttle_with_priority_new_value(Sensor *parent, float value, const TemplatableValue<float> *values,
+                                                 size_t count, uint32_t &last_input, uint32_t min_time_between_inputs);
 
 /// Same as 'throttle' but will immediately publish values contained in `value_to_prioritize`.
 template<size_t N> class ThrottleWithPriorityFilter : public ValueListFilter<N> {
@@ -390,11 +390,8 @@ template<size_t N> class ThrottleWithPriorityFilter : public ValueListFilter<N> 
       : ValueListFilter<N>(prioritized_values), min_time_between_inputs_(min_time_between_inputs) {}
 
   optional<float> new_value(float value) override {
-    if (throttle_check_with_priority(this->last_input_, this->min_time_between_inputs_,
-                                     this->value_matches_any_(value))) {
-      return value;
-    }
-    return {};
+    return throttle_with_priority_new_value(this->parent_, value, this->values_.data(), N, this->last_input_,
+                                            this->min_time_between_inputs_);
   }
 
  protected:
