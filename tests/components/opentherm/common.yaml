@@ -83,6 +83,8 @@ sensor:
       name: "Boiler Solar collector temperature"
     t_flow_ch2:
       name: "Boiler Flow water temperature CH2 circuit"
+    t_set:
+      name: "Boiler Target Temperature"
     t_dhw2:
       name: "Boiler Domestic hot water temperature 2"
     t_exhaust:
