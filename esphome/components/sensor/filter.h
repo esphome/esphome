@@ -475,11 +475,11 @@ optional<float> or_filter_new_value(Filter **filters, size_t count, float value,
 template<size_t N> class OrFilter : public Filter {
  public:
   explicit OrFilter(std::initializer_list<Filter *> filters) {
+    ESPHOME_DEBUG_ASSERT(filters.size() == N);
     size_t i = 0;
     for (auto *f : filters) {
       this->filters_[i++] = f;
     }
-    ESPHOME_DEBUG_ASSERT(i == N);
   }
 
   void initialize(Sensor *parent, Filter *next) override {
