@@ -348,10 +348,9 @@ template<size_t N> class ValueListFilter : public Filter {
   explicit ValueListFilter(std::initializer_list<TemplatableValue<float>> values) {
     size_t i = 0;
     for (const auto &v : values) {
-      if (i >= N)
-        break;
       this->values_[i++] = v;
     }
+    ESPHOME_DEBUG_ASSERT(i == N);
   }
 
   /// Check if sensor value matches any configured value (with accuracy rounding)
