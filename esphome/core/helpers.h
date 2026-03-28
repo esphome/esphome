@@ -1847,9 +1847,10 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
   /// Non-template core to avoid code duplication per lambda type.
   /// Inline fast path; cold growth path is in helpers.cpp via callback_manager_grow().
   void add_(CbType cb) {
-    if (this->size_ == this->capacity_)
+    if (this->size_ == this->capacity_) {
       this->data_ =
           static_cast<CbType *>(callback_manager_grow(this->data_, this->size_, this->capacity_, sizeof(CbType)));
+    }
     this->data_[this->size_++] = cb;
   }
   CbType *data_{nullptr};
