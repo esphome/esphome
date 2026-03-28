@@ -171,12 +171,7 @@ bool map_filter_apply(const Substitution *mappings, size_t count, std::string &v
 template<size_t N> class MapFilter : public Filter {
  public:
   explicit MapFilter(const std::initializer_list<Substitution> &mappings) {
-    size_t i = 0;
-    for (const auto &m : mappings) {
-      if (i >= N)
-        break;
-      this->mappings_[i++] = m;
-    }
+    init_array_from(this->mappings_, mappings);
   }
   bool new_value(std::string &value) override { return map_filter_apply(this->mappings_.data(), N, value); }
 
