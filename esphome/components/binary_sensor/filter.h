@@ -97,6 +97,8 @@ class AutorepeatFilterBase : public Filter, public Component {
 
  protected:
   AutorepeatFilterBase() = default;
+  AutorepeatFilterBase(const AutorepeatFilterBase &) = delete;
+  AutorepeatFilterBase &operator=(const AutorepeatFilterBase &) = delete;
   void next_timing_();
   void next_value_(bool val);
 
