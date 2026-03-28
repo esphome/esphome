@@ -167,10 +167,9 @@ template<size_t N> class MapFilter : public Filter {
   explicit MapFilter(const std::initializer_list<Substitution> &mappings) {
     size_t i = 0;
     for (const auto &m : mappings) {
-      if (i >= N)
-        break;
       this->mappings_[i++] = m;
     }
+    ESPHOME_DEBUG_ASSERT(i == N);
   }
   bool new_value(std::string &value) override { return map_filter_apply(this->mappings_.data(), N, value); }
 
