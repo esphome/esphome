@@ -346,11 +346,7 @@ uint32_t get_loop_component_start_time();
 template<size_t N> class ValueListFilter : public Filter {
  protected:
   explicit ValueListFilter(std::initializer_list<TemplatableValue<float>> values) {
-    ESPHOME_DEBUG_ASSERT(values.size() == N);
-    size_t i = 0;
-    for (const auto &v : values) {
-      this->values_[i++] = v;
-    }
+    init_array_from(this->values_, values);
   }
 
   /// Check if sensor value matches any configured value (with accuracy rounding)
