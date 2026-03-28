@@ -107,6 +107,8 @@ class MultiClickTriggerBase : public Trigger<>, public Component {
   void cancel();
 
  protected:
+  MultiClickTriggerBase(const MultiClickTriggerBase &) = delete;
+  MultiClickTriggerBase &operator=(const MultiClickTriggerBase &) = delete;
   void on_state_(bool state);
   void schedule_cooldown_();
   void schedule_is_valid_(uint32_t min_length);
