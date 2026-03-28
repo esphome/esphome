@@ -477,10 +477,9 @@ template<size_t N> class OrFilter : public Filter {
   explicit OrFilter(std::initializer_list<Filter *> filters) {
     size_t i = 0;
     for (auto *f : filters) {
-      if (i >= N)
-        break;
       this->filters_[i++] = f;
     }
+    ESPHOME_DEBUG_ASSERT(i == N);
   }
 
   void initialize(Sensor *parent, Filter *next) override {
