@@ -748,7 +748,7 @@ void HonClimate::update_sub_sensor_(SubSensorType type, float value) {
   if (type < SubSensorType::SUB_SENSOR_TYPE_COUNT) {
     size_t index = (size_t) type;
     if ((this->sub_sensors_[index] != nullptr) &&
-        ((!this->sub_sensors_[index]->has_state()) || (this->sub_sensors_[index]->raw_state != value)))
+        ((!this->sub_sensors_[index]->has_state()) || (this->sub_sensors_[index]->get_raw_state() != value)))
       this->sub_sensors_[index]->publish_state(value);
   }
 }

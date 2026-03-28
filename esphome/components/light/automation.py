@@ -1,5 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
+from esphome.config import path_context
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BLUE,
@@ -17,7 +18,6 @@ from esphome.const import (
     CONF_LIMIT_MODE,
     CONF_MAX_BRIGHTNESS,
     CONF_MIN_BRIGHTNESS,
-    CONF_NAME,
     CONF_RANGE_FROM,
     CONF_RANGE_TO,
     CONF_RED,
@@ -26,7 +26,7 @@ from esphome.const import (
     CONF_WARM_WHITE,
     CONF_WHITE,
 )
-from esphome.core import CORE, Lambda
+from esphome.core import CORE, EsphomeError, Lambda
 from esphome.cpp_generator import LambdaExpression
 from esphome.types import ConfigType
 
@@ -98,6 +98,31 @@ LIGHT_CONTROL_ACTION_SCHEMA = LIGHT_STATE_SCHEMA.extend(
     }
 )
 
+
+def _record_effect_ref(config: ConfigType) -> ConfigType:
+    """Record a static effect name reference for later cross-component validation."""
+    if CONF_EFFECT not in config:
+        return config
+    effect = config[CONF_EFFECT]
+    if isinstance(effect, Lambda):
+        return config  # Lambda effects resolved at runtime
+    if effect.lower() == "none":
+        return config  # "None" is always valid
+
+    from . import EffectRef, _get_data
+
+    _get_data().effect_refs.append(
+        EffectRef(
+            light_id=config[CONF_ID],
+            effect_name=effect,
+            component_path=path_context.get(),
+        )
+    )
+    return config
+
+
+LIGHT_CONTROL_ACTION_SCHEMA.add_extra(_record_effect_ref)
+
 LIGHT_TURN_OFF_ACTION_SCHEMA = automation.maybe_simple_id(
     {
         cv.Required(CONF_ID): cv.use_id(LightState),
@@ -122,18 +147,24 @@ def _resolve_effect_index(config: ConfigType) -> int:
     Effect index 0 means "None" (no effect). Effects are 1-indexed matching
     the C++ convention in LightState.
     """
+    from . import available_effects_str, find_effect_index
+
     original_name = config[CONF_EFFECT]
-    effect_name = original_name.lower()
-    if effect_name == "none":
+    if original_name.lower() == "none":
         return 0
     light_id = config[CONF_ID]
     light_path = CORE.config.get_path_for_id(light_id)[:-1]
     light_config = CORE.config.get_config_for_path(light_path)
-    for i, effect_conf in enumerate(light_config.get(CONF_EFFECTS, [])):
-        key = next(iter(effect_conf))
-        if effect_conf[key][CONF_NAME].lower() == effect_name:
-            return i + 1
-    raise ValueError(f"Effect '{original_name}' not found in light '{light_id}'")
+    effects = light_config.get(CONF_EFFECTS, [])
+    index = find_effect_index(effects, original_name)
+    if index is not None:
+        return index
+    # Should never reach here — effect names are validated during config
+    # validation in FINAL_VALIDATE_SCHEMA. This is a safety net.
+    raise EsphomeError(
+        f"Effect '{original_name}' not found for light '{light_id}'. "
+        f"Available effects: {available_effects_str(effects)}"
+    )
 
 
 @automation.register_action(
