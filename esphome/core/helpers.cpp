@@ -24,7 +24,7 @@ static const char *const TAG = "helpers";
 
 __attribute__((noinline, cold)) void *callback_manager_grow(void *data, uint16_t size, uint16_t &capacity,
                                                             size_t elem_size) {
-  ESPHOME_DEBUG_ASSERT(size < UINT16_MAX);
+  ESPHOME_DEBUG_ASSERT(size < UINT16_MAX - 1);
   uint16_t new_cap = size + 1;
   auto *new_data = ::operator new(new_cap *elem_size);
   if (data) {
