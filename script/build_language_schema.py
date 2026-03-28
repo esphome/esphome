@@ -413,7 +413,7 @@ def fix_menu():
     # 4. Configure menu items inside as recursive
     menu = schemas["MENU_TYPES"][S_SCHEMA][S_CONFIG_VARS]["items"]["types"]["menu"]
     menu[S_CONFIG_VARS].pop("items")
-    menu[S_EXTENDS] = ["display_menu_base.MENU_TYPES"]
+    menu[S_EXTENDS].append("display_menu_base.MENU_TYPES")
 
 
 def get_logger_tags():
