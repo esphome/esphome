@@ -246,23 +246,24 @@ bool value_list_matches_any(Sensor *parent, float sensor_value, const Templatabl
   return false;
 }
 
-optional<float> throttle_with_priority_new_value(Sensor *parent, float value, const TemplatableValue<float> *values,
-                                                 size_t count, uint32_t &last_input, uint32_t min_time_between_inputs) {
-  const uint32_t now = App.get_loop_component_start_time();
-  if (last_input == 0 || now - last_input >= min_time_between_inputs ||
-      value_list_matches_any(parent, value, values, count)) {
-    last_input = now;
-    return value;
-  }
-  return {};
-}
-
 // ThrottleFilter
 ThrottleFilter::ThrottleFilter(uint32_t min_time_between_inputs) : min_time_between_inputs_(min_time_between_inputs) {}
 optional<float> ThrottleFilter::new_value(float value) {
   const uint32_t now = App.get_loop_component_start_time();
   if (this->last_input_ == 0 || now - this->last_input_ >= min_time_between_inputs_) {
     this->last_input_ = now;
+    return value;
+  }
+  return {};
+}
+
+// ThrottleWithPriorityFilter helper (non-template, keeps App access in .cpp)
+optional<float> throttle_with_priority_new_value(Sensor *parent, float value, const TemplatableValue<float> *values,
+                                                 size_t count, uint32_t &last_input, uint32_t min_time_between_inputs) {
+  const uint32_t now = App.get_loop_component_start_time();
+  if (last_input == 0 || now - last_input >= min_time_between_inputs ||
+      value_list_matches_any(parent, value, values, count)) {
+    last_input = now;
     return value;
   }
   return {};
