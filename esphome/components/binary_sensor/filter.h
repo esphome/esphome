@@ -94,11 +94,11 @@ class AutorepeatFilterBase : public Filter, public Component {
  public:
   optional<bool> new_value(bool value) override;
   float get_setup_priority() const override;
+  AutorepeatFilterBase(const AutorepeatFilterBase &) = delete;
+  AutorepeatFilterBase &operator=(const AutorepeatFilterBase &) = delete;
 
  protected:
   AutorepeatFilterBase() = default;
-  AutorepeatFilterBase(const AutorepeatFilterBase &) = delete;
-  AutorepeatFilterBase &operator=(const AutorepeatFilterBase &) = delete;
   void next_timing_();
   void next_value_(bool val);
 
@@ -112,12 +112,7 @@ class AutorepeatFilterBase : public Filter, public Component {
 template<size_t N> class AutorepeatFilter : public AutorepeatFilterBase {
  public:
   explicit AutorepeatFilter(std::initializer_list<AutorepeatFilterTiming> timings) {
-    size_t i = 0;
-    for (const auto &t : timings) {
-      if (i >= N)
-        break;
-      this->timings_storage_[i++] = t;
-    }
+    init_array_from(this->timings_storage_, timings);
     this->timings_ = this->timings_storage_.data();
     this->timings_count_ = N;
   }
