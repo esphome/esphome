@@ -33,7 +33,9 @@ class NextionBase {
                                                const std::string &variable_name_to_send,
                                                const std::string &state_value) = 0;
 
+#ifdef USE_NEXTION_WAVEFORM
   virtual void add_addt_command_to_queue(NextionComponentBase *component) = 0;
+#endif  // USE_NEXTION_WAVEFORM
 
   virtual void add_to_get_queue(NextionComponentBase *component) = 0;
 

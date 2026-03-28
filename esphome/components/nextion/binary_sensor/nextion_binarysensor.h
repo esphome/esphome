@@ -23,7 +23,7 @@ class NextionBinarySensor : public NextionComponent,
   // Set the components page id for Nextion Touch Component
   void set_page_id(uint8_t page_id) { page_id_ = page_id; }
   // Set the components component id for Nextion Touch Component
-  void set_component_id(uint8_t component_id) { component_id_ = component_id; }
+  void set_component_id(uint8_t component_id) { this->component_id_ = component_id; }
 
   void set_state(bool state) override { this->set_state(state, true, true); }
   void set_state(bool state, bool publish) override { this->set_state(state, publish, true); }
