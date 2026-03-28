@@ -422,7 +422,8 @@ template<typename... Ts> class ActionList {
     if (this->actions_begin_ == nullptr) {
       this->actions_begin_ = action;
     } else {
-      // Walk to end of chain - action lists are short and only built during setup()
+      // Walk to end of chain - action lists are short and only built during setup().
+      // Note: intentionally not using pointer-to-pointer idiom here as it generates larger code.
       auto *it = this->actions_begin_;
       while (it->next_ != nullptr)
         it = it->next_;
