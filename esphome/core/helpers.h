@@ -1842,22 +1842,29 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
  protected:
   template<typename...> friend class LazyCallbackManager;
   /// Non-template core to avoid code duplication per lambda type.
+  /// Inline fast path; cold growth path is out-of-line in grow_().
   void add_(CbType cb) {
-    if (this->size_ == this->capacity_) {
-      auto *new_data = new CbType[this->size_ + 1];
-      if (this->data_) {
-        __builtin_memcpy(new_data, this->data_, this->size_ * sizeof(CbType));
-        delete[] this->data_;
-      }
-      this->data_ = new_data;
-      this->capacity_ = this->size_ + 1;
-    }
+    if (this->size_ == this->capacity_)
+      this->grow_();
     this->data_[this->size_++] = cb;
   }
+  /// Out-of-line cold path: allocate exact size needed.
+  void grow_();
   CbType *data_{nullptr};
   uint16_t size_{0};
   uint16_t capacity_{0};
 };
+
+/// Out-of-line cold growth path for CallbackManager::add_().
+template<typename... Ts> __attribute__((noinline, cold)) void CallbackManager<void(Ts...)>::grow_() {
+  auto *new_data = new CbType[this->size_ + 1];
+  if (this->data_) {
+    __builtin_memcpy(new_data, this->data_, this->size_ * sizeof(CbType));
+    delete[] this->data_;
+  }
+  this->data_ = new_data;
+  this->capacity_ = this->size_ + 1;
+}
 
 template<typename... X> class LazyCallbackManager;
 
