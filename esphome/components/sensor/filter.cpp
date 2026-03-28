@@ -255,6 +255,8 @@ bool throttle_check_and_update(uint32_t &last_input, uint32_t min_time_between_i
   return false;
 }
 
+void throttle_update_timestamp(uint32_t &last_input) { last_input = App.get_loop_component_start_time(); }
+
 // ThrottleFilter
 ThrottleFilter::ThrottleFilter(uint32_t min_time_between_inputs) : min_time_between_inputs_(min_time_between_inputs) {}
 optional<float> ThrottleFilter::new_value(float value) {
