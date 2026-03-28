@@ -116,7 +116,9 @@ async def substitute_filter_to_code(config, filter_id):
         )
         for conf in config
     ]
-    return cg.new_Pvariable(filter_id, substitutions)
+    return cg.new_Pvariable(
+        filter_id, cg.TemplateArguments(len(substitutions)), substitutions
+    )
 
 
 @FILTER_REGISTRY.register("map", MapFilter, cv.ensure_list(validate_mapping))

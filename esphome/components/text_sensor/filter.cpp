@@ -73,20 +73,14 @@ bool PrependFilter::new_value(std::string &value) {
   return true;
 }
 
-// Substitute
-SubstituteFilter::SubstituteFilter(const std::initializer_list<Substitution> &substitutions)
-    : substitutions_(substitutions) {}
-
-bool SubstituteFilter::new_value(std::string &value) {
-  for (const auto &sub : this->substitutions_) {
-    // Compute lengths once per substitution (strlen is fast, called infrequently)
-    const size_t from_len = strlen(sub.from);
-    const size_t to_len = strlen(sub.to);
+// Substitute — non-template helper
+bool substitute_filter_apply(const Substitution *substitutions, size_t count, std::string &value) {
+  for (size_t i = 0; i < count; i++) {
+    const size_t from_len = strlen(substitutions[i].from);
+    const size_t to_len = strlen(substitutions[i].to);
     std::size_t pos = 0;
-    while ((pos = value.find(sub.from, pos, from_len)) != std::string::npos) {
-      value.replace(pos, from_len, sub.to, to_len);
-      // Advance past the replacement to avoid infinite loop when
-      // the replacement contains the search pattern (e.g., f -> foo)
+    while ((pos = value.find(substitutions[i].from, pos, from_len)) != std::string::npos) {
+      value.replace(pos, from_len, substitutions[i].to, to_len);
       pos += to_len;
     }
   }
