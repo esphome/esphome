@@ -190,14 +190,23 @@ def module_schemas(module):
     except OSError:
         # some empty __init__ files
         module_str = ""
-    schemas = {}
+    schemas = []
     for m_attr_name in dir(module):
         m_attr_obj = getattr(module, m_attr_name)
         if is_convertible_schema(m_attr_obj):
-            schemas[module_str.find(m_attr_name)] = [m_attr_name, m_attr_obj]
+            # Find where the name is assigned in the module source to preserve
+            # definition order. Using ^NAME\s*= (multiline) targets assignments
+            # at column 0, so "CONFIG_SCHEMA" won't collide with "CONFIG_SCHEMA_BASE".
+            match = re.search(
+                r"^" + re.escape(m_attr_name) + r"\s*=",
+                module_str,
+                re.MULTILINE,
+            )
+            pos = match.start() if match else -1
+            schemas.append((pos, m_attr_name, m_attr_obj))
 
-    for pos in sorted(schemas.keys()):
-        yield schemas[pos]
+    for _, name, obj in sorted(schemas, key=lambda x: x[0]):
+        yield name, obj
 
 
 found_registries = {}
