@@ -991,6 +991,47 @@ def test_clean_all_ignores_empty_env_vars(
 
 
 @patch("esphome.writer.CORE")
+def test_clean_all_no_args_with_esphome_dir(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_all with no args cleans .esphome in cwd."""
+    esphome_dir = tmp_path / ".esphome"
+    esphome_dir.mkdir()
+    (esphome_dir / "dummy.txt").write_text("x")
+
+    from esphome.writer import clean_all
+
+    with (
+        caplog.at_level("INFO"),
+        patch("esphome.writer.Path.cwd", return_value=tmp_path),
+    ):
+        clean_all([])
+
+    assert esphome_dir.exists()
+    assert not (esphome_dir / "dummy.txt").exists()
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_no_args_no_esphome_dir(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_all with no args and no .esphome dir warns."""
+    from esphome.writer import clean_all
+
+    with (
+        caplog.at_level("WARNING"),
+        patch("esphome.writer.Path.cwd", return_value=tmp_path),
+    ):
+        clean_all([])
+
+    assert "No configuration files specified" in caplog.text
+
+
+@patch("esphome.writer.CORE")
 def test_clean_all(
     mock_core: MagicMock,
     tmp_path: Path,

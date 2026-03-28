@@ -3657,6 +3657,7 @@ void ListEntitiesInfraredResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_uint32(7, this->device_id);
 #endif
   buffer.encode_uint32(8, this->capabilities);
+  buffer.encode_uint32(9, this->receiver_frequency);
 }
 uint32_t ListEntitiesInfraredResponse::calculate_size() const {
   uint32_t size = 0;
@@ -3672,6 +3673,7 @@ uint32_t ListEntitiesInfraredResponse::calculate_size() const {
   size += ProtoSize::calc_uint32(1, this->device_id);
 #endif
   size += ProtoSize::calc_uint32(1, this->capabilities);
+  size += ProtoSize::calc_uint32(1, this->receiver_frequency);
   return size;
 }
 #endif
