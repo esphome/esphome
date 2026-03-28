@@ -117,12 +117,21 @@ from esphome.util import Registry  # noqa: E402
 # pylint: enable=wrong-import-position
 
 
+def sort_obj(obj):
+    if isinstance(obj, dict):
+        return {k: sort_obj(v) for k, v in sorted(obj.items(), key=lambda x: str(x[0]))}
+    if isinstance(obj, list):
+        return [sort_obj(item) for item in obj]
+    return obj
+
+
 def write_file(name, obj):
     full_path = Path(args.output_path) / f"{name}.json"
+    sorted_obj = sort_obj(obj)
     if JSON_DUMP_PRETTY:
-        json_str = json.dumps(obj, indent=2)
+        json_str = json.dumps(sorted_obj, indent=2)
     else:
-        json_str = json.dumps(obj, separators=(",", ":"))
+        json_str = json.dumps(sorted_obj, separators=(",", ":"))
     write_file_if_changed(full_path, json_str)
 
 
