@@ -430,8 +430,13 @@ template<typename... Ts> class ActionList {
     }
   }
   void add_actions(const std::initializer_list<Action<Ts...> *> &actions) {
+    // Find tail once, then append all actions in a single pass
+    Action<Ts...> **tail = &this->actions_begin_;
+    while (*tail != nullptr)
+      tail = &(*tail)->next_;
     for (auto *action : actions) {
-      this->add_action(action);
+      *tail = action;
+      tail = &action->next_;
     }
   }
   // Force-inline: part of the Trigger→Automation→ActionList forwarding
