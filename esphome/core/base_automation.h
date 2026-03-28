@@ -9,14 +9,17 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 
+#include <array>
 #include <list>
 #include <vector>
 
 namespace esphome {
 
-template<typename... Ts> class AndCondition : public Condition<Ts...> {
+template<size_t N, typename... Ts> class AndCondition : public Condition<Ts...> {
  public:
-  explicit AndCondition(std::initializer_list<Condition<Ts...> *> conditions) : conditions_(conditions) {}
+  explicit AndCondition(std::initializer_list<Condition<Ts...> *> conditions) {
+    init_array_from(this->conditions_, conditions);
+  }
   bool check(const Ts &...x) override {
     for (auto *condition : this->conditions_) {
       if (!condition->check(x...))
@@ -27,12 +30,14 @@ template<typename... Ts> class AndCondition : public Condition<Ts...> {
   }
 
  protected:
-  FixedVector<Condition<Ts...> *> conditions_;
+  std::array<Condition<Ts...> *, N> conditions_{};
 };
 
-template<typename... Ts> class OrCondition : public Condition<Ts...> {
+template<size_t N, typename... Ts> class OrCondition : public Condition<Ts...> {
  public:
-  explicit OrCondition(std::initializer_list<Condition<Ts...> *> conditions) : conditions_(conditions) {}
+  explicit OrCondition(std::initializer_list<Condition<Ts...> *> conditions) {
+    init_array_from(this->conditions_, conditions);
+  }
   bool check(const Ts &...x) override {
     for (auto *condition : this->conditions_) {
       if (condition->check(x...))
@@ -43,7 +48,7 @@ template<typename... Ts> class OrCondition : public Condition<Ts...> {
   }
 
  protected:
-  FixedVector<Condition<Ts...> *> conditions_;
+  std::array<Condition<Ts...> *, N> conditions_{};
 };
 
 template<typename... Ts> class NotCondition : public Condition<Ts...> {
@@ -55,9 +60,11 @@ template<typename... Ts> class NotCondition : public Condition<Ts...> {
   Condition<Ts...> *condition_;
 };
 
-template<typename... Ts> class XorCondition : public Condition<Ts...> {
+template<size_t N, typename... Ts> class XorCondition : public Condition<Ts...> {
  public:
-  explicit XorCondition(std::initializer_list<Condition<Ts...> *> conditions) : conditions_(conditions) {}
+  explicit XorCondition(std::initializer_list<Condition<Ts...> *> conditions) {
+    init_array_from(this->conditions_, conditions);
+  }
   bool check(const Ts &...x) override {
     size_t result = 0;
     for (auto *condition : this->conditions_) {
@@ -68,7 +75,7 @@ template<typename... Ts> class XorCondition : public Condition<Ts...> {
   }
 
  protected:
-  FixedVector<Condition<Ts...> *> conditions_;
+  std::array<Condition<Ts...> *, N> conditions_{};
 };
 
 template<typename... Ts> class LambdaCondition : public Condition<Ts...> {
