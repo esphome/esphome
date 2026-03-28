@@ -156,22 +156,22 @@ def validate_ids_and_references(config: ConfigType) -> ConfigType:
         hash_dict[hash_val] = id_obj.id
 
     # Collect all areas
-    all_areas: list[dict[str, str | core.ID]] = []
+    all_areas: list[tuple[dict[str, str | core.ID], str]] = []
     if CONF_AREA in config:
-        all_areas.append(config[CONF_AREA])
-    all_areas.extend(config[CONF_AREAS])
+        all_areas.append((config[CONF_AREA], CONF_AREA))
+    all_areas.extend((area, CONF_AREAS) for area in config.get(CONF_AREAS, []))
 
     # Validate area hash collisions and collect IDs
     area_hashes: dict[int, str] = {}
     area_ids: set[str] = set()
-    for area in all_areas:
+    for area, key in all_areas:
         area_id: core.ID = area[CONF_ID]
-        check_hash_collision(area_id, area_hashes, "Area", [CONF_AREAS, area_id.id])
+        check_hash_collision(area_id, area_hashes, "Area", [key, area_id.id])
         area_ids.add(area_id.id)
 
     # Validate device hash collisions and area references
     device_hashes: dict[int, str] = {}
-    for device in config[CONF_DEVICES]:
+    for device in config.get(CONF_DEVICES, []):
         device_id: core.ID = device[CONF_ID]
         check_hash_collision(
             device_id, device_hashes, "Device", [CONF_DEVICES, device_id.id]
@@ -327,9 +327,6 @@ CONFIG_SCHEMA = cv.All(
     ),
     validate_hostname,
 )
-
-
-FINAL_VALIDATE_SCHEMA = cv.All(validate_ids_and_references)
 
 
 PRELOAD_CONFIG_SCHEMA = cv.Schema(
