@@ -133,10 +133,9 @@ template<size_t N> class SubstituteFilter : public Filter {
   explicit SubstituteFilter(const std::initializer_list<Substitution> &substitutions) {
     size_t i = 0;
     for (const auto &s : substitutions) {
-      if (i >= N)
-        break;
       this->substitutions_[i++] = s;
     }
+    ESPHOME_DEBUG_ASSERT(i == N);
   }
   bool new_value(std::string &value) override { return substitute_filter_apply(this->substitutions_.data(), N, value); }
 
