@@ -7,14 +7,7 @@ from esphome.components.const import CONF_REQUEST_HEADERS
 from esphome.components.http_request import CONF_HTTP_REQUEST_ID, HttpRequestComponent
 from esphome.components.image import CONF_TRANSPARENCY, add_metadata
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_BUFFER_SIZE,
-    CONF_ID,
-    CONF_ON_ERROR,
-    CONF_TRIGGER_ID,
-    CONF_TYPE,
-    CONF_URL,
-)
+from esphome.const import CONF_BUFFER_SIZE, CONF_ID, CONF_ON_ERROR, CONF_TYPE, CONF_URL
 from esphome.core import Lambda
 
 AUTO_LOAD = ["image", "runtime_image"]
@@ -41,14 +34,6 @@ ReleaseImageAction = online_image_ns.class_(
     "OnlineImageReleaseAction", automation.Action, cg.Parented.template(OnlineImage)
 )
 
-# Triggers
-DownloadFinishedTrigger = online_image_ns.class_(
-    "DownloadFinishedTrigger", automation.Trigger.template()
-)
-DownloadErrorTrigger = online_image_ns.class_(
-    "DownloadErrorTrigger", automation.Trigger.template()
-)
-
 
 ONLINE_IMAGE_SCHEMA = (
     runtime_image.runtime_image_schema(OnlineImage)
@@ -61,18 +46,8 @@ ONLINE_IMAGE_SCHEMA = (
             cv.Optional(CONF_REQUEST_HEADERS): cv.All(
                 cv.Schema({cv.string: cv.templatable(cv.string)})
             ),
-            cv.Optional(CONF_ON_DOWNLOAD_FINISHED): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        DownloadFinishedTrigger
-                    ),
-                }
-            ),
-            cv.Optional(CONF_ON_ERROR): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DownloadErrorTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_DOWNLOAD_FINISHED): automation.validate_automation({}),
+            cv.Optional(CONF_ON_ERROR): automation.validate_automation({}),
         }
     )
     .extend(cv.polling_component_schema("never"))
@@ -165,9 +140,11 @@ async def to_code(config):
             cg.add(var.add_request_header(key, value))
 
     for conf in config.get(CONF_ON_DOWNLOAD_FINISHED, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(bool, "cached")], conf)
+        await automation.build_callback_automation(
+            var, "add_on_finished_callback", [(bool, "cached")], conf
+        )
 
     for conf in config.get(CONF_ON_ERROR, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            var, "add_on_error_callback", [], conf
+        )

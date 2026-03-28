@@ -13,7 +13,7 @@ extern "C" {
 
 namespace esphome::esp8266 {
 
-static const char *const TAG = "esp8266.preferences";
+static const char *const TAG = "preferences";
 
 static constexpr uint32_t ESP_RTC_USER_MEM_START = 0x60001200;
 static constexpr uint32_t ESP_RTC_USER_MEM_SIZE_WORDS = 128;

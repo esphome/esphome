@@ -10,7 +10,7 @@
 
 namespace esphome::esp32 {
 
-static const char *const TAG = "esp32.preferences";
+static const char *const TAG = "preferences";
 
 // Buffer size for converting uint32_t to string: max "4294967295" (10 chars) + null terminator + 1 padding
 static constexpr size_t KEY_BUFFER_SIZE = 12;

@@ -12,14 +12,7 @@ from esphome.components.modbus.helpers import (
     ModbusRegisterType,
 )
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ADDRESS,
-    CONF_ID,
-    CONF_LAMBDA,
-    CONF_NAME,
-    CONF_OFFSET,
-    CONF_TRIGGER_ID,
-)
+from esphome.const import CONF_ADDRESS, CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_OFFSET
 from esphome.cpp_helpers import logging
 
 from .const import (
@@ -63,18 +56,6 @@ SensorItem = modbus_controller_ns.struct("SensorItem")
 ServerCourtesyResponse = modbus_controller_ns.struct("ServerCourtesyResponse")
 ServerRegister = modbus_controller_ns.struct("ServerRegister")
 
-ModbusCommandSentTrigger = modbus_controller_ns.class_(
-    "ModbusCommandSentTrigger", automation.Trigger.template(cg.int_, cg.int_)
-)
-
-ModbusOnlineTrigger = modbus_controller_ns.class_(
-    "ModbusOnlineTrigger", automation.Trigger.template(cg.int_, cg.int_)
-)
-
-ModbusOfflineTrigger = modbus_controller_ns.class_(
-    "ModbusOfflineTrigger", automation.Trigger.template(cg.int_, cg.int_)
-)
-
 _LOGGER = logging.getLogger(__name__)
 
 SERVER_COURTESY_RESPONSE_SCHEMA = cv.Schema(
@@ -110,23 +91,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_SERVER_REGISTERS,
             ): cv.ensure_list(ModbusServerRegisterSchema),
-            cv.Optional(CONF_ON_COMMAND_SENT): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        ModbusCommandSentTrigger
-                    ),
-                }
-            ),
-            cv.Optional(CONF_ON_ONLINE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModbusOnlineTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_OFFLINE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ModbusOfflineTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_COMMAND_SENT): automation.validate_automation({}),
+            cv.Optional(CONF_ON_ONLINE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_OFFLINE): automation.validate_automation({}),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -291,19 +258,25 @@ async def to_code(config):
             cg.add(var.add_server_register(server_register_var))
     await register_modbus_device(var, config)
     for conf in config.get(CONF_ON_COMMAND_SENT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(cg.int_, "function_code"), (cg.int_, "address")], conf
+        await automation.build_callback_automation(
+            var,
+            "add_on_command_sent_callback",
+            [(cg.int_, "function_code"), (cg.int_, "address")],
+            conf,
         )
     for conf in config.get(CONF_ON_ONLINE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(cg.int_, "function_code"), (cg.int_, "address")], conf
+        await automation.build_callback_automation(
+            var,
+            "add_on_online_callback",
+            [(cg.int_, "function_code"), (cg.int_, "address")],
+            conf,
         )
     for conf in config.get(CONF_ON_OFFLINE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(cg.int_, "function_code"), (cg.int_, "address")], conf
+        await automation.build_callback_automation(
+            var,
+            "add_on_offline_callback",
+            [(cg.int_, "function_code"), (cg.int_, "address")],
+            conf,
         )
 
 
@@ -316,7 +289,7 @@ async def register_modbus_device(var, config):
 def function_code_to_register(function_code):
     FUNCTION_CODE_TYPE_MAP = {
         "read_coils": ModbusRegisterType.COIL,
-        "read_discrete_inputs": ModbusRegisterType.DISCRETE,
+        "read_discrete_inputs": ModbusRegisterType.DISCRETE_INPUT,
         "read_holding_registers": ModbusRegisterType.HOLDING,
         "read_input_registers": ModbusRegisterType.READ,
         "write_single_coil": ModbusRegisterType.COIL,
