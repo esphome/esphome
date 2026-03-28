@@ -1834,8 +1834,9 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
 
   /// Call all callbacks in this manager.
   void call(Ts... args) {
-    for (uint16_t i = 0; i < this->size_; i++)
-      this->data_[i].call(args...);
+    for (auto *it = this->data_, *end = it + this->size_; it != end; ++it) {
+      it->call(args...);
+    }
   }
   uint16_t size() const { return this->size_; }
 
