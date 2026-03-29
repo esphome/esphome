@@ -103,7 +103,8 @@ const LogString *api_error_to_logstr(APIError err) {
 APIError APIFrameHelper::drain_overflow_and_handle_errors_() {
   if (this->overflow_buf_.try_drain(this->socket_.get()) == -1) {
     int err = errno;
-    if (this->check_socket_write_err_(err) != APIError::WOULD_BLOCK) {
+    if (err != EWOULDBLOCK && err != EAGAIN) {
+      this->state_ = State::FAILED;
       HELPER_LOG("Socket write failed with errno %d", err);
       return APIError::SOCKET_WRITE_FAILED;
     }
