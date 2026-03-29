@@ -195,7 +195,7 @@ class APIFrameHelper {
   // Inlined write methods — used by hot paths (write_protobuf_packet, write_protobuf_messages)
   // These inline the fast path (overflow empty + full write) and tail-call the out-of-line
   // slow path only on failure/partial write.
-  inline APIError ESPHOME_ALWAYS_INLINE write_raw_fast_(const void *data, uint16_t len) {
+  inline APIError ESPHOME_ALWAYS_INLINE write_raw_fast_buf_(const void *data, uint16_t len) {
     ssize_t sent = -1;
     if (this->overflow_buf_.empty()) [[likely]] {
       sent = this->socket_->write(data, len);
@@ -204,7 +204,8 @@ class APIFrameHelper {
     }
     return this->write_raw_buf_(data, len, sent);
   }
-  inline APIError ESPHOME_ALWAYS_INLINE write_raw_fast_(const struct iovec *iov, int iovcnt, uint16_t total_write_len) {
+  inline APIError ESPHOME_ALWAYS_INLINE write_raw_fast_iov_(const struct iovec *iov, int iovcnt,
+                                                            uint16_t total_write_len) {
     ssize_t sent = -1;
     if (this->overflow_buf_.empty()) [[likely]] {
       sent = this->socket_->writev(iov, iovcnt);
