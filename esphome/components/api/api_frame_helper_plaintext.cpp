@@ -292,6 +292,7 @@ APIError APIPlaintextFrameHelper::write_protobuf_packet(uint8_t type, ProtoWrite
   uint8_t *msg_start = write_plaintext_header(buffer_data, msg, frame_header_padding_);
   uint8_t msg_header_len = static_cast<uint8_t>(buffer_data + frame_header_padding_ - msg_start);
   uint16_t msg_len = static_cast<uint16_t>(msg_header_len + msg.payload_size);
+  LOG_PACKET_SENDING(msg_start, msg_len);
   return this->write_raw_fast_buf_(msg_start, msg_len);
 }
 
@@ -315,6 +316,11 @@ APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffe
     total_write_len += msg_len;
   }
 
+#ifdef HELPER_LOG_PACKETS
+  for (const auto &iov : iovs) {
+    LOG_PACKET_SENDING(reinterpret_cast<uint8_t *>(iov.iov_base), iov.iov_len);
+  }
+#endif
   return this->write_raw_fast_iov_(iovs.data(), iovs.size(), total_write_len);
 }
 

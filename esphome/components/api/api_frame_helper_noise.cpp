@@ -505,6 +505,7 @@ APIError APINoiseFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuff
   if (aerr != APIError::OK)
     return aerr;
   // buf_start and iov.iov_base point to the same location
+  LOG_PACKET_SENDING(buf_start, iov.iov_len);
   return this->write_raw_fast_buf_(buf_start, static_cast<uint16_t>(iov.iov_len));
 }
 
@@ -528,6 +529,11 @@ APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, s
     total_write_len += iov.iov_len;
   }
 
+#ifdef HELPER_LOG_PACKETS
+  for (const auto &iov : iovs) {
+    LOG_PACKET_SENDING(reinterpret_cast<uint8_t *>(iov.iov_base), iov.iov_len);
+  }
+#endif
   return this->write_raw_fast_iov_(iovs.data(), iovs.size(), total_write_len);
 }
 

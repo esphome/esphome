@@ -123,12 +123,6 @@ APIError APIFrameHelper::write_raw_buf_(const void *data, uint16_t len, ssize_t 
 // or directly from cold paths (handshake, error handling).
 // sent == -1 means either the fast path write returned -1, or there was overflow backlog.
 APIError APIFrameHelper::write_raw_iov_(const struct iovec *iov, int iovcnt, uint16_t total_write_len, ssize_t sent) {
-#ifdef HELPER_LOG_PACKETS
-  for (int i = 0; i < iovcnt; i++) {
-    LOG_PACKET_SENDING(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
-  }
-#endif
-
   if (sent == -1) {
     // Either the fast path write returned -1, or we were called directly (cold path)
     if (!this->overflow_buf_.empty()) {
