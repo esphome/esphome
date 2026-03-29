@@ -161,15 +161,9 @@ class APIFrameHelper {
       this->nodelay_counter_ = 0;
     }
   }
-  APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
-    // Resize buffer to include footer space if needed (e.g. Noise MAC)
-    if (frame_footer_size_)
-      buffer.get_buffer()->resize(buffer.get_buffer()->size() + frame_footer_size_);
-    MessageInfo msg{type, 0,
-                    static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_ - frame_footer_size_)};
-    return write_protobuf_messages(buffer, std::span<const MessageInfo>(&msg, 1));
-  }
-  // Write multiple protobuf messages in a single operation
+  // Write a single protobuf message - the hot path (87-100% of all writes)
+  virtual APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) = 0;
+  // Write multiple protobuf messages in a single batched operation
   // messages contains (message_type, offset, length) for each message in the buffer
   // The buffer contains all messages with appropriate padding before each
   virtual APIError write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) = 0;

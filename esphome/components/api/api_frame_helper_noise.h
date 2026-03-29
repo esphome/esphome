@@ -22,6 +22,7 @@ class APINoiseFrameHelper final : public APIFrameHelper {
   APIError init() override;
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;
+  APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) override;
   APIError write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) override;
 
  protected:
@@ -29,7 +30,6 @@ class APINoiseFrameHelper final : public APIFrameHelper {
   APIError try_read_frame_();
   APIError write_frame_(const uint8_t *data, uint16_t len);
   APIError encrypt_noise_message_(uint8_t *buf_start, const MessageInfo &msg, struct iovec &iov_out);
-  APIError write_protobuf_messages_batch_(uint8_t *buffer_data, std::span<const MessageInfo> messages);
   APIError init_handshake_();
   APIError check_handshake_finished_();
   void send_explicit_handshake_reject_(const LogString *reason);
