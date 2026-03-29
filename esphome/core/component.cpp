@@ -12,9 +12,6 @@
 #ifdef USE_RUNTIME_STATS
 #include "esphome/components/runtime_stats/runtime_stats.h"
 #endif
-#ifdef USE_SETUP_HEAP_STATS
-#include "esphome/components/setup_heap_stats/setup_heap_stats.h"
-#endif
 
 namespace esphome {
 
@@ -247,17 +244,7 @@ void Component::call() {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
       uint32_t start_time = millis();
 #endif
-#ifdef USE_SETUP_HEAP_STATS
-      if (global_setup_heap_stats != nullptr) {
-        global_setup_heap_stats->record_before_setup(this);
-      }
-#endif
       this->call_setup();
-#ifdef USE_SETUP_HEAP_STATS
-      if (global_setup_heap_stats != nullptr) {
-        global_setup_heap_stats->record_after_setup(this);
-      }
-#endif
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
       uint32_t setup_time = millis() - start_time;
       // Only log at CONFIG level if setup took longer than the blocking threshold
