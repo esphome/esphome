@@ -31,11 +31,17 @@ static void Decode_HelloRequest(benchmark::State &state) {
   source.api_version_major = 1;
   source.api_version_minor = 10;
   auto encoded = encode_message(source);
+  // Prevent the compiler from treating the encoded buffer as constant,
+  // which would allow it to optimize away the decode loop entirely.
+  const uint8_t *data = encoded.data();
+  size_t size = encoded.size();
+  benchmark::DoNotOptimize(data);
+  benchmark::DoNotOptimize(size);
 
   for (auto _ : state) {
     HelloRequest msg;
     for (int i = 0; i < kInnerIterations; i++) {
-      msg.decode(encoded.data(), encoded.size());
+      msg.decode(data, size);
     }
     benchmark::DoNotOptimize(msg.api_version_major);
   }
@@ -50,11 +56,15 @@ static void Decode_SwitchCommandRequest(benchmark::State &state) {
   source.key = 0x12345678;
   source.state = true;
   auto encoded = encode_message(source);
+  const uint8_t *data = encoded.data();
+  size_t size = encoded.size();
+  benchmark::DoNotOptimize(data);
+  benchmark::DoNotOptimize(size);
 
   for (auto _ : state) {
     SwitchCommandRequest msg;
     for (int i = 0; i < kInnerIterations; i++) {
-      msg.decode(encoded.data(), encoded.size());
+      msg.decode(data, size);
     }
     benchmark::DoNotOptimize(msg.state);
   }
@@ -78,11 +88,15 @@ static void Decode_LightCommandRequest(benchmark::State &state) {
   source.has_effect = true;
   source.effect = StringRef::from_lit("rainbow");
   auto encoded = encode_message(source);
+  const uint8_t *data = encoded.data();
+  size_t size = encoded.size();
+  benchmark::DoNotOptimize(data);
+  benchmark::DoNotOptimize(size);
 
   for (auto _ : state) {
     LightCommandRequest msg;
     for (int i = 0; i < kInnerIterations; i++) {
-      msg.decode(encoded.data(), encoded.size());
+      msg.decode(data, size);
     }
     benchmark::DoNotOptimize(msg.brightness);
   }
