@@ -540,7 +540,7 @@ APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, uint16_t len) {
   header[2] = (uint8_t) len;
 
   if (len == 0) {
-    return this->write_raw_(header, 3);
+    return this->write_raw_slow_(header, 3, -1);
   }
   struct iovec iov[2];
   iov[0].iov_base = header;
@@ -548,7 +548,7 @@ APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, uint16_t len) {
   iov[1].iov_base = const_cast<uint8_t *>(data);
   iov[1].iov_len = len;
 
-  return this->write_raw_(iov, 2, 3 + len);
+  return this->write_raw_slow_(iov, 2, 3 + len, -1);
 }
 
 /** Initiate the data structures for the handshake.
