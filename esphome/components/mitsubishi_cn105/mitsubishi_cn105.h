@@ -144,7 +144,7 @@ class MitsubishiCN105 {
   std::optional<uint32_t> status_update_start_ms_;
   std::optional<uint32_t> write_timeout_start_ms_;
 
-  std::function<void(bool)> connection_state_callback_{};
+  std::function<void(bool)> connection_state_callback_ = [](bool) {};
 
  private:
   static constexpr size_t READ_BUFFER_SIZE = 32;

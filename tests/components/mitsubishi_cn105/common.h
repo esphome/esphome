@@ -41,7 +41,9 @@ class TestableMitsubishiCN105 : public MitsubishiCN105 {
   using MitsubishiCN105::Mode;
   using MitsubishiCN105::FanMode;
   using MitsubishiCN105::state_;
-  using MitsubishiCN105::current_status_;
+  using MitsubishiCN105::status_update_start_ms_;
+
+  void set_state(State s) { this->set_state_(s); }
 
   uint32_t current_time_ms{0};
 
