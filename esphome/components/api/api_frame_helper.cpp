@@ -112,6 +112,14 @@ APIError APIFrameHelper::drain_overflow_and_handle_errors_() {
   return APIError::OK;
 }
 
+// Out-of-line wrappers — same logic as write_raw_inline_ but not force-inlined.
+// Used by cold callers (handshake, error handling) to avoid code bloat.
+APIError APIFrameHelper::write_raw_(const void *data, uint16_t len) { return this->write_raw_inline_(data, len); }
+
+APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt, uint16_t total_write_len) {
+  return this->write_raw_inline_(iov, iovcnt, total_write_len);
+}
+
 // Single-buffer slow path: wraps data in iovec and delegates to the iovec slow path.
 APIError APIFrameHelper::write_raw_slow_(const void *data, uint16_t len, ssize_t sent) {
   struct iovec iov = {const_cast<void *>(data), len};

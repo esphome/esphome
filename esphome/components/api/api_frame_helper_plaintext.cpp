@@ -219,11 +219,11 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
                                                 "Bad indicator byte";
       char msg[INDICATOR_MSG_SIZE];
       memcpy_P(msg, MSG_PROGMEM, INDICATOR_MSG_SIZE);
-      this->write_raw_slow_(msg, INDICATOR_MSG_SIZE, -1);
+      this->write_raw_(msg, INDICATOR_MSG_SIZE);
 #else
       static const char MSG[] = "\x00"
                                 "Bad indicator byte";
-      this->write_raw_slow_(MSG, INDICATOR_MSG_SIZE, -1);
+      this->write_raw_(MSG, INDICATOR_MSG_SIZE);
 #endif
     }
     return aerr;
@@ -292,7 +292,7 @@ APIError APIPlaintextFrameHelper::write_protobuf_packet(uint8_t type, ProtoWrite
   uint8_t *msg_start = write_plaintext_header(buffer_data, msg, frame_header_padding_);
   uint8_t msg_header_len = static_cast<uint8_t>(buffer_data + frame_header_padding_ - msg_start);
   uint16_t msg_len = static_cast<uint16_t>(msg_header_len + msg.payload_size);
-  return this->write_raw_(msg_start, msg_len);
+  return this->write_raw_inline_(msg_start, msg_len);
 }
 
 APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer,
@@ -318,7 +318,7 @@ APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffe
     total_write_len += msg_len;
   }
 
-  return this->write_raw_(iovs.data(), iovs.size(), total_write_len);
+  return this->write_raw_inline_(iovs.data(), iovs.size(), total_write_len);
 }
 
 }  // namespace esphome::api

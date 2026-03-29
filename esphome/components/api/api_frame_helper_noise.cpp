@@ -504,7 +504,7 @@ APIError APINoiseFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuff
   aerr = this->encrypt_noise_message_(buf_start, msg, iov);
   if (aerr != APIError::OK)
     return aerr;
-  return this->write_raw_(iov.iov_base, static_cast<uint16_t>(iov.iov_len));
+  return this->write_raw_inline_(iov.iov_base, static_cast<uint16_t>(iov.iov_len));
 }
 
 APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) {
@@ -530,7 +530,7 @@ APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, s
     total_write_len += iov.iov_len;
   }
 
-  return this->write_raw_(iovs.data(), iovs.size(), total_write_len);
+  return this->write_raw_inline_(iovs.data(), iovs.size(), total_write_len);
 }
 
 APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, uint16_t len) {
@@ -540,16 +540,15 @@ APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, uint16_t len) {
   header[2] = (uint8_t) len;
 
   if (len == 0) {
-    return this->write_raw_slow_(header, 3, -1);
+    return this->write_raw_(header, 3);
   }
-  // Handshake path — use iovec slow path directly to avoid inlining write_raw_ fast path
   struct iovec iov[2];
   iov[0].iov_base = header;
   iov[0].iov_len = 3;
   iov[1].iov_base = const_cast<uint8_t *>(data);
   iov[1].iov_len = len;
 
-  return this->write_raw_slow_(iov, 2, 3 + len, -1);
+  return this->write_raw_(iov, 2, 3 + len);
 }
 
 /** Initiate the data structures for the handshake.

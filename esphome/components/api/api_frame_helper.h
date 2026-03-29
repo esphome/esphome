@@ -190,9 +190,14 @@ class APIFrameHelper {
   // Returns OK for transient errors (WOULD_BLOCK), SOCKET_WRITE_FAILED for hard errors.
   APIError drain_overflow_and_handle_errors_();
 
-  // Write a single contiguous buffer to the socket (inlined fast path)
-  inline APIError ESPHOME_ALWAYS_INLINE write_raw_(const void *data, uint16_t len) {
-    // Fast path: no overflow backlog and full write succeeds
+  // Out-of-line write methods — used by cold paths (handshake, error handling)
+  APIError write_raw_(const void *data, uint16_t len);
+  APIError write_raw_(const struct iovec *iov, int iovcnt, uint16_t total_write_len);
+
+  // Inlined write methods — used by hot paths (write_protobuf_packet, write_protobuf_messages)
+  // These inline the fast path (overflow empty + full write) and tail-call the out-of-line
+  // slow path only on failure/partial write.
+  inline APIError ESPHOME_ALWAYS_INLINE write_raw_inline_(const void *data, uint16_t len) {
     ssize_t sent = -1;
     if (this->overflow_buf_.empty()) [[likely]] {
       sent = this->socket_->write(data, len);
@@ -201,9 +206,8 @@ class APIFrameHelper {
     }
     return this->write_raw_slow_(data, len, sent);
   }
-  // Write multiple iovec buffers to the socket (inlined fast path)
-  inline APIError ESPHOME_ALWAYS_INLINE write_raw_(const struct iovec *iov, int iovcnt, uint16_t total_write_len) {
-    // Fast path: no overflow backlog and full writev succeeds
+  inline APIError ESPHOME_ALWAYS_INLINE write_raw_inline_(const struct iovec *iov, int iovcnt,
+                                                          uint16_t total_write_len) {
     ssize_t sent = -1;
     if (this->overflow_buf_.empty()) [[likely]] {
       sent = this->socket_->writev(iov, iovcnt);
@@ -212,7 +216,9 @@ class APIFrameHelper {
     }
     return this->write_raw_slow_(iov, iovcnt, total_write_len, sent);
   }
-  // Slow paths (out-of-line): handle partial writes, errors, overflow buffering
+
+ private:
+  // Slow path: handle partial writes, errors, overflow buffering
   APIError write_raw_slow_(const void *data, uint16_t len, ssize_t sent);
   APIError write_raw_slow_(const struct iovec *iov, int iovcnt, uint16_t total_write_len, ssize_t sent);
 
