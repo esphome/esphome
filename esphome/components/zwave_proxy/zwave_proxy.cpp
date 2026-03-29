@@ -90,7 +90,7 @@ void ZWaveProxy::process_uart_() {
   while (this->available()) {
     uint8_t byte;
     if (!this->read_byte(&byte)) {
-      this->status_set_warning("UART read failed");
+      this->status_set_warning(LOG_STR("UART read failed"));
       return;
     }
     if (this->parse_byte_(byte)) {
