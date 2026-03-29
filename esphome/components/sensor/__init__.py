@@ -381,7 +381,7 @@ async def filter_out_filter_to_code(config, filter_id):
     if not isinstance(config, list):
         config = [config]
     template_ = [await cg.templatable(x, [], float) for x in config]
-    return cg.new_Pvariable(filter_id, template_)
+    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(template_)), template_)
 
 
 QUANTILE_SCHEMA = cv.All(
@@ -650,7 +650,9 @@ async def throttle_with_priority_filter_to_code(config, filter_id):
     if not isinstance(config[CONF_VALUE], list):
         config[CONF_VALUE] = [config[CONF_VALUE]]
     template_ = [await cg.templatable(x, [], float) for x in config[CONF_VALUE]]
-    return cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], template_)
+    return cg.new_Pvariable(
+        filter_id, cg.TemplateArguments(len(template_)), config[CONF_TIMEOUT], template_
+    )
 
 
 HEARTBEAT_SCHEMA = cv.Schema(
