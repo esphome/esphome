@@ -191,7 +191,6 @@ bool PMSX003Component::check_payload_length_(uint16_t payload_length) {
     case Type::PMS5003ST:           // Data 16 not set/reserved
       return payload_length == 36;  // 2*17+2
     case Type::PMS9003M:
-      return payload_length == 28;  // 2*13+2
     case Type::LD10:
     case Type::LD11:
     case Type::LD13:
