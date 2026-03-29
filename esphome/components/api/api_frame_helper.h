@@ -217,8 +217,7 @@ class APIFrameHelper {
     return this->write_raw_slow_(iov, iovcnt, total_write_len, sent);
   }
 
- private:
-  // Slow path: handle partial writes, errors, overflow buffering
+  // Slow path: handle partial writes, errors, overflow buffering (private — only called by write_raw_inline_)
   APIError write_raw_slow_(const void *data, uint16_t len, ssize_t sent);
   APIError write_raw_slow_(const struct iovec *iov, int iovcnt, uint16_t total_write_len, ssize_t sent);
 
