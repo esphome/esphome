@@ -112,8 +112,15 @@ APIError APIFrameHelper::drain_overflow_and_handle_errors_() {
   return APIError::OK;
 }
 
-// Slow path: handles partial writes, errors, and overflow buffering.
-// Called when the inline fast path in the header couldn't complete the write.
+// Single-buffer write path: wraps in iovec and delegates.
+APIError APIFrameHelper::write_raw_(const void *data, uint16_t len, ssize_t sent) {
+  struct iovec iov = {const_cast<void *>(data), len};
+  return this->write_raw_(&iov, 1, len, sent);
+}
+
+// Handles partial writes, errors, and overflow buffering.
+// Called when the inline fast path in the header couldn't complete the write,
+// or directly from cold paths (handshake, error handling).
 // sent == -1 means either the fast path write returned -1, or there was overflow backlog.
 APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt, uint16_t total_write_len, ssize_t sent) {
 #ifdef HELPER_LOG_PACKETS

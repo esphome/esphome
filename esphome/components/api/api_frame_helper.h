@@ -202,8 +202,7 @@ class APIFrameHelper {
       if (sent == static_cast<ssize_t>(len)) [[likely]]
         return APIError::OK;
     }
-    struct iovec iov = {const_cast<void *>(data), len};
-    return this->write_raw_(&iov, 1, len, sent);
+    return this->write_raw_(data, len, sent);
   }
   inline APIError ESPHOME_ALWAYS_INLINE write_raw_fast_(const struct iovec *iov, int iovcnt, uint16_t total_write_len) {
     ssize_t sent = -1;
@@ -215,7 +214,8 @@ class APIFrameHelper {
     return this->write_raw_(iov, iovcnt, total_write_len, sent);
   }
 
-  // Slow path (out-of-line): handle partial writes, errors, overflow buffering
+  // Out-of-line write paths: handle partial writes, errors, overflow buffering
+  APIError write_raw_(const void *data, uint16_t len, ssize_t sent = -1);
   APIError write_raw_(const struct iovec *iov, int iovcnt, uint16_t total_write_len, ssize_t sent = -1);
 
   // Socket ownership (4 bytes on 32-bit, 8 bytes on 64-bit)

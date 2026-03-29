@@ -537,8 +537,7 @@ APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, uint16_t len) {
   header[2] = (uint8_t) len;
 
   if (len == 0) {
-    struct iovec iov = {header, 3};
-    return this->write_raw_(&iov, 1, 3);
+    return this->write_raw_(header, 3);
   }
   struct iovec iov[2];
   iov[0].iov_base = header;
