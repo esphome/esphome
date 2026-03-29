@@ -240,7 +240,7 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
 // Write plaintext header into pre-allocated padding before payload.
 // Returns pointer to start of frame (header + payload are contiguous).
 static inline uint8_t *write_plaintext_header(uint8_t *buf_start, const MessageInfo &msg,
-                                              uint8_t frame_header_padding) {
+                                              uint8_t frame_header_padding) ESPHOME_ALWAYS_INLINE {
   // Calculate varint sizes for header layout using inline ternary to avoid varint_slow call overhead
   uint8_t size_varint_len = msg.payload_size < ProtoSize::VARINT_THRESHOLD_1_BYTE
                                 ? 1
