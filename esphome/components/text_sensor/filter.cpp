@@ -93,17 +93,15 @@ bool SubstituteFilter::new_value(std::string &value) {
   return true;
 }
 
-// Map
-MapFilter::MapFilter(const std::initializer_list<Substitution> &mappings) : mappings_(mappings) {}
-
-bool MapFilter::new_value(std::string &value) {
-  for (const auto &mapping : this->mappings_) {
-    if (value == mapping.from) {
-      value.assign(mapping.to);
+// Map — non-template helper
+bool map_filter_apply(const Substitution *mappings, size_t count, std::string &value) {
+  for (size_t i = 0; i < count; i++) {
+    if (value == mappings[i].from) {
+      value.assign(mappings[i].to);
       return true;
     }
   }
-  return true;  // Pass through if no match
+  return true;
 }
 
 }  // namespace esphome::text_sensor
