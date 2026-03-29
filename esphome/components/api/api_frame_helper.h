@@ -193,27 +193,25 @@ class APIFrameHelper {
   // Write a single contiguous buffer to the socket (inlined fast path)
   inline APIError ESPHOME_ALWAYS_INLINE write_raw_(const void *data, uint16_t len) {
     // Fast path: no overflow backlog and full write succeeds
+    ssize_t sent = -1;
     if (this->overflow_buf_.empty()) [[likely]] {
-      ssize_t sent = this->socket_->write(data, len);
+      sent = this->socket_->write(data, len);
       if (sent == static_cast<ssize_t>(len)) [[likely]]
         return APIError::OK;
-      // Slow path: wrap in iovec and handle error/overflow
-      struct iovec iov = {const_cast<void *>(data), len};
-      return this->write_raw_slow_(&iov, 1, len, sent);
     }
     struct iovec iov = {const_cast<void *>(data), len};
-    return this->write_raw_slow_(&iov, 1, len, -1);
+    return this->write_raw_slow_(&iov, 1, len, sent);
   }
   // Write multiple iovec buffers to the socket (inlined fast path)
   inline APIError ESPHOME_ALWAYS_INLINE write_raw_(const struct iovec *iov, int iovcnt, uint16_t total_write_len) {
     // Fast path: no overflow backlog and full writev succeeds
+    ssize_t sent = -1;
     if (this->overflow_buf_.empty()) [[likely]] {
-      ssize_t sent = this->socket_->writev(iov, iovcnt);
+      sent = this->socket_->writev(iov, iovcnt);
       if (sent == static_cast<ssize_t>(total_write_len)) [[likely]]
         return APIError::OK;
-      return this->write_raw_slow_(iov, iovcnt, total_write_len, sent);
     }
-    return this->write_raw_slow_(iov, iovcnt, total_write_len, -1);
+    return this->write_raw_slow_(iov, iovcnt, total_write_len, sent);
   }
   // Slow path (out-of-line): handle partial writes, errors, overflow buffering
   APIError write_raw_slow_(const struct iovec *iov, int iovcnt, uint16_t total_write_len, ssize_t sent);
