@@ -7,8 +7,9 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/network/ip_address.h"
 
-#ifdef USE_ESP32
+#ifdef USE_ETHERNET
 
+#ifdef USE_ESP32
 #include "esp_eth.h"
 #include "esp_eth_mac.h"
 #include "esp_eth_mac_esp.h"
@@ -18,6 +19,19 @@
 
 #if CONFIG_ETH_USE_ESP32_EMAC
 extern "C" eth_esp32_emac_config_t eth_esp32_emac_default_config(void);
+#endif
+#endif  // USE_ESP32
+
+#ifdef USE_RP2040
+#if defined(USE_ETHERNET_W5500)
+#include <W5500lwIP.h>
+#elif defined(USE_ETHERNET_W5100)
+#include <W5100lwIP.h>
+#elif defined(USE_ETHERNET_ENC28J60)
+#include <ENC28J60lwIP.h>
+#else
+#error "Unsupported RP2040 SPI Ethernet type"
+#endif
 #endif
 
 namespace esphome::ethernet {
@@ -47,10 +61,12 @@ enum EthernetType : uint8_t {
   ETHERNET_TYPE_JL1101,
   ETHERNET_TYPE_KSZ8081,
   ETHERNET_TYPE_KSZ8081RNA,
+  ETHERNET_TYPE_W5100,
   ETHERNET_TYPE_W5500,
   ETHERNET_TYPE_OPENETH,
   ETHERNET_TYPE_DM9051,
   ETHERNET_TYPE_LAN8670,
+  ETHERNET_TYPE_ENC28J60,
 };
 
 struct ManualIP {
@@ -73,7 +89,13 @@ enum class EthernetComponentState : uint8_t {
   CONNECTED,
 };
 
-class EthernetComponent : public Component {
+// Platform-neutral duplex/speed types
+#ifndef USE_ESP32
+enum eth_duplex_t { ETH_DUPLEX_HALF, ETH_DUPLEX_FULL };
+enum eth_speed_t { ETH_SPEED_10M, ETH_SPEED_100M };
+#endif
+
+class EthernetComponent final : public Component {
  public:
   EthernetComponent();
   void setup() override;
@@ -82,6 +104,28 @@ class EthernetComponent : public Component {
   float get_setup_priority() const override;
   void on_powerdown() override { powerdown(); }
   bool is_connected() { return this->state_ == EthernetComponentState::CONNECTED; }
+
+  void set_type(EthernetType type);
+#ifdef USE_ETHERNET_MANUAL_IP
+  void set_manual_ip(const ManualIP &manual_ip);
+#endif
+  void set_fixed_mac(const std::array<uint8_t, 6> &mac) { this->fixed_mac_ = mac; }
+
+  network::IPAddresses get_ip_addresses();
+  network::IPAddress get_dns_address(uint8_t num);
+  const char *get_use_address() const { return this->use_address_; }
+  void set_use_address(const char *use_address) { this->use_address_ = use_address; }
+  void get_eth_mac_address_raw(uint8_t *mac);
+  // Remove before 2026.9.0
+  ESPDEPRECATED("Use get_eth_mac_address_pretty_into_buffer() instead. Removed in 2026.9.0", "2026.3.0")
+  std::string get_eth_mac_address_pretty();
+  const char *get_eth_mac_address_pretty_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
+  eth_duplex_t get_duplex_mode();
+  eth_speed_t get_link_speed();
+  bool powerdown();
+
+#ifdef USE_ESP32
+  esp_eth_handle_t get_eth_handle() const { return this->eth_handle_; }
 
 #ifdef USE_ETHERNET_SPI
   void set_clk_pin(uint8_t clk_pin);
@@ -102,26 +146,17 @@ class EthernetComponent : public Component {
   void set_clk_pin(uint8_t clk_pin);
   void set_clk_mode(emac_rmii_clock_mode_t clk_mode);
   void add_phy_register(PHYRegister register_value);
-#endif
-  void set_type(EthernetType type);
-#ifdef USE_ETHERNET_MANUAL_IP
-  void set_manual_ip(const ManualIP &manual_ip);
-#endif
-  void set_fixed_mac(const std::array<uint8_t, 6> &mac) { this->fixed_mac_ = mac; }
+#endif  // USE_ETHERNET_SPI
+#endif  // USE_ESP32
 
-  network::IPAddresses get_ip_addresses();
-  network::IPAddress get_dns_address(uint8_t num);
-  const char *get_use_address() const;
-  void set_use_address(const char *use_address);
-  void get_eth_mac_address_raw(uint8_t *mac);
-  // Remove before 2026.9.0
-  ESPDEPRECATED("Use get_eth_mac_address_pretty_into_buffer() instead. Removed in 2026.9.0", "2026.3.0")
-  std::string get_eth_mac_address_pretty();
-  const char *get_eth_mac_address_pretty_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
-  eth_duplex_t get_duplex_mode();
-  eth_speed_t get_link_speed();
-  esp_eth_handle_t get_eth_handle() const { return this->eth_handle_; }
-  bool powerdown();
+#ifdef USE_RP2040
+  void set_clk_pin(uint8_t clk_pin);
+  void set_miso_pin(uint8_t miso_pin);
+  void set_mosi_pin(uint8_t mosi_pin);
+  void set_cs_pin(uint8_t cs_pin);
+  void set_interrupt_pin(int8_t interrupt_pin);
+  void set_reset_pin(int8_t reset_pin);
+#endif  // USE_RP2040
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
   void add_ip_state_listener(EthernetIPStateListener *listener) { this->ip_state_listeners_.push_back(listener); }
@@ -133,19 +168,22 @@ class EthernetComponent : public Component {
 #ifdef USE_ETHERNET_DISCONNECT_TRIGGER
   Trigger<> *get_disconnect_trigger() { return &this->disconnect_trigger_; }
 #endif
+
  protected:
+  void start_connect_();
+  void finish_connect_();
+  void dump_connect_params_();
+
+#ifdef USE_ETHERNET_IP_STATE_LISTENERS
+  void notify_ip_state_listeners_();
+#endif
+
+#ifdef USE_ESP32
   static void eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
   static void got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 #if LWIP_IPV6
   static void got_ip6_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 #endif /* LWIP_IPV6 */
-#ifdef USE_ETHERNET_IP_STATE_LISTENERS
-  void notify_ip_state_listeners_();
-#endif
-
-  void start_connect_();
-  void finish_connect_();
-  void dump_connect_params_();
   void log_error_and_mark_failed_(esp_err_t err, const char *message);
 #ifdef USE_ETHERNET_KSZ8081
   /// @brief Set `RMII Reference Clock Select` bit for KSZ8081.
@@ -177,7 +215,40 @@ class EthernetComponent : public Component {
   uint8_t phy_addr_{0};
   uint8_t mdc_pin_{23};
   uint8_t mdio_pin_{18};
+#endif  // USE_ETHERNET_SPI
+
+  // ESP32 pointers
+  esp_netif_t *eth_netif_{nullptr};
+  esp_eth_handle_t eth_handle_;
+  esp_eth_phy_t *phy_{nullptr};
+#endif  // USE_ESP32
+
+#ifdef USE_RP2040
+  static constexpr uint32_t LINK_CHECK_INTERVAL = 500;  // ms between link/IP polls
+#if defined(USE_ETHERNET_W5100)
+  static constexpr uint32_t RESET_DELAY_MS = 150;  // W5100S PLL lock time
+#else
+  static constexpr uint32_t RESET_DELAY_MS = 10;
 #endif
+#if defined(USE_ETHERNET_W5500)
+  Wiznet5500lwIP *eth_{nullptr};
+#elif defined(USE_ETHERNET_W5100)
+  Wiznet5100lwIP *eth_{nullptr};
+#elif defined(USE_ETHERNET_ENC28J60)
+  ENC28J60lwIP *eth_{nullptr};
+#else
+#error "Unsupported RP2040 SPI Ethernet type"
+#endif
+  uint32_t last_link_check_{0};
+  uint8_t clk_pin_;
+  uint8_t miso_pin_;
+  uint8_t mosi_pin_;
+  uint8_t cs_pin_;
+  int8_t interrupt_pin_{-1};
+  int8_t reset_pin_{-1};
+#endif  // USE_RP2040
+
+  // Common members
 #ifdef USE_ETHERNET_MANUAL_IP
   optional<ManualIP> manual_ip_{};
 #endif
@@ -194,10 +265,6 @@ class EthernetComponent : public Component {
   bool ipv6_setup_done_{false};
 #endif /* LWIP_IPV6 */
 
-  // Pointers at the end (naturally aligned)
-  esp_netif_t *eth_netif_{nullptr};
-  esp_eth_handle_t eth_handle_;
-  esp_eth_phy_t *phy_{nullptr};
   optional<std::array<uint8_t, 6>> fixed_mac_;
 
 #ifdef USE_ETHERNET_IP_STATE_LISTENERS
@@ -219,10 +286,13 @@ class EthernetComponent : public Component {
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern EthernetComponent *global_eth_component;
 
-#if defined(USE_ETHERNET_JL1101) && (ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2) || !defined(PLATFORMIO))
+#ifdef USE_ESP32
+#if defined(USE_ETHERNET_JL1101) && (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0) || \
+                                     ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2) || !defined(PLATFORMIO))
 extern "C" esp_eth_phy_t *esp_eth_phy_new_jl1101(const eth_phy_config_t *config);
 #endif
+#endif  // USE_ESP32
 
 }  // namespace esphome::ethernet
 
-#endif  // USE_ESP32
+#endif  // USE_ETHERNET

@@ -81,8 +81,6 @@ void ESP32BLE::disable() {
   this->state_ = BLE_COMPONENT_STATE_DISABLE;
 }
 
-bool ESP32BLE::is_active() { return this->state_ == BLE_COMPONENT_STATE_ACTIVE; }
-
 #ifdef USE_ESP32_BLE_ADVERTISING
 void ESP32BLE::advertising_start() {
   this->advertising_init_();
@@ -575,8 +573,9 @@ template<typename... Args> void enqueue_ble_event(Args... args) {
   load_ble_event(event, args...);
 
   // Push the event to the queue
+  // Push always succeeds: pool is sized to queue capacity (N-1), so if
+  // allocate() returned non-null, the queue is guaranteed to have room.
   global_ble->ble_events_.push(event);
-  // Push always succeeds because we're the only producer and the pool ensures we never exceed queue size
 }
 
 // Explicit template instantiations for the friend function

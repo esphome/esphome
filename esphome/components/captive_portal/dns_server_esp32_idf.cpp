@@ -100,8 +100,9 @@ void DNSServer::process_next_request() {
                          &client_addr_len);
 
   if (len < 0) {
-    if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR) {
-      ESP_LOGE(TAG, "recvfrom failed: %d", errno);
+    const int err = errno;
+    if (err != EAGAIN && err != EWOULDBLOCK && err != EINTR) {
+      ESP_LOGE(TAG, "recvfrom failed: %d", err);
     }
     return;
   }

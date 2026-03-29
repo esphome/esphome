@@ -842,10 +842,15 @@ template<typename ReturnT = uint32_t> inline constexpr ESPHOME_ALWAYS_INLINE Ret
 }
 
 /// Return a random 32-bit unsigned integer.
+/// Not thread-safe. Must only be called from the main loop.
+/// Not suitable for cryptographic use; use random_bytes() instead.
 uint32_t random_uint32();
 /// Return a random float between 0 and 1.
+/// Not thread-safe. Must only be called from the main loop.
+/// Not suitable for cryptographic use; use random_bytes() instead.
 float random_float();
-/// Generate \p len number of random bytes.
+/// Generate \p len random bytes using the platform's secure RNG (hardware RNG or OS CSPRNG).
+/// Thread-safe. Suitable for cryptographic use.
 bool random_bytes(uint8_t *data, size_t len);
 
 ///@}
@@ -1729,6 +1734,54 @@ constexpr float fahrenheit_to_celsius(float value) { return (value - 32.0f) / 1.
 /// @name Utilities
 /// @{
 
+/// Lightweight type-erased callback (8 bytes on 32-bit) that avoids std::function overhead.
+/// No null check, no exceptions, no heap allocation for small trivially-copyable callables.
+///
+/// With C++20 if constexpr, automatically detects [this] lambdas (sizeof <= sizeof(void*),
+/// trivially copyable) and stores them inline. Larger callables are heap-allocated.
+template<typename... X> struct Callback;
+
+template<typename... Ts> struct Callback<void(Ts...)> {
+  // The inline storage path stores callable bytes in ctx_ via memcpy.
+  // sizeof equality with uintptr_t ensures void* can round-trip arbitrary bit patterns,
+  // which combined with flat address spaces on all ESPHome targets means no trap representations.
+  static_assert(sizeof(void *) == sizeof(std::uintptr_t), "void* must be the same size as uintptr_t");
+
+  void (*fn_)(void *, Ts...){nullptr};
+  void *ctx_{nullptr};
+
+  /// Invoke the callback. Only valid on Callbacks created via create(), never on default-constructed instances.
+  void call(Ts... args) const { this->fn_(this->ctx_, args...); }
+
+  /// Create from any callable. Small trivially-copyable callables (like [this] lambdas)
+  /// are stored inline in the ctx pointer without heap allocation.
+  template<typename F> static Callback create(F &&callable) {
+    using DecayF = std::decay_t<F>;
+    if constexpr (sizeof(DecayF) <= sizeof(void *) && std::is_trivially_copyable_v<DecayF>) {
+      // Small trivial callable (e.g. [this]() { this->method(); }) - store inline in ctx.
+      // Safe under C++20 (P0593R6): byte copy into aligned storage implicitly
+      // creates objects of implicit-lifetime types (trivially copyable qualifies).
+      Callback cb;  // fn and ctx are zero-initialized by default
+      // Decay callable to a local variable first. When F is a function reference
+      // (e.g. void(&)(int)), &callable would point at machine code, not a pointer variable.
+      DecayF decayed = std::forward<F>(callable);
+      __builtin_memcpy(&cb.ctx_, &decayed, sizeof(DecayF));
+      cb.fn_ = [](void *c, Ts... args) {
+        alignas(DecayF) char buf[sizeof(DecayF)];
+        __builtin_memcpy(buf, &c, sizeof(DecayF));
+        (*std::launder(reinterpret_cast<DecayF *>(buf)))(args...);
+      };
+      return cb;
+    } else {
+      // Large or non-trivial callable - heap allocate.
+      // Intentionally never freed: callbacks in ESPHome are registered during setup()
+      // and live for device lifetime. Same lifetime as the previous std::function approach.
+      auto *stored = new DecayF(std::forward<F>(callable));
+      return {[](void *c, Ts... args) { (*static_cast<DecayF *>(c))(args...); }, static_cast<void *>(stored)};
+    }
+  }
+};
+
 template<typename... X> class CallbackManager;
 
 /** Helper class to allow having multiple subscribers to a callback.
@@ -1737,13 +1790,14 @@ template<typename... X> class CallbackManager;
  */
 template<typename... Ts> class CallbackManager<void(Ts...)> {
  public:
-  /// Add a callback to the list.
-  void add(std::function<void(Ts...)> &&callback) { this->callbacks_.push_back(std::move(callback)); }
+  /// Add any callable. Small trivially-copyable callables (like [this] lambdas)
+  /// are stored inline without heap allocation or std::function.
+  template<typename F> void add(F &&callback) { this->add_(Callback<void(Ts...)>::create(std::forward<F>(callback))); }
 
-  /// Call all callbacks in this manager.
+  /// Call all callbacks in this manager. No null check on invoke.
   void call(Ts... args) {
     for (auto &cb : this->callbacks_)
-      cb(args...);
+      cb.call(args...);
   }
   size_t size() const { return this->callbacks_.size(); }
 
@@ -1751,7 +1805,10 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
   void operator()(Ts... args) { call(args...); }
 
  protected:
-  std::vector<std::function<void(Ts...)>> callbacks_;
+  template<typename...> friend class LazyCallbackManager;
+  /// Non-template core to avoid code duplication per lambda type.
+  void add_(Callback<void(Ts...)> cb) { this->callbacks_.push_back(cb); }
+  std::vector<Callback<void(Ts...)>> callbacks_;
 };
 
 template<typename... X> class LazyCallbackManager;
@@ -1784,13 +1841,8 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
   LazyCallbackManager(LazyCallbackManager &&) = delete;
   LazyCallbackManager &operator=(LazyCallbackManager &&) = delete;
 
-  /// Add a callback to the list. Allocates the underlying CallbackManager on first use.
-  void add(std::function<void(Ts...)> &&callback) {
-    if (!this->callbacks_) {
-      this->callbacks_ = new CallbackManager<void(Ts...)>();
-    }
-    this->callbacks_->add(std::move(callback));
-  }
+  /// Add any callable. Allocates the underlying CallbackManager on first use.
+  template<typename F> void add(F &&callback) { this->add_(Callback<void(Ts...)>::create(std::forward<F>(callback))); }
 
   /// Call all callbacks in this manager. No-op if no callbacks registered.
   void call(Ts... args) {
@@ -1809,6 +1861,13 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
   void operator()(Ts... args) { this->call(args...); }
 
  protected:
+  /// Non-template core to avoid code duplication per lambda type.
+  void add_(Callback<void(Ts...)> cb) {
+    if (!this->callbacks_) {
+      this->callbacks_ = new CallbackManager<void(Ts...)>();
+    }
+    this->callbacks_->add_(cb);
+  }
   CallbackManager<void(Ts...)> *callbacks_{nullptr};
 };
 
@@ -1866,19 +1925,34 @@ template<typename T> class Parented {
  */
 class Mutex {
  public:
-  Mutex();
   Mutex(const Mutex &) = delete;
+  Mutex &operator=(const Mutex &) = delete;
+
+#if defined(USE_ESP8266) || defined(USE_RP2040)
+  // Single-threaded platforms: inline no-ops so the compiler eliminates all call overhead.
+  Mutex() = default;
+  ~Mutex() = default;
+  void lock() {}
+  bool try_lock() { return true; }
+  void unlock() {}
+#elif defined(USE_ESP32) || defined(USE_LIBRETINY)
+  // FreeRTOS platforms: inline to avoid out-of-line call overhead.
+  Mutex() { handle_ = xSemaphoreCreateMutex(); }
+  ~Mutex() = default;
+  void lock() { xSemaphoreTake(this->handle_, portMAX_DELAY); }
+  bool try_lock() { return xSemaphoreTake(this->handle_, 0) == pdTRUE; }
+  void unlock() { xSemaphoreGive(this->handle_); }
+
+ private:
+  SemaphoreHandle_t handle_;
+#else
+  Mutex();
   ~Mutex();
   void lock();
   bool try_lock();
   void unlock();
 
-  Mutex &operator=(const Mutex &) = delete;
-
  private:
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
-  SemaphoreHandle_t handle_;
-#else
   // d-pointer to store private data on new platforms
   void *handle_;  // NOLINT(clang-diagnostic-unused-private-field)
 #endif

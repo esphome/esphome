@@ -15,7 +15,7 @@ class ModbusFloatOutput : public output::FloatOutput, public Component, public S
     this->register_type = ModbusRegisterType::HOLDING;
     this->start_address = start_address;
     this->offset = offset;
-    this->bitmask = bitmask;
+    this->bitmask = 0xFFFFFFFF;
     this->register_count = register_count;
     this->sensor_value_type = value_type;
     this->skip_updates = 0;
@@ -47,7 +47,7 @@ class ModbusBinaryOutput : public output::BinaryOutput, public Component, public
   ModbusBinaryOutput(uint16_t start_address, uint8_t offset) {
     this->register_type = ModbusRegisterType::COIL;
     this->start_address = start_address;
-    this->bitmask = bitmask;
+    this->bitmask = 0xFFFFFFFF;
     this->sensor_value_type = SensorValueType::BIT;
     this->skip_updates = 0;
     this->register_count = 1;

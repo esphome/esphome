@@ -627,14 +627,12 @@ def get_usable_cpu_count() -> int:
 
 
 def get_all_dependencies(
-    component_names: set[str], cpp_testing: bool = False
+    component_names: set[str],
 ) -> set[str]:
     """Get all dependencies for a set of components.
 
     Args:
         component_names: Set of component names to get dependencies for
-        cpp_testing: If True, set CORE.cpp_testing so AUTO_LOAD callables that
-                     conditionally include testing-only dependencies work correctly
 
     Returns:
         Set of all components including dependencies and auto-loaded components
@@ -652,7 +650,6 @@ def get_all_dependencies(
 
     # Reset CORE to ensure clean state
     CORE.reset()
-    CORE.cpp_testing = cpp_testing
 
     # Set up fake config path for component loading
     root = Path(__file__).parent.parent
