@@ -224,13 +224,15 @@ class ProtoWriteBuffer {
     this->encode_varint_raw_slow_(value);
   }
   void encode_varint_raw_64(uint64_t value) {
+    // Use __restrict__ so the compiler knows pos doesn't alias this->
+    // and can keep it in a register across the loop.
+    uint8_t *__restrict__ pos = this->pos_;
     while (value > 0x7F) {
-      this->debug_check_bounds_(1);
-      *this->pos_++ = static_cast<uint8_t>(value | 0x80);
+      *pos++ = static_cast<uint8_t>(value | 0x80);
       value >>= 7;
     }
-    this->debug_check_bounds_(1);
-    *this->pos_++ = static_cast<uint8_t>(value);
+    *pos++ = static_cast<uint8_t>(value);
+    this->pos_ = pos;
   }
   /**
    * Encode a field key (tag/wire type combination).
