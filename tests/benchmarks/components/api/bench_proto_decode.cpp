@@ -22,9 +22,9 @@ template<typename T> static APIBuffer encode_message(const T &msg) {
   return buffer;
 }
 
-/// Force a pointer and size through an asm barrier so the compiler
-/// treats them as opaque runtime values.
-static void opaquify(const uint8_t *&data, size_t &size) { asm volatile("" : "+r"(data), "+r"(size) : : "memory"); }
+/// Force a pointer through an asm barrier so the compiler cannot
+/// prove its contents are unchanged across iterations.
+static void escape(void *p) { asm volatile("" : : "g"(p) : "memory"); }
 
 // --- HelloRequest decode (string + varint fields) ---
 
@@ -34,16 +34,14 @@ static void Decode_HelloRequest(benchmark::State &state) {
   source.api_version_major = 1;
   source.api_version_minor = 10;
   auto encoded = encode_message(source);
-  const uint8_t *data = encoded.data();
-  size_t size = encoded.size();
-  opaquify(data, size);
 
   for (auto _ : state) {
-    HelloRequest msg;
     for (int i = 0; i < kInnerIterations; i++) {
-      msg.decode(data, size);
+      HelloRequest msg;
+      escape(&msg);
+      msg.decode(encoded.data(), encoded.size());
+      escape(&msg);
     }
-    benchmark::DoNotOptimize(msg);
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
@@ -56,16 +54,14 @@ static void Decode_SwitchCommandRequest(benchmark::State &state) {
   source.key = 0x12345678;
   source.state = true;
   auto encoded = encode_message(source);
-  const uint8_t *data = encoded.data();
-  size_t size = encoded.size();
-  opaquify(data, size);
 
   for (auto _ : state) {
-    SwitchCommandRequest msg;
     for (int i = 0; i < kInnerIterations; i++) {
-      msg.decode(data, size);
+      SwitchCommandRequest msg;
+      escape(&msg);
+      msg.decode(encoded.data(), encoded.size());
+      escape(&msg);
     }
-    benchmark::DoNotOptimize(msg);
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
@@ -87,16 +83,14 @@ static void Decode_LightCommandRequest(benchmark::State &state) {
   source.has_effect = true;
   source.effect = StringRef::from_lit("rainbow");
   auto encoded = encode_message(source);
-  const uint8_t *data = encoded.data();
-  size_t size = encoded.size();
-  opaquify(data, size);
 
   for (auto _ : state) {
-    LightCommandRequest msg;
     for (int i = 0; i < kInnerIterations; i++) {
-      msg.decode(data, size);
+      LightCommandRequest msg;
+      escape(&msg);
+      msg.decode(encoded.data(), encoded.size());
+      escape(&msg);
     }
-    benchmark::DoNotOptimize(msg);
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
