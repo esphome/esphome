@@ -38,8 +38,7 @@ void Ds1603l::loop() {
     // Read 4 bytes of data
     this->read_array(this->rx_buffer_, 4);
 
-    ESP_LOGD(TAG, "Raw Data: %02X %02X %02X %02X", this->rx_buffer_[0], this->rx_buffer_[1], this->rx_buffer_[2],
-             this->rx_buffer_[3]);
+    ESP_LOGD(TAG, "Raw Data: %02X %02X %02X %02X", this->rx_buffer_[0], this->rx_buffer_[1], this->rx_buffer_[2], this->rx_buffer_[3]);
 
     // Verify the header byte
     if (this->rx_buffer_[0] != 0xFF) {
@@ -88,16 +87,20 @@ void Ds1603l::parse_data_() {
 
   // Calculate liquid level directly and clamp
   float raw_level = (data_h << 8) | data_l;
-  float ds1603l_liquid_level = std::clamp(raw_level, ds1603l_min_level_, ds1603l_max_level_);
+  float ds1603l_liquid_level = std::clamp((raw_level + ds1603l_min_level_), ds1603l_min_level_, ds1603l_max_level_);
 
   // Calculate liquid volume directly and clamp
   float ds1603l_liquid_volume = ds1603l_liquid_level * (ds1603l_max_volume_ / ds1603l_max_level_);
   ds1603l_liquid_volume = std::clamp(ds1603l_liquid_volume, ds1603l_min_volume_, ds1603l_max_volume_);
 
+// Added for percentage
+  float ds1603l_percentage = ((float)(ds1603l_liquid_volume - ds1603l_min_volume_) / (ds1603l_max_volume_ - ds1603l_min_volume_)) * 100.0f;
+
   ESP_LOGI(TAG, "Liquid Level: %f mm", ds1603l_liquid_level);
 
-  ESP_LOGI(TAG, "Liquid Volume: %f gal", ds1603l_liquid_volume);
+  ESP_LOGI(TAG, "Liquid Volume: %f", ds1603l_liquid_volume);
 
+  ESP_LOGI(TAG, "Liquid Percentage: %f", ds1603l_percentage);
   // Publish values
 
   if (ds1603l_liquid_level_sensor_) {
@@ -105,6 +108,9 @@ void Ds1603l::parse_data_() {
   }
   if (ds1603l_liquid_volume_sensor_) {
     ds1603l_liquid_volume_sensor_->publish_state(ds1603l_liquid_volume);
+  }
+  if (ds1603l_percentage_sensor_) {
+    ds1603l_percentage_sensor_->publish_state(ds1603l_percentage);
   }
 }
 
