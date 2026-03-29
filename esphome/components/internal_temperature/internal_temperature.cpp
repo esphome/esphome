@@ -1,4 +1,5 @@
 #include "internal_temperature.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
@@ -24,7 +25,7 @@ uint32_t temp_single_get_current_temperature(uint32_t *temp_value);
 #endif  // USE_BK72XX
 #if defined(USE_ZEPHYR) && defined(USE_NRF52)
 #include "hal/nrf_temp.h"
-#endif
+#endif  // USE_ZEPHYR && USE_NRF52
 
 namespace esphome {
 namespace internal_temperature {
@@ -78,22 +79,26 @@ void InternalTemperatureSensor::update() {
   nrf_temp_event_clear(NRF_TEMP, NRF_TEMP_EVENT_DATARDY);
   nrf_temp_task_trigger(NRF_TEMP, NRF_TEMP_TASK_START);
 
-  uint32_t wait_loops = 0;
-  const uint32_t max_wait_loops = 100000;
-  while (!nrf_temp_event_check(NRF_TEMP, NRF_TEMP_EVENT_DATARDY) && wait_loops < max_wait_loops) {
-    wait_loops++;
+  const uint32_t start_us = micros();
+  const uint32_t timeout_us = 5000;
+  while (!nrf_temp_event_check(NRF_TEMP, NRF_TEMP_EVENT_DATARDY)) {
+    if (micros() - start_us >= timeout_us) {
+      break;
+    }
+    arch_feed_wdt();
+    yield();
   }
 
   nrf_temp_task_trigger(NRF_TEMP, NRF_TEMP_TASK_STOP);
 
-  if (wait_loops >= max_wait_loops) {
+  if (!nrf_temp_event_check(NRF_TEMP, NRF_TEMP_EVENT_DATARDY)) {
     ESP_LOGE(TAG, "Timed out reading nRF52 internal temperature");
   } else {
     const int32_t raw_temperature = nrf_temp_result_get(NRF_TEMP);
     temperature = raw_temperature / 4.0f;
     success = true;
   }
-#endif
+#endif  // USE_ZEPHYR && USE_NRF52
   if (success && std::isfinite(temperature)) {
     this->publish_state(temperature);
   } else {
