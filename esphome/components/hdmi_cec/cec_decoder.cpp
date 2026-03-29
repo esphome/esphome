@@ -4,6 +4,10 @@
 #include <map>
 #include <array>
 
+#include "esphome/core/defines.h"
+#include "esphome/core/log.h"
+
+#ifdef HDMI_CEC_USE_DECODER
 #include "hdmi_cec.h"
 #include "cec_decoder.h"
 
@@ -474,3 +478,4 @@ const char *Decoder::decode() {
 
 }  // namespace hdmi_cec
 }  // namespace esphome
+#endif  // HDMI_CEC_USE_DECODER
