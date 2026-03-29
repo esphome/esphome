@@ -47,10 +47,12 @@ TYPE_PMS5003S = "PMS5003S"
 TYPE_PMS5003T = "PMS5003T"
 TYPE_PMS5003ST = "PMS5003ST"
 TYPE_PMS9003M = "PMS9003M"
-TYPE_LD15 = (
-    "LD15"  # Luftmy LD15: PM1.0/2.5/10 STD + particle counts, no atmospheric PM values
-)
-TYPE_LD16 = "LD16"  # Luftmy LD16: identical protocol to LD15
+# Luftmy LD series: PM1.0/2.5/10 STD + particle counts, no atmospheric PM values
+TYPE_LD10 = "LD10"
+TYPE_LD11 = "LD11"
+TYPE_LD13 = "LD13"
+TYPE_LD15 = "LD15"
+TYPE_LD16 = "LD16"
 
 Type = pmsx003_ns.enum("Type", is_class=True)
 
@@ -62,6 +64,9 @@ PMSX003_TYPES = {
     TYPE_PMS5003T: Type.PMS5003T,
     TYPE_PMS5003ST: Type.PMS5003ST,
     TYPE_PMS9003M: Type.PMS9003M,
+    TYPE_LD10: Type.LD10,
+    TYPE_LD11: Type.LD11,
+    TYPE_LD13: Type.LD13,
     TYPE_LD15: Type.LD15,
     TYPE_LD16: Type.LD16,
 }
@@ -75,6 +80,9 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003T,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LD10,
+        TYPE_LD11,
+        TYPE_LD13,
         TYPE_LD15,
         TYPE_LD16,
     ],
@@ -86,6 +94,9 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003T,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LD10,
+        TYPE_LD11,
+        TYPE_LD13,
         TYPE_LD15,
         TYPE_LD16,
     ],
@@ -97,6 +108,9 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003T,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LD10,
+        TYPE_LD11,
+        TYPE_LD13,
         TYPE_LD15,
         TYPE_LD16,
     ],
@@ -134,6 +148,9 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003T,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LD10,
+        TYPE_LD11,
+        TYPE_LD13,
         TYPE_LD15,
         TYPE_LD16,
     ],
@@ -144,6 +161,9 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003T,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LD10,
+        TYPE_LD11,
+        TYPE_LD13,
         TYPE_LD15,
         TYPE_LD16,
     ],
@@ -154,6 +174,9 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003T,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LD10,
+        TYPE_LD11,
+        TYPE_LD13,
         TYPE_LD15,
         TYPE_LD16,
     ],
@@ -164,6 +187,9 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003T,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LD10,
+        TYPE_LD11,
+        TYPE_LD13,
         TYPE_LD15,
         TYPE_LD16,
     ],
@@ -173,6 +199,9 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003S,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LD10,
+        TYPE_LD11,
+        TYPE_LD13,
         TYPE_LD15,
         TYPE_LD16,
     ],
@@ -182,6 +211,9 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003S,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LD10,
+        TYPE_LD11,
+        TYPE_LD13,
         TYPE_LD15,
         TYPE_LD16,
     ],

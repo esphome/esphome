@@ -27,6 +27,24 @@ sensor:
       name: Particulate Count >10.0um
     update_interval: 30s
   - platform: pmsx003
+    type: LD10
+    pm_2_5_std:
+      name: LD10 PM 2.5 Concentration
+    pm_0_3um:
+      name: LD10 Particulate Count >0.3um
+  - platform: pmsx003
+    type: LD11
+    pm_2_5_std:
+      name: LD11 PM 2.5 Concentration
+    pm_0_3um:
+      name: LD11 Particulate Count >0.3um
+  - platform: pmsx003
+    type: LD13
+    pm_2_5_std:
+      name: LD13 PM 2.5 Concentration
+    pm_0_3um:
+      name: LD13 Particulate Count >0.3um
+  - platform: pmsx003
     type: LD15
     pm_1_0_std:
       name: LD15 PM 1.0 Concentration

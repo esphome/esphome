@@ -192,6 +192,9 @@ bool PMSX003Component::check_payload_length_(uint16_t payload_length) {
       return payload_length == 36;  // 2*17+2
     case Type::PMS9003M:
       return payload_length == 28;  // 2*13+2
+    case Type::LD10:
+    case Type::LD11:
+    case Type::LD13:
     case Type::LD15:
     case Type::LD16:
       return payload_length == 28;  // 2*13+2
@@ -238,7 +241,8 @@ void PMSX003Component::parse_data_() {
 
   // LD15/LD16 have no atmospheric PM; their particle counts start at byte 10.
   // All PMS types have atmospheric PM at bytes 10-15; particle counts start at byte 16.
-  const bool is_ld = (this->type_ == Type::LD15 || this->type_ == Type::LD16);
+  const bool is_ld = (this->type_ == Type::LD10 || this->type_ == Type::LD11 || this->type_ == Type::LD13 ||
+                      this->type_ == Type::LD15 || this->type_ == Type::LD16);
   const uint8_t pc_offset = is_ld ? 10 : 16;
 
   if (!is_ld) {
