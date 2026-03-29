@@ -17,25 +17,24 @@ CONF_DS1603L_MAX_LEVEL = "ds1603l_max_level"
 
 # Configuration schema for ds1603l
 CONFIG_SCHEMA = uart.UART_DEVICE_SCHEMA.extend(
-
     {
         cv.GenerateID(): cv.declare_id(Ds1603l),
         cv.Optional(CONF_DS1603L_LIQUID_LEVEL): sensor.sensor_schema(
             unit_of_measurement=UNIT_EMPTY,  # Unit is customizable in YAML
-            icon=ICON_EMPTY,                # Icon is customizable in YAML
-            accuracy_decimals=0,            #Default to 0 decimal place
+            icon=ICON_EMPTY,  # Icon is customizable in YAML
+            accuracy_decimals=0,  # Default to 0 decimal place
             state_class="measurement",
         ),
         cv.Optional(CONF_DS1603L_LIQUID_VOLUME): sensor.sensor_schema(
             unit_of_measurement=UNIT_EMPTY,  # Unit is customizable in YAML
-            icon=ICON_EMPTY,                # Icon is customizable in YAML
-            accuracy_decimals=0,            # Default to 0 decimal place
+            icon=ICON_EMPTY,  # Icon is customizable in YAML
+            accuracy_decimals=0,  # Default to 0 decimal place
             state_class="measurement",
         ),
         cv.Optional(CONF_DS1603L_PERCENTAGE): sensor.sensor_schema(
             unit_of_measurement="%",
-            icon=ICON_EMPTY,                # Icon is customizable in YAML
-            accuracy_decimals=0,            # Default to 0 decimal place
+            icon=ICON_EMPTY,  # Icon is customizable in YAML
+            accuracy_decimals=0,  # Default to 0 decimal place
             state_class="measurement",
         ),
         cv.Optional(CONF_DS1603L_MIN_VOLUME, default=0.0): cv.float_,
@@ -44,6 +43,7 @@ CONFIG_SCHEMA = uart.UART_DEVICE_SCHEMA.extend(
         cv.Optional(CONF_DS1603L_MAX_LEVEL, default=1000.0): cv.float_,
     }
 ).extend(cv.polling_component_schema("60s"))  # Default update interval is 60s
+
 
 # Generate the C++ code from YAML
 async def to_code(config):
