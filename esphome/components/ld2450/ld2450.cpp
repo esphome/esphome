@@ -407,10 +407,6 @@ void LD2450Component::restart_and_read_all_info() {
   this->set_timeout(1500, [this]() { this->read_all_info(); });
 }
 
-void LD2450Component::add_on_data_callback(std::function<void()> &&callback) {
-  this->data_callback_.add(std::move(callback));
-}
-
 // Send command with values to LD2450
 void LD2450Component::send_command_(uint8_t command, const uint8_t *command_value, uint8_t command_value_len) {
   ESP_LOGV(TAG, "Sending COMMAND %02X", command);
@@ -534,10 +530,11 @@ void LD2450Component::handle_periodic_data_() {
     }
 #endif
 
-    // Store target info for zone target count
-    this->target_info_[index].x = tx;
-    this->target_info_[index].y = ty;
-    this->target_info_[index].is_moving = is_moving;
+    // Store target info for zone target count. Zero out untracked targets (td==0)
+    // so stale coordinates don't produce ghost counts in count_targets_in_zone_().
+    this->target_info_[index].x = (td > 0) ? tx : 0;
+    this->target_info_[index].y = (td > 0) ? ty : 0;
+    this->target_info_[index].is_moving = (td > 0) && is_moving;
 
   }  // End loop thru targets
 

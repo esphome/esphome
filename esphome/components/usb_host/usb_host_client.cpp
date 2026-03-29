@@ -193,7 +193,8 @@ static void client_event_cb(const usb_host_client_event_msg_t *event_msg, void *
       return;
   }
 
-  // Push to lock-free queue (always succeeds since pool size == queue size)
+  // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+  // allocate() returned non-null, the queue cannot be full.
   client->event_queue.push(event);
 
   // Re-enable component loop to process the queued event

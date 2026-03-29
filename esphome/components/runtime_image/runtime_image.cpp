@@ -106,7 +106,7 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
       break;
     }
     case image::IMAGE_TYPE_RGB565: {
-      uint32_t pos = this->get_position_(x, y);
+      const size_t pos = (x + y * this->buffer_width_) * 2;
       Color mapped_color = color;
       this->map_chroma_key(mapped_color);
       uint16_t rgb565 = display::ColorUtil::color_to_565(mapped_color);
@@ -118,7 +118,8 @@ void RuntimeImage::draw_pixel(int x, int y, const Color &color) {
         this->buffer_[pos + 1] = static_cast<uint8_t>((rgb565 >> 8) & 0xFF);
       }
       if (this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
-        this->buffer_[pos + 2] = color.w;
+        const size_t alpha_pos = pos / 2 + this->buffer_width_ * this->buffer_height_ * 2;
+        this->buffer_[alpha_pos] = color.w;
       }
       break;
     }
@@ -283,6 +284,10 @@ size_t RuntimeImage::resize_buffer_(int width, int height) {
 }
 
 size_t RuntimeImage::get_buffer_size_(int width, int height) const {
+  if (this->get_type() == image::IMAGE_TYPE_RGB565 && this->transparency_ == image::TRANSPARENCY_ALPHA_CHANNEL) {
+    // Add extra alpha channel for RGB565 with alpha
+    return width * height * 3;
+  }
   return (this->get_bpp() * width + 7u) / 8u * height;
 }
 
