@@ -2248,7 +2248,7 @@ void BluetoothLERawAdvertisement::encode(ProtoWriteBuffer &buffer) const {
   buffer.write_raw_byte(8);
   buffer.encode_varint_raw_64(this->address);
   buffer.write_raw_byte(16);
-  buffer.encode_varint_raw(encode_zigzag32(this->rssi));
+  buffer.encode_varint_raw_short(encode_zigzag32(this->rssi));
   buffer.encode_uint32(3, this->address_type);
   buffer.write_raw_byte(34);
   buffer.encode_varint_raw(this->data_len);

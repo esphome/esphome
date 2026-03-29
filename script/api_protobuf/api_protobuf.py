@@ -229,7 +229,7 @@ class TypeInfo(ABC):
     RAW_ENCODE_MAP: dict[str, str] = {
         "encode_uint32": "buffer.encode_varint_raw({value});",
         "encode_uint64": "buffer.encode_varint_raw_64({value});",
-        "encode_sint32": "buffer.encode_varint_raw(encode_zigzag32({value}));",
+        "encode_sint32": "buffer.encode_varint_raw_short(encode_zigzag32({value}));",
         "encode_sint64": "buffer.encode_varint_raw_64(encode_zigzag64({value}));",
         "encode_int64": "buffer.encode_varint_raw_64(static_cast<uint64_t>({value}));",
         "encode_bool": "buffer.write_raw_byte({value} ? 0x01 : 0x00);",
