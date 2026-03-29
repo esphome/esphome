@@ -155,6 +155,10 @@ APIError APIFrameHelper::write_raw_iov_(const struct iovec *iov, int iovcnt, uin
     }
   }
 
+  // Full write completed (possible when called directly, not via write_raw_fast_iov_)
+  if (sent == static_cast<ssize_t>(total_write_len))
+    return APIError::OK;
+
   // Queue unsent data into overflow buffer
   if (!this->overflow_buf_.enqueue_iov(iov, iovcnt, total_write_len, static_cast<uint16_t>(sent))) {
     HELPER_LOG("Overflow buffer full, dropping connection");
