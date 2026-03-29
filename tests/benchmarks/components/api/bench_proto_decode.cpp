@@ -10,21 +10,21 @@ namespace esphome::api::benchmarks {
 // sub-microsecond benchmarks.
 static constexpr int kInnerIterations = 2000;
 
-// Helper: encode a message into a buffer, then copy the bytes into a
-// plain array so the compiler cannot trace them back to compile-time constants.
-// Returns {heap-allocated copy, size}.  Caller owns the memory.
-template<typename T> static std::pair<uint8_t *, size_t> encode_to_heap(const T &msg) {
+// Helper: encode a message into a buffer and return the raw data/size.
+// The returned pointer/size are forced through an asm barrier so the
+// compiler cannot prove their values are compile-time constants.
+template<typename T> static APIBuffer encode_message(const T &msg) {
   APIBuffer buffer;
   uint32_t size = msg.calculate_size();
   buffer.resize(size);
   ProtoWriteBuffer writer(&buffer, 0);
   msg.encode(writer);
-  // Copy to a separate heap allocation so the compiler cannot prove
-  // the contents are constant (the APIBuffer internals are visible).
-  auto *copy = new uint8_t[size];
-  std::memcpy(copy, buffer.data(), size);
-  return {copy, size};
+  return buffer;
 }
+
+/// Force a pointer and size through an asm barrier so the compiler
+/// treats them as opaque runtime values.
+static void opaquify(const uint8_t *&data, size_t &size) { asm volatile("" : "+r"(data), "+r"(size) : : "memory"); }
 
 // --- HelloRequest decode (string + varint fields) ---
 
@@ -33,19 +33,19 @@ static void Decode_HelloRequest(benchmark::State &state) {
   source.client_info = StringRef::from_lit("aioesphomeapi");
   source.api_version_major = 1;
   source.api_version_minor = 10;
-  auto [data, size] = encode_to_heap(source);
-  benchmark::DoNotOptimize(size);
+  auto encoded = encode_message(source);
+  const uint8_t *data = encoded.data();
+  size_t size = encoded.size();
+  opaquify(data, size);
 
   for (auto _ : state) {
     HelloRequest msg;
     for (int i = 0; i < kInnerIterations; i++) {
       msg.decode(data, size);
-      benchmark::ClobberMemory();
     }
     benchmark::DoNotOptimize(msg);
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
-  delete[] data;
 }
 BENCHMARK(Decode_HelloRequest);
 
@@ -55,19 +55,19 @@ static void Decode_SwitchCommandRequest(benchmark::State &state) {
   SwitchCommandRequest source;
   source.key = 0x12345678;
   source.state = true;
-  auto [data, size] = encode_to_heap(source);
-  benchmark::DoNotOptimize(size);
+  auto encoded = encode_message(source);
+  const uint8_t *data = encoded.data();
+  size_t size = encoded.size();
+  opaquify(data, size);
 
   for (auto _ : state) {
     SwitchCommandRequest msg;
     for (int i = 0; i < kInnerIterations; i++) {
       msg.decode(data, size);
-      benchmark::ClobberMemory();
     }
     benchmark::DoNotOptimize(msg);
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
-  delete[] data;
 }
 BENCHMARK(Decode_SwitchCommandRequest);
 
@@ -86,19 +86,19 @@ static void Decode_LightCommandRequest(benchmark::State &state) {
   source.blue = 0.2f;
   source.has_effect = true;
   source.effect = StringRef::from_lit("rainbow");
-  auto [data, size] = encode_to_heap(source);
-  benchmark::DoNotOptimize(size);
+  auto encoded = encode_message(source);
+  const uint8_t *data = encoded.data();
+  size_t size = encoded.size();
+  opaquify(data, size);
 
   for (auto _ : state) {
     LightCommandRequest msg;
     for (int i = 0; i < kInnerIterations; i++) {
       msg.decode(data, size);
-      benchmark::ClobberMemory();
     }
     benchmark::DoNotOptimize(msg);
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
-  delete[] data;
 }
 BENCHMARK(Decode_LightCommandRequest);
 
