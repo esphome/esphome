@@ -52,7 +52,7 @@ class Filter {
  */
 class SlidingWindowFilter : public Filter {
  public:
-  SlidingWindowFilter(size_t window_size, size_t send_every, size_t send_first_at);
+  SlidingWindowFilter(uint16_t window_size, uint16_t send_every, uint16_t send_first_at);
 
   optional<float> new_value(float value) final;
 
@@ -60,14 +60,10 @@ class SlidingWindowFilter : public Filter {
   /// Called by new_value() to compute the filtered result from the current window
   virtual float compute_result() = 0;
 
-  /// Access the sliding window values (ring buffer implementation)
-  /// Use: for (size_t i = 0; i < window_count_; i++) { float val = window_[i]; }
-  FixedVector<float> window_;
-  size_t window_head_{0};   ///< Index where next value will be written
-  size_t window_count_{0};  ///< Number of valid values in window (0 to window_size_)
-  size_t window_size_;      ///< Maximum window size
-  size_t send_every_;       ///< Send result every N values
-  size_t send_at_;          ///< Counter for send_every
+  /// Sliding window ring buffer - automatically overwrites oldest values when full
+  FixedRingBuffer<float> window_;
+  uint16_t send_every_;  ///< Send result every N values
+  uint16_t send_at_;     ///< Counter for send_every
 };
 
 /** Base class for Min/Max filters.
@@ -84,8 +80,7 @@ class MinMaxFilter : public SlidingWindowFilter {
   template<typename Compare> float find_extremum_() {
     float result = NAN;
     Compare comp;
-    for (size_t i = 0; i < this->window_count_; i++) {
-      float v = this->window_[i];
+    for (float v : this->window_) {
       if (!std::isnan(v)) {
         result = std::isnan(result) ? v : (comp(v, result) ? v : result);
       }
@@ -239,18 +234,18 @@ class SlidingWindowMovingAverageFilter : public SlidingWindowFilter {
  */
 class ExponentialMovingAverageFilter : public Filter {
  public:
-  ExponentialMovingAverageFilter(float alpha, size_t send_every, size_t send_first_at);
+  ExponentialMovingAverageFilter(float alpha, uint16_t send_every, uint16_t send_first_at);
 
   optional<float> new_value(float value) override;
 
-  void set_send_every(size_t send_every);
+  void set_send_every(uint16_t send_every);
   void set_alpha(float alpha);
 
  protected:
   float accumulator_{NAN};
   float alpha_;
-  size_t send_every_;
-  size_t send_at_;
+  uint16_t send_every_;
+  uint16_t send_at_;
   bool first_value_{true};
 };
 
@@ -570,7 +565,7 @@ class ToNTCTemperatureFilter : public Filter {
  */
 class StreamingFilter : public Filter {
  public:
-  StreamingFilter(size_t window_size, size_t send_first_at);
+  StreamingFilter(uint16_t window_size, uint16_t send_first_at);
 
   optional<float> new_value(float value) final;
 
@@ -584,9 +579,9 @@ class StreamingFilter : public Filter {
   /// Called by new_value() to reset internal state after sending a result
   virtual void reset_batch() = 0;
 
-  size_t window_size_;
-  size_t count_{0};
-  size_t send_first_at_;
+  uint16_t window_size_;
+  uint16_t count_{0};
+  uint16_t send_first_at_;
   bool first_send_{true};
 };
 

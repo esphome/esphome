@@ -136,7 +136,6 @@ optional<bool> SettleFilter::new_value(bool value) {
     return {};
   } else {
     this->steady_ = false;
-    this->output(value);
     this->set_timeout(FILTER_TIMEOUT_ID, this->delay_.value(), [this]() { this->steady_ = true; });
     return value;
   }

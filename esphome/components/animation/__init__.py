@@ -69,9 +69,15 @@ SET_FRAME_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action("animation.next_frame", NextFrameAction, NEXT_FRAME_SCHEMA)
-@automation.register_action("animation.prev_frame", PrevFrameAction, PREV_FRAME_SCHEMA)
-@automation.register_action("animation.set_frame", SetFrameAction, SET_FRAME_SCHEMA)
+@automation.register_action(
+    "animation.next_frame", NextFrameAction, NEXT_FRAME_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "animation.prev_frame", PrevFrameAction, PREV_FRAME_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "animation.set_frame", SetFrameAction, SET_FRAME_SCHEMA, synchronous=True
+)
 async def animation_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)

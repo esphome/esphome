@@ -111,6 +111,7 @@ async def to_code(config):
             cv.Required(CONF_ID): cv.use_id(IntegrationSensor),
         }
     ),
+    synchronous=True,
 )
 async def sensor_integration_reset_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -127,6 +128,7 @@ async def sensor_integration_reset_to_code(config, action_id, template_arg, args
             cv.Required(CONF_VALUE): cv.templatable(cv.float_),
         }
     ),
+    synchronous=True,
 )
 async def sensor_integration_set_value_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

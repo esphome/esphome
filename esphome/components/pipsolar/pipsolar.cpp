@@ -192,8 +192,13 @@ bool Pipsolar::send_next_command_() {
   if (!this->command_queue_[this->command_queue_position_].empty()) {
     const char *command = this->command_queue_[this->command_queue_position_].c_str();
     uint8_t byte_command[16];
-    uint8_t length = this->command_queue_[this->command_queue_position_].length();
-    for (uint8_t i = 0; i < length; i++) {
+    size_t length = this->command_queue_[this->command_queue_position_].length();
+    if (length > sizeof(byte_command)) {
+      ESP_LOGE(TAG, "Command too long: %zu", length);
+      this->command_queue_[this->command_queue_position_].clear();
+      return false;
+    }
+    for (size_t i = 0; i < length; i++) {
       byte_command[i] = (uint8_t) this->command_queue_[this->command_queue_position_].at(i);
     }
     this->state_ = STATE_COMMAND;

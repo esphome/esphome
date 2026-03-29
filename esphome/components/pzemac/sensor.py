@@ -88,6 +88,7 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_ID): cv.use_id(PZEMAC),
         }
     ),
+    synchronous=True,
 )
 async def reset_energy_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

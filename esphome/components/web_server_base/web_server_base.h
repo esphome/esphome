@@ -122,6 +122,14 @@ class WebServerBase {
 #endif
 
   void add_handler(AsyncWebHandler *handler);
+  /**
+   * WARNING: Registers a handler that bypasses the USE_WEBSERVER_AUTH middleware.
+   *
+   * This should only be used for endpoints that are intentionally unauthenticated
+   * (for example, captive portal or very limited-status endpoints). For normal
+   * endpoints that should respect web server authentication, use add_handler().
+   */
+  void add_handler_without_auth(AsyncWebHandler *handler);
 
   void set_port(uint16_t port) { port_ = port; }
   uint16_t get_port() const { return port_; }

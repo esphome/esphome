@@ -18,7 +18,7 @@
 #endif
 
 #if defined(USE_ESP32) && defined(USE_WIFI_WPA2_EAP)
-#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
 #include <esp_eap_client.h>
 #else
 #include <esp_wpa2.h>
@@ -263,8 +263,8 @@ class WiFiAP {
 #ifdef USE_WIFI_WPA2_EAP
   const optional<EAPAuth> &get_eap() const;
 #endif  // USE_WIFI_WPA2_EAP
-  uint8_t get_channel() const;
-  bool has_channel() const;
+  uint8_t get_channel() const { return this->channel_; }
+  bool has_channel() const { return this->channel_ != 0; }
   int8_t get_priority() const { return priority_; }
 #ifdef USE_WIFI_MANUAL_IP
   const optional<ManualIP> &get_manual_ip() const;
@@ -399,7 +399,7 @@ class WiFiPowerSaveListener {
 };
 
 /// This component is responsible for managing the ESP WiFi interface.
-class WiFiComponent : public Component {
+class WiFiComponent final : public Component {
  public:
   /// Construct a WiFiComponent.
   WiFiComponent();
@@ -437,10 +437,6 @@ class WiFiComponent : public Component {
 
   void retry_connect();
 
-#ifdef USE_RP2040
-  bool can_proceed() override;
-#endif
-
   void set_reboot_timeout(uint32_t reboot_timeout);
 
   bool is_connected() const { return this->connected_; }
@@ -474,9 +470,9 @@ class WiFiComponent : public Component {
   /// Reconnect WiFi if required.
   void loop() override;
 
-  bool has_sta() const;
-  bool has_ap() const;
-  bool is_ap_active() const;
+  bool has_sta() const { return !this->sta_.empty(); }
+  bool has_ap() const { return this->has_ap_; }
+  bool is_ap_active() const { return this->ap_started_; }
 
 #ifdef USE_WIFI_11KV_SUPPORT
   void set_btm(bool btm);
@@ -485,8 +481,8 @@ class WiFiComponent : public Component {
 
   network::IPAddress get_dns_address(int num);
   network::IPAddresses get_ip_addresses();
-  const char *get_use_address() const;
-  void set_use_address(const char *use_address);
+  const char *get_use_address() const { return this->use_address_; }
+  void set_use_address(const char *use_address) { this->use_address_ = use_address; }
 
   const wifi_scan_vector_t<WiFiScanResult> &get_scan_result() const { return scan_result_; }
 
@@ -778,11 +774,17 @@ class WiFiComponent : public Component {
   SemaphoreHandle_t high_performance_semaphore_{nullptr};
 #endif
 
+  static constexpr uint8_t FIRST_5GHZ_CHANNEL = 36;
+
   // Post-connect roaming constants
   static constexpr uint32_t ROAMING_CHECK_INTERVAL = 5 * 60 * 1000;  // 5 minutes
   static constexpr int8_t ROAMING_MIN_IMPROVEMENT = 10;              // dB
   static constexpr int8_t ROAMING_GOOD_RSSI = -49;                   // Skip scan if signal is excellent
   static constexpr uint8_t ROAMING_MAX_ATTEMPTS = 3;
+  // Grace period after roaming scan completes. If WiFi disconnects within this
+  // window (e.g., ESP8266 Beacon Timeout caused by going off-channel during scan),
+  // the disconnect is treated as roaming-related and the attempts counter is preserved.
+  static constexpr uint32_t ROAMING_SCAN_GRACE_PERIOD = 30 * 1000;  // 30 seconds
 
   // 4-byte members
   float output_power_{NAN};
@@ -790,6 +792,7 @@ class WiFiComponent : public Component {
   uint32_t last_connected_{0};
   uint32_t reboot_timeout_{};
   uint32_t roaming_last_check_{0};
+  uint32_t roaming_scan_end_{0};  // Timestamp when last roaming scan completed
 #ifdef USE_WIFI_AP
   uint32_t ap_timeout_{};
 #endif
@@ -814,6 +817,7 @@ class WiFiComponent : public Component {
   bool error_from_callback_{false};
   RetryHiddenMode retry_hidden_mode_{RetryHiddenMode::BLIND_RETRY};
   RoamingState roaming_state_{RoamingState::IDLE};
+  bssid_t roaming_target_bssid_{};  // BSSID of the AP we're trying to roam to
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   WiFiPowerSaveMode configured_power_save_{WIFI_POWER_SAVE_NONE};
 #endif

@@ -2,6 +2,7 @@
 
 #include "esphome/core/defines.h"
 #ifdef USE_API
+#include "api_buffer.h"
 #include "api_noise_context.h"
 #include "api_pb2.h"
 #include "api_pb2_service.h"
@@ -35,11 +36,11 @@ struct SavedNoisePsk {
 } PACKED;  // NOLINT
 #endif
 
-class APIServer : public Component,
-                  public Controller
+class APIServer final : public Component,
+                        public Controller
 #ifdef USE_CAMERA
     ,
-                  public camera::CameraListener
+                        public camera::CameraListener
 #endif
 {
  public:
@@ -65,7 +66,7 @@ class APIServer : public Component,
   void set_max_connections(uint8_t max_connections) { this->max_connections_ = max_connections; }
 
   // Get reference to shared buffer for API connections
-  std::vector<uint8_t> &get_shared_buffer_ref() { return shared_write_buffer_; }
+  APIBuffer &get_shared_buffer_ref() { return shared_write_buffer_; }
 
 #ifdef USE_API_NOISE
   bool save_noise_psk(psk_t psk, bool make_active = true);
@@ -238,7 +239,9 @@ class APIServer : public Component,
 
 #ifdef USE_API_NOISE
   bool update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg, const LogString *fail_log_msg,
-                         const psk_t &active_psk, bool make_active);
+                         bool make_active);
+  // Load saved PSK from preferences and apply it. Returns true on success.
+  bool load_and_apply_noise_psk_();
 #endif  // USE_API_NOISE
 #ifdef USE_API_HOMEASSISTANT_STATES
   // Helper methods to reduce code duplication
@@ -276,7 +279,7 @@ class APIServer : public Component,
   // Not pre-allocated: all send paths call prepare_first_message_buffer() which
   // reserves the exact needed size. Pre-allocating here would cause heap fragmentation
   // since the buffer would almost always reallocate on first use.
-  std::vector<uint8_t> shared_write_buffer_;
+  APIBuffer shared_write_buffer_;
 #ifdef USE_API_HOMEASSISTANT_STATES
   std::vector<HomeAssistantStateSubscription> state_subs_;
 #endif

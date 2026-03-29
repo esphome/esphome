@@ -500,6 +500,7 @@ async def register_uart_device(var, config):
         },
         key=CONF_DATA,
     ),
+    synchronous=True,
 )
 async def uart_write_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
