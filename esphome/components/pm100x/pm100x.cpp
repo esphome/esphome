@@ -19,7 +19,7 @@ static const char *model_to_string(PM100XModel model) {
 }
 
 void PM100XComponent::setup() {
-  this->start_time_ = App.get_loop_component_start_time();
+  this->start_time_ = millis();
   this->initial_delay_done_ = false;
 }
 

@@ -31,7 +31,7 @@ void Select::publish_state(size_t index) {
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   this->state = option;  // Update deprecated member for backward compatibility
 #pragma GCC diagnostic pop
-  ESP_LOGD(TAG, "'%s' >> %s (%zu)", this->get_name().c_str(), option, index);
+  ESP_LOGV(TAG, "'%s' >> %s (%zu)", this->get_name().c_str(), option, index);
   this->state_callback_.call(index);
 #if defined(USE_SELECT) && defined(USE_CONTROLLER_REGISTRY)
   ControllerRegistry::notify_select_update(this);
