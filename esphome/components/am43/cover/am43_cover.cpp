@@ -63,8 +63,9 @@ void Am43Component::control(const CoverCall &call) {
       ESP_LOGW(TAG, "[%s] Error writing stop command to device, error = %d", this->get_name().c_str(), status);
     }
   }
-  if (call.get_position().has_value()) {
-    auto pos = *call.get_position();
+  auto opt_pos = call.get_position();
+  if (opt_pos.has_value()) {
+    auto pos = *opt_pos;
 
     if (this->invert_position_)
       pos = 1 - pos;

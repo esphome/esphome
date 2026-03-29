@@ -148,6 +148,18 @@ def test_icon__invalid():
         config_validation.icon("foo")
 
 
+def test_icon__max_length():
+    """Test that icons exceeding 63 characters are rejected."""
+    # Exactly 63 chars should pass
+    max_icon = "mdi:" + "a" * 59  # 63 chars total
+    assert config_validation.icon(max_icon) == max_icon
+
+    # 64 chars should fail
+    too_long = "mdi:" + "a" * 60  # 64 chars total
+    with pytest.raises(Invalid, match="Icon string is too long"):
+        config_validation.icon(too_long)
+
+
 @pytest.mark.parametrize("value", ("True", "YES", "on", "enAblE", True))
 def test_boolean__valid_true(value):
     assert config_validation.boolean(value) is True

@@ -9,20 +9,22 @@
 #endif
 #ifdef USE_ESP32
 #include <esp_chip_info.h>
+#include <esp_ota_ops.h>
+#include <esp_bootloader_desc.h>
 #endif
+#ifdef USE_LWIP_FAST_SELECT
+#include "esphome/core/lwip_fast_select.h"
+#endif  // USE_LWIP_FAST_SELECT
 #include "esphome/core/version.h"
 #include "esphome/core/hal.h"
 #include <algorithm>
 #include <ranges>
-#ifdef USE_RUNTIME_STATS
-#include "esphome/components/runtime_stats/runtime_stats.h"
-#endif
 
 #ifdef USE_STATUS_LED
 #include "esphome/components/status_led/status_led.h"
 #endif
 
-#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+#if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
 #include "esphome/components/socket/socket.h"
 #endif
 
@@ -69,21 +71,9 @@ static void insertion_sort_by_priority(Iterator first, Iterator last) {
   }
 }
 
-void Application::register_component_(Component *comp) {
-  if (comp == nullptr) {
-    ESP_LOGW(TAG, "Tried to register null component!");
-    return;
-  }
-
-  for (auto *c : this->components_) {
-    if (comp == c) {
-      ESP_LOGW(TAG, "Component %s already registered! (%p)", LOG_STR_ARG(c->get_component_log_str()), c);
-      return;
-    }
-  }
-  if (this->components_.size() >= ESPHOME_COMPONENT_COUNT) {
-    ESP_LOGE(TAG, "Cannot register component %s - at capacity!", LOG_STR_ARG(comp->get_component_log_str()));
-    return;
+void Application::register_component_impl_(Component *comp, bool has_loop) {
+  if (has_loop) {
+    comp->component_state_ |= COMPONENT_HAS_LOOP;
   }
   this->components_.push_back(comp);
 }
@@ -109,9 +99,11 @@ void Application::setup() {
     if (component->can_proceed())
       continue;
 
+#ifdef USE_LOOP_PRIORITY
     // Sort components 0 through i by loop priority
     insertion_sort_by_priority<decltype(this->components_.begin()), &Component::get_loop_priority>(
         this->components_.begin(), this->components_.begin() + i + 1);
+#endif
 
     do {
       uint8_t new_app_state = STATUS_LED_WARNING;
@@ -132,7 +124,7 @@ void Application::setup() {
       this->after_loop_tasks_();
       this->app_state_ = new_app_state;
       yield();
-    } while (!component->can_proceed());
+    } while (!component->can_proceed() && !component->is_failed());
   }
 
   ESP_LOGI(TAG, "setup() finished successfully!");
@@ -142,72 +134,26 @@ void Application::setup() {
   clear_setup_priority_overrides();
 #endif
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
-  // Set up wake socket for waking main loop from tasks
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_LWIP_FAST_SELECT)
+  // Initialize fast select: saves main loop task handle for xTaskNotifyGive wake.
+  // The fast path (rcvevent reads + ulTaskNotifyTake) is used unconditionally
+  // when USE_LWIP_FAST_SELECT is enabled (ESP32 and LibreTiny).
+  esphome_lwip_fast_select_init();
+#endif
+#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
+  // Set up wake socket for waking main loop from tasks (platforms without fast select only)
   this->setup_wake_loop_threadsafe_();
 #endif
 
+  // Ensure all active looping components are in LOOP state.
+  // Components after the last blocking component only got one call() during setup
+  // (CONSTRUCTION→SETUP) and never received the second call() (SETUP→LOOP).
+  // The main loop calls loop() directly, bypassing call()'s state machine.
+  for (uint16_t i = 0; i < this->looping_components_active_end_; i++) {
+    this->looping_components_[i]->set_component_state_(COMPONENT_STATE_LOOP);
+  }
+
   this->schedule_dump_config();
-}
-void Application::loop() {
-  uint8_t new_app_state = 0;
-
-  // Get the initial loop time at the start
-  uint32_t last_op_end_time = millis();
-
-  this->before_loop_tasks_(last_op_end_time);
-
-  for (this->current_loop_index_ = 0; this->current_loop_index_ < this->looping_components_active_end_;
-       this->current_loop_index_++) {
-    Component *component = this->looping_components_[this->current_loop_index_];
-
-    // Update the cached time before each component runs
-    this->loop_component_start_time_ = last_op_end_time;
-
-    {
-      this->set_current_component(component);
-      WarnIfComponentBlockingGuard guard{component, last_op_end_time};
-      component->call();
-      // Use the finish method to get the current time as the end time
-      last_op_end_time = guard.finish();
-    }
-    new_app_state |= component->get_component_state();
-    this->app_state_ |= new_app_state;
-    this->feed_wdt(last_op_end_time);
-  }
-
-  this->after_loop_tasks_();
-  this->app_state_ = new_app_state;
-
-#ifdef USE_RUNTIME_STATS
-  // Process any pending runtime stats printing after all components have run
-  // This ensures stats printing doesn't affect component timing measurements
-  if (global_runtime_stats != nullptr) {
-    global_runtime_stats->process_pending_stats(last_op_end_time);
-  }
-#endif
-
-  // Use the last component's end time instead of calling millis() again
-  auto elapsed = last_op_end_time - this->last_loop_;
-  if (elapsed >= this->loop_interval_ || HighFrequencyLoopRequester::is_high_frequency()) {
-    // Even if we overran the loop interval, we still need to select()
-    // to know if any sockets have data ready
-    this->yield_with_select_(0);
-  } else {
-    uint32_t delay_time = this->loop_interval_ - elapsed;
-    uint32_t next_schedule = this->scheduler.next_schedule_in(last_op_end_time).value_or(delay_time);
-    // next_schedule is max 0.5*delay_time
-    // otherwise interval=0 schedules result in constant looping with almost no sleep
-    next_schedule = std::max(next_schedule, delay_time / 2);
-    delay_time = std::min(next_schedule, delay_time);
-
-    this->yield_with_select_(delay_time);
-  }
-  this->last_loop_ = last_op_end_time;
-
-  if (this->dump_config_at_ < this->components_.size()) {
-    this->process_dump_config_();
-  }
 }
 
 void Application::process_dump_config_() {
@@ -223,22 +169,52 @@ void Application::process_dump_config_() {
     esp_chip_info(&chip_info);
     ESP_LOGI(TAG, "ESP32 Chip: %s rev%d.%d, %d core(s)", ESPHOME_VARIANT, chip_info.revision / 100,
              chip_info.revision % 100, chip_info.cores);
-#if defined(USE_ESP32_VARIANT_ESP32) && !defined(USE_ESP32_MIN_CHIP_REVISION_SET)
-    // Suggest optimization for chips that don't need the PSRAM cache workaround
-    if (chip_info.revision >= 300) {
-#ifdef USE_PSRAM
-      ESP_LOGW(TAG, "Set minimum_chip_revision: \"%d.%d\" to save ~10KB IRAM", chip_info.revision / 100,
-               chip_info.revision % 100);
-#else
-      ESP_LOGW(TAG, "Set minimum_chip_revision: \"%d.%d\" to reduce binary size", chip_info.revision / 100,
-               chip_info.revision % 100);
+#if defined(USE_ESP32_VARIANT_ESP32) && (!defined(USE_ESP32_MIN_CHIP_REVISION_SET) || !defined(USE_ESP32_SRAM1_AS_IRAM))
+    static const char *const ESP32_ADVANCED_PATH = "under esp32 > framework > advanced";
 #endif
+#if defined(USE_ESP32_VARIANT_ESP32) && !defined(USE_ESP32_MIN_CHIP_REVISION_SET)
+    {
+      // Suggest optimization for chips that don't need the PSRAM cache workaround
+      if (chip_info.revision >= 300) {
+#ifdef USE_PSRAM
+        ESP_LOGW(TAG, "Chip rev >= 3.0 detected. Set minimum_chip_revision: \"%d.%d\" %s to save ~10KB IRAM",
+                 chip_info.revision / 100, chip_info.revision % 100, ESP32_ADVANCED_PATH);
+#else
+        ESP_LOGW(TAG, "Chip rev >= 3.0 detected. Set minimum_chip_revision: \"%d.%d\" %s to reduce binary size",
+                 chip_info.revision / 100, chip_info.revision % 100, ESP32_ADVANCED_PATH);
+#endif
+      }
     }
 #endif
+    {
+      // esp_bootloader_desc_t is available in ESP-IDF >= 5.2; if readable the bootloader is modern.
+      //
+      // Design decision: We intentionally do NOT mention sram1_as_iram when the bootloader is too old.
+      // Enabling sram1_as_iram with an old bootloader causes a hard brick (device fails to boot,
+      // requires USB reflash to recover). Users don't always read warnings carefully, so we only
+      // suggest the option once we've confirmed the bootloader can handle it. In practice this
+      // means a user with an old bootloader may need to flash twice: once via USB to update the
+      // bootloader (they'll see the suggestion on next boot), then OTA with sram1_as_iram: true.
+      // Two flashes is a better outcome than a bricked device.
+      esp_bootloader_desc_t boot_desc;
+      if (esp_ota_get_bootloader_description(nullptr, &boot_desc) != ESP_OK) {
+#ifdef USE_ESP32_VARIANT_ESP32
+        ESP_LOGW(TAG, "Bootloader too old for OTA rollback and SRAM1 as IRAM (+40KB). "
+                      "Flash via USB once to update the bootloader");
+#else
+        ESP_LOGW(TAG, "Bootloader too old for OTA rollback. Flash via USB once to update the bootloader");
 #endif
+      }
+#if defined(USE_ESP32_VARIANT_ESP32) && !defined(USE_ESP32_SRAM1_AS_IRAM)
+      else {
+        ESP_LOGW(TAG, "Bootloader supports SRAM1 as IRAM (+40KB). Set sram1_as_iram: true %s", ESP32_ADVANCED_PATH);
+      }
+#endif
+    }
+#endif  // USE_ESP32
   }
 
-  this->components_[this->dump_config_at_]->call_dump_config();
+  this->components_[this->dump_config_at_]->call_dump_config_();
   this->dump_config_at_++;
 }
 
@@ -380,30 +356,6 @@ void Application::teardown_components(uint32_t timeout_ms) {
   }
 }
 
-void Application::calculate_looping_components_() {
-  // Count total components that need looping
-  size_t total_looping = 0;
-  for (auto *obj : this->components_) {
-    if (obj->has_overridden_loop()) {
-      total_looping++;
-    }
-  }
-
-  // Initialize FixedVector with exact size - no reallocation possible
-  this->looping_components_.init(total_looping);
-
-  // Add all components with loop override that aren't already LOOP_DONE
-  // Some components (like logger) may call disable_loop() during initialization
-  // before setup runs, so we need to respect their LOOP_DONE state
-  this->add_looping_components_by_state_(false);
-
-  this->looping_components_active_end_ = this->looping_components_.size();
-
-  // Then add any components that are already LOOP_DONE to the inactive section
-  // This handles components that called disable_loop() during initialization
-  this->add_looping_components_by_state_(true);
-}
-
 void Application::add_looping_components_by_state_(bool match_loop_done) {
   for (auto *obj : this->components_) {
     if (obj->has_overridden_loop() &&
@@ -507,8 +459,7 @@ void Application::enable_pending_loops_() {
     // Clear the pending flag and enable the loop
     component->pending_enable_loop_ = false;
     ESP_LOGVV(TAG, "%s loop enabled from ISR", LOG_STR_ARG(component->get_component_log_str()));
-    component->component_state_ &= ~COMPONENT_STATE_MASK;
-    component->component_state_ |= COMPONENT_STATE_LOOP;
+    component->set_component_state_(COMPONENT_STATE_LOOP);
 
     // Move to active section
     this->activate_looping_component_(i);
@@ -520,42 +471,32 @@ void Application::enable_pending_loops_() {
   }
 }
 
-void Application::before_loop_tasks_(uint32_t loop_start_time) {
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
-  // Drain wake notifications first to clear socket for next wake
-  this->drain_wake_notifications_();
-#endif
+#ifdef USE_LWIP_FAST_SELECT
+bool Application::register_socket(struct lwip_sock *sock) {
+  // It modifies monitored_sockets_ without locking — must only be called from the main loop.
+  if (sock == nullptr)
+    return false;
+  esphome_lwip_hook_socket(sock);
+  this->monitored_sockets_.push_back(sock);
+  return true;
+}
 
-  // Process scheduled tasks
-  this->scheduler.call(loop_start_time);
+void Application::unregister_socket(struct lwip_sock *sock) {
+  // It modifies monitored_sockets_ without locking — must only be called from the main loop.
+  for (size_t i = 0; i < this->monitored_sockets_.size(); i++) {
+    if (this->monitored_sockets_[i] != sock)
+      continue;
 
-  // Feed the watchdog timer
-  this->feed_wdt(loop_start_time);
-
-  // Process any pending enable_loop requests from ISRs
-  // This must be done before marking in_loop_ = true to avoid race conditions
-  if (this->has_pending_enable_loop_requests_) {
-    // Clear flag BEFORE processing to avoid race condition
-    // If ISR sets it during processing, we'll catch it next loop iteration
-    // This is safe because:
-    // 1. Each component has its own pending_enable_loop_ flag that we check
-    // 2. If we can't process a component (wrong state), enable_pending_loops_()
-    //    will set this flag back to true
-    // 3. Any new ISR requests during processing will set the flag again
-    this->has_pending_enable_loop_requests_ = false;
-    this->enable_pending_loops_();
+    // Swap with last element and pop - O(1) removal since order doesn't matter.
+    // No need to unhook the netconn callback — all LwIP sockets share the same
+    // static event_callback, and the socket will be closed by the caller.
+    if (i < this->monitored_sockets_.size() - 1)
+      this->monitored_sockets_[i] = this->monitored_sockets_.back();
+    this->monitored_sockets_.pop_back();
+    return;
   }
-
-  // Mark that we're in the loop for safe reentrant modifications
-  this->in_loop_ = true;
 }
-
-void Application::after_loop_tasks_() {
-  // Clear the in_loop_ flag to indicate we're done processing components
-  this->in_loop_ = false;
-}
-
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#elif defined(USE_SOCKET_SELECT_SUPPORT)
 bool Application::register_socket_fd(int fd) {
   // WARNING: This function is NOT thread-safe and must only be called from the main loop
   // It modifies socket_fds_ and related variables without locking
@@ -575,7 +516,6 @@ bool Application::register_socket_fd(int fd) {
 
   this->socket_fds_.push_back(fd);
   this->socket_fds_changed_ = true;
-
   if (fd > this->max_fd_) {
     this->max_fd_ = fd;
   }
@@ -593,12 +533,11 @@ void Application::unregister_socket_fd(int fd) {
     if (this->socket_fds_[i] != fd)
       continue;
 
-    // Swap with last element and pop - O(1) removal since order doesn't matter
+    // Swap with last element and pop - O(1) removal since order doesn't matter.
     if (i < this->socket_fds_.size() - 1)
       this->socket_fds_[i] = this->socket_fds_.back();
     this->socket_fds_.pop_back();
     this->socket_fds_changed_ = true;
-
     // Only recalculate max_fd if we removed the current max
     if (fd == this->max_fd_) {
       this->max_fd_ = -1;
@@ -613,17 +552,15 @@ void Application::unregister_socket_fd(int fd) {
 
 #endif
 
+// Only the select() fallback path remains in the .cpp — all other paths are inlined in application.h
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
 void Application::yield_with_select_(uint32_t delay_ms) {
-  // Delay while monitoring sockets. When delay_ms is 0, always yield() to ensure other tasks run
-  // since select() with 0 timeout only polls without yielding.
-#ifdef USE_SOCKET_SELECT_SUPPORT
-  if (!this->socket_fds_.empty()) {
+  // Fallback select() path (host platform and any future platforms without fast select).
+  if (!this->socket_fds_.empty()) [[likely]] {
     // Update fd_set if socket list has changed
-    if (this->socket_fds_changed_) {
+    if (this->socket_fds_changed_) [[unlikely]] {
       FD_ZERO(&this->base_read_fds_);
-      // fd bounds are already validated in register_socket_fd() or guaranteed by platform design:
-      // - ESP32: LwIP guarantees fd < FD_SETSIZE by design (LWIP_SOCKET_OFFSET = FD_SETSIZE - CONFIG_LWIP_MAX_SOCKETS)
-      // - Other platforms: register_socket_fd() validates fd < FD_SETSIZE
+      // fd bounds are validated in register_socket_fd()
       for (int fd : this->socket_fds_) {
         FD_SET(fd, &this->base_read_fds_);
       }
@@ -639,41 +576,63 @@ void Application::yield_with_select_(uint32_t delay_ms) {
     tv.tv_usec = (delay_ms - tv.tv_sec * 1000) * 1000;
 
     // Call select with timeout
-#if defined(USE_SOCKET_IMPL_LWIP_SOCKETS) || (defined(USE_ESP32) && defined(USE_SOCKET_IMPL_BSD_SOCKETS))
+#ifdef USE_SOCKET_IMPL_LWIP_SOCKETS
     int ret = lwip_select(this->max_fd_ + 1, &this->read_fds_, nullptr, nullptr, &tv);
 #else
     int ret = ::select(this->max_fd_ + 1, &this->read_fds_, nullptr, nullptr, &tv);
 #endif
 
     // Process select() result:
-    // ret < 0: error (except EINTR which is normal)
     // ret > 0: socket(s) have data ready - normal and expected
     // ret == 0: timeout occurred - normal and expected
-    if (ret < 0 && errno != EINTR) {
-      // Actual error - log and fall back to delay
-      ESP_LOGW(TAG, "select() failed with errno %d", errno);
-      delay(delay_ms);
+    if (ret >= 0) [[likely]] {
+      // Yield if zero timeout since select(0) only polls without yielding
+      if (delay_ms == 0) [[unlikely]] {
+        yield();
+      }
+      return;
     }
-    // When delay_ms is 0, we need to yield since select(0) doesn't yield
-    if (delay_ms == 0) {
-      yield();
+    // ret < 0: error (EINTR is normal, anything else is unexpected)
+    const int err = errno;
+    if (err == EINTR) {
+      return;
     }
-  } else {
-    // No sockets registered, use regular delay
-    delay(delay_ms);
+    // select() error - log and fall through to delay()
+    ESP_LOGW(TAG, "select() failed with errno %d", err);
   }
-#elif defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
-  // No select support but can wake on socket activity via esp_schedule()
-  socket::socket_delay(delay_ms);
-#else
-  // No select support, use regular delay
+  // No sockets registered or select() failed - use regular delay
   delay(delay_ms);
-#endif
 }
+#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
 
-Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// App storage — asm label shares the linker symbol with "extern Application App".
+// char[] is trivially destructible, so no __cxa_atexit or destructor chain is emitted.
+// Constructed via placement new in the generated setup().
+#ifndef __GXX_ABI_VERSION
+#error "Application placement new requires Itanium C++ ABI (GCC/Clang)"
+#endif
+static_assert(std::is_default_constructible<Application>::value, "Application must be default-constructible");
+// __USER_LABEL_PREFIX__ is "_" on Mach-O (macOS) and empty on ELF (embedded targets).
+// String literal concatenation produces the correct platform-specific mangled symbol.
+// Two-level macro needed: # stringifies before expansion, so the
+// indirection forces __USER_LABEL_PREFIX__ to expand first.
+#define ESPHOME_STRINGIFY_IMPL_(x) #x
+#define ESPHOME_STRINGIFY_(x) ESPHOME_STRINGIFY_IMPL_(x)
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+alignas(Application) char app_storage[sizeof(Application)] asm(
+    ESPHOME_STRINGIFY_(__USER_LABEL_PREFIX__) "_ZN7esphome3AppE");
+#undef ESPHOME_STRINGIFY_
+#undef ESPHOME_STRINGIFY_IMPL_
 
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+
+#ifdef USE_LWIP_FAST_SELECT
+void Application::wake_loop_threadsafe() {
+  // Direct FreeRTOS task notification — <1 us, task context only (NOT ISR-safe)
+  esphome_lwip_wake_main_loop();
+}
+#else   // !USE_LWIP_FAST_SELECT
+
 void Application::setup_wake_loop_threadsafe_() {
   // Create UDP socket for wake notifications
   this->wake_socket_fd_ = lwip_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -740,11 +699,24 @@ void Application::wake_loop_threadsafe() {
     lwip_send(this->wake_socket_fd_, &dummy, 1, 0);
   }
 }
+#endif  // USE_LWIP_FAST_SELECT
+
 #endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
 
 void Application::get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buffer) {
   ESPHOME_strncpy_P(buffer.data(), ESPHOME_BUILD_TIME_STR, buffer.size());
   buffer[buffer.size() - 1] = '\0';
 }
+
+void Application::get_comment_string(std::span<char, ESPHOME_COMMENT_SIZE_MAX> buffer) {
+  ESPHOME_strncpy_P(buffer.data(), ESPHOME_COMMENT_STR, ESPHOME_COMMENT_SIZE);
+  buffer[ESPHOME_COMMENT_SIZE - 1] = '\0';
+}
+
+uint32_t Application::get_config_hash() { return ESPHOME_CONFIG_HASH; }
+
+uint32_t Application::get_config_version_hash() { return fnv1a_hash_extend(ESPHOME_CONFIG_HASH, ESPHOME_VERSION); }
+
+time_t Application::get_build_time() { return ESPHOME_BUILD_TIME; }
 
 }  // namespace esphome

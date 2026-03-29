@@ -1,3 +1,6 @@
+#include "esphome/core/defines.h"
+#ifdef USE_BINARY_SENSOR_FILTER
+
 #include "filter.h"
 
 #include "binary_sensor.h"
@@ -133,7 +136,6 @@ optional<bool> SettleFilter::new_value(bool value) {
     return {};
   } else {
     this->steady_ = false;
-    this->output(value);
     this->set_timeout(FILTER_TIMEOUT_ID, this->delay_.value(), [this]() { this->steady_ = true; });
     return value;
   }
@@ -142,3 +144,5 @@ optional<bool> SettleFilter::new_value(bool value) {
 float SettleFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 }  // namespace esphome::binary_sensor
+
+#endif  // USE_BINARY_SENSOR_FILTER

@@ -1,4 +1,5 @@
 esphome:
+  debug_scheduler: true  # Enable scheduler leak detection
   name: sched-string-name-stress
 
 external_components:

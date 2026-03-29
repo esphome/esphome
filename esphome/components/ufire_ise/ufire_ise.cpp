@@ -10,7 +10,7 @@ static const char *const TAG = "ufire_ise";
 
 void UFireISEComponent::setup() {
   uint8_t version;
-  if (!this->read_byte(REGISTER_VERSION, &version) && version != 0xFF) {
+  if (!this->read_byte(REGISTER_VERSION, &version) || version == 0xFF) {
     this->mark_failed();
     return;
   }

@@ -35,7 +35,9 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MAX9611Component),
-            cv.Required(CONF_SHUNT_RESISTANCE): cv.resistance,
+            cv.Required(CONF_SHUNT_RESISTANCE): cv.All(
+                cv.resistance, cv.Range(min=1e-6)
+            ),
             cv.Required(CONF_GAIN): cv.enum(MAX9611_GAIN, upper=True),
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_VOLT,

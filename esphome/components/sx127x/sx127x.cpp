@@ -38,14 +38,18 @@ void SX127x::write_register_(uint8_t reg, uint8_t value) {
 void SX127x::read_fifo_(std::vector<uint8_t> &packet) {
   this->enable();
   this->write_byte(REG_FIFO & 0x7F);
-  this->read_array(packet.data(), packet.size());
+  for (auto &byte : packet) {
+    byte = this->transfer_byte(0x00);
+  }
   this->disable();
 }
 
 void SX127x::write_fifo_(const std::vector<uint8_t> &packet) {
   this->enable();
   this->write_byte(REG_FIFO | 0x80);
-  this->write_array(packet.data(), packet.size());
+  for (const auto &byte : packet) {
+    this->transfer_byte(byte);
+  }
   this->disable();
 }
 
@@ -186,7 +190,7 @@ void SX127x::configure_fsk_ook_() {
   } else {
     this->write_register_(REG_PREAMBLE_DETECT, PREAMBLE_DETECTOR_OFF);
   }
-  this->write_register_(REG_PREAMBLE_SIZE_MSB, this->preamble_size_ >> 16);
+  this->write_register_(REG_PREAMBLE_SIZE_MSB, this->preamble_size_ >> 8);
   this->write_register_(REG_PREAMBLE_SIZE_LSB, this->preamble_size_ & 0xFF);
 
   // config sync generation and setup ook threshold
@@ -214,7 +218,7 @@ void SX127x::configure_lora_() {
 
   // config preamble
   if (this->preamble_size_ >= 6) {
-    this->write_register_(REG_PREAMBLE_LEN_MSB, this->preamble_size_ >> 16);
+    this->write_register_(REG_PREAMBLE_LEN_MSB, this->preamble_size_ >> 8);
     this->write_register_(REG_PREAMBLE_LEN_LSB, this->preamble_size_ & 0xFF);
   }
 
@@ -257,6 +261,11 @@ SX127xError SX127x::transmit_packet(const std::vector<uint8_t> &packet) {
   }
   if (packet.empty() || packet.size() > this->get_max_packet_size()) {
     ESP_LOGE(TAG, "Packet size out of range");
+    return SX127xError::INVALID_PARAMS;
+  }
+
+  if (this->dio0_pin_ == nullptr) {
+    ESP_LOGE(TAG, "DIO0 pin not configured, cannot wait for transmit completion");
     return SX127xError::INVALID_PARAMS;
   }
 

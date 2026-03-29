@@ -15,7 +15,7 @@ namespace esphome::safe_mode {
 constexpr uint32_t RTC_KEY = 233825507UL;
 
 /// SafeModeComponent provides a safe way to recover from repeated boot failures
-class SafeModeComponent : public Component {
+class SafeModeComponent final : public Component {
  public:
   bool should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_time, uint32_t boot_is_good_after);
 
@@ -31,9 +31,11 @@ class SafeModeComponent : public Component {
 
   void on_safe_shutdown() override;
 
+  void mark_successful();
+
 #ifdef USE_SAFE_MODE_CALLBACK
-  void add_on_safe_mode_callback(std::function<void()> &&callback) {
-    this->safe_mode_callback_.add(std::move(callback));
+  template<typename F> void add_on_safe_mode_callback(F &&callback) {
+    this->safe_mode_callback_.add(std::forward<F>(callback));
   }
 #endif
 

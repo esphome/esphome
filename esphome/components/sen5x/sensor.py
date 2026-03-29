@@ -267,7 +267,10 @@ SEN5X_ACTION_SCHEMA = maybe_simple_id(
 
 
 @automation.register_action(
-    "sen5x.start_fan_autoclean", StartFanAction, SEN5X_ACTION_SCHEMA
+    "sen5x.start_fan_autoclean",
+    StartFanAction,
+    SEN5X_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def sen54_fan_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

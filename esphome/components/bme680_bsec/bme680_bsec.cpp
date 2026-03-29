@@ -271,10 +271,16 @@ void BME680BSECComponent::read_() {
   int64_t curr_time_ns = this->get_time_ns_();
 
   if (this->bme680_settings_.trigger_measurement) {
+    uint32_t start = millis();
     while (this->bme680_.power_mode != BME680_SLEEP_MODE) {
+      if (millis() - start > 50) {
+        ESP_LOGE(TAG, "Timeout waiting for BME680 to enter sleep mode");
+        return;
+      }
       this->bme680_status_ = bme680_get_sensor_mode(&this->bme680_);
       if (this->bme680_status_ != BME680_OK) {
-        ESP_LOGW(TAG, "Failed to get sensor mode (BME680 Error Code %d)", this->bme680_status_);
+        ESP_LOGE(TAG, "Failed to get sensor mode (BME680 Error Code %d)", this->bme680_status_);
+        return;
       }
     }
   }
@@ -383,7 +389,7 @@ void BME680BSECComponent::publish_(const bsec_output_t *outputs, uint8_t num_out
     switch (outputs[i].sensor_id) {
       case BSEC_OUTPUT_IAQ:
       case BSEC_OUTPUT_STATIC_IAQ: {
-        uint8_t accuracy = outputs[i].accuracy;
+        uint8_t accuracy = std::min<uint8_t>(outputs[i].accuracy, std::size(IAQ_ACCURACY_STATES) - 1);
         this->queue_push_([this, signal]() { this->publish_sensor_(this->iaq_sensor_, signal); });
         this->queue_push_([this, accuracy]() {
           this->publish_sensor_(this->iaq_accuracy_text_sensor_, IAQ_ACCURACY_STATES[accuracy]);
@@ -515,7 +521,7 @@ int BME680BSECComponent::reinit_bsec_lib_() {
 }
 
 void BME680BSECComponent::load_state_() {
-  uint32_t hash = fnv1_hash("bme680_bsec_state_" + this->device_id_);
+  uint32_t hash = fnv1_hash_extend(fnv1_hash("bme680_bsec_state_"), this->device_id_);
   this->bsec_state_ = global_preferences->make_preference<uint8_t[BSEC_MAX_STATE_BLOB_SIZE]>(hash, true);
 
   if (!this->bsec_state_.load(&this->bsec_state_data_)) {

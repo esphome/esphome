@@ -14,3 +14,5 @@ KEY_BOARD: Final = "board"
 KEY_USER: Final = "user"
 
 zephyr_ns = cg.esphome_ns.namespace("zephyr")
+CdcAcm = zephyr_ns.class_("CdcAcm", cg.Component)
+CONF_CDC_ACM = "cdc_acm"

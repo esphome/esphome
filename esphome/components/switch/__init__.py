@@ -15,14 +15,17 @@ from esphome.const import (
     CONF_ON_TURN_ON,
     CONF_RESTORE_MODE,
     CONF_STATE,
-    CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_OUTLET,
     DEVICE_CLASS_SWITCH,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    setup_device_class,
+    setup_entity,
+)
 from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@esphome/core"]
@@ -57,17 +60,6 @@ TurnOnAction = switch_ns.class_("TurnOnAction", automation.Action)
 SwitchPublishAction = switch_ns.class_("SwitchPublishAction", automation.Action)
 
 SwitchCondition = switch_ns.class_("SwitchCondition", Condition)
-SwitchStateTrigger = switch_ns.class_(
-    "SwitchStateTrigger", automation.Trigger.template(bool)
-)
-SwitchTurnOnTrigger = switch_ns.class_(
-    "SwitchTurnOnTrigger", automation.Trigger.template()
-)
-SwitchTurnOffTrigger = switch_ns.class_(
-    "SwitchTurnOffTrigger", automation.Trigger.template()
-)
-
-
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True)
 
 
@@ -82,21 +74,9 @@ _SWITCH_SCHEMA = (
             cv.Optional(CONF_RESTORE_MODE, default="ALWAYS_OFF"): cv.enum(
                 RESTORE_MODES, upper=True, space="_"
             ),
-            cv.Optional(CONF_ON_STATE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SwitchStateTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SwitchTurnOnTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_TURN_OFF): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SwitchTurnOffTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_TURN_ON): automation.validate_automation({}),
+            cv.Optional(CONF_ON_TURN_OFF): automation.validate_automation({}),
             cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
         }
     )
@@ -141,20 +121,25 @@ def switch_schema(
     return _SWITCH_SCHEMA.extend(schema)
 
 
-async def setup_switch_core_(var, config):
-    await setup_entity(var, config, "switch")
+@coroutine_with_priority(CoroPriority.AUTOMATION)
+async def _build_switch_automations(var, config):
+    for conf_key, args, forwarder in (
+        (CONF_ON_STATE, [(bool, "x")], None),
+        (CONF_ON_TURN_ON, [], automation.TriggerOnTrueForwarder),
+        (CONF_ON_TURN_OFF, [], automation.TriggerOnFalseForwarder),
+    ):
+        for conf in config.get(conf_key, []):
+            await automation.build_callback_automation(
+                var, "add_on_state_callback", args, conf, forwarder=forwarder
+            )
 
+
+@setup_entity("switch")
+async def setup_switch_core_(var, config):
     if (inverted := config.get(CONF_INVERTED)) is not None:
         cg.add(var.set_inverted(inverted))
-    for conf in config.get(CONF_ON_STATE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(bool, "x")], conf)
-    for conf in config.get(CONF_ON_TURN_ON, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_TURN_OFF, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+
+    CORE.add_job(_build_switch_automations, var, config)
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
@@ -163,8 +148,7 @@ async def setup_switch_core_(var, config):
     if web_server_config := config.get(CONF_WEB_SERVER):
         await web_server.add_entity_config(var, web_server_config)
 
-    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
-        cg.add(var.set_device_class(device_class))
+    setup_device_class(config)
 
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
     await zigbee.setup_switch(var, config)
@@ -198,7 +182,7 @@ SWITCH_CONTROL_ACTION_SCHEMA = automation.maybe_simple_id(
 
 
 @automation.register_action(
-    "switch.control", ControlAction, SWITCH_CONTROL_ACTION_SCHEMA
+    "switch.control", ControlAction, SWITCH_CONTROL_ACTION_SCHEMA, synchronous=True
 )
 async def switch_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -208,9 +192,15 @@ async def switch_control_to_code(config, action_id, template_arg, args):
     return var
 
 
-@automation.register_action("switch.toggle", ToggleAction, SWITCH_ACTION_SCHEMA)
-@automation.register_action("switch.turn_off", TurnOffAction, SWITCH_ACTION_SCHEMA)
-@automation.register_action("switch.turn_on", TurnOnAction, SWITCH_ACTION_SCHEMA)
+@automation.register_action(
+    "switch.toggle", ToggleAction, SWITCH_ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "switch.turn_off", TurnOffAction, SWITCH_ACTION_SCHEMA, synchronous=True
+)
+@automation.register_action(
+    "switch.turn_on", TurnOnAction, SWITCH_ACTION_SCHEMA, synchronous=True
+)
 async def switch_toggle_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
