@@ -31,6 +31,8 @@ bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) 
   }
   return true;
 }
+const ProtoDecodeFns HelloRequest::DECODE_FNS PROGMEM = {proto_decode_varint_tramp<HelloRequest>,
+                                                         proto_decode_length_tramp<HelloRequest>, nullptr};
 void HelloResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_uint32(1, this->api_version_major);
   buffer.encode_uint32(2, this->api_version_minor);
@@ -353,6 +355,8 @@ bool CoverCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
+const ProtoDecodeFns CoverCommandRequest::DECODE_FNS PROGMEM = {proto_decode_varint_tramp<CoverCommandRequest>, nullptr,
+                                                                proto_decode_32bit_tramp<CoverCommandRequest>};
 #endif
 #ifdef USE_FAN
 void ListEntitiesFanResponse::encode(ProtoWriteBuffer &buffer) const {
@@ -483,6 +487,9 @@ bool FanCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
+const ProtoDecodeFns FanCommandRequest::DECODE_FNS PROGMEM = {proto_decode_varint_tramp<FanCommandRequest>,
+                                                              proto_decode_length_tramp<FanCommandRequest>,
+                                                              proto_decode_32bit_tramp<FanCommandRequest>};
 #endif
 #ifdef USE_LIGHT
 void ListEntitiesLightResponse::encode(ProtoWriteBuffer &buffer) const {
@@ -679,6 +686,9 @@ bool LightCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
+const ProtoDecodeFns LightCommandRequest::DECODE_FNS PROGMEM = {proto_decode_varint_tramp<LightCommandRequest>,
+                                                                proto_decode_length_tramp<LightCommandRequest>,
+                                                                proto_decode_32bit_tramp<LightCommandRequest>};
 #endif
 #ifdef USE_SENSOR
 void ListEntitiesSensorResponse::encode(ProtoWriteBuffer &buffer) const {
@@ -812,6 +822,8 @@ bool SwitchCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
+const ProtoDecodeFns SwitchCommandRequest::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<SwitchCommandRequest>, nullptr, proto_decode_32bit_tramp<SwitchCommandRequest>};
 #endif
 #ifdef USE_TEXT_SENSOR
 void ListEntitiesTextSensorResponse::encode(ProtoWriteBuffer &buffer) const {
@@ -876,6 +888,8 @@ bool SubscribeLogsRequest::decode_varint(uint32_t field_id, proto_varint_value_t
   }
   return true;
 }
+const ProtoDecodeFns SubscribeLogsRequest::DECODE_FNS PROGMEM = {proto_decode_varint_tramp<SubscribeLogsRequest>,
+                                                                 nullptr, nullptr};
 void SubscribeLogsResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_uint32(1, static_cast<uint32_t>(this->level));
   buffer.encode_bytes(3, this->message_ptr_, this->message_len_);
@@ -899,6 +913,8 @@ bool NoiseEncryptionSetKeyRequest::decode_length(uint32_t field_id, ProtoLengthD
   }
   return true;
 }
+const ProtoDecodeFns NoiseEncryptionSetKeyRequest::DECODE_FNS PROGMEM = {
+    nullptr, proto_decode_length_tramp<NoiseEncryptionSetKeyRequest>, nullptr};
 void NoiseEncryptionSetKeyResponse::encode(ProtoWriteBuffer &buffer) const { buffer.encode_bool(1, this->success); }
 uint32_t NoiseEncryptionSetKeyResponse::calculate_size() const {
   uint32_t size = 0;
@@ -1002,6 +1018,9 @@ bool HomeassistantActionResponse::decode_length(uint32_t field_id, ProtoLengthDe
   }
   return true;
 }
+const ProtoDecodeFns HomeassistantActionResponse::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<HomeassistantActionResponse>, proto_decode_length_tramp<HomeassistantActionResponse>,
+    nullptr};
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
 void SubscribeHomeAssistantStateResponse::encode(ProtoWriteBuffer &buffer) const {
@@ -1035,6 +1054,8 @@ bool HomeAssistantStateResponse::decode_length(uint32_t field_id, ProtoLengthDel
   }
   return true;
 }
+const ProtoDecodeFns HomeAssistantStateResponse::DECODE_FNS PROGMEM = {
+    nullptr, proto_decode_length_tramp<HomeAssistantStateResponse>, nullptr};
 #endif
 bool DSTRule::decode_varint(uint32_t field_id, proto_varint_value_t value) {
   switch (field_id) {
@@ -1061,6 +1082,7 @@ bool DSTRule::decode_varint(uint32_t field_id, proto_varint_value_t value) {
   }
   return true;
 }
+const ProtoDecodeFns DSTRule::DECODE_FNS PROGMEM = {proto_decode_varint_tramp<DSTRule>, nullptr, nullptr};
 bool ParsedTimezone::decode_varint(uint32_t field_id, proto_varint_value_t value) {
   switch (field_id) {
     case 1:
@@ -1087,6 +1109,8 @@ bool ParsedTimezone::decode_length(uint32_t field_id, ProtoLengthDelimited value
   }
   return true;
 }
+const ProtoDecodeFns ParsedTimezone::DECODE_FNS PROGMEM = {proto_decode_varint_tramp<ParsedTimezone>,
+                                                           proto_decode_length_tramp<ParsedTimezone>, nullptr};
 bool GetTimeResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 2: {
@@ -1111,6 +1135,8 @@ bool GetTimeResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
+const ProtoDecodeFns GetTimeResponse::DECODE_FNS PROGMEM = {nullptr, proto_decode_length_tramp<GetTimeResponse>,
+                                                            proto_decode_32bit_tramp<GetTimeResponse>};
 #ifdef USE_API_USER_DEFINED_ACTIONS
 void ListEntitiesServicesArgument::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_string(1, this->name);
@@ -1191,17 +1217,9 @@ bool ExecuteServiceArgument::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
-void ExecuteServiceArgument::decode(const uint8_t *buffer, size_t length) {
-  uint32_t count_bool_array = ProtoDecodableMessage::count_repeated_field(buffer, length, 6);
-  this->bool_array.init(count_bool_array);
-  uint32_t count_int_array = ProtoDecodableMessage::count_repeated_field(buffer, length, 7);
-  this->int_array.init(count_int_array);
-  uint32_t count_float_array = ProtoDecodableMessage::count_repeated_field(buffer, length, 8);
-  this->float_array.init(count_float_array);
-  uint32_t count_string_array = ProtoDecodableMessage::count_repeated_field(buffer, length, 9);
-  this->string_array.init(count_string_array);
-  ProtoDecodableMessage::decode(buffer, length);
-}
+const ProtoDecodeFns ExecuteServiceArgument::DECODE_FNS PROGMEM = {proto_decode_varint_tramp<ExecuteServiceArgument>,
+                                                                   proto_decode_length_tramp<ExecuteServiceArgument>,
+                                                                   proto_decode_32bit_tramp<ExecuteServiceArgument>};
 bool ExecuteServiceRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
   switch (field_id) {
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
@@ -1240,11 +1258,9 @@ bool ExecuteServiceRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
-void ExecuteServiceRequest::decode(const uint8_t *buffer, size_t length) {
-  uint32_t count_args = ProtoDecodableMessage::count_repeated_field(buffer, length, 2);
-  this->args.init(count_args);
-  ProtoDecodableMessage::decode(buffer, length);
-}
+const ProtoDecodeFns ExecuteServiceRequest::DECODE_FNS PROGMEM = {proto_decode_varint_tramp<ExecuteServiceRequest>,
+                                                                  proto_decode_length_tramp<ExecuteServiceRequest>,
+                                                                  proto_decode_32bit_tramp<ExecuteServiceRequest>};
 #endif
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
 void ExecuteServiceResponse::encode(ProtoWriteBuffer &buffer) const {
@@ -1326,6 +1342,8 @@ bool CameraImageRequest::decode_varint(uint32_t field_id, proto_varint_value_t v
   }
   return true;
 }
+const ProtoDecodeFns CameraImageRequest::DECODE_FNS PROGMEM = {proto_decode_varint_tramp<CameraImageRequest>, nullptr,
+                                                               nullptr};
 #endif
 #ifdef USE_CLIMATE
 void ListEntitiesClimateResponse::encode(ProtoWriteBuffer &buffer) const {
@@ -1559,6 +1577,9 @@ bool ClimateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
+const ProtoDecodeFns ClimateCommandRequest::DECODE_FNS PROGMEM = {proto_decode_varint_tramp<ClimateCommandRequest>,
+                                                                  proto_decode_length_tramp<ClimateCommandRequest>,
+                                                                  proto_decode_32bit_tramp<ClimateCommandRequest>};
 #endif
 #ifdef USE_WATER_HEATER
 void ListEntitiesWaterHeaterResponse::encode(ProtoWriteBuffer &buffer) const {
@@ -1671,6 +1692,8 @@ bool WaterHeaterCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value
   }
   return true;
 }
+const ProtoDecodeFns WaterHeaterCommandRequest::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<WaterHeaterCommandRequest>, nullptr, proto_decode_32bit_tramp<WaterHeaterCommandRequest>};
 #endif
 #ifdef USE_NUMBER
 void ListEntitiesNumberResponse::encode(ProtoWriteBuffer &buffer) const {
@@ -1756,6 +1779,8 @@ bool NumberCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
+const ProtoDecodeFns NumberCommandRequest::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<NumberCommandRequest>, nullptr, proto_decode_32bit_tramp<NumberCommandRequest>};
 #endif
 #ifdef USE_SELECT
 void ListEntitiesSelectResponse::encode(ProtoWriteBuffer &buffer) const {
@@ -1845,6 +1870,9 @@ bool SelectCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
+const ProtoDecodeFns SelectCommandRequest::DECODE_FNS PROGMEM = {proto_decode_varint_tramp<SelectCommandRequest>,
+                                                                 proto_decode_length_tramp<SelectCommandRequest>,
+                                                                 proto_decode_32bit_tramp<SelectCommandRequest>};
 #endif
 #ifdef USE_SIREN
 void ListEntitiesSirenResponse::encode(ProtoWriteBuffer &buffer) const {
@@ -1957,6 +1985,9 @@ bool SirenCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
+const ProtoDecodeFns SirenCommandRequest::DECODE_FNS PROGMEM = {proto_decode_varint_tramp<SirenCommandRequest>,
+                                                                proto_decode_length_tramp<SirenCommandRequest>,
+                                                                proto_decode_32bit_tramp<SirenCommandRequest>};
 #endif
 #ifdef USE_LOCK
 void ListEntitiesLockResponse::encode(ProtoWriteBuffer &buffer) const {
@@ -2050,6 +2081,9 @@ bool LockCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
+const ProtoDecodeFns LockCommandRequest::DECODE_FNS PROGMEM = {proto_decode_varint_tramp<LockCommandRequest>,
+                                                               proto_decode_length_tramp<LockCommandRequest>,
+                                                               proto_decode_32bit_tramp<LockCommandRequest>};
 #endif
 #ifdef USE_BUTTON
 void ListEntitiesButtonResponse::encode(ProtoWriteBuffer &buffer) const {
@@ -2104,6 +2138,8 @@ bool ButtonCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
+const ProtoDecodeFns ButtonCommandRequest::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<ButtonCommandRequest>, nullptr, proto_decode_32bit_tramp<ButtonCommandRequest>};
 #endif
 #ifdef USE_MEDIA_PLAYER
 void MediaPlayerSupportedFormat::encode(ProtoWriteBuffer &buffer) const {
@@ -2236,6 +2272,9 @@ bool MediaPlayerCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value
   }
   return true;
 }
+const ProtoDecodeFns MediaPlayerCommandRequest::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<MediaPlayerCommandRequest>, proto_decode_length_tramp<MediaPlayerCommandRequest>,
+    proto_decode_32bit_tramp<MediaPlayerCommandRequest>};
 #endif
 #ifdef USE_BLUETOOTH_PROXY
 bool SubscribeBluetoothLEAdvertisementsRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
@@ -2248,6 +2287,8 @@ bool SubscribeBluetoothLEAdvertisementsRequest::decode_varint(uint32_t field_id,
   }
   return true;
 }
+const ProtoDecodeFns SubscribeBluetoothLEAdvertisementsRequest::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<SubscribeBluetoothLEAdvertisementsRequest>, nullptr, nullptr};
 void BluetoothLERawAdvertisement::encode(ProtoWriteBuffer &buffer) const {
   buffer.write_raw_byte(8);
   buffer.encode_varint_raw_64(this->address);
@@ -2297,6 +2338,8 @@ bool BluetoothDeviceRequest::decode_varint(uint32_t field_id, proto_varint_value
   }
   return true;
 }
+const ProtoDecodeFns BluetoothDeviceRequest::DECODE_FNS PROGMEM = {proto_decode_varint_tramp<BluetoothDeviceRequest>,
+                                                                   nullptr, nullptr};
 void BluetoothDeviceConnectionResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_uint64(1, this->address);
   buffer.encode_bool(2, this->connected);
@@ -2321,6 +2364,8 @@ bool BluetoothGATTGetServicesRequest::decode_varint(uint32_t field_id, proto_var
   }
   return true;
 }
+const ProtoDecodeFns BluetoothGATTGetServicesRequest::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<BluetoothGATTGetServicesRequest>, nullptr, nullptr};
 void BluetoothGATTDescriptor::encode(ProtoWriteBuffer &buffer) const {
   if (this->uuid[0] != 0 || this->uuid[1] != 0) {
     buffer.encode_uint64(1, this->uuid[0], true);
@@ -2430,6 +2475,8 @@ bool BluetoothGATTReadRequest::decode_varint(uint32_t field_id, proto_varint_val
   }
   return true;
 }
+const ProtoDecodeFns BluetoothGATTReadRequest::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<BluetoothGATTReadRequest>, nullptr, nullptr};
 void BluetoothGATTReadResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_uint64(1, this->address);
   buffer.encode_uint32(2, this->handle);
@@ -2470,6 +2517,9 @@ bool BluetoothGATTWriteRequest::decode_length(uint32_t field_id, ProtoLengthDeli
   }
   return true;
 }
+const ProtoDecodeFns BluetoothGATTWriteRequest::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<BluetoothGATTWriteRequest>, proto_decode_length_tramp<BluetoothGATTWriteRequest>,
+    nullptr};
 bool BluetoothGATTReadDescriptorRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
   switch (field_id) {
     case 1:
@@ -2483,6 +2533,8 @@ bool BluetoothGATTReadDescriptorRequest::decode_varint(uint32_t field_id, proto_
   }
   return true;
 }
+const ProtoDecodeFns BluetoothGATTReadDescriptorRequest::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<BluetoothGATTReadDescriptorRequest>, nullptr, nullptr};
 bool BluetoothGATTWriteDescriptorRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
   switch (field_id) {
     case 1:
@@ -2508,6 +2560,9 @@ bool BluetoothGATTWriteDescriptorRequest::decode_length(uint32_t field_id, Proto
   }
   return true;
 }
+const ProtoDecodeFns BluetoothGATTWriteDescriptorRequest::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<BluetoothGATTWriteDescriptorRequest>,
+    proto_decode_length_tramp<BluetoothGATTWriteDescriptorRequest>, nullptr};
 bool BluetoothGATTNotifyRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
   switch (field_id) {
     case 1:
@@ -2524,6 +2579,8 @@ bool BluetoothGATTNotifyRequest::decode_varint(uint32_t field_id, proto_varint_v
   }
   return true;
 }
+const ProtoDecodeFns BluetoothGATTNotifyRequest::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<BluetoothGATTNotifyRequest>, nullptr, nullptr};
 void BluetoothGATTNotifyDataResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_uint64(1, this->address);
   buffer.encode_uint32(2, this->handle);
@@ -2646,6 +2703,8 @@ bool BluetoothScannerSetModeRequest::decode_varint(uint32_t field_id, proto_vari
   }
   return true;
 }
+const ProtoDecodeFns BluetoothScannerSetModeRequest::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<BluetoothScannerSetModeRequest>, nullptr, nullptr};
 #endif
 #ifdef USE_VOICE_ASSISTANT
 bool SubscribeVoiceAssistantRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
@@ -2661,6 +2720,8 @@ bool SubscribeVoiceAssistantRequest::decode_varint(uint32_t field_id, proto_vari
   }
   return true;
 }
+const ProtoDecodeFns SubscribeVoiceAssistantRequest::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<SubscribeVoiceAssistantRequest>, nullptr, nullptr};
 void VoiceAssistantAudioSettings::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_uint32(1, this->noise_suppression_level);
   buffer.encode_uint32(2, this->auto_gain);
@@ -2702,6 +2763,8 @@ bool VoiceAssistantResponse::decode_varint(uint32_t field_id, proto_varint_value
   }
   return true;
 }
+const ProtoDecodeFns VoiceAssistantResponse::DECODE_FNS PROGMEM = {proto_decode_varint_tramp<VoiceAssistantResponse>,
+                                                                   nullptr, nullptr};
 bool VoiceAssistantEventData::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -2717,6 +2780,8 @@ bool VoiceAssistantEventData::decode_length(uint32_t field_id, ProtoLengthDelimi
   }
   return true;
 }
+const ProtoDecodeFns VoiceAssistantEventData::DECODE_FNS PROGMEM = {
+    nullptr, proto_decode_length_tramp<VoiceAssistantEventData>, nullptr};
 bool VoiceAssistantEventResponse::decode_varint(uint32_t field_id, proto_varint_value_t value) {
   switch (field_id) {
     case 1:
@@ -2738,6 +2803,9 @@ bool VoiceAssistantEventResponse::decode_length(uint32_t field_id, ProtoLengthDe
   }
   return true;
 }
+const ProtoDecodeFns VoiceAssistantEventResponse::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<VoiceAssistantEventResponse>, proto_decode_length_tramp<VoiceAssistantEventResponse>,
+    nullptr};
 bool VoiceAssistantAudio::decode_varint(uint32_t field_id, proto_varint_value_t value) {
   switch (field_id) {
     case 2:
@@ -2760,6 +2828,8 @@ bool VoiceAssistantAudio::decode_length(uint32_t field_id, ProtoLengthDelimited 
   }
   return true;
 }
+const ProtoDecodeFns VoiceAssistantAudio::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<VoiceAssistantAudio>, proto_decode_length_tramp<VoiceAssistantAudio>, nullptr};
 void VoiceAssistantAudio::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_bytes(1, this->data, this->data_len);
   buffer.encode_bool(2, this->end);
@@ -2804,6 +2874,9 @@ bool VoiceAssistantTimerEventResponse::decode_length(uint32_t field_id, ProtoLen
   }
   return true;
 }
+const ProtoDecodeFns VoiceAssistantTimerEventResponse::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<VoiceAssistantTimerEventResponse>,
+    proto_decode_length_tramp<VoiceAssistantTimerEventResponse>, nullptr};
 bool VoiceAssistantAnnounceRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
   switch (field_id) {
     case 4:
@@ -2833,6 +2906,9 @@ bool VoiceAssistantAnnounceRequest::decode_length(uint32_t field_id, ProtoLength
   }
   return true;
 }
+const ProtoDecodeFns VoiceAssistantAnnounceRequest::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<VoiceAssistantAnnounceRequest>, proto_decode_length_tramp<VoiceAssistantAnnounceRequest>,
+    nullptr};
 void VoiceAssistantAnnounceFinished::encode(ProtoWriteBuffer &buffer) const { buffer.encode_bool(1, this->success); }
 uint32_t VoiceAssistantAnnounceFinished::calculate_size() const {
   uint32_t size = 0;
@@ -2897,6 +2973,9 @@ bool VoiceAssistantExternalWakeWord::decode_length(uint32_t field_id, ProtoLengt
   }
   return true;
 }
+const ProtoDecodeFns VoiceAssistantExternalWakeWord::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<VoiceAssistantExternalWakeWord>,
+    proto_decode_length_tramp<VoiceAssistantExternalWakeWord>, nullptr};
 bool VoiceAssistantConfigurationRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1:
@@ -2908,6 +2987,8 @@ bool VoiceAssistantConfigurationRequest::decode_length(uint32_t field_id, ProtoL
   }
   return true;
 }
+const ProtoDecodeFns VoiceAssistantConfigurationRequest::DECODE_FNS PROGMEM = {
+    nullptr, proto_decode_length_tramp<VoiceAssistantConfigurationRequest>, nullptr};
 void VoiceAssistantConfigurationResponse::encode(ProtoWriteBuffer &buffer) const {
   for (auto &it : this->available_wake_words) {
     buffer.encode_sub_message(1, it);
@@ -2942,6 +3023,8 @@ bool VoiceAssistantSetConfiguration::decode_length(uint32_t field_id, ProtoLengt
   }
   return true;
 }
+const ProtoDecodeFns VoiceAssistantSetConfiguration::DECODE_FNS PROGMEM = {
+    nullptr, proto_decode_length_tramp<VoiceAssistantSetConfiguration>, nullptr};
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
 void ListEntitiesAlarmControlPanelResponse::encode(ProtoWriteBuffer &buffer) const {
@@ -3030,6 +3113,10 @@ bool AlarmControlPanelCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit
   }
   return true;
 }
+const ProtoDecodeFns AlarmControlPanelCommandRequest::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<AlarmControlPanelCommandRequest>,
+    proto_decode_length_tramp<AlarmControlPanelCommandRequest>,
+    proto_decode_32bit_tramp<AlarmControlPanelCommandRequest>};
 #endif
 #ifdef USE_TEXT
 void ListEntitiesTextResponse::encode(ProtoWriteBuffer &buffer) const {
@@ -3119,6 +3206,9 @@ bool TextCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
+const ProtoDecodeFns TextCommandRequest::DECODE_FNS PROGMEM = {proto_decode_varint_tramp<TextCommandRequest>,
+                                                               proto_decode_length_tramp<TextCommandRequest>,
+                                                               proto_decode_32bit_tramp<TextCommandRequest>};
 #endif
 #ifdef USE_DATETIME_DATE
 void ListEntitiesDateResponse::encode(ProtoWriteBuffer &buffer) const {
@@ -3202,6 +3292,8 @@ bool DateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
+const ProtoDecodeFns DateCommandRequest::DECODE_FNS PROGMEM = {proto_decode_varint_tramp<DateCommandRequest>, nullptr,
+                                                               proto_decode_32bit_tramp<DateCommandRequest>};
 #endif
 #ifdef USE_DATETIME_TIME
 void ListEntitiesTimeResponse::encode(ProtoWriteBuffer &buffer) const {
@@ -3285,6 +3377,8 @@ bool TimeCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
+const ProtoDecodeFns TimeCommandRequest::DECODE_FNS PROGMEM = {proto_decode_varint_tramp<TimeCommandRequest>, nullptr,
+                                                               proto_decode_32bit_tramp<TimeCommandRequest>};
 #endif
 #ifdef USE_EVENT
 void ListEntitiesEventResponse::encode(ProtoWriteBuffer &buffer) const {
@@ -3428,6 +3522,8 @@ bool ValveCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
+const ProtoDecodeFns ValveCommandRequest::DECODE_FNS PROGMEM = {proto_decode_varint_tramp<ValveCommandRequest>, nullptr,
+                                                                proto_decode_32bit_tramp<ValveCommandRequest>};
 #endif
 #ifdef USE_DATETIME_DATETIME
 void ListEntitiesDateTimeResponse::encode(ProtoWriteBuffer &buffer) const {
@@ -3501,6 +3597,8 @@ bool DateTimeCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
+const ProtoDecodeFns DateTimeCommandRequest::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<DateTimeCommandRequest>, nullptr, proto_decode_32bit_tramp<DateTimeCommandRequest>};
 #endif
 #ifdef USE_UPDATE
 void ListEntitiesUpdateResponse::encode(ProtoWriteBuffer &buffer) const {
@@ -3590,6 +3688,8 @@ bool UpdateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
   }
   return true;
 }
+const ProtoDecodeFns UpdateCommandRequest::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<UpdateCommandRequest>, nullptr, proto_decode_32bit_tramp<UpdateCommandRequest>};
 #endif
 #ifdef USE_ZWAVE_PROXY
 bool ZWaveProxyFrame::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
@@ -3604,6 +3704,8 @@ bool ZWaveProxyFrame::decode_length(uint32_t field_id, ProtoLengthDelimited valu
   }
   return true;
 }
+const ProtoDecodeFns ZWaveProxyFrame::DECODE_FNS PROGMEM = {nullptr, proto_decode_length_tramp<ZWaveProxyFrame>,
+                                                            nullptr};
 void ZWaveProxyFrame::encode(ProtoWriteBuffer &buffer) const { buffer.encode_bytes(1, this->data, this->data_len); }
 uint32_t ZWaveProxyFrame::calculate_size() const {
   uint32_t size = 0;
@@ -3632,6 +3734,8 @@ bool ZWaveProxyRequest::decode_length(uint32_t field_id, ProtoLengthDelimited va
   }
   return true;
 }
+const ProtoDecodeFns ZWaveProxyRequest::DECODE_FNS PROGMEM = {proto_decode_varint_tramp<ZWaveProxyRequest>,
+                                                              proto_decode_length_tramp<ZWaveProxyRequest>, nullptr};
 void ZWaveProxyRequest::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_uint32(1, static_cast<uint32_t>(this->type));
   buffer.encode_bytes(2, this->data, this->data_len);
@@ -3719,6 +3823,10 @@ bool InfraredRFTransmitRawTimingsRequest::decode_32bit(uint32_t field_id, Proto3
   }
   return true;
 }
+const ProtoDecodeFns InfraredRFTransmitRawTimingsRequest::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<InfraredRFTransmitRawTimingsRequest>,
+    proto_decode_length_tramp<InfraredRFTransmitRawTimingsRequest>,
+    proto_decode_32bit_tramp<InfraredRFTransmitRawTimingsRequest>};
 void InfraredRFReceiveEvent::encode(ProtoWriteBuffer &buffer) const {
 #ifdef USE_DEVICES
   buffer.encode_uint32(1, this->device_id);
@@ -3768,6 +3876,8 @@ bool SerialProxyConfigureRequest::decode_varint(uint32_t field_id, proto_varint_
   }
   return true;
 }
+const ProtoDecodeFns SerialProxyConfigureRequest::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<SerialProxyConfigureRequest>, nullptr, nullptr};
 void SerialProxyDataReceived::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_uint32(1, this->instance);
   buffer.encode_bytes(2, this->data_ptr_, this->data_len_);
@@ -3800,6 +3910,8 @@ bool SerialProxyWriteRequest::decode_length(uint32_t field_id, ProtoLengthDelimi
   }
   return true;
 }
+const ProtoDecodeFns SerialProxyWriteRequest::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<SerialProxyWriteRequest>, proto_decode_length_tramp<SerialProxyWriteRequest>, nullptr};
 bool SerialProxySetModemPinsRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
   switch (field_id) {
     case 1:
@@ -3813,6 +3925,8 @@ bool SerialProxySetModemPinsRequest::decode_varint(uint32_t field_id, proto_vari
   }
   return true;
 }
+const ProtoDecodeFns SerialProxySetModemPinsRequest::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<SerialProxySetModemPinsRequest>, nullptr, nullptr};
 bool SerialProxyGetModemPinsRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
   switch (field_id) {
     case 1:
@@ -3823,6 +3937,8 @@ bool SerialProxyGetModemPinsRequest::decode_varint(uint32_t field_id, proto_vari
   }
   return true;
 }
+const ProtoDecodeFns SerialProxyGetModemPinsRequest::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<SerialProxyGetModemPinsRequest>, nullptr, nullptr};
 void SerialProxyGetModemPinsResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_uint32(1, this->instance);
   buffer.encode_uint32(2, this->line_states);
@@ -3846,6 +3962,8 @@ bool SerialProxyRequest::decode_varint(uint32_t field_id, proto_varint_value_t v
   }
   return true;
 }
+const ProtoDecodeFns SerialProxyRequest::DECODE_FNS PROGMEM = {proto_decode_varint_tramp<SerialProxyRequest>, nullptr,
+                                                               nullptr};
 void SerialProxyRequestResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_uint32(1, this->instance);
   buffer.encode_uint32(2, static_cast<uint32_t>(this->type));
@@ -3884,6 +4002,8 @@ bool BluetoothSetConnectionParamsRequest::decode_varint(uint32_t field_id, proto
   }
   return true;
 }
+const ProtoDecodeFns BluetoothSetConnectionParamsRequest::DECODE_FNS PROGMEM = {
+    proto_decode_varint_tramp<BluetoothSetConnectionParamsRequest>, nullptr, nullptr};
 void BluetoothSetConnectionParamsResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_uint64(1, this->address);
   buffer.encode_int32(2, this->error);

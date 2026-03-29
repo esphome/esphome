@@ -2292,6 +2292,7 @@ def build_message_type(
             dump.extend(wrap_with_ifdef(ti.dump_content, field_ifdef))
 
     cpp = ""
+    has_decode_fields = False
     if decode_varint:
         o = f"bool {desc.name}::decode_varint(uint32_t field_id, proto_varint_value_t value) {{\n"
         o += "  switch (field_id) {\n"
@@ -2301,8 +2302,9 @@ def build_message_type(
         o += "  return true;\n"
         o += "}\n"
         cpp += o
-        prot = "bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;"
-        protected_content.insert(0, prot)
+        prot = "bool decode_varint(uint32_t field_id, proto_varint_value_t value);"
+        public_content.append(prot)
+        has_decode_fields = True
     if decode_length:
         o = f"bool {desc.name}::decode_length(uint32_t field_id, ProtoLengthDelimited value) {{\n"
         o += "  switch (field_id) {\n"
@@ -2312,8 +2314,9 @@ def build_message_type(
         o += "  return true;\n"
         o += "}\n"
         cpp += o
-        prot = "bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;"
-        protected_content.insert(0, prot)
+        prot = "bool decode_length(uint32_t field_id, ProtoLengthDelimited value);"
+        public_content.append(prot)
+        has_decode_fields = True
     if decode_32bit:
         o = f"bool {desc.name}::decode_32bit(uint32_t field_id, Proto32Bit value) {{\n"
         o += "  switch (field_id) {\n"
@@ -2323,8 +2326,9 @@ def build_message_type(
         o += "  return true;\n"
         o += "}\n"
         cpp += o
-        prot = "bool decode_32bit(uint32_t field_id, Proto32Bit value) override;"
-        protected_content.insert(0, prot)
+        prot = "bool decode_32bit(uint32_t field_id, Proto32Bit value);"
+        public_content.append(prot)
+        has_decode_fields = True
     if decode_64bit:
         o = f"bool {desc.name}::decode_64bit(uint32_t field_id, Proto64Bit value) {{\n"
         o += "  switch (field_id) {\n"
@@ -2334,23 +2338,46 @@ def build_message_type(
         o += "  return true;\n"
         o += "}\n"
         cpp += o
-        prot = "bool decode_64bit(uint32_t field_id, Proto64Bit value) override;"
-        protected_content.insert(0, prot)
+        prot = "bool decode_64bit(uint32_t field_id, Proto64Bit value);"
+        public_content.append(prot)
+        has_decode_fields = True
 
-    # Generate custom decode() override for messages with FixedVector fields
-    if fixed_vector_fields:
-        # Generate the decode() implementation in cpp
-        o = f"void {desc.name}::decode(const uint8_t *buffer, size_t length) {{\n"
-        # Count and init each FixedVector field
-        for field_name, field_number in fixed_vector_fields:
-            o += f"  uint32_t count_{field_name} = ProtoDecodableMessage::count_repeated_field(buffer, length, {field_number});\n"
-            o += f"  this->{field_name}.init(count_{field_name});\n"
-        # Call parent decode to populate the fields
-        o += "  ProtoDecodableMessage::decode(buffer, length);\n"
-        o += "}\n"
-        cpp += o
-        # Generate the decode() declaration in header (public method)
-        prot = "void decode(const uint8_t *buffer, size_t length);"
+    # Generate decode() inline in the header with a static ProtoDecodeFns table.
+    # Packing 3 function pointers into a single struct means each call site only
+    # loads one address instead of three, reducing call-site overhead.
+    # Trampolines are defined in proto.h so the linker can fold identical ones (ICF).
+    # decode_varint/decode_length/decode_32bit are public (non-virtual, no override risk).
+    # Messages with FixedVector fields need pre-processing before the decode loop.
+    if has_decode_fields:
+        # Build trampoline arguments — pass nullptr for wire types not used
+        varint_tramp = (
+            f"proto_decode_varint_tramp<{desc.name}>" if decode_varint else "nullptr"
+        )
+        length_tramp = (
+            f"proto_decode_length_tramp<{desc.name}>" if decode_length else "nullptr"
+        )
+        bit32_tramp = (
+            f"proto_decode_32bit_tramp<{desc.name}>" if decode_32bit else "nullptr"
+        )
+
+        # Static decode function table — one per message type
+        # PROGMEM puts it in flash on ESP8266 (where .rodata is RAM)
+        prot = "static const ProtoDecodeFns DECODE_FNS;\n"
+        public_content.append(prot)
+        # Generate the static definition in cpp with PROGMEM
+        cpp += f"const ProtoDecodeFns {desc.name}::DECODE_FNS PROGMEM = {{{varint_tramp}, {length_tramp}, {bit32_tramp}}};\n"
+
+        decode_body = ""
+        if fixed_vector_fields:
+            # Count and init each FixedVector field before decoding
+            for field_name, field_number in fixed_vector_fields:
+                decode_body += f"  uint32_t count_{field_name} = ProtoDecodableMessage::count_repeated_field(buffer, length, {field_number});\n"
+                decode_body += f"  this->{field_name}.init(count_{field_name});\n"
+        decode_body += "  proto_decode_message(this, buffer, length, &DECODE_FNS);\n"
+
+        prot = "void decode(const uint8_t *buffer, size_t length) {\n"
+        prot += decode_body
+        prot += "}"
         public_content.append(prot)
 
     # Only generate encode method if this message needs encoding and has fields

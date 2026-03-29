@@ -203,9 +203,24 @@ void ProtoWriteBuffer::debug_check_encode_size_(uint32_t field_id, uint32_t expe
 }
 #endif
 
-void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
+/// Read a function pointer from a PROGMEM struct.
+/// On ESP8266, uses pgm_read_ptr for flash access; on all other platforms, direct dereference.
+template<typename T> static inline T read_fn_ptr(const T *addr) {
+#ifdef USE_ESP8266
+  return reinterpret_cast<T>(pgm_read_ptr(addr));
+#else
+  return *addr;
+#endif
+}
+
+void proto_decode_message(void *msg, const uint8_t *buffer, size_t length, const ProtoDecodeFns *fns) {
   const uint8_t *ptr = buffer;
   const uint8_t *end = buffer + length;
+
+  // Read function pointers once from PROGMEM at the start
+  auto decode_varint = read_fn_ptr(&fns->decode_varint);
+  auto decode_length = read_fn_ptr(&fns->decode_length);
+  auto decode_32bit = read_fn_ptr(&fns->decode_32bit);
 
   while (ptr < end) {
     // Parse field header - ptr < end guarantees len >= 1
@@ -227,7 +242,7 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
           ESP_LOGV(TAG, "Invalid VarInt at offset %ld", (long) (ptr - buffer));
           return;
         }
-        if (!this->decode_varint(field_id, res.value)) {
+        if (decode_varint && !decode_varint(msg, field_id, res.value)) {
           ESP_LOGV(TAG, "Cannot decode VarInt field %" PRIu32 " with value %" PRIu64 "!", field_id,
                    static_cast<uint64_t>(res.value));
         }
@@ -246,7 +261,7 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
           ESP_LOGV(TAG, "Out-of-bounds Length Delimited at offset %ld", (long) (ptr - buffer));
           return;
         }
-        if (!this->decode_length(field_id, ProtoLengthDelimited(ptr, field_length))) {
+        if (decode_length && !decode_length(msg, field_id, ProtoLengthDelimited(ptr, field_length))) {
           ESP_LOGV(TAG, "Cannot decode Length Delimited field %" PRIu32 "!", field_id);
         }
         ptr += field_length;
@@ -258,7 +273,7 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
           return;
         }
         uint32_t val = encode_uint32(ptr[3], ptr[2], ptr[1], ptr[0]);
-        if (!this->decode_32bit(field_id, Proto32Bit(val))) {
+        if (decode_32bit && !decode_32bit(msg, field_id, Proto32Bit(val))) {
           ESP_LOGV(TAG, "Cannot decode 32-bit field %" PRIu32 " with value %" PRIu32 "!", field_id, val);
         }
         ptr += 4;
