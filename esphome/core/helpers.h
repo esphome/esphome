@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cmath>
 #include <cstdarg>
 #include <cstdint>
@@ -496,6 +497,23 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
   index_type count_{0};
   index_type capacity_{0};
 };
+
+/// Initialize a std::array from an initializer_list. Uses memcpy for trivially copyable types (optimal codegen),
+/// falls back to element-wise copy for non-trivially copyable types (e.g. TemplatableValue).
+/// N is set by code generation; assert catches mismatches in debug/integration tests.
+template<typename T, size_t N> inline void init_array_from(std::array<T, N> &dest, std::initializer_list<T> src) {
+#ifdef ESPHOME_DEBUG
+  assert(src.size() == N);
+#endif
+  if constexpr (std::is_trivially_copyable_v<T>) {
+    __builtin_memcpy(dest.data(), src.begin(), N * sizeof(T));
+  } else {
+    size_t i = 0;
+    for (const auto &v : src) {
+      dest[i++] = v;
+    }
+  }
+}
 
 /// Fixed-capacity vector - allocates once at runtime, never reallocates
 /// This avoids std::vector template overhead (_M_realloc_insert, _M_default_append)
