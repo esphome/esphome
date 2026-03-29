@@ -58,7 +58,7 @@ void GDK101Component::setup() {
     esphome::gdk101::GDK101Component::reset_retry_cnt++;
     return;
   }
-   delay(10);
+  delay(10);
   // read firmware version
   if (!this->read_fw_version_(data)) {
     this->status_set_error(LOG_STR("Failed to read firmware version"));
