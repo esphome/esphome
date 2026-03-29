@@ -486,11 +486,44 @@ class ProtoMessage {
   ~ProtoMessage() = default;
 };
 
-// Base class for messages that support decoding
+/// Function pointer types for decode field dispatch.
+/// Used by proto_decode_message() to call concrete message decode methods
+/// without virtual dispatch, avoiding per-message vtable entries.
+using decode_varint_fn_t = bool (*)(void *msg, uint32_t field_id, proto_varint_value_t value);
+using decode_length_fn_t = bool (*)(void *msg, uint32_t field_id, ProtoLengthDelimited value);
+using decode_32bit_fn_t = bool (*)(void *msg, uint32_t field_id, Proto32Bit value);
+
+/// Decode dispatch table — packs 3 function pointers into a single struct
+/// so call sites only need to load one address instead of three.
+/// Marked PROGMEM so it lives in flash on ESP8266 (where .rodata is RAM).
+struct ProtoDecodeFns {
+  decode_varint_fn_t decode_varint;
+  decode_length_fn_t decode_length;
+  decode_32bit_fn_t decode_32bit;
+};
+
+/// Shared protobuf decode loop. Single copy in flash; field dispatch via function pointers.
+/// nullptr entries in fns are skipped (wire type not used by this message).
+void proto_decode_message(void *msg, const uint8_t *buffer, size_t length, const ProtoDecodeFns *fns);
+
+/// Template trampolines for decode dispatch. Each instantiation is a tiny
+/// function that casts void* to the concrete type and calls the method.
+/// Defined in the header so the linker can fold identical instantiations (ICF).
+template<typename T> bool proto_decode_varint_tramp(void *m, uint32_t fid, proto_varint_value_t v) {
+  return static_cast<T *>(m)->decode_varint(fid, v);
+}
+template<typename T> bool proto_decode_length_tramp(void *m, uint32_t fid, ProtoLengthDelimited v) {
+  return static_cast<T *>(m)->decode_length(fid, v);
+}
+template<typename T> bool proto_decode_32bit_tramp(void *m, uint32_t fid, Proto32Bit v) {
+  return static_cast<T *>(m)->decode_32bit(fid, v);
+}
+
+// Base class for messages that support decoding.
+// decode_varint/decode_length/decode_32bit are non-virtual; the concrete type's
+// methods are resolved statically via function-pointer trampolines in decode().
 class ProtoDecodableMessage : public ProtoMessage {
  public:
-  void decode(const uint8_t *buffer, size_t length);
-
   /**
    * Count occurrences of a repeated field in a protobuf buffer.
    * This is a lightweight scan that only parses tags and skips field data.
@@ -502,12 +535,17 @@ class ProtoDecodableMessage : public ProtoMessage {
    */
   static uint32_t count_repeated_field(const uint8_t *buffer, size_t length, uint32_t target_field_id);
 
+  // Non-virtual defaults for messages with no fields to decode.
+  // Concrete message classes hide these with their own implementations.
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value) { return false; }
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) { return false; }
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) { return false; }
+
+  // Default decode() for messages with no decode fields (all return false).
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, nullptr); }
+
  protected:
   ~ProtoDecodableMessage() = default;
-  virtual bool decode_varint(uint32_t field_id, proto_varint_value_t value) { return false; }
-  virtual bool decode_length(uint32_t field_id, ProtoLengthDelimited value) { return false; }
-  virtual bool decode_32bit(uint32_t field_id, Proto32Bit value) { return false; }
-  // NOTE: decode_64bit removed - wire type 1 not supported
 };
 
 class ProtoSize {

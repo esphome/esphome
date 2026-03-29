@@ -393,13 +393,16 @@ class HelloRequest final : public ProtoDecodableMessage {
   StringRef client_info{};
   uint32_t api_version_major{0};
   uint32_t api_version_minor{0};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class HelloResponse final : public ProtoMessage {
  public:
@@ -682,13 +685,16 @@ class CoverCommandRequest final : public CommandProtoMessage {
   bool has_tilt{false};
   float tilt{0.0f};
   bool stop{false};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_32bit(uint32_t field_id, Proto32Bit value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_FAN
@@ -749,14 +755,17 @@ class FanCommandRequest final : public CommandProtoMessage {
   int32_t speed_level{0};
   bool has_preset_mode{false};
   StringRef preset_mode{};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  bool decode_32bit(uint32_t field_id, Proto32Bit value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_LIGHT
@@ -839,14 +848,17 @@ class LightCommandRequest final : public CommandProtoMessage {
   uint32_t flash_length{0};
   bool has_effect{false};
   StringRef effect{};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  bool decode_32bit(uint32_t field_id, Proto32Bit value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_SENSOR
@@ -930,13 +942,16 @@ class SwitchCommandRequest final : public CommandProtoMessage {
   const LogString *message_name() const override { return LOG_STR("switch_command_request"); }
 #endif
   bool state{false};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_32bit(uint32_t field_id, Proto32Bit value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_TEXT_SENSOR
@@ -983,12 +998,15 @@ class SubscribeLogsRequest final : public ProtoDecodableMessage {
 #endif
   enums::LogLevel level{};
   bool dump_config{false};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class SubscribeLogsResponse final : public ProtoMessage {
  public:
@@ -1022,12 +1040,15 @@ class NoiseEncryptionSetKeyRequest final : public ProtoDecodableMessage {
 #endif
   const uint8_t *key{nullptr};
   uint16_t key_len{0};
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
 class NoiseEncryptionSetKeyResponse final : public ProtoMessage {
  public:
@@ -1104,13 +1125,16 @@ class HomeassistantActionResponse final : public ProtoDecodableMessage {
   const uint8_t *response_data{nullptr};
   uint16_t response_data_len{0};
 #endif
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
@@ -1142,12 +1166,15 @@ class HomeAssistantStateResponse final : public ProtoDecodableMessage {
   StringRef entity_id{};
   StringRef state{};
   StringRef attribute{};
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
 #endif
 class GetTimeRequest final : public ProtoMessage {
@@ -1171,12 +1198,15 @@ class DSTRule final : public ProtoDecodableMessage {
   uint32_t month{0};
   uint32_t week{0};
   uint32_t day_of_week{0};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class ParsedTimezone final : public ProtoDecodableMessage {
  public:
@@ -1184,13 +1214,16 @@ class ParsedTimezone final : public ProtoDecodableMessage {
   int32_t dst_offset_seconds{0};
   DSTRule dst_start{};
   DSTRule dst_end{};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class GetTimeResponse final : public ProtoDecodableMessage {
  public:
@@ -1202,13 +1235,16 @@ class GetTimeResponse final : public ProtoDecodableMessage {
   uint32_t epoch_seconds{0};
   StringRef timezone{};
   ParsedTimezone parsed_timezone{};
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  bool decode_32bit(uint32_t field_id, Proto32Bit value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
 #ifdef USE_API_USER_DEFINED_ACTIONS
 class ListEntitiesServicesArgument final : public ProtoMessage {
@@ -1253,15 +1289,27 @@ class ExecuteServiceArgument final : public ProtoDecodableMessage {
   FixedVector<int32_t> int_array{};
   FixedVector<float> float_array{};
   FixedVector<std::string> string_array{};
-  void decode(const uint8_t *buffer, size_t length);
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  bool decode_32bit(uint32_t field_id, Proto32Bit value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) {
+    uint32_t count_bool_array = ProtoDecodableMessage::count_repeated_field(buffer, length, 6);
+    this->bool_array.init(count_bool_array);
+    uint32_t count_int_array = ProtoDecodableMessage::count_repeated_field(buffer, length, 7);
+    this->int_array.init(count_int_array);
+    uint32_t count_float_array = ProtoDecodableMessage::count_repeated_field(buffer, length, 8);
+    this->float_array.init(count_float_array);
+    uint32_t count_string_array = ProtoDecodableMessage::count_repeated_field(buffer, length, 9);
+    this->string_array.init(count_string_array);
+    proto_decode_message(this, buffer, length, &DECODE_FNS);
+  }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class ExecuteServiceRequest final : public ProtoDecodableMessage {
  public:
@@ -1278,15 +1326,21 @@ class ExecuteServiceRequest final : public ProtoDecodableMessage {
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
   bool return_response{false};
 #endif
-  void decode(const uint8_t *buffer, size_t length);
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  bool decode_32bit(uint32_t field_id, Proto32Bit value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) {
+    uint32_t count_args = ProtoDecodableMessage::count_repeated_field(buffer, length, 2);
+    this->args.init(count_args);
+    proto_decode_message(this, buffer, length, &DECODE_FNS);
+  }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
@@ -1360,12 +1414,15 @@ class CameraImageRequest final : public ProtoDecodableMessage {
 #endif
   bool single{false};
   bool stream{false};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_CLIMATE
@@ -1457,14 +1514,17 @@ class ClimateCommandRequest final : public CommandProtoMessage {
   StringRef custom_preset{};
   bool has_target_humidity{false};
   float target_humidity{0.0f};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  bool decode_32bit(uint32_t field_id, Proto32Bit value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_WATER_HEATER
@@ -1522,13 +1582,16 @@ class WaterHeaterCommandRequest final : public CommandProtoMessage {
   uint32_t state{0};
   float target_temperature_low{0.0f};
   float target_temperature_high{0.0f};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_32bit(uint32_t field_id, Proto32Bit value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_NUMBER
@@ -1578,13 +1641,16 @@ class NumberCommandRequest final : public CommandProtoMessage {
   const LogString *message_name() const override { return LOG_STR("number_command_request"); }
 #endif
   float state{0.0f};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_32bit(uint32_t field_id, Proto32Bit value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_SELECT
@@ -1629,14 +1695,17 @@ class SelectCommandRequest final : public CommandProtoMessage {
   const LogString *message_name() const override { return LOG_STR("select_command_request"); }
 #endif
   StringRef state{};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  bool decode_32bit(uint32_t field_id, Proto32Bit value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_SIREN
@@ -1689,14 +1758,17 @@ class SirenCommandRequest final : public CommandProtoMessage {
   uint32_t duration{0};
   bool has_volume{false};
   float volume{0.0f};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  bool decode_32bit(uint32_t field_id, Proto32Bit value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_LOCK
@@ -1745,14 +1817,17 @@ class LockCommandRequest final : public CommandProtoMessage {
   enums::LockCommand command{};
   bool has_code{false};
   StringRef code{};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  bool decode_32bit(uint32_t field_id, Proto32Bit value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_BUTTON
@@ -1779,13 +1854,16 @@ class ButtonCommandRequest final : public CommandProtoMessage {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const LogString *message_name() const override { return LOG_STR("button_command_request"); }
 #endif
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_32bit(uint32_t field_id, Proto32Bit value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_MEDIA_PLAYER
@@ -1855,14 +1933,17 @@ class MediaPlayerCommandRequest final : public CommandProtoMessage {
   StringRef media_url{};
   bool has_announcement{false};
   bool announcement{false};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  bool decode_32bit(uint32_t field_id, Proto32Bit value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_BLUETOOTH_PROXY
@@ -1874,12 +1955,15 @@ class SubscribeBluetoothLEAdvertisementsRequest final : public ProtoDecodableMes
   const LogString *message_name() const override { return LOG_STR("subscribe_bluetooth_le_advertisements_request"); }
 #endif
   uint32_t flags{0};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class BluetoothLERawAdvertisement final : public ProtoMessage {
  public:
@@ -1924,12 +2008,15 @@ class BluetoothDeviceRequest final : public ProtoDecodableMessage {
   enums::BluetoothDeviceRequestType request_type{};
   bool has_address_type{false};
   uint32_t address_type{0};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class BluetoothDeviceConnectionResponse final : public ProtoMessage {
  public:
@@ -1958,12 +2045,15 @@ class BluetoothGATTGetServicesRequest final : public ProtoDecodableMessage {
   const LogString *message_name() const override { return LOG_STR("bluetooth_gatt_get_services_request"); }
 #endif
   uint64_t address{0};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class BluetoothGATTDescriptor final : public ProtoMessage {
  public:
@@ -2049,12 +2139,15 @@ class BluetoothGATTReadRequest final : public ProtoDecodableMessage {
 #endif
   uint64_t address{0};
   uint32_t handle{0};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class BluetoothGATTReadResponse final : public ProtoMessage {
  public:
@@ -2091,13 +2184,16 @@ class BluetoothGATTWriteRequest final : public ProtoDecodableMessage {
   bool response{false};
   const uint8_t *data{nullptr};
   uint16_t data_len{0};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class BluetoothGATTReadDescriptorRequest final : public ProtoDecodableMessage {
  public:
@@ -2108,12 +2204,15 @@ class BluetoothGATTReadDescriptorRequest final : public ProtoDecodableMessage {
 #endif
   uint64_t address{0};
   uint32_t handle{0};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class BluetoothGATTWriteDescriptorRequest final : public ProtoDecodableMessage {
  public:
@@ -2126,13 +2225,16 @@ class BluetoothGATTWriteDescriptorRequest final : public ProtoDecodableMessage {
   uint32_t handle{0};
   const uint8_t *data{nullptr};
   uint16_t data_len{0};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class BluetoothGATTNotifyRequest final : public ProtoDecodableMessage {
  public:
@@ -2144,12 +2246,15 @@ class BluetoothGATTNotifyRequest final : public ProtoDecodableMessage {
   uint64_t address{0};
   uint32_t handle{0};
   bool enable{false};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class BluetoothGATTNotifyDataResponse final : public ProtoMessage {
  public:
@@ -2324,12 +2429,15 @@ class BluetoothScannerSetModeRequest final : public ProtoDecodableMessage {
   const LogString *message_name() const override { return LOG_STR("bluetooth_scanner_set_mode_request"); }
 #endif
   enums::BluetoothScannerMode mode{};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_VOICE_ASSISTANT
@@ -2342,12 +2450,15 @@ class SubscribeVoiceAssistantRequest final : public ProtoDecodableMessage {
 #endif
   bool subscribe{false};
   uint32_t flags{0};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class VoiceAssistantAudioSettings final : public ProtoMessage {
  public:
@@ -2391,23 +2502,29 @@ class VoiceAssistantResponse final : public ProtoDecodableMessage {
 #endif
   uint32_t port{0};
   bool error{false};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class VoiceAssistantEventData final : public ProtoDecodableMessage {
  public:
   StringRef name{};
   StringRef value{};
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
 class VoiceAssistantEventResponse final : public ProtoDecodableMessage {
  public:
@@ -2418,13 +2535,16 @@ class VoiceAssistantEventResponse final : public ProtoDecodableMessage {
 #endif
   enums::VoiceAssistantEvent event_type{};
   std::vector<VoiceAssistantEventData> data{};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class VoiceAssistantAudio final : public ProtoDecodableMessage {
  public:
@@ -2436,6 +2556,11 @@ class VoiceAssistantAudio final : public ProtoDecodableMessage {
   const uint8_t *data{nullptr};
   uint16_t data_len{0};
   bool end{false};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
   void encode(ProtoWriteBuffer &buffer) const;
   uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -2443,8 +2568,6 @@ class VoiceAssistantAudio final : public ProtoDecodableMessage {
 #endif
 
  protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class VoiceAssistantTimerEventResponse final : public ProtoDecodableMessage {
  public:
@@ -2459,13 +2582,16 @@ class VoiceAssistantTimerEventResponse final : public ProtoDecodableMessage {
   uint32_t total_seconds{0};
   uint32_t seconds_left{0};
   bool is_active{false};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class VoiceAssistantAnnounceRequest final : public ProtoDecodableMessage {
  public:
@@ -2478,13 +2604,16 @@ class VoiceAssistantAnnounceRequest final : public ProtoDecodableMessage {
   StringRef text{};
   StringRef preannounce_media_id{};
   bool start_conversation{false};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class VoiceAssistantAnnounceFinished final : public ProtoMessage {
  public:
@@ -2524,13 +2653,16 @@ class VoiceAssistantExternalWakeWord final : public ProtoDecodableMessage {
   uint32_t model_size{0};
   StringRef model_hash{};
   StringRef url{};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class VoiceAssistantConfigurationRequest final : public ProtoDecodableMessage {
  public:
@@ -2540,12 +2672,15 @@ class VoiceAssistantConfigurationRequest final : public ProtoDecodableMessage {
   const LogString *message_name() const override { return LOG_STR("voice_assistant_configuration_request"); }
 #endif
   std::vector<VoiceAssistantExternalWakeWord> external_wake_words{};
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
 class VoiceAssistantConfigurationResponse final : public ProtoMessage {
  public:
@@ -2573,12 +2708,15 @@ class VoiceAssistantSetConfiguration final : public ProtoDecodableMessage {
   const LogString *message_name() const override { return LOG_STR("voice_assistant_set_configuration"); }
 #endif
   std::vector<std::string> active_wake_words{};
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
@@ -2625,14 +2763,17 @@ class AlarmControlPanelCommandRequest final : public CommandProtoMessage {
 #endif
   enums::AlarmControlPanelStateCommand command{};
   StringRef code{};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  bool decode_32bit(uint32_t field_id, Proto32Bit value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_TEXT
@@ -2680,14 +2821,17 @@ class TextCommandRequest final : public CommandProtoMessage {
   const LogString *message_name() const override { return LOG_STR("text_command_request"); }
 #endif
   StringRef state{};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  bool decode_32bit(uint32_t field_id, Proto32Bit value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_DATETIME_DATE
@@ -2735,13 +2879,16 @@ class DateCommandRequest final : public CommandProtoMessage {
   uint32_t year{0};
   uint32_t month{0};
   uint32_t day{0};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_32bit(uint32_t field_id, Proto32Bit value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_DATETIME_TIME
@@ -2789,13 +2936,16 @@ class TimeCommandRequest final : public CommandProtoMessage {
   uint32_t hour{0};
   uint32_t minute{0};
   uint32_t second{0};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_32bit(uint32_t field_id, Proto32Bit value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_EVENT
@@ -2880,13 +3030,16 @@ class ValveCommandRequest final : public CommandProtoMessage {
   bool has_position{false};
   float position{0.0f};
   bool stop{false};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_32bit(uint32_t field_id, Proto32Bit value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_DATETIME_DATETIME
@@ -2930,13 +3083,16 @@ class DateTimeCommandRequest final : public CommandProtoMessage {
   const LogString *message_name() const override { return LOG_STR("date_time_command_request"); }
 #endif
   uint32_t epoch_seconds{0};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_32bit(uint32_t field_id, Proto32Bit value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_UPDATE
@@ -2988,13 +3144,16 @@ class UpdateCommandRequest final : public CommandProtoMessage {
   const LogString *message_name() const override { return LOG_STR("update_command_request"); }
 #endif
   enums::UpdateCommand command{};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_32bit(uint32_t field_id, Proto32Bit value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_ZWAVE_PROXY
@@ -3007,6 +3166,10 @@ class ZWaveProxyFrame final : public ProtoDecodableMessage {
 #endif
   const uint8_t *data{nullptr};
   uint16_t data_len{0};
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
   void encode(ProtoWriteBuffer &buffer) const;
   uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -3014,7 +3177,6 @@ class ZWaveProxyFrame final : public ProtoDecodableMessage {
 #endif
 
  protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
 class ZWaveProxyRequest final : public ProtoDecodableMessage {
  public:
@@ -3026,6 +3188,11 @@ class ZWaveProxyRequest final : public ProtoDecodableMessage {
   enums::ZWaveProxyRequestType type{};
   const uint8_t *data{nullptr};
   uint16_t data_len{0};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
   void encode(ProtoWriteBuffer &buffer) const;
   uint32_t calculate_size() const;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -3033,8 +3200,6 @@ class ZWaveProxyRequest final : public ProtoDecodableMessage {
 #endif
 
  protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 #endif
 #ifdef USE_INFRARED
@@ -3073,14 +3238,17 @@ class InfraredRFTransmitRawTimingsRequest final : public ProtoDecodableMessage {
   const uint8_t *timings_data_{nullptr};
   uint16_t timings_length_{0};
   uint16_t timings_count_{0};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  bool decode_32bit(uint32_t field_id, Proto32Bit value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class InfraredRFReceiveEvent final : public ProtoMessage {
  public:
@@ -3117,12 +3285,15 @@ class SerialProxyConfigureRequest final : public ProtoDecodableMessage {
   enums::SerialProxyParity parity{};
   uint32_t stop_bits{0};
   uint32_t data_size{0};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class SerialProxyDataReceived final : public ProtoMessage {
  public:
@@ -3156,13 +3327,16 @@ class SerialProxyWriteRequest final : public ProtoDecodableMessage {
   uint32_t instance{0};
   const uint8_t *data{nullptr};
   uint16_t data_len{0};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class SerialProxySetModemPinsRequest final : public ProtoDecodableMessage {
  public:
@@ -3173,12 +3347,15 @@ class SerialProxySetModemPinsRequest final : public ProtoDecodableMessage {
 #endif
   uint32_t instance{0};
   uint32_t line_states{0};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class SerialProxyGetModemPinsRequest final : public ProtoDecodableMessage {
  public:
@@ -3188,12 +3365,15 @@ class SerialProxyGetModemPinsRequest final : public ProtoDecodableMessage {
   const LogString *message_name() const override { return LOG_STR("serial_proxy_get_modem_pins_request"); }
 #endif
   uint32_t instance{0};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class SerialProxyGetModemPinsResponse final : public ProtoMessage {
  public:
@@ -3221,12 +3401,15 @@ class SerialProxyRequest final : public ProtoDecodableMessage {
 #endif
   uint32_t instance{0};
   enums::SerialProxyRequestType type{};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class SerialProxyRequestResponse final : public ProtoMessage {
  public:
@@ -3261,12 +3444,15 @@ class BluetoothSetConnectionParamsRequest final : public ProtoDecodableMessage {
   uint32_t max_interval{0};
   uint32_t latency{0};
   uint32_t timeout{0};
+  bool decode_varint(uint32_t field_id, proto_varint_value_t value);
+  static const ProtoDecodeFns DECODE_FNS;
+
+  void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, &DECODE_FNS); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   const char *dump_to(DumpBuffer &out) const override;
 #endif
 
  protected:
-  bool decode_varint(uint32_t field_id, proto_varint_value_t value) override;
 };
 class BluetoothSetConnectionParamsResponse final : public ProtoMessage {
  public:
