@@ -288,7 +288,7 @@ static inline uint8_t *write_plaintext_header(uint8_t *buf_start, const MessageI
 // Outlined multi-message path to keep the single-message fast path's stack frame small.
 // The StaticVector<iovec, MAX_MESSAGES_PER_BATCH> would force a ~300-byte stack frame
 // even when only sending one message if it were in the same function.
-APIError __attribute__((noinline))
+APIError __attribute__((noinline, flatten))
 APIPlaintextFrameHelper::write_protobuf_messages_batch_(uint8_t *buffer_data, std::span<const MessageInfo> messages) {
   StaticVector<struct iovec, MAX_MESSAGES_PER_BATCH> iovs;
   uint16_t total_write_len = 0;

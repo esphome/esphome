@@ -489,7 +489,7 @@ APIError APINoiseFrameHelper::encrypt_noise_message_(uint8_t *buf_start, const M
 }
 
 // Outlined multi-message path to keep the single-message fast path's stack frame small.
-APIError __attribute__((noinline))
+APIError __attribute__((noinline, flatten))
 APINoiseFrameHelper::write_protobuf_messages_batch_(uint8_t *buffer_data, std::span<const MessageInfo> messages) {
   StaticVector<struct iovec, MAX_MESSAGES_PER_BATCH> iovs;
   uint16_t total_write_len = 0;
