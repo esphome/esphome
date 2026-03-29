@@ -112,6 +112,18 @@ APIError APIFrameHelper::drain_overflow_and_handle_errors_() {
 }
 
 // Write data to socket, overflow to backlog buffer if LWIP TCP send buffer is full.
+// Slow path: queue data into overflow buffer when socket can't accept it all.
+// Out-of-line to keep the fast paths small.
+APIError __attribute__((noinline))
+APIFrameHelper::enqueue_overflow_(const struct iovec *iov, int iovcnt, uint16_t total_write_len, uint16_t skip) {
+  if (!this->overflow_buf_.enqueue_iov(iov, iovcnt, total_write_len, skip)) {
+    HELPER_LOG("Overflow buffer full, dropping connection");
+    this->state_ = State::FAILED;
+    return APIError::SOCKET_WRITE_FAILED;
+  }
+  return APIError::OK;
+}
+
 // Single-buffer write path — avoids iovec setup for the common single-message case.
 APIError APIFrameHelper::write_raw_(const void *data, uint16_t len) {
 #ifdef HELPER_LOG_PACKETS
@@ -138,25 +150,15 @@ APIError APIFrameHelper::write_raw_(const void *data, uint16_t len) {
     } else if (static_cast<uint16_t>(sent) >= len) [[likely]] {
       return APIError::OK;
     } else {
-      // Partial write — queue remainder into overflow buffer
+      // Partial write — queue remainder
       struct iovec iov = {const_cast<void *>(data), len};
-      if (!this->overflow_buf_.enqueue_iov(&iov, 1, len, static_cast<uint16_t>(sent))) {
-        HELPER_LOG("Overflow buffer full, dropping connection");
-        this->state_ = State::FAILED;
-        return APIError::SOCKET_WRITE_FAILED;
-      }
-      return APIError::OK;
+      return this->enqueue_overflow_(&iov, 1, len, static_cast<uint16_t>(sent));
     }
   }
 
-  // Socket not ready — queue all data into overflow buffer
+  // Socket not ready — queue all data
   struct iovec iov = {const_cast<void *>(data), len};
-  if (!this->overflow_buf_.enqueue_iov(&iov, 1, len, 0)) {
-    HELPER_LOG("Overflow buffer full, dropping connection");
-    this->state_ = State::FAILED;
-    return APIError::SOCKET_WRITE_FAILED;
-  }
-  return APIError::OK;
+  return this->enqueue_overflow_(&iov, 1, len, 0);
 }
 
 // Multi-buffer write path for batched messages.
@@ -167,8 +169,6 @@ APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt, uint16_
   }
 #endif
 
-  uint16_t skip = 0;
-
   // Drain any existing backlog first
   if (!this->overflow_buf_.empty()) [[unlikely]] {
     APIError err = this->drain_overflow_and_handle_errors_();
@@ -178,8 +178,7 @@ APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt, uint16_
 
   // If backlog is clear, try direct send
   if (this->overflow_buf_.empty()) [[likely]] {
-    ssize_t sent =
-        (iovcnt == 1) ? this->socket_->write(iov[0].iov_base, iov[0].iov_len) : this->socket_->writev(iov, iovcnt);
+    ssize_t sent = this->socket_->writev(iov, iovcnt);
 
     if (sent == -1) [[unlikely]] {
       int err = errno;
@@ -190,17 +189,12 @@ APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt, uint16_
     } else if (static_cast<uint16_t>(sent) >= total_write_len) [[likely]] {
       return APIError::OK;
     } else {
-      skip = static_cast<uint16_t>(sent);
+      return this->enqueue_overflow_(iov, iovcnt, total_write_len, static_cast<uint16_t>(sent));
     }
   }
 
-  // Queue unsent data into overflow buffer
-  if (!this->overflow_buf_.enqueue_iov(iov, iovcnt, total_write_len, skip)) {
-    HELPER_LOG("Overflow buffer full, dropping connection");
-    this->state_ = State::FAILED;
-    return APIError::SOCKET_WRITE_FAILED;
-  }
-  return APIError::OK;
+  // Socket not ready — queue all data
+  return this->enqueue_overflow_(iov, iovcnt, total_write_len, 0);
 }
 
 const char *APIFrameHelper::get_peername_to(std::span<char, socket::SOCKADDR_STR_LEN> buf) const {

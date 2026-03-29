@@ -194,6 +194,8 @@ class APIFrameHelper {
   APIError write_raw_(const void *data, uint16_t len);
   // Write multiple iovec buffers to the socket in one writev call
   APIError write_raw_(const struct iovec *iov, int iovcnt, uint16_t total_write_len);
+  // Slow path: queue unsent data into overflow buffer
+  APIError enqueue_overflow_(const struct iovec *iov, int iovcnt, uint16_t total_write_len, uint16_t skip);
 
   // Check if a socket write errno is a hard error (not WOULD_BLOCK/EAGAIN).
   // Returns WOULD_BLOCK for transient errors, SOCKET_WRITE_FAILED for hard errors.
