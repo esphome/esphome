@@ -9,9 +9,15 @@ namespace ds1603l {
 
 class Ds1603l : public sensor::Sensor, public PollingComponent, public uart::UARTDevice {
  public:
-  void set_ds1603l_liquid_level_sensor(sensor::Sensor *ds1603l_liquid_level_sensor) { ds1603l_liquid_level_sensor_ = ds1603l_liquid_level_sensor; }
-  void set_ds1603l_liquid_volume_sensor(sensor::Sensor *ds1603l_liquid_volume_sensor) { ds1603l_liquid_volume_sensor_ = ds1603l_liquid_volume_sensor; }
-  void set_ds1603l_percentage_sensor(sensor::Sensor *ds1603l_percentage_sensor) { ds1603l_percentage_sensor_ = ds1603l_percentage_sensor; }
+  void set_ds1603l_liquid_level_sensor(sensor::Sensor *ds1603l_liquid_level_sensor) {
+    ds1603l_liquid_level_sensor_ = ds1603l_liquid_level_sensor;
+  }
+  void set_ds1603l_liquid_volume_sensor(sensor::Sensor *ds1603l_liquid_volume_sensor) {
+    ds1603l_liquid_volume_sensor_ = ds1603l_liquid_volume_sensor;
+  }
+  void set_ds1603l_percentage_sensor(sensor::Sensor *ds1603l_percentage_sensor) {
+    ds1603l_percentage_sensor_ = ds1603l_percentage_sensor;
+  }
   void set_ds1603l_min_volume(float ds1603l_min_volume) { this->ds1603l_min_volume_ = ds1603l_min_volume; }
   void set_ds1603l_max_volume(float ds1603l_max_volume) { this->ds1603l_max_volume_ = ds1603l_max_volume; }
   void set_ds1603l_min_level(float ds1603l_min_level) { this->ds1603l_min_level_ = ds1603l_min_level; }
