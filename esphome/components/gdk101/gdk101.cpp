@@ -7,9 +7,22 @@ namespace gdk101 {
 
 static const char *const TAG = "gdk101";
 static const uint8_t NUMBER_OF_READ_RETRIES = 5;
+static const uint8_t NUMBER_OF_RESET_RETRIES = 10;
+uint8_t GDK101Component::reset_retry_cnt = 0;
 
 void GDK101Component::update() {
   uint8_t data[2];
+
+  if (esphome::gdk101::GDK101Component::reset_retry_cnt) {
+    this->setup();
+    if (esphome::gdk101::GDK101Component::reset_retry_cnt == NUMBER_OF_RESET_RETRIES) {
+      this->mark_failed();
+      return;
+    } else if (esphome::gdk101::GDK101Component::reset_retry_cnt != 0) {
+      return;
+    }
+  }
+
   if (!this->read_dose_1m_(data)) {
     this->status_set_warning(LOG_STR("Failed to read dose 1m"));
     return;
@@ -35,20 +48,24 @@ void GDK101Component::update() {
 void GDK101Component::setup() {
   uint8_t data[2] = {0};
   // first, reset the sensor
-  while (data[0] != 1) {
-    if (!this->reset_sensor_(data)) {
-      this->status_set_error(LOG_STR("Reset failed!"));
-      this->mark_failed();
-      return;
-    }
+  if (!this->reset_sensor_(data)) {
+    this->status_set_warning(LOG_STR("Sensor not answered to reset. Will retry."));
+    esphome::gdk101::GDK101Component::reset_retry_cnt++;
+    return;
   }
-  delay(10);
+  if (data[0] != 1) {
+    this->status_set_warning(LOG_STR("Reset not acknowledged yet. Will retry."));
+    esphome::gdk101::GDK101Component::reset_retry_cnt++;
+    return;
+  }
+   delay(10);
   // read firmware version
   if (!this->read_fw_version_(data)) {
     this->status_set_error(LOG_STR("Failed to read firmware version"));
     this->mark_failed();
     return;
   }
+  esphome::gdk101::GDK101Component::reset_retry_cnt = 0;
 }
 
 void GDK101Component::dump_config() {
@@ -72,8 +89,6 @@ void GDK101Component::dump_config() {
   LOG_TEXT_SENSOR("  ", "Firmware Version", this->fw_version_text_sensor_);
 #endif  // USE_TEXT_SENSOR
 }
-
-float GDK101Component::get_setup_priority() const { return setup_priority::LATE; }
 
 bool GDK101Component::read_bytes_with_retry_(uint8_t a_register, uint8_t *data, uint8_t len) {
   uint8_t retry = NUMBER_OF_READ_RETRIES;
