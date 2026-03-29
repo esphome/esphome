@@ -115,7 +115,7 @@ APIError APIFrameHelper::drain_overflow_and_handle_errors_() {
 // Slow path: handles partial writes, errors, and overflow buffering.
 // Called when the inline fast path in the header couldn't complete the write.
 // sent == -1 means either the fast path write returned -1, or there was overflow backlog.
-APIError APIFrameHelper::write_raw_slow_(const struct iovec *iov, int iovcnt, uint16_t total_write_len, ssize_t sent) {
+APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt, uint16_t total_write_len, ssize_t sent) {
 #ifdef HELPER_LOG_PACKETS
   for (int i = 0; i < iovcnt; i++) {
     LOG_PACKET_SENDING(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
