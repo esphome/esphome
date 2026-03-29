@@ -214,7 +214,7 @@ class APIFrameHelper {
   }
 
   // Slow path (out-of-line): handle partial writes, errors, overflow buffering
-  APIError write_raw_(const struct iovec *iov, int iovcnt, uint16_t total_write_len, ssize_t sent);
+  APIError write_raw_(const struct iovec *iov, int iovcnt, uint16_t total_write_len, ssize_t sent = -1);
 
   // Socket ownership (4 bytes on 32-bit, 8 bytes on 64-bit)
   std::unique_ptr<socket::Socket> socket_;
