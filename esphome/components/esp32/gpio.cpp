@@ -85,6 +85,7 @@ void ESP32InternalGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpi
       break;
   }
   gpio_set_intr_type(this->get_pin_num(), idf_type);
+  gpio_intr_enable(this->get_pin_num());
   if (!isr_service_installed) {
     auto res = gpio_install_isr_service(ESP_INTR_FLAG_LEVEL3);
     if (res != ESP_OK) {
@@ -94,7 +95,6 @@ void ESP32InternalGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpi
     isr_service_installed = true;
   }
   gpio_isr_handler_add(this->get_pin_num(), func, arg);
-  gpio_intr_enable(this->get_pin_num());
 }
 
 size_t ESP32InternalGPIOPin::dump_summary(char *buffer, size_t len) const {
