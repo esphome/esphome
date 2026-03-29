@@ -10,17 +10,20 @@ namespace esphome::api::benchmarks {
 // sub-microsecond benchmarks.
 static constexpr int kInnerIterations = 2000;
 
-// Helper: encode a message into a buffer and return it.
-// Benchmarks encode once in setup, then decode the resulting bytes in a loop.
-// This keeps decode benchmarks in sync with the actual protobuf schema —
-// hand-encoded byte arrays would silently break when fields change.
-template<typename T> static APIBuffer encode_message(const T &msg) {
+// Helper: encode a message into a buffer, then copy the bytes into a
+// plain array so the compiler cannot trace them back to compile-time constants.
+// Returns {heap-allocated copy, size}.  Caller owns the memory.
+template<typename T> static std::pair<uint8_t *, size_t> encode_to_heap(const T &msg) {
   APIBuffer buffer;
   uint32_t size = msg.calculate_size();
   buffer.resize(size);
   ProtoWriteBuffer writer(&buffer, 0);
   msg.encode(writer);
-  return buffer;
+  // Copy to a separate heap allocation so the compiler cannot prove
+  // the contents are constant (the APIBuffer internals are visible).
+  auto *copy = new uint8_t[size];
+  std::memcpy(copy, buffer.data(), size);
+  return {copy, size};
 }
 
 // --- HelloRequest decode (string + varint fields) ---
@@ -30,22 +33,19 @@ static void Decode_HelloRequest(benchmark::State &state) {
   source.client_info = StringRef::from_lit("aioesphomeapi");
   source.api_version_major = 1;
   source.api_version_minor = 10;
-  auto encoded = encode_message(source);
-  // Prevent the compiler from treating the encoded buffer as constant,
-  // which would allow it to optimize away the decode loop entirely.
-  const uint8_t *data = encoded.data();
-  size_t size = encoded.size();
-  benchmark::DoNotOptimize(data);
+  auto [data, size] = encode_to_heap(source);
   benchmark::DoNotOptimize(size);
 
   for (auto _ : state) {
     HelloRequest msg;
     for (int i = 0; i < kInnerIterations; i++) {
       msg.decode(data, size);
+      benchmark::ClobberMemory();
     }
-    benchmark::DoNotOptimize(msg.api_version_major);
+    benchmark::DoNotOptimize(msg);
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
+  delete[] data;
 }
 BENCHMARK(Decode_HelloRequest);
 
@@ -55,20 +55,19 @@ static void Decode_SwitchCommandRequest(benchmark::State &state) {
   SwitchCommandRequest source;
   source.key = 0x12345678;
   source.state = true;
-  auto encoded = encode_message(source);
-  const uint8_t *data = encoded.data();
-  size_t size = encoded.size();
-  benchmark::DoNotOptimize(data);
+  auto [data, size] = encode_to_heap(source);
   benchmark::DoNotOptimize(size);
 
   for (auto _ : state) {
     SwitchCommandRequest msg;
     for (int i = 0; i < kInnerIterations; i++) {
       msg.decode(data, size);
+      benchmark::ClobberMemory();
     }
-    benchmark::DoNotOptimize(msg.state);
+    benchmark::DoNotOptimize(msg);
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
+  delete[] data;
 }
 BENCHMARK(Decode_SwitchCommandRequest);
 
@@ -87,20 +86,19 @@ static void Decode_LightCommandRequest(benchmark::State &state) {
   source.blue = 0.2f;
   source.has_effect = true;
   source.effect = StringRef::from_lit("rainbow");
-  auto encoded = encode_message(source);
-  const uint8_t *data = encoded.data();
-  size_t size = encoded.size();
-  benchmark::DoNotOptimize(data);
+  auto [data, size] = encode_to_heap(source);
   benchmark::DoNotOptimize(size);
 
   for (auto _ : state) {
     LightCommandRequest msg;
     for (int i = 0; i < kInnerIterations; i++) {
       msg.decode(data, size);
+      benchmark::ClobberMemory();
     }
-    benchmark::DoNotOptimize(msg.brightness);
+    benchmark::DoNotOptimize(msg);
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
+  delete[] data;
 }
 BENCHMARK(Decode_LightCommandRequest);
 
