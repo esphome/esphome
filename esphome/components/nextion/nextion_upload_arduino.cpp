@@ -22,9 +22,9 @@ static constexpr size_t NEXTION_MAX_RESPONSE_LOG_BYTES = 16;
 int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
   uint32_t range_size = this->tft_size_ - range_start;
   ESP_LOGV(TAG, "Heap: %" PRIu32, EspClass::getFreeHeap());
-  uint32_t range_end = ((upload_first_chunk_sent_ or this->tft_size_ < 4096) ? this->tft_size_ : 4096) - 1;
+  uint32_t range_end = ((this->upload_first_chunk_sent_ || this->tft_size_ < 4096) ? this->tft_size_ : 4096) - 1;
   ESP_LOGD(TAG, "Range start: %" PRIu32, range_start);
-  if (range_size <= 0 or range_end <= range_start) {
+  if (range_size <= 0 || range_end <= range_start) {
     ESP_LOGE(TAG, "Invalid range end: %" PRIu32 ", size: %" PRIu32, range_end, range_size);
     return -1;
   }
@@ -34,7 +34,7 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
   ESP_LOGV(TAG, "Range: %s", range_header);
   http_client.addHeader("Range", range_header);
   int code = http_client.GET();
-  if (code != HTTP_CODE_OK and code != HTTP_CODE_PARTIAL_CONTENT) {
+  if (code != HTTP_CODE_OK && code != HTTP_CODE_PARTIAL_CONTENT) {
     ESP_LOGW(TAG, "HTTP failed: %s", HTTPClient::errorToString(code).c_str());
     return -1;
   }
@@ -80,12 +80,12 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
       recv_string.clear();
       this->write_array(buffer, buffer_size);
       App.feed_wdt();
-      this->recv_ret_string_(recv_string, upload_first_chunk_sent_ ? 500 : 5000, true);
+      this->recv_ret_string_(recv_string, this->upload_first_chunk_sent_ ? 500 : 5000, true);
       this->content_length_ -= read_len;
       const float upload_percentage = 100.0f * (this->tft_size_ - this->content_length_) / this->tft_size_;
       ESP_LOGD(TAG, "Upload: %0.2f%% (%" PRIu32 " left, heap: %" PRIu32 ")", upload_percentage, this->content_length_,
                EspClass::getFreeHeap());
-      upload_first_chunk_sent_ = true;
+      this->upload_first_chunk_sent_ = true;
       if (recv_string.empty()) {
         ESP_LOGW(TAG, "No response from display during upload");
         allocator.deallocate(buffer, 4096);
@@ -112,7 +112,7 @@ int Nextion::upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start) {
         allocator.deallocate(buffer, 4096);
         buffer = nullptr;
         return range_end + 1;
-      } else if (recv_string[0] != 0x05 and recv_string[0] != 0x08) {  // 0x05 == "ok"
+      } else if (recv_string[0] != 0x05 && recv_string[0] != 0x08) {  // 0x05 == "ok"
         char hex_buf[format_hex_pretty_size(NEXTION_MAX_RESPONSE_LOG_BYTES)];
         ESP_LOGE(
             TAG, "Invalid response: [%s]",
@@ -214,7 +214,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
     ++tries;
   }
 
-  if (code != 200 and code != 206) {
+  if (code != 200 && code != 206) {
     ESP_LOGE(TAG, "HTTP request failed with status %d", code);
     return this->upload_end_(false);
   }
