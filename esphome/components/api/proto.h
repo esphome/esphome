@@ -207,6 +207,22 @@ class ProtoWriteBuffer {
     }
     this->encode_varint_raw_slow_(value);
   }
+  /// Encode a varint that is expected to be 1-2 bytes (e.g. zigzag RSSI, small lengths).
+  /// Inlines both the 1-byte and 2-byte paths; falls back to slow path for 3+ bytes.
+  inline void ESPHOME_ALWAYS_INLINE encode_varint_raw_short(uint32_t value) {
+    if (value < 128) [[likely]] {
+      this->debug_check_bounds_(1);
+      *this->pos_++ = static_cast<uint8_t>(value);
+      return;
+    }
+    if (value < 16384) [[likely]] {
+      this->debug_check_bounds_(2);
+      *this->pos_++ = static_cast<uint8_t>(value | 0x80);
+      *this->pos_++ = static_cast<uint8_t>(value >> 7);
+      return;
+    }
+    this->encode_varint_raw_slow_(value);
+  }
   void encode_varint_raw_64(uint64_t value) {
     while (value > 0x7F) {
       this->debug_check_bounds_(1);
@@ -531,6 +547,17 @@ class ProtoSize {
       return varint_wide(value);
     return varint_slow(value);
   }
+  /// Size of a varint expected to be 1-2 bytes (e.g. zigzag RSSI, small lengths).
+  /// Inlines both checks; falls back to slow path for 3+ bytes.
+  static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE varint_short(uint32_t value) {
+    if (value < VARINT_THRESHOLD_1_BYTE) [[likely]]
+      return 1;
+    if (value < VARINT_THRESHOLD_2_BYTE) [[likely]]
+      return 2;
+    if (__builtin_is_constant_evaluated())
+      return varint_wide(value);
+    return varint_slow(value);
+  }
 
  private:
   // Slow path for varint >= 128, outlined to keep fast path small
@@ -645,10 +672,10 @@ class ProtoSize {
     return value ? field_id_size + 4 : 0;
   }
   static constexpr uint32_t calc_sint32(uint32_t field_id_size, int32_t value) {
-    return value ? field_id_size + varint(encode_zigzag32(value)) : 0;
+    return value ? field_id_size + varint_short(encode_zigzag32(value)) : 0;
   }
   static constexpr inline uint32_t ESPHOME_ALWAYS_INLINE calc_sint32_force(uint32_t field_id_size, int32_t value) {
-    return field_id_size + varint(encode_zigzag32(value));
+    return field_id_size + varint_short(encode_zigzag32(value));
   }
   static constexpr uint32_t calc_int64(uint32_t field_id_size, int64_t value) {
     return value ? field_id_size + varint(value) : 0;
