@@ -115,16 +115,6 @@ class Component {
 
   void set_setup_priority(float priority);
 
-  /** priority of loop(). higher -> executed earlier
-   *
-   * Defaults to 0.
-   *
-   * @return The loop priority of this component
-   */
-#ifdef USE_LOOP_PRIORITY
-  virtual float get_loop_priority() const;
-#endif
-
   void call();
 
   virtual void on_shutdown() {}
