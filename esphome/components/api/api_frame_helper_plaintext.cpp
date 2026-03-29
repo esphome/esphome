@@ -205,7 +205,6 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
       // Make sure to tell the remote that we don't
       // understand the indicator byte so it knows
       // we do not support it.
-      struct iovec iov[1];
       // The \x00 first byte is the marker for plaintext.
       //
       // The remote will know how to handle the indicator byte,
@@ -220,14 +219,12 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
                                                 "Bad indicator byte";
       char msg[INDICATOR_MSG_SIZE];
       memcpy_P(msg, MSG_PROGMEM, INDICATOR_MSG_SIZE);
-      iov[0].iov_base = (void *) msg;
+      this->write_raw_(msg, INDICATOR_MSG_SIZE);
 #else
       static const char MSG[] = "\x00"
                                 "Bad indicator byte";
-      iov[0].iov_base = (void *) MSG;
+      this->write_raw_(MSG, INDICATOR_MSG_SIZE);
 #endif
-      iov[0].iov_len = INDICATOR_MSG_SIZE;
-      this->write_raw_(iov, 1, INDICATOR_MSG_SIZE);
     }
     return aerr;
   }
@@ -294,9 +291,8 @@ APIError APIPlaintextFrameHelper::write_protobuf_packet(uint8_t type, ProtoWrite
   uint8_t *buffer_data = buffer.get_buffer()->data();
   uint8_t *msg_start = write_plaintext_header(buffer_data, msg, frame_header_padding_);
   uint8_t msg_header_len = static_cast<uint8_t>(buffer_data + frame_header_padding_ - msg_start);
-  size_t msg_len = static_cast<size_t>(msg_header_len + msg.payload_size);
-  struct iovec iov = {msg_start, msg_len};
-  return write_raw_(&iov, 1, static_cast<uint16_t>(msg_len));
+  uint16_t msg_len = static_cast<uint16_t>(msg_header_len + msg.payload_size);
+  return write_raw_(msg_start, msg_len);
 }
 
 APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer,

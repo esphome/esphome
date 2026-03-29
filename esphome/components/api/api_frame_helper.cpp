@@ -112,8 +112,54 @@ APIError APIFrameHelper::drain_overflow_and_handle_errors_() {
 }
 
 // Write data to socket, overflow to backlog buffer if LWIP TCP send buffer is full.
-// Returns OK if all data was sent or successfully queued.
-// Returns SOCKET_WRITE_FAILED on hard error (sets state to FAILED).
+// Single-buffer write path — avoids iovec setup for the common single-message case.
+APIError APIFrameHelper::write_raw_(const void *data, uint16_t len) {
+#ifdef HELPER_LOG_PACKETS
+  LOG_PACKET_SENDING(reinterpret_cast<const uint8_t *>(data), len);
+#endif
+
+  // Drain any existing backlog first
+  if (!this->overflow_buf_.empty()) [[unlikely]] {
+    APIError err = this->drain_overflow_and_handle_errors_();
+    if (err != APIError::OK)
+      return err;
+  }
+
+  // If backlog is clear, try direct send
+  if (this->overflow_buf_.empty()) [[likely]] {
+    ssize_t sent = this->socket_->write(data, len);
+
+    if (sent == -1) [[unlikely]] {
+      int err = errno;
+      if (this->check_socket_write_err_(err) != APIError::WOULD_BLOCK) {
+        HELPER_LOG("Socket write failed with errno %d", err);
+        return APIError::SOCKET_WRITE_FAILED;
+      }
+    } else if (static_cast<uint16_t>(sent) >= len) [[likely]] {
+      return APIError::OK;
+    } else {
+      // Partial write — queue remainder into overflow buffer
+      struct iovec iov = {const_cast<void *>(data), len};
+      if (!this->overflow_buf_.enqueue_iov(&iov, 1, len, static_cast<uint16_t>(sent))) {
+        HELPER_LOG("Overflow buffer full, dropping connection");
+        this->state_ = State::FAILED;
+        return APIError::SOCKET_WRITE_FAILED;
+      }
+      return APIError::OK;
+    }
+  }
+
+  // Socket not ready — queue all data into overflow buffer
+  struct iovec iov = {const_cast<void *>(data), len};
+  if (!this->overflow_buf_.enqueue_iov(&iov, 1, len, 0)) {
+    HELPER_LOG("Overflow buffer full, dropping connection");
+    this->state_ = State::FAILED;
+    return APIError::SOCKET_WRITE_FAILED;
+  }
+  return APIError::OK;
+}
+
+// Multi-buffer write path for batched messages.
 APIError APIFrameHelper::write_raw_(const struct iovec *iov, int iovcnt, uint16_t total_write_len) {
 #ifdef HELPER_LOG_PACKETS
   for (int i = 0; i < iovcnt; i++) {

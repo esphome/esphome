@@ -190,7 +190,9 @@ class APIFrameHelper {
   // Returns OK for transient errors (WOULD_BLOCK), SOCKET_WRITE_FAILED for hard errors.
   APIError drain_overflow_and_handle_errors_();
 
-  // Common implementation for writing raw data to socket
+  // Write a single contiguous buffer to the socket
+  APIError write_raw_(const void *data, uint16_t len);
+  // Write multiple iovec buffers to the socket in one writev call
   APIError write_raw_(const struct iovec *iov, int iovcnt, uint16_t total_write_len);
 
   // Check if a socket write errno is a hard error (not WOULD_BLOCK/EAGAIN).

@@ -499,11 +499,12 @@ APIError APINoiseFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuff
 
   MessageInfo msg{type, 0,
                   static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_ - frame_footer_size_)};
+  uint8_t *buf_start = buffer.get_buffer()->data();
   struct iovec iov;
-  aerr = this->encrypt_noise_message_(buffer.get_buffer()->data(), msg, iov);
+  aerr = this->encrypt_noise_message_(buf_start, msg, iov);
   if (aerr != APIError::OK)
     return aerr;
-  return this->write_raw_(&iov, 1, static_cast<uint16_t>(iov.iov_len));
+  return this->write_raw_(iov.iov_base, static_cast<uint16_t>(iov.iov_len));
 }
 
 APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) {
@@ -538,12 +539,12 @@ APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, uint16_t len) {
   header[1] = (uint8_t) (len >> 8);
   header[2] = (uint8_t) len;
 
+  if (len == 0) {
+    return this->write_raw_(header, 3);  // Just header
+  }
   struct iovec iov[2];
   iov[0].iov_base = header;
   iov[0].iov_len = 3;
-  if (len == 0) {
-    return this->write_raw_(iov, 1, 3);  // Just header
-  }
   iov[1].iov_base = const_cast<uint8_t *>(data);
   iov[1].iov_len = len;
 
