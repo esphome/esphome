@@ -64,3 +64,9 @@ sensor:
       name: LD15 Particulate Count >5.0um
     pm_10_0um:
       name: LD15 Particulate Count >10.0um
+  - platform: pmsx003
+    type: LD16
+    pm_2_5_std:
+      name: LD16 PM 2.5 Concentration
+    pm_0_3um:
+      name: LD16 Particulate Count >0.3um

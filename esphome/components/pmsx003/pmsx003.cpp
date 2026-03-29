@@ -239,7 +239,7 @@ void PMSX003Component::parse_data_() {
   if (this->pm_10_0_std_sensor_ != nullptr)
     this->pm_10_0_std_sensor_->publish_state(pm_10_0_std_concentration);
 
-  // LD15/LD16 have no atmospheric PM; their particle counts start at byte 10.
+  // Luftmy LD series (LD10/LD11/LD13/LD15/LD16) have no atmospheric PM; their particle counts start at byte 10.
   // All PMS types have atmospheric PM at bytes 10-15; particle counts start at byte 16.
   const bool is_ld = (this->type_ == Type::LD10 || this->type_ == Type::LD11 || this->type_ == Type::LD13 ||
                       this->type_ == Type::LD15 || this->type_ == Type::LD16);
