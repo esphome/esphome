@@ -219,15 +219,11 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
                                                 "Bad indicator byte";
       char msg[INDICATOR_MSG_SIZE];
       memcpy_P(msg, MSG_PROGMEM, INDICATOR_MSG_SIZE);
-      // Error path — use slow path directly to avoid inlining write_raw_ fast path
-      struct iovec iov = {msg, INDICATOR_MSG_SIZE};
-      this->write_raw_slow_(&iov, 1, INDICATOR_MSG_SIZE, -1);
+      this->write_raw_slow_(msg, INDICATOR_MSG_SIZE, -1);
 #else
       static const char MSG[] = "\x00"
                                 "Bad indicator byte";
-      // Error path — use slow path directly to avoid inlining write_raw_ fast path
-      struct iovec iov = {const_cast<char *>(MSG), INDICATOR_MSG_SIZE};
-      this->write_raw_slow_(&iov, 1, INDICATOR_MSG_SIZE, -1);
+      this->write_raw_slow_(MSG, INDICATOR_MSG_SIZE, -1);
 #endif
     }
     return aerr;

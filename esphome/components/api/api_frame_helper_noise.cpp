@@ -539,13 +539,13 @@ APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, uint16_t len) {
   header[1] = (uint8_t) (len >> 8);
   header[2] = (uint8_t) len;
 
-  // Handshake-only path — use slow path directly to avoid inlining write_raw_ fast path
+  if (len == 0) {
+    return this->write_raw_slow_(header, 3, -1);
+  }
+  // Handshake path — use iovec slow path directly to avoid inlining write_raw_ fast path
   struct iovec iov[2];
   iov[0].iov_base = header;
   iov[0].iov_len = 3;
-  if (len == 0) {
-    return this->write_raw_slow_(iov, 1, 3, -1);
-  }
   iov[1].iov_base = const_cast<uint8_t *>(data);
   iov[1].iov_len = len;
 
