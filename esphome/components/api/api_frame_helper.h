@@ -190,21 +190,33 @@ class APIFrameHelper {
   // Returns OK for transient errors (WOULD_BLOCK), SOCKET_WRITE_FAILED for hard errors.
   APIError drain_overflow_and_handle_errors_();
 
-  // Write a single contiguous buffer to the socket
-  APIError write_raw_(const void *data, uint16_t len);
-  // Write multiple iovec buffers to the socket in one writev call
-  APIError write_raw_(const struct iovec *iov, int iovcnt, uint16_t total_write_len);
-  // Slow path: queue unsent data into overflow buffer
-  APIError enqueue_overflow_(const struct iovec *iov, int iovcnt, uint16_t total_write_len, uint16_t skip);
-
-  // Check if a socket write errno is a hard error (not WOULD_BLOCK/EAGAIN).
-  // Returns WOULD_BLOCK for transient errors, SOCKET_WRITE_FAILED for hard errors.
-  APIError check_socket_write_err_(int err) {
-    if (err == EWOULDBLOCK || err == EAGAIN)
-      return APIError::WOULD_BLOCK;
-    this->state_ = State::FAILED;
-    return APIError::SOCKET_WRITE_FAILED;
+  // Write a single contiguous buffer to the socket (inlined fast path)
+  inline APIError ESPHOME_ALWAYS_INLINE write_raw_(const void *data, uint16_t len) {
+    // Fast path: no overflow backlog and full write succeeds
+    if (this->overflow_buf_.empty()) [[likely]] {
+      ssize_t sent = this->socket_->write(data, len);
+      if (sent == static_cast<ssize_t>(len)) [[likely]]
+        return APIError::OK;
+      // Slow path: wrap in iovec and handle error/overflow
+      struct iovec iov = {const_cast<void *>(data), len};
+      return this->write_raw_slow_(&iov, 1, len, sent);
+    }
+    struct iovec iov = {const_cast<void *>(data), len};
+    return this->write_raw_slow_(&iov, 1, len, -1);
   }
+  // Write multiple iovec buffers to the socket (inlined fast path)
+  inline APIError ESPHOME_ALWAYS_INLINE write_raw_(const struct iovec *iov, int iovcnt, uint16_t total_write_len) {
+    // Fast path: no overflow backlog and full writev succeeds
+    if (this->overflow_buf_.empty()) [[likely]] {
+      ssize_t sent = this->socket_->writev(iov, iovcnt);
+      if (sent == static_cast<ssize_t>(total_write_len)) [[likely]]
+        return APIError::OK;
+      return this->write_raw_slow_(iov, iovcnt, total_write_len, sent);
+    }
+    return this->write_raw_slow_(iov, iovcnt, total_write_len, -1);
+  }
+  // Slow path (out-of-line): handle partial writes, errors, overflow buffering
+  APIError write_raw_slow_(const struct iovec *iov, int iovcnt, uint16_t total_write_len, ssize_t sent);
 
   // Socket ownership (4 bytes on 32-bit, 8 bytes on 64-bit)
   std::unique_ptr<socket::Socket> socket_;
