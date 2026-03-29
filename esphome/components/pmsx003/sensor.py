@@ -47,6 +47,10 @@ TYPE_PMS5003S = "PMS5003S"
 TYPE_PMS5003T = "PMS5003T"
 TYPE_PMS5003ST = "PMS5003ST"
 TYPE_PMS9003M = "PMS9003M"
+TYPE_LD15 = (
+    "LD15"  # Luftmy LD15: PM1.0/2.5/10 STD + particle counts, no atmospheric PM values
+)
+TYPE_LD16 = "LD16"  # Luftmy LD16: identical protocol to LD15
 
 Type = pmsx003_ns.enum("Type", is_class=True)
 
@@ -58,6 +62,8 @@ PMSX003_TYPES = {
     TYPE_PMS5003T: Type.PMS5003T,
     TYPE_PMS5003ST: Type.PMS5003ST,
     TYPE_PMS9003M: Type.PMS9003M,
+    TYPE_LD15: Type.LD15,
+    TYPE_LD16: Type.LD16,
 }
 
 SENSORS_TO_TYPE = {
@@ -69,6 +75,8 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003T,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LD15,
+        TYPE_LD16,
     ],
     CONF_PM_2_5_STD: [
         TYPE_PMS1003,
@@ -78,6 +86,8 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003T,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LD15,
+        TYPE_LD16,
     ],
     CONF_PM_10_0_STD: [
         TYPE_PMS1003,
@@ -87,6 +97,8 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003T,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LD15,
+        TYPE_LD16,
     ],
     CONF_PM_1_0: [
         TYPE_PMS1003,
@@ -122,6 +134,8 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003T,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LD15,
+        TYPE_LD16,
     ],
     CONF_PM_0_5UM: [
         TYPE_PMS1003,
@@ -130,6 +144,8 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003T,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LD15,
+        TYPE_LD16,
     ],
     CONF_PM_1_0UM: [
         TYPE_PMS1003,
@@ -138,6 +154,8 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003T,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LD15,
+        TYPE_LD16,
     ],
     CONF_PM_2_5UM: [
         TYPE_PMS1003,
@@ -146,6 +164,8 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003T,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LD15,
+        TYPE_LD16,
     ],
     CONF_PM_5_0UM: [
         TYPE_PMS1003,
@@ -153,6 +173,8 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003S,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LD15,
+        TYPE_LD16,
     ],
     CONF_PM_10_0UM: [
         TYPE_PMS1003,
@@ -160,6 +182,8 @@ SENSORS_TO_TYPE = {
         TYPE_PMS5003S,
         TYPE_PMS5003ST,
         TYPE_PMS9003M,
+        TYPE_LD15,
+        TYPE_LD16,
     ],
     CONF_FORMALDEHYDE: [TYPE_PMS5003S, TYPE_PMS5003ST],
     CONF_TEMPERATURE: [TYPE_PMS5003T, TYPE_PMS5003ST],

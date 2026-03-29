@@ -15,6 +15,8 @@ enum class Type : uint8_t {
   PMS5003T,
   PMS5003ST,
   PMS9003M,
+  LD15,  // Luftmy LD15: PM1.0/2.5/10 STD + particle counts, no atmospheric PM values
+  LD16,  // Luftmy LD16: identical protocol to LD15
 };
 
 enum class Command : uint8_t {
