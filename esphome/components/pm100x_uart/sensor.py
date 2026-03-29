@@ -58,7 +58,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(uart.UART_DEVICE_SCHEMA)
-    .extend(cv.polling_component_schema("never"))
+    .extend(cv.polling_component_schema("60s"))
 )
 
 

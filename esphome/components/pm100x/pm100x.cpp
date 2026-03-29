@@ -15,7 +15,7 @@ static const char *model_to_string(PM100XModel model) {
     case PM100XModel::PM1006K:
       return "pm1006k";
   }
-  return "unknown";
+  __builtin_unreachable();
 }
 
 void PM100XComponent::setup() {

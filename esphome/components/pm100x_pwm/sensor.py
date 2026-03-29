@@ -8,11 +8,9 @@ from esphome.const import (
     CONF_PIN,
     CONF_PM_2_5,
     CONF_STARTUP_DELAY,
-    CONF_UPDATE_INTERVAL,
     DEVICE_CLASS_PM25,
     ICON_BLUR,
     ICON_PERCENT,
-    SCHEDULER_DONT_RUN,
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
     UNIT_PERCENT,
@@ -90,8 +88,6 @@ async def to_code(config):
         pin = await cg.gpio_pin_expression(pwm_conf[CONF_PIN])
         cg.add(pwm.set_pin(pin))
 
-        if pwm_conf[CONF_UPDATE_INTERVAL].total_milliseconds != SCHEDULER_DONT_RUN:
-            cg.add(pwm.set_update_interval(pwm_conf[CONF_UPDATE_INTERVAL]))
         cg.add(var.set_pwm_sensor(pwm))
 
     cg.add(var.set_startup_delay(config[CONF_STARTUP_DELAY].total_milliseconds))

@@ -1,0 +1,12 @@
+sensor:
+  # UART mode - PM1003 (duty-cycle based PM2.5)
+  - platform: pm100x_uart
+    model: PM1003
+    pm_2_5:
+      name: PM1003 UART PM2.5
+
+  # UART mode - PM1006 (direct PM2.5 value)
+  - platform: pm100x_uart
+    model: PM1006
+    pm_2_5:
+      name: PM1006 UART PM2.5
