@@ -539,12 +539,12 @@ APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, uint16_t len) {
   header[1] = (uint8_t) (len >> 8);
   header[2] = (uint8_t) len;
 
-  if (len == 0) {
-    return this->write_raw_(header, 3);  // Just header
-  }
   struct iovec iov[2];
   iov[0].iov_base = header;
   iov[0].iov_len = 3;
+  if (len == 0) {
+    return this->write_raw_(iov, 1, 3);  // Just header
+  }
   iov[1].iov_base = const_cast<uint8_t *>(data);
   iov[1].iov_len = len;
 
