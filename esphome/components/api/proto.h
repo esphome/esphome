@@ -544,7 +544,9 @@ class ProtoDecodableMessage : public ProtoMessage {
   // Default decode() for messages with no decode fields (all return false).
   void decode(const uint8_t *buffer, size_t length) { proto_decode_message(this, buffer, length, nullptr); }
 
- protected:
+ public:
+  // Public destructor needed because some messages (DSTRule, ParsedTimezone)
+  // are used as value-type members in other messages.
   ~ProtoDecodableMessage() = default;
 };
 
