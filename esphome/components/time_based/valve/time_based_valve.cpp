@@ -161,7 +161,7 @@ void TimeBasedValve::start_direction_(ValveOperation dir) {
 
   this->current_operation = dir;
 
-  const uint32_t now = millis();
+  const uint32_t now = this->get_millis();
   this->last_recompute_time_ = now;
 
   this->stop_prev_trigger_();
@@ -198,21 +198,18 @@ void TimeBasedValve::recompute_position_() {
       return;
   }
 
-  const uint32_t now = millis();
+  const uint32_t now = this->get_millis();
   float distance = dir * (now - this->last_recompute_time_) / this->duration_;
   this->last_recompute_time_ = now;
 
-  bool endstop_reached = (this->measured_position_max_ - this->measured_position_min_) >= 1;
   this->measured_position_ += distance;
   this->measured_position_ = clamp(this->measured_position_, -1.0f, 1.0f);
-  if (!endstop_reached) {
-    if (this->measured_position_ > this->measured_position_max_) {
-      this->measured_position_max_ = this->measured_position_;
-    }
-    if (this->measured_position_ < this->measured_position_min_) {
-      this->measured_position_min_ = this->measured_position_;
-    }
+  if (this->measured_position_ > this->measured_position_max_) {
+    this->measured_position_max_ = this->measured_position_;
+  } else if (this->measured_position_ < this->measured_position_min_) {
+    this->measured_position_min_ = this->measured_position_;
   }
+  bool endstop_reached = (this->measured_position_max_ - this->measured_position_min_) >= 1.0f;
 
   if (endstop_reached && std::isnan(this->position)) {
     // Full duration traveled -> position is now known

@@ -15,7 +15,7 @@ enum TimeBasedValveRestoreMode {
   VALVE_ALWAYS_CLOSED,
 };
 
-class TimeBasedValve final : public valve::Valve, public Component {
+class TimeBasedValve : public valve::Valve, public Component {
  public:
   void setup() override;
   void loop() override;
@@ -37,6 +37,7 @@ class TimeBasedValve final : public valve::Valve, public Component {
   void start_direction_(valve::ValveOperation dir);
   bool is_at_target_() const;
   void recompute_position_();
+  virtual uint32_t get_millis() { return millis(); }
 
   TimeBasedValveRestoreMode restore_mode_{VALVE_NO_RESTORE};
   uint32_t duration_;
