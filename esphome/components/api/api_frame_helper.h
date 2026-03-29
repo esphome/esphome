@@ -200,7 +200,8 @@ class APIFrameHelper {
       if (sent == static_cast<ssize_t>(len)) [[likely]]
         return APIError::OK;
     }
-    return this->write_raw_slow_(data, len, sent);
+    struct iovec iov = {const_cast<void *>(data), len};
+    return this->write_raw_slow_(&iov, 1, len, sent);
   }
   inline APIError ESPHOME_ALWAYS_INLINE write_raw_fast_(const struct iovec *iov, int iovcnt, uint16_t total_write_len) {
     ssize_t sent = -1;
@@ -212,9 +213,7 @@ class APIFrameHelper {
     return this->write_raw_slow_(iov, iovcnt, total_write_len, sent);
   }
 
-  // Write methods — used by cold paths (handshake, error handling)
-  // These go through the slow path directly, avoiding inlining the fast path at the call site.
-  APIError write_raw_slow_(const void *data, uint16_t len, ssize_t sent);
+  // Slow path (out-of-line): handle partial writes, errors, overflow buffering
   APIError write_raw_slow_(const struct iovec *iov, int iovcnt, uint16_t total_write_len, ssize_t sent);
 
   // Socket ownership (4 bytes on 32-bit, 8 bytes on 64-bit)
