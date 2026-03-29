@@ -1,13 +1,19 @@
 esphome:
   on_boot:
     then:
-      - uart.write: 'Hello World'
-      - uart.write: [0x00, 0x20, 0x42]
-      - uart.write: !lambda |-
-          return {0xAA, 0xBB, 0xCC};
+      - uart.write:
+          id: uart_id
+          data: 'Hello World'
+      - uart.write:
+          id: uart_id
+          data: [0x00, 0x20, 0x42]
+      - uart.write:
+          id: uart_id
+          data: !lambda |-
+            return {0xAA, 0xBB, 0xCC};
 
 uart:
-  - id: uart_uart
+  - id: uart_id
     tx_pin: 17
     rx_pin: 16
     flow_control_pin: 4
@@ -18,32 +24,54 @@ uart:
     rx_timeout: 1
     parity: EVEN
     stop_bits: 2
+  - id: uart_debug
+    tx_pin: 21
+    rx_pin: 22
+    baud_rate: 115200
+    debug:
+      debug_prefix: "[UART1] "
+  - id: uart_debug_custom
+    tx_pin: 25
+    rx_pin: 26
+    baud_rate: 9600
+    debug:
+      debug_prefix: "[UART2] "
+      after:
+        delimiter: "\n"
+      sequence:
+        - lambda: UARTDebug::log_string(direction, bytes, debug_prefix);
+  - id: uart_debug_no_prefix
+    tx_pin: 32
+    rx_pin: 33
+    baud_rate: 9600
+    debug:
 
 packet_transport:
   - platform: uart
+    uart_id: uart_id
 
 switch:
   # Test uart switch with single state (array)
   - platform: uart
     name: "UART Switch Single Array"
-    uart_id: uart_uart
+    uart_id: uart_id
     data: [0x01, 0x02, 0x03]
   # Test uart switch with single state (string)
   - platform: uart
     name: "UART Switch Single String"
-    uart_id: uart_uart
+    uart_id: uart_id
     data: "ON"
   # Test uart switch with turn_on/turn_off (arrays)
   - platform: uart
     name: "UART Switch Dual Array"
-    uart_id: uart_uart
+    uart_id: uart_id
     data:
       turn_on: [0xA0, 0xA1, 0xA2]
       turn_off: [0xB0, 0xB1, 0xB2]
   # Test uart switch with turn_on/turn_off (strings)
   - platform: uart
     name: "UART Switch Dual String"
-    uart_id: uart_uart
+    uart_id: uart_id
     data:
       turn_on: "TURN_ON"
       turn_off: "TURN_OFF"
@@ -61,24 +89,26 @@ button:
   # Test uart button with array data
   - platform: uart
     name: "UART Button Array"
-    uart_id: uart_uart
+    uart_id: uart_id
     data: [0xFF, 0xEE, 0xDD]
   # Test uart button with string data
   - platform: uart
     name: "UART Button String"
-    uart_id: uart_uart
+    uart_id: uart_id
     data: "BUTTON_PRESS"
   # Test uart button with lambda (function pointer)
   - platform: template
     name: "UART Lambda Test"
     on_press:
-      - uart.write: !lambda |-
-          std::string cmd = "VALUE=" + str_sprintf("%.0f", id(test_number).state) + "\r\n";
-          return std::vector<uint8_t>(cmd.begin(), cmd.end());
+      - uart.write:
+          id: uart_id
+          data: !lambda |-
+            std::string cmd = "VALUE=" + str_sprintf("%.0f", id(test_number).state) + "\r\n";
+            return std::vector<uint8_t>(cmd.begin(), cmd.end());
 
 event:
   - platform: uart
-    uart_id: uart_uart
+    uart_id: uart_id
     name: "UART Event"
     event_types:
       - "string_event_A": "*A#"

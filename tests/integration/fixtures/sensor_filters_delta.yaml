@@ -28,6 +28,11 @@ sensor:
     id: source_sensor_4
     accuracy_decimals: 1
 
+  - platform: template
+    name: "Source Sensor 5"
+    id: source_sensor_5
+    accuracy_decimals: 1
+
   - platform: copy
     source_id: source_sensor_1
     name: "Filter Min"
@@ -68,6 +73,13 @@ sensor:
     id: filter_zero_delta
     filters:
       - delta: 0
+
+  - platform: copy
+    source_id: source_sensor_5
+    name: "Filter Percentage"
+    id: filter_percentage
+    filters:
+      - delta: 50%
 
 script:
   - id: test_filter_min
@@ -154,6 +166,28 @@ script:
           id: source_sensor_4
           state: 2.0
 
+  - id: test_filter_percentage
+    then:
+      - sensor.template.publish:
+          id: source_sensor_5
+          state: 100.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_5
+          state: 120.0  # Filtered out (delta=20, need >50)
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_5
+          state: 160.0  # Passes (delta=60 > 50% of 100=50)
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_5
+          state: 200.0  # Filtered out (delta=40, need >50% of 160=80)
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor_5
+          state: 250.0  # Passes (delta=90 > 80)
+
 button:
   - platform: template
     name: "Test Filter Min"
@@ -178,3 +212,9 @@ button:
     id: btn_filter_zero_delta
     on_press:
       - script.execute: test_filter_zero_delta
+
+  - platform: template
+    name: "Test Filter Percentage"
+    id: btn_filter_percentage
+    on_press:
+      - script.execute: test_filter_percentage

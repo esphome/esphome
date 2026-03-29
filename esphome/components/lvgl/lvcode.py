@@ -168,6 +168,9 @@ class LambdaContext(CodeContext):
     def get_automation_parameters(self) -> list[tuple[SafeExpType, str]]:
         return self.parameters
 
+    def get_parameter(self, index: int):
+        return literal(self.parameters[index][1])
+
     async def __aenter__(self):
         await super().__aenter__()
         add_line_marks(self.where)
@@ -250,10 +253,14 @@ class MockLv:
     A mock object that can be used to generate LVGL calls.
     """
 
+    # Mapping for LVGL 9
+    ATTR_MAP = {"event_send": "obj_send_event", "dither": "bg_dither_mode"}
+
     def __init__(self, base):
         self.base = base
 
     def __getattr__(self, attr: str) -> "MockLv":
+        attr = MockLv.ATTR_MAP.get(attr, attr)
         return MockLv(f"{self.base}{attr}")
 
     def append(self, expression):
@@ -307,6 +314,7 @@ class ReturnStatement(ExpressionStatement):
 
 class LvExpr(MockLv):
     def __getattr__(self, attr: str) -> "MockLv":
+        attr = MockLv.ATTR_MAP.get(attr, attr)
         return LvExpr(f"{self.base}{attr}")
 
     def append(self, expression):

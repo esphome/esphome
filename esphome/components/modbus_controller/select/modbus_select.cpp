@@ -52,7 +52,7 @@ void ModbusSelect::control(size_t index) {
     // Transform func requires string parameter for backward compatibility
     auto val = (*this->write_transform_func_)(this, std::string(option), *mapval, data);
     if (val.has_value()) {
-      mapval = *val;
+      mapval = val;
       ESP_LOGV(TAG, "write_lambda returned mapping value %lld", *mapval);
     } else {
       ESP_LOGD(TAG, "Communication handled by write_lambda - exiting control");

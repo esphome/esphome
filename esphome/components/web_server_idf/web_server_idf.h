@@ -3,17 +3,20 @@
 
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/string_ref.h"
 #include <esp_http_server.h>
 
 #include <atomic>
 #include <functional>
 #include <list>
 #include <map>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
 
 #ifdef USE_WEBSERVER
+#include "esphome/components/json/json_util.h"
 #include "esphome/components/web_server/list_entities.h"
 #endif
 
@@ -110,8 +113,16 @@ class AsyncWebServerRequest {
   ~AsyncWebServerRequest();
 
   http_method method() const { return static_cast<http_method>(this->req_->method); }
-  std::string url() const;
-  std::string host() const;
+  static constexpr size_t URL_BUF_SIZE = CONFIG_HTTPD_MAX_URI_LEN + 1;  ///< Buffer size for url_to()
+  /// Write URL (without query string) to buffer, returns StringRef pointing to buffer.
+  /// URL is decoded (e.g., %20 -> space).
+  StringRef url_to(std::span<char, URL_BUF_SIZE> buffer) const;
+  // Remove before 2026.9.0
+  ESPDEPRECATED("Use url_to() instead. Removed in 2026.9.0", "2026.3.0")
+  std::string url() const {
+    char buffer[URL_BUF_SIZE];
+    return std::string(this->url_to(buffer));
+  }
   // NOLINTNEXTLINE(readability-identifier-naming)
   size_t contentLength() const { return this->req_->content_len; }
 
@@ -123,8 +134,17 @@ class AsyncWebServerRequest {
 
   void redirect(const std::string &url);
 
-  void send(AsyncWebServerResponse *response);
-  void send(int code, const char *content_type = nullptr, const char *content = nullptr);
+  inline void ESPHOME_ALWAYS_INLINE send(AsyncWebServerResponse *response) {
+    httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
+  }
+  inline void ESPHOME_ALWAYS_INLINE send(int code, const char *content_type = nullptr, const char *content = nullptr) {
+    this->init_response_(nullptr, code, content_type);
+    if (content) {
+      httpd_resp_send(*this, content, HTTPD_RESP_USE_STRLEN);
+    } else {
+      httpd_resp_send(*this, nullptr, 0);
+    }
+  }
   // NOLINTNEXTLINE(readability-identifier-naming)
   AsyncWebServerResponse *beginResponse(int code, const char *content_type) {
     auto *res = new AsyncWebServerResponseEmpty(this);  // NOLINT(cppcoreguidelines-owning-memory)
@@ -152,19 +172,18 @@ class AsyncWebServerRequest {
   }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
-  bool hasParam(const std::string &name) { return this->getParam(name) != nullptr; }
+  bool hasParam(const char *name) { return this->getParam(name) != nullptr; }
   // NOLINTNEXTLINE(readability-identifier-naming)
-  AsyncWebParameter *getParam(const std::string &name);
+  bool hasParam(const std::string &name) { return this->getParam(name.c_str()) != nullptr; }
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  AsyncWebParameter *getParam(const char *name);
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  AsyncWebParameter *getParam(const std::string &name) { return this->getParam(name.c_str()); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
-  bool hasArg(const char *name) { return this->hasParam(name); }
-  std::string arg(const std::string &name) {
-    auto *param = this->getParam(name);
-    if (param) {
-      return param->value();
-    }
-    return {};
-  }
+  bool hasArg(const char *name);
+  std::string arg(const char *name);
+  std::string arg(const std::string &name) { return this->arg(name.c_str()); }
 
   operator httpd_req_t *() const { return this->req_; }
   optional<std::string> get_header(const char *name) const;
@@ -178,6 +197,7 @@ class AsyncWebServerRequest {
   // is faster than tree/hash overhead. AsyncWebParameter stores both name and value to avoid
   // duplicate storage. Only successful lookups are cached to prevent cache pollution when
   // handlers check for optional parameters that don't exist.
+  optional<std::string> find_query_value_(const char *name) const;
   std::vector<AsyncWebParameter *> params_;
   std::string post_query_;
   AsyncWebServerRequest(httpd_req_t *req) : req_(req) {}
@@ -193,7 +213,7 @@ class AsyncWebServer {
   ~AsyncWebServer() { this->end(); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
-  void onNotFound(std::function<void(AsyncWebServerRequest *request)> fn) { on_not_found_ = std::move(fn); }
+  void onNotFound(std::function<void(AsyncWebServerRequest *request)> &&fn) { on_not_found_ = std::move(fn); }
 
   void begin();
   void end();
@@ -240,14 +260,14 @@ class AsyncWebHandler {
 class AsyncEventSource;
 class AsyncEventSourceResponse;
 
-using message_generator_t = std::string(esphome::web_server::WebServer *, void *);
+using message_generator_t = json::SerializationBuffer<>(esphome::web_server::WebServer *, void *);
 
 /*
   This class holds a pointer to the source component that wants to publish a state event, and a pointer to a function
   that will lazily generate that event.  The two pointers allow dedup in the deferred queue if multiple publishes for
-  the same component are backed up, and take up only 8 bytes of memory.  The entry in the deferred queue (a
-  std::vector) is the DeferredEvent instance itself (not a pointer to one elsewhere in heap) so still only 8 bytes per
-  entry (and no heap fragmentation).  Even 100 backed up events (you'd have to have at least 100 sensors publishing
+  the same component are backed up, and take up only two pointers of memory.  The entry in the deferred queue (a
+  std::vector) is the DeferredEvent instance itself (not a pointer to one elsewhere in heap) so still only two pointers
+  per entry (and no heap fragmentation).  Even 100 backed up events (you'd have to have at least 100 sensors publishing
   because of dedup) would take up only 0.8 kB.
 */
 struct DeferredEvent {
@@ -263,7 +283,9 @@ struct DeferredEvent {
   bool operator==(const DeferredEvent &test) const {
     return (source_ == test.source_ && message_generator_ == test.message_generator_);
   }
-} __attribute__((packed));
+};
+static_assert(sizeof(DeferredEvent) == sizeof(void *) + sizeof(message_generator_t *),
+              "DeferredEvent should have no padding");
 
 class AsyncEventSourceResponse {
   friend class AsyncEventSource;
@@ -306,12 +328,15 @@ class AsyncEventSource : public AsyncWebHandler {
 
   // NOLINTNEXTLINE(readability-identifier-naming)
   bool canHandle(AsyncWebServerRequest *request) const override {
-    return request->method() == HTTP_GET && request->url() == this->url_;
+    if (request->method() != HTTP_GET)
+      return false;
+    char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
+    return request->url_to(url_buf) == this->url_;
   }
   // NOLINTNEXTLINE(readability-identifier-naming)
   void handleRequest(AsyncWebServerRequest *request) override;
   // NOLINTNEXTLINE(readability-identifier-naming)
-  void onConnect(connect_handler_t cb) { this->on_connect_ = std::move(cb); }
+  void onConnect(connect_handler_t &&cb) { this->on_connect_ = std::move(cb); }
 
   void try_send_nodefer(const char *message, const char *event = nullptr, uint32_t id = 0, uint32_t reconnect = 0);
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
