@@ -58,7 +58,7 @@ class Decoder {
   const char *decode();
 
  protected:
-  const LogString *find_opcode_name_(uint32_t opcode) const;
+  const char *find_opcode_name_(uint32_t opcode) const;
   void address_decode_();
 
   /**
@@ -73,7 +73,7 @@ class Decoder {
    */
   using OperandDecode_f = bool (Decoder::*)();
   struct FrameType {
-    const LogString *name_;           // name of the operation (of the op_code)
+    const char *name_;                // name of the operation (of the op_code)
     const OperandDecode_f decode_f_;  // a pointer to the corresponding 'do_operand_()' method
   };
 
@@ -166,36 +166,23 @@ class Decoder {
    * @return true if a further operand shall be decoded, false to terminate operand decoding
    */
   bool append_operand_(const char *word, uint8_t offset_incr = 1);
-  bool append_operand_(const LogString *word, uint8_t offset_incr = 1);
 
   /**
    * Append one word, determined by the operand value as index to an array of names
    * @return true if a further operand shall be decoded, false to terminate operand decoding
    */
-  template<typename STRING_TABLE> bool append_operand_() {
+  template<uint32_t N_STRINGS> bool append_operand_(const std::array<const char *, N_STRINGS> &strings) {
     uint32_t operand_value = frame_[offset_];
-    const LogString *s = STRING_TABLE::get_log_str(operand_value, STRING_TABLE::LAST_INDEX);
+    const char *s = (operand_value < N_STRINGS) ? strings[operand_value] : "?";
     return append_operand_(s);
-  }
-
-  /**
-   * Increment the 'length_' of the current text in 'line_' from the
-   * 'nchars' return value of a preceding 'snprintf'.
-   */
-  void incr_length_(int nchars) {
-    length_ += std::max(nchars, 0);
-    if (length_ >= line_.size()) {
-      // 'snprintf' exceeded length of buffer, keep the trailing '\0'.
-      length_ = line_.size() - 1;
-    }
   }
 
   /**
    * String tables used in the subsequent 'do_operand' decode functions
    */
-  // const static std::array<const char *, 0x77> UI_COMMANDS;
-  // const static std::array<const char *, 0x11> AUDIO_FORMATS;
-  // const static std::array<const char *, 8> AUDIO_SAMPLERATES;
+  const static std::array<const char *, 0x77> UI_COMMANDS;
+  const static std::array<const char *, 0x11> AUDIO_FORMATS;
+  const static std::array<const char *, 8> AUDIO_SAMPLERATES;
   const static CecOpcodeTable CEC_OPCODE_TABLE;
   const static VendorIdTable VENDOR_IDS;
 };  // class Decoder
