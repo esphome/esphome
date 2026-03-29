@@ -15,7 +15,7 @@ class InternalTemperatureSensor : public sensor::Sensor, public PollingComponent
 
  protected:
 #if defined(USE_ZEPHYR) && defined(USE_NRF52)
-  void poll_nrf52_temperature(uint8_t attempts_left);
+  void poll_nrf52_temperature_(uint8_t attempts_left);
 #endif  // USE_ZEPHYR && USE_NRF52
 };
 

@@ -49,7 +49,7 @@ void InternalTemperatureSensor::update() {
   nrf_temp_event_clear(NRF_TEMP, NRF_TEMP_EVENT_DATARDY);
   nrf_temp_task_trigger(NRF_TEMP, NRF_TEMP_TASK_START);
   this->set_timeout(NRF52_TEMP_READY_TIMEOUT_ID, NRF52_TEMP_POLL_DELAY_MS,
-                    [this]() { this->poll_nrf52_temperature(NRF52_TEMP_MAX_POLLS); });
+                    [this]() { this->poll_nrf52_temperature_(NRF52_TEMP_MAX_POLLS); });
   return;
 #endif  // USE_ZEPHYR && USE_NRF52
 
@@ -99,11 +99,11 @@ void InternalTemperatureSensor::update() {
 }
 
 #if defined(USE_ZEPHYR) && defined(USE_NRF52)
-void InternalTemperatureSensor::poll_nrf52_temperature(uint8_t attempts_left) {
+void InternalTemperatureSensor::poll_nrf52_temperature_(uint8_t attempts_left) {
   if (!nrf_temp_event_check(NRF_TEMP, NRF_TEMP_EVENT_DATARDY)) {
     if (attempts_left > 0) {
       this->set_timeout(NRF52_TEMP_READY_TIMEOUT_ID, NRF52_TEMP_POLL_DELAY_MS,
-                        [this, attempts_left]() { this->poll_nrf52_temperature(attempts_left - 1); });
+                        [this, attempts_left]() { this->poll_nrf52_temperature_(attempts_left - 1); });
       return;
     }
 
