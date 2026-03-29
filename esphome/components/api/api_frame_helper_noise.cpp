@@ -488,9 +488,32 @@ APIError APINoiseFrameHelper::encrypt_noise_message_(uint8_t *buf_start, const M
   return APIError::OK;
 }
 
-// Outlined multi-message path to keep the single-message fast path's stack frame small.
-APIError __attribute__((noinline))
-APINoiseFrameHelper::write_protobuf_messages_batch_(uint8_t *buffer_data, std::span<const MessageInfo> messages) {
+APIError APINoiseFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
+#ifdef ESPHOME_DEBUG_API
+  assert(this->state_ == State::DATA);
+#endif
+
+  // Resize buffer to include footer space for Noise MAC
+  if (frame_footer_size_)
+    buffer.get_buffer()->resize(buffer.get_buffer()->size() + frame_footer_size_);
+
+  MessageInfo msg{type, 0,
+                  static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_ - frame_footer_size_)};
+  uint8_t *buf_start = buffer.get_buffer()->data();
+  struct iovec iov;
+  APIError aerr = this->encrypt_noise_message_(buf_start, msg, iov);
+  if (aerr != APIError::OK)
+    return aerr;
+  return this->write_raw_fast_buf_(iov.iov_base, static_cast<uint16_t>(iov.iov_len));
+}
+
+APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) {
+#ifdef ESPHOME_DEBUG_API
+  assert(this->state_ == State::DATA);
+  assert(!messages.empty());
+#endif
+
+  uint8_t *buffer_data = buffer.get_buffer()->data();
   StaticVector<struct iovec, MAX_MESSAGES_PER_BATCH> iovs;
   uint16_t total_write_len = 0;
 
@@ -504,33 +527,7 @@ APINoiseFrameHelper::write_protobuf_messages_batch_(uint8_t *buffer_data, std::s
     total_write_len += iov.iov_len;
   }
 
-  return this->write_raw_(iovs.data(), iovs.size(), total_write_len);
-}
-
-APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) {
-  APIError aerr = this->check_data_state_();
-  if (aerr != APIError::OK)
-    return aerr;
-
-  if (messages.empty()) {
-    return APIError::OK;
-  }
-
-  uint8_t *buffer_data = buffer.get_buffer()->data();
-
-  if (messages.size() == 1) [[likely]] {
-    // Peeled first iteration: single-message case (most common path via write_protobuf_packet)
-    // avoids StaticVector stack allocation and loop overhead
-    const auto &first = messages[0];
-    struct iovec iov;
-    aerr = this->encrypt_noise_message_(buffer_data + first.offset, first, iov);
-    if (aerr != APIError::OK)
-      return aerr;
-    return this->write_raw_(&iov, 1, static_cast<uint16_t>(iov.iov_len));
-  }
-
-  // Multiple messages: outlined to avoid large stack frame on single-message path
-  return this->write_protobuf_messages_batch_(buffer_data, messages);
+  return this->write_raw_fast_iov_(iovs.data(), iovs.size(), total_write_len);
 }
 
 APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, uint16_t len) {
@@ -539,16 +536,16 @@ APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, uint16_t len) {
   header[1] = (uint8_t) (len >> 8);
   header[2] = (uint8_t) len;
 
+  if (len == 0) {
+    return this->write_raw_buf_(header, 3);
+  }
   struct iovec iov[2];
   iov[0].iov_base = header;
   iov[0].iov_len = 3;
-  if (len == 0) {
-    return this->write_raw_(iov, 1, 3);  // Just header
-  }
   iov[1].iov_base = const_cast<uint8_t *>(data);
   iov[1].iov_len = len;
 
-  return this->write_raw_(iov, 2, 3 + len);  // Header + data
+  return this->write_raw_iov_(iov, 2, 3 + len);
 }
 
 /** Initiate the data structures for the handshake.

@@ -161,17 +161,13 @@ class APIFrameHelper {
       this->nodelay_counter_ = 0;
     }
   }
-  APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
-    // Resize buffer to include footer space if needed (e.g. Noise MAC)
-    if (frame_footer_size_)
-      buffer.get_buffer()->resize(buffer.get_buffer()->size() + frame_footer_size_);
-    MessageInfo msg{type, 0,
-                    static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_ - frame_footer_size_)};
-    return write_protobuf_messages(buffer, std::span<const MessageInfo>(&msg, 1));
-  }
-  // Write multiple protobuf messages in a single operation
-  // messages contains (message_type, offset, length) for each message in the buffer
-  // The buffer contains all messages with appropriate padding before each
+  // Write a single protobuf message - the hot path (87-100% of all writes).
+  // Caller must ensure state is DATA before calling.
+  virtual APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) = 0;
+  // Write multiple protobuf messages in a single batched operation.
+  // Caller must ensure state is DATA and messages is not empty.
+  // messages contains (message_type, offset, length) for each message in the buffer.
+  // The buffer contains all messages with appropriate padding before each.
   virtual APIError write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) = 0;
   // Get the frame header padding required by this protocol
   uint8_t frame_header_padding() const { return frame_header_padding_; }
@@ -196,17 +192,32 @@ class APIFrameHelper {
   // Returns OK for transient errors (WOULD_BLOCK), SOCKET_WRITE_FAILED for hard errors.
   APIError drain_overflow_and_handle_errors_();
 
-  // Common implementation for writing raw data to socket
-  APIError write_raw_(const struct iovec *iov, int iovcnt, uint16_t total_write_len);
-
-  // Check if a socket write errno is a hard error (not WOULD_BLOCK/EAGAIN).
-  // Returns WOULD_BLOCK for transient errors, SOCKET_WRITE_FAILED for hard errors.
-  APIError check_socket_write_err_(int err) {
-    if (err == EWOULDBLOCK || err == EAGAIN)
-      return APIError::WOULD_BLOCK;
-    this->state_ = State::FAILED;
-    return APIError::SOCKET_WRITE_FAILED;
+  // Inlined write methods — used by hot paths (write_protobuf_packet, write_protobuf_messages)
+  // These inline the fast path (overflow empty + full write) and tail-call the out-of-line
+  // slow path only on failure/partial write.
+  inline APIError ESPHOME_ALWAYS_INLINE write_raw_fast_buf_(const void *data, uint16_t len) {
+    ssize_t sent = -1;
+    if (this->overflow_buf_.empty()) [[likely]] {
+      sent = this->socket_->write(data, len);
+      if (sent == static_cast<ssize_t>(len)) [[likely]]
+        return APIError::OK;
+    }
+    return this->write_raw_buf_(data, len, sent);
   }
+  inline APIError ESPHOME_ALWAYS_INLINE write_raw_fast_iov_(const struct iovec *iov, int iovcnt,
+                                                            uint16_t total_write_len) {
+    ssize_t sent = -1;
+    if (this->overflow_buf_.empty()) [[likely]] {
+      sent = this->socket_->writev(iov, iovcnt);
+      if (sent == static_cast<ssize_t>(total_write_len)) [[likely]]
+        return APIError::OK;
+    }
+    return this->write_raw_iov_(iov, iovcnt, total_write_len, sent);
+  }
+
+  // Out-of-line write paths: handle partial writes, errors, overflow buffering
+  APIError write_raw_buf_(const void *data, uint16_t len, ssize_t sent = -1);
+  APIError write_raw_iov_(const struct iovec *iov, int iovcnt, uint16_t total_write_len, ssize_t sent = -1);
 
   // Socket ownership (4 bytes on 32-bit, 8 bytes on 64-bit)
   std::unique_ptr<socket::Socket> socket_;

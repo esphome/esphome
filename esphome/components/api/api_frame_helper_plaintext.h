@@ -19,11 +19,11 @@ class APIPlaintextFrameHelper final : public APIFrameHelper {
   APIError init() override;
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;
+  APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) override;
   APIError write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) override;
 
  protected:
   APIError try_read_frame_();
-  APIError write_protobuf_messages_batch_(uint8_t *buffer_data, std::span<const MessageInfo> messages);
 
   // Group 2-byte aligned types
   uint16_t rx_header_parsed_type_ = 0;

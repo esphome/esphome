@@ -205,7 +205,6 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
       // Make sure to tell the remote that we don't
       // understand the indicator byte so it knows
       // we do not support it.
-      struct iovec iov[1];
       // The \x00 first byte is the marker for plaintext.
       //
       // The remote will know how to handle the indicator byte,
@@ -220,14 +219,12 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
                                                 "Bad indicator byte";
       char msg[INDICATOR_MSG_SIZE];
       memcpy_P(msg, MSG_PROGMEM, INDICATOR_MSG_SIZE);
-      iov[0].iov_base = (void *) msg;
+      this->write_raw_buf_(msg, INDICATOR_MSG_SIZE);
 #else
       static const char MSG[] = "\x00"
                                 "Bad indicator byte";
-      iov[0].iov_base = (void *) MSG;
+      this->write_raw_buf_(MSG, INDICATOR_MSG_SIZE);
 #endif
-      iov[0].iov_len = INDICATOR_MSG_SIZE;
-      this->write_raw_(iov, 1, INDICATOR_MSG_SIZE);
     }
     return aerr;
   }
@@ -239,8 +236,8 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
 }
 // Write plaintext header into pre-allocated padding before payload.
 // Returns pointer to start of frame (header + payload are contiguous).
-static inline uint8_t *write_plaintext_header(uint8_t *buf_start, const MessageInfo &msg,
-                                              uint8_t frame_header_padding) {
+ESPHOME_ALWAYS_INLINE static inline uint8_t *write_plaintext_header(uint8_t *buf_start, const MessageInfo &msg,
+                                                                    uint8_t frame_header_padding) {
   // Calculate varint sizes for header layout using inline ternary to avoid varint_slow call overhead
   uint8_t size_varint_len = msg.payload_size < ProtoSize::VARINT_THRESHOLD_1_BYTE
                                 ? 1
@@ -285,11 +282,27 @@ static inline uint8_t *write_plaintext_header(uint8_t *buf_start, const MessageI
   return buf_start + header_offset;
 }
 
-// Outlined multi-message path to keep the single-message fast path's stack frame small.
-// The StaticVector<iovec, MAX_MESSAGES_PER_BATCH> would force a ~300-byte stack frame
-// even when only sending one message if it were in the same function.
-APIError __attribute__((noinline))
-APIPlaintextFrameHelper::write_protobuf_messages_batch_(uint8_t *buffer_data, std::span<const MessageInfo> messages) {
+APIError APIPlaintextFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
+#ifdef ESPHOME_DEBUG_API
+  assert(this->state_ == State::DATA);
+#endif
+
+  MessageInfo msg{type, 0, static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_)};
+  uint8_t *buffer_data = buffer.get_buffer()->data();
+  uint8_t *msg_start = write_plaintext_header(buffer_data, msg, frame_header_padding_);
+  uint8_t msg_header_len = static_cast<uint8_t>(buffer_data + frame_header_padding_ - msg_start);
+  uint16_t msg_len = static_cast<uint16_t>(msg_header_len + msg.payload_size);
+  return this->write_raw_fast_buf_(msg_start, msg_len);
+}
+
+APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer,
+                                                          std::span<const MessageInfo> messages) {
+#ifdef ESPHOME_DEBUG_API
+  assert(this->state_ == State::DATA);
+  assert(!messages.empty());
+#endif
+
+  uint8_t *buffer_data = buffer.get_buffer()->data();
   StaticVector<struct iovec, MAX_MESSAGES_PER_BATCH> iovs;
   uint16_t total_write_len = 0;
   const uint8_t padding = frame_header_padding_;
@@ -302,34 +315,7 @@ APIPlaintextFrameHelper::write_protobuf_messages_batch_(uint8_t *buffer_data, st
     total_write_len += msg_len;
   }
 
-  return write_raw_(iovs.data(), iovs.size(), total_write_len);
-}
-
-APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer,
-                                                          std::span<const MessageInfo> messages) {
-  APIError aerr = this->check_data_state_();
-  if (aerr != APIError::OK)
-    return aerr;
-
-  if (messages.empty()) {
-    return APIError::OK;
-  }
-
-  uint8_t *buffer_data = buffer.get_buffer()->data();
-
-  if (messages.size() == 1) [[likely]] {
-    // Peeled first iteration: single-message case (most common path via write_protobuf_packet)
-    // avoids StaticVector stack allocation and loop overhead
-    const auto &first = messages[0];
-    uint8_t *first_start = write_plaintext_header(buffer_data + first.offset, first, frame_header_padding_);
-    uint8_t first_header_len = static_cast<uint8_t>((buffer_data + first.offset + frame_header_padding_) - first_start);
-    size_t first_len = static_cast<size_t>(first_header_len + first.payload_size);
-    struct iovec iov = {first_start, first_len};
-    return write_raw_(&iov, 1, static_cast<uint16_t>(first_len));
-  }
-
-  // Multiple messages: outlined to avoid large stack frame on single-message path
-  return write_protobuf_messages_batch_(buffer_data, messages);
+  return this->write_raw_fast_iov_(iovs.data(), iovs.size(), total_write_len);
 }
 
 }  // namespace esphome::api

@@ -87,10 +87,6 @@ static constexpr uint16_t WARN_IF_BLOCKING_INCREMENT_MS =
 // Threshold in ms (computed from centiseconds constant in component.h)
 static constexpr uint32_t WARN_IF_BLOCKING_OVER_MS = static_cast<uint32_t>(WARN_IF_BLOCKING_OVER_CS) * 10U;
 
-#ifdef USE_LOOP_PRIORITY
-float Component::get_loop_priority() const { return 0.0f; }
-#endif
-
 float Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void Component::setup() {}
