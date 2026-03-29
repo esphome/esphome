@@ -160,7 +160,7 @@ TEST(MitsubishiCN105Tests, NextStatusUpdateAfterUpdateIntervalMilliseconds) {
 
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
   ASSERT_TRUE(ctx.sut.status_update_start_ms_.has_value());
-  EXPECT_EQ(ctx.sut.status_update_start_ms_.value(), 80000);
+  EXPECT_EQ(*ctx.sut.status_update_start_ms_, 80000);
 
   // Wait for update_interval (ms) before doing another status update
   ASSERT_FALSE(ctx.sut.sync());
