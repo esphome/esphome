@@ -84,6 +84,8 @@ void store_component_error_message(const Component *component, const char *messa
 
 static constexpr uint16_t WARN_IF_BLOCKING_INCREMENT_MS =
     10U;  ///< How long the blocking time must be larger to warn again
+// Threshold in ms (computed from centiseconds constant in component.h)
+static constexpr uint32_t WARN_IF_BLOCKING_OVER_MS = static_cast<uint32_t>(WARN_IF_BLOCKING_OVER_CS) * 10U;
 
 float Component::get_setup_priority() const { return setup_priority::DATA; }
 
@@ -268,15 +270,18 @@ void Component::call() {
       break;
   }
 }
+const LogString *Component::get_component_log_str() const {
+  return component_source_lookup(this->component_source_index_);
+}
 bool Component::should_warn_of_blocking(uint32_t blocking_time) {
-  if (blocking_time > this->warn_if_blocking_over_) {
-    // Prevent overflow when adding increment - if we're about to overflow, just max out
-    if (blocking_time + WARN_IF_BLOCKING_INCREMENT_MS < blocking_time ||
-        blocking_time + WARN_IF_BLOCKING_INCREMENT_MS > std::numeric_limits<uint16_t>::max()) {
-      this->warn_if_blocking_over_ = std::numeric_limits<uint16_t>::max();
-    } else {
-      this->warn_if_blocking_over_ = static_cast<uint16_t>(blocking_time + WARN_IF_BLOCKING_INCREMENT_MS);
-    }
+  // Convert centisecond threshold to milliseconds for comparison
+  uint32_t threshold_ms = static_cast<uint32_t>(this->warn_if_blocking_over_) * 10U;
+  if (blocking_time > threshold_ms) {
+    // Set new threshold: blocking_time + increment, converted back to centiseconds
+    uint32_t new_threshold_ms = blocking_time + WARN_IF_BLOCKING_INCREMENT_MS;
+    uint32_t new_cs = new_threshold_ms / 10U;
+    // Saturate at uint8_t max (255 = 2550ms)
+    this->warn_if_blocking_over_ = static_cast<uint8_t>(new_cs > 255U ? 255U : new_cs);
     return true;
   }
   return false;
@@ -536,5 +541,8 @@ void clear_setup_priority_overrides() {
   setup_priority_overrides = nullptr;
 }
 #endif
+
+// Weak default for component_source_lookup - overridden by generated code
+__attribute__((weak)) const LogString *component_source_lookup(uint8_t) { return LOG_STR("<unknown>"); }
 
 }  // namespace esphome

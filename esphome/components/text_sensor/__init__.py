@@ -129,7 +129,7 @@ async def map_filter_to_code(config, filter_id):
         )
         for conf in config
     ]
-    return cg.new_Pvariable(filter_id, mappings)
+    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(mappings)), mappings)
 
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
