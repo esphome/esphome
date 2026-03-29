@@ -31,12 +31,15 @@ void EthernetComponent::setup() {
     reset_pin.digital_write(false);
     delay(1);  // NOLINT
     reset_pin.digital_write(true);
-    delay(10);  // NOLINT - wait for chip to initialize after reset
+    // W5100S needs 150ms for PLL lock; W5500/ENC28J60 need ~10ms
+    delay(RESET_DELAY_MS);  // NOLINT
   }
 
   // Create the SPI Ethernet device instance
 #if defined(USE_ETHERNET_W5500)
   this->eth_ = new Wiznet5500lwIP(this->cs_pin_, SPI, this->interrupt_pin_);  // NOLINT
+#elif defined(USE_ETHERNET_W5100)
+  this->eth_ = new Wiznet5100lwIP(this->cs_pin_, SPI, this->interrupt_pin_);  // NOLINT
 #elif defined(USE_ETHERNET_ENC28J60)
   this->eth_ = new ENC28J60lwIP(this->cs_pin_, SPI, this->interrupt_pin_);  // NOLINT
 #endif
@@ -80,8 +83,8 @@ void EthernetComponent::setup() {
   // or via GPIO interrupt when one is provided.
 
   // Don't set started_ here — let the link polling in loop() set it
-  // when the W5500 link is actually up. Setting it prematurely causes
-  // a "Starting → Stopped → Starting" log sequence because the W5500
+  // when the link is actually up. Setting it prematurely causes
+  // a "Starting → Stopped → Starting" log sequence because the chip
   // needs time after begin() before the PHY link is ready.
 }
 
@@ -89,14 +92,21 @@ void EthernetComponent::loop() {
   // On RP2040, we need to poll connection state since there are no events.
   const uint32_t now = App.get_loop_component_start_time();
 
-  // Throttle link/IP polling to avoid excessive SPI transactions from linkStatus()
-  // which reads the W5500 PHY register via SPI on every call.
+  // Throttle link/IP polling to avoid excessive SPI transactions.
+  // W5500/ENC28J60 read PHY register via SPI on every linkStatus() call.
+  // W5100 can't detect link state, so we skip the SPI read and assume link-up.
   // connected() reads netif->ip_addr without LwIPLock, but this is a single
   // 32-bit aligned read (atomic on ARM) — worst case is a one-iteration-stale
   // value, which is benign for polling.
   if (this->eth_ != nullptr && now - this->last_link_check_ >= LINK_CHECK_INTERVAL) {
     this->last_link_check_ = now;
+#if defined(USE_ETHERNET_W5100)
+    // W5100 can't detect link (isLinkDetectable() returns false), so linkStatus()
+    // returns Unknown — assume link is up after successful begin()
+    bool link_up = true;
+#else
     bool link_up = this->eth_->linkStatus() == LinkON;
+#endif
     bool has_ip = this->eth_->connected();
 
     if (!link_up) {
@@ -171,6 +181,8 @@ void EthernetComponent::dump_config() {
   const char *type_str = "Unknown";
 #if defined(USE_ETHERNET_W5500)
   type_str = "W5500";
+#elif defined(USE_ETHERNET_W5100)
+  type_str = "W5100";
 #elif defined(USE_ETHERNET_ENC28J60)
   type_str = "ENC28J60";
 #endif
@@ -226,7 +238,7 @@ const char *EthernetComponent::get_eth_mac_address_pretty_into_buffer(
 }
 
 eth_duplex_t EthernetComponent::get_duplex_mode() {
-  // Both W5500 and ENC28J60 are full-duplex on RP2040
+  // W5100, W5500, and ENC28J60 are full-duplex on RP2040
   return ETH_DUPLEX_FULL;
 }
 
@@ -235,7 +247,7 @@ eth_speed_t EthernetComponent::get_link_speed() {
   // ENC28J60 is 10Mbps only
   return ETH_SPEED_10M;
 #else
-  // W5500 is always 100Mbps
+  // W5100 and W5500 are 100Mbps
   return ETH_SPEED_100M;
 #endif
 }

@@ -115,6 +115,7 @@ ETHERNET_TYPES = {
     "JL1101": EthernetType.ETHERNET_TYPE_JL1101,
     "KSZ8081": EthernetType.ETHERNET_TYPE_KSZ8081,
     "KSZ8081RNA": EthernetType.ETHERNET_TYPE_KSZ8081RNA,
+    "W5100": EthernetType.ETHERNET_TYPE_W5100,
     "W5500": EthernetType.ETHERNET_TYPE_W5500,
     "OPENETH": EthernetType.ETHERNET_TYPE_OPENETH,
     "DM9051": EthernetType.ETHERNET_TYPE_DM9051,
@@ -132,6 +133,7 @@ _PHY_TYPE_TO_DEFINE = {
     "JL1101": "USE_ETHERNET_JL1101",
     "KSZ8081": "USE_ETHERNET_KSZ8081",
     "KSZ8081RNA": "USE_ETHERNET_KSZ8081",
+    "W5100": "USE_ETHERNET_W5100",
     "W5500": "USE_ETHERNET_W5500",
     "DM9051": "USE_ETHERNET_DM9051",
     "LAN8670": "USE_ETHERNET_LAN8670",
@@ -164,9 +166,15 @@ _IDF6_ETHERNET_COMPONENTS: dict[str, IDFRegistryComponent] = {
 # These types are always external IDF components (never built-in to ESP-IDF)
 _ALWAYS_EXTERNAL_IDF_COMPONENTS = {"LAN8670", "ENC28J60"}
 
-SPI_ETHERNET_TYPES = ["W5500", "DM9051", "ENC28J60"]
+# ESP32-only SPI ethernet types (W5100 is RP2040-only, no ESP-IDF driver)
+SPI_ETHERNET_TYPES = {"W5500", "DM9051", "ENC28J60"}
 # RP2040-supported SPI ethernet types
-RP2040_SPI_ETHERNET_TYPES = ["W5500", "ENC28J60"]
+RP2040_SPI_ETHERNET_TYPES = {"W5100", "W5500", "ENC28J60"}
+_RP2040_SPI_LIBRARIES = {
+    "W5100": "lwIP_w5100",
+    "W5500": "lwIP_w5500",
+    "ENC28J60": "lwIP_enc28j60",
+}
 SPI_ETHERNET_DEFAULT_POLLING_INTERVAL = TimePeriodMilliseconds(milliseconds=10)
 
 emac_rmii_clock_mode_t = cg.global_ns.enum("emac_rmii_clock_mode_t")
@@ -295,7 +303,7 @@ def _validate(config):
                 )
     elif CORE.is_rp2040 and config[CONF_TYPE] not in RP2040_SPI_ETHERNET_TYPES:
         raise cv.Invalid(
-            f"Only {', '.join(RP2040_SPI_ETHERNET_TYPES)} are supported on RP2040, "
+            f"Only {', '.join(sorted(RP2040_SPI_ETHERNET_TYPES))} are supported on RP2040, "
             f"not {config[CONF_TYPE]}"
         )
     return config
@@ -382,6 +390,7 @@ CONFIG_SCHEMA = cv.All(
             "JL1101": RMII_SCHEMA,
             "KSZ8081": RMII_SCHEMA,
             "KSZ8081RNA": RMII_SCHEMA,
+            "W5100": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2040])),
             "W5500": SPI_SCHEMA,
             "OPENETH": cv.All(BASE_SCHEMA, cv.only_on([Platform.ESP32])),
             "DM9051": SPI_SCHEMA,
@@ -574,10 +583,7 @@ async def _to_code_rp2040(var: cg.Pvariable, config: ConfigType) -> None:
         cg.add(var.set_reset_pin(config[CONF_RESET_PIN]))
 
     cg.add_define("USE_ETHERNET_SPI")
-    if config[CONF_TYPE] == "ENC28J60":
-        cg.add_library("lwIP_enc28j60", None)
-    else:
-        cg.add_library("lwIP_w5500", None)
+    cg.add_library(_RP2040_SPI_LIBRARIES[config[CONF_TYPE]], None)
 
 
 def _final_validate_rmii_pins(config: ConfigType) -> None:

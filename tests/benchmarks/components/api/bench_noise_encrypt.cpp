@@ -172,6 +172,135 @@ BENCHMARK(NoiseDecrypt_MediumMessage);
 static void NoiseDecrypt_LargeMessage(benchmark::State &state) { noise_decrypt_bench(state, 1024); }
 BENCHMARK(NoiseDecrypt_LargeMessage);
 
+// --- Full Noise_NNpsk0 handshake benchmark ---
+// Measures the complete handshake between initiator and responder:
+//   - Create handshake states for both sides
+//   - Set PSK and prologue
+//   - Exchange messages (initiator write -> responder read -> responder write -> initiator read)
+//   - Split to get cipher states
+// This is dominated by Curve25519 DH operations (expensive on ESP8266).
+// No inner iterations — each handshake is already expensive enough.
+
+static void NoiseHandshake_Full(benchmark::State &state) {
+  // Matching ESPHome's protocol: Noise_NNpsk0_25519_ChaChaPoly_SHA256
+  NoiseProtocolId nid;
+  memset(&nid, 0, sizeof(nid));
+  nid.pattern_id = NOISE_PATTERN_NN;
+  nid.cipher_id = NOISE_CIPHER_CHACHAPOLY;
+  nid.dh_id = NOISE_DH_CURVE25519;
+  nid.prefix_id = NOISE_PREFIX_STANDARD;
+  nid.hybrid_id = NOISE_DH_NONE;
+  nid.hash_id = NOISE_HASH_SHA256;
+  nid.modifier_ids[0] = NOISE_MODIFIER_PSK0;
+
+  // Dummy PSK (32 bytes) and prologue matching production setup
+  static constexpr uint8_t PSK[32] = {0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB,
+                                      0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB,
+                                      0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB};
+  static constexpr uint8_t PROLOGUE[] = "NoESPHome";
+
+  // Message buffer for handshake exchange (max handshake message ~96 bytes)
+  uint8_t msg_buf[128];
+
+  for (auto _ : state) {
+    NoiseHandshakeState *initiator = nullptr;
+    NoiseHandshakeState *responder = nullptr;
+    NoiseCipherState *init_send = nullptr, *init_recv = nullptr;
+    NoiseCipherState *resp_send = nullptr, *resp_recv = nullptr;
+    int err;
+
+    // Create both handshake states
+    err = noise_handshakestate_new_by_id(&initiator, &nid, NOISE_ROLE_INITIATOR);
+    if (err != NOISE_ERROR_NONE) {
+      state.SkipWithError("Failed to create initiator");
+      return;
+    }
+    err = noise_handshakestate_new_by_id(&responder, &nid, NOISE_ROLE_RESPONDER);
+    if (err != NOISE_ERROR_NONE) {
+      state.SkipWithError("Failed to create responder");
+      noise_handshakestate_free(initiator);
+      return;
+    }
+
+    // Set PSK and prologue on both sides
+    noise_handshakestate_set_pre_shared_key(initiator, PSK, sizeof(PSK));
+    noise_handshakestate_set_pre_shared_key(responder, PSK, sizeof(PSK));
+    noise_handshakestate_set_prologue(initiator, PROLOGUE, sizeof(PROLOGUE) - 1);
+    noise_handshakestate_set_prologue(responder, PROLOGUE, sizeof(PROLOGUE) - 1);
+
+    noise_handshakestate_start(initiator);
+    noise_handshakestate_start(responder);
+
+    // Message 1: Initiator -> Responder
+    NoiseBuffer write_buf, read_buf;
+    noise_buffer_set_output(write_buf, msg_buf, sizeof(msg_buf));
+    err = noise_handshakestate_write_message(initiator, &write_buf, nullptr);
+    if (err != NOISE_ERROR_NONE) {
+      state.SkipWithError("Initiator write_message failed");
+      noise_handshakestate_free(initiator);
+      noise_handshakestate_free(responder);
+      return;
+    }
+
+    noise_buffer_set_input(read_buf, msg_buf, write_buf.size);
+    err = noise_handshakestate_read_message(responder, &read_buf, nullptr);
+    if (err != NOISE_ERROR_NONE) {
+      state.SkipWithError("Responder read_message failed");
+      noise_handshakestate_free(initiator);
+      noise_handshakestate_free(responder);
+      return;
+    }
+
+    // Message 2: Responder -> Initiator
+    noise_buffer_set_output(write_buf, msg_buf, sizeof(msg_buf));
+    err = noise_handshakestate_write_message(responder, &write_buf, nullptr);
+    if (err != NOISE_ERROR_NONE) {
+      state.SkipWithError("Responder write_message failed");
+      noise_handshakestate_free(initiator);
+      noise_handshakestate_free(responder);
+      return;
+    }
+
+    noise_buffer_set_input(read_buf, msg_buf, write_buf.size);
+    err = noise_handshakestate_read_message(initiator, &read_buf, nullptr);
+    if (err != NOISE_ERROR_NONE) {
+      state.SkipWithError("Initiator read_message failed");
+      noise_handshakestate_free(initiator);
+      noise_handshakestate_free(responder);
+      return;
+    }
+
+    // Split to get cipher states
+    err = noise_handshakestate_split(initiator, &init_send, &init_recv);
+    if (err != NOISE_ERROR_NONE) {
+      state.SkipWithError("Initiator split failed");
+      noise_handshakestate_free(initiator);
+      noise_handshakestate_free(responder);
+      return;
+    }
+    err = noise_handshakestate_split(responder, &resp_send, &resp_recv);
+    if (err != NOISE_ERROR_NONE) {
+      state.SkipWithError("Responder split failed");
+      noise_handshakestate_free(initiator);
+      noise_handshakestate_free(responder);
+      noise_cipherstate_free(init_send);
+      noise_cipherstate_free(init_recv);
+      return;
+    }
+
+    benchmark::DoNotOptimize(init_send);
+
+    // Cleanup
+    noise_handshakestate_free(initiator);
+    noise_handshakestate_free(responder);
+    noise_cipherstate_free(init_send);
+    noise_cipherstate_free(init_recv);
+    noise_cipherstate_free(resp_send);
+    noise_cipherstate_free(resp_recv);
+  }
+}
+BENCHMARK(NoiseHandshake_Full);
+
 }  // namespace esphome::api::benchmarks
 
 #endif  // USE_API_NOISE

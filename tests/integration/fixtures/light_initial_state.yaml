@@ -1,0 +1,39 @@
+esphome:
+  name: light-initial-state-test
+host:
+api:  # Port will be automatically injected
+logger:
+  level: DEBUG
+
+output:
+  - platform: template
+    id: test_red
+    type: float
+    write_action:
+      - lambda: ""
+  - platform: template
+    id: test_green
+    type: float
+    write_action:
+      - lambda: ""
+  - platform: template
+    id: test_blue
+    type: float
+    write_action:
+      - lambda: ""
+
+light:
+  - platform: rgb
+    name: "Test Light"
+    id: test_light
+    red: test_red
+    green: test_green
+    blue: test_blue
+    restore_mode: ALWAYS_OFF
+    initial_state:
+      color_mode: RGB
+      state: true
+      brightness: 0.75
+      red: 1.0
+      green: 0.5
+      blue: 0.0
