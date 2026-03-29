@@ -489,9 +489,9 @@ APIError APINoiseFrameHelper::encrypt_noise_message_(uint8_t *buf_start, const M
 }
 
 APIError APINoiseFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
-  APIError aerr = this->check_data_state_();
-  if (aerr != APIError::OK)
-    return aerr;
+#ifdef ESPHOME_DEBUG_API
+  assert(this->state_ == State::DATA);
+#endif
 
   // Resize buffer to include footer space for Noise MAC
   if (frame_footer_size_)
@@ -508,10 +508,8 @@ APIError APINoiseFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuff
 }
 
 APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) {
-  APIError aerr = this->check_data_state_();
-  if (aerr != APIError::OK)
-    return aerr;
 #ifdef ESPHOME_DEBUG_API
+  assert(this->state_ == State::DATA);
   assert(!messages.empty());
 #endif
 

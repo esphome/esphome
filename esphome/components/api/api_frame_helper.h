@@ -161,10 +161,11 @@ class APIFrameHelper {
       this->nodelay_counter_ = 0;
     }
   }
-  // Write a single protobuf message - the hot path (87-100% of all writes)
+  // Write a single protobuf message - the hot path (87-100% of all writes).
+  // Caller must ensure state is DATA before calling.
   virtual APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) = 0;
   // Write multiple protobuf messages in a single batched operation.
-  // messages must not be empty — caller is responsible for checking.
+  // Caller must ensure state is DATA and messages is not empty.
   // messages contains (message_type, offset, length) for each message in the buffer.
   // The buffer contains all messages with appropriate padding before each.
   virtual APIError write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) = 0;

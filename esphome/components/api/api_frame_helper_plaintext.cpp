@@ -285,9 +285,9 @@ ESPHOME_ALWAYS_INLINE static inline uint8_t *write_plaintext_header(uint8_t *buf
 }
 
 APIError APIPlaintextFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) {
-  APIError aerr = this->check_data_state_();
-  if (aerr != APIError::OK)
-    return aerr;
+#ifdef ESPHOME_DEBUG_API
+  assert(this->state_ == State::DATA);
+#endif
 
   MessageInfo msg{type, 0, static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_)};
   uint8_t *buffer_data = buffer.get_buffer()->data();
@@ -299,10 +299,8 @@ APIError APIPlaintextFrameHelper::write_protobuf_packet(uint8_t type, ProtoWrite
 
 APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer,
                                                           std::span<const MessageInfo> messages) {
-  APIError aerr = this->check_data_state_();
-  if (aerr != APIError::OK)
-    return aerr;
 #ifdef ESPHOME_DEBUG_API
+  assert(this->state_ == State::DATA);
   assert(!messages.empty());
 #endif
 
