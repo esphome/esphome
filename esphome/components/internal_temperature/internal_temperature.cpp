@@ -1,5 +1,4 @@
 #include "internal_temperature.h"
-#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
@@ -31,6 +30,11 @@ namespace esphome {
 namespace internal_temperature {
 
 static const char *const TAG = "internal_temperature";
+#if defined(USE_ZEPHYR) && defined(USE_NRF52)
+static constexpr uint32_t NRF52_TEMP_READY_TIMEOUT_ID = 1;
+static constexpr uint32_t NRF52_TEMP_POLL_DELAY_MS = 1;
+static constexpr uint8_t NRF52_TEMP_MAX_POLLS = 5;
+#endif  // USE_ZEPHYR && USE_NRF52
 #ifdef USE_ESP32
 #if defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C5) || \
     defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32C61) || defined(USE_ESP32_VARIANT_ESP32H2) || \
@@ -40,6 +44,15 @@ static temperature_sensor_handle_t tsensNew = NULL;
 #endif  // USE_ESP32
 
 void InternalTemperatureSensor::update() {
+#if defined(USE_ZEPHYR) && defined(USE_NRF52)
+  this->cancel_timeout(NRF52_TEMP_READY_TIMEOUT_ID);
+  nrf_temp_event_clear(NRF_TEMP, NRF_TEMP_EVENT_DATARDY);
+  nrf_temp_task_trigger(NRF_TEMP, NRF_TEMP_TASK_START);
+  this->set_timeout(NRF52_TEMP_READY_TIMEOUT_ID, NRF52_TEMP_POLL_DELAY_MS,
+                    [this]() { this->poll_nrf52_temperature_(NRF52_TEMP_MAX_POLLS); });
+  return;
+#endif  // USE_ZEPHYR && USE_NRF52
+
   float temperature = NAN;
   bool success = false;
 #ifdef USE_ESP32
@@ -75,30 +88,6 @@ void InternalTemperatureSensor::update() {
   temperature = raw * 0.128f;
 #endif  // USE_LIBRETINY_VARIANT
 #endif  // USE_BK72XX
-#if defined(USE_ZEPHYR) && defined(USE_NRF52)
-  nrf_temp_event_clear(NRF_TEMP, NRF_TEMP_EVENT_DATARDY);
-  nrf_temp_task_trigger(NRF_TEMP, NRF_TEMP_TASK_START);
-
-  const uint32_t start_us = micros();
-  const uint32_t timeout_us = 5000;
-  while (!nrf_temp_event_check(NRF_TEMP, NRF_TEMP_EVENT_DATARDY)) {
-    if (micros() - start_us >= timeout_us) {
-      break;
-    }
-    arch_feed_wdt();
-    yield();
-  }
-
-  nrf_temp_task_trigger(NRF_TEMP, NRF_TEMP_TASK_STOP);
-
-  if (!nrf_temp_event_check(NRF_TEMP, NRF_TEMP_EVENT_DATARDY)) {
-    ESP_LOGE(TAG, "Timed out reading nRF52 internal temperature");
-  } else {
-    const int32_t raw_temperature = nrf_temp_result_get(NRF_TEMP);
-    temperature = raw_temperature / 4.0f;
-    success = true;
-  }
-#endif  // USE_ZEPHYR && USE_NRF52
   if (success && std::isfinite(temperature)) {
     this->publish_state(temperature);
   } else {
@@ -108,6 +97,38 @@ void InternalTemperatureSensor::update() {
     }
   }
 }
+
+#if defined(USE_ZEPHYR) && defined(USE_NRF52)
+void InternalTemperatureSensor::poll_nrf52_temperature_(uint8_t attempts_left) {
+  if (!nrf_temp_event_check(NRF_TEMP, NRF_TEMP_EVENT_DATARDY)) {
+    if (attempts_left > 0) {
+      this->set_timeout(NRF52_TEMP_READY_TIMEOUT_ID, NRF52_TEMP_POLL_DELAY_MS,
+                        [this, attempts_left]() { this->poll_nrf52_temperature_(attempts_left - 1); });
+      return;
+    }
+
+    nrf_temp_task_trigger(NRF_TEMP, NRF_TEMP_TASK_STOP);
+    ESP_LOGE(TAG, "Timed out reading nRF52 internal temperature");
+    if (!this->has_state()) {
+      this->publish_state(NAN);
+    }
+    return;
+  }
+
+  nrf_temp_task_trigger(NRF_TEMP, NRF_TEMP_TASK_STOP);
+
+  const int32_t raw_temperature = nrf_temp_result_get(NRF_TEMP);
+  const float temperature = raw_temperature / 4.0f;
+  if (std::isfinite(temperature)) {
+    this->publish_state(temperature);
+  } else {
+    ESP_LOGD(TAG, "Ignoring invalid temperature (value=%.1f)", temperature);
+    if (!this->has_state()) {
+      this->publish_state(NAN);
+    }
+  }
+}
+#endif  // USE_ZEPHYR && USE_NRF52
 
 void InternalTemperatureSensor::setup() {
 #ifdef USE_ESP32
