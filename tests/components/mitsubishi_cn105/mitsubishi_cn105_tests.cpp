@@ -24,13 +24,13 @@ TEST(MitsubishiCN105Tests, InitiallyStatusNotInitialized) {
 TEST(MitsubishiCN105Tests, InitSendsConnectPacket) {
   auto ctx = TestContext{};
 
-  ASSERT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::NOT_CONNECTED);
-  ASSERT_TRUE(ctx.uart.tx.empty());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::NOT_CONNECTED);
+  EXPECT_TRUE(ctx.uart.tx.empty());
 
   ctx.sut.init();
 
   EXPECT_FALSE(ctx.sut.is_status_initialized());
-  ASSERT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::CONNECTING);
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::CONNECTING);
   EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x5A, 0x01, 0x30, 0x02, 0xCA, 0x01, 0xA8));
 }
 
@@ -48,22 +48,22 @@ TEST(MitsubishiCN105Tests, NoResponseTriggersReconnect) {
   // No response (no data read from UART), no retry yet.
   ASSERT_FALSE(ctx.sut.sync());
   EXPECT_FALSE(ctx.sut.is_status_initialized());
-  ASSERT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::CONNECTING);
-  ASSERT_TRUE(ctx.uart.tx.empty());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::CONNECTING);
+  EXPECT_TRUE(ctx.uart.tx.empty());
 
   // Still no response after 1999ms, no retry yet.
   ctx.sut.current_time_ms = 1999;
   ASSERT_FALSE(ctx.sut.sync());
   EXPECT_FALSE(ctx.sut.is_status_initialized());
-  ASSERT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::CONNECTING);
-  ASSERT_TRUE(ctx.uart.tx.empty());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::CONNECTING);
+  EXPECT_TRUE(ctx.uart.tx.empty());
 
   // Stop waiting after 2s and retry connect.
   ctx.sut.current_time_ms = 2000;
   EXPECT_CALL(connection_state_callback, call(false)).Times(1);
   ASSERT_FALSE(ctx.sut.sync());
   EXPECT_FALSE(ctx.sut.is_status_initialized());
-  ASSERT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::CONNECTING);
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::CONNECTING);
   EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x5A, 0x01, 0x30, 0x02, 0xCA, 0x01, 0xA8));
 }
 
@@ -84,7 +84,7 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
 
   ASSERT_FALSE(ctx.sut.sync());
   EXPECT_FALSE(ctx.sut.is_status_initialized());
-  ASSERT_TRUE(ctx.uart.rx.empty());
+  EXPECT_TRUE(ctx.uart.rx.empty());
 
   // After successful connect we request status, first settings (0x02)
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::UPDATING_STATUS);
@@ -107,7 +107,7 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
   ASSERT_FALSE(ctx.sut.sync());
   // Not all statuses received yet, therefore still false
   EXPECT_FALSE(ctx.sut.is_status_initialized());
-  ASSERT_TRUE(ctx.uart.rx.empty());
+  EXPECT_TRUE(ctx.uart.rx.empty());
 
   // Check settings that we just read from received package
   EXPECT_FALSE(ctx.sut.status().settings.power_on);
@@ -135,13 +135,13 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
   // All data now initialized
   EXPECT_TRUE(ctx.sut.is_status_initialized());
   // and all data read from rx buffer
-  ASSERT_TRUE(ctx.uart.rx.empty());
+  EXPECT_TRUE(ctx.uart.rx.empty());
 
   // Check room temperature we just read from received package
   EXPECT_EQ(ctx.sut.status().room_temperature, 21.0f);
 
   // And pause for update_interval_ms_
-  ASSERT_TRUE(ctx.uart.tx.empty());
+  EXPECT_TRUE(ctx.uart.tx.empty());
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
 }
 
@@ -159,22 +159,21 @@ TEST(MitsubishiCN105Tests, NextStatusUpdateAfterUpdateIntervalMilliseconds) {
   ctx.sut.set_state(TestableMitsubishiCN105::State::SCHEDULE_NEXT_STATUS_UPDATE);
 
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
-  ASSERT_TRUE(ctx.sut.status_update_start_ms_.has_value());
-  EXPECT_EQ(*ctx.sut.status_update_start_ms_, 80000);
+  EXPECT_EQ(ctx.sut.status_update_start_ms_, std::optional<uint32_t>{80000});
 
   // Wait for update_interval (ms) before doing another status update
   ASSERT_FALSE(ctx.sut.sync());
-  ASSERT_TRUE(ctx.uart.tx.empty());
+  EXPECT_TRUE(ctx.uart.tx.empty());
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
 
   ctx.sut.current_time_ms = 81999;
   ASSERT_FALSE(ctx.sut.sync());
-  ASSERT_TRUE(ctx.uart.tx.empty());
+  EXPECT_TRUE(ctx.uart.tx.empty());
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
 
   ctx.sut.current_time_ms = 82000;
   ASSERT_FALSE(ctx.sut.sync());
-  ASSERT_FALSE(ctx.uart.tx.empty());
+  EXPECT_FALSE(ctx.uart.tx.empty());
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::UPDATING_STATUS);
   EXPECT_FALSE(ctx.sut.status_update_start_ms_);
 }
