@@ -234,9 +234,11 @@ class ProtoWriteBuffer {
     // and can keep it in a register across the loop.
     uint8_t *__restrict__ pos = this->pos_;
     while (value > 0x7F) {
+      this->sync_debug_check_bounds_(pos, 1);
       *pos++ = static_cast<uint8_t>(value | 0x80);
       value >>= 7;
     }
+    this->sync_debug_check_bounds_(pos, 1);
     *pos++ = static_cast<uint8_t>(value);
     this->pos_ = pos;
   }
@@ -290,14 +292,15 @@ class ProtoWriteBuffer {
     this->encode_field_raw(field_id, 2);  // type 2: Length-delimited string
     // Inline the length varint + memcpy under a single __restrict__ pos
     // to avoid a store-load pair between encode_varint_raw and encode_raw.
-    this->debug_check_bounds_(1 + len);
     uint8_t *__restrict__ pos = this->pos_;
     if (len < 128) [[likely]] {
+      this->debug_check_bounds_(1 + len);
       *pos++ = static_cast<uint8_t>(len);
     } else {
       // Length >= 128: use slow path for the length varint, then re-hoist pos
       this->encode_varint_raw_slow_(len);
       pos = this->pos_;
+      this->debug_check_bounds_(len);
     }
     std::memcpy(pos, string, len);
     this->pos_ = pos + len;
@@ -405,9 +408,16 @@ class ProtoWriteBuffer {
 
 #ifdef ESPHOME_DEBUG_API
   void debug_check_bounds_(size_t bytes, const char *caller = __builtin_FUNCTION());
+  /// Sync pos_ from a local pointer, then check bounds. For use in __restrict__ loops
+  /// where pos_ is hoisted into a local but debug checks need the current position.
+  void sync_debug_check_bounds_(uint8_t *pos, size_t bytes, const char *caller = __builtin_FUNCTION()) {
+    this->pos_ = pos;
+    this->debug_check_bounds_(bytes, caller);
+  }
   void debug_check_encode_size_(uint32_t field_id, uint32_t expected, ptrdiff_t actual);
 #else
   void debug_check_bounds_([[maybe_unused]] size_t bytes) {}
+  void sync_debug_check_bounds_(uint8_t *pos, [[maybe_unused]] size_t bytes) {}
 #endif
 
   APIBuffer *buffer_;

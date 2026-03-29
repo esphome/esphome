@@ -15,9 +15,11 @@ void ProtoWriteBuffer::encode_varint_raw_slow_(uint32_t value) {
   // and can keep it in a register across the loop.
   uint8_t *__restrict__ pos = this->pos_;
   do {
+    this->sync_debug_check_bounds_(pos, 1);
     *pos++ = static_cast<uint8_t>(value | 0x80);
     value >>= 7;
   } while (value > 0x7F);
+  this->sync_debug_check_bounds_(pos, 1);
   *pos++ = static_cast<uint8_t>(value);
   this->pos_ = pos;
 }
