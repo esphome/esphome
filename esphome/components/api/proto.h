@@ -317,21 +317,64 @@ class ProtoWriteBuffer {
   void encode_uint32(uint32_t field_id, uint32_t value, bool force = false) {
     if (value == 0 && !force)
       return;
-    this->encode_field_raw(field_id, 0);  // type 0: Varint - uint32
-    this->encode_varint_raw(value);
+    // Inline tag + value under a single __restrict__ pos to avoid
+    // a store-load pair between encode_field_raw and encode_varint_raw.
+    uint32_t tag = (field_id << 3) | 0;  // wire type 0: varint
+    this->debug_check_bounds_(2);        // at least tag + 1 byte value
+    uint8_t *__restrict__ pos = this->pos_;
+    if (tag < 128) [[likely]] {
+      *pos++ = static_cast<uint8_t>(tag);
+    } else {
+      this->encode_varint_raw_slow_(tag);
+      pos = this->pos_;
+    }
+    if (value < 128) [[likely]] {
+      *pos++ = static_cast<uint8_t>(value);
+      this->pos_ = pos;
+    } else {
+      this->pos_ = pos;
+      this->encode_varint_raw_slow_(value);
+    }
   }
   void encode_uint64(uint32_t field_id, uint64_t value, bool force = false) {
     if (value == 0 && !force)
       return;
-    this->encode_field_raw(field_id, 0);  // type 0: Varint - uint64
-    this->encode_varint_raw_64(value);
+    // Inline tag under same __restrict__ scope as varint64 to avoid
+    // a store-load pair between encode_field_raw and encode_varint_raw_64.
+    uint32_t tag = (field_id << 3) | 0;  // wire type 0: varint
+    this->debug_check_bounds_(1);
+    uint8_t *__restrict__ pos = this->pos_;
+    if (tag < 128) [[likely]] {
+      *pos++ = static_cast<uint8_t>(tag);
+    } else {
+      this->pos_ = pos;
+      this->encode_varint_raw_slow_(tag);
+      pos = this->pos_;
+    }
+    // Continue with varint64 in same pos scope
+    while (value > 0x7F) {
+      this->sync_debug_check_bounds_(pos, 1);
+      *pos++ = static_cast<uint8_t>(value | 0x80);
+      value >>= 7;
+    }
+    this->sync_debug_check_bounds_(pos, 1);
+    *pos++ = static_cast<uint8_t>(value);
+    this->pos_ = pos;
   }
   void encode_bool(uint32_t field_id, bool value, bool force = false) {
     if (!value && !force)
       return;
-    this->encode_field_raw(field_id, 0);  // type 0: Varint - bool
-    this->debug_check_bounds_(1);
+    // Inline tag + bool byte under single __restrict__ scope
+    uint32_t tag = (field_id << 3) | 0;  // wire type 0: varint
+    this->debug_check_bounds_(2);
     uint8_t *__restrict__ pos = this->pos_;
+    if (tag < 128) [[likely]] {
+      *pos++ = static_cast<uint8_t>(tag);
+    } else {
+      this->pos_ = pos;
+      this->encode_varint_raw_slow_(tag);
+      pos = this->pos_;
+    }
     *pos++ = value ? 0x01 : 0x00;
     this->pos_ = pos;
   }
@@ -339,11 +382,18 @@ class ProtoWriteBuffer {
     if (value == 0 && !force)
       return;
 
-    this->encode_field_raw(field_id, 5);  // type 5: 32-bit fixed32
-    this->debug_check_bounds_(4);
+    // Inline tag + fixed32 under single __restrict__ scope
+    uint32_t tag = (field_id << 3) | 5;  // wire type 5: 32-bit
+    this->debug_check_bounds_(5);        // tag + 4 bytes
     uint8_t *__restrict__ pos = this->pos_;
+    if (tag < 128) [[likely]] {
+      *pos++ = static_cast<uint8_t>(tag);
+    } else {
+      this->pos_ = pos;
+      this->encode_varint_raw_slow_(tag);
+      pos = this->pos_;
+    }
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    // Protobuf fixed32 is little-endian, so direct copy works
     std::memcpy(pos, &value, 4);
     this->pos_ = pos + 4;
 #else
