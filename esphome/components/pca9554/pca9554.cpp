@@ -122,11 +122,6 @@ bool PCA9554Component::write_register_(uint8_t reg, uint16_t value) {
 
 float PCA9554Component::get_setup_priority() const { return setup_priority::IO; }
 
-#ifdef USE_LOOP_PRIORITY
-// Run our loop() method early to invalidate cache before any other components access the pins
-float PCA9554Component::get_loop_priority() const { return 9.0f; }  // Just after WIFI
-#endif
-
 void PCA9554GPIOPin::setup() { pin_mode(flags_); }
 void PCA9554GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
 bool PCA9554GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }

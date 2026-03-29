@@ -222,16 +222,14 @@ MultiplyFilter::MultiplyFilter(TemplatableValue<float> multiplier) : multiplier_
 
 optional<float> MultiplyFilter::new_value(float value) { return value * this->multiplier_.value(); }
 
-// ValueListFilter (base class)
-ValueListFilter::ValueListFilter(std::initializer_list<TemplatableValue<float>> values) : values_(values) {}
-
-bool ValueListFilter::value_matches_any_(float sensor_value) {
-  int8_t accuracy = this->parent_->get_accuracy_decimals();
+// ValueListFilter helper (non-template, shared by all ValueListFilter<N> instantiations)
+bool value_list_matches_any(Sensor *parent, float sensor_value, const TemplatableValue<float> *values, size_t count) {
+  int8_t accuracy = parent->get_accuracy_decimals();
   float accuracy_mult = pow10_int(accuracy);
   float rounded_sensor = roundf(accuracy_mult * sensor_value);
 
-  for (auto &filter_value : this->values_) {
-    float fv = filter_value.value();
+  for (size_t i = 0; i < count; i++) {
+    float fv = values[i].value();
 
     // Handle NaN comparison
     if (std::isnan(fv)) {
@@ -248,16 +246,6 @@ bool ValueListFilter::value_matches_any_(float sensor_value) {
   return false;
 }
 
-// FilterOutValueFilter
-FilterOutValueFilter::FilterOutValueFilter(std::initializer_list<TemplatableValue<float>> values_to_filter_out)
-    : ValueListFilter(values_to_filter_out) {}
-
-optional<float> FilterOutValueFilter::new_value(float value) {
-  if (this->value_matches_any_(value))
-    return {};   // Filter out
-  return value;  // Pass through
-}
-
 // ThrottleFilter
 ThrottleFilter::ThrottleFilter(uint32_t min_time_between_inputs) : min_time_between_inputs_(min_time_between_inputs) {}
 optional<float> ThrottleFilter::new_value(float value) {
@@ -269,17 +257,13 @@ optional<float> ThrottleFilter::new_value(float value) {
   return {};
 }
 
-// ThrottleWithPriorityFilter
-ThrottleWithPriorityFilter::ThrottleWithPriorityFilter(
-    uint32_t min_time_between_inputs, std::initializer_list<TemplatableValue<float>> prioritized_values)
-    : ValueListFilter(prioritized_values), min_time_between_inputs_(min_time_between_inputs) {}
-
-optional<float> ThrottleWithPriorityFilter::new_value(float value) {
+// ThrottleWithPriorityFilter helper (non-template, keeps App access in .cpp)
+optional<float> throttle_with_priority_new_value(Sensor *parent, float value, const TemplatableValue<float> *values,
+                                                 size_t count, uint32_t &last_input, uint32_t min_time_between_inputs) {
   const uint32_t now = App.get_loop_component_start_time();
-  // Allow value through if: no previous input, time expired, or is prioritized
-  if (this->last_input_ == 0 || now - this->last_input_ >= min_time_between_inputs_ ||
-      this->value_matches_any_(value)) {
-    this->last_input_ = now;
+  if (last_input == 0 || now - last_input >= min_time_between_inputs ||
+      value_list_matches_any(parent, value, values, count)) {
+    last_input = now;
     return value;
   }
   return {};
