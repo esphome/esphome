@@ -501,7 +501,7 @@ APIError APINoiseFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuff
                   static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_ - frame_footer_size_)};
   uint8_t *buf_start = buffer.get_buffer()->data();
   struct iovec iov;
-  aerr = this->encrypt_noise_message_(buf_start, msg, iov);
+  APIError aerr = this->encrypt_noise_message_(buf_start, msg, iov);
   if (aerr != APIError::OK)
     return aerr;
   return this->write_raw_fast_(iov.iov_base, static_cast<uint16_t>(iov.iov_len));
@@ -520,7 +520,7 @@ APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, s
   for (const auto &msg : messages) {
     uint8_t *buf_start = buffer_data + msg.offset;
     struct iovec iov;
-    aerr = this->encrypt_noise_message_(buf_start, msg, iov);
+    APIError aerr = this->encrypt_noise_message_(buf_start, msg, iov);
     if (aerr != APIError::OK)
       return aerr;
     iovs.push_back(iov);
