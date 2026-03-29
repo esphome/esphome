@@ -142,6 +142,7 @@ APIError APIFrameHelper::write_raw_iov_(const struct iovec *iov, int iovcnt, uin
             (iovcnt == 1) ? this->socket_->write(iov[0].iov_base, iov[0].iov_len) : this->socket_->writev(iov, iovcnt);
         if (sent == static_cast<ssize_t>(total_write_len))
           return APIError::OK;
+        // Partial write or -1: fall through to error check / enqueue below
       }
     }
     if (sent == -1) {

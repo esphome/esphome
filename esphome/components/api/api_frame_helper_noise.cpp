@@ -504,7 +504,8 @@ APIError APINoiseFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuff
   APIError aerr = this->encrypt_noise_message_(buf_start, msg, iov);
   if (aerr != APIError::OK)
     return aerr;
-  return this->write_raw_fast_buf_(iov.iov_base, static_cast<uint16_t>(iov.iov_len));
+  // buf_start and iov.iov_base point to the same location
+  return this->write_raw_fast_buf_(buf_start, static_cast<uint16_t>(iov.iov_len));
 }
 
 APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) {
