@@ -22,6 +22,9 @@ extern "C" {
 uint32_t temp_single_get_current_temperature(uint32_t *temp_value);
 }
 #endif  // USE_BK72XX
+#if defined(USE_ZEPHYR) && defined(USE_NRF52)
+#include "hal/nrf_temp.h"
+#endif
 
 namespace esphome {
 namespace internal_temperature {
@@ -71,6 +74,26 @@ void InternalTemperatureSensor::update() {
   temperature = raw * 0.128f;
 #endif  // USE_LIBRETINY_VARIANT
 #endif  // USE_BK72XX
+#if defined(USE_ZEPHYR) && defined(USE_NRF52)
+  nrf_temp_event_clear(NRF_TEMP, NRF_TEMP_EVENT_DATARDY);
+  nrf_temp_task_trigger(NRF_TEMP, NRF_TEMP_TASK_START);
+
+  uint32_t wait_loops = 0;
+  const uint32_t max_wait_loops = 100000;
+  while (!nrf_temp_event_check(NRF_TEMP, NRF_TEMP_EVENT_DATARDY) && wait_loops < max_wait_loops) {
+    wait_loops++;
+  }
+
+  nrf_temp_task_trigger(NRF_TEMP, NRF_TEMP_TASK_STOP);
+
+  if (wait_loops >= max_wait_loops) {
+    ESP_LOGE(TAG, "Timed out reading nRF52 internal temperature");
+  } else {
+    const int32_t raw_temperature = nrf_temp_result_get(NRF_TEMP);
+    temperature = raw_temperature / 4.0f;
+    success = true;
+  }
+#endif
   if (success && std::isfinite(temperature)) {
     this->publish_state(temperature);
   } else {

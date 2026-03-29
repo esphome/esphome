@@ -6,6 +6,7 @@ from esphome.const import (
     ENTITY_CATEGORY_DIAGNOSTIC,
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
+    PLATFORM_NRF52,
     PLATFORM_RP2040,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
@@ -25,7 +26,7 @@ CONFIG_SCHEMA = cv.All(
         state_class=STATE_CLASS_MEASUREMENT,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ).extend(cv.polling_component_schema("60s")),
-    cv.only_on([PLATFORM_ESP32, PLATFORM_RP2040, PLATFORM_BK72XX]),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_RP2040, PLATFORM_BK72XX, PLATFORM_NRF52]),
 )
 
 
