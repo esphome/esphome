@@ -130,20 +130,19 @@ APIError APIFrameHelper::write_raw_iov_(const struct iovec *iov, int iovcnt, uin
 #endif
 
   if (sent == -1) {
-    // Either the fast path got -1, or we were called with overflow backlog
+    // Either the fast path write returned -1, or we were called directly (cold path)
     if (!this->overflow_buf_.empty()) {
       // Drain existing backlog first
       APIError err = this->drain_overflow_and_handle_errors_();
       if (err != APIError::OK)
         return err;
-      // Try again after drain
-      if (this->overflow_buf_.empty()) {
-        sent =
-            (iovcnt == 1) ? this->socket_->write(iov[0].iov_base, iov[0].iov_len) : this->socket_->writev(iov, iovcnt);
-        if (sent == static_cast<ssize_t>(total_write_len))
-          return APIError::OK;
-        // Partial write or -1: fall through to error check / enqueue below
-      }
+    }
+    // Try write if backlog is clear (either was empty, or drain succeeded)
+    if (this->overflow_buf_.empty()) {
+      sent = (iovcnt == 1) ? this->socket_->write(iov[0].iov_base, iov[0].iov_len) : this->socket_->writev(iov, iovcnt);
+      if (sent == static_cast<ssize_t>(total_write_len))
+        return APIError::OK;
+      // Partial write or -1: fall through to error check / enqueue below
     }
     if (sent == -1) {
       int err = errno;
