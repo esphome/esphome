@@ -202,7 +202,9 @@ class ProtoWriteBuffer {
   inline void ESPHOME_ALWAYS_INLINE encode_varint_raw(uint32_t value) {
     if (value < 128) [[likely]] {
       this->debug_check_bounds_(1);
-      *this->pos_++ = static_cast<uint8_t>(value);
+      uint8_t *__restrict__ pos = this->pos_;
+      *pos++ = static_cast<uint8_t>(value);
+      this->pos_ = pos;
       return;
     }
     this->encode_varint_raw_slow_(value);
@@ -212,13 +214,17 @@ class ProtoWriteBuffer {
   inline void ESPHOME_ALWAYS_INLINE encode_varint_raw_short(uint32_t value) {
     if (value < 128) [[likely]] {
       this->debug_check_bounds_(1);
-      *this->pos_++ = static_cast<uint8_t>(value);
+      uint8_t *__restrict__ pos = this->pos_;
+      *pos++ = static_cast<uint8_t>(value);
+      this->pos_ = pos;
       return;
     }
     if (value < 16384) [[likely]] {
       this->debug_check_bounds_(2);
-      *this->pos_++ = static_cast<uint8_t>(value | 0x80);
-      *this->pos_++ = static_cast<uint8_t>(value >> 7);
+      uint8_t *__restrict__ pos = this->pos_;
+      *pos++ = static_cast<uint8_t>(value | 0x80);
+      *pos++ = static_cast<uint8_t>(value >> 7);
+      this->pos_ = pos;
       return;
     }
     this->encode_varint_raw_slow_(value);
@@ -250,28 +256,32 @@ class ProtoWriteBuffer {
   /// Write a single precomputed tag byte. Tag must be < 128.
   inline void write_raw_byte(uint8_t b) ESPHOME_ALWAYS_INLINE {
     this->debug_check_bounds_(1);
-    *this->pos_++ = b;
+    uint8_t *__restrict__ pos = this->pos_;
+    *pos++ = b;
+    this->pos_ = pos;
   }
   /// Write raw bytes to the buffer (no tag, no length prefix).
   inline void encode_raw(const void *data, size_t len) ESPHOME_ALWAYS_INLINE {
     this->debug_check_bounds_(len);
-    std::memcpy(this->pos_, data, len);
-    this->pos_ += len;
+    uint8_t *__restrict__ pos = this->pos_;
+    std::memcpy(pos, data, len);
+    this->pos_ = pos + len;
   }
   /// Write a precomputed tag byte + 32-bit value in one operation.
   /// Tag must be a single-byte varint (< 128). No zero check.
   inline void write_tag_and_fixed32(uint8_t tag, uint32_t value) ESPHOME_ALWAYS_INLINE {
     this->debug_check_bounds_(5);
-    this->pos_[0] = tag;
+    uint8_t *__restrict__ pos = this->pos_;
+    pos[0] = tag;
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    std::memcpy(this->pos_ + 1, &value, 4);
+    std::memcpy(pos + 1, &value, 4);
 #else
-    this->pos_[1] = static_cast<uint8_t>(value & 0xFF);
-    this->pos_[2] = static_cast<uint8_t>((value >> 8) & 0xFF);
-    this->pos_[3] = static_cast<uint8_t>((value >> 16) & 0xFF);
-    this->pos_[4] = static_cast<uint8_t>((value >> 24) & 0xFF);
+    pos[1] = static_cast<uint8_t>(value & 0xFF);
+    pos[2] = static_cast<uint8_t>((value >> 8) & 0xFF);
+    pos[3] = static_cast<uint8_t>((value >> 16) & 0xFF);
+    pos[4] = static_cast<uint8_t>((value >> 24) & 0xFF);
 #endif
-    this->pos_ += 5;
+    this->pos_ = pos + 5;
   }
   void encode_string(uint32_t field_id, const char *string, size_t len, bool force = false) {
     if (len == 0 && !force)
@@ -282,8 +292,9 @@ class ProtoWriteBuffer {
     // Direct memcpy into pre-sized buffer — avoids push_back() per-byte capacity checks
     // and vector::insert() iterator overhead. ~10-11x faster for 16-32 byte strings.
     this->debug_check_bounds_(len);
-    std::memcpy(this->pos_, string, len);
-    this->pos_ += len;
+    uint8_t *__restrict__ pos = this->pos_;
+    std::memcpy(pos, string, len);
+    this->pos_ = pos + len;
   }
   void encode_string(uint32_t field_id, const std::string &value, bool force = false) {
     this->encode_string(field_id, value.data(), value.size(), force);
@@ -311,7 +322,9 @@ class ProtoWriteBuffer {
       return;
     this->encode_field_raw(field_id, 0);  // type 0: Varint - bool
     this->debug_check_bounds_(1);
-    *this->pos_++ = value ? 0x01 : 0x00;
+    uint8_t *__restrict__ pos = this->pos_;
+    *pos++ = value ? 0x01 : 0x00;
+    this->pos_ = pos;
   }
   void encode_fixed32(uint32_t field_id, uint32_t value, bool force = false) {
     if (value == 0 && !force)
@@ -319,15 +332,17 @@ class ProtoWriteBuffer {
 
     this->encode_field_raw(field_id, 5);  // type 5: 32-bit fixed32
     this->debug_check_bounds_(4);
+    uint8_t *__restrict__ pos = this->pos_;
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
     // Protobuf fixed32 is little-endian, so direct copy works
-    std::memcpy(this->pos_, &value, 4);
-    this->pos_ += 4;
+    std::memcpy(pos, &value, 4);
+    this->pos_ = pos + 4;
 #else
-    *this->pos_++ = (value >> 0) & 0xFF;
-    *this->pos_++ = (value >> 8) & 0xFF;
-    *this->pos_++ = (value >> 16) & 0xFF;
-    *this->pos_++ = (value >> 24) & 0xFF;
+    *pos++ = (value >> 0) & 0xFF;
+    *pos++ = (value >> 8) & 0xFF;
+    *pos++ = (value >> 16) & 0xFF;
+    *pos++ = (value >> 24) & 0xFF;
+    this->pos_ = pos;
 #endif
   }
   // NOTE: Wire type 1 (64-bit fixed: double, fixed64, sfixed64) is intentionally
