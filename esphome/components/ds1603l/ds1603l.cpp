@@ -38,7 +38,8 @@ void Ds1603l::loop() {
     // Read 4 bytes of data
     this->read_array(this->rx_buffer_, 4);
 
-    ESP_LOGD(TAG, "Raw Data: %02X %02X %02X %02X", this->rx_buffer_[0], this->rx_buffer_[1], this->rx_buffer_[2], this->rx_buffer_[3]);
+    ESP_LOGD(TAG, "Raw Data: %02X %02X %02X %02X", this->rx_buffer_[0], this->rx_buffer_[1], this->rx_buffer_[2],
+             this->rx_buffer_[3]);
 
     // Verify the header byte
     if (this->rx_buffer_[0] != 0xFF) {
@@ -93,8 +94,9 @@ void Ds1603l::parse_data_() {
   float ds1603l_liquid_volume = ds1603l_liquid_level * (ds1603l_max_volume_ / ds1603l_max_level_);
   ds1603l_liquid_volume = std::clamp(ds1603l_liquid_volume, ds1603l_min_volume_, ds1603l_max_volume_);
 
-// Added for percentage
-  float ds1603l_percentage = ((float)(ds1603l_liquid_volume - ds1603l_min_volume_) / (ds1603l_max_volume_ - ds1603l_min_volume_)) * 100.0f;
+  // Added for percentage
+  float ds1603l_percentage =
+      ((float) (ds1603l_liquid_volume - ds1603l_min_volume_) / (ds1603l_max_volume_ - ds1603l_min_volume_)) * 100.0f;
 
   ESP_LOGI(TAG, "Liquid Level: %f mm", ds1603l_liquid_level);
 
