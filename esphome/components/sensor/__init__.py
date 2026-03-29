@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_ABOVE,
     CONF_ACCURACY_DECIMALS,
     CONF_ALPHA,
+    CONF_BASELINE,
     CONF_BELOW,
     CONF_CALIBRATION,
     CONF_DEVICE_CLASS,
@@ -38,7 +39,6 @@ from esphome.const import (
     CONF_TIMEOUT,
     CONF_TO,
     CONF_TRIGGER_ID,
-    CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_VALUE,
     CONF_WEB_SERVER,
@@ -106,8 +106,13 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
-from esphome.cpp_generator import MockObjClass
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    setup_device_class,
+    setup_entity,
+    setup_unit_of_measurement,
+)
+from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
@@ -233,12 +238,6 @@ Sensor = sensor_ns.class_("Sensor", cg.EntityBase)
 SensorPtr = Sensor.operator("ptr")
 
 # Triggers
-SensorStateTrigger = sensor_ns.class_(
-    "SensorStateTrigger", automation.Trigger.template(cg.float_)
-)
-SensorRawStateTrigger = sensor_ns.class_(
-    "SensorRawStateTrigger", automation.Trigger.template(cg.float_)
-)
 ValueRangeTrigger = sensor_ns.class_(
     "ValueRangeTrigger", automation.Trigger.template(cg.float_), cg.Component
 )
@@ -311,18 +310,8 @@ _SENSOR_SCHEMA = (
                 cv.Any(None, cv.positive_time_period_milliseconds),
             ),
             cv.Optional(CONF_FILTERS): validate_filters,
-            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SensorStateTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        SensorRawStateTrigger
-                    ),
-                }
-            ),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation({}),
             cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
@@ -398,10 +387,12 @@ async def filter_out_filter_to_code(config, filter_id):
 QUANTILE_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
-            cv.Optional(CONF_QUANTILE, default=0.9): cv.zero_to_one_float,
+            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_EVERY, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_QUANTILE, default=0.9): cv.float_range(
+                min=0, min_included=False, max=1
+            ),
         }
     ),
     validate_send_first_at,
@@ -422,9 +413,9 @@ async def quantile_filter_to_code(config, filter_id):
 MEDIAN_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_EVERY, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.int_range(min=1, max=65535),
         }
     ),
     validate_send_first_at,
@@ -444,9 +435,9 @@ async def median_filter_to_code(config, filter_id):
 MIN_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_EVERY, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.int_range(min=1, max=65535),
         }
     ),
     validate_send_first_at,
@@ -478,9 +469,9 @@ async def min_filter_to_code(config, filter_id):
 MAX_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_WINDOW_SIZE, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_EVERY, default=5): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.int_range(min=1, max=65535),
         }
     ),
     validate_send_first_at,
@@ -504,9 +495,9 @@ async def max_filter_to_code(config, filter_id):
 SLIDING_AVERAGE_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_WINDOW_SIZE, default=15): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_WINDOW_SIZE, default=15): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_EVERY, default=15): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.int_range(min=1, max=65535),
         }
     ),
     validate_send_first_at,
@@ -535,8 +526,8 @@ EXPONENTIAL_AVERAGE_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_ALPHA, default=0.1): cv.positive_float,
-            cv.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
-            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+            cv.Optional(CONF_SEND_EVERY, default=15): cv.int_range(min=1, max=65535),
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.int_range(min=1, max=65535),
         }
     ),
     validate_send_first_at,
@@ -574,38 +565,56 @@ async def lambda_filter_to_code(config, filter_id):
     return automation.new_lambda_pvariable(filter_id, lambda_, StatelessLambdaFilter)
 
 
-DELTA_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_VALUE): cv.positive_float,
-        cv.Optional(CONF_TYPE, default="absolute"): cv.one_of(
-            "absolute", "percentage", lower=True
-        ),
-    }
+def validate_delta_value(value):
+    if isinstance(value, str) and value.endswith("%"):
+        # Check it's a well-formed percentage, but return the string as-is
+        try:
+            cv.positive_float(value[:-1])
+            return value
+        except cv.Invalid as exc:
+            raise cv.Invalid("Malformed delta % value") from exc
+    return cv.positive_float(value)
+
+
+# This ideally would be done with `cv.maybe_simple_value` but it doesn't seem to respect the default for min_value.
+DELTA_SCHEMA = cv.Any(
+    cv.All(
+        {
+            # Ideally this would be 'default=float("inf")' but it doesn't translate well to C++
+            cv.Optional(CONF_MAX_VALUE): validate_delta_value,
+            cv.Optional(CONF_MIN_VALUE, default="0.0"): validate_delta_value,
+            cv.Optional(CONF_BASELINE): cv.templatable(cv.float_),
+        },
+        cv.has_at_least_one_key(CONF_MAX_VALUE, CONF_MIN_VALUE),
+    ),
+    validate_delta_value,
 )
 
 
-def validate_delta(config):
-    try:
-        value = cv.positive_float(config)
-        return DELTA_SCHEMA({CONF_VALUE: value, CONF_TYPE: "absolute"})
-    except cv.Invalid:
-        pass
-    try:
-        value = cv.percentage(config)
-        return DELTA_SCHEMA({CONF_VALUE: value, CONF_TYPE: "percentage"})
-    except cv.Invalid:
-        pass
-    raise cv.Invalid("Delta filter requires a positive number or percentage value.")
+def _get_delta(value):
+    if isinstance(value, str):
+        assert value.endswith("%")
+        return 0.0, float(value[:-1]) / 100.0
+    return value, 0.0
 
 
-@FILTER_REGISTRY.register("delta", DeltaFilter, cv.Any(DELTA_SCHEMA, validate_delta))
+@FILTER_REGISTRY.register("delta", DeltaFilter, DELTA_SCHEMA)
 async def delta_filter_to_code(config, filter_id):
-    percentage = config[CONF_TYPE] == "percentage"
-    return cg.new_Pvariable(
-        filter_id,
-        config[CONF_VALUE],
-        percentage,
-    )
+    # The config could be just the min_value, or it could be a dict.
+    max = MockObj("std::numeric_limits<float>::infinity()"), 0
+    if isinstance(config, dict):
+        min = _get_delta(config[CONF_MIN_VALUE])
+        if CONF_MAX_VALUE in config:
+            max = _get_delta(config[CONF_MAX_VALUE])
+    else:
+        min = _get_delta(config)
+    var = cg.new_Pvariable(filter_id, *min, *max)
+    if isinstance(config, dict) and (baseline_lambda := config.get(CONF_BASELINE)):
+        baseline = await cg.process_lambda(
+            baseline_lambda, [(float, "x")], return_type=float
+        )
+        cg.add(var.set_baseline(baseline))
+    return var
 
 
 @FILTER_REGISTRY.register("or", OrFilter, validate_filters)
@@ -870,30 +879,16 @@ async def build_filters(config):
     return await cg.build_registry_list(FILTER_REGISTRY, config)
 
 
-async def setup_sensor_core_(var, config):
-    await setup_entity(var, config, "sensor")
-
-    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
-        cg.add(var.set_device_class(device_class))
-    if (state_class := config.get(CONF_STATE_CLASS)) is not None:
-        cg.add(var.set_state_class(state_class))
-    if (unit_of_measurement := config.get(CONF_UNIT_OF_MEASUREMENT)) is not None:
-        cg.add(var.set_unit_of_measurement(unit_of_measurement))
-    if (accuracy_decimals := config.get(CONF_ACCURACY_DECIMALS)) is not None:
-        cg.add(var.set_accuracy_decimals(accuracy_decimals))
-    # Only set force_update if True (default is False)
-    if config[CONF_FORCE_UPDATE]:
-        cg.add(var.set_force_update(True))
-    if config.get(CONF_FILTERS):  # must exist and not be empty
-        filters = await build_filters(config[CONF_FILTERS])
-        cg.add(var.set_filters(filters))
-
-    for conf in config.get(CONF_ON_VALUE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(float, "x")], conf)
-    for conf in config.get(CONF_ON_RAW_VALUE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(float, "x")], conf)
+@coroutine_with_priority(CoroPriority.AUTOMATION)
+async def _build_sensor_automations(var, config):
+    for conf_key, callback in (
+        (CONF_ON_VALUE, "add_on_state_callback"),
+        (CONF_ON_RAW_VALUE, "add_on_raw_state_callback"),
+    ):
+        for conf in config.get(conf_key, []):
+            await automation.build_callback_automation(
+                var, callback, [(float, "x")], conf
+            )
     for conf in config.get(CONF_ON_VALUE_RANGE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await cg.register_component(trigger, conf)
@@ -904,6 +899,25 @@ async def setup_sensor_core_(var, config):
             template_ = await cg.templatable(below, [(float, "x")], float)
             cg.add(trigger.set_max(template_))
         await automation.build_automation(trigger, [(float, "x")], conf)
+
+
+@setup_entity("sensor")
+async def setup_sensor_core_(var, config):
+    setup_device_class(config)
+    setup_unit_of_measurement(config)
+    if (state_class := config.get(CONF_STATE_CLASS)) is not None:
+        cg.add(var.set_state_class(state_class))
+    if (accuracy_decimals := config.get(CONF_ACCURACY_DECIMALS)) is not None:
+        cg.add(var.set_accuracy_decimals(accuracy_decimals))
+    # Only set force_update if True (default is False)
+    if config[CONF_FORCE_UPDATE]:
+        cg.add(var.set_force_update(True))
+    if config.get(CONF_FILTERS):  # must exist and not be empty
+        cg.add_define("USE_SENSOR_FILTER")
+        filters = await build_filters(config[CONF_FILTERS])
+        cg.add(var.set_filters(filters))
+
+    CORE.add_job(_build_sensor_automations, var, config)
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)

@@ -2,8 +2,10 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/controller_registry.h"
+#include "esphome/core/progmem.h"
 
 #include <cmath>
+#include <cstring>
 
 namespace esphome::water_heater {
 
@@ -22,23 +24,25 @@ WaterHeaterCall &WaterHeaterCall::set_mode(WaterHeaterMode mode) {
   return *this;
 }
 
-WaterHeaterCall &WaterHeaterCall::set_mode(const std::string &mode) {
-  if (str_equals_case_insensitive(mode, "OFF")) {
+WaterHeaterCall &WaterHeaterCall::set_mode(const char *mode) { return this->set_mode(mode, strlen(mode)); }
+
+WaterHeaterCall &WaterHeaterCall::set_mode(const char *mode, size_t len) {
+  if (len == 3 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("OFF"), 3) == 0) {
     this->set_mode(WATER_HEATER_MODE_OFF);
-  } else if (str_equals_case_insensitive(mode, "ECO")) {
+  } else if (len == 3 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("ECO"), 3) == 0) {
     this->set_mode(WATER_HEATER_MODE_ECO);
-  } else if (str_equals_case_insensitive(mode, "ELECTRIC")) {
+  } else if (len == 8 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("ELECTRIC"), 8) == 0) {
     this->set_mode(WATER_HEATER_MODE_ELECTRIC);
-  } else if (str_equals_case_insensitive(mode, "PERFORMANCE")) {
+  } else if (len == 11 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("PERFORMANCE"), 11) == 0) {
     this->set_mode(WATER_HEATER_MODE_PERFORMANCE);
-  } else if (str_equals_case_insensitive(mode, "HIGH_DEMAND")) {
+  } else if (len == 11 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("HIGH_DEMAND"), 11) == 0) {
     this->set_mode(WATER_HEATER_MODE_HIGH_DEMAND);
-  } else if (str_equals_case_insensitive(mode, "HEAT_PUMP")) {
+  } else if (len == 9 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("HEAT_PUMP"), 9) == 0) {
     this->set_mode(WATER_HEATER_MODE_HEAT_PUMP);
-  } else if (str_equals_case_insensitive(mode, "GAS")) {
+  } else if (len == 3 && ESPHOME_strncasecmp_P(mode, ESPHOME_PSTR("GAS"), 3) == 0) {
     this->set_mode(WATER_HEATER_MODE_GAS);
   } else {
-    ESP_LOGW(TAG, "'%s' - Unrecognized mode %s", this->parent_->get_name().c_str(), mode.c_str());
+    ESP_LOGW(TAG, "'%s' - Unrecognized mode %.*s", this->parent_->get_name().c_str(), (int) len, mode);
   }
   return *this;
 }
@@ -64,6 +68,7 @@ WaterHeaterCall &WaterHeaterCall::set_away(bool away) {
   } else {
     this->state_ &= ~WATER_HEATER_STATE_AWAY;
   }
+  this->state_mask_ |= WATER_HEATER_STATE_AWAY;
   return *this;
 }
 
@@ -73,29 +78,30 @@ WaterHeaterCall &WaterHeaterCall::set_on(bool on) {
   } else {
     this->state_ &= ~WATER_HEATER_STATE_ON;
   }
+  this->state_mask_ |= WATER_HEATER_STATE_ON;
   return *this;
 }
 
 void WaterHeaterCall::perform() {
-  ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
+  ESP_LOGV(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   this->validate_();
   if (this->mode_.has_value()) {
-    ESP_LOGD(TAG, "  Mode: %s", LOG_STR_ARG(water_heater_mode_to_string(*this->mode_)));
+    ESP_LOGV(TAG, "  Mode: %s", LOG_STR_ARG(water_heater_mode_to_string(*this->mode_)));
   }
   if (!std::isnan(this->target_temperature_)) {
-    ESP_LOGD(TAG, "  Target Temperature: %.2f", this->target_temperature_);
+    ESP_LOGV(TAG, "  Target Temperature: %.2f", this->target_temperature_);
   }
   if (!std::isnan(this->target_temperature_low_)) {
-    ESP_LOGD(TAG, "  Target Temperature Low: %.2f", this->target_temperature_low_);
+    ESP_LOGV(TAG, "  Target Temperature Low: %.2f", this->target_temperature_low_);
   }
   if (!std::isnan(this->target_temperature_high_)) {
-    ESP_LOGD(TAG, "  Target Temperature High: %.2f", this->target_temperature_high_);
+    ESP_LOGV(TAG, "  Target Temperature High: %.2f", this->target_temperature_high_);
   }
-  if (this->state_ & WATER_HEATER_STATE_AWAY) {
-    ESP_LOGD(TAG, "  Away: YES");
+  if (this->state_mask_ & WATER_HEATER_STATE_AWAY) {
+    ESP_LOGV(TAG, "  Away: %s", (this->state_ & WATER_HEATER_STATE_AWAY) ? "YES" : "NO");
   }
-  if (this->state_ & WATER_HEATER_STATE_ON) {
-    ESP_LOGD(TAG, "  On: YES");
+  if (this->state_mask_ & WATER_HEATER_STATE_ON) {
+    ESP_LOGV(TAG, "  On: %s", (this->state_ & WATER_HEATER_STATE_ON) ? "YES" : "NO");
   }
   this->parent_->control(*this);
 }
@@ -136,40 +142,40 @@ void WaterHeaterCall::validate_() {
       this->target_temperature_high_ = NAN;
     }
   }
-  if ((this->state_ & WATER_HEATER_STATE_AWAY) && !traits.get_supports_away_mode()) {
-    ESP_LOGW(TAG, "'%s' - Away mode not supported", this->parent_->get_name().c_str());
+  if (!traits.get_supports_away_mode()) {
+    if (this->state_ & WATER_HEATER_STATE_AWAY) {
+      ESP_LOGW(TAG, "'%s' - Away mode not supported", this->parent_->get_name().c_str());
+    }
     this->state_ &= ~WATER_HEATER_STATE_AWAY;
+    this->state_mask_ &= ~WATER_HEATER_STATE_AWAY;
   }
   // If ON/OFF not supported, device is always on - clear the flag silently
   if (!traits.has_feature_flags(WATER_HEATER_SUPPORTS_ON_OFF)) {
     this->state_ &= ~WATER_HEATER_STATE_ON;
+    this->state_mask_ &= ~WATER_HEATER_STATE_ON;
   }
-}
-
-void WaterHeater::setup() {
-  this->pref_ = global_preferences->make_preference<SavedWaterHeaterState>(this->get_preference_hash());
 }
 
 void WaterHeater::publish_state() {
   auto traits = this->get_traits();
-  ESP_LOGD(TAG,
+  ESP_LOGV(TAG,
            "'%s' >>\n"
            "  Mode: %s",
            this->name_.c_str(), LOG_STR_ARG(water_heater_mode_to_string(this->mode_)));
   if (!std::isnan(this->current_temperature_)) {
-    ESP_LOGD(TAG, "  Current Temperature: %.2f°C", this->current_temperature_);
+    ESP_LOGV(TAG, "  Current Temperature: %.2f°C", this->current_temperature_);
   }
   if (traits.get_supports_two_point_target_temperature()) {
-    ESP_LOGD(TAG, "  Target Temperature: Low: %.2f°C High: %.2f°C", this->target_temperature_low_,
+    ESP_LOGV(TAG, "  Target Temperature: Low: %.2f°C High: %.2f°C", this->target_temperature_low_,
              this->target_temperature_high_);
   } else if (!std::isnan(this->target_temperature_)) {
-    ESP_LOGD(TAG, "  Target Temperature: %.2f°C", this->target_temperature_);
+    ESP_LOGV(TAG, "  Target Temperature: %.2f°C", this->target_temperature_);
   }
   if (this->state_ & WATER_HEATER_STATE_AWAY) {
-    ESP_LOGD(TAG, "  Away: YES");
+    ESP_LOGV(TAG, "  Away: YES");
   }
   if (traits.has_feature_flags(WATER_HEATER_SUPPORTS_ON_OFF)) {
-    ESP_LOGD(TAG, "  On: %s", (this->state_ & WATER_HEATER_STATE_ON) ? "YES" : "NO");
+    ESP_LOGV(TAG, "  On: %s", (this->state_ & WATER_HEATER_STATE_ON) ? "YES" : "NO");
   }
 
 #if defined(USE_WATER_HEATER) && defined(USE_CONTROLLER_REGISTRY)
@@ -188,7 +194,8 @@ void WaterHeater::publish_state() {
   this->pref_.save(&saved);
 }
 
-optional<WaterHeaterCall> WaterHeater::restore_state() {
+optional<WaterHeaterCall> WaterHeater::restore_state_() {
+  this->pref_ = this->make_entity_preference<SavedWaterHeaterState>();
   SavedWaterHeaterState recovered{};
   if (!this->pref_.load(&recovered))
     return {};
@@ -235,25 +242,13 @@ void WaterHeater::set_visual_target_temperature_step_override(float visual_targe
 }
 #endif
 
+// Water heater mode strings indexed by WaterHeaterMode enum (0-6): OFF, ECO, ELECTRIC, PERFORMANCE, HIGH_DEMAND,
+// HEAT_PUMP, GAS
+PROGMEM_STRING_TABLE(WaterHeaterModeStrings, "OFF", "ECO", "ELECTRIC", "PERFORMANCE", "HIGH_DEMAND", "HEAT_PUMP", "GAS",
+                     "UNKNOWN");
+
 const LogString *water_heater_mode_to_string(WaterHeaterMode mode) {
-  switch (mode) {
-    case WATER_HEATER_MODE_OFF:
-      return LOG_STR("OFF");
-    case WATER_HEATER_MODE_ECO:
-      return LOG_STR("ECO");
-    case WATER_HEATER_MODE_ELECTRIC:
-      return LOG_STR("ELECTRIC");
-    case WATER_HEATER_MODE_PERFORMANCE:
-      return LOG_STR("PERFORMANCE");
-    case WATER_HEATER_MODE_HIGH_DEMAND:
-      return LOG_STR("HIGH_DEMAND");
-    case WATER_HEATER_MODE_HEAT_PUMP:
-      return LOG_STR("HEAT_PUMP");
-    case WATER_HEATER_MODE_GAS:
-      return LOG_STR("GAS");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  return WaterHeaterModeStrings::get_log_str(static_cast<uint8_t>(mode), WaterHeaterModeStrings::LAST_INDEX);
 }
 
 void WaterHeater::dump_traits_(const char *tag) {

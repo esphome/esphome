@@ -163,7 +163,10 @@ BASE_REMOTE_TRANSMITTER_SCHEMA = cv.Schema(
 def register_action(name, type_, schema):
     validator = templatize(schema).extend(BASE_REMOTE_TRANSMITTER_SCHEMA)
     registerer = automation.register_action(
-        f"remote_transmitter.transmit_{name}", type_, validator
+        f"remote_transmitter.transmit_{name}",
+        type_,
+        validator,
+        synchronous=True,
     )
 
     def decorator(func):
@@ -305,6 +308,50 @@ async def beo4_action(var, config, args):
     cg.add(var.set_command(template_))
     template_ = await cg.templatable(config[CONF_COMMAND_REPEATS], args, cg.uint8)
     cg.add(var.set_repeats(template_))
+
+
+# Brennenstuhl
+(
+    BrennenstuhlData,
+    BrennenstuhlBinarySensor,
+    BrennenstuhlTrigger,
+    BrennenstuhlAction,
+    BrennenstuhlDumper,
+) = declare_protocol("Brennenstuhl")
+
+BRENNENSTUHL_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODE): cv.hex_uint32_t,
+    }
+)
+
+
+@register_binary_sensor("brennenstuhl", BrennenstuhlBinarySensor, BRENNENSTUHL_SCHEMA)
+def brennenstuhl_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                BrennenstuhlData,
+                ("code", config[CONF_CODE]),
+            )
+        )
+    )
+
+
+@register_trigger("brennenstuhl", BrennenstuhlTrigger, BrennenstuhlData)
+def brennenstuhl_trigger(var, config):
+    pass
+
+
+@register_dumper("brennenstuhl", BrennenstuhlDumper)
+def brennenstuhl_dumper(var, config):
+    pass
+
+
+@register_action("brennenstuhl", BrennenstuhlAction, BRENNENSTUHL_SCHEMA)
+async def brennenstuhl_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_CODE], args, cg.uint32)
+    cg.add(var.set_code(template_))
 
 
 # ByronSX

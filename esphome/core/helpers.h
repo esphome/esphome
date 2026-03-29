@@ -16,6 +16,7 @@
 #include <type_traits>
 #include <vector>
 #include <concepts>
+#include <strings.h>
 
 #include "esphome/core/optional.h"
 
@@ -132,6 +133,78 @@ template<typename T> class ConstVector {
   size_t size_;
 };
 
+/// Small buffer optimization - stores data inline when small, heap-allocates for large data
+/// This avoids heap fragmentation for common small allocations while supporting arbitrary sizes.
+/// Memory management is encapsulated - callers just use set() and data().
+template<size_t InlineSize = 8> class SmallInlineBuffer {
+ public:
+  SmallInlineBuffer() = default;
+  ~SmallInlineBuffer() {
+    if (!this->is_inline_())
+      delete[] this->heap_;
+  }
+
+  // Move constructor
+  SmallInlineBuffer(SmallInlineBuffer &&other) noexcept : len_(other.len_) {
+    if (other.is_inline_()) {
+      memcpy(this->inline_, other.inline_, this->len_);
+    } else {
+      this->heap_ = other.heap_;
+      other.heap_ = nullptr;
+    }
+    other.len_ = 0;
+  }
+
+  // Move assignment
+  SmallInlineBuffer &operator=(SmallInlineBuffer &&other) noexcept {
+    if (this != &other) {
+      if (!this->is_inline_())
+        delete[] this->heap_;
+      this->len_ = other.len_;
+      if (other.is_inline_()) {
+        memcpy(this->inline_, other.inline_, this->len_);
+      } else {
+        this->heap_ = other.heap_;
+        other.heap_ = nullptr;
+      }
+      other.len_ = 0;
+    }
+    return *this;
+  }
+
+  // Disable copy (would need deep copy of heap data)
+  SmallInlineBuffer(const SmallInlineBuffer &) = delete;
+  SmallInlineBuffer &operator=(const SmallInlineBuffer &) = delete;
+
+  /// Set buffer contents, allocating heap if needed
+  void set(const uint8_t *src, size_t size) {
+    // Free existing heap allocation if switching from heap to inline or different heap size
+    if (!this->is_inline_() && (size <= InlineSize || size != this->len_)) {
+      delete[] this->heap_;
+      this->heap_ = nullptr;  // Defensive: prevent use-after-free if logic changes
+    }
+    // Allocate new heap buffer if needed
+    if (size > InlineSize && (this->is_inline_() || size != this->len_)) {
+      this->heap_ = new uint8_t[size];  // NOLINT(cppcoreguidelines-owning-memory)
+    }
+    this->len_ = size;
+    memcpy(this->data(), src, size);
+  }
+
+  uint8_t *data() { return this->is_inline_() ? this->inline_ : this->heap_; }
+  const uint8_t *data() const { return this->is_inline_() ? this->inline_ : this->heap_; }
+  size_t size() const { return this->len_; }
+
+ protected:
+  bool is_inline_() const { return this->len_ <= InlineSize; }
+
+  size_t len_{0};
+  union {
+    uint8_t inline_[InlineSize]{};  // Zero-init ensures clean initial state
+    uint8_t *heap_;
+  };
+};
+
 /// Minimal static vector - saves memory by avoiding std::vector overhead
 template<typename T, size_t N> class StaticVector {
  public:
@@ -142,14 +215,44 @@ template<typename T, size_t N> class StaticVector {
   using const_reverse_iterator = std::reverse_iterator<const_iterator>;
 
  private:
-  std::array<T, N> data_{};
+  std::array<T, N> data_;  // intentionally not value-initialized to avoid memset
   size_t count_{0};
 
  public:
+  // Default constructor
+  StaticVector() = default;
+
+  // Iterator range constructor
+  template<typename InputIt> StaticVector(InputIt first, InputIt last) {
+    while (first != last && count_ < N) {
+      data_[count_++] = *first++;
+    }
+  }
+
+  // Initializer list constructor
+  StaticVector(std::initializer_list<T> init) {
+    for (const auto &val : init) {
+      if (count_ >= N)
+        break;
+      data_[count_++] = val;
+    }
+  }
+
   // Minimal vector-compatible interface - only what we actually use
   void push_back(const T &value) {
     if (count_ < N) {
       data_[count_++] = value;
+    }
+  }
+
+  // Clear all elements
+  void clear() { count_ = 0; }
+
+  // Assign from iterator range
+  template<typename InputIt> void assign(InputIt first, InputIt last) {
+    count_ = 0;
+    while (first != last && count_ < N) {
+      data_[count_++] = *first++;
     }
   }
 
@@ -184,6 +287,214 @@ template<typename T, size_t N> class StaticVector {
   reverse_iterator rend() { return reverse_iterator(begin()); }
   const_reverse_iterator rbegin() const { return const_reverse_iterator(end()); }
   const_reverse_iterator rend() const { return const_reverse_iterator(begin()); }
+
+  // Conversion to std::span for compatibility with span-based APIs
+  operator std::span<T>() { return std::span<T>(data_.data(), count_); }
+  operator std::span<const T>() const { return std::span<const T>(data_.data(), count_); }
+};
+
+/// Fixed-size circular buffer with FIFO semantics and iteration support.
+///
+/// A tiny ring buffer that avoids dynamic allocations from std::deque/std::queue
+/// (which can be wasteful on MCUs), while supporting iteration over queued elements.
+///
+/// Not thread-safe. All access (push/pop/iteration) must occur from a single
+/// context, or the caller must provide external synchronization.
+template<typename T, size_t N> class StaticRingBuffer {
+  using index_type = std::conditional_t<(N <= std::numeric_limits<uint8_t>::max()), uint8_t, uint16_t>;
+
+ public:
+  class Iterator {
+   public:
+    Iterator(StaticRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
+    T &operator*() { return buf_->data_[(buf_->head_ + pos_) % N]; }
+    Iterator &operator++() {
+      ++pos_;
+      return *this;
+    }
+    bool operator!=(const Iterator &other) const { return pos_ != other.pos_; }
+
+   private:
+    StaticRingBuffer *buf_;
+    index_type pos_;
+  };
+
+  class ConstIterator {
+   public:
+    ConstIterator(const StaticRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
+    const T &operator*() const { return buf_->data_[(buf_->head_ + pos_) % N]; }
+    ConstIterator &operator++() {
+      ++pos_;
+      return *this;
+    }
+    bool operator!=(const ConstIterator &other) const { return pos_ != other.pos_; }
+
+   private:
+    const StaticRingBuffer *buf_;
+    index_type pos_;
+  };
+
+  bool push(const T &value) {
+    if (this->count_ >= N) {
+      return false;
+    }
+    this->data_[this->tail_] = value;
+    this->tail_ = (this->tail_ + 1) % N;
+    ++this->count_;
+    return true;
+  }
+
+  void pop() {
+    if (this->count_ > 0) {
+      this->head_ = (this->head_ + 1) % N;
+      --this->count_;
+    }
+  }
+
+  T &front() { return this->data_[this->head_]; }
+  const T &front() const { return this->data_[this->head_]; }
+  index_type size() const { return this->count_; }
+  bool empty() const { return this->count_ == 0; }
+
+  /// Clear all elements (reset to empty)
+  void clear() {
+    this->head_ = 0;
+    this->tail_ = 0;
+    this->count_ = 0;
+  }
+
+  Iterator begin() { return Iterator(this, 0); }
+  Iterator end() { return Iterator(this, this->count_); }
+  ConstIterator begin() const { return ConstIterator(this, 0); }
+  ConstIterator end() const { return ConstIterator(this, this->count_); }
+
+ protected:
+  T data_[N];
+  index_type head_{0};
+  index_type tail_{0};
+  index_type count_{0};
+};
+
+/// Fixed-capacity circular buffer - allocates once at runtime, never reallocates.
+/// Runtime-sized equivalent of StaticRingBuffer - use when capacity is only known at initialization.
+/// Supports FIFO push/pop and iteration over queued elements.
+/// Not thread-safe.
+template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()> class FixedRingBuffer {
+  using index_type = std::conditional_t<
+      (MAX_CAPACITY <= std::numeric_limits<uint8_t>::max()), uint8_t,
+      std::conditional_t<(MAX_CAPACITY <= std::numeric_limits<uint16_t>::max()), uint16_t, uint32_t>>;
+
+ public:
+  class Iterator {
+   public:
+    Iterator(FixedRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
+    T &operator*() { return buf_->data_[(buf_->head_ + pos_) % buf_->capacity_]; }
+    Iterator &operator++() {
+      ++pos_;
+      return *this;
+    }
+    bool operator!=(const Iterator &other) const { return pos_ != other.pos_; }
+
+   private:
+    FixedRingBuffer *buf_;
+    index_type pos_;
+  };
+
+  class ConstIterator {
+   public:
+    ConstIterator(const FixedRingBuffer *buf, index_type pos) : buf_(buf), pos_(pos) {}
+    const T &operator*() const { return buf_->data_[(buf_->head_ + pos_) % buf_->capacity_]; }
+    ConstIterator &operator++() {
+      ++pos_;
+      return *this;
+    }
+    bool operator!=(const ConstIterator &other) const { return pos_ != other.pos_; }
+
+   private:
+    const FixedRingBuffer *buf_;
+    index_type pos_;
+  };
+
+  FixedRingBuffer() = default;
+  ~FixedRingBuffer() {
+    if constexpr (std::is_trivially_copyable<T>::value && std::is_trivially_default_constructible<T>::value) {
+      ::operator delete(this->data_);
+    } else {
+      delete[] this->data_;
+    }
+  }
+
+  // Disable copy
+  FixedRingBuffer(const FixedRingBuffer &) = delete;
+  FixedRingBuffer &operator=(const FixedRingBuffer &) = delete;
+
+  /// Allocate capacity - can only be called once
+  void init(index_type capacity) {
+    if constexpr (std::is_trivially_copyable<T>::value && std::is_trivially_default_constructible<T>::value) {
+      // Raw allocation without initialization (elements are written before read)
+      // NOLINTNEXTLINE(bugprone-sizeof-expression)
+      this->data_ = static_cast<T *>(::operator new(capacity * sizeof(T)));
+    } else {
+      this->data_ = new T[capacity];
+    }
+    this->capacity_ = capacity;
+  }
+
+  /// Push a value. Returns false if full.
+  bool push(const T &value) {
+    if (this->count_ >= this->capacity_)
+      return false;
+    this->data_[this->tail_] = value;
+    this->tail_ = (this->tail_ + 1) % this->capacity_;
+    ++this->count_;
+    return true;
+  }
+
+  /// Push a value, overwriting the oldest if full.
+  void push_overwrite(const T &value) {
+    this->data_[this->tail_] = value;
+    this->tail_ = (this->tail_ + 1) % this->capacity_;
+    if (this->count_ >= this->capacity_) {
+      // Buffer full - advance head to drop oldest, count stays at capacity
+      this->head_ = this->tail_;
+    } else {
+      ++this->count_;
+    }
+  }
+
+  /// Remove the oldest element.
+  void pop() {
+    if (this->count_ > 0) {
+      this->head_ = (this->head_ + 1) % this->capacity_;
+      --this->count_;
+    }
+  }
+
+  T &front() { return this->data_[this->head_]; }
+  const T &front() const { return this->data_[this->head_]; }
+  index_type size() const { return this->count_; }
+  bool empty() const { return this->count_ == 0; }
+  index_type capacity() const { return this->capacity_; }
+  bool full() const { return this->count_ == this->capacity_; }
+
+  /// Clear all elements (reset to empty, keep capacity)
+  void clear() {
+    this->head_ = 0;
+    this->tail_ = 0;
+    this->count_ = 0;
+  }
+
+  Iterator begin() { return Iterator(this, 0); }
+  Iterator end() { return Iterator(this, this->count_); }
+  ConstIterator begin() const { return ConstIterator(this, 0); }
+  ConstIterator end() const { return ConstIterator(this, this->count_); }
+
+ protected:
+  T *data_{nullptr};
+  index_type head_{0};
+  index_type tail_{0};
+  index_type count_{0};
+  index_type capacity_{0};
 };
 
 /// Fixed-capacity vector - allocates once at runtime, never reallocates
@@ -348,6 +659,8 @@ template<typename T> class FixedVector {
 
   size_t size() const { return size_; }
   bool empty() const { return size_ == 0; }
+  size_t capacity() const { return capacity_; }
+  bool full() const { return size_ == capacity_; }
 
   /// Access element without bounds checking (matches std::vector behavior)
   /// Caller must ensure index is valid (i < size())
@@ -369,13 +682,15 @@ template<typename T> class FixedVector {
 /// @brief Helper class for efficient buffer allocation - uses stack for small sizes, heap for large
 /// This is useful when most operations need a small buffer but occasionally need larger ones.
 /// The stack buffer avoids heap allocation in the common case, while heap fallback handles edge cases.
-template<size_t STACK_SIZE> class SmallBufferWithHeapFallback {
+/// @tparam STACK_SIZE Number of elements in the stack buffer
+/// @tparam T Element type (default: uint8_t)
+template<size_t STACK_SIZE, typename T = uint8_t> class SmallBufferWithHeapFallback {
  public:
   explicit SmallBufferWithHeapFallback(size_t size) {
     if (size <= STACK_SIZE) {
       this->buffer_ = this->stack_buffer_;
     } else {
-      this->heap_buffer_ = new uint8_t[size];
+      this->heap_buffer_ = new T[size];
       this->buffer_ = this->heap_buffer_;
     }
   }
@@ -387,18 +702,33 @@ template<size_t STACK_SIZE> class SmallBufferWithHeapFallback {
   SmallBufferWithHeapFallback(SmallBufferWithHeapFallback &&) = delete;
   SmallBufferWithHeapFallback &operator=(SmallBufferWithHeapFallback &&) = delete;
 
-  uint8_t *get() { return this->buffer_; }
+  T *get() { return this->buffer_; }
 
  private:
-  uint8_t stack_buffer_[STACK_SIZE];
-  uint8_t *heap_buffer_{nullptr};
-  uint8_t *buffer_;
+  T stack_buffer_[STACK_SIZE];
+  T *heap_buffer_{nullptr};
+  T *buffer_;
 };
 
 ///@}
 
 /// @name Mathematics
 ///@{
+
+/// Compute 10^exp using iterative multiplication/division.
+/// Avoids pulling in powf/__ieee754_powf (~2.3KB flash) for small integer exponents.  // NOLINT
+/// Matches powf(10, exp) for the int8_t exponent range used by sensor accuracy_decimals.  // NOLINT
+inline float pow10_int(int8_t exp) {
+  float result = 1.0f;
+  if (exp >= 0) {
+    for (int8_t i = 0; i < exp; i++)
+      result *= 10.0f;
+  } else {
+    for (int8_t i = exp; i < 0; i++)
+      result /= 10.0f;
+  }
+  return result;
+}
 
 /// Remap \p value from the range (\p min, \p max) to (\p min_out, \p max_out).
 template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max_out) {
@@ -473,11 +803,54 @@ template<std::integral T> constexpr uint32_t fnv1a_hash_extend(uint32_t hash, T 
 constexpr uint32_t fnv1a_hash(const char *str) { return fnv1a_hash_extend(FNV1_OFFSET_BASIS, str); }
 inline uint32_t fnv1a_hash(const std::string &str) { return fnv1a_hash(str.c_str()); }
 
+/// Convert a 64-bit microsecond count to milliseconds without calling
+/// __udivdi3 (software 64-bit divide, ~1200 ns on Xtensa @ 240 MHz).
+///
+/// Returns uint32_t by default (for millis()), or uint64_t when requested
+/// (for millis_64()). The only difference is whether hi * Q is truncated
+/// to 32 bits or widened to 64.
+///
+/// On 32-bit targets, GCC does not optimize 64-bit constant division into a
+/// multiply-by-reciprocal. Since 1000 = 8 * 125, we first right-shift by 3
+/// (free divide-by-8), then use the Euclidean division identity to decompose
+/// the remaining 64-bit divide-by-125 into a single 32-bit division:
+///
+///   floor(us / 1000) = floor(floor(us / 8) / 125)    [exact for integers]
+///   2^32 = Q * 125 + R  (34359738 * 125 + 46)
+///   (hi * 2^32 + lo) / 125 = hi * Q + (hi * R + lo) / 125
+///
+/// GCC optimizes the remaining 32-bit "/ 125U" into a multiply-by-reciprocal
+/// (mulhu + shift), so no division instruction is emitted.
+///
+/// Safe for us up to ~3.2e18 (~101,700 years of microseconds).
+///
+/// See: https://en.wikipedia.org/wiki/Euclidean_division
+/// See: https://ridiculousfish.com/blog/posts/labor-of-division-episode-iii.html
+template<typename ReturnT = uint32_t> inline constexpr ESPHOME_ALWAYS_INLINE ReturnT micros_to_millis(uint64_t us) {
+  constexpr uint32_t d = 125U;
+  constexpr uint32_t q = static_cast<uint32_t>((1ULL << 32) / d);  // 34359738
+  constexpr uint32_t r = static_cast<uint32_t>((1ULL << 32) % d);  // 46
+  // 1000 = 8 * 125; divide-by-8 is a free shift
+  uint64_t x = us >> 3;
+  uint32_t lo = static_cast<uint32_t>(x);
+  uint32_t hi = static_cast<uint32_t>(x >> 32);
+  // Combine remainder term: hi * (2^32 % 125) + lo
+  uint32_t adj = hi * r + lo;
+  // If adj overflowed, the true value is 2^32 + adj; apply the identity again
+  // static_cast<ReturnT>(hi) widens to 64-bit when ReturnT=uint64_t, preserving upper bits of hi*q
+  return static_cast<ReturnT>(hi) * q + (adj < lo ? (adj + r) / d + q : adj / d);
+}
+
 /// Return a random 32-bit unsigned integer.
+/// Not thread-safe. Must only be called from the main loop.
+/// Not suitable for cryptographic use; use random_bytes() instead.
 uint32_t random_uint32();
 /// Return a random float between 0 and 1.
+/// Not thread-safe. Must only be called from the main loop.
+/// Not suitable for cryptographic use; use random_bytes() instead.
 float random_float();
-/// Generate \p len number of random bytes.
+/// Generate \p len random bytes using the platform's secure RNG (hardware RNG or OS CSPRNG).
+/// Thread-safe. Suitable for cryptographic use.
 bool random_bytes(uint8_t *data, size_t len);
 
 ///@}
@@ -568,6 +941,10 @@ template<typename T> constexpr T convert_little_endian(T val) {
 bool str_equals_case_insensitive(const std::string &a, const std::string &b);
 /// Compare StringRefs for equality in case-insensitive manner.
 bool str_equals_case_insensitive(StringRef a, StringRef b);
+/// Compare C strings for equality in case-insensitive manner (no heap allocation).
+inline bool str_equals_case_insensitive(const char *a, const char *b) { return strcasecmp(a, b) == 0; }
+inline bool str_equals_case_insensitive(const std::string &a, const char *b) { return strcasecmp(a.c_str(), b) == 0; }
+inline bool str_equals_case_insensitive(const char *a, const std::string &b) { return strcasecmp(a, b.c_str()) == 0; }
 
 /// Check whether a string starts with a value.
 bool str_startswith(const std::string &str, const std::string &start);
@@ -645,9 +1022,11 @@ inline uint32_t fnv1_hash_object_id(const char *str, size_t len) {
 }
 
 /// snprintf-like function returning std::string of maximum length \p len (excluding null terminator).
+/// @warning Allocates heap memory. Use snprintf() with a stack buffer instead.
 std::string __attribute__((format(printf, 1, 3))) str_snprintf(const char *fmt, size_t len, ...);
 
 /// sprintf-like function returning std::string.
+/// @warning Allocates heap memory. Use snprintf() with a stack buffer instead.
 std::string __attribute__((format(printf, 1, 2))) str_sprintf(const char *fmt, ...);
 
 #ifdef USE_ESP8266
@@ -696,6 +1075,28 @@ __attribute__((format(printf, 4, 5))) inline size_t buf_append_printf(char *buf,
   return std::min(pos + static_cast<size_t>(written), size);
 }
 #endif
+
+/// Safely append a string to buffer without format parsing, returning new position (capped at size).
+/// More efficient than buf_append_printf for plain string literals.
+/// @param buf Output buffer
+/// @param size Total buffer size
+/// @param pos Current position in buffer
+/// @param str String to append (must not be null)
+/// @return New position after appending (capped at size on overflow)
+inline size_t buf_append_str(char *buf, size_t size, size_t pos, const char *str) {
+  if (pos >= size) {
+    return size;
+  }
+  size_t remaining = size - pos - 1;  // reserve space for null terminator
+  size_t len = strlen(str);
+  if (len > remaining) {
+    len = remaining;
+  }
+  memcpy(buf + pos, str, len);
+  pos += len;
+  buf[pos] = '\0';
+  return pos;
+}
 
 /// Concatenate a name with a separator and suffix using an efficient stack-based approach.
 /// This avoids multiple heap allocations during string construction.
@@ -829,6 +1230,9 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> optional<
 }
 
 /// Parse a hex character to its nibble value (0-15), returns 255 on invalid input
+/// Returned by parse_hex_char() for non-hex characters.
+static constexpr uint8_t INVALID_HEX_CHAR = 255;
+
 constexpr uint8_t parse_hex_char(char c) {
   if (c >= '0' && c <= '9')
     return c - '0';
@@ -836,7 +1240,7 @@ constexpr uint8_t parse_hex_char(char c) {
     return c - 'A' + 10;
   if (c >= 'a' && c <= 'f')
     return c - 'a' + 10;
-  return 255;
+  return INVALID_HEX_CHAR;
 }
 
 /// Convert a nibble (0-15) to hex char with specified base ('a' for lowercase, 'A' for uppercase)
@@ -1035,6 +1439,9 @@ template<std::size_t N> std::string format_hex(const std::array<uint8_t, N> &dat
  * Each byte is displayed as a two-digit uppercase hex value, separated by the specified separator.
  * Optionally includes the total byte count in parentheses at the end.
  *
+ * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+ * Causes heap fragmentation on long-running devices.
+ *
  * @param data Pointer to the byte array to format.
  * @param length Number of bytes in the array.
  * @param separator Character to use between hex bytes (default: '.').
@@ -1060,6 +1467,9 @@ std::string format_hex_pretty(const uint8_t *data, size_t length, char separator
  *
  * Similar to the byte array version, but formats 16-bit words as 4-digit hex values.
  *
+ * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+ * Causes heap fragmentation on long-running devices.
+ *
  * @param data Pointer to the 16-bit word array to format.
  * @param length Number of 16-bit words in the array.
  * @param separator Character to use between hex words (default: '.').
@@ -1082,6 +1492,9 @@ std::string format_hex_pretty(const uint16_t *data, size_t length, char separato
  *
  * Convenience overload for std::vector<uint8_t>. Formats each byte as a two-digit
  * uppercase hex value with customizable separator.
+ *
+ * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+ * Causes heap fragmentation on long-running devices.
  *
  * @param data Vector of bytes to format.
  * @param separator Character to use between hex bytes (default: '.').
@@ -1106,6 +1519,9 @@ std::string format_hex_pretty(const std::vector<uint8_t> &data, char separator =
  * Convenience overload for std::vector<uint16_t>. Each 16-bit word is formatted
  * as a 4-digit uppercase hex value in big-endian order.
  *
+ * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+ * Causes heap fragmentation on long-running devices.
+ *
  * @param data Vector of 16-bit words to format.
  * @param separator Character to use between hex words (default: '.').
  * @param show_length Whether to append the word count in parentheses (default: true).
@@ -1128,6 +1544,9 @@ std::string format_hex_pretty(const std::vector<uint16_t> &data, char separator 
  * Treats each character in the string as a byte and formats it in hex.
  * Useful for debugging binary data stored in std::string containers.
  *
+ * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+ * Causes heap fragmentation on long-running devices.
+ *
  * @param data String whose bytes should be formatted as hex.
  * @param separator Character to use between hex bytes (default: '.').
  * @param show_length Whether to append the byte count in parentheses (default: true).
@@ -1149,6 +1568,9 @@ std::string format_hex_pretty(const std::string &data, char separator = '.', boo
  *
  * Converts the integer to big-endian byte order and formats each byte as hex.
  * The most significant byte appears first in the output string.
+ *
+ * @warning Allocates heap memory. Use format_hex_pretty_to() with a stack buffer instead.
+ * Causes heap fragmentation on long-running devices.
  *
  * @tparam T Unsigned integer type (uint8_t, uint16_t, uint32_t, uint64_t, etc.).
  * @param val The unsigned integer value to format.
@@ -1284,8 +1706,12 @@ bool base64_decode_int32_vector(const std::string &base64, std::vector<int32_t> 
 ///@{
 
 /// Applies gamma correction of \p gamma to \p value.
+// Remove before 2026.9.0
+ESPDEPRECATED("Use LightState::gamma_correct_lut() instead. Removed in 2026.9.0.", "2026.3.0")
 float gamma_correct(float value, float gamma);
 /// Reverts gamma correction of \p gamma to \p value.
+// Remove before 2026.9.0
+ESPDEPRECATED("Use LightState::gamma_uncorrect_lut() instead. Removed in 2026.9.0.", "2026.3.0")
 float gamma_uncorrect(float value, float gamma);
 
 /// Convert \p red, \p green and \p blue (all 0-1) values to \p hue (0-360), \p saturation (0-1) and \p value (0-1).
@@ -1308,6 +1734,54 @@ constexpr float fahrenheit_to_celsius(float value) { return (value - 32.0f) / 1.
 /// @name Utilities
 /// @{
 
+/// Lightweight type-erased callback (8 bytes on 32-bit) that avoids std::function overhead.
+/// No null check, no exceptions, no heap allocation for small trivially-copyable callables.
+///
+/// With C++20 if constexpr, automatically detects [this] lambdas (sizeof <= sizeof(void*),
+/// trivially copyable) and stores them inline. Larger callables are heap-allocated.
+template<typename... X> struct Callback;
+
+template<typename... Ts> struct Callback<void(Ts...)> {
+  // The inline storage path stores callable bytes in ctx_ via memcpy.
+  // sizeof equality with uintptr_t ensures void* can round-trip arbitrary bit patterns,
+  // which combined with flat address spaces on all ESPHome targets means no trap representations.
+  static_assert(sizeof(void *) == sizeof(std::uintptr_t), "void* must be the same size as uintptr_t");
+
+  void (*fn_)(void *, Ts...){nullptr};
+  void *ctx_{nullptr};
+
+  /// Invoke the callback. Only valid on Callbacks created via create(), never on default-constructed instances.
+  void call(Ts... args) const { this->fn_(this->ctx_, args...); }
+
+  /// Create from any callable. Small trivially-copyable callables (like [this] lambdas)
+  /// are stored inline in the ctx pointer without heap allocation.
+  template<typename F> static Callback create(F &&callable) {
+    using DecayF = std::decay_t<F>;
+    if constexpr (sizeof(DecayF) <= sizeof(void *) && std::is_trivially_copyable_v<DecayF>) {
+      // Small trivial callable (e.g. [this]() { this->method(); }) - store inline in ctx.
+      // Safe under C++20 (P0593R6): byte copy into aligned storage implicitly
+      // creates objects of implicit-lifetime types (trivially copyable qualifies).
+      Callback cb;  // fn and ctx are zero-initialized by default
+      // Decay callable to a local variable first. When F is a function reference
+      // (e.g. void(&)(int)), &callable would point at machine code, not a pointer variable.
+      DecayF decayed = std::forward<F>(callable);
+      __builtin_memcpy(&cb.ctx_, &decayed, sizeof(DecayF));
+      cb.fn_ = [](void *c, Ts... args) {
+        alignas(DecayF) char buf[sizeof(DecayF)];
+        __builtin_memcpy(buf, &c, sizeof(DecayF));
+        (*std::launder(reinterpret_cast<DecayF *>(buf)))(args...);
+      };
+      return cb;
+    } else {
+      // Large or non-trivial callable - heap allocate.
+      // Intentionally never freed: callbacks in ESPHome are registered during setup()
+      // and live for device lifetime. Same lifetime as the previous std::function approach.
+      auto *stored = new DecayF(std::forward<F>(callable));
+      return {[](void *c, Ts... args) { (*static_cast<DecayF *>(c))(args...); }, static_cast<void *>(stored)};
+    }
+  }
+};
+
 template<typename... X> class CallbackManager;
 
 /** Helper class to allow having multiple subscribers to a callback.
@@ -1316,13 +1790,14 @@ template<typename... X> class CallbackManager;
  */
 template<typename... Ts> class CallbackManager<void(Ts...)> {
  public:
-  /// Add a callback to the list.
-  void add(std::function<void(Ts...)> &&callback) { this->callbacks_.push_back(std::move(callback)); }
+  /// Add any callable. Small trivially-copyable callables (like [this] lambdas)
+  /// are stored inline without heap allocation or std::function.
+  template<typename F> void add(F &&callback) { this->add_(Callback<void(Ts...)>::create(std::forward<F>(callback))); }
 
-  /// Call all callbacks in this manager.
+  /// Call all callbacks in this manager. No null check on invoke.
   void call(Ts... args) {
     for (auto &cb : this->callbacks_)
-      cb(args...);
+      cb.call(args...);
   }
   size_t size() const { return this->callbacks_.size(); }
 
@@ -1330,7 +1805,10 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
   void operator()(Ts... args) { call(args...); }
 
  protected:
-  std::vector<std::function<void(Ts...)>> callbacks_;
+  template<typename...> friend class LazyCallbackManager;
+  /// Non-template core to avoid code duplication per lambda type.
+  void add_(Callback<void(Ts...)> cb) { this->callbacks_.push_back(cb); }
+  std::vector<Callback<void(Ts...)>> callbacks_;
 };
 
 template<typename... X> class LazyCallbackManager;
@@ -1343,19 +1821,28 @@ template<typename... X> class LazyCallbackManager;
  *
  * Memory overhead comparison (32-bit systems):
  * - CallbackManager: 12 bytes (empty std::vector)
- * - LazyCallbackManager: 4 bytes (nullptr unique_ptr)
+ * - LazyCallbackManager: 4 bytes (nullptr pointer)
+ *
+ * Uses plain pointer instead of unique_ptr to avoid template instantiation overhead.
+ * The class is explicitly non-copyable/non-movable for Rule of Five compliance.
  *
  * @tparam Ts The arguments for the callbacks, wrapped in void().
  */
 template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
  public:
-  /// Add a callback to the list. Allocates the underlying CallbackManager on first use.
-  void add(std::function<void(Ts...)> &&callback) {
-    if (!this->callbacks_) {
-      this->callbacks_ = make_unique<CallbackManager<void(Ts...)>>();
-    }
-    this->callbacks_->add(std::move(callback));
-  }
+  LazyCallbackManager() = default;
+  /// Destructor - clean up allocated CallbackManager if any.
+  /// In practice this never runs (entities live for device lifetime) but included for correctness.
+  ~LazyCallbackManager() { delete this->callbacks_; }
+
+  // Non-copyable and non-movable (entities are never copied or moved)
+  LazyCallbackManager(const LazyCallbackManager &) = delete;
+  LazyCallbackManager &operator=(const LazyCallbackManager &) = delete;
+  LazyCallbackManager(LazyCallbackManager &&) = delete;
+  LazyCallbackManager &operator=(LazyCallbackManager &&) = delete;
+
+  /// Add any callable. Allocates the underlying CallbackManager on first use.
+  template<typename F> void add(F &&callback) { this->add_(Callback<void(Ts...)>::create(std::forward<F>(callback))); }
 
   /// Call all callbacks in this manager. No-op if no callbacks registered.
   void call(Ts... args) {
@@ -1374,7 +1861,14 @@ template<typename... Ts> class LazyCallbackManager<void(Ts...)> {
   void operator()(Ts... args) { this->call(args...); }
 
  protected:
-  std::unique_ptr<CallbackManager<void(Ts...)>> callbacks_;
+  /// Non-template core to avoid code duplication per lambda type.
+  void add_(Callback<void(Ts...)> cb) {
+    if (!this->callbacks_) {
+      this->callbacks_ = new CallbackManager<void(Ts...)>();
+    }
+    this->callbacks_->add_(cb);
+  }
+  CallbackManager<void(Ts...)> *callbacks_{nullptr};
 };
 
 /// Helper class to deduplicate items in a series of values.
@@ -1431,19 +1925,34 @@ template<typename T> class Parented {
  */
 class Mutex {
  public:
-  Mutex();
   Mutex(const Mutex &) = delete;
+  Mutex &operator=(const Mutex &) = delete;
+
+#if defined(USE_ESP8266) || defined(USE_RP2040)
+  // Single-threaded platforms: inline no-ops so the compiler eliminates all call overhead.
+  Mutex() = default;
+  ~Mutex() = default;
+  void lock() {}
+  bool try_lock() { return true; }
+  void unlock() {}
+#elif defined(USE_ESP32) || defined(USE_LIBRETINY)
+  // FreeRTOS platforms: inline to avoid out-of-line call overhead.
+  Mutex() { handle_ = xSemaphoreCreateMutex(); }
+  ~Mutex() = default;
+  void lock() { xSemaphoreTake(this->handle_, portMAX_DELAY); }
+  bool try_lock() { return xSemaphoreTake(this->handle_, 0) == pdTRUE; }
+  void unlock() { xSemaphoreGive(this->handle_); }
+
+ private:
+  SemaphoreHandle_t handle_;
+#else
+  Mutex();
   ~Mutex();
   void lock();
   bool try_lock();
   void unlock();
 
-  Mutex &operator=(const Mutex &) = delete;
-
  private:
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
-  SemaphoreHandle_t handle_;
-#else
   // d-pointer to store private data on new platforms
   void *handle_;  // NOLINT(clang-diagnostic-unused-private-field)
 #endif
@@ -1495,19 +2004,27 @@ class InterruptLock {
 
 /** Helper class to lock the lwIP TCPIP core when making lwIP API calls from non-TCPIP threads.
  *
- * This is needed on multi-threaded platforms (ESP32) when CONFIG_LWIP_TCPIP_CORE_LOCKING is enabled.
- * It ensures thread-safe access to lwIP APIs.
+ * This is needed on multi-threaded platforms (ESP32) when CONFIG_LWIP_TCPIP_CORE_LOCKING is enabled,
+ * and on RP2040 when CYW43 WiFi is active (cyw43_arch_lwip_begin/end).
  *
- * @note This follows the same pattern as InterruptLock - platform-specific implementations in helpers.cpp
+ * On platforms without lwIP core locking (ESP8266, LibreTiny, Zephyr),
+ * this is a no-op defined inline so the compiler can eliminate all call overhead.
  */
 class LwIPLock {
  public:
-  LwIPLock();
-  ~LwIPLock();
-
-  // Delete copy constructor and copy assignment operator to prevent accidental copying
   LwIPLock(const LwIPLock &) = delete;
   LwIPLock &operator=(const LwIPLock &) = delete;
+
+#if defined(USE_ESP32) || defined(USE_RP2040)
+  // Platforms with potential lwIP core locking — out-of-line implementations in helpers.cpp
+  LwIPLock();
+  ~LwIPLock();
+#else
+  // No lwIP core locking — inline no-ops (empty bodies instead of = default
+  // to prevent clang-tidy unused-variable warnings at call sites)
+  LwIPLock() {}
+  ~LwIPLock() {}
+#endif
 };
 
 /** Helper class to request `loop()` to be called as fast as possible.
@@ -1523,7 +2040,7 @@ class HighFrequencyLoopRequester {
   void stop();
 
   /// Check whether the loop is running continuously.
-  static bool is_high_frequency();
+  static bool is_high_frequency() { return num_requests > 0; }
 
  protected:
   bool started_{false};
@@ -1593,13 +2110,10 @@ template<class T> class RAMAllocator {
     ALLOW_FAILURE = 1 << 2,   // Does nothing. Kept for compatibility.
   };
 
-  RAMAllocator() = default;
-  RAMAllocator(uint8_t flags) {
-    // default is both external and internal
-    flags &= ALLOC_INTERNAL | ALLOC_EXTERNAL;
-    if (flags != 0)
-      this->flags_ = flags;
-  }
+  constexpr RAMAllocator() = default;
+  constexpr RAMAllocator(uint8_t flags)
+      : flags_((flags & (ALLOC_INTERNAL | ALLOC_EXTERNAL)) != 0 ? (flags & (ALLOC_INTERNAL | ALLOC_EXTERNAL))
+                                                                : (ALLOC_INTERNAL | ALLOC_EXTERNAL)) {}
   template<class U> constexpr RAMAllocator(const RAMAllocator<U> &other) : flags_{other.flags_} {}
 
   T *allocate(size_t n) { return this->allocate(n, sizeof(T)); }

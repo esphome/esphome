@@ -1,5 +1,8 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+#ifdef USE_BINARY_SENSOR_FILTER
+
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -34,7 +37,7 @@ class TimeoutFilter : public Filter, public Component {
   TemplatableValue<uint32_t> timeout_delay_{};
 };
 
-class DelayedOnOffFilter : public Filter, public Component {
+class DelayedOnOffFilter final : public Filter, public Component {
  public:
   optional<bool> new_value(bool value) override;
 
@@ -138,3 +141,5 @@ class SettleFilter : public Filter, public Component {
 };
 
 }  // namespace esphome::binary_sensor
+
+#endif  // USE_BINARY_SENSOR_FILTER

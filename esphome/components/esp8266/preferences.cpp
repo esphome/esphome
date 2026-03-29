@@ -5,22 +5,15 @@ extern "C" {
 #include "spi_flash.h"
 }
 
-#include "esphome/core/defines.h"
+#include "preferences.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/preferences.h"
-#include "preferences.h"
 
 #include <cstring>
-#include <memory>
 
 namespace esphome::esp8266 {
 
-static const char *const TAG = "esp8266.preferences";
-
-static uint32_t *s_flash_storage = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_prevent_write = false;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static bool s_flash_dirty = false;           // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static const char *const TAG = "preferences";
 
 static constexpr uint32_t ESP_RTC_USER_MEM_START = 0x60001200;
 static constexpr uint32_t ESP_RTC_USER_MEM_SIZE_WORDS = 128;
@@ -38,11 +31,20 @@ static constexpr uint32_t MAX_PREFERENCE_WORDS = 255;
 
 #define ESP_RTC_USER_MEM ((uint32_t *) ESP_RTC_USER_MEM_START)
 
+// Flash storage size depends on esp8266 -> restore_from_flash YAML option (default: false).
+// When enabled (USE_ESP8266_PREFERENCES_FLASH), all preferences default to flash and need
+// 128 words (512 bytes). When disabled, only explicit flash prefs use this storage so
+// 64 words (256 bytes) suffices since most preferences go to RTC memory instead.
 #ifdef USE_ESP8266_PREFERENCES_FLASH
 static constexpr uint32_t ESP8266_FLASH_STORAGE_SIZE = 128;
 #else
 static constexpr uint32_t ESP8266_FLASH_STORAGE_SIZE = 64;
 #endif
+
+static uint32_t
+    s_flash_storage[ESP8266_FLASH_STORAGE_SIZE];  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_prevent_write = false;              // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static bool s_flash_dirty = false;                // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 static inline bool esp_rtc_user_mem_read(uint32_t index, uint32_t *dest) {
   if (index >= ESP_RTC_USER_MEM_SIZE_WORDS) {
@@ -127,183 +129,144 @@ static bool load_from_rtc(size_t offset, uint32_t *data, size_t len) {
   return true;
 }
 
-// Stack buffer size - 16 words total: up to 15 words of preference data + 1 word CRC (60 bytes of preference data)
-// This handles virtually all real-world preferences without heap allocation
-static constexpr size_t PREF_BUFFER_WORDS = 16;
+// Maximum buffer for any single preference - bounded by storage sizes.
+// Flash prefs: bounded by ESP8266_FLASH_STORAGE_SIZE (128 or 64 words).
+// RTC prefs: bounded by RTC_NORMAL_REGION_WORDS (96) - a single pref can't span both RTC regions.
+static constexpr size_t PREF_MAX_BUFFER_WORDS =
+    ESP8266_FLASH_STORAGE_SIZE > RTC_NORMAL_REGION_WORDS ? ESP8266_FLASH_STORAGE_SIZE : RTC_NORMAL_REGION_WORDS;
 
-class ESP8266PreferenceBackend : public ESPPreferenceBackend {
- public:
-  uint32_t type = 0;
-  uint16_t offset = 0;
-  uint8_t length_words = 0;  // Max 255 words (1020 bytes of data)
-  bool in_flash = false;
+bool ESP8266PreferenceBackend::save(const uint8_t *data, size_t len) {
+  if (bytes_to_words(len) != this->length_words)
+    return false;
+  const size_t buffer_size = static_cast<size_t>(this->length_words) + 1;
+  if (buffer_size > PREF_MAX_BUFFER_WORDS)
+    return false;
+  uint32_t buffer[PREF_MAX_BUFFER_WORDS];
+  memset(buffer, 0, buffer_size * sizeof(uint32_t));
+  memcpy(buffer, data, len);
+  buffer[this->length_words] = calculate_crc(buffer, buffer + this->length_words, this->type);
+  return this->in_flash ? save_to_flash(this->offset, buffer, buffer_size)
+                        : save_to_rtc(this->offset, buffer, buffer_size);
+}
 
-  bool save(const uint8_t *data, size_t len) override {
-    if (bytes_to_words(len) != this->length_words)
-      return false;
+bool ESP8266PreferenceBackend::load(uint8_t *data, size_t len) {
+  if (bytes_to_words(len) != this->length_words)
+    return false;
+  const size_t buffer_size = static_cast<size_t>(this->length_words) + 1;
+  if (buffer_size > PREF_MAX_BUFFER_WORDS)
+    return false;
+  uint32_t buffer[PREF_MAX_BUFFER_WORDS];
+  bool ret = this->in_flash ? load_from_flash(this->offset, buffer, buffer_size)
+                            : load_from_rtc(this->offset, buffer, buffer_size);
+  if (!ret)
+    return false;
+  if (buffer[this->length_words] != calculate_crc(buffer, buffer + this->length_words, this->type))
+    return false;
+  memcpy(data, buffer, len);
+  return true;
+}
 
-    const size_t buffer_size = static_cast<size_t>(this->length_words) + 1;
-    uint32_t stack_buffer[PREF_BUFFER_WORDS];
-    std::unique_ptr<uint32_t[]> heap_buffer;
-    uint32_t *buffer;
+void ESP8266Preferences::setup() {
+  ESP_LOGVV(TAG, "Loading preferences from flash");
 
-    if (buffer_size <= PREF_BUFFER_WORDS) {
-      buffer = stack_buffer;
-    } else {
-      heap_buffer = make_unique<uint32_t[]>(buffer_size);
-      buffer = heap_buffer.get();
-    }
-    memset(buffer, 0, buffer_size * sizeof(uint32_t));
+  {
+    InterruptLock lock;
+    spi_flash_read(get_esp8266_flash_address(), s_flash_storage, ESP8266_FLASH_STORAGE_SIZE * 4);
+  }
+}
 
-    memcpy(buffer, data, len);
-    buffer[this->length_words] = calculate_crc(buffer, buffer + this->length_words, this->type);
-
-    return this->in_flash ? save_to_flash(this->offset, buffer, buffer_size)
-                          : save_to_rtc(this->offset, buffer, buffer_size);
+ESPPreferenceObject ESP8266Preferences::make_preference(size_t length, uint32_t type, bool in_flash) {
+  const uint32_t length_words = bytes_to_words(length);
+  if (length_words > MAX_PREFERENCE_WORDS) {
+    ESP_LOGE(TAG, "Preference too large: %u words", static_cast<unsigned int>(length_words));
+    return {};
   }
 
-  bool load(uint8_t *data, size_t len) override {
-    if (bytes_to_words(len) != this->length_words)
-      return false;
+  const uint32_t total_words = length_words + 1;  // +1 for CRC
+  uint16_t offset;
 
-    const size_t buffer_size = static_cast<size_t>(this->length_words) + 1;
-    uint32_t stack_buffer[PREF_BUFFER_WORDS];
-    std::unique_ptr<uint32_t[]> heap_buffer;
-    uint32_t *buffer;
-
-    if (buffer_size <= PREF_BUFFER_WORDS) {
-      buffer = stack_buffer;
-    } else {
-      heap_buffer = make_unique<uint32_t[]>(buffer_size);
-      buffer = heap_buffer.get();
-    }
-
-    bool ret = this->in_flash ? load_from_flash(this->offset, buffer, buffer_size)
-                              : load_from_rtc(this->offset, buffer, buffer_size);
-    if (!ret)
-      return false;
-
-    if (buffer[this->length_words] != calculate_crc(buffer, buffer + this->length_words, this->type))
-      return false;
-
-    memcpy(data, buffer, len);
-    return true;
-  }
-};
-
-class ESP8266Preferences : public ESPPreferences {
- public:
-  uint32_t current_offset = 0;
-  uint32_t current_flash_offset = 0;  // in words
-
-  void setup() {
-    s_flash_storage = new uint32_t[ESP8266_FLASH_STORAGE_SIZE];  // NOLINT
-    ESP_LOGVV(TAG, "Loading preferences from flash");
-
-    {
-      InterruptLock lock;
-      spi_flash_read(get_esp8266_flash_address(), s_flash_storage, ESP8266_FLASH_STORAGE_SIZE * 4);
-    }
-  }
-
-  ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash) override {
-    const uint32_t length_words = bytes_to_words(length);
-    if (length_words > MAX_PREFERENCE_WORDS) {
-      ESP_LOGE(TAG, "Preference too large: %u words", static_cast<unsigned int>(length_words));
+  if (in_flash) {
+    if (this->current_flash_offset + total_words > ESP8266_FLASH_STORAGE_SIZE)
       return {};
+    offset = static_cast<uint16_t>(this->current_flash_offset);
+    this->current_flash_offset += total_words;
+  } else {
+    uint32_t start = this->current_offset;
+    bool in_normal = start < RTC_NORMAL_REGION_WORDS;
+    // Normal: offset 0-95 maps to RTC offset 32-127
+    // Eboot: offset 96-127 maps to RTC offset 0-31
+    if (in_normal && start + total_words > RTC_NORMAL_REGION_WORDS) {
+      // start is in normal but end is not -> switch to Eboot
+      this->current_offset = start = RTC_NORMAL_REGION_WORDS;
+      in_normal = false;
     }
-
-    const uint32_t total_words = length_words + 1;  // +1 for CRC
-    uint16_t offset;
-
-    if (in_flash) {
-      if (this->current_flash_offset + total_words > ESP8266_FLASH_STORAGE_SIZE)
-        return {};
-      offset = static_cast<uint16_t>(this->current_flash_offset);
-      this->current_flash_offset += total_words;
-    } else {
-      uint32_t start = this->current_offset;
-      bool in_normal = start < RTC_NORMAL_REGION_WORDS;
-      // Normal: offset 0-95 maps to RTC offset 32-127
-      // Eboot: offset 96-127 maps to RTC offset 0-31
-      if (in_normal && start + total_words > RTC_NORMAL_REGION_WORDS) {
-        // start is in normal but end is not -> switch to Eboot
-        this->current_offset = start = RTC_NORMAL_REGION_WORDS;
-        in_normal = false;
-      }
-      if (start + total_words > PREF_TOTAL_WORDS)
-        return {};  // Doesn't fit in RTC memory
-      // Convert preference offset to RTC memory offset
-      offset = static_cast<uint16_t>(in_normal ? start + RTC_EBOOT_REGION_WORDS : start - RTC_NORMAL_REGION_WORDS);
-      this->current_offset = start + total_words;
-    }
-
-    auto *pref = new ESP8266PreferenceBackend();  // NOLINT(cppcoreguidelines-owning-memory)
-    pref->offset = offset;
-    pref->type = type;
-    pref->length_words = static_cast<uint8_t>(length_words);
-    pref->in_flash = in_flash;
-    return pref;
+    if (start + total_words > PREF_TOTAL_WORDS)
+      return {};  // Doesn't fit in RTC memory
+    // Convert preference offset to RTC memory offset
+    offset = static_cast<uint16_t>(in_normal ? start + RTC_EBOOT_REGION_WORDS : start - RTC_NORMAL_REGION_WORDS);
+    this->current_offset = start + total_words;
   }
 
-  ESPPreferenceObject make_preference(size_t length, uint32_t type) override {
-#ifdef USE_ESP8266_PREFERENCES_FLASH
-    return make_preference(length, type, true);
-#else
-    return make_preference(length, type, false);
-#endif
-  }
+  auto *pref = new ESP8266PreferenceBackend();  // NOLINT(cppcoreguidelines-owning-memory)
+  pref->offset = offset;
+  pref->type = type;
+  pref->length_words = static_cast<uint8_t>(length_words);
+  pref->in_flash = in_flash;
+  return ESPPreferenceObject(pref);
+}
 
-  bool sync() override {
-    if (!s_flash_dirty)
-      return true;
-    if (s_prevent_write)
-      return false;
-
-    ESP_LOGD(TAG, "Saving");
-    SpiFlashOpResult erase_res, write_res = SPI_FLASH_RESULT_OK;
-    {
-      InterruptLock lock;
-      erase_res = spi_flash_erase_sector(get_esp8266_flash_sector());
-      if (erase_res == SPI_FLASH_RESULT_OK) {
-        write_res = spi_flash_write(get_esp8266_flash_address(), s_flash_storage, ESP8266_FLASH_STORAGE_SIZE * 4);
-      }
-    }
-    if (erase_res != SPI_FLASH_RESULT_OK) {
-      ESP_LOGE(TAG, "Erasing failed");
-      return false;
-    }
-    if (write_res != SPI_FLASH_RESULT_OK) {
-      ESP_LOGE(TAG, "Writing failed");
-      return false;
-    }
-
-    s_flash_dirty = false;
+bool ESP8266Preferences::sync() {
+  if (!s_flash_dirty)
     return true;
+  if (s_prevent_write)
+    return false;
+
+  ESP_LOGD(TAG, "Saving");
+  SpiFlashOpResult erase_res, write_res = SPI_FLASH_RESULT_OK;
+  {
+    InterruptLock lock;
+    erase_res = spi_flash_erase_sector(get_esp8266_flash_sector());
+    if (erase_res == SPI_FLASH_RESULT_OK) {
+      write_res = spi_flash_write(get_esp8266_flash_address(), s_flash_storage, ESP8266_FLASH_STORAGE_SIZE * 4);
+    }
+  }
+  if (erase_res != SPI_FLASH_RESULT_OK) {
+    ESP_LOGE(TAG, "Erasing failed");
+    return false;
+  }
+  if (write_res != SPI_FLASH_RESULT_OK) {
+    ESP_LOGE(TAG, "Writing failed");
+    return false;
   }
 
-  bool reset() override {
-    ESP_LOGD(TAG, "Erasing storage");
-    SpiFlashOpResult erase_res;
-    {
-      InterruptLock lock;
-      erase_res = spi_flash_erase_sector(get_esp8266_flash_sector());
-    }
-    if (erase_res != SPI_FLASH_RESULT_OK) {
-      ESP_LOGE(TAG, "Erasing failed");
-      return false;
-    }
+  s_flash_dirty = false;
+  return true;
+}
 
-    // Protect flash from writing till restart
-    s_prevent_write = true;
-    return true;
+bool ESP8266Preferences::reset() {
+  ESP_LOGD(TAG, "Erasing storage");
+  SpiFlashOpResult erase_res;
+  {
+    InterruptLock lock;
+    erase_res = spi_flash_erase_sector(get_esp8266_flash_sector());
   }
-};
+  if (erase_res != SPI_FLASH_RESULT_OK) {
+    ESP_LOGE(TAG, "Erasing failed");
+    return false;
+  }
+
+  // Protect flash from writing till restart
+  s_prevent_write = true;
+  return true;
+}
+
+static ESP8266Preferences s_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+ESP8266Preferences *get_preferences() { return &s_preferences; }
 
 void setup_preferences() {
-  auto *pref = new ESP8266Preferences();  // NOLINT(cppcoreguidelines-owning-memory)
-  pref->setup();
-  global_preferences = pref;
+  s_preferences.setup();
+  global_preferences = &s_preferences;
 }
 void preferences_prevent_write(bool prevent) { s_prevent_write = prevent; }
 

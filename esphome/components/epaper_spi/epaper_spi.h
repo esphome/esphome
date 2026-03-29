@@ -76,7 +76,7 @@ class EPaperBase : public Display,
   static uint8_t color_to_bit(Color color) {
     // It's always a shade of gray. Map to BLACK or WHITE.
     // We split the luminance at a suitable point
-    if ((static_cast<int>(color.r) + color.g + color.b) > 512) {
+    if ((color.r + color.g + color.b) >= 382) {
       return 1;
     }
     return 0;
@@ -115,7 +115,8 @@ class EPaperBase : public Display,
   bool is_idle_() const;
   void setup_pins_() const;
   virtual bool reset();
-  virtual void initialise(bool partial);
+  virtual bool initialise(bool partial);
+  void send_init_sequence_(const uint8_t *sequence, size_t length);
   void wait_for_idle_(bool should_wait);
   bool init_buffer_(size_t buffer_length);
   bool rotate_coordinates_(int &x, int &y);

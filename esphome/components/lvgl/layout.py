@@ -88,8 +88,8 @@ grid_spec = cv.Any(size, LvConstant("LV_GRID_", "CONTENT").one_of, grid_free_spa
 GRID_CELL_SCHEMA = {
     cv.Optional(CONF_GRID_CELL_ROW_POS): cv.positive_int,
     cv.Optional(CONF_GRID_CELL_COLUMN_POS): cv.positive_int,
-    cv.Optional(CONF_GRID_CELL_ROW_SPAN, default=1): cv.positive_int,
-    cv.Optional(CONF_GRID_CELL_COLUMN_SPAN, default=1): cv.positive_int,
+    cv.Optional(CONF_GRID_CELL_ROW_SPAN): cv.int_range(min=1),
+    cv.Optional(CONF_GRID_CELL_COLUMN_SPAN): cv.int_range(min=1),
     cv.Optional(CONF_GRID_CELL_X_ALIGN): grid_alignments,
     cv.Optional(CONF_GRID_CELL_Y_ALIGN): grid_alignments,
 }
@@ -198,12 +198,8 @@ class GridLayout(Layout):
                     {
                         cv.Optional(CONF_GRID_CELL_ROW_POS): cv.positive_int,
                         cv.Optional(CONF_GRID_CELL_COLUMN_POS): cv.positive_int,
-                        cv.Optional(
-                            CONF_GRID_CELL_ROW_SPAN, default=1
-                        ): cv.positive_int,
-                        cv.Optional(
-                            CONF_GRID_CELL_COLUMN_SPAN, default=1
-                        ): cv.positive_int,
+                        cv.Optional(CONF_GRID_CELL_ROW_SPAN): cv.int_range(min=1),
+                        cv.Optional(CONF_GRID_CELL_COLUMN_SPAN): cv.int_range(min=1),
                         cv.Optional(
                             CONF_GRID_CELL_X_ALIGN, default="center"
                         ): grid_alignments,
@@ -231,8 +227,8 @@ class GridLayout(Layout):
             {
                 cv.Optional(CONF_GRID_CELL_ROW_POS): cv.positive_int,
                 cv.Optional(CONF_GRID_CELL_COLUMN_POS): cv.positive_int,
-                cv.Optional(CONF_GRID_CELL_ROW_SPAN, default=1): cv.positive_int,
-                cv.Optional(CONF_GRID_CELL_COLUMN_SPAN, default=1): cv.positive_int,
+                cv.Optional(CONF_GRID_CELL_ROW_SPAN): cv.int_range(min=1),
+                cv.Optional(CONF_GRID_CELL_COLUMN_SPAN): cv.int_range(min=1),
                 cv.Optional(CONF_GRID_CELL_X_ALIGN): grid_alignments,
                 cv.Optional(CONF_GRID_CELL_Y_ALIGN): grid_alignments,
             },
@@ -299,11 +295,13 @@ class GridLayout(Layout):
                 w[CONF_GRID_CELL_ROW_POS] = row
                 w[CONF_GRID_CELL_COLUMN_POS] = column
 
-            for i in range(w[CONF_GRID_CELL_ROW_SPAN]):
-                for j in range(w[CONF_GRID_CELL_COLUMN_SPAN]):
+            row_span = w.get(CONF_GRID_CELL_ROW_SPAN, 1)
+            column_span = w.get(CONF_GRID_CELL_COLUMN_SPAN, 1)
+            for i in range(row_span):
+                for j in range(column_span):
                     if row + i >= rows or column + j >= columns:
                         raise cv.Invalid(
-                            f"Cell at {row}/{column} span {w[CONF_GRID_CELL_ROW_SPAN]}x{w[CONF_GRID_CELL_COLUMN_SPAN]} "
+                            f"Cell at {row}/{column} span {row_span}x{column_span} "
                             f"exceeds grid size {rows}x{columns}",
                             [CONF_WIDGETS, index],
                         )

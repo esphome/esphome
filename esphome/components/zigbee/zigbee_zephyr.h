@@ -60,6 +60,12 @@ struct AnalogAttrs {
   zb_uchar_t description[ZB_ZCL_MAX_STRING_SIZE];
 };
 
+struct AnalogAttrsOutput : AnalogAttrs {
+  float max_present_value;
+  float min_present_value;
+  float resolution;
+};
+
 class ZigbeeComponent : public Component {
  public:
   void setup() override;
@@ -68,11 +74,11 @@ class ZigbeeComponent : public Component {
     // endpoints are enumerated from 1
     this->callbacks_[endpoint - 1] = std::move(cb);
   }
-  void add_join_callback(std::function<void()> &&cb) { this->join_cb_.add(std::move(cb)); }
+  template<typename F> void add_join_callback(F &&cb) { this->join_cb_.add(std::forward<F>(cb)); }
   void zboss_signal_handler_esphome(zb_bufid_t bufid);
   void factory_reset();
   Trigger<> *get_join_trigger() { return &this->join_trigger_; };
-  void flush();
+  void force_report();
   void loop() override;
 
  protected:
@@ -81,10 +87,13 @@ class ZigbeeComponent : public Component {
 #ifdef USE_ZIGBEE_WIPE_ON_BOOT
   void erase_flash_(int area);
 #endif
+  void dump_reporting_();
   std::array<std::function<void(zb_bufid_t bufid)>, ZIGBEE_ENDPOINTS_COUNT> callbacks_{};
   CallbackManager<void()> join_cb_;
   Trigger<> join_trigger_;
-  bool need_flush_{false};
+  bool force_report_{false};
+  uint32_t sleep_time_{};
+  uint32_t sleep_remainder_{};
 };
 
 class ZigbeeEntity {

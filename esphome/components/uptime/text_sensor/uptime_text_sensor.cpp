@@ -4,8 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace uptime {
+namespace esphome::uptime {
 
 static const char *const TAG = "uptime.sensor";
 
@@ -17,22 +16,10 @@ static void append_unit(char *buf, size_t buf_size, size_t &pos, const char *sep
   pos = buf_append_printf(buf, buf_size, pos, "%u%s", value, label);
 }
 
-void UptimeTextSensor::setup() {
-  this->last_ms_ = millis();
-  if (this->last_ms_ < 60 * 1000)
-    this->last_ms_ = 0;
-  this->update();
-}
+void UptimeTextSensor::setup() { this->update(); }
 
 void UptimeTextSensor::update() {
-  auto now = millis();
-  // get whole seconds since last update. Note that even if the millis count has overflowed between updates,
-  // the difference will still be correct due to the way twos-complement arithmetic works.
-  uint32_t delta = now - this->last_ms_;
-  this->last_ms_ = now - delta % 1000;  // save remainder for next update
-  delta /= 1000;
-  this->uptime_ += delta;
-  uint32_t uptime = this->uptime_;
+  uint32_t uptime = static_cast<uint32_t>(millis_64() / 1000);
   unsigned interval = this->get_update_interval() / 1000;
 
   // Calculate all time units
@@ -89,5 +76,4 @@ void UptimeTextSensor::update() {
 float UptimeTextSensor::get_setup_priority() const { return setup_priority::HARDWARE; }
 void UptimeTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Uptime Text Sensor", this); }
 
-}  // namespace uptime
-}  // namespace esphome
+}  // namespace esphome::uptime

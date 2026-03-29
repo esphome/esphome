@@ -9,7 +9,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, ID, coroutine
 from esphome.coroutine import FakeAwaitable
-from esphome.cpp_generator import LogStringLiteral, add, get_variable
+from esphome.cpp_generator import LogStringLiteral, add, add_define, get_variable
 from esphome.cpp_types import App
 from esphome.types import ConfigFragmentType, ConfigType
 from esphome.util import Registry, RegistryEntry
@@ -49,6 +49,7 @@ async def register_component(var, config):
         )
     CORE.component_ids.remove(id_)
     if CONF_SETUP_PRIORITY in config:
+        add_define("USE_SETUP_PRIORITY_OVERRIDE")
         add(var.set_setup_priority(config[CONF_SETUP_PRIORITY]))
     if CONF_UPDATE_INTERVAL in config:
         add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
@@ -78,7 +79,12 @@ async def register_component(var, config):
     if name is not None:
         add(var.set_component_source(LogStringLiteral(name)))
 
-    add(App.register_component(var))
+    add(App.register_component_(var))
+
+    # Collect C++ type for compile-time looping component count
+    comp_entries = CORE.data.setdefault("looping_component_entries", [])
+    comp_entries.append(str(var.base.type))
+
     return var
 
 
