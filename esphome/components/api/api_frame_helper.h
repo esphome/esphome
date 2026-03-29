@@ -163,9 +163,10 @@ class APIFrameHelper {
   }
   // Write a single protobuf message - the hot path (87-100% of all writes)
   virtual APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) = 0;
-  // Write multiple protobuf messages in a single batched operation
-  // messages contains (message_type, offset, length) for each message in the buffer
-  // The buffer contains all messages with appropriate padding before each
+  // Write multiple protobuf messages in a single batched operation.
+  // messages must not be empty — caller is responsible for checking.
+  // messages contains (message_type, offset, length) for each message in the buffer.
+  // The buffer contains all messages with appropriate padding before each.
   virtual APIError write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) = 0;
   // Get the frame header padding required by this protocol
   uint8_t frame_header_padding() const { return frame_header_padding_; }

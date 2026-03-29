@@ -511,10 +511,9 @@ APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, s
   APIError aerr = this->check_data_state_();
   if (aerr != APIError::OK)
     return aerr;
-
-  if (messages.empty()) {
-    return APIError::OK;
-  }
+#ifdef ESPHOME_DEBUG_API
+  assert(!messages.empty());
+#endif
 
   uint8_t *buffer_data = buffer.get_buffer()->data();
   StaticVector<struct iovec, MAX_MESSAGES_PER_BATCH> iovs;
