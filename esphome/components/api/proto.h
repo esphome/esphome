@@ -288,11 +288,17 @@ class ProtoWriteBuffer {
       return;
 
     this->encode_field_raw(field_id, 2);  // type 2: Length-delimited string
-    this->encode_varint_raw(len);
-    // Direct memcpy into pre-sized buffer — avoids push_back() per-byte capacity checks
-    // and vector::insert() iterator overhead. ~10-11x faster for 16-32 byte strings.
-    this->debug_check_bounds_(len);
+    // Inline the length varint + memcpy under a single __restrict__ pos
+    // to avoid a store-load pair between encode_varint_raw and encode_raw.
+    this->debug_check_bounds_(1 + len);
     uint8_t *__restrict__ pos = this->pos_;
+    if (len < 128) [[likely]] {
+      *pos++ = static_cast<uint8_t>(len);
+    } else {
+      // Length >= 128: use slow path for the length varint, then re-hoist pos
+      this->encode_varint_raw_slow_(len);
+      pos = this->pos_;
+    }
     std::memcpy(pos, string, len);
     this->pos_ = pos + len;
   }
