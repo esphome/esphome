@@ -784,7 +784,8 @@ void WiFiComponent::loop() {
       }
 
       case WIFI_COMPONENT_STATE_STA_CONNECTED: {
-        if (!this->is_connected_()) {
+        // Use cached connected_ set unconditionally at the top of loop()
+        if (!this->connected_) {
           ESP_LOGW(TAG, "Connection lost; reconnecting");
           this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
           this->retry_connect();
