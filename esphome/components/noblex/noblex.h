@@ -26,7 +26,8 @@ class NoblexClimate : public climate_ir::ClimateIR {
   void control(const climate::ClimateCall &call) override {
     send_swing_cmd_ = call.get_swing_mode().has_value();
     // swing resets after unit powered off
-    if (call.get_mode().has_value() && *call.get_mode() == climate::CLIMATE_MODE_OFF)
+    auto mode = call.get_mode();
+    if (mode.has_value() && *mode == climate::CLIMATE_MODE_OFF)
       this->swing_mode = climate::CLIMATE_SWING_OFF;
     climate_ir::ClimateIR::control(call);
   }
@@ -40,7 +41,8 @@ class NoblexClimate : public climate_ir::ClimateIR {
   /// Handle received IR Buffer.
   bool on_receive(remote_base::RemoteReceiveData data) override;
   bool send_swing_cmd_{false};
-  bool receiving_ = false;
+  bool receiving_{false};
+  uint8_t remote_state_[8]{};
 };
 
 }  // namespace noblex

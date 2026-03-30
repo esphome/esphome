@@ -66,7 +66,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION, default=0): cv.pressure,
             cv.Optional(CONF_TEMPERATURE_OFFSET): cv.All(
-                cv.temperature,
+                cv.temperature_delta,
                 cv.float_range(min=0, max=655.35),
             ),
             cv.Optional(CONF_UPDATE_INTERVAL, default="60s"): cv.All(
@@ -128,6 +128,7 @@ async def to_code(config):
         },
         key=CONF_VALUE,
     ),
+    synchronous=True,
 )
 async def scd30_force_recalibration_with_reference_to_code(
     config, action_id, template_arg, args

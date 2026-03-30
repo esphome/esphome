@@ -5,6 +5,8 @@ from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
+    CONF_CARRIER_DUTY_PERCENT,
+    CONF_CARRIER_FREQUENCY,
     CONF_CLOCK_RESOLUTION,
     CONF_DUMP,
     CONF_FILTER,
@@ -63,7 +65,9 @@ RemoteReceiverComponent = remote_receiver_ns.class_(
 def validate_config(config):
     if CORE.is_esp32:
         variant = esp32.get_esp32_variant()
-        if variant in (esp32.const.VARIANT_ESP32, esp32.const.VARIANT_ESP32S2):
+        if variant in esp32_rmt.VARIANTS_NO_RMT:
+            return config
+        if variant in (esp32.VARIANT_ESP32, esp32.VARIANT_ESP32S2):
             max_idle = 65535
         else:
             max_idle = 32767
@@ -108,10 +112,13 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             cv.SplitDefault(
                 CONF_BUFFER_SIZE,
                 esp32="10000b",
+                esp32_c2="1000b",
+                esp32_c61="1000b",
                 esp8266="1000b",
                 bk72xx="1000b",
                 ln882x="1000b",
                 rtl87xx="1000b",
+                rp2040="1000b",
             ): cv.validate_bytes,
             cv.Optional(CONF_FILTER, default="50us"): cv.All(
                 cv.positive_time_period_microseconds,
@@ -128,13 +135,15 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             cv.SplitDefault(
                 CONF_RMT_SYMBOLS,
                 esp32=192,
-                esp32_s2=192,
-                esp32_s3=192,
-                esp32_p4=192,
+                esp32_c2=cv.UNDEFINED,
                 esp32_c3=96,
                 esp32_c5=96,
                 esp32_c6=96,
+                esp32_c61=cv.UNDEFINED,
                 esp32_h2=96,
+                esp32_p4=192,
+                esp32_s2=192,
+                esp32_s3=192,
             ): cv.All(cv.only_on_esp32, cv.int_range(min=2)),
             cv.Optional(CONF_FILTER_SYMBOLS): cv.All(
                 cv.only_on_esp32, cv.int_range(min=0)
@@ -142,23 +151,57 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             cv.SplitDefault(
                 CONF_RECEIVE_SYMBOLS,
                 esp32=192,
+                esp32_c2=cv.UNDEFINED,
+                esp32_c61=cv.UNDEFINED,
             ): cv.All(cv.only_on_esp32, cv.int_range(min=2)),
             cv.Optional(CONF_USE_DMA): cv.All(
                 esp32.only_on_variant(
-                    supported=[esp32.const.VARIANT_ESP32S3, esp32.const.VARIANT_ESP32P4]
+                    supported=[esp32.VARIANT_ESP32P4, esp32.VARIANT_ESP32S3]
                 ),
                 cv.boolean,
             ),
+            cv.SplitDefault(
+                CONF_CARRIER_DUTY_PERCENT,
+                esp32=100,
+                esp32_c2=cv.UNDEFINED,
+                esp32_c61=cv.UNDEFINED,
+            ): cv.All(
+                cv.only_on_esp32,
+                cv.percentage_int,
+                cv.Range(min=1, max=100),
+            ),
+            cv.SplitDefault(
+                CONF_CARRIER_FREQUENCY,
+                esp32="0Hz",
+                esp32_c2=cv.UNDEFINED,
+                esp32_c61=cv.UNDEFINED,
+            ): cv.All(cv.only_on_esp32, cv.frequency, cv.int_),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
+    .add_extra(
+        esp32_rmt.validate_rmt_not_supported(
+            [
+                CONF_CLOCK_RESOLUTION,
+                CONF_USE_DMA,
+                CONF_RMT_SYMBOLS,
+                CONF_FILTER_SYMBOLS,
+                CONF_RECEIVE_SYMBOLS,
+                CONF_CARRIER_DUTY_PERCENT,
+                CONF_CARRIER_FREQUENCY,
+            ]
+        )
+    )
     .add_extra(validate_config)
 )
 
 
 async def to_code(config):
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
-    if CORE.is_esp32:
+    if CORE.is_esp32 and esp32.get_esp32_variant() not in esp32_rmt.VARIANTS_NO_RMT:
+        # Re-enable ESP-IDF's RMT driver (excluded by default to save compile time)
+        esp32.include_builtin_idf_component("esp_driver_rmt")
+
         var = cg.new_Pvariable(config[CONF_ID], pin)
         cg.add(var.set_rmt_symbols(config[CONF_RMT_SYMBOLS]))
         cg.add(var.set_receive_symbols(config[CONF_RECEIVE_SYMBOLS]))
@@ -168,6 +211,8 @@ async def to_code(config):
             cg.add(var.set_clock_resolution(config[CONF_CLOCK_RESOLUTION]))
         if CONF_FILTER_SYMBOLS in config:
             cg.add(var.set_filter_symbols(config[CONF_FILTER_SYMBOLS]))
+        cg.add(var.set_carrier_duty_percent(config[CONF_CARRIER_DUTY_PERCENT]))
+        cg.add(var.set_carrier_frequency(config[CONF_CARRIER_FREQUENCY]))
     else:
         var = cg.new_Pvariable(config[CONF_ID], pin)
 
@@ -192,15 +237,18 @@ async def to_code(config):
 
 FILTER_SOURCE_FILES = filter_source_files_from_platform(
     {
-        "remote_receiver_esp32.cpp": {
+        "remote_receiver_rmt.cpp": {
             PlatformFramework.ESP32_ARDUINO,
             PlatformFramework.ESP32_IDF,
         },
-        "remote_receiver_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
-        "remote_receiver_libretiny.cpp": {
+        "remote_receiver.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+            PlatformFramework.ESP8266_ARDUINO,
             PlatformFramework.BK72XX_ARDUINO,
             PlatformFramework.RTL87XX_ARDUINO,
             PlatformFramework.LN882X_ARDUINO,
+            PlatformFramework.RP2040_ARDUINO,
         },
     }
 )

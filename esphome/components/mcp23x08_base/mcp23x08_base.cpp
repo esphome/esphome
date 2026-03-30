@@ -8,7 +8,7 @@ static const char *const TAG = "mcp23x08_base";
 
 bool MCP23X08Base::digital_read_hw(uint8_t pin) {
   if (!this->read_reg(mcp23x08_base::MCP23X08_GPIO, &this->input_mask_)) {
-    this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+    this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return false;
   }
   return true;
@@ -47,12 +47,12 @@ void MCP23X08Base::pin_interrupt_mode(uint8_t pin, mcp23xxx_base::MCP23XXXInterr
     case mcp23xxx_base::MCP23XXX_RISING:
       this->update_reg(pin, true, gpinten);
       this->update_reg(pin, true, intcon);
-      this->update_reg(pin, true, defval);
+      this->update_reg(pin, false, defval);
       break;
     case mcp23xxx_base::MCP23XXX_FALLING:
       this->update_reg(pin, true, gpinten);
       this->update_reg(pin, true, intcon);
-      this->update_reg(pin, false, defval);
+      this->update_reg(pin, true, defval);
       break;
     case mcp23xxx_base::MCP23XXX_NO_INTERRUPT:
       this->update_reg(pin, false, gpinten);

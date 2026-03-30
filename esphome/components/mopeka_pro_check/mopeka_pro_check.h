@@ -61,7 +61,7 @@ class MopekaProCheck : public Component, public esp32_ble_tracker::ESPBTDeviceLi
 
   uint8_t parse_battery_level_(const std::vector<uint8_t> &message);
   uint32_t parse_distance_(const std::vector<uint8_t> &message);
-  uint8_t parse_temperature_(const std::vector<uint8_t> &message);
+  int8_t parse_temperature_(const std::vector<uint8_t> &message);
   SensorReadQuality parse_read_quality_(const std::vector<uint8_t> &message);
 };
 

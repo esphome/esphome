@@ -10,7 +10,6 @@
 #endif
 
 #include <array>
-#include <string>
 #include <vector>
 
 #include <esp_bt_defs.h>
@@ -45,7 +44,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void unconditional_disconnect();
   void release_services();
 
-  bool connected() { return this->state_ == espbt::ClientState::ESTABLISHED; }
+  bool connected() { return this->state() == espbt::ClientState::ESTABLISHED; }
 
   void set_auto_connect(bool auto_connect) { this->auto_connect_ = auto_connect; }
 
@@ -58,16 +57,12 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
     this->remote_bda_[4] = (address >> 8) & 0xFF;
     this->remote_bda_[5] = (address >> 0) & 0xFF;
     if (address == 0) {
-      this->address_str_ = "";
+      this->address_str_[0] = '\0';
     } else {
-      this->address_str_ =
-          str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, (uint8_t) (this->address_ >> 40) & 0xff,
-                       (uint8_t) (this->address_ >> 32) & 0xff, (uint8_t) (this->address_ >> 24) & 0xff,
-                       (uint8_t) (this->address_ >> 16) & 0xff, (uint8_t) (this->address_ >> 8) & 0xff,
-                       (uint8_t) (this->address_ >> 0) & 0xff);
+      format_mac_addr_upper(this->remote_bda_, this->address_str_);
     }
   }
-  const std::string &address_str() const { return this->address_str_; }
+  const char *address_str() const { return this->address_str_; }
 
 #ifdef USE_ESP32_BLE_DEVICE
   BLEService *get_service(espbt::ESPBTUUID uuid);
@@ -106,7 +101,6 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   uint64_t address_{0};
 
   // Group 2: Container types (grouped for memory optimization)
-  std::string address_str_{};
 #ifdef USE_ESP32_BLE_DEVICE
   std::vector<BLEService *> services_;
 #endif
@@ -115,14 +109,18 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   int gattc_if_;
   esp_gatt_status_t status_{ESP_GATT_OK};
 
-  // Group 4: Arrays (6 bytes)
-  esp_bd_addr_t remote_bda_;
+  // Group 4: Arrays
+  char address_str_[MAC_ADDRESS_PRETTY_BUFFER_SIZE]{};
+  esp_bd_addr_t remote_bda_;  // 6 bytes
 
-  // Group 5: 2-byte types
+  // Group 5: 4-byte types
+  uint32_t disconnecting_started_{0};
+
+  // Group 6: 2-byte types
   uint16_t conn_id_{UNSET_CONN_ID};
   uint16_t mtu_{23};
 
-  // Group 6: 1-byte types and small enums
+  // Group 7: 1-byte types and small enums
   esp_ble_addr_type_t remote_addr_type_{BLE_ADDR_TYPE_PUBLIC};
   espbt::ConnectionType connection_type_{espbt::ConnectionType::V1};
   uint8_t connection_index_;
@@ -132,15 +130,26 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   // 6 bytes used, 2 bytes padding
 
   void log_event_(const char *name);
-  void log_gattc_event_(const char *name);
-  void update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,
-                           const char *param_type);
+  void log_gattc_lifecycle_event_(const char *name);
+  void log_gattc_data_event_(const char *name);
+  esp_err_t update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,
+                                const char *param_type);
   void set_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,
                         const char *param_type);
   void log_gattc_warning_(const char *operation, esp_gatt_status_t status);
   void log_gattc_warning_(const char *operation, esp_err_t err);
   void log_connection_params_(const char *param_type);
   void handle_connection_result_(esp_err_t ret);
+  /// Transition to IDLE and reset conn_id — call when the connection is fully dead.
+  void set_idle_() {
+    this->set_state(espbt::ClientState::IDLE);
+    this->conn_id_ = UNSET_CONN_ID;
+  }
+  /// Transition to DISCONNECTING and start the safety timeout.
+  void set_disconnecting_() {
+    this->disconnecting_started_ = millis();
+    this->set_state(espbt::ClientState::DISCONNECTING);
+  }
   // Compact error logging helpers to reduce flash usage
   void log_error_(const char *message);
   void log_error_(const char *message, int code);

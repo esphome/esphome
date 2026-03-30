@@ -1,0 +1,12 @@
+# Common Modbus configuration for ESP32-S3 IDF tests
+
+packages:
+  uart: !include ../uart/esp32-s3-idf.yaml
+
+substitutions:
+  flow_control_pin: GPIO4
+
+modbus:
+  - id: modbus_bus
+    uart_id: uart_bus
+    flow_control_pin: ${flow_control_pin}

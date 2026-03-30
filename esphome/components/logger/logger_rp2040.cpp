@@ -1,5 +1,9 @@
 #ifdef USE_RP2040
 #include "logger.h"
+#include "esphome/core/defines.h"
+#ifdef USE_RP2040_CRASH_HANDLER
+#include "esphome/components/rp2040/crash_handler.h"
+#endif
 #include "esphome/core/log.h"
 
 namespace esphome::logger {
@@ -25,13 +29,25 @@ void Logger::pre_setup() {
   }
   global_logger = this;
   ESP_LOGI(TAG, "Log initialized");
+#ifdef USE_RP2040_CRASH_HANDLER
+  rp2040::crash_handler_log();
+#endif
 }
 
-void HOT Logger::write_msg_(const char *msg) { this->hw_serial_->println(msg); }
-
-const char *const UART_SELECTIONS[] = {"UART0", "UART1", "USB_CDC"};
-
-const char *Logger::get_uart_selection_() { return UART_SELECTIONS[this->uart_]; }
+const LogString *Logger::get_uart_selection_() {
+  switch (this->uart_) {
+    case UART_SELECTION_UART0:
+      return LOG_STR("UART0");
+    case UART_SELECTION_UART1:
+      return LOG_STR("UART1");
+#ifdef USE_LOGGER_USB_CDC
+    case UART_SELECTION_USB_CDC:
+      return LOG_STR("USB_CDC");
+#endif
+    default:
+      return LOG_STR("UNKNOWN");
+  }
+}
 
 }  // namespace esphome::logger
 #endif  // USE_RP2040

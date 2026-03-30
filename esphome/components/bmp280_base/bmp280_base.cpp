@@ -2,7 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-#define BMP280_ERROR_WRONG_CHIP_ID "Wrong chip ID"
+#define BMP280_ERROR_WRONG_CHIP_ID "Wrong chip ID or no response"
 
 namespace esphome {
 namespace bmp280_base {
@@ -63,25 +63,25 @@ void BMP280Component::setup() {
 
   // Read the chip id twice, to work around a bug where the first read is 0.
   // https://community.st.com/t5/stm32-mcus-products/issue-with-reading-bmp280-chip-id-using-spi/td-p/691855
-  if (!this->read_byte(0xD0, &chip_id)) {
+  if (!this->bmp_read_byte(0xD0, &chip_id)) {
     this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
-  if (!this->read_byte(0xD0, &chip_id)) {
+  if (!this->bmp_read_byte(0xD0, &chip_id)) {
     this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed(ESP_LOG_MSG_COMM_FAIL);
+    this->mark_failed(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
     return;
   }
   if (chip_id != 0x58) {
     this->error_code_ = WRONG_CHIP_ID;
-    this->mark_failed(BMP280_ERROR_WRONG_CHIP_ID);
+    this->mark_failed(LOG_STR(BMP280_ERROR_WRONG_CHIP_ID));
     return;
   }
 
   // Send a soft reset.
-  if (!this->write_byte(BMP280_REGISTER_RESET, BMP280_SOFT_RESET)) {
-    this->mark_failed("Reset failed");
+  if (!this->bmp_write_byte(BMP280_REGISTER_RESET, BMP280_SOFT_RESET)) {
+    this->mark_failed(LOG_STR("Reset failed"));
     return;
   }
   // Wait until the NVM data has finished loading.
@@ -89,13 +89,13 @@ void BMP280Component::setup() {
   uint8_t retry = 5;
   do {
     delay(2);
-    if (!this->read_byte(BMP280_REGISTER_STATUS, &status)) {
-      this->mark_failed("Error reading status register");
+    if (!this->bmp_read_byte(BMP280_REGISTER_STATUS, &status)) {
+      this->mark_failed(LOG_STR("Error reading status register"));
       return;
     }
   } while ((status & BMP280_STATUS_IM_UPDATE) && (--retry));
   if (status & BMP280_STATUS_IM_UPDATE) {
-    this->mark_failed("Timeout loading NVM");
+    this->mark_failed(LOG_STR("Timeout loading NVM"));
     return;
   }
 
@@ -115,15 +115,15 @@ void BMP280Component::setup() {
   this->calibration_.p9 = this->read_s16_le_(0x9E);
 
   uint8_t config_register = 0;
-  if (!this->read_byte(BMP280_REGISTER_CONFIG, &config_register)) {
-    this->mark_failed("Read config");
+  if (!this->bmp_read_byte(BMP280_REGISTER_CONFIG, &config_register)) {
+    this->mark_failed(LOG_STR("Read config"));
     return;
   }
   config_register &= ~0b11111100;
   config_register |= 0b000 << 5;  // 0.5 ms standby time
   config_register |= (this->iir_filter_ & 0b111) << 2;
-  if (!this->write_byte(BMP280_REGISTER_CONFIG, config_register)) {
-    this->mark_failed("Write config");
+  if (!this->bmp_write_byte(BMP280_REGISTER_CONFIG, config_register)) {
+    this->mark_failed(LOG_STR("Write config"));
     return;
   }
 }
@@ -148,7 +148,6 @@ void BMP280Component::dump_config() {
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
   ESP_LOGCONFIG(TAG, "    Oversampling: %s", oversampling_to_str(this->pressure_oversampling_));
 }
-float BMP280Component::get_setup_priority() const { return setup_priority::DATA; }
 
 inline uint8_t oversampling_to_time(BMP280Oversampling over_sampling) { return (1 << uint8_t(over_sampling)) >> 1; }
 
@@ -159,7 +158,7 @@ void BMP280Component::update() {
   meas_value |= (this->temperature_oversampling_ & 0b111) << 5;
   meas_value |= (this->pressure_oversampling_ & 0b111) << 2;
   meas_value |= 0b01;  // Forced mode
-  if (!this->write_byte(BMP280_REGISTER_CONTROL, meas_value)) {
+  if (!this->bmp_write_byte(BMP280_REGISTER_CONTROL, meas_value)) {
     this->status_set_warning();
     return;
   }
@@ -188,9 +187,10 @@ void BMP280Component::update() {
 }
 
 float BMP280Component::read_temperature_(int32_t *t_fine) {
-  uint8_t data[3];
-  if (!this->read_bytes(BMP280_REGISTER_TEMPDATA, data, 3))
+  uint8_t data[3]{};
+  if (!this->bmp_read_bytes(BMP280_REGISTER_TEMPDATA, data, 3))
     return NAN;
+  ESP_LOGV(TAG, "Read temperature data, raw: %02X %02X %02X", data[0], data[1], data[2]);
   int32_t adc = ((data[0] & 0xFF) << 16) | ((data[1] & 0xFF) << 8) | (data[2] & 0xFF);
   adc >>= 4;
   if (adc == 0x80000) {
@@ -212,7 +212,7 @@ float BMP280Component::read_temperature_(int32_t *t_fine) {
 
 float BMP280Component::read_pressure_(int32_t t_fine) {
   uint8_t data[3];
-  if (!this->read_bytes(BMP280_REGISTER_PRESSUREDATA, data, 3))
+  if (!this->bmp_read_bytes(BMP280_REGISTER_PRESSUREDATA, data, 3))
     return NAN;
   int32_t adc = ((data[0] & 0xFF) << 16) | ((data[1] & 0xFF) << 8) | (data[2] & 0xFF);
   adc >>= 4;
@@ -258,12 +258,12 @@ void BMP280Component::set_pressure_oversampling(BMP280Oversampling pressure_over
 void BMP280Component::set_iir_filter(BMP280IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
 uint8_t BMP280Component::read_u8_(uint8_t a_register) {
   uint8_t data = 0;
-  this->read_byte(a_register, &data);
+  this->bmp_read_byte(a_register, &data);
   return data;
 }
 uint16_t BMP280Component::read_u16_le_(uint8_t a_register) {
   uint16_t data = 0;
-  this->read_byte_16(a_register, &data);
+  this->bmp_read_byte_16(a_register, &data);
   return (data >> 8) | (data << 8);
 }
 int16_t BMP280Component::read_s16_le_(uint8_t a_register) { return this->read_u16_le_(a_register); }

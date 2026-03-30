@@ -73,17 +73,17 @@ void SFA30Component::update() {
     }
 
     if (this->formaldehyde_sensor_ != nullptr) {
-      const float formaldehyde = raw_data[0] / 5.0f;
+      const float formaldehyde = static_cast<int16_t>(raw_data[0]) / 5.0f;
       this->formaldehyde_sensor_->publish_state(formaldehyde);
     }
 
     if (this->humidity_sensor_ != nullptr) {
-      const float humidity = raw_data[1] / 100.0f;
+      const float humidity = static_cast<int16_t>(raw_data[1]) / 100.0f;
       this->humidity_sensor_->publish_state(humidity);
     }
 
     if (this->temperature_sensor_ != nullptr) {
-      const float temperature = raw_data[2] / 200.0f;
+      const float temperature = static_cast<int16_t>(raw_data[2]) / 200.0f;
       this->temperature_sensor_->publish_state(temperature);
     }
 

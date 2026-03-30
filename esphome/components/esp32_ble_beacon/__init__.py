@@ -4,7 +4,7 @@ from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.esp32_ble import CONF_BLE_ID
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TX_POWER, CONF_TYPE, CONF_UUID
-from esphome.core import CORE, TimePeriod
+from esphome.core import TimePeriod
 
 AUTO_LOAD = ["esp32_ble"]
 DEPENDENCIES = ["esp32"]
@@ -53,8 +53,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MEASURED_POWER, default=-59): cv.int_range(
                 min=-128, max=0
             ),
-            cv.Optional(CONF_TX_POWER, default="3dBm"): cv.All(
-                cv.decibel, cv.enum(esp32_ble.TX_POWER_LEVELS, int=True)
+            cv.OnlyWithout(CONF_TX_POWER, "esp32_hosted", default="3dBm"): cv.All(
+                cv.conflicts_with_component("esp32_hosted"),
+                cv.decibel,
+                cv.enum(esp32_ble.TX_POWER_LEVELS, int=True),
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -74,7 +76,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], uuid_arr)
 
     parent = await cg.get_variable(config[esp32_ble.CONF_BLE_ID])
-    cg.add(parent.register_gap_event_handler(var))
+    esp32_ble.register_gap_event_handler(parent, var)
 
     await cg.register_component(var, config)
     cg.add(var.set_major(config[CONF_MAJOR]))
@@ -82,10 +84,12 @@ async def to_code(config):
     cg.add(var.set_min_interval(config[CONF_MIN_INTERVAL]))
     cg.add(var.set_max_interval(config[CONF_MAX_INTERVAL]))
     cg.add(var.set_measured_power(config[CONF_MEASURED_POWER]))
-    cg.add(var.set_tx_power(config[CONF_TX_POWER]))
+
+    # TX power control only available on native Bluetooth (not ESP-Hosted)
+    if CONF_TX_POWER in config:
+        cg.add(var.set_tx_power(config[CONF_TX_POWER]))
 
     cg.add_define("USE_ESP32_BLE_ADVERTISING")
 
-    if CORE.using_esp_idf:
-        add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
-        add_idf_sdkconfig_option("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)
+    add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
+    add_idf_sdkconfig_option("CONFIG_BT_BLE_42_FEATURES_SUPPORTED", True)

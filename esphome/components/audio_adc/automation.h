@@ -13,7 +13,7 @@ template<typename... Ts> class SetMicGainAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(float, mic_gain)
 
-  void play(Ts... x) override { this->audio_adc_->set_mic_gain(this->mic_gain_.value(x...)); }
+  void play(const Ts &...x) override { this->audio_adc_->set_mic_gain(this->mic_gain_.value(x...)); }
 
  protected:
   AudioAdc *audio_adc_;

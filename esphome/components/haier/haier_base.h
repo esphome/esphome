@@ -1,7 +1,6 @@
 #pragma once
 
 #include <chrono>
-#include <set>
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
@@ -60,9 +59,9 @@ class HaierClimateBase : public esphome::Component,
   void send_power_off_command();
   void toggle_power();
   void reset_protocol() { this->reset_protocol_request_ = true; };
-  void set_supported_modes(const std::set<esphome::climate::ClimateMode> &modes);
-  void set_supported_swing_modes(const std::set<esphome::climate::ClimateSwingMode> &modes);
-  void set_supported_presets(const std::set<esphome::climate::ClimatePreset> &presets);
+  void set_supported_modes(esphome::climate::ClimateModeMask modes);
+  void set_supported_swing_modes(esphome::climate::ClimateSwingModeMask modes);
+  void set_supported_presets(esphome::climate::ClimatePresetMask presets);
   bool valid_connection() const { return this->protocol_phase_ >= ProtocolPhases::IDLE; };
   size_t available() noexcept override { return esphome::uart::UARTDevice::available(); };
   size_t read_array(uint8_t *data, size_t len) noexcept override {
@@ -75,7 +74,9 @@ class HaierClimateBase : public esphome::Component,
   void set_answer_timeout(uint32_t timeout);
   void set_send_wifi(bool send_wifi);
   void send_custom_command(const haier_protocol::HaierMessage &message);
-  void add_status_message_callback(std::function<void(const char *, size_t)> &&callback);
+  template<typename F> void add_status_message_callback(F &&callback) {
+    this->status_message_callback_.add(std::forward<F>(callback));
+  }
 
  protected:
   enum class ProtocolPhases {
@@ -174,13 +175,6 @@ class HaierClimateBase : public esphome::Component,
   std::chrono::steady_clock::time_point last_signal_request_;          // To send WiFI signal level
   CallbackManager<void(const char *, size_t)> status_message_callback_{};
   ESPPreferenceObject base_rtc_;
-};
-
-class StatusMessageTrigger : public Trigger<const char *, size_t> {
- public:
-  explicit StatusMessageTrigger(HaierClimateBase *parent) {
-    parent->add_status_message_callback([this](const char *data, size_t data_size) { this->trigger(data, data_size); });
-  }
 };
 
 }  // namespace haier

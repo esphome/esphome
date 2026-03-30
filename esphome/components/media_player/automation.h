@@ -11,7 +11,7 @@ template<MediaPlayerCommand Command, typename... Ts>
 class MediaPlayerCommandAction : public Action<Ts...>, public Parented<MediaPlayer> {
  public:
   TEMPLATABLE_VALUE(bool, announcement);
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     this->parent_->make_call().set_command(Command).set_announcement(this->announcement_.value(x...)).perform();
   }
 };
@@ -32,11 +32,33 @@ template<typename... Ts>
 using TurnOnAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_TURN_ON, Ts...>;
 template<typename... Ts>
 using TurnOffAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_TURN_OFF, Ts...>;
+template<typename... Ts>
+using NextAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_NEXT, Ts...>;
+template<typename... Ts>
+using PreviousAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_PREVIOUS, Ts...>;
+template<typename... Ts>
+using MuteAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_MUTE, Ts...>;
+template<typename... Ts>
+using UnmuteAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_UNMUTE, Ts...>;
+template<typename... Ts>
+using RepeatOffAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_REPEAT_OFF, Ts...>;
+template<typename... Ts>
+using RepeatOneAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_REPEAT_ONE, Ts...>;
+template<typename... Ts>
+using RepeatAllAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_REPEAT_ALL, Ts...>;
+template<typename... Ts>
+using ShuffleAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_SHUFFLE, Ts...>;
+template<typename... Ts>
+using UnshuffleAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_UNSHUFFLE, Ts...>;
+template<typename... Ts>
+using GroupJoinAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_GROUP_JOIN, Ts...>;
+template<typename... Ts>
+using ClearPlaylistAction = MediaPlayerCommandAction<MediaPlayerCommand::MEDIA_PLAYER_COMMAND_CLEAR_PLAYLIST, Ts...>;
 
 template<typename... Ts> class PlayMediaAction : public Action<Ts...>, public Parented<MediaPlayer> {
   TEMPLATABLE_VALUE(std::string, media_url)
   TEMPLATABLE_VALUE(bool, announcement)
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     this->parent_->make_call()
         .set_media_url(this->media_url_.value(x...))
         .set_announcement(this->announcement_.value(x...))
@@ -46,61 +68,66 @@ template<typename... Ts> class PlayMediaAction : public Action<Ts...>, public Pa
 
 template<typename... Ts> class VolumeSetAction : public Action<Ts...>, public Parented<MediaPlayer> {
   TEMPLATABLE_VALUE(float, volume)
-  void play(Ts... x) override { this->parent_->make_call().set_volume(this->volume_.value(x...)).perform(); }
+  void play(const Ts &...x) override { this->parent_->make_call().set_volume(this->volume_.value(x...)).perform(); }
 };
 
-class StateTrigger : public Trigger<> {
- public:
-  explicit StateTrigger(MediaPlayer *player) {
-    player->add_on_state_callback([this]() { this->trigger(); });
+/// Callback forwarder that triggers an Automation<> on any state change.
+/// Pointer-sized (single Automation* field) to fit inline in Callback::ctx_.
+struct StateAnyForwarder {
+  Automation<> *automation;
+  void operator()(MediaPlayerState /*state*/) const { this->automation->trigger(); }
+};
+
+/// Callback forwarder that triggers an Automation<> only when a specific media player state is entered.
+/// Pointer-sized (single Automation* field) to fit inline in Callback::ctx_.
+template<MediaPlayerState State> struct StateEnterForwarder {
+  Automation<> *automation;
+  void operator()(MediaPlayerState state) const {
+    if (state == State)
+      this->automation->trigger();
   }
 };
 
-template<MediaPlayerState State> class MediaPlayerStateTrigger : public Trigger<> {
- public:
-  explicit MediaPlayerStateTrigger(MediaPlayer *player) {
-    player->add_on_state_callback([this, player]() {
-      if (player->state == State)
-        this->trigger();
-    });
-  }
-};
-
-using IdleTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_IDLE>;
-using PlayTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING>;
-using PauseTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_PAUSED>;
-using AnnouncementTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING>;
-using OnTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_ON>;
-using OffTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_OFF>;
+static_assert(sizeof(StateAnyForwarder) <= sizeof(void *));
+static_assert(std::is_trivially_copyable_v<StateAnyForwarder>);
+static_assert(sizeof(StateEnterForwarder<MediaPlayerState::MEDIA_PLAYER_STATE_IDLE>) <= sizeof(void *));
+static_assert(std::is_trivially_copyable_v<StateEnterForwarder<MediaPlayerState::MEDIA_PLAYER_STATE_IDLE>>);
 
 template<typename... Ts> class IsIdleCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
  public:
-  bool check(Ts... x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_IDLE; }
+  bool check(const Ts &...x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_IDLE; }
 };
 
 template<typename... Ts> class IsPlayingCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
  public:
-  bool check(Ts... x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING; }
+  bool check(const Ts &...x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING; }
 };
 
 template<typename... Ts> class IsPausedCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
  public:
-  bool check(Ts... x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_PAUSED; }
+  bool check(const Ts &...x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_PAUSED; }
 };
 
 template<typename... Ts> class IsAnnouncingCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
  public:
-  bool check(Ts... x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING; }
+  bool check(const Ts &...x) override {
+    return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING;
+  }
 };
 
 template<typename... Ts> class IsOnCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
  public:
-  bool check(Ts... x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_ON; }
+  bool check(const Ts &...x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_ON; }
 };
 
 template<typename... Ts> class IsOffCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
  public:
-  bool check(Ts... x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_OFF; }
+  bool check(const Ts &...x) override { return this->parent_->state == MediaPlayerState::MEDIA_PLAYER_STATE_OFF; }
+};
+
+template<typename... Ts> class IsMutedCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
+ public:
+  bool check(const Ts &...x) override { return this->parent_->is_muted(); }
 };
 
 }  // namespace media_player

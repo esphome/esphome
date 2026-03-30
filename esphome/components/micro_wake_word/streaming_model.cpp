@@ -1,6 +1,6 @@
 #include "streaming_model.h"
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -80,6 +80,7 @@ bool StreamingModel::load_model_() {
     TfLiteTensor *output = this->interpreter_->output(0);
     if ((output->dims->size != 2) || (output->dims->data[0] != 1) || (output->dims->data[1] != 1)) {
       ESP_LOGE(TAG, "Streaming model tensor output dimension is not 1x1.");
+      return false;
     }
 
     if (output->type != kTfLiteUInt8) {

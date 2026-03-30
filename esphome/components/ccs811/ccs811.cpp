@@ -81,8 +81,8 @@ void CCS811Component::setup() {
            bootloader_version, application_version);
   if (this->version_ != nullptr) {
     char version[20];  // "15.15.15 (0xffff)" is 17 chars, plus NUL, plus wiggle room
-    sprintf(version, "%d.%d.%d (0x%02x)", (application_version >> 12 & 15), (application_version >> 8 & 15),
-            (application_version >> 4 & 15), application_version);
+    buf_append_printf(version, sizeof(version), 0, "%d.%d.%d (0x%02x)", (application_version >> 12 & 15),
+                      (application_version >> 8 & 15), (application_version >> 4 & 15), application_version);
     ESP_LOGD(TAG, "publishing version state: %s", version);
     this->version_->publish_state(version);
   }
@@ -152,10 +152,10 @@ void CCS811Component::send_env_data_() {
 void CCS811Component::dump_config() {
   ESP_LOGCONFIG(TAG, "CCS811");
   LOG_I2C_DEVICE(this)
-  LOG_UPDATE_INTERVAL(this)
+  LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "CO2 Sensor", this->co2_);
   LOG_SENSOR("  ", "TVOC Sensor", this->tvoc_);
-  LOG_TEXT_SENSOR("  ", "Firmware Version Sensor", this->version_)
+  LOG_TEXT_SENSOR("  ", "Firmware Version Sensor", this->version_);
   if (this->baseline_) {
     ESP_LOGCONFIG(TAG, "  Baseline: %04X", *this->baseline_);
   } else {

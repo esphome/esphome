@@ -1,8 +1,9 @@
 #include "switch.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace switch_ {
+namespace esphome::switch_ {
 
 static const char *const TAG = "switch";
 
@@ -32,7 +33,7 @@ optional<bool> Switch::get_initial_state() {
   if (!(restore_mode & RESTORE_MODE_PERSISTENT_MASK))
     return {};
 
-  this->rtc_ = global_preferences->make_preference<bool>(this->get_preference_hash());
+  this->rtc_ = this->make_entity_preference<bool>();
   bool initial_state;
   if (!this->rtc_.load(&initial_state))
     return {};
@@ -60,14 +61,14 @@ void Switch::publish_state(bool state) {
   if (restore_mode & RESTORE_MODE_PERSISTENT_MASK)
     this->rtc_.save(&this->state);
 
-  ESP_LOGD(TAG, "'%s': Sending state %s", this->name_.c_str(), ONOFF(this->state));
+  ESP_LOGV(TAG, "'%s' >> %s", this->name_.c_str(), ONOFF(this->state));
   this->state_callback_.call(this->state);
+#if defined(USE_SWITCH) && defined(USE_CONTROLLER_REGISTRY)
+  ControllerRegistry::notify_switch_update(this);
+#endif
 }
 bool Switch::assumed_state() { return false; }
 
-void Switch::add_on_state_callback(std::function<void(bool)> &&callback) {
-  this->state_callback_.add(std::move(callback));
-}
 void Switch::set_inverted(bool inverted) { this->inverted_ = inverted; }
 bool Switch::is_inverted() const { return this->inverted_; }
 
@@ -91,20 +92,15 @@ void log_switch(const char *tag, const char *prefix, const char *type, Switch *o
                   LOG_STR_ARG(onoff));
 
     // Add optional fields separately
-    if (!obj->get_icon().empty()) {
-      ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, obj->get_icon().c_str());
-    }
+    LOG_ENTITY_ICON(tag, prefix, *obj);
     if (obj->assumed_state()) {
       ESP_LOGCONFIG(tag, "%s  Assumed State: YES", prefix);
     }
     if (obj->is_inverted()) {
       ESP_LOGCONFIG(tag, "%s  Inverted: YES", prefix);
     }
-    if (!obj->get_device_class().empty()) {
-      ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class().c_str());
-    }
+    LOG_ENTITY_DEVICE_CLASS(tag, prefix, *obj);
   }
 }
 
-}  // namespace switch_
-}  // namespace esphome
+}  // namespace esphome::switch_

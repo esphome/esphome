@@ -31,14 +31,13 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 
 IS_PLATFORM_COMPONENT = True
 
 fan_ns = cg.esphome_ns.namespace("fan")
 Fan = fan_ns.class_("Fan", cg.EntityBase)
-FanState = fan_ns.class_("Fan", Fan, cg.Component)
 
 FanDirection = fan_ns.enum("FanDirection", is_class=True)
 FAN_DIRECTION_ENUM = {
@@ -78,7 +77,7 @@ FanSpeedSetTrigger = fan_ns.class_(
     "FanSpeedSetTrigger", automation.Trigger.template(cg.int_)
 )
 FanPresetSetTrigger = fan_ns.class_(
-    "FanPresetSetTrigger", automation.Trigger.template(cg.std_string)
+    "FanPresetSetTrigger", automation.Trigger.template(cg.StringRef)
 )
 
 FanIsOnCondition = fan_ns.class_("FanIsOnCondition", automation.Condition.template())
@@ -190,10 +189,6 @@ def fan_schema(
     return _FAN_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-FAN_SCHEMA = fan_schema(Fan)
-FAN_SCHEMA.add_extra(cv.deprecated_schema_constant("fan"))
-
 _PRESET_MODES_SCHEMA = cv.All(
     cv.ensure_list(cv.string_strict),
     cv.Length(min=1),
@@ -227,9 +222,8 @@ def validate_preset_modes(value):
     return value
 
 
+@setup_entity("fan")
 async def setup_fan_core_(var, config):
-    await setup_entity(var, config, "fan")
-
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
@@ -292,7 +286,7 @@ async def setup_fan_core_(var, config):
         await automation.build_automation(trigger, [(cg.int_, "x")], conf)
     for conf in config.get(CONF_ON_PRESET_SET, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+        await automation.build_automation(trigger, [(cg.StringRef, "x")], conf)
 
 
 async def register_fan(var, config):
@@ -316,13 +310,17 @@ FAN_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action("fan.toggle", ToggleAction, FAN_ACTION_SCHEMA)
+@automation.register_action(
+    "fan.toggle", ToggleAction, FAN_ACTION_SCHEMA, synchronous=True
+)
 async def fan_toggle_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("fan.turn_off", TurnOffAction, FAN_ACTION_SCHEMA)
+@automation.register_action(
+    "fan.turn_off", TurnOffAction, FAN_ACTION_SCHEMA, synchronous=True
+)
 async def fan_turn_off_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
@@ -341,6 +339,7 @@ async def fan_turn_off_to_code(config, action_id, template_arg, args):
             ),
         }
     ),
+    synchronous=True,
 )
 async def fan_turn_on_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -366,6 +365,7 @@ async def fan_turn_on_to_code(config, action_id, template_arg, args):
             cv.Optional(CONF_OFF_SPEED_CYCLE, default=True): cv.boolean,
         }
     ),
+    synchronous=True,
 )
 async def fan_cycle_speed_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -398,6 +398,6 @@ async def fan_is_on_off_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg, paren)
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(fan_ns.using)

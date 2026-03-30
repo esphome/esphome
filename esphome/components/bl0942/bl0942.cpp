@@ -46,18 +46,18 @@ static const uint32_t PKT_TIMEOUT_MS = 200;
 
 void BL0942::loop() {
   DataPacket buffer;
-  int avail = this->available();
+  size_t avail = this->available();
 
   if (!avail) {
     return;
   }
   if (avail < sizeof(buffer)) {
-    if (!this->rx_start_) {
+    if (!this->rx_start_.has_value()) {
       this->rx_start_ = millis();
-    } else if (millis() > this->rx_start_ + PKT_TIMEOUT_MS) {
-      ESP_LOGW(TAG, "Junk on wire. Throwing away partial message (%d bytes)", avail);
+    } else if (millis() - *this->rx_start_ > PKT_TIMEOUT_MS) {
+      ESP_LOGW(TAG, "Junk on wire. Throwing away partial message (%zu bytes)", avail);
       this->read_array((uint8_t *) &buffer, avail);
-      this->rx_start_ = 0;
+      this->rx_start_.reset();
     }
     return;
   }
@@ -67,7 +67,7 @@ void BL0942::loop() {
       this->received_package_(&buffer);
     }
   }
-  this->rx_start_ = 0;
+  this->rx_start_.reset();
 }
 
 bool BL0942::validate_checksum_(DataPacket *data) {
@@ -148,8 +148,8 @@ void BL0942::setup() {
 
   this->write_reg_(BL0942_REG_USR_WRPROT, 0);
 
-  if (this->read_reg_(BL0942_REG_MODE) != mode)
-    this->status_set_warning("BL0942 setup failed!");
+  if (static_cast<uint32_t>(this->read_reg_(BL0942_REG_MODE)) != mode)
+    this->status_set_warning(LOG_STR("BL0942 setup failed!"));
 
   this->flush();
 }
@@ -173,7 +173,7 @@ void BL0942::received_package_(DataPacket *data) {
   float i_rms = (uint24_t) data->i_rms / current_reference_;
   float watt = (int24_t) data->watt / power_reference_;
   float total_energy_consumption = cf_cnt / energy_reference_;
-  float frequency = 1000000.0f / data->frequency;
+  float frequency = data->frequency != 0 ? 1000000.0f / data->frequency : NAN;
 
   if (voltage_sensor_ != nullptr) {
     voltage_sensor_->publish_state(v_rms);

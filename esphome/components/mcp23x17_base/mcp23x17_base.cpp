@@ -11,13 +11,13 @@ bool MCP23X17Base::digital_read_hw(uint8_t pin) {
   uint8_t data;
   if (pin < 8) {
     if (!this->read_reg(mcp23x17_base::MCP23X17_GPIOA, &data)) {
-      this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       return false;
     }
     this->input_mask_ = encode_uint16(this->input_mask_ >> 8, data);
   } else {
     if (!this->read_reg(mcp23x17_base::MCP23X17_GPIOB, &data)) {
-      this->status_set_warning(ESP_LOG_MSG_COMM_FAIL);
+      this->status_set_warning(LOG_STR(ESP_LOG_MSG_COMM_FAIL));
       return false;
     }
     this->input_mask_ = encode_uint16(data, this->input_mask_ & 0xFF);
@@ -59,12 +59,12 @@ void MCP23X17Base::pin_interrupt_mode(uint8_t pin, mcp23xxx_base::MCP23XXXInterr
     case mcp23xxx_base::MCP23XXX_RISING:
       this->update_reg(pin, true, gpinten);
       this->update_reg(pin, true, intcon);
-      this->update_reg(pin, true, defval);
+      this->update_reg(pin, false, defval);
       break;
     case mcp23xxx_base::MCP23XXX_FALLING:
       this->update_reg(pin, true, gpinten);
       this->update_reg(pin, true, intcon);
-      this->update_reg(pin, false, defval);
+      this->update_reg(pin, true, defval);
       break;
     case mcp23xxx_base::MCP23XXX_NO_INTERRUPT:
       this->update_reg(pin, false, gpinten);

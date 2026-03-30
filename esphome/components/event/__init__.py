@@ -10,15 +10,18 @@ from esphome.const import (
     CONF_ID,
     CONF_MQTT_ID,
     CONF_ON_EVENT,
-    CONF_TRIGGER_ID,
     CONF_WEB_SERVER,
     DEVICE_CLASS_BUTTON,
     DEVICE_CLASS_DOORBELL,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_MOTION,
 )
-from esphome.core import CORE, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    setup_device_class,
+    setup_entity,
+)
 from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@nohat"]
@@ -37,8 +40,6 @@ EventPtr = Event.operator("ptr")
 
 TriggerEventAction = event_ns.class_("TriggerEventAction", automation.Action)
 
-EventTrigger = event_ns.class_("EventTrigger", automation.Trigger.template())
-
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
 _EVENT_SCHEMA = (
@@ -49,11 +50,7 @@ _EVENT_SCHEMA = (
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTEventComponent),
             cv.GenerateID(): cv.declare_id(Event),
             cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
-            cv.Optional(CONF_ON_EVENT): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(EventTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_EVENT): automation.validate_automation({}),
         }
     )
 )
@@ -85,24 +82,16 @@ def event_schema(
     return _EVENT_SCHEMA.extend(schema)
 
 
-# Remove before 2025.11.0
-EVENT_SCHEMA = event_schema()
-EVENT_SCHEMA.add_extra(cv.deprecated_schema_constant("event"))
-
-
+@setup_entity("event")
 async def setup_event_core_(var, config, *, event_types: list[str]):
-    await setup_entity(var, config, "event")
-
     for conf in config.get(CONF_ON_EVENT, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(cg.std_string, "event_type")], conf
+        await automation.build_callback_automation(
+            var, "add_on_event_callback", [(cg.StringRef, "event_type")], conf
         )
 
     cg.add(var.set_event_types(event_types))
 
-    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
-        cg.add(var.set_device_class(device_class))
+    setup_device_class(config)
 
     if mqtt_id := config.get(CONF_MQTT_ID):
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
@@ -134,7 +123,9 @@ TRIGGER_EVENT_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action("event.trigger", TriggerEventAction, TRIGGER_EVENT_SCHEMA)
+@automation.register_action(
+    "event.trigger", TriggerEventAction, TRIGGER_EVENT_SCHEMA, synchronous=True
+)
 async def event_fire_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
@@ -143,6 +134,6 @@ async def event_fire_to_code(config, action_id, template_arg, args):
     return var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(event_ns.using)

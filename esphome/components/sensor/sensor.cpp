@@ -1,8 +1,10 @@
 #include "sensor.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/controller_registry.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
-namespace esphome {
-namespace sensor {
+namespace esphome::sensor {
 
 static const char *const TAG = "sensor";
 
@@ -17,37 +19,31 @@ void log_sensor(const char *tag, const char *prefix, const char *type, Sensor *o
                 "%s  State Class: '%s'\n"
                 "%s  Unit of Measurement: '%s'\n"
                 "%s  Accuracy Decimals: %d",
-                prefix, type, obj->get_name().c_str(), prefix, state_class_to_string(obj->get_state_class()).c_str(),
-                prefix, obj->get_unit_of_measurement().c_str(), prefix, obj->get_accuracy_decimals());
+                prefix, type, obj->get_name().c_str(), prefix,
+                LOG_STR_ARG(state_class_to_string(obj->get_state_class())), prefix,
+                obj->get_unit_of_measurement_ref().c_str(), prefix, obj->get_accuracy_decimals());
 
-  if (!obj->get_device_class().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class().c_str());
-  }
-
-  if (!obj->get_icon().empty()) {
-    ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, obj->get_icon().c_str());
-  }
+  LOG_ENTITY_DEVICE_CLASS(tag, prefix, *obj);
+  LOG_ENTITY_ICON(tag, prefix, *obj);
 
   if (obj->get_force_update()) {
     ESP_LOGV(tag, "%s  Force Update: YES", prefix);
   }
 }
 
-std::string state_class_to_string(StateClass state_class) {
-  switch (state_class) {
-    case STATE_CLASS_MEASUREMENT:
-      return "measurement";
-    case STATE_CLASS_TOTAL_INCREASING:
-      return "total_increasing";
-    case STATE_CLASS_TOTAL:
-      return "total";
-    case STATE_CLASS_NONE:
-    default:
-      return "";
-  }
+// State class strings indexed by StateClass enum (0-4): NONE, MEASUREMENT, TOTAL_INCREASING, TOTAL, MEASUREMENT_ANGLE
+PROGMEM_STRING_TABLE(StateClassStrings, "", "measurement", "total_increasing", "total", "measurement_angle");
+static_assert(StateClassStrings::COUNT == STATE_CLASS_LAST + 1, "StateClassStrings must match StateClass enum");
+
+const LogString *state_class_to_string(StateClass state_class) {
+  // Fallback to index 0 (empty string for STATE_CLASS_NONE) if out of range
+  return StateClassStrings::get_log_str(static_cast<uint8_t>(state_class), 0);
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 Sensor::Sensor() : state(NAN), raw_state(NAN) {}
+#pragma GCC diagnostic pop
 
 int8_t Sensor::get_accuracy_decimals() {
   if (this->sensor_flags_.has_accuracy_override)
@@ -70,28 +66,28 @@ StateClass Sensor::get_state_class() {
 }
 
 void Sensor::publish_state(float state) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   this->raw_state = state;
-  if (this->raw_callback_) {
-    this->raw_callback_->call(state);
-  }
+#pragma GCC diagnostic pop
+#ifdef USE_SENSOR_FILTER
+  this->raw_callback_.call(state);
+#endif
 
   ESP_LOGV(TAG, "'%s': Received new state %f", this->name_.c_str(), state);
 
+#ifdef USE_SENSOR_FILTER
   if (this->filter_list_ == nullptr) {
+#endif
     this->internal_send_state_to_frontend(state);
+#ifdef USE_SENSOR_FILTER
   } else {
     this->filter_list_->input(state);
   }
+#endif
 }
 
-void Sensor::add_on_state_callback(std::function<void(float)> &&callback) { this->callback_.add(std::move(callback)); }
-void Sensor::add_on_raw_state_callback(std::function<void(float)> &&callback) {
-  if (!this->raw_callback_) {
-    this->raw_callback_ = make_unique<CallbackManager<void(float)>>();
-  }
-  this->raw_callback_->add(std::move(callback));
-}
-
+#ifdef USE_SENSOR_FILTER
 void Sensor::add_filter(Filter *filter) {
   // inefficient, but only happens once on every sensor setup and nobody's going to have massive amounts of
   // filters
@@ -106,12 +102,12 @@ void Sensor::add_filter(Filter *filter) {
   }
   filter->initialize(this, nullptr);
 }
-void Sensor::add_filters(const std::vector<Filter *> &filters) {
+void Sensor::add_filters(std::initializer_list<Filter *> filters) {
   for (Filter *filter : filters) {
     this->add_filter(filter);
   }
 }
-void Sensor::set_filters(const std::vector<Filter *> &filters) {
+void Sensor::set_filters(std::initializer_list<Filter *> filters) {
   this->clear_filters();
   this->add_filters(filters);
 }
@@ -121,16 +117,17 @@ void Sensor::clear_filters() {
   }
   this->filter_list_ = nullptr;
 }
-float Sensor::get_state() const { return this->state; }
-float Sensor::get_raw_state() const { return this->raw_state; }
+#endif  // USE_SENSOR_FILTER
 
 void Sensor::internal_send_state_to_frontend(float state) {
   this->set_has_state(true);
   this->state = state;
-  ESP_LOGD(TAG, "'%s': Sending state %.5f %s with %d decimals of accuracy", this->get_name().c_str(), state,
-           this->get_unit_of_measurement().c_str(), this->get_accuracy_decimals());
+  ESP_LOGV(TAG, "'%s' >> %.*f %s", this->get_name().c_str(), std::max(0, (int) this->get_accuracy_decimals()), state,
+           this->get_unit_of_measurement_ref().c_str());
   this->callback_.call(state);
+#if defined(USE_SENSOR) && defined(USE_CONTROLLER_REGISTRY)
+  ControllerRegistry::notify_sensor_update(this);
+#endif
 }
 
-}  // namespace sensor
-}  // namespace esphome
+}  // namespace esphome::sensor

@@ -6,6 +6,7 @@ on:
       - ".clang-tidy"
       - "platformio.ini"
       - "requirements_dev.txt"
+      - "sdkconfig.defaults"
       - ".clang-tidy.hash"
       - "script/clang_tidy_hash.py"
       - ".github/workflows/ci-clang-tidy-hash.yml"
@@ -20,10 +21,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5.0.0
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Python
-        uses: actions/setup-python@v5.6.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.11"
 
@@ -39,9 +40,9 @@ jobs:
           echo "You have modified clang-tidy configuration but have not updated the hash." | tee -a $GITHUB_STEP_SUMMARY
           echo "Please run 'script/clang_tidy_hash.py --update' and commit the changes." | tee -a $GITHUB_STEP_SUMMARY
 
-      - if: failure()
+      - if: failure() && github.event.pull_request.head.repo.full_name == github.repository
         name: Request changes
-        uses: actions/github-script@v7.0.1
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
             await github.rest.pulls.createReview({
@@ -52,9 +53,9 @@ jobs:
               body: 'You have modified clang-tidy configuration but have not updated the hash.\nPlease run `script/clang_tidy_hash.py --update` and commit the changes.'
             })
 
-      - if: success()
+      - if: success() && github.event.pull_request.head.repo.full_name == github.repository
         name: Dismiss review
-        uses: actions/github-script@v7.0.1
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         with:
           script: |
             let reviews = await github.rest.pulls.listReviews({

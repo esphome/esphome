@@ -9,3 +9,4 @@ psram:
   mode: octal
   speed: 120MHz
   enable_ecc: true
+  ignore_not_found: false

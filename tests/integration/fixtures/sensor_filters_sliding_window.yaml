@@ -1,0 +1,123 @@
+esphome:
+  name: test-sliding-window-filters
+
+host:
+api:
+  batch_delay: 0ms  # Disable batching to receive all state updates
+logger:
+  level: DEBUG
+
+# Template sensor that we'll use to publish values
+sensor:
+  - platform: template
+    name: "Source Sensor"
+    id: source_sensor
+    accuracy_decimals: 2
+
+  # Min filter sensor
+  - platform: copy
+    source_id: source_sensor
+    name: "Min Sensor"
+    id: min_sensor
+    filters:
+      - min:
+          window_size: 5
+          send_every: 5
+          send_first_at: 1
+
+  # Max filter sensor
+  - platform: copy
+    source_id: source_sensor
+    name: "Max Sensor"
+    id: max_sensor
+    filters:
+      - max:
+          window_size: 5
+          send_every: 5
+          send_first_at: 1
+
+  # Median filter sensor
+  - platform: copy
+    source_id: source_sensor
+    name: "Median Sensor"
+    id: median_sensor
+    filters:
+      - median:
+          window_size: 5
+          send_every: 5
+          send_first_at: 1
+
+  # Quantile filter sensor (90th percentile)
+  - platform: copy
+    source_id: source_sensor
+    name: "Quantile Sensor"
+    id: quantile_sensor
+    filters:
+      - quantile:
+          window_size: 5
+          send_every: 5
+          send_first_at: 1
+          quantile: 0.9
+
+  # Moving average filter sensor
+  - platform: copy
+    source_id: source_sensor
+    name: "Moving Avg Sensor"
+    id: moving_avg_sensor
+    filters:
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 5
+          send_first_at: 1
+
+# Script to publish values with delays
+script:
+  - id: publish_values_script
+    then:
+      - sensor.template.publish:
+          id: source_sensor
+          state: 1.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 2.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 3.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 4.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 5.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 6.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 7.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 8.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 9.0
+      - delay: 20ms
+      - sensor.template.publish:
+          id: source_sensor
+          state: 10.0
+
+# Button to trigger publishing test values
+button:
+  - platform: template
+    name: "Publish Values Button"
+    id: publish_button
+    on_press:
+      - script.execute: publish_values_script

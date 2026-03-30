@@ -41,6 +41,17 @@ select:
       - ""  # Empty string at the end
     initial_option: "Choice X"
 
+  - platform: template
+    name: "Select Initial Option Test"
+    id: select_initial_option_test
+    optimistic: true
+    options:
+      - "First"
+      - "Second"
+      - "Third"
+      - "Fourth"
+    initial_option: "Third"  # Test non-default initial option
+
 # Add a sensor to ensure we have other entities in the list
 sensor:
   - platform: template

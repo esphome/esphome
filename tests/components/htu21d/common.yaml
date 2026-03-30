@@ -1,10 +1,6 @@
-i2c:
-  - id: i2c_htu21d
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 sensor:
   - platform: htu21d
+    i2c_id: i2c_bus
     model: htu21d
     temperature:
       name: Temperature

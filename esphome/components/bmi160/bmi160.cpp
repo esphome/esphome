@@ -6,6 +6,7 @@ namespace esphome {
 namespace bmi160 {
 
 static const char *const TAG = "bmi160";
+static constexpr uint32_t GYRO_WAKEUP_TIMEOUT_MS = 100;
 
 const uint8_t BMI160_REGISTER_CHIPID = 0x00;
 
@@ -144,7 +145,7 @@ void BMI160Component::internal_setup_(int stage) {
       }
       ESP_LOGV(TAG, "  Waiting for gyroscope to wake up");
       // wait between 51 & 81ms, doing 100 to be safe
-      this->set_timeout(10, [this]() { this->internal_setup_(2); });
+      this->set_timeout(GYRO_WAKEUP_TIMEOUT_MS, [this]() { this->internal_setup_(2); });
       break;
 
     case 2:
@@ -203,7 +204,7 @@ void BMI160Component::dump_config() {
 i2c::ErrorCode BMI160Component::read_le_int16_(uint8_t reg, int16_t *value, uint8_t len) {
   uint8_t raw_data[len * 2];
   // read using read_register because we have little-endian data, and read_bytes_16 will swap it
-  i2c::ErrorCode err = this->read_register(reg, raw_data, len * 2, true);
+  i2c::ErrorCode err = this->read_register(reg, raw_data, len * 2);
   if (err != i2c::ERROR_OK) {
     return err;
   }
@@ -263,7 +264,6 @@ void BMI160Component::update() {
 
   this->status_clear_warning();
 }
-float BMI160Component::get_setup_priority() const { return setup_priority::DATA; }
 
 }  // namespace bmi160
 }  // namespace esphome

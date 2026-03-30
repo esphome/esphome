@@ -1,0 +1,92 @@
+esphome:
+  name: uart-mock-modbus-test
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy modbus's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  - id: virtual_uart_dev
+    baud_rate: 9600
+    rx_full_threshold: 120
+    rx_timeout: 2
+    auto_start: false
+    debug:
+    responses:
+      - expect_tx: [0x01, 0x03, 0x00, 0x03, 0x00, 0x01, 0x74, 0x0A] # Read holding register 3 on device 1 (basic_register)
+        inject_rx: [0x01, 0x03, 0x02, 0x01, 0x03, 0xF9, 0xD5] # Return value 0x0103 (hex) = 259 (dec)
+      - expect_tx: [0x01, 0x03, 0x00, 0x05, 0x00, 0x01, 0x94, 0x0B] # Read holding register 5 on device 1 (delayed_response)
+        delay: 100ms # Shorter than modbus send_wait_time of 200ms, should succeed
+        inject_rx: [0x01, 0x03, 0x02, 0x00, 0xFF, 0xF8, 0x04] # Return value 0x00FF (hex) = 255 (dec)
+      - expect_tx: [0x02, 0x03, 0x00, 0x07, 0x00, 0x01, 0x35, 0xF8] # Read holding register 7 on device 2 (late_response)
+        delay: 300ms # Longer than modbus send_wait_time of 200ms, should cause timeout
+        inject_rx: [0x02, 0x03, 0x02, 0x00, 0xF0, 0xFC, 0x00] # Return value 0x00F0 (hex) = 240 (dec)
+      - expect_tx: [0x03, 0x03, 0x00, 0x09, 0x00, 0x01, 0x55, 0xEA] # Read holding register 9 on device 3 (no_response)
+        inject_rx: [] # No response, should cause timeout
+      - expect_tx: [0x01, 0x03, 0x00, 0x0A, 0x00, 0x01, 0xA4, 0x08] # Read holding register A on device 1 (exception_response)
+        inject_rx: [0x01, 0x83, 0x02, 0xC0, 0xF1] # Exception response with code 2 (illegal data address)
+
+modbus:
+  uart_id: virtual_uart_dev
+  send_wait_time: 200ms
+  turnaround_time: 10ms
+
+modbus_controller:
+  - address: 1
+    id: modbus_controller_ok
+    max_cmd_retries: 0
+    update_interval: 1s
+  - address: 2
+    id: modbus_controller_slow
+    max_cmd_retries: 0
+    update_interval: 1s
+  - address: 3
+    id: modbus_controller_offline
+    max_cmd_retries: 0
+    update_interval: 1s
+
+sensor:
+  - platform: modbus_controller
+    name: "basic_register"
+    address: 0x03
+    register_type: holding
+    modbus_controller_id: modbus_controller_ok
+  - platform: modbus_controller
+    name: "delayed_response"
+    address: 0x05
+    register_type: holding
+    modbus_controller_id: modbus_controller_ok
+  - platform: modbus_controller
+    name: "late_response"
+    address: 0x07
+    register_type: holding
+    modbus_controller_id: modbus_controller_slow
+  - platform: modbus_controller
+    name: "no_response"
+    address: 0x09
+    register_type: holding
+    modbus_controller_id: modbus_controller_offline
+  - platform: modbus_controller
+    name: "exception_response"
+    address: 0x0A
+    register_type: holding
+    modbus_controller_id: modbus_controller_ok
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      - lambda: 'id(virtual_uart_dev).start_scenario();'

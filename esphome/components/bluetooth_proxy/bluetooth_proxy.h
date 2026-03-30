@@ -16,14 +16,16 @@
 
 #include "bluetooth_connection.h"
 
+#ifndef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
 #include <esp_bt.h>
+#endif
 #include <esp_bt_device.h>
 
 namespace esphome::bluetooth_proxy {
 
-static const esp_err_t ESP_GATT_NOT_CONNECTED = -1;
-static const int DONE_SENDING_SERVICES = -2;
-static const int INIT_SENDING_SERVICES = -3;
+static constexpr esp_err_t ESP_GATT_NOT_CONNECTED = -1;
+static constexpr int DONE_SENDING_SERVICES = -2;
+static constexpr int INIT_SENDING_SERVICES = -3;
 
 using namespace esp32_ble_client;
 
@@ -33,8 +35,8 @@ using namespace esp32_ble_client;
 // Version 3: New connection API
 // Version 4: Pairing support
 // Version 5: Cache clear support
-static const uint32_t LEGACY_ACTIVE_CONNECTIONS_VERSION = 5;
-static const uint32_t LEGACY_PASSIVE_ONLY_VERSION = 1;
+static constexpr uint32_t LEGACY_ACTIVE_CONNECTIONS_VERSION = 5;
+static constexpr uint32_t LEGACY_PASSIVE_ONLY_VERSION = 1;
 
 enum BluetoothProxyFeature : uint32_t {
   FEATURE_PASSIVE_SCAN = 1 << 0,
@@ -44,13 +46,16 @@ enum BluetoothProxyFeature : uint32_t {
   FEATURE_CACHE_CLEARING = 1 << 4,
   FEATURE_RAW_ADVERTISEMENTS = 1 << 5,
   FEATURE_STATE_AND_MODE = 1 << 6,
+  FEATURE_CONNECTION_PARAMS_SETTING = 1 << 7,
 };
 
 enum BluetoothProxySubscriptionFlag : uint32_t {
   SUBSCRIPTION_RAW_ADVERTISEMENTS = 1 << 0,
 };
 
-class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener, public Component {
+class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
+                             public esp32_ble_tracker::BLEScannerStateListener,
+                             public Component {
   friend class BluetoothConnection;  // Allow connection to update connections_free_response_
  public:
   BluetoothProxy();
@@ -78,6 +83,7 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener, publ
   void bluetooth_gatt_write_descriptor(const api::BluetoothGATTWriteDescriptorRequest &msg);
   void bluetooth_gatt_send_services(const api::BluetoothGATTGetServicesRequest &msg);
   void bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest &msg);
+  void bluetooth_set_connection_params(const api::BluetoothSetConnectionParamsRequest &msg);
 
   void subscribe_api_connection(api::APIConnection *api_connection, uint32_t flags);
   void unsubscribe_api_connection(api::APIConnection *api_connection);
@@ -106,6 +112,9 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener, publ
   void set_active(bool active) { this->active_ = active; }
   bool has_active() { return this->active_; }
 
+  /// BLEScannerStateListener interface
+  void on_scanner_state(esp32_ble_tracker::ScannerState state) override;
+
   uint32_t get_legacy_version() const {
     if (this->active_) {
       return LEGACY_ACTIVE_CONNECTIONS_VERSION;
@@ -123,14 +132,19 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener, publ
       flags |= BluetoothProxyFeature::FEATURE_REMOTE_CACHING;
       flags |= BluetoothProxyFeature::FEATURE_PAIRING;
       flags |= BluetoothProxyFeature::FEATURE_CACHE_CLEARING;
+      flags |= BluetoothProxyFeature::FEATURE_CONNECTION_PARAMS_SETTING;
     }
 
     return flags;
   }
 
-  std::string get_bluetooth_mac_address_pretty() {
+  void get_bluetooth_mac_address_pretty(std::span<char, 18> output) {
     const uint8_t *mac = esp_bt_dev_get_address();
-    return str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    if (mac != nullptr) {
+      format_mac_addr_upper(mac, output.data());
+    } else {
+      output[0] = '\0';
+    }
   }
 
  protected:
@@ -161,7 +175,8 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener, publ
   // Group 4: 1-byte types grouped together
   bool active_;
   uint8_t connection_count_{0};
-  // 2 bytes used, 2 bytes padding
+  bool configured_scan_active_{false};  // Configured scan mode from YAML
+  // 3 bytes used, 1 byte padding
 };
 
 extern BluetoothProxy *global_bluetooth_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
