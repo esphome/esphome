@@ -1,3 +1,4 @@
+import logging
 from unittest.mock import Mock
 
 import pytest
@@ -131,14 +132,36 @@ async def test_generate_component_source_table_empty_pool(
     add_global_mock.assert_not_called()
 
 
-def test_register_component_source_overflow_returns_zero(
-    monkeypatch: pytest.MonkeyPatch,
+def test_register_component_source_overflow_warns(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     # Pre-fill pool to max
     pool = ComponentSourcePool(
         sources={f"comp_{i}": i + 1 for i in range(0xFF)},
         table_registered=True,
     )
-    monkeypatch.setattr(ch, "CORE", Mock(data={ch._COMPONENT_SOURCE_DOMAIN: pool}))
-    idx = register_component_source("overflow_component")
+    monkeypatch.setattr(
+        ch, "CORE", Mock(data={ch._COMPONENT_SOURCE_DOMAIN: pool}, testing_mode=False)
+    )
+    with caplog.at_level(logging.WARNING):
+        idx = register_component_source("overflow_component")
     assert idx == 0
+    assert "Too many unique component source names" in caplog.text
+    assert "overflow_component" in caplog.text
+
+
+def test_register_component_source_overflow_suppressed_in_testing_mode(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    # Pre-fill pool to max
+    pool = ComponentSourcePool(
+        sources={f"comp_{i}": i + 1 for i in range(0xFF)},
+        table_registered=True,
+    )
+    monkeypatch.setattr(
+        ch, "CORE", Mock(data={ch._COMPONENT_SOURCE_DOMAIN: pool}, testing_mode=True)
+    )
+    with caplog.at_level(logging.WARNING):
+        idx = register_component_source("overflow_component")
+    assert idx == 0
+    assert "Too many unique component source names" not in caplog.text
