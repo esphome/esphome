@@ -60,8 +60,8 @@ inline ModbusFunctionCode modbus_register_write_function(ModbusRegisterType reg_
 inline uint8_t c_to_hex(char c) { return (c >= 'A') ? (c >= 'a') ? (c - 'a' + 10) : (c - 'A' + 10) : (c - '0'); }
 
 /** Get a byte from a hex string
- *  hex_byte_from_str("1122",1) returns uint_8 value 0x22 == 34
- *  hex_byte_from_str("1122",0) returns 0x11
+ *  byte_from_hex_str("1122", 1) returns uint_8 value 0x22 == 34
+ *  byte_from_hex_str("1122", 0) returns 0x11
  * @param value string containing hex encoding
  * @param position  offset in bytes. Because each byte is encoded in 2 hex digits the position of the original byte in
  * the hex string is byte_pos * 2
