@@ -7,6 +7,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
     CONF_BOARD_FLASH_MODE,
+    CONF_ENABLE_FULL_PRINTF,
     CONF_FRAMEWORK,
     CONF_PLATFORM_VERSION,
     CONF_SOURCE,
@@ -25,7 +26,6 @@ from esphome.types import ConfigType
 from .boards import BOARDS, ESP8266_LD_SCRIPTS
 from .const import (
     CONF_EARLY_PIN_INIT,
-    CONF_ENABLE_FULL_PRINTF,
     CONF_ENABLE_SERIAL,
     CONF_ENABLE_SERIAL1,
     CONF_RESTORE_FROM_FLASH,
@@ -58,7 +58,7 @@ AUTO_LOAD = ["preferences"]
 IS_TARGET_PLATFORM = True
 
 
-def _lambdas_use_scanf_float(config: ConfigType) -> bool:
+def lambdas_use_scanf_float(config: ConfigType) -> bool:
     """Check if any lambda in the config uses scanf with a float format specifier.
 
     Comments are stripped before matching to avoid false positives from
@@ -235,7 +235,7 @@ async def to_code(config):
     cg.add_define(ThreadModel.SINGLE)
 
     enable_scanf_float = config.get(CONF_ENABLE_SCANF_FLOAT)
-    if enable_scanf_float is None and _lambdas_use_scanf_float(CORE.config):
+    if enable_scanf_float is None and lambdas_use_scanf_float(CORE.config):
         enable_scanf_float = True
         _LOGGER.warning(
             "Lambda uses scanf with a float format specifier; "
