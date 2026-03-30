@@ -135,6 +135,9 @@ APIError APIFrameHelper::write_raw_iov_(const struct iovec *iov, int iovcnt, uin
         if (sent == static_cast<ssize_t>(total_write_len))
           return APIError::OK;
         // Partial write or -1: fall through to error check / enqueue below
+      } else {
+        // Overflow backlog remains after drain; skip socket write, enqueue everything
+        sent = 0;
       }
     }
     // WRITE_FAILED (-1): fast path or retry write returned -1, check errno
