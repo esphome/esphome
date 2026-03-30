@@ -12,7 +12,7 @@ void Nextion::soft_reset() { this->send_command_("rest"); }
 
 void Nextion::set_wake_up_page(uint8_t wake_up_page) {
   this->wake_up_page_ = wake_up_page;
-  this->add_no_result_to_queue_with_set_internal_("wake_up_page", "wup", wake_up_page, true);
+  this->add_no_result_to_queue_with_set_internal_("wup", "wup", wake_up_page, true);
 }
 
 void Nextion::set_touch_sleep_timeout(const uint16_t touch_sleep_timeout) {
@@ -23,7 +23,7 @@ void Nextion::set_touch_sleep_timeout(const uint16_t touch_sleep_timeout) {
     this->touch_sleep_timeout_ = touch_sleep_timeout;
   }
 
-  this->add_no_result_to_queue_with_set_internal_("touch_sleep_timeout", "thsp", this->touch_sleep_timeout_, true);
+  this->add_no_result_to_queue_with_set_internal_("thsp", "thsp", this->touch_sleep_timeout_, true);
 }
 
 void Nextion::sleep(bool sleep) {
@@ -58,115 +58,107 @@ bool Nextion::set_protocol_reparse_mode(bool active_mode) {
 
 // Set Colors - Background
 void Nextion::set_component_background_color(const char *component, uint16_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_background_color", "%s.bco=%" PRIu16, component, color);
+  this->add_no_result_to_queue_with_printf_(".bco", "%s.bco=%" PRIu16, component, color);
 }
 
 void Nextion::set_component_background_color(const char *component, const char *color) {
-  this->add_no_result_to_queue_with_printf_("set_component_background_color", "%s.bco=%s", component, color);
+  this->add_no_result_to_queue_with_printf_(".bco", "%s.bco=%s", component, color);
 }
 
 void Nextion::set_component_background_color(const char *component, Color color) {
-  this->add_no_result_to_queue_with_printf_("set_component_background_color", "%s.bco=%d", component,
-                                            display::ColorUtil::color_to_565(color));
+  this->add_no_result_to_queue_with_printf_(".bco", "%s.bco=%d", component, display::ColorUtil::color_to_565(color));
 }
 
 // Set Colors - Background (pressed)
 void Nextion::set_component_pressed_background_color(const char *component, uint16_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_pressed_background_color", "%s.bco2=%" PRIu16, component,
-                                            color);
+  this->add_no_result_to_queue_with_printf_(".bco2", "%s.bco2=%" PRIu16, component, color);
 }
 
 void Nextion::set_component_pressed_background_color(const char *component, const char *color) {
-  this->add_no_result_to_queue_with_printf_("set_component_pressed_background_color", "%s.bco2=%s", component, color);
+  this->add_no_result_to_queue_with_printf_(".bco2", "%s.bco2=%s", component, color);
 }
 
 void Nextion::set_component_pressed_background_color(const char *component, Color color) {
-  this->add_no_result_to_queue_with_printf_("set_component_pressed_background_color", "%s.bco2=%d", component,
-                                            display::ColorUtil::color_to_565(color));
+  this->add_no_result_to_queue_with_printf_(".bco2", "%s.bco2=%d", component, display::ColorUtil::color_to_565(color));
 }
 
 // Set Colors - Foreground
 void Nextion::set_component_foreground_color(const char *component, uint16_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_foreground_color", "%s.pco=%" PRIu16, component, color);
+  this->add_no_result_to_queue_with_printf_(".pco", "%s.pco=%" PRIu16, component, color);
 }
 
 void Nextion::set_component_foreground_color(const char *component, const char *color) {
-  this->add_no_result_to_queue_with_printf_("set_component_foreground_color", "%s.pco=%s", component, color);
+  this->add_no_result_to_queue_with_printf_(".pco", "%s.pco=%s", component, color);
 }
 
 void Nextion::set_component_foreground_color(const char *component, Color color) {
-  this->add_no_result_to_queue_with_printf_("set_component_foreground_color", "%s.pco=%d", component,
-                                            display::ColorUtil::color_to_565(color));
+  this->add_no_result_to_queue_with_printf_(".pco", "%s.pco=%d", component, display::ColorUtil::color_to_565(color));
 }
 
 // Set Colors - Foreground (pressed)
 void Nextion::set_component_pressed_foreground_color(const char *component, uint16_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_pressed_foreground_color", "%s.pco2=%" PRIu16, component,
-                                            color);
+  this->add_no_result_to_queue_with_printf_(".pco2", "%s.pco2=%" PRIu16, component, color);
 }
 
 void Nextion::set_component_pressed_foreground_color(const char *component, const char *color) {
-  this->add_no_result_to_queue_with_printf_("set_component_pressed_foreground_color", "%s.pco2=%s", component, color);
+  this->add_no_result_to_queue_with_printf_(".pco2", "%s.pco2=%s", component, color);
 }
 
 void Nextion::set_component_pressed_foreground_color(const char *component, Color color) {
-  this->add_no_result_to_queue_with_printf_("set_component_pressed_foreground_color", "%s.pco2=%d", component,
-                                            display::ColorUtil::color_to_565(color));
+  this->add_no_result_to_queue_with_printf_(".pco2", "%s.pco2=%d", component, display::ColorUtil::color_to_565(color));
 }
 
 // Set Colors - Font
 void Nextion::set_component_font_color(const char *component, uint16_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_font_color", "%s.pco=%" PRIu16, component, color);
+  this->add_no_result_to_queue_with_printf_(".pco", "%s.pco=%" PRIu16, component, color);
 }
 
 void Nextion::set_component_font_color(const char *component, const char *color) {
-  this->add_no_result_to_queue_with_printf_("set_component_font_color", "%s.pco=%s", component, color);
+  this->add_no_result_to_queue_with_printf_(".pco", "%s.pco=%s", component, color);
 }
 
 void Nextion::set_component_font_color(const char *component, Color color) {
-  this->add_no_result_to_queue_with_printf_("set_component_font_color", "%s.pco=%d", component,
-                                            display::ColorUtil::color_to_565(color));
+  this->add_no_result_to_queue_with_printf_(".pco", "%s.pco=%d", component, display::ColorUtil::color_to_565(color));
 }
 
 // Set Colors - Font (pressed)
 void Nextion::set_component_pressed_font_color(const char *component, uint16_t color) {
-  this->add_no_result_to_queue_with_printf_("set_component_pressed_font_color", "%s.pco2=%" PRIu16, component, color);
+  this->add_no_result_to_queue_with_printf_(".pco2", "%s.pco2=%" PRIu16, component, color);
 }
 
 void Nextion::set_component_pressed_font_color(const char *component, const char *color) {
-  this->add_no_result_to_queue_with_printf_("set_component_pressed_font_color", "%s.pco2=%s", component, color);
+  this->add_no_result_to_queue_with_printf_(".pco2", "%s.pco2=%s", component, color);
 }
 
 void Nextion::set_component_pressed_font_color(const char *component, Color color) {
-  this->add_no_result_to_queue_with_printf_("set_component_pressed_font_color", "%s.pco2=%d", component,
-                                            display::ColorUtil::color_to_565(color));
+  this->add_no_result_to_queue_with_printf_(".pco2", "%s.pco2=%d", component, display::ColorUtil::color_to_565(color));
 }
 
 // Set picture
 void Nextion::set_component_pic(const char *component, uint16_t pic_id) {
-  this->add_no_result_to_queue_with_printf_("set_component_pic", "%s.pic=%" PRIu16, component, pic_id);
+  this->add_no_result_to_queue_with_printf_(".pic", "%s.pic=%" PRIu16, component, pic_id);
 }
 
 void Nextion::set_component_picc(const char *component, uint16_t pic_id) {
-  this->add_no_result_to_queue_with_printf_("set_component_picc", "%s.picc=%" PRIu16, component, pic_id);
+  this->add_no_result_to_queue_with_printf_(".picc", "%s.picc=%" PRIu16, component, pic_id);
 }
 
 // Set video
 void Nextion::set_component_vid(const char *component, uint8_t vid_id) {
-  this->add_no_result_to_queue_with_printf_("set_component_vid", "%s.vid=%" PRIu8, component, vid_id);
+  this->add_no_result_to_queue_with_printf_(".vid", "%s.vid=%" PRIu8, component, vid_id);
 }
 
 void Nextion::set_component_drag(const char *component, bool drag) {
-  this->add_no_result_to_queue_with_printf_("set_component_drag", "%s.drag=%i", component, drag ? 1 : 0);
+  this->add_no_result_to_queue_with_printf_(".drag", "%s.drag=%i", component, drag ? 1 : 0);
 }
 
 void Nextion::set_component_aph(const char *component, uint8_t aph) {
-  this->add_no_result_to_queue_with_printf_("set_component_aph", "%s.aph=%" PRIu8, component, aph);
+  this->add_no_result_to_queue_with_printf_(".aph", "%s.aph=%" PRIu8, component, aph);
 }
 
 void Nextion::set_component_position(const char *component, uint32_t x, uint32_t y) {
-  this->add_no_result_to_queue_with_printf_("set_component_position_x", "%s.x=%" PRIu32, component, x);
-  this->add_no_result_to_queue_with_printf_("set_component_position_y", "%s.y=%" PRIu32, component, y);
+  this->add_no_result_to_queue_with_printf_(".x", "%s.x=%" PRIu32, component, x);
+  this->add_no_result_to_queue_with_printf_(".y", "%s.y=%" PRIu32, component, y);
 }
 
 void Nextion::set_component_text_printf(const char *component, const char *format, ...) {
@@ -180,29 +172,29 @@ void Nextion::set_component_text_printf(const char *component, const char *forma
 }
 
 // General Nextion
-void Nextion::goto_page(const char *page) { this->add_no_result_to_queue_with_printf_("goto_page", "page %s", page); }
-void Nextion::goto_page(uint8_t page) { this->add_no_result_to_queue_with_printf_("goto_page", "page %i", page); }
+void Nextion::goto_page(const char *page) { this->add_no_result_to_queue_with_printf_("page", "page %s", page); }
+void Nextion::goto_page(uint8_t page) { this->add_no_result_to_queue_with_printf_("page", "page %i", page); }
 
 void Nextion::set_backlight_brightness(float brightness) {
   if (brightness < 0 || brightness > 1.0) {
     ESP_LOGD(TAG, "Brightness out of bounds (0-1.0)");
     return;
   }
-  this->add_no_result_to_queue_with_printf_("backlight_brightness", "dim=%d", static_cast<int>(brightness * 100));
+  this->add_no_result_to_queue_with_printf_("dim", "dim=%d", static_cast<int>(brightness * 100));
 }
 
 void Nextion::set_auto_wake_on_touch(bool auto_wake_on_touch) {
   this->connection_state_.auto_wake_on_touch_ = auto_wake_on_touch;
-  this->add_no_result_to_queue_with_set("auto_wake_on_touch", "thup", auto_wake_on_touch ? 1 : 0);
+  this->add_no_result_to_queue_with_set("thup", "thup", auto_wake_on_touch ? 1 : 0);
 }
 
 // General Component
 void Nextion::set_component_font(const char *component, uint8_t font_id) {
-  this->add_no_result_to_queue_with_printf_("set_component_font", "%s.font=%" PRIu8, component, font_id);
+  this->add_no_result_to_queue_with_printf_(".font", "%s.font=%" PRIu8, component, font_id);
 }
 
 void Nextion::set_component_visibility(const char *component, bool show) {
-  this->add_no_result_to_queue_with_printf_("set_component_visibility", "vis %s,%d", component, show ? 1 : 0);
+  this->add_no_result_to_queue_with_printf_("vis", "vis %s,%d", component, show ? 1 : 0);
 }
 
 void Nextion::hide_component(const char *component) { this->set_component_visibility(component, false); }
@@ -210,56 +202,55 @@ void Nextion::hide_component(const char *component) { this->set_component_visibi
 void Nextion::show_component(const char *component) { this->set_component_visibility(component, true); }
 
 void Nextion::enable_component_touch(const char *component) {
-  this->add_no_result_to_queue_with_printf_("enable_component_touch", "tsw %s,1", component);
+  this->add_no_result_to_queue_with_printf_("tsw", "tsw %s,1", component);
 }
 
 void Nextion::disable_component_touch(const char *component) {
-  this->add_no_result_to_queue_with_printf_("disable_component_touch", "tsw %s,0", component);
+  this->add_no_result_to_queue_with_printf_("tsw", "tsw %s,0", component);
 }
 
 void Nextion::set_component_text(const char *component, const char *text) {
-  this->add_no_result_to_queue_with_printf_("set_component_text", "%s.txt=\"%s\"", component, text);
+  this->add_no_result_to_queue_with_printf_(".txt", "%s.txt=\"%s\"", component, text);
 }
 
 void Nextion::set_component_value(const char *component, int32_t value) {
-  this->add_no_result_to_queue_with_printf_("set_component_value", "%s.val=%" PRId32, component, value);
+  this->add_no_result_to_queue_with_printf_(".val", "%s.val=%" PRId32, component, value);
 }
 
 void Nextion::add_waveform_data(uint8_t component_id, uint8_t channel_number, uint8_t value) {
-  this->add_no_result_to_queue_with_printf_("add_waveform_data", "add %" PRIu8 ",%" PRIu8 ",%" PRIu8, component_id,
-                                            channel_number, value);
+  this->add_no_result_to_queue_with_printf_("add", "add %" PRIu8 ",%" PRIu8 ",%" PRIu8, component_id, channel_number,
+                                            value);
 }
 
 void Nextion::open_waveform_channel(uint8_t component_id, uint8_t channel_number, uint8_t value) {
-  this->add_no_result_to_queue_with_printf_("open_waveform_channel", "addt %" PRIu8 ",%" PRIu8 ",%" PRIu8, component_id,
-                                            channel_number, value);
+  this->add_no_result_to_queue_with_printf_("addt", "addt %" PRIu8 ",%" PRIu8 ",%" PRIu8, component_id, channel_number,
+                                            value);
 }
 
 void Nextion::set_component_coordinates(const char *component, uint16_t x, uint16_t y) {
-  this->add_no_result_to_queue_with_printf_("set_component_coordinates command 1", "%s.xcen=%" PRIu16, component, x);
-  this->add_no_result_to_queue_with_printf_("set_component_coordinates command 2", "%s.ycen=%" PRIu16, component, y);
+  this->add_no_result_to_queue_with_printf_(".xcen", "%s.xcen=%" PRIu16, component, x);
+  this->add_no_result_to_queue_with_printf_(".ycen", "%s.ycen=%" PRIu16, component, y);
 }
 
 // Drawing
 void Nextion::display_picture(uint16_t picture_id, uint16_t x_start, uint16_t y_start) {
-  this->add_no_result_to_queue_with_printf_("display_picture", "pic %" PRIu16 ", %" PRIu16 ", %" PRIu16, x_start,
-                                            y_start, picture_id);
+  this->add_no_result_to_queue_with_printf_("pic", "pic %" PRIu16 ", %" PRIu16 ", %" PRIu16, x_start, y_start,
+                                            picture_id);
 }
 
 void Nextion::fill_area(uint16_t x1, uint16_t y1, uint16_t width, uint16_t height, uint16_t color) {
-  this->add_no_result_to_queue_with_printf_(
-      "fill_area", "fill %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16, x1, y1, width, height, color);
-}
-
-void Nextion::fill_area(uint16_t x1, uint16_t y1, uint16_t width, uint16_t height, const char *color) {
-  this->add_no_result_to_queue_with_printf_("fill_area", "fill %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%s", x1,
+  this->add_no_result_to_queue_with_printf_("fill", "fill %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16, x1,
                                             y1, width, height, color);
 }
 
+void Nextion::fill_area(uint16_t x1, uint16_t y1, uint16_t width, uint16_t height, const char *color) {
+  this->add_no_result_to_queue_with_printf_("fill", "fill %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%s", x1, y1,
+                                            width, height, color);
+}
+
 void Nextion::fill_area(uint16_t x1, uint16_t y1, uint16_t width, uint16_t height, Color color) {
-  this->add_no_result_to_queue_with_printf_("fill_area",
-                                            "fill %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16, x1, y1,
-                                            width, height, display::ColorUtil::color_to_565(color));
+  this->add_no_result_to_queue_with_printf_("fill", "fill %" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16 ",%" PRIu16, x1,
+                                            y1, width, height, display::ColorUtil::color_to_565(color));
 }
 
 void Nextion::line(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color) {

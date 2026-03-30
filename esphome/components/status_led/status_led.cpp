@@ -28,9 +28,6 @@ void StatusLED::loop() {
   }
 }
 float StatusLED::get_setup_priority() const { return setup_priority::HARDWARE; }
-#ifdef USE_LOOP_PRIORITY
-float StatusLED::get_loop_priority() const { return 50.0f; }
-#endif
 
 }  // namespace status_led
 }  // namespace esphome
