@@ -25,6 +25,17 @@ constexpr uint8_t WIRE_TYPE_LENGTH_DELIMITED = 2;  // string, bytes, embedded me
 constexpr uint8_t WIRE_TYPE_FIXED32 = 5;           // fixed32, sfixed32, float
 constexpr uint8_t WIRE_TYPE_MASK = 0b111;          // Mask to extract wire type from tag
 
+// Reinterpret float bits as uint32_t without floating-point comparison.
+// Used by both encode_float() and calc_float() to ensure identical zero checks.
+inline uint32_t float_to_raw(float value) {
+  union {
+    float f;
+    uint32_t u;
+  } v;
+  v.f = value;
+  return v.u;
+}
+
 // Helper functions for ZigZag encoding/decoding
 inline constexpr uint32_t encode_zigzag32(int32_t value) {
   return (static_cast<uint32_t>(value) << 1) ^ (static_cast<uint32_t>(value >> 31));
@@ -359,15 +370,10 @@ class ProtoWriteBuffer {
   // 32-bit microcontrollers where 64-bit operations are expensive. If 64-bit support
   // is needed in the future, the necessary encoding/decoding functions must be added.
   void encode_float(uint32_t field_id, float value, bool force = false) {
-    if (value == 0.0f && !force)
+    uint32_t raw = float_to_raw(value);
+    if (raw == 0 && !force)
       return;
-
-    union {
-      float value;
-      uint32_t raw;
-    } val{};
-    val.value = value;
-    this->encode_fixed32(field_id, val.raw);
+    this->encode_fixed32(field_id, raw);
   }
   void encode_int32(uint32_t field_id, int32_t value, bool force = false) {
     if (value < 0) {
@@ -695,8 +701,8 @@ class ProtoSize {
   }
   static constexpr uint32_t calc_bool(uint32_t field_id_size, bool value) { return value ? field_id_size + 1 : 0; }
   static constexpr uint32_t calc_bool_force(uint32_t field_id_size) { return field_id_size + 1; }
-  static constexpr uint32_t calc_float(uint32_t field_id_size, float value) {
-    return value != 0.0f ? field_id_size + 4 : 0;
+  static uint32_t calc_float(uint32_t field_id_size, float value) {
+    return float_to_raw(value) != 0 ? field_id_size + 4 : 0;
   }
   static constexpr uint32_t calc_fixed32(uint32_t field_id_size, uint32_t value) {
     return value ? field_id_size + 4 : 0;
