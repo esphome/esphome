@@ -1034,7 +1034,7 @@ void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
   nextion_queue->component = new nextion::NextionComponentBase;
   nextion_queue->component->set_variable_name(variable_name);
 
-  nextion_queue->queue_time = millis();
+  nextion_queue->queue_time = App.get_loop_component_start_time();
 
   this->nextion_queue_.push_back(nextion_queue);
 
