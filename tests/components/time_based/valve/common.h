@@ -4,6 +4,7 @@
 #include <vector>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include "esphome/core/base_automation.h"
 #include "esphome/components/time_based/valve/time_based_valve.h"
 
 namespace esphome::time_based::testing {
@@ -19,6 +20,11 @@ class TestableTimeBasedValve : public TimeBasedValve {
 
  protected:
   uint32_t get_millis() override { return mock_millis; }
+};
+
+class MockAction : public Action<> {
+ public:
+  MOCK_METHOD(void, play, (), (override));
 };
 
 }  // namespace esphome::time_based::testing
