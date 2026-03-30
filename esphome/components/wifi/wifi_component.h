@@ -6,6 +6,9 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#ifdef USE_ESP32
+#include "esphome/core/lock_free_queue.h"
+#endif
 #include "esphome/core/string_ref.h"
 
 #include <span>
@@ -724,6 +727,7 @@ class WiFiComponent final : public Component {
 
 #ifdef USE_ESP32
   void wifi_process_event_(IDFWiFiEvent *data);
+  friend void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 #endif
 
 #ifdef USE_RP2040
@@ -811,6 +815,11 @@ class WiFiComponent final : public Component {
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */
   bool error_from_callback_{false};
+#ifdef USE_ESP32
+  // Lock-free SPSC queue for WiFi events from ESP-IDF event handler.
+  // 17 slots = 16 usable (ring buffer reserves one slot). WiFi events are rare.
+  LockFreeQueue<IDFWiFiEvent, 17> event_queue_;
+#endif
   RetryHiddenMode retry_hidden_mode_{RetryHiddenMode::BLIND_RETRY};
   RoamingState roaming_state_{RoamingState::IDLE};
   bssid_t roaming_target_bssid_{};  // BSSID of the AP we're trying to roam to
