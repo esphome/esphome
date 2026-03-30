@@ -44,18 +44,6 @@ namespace esphome::wifi {
 
 static const char *const TAG = "wifi_esp8266";
 
-enum class ESP8266WiFiSTAState : uint8_t {
-  IDLE,             // Not connecting
-  CONNECTING,       // Connection in progress
-  ASSOCIATED,       // Associated to AP, waiting for IP
-  CONNECTED,        // Successfully connected with IP
-  ERROR_NOT_FOUND,  // AP not found (probe failed)
-  ERROR_FAILED,     // Connection failed (auth, timeout, etc.)
-};
-
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-static ESP8266WiFiSTAState s_sta_state = ESP8266WiFiSTAState::IDLE;
-
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = wifi_get_opmode();
   bool current_sta = current_mode & 0b01;
@@ -365,7 +353,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   // Reset flags, do this _before_ wifi_station_connect as the callback method
   // may be called from wifi_station_connect
-  s_sta_state = ESP8266WiFiSTAState::CONNECTING;
+  this->sta_state_ = ESP8266WiFiSTAState::CONNECTING;
 
   ETS_UART_INTR_DISABLE();
   ret = wifi_station_connect();
@@ -495,7 +483,7 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       ESP_LOGV(TAG, "Connected ssid='%.*s' bssid=%s channel=%u", it.ssid_len, (const char *) it.ssid, bssid_buf,
                it.channel);
 #endif
-      s_sta_state = ESP8266WiFiSTAState::ASSOCIATED;
+      global_wifi_component->sta_state_ = ESP8266WiFiSTAState::ASSOCIATED;
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
       // Defer listener notification until state machine reaches STA_CONNECTED
       // This ensures wifi.connected condition returns true in listener automations
@@ -508,13 +496,13 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       if (it.reason == REASON_NO_AP_FOUND) {
         ESP_LOGW(TAG, "Disconnected ssid='%.*s' reason='Probe Request Unsuccessful'", it.ssid_len,
                  (const char *) it.ssid);
-        s_sta_state = ESP8266WiFiSTAState::ERROR_NOT_FOUND;
+        global_wifi_component->sta_state_ = ESP8266WiFiSTAState::ERROR_NOT_FOUND;
       } else {
         char bssid_s[18];
         format_mac_addr_upper(it.bssid, bssid_s);
         ESP_LOGW(TAG, "Disconnected ssid='%.*s' bssid=" LOG_SECRET("%s") " reason='%s'", it.ssid_len,
                  (const char *) it.ssid, bssid_s, LOG_STR_ARG(get_disconnect_reason_str(it.reason)));
-        s_sta_state = ESP8266WiFiSTAState::ERROR_FAILED;
+        global_wifi_component->sta_state_ = ESP8266WiFiSTAState::ERROR_FAILED;
       }
       global_wifi_component->error_from_callback_ = true;
 #ifdef USE_WIFI_CONNECT_STATE_LISTENERS
@@ -541,7 +529,7 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
           mask_buf[network::IP_ADDRESS_BUFFER_SIZE];
       ESP_LOGV(TAG, "static_ip=%s gateway=%s netmask=%s", network::IPAddress(&it.ip).str_to(ip_buf),
                network::IPAddress(&it.gw).str_to(gw_buf), network::IPAddress(&it.mask).str_to(mask_buf));
-      s_sta_state = ESP8266WiFiSTAState::CONNECTED;
+      global_wifi_component->sta_state_ = ESP8266WiFiSTAState::CONNECTED;
 #ifdef USE_WIFI_IP_STATE_LISTENERS
       // Defer listener callbacks to main loop - system context has limited stack
       global_wifi_component->pending_.got_ip = true;
@@ -640,7 +628,7 @@ WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
   // wifi_station_get_connect_status() which queries the SDK every time.
   // Use if-else instead of switch to avoid GCC generating a CSWTCH
   // lookup table in .rodata (flash) on ESP8266.
-  auto state = s_sta_state;
+  auto state = this->sta_state_;
   if (state == ESP8266WiFiSTAState::CONNECTED)
     return WiFiSTAConnectStatus::CONNECTED;
   if (state == ESP8266WiFiSTAState::ERROR_NOT_FOUND)
