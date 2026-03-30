@@ -815,7 +815,10 @@ class WiFiComponent final : public Component {
 #endif /* USE_NETWORK_IPV6 */
   bool error_from_callback_{false};
 #if defined(USE_ESP8266) || defined(USE_LIBRETINY)
-  uint8_t sta_state_{0};  // Platform-specific enum, defined in platform cpp file
+  // Platform-specific STA state enum, defined in platform cpp file.
+  // On ESP8266, written from SDK system context (wifi_event_callback) —
+  // uint8_t writes are atomic on Xtensa LX106 so no synchronization is needed.
+  uint8_t sta_state_{0};
 #endif
   RetryHiddenMode retry_hidden_mode_{RetryHiddenMode::BLIND_RETRY};
   RoamingState roaming_state_{RoamingState::IDLE};
