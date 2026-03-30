@@ -248,12 +248,11 @@ void Logger::dump_config() {
   // Only the compiled log level matters — all log calls up to this level
   // are in the binary and will be formatted (vsnprintf) and block UART.
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-  ESP_LOGW(TAG, "VERY_VERBOSE logging is active. This will significantly impact device performance and may cause "
-                "connection instability. This level is intended for short-term debugging only. "
-                "Set the log level to DEBUG or lower for long-term use.");
+  ESP_LOGW(TAG, "VERY_VERBOSE logging is active — significant performance impact, short-term debugging only\n"
+                "  May cause connection instability. Set log level to DEBUG or lower for long-term use.");
 #elif ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-  ESP_LOGI(TAG, "VERBOSE logging is active. This will impact device performance and is intended for short-term "
-                "debugging only. Set the log level to DEBUG or lower for long-term use.");
+  ESP_LOGI(TAG, "VERBOSE logging is active — performance impact, short-term debugging only\n"
+                "  Set log level to DEBUG or lower for long-term use.");
 #endif
 }
 
