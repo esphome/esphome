@@ -5,9 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/modbus/modbus_definitions.h"
 
-namespace esphome {
-namespace modbus {
-namespace helpers {
+namespace esphome::modbus::helpers {
 
 enum class SensorValueType : uint8_t {
   RAW = 0x00,     // variable length
@@ -105,6 +103,4 @@ inline uint64_t qword_from_hex_str(const std::string &value, uint8_t pos) {
   return static_cast<uint64_t>(dword_from_hex_str(value, pos)) << 32 | dword_from_hex_str(value, pos + 4);
 }
 
-}  // namespace helpers
-}  // namespace modbus
-}  // namespace esphome
+}  // namespace esphome::modbus::helpers
