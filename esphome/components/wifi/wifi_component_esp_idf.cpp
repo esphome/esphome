@@ -13,7 +13,6 @@
 #include <freertos/task.h>
 
 #include <algorithm>
-#include <atomic>
 #include <cinttypes>
 #include <memory>
 #include <utility>
@@ -40,6 +39,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/lock_free_queue.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
@@ -48,13 +48,11 @@ namespace esphome::wifi {
 static const char *const TAG = "wifi_esp32";
 
 static EventGroupHandle_t s_wifi_event_group;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static QueueHandle_t s_event_queue;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-// Fast-path flag to skip xQueueReceive kernel call when queue is empty.
-// Set from ESP-IDF event loop handler (task context), cleared from main loop.
-// std::atomic<bool> is avoided because GCC on Xtensa generates indirect function
-// calls for atomic bool operations instead of inlining them.
-static std::atomic<uint8_t> s_event_pending{0};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static esp_netif_t *s_sta_netif = nullptr;       // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// Lock-free SPSC queue replaces FreeRTOS xQueue to avoid kernel spinlock
+// overhead on every loop iteration. WiFi events are rare so 64 slots is plenty.
+// 65 slots = 64 usable (ring buffer reserves one slot to distinguish full from empty)
+static LockFreeQueue<IDFWiFiEvent, 65> s_event_queue;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static esp_netif_t *s_sta_netif = nullptr;             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #ifdef USE_WIFI_AP
 static esp_netif_t *s_ap_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #endif                                        // USE_WIFI_AP
@@ -138,15 +136,11 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
     return;
   }
 
-  // copy to heap to keep queue object small
+  // copy to heap — WiFi events are rare so heap alloc is fine
   auto *to_send = new IDFWiFiEvent;  // NOLINT(cppcoreguidelines-owning-memory)
   memcpy(to_send, &event, sizeof(IDFWiFiEvent));
-  // don't block, we may miss events but the core can handle that
-  if (xQueueSend(s_event_queue, &to_send, 0L) != pdPASS) {
+  if (!s_event_queue.push(to_send)) {
     delete to_send;  // NOLINT(cppcoreguidelines-owning-memory)
-  } else {
-    // relaxed: this is just a hint; xQueueReceive is the source of truth
-    s_event_pending.store(1, std::memory_order_relaxed);
   }
 }
 
@@ -164,12 +158,6 @@ void WiFiComponent::wifi_pre_setup_() {
   s_wifi_event_group = xEventGroupCreate();
   if (s_wifi_event_group == nullptr) {
     ESP_LOGE(TAG, "xEventGroupCreate failed");
-    return;
-  }
-  // NOLINTNEXTLINE(bugprone-sizeof-expression)
-  s_event_queue = xQueueCreate(64, sizeof(IDFWiFiEvent *));
-  if (s_event_queue == nullptr) {
-    ESP_LOGE(TAG, "xQueueCreate failed");
     return;
   }
   err = esp_event_loop_create_default();
@@ -733,26 +721,9 @@ const char *get_disconnect_reason_str(uint8_t reason) {
 }
 
 void WiFiComponent::wifi_loop_() {
-  // Fast path: skip xQueueReceive kernel call when no events are pending.
-  // The atomic load is much cheaper than entering the FreeRTOS kernel.
-  if (s_event_pending.load(std::memory_order_relaxed) == 0)
-    return;
-
-  // Clear flag before draining. If a new event arrives between the clear
-  // and xQueueReceive, the flag will be set again and we'll catch it
-  // next loop iteration. This avoids any counter underflow issues.
-  s_event_pending.store(0, std::memory_order_relaxed);
-
-  while (true) {
-    IDFWiFiEvent *data;
-    if (xQueueReceive(s_event_queue, &data, 0L) != pdTRUE) {
-      // no event ready
-      break;
-    }
-
-    // process event
+  IDFWiFiEvent *data;
+  while ((data = s_event_queue.pop()) != nullptr) {
     wifi_process_event_(data);
-
     delete data;  // NOLINT(cppcoreguidelines-owning-memory)
   }
 }
