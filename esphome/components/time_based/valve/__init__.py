@@ -10,7 +10,8 @@ from esphome.const import (
     CONF_STOP_ACTION,
 )
 
-time_based_ns = cg.esphome_ns.namespace("time_based")
+from .. import time_based_ns
+
 TimeBasedValve = time_based_ns.class_("TimeBasedValve", valve.Valve, cg.Component)
 
 TimeBasedValveRestoreMode = time_based_ns.enum("TimeBasedValveRestoreMode")
