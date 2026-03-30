@@ -134,7 +134,13 @@ class HandlerCounts:
 _handler_counts = HandlerCounts()
 
 
-def _add_callback(parent_var, method, handler_var, params, call_args):
+def _add_callback(
+    parent_var: cg.MockObj,
+    method: str,
+    handler_var: cg.MockObj,
+    params: str,
+    call_args: str,
+) -> None:
     """Generate a lambda callback that forwards to a handler method.
 
     Uses a braced scope with a local variable to avoid capturing variables
