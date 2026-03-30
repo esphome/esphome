@@ -49,10 +49,12 @@ static const char *const TAG = "wifi_esp32";
 
 static EventGroupHandle_t s_wifi_event_group;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static QueueHandle_t s_event_queue;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-// Fast-path counter to skip xQueueReceive kernel call when queue is empty.
-// Incremented from event handler (ISR-safe context), read from main loop.
-static std::atomic<uint32_t> s_event_count{0};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static esp_netif_t *s_sta_netif = nullptr;      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// Fast-path flag to skip xQueueReceive kernel call when queue is empty.
+// Set from ESP-IDF event loop handler (task context), cleared from main loop.
+// std::atomic<bool> is avoided because GCC on Xtensa generates indirect function
+// calls for atomic bool operations instead of inlining them.
+static std::atomic<uint8_t> s_event_pending{0};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static esp_netif_t *s_sta_netif = nullptr;       // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #ifdef USE_WIFI_AP
 static esp_netif_t *s_ap_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #endif                                        // USE_WIFI_AP
@@ -143,7 +145,7 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
   if (xQueueSend(s_event_queue, &to_send, 0L) != pdPASS) {
     delete to_send;  // NOLINT(cppcoreguidelines-owning-memory)
   } else {
-    s_event_count.fetch_add(1, std::memory_order_release);
+    s_event_pending.store(1, std::memory_order_release);
   }
 }
 
@@ -732,8 +734,13 @@ const char *get_disconnect_reason_str(uint8_t reason) {
 void WiFiComponent::wifi_loop_() {
   // Fast path: skip xQueueReceive kernel call when no events are pending.
   // The atomic load is much cheaper than entering the FreeRTOS kernel.
-  if (s_event_count.load(std::memory_order_acquire) == 0)
+  if (s_event_pending.load(std::memory_order_acquire) == 0)
     return;
+
+  // Clear flag before draining. If a new event arrives between the clear
+  // and xQueueReceive, the flag will be set again and we'll catch it
+  // next loop iteration. This avoids any counter underflow issues.
+  s_event_pending.store(0, std::memory_order_relaxed);
 
   while (true) {
     IDFWiFiEvent *data;
@@ -741,7 +748,6 @@ void WiFiComponent::wifi_loop_() {
       // no event ready
       break;
     }
-    s_event_count.fetch_sub(1, std::memory_order_relaxed);
 
     // process event
     wifi_process_event_(data);
