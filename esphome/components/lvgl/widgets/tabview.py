@@ -1,5 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.lvgl.widgets.buttonmatrix import CONF_BUTTONMATRIX
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
@@ -73,7 +74,7 @@ class TabviewType(WidgetType):
         )
 
     def get_uses(self):
-        return "btnmatrix", TYPE_FLEX
+        return CONF_BUTTONMATRIX, TYPE_FLEX
 
     async def to_code(self, w: Widget, config: dict):
         await w.set_property(

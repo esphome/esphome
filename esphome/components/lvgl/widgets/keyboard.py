@@ -1,10 +1,11 @@
 from esphome.components.key_provider import KeyProvider
+from esphome.components.lvgl.widgets.buttonmatrix import CONF_BUTTONMATRIX
 import esphome.config_validation as cv
 from esphome.const import CONF_ITEMS, CONF_MODE
 from esphome.cpp_types import std_string
 
 from ..defines import CONF_MAIN, KEYBOARD_MODES, literal
-from ..helpers import add_lv_use, lvgl_components_required
+from ..helpers import lvgl_components_required
 from ..types import LvCompound, LvType
 from . import Widget, WidgetType, get_widgets
 from .textarea import CONF_TEXTAREA, lv_textarea_t
@@ -41,12 +42,11 @@ class KeyboardType(WidgetType):
         )
 
     def get_uses(self):
-        return CONF_KEYBOARD, CONF_TEXTAREA
+        return CONF_KEYBOARD, CONF_TEXTAREA, CONF_BUTTONMATRIX
 
     async def to_code(self, w: Widget, config: dict):
         lvgl_components_required.add("KEY_LISTENER")
         lvgl_components_required.add(CONF_KEYBOARD)
-        add_lv_use("btnmatrix")
         if mode := config.get(CONF_MODE):
             await w.set_property(CONF_MODE, await KEYBOARD_MODES.process(mode))
         if ta := await get_widgets(config, CONF_TEXTAREA):
