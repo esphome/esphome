@@ -1,4 +1,5 @@
 from esphome import codegen as cg, config_validation as cv
+from esphome.components.lvgl.widgets.img import CONF_IMAGE
 from esphome.const import CONF_BUTTON, CONF_ID, CONF_TEXT
 from esphome.core import ID
 from esphome.cpp_generator import MockObjClass
@@ -17,6 +18,7 @@ from ..defines import (
     LV_OBJ_FLAG,
     TYPE_FLEX,
     add_warning,
+    get_color_formats,
     literal,
 )
 from ..helpers import add_lv_use
@@ -41,7 +43,7 @@ CONF_MSGBOX = "msgbox"
 OUTER_STYLE = LVStyle(
     "msgbox_outer",
     {
-        "bg_opa": 128,
+        "bg_opa": 0.5,
         "bg_color": "black",
         "border_width": 0,
         "pad_all": 0,
@@ -119,12 +121,14 @@ async def msgbox_to_code(top_layer, conf):
         CONF_BUTTON,
         CONF_LABEL,
         CONF_MSGBOX,
+        CONF_IMAGE,
         *button_spec.get_uses(),
     )
     if CONF_BUTTON_STYLE in conf:
         add_warning(
             "'button_style' for msgbox is deprecated - style the buttons directly."
         )
+    get_color_formats().add("ARGB8888")
     messagebox_id = conf[CONF_ID]
     outer_id = ID(f"{messagebox_id.id}_outer", type=lv_obj_t)
     outer = cg.Pvariable(outer_id, lv_expr.obj_create(top_layer))

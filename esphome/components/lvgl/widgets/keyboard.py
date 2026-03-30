@@ -1,15 +1,14 @@
 from esphome.components.key_provider import KeyProvider
-from esphome.components.lvgl import LvContext
-from esphome.components.lvgl.widgets import is_widget_completed
 import esphome.config_validation as cv
 from esphome.const import CONF_ITEMS, CONF_MODE
 from esphome.core import CORE
 from esphome.cpp_types import std_string
 
+from .. import LvContext
 from ..defines import CONF_MAIN, KEYBOARD_MODES, literal
 from ..helpers import lvgl_components_required
 from ..types import LvCompound, LvType
-from . import Widget, WidgetType, get_widgets
+from . import Widget, WidgetType, get_widgets, is_widget_completed
 from .buttonmatrix import CONF_BUTTONMATRIX
 from .textarea import CONF_TEXTAREA, lv_textarea_t
 
