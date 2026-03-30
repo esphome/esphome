@@ -769,7 +769,7 @@ class EsphomeCore:
     @property
     def firmware_bin(self) -> Path:
         # Check if using native ESP-IDF build (--native-idf)
-        if self.data.get(KEY_NATIVE_IDF, False):
+        if self.using_native_idf:
             return self.relative_build_path("build", f"{self.name}.bin")
         if self.is_libretiny:
             return self.relative_pioenvs_path(self.name, "firmware.uf2")
@@ -831,6 +831,14 @@ class EsphomeCore:
             "Use CORE.is_esp32 and/or CORE.using_arduino instead."
         )
         return self.target_framework == "esp-idf"
+
+    @property
+    def using_native_idf(self):
+        return (
+            self.data.get(KEY_NATIVE_IDF, False)
+            and self.is_esp32
+            and self.target_framework == "esp-idf"
+        )
 
     @property
     def using_zephyr(self):

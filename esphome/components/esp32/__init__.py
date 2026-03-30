@@ -22,6 +22,7 @@ from esphome.const import (
     CONF_IGNORE_EFUSE_MAC_CRC,
     CONF_LOG_LEVEL,
     CONF_NAME,
+    CONF_NATIVE_IDF,
     CONF_OTA,
     CONF_PATH,
     CONF_PLATFORM_VERSION,
@@ -404,6 +405,7 @@ def set_core_data(config):
     CORE.data[KEY_ESP32] = {}
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_ESP32
     conf = config[CONF_FRAMEWORK]
+    CORE.data[KEY_NATIVE_IDF] = conf[CONF_NATIVE_IDF]
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "esp-idf"
     elif conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
@@ -1118,6 +1120,7 @@ FRAMEWORK_ARDUINO = "arduino"
 FRAMEWORK_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_TYPE): cv.one_of(FRAMEWORK_ESP_IDF, FRAMEWORK_ARDUINO),
+        cv.Optional(CONF_NATIVE_IDF, default=False): cv.boolean,
         cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
         cv.Optional(CONF_RELEASE): cv.string_strict,
         cv.Optional(CONF_SOURCE): cv.string_strict,
@@ -1503,7 +1506,7 @@ async def to_code(config):
     conf = config[CONF_FRAMEWORK]
 
     # Check if using native ESP-IDF build (--native-idf)
-    use_platformio = not CORE.data.get(KEY_NATIVE_IDF, False)
+    use_platformio = not CORE.using_native_idf
     if use_platformio:
         # Clear IDF environment variables to avoid conflicts with PlatformIO's ESP-IDF
         # but keep them when using --native-idf for native ESP-IDF builds
@@ -2247,7 +2250,7 @@ def _write_idf_component_yml():
             if stub_path.exists():
                 rmtree(stub_path)
 
-    if CORE.data[KEY_NATIVE_IDF]:
+    if CORE.using_native_idf:
         # Try to convert PlatformIO library to ESP-IDF components
         for name, library in CORE.platformio_libraries.items():
             dependency_name, dependency = _platformio_library_to_dependency(library)

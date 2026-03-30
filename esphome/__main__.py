@@ -583,15 +583,12 @@ def wrap_to_code(name, comp):
     return wrapped
 
 
-def write_cpp(config: ConfigType, native_idf: bool = False) -> int:
+def write_cpp(config: ConfigType) -> int:
     if not get_bool_env(ENV_NOGITIGNORE):
         writer.write_gitignore()
 
-    # Store native_idf flag so esp32 component can check it
-    CORE.data[KEY_NATIVE_IDF] = native_idf
-
     generate_cpp_contents(config)
-    return write_cpp_file(native_idf=native_idf)
+    return write_cpp_file()
 
 
 def generate_cpp_contents(config: ConfigType) -> None:
@@ -605,11 +602,11 @@ def generate_cpp_contents(config: ConfigType) -> None:
     CORE.flush_tasks()
 
 
-def write_cpp_file(native_idf: bool = False) -> int:
+def write_cpp_file() -> int:
     code_s = indent(CORE.cpp_main_section)
     writer.write_cpp(code_s)
 
-    if native_idf and CORE.is_esp32 and CORE.target_framework == "esp-idf":
+    if CORE.using_native_idf:
         from esphome.build_gen import espidf
 
         espidf.write_project()
@@ -622,13 +619,11 @@ def write_cpp_file(native_idf: bool = False) -> int:
 
 
 def compile_program(args: ArgsProtocol, config: ConfigType) -> int:
-    native_idf = getattr(args, "native_idf", False)
-
     # NOTE: "Build path:" format is parsed by script/ci_memory_impact_extract.py
     # If you change this format, update the regex in that script as well
     _LOGGER.info("Compiling app... Build path: %s", CORE.build_path)
 
-    if native_idf and CORE.is_esp32 and CORE.target_framework == "esp-idf":
+    if CORE.using_native_idf:
         from esphome import espidf_api
 
         rc = espidf_api.run_compile(config, CORE.verbose)
@@ -1101,7 +1096,9 @@ def command_vscode(args: ArgsProtocol) -> int | None:
 
 def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
     native_idf = getattr(args, "native_idf", False)
-    exit_code = write_cpp(config, native_idf=native_idf)
+    if native_idf:
+        CORE.data[KEY_NATIVE_IDF] = True
+    exit_code = write_cpp(config)
     if exit_code != 0:
         return exit_code
     if args.only_generate:
@@ -1157,7 +1154,9 @@ def command_logs(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
     native_idf = getattr(args, "native_idf", False)
-    exit_code = write_cpp(config, native_idf=native_idf)
+    if native_idf:
+        CORE.data[KEY_NATIVE_IDF] = True
+    exit_code = write_cpp(config)
     if exit_code != 0:
         return exit_code
     exit_code = compile_program(args, config)
