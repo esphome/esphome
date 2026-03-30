@@ -112,7 +112,8 @@ void WaterHeaterCall::validate_() {
   auto traits = this->parent_->get_traits();
   if (this->mode_.has_value()) {
     if (!traits.supports_mode(*this->mode_)) {
-      ESP_LOGW(TAG, "'%s' - Mode %" PRIu32 " not supported", this->parent_->get_name().c_str(), *this->mode_);
+      ESP_LOGW(TAG, "'%s' - Mode %" PRIu32 " not supported", this->parent_->get_name().c_str(),
+               static_cast<uint32_t>(*this->mode_));
       this->mode_.reset();
     }
   }

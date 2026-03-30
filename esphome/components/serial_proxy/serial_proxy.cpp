@@ -91,7 +91,9 @@ void SerialProxy::dump_config() {
 
 void SerialProxy::configure(uint32_t baudrate, bool flow_control, uint8_t parity, uint8_t stop_bits,
                             uint8_t data_size) {
-  ESP_LOGD(TAG, "Configuring serial proxy [%" PRIu32 "]: baud=%" PRIu32 ", flow_ctrl=%s, parity=%u, stop=%u, data=%u",
+  ESP_LOGD(TAG,
+           "Configuring serial proxy [%" PRIu32 "]: baud=%" PRIu32 ", flow_ctrl=%s, parity=%" PRIu8 ", stop=%" PRIu8
+           ", data=%" PRIu8,
            this->instance_index_, baudrate, YESNO(flow_control), parity, stop_bits, data_size);
 
   auto *uart_comp = this->parent_;

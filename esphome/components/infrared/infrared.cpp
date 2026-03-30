@@ -103,7 +103,7 @@ void Infrared::control(const InfraredCall &call) {
     // Zero-copy from packed protobuf data
     transmit_data->set_data_from_packed_sint32(call.get_packed_data(), call.get_packed_length(),
                                                call.get_packed_count());
-    ESP_LOGD(TAG, "Transmitting packed raw timings: count=%u, repeat=%" PRIu32, call.get_packed_count(),
+    ESP_LOGD(TAG, "Transmitting packed raw timings: count=%" PRIu16 ", repeat=%" PRIu32, call.get_packed_count(),
              call.get_repeat_count());
   } else if (call.is_base64url()) {
     // Decode base64url (URL-safe) into transmit buffer
