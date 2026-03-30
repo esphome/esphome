@@ -104,7 +104,8 @@ async def generate_align_tos(config: dict):
     align_tos = (
         w for w in widget_map.values() if w.config and CONF_ALIGN_TO in w.config
     )
-    if align_tos:
+    # pylint incorrectly thinks the tuple is a constant.
+    if align_tos:  # pylint: disable=using-constant-test
         async with LambdaContext(where="align_to") as context:
             for w in align_tos:
                 align_to = w.config[CONF_ALIGN_TO]
