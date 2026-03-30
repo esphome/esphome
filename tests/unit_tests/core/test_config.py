@@ -248,6 +248,24 @@ def test_area_id_hash_collision(
     )
 
 
+def test_area_singular_hash_collision(
+    yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Test that area hash collisions between singular area: and areas: list are detected."""
+    result = load_config_from_fixture(
+        yaml_file, "area_singular_hash_collision.yaml", FIXTURES_DIR
+    )
+    assert result is None
+
+    captured = capsys.readouterr()
+    assert (
+        "Area ID 'd6ka' with hash 3082558663 collides with existing area ID 'test_2258'"
+        in captured.out
+    )
+    # Error path should point to 'areas' (where the colliding entry is), not 'area'
+    assert "areas" in captured.out
+
+
 def test_device_duplicate_id(
     yaml_file: Callable[[str], str], capsys: pytest.CaptureFixture[str]
 ) -> None:

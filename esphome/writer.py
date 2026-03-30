@@ -476,6 +476,16 @@ def clean_all(configuration: list[str]):
         data_dirs.append(Path(env_data_dir))
     if env_build_path := os.environ.get("ESPHOME_BUILD_PATH"):
         data_dirs.append(Path(env_build_path))
+    if not data_dirs:
+        # No config files or known data dirs, check current directory
+        cwd_esphome = Path.cwd() / ".esphome"
+        if cwd_esphome.is_dir():
+            data_dirs.append(cwd_esphome)
+        else:
+            _LOGGER.warning(
+                "No configuration files specified and no .esphome directory found in current directory. "
+                "Pass YAML files or a configuration directory to clean build artifacts."
+            )
 
     # Clean build dir
     for dir in data_dirs:

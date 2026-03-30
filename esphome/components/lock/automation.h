@@ -49,21 +49,17 @@ template<typename... Ts> class LockCondition : public Condition<Ts...> {
   bool state_;
 };
 
-template<LockState State> class LockStateTrigger : public Trigger<> {
- public:
-  explicit LockStateTrigger(Lock *a_lock) : lock_(a_lock) {
-    a_lock->add_on_state_callback([this]() {
-      if (this->lock_->state == State) {
-        this->trigger();
-      }
-    });
+/// Callback forwarder that triggers an Automation<> only when a specific lock state is entered.
+/// Pointer-sized (single Automation* field) to fit inline in Callback::ctx_.
+template<LockState State> struct LockStateForwarder {
+  Automation<> *automation;
+  void operator()(LockState state) const {
+    if (state == State)
+      this->automation->trigger();
   }
-
- protected:
-  Lock *lock_;
 };
 
-using LockLockTrigger = LockStateTrigger<LockState::LOCK_STATE_LOCKED>;
-using LockUnlockTrigger = LockStateTrigger<LockState::LOCK_STATE_UNLOCKED>;
+static_assert(sizeof(LockStateForwarder<LockState::LOCK_STATE_LOCKED>) <= sizeof(void *));
+static_assert(std::is_trivially_copyable_v<LockStateForwarder<LockState::LOCK_STATE_LOCKED>>);
 
 }  // namespace esphome::lock
