@@ -119,26 +119,27 @@ APIError APIFrameHelper::write_raw_buf_(const void *data, uint16_t len, ssize_t 
 }
 
 // Handles partial writes, errors, and overflow buffering.
-// Called when the inline fast path in the header couldn't complete the write,
+// Called when the inline fast path couldn't complete the write,
 // or directly from cold paths (handshake, error handling).
-// sent == -1 means either the fast path write returned -1, or there was overflow backlog.
 APIError APIFrameHelper::write_raw_iov_(const struct iovec *iov, int iovcnt, uint16_t total_write_len, ssize_t sent) {
-  if (sent == -1) {
-    // Either the fast path write returned -1, or we were called directly (cold path)
-    if (!this->overflow_buf_.empty()) {
-      // Drain existing backlog first
-      APIError err = this->drain_overflow_and_handle_errors_();
-      if (err != APIError::OK)
-        return err;
+  if (sent <= 0) {
+    if (sent == WRITE_NOT_ATTEMPTED) {
+      // Cold path: no write attempted yet, drain overflow and try
+      if (!this->overflow_buf_.empty()) {
+        APIError err = this->drain_overflow_and_handle_errors_();
+        if (err != APIError::OK)
+          return err;
+      }
+      if (this->overflow_buf_.empty()) {
+        sent =
+            (iovcnt == 1) ? this->socket_->write(iov[0].iov_base, iov[0].iov_len) : this->socket_->writev(iov, iovcnt);
+        if (sent == static_cast<ssize_t>(total_write_len))
+          return APIError::OK;
+        // Partial write or -1: fall through to error check / enqueue below
+      }
     }
-    // Try write if backlog is clear (either was empty, or drain succeeded)
-    if (this->overflow_buf_.empty()) {
-      sent = (iovcnt == 1) ? this->socket_->write(iov[0].iov_base, iov[0].iov_len) : this->socket_->writev(iov, iovcnt);
-      if (sent == static_cast<ssize_t>(total_write_len))
-        return APIError::OK;
-      // Partial write or -1: fall through to error check / enqueue below
-    }
-    if (sent == -1) {
+    // WRITE_FAILED or write above returned -1: check errno
+    if (sent == WRITE_FAILED || sent == -1) {
       int err = errno;
       if (err != EWOULDBLOCK && err != EAGAIN) {
         this->state_ = State::FAILED;
