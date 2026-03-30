@@ -48,11 +48,7 @@ namespace esphome::wifi {
 static const char *const TAG = "wifi_esp32";
 
 static EventGroupHandle_t s_wifi_event_group;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-// Lock-free SPSC queue replaces FreeRTOS xQueue to avoid kernel spinlock
-// overhead on every loop iteration. WiFi events are rare so 64 slots is plenty.
-// 65 slots = 64 usable (ring buffer reserves one slot to distinguish full from empty)
-static LockFreeQueue<IDFWiFiEvent, 65> s_event_queue;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static esp_netif_t *s_sta_netif = nullptr;             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static esp_netif_t *s_sta_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #ifdef USE_WIFI_AP
 static esp_netif_t *s_ap_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #endif                                        // USE_WIFI_AP
@@ -139,7 +135,7 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
   // copy to heap — WiFi events are rare so heap alloc is fine
   auto *to_send = new IDFWiFiEvent;  // NOLINT(cppcoreguidelines-owning-memory)
   memcpy(to_send, &event, sizeof(IDFWiFiEvent));
-  if (!s_event_queue.push(to_send)) {
+  if (!global_wifi_component->event_queue_.push(to_send)) {
     delete to_send;  // NOLINT(cppcoreguidelines-owning-memory)
   }
 }
@@ -721,8 +717,13 @@ const char *get_disconnect_reason_str(uint8_t reason) {
 }
 
 void WiFiComponent::wifi_loop_() {
+  uint16_t dropped = this->event_queue_.get_and_reset_dropped_count();
+  if (dropped > 0) {
+    ESP_LOGW(TAG, "Dropped %u WiFi events due to buffer overflow", dropped);
+  }
+
   IDFWiFiEvent *data;
-  while ((data = s_event_queue.pop()) != nullptr) {
+  while ((data = this->event_queue_.pop()) != nullptr) {
     wifi_process_event_(data);
     delete data;  // NOLINT(cppcoreguidelines-owning-memory)
   }
