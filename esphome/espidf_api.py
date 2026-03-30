@@ -4,6 +4,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 
@@ -145,6 +146,51 @@ def need_reconfigure() -> bool:
     return has_outdated_files() or not has_discovered_components()
 
 
+def _patch_memory_segments():
+    """Patch memory.ld to expand IRAM/DRAM for testing mode.
+
+    Mirrors the PlatformIO iram_fix.py.script logic for native IDF builds.
+    Must be called after cmake configure (which generates memory.ld) and
+    before the build/link step.
+    """
+    # Same sizes as iram_fix.py.script
+    testing_iram_size = 0x200000  # 2MB
+    testing_dram_size = 0x200000  # 2MB
+
+    memory_ld = CORE.relative_build_path(
+        "build", "esp-idf", "esp_system", "ld", "memory.ld"
+    )
+    if not memory_ld.is_file():
+        _LOGGER.warning("Could not find linker script at %s", memory_ld)
+        return
+
+    content = memory_ld.read_text()
+    patches = []
+
+    def _patch_segment(text, segment_name, new_size):
+        pattern = rf"({re.escape(segment_name)}\s*\([^)]*\)\s*:\s*org\s*=\s*.+?,\s*len\s*=\s*)(\S+[^\n]*)"
+        if match := re.search(pattern, text, re.DOTALL):
+            replacement = f"{match.group(1)}{new_size:#x}"
+            new_text = text[: match.start()] + replacement + text[match.end() :]
+            if new_text != text:
+                return new_text, True
+        return text, False
+
+    content, patched = _patch_segment(content, "iram0_0_seg", testing_iram_size)
+    if patched:
+        patches.append(f"IRAM={testing_iram_size:#x}")
+
+    content, patched = _patch_segment(content, "dram0_0_seg", testing_dram_size)
+    if patched:
+        patches.append(f"DRAM={testing_dram_size:#x}")
+
+    if patches:
+        memory_ld.write_text(content)
+        _LOGGER.info("Patched %s in %s for testing mode", ", ".join(patches), memory_ld)
+    else:
+        _LOGGER.warning("Could not patch memory segments in %s", memory_ld)
+
+
 def run_compile(config, verbose: bool) -> int:
     """Compile the ESP-IDF project.
 
@@ -165,6 +211,10 @@ def run_compile(config, verbose: bool) -> int:
             return rc
         _LOGGER.info("Regenerating CMakeLists.txt with discovered components...")
         write_project(minimal=False)
+
+    # In testing mode, patch linker script to expand IRAM/DRAM for grouped tests
+    if CORE.testing_mode:
+        _patch_memory_segments()
 
     # Build
     args = []
