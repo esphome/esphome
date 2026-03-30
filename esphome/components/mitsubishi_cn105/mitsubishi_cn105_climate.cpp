@@ -11,7 +11,7 @@ void MitsubishiCN105Climate::dump_config() {
                 "  Update interval: %u ms\n"
                 "  UART: baud_rate=%u data_bits=%u parity=%s stop_bits=%u",
                 this->hp_.get_update_interval(), this->parent_->get_baud_rate(), this->parent_->get_data_bits(),
-                parity_to_str(this->parent_->get_parity()), this->parent_->get_stop_bits());
+                LOG_STR_ARG(parity_to_str(this->parent_->get_parity())), this->parent_->get_stop_bits());
 }
 
 void MitsubishiCN105Climate::setup() {}
