@@ -1,6 +1,7 @@
 #include "nextion.h"
 #include <cinttypes>
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
@@ -8,6 +9,10 @@ namespace esphome {
 namespace nextion {
 
 static const char *const TAG = "nextion";
+
+// Nextion command terminator: three consecutive 0xFF bytes (per Nextion Instruction Set v1.1).
+static constexpr uint8_t COMMAND_DELIMITER[3] = {0xFF, 0xFF, 0xFF};
+static constexpr size_t DELIMITER_SIZE = sizeof(COMMAND_DELIMITER);
 
 void Nextion::setup() {
   this->is_setup_ = false;
@@ -49,10 +54,10 @@ bool Nextion::check_connect_() {
     return true;
 
 #ifdef USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
-  ESP_LOGW(TAG, "Connected (no handshake)");  // Log the connection status without handshake
-  this->is_connected_ = true;                 // Set the connection status to true
-  return true;                                // Return true indicating the connection is set
-#else                                         // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
+  ESP_LOGW(TAG, "Connected (no handshake)");     // Log the connection status without handshake
+  this->connection_state_.is_connected_ = true;  // Set the connection status to true
+  return true;                                   // Return true indicating the connection is set
+#else                                            // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
   if (this->comok_sent_ == 0) {
     this->reset_(false);
 
@@ -89,7 +94,7 @@ bool Nextion::check_connect_() {
 #endif  // NEXTION_PROTOCOL_LOG
 
     ESP_LOGW(TAG, "Not connected");
-    comok_sent_ = 0;
+    this->comok_sent_ = 0;
     return false;
   }
 
@@ -149,22 +154,23 @@ void Nextion::dump_config() {
 #ifdef USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
   ESP_LOGCONFIG(TAG, "  Skip handshake: YES");
 #else  // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
-  ESP_LOGCONFIG(TAG,
 #ifdef USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
-                "  Device Model:   %s\n"
-                "  FW Version:     %s\n"
-                "  Serial Number:  %s\n"
-                "  Flash Size:     %s\n"
+  ESP_LOGCONFIG(TAG,
+                "  Device Model: %s\n"
+                "  FW Version: %s\n"
+                "  Serial Number: %s\n"
+                "  Flash Size: %s\n"
+                "  Max queue age: %u ms\n"
+                "  Startup override: %u ms\n",
+                this->device_model_.c_str(), this->firmware_version_.c_str(), this->serial_number_.c_str(),
+                this->flash_size_.c_str(), this->max_q_age_ms_, this->startup_override_ms_);
 #endif  // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
 #ifdef USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START
-                "  Exit reparse:   YES\n"
+  ESP_LOGCONFIG(TAG, "  Exit reparse: YES\n");
 #endif  // USE_NEXTION_CONFIG_EXIT_REPARSE_ON_START
-                "  Wake On Touch:  %s\n"
-                "  Touch Timeout:  %" PRIu16,
-#ifdef USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
-                this->device_model_.c_str(), this->firmware_version_.c_str(), this->serial_number_.c_str(),
-                this->flash_size_.c_str(),
-#endif  // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
+  ESP_LOGCONFIG(TAG,
+                "  Wake On Touch: %s\n"
+                "  Touch Timeout: %" PRIu16,
                 YESNO(this->connection_state_.auto_wake_on_touch_), this->touch_sleep_timeout_);
 #endif  // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
 
@@ -173,25 +179,36 @@ void Nextion::dump_config() {
 #endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
 
   if (this->wake_up_page_ != 255) {
-    ESP_LOGCONFIG(TAG, "  Wake Up Page:   %u", this->wake_up_page_);
+    ESP_LOGCONFIG(TAG, "  Wake Up Page: %u", this->wake_up_page_);
   }
 
 #ifdef USE_NEXTION_CONF_START_UP_PAGE
   if (this->start_up_page_ != 255) {
-    ESP_LOGCONFIG(TAG, "  Start Up Page:  %u", this->start_up_page_);
+    ESP_LOGCONFIG(TAG, "  Start Up Page: %u", this->start_up_page_);
   }
 #endif  // USE_NEXTION_CONF_START_UP_PAGE
 
 #ifdef USE_NEXTION_COMMAND_SPACING
-  ESP_LOGCONFIG(TAG, "  Cmd spacing:      %u ms", this->command_pacer_.get_spacing());
+  ESP_LOGCONFIG(TAG, "  Cmd spacing: %u ms", this->command_pacer_.get_spacing());
 #endif  // USE_NEXTION_COMMAND_SPACING
 
 #ifdef USE_NEXTION_MAX_QUEUE_SIZE
-  ESP_LOGCONFIG(TAG, "  Max queue size:   %zu", this->max_queue_size_);
+  ESP_LOGCONFIG(TAG, "  Max queue size: %zu", this->max_queue_size_);
 #endif
+#ifdef USE_NEXTION_TFT_UPLOAD
+  ESP_LOGCONFIG(TAG,
+                "  TFT URL: %s\n"
+                "  TFT upload HTTP timeout: %" PRIu16 "ms\n"
+                "  TFT upload HTTP retries: %u",
+                this->tft_url_.c_str(), this->tft_upload_http_timeout_, this->tft_upload_http_retries_);
+#ifdef USE_ESP32
+  if (this->tft_upload_watchdog_timeout_ > 0) {
+    ESP_LOGCONFIG(TAG, "  TFT upload WDT timeout: %" PRIu32 "ms", this->tft_upload_watchdog_timeout_);
+  }
+#endif  // USE_ESP32
+#endif  // USE_NEXTION_TFT_UPLOAD
 }
 
-float Nextion::get_setup_priority() const { return setup_priority::DATA; }
 void Nextion::update() {
   if (!this->is_setup()) {
     return;
@@ -199,30 +216,6 @@ void Nextion::update() {
   if (this->writer_.has_value()) {
     (*this->writer_)(*this);
   }
-}
-
-void Nextion::add_sleep_state_callback(std::function<void()> &&callback) {
-  this->sleep_callback_.add(std::move(callback));
-}
-
-void Nextion::add_wake_state_callback(std::function<void()> &&callback) {
-  this->wake_callback_.add(std::move(callback));
-}
-
-void Nextion::add_setup_state_callback(std::function<void()> &&callback) {
-  this->setup_callback_.add(std::move(callback));
-}
-
-void Nextion::add_new_page_callback(std::function<void(uint8_t)> &&callback) {
-  this->page_callback_.add(std::move(callback));
-}
-
-void Nextion::add_touch_event_callback(std::function<void(uint8_t, uint8_t, bool)> &&callback) {
-  this->touch_callback_.add(std::move(callback));
-}
-
-void Nextion::add_buffer_overflow_event_callback(std::function<void()> &&callback) {
-  this->buffer_overflow_callback_.add(std::move(callback));
 }
 
 void Nextion::update_all_components() {
@@ -248,7 +241,7 @@ bool Nextion::send_command(const char *command) {
     return false;
 
   if (this->send_command_(command)) {
-    this->add_no_result_to_queue_("send_command");
+    this->add_no_result_to_queue_("command");
     return true;
   }
   return false;
@@ -269,7 +262,7 @@ bool Nextion::send_command_printf(const char *format, ...) {
   }
 
   if (this->send_command_(buffer)) {
-    this->add_no_result_to_queue_("send_command_printf");
+    this->add_no_result_to_queue_("command_printf");
     return true;
   }
   return false;
@@ -288,7 +281,7 @@ void Nextion::print_queue_members_() {
       ESP_LOGN(TAG, "Queue null");
     } else {
       ESP_LOGN(TAG, "Queue type: %d:%s, name: %s", i->component->get_queue_type(),
-               i->component->get_queue_type_string().c_str(), i->component->get_variable_name().c_str());
+               i->component->get_queue_type_string(), i->component->get_variable_name().c_str());
     }
   }
   ESP_LOGN(TAG, "*******************************************");
@@ -335,7 +328,8 @@ void Nextion::loop() {
     if (this->started_ms_ == 0)
       this->started_ms_ = App.get_loop_component_start_time();
 
-    if (this->started_ms_ + this->startup_override_ms_ < App.get_loop_component_start_time()) {
+    if (this->startup_override_ms_ > 0 &&
+        App.get_loop_component_start_time() - this->started_ms_ > this->startup_override_ms_) {
       ESP_LOGV(TAG, "Manual ready set");
       this->connection_state_.nextion_reports_is_setup_ = true;
     }
@@ -395,11 +389,17 @@ bool Nextion::remove_from_q_(bool report_empty) {
 }
 
 void Nextion::process_serial_() {
-  uint8_t d;
+  // Read all available bytes in batches to reduce UART call overhead.
+  size_t avail = this->available();
+  uint8_t buf[64];
+  while (avail > 0) {
+    size_t to_read = std::min(avail, sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
+    }
+    avail -= to_read;
 
-  while (this->available()) {
-    read_byte(&d);
-    this->command_data_ += d;
+    this->command_data_.append(reinterpret_cast<const char *>(buf), to_read);
   }
 }
 // nextion.tech/instruction-set/
@@ -419,16 +419,17 @@ void Nextion::process_nextion_commands_() {
 #ifdef NEXTION_PROTOCOL_LOG
   this->print_queue_members_();
 #endif
-  while ((to_process_length = this->command_data_.find(COMMAND_DELIMITER)) != std::string::npos) {
+  while ((to_process_length = this->command_data_.find(reinterpret_cast<const char *>(COMMAND_DELIMITER), 0,
+                                                       DELIMITER_SIZE)) != std::string::npos) {
 #ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
     if (++commands_processed > this->max_commands_per_loop_) {
-      ESP_LOGW(TAG, "Command processing limit exceeded");
+      ESP_LOGV(TAG, "Command limit reached, deferring");
       break;
     }
 #endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
     ESP_LOGN(TAG, "queue size: %zu", this->nextion_queue_.size());
-    while (to_process_length + COMMAND_DELIMITER.length() < this->command_data_.length() &&
-           static_cast<uint8_t>(this->command_data_[to_process_length + COMMAND_DELIMITER.length()]) == 0xFF) {
+    while (to_process_length + DELIMITER_SIZE < this->command_data_.length() &&
+           static_cast<uint8_t>(this->command_data_[to_process_length + DELIMITER_SIZE]) == 0xFF) {
       ++to_process_length;
       ESP_LOGN(TAG, "Add 0xFF");
     }
@@ -606,7 +607,7 @@ void Nextion::process_nextion_commands_() {
           ESP_LOGE(TAG, "String return but '%s' not text sensor", component->get_variable_name().c_str());
         } else {
           ESP_LOGN(TAG, "String resp: '%s' id: %s type: %s", to_process.c_str(), component->get_variable_name().c_str(),
-                   component->get_queue_type_string().c_str());
+                   component->get_queue_type_string());
         }
 
         delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
@@ -626,16 +627,12 @@ void Nextion::process_nextion_commands_() {
           break;
         }
 
-        if (to_process_length == 0) {
-          ESP_LOGE(TAG, "Numeric return but no data");
+        if (to_process_length < 4) {
+          ESP_LOGE(TAG, "Numeric return but insufficient data (need 4, got %zu)", to_process_length);
           break;
         }
 
-        int value = 0;
-
-        for (int i = 0; i < 4; ++i) {
-          value += to_process[i] << (8 * i);
-        }
+        int value = static_cast<int>(encode_uint32(to_process[3], to_process[2], to_process[1], to_process[0]));
 
         NextionQueue *nb = this->nextion_queue_.front();
         if (!nb || !nb->component) {
@@ -652,7 +649,7 @@ void Nextion::process_nextion_commands_() {
                    component->get_queue_type());
         } else {
           ESP_LOGN(TAG, "Numeric: %s type %d:%s val %d", component->get_variable_name().c_str(),
-                   component->get_queue_type(), component->get_queue_type_string().c_str(), value);
+                   component->get_queue_type(), component->get_queue_type_string(), value);
           component->set_state_from_int(value, true, false);
         }
 
@@ -731,10 +728,8 @@ void Nextion::process_nextion_commands_() {
         index = to_process.find('\0');
         variable_name = to_process.substr(0, index);
         // // Get variable name
-        int value = 0;
-        for (int i = 0; i < 4; ++i) {
-          value += to_process[i + index + 1] << (8 * i);
-        }
+        int value = static_cast<int>(
+            encode_uint32(to_process[index + 4], to_process[index + 3], to_process[index + 2], to_process[index + 1]));
 
         ESP_LOGN(TAG, "Sensor: %s=%d", variable_name.c_str(), value);
 
@@ -839,25 +834,17 @@ void Nextion::process_nextion_commands_() {
         break;
     }
 
-    this->command_data_.erase(0, to_process_length + COMMAND_DELIMITER.length() + 1);
+    this->command_data_.erase(0, to_process_length + DELIMITER_SIZE + 1);
   }
 
   const uint32_t ms = App.get_loop_component_start_time();
 
-  if (!this->nextion_queue_.empty() && this->nextion_queue_.front()->queue_time + this->max_q_age_ms_ < ms) {
-    for (size_t i = 0; i < this->nextion_queue_.size(); i++) {
-      NextionComponentBase *component = this->nextion_queue_[i]->component;
-      if (this->nextion_queue_[i]->queue_time + this->max_q_age_ms_ < ms) {
-        if (this->nextion_queue_[i]->queue_time == 0) {
-          ESP_LOGD(TAG, "Remove old queue '%s':'%s' (t=0)", component->get_queue_type_string().c_str(),
-                   component->get_variable_name().c_str());
-        }
-
-        if (component->get_variable_name() == "sleep_wake") {
-          this->is_sleeping_ = false;
-        }
-
-        ESP_LOGD(TAG, "Remove old queue '%s':'%s'", component->get_queue_type_string().c_str(),
+  if (this->max_q_age_ms_ > 0 && !this->nextion_queue_.empty() &&
+      ms - this->nextion_queue_.front()->queue_time > this->max_q_age_ms_) {
+    for (auto it = this->nextion_queue_.begin(); it != this->nextion_queue_.end();) {
+      if (ms - (*it)->queue_time > this->max_q_age_ms_) {
+        NextionComponentBase *component = (*it)->component;
+        ESP_LOGV(TAG, "Remove old queue '%s':'%s'", component->get_queue_type_string(),
                  component->get_variable_name().c_str());
 
         if (component->get_queue_type() == NextionQueueType::NO_RESULT) {
@@ -867,10 +854,8 @@ void Nextion::process_nextion_commands_() {
           delete component;  // NOLINT(cppcoreguidelines-owning-memory)
         }
 
-        delete this->nextion_queue_[i];  // NOLINT(cppcoreguidelines-owning-memory)
-
-        this->nextion_queue_.erase(this->nextion_queue_.begin() + i);
-        i--;
+        delete *it;  // NOLINT(cppcoreguidelines-owning-memory)
+        it = this->nextion_queue_.erase(it);
 
       } else {
         break;
@@ -941,7 +926,7 @@ void Nextion::all_components_send_state_(bool force_update) {
       binarysensortype->send_state_to_nextion();
   }
   for (auto *sensortype : this->sensortype_) {
-    if ((force_update || sensortype->get_needs_to_send_update()) && sensortype->get_wave_chan_id() == 0)
+    if ((force_update || sensortype->get_needs_to_send_update()) && sensortype->get_wave_channel_id() == 0)
       sensortype->send_state_to_nextion();
   }
   for (auto *switchtype : this->switchtype_) {
@@ -1237,7 +1222,7 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
   nextion_queue->component = component;
   nextion_queue->queue_time = App.get_loop_component_start_time();
 
-  ESP_LOGN(TAG, "Queue %s: %s", component->get_queue_type_string().c_str(), component->get_variable_name().c_str());
+  ESP_LOGN(TAG, "Queue %s: %s", component->get_queue_type_string(), component->get_variable_name().c_str());
 
   std::string command = "get " + component->get_variable_name_to_send();
 
@@ -1283,8 +1268,9 @@ void Nextion::check_pending_waveform_() {
   size_t buffer_to_send = component->get_wave_buffer_size() < 255 ? component->get_wave_buffer_size()
                                                                   : 255;  // ADDT command can only send 255
 
-  std::string command = "addt " + to_string(component->get_component_id()) + "," +
-                        to_string(component->get_wave_channel_id()) + "," + to_string(buffer_to_send);
+  char command[24];  // "addt " + uint8 + "," + uint8 + "," + uint8 + null = max 17 chars
+  buf_append_printf(command, sizeof(command), 0, "addt %u,%u,%zu", component->get_component_id(),
+                    component->get_wave_channel_id(), buffer_to_send);
   if (!this->send_command_(command)) {
     delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
     this->waveform_queue_.pop_front();

@@ -92,6 +92,7 @@ AGS10_NEW_I2C_ADDRESS_SCHEMA = cv.maybe_simple_value(
     "ags10.new_i2c_address",
     AGS10NewI2cAddressAction,
     AGS10_NEW_I2C_ADDRESS_SCHEMA,
+    synchronous=True,
 )
 async def ags10newi2caddress_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -121,6 +122,7 @@ AGS10_SET_ZERO_POINT_SCHEMA = cv.Schema(
     "ags10.set_zero_point",
     AGS10SetZeroPointAction,
     AGS10_SET_ZERO_POINT_SCHEMA,
+    synchronous=True,
 )
 async def ags10setzeropoint_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

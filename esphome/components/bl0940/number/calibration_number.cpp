@@ -9,7 +9,7 @@ static const char *const TAG = "bl0940.number";
 void CalibrationNumber::setup() {
   float value = 0.0f;
   if (this->restore_value_) {
-    this->pref_ = global_preferences->make_preference<float>(this->get_preference_hash());
+    this->pref_ = this->make_entity_preference<float>();
     if (!this->pref_.load(&value)) {
       value = 0.0f;
     }

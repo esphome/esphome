@@ -4,6 +4,8 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/progmem.h"
+#include "esphome/core/string_ref.h"
 #include <concepts>
 #include <functional>
 #include <utility>
@@ -42,6 +44,10 @@ template<int... S> struct gens<0, S...> { using type = seq<S...>; };
 #define TEMPLATABLE_VALUE(type, name) TEMPLATABLE_VALUE_(type, name)
 
 template<typename T, typename... X> class TemplatableValue {
+  // For std::string, store pointer to heap-allocated string to keep union pointer-sized.
+  // For other types, store value inline.
+  static constexpr bool USE_HEAP_STORAGE = std::same_as<T, std::string>;
+
  public:
   TemplatableValue() : type_(NONE) {}
 
@@ -51,8 +57,22 @@ template<typename T, typename... X> class TemplatableValue {
     this->static_str_ = str;
   }
 
+#ifdef USE_ESP8266
+  // On ESP8266, __FlashStringHelper* is a distinct type from const char*.
+  // ESPHOME_F(s) expands to F(s) which returns __FlashStringHelper* pointing to PROGMEM.
+  // Store as FLASH_STRING — value()/is_empty()/ref_or_copy_to() use _P functions
+  // to access the PROGMEM pointer safely.
+  TemplatableValue(const __FlashStringHelper *str) requires std::same_as<T, std::string> : type_(FLASH_STRING) {
+    this->static_str_ = reinterpret_cast<const char *>(str);
+  }
+#endif
+
   template<typename F> TemplatableValue(F value) requires(!std::invocable<F, X...>) : type_(VALUE) {
-    new (&this->value_) T(std::move(value));
+    if constexpr (USE_HEAP_STORAGE) {
+      this->value_ = new T(std::move(value));
+    } else {
+      new (&this->value_) T(std::move(value));
+    }
   }
 
   // For stateless lambdas (convertible to function pointer): use function pointer
@@ -71,12 +91,16 @@ template<typename T, typename... X> class TemplatableValue {
   // Copy constructor
   TemplatableValue(const TemplatableValue &other) : type_(other.type_) {
     if (this->type_ == VALUE) {
-      new (&this->value_) T(other.value_);
+      if constexpr (USE_HEAP_STORAGE) {
+        this->value_ = new T(*other.value_);
+      } else {
+        new (&this->value_) T(other.value_);
+      }
     } else if (this->type_ == LAMBDA) {
       this->f_ = new std::function<T(X...)>(*other.f_);
     } else if (this->type_ == STATELESS_LAMBDA) {
       this->stateless_f_ = other.stateless_f_;
-    } else if (this->type_ == STATIC_STRING) {
+    } else if (this->type_ == STATIC_STRING || this->type_ == FLASH_STRING) {
       this->static_str_ = other.static_str_;
     }
   }
@@ -84,13 +108,18 @@ template<typename T, typename... X> class TemplatableValue {
   // Move constructor
   TemplatableValue(TemplatableValue &&other) noexcept : type_(other.type_) {
     if (this->type_ == VALUE) {
-      new (&this->value_) T(std::move(other.value_));
+      if constexpr (USE_HEAP_STORAGE) {
+        this->value_ = other.value_;
+        other.value_ = nullptr;
+      } else {
+        new (&this->value_) T(std::move(other.value_));
+      }
     } else if (this->type_ == LAMBDA) {
       this->f_ = other.f_;
       other.f_ = nullptr;
     } else if (this->type_ == STATELESS_LAMBDA) {
       this->stateless_f_ = other.stateless_f_;
-    } else if (this->type_ == STATIC_STRING) {
+    } else if (this->type_ == STATIC_STRING || this->type_ == FLASH_STRING) {
       this->static_str_ = other.static_str_;
     }
     other.type_ = NONE;
@@ -115,23 +144,31 @@ template<typename T, typename... X> class TemplatableValue {
 
   ~TemplatableValue() {
     if (this->type_ == VALUE) {
-      this->value_.~T();
+      if constexpr (USE_HEAP_STORAGE) {
+        delete this->value_;
+      } else {
+        this->value_.~T();
+      }
     } else if (this->type_ == LAMBDA) {
       delete this->f_;
     }
-    // STATELESS_LAMBDA/STATIC_STRING/NONE: no cleanup needed (pointers, not heap-allocated)
+    // STATELESS_LAMBDA/STATIC_STRING/FLASH_STRING/NONE: no cleanup needed (pointers, not heap-allocated)
   }
 
-  bool has_value() { return this->type_ != NONE; }
+  bool has_value() const { return this->type_ != NONE; }
 
-  T value(X... x) {
+  T value(X... x) const {
     switch (this->type_) {
       case STATELESS_LAMBDA:
         return this->stateless_f_(x...);  // Direct function pointer call
       case LAMBDA:
         return (*this->f_)(x...);  // std::function call
       case VALUE:
-        return this->value_;
+        if constexpr (USE_HEAP_STORAGE) {
+          return *this->value_;
+        } else {
+          return this->value_;
+        }
       case STATIC_STRING:
         // if constexpr required: code must compile for all T, but STATIC_STRING
         // can only be set when T is std::string (enforced by constructor constraint)
@@ -139,6 +176,17 @@ template<typename T, typename... X> class TemplatableValue {
           return std::string(this->static_str_);
         }
         __builtin_unreachable();
+#ifdef USE_ESP8266
+      case FLASH_STRING:
+        // PROGMEM pointer — must use _P functions to access on ESP8266
+        if constexpr (std::same_as<T, std::string>) {
+          size_t len = strlen_P(this->static_str_);
+          std::string result(len, '\0');
+          memcpy_P(result.data(), this->static_str_, len);
+          return result;
+        }
+        __builtin_unreachable();
+#endif
       case NONE:
       default:
         return T{};
@@ -159,20 +207,93 @@ template<typename T, typename... X> class TemplatableValue {
     return this->value(x...);
   }
 
- protected:
-  enum : uint8_t {
-    NONE,
-    VALUE,
-    LAMBDA,
-    STATELESS_LAMBDA,
-    STATIC_STRING,  // For const char* when T is std::string - avoids heap allocation
-  } type_;
+  /// Check if this holds a static string (const char* stored without allocation)
+  /// The pointer is always directly readable (RAM or flash-mapped).
+  /// Returns false for FLASH_STRING (PROGMEM on ESP8266, requires _P functions).
+  bool is_static_string() const { return this->type_ == STATIC_STRING; }
 
+  /// Get the static string pointer (only valid if is_static_string() returns true)
+  /// The pointer is always directly readable — FLASH_STRING uses a separate type.
+  const char *get_static_string() const { return this->static_str_; }
+
+  /// Check if the string value is empty without allocating (for std::string specialization).
+  /// For NONE, returns true. For STATIC_STRING/VALUE, checks without allocation.
+  /// For LAMBDA/STATELESS_LAMBDA, must call value() which may allocate.
+  bool is_empty() const requires std::same_as<T, std::string> {
+    switch (this->type_) {
+      case NONE:
+        return true;
+      case STATIC_STRING:
+        return this->static_str_ == nullptr || this->static_str_[0] == '\0';
+#ifdef USE_ESP8266
+      case FLASH_STRING:
+        // PROGMEM pointer — must use progmem_read_byte on ESP8266
+        return this->static_str_ == nullptr ||
+               progmem_read_byte(reinterpret_cast<const uint8_t *>(this->static_str_)) == '\0';
+#endif
+      case VALUE:
+        return this->value_->empty();
+      default:  // LAMBDA/STATELESS_LAMBDA - must call value()
+        return this->value().empty();
+    }
+  }
+
+  /// Get a StringRef to the string value without heap allocation when possible.
+  /// For STATIC_STRING/VALUE, returns reference to existing data (no allocation).
+  /// For FLASH_STRING (ESP8266 PROGMEM), copies to provided buffer via _P functions.
+  /// For LAMBDA/STATELESS_LAMBDA, calls value(), copies to provided buffer, returns ref to buffer.
+  /// @param lambda_buf Buffer used only for copy cases (must remain valid while StringRef is used).
+  /// @param lambda_buf_size Size of the buffer.
+  /// @return StringRef pointing to the string data.
+  StringRef ref_or_copy_to(char *lambda_buf, size_t lambda_buf_size) const requires std::same_as<T, std::string> {
+    switch (this->type_) {
+      case NONE:
+        return StringRef();
+      case STATIC_STRING:
+        if (this->static_str_ == nullptr)
+          return StringRef();
+        return StringRef(this->static_str_, strlen(this->static_str_));
+#ifdef USE_ESP8266
+      case FLASH_STRING:
+        if (this->static_str_ == nullptr)
+          return StringRef();
+        {
+          // PROGMEM pointer — copy to buffer via _P functions
+          size_t len = strlen_P(this->static_str_);
+          size_t copy_len = std::min(len, lambda_buf_size - 1);
+          memcpy_P(lambda_buf, this->static_str_, copy_len);
+          lambda_buf[copy_len] = '\0';
+          return StringRef(lambda_buf, copy_len);
+        }
+#endif
+      case VALUE:
+        return StringRef(this->value_->data(), this->value_->size());
+      default: {  // LAMBDA/STATELESS_LAMBDA - must call value() and copy
+        std::string result = this->value();
+        size_t copy_len = std::min(result.size(), lambda_buf_size - 1);
+        memcpy(lambda_buf, result.data(), copy_len);
+        lambda_buf[copy_len] = '\0';
+        return StringRef(lambda_buf, copy_len);
+      }
+    }
+  }
+
+ protected : enum : uint8_t {
+   NONE,
+   VALUE,
+   LAMBDA,
+   STATELESS_LAMBDA,
+   STATIC_STRING,  // For const char* when T is std::string - avoids heap allocation
+   FLASH_STRING,   // PROGMEM pointer on ESP8266; never set on other platforms
+ } type_;
+  // For std::string, use heap pointer to minimize union size (4 bytes vs 12+).
+  // For other types, store value inline as before.
+  using ValueStorage = std::conditional_t<USE_HEAP_STORAGE, T *, T>;
   union {
-    T value_;
+    ValueStorage value_;  // T for inline storage, T* for heap storage
     std::function<T(X...)> *f_;
     T (*stateless_f_)(X...);
-    const char *static_str_;  // For STATIC_STRING type
+    const char *static_str_;  // For STATIC_STRING and FLASH_STRING types
   };
 };
 
@@ -201,7 +322,9 @@ template<typename... Ts> class Automation;
 template<typename... Ts> class Trigger {
  public:
   /// Inform the parent automation that the event has triggered.
-  void trigger(const Ts &...x) {
+  // Force-inline: collapses the Trigger→Automation→ActionList forwarding
+  // chain into a single frame, reducing automation call stack depth.
+  inline void trigger(const Ts &...x) ESPHOME_ALWAYS_INLINE {
     if (this->automation_parent_ == nullptr)
       return;
     this->automation_parent_->trigger(x...);
@@ -308,7 +431,9 @@ template<typename... Ts> class ActionList {
       this->add_action(action);
     }
   }
-  void play(const Ts &...x) {
+  // Force-inline: part of the Trigger→Automation→ActionList forwarding
+  // chain collapsed to reduce automation call stack depth.
+  inline void play(const Ts &...x) ESPHOME_ALWAYS_INLINE {
     if (this->actions_begin_ != nullptr)
       this->actions_begin_->play_complex(x...);
   }
@@ -345,14 +470,18 @@ template<typename... Ts> class ActionList {
 
 template<typename... Ts> class Automation {
  public:
-  explicit Automation(Trigger<Ts...> *trigger) : trigger_(trigger) { this->trigger_->set_automation_parent(this); }
+  /// Default constructor for use with TriggerForwarder (no Trigger object needed).
+  Automation() = default;
+  explicit Automation(Trigger<Ts...> *trigger) { trigger->set_automation_parent(this); }
 
   void add_action(Action<Ts...> *action) { this->actions_.add_action(action); }
   void add_actions(const std::initializer_list<Action<Ts...> *> &actions) { this->actions_.add_actions(actions); }
 
   void stop() { this->actions_.stop(); }
 
-  void trigger(const Ts &...x) { this->actions_.play(x...); }
+  // Force-inline: part of the Trigger→Automation→ActionList forwarding
+  // chain collapsed to reduce automation call stack depth.
+  inline void trigger(const Ts &...x) ESPHOME_ALWAYS_INLINE { this->actions_.play(x...); }
 
   bool is_running() { return this->actions_.is_running(); }
 
@@ -360,8 +489,44 @@ template<typename... Ts> class Automation {
   int num_running() { return this->actions_.num_running(); }
 
  protected:
-  Trigger<Ts...> *trigger_;
   ActionList<Ts...> actions_;
 };
+
+/// Callback forwarder that triggers an Automation directly.
+/// One operator() instantiation per Automation<Ts...> signature, shared across all call sites.
+/// Must stay pointer-sized to fit inline in Callback::ctx_ without heap allocation.
+template<typename... Ts> struct TriggerForwarder {
+  Automation<Ts...> *automation;
+  void operator()(const Ts &...args) const { this->automation->trigger(args...); }
+};
+
+/// Callback forwarder that triggers an Automation<> only when the bool arg is true.
+/// Must stay pointer-sized to fit inline in Callback::ctx_ without heap allocation.
+struct TriggerOnTrueForwarder {
+  Automation<> *automation;
+  void operator()(bool state) const {
+    if (state)
+      this->automation->trigger();
+  }
+};
+
+/// Callback forwarder that triggers an Automation<> only when the bool arg is false.
+/// Must stay pointer-sized to fit inline in Callback::ctx_ without heap allocation.
+struct TriggerOnFalseForwarder {
+  Automation<> *automation;
+  void operator()(bool state) const {
+    if (!state)
+      this->automation->trigger();
+  }
+};
+
+// Ensure forwarders fit in Callback::ctx_ (pointer-sized inline storage).
+// If these fail, the forwarder would heap-allocate in Callback::create().
+static_assert(sizeof(TriggerForwarder<>) <= sizeof(void *));
+static_assert(sizeof(TriggerOnTrueForwarder) <= sizeof(void *));
+static_assert(sizeof(TriggerOnFalseForwarder) <= sizeof(void *));
+static_assert(std::is_trivially_copyable_v<TriggerForwarder<>>);
+static_assert(std::is_trivially_copyable_v<TriggerOnTrueForwarder>);
+static_assert(std::is_trivially_copyable_v<TriggerOnFalseForwarder>);
 
 }  // namespace esphome

@@ -11,8 +11,6 @@ class TMP102Component : public PollingComponent, public i2c::I2CDevice, public s
  public:
   void dump_config() override;
   void update() override;
-
-  float get_setup_priority() const override;
 };
 
 }  // namespace tmp102

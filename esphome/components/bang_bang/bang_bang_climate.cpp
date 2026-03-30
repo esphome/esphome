@@ -6,8 +6,7 @@ namespace bang_bang {
 
 static const char *const TAG = "bang_bang.climate";
 
-BangBangClimate::BangBangClimate()
-    : idle_trigger_(new Trigger<>()), cool_trigger_(new Trigger<>()), heat_trigger_(new Trigger<>()) {}
+BangBangClimate::BangBangClimate() = default;
 
 void BangBangClimate::setup() {
   this->sensor_->add_on_state_callback([this](float state) {
@@ -46,17 +45,21 @@ void BangBangClimate::setup() {
 }
 
 void BangBangClimate::control(const climate::ClimateCall &call) {
-  if (call.get_mode().has_value()) {
-    this->mode = *call.get_mode();
+  auto mode = call.get_mode();
+  if (mode.has_value()) {
+    this->mode = *mode;
   }
-  if (call.get_target_temperature_low().has_value()) {
-    this->target_temperature_low = *call.get_target_temperature_low();
+  auto target_temperature_low = call.get_target_temperature_low();
+  if (target_temperature_low.has_value()) {
+    this->target_temperature_low = *target_temperature_low;
   }
-  if (call.get_target_temperature_high().has_value()) {
-    this->target_temperature_high = *call.get_target_temperature_high();
+  auto target_temperature_high = call.get_target_temperature_high();
+  if (target_temperature_high.has_value()) {
+    this->target_temperature_high = *target_temperature_high;
   }
-  if (call.get_preset().has_value()) {
-    this->change_away_(*call.get_preset() == climate::CLIMATE_PRESET_AWAY);
+  auto preset = call.get_preset();
+  if (preset.has_value()) {
+    this->change_away_(*preset == climate::CLIMATE_PRESET_AWAY);
   }
 
   this->compute_state_();
@@ -160,13 +163,13 @@ void BangBangClimate::switch_to_action_(climate::ClimateAction action) {
   switch (action) {
     case climate::CLIMATE_ACTION_OFF:
     case climate::CLIMATE_ACTION_IDLE:
-      trig = this->idle_trigger_;
+      trig = &this->idle_trigger_;
       break;
     case climate::CLIMATE_ACTION_COOLING:
-      trig = this->cool_trigger_;
+      trig = &this->cool_trigger_;
       break;
     case climate::CLIMATE_ACTION_HEATING:
-      trig = this->heat_trigger_;
+      trig = &this->heat_trigger_;
       break;
     default:
       trig = nullptr;
@@ -204,9 +207,9 @@ void BangBangClimate::set_away_config(const BangBangClimateTargetTempConfig &awa
 void BangBangClimate::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
 void BangBangClimate::set_humidity_sensor(sensor::Sensor *humidity_sensor) { this->humidity_sensor_ = humidity_sensor; }
 
-Trigger<> *BangBangClimate::get_idle_trigger() const { return this->idle_trigger_; }
-Trigger<> *BangBangClimate::get_cool_trigger() const { return this->cool_trigger_; }
-Trigger<> *BangBangClimate::get_heat_trigger() const { return this->heat_trigger_; }
+Trigger<> *BangBangClimate::get_idle_trigger() { return &this->idle_trigger_; }
+Trigger<> *BangBangClimate::get_cool_trigger() { return &this->cool_trigger_; }
+Trigger<> *BangBangClimate::get_heat_trigger() { return &this->heat_trigger_; }
 
 void BangBangClimate::set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
 void BangBangClimate::set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }

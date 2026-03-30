@@ -4,6 +4,14 @@
 
 #include <cassert>
 #include <cstdarg>
+
+// Debug assert that only fires when ESPHOME_DEBUG is defined (e.g. in CI/test builds).
+// Zero cost in production firmware.
+#ifdef ESPHOME_DEBUG
+#define ESPHOME_DEBUG_ASSERT(expr) assert(expr)  // NOLINT
+#else
+#define ESPHOME_DEBUG_ASSERT(expr) ((void) 0)
+#endif
 // for PRIu32 and friends
 #include <cinttypes>
 #include <string>
@@ -14,12 +22,9 @@
 #endif
 
 // Include ESP-IDF/Arduino based logging methods here so they don't undefine ours later
-#if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
+#if defined(USE_ESP32)
 #include <esp_err.h>
 #include <esp_log.h>
-#endif
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-#include <esp32-hal-log.h>
 #endif
 #ifdef USE_LIBRETINY
 #include <lt_logger.h>
@@ -64,9 +69,11 @@ void esp_log_printf_(int level, const char *tag, int line, const __FlashStringHe
 #endif
 void esp_log_vprintf_(int level, const char *tag, int line, const char *format, va_list args);  // NOLINT
 #ifdef USE_STORE_LOG_STR_IN_FLASH
-void esp_log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format, va_list args);
+// Remove before 2026.9.0
+__attribute__((deprecated("Use esp_log_printf_() instead. Removed in 2026.9.0."))) void esp_log_vprintf_(
+    int level, const char *tag, int line, const __FlashStringHelper *format, va_list args);
 #endif
-#if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
+#if defined(USE_ESP32)
 int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #endif
 

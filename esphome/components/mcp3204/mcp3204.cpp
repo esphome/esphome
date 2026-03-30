@@ -11,9 +11,11 @@ float MCP3204::get_setup_priority() const { return setup_priority::HARDWARE; }
 void MCP3204::setup() { this->spi_setup(); }
 
 void MCP3204::dump_config() {
-  ESP_LOGCONFIG(TAG, "MCP3204:");
+  ESP_LOGCONFIG(TAG,
+                "MCP3204:\n"
+                "  Reference Voltage: %.2fV",
+                this->reference_voltage_);
   LOG_PIN("  CS Pin:", this->cs_);
-  ESP_LOGCONFIG(TAG, "  Reference Voltage: %.2fV", this->reference_voltage_);
 }
 
 float MCP3204::read_data(uint8_t pin, bool differential) {

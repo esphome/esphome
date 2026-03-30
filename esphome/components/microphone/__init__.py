@@ -190,19 +190,25 @@ async def microphone_action(config, action_id, template_arg, args):
 
 
 automation.register_action(
-    "microphone.capture", CaptureAction, MICROPHONE_ACTION_SCHEMA
+    "microphone.capture",
+    CaptureAction,
+    MICROPHONE_ACTION_SCHEMA,
+    synchronous=True,
 )(microphone_action)
 
 automation.register_action(
-    "microphone.stop_capture", StopCaptureAction, MICROPHONE_ACTION_SCHEMA
+    "microphone.stop_capture",
+    StopCaptureAction,
+    MICROPHONE_ACTION_SCHEMA,
+    synchronous=True,
 )(microphone_action)
 
-automation.register_action("microphone.mute", MuteAction, MICROPHONE_ACTION_SCHEMA)(
-    microphone_action
-)
-automation.register_action("microphone.unmute", UnmuteAction, MICROPHONE_ACTION_SCHEMA)(
-    microphone_action
-)
+automation.register_action(
+    "microphone.mute", MuteAction, MICROPHONE_ACTION_SCHEMA, synchronous=True
+)(microphone_action)
+automation.register_action(
+    "microphone.unmute", UnmuteAction, MICROPHONE_ACTION_SCHEMA, synchronous=True
+)(microphone_action)
 
 automation.register_condition(
     "microphone.is_capturing", IsCapturingCondition, MICROPHONE_ACTION_SCHEMA

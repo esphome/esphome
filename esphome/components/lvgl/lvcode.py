@@ -1,4 +1,5 @@
 import abc
+from typing import TYPE_CHECKING
 
 from esphome import codegen as cg
 from esphome.config import Config
@@ -167,6 +168,9 @@ class LambdaContext(CodeContext):
     def get_automation_parameters(self) -> list[tuple[SafeExpType, str]]:
         return self.parameters
 
+    def get_parameter(self, index: int):
+        return literal(self.parameters[index][1])
+
     async def __aenter__(self):
         await super().__aenter__()
         add_line_marks(self.where)
@@ -198,6 +202,21 @@ class LvContext(LambdaContext):
 
     def __call__(self, *args):
         return self.add(*args)
+
+
+def get_lambda_context_args() -> list[tuple[SafeExpType, str]]:
+    """Get automation parameters from the current lambda context if available.
+
+    When called from outside LVGL's context (e.g., from interval),
+    CodeContext.code_context will be None, so return empty args.
+    """
+    if CodeContext.code_context is None:
+        return []
+    if TYPE_CHECKING:
+        # CodeContext base class doesn't define get_automation_parameters(),
+        # but LambdaContext and LvContext (the concrete implementations) do.
+        assert isinstance(CodeContext.code_context, LambdaContext)
+    return CodeContext.code_context.get_automation_parameters()
 
 
 class LocalVariable(MockObj):
@@ -234,10 +253,14 @@ class MockLv:
     A mock object that can be used to generate LVGL calls.
     """
 
+    # Mapping for LVGL 9
+    ATTR_MAP = {"event_send": "obj_send_event", "dither": "bg_dither_mode"}
+
     def __init__(self, base):
         self.base = base
 
     def __getattr__(self, attr: str) -> "MockLv":
+        attr = MockLv.ATTR_MAP.get(attr, attr)
         return MockLv(f"{self.base}{attr}")
 
     def append(self, expression):
@@ -291,6 +314,7 @@ class ReturnStatement(ExpressionStatement):
 
 class LvExpr(MockLv):
     def __getattr__(self, attr: str) -> "MockLv":
+        attr = MockLv.ATTR_MAP.get(attr, attr)
         return LvExpr(f"{self.base}{attr}")
 
     def append(self, expression):

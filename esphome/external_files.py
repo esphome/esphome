@@ -55,10 +55,12 @@ def has_remote_file_changed(url: str, local_file_path: Path) -> bool:
             _LOGGER.debug("has_remote_file_changed: File modified")
             return True
         except requests.exceptions.RequestException as e:
-            raise cv.Invalid(
-                f"Could not check if {url} has changed, please check if file exists "
-                f"({e})"
+            _LOGGER.warning(
+                "Could not check if %s has changed due to network error (%s), using cached file",
+                url,
+                e,
             )
+            return False
 
     _LOGGER.debug("has_remote_file_changed: File doesn't exists at %s", local_file_path)
     return True
@@ -98,6 +100,13 @@ def download_content(url: str, path: Path, timeout=NETWORK_TIMEOUT) -> bytes:
         )
         req.raise_for_status()
     except requests.exceptions.RequestException as e:
+        if path.exists():
+            _LOGGER.warning(
+                "Could not download from %s due to network error (%s), using cached file",
+                url,
+                e,
+            )
+            return path.read_bytes()
         raise cv.Invalid(f"Could not download from {url}: {e}")
 
     path.parent.mkdir(parents=True, exist_ok=True)

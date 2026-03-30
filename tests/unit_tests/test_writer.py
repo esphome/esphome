@@ -13,6 +13,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from esphome.const import (
+    PLATFORM_BK72XX,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_RP2040,
+    PLATFORM_RTL87XX,
+)
 from esphome.core import EsphomeError
 from esphome.storage_json import StorageJSON
 from esphome.writer import (
@@ -28,6 +35,7 @@ from esphome.writer import (
     generate_build_info_data_h,
     get_build_info,
     storage_should_clean,
+    storage_should_update_cmake_cache,
     update_storage_json,
     write_cpp,
     write_gitignore,
@@ -169,6 +177,86 @@ def test_storage_edge_case_from_empty_integrations(
     old = create_storage(loaded_integrations=[])
     new = create_storage(loaded_integrations=["api", "wifi"])
     assert storage_should_clean(old, new) is False
+
+
+# Tests for storage_should_update_cmake_cache
+
+
+@pytest.mark.parametrize("framework", ["arduino", "esp-idf"])
+def test_storage_should_update_cmake_cache_when_integration_added_esp32(
+    create_storage: Callable[..., StorageJSON],
+    framework: str,
+) -> None:
+    """Test cmake cache update triggered when integration added on ESP32."""
+    old = create_storage(
+        loaded_integrations=["api", "wifi"],
+        core_platform=PLATFORM_ESP32,
+        framework=framework,
+    )
+    new = create_storage(
+        loaded_integrations=["api", "wifi", "restart"],
+        core_platform=PLATFORM_ESP32,
+        framework=framework,
+    )
+    assert storage_should_update_cmake_cache(old, new) is True
+
+
+def test_storage_should_update_cmake_cache_when_platform_changed_esp32(
+    create_storage: Callable[..., StorageJSON],
+) -> None:
+    """Test cmake cache update triggered when platforms change on ESP32."""
+    old = create_storage(
+        loaded_integrations=["api", "wifi"],
+        loaded_platforms={"sensor"},
+        core_platform=PLATFORM_ESP32,
+        framework="arduino",
+    )
+    new = create_storage(
+        loaded_integrations=["api", "wifi"],
+        loaded_platforms={"sensor", "binary_sensor"},
+        core_platform=PLATFORM_ESP32,
+        framework="arduino",
+    )
+    assert storage_should_update_cmake_cache(old, new) is True
+
+
+def test_storage_should_not_update_cmake_cache_when_nothing_changes(
+    create_storage: Callable[..., StorageJSON],
+) -> None:
+    """Test cmake cache not updated when nothing changes."""
+    old = create_storage(
+        loaded_integrations=["api", "wifi"],
+        core_platform=PLATFORM_ESP32,
+        framework="arduino",
+    )
+    new = create_storage(
+        loaded_integrations=["api", "wifi"],
+        core_platform=PLATFORM_ESP32,
+        framework="arduino",
+    )
+    assert storage_should_update_cmake_cache(old, new) is False
+
+
+@pytest.mark.parametrize(
+    "core_platform",
+    [PLATFORM_ESP8266, PLATFORM_RP2040, PLATFORM_BK72XX, PLATFORM_RTL87XX],
+)
+def test_storage_should_not_update_cmake_cache_for_non_esp32(
+    create_storage: Callable[..., StorageJSON],
+    core_platform: str,
+) -> None:
+    """Test cmake cache not updated for non-ESP32 platforms."""
+    old = create_storage(
+        loaded_integrations=["api", "wifi"],
+        core_platform=core_platform,
+        framework="arduino",
+    )
+    new = create_storage(
+        loaded_integrations=["api", "wifi", "restart"],
+        core_platform=core_platform,
+        framework="arduino",
+    )
+    assert storage_should_update_cmake_cache(old, new) is False
 
 
 @patch("esphome.writer.clean_build")
@@ -378,8 +466,8 @@ def test_clean_build(
     ) as mock_get_instance:
         mock_config = MagicMock()
         mock_get_instance.return_value = mock_config
-        mock_config.get.side_effect = (
-            lambda section, option: str(platformio_cache_dir)
+        mock_config.get.side_effect = lambda section, option: (
+            str(platformio_cache_dir)
             if (section, option) == ("platformio", "cache_dir")
             else ""
         )
@@ -542,8 +630,8 @@ def test_clean_build_empty_cache_dir(
     ) as mock_get_instance:
         mock_config = MagicMock()
         mock_get_instance.return_value = mock_config
-        mock_config.get.side_effect = (
-            lambda section, option: "   "  # Whitespace only
+        mock_config.get.side_effect = lambda section, option: (
+            "   "  # Whitespace only
             if (section, option) == ("platformio", "cache_dir")
             else ""
         )
@@ -776,6 +864,171 @@ def test_clean_all_with_yaml_file(
     # Verify logging mentions the build dir
     assert "Cleaning" in caplog.text
     assert str(build_dir) in caplog.text
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_with_yaml_build_path(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_all cleans absolute build_path specified in YAML config."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    # Create an absolute custom build path directory with contents
+    custom_build = tmp_path / "custom_build"
+    custom_build.mkdir()
+    (custom_build / "firmware.bin").write_text("x")
+    sub = custom_build / "subdir"
+    sub.mkdir()
+    (sub / "file.txt").write_text("x")
+
+    yaml_file = config_dir / "test.yaml"
+    # Absolute build_path: data_dir / absolute = absolute (Python Path behavior)
+    yaml_file.write_text(f"esphome:\n  name: test\n  build_path: {custom_build}\n")
+
+    # Also create the normal .esphome dir
+    build_dir = config_dir / ".esphome"
+    build_dir.mkdir()
+    (build_dir / "dummy.txt").write_text("x")
+
+    from esphome.writer import clean_all
+
+    with caplog.at_level("INFO"):
+        clean_all([str(yaml_file)])
+
+    # Both .esphome and custom build_path should be cleaned
+    assert build_dir.exists()
+    assert not (build_dir / "dummy.txt").exists()
+    assert custom_build.exists()
+    assert not (custom_build / "firmware.bin").exists()
+    assert not sub.exists()
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_with_yaml_parse_error(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_all still cleans .esphome when YAML parse fails."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    yaml_file = config_dir / "test.yaml"
+    yaml_file.write_text("invalid: yaml: content: [")
+
+    build_dir = config_dir / ".esphome"
+    build_dir.mkdir()
+    (build_dir / "dummy.txt").write_text("x")
+
+    from esphome.writer import clean_all
+
+    with caplog.at_level("INFO"):
+        clean_all([str(yaml_file)])
+
+    # .esphome should still be cleaned despite YAML parse failure
+    assert build_dir.exists()
+    assert not (build_dir / "dummy.txt").exists()
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_with_env_build_path(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_all cleans ESPHOME_BUILD_PATH directory."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    build_dir = config_dir / ".esphome"
+    build_dir.mkdir()
+    (build_dir / "dummy.txt").write_text("x")
+
+    # Create env build path directory
+    env_build = tmp_path / "env_build"
+    env_build.mkdir()
+    (env_build / "firmware.bin").write_text("x")
+
+    from esphome.writer import clean_all
+
+    with (
+        caplog.at_level("INFO"),
+        patch.dict(os.environ, {"ESPHOME_BUILD_PATH": str(env_build)}),
+    ):
+        clean_all([str(config_dir)])
+
+    # Both should be cleaned
+    assert not (build_dir / "dummy.txt").exists()
+    assert env_build.exists()
+    assert not (env_build / "firmware.bin").exists()
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_ignores_empty_env_vars(
+    mock_core: MagicMock,
+    tmp_path: Path,
+) -> None:
+    """Test clean_all ignores empty ESPHOME_BUILD_PATH/ESPHOME_DATA_DIR."""
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+
+    # Create a file in cwd that must NOT be cleaned
+    marker = tmp_path / "important.txt"
+    marker.write_text("do not delete")
+
+    from esphome.writer import clean_all
+
+    with patch.dict(
+        os.environ,
+        {"ESPHOME_BUILD_PATH": "", "ESPHOME_DATA_DIR": ""},
+    ):
+        clean_all([str(config_dir)])
+
+    # Empty env vars must not cause cwd to be cleaned
+    assert marker.exists()
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_no_args_with_esphome_dir(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_all with no args cleans .esphome in cwd."""
+    esphome_dir = tmp_path / ".esphome"
+    esphome_dir.mkdir()
+    (esphome_dir / "dummy.txt").write_text("x")
+
+    from esphome.writer import clean_all
+
+    with (
+        caplog.at_level("INFO"),
+        patch("esphome.writer.Path.cwd", return_value=tmp_path),
+    ):
+        clean_all([])
+
+    assert esphome_dir.exists()
+    assert not (esphome_dir / "dummy.txt").exists()
+
+
+@patch("esphome.writer.CORE")
+def test_clean_all_no_args_no_esphome_dir(
+    mock_core: MagicMock,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test clean_all with no args and no .esphome dir warns."""
+    from esphome.writer import clean_all
+
+    with (
+        caplog.at_level("WARNING"),
+        patch("esphome.writer.Path.cwd", return_value=tmp_path),
+    ):
+        clean_all([])
+
+    assert "No configuration files specified" in caplog.text
 
 
 @patch("esphome.writer.CORE")
@@ -1486,8 +1739,8 @@ def test_copy_src_tree_writes_build_info_files(
     mock_component.resources = mock_resources
 
     # Setup mocks
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF
     mock_core.comment = "Test comment"
@@ -1561,8 +1814,8 @@ def test_copy_src_tree_detects_config_hash_change(
     build_info_h_path.write_text("// old build_info_data.h")
 
     # Setup mocks
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF  # Different from existing
     mock_core.comment = ""
@@ -1623,8 +1876,8 @@ def test_copy_src_tree_detects_version_change(
     build_info_h_path.write_text("// old build_info_data.h")
 
     # Setup mocks
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF
     mock_core.comment = ""
@@ -1673,8 +1926,8 @@ def test_copy_src_tree_handles_invalid_build_info_json(
     build_info_h_path.write_text("// old build_info_data.h")
 
     # Setup mocks
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF
     mock_core.comment = ""
@@ -1747,8 +2000,8 @@ def test_copy_src_tree_build_info_timestamp_behavior(
     mock_component.resources = mock_resources
 
     # Setup mocks
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF
     mock_core.comment = ""
@@ -1842,8 +2095,8 @@ def test_copy_src_tree_detects_removed_source_file(
     existing_file.write_text("// test file")
 
     # Setup mocks - no components, so the file should be removed
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF
     mock_core.comment = ""
@@ -1904,8 +2157,8 @@ def test_copy_src_tree_ignores_removed_generated_file(
     build_info_h.write_text("// old generated file")
 
     # Setup mocks
-    mock_core.relative_src_path.side_effect = lambda *args: src_path.joinpath(*args)
-    mock_core.relative_build_path.side_effect = lambda *args: build_path.joinpath(*args)
+    mock_core.relative_src_path.side_effect = src_path.joinpath
+    mock_core.relative_build_path.side_effect = build_path.joinpath
     mock_core.defines = []
     mock_core.config_hash = 0xDEADBEEF
     mock_core.comment = ""

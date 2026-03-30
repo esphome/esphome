@@ -18,16 +18,16 @@ class X9cOutput : public output::FloatOutput, public Component {
   void setup() override;
   void dump_config() override;
 
-  void trim_value(int change_amount);
+  void trim_value(int32_t change_amount);
 
  protected:
   void write_state(float state) override;
   InternalGPIOPin *cs_pin_;
   InternalGPIOPin *inc_pin_;
   InternalGPIOPin *ud_pin_;
-  float initial_value_;
-  float pot_value_;
-  int step_delay_;
+  float initial_value_{0.0f};
+  float pot_value_{0.0f};
+  int step_delay_{0};
 };
 
 }  // namespace x9c
