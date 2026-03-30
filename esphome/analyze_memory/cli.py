@@ -672,28 +672,6 @@ class MemoryAnalyzerCLI(MemoryAnalyzer):
 
         return "\n".join(lines)
 
-    def to_json(self) -> str:
-        """Export analysis results as JSON."""
-        data = {
-            "components": {
-                name: {
-                    "text": mem.text_size,
-                    "rodata": mem.rodata_size,
-                    "data": mem.data_size,
-                    "bss": mem.bss_size,
-                    "flash_total": mem.flash_total,
-                    "ram_total": mem.ram_total,
-                    "symbol_count": mem.symbol_count,
-                }
-                for name, mem in self.components.items()
-            },
-            "totals": {
-                "flash": sum(c.flash_total for c in self.components.values()),
-                "ram": sum(c.ram_total for c in self.components.values()),
-            },
-        }
-        return json.dumps(data, indent=2)
-
     def dump_uncategorized_symbols(self, output_file: str | None = None) -> None:
         """Dump uncategorized symbols for analysis."""
         # Sort by size descending
@@ -759,7 +737,6 @@ def main():
     build_dir = sys.argv[1]
 
     # Load build directory
-    import json
     from pathlib import Path
 
     from esphome.platformio_api import IDEData
