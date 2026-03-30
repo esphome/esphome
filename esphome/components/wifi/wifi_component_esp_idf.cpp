@@ -145,7 +145,8 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
   if (xQueueSend(s_event_queue, &to_send, 0L) != pdPASS) {
     delete to_send;  // NOLINT(cppcoreguidelines-owning-memory)
   } else {
-    s_event_pending.store(1, std::memory_order_release);
+    // relaxed: this is just a hint; xQueueReceive is the source of truth
+    s_event_pending.store(1, std::memory_order_relaxed);
   }
 }
 
@@ -734,7 +735,7 @@ const char *get_disconnect_reason_str(uint8_t reason) {
 void WiFiComponent::wifi_loop_() {
   // Fast path: skip xQueueReceive kernel call when no events are pending.
   // The atomic load is much cheaper than entering the FreeRTOS kernel.
-  if (s_event_pending.load(std::memory_order_acquire) == 0)
+  if (s_event_pending.load(std::memory_order_relaxed) == 0)
     return;
 
   // Clear flag before draining. If a new event arrives between the clear
