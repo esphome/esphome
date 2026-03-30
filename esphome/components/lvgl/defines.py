@@ -52,10 +52,6 @@ def get_remapped_uses():
     return get_data(KEY_REMAPPED_USES, set())
 
 
-def get_color_formats():
-    return get_data(KEY_COLOR_FORMATS, set())
-
-
 def add_warning(msg: str):
     get_warnings().add(msg)
 

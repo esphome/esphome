@@ -17,7 +17,6 @@ from ..defines import (
     LV_OBJ_FLAG,
     TYPE_FLEX,
     add_warning,
-    get_color_formats,
     literal,
 )
 from ..helpers import add_lv_use
@@ -128,7 +127,6 @@ async def msgbox_to_code(top_layer, conf):
         add_warning(
             "'button_style' for msgbox is deprecated - style the buttons directly."
         )
-    get_color_formats().add("ARGB8888")
     messagebox_id = conf[CONF_ID]
     outer_id = ID(f"{messagebox_id.id}_outer", type=lv_obj_t)
     outer = cg.Pvariable(outer_id, lv_expr.obj_create(top_layer))
