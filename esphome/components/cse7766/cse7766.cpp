@@ -206,7 +206,8 @@ void CSE7766Component::parse_data_() {
       if (apparent_power > 0) {
         pf = power / apparent_power;
         if (pf < 0 || pf > 1) {
-          ESP_LOGD(TAG, "Out-of-range power factor %.4f clamped to [0, 1] (measurement noise near chip resolution limit)",
+          ESP_LOGD(TAG,
+                   "Out-of-range power factor %.4f clamped to [0, 1] (measurement noise near chip resolution limit)",
                    pf);
           pf = pf < 0.0f ? 0.0f : 1.0f;
         }
