@@ -51,9 +51,9 @@ class KeyboardType(WidgetType):
         lvgl_components_required.add(CONF_KEYBOARD)
         if mode := config.get(CONF_MODE):
             await w.set_property(CONF_MODE, await KEYBOARD_MODES.process(mode))
-        # If a textarea is configured, it must be generated before the keyboard can attach it.
-        # So run asynchronously if .
         if textarea := config.get(CONF_TEXTAREA):
+            # If a textarea is configured, it must be generated before the keyboard can attach it.
+            # If not yet configured, defer the attachment code.
 
             async def add_textarea():
                 async with LvContext():
