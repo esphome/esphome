@@ -146,7 +146,6 @@ class ESP32BLE : public Component {
   void advertising_start();
   void advertising_set_service_data(const std::vector<uint8_t> &data);
   void advertising_set_manufacturer_data(const std::vector<uint8_t> &data);
-  void advertising_set_manufacturer_data(std::span<const uint8_t> data);
   void advertising_set_appearance(uint16_t appearance) { this->appearance_ = appearance; }
   void advertising_set_service_data_and_name(std::span<const uint8_t> data, bool include_name);
   void advertising_add_service_uuid(ESPBTUUID uuid);

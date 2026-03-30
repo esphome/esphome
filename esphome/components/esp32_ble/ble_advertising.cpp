@@ -59,10 +59,6 @@ void BLEAdvertising::set_service_data(const std::vector<uint8_t> &data) {
 }
 
 void BLEAdvertising::set_manufacturer_data(const std::vector<uint8_t> &data) {
-  this->set_manufacturer_data(std::span<const uint8_t>(data));
-}
-
-void BLEAdvertising::set_manufacturer_data(std::span<const uint8_t> data) {
   delete[] this->advertising_data_.p_manufacturer_data;
   this->advertising_data_.p_manufacturer_data = nullptr;
   this->advertising_data_.manufacturer_len = data.size();

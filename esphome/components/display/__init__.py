@@ -63,13 +63,11 @@ def validate_auto_clear(value):
     return cv.boolean(value)
 
 
-def basic_display_schema(default_update_interval: str = "1s") -> cv.Schema:
-    """Create a basic display schema with configurable default update interval."""
-    return cv.Schema(
-        {
-            cv.Exclusive(CONF_LAMBDA, CONF_LAMBDA): cv.lambda_,
-        }
-    ).extend(cv.polling_component_schema(default_update_interval))
+BASIC_DISPLAY_SCHEMA = cv.Schema(
+    {
+        cv.Exclusive(CONF_LAMBDA, CONF_LAMBDA): cv.lambda_,
+    }
+).extend(cv.polling_component_schema("1s"))
 
 
 def _validate_test_card(config):
@@ -83,41 +81,34 @@ def _validate_test_card(config):
     return config
 
 
-def full_display_schema(default_update_interval: str = "1s") -> cv.Schema:
-    """Create a full display schema with configurable default update interval."""
-    schema = basic_display_schema(default_update_interval).extend(
-        {
-            cv.Optional(CONF_ROTATION): validate_rotation,
-            cv.Exclusive(CONF_PAGES, CONF_LAMBDA): cv.All(
-                cv.ensure_list(
-                    {
-                        cv.GenerateID(): cv.declare_id(DisplayPage),
-                        cv.Required(CONF_LAMBDA): cv.lambda_,
-                    }
-                ),
-                cv.Length(min=1),
-            ),
-            cv.Optional(CONF_ON_PAGE_CHANGE): automation.validate_automation(
+FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
+    {
+        cv.Optional(CONF_ROTATION): validate_rotation,
+        cv.Exclusive(CONF_PAGES, CONF_LAMBDA): cv.All(
+            cv.ensure_list(
                 {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        DisplayOnPageChangeTrigger
-                    ),
-                    cv.Optional(CONF_FROM): cv.use_id(DisplayPage),
-                    cv.Optional(CONF_TO): cv.use_id(DisplayPage),
+                    cv.GenerateID(): cv.declare_id(DisplayPage),
+                    cv.Required(CONF_LAMBDA): cv.lambda_,
                 }
             ),
-            cv.Optional(
-                CONF_AUTO_CLEAR_ENABLED, default=CONF_UNSPECIFIED
-            ): validate_auto_clear,
-            cv.Optional(CONF_SHOW_TEST_CARD): cv.boolean,
-        }
-    )
-    schema.add_extra(_validate_test_card)
-    return schema
-
-
-BASIC_DISPLAY_SCHEMA = basic_display_schema("1s")
-FULL_DISPLAY_SCHEMA = full_display_schema("1s")
+            cv.Length(min=1),
+        ),
+        cv.Optional(CONF_ON_PAGE_CHANGE): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                    DisplayOnPageChangeTrigger
+                ),
+                cv.Optional(CONF_FROM): cv.use_id(DisplayPage),
+                cv.Optional(CONF_TO): cv.use_id(DisplayPage),
+            }
+        ),
+        cv.Optional(
+            CONF_AUTO_CLEAR_ENABLED, default=CONF_UNSPECIFIED
+        ): validate_auto_clear,
+        cv.Optional(CONF_SHOW_TEST_CARD): cv.boolean,
+    }
+)
+FULL_DISPLAY_SCHEMA.add_extra(_validate_test_card)
 
 
 async def setup_display_core_(var, config):
