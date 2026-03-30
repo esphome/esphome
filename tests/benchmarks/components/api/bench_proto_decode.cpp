@@ -10,9 +10,9 @@ namespace esphome::api::benchmarks {
 // sub-microsecond benchmarks.
 static constexpr int kInnerIterations = 2000;
 
-// Helper: encode a message into a buffer and return the raw data/size.
-// The returned pointer/size are forced through an asm barrier so the
-// compiler cannot prove their values are compile-time constants.
+// Helper: encode a message into an APIBuffer for reuse in decode benchmarks.
+// Optimization barriers are applied to the decode target objects via
+// DoNotOptimize/ClobberMemory, not to this buffer.
 template<typename T> static APIBuffer encode_message(const T &msg) {
   APIBuffer buffer;
   uint32_t size = msg.calculate_size();
@@ -21,10 +21,6 @@ template<typename T> static APIBuffer encode_message(const T &msg) {
   msg.encode(writer);
   return buffer;
 }
-
-/// Force a pointer through an asm barrier so the compiler cannot
-/// prove its contents are unchanged across iterations.
-static void escape(void *p) { asm volatile("" : : "g"(p) : "memory"); }
 
 // --- HelloRequest decode (string + varint fields) ---
 
@@ -36,11 +32,12 @@ static void Decode_HelloRequest(benchmark::State &state) {
   auto encoded = encode_message(source);
 
   for (auto _ : state) {
+    HelloRequest msg;
     for (int i = 0; i < kInnerIterations; i++) {
-      HelloRequest msg;
-      escape(&msg);
+      benchmark::DoNotOptimize(msg);
       msg.decode(encoded.data(), encoded.size());
-      escape(&msg);
+      benchmark::DoNotOptimize(msg);
+      benchmark::ClobberMemory();
     }
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
@@ -56,11 +53,12 @@ static void Decode_SwitchCommandRequest(benchmark::State &state) {
   auto encoded = encode_message(source);
 
   for (auto _ : state) {
+    SwitchCommandRequest msg;
     for (int i = 0; i < kInnerIterations; i++) {
-      SwitchCommandRequest msg;
-      escape(&msg);
+      benchmark::DoNotOptimize(msg);
       msg.decode(encoded.data(), encoded.size());
-      escape(&msg);
+      benchmark::DoNotOptimize(msg);
+      benchmark::ClobberMemory();
     }
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
@@ -85,11 +83,12 @@ static void Decode_LightCommandRequest(benchmark::State &state) {
   auto encoded = encode_message(source);
 
   for (auto _ : state) {
+    LightCommandRequest msg;
     for (int i = 0; i < kInnerIterations; i++) {
-      LightCommandRequest msg;
-      escape(&msg);
+      benchmark::DoNotOptimize(msg);
       msg.decode(encoded.data(), encoded.size());
-      escape(&msg);
+      benchmark::DoNotOptimize(msg);
+      benchmark::ClobberMemory();
     }
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
