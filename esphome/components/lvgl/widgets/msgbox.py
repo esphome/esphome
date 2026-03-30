@@ -1,5 +1,4 @@
 from esphome import codegen as cg, config_validation as cv
-from esphome.components.lvgl.widgets.img import CONF_IMAGE
 from esphome.const import CONF_BUTTON, CONF_ID, CONF_TEXT
 from esphome.core import ID
 from esphome.cpp_generator import MockObjClass
@@ -35,6 +34,7 @@ from ..styles import LVStyle
 from ..types import LV_EVENT, lv_obj_t
 from . import Widget, WidgetType, add_widgets, set_obj_properties, widget_to_code
 from .button import button_spec, lv_button_t
+from .img import CONF_IMAGE
 from .label import CONF_LABEL
 from .obj import obj_spec
 
