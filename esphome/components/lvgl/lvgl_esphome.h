@@ -128,10 +128,19 @@ class LvPageType : public Parented<LvglComponent> {
   bool skip;
 };
 
-using LvLambdaType = std::function<void(lv_obj_t *)>;
-using set_value_lambda_t = std::function<void(float)>;
 using event_callback_t = void(lv_event_t *);
-using text_lambda_t = std::function<const char *()>;
+
+class LvLambdaComponent : public Component {
+ public:
+  LvLambdaComponent(void (*callback)()) : callback_(callback) {}
+
+  void setup() override { this->callback_(); }
+  // execute after the LvglComponent is setup
+  float get_setup_priority() const override { return setup_priority::PROCESSOR - 5; }
+
+ protected:
+  void (*callback_)();
+};
 
 template<typename... Ts> class ObjUpdateAction : public Action<Ts...> {
  public:
