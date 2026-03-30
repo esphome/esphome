@@ -1,8 +1,6 @@
 #pragma once
 
 #include <string>
-#include <vector>
-#include <cmath>
 
 #include "esphome/core/helpers.h"
 #include "esphome/components/modbus/modbus_definitions.h"
