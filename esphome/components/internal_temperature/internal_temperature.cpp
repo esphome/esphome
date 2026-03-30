@@ -72,7 +72,6 @@ void InternalTemperatureSensor::update() {
       this->publish_state(NAN);
     }
   }
-  return;
 #else
 
   float temperature = NAN;
