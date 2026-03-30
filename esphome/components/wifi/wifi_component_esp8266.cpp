@@ -639,6 +639,7 @@ WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
     return WiFiSTAConnectStatus::CONNECTING;
   return WiFiSTAConnectStatus::IDLE;
 }
+
 bool WiFiComponent::wifi_scan_start_(bool passive) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
