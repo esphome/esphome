@@ -1,4 +1,3 @@
-// Trigger CI memory impact (uses updated ESPAsyncWebServer from web_server_base)
 #include "web_server.h"
 #ifdef USE_WEBSERVER
 #include "esphome/components/json/json_util.h"
@@ -1588,32 +1587,17 @@ json::SerializationBuffer<> WebServer::climate_json_(climate::Climate *obj, Json
     root[ESPHOME_F("state")] = root[ESPHOME_F("action")];
     has_state = true;
   }
-  if (traits.get_supports_fan_modes()) {
-    if (obj->fan_mode.has_value()) {
-      root[ESPHOME_F("fan_mode")] = PSTR_LOCAL(climate_fan_mode_to_string(obj->fan_mode.value()));
-    } else if (!obj->has_custom_fan_mode()) {
-      root[ESPHOME_F("fan_mode")] = PSTR_LOCAL(climate_fan_mode_to_string(climate::CLIMATE_FAN_AUTO));
-    } else {
-      root[ESPHOME_F("fan_mode")] = "";
-    }
+  if (traits.get_supports_fan_modes() && obj->fan_mode.has_value()) {
+    root[ESPHOME_F("fan_mode")] = PSTR_LOCAL(climate_fan_mode_to_string(obj->fan_mode.value()));
   }
-  if (!traits.get_supported_custom_fan_modes().empty()) {
-    if (obj->has_custom_fan_mode()) {
-      root[ESPHOME_F("custom_fan_mode")] = obj->get_custom_fan_mode();
-    } else {
-      root[ESPHOME_F("custom_fan_mode")] = "";
-    }
+  if (!traits.get_supported_custom_fan_modes().empty() && obj->has_custom_fan_mode()) {
+    root[ESPHOME_F("custom_fan_mode")] = obj->get_custom_fan_mode();
   }
-  if (traits.get_supports_presets()) {
-    root[ESPHOME_F("preset")] =
-        obj->preset.has_value() ? PSTR_LOCAL(climate_preset_to_string(obj->preset.value())) : "";
+  if (traits.get_supports_presets() && obj->preset.has_value()) {
+    root[ESPHOME_F("preset")] = PSTR_LOCAL(climate_preset_to_string(obj->preset.value()));
   }
-  if (!traits.get_supported_custom_presets().empty()) {
-    if (obj->has_custom_preset()) {
-      root[ESPHOME_F("custom_preset")] = obj->get_custom_preset();
-    } else {
-      root[ESPHOME_F("custom_preset")] = "";
-    }
+  if (!traits.get_supported_custom_presets().empty() && obj->has_custom_preset()) {
+    root[ESPHOME_F("custom_preset")] = obj->get_custom_preset();
   }
   if (traits.get_supports_swing_modes()) {
     root[ESPHOME_F("swing_mode")] = PSTR_LOCAL(climate_swing_mode_to_string(obj->swing_mode));

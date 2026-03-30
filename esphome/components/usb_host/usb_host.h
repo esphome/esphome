@@ -177,7 +177,6 @@ class USBClient : public Component {
   // Lock-free pool management using atomic bitmask (no dynamic allocation)
   // Bit i = 1: requests_[i] is in use, Bit i = 0: requests_[i] is available
   // Supports multiple concurrent consumers and producers (both threads can allocate/deallocate)
-  // 2-byte members packed together; trq_in_use_ is uint16_t when MAX_REQUESTS <= 16
   std::atomic<trq_bitmask_t> trq_in_use_;
   uint16_t vid_{};
   uint16_t pid_{};

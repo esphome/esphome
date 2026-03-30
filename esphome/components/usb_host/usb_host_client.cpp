@@ -233,11 +233,7 @@ void USBClient::setup() {
   if (this->usb_task_handle_ == nullptr) {
     ESP_LOGE(TAG, "Failed to create USB task");
     this->mark_failed();
-    return;
   }
-
-  // Start with loop disabled - it will be enabled by client_event_cb when events arrive
-  this->disable_loop();
 }
 
 void USBClient::usb_task_fn(void *arg) {
