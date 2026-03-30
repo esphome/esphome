@@ -23,7 +23,7 @@ class NextionSensor : public NextionComponent, public sensor::Sensor, public Pol
   void set_state(float state, bool publish) override { this->set_state(state, publish, true); }
   void set_state(float state, bool publish, bool send_to_nextion) override;
 
-  NextionQueueType get_queue_type() override {
+  NextionQueueType get_queue_type() const override {
 #ifdef USE_NEXTION_WAVEFORM
     return this->wave_chan_id_ == UINT8_MAX ? NextionQueueType::SENSOR : NextionQueueType::WAVEFORM_SENSOR;
 #else   // USE_NEXTION_WAVEFORM
