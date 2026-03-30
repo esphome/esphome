@@ -143,8 +143,9 @@ def _add_callback(
 ) -> None:
     """Generate a lambda callback that forwards to a handler method.
 
-    Uses a braced scope with a local variable to avoid capturing variables
-    with static storage duration.
+    Uses a braced scope with a local pointer variable so the generated C++
+    lambda captures only that pointer, avoiding GCC warnings about capturing
+    variables with static storage duration.
     """
     cg.add(
         cg.RawStatement(
