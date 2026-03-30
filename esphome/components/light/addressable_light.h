@@ -27,9 +27,8 @@ class AddressableLightState final : public LightState {
  public:
   /// Returns the estimated current draw of the LED strip in milliamps.
   /// Convenience wrapper so `id(my_light).get_estimated_current_ma()` works in lambdas.
-  float get_estimated_current_ma() {
-    return static_cast<AddressableLight *>(this->get_output())->get_estimated_current_ma();
-  }
+  /// Defined after AddressableLight is fully declared below.
+  float get_estimated_current_ma();
 };
 
 class AddressableLight : public LightOutput, public Component {
@@ -127,6 +126,11 @@ class AddressableLight : public LightOutput, public Component {
 #endif
   bool effect_active_{false};
 };
+
+// Defined here (after AddressableLight is complete) to avoid incomplete-type cast error.
+inline float AddressableLightState::get_estimated_current_ma() {
+  return static_cast<AddressableLight *>(this->get_output())->get_estimated_current_ma();
+}
 
 class AddressableLightTransformer : public LightTransformer {
  public:
