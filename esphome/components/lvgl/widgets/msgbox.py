@@ -160,7 +160,7 @@ async def msgbox_to_code(top_layer, conf):
         with LocalVariable(
             "close_btn_", lv_obj_t, lv_expr.msgbox_add_close_button(msgbox)
         ) as close_btn:
-            lv_obj.remove_event_cb(close_btn, nullptr)
+            lv_obj.remove_event(close_btn, 0)
             lv_obj.add_event_cb(
                 close_btn,
                 await close_action.get_lambda(),
