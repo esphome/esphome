@@ -6,6 +6,9 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#ifdef USE_ESP32
+#include "esphome/core/lock_free_queue.h"
+#endif
 #include "esphome/core/string_ref.h"
 
 #include <span>
@@ -727,6 +730,7 @@ class WiFiComponent final : public Component {
 
 #ifdef USE_ESP32
   void wifi_process_event_(IDFWiFiEvent *data);
+  friend void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 #endif
 
 #ifdef USE_RP2040
@@ -869,6 +873,13 @@ class WiFiComponent final : public Component {
   bool post_connect_roaming_{true};  // Enabled by default
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   bool is_high_performance_mode_{false};
+#endif
+
+#ifdef USE_ESP32
+  // Lock-free SPSC queue for WiFi events from ESP-IDF event handler.
+  // 17 slots = 16 usable (ring buffer reserves one slot). WiFi events are rare.
+  // Placed at end of class to avoid padding between smaller fields.
+  LockFreeQueue<IDFWiFiEvent, 17> event_queue_;
 #endif
 
  private:
