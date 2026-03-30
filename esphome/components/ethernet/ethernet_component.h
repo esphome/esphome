@@ -25,6 +25,8 @@ extern "C" eth_esp32_emac_config_t eth_esp32_emac_default_config(void);
 #ifdef USE_RP2040
 #if defined(USE_ETHERNET_W5500)
 #include <W5500lwIP.h>
+#elif defined(USE_ETHERNET_W5100)
+#include <W5100lwIP.h>
 #elif defined(USE_ETHERNET_ENC28J60)
 #include <ENC28J60lwIP.h>
 #else
@@ -59,6 +61,7 @@ enum EthernetType : uint8_t {
   ETHERNET_TYPE_JL1101,
   ETHERNET_TYPE_KSZ8081,
   ETHERNET_TYPE_KSZ8081RNA,
+  ETHERNET_TYPE_W5100,
   ETHERNET_TYPE_W5500,
   ETHERNET_TYPE_OPENETH,
   ETHERNET_TYPE_DM9051,
@@ -222,8 +225,15 @@ class EthernetComponent final : public Component {
 
 #ifdef USE_RP2040
   static constexpr uint32_t LINK_CHECK_INTERVAL = 500;  // ms between link/IP polls
+#if defined(USE_ETHERNET_W5100)
+  static constexpr uint32_t RESET_DELAY_MS = 150;  // W5100S PLL lock time
+#else
+  static constexpr uint32_t RESET_DELAY_MS = 10;
+#endif
 #if defined(USE_ETHERNET_W5500)
   Wiznet5500lwIP *eth_{nullptr};
+#elif defined(USE_ETHERNET_W5100)
+  Wiznet5100lwIP *eth_{nullptr};
 #elif defined(USE_ETHERNET_ENC28J60)
   ENC28J60lwIP *eth_{nullptr};
 #else

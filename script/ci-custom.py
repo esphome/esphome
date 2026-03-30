@@ -525,6 +525,29 @@ def lint_constants_usage():
     return errs
 
 
+# Maximum allowed CONF_ constants in esphome/const.py.
+# This file is frozen — new constants go in esphome/components/const/__init__.py.
+# Decrease this number when constants are moved out of const.py.
+CONST_PY_MAX_CONF = 1011
+
+
+@lint_content_check(include=["esphome/const.py"])
+def lint_const_py_frozen(fname, content):
+    """Block new CONF_ constants from being added to esphome/const.py.
+
+    New constants should go in esphome/components/const/__init__.py instead.
+    """
+    count = sum(1 for line in content.splitlines() if line.startswith("CONF_"))
+    if count > CONST_PY_MAX_CONF:
+        return (
+            "esphome/const.py is frozen. "
+            "Add new constants to esphome/components/const/__init__.py instead."
+        )
+    if count < CONST_PY_MAX_CONF:
+        return f"CONST_PY_MAX_CONF in ci-custom.py should be updated to {count}."
+    return None
+
+
 def relative_cpp_search_text(fname: Path, content) -> str:
     parts = fname.parts
     integration = parts[2]
@@ -980,6 +1003,18 @@ def lint_log_in_header(fname, line, col, content):
     return (
         "Found reference to ESP_LOG in header file. Using ESP_LOG* in header files "
         "is currently not possible - please move the definition to a source file (.cpp)"
+    )
+
+
+@lint_content_find_check(
+    "FINAL_VALIDATE_SCHEMA",
+    include=["esphome/core/*.py"],
+    exclude=["esphome/core/entity_helpers.py"],
+)
+def lint_final_validate_in_core(fname, line, col, content):
+    return (
+        "FINAL_VALIDATE_SCHEMA in esphome/core/ is not picked up by the component loader. "
+        "Use CoreFinalValidateStep in esphome/config.py instead."
     )
 
 

@@ -958,6 +958,23 @@ class FinalValidateValidationStep(ConfigValidationStep):
         fv.full_config.reset(token)
 
 
+class CoreFinalValidateStep(ConfigValidationStep):
+    """Run final validation on core esphome config (area/device hash collisions)."""
+
+    # Same priority as component final validate steps
+    priority = -20.0
+
+    def run(self, result: Config) -> None:
+        if result.errors:
+            return
+
+        token = fv.full_config.set(result)
+        with result.catch_error([CONF_ESPHOME]):
+            if CONF_ESPHOME in result:
+                core_config.validate_ids_and_references(result[CONF_ESPHOME])
+        fv.full_config.reset(token)
+
+
 class PinUseValidationCheck(ConfigValidationStep):
     """Check for pin reuse"""
 
@@ -989,7 +1006,11 @@ def validate_config(
 
         result.add_output_path([CONF_PACKAGES], CONF_PACKAGES)
         try:
-            config = do_packages_pass(config, skip_update=skip_external_update)
+            config = do_packages_pass(
+                config,
+                command_line_substitutions=command_line_substitutions,
+                skip_update=skip_external_update,
+            )
         except vol.Invalid as err:
             result.update(config)
             result.add_error(err)
@@ -1081,6 +1102,7 @@ def validate_config(
     for domain, conf in config.items():
         result.add_validation_step(LoadValidationStep(domain, conf))
     result.add_validation_step(IDPassValidationStep())
+    result.add_validation_step(CoreFinalValidateStep())
     result.add_validation_step(PinUseValidationCheck())
 
     result.add_validation_step(RemoveReferenceValidationStep())
