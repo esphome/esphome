@@ -814,8 +814,8 @@ class WiFiComponent final : public Component {
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */
   bool error_from_callback_{false};
-#ifdef USE_ESP8266
-  uint8_t sta_state_{0};  // ESP8266WiFiSTAState, defined in wifi_component_esp8266.cpp
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+  uint8_t sta_state_{0};  // Platform-specific enum, defined in platform cpp file
 #endif
   RetryHiddenMode retry_hidden_mode_{RetryHiddenMode::BLIND_RETRY};
   RoamingState roaming_state_{RoamingState::IDLE};
