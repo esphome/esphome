@@ -80,20 +80,22 @@ class Select : public EntityBase {
     this->state_callback_.add(std::forward<F>(callback));
   }
 
-  /** Set the value of the select by index, this is an optional virtual method.
-   *
-   * This method is called by the SelectCall when the index is already known.
-   * Default implementation converts to string and calls control().
-   * Override this to work directly with indices and avoid string conversions.
-   *
-   * @param index The index as validated by the SelectCall.
-   */
-  virtual void control(size_t index) { this->control(this->option_at(index)); }
-
  protected:
   friend class SelectCall;
 
   size_t active_index_{0};
+
+  /** Set the value of the select by index, this is an optional virtual method.
+   *
+   * IMPORTANT: At least ONE of the two control() methods must be overridden by derived classes.
+   * Overriding this index-based version is PREFERRED as it avoids string conversions.
+   *
+   * This method is called by the SelectCall when the index is already known.
+   * Default implementation converts to string and calls control(const std::string&).
+   *
+   * @param index The index as validated by the SelectCall.
+   */
+  virtual void control(size_t index) { this->control(this->option_at(index)); }
 
   /** Set the value of the select, this is a virtual method that each select integration can implement.
    *
