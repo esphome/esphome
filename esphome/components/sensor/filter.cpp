@@ -268,6 +268,7 @@ optional<float> throttle_with_priority_new_value(Sensor *parent, float value, co
   }
   return {};
 }
+
 // DeltaFilter
 DeltaFilter::DeltaFilter(float min_a0, float min_a1, float max_a0, float max_a1)
     : min_a0_(min_a0), min_a1_(min_a1), max_a0_(max_a0), max_a1_(max_a1) {}
