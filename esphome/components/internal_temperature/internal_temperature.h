@@ -12,11 +12,6 @@ class InternalTemperatureSensor : public sensor::Sensor, public PollingComponent
   void dump_config() override;
 
   void update() override;
-
- protected:
-#if defined(USE_ZEPHYR) && defined(USE_NRF52)
-  void poll_nrf52_temperature_(uint8_t attempts_left);
-#endif  // USE_ZEPHYR && USE_NRF52
 };
 
 }  // namespace internal_temperature

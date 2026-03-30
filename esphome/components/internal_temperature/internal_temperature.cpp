@@ -23,7 +23,8 @@ uint32_t temp_single_get_current_temperature(uint32_t *temp_value);
 }
 #endif  // USE_BK72XX
 #if defined(USE_ZEPHYR) && defined(USE_NRF52)
-#include "hal/nrf_temp.h"
+#include <zephyr/device.h>
+#include <zephyr/drivers/sensor.h>
 #endif  // USE_ZEPHYR && USE_NRF52
 
 namespace esphome {
@@ -31,9 +32,7 @@ namespace internal_temperature {
 
 static const char *const TAG = "internal_temperature";
 #if defined(USE_ZEPHYR) && defined(USE_NRF52)
-static constexpr uint32_t NRF52_TEMP_READY_TIMEOUT_ID = 1;
-static constexpr uint32_t NRF52_TEMP_POLL_DELAY_MS = 1;
-static constexpr uint8_t NRF52_TEMP_MAX_POLLS = 5;
+static const struct device *const DIE_TEMPERATURE_SENSOR = DEVICE_DT_GET_ONE(nordic_nrf_temp);
 #endif  // USE_ZEPHYR && USE_NRF52
 #ifdef USE_ESP32
 #if defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C5) || \
@@ -45,13 +44,36 @@ static temperature_sensor_handle_t tsensNew = NULL;
 
 void InternalTemperatureSensor::update() {
 #if defined(USE_ZEPHYR) && defined(USE_NRF52)
-  this->cancel_timeout(NRF52_TEMP_READY_TIMEOUT_ID);
-  nrf_temp_event_clear(NRF_TEMP, NRF_TEMP_EVENT_DATARDY);
-  nrf_temp_task_trigger(NRF_TEMP, NRF_TEMP_TASK_START);
-  this->set_timeout(NRF52_TEMP_READY_TIMEOUT_ID, NRF52_TEMP_POLL_DELAY_MS,
-                    [this]() { this->poll_nrf52_temperature_(NRF52_TEMP_MAX_POLLS); });
+  struct sensor_value value;
+  int result = sensor_sample_fetch(DIE_TEMPERATURE_SENSOR);
+  if (result != 0) {
+    ESP_LOGE(TAG, "Failed to fetch nRF52 die temperature sample (%d)", result);
+    if (!this->has_state()) {
+      this->publish_state(NAN);
+    }
+    return;
+  }
+
+  result = sensor_channel_get(DIE_TEMPERATURE_SENSOR, SENSOR_CHAN_DIE_TEMP, &value);
+  if (result != 0) {
+    ESP_LOGE(TAG, "Failed to get nRF52 die temperature (%d)", result);
+    if (!this->has_state()) {
+      this->publish_state(NAN);
+    }
+    return;
+  }
+
+  const float temperature = value.val1 + (value.val2 / 1000000.0f);
+  if (std::isfinite(temperature)) {
+    this->publish_state(temperature);
+  } else {
+    ESP_LOGD(TAG, "Ignoring invalid nRF52 temperature (value=%.1f)", temperature);
+    if (!this->has_state()) {
+      this->publish_state(NAN);
+    }
+  }
   return;
-#endif  // USE_ZEPHYR && USE_NRF52
+#else
 
   float temperature = NAN;
   bool success = false;
@@ -96,41 +118,17 @@ void InternalTemperatureSensor::update() {
       this->publish_state(NAN);
     }
   }
-}
-
-#if defined(USE_ZEPHYR) && defined(USE_NRF52)
-void InternalTemperatureSensor::poll_nrf52_temperature_(uint8_t attempts_left) {
-  if (!nrf_temp_event_check(NRF_TEMP, NRF_TEMP_EVENT_DATARDY)) {
-    if (attempts_left > 0) {
-      this->set_timeout(NRF52_TEMP_READY_TIMEOUT_ID, NRF52_TEMP_POLL_DELAY_MS,
-                        [this, attempts_left]() { this->poll_nrf52_temperature_(attempts_left - 1); });
-      return;
-    }
-
-    nrf_temp_task_trigger(NRF_TEMP, NRF_TEMP_TASK_STOP);
-    ESP_LOGE(TAG, "Timed out reading nRF52 internal temperature");
-    if (!this->has_state()) {
-      this->publish_state(NAN);
-    }
-    return;
-  }
-
-  nrf_temp_task_trigger(NRF_TEMP, NRF_TEMP_TASK_STOP);
-
-  const int32_t raw_temperature = nrf_temp_result_get(NRF_TEMP);
-  const float temperature = raw_temperature / 4.0f;
-  if (std::isfinite(temperature)) {
-    this->publish_state(temperature);
-  } else {
-    ESP_LOGD(TAG, "Ignoring invalid temperature (value=%.1f)", temperature);
-    if (!this->has_state()) {
-      this->publish_state(NAN);
-    }
-  }
-}
 #endif  // USE_ZEPHYR && USE_NRF52
+}
 
 void InternalTemperatureSensor::setup() {
+#if defined(USE_ZEPHYR) && defined(USE_NRF52)
+  if (!device_is_ready(DIE_TEMPERATURE_SENSOR)) {
+    ESP_LOGE(TAG, "nRF52 die temperature sensor device %s not ready", DIE_TEMPERATURE_SENSOR->name);
+    this->mark_failed();
+    return;
+  }
+#endif  // USE_ZEPHYR && USE_NRF52
 #ifdef USE_ESP32
 #if defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C5) || \
     defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32C61) || defined(USE_ESP32_VARIANT_ESP32H2) || \

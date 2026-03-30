@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 from esphome.components import sensor
+from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
 from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
@@ -11,6 +12,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
 )
+from esphome.core import CORE
 
 internal_temperature_ns = cg.esphome_ns.namespace("internal_temperature")
 InternalTemperatureSensor = internal_temperature_ns.class_(
@@ -33,3 +35,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
+
+    if CORE.using_zephyr and CORE.is_nrf52:
+        zephyr_add_prj_conf("SENSOR", True)
+        zephyr_add_prj_conf("TEMP_NRF5", True)
