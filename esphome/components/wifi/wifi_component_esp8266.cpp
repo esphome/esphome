@@ -637,21 +637,19 @@ void WiFiComponent::wifi_pre_setup_() {
 
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
   // Use cached state from wifi_event_callback() instead of calling
-  // wifi_station_get_connect_status() which queries the SDK every time
-  switch (s_sta_state) {
-    case ESP8266WiFiSTAState::CONNECTED:
-      return WiFiSTAConnectStatus::CONNECTED;
-    case ESP8266WiFiSTAState::ERROR_NOT_FOUND:
-      return WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND;
-    case ESP8266WiFiSTAState::ERROR_FAILED:
-      return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
-    case ESP8266WiFiSTAState::CONNECTING:
-    case ESP8266WiFiSTAState::ASSOCIATED:
-      return WiFiSTAConnectStatus::CONNECTING;
-    case ESP8266WiFiSTAState::IDLE:
-    default:
-      return WiFiSTAConnectStatus::IDLE;
-  }
+  // wifi_station_get_connect_status() which queries the SDK every time.
+  // Use if-else instead of switch to avoid GCC generating a CSWTCH
+  // lookup table in .rodata (flash) on ESP8266.
+  auto state = s_sta_state;
+  if (state == ESP8266WiFiSTAState::CONNECTED)
+    return WiFiSTAConnectStatus::CONNECTED;
+  if (state == ESP8266WiFiSTAState::ERROR_NOT_FOUND)
+    return WiFiSTAConnectStatus::ERROR_NETWORK_NOT_FOUND;
+  if (state == ESP8266WiFiSTAState::ERROR_FAILED)
+    return WiFiSTAConnectStatus::ERROR_CONNECT_FAILED;
+  if (state == ESP8266WiFiSTAState::CONNECTING || state == ESP8266WiFiSTAState::ASSOCIATED)
+    return WiFiSTAConnectStatus::CONNECTING;
+  return WiFiSTAConnectStatus::IDLE;
 }
 bool WiFiComponent::wifi_scan_start_(bool passive) {
   // enable STA
