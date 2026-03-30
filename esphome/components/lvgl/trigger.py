@@ -101,7 +101,9 @@ async def generate_align_tos(config: dict):
     :param config:
     :return:
     """
-    align_tos = (w for w in widget_map.values() if CONF_ALIGN_TO in w.config)
+    align_tos = (
+        w for w in widget_map.values() if w.config and CONF_ALIGN_TO in w.config
+    )
     if align_tos:
         async with LambdaContext(where="align_to") as context:
             for w in align_tos:

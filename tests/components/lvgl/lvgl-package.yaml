@@ -288,7 +288,9 @@ lvgl:
         - label:
             text: "Hello shiny day"
             text_color: 0xFFFFFF
-            align: bottom_mid
+            align_to:
+              id: hello_label
+              align: OUT_LEFT_TOP
         - label:
             id: setup_lambda_label
             # Test lambda in widget property during setup (LvContext)
