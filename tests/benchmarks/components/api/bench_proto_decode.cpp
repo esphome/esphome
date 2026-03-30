@@ -22,6 +22,12 @@ template<typename T> static APIBuffer encode_message(const T &msg) {
   return buffer;
 }
 
+/// Force a pointer through an asm barrier so the compiler cannot
+/// prove its contents are unchanged across iterations.
+/// benchmark::DoNotOptimize/ClobberMemory are insufficient under
+/// CodSpeed's valgrind-based instrumentation.
+static void escape(void *p) { asm volatile("" : : "g"(p) : "memory"); }
+
 // --- HelloRequest decode (string + varint fields) ---
 
 static void Decode_HelloRequest(benchmark::State &state) {
@@ -36,11 +42,11 @@ static void Decode_HelloRequest(benchmark::State &state) {
   benchmark::DoNotOptimize(size);
 
   for (auto _ : state) {
-    HelloRequest msg;
     for (int i = 0; i < kInnerIterations; i++) {
-      benchmark::DoNotOptimize(msg);
+      HelloRequest msg;
+      escape(&msg);
       msg.decode(data, size);
-      benchmark::ClobberMemory();
+      escape(&msg);
     }
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
@@ -60,11 +66,11 @@ static void Decode_SwitchCommandRequest(benchmark::State &state) {
   benchmark::DoNotOptimize(size);
 
   for (auto _ : state) {
-    SwitchCommandRequest msg;
     for (int i = 0; i < kInnerIterations; i++) {
-      benchmark::DoNotOptimize(msg);
+      SwitchCommandRequest msg;
+      escape(&msg);
       msg.decode(data, size);
-      benchmark::ClobberMemory();
+      escape(&msg);
     }
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
@@ -93,11 +99,11 @@ static void Decode_LightCommandRequest(benchmark::State &state) {
   benchmark::DoNotOptimize(size);
 
   for (auto _ : state) {
-    LightCommandRequest msg;
     for (int i = 0; i < kInnerIterations; i++) {
-      benchmark::DoNotOptimize(msg);
+      LightCommandRequest msg;
+      escape(&msg);
       msg.decode(data, size);
-      benchmark::ClobberMemory();
+      escape(&msg);
     }
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
