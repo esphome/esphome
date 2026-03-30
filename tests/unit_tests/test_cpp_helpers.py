@@ -137,7 +137,7 @@ def test_register_component_source_overflow_warns(
 ) -> None:
     # Pre-fill pool to max
     pool = ComponentSourcePool(
-        sources={f"comp_{i}": i + 1 for i in range(0x1FF)},
+        sources={f"comp_{i}": i + 1 for i in range(0xFF)},
         table_registered=True,
     )
     monkeypatch.setattr(ch, "CORE", Mock(data={ch._COMPONENT_SOURCE_DOMAIN: pool}))

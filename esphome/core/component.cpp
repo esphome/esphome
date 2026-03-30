@@ -280,8 +280,8 @@ bool Component::should_warn_of_blocking(uint32_t blocking_time) {
     // Set new threshold: blocking_time + increment, converted back to centiseconds
     uint32_t new_threshold_ms = blocking_time + WARN_IF_BLOCKING_INCREMENT_MS;
     uint32_t new_cs = new_threshold_ms / 10U;
-    // Saturate at 7-bit max (127 = 1270ms)
-    this->warn_if_blocking_over_ = static_cast<uint16_t>(new_cs > 127U ? 127U : new_cs);
+    // Saturate at uint8_t max (255 = 2550ms)
+    this->warn_if_blocking_over_ = static_cast<uint8_t>(new_cs > 255U ? 255U : new_cs);
     return true;
   }
   return false;
@@ -543,6 +543,6 @@ void clear_setup_priority_overrides() {
 #endif
 
 // Weak default for component_source_lookup - overridden by generated code
-__attribute__((weak)) const LogString *component_source_lookup(uint16_t) { return LOG_STR("<unknown>"); }
+__attribute__((weak)) const LogString *component_source_lookup(uint8_t) { return LOG_STR("<unknown>"); }
 
 }  // namespace esphome
