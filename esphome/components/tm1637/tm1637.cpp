@@ -349,13 +349,8 @@ uint8_t TM1637Display::print(uint8_t start_pos, const char *str) {
 }
 
 void TM1637Display::set_brightness(float brightness) {
-  auto intensity = brightness * 7;
-  this->set_on(brightness > 0);
-  if (intensity < 0) {
-    intensity = 0;
-  } else if (intensity > 7) {
-    intensity = 7;
-  }
+  auto intensity = clamp(brightness, 0.f, 1.f) * 7;
+  this->set_on(intensity > 0);
   this->set_intensity(intensity);
 }
 
