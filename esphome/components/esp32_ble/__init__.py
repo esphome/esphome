@@ -18,6 +18,8 @@ from esphome.const import (
     CONF_MAX_CONNECTIONS,
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
+    KEY_CORE,
+    KEY_FRAMEWORK_VERSION,
 )
 from esphome.core import CORE, CoroPriority, TimePeriod, coroutine_with_priority
 import esphome.final_validate as fv
@@ -506,10 +508,18 @@ def final_validation(config):
     # Check if BLE Server is needed
     has_ble_server = "esp32_ble_server" in full_config
 
+    # Always enable GATTS when using native IDF : ESP-IDF 5.5.2.260206 has a bug in gatt_main.c where a
+    # GATT_TRACE_DEBUG references 'msg_len' outside the GATTS_INCLUDED/GATTC_INCLUDED
+    # guard, causing a compile error when both are disabled.
+    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    force_gatts = CORE.using_native_idf and framework_ver >= cv.Version(5, 5, 3)
+
     # ESP-IDF BLE stack requires GATT Server to be enabled when GATT Client is enabled
     # This is an internal dependency in the Bluedroid stack
     # See: https://github.com/espressif/esp-idf/issues/17724
-    add_idf_sdkconfig_option("CONFIG_BT_GATTS_ENABLE", has_ble_server or has_ble_client)
+    add_idf_sdkconfig_option(
+        "CONFIG_BT_GATTS_ENABLE", has_ble_server or has_ble_client or force_gatts
+    )
     add_idf_sdkconfig_option("CONFIG_BT_GATTC_ENABLE", has_ble_client)
 
     # Handle max_connections: check for deprecated location in esp32_ble_tracker
