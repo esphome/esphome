@@ -13,6 +13,7 @@ class TestableTimeBasedValve : public TimeBasedValve {
  public:
   using TimeBasedValve::target_position_;
   using TimeBasedValve::last_recompute_time_;
+  using TimeBasedValve::current_operation;
   using TimeBasedValve::measured_position_;
   uint32_t mock_millis = 0;
 
