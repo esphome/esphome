@@ -164,9 +164,10 @@ class Scheduler {
     } name_;
     uint32_t interval;
     // Split time to handle millis() rollover. The scheduler combines the 32-bit millis()
-    // with a 16-bit rollover counter to create a 48-bit time space (stored as 64-bit
-    // for compatibility). With 49.7 days per 32-bit rollover, the 16-bit counter
-    // supports 49.7 days × 65536 = ~8900 years. This ensures correct scheduling
+    // with a 16-bit rollover counter to create a 48-bit time space (using 32+16 bits).
+    // This is intentionally limited to 48 bits, not stored as a full 64-bit value.
+    // With 49.7 days per 32-bit rollover, the 16-bit counter supports
+    // 49.7 days × 65536 = ~8900 years. This ensures correct scheduling
     // even when devices run for months. Split into two fields for better memory
     // alignment on 32-bit systems.
     uint32_t next_execution_low_;  // Lower 32 bits of execution time (millis value)
