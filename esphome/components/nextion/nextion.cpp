@@ -844,7 +844,7 @@ void Nextion::process_nextion_commands_() {
     for (auto it = this->nextion_queue_.begin(); it != this->nextion_queue_.end();) {
       if (ms - (*it)->queue_time > this->max_q_age_ms_) {
         NextionComponentBase *component = (*it)->component;
-        ESP_LOGD(TAG, "Remove old queue '%s':'%s'", component->get_queue_type_string(),
+        ESP_LOGV(TAG, "Remove old queue '%s':'%s'", component->get_queue_type_string(),
                  component->get_variable_name().c_str());
 
         if (component->get_queue_type() == NextionQueueType::NO_RESULT) {
