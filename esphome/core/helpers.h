@@ -1844,9 +1844,7 @@ template<size_t N, typename... Ts> class StaticCallbackManager<N, void(Ts...)> {
  public:
   /// Add any callable. Small trivially-copyable callables (like [this] lambdas)
   /// are stored inline without heap allocation.
-  template<typename F> void add(F &&callback) {
-    this->callbacks_.push_back(Callback<void(Ts...)>::create(std::forward<F>(callback)));
-  }
+  template<typename F> void add(F &&callback) { this->add_(Callback<void(Ts...)>::create(std::forward<F>(callback))); }
 
   /// Call all callbacks in this manager.
   void call(Ts... args) {
@@ -1859,6 +1857,8 @@ template<size_t N, typename... Ts> class StaticCallbackManager<N, void(Ts...)> {
   void operator()(Ts... args) { call(args...); }
 
  protected:
+  /// Non-template core to avoid code duplication per lambda type.
+  void add_(Callback<void(Ts...)> cb) { this->callbacks_.push_back(cb); }
   StaticVector<Callback<void(Ts...)>, N> callbacks_;
 };
 
