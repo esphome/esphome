@@ -408,6 +408,10 @@ class Widget:
 widget_map: dict[Any, Widget] = {}
 
 
+def is_widget_completed(name: str) -> bool:
+    return name in widget_map
+
+
 class LvScrActType(WidgetType):
     """
     A "widget" representing the active screen.

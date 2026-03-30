@@ -1,7 +1,10 @@
 from esphome.components.key_provider import KeyProvider
+from esphome.components.lvgl import LvContext
+from esphome.components.lvgl.widgets import is_widget_completed
 from esphome.components.lvgl.widgets.buttonmatrix import CONF_BUTTONMATRIX
 import esphome.config_validation as cv
 from esphome.const import CONF_ITEMS, CONF_MODE
+from esphome.core import CORE
 from esphome.cpp_types import std_string
 
 from ..defines import CONF_MAIN, KEYBOARD_MODES, literal
@@ -49,8 +52,20 @@ class KeyboardType(WidgetType):
         lvgl_components_required.add(CONF_KEYBOARD)
         if mode := config.get(CONF_MODE):
             await w.set_property(CONF_MODE, await KEYBOARD_MODES.process(mode))
-        if ta := await get_widgets(config, CONF_TEXTAREA):
-            await w.set_property(CONF_TEXTAREA, ta[0].obj)
+        # If a textarea is configured, it must be generated before the keyboard can attach it.
+        # So run asynchronously if .
+        if textarea := config.get(CONF_TEXTAREA):
+
+            async def add_textarea():
+                async with LvContext():
+                    await w.set_property(
+                        CONF_TEXTAREA, (await get_widgets(config, CONF_TEXTAREA))[0].obj
+                    )
+
+            if is_widget_completed(textarea):
+                await add_textarea()
+            else:
+                CORE.add_job(add_textarea)
 
 
 keyboard_spec = KeyboardType()
