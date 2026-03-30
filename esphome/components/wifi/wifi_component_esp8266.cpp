@@ -53,8 +53,8 @@ enum class ESP8266WiFiSTAState : uint8_t {
   ERROR_FAILED,     // Connection failed (auth, timeout, etc.)
 };
 
-static ESP8266WiFiSTAState s_sta_state =
-    ESP8266WiFiSTAState::IDLE;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static ESP8266WiFiSTAState s_sta_state = ESP8266WiFiSTAState::IDLE;
 
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = wifi_get_opmode();
