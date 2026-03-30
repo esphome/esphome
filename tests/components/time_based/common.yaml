@@ -10,3 +10,15 @@ cover:
     close_action:
       - logger.log: close_action
     close_duration: 4.5min
+
+valve:
+  - platform: time_based
+    name: Time Based Valve
+    id: time_based_valve
+    duration: 10s
+    stop_action:
+      - logger.log: stop_action
+    open_action:
+      - logger.log: open_action
+    close_action:
+      - logger.log: close_action
