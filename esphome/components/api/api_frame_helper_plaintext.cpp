@@ -237,7 +237,6 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
 // Write plaintext header into pre-allocated padding before payload.
 // Returns the total header length (indicator + varints).
 ESPHOME_ALWAYS_INLINE static inline uint8_t write_plaintext_header(uint8_t *buf_start, const MessageInfo &msg) {
-  constexpr uint8_t frame_header_padding = APIPlaintextFrameHelper::HEADER_PADDING;
   // Calculate varint sizes for header layout using inline ternary to avoid varint_slow call overhead
   uint8_t size_varint_len = msg.payload_size < ProtoSize::VARINT_THRESHOLD_1_BYTE
                                 ? 1
@@ -269,8 +268,8 @@ ESPHOME_ALWAYS_INLINE static inline uint8_t write_plaintext_header(uint8_t *buf_
   // [6...] - Actual payload data
   //
   // The message starts at offset + frame_header_padding
-  // So we write the header starting at offset + frame_header_padding - total_header_len
-  uint32_t header_offset = frame_header_padding - total_header_len;
+  // So we write the header starting at offset + HEADER_PADDING - total_header_len
+  uint32_t header_offset = APIPlaintextFrameHelper::HEADER_PADDING - total_header_len;
 
   // Write the plaintext header
   buf_start[header_offset] = 0x00;  // indicator
