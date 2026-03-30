@@ -347,6 +347,18 @@ uint8_t TM1637Display::print(uint8_t start_pos, const char *str) {
   }
   return pos - start_pos;
 }
+
+void TM1637Display::set_brightness(float brightness) {
+  auto intensity = brightness * 7;
+  this->set_on(brightness > 0);
+  if (intensity < 0) {
+    intensity = 0;
+  } else if (intensity > 7) {
+    intensity = 7;
+  }
+  this->set_intensity(intensity);
+}
+
 uint8_t TM1637Display::print(const char *str) { return this->print(0, str); }
 
 void TM1637Display::set_buffer(const uint8_t *data, uint8_t length) {
