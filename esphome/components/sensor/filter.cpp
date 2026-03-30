@@ -295,31 +295,19 @@ optional<float> DeltaFilter::new_value(float value) {
   return {};
 }
 
-// OrFilter
-OrFilter::OrFilter(std::initializer_list<Filter *> filters) : filters_(filters), phi_(this) {}
-OrFilter::PhiNode::PhiNode(OrFilter *or_parent) : or_parent_(or_parent) {}
-
-optional<float> OrFilter::PhiNode::new_value(float value) {
-  if (!this->or_parent_->has_value_) {
-    this->or_parent_->output(value);
-    this->or_parent_->has_value_ = true;
+// OrFilter helpers
+void or_filter_initialize(Filter **filters, size_t count, Sensor *parent, Filter *phi) {
+  for (size_t i = 0; i < count; i++) {
+    filters[i]->initialize(parent, phi);
   }
-
-  return {};
+  phi->initialize(parent, nullptr);
 }
-optional<float> OrFilter::new_value(float value) {
-  this->has_value_ = false;
-  for (auto *filter : this->filters_)
-    filter->input(value);
 
+optional<float> or_filter_new_value(Filter **filters, size_t count, float value, bool &has_value) {
+  has_value = false;
+  for (size_t i = 0; i < count; i++)
+    filters[i]->input(value);
   return {};
-}
-void OrFilter::initialize(Sensor *parent, Filter *next) {
-  Filter::initialize(parent, next);
-  for (auto *filter : this->filters_) {
-    filter->initialize(parent, &this->phi_);
-  }
-  this->phi_.initialize(parent, nullptr);
 }
 
 // TimeoutFilterBase - shared loop logic
@@ -408,14 +396,11 @@ optional<float> CalibrateLinearFilter::new_value(float value) {
   return NAN;
 }
 
-CalibratePolynomialFilter::CalibratePolynomialFilter(std::initializer_list<float> coefficients)
-    : coefficients_(coefficients) {}
-
-optional<float> CalibratePolynomialFilter::new_value(float value) {
+optional<float> calibrate_polynomial_compute(const float *coefficients, size_t count, float value) {
   float res = 0.0f;
   float x = 1.0f;
-  for (const auto &coefficient : this->coefficients_) {
-    res += x * coefficient;
+  for (size_t i = 0; i < count; i++) {
+    res += x * coefficients[i];
     x *= value;
   }
   return res;

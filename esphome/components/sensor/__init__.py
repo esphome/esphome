@@ -620,7 +620,7 @@ async def delta_filter_to_code(config, filter_id):
 @FILTER_REGISTRY.register("or", OrFilter, validate_filters)
 async def or_filter_to_code(config, filter_id):
     filters = await build_filters(config)
-    return cg.new_Pvariable(filter_id, filters)
+    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(filters)), filters)
 
 
 @FILTER_REGISTRY.register(
@@ -808,7 +808,7 @@ async def calibrate_polynomial_filter_to_code(config, filter_id):
     # Column vector
     b = [[v] for v in y]
     res = [v[0] for v in _lstsq(a, b)]
-    return cg.new_Pvariable(filter_id, res)
+    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(res)), res)
 
 
 def validate_clamp(config):
