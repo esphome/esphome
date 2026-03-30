@@ -681,8 +681,11 @@ class WiFiComponent final : public Component {
   bool wifi_sta_connect_(const WiFiAP &ap);
   void wifi_pre_setup_();
   WiFiSTAConnectStatus wifi_sta_connect_status_() const;
-  bool is_connected_() const;
-  void update_connected_state_();
+  bool is_connected_() const {
+    return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED &&
+           this->wifi_sta_connect_status_() == WiFiSTAConnectStatus::CONNECTED && !this->error_from_callback_;
+  }
+  void update_connected_state_() { this->connected_ = this->is_connected_(); }
   bool wifi_scan_start_(bool passive);
 
 #ifdef USE_WIFI_AP
