@@ -12,14 +12,12 @@ static constexpr uint8_t NUMBER_OF_RESET_RETRIES = 10;
 void GDK101Component::update() {
   uint8_t data[2];
 
-  if (this->reset_retries_remaining_ > 0) {
-    if (!this->try_reset_()) {
-      if (--this->reset_retries_remaining_ == 0) {
-        this->status_set_error(LOG_STR("Reset failed after retries"));
-        this->mark_failed();
-      }
-      return;
+  if (this->reset_retries_remaining_ > 0 && !this->try_reset_()) {
+    if (--this->reset_retries_remaining_ == 0) {
+      this->status_set_error(LOG_STR("Reset failed after retries"));
+      this->mark_failed();
     }
+    return;
   }
 
   if (!this->read_dose_1m_(data)) {
