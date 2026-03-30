@@ -32,7 +32,10 @@ void log_binary_sensor(const char *tag, const char *prefix, const char *type, Bi
  */
 class BinarySensor : public StatefulEntityBase<bool> {
  public:
-  explicit BinarySensor(){};
+  explicit BinarySensor() = default;
+
+  const bool &get_state() const override { return this->state; }
+  void set_trigger_on_initial_state(bool value) { this->trigger_on_initial_state_ = value; }
 
   /** Publish a new state to the front-end.
    *
@@ -54,16 +57,24 @@ class BinarySensor : public StatefulEntityBase<bool> {
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
-  void send_state_internal(bool new_state);
+  void send_state_internal(bool new_state) {
+    // Fast path: skip virtual dispatch when state hasn't changed
+    if (this->flags_.has_state && this->state == new_state)
+      return;
+    this->set_new_state(new_state);
+  }
 
   /// Return whether this binary sensor has outputted a state.
   virtual bool is_status_binary_sensor() const;
 
-  // For backward compatibility, provide an accessible property
-
+  /// The current state of this binary sensor. Also used as the backing storage for StatefulEntityBase.
   bool state{};
 
  protected:
+  bool get_trigger_on_initial_state() const override { return this->trigger_on_initial_state_; }
+  void set_state_value(const bool &value) override { this->state = value; }
+
+  bool trigger_on_initial_state_{true};
 #ifdef USE_BINARY_SENSOR_FILTER
   Filter *filter_list_{nullptr};
 #endif
@@ -73,7 +84,7 @@ class BinarySensor : public StatefulEntityBase<bool> {
 
 class BinarySensorInitiallyOff : public BinarySensor {
  public:
-  bool has_state() const override { return true; }
+  BinarySensorInitiallyOff() { this->set_has_state(true); }
 };
 
 }  // namespace esphome::binary_sensor

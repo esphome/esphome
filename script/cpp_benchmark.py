@@ -21,6 +21,10 @@ BENCHMARKS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "components"
 # Path to /tests/benchmarks/core (always included, not a component)
 CORE_BENCHMARKS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "core"
 
+# Stub headers for ESP32-only components (e.g. bluetooth_proxy) that
+# allow benchmarks to compile on the host platform.
+STUBS_DIR: Path = Path(root_path) / "tests" / "benchmarks" / "stubs"
+
 PLATFORMIO_OPTIONS = {
     "build_unflags": [
         "-Os",  # remove default size-opt
@@ -29,6 +33,7 @@ PLATFORMIO_OPTIONS = {
         "-O2",  # optimize for speed (CodSpeed recommends RelWithDebInfo)
         "-g",  # debug symbols for profiling
         "-DUSE_BENCHMARK",  # disable WarnIfComponentBlockingGuard in finish()
+        f"-I{STUBS_DIR}",  # stub headers for ESP32-only components
     ],
     # Use deep+ LDF mode to ensure PlatformIO detects the benchmark
     # library dependency from nested includes.
