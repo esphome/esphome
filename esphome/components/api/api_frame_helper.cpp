@@ -138,8 +138,8 @@ APIError APIFrameHelper::write_raw_iov_(const struct iovec *iov, int iovcnt, uin
         // Partial write or -1: fall through to error check / enqueue below
       }
     }
-    // WRITE_FAILED or write above returned -1: check errno
-    if (sent == WRITE_FAILED || sent == -1) {
+    // WRITE_FAILED (-1): fast path or retry write returned -1, check errno
+    if (sent == WRITE_FAILED) {
       int err = errno;
       if (err != EWOULDBLOCK && err != EAGAIN) {
         this->state_ = State::FAILED;

@@ -193,8 +193,8 @@ class APIFrameHelper {
   APIError drain_overflow_and_handle_errors_();
 
   // Sentinel values for the sent parameter in write_raw_ methods
-  static constexpr ssize_t WRITE_NOT_ATTEMPTED = -1;  // Cold path: no write attempted yet
-  static constexpr ssize_t WRITE_FAILED = -2;         // Fast path: write() returned -1
+  static constexpr ssize_t WRITE_FAILED = -1;         // Fast path: write()/writev() returned -1
+  static constexpr ssize_t WRITE_NOT_ATTEMPTED = -2;  // Cold path: no write attempted yet
 
   // Inlined write methods — used by hot paths (write_protobuf_packet, write_protobuf_messages)
   // These inline the fast path (overflow empty + full write) and tail-call the out-of-line
@@ -204,8 +204,7 @@ class APIFrameHelper {
       ssize_t sent = this->socket_->write(data, len);
       if (sent == static_cast<ssize_t>(len)) [[likely]]
         return APIError::OK;
-      if (sent == -1)
-        return this->write_raw_buf_(data, len, WRITE_FAILED);
+      // sent is -1 (WRITE_FAILED) or partial write count
       return this->write_raw_buf_(data, len, sent);
     }
     return this->write_raw_buf_(data, len, WRITE_NOT_ATTEMPTED);
@@ -216,8 +215,7 @@ class APIFrameHelper {
       ssize_t sent = this->socket_->writev(iov, iovcnt);
       if (sent == static_cast<ssize_t>(total_write_len)) [[likely]]
         return APIError::OK;
-      if (sent == -1)
-        return this->write_raw_iov_(iov, iovcnt, total_write_len, WRITE_FAILED);
+      // sent is -1 (WRITE_FAILED) or partial write count
       return this->write_raw_iov_(iov, iovcnt, total_write_len, sent);
     }
     return this->write_raw_iov_(iov, iovcnt, total_write_len, WRITE_NOT_ATTEMPTED);
