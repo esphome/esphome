@@ -204,16 +204,7 @@ def run_compile(config, verbose):
     args = []
     if CONF_COMPILE_PROCESS_LIMIT in config[CONF_ESPHOME]:
         args += [f"-j{config[CONF_ESPHOME][CONF_COMPILE_PROCESS_LIMIT]}"]
-    result = run_platformio_cli_run(config, verbose, *args)
-
-    # Run memory analysis if enabled
-    if config.get(CONF_ESPHOME, {}).get("analyze_memory", False):
-        try:
-            analyze_memory_usage(config)
-        except Exception as e:
-            _LOGGER.warning("Failed to analyze memory usage: %s", e)
-
-    return result
+    return run_platformio_cli_run(config, verbose, *args)
 
 
 def _run_idedata(config):
@@ -474,74 +465,3 @@ class IDEData:
     def defines(self) -> list[str]:
         """Return the list of preprocessor defines from idedata."""
         return self.raw.get("defines", [])
-
-
-def analyze_memory_usage(config: dict[str, Any]) -> None:
-    """Analyze memory usage by component after compilation."""
-    # Lazy import to avoid overhead when not needed
-    from esphome.analyze_memory.cli import MemoryAnalyzerCLI
-    from esphome.analyze_memory.helpers import get_esphome_components
-
-    idedata = get_idedata(config)
-
-    # Get paths to tools
-    elf_path = idedata.firmware_elf_path
-    objdump_path = idedata.objdump_path
-    readelf_path = idedata.readelf_path
-
-    # Debug logging
-    _LOGGER.debug("ELF path from idedata: %s", elf_path)
-
-    # Check if file exists
-    if not Path(elf_path).exists():
-        # Try alternate path
-        alt_path = Path(CORE.relative_build_path(".pioenvs", CORE.name, "firmware.elf"))
-        if alt_path.exists():
-            elf_path = str(alt_path)
-            _LOGGER.debug("Using alternate ELF path: %s", elf_path)
-        else:
-            _LOGGER.warning("ELF file not found at %s or %s", elf_path, alt_path)
-            return
-
-    # Extract external components from config
-    external_components = set()
-
-    # Get the list of built-in ESPHome components
-    builtin_components = get_esphome_components()
-
-    # Special non-component keys that appear in configs
-    NON_COMPONENT_KEYS = {
-        CONF_ESPHOME,
-        "substitutions",
-        "packages",
-        "globals",
-        "<<",
-    }
-
-    # Check all top-level keys in config
-    for key in config:
-        if key not in builtin_components and key not in NON_COMPONENT_KEYS:
-            # This is an external component
-            external_components.add(key)
-
-    _LOGGER.debug("Detected external components: %s", external_components)
-
-    # Create analyzer and run analysis
-    analyzer = MemoryAnalyzerCLI(
-        elf_path, objdump_path, readelf_path, external_components
-    )
-    analyzer.analyze()
-
-    # Generate and print report
-    report = analyzer.generate_report()
-    _LOGGER.info("\n%s", report)
-
-    # Optionally save to file
-    if config.get(CONF_ESPHOME, {}).get("memory_report_file"):
-        report_file = Path(config[CONF_ESPHOME]["memory_report_file"])
-        if report_file.suffix == ".json":
-            report_file.write_text(analyzer.to_json())
-            _LOGGER.info("Memory report saved to %s", report_file)
-        else:
-            report_file.write_text(report)
-            _LOGGER.info("Memory report saved to %s", report_file)
