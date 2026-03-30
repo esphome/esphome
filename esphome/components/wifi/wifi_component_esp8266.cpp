@@ -626,8 +626,8 @@ void WiFiComponent::wifi_pre_setup_() {
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() const {
   // Use cached state from wifi_event_callback() instead of calling
   // wifi_station_get_connect_status() which queries the SDK every time.
-  // Use if-else instead of switch to avoid GCC generating a CSWTCH
-  // lookup table in .rodata (flash) on ESP8266.
+  // Use if statements with early returns instead of switch to avoid GCC
+  // generating a CSWTCH lookup table in .rodata (flash) on ESP8266.
   auto state = this->sta_state_;
   if (state == ESP8266WiFiSTAState::CONNECTED)
     return WiFiSTAConnectStatus::CONNECTED;
