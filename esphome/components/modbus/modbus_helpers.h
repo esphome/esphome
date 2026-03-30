@@ -34,19 +34,14 @@ inline ModbusFunctionCode modbus_register_read_function(ModbusRegisterType reg_t
   switch (reg_type) {
     case ModbusRegisterType::COIL:
       return ModbusFunctionCode::READ_COILS;
-      break;
     case ModbusRegisterType::DISCRETE_INPUT:
       return ModbusFunctionCode::READ_DISCRETE_INPUTS;
-      break;
     case ModbusRegisterType::HOLDING:
       return ModbusFunctionCode::READ_HOLDING_REGISTERS;
-      break;
     case ModbusRegisterType::READ:
       return ModbusFunctionCode::READ_INPUT_REGISTERS;
-      break;
     default:
       return ModbusFunctionCode::CUSTOM;
-      break;
   }
 }
 
@@ -54,17 +49,13 @@ inline ModbusFunctionCode modbus_register_write_function(ModbusRegisterType reg_
   switch (reg_type) {
     case ModbusRegisterType::COIL:
       return ModbusFunctionCode::WRITE_SINGLE_COIL;
-      break;
     case ModbusRegisterType::DISCRETE_INPUT:
       return ModbusFunctionCode::CUSTOM;
-      break;
     case ModbusRegisterType::HOLDING:
       return ModbusFunctionCode::READ_WRITE_MULTIPLE_REGISTERS;
-      break;
     case ModbusRegisterType::READ:
     default:
       return ModbusFunctionCode::CUSTOM;
-      break;
   }
 }
 
