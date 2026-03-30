@@ -101,32 +101,6 @@ std::unique_ptr<ListenSocket> socket_ip_loop_monitored(int type, int protocol) {
 }
 #endif
 
-#if !defined(USE_SOCKET_IMPL_LWIP_TCP)
-// BSD and LWIP_SOCKETS: UDPSocket == UDPRecvSocket == Socket, so these just delegate.
-std::unique_ptr<UDPSocket> socket_udp(int domain, int protocol) {
-  return esphome::socket::socket(domain, SOCK_DGRAM, protocol);
-}
-std::unique_ptr<UDPRecvSocket> socket_udp_recv(int domain, int protocol) {
-  return esphome::socket::socket(domain, SOCK_DGRAM, protocol);
-}
-#endif
-
-std::unique_ptr<UDPSocket> socket_ip_udp(int protocol) {
-#if USE_NETWORK_IPV6
-  return socket_udp(AF_INET6, protocol);
-#else
-  return socket_udp(AF_INET, protocol);
-#endif
-}
-
-std::unique_ptr<UDPRecvSocket> socket_ip_udp_recv(int protocol) {
-#if USE_NETWORK_IPV6
-  return socket_udp_recv(AF_INET6, protocol);
-#else
-  return socket_udp_recv(AF_INET, protocol);
-#endif
-}
-
 socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_address, uint16_t port) {
 #if USE_NETWORK_IPV6
   if (strchr(ip_address, ':') != nullptr) {

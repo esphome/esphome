@@ -20,16 +20,6 @@
 
 #define IPPROTO_IP 0
 #define IPPROTO_TCP 6
-#define IPPROTO_UDP 17
-
-#define IP_ADD_MEMBERSHIP 3
-#define IP_DROP_MEMBERSHIP 4
-
-// NOLINTNEXTLINE(readability-identifier-naming)
-struct ip_mreq {
-  struct in_addr imr_multiaddr;
-  struct in_addr imr_interface;
-};
 
 #if LWIP_IPV6
 #define AF_INET6 10

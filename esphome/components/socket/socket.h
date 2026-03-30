@@ -27,24 +27,17 @@ namespace esphome::socket {
 // Type aliases — only one implementation is active per build.
 // Socket is the concrete type for connected sockets.
 // ListenSocket is the concrete type for listening/server sockets.
-// UDPSocket is the concrete type for UDP sockets.
-// On BSD and LWIP_SOCKETS, all aliases resolve to the same type.
+// On BSD and LWIP_SOCKETS, both aliases resolve to the same type.
 // On LWIP_TCP, they are different types (no virtual dispatch between them).
 #ifdef USE_SOCKET_IMPL_BSD_SOCKETS
 using Socket = BSDSocketImpl;
 using ListenSocket = BSDSocketImpl;
-using UDPSocket = BSDSocketImpl;
-using UDPRecvSocket = BSDSocketImpl;
 #elif defined(USE_SOCKET_IMPL_LWIP_SOCKETS)
 using Socket = LwIPSocketImpl;
 using ListenSocket = LwIPSocketImpl;
-using UDPSocket = LwIPSocketImpl;
-using UDPRecvSocket = LwIPSocketImpl;
 #elif defined(USE_SOCKET_IMPL_LWIP_TCP)
 using Socket = LWIPRawImpl;
 using ListenSocket = LWIPRawListenImpl;
-using UDPSocket = LWIPRawUDPImpl;
-using UDPRecvSocket = LWIPRawUDPRecvImpl;
 #endif
 
 #ifdef USE_LWIP_FAST_SELECT
@@ -74,16 +67,6 @@ inline bool Socket::ready() const {
 std::unique_ptr<Socket> socket(int domain, int type, int protocol);
 /// Create a socket in the newest available IP domain (IPv6 or IPv4) of the given type and protocol.
 std::unique_ptr<Socket> socket_ip(int type, int protocol);
-
-/// Create a send-only UDP socket of the given domain and protocol.
-std::unique_ptr<UDPSocket> socket_udp(int domain, int protocol);
-/// Create a send-only UDP socket in the newest available IP domain.
-std::unique_ptr<UDPSocket> socket_ip_udp(int protocol);
-
-/// Create a UDP socket with receive support of the given domain and protocol.
-std::unique_ptr<UDPRecvSocket> socket_udp_recv(int domain, int protocol);
-/// Create a UDP socket with receive support in the newest available IP domain.
-std::unique_ptr<UDPRecvSocket> socket_ip_udp_recv(int protocol);
 
 /// Create a socket and monitor it for data in the main loop.
 /// Like socket() but also registers the socket with the Application's select() loop.
