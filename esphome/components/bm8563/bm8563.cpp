@@ -1,4 +1,7 @@
 #include "bm8563.h"
+
+#include <cinttypes>
+
 #include "esphome/core/log.h"
 
 namespace esphome::bm8563 {
@@ -146,10 +149,10 @@ optional<uint8_t> BM8563::read_register_(uint8_t reg) {
 }
 
 void BM8563::set_timer_irq_(uint32_t duration_s) {
-  ESP_LOGI(TAG, "Timer Duration: %u s", duration_s);
+  ESP_LOGI(TAG, "Timer Duration: %" PRIu32 " s", duration_s);
 
   if (duration_s > MAX_TIMER_DURATION_S) {
-    ESP_LOGW(TAG, "Timer duration %u s exceeds maximum %u s", duration_s, MAX_TIMER_DURATION_S);
+    ESP_LOGW(TAG, "Timer duration %" PRIu32 " s exceeds maximum %" PRIu32 " s", duration_s, MAX_TIMER_DURATION_S);
     return;
   }
 
