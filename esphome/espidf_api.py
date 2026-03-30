@@ -9,6 +9,7 @@ import shutil
 import subprocess
 
 from esphome.components.esp32.const import KEY_ESP32, KEY_FLASH_SIZE
+from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, EsphomeError
 from esphome.espidf_framework import check_esp_idf_install, get_framework_env
 
@@ -19,9 +20,15 @@ _esphome_esp_idf_paths_cache = {}
 _idf_env_cache = {}
 
 
+def _get_core_framework_version():
+    framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    return f"{framework_ver.major}.{framework_ver.minor}.{framework_ver.patch}"
+
+
 def _get_esphome_esp_idf_paths(
     version: str | None = None,
 ) -> tuple[os.PathLike, os.PathLike]:
+    version = version or _get_core_framework_version()
     if version not in _esphome_esp_idf_paths_cache:
         _esphome_esp_idf_paths_cache[version] = check_esp_idf_install(version)
     return _esphome_esp_idf_paths_cache[version]
@@ -40,6 +47,7 @@ def _get_idf_env(version: str | None = None) -> dict[str, str]:
 
     Requires the user to have sourced export.sh before running esphome.
     """
+    version = version or _get_core_framework_version()
     if version not in _idf_env_cache:
         _idf_env_cache[version] = os.environ
 

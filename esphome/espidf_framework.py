@@ -16,7 +16,6 @@ import uuid
 
 import requests
 
-from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE
 from esphome.helpers import get_str_env, rmtree
 
@@ -40,6 +39,7 @@ def _str_to_lst_of_str(a: str) -> list[str]:
 
 ESPHOME_STAMP_FILE = ".esphome.stamp.json"
 
+ESPHOME_IDF_DEFAULT_VERSION = os.environ.get("ESPHOME_IDF_DEFAULT_VERSION", "5.5.2")
 
 ESPHOME_IDF_DEFAULT_TARGETS = _str_to_lst_of_str(
     os.environ.get("ESPHOME_IDF_DEFAULT_TARGETS", "all")
@@ -832,12 +832,8 @@ def check_esp_idf_install(
     env = {}
     env["IDF_TOOLS_PATH"] = str(_get_idf_tools_path())
     env["IDF_PATH"] = ""
-    framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    framework_release = (
-        f"{framework_ver.major}.{framework_ver.minor}.{framework_ver.patch}"
-    )
 
-    version = version or framework_release
+    version = version or ESPHOME_IDF_DEFAULT_VERSION
     targets = targets or ESPHOME_IDF_DEFAULT_TARGETS
 
     # Determine which tools need to be installed if not provided
