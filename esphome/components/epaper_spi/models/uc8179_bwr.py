@@ -20,11 +20,12 @@ class UC8179BWR(EpaperModel):
         """Generate initialization sequence for UC8179 BWR displays."""
         width, height = self.get_dimensions(config)
         return (
-            (0x00, 0x0F),                            # Panel Setting
-            (0x50, 0xF5, 0x07),                      # VCOM/Data Interval (both bytes)
+            (0x00, 0x0F),  # Panel Setting
+            (0x50, 0xF5, 0x07),  # VCOM/Data Interval (both bytes)
             # Resolution
             (0x61, width // 256, width % 256, height // 256, height % 256),
         )
+
 
 uc8179bwr = UC8179BWR("uc8179bwr")
 
