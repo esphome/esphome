@@ -196,6 +196,11 @@ class APIFrameHelper {
   static constexpr ssize_t WRITE_FAILED = -1;         // Fast path: write()/writev() returned -1
   static constexpr ssize_t WRITE_NOT_ATTEMPTED = -2;  // Cold path: no write attempted yet
 
+  // Dispatch to write() or writev() based on iovec count
+  inline ssize_t ESPHOME_ALWAYS_INLINE write_iov_to_socket_(const struct iovec *iov, int iovcnt) {
+    return (iovcnt == 1) ? this->socket_->write(iov[0].iov_base, iov[0].iov_len) : this->socket_->writev(iov, iovcnt);
+  }
+
   // Inlined write methods — used by hot paths (write_protobuf_packet, write_protobuf_messages)
   // These inline the fast path (overflow empty + full write) and tail-call the out-of-line
   // slow path only on failure/partial write.
