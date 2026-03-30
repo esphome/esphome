@@ -398,17 +398,6 @@ class WiFiPowerSaveListener {
   virtual void on_wifi_power_save(WiFiPowerSaveMode mode) = 0;
 };
 
-#ifdef USE_ESP8266
-enum class ESP8266WiFiSTAState : uint8_t {
-  IDLE,             // Not connecting
-  CONNECTING,       // Connection in progress
-  ASSOCIATED,       // Associated to AP, waiting for IP
-  CONNECTED,        // Successfully connected with IP
-  ERROR_NOT_FOUND,  // AP not found (probe failed)
-  ERROR_FAILED,     // Connection failed (auth, timeout, etc.)
-};
-#endif
-
 /// This component is responsible for managing the ESP WiFi interface.
 class WiFiComponent final : public Component {
  public:
@@ -826,7 +815,7 @@ class WiFiComponent final : public Component {
 #endif /* USE_NETWORK_IPV6 */
   bool error_from_callback_{false};
 #ifdef USE_ESP8266
-  ESP8266WiFiSTAState sta_state_{ESP8266WiFiSTAState::IDLE};
+  uint8_t sta_state_{0};  // ESP8266WiFiSTAState, defined in wifi_component_esp8266.cpp
 #endif
   RetryHiddenMode retry_hidden_mode_{RetryHiddenMode::BLIND_RETRY};
   RoamingState roaming_state_{RoamingState::IDLE};
