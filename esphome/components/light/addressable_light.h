@@ -23,6 +23,13 @@ Color color_from_light_color_values(LightColorValues val);
 /// non-addressable lights.
 class AddressableLightState final : public LightState {
   using LightState::LightState;
+
+ public:
+  /// Returns the estimated current draw of the LED strip in milliamps.
+  /// Convenience wrapper so `id(my_light).get_estimated_current_ma()` works in lambdas.
+  float get_estimated_current_ma() {
+    return static_cast<AddressableLight *>(this->get_output())->get_estimated_current_ma();
+  }
 };
 
 class AddressableLight : public LightOutput, public Component {
