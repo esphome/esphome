@@ -9,14 +9,16 @@ namespace esphome::api {
 
 class APINoiseFrameHelper final : public APIFrameHelper {
  public:
+  // Noise header structure:
+  // Pos 0: indicator (0x01)
+  // Pos 1-2: encrypted payload size (16-bit big-endian)
+  // Pos 3-6: encrypted type (16-bit) + data_len (16-bit)
+  // Pos 7+: actual payload data
+  static constexpr uint8_t HEADER_PADDING = 1 + 2 + 2 + 2;  // indicator + size + type + data_len
+
   APINoiseFrameHelper(std::unique_ptr<socket::Socket> socket, APINoiseContext &ctx)
       : APIFrameHelper(std::move(socket)), ctx_(ctx) {
-    // Noise header structure:
-    // Pos 0: indicator (0x01)
-    // Pos 1-2: encrypted payload size (16-bit big-endian)
-    // Pos 3-6: encrypted type (16-bit) + data_len (16-bit)
-    // Pos 7+: actual payload data
-    frame_header_padding_ = 7;
+    frame_header_padding_ = HEADER_PADDING;
   }
   ~APINoiseFrameHelper() override;
   APIError init() override;

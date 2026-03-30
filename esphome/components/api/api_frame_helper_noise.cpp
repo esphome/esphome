@@ -497,14 +497,15 @@ APIError APINoiseFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuff
   if (frame_footer_size_)
     buffer.get_buffer()->resize(buffer.get_buffer()->size() + frame_footer_size_);
 
-  MessageInfo msg{type, 0,
-                  static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_ - frame_footer_size_)};
+  MessageInfo msg{type, 0, static_cast<uint16_t>(buffer.get_buffer()->size() - HEADER_PADDING - frame_footer_size_)};
   uint8_t *buf_start = buffer.get_buffer()->data();
   struct iovec iov;
   APIError aerr = this->encrypt_noise_message_(buf_start, msg, iov);
   if (aerr != APIError::OK)
     return aerr;
-  return this->write_raw_fast_buf_(iov.iov_base, static_cast<uint16_t>(iov.iov_len));
+  // buf_start and iov.iov_base point to the same location
+  LOG_PACKET_SENDING(buf_start, iov.iov_len);
+  return this->write_raw_fast_buf_(buf_start, static_cast<uint16_t>(iov.iov_len));
 }
 
 APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) {
@@ -527,6 +528,11 @@ APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, s
     total_write_len += iov.iov_len;
   }
 
+#ifdef HELPER_LOG_PACKETS
+  for (const auto &iov : iovs) {
+    LOG_PACKET_SENDING(reinterpret_cast<uint8_t *>(iov.iov_base), iov.iov_len);
+  }
+#endif
   return this->write_raw_fast_iov_(iovs.data(), iovs.size(), total_write_len);
 }
 
