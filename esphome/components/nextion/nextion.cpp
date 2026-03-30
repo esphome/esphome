@@ -241,7 +241,7 @@ bool Nextion::send_command(const char *command) {
     return false;
 
   if (this->send_command_(command)) {
-    this->add_no_result_to_queue_("send_command");
+    this->add_no_result_to_queue_("command");
     return true;
   }
   return false;
@@ -262,7 +262,7 @@ bool Nextion::send_command_printf(const char *format, ...) {
   }
 
   if (this->send_command_(buffer)) {
-    this->add_no_result_to_queue_("send_command_printf");
+    this->add_no_result_to_queue_("command_printf");
     return true;
   }
   return false;
@@ -841,18 +841,9 @@ void Nextion::process_nextion_commands_() {
 
   if (this->max_q_age_ms_ > 0 && !this->nextion_queue_.empty() &&
       ms - this->nextion_queue_.front()->queue_time > this->max_q_age_ms_) {
-    for (size_t i = 0; i < this->nextion_queue_.size(); i++) {
-      NextionComponentBase *component = this->nextion_queue_[i]->component;
-      if (ms - this->nextion_queue_[i]->queue_time > this->max_q_age_ms_) {
-        if (this->nextion_queue_[i]->queue_time == 0) {
-          ESP_LOGD(TAG, "Remove old queue '%s':'%s' (t=0)", component->get_queue_type_string(),
-                   component->get_variable_name().c_str());
-        }
-
-        if (component->get_variable_name() == "sleep_wake") {
-          this->is_sleeping_ = false;
-        }
-
+    for (auto it = this->nextion_queue_.begin(); it != this->nextion_queue_.end();) {
+      if (ms - (*it)->queue_time > this->max_q_age_ms_) {
+        NextionComponentBase *component = (*it)->component;
         ESP_LOGD(TAG, "Remove old queue '%s':'%s'", component->get_queue_type_string(),
                  component->get_variable_name().c_str());
 
@@ -863,10 +854,8 @@ void Nextion::process_nextion_commands_() {
           delete component;  // NOLINT(cppcoreguidelines-owning-memory)
         }
 
-        delete this->nextion_queue_[i];  // NOLINT(cppcoreguidelines-owning-memory)
-
-        this->nextion_queue_.erase(this->nextion_queue_.begin() + i);
-        i--;
+        delete *it;  // NOLINT(cppcoreguidelines-owning-memory)
+        it = this->nextion_queue_.erase(it);
 
       } else {
         break;
