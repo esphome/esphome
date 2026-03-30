@@ -6,19 +6,18 @@ namespace esphome {
 namespace gdk101 {
 
 static const char *const TAG = "gdk101";
-static const uint8_t NUMBER_OF_READ_RETRIES = 5;
-static const uint8_t NUMBER_OF_RESET_RETRIES = 10;
-uint8_t GDK101Component::reset_retry_cnt = 0;
+static constexpr uint8_t NUMBER_OF_READ_RETRIES = 5;
+static constexpr uint8_t NUMBER_OF_RESET_RETRIES = 10;
 
 void GDK101Component::update() {
   uint8_t data[2];
 
-  if (esphome::gdk101::GDK101Component::reset_retry_cnt) {
-    this->setup();
-    if (esphome::gdk101::GDK101Component::reset_retry_cnt == NUMBER_OF_RESET_RETRIES) {
-      this->mark_failed();
-      return;
-    } else if (esphome::gdk101::GDK101Component::reset_retry_cnt != 0) {
+  if (this->reset_retries_remaining_ > 0) {
+    if (!this->try_reset_()) {
+      if (--this->reset_retries_remaining_ == 0) {
+        this->status_set_error(LOG_STR("Reset failed after retries"));
+        this->mark_failed();
+      }
       return;
     }
   }
@@ -46,26 +45,33 @@ void GDK101Component::update() {
 }
 
 void GDK101Component::setup() {
+  if (!this->try_reset_()) {
+    // Sensor not ready yet, retry on subsequent update() calls
+    this->reset_retries_remaining_ = NUMBER_OF_RESET_RETRIES;
+  }
+}
+
+bool GDK101Component::try_reset_() {
   uint8_t data[2] = {0};
   // first, reset the sensor
   if (!this->reset_sensor_(data)) {
-    this->status_set_warning(LOG_STR("Sensor not answered to reset. Will retry."));
-    esphome::gdk101::GDK101Component::reset_retry_cnt++;
-    return;
+    this->status_set_warning(LOG_STR("Sensor not answering reset, will retry"));
+    return false;
   }
   if (data[0] != 1) {
-    this->status_set_warning(LOG_STR("Reset not acknowledged yet. Will retry."));
-    esphome::gdk101::GDK101Component::reset_retry_cnt++;
-    return;
+    this->status_set_warning(LOG_STR("Reset not acknowledged, will retry"));
+    return false;
   }
   delay(10);
   // read firmware version
   if (!this->read_fw_version_(data)) {
     this->status_set_error(LOG_STR("Failed to read firmware version"));
     this->mark_failed();
-    return;
+    return true;  // Don't retry, hard failure
   }
-  esphome::gdk101::GDK101Component::reset_retry_cnt = 0;
+  this->reset_retries_remaining_ = 0;
+  this->status_clear_warning();
+  return true;
 }
 
 void GDK101Component::dump_config() {
