@@ -287,10 +287,10 @@ APIError APIPlaintextFrameHelper::write_protobuf_packet(uint8_t type, ProtoWrite
   assert(this->state_ == State::DATA);
 #endif
 
-  MessageInfo msg{type, 0, static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_)};
+  MessageInfo msg{type, 0, static_cast<uint16_t>(buffer.get_buffer()->size() - HEADER_PADDING)};
   uint8_t *buffer_data = buffer.get_buffer()->data();
-  uint8_t header_len = write_plaintext_header(buffer_data, msg, frame_header_padding_);
-  uint8_t *msg_start = buffer_data + frame_header_padding_ - header_len;
+  uint8_t header_len = write_plaintext_header(buffer_data, msg, HEADER_PADDING);
+  uint8_t *msg_start = buffer_data + HEADER_PADDING - header_len;
   uint16_t msg_len = static_cast<uint16_t>(header_len + msg.payload_size);
   LOG_PACKET_SENDING(msg_start, msg_len);
   return this->write_raw_fast_buf_(msg_start, msg_len);
@@ -302,15 +302,13 @@ APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffe
   assert(this->state_ == State::DATA);
   assert(!messages.empty());
 #endif
-
   uint8_t *buffer_data = buffer.get_buffer()->data();
   StaticVector<struct iovec, MAX_MESSAGES_PER_BATCH> iovs;
   uint16_t total_write_len = 0;
-  const uint8_t padding = frame_header_padding_;
 
   for (const auto &msg : messages) {
-    uint8_t header_len = write_plaintext_header(buffer_data + msg.offset, msg, padding);
-    uint8_t *msg_start = buffer_data + msg.offset + padding - header_len;
+    uint8_t header_len = write_plaintext_header(buffer_data + msg.offset, msg, HEADER_PADDING);
+    uint8_t *msg_start = buffer_data + msg.offset + HEADER_PADDING - header_len;
     size_t msg_len = static_cast<size_t>(header_len + msg.payload_size);
     iovs.push_back({msg_start, msg_len});
     total_write_len += msg_len;

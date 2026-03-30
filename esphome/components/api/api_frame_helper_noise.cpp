@@ -497,8 +497,7 @@ APIError APINoiseFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuff
   if (frame_footer_size_)
     buffer.get_buffer()->resize(buffer.get_buffer()->size() + frame_footer_size_);
 
-  MessageInfo msg{type, 0,
-                  static_cast<uint16_t>(buffer.get_buffer()->size() - frame_header_padding_ - frame_footer_size_)};
+  MessageInfo msg{type, 0, static_cast<uint16_t>(buffer.get_buffer()->size() - HEADER_PADDING - frame_footer_size_)};
   uint8_t *buf_start = buffer.get_buffer()->data();
   struct iovec iov;
   APIError aerr = this->encrypt_noise_message_(buf_start, msg, iov);
