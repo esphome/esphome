@@ -385,13 +385,10 @@ void HeartbeatFilter::setup() {
 
 float HeartbeatFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-CalibrateLinearFilter::CalibrateLinearFilter(std::initializer_list<std::array<float, 3>> linear_functions)
-    : linear_functions_(linear_functions) {}
-
-optional<float> CalibrateLinearFilter::new_value(float value) {
-  for (const auto &f : this->linear_functions_) {
-    if (!std::isfinite(f[2]) || value < f[2])
-      return (value * f[0]) + f[1];
+optional<float> calibrate_linear_compute(const std::array<float, 3> *functions, size_t count, float value) {
+  for (size_t i = 0; i < count; i++) {
+    if (!std::isfinite(functions[i][2]) || value < functions[i][2])
+      return (value * functions[i][0]) + functions[i][1];
   }
   return NAN;
 }

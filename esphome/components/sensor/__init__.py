@@ -770,7 +770,9 @@ async def calibrate_linear_filter_to_code(config, filter_id):
         linear_functions = [[k, b, float("NaN")]]
     elif config[CONF_METHOD] == "exact":
         linear_functions = map_linear(x, y)
-    return cg.new_Pvariable(filter_id, linear_functions)
+    return cg.new_Pvariable(
+        filter_id, cg.TemplateArguments(len(linear_functions)), linear_functions
+    )
 
 
 CONF_DEGREE = "degree"
