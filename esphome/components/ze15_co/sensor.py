@@ -10,6 +10,7 @@ from esphome.const import (
 )
 
 CODEOWNERS = ["@maikeljkwak"]
+DEPENDENCIES = ["uart"]
 
 ICON_MOLECULE_CO = "mdi:molecule-co"
 
