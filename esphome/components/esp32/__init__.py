@@ -405,7 +405,8 @@ def set_core_data(config):
     CORE.data[KEY_ESP32] = {}
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_ESP32
     conf = config[CONF_FRAMEWORK]
-    CORE.data[KEY_NATIVE_IDF] = conf[CONF_NATIVE_IDF]
+    if conf[CONF_NATIVE_IDF]:
+        CORE.data[KEY_NATIVE_IDF] = True
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "esp-idf"
     elif conf[CONF_TYPE] == FRAMEWORK_ARDUINO:

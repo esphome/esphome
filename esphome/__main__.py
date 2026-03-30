@@ -1095,9 +1095,6 @@ def command_vscode(args: ArgsProtocol) -> int | None:
 
 
 def command_compile(args: ArgsProtocol, config: ConfigType) -> int | None:
-    native_idf = getattr(args, "native_idf", False)
-    if native_idf:
-        CORE.data[KEY_NATIVE_IDF] = True
     exit_code = write_cpp(config)
     if exit_code != 0:
         return exit_code
@@ -1153,9 +1150,6 @@ def command_logs(args: ArgsProtocol, config: ConfigType) -> int | None:
 
 
 def command_run(args: ArgsProtocol, config: ConfigType) -> int | None:
-    native_idf = getattr(args, "native_idf", False)
-    if native_idf:
-        CORE.data[KEY_NATIVE_IDF] = True
     exit_code = write_cpp(config)
     if exit_code != 0:
         return exit_code
@@ -1897,6 +1891,7 @@ def run_esphome(argv):
 
     CORE.config_path = conf_path
     CORE.dashboard = args.dashboard
+    CORE.data[KEY_NATIVE_IDF] = args.native_idf
 
     # For logs command, skip updating external components
     skip_external = args.command == "logs"
