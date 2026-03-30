@@ -5,6 +5,19 @@ namespace esphome::light {
 
 static const char *const TAG = "light.addressable";
 
+float AddressableLight::get_estimated_current_ma() {
+  float total = 0.0f;
+  for (int i = 0; i < this->size(); i++) {
+    auto pixel = this->get(i);
+    total += (pixel.get_red_raw() / 255.0f) * this->ma_per_led_red_;
+    total += (pixel.get_green_raw() / 255.0f) * this->ma_per_led_green_;
+    total += (pixel.get_blue_raw() / 255.0f) * this->ma_per_led_blue_;
+    total += (pixel.get_white_raw() / 255.0f) * this->ma_per_led_white_;
+    total += this->idle_ma_per_led_;
+  }
+  return total;
+}
+
 void AddressableLight::call_setup() {
   this->setup();
 
