@@ -236,8 +236,8 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
 }
 // Write plaintext header into pre-allocated padding before payload.
 // Returns the total header length (indicator + varints).
-ESPHOME_ALWAYS_INLINE static inline uint8_t write_plaintext_header(uint8_t *buf_start, const MessageInfo &msg,
-                                                                   uint8_t frame_header_padding) {
+ESPHOME_ALWAYS_INLINE static inline uint8_t write_plaintext_header(uint8_t *buf_start, const MessageInfo &msg) {
+  constexpr uint8_t frame_header_padding = APIPlaintextFrameHelper::HEADER_PADDING;
   // Calculate varint sizes for header layout using inline ternary to avoid varint_slow call overhead
   uint8_t size_varint_len = msg.payload_size < ProtoSize::VARINT_THRESHOLD_1_BYTE
                                 ? 1
@@ -289,7 +289,7 @@ APIError APIPlaintextFrameHelper::write_protobuf_packet(uint8_t type, ProtoWrite
 
   MessageInfo msg{type, 0, static_cast<uint16_t>(buffer.get_buffer()->size() - HEADER_PADDING)};
   uint8_t *buffer_data = buffer.get_buffer()->data();
-  uint8_t header_len = write_plaintext_header(buffer_data, msg, HEADER_PADDING);
+  uint8_t header_len = write_plaintext_header(buffer_data, msg);
   uint8_t *msg_start = buffer_data + HEADER_PADDING - header_len;
   uint16_t msg_len = static_cast<uint16_t>(header_len + msg.payload_size);
   LOG_PACKET_SENDING(msg_start, msg_len);
@@ -307,7 +307,7 @@ APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffe
   uint16_t total_write_len = 0;
 
   for (const auto &msg : messages) {
-    uint8_t header_len = write_plaintext_header(buffer_data + msg.offset, msg, HEADER_PADDING);
+    uint8_t header_len = write_plaintext_header(buffer_data + msg.offset, msg);
     uint8_t *msg_start = buffer_data + msg.offset + HEADER_PADDING - header_len;
     size_t msg_len = static_cast<size_t>(header_len + msg.payload_size);
     iovs.push_back({msg_start, msg_len});
