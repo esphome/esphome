@@ -289,12 +289,12 @@ def final_validate(config):
 def _consume_wifi_sockets(config: ConfigType) -> ConfigType:
     """Register UDP PCBs used internally by lwIP for DHCP and DNS.
 
-    Needed on LibreTiny and RP2040 where we directly set MEMP_NUM_UDP_PCB (the
-    raw PCB pool shared by both application sockets and lwIP internals like
-    DHCP/DNS). On ESP32, CONFIG_LWIP_MAX_SOCKETS only controls the POSIX socket
-    layer — DHCP/DNS use raw udp_new() which bypasses it entirely.
+    Only needed on LibreTiny where we directly set MEMP_NUM_UDP_PCB (the raw
+    PCB pool shared by both application sockets and lwIP internals like DHCP/DNS).
+    On ESP32, CONFIG_LWIP_MAX_SOCKETS only controls the POSIX socket layer —
+    DHCP/DNS use raw udp_new() which bypasses it entirely.
     """
-    if not (CORE.is_bk72xx or CORE.is_rtl87xx or CORE.is_ln882x or CORE.is_rp2040):
+    if not (CORE.is_bk72xx or CORE.is_rtl87xx or CORE.is_ln882x):
         return config
     from esphome.components import socket
 
@@ -454,25 +454,13 @@ def safe_ip(ip):
 def manual_ip(config):
     if config is None:
         return None
-    fields = {
-        "static_ip": CONF_STATIC_IP,
-        "gateway": CONF_GATEWAY,
-        "subnet": CONF_SUBNET,
-        "dns1": CONF_DNS1,
-        "dns2": CONF_DNS2,
-    }
-    if CORE.is_esp8266:
-        # On ESP8266, .rodata is mapped to RAM. Using StructInitializer with all
-        # compile-time constant fields causes the compiler to place a const blob
-        # in .rodata, silently consuming ~20 bytes of RAM. Field-by-field assignment
-        # encodes the values as immediate operands in flash instructions instead.
-        cg.add(cg.RawExpression("wifi::ManualIP manual_ip{}"))
-        for member, key in fields.items():
-            cg.add(cg.RawExpression(f"manual_ip.{member} = {safe_ip(config.get(key))}"))
-        return cg.RawExpression("manual_ip")
     return cg.StructInitializer(
         ManualIP,
-        *((member, safe_ip(config.get(key))) for member, key in fields.items()),
+        ("static_ip", safe_ip(config[CONF_STATIC_IP])),
+        ("gateway", safe_ip(config[CONF_GATEWAY])),
+        ("subnet", safe_ip(config[CONF_SUBNET])),
+        ("dns1", safe_ip(config.get(CONF_DNS1))),
+        ("dns2", safe_ip(config.get(CONF_DNS2))),
     )
 
 

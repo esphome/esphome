@@ -726,7 +726,7 @@ void WiFiComponent::restart_adapter() {
   // through start_connecting() first. Without this clear, stale errors would
   // trigger spurious "failed (callback)" logs. The canonical clear location
   // is in start_connecting(); this is the only exception to that pattern.
-  this->error_from_callback_ = 0;
+  this->error_from_callback_ = false;
 }
 
 void WiFiComponent::loop() {
@@ -784,7 +784,8 @@ void WiFiComponent::loop() {
       }
 
       case WIFI_COMPONENT_STATE_STA_CONNECTED: {
-        if (!this->is_connected_()) {
+        // Use cached connected_ set unconditionally at the top of loop()
+        if (!this->connected_) {
           ESP_LOGW(TAG, "Connection lost; reconnecting");
           this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
           this->retry_connect();
@@ -1148,7 +1149,7 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
   // This is the canonical location for clearing the flag since all connection
   // attempts go through start_connecting(). The only other clear is in
   // restart_adapter() which enters COOLDOWN without calling start_connecting().
-  this->error_from_callback_ = 0;
+  this->error_from_callback_ = false;
 
   if (!this->wifi_sta_connect_(ap)) {
     ESP_LOGE(TAG, "wifi_sta_connect_ failed");
@@ -2000,7 +2001,6 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
         (old_priority > std::numeric_limits<int8_t>::min()) ? (old_priority - 1) : std::numeric_limits<int8_t>::min();
     this->set_sta_priority(failed_bssid.value(), new_priority);
   }
-
   char bssid_s[18];
   format_mac_addr_upper(failed_bssid.value().data(), bssid_s);
   ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d", ssid != nullptr ? ssid : "",
@@ -2130,11 +2130,6 @@ void WiFiComponent::retry_connect() {
 }
 
 void WiFiComponent::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
-bool WiFiComponent::is_connected_() const {
-  return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED &&
-         this->wifi_sta_connect_status_() == WiFiSTAConnectStatus::CONNECTED && !this->error_from_callback_;
-}
-void WiFiComponent::update_connected_state_() { this->connected_ = this->is_connected_(); }
 void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) {
   this->power_save_ = power_save;
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
