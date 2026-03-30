@@ -120,7 +120,7 @@ def _get_required_loggers() -> set[BTLoggers]:
     return CORE.data.setdefault(ESP32_BLE_REQUIRED_LOGGERS_KEY, set())
 
 
-# Dataclass for handler registration counts
+# Dataclass for handler registration counts (used for StaticCallbackManager sizing)
 @dataclass
 class HandlerCounts:
     gap_event: int = 0
@@ -130,46 +130,83 @@ class HandlerCounts:
     ble_status_event: int = 0
 
 
-# Track handler registration counts for StaticVector sizing
+# Track handler registration counts for StaticCallbackManager sizing
 _handler_counts = HandlerCounts()
 
 
 def register_gap_event_handler(parent_var: cg.MockObj, handler_var: cg.MockObj) -> None:
-    """Register a GAP event handler and track the count."""
+    """Register a GAP event handler callback."""
     _handler_counts.gap_event += 1
-    cg.add(parent_var.register_gap_event_handler(handler_var))
+    cg.add(
+        parent_var.add_gap_event_callback(
+            cg.RawExpression(
+                f"[{handler_var}](esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {{ "
+                f"{handler_var}->gap_event_handler(event, param); }}"
+            )
+        )
+    )
 
 
 def register_gap_scan_event_handler(
     parent_var: cg.MockObj, handler_var: cg.MockObj
 ) -> None:
-    """Register a GAP scan event handler and track the count."""
+    """Register a GAP scan event handler callback."""
     _handler_counts.gap_scan_event += 1
-    cg.add(parent_var.register_gap_scan_event_handler(handler_var))
+    cg.add(
+        parent_var.add_gap_scan_event_callback(
+            cg.RawExpression(
+                f"[{handler_var}](const esphome::esp32_ble::BLEScanResult &scan_result) {{ "
+                f"{handler_var}->gap_scan_event_handler(scan_result); }}"
+            )
+        )
+    )
 
 
 def register_gattc_event_handler(
     parent_var: cg.MockObj, handler_var: cg.MockObj
 ) -> None:
-    """Register a GATTc event handler and track the count."""
+    """Register a GATTc event handler callback."""
     _handler_counts.gattc_event += 1
-    cg.add(parent_var.register_gattc_event_handler(handler_var))
+    cg.add(
+        parent_var.add_gattc_event_callback(
+            cg.RawExpression(
+                f"[{handler_var}](esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, "
+                f"esp_ble_gattc_cb_param_t *param) {{ "
+                f"{handler_var}->gattc_event_handler(event, gattc_if, param); }}"
+            )
+        )
+    )
 
 
 def register_gatts_event_handler(
     parent_var: cg.MockObj, handler_var: cg.MockObj
 ) -> None:
-    """Register a GATTs event handler and track the count."""
+    """Register a GATTs event handler callback."""
     _handler_counts.gatts_event += 1
-    cg.add(parent_var.register_gatts_event_handler(handler_var))
+    cg.add(
+        parent_var.add_gatts_event_callback(
+            cg.RawExpression(
+                f"[{handler_var}](esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, "
+                f"esp_ble_gatts_cb_param_t *param) {{ "
+                f"{handler_var}->gatts_event_handler(event, gatts_if, param); }}"
+            )
+        )
+    )
 
 
 def register_ble_status_event_handler(
     parent_var: cg.MockObj, handler_var: cg.MockObj
 ) -> None:
-    """Register a BLE status event handler and track the count."""
+    """Register a BLE status event handler callback."""
     _handler_counts.ble_status_event += 1
-    cg.add(parent_var.register_ble_status_event_handler(handler_var))
+    cg.add(
+        parent_var.add_ble_status_event_callback(
+            cg.RawExpression(
+                f"[{handler_var}]() {{ "
+                f"{handler_var}->ble_before_disabled_event_handler(); }}"
+            )
+        )
+    )
 
 
 def register_bt_logger(*loggers: BTLoggers) -> None:
@@ -224,10 +261,6 @@ NO_BLUETOOTH_VARIANTS = [const.VARIANT_ESP32S2]
 
 esp32_ble_ns = cg.esphome_ns.namespace("esp32_ble")
 ESP32BLE = esp32_ble_ns.class_("ESP32BLE", cg.Component)
-
-GAPEventHandler = esp32_ble_ns.class_("GAPEventHandler")
-GATTcEventHandler = esp32_ble_ns.class_("GATTcEventHandler")
-GATTsEventHandler = esp32_ble_ns.class_("GATTsEventHandler")
 
 BLEEnabledCondition = esp32_ble_ns.class_("BLEEnabledCondition", automation.Condition)
 BLEEnableAction = esp32_ble_ns.class_("BLEEnableAction", automation.Action)
@@ -494,8 +527,7 @@ FINAL_VALIDATE_SCHEMA = final_validation
 # a chance to register their handlers before the counts are added to defines.
 @coroutine_with_priority(CoroPriority.FINAL)
 async def _add_ble_handler_defines():
-    # Add defines for StaticVector sizing based on handler registration counts
-    # Only define if count > 0 to avoid allocating unnecessary memory
+    # Add defines for StaticCallbackManager sizing based on handler registration counts
     if _handler_counts.gap_event > 0:
         cg.add_define(
             "ESPHOME_ESP32_BLE_GAP_EVENT_HANDLER_COUNT", _handler_counts.gap_event
