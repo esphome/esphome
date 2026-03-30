@@ -30,13 +30,16 @@ static void Decode_HelloRequest(benchmark::State &state) {
   source.api_version_major = 1;
   source.api_version_minor = 10;
   auto encoded = encode_message(source);
+  auto *data = encoded.data();
+  auto size = encoded.size();
+  benchmark::DoNotOptimize(data);
+  benchmark::DoNotOptimize(size);
 
   for (auto _ : state) {
     HelloRequest msg;
     for (int i = 0; i < kInnerIterations; i++) {
       benchmark::DoNotOptimize(msg);
-      msg.decode(encoded.data(), encoded.size());
-      benchmark::DoNotOptimize(msg);
+      msg.decode(data, size);
       benchmark::ClobberMemory();
     }
   }
@@ -51,13 +54,16 @@ static void Decode_SwitchCommandRequest(benchmark::State &state) {
   source.key = 0x12345678;
   source.state = true;
   auto encoded = encode_message(source);
+  auto *data = encoded.data();
+  auto size = encoded.size();
+  benchmark::DoNotOptimize(data);
+  benchmark::DoNotOptimize(size);
 
   for (auto _ : state) {
     SwitchCommandRequest msg;
     for (int i = 0; i < kInnerIterations; i++) {
       benchmark::DoNotOptimize(msg);
-      msg.decode(encoded.data(), encoded.size());
-      benchmark::DoNotOptimize(msg);
+      msg.decode(data, size);
       benchmark::ClobberMemory();
     }
   }
@@ -81,13 +87,16 @@ static void Decode_LightCommandRequest(benchmark::State &state) {
   source.has_effect = true;
   source.effect = StringRef::from_lit("rainbow");
   auto encoded = encode_message(source);
+  auto *data = encoded.data();
+  auto size = encoded.size();
+  benchmark::DoNotOptimize(data);
+  benchmark::DoNotOptimize(size);
 
   for (auto _ : state) {
     LightCommandRequest msg;
     for (int i = 0; i < kInnerIterations; i++) {
       benchmark::DoNotOptimize(msg);
-      msg.decode(encoded.data(), encoded.size());
-      benchmark::DoNotOptimize(msg);
+      msg.decode(data, size);
       benchmark::ClobberMemory();
     }
   }
