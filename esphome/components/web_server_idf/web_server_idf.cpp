@@ -448,9 +448,8 @@ void AsyncWebServerResponse::addHeader(const char *name, const char *value) {
 void AsyncResponseStream::print(float value) {
   // Use stack buffer to avoid temporary string allocation
   // Size: sign (1) + digits (10) + decimal (1) + precision (6) + exponent (5) + null (1) = 24, use 32 for safety
-  constexpr size_t float_buf_size = 32;
-  char buf[float_buf_size];
-  int len = snprintf(buf, float_buf_size, "%f", value);
+  char buf[32];
+  int len = snprintf(buf, sizeof(buf), "%f", value);
   this->content_.append(buf, len);
 }
 

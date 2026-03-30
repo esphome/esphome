@@ -5,7 +5,7 @@ namespace esphome::web_server_base {
 
 WebServerBase *global_web_server_base = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-void __attribute__((flatten)) WebServerBase::add_handler(AsyncWebHandler *handler) {
+void WebServerBase::add_handler(AsyncWebHandler *handler) {
 #ifdef USE_WEBSERVER_AUTH
   if (!credentials_.username.empty()) {
     handler = new internal::AuthMiddlewareHandler(handler, &credentials_);
