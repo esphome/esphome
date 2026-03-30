@@ -41,7 +41,6 @@ class GDK101Component : public PollingComponent, public i2c::I2CDevice {
   void setup() override;
   void dump_config() override;
   void update() override;
-  float get_setup_priority() const override { return setup_priority::LATE; }
 
  protected:
   bool read_bytes_with_retry_(uint8_t a_register, uint8_t *data, uint8_t len);
