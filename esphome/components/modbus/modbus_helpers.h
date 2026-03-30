@@ -68,7 +68,7 @@ inline uint8_t c_to_hex(char c) { return (c >= 'A') ? (c >= 'a') ? (c - 'a' + 10
  * @return byte value
  */
 inline uint8_t byte_from_hex_str(const std::string &value, uint8_t pos) {
-  if (value.length() < pos * 2 + 1)
+  if (value.length() < pos * 2 + 2)
     return 0;
   return (c_to_hex(value[pos * 2]) << 4) | c_to_hex(value[pos * 2 + 1]);
 }
