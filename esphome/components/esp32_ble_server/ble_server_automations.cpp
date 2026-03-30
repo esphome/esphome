@@ -15,10 +15,7 @@ Trigger<std::vector<uint8_t>, uint16_t> *BLETriggers::create_characteristic_on_w
   Trigger<std::vector<uint8_t>, uint16_t> *on_write_trigger =  // NOLINT(cppcoreguidelines-owning-memory)
       new Trigger<std::vector<uint8_t>, uint16_t>();
   characteristic->on_write([on_write_trigger](std::span<const uint8_t> data, uint16_t id) {
-    // Convert span to vector for trigger - copy is necessary because:
-    // 1. Trigger stores the data for use in automation actions that execute later
-    // 2. The span is only valid during this callback (points to temporary BLE stack data)
-    // 3. User lambdas in automations need persistent data they can access asynchronously
+    // Convert span to vector for trigger
     on_write_trigger->trigger(std::vector<uint8_t>(data.begin(), data.end()), id);
   });
   return on_write_trigger;
@@ -30,10 +27,7 @@ Trigger<std::vector<uint8_t>, uint16_t> *BLETriggers::create_descriptor_on_write
   Trigger<std::vector<uint8_t>, uint16_t> *on_write_trigger =  // NOLINT(cppcoreguidelines-owning-memory)
       new Trigger<std::vector<uint8_t>, uint16_t>();
   descriptor->on_write([on_write_trigger](std::span<const uint8_t> data, uint16_t id) {
-    // Convert span to vector for trigger - copy is necessary because:
-    // 1. Trigger stores the data for use in automation actions that execute later
-    // 2. The span is only valid during this callback (points to temporary BLE stack data)
-    // 3. User lambdas in automations need persistent data they can access asynchronously
+    // Convert span to vector for trigger
     on_write_trigger->trigger(std::vector<uint8_t>(data.begin(), data.end()), id);
   });
   return on_write_trigger;
