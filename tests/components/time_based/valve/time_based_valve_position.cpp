@@ -7,6 +7,7 @@ namespace esphome::time_based::testing {
 class TimeBasedValvePositionTest : public ::testing::Test {
  protected:
   void SetUp() override {
+    valve.mock_millis = 1000;
     valve.set_duration(10000);
     valve.setup();
   }
@@ -15,7 +16,6 @@ class TimeBasedValvePositionTest : public ::testing::Test {
 };
 
 TEST_F(TimeBasedValvePositionTest, SetPosition) {
-  valve.mock_millis = 1000;
   EXPECT_EQ((int) valve.current_operation, (int) ValveOperation::VALVE_OPERATION_IDLE);
 
   valve.set_position(-0.1, true);
