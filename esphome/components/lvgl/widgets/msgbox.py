@@ -174,6 +174,6 @@ async def msgbox_to_code(top_layer, conf):
 
 
 async def msgboxes_to_code(lv_component, config):
-    top_layer = lv.disp_get_layer_top(lv_component.get_disp())
+    top_layer = lv_expr.disp_get_layer_top(lv_component.get_disp())
     for conf in config.get(CONF_MSGBOXES, ()):
         await msgbox_to_code(top_layer, conf)
