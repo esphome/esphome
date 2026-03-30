@@ -436,6 +436,7 @@ class ESP32BLETracker : public Component,
   ScannerState scanner_state_{ScannerState::IDLE};
   bool scan_continuous_;
   bool scan_active_;
+  bool scan_continuous_before_ota_{false};
   bool ble_was_disabled_{true};
   bool raw_advertisements_{false};
   bool parse_advertisements_{false};

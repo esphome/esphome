@@ -88,12 +88,19 @@ void ESP32BLETracker::setup() {
 #ifdef USE_OTA_STATE_LISTENER
 void ESP32BLETracker::on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) {
   if (state == ota::OTA_STARTED) {
+    this->scan_continuous_before_ota_ = this->scan_continuous_;
     this->stop_scan();
 #ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
     for (auto *client : this->clients_) {
       client->disconnect();
     }
 #endif
+  } else if (state == ota::OTA_ERROR || state == ota::OTA_ABORT) {
+    if (this->scan_continuous_before_ota_) {
+      this->scan_continuous_before_ota_ = false;
+      this->scan_continuous_ = true;
+      this->start_scan();
+    }
   }
 }
 #endif
