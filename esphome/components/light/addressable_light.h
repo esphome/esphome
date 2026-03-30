@@ -25,10 +25,19 @@ class AddressableLightState final : public LightState {
   using LightState::LightState;
 
  public:
-  /// Returns the estimated current draw of the LED strip in milliamps.
-  /// Convenience wrapper so `id(my_light).get_estimated_current_ma()` works in lambdas.
-  /// Defined after AddressableLight is fully declared below.
+  /// Convenience wrappers so `id(my_light).<method>()` works in lambdas without needing output_id.
+  /// All methods are defined after AddressableLight is fully declared below.
   float get_estimated_current_ma();
+  void set_ma_per_led_red(float ma);
+  void set_ma_per_led_green(float ma);
+  void set_ma_per_led_blue(float ma);
+  void set_ma_per_led_white(float ma);
+  void set_idle_ma_per_led(float ma);
+  float get_ma_per_led_red();
+  float get_ma_per_led_green();
+  float get_ma_per_led_blue();
+  float get_ma_per_led_white();
+  float get_idle_ma_per_led();
 };
 
 class AddressableLight : public LightOutput, public Component {
@@ -79,6 +88,16 @@ class AddressableLight : public LightOutput, public Component {
     this->ma_per_led_white_ = ma_per_led_white;
     this->idle_ma_per_led_ = idle_ma_per_led;
   }
+  void set_ma_per_led_red(float ma) { this->ma_per_led_red_ = ma; }
+  void set_ma_per_led_green(float ma) { this->ma_per_led_green_ = ma; }
+  void set_ma_per_led_blue(float ma) { this->ma_per_led_blue_ = ma; }
+  void set_ma_per_led_white(float ma) { this->ma_per_led_white_ = ma; }
+  void set_idle_ma_per_led(float ma) { this->idle_ma_per_led_ = ma; }
+  float get_ma_per_led_red() const { return this->ma_per_led_red_; }
+  float get_ma_per_led_green() const { return this->ma_per_led_green_; }
+  float get_ma_per_led_blue() const { return this->ma_per_led_blue_; }
+  float get_ma_per_led_white() const { return this->ma_per_led_white_; }
+  float get_idle_ma_per_led() const { return this->idle_ma_per_led_; }
   /// Returns estimated current draw of the LED strip in milliamps based on the current pixel buffer.
   /// The raw (hardware-output) pixel values are used, so gamma correction and brightness are already
   /// accounted for. White channel contributes 0 mA on RGB-only strips (no white pointer).
@@ -127,9 +146,40 @@ class AddressableLight : public LightOutput, public Component {
   bool effect_active_{false};
 };
 
-// Defined here (after AddressableLight is complete) to avoid incomplete-type cast error.
+// All AddressableLightState forwarding methods are defined here, after AddressableLight is fully
+// declared, to avoid static_cast-from-incomplete-type compiler errors.
 inline float AddressableLightState::get_estimated_current_ma() {
   return static_cast<AddressableLight *>(this->get_output())->get_estimated_current_ma();
+}
+inline void AddressableLightState::set_ma_per_led_red(float ma) {
+  static_cast<AddressableLight *>(this->get_output())->set_ma_per_led_red(ma);
+}
+inline void AddressableLightState::set_ma_per_led_green(float ma) {
+  static_cast<AddressableLight *>(this->get_output())->set_ma_per_led_green(ma);
+}
+inline void AddressableLightState::set_ma_per_led_blue(float ma) {
+  static_cast<AddressableLight *>(this->get_output())->set_ma_per_led_blue(ma);
+}
+inline void AddressableLightState::set_ma_per_led_white(float ma) {
+  static_cast<AddressableLight *>(this->get_output())->set_ma_per_led_white(ma);
+}
+inline void AddressableLightState::set_idle_ma_per_led(float ma) {
+  static_cast<AddressableLight *>(this->get_output())->set_idle_ma_per_led(ma);
+}
+inline float AddressableLightState::get_ma_per_led_red() {
+  return static_cast<AddressableLight *>(this->get_output())->get_ma_per_led_red();
+}
+inline float AddressableLightState::get_ma_per_led_green() {
+  return static_cast<AddressableLight *>(this->get_output())->get_ma_per_led_green();
+}
+inline float AddressableLightState::get_ma_per_led_blue() {
+  return static_cast<AddressableLight *>(this->get_output())->get_ma_per_led_blue();
+}
+inline float AddressableLightState::get_ma_per_led_white() {
+  return static_cast<AddressableLight *>(this->get_output())->get_ma_per_led_white();
+}
+inline float AddressableLightState::get_idle_ma_per_led() {
+  return static_cast<AddressableLight *>(this->get_output())->get_idle_ma_per_led();
 }
 
 class AddressableLightTransformer : public LightTransformer {
