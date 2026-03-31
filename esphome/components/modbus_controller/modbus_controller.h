@@ -22,72 +22,72 @@ using modbus::ModbusRegisterType;
 using modbus::ModbusExceptionCode;
 using modbus::helpers::SensorValueType;
 
-// Remove before 2026.9.0 — these helpers have moved to modbus::helpers
-ESPDEPRECATED("Use modbus::helpers::value_type_is_float() instead. Removed in 2026.9.0", "2026.3.0")
+// Remove before 2026.10.0 — these helpers have moved to modbus::helpers
+ESPDEPRECATED("Use modbus::helpers::value_type_is_float() instead. Removed in 2026.10.0", "2026.4.0")
 inline bool value_type_is_float(SensorValueType v) { return modbus::helpers::value_type_is_float(v); }
 
-ESPDEPRECATED("Use modbus::helpers::modbus_register_read_function() instead. Removed in 2026.9.0", "2026.3.0")
+ESPDEPRECATED("Use modbus::helpers::modbus_register_read_function() instead. Removed in 2026.10.0", "2026.4.0")
 inline ModbusFunctionCode modbus_register_read_function(ModbusRegisterType reg_type) {
   return modbus::helpers::modbus_register_read_function(reg_type);
 }
 
-ESPDEPRECATED("Use modbus::helpers::modbus_register_write_function() instead. Removed in 2026.9.0", "2026.3.0")
+ESPDEPRECATED("Use modbus::helpers::modbus_register_write_function() instead. Removed in 2026.10.0", "2026.4.0")
 inline ModbusFunctionCode modbus_register_write_function(ModbusRegisterType reg_type) {
   return modbus::helpers::modbus_register_write_function(reg_type);
 }
 
-ESPDEPRECATED("Use modbus::helpers::c_to_hex() instead. Removed in 2026.9.0", "2026.3.0")
+ESPDEPRECATED("Use modbus::helpers::c_to_hex() instead. Removed in 2026.10.0", "2026.4.0")
 inline uint8_t c_to_hex(char c) { return modbus::helpers::c_to_hex(c); }
 
-ESPDEPRECATED("Use modbus::helpers::byte_from_hex_str() instead. Removed in 2026.9.0", "2026.3.0")
+ESPDEPRECATED("Use modbus::helpers::byte_from_hex_str() instead. Removed in 2026.10.0", "2026.4.0")
 inline uint8_t byte_from_hex_str(const std::string &value, uint8_t pos) {
   return modbus::helpers::byte_from_hex_str(value, pos);
 }
 
-ESPDEPRECATED("Use modbus::helpers::word_from_hex_str() instead. Removed in 2026.9.0", "2026.3.0")
+ESPDEPRECATED("Use modbus::helpers::word_from_hex_str() instead. Removed in 2026.10.0", "2026.4.0")
 inline uint16_t word_from_hex_str(const std::string &value, uint8_t pos) {
   return modbus::helpers::word_from_hex_str(value, pos);
 }
 
-ESPDEPRECATED("Use modbus::helpers::dword_from_hex_str() instead. Removed in 2026.9.0", "2026.3.0")
+ESPDEPRECATED("Use modbus::helpers::dword_from_hex_str() instead. Removed in 2026.10.0", "2026.4.0")
 inline uint32_t dword_from_hex_str(const std::string &value, uint8_t pos) {
   return modbus::helpers::dword_from_hex_str(value, pos);
 }
 
-ESPDEPRECATED("Use modbus::helpers::qword_from_hex_str() instead. Removed in 2026.9.0", "2026.3.0")
+ESPDEPRECATED("Use modbus::helpers::qword_from_hex_str() instead. Removed in 2026.10.0", "2026.4.0")
 inline uint64_t qword_from_hex_str(const std::string &value, uint8_t pos) {
   return modbus::helpers::qword_from_hex_str(value, pos);
 }
 
 template<typename T>
-ESPDEPRECATED("Use modbus::helpers::get_data() instead. Removed in 2026.9.0", "2026.3.0")
+ESPDEPRECATED("Use modbus::helpers::get_data() instead. Removed in 2026.10.0", "2026.4.0")
 T get_data(const std::vector<uint8_t> &data, size_t buffer_offset) {
   return modbus::helpers::get_data<T>(data, buffer_offset);
 }
 
-ESPDEPRECATED("Use modbus::helpers::coil_from_vector() instead. Removed in 2026.9.0", "2026.3.0")
+ESPDEPRECATED("Use modbus::helpers::coil_from_vector() instead. Removed in 2026.10.0", "2026.4.0")
 inline bool coil_from_vector(int coil, const std::vector<uint8_t> &data) {
   return modbus::helpers::coil_from_vector(coil, data);
 }
 
 template<typename N>
-ESPDEPRECATED("Use modbus::helpers::mask_and_shift_by_rightbit() instead. Removed in 2026.9.0", "2026.3.0")
+ESPDEPRECATED("Use modbus::helpers::mask_and_shift_by_rightbit() instead. Removed in 2026.10.0", "2026.4.0")
 N mask_and_shift_by_rightbit(N data, uint32_t mask) {
   return modbus::helpers::mask_and_shift_by_rightbit(data, mask);
 }
 
-ESPDEPRECATED("Use modbus::helpers::number_to_payload() instead. Removed in 2026.9.0", "2026.3.0")
+ESPDEPRECATED("Use modbus::helpers::number_to_payload() instead. Removed in 2026.10.0", "2026.4.0")
 inline void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueType value_type) {
   modbus::helpers::number_to_payload(data, value, value_type);
 }
 
-ESPDEPRECATED("Use modbus::helpers::payload_to_number() instead. Removed in 2026.9.0", "2026.3.0")
+ESPDEPRECATED("Use modbus::helpers::payload_to_number() instead. Removed in 2026.10.0", "2026.4.0")
 inline int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
                                  uint32_t bitmask) {
   return modbus::helpers::payload_to_number(data, sensor_value_type, offset, bitmask);
 }
 
-ESPDEPRECATED("Use modbus::helpers::float_to_payload() instead. Removed in 2026.9.0", "2026.3.0")
+ESPDEPRECATED("Use modbus::helpers::float_to_payload() instead. Removed in 2026.10.0", "2026.4.0")
 inline std::vector<uint16_t> float_to_payload(float value, SensorValueType value_type) {
   return modbus::helpers::float_to_payload(value, value_type);
 }

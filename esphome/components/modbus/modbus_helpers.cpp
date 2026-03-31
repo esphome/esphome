@@ -2,9 +2,7 @@
 #include "modbus_helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace modbus {
-namespace helpers {
+namespace esphome::modbus::helpers {
 
 static const char *const TAG = "modbus_helpers";
 
@@ -140,6 +138,4 @@ int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sens
     ESP_LOGE(TAG, "not enough data for value");
   return value;
 }
-}  // namespace helpers
-}  // namespace modbus
-}  // namespace esphome
+}  // namespace esphome::modbus::helpers

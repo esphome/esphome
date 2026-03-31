@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cmath>
 #include <cstdarg>
 #include <cstdint>
@@ -496,6 +497,24 @@ template<typename T, size_t MAX_CAPACITY = std::numeric_limits<uint16_t>::max()>
   index_type count_{0};
   index_type capacity_{0};
 };
+
+/// Initialize a std::array from an initializer_list. Uses memcpy for trivially copyable types (optimal codegen),
+/// falls back to element-wise copy for non-trivially copyable types (e.g. TemplatableValue).
+/// N is always set by code generation — the caller is responsible for ensuring src.size() == N.
+/// The debug assert is a safety net for development, not a runtime check.
+template<typename T, size_t N> inline void init_array_from(std::array<T, N> &dest, std::initializer_list<T> src) {
+#ifdef ESPHOME_DEBUG
+  assert(src.size() == N);
+#endif
+  if constexpr (std::is_trivially_copyable_v<T>) {
+    __builtin_memcpy(dest.data(), src.begin(), N * sizeof(T));
+  } else {
+    size_t i = 0;
+    for (const auto &v : src) {
+      dest[i++] = v;
+    }
+  }
+}
 
 /// Fixed-capacity vector - allocates once at runtime, never reallocates
 /// This avoids std::vector template overhead (_M_realloc_insert, _M_default_append)
@@ -1809,6 +1828,38 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
   /// Non-template core to avoid code duplication per lambda type.
   void add_(Callback<void(Ts...)> cb) { this->callbacks_.push_back(cb); }
   std::vector<Callback<void(Ts...)>> callbacks_;
+};
+
+/** CallbackManager backed by StaticVector for compile-time-known callback counts.
+ *
+ * Drop-in replacement for CallbackManager that avoids std::vector template bloat
+ * (_M_realloc_insert, etc.) when the maximum number of callbacks is known at compile time.
+ *
+ * @tparam N Maximum number of callbacks (compile-time constant, typically from cg.add_define())
+ * @tparam Ts The arguments for the callbacks, wrapped in void().
+ */
+template<size_t N, typename... X> class StaticCallbackManager;
+
+template<size_t N, typename... Ts> class StaticCallbackManager<N, void(Ts...)> {
+ public:
+  /// Add any callable. Small trivially-copyable callables (like [this] lambdas)
+  /// are stored inline without heap allocation.
+  template<typename F> void add(F &&callback) { this->add_(Callback<void(Ts...)>::create(std::forward<F>(callback))); }
+
+  /// Call all callbacks in this manager.
+  void call(Ts... args) {
+    for (auto &cb : this->callbacks_)
+      cb.call(args...);
+  }
+  size_t size() const { return this->callbacks_.size(); }
+
+  /// Call all callbacks in this manager.
+  void operator()(Ts... args) { call(args...); }
+
+ protected:
+  /// Non-template core to avoid code duplication per lambda type.
+  void add_(Callback<void(Ts...)> cb) { this->callbacks_.push_back(cb); }
+  StaticVector<Callback<void(Ts...)>, N> callbacks_;
 };
 
 template<typename... X> class LazyCallbackManager;
