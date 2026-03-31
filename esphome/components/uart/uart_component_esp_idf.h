@@ -52,6 +52,10 @@ class IDFUARTComponent : public UARTComponent, public Component {
   void load_settings(bool dump_config) override;
   void load_settings() override { this->load_settings(true); }
 
+  /// Returns the baud rate currently configured in the UART hardware registers.
+  /// Useful for debugging to verify the hardware matches the requested baud rate.
+  uint32_t get_hw_baud_rate() const;
+
  protected:
   void check_logger_conflict() override;
   uart_port_t uart_num_;

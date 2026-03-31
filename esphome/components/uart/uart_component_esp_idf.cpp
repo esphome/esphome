@@ -390,5 +390,15 @@ void IRAM_ATTR IDFUARTComponent::uart_rx_isr_callback(uart_port_t uart_num, uart
 }
 #endif  // USE_UART_WAKE_LOOP_ON_RX
 
+uint32_t IDFUARTComponent::get_hw_baud_rate() const {
+  uint32_t baud_rate = 0;
+  esp_err_t err = uart_get_baudrate(this->uart_num_, &baud_rate);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_get_baudrate failed: %s", esp_err_to_name(err));
+    return 0;
+  }
+  return baud_rate;
+}
+
 }  // namespace esphome::uart
 #endif  // USE_ESP32
