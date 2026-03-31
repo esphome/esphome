@@ -21,12 +21,17 @@ size_t ESPTime::strftime(char *buffer, size_t buffer_len, const char *format) {
   // ::strftime uses libc's internal timezone state for %Z and %z, but we
   // eliminated setenv("TZ")/tzset() on embedded platforms to save flash.
   // Substitute %Z and %z with correct values from our parsed timezone.
-  // Quick scan: does format contain %Z or %z?
+  // Quick scan: does format contain %Z or %z (but not %%Z/%%z)?
   bool needs_subst = false;
   for (const char *p = format; *p; p++) {
-    if (*p == '%' && (*(p + 1) == 'Z' || *(p + 1) == 'z')) {
-      needs_subst = true;
-      break;
+    if (*p == '%') {
+      p++;
+      if (*p == '%')
+        continue;  // %% is a literal %, skip
+      if (*p == 'Z' || *p == 'z') {
+        needs_subst = true;
+        break;
+      }
     }
   }
   if (needs_subst) {
@@ -39,10 +44,19 @@ size_t ESPTime::strftime(char *buffer, size_t buffer_len, const char *format) {
     char *out = modified;
     char *out_end = modified + sizeof(modified) - 1;
     for (const char *p = format; *p && out < out_end; p++) {
-      if (*p == '%' && (*(p + 1) == 'Z' || *(p + 1) == 'z')) {
-        p++;  // skip the Z/z
-        for (const char *d = designation; *d && out < out_end; d++)
-          *out++ = *d;
+      if (*p == '%') {
+        if (*(p + 1) == '%') {
+          // %% → copy both percent signs (literal %)
+          *out++ = *p++;
+          if (out < out_end)
+            *out++ = *p;
+        } else if (*(p + 1) == 'Z' || *(p + 1) == 'z') {
+          p++;  // skip the Z/z
+          for (const char *d = designation; *d && out < out_end; d++)
+            *out++ = *d;
+        } else {
+          *out++ = *p;
+        }
       } else {
         *out++ = *p;
       }
