@@ -5,6 +5,8 @@ from esphome.const import CONF_BAUD_RATE, CONF_ID, CONF_UART_ID
 
 mitsubishi_ns = cg.esphome_ns.namespace("mitsubishi_cn105")
 
+CONF_USE_FAHRENHEIT_CONVERSION = "use_fahrenheit_conversion"
+
 MitsubishiCN105Climate = mitsubishi_ns.class_(
     "MitsubishiCN105Climate",
     climate.Climate,
@@ -30,6 +32,11 @@ CONFIG_SCHEMA = (
     climate.climate_schema(MitsubishiCN105Climate)
     .extend(cv.polling_component_schema("1s"))
     .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(
+        {
+            cv.Optional(CONF_USE_FAHRENHEIT_CONVERSION, default=False): cv.boolean,
+        }
+    )
 )
 
 FINAL_VALIDATE_SCHEMA = cv.All(
@@ -50,3 +57,4 @@ async def to_code(config):
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
     await climate.register_climate(var, config)
+    cg.add(var.set_use_fahrenheit_conversion(config[CONF_USE_FAHRENHEIT_CONVERSION]))

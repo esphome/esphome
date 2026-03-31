@@ -104,7 +104,7 @@ climate::ClimateTraits MitsubishiCN105Climate::traits() {
   traits.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
 
   traits.set_visual_min_temperature(16.0f);
-  traits.set_visual_max_temperature(31.0f);
+  traits.set_visual_max_temperature(31.5f);
   traits.set_visual_temperature_step(1.0f);
   traits.set_visual_current_temperature_step(0.5f);
 
@@ -113,7 +113,8 @@ climate::ClimateTraits MitsubishiCN105Climate::traits() {
 
 void MitsubishiCN105Climate::control(const climate::ClimateCall &call) {
   if (const auto target_temperature = call.get_target_temperature()) {
-    this->hp_.set_target_temperature(*target_temperature);
+    const auto adjusted = temperature_mapping_.to_mitsubishi(*target_temperature);
+    this->hp_.set_target_temperature(adjusted);
   }
 
   if (const auto mode = call.get_mode()) {
@@ -138,8 +139,8 @@ void MitsubishiCN105Climate::apply_values_() {
   const auto status = this->hp_.status();
   bool is_valid = true;
 
-  this->target_temperature = status.settings.target_temperature;
-  this->current_temperature = status.room_temperature;
+  this->target_temperature = temperature_mapping_.from_mitsubishi(status.settings.target_temperature);
+  this->current_temperature = temperature_mapping_.from_mitsubishi(status.room_temperature);
 
   if (status.settings.power_on) {
     if (const auto mapped = lookup(MODE_MAP, status.settings.mode)) {
@@ -162,6 +163,26 @@ void MitsubishiCN105Climate::apply_values_() {
   if (is_valid || this->has_state()) {
     this->publish_state();
   }
+}
+
+TemperatureMapping TemperatureMapping::identity() {
+  return TemperatureMapping{
+      .to_mitsubishi = [](float c) -> float { return c; },
+      .from_mitsubishi = [](float c) -> float { return c; },
+  };
+}
+
+TemperatureMapping TemperatureMapping::fahrenheit() {
+  return TemperatureMapping{
+      .to_mitsubishi = [](float c) -> float {
+        const int f = std::clamp(static_cast<int>(std::round(c * 1.8f + 32.0f)), 61, 88);
+        return 0.5f * (f - 28 + (f > 68) - (f < 68));
+      },
+      .from_mitsubishi = [](float c) -> float {
+        const int mh = static_cast<int>(std::round(c * 2.0f));
+        return (mh - 3 - (mh >= 40) - (mh > 40)) * (5.0f / 9.0f);
+      },
+  };
 }
 
 }  // namespace esphome::mitsubishi_cn105
