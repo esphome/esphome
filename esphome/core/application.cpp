@@ -99,12 +99,6 @@ void Application::setup() {
     if (component->can_proceed())
       continue;
 
-#ifdef USE_LOOP_PRIORITY
-    // Sort components 0 through i by loop priority
-    insertion_sort_by_priority<decltype(this->components_.begin()), &Component::get_loop_priority>(
-        this->components_.begin(), this->components_.begin() + i + 1);
-#endif
-
     do {
       uint8_t new_app_state = STATUS_LED_WARNING;
       uint32_t now = millis();

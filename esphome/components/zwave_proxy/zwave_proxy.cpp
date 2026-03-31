@@ -3,6 +3,8 @@
 #ifdef USE_API
 
 #include "esphome/components/api/api_server.h"
+
+#include <cinttypes>
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -160,7 +162,7 @@ void ZWaveProxy::zwave_proxy_request(api::APIConnection *api_connection, api::en
       break;
 
     default:
-      ESP_LOGW(TAG, "Unknown request type: %d", type);
+      ESP_LOGW(TAG, "Unknown request type: %" PRIu32, static_cast<uint32_t>(type));
       break;
   }
 }
