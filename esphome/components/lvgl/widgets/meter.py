@@ -56,11 +56,11 @@ from ..lv_validation import (
     lv_float,
     lv_image,
     lv_int,
+    lv_positive_int,
     opacity,
     padding,
     pixels,
     pixels_or_percent,
-    pixels_or_percent_validator,
     requires_component,
     size,
 )
@@ -88,7 +88,10 @@ CONF_COLOR_START = "color_start"
 CONF_DRAW_TICKS_ON_TOP = "draw_ticks_on_top"
 CONF_IMAGE_ID = "image_id"
 CONF_INDICATORS = "indicators"
+CONF_DASH_GAP = "dash_gap"
+CONF_DASH_WIDTH = "dash_width"
 CONF_LINE_ID = "line_id"
+CONF_ROUNDED = "rounded"
 CONF_LABEL_GAP = "label_gap"
 CONF_MAJOR = "major"
 CONF_METER = "meter"
@@ -135,9 +138,12 @@ INDICATOR_LINE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_WIDTH, default=4): cv.int_,
         cv.Optional(CONF_COLOR, default=0): lv_color,
+        cv.Optional(CONF_ROUNDED, default=True): lv_bool,
+        cv.Optional(CONF_DASH_GAP): lv_positive_int,
+        cv.Optional(CONF_DASH_WIDTH): lv_positive_int,
         cv.Optional(CONF_R_MOD): padding,
-        cv.Optional(CONF_LENGTH): pixels_or_percent_validator,
-        cv.Optional(CONF_RADIAL_OFFSET, 0): pixels_or_percent_validator,
+        cv.Optional(CONF_LENGTH): pixels_or_percent,
+        cv.Optional(CONF_RADIAL_OFFSET): pixels_or_percent,
         cv.Optional(CONF_VALUE, default=0.0): lv_float,
         cv.Optional(CONF_OPA, default=1.0): opacity,
     }
@@ -249,17 +255,17 @@ SCALE_SCHEMA = cv.Schema(
             {
                 cv.Optional(CONF_COUNT, default=12): cv.int_range(min=2),
                 cv.Optional(CONF_WIDTH, default=2): cv.positive_int,
-                cv.Optional(CONF_LENGTH, default=10): size,
-                cv.Optional(CONF_RADIAL_OFFSET, default=0): size,
+                cv.Optional(CONF_LENGTH, default=10): cv.positive_int,
+                cv.Optional(CONF_RADIAL_OFFSET): cv.positive_int,
                 cv.Optional(CONF_COLOR, default=0x808080): lv_color,
                 cv.Optional(CONF_MAJOR): cv.Schema(
                     {
                         cv.Optional(CONF_STRIDE, default=3): cv.positive_int,
                         cv.Optional(CONF_WIDTH, default=5): size,
-                        cv.Optional(CONF_LENGTH, default="15%"): size,
-                        cv.Optional(CONF_RADIAL_OFFSET, default=0): size,
+                        cv.Optional(CONF_LENGTH, default=12): cv.positive_int,
+                        cv.Optional(CONF_RADIAL_OFFSET): cv.positive_int,
                         cv.Optional(CONF_COLOR, default=0): lv_color,
-                        cv.Optional(CONF_LABEL_GAP, default=4): size,
+                        cv.Optional(CONF_LABEL_GAP, default=4): cv.int_,
                     }
                 ),
             }
@@ -466,11 +472,15 @@ class MeterType(WidgetType):
                         CONF_OPA: v[CONF_OPA],
                         CONF_LINE_WIDTH: v[CONF_WIDTH],
                         "line_color": v[CONF_COLOR],
-                        "line_rounded": True,
+                        "line_rounded": v[CONF_ROUNDED],
                         CONF_ALIGN: CHILD_ALIGNMENTS.TOP_LEFT,
                         CONF_LENGTH: length,
-                        CONF_RADIAL_OFFSET: v[CONF_RADIAL_OFFSET],
                     }
+                    if radial_offset := v.get(CONF_RADIAL_OFFSET):
+                        props[CONF_RADIAL_OFFSET] = radial_offset
+                    for option in (CONF_DASH_WIDTH, CONF_DASH_GAP):
+                        if option in v:
+                            props["line_" + option] = v[option]
                     lw = await widget_to_code(props, line_indicator_type, scale_var)
                     await set_indicator_values(lw, v)
 
@@ -478,10 +488,8 @@ class MeterType(WidgetType):
                     add_lv_use(CONF_IMAGE)
                     src = v[CONF_SRC]
                     src_data = get_image_metadata(src.id)
-                    pivot_x = await pixels.process(v[CONF_PIVOT_X])
-                    pivot_y = await pixels.process(
-                        v.get(CONF_PIVOT_Y, src_data.height // 2)
-                    )
+                    pivot_x = v[CONF_PIVOT_X]
+                    pivot_y = v.get(CONF_PIVOT_Y, src_data.height // 2)
                     props = {
                         CONF_X: src_data.width // 2 - pivot_x,
                         "transform_pivot_x": pivot_x,
@@ -511,11 +519,12 @@ class MeterType(WidgetType):
                 lv_obj.set_style_line_width(
                     scale_var, await size.process(ticks[CONF_WIDTH]), LV_PART.ITEMS
                 )
-                lv_obj.set_style_radial_offset(
-                    scale_var,
-                    await size.process(ticks[CONF_RADIAL_OFFSET]),
-                    LV_PART.ITEMS,
-                )
+                if radial_offset := ticks.get(CONF_RADIAL_OFFSET):
+                    lv_obj.set_style_radial_offset(
+                        scale_var,
+                        -radial_offset,
+                        LV_PART.ITEMS,
+                    )
                 lv_obj.set_style_line_color(
                     scale_var,
                     await lv_color.process(ticks[CONF_COLOR]),
@@ -536,11 +545,12 @@ class MeterType(WidgetType):
                         await size.process(major[CONF_LENGTH]),
                         LV_PART.INDICATOR,
                     )
-                    lv_obj.set_style_radial_offset(
-                        scale_var,
-                        await size.process(ticks[CONF_RADIAL_OFFSET]),
-                        LV_PART.INDICATOR,
-                    )
+                    if radial_offset := major.get(CONF_RADIAL_OFFSET):
+                        lv_obj.set_style_radial_offset(
+                            scale_var,
+                            -radial_offset,
+                            LV_PART.INDICATOR,
+                        )
                     lv_obj.set_style_line_width(
                         scale_var,
                         await size.process(major[CONF_WIDTH]),
@@ -553,12 +563,9 @@ class MeterType(WidgetType):
                     )
 
                     # Set label gap (padding)
-                    label_gap = await size.process(major[CONF_LABEL_GAP])
-                    if isinstance(label_gap, int):
-                        label_gap -= DEFAULT_LABEL_GAP
                     lv_obj.set_style_pad_radial(
                         scale_var,
-                        label_gap,
+                        major[CONF_LABEL_GAP] - DEFAULT_LABEL_GAP,
                         LV_PART.INDICATOR,
                     )
                 else:
