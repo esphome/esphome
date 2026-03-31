@@ -266,6 +266,17 @@ optional<GateStatus> Tormatic::read_gate_status_() {
       ESP_LOGE(TAG, "Timeout reading message header");
       return {};
     }
+
+    // Sanity check: valid messages have small payloads (3-4 bytes). A large
+    // or impossible payload_size means the stream is out of sync (corrupted
+    // byte, dropped data, etc.). Flush the buffer so we can resync on the
+    // next request/response cycle.
+    if (this->pending_hdr_->payload_size() > sizeof(CommandRequestReply)) {
+      ESP_LOGW(TAG, "Unexpected payload size %" PRIu32 ", flushing rx buffer", this->pending_hdr_->payload_size());
+      this->pending_hdr_.reset();
+      this->drain_rx_(this->available());
+      return {};
+    }
   }
 
   // Wait for all payload bytes to arrive before processing.
