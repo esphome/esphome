@@ -559,13 +559,17 @@ class RoundMultipleFilter : public Filter {
   float multiple_;
 };
 
-class RoundSignificantDigitsFilter : public Filter {
+template<uint8_t Digits> class RoundSignificantDigitsFilter : public Filter {
  public:
-  explicit RoundSignificantDigitsFilter(uint8_t digits);
-  optional<float> new_value(float value) override;
-
- protected:
-  uint8_t digits_;
+  optional<float> new_value(float value) override {
+    if (std::isfinite(value)) {
+      if (value == 0.0f)
+        return 0.0f;
+      float factor = pow10_int(Digits - 1 - ilog10(value));
+      return roundf(value * factor) / factor;
+    }
+    return value;
+  }
 };
 
 class ToNTCResistanceFilter : public Filter {

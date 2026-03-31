@@ -887,7 +887,7 @@ async def round_multiple_filter_to_code(config, filter_id):
 async def round_significant_digits_filter_to_code(config, filter_id):
     return cg.new_Pvariable(
         filter_id,
-        config,
+        cg.TemplateArguments(config),
     )
 
 
