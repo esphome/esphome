@@ -147,9 +147,12 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     return;
   }
 
-  // uart_param_config must be called before uart_driver_install: it resets the
-  // UART peripheral registers, which would undo baud rate and framing settings
-  // applied after driver installation.
+  // uart_param_config must be called after uart_driver_install and before any
+  // other uart_set_*() calls. The driver installation resets the UART peripheral
+  // registers to their default state, overwriting any previously configured baud
+  // rate or framing settings. Calling uart_param_config here ensures the requested
+  // settings are applied after the reset and before pin routing, inversion, and
+  // threshold configuration.
   uart_config_t uart_config = this->get_config_();
   err = uart_param_config(this->uart_num_, &uart_config);
   if (err != ESP_OK) {
