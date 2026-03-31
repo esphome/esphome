@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import esphome.codegen as cg
 from esphome.components import uart
@@ -10,7 +10,6 @@ from esphome.types import ConfigType
 
 CODEOWNERS = ["@FredM67"]
 DEPENDENCIES = ["uart"]
-MULTI_CONF = True
 
 mk2pvrouter_ns = cg.esphome_ns.namespace("mk2pvrouter")
 Mk2PVRouter = mk2pvrouter_ns.class_("Mk2PVRouter", cg.Component, uart.UARTDevice)
@@ -40,7 +39,7 @@ CONFIG_SCHEMA = (
 
 @dataclass
 class Mk2PVRouterData:
-    listener_counts: dict[str, int] = field(default_factory=dict)
+    listener_count: int = 0
 
 
 def _get_data() -> Mk2PVRouterData:
@@ -52,16 +51,13 @@ def _get_data() -> Mk2PVRouterData:
 def final_validate(config: ConfigType) -> ConfigType:
     full_config = fv.full_config.get()
 
-    # Count listeners for this hub (IDs are resolved at final_validate stage)
-    hub_id = str(config[CONF_ID])
-    listener_count = sum(
+    # Count listeners (IDs are resolved at final_validate stage)
+    _get_data().listener_count = sum(
         1
         for platform_key in ("sensor", "binary_sensor", "text_sensor")
         for entry in full_config.get(platform_key, [])
         if entry.get(CONF_PLATFORM) == "mk2pvrouter"
-        and str(entry.get(CONF_MK2PVROUTER_ID)) == hub_id
     )
-    _get_data().listener_counts[hub_id] = listener_count
 
     # Validate UART settings
     schema = uart.final_validate_device_schema(
@@ -79,6 +75,6 @@ async def to_code(config: ConfigType) -> None:
     await uart.register_uart_device(var, config)
 
     # Initialize listener storage with exact count from final_validate
-    listener_count = _get_data().listener_counts.get(str(config[CONF_ID]), 0)
+    listener_count = _get_data().listener_count
     if listener_count > 0:
         cg.add(var.init_listeners(listener_count))
