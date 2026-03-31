@@ -2,8 +2,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace hdc2080 {
+namespace esphome::hdc2080 {
 
 static const char *const TAG = "hdc2080";
 
@@ -55,17 +54,16 @@ void HDC2080Component::update() {
     // grab temperature if needed
     if (this->temperature_sensor_ != nullptr) {
       // temperature is (raw / 2^16) * 165 - 40.5
-      float temp = convert_little_endian(*reinterpret_cast<uint16_t *>(&raw_data[0])) * 0.0025177f - 40.5f;
+      float temp = encode_uint16(raw_data[1], raw_data[0]) * 0.0025177f - 40.5f;
       this->temperature_sensor_->publish_state(temp);
     }
     // grab humidity if needed
     if (this->humidity_sensor_ != nullptr) {
       // humidity is (raw / 2^16) * 100
-      float humidity = convert_little_endian(*reinterpret_cast<uint16_t *>(&raw_data[2])) * 0.001525879f;
+      float humidity = encode_uint16(raw_data[3], raw_data[2]) * 0.001525879f;
       this->humidity_sensor_->publish_state(humidity);
     }
   });
 }
 
-}  // namespace hdc2080
-}  // namespace esphome
+}  // namespace esphome::hdc2080
