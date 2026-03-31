@@ -82,6 +82,7 @@ CONF_MA_PER_LED_GREEN = "ma_per_led_green"
 CONF_MA_PER_LED_BLUE = "ma_per_led_blue"
 CONF_MA_PER_LED_WHITE = "ma_per_led_white"
 CONF_IDLE_MA_PER_LED = "idle_ma_per_led"
+CONF_MAX_CURRENT_MA = "max_current_ma"
 
 POWER_ESTIMATION_SCHEMA = cv.Schema(
     {
@@ -90,6 +91,7 @@ POWER_ESTIMATION_SCHEMA = cv.Schema(
         cv.Optional(CONF_MA_PER_LED_BLUE, default=20.0): cv.positive_float,
         cv.Optional(CONF_MA_PER_LED_WHITE, default=20.0): cv.positive_float,
         cv.Optional(CONF_IDLE_MA_PER_LED, default=1.0): cv.positive_float,
+        cv.Optional(CONF_MAX_CURRENT_MA): cv.positive_float,
     }
 )
 
@@ -456,6 +458,8 @@ async def setup_light_core_(light_var, config, output_var):
                 power_estimation[CONF_IDLE_MA_PER_LED],
             )
         )
+        if (max_current_ma := power_estimation.get(CONF_MAX_CURRENT_MA)) is not None:
+            cg.add(output_var.set_max_current_ma(max_current_ma))
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, light_var)

@@ -78,6 +78,7 @@ class AddressableLight : public LightOutput, public Component {
     this->ma_per_led_white_ = ma_per_led_white;
     this->idle_ma_per_led_ = idle_ma_per_led;
   }
+  void set_max_current_ma(float max_current_ma) { this->max_current_ma_ = max_current_ma; }
   /// Returns estimated current draw of the LED strip in milliamps based on the current pixel buffer.
   /// The raw (hardware-output) pixel values are used, so gamma correction and brightness are already
   /// accounted for. White channel contributes 0 mA on RGB-only strips (no white pointer).
@@ -89,7 +90,10 @@ class AddressableLight : public LightOutput, public Component {
     this->state_parent_ = state;
   }
   void update_state(LightState *state) override;
-  void schedule_show() { this->state_parent_->schedule_write_(); }
+  void schedule_show() {
+    this->apply_power_limit_();
+    this->state_parent_->schedule_write_();
+  }
 
 #ifdef USE_POWER_SUPPLY
   void set_power_supply(power_supply::PowerSupply *power_supply) { this->power_.set_parent(power_supply); }
@@ -113,6 +117,11 @@ class AddressableLight : public LightOutput, public Component {
   }
   virtual ESPColorView get_view_internal(int32_t index) const = 0;
 
+  /// Scale raw pixel buffer values to enforce a maximum current budget.
+  /// Called from schedule_show() so it covers all code paths: solid colours,
+  /// effects, and transitions.
+  void apply_power_limit_();
+
   ESPColorCorrection correction_{};
   LightState *state_parent_{nullptr};
   float ma_per_led_red_{20.0f};
@@ -120,6 +129,7 @@ class AddressableLight : public LightOutput, public Component {
   float ma_per_led_blue_{20.0f};
   float ma_per_led_white_{20.0f};
   float idle_ma_per_led_{1.0f};
+  float max_current_ma_{0.0f};  ///< 0 = disabled
 #ifdef USE_POWER_SUPPLY
   power_supply::PowerSupplyRequester power_;
 #endif
