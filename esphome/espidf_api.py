@@ -99,9 +99,17 @@ def run_idf_py(
     return result.returncode
 
 
+def _get_sdkconfig_args() -> list[str]:
+    """Get cmake -D flags for the sdkconfig file, if it exists."""
+    sdkconfig_path = CORE.relative_build_path(f"sdkconfig.{CORE.name}")
+    if sdkconfig_path.is_file():
+        return ["-D", f"SDKCONFIG={sdkconfig_path}"]
+    return []
+
+
 def run_reconfigure() -> int:
     """Run cmake reconfigure only (no build)."""
-    return run_idf_py("reconfigure")
+    return run_idf_py(*_get_sdkconfig_args(), "reconfigure")
 
 
 def has_outdated_files():
@@ -218,6 +226,13 @@ def run_compile(config, verbose: bool) -> int:
             return rc
         _LOGGER.info("Regenerating CMakeLists.txt with discovered components...")
         write_project(minimal=False)
+        # Reconfigure again so cmake is up to date with the full component list.
+        # Without this, idf.py build re-runs cmake and regenerates memory.ld,
+        # wiping the testing-mode DRAM/IRAM patches.
+        rc = run_reconfigure()
+        if rc != 0:
+            _LOGGER.error("Reconfigure with discovered components failed")
+            return rc
 
     # In testing mode, patch linker script to expand IRAM/DRAM for grouped tests
     if CORE.testing_mode:
@@ -229,12 +244,8 @@ def run_compile(config, verbose: bool) -> int:
     if verbose:
         args.append("-v")
 
+    args.extend(_get_sdkconfig_args())
     args.append("build")
-
-    # Set the sdkconfig file
-    sdkconfig_path = CORE.relative_build_path(f"sdkconfig.{CORE.name}")
-    if sdkconfig_path.is_file():
-        args.extend(["-D", f"SDKCONFIG={sdkconfig_path}"])
 
     return run_idf_py(*args)
 
