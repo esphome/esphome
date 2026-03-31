@@ -1465,7 +1465,7 @@ void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent 
 void APIConnection::on_serial_proxy_configure_request(const SerialProxyConfigureRequest &msg) {
   auto &proxies = App.get_serial_proxies();
   if (msg.instance >= proxies.size()) {
-    ESP_LOGW(TAG, "Serial proxy instance %u out of range (max %u)", msg.instance,
+    ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range (max %" PRIu32 ")", msg.instance,
              static_cast<uint32_t>(proxies.size()));
     return;
   }
@@ -1476,7 +1476,7 @@ void APIConnection::on_serial_proxy_configure_request(const SerialProxyConfigure
 void APIConnection::on_serial_proxy_write_request(const SerialProxyWriteRequest &msg) {
   auto &proxies = App.get_serial_proxies();
   if (msg.instance >= proxies.size()) {
-    ESP_LOGW(TAG, "Serial proxy instance %u out of range", msg.instance);
+    ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
     return;
   }
   proxies[msg.instance]->write_from_client(msg.data, msg.data_len);
@@ -1485,7 +1485,7 @@ void APIConnection::on_serial_proxy_write_request(const SerialProxyWriteRequest 
 void APIConnection::on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg) {
   auto &proxies = App.get_serial_proxies();
   if (msg.instance >= proxies.size()) {
-    ESP_LOGW(TAG, "Serial proxy instance %u out of range", msg.instance);
+    ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
     return;
   }
   proxies[msg.instance]->set_modem_pins(msg.line_states);
@@ -1494,7 +1494,7 @@ void APIConnection::on_serial_proxy_set_modem_pins_request(const SerialProxySetM
 void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg) {
   auto &proxies = App.get_serial_proxies();
   if (msg.instance >= proxies.size()) {
-    ESP_LOGW(TAG, "Serial proxy instance %u out of range", msg.instance);
+    ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
     return;
   }
   SerialProxyGetModemPinsResponse resp{};
@@ -1506,7 +1506,7 @@ void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetM
 void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
   auto &proxies = App.get_serial_proxies();
   if (msg.instance >= proxies.size()) {
-    ESP_LOGW(TAG, "Serial proxy instance %u out of range", msg.instance);
+    ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
     return;
   }
   switch (msg.type) {
@@ -1536,7 +1536,7 @@ void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
       break;
     }
     default:
-      ESP_LOGW(TAG, "Unknown serial proxy request type: %u", static_cast<uint32_t>(msg.type));
+      ESP_LOGW(TAG, "Unknown serial proxy request type: %" PRIu32, static_cast<uint32_t>(msg.type));
       break;
   }
 }

@@ -8,10 +8,13 @@ from esphome.const import (
     CONF_X,
     CONF_Y,
 )
+from esphome.cpp_generator import new_Pvariable
+from esphome.cpp_helpers import register_component
 
 from .defines import (
     CONF_ALIGN,
     CONF_ALIGN_TO,
+    CONF_ALIGN_TO_LAMBDA_ID,
     DIRECTIONS,
     LV_EVENT_MAP,
     LV_EVENT_TRIGGERS,
@@ -89,13 +92,31 @@ async def generate_triggers():
 
             await add_on_boot_triggers(w.config.get(CONF_ON_BOOT, ()))
 
-            # Generate align to directives while we're here
-            if align_to := w.config.get(CONF_ALIGN_TO):
+
+async def generate_align_tos(config: dict):
+    """
+    Called once, with a full lvgl configuration to emit deferred align_to actions as a component
+    that executes after the LVGL setup. This is required since align_to actions are not recalculated on layout changes
+    and so must be applied after the display is properly laid out.
+    :param config:
+    :return:
+    """
+    align_tos = tuple(
+        w for w in widget_map.values() if w.config and CONF_ALIGN_TO in w.config
+    )
+    if align_tos:
+        async with LambdaContext(where="align_to") as context:
+            for w in align_tos:
+                align_to = w.config[CONF_ALIGN_TO]
                 target = widget_map[align_to[CONF_ID]].obj
                 align = literal(align_to[CONF_ALIGN])
                 x = align_to[CONF_X]
                 y = align_to[CONF_Y]
                 lv.obj_align_to(w.obj, target, align, x, y)
+
+            action_id = config[CONF_ALIGN_TO_LAMBDA_ID]
+            var = new_Pvariable(action_id, await context.get_lambda())
+            await register_component(var, {})
 
 
 async def add_trigger(conf, w, *events, is_selected=None):

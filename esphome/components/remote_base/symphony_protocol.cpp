@@ -1,6 +1,8 @@
 #include "symphony_protocol.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace remote_base {
 
@@ -26,8 +28,8 @@ static constexpr uint32_t INTER_FRAME_GAP_US = 34760;
 
 void SymphonyProtocol::encode(RemoteTransmitData *dst, const SymphonyData &data) {
   dst->set_carrier_frequency(CARRIER_FREQUENCY);
-  ESP_LOGD(TAG, "Sending Symphony: data=0x%0*X nbits=%u repeats=%u", (data.nbits + 3) / 4, (uint32_t) data.data,
-           data.nbits, data.repeats);
+  ESP_LOGD(TAG, "Sending Symphony: data=0x%0*" PRIX32 " nbits=%" PRIu8 " repeats=%" PRIu8, (data.nbits + 3) / 4,
+           (uint32_t) data.data, data.nbits, data.repeats);
   // Each bit produces a mark+space (2 entries). We fold the inter-frame/footer gap
   // into the last bit's space of each frame to avoid over-length gaps.
   dst->reserve(data.nbits * 2u * data.repeats);
@@ -112,8 +114,8 @@ optional<SymphonyData> SymphonyProtocol::decode(RemoteReceiveData src) {
 }
 
 void SymphonyProtocol::dump(const SymphonyData &data) {
-  const int32_t hex_width = (data.nbits + 3) / 4;  // pad to nibble width
-  ESP_LOGI(TAG, "Received Symphony: data=0x%0*X, nbits=%d", hex_width, (uint32_t) data.data, data.nbits);
+  const int hex_width = (data.nbits + 3) / 4;  // pad to nibble width
+  ESP_LOGI(TAG, "Received Symphony: data=0x%0*" PRIX32 ", nbits=%" PRIu8, hex_width, (uint32_t) data.data, data.nbits);
 }
 
 }  // namespace remote_base
