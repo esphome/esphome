@@ -371,7 +371,7 @@ template<typename T> optional<T> Tormatic::read_data_() {
 
 // Drain n bytes from the uart rx buffer. Caller must ensure at least n bytes
 // are available before calling.
-void Tormatic::drain_rx_(uint32_t n) {
+void Tormatic::drain_rx_(uint16_t n) {
   uint8_t data;
   for (uint32_t i = 0; i < n; i++) {
     if (!this->read_byte(&data)) {
