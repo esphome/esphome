@@ -2,6 +2,7 @@ import esphome.codegen as cg
 from esphome.components import climate, uart
 import esphome.config_validation as cv
 from esphome.const import CONF_UPDATE_INTERVAL
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["climate"]
