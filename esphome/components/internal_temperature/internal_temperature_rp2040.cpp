@@ -5,8 +5,7 @@
 
 #include "Arduino.h"
 
-namespace esphome {
-namespace internal_temperature {
+namespace esphome::internal_temperature {
 
 static const char *const TAG = "internal_temperature.rp2040";
 
@@ -27,7 +26,6 @@ void InternalTemperatureSensor::update() {
   }
 }
 
-}  // namespace internal_temperature
-}  // namespace esphome
+}  // namespace esphome::internal_temperature
 
 #endif  // USE_RP2040

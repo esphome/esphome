@@ -7,8 +7,7 @@ extern "C" {
 uint32_t temp_single_get_current_temperature(uint32_t *temp_value);
 }
 
-namespace esphome {
-namespace internal_temperature {
+namespace esphome::internal_temperature {
 
 static const char *const TAG = "internal_temperature.bk72xx";
 
@@ -37,7 +36,6 @@ void InternalTemperatureSensor::update() {
   }
 }
 
-}  // namespace internal_temperature
-}  // namespace esphome
+}  // namespace esphome::internal_temperature
 
 #endif  // USE_BK72XX

@@ -6,8 +6,7 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/sensor.h>
 
-namespace esphome {
-namespace internal_temperature {
+namespace esphome::internal_temperature {
 
 static const char *const TAG = "internal_temperature.zephyr";
 
@@ -52,7 +51,6 @@ void InternalTemperatureSensor::setup() {
   }
 }
 
-}  // namespace internal_temperature
-}  // namespace esphome
+}  // namespace esphome::internal_temperature
 
 #endif  // USE_ZEPHYR && USE_NRF52

@@ -3,8 +3,7 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 
-namespace esphome {
-namespace internal_temperature {
+namespace esphome::internal_temperature {
 
 class InternalTemperatureSensor : public sensor::Sensor, public PollingComponent {
  public:
@@ -16,5 +15,4 @@ class InternalTemperatureSensor : public sensor::Sensor, public PollingComponent
   void update() override;
 };
 
-}  // namespace internal_temperature
-}  // namespace esphome
+}  // namespace esphome::internal_temperature

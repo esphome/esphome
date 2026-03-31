@@ -15,8 +15,7 @@ uint8_t temprature_sens_read();
 #include "driver/temperature_sensor.h"
 #endif  // USE_ESP32_VARIANT
 
-namespace esphome {
-namespace internal_temperature {
+namespace esphome::internal_temperature {
 
 static const char *const TAG = "internal_temperature.esp32";
 
@@ -77,7 +76,6 @@ void InternalTemperatureSensor::setup() {
 #endif  // USE_ESP32_VARIANT
 }
 
-}  // namespace internal_temperature
-}  // namespace esphome
+}  // namespace esphome::internal_temperature
 
 #endif  // USE_ESP32
