@@ -70,6 +70,27 @@ TEST_F(TimeBasedValvePositionTest, RestoredPositionFullyClosed) {
   EXPECT_EQ(valve.position, 0.01f);
 }
 
+TEST_F(TimeBasedValvePositionTest, OpenWhileOpening) {
+  valve.set_position(0.4, true);
+  EXPECT_EQ((int) valve.current_operation, (int) VALVE_OPERATION_OPENING);
+  valve.mock_millis += 2000;
+  valve.loop();
+  EXPECT_EQ(valve.measured_position_, 0.2f);
+
+  // Open while still opening
+  valve.set_position(0.1, true);
+  EXPECT_EQ((int) valve.current_operation, (int) VALVE_OPERATION_OPENING);
+  valve.mock_millis += 3000;
+  valve.loop();
+  EXPECT_EQ(valve.measured_position_, 0.5f);
+
+  // Should have stopped
+  valve.mock_millis += 1000;
+  valve.loop();
+  EXPECT_EQ(valve.measured_position_, 0.5f);
+  EXPECT_EQ((int) valve.current_operation, (int) VALVE_OPERATION_IDLE);
+}
+
 TEST_F(TimeBasedValvePositionTest, RestoredPositionOpen) {
   valve.position = 0.7f;
 
