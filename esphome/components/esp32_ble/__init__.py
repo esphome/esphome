@@ -512,7 +512,7 @@ def final_validation(config):
     # GATT_TRACE_DEBUG references 'msg_len' outside the GATTS_INCLUDED/GATTC_INCLUDED
     # guard, causing a compile error when both are disabled.
     framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    force_gatts = CORE.using_native_idf and framework_ver >= cv.Version(5, 5, 3)
+    force_gatts = CORE.using_native_idf and framework_ver == cv.Version(5, 5, 3)
 
     # ESP-IDF BLE stack requires GATT Server to be enabled when GATT Client is enabled
     # This is an internal dependency in the Bluedroid stack
