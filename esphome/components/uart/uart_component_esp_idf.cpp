@@ -125,8 +125,6 @@ void IDFUARTComponent::setup() {
 void IDFUARTComponent::load_settings(bool dump_config) {
   esp_err_t err;
 
-  ESP_LOGD(TAG, "hardware baud_rate: %" PRIu32, this->get_hw_baud_rate());
-
   if (uart_is_driver_installed(this->uart_num_)) {
     err = uart_driver_delete(this->uart_num_);
     if (err != ESP_OK) {
@@ -148,7 +146,6 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG, "01 hardware baud_rate: %" PRIu32, this->get_hw_baud_rate());
 
   // uart_param_config must be called before uart_driver_install: it resets the
   // UART peripheral registers, which would undo baud rate and framing settings
@@ -160,8 +157,6 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG, "02 hardware baud_rate: %" PRIu32, this->get_hw_baud_rate());
-
 
   int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
   int8_t rx = this->rx_pin_ != nullptr ? this->rx_pin_->get_pin() : -1;
@@ -190,7 +185,6 @@ void IDFUARTComponent::load_settings(bool dump_config) {
   if (this->rx_pin_ != this->tx_pin_) {
     setup_pin_if_needed(this->tx_pin_);
   }
-  ESP_LOGD(TAG, "03 hardware baud_rate: %" PRIu32, this->get_hw_baud_rate());
 
   uint32_t invert = 0;
   if (this->tx_pin_ != nullptr && this->tx_pin_->is_inverted()) {
@@ -209,7 +203,6 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG, "04 hardware baud_rate: %" PRIu32, this->get_hw_baud_rate());
 
   err = uart_set_pin(this->uart_num_, tx, rx, flow_control, UART_PIN_NO_CHANGE);
   if (err != ESP_OK) {
@@ -217,7 +210,6 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG, "05 hardware baud_rate: %" PRIu32, this->get_hw_baud_rate());
 
   err = uart_set_rx_full_threshold(this->uart_num_, this->rx_full_threshold_);
   if (err != ESP_OK) {
@@ -225,7 +217,6 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG, "06 hardware baud_rate: %" PRIu32, this->get_hw_baud_rate());
 
   err = uart_set_rx_timeout(this->uart_num_, this->rx_timeout_);
   if (err != ESP_OK) {
@@ -233,7 +224,6 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG, "07 hardware baud_rate: %" PRIu32, this->get_hw_baud_rate());
 
   // Per ESP-IDF docs, uart_set_mode() must be called only after uart_driver_install().
   auto mode = this->flow_control_pin_ != nullptr ? UART_MODE_RS485_HALF_DUPLEX : UART_MODE_UART;
@@ -243,14 +233,12 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG, "08 hardware baud_rate: %" PRIu32, this->get_hw_baud_rate());
 
 #ifdef USE_UART_WAKE_LOOP_ON_RX
   // Register ISR callback to wake the main loop when UART data arrives.
   // The callback runs in ISR context and uses vTaskNotifyGiveFromISR() to
   // wake the main loop task directly — no queue or FreeRTOS task needed.
   uart_set_select_notif_callback(this->uart_num_, IDFUARTComponent::uart_rx_isr_callback);
-  ESP_LOGD(TAG, "09 hardware baud_rate: %" PRIu32, this->get_hw_baud_rate());
 #endif  // USE_UART_WAKE_LOOP_ON_RX
 
   if (dump_config) {
@@ -401,16 +389,6 @@ void IRAM_ATTR IDFUARTComponent::uart_rx_isr_callback(uart_port_t uart_num, uart
   }
 }
 #endif  // USE_UART_WAKE_LOOP_ON_RX
-
-uint32_t IDFUARTComponent::get_hw_baud_rate() const {
-  uint32_t baud_rate = 0;
-  esp_err_t err = uart_get_baudrate(this->uart_num_, &baud_rate);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "uart_get_baudrate failed: %s", esp_err_to_name(err));
-    return 0;
-  }
-  return baud_rate;
-}
 
 }  // namespace esphome::uart
 #endif  // USE_ESP32
