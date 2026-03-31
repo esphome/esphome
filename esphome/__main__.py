@@ -1891,7 +1891,11 @@ def run_esphome(argv):
 
     CORE.config_path = conf_path
     CORE.dashboard = args.dashboard
-    CORE.data[KEY_NATIVE_IDF] = args.native_idf
+
+    # Some components use final_validation to configure themselves.
+    # The --native-idf switch must be set before read_config.
+    if hasattr(args, "native_idf"):
+        CORE.data[KEY_NATIVE_IDF] = args.native_idf
 
     # For logs command, skip updating external components
     skip_external = args.command == "logs"
