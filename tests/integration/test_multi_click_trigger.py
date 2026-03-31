@@ -4,7 +4,6 @@ Tests that on_multi_click correctly triggers for single click, double click,
 and long press patterns using a template binary sensor with timing
 orchestrated entirely in YAML.
 
-Regression test for: https://github.com/esphome/esphome/issues/15323
 """
 
 from __future__ import annotations
@@ -63,7 +62,7 @@ async def test_multi_click_trigger(
         except TimeoutError:
             pytest.fail(
                 "Timeout waiting for SINGLE_CLICK - on_multi_click did not trigger. "
-                "See issue #15323."
+                "on_multi_click did not trigger."
             )
         assert count == 1, f"Expected single click count=1, got {count}"
 
@@ -72,7 +71,7 @@ async def test_multi_click_trigger(
         except TimeoutError:
             pytest.fail(
                 "Timeout waiting for DOUBLE_CLICK - on_multi_click did not trigger. "
-                "See issue #15323."
+                "on_multi_click did not trigger."
             )
         assert count == 1, f"Expected double click count=1, got {count}"
 
@@ -81,6 +80,6 @@ async def test_multi_click_trigger(
         except TimeoutError:
             pytest.fail(
                 "Timeout waiting for LONG_PRESS - on_multi_click did not trigger. "
-                "See issue #15323."
+                "on_multi_click did not trigger."
             )
         assert count == 1, f"Expected long press count=1, got {count}"
