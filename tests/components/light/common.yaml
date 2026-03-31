@@ -321,3 +321,14 @@ light:
       idle_ma_per_led: 1.0
     segments:
       - single_light_id: test_rgb_light
+  - platform: partition
+    id: test_addressable_power_limit
+    name: Addressable Power Limit Test
+    power_estimation:
+      ma_per_led_red: 16.0
+      ma_per_led_green: 11.0
+      ma_per_led_blue: 15.0
+      idle_ma_per_led: 1.0
+      max_current_ma: 1000.0
+    segments:
+      - single_light_id: test_rgb_light

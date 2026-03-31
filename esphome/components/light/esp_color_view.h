@@ -66,8 +66,8 @@ class ESPColorView : public ESPColorSettable {
       return;
     *this->effect_data_ = effect_data;
   }
-  /// Write raw values directly to the buffer, bypassing color correction.
-  /// Used by power limiting to scale already-corrected hardware values.
+  // Write raw values directly to the buffer, bypassing color correction.
+  // Used by power limiting to scale already-corrected hardware values.
   void set_red_raw(uint8_t red) { *this->red_ = red; }
   void set_green_raw(uint8_t green) { *this->green_ = green; }
   void set_blue_raw(uint8_t blue) { *this->blue_ = blue; }

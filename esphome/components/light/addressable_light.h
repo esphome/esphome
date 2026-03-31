@@ -117,9 +117,9 @@ class AddressableLight : public LightOutput, public Component {
   }
   virtual ESPColorView get_view_internal(int32_t index) const = 0;
 
-  /// Scale raw pixel buffer values to enforce a maximum current budget.
-  /// Called from schedule_show() so it covers all code paths: solid colours,
-  /// effects, and transitions.
+  // Scale raw pixel buffer values to enforce a maximum current budget.
+  // Called from schedule_show() so it covers all code paths: solid colours,
+  // effects, and transitions.
   void apply_power_limit_();
 
   ESPColorCorrection correction_{};
@@ -129,7 +129,7 @@ class AddressableLight : public LightOutput, public Component {
   float ma_per_led_blue_{20.0f};
   float ma_per_led_white_{20.0f};
   float idle_ma_per_led_{1.0f};
-  float max_current_ma_{0.0f};  ///< 0 = disabled
+  float max_current_ma_{0.0f};  // 0 = disabled
 #ifdef USE_POWER_SUPPLY
   power_supply::PowerSupplyRequester power_;
 #endif
