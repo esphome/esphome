@@ -135,6 +135,7 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     this->mark_failed();
     return;
   }
+  ESP_LOGD(TAG, "hardware baud_rate: %" PRIu32, this->get_hw_baud_rate());
 
   if (uart_is_driver_installed(this->uart_num_)) {
     err = uart_driver_delete(this->uart_num_);
