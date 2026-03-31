@@ -17,6 +17,8 @@ enum TimeBasedValveRestoreMode {
 
 class TimeBasedValve : public valve::Valve, public Component {
  public:
+  explicit TimeBasedValve();
+
   void setup() override;
   void loop() override;
   void dump_config() override;

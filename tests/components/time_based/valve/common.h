@@ -27,4 +27,11 @@ class MockAction : public Action<> {
   MOCK_METHOD(void, play, (), (override));
 };
 
+class MockESPPreferences : public ESPPreferences {
+  MOCK_METHOD(ESPPreferenceObject, make_preference, (size_t length, uint32_t type), (override));
+  MOCK_METHOD(ESPPreferenceObject, make_preference, (size_t length, uint32_t type, bool in_flash), (override));
+  MOCK_METHOD(bool, sync, (), (override));
+  MOCK_METHOD(bool, reset, (), (override));
+};
+
 }  // namespace esphome::time_based::testing

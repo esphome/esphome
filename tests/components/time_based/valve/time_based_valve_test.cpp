@@ -7,6 +7,7 @@ namespace esphome::time_based::testing {
 class TimeBasedValvePositionTest : public ::testing::Test {
  protected:
   void SetUp() override {
+    EXPECT_EQ(valve.position, 0.5f);
     valve.mock_millis = 1000;
     valve.set_duration(10000);
     valve.setup();
@@ -58,6 +59,15 @@ TEST_F(TimeBasedValvePositionTest, TriggersAreCalled) {
   call.set_command_stop();
   call.perform();
   EXPECT_EQ((int) valve.current_operation, (int) VALVE_OPERATION_IDLE);
+}
+
+TEST_F(TimeBasedValvePositionTest, RestoredPositionFullyClosed) {
+  auto mock_ESPPreferences = MockESPPreferences();
+  global_preferences = &mock_ESPPreferences;
+  valve.position = 0;
+  valve.set_restore_mode(VALVE_RESTORE);
+  valve.setup();
+  EXPECT_EQ(valve.position, 0.01f);
 }
 
 TEST_F(TimeBasedValvePositionTest, RestoredPositionOpen) {

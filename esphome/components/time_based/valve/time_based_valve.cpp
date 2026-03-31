@@ -6,8 +6,9 @@ using namespace esphome::valve;
 
 static const char *const TAG = "time_based.valve";
 
+TimeBasedValve::TimeBasedValve() { this->reset_position(); }
+
 void TimeBasedValve::setup() {
-  this->reset_position();
   switch (this->restore_mode_) {
     case VALVE_NO_RESTORE:
       break;
@@ -15,6 +16,8 @@ void TimeBasedValve::setup() {
       auto restore = this->restore_state_();
       if (restore.has_value())
         restore->apply(this);
+      // Prevent end locations on restore so valve can still be moved
+      this->position = clamp(this->position, 0.01f, 0.99f);
       break;
     }
     case VALVE_ALWAYS_OPEN:
