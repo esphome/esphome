@@ -1,4 +1,3 @@
-
 #include "modbus_helpers.h"
 #include "esphome/core/log.h"
 
@@ -39,7 +38,7 @@ void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueTy
       data.push_back((value & 0xFFFF000000000000) >> 48);
       break;
     default:
-      ESP_LOGE(TAG, "Invalid data type for modbus number to payload conversation: %d",
+      ESP_LOGE(TAG, "Invalid data type for modbus number to payload conversion: %d",
                static_cast<uint16_t>(value_type));
       break;
   }
