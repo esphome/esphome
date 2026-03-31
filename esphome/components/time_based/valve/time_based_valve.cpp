@@ -69,7 +69,7 @@ ValveTraits TimeBasedValve::get_traits() {
 }
 
 void TimeBasedValve::reset_position() {
-  this->position = NAN;
+  this->position = 0.5f;
   this->measured_position_ = 0;
   this->measured_position_min_ = 0;
   this->measured_position_max_ = 0;
@@ -86,14 +86,7 @@ void TimeBasedValve::set_position(float position, bool relative) {
   } else {
     if (position == this->position)
       return;
-    if (std::isnan(this->position)) {
-      // If current position is unknown, only full open and close are possible
-      if (position != VALVE_CLOSED && position != VALVE_OPEN)
-        return;
-      op = position == VALVE_CLOSED ? VALVE_OPERATION_CLOSING : VALVE_OPERATION_OPENING;
-    } else {
-      op = position < this->position ? VALVE_OPERATION_CLOSING : VALVE_OPERATION_OPENING;
-    }
+    op = position < this->position ? VALVE_OPERATION_CLOSING : VALVE_OPERATION_OPENING;
   }
 
   if (this->current_operation != VALVE_OPERATION_IDLE && this->current_operation != op) {
@@ -211,19 +204,11 @@ void TimeBasedValve::recompute_position_() {
   }
   bool endstop_reached = (this->measured_position_max_ - this->measured_position_min_) >= 1.0f;
 
-  if (endstop_reached && std::isnan(this->position)) {
-    // Full duration traveled -> position is now known
-    this->position = dir > 0 ? VALVE_OPEN : VALVE_CLOSED;
-    return;
-  }
-  if (std::isnan(this->position))
-    return;
-
   this->position += distance;
   if (endstop_reached) {
     this->position = clamp(this->position, 0.0f, 1.0f);
   } else {
-    // Full duration not traveled yet -> keep value below target
+    // Full duration not traveled yet -> keep value 1% off end
     this->position = clamp(this->position, 0.01f, 0.99f);
   }
 }

@@ -61,22 +61,22 @@ TEST_F(TimeBasedValvePositionTest, TriggersAreCalled) {
 }
 
 TEST_F(TimeBasedValvePositionTest, RestoredPositionOpen) {
-  valve.position = 0.5f;
+  valve.position = 0.7f;
 
   // Should be open, but full duration not traveled yet
-  valve.set_position(0.6, true);
+  valve.set_position(0.4, true);
   EXPECT_EQ((int) valve.current_operation, (int) VALVE_OPERATION_OPENING);
-  valve.mock_millis += 6000;
+  valve.mock_millis += 4000;
   valve.loop();
-  EXPECT_EQ(valve.measured_position_, 0.6f);
+  EXPECT_EQ(valve.measured_position_, 0.4f);
   EXPECT_EQ(valve.position, 0.99f);
   EXPECT_FALSE(valve.is_fully_open());
   EXPECT_EQ((int) valve.current_operation, (int) VALVE_OPERATION_IDLE);
 
   // Full duration now traveled
-  valve.set_position(0.5, true);
+  valve.set_position(0.7, true);
   EXPECT_EQ((int) valve.current_operation, (int) VALVE_OPERATION_OPENING);
-  valve.mock_millis += 5000;
+  valve.mock_millis += 7000;
   valve.loop();
   EXPECT_EQ(valve.measured_position_, 1.0f);
   EXPECT_EQ(valve.position, VALVE_OPEN);
@@ -93,7 +93,7 @@ TEST_F(TimeBasedValvePositionTest, RestoredPositionOpen) {
 }
 
 TEST_F(TimeBasedValvePositionTest, RestoredPositionClose) {
-  valve.position = 0.5f;
+  valve.position = 0.7f;
 
   // Open a little
   valve.set_position(0.1, true);
@@ -101,23 +101,23 @@ TEST_F(TimeBasedValvePositionTest, RestoredPositionClose) {
   valve.mock_millis += 1000;
   valve.loop();
   EXPECT_EQ(valve.measured_position_, 0.1f);
-  EXPECT_EQ(valve.position, 0.6f);
+  EXPECT_EQ(valve.position, 0.8f);
   EXPECT_EQ((int) valve.current_operation, (int) VALVE_OPERATION_IDLE);
 
   // Almost close
-  valve.set_position(-0.6f, true);
+  valve.set_position(-0.8f, true);
   EXPECT_EQ((int) valve.current_operation, (int) VALVE_OPERATION_CLOSING);
-  valve.mock_millis += 6000;
+  valve.mock_millis += 8000;
   valve.loop();
-  EXPECT_EQ(valve.measured_position_, -0.5f);
+  EXPECT_EQ(valve.measured_position_, -0.7f);
   EXPECT_EQ(valve.position, 0.01f);
   EXPECT_FALSE(valve.is_fully_closed());
   EXPECT_EQ((int) valve.current_operation, (int) VALVE_OPERATION_IDLE);
 
   // Close fully
-  valve.set_position(-0.4, true);
+  valve.set_position(-0.2, true);
   EXPECT_EQ((int) valve.current_operation, (int) VALVE_OPERATION_CLOSING);
-  valve.mock_millis += 4000;
+  valve.mock_millis += 2000;
   valve.loop();
   EXPECT_EQ(valve.measured_position_, -0.9f);
   EXPECT_EQ(valve.position, VALVE_CLOSED);
@@ -141,15 +141,16 @@ TEST_F(TimeBasedValvePositionTest, SetPosition) {
   valve.mock_millis += 1000;
   valve.loop();
   EXPECT_EQ(valve.measured_position_, -0.1f);
+  EXPECT_EQ(valve.position, 0.4f);
   EXPECT_EQ((int) valve.current_operation, (int) VALVE_OPERATION_IDLE);
 
-  // Position should still be NaN because not entire duration traveled
+  // Position should be 0.01 because not entire duration traveled
   valve.set_position(-0.4, true);
   EXPECT_EQ((int) valve.current_operation, (int) VALVE_OPERATION_CLOSING);
   valve.mock_millis += 4000;
   valve.loop();
   EXPECT_EQ(valve.measured_position_, -0.5f);
-  EXPECT_TRUE(std::isnan(valve.position));
+  EXPECT_EQ(valve.position, 0.01f);
   EXPECT_EQ((int) valve.current_operation, (int) VALVE_OPERATION_IDLE);
 
   // Move -0.1 over endstop to check clamping and position now available
