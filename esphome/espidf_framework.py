@@ -39,8 +39,6 @@ def _str_to_lst_of_str(a: str) -> list[str]:
 
 ESPHOME_STAMP_FILE = ".esphome.stamp.json"
 
-ESPHOME_IDF_DEFAULT_VERSION = os.environ.get("ESPHOME_IDF_DEFAULT_VERSION", "5.5.2")
-
 ESPHOME_IDF_DEFAULT_TARGETS = _str_to_lst_of_str(
     os.environ.get("ESPHOME_IDF_DEFAULT_TARGETS", "all")
 )
@@ -810,7 +808,7 @@ def _check_esp_idf_python_env_install(
 
 
 def check_esp_idf_install(
-    version: str | None = None,
+    version: str,
     targets: list[str] | None = None,
     tools: list[str] | None = None,
     features: list[str] | None = None,
@@ -833,7 +831,6 @@ def check_esp_idf_install(
     env["IDF_TOOLS_PATH"] = str(_get_idf_tools_path())
     env["IDF_PATH"] = ""
 
-    version = version or ESPHOME_IDF_DEFAULT_VERSION
     targets = targets or ESPHOME_IDF_DEFAULT_TARGETS
 
     # Determine which tools need to be installed if not provided
