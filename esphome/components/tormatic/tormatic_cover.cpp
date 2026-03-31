@@ -291,18 +291,13 @@ optional<GateStatus> Tormatic::read_gate_status_() {
       if (hdr.payload_size() != sizeof(StatusReply)) {
         ESP_LOGE(TAG, "Header specifies payload size %" PRIu32 " but size of StatusReply is %zu", hdr.payload_size(),
                  sizeof(StatusReply));
-      }
-
-      // Read a StatusReply requested by update().
-      auto o_status = this->read_data_<StatusReply>();
-      if (!o_status) {
+        this->drain_rx_(hdr.payload_size());
         return {};
       }
 
-      // Drain any extra payload bytes beyond the StatusReply struct to prevent
-      // them from being misinterpreted as the next message header.
-      if (hdr.payload_size() > sizeof(StatusReply)) {
-        this->drain_rx_(hdr.payload_size() - sizeof(StatusReply));
+      auto o_status = this->read_data_<StatusReply>();
+      if (!o_status) {
+        return {};
       }
 
       return o_status->state;
