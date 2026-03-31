@@ -259,8 +259,11 @@ optional<GateStatus> Tormatic::read_gate_status_() {
   MessageHeader hdr;
 
   if (this->pending_hdr_) {
-    // Resume processing a header whose payload hadn't fully arrived yet.
-    hdr = this->pending_hdr_.value();
+    // Already have a header from a previous loop, wait for its payload.
+    if (this->available() < this->pending_hdr_->payload_size()) {
+      return {};
+    }
+    hdr = *this->pending_hdr_;
     this->pending_hdr_.reset();
   } else {
     if (this->available() < sizeof(MessageHeader)) {
@@ -272,14 +275,13 @@ optional<GateStatus> Tormatic::read_gate_status_() {
       ESP_LOGE(TAG, "Timeout reading message header");
       return {};
     }
-    hdr = o_hdr.value();
-  }
+    hdr = *o_hdr;
 
-  // Wait for all payload bytes to arrive before processing. Save the header
-  // so we can resume on the next loop() iteration without losing the message.
-  if (this->available() < hdr.payload_size()) {
-    this->pending_hdr_ = hdr;
-    return {};
+    // Payload not ready yet — save header and resume on next loop().
+    if (this->available() < hdr.payload_size()) {
+      this->pending_hdr_ = hdr;
+      return {};
+    }
   }
 
   switch (hdr.type) {
