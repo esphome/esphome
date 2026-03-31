@@ -256,33 +256,25 @@ void Tormatic::stop_at_target_() {
 // Read a GateStatus from the unit. The unit only sends messages in response to
 // status requests or commands, so a message needs to be sent first.
 optional<GateStatus> Tormatic::read_gate_status_() {
-  MessageHeader hdr;
-
-  if (this->pending_hdr_) {
-    // Already have a header from a previous loop, wait for its payload.
-    if (this->available() < this->pending_hdr_->payload_size()) {
-      return {};
-    }
-    hdr = *this->pending_hdr_;
-    this->pending_hdr_.reset();
-  } else {
+  if (!this->pending_hdr_) {
     if (this->available() < sizeof(MessageHeader)) {
       return {};
     }
 
-    auto o_hdr = this->read_data_<MessageHeader>();
-    if (!o_hdr) {
+    this->pending_hdr_ = this->read_data_<MessageHeader>();
+    if (!this->pending_hdr_) {
       ESP_LOGE(TAG, "Timeout reading message header");
       return {};
     }
-    hdr = *o_hdr;
-
-    // Payload not ready yet — save header and resume on next loop().
-    if (this->available() < hdr.payload_size()) {
-      this->pending_hdr_ = hdr;
-      return {};
-    }
   }
+
+  // Wait for all payload bytes to arrive before processing.
+  if (this->available() < this->pending_hdr_->payload_size()) {
+    return {};
+  }
+
+  auto hdr = *this->pending_hdr_;
+  this->pending_hdr_.reset();
 
   switch (hdr.type) {
     case STATUS: {
@@ -296,7 +288,6 @@ optional<GateStatus> Tormatic::read_gate_status_() {
       if (!o_status) {
         return {};
       }
-      auto status = o_status.value();
 
       // Drain any extra payload bytes beyond the StatusReply struct to prevent
       // them from being misinterpreted as the next message header.
@@ -304,7 +295,7 @@ optional<GateStatus> Tormatic::read_gate_status_() {
         this->drain_rx_(hdr.payload_size() - sizeof(StatusReply));
       }
 
-      return status.state;
+      return o_status->state;
     }
 
     case COMMAND:
