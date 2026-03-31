@@ -535,7 +535,7 @@ ModbusCommandItem ModbusCommandItem::create_read_command(
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
   cmd.register_type = register_type;
-  cmd.function_code = modbus_register_read_function(register_type);
+  cmd.function_code = modbus::helpers::modbus_register_read_function(register_type);
   cmd.register_address = start_address;
   cmd.register_count = register_count;
   cmd.on_data_func = std::move(handler);
@@ -548,7 +548,7 @@ ModbusCommandItem ModbusCommandItem::create_read_command(ModbusController *modbu
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
   cmd.register_type = register_type;
-  cmd.function_code = modbus_register_read_function(register_type);
+  cmd.function_code = modbus::helpers::modbus_register_read_function(register_type);
   cmd.register_address = start_address;
   cmd.register_count = register_count;
   cmd.on_data_func = [modbusdevice](ModbusRegisterType register_type, uint16_t start_address,

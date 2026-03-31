@@ -48,6 +48,7 @@ from esphome.yaml_util import load_yaml
 
 from . import defines as df, helpers, lv_validation as lvalid, widgets
 from .automation import focused_widgets, layers_to_code, lvgl_update, refreshed_widgets
+from .defines import CONF_ALIGN_TO_LAMBDA_ID
 from .encoders import (
     ENCODERS_CONFIG,
     encoders_to_code,
@@ -69,8 +70,16 @@ from .schemas import (
 )
 from .styles import styles_to_code, theme_to_code
 from .touchscreens import touchscreen_schema, touchscreens_to_code
-from .trigger import add_on_boot_triggers, generate_triggers
-from .types import IdleTrigger, PlainTrigger, lv_font_t, lv_group_t, lv_style_t, lvgl_ns
+from .trigger import add_on_boot_triggers, generate_align_tos, generate_triggers
+from .types import (
+    IdleTrigger,
+    PlainTrigger,
+    lv_font_t,
+    lv_group_t,
+    lv_lambda_t,
+    lv_style_t,
+    lvgl_ns,
+)
 from .widgets import (
     LvScrActType,
     Widget,
@@ -226,6 +235,9 @@ async def to_code(configs):
     config_0 = configs[0]
     # Global configuration
     if CORE.is_esp32:
+        # Skip compiling lvgl examples
+        add_idf_sdkconfig_option("CONFIG_LV_BUILD_EXAMPLES", False)
+        add_idf_sdkconfig_option("CONFIG_LV_BUILD_DEMOS", False)
         if get_esp32_variant() == VARIANT_ESP32P4:
             add_idf_sdkconfig_option("CONFIG_LV_DRAW_BUF_ALIGN", 64)
             # disable use of PPA for fills until upstream bugs fixed
@@ -342,6 +354,7 @@ async def to_code(configs):
     Widget.widgets_completed = True
     async with LvContext():
         await generate_triggers()
+        await generate_align_tos(configs[0])
         for config in configs:
             lv_component = await cg.get_variable(config[CONF_ID])
             await generate_page_triggers(config)
@@ -406,7 +419,10 @@ async def to_code(configs):
     lv_conf_h_file = CORE.relative_src_path(LV_CONF_FILENAME)
     write_file_if_changed(lv_conf_h_file, generate_lv_conf_h())
     cg.add_build_flag("-DLV_CONF_H=1")
-    cg.add_build_flag(f'-DLV_CONF_PATH=\\"{LV_CONF_FILENAME}\\"')
+    # handle windows paths in a way that doesn't break the generated C++
+    lv_conf_h_path = Path(lv_conf_h_file).as_posix()
+    cg.add_build_flag(f'-DLV_CONF_PATH=\\"{lv_conf_h_path}\\"')
+    cg.add_build_flag("-DLV_KCONFIG_IGNORE")
 
     for prop in df.get_remapped_uses():
         df.LOGGER.warning(
@@ -452,6 +468,7 @@ LVGL_SCHEMA = cv.All(
         .extend(
             {
                 cv.GenerateID(CONF_ID): cv.declare_id(LvglComponent),
+                cv.GenerateID(CONF_ALIGN_TO_LAMBDA_ID): cv.declare_id(lv_lambda_t),
                 cv.GenerateID(df.CONF_DISPLAYS): display_schema,
                 cv.Optional(CONF_COLOR_DEPTH, default=16): cv.one_of(16),
                 cv.Optional(

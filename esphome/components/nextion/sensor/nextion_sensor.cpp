@@ -85,10 +85,6 @@ void NextionSensor::set_state(float state, bool publish, bool send_to_nextion) {
       }
 
       this->publish_state(published_state);
-    } else {
-      this->raw_state = state;
-      this->state = state;
-      this->set_has_state(true);
     }
   }
   this->update_component_settings();

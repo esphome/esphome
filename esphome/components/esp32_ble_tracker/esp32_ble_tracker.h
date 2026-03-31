@@ -291,10 +291,6 @@ class ESPBTClient : public ESPBTDeviceListener {
 };
 
 class ESP32BLETracker : public Component,
-                        public GAPEventHandler,
-                        public GAPScanEventHandler,
-                        public GATTcEventHandler,
-                        public BLEStatusEventHandler,
 #ifdef USE_OTA_STATE_LISTENER
                         public ota::OTAGlobalStateListener,
 #endif
@@ -325,11 +321,10 @@ class ESP32BLETracker : public Component,
   void start_scan();
   void stop_scan();
 
-  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                           esp_ble_gattc_cb_param_t *param) override;
-  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
-  void gap_scan_event_handler(const BLEScanResult &scan_result) override;
-  void ble_before_disabled_event_handler() override;
+  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
+  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
+  void gap_scan_event_handler(const BLEScanResult &scan_result);
+  void ble_before_disabled_event_handler();
 
 #ifdef USE_OTA_STATE_LISTENER
   void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) override;
