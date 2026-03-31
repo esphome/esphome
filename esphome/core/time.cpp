@@ -24,7 +24,7 @@ size_t ESPTime::strftime(char *buffer, size_t buffer_len, const char *format) {
   // Quick scan: does format contain %Z or %z (but not %%Z/%%z)?
   bool needs_subst = false;
   for (const char *p = format; *p; p++) {
-    if (*p == '%') {
+    if (*p == '%' && *(p + 1)) {
       p++;
       if (*p == '%')
         continue;  // %% is a literal %, skip
