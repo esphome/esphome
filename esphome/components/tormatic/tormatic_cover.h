@@ -34,7 +34,7 @@ class Tormatic : public cover::Cover, public uart::UARTDevice, public PollingCom
 
   template<typename T> void send_message_(MessageType t, T r);
   template<typename T> optional<T> read_data_();
-  void drain_rx_(uint16_t n);
+  void drain_rx_(uint16_t n = 0);
 
   void request_gate_status_();
   optional<GateStatus> read_gate_status_();

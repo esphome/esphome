@@ -10,6 +10,10 @@ namespace tormatic {
 
 static const char *const TAG = "tormatic.cover";
 
+// Time to poll the UART when flushing after desync. At 9600 baud, a full
+// 12-byte message takes ~12.5ms, so 15ms guarantees all bytes have arrived.
+static constexpr uint32_t DRAIN_TIMEOUT_MS = 15;
+
 using namespace esphome::cover;
 
 void Tormatic::setup() {
@@ -273,7 +277,7 @@ optional<GateStatus> Tormatic::read_gate_status_() {
     if (this->pending_hdr_->payload_size() > sizeof(CommandRequestReply)) {
       ESP_LOGW(TAG, "Unexpected payload size %" PRIu32 ", flushing rx buffer", this->pending_hdr_->payload_size());
       this->pending_hdr_.reset();
-      this->drain_rx_(this->available());
+      this->drain_rx_();
       return {};
     }
   }
@@ -363,13 +367,24 @@ template<typename T> optional<T> Tormatic::read_data_() {
   return obj;
 }
 
-// Drain n bytes from the uart rx buffer. Caller must ensure at least n bytes
-// are available before calling.
+// Drain bytes from the uart rx buffer. When n > 0, drain exactly n bytes
+// (caller must ensure they are available). When n == 0, poll for 15ms to
+// guarantee a full packet time at 9600 baud has elapsed, consuming any
+// bytes still in transit.
 void Tormatic::drain_rx_(uint16_t n) {
   uint8_t data;
-  for (uint32_t i = 0; i < n; i++) {
-    if (!this->read_byte(&data)) {
-      return;
+  if (n > 0) {
+    for (uint16_t i = 0; i < n; i++) {
+      if (!this->read_byte(&data)) {
+        return;
+      }
+    }
+  } else {
+    uint32_t start = millis();
+    while (millis() - start < DRAIN_TIMEOUT_MS) {
+      if (this->available()) {
+        this->read_byte(&data);
+      }
     }
   }
 }
