@@ -99,7 +99,8 @@ void ESP32BLETracker::on_ota_global_state(ota::OTAState state, float progress, u
     if (this->scan_continuous_before_ota_) {
       this->scan_continuous_before_ota_ = false;
       this->scan_continuous_ = true;
-      this->start_scan();
+      // Do not restart scanning immediately here; allow loop() to
+      // safely restart scanning once the scanner and all clients are idle.
     }
   }
 }
