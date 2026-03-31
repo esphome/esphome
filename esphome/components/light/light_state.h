@@ -53,6 +53,7 @@ enum LightRestoreMode : uint8_t {
   LIGHT_RESTORE_INVERTED_DEFAULT_ON,
   LIGHT_RESTORE_AND_OFF,
   LIGHT_RESTORE_AND_ON,
+  LIGHT_NO_RESTORE,
 };
 
 struct LightStateRTCState {
