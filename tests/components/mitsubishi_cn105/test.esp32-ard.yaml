@@ -1,4 +1,0 @@
-packages:
-  uart: !include ../../test_build_components/common/uart_9600_even/esp32-ard.yaml
-
-<<: !include common.yaml
