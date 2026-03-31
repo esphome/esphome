@@ -262,10 +262,6 @@ optional<GateStatus> Tormatic::read_gate_status_() {
     }
 
     this->pending_hdr_ = this->read_data_<MessageHeader>();
-    if (!this->pending_hdr_) {
-      ESP_LOGE(TAG, "Timeout reading message header");
-      return {};
-    }
 
     // Sanity check: valid messages have small payloads (3-4 bytes). A large
     // or impossible payload_size means the stream is out of sync (corrupted
