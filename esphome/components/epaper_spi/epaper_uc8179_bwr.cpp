@@ -40,8 +40,10 @@ void HOT EPaperUC8179BWR::draw_pixel_at(int x, int y, Color color) {
   }
 
   // Update red plane (second half of buffer)
-  // 1 = red, 0 = not red
-  if (bwr == BwrColor::RED) {
+  // invert_red_: when true, 0 = red (required by some panels with DDX=11)
+  //              when false, 1 = red (standard polarity)
+  bool red_active = (bwr == BwrColor::RED) != this->invert_red_;
+  if (red_active) {
     this->buffer_[red_offset + pos] |= bit;
   } else {
     this->buffer_[red_offset + pos] &= ~bit;
@@ -57,21 +59,24 @@ void EPaperUC8179BWR::fill(Color color) {
   const size_t half_buffer = this->buffer_length_ / 2u;
   auto bwr = color_to_bwr(color);
 
+  const uint8_t red_off = this->invert_red_ ? 0xFF : 0x00;
+  const uint8_t red_on = this->invert_red_ ? 0x00 : 0xFF;
+
   if (bwr == BwrColor::BLACK) {
     for (size_t i = 0; i < half_buffer; i++)
       this->buffer_[i] = 0x00;
     for (size_t i = 0; i < half_buffer; i++)
-      this->buffer_[half_buffer + i] = 0x00;
+      this->buffer_[half_buffer + i] = red_off;
   } else if (bwr == BwrColor::RED) {
     for (size_t i = 0; i < half_buffer; i++)
       this->buffer_[i] = 0x00;
     for (size_t i = 0; i < half_buffer; i++)
-      this->buffer_[half_buffer + i] = 0xFF;
+      this->buffer_[half_buffer + i] = red_on;
   } else {
     for (size_t i = 0; i < half_buffer; i++)
       this->buffer_[i] = 0xFF;
     for (size_t i = 0; i < half_buffer; i++)
-      this->buffer_[half_buffer + i] = 0x00;
+      this->buffer_[half_buffer + i] = red_off;
   }
 
   this->x_high_ = this->width_;
