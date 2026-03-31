@@ -256,31 +256,29 @@ void Tormatic::stop_at_target_() {
 // Read a GateStatus from the unit. The unit only sends messages in response to
 // status requests or commands, so a message needs to be sent first.
 optional<GateStatus> Tormatic::read_gate_status_() {
-  // Drain any pending payload bytes from a previously-read message whose
-  // payload hadn't fully arrived when the header was processed.
-  if (this->pending_drain_ > 0) {
-    if (this->available() < this->pending_drain_) {
+  MessageHeader hdr;
+
+  if (this->pending_hdr_) {
+    // Resume processing a header whose payload hadn't fully arrived yet.
+    hdr = this->pending_hdr_.value();
+    this->pending_hdr_.reset();
+  } else {
+    if (this->available() < sizeof(MessageHeader)) {
       return {};
     }
-    this->drain_rx_(this->pending_drain_);
-    this->pending_drain_ = 0;
+
+    auto o_hdr = this->read_data_<MessageHeader>();
+    if (!o_hdr) {
+      ESP_LOGE(TAG, "Timeout reading message header");
+      return {};
+    }
+    hdr = o_hdr.value();
   }
 
-  if (this->available() < sizeof(MessageHeader)) {
-    return {};
-  }
-
-  auto o_hdr = this->read_data_<MessageHeader>();
-  if (!o_hdr) {
-    ESP_LOGE(TAG, "Timeout reading message header");
-    return {};
-  }
-  auto hdr = o_hdr.value();
-
-  // Wait for all payload bytes to arrive before processing. If not ready,
-  // save the remaining byte count and drain on the next loop iteration.
+  // Wait for all payload bytes to arrive before processing. Save the header
+  // so we can resume on the next loop() iteration without losing the message.
   if (this->available() < hdr.payload_size()) {
-    this->pending_drain_ = hdr.payload_size();
+    this->pending_hdr_ = hdr;
     return {};
   }
 
