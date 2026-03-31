@@ -511,6 +511,7 @@ lvgl:
               image:
                 src: cat_image
                 align: top_left
+                bitmap_mask_src: alert
             on_click:
               - lvgl.widget.focus: spin_up
               - lvgl.widget.focus: next
@@ -1188,6 +1189,13 @@ image:
     resize: 256x48
     type: BINARY
     transparency: chroma_key
+
+  - id: alert
+    file: $component_dir/logo-text.svg
+    type: grayscale
+    resize: 100x100
+    invert_alpha: true
+    transparency: alpha_channel
 
 color:
   - id: light_blue
