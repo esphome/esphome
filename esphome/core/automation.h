@@ -419,44 +419,48 @@ template<typename... Ts> class Action {
 template<typename... Ts> class ActionList {
  public:
   void add_action(Action<Ts...> *action) {
-    if (this->actions_end_ == nullptr) {
-      this->actions_begin_ = action;
-    } else {
-      this->actions_end_->next_ = action;
-    }
-    this->actions_end_ = action;
+    // Walk to end of chain - action lists are short and only built during setup()
+    Action<Ts...> **tail = &this->actions_;
+    while (*tail != nullptr)
+      tail = &(*tail)->next_;
+    *tail = action;
   }
   void add_actions(const std::initializer_list<Action<Ts...> *> &actions) {
+    // Find tail once, then append all actions in a single pass
+    Action<Ts...> **tail = &this->actions_;
+    while (*tail != nullptr)
+      tail = &(*tail)->next_;
     for (auto *action : actions) {
-      this->add_action(action);
+      *tail = action;
+      tail = &action->next_;
     }
   }
   // Force-inline: part of the Trigger→Automation→ActionList forwarding
   // chain collapsed to reduce automation call stack depth.
   inline void play(const Ts &...x) ESPHOME_ALWAYS_INLINE {
-    if (this->actions_begin_ != nullptr)
-      this->actions_begin_->play_complex(x...);
+    if (this->actions_ != nullptr)
+      this->actions_->play_complex(x...);
   }
   void play_tuple(const std::tuple<Ts...> &tuple) {
     this->play_tuple_(tuple, std::make_index_sequence<sizeof...(Ts)>{});
   }
   void stop() {
-    if (this->actions_begin_ != nullptr)
-      this->actions_begin_->stop_complex();
+    if (this->actions_ != nullptr)
+      this->actions_->stop_complex();
   }
-  bool empty() const { return this->actions_begin_ == nullptr; }
+  bool empty() const { return this->actions_ == nullptr; }
 
   /// Check if any action in this action list is currently running.
   bool is_running() {
-    if (this->actions_begin_ == nullptr)
+    if (this->actions_ == nullptr)
       return false;
-    return this->actions_begin_->is_running();
+    return this->actions_->is_running();
   }
   /// Return the number of actions in this action list that are currently running.
   int num_running() {
-    if (this->actions_begin_ == nullptr)
+    if (this->actions_ == nullptr)
       return 0;
-    return this->actions_begin_->num_running_total();
+    return this->actions_->num_running_total();
   }
 
  protected:
@@ -464,8 +468,7 @@ template<typename... Ts> class ActionList {
     this->play(std::get<S>(tuple)...);
   }
 
-  Action<Ts...> *actions_begin_{nullptr};
-  Action<Ts...> *actions_end_{nullptr};
+  Action<Ts...> *actions_{nullptr};
 };
 
 template<typename... Ts> class Automation {

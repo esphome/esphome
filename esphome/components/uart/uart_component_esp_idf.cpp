@@ -296,7 +296,7 @@ void IDFUARTComponent::set_rx_timeout(size_t rx_timeout) {
 void IDFUARTComponent::write_array(const uint8_t *data, size_t len) {
   int32_t write_len = uart_write_bytes(this->uart_num_, data, len);
   if (write_len != (int32_t) len) {
-    ESP_LOGW(TAG, "uart_write_bytes failed: %d != %zu", write_len, len);
+    ESP_LOGW(TAG, "uart_write_bytes failed: %" PRId32 " != %zu", write_len, len);
     this->mark_failed();
   }
 #ifdef USE_UART_DEBUGGER
