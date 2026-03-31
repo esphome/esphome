@@ -125,6 +125,17 @@ void IDFUARTComponent::setup() {
 void IDFUARTComponent::load_settings(bool dump_config) {
   esp_err_t err;
 
+  // uart_param_config must be called before uart_driver_install: it resets the
+  // UART peripheral registers, which would undo baud rate and framing settings
+  // applied after driver installation.
+  uart_config_t uart_config = this->get_config_();
+  err = uart_param_config(this->uart_num_, &uart_config);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "uart_param_config failed: %s", esp_err_to_name(err));
+    this->mark_failed();
+    return;
+  }
+
   if (uart_is_driver_installed(this->uart_num_)) {
     err = uart_driver_delete(this->uart_num_);
     if (err != ESP_OK) {
@@ -214,18 +225,11 @@ void IDFUARTComponent::load_settings(bool dump_config) {
     return;
   }
 
+  // Per ESP-IDF docs, uart_set_mode() must be called only after uart_driver_install().
   auto mode = this->flow_control_pin_ != nullptr ? UART_MODE_RS485_HALF_DUPLEX : UART_MODE_UART;
-  err = uart_set_mode(this->uart_num_, mode);  // per docs, must be called only after uart_driver_install()
+  err = uart_set_mode(this->uart_num_, mode);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_set_mode failed: %s", esp_err_to_name(err));
-    this->mark_failed();
-    return;
-  }
-
-  uart_config_t uart_config = this->get_config_();
-  err = uart_param_config(this->uart_num_, &uart_config);
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "uart_param_config failed: %s", esp_err_to_name(err));
     this->mark_failed();
     return;
   }
