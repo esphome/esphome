@@ -1,3 +1,4 @@
+#include <cinttypes>
 #include <vector>
 
 #include "tormatic_cover.h"
@@ -120,11 +121,11 @@ void Tormatic::recalibrate_duration_(GateStatus s) {
 
   if (s == OPENED) {
     this->open_duration_ = now - this->direction_start_time_;
-    ESP_LOGI(TAG, "Recalibrated the gate's open duration to %dms", this->open_duration_);
+    ESP_LOGI(TAG, "Recalibrated the gate's open duration to %" PRIu32 "ms", this->open_duration_);
   }
   if (s == CLOSED) {
     this->close_duration_ = now - this->direction_start_time_;
-    ESP_LOGI(TAG, "Recalibrated the gate's close duration to %dms", this->close_duration_);
+    ESP_LOGI(TAG, "Recalibrated the gate's close duration to %" PRIu32 "ms", this->close_duration_);
   }
 
   this->direction_start_time_ = 0;
@@ -269,7 +270,7 @@ optional<GateStatus> Tormatic::read_gate_status_() {
   switch (hdr.type) {
     case STATUS: {
       if (hdr.payload_size() != sizeof(StatusReply)) {
-        ESP_LOGE(TAG, "Header specifies payload size %d but size of StatusReply is %d", hdr.payload_size(),
+        ESP_LOGE(TAG, "Header specifies payload size %" PRIu32 " but size of StatusReply is %zu", hdr.payload_size(),
                  sizeof(StatusReply));
       }
 
@@ -294,7 +295,7 @@ optional<GateStatus> Tormatic::read_gate_status_() {
     default:
       // Unknown message type, drain the remaining amount of bytes specified in
       // the header.
-      ESP_LOGE(TAG, "Reading remaining %d payload bytes of unknown type 0x%x", hdr.payload_size(), hdr.type);
+      ESP_LOGE(TAG, "Reading remaining %" PRIu32 " payload bytes of unknown type 0x%x", hdr.payload_size(), hdr.type);
       break;
   }
 
@@ -339,7 +340,7 @@ template<typename T> optional<T> Tormatic::read_data_() {
   }
   obj.byteswap();
 
-  ESP_LOGV(TAG, "Read %s in %d ms", obj.print().c_str(), millis() - start);
+  ESP_LOGV(TAG, "Read %s in %" PRIu32 " ms", obj.print().c_str(), millis() - start);
   return obj;
 }
 

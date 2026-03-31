@@ -3,6 +3,8 @@
 #include "esphome/core/defines.h"
 #ifdef USE_BINARY_SENSOR_FILTER
 
+#include <array>
+
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
@@ -86,20 +88,37 @@ struct AutorepeatFilterTiming {
   uint32_t time_on;
 };
 
-class AutorepeatFilter : public Filter, public Component {
+/// Non-template base for AutorepeatFilter — all methods in filter.cpp.
+/// Lambdas capture this base pointer, so set_timeout/cancel_timeout are instantiated once.
+class AutorepeatFilterBase : public Filter, public Component {
  public:
-  explicit AutorepeatFilter(std::initializer_list<AutorepeatFilterTiming> timings);
-
   optional<bool> new_value(bool value) override;
-
   float get_setup_priority() const override;
+  AutorepeatFilterBase(const AutorepeatFilterBase &) = delete;
+  AutorepeatFilterBase &operator=(const AutorepeatFilterBase &) = delete;
 
  protected:
+  AutorepeatFilterBase() = default;
   void next_timing_();
   void next_value_(bool val);
 
-  FixedVector<AutorepeatFilterTiming> timings_;
+  const AutorepeatFilterTiming *timings_{nullptr};
+  uint8_t timings_count_{0};
   uint8_t active_timing_{0};
+};
+
+/// Template wrapper that provides inline std::array storage for timings.
+/// N is set by code generation to match the exact number of timings configured in YAML.
+template<size_t N> class AutorepeatFilter : public AutorepeatFilterBase {
+ public:
+  explicit AutorepeatFilter(std::initializer_list<AutorepeatFilterTiming> timings) {
+    init_array_from(this->timings_storage_, timings);
+    this->timings_ = this->timings_storage_.data();
+    this->timings_count_ = N;
+  }
+
+ protected:
+  std::array<AutorepeatFilterTiming, N> timings_storage_{};
 };
 
 class LambdaFilter : public Filter {

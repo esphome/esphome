@@ -1,6 +1,5 @@
 #pragma once
 
-#include "esphome/core/automation.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #ifdef USE_SENSOR
@@ -199,13 +198,6 @@ class LD2450Component : public Component, public uart::UARTDevice {
 #endif
 
   LazyCallbackManager<void()> data_callback_;
-};
-
-class LD2450DataTrigger : public Trigger<> {
- public:
-  explicit LD2450DataTrigger(LD2450Component *parent) {
-    parent->add_on_data_callback([this]() { this->trigger(); });
-  }
 };
 
 }  // namespace esphome::ld2450
