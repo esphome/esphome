@@ -48,6 +48,7 @@ from esphome.yaml_util import load_yaml
 
 from . import defines as df, helpers, lv_validation as lvalid, widgets
 from .automation import focused_widgets, layers_to_code, lvgl_update, refreshed_widgets
+from .defines import CONF_ALIGN_TO_LAMBDA_ID
 from .encoders import (
     ENCODERS_CONFIG,
     encoders_to_code,
@@ -69,8 +70,16 @@ from .schemas import (
 )
 from .styles import styles_to_code, theme_to_code
 from .touchscreens import touchscreen_schema, touchscreens_to_code
-from .trigger import add_on_boot_triggers, generate_triggers
-from .types import IdleTrigger, PlainTrigger, lv_font_t, lv_group_t, lv_style_t, lvgl_ns
+from .trigger import add_on_boot_triggers, generate_align_tos, generate_triggers
+from .types import (
+    IdleTrigger,
+    PlainTrigger,
+    lv_font_t,
+    lv_group_t,
+    lv_lambda_t,
+    lv_style_t,
+    lvgl_ns,
+)
 from .widgets import (
     LvScrActType,
     Widget,
@@ -345,6 +354,7 @@ async def to_code(configs):
     Widget.widgets_completed = True
     async with LvContext():
         await generate_triggers()
+        await generate_align_tos(configs[0])
         for config in configs:
             lv_component = await cg.get_variable(config[CONF_ID])
             await generate_page_triggers(config)
@@ -458,6 +468,7 @@ LVGL_SCHEMA = cv.All(
         .extend(
             {
                 cv.GenerateID(CONF_ID): cv.declare_id(LvglComponent),
+                cv.GenerateID(CONF_ALIGN_TO_LAMBDA_ID): cv.declare_id(lv_lambda_t),
                 cv.GenerateID(df.CONF_DISPLAYS): display_schema,
                 cv.Optional(CONF_COLOR_DEPTH, default=16): cv.one_of(16),
                 cv.Optional(
