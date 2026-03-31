@@ -882,7 +882,7 @@ async def round_multiple_filter_to_code(config, filter_id):
 @FILTER_REGISTRY.register(
     "round_to_significant_digits",
     RoundSignificantDigitsFilter,
-    cv.positive_not_null_int,
+    cv.int_range(min=1, max=6),
 )
 async def round_significant_digits_filter_to_code(config, filter_id):
     return cg.new_Pvariable(
