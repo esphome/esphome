@@ -1,6 +1,5 @@
 esphome:
   name: test-multi-click
-  platformio_options: {}
 
 host:
 api:
