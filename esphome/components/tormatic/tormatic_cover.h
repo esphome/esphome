@@ -43,6 +43,7 @@ class Tormatic : public cover::Cover, public uart::UARTDevice, public PollingCom
   void handle_gate_status_(GateStatus s);
 
   uint32_t seq_tx_{0};
+  uint32_t pending_drain_{0};
 
   GateStatus current_status_{PAUSED};
 

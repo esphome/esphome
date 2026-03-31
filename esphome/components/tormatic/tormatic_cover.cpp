@@ -256,6 +256,16 @@ void Tormatic::stop_at_target_() {
 // Read a GateStatus from the unit. The unit only sends messages in response to
 // status requests or commands, so a message needs to be sent first.
 optional<GateStatus> Tormatic::read_gate_status_() {
+  // Drain any pending payload bytes from a previously-read message whose
+  // payload hadn't fully arrived when the header was processed.
+  if (this->pending_drain_ > 0) {
+    if (this->available() < this->pending_drain_) {
+      return {};
+    }
+    this->drain_rx_(this->pending_drain_);
+    this->pending_drain_ = 0;
+  }
+
   if (this->available() < sizeof(MessageHeader)) {
     return {};
   }
@@ -266,6 +276,13 @@ optional<GateStatus> Tormatic::read_gate_status_() {
     return {};
   }
   auto hdr = o_hdr.value();
+
+  // Wait for all payload bytes to arrive before processing. If not ready,
+  // save the remaining byte count and drain on the next loop iteration.
+  if (this->available() < hdr.payload_size()) {
+    this->pending_drain_ = hdr.payload_size();
+    return {};
+  }
 
   switch (hdr.type) {
     case STATUS: {
@@ -350,18 +367,14 @@ template<typename T> optional<T> Tormatic::read_data_() {
   return obj;
 }
 
-// Drain n bytes from the uart rx buffer using blocking reads.
-// Unlike available()/read_byte() loops, this waits for bytes that are still
-// in transit over the wire, preventing stream desync at low baud rates.
+// Drain n bytes from the uart rx buffer. Caller must ensure at least n bytes
+// are available before calling.
 void Tormatic::drain_rx_(uint32_t n) {
-  uint8_t buf[64];
-  while (n > 0) {
-    uint32_t to_read = std::min(n, static_cast<uint32_t>(sizeof(buf)));
-    if (!this->read_array(buf, to_read)) {
-      ESP_LOGW(TAG, "Timeout draining %" PRIu32 " remaining payload bytes", n);
+  uint8_t data;
+  for (uint32_t i = 0; i < n; i++) {
+    if (!this->read_byte(&data)) {
       return;
     }
-    n -= to_read;
   }
 }
 
