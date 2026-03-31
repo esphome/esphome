@@ -281,6 +281,12 @@ optional<GateStatus> Tormatic::read_gate_status_() {
       }
       auto status = o_status.value();
 
+      // Drain any extra payload bytes beyond the StatusReply struct to prevent
+      // them from being misinterpreted as the next message header.
+      if (hdr.payload_size() > sizeof(StatusReply)) {
+        this->drain_rx_(hdr.payload_size() - sizeof(StatusReply));
+      }
+
       return status.state;
     }
 
@@ -344,17 +350,18 @@ template<typename T> optional<T> Tormatic::read_data_() {
   return obj;
 }
 
-// Drain up to n amount of bytes from the uart rx buffer.
-void Tormatic::drain_rx_(uint16_t n) {
-  uint8_t data;
-  uint16_t count = 0;
-  while (this->available()) {
-    this->read_byte(&data);
-    count++;
-
-    if (n > 0 && count >= n) {
+// Drain n bytes from the uart rx buffer using blocking reads.
+// Unlike available()/read_byte() loops, this waits for bytes that are still
+// in transit over the wire, preventing stream desync at low baud rates.
+void Tormatic::drain_rx_(uint32_t n) {
+  uint8_t buf[64];
+  while (n > 0) {
+    uint32_t to_read = std::min(n, static_cast<uint32_t>(sizeof(buf)));
+    if (!this->read_array(buf, to_read)) {
+      ESP_LOGW(TAG, "Timeout draining %" PRIu32 " remaining payload bytes", n);
       return;
     }
+    n -= to_read;
   }
 }
 
