@@ -15,12 +15,20 @@ class TimeBasedValvePositionTest : public ::testing::Test {
   TestableTimeBasedValve valve;
 };
 
-TEST_F(TimeBasedValvePositionTest, StopIsCalled) {
+TEST_F(TimeBasedValvePositionTest, TriggersAreCalled) {
   auto stop_action = MockAction();
   auto stop_automation = Automation<>(valve.get_stop_trigger());
   stop_automation.add_action(&stop_action);
+  auto open_action = MockAction();
+  auto open_automation = Automation<>(valve.get_open_trigger());
+  open_automation.add_action(&open_action);
+  auto close_action = MockAction();
+  auto close_automation = Automation<>(valve.get_close_trigger());
+  close_automation.add_action(&close_action);
 
   EXPECT_CALL(stop_action, play()).Times(0);
+  EXPECT_CALL(open_action, play()).Times(1);
+  EXPECT_CALL(close_action, play()).Times(0);
   auto call = valve.make_call();
   call.set_command_open();
   call.perform();
@@ -28,7 +36,11 @@ TEST_F(TimeBasedValvePositionTest, StopIsCalled) {
 
   // Direction change
   ::testing::Mock::VerifyAndClearExpectations(&stop_action);
+  ::testing::Mock::VerifyAndClearExpectations(&open_action);
+  ::testing::Mock::VerifyAndClearExpectations(&close_action);
   EXPECT_CALL(stop_action, play()).Times(1);
+  EXPECT_CALL(open_action, play()).Times(0);
+  EXPECT_CALL(close_action, play()).Times(1);
   valve.mock_millis += 1000;
   call = valve.make_call();
   call.set_command_close();
@@ -36,7 +48,11 @@ TEST_F(TimeBasedValvePositionTest, StopIsCalled) {
   EXPECT_EQ((int) valve.current_operation, (int) VALVE_OPERATION_CLOSING);
 
   ::testing::Mock::VerifyAndClearExpectations(&stop_action);
+  ::testing::Mock::VerifyAndClearExpectations(&open_action);
+  ::testing::Mock::VerifyAndClearExpectations(&close_action);
   EXPECT_CALL(stop_action, play()).Times(1);
+  EXPECT_CALL(open_action, play()).Times(0);
+  EXPECT_CALL(close_action, play()).Times(0);
   valve.mock_millis += 1000;
   call = valve.make_call();
   call.set_command_stop();
@@ -54,6 +70,7 @@ TEST_F(TimeBasedValvePositionTest, RestoredPositionOpen) {
   valve.loop();
   EXPECT_EQ(valve.measured_position_, 0.6f);
   EXPECT_EQ(valve.position, 0.99f);
+  EXPECT_FALSE(valve.is_fully_open());
   EXPECT_EQ((int) valve.current_operation, (int) VALVE_OPERATION_IDLE);
 
   // Full duration now traveled
@@ -63,6 +80,7 @@ TEST_F(TimeBasedValvePositionTest, RestoredPositionOpen) {
   valve.loop();
   EXPECT_EQ(valve.measured_position_, 1.0f);
   EXPECT_EQ(valve.position, VALVE_OPEN);
+  EXPECT_TRUE(valve.is_fully_open());
   EXPECT_EQ((int) valve.current_operation, (int) VALVE_OPERATION_IDLE);
 
   // Further open is ignored
@@ -93,6 +111,7 @@ TEST_F(TimeBasedValvePositionTest, RestoredPositionClose) {
   valve.loop();
   EXPECT_EQ(valve.measured_position_, -0.5f);
   EXPECT_EQ(valve.position, 0.01f);
+  EXPECT_FALSE(valve.is_fully_closed());
   EXPECT_EQ((int) valve.current_operation, (int) VALVE_OPERATION_IDLE);
 
   // Close fully
@@ -102,6 +121,7 @@ TEST_F(TimeBasedValvePositionTest, RestoredPositionClose) {
   valve.loop();
   EXPECT_EQ(valve.measured_position_, -0.9f);
   EXPECT_EQ(valve.position, VALVE_CLOSED);
+  EXPECT_TRUE(valve.is_fully_closed());
   EXPECT_EQ((int) valve.current_operation, (int) VALVE_OPERATION_IDLE);
 
   // Further close is ignored
