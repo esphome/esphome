@@ -8,10 +8,10 @@ import sys
 import tempfile
 
 from esphome import config_validation as cv
-from esphome.components.esp32 import PLATFORM_VERSION_LOOKUP
+from esphome.components.esp32 import PIO_PLATFORM_VERSION_LOOKUP
 from esphome.helpers import write_file_if_changed
 
-ver = PLATFORM_VERSION_LOOKUP["recommended"]
+ver = PIO_PLATFORM_VERSION_LOOKUP["recommended"]
 root = Path(__file__).parent.parent
 boards_file_path = root / "esphome" / "components" / "esp32" / "boards.py"
 

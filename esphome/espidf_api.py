@@ -21,8 +21,7 @@ _idf_env_cache = {}
 
 
 def _get_core_framework_version():
-    framework_ver = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    return f"{framework_ver.major}.{framework_ver.minor}.{framework_ver.patch}"
+    return str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
 
 
 def _get_esphome_esp_idf_paths(

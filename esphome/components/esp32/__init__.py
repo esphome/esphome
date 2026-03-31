@@ -405,8 +405,6 @@ def set_core_data(config):
     CORE.data[KEY_ESP32] = {}
     CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = PLATFORM_ESP32
     conf = config[CONF_FRAMEWORK]
-    if conf[CONF_NATIVE_IDF]:
-        CORE.data[KEY_NATIVE_IDF] = True
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "esp-idf"
     elif conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
@@ -609,7 +607,7 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
     return f"{ARDUINO_FRAMEWORK_PKG}@https://github.com/espressif/arduino-esp32/releases/download/{ver}/{filename}"
 
 
-def _format_framework_espidf_version(
+def _format_framework_pio_espidf_version(
     ver: cv.Version, release: str | None = None
 ) -> str:
     # format the given espidf (https://github.com/pioarduino/esp-idf/releases) version to
@@ -696,7 +694,8 @@ ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
     "latest": cv.Version(5, 5, 3, "1"),
     "dev": cv.Version(5, 5, 4),
 }
-ESP_IDF_PLATFORM_VERSION_LOOKUP = {
+
+PIO_ESP_IDF_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
         6, 0, 0
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
@@ -721,25 +720,25 @@ ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
-PLATFORM_VERSION_LOOKUP = {
+PIO_PLATFORM_VERSION_LOOKUP = {
     "recommended": cv.Version(55, 3, 37),
     "latest": cv.Version(55, 3, 37),
     "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
 }
 
 
-def _check_versions(config):
+def _check_pio_versions(config):
     config = config.copy()
     value = config[CONF_FRAMEWORK]
 
-    if value[CONF_VERSION] in PLATFORM_VERSION_LOOKUP:
+    if value[CONF_VERSION] in PIO_PLATFORM_VERSION_LOOKUP:
         if CONF_SOURCE in value or CONF_PLATFORM_VERSION in value:
             raise cv.Invalid(
                 "Version needs to be explicitly set when a custom source or platform_version is used."
             )
 
-        platform_lookup = PLATFORM_VERSION_LOOKUP[value[CONF_VERSION]]
-        value[CONF_PLATFORM_VERSION] = _parse_platform_version(str(platform_lookup))
+        platform_lookup = PIO_PLATFORM_VERSION_LOOKUP[value[CONF_VERSION]]
+        value[CONF_PLATFORM_VERSION] = _parse_pio_platform_version(str(platform_lookup))
 
         if value[CONF_TYPE] == FRAMEWORK_ARDUINO:
             version = ARDUINO_FRAMEWORK_VERSION_LOOKUP[value[CONF_VERSION]]
@@ -764,10 +763,10 @@ def _check_versions(config):
         if version < cv.Version(5, 0, 0):
             raise cv.Invalid("Only ESP-IDF 5.0+ is supported.")
         recommended_version = ESP_IDF_FRAMEWORK_VERSION_LOOKUP["recommended"]
-        platform_lookup = ESP_IDF_PLATFORM_VERSION_LOOKUP.get(version)
+        platform_lookup = PIO_ESP_IDF_PLATFORM_VERSION_LOOKUP.get(version)
         value[CONF_SOURCE] = value.get(
             CONF_SOURCE,
-            _format_framework_espidf_version(version, value.get(CONF_RELEASE)),
+            _format_framework_pio_espidf_version(version, value.get(CONF_RELEASE)),
         )
         if _is_framework_url(value[CONF_SOURCE]):
             value[CONF_SOURCE] = f"pioarduino/framework-espidf@{value[CONF_SOURCE]}"
@@ -777,7 +776,7 @@ def _check_versions(config):
             raise cv.Invalid(
                 "Framework version not recognized; please specify platform_version"
             )
-        value[CONF_PLATFORM_VERSION] = _parse_platform_version(str(platform_lookup))
+        value[CONF_PLATFORM_VERSION] = _parse_pio_platform_version(str(platform_lookup))
 
     if version != recommended_version:
         _LOGGER.warning(
@@ -785,8 +784,8 @@ def _check_versions(config):
             "If there are connectivity or build issues please remove the manual version."
         )
 
-    if value[CONF_PLATFORM_VERSION] != _parse_platform_version(
-        str(PLATFORM_VERSION_LOOKUP["recommended"])
+    if value[CONF_PLATFORM_VERSION] != _parse_pio_platform_version(
+        str(PIO_PLATFORM_VERSION_LOOKUP["recommended"])
     ):
         _LOGGER.warning(
             "The selected platform version is not the recommended one. "
@@ -796,7 +795,35 @@ def _check_versions(config):
     return config
 
 
-def _parse_platform_version(value):
+def _check_native_idf_versions(config):
+    config = config.copy()
+    value = config[CONF_FRAMEWORK]
+    if value[CONF_VERSION] in ESP_IDF_FRAMEWORK_VERSION_LOOKUP:
+        version = ESP_IDF_FRAMEWORK_VERSION_LOOKUP[value[CONF_VERSION]]
+    else:
+        version = cv.Version.parse(cv.version_number(value[CONF_VERSION]))
+
+    # Official ESP-IDF frameworks don't use extra
+    version = cv.Version(version.major, version.minor, version.patch)
+
+    value[CONF_VERSION] = str(version)
+
+    return config
+
+
+def _check_versions(config):
+    conf = config[CONF_FRAMEWORK]
+
+    # Set the native IDF key if the configuration requires it.
+    if conf[CONF_NATIVE_IDF]:
+        CORE.data[KEY_NATIVE_IDF] = True
+
+    if CORE.data.get(KEY_NATIVE_IDF, False):
+        return _check_native_idf_versions(config)
+    return _check_pio_versions(config)
+
+
+def _parse_pio_platform_version(value):
     try:
         ver = cv.Version.parse(cv.version_number(value))
         release = f"{ver.major}.{ver.minor:02d}.{ver.patch:02d}"
@@ -1125,7 +1152,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
         cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
         cv.Optional(CONF_RELEASE): cv.string_strict,
         cv.Optional(CONF_SOURCE): cv.string_strict,
-        cv.Optional(CONF_PLATFORM_VERSION): _parse_platform_version,
+        cv.Optional(CONF_PLATFORM_VERSION): _parse_pio_platform_version,
         cv.Optional(CONF_SDKCONFIG_OPTIONS, default={}): {
             cv.string_strict: cv.string_strict
         },
@@ -1611,7 +1638,7 @@ async def to_code(config):
             if (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is not None:
                 cg.add_platformio_option(
                     "platform_packages",
-                    [_format_framework_espidf_version(idf_ver)],
+                    [_format_framework_pio_espidf_version(idf_ver)],
                 )
                 # Use stub package to skip downloading precompiled libs
                 stubs_dir = CORE.relative_build_path("arduino_libs_stub")
