@@ -115,7 +115,7 @@ bool LibreTinyPreferences::sync() {
   s_pending_save.clear();
 
   if (failed > 0) {
-    ESP_LOGW(TAG, "Writing %d items: %d cached, %d written, %d failed. Last error=%d for key=%" PRIu32,
+    ESP_LOGE(TAG, "Writing %d items: %d cached, %d written, %d failed. Last error=%d for key=%" PRIu32,
              cached + written + failed, cached, written, failed, last_err, last_key);
   } else if (written > 0) {
     ESP_LOGD(TAG, "Writing %d items: %d cached, %d written, %d failed", cached + written + failed, cached, written,
