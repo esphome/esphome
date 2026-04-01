@@ -23,7 +23,7 @@ inline void drain_socket(int fd) {
 
 // Create a TCP loopback socket pair. Returns the write-side Socket
 // (wrapped for ESPHome) and the raw read-side fd for draining.
-// Both ends are non-blocking with 1MB buffers.
+// Both ends are non-blocking with 16MB buffers.
 inline std::pair<std::unique_ptr<socket::Socket>, int> create_tcp_loopback() {
   // Create a TCP listener on loopback
   int listen_fd = ::socket(AF_INET, SOCK_STREAM, 0);
