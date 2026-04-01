@@ -207,7 +207,6 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
     bool tx_dma_underflow = true;
 
     uint32_t frames_written = 0;
-    uint32_t last_data_received_time = millis();
 
     // SPDIF Continuous Silence Mode + Callback Decimation
     //
@@ -335,12 +334,6 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
         // SPDIF Continuous Silence Mode: always output valid SPDIF stream
         // When no audio data, write silence-encoded blocks to keep receiver happy
         if (this->spdif_encoder_ != nullptr) {
-          // In "timeout: never" mode, keep the task alive while outputting silence.
-          // When a timeout is configured, silence timeout logic below handles task shutdown.
-          if (!this->timeout_.has_value()) {
-            last_data_received_time = millis();
-          }
-
           // Grace period: After preload completes, don't enter "silence mode" for a while.
           // This allows bursty data delivery to settle without causing audio/silence oscillation.
           // We still write silence to DMA, but we don't track it as a prolonged silence event.
@@ -513,7 +506,6 @@ void I2SAudioSpeakerSPDIF::run_speaker_task() {
 
           // Update frame accounting based on complete blocks sent (192 frames per block)
           if (bytes_written > 0) {
-            last_data_received_time = millis();
             frames_written += blocks_sent * SPDIF_BLOCK_SAMPLES;
             transfer_buffer->decrease_buffer_length(bytes_written);
           }
