@@ -23,8 +23,6 @@ class PCA9554Component : public Component,
 
   float get_setup_priority() const override;
 
-  float get_loop_priority() const override;
-
   void dump_config() override;
 
   void set_pin_count(size_t pin_count) { this->pin_count_ = pin_count; }

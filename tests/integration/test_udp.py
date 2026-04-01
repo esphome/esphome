@@ -93,23 +93,34 @@ async def udp_listener(port: int = 0) -> AsyncGenerator[tuple[int, UDPReceiver]]
         sock.close()
 
 
+def _get_free_udp_port() -> int:
+    """Get a free UDP port by binding to port 0 and releasing."""
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    return port
+
+
 @pytest.mark.asyncio
 async def test_udp_send_receive(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test UDP component can send messages with multiple addresses configured."""
-    # Track log lines to verify dump_config output
+    """Test UDP component can send and receive messages."""
     log_lines: list[str] = []
+    receive_event = asyncio.Event()
 
     def on_log_line(line: str) -> None:
         log_lines.append(line)
+        if "Received UDP:" in line:
+            receive_event.set()
 
-    async with udp_listener() as (udp_port, receiver):
-        # Replace placeholders in the config
-        config = yaml_config.replace("UDP_LISTEN_PORT_PLACEHOLDER", str(udp_port + 1))
-        config = config.replace("UDP_BROADCAST_PORT_PLACEHOLDER", str(udp_port))
+    async with udp_listener() as (broadcast_port, receiver):
+        listen_port = _get_free_udp_port()
+        config = yaml_config.replace("UDP_LISTEN_PORT_PLACEHOLDER", str(listen_port))
+        config = config.replace("UDP_BROADCAST_PORT_PLACEHOLDER", str(broadcast_port))
 
         async with (
             run_compiled(config, line_callback=on_log_line),
@@ -169,3 +180,19 @@ async def test_udp_send_receive(
             assert "Address: 127.0.0.2" in log_text, (
                 f"Address 127.0.0.2 not found in dump_config. Log: {log_text[-2000:]}"
             )
+
+            # Test receiving a UDP packet (exercises on_receive with std::span)
+            test_payload = b"TEST_RECEIVE_UDP"
+            send_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            try:
+                send_sock.sendto(test_payload, ("127.0.0.1", listen_port))
+            finally:
+                send_sock.close()
+
+            try:
+                await asyncio.wait_for(receive_event.wait(), timeout=5.0)
+            except TimeoutError:
+                pytest.fail(
+                    f"on_receive did not fire. Expected 'Received UDP:' in logs. "
+                    f"Last log lines: {log_lines[-20:]}"
+                )

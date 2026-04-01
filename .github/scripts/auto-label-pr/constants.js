@@ -14,6 +14,7 @@ module.exports = {
     'chained-pr',
     'core',
     'small-pr',
+    'medium-pr',
     'dashboard',
     'github-actions',
     'by-code-owner',
@@ -27,6 +28,7 @@ module.exports = {
     'new-feature',
     'breaking-change',
     'developer-breaking-change',
+    'undocumented-api-change',
     'code-quality',
     'deprecated-component'
   ],

@@ -77,8 +77,6 @@ void GDK101Component::dump_config() {
 #endif  // USE_TEXT_SENSOR
 }
 
-float GDK101Component::get_setup_priority() const { return setup_priority::DATA; }
-
 bool GDK101Component::read_bytes_with_retry_(uint8_t a_register, uint8_t *data, uint8_t len) {
   uint8_t retry = NUMBER_OF_READ_RETRIES;
   bool status = false;

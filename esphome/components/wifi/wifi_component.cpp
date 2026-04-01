@@ -3,9 +3,10 @@
 #include <cassert>
 #include <cinttypes>
 #include <cmath>
+#include <type_traits>
 
 #ifdef USE_ESP32
-#if (ESP_IDF_VERSION_MAJOR >= 5 && ESP_IDF_VERSION_MINOR >= 1)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
 #include <esp_eap_client.h>
 #else
 #include <esp_wpa2.h>
@@ -20,6 +21,7 @@
 #endif
 
 #include <algorithm>
+#include <new>
 #include <utility>
 #include "lwip/dns.h"
 #include "lwip/err.h"
@@ -46,6 +48,69 @@
 namespace esphome::wifi {
 
 static const char *const TAG = "wifi";
+
+// CompactString implementation
+CompactString::CompactString(const char *str, size_t len) {
+  if (len > MAX_LENGTH) {
+    len = MAX_LENGTH;  // Clamp to max valid length
+  }
+
+  this->length_ = len;
+  if (len <= INLINE_CAPACITY) {
+    // Store inline with null terminator
+    this->is_heap_ = 0;
+    if (len > 0) {
+      std::memcpy(this->storage_, str, len);
+    }
+    this->storage_[len] = '\0';
+  } else {
+    // Heap allocate with null terminator
+    this->is_heap_ = 1;
+    char *heap_data = new char[len + 1];  // NOLINT(cppcoreguidelines-owning-memory)
+    std::memcpy(heap_data, str, len);
+    heap_data[len] = '\0';
+    this->set_heap_ptr_(heap_data);
+  }
+}
+
+CompactString::CompactString(const CompactString &other) : CompactString(other.data(), other.size()) {}
+
+CompactString &CompactString::operator=(const CompactString &other) {
+  if (this != &other) {
+    this->~CompactString();
+    new (this) CompactString(other);
+  }
+  return *this;
+}
+
+CompactString::CompactString(CompactString &&other) noexcept : length_(other.length_), is_heap_(other.is_heap_) {
+  // Copy full storage (includes null terminator for inline, or pointer for heap)
+  std::memcpy(this->storage_, other.storage_, INLINE_CAPACITY + 1);
+  other.length_ = 0;
+  other.is_heap_ = 0;
+  other.storage_[0] = '\0';
+}
+
+CompactString &CompactString::operator=(CompactString &&other) noexcept {
+  if (this != &other) {
+    this->~CompactString();
+    new (this) CompactString(std::move(other));
+  }
+  return *this;
+}
+
+CompactString::~CompactString() {
+  if (this->is_heap_) {
+    delete[] this->get_heap_ptr_();  // NOLINT(cppcoreguidelines-owning-memory)
+  }
+}
+
+bool CompactString::operator==(const CompactString &other) const {
+  return this->size() == other.size() && std::memcmp(this->data(), other.data(), this->size()) == 0;
+}
+bool CompactString::operator==(const StringRef &other) const {
+  return this->size() == other.size() && std::memcmp(this->data(), other.c_str(), this->size()) == 0;
+}
 
 /// WiFi Retry Logic - Priority-Based BSSID Selection
 ///
@@ -204,11 +269,11 @@ static const char *const TAG = "wifi";
 /// │                              │                                       │
 /// │               ┌──────────────┼──────────────┐                        │
 /// │               ↓              ↓              ↓                        │
-/// │         scan error    no better AP    +10 dB better AP               │
+/// │         disconnect    no better AP    +10 dB better AP               │
 /// │               │              │              │                        │
 /// │               ↓              ↓              ↓                        │
 /// │    ┌──────────────────────────────┐  ┌──────────────────────────┐    │
-/// │    │  → IDLE                      │  │        CONNECTING        │    │
+/// │    │  → RECONNECTING              │  │        CONNECTING        │    │
 /// │    │  (counter preserved)         │  │  (process_roaming_scan_) │    │
 /// │    └──────────────────────────────┘  └────────────┬─────────────┘    │
 /// │                                                  │                   │
@@ -222,39 +287,44 @@ static const char *const TAG = "wifi";
 /// │    │  (counter reset to 0)            │    │  (retry_connect called) │
 /// │    └──────────────────────────────────┘    └───────────┬─────────────┘
 /// │                                                        │             │
-/// │                                                        ↓             │
-/// │                                            ┌───────────────────────┐ │
-/// │                                            │  → IDLE               │ │
-/// │                                            │  (counter preserved!) │ │
-/// │                                            └───────────────────────┘ │
+/// │                                              ┌─────────┴─────────┐   │
+/// │                                              ↓                   ↓   │
+/// │                                      on target BSSID    on other AP  │
+/// │                                              │                   │   │
+/// │                                              ↓                   ↓   │
+/// │                                   ┌──────────────────┐ ┌────────────┐│
+/// │                                   │  → IDLE          │ │  → IDLE    ││
+/// │                                   │  (counter reset) │ │  (counter  ││
+/// │                                   │  (roam worked!)  │ │  preserved)││
+/// │                                   └──────────────────┘ └────────────┘│
 /// │                                                                      │
 /// │  Key behaviors:                                                      │
 /// │  - After 3 checks: attempts >= 3, stop checking                      │
 /// │  - Non-roaming disconnect: clear_roaming_state_() resets counter     │
-/// │  - Scan error (SCANNING→IDLE): counter preserved                     │
+/// │  - Disconnect during scan (SCANNING→RECONNECTING): counter preserved │
+/// │  - Disconnect after scan (within grace period): counter preserved    │
 /// │  - Roaming success (CONNECTING→IDLE): counter reset (can roam again) │
-/// │  - Roaming fail (RECONNECTING→IDLE): counter preserved (ping-pong)   │
+/// │  - Roaming success via retry (on target BSSID): counter reset        │
+/// │  - Roaming fail (RECONNECTING on other AP): counter preserved        │
 /// └──────────────────────────────────────────────────────────────────────┘
 
+// Use if-chain instead of switch to avoid jump table in RODATA (wastes RAM on ESP8266)
 static const LogString *retry_phase_to_log_string(WiFiRetryPhase phase) {
-  switch (phase) {
-    case WiFiRetryPhase::INITIAL_CONNECT:
-      return LOG_STR("INITIAL_CONNECT");
+  if (phase == WiFiRetryPhase::INITIAL_CONNECT)
+    return LOG_STR("INITIAL_CONNECT");
 #ifdef USE_WIFI_FAST_CONNECT
-    case WiFiRetryPhase::FAST_CONNECT_CYCLING_APS:
-      return LOG_STR("FAST_CONNECT_CYCLING");
+  if (phase == WiFiRetryPhase::FAST_CONNECT_CYCLING_APS)
+    return LOG_STR("FAST_CONNECT_CYCLING");
 #endif
-    case WiFiRetryPhase::EXPLICIT_HIDDEN:
-      return LOG_STR("EXPLICIT_HIDDEN");
-    case WiFiRetryPhase::SCAN_CONNECTING:
-      return LOG_STR("SCAN_CONNECTING");
-    case WiFiRetryPhase::RETRY_HIDDEN:
-      return LOG_STR("RETRY_HIDDEN");
-    case WiFiRetryPhase::RESTARTING_ADAPTER:
-      return LOG_STR("RESTARTING");
-    default:
-      return LOG_STR("UNKNOWN");
-  }
+  if (phase == WiFiRetryPhase::EXPLICIT_HIDDEN)
+    return LOG_STR("EXPLICIT_HIDDEN");
+  if (phase == WiFiRetryPhase::SCAN_CONNECTING)
+    return LOG_STR("SCAN_CONNECTING");
+  if (phase == WiFiRetryPhase::RETRY_HIDDEN)
+    return LOG_STR("RETRY_HIDDEN");
+  if (phase == WiFiRetryPhase::RESTARTING_ADAPTER)
+    return LOG_STR("RESTARTING");
+  return LOG_STR("UNKNOWN");
 }
 
 bool WiFiComponent::went_through_explicit_hidden_phase_() const {
@@ -351,18 +421,18 @@ bool WiFiComponent::needs_scan_results_() const {
   return this->scan_result_.empty() || !this->scan_result_[0].get_matches();
 }
 
-bool WiFiComponent::ssid_was_seen_in_scan_(const std::string &ssid) const {
+bool WiFiComponent::ssid_was_seen_in_scan_(const CompactString &ssid) const {
   // Check if this SSID is configured as hidden
   // If explicitly marked hidden, we should always try hidden mode regardless of scan results
   for (const auto &conf : this->sta_) {
-    if (conf.get_ssid() == ssid && conf.get_hidden()) {
+    if (conf.ssid_ == ssid && conf.get_hidden()) {
       return false;  // Treat as not seen - force hidden mode attempt
     }
   }
 
   // Otherwise, check if we saw it in scan results
   for (const auto &scan : this->scan_result_) {
-    if (scan.get_ssid() == ssid) {
+    if (scan.ssid_ == ssid) {
       return true;
     }
   }
@@ -411,18 +481,31 @@ bool WiFiComponent::matches_configured_network_(const char *ssid, const uint8_t 
       continue;
     }
     // For BSSID-only configs (empty SSID), match by BSSID
-    if (sta.get_ssid().empty()) {
+    if (sta.ssid_.empty()) {
       if (sta.has_bssid() && std::memcmp(sta.get_bssid().data(), bssid, 6) == 0) {
         return true;
       }
       continue;
     }
     // Match by SSID
-    if (sta.get_ssid() == ssid) {
+    if (sta.ssid_ == ssid) {
       return true;
     }
   }
   return false;
+}
+
+void __attribute__((flatten)) WiFiComponent::set_sta_priority(bssid_t bssid, int8_t priority) {
+  for (auto &it : this->sta_priorities_) {
+    if (it.bssid == bssid) {
+      it.priority = priority;
+      return;
+    }
+  }
+  this->sta_priorities_.push_back(WiFiSTAPriority{
+      .bssid = bssid,
+      .priority = priority,
+  });
 }
 
 void WiFiComponent::log_discarded_scan_result_(const char *ssid, const uint8_t *bssid, int8_t rssi, uint8_t channel) {
@@ -467,18 +550,18 @@ int8_t WiFiComponent::find_next_hidden_sta_(int8_t start_index) {
     if (!include_explicit_hidden && sta.get_hidden()) {
       int8_t first_non_hidden_idx = this->find_first_non_hidden_index_();
       if (first_non_hidden_idx < 0 || static_cast<int8_t>(i) < first_non_hidden_idx) {
-        ESP_LOGD(TAG, "Skipping " LOG_SECRET("'%s'") " (explicit hidden, already tried)", sta.get_ssid().c_str());
+        ESP_LOGD(TAG, "Skipping " LOG_SECRET("'%s'") " (explicit hidden, already tried)", sta.ssid_.c_str());
         continue;
       }
     }
 
     // In BLIND_RETRY mode, treat all networks as candidates
     // In SCAN_BASED mode, only retry networks that weren't seen in the scan
-    if (this->retry_hidden_mode_ == RetryHiddenMode::BLIND_RETRY || !this->ssid_was_seen_in_scan_(sta.get_ssid())) {
-      ESP_LOGD(TAG, "Hidden candidate " LOG_SECRET("'%s'") " at index %d", sta.get_ssid().c_str(), static_cast<int>(i));
+    if (this->retry_hidden_mode_ == RetryHiddenMode::BLIND_RETRY || !this->ssid_was_seen_in_scan_(sta.ssid_)) {
+      ESP_LOGD(TAG, "Hidden candidate " LOG_SECRET("'%s'") " at index %d", sta.ssid_.c_str(), static_cast<int>(i));
       return static_cast<int8_t>(i);
     }
-    ESP_LOGD(TAG, "Skipping hidden retry for visible network " LOG_SECRET("'%s'"), sta.get_ssid().c_str());
+    ESP_LOGD(TAG, "Skipping hidden retry for visible network " LOG_SECRET("'%s'"), sta.ssid_.c_str());
   }
   // No hidden SSIDs found
   return -1;
@@ -595,11 +678,11 @@ void WiFiComponent::start() {
     // Fast connect optimization: only use when we have saved BSSID+channel data
     // Without saved data, try first configured network or use normal flow
     if (loaded_fast_connect) {
-      ESP_LOGI(TAG, "Starting fast_connect (saved) " LOG_SECRET("'%s'"), params.get_ssid().c_str());
+      ESP_LOGI(TAG, "Starting fast_connect (saved) " LOG_SECRET("'%s'"), params.ssid_.c_str());
       this->start_connecting(params);
     } else if (!this->sta_.empty() && !this->sta_[0].get_hidden()) {
       // No saved data, but have configured networks - try first non-hidden network
-      ESP_LOGI(TAG, "Starting fast_connect (config) " LOG_SECRET("'%s'"), this->sta_[0].get_ssid().c_str());
+      ESP_LOGI(TAG, "Starting fast_connect (config) " LOG_SECRET("'%s'"), this->sta_[0].ssid_.c_str());
       this->selected_sta_index_ = 0;
       params = this->build_params_for_current_phase_();
       this->start_connecting(params);
@@ -649,16 +732,24 @@ void WiFiComponent::restart_adapter() {
 void WiFiComponent::loop() {
   this->wifi_loop_();
   const uint32_t now = App.get_loop_component_start_time();
+  this->update_connected_state_();
 
   if (this->has_sta()) {
+#if defined(USE_WIFI_CONNECT_TRIGGER) || defined(USE_WIFI_DISCONNECT_TRIGGER)
     if (this->is_connected() != this->handled_connected_state_) {
+#ifdef USE_WIFI_DISCONNECT_TRIGGER
       if (this->handled_connected_state_) {
-        this->disconnect_trigger_->trigger();
-      } else {
-        this->connect_trigger_->trigger();
+        this->disconnect_trigger_.trigger();
       }
+#endif
+#ifdef USE_WIFI_CONNECT_TRIGGER
+      if (!this->handled_connected_state_) {
+        this->connect_trigger_.trigger();
+      }
+#endif
       this->handled_connected_state_ = this->is_connected();
     }
+#endif  // USE_WIFI_CONNECT_TRIGGER || USE_WIFI_DISCONNECT_TRIGGER
 
     switch (this->state_) {
       case WIFI_COMPONENT_STATE_COOLDOWN: {
@@ -693,7 +784,8 @@ void WiFiComponent::loop() {
       }
 
       case WIFI_COMPONENT_STATE_STA_CONNECTED: {
-        if (!this->is_connected()) {
+        // Use cached connected_ set unconditionally at the top of loop()
+        if (!this->connected_) {
           ESP_LOGW(TAG, "Connection lost; reconnecting");
           this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
           this->retry_connect();
@@ -787,9 +879,6 @@ void WiFiComponent::loop() {
 
 WiFiComponent::WiFiComponent() { global_wifi_component = this; }
 
-bool WiFiComponent::has_ap() const { return this->has_ap_; }
-bool WiFiComponent::is_ap_active() const { return this->ap_started_; }
-bool WiFiComponent::has_sta() const { return !this->sta_.empty(); }
 #ifdef USE_WIFI_11KV_SUPPORT
 void WiFiComponent::set_btm(bool btm) { this->btm_ = btm; }
 void WiFiComponent::set_rrm(bool rrm) { this->rrm_ = rrm; }
@@ -810,10 +899,6 @@ network::IPAddress WiFiComponent::get_dns_address(int num) {
     return this->wifi_dns_ip_(num);
   return {};
 }
-// set_use_address() is guaranteed to be called during component setup by Python code generation,
-// so use_address_ will always be valid when get_use_address() is called - no fallback needed.
-const char *WiFiComponent::get_use_address() const { return this->use_address_; }
-void WiFiComponent::set_use_address(const char *use_address) { this->use_address_ = use_address; }
 
 #ifdef USE_WIFI_AP
 void WiFiComponent::setup_ap_config_() {
@@ -822,14 +907,14 @@ void WiFiComponent::setup_ap_config_() {
   if (this->ap_setup_)
     return;
 
-  if (this->ap_.get_ssid().empty()) {
+  if (this->ap_.ssid_.empty()) {
     // Build AP SSID from app name without heap allocation
     // WiFi SSID max is 32 bytes, with MAC suffix we keep first 25 + last 7
     static constexpr size_t AP_SSID_MAX_LEN = 32;
     static constexpr size_t AP_SSID_PREFIX_LEN = 25;
     static constexpr size_t AP_SSID_SUFFIX_LEN = 7;
 
-    const std::string &app_name = App.get_name();
+    const auto &app_name = App.get_name();
     const char *name_ptr = app_name.c_str();
     size_t name_len = app_name.length();
 
@@ -858,7 +943,7 @@ void WiFiComponent::setup_ap_config_() {
                 "  AP SSID: '%s'\n"
                 "  AP Password: '%s'\n"
                 "  IP Address: %s",
-                this->ap_.get_ssid().c_str(), this->ap_.get_password().c_str(), this->wifi_soft_ap_ip().str_to(ip_buf));
+                this->ap_.ssid_.c_str(), this->ap_.password_.c_str(), this->wifi_soft_ap_ip().str_to(ip_buf));
 
 #ifdef USE_WIFI_MANUAL_IP
   auto manual_ip = this->ap_.get_manual_ip();
@@ -885,10 +970,6 @@ void WiFiComponent::set_ap(const WiFiAP &ap) {
   this->has_ap_ = true;
 }
 #endif  // USE_WIFI_AP
-
-float WiFiComponent::get_loop_priority() const {
-  return 10.0f;  // before other loop components
-}
 
 void WiFiComponent::init_sta(size_t count) { this->sta_.init(count); }
 void WiFiComponent::add_sta(const WiFiAP &ap) { this->sta_.push_back(ap); }
@@ -955,9 +1036,12 @@ WiFiAP WiFiComponent::get_sta() const {
   return config ? *config : WiFiAP{};
 }
 void WiFiComponent::save_wifi_sta(const std::string &ssid, const std::string &password) {
+  this->save_wifi_sta(ssid.c_str(), password.c_str());
+}
+void WiFiComponent::save_wifi_sta(const char *ssid, const char *password) {
   SavedWifiSettings save{};  // zero-initialized - all bytes set to \0, guaranteeing null termination
-  strncpy(save.ssid, ssid.c_str(), sizeof(save.ssid) - 1);              // max 32 chars, byte 32 remains \0
-  strncpy(save.password, password.c_str(), sizeof(save.password) - 1);  // max 64 chars, byte 64 remains \0
+  strncpy(save.ssid, ssid, sizeof(save.ssid) - 1);              // max 32 chars, byte 32 remains \0
+  strncpy(save.password, password, sizeof(save.password) - 1);  // max 64 chars, byte 64 remains \0
   this->pref_.save(&save);
   // ensure it's written immediately
   global_preferences->sync();
@@ -991,14 +1075,14 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
 
   ESP_LOGI(TAG,
            "Connecting to " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") " (priority %d, attempt %u/%u in phase %s)...",
-           ap.get_ssid().c_str(), ap.has_bssid() ? bssid_s : LOG_STR_LITERAL("any"), priority, this->num_retried_ + 1,
+           ap.ssid_.c_str(), ap.has_bssid() ? bssid_s : LOG_STR_LITERAL("any"), priority, this->num_retried_ + 1,
            get_max_retries_for_phase(this->retry_phase_), LOG_STR_ARG(retry_phase_to_log_string(this->retry_phase_)));
 
 #ifdef ESPHOME_LOG_HAS_VERBOSE
   ESP_LOGV(TAG,
            "Connection Params:\n"
            "  SSID: '%s'",
-           ap.get_ssid().c_str());
+           ap.ssid_.c_str());
   if (ap.has_bssid()) {
     ESP_LOGV(TAG, "  BSSID: %s", bssid_s);
   } else {
@@ -1006,8 +1090,9 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
   }
 
 #ifdef USE_WIFI_WPA2_EAP
-  if (ap.get_eap().has_value()) {
-    EAPAuth eap_config = ap.get_eap().value();
+  auto eap_opt = ap.get_eap();
+  if (eap_opt.has_value()) {
+    EAPAuth eap_config = *eap_opt;
     // clang-format off
     ESP_LOGV(
         TAG,
@@ -1031,7 +1116,7 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
              client_key_present ? "present" : "not present");
   } else {
 #endif
-    ESP_LOGV(TAG, "  Password: " LOG_SECRET("'%s'"), ap.get_password().c_str());
+    ESP_LOGV(TAG, "  Password: " LOG_SECRET("'%s'"), ap.password_.c_str());
 #ifdef USE_WIFI_WPA2_EAP
   }
 #endif
@@ -1041,8 +1126,9 @@ void WiFiComponent::start_connecting(const WiFiAP &ap) {
     ESP_LOGV(TAG, "  Channel not set");
   }
 #ifdef USE_WIFI_MANUAL_IP
-  if (ap.get_manual_ip().has_value()) {
-    ManualIP m = *ap.get_manual_ip();
+  auto manual_ip = ap.get_manual_ip();
+  if (manual_ip.has_value()) {
+    ManualIP m = *manual_ip;
     char static_ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
     char gateway_buf[network::IP_ADDRESS_BUFFER_SIZE];
     char subnet_buf[network::IP_ADDRESS_BUFFER_SIZE];
@@ -1247,20 +1333,61 @@ void WiFiComponent::start_scanning() {
 // Using insertion sort instead of std::stable_sort saves flash memory
 // by avoiding template instantiations (std::rotate, std::stable_sort, lambdas)
 // IMPORTANT: This sort is stable (preserves relative order of equal elements)
+//
+// Uses raw memcpy instead of copy assignment to avoid CompactString's
+// destructor/constructor overhead (heap delete[]/new[] for long SSIDs).
+// Copy assignment calls ~CompactString() then placement-new for every shift,
+// which means delete[]/new[] per shift for heap-allocated SSIDs. With 70+
+// networks (e.g., captive portal showing full scan results), this caused
+// event loop blocking from hundreds of heap operations in a tight loop.
+//
+// This is safe because we're permuting elements within the same array —
+// each slot is overwritten exactly once, so no ownership duplication occurs.
+// All members of WiFiScanResult are either trivially copyable (bssid, channel,
+// rssi, priority, flags) or CompactString, which stores either inline data or
+// a heap pointer — never a self-referential pointer (unlike std::string's SSO
+// on some implementations). This was not possible before PR#13472 replaced
+// std::string with CompactString, since std::string's internal layout is
+// implementation-defined and may use self-referential pointers.
+//
+// TODO: If C++ standardizes std::trivially_relocatable, add the assertion for
+// WiFiScanResult/CompactString here to formally express the memcpy safety guarantee.
 template<typename VectorType> static void insertion_sort_scan_results(VectorType &results) {
+  // memcpy-based sort requires no self-referential pointers or virtual dispatch.
+  // These static_asserts guard the assumptions. If any fire, the memcpy sort
+  // must be reviewed for safety before updating the expected values.
+  //
+  // No vtable pointers (memcpy would corrupt vptr)
+  static_assert(!std::is_polymorphic<WiFiScanResult>::value, "WiFiScanResult must not have vtable");
+  static_assert(!std::is_polymorphic<CompactString>::value, "CompactString must not have vtable");
+  // Standard layout ensures predictable memory layout with no virtual bases
+  // and no mixed-access-specifier reordering
+  static_assert(std::is_standard_layout<WiFiScanResult>::value, "WiFiScanResult must be standard layout");
+  static_assert(std::is_standard_layout<CompactString>::value, "CompactString must be standard layout");
+  // Size checks catch added/removed fields that may need safety review
+  static_assert(sizeof(WiFiScanResult) == 32, "WiFiScanResult size changed - verify memcpy sort is still safe");
+  static_assert(sizeof(CompactString) == 20, "CompactString size changed - verify memcpy sort is still safe");
+  // Alignment must match for reinterpret_cast of key_buf to be valid
+  static_assert(alignof(WiFiScanResult) <= alignof(std::max_align_t), "WiFiScanResult alignment exceeds max_align_t");
   const size_t size = results.size();
+  constexpr size_t elem_size = sizeof(WiFiScanResult);
+  // Suppress warnings for intentional memcpy on non-trivially-copyable type.
+  // Safety is guaranteed by the static_asserts above and the permutation invariant.
+  // NOLINTNEXTLINE(bugprone-undefined-memory-manipulation)
+  auto *memcpy_fn = &memcpy;
   for (size_t i = 1; i < size; i++) {
-    // Make a copy to avoid issues with move semantics during comparison
-    WiFiScanResult key = results[i];
+    alignas(WiFiScanResult) uint8_t key_buf[elem_size];
+    memcpy_fn(key_buf, &results[i], elem_size);
+    const auto &key = *reinterpret_cast<const WiFiScanResult *>(key_buf);
     int32_t j = i - 1;
 
     // Move elements that are worse than key to the right
     // For stability, we only move if key is strictly better than results[j]
     while (j >= 0 && wifi_scan_result_is_better(key, results[j])) {
-      results[j + 1] = results[j];
+      memcpy_fn(&results[j + 1], &results[j], elem_size);
       j--;
     }
-    results[j + 1] = key;
+    memcpy_fn(&results[j + 1], key_buf, elem_size);
   }
 }
 
@@ -1384,6 +1511,22 @@ void WiFiComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Disabled");
     return;
   }
+#if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
+  const char *band_mode_s;
+  switch (this->band_mode_) {
+    case WIFI_BAND_MODE_2G_ONLY:
+      band_mode_s = "2.4GHz";
+      break;
+    case WIFI_BAND_MODE_5G_ONLY:
+      band_mode_s = "5GHz";
+      break;
+    case WIFI_BAND_MODE_AUTO:
+    default:
+      band_mode_s = "Auto";
+      break;
+  }
+  ESP_LOGCONFIG(TAG, "  Band Mode: %s", band_mode_s);
+#endif
   if (this->is_connected()) {
     this->print_connect_params_();
   }
@@ -1406,7 +1549,7 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     if (const WiFiAP *config = this->get_selected_sta_(); this->retry_phase_ == WiFiRetryPhase::RETRY_HIDDEN &&
                                                           config && !config->get_hidden() &&
                                                           this->scan_result_.empty()) {
-      ESP_LOGW(TAG, LOG_SECRET("'%s'") " should be marked hidden", config->get_ssid().c_str());
+      ESP_LOGW(TAG, LOG_SECRET("'%s'") " should be marked hidden", config->ssid_.c_str());
     }
     // Reset to initial phase on successful connection (don't log transition, just reset state)
     this->retry_phase_ = WiFiRetryPhase::INITIAL_CONNECT;
@@ -1435,17 +1578,33 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
     // Only preserve attempts if reconnecting after a failed roam attempt
     // This prevents ping-pong between APs when a roam target is unreachable
     if (this->roaming_state_ == RoamingState::CONNECTING) {
-      // Successful roam to better AP - reset attempts so we can roam again later
+      // Successful roam to better AP on first try - reset attempts so we can roam again later
       ESP_LOGD(TAG, "Roam successful");
       this->roaming_attempts_ = 0;
     } else if (this->roaming_state_ == RoamingState::RECONNECTING) {
-      // Failed roam, reconnected via normal recovery - keep attempts to prevent ping-pong
-      ESP_LOGD(TAG, "Reconnected after failed roam (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
+      // Check if we ended up on the roam target despite needing a retry
+      // (e.g., first connect failed but scan-based retry found and connected to the same better AP)
+      bssid_t current_bssid = this->wifi_bssid();
+      if (this->roaming_target_bssid_ != bssid_t{} && current_bssid == this->roaming_target_bssid_) {
+        char bssid_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+        format_mac_addr_upper(current_bssid.data(), bssid_buf);
+        ESP_LOGD(TAG, "Roam successful (via retry, attempt %u/%u) to %s", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS,
+                 bssid_buf);
+        this->roaming_attempts_ = 0;
+      } else if (this->roaming_target_bssid_ != bssid_t{}) {
+        // Failed roam to specific target, reconnected to different AP - keep attempts to prevent ping-pong
+        ESP_LOGD(TAG, "Reconnected after failed roam (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
+      } else {
+        // Reconnected after scan-induced disconnect (no roam target) - keep attempts
+        ESP_LOGD(TAG, "Reconnected after roam scan (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
+      }
     } else {
       // Normal connection (boot, credentials changed, etc.)
       this->roaming_attempts_ = 0;
     }
     this->roaming_state_ = RoamingState::IDLE;
+    this->roaming_target_bssid_ = {};
+    this->roaming_scan_end_ = 0;
 
     // Clear all priority penalties - the next reconnect will happen when an AP disconnects,
     // which means the landscape has likely changed and previous tracked failures are stale
@@ -1456,6 +1615,20 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
 #endif
 
     this->release_scan_results_();
+
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+    // Notify listeners now that state machine has reached STA_CONNECTED
+    // This ensures wifi.connected condition returns true in listener automations
+    this->notify_connect_state_listeners_();
+#endif
+
+#if defined(USE_ESP8266) && defined(USE_WIFI_IP_STATE_LISTENERS) && defined(USE_WIFI_MANUAL_IP)
+    // On ESP8266, GOT_IP event may not fire for static IP configurations,
+    // so notify IP state listeners here as a fallback.
+    if (const WiFiAP *config = this->get_selected_sta_(); config && config->get_manual_ip().has_value()) {
+      this->notify_ip_state_listeners_();
+    }
+#endif
 
     return;
   }
@@ -1468,7 +1641,11 @@ void WiFiComponent::check_connecting_finished(uint32_t now) {
   }
 
   if (this->error_from_callback_) {
+    // ESP8266: logging done in callback, listeners deferred via pending_.disconnect
+    // Other platforms: just log generic failure message
+#ifndef USE_ESP8266
     ESP_LOGW(TAG, "Connecting to network failed (callback)");
+#endif
     this->retry_connect();
     return;
   }
@@ -1802,11 +1979,11 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
   }
 
   // Get SSID for logging (use pointer to avoid copy)
-  const std::string *ssid = nullptr;
+  const char *ssid = nullptr;
   if (this->retry_phase_ == WiFiRetryPhase::SCAN_CONNECTING && !this->scan_result_.empty()) {
-    ssid = &this->scan_result_[0].get_ssid();
+    ssid = this->scan_result_[0].ssid_.c_str();
   } else if (const WiFiAP *config = this->get_selected_sta_()) {
-    ssid = &config->get_ssid();
+    ssid = config->ssid_.c_str();
   }
 
   // Only decrease priority on the last attempt for this phase
@@ -1826,8 +2003,8 @@ void WiFiComponent::log_and_adjust_priority_for_failed_connect_() {
   }
   char bssid_s[18];
   format_mac_addr_upper(failed_bssid.value().data(), bssid_s);
-  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d",
-           ssid != nullptr ? ssid->c_str() : "", bssid_s, old_priority, new_priority);
+  ESP_LOGD(TAG, "Failed " LOG_SECRET("'%s'") " " LOG_SECRET("(%s)") ", priority %d → %d", ssid != nullptr ? ssid : "",
+           bssid_s, old_priority, new_priority);
 
   // After adjusting priority, check if all priorities are now at minimum
   // If so, clear the vector to save memory and reset for fresh start
@@ -1909,12 +2086,21 @@ void WiFiComponent::retry_connect() {
     ESP_LOGD(TAG, "Roam failed, reconnecting (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
     this->roaming_state_ = RoamingState::RECONNECTING;
   } else if (this->roaming_state_ == RoamingState::SCANNING) {
-    // Roam scan failed (e.g., scan error on ESP8266) - go back to idle, keep counter
-    ESP_LOGD(TAG, "Roam scan failed (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
-    this->roaming_state_ = RoamingState::IDLE;
+    // Disconnected during roam scan - transition to RECONNECTING so the attempts
+    // counter is preserved when reconnection succeeds (IDLE would reset it)
+    ESP_LOGD(TAG, "Disconnected during roam scan (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
+    this->roaming_state_ = RoamingState::RECONNECTING;
   } else if (this->roaming_state_ == RoamingState::IDLE) {
-    // Not a roaming-triggered reconnect, reset state
-    this->clear_roaming_state_();
+    // Check if a roaming scan recently completed - on ESP8266, going off-channel
+    // during scan can cause a delayed Beacon Timeout 8-20 seconds after scan finishes.
+    // Transition to RECONNECTING so the attempts counter is preserved on reconnect.
+    if (this->roaming_scan_end_ != 0 && millis() - this->roaming_scan_end_ < ROAMING_SCAN_GRACE_PERIOD) {
+      ESP_LOGD(TAG, "Disconnect after roam scan (attempt %u/%u)", this->roaming_attempts_, ROAMING_MAX_ATTEMPTS);
+      this->roaming_state_ = RoamingState::RECONNECTING;
+    } else {
+      // Not a roaming-triggered reconnect, reset state
+      this->clear_roaming_state_();
+    }
   }
   // RECONNECTING: keep state and counter, still trying to reconnect
 
@@ -1943,25 +2129,7 @@ void WiFiComponent::retry_connect() {
   }
 }
 
-#ifdef USE_RP2040
-// RP2040's mDNS library (LEAmDNS) relies on LwipIntf::stateUpCB() to restart
-// mDNS when the network interface reconnects. However, this callback is disabled
-// in the arduino-pico framework. As a workaround, we block component setup until
-// WiFi is connected, ensuring mDNS.begin() is called with an active connection.
-
-bool WiFiComponent::can_proceed() {
-  if (!this->has_sta() || this->state_ == WIFI_COMPONENT_STATE_DISABLED || this->ap_setup_) {
-    return true;
-  }
-  return this->is_connected();
-}
-#endif
-
 void WiFiComponent::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
-bool WiFiComponent::is_connected() {
-  return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED &&
-         this->wifi_sta_connect_status_() == WiFiSTAConnectStatus::CONNECTED && !this->error_from_callback_;
-}
 void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) {
   this->power_save_ = power_save;
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
@@ -2044,6 +2212,14 @@ bool WiFiComponent::load_fast_connect_settings_(WiFiAP &params) {
     params.set_hidden(false);
 
     ESP_LOGD(TAG, "Loaded fast_connect settings");
+#if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
+    if ((this->band_mode_ == WIFI_BAND_MODE_5G_ONLY && fast_connect_save.channel < FIRST_5GHZ_CHANNEL) ||
+        (this->band_mode_ == WIFI_BAND_MODE_2G_ONLY && fast_connect_save.channel >= FIRST_5GHZ_CHANNEL)) {
+      ESP_LOGW(TAG, "Saved channel %u not allowed by band mode, ignoring fast_connect", fast_connect_save.channel);
+      this->selected_sta_index_ = -1;
+      return false;
+    }
+#endif
     return true;
   }
 
@@ -2075,10 +2251,14 @@ void WiFiComponent::save_fast_connect_settings_() {
 }
 #endif
 
-void WiFiAP::set_ssid(const std::string &ssid) { this->ssid_ = ssid; }
+void WiFiAP::set_ssid(const std::string &ssid) { this->ssid_ = CompactString(ssid.c_str(), ssid.size()); }
+void WiFiAP::set_ssid(const char *ssid) { this->ssid_ = CompactString(ssid, strlen(ssid)); }
 void WiFiAP::set_bssid(const bssid_t &bssid) { this->bssid_ = bssid; }
 void WiFiAP::clear_bssid() { this->bssid_ = {}; }
-void WiFiAP::set_password(const std::string &password) { this->password_ = password; }
+void WiFiAP::set_password(const std::string &password) {
+  this->password_ = CompactString(password.c_str(), password.size());
+}
+void WiFiAP::set_password(const char *password) { this->password_ = CompactString(password, strlen(password)); }
 #ifdef USE_WIFI_WPA2_EAP
 void WiFiAP::set_eap(optional<EAPAuth> eap_auth) { this->eap_ = std::move(eap_auth); }
 #endif
@@ -2088,26 +2268,22 @@ void WiFiAP::clear_channel() { this->channel_ = 0; }
 void WiFiAP::set_manual_ip(optional<ManualIP> manual_ip) { this->manual_ip_ = manual_ip; }
 #endif
 void WiFiAP::set_hidden(bool hidden) { this->hidden_ = hidden; }
-const std::string &WiFiAP::get_ssid() const { return this->ssid_; }
 const bssid_t &WiFiAP::get_bssid() const { return this->bssid_; }
 bool WiFiAP::has_bssid() const { return this->bssid_ != bssid_t{}; }
-const std::string &WiFiAP::get_password() const { return this->password_; }
 #ifdef USE_WIFI_WPA2_EAP
 const optional<EAPAuth> &WiFiAP::get_eap() const { return this->eap_; }
 #endif
-uint8_t WiFiAP::get_channel() const { return this->channel_; }
-bool WiFiAP::has_channel() const { return this->channel_ != 0; }
 #ifdef USE_WIFI_MANUAL_IP
 const optional<ManualIP> &WiFiAP::get_manual_ip() const { return this->manual_ip_; }
 #endif
 bool WiFiAP::get_hidden() const { return this->hidden_; }
 
-WiFiScanResult::WiFiScanResult(const bssid_t &bssid, std::string ssid, uint8_t channel, int8_t rssi, bool with_auth,
-                               bool is_hidden)
+WiFiScanResult::WiFiScanResult(const bssid_t &bssid, const char *ssid, size_t ssid_len, uint8_t channel, int8_t rssi,
+                               bool with_auth, bool is_hidden)
     : bssid_(bssid),
       channel_(channel),
       rssi_(rssi),
-      ssid_(std::move(ssid)),
+      ssid_(ssid, ssid_len),
       with_auth_(with_auth),
       is_hidden_(is_hidden) {}
 bool WiFiScanResult::matches(const WiFiAP &config) const {
@@ -2116,9 +2292,9 @@ bool WiFiScanResult::matches(const WiFiAP &config) const {
     // don't match SSID
     if (!this->is_hidden_)
       return false;
-  } else if (!config.get_ssid().empty()) {
+  } else if (!config.ssid_.empty()) {
     // check if SSID matches
-    if (config.get_ssid() != this->ssid_)
+    if (this->ssid_ != config.ssid_)
       return false;
   } else {
     // network is configured without SSID - match other settings
@@ -2129,15 +2305,15 @@ bool WiFiScanResult::matches(const WiFiAP &config) const {
 
 #ifdef USE_WIFI_WPA2_EAP
   // BSSID requires auth but no PSK or EAP credentials given
-  if (this->with_auth_ && (config.get_password().empty() && !config.get_eap().has_value()))
+  if (this->with_auth_ && (config.password_.empty() && !config.get_eap().has_value()))
     return false;
 
   // BSSID does not require auth, but PSK or EAP credentials given
-  if (!this->with_auth_ && (!config.get_password().empty() || config.get_eap().has_value()))
+  if (!this->with_auth_ && (!config.password_.empty() || config.get_eap().has_value()))
     return false;
 #else
   // If PSK given, only match for networks with auth (and vice versa)
-  if (config.get_password().empty() == this->with_auth_)
+  if (config.password_.empty() == this->with_auth_)
     return false;
 #endif
 
@@ -2150,7 +2326,6 @@ bool WiFiScanResult::matches(const WiFiAP &config) const {
 bool WiFiScanResult::get_matches() const { return this->matches_; }
 void WiFiScanResult::set_matches(bool matches) { this->matches_ = matches; }
 const bssid_t &WiFiScanResult::get_bssid() const { return this->bssid_; }
-const std::string &WiFiScanResult::get_ssid() const { return this->ssid_; }
 uint8_t WiFiScanResult::get_channel() const { return this->channel_; }
 int8_t WiFiScanResult::get_rssi() const { return this->rssi_; }
 bool WiFiScanResult::get_with_auth() const { return this->with_auth_; }
@@ -2161,6 +2336,8 @@ bool WiFiScanResult::operator==(const WiFiScanResult &rhs) const { return this->
 void WiFiComponent::clear_roaming_state_() {
   this->roaming_attempts_ = 0;
   this->roaming_last_check_ = 0;
+  this->roaming_scan_end_ = 0;
+  this->roaming_target_bssid_ = {};
   this->roaming_state_ = RoamingState::IDLE;
 }
 
@@ -2176,6 +2353,44 @@ void WiFiComponent::release_scan_results_() {
   }
 }
 
+#ifdef USE_WIFI_CONNECT_STATE_LISTENERS
+void WiFiComponent::notify_connect_state_listeners_() {
+  if (!this->pending_.connect_state)
+    return;
+  this->pending_.connect_state = false;
+  // Get current SSID and BSSID from the WiFi driver
+  char ssid_buf[SSID_BUFFER_SIZE];
+  const char *ssid = this->wifi_ssid_to(ssid_buf);
+  bssid_t bssid = this->wifi_bssid();
+  for (auto *listener : this->connect_state_listeners_) {
+    listener->on_wifi_connect_state(StringRef(ssid, strlen(ssid)), bssid);
+  }
+}
+
+void WiFiComponent::notify_disconnect_state_listeners_() {
+  constexpr uint8_t empty_bssid[6] = {};
+  for (auto *listener : this->connect_state_listeners_) {
+    listener->on_wifi_connect_state(StringRef(), empty_bssid);
+  }
+}
+#endif  // USE_WIFI_CONNECT_STATE_LISTENERS
+
+#ifdef USE_WIFI_IP_STATE_LISTENERS
+void WiFiComponent::notify_ip_state_listeners_() {
+  for (auto *listener : this->ip_state_listeners_) {
+    listener->on_ip_state(this->wifi_sta_ip_addresses(), this->get_dns_address(0), this->get_dns_address(1));
+  }
+}
+#endif  // USE_WIFI_IP_STATE_LISTENERS
+
+#ifdef USE_WIFI_SCAN_RESULTS_LISTENERS
+void WiFiComponent::notify_scan_results_listeners_() {
+  for (auto *listener : this->scan_results_listeners_) {
+    listener->on_wifi_scan_results(this->scan_result_);
+  }
+}
+#endif  // USE_WIFI_SCAN_RESULTS_LISTENERS
+
 void WiFiComponent::check_roaming_(uint32_t now) {
   // Guard: not for hidden networks (may not appear in scan)
   const WiFiAP *selected = this->get_selected_sta_();
@@ -2190,7 +2405,7 @@ void WiFiComponent::check_roaming_(uint32_t now) {
   // Guard: skip scan if signal is already good (no meaningful improvement possible)
   int8_t rssi = this->wifi_rssi();
   if (rssi > ROAMING_GOOD_RSSI) {
-    ESP_LOGV(TAG, "Roam check skipped, signal good (%d dBm, attempt %u/%u)", rssi, this->roaming_attempts_,
+    ESP_LOGD(TAG, "Roam check skipped, signal good (%d dBm, attempt %u/%u)", rssi, this->roaming_attempts_,
              ROAMING_MAX_ATTEMPTS);
     return;
   }
@@ -2204,6 +2419,9 @@ void WiFiComponent::process_roaming_scan_() {
   this->scan_done_ = false;
   // Default to IDLE - will be set to CONNECTING if we find a better AP
   this->roaming_state_ = RoamingState::IDLE;
+  // Record when scan completed so delayed disconnects (e.g., ESP8266 Beacon Timeout)
+  // can be attributed to the scan and avoid resetting the attempts counter
+  this->roaming_scan_end_ = millis();
 
   // Get current connection info
   int8_t current_rssi = this->wifi_rssi();
@@ -2223,7 +2441,7 @@ void WiFiComponent::process_roaming_scan_() {
 
   for (const auto &result : this->scan_result_) {
     // Must be same SSID, different BSSID
-    if (current_ssid != result.get_ssid() || result.get_bssid() == current_bssid)
+    if (result.ssid_ != current_ssid || result.get_bssid() == current_bssid)
       continue;
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
@@ -2252,10 +2470,12 @@ void WiFiComponent::process_roaming_scan_() {
 
   WiFiAP roam_params = *selected;
   apply_scan_result_to_params(roam_params, *best);
-  this->release_scan_results_();
 
   // Mark as roaming attempt - affects retry behavior if connection fails
   this->roaming_state_ = RoamingState::CONNECTING;
+  this->roaming_target_bssid_ = best->get_bssid();  // Must read before releasing scan results
+
+  this->release_scan_results_();
 
   // Connect directly - wifi_sta_connect_ handles disconnect internally
   this->start_connecting(roam_params);
