@@ -535,14 +535,14 @@ def _convert_library_to_component(library: Library) -> IDFComponent:
         )
         if url is None:
             raise RuntimeError(
-                "Can't find an pkg file from PlatformIO registry for library {library}"
+                f"Can't find an pkg file from PlatformIO registry for library {library}"
             )
 
         name = _owner_pkgname_to_name(owner, pkgname)
         source = URLSource(url)
 
     if source is None:
-        raise RuntimeError("Can't find an artifact associated to library {library}")
+        raise RuntimeError(f"Can't find an artifact associated to library {library}")
 
     assert name, "Missing library name"
     assert version, "Missing library version"
