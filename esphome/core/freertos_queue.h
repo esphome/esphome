@@ -18,9 +18,6 @@
  * empty, full, size) but uses xQueue internally, which synchronizes via
  * FreeRTOS critical sections.
  *
- * Uses xQueueCreateStatic so the queue storage lives in the object itself
- * with no heap allocation, matching LockFreeQueue's static buffer approach.
- *
  * @tparam T The type of elements stored in the queue (stored as pointers)
  * @tparam SIZE The maximum number of elements
  */
@@ -29,9 +26,7 @@ namespace esphome {
 
 template<class T, uint8_t SIZE> class FreeRTOSQueue {
  public:
-  FreeRTOSQueue() : dropped_count_(0) {
-    this->handle_ = xQueueCreateStatic(SIZE, sizeof(T *), this->storage_, &this->queue_buf_);
-  }
+  FreeRTOSQueue() : dropped_count_(0) { this->handle_ = xQueueCreate(SIZE, sizeof(T *)); }
 
   bool push(T *element) {
     if (element == nullptr)
@@ -69,9 +64,6 @@ template<class T, uint8_t SIZE> class FreeRTOSQueue {
   size_t size() const { return uxQueueMessagesWaiting(this->handle_); }
 
  protected:
-  // Static storage for the queue - sized for SIZE pointer-sized items
-  uint8_t storage_[SIZE * sizeof(T *)];
-  StaticQueue_t queue_buf_;
   QueueHandle_t handle_;
   volatile uint16_t dropped_count_;
 };
