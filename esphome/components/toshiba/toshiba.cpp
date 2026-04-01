@@ -549,8 +549,7 @@ void ToshibaClimate::transmit_generic_() {
 
 void ToshibaClimate::transmit_rac_pt1411hwru_() {
   uint8_t code = 0, index = 0, message[RAC_PT1411HWRU_MESSAGE_LENGTH * 2] = {0};
-  float temperature =
-      clamp<float>(this->target_temperature, this->minimum_temperature_, this->maximum_temperature_);
+  float temperature = clamp<float>(this->target_temperature, this->minimum_temperature_, this->maximum_temperature_);
   float temp_adjd = temperature - this->minimum_temperature_;
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();
