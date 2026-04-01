@@ -463,7 +463,7 @@ uint8_t EPaperIT8951E::color_to_nibble_(const Color &color) const {
 
 void EPaperIT8951E::fill(Color color) {
   if (this->get_clipping().is_set()) {
-    esphome::epaper_spi::EPaperBase::Display::fill(color);
+    esphome::epaper_spi::EPaperBase::fill(color);
     return;
   }
 
