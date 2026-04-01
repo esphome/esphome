@@ -891,10 +891,12 @@ class WiFiComponent final : public Component {
   // Thread-safe queue for WiFi events from LibreTiny callback thread.
   // LockFreeQueue on platforms with hardware atomics (RTL87xx, LN882x),
   // FreeRTOSQueue on platforms without (BK72xx).
+  static constexpr uint8_t LT_EVENT_QUEUE_SIZE = 16;
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
-  LockFreeQueue<LTWiFiEvent, 17> event_queue_;
+  // Ring buffer reserves one slot, so +1 for 16 usable slots
+  LockFreeQueue<LTWiFiEvent, LT_EVENT_QUEUE_SIZE + 1> event_queue_;
 #else
-  FreeRTOSQueue<LTWiFiEvent, 16> event_queue_;
+  FreeRTOSQueue<LTWiFiEvent, LT_EVENT_QUEUE_SIZE> event_queue_;
 #endif
 #endif
 
