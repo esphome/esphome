@@ -39,9 +39,7 @@ template<class T, uint8_t SIZE> class FreeRTOSQueue {
       return false;
 
     if (xQueueSend(this->handle_, &element, 0) != pdPASS) {
-      portENTER_CRITICAL();
-      this->dropped_count_++;
-      portEXIT_CRITICAL();
+      this->increment_dropped_count();
       return false;
     }
     return true;
