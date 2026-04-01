@@ -145,8 +145,7 @@ void Nextion::reset_(bool reset_nextion) {
     this->read_byte(&d);
   }
   for (auto *entry : this->nextion_queue_) {
-    if (entry->component != nullptr &&
-        entry->component->get_queue_type() == NextionQueueType::NO_RESULT) {
+    if (entry->component != nullptr && entry->component->get_queue_type() == NextionQueueType::NO_RESULT) {
       delete entry->component;  // NOLINT(cppcoreguidelines-owning-memory)
     }
     delete entry;  // NOLINT(cppcoreguidelines-owning-memory)
