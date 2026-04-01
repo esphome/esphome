@@ -44,10 +44,14 @@ static constexpr size_t MAX_INITIAL_PER_BATCH = 34;         // For clients >= AP
 static_assert(MAX_MESSAGES_PER_BATCH >= MAX_INITIAL_PER_BATCH,
               "MAX_MESSAGES_PER_BATCH must be >= MAX_INITIAL_PER_BATCH");
 
+class APIConnection;
+void bench_enable_immediate_send(APIConnection *conn);  // tests/benchmarks
+
 class APIConnection final : public APIServerConnectionBase {
  public:
   friend class APIServer;
   friend class ListEntitiesIterator;
+  friend void bench_enable_immediate_send(APIConnection *conn);
   APIConnection(std::unique_ptr<socket::Socket> socket, APIServer *parent);
   ~APIConnection();
 
