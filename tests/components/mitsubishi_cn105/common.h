@@ -2,6 +2,10 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <algorithm>
+#include <cstdint>
+#include <initializer_list>
+#include <vector>
 #include "esphome/components/uart/uart_component.h"
 #include "esphome/components/mitsubishi_cn105/mitsubishi_cn105.h"
 
