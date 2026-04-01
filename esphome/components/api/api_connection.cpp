@@ -2072,8 +2072,8 @@ void APIConnection::on_fatal_error() {
   this->flags_.remove = true;
 }
 
-void APIConnection::DeferredBatch::add_item(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
-                                            uint8_t aux_data_index) {
+void __attribute__((flatten)) APIConnection::DeferredBatch::add_item(EntityBase *entity, uint8_t message_type,
+                                                                     uint8_t estimated_size, uint8_t aux_data_index) {
   // Check if we already have a message of this type for this entity
   // This provides deduplication per entity/message_type combination
   // O(n) but optimized for RAM and not performance.
@@ -2091,7 +2091,8 @@ void APIConnection::DeferredBatch::add_item(EntityBase *entity, uint8_t message_
   this->push_item({entity, message_type, estimated_size, aux_data_index});
 }
 
-void APIConnection::DeferredBatch::add_item_front(EntityBase *entity, uint8_t message_type, uint8_t estimated_size) {
+void __attribute__((flatten))
+APIConnection::DeferredBatch::add_item_front(EntityBase *entity, uint8_t message_type, uint8_t estimated_size) {
   // Add high priority message and swap to front
   // This avoids expensive vector::insert which shifts all elements
   // Note: We only ever have one high-priority message at a time (ping OR disconnect)
