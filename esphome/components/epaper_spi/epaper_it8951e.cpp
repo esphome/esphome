@@ -38,13 +38,9 @@ uint16_t EPaperIT8951E::read_word_() {
   return word;
 }
 
-void EPaperIT8951E::write_command_(uint16_t cmd) {
-  this->write_two_byte16_(IT8951_PACKET_TYPE_CMD, cmd);
-}
+void EPaperIT8951E::write_command_(uint16_t cmd) { this->write_two_byte16_(IT8951_PACKET_TYPE_CMD, cmd); }
 
-void EPaperIT8951E::write_word_(uint16_t cmd) {
-  this->write_two_byte16_(IT8951_PACKET_TYPE_WRITE, cmd);
-}
+void EPaperIT8951E::write_word_(uint16_t cmd) { this->write_two_byte16_(IT8951_PACKET_TYPE_WRITE, cmd); }
 
 void EPaperIT8951E::write_reg_(uint16_t addr, uint16_t data) {
   this->write_command_(IT8951_TCON_REG_WR);
@@ -331,13 +327,12 @@ void EPaperIT8951E::refresh_screen(bool partial) {
     return;
   }
 
-  this->update_area_(this->pending_x_, this->pending_y_, this->pending_w_, this->pending_h_,
-                      this->queued_update_mode_);
+  this->update_area_(this->pending_x_, this->pending_y_, this->pending_w_, this->pending_h_, this->queued_update_mode_);
 
   if (this->update_timing_active_) {
-    ESP_LOGD(TAG, "Update took %ums (mode=%d area=%ux%u@%u,%u)",
-             millis() - this->update_started_at_, static_cast<int>(this->queued_update_mode_),
-             this->pending_w_, this->pending_h_, this->pending_x_, this->pending_y_);
+    ESP_LOGD(TAG, "Update took %ums (mode=%d area=%ux%u@%u,%u)", millis() - this->update_started_at_,
+             static_cast<int>(this->queued_update_mode_), this->pending_w_, this->pending_h_, this->pending_x_,
+             this->pending_y_);
     this->update_timing_active_ = false;
   }
 }
@@ -382,11 +377,11 @@ void EPaperIT8951E::process_state_() {
         return;  // LUT still busy, retry next loop
       }
       this->update_area_(this->pending_x_, this->pending_y_, this->pending_w_, this->pending_h_,
-                          this->queued_update_mode_);
+                         this->queued_update_mode_);
       if (this->update_timing_active_) {
-        ESP_LOGD(TAG, "Update took %ums (mode=%d area=%ux%u@%u,%u)",
-                 millis() - this->update_started_at_, static_cast<int>(this->queued_update_mode_),
-                 this->pending_w_, this->pending_h_, this->pending_x_, this->pending_y_);
+        ESP_LOGD(TAG, "Update took %ums (mode=%d area=%ux%u@%u,%u)", millis() - this->update_started_at_,
+                 static_cast<int>(this->queued_update_mode_), this->pending_w_, this->pending_h_, this->pending_x_,
+                 this->pending_y_);
         this->update_timing_active_ = false;
       }
       this->set_state_(this->sleep_when_done_ ? EPaperState::POWER_OFF : EPaperState::IDLE);
@@ -514,8 +509,8 @@ void HOT EPaperIT8951E::draw_absolute_pixel_internal(int x, int y, Color color) 
 void EPaperIT8951E::dump_config() {
   LOG_DISPLAY("", "IT8951E E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Dimensions: %dx%d", this->get_width_internal(), this->get_height_internal());
-  ESP_LOGCONFIG(TAG, "  Buffer: %u bytes in %u segment(s)",
-                static_cast<unsigned>(this->buffer_length_), static_cast<unsigned>(this->buffer_.get_buffer_count()));
+  ESP_LOGCONFIG(TAG, "  Buffer: %u bytes in %u segment(s)", static_cast<unsigned>(this->buffer_length_),
+                static_cast<unsigned>(this->buffer_.get_buffer_count()));
   ESP_LOGCONFIG(TAG, "  Image buffer addr: 0x%04X%04X", this->usImgBufAddrH_, this->usImgBufAddrL_);
   ESP_LOGCONFIG(TAG, "  Sleep when done: %s", YESNO(this->sleep_when_done_));
   ESP_LOGCONFIG(TAG, "  Full update every: %u", this->full_update_every_);
