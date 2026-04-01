@@ -46,6 +46,9 @@ class TestSensor : public sensor::Sensor {
 static void SendSensorState_Immediate(benchmark::State &state) {
   auto [conn, read_fd] = create_api_connection();
   bench_enable_immediate_send(conn.get());
+  // batch_delay must be 0 for should_send_immediately_ to return true
+  uint16_t saved_delay = global_api_server->get_batch_delay();
+  global_api_server->set_batch_delay(0);
 
   TestSensor sensor;
   sensor.configure("test_sensor");
@@ -60,6 +63,7 @@ static void SendSensorState_Immediate(benchmark::State &state) {
   }
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
 
+  global_api_server->set_batch_delay(saved_delay);
   ::close(read_fd);
 }
 BENCHMARK(SendSensorState_Immediate);
