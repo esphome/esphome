@@ -125,7 +125,7 @@ bool EPaperIT8951E::reset() {
     this->reset_pin_->digital_write(false);
     delay(this->reset_duration_);
     this->reset_pin_->digital_write(true);
-    delay(100); // NOLINT
+    delay(100);  // NOLINT
   }
   return true;  // single-step reset, no RESET_END needed
 }

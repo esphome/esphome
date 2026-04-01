@@ -11,7 +11,6 @@ The IT8951E does NOT use a DC pin; it uses 16-bit SPI command preambles instead.
 
 from . import EpaperModel
 
-
 # Generic IT8951E model: requires explicit dimensions (no defaults provided)
 EpaperModel(
     "it8951e",
