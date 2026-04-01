@@ -50,25 +50,25 @@ def sign_firmware(source, target, env):
     signing_key = sdkconfig.get("CONFIG_SECURE_BOOT_SIGNING_KEY")
     if not signing_key:
         print("Error: CONFIG_SECURE_BOOT_SIGNING_KEY not set in sdkconfig")
+        env.Exit(1)
         return
 
     signing_key_path = pathlib.Path(signing_key)
     if not signing_key_path.exists():
         print(f"Error: Signing key not found: {signing_key_path}")
+        env.Exit(1)
         return
 
-    # Determine signature version from scheme
-    # RSA and ECDSA V2 use --version 2, ECDSA V1 uses --version 1
-    if sdkconfig.get("CONFIG_SECURE_SIGNED_APPS_ECDSA_SCHEME") == "y":
-        sign_version = "1"
-    else:
-        sign_version = "2"
+    # ESPHome only exposes RSA3072 and ECDSA256 (both Secure Boot V2 schemes),
+    # so the espsecure signature version is always 2.
+    sign_version = "2"
 
     firmware_name = os.path.basename(env.subst("$PROGNAME")) + ".bin"
     firmware_path = build_dir / firmware_name
 
     if not firmware_path.exists():
         print(f"Error: Firmware binary not found: {firmware_path}")
+        env.Exit(1)
         return
 
     python_exe = f'"{env.subst("$PYTHONEXE")}"'
@@ -102,6 +102,7 @@ def sign_firmware(source, target, env):
         print(f"Error: espsecure sign_data failed with code {result}")
         # Restore unsigned binary on failure
         shutil.copyfile(str(unsigned_path), str(firmware_path))
+        env.Exit(1)
 
 
 def merge_factory_bin(source, target, env):

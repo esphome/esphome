@@ -982,6 +982,9 @@ def final_validate(config):
         # Based on SOC_SECURE_BOOT_V2_RSA / SOC_SECURE_BOOT_V2_ECC in soc_caps.h
         scheme = signed_ota[CONF_SIGNING_SCHEME]
         variant = config[CONF_VARIANT]
+        # Variants not listed in either set support both RSA and ECDSA
+        # (e.g. C5, C6, H2, P4). New variants should be added to the
+        # appropriate set if they only support one scheme.
         rsa_only_variants = {
             VARIANT_ESP32,
             VARIANT_ESP32S2,
@@ -1025,7 +1028,7 @@ def final_validate(config):
                 "until an OTA component is added."
             )
         if CONF_SIGNING_KEY in signed_ota:
-            _LOGGER.warning(
+            _LOGGER.info(
                 "Signed OTA verification is enabled. Keep your signing key safe! "
                 "If you lose the signing key, you will NOT be able to OTA update "
                 "devices running firmware signed with this key. "

@@ -103,7 +103,7 @@ OTAResponseTypes IDFOTABackend::end() {
   }
   if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
 #ifdef USE_OTA_SIGNED_VERIFICATION
-    ESP_LOGE(TAG, "OTA signature verification failed - firmware was not signed with the correct key");
+    ESP_LOGE(TAG, "OTA validation failed (err=0x%X) - possible signature verification failure", err);
     return OTA_RESPONSE_ERROR_SIGNATURE_INVALID;
 #else
     return OTA_RESPONSE_ERROR_UPDATE_END;
