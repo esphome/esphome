@@ -2072,14 +2072,6 @@ void APIConnection::on_fatal_error() {
   this->flags_.remove = true;
 }
 
-void APIConnection::DeferredBatch::add_item_front(EntityBase *entity, uint8_t message_type, uint8_t estimated_size) {
-  // Swap to front avoids expensive vector::insert which shifts all elements
-  this->items.push_back({entity, message_type, estimated_size, AUX_DATA_UNUSED});
-  if (this->items.size() > 1) {
-    std::swap(this->items.front(), this->items.back());
-  }
-}
-
 bool APIConnection::send_message_smart_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
                                         uint8_t aux_data_index) {
   if (this->should_send_immediately_(message_type) && this->helper_->can_write_without_blocking()) {

@@ -659,8 +659,13 @@ class APIConnection final : public APIServerConnectionBase {
       this->items.push_back({entity, message_type, estimated_size, aux_data_index});
     }
     // Add item to the front of the batch (for high priority messages like ping)
-    // Out-of-line: called from cold paths (on_shutdown, check_keepalive_)
-    void add_item_front(EntityBase *entity, uint8_t message_type, uint8_t estimated_size);
+    void add_item_front(EntityBase *entity, uint8_t message_type, uint8_t estimated_size) {
+      // Swap to front avoids expensive vector::insert which shifts all elements
+      this->items.push_back({entity, message_type, estimated_size, AUX_DATA_UNUSED});
+      if (this->items.size() > 1) {
+        std::swap(this->items.front(), this->items.back());
+      }
+    }
 
     // Clear all items
     void clear() {
