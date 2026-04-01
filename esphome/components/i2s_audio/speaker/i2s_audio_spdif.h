@@ -1,5 +1,7 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
 #if defined(USE_ESP32) && defined(USE_I2S_AUDIO_SPDIF_MODE)
 
 #include "i2s_audio_speaker.h"
