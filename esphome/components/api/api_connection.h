@@ -47,6 +47,7 @@ static_assert(MAX_MESSAGES_PER_BATCH >= MAX_INITIAL_PER_BATCH,
 class APIConnection;
 void bench_enable_immediate_send(APIConnection *conn);  // tests/benchmarks
 void bench_clear_batch(APIConnection *conn);            // tests/benchmarks
+void bench_process_batch(APIConnection *conn);          // tests/benchmarks
 
 class APIConnection final : public APIServerConnectionBase {
  public:
@@ -54,6 +55,7 @@ class APIConnection final : public APIServerConnectionBase {
   friend class ListEntitiesIterator;
   friend void bench_enable_immediate_send(APIConnection *conn);
   friend void bench_clear_batch(APIConnection *conn);
+  friend void bench_process_batch(APIConnection *conn);
   APIConnection(std::unique_ptr<socket::Socket> socket, APIServer *parent);
   ~APIConnection();
 

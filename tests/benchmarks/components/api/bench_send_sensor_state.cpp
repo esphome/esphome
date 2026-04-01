@@ -14,6 +14,7 @@ namespace esphome::api {
 // Friend functions declared in APIConnection for benchmark access.
 void bench_enable_immediate_send(APIConnection *conn) { conn->flags_.should_try_send_immediately = true; }
 void bench_clear_batch(APIConnection *conn) { conn->clear_batch_(); }
+void bench_process_batch(APIConnection *conn) { conn->process_batch_(); }
 
 }  // namespace esphome::api
 
@@ -116,6 +117,80 @@ static void SendSensorState_Batch_Warm(benchmark::State &state) {
   ::close(read_fd);
 }
 BENCHMARK(SendSensorState_Batch_Warm);
+
+// --- process_batch_: single sensor state (encode + frame + write) ---
+// Measures the deferred batch processing path: dispatch_message_ →
+// try_send_sensor_state → fill + proto encode → send_buffer → frame write.
+// This is the cost paid on the next loop() after batching.
+
+static void ProcessBatch_SingleSensor(benchmark::State &state) {
+  auto [conn, read_fd] = create_api_connection();
+
+  TestSensor sensor;
+  sensor.configure("test_sensor");
+  sensor.publish_state(23.5f);
+
+  // Warm up batch vector
+  conn->send_sensor_state(&sensor);
+  bench_process_batch(conn.get());
+  drain_socket(read_fd);
+
+  for (auto _ : state) {
+    for (int i = 0; i < kInnerIterations; i++) {
+      // Queue the sensor state, then process the batch
+      conn->send_sensor_state(&sensor);
+      bench_process_batch(conn.get());
+
+      if ((i & 0xFF) == 0)
+        drain_socket(read_fd);
+    }
+    drain_socket(read_fd);
+    benchmark::DoNotOptimize(conn.get());
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+
+  ::close(read_fd);
+}
+BENCHMARK(ProcessBatch_SingleSensor);
+
+// --- process_batch_: 5 different sensors ---
+// Measures batch processing with multiple items queued.
+// This exercises the multi-message path in process_batch_.
+
+static void ProcessBatch_5Sensors(benchmark::State &state) {
+  auto [conn, read_fd] = create_api_connection();
+
+  TestSensor sensors[5];
+  for (int i = 0; i < 5; i++) {
+    char name[20];
+    snprintf(name, sizeof(name), "sensor_%d", i);
+    sensors[i].configure(name);
+    sensors[i].publish_state(23.5f + static_cast<float>(i));
+  }
+
+  // Warm up batch vector
+  for (auto &s : sensors)
+    conn->send_sensor_state(&s);
+  bench_process_batch(conn.get());
+  drain_socket(read_fd);
+
+  for (auto _ : state) {
+    for (int i = 0; i < kInnerIterations; i++) {
+      for (auto &s : sensors)
+        conn->send_sensor_state(&s);
+      bench_process_batch(conn.get());
+
+      if ((i & 0xFF) == 0)
+        drain_socket(read_fd);
+    }
+    drain_socket(read_fd);
+    benchmark::DoNotOptimize(conn.get());
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+
+  ::close(read_fd);
+}
+BENCHMARK(ProcessBatch_5Sensors);
 
 }  // namespace esphome::api::benchmarks
 
