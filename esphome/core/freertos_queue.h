@@ -61,8 +61,10 @@ template<class T, uint8_t SIZE> class FreeRTOSQueue {
     // Drops are rare so almost always returns 0 without entering a critical section.
     if (this->dropped_count_ == 0)
       return 0;
+    // Declare outside critical section — BK72xx portENTER_CRITICAL may introduce a scope
+    uint16_t count;
     portENTER_CRITICAL();
-    uint16_t count = this->dropped_count_;
+    count = this->dropped_count_;
     this->dropped_count_ = 0;
     portEXIT_CRITICAL();
     return count;
