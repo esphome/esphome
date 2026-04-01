@@ -127,7 +127,7 @@ CONFIG_SCHEMA = cv.All(
 
 def validate_number_of_ep(config: ConfigType) -> None:
     if not CORE.is_nrf52:
-        return
+        return config
     if KEY_ZIGBEE not in CORE.data:
         raise cv.Invalid("At least one zigbee device need to be included")
     count = len(CORE.data[KEY_ZIGBEE][KEY_EP_NUMBER])
