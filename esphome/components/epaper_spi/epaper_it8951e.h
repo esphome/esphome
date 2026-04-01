@@ -41,8 +41,6 @@ class EPaperIT8951E : public EPaperBase {
   void power_off() override;
   void deep_sleep() override;
 
-  void draw_absolute_pixel_internal(int x, int y, Color color) override;
-
  private:
   // IT8951E SPI protocol methods
   void write_two_byte16_(uint16_t type, uint16_t cmd);

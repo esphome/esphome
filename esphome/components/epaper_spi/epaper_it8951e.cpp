@@ -479,14 +479,8 @@ void EPaperIT8951E::fill(Color color) {
   this->y_low_ = 0;
 }
 
-void EPaperIT8951E::draw_pixel_at(int x, int y, Color color) {
+void HOT EPaperIT8951E::draw_pixel_at(int x, int y, Color color) {
   if (!this->rotate_coordinates_(x, y))
-    return;
-  this->draw_absolute_pixel_internal(x, y, color);
-}
-
-void HOT EPaperIT8951E::draw_absolute_pixel_internal(int x, int y, Color color) {
-  if (x < 0 || y < 0 || x >= this->get_width_internal() || y >= this->get_height_internal())
     return;
 
   uint8_t internal_color = this->color_to_nibble_(color) & 0x0F;
