@@ -28,12 +28,20 @@ template<class T, uint8_t SIZE> class FreeRTOSQueue {
  public:
   FreeRTOSQueue() : dropped_count_(0) { this->handle_ = xQueueCreate(SIZE, sizeof(T *)); }
 
+  // Non-copyable, non-movable — queue handle is not transferable
+  FreeRTOSQueue(const FreeRTOSQueue &) = delete;
+  FreeRTOSQueue &operator=(const FreeRTOSQueue &) = delete;
+  FreeRTOSQueue(FreeRTOSQueue &&) = delete;
+  FreeRTOSQueue &operator=(FreeRTOSQueue &&) = delete;
+
   bool push(T *element) {
     if (element == nullptr || this->handle_ == nullptr)
       return false;
 
     if (xQueueSend(this->handle_, &element, 0) != pdPASS) {
+      portENTER_CRITICAL();
       this->dropped_count_++;
+      portEXIT_CRITICAL();
       return false;
     }
     return true;
@@ -51,14 +59,18 @@ template<class T, uint8_t SIZE> class FreeRTOSQueue {
   }
 
   uint16_t get_and_reset_dropped_count() {
+    portENTER_CRITICAL();
     uint16_t count = this->dropped_count_;
-    if (count == 0)
-      return 0;
     this->dropped_count_ = 0;
+    portEXIT_CRITICAL();
     return count;
   }
 
-  void increment_dropped_count() { this->dropped_count_++; }
+  void increment_dropped_count() {
+    portENTER_CRITICAL();
+    this->dropped_count_++;
+    portEXIT_CRITICAL();
+  }
 
   bool empty() const {
     if (this->handle_ == nullptr)
@@ -80,7 +92,7 @@ template<class T, uint8_t SIZE> class FreeRTOSQueue {
 
  protected:
   QueueHandle_t handle_;
-  volatile uint16_t dropped_count_;
+  uint16_t dropped_count_;
 };
 
 }  // namespace esphome
