@@ -123,14 +123,20 @@ struct Substitution {
   const char *to;
 };
 
-/// A simple filter that replaces a substring with another substring
-class SubstituteFilter : public Filter {
+/// Non-template helper (implementation in filter.cpp)
+bool substitute_filter_apply(const Substitution *substitutions, size_t count, std::string &value);
+
+/// A simple filter that replaces a substring with another substring.
+/// N is set by code generation to match the exact number of substitutions configured in YAML.
+template<size_t N> class SubstituteFilter : public Filter {
  public:
-  explicit SubstituteFilter(const std::initializer_list<Substitution> &substitutions);
-  bool new_value(std::string &value) override;
+  explicit SubstituteFilter(const std::initializer_list<Substitution> &substitutions) {
+    init_array_from(this->substitutions_, substitutions);
+  }
+  bool new_value(std::string &value) override { return substitute_filter_apply(this->substitutions_.data(), N, value); }
 
  protected:
-  FixedVector<Substitution> substitutions_;
+  std::array<Substitution, N> substitutions_{};
 };
 
 /// Non-template helper (implementation in filter.cpp)

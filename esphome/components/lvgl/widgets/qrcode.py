@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_SIZE, CONF_TEXT
 
-from ..defines import CONF_MAIN, get_color_formats
+from ..defines import CONF_MAIN
 from ..lv_validation import color, lv_color, lv_int, lv_text
 from ..lvcode import LocalVariable, lv
 from ..schemas import TEXT_SCHEMA
@@ -44,7 +44,6 @@ class QrCodeType(WidgetType):
         return CONF_CANVAS, CONF_IMAGE
 
     async def to_code(self, w: Widget, config):
-        get_color_formats().add("ARGB8888")
         await w.set_property(
             CONF_LIGHT_COLOR, await lv_color.process(config.get(CONF_LIGHT_COLOR))
         )

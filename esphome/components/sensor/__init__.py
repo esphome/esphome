@@ -113,6 +113,7 @@ from esphome.core.entity_helpers import (
     setup_unit_of_measurement,
 )
 from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
@@ -230,7 +231,10 @@ _SENSOR_ENTITY_CATEGORIES = {
 }
 
 
+@schema_extractor("enum")
 def sensor_entity_category(value):
+    if value == SCHEMA_EXTRACT:
+        return _SENSOR_ENTITY_CATEGORIES
     return cv.enum(_SENSOR_ENTITY_CATEGORIES, lower=True)(value)
 
 
@@ -622,7 +626,7 @@ async def delta_filter_to_code(config, filter_id):
 @FILTER_REGISTRY.register("or", OrFilter, validate_filters)
 async def or_filter_to_code(config, filter_id):
     filters = await build_filters(config)
-    return cg.new_Pvariable(filter_id, filters)
+    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(filters)), filters)
 
 
 @FILTER_REGISTRY.register(
@@ -772,7 +776,9 @@ async def calibrate_linear_filter_to_code(config, filter_id):
         linear_functions = [[k, b, float("NaN")]]
     elif config[CONF_METHOD] == "exact":
         linear_functions = map_linear(x, y)
-    return cg.new_Pvariable(filter_id, linear_functions)
+    return cg.new_Pvariable(
+        filter_id, cg.TemplateArguments(len(linear_functions)), linear_functions
+    )
 
 
 CONF_DEGREE = "degree"
@@ -810,7 +816,7 @@ async def calibrate_polynomial_filter_to_code(config, filter_id):
     # Column vector
     b = [[v] for v in y]
     res = [v[0] for v in _lstsq(a, b)]
-    return cg.new_Pvariable(filter_id, res)
+    return cg.new_Pvariable(filter_id, cg.TemplateArguments(len(res)), res)
 
 
 def validate_clamp(config):
