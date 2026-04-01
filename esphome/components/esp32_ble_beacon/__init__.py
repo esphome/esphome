@@ -13,7 +13,6 @@ esp32_ble_beacon_ns = cg.esphome_ns.namespace("esp32_ble_beacon")
 ESP32BLEBeacon = esp32_ble_beacon_ns.class_(
     "ESP32BLEBeacon",
     cg.Component,
-    esp32_ble.GAPEventHandler,
     cg.Parented.template(esp32_ble.ESP32BLE),
 )
 CONF_MAJOR = "major"

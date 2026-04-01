@@ -38,14 +38,18 @@ void SX127x::write_register_(uint8_t reg, uint8_t value) {
 void SX127x::read_fifo_(std::vector<uint8_t> &packet) {
   this->enable();
   this->write_byte(REG_FIFO & 0x7F);
-  this->read_array(packet.data(), packet.size());
+  for (auto &byte : packet) {
+    byte = this->transfer_byte(0x00);
+  }
   this->disable();
 }
 
 void SX127x::write_fifo_(const std::vector<uint8_t> &packet) {
   this->enable();
   this->write_byte(REG_FIFO | 0x80);
-  this->write_array(packet.data(), packet.size());
+  for (const auto &byte : packet) {
+    this->transfer_byte(byte);
+  }
   this->disable();
 }
 

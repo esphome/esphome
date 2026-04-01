@@ -1,5 +1,4 @@
 import sys
-from typing import Any
 
 from esphome import codegen as cg, config_validation as cv
 from esphome.automation import register_action
@@ -158,7 +157,7 @@ class WidgetType:
             await self.on_create(var, config)
 
         w = Widget.create(wid, var, self, config)
-        if theme := theme_widget_map.get(self.w_type.name):
+        if theme := theme_widget_map.get(self.name):
             for part, states in theme.items():
                 part = "LV_PART_" + part.upper()
                 for state, style in states.items():
@@ -405,7 +404,11 @@ class Widget:
 
 
 # Map of widgets to their config, used for trigger generation
-widget_map: dict[Any, Widget] = {}
+widget_map: dict[ID, Widget] = {}
+
+
+def is_widget_completed(name: ID) -> bool:
+    return name in widget_map
 
 
 class LvScrActType(WidgetType):
