@@ -978,6 +978,46 @@ def final_validate(config):
                     ],
                 )
             )
+        # Validate signing scheme against chip variant capabilities
+        # Based on SOC_SECURE_BOOT_V2_RSA / SOC_SECURE_BOOT_V2_ECC in soc_caps.h
+        scheme = signed_ota[CONF_SIGNING_SCHEME]
+        variant = config[CONF_VARIANT]
+        rsa_only_variants = {
+            VARIANT_ESP32,
+            VARIANT_ESP32S2,
+            VARIANT_ESP32S3,
+            VARIANT_ESP32C3,
+        }
+        ecc_only_variants = {
+            VARIANT_ESP32C2,
+            VARIANT_ESP32C61,
+        }
+        if scheme == "ecdsa256" and variant in rsa_only_variants:
+            errs.append(
+                cv.Invalid(
+                    f"Signing scheme 'ecdsa256' is not supported on {VARIANT_FRIENDLY[variant]}. "
+                    f"Use 'rsa3072' instead.",
+                    path=[
+                        CONF_FRAMEWORK,
+                        CONF_ADVANCED,
+                        CONF_SIGNED_OTA_VERIFICATION,
+                        CONF_SIGNING_SCHEME,
+                    ],
+                )
+            )
+        if scheme == "rsa3072" and variant in ecc_only_variants:
+            errs.append(
+                cv.Invalid(
+                    f"Signing scheme 'rsa3072' is not supported on {VARIANT_FRIENDLY[variant]}. "
+                    f"Use 'ecdsa256' instead.",
+                    path=[
+                        CONF_FRAMEWORK,
+                        CONF_ADVANCED,
+                        CONF_SIGNED_OTA_VERIFICATION,
+                        CONF_SIGNING_SCHEME,
+                    ],
+                )
+            )
         if CONF_OTA not in full_config:
             _LOGGER.warning(
                 "Signed OTA verification is enabled but no OTA component is configured. "
