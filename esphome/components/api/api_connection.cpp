@@ -132,8 +132,6 @@ APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *pa
 #endif
 }
 
-uint32_t APIConnection::get_batch_delay_ms_() const { return this->parent_->get_batch_delay(); }
-
 void APIConnection::start() {
   this->last_traffic_ = App.get_loop_component_start_time();
 

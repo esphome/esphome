@@ -730,7 +730,7 @@ class APIConnection final : public APIServerConnectionBase {
   ActiveIterator active_iterator_{ActiveIterator::NONE};
   // Total: 2 (flags) + 2 + 2 + 1 = 7 bytes, then 1 byte padding to next 4-byte boundary
 
-  uint32_t get_batch_delay_ms_() const;
+  uint32_t get_batch_delay_ms_() const { return this->parent_->get_batch_delay(); }
   // Message will use 8 more bytes than the minimum size, and typical
   // MTU is 1500. Sometimes users will see as low as 1460 MTU.
   // If its IPv6 the header is 40 bytes, and if its IPv4
