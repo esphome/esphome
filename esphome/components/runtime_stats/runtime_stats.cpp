@@ -17,11 +17,13 @@ RuntimeStatsCollector::RuntimeStatsCollector() : log_interval_(60000), next_log_
 void RuntimeStatsCollector::log_stats_() {
   auto &components = App.components_;
 
-  // First pass: count active components
+  // Single pass: collect active components into stack buffer
+  SmallBufferWithHeapFallback<256, Component *> buffer(components.size());
+  Component **sorted = buffer.get();
   size_t count = 0;
   for (auto *component : components) {
     if (component->runtime_stats_.period_count > 0) {
-      count++;
+      sorted[count++] = component;
     }
   }
 
@@ -32,18 +34,6 @@ void RuntimeStatsCollector::log_stats_() {
 
   if (count == 0) {
     return;
-  }
-
-  // Stack buffer sized to actual active count (up to 256 components), heap fallback for larger
-  SmallBufferWithHeapFallback<256, Component *> buffer(count);
-  Component **sorted = buffer.get();
-
-  // Second pass: fill buffer with active components
-  size_t idx = 0;
-  for (auto *component : components) {
-    if (component->runtime_stats_.period_count > 0) {
-      sorted[idx++] = component;
-    }
   }
 
   // Sort by period runtime (descending)
@@ -95,8 +85,9 @@ void RuntimeStatsCollector::process_pending_stats(uint32_t current_time) {
 
 }  // namespace runtime_stats
 
-runtime_stats::RuntimeStatsCollector *global_runtime_stats =
-    nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+runtime_stats::RuntimeStatsCollector
+    *global_runtime_stats =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+    nullptr;
 
 }  // namespace esphome
 
