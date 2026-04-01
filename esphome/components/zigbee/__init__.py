@@ -224,17 +224,23 @@ def validate_binary_sensor(config: ConfigType) -> ConfigType:
 def validate_sensor(config: ConfigType) -> ConfigType:
     if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return config
+    if CORE.is_esp32:
+        return config
     return consume_endpoint(config)
 
 
 def validate_switch(config: ConfigType) -> ConfigType:
     if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
         return config
+    if CORE.is_esp32:
+        return config
     return consume_endpoint(config)
 
 
 def validate_number(config: ConfigType) -> ConfigType:
     if "zigbee" not in CORE.loaded_integrations or config.get(CONF_INTERNAL):
+        return config
+    if CORE.is_esp32:
         return config
     return consume_endpoint(config)
 
