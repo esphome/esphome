@@ -2,6 +2,7 @@
 
 #include "esphome/core/defines.h"
 #include "crash_handler.h"
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "preferences.h"
@@ -15,7 +16,6 @@
 #include <freertos/task.h>
 
 void setup();  // NOLINT(readability-redundant-declaration)
-void loop();   // NOLINT(readability-redundant-declaration)
 
 // Weak stub for initArduino - overridden when the Arduino component is present
 extern "C" __attribute__((weak)) void initArduino() {}
@@ -53,9 +53,6 @@ void arch_init() {
 }
 void HOT arch_feed_wdt() { esp_task_wdt_reset(); }
 
-uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
-const char *progmem_read_ptr(const char *const *addr) { return *addr; }
-uint16_t progmem_read_uint16(const uint16_t *addr) { return *addr; }
 uint32_t arch_get_cpu_cycle_count() { return esp_cpu_get_cycle_count(); }
 uint32_t arch_get_cpu_freq_hz() {
   uint32_t freq = 0;
@@ -68,7 +65,7 @@ TaskHandle_t loop_task_handle = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-
 void loop_task(void *pv_params) {
   setup();
   while (true) {
-    loop();
+    App.loop();
   }
 }
 

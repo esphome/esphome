@@ -72,7 +72,6 @@ BLECharacteristic_ns = esp32_ble_server_ns.namespace("BLECharacteristic")
 BLEServer = esp32_ble_server_ns.class_(
     "BLEServer",
     cg.Component,
-    esp32_ble.GATTsEventHandler,
     cg.Parented.template(esp32_ble.ESP32BLE),
 )
 esp32_ble_server_automations_ns = esp32_ble_server_ns.namespace(
