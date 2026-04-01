@@ -631,12 +631,20 @@ class WarnIfComponentBlockingGuard {
   }
 
   // Finish the timing operation and return the current time (millis)
+  // Inlined: the fast path is just millis() + subtract + compare
   inline uint32_t HOT finish() {
 #ifdef USE_RUNTIME_STATS
-    this->record_runtime_stats_();
+    this->component_->runtime_stats_.record_time(micros() - this->started_us_);
 #endif
     uint32_t curr_time = millis();
-    this->check_blocking_(curr_time - this->started_);
+#ifndef USE_BENCHMARK
+    // Fast path: compare against constant threshold in ms (computed at compile time from centiseconds)
+    static constexpr uint32_t WARN_IF_BLOCKING_OVER_MS = static_cast<uint32_t>(WARN_IF_BLOCKING_OVER_CS) * 10U;
+    uint32_t blocking_time = curr_time - this->started_;
+    if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
+      warn_blocking(this->component_, blocking_time);
+    }
+#endif
     return curr_time;
   }
 
@@ -647,17 +655,7 @@ class WarnIfComponentBlockingGuard {
   Component *component_;
 #ifdef USE_RUNTIME_STATS
   uint32_t started_us_;
-  inline void record_runtime_stats_() { this->component_->runtime_stats_.record_time(micros() - this->started_us_); }
 #endif
-  // Fast path: compare against constant threshold in ms (computed at compile time from centiseconds)
-  inline void check_blocking_(uint32_t blocking_time) {
-#ifndef USE_BENCHMARK
-    static constexpr uint32_t WARN_IF_BLOCKING_OVER_MS = static_cast<uint32_t>(WARN_IF_BLOCKING_OVER_CS) * 10U;
-    if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
-      warn_blocking(this->component_, blocking_time);
-    }
-#endif
-  }
 
  private:
   // Cold path for blocking warning - defined in component.cpp
