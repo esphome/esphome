@@ -529,6 +529,36 @@ class Component {
   /// Bits 6-7: Unused - reserved for future expansion
   uint8_t component_state_{0x00};
   volatile bool pending_enable_loop_{false};  ///< ISR-safe flag for enable_loop_soon_any_context
+
+#ifdef USE_RUNTIME_STATS
+  /// Inline runtime statistics — eliminates std::map lookup on every loop iteration.
+  struct RuntimeStats {
+    // Period stats (reset each logging interval)
+    uint32_t period_count{0};
+    uint32_t period_time_us{0};
+    uint32_t period_max_time_us{0};
+    // Total stats (persistent until reboot, uint64_t to avoid overflow)
+    uint32_t total_count{0};
+    uint64_t total_time_us{0};
+    uint32_t total_max_time_us{0};
+
+    void record_time(uint32_t duration_us) {
+      this->period_count++;
+      this->period_time_us += duration_us;
+      if (duration_us > this->period_max_time_us)
+        this->period_max_time_us = duration_us;
+      this->total_count++;
+      this->total_time_us += duration_us;
+      if (duration_us > this->total_max_time_us)
+        this->total_max_time_us = duration_us;
+    }
+    void reset_period() {
+      this->period_count = 0;
+      this->period_time_us = 0;
+      this->period_max_time_us = 0;
+    }
+  } runtime_stats_;
+#endif
 };
 
 /** This class simplifies creating components that periodically check a state.
