@@ -32,8 +32,8 @@ class RuntimeStatsCollector {
  protected:
   void log_stats_();
   // Static comparators — member functions have friend access, lambdas do not
-  static bool compare_period_time_(Component *a, Component *b);
-  static bool compare_total_time_(Component *a, Component *b);
+  static bool compare_period_time(Component *a, Component *b);
+  static bool compare_total_time(Component *a, Component *b);
 
   uint32_t log_interval_;
   uint32_t next_log_time_{0};
