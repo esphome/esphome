@@ -2072,38 +2072,6 @@ void APIConnection::on_fatal_error() {
   this->flags_.remove = true;
 }
 
-void __attribute__((flatten)) APIConnection::DeferredBatch::add_item(EntityBase *entity, uint8_t message_type,
-                                                                     uint8_t estimated_size, uint8_t aux_data_index) {
-  // Check if we already have a message of this type for this entity
-  // This provides deduplication per entity/message_type combination
-  // O(n) but optimized for RAM and not performance.
-  // Skip deduplication for events - they are edge-triggered, every occurrence matters
-#ifdef USE_EVENT
-  if (message_type != EventResponse::MESSAGE_TYPE)
-#endif
-  {
-    for (const auto &item : items) {
-      if (item.entity == entity && item.message_type == message_type)
-        return;  // Already queued
-    }
-  }
-  // No existing item found (or event), add new one
-  this->push_item({entity, message_type, estimated_size, aux_data_index});
-}
-
-void __attribute__((flatten))
-APIConnection::DeferredBatch::add_item_front(EntityBase *entity, uint8_t message_type, uint8_t estimated_size) {
-  // Add high priority message and swap to front
-  // This avoids expensive vector::insert which shifts all elements
-  // Note: We only ever have one high-priority message at a time (ping OR disconnect)
-  // If we're disconnecting, pings are blocked, so this simple swap is sufficient
-  this->push_item({entity, message_type, estimated_size, AUX_DATA_UNUSED});
-  if (items.size() > 1) {
-    // Swap the new high-priority item to the front
-    std::swap(items.front(), items.back());
-  }
-}
-
 bool APIConnection::send_message_smart_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
                                         uint8_t aux_data_index) {
   if (this->should_send_immediately_(message_type) && this->helper_->can_write_without_blocking()) {

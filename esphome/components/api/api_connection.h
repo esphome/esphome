@@ -644,10 +644,28 @@ class APIConnection final : public APIServerConnectionBase {
 
     // Add item to the batch (with deduplication)
     void add_item(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
-                  uint8_t aux_data_index = AUX_DATA_UNUSED);
+                  uint8_t aux_data_index = AUX_DATA_UNUSED) {
+      // Dedup: O(n) scan but optimized for RAM over performance
+      // Skip deduplication for events - they are edge-triggered, every occurrence matters
+#ifdef USE_EVENT
+      if (message_type != EventResponse::MESSAGE_TYPE)
+#endif
+      {
+        for (const auto &item : items) {
+          if (item.entity == entity && item.message_type == message_type)
+            return;  // Already queued
+        }
+      }
+      items.push_back({entity, message_type, estimated_size, aux_data_index});
+    }
     // Add item to the front of the batch (for high priority messages like ping)
-    void add_item_front(EntityBase *entity, uint8_t message_type, uint8_t estimated_size);
-    void push_item(const BatchItem &item) { items.push_back(item); }
+    void add_item_front(EntityBase *entity, uint8_t message_type, uint8_t estimated_size) {
+      // Swap to front avoids expensive vector::insert which shifts all elements
+      items.push_back({entity, message_type, estimated_size, AUX_DATA_UNUSED});
+      if (items.size() > 1) {
+        std::swap(items.front(), items.back());
+      }
+    }
 
     // Clear all items
     void clear() {
