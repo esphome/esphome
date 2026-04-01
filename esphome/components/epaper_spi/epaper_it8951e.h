@@ -32,6 +32,11 @@ class EPaperIT8951E : public EPaperBase {
   void fill(Color color) override;
   void draw_pixel_at(int x, int y, Color color) override;
 
+  void clear() override {
+    // clear buffer to white, just like real paper.
+    this->fill(reversed_ ? COLOR_OFF : COLOR_ON);
+  }
+
  protected:
   // EPaperBase required overrides
   bool reset() override;
