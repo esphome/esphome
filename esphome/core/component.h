@@ -20,6 +20,12 @@ namespace esphome {
 // Forward declaration for LogString
 struct LogString;
 
+#ifdef USE_RUNTIME_STATS
+namespace runtime_stats {
+class RuntimeStatsCollector;
+}  // namespace runtime_stats
+#endif
+
 /** Default setup priorities for components of different types.
  *
  * Components should return one of these setup priorities in get_setup_priority.
@@ -561,6 +567,7 @@ class Component {
   uint8_t component_state_{0x00};
   volatile bool pending_enable_loop_{false};  ///< ISR-safe flag for enable_loop_soon_any_context
 #ifdef USE_RUNTIME_STATS
+  friend class runtime_stats::RuntimeStatsCollector;
   ComponentRuntimeStats runtime_stats_;
 #endif
 };

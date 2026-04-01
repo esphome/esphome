@@ -47,9 +47,7 @@ void RuntimeStatsCollector::log_stats_() {
   }
 
   // Sort by period runtime (descending)
-  std::sort(sorted, sorted + count, [](Component *a, Component *b) {
-    return a->runtime_stats_.period_time_us > b->runtime_stats_.period_time_us;
-  });
+  std::sort(sorted, sorted + count, compare_period_time_);
 
   // Log top components by period runtime
   for (size_t i = 0; i < count; i++) {
@@ -64,9 +62,7 @@ void RuntimeStatsCollector::log_stats_() {
   ESP_LOGI(TAG, " Total stats (since boot): %zu active components", count);
 
   // Re-sort by total runtime for all-time stats
-  std::sort(sorted, sorted + count, [](Component *a, Component *b) {
-    return a->runtime_stats_.total_time_us > b->runtime_stats_.total_time_us;
-  });
+  std::sort(sorted, sorted + count, compare_total_time_);
 
   for (size_t i = 0; i < count; i++) {
     const auto &stats = sorted[i]->runtime_stats_;
@@ -80,6 +76,14 @@ void RuntimeStatsCollector::log_stats_() {
   for (auto *component : components) {
     component->runtime_stats_.reset_period();
   }
+}
+
+bool RuntimeStatsCollector::compare_period_time_(Component *a, Component *b) {
+  return a->runtime_stats_.period_time_us > b->runtime_stats_.period_time_us;
+}
+
+bool RuntimeStatsCollector::compare_total_time_(Component *a, Component *b) {
+  return a->runtime_stats_.total_time_us > b->runtime_stats_.total_time_us;
 }
 
 void RuntimeStatsCollector::process_pending_stats(uint32_t current_time) {
