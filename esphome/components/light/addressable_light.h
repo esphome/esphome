@@ -25,8 +25,6 @@ class AddressableLightState final : public LightState {
   using LightState::LightState;
 
  public:
-  /// Returns the estimated current draw of the LED strip in milliamps.
-  /// Defined after AddressableLight is fully declared below to avoid incomplete-type cast.
   float get_estimated_current_ma();
 };
 
@@ -79,9 +77,6 @@ class AddressableLight : public LightOutput, public Component {
     this->idle_ma_per_led_ = idle_ma_per_led;
   }
   void set_max_current_ma(float max_current_ma) { this->max_current_ma_ = max_current_ma; }
-  /// Returns estimated current draw of the LED strip in milliamps based on the current pixel buffer.
-  /// The raw (hardware-output) pixel values are used, so gamma correction and brightness are already
-  /// accounted for. White channel contributes 0 mA on RGB-only strips (no white pointer).
   float get_estimated_current_ma();
   void setup_state(LightState *state) override {
 #ifdef USE_LIGHT_GAMMA_LUT
@@ -117,9 +112,6 @@ class AddressableLight : public LightOutput, public Component {
   }
   virtual ESPColorView get_view_internal(int32_t index) const = 0;
 
-  // Scale raw pixel buffer values to enforce a maximum current budget.
-  // Called from schedule_show() so it covers all code paths: solid colours,
-  // effects, and transitions.
   void apply_power_limit_();
 
   ESPColorCorrection correction_{};
