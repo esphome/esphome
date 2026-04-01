@@ -2021,26 +2021,23 @@ uint16_t APIConnection::encode_to_buffer(uint32_t calculated_size, MessageEncode
 
   auto &shared_buf = conn->parent_->get_shared_buffer_ref();
 
-  size_t write_start;
+  size_t to_add;
   if (conn->flags_.batch_first_message) {
     // First message - buffer already prepared by caller, just clear flag
     conn->flags_.batch_first_message = false;
-    write_start = shared_buf.size();
-    shared_buf.resize(write_start + calculated_size);
+    to_add = calculated_size;
   } else {
     // Batch message second or later
     // Reserve for full message, resize to include footer gap + header padding + payload
-    size_t current_size = shared_buf.size();
-    shared_buf.reserve_and_resize(current_size + total_calculated_size,
-                                  current_size + footer_size + header_padding + calculated_size);
-    write_start = shared_buf.size() - calculated_size;
+    to_add = total_calculated_size;
   }
 
-  ProtoWriteBuffer buffer{&shared_buf, write_start};
+  shared_buf.resize(shared_buf.size() + to_add);
+  ProtoWriteBuffer buffer{&shared_buf, shared_buf.size() - calculated_size};
   encode_fn(msg, buffer);
 
   // Return total size (header + payload + footer)
-  return static_cast<uint16_t>(header_padding + calculated_size + footer_size);
+  return static_cast<uint16_t>(total_calculated_size);
 }
 bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
   const bool is_log_message = (message_type == SubscribeLogsResponse::MESSAGE_TYPE);
