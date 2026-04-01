@@ -91,8 +91,14 @@ class ZigbeeComponent : public Component {
   template<typename T>
   void add_attr_(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
                  uint8_t attr_type, uint8_t attr_access, T *value_p);
+  // endpoint_list_ and attribute_list_ are only used during setup and are cleared afterwards
+  // value tuple could be replaced by struct
   std::map<uint8_t, std::tuple<zb_ha_standard_devs_e, esp_zb_cluster_list_t *>> endpoint_list_;
+  // key tuple could be replaced by single 32 bit int with bit fields for endpoint, cluster and role
   std::map<std::tuple<uint8_t, uint16_t, uint8_t>, esp_zb_attribute_list_t *> attribute_list_;
+  // attributes_ will be used during operation in zigbee callbacks to update the attribute values and trigger
+  // automations
+  // key tuple could be replaced by single 64 (48) bit int with bit fields for endpoint, cluster, role and attr_id
   std::map<std::tuple<uint8_t, uint16_t, uint8_t, uint16_t>, ZigbeeAttribute *> attributes_;
   esp_zb_ep_list_t *esp_zb_ep_list_ = esp_zb_ep_list_create();
 };

@@ -233,6 +233,19 @@ void ZigbeeComponent::setup() {
     if (ret != ESP_OK) {
       ESP_LOGE(TAG, "Could not create cluster 0x%04X with role %u: %s", std::get<1>(key), std::get<2>(key),
                esp_err_to_name(ret));
+    } else {
+      ESP_LOGD(TAG, "Endpoint %u: Added cluster 0x%04X with role %u", std::get<0>(key), std::get<1>(key),
+               std::get<2>(key));
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+      // Dump cluster attributes in verbose log
+      ESP_LOGV(TAG, "Cluster 0x%04X attributes:", std::get<1>(key));
+      esp_zb_attribute_list_t *attr_list = val;
+      while (attr_list) {
+        esp_zb_zcl_attr_t *attr = &attr_list->attribute;
+        ESP_LOGV(TAG, "  Attr ID: 0x%04X, Type: 0x%02X, Access: 0x%02X", attr->id, attr->type, attr->access);
+        attr_list = attr_list->next;
+      }
+#endif
     }
   }
   this->attribute_list_.clear();
@@ -242,6 +255,7 @@ void ZigbeeComponent::setup() {
       ESP_LOGE(TAG, "Could not create endpoint %u", ep_id);
     }
   }
+  this->endpoint_list_.clear();
 
   if (esp_zb_device_register(this->esp_zb_ep_list_) != ESP_OK) {
     ESP_LOGE(TAG, "Could not register the endpoint list");
@@ -270,14 +284,19 @@ void ZigbeeComponent::setup() {
 }
 
 void ZigbeeComponent::dump_config() {
+  esp_zb_lock_acquire(10 / portTICK_PERIOD_MS);
   ESP_LOGCONFIG(TAG,
                 "Zigbee\n"
                 "  Model: %s\n"
-                "  Router: %s",
-                this->basic_cluster_data_.model.c_str(), YESNO(this->device_role_ == ESP_ZB_DEVICE_TYPE_ROUTER));
-  for (auto const &[key, val] : this->endpoint_list_) {
-    ESP_LOGCONFIG(TAG, "  Endpoint: %u, %d", key, val);
-  }
+                "  Router: %s\n"
+                "  Device is joined to the network: %s\n"
+                "  Current channel: %d\n"
+                "  Short addr: 0x%04X\n"
+                "  Short pan id: 0x%04X",
+                this->basic_cluster_data_.model.c_str(), YESNO(this->device_role_ == ESP_ZB_DEVICE_TYPE_ROUTER),
+                YESNO(esp_zb_bdb_dev_joined()), esp_zb_get_current_channel(), esp_zb_get_short_address(),
+                esp_zb_get_pan_id());
+  esp_zb_lock_release();
 }
 
 }  // namespace esphome::zigbee
