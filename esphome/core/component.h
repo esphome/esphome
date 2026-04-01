@@ -568,6 +568,7 @@ class Component {
   volatile bool pending_enable_loop_{false};  ///< ISR-safe flag for enable_loop_soon_any_context
 #ifdef USE_RUNTIME_STATS
   friend class runtime_stats::RuntimeStatsCollector;
+  friend class WarnIfComponentBlockingGuard;
   ComponentRuntimeStats runtime_stats_;
 #endif
 };
