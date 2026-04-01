@@ -88,7 +88,7 @@ void I2SAudioSpeakerBase::loop() {
     xEventGroupClearBits(this->event_group_, SpeakerEventGroupBits::ALL_BITS);
     this->status_clear_error();
 
-    this->on_task_stopped_();
+    this->on_task_stopped();
 
     this->state_ = speaker::STATE_STOPPED;
   }
@@ -112,7 +112,7 @@ void I2SAudioSpeakerBase::loop() {
         break;
       }
 
-      if (this->start_i2s_driver_(this->audio_stream_info_) != ESP_OK) {
+      if (this->start_i2s_driver(this->audio_stream_info_) != ESP_OK) {
         ESP_LOGE(TAG, "Driver failed to start; retrying in 1 second");
         this->status_momentary_error("driver-failure", 1000);
         break;
@@ -218,7 +218,7 @@ bool I2SAudioSpeakerBase::has_buffered_data() const {
 
 void I2SAudioSpeakerBase::speaker_task(void *params) {
   I2SAudioSpeakerBase *this_speaker = (I2SAudioSpeakerBase *) params;
-  this_speaker->run_speaker_task_();
+  this_speaker->run_speaker_task();
 }
 
 void I2SAudioSpeakerBase::start() {

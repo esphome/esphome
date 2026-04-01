@@ -24,7 +24,7 @@ void I2SAudioSpeaker::dump_config() {
   ESP_LOGCONFIG(TAG, "  Communication format: %s", this->i2s_comm_fmt_.c_str());
 }
 
-void I2SAudioSpeaker::run_speaker_task_() {
+void I2SAudioSpeaker::run_speaker_task() {
   xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::TASK_STARTING);
 
   const uint32_t dma_buffers_duration_ms = DMA_BUFFER_DURATION_MS * DMA_BUFFERS_COUNT;
@@ -178,7 +178,7 @@ void I2SAudioSpeaker::run_speaker_task_() {
   }
 }
 
-esp_err_t I2SAudioSpeaker::start_i2s_driver_(audio::AudioStreamInfo &audio_stream_info) {
+esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream_info) {
   this->current_stream_info_ = audio_stream_info;
 
   if ((this->i2s_role_ & I2S_ROLE_SLAVE) && (this->sample_rate_ != audio_stream_info.get_sample_rate())) {  // NOLINT

@@ -119,7 +119,7 @@ void I2SAudioSpeakerSPDIF::dump_config() {
                 this->sample_rate_);
 }
 
-void I2SAudioSpeakerSPDIF::on_task_stopped_() {
+void I2SAudioSpeakerSPDIF::on_task_stopped() {
   this->spdif_needs_preload_ = true;
   this->spdif_silence_start_ = 0;
   this->spdif_preload_ended_ = 0;
@@ -166,7 +166,7 @@ size_t I2SAudioSpeakerSPDIF::play(const uint8_t *data, size_t length, TickType_t
   return bytes_written;
 }
 
-void I2SAudioSpeakerSPDIF::run_speaker_task_() {
+void I2SAudioSpeakerSPDIF::run_speaker_task() {
   xEventGroupSetBits(this->event_group_, SpeakerEventGroupBits::TASK_STARTING);
 
   // Reset SPDIF encoder at task start to ensure clean state
@@ -550,7 +550,7 @@ void I2SAudioSpeakerSPDIF::run_speaker_task_() {
   }
 }
 
-esp_err_t I2SAudioSpeakerSPDIF::start_i2s_driver_(audio::AudioStreamInfo &audio_stream_info) {
+esp_err_t I2SAudioSpeakerSPDIF::start_i2s_driver(audio::AudioStreamInfo &audio_stream_info) {
   this->current_stream_info_ = audio_stream_info;
 
   // SPDIF mode validation
