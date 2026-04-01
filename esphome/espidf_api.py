@@ -8,8 +8,7 @@ import re
 import shutil
 import subprocess
 
-from esphome.components.esp32.const import KEY_ESP32, KEY_FLASH_SIZE
-from esphome.const import KEY_CORE, KEY_FRAMEWORK_VERSION
+from esphome.components.esp32.const import KEY_ESP32, KEY_FLASH_SIZE, KEY_IDF_VERSION
 from esphome.core import CORE, EsphomeError
 from esphome.espidf_framework import check_esp_idf_install, get_framework_env
 
@@ -21,7 +20,7 @@ _idf_env_cache = {}
 
 
 def _get_core_framework_version():
-    return str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION])
+    return str(CORE.data[KEY_ESP32][KEY_IDF_VERSION])
 
 
 def _get_esphome_esp_idf_paths(

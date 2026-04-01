@@ -9,7 +9,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import socket
 from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
-from esphome.components.esp32.const import VARIANT_ESP32C2
+from esphome.components.esp32.const import KEY_ESP32, KEY_IDF_VERSION, VARIANT_ESP32C2
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENABLE_ON_BOOT,
@@ -18,8 +18,6 @@ from esphome.const import (
     CONF_MAX_CONNECTIONS,
     CONF_NAME,
     CONF_NAME_ADD_MAC_SUFFIX,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
 )
 from esphome.core import CORE, CoroPriority, TimePeriod, coroutine_with_priority
 import esphome.final_validate as fv
@@ -511,7 +509,7 @@ def final_validation(config):
     # Always enable GATTS when using native IDF : ESP-IDF 5.5.2.260206 has a bug in gatt_main.c where a
     # GATT_TRACE_DEBUG references 'msg_len' outside the GATTS_INCLUDED/GATTC_INCLUDED
     # guard, causing a compile error when both are disabled.
-    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+    framework_ver: cv.Version = CORE.data[KEY_ESP32][KEY_IDF_VERSION]
     force_gatts = CORE.using_native_idf and framework_ver == cv.Version(5, 5, 3)
 
     # ESP-IDF BLE stack requires GATT Server to be enabled when GATT Client is enabled
