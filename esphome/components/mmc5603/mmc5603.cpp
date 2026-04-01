@@ -126,21 +126,21 @@ void MMC5603Component::update() {
   int32_t raw_x = 0;
   raw_x |= buffer[0] << 12;
   raw_x |= buffer[1] << 4;
-  raw_x |= buffer[2] << 0;
+  raw_x |= buffer[2] & 0x0F;
 
   const float x = 0.00625 * (raw_x - 524288);
 
   int32_t raw_y = 0;
   raw_y |= buffer[3] << 12;
   raw_y |= buffer[4] << 4;
-  raw_y |= buffer[5] << 0;
+  raw_y |= buffer[5] & 0x0F;
 
   const float y = 0.00625 * (raw_y - 524288);
 
   int32_t raw_z = 0;
   raw_z |= buffer[6] << 12;
   raw_z |= buffer[7] << 4;
-  raw_z |= buffer[8] << 0;
+  raw_z |= buffer[8] & 0x0F;
 
   const float z = 0.00625 * (raw_z - 524288);
 

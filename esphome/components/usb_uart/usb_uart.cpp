@@ -169,7 +169,7 @@ void USBUartChannel::write_array(const uint8_t *data, size_t len) {
   this->parent_->start_output(this);
 }
 
-uart::FlushResult USBUartChannel::flush() {
+uart::UARTFlushResult USBUartChannel::flush() {
   // Spin until the output queue is drained and the last USB transfer completes.
   // Safe to call from the main loop only.
   // The flush_timeout_ms_ timeout guards against a device that stops responding mid-flush;
@@ -181,8 +181,8 @@ uart::FlushResult USBUartChannel::flush() {
     yield();
   }
   if (!this->output_queue_.empty() || this->output_started_.load())
-    return uart::FlushResult::TIMEOUT;
-  return uart::FlushResult::SUCCESS;
+    return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
+  return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
 }
 
 bool USBUartChannel::peek_byte(uint8_t *data) {
