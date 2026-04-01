@@ -10,6 +10,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
+#include <cinttypes>
 #include <cmath>
 #include <numbers>
 
@@ -575,7 +576,7 @@ void LD2450Component::handle_periodic_data_() {
       if (this->get_timeout_status_(this->presence_millis_)) {
         this->target_binary_sensor_->publish_state(false);
       } else {
-        ESP_LOGV(TAG, "Clear presence waiting timeout: %d", this->timeout_);
+        ESP_LOGV(TAG, "Clear presence waiting timeout: %" PRIu32, this->timeout_);
       }
     }
   }

@@ -44,6 +44,11 @@
 #include "esp_eth_phy_lan867x.h"
 #endif
 
+// ENC28J60 header exists on all IDF versions (always an external component)
+#ifdef USE_ETHERNET_ENC28J60
+#include "esp_eth_enc28j60.h"
+#endif
+
 #ifdef USE_ETHERNET_SPI
 #include <driver/gpio.h>
 #include <driver/spi_master.h>
@@ -194,25 +199,27 @@ void EthernetComponent::setup() {
       .post_cb = nullptr,
   };
 
-#ifdef USE_ETHERNET_W5500
+#if defined(USE_ETHERNET_W5500)
   eth_w5500_config_t w5500_config = ETH_W5500_DEFAULT_CONFIG(host, &devcfg);
-#endif
-#ifdef USE_ETHERNET_DM9051
+#elif defined(USE_ETHERNET_DM9051)
   eth_dm9051_config_t dm9051_config = ETH_DM9051_DEFAULT_CONFIG(host, &devcfg);
+#elif defined(USE_ETHERNET_ENC28J60)
+  eth_enc28j60_config_t enc28j60_config = ETH_ENC28J60_DEFAULT_CONFIG(host, &devcfg);
 #endif
 
-#ifdef USE_ETHERNET_W5500
+#if defined(USE_ETHERNET_W5500)
   w5500_config.int_gpio_num = this->interrupt_pin_;
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   w5500_config.poll_period_ms = this->polling_interval_;
 #endif
-#endif
-
-#ifdef USE_ETHERNET_DM9051
+#elif defined(USE_ETHERNET_DM9051)
   dm9051_config.int_gpio_num = this->interrupt_pin_;
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   dm9051_config.poll_period_ms = this->polling_interval_;
 #endif
+#elif defined(USE_ETHERNET_ENC28J60)
+  enc28j60_config.int_gpio_num = this->interrupt_pin_;
+  // ENC28J60 does not support poll_period_ms
 #endif
 
   phy_config.phy_addr = this->phy_addr_spi_;
@@ -300,17 +307,22 @@ void EthernetComponent::setup() {
 #endif
 #endif
 #ifdef USE_ETHERNET_SPI
-#ifdef USE_ETHERNET_W5500
+#if defined(USE_ETHERNET_W5500)
     case ETHERNET_TYPE_W5500: {
       mac = esp_eth_mac_new_w5500(&w5500_config, &mac_config);
       this->phy_ = esp_eth_phy_new_w5500(&phy_config);
       break;
     }
-#endif
-#ifdef USE_ETHERNET_DM9051
+#elif defined(USE_ETHERNET_DM9051)
     case ETHERNET_TYPE_DM9051: {
       mac = esp_eth_mac_new_dm9051(&dm9051_config, &mac_config);
       this->phy_ = esp_eth_phy_new_dm9051(&phy_config);
+      break;
+    }
+#elif defined(USE_ETHERNET_ENC28J60)
+    case ETHERNET_TYPE_ENC28J60: {
+      mac = esp_eth_mac_new_enc28j60(&enc28j60_config, &mac_config);
+      this->phy_ = esp_eth_phy_new_enc28j60(&phy_config);
       break;
     }
 #endif
@@ -405,14 +417,17 @@ void EthernetComponent::dump_config() {
       eth_type = "KSZ8081RNA";
       break;
 #endif
-#ifdef USE_ETHERNET_W5500
+#if defined(USE_ETHERNET_W5500)
     case ETHERNET_TYPE_W5500:
       eth_type = "W5500";
       break;
-#endif
-#ifdef USE_ETHERNET_DM9051
+#elif defined(USE_ETHERNET_DM9051)
     case ETHERNET_TYPE_DM9051:
       eth_type = "DM9051";
+      break;
+#elif defined(USE_ETHERNET_ENC28J60)
+    case ETHERNET_TYPE_ENC28J60:
+      eth_type = "ENC28J60";
       break;
 #endif
 #ifdef USE_ETHERNET_OPENETH
