@@ -59,83 +59,38 @@ inline uint64_t qword_from_hex_str(const std::string &value, uint8_t pos) {
   return modbus::helpers::qword_from_hex_str(value, pos);
 }
 
-// Extract data from modbus response buffer
-/** Extract data from modbus response buffer
- * @param T one of supported integer data types int_8,int_16,int_32,int_64
- * @param data modbus response buffer (uint8_t)
- * @param buffer_offset  offset in bytes.
- * @return value of type T extracted from buffer
- */
-template<typename T> T get_data(const std::vector<uint8_t> &data, size_t buffer_offset) {
-  if (sizeof(T) == sizeof(uint8_t)) {
-    return T(data[buffer_offset]);
-  }
-  if (sizeof(T) == sizeof(uint16_t)) {
-    return T((uint16_t(data[buffer_offset + 0]) << 8) | (uint16_t(data[buffer_offset + 1]) << 0));
-  }
-
-  if (sizeof(T) == sizeof(uint32_t)) {
-    return get_data<uint16_t>(data, buffer_offset) << 16 | get_data<uint16_t>(data, (buffer_offset + 2));
-  }
-
-  if (sizeof(T) == sizeof(uint64_t)) {
-    return static_cast<uint64_t>(get_data<uint32_t>(data, buffer_offset)) << 32 |
-           (static_cast<uint64_t>(get_data<uint32_t>(data, buffer_offset + 4)));
-  }
+template<typename T>
+ESPDEPRECATED("Use modbus::helpers::get_data() instead. Removed in 2026.10.0", "2026.4.0")
+T get_data(const std::vector<uint8_t> &data, size_t buffer_offset) {
+  return modbus::helpers::get_data<T>(data, buffer_offset);
 }
 
-/** Extract coil data from modbus response buffer
- * Responses for coil are packed into bytes .
- * coil 3 is bit 3 of the first response byte
- * coil 9 is bit 2 of the second response byte
- * @param coil number of the cil
- * @param data modbus response buffer (uint8_t)
- * @return content of coil register
- */
+ESPDEPRECATED("Use modbus::helpers::coil_from_vector() instead. Removed in 2026.10.0", "2026.4.0")
 inline bool coil_from_vector(int coil, const std::vector<uint8_t> &data) {
-  auto data_byte = coil / 8;
-  return (data[data_byte] & (1 << (coil % 8))) > 0;
+  return modbus::helpers::coil_from_vector(coil, data);
 }
 
-/** Extract bits from value and shift right according to the bitmask
- * if the bitmask is 0x00F0  we want the values frrom bit 5 - 8.
- * the result is then shifted right by the position if the first right set bit in the mask
- * Useful for modbus data where more than one value is packed in a 16 bit register
- * Example: on Epever the "Length of night" register 0x9065 encodes values of the whole night length of time as
- * D15 - D8 =  hour, D7 - D0 = minute
- * To get the hours use mask 0xFF00 and  0x00FF for the minute
- * @param data an integral value between 16 aand 32 bits,
- * @param bitmask the bitmask to apply
- */
-template<typename N> N mask_and_shift_by_rightbit(N data, uint32_t mask) {
-  auto result = (mask & data);
-  if (result == 0 || mask == 0xFFFFFFFF) {
-    return result;
-  }
-  for (size_t pos = 0; pos < sizeof(N) << 3; pos++) {
-    if ((mask & (1UL << pos)) != 0)
-      return result >> pos;
-  }
-  return 0;
+template<typename N>
+ESPDEPRECATED("Use modbus::helpers::mask_and_shift_by_rightbit() instead. Removed in 2026.10.0", "2026.4.0")
+N mask_and_shift_by_rightbit(N data, uint32_t mask) {
+  return modbus::helpers::mask_and_shift_by_rightbit(data, mask);
 }
 
-/** Convert float value to vector<uint16_t> suitable for sending
- * @param data target for payload
- * @param value float value to convert
- * @param value_type defines if 16/32 or FP32 is used
- * @return vector containing the modbus register words in correct order
- */
-void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueType value_type);
+ESPDEPRECATED("Use modbus::helpers::number_to_payload() instead. Removed in 2026.10.0", "2026.4.0")
+inline void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueType value_type) {
+  modbus::helpers::number_to_payload(data, value, value_type);
+}
 
-/** Convert vector<uint8_t> response payload to number.
- * @param data payload with the data to convert
- * @param sensor_value_type defines if 16/32/64 bits or FP32 is used
- * @param offset offset to the data in data
- * @param bitmask bitmask used for masking and shifting
- * @return 64-bit number of the payload
- */
-int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
-                          uint32_t bitmask);
+ESPDEPRECATED("Use modbus::helpers::payload_to_number() instead. Removed in 2026.10.0", "2026.4.0")
+inline int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
+                                 uint32_t bitmask) {
+  return modbus::helpers::payload_to_number(data, sensor_value_type, offset, bitmask);
+}
+
+ESPDEPRECATED("Use modbus::helpers::float_to_payload() instead. Removed in 2026.10.0", "2026.4.0")
+inline std::vector<uint16_t> float_to_payload(float value, SensorValueType value_type) {
+  return modbus::helpers::float_to_payload(value, value_type);
+}
 
 class ModbusController;
 
@@ -517,7 +472,7 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
  * @return float value of data
  */
 inline float payload_to_float(const std::vector<uint8_t> &data, const SensorItem &item) {
-  int64_t number = payload_to_number(data, item.sensor_value_type, item.offset, item.bitmask);
+  int64_t number = modbus::helpers::payload_to_number(data, item.sensor_value_type, item.offset, item.bitmask);
 
   float float_value;
   if (modbus::helpers::value_type_is_float(item.sensor_value_type)) {
@@ -527,20 +482,6 @@ inline float payload_to_float(const std::vector<uint8_t> &data, const SensorItem
   }
 
   return float_value;
-}
-
-inline std::vector<uint16_t> float_to_payload(float value, SensorValueType value_type) {
-  int64_t val;
-
-  if (modbus::helpers::value_type_is_float(value_type)) {
-    val = bit_cast<uint32_t>(value);
-  } else {
-    val = llroundf(value);
-  }
-
-  std::vector<uint16_t> data;
-  number_to_payload(data, val, value_type);
-  return data;
 }
 
 }  // namespace modbus_controller
