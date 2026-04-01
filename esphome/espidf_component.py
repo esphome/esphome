@@ -12,7 +12,7 @@ from typing import TypeVar
 from urllib.parse import urlparse, urlsplit, urlunsplit
 
 from esphome import git, yaml_util
-from esphome.const import CONF_PACKAGES
+from esphome.const import CONF_PACKAGES, KEY_CORE, KEY_FRAMEWORK_VERSION
 from esphome.core import CORE, Library
 from esphome.espidf_framework import (
     archive_extract_all,
@@ -52,7 +52,6 @@ SRC_FILE_EXTENSIONS = [
     ".ASM",
 ]
 
-ESPIDF_FRAMEWORK = "espidf"
 ESP32_PLATFORM = "espressif32"
 
 #
@@ -69,6 +68,11 @@ REQUIRES_DETECT_PATTERNS = {
     ],
     "esp_timer": [
         re.compile(r'^\s*#\s*include\s*[<"]esp_timer\.h[^">]*[">]', re.MULTILINE)
+    ],
+    "esp_wifi": [
+        re.compile(
+            r'^\s*#\s*include\s*[<"]WiFi\.h[^">]*[">]', re.MULTILINE
+        )  # Arduino WiFi
     ],
 }
 
@@ -292,6 +296,20 @@ def _patch_component(component: IDFComponent, first_pass: bool):
         first_pass: Boolean indicating if this is the first pass of processing
     """
 
+    # Patch only on the second step
+    if not first_pass and CORE.using_arduino:
+        # Add the missing dependency to Arduino framework
+        component.dependencies.append(
+            IDFComponent(
+                "espressif/arduino-esp32",
+                str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
+                GitSource(
+                    "https://github.com/espressif/arduino-esp32.git",
+                    str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
+                ),
+            )
+        )
+
     #
     # boschsensortec/Bosch-BSEC2-Library
     #
@@ -384,6 +402,19 @@ def _patch_component(component: IDFComponent, first_pass: bool):
         # Write final file (non-template)
         with open(library_json_file, "w", encoding="utf-8") as f:
             f.write(content)
+
+    #
+    # fastled/FastLED
+    #
+
+    # Patch only on the first step
+    if (
+        first_pass
+        and component.name == _owner_pkgname_to_name("fastled", "FastLED")
+        and not (component.path / "idf_component.yml").is_file()
+    ):
+        # Force fake idf_component: This project already support ESP-IDF
+        (component.path / "idf_component.yml").write_text("")
 
 
 T = TypeVar("T")
@@ -761,7 +792,17 @@ def generate_idf_component_yml(component: IDFComponent) -> str:
         # Add this dependency to dependencies
         dep = {}
         dep["version"] = dependency.version
-        dep["override_path"] = str(dependency.path)
+
+        # Should use dependency.path as override path
+        try:
+            dep["override_path"] = str(dependency.path)
+        except RuntimeError as e:
+            # Otherwise we could use Git
+            if isinstance(dependency.source, GitSource):
+                dep["git"] = dependency.source.url
+            else:
+                raise e
+
         data["dependencies"][dependency.get_sanitized_name()] = dep
 
     return yaml_util.dump(data)
@@ -777,7 +818,10 @@ def _check_library_data(data: dict):
     Raises:
         ValueError: If library has unsupported platforms or frameworks
     """
-    platforms = _ensure_list(data.get("platforms", "*"))
+    platforms = data.get("platforms", "*")
+    if isinstance(platforms, str):
+        platforms = [a.strip() for a in platforms.split(",")]
+    platforms = _ensure_list(platforms)
 
     # Check if library supports ESP-IDF platform
     valid_platforms = "*" in platforms or ESP32_PLATFORM in platforms
@@ -785,10 +829,14 @@ def _check_library_data(data: dict):
     if not valid_platforms:
         raise InvalidIDFComponent(f"Unsupported library platforms: {platforms}")
 
-    frameworks = _ensure_list(data.get("frameworks", "*"))
+    frameworks = data.get("frameworks", "*")
+    if isinstance(frameworks, str):
+        frameworks = [a.strip() for a in frameworks.split(",")]
+    frameworks = _ensure_list(frameworks)
 
     # Check if library supports ESP-IDF framework
-    valid_framework = "*" in frameworks or ESPIDF_FRAMEWORK in frameworks
+    framework = "arduino" if CORE.using_arduino else "espidf"
+    valid_framework = "*" in frameworks or framework in frameworks
 
     if not valid_framework:
         raise InvalidIDFComponent(f"Unsupported library frameworks: {frameworks}")
@@ -920,6 +968,10 @@ def _generate_idf_component(library: Library, force: bool = False) -> IDFCompone
 
     # Apply patches to the library metadata
     _patch_component(component, True)
+
+    if cmakelists_txt_path.is_file() and idf_component_yml_path.is_file():
+        # Already an ESP-IDF component
+        return component
 
     if library_json_path.is_file():
         component.data = _parse_library_json(library_json_path)

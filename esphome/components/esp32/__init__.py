@@ -458,6 +458,9 @@ def set_core_data(config):
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         CORE.data[KEY_ESP32][KEY_IDF_VERSION] = framework_ver
     elif (idf_ver := ARDUINO_IDF_VERSION_LOOKUP.get(framework_ver)) is not None:
+        if CORE.using_native_idf:
+            # Official ESP-IDF frameworks don't use extra
+            idf_ver = cv.Version(idf_ver.major, idf_ver.minor, idf_ver.patch)
         CORE.data[KEY_ESP32][KEY_IDF_VERSION] = idf_ver
     else:
         raise cv.Invalid(
@@ -721,7 +724,7 @@ ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
     "dev": cv.Version(5, 5, 4),
 }
 
-PIO_ESP_IDF_PLATFORM_VERSION_LOOKUP = {
+ESP_IDF_PLATFORM_VERSION_LOOKUP = {
     cv.Version(
         6, 0, 0
     ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
@@ -746,7 +749,7 @@ PIO_ESP_IDF_PLATFORM_VERSION_LOOKUP = {
 
 # The platform-espressif32 version
 #  - https://github.com/pioarduino/platform-espressif32/releases
-PIO_PLATFORM_VERSION_LOOKUP = {
+PLATFORM_VERSION_LOOKUP = {
     "recommended": cv.Version(55, 3, 37),
     "latest": cv.Version(55, 3, 37),
     "dev": "https://github.com/pioarduino/platform-espressif32.git#develop",
@@ -757,13 +760,13 @@ def _check_pio_versions(config):
     config = config.copy()
     value = config[CONF_FRAMEWORK]
 
-    if value[CONF_VERSION] in PIO_PLATFORM_VERSION_LOOKUP:
+    if value[CONF_VERSION] in PLATFORM_VERSION_LOOKUP:
         if CONF_SOURCE in value or CONF_PLATFORM_VERSION in value:
             raise cv.Invalid(
                 "Version needs to be explicitly set when a custom source or platform_version is used."
             )
 
-        platform_lookup = PIO_PLATFORM_VERSION_LOOKUP[value[CONF_VERSION]]
+        platform_lookup = PLATFORM_VERSION_LOOKUP[value[CONF_VERSION]]
         value[CONF_PLATFORM_VERSION] = _parse_pio_platform_version(str(platform_lookup))
 
         if value[CONF_TYPE] == FRAMEWORK_ARDUINO:
@@ -789,7 +792,7 @@ def _check_pio_versions(config):
         if version < cv.Version(5, 0, 0):
             raise cv.Invalid("Only ESP-IDF 5.0+ is supported.")
         recommended_version = ESP_IDF_FRAMEWORK_VERSION_LOOKUP["recommended"]
-        platform_lookup = PIO_ESP_IDF_PLATFORM_VERSION_LOOKUP.get(version)
+        platform_lookup = ESP_IDF_PLATFORM_VERSION_LOOKUP.get(version)
         value[CONF_SOURCE] = value.get(
             CONF_SOURCE,
             _format_framework_pio_espidf_version(version, value.get(CONF_RELEASE)),
@@ -811,7 +814,7 @@ def _check_pio_versions(config):
         )
 
     if value[CONF_PLATFORM_VERSION] != _parse_pio_platform_version(
-        str(PIO_PLATFORM_VERSION_LOOKUP["recommended"])
+        str(PLATFORM_VERSION_LOOKUP["recommended"])
     ):
         _LOGGER.warning(
             "The selected platform version is not the recommended one. "
@@ -822,14 +825,15 @@ def _check_pio_versions(config):
 
 
 def _check_native_idf_versions(config):
-    config = config.copy()
+    config = _check_pio_versions(config)
     value = config[CONF_FRAMEWORK]
-    if value[CONF_VERSION] in ESP_IDF_FRAMEWORK_VERSION_LOOKUP:
-        version = ESP_IDF_FRAMEWORK_VERSION_LOOKUP[value[CONF_VERSION]]
-    else:
-        version = cv.Version.parse(cv.version_number(value[CONF_VERSION]))
+
+    # Remove unwanted keys if present
+    for key in (CONF_SOURCE, CONF_PLATFORM_VERSION):
+        value.pop(key, None)  # remove key if exists, do nothing otherwise
 
     # Official ESP-IDF frameworks don't use extra
+    version = cv.Version.parse(value[CONF_VERSION])
     version = cv.Version(version.major, version.minor, version.patch)
 
     value[CONF_VERSION] = str(version)
@@ -2386,9 +2390,19 @@ def _write_idf_component_yml():
             if stub_path.exists():
                 rmtree(stub_path)
 
+        if CORE.using_native_idf:
+            add_idf_component(
+                name="espressif/arduino-esp32",
+                repo="https://github.com/espressif/arduino-esp32.git",
+                ref=str(CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]),
+            )
+
     if CORE.using_native_idf:
         # Try to convert PlatformIO library to ESP-IDF components
         for name, library in CORE.platformio_libraries.items():
+            # Don't process arduino libraries
+            if name in ARDUINO_DISABLED_LIBRARIES:
+                continue
             dependency_name, dependency = _platformio_library_to_dependency(library)
             dependencies[dependency_name] = dependency
 

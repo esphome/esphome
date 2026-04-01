@@ -834,11 +834,7 @@ class EsphomeCore:
 
     @property
     def using_native_idf(self):
-        return (
-            self.data.get(KEY_NATIVE_IDF, False)
-            and self.is_esp32
-            and self.target_framework == "esp-idf"
-        )
+        return self.data.get(KEY_NATIVE_IDF, False) and self.is_esp32
 
     @property
     def using_zephyr(self):
