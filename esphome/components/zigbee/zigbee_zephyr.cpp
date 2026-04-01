@@ -285,7 +285,10 @@ void ZigbeeComponent::after_reporting_info(zb_zcl_configure_reporting_req_t *con
       zb_zcl_find_reporting_info_manuf(attr_addr_info->src_ep, attr_addr_info->cluster_id, attr_addr_info->cluster_role,
                                        config_rep_req->attr_id, attr_addr_info->manuf_code);
   if (rep_info == nullptr) {
-    ESP_LOGE(TAG, "rep_info is null");
+    ESP_LOGE(TAG,
+             "Failed to resolve reporting info (src_ep=%u cluster_id=0x%04x role=%u attr_id=0x%04x manuf_code=0x%04x)",
+             attr_addr_info->src_ep, attr_addr_info->cluster_id, attr_addr_info->cluster_role, config_rep_req->attr_id,
+             attr_addr_info->manuf_code);
     return;
   }
   auto now = millis();
