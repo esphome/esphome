@@ -15,7 +15,7 @@ The IT8951E does NOT use a DC pin; it uses 16-bit SPI command preambles instead.
 EpaperModel(
     "it8951e",
     class_name="EPaperIT8951E",
-    initsequence=None,
+    initsequence=(),
     dc_pin=False,
 )
 
@@ -25,7 +25,7 @@ EpaperModel(
     class_name="EPaperIT8951E",
     width=960,
     height=540,
-    initsequence=None,
+    initsequence=(),
     busy_pin=27,
     reset_pin=23,
     cs_pin=15,
