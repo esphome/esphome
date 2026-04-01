@@ -23,7 +23,13 @@ uint8_t *get_zcl_string(const char *str, uint8_t max_size, bool use_max_size) {
   uint8_t zcl_str_size = use_max_size ? max_size : std::min(max_size, str_len);
   uint8_t *zcl_str = new uint8_t[zcl_str_size + 1];  // string + length octet
   zcl_str[0] = zcl_str_size;
-  memcpy(zcl_str + 1, str, str_len);
+
+  // Initialize payload to avoid leaking uninitialized heap contents and clamp copy length
+  memset(zcl_str + 1, 0, zcl_str_size);
+  uint8_t copy_len = std::min(zcl_str_size, str_len);
+  if (copy_len > 0) {
+    memcpy(zcl_str + 1, str, copy_len);
+  }
   return zcl_str;
 }
 

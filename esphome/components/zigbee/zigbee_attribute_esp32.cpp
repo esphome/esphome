@@ -19,7 +19,7 @@ void ZigbeeAttribute::set_attr_() {
     this->set_attr_requested_ = false;
     // Check for error
     if (state != ESP_ZB_ZCL_STATUS_SUCCESS) {
-      ESP_LOGE(TAG, "Setting attribute failed: %s", esp_err_to_name(state));
+      ESP_LOGE(TAG, "Setting attribute failed, ZCL status: %u", static_cast<unsigned>(state));
     }
     esp_zb_lock_release();
   }
