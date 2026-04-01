@@ -71,32 +71,27 @@ template<typename... Ts> class VolumeSetAction : public Action<Ts...>, public Pa
   void play(const Ts &...x) override { this->parent_->make_call().set_volume(this->volume_.value(x...)).perform(); }
 };
 
-class StateTrigger : public Trigger<> {
- public:
-  explicit StateTrigger(MediaPlayer *player) {
-    player->add_on_state_callback([this]() { this->trigger(); });
+/// Callback forwarder that triggers an Automation<> on any state change.
+/// Pointer-sized (single Automation* field) to fit inline in Callback::ctx_.
+struct StateAnyForwarder {
+  Automation<> *automation;
+  void operator()(MediaPlayerState /*state*/) const { this->automation->trigger(); }
+};
+
+/// Callback forwarder that triggers an Automation<> only when a specific media player state is entered.
+/// Pointer-sized (single Automation* field) to fit inline in Callback::ctx_.
+template<MediaPlayerState State> struct StateEnterForwarder {
+  Automation<> *automation;
+  void operator()(MediaPlayerState state) const {
+    if (state == State)
+      this->automation->trigger();
   }
 };
 
-template<MediaPlayerState State> class MediaPlayerStateTrigger : public Trigger<> {
- public:
-  explicit MediaPlayerStateTrigger(MediaPlayer *player) : player_(player) {
-    player->add_on_state_callback([this]() {
-      if (this->player_->state == State)
-        this->trigger();
-    });
-  }
-
- protected:
-  MediaPlayer *player_;
-};
-
-using IdleTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_IDLE>;
-using PlayTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING>;
-using PauseTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_PAUSED>;
-using AnnouncementTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING>;
-using OnTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_ON>;
-using OffTrigger = MediaPlayerStateTrigger<MediaPlayerState::MEDIA_PLAYER_STATE_OFF>;
+static_assert(sizeof(StateAnyForwarder) <= sizeof(void *));
+static_assert(std::is_trivially_copyable_v<StateAnyForwarder>);
+static_assert(sizeof(StateEnterForwarder<MediaPlayerState::MEDIA_PLAYER_STATE_IDLE>) <= sizeof(void *));
+static_assert(std::is_trivially_copyable_v<StateEnterForwarder<MediaPlayerState::MEDIA_PLAYER_STATE_IDLE>>);
 
 template<typename... Ts> class IsIdleCondition : public Condition<Ts...>, public Parented<MediaPlayer> {
  public:
