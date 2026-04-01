@@ -519,13 +519,6 @@ WarnIfComponentBlockingGuard::warn_blocking(Component *component, uint32_t block
   }
 }
 
-#ifdef USE_RUNTIME_STATS
-void WarnIfComponentBlockingGuard::record_runtime_stats_() {
-  uint32_t duration_us = micros() - this->started_us_;
-  this->component_->runtime_stats_.record_time(duration_us);
-}
-#endif
-
 #ifdef USE_SETUP_PRIORITY_OVERRIDE
 void clear_setup_priority_overrides() {
   // Free the setup priority map completely

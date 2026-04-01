@@ -628,23 +628,22 @@ class WarnIfComponentBlockingGuard {
         started_us_(micros())
 #endif
   {
+#ifdef USE_RUNTIME_STATS
+    // Use micros()-derived ms for both stats and blocking detection so clocks match
+    this->started_ = this->started_us_ / 1000U;
+#endif
   }
 
   // Finish the timing operation and return the current time
-  // Inlined: the fast path is just millis() + subtract + compare
   inline uint32_t HOT finish() {
-    uint32_t curr_time = millis();
-    uint32_t blocking_time = curr_time - this->started_;
 #ifdef USE_RUNTIME_STATS
-    this->record_runtime_stats_();
+    // Single micros() call serves both runtime stats and blocking detection.
+    // Converting to millis avoids the separate millis() call.
+    uint32_t curr_time = this->record_runtime_stats_();
+#else
+    uint32_t curr_time = millis();
 #endif
-#ifndef USE_BENCHMARK
-    // Fast path: compare against constant threshold in ms (computed at compile time from centiseconds)
-    static constexpr uint32_t WARN_IF_BLOCKING_OVER_MS = static_cast<uint32_t>(WARN_IF_BLOCKING_OVER_CS) * 10U;
-    if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
-      warn_blocking(this->component_, blocking_time);
-    }
-#endif
+    this->check_blocking_(curr_time);
     return curr_time;
   }
 
@@ -655,8 +654,23 @@ class WarnIfComponentBlockingGuard {
   Component *component_;
 #ifdef USE_RUNTIME_STATS
   uint32_t started_us_;
-  void record_runtime_stats_();
+  // Record runtime stats and return current time in ms (derived from micros())
+  inline uint32_t record_runtime_stats_() {
+    uint32_t end_us = micros();
+    this->component_->runtime_stats_.record_time(end_us - this->started_us_);
+    return end_us / 1000U;
+  }
 #endif
+  // Fast path: compare against constant threshold in ms (computed at compile time from centiseconds)
+  inline void check_blocking_(uint32_t curr_time) {
+#ifndef USE_BENCHMARK
+    static constexpr uint32_t WARN_IF_BLOCKING_OVER_MS = static_cast<uint32_t>(WARN_IF_BLOCKING_OVER_CS) * 10U;
+    uint32_t blocking_time = curr_time - this->started_;
+    if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
+      warn_blocking(this->component_, blocking_time);
+    }
+#endif
+  }
 
  private:
   // Cold path for blocking warning - defined in component.cpp
