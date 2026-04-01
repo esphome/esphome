@@ -59,6 +59,10 @@ template<class T, uint8_t SIZE> class FreeRTOSQueue {
   }
 
   uint16_t get_and_reset_dropped_count() {
+    // Fast path: plain read is safe for aligned uint16_t on ARM.
+    // Drops are rare so almost always returns 0 without entering a critical section.
+    if (this->dropped_count_ == 0)
+      return 0;
     portENTER_CRITICAL();
     uint16_t count = this->dropped_count_;
     this->dropped_count_ = 0;
