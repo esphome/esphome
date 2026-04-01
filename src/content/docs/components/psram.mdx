@@ -19,7 +19,7 @@ psram:
 ## Configuration variables
 
 - **mode** (*Optional*): Defines the operating mode the PSRAM should utilize. One of `quad`, `octal` or `hex`.
-  Defaults to `quad` for ESP32, ESP32-C5, ESP32-S2 and `hex` for ESP32-P4. ESP32-S3 has no default and *requires* this option to be set.
+  Defaults to `quad` for ESP32, ESP32-C5, ESP32-C61, ESP32-S2 and `hex` for ESP32-P4. ESP32-S3 has no default and *requires* this option to be set.
   See notes below.
 - **speed** (*Optional*, int): The speed at which the PSRAM should operate. One of `40MHz` (default), `80MHz` or `120MHz`.
 - **enable_ecc** (*Optional*, bool): For octal mode, enable ECC (Error Correction Code) for the PSRAM (default is off.)
@@ -35,7 +35,7 @@ psram:
 
 ## Modes
 
-The ESP32, ESP32-C5 and ESP32-S2 PSRAM is only available in `quad` mode, and ESP32-P4 only supports `hex` mode. These are the defaults
+The ESP32, ESP32-C5, ESP32-C61 and ESP32-S2 PSRAM is only available in `quad` mode, and ESP32-P4 only supports `hex` mode. These are the defaults
 when using those variants. For ESP32-S3, the `mode` option is required and must be set to `quad` or `octal`.
 Typically on ESP32-S3 modules, a 2MB PSRAM will use quad mode, while 8 or 16MB will use octal mode, but check
 the datasheet for the module you are using to be sure.
