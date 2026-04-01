@@ -157,12 +157,12 @@ Let's explain with some examples:
 | ------------ | ---------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | 172.16.0.100 | *omitted* or 255.255.255.255 | *omitted* or any other value                                                  | **none**, no routes are created                                                                                                            |
 | 172.16.0.100 | 255.255.255.0                | *omitted*                                                                     | to `172.16.0.0/24` network                                                                                                                 |
-| 172.16.0.100 | 255.255.255.0                | `- 172.16.0.0/24<br />- 192.168.0.0/24`<br /> *`- any other`* | only to `172.16.0.0/24` because `192.168.0.0/24` and any other network will be outside of `172.16.0.0/24`                                  |
+| 172.16.0.100 | 255.255.255.0                | `- 172.16.0.0/24`<br />`- 192.168.0.0/24`<br /> *`- any other`* | only to `172.16.0.0/24` because `192.168.0.0/24` and any other network will be outside of `172.16.0.0/24`                                  |
 | 172.16.0.100 | 255.255.255.0                | `- 192.168.0.0/24`                                                            | **none** because `192.168.0.0/24` is not part of `172.16.0.0/24`                                                                           |
 | 10.44.0.100  | 255.0.0.0                    | *omitted*                                                                     | to `10.0.0.0/8` network                                                                                                                    |
-| 10.44.0.100  | 255.0.0.0                    | `- 10.44.0.0/16<br />- 10.10.0.0/16`                                 | only to the networks in the allowed list because the netmask will route the whole `10.0.0.0/8` but wireguard allows only those two subnets |
+| 10.44.0.100  | 255.0.0.0                    | `- 10.44.0.0/16`<br />`- 10.10.0.0/16`                                 | only to the networks in the allowed list because the netmask will route the whole `10.0.0.0/8` but wireguard allows only those two subnets |
 | any          | 0.0.0.0                      | *omitted*                                                                     | **any**                                                                                                                                    |
-| any          | 0.0.0.0                      | `- 172.16.0.0/24<br />- 10.44.0.0/16`<br />`- 10.10.0.0/16`   | to any network that is in the list of allowed IPs because the netmask will route any traffic but wireguard allows only its own list        |
+| any          | 0.0.0.0                      | `- 172.16.0.0/24`<br />`- 10.44.0.0/16`<br />`- 10.10.0.0/16`   | to any network that is in the list of allowed IPs because the netmask will route any traffic but wireguard allows only its own list        |
 
 > [!NOTE]
 > Setting the `netmask` to `0.0.0.0` has the effect of routing
@@ -317,7 +317,7 @@ on the platform and on the operating system in use.
 
 You can start reading the [official documentation](https://www.wireguard.com/)
 to have an overview of what it is and on how to install it *system wide* for
-common operating systems. Read the thread at [Home Assistant Community Add-on: WireGuard](https://community.home-assistant.io/t/home-assistant-community-add-on-wireguard/134662)
+common operating systems. Read the thread at [Home Assistant Community Add-on: WireGuard](https://community.home-assistant.io/t/134662)
 if you intend to install it through Home Assistant. Plase note that securely
 setting up a VPN requires some networking experience, you will need to open
 router ports and possibly use custom commands to redirect traffic.
@@ -352,5 +352,5 @@ The device should now be linked to your remote Home Assistant.
 - [SNTP Time Source](/components/time/sntp/)
 - [Automation](/automations)
 - [WireGuard®](https://www.wireguard.org/) official website
-- [Home Assistant Community Add-on: WireGuard](https://community.home-assistant.io/t/home-assistant-community-add-on-wireguard/134662)
+- [Home Assistant Community Add-on: WireGuard](https://community.home-assistant.io/t/134662)
   (also on [GitHub](https://github.com/hassio-addons/addon-wireguard))

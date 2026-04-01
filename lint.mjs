@@ -306,8 +306,10 @@ async function checkInternalLinks(fname, content, anchorCache) {
       continue;
     }
 
-    // Skip relative links without leading slash
+    // Flag relative links - all internal links should use absolute paths
     if (!linkUrl.startsWith('/')) {
+      addError(fname, lineno, col,
+        `Relative link '${linkUrl}' should use an absolute path (e.g., /components/...)`);
       continue;
     }
 

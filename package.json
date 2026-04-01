@@ -10,15 +10,15 @@
     "lint": "node lint.mjs"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.37.7",
-    "astro": "^5.18.0",
-    "katex": "^0.16.38",
+    "@astrojs/starlight": "^0.38.2",
+    "astro": "^6.0.8",
+    "katex": "^0.16.40",
     "micromark": "^4.0.2",
     "rehype-katex": "^7.0.1",
-    "remark-github-blockquote-alert": "^2.0.1",
+    "remark-github-blockquote-alert": "^2.1.0",
     "remark-math": "^6.0.0",
     "sharp": "^0.34.5",
-    "starlight-blog": "^0.25.3"
+    "starlight-blog": "^0.26.1"
   },
   "repository": {
     "type": "git",
@@ -30,6 +30,6 @@
   },
   "homepage": "https://esphome.io",
   "devDependencies": {
-    "jsdom": "^28.1.0"
+    "jsdom": "^29.0.1"
   }
 }

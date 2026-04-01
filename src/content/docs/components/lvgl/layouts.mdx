@@ -86,14 +86,15 @@ handle growing the layout to make the item(s) fill the remaining space with resp
 **Configuration variables:**
 
 - **flex_flow** (*Optional*, string): Select the arrangement of the children widgets:
-- `ROW`  : place the children in a row without wrapping.
-- `COLUMN`  : place the children in a column without wrapping.
-- `ROW_WRAP`  : place the children in a row with wrapping (default).
-- `COLUMN_WRAP`  : place the children in a column with wrapping.
-- `ROW_REVERSE`  : place the children in a row without wrapping but in reversed order.
-- `COLUMN_REVERSE`  : place the children in a column without wrapping but in reversed order.
-- `ROW_WRAP_REVERSE`  : place the children in a row with wrapping but in reversed order.
-- `COLUMN_WRAP_REVERSE`  : place the children in a column with wrapping but in reversed order.
+
+  - `ROW`  : place the children in a row without wrapping.
+  - `COLUMN`  : place the children in a column without wrapping.
+  - `ROW_WRAP`  : place the children in a row with wrapping (default).
+  - `COLUMN_WRAP`  : place the children in a column with wrapping.
+  - `ROW_REVERSE`  : place the children in a row without wrapping but in reversed order.
+  - `COLUMN_REVERSE`  : place the children in a column without wrapping but in reversed order.
+  - `ROW_WRAP_REVERSE`  : place the children in a row with wrapping but in reversed order.
+  - `COLUMN_WRAP_REVERSE`  : place the children in a column with wrapping but in reversed order.
 
 - **flex_align_main** (*Optional*, string): Determines how to distribute the items in their track on the *main* axis.
   For example, flush the items to the right on with `flex_flow: ROW_WRAP` (known as *justify-content* in CSS). Possible
@@ -107,17 +108,17 @@ handle growing the layout to make the item(s) fill the remaining space with resp
 
   Values for use with `flex_align_main`, `flex_align_cross`, `flex_align_track`  :
 
-- `START`  : means left horizontally and top vertically (default).
-- `END`  : means right horizontally and bottom vertically.
-- `CENTER`  : simply center.
-- `SPACE_EVENLY`  : items are distributed so that the spacing between any two items (and the space to the edges) is
-  equal. Does not apply to `flex_align_track`.
-- `SPACE_AROUND`  : items are evenly distributed in the track with equal space around them. Note that visually the
-  spaces aren't equal, since all the items have equal space on both sides. The first item will have one unit of space
-  against the container edge, but two units of space between the next item because that next item has its own spacing
-  that applies. Does not apply to `flex_align_track`.
-- `SPACE_BETWEEN`  : items are evenly distributed in the track: first item is on the start line, last item on the end
-  line. Does not apply to `flex_align_track`.
+  - `START`  : means left horizontally and top vertically (default).
+  - `END`  : means right horizontally and bottom vertically.
+  - `CENTER`  : simply center.
+  - `SPACE_EVENLY`  : items are distributed so that the spacing between any two items (and the space to the edges) is
+    equal. Does not apply to `flex_align_track`.
+  - `SPACE_AROUND`  : items are evenly distributed in the track with equal space around them. Note that visually the
+    spaces aren't equal, since all the items have equal space on both sides. The first item will have one unit of space
+    against the container edge, but two units of space between the next item because that next item has its own spacing
+    that applies. Does not apply to `flex_align_track`.
+  - `SPACE_BETWEEN`  : items are evenly distributed in the track: first item is on the start line, last item on the end
+    line. Does not apply to `flex_align_track`.
 
 The `flex_align_cross` option may also take the argument `STRETCH` which will cause the items to fill the available
 space on the cross axis. This is achieved by setting the default height or width of each item to 100%. An explicit
