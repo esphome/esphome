@@ -125,7 +125,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def validate_number_of_ep(config: ConfigType) -> None:
+def validate_number_of_ep(config: ConfigType) -> ConfigType:
     if not CORE.is_nrf52:
         return config
     if KEY_ZIGBEE not in CORE.data:
@@ -137,6 +137,8 @@ def validate_number_of_ep(config: ConfigType) -> None:
         )
     if count > CONF_MAX_EP_NUMBER and not CORE.testing_mode:
         raise cv.Invalid(f"Maximum number of end points is {CONF_MAX_EP_NUMBER}")
+
+    return config
 
 
 FINAL_VALIDATE_SCHEMA = cv.All(

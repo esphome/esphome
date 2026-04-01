@@ -97,6 +97,8 @@ def validate_attributes(config: ConfigType) -> ConfigType:
 
 
 def final_validate_esp32(config: ConfigType) -> ConfigType:
+    if not CORE.is_esp32:
+        return config
     if CONF_WIFI in fv.full_config.get():
         if config[CONF_ROUTER] and CONF_AP in fv.full_config.get()[CONF_WIFI]:
             raise cv.Invalid(
@@ -188,7 +190,6 @@ async def _zigbee_add_sdkconfigs(config: ConfigType) -> None:
     add_idf_sdkconfig_option("CONFIG_ZB_RADIO_NATIVE", True)
     if CONF_WIFI in CORE.config:
         add_idf_sdkconfig_option("CONFIG_ESP_SYSTEM_EVENT_TASK_STACK_SIZE", 4096)
-        cg.add_define("CONFIG_WIFI_COEX")
     # The pre-built Zigbee library uses esp_log_default_level which requires
     # dynamic log level control to be enabled
     add_idf_sdkconfig_option("CONFIG_LOG_DYNAMIC_LEVEL_CONTROL", True)

@@ -10,7 +10,7 @@
 #include "zigbee_esp32.h"
 #include "esphome/core/log.h"
 #include "zigbee_helpers_esp32.h"
-#ifdef CONFIG_WIFI_COEX
+#ifdef USE_WIFI
 #include "esp_coexist.h"
 #endif
 
@@ -197,7 +197,7 @@ void ZigbeeComponent::setup() {
       .radio_config = ESP_ZB_DEFAULT_RADIO_CONFIG(),
       .host_config = ESP_ZB_DEFAULT_HOST_CONFIG(),
   };
-#ifdef CONFIG_WIFI_COEX
+#ifdef USE_WIFI
   if (esp_coex_wifi_i154_enable() != ESP_OK) {
     this->mark_failed();
     return;
