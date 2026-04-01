@@ -192,7 +192,9 @@ class Climate : public EntityBase {
    *
    * @param callback The callback to call.
    */
-  void add_on_state_callback(std::function<void(Climate &)> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
   /**
    * Add a callback for the climate device configuration; each time the configuration parameters of a climate device
@@ -200,7 +202,9 @@ class Climate : public EntityBase {
    *
    * @param callback The callback to call.
    */
-  void add_on_control_callback(std::function<void(ClimateCall &)> &&callback);
+  template<typename F> void add_on_control_callback(F &&callback) {
+    this->control_callback_.add(std::forward<F>(callback));
+  }
 
   /** Make a climate device control call, this is used to control the climate device, see the ClimateCall description
    * for more info.
@@ -331,7 +335,8 @@ class Climate : public EntityBase {
   /** Internal method to save the state of the climate device to recover memory. This is automatically
    * called from publish_state()
    */
-  void save_state_();
+  void save_state_(const ClimateTraits &traits);
+  void save_state_() { this->save_state_(this->traits()); }
 
   void dump_traits_(const char *tag);
 

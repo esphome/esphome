@@ -124,7 +124,7 @@ def set_reference_values(config):
         config.setdefault(CONF_VOLTAGE_REFERENCE, DEFAULT_BL0940_LEGACY_UREF)
         config.setdefault(CONF_CURRENT_REFERENCE, DEFAULT_BL0940_LEGACY_IREF)
         config.setdefault(CONF_POWER_REFERENCE, DEFAULT_BL0940_LEGACY_PREF)
-        config.setdefault(CONF_ENERGY_REFERENCE, DEFAULT_BL0940_LEGACY_PREF)
+        config.setdefault(CONF_ENERGY_REFERENCE, DEFAULT_BL0940_LEGACY_EREF)
     else:
         vref = config.get(CONF_VOLTAGE_REFERENCE, DEFAULT_BL0940_VREF)
         r_one = config.get(CONF_RESISTOR_ONE, DEFAULT_BL0940_R1)

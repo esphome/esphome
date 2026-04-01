@@ -84,10 +84,8 @@ void store_component_error_message(const Component *component, const char *messa
 
 static constexpr uint16_t WARN_IF_BLOCKING_INCREMENT_MS =
     10U;  ///< How long the blocking time must be larger to warn again
-
-#ifdef USE_LOOP_PRIORITY
-float Component::get_loop_priority() const { return 0.0f; }
-#endif
+// Threshold in ms (computed from centiseconds constant in component.h)
+static constexpr uint32_t WARN_IF_BLOCKING_OVER_MS = static_cast<uint32_t>(WARN_IF_BLOCKING_OVER_CS) * 10U;
 
 float Component::get_setup_priority() const { return setup_priority::DATA; }
 
@@ -209,7 +207,6 @@ bool Component::cancel_retry(uint32_t id) {
 #pragma GCC diagnostic pop
 }
 
-void Component::call_loop_() { this->loop(); }
 void Component::call_setup() { this->setup(); }
 void Component::call_dump_config_() {
   this->dump_config();
@@ -259,11 +256,11 @@ void Component::call() {
     case COMPONENT_STATE_SETUP:
       // State setup: Call first loop and set state to loop
       this->set_component_state_(COMPONENT_STATE_LOOP);
-      this->call_loop_();
+      this->loop();
       break;
     case COMPONENT_STATE_LOOP:
       // State loop: Call loop
-      this->call_loop_();
+      this->loop();
       break;
     case COMPONENT_STATE_FAILED:
       // State failed: Do nothing
@@ -274,17 +271,17 @@ void Component::call() {
   }
 }
 const LogString *Component::get_component_log_str() const {
-  return this->component_source_ == nullptr ? LOG_STR("<unknown>") : this->component_source_;
+  return component_source_lookup(this->component_source_index_);
 }
 bool Component::should_warn_of_blocking(uint32_t blocking_time) {
-  if (blocking_time > this->warn_if_blocking_over_) {
-    // Prevent overflow when adding increment - if we're about to overflow, just max out
-    if (blocking_time + WARN_IF_BLOCKING_INCREMENT_MS < blocking_time ||
-        blocking_time + WARN_IF_BLOCKING_INCREMENT_MS > std::numeric_limits<uint16_t>::max()) {
-      this->warn_if_blocking_over_ = std::numeric_limits<uint16_t>::max();
-    } else {
-      this->warn_if_blocking_over_ = static_cast<uint16_t>(blocking_time + WARN_IF_BLOCKING_INCREMENT_MS);
-    }
+  // Convert centisecond threshold to milliseconds for comparison
+  uint32_t threshold_ms = static_cast<uint32_t>(this->warn_if_blocking_over_) * 10U;
+  if (blocking_time > threshold_ms) {
+    // Set new threshold: blocking_time + increment, converted back to centiseconds
+    uint32_t new_threshold_ms = blocking_time + WARN_IF_BLOCKING_INCREMENT_MS;
+    uint32_t new_cs = new_threshold_ms / 10U;
+    // Saturate at uint8_t max (255 = 2550ms)
+    this->warn_if_blocking_over_ = static_cast<uint8_t>(new_cs > 255U ? 255U : new_cs);
     return true;
   }
   return false;
@@ -379,9 +376,10 @@ void Component::set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std:
 #pragma GCC diagnostic pop
 }
 bool Component::is_ready() const {
-  return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP ||
-         (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE ||
-         (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_SETUP;
+  // Bitmask check: valid states are SETUP(1), LOOP(2), LOOP_DONE(4)
+  // (1 << state) & 0b10110 checks membership in one instruction
+  return ((1u << (this->component_state_ & COMPONENT_STATE_MASK)) &
+          ((1u << COMPONENT_STATE_SETUP) | (1u << COMPONENT_STATE_LOOP) | (1u << COMPONENT_STATE_LOOP_DONE))) != 0;
 }
 bool Component::can_proceed() { return true; }
 bool Component::set_status_flag_(uint8_t flag) {
@@ -392,6 +390,7 @@ bool Component::set_status_flag_(uint8_t flag) {
   return true;
 }
 
+void Component::status_set_warning() { this->status_set_warning((const LogString *) nullptr); }
 void Component::status_set_warning(const char *message) {
   if (!this->set_status_flag_(STATUS_LED_WARNING))
     return;
@@ -507,9 +506,9 @@ void PollingComponent::stop_poller() {
 }
 
 uint32_t PollingComponent::get_update_interval() const { return this->update_interval_; }
-void PollingComponent::set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
 
-static void __attribute__((noinline, cold)) warn_blocking(Component *component, uint32_t blocking_time) {
+void __attribute__((noinline, cold))
+WarnIfComponentBlockingGuard::warn_blocking(Component *component, uint32_t blocking_time) {
   bool should_warn;
   if (component != nullptr) {
     should_warn = component->should_warn_of_blocking(blocking_time);
@@ -523,10 +522,8 @@ static void __attribute__((noinline, cold)) warn_blocking(Component *component, 
   }
 }
 
-uint32_t WarnIfComponentBlockingGuard::finish() {
-  uint32_t curr_time = millis();
-  uint32_t blocking_time = curr_time - this->started_;
 #ifdef USE_RUNTIME_STATS
+void WarnIfComponentBlockingGuard::record_runtime_stats_() {
   // Use micros() for accurate sub-millisecond timing. millis() has insufficient
   // resolution — most components complete in microseconds but millis() only has
   // 1ms granularity, so results were essentially random noise.
@@ -534,12 +531,8 @@ uint32_t WarnIfComponentBlockingGuard::finish() {
     uint32_t duration_us = micros() - this->started_us_;
     global_runtime_stats->record_component_time(this->component_, duration_us);
   }
-#endif
-  if (blocking_time > WARN_IF_BLOCKING_OVER_MS) {
-    warn_blocking(this->component_, blocking_time);
-  }
-  return curr_time;
 }
+#endif
 
 #ifdef USE_SETUP_PRIORITY_OVERRIDE
 void clear_setup_priority_overrides() {
@@ -548,5 +541,8 @@ void clear_setup_priority_overrides() {
   setup_priority_overrides = nullptr;
 }
 #endif
+
+// Weak default for component_source_lookup - overridden by generated code
+__attribute__((weak)) const LogString *component_source_lookup(uint8_t) { return LOG_STR("<unknown>"); }
 
 }  // namespace esphome

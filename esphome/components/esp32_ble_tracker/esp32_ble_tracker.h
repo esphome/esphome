@@ -12,6 +12,13 @@
 
 #ifdef USE_ESP32
 
+#include <esp_idf_version.h>
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+// mbedtls 4.0 (IDF 6.0) removed the legacy mbedtls AES API.
+// Use the PSA Crypto API instead.
+#define USE_BLE_TRACKER_PSA_AES
+#endif
+
 #include <esp_bt_defs.h>
 #include <esp_gap_ble_api.h>
 #include <esp_gattc_api.h>
@@ -284,10 +291,6 @@ class ESPBTClient : public ESPBTDeviceListener {
 };
 
 class ESP32BLETracker : public Component,
-                        public GAPEventHandler,
-                        public GAPScanEventHandler,
-                        public GATTcEventHandler,
-                        public BLEStatusEventHandler,
 #ifdef USE_OTA_STATE_LISTENER
                         public ota::OTAGlobalStateListener,
 #endif
@@ -318,11 +321,10 @@ class ESP32BLETracker : public Component,
   void start_scan();
   void stop_scan();
 
-  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                           esp_ble_gattc_cb_param_t *param) override;
-  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
-  void gap_scan_event_handler(const BLEScanResult &scan_result) override;
-  void ble_before_disabled_event_handler() override;
+  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
+  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
+  void gap_scan_event_handler(const BLEScanResult &scan_result);
+  void ble_before_disabled_event_handler();
 
 #ifdef USE_OTA_STATE_LISTENER
   void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) override;
@@ -429,6 +431,9 @@ class ESP32BLETracker : public Component,
   ScannerState scanner_state_{ScannerState::IDLE};
   bool scan_continuous_;
   bool scan_active_;
+#ifdef USE_OTA_STATE_LISTENER
+  bool scan_continuous_before_ota_{false};
+#endif
   bool ble_was_disabled_{true};
   bool raw_advertisements_{false};
   bool parse_advertisements_{false};

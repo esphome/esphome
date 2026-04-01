@@ -245,8 +245,7 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
       ESP_LOGD(TAG, "Received settings: SSID=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                command.password.c_str());
 
-      auto f = std::bind(&ImprovSerialComponent::on_wifi_connect_timeout_, this);
-      this->set_timeout("wifi-connect-timeout", 30000, f);
+      this->set_timeout("wifi-connect-timeout", 30000, [this]() { this->on_wifi_connect_timeout_(); });
       return true;
     }
     case improv::GET_CURRENT_STATE:
