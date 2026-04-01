@@ -35,8 +35,8 @@ void AlarmControlPanel::publish_state(AlarmControlPanelState state) {
              LOG_STR_ARG(alarm_control_panel_state_to_string(state)),
              LOG_STR_ARG(alarm_control_panel_state_to_string(prev_state)));
     this->current_state_ = state;
-    // Single state callback - triggers check get_state() for specific states
-    this->state_callback_.call();
+    // Single state callback - listeners receive the new state as an argument
+    this->state_callback_.call(state);
 #if defined(USE_ALARM_CONTROL_PANEL) && defined(USE_CONTROLLER_REGISTRY)
     ControllerRegistry::notify_alarm_control_panel_update(this);
 #endif
