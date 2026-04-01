@@ -59,9 +59,6 @@ void arch_feed_wdt() {
 void arch_restart() { sys_reboot(SYS_REBOOT_COLD); }
 uint32_t arch_get_cpu_cycle_count() { return k_cycle_get_32(); }
 uint32_t arch_get_cpu_freq_hz() { return sys_clock_hw_cycles_per_sec(); }
-uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
-const char *progmem_read_ptr(const char *const *addr) { return *addr; }
-uint16_t progmem_read_uint16(const uint16_t *addr) { return *addr; }
 
 Mutex::Mutex() {
   auto *mutex = new k_mutex();
@@ -78,7 +75,6 @@ IRAM_ATTR InterruptLock::~InterruptLock() { irq_unlock(state_); }
 
 // Zephyr LwIPLock is defined inline as a no-op in helpers.h
 
-uint32_t random_uint32() { return rand(); }  // NOLINT(cert-msc30-c, cert-msc50-cpp)
 bool random_bytes(uint8_t *data, size_t len) {
   sys_rand_get(data, len);
   return true;

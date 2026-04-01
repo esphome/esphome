@@ -16,8 +16,6 @@
 #include <esp_gattc_api.h>
 #include <esp_gatts_api.h>
 #include <esp_bt_defs.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
 
 namespace esphome {
 namespace esp32_ble_server {
@@ -84,8 +82,6 @@ class BLECharacteristic {
 
   uint16_t value_read_offset_{0};
   std::vector<uint8_t> value_;
-  SemaphoreHandle_t set_value_lock_;
-
   std::vector<BLEDescriptor *> descriptors_;
 
   struct ClientNotificationEntry {

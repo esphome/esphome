@@ -91,10 +91,7 @@ class Canbus : public Component {
    * - rtr If this is a remote transmission request
    * - data The message data
    */
-  void add_callback(
-      std::function<void(uint32_t can_id, bool extended_id, bool rtr, const std::vector<uint8_t> &data)> callback) {
-    this->callback_manager_.add(std::move(callback));
-  }
+  template<typename F> void add_callback(F &&callback) { this->callback_manager_.add(std::forward<F>(callback)); }
 
  protected:
   template<typename... Ts> friend class CanbusSendAction;

@@ -1073,28 +1073,6 @@ def test_get_all_dependencies_platform_component_with_dependencies() -> None:
         assert result == {"sensor.bthome", "sensor"}
 
 
-def test_get_all_dependencies_cpp_testing_flag() -> None:
-    """cpp_testing=True propagates to CORE.cpp_testing during resolution."""
-    from esphome.core import CORE
-
-    with (
-        patch("esphome.loader.get_component") as mock_get_component,
-        patch("esphome.loader.get_platform"),
-    ):
-        observed: list[bool] = []
-
-        def capturing_get_component(name: str):
-            observed.append(CORE.cpp_testing)
-
-        mock_get_component.side_effect = capturing_get_component
-
-        helpers.get_all_dependencies({"some_comp"}, cpp_testing=True)
-
-    assert observed and all(observed), (
-        "CORE.cpp_testing should be True during resolution"
-    )
-
-
 def test_get_components_from_integration_fixtures() -> None:
     """Test extraction of components from fixture YAML files."""
     yaml_content = {

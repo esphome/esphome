@@ -59,15 +59,20 @@ _DST_RULE_TYPE_MAP = {
 
 def _load_tzdata(iana_key: str) -> bytes | None:
     # From https://tzdata.readthedocs.io/en/latest/#examples
+    if not iana_key:
+        return None
     try:
         package_loc, resource = iana_key.rsplit("/", 1)
     except ValueError:
-        return None
-    package = "tzdata.zoneinfo." + package_loc.replace("/", ".")
+        # Handle top-level timezone entries like "UTC", "GMT"
+        package = "tzdata.zoneinfo"
+        resource = iana_key
+    else:
+        package = "tzdata.zoneinfo." + package_loc.replace("/", ".")
 
     try:
         return (resources.files(package) / resource).read_bytes()
-    except (FileNotFoundError, ModuleNotFoundError):
+    except (FileNotFoundError, ModuleNotFoundError, IsADirectoryError):
         return None
 
 
@@ -279,13 +284,23 @@ def validate_tz(value: str) -> str:
     tzfile = _load_tzdata(value)
     if tzfile is not None:
         value = _extract_tz_string(tzfile)
+        is_iana = True
+    else:
+        is_iana = False
 
     # Validate that the POSIX TZ string is parseable (skip empty strings)
     if value:
         try:
             parse_posix_tz_python(value)
         except ValueError as e:
-            raise cv.Invalid(f"Invalid POSIX timezone string '{value}': {e}") from e
+            if is_iana:
+                raise cv.Invalid(f"Invalid POSIX timezone string '{value}': {e}") from e
+            raise cv.Invalid(
+                f"Invalid POSIX timezone string '{value}': {e}. "
+                f"If you meant to use an IANA timezone, check the list of valid "
+                f"timezones at "
+                f"https://en.wikipedia.org/wiki/List_of_tz_database_time_zones"
+            ) from e
 
     return value
 
