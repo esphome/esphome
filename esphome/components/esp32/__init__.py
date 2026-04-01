@@ -967,17 +967,6 @@ def final_validate(config):
             # disable the rollback feature anyway since it can't be used.
             advanced[CONF_ENABLE_OTA_ROLLBACK] = False
     if signed_ota := advanced.get(CONF_SIGNED_OTA_VERIFICATION):
-        if conf_fw[CONF_TYPE] != FRAMEWORK_ESP_IDF:
-            errs.append(
-                cv.Invalid(
-                    f"'{CONF_SIGNED_OTA_VERIFICATION}' requires the ESP-IDF framework",
-                    path=[
-                        CONF_FRAMEWORK,
-                        CONF_ADVANCED,
-                        CONF_SIGNED_OTA_VERIFICATION,
-                    ],
-                )
-            )
         # Validate signing scheme against chip variant capabilities
         # Based on SOC_SECURE_BOOT_V2_RSA / SOC_SECURE_BOOT_V2_ECC in soc_caps.h
         scheme = signed_ota[CONF_SIGNING_SCHEME]
