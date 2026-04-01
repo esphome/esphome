@@ -20,7 +20,77 @@ class ModbusController;
 using modbus::ModbusFunctionCode;
 using modbus::ModbusRegisterType;
 using modbus::ModbusExceptionCode;
-using namespace modbus::helpers;
+using modbus::helpers::SensorValueType;
+
+// Remove before 2026.10.0 — these helpers have moved to modbus::helpers
+ESPDEPRECATED("Use modbus::helpers::value_type_is_float() instead. Removed in 2026.10.0", "2026.4.0")
+inline bool value_type_is_float(SensorValueType v) { return modbus::helpers::value_type_is_float(v); }
+
+ESPDEPRECATED("Use modbus::helpers::modbus_register_read_function() instead. Removed in 2026.10.0", "2026.4.0")
+inline ModbusFunctionCode modbus_register_read_function(ModbusRegisterType reg_type) {
+  return modbus::helpers::modbus_register_read_function(reg_type);
+}
+
+ESPDEPRECATED("Use modbus::helpers::modbus_register_write_function() instead. Removed in 2026.10.0", "2026.4.0")
+inline ModbusFunctionCode modbus_register_write_function(ModbusRegisterType reg_type) {
+  return modbus::helpers::modbus_register_write_function(reg_type);
+}
+
+ESPDEPRECATED("Use modbus::helpers::c_to_hex() instead. Removed in 2026.10.0", "2026.4.0")
+inline uint8_t c_to_hex(char c) { return modbus::helpers::c_to_hex(c); }
+
+ESPDEPRECATED("Use modbus::helpers::byte_from_hex_str() instead. Removed in 2026.10.0", "2026.4.0")
+inline uint8_t byte_from_hex_str(const std::string &value, uint8_t pos) {
+  return modbus::helpers::byte_from_hex_str(value, pos);
+}
+
+ESPDEPRECATED("Use modbus::helpers::word_from_hex_str() instead. Removed in 2026.10.0", "2026.4.0")
+inline uint16_t word_from_hex_str(const std::string &value, uint8_t pos) {
+  return modbus::helpers::word_from_hex_str(value, pos);
+}
+
+ESPDEPRECATED("Use modbus::helpers::dword_from_hex_str() instead. Removed in 2026.10.0", "2026.4.0")
+inline uint32_t dword_from_hex_str(const std::string &value, uint8_t pos) {
+  return modbus::helpers::dword_from_hex_str(value, pos);
+}
+
+ESPDEPRECATED("Use modbus::helpers::qword_from_hex_str() instead. Removed in 2026.10.0", "2026.4.0")
+inline uint64_t qword_from_hex_str(const std::string &value, uint8_t pos) {
+  return modbus::helpers::qword_from_hex_str(value, pos);
+}
+
+template<typename T>
+ESPDEPRECATED("Use modbus::helpers::get_data() instead. Removed in 2026.10.0", "2026.4.0")
+T get_data(const std::vector<uint8_t> &data, size_t buffer_offset) {
+  return modbus::helpers::get_data<T>(data, buffer_offset);
+}
+
+ESPDEPRECATED("Use modbus::helpers::coil_from_vector() instead. Removed in 2026.10.0", "2026.4.0")
+inline bool coil_from_vector(int coil, const std::vector<uint8_t> &data) {
+  return modbus::helpers::coil_from_vector(coil, data);
+}
+
+template<typename N>
+ESPDEPRECATED("Use modbus::helpers::mask_and_shift_by_rightbit() instead. Removed in 2026.10.0", "2026.4.0")
+N mask_and_shift_by_rightbit(N data, uint32_t mask) {
+  return modbus::helpers::mask_and_shift_by_rightbit(data, mask);
+}
+
+ESPDEPRECATED("Use modbus::helpers::number_to_payload() instead. Removed in 2026.10.0", "2026.4.0")
+inline void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueType value_type) {
+  modbus::helpers::number_to_payload(data, value, value_type);
+}
+
+ESPDEPRECATED("Use modbus::helpers::payload_to_number() instead. Removed in 2026.10.0", "2026.4.0")
+inline int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
+                                 uint32_t bitmask) {
+  return modbus::helpers::payload_to_number(data, sensor_value_type, offset, bitmask);
+}
+
+ESPDEPRECATED("Use modbus::helpers::float_to_payload() instead. Removed in 2026.10.0", "2026.4.0")
+inline std::vector<uint16_t> float_to_payload(float value, SensorValueType value_type) {
+  return modbus::helpers::float_to_payload(value, value_type);
+}
 
 class ModbusController;
 
@@ -246,11 +316,17 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
   /// get if the module is offline, didn't respond the last command
   bool get_module_offline() { return module_offline_; }
   /// Set callback for commands
-  void add_on_command_sent_callback(std::function<void(int, int)> &&callback);
+  template<typename F> void add_on_command_sent_callback(F &&callback) {
+    this->command_sent_callback_.add(std::forward<F>(callback));
+  }
   /// Set callback for online changes
-  void add_on_online_callback(std::function<void(int, int)> &&callback);
+  template<typename F> void add_on_online_callback(F &&callback) {
+    this->online_callback_.add(std::forward<F>(callback));
+  }
   /// Set callback for offline changes
-  void add_on_offline_callback(std::function<void(int, int)> &&callback);
+  template<typename F> void add_on_offline_callback(F &&callback) {
+    this->offline_callback_.add(std::forward<F>(callback));
+  }
   /// called by esphome generated code to set the max_cmd_retries.
   void set_max_cmd_retries(uint8_t max_cmd_retries) { this->max_cmd_retries_ = max_cmd_retries; }
   /// get how many times a command will be (re)sent if no response is received
@@ -303,10 +379,10 @@ class ModbusController : public PollingComponent, public modbus::ModbusClientDev
  * @return float value of data
  */
 inline float payload_to_float(const std::vector<uint8_t> &data, const SensorItem &item) {
-  int64_t number = payload_to_number(data, item.sensor_value_type, item.offset, item.bitmask);
+  int64_t number = modbus::helpers::payload_to_number(data, item.sensor_value_type, item.offset, item.bitmask);
 
   float float_value;
-  if (value_type_is_float(item.sensor_value_type)) {
+  if (modbus::helpers::value_type_is_float(item.sensor_value_type)) {
     float_value = bit_cast<float>(static_cast<uint32_t>(number));
   } else {
     float_value = static_cast<float>(number);

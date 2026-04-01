@@ -45,8 +45,8 @@ class Rtttl : public Component {
 
   bool is_playing() { return this->state_ != State::STOPPED; }
 
-  void add_on_finished_playback_callback(std::function<void()> callback) {
-    this->on_finished_playback_callback_.add(std::move(callback));
+  template<typename F> void add_on_finished_playback_callback(F &&callback) {
+    this->on_finished_playback_callback_.add(std::forward<F>(callback));
   }
 
  protected:
@@ -129,13 +129,6 @@ template<typename... Ts> class StopAction : public Action<Ts...>, public Parente
 template<typename... Ts> class IsPlayingCondition : public Condition<Ts...>, public Parented<Rtttl> {
  public:
   bool check(const Ts &...x) override { return this->parent_->is_playing(); }
-};
-
-class FinishedPlaybackTrigger : public Trigger<> {
- public:
-  explicit FinishedPlaybackTrigger(Rtttl *parent) {
-    parent->add_on_finished_playback_callback([this]() { this->trigger(); });
-  }
 };
 
 }  // namespace esphome::rtttl

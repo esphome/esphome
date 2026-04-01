@@ -36,7 +36,7 @@ void ModbusServer::on_modbus_read_registers(uint8_t function_code, uint16_t star
 
         std::vector<uint16_t> payload;
         payload.reserve(server_register->register_count * 2);
-        number_to_payload(payload, value, server_register->value_type);
+        modbus::helpers::number_to_payload(payload, value, server_register->value_type);
         sixteen_bit_response.insert(sixteen_bit_response.end(), payload.cbegin(), payload.cend());
         current_address += server_register->register_count;
         found = true;

@@ -346,7 +346,8 @@ void ModbusController::loop() {
 
 void ModbusController::on_write_register_response(ModbusRegisterType register_type, uint16_t start_address,
                                                   const std::vector<uint8_t> &data) {
-  ESP_LOGV(TAG, "Command ACK 0x%X %d ", get_data<uint16_t>(data, 0), get_data<int16_t>(data, 1));
+  ESP_LOGV(TAG, "Command ACK 0x%X %d ", modbus::helpers::get_data<uint16_t>(data, 0),
+           modbus::helpers::get_data<int16_t>(data, 1));
 }
 
 void ModbusController::dump_sensors_() {
@@ -364,7 +365,7 @@ ModbusCommandItem ModbusCommandItem::create_read_command(
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
   cmd.register_type = register_type;
-  cmd.function_code = modbus_register_read_function(register_type);
+  cmd.function_code = modbus::helpers::modbus_register_read_function(register_type);
   cmd.register_address = start_address;
   cmd.register_count = register_count;
   cmd.on_data_func = std::move(handler);
@@ -377,7 +378,7 @@ ModbusCommandItem ModbusCommandItem::create_read_command(ModbusController *modbu
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
   cmd.register_type = register_type;
-  cmd.function_code = modbus_register_read_function(register_type);
+  cmd.function_code = modbus::helpers::modbus_register_read_function(register_type);
   cmd.register_address = start_address;
   cmd.register_count = register_count;
   cmd.on_data_func = [modbusdevice](ModbusRegisterType register_type, uint16_t start_address,
@@ -537,18 +538,6 @@ bool ModbusCommandItem::is_equal(const ModbusCommandItem &other) {
              ? this->payload == other.payload
              : other.register_address == this->register_address && other.register_count == this->register_count &&
                    other.register_type == this->register_type && other.function_code == this->function_code;
-}
-
-void ModbusController::add_on_command_sent_callback(std::function<void(int, int)> &&callback) {
-  this->command_sent_callback_.add(std::move(callback));
-}
-
-void ModbusController::add_on_online_callback(std::function<void(int, int)> &&callback) {
-  this->online_callback_.add(std::move(callback));
-}
-
-void ModbusController::add_on_offline_callback(std::function<void(int, int)> &&callback) {
-  this->offline_callback_.add(std::move(callback));
 }
 
 }  // namespace modbus_controller

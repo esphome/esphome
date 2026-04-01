@@ -24,7 +24,7 @@ namespace esp32_ble_server {
 using namespace esp32_ble;
 using namespace bytebuffer;
 
-class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEventHandler, public Parented<ESP32BLE> {
+class BLEServer : public Component, public Parented<ESP32BLE> {
  public:
   void setup() override;
   void loop() override;
@@ -32,7 +32,7 @@ class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEv
   float get_setup_priority() const override;
   bool can_proceed() override;
 
-  bool is_running();
+  ESPHOME_ALWAYS_INLINE bool is_running() { return this->parent_->is_active() && this->state_ == RUNNING; }
 
   void set_manufacturer_data(const std::vector<uint8_t> &data) {
     this->manufacturer_data_ = data;
@@ -53,10 +53,9 @@ class BLEServer : public Component, public GATTsEventHandler, public BLEStatusEv
   const uint16_t *get_clients() const { return this->clients_; }
   uint8_t get_client_count() const { return this->client_count_; }
 
-  void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
-                           esp_ble_gatts_cb_param_t *param) override;
+  void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
 
-  void ble_before_disabled_event_handler() override;
+  void ble_before_disabled_event_handler();
 
   // Direct callback registration - supports multiple callbacks
   void on_connect(std::function<void(uint16_t)> &&callback) {

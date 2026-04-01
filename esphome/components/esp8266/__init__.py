@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+import re
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -18,8 +19,9 @@ from esphome.const import (
     PLATFORM_ESP8266,
     ThreadModel,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed
+from esphome.types import ConfigType
 
 from .boards import BOARDS, ESP8266_LD_SCRIPTS
 from .const import (
@@ -40,10 +42,40 @@ from .const import (
 )
 from .gpio import PinInitialState, add_pin_initial_states_array
 
+CONF_ENABLE_SCANF_FLOAT = "enable_scanf_float"
+# Heuristically matches scanf/sscanf calls with float format specifiers.
+# Standard scanf float conversions: %f %F %e %E %g %G %a %A
+# With optional modifiers: %*f (suppression), %8f (width), %lf %Lf (length)
+# Also matches non-standard patterns like %.2f as a heuristic — these are
+# invalid in scanf but users may write them by analogy with printf.
+# Uses [^;]*? to stay within a single statement, preventing false positives
+# from e.g. sscanf(buf, "%d", &x); printf("%f", val);
+_SCANF_FLOAT_RE = re.compile(r"scanf\s*\([^;]*?%[*\d.]*[hlL]*[feEgGaAF]")
+
 CODEOWNERS = ["@esphome/core"]
 _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["preferences"]
 IS_TARGET_PLATFORM = True
+
+
+def lambdas_use_scanf_float(config: ConfigType) -> bool:
+    """Check if any lambda in the config uses scanf with a float format specifier.
+
+    Comments are stripped before matching to avoid false positives from
+    commented-out code. The cost of a false positive is only ~8KB flash.
+    """
+    stack: list = [config]
+    while stack:
+        obj = stack.pop()
+        if isinstance(obj, Lambda):
+            src = obj.comment_remover(obj.value)
+            if _SCANF_FLOAT_RE.search(src):
+                return True
+        elif isinstance(obj, dict):
+            stack.extend(obj.values())
+        elif isinstance(obj, list):
+            stack.extend(obj)
+    return False
 
 
 def set_core_data(config):
@@ -181,6 +213,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ENABLE_SERIAL): cv.boolean,
             cv.Optional(CONF_ENABLE_SERIAL1): cv.boolean,
             cv.Optional(CONF_ENABLE_FULL_PRINTF, default=False): cv.boolean,
+            cv.Optional(CONF_ENABLE_SCANF_FLOAT): cv.boolean,
         }
     ),
     set_core_data,
@@ -201,16 +234,23 @@ async def to_code(config):
     cg.add_define("ESPHOME_VARIANT", "ESP8266")
     cg.add_define(ThreadModel.SINGLE)
 
-    cg.add_platformio_option(
-        "extra_scripts",
-        [
-            "pre:testing_mode.py",
-            "pre:exclude_updater.py",
-            "pre:exclude_waveform.py",
-            "pre:remove_float_scanf.py",
-            "post:post_build.py",
-        ],
-    )
+    enable_scanf_float = config.get(CONF_ENABLE_SCANF_FLOAT)
+    if enable_scanf_float is None and lambdas_use_scanf_float(CORE.config):
+        enable_scanf_float = True
+        _LOGGER.warning(
+            "Lambda uses scanf with a float format specifier; "
+            "enabling scanf float support (~8KB flash)"
+        )
+
+    extra_scripts = [
+        "pre:testing_mode.py",
+        "pre:exclude_updater.py",
+        "pre:exclude_waveform.py",
+    ]
+    if not enable_scanf_float:
+        extra_scripts.append("pre:remove_float_scanf.py")
+    extra_scripts.append("post:post_build.py")
+    cg.add_platformio_option("extra_scripts", extra_scripts)
 
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("framework", "arduino")

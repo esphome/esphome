@@ -41,7 +41,7 @@ class Image : public display::BaseImage {
   bool has_transparency() const { return this->transparency_ != TRANSPARENCY_OPAQUE; }
 
 #ifdef USE_LVGL
-  lv_img_dsc_t *get_lv_img_dsc();
+  lv_image_dsc_t *get_lv_image_dsc();
 #endif
  protected:
   bool get_binary_pixel_(int x, int y) const;

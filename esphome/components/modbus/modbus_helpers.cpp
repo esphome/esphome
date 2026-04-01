@@ -1,10 +1,7 @@
-
 #include "modbus_helpers.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace modbus {
-namespace helpers {
+namespace esphome::modbus::helpers {
 
 static const char *const TAG = "modbus_helpers";
 
@@ -41,8 +38,7 @@ void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueTy
       data.push_back((value & 0xFFFF000000000000) >> 48);
       break;
     default:
-      ESP_LOGE(TAG, "Invalid data type for modbus number to payload conversation: %d",
-               static_cast<uint16_t>(value_type));
+      ESP_LOGE(TAG, "Invalid data type for modbus number to payload conversion: %d", static_cast<uint16_t>(value_type));
       break;
   }
 }
@@ -50,6 +46,11 @@ void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueTy
 int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
                           uint32_t bitmask, bool *error_return) {
   int64_t value = 0;  // int64_t because it can hold signed and unsigned 32 bits
+
+  if (offset > data.size()) {
+    ESP_LOGE(TAG, "not enough data for value");
+    return value;
+  }
 
   size_t size = data.size() - offset;
   bool error = false;
@@ -218,6 +219,4 @@ std::vector<uint8_t> add_crc_to_payload(const std::vector<uint8_t> &payload) {
   return data;
 }
 
-}  // namespace helpers
-}  // namespace modbus
-}  // namespace esphome
+}  // namespace esphome::modbus::helpers
