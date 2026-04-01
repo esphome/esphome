@@ -56,7 +56,7 @@ inline std::pair<std::unique_ptr<socket::Socket>, int> create_tcp_loopback() {
   ::fcntl(read_fd, F_SETFL, flags | O_NONBLOCK);
 
   // Use large socket buffers so benchmarks never hit WOULD_BLOCK
-  // during a single outer iteration (2000 × ~15 byte messages = ~30KB).
+  // during a single outer iteration (2000 × ~15B messages = ~30KB).
   int bufsize = 16 * 1024 * 1024;
   ::setsockopt(write_fd, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
   ::setsockopt(read_fd, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
