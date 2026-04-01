@@ -735,7 +735,9 @@ void WiFiComponent::loop() {
   // Connection state can only change when events are processed (ESP-IDF/LibreTiny)
   // or polled (ESP8266/Pico W). Skip the expensive wifi_sta_connect_status_() call
   // when no events arrived and we're already in steady state.
-  if (events_processed || this->state_ != WIFI_COMPONENT_STATE_STA_CONNECTED) {
+  // Must also run when connected_ is false — after state transitions to STA_CONNECTED,
+  // connected_ won't be set until update_connected_state_() runs.
+  if (events_processed || !this->connected_) {
     this->update_connected_state_();
   }
 
