@@ -432,6 +432,9 @@ class ESP32BLETracker : public Component,
   bool scan_continuous_;
   bool scan_active_;
   bool scan_continuous_before_ota_{false};
+#ifdef USE_OTA_STATE_LISTENER
+  bool scan_continuous_before_ota_{false};
+#endif
   bool ble_was_disabled_{true};
   bool raw_advertisements_{false};
   bool parse_advertisements_{false};
