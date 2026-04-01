@@ -19,9 +19,9 @@ class I2SAudioSpeakerSPDIF : public I2SAudioSpeakerBase {
   size_t play(const uint8_t *data, size_t length, TickType_t ticks_to_wait) override;
 
  protected:
-  void run_speaker_task_() override;
-  esp_err_t start_i2s_driver_(audio::AudioStreamInfo &audio_stream_info) override;
-  void on_task_stopped_() override;
+  void run_speaker_task() override;
+  esp_err_t start_i2s_driver(audio::AudioStreamInfo &audio_stream_info) override;
+  void on_task_stopped() override;
 
   SPDIFEncoder *spdif_encoder_{nullptr};
   uint32_t spdif_silence_start_{0};  // Timestamp when silence mode started (0 = not in silence)

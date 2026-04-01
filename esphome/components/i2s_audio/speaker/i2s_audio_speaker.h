@@ -94,7 +94,7 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   static void speaker_task(void *params);
 
   /// @brief The main speaker task loop. Implemented by derived classes for mode-specific behavior.
-  virtual void run_speaker_task_() = 0;
+  virtual void run_speaker_task() = 0;
 
   /// @brief Sends a stop command to the speaker task via ``event_group_``.
   /// @param wait_on_empty If false, sends the COMMAND_STOP signal. If true, sends the COMMAND_STOP_GRACEFULLY signal.
@@ -110,7 +110,7 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   /// @brief Starts the ESP32 I2S driver. Implemented by derived classes for mode-specific configuration.
   /// @param audio_stream_info Stream information for the I2S driver.
   /// @return ESP_OK if successful, or an error code
-  virtual esp_err_t start_i2s_driver_(audio::AudioStreamInfo &audio_stream_info) = 0;
+  virtual esp_err_t start_i2s_driver(audio::AudioStreamInfo &audio_stream_info) = 0;
 
   /// @brief Shared I2S channel allocation, initialization, and event queue setup.
   /// Called by derived start_i2s_driver_() implementations after building mode-specific configs.
@@ -125,7 +125,7 @@ class I2SAudioSpeakerBase : public I2SAudioOut, public speaker::Speaker, public 
   void stop_i2s_driver_();
 
   /// @brief Called in loop() when the task has stopped. Override for mode-specific cleanup.
-  virtual void on_task_stopped_() {}
+  virtual void on_task_stopped() {}
 
   /// @brief Apply software volume control using Q15 fixed-point scaling.
   /// @param data Pointer to audio sample data (modified in place)

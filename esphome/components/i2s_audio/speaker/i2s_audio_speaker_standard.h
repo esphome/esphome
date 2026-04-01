@@ -15,8 +15,8 @@ class I2SAudioSpeaker : public I2SAudioSpeakerBase {
   void set_i2s_comm_fmt(std::string mode) { this->i2s_comm_fmt_ = std::move(mode); }
 
  protected:
-  void run_speaker_task_() override;
-  esp_err_t start_i2s_driver_(audio::AudioStreamInfo &audio_stream_info) override;
+  void run_speaker_task() override;
+  esp_err_t start_i2s_driver(audio::AudioStreamInfo &audio_stream_info) override;
 
   std::string i2s_comm_fmt_;
 };
