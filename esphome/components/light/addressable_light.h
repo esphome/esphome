@@ -68,8 +68,8 @@ class AddressableLight : public LightOutput, public Component {
     this->correction_.set_max_brightness(
         Color(to_uint8_scale(red), to_uint8_scale(green), to_uint8_scale(blue), to_uint8_scale(white)));
   }
-  void set_power_estimation(float ma_per_led_red, float ma_per_led_green, float ma_per_led_blue,
-                             float ma_per_led_white, float idle_ma_per_led) {
+  void set_power_estimation(float ma_per_led_red, float ma_per_led_green, float ma_per_led_blue, float ma_per_led_white,
+                            float idle_ma_per_led) {
     this->ma_per_led_red_ = ma_per_led_red;
     this->ma_per_led_green_ = ma_per_led_green;
     this->ma_per_led_blue_ = ma_per_led_blue;
