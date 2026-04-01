@@ -1,4 +1,4 @@
-#include "spdif_speaker.h"
+#include "i2s_audio_spdif.h"
 
 #if defined(USE_ESP32) && defined(USE_I2S_AUDIO_SPDIF_MODE)
 
