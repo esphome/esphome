@@ -14,6 +14,9 @@
  * empty, full, size) but uses xQueue internally, which synchronizes via
  * FreeRTOS critical sections.
  *
+ * Uses xQueueCreateStatic so the queue storage lives in the object itself
+ * with no heap allocation, matching LockFreeQueue's static buffer approach.
+ *
  * @tparam T The type of elements stored in the queue (stored as pointers)
  * @tparam SIZE The maximum number of elements
  */
@@ -22,10 +25,12 @@ namespace esphome {
 
 template<class T, uint8_t SIZE> class FreeRTOSQueue {
  public:
-  FreeRTOSQueue() : dropped_count_(0) { this->handle_ = xQueueCreate(SIZE, sizeof(T *)); }
+  FreeRTOSQueue() : dropped_count_(0) {
+    this->handle_ = xQueueCreateStatic(SIZE, sizeof(T *), this->storage_, &this->queue_buf_);
+  }
 
   bool push(T *element) {
-    if (element == nullptr || this->handle_ == nullptr)
+    if (element == nullptr)
       return false;
 
     if (xQueueSend(this->handle_, &element, 0) != pdPASS) {
@@ -36,9 +41,6 @@ template<class T, uint8_t SIZE> class FreeRTOSQueue {
   }
 
   T *pop() {
-    if (this->handle_ == nullptr)
-      return nullptr;
-
     T *element;
     if (xQueueReceive(this->handle_, &element, 0) != pdTRUE) {
       return nullptr;
@@ -56,25 +58,16 @@ template<class T, uint8_t SIZE> class FreeRTOSQueue {
 
   void increment_dropped_count() { this->dropped_count_++; }
 
-  bool empty() const {
-    if (this->handle_ == nullptr)
-      return true;
-    return uxQueueMessagesWaiting(this->handle_) == 0;
-  }
+  bool empty() const { return uxQueueMessagesWaiting(this->handle_) == 0; }
 
-  bool full() const {
-    if (this->handle_ == nullptr)
-      return true;
-    return uxQueueSpacesAvailable(this->handle_) == 0;
-  }
+  bool full() const { return uxQueueSpacesAvailable(this->handle_) == 0; }
 
-  size_t size() const {
-    if (this->handle_ == nullptr)
-      return 0;
-    return uxQueueMessagesWaiting(this->handle_);
-  }
+  size_t size() const { return uxQueueMessagesWaiting(this->handle_); }
 
  protected:
+  // Static storage for the queue - sized for SIZE pointer-sized items
+  uint8_t storage_[SIZE * sizeof(T *)];
+  StaticQueue_t queue_buf_;
   QueueHandle_t handle_;
   volatile uint16_t dropped_count_;
 };
