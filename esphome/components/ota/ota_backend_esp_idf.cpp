@@ -3,6 +3,7 @@
 
 #include "esphome/components/md5/md5.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/log.h"
 
 #include <esp_ota_ops.h>
 #include <esp_task_wdt.h>
@@ -10,6 +11,8 @@
 
 namespace esphome {
 namespace ota {
+
+static const char *const TAG = "ota.idf";
 
 std::unique_ptr<IDFOTABackend> make_ota_backend() { return make_unique<IDFOTABackend>(); }
 
@@ -99,7 +102,12 @@ OTAResponseTypes IDFOTABackend::end() {
     }
   }
   if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
+#ifdef USE_OTA_SIGNED_VERIFICATION
+    ESP_LOGE(TAG, "OTA signature verification failed - firmware was not signed with the correct key");
+    return OTA_RESPONSE_ERROR_SIGNATURE_INVALID;
+#else
     return OTA_RESPONSE_ERROR_UPDATE_END;
+#endif
   }
   if (err == ESP_ERR_FLASH_OP_TIMEOUT || err == ESP_ERR_FLASH_OP_FAIL) {
     return OTA_RESPONSE_ERROR_WRITING_FLASH;
