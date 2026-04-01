@@ -47,7 +47,7 @@ TEST(HelpersTest, Ilog10RoundTripMatchesLog10) {
       float result_new = roundf(v * factor_new) / factor_new;
 
       // Reference using log10/pow
-      double factor_ref = pow(10.0, digits - ceil(log10(fabs(v))));
+      double factor_ref = pow(10.0, digits - ceil(log10(std::fabs(v))));
       float result_ref = static_cast<float>(round(v * factor_ref) / factor_ref);
 
       EXPECT_FLOAT_EQ(result_new, result_ref) << "mismatch for value=" << v << " digits=" << (int) digits;
