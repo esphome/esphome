@@ -1,5 +1,3 @@
-from . import EpaperModel
-
 """
 Models for the IT8951E family.
 
@@ -10,6 +8,9 @@ We register two models:
 
 The IT8951E does NOT use a DC pin; it uses 16-bit SPI command preambles instead.
 """
+
+from . import EpaperModel
+
 
 # Generic IT8951E model: requires explicit dimensions (no defaults provided)
 EpaperModel(

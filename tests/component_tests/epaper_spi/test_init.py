@@ -120,7 +120,8 @@ def test_all_predefined_models(
 
         # Add required fields that don't have defaults
         # Use safe GPIO pins that work on ESP32 (avoiding flash pins 6-11)
-        if not model.get_default(CONF_DC_PIN):
+        # dc_pin=False means the model doesn't use a DC pin at all (e.g. IT8951E)
+        if model.get_default(CONF_DC_PIN, None) is not False and not model.get_default(CONF_DC_PIN):
             config[CONF_DC_PIN] = 21
 
         # Add dimensions if not provided by model
@@ -177,7 +178,8 @@ def test_individual_models(
 
     # Add required fields based on model defaults
     # Use safe GPIO pins that work on ESP32
-    if not model.get_default(CONF_DC_PIN):
+    # dc_pin=False means the model doesn't use a DC pin at all (e.g. IT8951E)
+    if model.get_default(CONF_DC_PIN, None) is not False and not model.get_default(CONF_DC_PIN):
         config[CONF_DC_PIN] = 21
 
     if not model.get_default(CONF_WIDTH):

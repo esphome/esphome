@@ -107,15 +107,15 @@ bool EPaperIT8951E::is_display_busy_() {
   return this->read_word_() != 0;
 }
 
-void EPaperIT8951E::update_area_(uint16_t x, uint16_t y, uint16_t w, uint16_t h, update_mode_e mode) {
+void EPaperIT8951E::update_area_(uint16_t x, uint16_t y, uint16_t w, uint16_t h, UpdateModeE mode) {
   uint16_t args[7];
   args[0] = x;
   args[1] = y;
   args[2] = w;
   args[3] = h;
   args[4] = static_cast<uint16_t>(mode);
-  args[5] = this->usImgBufAddrL_;
-  args[6] = this->usImgBufAddrH_;
+  args[5] = this->us_img_buf_addr_l_;
+  args[6] = this->us_img_buf_addr_h_;
   this->write_args_(IT8951_I80_CMD_DPY_BUF_AREA, args, 7);
 }
 
@@ -125,7 +125,7 @@ bool EPaperIT8951E::reset() {
     this->reset_pin_->digital_write(false);
     delay(this->reset_duration_);
     this->reset_pin_->digital_write(true);
-    delay(100);
+    delay(100); // NOLINT
   }
   return true;  // single-step reset, no RESET_END needed
 }
@@ -216,7 +216,7 @@ void EPaperIT8951E::set_state_(EPaperState state, uint16_t delay) {
   }
 }
 
-bool EPaperIT8951E::prepare_transfer_(update_mode_e &mode) {
+bool EPaperIT8951E::prepare_transfer_(UpdateModeE &mode) {
   this->partial_update_++;
   if (this->full_update_every_ > 0 && this->partial_update_ >= this->full_update_every_) {
     this->partial_update_ = 0;
@@ -274,7 +274,7 @@ bool EPaperIT8951E::transfer_row_data_() {
   const uint32_t start_time = millis();
 
   if (this->transfer_row_ == 0) {
-    this->set_target_memory_addr_(this->usImgBufAddrL_, this->usImgBufAddrH_);
+    this->set_target_memory_addr_(this->us_img_buf_addr_l_, this->us_img_buf_addr_h_);
   }
 
   const uint16_t area_x = this->pending_x_;
@@ -505,7 +505,7 @@ void EPaperIT8951E::dump_config() {
   ESP_LOGCONFIG(TAG, "  Dimensions: %dx%d", this->get_width_internal(), this->get_height_internal());
   ESP_LOGCONFIG(TAG, "  Buffer: %u bytes in %u segment(s)", static_cast<unsigned>(this->buffer_length_),
                 static_cast<unsigned>(this->buffer_.get_buffer_count()));
-  ESP_LOGCONFIG(TAG, "  Image buffer addr: 0x%04X%04X", this->usImgBufAddrH_, this->usImgBufAddrL_);
+  ESP_LOGCONFIG(TAG, "  Image buffer addr: 0x%04X%04X", this->us_img_buf_addr_h_, this->us_img_buf_addr_l_);
   ESP_LOGCONFIG(TAG, "  Sleep when done: %s", YESNO(this->sleep_when_done_));
   ESP_LOGCONFIG(TAG, "  Full update every: %u", this->full_update_every_);
   ESP_LOGCONFIG(TAG, "  Reversed colors: %s", YESNO(this->reversed_));

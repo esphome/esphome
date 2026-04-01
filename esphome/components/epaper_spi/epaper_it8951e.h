@@ -58,7 +58,7 @@ class EPaperIT8951E : public EPaperBase {
 
   // Display area management
   void set_area_(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
-  void update_area_(uint16_t x, uint16_t y, uint16_t w, uint16_t h, update_mode_e mode);
+  void update_area_(uint16_t x, uint16_t y, uint16_t w, uint16_t h, UpdateModeE mode);
 
   // Busy/idle management (IT8951E busy pin polarity: HIGH = ready, LOW = busy)
   void wait_busy_(uint32_t timeout = 1000);
@@ -69,7 +69,7 @@ class EPaperIT8951E : public EPaperBase {
   void set_vcom_(uint16_t vcom);
 
   // Transfer helpers
-  bool prepare_transfer_(update_mode_e &mode);
+  bool prepare_transfer_(UpdateModeE &mode);
   bool transfer_row_data_();
   void process_state_();
   void set_state_(EPaperState state, uint16_t delay = 0);
@@ -78,10 +78,10 @@ class EPaperIT8951E : public EPaperBase {
   uint8_t color_to_nibble_(const Color &color) const;
 
   // IT8951E device info
-  uint16_t usImgBufAddrL_{0x36E0};
-  uint16_t usImgBufAddrH_{0x0012};
-  char usFWVersion_[16]{};
-  char usLUTVersion_[16]{};
+  uint16_t us_img_buf_addr_l_{0x36E0};
+  uint16_t us_img_buf_addr_h_{0x0012};
+  char us_fw_version_[16]{};
+  char us_lut_version_[16]{};
   uint16_t m_endian_type_{0};
   uint16_t m_pix_bpp_{0};
 
@@ -92,8 +92,8 @@ class EPaperIT8951E : public EPaperBase {
   // State tracking
   bool initialized_{false};
   uint32_t partial_update_{0};
-  update_mode_e pending_mode_{UPDATE_MODE_NONE};
-  update_mode_e queued_update_mode_{UPDATE_MODE_NONE};
+  UpdateModeE pending_mode_{UPDATE_MODE_NONE};
+  UpdateModeE queued_update_mode_{UPDATE_MODE_NONE};
   uint16_t pending_x_{0}, pending_y_{0}, pending_w_{0}, pending_h_{0};
   uint16_t transfer_row_{0};
   uint32_t update_started_at_{0};
