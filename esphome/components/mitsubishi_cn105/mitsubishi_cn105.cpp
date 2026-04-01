@@ -72,9 +72,9 @@ void MitsubishiCN105::did_transition_(State to) {
   }
 }
 
-template<typename Container> void MitsubishiCN105::send_packet_(const Container &packet) {
-  dump_buffer_vv("TX", packet.data(), packet.size());
-  this->device_.write_array(packet.data(), packet.size());
+void MitsubishiCN105::send_packet_(const uint8_t *packet, size_t len) {
+  dump_buffer_vv("TX", packet, len);
+  this->device_.write_array(packet, len);
   this->write_timeout_start_ms_ = this->now();
 }
 

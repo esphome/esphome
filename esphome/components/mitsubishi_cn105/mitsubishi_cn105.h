@@ -27,7 +27,8 @@ class MitsubishiCN105 {
   void process_rx_packet_(uint8_t type, const uint8_t *payload, size_t len);
   void reset_read_position_and_dump_buffer_(const char *prefix);
   void response_received_();
-  template<typename Container> void send_packet_(const Container &packet);
+  void send_packet_(const uint8_t *packet, size_t len);
+  template<typename T> void send_packet_(const T &packet) { this->send_packet_(packet.data(), packet.size()); }
   static bool should_transition(State from, State to);
   static const char *state_to_string(State state);
   static void dump_buffer_vv(const char *prefix, const uint8_t *data, size_t len);
