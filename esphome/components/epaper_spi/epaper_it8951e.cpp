@@ -293,7 +293,7 @@ bool EPaperIT8951E::transfer_row_data_() {
   const uint16_t bytes_per_row = full_width ? this->row_width_ : static_cast<uint16_t>(area_w >> 1);
 
   // Stack buffer for one row. 960/2 = 480 bytes max for M5EPD.
-  uint8_t row_buf[480];
+  uint8_t row_buf[480]{};
 
   while (this->transfer_row_ < area_h) {
     const uint32_t row_y = area_y + this->transfer_row_;
@@ -463,7 +463,7 @@ uint8_t EPaperIT8951E::color_to_nibble_(const Color &color) const {
 
 void EPaperIT8951E::fill(Color color) {
   if (this->get_clipping().is_set()) {
-    Display::fill(color);
+    esphome::epaper_spi::EPaperBase::Display::fill(color);
     return;
   }
 

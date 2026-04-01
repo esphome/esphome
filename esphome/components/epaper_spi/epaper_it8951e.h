@@ -30,12 +30,8 @@ class EPaperIT8951E : public EPaperBase {
 
   // Drawing overrides
   void fill(Color color) override;
+  void clear() override { this->fill(COLOR_OFF); }
   void draw_pixel_at(int x, int y, Color color) override;
-
-  void clear() override {
-    // clear buffer to white, just like real paper.
-    this->fill(reversed_ ? COLOR_OFF : COLOR_ON);
-  }
 
  protected:
   // EPaperBase required overrides
@@ -80,8 +76,6 @@ class EPaperIT8951E : public EPaperBase {
   // IT8951E device info
   uint16_t us_img_buf_addr_l_{0x36E0};
   uint16_t us_img_buf_addr_h_{0x0012};
-  char us_fw_version_[16]{};
-  char us_lut_version_[16]{};
   uint16_t m_endian_type_{0};
   uint16_t m_pix_bpp_{0};
 
