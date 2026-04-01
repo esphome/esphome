@@ -59,9 +59,9 @@ class ToshibaClimate : public climate_ir::ClimateIR {
 
   float temperature_min_() {
     if (this->model_ == MODEL_RAC_PT1411HWRU_F) {
-      // floorf truncation required: float 60°F→°C rounds up to 15.555556f, which exceeds
+      // nextafterf steps down by 1 ULP: float 60°F→°C rounds up to 15.555556f, which exceeds
       // HA's double-precision 15.555555…, causing HA to reject 60°F as below minimum.
-      return floorf((TOSHIBA_RAC_PT1411HWRU_TEMP_F_MIN - 32.0f) * 5.0f / 9.0f * 1000.0f) / 1000.0f;
+      return std::nextafterf((TOSHIBA_RAC_PT1411HWRU_TEMP_F_MIN - 32.0f) * 5.0f / 9.0f, 0.0f);
     }
     if (this->model_ == MODEL_RAC_PT1411HWRU_C)
       return TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN;
