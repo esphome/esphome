@@ -777,10 +777,10 @@ int32_t WiFiComponent::get_wifi_channel() { return WiFi.channel(); }
 network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {WiFi.subnetMask()}; }
 network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {WiFi.gatewayIP()}; }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return {WiFi.dnsIP(num)}; }
-void WiFiComponent::wifi_loop_() {
+bool WiFiComponent::wifi_loop_() {
   // Fast path: skip dropped count check and pop loop when queue is empty
   if (this->event_queue_.empty())
-    return;
+    return false;
 
   uint16_t dropped = this->event_queue_.get_and_reset_dropped_count();
   if (dropped > 0) {
@@ -792,6 +792,7 @@ void WiFiComponent::wifi_loop_() {
     wifi_process_event_(event);
     delete event;  // NOLINT(cppcoreguidelines-owning-memory)
   }
+  return true;
 }
 
 }  // namespace esphome::wifi

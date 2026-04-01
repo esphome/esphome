@@ -715,10 +715,10 @@ const char *get_disconnect_reason_str(uint8_t reason) {
   }
 }
 
-void WiFiComponent::wifi_loop_() {
+bool WiFiComponent::wifi_loop_() {
   // Fast path: skip dropped count check and pop loop when queue is empty
   if (this->event_queue_.empty())
-    return;
+    return false;
 
   uint16_t dropped = this->event_queue_.get_and_reset_dropped_count();
   if (dropped > 0) {
@@ -730,6 +730,7 @@ void WiFiComponent::wifi_loop_() {
     wifi_process_event_(data);
     delete data;  // NOLINT(cppcoreguidelines-owning-memory)
   }
+  return true;
 }
 // Events are processed from queue in main loop context, but listener notifications
 // must be deferred until after the state machine transitions (in check_connecting_finished)

@@ -662,7 +662,7 @@ class WiFiComponent final : public Component {
 
   void connect_soon_();
 
-  void wifi_loop_();
+  bool wifi_loop_();
 #ifdef USE_ESP8266
   void process_pending_callbacks_();
 #endif
