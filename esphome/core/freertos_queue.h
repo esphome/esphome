@@ -1,5 +1,9 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
+#ifdef ESPHOME_THREAD_MULTI_NO_ATOMICS
+
 #include <cstddef>
 #include <cstdint>
 
@@ -73,3 +77,5 @@ template<class T, uint8_t SIZE> class FreeRTOSQueue {
 };
 
 }  // namespace esphome
+
+#endif  // ESPHOME_THREAD_MULTI_NO_ATOMICS
