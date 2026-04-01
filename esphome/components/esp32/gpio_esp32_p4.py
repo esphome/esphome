@@ -20,8 +20,8 @@ def esp32_p4_validate_gpio_pin(value: int) -> int:
         raise cv.Invalid(f"Invalid pin number: {value} (must be 0-54)")
     if value in _ESP32P4_USB_JTAG_PINS:
         _LOGGER.warning(
-            "GPIO%d is reserved for the USB-Serial-JTAG interface.\n"
-            "To use this pin as GPIO, USB-Serial-JTAG will be disabled.",
+            "GPIO%d is used by the USB-Serial-JTAG interface."
+            " Using this pin as GPIO will conflict with USB-Serial-JTAG.",
             value,
         )
 
