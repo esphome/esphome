@@ -31,6 +31,9 @@ template<class T, uint8_t SIZE> class FreeRTOSQueue {
     this->handle_ = xQueueCreateStatic(SIZE, sizeof(T *), this->storage_, &this->queue_buf_);
   }
 
+  // No destructor — ESPHome components are never destroyed. Intentionally
+  // omitted to avoid pulling in vQueueDelete code on resource-constrained targets.
+
   // Non-copyable, non-movable — queue handle is not transferable
   FreeRTOSQueue(const FreeRTOSQueue &) = delete;
   FreeRTOSQueue &operator=(const FreeRTOSQueue &) = delete;
@@ -57,8 +60,9 @@ template<class T, uint8_t SIZE> class FreeRTOSQueue {
   }
 
   uint16_t get_and_reset_dropped_count() {
-    // Fast path: plain read is safe for aligned uint16_t on ARM.
-    // Drops are rare so almost always returns 0 without entering a critical section.
+    // Fast path: plain read of aligned uint16_t is a single ARM load instruction.
+    // Worst case is reading a stale zero and reporting drops one iteration later.
+    // Avoids critical section overhead on every loop() call since drops are rare.
     if (this->dropped_count_ == 0)
       return 0;
     // Declare outside critical section — BK72xx portENTER_CRITICAL may introduce a scope
