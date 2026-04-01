@@ -49,9 +49,6 @@ static void PlaintextFrame_WriteSensorState(benchmark::State &state) {
       msg.encode(writer);
 
       helper->write_protobuf_packet(SensorStateResponse::MESSAGE_TYPE, writer);
-
-      if ((i & 0xFF) == 0)
-        drain_socket(read_fd);
     }
     drain_socket(read_fd);
     benchmark::DoNotOptimize(helper.get());
@@ -96,9 +93,6 @@ static void PlaintextFrame_WriteBatch5(benchmark::State &state) {
       }
 
       helper->write_protobuf_messages(ProtoWriteBuffer(&buffer, 0), std::span<const MessageInfo>(messages, 5));
-
-      if ((i & 0xFF) == 0)
-        drain_socket(read_fd);
     }
     drain_socket(read_fd);
     benchmark::DoNotOptimize(helper.get());

@@ -54,9 +54,6 @@ static void SendSensorState_Immediate(benchmark::State &state) {
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
       conn->send_sensor_state(&sensor);
-
-      if ((i & 0xFF) == 0)
-        drain_socket(read_fd);
     }
     drain_socket(read_fd);
     benchmark::DoNotOptimize(conn.get());
@@ -137,12 +134,8 @@ static void ProcessBatch_SingleSensor(benchmark::State &state) {
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
-      // Queue the sensor state, then process the batch
       conn->send_sensor_state(&sensor);
       bench_process_batch(conn.get());
-
-      if ((i & 0xFF) == 0)
-        drain_socket(read_fd);
     }
     drain_socket(read_fd);
     benchmark::DoNotOptimize(conn.get());
@@ -179,9 +172,6 @@ static void ProcessBatch_5Sensors(benchmark::State &state) {
       for (auto &s : sensors)
         conn->send_sensor_state(&s);
       bench_process_batch(conn.get());
-
-      if ((i & 0xFF) == 0)
-        drain_socket(read_fd);
     }
     drain_socket(read_fd);
     benchmark::DoNotOptimize(conn.get());
