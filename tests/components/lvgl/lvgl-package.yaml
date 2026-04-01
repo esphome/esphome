@@ -232,7 +232,7 @@ lvgl:
         - roller:
             id: lv_roller
             visible_row_count: 2
-            anim_time: 500ms
+            anim_duration: 500ms
             options:
               - Nov
               - Dec
@@ -317,20 +317,27 @@ lvgl:
             align: top_left
         - container:
             align: center
+            anim_duration: 1s
             arc_opa: COVER
             arc_color: 0xFF0000
             arc_rounded: false
             arc_width: 3
-            anim_time: 1s
+            base_dir: auto
             bg_color: light_blue
             bg_grad_color: light_blue
             bg_grad_dir: hor
+            bg_grad_opa: cover
             bg_grad_stop: 128
             bg_image_opa: transp
             bg_image_recolor: light_blue
             bg_image_recolor_opa: 50%
+            bg_main_opa: cover
             bg_main_stop: 0
             bg_opa: 20%
+            blend_mode: normal
+            blur_backdrop: false
+            blur_quality: auto
+            blur_radius: 0
             border_color: 0x00FF00
             border_opa: cover
             border_post: true
@@ -338,7 +345,15 @@ lvgl:
             border_width: 4
             clip_corner: false
             color_filter_opa: transp
+            drop_shadow_color: 0x000000
+            drop_shadow_offset_x: 5
+            drop_shadow_offset_y: 5
+            drop_shadow_opa: cover
+            drop_shadow_quality: precision
+            drop_shadow_radius: 10
+            ext_click_area: 100px
             height: 50%
+            image_opa: cover
             image_recolor: light_blue
             image_recolor_opa: cover
             line_width: 10
@@ -346,6 +361,10 @@ lvgl:
             line_dash_gap: 10
             line_rounded: false
             line_color: light_blue
+            margin_bottom: 4
+            margin_left: 4
+            margin_right: 4
+            margin_top: 4
             opa: cover
             opa_layered: cover
             outline_color: light_blue
@@ -355,8 +374,12 @@ lvgl:
             pad_all: 10px
             pad_bottom: 10px
             pad_left: 10px
+            pad_radial: 0
             pad_right: 10px
             pad_top: 10px
+            recolor: 0xFF0000
+            recolor_opa: transp
+            rotary_sensitivity: 256
             shadow_color: light_blue
             shadow_opa: cover
             shadow_spread: 5
@@ -368,6 +391,9 @@ lvgl:
             text_letter_space: 4
             text_line_space: 4
             text_opa: cover
+            text_outline_stroke_color: 0x000000
+            text_outline_stroke_opa: cover
+            text_outline_stroke_width: 2
             transform_rotation: 90
             transform_height: 100
             transform_pivot_x: 50%
@@ -377,8 +403,10 @@ lvgl:
             transform_scale_y: 0.8
             transform_skew_x: 10
             transform_skew_y: 20
+            transform_width: 100
             shadow_offset_x: 3
             shadow_offset_y: 3
+            translate_radial: 0
             translate_x: 10
             translate_y: 10
             max_height: 100
@@ -1053,7 +1081,7 @@ lvgl:
                         - ticks:
                             width: 1
                             count: 61
-                            length: 20%
+                            length: 20
                             radial_offset: 5
                             color: 0xFFFFFF
                             major:

@@ -380,7 +380,8 @@ async def to_code(configs):
     # This must be done after all widgets are created
     for comp in helpers.lvgl_components_required:
         cg.add_define(f"USE_LVGL_{comp.upper()}")
-    lv_image_formats = df.get_color_formats().copy()
+    # Currently always need RGB565 for the display buffer, and ARGB8888 is used for layer blending
+    lv_image_formats = {"RGB565", "ARGB8888"}
     if {
         "transform_rotation",
         "transform_scale",
@@ -388,10 +389,6 @@ async def to_code(configs):
         "transform_scale_y",
     } & styles_used:
         df.add_define("LV_COLOR_SCREEN_TRANSP", "1")
-        lv_image_formats.add("ARGB8888")
-    lv_image_formats.add(
-        "RGB565"
-    )  # Currently always need RGB565 for the display buffer
     for use in helpers.lv_uses:
         df.add_define(f"LV_USE_{use.upper()}")
         cg.add_define(f"USE_LVGL_{use.upper()}")
@@ -401,9 +398,6 @@ async def to_code(configs):
         metadata = get_image_metadata(image_id.id)
         image_type = IMAGE_TYPE[metadata.image_type]
         transparent = metadata.transparency != CONF_OPAQUE
-        if transparent:
-            # Internal draw layer will use ARGB8888
-            lv_image_formats.add("ARGB8888")
         if image_type == ImageBinary:
             lv_image_formats.add("I1")
         if image_type == ImageGrayscale:

@@ -10,6 +10,10 @@ namespace tormatic {
 
 static const char *const TAG = "tormatic.cover";
 
+// Time to poll the UART when flushing after desync. At 9600 baud, a full
+// 12-byte message takes ~12.5ms, so 15ms guarantees all bytes have arrived.
+static constexpr uint32_t DRAIN_TIMEOUT_MS = 15;
+
 using namespace esphome::cover;
 
 void Tormatic::setup() {
@@ -256,32 +260,51 @@ void Tormatic::stop_at_target_() {
 // Read a GateStatus from the unit. The unit only sends messages in response to
 // status requests or commands, so a message needs to be sent first.
 optional<GateStatus> Tormatic::read_gate_status_() {
-  if (this->available() < sizeof(MessageHeader)) {
+  if (!this->pending_hdr_) {
+    if (this->available() < sizeof(MessageHeader)) {
+      return {};
+    }
+
+    this->pending_hdr_ = this->read_data_<MessageHeader>();
+    if (!this->pending_hdr_) {
+      return {};
+    }
+
+    // Sanity check: valid messages have small payloads (3-4 bytes). A large
+    // or impossible payload_size means the stream is out of sync (corrupted
+    // byte, dropped data, etc.). Flush the buffer so we can resync on the
+    // next request/response cycle.
+    if (this->pending_hdr_->payload_size() > sizeof(CommandRequestReply)) {
+      ESP_LOGW(TAG, "Unexpected payload size %" PRIu32 ", flushing rx buffer", this->pending_hdr_->payload_size());
+      this->pending_hdr_.reset();
+      this->drain_rx_();
+      return {};
+    }
+  }
+
+  // Wait for all payload bytes to arrive before processing.
+  if (this->available() < this->pending_hdr_->payload_size()) {
     return {};
   }
 
-  auto o_hdr = this->read_data_<MessageHeader>();
-  if (!o_hdr) {
-    ESP_LOGE(TAG, "Timeout reading message header");
-    return {};
-  }
-  auto hdr = o_hdr.value();
+  auto hdr = *this->pending_hdr_;
+  this->pending_hdr_.reset();
 
   switch (hdr.type) {
     case STATUS: {
       if (hdr.payload_size() != sizeof(StatusReply)) {
         ESP_LOGE(TAG, "Header specifies payload size %" PRIu32 " but size of StatusReply is %zu", hdr.payload_size(),
                  sizeof(StatusReply));
+        this->drain_rx_(hdr.payload_size());
+        return {};
       }
 
-      // Read a StatusReply requested by update().
       auto o_status = this->read_data_<StatusReply>();
       if (!o_status) {
         return {};
       }
-      auto status = o_status.value();
 
-      return status.state;
+      return o_status->state;
     }
 
     case COMMAND:
@@ -344,16 +367,24 @@ template<typename T> optional<T> Tormatic::read_data_() {
   return obj;
 }
 
-// Drain up to n amount of bytes from the uart rx buffer.
+// Drain bytes from the uart rx buffer. When n > 0, drain exactly n bytes
+// (caller must ensure they are available). When n == 0, poll for 15ms to
+// guarantee a full packet time at 9600 baud has elapsed, consuming any
+// bytes still in transit.
 void Tormatic::drain_rx_(uint16_t n) {
   uint8_t data;
-  uint16_t count = 0;
-  while (this->available()) {
-    this->read_byte(&data);
-    count++;
-
-    if (n > 0 && count >= n) {
-      return;
+  if (n > 0) {
+    for (uint16_t i = 0; i < n; i++) {
+      if (!this->read_byte(&data)) {
+        return;
+      }
+    }
+  } else {
+    uint32_t start = millis();
+    while (millis() - start < DRAIN_TIMEOUT_MS) {
+      if (this->available()) {
+        this->read_byte(&data);
+      }
     }
   }
 }

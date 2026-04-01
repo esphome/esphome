@@ -52,10 +52,6 @@ def get_remapped_uses():
     return get_data(KEY_REMAPPED_USES, set())
 
 
-def get_color_formats():
-    return get_data(KEY_COLOR_FORMATS, set())
-
-
 def add_warning(msg: str):
     get_warnings().add(msg)
 
@@ -541,6 +537,7 @@ CONF_END_ANGLE = "end_angle"
 CONF_END_VALUE = "end_value"
 CONF_ENTER_BUTTON = "enter_button"
 CONF_ENTRIES = "entries"
+CONF_EXT_CLICK_AREA = "ext_click_area"
 CONF_FLAGS = "flags"
 CONF_FLEX_FLOW = "flex_flow"
 CONF_FLEX_ALIGN_MAIN = "flex_align_main"
