@@ -10,7 +10,7 @@
  * allowing queue storage to live in BSS with zero runtime heap allocation.
  */
 
-#ifdef USE_LIBRETINY
+#ifdef USE_BK72XX
 
 #include <FreeRTOS.h>
 #include <task.h>
@@ -45,4 +45,4 @@ void vApplicationGetTimerTaskMemory(StaticTask_t **ppxTimerTaskTCBBuffer, StackT
 
 #endif /* configSUPPORT_STATIC_ALLOCATION */
 
-#endif /* USE_LIBRETINY */
+#endif /* USE_BK72XX */
