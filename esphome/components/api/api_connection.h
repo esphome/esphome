@@ -797,10 +797,8 @@ class APIConnection final : public APIServerConnectionBase {
   }
 
   // Helper function to schedule a high priority message at the front of the batch
-  bool schedule_message_front_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size) {
-    this->deferred_batch_.add_item_front(entity, message_type, estimated_size);
-    return this->schedule_batch_();
-  }
+  // Out-of-line: callers (on_shutdown, check_keepalive_) are cold paths
+  bool schedule_message_front_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size);
 
   // Helper function to log client messages with name and peername
   void log_client_(int level, const LogString *message);

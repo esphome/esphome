@@ -2072,6 +2072,11 @@ void APIConnection::on_fatal_error() {
   this->flags_.remove = true;
 }
 
+bool APIConnection::schedule_message_front_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size) {
+  this->deferred_batch_.add_item_front(entity, message_type, estimated_size);
+  return this->schedule_batch_();
+}
+
 bool APIConnection::send_message_smart_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
                                         uint8_t aux_data_index) {
   if (this->should_send_immediately_(message_type) && this->helper_->can_write_without_blocking()) {
