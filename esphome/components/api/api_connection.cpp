@@ -2023,17 +2023,18 @@ uint16_t APIConnection::encode_to_buffer(uint32_t calculated_size, MessageEncode
 
   auto &shared_buf = conn->parent_->get_shared_buffer_ref();
 
-  size_t write_start;
+  size_t to_add;
   if (conn->flags_.batch_first_message) {
     // First message - buffer already prepared by caller, just clear flag
     conn->flags_.batch_first_message = false;
-    shared_buf.resize(shared_buf.size() + calculated_size);
+    to_add = calculated_size;
   } else {
     // Batch message second or later
     // Reserve for full message, resize to include footer gap + header padding + payload
-    shared_buf.resize(shared_buf.size() + total_calculated_size);
+    to_add = total_calculated_size;
   }
 
+  shared_buf.resize(shared_buf.size() + to_add);
   ProtoWriteBuffer buffer{&shared_buf, shared_buf.size() - calculated_size};
   encode_fn(msg, buffer);
 
