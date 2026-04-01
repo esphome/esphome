@@ -26,7 +26,9 @@ from esphome.const import (
     CONF_PAGES,
     CONF_RESET_DURATION,
     CONF_RESET_PIN,
+    CONF_REVERSED,
     CONF_ROTATION,
+    CONF_SLEEP_WHEN_DONE,
     CONF_SWAP_XY,
     CONF_TRANSFORM,
     CONF_UPDATE_INTERVAL,
@@ -94,7 +96,11 @@ def model_schema(config):
             cv.Optional(CONF_FULL_UPDATE_EVERY, default=1): cv.int_range(1, 255),
             model.option(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
             model.option(CONF_CS_PIN): pins.gpio_output_pin_schema,
-            model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema,
+            **(
+                {model.option(CONF_DC_PIN, fallback=None): pins.gpio_output_pin_schema}
+                if model.get_default(CONF_DC_PIN, None) is not False
+                else {}
+            ),
             model.option(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.GenerateID(): cv.declare_id(class_name),
             cv.GenerateID(CONF_INIT_SEQUENCE_ID): cv.declare_id(cg.uint8),
@@ -106,6 +112,16 @@ def model_schema(config):
             model.option(CONF_RESET_DURATION, cv.UNDEFINED): cv.All(
                 cv.positive_time_period_milliseconds,
                 cv.Range(max=core.TimePeriod(milliseconds=500)),
+            ),
+            **(
+                {cv.Optional(CONF_REVERSED, default=False): cv.boolean}
+                if model.get_default(CONF_DC_PIN, None) is False
+                else {}
+            ),
+            **(
+                {cv.Optional(CONF_SLEEP_WHEN_DONE, default=True): cv.boolean}
+                if model.get_default(CONF_DC_PIN, None) is False
+                else {}
             ),
         }
     )
@@ -131,8 +147,11 @@ CONFIG_SCHEMA = customise_schema
 
 
 def _final_validate(config):
+    # Models without a DC pin (e.g. IT8951E) use full-duplex SPI and need MISO
+    model = MODELS[config[CONF_MODEL]]
+    needs_miso = model.get_default(CONF_DC_PIN, None) is False
     spi.final_validate_device_schema(
-        "epaper_spi", require_miso=False, require_mosi=True
+        "epaper_spi", require_miso=needs_miso, require_mosi=True
     )(config)
 
     global_config = full_config.get()
@@ -178,10 +197,14 @@ async def to_code(config):
     # Rotation is handled by setting the transform
     display_config = {k: v for k, v in config.items() if k != CONF_ROTATION}
     await display.register_display(var, display_config)
-    await spi.register_spi_device(var, config, write_only=True)
 
-    dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
-    cg.add(var.set_dc_pin(dc))
+    # Models without DC pin (e.g. IT8951E) read from SPI, so must not be write-only
+    write_only = model.get_default(CONF_DC_PIN, None) is not False
+    await spi.register_spi_device(var, config, write_only=write_only)
+
+    if dc_pin := config.get(CONF_DC_PIN):
+        dc = await cg.gpio_pin_expression(dc_pin)
+        cg.add(var.set_dc_pin(dc))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
@@ -197,6 +220,10 @@ async def to_code(config):
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
     if CONF_RESET_DURATION in config:
         cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
+    if CONF_REVERSED in config:
+        cg.add(var.set_reversed(config[CONF_REVERSED]))
+    if CONF_SLEEP_WHEN_DONE in config:
+        cg.add(var.set_sleep_when_done(config[CONF_SLEEP_WHEN_DONE]))
     if transform := config.get(CONF_TRANSFORM):
         transform[CONF_SWAP_XY] = False
     else:
