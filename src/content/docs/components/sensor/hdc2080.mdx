@@ -1,0 +1,52 @@
+---
+description: "Instructions for setting up HDC2080 temperature and humidity sensors."
+title: "HDC2080 Temperature+Humidity Sensor"
+---
+
+import { Image } from 'astro:assets';
+import APIRef from '@components/APIRef.astro';
+
+The HDC2080 Temperature+Humidity sensor allows you to use your HDC2080
+([datasheet](https://www.ti.com/lit/ds/symlink/hdc2080.pdf)) sensors with
+ESPHome. The [I²C Bus](/components/i2c) is
+required to be set up in your configuration for this sensor to work.
+
+<Image src="/images/hdc2080.png" width={588} height={418} layout="constrained" alt="HDC2080 Temperature & Humidity Sensor" />
+
+```yaml
+# Example configuration entry
+sensor:
+  - platform: hdc2080
+    temperature:
+      name: "Temperature"
+    humidity:
+      name: "Humidity"
+```
+
+## Configuration variables
+
+- **temperature** (*Optional*): The information for the temperature sensor.
+
+  - All options from [Sensor](/components/sensor/).
+
+- **humidity** (*Optional*): The information for the humidity sensor
+
+  - All options from [Sensor](/components/sensor/).
+
+- **address** (*Optional*, int): Manually specify the I²C address of the sensor. Defaults to `0x40`.
+
+- **update_interval** (*Optional*, [Time](/guides/configuration-types#time)): The interval to check the sensor. Defaults to `60s`.
+
+Currently, the platform doesn't support activating the built-in heater or the data ready pin.
+If you need it, please open a feature request.
+
+## See Also
+
+- [Sensor Filters](/components/sensor/#sensor-filters)
+- [Absolute Humidity](/components/sensor/absolute_humidity/)
+- [HDC1080 Temperature+Humidity Sensor](/components/sensor/hdc1080/)
+- [DHT Temperature+Humidity Sensor](/components/sensor/dht/)
+- [DHT12 Temperature+Humidity Sensor](/components/sensor/dht12/)
+- [HTU21D | Si7021 | SHT21 Temperature & Humidity Sensor](/components/sensor/htu21d/)
+- [SHT3X-D Temperature+Humidity Sensor](/components/sensor/sht3xd/)
+- <APIRef text="hdc2080.h" path="hdc2080/hdc2080.h" />
