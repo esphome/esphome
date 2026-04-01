@@ -82,10 +82,6 @@ template<class T, uint8_t SIZE> class FreeRTOSQueue {
 
   bool empty() const { return uxQueueMessagesWaiting(this->handle_) == 0; }
 
-  /// Fast empty check — same as empty() for FreeRTOS queues since
-  /// uxQueueMessagesWaiting is already a lightweight read.
-  bool empty_relaxed() const { return this->empty(); }
-
   bool full() const { return uxQueueSpacesAvailable(this->handle_) == 0; }
 
   size_t size() const { return uxQueueMessagesWaiting(this->handle_); }

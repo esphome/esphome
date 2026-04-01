@@ -778,10 +778,8 @@ network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {WiFi.subnetMask(
 network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {WiFi.gatewayIP()}; }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return {WiFi.dnsIP(num)}; }
 void WiFiComponent::wifi_loop_() {
-  // Fast path: skip queue drain when empty.
-  // On LockFreeQueue platforms, relaxed loads avoid memory fences.
-  // On FreeRTOSQueue platforms, this is a lightweight uxQueueMessagesWaiting check.
-  if (this->event_queue_.empty_relaxed())
+  // Fast path: skip dropped count check and pop loop when queue is empty
+  if (this->event_queue_.empty())
     return;
 
   uint16_t dropped = this->event_queue_.get_and_reset_dropped_count();
