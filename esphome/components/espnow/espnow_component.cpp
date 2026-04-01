@@ -4,6 +4,8 @@
 
 #include "espnow_err.h"
 
+#include <cinttypes>
+
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -266,7 +268,7 @@ void ESPNowComponent::loop() {
   if (wifi::global_wifi_component != nullptr && wifi::global_wifi_component->is_connected()) {
     int32_t new_channel = wifi::global_wifi_component->get_wifi_channel();
     if (new_channel != this->wifi_channel_) {
-      ESP_LOGI(TAG, "Wifi Channel is changed from %d to %d.", this->wifi_channel_, new_channel);
+      ESP_LOGI(TAG, "Wifi Channel is changed from %d to %" PRId32 ".", this->wifi_channel_, new_channel);
       this->wifi_channel_ = new_channel;
     }
   }

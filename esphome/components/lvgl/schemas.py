@@ -146,26 +146,41 @@ def point_schema(value):
 
 
 # All LVGL styles and their validators
-STYLE_PROPS = {
+BASE_PROPS = {
     "align": df.CHILD_ALIGNMENTS.one_of,
-    "arc_opa": lvalid.opacity,
+    "anim_duration": lvalid.lv_milliseconds,
     "arc_color": lvalid.lv_color,
+    "arc_opa": lvalid.opacity,
     "arc_rounded": lvalid.lv_bool,
     "arc_width": lvalid.pixels,
-    "anim_time": lvalid.lv_milliseconds,
+    "base_dir": df.LvConstant("LV_BASE_DIR_", "LTR", "RTL", "AUTO").one_of,
     "bg_color": lvalid.lv_color,
     "bg_grad": lv_gradient,
     "bg_grad_color": lvalid.lv_color,
-    "bg_dither_mode": df.LvConstant("LV_DITHER_", "NONE", "ORDERED", "ERR_DIFF").one_of,
     "bg_grad_dir": LV_GRAD_DIR.one_of,
+    "bg_grad_opa": lvalid.opacity,
     "bg_grad_stop": lvalid.stop_value,
     "bg_image_opa": lvalid.opacity,
     "bg_image_recolor": lvalid.lv_color,
     "bg_image_recolor_opa": lvalid.opacity,
     "bg_image_src": lvalid.lv_image,
     "bg_image_tiled": lvalid.lv_bool,
+    "bg_main_opa": lvalid.opacity,
     "bg_main_stop": lvalid.stop_value,
     "bg_opa": lvalid.opacity,
+    "blend_mode": df.LvConstant(
+        "LV_BLEND_MODE_",
+        "NORMAL",
+        "ADDITIVE",
+        "SUBTRACTIVE",
+        "MULTIPLY",
+        "DIFFERENCE",
+    ).one_of,
+    "blur_backdrop": lvalid.lv_bool,
+    "blur_quality": df.LvConstant(
+        "LV_BLUR_QUALITY_", "AUTO", "SPEED", "PRECISION"
+    ).one_of,
+    "blur_radius": lvalid.lv_positive_int,
     "border_color": lvalid.lv_color,
     "border_opa": lvalid.opacity,
     "border_post": lvalid.lv_bool,
@@ -175,33 +190,53 @@ STYLE_PROPS = {
     "border_width": lvalid.lv_positive_int,
     "clip_corner": lvalid.lv_bool,
     "color_filter_opa": lvalid.opacity,
+    "drop_shadow_color": lvalid.lv_color,
+    "drop_shadow_offset_x": lvalid.lv_int,
+    "drop_shadow_offset_y": lvalid.lv_int,
+    "drop_shadow_opa": lvalid.opacity,
+    "drop_shadow_quality": df.LvConstant(
+        "LV_BLUR_QUALITY_", "AUTO", "SPEED", "PRECISION"
+    ).one_of,
+    "drop_shadow_radius": lvalid.lv_positive_int,
     "height": lvalid.size,
+    "image_opa": lvalid.opacity,
     "image_recolor": lvalid.lv_color,
     "image_recolor_opa": lvalid.opacity,
+    "length": lvalid.pixels_or_percent,
     "line_color": lvalid.lv_color,
     "line_dash_gap": lvalid.lv_positive_int,
     "line_dash_width": lvalid.lv_positive_int,
     "line_opa": lvalid.opacity,
     "line_rounded": lvalid.lv_bool,
     "line_width": lvalid.lv_positive_int,
+    "margin_bottom": lvalid.padding,
+    "margin_left": lvalid.padding,
+    "margin_right": lvalid.padding,
+    "margin_top": lvalid.padding,
+    "max_height": lvalid.pixels_or_percent,
+    "max_width": lvalid.pixels_or_percent,
+    "min_height": lvalid.pixels_or_percent,
+    "min_width": lvalid.pixels_or_percent,
     "opa": lvalid.opacity,
     "opa_layered": lvalid.opacity,
     "outline_color": lvalid.lv_color,
     "outline_opa": lvalid.opacity,
     "outline_pad": lvalid.padding,
     "outline_width": lvalid.pixels,
-    "length": lvalid.pixels_or_percent,
     "pad_all": lvalid.padding,
     "pad_bottom": lvalid.padding,
     "pad_left": lvalid.padding,
+    "pad_radial": lvalid.padding,
     "pad_right": lvalid.padding,
     "pad_top": lvalid.padding,
     "radial_offset": lvalid.size,
+    "radius": lvalid.lv_fraction,
+    "recolor": lvalid.lv_color,
+    "recolor_opa": lvalid.opacity,
+    "rotary_sensitivity": lvalid.lv_positive_int,
     "shadow_color": lvalid.lv_color,
     "shadow_offset_x": lvalid.lv_int,
     "shadow_offset_y": lvalid.lv_int,
-    "shadow_ofs_x": lvalid.lv_int,
-    "shadow_ofs_y": lvalid.lv_int,
     "shadow_opa": lvalid.opacity,
     "shadow_spread": lvalid.lv_int,
     "shadow_width": lvalid.lv_positive_int,
@@ -216,7 +251,9 @@ STYLE_PROPS = {
     "text_letter_space": lvalid.lv_positive_int,
     "text_line_space": lvalid.lv_positive_int,
     "text_opa": lvalid.opacity,
-    "transform_angle": lvalid.lv_angle,
+    "text_outline_stroke_color": lvalid.lv_color,
+    "text_outline_stroke_opa": lvalid.opacity,
+    "text_outline_stroke_width": lvalid.lv_positive_int,
     "transform_height": lvalid.pixels_or_percent,
     "transform_pivot_x": lvalid.pixels_or_percent,
     "transform_pivot_y": lvalid.pixels_or_percent,
@@ -226,20 +263,17 @@ STYLE_PROPS = {
     "transform_scale_y": lvalid.scale,
     "transform_skew_x": lvalid.lv_angle,
     "transform_skew_y": lvalid.lv_angle,
-    "transform_zoom": lvalid.scale,
+    "transform_width": lvalid.pixels_or_percent,
+    "translate_radial": lvalid.lv_int,
     "translate_x": lvalid.pixels_or_percent,
     "translate_y": lvalid.pixels_or_percent,
-    "max_height": lvalid.pixels_or_percent,
-    "max_width": lvalid.pixels_or_percent,
-    "min_height": lvalid.pixels_or_percent,
-    "min_width": lvalid.pixels_or_percent,
-    "radius": lvalid.lv_fraction,
     "width": lvalid.size,
     "x": lvalid.pixels_or_percent,
     "y": lvalid.pixels_or_percent,
 }
 
 STYLE_REMAP = {
+    "anim_time": "anim_duration",
     "transform_angle": "transform_rotation",
     "transform_zoom": "transform_scale",
     "zoom": "scale",
@@ -247,6 +281,10 @@ STYLE_REMAP = {
     "shadow_ofs_x": "shadow_offset_x",
     "shadow_ofs_y": "shadow_offset_y",
     "r_mod": "length",
+}
+
+STYLE_PROPS = BASE_PROPS | {
+    p: BASE_PROPS[v] for p, v in STYLE_REMAP.items() if v in BASE_PROPS
 }
 
 
@@ -394,6 +432,7 @@ def obj_schema(widget_type: WidgetType):
     return (
         part_schema(widget_type.parts)
         .extend(ALIGN_TO_SCHEMA)
+        .extend({cv.Optional(df.CONF_EXT_CLICK_AREA): lvalid.pixels})
         .extend(automation_schema(widget_type.w_type))
         .extend(
             {

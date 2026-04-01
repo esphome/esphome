@@ -71,11 +71,13 @@ def register_component_source(name: str) -> int:
         return pool.sources[name]
     idx = len(pool.sources) + 1
     if idx > _MAX_COMPONENT_SOURCES:
-        _LOGGER.warning(
-            "Too many unique component source names (max %d), '%s' will show as '<unknown>'",
-            _MAX_COMPONENT_SOURCES,
-            name,
-        )
+        if not CORE.testing_mode:
+            _LOGGER.warning(
+                "Too many unique component source names (max %d), "
+                "'%s' will show as '<unknown>'",
+                _MAX_COMPONENT_SOURCES,
+                name,
+            )
         return 0
     pool.sources[name] = idx
     _ensure_source_table_registered()

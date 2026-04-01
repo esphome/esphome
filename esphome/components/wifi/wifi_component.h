@@ -6,6 +6,9 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#ifdef USE_ESP32
+#include "esphome/core/lock_free_queue.h"
+#endif
 #include "esphome/core/string_ref.h"
 
 #include <span>
@@ -670,8 +673,11 @@ class WiFiComponent final : public Component {
   bool wifi_sta_connect_(const WiFiAP &ap);
   void wifi_pre_setup_();
   WiFiSTAConnectStatus wifi_sta_connect_status_() const;
-  bool is_connected_() const;
-  void update_connected_state_();
+  bool is_connected_() const {
+    return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED &&
+           this->wifi_sta_connect_status_() == WiFiSTAConnectStatus::CONNECTED && !this->error_from_callback_;
+  }
+  void update_connected_state_() { this->connected_ = this->is_connected_(); }
   bool wifi_scan_start_(bool passive);
 
 #ifdef USE_WIFI_AP
@@ -724,6 +730,7 @@ class WiFiComponent final : public Component {
 
 #ifdef USE_ESP32
   void wifi_process_event_(IDFWiFiEvent *data);
+  friend void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 #endif
 
 #ifdef USE_RP2040
@@ -811,6 +818,12 @@ class WiFiComponent final : public Component {
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */
   bool error_from_callback_{false};
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+  // Platform-specific STA state enum, defined in platform cpp file.
+  // On ESP8266, written from SDK system context (wifi_event_callback) —
+  // uint8_t writes are atomic on Xtensa LX106 so no synchronization is needed.
+  uint8_t sta_state_{0};
+#endif
   RetryHiddenMode retry_hidden_mode_{RetryHiddenMode::BLIND_RETRY};
   RoamingState roaming_state_{RoamingState::IDLE};
   bssid_t roaming_target_bssid_{};  // BSSID of the AP we're trying to roam to
@@ -860,6 +873,13 @@ class WiFiComponent final : public Component {
   bool post_connect_roaming_{true};  // Enabled by default
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   bool is_high_performance_mode_{false};
+#endif
+
+#ifdef USE_ESP32
+  // Lock-free SPSC queue for WiFi events from ESP-IDF event handler.
+  // 17 slots = 16 usable (ring buffer reserves one slot). WiFi events are rare.
+  // Placed at end of class to avoid padding between smaller fields.
+  LockFreeQueue<IDFWiFiEvent, 17> event_queue_;
 #endif
 
  private:

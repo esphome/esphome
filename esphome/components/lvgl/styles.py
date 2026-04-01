@@ -4,26 +4,12 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import ID
 
-from .defines import (
-    CONF_STYLE_DEFINITIONS,
-    CONF_THEME,
-    CONF_TOP_LAYER,
-    LValidator,
-    literal,
-)
+from .defines import CONF_STYLE_DEFINITIONS, CONF_THEME, LValidator, literal
 from .helpers import add_lv_use
-from .lvcode import LambdaContext, LocalVariable, lv
+from .lvcode import LambdaContext, lv
 from .schemas import ALL_STYLES, FULL_STYLE_SCHEMA, remap_property
-from .types import ObjUpdateAction, lv_obj_t, lv_style_t
-from .widgets import (
-    Widget,
-    add_widgets,
-    collect_parts,
-    set_obj_properties,
-    theme_widget_map,
-    wait_for_widgets,
-)
-from .widgets.obj import obj_spec
+from .types import ObjUpdateAction, lv_style_t
+from .widgets import collect_parts, theme_widget_map, wait_for_widgets
 
 
 def has_style_props(config) -> bool:
@@ -112,12 +98,3 @@ async def theme_to_code(config):
                     for state, props in states.items()
                 }
             theme_widget_map[w_name] = styles
-
-
-async def add_top_layer(lv_component, config):
-    top_layer = lv.disp_get_layer_top(lv_component.var.get_disp())
-    if top_conf := config.get(CONF_TOP_LAYER):
-        with LocalVariable("top_layer", lv_obj_t, top_layer) as top_layer_obj:
-            top_w = Widget(top_layer_obj, obj_spec, top_conf)
-            await set_obj_properties(top_w, top_conf)
-            await add_widgets(top_w, top_conf)
