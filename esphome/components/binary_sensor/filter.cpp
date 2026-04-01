@@ -76,14 +76,11 @@ float DelayedOffFilter::get_setup_priority() const { return setup_priority::HARD
 
 optional<bool> InvertFilter::new_value(bool value) { return !value; }
 
-AutorepeatFilter::AutorepeatFilter(std::initializer_list<AutorepeatFilterTiming> timings) : timings_(timings) {}
-
-optional<bool> AutorepeatFilter::new_value(bool value) {
+// AutorepeatFilterBase
+optional<bool> AutorepeatFilterBase::new_value(bool value) {
   if (value) {
-    // Ignore if already running
     if (this->active_timing_ != 0)
       return {};
-
     this->next_timing_();
     return true;
   } else {
@@ -94,34 +91,26 @@ optional<bool> AutorepeatFilter::new_value(bool value) {
   }
 }
 
-void AutorepeatFilter::next_timing_() {
-  // Entering this method
-  // 1st time: starts waiting the first delay
-  // 2nd time: starts waiting the second delay and starts toggling with the first time_off / _on
-  // last time: no delay to start but have to bump the index to reflect the last
-  if (this->active_timing_ < this->timings_.size()) {
+void AutorepeatFilterBase::next_timing_() {
+  if (this->active_timing_ < this->timings_count_) {
     this->set_timeout(AUTOREPEAT_TIMING_ID, this->timings_[this->active_timing_].delay,
                       [this]() { this->next_timing_(); });
   }
-
-  if (this->active_timing_ <= this->timings_.size()) {
+  if (this->active_timing_ <= this->timings_count_) {
     this->active_timing_++;
   }
-
   if (this->active_timing_ == 2)
     this->next_value_(false);
-
-  // Leaving this method: if the toggling is started, it has to use [active_timing_ - 2] for the intervals
 }
 
-void AutorepeatFilter::next_value_(bool val) {
+void AutorepeatFilterBase::next_value_(bool val) {
   const AutorepeatFilterTiming &timing = this->timings_[this->active_timing_ - 2];
-  this->output(val);  // This is at least the second one so not initial
+  this->output(val);
   this->set_timeout(AUTOREPEAT_ON_OFF_ID, val ? timing.time_on : timing.time_off,
                     [this, val]() { this->next_value_(!val); });
 }
 
-float AutorepeatFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
+float AutorepeatFilterBase::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 LambdaFilter::LambdaFilter(std::function<optional<bool>(bool)> f) : f_(std::move(f)) {}
 
