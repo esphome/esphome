@@ -11,8 +11,9 @@
 
 namespace esphome::api {
 
-// Friend function declared in APIConnection to enable immediate send path for benchmarking.
+// Friend functions declared in APIConnection for benchmark access.
 void bench_enable_immediate_send(APIConnection *conn) { conn->flags_.should_try_send_immediately = true; }
+void bench_clear_batch(APIConnection *conn) { conn->clear_batch_(); }
 
 }  // namespace esphome::api
 
@@ -65,11 +66,11 @@ static void SendSensorState_Immediate(benchmark::State &state) {
 }
 BENCHMARK(SendSensorState_Immediate);
 
-// --- send_sensor_state: batch path (default for new connections) ---
+// --- send_sensor_state: batch path (cold — first call allocates) ---
 // Measures: send_message_smart_ → schedule_message_ → deferred batch add.
-// This is the default path until initial states are sent.
+// Includes one-time vector allocation cost.
 
-static void SendSensorState_Batch(benchmark::State &state) {
+static void SendSensorState_Batch_Cold(benchmark::State &state) {
   auto [conn, read_fd] = create_api_connection();
 
   TestSensor sensor;
@@ -86,7 +87,35 @@ static void SendSensorState_Batch(benchmark::State &state) {
 
   ::close(read_fd);
 }
-BENCHMARK(SendSensorState_Batch);
+BENCHMARK(SendSensorState_Batch_Cold);
+
+// --- send_sensor_state: batch path (warm — buffer already allocated) ---
+// Measures steady-state batch cost after the vector has been allocated
+// and cleared at least once. This is the typical path during normal
+// operation after the first batch has been processed.
+
+static void SendSensorState_Batch_Warm(benchmark::State &state) {
+  auto [conn, read_fd] = create_api_connection();
+
+  TestSensor sensor;
+  sensor.configure("test_sensor");
+  sensor.publish_state(23.5f);
+
+  // Warm up: send once to allocate, then clear to keep capacity
+  conn->send_sensor_state(&sensor);
+  bench_clear_batch(conn.get());
+
+  for (auto _ : state) {
+    for (int i = 0; i < kInnerIterations; i++) {
+      conn->send_sensor_state(&sensor);
+    }
+    benchmark::DoNotOptimize(conn.get());
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+
+  ::close(read_fd);
+}
+BENCHMARK(SendSensorState_Batch_Warm);
 
 }  // namespace esphome::api::benchmarks
 
