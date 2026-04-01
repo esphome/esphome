@@ -2072,6 +2072,8 @@ void APIConnection::on_fatal_error() {
   this->flags_.remove = true;
 }
 
+void __attribute__((flatten)) APIConnection::DeferredBatch::push_item(const BatchItem &item) { items.push_back(item); }
+
 void APIConnection::DeferredBatch::add_item(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
                                             uint8_t aux_data_index) {
   // Check if we already have a message of this type for this entity

@@ -647,7 +647,10 @@ class APIConnection final : public APIServerConnectionBase {
                   uint8_t aux_data_index = AUX_DATA_UNUSED);
     // Add item to the front of the batch (for high priority messages like ping)
     void add_item_front(EntityBase *entity, uint8_t message_type, uint8_t estimated_size);
-    void push_item(const BatchItem &item) { items.push_back(item); }
+    // Out-of-line with flatten: inlines push_back callees into push_item,
+    // but keeps push_item itself as a call from add_item. This prevents
+    // the compiler from bloating add_item's dedup loop and degrading icache.
+    void push_item(const BatchItem &item);
 
     // Clear all items
     void clear() {
