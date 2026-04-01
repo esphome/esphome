@@ -716,6 +716,11 @@ const char *get_disconnect_reason_str(uint8_t reason) {
 }
 
 void WiFiComponent::wifi_loop_() {
+  // Fast path: relaxed check avoids acquire fences (4x memw on Xtensa) when queue is empty.
+  // Safe from consumer side — worst case we process events one loop iteration late.
+  if (this->event_queue_.empty_relaxed())
+    return;
+
   uint16_t dropped = this->event_queue_.get_and_reset_dropped_count();
   if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u WiFi events due to buffer overflow", dropped);

@@ -118,6 +118,12 @@ template<class T, uint8_t SIZE> class LockFreeQueue {
 
   bool empty() const { return head_.load(std::memory_order_acquire) == tail_.load(std::memory_order_acquire); }
 
+  /// Fast empty check using relaxed loads — no memory fences on Xtensa.
+  /// Safe when called only from the consumer side: head_ is only written by the
+  /// consumer, and tail_ can only advance. Worst case we miss a just-pushed item
+  /// and catch it next loop iteration.
+  bool empty_relaxed() const { return head_.load(std::memory_order_relaxed) == tail_.load(std::memory_order_relaxed); }
+
   bool full() const {
     uint8_t next_tail = next_index(tail_.load(std::memory_order_relaxed));
     return next_tail == head_.load(std::memory_order_acquire);

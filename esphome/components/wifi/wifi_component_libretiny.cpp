@@ -778,7 +778,12 @@ network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {WiFi.subnetMask(
 network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {WiFi.gatewayIP()}; }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return {WiFi.dnsIP(num)}; }
 void WiFiComponent::wifi_loop_() {
-  // Check for dropped events due to queue overflow
+  // Fast path: skip queue drain when empty.
+  // On LockFreeQueue platforms, relaxed loads avoid memory fences.
+  // On FreeRTOSQueue platforms, this is a lightweight uxQueueMessagesWaiting check.
+  if (this->event_queue_.empty_relaxed())
+    return;
+
   uint16_t dropped = this->event_queue_.get_and_reset_dropped_count();
   if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %" PRIu16 " WiFi events due to buffer overflow", dropped);
