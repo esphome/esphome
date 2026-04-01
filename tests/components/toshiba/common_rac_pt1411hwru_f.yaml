@@ -1,0 +1,5 @@
+climate:
+  - platform: toshiba
+    name: "RAC-PT1411HWRU-F Climate"
+    model: RAC-PT1411HWRU-F
+    transmitter_id: xmitr
