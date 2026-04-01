@@ -38,7 +38,7 @@ void LightState::setup() {
   auto call = this->make_call();
   LightStateRTCState recovered{};
   const bool has_initial_state_cb = this->initial_state_callback_ != nullptr;
-  if (this->initial_state_callback_) {
+  if (has_initial_state_cb) {
     this->initial_state_callback_(recovered);
     this->initial_state_callback_ = nullptr;  // One-shot — no longer needed
   }
@@ -80,8 +80,12 @@ void LightState::setup() {
 
     // If we're not applying anything at boot (NO_RESTORE and no callback), exit early.
    if (!apply_boot_call) {
-     return;
-   }
+    // Prevent an implicit first write_state() caused by next_write_ defaulting to true.
+    this->next_write_ = false;
+    // With no pending writes, allow the component loop to disable itself if idle.
+    this->disable_loop_if_idle_();
+    return;
+  }
   
   call.set_color_mode_if_supported(recovered.color_mode);
   call.set_state(recovered.state);
