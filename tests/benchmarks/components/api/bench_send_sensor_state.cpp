@@ -2,12 +2,9 @@
 #if defined(USE_API_PLAINTEXT) && defined(USE_SENSOR)
 
 #include <benchmark/benchmark.h>
-#include <fcntl.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <sys/socket.h>
 #include <unistd.h>
 
+#include "bench_helpers.h"
 #include "esphome/components/api/api_connection.h"
 #include "esphome/components/api/api_server.h"
 #include "esphome/components/sensor/sensor.h"
@@ -23,56 +20,12 @@ namespace esphome::api::benchmarks {
 
 static constexpr int kInnerIterations = 2000;
 
-// Helper to drain accumulated data from the read side of a socket
-// to prevent the write side from blocking.
-static void drain_socket(int fd) {
-  char buf[65536];
-  while (::read(fd, buf, sizeof(buf)) > 0) {
-  }
-}
-
 // Helper to create a TCP loopback connection with an APIConnection.
 // Returns the connection and the read-side fd for draining.
 static std::pair<std::unique_ptr<APIConnection>, int> create_api_connection() {
-  // Create a TCP listener on loopback
-  int listen_fd = ::socket(AF_INET, SOCK_STREAM, 0);
-  int opt = 1;
-  ::setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-
-  struct sockaddr_in addr {};
-  addr.sin_family = AF_INET;
-  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-  addr.sin_port = 0;  // OS-assigned port
-  ::bind(listen_fd, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr));
-  ::listen(listen_fd, 1);
-
-  // Get the assigned port
-  socklen_t addr_len = sizeof(addr);
-  ::getsockname(listen_fd, reinterpret_cast<struct sockaddr *>(&addr), &addr_len);
-
-  // Connect from client side
-  int write_fd = ::socket(AF_INET, SOCK_STREAM, 0);
-  ::connect(write_fd, reinterpret_cast<struct sockaddr *>(&addr), sizeof(addr));
-
-  // Accept on server side (this is our read fd)
-  int read_fd = ::accept(listen_fd, nullptr, nullptr);
-  ::close(listen_fd);
-
-  // Make both ends non-blocking
-  int flags = ::fcntl(write_fd, F_GETFL, 0);
-  ::fcntl(write_fd, F_SETFL, flags | O_NONBLOCK);
-  flags = ::fcntl(read_fd, F_GETFL, 0);
-  ::fcntl(read_fd, F_SETFL, flags | O_NONBLOCK);
-
-  // Increase socket buffer sizes to reduce drain frequency
-  int bufsize = 1024 * 1024;
-  ::setsockopt(write_fd, SOL_SOCKET, SO_SNDBUF, &bufsize, sizeof(bufsize));
-  ::setsockopt(read_fd, SOL_SOCKET, SO_RCVBUF, &bufsize, sizeof(bufsize));
-
-  auto sock = std::make_unique<socket::Socket>(write_fd);
+  auto [sock, read_fd] = create_tcp_loopback();
   auto conn = std::make_unique<APIConnection>(std::move(sock), global_api_server);
   conn->start();
-
   return {std::move(conn), read_fd};
 }
 
