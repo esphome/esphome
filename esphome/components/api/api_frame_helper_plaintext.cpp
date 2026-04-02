@@ -262,9 +262,10 @@ ESPHOME_ALWAYS_INLINE static inline void encode_varint_8(uint8_t value, uint8_t 
 
 // Write plaintext header into pre-allocated padding before payload.
 // Returns the total header length (indicator + varints).
-ESPHOME_ALWAYS_INLINE static inline uint8_t write_plaintext_header(uint8_t *buf_start, const MessageInfo &msg) {
-  uint8_t size_varint_len = varint_encoded_length_16(msg.payload_size);
-  uint8_t type_varint_len = varint_encoded_length_8(msg.message_type);
+ESPHOME_ALWAYS_INLINE static inline uint8_t write_plaintext_header(uint8_t *buf_start, uint16_t payload_size,
+                                                                   uint8_t message_type) {
+  uint8_t size_varint_len = varint_encoded_length_16(payload_size);
+  uint8_t type_varint_len = varint_encoded_length_8(message_type);
   uint8_t total_header_len = 1 + size_varint_len + type_varint_len;
 
   // Calculate where to start writing the header
@@ -298,8 +299,8 @@ ESPHOME_ALWAYS_INLINE static inline uint8_t write_plaintext_header(uint8_t *buf_
   buf_start[header_offset] = 0x00;  // indicator
 
   // Encode varints directly into buffer using pre-computed lengths
-  encode_varint_16(msg.payload_size, size_varint_len, buf_start + header_offset + 1);
-  encode_varint_8(msg.message_type, type_varint_len, buf_start + header_offset + 1 + size_varint_len);
+  encode_varint_16(payload_size, size_varint_len, buf_start + header_offset + 1);
+  encode_varint_8(message_type, type_varint_len, buf_start + header_offset + 1 + size_varint_len);
 
   return total_header_len;
 }
@@ -309,11 +310,11 @@ APIError APIPlaintextFrameHelper::write_protobuf_packet(uint8_t type, ProtoWrite
   assert(this->state_ == State::DATA);
 #endif
 
-  MessageInfo msg{type, 0, static_cast<uint16_t>(buffer.get_buffer()->size() - HEADER_PADDING)};
+  uint16_t payload_size = static_cast<uint16_t>(buffer.get_buffer()->size() - HEADER_PADDING);
   uint8_t *buffer_data = buffer.get_buffer()->data();
-  uint8_t header_len = write_plaintext_header(buffer_data, msg);
+  uint8_t header_len = write_plaintext_header(buffer_data, payload_size, type);
   uint8_t *msg_start = buffer_data + HEADER_PADDING - header_len;
-  uint16_t msg_len = static_cast<uint16_t>(header_len + msg.payload_size);
+  uint16_t msg_len = static_cast<uint16_t>(header_len + payload_size);
   return this->write_raw_fast_buf_(msg_start, msg_len);
 }
 
@@ -331,7 +332,7 @@ APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffe
   // First iteration records start position via continue; subsequent iterations
   // memmove to close gaps between messages.
   for (const auto &msg : messages) {
-    uint8_t header_len = write_plaintext_header(buffer_data + msg.offset, msg);
+    uint8_t header_len = write_plaintext_header(buffer_data + msg.offset, msg.payload_size, msg.message_type);
     uint8_t *src = buffer_data + msg.offset + HEADER_PADDING - header_len;
     uint16_t msg_len = header_len + msg.payload_size;
     if (write_start == nullptr) {
