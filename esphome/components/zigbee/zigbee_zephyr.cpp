@@ -313,7 +313,10 @@ void ZigbeeComponent::after_reporting_info(zb_zcl_configure_reporting_req_t *con
 
 extern "C" {
 void zboss_signal_handler(zb_uint8_t param) { esphome::zigbee::global_zigbee->zboss_signal_handler_esphome(param); }
-void zb_osif_serial_put_bytes(const zb_uint8_t *buf, zb_short_t len) {}
+void zb_osif_serial_put_bytes(const zb_uint8_t *buf, zb_short_t len) {
+  (void) buf;
+  (void) len;
+}
 void zb_osif_serial_flush() {}
 void zb_osif_serial_init() {}
 
