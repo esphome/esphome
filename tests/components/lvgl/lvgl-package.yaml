@@ -590,6 +590,114 @@ lvgl:
               logger.log: Button clicked
             on_long_press_repeat:
               logger.log: Button clicked
+            on_pressing:
+              logger.log: Button pressing
+            on_press_lost:
+              logger.log: Button press lost
+            on_single_click:
+              logger.log: Button single clicked
+            on_double_click:
+              logger.log: Button double clicked
+            on_triple_click:
+              logger.log: Button triple clicked
+            on_scroll_throw_begin:
+              logger.log: Scroll throw begin
+            on_gesture:
+              logger.log: Gesture detected
+            on_key:
+              logger.log: Key event
+            on_rotary:
+              logger.log: Rotary event
+            on_leave:
+              logger.log: Leave event
+            on_hit_test:
+              logger.log: Hit test
+            on_indev_reset:
+              logger.log: Indev reset
+            on_hover_over:
+              logger.log: Hover over
+            on_hover_leave:
+              logger.log: Hover leave
+            on_cover_check:
+              logger.log: Cover check
+            on_refr_ext_draw_size:
+              logger.log: Refr ext draw size
+            on_draw_main_begin:
+              logger.log: Draw main begin
+            on_draw_main:
+              logger.log: Draw main
+            on_draw_main_end:
+              logger.log: Draw main end
+            on_draw_post_begin:
+              logger.log: Draw post begin
+            on_draw_post:
+              logger.log: Draw post
+            on_draw_post_end:
+              logger.log: Draw post end
+            on_draw_task_add:
+              logger.log: Draw task add
+            on_insert:
+              logger.log: Insert event
+            on_refresh:
+              logger.log: Refresh event
+            on_state_change:
+              logger.log: State changed
+            on_create:
+              logger.log: Create event
+            on_delete:
+              logger.log: Delete event
+            on_child_change:
+              logger.log: Child changed
+            on_child_create:
+              logger.log: Child created
+            on_child_delete:
+              logger.log: Child deleted
+            on_screen_unload_start:
+              logger.log: Screen unload start
+            on_screen_load_start:
+              logger.log: Screen load start
+            on_screen_load:
+              logger.log: Screen loaded
+            on_screen_unload:
+              logger.log: Screen unloaded
+            on_size_change:
+              logger.log: Size changed
+            on_style_change:
+              logger.log: Style changed
+            on_layout_change:
+              logger.log: Layout changed
+            on_get_self_size:
+              logger.log: Get self size
+            on_invalidate_area:
+              logger.log: Invalidate area
+            on_resolution_change:
+              logger.log: Resolution changed
+            on_color_format_change:
+              logger.log: Color format changed
+            on_refr_request:
+              logger.log: Refresh request
+            on_refr_start:
+              logger.log: Refresh start
+            on_refr_ready:
+              logger.log: Refresh ready
+            on_render_start:
+              logger.log: Render start
+            on_render_ready:
+              logger.log: Render ready
+            on_flush_start:
+              logger.log: Flush start
+            on_flush_finish:
+              logger.log: Flush finish
+            on_flush_wait_start:
+              logger.log: Flush wait start
+            on_flush_wait_finish:
+              logger.log: Flush wait finish
+            on_update_layout_complete:
+              logger.log: Update layout complete
+            on_vsync:
+              logger.log: Vsync
+            on_vsync_request:
+              logger.log: Vsync request
         - led:
             id: lv_led
             color: 0x00FF00
