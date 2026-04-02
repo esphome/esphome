@@ -200,21 +200,5 @@ class HonClimate : public HaierClimateBase {
   SwitchState quiet_mode_state_{SwitchState::OFF};
 };
 
-class HaierAlarmStartTrigger : public Trigger<uint8_t, const char *> {
- public:
-  explicit HaierAlarmStartTrigger(HonClimate *parent) {
-    parent->add_alarm_start_callback(
-        [this](uint8_t alarm_code, const char *alarm_message) { this->trigger(alarm_code, alarm_message); });
-  }
-};
-
-class HaierAlarmEndTrigger : public Trigger<uint8_t, const char *> {
- public:
-  explicit HaierAlarmEndTrigger(HonClimate *parent) {
-    parent->add_alarm_end_callback(
-        [this](uint8_t alarm_code, const char *alarm_message) { this->trigger(alarm_code, alarm_message); });
-  }
-};
-
 }  // namespace haier
 }  // namespace esphome
