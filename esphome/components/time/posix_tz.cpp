@@ -34,22 +34,35 @@ bool is_leap_year(int year) { return (year % 4 == 0 && year % 100 != 0) || (year
 // Get days in year (avoids duplicate is_leap_year calls)
 static inline int days_in_year(int year) { return is_leap_year(year) ? 366 : 365; }
 
-// Convert days since epoch to year, updating days to remainder
-static int __attribute__((noinline)) days_to_year(int64_t &days) {
-  int year = 1970;
-  int diy;
-  while (days >= (diy = days_in_year(year)) && year < 2200) {
-    days -= diy;
+// Count leap years in [1, year] (i.e. up to and including year)
+static inline int count_leap_years_up_to(int year) { return year / 4 - year / 100 + year / 400; }
+
+// Days from epoch (Jan 1 1970) to Jan 1 of given year — O(1)
+static inline int64_t days_to_year_start_fast(int year) {
+  // 365 * (year - 1970) + (leap days in [1970, year))
+  // Leap days in [1970, year) = leaps up to (year-1) - leaps up to 1969
+  constexpr int leaps_before_1970 = 477;  // 1969/4 - 1969/100 + 1969/400
+  return 365LL * (year - 1970) + (count_leap_years_up_to(year - 1) - leaps_before_1970);
+}
+
+// Convert days since epoch to year, updating days to day-of-year remainder — O(1)
+static int days_to_year(int64_t &days) {
+  // Estimate year from days using 365.2425 average
+  int year = static_cast<int>(1970 + days / 365);
+  // Adjust: check if estimate is correct
+  int64_t year_start = days_to_year_start_fast(year);
+  if (days < year_start) {
+    year--;
+    year_start = days_to_year_start_fast(year);
+  } else if (days >= year_start + days_in_year(year)) {
+    year_start += days_in_year(year);
     year++;
   }
-  while (days < 0 && year > 1900) {
-    year--;
-    days += days_in_year(year);
-  }
+  days -= year_start;
   return year;
 }
 
-// Extract just the year from a UTC epoch
+// Extract just the year from a UTC epoch — O(1)
 static int epoch_to_year(time_t epoch) {
   int64_t days = epoch / 86400;
   if (epoch < 0 && epoch % 86400 != 0)
@@ -281,15 +294,7 @@ static int __attribute__((noinline)) days_from_year_start(int year, int month, i
 }
 
 // Calculate days from epoch to Jan 1 of given year (for DST transition calculations)
-// Only supports years >= 1970. Timezone is either compiled in from YAML or set by
-// Home Assistant, so pre-1970 dates are not a concern.
-static int64_t __attribute__((noinline)) days_to_year_start(int year) {
-  int64_t days = 0;
-  for (int y = 1970; y < year; y++) {
-    days += days_in_year(y);
-  }
-  return days;
-}
+static int64_t days_to_year_start(int year) { return days_to_year_start_fast(year); }
 
 time_t __attribute__((noinline)) calculate_dst_transition(int year, const DSTRule &rule, int32_t base_offset_seconds) {
   int month, day;
