@@ -59,14 +59,9 @@ binary_sensor:
     rate_limiting_active:
       name: "Rate Limiting Active"
       id: rate_limiting_sensor
-
-# Diagnostic text sensors
-text_sensor:
-  - platform: equitherm
-    climate_id: heating_controller
-    control_mode:
-      name: "Heating Control Mode"
-      id: control_mode_sensor
+    pid_active:
+      name: "PID Active"
+      id: pid_active_sensor
 
 output:
   - platform: slow_pwm
