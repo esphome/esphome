@@ -257,7 +257,13 @@ void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
           ESP_LOGV(TAG, "Out-of-bounds Fixed32-bit at offset %ld", (long) (ptr - buffer));
           return;
         }
-        uint32_t val = encode_uint32(ptr[3], ptr[2], ptr[1], ptr[0]);
+        uint32_t val;
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+        // Protobuf fixed32 is little-endian — direct load on LE platforms
+        memcpy(&val, ptr, 4);
+#else
+        val = encode_uint32(ptr[3], ptr[2], ptr[1], ptr[0]);
+#endif
         if (!this->decode_32bit(field_id, Proto32Bit(val))) {
           ESP_LOGV(TAG, "Cannot decode 32-bit field %" PRIu32 " with value %" PRIu32 "!", field_id, val);
         }

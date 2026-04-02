@@ -4,6 +4,7 @@
 
 #include "posix_tz.h"
 #include <cctype>
+#include <cstdio>
 
 namespace esphome::time {
 
@@ -440,6 +441,18 @@ bool parse_posix_tz(const char *tz_string, ParsedTimezone &result) {
   p++;
   // has_dst() now returns true since dst_start.type was set by parse_dst_rule
   return internal::parse_dst_rule(p, result.dst_end);
+}
+
+// Format a POSIX offset (positive = west) as "+HHMM" / "-HHMM" for display.
+// Convention: negate POSIX sign so east-of-UTC is positive (ISO 8601 / RFC 2822).
+void format_designation(int32_t posix_offset, char *buf, size_t buf_size) {
+  int32_t display = -posix_offset;
+  char sign = display >= 0 ? '+' : '-';
+  if (display < 0)
+    display = -display;
+  int h = display / 3600;
+  int m = (display % 3600) / 60;
+  snprintf(buf, buf_size, "%c%02d%02d", sign, h, m);
 }
 
 bool epoch_to_local_tm(time_t utc_epoch, const ParsedTimezone &tz, struct tm *out_tm) {
