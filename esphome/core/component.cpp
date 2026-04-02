@@ -9,9 +9,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#ifdef USE_RUNTIME_STATS
-#include "esphome/components/runtime_stats/runtime_stats.h"
-#endif
 
 namespace esphome {
 
@@ -524,13 +521,8 @@ WarnIfComponentBlockingGuard::warn_blocking(Component *component, uint32_t block
 
 #ifdef USE_RUNTIME_STATS
 void WarnIfComponentBlockingGuard::record_runtime_stats_() {
-  // Use micros() for accurate sub-millisecond timing. millis() has insufficient
-  // resolution — most components complete in microseconds but millis() only has
-  // 1ms granularity, so results were essentially random noise.
-  if (global_runtime_stats != nullptr) {
-    uint32_t duration_us = micros() - this->started_us_;
-    global_runtime_stats->record_component_time(this->component_, duration_us);
-  }
+  uint32_t duration_us = micros() - this->started_us_;
+  this->component_->runtime_stats_.record_time(duration_us);
 }
 #endif
 
