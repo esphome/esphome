@@ -227,14 +227,26 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
   buffer->type = this->rx_header_parsed_type_;
   return APIError::OK;
 }
+// Compute varint encoded length for a 16-bit value (1, 2, or 3 bytes).
+ESPHOME_ALWAYS_INLINE static inline uint8_t varint_encoded_length_16(uint16_t value) {
+  return value < ProtoSize::VARINT_THRESHOLD_1_BYTE ? 1 : (value < ProtoSize::VARINT_THRESHOLD_2_BYTE ? 2 : 3);
+}
+
+// Compute varint encoded length for an 8-bit value (1 or 2 bytes).
+ESPHOME_ALWAYS_INLINE static inline uint8_t varint_encoded_length_8(uint8_t value) {
+  return value < ProtoSize::VARINT_THRESHOLD_1_BYTE ? 1 : 2;
+}
+
+// Compute plaintext header length: indicator (1) + size varint + type varint.
+ESPHOME_ALWAYS_INLINE static inline uint8_t plaintext_header_length(const MessageInfo &msg) {
+  return 1 + varint_encoded_length_16(msg.payload_size) + varint_encoded_length_8(msg.message_type);
+}
+
 // Write plaintext header into pre-allocated padding before payload.
 // Returns the total header length (indicator + varints).
 ESPHOME_ALWAYS_INLINE static inline uint8_t write_plaintext_header(uint8_t *buf_start, const MessageInfo &msg) {
-  // Calculate varint sizes for header layout using inline ternary to avoid varint_slow call overhead
-  uint8_t size_varint_len = msg.payload_size < ProtoSize::VARINT_THRESHOLD_1_BYTE
-                                ? 1
-                                : (msg.payload_size < ProtoSize::VARINT_THRESHOLD_2_BYTE ? 2 : 3);
-  uint8_t type_varint_len = msg.message_type < ProtoSize::VARINT_THRESHOLD_1_BYTE ? 1 : 2;
+  uint8_t size_varint_len = varint_encoded_length_16(msg.payload_size);
+  uint8_t type_varint_len = varint_encoded_length_8(msg.message_type);
   uint8_t total_header_len = 1 + size_varint_len + type_varint_len;
 
   // Calculate where to start writing the header
@@ -294,19 +306,19 @@ APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffe
   assert(!messages.empty());
 #endif
   uint8_t *buffer_data = buffer.get_buffer()->data();
-  uint8_t *write_start = nullptr;
-  uint8_t *write_end = nullptr;
+
+  // Compute first message's write position from header length (cheap arithmetic, no buffer writes).
+  // This lets the loop body skip a nullptr check — first iteration has src == write_end naturally.
+  uint8_t *write_start = buffer_data + messages[0].offset + HEADER_PADDING - plaintext_header_length(messages[0]);
+  uint8_t *write_end = write_start;
 
   // Write headers and compact messages to close 0-3 byte varint padding gaps.
+  // First iteration: src == write_end so memmove is skipped.
   for (const auto &msg : messages) {
     uint8_t header_len = write_plaintext_header(buffer_data + msg.offset, msg);
     uint8_t *src = buffer_data + msg.offset + HEADER_PADDING - header_len;
     uint16_t msg_len = header_len + msg.payload_size;
-    if (write_end == nullptr) {
-      // First message: record start, no compaction needed
-      write_start = src;
-      write_end = src;
-    } else if (src != write_end) {
+    if (src != write_end) {
       memmove(write_end, src, msg_len);
     }
     write_end += msg_len;
