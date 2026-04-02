@@ -464,10 +464,11 @@ APIError APINoiseFrameHelper::encrypt_noise_message_(uint8_t *buf_start, uint16_
   // Encrypt the message in place
   NoiseBuffer mbuf;
   noise_buffer_init(mbuf);
-  noise_buffer_set_inout(mbuf, buf_start + msg_offset, 4 + payload_size, 4 + payload_size + frame_footer_size_);
+  noise_buffer_set_inout(mbuf, buf_start + msg_offset, 4 + payload_size, 4 + payload_size + this->frame_footer_size_);
 
-  int err = noise_cipherstate_encrypt(send_cipher_, &mbuf);
-  APIError aerr = handle_noise_error_(err, LOG_STR("noise_cipherstate_encrypt"), APIError::CIPHERSTATE_ENCRYPT_FAILED);
+  int err = noise_cipherstate_encrypt(this->send_cipher_, &mbuf);
+  APIError aerr =
+      this->handle_noise_error_(err, LOG_STR("noise_cipherstate_encrypt"), APIError::CIPHERSTATE_ENCRYPT_FAILED);
   if (aerr != APIError::OK)
     return aerr;
 
@@ -485,10 +486,11 @@ APIError APINoiseFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuff
 #endif
 
   // Resize buffer to include footer space for Noise MAC
-  if (frame_footer_size_)
-    buffer.get_buffer()->resize(buffer.get_buffer()->size() + frame_footer_size_);
+  if (this->frame_footer_size_)
+    buffer.get_buffer()->resize(buffer.get_buffer()->size() + this->frame_footer_size_);
 
-  uint16_t payload_size = static_cast<uint16_t>(buffer.get_buffer()->size() - HEADER_PADDING - frame_footer_size_);
+  uint16_t payload_size =
+      static_cast<uint16_t>(buffer.get_buffer()->size() - HEADER_PADDING - this->frame_footer_size_);
   uint8_t *buf_start = buffer.get_buffer()->data();
   uint16_t encrypted_len;
   APIError aerr = this->encrypt_noise_message_(buf_start, payload_size, type, encrypted_len);
@@ -603,7 +605,7 @@ APIError APINoiseFrameHelper::check_handshake_finished_() {
   if (aerr != APIError::OK)
     return aerr;
 
-  frame_footer_size_ = noise_cipherstate_get_mac_length(send_cipher_);
+  this->frame_footer_size_ = noise_cipherstate_get_mac_length(send_cipher_);
 
   HELPER_LOG("Handshake complete!");
   noise_handshakestate_free(handshake_);
