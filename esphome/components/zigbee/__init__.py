@@ -99,7 +99,6 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 @coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config: ConfigType) -> None:
     cg.add_define("USE_ZIGBEE")
-    cg.add_build_flag("-Wl,--wrap=zb_zcl_put_reporting_info_from_req")
     if CORE.using_zephyr:
         from .zigbee_zephyr import zephyr_to_code
 
