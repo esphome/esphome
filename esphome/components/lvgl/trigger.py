@@ -51,13 +51,14 @@ async def generate_triggers():
     """
 
     for w in widget_map.values():
+        config = w.config
         if isinstance(w.type, LvScrActType):
             w = get_screen_active(w.var)
 
-        if w.config:
+        if config:
             for event, conf in {
                 event: conf
-                for event, conf in w.config.items()
+                for event, conf in config.items()
                 if event in LV_EVENT_TRIGGERS
             }.items():
                 conf = conf[0]
@@ -66,9 +67,7 @@ async def generate_triggers():
                 await add_trigger(conf, w, event)
 
             for event, conf in {
-                event: conf
-                for event, conf in w.config.items()
-                if event in SWIPE_TRIGGERS
+                event: conf for event, conf in config.items() if event in SWIPE_TRIGGERS
             }.items():
                 conf = conf[0]
                 dir = event[9:].upper()
@@ -82,7 +81,7 @@ async def generate_triggers():
                     conf, w, literal("LV_EVENT_GESTURE"), is_selected=selected
                 )
 
-            for conf in w.config.get(CONF_ON_VALUE, ()):
+            for conf in config.get(CONF_ON_VALUE, ()):
                 await add_trigger(
                     conf,
                     w,
@@ -91,7 +90,7 @@ async def generate_triggers():
                     UPDATE_EVENT,
                 )
 
-            await add_on_boot_triggers(w.config.get(CONF_ON_BOOT, ()))
+            await add_on_boot_triggers(config.get(CONF_ON_BOOT, ()))
 
 
 async def generate_align_tos(config: dict):
