@@ -9,9 +9,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#ifdef USE_RUNTIME_STATS
-#include "esphome/components/runtime_stats/runtime_stats.h"
-#endif
 
 namespace esphome {
 
@@ -270,9 +267,6 @@ void Component::call() {
       break;
   }
 }
-const LogString *Component::get_component_log_str() const {
-  return component_source_lookup(this->component_source_index_);
-}
 bool Component::should_warn_of_blocking(uint32_t blocking_time) {
   // Convert centisecond threshold to milliseconds for comparison
   uint32_t threshold_ms = static_cast<uint32_t>(this->warn_if_blocking_over_) * 10U;
@@ -521,18 +515,6 @@ WarnIfComponentBlockingGuard::warn_blocking(Component *component, uint32_t block
              blocking_time);
   }
 }
-
-#ifdef USE_RUNTIME_STATS
-void WarnIfComponentBlockingGuard::record_runtime_stats_() {
-  // Use micros() for accurate sub-millisecond timing. millis() has insufficient
-  // resolution — most components complete in microseconds but millis() only has
-  // 1ms granularity, so results were essentially random noise.
-  if (global_runtime_stats != nullptr) {
-    uint32_t duration_us = micros() - this->started_us_;
-    global_runtime_stats->record_component_time(this->component_, duration_us);
-  }
-}
-#endif
 
 #ifdef USE_SETUP_PRIORITY_OVERRIDE
 void clear_setup_priority_overrides() {

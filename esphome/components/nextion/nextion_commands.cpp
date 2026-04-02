@@ -3,8 +3,8 @@
 #include "esphome/core/log.h"
 #include <cinttypes>
 
-namespace esphome {
-namespace nextion {
+namespace esphome::nextion {
+
 static const char *const TAG = "nextion";
 
 // Sleep safe commands
@@ -340,5 +340,4 @@ void Nextion::set_nextion_rtc_time(ESPTime time) {
   this->add_no_result_to_queue_with_printf_("rtc5", "rtc5=%u", time.second);
 }
 
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion

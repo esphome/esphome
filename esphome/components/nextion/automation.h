@@ -2,8 +2,7 @@
 #include "esphome/core/automation.h"
 #include "nextion.h"
 
-namespace esphome {
-namespace nextion {
+namespace esphome::nextion {
 
 template<typename... Ts> class NextionSetBrightnessAction : public Action<Ts...> {
  public:
@@ -91,5 +90,4 @@ template<typename... Ts> class NextionPublishBoolAction : public Action<Ts...> {
   NextionComponent *component_;
 };
 
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion

@@ -94,6 +94,9 @@ _STATE_CONDITIONS = [
 PlayMediaAction = media_player_ns.class_(
     "PlayMediaAction", automation.Action, cg.Parented.template(MediaPlayer)
 )
+EnqueueMediaAction = media_player_ns.class_(
+    "EnqueueMediaAction", automation.Action, cg.Parented.template(MediaPlayer)
+)
 VolumeSetAction = media_player_ns.class_(
     "VolumeSetAction", automation.Action, cg.Parented.template(MediaPlayer)
 )
@@ -168,20 +171,17 @@ MEDIA_PLAYER_CONDITION_SCHEMA = automation.maybe_simple_id(
 )
 
 
-@automation.register_action(
-    "media_player.play_media",
-    PlayMediaAction,
-    cv.maybe_simple_value(
-        {
-            cv.GenerateID(): cv.use_id(MediaPlayer),
-            cv.Required(CONF_MEDIA_URL): cv.templatable(cv.url),
-            cv.Optional(CONF_ANNOUNCEMENT, default=False): cv.templatable(cv.boolean),
-        },
-        key=CONF_MEDIA_URL,
-    ),
-    synchronous=True,
+_MEDIA_URL_ACTION_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(MediaPlayer),
+        cv.Required(CONF_MEDIA_URL): cv.templatable(cv.url),
+        cv.Optional(CONF_ANNOUNCEMENT, default=False): cv.templatable(cv.boolean),
+    },
+    key=CONF_MEDIA_URL,
 )
-async def media_player_play_media_action(config, action_id, template_arg, args):
+
+
+async def _media_action_handler(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     media_url = await cg.templatable(config[CONF_MEDIA_URL], args, cg.std_string)
@@ -189,6 +189,21 @@ async def media_player_play_media_action(config, action_id, template_arg, args):
     cg.add(var.set_media_url(media_url))
     cg.add(var.set_announcement(announcement))
     return var
+
+
+automation.register_action(
+    "media_player.play_media",
+    PlayMediaAction,
+    _MEDIA_URL_ACTION_SCHEMA,
+    synchronous=True,
+)(_media_action_handler)
+
+automation.register_action(
+    "media_player.enqueue",
+    EnqueueMediaAction,
+    _MEDIA_URL_ACTION_SCHEMA,
+    synchronous=True,
+)(_media_action_handler)
 
 
 def _snake_to_camel(name):
