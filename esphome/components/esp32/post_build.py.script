@@ -8,25 +8,20 @@ import shutil  # noqa: E402
 from glob import glob  # noqa: E402
 
 
-def _parse_sdkconfig(project_dir):
+def _parse_sdkconfig(sdkconfig_path):
     """Parse sdkconfig file and return a dict of CONFIG_ options."""
     options = {}
-    # Find sdkconfig file (sdkconfig.{name} pattern) in project root
-    for path in pathlib.Path(project_dir).glob("sdkconfig.*"):
-        if ".esphomeinternal" in path.name:
-            continue
-        try:
-            for line in path.read_text().splitlines():
-                line = line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    key, _, value = line.partition("=")
-                    # Strip surrounding quotes from string values
-                    if value.startswith('"') and value.endswith('"'):
-                        value = value[1:-1]
-                    options[key] = value
-        except Exception:
-            pass
-        break
+    try:
+        for line in sdkconfig_path.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, _, value = line.partition("=")
+                # Strip surrounding quotes from string values
+                if value.startswith('"') and value.endswith('"'):
+                    value = value[1:-1]
+                options[key] = value
+    except FileNotFoundError:
+        pass
     return options
 
 
@@ -36,8 +31,9 @@ def sign_firmware(source, target, env):
     Reads signing configuration from sdkconfig.
     """
     build_dir = pathlib.Path(env.subst("$BUILD_DIR"))
-    project_dir = env.subst("$PROJECT_DIR")
-    sdkconfig = _parse_sdkconfig(project_dir)
+    project_dir = pathlib.Path(env.subst("$PROJECT_DIR"))
+    pioenv = env.subst("$PIOENV")
+    sdkconfig = _parse_sdkconfig(project_dir / f"sdkconfig.{pioenv}")
 
     if sdkconfig.get("CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT") != "y":
         return

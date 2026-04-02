@@ -124,6 +124,27 @@ ASSERTION_LEVELS = {
     "SILENT": "CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_SILENT",
 }
 
+SIGNING_SCHEMES = {
+    "rsa3072": "CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME",
+    "ecdsa256": "CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME",
+}
+
+# Chip variants that only support one signing scheme for Secure Boot V2.
+# Based on SOC_SECURE_BOOT_V2_RSA / SOC_SECURE_BOOT_V2_ECC in soc_caps.h.
+# Variants not listed in either set support both RSA and ECDSA
+# (e.g. C5, C6, H2, P4). New variants should be added to the
+# appropriate set if they only support one scheme.
+SIGNED_OTA_RSA_ONLY_VARIANTS = {
+    VARIANT_ESP32,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32C3,
+}
+SIGNED_OTA_ECC_ONLY_VARIANTS = {
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C61,
+}
+
 COMPILER_OPTIMIZATIONS = {
     "DEBUG": "CONFIG_COMPILER_OPTIMIZATION_DEBUG",
     "NONE": "CONFIG_COMPILER_OPTIMIZATION_NONE",
@@ -967,41 +988,19 @@ def final_validate(config):
             # disable the rollback feature anyway since it can't be used.
             advanced[CONF_ENABLE_OTA_ROLLBACK] = False
     if signed_ota := advanced.get(CONF_SIGNED_OTA_VERIFICATION):
-        # Validate signing scheme against chip variant capabilities
-        # Based on SOC_SECURE_BOOT_V2_RSA / SOC_SECURE_BOOT_V2_ECC in soc_caps.h
         scheme = signed_ota[CONF_SIGNING_SCHEME]
         variant = config[CONF_VARIANT]
-        # Variants not listed in either set support both RSA and ECDSA
-        # (e.g. C5, C6, H2, P4). New variants should be added to the
-        # appropriate set if they only support one scheme.
-        rsa_only_variants = {
-            VARIANT_ESP32,
-            VARIANT_ESP32S2,
-            VARIANT_ESP32S3,
-            VARIANT_ESP32C3,
+        scheme_variant_conflicts = {
+            "ecdsa256": (SIGNED_OTA_RSA_ONLY_VARIANTS, "rsa3072"),
+            "rsa3072": (SIGNED_OTA_ECC_ONLY_VARIANTS, "ecdsa256"),
         }
-        ecc_only_variants = {
-            VARIANT_ESP32C2,
-            VARIANT_ESP32C61,
-        }
-        if scheme == "ecdsa256" and variant in rsa_only_variants:
+        if (conflict := scheme_variant_conflicts.get(scheme)) and variant in conflict[
+            0
+        ]:
             errs.append(
                 cv.Invalid(
-                    f"Signing scheme 'ecdsa256' is not supported on {VARIANT_FRIENDLY[variant]}. "
-                    f"Use 'rsa3072' instead.",
-                    path=[
-                        CONF_FRAMEWORK,
-                        CONF_ADVANCED,
-                        CONF_SIGNED_OTA_VERIFICATION,
-                        CONF_SIGNING_SCHEME,
-                    ],
-                )
-            )
-        if scheme == "rsa3072" and variant in ecc_only_variants:
-            errs.append(
-                cv.Invalid(
-                    f"Signing scheme 'rsa3072' is not supported on {VARIANT_FRIENDLY[variant]}. "
-                    f"Use 'ecdsa256' instead.",
+                    f"Signing scheme '{scheme}' is not supported on "
+                    f"{VARIANT_FRIENDLY[variant]}. Use '{conflict[1]}' instead.",
                     path=[
                         CONF_FRAMEWORK,
                         CONF_ADVANCED,
@@ -1247,7 +1246,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                             cv.Optional(CONF_VERIFICATION_KEY): cv.file_,
                             cv.Optional(
                                 CONF_SIGNING_SCHEME, default="rsa3072"
-                            ): cv.one_of("rsa3072", "ecdsa256", lower=True),
+                            ): cv.one_of(*SIGNING_SCHEMES, lower=True),
                         }
                     ),
                     cv.has_exactly_one_key(CONF_SIGNING_KEY, CONF_VERIFICATION_KEY),
@@ -1963,12 +1962,8 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT", True)
 
         scheme = signed_ota[CONF_SIGNING_SCHEME]
-        add_idf_sdkconfig_option(
-            "CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME", scheme == "rsa3072"
-        )
-        add_idf_sdkconfig_option(
-            "CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME", scheme == "ecdsa256"
-        )
+        for key, flag in SIGNING_SCHEMES.items():
+            add_idf_sdkconfig_option(flag, scheme == key)
 
         if CONF_SIGNING_KEY in signed_ota:
             # Private key mode — auto-sign binaries during build
