@@ -34,7 +34,6 @@ from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
     CONF_LOG_LEVEL,
-    CONF_ON_BOOT,
     CONF_ON_IDLE,
     CONF_PAGES,
     CONF_TIMEOUT,
@@ -70,7 +69,7 @@ from .schemas import (
 )
 from .styles import styles_to_code, theme_to_code
 from .touchscreens import touchscreen_schema, touchscreens_to_code
-from .trigger import add_on_boot_triggers, generate_align_tos, generate_triggers
+from .trigger import generate_align_tos, generate_triggers
 from .types import (
     IdleTrigger,
     PlainTrigger,
@@ -375,7 +374,6 @@ async def to_code(configs):
                             f"set_{trigger_name.removeprefix('on_')}_trigger",
                         )(trigger_var)
                     )
-            await add_on_boot_triggers(config.get(CONF_ON_BOOT, ()))
 
     # This must be done after all widgets are created
     for comp in helpers.lvgl_components_required:
