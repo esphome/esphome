@@ -1,4 +1,5 @@
 #include <array>
+#include <numeric>
 #include "mitsubishi_cn105.h"
 
 namespace esphome::mitsubishi_cn105 {
@@ -6,21 +7,33 @@ namespace esphome::mitsubishi_cn105 {
 static const char *const TAG = "mitsubishi_cn105.driver";
 
 static constexpr uint32_t WRITE_TIMEOUT_MS = 2000;
-static constexpr size_t HEADER_LEN = 5;
 
+static constexpr size_t HEADER_LEN = 5;
 static constexpr uint8_t PREAMBLE = 0xFC;
 static constexpr uint8_t HEADER_BYTE_1 = 0x01;
 static constexpr uint8_t HEADER_BYTE_2 = 0x30;
+
+static constexpr uint8_t PACKET_TYPE_CONNECT_REQUEST = 0x5A;
 static constexpr uint8_t PACKET_TYPE_CONNECT_RESPONSE = 0x7A;
+static constexpr std::array<uint8_t, 2> CONNECT_REQUEST_PAYLOAD{{0xCA, 0x01}};
 
-static constexpr std::array<uint8_t, 8> CONNECT_PACKET = {{0xFC, 0x5A, 0x01, 0x30, 0x02, 0xCA, 0x01, 0xA8}};
+static constexpr uint8_t checksum(const uint8_t *bytes, size_t length) {
+  return static_cast<uint8_t>(0xFC - std::accumulate(bytes, bytes + length, uint8_t{0}));
+}
 
-static uint8_t checksum(const uint8_t *bytes, size_t length) {
-  uint8_t sum = 0;
-  for (size_t i = 0; i < length; i++) {
-    sum += bytes[i];
+template<std::size_t PayloadSize>
+static constexpr auto make_packet(uint8_t type, const std::array<uint8_t, PayloadSize> &payload) {
+  std::array<uint8_t, PayloadSize + HEADER_LEN + 1> packet{
+      PREAMBLE, type, HEADER_BYTE_1, HEADER_BYTE_2, static_cast<uint8_t>(PayloadSize),
+  };
+
+  for (size_t i = 0; i < PayloadSize; ++i) {
+    packet[HEADER_LEN + i] = payload[i];
   }
-  return 0xFC - sum;
+
+  packet[PayloadSize + HEADER_LEN] = checksum(packet.data(), PayloadSize + HEADER_LEN);
+
+  return packet;
 }
 
 void MitsubishiCN105::initialize() { this->set_state_(State::CONNECTING); }
@@ -65,7 +78,7 @@ bool MitsubishiCN105::should_transition(State from, State to) {
 void MitsubishiCN105::did_transition_(State to) {
   switch (to) {
     case State::CONNECTING:
-      this->send_packet_(CONNECT_PACKET);
+      this->send_packet_(make_packet(PACKET_TYPE_CONNECT_REQUEST, CONNECT_REQUEST_PAYLOAD));
       break;
 
     case State::CONNECTED:
