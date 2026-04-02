@@ -122,7 +122,7 @@ void Sensor::clear_filters() {
 void Sensor::internal_send_state_to_frontend(float state) {
   this->set_has_state(true);
   this->state = state;
-  ESP_LOGD(TAG, "'%s' >> %.*f %s", this->get_name().c_str(), std::max(0, (int) this->get_accuracy_decimals()), state,
+  ESP_LOGV(TAG, "'%s' >> %.*f %s", this->get_name().c_str(), std::max(0, (int) this->get_accuracy_decimals()), state,
            this->get_unit_of_measurement_ref().c_str());
   this->callback_.call(state);
 #if defined(USE_SENSOR) && defined(USE_CONTROLLER_REGISTRY)

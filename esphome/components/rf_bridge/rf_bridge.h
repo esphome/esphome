@@ -77,20 +77,6 @@ class RFBridgeComponent : public uart::UARTDevice, public Component {
   CallbackManager<void(RFBridgeAdvancedData)> advanced_data_callback_;
 };
 
-class RFBridgeReceivedCodeTrigger : public Trigger<RFBridgeData> {
- public:
-  explicit RFBridgeReceivedCodeTrigger(RFBridgeComponent *parent) {
-    parent->add_on_code_received_callback([this](RFBridgeData data) { this->trigger(data); });
-  }
-};
-
-class RFBridgeReceivedAdvancedCodeTrigger : public Trigger<RFBridgeAdvancedData> {
- public:
-  explicit RFBridgeReceivedAdvancedCodeTrigger(RFBridgeComponent *parent) {
-    parent->add_on_advanced_code_received_callback([this](const RFBridgeAdvancedData &data) { this->trigger(data); });
-  }
-};
-
 template<typename... Ts> class RFBridgeSendCodeAction : public Action<Ts...> {
  public:
   RFBridgeSendCodeAction(RFBridgeComponent *parent) : parent_(parent) {}
