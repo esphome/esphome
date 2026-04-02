@@ -35,11 +35,10 @@ bool is_leap_year(int year) { return (year % 4 == 0 && year % 100 != 0) || (year
 static inline int days_in_year(int year) { return is_leap_year(year) ? 366 : 365; }
 
 // Count leap years in [1, year] (i.e. up to and including year)
-static inline int count_leap_years_up_to(int year) { return year / 4 - year / 100 + year / 400; }
+static constexpr int count_leap_years_up_to(int year) { return year / 4 - year / 100 + year / 400; }
 
-// Leap years before the Unix epoch: 1969/4 - 1969/100 + 1969/400
-constexpr int LEAP_YEARS_BEFORE_EPOCH = 477;
 constexpr int EPOCH_YEAR = 1970;
+constexpr int LEAP_YEARS_BEFORE_EPOCH = count_leap_years_up_to(EPOCH_YEAR - 1);
 constexpr int DAYS_PER_YEAR = 365;
 constexpr int SECONDS_PER_DAY = 86400;
 

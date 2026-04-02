@@ -765,7 +765,7 @@ TEST(PosixTzParser, EpochToLocalDstTransition) {
 TEST(PosixTzParser, EpochToLocalLeapYear2000) {
   // 2000 is a leap year (divisible by 400)
   ParsedTimezone tz;
-  parse_posix_tz("UTC0", tz);
+  ASSERT_TRUE(parse_posix_tz("UTC0", tz));
 
   // Feb 29, 2000 12:00:00 UTC
   time_t epoch = make_utc(2000, 2, 29, 12);
@@ -780,7 +780,7 @@ TEST(PosixTzParser, EpochToLocalLeapYear2000) {
 TEST(PosixTzParser, EpochToLocalNonLeapYear2100) {
   // 2100 is NOT a leap year (divisible by 100 but not 400)
   ParsedTimezone tz;
-  parse_posix_tz("UTC0", tz);
+  ASSERT_TRUE(parse_posix_tz("UTC0", tz));
 
   // Mar 1, 2100 00:00:00 UTC — the day after what would be Feb 29
   time_t epoch = make_utc(2100, 3, 1);
@@ -801,7 +801,7 @@ TEST(PosixTzParser, EpochToLocalNonLeapYear2100) {
 TEST(PosixTzParser, EpochToLocalLeapYear2400) {
   // 2400 is a leap year (divisible by 400)
   ParsedTimezone tz;
-  parse_posix_tz("UTC0", tz);
+  ASSERT_TRUE(parse_posix_tz("UTC0", tz));
 
   time_t epoch = make_utc(2400, 2, 29, 6);
   struct tm local;
@@ -815,7 +815,7 @@ TEST(PosixTzParser, EpochToLocalLeapYear2400) {
 TEST(PosixTzParser, EpochToLocalNewYearBoundaries) {
   // Test year boundary — last second of 2099 and first second of 2100
   ParsedTimezone tz;
-  parse_posix_tz("UTC0", tz);
+  ASSERT_TRUE(parse_posix_tz("UTC0", tz));
   struct tm local;
 
   // Dec 31, 2099 23:59:59 UTC
@@ -836,7 +836,7 @@ TEST(PosixTzParser, EpochToLocalNewYearBoundaries) {
 TEST(PosixTzParser, EpochToLocalDstAcrossCenturyBoundary) {
   // DST transition in year 2100 (non-leap) with US Eastern rules
   ParsedTimezone tz;
-  parse_posix_tz("EST5EDT,M3.2.0/2,M11.1.0/2", tz);
+  ASSERT_TRUE(parse_posix_tz("EST5EDT,M3.2.0/2,M11.1.0/2", tz));
 
   // July 4, 2100 16:00 UTC = 12:00 EDT
   time_t epoch = make_utc(2100, 7, 4, 16);
@@ -856,7 +856,7 @@ TEST(PosixTzParser, EpochToLocalFarFutureYear5000) {
   // Year 5000 — days/365 estimate overshoots by ~2 years due to leap days,
   // requiring multiple correction steps in days_to_year.
   ParsedTimezone tz;
-  parse_posix_tz("UTC0", tz);
+  ASSERT_TRUE(parse_posix_tz("UTC0", tz));
 
   time_t epoch = make_utc(5000, 6, 15, 12);
   struct tm local;
