@@ -232,10 +232,7 @@ class Component {
    * @note Components should call this->disable_loop() on themselves, not on other components.
    *       This ensures the component's state is properly updated along with the loop partition.
    */
-  void disable_loop() {
-    if ((this->component_state_ & COMPONENT_STATE_MASK) != COMPONENT_STATE_LOOP_DONE)
-      this->disable_loop_slow_path_();
-  }
+  void disable_loop();
 
   /** Enable this component's loop. The loop() method will be called normally.
    *
@@ -350,7 +347,6 @@ class Component {
   virtual void call_setup();
   void call_dump_config_();
 
-  void disable_loop_slow_path_();
   void enable_loop_slow_path_();
 
   /// Helper to set component state (clears state bits and sets new state)
