@@ -17,11 +17,6 @@ lv_point_t = cg.global_ns.struct("lv_point_t")
 lv_point_precise_t = cg.global_ns.struct("lv_point_precise_t")
 
 
-LINE_SCHEMA = {
-    cv.Required(CONF_POINTS): cv.ensure_list(point_schema),
-}
-
-
 async def process_coord(coord):
     if isinstance(coord, Lambda):
         return call_lambda(await cg.process_lambda(coord, [], return_type=lv_coord_t))
@@ -34,15 +29,17 @@ class LineType(WidgetType):
             CONF_LINE,
             LvType("LvLineType", parents=(LvCompound,)),
             (CONF_MAIN,),
-            LINE_SCHEMA,
+            schema={cv.Required(CONF_POINTS): cv.ensure_list(point_schema)},
+            modify_schema={cv.Optional(CONF_POINTS): cv.ensure_list(point_schema)},
         )
 
     async def to_code(self, w: Widget, config):
-        points = [
-            [await process_coord(p[CONF_X]), await process_coord(p[CONF_Y])]
-            for p in config[CONF_POINTS]
-        ]
-        lv_add(w.var.set_points(points))
+        if CONF_POINTS in config:
+            points = [
+                [await process_coord(p[CONF_X]), await process_coord(p[CONF_Y])]
+                for p in config[CONF_POINTS]
+            ]
+            lv_add(w.var.set_points(points))
 
 
 line_spec = LineType()
