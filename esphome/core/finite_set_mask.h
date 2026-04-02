@@ -157,14 +157,19 @@ template<typename ValueType, typename BitPolicy = DefaultBitPolicy<ValueType, 16
   /// Find the lowest set bit in a bitmask
   /// Returns the bit position, or MAX_BITS if no bits are set
   static constexpr int find_lowest_set_bit(bitmask_t mask) {
-    if (mask == 0)
+    if (mask == 0) {
       return BitPolicy::MAX_BITS;
-#if defined(__GNUC__) || defined(__clang__)
-    if constexpr (sizeof(bitmask_t) <= sizeof(unsigned int)) {
-      return __builtin_ctz(static_cast<unsigned int>(mask));
-    } else {
-      return __builtin_ctzl(static_cast<uint32_t>(mask));
     }
+#if defined(__GNUC__) || defined(__clang__)
+    int bit;
+    if constexpr (sizeof(bitmask_t) <= sizeof(unsigned int)) {
+      bit = __builtin_ctz(static_cast<unsigned int>(mask));
+    } else if constexpr (sizeof(bitmask_t) <= sizeof(uint32_t)) {
+      bit = __builtin_ctzl(static_cast<uint32_t>(mask));
+    } else {
+      bit = __builtin_ctzll(static_cast<unsigned long long>(mask));
+    }
+    return bit < BitPolicy::MAX_BITS ? bit : BitPolicy::MAX_BITS;
 #else
     int bit = 0;
     while (bit < BitPolicy::MAX_BITS && !(mask & (static_cast<bitmask_t>(1) << bit))) {
