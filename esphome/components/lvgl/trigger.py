@@ -1,5 +1,11 @@
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.lvgl.defines import (
+    LV_DISPLAY_EVENT_MAP,
+    LV_DISPLAY_EVENT_TRIGGERS,
+    LV_SCREEN_EVENT_MAP,
+    LV_SCREEN_EVENT_TRIGGERS,
+)
 from esphome.const import (
     CONF_ID,
     CONF_ON_BOOT,
@@ -8,8 +14,9 @@ from esphome.const import (
     CONF_X,
     CONF_Y,
 )
-from esphome.cpp_generator import new_Pvariable
+from esphome.cpp_generator import MockObj, new_Pvariable
 from esphome.cpp_helpers import register_component
+from esphome.cpp_types import nullptr
 
 from .defines import (
     CONF_ALIGN,
@@ -31,6 +38,7 @@ from .lvcode import (
     lv,
     lv_add,
     lv_event_t_ptr,
+    lv_expr,
     lvgl_static,
 )
 from .types import LV_EVENT
@@ -50,6 +58,9 @@ async def generate_triggers():
     Must be done after all widgets completed
     """
 
+    all_triggers = (
+        LV_EVENT_TRIGGERS + LV_DISPLAY_EVENT_TRIGGERS + LV_SCREEN_EVENT_TRIGGERS
+    )
     for w in widget_map.values():
         config = w.config
         if isinstance(w.type, LvScrActType):
@@ -57,13 +68,10 @@ async def generate_triggers():
 
         if config:
             for event, conf in {
-                event: conf
-                for event, conf in config.items()
-                if event in LV_EVENT_TRIGGERS
+                event: conf for event, conf in config.items() if event in all_triggers
             }.items():
                 conf = conf[0]
                 w.add_flag("LV_OBJ_FLAG_CLICKABLE")
-                event = literal("LV_EVENT_" + LV_EVENT_MAP[event[3:].upper()])
                 await add_trigger(conf, w, event)
 
             for event, conf in {
@@ -77,9 +85,7 @@ async def generate_triggers():
                 selected = literal(
                     f"lv_indev_get_gesture_dir(lv_indev_active()) == {dir}"
                 )
-                await add_trigger(
-                    conf, w, literal("LV_EVENT_GESTURE"), is_selected=selected
-                )
+                await add_trigger(conf, w, "GESTURE", is_selected=selected)
 
             for conf in config.get(CONF_ON_VALUE, ()):
                 await add_trigger(
@@ -121,6 +127,17 @@ async def generate_align_tos(config: dict):
             await register_component(var, {})
 
 
+TRIGGER_MAP = LV_EVENT_MAP | LV_DISPLAY_EVENT_MAP | LV_SCREEN_EVENT_MAP
+DISPLAY_TRIGGERS = set(LV_DISPLAY_EVENT_TRIGGERS)
+
+
+def _get_event_literal(trigger) -> MockObj:
+    if isinstance(trigger, MockObj):
+        return trigger
+    trigger = trigger.removeprefix("on_")
+    return literal("LV_EVENT_" + TRIGGER_MAP[trigger.upper()])
+
+
 async def add_trigger(conf, w, *events, is_selected=None):
     is_selected = is_selected or w.is_selected()
     tid = conf[CONF_TRIGGER_ID]
@@ -131,4 +148,14 @@ async def add_trigger(conf, w, *events, is_selected=None):
     async with LambdaContext(EVENT_ARG, where=tid) as context:
         with LvConditional(is_selected):
             lv_add(trigger.trigger(*value, literal("event")))
-    lv_add(lvgl_static.add_event_cb(w.obj, await context.get_lambda(), *events))
+    callback = await context.get_lambda()
+    event_literals = [_get_event_literal(event) for event in events]
+    if isinstance(events[0], str) and events[0] in DISPLAY_TRIGGERS:
+        assert len(events) == 1
+        lv.display_add_event_cb(
+            lv_expr.obj_get_display(w.obj), callback, event_literals[0], nullptr
+        )
+    else:
+        lv_add(
+            lvgl_static.add_event_cb(w.obj, await context.get_lambda(), *event_literals)
+        )

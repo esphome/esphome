@@ -2,7 +2,7 @@ import importlib
 from pathlib import Path
 import pkgutil
 
-from esphome.automation import build_automation, validate_automation
+from esphome.automation import Trigger, build_automation, validate_automation
 import esphome.codegen as cg
 from esphome.components.const import (
     CONF_BYTE_ORDER,
@@ -25,6 +25,11 @@ from esphome.components.image import (
     ImageRGB565,
     get_image_metadata,
 )
+from esphome.components.lvgl.defines import (
+    LV_DISPLAY_EVENT_TRIGGERS,
+    LV_SCREEN_EVENT_TRIGGERS,
+)
+from esphome.components.lvgl.lvcode import lv_event_t_ptr
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 import esphome.config_validation as cv
 from esphome.const import (
@@ -76,6 +81,7 @@ from .types import (
     lv_font_t,
     lv_group_t,
     lv_lambda_t,
+    lv_obj_t_ptr,
     lv_style_t,
     lvgl_ns,
 )
@@ -471,6 +477,16 @@ LVGL_SCHEMA = cv.All(
         cv.polling_component_schema("1s")
         .extend(
             {
+                **{
+                    cv.Optional(event): validate_automation(
+                        {
+                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                                Trigger.template(lv_obj_t_ptr, lv_event_t_ptr)
+                            ),
+                        }
+                    )
+                    for event in LV_SCREEN_EVENT_TRIGGERS + LV_DISPLAY_EVENT_TRIGGERS
+                },
                 cv.GenerateID(CONF_ID): cv.declare_id(LvglComponent),
                 cv.GenerateID(CONF_ALIGN_TO_LAMBDA_ID): cv.declare_id(lv_lambda_t),
                 cv.GenerateID(df.CONF_DISPLAYS): display_schema,

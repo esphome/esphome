@@ -149,11 +149,7 @@ void LvglComponent::esphome_lvgl_init() {
 }
 
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event) {
-  if (event >= LV_EVENT_INVALIDATE_AREA) {
-    lv_display_add_event_cb(lv_obj_get_display(obj), callback, event, nullptr);
-  } else {
-    lv_obj_add_event_cb(obj, callback, event, nullptr);
-  }
+  lv_obj_add_event_cb(obj, callback, event, nullptr);
 }
 
 void LvglComponent::add_event_cb(lv_obj_t *obj, event_callback_t callback, lv_event_code_t event1,

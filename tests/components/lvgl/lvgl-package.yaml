@@ -72,6 +72,14 @@ lvgl:
     logger.log: Vsync
   on_vsync_request:
     logger.log: Vsync request
+  on_screen_load_start:
+    logger.log: Screen load start
+  on_screen_load:
+    logger.log: Screen loaded
+  on_screen_unload:
+    logger.log: Screen unloaded
+  on_screen_unload_start:
+    logger.log: Screen unload start
   bg_color: light_blue
   bottom_layer:
     widgets:
@@ -682,14 +690,6 @@ lvgl:
               logger.log: Child created
             on_child_delete:
               logger.log: Child deleted
-            on_screen_unload_start:
-              logger.log: Screen unload start
-            on_screen_load_start:
-              logger.log: Screen load start
-            on_screen_load:
-              logger.log: Screen loaded
-            on_screen_unload:
-              logger.log: Screen unloaded
             on_size_change:
               logger.log: Size changed
             on_style_change:
