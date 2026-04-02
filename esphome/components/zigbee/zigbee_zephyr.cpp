@@ -120,7 +120,9 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   p_device_cb_param->status = RET_OK;
 
 #ifdef USE_DEEP_SLEEP
-  deep_sleep::global_deep_sleep->wakeup();
+  if (deep_sleep::global_deep_sleep != nullptr) {
+    deep_sleep::global_deep_sleep->wakeup();
+  }
 #endif
 
   // endpoints are enumerated from 1
