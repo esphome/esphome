@@ -294,20 +294,19 @@ APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffe
   assert(!messages.empty());
 #endif
   uint8_t *buffer_data = buffer.get_buffer()->data();
+  uint8_t *write_start = nullptr;
+  uint8_t *write_end = nullptr;
 
-  // First message: write header, record start position
-  const auto &first = messages[0];
-  uint8_t header_len = write_plaintext_header(buffer_data + first.offset, first);
-  uint8_t *write_start = buffer_data + first.offset + HEADER_PADDING - header_len;
-  uint8_t *write_end = write_start + header_len + first.payload_size;
-
-  // Subsequent messages: write header, then compact to close 0-3 byte gaps
-  for (size_t i = 1; i < messages.size(); i++) {
-    const auto &msg = messages[i];
-    header_len = write_plaintext_header(buffer_data + msg.offset, msg);
+  // Write headers and compact messages to close 0-3 byte varint padding gaps.
+  for (const auto &msg : messages) {
+    uint8_t header_len = write_plaintext_header(buffer_data + msg.offset, msg);
     uint8_t *src = buffer_data + msg.offset + HEADER_PADDING - header_len;
     uint16_t msg_len = header_len + msg.payload_size;
-    if (src != write_end) {
+    if (write_end == nullptr) {
+      // First message: record start, no compaction needed
+      write_start = src;
+      write_end = src;
+    } else if (src != write_end) {
       memmove(write_end, src, msg_len);
     }
     write_end += msg_len;
