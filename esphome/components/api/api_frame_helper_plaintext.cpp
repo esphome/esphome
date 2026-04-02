@@ -237,6 +237,29 @@ ESPHOME_ALWAYS_INLINE static inline uint8_t varint_encoded_length_8(uint8_t valu
   return value < ProtoSize::VARINT_THRESHOLD_1_BYTE ? 1 : 2;
 }
 
+// Encode a 16-bit varint (1-3 bytes) using pre-computed length.
+ESPHOME_ALWAYS_INLINE static inline void encode_varint_16_(uint16_t value, uint8_t varint_len, uint8_t *p) {
+  if (varint_len >= 2) {
+    *p++ = static_cast<uint8_t>(value | 0x80);
+    value >>= 7;
+    if (varint_len == 3) {
+      *p++ = static_cast<uint8_t>(value | 0x80);
+      value >>= 7;
+    }
+  }
+  *p = static_cast<uint8_t>(value);
+}
+
+// Encode an 8-bit varint (1-2 bytes) using pre-computed length.
+ESPHOME_ALWAYS_INLINE static inline void encode_varint_8_(uint8_t value, uint8_t varint_len, uint8_t *p) {
+  if (varint_len == 2) {
+    *p++ = static_cast<uint8_t>(value | 0x80);
+    *p = static_cast<uint8_t>(value >> 7);
+  } else {
+    *p = value;
+  }
+}
+
 // Compute plaintext header length: indicator (1) + size varint + type varint.
 ESPHOME_ALWAYS_INLINE static inline uint8_t plaintext_header_length(const MessageInfo &msg) {
   return 1 + varint_encoded_length_16(msg.payload_size) + varint_encoded_length_8(msg.message_type);
@@ -276,31 +299,12 @@ ESPHOME_ALWAYS_INLINE static inline uint8_t write_plaintext_header(uint8_t *buf_
   // So we write the header starting at offset + HEADER_PADDING - total_header_len
   uint32_t header_offset = APIPlaintextFrameHelper::HEADER_PADDING - total_header_len;
 
-  // Write the plaintext header with inline varint encoding.
-  // We already know the varint lengths so we can write the exact bytes directly
-  // without a generic loop, avoiding function call overhead.
-  uint8_t *p = buf_start + header_offset;
-  *p++ = 0x00;  // indicator
+  // Write the plaintext header
+  buf_start[header_offset] = 0x00;  // indicator
 
-  // Encode payload size varint (1-3 bytes)
-  uint16_t size_val = msg.payload_size;
-  if (size_varint_len >= 2) {
-    *p++ = static_cast<uint8_t>(size_val | 0x80);
-    size_val >>= 7;
-    if (size_varint_len == 3) {
-      *p++ = static_cast<uint8_t>(size_val | 0x80);
-      size_val >>= 7;
-    }
-  }
-  *p++ = static_cast<uint8_t>(size_val);
-
-  // Encode message type varint (1-2 bytes)
-  if (type_varint_len == 2) {
-    *p++ = static_cast<uint8_t>(msg.message_type | 0x80);
-    *p = static_cast<uint8_t>(msg.message_type >> 7);
-  } else {
-    *p = msg.message_type;
-  }
+  // Encode varints directly into buffer using pre-computed lengths
+  encode_varint_16_(msg.payload_size, size_varint_len, buf_start + header_offset + 1);
+  encode_varint_8_(msg.message_type, type_varint_len, buf_start + header_offset + 1 + size_varint_len);
 
   return total_header_len;
 }
