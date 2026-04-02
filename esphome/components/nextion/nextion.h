@@ -21,8 +21,7 @@
 #endif  // USE_ESP32 vs USE_ESP8266
 #endif  // USE_NEXTION_TFT_UPLOAD
 
-namespace esphome {
-namespace nextion {
+namespace esphome::nextion {
 
 class Nextion;
 class NextionComponentBase;
@@ -1547,5 +1546,4 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   uint16_t max_q_age_ms_ = 8000;         ///< Maximum age for queue items in ms
 };
 
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion
