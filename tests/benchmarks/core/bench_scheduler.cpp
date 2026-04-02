@@ -203,33 +203,6 @@ static void Scheduler_Defer_SameID(benchmark::State &state) {
 }
 BENCHMARK(Scheduler_Defer_SameID);
 
-// --- Scheduler: defer with unique IDs (no cancel path) ---
-
-static void Scheduler_Defer_UniqueID(benchmark::State &state) {
-  Scheduler scheduler;
-  Component dummy_component;
-
-  // Measures defer with unique numeric IDs — cancel_item_locked_ runs but
-  // never finds a match, measuring the scan overhead on an empty search.
-  static constexpr int kBatchSize = 3;
-  static_assert(kInnerIterations % kBatchSize == 0, "kInnerIterations must be divisible by kBatchSize");
-  warm_pool(scheduler, &dummy_component, kBatchSize, 0);
-  for (auto _ : state) {
-    uint32_t now = millis();
-    uint32_t id = 0;
-    for (int i = 0; i < kInnerIterations; i++) {
-      scheduler.set_timeout(&dummy_component, id++, 0, []() {});
-      if ((i + 1) % kBatchSize == 0) {
-        scheduler.call(++now);
-      }
-    }
-    scheduler.call(++now);
-    benchmark::DoNotOptimize(scheduler);
-  }
-  state.SetItemsProcessed(state.iterations() * kInnerIterations);
-}
-BENCHMARK(Scheduler_Defer_UniqueID);
-
 // --- Scheduler: set_timeout with batch size exceeding pool (cliff test) ---
 
 static void Scheduler_SetTimeout_ExceedPool(benchmark::State &state) {
