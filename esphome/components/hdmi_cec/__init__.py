@@ -62,10 +62,10 @@ CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
         cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
         cv.Required(CONF_ADDRESS): cv.int_range(min=0, max=15),
         cv.Required(CONF_PHYSICAL_ADDRESS): cv.uint16_t,
-        cv.Optional(CONF_PROMISCUOUS_MODE, False): cv.boolean,
-        cv.Optional(CONF_MONITOR_MODE, False): cv.boolean,
-        cv.Optional(CONF_DECODE_MESSAGES, True): cv.boolean,
-        cv.Optional(CONF_OSD_NAME, "esphome"): validate_osd_name,
+        cv.Optional(CONF_PROMISCUOUS_MODE, default=False): cv.boolean,
+        cv.Optional(CONF_MONITOR_MODE, default=False): cv.boolean,
+        cv.Optional(CONF_DECODE_MESSAGES, default=True): cv.boolean,
+        cv.Optional(CONF_OSD_NAME, default="esphome"): validate_osd_name,
         cv.Optional(CONF_UART_ID): cv.use_id(uart.UARTComponent),
         cv.Optional(CONF_ON_MESSAGE): automation.validate_automation(
             {
