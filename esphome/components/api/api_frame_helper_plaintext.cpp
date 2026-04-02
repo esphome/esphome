@@ -306,7 +306,6 @@ APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffe
   assert(!messages.empty());
 #endif
   uint8_t *buffer_data = buffer.get_buffer()->data();
-
   uint8_t *write_start = nullptr;
   uint8_t *write_end = nullptr;
 
