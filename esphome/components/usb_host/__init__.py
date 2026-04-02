@@ -33,11 +33,11 @@ def usb_device_schema(cls=USBClient, vid: int = None, pid: [int] = None) -> cv.S
             cv.GenerateID(): cv.declare_id(cls),
         }
     )
-    if vid:
+    if vid is not None:
         schema = schema.extend({cv.Optional(CONF_VID, default=vid): cv.hex_uint16_t})
     else:
         schema = schema.extend({cv.Required(CONF_VID): cv.hex_uint16_t})
-    if pid:
+    if pid is not None:
         schema = schema.extend({cv.Optional(CONF_PID, default=pid): cv.hex_uint16_t})
     else:
         schema = schema.extend({cv.Required(CONF_PID): cv.hex_uint16_t})
