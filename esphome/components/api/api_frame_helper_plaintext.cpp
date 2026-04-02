@@ -276,12 +276,31 @@ ESPHOME_ALWAYS_INLINE static inline uint8_t write_plaintext_header(uint8_t *buf_
   // So we write the header starting at offset + HEADER_PADDING - total_header_len
   uint32_t header_offset = APIPlaintextFrameHelper::HEADER_PADDING - total_header_len;
 
-  // Write the plaintext header
-  buf_start[header_offset] = 0x00;  // indicator
+  // Write the plaintext header with inline varint encoding.
+  // We already know the varint lengths so we can write the exact bytes directly
+  // without a generic loop, avoiding function call overhead.
+  uint8_t *p = buf_start + header_offset;
+  *p++ = 0x00;  // indicator
 
-  // Encode varints directly into buffer
-  encode_varint_to_buffer(msg.payload_size, buf_start + header_offset + 1);
-  encode_varint_to_buffer(msg.message_type, buf_start + header_offset + 1 + size_varint_len);
+  // Encode payload size varint (1-3 bytes)
+  uint16_t size_val = msg.payload_size;
+  if (size_varint_len >= 2) {
+    *p++ = static_cast<uint8_t>(size_val | 0x80);
+    size_val >>= 7;
+    if (size_varint_len == 3) {
+      *p++ = static_cast<uint8_t>(size_val | 0x80);
+      size_val >>= 7;
+    }
+  }
+  *p++ = static_cast<uint8_t>(size_val);
+
+  // Encode message type varint (1-2 bytes)
+  if (type_varint_len == 2) {
+    *p++ = static_cast<uint8_t>(msg.message_type | 0x80);
+    *p = static_cast<uint8_t>(msg.message_type >> 7);
+  } else {
+    *p = msg.message_type;
+  }
 
   return total_header_len;
 }
