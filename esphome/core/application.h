@@ -130,6 +130,12 @@ bool socket_ready_fd(int fd, bool loop_monitored);  // NOLINT(readability-redund
 #endif
 }  // namespace esphome::socket
 
+#ifdef USE_RUNTIME_STATS
+namespace esphome::runtime_stats {
+class RuntimeStatsCollector;
+}  // namespace esphome::runtime_stats
+#endif
+
 // Forward declarations for friend access from codegen-generated setup()
 void setup();           // NOLINT(readability-redundant-declaration) - may be declared in Arduino.h
 void original_setup();  // NOLINT(readability-redundant-declaration) - used by cpp unit tests
@@ -590,6 +596,9 @@ class Application {
   friend Component;
 #if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
   friend bool socket::socket_ready_fd(int fd, bool loop_monitored);
+#endif
+#ifdef USE_RUNTIME_STATS
+  friend class runtime_stats::RuntimeStatsCollector;
 #endif
   friend void ::setup();
   friend void ::original_setup();
