@@ -49,14 +49,18 @@ static inline int64_t days_to_year_start(int year) {
          (count_leap_years_up_to(year - 1) - LEAP_YEARS_BEFORE_EPOCH);
 }
 
-// Convert days since epoch to year, updating days to day-of-year remainder — O(1)
+// Convert days since epoch to year, updating days to day-of-year remainder.
+// The initial estimate from days/365 can overshoot by multiple years for
+// far-future dates (e.g., year 5000+) due to accumulated leap days,
+// so we use loops rather than single-step correction.
 static int days_to_year(int64_t &days) {
   int year = static_cast<int>(EPOCH_YEAR + days / DAYS_PER_YEAR);
   int64_t year_start = days_to_year_start(year);
-  if (days < year_start) {
+  while (days < year_start) {
     year--;
     year_start = days_to_year_start(year);
-  } else if (days >= year_start + days_in_year(year)) {
+  }
+  while (days >= year_start + days_in_year(year)) {
     year_start += days_in_year(year);
     year++;
   }

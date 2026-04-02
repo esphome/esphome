@@ -852,6 +852,21 @@ TEST(PosixTzParser, EpochToLocalDstAcrossCenturyBoundary) {
   EXPECT_EQ(local.tm_isdst, 0);
 }
 
+TEST(PosixTzParser, EpochToLocalFarFutureYear5000) {
+  // Year 5000 — days/365 estimate overshoots by ~2 years due to leap days,
+  // requiring multiple correction steps in days_to_year.
+  ParsedTimezone tz;
+  parse_posix_tz("UTC0", tz);
+
+  time_t epoch = make_utc(5000, 6, 15, 12);
+  struct tm local;
+  ASSERT_TRUE(epoch_to_local_tm(epoch, tz, &local));
+  EXPECT_EQ(local.tm_year, 3100);  // 5000
+  EXPECT_EQ(local.tm_mon, 5);      // June
+  EXPECT_EQ(local.tm_mday, 15);
+  EXPECT_EQ(local.tm_hour, 12);
+}
+
 // ============================================================================
 // Verification against libc
 // ============================================================================
