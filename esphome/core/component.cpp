@@ -287,19 +287,15 @@ void Component::mark_failed() {
   // Also remove from loop since failed components shouldn't loop
   App.disable_component_loop_(this);
 }
-void Component::disable_loop() {
-  if ((this->component_state_ & COMPONENT_STATE_MASK) != COMPONENT_STATE_LOOP_DONE) {
-    ESP_LOGVV(TAG, "%s loop disabled", LOG_STR_ARG(this->get_component_log_str()));
-    this->set_component_state_(COMPONENT_STATE_LOOP_DONE);
-    App.disable_component_loop_(this);
-  }
+void Component::disable_loop_slow_path_() {
+  ESP_LOGVV(TAG, "%s loop disabled", LOG_STR_ARG(this->get_component_log_str()));
+  this->set_component_state_(COMPONENT_STATE_LOOP_DONE);
+  App.disable_component_loop_(this);
 }
-void Component::enable_loop() {
-  if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE) {
-    ESP_LOGVV(TAG, "%s loop enabled", LOG_STR_ARG(this->get_component_log_str()));
-    this->set_component_state_(COMPONENT_STATE_LOOP);
-    App.enable_component_loop_(this);
-  }
+void Component::enable_loop_slow_path_() {
+  ESP_LOGVV(TAG, "%s loop enabled", LOG_STR_ARG(this->get_component_log_str()));
+  this->set_component_state_(COMPONENT_STATE_LOOP);
+  App.enable_component_loop_(this);
 }
 void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
   // This method is thread and ISR-safe because:
