@@ -323,7 +323,9 @@ class Component {
    *
    * Returns LOG_STR("<unknown>") if source not set
    */
-  const LogString *get_component_log_str() const;
+  inline const LogString *get_component_log_str() const ESPHOME_ALWAYS_INLINE {
+    return component_source_lookup(this->component_source_index_);
+  }
 
   bool should_warn_of_blocking(uint32_t blocking_time);
 
