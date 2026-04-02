@@ -16,16 +16,8 @@ void InternalTemperatureSensor::update() {
   // Read from internal temperature sensor via ADC channel 0.
   // ADC_BASE = 0x40000800, ADC_CH0 = 1 (bit 0 set).
   uint16_t raw = hal_adc_get_data(0x40000800U, 1U);
-  float temperature = 25.0f + ((raw & 0xFFF) - 770) / 2.54f;
-
-  if (std::isfinite(temperature)) {
-    this->publish_state(temperature);
-  } else {
-    ESP_LOGD(TAG, "Ignoring invalid temperature (value=%.1f)", temperature);
-    if (!this->has_state()) {
-      this->publish_state(NAN);
-    }
-  }
+  float temperature = (raw & 0xFFF) / 2.54f - 278.15f;
+  this->publish_state(temperature);
 }
 
 }  // namespace internal_temperature
