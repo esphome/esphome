@@ -167,7 +167,7 @@ template<typename ValueType, typename BitPolicy = DefaultBitPolicy<ValueType, 16
     } else if constexpr (sizeof(bitmask_t) <= sizeof(uint32_t)) {
       bit = __builtin_ctzl(static_cast<uint32_t>(mask));
     } else {
-      bit = __builtin_ctzll(static_cast<unsigned long long>(mask));
+      bit = __builtin_ctzll(static_cast<uint64_t>(mask));
     }
     return bit < BitPolicy::MAX_BITS ? bit : BitPolicy::MAX_BITS;
 #else
