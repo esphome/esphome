@@ -447,7 +447,7 @@ APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
 }
 // Encrypt a single noise message in place and return the encrypted frame length.
 // Returns APIError::OK on success.
-APIError APINoiseFrameHelper::encrypt_noise_message_(uint8_t *buf_start, const MessageInfo &msg,
+APIError APINoiseFrameHelper::encrypt_noise_message_(uint8_t *buf_start, uint16_t payload_size, uint8_t message_type,
                                                      uint16_t &encrypted_len_out) {
   // Write noise header
   buf_start[0] = 0x01;  // indicator
@@ -455,16 +455,16 @@ APIError APINoiseFrameHelper::encrypt_noise_message_(uint8_t *buf_start, const M
 
   // Write message header (to be encrypted)
   constexpr uint8_t msg_offset = 3;
-  buf_start[msg_offset] = static_cast<uint8_t>(msg.message_type >> 8);      // type high byte
-  buf_start[msg_offset + 1] = static_cast<uint8_t>(msg.message_type);       // type low byte
-  buf_start[msg_offset + 2] = static_cast<uint8_t>(msg.payload_size >> 8);  // data_len high byte
-  buf_start[msg_offset + 3] = static_cast<uint8_t>(msg.payload_size);       // data_len low byte
+  buf_start[msg_offset] = static_cast<uint8_t>(message_type >> 8);      // type high byte
+  buf_start[msg_offset + 1] = static_cast<uint8_t>(message_type);       // type low byte
+  buf_start[msg_offset + 2] = static_cast<uint8_t>(payload_size >> 8);  // data_len high byte
+  buf_start[msg_offset + 3] = static_cast<uint8_t>(payload_size);       // data_len low byte
   // payload data is already in the buffer starting at offset + 7
 
   // Encrypt the message in place
   NoiseBuffer mbuf;
   noise_buffer_init(mbuf);
-  noise_buffer_set_inout(mbuf, buf_start + msg_offset, 4 + msg.payload_size, 4 + msg.payload_size + frame_footer_size_);
+  noise_buffer_set_inout(mbuf, buf_start + msg_offset, 4 + payload_size, 4 + payload_size + frame_footer_size_);
 
   int err = noise_cipherstate_encrypt(send_cipher_, &mbuf);
   APIError aerr = handle_noise_error_(err, LOG_STR("noise_cipherstate_encrypt"), APIError::CIPHERSTATE_ENCRYPT_FAILED);
@@ -488,10 +488,10 @@ APIError APINoiseFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuff
   if (frame_footer_size_)
     buffer.get_buffer()->resize(buffer.get_buffer()->size() + frame_footer_size_);
 
-  MessageInfo msg{type, 0, static_cast<uint16_t>(buffer.get_buffer()->size() - HEADER_PADDING - frame_footer_size_)};
+  uint16_t payload_size = static_cast<uint16_t>(buffer.get_buffer()->size() - HEADER_PADDING - frame_footer_size_);
   uint8_t *buf_start = buffer.get_buffer()->data();
   uint16_t encrypted_len;
-  APIError aerr = this->encrypt_noise_message_(buf_start, msg, encrypted_len);
+  APIError aerr = this->encrypt_noise_message_(buf_start, payload_size, type, encrypted_len);
   if (aerr != APIError::OK)
     return aerr;
   return this->write_raw_fast_buf_(buf_start, encrypted_len);
@@ -513,7 +513,7 @@ APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, s
   for (const auto &msg : messages) {
     uint8_t *buf_start = buffer_data + msg.offset;
     uint16_t encrypted_len;
-    APIError aerr = this->encrypt_noise_message_(buf_start, msg, encrypted_len);
+    APIError aerr = this->encrypt_noise_message_(buf_start, msg.payload_size, msg.message_type, encrypted_len);
     if (aerr != APIError::OK)
       return aerr;
     total_write_len += encrypted_len;
