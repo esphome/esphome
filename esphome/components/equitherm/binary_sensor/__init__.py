@@ -16,11 +16,15 @@ IndoorSensorFaultBinarySensor = equitherm_ns.class_(
 RateLimitingBinarySensor = equitherm_ns.class_(
     "RateLimitingBinarySensor", binary_sensor.BinarySensor, cg.Component
 )
+PidActiveBinarySensor = equitherm_ns.class_(
+    "PidActiveBinarySensor", binary_sensor.BinarySensor, cg.Component
+)
 
 # Configuration keys for each binary sensor type
 CONF_OUTDOOR_SENSOR_FAULT = "outdoor_sensor_fault"
 CONF_INDOOR_SENSOR_FAULT = "indoor_sensor_fault"
 CONF_RATE_LIMITING_ACTIVE = "rate_limiting_active"
+CONF_PID_ACTIVE = "pid_active"
 
 
 def _problem_sensor_schema(binary_sensor_class, icon="mdi:alert-circle-outline"):
@@ -55,6 +59,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_RATE_LIMITING_ACTIVE): _status_sensor_schema(
             RateLimitingBinarySensor, icon="mdi:speedometer-slow"
         ),
+        cv.Optional(CONF_PID_ACTIVE): _status_sensor_schema(
+            PidActiveBinarySensor, icon="mdi:tune-vertical"
+        ),
     }
 )
 
@@ -78,3 +85,6 @@ async def to_code(config):
 
     if rate_limiting_config := config.get(CONF_RATE_LIMITING_ACTIVE):
         await _register_binary_sensor(rate_limiting_config, parent_id)
+
+    if pid_active_config := config.get(CONF_PID_ACTIVE):
+        await _register_binary_sensor(pid_active_config, parent_id)
