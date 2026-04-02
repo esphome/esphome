@@ -8,7 +8,9 @@ namespace esphome::benchmarks {
 // Inner iteration count to amortize CodSpeed instrumentation overhead.
 // Without this, the ~60ns per-iteration valgrind start/stop cost dominates
 // sub-microsecond benchmarks.
-static constexpr int kInnerIterations = 2000;
+// Must be divisible by all batch sizes used below (3, 10) to avoid
+// pool imbalance at iteration boundaries that causes spurious malloc.
+static constexpr int kInnerIterations = 2100;
 
 // Warm the scheduler pool by registering and replacing items twice.
 // The first batch allocates fresh items; the second batch cancels them and
@@ -102,6 +104,7 @@ static void Scheduler_SetTimeout(benchmark::State &state) {
   // components schedule in the same loop iteration. Keeps item count within
   // the recycling pool (MAX_POOL_SIZE=5) to avoid spurious malloc/free.
   static constexpr int kBatchSize = 3;
+  static_assert(kInnerIterations % kBatchSize == 0, "kInnerIterations must be divisible by kBatchSize");
   warm_pool(scheduler, &dummy_component, kBatchSize, 1000);
   for (auto _ : state) {
     uint32_t now = millis();
@@ -128,6 +131,7 @@ static void Scheduler_SetInterval(benchmark::State &state) {
   // components schedule in the same loop iteration. Keeps item count within
   // the recycling pool (MAX_POOL_SIZE=5) to avoid spurious malloc/free.
   static constexpr int kBatchSize = 3;
+  static_assert(kInnerIterations % kBatchSize == 0, "kInnerIterations must be divisible by kBatchSize");
   warm_pool(scheduler, &dummy_component, kBatchSize, 1000);
   for (auto _ : state) {
     uint32_t now = millis();
@@ -156,6 +160,7 @@ static void Scheduler_Defer(benchmark::State &state) {
   // components defer in the same loop iteration. Keeps item count within
   // the recycling pool (MAX_POOL_SIZE=5) to avoid spurious malloc/free.
   static constexpr int kBatchSize = 3;
+  static_assert(kInnerIterations % kBatchSize == 0, "kInnerIterations must be divisible by kBatchSize");
   warm_pool(scheduler, &dummy_component, kBatchSize, 0);
   for (auto _ : state) {
     uint32_t now = millis();
@@ -182,6 +187,7 @@ static void Scheduler_SetTimeout_ExceedPool(benchmark::State &state) {
   // the performance cliff when the recycling pool is exhausted and items
   // must be malloc'd/freed.
   static constexpr int kBatchSize = 10;
+  static_assert(kInnerIterations % kBatchSize == 0, "kInnerIterations must be divisible by kBatchSize");
   warm_pool(scheduler, &dummy_component, kBatchSize, 1000);
   for (auto _ : state) {
     uint32_t now = millis();
