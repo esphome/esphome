@@ -168,6 +168,7 @@ BASE_PROPS = {
     "bg_main_opa": lvalid.opacity,
     "bg_main_stop": lvalid.stop_value,
     "bg_opa": lvalid.opacity,
+    "bitmap_mask_src": lvalid.lv_image,
     "blend_mode": df.LvConstant(
         "LV_BLEND_MODE_",
         "NORMAL",
