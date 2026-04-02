@@ -36,7 +36,6 @@ class NextionSensor : public NextionComponent, public sensor::Sensor, public Pol
   void set_wave_channel_id(uint8_t wave_chan_id) { this->wave_chan_id_ = wave_chan_id; }
   void set_wave_max_value(uint32_t wave_maxvalue) { this->wave_maxvalue_ = wave_maxvalue; }
   void set_waveform_send_last_value(bool send_last_value) { this->send_last_value_ = send_last_value; }
-  uint8_t get_wave_chan_id() { return this->wave_chan_id_; }
   void set_wave_max_length(int wave_max_length) { this->wave_max_length_ = wave_max_length; }
 #endif  // USE_NEXTION_WAVEFORM
 
