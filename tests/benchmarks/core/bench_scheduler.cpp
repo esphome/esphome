@@ -10,6 +10,21 @@ namespace esphome::benchmarks {
 // sub-microsecond benchmarks.
 static constexpr int kInnerIterations = 2000;
 
+// Warm the scheduler pool by registering and replacing items twice.
+// The first batch allocates fresh items; the second batch cancels them and
+// populates the recycling pool with the cancelled items from the first batch.
+static void warm_pool(Scheduler &scheduler, Component *component, int batch_size, uint32_t delay) {
+  uint32_t now = millis();
+  for (int i = 0; i < batch_size; i++) {
+    scheduler.set_timeout(component, static_cast<uint32_t>(i), delay, []() {});
+  }
+  scheduler.call(++now);
+  for (int i = 0; i < batch_size; i++) {
+    scheduler.set_timeout(component, static_cast<uint32_t>(i), delay, []() {});
+  }
+  scheduler.call(++now);
+}
+
 // --- Scheduler fast path: no work to do ---
 
 static void Scheduler_Call_NoWork(benchmark::State &state) {
@@ -87,6 +102,7 @@ static void Scheduler_SetTimeout(benchmark::State &state) {
   // components schedule in the same loop iteration. Keeps item count within
   // the recycling pool (MAX_POOL_SIZE=5) to avoid spurious malloc/free.
   static constexpr int kBatchSize = 3;
+  warm_pool(scheduler, &dummy_component, kBatchSize, 1000);
   for (auto _ : state) {
     uint32_t now = millis();
     for (int i = 0; i < kInnerIterations; i++) {
@@ -112,6 +128,7 @@ static void Scheduler_SetInterval(benchmark::State &state) {
   // components schedule in the same loop iteration. Keeps item count within
   // the recycling pool (MAX_POOL_SIZE=5) to avoid spurious malloc/free.
   static constexpr int kBatchSize = 3;
+  warm_pool(scheduler, &dummy_component, kBatchSize, 1000);
   for (auto _ : state) {
     uint32_t now = millis();
     for (int i = 0; i < kInnerIterations; i++) {
@@ -139,6 +156,7 @@ static void Scheduler_Defer(benchmark::State &state) {
   // components defer in the same loop iteration. Keeps item count within
   // the recycling pool (MAX_POOL_SIZE=5) to avoid spurious malloc/free.
   static constexpr int kBatchSize = 3;
+  warm_pool(scheduler, &dummy_component, kBatchSize, 0);
   for (auto _ : state) {
     uint32_t now = millis();
     for (int i = 0; i < kInnerIterations; i++) {
@@ -164,6 +182,7 @@ static void Scheduler_SetTimeout_ExceedPool(benchmark::State &state) {
   // the performance cliff when the recycling pool is exhausted and items
   // must be malloc'd/freed.
   static constexpr int kBatchSize = 10;
+  warm_pool(scheduler, &dummy_component, kBatchSize, 1000);
   for (auto _ : state) {
     uint32_t now = millis();
     for (int i = 0; i < kInnerIterations; i++) {
