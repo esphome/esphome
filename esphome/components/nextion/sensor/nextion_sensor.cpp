@@ -66,38 +66,33 @@ void NextionSensor::set_state(float state, bool publish, bool send_to_nextion) {
     } else {
       this->add_to_wave_buffer(state);
     }
-  } else {
-#endif  // USE_NEXTION_WAVEFORM
-    if (send_to_nextion) {
-      if (this->nextion_->is_sleeping() || !this->component_flags_.visible) {
-        this->needs_to_send_update_ = true;
-      } else {
-        this->needs_to_send_update_ = false;
-        if (this->precision_ > 0) {
-          double to_multiply = pow(10, this->precision_);
-          int state_value = (int) (state * to_multiply);
-          this->nextion_->add_no_result_to_queue_with_set(this, (int) state_value);
-        } else {
-          this->nextion_->add_no_result_to_queue_with_set(this, (int) state);
-        }
-      }
-    }
-#ifdef USE_NEXTION_WAVEFORM
+    this->update_component_settings();
+    return;
   }
 #endif  // USE_NEXTION_WAVEFORM
 
-  float published_state = state;
-#ifdef USE_NEXTION_WAVEFORM
-  if (this->wave_chan_id_ == UINT8_MAX)
-#endif  // USE_NEXTION_WAVEFORM
-  {
-    if (publish) {
+  if (send_to_nextion) {
+    if (this->nextion_->is_sleeping() || !this->component_flags_.visible) {
+      this->needs_to_send_update_ = true;
+    } else {
+      this->needs_to_send_update_ = false;
       if (this->precision_ > 0) {
-        double to_multiply = pow(10, -this->precision_);
-        published_state = (float) (state * to_multiply);
+        double to_multiply = pow(10, this->precision_);
+        int state_value = (int) (state * to_multiply);
+        this->nextion_->add_no_result_to_queue_with_set(this, (int) state_value);
+      } else {
+        this->nextion_->add_no_result_to_queue_with_set(this, (int) state);
       }
-      this->publish_state(published_state);
     }
+  }
+
+  float published_state = state;
+  if (publish) {
+    if (this->precision_ > 0) {
+      double to_multiply = pow(10, -this->precision_);
+      published_state = (float) (state * to_multiply);
+    }
+    this->publish_state(published_state);
   }
   this->update_component_settings();
 
