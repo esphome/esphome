@@ -37,19 +37,21 @@ static inline int days_in_year(int year) { return is_leap_year(year) ? 366 : 365
 // Count leap years in [1, year] (i.e. up to and including year)
 static inline int count_leap_years_up_to(int year) { return year / 4 - year / 100 + year / 400; }
 
+// Leap years before the Unix epoch: 1969/4 - 1969/100 + 1969/400
+constexpr int LEAP_YEARS_BEFORE_EPOCH = 477;
+constexpr int EPOCH_YEAR = 1970;
+constexpr int DAYS_PER_YEAR = 365;
+constexpr int SECONDS_PER_DAY = 86400;
+
 // Days from epoch (Jan 1 1970) to Jan 1 of given year — O(1)
 static inline int64_t days_to_year_start_fast(int year) {
-  // 365 * (year - 1970) + (leap days in [1970, year))
-  // Leap days in [1970, year) = leaps up to (year-1) - leaps up to 1969
-  constexpr int leaps_before_1970 = 477;  // 1969/4 - 1969/100 + 1969/400
-  return 365LL * (year - 1970) + (count_leap_years_up_to(year - 1) - leaps_before_1970);
+  return static_cast<int64_t>(DAYS_PER_YEAR) * (year - EPOCH_YEAR) +
+         (count_leap_years_up_to(year - 1) - LEAP_YEARS_BEFORE_EPOCH);
 }
 
 // Convert days since epoch to year, updating days to day-of-year remainder — O(1)
 static int days_to_year(int64_t &days) {
-  // Estimate year from days using 365.2425 average
-  int year = static_cast<int>(1970 + days / 365);
-  // Adjust: check if estimate is correct
+  int year = static_cast<int>(EPOCH_YEAR + days / DAYS_PER_YEAR);
   int64_t year_start = days_to_year_start_fast(year);
   if (days < year_start) {
     year--;
@@ -64,8 +66,8 @@ static int days_to_year(int64_t &days) {
 
 // Extract just the year from a UTC epoch — O(1)
 static int epoch_to_year(time_t epoch) {
-  int64_t days = epoch / 86400;
-  if (epoch < 0 && epoch % 86400 != 0)
+  int64_t days = epoch / SECONDS_PER_DAY;
+  if (epoch < 0 && epoch % SECONDS_PER_DAY != 0)
     days--;
   return days_to_year(days);
 }
@@ -100,11 +102,11 @@ int __attribute__((noinline)) day_of_week(int year, int month, int day) {
 
 void __attribute__((noinline)) epoch_to_tm_utc(time_t epoch, struct tm *out_tm) {
   // Days since epoch
-  int64_t days = epoch / 86400;
-  int32_t remaining_secs = epoch % 86400;
+  int64_t days = epoch / SECONDS_PER_DAY;
+  int32_t remaining_secs = epoch % SECONDS_PER_DAY;
   if (remaining_secs < 0) {
     days--;
-    remaining_secs += 86400;
+    remaining_secs += SECONDS_PER_DAY;
   }
 
   out_tm->tm_sec = remaining_secs % 60;
@@ -344,7 +346,7 @@ time_t __attribute__((noinline)) calculate_dst_transition(int year, const DSTRul
   int64_t days = days_to_year_start(year) + days_from_year_start(year, month, day);
 
   // Convert to epoch and add transition time and base offset
-  return days * 86400 + rule.time_seconds + base_offset_seconds;
+  return days * SECONDS_PER_DAY + rule.time_seconds + base_offset_seconds;
 }
 
 }  // namespace internal
