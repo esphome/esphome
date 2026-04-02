@@ -48,7 +48,7 @@ void MQTTNumberComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
   root[MQTT_MAX] = traits.get_max_value();
   root[MQTT_STEP] = traits.get_step();
   // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
-  const auto unit_of_measurement = this->number_->traits.get_unit_of_measurement_ref();
+  const auto unit_of_measurement = this->number_->get_unit_of_measurement_ref();
   if (!unit_of_measurement.empty()) {
     root[MQTT_UNIT_OF_MEASUREMENT] = unit_of_measurement;
   }
@@ -56,10 +56,6 @@ void MQTTNumberComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
   if (mode != NUMBER_MODE_AUTO) {
     root[MQTT_MODE] =
         NumberMqttModeStrings::get_progmem_str(static_cast<uint8_t>(mode), static_cast<uint8_t>(NUMBER_MODE_BOX));
-  }
-  const auto device_class = this->number_->traits.get_device_class_ref();
-  if (!device_class.empty()) {
-    root[MQTT_DEVICE_CLASS] = device_class;
   }
   // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
 

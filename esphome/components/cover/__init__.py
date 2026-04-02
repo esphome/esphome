@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_MQTT_ID,
+    CONF_MQTT_JSON_STATE_PAYLOAD,
     CONF_ON_IDLE,
     CONF_ON_OPEN,
     CONF_POSITION,
@@ -36,7 +37,11 @@ from esphome.const import (
     DEVICE_CLASS_WINDOW,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    setup_device_class,
+    setup_entity,
+)
 from esphome.cpp_generator import MockObj, MockObjClass
 from esphome.types import ConfigType, TemplateArgsType
 
@@ -119,6 +124,9 @@ _COVER_SCHEMA = (
     .extend(
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTCoverComponent),
+            cv.Optional(CONF_MQTT_JSON_STATE_PAYLOAD): cv.All(
+                cv.requires_component("mqtt"), cv.boolean
+            ),
             cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
             cv.Optional(CONF_POSITION_COMMAND_TOPIC): cv.All(
                 cv.requires_component("mqtt"), cv.subscribe_topic
@@ -148,6 +156,22 @@ _COVER_SCHEMA = (
 _COVER_SCHEMA.add_extra(entity_duplicate_validator("cover"))
 
 
+def _validate_mqtt_state_topics(config):
+    if config.get(CONF_MQTT_JSON_STATE_PAYLOAD):
+        if CONF_POSITION_STATE_TOPIC in config:
+            raise cv.Invalid(
+                f"'{CONF_POSITION_STATE_TOPIC}' cannot be used with '{CONF_MQTT_JSON_STATE_PAYLOAD}: true'"
+            )
+        if CONF_TILT_STATE_TOPIC in config:
+            raise cv.Invalid(
+                f"'{CONF_TILT_STATE_TOPIC}' cannot be used with '{CONF_MQTT_JSON_STATE_PAYLOAD}: true'"
+            )
+    return config
+
+
+_COVER_SCHEMA.add_extra(_validate_mqtt_state_topics)
+
+
 def cover_schema(
     class_: MockObjClass,
     *,
@@ -170,11 +194,9 @@ def cover_schema(
     return _COVER_SCHEMA.extend(schema)
 
 
+@setup_entity("cover")
 async def setup_cover_core_(var, config):
-    await setup_entity(var, config, "cover")
-
-    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
-        cg.add(var.set_device_class(device_class))
+    setup_device_class(config)
 
     if CONF_ON_OPEN in config:
         _LOGGER.warning(
@@ -195,6 +217,9 @@ async def setup_cover_core_(var, config):
             position_command_topic := config.get(CONF_POSITION_COMMAND_TOPIC)
         ) is not None:
             cg.add(mqtt_.set_custom_position_command_topic(position_command_topic))
+        if config.get(CONF_MQTT_JSON_STATE_PAYLOAD):
+            cg.add_define("USE_MQTT_COVER_JSON")
+            cg.add(mqtt_.set_use_json_format(True))
         if (tilt_state_topic := config.get(CONF_TILT_STATE_TOPIC)) is not None:
             cg.add(mqtt_.set_custom_tilt_state_topic(tilt_state_topic))
         if (tilt_command_topic := config.get(CONF_TILT_COMMAND_TOPIC)) is not None:
@@ -225,25 +250,33 @@ COVER_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action("cover.open", OpenAction, COVER_ACTION_SCHEMA)
+@automation.register_action(
+    "cover.open", OpenAction, COVER_ACTION_SCHEMA, synchronous=True
+)
 async def cover_open_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("cover.close", CloseAction, COVER_ACTION_SCHEMA)
+@automation.register_action(
+    "cover.close", CloseAction, COVER_ACTION_SCHEMA, synchronous=True
+)
 async def cover_close_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("cover.stop", StopAction, COVER_ACTION_SCHEMA)
+@automation.register_action(
+    "cover.stop", StopAction, COVER_ACTION_SCHEMA, synchronous=True
+)
 async def cover_stop_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("cover.toggle", ToggleAction, COVER_ACTION_SCHEMA)
+@automation.register_action(
+    "cover.toggle", ToggleAction, COVER_ACTION_SCHEMA, synchronous=True
+)
 async def cover_toggle_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
@@ -260,7 +293,9 @@ COVER_CONTROL_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action("cover.control", ControlAction, COVER_CONTROL_ACTION_SCHEMA)
+@automation.register_action(
+    "cover.control", ControlAction, COVER_CONTROL_ACTION_SCHEMA, synchronous=True
+)
 async def cover_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)

@@ -16,7 +16,7 @@ class APIConnection;
     return this->client_->send_##entity_type##_state(entity); \
   }
 
-class InitialStateIterator : public ComponentIterator {
+class InitialStateIterator final : public ComponentIterator {
  public:
   InitialStateIterator(APIConnection *client);
 #ifdef USE_BINARY_SENSOR
@@ -88,7 +88,6 @@ class InitialStateIterator : public ComponentIterator {
 #ifdef USE_UPDATE
   bool on_update(update::UpdateEntity *entity) override;
 #endif
-  bool completed() { return this->state_ == IteratorState::NONE; }
 
  protected:
   APIConnection *client_;

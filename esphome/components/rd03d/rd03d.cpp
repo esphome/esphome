@@ -1,6 +1,8 @@
 #include "rd03d.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+
+#include <cinttypes>
 #include <cmath>
 
 namespace esphome::rd03d {
@@ -56,7 +58,7 @@ void RD03DComponent::dump_config() {
                   *this->tracking_mode_ == TrackingMode::SINGLE_TARGET ? "single" : "multi");
   }
   if (this->throttle_ > 0) {
-    ESP_LOGCONFIG(TAG, "  Throttle: %ums", this->throttle_);
+    ESP_LOGCONFIG(TAG, "  Throttle: %" PRIu32 "ms", this->throttle_);
   }
 #ifdef USE_SENSOR
   LOG_SENSOR("  ", "Target Count", this->target_count_sensor_);
@@ -82,10 +84,10 @@ void RD03DComponent::dump_config() {
 
 void RD03DComponent::loop() {
   // Read all available bytes in batches to reduce UART call overhead.
-  int avail = this->available();
+  size_t avail = this->available();
   uint8_t buf[64];
   while (avail > 0) {
-    size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
+    size_t to_read = std::min(avail, sizeof(buf));
     if (!this->read_array(buf, to_read)) {
       break;
     }

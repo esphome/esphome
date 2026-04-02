@@ -74,8 +74,9 @@ void TemplateCover::control(const CoverCall &call) {
     this->prev_command_trigger_ = &this->toggle_trigger_;
     this->publish_state();
   }
-  if (call.get_position().has_value()) {
-    auto pos = *call.get_position();
+  auto pos_val = call.get_position();
+  if (pos_val.has_value()) {
+    auto pos = *pos_val;
     this->stop_prev_trigger_();
 
     if (pos == COVER_OPEN) {
@@ -93,8 +94,9 @@ void TemplateCover::control(const CoverCall &call) {
     }
   }
 
-  if (call.get_tilt().has_value()) {
-    auto tilt = *call.get_tilt();
+  auto tilt_val = call.get_tilt();
+  if (tilt_val.has_value()) {
+    auto tilt = *tilt_val;
     this->tilt_trigger_.trigger(tilt);
 
     if (this->optimistic_) {

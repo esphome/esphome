@@ -74,7 +74,7 @@ class ZigbeeComponent : public Component {
     // endpoints are enumerated from 1
     this->callbacks_[endpoint - 1] = std::move(cb);
   }
-  void add_join_callback(std::function<void()> &&cb) { this->join_cb_.add(std::move(cb)); }
+  template<typename F> void add_join_callback(F &&cb) { this->join_cb_.add(std::forward<F>(cb)); }
   void zboss_signal_handler_esphome(zb_bufid_t bufid);
   void before_reporting_info(zb_zcl_configure_reporting_req_t *config_rep_req, zb_zcl_attr_addr_info_t *attr_addr_info);
   void after_reporting_info(zb_zcl_configure_reporting_req_t *config_rep_req, zb_zcl_attr_addr_info_t *attr_addr_info);
@@ -94,6 +94,8 @@ class ZigbeeComponent : public Component {
   CallbackManager<void()> join_cb_;
   Trigger<> join_trigger_;
   bool force_report_{false};
+  uint32_t sleep_time_{};
+  uint32_t sleep_remainder_{};
 };
 
 class ZigbeeEntity {

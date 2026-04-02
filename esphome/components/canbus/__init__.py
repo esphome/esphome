@@ -155,6 +155,7 @@ async def register_canbus(var, config):
         validate_id,
         key=CONF_DATA,
     ),
+    synchronous=True,
 )
 async def canbus_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

@@ -11,8 +11,7 @@ namespace esphome::ultrasonic {
 struct UltrasonicSensorStore {
   static void gpio_intr(UltrasonicSensorStore *arg);
 
-  ISRInternalGPIOPin echo_pin_isr;
-  volatile uint32_t wait_start_us{0};
+  volatile uint32_t measurement_start_us{0};
   volatile uint32_t echo_start_us{0};
   volatile uint32_t echo_end_us{0};
   volatile bool echo_start{false};

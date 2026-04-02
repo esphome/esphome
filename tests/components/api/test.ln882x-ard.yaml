@@ -1,0 +1,5 @@
+<<: !include common.yaml
+
+wifi:
+  ssid: MySSID
+  password: password1

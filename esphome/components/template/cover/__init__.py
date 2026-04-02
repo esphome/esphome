@@ -108,7 +108,6 @@ async def to_code(config):
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
     cg.add(var.set_assumed_state(config[CONF_ASSUMED_STATE]))
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
-    cg.add(var.set_has_position(config[CONF_HAS_POSITION]))
 
 
 @automation.register_action(
@@ -125,6 +124,7 @@ async def to_code(config):
             cv.Optional(CONF_TILT): cv.templatable(cv.zero_to_one_float),
         }
     ),
+    synchronous=True,
 )
 async def cover_template_publish_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

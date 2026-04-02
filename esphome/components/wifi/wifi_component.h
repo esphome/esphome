@@ -6,10 +6,14 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#ifdef USE_ESP32
+#include "esphome/core/lock_free_queue.h"
+#endif
 #include "esphome/core/string_ref.h"
 
 #include <span>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 #ifdef USE_LIBRETINY
@@ -17,7 +21,7 @@
 #endif
 
 #if defined(USE_ESP32) && defined(USE_WIFI_WPA2_EAP)
-#if (ESP_IDF_VERSION_MAJOR >= 5) && (ESP_IDF_VERSION_MINOR >= 1)
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
 #include <esp_eap_client.h>
 #else
 #include <esp_wpa2.h>
@@ -43,6 +47,10 @@ extern "C" {
 }
 
 #include <WiFi.h>
+#endif
+
+#if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
+#include <esp_wifi_types.h>
 #endif
 
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
@@ -172,12 +180,75 @@ template<typename T> using wifi_scan_vector_t = std::vector<T>;
 template<typename T> using wifi_scan_vector_t = FixedVector<T>;
 #endif
 
+/// 20-byte string: 18 chars inline + null, heap for longer. Always null-terminated.
+/// Used internally for WiFi SSID/password storage to reduce heap fragmentation.
+class CompactString {
+ public:
+  static constexpr uint8_t MAX_LENGTH = 127;
+  static constexpr uint8_t INLINE_CAPACITY = 18;  // 18 chars + null terminator fits in 19 bytes
+
+  CompactString() : length_(0), is_heap_(0) { this->storage_[0] = '\0'; }
+  CompactString(const char *str, size_t len);
+  CompactString(const CompactString &other);
+  CompactString(CompactString &&other) noexcept;
+  CompactString &operator=(const CompactString &other);
+  CompactString &operator=(CompactString &&other) noexcept;
+  ~CompactString();
+
+  const char *data() const { return this->is_heap_ ? this->get_heap_ptr_() : this->storage_; }
+  const char *c_str() const { return this->data(); }  // Always null-terminated
+  size_t size() const { return this->length_; }
+  bool empty() const { return this->length_ == 0; }
+
+  /// Return a StringRef view of this string (zero-copy)
+  StringRef ref() const { return StringRef(this->data(), this->size()); }
+
+  bool operator==(const CompactString &other) const;
+  bool operator!=(const CompactString &other) const { return !(*this == other); }
+  bool operator==(const StringRef &other) const;
+  bool operator!=(const StringRef &other) const { return !(*this == other); }
+  bool operator==(const char *other) const { return *this == StringRef(other); }
+  bool operator!=(const char *other) const { return !(*this == other); }
+
+ protected:
+  char *get_heap_ptr_() const {
+    char *ptr;
+    std::memcpy(&ptr, this->storage_, sizeof(ptr));
+    return ptr;
+  }
+  void set_heap_ptr_(char *ptr) { std::memcpy(this->storage_, &ptr, sizeof(ptr)); }
+
+  // Storage for string data. When is_heap_=0, contains the string directly (null-terminated).
+  // When is_heap_=1, first sizeof(char*) bytes contain pointer to heap allocation.
+  char storage_[INLINE_CAPACITY + 1];  // 19 bytes: 18 chars + null terminator
+  uint8_t length_ : 7;                 // String length (0-127)
+  uint8_t is_heap_ : 1;                // 1 if using heap pointer, 0 if using inline storage
+  // Total size: 20 bytes (19 bytes storage + 1 byte bitfields)
+};
+
+static_assert(sizeof(CompactString) == 20, "CompactString must be exactly 20 bytes");
+// CompactString is not trivially copyable (non-trivial destructor/copy for heap case).
+// However, its layout has no self-referential pointers: storage_[] contains either inline
+// data or an external heap pointer — never a pointer to itself. This is unlike libstdc++
+// std::string SSO where _M_p points to _M_local_buf within the same object.
+// This property allows memcpy-based permutation sorting where each element ends up in
+// exactly one slot (no ownership duplication). These asserts document that layout property.
+static_assert(std::is_standard_layout<CompactString>::value, "CompactString must be standard layout");
+static_assert(!std::is_polymorphic<CompactString>::value, "CompactString must not have vtable");
+
 class WiFiAP {
+  friend class WiFiComponent;
+  friend class WiFiScanResult;
+
  public:
   void set_ssid(const std::string &ssid);
+  void set_ssid(const char *ssid);
+  void set_ssid(StringRef ssid) { this->ssid_ = CompactString(ssid.c_str(), ssid.size()); }
   void set_bssid(const bssid_t &bssid);
   void clear_bssid();
   void set_password(const std::string &password);
+  void set_password(const char *password);
+  void set_password(StringRef password) { this->password_ = CompactString(password.c_str(), password.size()); }
 #ifdef USE_WIFI_WPA2_EAP
   void set_eap(optional<EAPAuth> eap_auth);
 #endif  // USE_WIFI_WPA2_EAP
@@ -188,15 +259,15 @@ class WiFiAP {
   void set_manual_ip(optional<ManualIP> manual_ip);
 #endif
   void set_hidden(bool hidden);
-  const std::string &get_ssid() const;
+  StringRef get_ssid() const { return this->ssid_.ref(); }
+  StringRef get_password() const { return this->password_.ref(); }
   const bssid_t &get_bssid() const;
   bool has_bssid() const;
-  const std::string &get_password() const;
 #ifdef USE_WIFI_WPA2_EAP
   const optional<EAPAuth> &get_eap() const;
 #endif  // USE_WIFI_WPA2_EAP
-  uint8_t get_channel() const;
-  bool has_channel() const;
+  uint8_t get_channel() const { return this->channel_; }
+  bool has_channel() const { return this->channel_ != 0; }
   int8_t get_priority() const { return priority_; }
 #ifdef USE_WIFI_MANUAL_IP
   const optional<ManualIP> &get_manual_ip() const;
@@ -204,8 +275,8 @@ class WiFiAP {
   bool get_hidden() const;
 
  protected:
-  std::string ssid_;
-  std::string password_;
+  CompactString ssid_;
+  CompactString password_;
 #ifdef USE_WIFI_WPA2_EAP
   optional<EAPAuth> eap_;
 #endif  // USE_WIFI_WPA2_EAP
@@ -220,15 +291,18 @@ class WiFiAP {
 };
 
 class WiFiScanResult {
+  friend class WiFiComponent;
+
  public:
-  WiFiScanResult(const bssid_t &bssid, std::string ssid, uint8_t channel, int8_t rssi, bool with_auth, bool is_hidden);
+  WiFiScanResult(const bssid_t &bssid, const char *ssid, size_t ssid_len, uint8_t channel, int8_t rssi, bool with_auth,
+                 bool is_hidden);
 
   bool matches(const WiFiAP &config) const;
 
   bool get_matches() const;
   void set_matches(bool matches);
   const bssid_t &get_bssid() const;
-  const std::string &get_ssid() const;
+  StringRef get_ssid() const { return this->ssid_.ref(); }
   uint8_t get_channel() const;
   int8_t get_rssi() const;
   bool get_with_auth() const;
@@ -242,7 +316,7 @@ class WiFiScanResult {
   bssid_t bssid_;
   uint8_t channel_;
   int8_t rssi_;
-  std::string ssid_;
+  CompactString ssid_;
   int8_t priority_{0};
   bool matches_{false};
   bool with_auth_;
@@ -328,7 +402,7 @@ class WiFiPowerSaveListener {
 };
 
 /// This component is responsible for managing the ESP WiFi interface.
-class WiFiComponent : public Component {
+class WiFiComponent final : public Component {
  public:
   /// Construct a WiFiComponent.
   WiFiComponent();
@@ -366,21 +440,22 @@ class WiFiComponent : public Component {
 
   void retry_connect();
 
-#ifdef USE_RP2040
-  bool can_proceed() override;
-#endif
-
   void set_reboot_timeout(uint32_t reboot_timeout);
 
-  bool is_connected();
+  bool is_connected() const { return this->connected_; }
 
   void set_power_save_mode(WiFiPowerSaveMode power_save);
   void set_min_auth_mode(WifiMinAuthMode min_auth_mode) { min_auth_mode_ = min_auth_mode; }
   void set_output_power(float output_power) { output_power_ = output_power; }
+#if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
+  void set_band_mode(wifi_band_mode_t band_mode) { this->band_mode_ = band_mode; }
+#endif
 
   void set_passive_scan(bool passive);
 
   void save_wifi_sta(const std::string &ssid, const std::string &password);
+  void save_wifi_sta(const char *ssid, const char *password);
+  void save_wifi_sta(StringRef ssid, StringRef password) { this->save_wifi_sta(ssid.c_str(), password.c_str()); }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -391,14 +466,12 @@ class WiFiComponent : public Component {
   void restart_adapter();
   /// WIFI setup_priority.
   float get_setup_priority() const override;
-  float get_loop_priority() const override;
-
   /// Reconnect WiFi if required.
   void loop() override;
 
-  bool has_sta() const;
-  bool has_ap() const;
-  bool is_ap_active() const;
+  bool has_sta() const { return !this->sta_.empty(); }
+  bool has_ap() const { return this->has_ap_; }
+  bool is_ap_active() const { return this->ap_started_; }
 
 #ifdef USE_WIFI_11KV_SUPPORT
   void set_btm(bool btm);
@@ -407,8 +480,8 @@ class WiFiComponent : public Component {
 
   network::IPAddress get_dns_address(int num);
   network::IPAddresses get_ip_addresses();
-  const char *get_use_address() const;
-  void set_use_address(const char *use_address);
+  const char *get_use_address() const { return this->use_address_; }
+  void set_use_address(const char *use_address) { this->use_address_ = use_address; }
 
   const wifi_scan_vector_t<WiFiScanResult> &get_scan_result() const { return scan_result_; }
 
@@ -428,20 +501,11 @@ class WiFiComponent : public Component {
     }
     return 0;
   }
-  void set_sta_priority(const bssid_t bssid, int8_t priority) {
-    for (auto &it : this->sta_priorities_) {
-      if (it.bssid == bssid) {
-        it.priority = priority;
-        return;
-      }
-    }
-    this->sta_priorities_.push_back(WiFiSTAPriority{
-        .bssid = bssid,
-        .priority = priority,
-    });
-  }
+  void set_sta_priority(bssid_t bssid, int8_t priority);
 
   network::IPAddresses wifi_sta_ip_addresses();
+  // Remove before 2026.9.0
+  ESPDEPRECATED("Use wifi_ssid_to() instead. Removed in 2026.9.0", "2026.3.0")
   std::string wifi_ssid();
   /// Write SSID to buffer without heap allocation.
   /// Returns pointer to buffer, or empty string if not connected.
@@ -545,7 +609,7 @@ class WiFiComponent : public Component {
   int8_t find_first_non_hidden_index_() const;
   /// Check if an SSID was seen in the most recent scan results
   /// Used to skip hidden mode for SSIDs we know are visible
-  bool ssid_was_seen_in_scan_(const std::string &ssid) const;
+  bool ssid_was_seen_in_scan_(const CompactString &ssid) const;
   /// Check if full scan results are needed (captive portal active, improv, listeners)
   bool needs_full_scan_results_() const;
   /// Check if network matches any configured network (for scan result filtering)
@@ -601,11 +665,19 @@ class WiFiComponent : public Component {
   bool wifi_sta_pre_setup_();
   bool wifi_apply_output_power_(float output_power);
   bool wifi_apply_power_save_();
+#if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
+  bool wifi_apply_band_mode_();
+#endif
   bool wifi_sta_ip_config_(const optional<ManualIP> &manual_ip);
   bool wifi_apply_hostname_();
   bool wifi_sta_connect_(const WiFiAP &ap);
   void wifi_pre_setup_();
-  WiFiSTAConnectStatus wifi_sta_connect_status_();
+  WiFiSTAConnectStatus wifi_sta_connect_status_() const;
+  bool is_connected_() const {
+    return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED &&
+           this->wifi_sta_connect_status_() == WiFiSTAConnectStatus::CONNECTED && !this->error_from_callback_;
+  }
+  void update_connected_state_() { this->connected_ = this->is_connected_(); }
   bool wifi_scan_start_(bool passive);
 
 #ifdef USE_WIFI_AP
@@ -658,6 +730,7 @@ class WiFiComponent : public Component {
 
 #ifdef USE_ESP32
   void wifi_process_event_(IDFWiFiEvent *data);
+  friend void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 #endif
 
 #ifdef USE_RP2040
@@ -704,11 +777,17 @@ class WiFiComponent : public Component {
   SemaphoreHandle_t high_performance_semaphore_{nullptr};
 #endif
 
+  static constexpr uint8_t FIRST_5GHZ_CHANNEL = 36;
+
   // Post-connect roaming constants
   static constexpr uint32_t ROAMING_CHECK_INTERVAL = 5 * 60 * 1000;  // 5 minutes
   static constexpr int8_t ROAMING_MIN_IMPROVEMENT = 10;              // dB
   static constexpr int8_t ROAMING_GOOD_RSSI = -49;                   // Skip scan if signal is excellent
   static constexpr uint8_t ROAMING_MAX_ATTEMPTS = 3;
+  // Grace period after roaming scan completes. If WiFi disconnects within this
+  // window (e.g., ESP8266 Beacon Timeout caused by going off-channel during scan),
+  // the disconnect is treated as roaming-related and the attempts counter is preserved.
+  static constexpr uint32_t ROAMING_SCAN_GRACE_PERIOD = 30 * 1000;  // 30 seconds
 
   // 4-byte members
   float output_power_{NAN};
@@ -716,6 +795,7 @@ class WiFiComponent : public Component {
   uint32_t last_connected_{0};
   uint32_t reboot_timeout_{};
   uint32_t roaming_last_check_{0};
+  uint32_t roaming_scan_end_{0};  // Timestamp when last roaming scan completed
 #ifdef USE_WIFI_AP
   uint32_t ap_timeout_{};
 #endif
@@ -723,6 +803,9 @@ class WiFiComponent : public Component {
   // 1-byte enums and integers
   WiFiComponentState state_{WIFI_COMPONENT_STATE_OFF};
   WiFiPowerSaveMode power_save_{WIFI_POWER_SAVE_NONE};
+#if defined(USE_ESP32) && defined(SOC_WIFI_SUPPORT_5G)
+  wifi_band_mode_t band_mode_{WIFI_BAND_MODE_AUTO};
+#endif
   WifiMinAuthMode min_auth_mode_{WIFI_MIN_AUTH_MODE_WPA2};
   WiFiRetryPhase retry_phase_{WiFiRetryPhase::INITIAL_CONNECT};
   uint8_t num_retried_{0};
@@ -735,8 +818,15 @@ class WiFiComponent : public Component {
   uint8_t num_ipv6_addresses_{0};
 #endif /* USE_NETWORK_IPV6 */
   bool error_from_callback_{false};
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+  // Platform-specific STA state enum, defined in platform cpp file.
+  // On ESP8266, written from SDK system context (wifi_event_callback) —
+  // uint8_t writes are atomic on Xtensa LX106 so no synchronization is needed.
+  uint8_t sta_state_{0};
+#endif
   RetryHiddenMode retry_hidden_mode_{RetryHiddenMode::BLIND_RETRY};
   RoamingState roaming_state_{RoamingState::IDLE};
+  bssid_t roaming_target_bssid_{};  // BSSID of the AP we're trying to roam to
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   WiFiPowerSaveMode configured_power_save_{WIFI_POWER_SAVE_NONE};
 #endif
@@ -779,9 +869,17 @@ class WiFiComponent : public Component {
   bool has_completed_scan_after_captive_portal_start_{
       false};  // Tracks if we've completed a scan after captive portal started
   bool skip_cooldown_next_cycle_{false};
+  bool connected_{false};
   bool post_connect_roaming_{true};  // Enabled by default
 #if defined(USE_ESP32) && defined(USE_WIFI_RUNTIME_POWER_SAVE)
   bool is_high_performance_mode_{false};
+#endif
+
+#ifdef USE_ESP32
+  // Lock-free SPSC queue for WiFi events from ESP-IDF event handler.
+  // 17 slots = 16 usable (ring buffer reserves one slot). WiFi events are rare.
+  // Placed at end of class to avoid padding between smaller fields.
+  LockFreeQueue<IDFWiFiEvent, 17> event_queue_;
 #endif
 
  private:

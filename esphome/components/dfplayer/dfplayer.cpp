@@ -133,10 +133,10 @@ void DFPlayer::send_cmd_(uint8_t cmd, uint16_t argument) {
 
 void DFPlayer::loop() {
   // Read all available bytes in batches to reduce UART call overhead.
-  int avail = this->available();
+  size_t avail = this->available();
   uint8_t buf[64];
   while (avail > 0) {
-    size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
+    size_t to_read = std::min(avail, sizeof(buf));
     if (!this->read_array(buf, to_read)) {
       break;
     }
@@ -260,6 +260,7 @@ void DFPlayer::loop() {
               ESP_LOGV(TAG, "Playback finished (USB drive)");
               this->is_playing_ = false;
               this->on_finished_playback_callback_.call();
+              break;
             case 0x3D:
               ESP_LOGV(TAG, "Playback finished (SD card)");
               this->is_playing_ = false;

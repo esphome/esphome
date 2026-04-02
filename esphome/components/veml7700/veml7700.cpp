@@ -141,7 +141,7 @@ void VEML7700Component::loop() {
     // Datasheet: 2.5 ms before the first measurement is needed, allowing for the correct start of the signal processor
     // and oscillator.
     // Reality: wait for couple integration times to have first samples captured
-    this->set_timeout(2 * this->integration_time_, [this]() { this->state_ = State::IDLE; });
+    this->set_timeout(2 * get_itime_ms(this->integration_time_), [this]() { this->state_ = State::IDLE; });
   }
 
   if (this->is_ready()) {
