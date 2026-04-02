@@ -35,7 +35,7 @@ void DeepSleepComponent::deep_sleep_() {
     sys_poweroff();
 #endif
   }
-  // It might wake up up immediately if k_sem_give was called again after wake up
+  // It might wake up immediately if k_sem_give was called again after wake up
   int ret = k_sem_take(&this->wakeup_sem_, sleep_duration);
   if (ret == 0) {
     ESP_LOGD(TAG, "Woken up by another thread");
