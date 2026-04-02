@@ -44,7 +44,7 @@ constexpr int DAYS_PER_YEAR = 365;
 constexpr int SECONDS_PER_DAY = 86400;
 
 // Days from epoch (Jan 1 1970) to Jan 1 of given year — O(1)
-static inline int64_t days_to_year_start_fast(int year) {
+static inline int64_t days_to_year_start(int year) {
   return static_cast<int64_t>(DAYS_PER_YEAR) * (year - EPOCH_YEAR) +
          (count_leap_years_up_to(year - 1) - LEAP_YEARS_BEFORE_EPOCH);
 }
@@ -52,10 +52,10 @@ static inline int64_t days_to_year_start_fast(int year) {
 // Convert days since epoch to year, updating days to day-of-year remainder — O(1)
 static int days_to_year(int64_t &days) {
   int year = static_cast<int>(EPOCH_YEAR + days / DAYS_PER_YEAR);
-  int64_t year_start = days_to_year_start_fast(year);
+  int64_t year_start = days_to_year_start(year);
   if (days < year_start) {
     year--;
-    year_start = days_to_year_start_fast(year);
+    year_start = days_to_year_start(year);
   } else if (days >= year_start + days_in_year(year)) {
     year_start += days_in_year(year);
     year++;
@@ -294,9 +294,6 @@ static int __attribute__((noinline)) days_from_year_start(int year, int month, i
   }
   return days;
 }
-
-// Calculate days from epoch to Jan 1 of given year (for DST transition calculations)
-static int64_t days_to_year_start(int year) { return days_to_year_start_fast(year); }
 
 time_t __attribute__((noinline)) calculate_dst_transition(int year, const DSTRule &rule, int32_t base_offset_seconds) {
   int month, day;
