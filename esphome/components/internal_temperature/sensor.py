@@ -31,7 +31,15 @@ CONFIG_SCHEMA = cv.All(
         state_class=STATE_CLASS_MEASUREMENT,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ).extend(cv.polling_component_schema("60s")),
-    cv.only_on([PLATFORM_ESP32, PLATFORM_RP2040, PLATFORM_BK72XX, PLATFORM_NRF52, PLATFORM_LN882X]),
+    cv.only_on(
+        [
+            PLATFORM_ESP32,
+            PLATFORM_RP2040,
+            PLATFORM_BK72XX,
+            PLATFORM_NRF52,
+            PLATFORM_LN882X,
+        ]
+    ),
 )
 
 
