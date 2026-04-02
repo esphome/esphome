@@ -402,6 +402,202 @@ TEST(PosixTz, EpochToLocalDstTransition) {
 }
 
 // ============================================================================
+// Leap year edge cases for closed-form year arithmetic
+// ============================================================================
+
+TEST(PosixTzParser, EpochToLocalLeapYear2000) {
+  // 2000 is a leap year (divisible by 400)
+  ParsedTimezone tz;
+  ASSERT_TRUE(parse_posix_tz("UTC0", tz));
+
+  // Feb 29, 2000 12:00:00 UTC
+  time_t epoch = make_utc(2000, 2, 29, 12);
+  struct tm local;
+  ASSERT_TRUE(epoch_to_local_tm(epoch, tz, &local));
+  EXPECT_EQ(local.tm_year, 100);  // 2000
+  EXPECT_EQ(local.tm_mon, 1);     // February
+  EXPECT_EQ(local.tm_mday, 29);
+  EXPECT_EQ(local.tm_hour, 12);
+}
+
+TEST(PosixTzParser, EpochToLocalNonLeapYear2100) {
+  // 2100 is NOT a leap year (divisible by 100 but not 400)
+  ParsedTimezone tz;
+  ASSERT_TRUE(parse_posix_tz("UTC0", tz));
+
+  // Mar 1, 2100 00:00:00 UTC — the day after what would be Feb 29
+  time_t epoch = make_utc(2100, 3, 1);
+  struct tm local;
+  ASSERT_TRUE(epoch_to_local_tm(epoch, tz, &local));
+  EXPECT_EQ(local.tm_year, 200);  // 2100
+  EXPECT_EQ(local.tm_mon, 2);     // March
+  EXPECT_EQ(local.tm_mday, 1);
+
+  // Feb 28, 2100 23:59:59 UTC — last second of February (no Feb 29)
+  epoch = make_utc(2100, 2, 28, 23, 59, 59);
+  ASSERT_TRUE(epoch_to_local_tm(epoch, tz, &local));
+  EXPECT_EQ(local.tm_year, 200);
+  EXPECT_EQ(local.tm_mon, 1);  // February
+  EXPECT_EQ(local.tm_mday, 28);
+}
+
+TEST(PosixTzParser, EpochToLocalLeapYear2400) {
+  // 2400 is a leap year (divisible by 400)
+  ParsedTimezone tz;
+  ASSERT_TRUE(parse_posix_tz("UTC0", tz));
+
+  time_t epoch = make_utc(2400, 2, 29, 6);
+  struct tm local;
+  ASSERT_TRUE(epoch_to_local_tm(epoch, tz, &local));
+  EXPECT_EQ(local.tm_year, 500);  // 2400
+  EXPECT_EQ(local.tm_mon, 1);     // February
+  EXPECT_EQ(local.tm_mday, 29);
+  EXPECT_EQ(local.tm_hour, 6);
+}
+
+TEST(PosixTzParser, EpochToLocalNewYearBoundaries) {
+  // Test year boundary — last second of 2099 and first second of 2100
+  ParsedTimezone tz;
+  ASSERT_TRUE(parse_posix_tz("UTC0", tz));
+  struct tm local;
+
+  // Dec 31, 2099 23:59:59 UTC
+  time_t epoch = make_utc(2099, 12, 31, 23, 59, 59);
+  ASSERT_TRUE(epoch_to_local_tm(epoch, tz, &local));
+  EXPECT_EQ(local.tm_year, 199);  // 2099
+  EXPECT_EQ(local.tm_mon, 11);    // December
+  EXPECT_EQ(local.tm_mday, 31);
+
+  // Jan 1, 2100 00:00:00 UTC
+  epoch = make_utc(2100, 1, 1);
+  ASSERT_TRUE(epoch_to_local_tm(epoch, tz, &local));
+  EXPECT_EQ(local.tm_year, 200);  // 2100
+  EXPECT_EQ(local.tm_mon, 0);     // January
+  EXPECT_EQ(local.tm_mday, 1);
+}
+
+TEST(PosixTzParser, EpochToLocalDstAcrossCenturyBoundary) {
+  // DST transition in year 2100 (non-leap) with US Eastern rules
+  ParsedTimezone tz;
+  ASSERT_TRUE(parse_posix_tz("EST5EDT,M3.2.0/2,M11.1.0/2", tz));
+
+  // July 4, 2100 16:00 UTC = 12:00 EDT
+  time_t epoch = make_utc(2100, 7, 4, 16);
+  struct tm local;
+  ASSERT_TRUE(epoch_to_local_tm(epoch, tz, &local));
+  EXPECT_EQ(local.tm_hour, 12);
+  EXPECT_EQ(local.tm_isdst, 1);
+
+  // Jan 15, 2100 10:00 UTC = 05:00 EST
+  epoch = make_utc(2100, 1, 15, 10);
+  ASSERT_TRUE(epoch_to_local_tm(epoch, tz, &local));
+  EXPECT_EQ(local.tm_hour, 5);
+  EXPECT_EQ(local.tm_isdst, 0);
+}
+
+TEST(PosixTzParser, EpochToLocalFarFutureYear5000) {
+  // Year 5000 — days/365 estimate overshoots by ~2 years due to leap days,
+  // requiring multiple correction steps in days_to_year.
+  ParsedTimezone tz;
+  ASSERT_TRUE(parse_posix_tz("UTC0", tz));
+
+  time_t epoch = make_utc(5000, 6, 15, 12);
+  struct tm local;
+  ASSERT_TRUE(epoch_to_local_tm(epoch, tz, &local));
+  EXPECT_EQ(local.tm_year, 3100);  // 5000
+  EXPECT_EQ(local.tm_mon, 5);      // June
+  EXPECT_EQ(local.tm_mday, 15);
+  EXPECT_EQ(local.tm_hour, 12);
+}
+
+// ============================================================================
+// Verification against libc
+// ============================================================================
+
+class LibcVerificationTest : public ::testing::TestWithParam<std::tuple<const char *, time_t>> {
+ protected:
+  // NOLINTNEXTLINE(readability-identifier-naming) - Google Test requires this name
+  void SetUp() override {
+    // Save current TZ
+    const char *current_tz = getenv("TZ");
+    saved_tz_ = current_tz ? current_tz : "";
+    had_tz_ = current_tz != nullptr;
+  }
+
+  // NOLINTNEXTLINE(readability-identifier-naming) - Google Test requires this name
+  void TearDown() override {
+    // Restore TZ
+    if (had_tz_) {
+      setenv("TZ", saved_tz_.c_str(), 1);
+    } else {
+      unsetenv("TZ");
+    }
+    tzset();
+  }
+
+ private:
+  std::string saved_tz_;
+  bool had_tz_{false};
+};
+
+TEST_P(LibcVerificationTest, MatchesLibc) {
+  auto [tz_str, epoch] = GetParam();
+
+  ParsedTimezone tz;
+  ASSERT_TRUE(parse_posix_tz(tz_str, tz));
+
+  // Our implementation
+  struct tm our_tm {};
+  ASSERT_TRUE(epoch_to_local_tm(epoch, tz, &our_tm));
+
+  // libc implementation
+  setenv("TZ", tz_str, 1);
+  tzset();
+  struct tm *libc_tm = localtime(&epoch);
+  ASSERT_NE(libc_tm, nullptr);
+
+  EXPECT_EQ(our_tm.tm_year, libc_tm->tm_year);
+  EXPECT_EQ(our_tm.tm_mon, libc_tm->tm_mon);
+  EXPECT_EQ(our_tm.tm_mday, libc_tm->tm_mday);
+  EXPECT_EQ(our_tm.tm_hour, libc_tm->tm_hour);
+  EXPECT_EQ(our_tm.tm_min, libc_tm->tm_min);
+  EXPECT_EQ(our_tm.tm_sec, libc_tm->tm_sec);
+  EXPECT_EQ(our_tm.tm_isdst, libc_tm->tm_isdst);
+}
+
+INSTANTIATE_TEST_SUITE_P(USEastern, LibcVerificationTest,
+                         ::testing::Values(std::make_tuple("EST5EDT,M3.2.0/2,M11.1.0/2", 1704067200),
+                                           std::make_tuple("EST5EDT,M3.2.0/2,M11.1.0/2", 1720000000),
+                                           std::make_tuple("EST5EDT,M3.2.0/2,M11.1.0/2", 1735689600)));
+
+INSTANTIATE_TEST_SUITE_P(AngleBracket, LibcVerificationTest,
+                         ::testing::Values(std::make_tuple("<+07>-7", 1704067200),
+                                           std::make_tuple("<+07>-7", 1720000000)));
+
+INSTANTIATE_TEST_SUITE_P(India, LibcVerificationTest,
+                         ::testing::Values(std::make_tuple("IST-5:30", 1704067200),
+                                           std::make_tuple("IST-5:30", 1720000000)));
+
+INSTANTIATE_TEST_SUITE_P(NewZealand, LibcVerificationTest,
+                         ::testing::Values(std::make_tuple("NZST-12NZDT,M9.5.0,M4.1.0/3", 1704067200),
+                                           std::make_tuple("NZST-12NZDT,M9.5.0,M4.1.0/3", 1720000000)));
+
+INSTANTIATE_TEST_SUITE_P(USCentral, LibcVerificationTest,
+                         ::testing::Values(std::make_tuple("CST6CDT,M3.2.0/2,M11.1.0/2", 1704067200),
+                                           std::make_tuple("CST6CDT,M3.2.0/2,M11.1.0/2", 1720000000),
+                                           std::make_tuple("CST6CDT,M3.2.0/2,M11.1.0/2", 1735689600)));
+
+INSTANTIATE_TEST_SUITE_P(EuropeBerlin, LibcVerificationTest,
+                         ::testing::Values(std::make_tuple("CET-1CEST,M3.5.0,M10.5.0/3", 1704067200),
+                                           std::make_tuple("CET-1CEST,M3.5.0,M10.5.0/3", 1720000000),
+                                           std::make_tuple("CET-1CEST,M3.5.0,M10.5.0/3", 1735689600)));
+
+INSTANTIATE_TEST_SUITE_P(AustraliaSydney, LibcVerificationTest,
+                         ::testing::Values(std::make_tuple("AEST-10AEDT,M10.1.0,M4.1.0/3", 1704067200),
+                                           std::make_tuple("AEST-10AEDT,M10.1.0,M4.1.0/3", 1720000000),
+                                           std::make_tuple("AEST-10AEDT,M10.1.0,M4.1.0/3", 1735689600)));
+
+// ============================================================================
 // DST boundary edge cases
 // ============================================================================
 
