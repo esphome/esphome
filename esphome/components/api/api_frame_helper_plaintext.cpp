@@ -39,15 +39,8 @@ static constexpr size_t API_MAX_LOG_BYTES = 168;
               format_hex_pretty_to(hex_buf_, (buffer).data(), \
                                    (buffer).size() < API_MAX_LOG_BYTES ? (buffer).size() : API_MAX_LOG_BYTES)); \
   } while (0)
-#define LOG_PACKET_SENDING(data, len) \
-  do { \
-    char hex_buf_[format_hex_pretty_size(API_MAX_LOG_BYTES)]; \
-    ESP_LOGVV(TAG, "Sending raw: %s", \
-              format_hex_pretty_to(hex_buf_, data, (len) < API_MAX_LOG_BYTES ? (len) : API_MAX_LOG_BYTES)); \
-  } while (0)
 #else
 #define LOG_PACKET_RECEIVED(buffer) ((void) 0)
-#define LOG_PACKET_SENDING(data, len) ((void) 0)
 #endif
 
 /// Initialize the frame helper, returns OK if successful.
@@ -291,7 +284,6 @@ APIError APIPlaintextFrameHelper::write_protobuf_packet(uint8_t type, ProtoWrite
   uint8_t header_len = write_plaintext_header(buffer_data, msg);
   uint8_t *msg_start = buffer_data + HEADER_PADDING - header_len;
   uint16_t msg_len = static_cast<uint16_t>(header_len + msg.payload_size);
-  LOG_PACKET_SENDING(msg_start, msg_len);
   return this->write_raw_fast_buf_(msg_start, msg_len);
 }
 
@@ -302,23 +294,26 @@ APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffe
   assert(!messages.empty());
 #endif
   uint8_t *buffer_data = buffer.get_buffer()->data();
-  StaticVector<struct iovec, MAX_MESSAGES_PER_BATCH> iovs;
-  uint16_t total_write_len = 0;
 
-  for (const auto &msg : messages) {
-    uint8_t header_len = write_plaintext_header(buffer_data + msg.offset, msg);
-    uint8_t *msg_start = buffer_data + msg.offset + HEADER_PADDING - header_len;
-    size_t msg_len = static_cast<size_t>(header_len + msg.payload_size);
-    iovs.push_back({msg_start, msg_len});
-    total_write_len += msg_len;
+  // First message: write header, record start position
+  const auto &first = messages[0];
+  uint8_t header_len = write_plaintext_header(buffer_data + first.offset, first);
+  uint8_t *write_start = buffer_data + first.offset + HEADER_PADDING - header_len;
+  uint8_t *write_end = write_start + header_len + first.payload_size;
+
+  // Subsequent messages: write header, then compact to close 0-3 byte gaps
+  for (size_t i = 1; i < messages.size(); i++) {
+    const auto &msg = messages[i];
+    header_len = write_plaintext_header(buffer_data + msg.offset, msg);
+    uint8_t *src = buffer_data + msg.offset + HEADER_PADDING - header_len;
+    uint16_t msg_len = header_len + msg.payload_size;
+    if (src != write_end) {
+      memmove(write_end, src, msg_len);
+    }
+    write_end += msg_len;
   }
 
-#ifdef HELPER_LOG_PACKETS
-  for (const auto &iov : iovs) {
-    LOG_PACKET_SENDING(reinterpret_cast<uint8_t *>(iov.iov_base), iov.iov_len);
-  }
-#endif
-  return this->write_raw_fast_iov_(iovs.data(), iovs.size(), total_write_len);
+  return this->write_raw_fast_buf_(write_start, static_cast<uint16_t>(write_end - write_start));
 }
 
 }  // namespace esphome::api

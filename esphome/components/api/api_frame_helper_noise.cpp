@@ -47,15 +47,8 @@ static constexpr size_t API_MAX_LOG_BYTES = 168;
               format_hex_pretty_to(hex_buf_, (buffer).data(), \
                                    (buffer).size() < API_MAX_LOG_BYTES ? (buffer).size() : API_MAX_LOG_BYTES)); \
   } while (0)
-#define LOG_PACKET_SENDING(data, len) \
-  do { \
-    char hex_buf_[format_hex_pretty_size(API_MAX_LOG_BYTES)]; \
-    ESP_LOGVV(TAG, "Sending raw: %s", \
-              format_hex_pretty_to(hex_buf_, data, (len) < API_MAX_LOG_BYTES ? (len) : API_MAX_LOG_BYTES)); \
-  } while (0)
 #else
 #define LOG_PACKET_RECEIVED(buffer) ((void) 0)
-#define LOG_PACKET_SENDING(data, len) ((void) 0)
 #endif
 
 /// Convert a noise error code to a readable error
@@ -452,10 +445,10 @@ APIError APINoiseFrameHelper::read_packet(ReadPacketBuffer *buffer) {
   buffer->type = type;
   return APIError::OK;
 }
-// Encrypt a single noise message in place and populate the iovec.
+// Encrypt a single noise message in place and return the encrypted frame length.
 // Returns APIError::OK on success.
 APIError APINoiseFrameHelper::encrypt_noise_message_(uint8_t *buf_start, const MessageInfo &msg,
-                                                     struct iovec &iov_out) {
+                                                     uint16_t &encrypted_len_out) {
   // Write noise header
   buf_start[0] = 0x01;  // indicator
   // buf_start[1], buf_start[2] to be set after encryption
@@ -482,9 +475,7 @@ APIError APINoiseFrameHelper::encrypt_noise_message_(uint8_t *buf_start, const M
   buf_start[1] = static_cast<uint8_t>(mbuf.size >> 8);
   buf_start[2] = static_cast<uint8_t>(mbuf.size);
 
-  // Populate iovec for this encrypted message
-  size_t msg_len = static_cast<size_t>(3 + mbuf.size);  // indicator + size + encrypted data
-  iov_out = {buf_start, msg_len};
+  encrypted_len_out = static_cast<uint16_t>(3 + mbuf.size);  // indicator + size + encrypted data
   return APIError::OK;
 }
 
@@ -499,13 +490,11 @@ APIError APINoiseFrameHelper::write_protobuf_packet(uint8_t type, ProtoWriteBuff
 
   MessageInfo msg{type, 0, static_cast<uint16_t>(buffer.get_buffer()->size() - HEADER_PADDING - frame_footer_size_)};
   uint8_t *buf_start = buffer.get_buffer()->data();
-  struct iovec iov;
-  APIError aerr = this->encrypt_noise_message_(buf_start, msg, iov);
+  uint16_t encrypted_len;
+  APIError aerr = this->encrypt_noise_message_(buf_start, msg, encrypted_len);
   if (aerr != APIError::OK)
     return aerr;
-  // buf_start and iov.iov_base point to the same location
-  LOG_PACKET_SENDING(buf_start, iov.iov_len);
-  return this->write_raw_fast_buf_(buf_start, static_cast<uint16_t>(iov.iov_len));
+  return this->write_raw_fast_buf_(buf_start, encrypted_len);
 }
 
 APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) {
@@ -514,26 +503,23 @@ APIError APINoiseFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer, s
   assert(!messages.empty());
 #endif
 
+  // Noise messages are already contiguous in the buffer:
+  // HEADER_PADDING (7) exactly matches the fixed header size, and
+  // footer space (16) is consumed by the encryption MAC.
   uint8_t *buffer_data = buffer.get_buffer()->data();
-  StaticVector<struct iovec, MAX_MESSAGES_PER_BATCH> iovs;
+  uint8_t *write_start = buffer_data + messages[0].offset;
   uint16_t total_write_len = 0;
 
   for (const auto &msg : messages) {
     uint8_t *buf_start = buffer_data + msg.offset;
-    struct iovec iov;
-    APIError aerr = this->encrypt_noise_message_(buf_start, msg, iov);
+    uint16_t encrypted_len;
+    APIError aerr = this->encrypt_noise_message_(buf_start, msg, encrypted_len);
     if (aerr != APIError::OK)
       return aerr;
-    iovs.push_back(iov);
-    total_write_len += iov.iov_len;
+    total_write_len += encrypted_len;
   }
 
-#ifdef HELPER_LOG_PACKETS
-  for (const auto &iov : iovs) {
-    LOG_PACKET_SENDING(reinterpret_cast<uint8_t *>(iov.iov_base), iov.iov_len);
-  }
-#endif
-  return this->write_raw_fast_iov_(iovs.data(), iovs.size(), total_write_len);
+  return this->write_raw_fast_buf_(write_start, total_write_len);
 }
 
 APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, uint16_t len) {

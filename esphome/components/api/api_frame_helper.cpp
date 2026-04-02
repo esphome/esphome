@@ -100,6 +100,12 @@ const LogString *api_error_to_logstr(APIError err) {
   return LOG_STR("UNKNOWN");
 }
 
+#ifdef HELPER_LOG_PACKETS
+void APIFrameHelper::log_packet_sending_(const void *data, uint16_t len) {
+  LOG_PACKET_SENDING(reinterpret_cast<const uint8_t *>(data), len);
+}
+#endif
+
 APIError APIFrameHelper::drain_overflow_and_handle_errors_() {
   if (this->overflow_buf_.try_drain(this->socket_.get()) == -1) {
     int err = errno;
@@ -115,7 +121,13 @@ APIError APIFrameHelper::drain_overflow_and_handle_errors_() {
 // Single-buffer write path: wraps in iovec and delegates.
 APIError APIFrameHelper::write_raw_buf_(const void *data, uint16_t len, ssize_t sent) {
   struct iovec iov = {const_cast<void *>(data), len};
-  return this->write_raw_iov_(&iov, 1, len, sent);
+  APIError err = this->write_raw_iov_(&iov, 1, len, sent);
+#ifdef HELPER_LOG_PACKETS
+  // Log after write/enqueue so re-entrant log sends can't corrupt data before it's sent
+  if (err == APIError::OK)
+    LOG_PACKET_SENDING(reinterpret_cast<const uint8_t *>(data), len);
+#endif
+  return err;
 }
 
 // Handles partial writes, errors, and overflow buffering.
@@ -152,7 +164,7 @@ APIError APIFrameHelper::write_raw_iov_(const struct iovec *iov, int iovcnt, uin
     }
   }
 
-  // Full write completed (possible when called directly, not via write_raw_fast_iov_)
+  // Full write completed (possible when called directly, not via write_raw_fast_buf_)
   if (sent == static_cast<ssize_t>(total_write_len))
     return APIError::OK;
 
