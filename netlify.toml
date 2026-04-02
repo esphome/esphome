@@ -16,17 +16,55 @@
   environment = { SITE_URL = "https://esphome.io", API_DOCS_URL = "https://api-docs.esphome.io" }
 
 
-# Caching HTML - 1 week
+# Default caching for all pages (HTML and everything else)
+# Browser: 1 hour, Cloudflare CDN: 1 week, serve stale while revalidating
+# Using /* as a catch-all since /*.html only matches single-level paths
 [[headers]]
-  for = "/*.html"
+  for = "/*"
   [headers.values]
-    Cache-Control = "public, max-age=604800"
+    Cache-Control = "public, max-age=3600, stale-while-revalidate=86400"
+    Cloudflare-CDN-Cache-Control = "public, max-age=604800, stale-while-revalidate=86400"
 
-# Images, CSS, JS - 1 year, immutable. CSS and JS are fingerprinted
+# Fingerprinted assets (Astro build output in /_astro/) - 1 year, immutable
 [[headers]]
-  for = "/*.{png,jpg,jpeg,gif,webp,svg,css,js}"
+  for = "/_astro/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+    Cloudflare-CDN-Cache-Control = "public, max-age=31536000, immutable"
+
+# Static images - browser: 1 week, CDN: 1 month
+[[headers]]
+  for = "/images/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
+    Cloudflare-CDN-Cache-Control = "public, max-age=2592000, stale-while-revalidate=604800"
+
+# Project images
+[[headers]]
+  for = "/projects/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
+    Cloudflare-CDN-Cache-Control = "public, max-age=2592000, stale-while-revalidate=604800"
+
+# Favicons - browser: 1 week, CDN: 1 month
+[[headers]]
+  for = "/favicon*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800"
+    Cloudflare-CDN-Cache-Control = "public, max-age=2592000"
+
+# Sitemap and robots.txt - browser: 1 hour, CDN: 1 day
+[[headers]]
+  for = "/sitemap*"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+    Cloudflare-CDN-Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "/robots.txt"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+    Cloudflare-CDN-Cache-Control = "public, max-age=86400"
 
 # Hugo taxonomy pages - redirect to homepage
 [[redirects]]
