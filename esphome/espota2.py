@@ -13,7 +13,7 @@ import time
 from typing import Any
 
 from esphome.core import EsphomeError
-from esphome.helpers import resolve_ip_address
+from esphome.helpers import ProgressBar, resolve_ip_address
 
 RESPONSE_OK = 0x00
 RESPONSE_REQUEST_AUTH = 0x01
@@ -61,30 +61,6 @@ _AUTH_METHODS: dict[int, tuple[Callable[..., Any], int, str]] = {
     RESPONSE_REQUEST_SHA256_AUTH: (hashlib.sha256, 64, "SHA256"),
     RESPONSE_REQUEST_AUTH: (hashlib.md5, 32, "MD5"),
 }
-
-
-class ProgressBar:
-    def __init__(self):
-        self.last_progress = None
-
-    def update(self, progress):
-        bar_length = 60
-        status = ""
-        if progress >= 1:
-            progress = 1
-            status = "Done...\r\n"
-        new_progress = int(progress * 100)
-        if new_progress == self.last_progress:
-            return
-        self.last_progress = new_progress
-        block = int(round(bar_length * progress))
-        text = f"\rUploading: [{'=' * block + ' ' * (bar_length - block)}] {new_progress}% {status}"
-        sys.stderr.write(text)
-        sys.stderr.flush()
-
-    def done(self):
-        sys.stderr.write("\n")
-        sys.stderr.flush()
 
 
 class OTAError(EsphomeError):

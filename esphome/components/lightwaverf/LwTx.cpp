@@ -108,6 +108,10 @@ bool LwTx::lwtx_free() { return !this->tx_msg_active; }
   Send a LightwaveRF message (10 nibbles in bytes)
 **/
 void LwTx::lwtx_send(const std::vector<uint8_t> &msg) {
+  if (msg.size() < TX_MSGLEN) {
+    ESP_LOGW("lightwaverf.sensor", "Message too short: %zu < %u", msg.size(), static_cast<unsigned>(TX_MSGLEN));
+    return;
+  }
   if (this->tx_translate) {
     for (uint8_t i = 0; i < TX_MSGLEN; i++) {
       this->tx_buf[i] = TX_NIBBLE[msg[i] & 0xF];
@@ -188,7 +192,8 @@ void LwTx::lwtx_set_gap_multiplier(uint8_t gap_multiplier) { this->tx_gap_multip
 void LwTx::lw_timer_start() {
   {
     InterruptLock lock;
-    static LwTx *arg = this;  // NOLINT
+    static LwTx *arg;
+    arg = this;
     timer1_attachInterrupt([] { isr_t_xtimer(arg); });
     timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);
     timer1_write(this->espPeriod);

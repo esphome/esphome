@@ -31,10 +31,10 @@ void MR60BHA2Component::dump_config() {
 // main loop
 void MR60BHA2Component::loop() {
   // Read all available bytes in batches to reduce UART call overhead.
-  int avail = this->available();
+  size_t avail = this->available();
   uint8_t buf[64];
   while (avail > 0) {
-    size_t to_read = std::min(static_cast<size_t>(avail), sizeof(buf));
+    size_t to_read = std::min(avail, sizeof(buf));
     if (!this->read_array(buf, to_read)) {
       break;
     }
@@ -177,10 +177,14 @@ void MR60BHA2Component::process_frame_(uint16_t frame_id, uint16_t frame_type, c
         uint16_t has_target_int = encode_uint16(data[1], data[0]);
         this->has_target_binary_sensor_->publish_state(has_target_int);
         if (has_target_int == 0) {
-          this->breath_rate_sensor_->publish_state(0.0);
-          this->heart_rate_sensor_->publish_state(0.0);
-          this->distance_sensor_->publish_state(0.0);
-          this->num_targets_sensor_->publish_state(0);
+          if (this->breath_rate_sensor_ != nullptr)
+            this->breath_rate_sensor_->publish_state(0.0);
+          if (this->heart_rate_sensor_ != nullptr)
+            this->heart_rate_sensor_->publish_state(0.0);
+          if (this->distance_sensor_ != nullptr)
+            this->distance_sensor_->publish_state(0.0);
+          if (this->num_targets_sensor_ != nullptr)
+            this->num_targets_sensor_->publish_state(0);
         }
       }
       break;
@@ -195,7 +199,7 @@ void MR60BHA2Component::process_frame_(uint16_t frame_id, uint16_t frame_type, c
       }
       break;
     case DISTANCE_TYPE_BUFFER:
-      if (data[0] != 0) {
+      if (length >= 1 && data[0] != 0) {
         if (this->distance_sensor_ != nullptr && length >= 8) {
           uint32_t current_distance_int = encode_uint32(data[7], data[6], data[5], data[4]);
           float distance_float;

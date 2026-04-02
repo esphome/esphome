@@ -1,0 +1,49 @@
+substitutions:
+  a: 10
+  b: 20
+  x: 79
+test_list:
+  - level1:
+      a: 10
+      b: 20
+      c: 10
+      d: 20
+      e: ${e}
+      f: ${f}
+      g: ${g}
+      h: ${h}
+      i: ${i}
+      j: ${j}
+      x: 80
+      y: 40
+      level2:
+        - level2:
+            a: 10
+            b: 20
+            c: 10
+            d: 20
+            e: 20
+            f: 40
+            g: ${g}
+            h: ${h}
+            i: ${i}
+            j: ${j}
+            x: 81
+            y: 40
+            level3:
+              - level3:
+                  a: 10
+                  b: 20
+                  c: 10
+                  d: 20
+                  e: 20
+                  f: 40
+                  g: 100
+                  h: 200
+                  i: 30
+                  j: ${undefined_variable}
+                  x: 82
+                  y: 40
+  - a: 10
+    b: 20
+    x: 79

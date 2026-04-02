@@ -59,6 +59,11 @@ void log_mqtt_component(const char *tag, MQTTComponent *obj, bool state_topic, b
 \
  public: \
   void set_custom_##name##_##type##_topic(const std::string &topic) { this->custom_##name##_##type##_topic_ = topic; } \
+  StringRef get_##name##_##type##_topic_to(std::span<char, MQTT_DEFAULT_TOPIC_MAX_LEN> buf) const { \
+    if (!this->custom_##name##_##type##_topic_.empty()) \
+      return StringRef(this->custom_##name##_##type##_topic_.data(), this->custom_##name##_##type##_topic_.size()); \
+    return this->get_default_topic_for_to_(buf, #name "/" #type, sizeof(#name "/" #type) - 1); \
+  } \
   std::string get_##name##_##type##_topic() const { \
     if (this->custom_##name##_##type##_topic_.empty()) \
       return this->get_default_topic_for_(#name "/" #type); \
@@ -92,8 +97,6 @@ class MQTTComponent : public Component {
 
   /// Override setup_ so that we can call send_discovery() when needed.
   void call_setup() override;
-
-  void call_dump_config() override;
 
   /// Send discovery info the Home Assistant, override this.
   virtual void send_discovery(JsonObject root, SendDiscoveryConfig &config) = 0;
@@ -143,6 +146,9 @@ class MQTTComponent : public Component {
 
   /// Internal method for the MQTT client base to schedule a resend of the state on reconnect.
   void schedule_resend_state();
+
+  /// Check if a resend is pending (called by MQTTClientComponent to rate-limit work)
+  bool is_resend_pending() const { return this->resend_state_; }
 
   /// Process pending resend if needed (called by MQTTClientComponent)
   void process_resend();
@@ -295,8 +301,8 @@ class MQTTComponent : public Component {
   /// Get the friendly name of this MQTT component.
   const StringRef &friendly_name_() const;
 
-  /// Get the icon field of this component as StringRef
-  StringRef get_icon_ref_() const;
+  /// Get the icon field of this component into a stack buffer
+  const char *get_icon_to_(std::span<char, MAX_ICON_LENGTH> buf) const { return this->get_entity()->get_icon_to(buf); }
 
   /// Get whether the underlying Entity is disabled by default
   bool is_disabled_by_default_() const;

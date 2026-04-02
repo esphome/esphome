@@ -15,29 +15,29 @@ static const char *const TAG = "cse7761";
  * https://github.com/arendst/Tasmota/blob/development/tasmota/xnrg_19_cse7761.ino
 \*********************************************************************************************/
 
-static const int CSE7761_UREF = 42563;  // RmsUc
-static const int CSE7761_IREF = 52241;  // RmsIAC
-static const int CSE7761_PREF = 44513;  // PowerPAC
+static constexpr int CSE7761_UREF = 42563;  // RmsUc
+static constexpr int CSE7761_IREF = 52241;  // RmsIAC
+static constexpr int CSE7761_PREF = 44513;  // PowerPAC
 
-static const uint8_t CSE7761_REG_SYSCON = 0x00;     // (2) System Control Register (0x0A04)
-static const uint8_t CSE7761_REG_EMUCON = 0x01;     // (2) Metering control register (0x0000)
-static const uint8_t CSE7761_REG_EMUCON2 = 0x13;    // (2) Metering control register 2 (0x0001)
-static const uint8_t CSE7761_REG_PULSE1SEL = 0x1D;  // (2) Pin function output select register (0x3210)
+static constexpr uint8_t CSE7761_REG_SYSCON = 0x00;     // (2) System Control Register (0x0A04)
+static constexpr uint8_t CSE7761_REG_EMUCON = 0x01;     // (2) Metering control register (0x0000)
+static constexpr uint8_t CSE7761_REG_EMUCON2 = 0x13;    // (2) Metering control register 2 (0x0001)
+static constexpr uint8_t CSE7761_REG_PULSE1SEL = 0x1D;  // (2) Pin function output select register (0x3210)
 
-static const uint8_t CSE7761_REG_RMSIA = 0x24;      // (3) The effective value of channel A current (0x000000)
-static const uint8_t CSE7761_REG_RMSIB = 0x25;      // (3) The effective value of channel B current (0x000000)
-static const uint8_t CSE7761_REG_RMSU = 0x26;       // (3) Voltage RMS (0x000000)
-static const uint8_t CSE7761_REG_POWERPA = 0x2C;    // (4) Channel A active power, update rate 27.2Hz (0x00000000)
-static const uint8_t CSE7761_REG_POWERPB = 0x2D;    // (4) Channel B active power, update rate 27.2Hz (0x00000000)
-static const uint8_t CSE7761_REG_SYSSTATUS = 0x43;  // (1) System status register
+static constexpr uint8_t CSE7761_REG_RMSIA = 0x24;      // (3) The effective value of channel A current (0x000000)
+static constexpr uint8_t CSE7761_REG_RMSIB = 0x25;      // (3) The effective value of channel B current (0x000000)
+static constexpr uint8_t CSE7761_REG_RMSU = 0x26;       // (3) Voltage RMS (0x000000)
+static constexpr uint8_t CSE7761_REG_POWERPA = 0x2C;    // (4) Channel A active power, update rate 27.2Hz (0x00000000)
+static constexpr uint8_t CSE7761_REG_POWERPB = 0x2D;    // (4) Channel B active power, update rate 27.2Hz (0x00000000)
+static constexpr uint8_t CSE7761_REG_SYSSTATUS = 0x43;  // (1) System status register
 
-static const uint8_t CSE7761_REG_COEFFCHKSUM = 0x6F;  // (2) Coefficient checksum
-static const uint8_t CSE7761_REG_RMSIAC = 0x70;       // (2) Channel A effective current conversion coefficient
+static constexpr uint8_t CSE7761_REG_COEFFCHKSUM = 0x6F;  // (2) Coefficient checksum
+static constexpr uint8_t CSE7761_REG_RMSIAC = 0x70;       // (2) Channel A effective current conversion coefficient
 
-static const uint8_t CSE7761_SPECIAL_COMMAND = 0xEA;   // Start special command
-static const uint8_t CSE7761_CMD_RESET = 0x96;         // Reset command, after receiving the command, the chip resets
-static const uint8_t CSE7761_CMD_CLOSE_WRITE = 0xDC;   // Close write operation
-static const uint8_t CSE7761_CMD_ENABLE_WRITE = 0xE5;  // Enable write operation
+static constexpr uint8_t CSE7761_SPECIAL_COMMAND = 0xEA;  // Start special command
+static constexpr uint8_t CSE7761_CMD_RESET = 0x96;        // Reset command, after receiving the command, the chip resets
+static constexpr uint8_t CSE7761_CMD_CLOSE_WRITE = 0xDC;  // Close write operation
+static constexpr uint8_t CSE7761_CMD_ENABLE_WRITE = 0xE5;  // Enable write operation
 
 enum CSE7761 { RMS_IAC, RMS_IBC, RMS_UC, POWER_PAC, POWER_PBC, POWER_SC, ENERGY_AC, ENERGY_BC };
 
@@ -147,13 +147,17 @@ uint32_t CSE7761Component::read_(uint8_t reg, uint8_t size) {
 }
 
 uint32_t CSE7761Component::coefficient_by_unit_(uint32_t unit) {
+  uint32_t coeff = 0;
   switch (unit) {
     case RMS_UC:
-      return 0x400000 * 100 / this->data_.coefficient[RMS_UC];
+      coeff = this->data_.coefficient[RMS_UC];
+      return coeff ? 0x400000 * 100 / coeff : 0;
     case RMS_IAC:
-      return (0x800000 * 100 / this->data_.coefficient[RMS_IAC]) * 10;  // Stay within 32 bits
+      coeff = this->data_.coefficient[RMS_IAC];
+      return coeff ? (0x800000 * 100 / coeff) * 10 : 0;  // Stay within 32 bits
     case POWER_PAC:
-      return 0x80000000 / this->data_.coefficient[POWER_PAC];
+      coeff = this->data_.coefficient[POWER_PAC];
+      return coeff ? 0x80000000 / coeff : 0;
   }
   return 0;
 }

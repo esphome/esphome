@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_AWAY_COMMAND_TOPIC,
     CONF_AWAY_STATE_TOPIC,
     CONF_CURRENT_HUMIDITY_STATE_TOPIC,
+    CONF_CURRENT_TEMPERATURE,
     CONF_CURRENT_TEMPERATURE_STATE_TOPIC,
     CONF_CUSTOM_FAN_MODE,
     CONF_CUSTOM_PRESET,
@@ -112,7 +113,6 @@ CLIMATE_SWING_MODES = {
 
 validate_climate_swing_mode = cv.enum(CLIMATE_SWING_MODES, upper=True)
 
-CONF_CURRENT_TEMPERATURE = "current_temperature"
 CONF_MIN_HUMIDITY = "min_humidity"
 CONF_MAX_HUMIDITY = "max_humidity"
 CONF_TARGET_HUMIDITY = "target_humidity"
@@ -268,9 +268,8 @@ def climate_schema(
     return _CLIMATE_SCHEMA.extend(schema)
 
 
+@setup_entity("climate")
 async def setup_climate_core_(var, config):
-    await setup_entity(var, config, "climate")
-
     visual = config[CONF_VISUAL]
     if (min_temp := visual.get(CONF_MIN_TEMPERATURE)) is not None:
         cg.add_define("USE_CLIMATE_VISUAL_OVERRIDES")
@@ -477,7 +476,10 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "climate.control", ControlAction, CLIMATE_CONTROL_ACTION_SCHEMA
+    "climate.control",
+    ControlAction,
+    CLIMATE_CONTROL_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def climate_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

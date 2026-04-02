@@ -8,6 +8,13 @@
 #endif  // CYW43_USES_VSYS_PIN
 #include <hardware/adc.h>
 
+// PICO_VSYS_PIN is defined in pico-sdk board headers (e.g. boards/pico2.h),
+// but the Arduino framework's config_autogen.h includes a generic board header
+// that doesn't define it. Provide the standard value (pin 29) as a fallback.
+#ifndef PICO_VSYS_PIN
+#define PICO_VSYS_PIN 29  // NOLINT(cppcoreguidelines-macro-usage)
+#endif
+
 namespace esphome {
 namespace adc {
 

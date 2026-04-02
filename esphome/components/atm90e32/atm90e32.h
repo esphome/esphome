@@ -134,7 +134,6 @@ class ATM90E32Component : public PollingComponent,
   void set_freq_status_text_sensor(text_sensor::TextSensor *sensor) { this->freq_status_text_sensor_ = sensor; }
 #endif
   uint16_t calculate_voltage_threshold(int line_freq, uint16_t ugain, float multiplier);
-  int32_t last_periodic_millis = millis();
 
  protected:
 #ifdef USE_NUMBER

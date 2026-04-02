@@ -251,11 +251,11 @@ void APDS9960::read_gesture_data_() {
 
   uint8_t buf[128];
   for (uint8_t pos = 0; pos < fifo_level * 4; pos += 32) {
-    // The ESP's i2c driver has a limited buffer size.
-    // This way of retrieving the data should be wrong according to the datasheet
-    // but it seems to work.
+    // Read in 32-byte chunks due to ESP8266 I2C buffer limit.
+    // Always read from 0xFC — the FIFO auto-increments through 0xFC-0xFF
+    // and advances its internal pointer after every 4th byte.
     uint8_t read = std::min(32, fifo_level * 4 - pos);
-    APDS9960_WARNING_CHECK(this->read_bytes(0xFC + pos, buf + pos, read), "Reading FIFO buffer failed.");
+    APDS9960_WARNING_CHECK(this->read_bytes(0xFC, buf + pos, read), "Reading FIFO buffer failed.");
   }
 
   if (millis() - this->gesture_start_ > 500) {
