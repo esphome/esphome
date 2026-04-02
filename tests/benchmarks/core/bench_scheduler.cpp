@@ -154,4 +154,29 @@ static void Scheduler_Defer(benchmark::State &state) {
 }
 BENCHMARK(Scheduler_Defer);
 
+// --- Scheduler: set_timeout with batch size exceeding pool (cliff test) ---
+
+static void Scheduler_SetTimeout_ExceedPool(benchmark::State &state) {
+  Scheduler scheduler;
+  Component dummy_component;
+
+  // Register 10 timeouts then call() — exceeds MAX_POOL_SIZE=5 to measure
+  // the performance cliff when the recycling pool is exhausted and items
+  // must be malloc'd/freed.
+  static constexpr int kBatchSize = 10;
+  for (auto _ : state) {
+    uint32_t now = millis();
+    for (int i = 0; i < kInnerIterations; i++) {
+      scheduler.set_timeout(&dummy_component, static_cast<uint32_t>(i % kBatchSize), 1000, []() {});
+      if ((i + 1) % kBatchSize == 0) {
+        scheduler.call(++now);
+      }
+    }
+    scheduler.call(++now);
+    benchmark::DoNotOptimize(scheduler);
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(Scheduler_SetTimeout_ExceedPool);
+
 }  // namespace esphome::benchmarks
