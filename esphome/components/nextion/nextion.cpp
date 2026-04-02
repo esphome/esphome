@@ -143,8 +143,17 @@ void Nextion::reset_(bool reset_nextion) {
 
   while (this->available()) {  // Clear receive buffer
     this->read_byte(&d);
-  };
+  }
+  for (auto *entry : this->nextion_queue_) {
+    if (entry->component != nullptr && entry->component->get_queue_type() == NextionQueueType::NO_RESULT) {
+      delete entry->component;  // NOLINT(cppcoreguidelines-owning-memory)
+    }
+    delete entry;  // NOLINT(cppcoreguidelines-owning-memory)
+  }
   this->nextion_queue_.clear();
+  for (auto *entry : this->waveform_queue_) {
+    delete entry;  // NOLINT(cppcoreguidelines-owning-memory)
+  }
   this->waveform_queue_.clear();
 }
 
