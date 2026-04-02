@@ -212,7 +212,7 @@ def final_validate(config):
 
     return spi.final_validate_device_schema(
         "ili9xxx", require_miso=False, require_mosi=True
-    )
+    )(config)
 
 
 FINAL_VALIDATE_SCHEMA = final_validate
