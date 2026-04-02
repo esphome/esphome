@@ -113,6 +113,7 @@ from esphome.core.entity_helpers import (
     setup_unit_of_measurement,
 )
 from esphome.cpp_generator import MockObj, MockObjClass
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
@@ -229,7 +230,10 @@ _SENSOR_ENTITY_CATEGORIES = {
 }
 
 
+@schema_extractor("enum")
 def sensor_entity_category(value):
+    if value == SCHEMA_EXTRACT:
+        return _SENSOR_ENTITY_CATEGORIES
     return cv.enum(_SENSOR_ENTITY_CATEGORIES, lower=True)(value)
 
 
