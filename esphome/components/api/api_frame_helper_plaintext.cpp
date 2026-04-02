@@ -39,15 +39,8 @@ static constexpr size_t API_MAX_LOG_BYTES = 168;
               format_hex_pretty_to(hex_buf_, (buffer).data(), \
                                    (buffer).size() < API_MAX_LOG_BYTES ? (buffer).size() : API_MAX_LOG_BYTES)); \
   } while (0)
-#define LOG_PACKET_SENDING(data, len) \
-  do { \
-    char hex_buf_[format_hex_pretty_size(API_MAX_LOG_BYTES)]; \
-    ESP_LOGVV(TAG, "Sending raw: %s", \
-              format_hex_pretty_to(hex_buf_, data, (len) < API_MAX_LOG_BYTES ? (len) : API_MAX_LOG_BYTES)); \
-  } while (0)
 #else
 #define LOG_PACKET_RECEIVED(buffer) ((void) 0)
-#define LOG_PACKET_SENDING(data, len) ((void) 0)
 #endif
 
 /// Initialize the frame helper, returns OK if successful.
@@ -234,14 +227,44 @@ APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
   buffer->type = this->rx_header_parsed_type_;
   return APIError::OK;
 }
+// Compute varint encoded length for a 16-bit value (1, 2, or 3 bytes).
+ESPHOME_ALWAYS_INLINE static inline uint8_t varint_encoded_length_16(uint16_t value) {
+  return value < ProtoSize::VARINT_THRESHOLD_1_BYTE ? 1 : (value < ProtoSize::VARINT_THRESHOLD_2_BYTE ? 2 : 3);
+}
+
+// Compute varint encoded length for an 8-bit value (1 or 2 bytes).
+ESPHOME_ALWAYS_INLINE static inline uint8_t varint_encoded_length_8(uint8_t value) {
+  return value < ProtoSize::VARINT_THRESHOLD_1_BYTE ? 1 : 2;
+}
+
+// Encode a 16-bit varint (1-3 bytes) using pre-computed length.
+ESPHOME_ALWAYS_INLINE static inline void encode_varint_16(uint16_t value, uint8_t varint_len, uint8_t *p) {
+  if (varint_len >= 2) {
+    *p++ = static_cast<uint8_t>(value | 0x80);
+    value >>= 7;
+    if (varint_len == 3) {
+      *p++ = static_cast<uint8_t>(value | 0x80);
+      value >>= 7;
+    }
+  }
+  *p = static_cast<uint8_t>(value);
+}
+
+// Encode an 8-bit varint (1-2 bytes) using pre-computed length.
+ESPHOME_ALWAYS_INLINE static inline void encode_varint_8(uint8_t value, uint8_t varint_len, uint8_t *p) {
+  if (varint_len == 2) {
+    *p++ = static_cast<uint8_t>(value | 0x80);
+    *p = static_cast<uint8_t>(value >> 7);
+  } else {
+    *p = value;
+  }
+}
+
 // Write plaintext header into pre-allocated padding before payload.
 // Returns the total header length (indicator + varints).
 ESPHOME_ALWAYS_INLINE static inline uint8_t write_plaintext_header(uint8_t *buf_start, const MessageInfo &msg) {
-  // Calculate varint sizes for header layout using inline ternary to avoid varint_slow call overhead
-  uint8_t size_varint_len = msg.payload_size < ProtoSize::VARINT_THRESHOLD_1_BYTE
-                                ? 1
-                                : (msg.payload_size < ProtoSize::VARINT_THRESHOLD_2_BYTE ? 2 : 3);
-  uint8_t type_varint_len = msg.message_type < ProtoSize::VARINT_THRESHOLD_1_BYTE ? 1 : 2;
+  uint8_t size_varint_len = varint_encoded_length_16(msg.payload_size);
+  uint8_t type_varint_len = varint_encoded_length_8(msg.message_type);
   uint8_t total_header_len = 1 + size_varint_len + type_varint_len;
 
   // Calculate where to start writing the header
@@ -274,9 +297,9 @@ ESPHOME_ALWAYS_INLINE static inline uint8_t write_plaintext_header(uint8_t *buf_
   // Write the plaintext header
   buf_start[header_offset] = 0x00;  // indicator
 
-  // Encode varints directly into buffer
-  encode_varint_to_buffer(msg.payload_size, buf_start + header_offset + 1);
-  encode_varint_to_buffer(msg.message_type, buf_start + header_offset + 1 + size_varint_len);
+  // Encode varints directly into buffer using pre-computed lengths
+  encode_varint_16(msg.payload_size, size_varint_len, buf_start + header_offset + 1);
+  encode_varint_8(msg.message_type, type_varint_len, buf_start + header_offset + 1 + size_varint_len);
 
   return total_header_len;
 }
@@ -291,7 +314,6 @@ APIError APIPlaintextFrameHelper::write_protobuf_packet(uint8_t type, ProtoWrite
   uint8_t header_len = write_plaintext_header(buffer_data, msg);
   uint8_t *msg_start = buffer_data + HEADER_PADDING - header_len;
   uint16_t msg_len = static_cast<uint16_t>(header_len + msg.payload_size);
-  LOG_PACKET_SENDING(msg_start, msg_len);
   return this->write_raw_fast_buf_(msg_start, msg_len);
 }
 
@@ -302,23 +324,28 @@ APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffe
   assert(!messages.empty());
 #endif
   uint8_t *buffer_data = buffer.get_buffer()->data();
-  StaticVector<struct iovec, MAX_MESSAGES_PER_BATCH> iovs;
-  uint16_t total_write_len = 0;
+  uint8_t *write_start = nullptr;
+  uint8_t *write_end = nullptr;
 
+  // Write headers and compact messages to close 0-3 byte varint padding gaps.
+  // First iteration records start position via continue; subsequent iterations
+  // memmove to close gaps between messages.
   for (const auto &msg : messages) {
     uint8_t header_len = write_plaintext_header(buffer_data + msg.offset, msg);
-    uint8_t *msg_start = buffer_data + msg.offset + HEADER_PADDING - header_len;
-    size_t msg_len = static_cast<size_t>(header_len + msg.payload_size);
-    iovs.push_back({msg_start, msg_len});
-    total_write_len += msg_len;
+    uint8_t *src = buffer_data + msg.offset + HEADER_PADDING - header_len;
+    uint16_t msg_len = header_len + msg.payload_size;
+    if (write_start == nullptr) {
+      write_start = src;
+      write_end = src + msg_len;
+      continue;
+    }
+    if (src != write_end) {
+      memmove(write_end, src, msg_len);
+    }
+    write_end += msg_len;
   }
 
-#ifdef HELPER_LOG_PACKETS
-  for (const auto &iov : iovs) {
-    LOG_PACKET_SENDING(reinterpret_cast<uint8_t *>(iov.iov_base), iov.iov_len);
-  }
-#endif
-  return this->write_raw_fast_iov_(iovs.data(), iovs.size(), total_write_len);
+  return this->write_raw_fast_buf_(write_start, static_cast<uint16_t>(write_end - write_start));
 }
 
 }  // namespace esphome::api

@@ -207,30 +207,25 @@ class APIFrameHelper {
   inline APIError ESPHOME_ALWAYS_INLINE write_raw_fast_buf_(const void *data, uint16_t len) {
     if (this->overflow_buf_.empty()) [[likely]] {
       ssize_t sent = this->socket_->write(data, len);
-      if (sent == static_cast<ssize_t>(len)) [[likely]]
+      if (sent == static_cast<ssize_t>(len)) [[likely]] {
+#ifdef HELPER_LOG_PACKETS
+        this->log_packet_sending_(data, len);
+#endif
         return APIError::OK;
+      }
       // sent is -1 (WRITE_FAILED) or partial write count
       return this->write_raw_buf_(data, len, sent);
     }
     return this->write_raw_buf_(data, len, WRITE_NOT_ATTEMPTED);
   }
-  inline APIError ESPHOME_ALWAYS_INLINE write_raw_fast_iov_(const struct iovec *iov, int iovcnt,
-                                                            uint16_t total_write_len) {
-    if (this->overflow_buf_.empty()) [[likely]] {
-      ssize_t sent = this->socket_->writev(iov, iovcnt);
-      if (sent == static_cast<ssize_t>(total_write_len)) [[likely]]
-        return APIError::OK;
-      // sent is -1 (WRITE_FAILED) or partial write count
-      return this->write_raw_iov_(iov, iovcnt, total_write_len, sent);
-    }
-    return this->write_raw_iov_(iov, iovcnt, total_write_len, WRITE_NOT_ATTEMPTED);
-  }
-
   // Out-of-line write paths: handle partial writes, errors, overflow buffering
   // sent: WRITE_NOT_ATTEMPTED (cold path), WRITE_FAILED (fast path write returned -1), or bytes sent (partial write)
   APIError write_raw_buf_(const void *data, uint16_t len, ssize_t sent = WRITE_NOT_ATTEMPTED);
   APIError write_raw_iov_(const struct iovec *iov, int iovcnt, uint16_t total_write_len,
                           ssize_t sent = WRITE_NOT_ATTEMPTED);
+#ifdef HELPER_LOG_PACKETS
+  void log_packet_sending_(const void *data, uint16_t len);
+#endif
 
   // Socket ownership (4 bytes on 32-bit, 8 bytes on 64-bit)
   std::unique_ptr<socket::Socket> socket_;
