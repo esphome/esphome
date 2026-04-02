@@ -9,6 +9,11 @@ static const char *const TAG = "mitsubishi_cn105.driver";
 static constexpr uint32_t WRITE_TIMEOUT_MS = 2000;
 static constexpr size_t HEADER_LEN = 5;
 
+static constexpr uint8_t PREAMBLE = 0xFC;
+static constexpr uint8_t HEADER_BYTE_1 = 0x01;
+static constexpr uint8_t HEADER_BYTE_2 = 0x30;
+static constexpr uint8_t PACKET_TYPE_CONNECT_RESPONSE = 0x7A;
+
 static constexpr std::array<uint8_t, 8> CONNECT_PACKET = {{0xFC, 0x5A, 0x01, 0x30, 0x02, 0xCA, 0x01, 0xA8}};
 
 static uint8_t checksum(const uint8_t *bytes, size_t length) {
@@ -18,7 +23,7 @@ static uint8_t checksum(const uint8_t *bytes, size_t length) {
 void MitsubishiCN105::initialize() { this->set_state_(State::CONNECTING); }
 
 void MitsubishiCN105::update() {
-  if (const auto start = this->write_timeout_start_ms_; start && (this->now() - *start) >= WRITE_TIMEOUT_MS) {
+  if (const auto start = this->write_timeout_start_ms_; start && (this->now_fn_() - *start) >= WRITE_TIMEOUT_MS) {
     this->write_timeout_start_ms_.reset();
     this->read_pos_ = 0;
     this->set_state_(State::READ_TIMEOUT);
@@ -29,12 +34,14 @@ void MitsubishiCN105::update() {
 }
 
 void MitsubishiCN105::set_state_(State new_state) {
-  if (new_state != this->state_ && should_transition(this->state_, new_state)) {
-    ESP_LOGV(TAG, "Did transition: %s -> %s", state_to_string(this->state_), state_to_string(new_state));
+  if (should_transition(this->state_, new_state)) {
+    ESP_LOGV(TAG, "Did transition: %s -> %s", LOG_STR_ARG(state_to_string(this->state_)),
+             LOG_STR_ARG(state_to_string(new_state)));
     this->state_ = new_state;
     this->did_transition_(new_state);
   } else {
-    ESP_LOGV(TAG, "Ignoring unexpected transition %s -> %s", state_to_string(this->state_), state_to_string(new_state));
+    ESP_LOGV(TAG, "Ignoring unexpected transition %s -> %s", LOG_STR_ARG(state_to_string(this->state_)),
+             LOG_STR_ARG(state_to_string(new_state)));
   }
 }
 
@@ -75,7 +82,7 @@ void MitsubishiCN105::did_transition_(State to) {
 void MitsubishiCN105::send_packet_(const uint8_t *packet, size_t len) {
   dump_buffer_vv("TX", packet, len);
   this->device_.write_array(packet, len);
-  this->write_timeout_start_ms_ = this->now();
+  this->write_timeout_start_ms_ = this->now_fn_();
 }
 
 void MitsubishiCN105::read_incoming_bytes_() {
@@ -89,7 +96,7 @@ void MitsubishiCN105::read_incoming_bytes_() {
 
     switch (++this->read_pos_) {
       case 1:
-        if (value != 0xFC) {
+        if (value != PREAMBLE) {
           this->reset_read_position_and_dump_buffer_("RX ignoring preamble");
         }
         continue;
@@ -98,13 +105,13 @@ void MitsubishiCN105::read_incoming_bytes_() {
         continue;
 
       case 3:
-        if (value != 0x01) {
+        if (value != HEADER_BYTE_1) {
           this->reset_read_position_and_dump_buffer_("RX invalid: header 1 mismatch");
         }
         continue;
 
       case 4:
-        if (value != 0x30) {
+        if (value != HEADER_BYTE_2) {
           this->reset_read_position_and_dump_buffer_("RX invalid: header 2 mismatch");
         }
         continue;
@@ -138,9 +145,10 @@ void MitsubishiCN105::read_incoming_bytes_() {
 
 void MitsubishiCN105::process_rx_packet_(uint8_t type, const uint8_t *payload, size_t len) {
   switch (type) {
-    case 0x7A:
+    case PACKET_TYPE_CONNECT_RESPONSE:
       this->set_state_(State::CONNECTED);
       break;
+
     default:
       ESP_LOGVV(TAG, "RX unknown packet type 0x%02X", type);
       break;
@@ -161,18 +169,18 @@ void MitsubishiCN105::dump_buffer_vv(const char *prefix, const uint8_t *data, si
 #endif
 }
 
-const char *MitsubishiCN105::state_to_string(State state) {
+const LogString *MitsubishiCN105::state_to_string(State state) {
   switch (state) {
     case State::NOT_CONNECTED:
-      return "Not connected";
+      return LOG_STR("Not connected");
     case State::CONNECTING:
-      return "Connecting";
+      return LOG_STR("Connecting");
     case State::CONNECTED:
-      return "Connected";
+      return LOG_STR("Connected");
     case State::READ_TIMEOUT:
-      return "ReadTimeout";
+      return LOG_STR("ReadTimeout");
   }
-  return "Unknown";
+  return LOG_STR("Unknown");
 }
 
 }  // namespace esphome::mitsubishi_cn105

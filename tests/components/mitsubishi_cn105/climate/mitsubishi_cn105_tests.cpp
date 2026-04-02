@@ -6,12 +6,14 @@ struct TestContext {
   MockUARTComponent uart;
   uart::UARTDevice device{&uart};
   TestableMitsubishiCN105 sut{device};
+
+  TestContext() { this->sut.set_current_time(0); }
 };
 
 TEST(MitsubishiCN105Tests, InitSendsConnectPacket) {
   auto ctx = TestContext{};
 
-  ctx.sut.current_time_ms = 123;
+  ctx.sut.set_current_time(123);
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::NOT_CONNECTED);
   EXPECT_TRUE(ctx.uart.tx.empty());
   EXPECT_FALSE(ctx.sut.write_timeout_start_ms_.has_value());
@@ -59,14 +61,14 @@ TEST(MitsubishiCN105Tests, NoResponseTriggersReconnect) {
   EXPECT_EQ(ctx.sut.write_timeout_start_ms_, std::optional<uint32_t>{0});
 
   // Still no response after 1999ms, no retry yet
-  ctx.sut.current_time_ms = 1999;
+  ctx.sut.set_current_time(1999);
   ctx.sut.update();
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::CONNECTING);
   EXPECT_TRUE(ctx.uart.tx.empty());
   EXPECT_EQ(ctx.sut.write_timeout_start_ms_, std::optional<uint32_t>{0});
 
   // Stop waiting after 2s and retry connect
-  ctx.sut.current_time_ms = 2000;
+  ctx.sut.set_current_time(2000);
   ctx.sut.update();
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::CONNECTING);
   EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x5A, 0x01, 0x30, 0x02, 0xCA, 0x01, 0xA8));

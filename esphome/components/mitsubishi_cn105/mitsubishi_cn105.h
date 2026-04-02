@@ -19,8 +19,6 @@ class MitsubishiCN105 {
  protected:
   enum class State : uint8_t { NOT_CONNECTED, CONNECTING, CONNECTED, READ_TIMEOUT };
 
-  virtual uint32_t now() const { return App.get_loop_component_start_time(); }
-
   void set_state_(State new_state);
   void did_transition_(State to);
   void read_incoming_bytes_();
@@ -30,13 +28,14 @@ class MitsubishiCN105 {
   void send_packet_(const uint8_t *packet, size_t len);
   template<typename T> void send_packet_(const T &packet) { this->send_packet_(packet.data(), packet.size()); }
   static bool should_transition(State from, State to);
-  static const char *state_to_string(State state);
+  static const LogString *state_to_string(State state);
   static void dump_buffer_vv(const char *prefix, const uint8_t *data, size_t len);
 
   uart::UARTDevice &device_;
   State state_{State::NOT_CONNECTED};
   uint32_t update_interval_ms_{1000};
   std::optional<uint32_t> write_timeout_start_ms_;
+  uint32_t (*now_fn_)() = []() -> uint32_t { return App.get_loop_component_start_time(); };
 
  private:
   static constexpr size_t READ_BUFFER_SIZE = 32;
