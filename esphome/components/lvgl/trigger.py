@@ -1,11 +1,5 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components.lvgl.defines import (
-    LV_DISPLAY_EVENT_MAP,
-    LV_DISPLAY_EVENT_TRIGGERS,
-    LV_SCREEN_EVENT_MAP,
-    LV_SCREEN_EVENT_TRIGGERS,
-)
 from esphome.const import (
     CONF_ID,
     CONF_ON_BOOT,
@@ -24,8 +18,12 @@ from .defines import (
     CONF_ALIGN_TO_LAMBDA_ID,
     CONF_EXT_CLICK_AREA,
     DIRECTIONS,
+    LV_DISPLAY_EVENT_MAP,
+    LV_DISPLAY_EVENT_TRIGGERS,
     LV_EVENT_MAP,
     LV_EVENT_TRIGGERS,
+    LV_SCREEN_EVENT_MAP,
+    LV_SCREEN_EVENT_TRIGGERS,
     SWIPE_TRIGGERS,
     literal,
 )
@@ -131,7 +129,7 @@ TRIGGER_MAP = LV_EVENT_MAP | LV_DISPLAY_EVENT_MAP | LV_SCREEN_EVENT_MAP
 DISPLAY_TRIGGERS = set(LV_DISPLAY_EVENT_TRIGGERS)
 
 
-def _get_event_literal(trigger) -> MockObj:
+def _get_event_literal(trigger: str | MockObj) -> MockObj:
     if isinstance(trigger, MockObj):
         return trigger
     trigger = trigger.removeprefix("on_")
