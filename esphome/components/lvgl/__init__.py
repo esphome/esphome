@@ -25,10 +25,6 @@ from esphome.components.image import (
     ImageRGB565,
     get_image_metadata,
 )
-from esphome.components.lvgl.defines import (
-    LV_DISPLAY_EVENT_TRIGGERS,
-    LV_SCREEN_EVENT_TRIGGERS,
-)
 from esphome.components.lvgl.lvcode import lv_event_t_ptr
 from esphome.components.psram import DOMAIN as PSRAM_DOMAIN
 import esphome.config_validation as cv
@@ -485,7 +481,8 @@ LVGL_SCHEMA = cv.All(
                             ),
                         }
                     )
-                    for event in LV_SCREEN_EVENT_TRIGGERS + LV_DISPLAY_EVENT_TRIGGERS
+                    for event in df.LV_SCREEN_EVENT_TRIGGERS
+                    + df.LV_DISPLAY_EVENT_TRIGGERS
                 },
                 cv.GenerateID(CONF_ID): cv.declare_id(LvglComponent),
                 cv.GenerateID(CONF_ALIGN_TO_LAMBDA_ID): cv.declare_id(lv_lambda_t),
