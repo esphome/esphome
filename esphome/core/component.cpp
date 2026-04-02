@@ -267,9 +267,6 @@ void Component::call() {
       break;
   }
 }
-const LogString *Component::get_component_log_str() const {
-  return component_source_lookup(this->component_source_index_);
-}
 bool Component::should_warn_of_blocking(uint32_t blocking_time) {
   // Convert centisecond threshold to milliseconds for comparison
   uint32_t threshold_ms = static_cast<uint32_t>(this->warn_if_blocking_over_) * 10U;
@@ -518,13 +515,6 @@ WarnIfComponentBlockingGuard::warn_blocking(Component *component, uint32_t block
              blocking_time);
   }
 }
-
-#ifdef USE_RUNTIME_STATS
-void WarnIfComponentBlockingGuard::record_runtime_stats_() {
-  uint32_t duration_us = micros() - this->started_us_;
-  this->component_->runtime_stats_.record_time(duration_us);
-}
-#endif
 
 #ifdef USE_SETUP_PRIORITY_OVERRIDE
 void clear_setup_priority_overrides() {

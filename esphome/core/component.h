@@ -323,7 +323,9 @@ class Component {
    *
    * Returns LOG_STR("<unknown>") if source not set
    */
-  const LogString *get_component_log_str() const;
+  inline const LogString *get_component_log_str() const ESPHOME_ALWAYS_INLINE {
+    return component_source_lookup(this->component_source_index_);
+  }
 
   bool should_warn_of_blocking(uint32_t blocking_time);
 
@@ -630,17 +632,17 @@ class WarnIfComponentBlockingGuard {
   {
   }
 
-  // Finish the timing operation and return the current time
+  // Finish the timing operation and return the current time (millis)
   // Inlined: the fast path is just millis() + subtract + compare
   inline uint32_t HOT finish() {
-    uint32_t curr_time = millis();
-    uint32_t blocking_time = curr_time - this->started_;
 #ifdef USE_RUNTIME_STATS
-    this->record_runtime_stats_();
+    this->component_->runtime_stats_.record_time(micros() - this->started_us_);
 #endif
+    uint32_t curr_time = millis();
 #ifndef USE_BENCHMARK
     // Fast path: compare against constant threshold in ms (computed at compile time from centiseconds)
     static constexpr uint32_t WARN_IF_BLOCKING_OVER_MS = static_cast<uint32_t>(WARN_IF_BLOCKING_OVER_CS) * 10U;
+    uint32_t blocking_time = curr_time - this->started_;
     if (blocking_time > WARN_IF_BLOCKING_OVER_MS) [[unlikely]] {
       warn_blocking(this->component_, blocking_time);
     }
@@ -655,7 +657,6 @@ class WarnIfComponentBlockingGuard {
   Component *component_;
 #ifdef USE_RUNTIME_STATS
   uint32_t started_us_;
-  void record_runtime_stats_();
 #endif
 
  private:
