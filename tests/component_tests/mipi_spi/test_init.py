@@ -205,7 +205,7 @@ def test_transform_and_init_sequence_errors(
             id="brightness_not_supported",
         ),
         pytest.param(
-            {"model": "T-DISPLAY-S3-PRO"},
+            {"model": "T-DISPLAY-S3-AMOLED"},
             "PSRAM is required for this display",
             id="psram_required",
         ),

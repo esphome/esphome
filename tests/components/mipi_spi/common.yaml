@@ -27,12 +27,13 @@ display:
       mirror_y: true
     dimensions:
       width: 100
-      height: 200
+      height: 100
     enable_pin: ${enable_pin}
     bus_mode: single
 
   - platform: mipi_spi
     model: WAVESHARE-1.83-V2
+    buffer_size: 25%
     dc_pin:
       allow_other_uses: true
       number: ${dc_pin}

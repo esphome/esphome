@@ -122,7 +122,7 @@ def denominator(config):
     frac = config.get(CONF_BUFFER_SIZE)
     if frac is None or frac > 0.75:
         return 1
-    height, _width, _offset_width, _offset_height = model.get_dimensions(config)
+    _width, height, _offset_width, _offset_height = model.get_dimensions(config)
     try:
         return next(x for x in range(2, 17) if frac >= 1 / x and height % x == 0)
     except StopIteration:
@@ -295,7 +295,7 @@ def _final_validate(config):
             return config
         color_depth = get_color_depth(config)
         frac = denominator(config)
-        height, width, _offset_width, _offset_height = model.get_dimensions(config)
+        width, height, _offset_width, _offset_height = model.get_dimensions(config)
 
         buffer_size = color_depth // 8 * width * height // frac
         # Target a buffer size of 20kB
