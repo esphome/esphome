@@ -313,9 +313,8 @@ APIError APIPlaintextFrameHelper::write_protobuf_packet(uint8_t type, ProtoWrite
   uint16_t payload_size = static_cast<uint16_t>(buffer.get_buffer()->size() - HEADER_PADDING);
   uint8_t *buffer_data = buffer.get_buffer()->data();
   uint8_t header_len = write_plaintext_header(buffer_data, payload_size, type);
-  uint8_t *msg_start = buffer_data + HEADER_PADDING - header_len;
-  uint16_t msg_len = static_cast<uint16_t>(header_len + payload_size);
-  return this->write_raw_fast_buf_(msg_start, msg_len);
+  return this->write_raw_fast_buf_(buffer_data + HEADER_PADDING - header_len,
+                                   static_cast<uint16_t>(header_len + payload_size));
 }
 
 APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer,
