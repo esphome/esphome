@@ -155,17 +155,16 @@ static void Scheduler_Defer(benchmark::State &state) {
   Component dummy_component;
 
   // defer() is Component::defer which calls set_timeout(delay=0).
-  // Call set_timeout directly since defer() is protected.
-  // Register 3 defers then call() — realistic worst case where multiple
-  // components defer in the same loop iteration. Keeps item count within
-  // the recycling pool (MAX_POOL_SIZE=5) to avoid spurious malloc/free.
+  // Component::defer(func) passes nullptr as the name, which skips
+  // cancel_item_locked_ entirely — matching production behavior where
+  // defers are anonymous fire-and-forget callbacks.
   static constexpr int kBatchSize = 3;
   static_assert(kInnerIterations % kBatchSize == 0, "kInnerIterations must be divisible by kBatchSize");
   warm_pool(scheduler, &dummy_component, kBatchSize, 0);
   for (auto _ : state) {
     uint32_t now = millis();
     for (int i = 0; i < kInnerIterations; i++) {
-      scheduler.set_timeout(&dummy_component, static_cast<uint32_t>(i % kBatchSize), 0, []() {});
+      scheduler.set_timeout(&dummy_component, static_cast<const char *>(nullptr), 0, []() {});
       if ((i + 1) % kBatchSize == 0) {
         scheduler.call(++now);
       }
@@ -176,6 +175,60 @@ static void Scheduler_Defer(benchmark::State &state) {
   state.SetItemsProcessed(state.iterations() * kInnerIterations);
 }
 BENCHMARK(Scheduler_Defer);
+
+// --- Scheduler: defer with same ID (cancel-and-replace pattern) ---
+
+static void Scheduler_Defer_SameID(benchmark::State &state) {
+  Scheduler scheduler;
+  Component dummy_component;
+
+  // Measures defer with a fixed numeric ID — each call cancels the previous
+  // pending defer before adding the new one. This is the pattern used by
+  // components that defer work but want to coalesce rapid updates.
+  static constexpr int kBatchSize = 3;
+  static_assert(kInnerIterations % kBatchSize == 0, "kInnerIterations must be divisible by kBatchSize");
+  warm_pool(scheduler, &dummy_component, kBatchSize, 0);
+  for (auto _ : state) {
+    uint32_t now = millis();
+    for (int i = 0; i < kInnerIterations; i++) {
+      scheduler.set_timeout(&dummy_component, static_cast<uint32_t>(0), 0, []() {});
+      if ((i + 1) % kBatchSize == 0) {
+        scheduler.call(++now);
+      }
+    }
+    scheduler.call(++now);
+    benchmark::DoNotOptimize(scheduler);
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(Scheduler_Defer_SameID);
+
+// --- Scheduler: defer with unique IDs (no cancel path) ---
+
+static void Scheduler_Defer_UniqueID(benchmark::State &state) {
+  Scheduler scheduler;
+  Component dummy_component;
+
+  // Measures defer with unique numeric IDs — cancel_item_locked_ runs but
+  // never finds a match, measuring the scan overhead on an empty search.
+  static constexpr int kBatchSize = 3;
+  static_assert(kInnerIterations % kBatchSize == 0, "kInnerIterations must be divisible by kBatchSize");
+  warm_pool(scheduler, &dummy_component, kBatchSize, 0);
+  for (auto _ : state) {
+    uint32_t now = millis();
+    uint32_t id = 0;
+    for (int i = 0; i < kInnerIterations; i++) {
+      scheduler.set_timeout(&dummy_component, id++, 0, []() {});
+      if ((i + 1) % kBatchSize == 0) {
+        scheduler.call(++now);
+      }
+    }
+    scheduler.call(++now);
+    benchmark::DoNotOptimize(scheduler);
+  }
+  state.SetItemsProcessed(state.iterations() * kInnerIterations);
+}
+BENCHMARK(Scheduler_Defer_UniqueID);
 
 // --- Scheduler: set_timeout with batch size exceeding pool (cliff test) ---
 
