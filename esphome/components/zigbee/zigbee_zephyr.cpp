@@ -120,8 +120,8 @@ void ZigbeeComponent::zcl_device_cb(zb_bufid_t bufid) {
   p_device_cb_param->status = RET_OK;
 
 #ifdef USE_DEEP_SLEEP
-  if (deep_sleep::global_deep_sleep != nullptr) {
-    deep_sleep::global_deep_sleep->wakeup();
+  if (auto *ds = deep_sleep::global_deep_sleep.load()) {
+    ds->wakeup();
   }
 #endif
 

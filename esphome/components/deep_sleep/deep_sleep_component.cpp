@@ -9,16 +9,18 @@ static const char *const TAG = "deep_sleep";
 // 5 seconds for deep sleep to ensure clean disconnect from Home Assistant
 static const uint32_t TEARDOWN_TIMEOUT_DEEP_SLEEP_MS = 5000;
 
-bool global_has_deep_sleep = false;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-DeepSleepComponent *global_deep_sleep;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+bool global_has_deep_sleep = false;                   // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+std::atomic<DeepSleepComponent *> global_deep_sleep;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void DeepSleepComponent::setup() {
 #ifdef USE_ZEPHYR
   k_sem_init(&this->wakeup_sem_, 0, 1);
 #endif
-  global_deep_sleep = this;
   global_has_deep_sleep = true;
   this->setup_deep_sleep_();
+  // It can be used from another thread for waking up the device.
+  // It should be called as last item in setup.
+  global_deep_sleep.store(this);
 }
 
 void DeepSleepComponent::setup_deep_sleep_() {

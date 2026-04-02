@@ -4,6 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include <atomic>
 
 #ifdef USE_ESP32
 #include <esp_sleep.h>
@@ -254,7 +255,8 @@ template<typename... Ts> class AllowDeepSleepAction : public Action<Ts...>, publ
   void play(const Ts &...x) override { this->parent_->allow_deep_sleep(); }
 };
 
-extern DeepSleepComponent *global_deep_sleep;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+extern std::atomic<DeepSleepComponent *>
+    global_deep_sleep;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace deep_sleep
 }  // namespace esphome
