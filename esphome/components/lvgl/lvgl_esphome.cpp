@@ -623,8 +623,8 @@ void LvglComponent::setup() {
   // Apply dark mode theme if configured
 #if LV_USE_THEME_DEFAULT
   if (this->dark_mode_) {
-    auto *theme = lv_theme_default_init(this->disp_, lv_palette_main(LV_PALETTE_BLUE),
-                                        lv_palette_main(LV_PALETTE_RED), true, LV_FONT_DEFAULT);
+    auto *theme = lv_theme_default_init(this->disp_, lv_palette_main(LV_PALETTE_BLUE), lv_palette_main(LV_PALETTE_RED),
+                                        true, LV_FONT_DEFAULT);
     lv_display_set_theme(this->disp_, theme);
   }
 #endif
