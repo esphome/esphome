@@ -4,8 +4,8 @@
 #include "../nextion_component.h"
 #include "../nextion_base.h"
 
-namespace esphome {
-namespace nextion {
+namespace esphome::nextion {
+
 class NextionSensor;
 
 class NextionSensor : public NextionComponent, public sensor::Sensor, public PollingComponent {
@@ -53,5 +53,4 @@ class NextionSensor : public NextionComponent, public sensor::Sensor, public Pol
   void wave_update_();
 #endif  // USE_NEXTION_WAVEFORM
 };
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion
