@@ -26,7 +26,7 @@ void NextionSensor::process_sensor(const std::string &variable_name, int state) 
 void NextionSensor::add_to_wave_buffer(float state) {
   this->needs_to_send_update_ = true;
   int wave_state = (int) ((state / (float) this->wave_maxvalue_) * 100);
-  wave_buffer_.push_back(wave_state);
+  this->wave_buffer_.push_back(wave_state);
   if (this->wave_buffer_.size() > (size_t) this->wave_max_length_) {
     this->wave_buffer_.erase(this->wave_buffer_.begin());
   }
