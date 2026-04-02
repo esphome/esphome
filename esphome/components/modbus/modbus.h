@@ -18,6 +18,7 @@ namespace modbus {
 using namespace esphome::modbus::helpers;
 
 static constexpr uint16_t MODBUS_TX_BUFFER_SIZE = 15;
+static constexpr uint16_t MODBUS_TX_MAX_DELAY_MS = 5;
 
 struct ModbusFrame {
   // Frame with exact-size allocation to avoid std::vector overhead
@@ -64,6 +65,7 @@ class Modbus : public uart::UARTDevice, public Component {
  protected:
   void receive_bytes_();
   bool timeout_();
+  int32_t turnaround_delay_remaining_();
   virtual void parse_modbus_frames() = 0;
   bool parse_modbus_server_frame_();
   virtual void process_modbus_server_frame(uint8_t address, uint8_t function_code,

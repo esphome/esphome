@@ -76,23 +76,29 @@ bool Modbus::timeout_() {
   return this->last_receive_check_ - this->last_modbus_byte_ > timeout;
 }
 
-bool Modbus::tx_blocked() {
+int32_t Modbus::turnaround_delay_remaining_() {
   // We use millis() here and elsewhere instead of App.get_loop_component_start_time() to avoid stale timestamps
   // It's critical in all timestamp comparisons that the left timestamp comes before the right one in time
   // If we use a cached value in place of millis() and last_modbus_byte_ is updated inside our loop
   // then the comparison is backwards (small negative which wraps to large positive) and will cause a false timeout
   // So in this component we don't use any cached timestamp values to avoid these annoying bugs
   const uint32_t now = millis();
+  return std::max((int32_t) 0, std::max((int32_t) (this->last_send_tx_offset_ + this->frame_delay_ms_ +
+                                                   this->turnaround_delay_ms_ - (now - this->last_send_)),
+                                        (int32_t) (this->frame_delay_ms_ + this->turnaround_delay_ms_ -
+                                                   (now - this->last_modbus_byte_))));
+}
 
+bool Modbus::tx_blocked() {
   // We block transmission in any of these case:
   // 1. There are bytes in the UART Rx buffer
   // 2. There are bytes in our Rx buffer
   // 3. The last sent byte isn't more than frame_delay ms ago (i.e. wait to tell receivers that our previous Tx is done)
   // 4. The last received byte isn't more than frame_delay ms ago (i.e. wait to be sure there isn't more Rx coming)
-  // N.B. turnaround_delay_ms_ is 0 for servers, so conditions 3 and 4 collapse to just frame_delay for them
-  return this->available() || !this->rx_buffer_.empty() ||
-         (now - this->last_send_ < this->last_send_tx_offset_ + this->frame_delay_ms_ + this->turnaround_delay_ms_) ||
-         (now - this->last_modbus_byte_ < this->frame_delay_ms_ + this->turnaround_delay_ms_);
+  // 5. If we're a client - also wait for the turnaround delay, to give the servers time to process the previous message
+  // N.B. We allow a small delay (MODBUS_TX_MAX_DELAY_MS) to avoid looping on small delays. This gets handled by
+  // send_frame_.
+  return this->available() || !this->rx_buffer_.empty() || this->turnaround_delay_remaining_() > MODBUS_TX_MAX_DELAY_MS;
 }
 
 bool ModbusClientHub::tx_blocked() {
@@ -307,6 +313,8 @@ void ModbusServerHub::process_modbus_server_frame(uint8_t address, uint8_t funct
     ESP_LOGV(TAG, "Unexpected response from peer %" PRIu8 " received", address);
   }
 
+  // This always resets, even if the address doesn't match.
+  // If an unexpected response is received, we can't trust that a correct response will follow (it shouldn't).
   this->expecting_peer_response_ = 0;
 }
 
@@ -347,6 +355,11 @@ bool Modbus::send_frame_(const ModbusFrame &frame) {
     return false;
   }
 
+  const int32_t turnaround_delay_remaining = this->turnaround_delay_remaining_();
+  if (turnaround_delay_remaining > 0) {
+    delay(turnaround_delay_remaining);
+  }
+
   if (this->flow_control_pin_ != nullptr) {
     this->flow_control_pin_->digital_write(true);
     this->write_array(frame.data.get(), frame.size);
@@ -380,12 +393,12 @@ void ModbusClientHub::send_next_frame_() {
 
   ModbusDeviceCommand &command = this->tx_buffer_.front();
 
-  if (!this->send_frame_(command.frame)) {
+  if (this->send_frame_(command.frame)) {
+    this->waiting_for_response_ = std::move(command);
+  } else {
     if (command.device)
       command.device->on_modbus_not_sent();
   }
-
-  this->waiting_for_response_ = std::move(command);
 
   this->tx_buffer_.pop_front();
 
@@ -535,10 +548,11 @@ void ModbusServerHub::send_raw(const std::vector<uint8_t> &payload) {
 
   ModbusFrame frame(payload.data(), static_cast<uint16_t>(payload.size()));
 
-  const uint32_t now = millis();
-  if (now - this->last_modbus_byte_ < this->frame_delay_ms_)
-    delay(this->frame_delay_ms_ - (now - this->last_modbus_byte_));
-  this->send_frame_(frame);
+  if (this->tx_blocked()) {
+    this->set_timeout("send_frame", this->turnaround_delay_remaining_(), [this, &frame] { this->send_frame_(frame); });
+  } else {
+    this->send_frame_(frame);
+  }
 }
 
 void Modbus::clear_rx_buffer_(const LogString *reason, bool warn, size_t bytes_to_clear) {
