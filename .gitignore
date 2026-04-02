@@ -148,3 +148,4 @@ sdkconfig.*
 /managed_components
 
 api-docs/
+opus-staged/

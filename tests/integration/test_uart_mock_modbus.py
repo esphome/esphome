@@ -721,6 +721,7 @@ async def test_uart_mock_modbus_server_controller_multiple(
     sensor_states: dict[str, list[float]] = {
         "reg_u_word": [],
         "reg_u_word_2": [],
+        "min_response_time": [],
     }
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
@@ -756,4 +757,7 @@ async def test_uart_mock_modbus_server_controller_multiple(
         await _setup_and_start_scenario(client, sensor_states, on_state, key_to_sensor)
         await _await_sensor_change(reg_u_word_changed, "reg_u_word", sensor_states)
         await _await_sensor_change(reg_u_word_2_changed, "reg_u_word_2", sensor_states)
+        assert sensor_states["min_response_time"][-1] > 3, (
+            "Expected min_response_time to be > 3.5ms, per modbus frame delays at 9600 baud"
+        )
         _assert_no_modbus_errors(error_log_lines, warning_log_lines)

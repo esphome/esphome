@@ -76,6 +76,9 @@ modbus_controller:
     modbus_id: virtual_modbus_client
     update_interval: 1s
     id: modbus_controller_2
+    on_command_sent:
+      then:
+        - lambda: id(response_time) = millis();
 
 modbus_server:
   - address: 1
@@ -104,6 +107,22 @@ sensor:
     address: 0x01
     register_type: holding
     value_type: U_WORD
+    on_value:
+      then:
+        - lambda: id(min_response_time).publish_state(millis() - id(response_time));
+  - platform: template
+    name: "min_response_time"
+    update_interval: never
+    id: min_response_time
+    filters:
+      - min:
+          window_size: 100
+          send_every: 1
+          send_first_at: 1
+
+globals:
+  - id: response_time
+    type: uint32_t
 
 button:
   - platform: template
