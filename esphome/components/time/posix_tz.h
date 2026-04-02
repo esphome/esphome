@@ -36,6 +36,9 @@ struct ParsedTimezone {
   bool has_dst() const { return this->dst_start.type != DSTRuleType::NONE; }
 };
 
+/// Format a POSIX offset as "+HHMM"/"-HHMM" into buf (must be >= 6 bytes).
+void format_designation(int32_t posix_offset, char *buf, size_t buf_size);
+
 /// Convert a UTC epoch to local time using the parsed timezone.
 /// This replaces libc's localtime() to avoid scanf dependency.
 /// @param utc_epoch Unix timestamp in UTC

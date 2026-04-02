@@ -1,4 +1,6 @@
 #pragma once
+
+#include <string>
 #include <utility>
 #include <vector>
 #include "esphome/core/defines.h"
@@ -35,12 +37,8 @@ class NextionComponentBase {
   virtual ~NextionComponentBase() = default;
 
   void set_variable_name(const std::string &variable_name, const std::string &variable_name_to_send = "") {
-    variable_name_ = variable_name;
-    if (variable_name_to_send.empty()) {
-      variable_name_to_send_ = variable_name;
-    } else {
-      variable_name_to_send_ = variable_name_to_send;
-    }
+    this->variable_name_ = variable_name;
+    this->variable_name_to_send_ = variable_name_to_send.empty() ? variable_name : variable_name_to_send;
   }
 
   virtual void update_component_settings(){};
@@ -64,14 +62,14 @@ class NextionComponentBase {
   virtual void set_state(const std::string &state, bool publish) {}
   virtual void set_state(const std::string &state, bool publish, bool send_to_nextion){};
 
-  uint8_t get_component_id() { return this->component_id_; }
-  void set_component_id(uint8_t component_id) { component_id_ = component_id; }
+  uint8_t get_component_id() const { return this->component_id_; }
+  void set_component_id(uint8_t component_id) { this->component_id_ = component_id; }
 
-  uint8_t get_wave_channel_id() { return this->wave_chan_id_; }
+  uint8_t get_wave_channel_id() const { return this->wave_chan_id_; }
   void set_wave_channel_id(uint8_t wave_chan_id) { this->wave_chan_id_ = wave_chan_id; }
 
-  std::vector<uint8_t> get_wave_buffer() { return this->wave_buffer_; }
-  size_t get_wave_buffer_size() { return this->wave_buffer_.size(); }
+  const std::vector<uint8_t> &get_wave_buffer() const { return this->wave_buffer_; }
+  size_t get_wave_buffer_size() const { return this->wave_buffer_.size(); }
   void clear_wave_buffer(size_t buffer_sent) {
     if (this->wave_buffer_.size() <= buffer_sent) {
       this->wave_buffer_.clear();
@@ -80,15 +78,17 @@ class NextionComponentBase {
     }
   }
 
-  std::string get_variable_name() { return this->variable_name_; }
-  std::string get_variable_name_to_send() { return this->variable_name_to_send_; }
-  virtual NextionQueueType get_queue_type() { return NextionQueueType::NO_RESULT; }
-  virtual std::string get_queue_type_string() { return NEXTION_QUEUE_TYPE_STRINGS[this->get_queue_type()]; }
+  const std::string &get_variable_name() const { return this->variable_name_; }
+  const std::string &get_variable_name_to_send() const { return this->variable_name_to_send_; }
+  virtual NextionQueueType get_queue_type() const { return NextionQueueType::NO_RESULT; }
+  virtual const char *get_queue_type_string() const { return NEXTION_QUEUE_TYPE_STRINGS[this->get_queue_type()]; }
   virtual void set_state_from_int(int state_value, bool publish, bool send_to_nextion){};
   virtual void set_state_from_string(const std::string &state_value, bool publish, bool send_to_nextion){};
   virtual void send_state_to_nextion(){};
-  bool get_needs_to_send_update() { return this->needs_to_send_update_; }
-  uint8_t get_wave_chan_id() { return this->wave_chan_id_; }
+  bool get_needs_to_send_update() const { return this->needs_to_send_update_; }
+  // Remove before 2026.10.0
+  ESPDEPRECATED("Use get_wave_channel_id() instead. Will be removed in 2026.10.0", "2026.4.0")
+  uint8_t get_wave_chan_id() const { return this->get_wave_channel_id(); }
   void set_wave_max_length(int wave_max_length) { this->wave_max_length_ = wave_max_length; }
 
  protected:
