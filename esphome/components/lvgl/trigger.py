@@ -114,8 +114,8 @@ async def generate_align_tos(config: dict):
                 x = align_to[CONF_X]
                 y = align_to[CONF_Y]
                 lv.obj_align_to(w.obj, target, align, x, y)
-            if ext_click_area := w.config.get(CONF_EXT_CLICK_AREA):
-                lv.obj_set_ext_click_area(w.obj, ext_click_area)
+                if ext_click_area := w.config.get(CONF_EXT_CLICK_AREA):
+                    lv.obj_set_ext_click_area(w.obj, ext_click_area)
 
             action_id = config[CONF_ALIGN_TO_LAMBDA_ID]
             var = new_Pvariable(action_id, await context.get_lambda())
