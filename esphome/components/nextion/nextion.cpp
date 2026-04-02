@@ -5,8 +5,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-namespace esphome {
-namespace nextion {
+namespace esphome::nextion {
 
 static const char *const TAG = "nextion";
 
@@ -1290,5 +1289,4 @@ void Nextion::set_writer(const nextion_writer_t &writer) { this->writer_ = write
 
 bool Nextion::is_updating() { return this->connection_state_.is_updating_; }
 
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion
