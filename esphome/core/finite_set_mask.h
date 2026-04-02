@@ -160,10 +160,11 @@ template<typename ValueType, typename BitPolicy = DefaultBitPolicy<ValueType, 16
     if (mask == 0)
       return BitPolicy::MAX_BITS;
 #if defined(__GNUC__) || defined(__clang__)
-    if constexpr (sizeof(bitmask_t) <= sizeof(unsigned int))
+    if constexpr (sizeof(bitmask_t) <= sizeof(unsigned int)) {
       return __builtin_ctz(static_cast<unsigned int>(mask));
-    else
-      return __builtin_ctzl(static_cast<unsigned long>(mask));
+    } else {
+      return __builtin_ctzl(static_cast<uint32_t>(mask));
+    }
 #else
     int bit = 0;
     while (bit < BitPolicy::MAX_BITS && !(mask & (static_cast<bitmask_t>(1) << bit))) {
