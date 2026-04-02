@@ -309,8 +309,8 @@ APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffe
 
   // Compute first message's write position from header length (cheap arithmetic, no buffer writes).
   // This lets the loop body skip a nullptr check — first iteration has src == write_end naturally.
-  uint8_t *write_start = buffer_data + messages[0].offset + HEADER_PADDING - plaintext_header_length(messages[0]);
-  uint8_t *write_end = write_start;
+  uint8_t *write_start = nullptr;
+  uint8_t *write_end = nullptr;
 
   // Write headers and compact messages to close 0-3 byte varint padding gaps.
   // First iteration: src == write_end so memmove is skipped.
@@ -318,6 +318,11 @@ APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffe
     uint8_t header_len = write_plaintext_header(buffer_data + msg.offset, msg);
     uint8_t *src = buffer_data + msg.offset + HEADER_PADDING - header_len;
     uint16_t msg_len = header_len + msg.payload_size;
+    if (write_start == nullptr) {
+      write_start = src;
+      write_end = src + msg_len;
+      continue;
+    }
     if (src != write_end) {
       memmove(write_end, src, msg_len);
     }
