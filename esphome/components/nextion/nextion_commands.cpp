@@ -217,6 +217,7 @@ void Nextion::set_component_value(const char *component, int32_t value) {
   this->add_no_result_to_queue_with_printf_(".val", "%s.val=%" PRId32, component, value);
 }
 
+#ifdef USE_NEXTION_WAVEFORM
 void Nextion::add_waveform_data(uint8_t component_id, uint8_t channel_number, uint8_t value) {
   this->add_no_result_to_queue_with_printf_("add", "add %" PRIu8 ",%" PRIu8 ",%" PRIu8, component_id, channel_number,
                                             value);
@@ -226,6 +227,7 @@ void Nextion::open_waveform_channel(uint8_t component_id, uint8_t channel_number
   this->add_no_result_to_queue_with_printf_("addt", "addt %" PRIu8 ",%" PRIu8 ",%" PRIu8, component_id, channel_number,
                                             value);
 }
+#endif  // USE_NEXTION_WAVEFORM
 
 void Nextion::set_component_coordinates(const char *component, uint16_t x, uint16_t y) {
   this->add_no_result_to_queue_with_printf_(".xcen", "%s.xcen=%" PRIu16, component, x);
