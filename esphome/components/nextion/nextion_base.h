@@ -2,8 +2,8 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/color.h"
 #include "nextion_component_base.h"
-namespace esphome {
-namespace nextion {
+
+namespace esphome::nextion {
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
 #define NEXTION_PROTOCOL_LOG
@@ -61,5 +61,4 @@ class NextionBase {
   bool is_detected_ = false;
 };
 
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion

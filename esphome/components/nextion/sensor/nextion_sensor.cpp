@@ -2,8 +2,7 @@
 #include "esphome/core/util.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace nextion {
+namespace esphome::nextion {
 
 static const char *const TAG = "nextion_sensor";
 
@@ -108,5 +107,4 @@ void NextionSensor::wave_update_() {
   this->nextion_->add_addt_command_to_queue(this);
 }
 
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion
