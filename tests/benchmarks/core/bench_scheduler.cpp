@@ -82,23 +82,19 @@ BENCHMARK(Scheduler_Call_5IntervalsFiring);
 static void Scheduler_SetTimeout(benchmark::State &state) {
   Scheduler scheduler;
   Component dummy_component;
-  // Number of distinct timeout keys; controls how many unique timers exist
-  // simultaneously and the drain cadence for process_to_add().
-  static constexpr int kKeyCount = 5;
 
+  // Register 3 timeouts then call() — realistic worst case where multiple
+  // components schedule in the same loop iteration. Keeps item count within
+  // the recycling pool (MAX_POOL_SIZE=5) to avoid spurious malloc/free.
+  static constexpr int kBatchSize = 3;
   for (auto _ : state) {
     uint32_t now = millis();
     for (int i = 0; i < kInnerIterations; i++) {
-      scheduler.set_timeout(&dummy_component, static_cast<uint32_t>(i % kKeyCount), 1000, []() {});
-      // Drain periodically to reflect production behavior where call() runs
-      // each main loop iteration. call() moves to_add_ into items_ and cleans
-      // up cancelled items. Without this, cancelled items accumulate causing
-      // O(n²) scan cost in cancel_item_locked_.
-      if ((i + 1) % kKeyCount == 0) {
+      scheduler.set_timeout(&dummy_component, static_cast<uint32_t>(i % kBatchSize), 1000, []() {});
+      if ((i + 1) % kBatchSize == 0) {
         scheduler.call(++now);
       }
     }
-    // Final drain in case kInnerIterations is not a multiple of kKeyCount
     scheduler.call(++now);
     benchmark::DoNotOptimize(scheduler);
   }
@@ -111,23 +107,19 @@ BENCHMARK(Scheduler_SetTimeout);
 static void Scheduler_SetInterval(benchmark::State &state) {
   Scheduler scheduler;
   Component dummy_component;
-  // Number of distinct interval keys; controls how many unique timers exist
-  // simultaneously and the drain cadence for process_to_add().
-  static constexpr int kKeyCount = 5;
 
+  // Register 3 intervals then call() — realistic worst case where multiple
+  // components schedule in the same loop iteration. Keeps item count within
+  // the recycling pool (MAX_POOL_SIZE=5) to avoid spurious malloc/free.
+  static constexpr int kBatchSize = 3;
   for (auto _ : state) {
     uint32_t now = millis();
     for (int i = 0; i < kInnerIterations; i++) {
-      scheduler.set_interval(&dummy_component, static_cast<uint32_t>(i % kKeyCount), 1000, []() {});
-      // Drain periodically to reflect production behavior where call() runs
-      // each main loop iteration. call() moves to_add_ into items_ and cleans
-      // up cancelled items. Without this, cancelled items accumulate causing
-      // O(n²) scan cost in cancel_item_locked_.
-      if ((i + 1) % kKeyCount == 0) {
+      scheduler.set_interval(&dummy_component, static_cast<uint32_t>(i % kBatchSize), 1000, []() {});
+      if ((i + 1) % kBatchSize == 0) {
         scheduler.call(++now);
       }
     }
-    // Final drain in case kInnerIterations is not a multiple of kKeyCount
     scheduler.call(++now);
     benchmark::DoNotOptimize(scheduler);
   }
@@ -140,23 +132,21 @@ BENCHMARK(Scheduler_SetInterval);
 static void Scheduler_Defer(benchmark::State &state) {
   Scheduler scheduler;
   Component dummy_component;
-  // Number of distinct defer keys; controls how many unique defers exist
-  // simultaneously and the drain cadence for call().
-  static constexpr int kKeyCount = 5;
 
   // defer() is Component::defer which calls set_timeout(delay=0).
   // Call set_timeout directly since defer() is protected.
-  // Drain with call() periodically to reflect production behavior where
-  // call() runs each main loop iteration, keeping the defer queue small.
+  // Register 3 defers then call() — realistic worst case where multiple
+  // components defer in the same loop iteration. Keeps item count within
+  // the recycling pool (MAX_POOL_SIZE=5) to avoid spurious malloc/free.
+  static constexpr int kBatchSize = 3;
   for (auto _ : state) {
     uint32_t now = millis();
     for (int i = 0; i < kInnerIterations; i++) {
-      scheduler.set_timeout(&dummy_component, static_cast<uint32_t>(i % kKeyCount), 0, []() {});
-      if ((i + 1) % kKeyCount == 0) {
+      scheduler.set_timeout(&dummy_component, static_cast<uint32_t>(i % kBatchSize), 0, []() {});
+      if ((i + 1) % kBatchSize == 0) {
         scheduler.call(++now);
       }
     }
-    // Final drain in case kInnerIterations is not a multiple of kKeyCount
     scheduler.call(++now);
     benchmark::DoNotOptimize(scheduler);
   }
