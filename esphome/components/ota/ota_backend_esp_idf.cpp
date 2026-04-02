@@ -9,8 +9,7 @@
 #include <esp_task_wdt.h>
 #include <spi_flash_mmap.h>
 
-namespace esphome {
-namespace ota {
+namespace esphome::ota {
 
 static const char *const TAG = "ota.idf";
 
@@ -120,6 +119,5 @@ void IDFOTABackend::abort() {
   this->update_handle_ = 0;
 }
 
-}  // namespace ota
-}  // namespace esphome
+}  // namespace esphome::ota
 #endif  // USE_ESP32
