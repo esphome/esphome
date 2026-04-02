@@ -255,7 +255,7 @@ void ZigbeeComponent::factory_reset() {
   ZB_SCHEDULE_APP_CALLBACK(zb_bdb_reset_via_local_action, 0);
 }
 
-static void log_reporting_info_(zb_zcl_reporting_info_t *rep_info) {
+static void log_reporting_info(zb_zcl_reporting_info_t *rep_info) {
   auto now = millis();
   ESP_LOGD(TAG, "Reporting: endpoint %d, cluster_id 0x%04X, attr_id 0x%04X, flags 0x%02X, report in %ums", rep_info->ep,
            rep_info->cluster_id, rep_info->attr_id, rep_info->flags,
@@ -273,7 +273,7 @@ void ZigbeeComponent::dump_reporting_() {
     if (ZCL_CTX().device_ctx->ep_desc_list[j]->reporting_info) {
       zb_zcl_reporting_info_t *rep_info = ZCL_CTX().device_ctx->ep_desc_list[j]->reporting_info;
       for (zb_uint8_t i = 0; i < ZCL_CTX().device_ctx->ep_desc_list[j]->rep_info_count; i++) {
-        log_reporting_info_(rep_info);
+        log_reporting_info(rep_info);
         rep_info++;
       }
     }
@@ -294,7 +294,7 @@ void ZigbeeComponent::after_reporting_info(zb_zcl_configure_reporting_req_t *con
              attr_addr_info->manuf_code);
     return;
   }
-  log_reporting_info_(rep_info);
+  log_reporting_info(rep_info);
 #endif
 }
 
