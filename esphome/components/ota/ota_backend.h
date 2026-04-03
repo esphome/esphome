@@ -8,8 +8,7 @@
 #include <vector>
 #endif
 
-namespace esphome {
-namespace ota {
+namespace esphome::ota {
 
 enum OTAResponseTypes {
   OTA_RESPONSE_OK = 0x00,
@@ -117,5 +116,4 @@ OTAGlobalCallback *get_global_ota_callback();
 // - notify_state_deferred_() when in separate task (e.g., web_server OTA)
 // This ensures proper listener execution in all contexts.
 #endif
-}  // namespace ota
-}  // namespace esphome
+}  // namespace esphome::ota
