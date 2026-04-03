@@ -31,6 +31,7 @@ binary_sensor:
 
 lvgl:
   log_level: debug
+  dark_mode: true
   resume_on_input: true
   on_pause:
     logger.log: LVGL is Paused

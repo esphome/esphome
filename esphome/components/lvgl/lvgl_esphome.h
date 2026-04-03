@@ -250,6 +250,7 @@ class LvglComponent : public PollingComponent {
   bool page_wrap_{true};
   bool big_endian_{};
   bool dark_mode_{};
+  bool dark_theme_applied_{};
   std::map<lv_group_t *, lv_obj_t *> focus_marks_{};
 
   CallbackManager<void(uint32_t)> idle_callbacks_{};

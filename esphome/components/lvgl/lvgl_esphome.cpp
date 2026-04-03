@@ -169,6 +169,15 @@ void LvglComponent::add_page(LvPageType *page) {
   this->pages_.push_back(page);
   page->set_parent(this);
   lv_display_set_default(this->disp_);
+  // Apply dark theme before the first page is created so all objects inherit it
+#if LV_USE_THEME_DEFAULT
+  if (this->dark_mode_ && !this->dark_theme_applied_) {
+    auto *theme = lv_theme_default_init(this->disp_, lv_palette_main(LV_PALETTE_BLUE),
+                                        lv_palette_main(LV_PALETTE_RED), true, LV_FONT_DEFAULT);
+    lv_display_set_theme(this->disp_, theme);
+    this->dark_theme_applied_ = true;
+  }
+#endif
   page->setup(this->pages_.size() - 1);
 }
 
@@ -619,14 +628,6 @@ void LvglComponent::setup() {
       level = sizeof(LOG_LEVEL_MAP) / sizeof(LOG_LEVEL_MAP[0]) - 1;
     esp_log_printf_(LOG_LEVEL_MAP[level], TAG, 0, "%.*s", (int) strlen(buf) - 1, buf);
   });
-#endif
-  // Apply dark mode theme if configured
-#if LV_USE_THEME_DEFAULT
-  if (this->dark_mode_) {
-    auto *theme = lv_theme_default_init(this->disp_, lv_palette_main(LV_PALETTE_BLUE), lv_palette_main(LV_PALETTE_RED),
-                                        true, LV_FONT_DEFAULT);
-    lv_display_set_theme(this->disp_, theme);
-  }
 #endif
   // Rotation will be handled by our drawing function, so reset the display rotation.
   for (auto *disp : this->displays_)
