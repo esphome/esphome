@@ -1,8 +1,11 @@
 #pragma once
 
+#include <string>
+
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/split_buffer/split_buffer.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
 namespace esphome::epaper_spi {
@@ -65,6 +68,17 @@ class EPaperBase : public Display,
 
   void update() override;
   void loop() override;
+
+  /**
+   * Trigger an update using a named mode (e.g. "fast", "full", "GC16", "DU").
+   * Subclasses override to map mode names to hardware-specific refresh strategies.
+   * The default implementation ignores the mode and calls update().
+   */
+  virtual void update_mode(const std::string &mode);
+
+  /// Set the default update mode used by update().
+  void set_update_mode(const std::string &mode) { this->update_mode_ = mode; }
+  const std::string &get_update_mode() const { return this->update_mode_; }
 
   void setup() override;
 
@@ -188,6 +202,27 @@ class EPaperBase : public Display,
   EPaperState state_{EPaperState::IDLE};
   uint32_t reset_duration_{10};
   uint8_t full_update_every_{1};
+  std::string update_mode_{};
+};
+
+// --- Automation action: epaper_spi.update ---
+template<typename... Ts> class EPaperUpdateAction : public Action<Ts...> {
+ public:
+  explicit EPaperUpdateAction(EPaperBase *display) : display_(display) {}
+  TEMPLATABLE_VALUE(std::string, mode)
+
+  void play(const Ts &...x) override {
+    if (!this->display_->is_ready())
+      return;
+    if (this->mode_.has_value()) {
+      this->display_->update_mode(this->mode_.value(x...));
+    } else {
+      this->display_->update();
+    }
+  }
+
+ protected:
+  EPaperBase *display_;
 };
 
 }  // namespace esphome::epaper_spi

@@ -1,3 +1,5 @@
+#include <string>
+
 #include "epaper_it8951e.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -405,34 +407,63 @@ void EPaperIT8951E::process_state_() {
 
 // --- Public update methods ---
 
-void EPaperIT8951E::update_fast() {
-  if (!this->is_ready() || !this->initialized_)
-    return;
+static UpdateModeE parse_update_mode(const std::string &mode) {
+  if (mode == "DU" || mode == "fast")
+    return UPDATE_MODE_DU;
+  if (mode == "GC16" || mode == "full")
+    return UPDATE_MODE_GC16;
+  if (mode == "GL16")
+    return UPDATE_MODE_GL16;
+  if (mode == "GLR16")
+    return UPDATE_MODE_GLR16;
+  if (mode == "GLD16")
+    return UPDATE_MODE_GLD16;
+  if (mode == "DU4")
+    return UPDATE_MODE_DU4;
+  if (mode == "A2")
+    return UPDATE_MODE_A2;
+  if (mode == "INIT")
+    return UPDATE_MODE_INIT;
+  return UPDATE_MODE_NONE;
+}
+
+void EPaperIT8951E::start_update_(UpdateModeE hw_mode) {
   if (this->state_ == EPaperState::IDLE) {
     this->update_started_at_ = millis();
     this->update_timing_active_ = true;
-    this->queued_update_mode_ = UPDATE_MODE_DU;
+    this->queued_update_mode_ = hw_mode;
     this->enable_loop();
     this->set_state_(EPaperState::UPDATE);
   } else {
     this->update_pending_ = true;
-    this->queued_update_mode_ = UPDATE_MODE_DU;
+    this->queued_update_mode_ = hw_mode;
   }
+}
+
+void EPaperIT8951E::update_mode(const std::string &mode) {
+  if (!this->is_ready() || !this->initialized_)
+    return;
+
+  UpdateModeE hw_mode = parse_update_mode(mode);
+  if (hw_mode == UPDATE_MODE_NONE) {
+    ESP_LOGW(TAG, "Unknown update mode '%s'", mode.c_str());
+    return;
+  }
+
+  this->start_update_(hw_mode);
 }
 
 void EPaperIT8951E::update() {
   if (!this->is_ready() || !this->initialized_)
     return;
-  if (this->state_ == EPaperState::IDLE) {
-    this->update_started_at_ = millis();
-    this->update_timing_active_ = true;
-    this->queued_update_mode_ = UPDATE_MODE_GC16;
-    this->enable_loop();
-    this->set_state_(EPaperState::UPDATE);
-  } else {
-    this->update_pending_ = true;
-    this->queued_update_mode_ = UPDATE_MODE_GC16;
+
+  // If a default mode is configured, use it; otherwise fall back to GC16.
+  if (!this->get_update_mode().empty()) {
+    this->update_mode(this->get_update_mode());
+    return;
   }
+
+  this->start_update_(UPDATE_MODE_GC16);
 }
 
 // --- Color conversion ---

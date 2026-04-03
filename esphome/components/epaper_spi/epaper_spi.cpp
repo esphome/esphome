@@ -117,6 +117,12 @@ void EPaperBase::update() {
 #endif
 }
 
+void EPaperBase::update_mode(const std::string &mode) {
+  // Default: ignore the mode name and call update().
+  // Subclasses override this to map mode names to hardware-specific refresh strategies.
+  this->update();
+}
+
 void EPaperBase::wait_for_idle_(bool should_wait) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   this->waiting_for_idle_start_ = millis();

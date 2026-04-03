@@ -1,7 +1,7 @@
 import importlib
 import pkgutil
 
-from esphome import core, pins
+from esphome import automation, core, pins
 import esphome.codegen as cg
 from esphome.components import display, spi
 from esphome.components.display import CONF_SHOW_TEST_CARD, validate_rotation
@@ -22,6 +22,7 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_MIRROR_X,
     CONF_MIRROR_Y,
+    CONF_MODE,
     CONF_MODEL,
     CONF_PAGES,
     CONF_RESET_DURATION,
@@ -49,7 +50,10 @@ epaper_spi_ns = cg.esphome_ns.namespace("epaper_spi")
 EPaperBase = epaper_spi_ns.class_(
     "EPaperBase", cg.PollingComponent, spi.SPIDevice, display.Display
 )
+EPaperUpdateAction = epaper_spi_ns.class_("EPaperUpdateAction", automation.Action)
 Transform = epaper_spi_ns.enum("Transform")
+
+CONF_UPDATE_MODE = "update_mode"
 
 # Import all models dynamically from the models package
 for module_info in pkgutil.iter_modules(models.__path__):
@@ -123,6 +127,7 @@ def model_schema(config):
                 if model.get_default(CONF_DC_PIN, None) is False
                 else {}
             ),
+            cv.Optional(CONF_UPDATE_MODE): cv.string_strict,
         }
     )
 
@@ -224,6 +229,8 @@ async def to_code(config):
         cg.add(var.set_reversed(config[CONF_REVERSED]))
     if CONF_SLEEP_WHEN_DONE in config:
         cg.add(var.set_sleep_when_done(config[CONF_SLEEP_WHEN_DONE]))
+    if CONF_UPDATE_MODE in config:
+        cg.add(var.set_update_mode(config[CONF_UPDATE_MODE]))
     if transform := config.get(CONF_TRANSFORM):
         transform[CONF_SWAP_XY] = False
     else:
@@ -247,3 +254,23 @@ async def to_code(config):
     )
     if transform_str:
         cg.add(var.set_transform(RawExpression(transform_str)))
+
+
+@automation.register_action(
+    "epaper_spi.update",
+    EPaperUpdateAction,
+    automation.maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(EPaperBase),
+            cv.Optional(CONF_MODE): cv.templatable(cv.string_strict),
+        }
+    ),
+    synchronous=True,
+)
+async def epaper_update_action_to_code(config, action_id, template_arg, args):
+    display_var = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, display_var)
+    if CONF_MODE in config:
+        template_ = await cg.templatable(config[CONF_MODE], args, cg.std_string)
+        cg.add(var.set_mode(template_))
+    return var

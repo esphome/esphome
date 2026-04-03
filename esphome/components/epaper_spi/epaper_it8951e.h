@@ -25,8 +25,8 @@ class EPaperIT8951E : public EPaperBase {
   void update() override;
   void dump_config() override;
 
-  // Additional update modes
-  void update_fast();
+  /// Named update modes: "GC16" (default/full), "DU" (fast), "GL16", "GLR16", "GLD16", "DU4", "A2", "INIT".
+  void update_mode(const std::string &mode) override;
 
   // Drawing overrides
   void fill(Color color) override;
@@ -67,6 +67,7 @@ class EPaperIT8951E : public EPaperBase {
   // Transfer helpers
   bool prepare_transfer_(UpdateModeE &mode);
   bool transfer_row_data_();
+  void start_update_(UpdateModeE hw_mode);
   void process_state_();
   void set_state_(EPaperState state, uint16_t delay = 0);
 
