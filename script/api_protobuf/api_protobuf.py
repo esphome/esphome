@@ -376,7 +376,11 @@ class TypeInfo(ABC):
         return f"size += ProtoSize::{method}({field_id_size}, {value});"
 
     def _get_single_byte_varint_size(
-        self, name: str, force: bool, extra_expr: str | None = None
+        self,
+        name: str,
+        force: bool,
+        extra_expr: str | None = None,
+        zero_check: str | None = None,
     ) -> str:
         """Size calculation when the varint is guaranteed to be 1 byte.
 
@@ -387,12 +391,14 @@ class TypeInfo(ABC):
             name: Expression to check for zero (non-force only)
             force: Whether to skip the zero check
             extra_expr: Additional variable expression to add (e.g., data length)
+            zero_check: Override expression for the zero check (e.g., "!x.empty()")
         """
         fixed = self.calculate_field_id_size() + 1
         size_expr = f"{fixed} + {extra_expr}" if extra_expr else str(fixed)
         if force:
             return f"size += {size_expr};"
-        return f"size += {name} ? {size_expr} : 0;"
+        check = zero_check or name
+        return f"size += {check} ? {size_expr} : 0;"
 
     @abstractmethod
     def get_size_calculation(self, name: str, force: bool = False) -> str:
@@ -1100,7 +1106,10 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
         max_len = self.max_data_length
         if max_len is not None and max_len < 128:
             return self._get_single_byte_varint_size(
-                size_field, force, extra_expr=size_field
+                size_field,
+                force,
+                extra_expr=size_field,
+                zero_check=f"!this->{self.field_name}.empty()",
             )
         return self._get_simple_size_calculation(size_field, force, "length")
 
