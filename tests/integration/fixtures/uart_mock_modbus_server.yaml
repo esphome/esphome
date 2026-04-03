@@ -86,7 +86,6 @@ modbus:
   uart_id: virtual_uart_dev
   role: server
 
-#modbus_server:
 modbus_controller:
   - address: 1
     server_registers:

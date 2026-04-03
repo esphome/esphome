@@ -56,7 +56,6 @@ modbus_controller:
     update_interval: 1s
     id: modbus_controller_1
 
-  #modbus_server:
   - address: 1
     modbus_id: virtual_modbus_server
     id: modbus_server_1

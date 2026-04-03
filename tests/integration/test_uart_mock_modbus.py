@@ -165,14 +165,14 @@ async def test_uart_mock_modbus_no_threshold(
 
 @pytest.mark.asyncio
 @pytest.mark.xfail(
-    reason="This test is currently expected to fail since the modbus parser cannot handle server responses from other devices. This will be implemented in a future PR."
+    reason="Modbus parser cannot handle server responses from other devices on the bus. Fix tracked in PR #11969."
 )
 async def test_uart_mock_modbus_server(
     yaml_config: str,
     run_compiled: RunCompiledFunction,
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
-    """Test basic modbus data parsing."""
+    """Test modbus server parsing with peer traffic on a shared bus."""
 
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
@@ -308,7 +308,7 @@ async def test_uart_mock_modbus_server_controller_write(
 
 @pytest.mark.asyncio
 @pytest.mark.xfail(
-    reason="This test is currently expected to fail since the modbus parser cannot handle server responses from other devices. This will be implemented in a future PR."
+    reason="Modbus parser cannot handle server responses from other devices on the bus. Fix tracked in PR #11969."
 )
 async def test_uart_mock_modbus_server_controller_multiple(
     yaml_config: str,
