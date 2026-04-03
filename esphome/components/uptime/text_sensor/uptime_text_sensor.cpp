@@ -70,8 +70,7 @@ void UptimeTextSensor::update() {
   if (show_seconds)
     append_unit(buf, sizeof(buf), pos, this->separator_, seconds, this->seconds_text_);
 
-  // pos is capped at sizeof(buf) on overflow, clamp to valid string length
-  this->publish_state(buf, std::min(pos, sizeof(buf) - 1));
+  this->publish_state(buf, pos);
 }
 
 float UptimeTextSensor::get_setup_priority() const { return setup_priority::HARDWARE; }
