@@ -254,14 +254,14 @@ esp_err_t I2SAudioSpeakerBase::init_i2s_channel_(const i2s_chan_config_t &chan_c
                                                  size_t event_queue_size) {
   esp_err_t err = i2s_new_channel(&chan_cfg, &this->tx_handle_, NULL);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to allocate new I2S channel: %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "I2S channel allocation failed: %s", esp_err_to_name(err));
     this->parent_->unlock();
     return err;
   }
 
   err = i2s_channel_init_std_mode(this->tx_handle_, &std_cfg);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to initialize I2S channel");
+    ESP_LOGE(TAG, "Failed to initialize channel");
     i2s_del_channel(this->tx_handle_);
     this->tx_handle_ = nullptr;
     this->parent_->unlock();
