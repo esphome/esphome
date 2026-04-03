@@ -15,7 +15,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from pathlib import Path
 
 from aioesphomeapi import NumberInfo
 import pytest
@@ -37,13 +36,6 @@ class RegisterTestCase:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def _replace_external_components_path(yaml_config: str) -> str:
-    external_components_path = str(
-        Path(__file__).parent / "fixtures" / "external_components"
-    )
-    return yaml_config.replace("EXTERNAL_COMPONENT_PATH", external_components_path)
 
 
 def _make_modbus_line_callback() -> tuple[Callable[[str], None], list[str], list[str]]:
@@ -85,7 +77,6 @@ async def test_uart_mock_modbus(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test basic modbus data parsing."""
-    yaml_config = _replace_external_components_path(yaml_config)
 
     tracker = SensorTracker(
         [
@@ -126,7 +117,7 @@ async def test_uart_mock_modbus_timing(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test basic modbus data parsing."""
-    yaml_config = _replace_external_components_path(yaml_config)
+
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
     tracker = SensorTracker(["sdm_voltage"])
@@ -152,7 +143,7 @@ async def test_uart_mock_modbus_no_threshold(
     Without the 50ms fallback timeout, the chunked response with a 40ms gap
     between USB packets would cause a false timeout and CRC failure cascade.
     """
-    yaml_config = _replace_external_components_path(yaml_config)
+
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
     tracker = SensorTracker(["sdm_voltage"])
@@ -177,7 +168,7 @@ async def test_uart_mock_modbus_server(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test basic modbus data parsing."""
-    yaml_config = _replace_external_components_path(yaml_config)
+
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
     tracker = SensorTracker(
@@ -207,7 +198,7 @@ async def test_uart_mock_modbus_server_controller(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test server/controller functionality for all read register types."""
-    yaml_config = _replace_external_components_path(yaml_config)
+
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
     expected_values = {
@@ -248,7 +239,7 @@ async def test_uart_mock_modbus_server_controller_write(
     the server's stored values, which are then read back correctly on the next poll.
     All 12 value types are tested: U/S_WORD, U/S_DWORD(_R), U/S_QWORD(_R), FP32(_R).
     """
-    yaml_config = _replace_external_components_path(yaml_config)
+
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
     register_test_cases: dict[str, RegisterTestCase] = {
@@ -320,7 +311,7 @@ async def test_uart_mock_modbus_server_controller_multiple(
     api_client_connected: APIClientConnectedFactory,
 ) -> None:
     """Test server/controller functionality with multiple servers."""
-    yaml_config = _replace_external_components_path(yaml_config)
+
     line_callback, error_log_lines, warning_log_lines = _make_modbus_line_callback()
 
     expected_values = {"reg_u_word": 919, "reg_u_word_2": 929}
