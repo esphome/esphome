@@ -22,7 +22,9 @@ uart:
 uart_mock:
   - id: virtual_uart_dev
     baud_rate: 9600
-    auto_start: true
+    # auto_start must be false to avoid races: the test presses the
+    # "Start Scenario" button only after subscribing to states.
+    auto_start: false
     debug:
     on_tx:
       - then:

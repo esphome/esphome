@@ -20,7 +20,11 @@ uart:
 uart_mock:
   - id: virtual_uart_server
     baud_rate: 9600
-    auto_start: false
+    # auto_start must be true for loopback fixtures: the modbus controller
+    # polls on its update_interval immediately at boot, so the uart_mock
+    # forwarding must already be active or early requests are lost and
+    # generate modbus warnings.
+    auto_start: true
     debug:
     on_tx:
       - then:
@@ -29,7 +33,7 @@ uart_mock:
               data: !lambda return data;
   - id: virtual_uart_controller
     baud_rate: 9600
-    auto_start: false
+    auto_start: true  # See comment on virtual_uart_server above
     debug:
     on_tx:
       - then:

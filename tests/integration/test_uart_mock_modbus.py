@@ -39,14 +39,18 @@ class RegisterTestCase:
 
 
 def _make_modbus_line_callback() -> tuple[Callable[[str], None], list[str], list[str]]:
-    """Return a (callback, error_lines, warning_lines) tuple for tracking modbus log output."""
+    """Return a (callback, error_lines, warning_lines) tuple for tracking modbus log output.
+
+    Only captures bus-level modbus messages ([modbus:]), not modbus_controller
+    scheduling noise (e.g. "Duplicate modbus command found").
+    """
     error_log_lines: list[str] = []
     warning_log_lines: list[str] = []
 
     def line_callback(line: str) -> None:
-        if "[E][modbus" in line:
+        if "[E][modbus:" in line:
             error_log_lines.append(line)
-        if "[W][modbus" in line:
+        if "[W][modbus:" in line:
             warning_log_lines.append(line)
 
     return line_callback, error_log_lines, warning_log_lines
