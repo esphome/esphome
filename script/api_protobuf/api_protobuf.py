@@ -384,13 +384,10 @@ class TypeInfo(ABC):
             extra_expr: Additional variable expression to add (e.g., data length)
         """
         fixed = self.calculate_field_id_size() + 1
-        if extra_expr:
-            if force:
-                return f"size += {fixed} + {extra_expr};"
-            return f"size += {name} ? {fixed} + {extra_expr} : 0;"
+        size_expr = f"{fixed} + {extra_expr}" if extra_expr else str(fixed)
         if force:
-            return f"size += {fixed};"
-        return f"size += {name} ? {fixed} : 0;"
+            return f"size += {size_expr};"
+        return f"size += {name} ? {size_expr} : 0;"
 
     @abstractmethod
     def get_size_calculation(self, name: str, force: bool = False) -> str:
