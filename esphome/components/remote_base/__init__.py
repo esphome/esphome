@@ -2184,3 +2184,42 @@ async def Toto_action(var, config, args):
     cg.add(var.set_rc_code_2(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
     cg.add(var.set_command(template_))
+
+# Intertechno
+(
+    IntertechnoData,
+    IntertechnoBinarySensor,
+    IntertechnoTrigger,
+    IntertechnoAction,
+    IntertechnoDumper,
+) = declare_protocol("Intertechno")
+
+INTERTECHNO_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODE): cv.string,
+    }
+)
+
+@register_binary_sensor("intertechno", IntertechnoBinarySensor, INTERTECHNO_SCHEMA)
+def intertechno_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                IntertechnoData,
+                ("code", config[CONF_CODE]),
+            )
+        )
+    )
+
+@register_trigger("intertechno", IntertechnoTrigger, IntertechnoData)
+def intertechno_trigger(var, config):
+    pass
+
+@register_dumper("intertechno", IntertechnoDumper)
+def intertechno_dumper(var, config):
+    pass
+
+@register_action("intertechno", IntertechnoAction, INTERTECHNO_SCHEMA)
+async def intertechno_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_CODE], args, cg.std_string)
+    cg.add(var.set_code(template_))
