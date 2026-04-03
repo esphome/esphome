@@ -14,13 +14,16 @@ static const char *const TAG = "it8951";
 static const uint32_t IT8951_SPI_PROBE_FREQUENCY = 1000000;
 static const uint32_t IT8951_SPI_RUN_FREQUENCY = 4000000;
 static const gpio_num_t IT8951_UNUSED_PIN = static_cast<gpio_num_t>(-1);
+static const gpio_num_t IT8951_GPIO_38 = static_cast<gpio_num_t>(38);
+static const gpio_num_t IT8951_GPIO_43 = static_cast<gpio_num_t>(43);
+static const gpio_num_t IT8951_GPIO_44 = static_cast<gpio_num_t>(44);
 
 void IT8951Display::configure_model_() {
   switch (this->model_) {
     case IT8951_MODEL_SEEED_EE03:
       this->pins_ = {
-          GPIO_NUM_7,  GPIO_NUM_8,  GPIO_NUM_9,        GPIO_NUM_44, GPIO_NUM_4,
-          GPIO_NUM_43, GPIO_NUM_38, IT8951_UNUSED_PIN, false,       "Seeed XIAO ePaper Display Board EE03",
+          GPIO_NUM_7,   GPIO_NUM_8,    GPIO_NUM_9,        IT8951_GPIO_44, GPIO_NUM_4,
+          IT8951_GPIO_43, IT8951_GPIO_38, IT8951_UNUSED_PIN, false,         "Seeed XIAO ePaper Display Board EE03",
       };
       break;
     case IT8951_MODEL_SEEED_RETERMINAL_E1003:
@@ -37,9 +40,24 @@ void IT8951Display::spi_send_word_(uint16_t word) { SPI.transfer16(word); }
 
 uint16_t IT8951Display::spi_recv_word_() { return SPI.transfer16(0); }
 
+void IT8951Display::set_pin_mode_(gpio_num_t pin, gpio_mode_t mode) { gpio_set_direction(pin, mode); }
+
+void IT8951Display::write_pin_(gpio_num_t pin, bool value) { gpio_set_level(pin, value ? 1 : 0); }
+
+bool IT8951Display::read_pin_(gpio_num_t pin) const { return gpio_get_level(pin) != 0; }
+
+void IT8951Display::sleep_ms_(uint32_t ms) {
+  while (ms != 0) {
+    const uint32_t chunk_ms = std::min<uint32_t>(ms, 50);
+    vTaskDelay(pdMS_TO_TICKS(chunk_ms));
+    App.feed_wdt();
+    ms -= chunk_ms;
+  }
+}
+
 void IT8951Display::lcd_wait_for_ready_() {
   const uint32_t start = millis();
-  while (digitalRead(this->pins_.busy) == LOW) {
+  while (!this->read_pin_(this->pins_.busy)) {
     if (millis() - start > 3000) {
       ESP_LOGE(TAG, "HRDY timeout");
       break;
@@ -49,59 +67,59 @@ void IT8951Display::lcd_wait_for_ready_() {
 }
 
 void IT8951Display::hardware_reset_() {
-  digitalWrite(this->pins_.cs, HIGH);
-  digitalWrite(this->pins_.reset, HIGH);
-  digitalWrite(this->pins_.enable, HIGH);
+  this->write_pin_(this->pins_.cs, true);
+  this->write_pin_(this->pins_.reset, true);
+  this->write_pin_(this->pins_.enable, true);
   if (this->pins_.has_ite_enable) {
-    digitalWrite(this->pins_.ite_enable, HIGH);
+    this->write_pin_(this->pins_.ite_enable, true);
   }
-  delay(50);
-  digitalWrite(this->pins_.reset, LOW);
-  delay(10);
-  digitalWrite(this->pins_.reset, HIGH);
-  delay(10);
+  this->sleep_ms_(50);
+  this->write_pin_(this->pins_.reset, false);
+  this->sleep_ms_(10);
+  this->write_pin_(this->pins_.reset, true);
+  this->sleep_ms_(10);
 }
 
 void IT8951Display::power_cycle_() {
-  digitalWrite(this->pins_.cs, HIGH);
-  digitalWrite(this->pins_.reset, HIGH);
-  digitalWrite(this->pins_.enable, LOW);
+  this->write_pin_(this->pins_.cs, true);
+  this->write_pin_(this->pins_.reset, true);
+  this->write_pin_(this->pins_.enable, false);
   if (this->pins_.has_ite_enable) {
-    digitalWrite(this->pins_.ite_enable, LOW);
+    this->write_pin_(this->pins_.ite_enable, false);
   }
-  delay(100);
-  digitalWrite(this->pins_.enable, HIGH);
+  this->sleep_ms_(100);
+  this->write_pin_(this->pins_.enable, true);
   if (this->pins_.has_ite_enable) {
-    digitalWrite(this->pins_.ite_enable, HIGH);
+    this->write_pin_(this->pins_.ite_enable, true);
   }
-  delay(500);
+  this->sleep_ms_(500);
   this->hardware_reset_();
-  delay(1500);
+  this->sleep_ms_(1500);
 }
 
 void IT8951Display::lcd_write_cmd_code_(uint16_t cmd) {
-  digitalWrite(this->pins_.cs, LOW);
+  this->write_pin_(this->pins_.cs, false);
   SPI.beginTransaction(SPISettings(this->spi_frequency_, MSBFIRST, SPI_MODE0));
   this->lcd_wait_for_ready_();
   this->spi_send_word_(0x6000);
   this->lcd_wait_for_ready_();
   this->spi_send_word_(cmd);
   SPI.endTransaction();
-  digitalWrite(this->pins_.cs, HIGH);
+  this->write_pin_(this->pins_.cs, true);
 }
 
 void IT8951Display::lcd_write_data_(uint16_t data) {
-  digitalWrite(this->pins_.cs, LOW);
+  this->write_pin_(this->pins_.cs, false);
   SPI.beginTransaction(SPISettings(this->spi_frequency_, MSBFIRST, SPI_MODE0));
   this->lcd_wait_for_ready_();
   this->spi_send_word_(0x0000);
   this->lcd_wait_for_ready_();
   this->spi_send_word_(data);
   SPI.endTransaction();
-  digitalWrite(this->pins_.cs, HIGH);
+  this->write_pin_(this->pins_.cs, true);
 }
 
-void IT8951Display::lcd_write_framebuffer_4bpp_(uint16_t *buf, uint16_t width_in_words, uint16_t height) {
+void IT8951Display::lcd_write_framebuffer_4bpp_(const uint16_t *buf, uint16_t width_in_words, uint16_t height) {
   uint8_t row_buffer[936];
   const uint32_t row_size_bytes = uint32_t(width_in_words) * 2;
   if (row_size_bytes > sizeof(row_buffer)) {
@@ -109,7 +127,7 @@ void IT8951Display::lcd_write_framebuffer_4bpp_(uint16_t *buf, uint16_t width_in
     return;
   }
 
-  digitalWrite(this->pins_.cs, LOW);
+  this->write_pin_(this->pins_.cs, false);
   SPI.beginTransaction(SPISettings(this->spi_frequency_, MSBFIRST, SPI_MODE0));
   this->lcd_wait_for_ready_();
   this->spi_send_word_(0x0000);
@@ -130,7 +148,7 @@ void IT8951Display::lcd_write_framebuffer_4bpp_(uint16_t *buf, uint16_t width_in
   }
 
   SPI.endTransaction();
-  digitalWrite(this->pins_.cs, HIGH);
+  this->write_pin_(this->pins_.cs, true);
 }
 
 void IT8951Display::lcd_write_framebuffer_1bpp_(uint16_t width, uint16_t height) {
@@ -144,7 +162,7 @@ void IT8951Display::lcd_write_framebuffer_1bpp_(uint16_t width, uint16_t height)
     return;
   }
 
-  digitalWrite(this->pins_.cs, LOW);
+  this->write_pin_(this->pins_.cs, false);
   SPI.beginTransaction(SPISettings(this->spi_frequency_, MSBFIRST, SPI_MODE0));
   this->lcd_wait_for_ready_();
   this->spi_send_word_(0x0000);
@@ -174,11 +192,11 @@ void IT8951Display::lcd_write_framebuffer_1bpp_(uint16_t width, uint16_t height)
   }
 
   SPI.endTransaction();
-  digitalWrite(this->pins_.cs, HIGH);
+  this->write_pin_(this->pins_.cs, true);
 }
 
 uint16_t IT8951Display::lcd_read_data_() {
-  digitalWrite(this->pins_.cs, LOW);
+  this->write_pin_(this->pins_.cs, false);
   SPI.beginTransaction(SPISettings(this->spi_frequency_, MSBFIRST, SPI_MODE0));
   this->lcd_wait_for_ready_();
   this->spi_send_word_(0x1000);
@@ -186,12 +204,12 @@ uint16_t IT8951Display::lcd_read_data_() {
   this->lcd_wait_for_ready_();
   const uint16_t data = this->spi_recv_word_();
   SPI.endTransaction();
-  digitalWrite(this->pins_.cs, HIGH);
+  this->write_pin_(this->pins_.cs, true);
   return data;
 }
 
 void IT8951Display::lcd_read_n_data_(uint16_t *buf, uint32_t word_count) {
-  digitalWrite(this->pins_.cs, LOW);
+  this->write_pin_(this->pins_.cs, false);
   SPI.beginTransaction(SPISettings(this->spi_frequency_, MSBFIRST, SPI_MODE0));
   this->lcd_wait_for_ready_();
   this->spi_send_word_(0x1000);
@@ -202,7 +220,7 @@ void IT8951Display::lcd_read_n_data_(uint16_t *buf, uint32_t word_count) {
     buf[i] = this->spi_recv_word_();
   }
   SPI.endTransaction();
-  digitalWrite(this->pins_.cs, HIGH);
+  this->write_pin_(this->pins_.cs, true);
 }
 
 void IT8951Display::lcd_sys_run_() { this->lcd_write_cmd_code_(IT8951_TCON_SYS_RUN); }
@@ -271,7 +289,7 @@ bool IT8951Display::probe_controller_(const char *label, bool send_sys_run, int 
   if (send_sys_run) {
     ESP_LOGD(TAG, "[%s] Sending SYS_RUN wake command", label);
     this->lcd_sys_run_();
-    delay(10);
+    this->sleep_ms_(10);
   }
 
   if (vcom_selector > 0) {
@@ -294,19 +312,19 @@ void IT8951Display::setup() {
   this->configure_model_();
   ESP_LOGCONFIG(TAG, "Setting up IT8951 model %s...", this->pins_.name);
 
-  pinMode(this->pins_.cs, OUTPUT);
-  pinMode(this->pins_.enable, OUTPUT);
-  pinMode(this->pins_.reset, OUTPUT);
-  pinMode(this->pins_.busy, INPUT);
+  this->set_pin_mode_(this->pins_.cs, GPIO_MODE_OUTPUT);
+  this->set_pin_mode_(this->pins_.enable, GPIO_MODE_OUTPUT);
+  this->set_pin_mode_(this->pins_.reset, GPIO_MODE_OUTPUT);
+  this->set_pin_mode_(this->pins_.busy, GPIO_MODE_INPUT);
   if (this->pins_.has_ite_enable) {
-    pinMode(this->pins_.ite_enable, OUTPUT);
+    this->set_pin_mode_(this->pins_.ite_enable, GPIO_MODE_OUTPUT);
   }
 
-  digitalWrite(this->pins_.cs, HIGH);
-  digitalWrite(this->pins_.enable, HIGH);
-  digitalWrite(this->pins_.reset, HIGH);
+  this->write_pin_(this->pins_.cs, true);
+  this->write_pin_(this->pins_.enable, true);
+  this->write_pin_(this->pins_.reset, true);
   if (this->pins_.has_ite_enable) {
-    digitalWrite(this->pins_.ite_enable, HIGH);
+    this->write_pin_(this->pins_.ite_enable, true);
   }
 
   this->spi_frequency_ = IT8951_SPI_PROBE_FREQUENCY;
@@ -317,7 +335,7 @@ void IT8951Display::setup() {
     bool send_sys_run;
     int vcom_selector;
   };
-  static const ProbeAttempt attempts[] = {
+  static const ProbeAttempt kProbeAttempts[] = {
       {"cold read", false, 0},
       {"wake then read", true, 0},
       {"wake + VCOM 0x0001", true, 0x0001},
@@ -325,11 +343,12 @@ void IT8951Display::setup() {
   };
 
   bool found_device = false;
-  for (size_t i = 0; i < sizeof(attempts) / sizeof(attempts[0]); i++) {
-    ESP_LOGD(TAG, "Probe attempt %u: %s", static_cast<unsigned>(i + 1), attempts[i].label);
+  for (size_t i = 0; i < sizeof(kProbeAttempts) / sizeof(kProbeAttempts[0]); i++) {
+    ESP_LOGD(TAG, "Probe attempt %u: %s", static_cast<unsigned>(i + 1), kProbeAttempts[i].label);
     this->power_cycle_();
     this->lcd_wait_for_ready_();
-    if (this->probe_controller_(attempts[i].label, attempts[i].send_sys_run, attempts[i].vcom_selector)) {
+    if (this->probe_controller_(kProbeAttempts[i].label, kProbeAttempts[i].send_sys_run,
+                                kProbeAttempts[i].vcom_selector)) {
       found_device = true;
       break;
     }
@@ -403,7 +422,7 @@ void IT8951Display::update() {
     ESP_LOGD(TAG, "Using 4bpp grayscale upload path");
     this->it8951_write_reg_(UP1SR + 2, this->it8951_read_reg_(UP1SR + 2) & ~(1 << 2));
     this->it8951_load_img_area_start_(IT8951_LDIMG_L_ENDIAN, IT8951_4BPP, 0, 0, 0, w, h);
-    this->lcd_write_framebuffer_4bpp_(reinterpret_cast<uint16_t *>(this->framebuffer_), width_in_words, h);
+    this->lcd_write_framebuffer_4bpp_(reinterpret_cast<const uint16_t *>(this->framebuffer_), width_in_words, h);
   }
 
   this->lcd_write_cmd_code_(IT8951_TCON_LD_IMG_END);
@@ -425,7 +444,7 @@ void IT8951Display::dump_config() {
   ESP_LOGCONFIG(TAG, "  DevInfo Panel: %ux%u", this->dev_info_.panel_width, this->dev_info_.panel_height);
   ESP_LOGCONFIG(TAG, "  DevInfo ImgBuf: 0x%04X%04X", this->dev_info_.img_buf_addr_h, this->dev_info_.img_buf_addr_l);
   ESP_LOGCONFIG(TAG, "  Buffer allocated: %s", this->framebuffer_ != nullptr ? "YES" : "NO");
-  ESP_LOGCONFIG(TAG, "  Busy pin: %s", digitalRead(this->pins_.busy) ? "HIGH (ready)" : "LOW (busy)");
+  ESP_LOGCONFIG(TAG, "  Busy pin: %s", this->read_pin_(this->pins_.busy) ? "HIGH (ready)" : "LOW (busy)");
   ESP_LOGCONFIG(TAG, "  VCOM read-back: %u (0x%04X)", this->probe_vcom_, this->probe_vcom_);
   if (this->fail_reason_ != nullptr) {
     ESP_LOGE(TAG, "  FAILURE REASON: %s", this->fail_reason_);

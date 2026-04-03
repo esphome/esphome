@@ -58,14 +58,14 @@ struct IT8951Pins {
 #define UP1SR 0x1138
 #define BGVR 0x1250
 
-typedef struct {
+struct IT8951DevInfo {
   uint16_t panel_width;
   uint16_t panel_height;
   uint16_t img_buf_addr_l;
   uint16_t img_buf_addr_h;
   uint16_t fw_version[8];
   uint16_t lut_version[8];
-} IT8951DevInfo;
+};
 
 class IT8951Display : public display::DisplayBuffer {
  public:
@@ -87,9 +87,13 @@ class IT8951Display : public display::DisplayBuffer {
   void configure_model_();
   void spi_send_word_(uint16_t word);
   uint16_t spi_recv_word_();
+  void set_pin_mode_(gpio_num_t pin, gpio_mode_t mode);
+  void write_pin_(gpio_num_t pin, bool value);
+  bool read_pin_(gpio_num_t pin) const;
+  void sleep_ms_(uint32_t ms);
   void lcd_write_cmd_code_(uint16_t cmd);
   void lcd_write_data_(uint16_t data);
-  void lcd_write_framebuffer_4bpp_(uint16_t *buf, uint16_t width_in_words, uint16_t height);
+  void lcd_write_framebuffer_4bpp_(const uint16_t *buf, uint16_t width_in_words, uint16_t height);
   void lcd_write_framebuffer_1bpp_(uint16_t width, uint16_t height);
   uint16_t lcd_read_data_();
   void lcd_read_n_data_(uint16_t *buf, uint32_t word_count);
