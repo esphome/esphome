@@ -1,5 +1,7 @@
 #include "it8951.h"
 
+#if defined(USE_ESP32) && defined(USE_ARDUINO)
+
 #include <cstring>
 
 #include "esphome/core/application.h"
@@ -511,3 +513,5 @@ void IT8951Display::it8951_display_area_1bpp_(uint16_t x, uint16_t y, uint16_t w
 
 }  // namespace it8951
 }  // namespace esphome
+
+#endif  // defined(USE_ESP32) && defined(USE_ARDUINO)

@@ -1,5 +1,7 @@
 #pragma once
 
+#if defined(USE_ESP32) && defined(USE_ARDUINO)
+
 #include <esp_heap_caps.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -129,3 +131,5 @@ class IT8951Display : public display::DisplayBuffer {
 
 }  // namespace it8951
 }  // namespace esphome
+
+#endif  // defined(USE_ESP32) && defined(USE_ARDUINO)
