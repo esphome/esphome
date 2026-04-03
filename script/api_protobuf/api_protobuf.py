@@ -1270,12 +1270,7 @@ class FixedArrayBytesType(TypeInfo):
                 length_field, force, extra_expr=length_field
             )
 
-        field_id_size = self.calculate_field_id_size()
-        if force:
-            # For repeated fields, always calculate size (no zero check)
-            return f"size += ProtoSize::calc_length_force({field_id_size}, {length_field});"
-        # For non-repeated fields, length already checks for zero
-        return f"size += ProtoSize::calc_length({field_id_size}, {length_field});"
+        return self._get_simple_size_calculation(length_field, force, "length")
 
     def get_estimated_size(self) -> int:
         # Estimate based on typical BLE advertisement size
