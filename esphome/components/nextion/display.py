@@ -152,7 +152,7 @@ async def to_code(config):
 
     if max_queue_size := config.get(CONF_MAX_QUEUE_SIZE):
         cg.add_define("USE_NEXTION_MAX_QUEUE_SIZE")
-        cg.add(var.set_max_queue_size(max_queue_size))
+        cg.add_define("NEXTION_MAX_QUEUE_SIZE", max_queue_size)
 
     if command_spacing := config.get(CONF_COMMAND_SPACING):
         cg.add_define("USE_NEXTION_COMMAND_SPACING")
