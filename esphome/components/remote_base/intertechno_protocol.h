@@ -21,9 +21,9 @@ class IntertechnoProtocol : public RemoteProtocol<IntertechnoData> {
   void dump(const IntertechnoData &data) override;
 
  private:
-  void encode_0(RemoteTransmitData *dst);
-  void encode_1(RemoteTransmitData *dst);
-  void encode_F(RemoteTransmitData *dst);
+  void encode_0_(RemoteTransmitData *dst);
+  void encode_1_(RemoteTransmitData *dst);
+  void encode_f_(RemoteTransmitData *dst);
 };
 
 DECLARE_REMOTE_PROTOCOL(Intertechno)

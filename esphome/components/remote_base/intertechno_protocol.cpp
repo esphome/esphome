@@ -17,25 +17,25 @@ void IntertechnoProtocol::encode(RemoteTransmitData *dst, const IntertechnoData 
 
   for (char c : data.code) {
     if (c == '0') {
-      encode_0(dst);
+      encode_0_(dst);
     } else if (c == '1') {
-      encode_1(dst);
+      encode_1_(dst);
     } else if (c == 'F') {
-      encode_F(dst);
+      encode_f_(dst);
     }
   }
 
   dst->item(TRAILER_HIGH_US, TRAILER_LOW_US);
 }
-void IntertechnoProtocol::encode_0(RemoteTransmitData *dst) {
+void IntertechnoProtocol::encode_0_(RemoteTransmitData *dst) {
   dst->item(BIT_SHORT_US, BIT_LONG_US);
   dst->item(BIT_SHORT_US, BIT_LONG_US);
 }
-void IntertechnoProtocol::encode_1(RemoteTransmitData *dst) {
+void IntertechnoProtocol::encode_1_(RemoteTransmitData *dst) {
   dst->item(BIT_LONG_US, BIT_SHORT_US);
   dst->item(BIT_LONG_US, BIT_SHORT_US);
 }
-void IntertechnoProtocol::encode_F(RemoteTransmitData *dst) {
+void IntertechnoProtocol::encode_f_(RemoteTransmitData *dst) {
   dst->item(BIT_SHORT_US, BIT_LONG_US);
   dst->item(BIT_LONG_US, BIT_SHORT_US);
 }
@@ -70,7 +70,7 @@ optional<IntertechnoData> IntertechnoProtocol::decode(RemoteReceiveData src) {
   return out;
 }
 void IntertechnoProtocol::dump(const IntertechnoData &data) {
-  ESP_LOGI(TAG, "Received Intertechno: code=%s", data.code);
+  ESP_LOGI(TAG, "Received Intertechno: code=%s", data.code.c_str());
 }
 
 }  // namespace remote_base
