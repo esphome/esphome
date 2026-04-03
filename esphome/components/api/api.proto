@@ -308,6 +308,9 @@ enum EntityCategory {
   ENTITY_CATEGORY_DIAGNOSTIC = 2;
 }
 
+// Entity name/object_id max_data_length = 120 matches NAME_MAX_LENGTH
+// in esphome/config_validation.py (validated at config time).
+
 // ==================== BINARY SENSOR ====================
 message ListEntitiesBinarySensorResponse {
   option (id) = 12;
