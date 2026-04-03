@@ -10,4 +10,5 @@ except ImportError:
     class _StrEnum(str, Enum):
         pass
 
+
 StrEnum = _StrEnum
