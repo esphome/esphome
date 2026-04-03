@@ -33,30 +33,30 @@ struct IT8951Pins {
   const char *name;
 };
 
-#define IT8951_TCON_SYS_RUN 0x0001
-#define IT8951_TCON_STANDBY 0x0002
-#define IT8951_TCON_SLEEP 0x0003
-#define IT8951_TCON_REG_RD 0x0010
-#define IT8951_TCON_REG_WR 0x0011
-#define IT8951_TCON_LD_IMG 0x0020
-#define IT8951_TCON_LD_IMG_AREA 0x0021
-#define IT8951_TCON_LD_IMG_END 0x0022
+static constexpr uint16_t IT8951_TCON_SYS_RUN = 0x0001;
+static constexpr uint16_t IT8951_TCON_STANDBY = 0x0002;
+static constexpr uint16_t IT8951_TCON_SLEEP = 0x0003;
+static constexpr uint16_t IT8951_TCON_REG_RD = 0x0010;
+static constexpr uint16_t IT8951_TCON_REG_WR = 0x0011;
+static constexpr uint16_t IT8951_TCON_LD_IMG = 0x0020;
+static constexpr uint16_t IT8951_TCON_LD_IMG_AREA = 0x0021;
+static constexpr uint16_t IT8951_TCON_LD_IMG_END = 0x0022;
 
-#define USDEF_I80_CMD_DPY_AREA 0x0034
-#define USDEF_I80_CMD_GET_DEV_INFO 0x0302
-#define USDEF_I80_CMD_VCOM 0x0039
-#define USDEF_I80_CMD_TEMP 0x0040
+static constexpr uint16_t USDEF_I80_CMD_DPY_AREA = 0x0034;
+static constexpr uint16_t USDEF_I80_CMD_GET_DEV_INFO = 0x0302;
+static constexpr uint16_t USDEF_I80_CMD_VCOM = 0x0039;
+static constexpr uint16_t USDEF_I80_CMD_TEMP = 0x0040;
 
-#define IT8951_4BPP 2
-#define IT8951_8BPP 3
+static constexpr uint16_t IT8951_4BPP = 2;
+static constexpr uint16_t IT8951_8BPP = 3;
 
-#define IT8951_LDIMG_L_ENDIAN 0
+static constexpr uint16_t IT8951_LDIMG_L_ENDIAN = 0;
 
-#define I80CPCR 0x0004
-#define LISAR 0x0208
-#define LUTAFSR 0x1224
-#define UP1SR 0x1138
-#define BGVR 0x1250
+static constexpr uint16_t I80CPCR = 0x0004;
+static constexpr uint16_t LISAR = 0x0208;
+static constexpr uint16_t LUTAFSR = 0x1224;
+static constexpr uint16_t UP1SR = 0x1138;
+static constexpr uint16_t BGVR = 0x1250;
 
 struct IT8951DevInfo {
   uint16_t panel_width;

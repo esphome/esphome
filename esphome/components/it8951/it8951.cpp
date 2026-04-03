@@ -335,7 +335,7 @@ void IT8951Display::setup() {
     bool send_sys_run;
     int vcom_selector;
   };
-  static const ProbeAttempt kProbeAttempts[] = {
+  static const ProbeAttempt PROBE_ATTEMPTS[] = {
       {"cold read", false, 0},
       {"wake then read", true, 0},
       {"wake + VCOM 0x0001", true, 0x0001},
@@ -343,12 +343,12 @@ void IT8951Display::setup() {
   };
 
   bool found_device = false;
-  for (size_t i = 0; i < sizeof(kProbeAttempts) / sizeof(kProbeAttempts[0]); i++) {
-    ESP_LOGD(TAG, "Probe attempt %u: %s", static_cast<unsigned>(i + 1), kProbeAttempts[i].label);
+  for (size_t i = 0; i < sizeof(PROBE_ATTEMPTS) / sizeof(PROBE_ATTEMPTS[0]); i++) {
+    ESP_LOGD(TAG, "Probe attempt %u: %s", static_cast<unsigned>(i + 1), PROBE_ATTEMPTS[i].label);
     this->power_cycle_();
     this->lcd_wait_for_ready_();
-    if (this->probe_controller_(kProbeAttempts[i].label, kProbeAttempts[i].send_sys_run,
-                                kProbeAttempts[i].vcom_selector)) {
+    if (this->probe_controller_(PROBE_ATTEMPTS[i].label, PROBE_ATTEMPTS[i].send_sys_run,
+                                PROBE_ATTEMPTS[i].vcom_selector)) {
       found_device = true;
       break;
     }
