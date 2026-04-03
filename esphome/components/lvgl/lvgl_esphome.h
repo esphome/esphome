@@ -205,7 +205,6 @@ class LvglComponent : public PollingComponent {
   void show_prev_page(lv_screen_load_anim_t anim, uint32_t time);
   void set_page_wrap(bool wrap) { this->page_wrap_ = wrap; }
   void set_big_endian(bool big_endian) { this->big_endian_ = big_endian; }
-
   size_t get_current_page() const;
   void set_focus_mark(lv_group_t *group) { this->focus_marks_[group] = lv_group_get_focused(group); }
   void restore_focus_mark(lv_group_t *group) {
@@ -249,7 +248,6 @@ class LvglComponent : public PollingComponent {
   bool show_snow_{};
   bool page_wrap_{true};
   bool big_endian_{};
-
   std::map<lv_group_t *, lv_obj_t *> focus_marks_{};
 
   CallbackManager<void(uint32_t)> idle_callbacks_{};
