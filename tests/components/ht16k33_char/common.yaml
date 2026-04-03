@@ -5,8 +5,8 @@ i2c:
 
 display:
   - platform: ht16k33_char
-    device: ADAFRUIT_7_SEG_.56IN
+    device: ADAFRUIT_14_SEG
     address: 0x70
     max_buffer_length: 12
     lambda: |-
-      it.print(0, true, "8254");
+      it.print(0, true, "ABCD");
