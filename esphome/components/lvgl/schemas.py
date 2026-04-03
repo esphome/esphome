@@ -2,7 +2,6 @@ from collections.abc import Callable
 
 from esphome import config_validation as cv
 from esphome.automation import Trigger, validate_automation
-from esphome.components.lvgl.defines import CONF_EXT_CLICK_AREA
 from esphome.components.time import RealTimeClock
 from esphome.config_validation import prepend_path
 from esphome.const import (
@@ -24,6 +23,7 @@ from esphome.core.config import StartupTrigger
 
 from . import defines as df, lv_validation as lvalid
 from .defines import (
+    CONF_EXT_CLICK_AREA,
     CONF_SCROLL_DIR,
     CONF_SCROLL_SNAP_X,
     CONF_SCROLL_SNAP_Y,
