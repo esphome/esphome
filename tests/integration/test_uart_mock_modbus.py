@@ -165,7 +165,8 @@ async def test_uart_mock_modbus_no_threshold(
 
 @pytest.mark.asyncio
 @pytest.mark.xfail(
-    reason="Modbus parser cannot handle server responses from other devices on the bus. Fix tracked in PR #11969."
+    reason="Modbus parser cannot handle server responses from other devices on the bus. Fix tracked in PR #11969.",
+    strict=True,
 )
 async def test_uart_mock_modbus_server(
     yaml_config: str,
@@ -308,7 +309,8 @@ async def test_uart_mock_modbus_server_controller_write(
 
 @pytest.mark.asyncio
 @pytest.mark.xfail(
-    reason="Modbus parser cannot handle server responses from other devices on the bus. Fix tracked in PR #11969."
+    reason="Modbus parser cannot handle server responses from other devices on the bus. Fix tracked in PR #11969.",
+    strict=True,
 )
 async def test_uart_mock_modbus_server_controller_multiple(
     yaml_config: str,
