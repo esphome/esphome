@@ -157,6 +157,11 @@ class TypeInfo(ABC):
         return get_field_opt(self._field, pb.force, False)
 
     @property
+    def max_value(self) -> int | None:
+        """Get the max_value option for this field, or None if not set."""
+        return get_field_opt(self._field, pb.max_value, None)
+
+    @property
     def wire_type(self) -> WireType:
         """Get the wire type for the field."""
         raise NotImplementedError
@@ -240,32 +245,55 @@ class TypeInfo(ABC):
 
         Returns the raw encode string if the tag is a single byte and the
         encode_func has a known raw equivalent, or None otherwise.
+        When max_value < 128, uses direct byte write instead of varint encoding.
         """
         if not self.force:
             return None
         tag = self.calculate_tag()
         if tag >= 128:
             return None
+        # When max_value < 128, varint is always 1 byte - use direct byte write
+        max_val = self.max_value
+        if (
+            max_val is not None
+            and max_val < 128
+            and self.encode_func
+            in (
+                "encode_uint32",
+                "encode_uint64",
+            )
+        ):
+            return (
+                f"buffer.write_raw_byte({tag});\n"
+                f"buffer.write_raw_byte(static_cast<uint8_t>({value_expr}));"
+            )
         raw_expr = self.RAW_ENCODE_MAP.get(self.encode_func)
         if raw_expr is None:
             return None
         return f"buffer.write_raw_byte({tag});\n{raw_expr.format(value=value_expr)}"
 
     def _encode_bytes_with_precomputed_tag(
-        self, data_expr: str, len_expr: str
+        self, data_expr: str, len_expr: str, max_len: int | None = None
     ) -> str | None:
         """Try to emit a precomputed-tag encode for a forced bytes/string field.
 
         Returns the raw encode string if the tag is a single byte, or None.
+        When max_len < 128, uses direct byte write for the length varint.
         """
         if not self.force:
             return None
         tag = self.calculate_tag()
         if tag >= 128:
             return None
+        # When max_len < 128, length varint is always 1 byte
+        len_encode = (
+            f"buffer.write_raw_byte(static_cast<uint8_t>({len_expr}));"
+            if max_len is not None and max_len < 128
+            else f"buffer.encode_varint_raw({len_expr});"
+        )
         return (
             f"buffer.write_raw_byte({tag});\n"
-            f"buffer.encode_varint_raw({len_expr});\n"
+            f"{len_encode}\n"
             f"buffer.encode_raw({data_expr}, {len_expr});"
         )
 
@@ -1191,8 +1219,9 @@ class FixedArrayBytesType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
+        max_len = self.array_size if isinstance(self.array_size, int) else None
         if result := self._encode_bytes_with_precomputed_tag(
-            f"this->{self.field_name}", f"this->{self.field_name}_len"
+            f"this->{self.field_name}", f"this->{self.field_name}_len", max_len=max_len
         ):
             return result
         if self.force:
@@ -1213,6 +1242,12 @@ class FixedArrayBytesType(TypeInfo):
         # Use the actual length stored in the _len field
         length_field = f"this->{self.field_name}_len"
         field_id_size = self.calculate_field_id_size()
+
+        # When array_size < 128, length varint is always 1 byte
+        if isinstance(self.array_size, int) and self.array_size < 128:
+            if force:
+                return f"size += {field_id_size + 1} + {length_field};"
+            return f"size += {length_field} ? {field_id_size + 1} + {length_field} : 0;"
 
         if force:
             # For repeated fields, always calculate size (no zero check)
@@ -1245,6 +1280,12 @@ class UInt32Type(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
+        max_val = self.max_value
+        if max_val is not None and max_val < 128:
+            field_id_size = self.calculate_field_id_size()
+            if force:
+                return f"size += {field_id_size + 1};"
+            return f"size += {name} ? {field_id_size + 1} : 0;"
         return self._get_simple_size_calculation(name, force, "uint32")
 
     def get_estimated_size(self) -> int:
