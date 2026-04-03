@@ -74,14 +74,16 @@ class IT8951Display : public display::DisplayBuffer {
 
   void setup() override;
   void update() override;
+  void fill(Color color) override;
+  void clear() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_GRAYSCALE; }
 
  protected:
-  int get_width_internal() override { return 1872; }
-  int get_height_internal() override { return 1404; }
+  int get_width_internal() override { return this->has_valid_dev_info_() ? this->dev_info_.panel_width : 1872; }
+  int get_height_internal() override { return this->has_valid_dev_info_() ? this->dev_info_.panel_height : 1404; }
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
 
   void configure_model_();

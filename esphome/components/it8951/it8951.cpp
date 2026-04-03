@@ -254,7 +254,7 @@ bool IT8951Display::framebuffer_is_binary_() {
 }
 
 uint8_t IT8951Display::get_pixel_nibble_(uint16_t x, uint16_t y) {
-  const uint32_t pos = (x + y * this->get_width()) / 2;
+  const uint32_t pos = (x + y * this->get_width_internal()) / 2;
   if ((x & 1U) == 0) {
     return this->framebuffer_[pos] >> 4;
   }
@@ -434,6 +434,22 @@ void IT8951Display::update() {
   }
 }
 
+void IT8951Display::fill(Color color) {
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    return;
+  }
+  if (this->framebuffer_ == nullptr) {
+    return;
+  }
+
+  const uint8_t packed = color.is_on() ? 0x00 : 0xFF;
+  const uint32_t buffer_size = (uint32_t(this->get_width_internal()) * this->get_height_internal()) / 2;
+  memset(this->framebuffer_, packed, buffer_size);
+}
+
+void IT8951Display::clear() { this->fill(display::COLOR_OFF); }
+
 void IT8951Display::dump_config() {
   LOG_DISPLAY("", "IT8951", this);
   ESP_LOGCONFIG(TAG, "  Model: %s", this->pins_.name != nullptr ? this->pins_.name : "unknown");
@@ -453,14 +469,16 @@ void IT8951Display::dump_config() {
 }
 
 void IT8951Display::draw_absolute_pixel_internal(int x, int y, Color color) {
-  if (x < 0 || x >= this->get_width() || y < 0 || y >= this->get_height()) {
+  const int width = this->get_width_internal();
+  const int height = this->get_height_internal();
+  if (x < 0 || x >= width || y < 0 || y >= height) {
     return;
   }
   if (this->framebuffer_ == nullptr) {
     return;
   }
 
-  const uint32_t pos = (x + y * this->get_width()) / 2;
+  const uint32_t pos = (x + y * width) / 2;
   const uint8_t pixel_val = color.is_on() ? 0x00 : 0x0F;
 
   if ((x % 2) == 0) {
