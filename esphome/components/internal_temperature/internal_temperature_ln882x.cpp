@@ -6,8 +6,7 @@ extern "C" {
 uint16_t hal_adc_get_data(uint32_t adc_base, uint32_t ch);
 }
 
-namespace esphome {
-namespace internal_temperature {
+namespace esphome::internal_temperature {
 
 void InternalTemperatureSensor::update() {
   // Read from internal temperature sensor via ADC channel 0.
@@ -19,7 +18,6 @@ void InternalTemperatureSensor::update() {
   this->publish_state(temperature);
 }
 
-}  // namespace internal_temperature
-}  // namespace esphome
+}  // namespace esphome::internal_temperature
 
 #endif  // USE_LN882X
