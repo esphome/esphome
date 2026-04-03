@@ -279,9 +279,10 @@ def _final_validate(config):
 
     from esphome.components.lvgl import DOMAIN as LVGL_DOMAIN
 
-    spi.final_validate_device_schema(DOMAIN, require_miso=False, require_mosi=True)(
-        config
-    )
+    if config[CONF_BUS_MODE] == TYPE_SINGLE:
+        spi.final_validate_device_schema(DOMAIN, require_miso=False, require_mosi=True)(
+            config
+        )
     if not requires_buffer(config) and LVGL_DOMAIN not in global_config:
         # If no drawing methods are configured, and LVGL is not enabled, show a test card
         config[CONF_SHOW_TEST_CARD] = True
