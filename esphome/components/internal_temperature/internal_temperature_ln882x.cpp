@@ -1,6 +1,5 @@
 #ifdef USE_LN882X
 
-#include "esphome/core/log.h"
 #include "internal_temperature.h"
 
 extern "C" {
