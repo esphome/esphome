@@ -201,6 +201,7 @@ size_t I2SAudioSpeakerBase::play(const uint8_t *data, size_t length, TickType_t 
   if (this->state_ == speaker::STATE_RUNNING) {
     std::shared_ptr<RingBuffer> temp_ring_buffer = this->audio_ring_buffer_.lock();
     if (temp_ring_buffer != nullptr) {
+      // The weak_ptr locks successfully only while the speaker task owns the ring buffer, so it is safe to write
       bytes_written = temp_ring_buffer->write_without_replacement((void *) data, length, ticks_to_wait);
     }
   }
@@ -253,7 +254,7 @@ esp_err_t I2SAudioSpeakerBase::init_i2s_channel_(const i2s_chan_config_t &chan_c
                                                  size_t event_queue_size) {
   esp_err_t err = i2s_new_channel(&chan_cfg, &this->tx_handle_, NULL);
   if (err != ESP_OK) {
-    ESP_LOGE(TAG, "Failed to allocate new I2S channel: %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "I2S channel allocation failed: %s", esp_err_to_name(err));
     this->parent_->unlock();
     return err;
   }

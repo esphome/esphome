@@ -14,14 +14,26 @@
 
 namespace esphome::i2s_audio {
 
-static const char *const TAG = "i2s_audio.speaker";
+static const char *const TAG = "i2s_audio.speaker.std";
 
 static constexpr size_t DMA_BUFFERS_COUNT = 4;
 static constexpr size_t I2S_EVENT_QUEUE_COUNT = DMA_BUFFERS_COUNT + 1;
 
 void I2SAudioSpeaker::dump_config() {
   I2SAudioSpeakerBase::dump_config();
-  ESP_LOGCONFIG(TAG, "  Communication format: %s", this->i2s_comm_fmt_.c_str());
+  const char *fmt_str;
+  switch (this->i2s_comm_fmt_) {
+    case I2SCommFmt::PCM:
+      fmt_str = "pcm";
+      break;
+    case I2SCommFmt::MSB:
+      fmt_str = "msb";
+      break;
+    default:
+      fmt_str = "std";
+      break;
+  }
+  ESP_LOGCONFIG(TAG, "  Communication format: %s", fmt_str);
 }
 
 void I2SAudioSpeaker::run_speaker_task() {
@@ -240,15 +252,19 @@ esp_err_t I2SAudioSpeaker::start_i2s_driver(audio::AudioStreamInfo &audio_stream
   }
 
   i2s_std_slot_config_t slot_cfg;
-  if (this->i2s_comm_fmt_ == "std") {
-    slot_cfg =
-        I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) audio_stream_info.get_bits_per_sample(), slot_mode);
-  } else if (this->i2s_comm_fmt_ == "pcm") {
-    slot_cfg =
-        I2S_STD_PCM_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) audio_stream_info.get_bits_per_sample(), slot_mode);
-  } else {
-    slot_cfg =
-        I2S_STD_MSB_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) audio_stream_info.get_bits_per_sample(), slot_mode);
+  switch (this->i2s_comm_fmt_) {
+    case I2SCommFmt::PCM:
+      slot_cfg =
+          I2S_STD_PCM_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) audio_stream_info.get_bits_per_sample(), slot_mode);
+      break;
+    case I2SCommFmt::MSB:
+      slot_cfg =
+          I2S_STD_MSB_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) audio_stream_info.get_bits_per_sample(), slot_mode);
+      break;
+    default:
+      slot_cfg = I2S_STD_PHILIPS_SLOT_DEFAULT_CONFIG((i2s_data_bit_width_t) audio_stream_info.get_bits_per_sample(),
+                                                     slot_mode);
+      break;
   }
 
 #ifdef USE_ESP32_VARIANT_ESP32
