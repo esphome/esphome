@@ -235,19 +235,19 @@ async function detectDeprecatedComponents(github, context, changedFiles) {
     }
   }
 
-  // Get PR head to fetch files from the PR branch
-  const prNumber = context.payload.pull_request.number;
+  // Get base branch ref to check if deprecation existed before this PR
+  const baseRef = context.payload.pull_request.base.sha;
 
   // Check each component's __init__.py for DEPRECATED_COMPONENT constant
   for (const component of components) {
     const initFile = `esphome/components/${component}/__init__.py`;
     try {
-      // Fetch file content from PR head using GitHub API
+      // Fetch file content from base branch using GitHub API
       const { data: fileData } = await github.rest.repos.getContent({
         owner,
         repo,
         path: initFile,
-        ref: `refs/pull/${prNumber}/head`
+        ref: baseRef
       });
 
       // Decode base64 content
