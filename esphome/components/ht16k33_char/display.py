@@ -1,7 +1,13 @@
 import esphome.codegen as cg
 from esphome.components import display, i2c
 import esphome.config_validation as cv
-from esphome.const import CONF_BRIGHTNESS, CONF_DEVICE, CONF_ID, CONF_LAMBDA
+from esphome.const import (
+    CONF_BRIGHTNESS,
+    CONF_CONTINUOUS,
+    CONF_DEVICE,
+    CONF_ID,
+    CONF_LAMBDA,
+)
 
 DEPENDENCIES = ["i2c"]
 
@@ -32,6 +38,52 @@ HT16k33Char_BaseClassType = ht16k33_char_ns.class_(
 #   these functions are used to flip the bits around in the provided character code to match the wiring of that device.
 def format_none(input_code):
     return input_code
+
+
+def format_7seg_flip(input_code):
+    return (
+        ((input_code & 0x0007) << 3)
+        | ((input_code & 0x0038) >> 3)
+        | (input_code & 0x0040)
+    )
+
+
+def format_14seg_flip(input_code):
+    return (
+        ((input_code & 0x0007) << 3)
+        | ((input_code & 0x0038) >> 3)
+        | ((input_code & 0x0040) << 1)
+        | ((input_code & 0x0080) >> 1)
+        | ((input_code & 0x0100) << 5)
+        | ((input_code & 0x0200) << 3)
+        | ((input_code & 0x0400) << 1)
+        | ((input_code & 0x0800) >> 1)
+        | ((input_code & 0x1000) >> 3)
+        | ((input_code & 0x2000) >> 5)
+    )
+
+
+def format_14seg_sparkfun(input_code):
+    tempval = ((input_code & 0xFF80) << 1) | (input_code & 0x7F)
+    if ((tempval & 0x1000) != 0x0000) and ((tempval & 0x4000) == 0x0000):
+        # Segment L is lit, need to switch to segment N
+        tempval = (tempval | 0x4000) & ~(0x1000)
+    elif ((tempval & 0x4000) != 0x0000) and ((tempval & 0x1000) == 0x0000):
+        # Segment N is lit, need to switch to segment L
+        tempval = (tempval | 0x1000) & ~(0x4000)
+    return tempval
+
+
+def format_14seg_sparkfun_flip(input_code):
+    tempval = format_14seg_sparkfun(input_code)
+    return (
+        ((tempval & 0x0007) << 3)
+        | ((tempval & 0x0038) >> 3)
+        | ((tempval & 0x0E00) << 3)
+        | ((tempval & 0x7000) >> 3)
+        | ((tempval & 0x0040) << 2)
+        | ((tempval & 0x0100) >> 2)
+    )
 
 
 def validate_added_chars(value_to_validate):
@@ -82,10 +134,38 @@ def validate_removed_chars(value_to_validate):
 #                        a digit code from the standard format to whatever
 #                        format the device expects.
 HT16K33_DEVICE_TYPES = {
+    "ADAFRUIT_7_SEG_1.2IN": {
+        "CLASS_NAME": "Adafruit7SegLarge",
+        "FORMAT_FUNCTION": format_none,
+    },
+    "ADAFRUIT_7_SEG_1.2IN_FLIPPED": {
+        "CLASS_NAME": "Adafruit7SegLargeFlip",
+        "FORMAT_FUNCTION": format_7seg_flip,
+    },
     "ADAFRUIT_7_SEG_.56IN": {
         "CLASS_NAME": "Adafruit7Seg",
         "FORMAT_FUNCTION": format_none,
-    }
+    },
+    "ADAFRUIT_7_SEG_.56IN_FLIPPED": {
+        "CLASS_NAME": "Adafruit7SegFlip",
+        "FORMAT_FUNCTION": format_7seg_flip,
+    },
+    "ADAFRUIT_14_SEG": {
+        "CLASS_NAME": "Adafruit14Seg",
+        "FORMAT_FUNCTION": format_none,
+    },
+    "ADAFRUIT_14_SEG_FLIPPED": {
+        "CLASS_NAME": "Adafruit14SegFlip",
+        "FORMAT_FUNCTION": format_14seg_flip,
+    },
+    "SPARKFUN_14_SEG": {
+        "CLASS_NAME": "Sparkfun14Seg",
+        "FORMAT_FUNCTION": format_14seg_sparkfun,
+    },
+    "SPARKFUN_14_SEG_FLIPPED": {
+        "CLASS_NAME": "Sparkfun14SegFlip",
+        "FORMAT_FUNCTION": format_14seg_sparkfun_flip,
+    },
 }
 
 HT16k33Char_BaseClassTypeRef = HT16k33Char_BaseClassType.operator("ref")
