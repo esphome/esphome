@@ -374,6 +374,28 @@ class TypeInfo(ABC):
         value = value_expr or name
         return f"size += ProtoSize::{method}({field_id_size}, {value});"
 
+    def _get_single_byte_varint_size(
+        self, name: str, force: bool, extra_expr: str | None = None
+    ) -> str:
+        """Size calculation when the varint is guaranteed to be 1 byte.
+
+        Used when max_value < 128 or fixed_array_size < 128.
+        The fixed part is field_id_size + 1 (tag + 1-byte varint).
+
+        Args:
+            name: Expression to check for zero (non-force only)
+            force: Whether to skip the zero check
+            extra_expr: Additional variable expression to add (e.g., data length)
+        """
+        fixed = self.calculate_field_id_size() + 1
+        if extra_expr:
+            if force:
+                return f"size += {fixed} + {extra_expr};"
+            return f"size += {name} ? {fixed} + {extra_expr} : 0;"
+        if force:
+            return f"size += {fixed};"
+        return f"size += {name} ? {fixed} : 0;"
+
     @abstractmethod
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         """Calculate the size needed for encoding this field.
@@ -1241,14 +1263,14 @@ class FixedArrayBytesType(TypeInfo):
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         # Use the actual length stored in the _len field
         length_field = f"this->{self.field_name}_len"
-        field_id_size = self.calculate_field_id_size()
 
         # When array_size < 128, length varint is always 1 byte
         if isinstance(self.array_size, int) and self.array_size < 128:
-            if force:
-                return f"size += {field_id_size + 1} + {length_field};"
-            return f"size += {length_field} ? {field_id_size + 1} + {length_field} : 0;"
+            return self._get_single_byte_varint_size(
+                length_field, force, extra_expr=length_field
+            )
 
+        field_id_size = self.calculate_field_id_size()
         if force:
             # For repeated fields, always calculate size (no zero check)
             return f"size += ProtoSize::calc_length_force({field_id_size}, {length_field});"
@@ -1282,10 +1304,7 @@ class UInt32Type(TypeInfo):
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         max_val = self.max_value
         if max_val is not None and max_val < 128:
-            field_id_size = self.calculate_field_id_size()
-            if force:
-                return f"size += {field_id_size + 1};"
-            return f"size += {name} ? {field_id_size + 1} : 0;"
+            return self._get_single_byte_varint_size(name, force)
         return self._get_simple_size_calculation(name, force, "uint32")
 
     def get_estimated_size(self) -> int:
