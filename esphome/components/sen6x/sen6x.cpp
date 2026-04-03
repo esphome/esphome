@@ -217,15 +217,17 @@ void SEN6XComponent::schedule_post_setup_commands_() {
   if (supports_co2) {
     steps.emplace_back([this]() {
       uint16_t ambient_pressure = 0;
-      if (this->get_register(SEN6X_CMD_AMBIENT_PRESSURE, ambient_pressure, 20))
+      if (this->get_register(SEN6X_CMD_AMBIENT_PRESSURE, ambient_pressure, 20)) {
         if (ambient_pressure != 0xFFFF)
           this->ambient_pressure_read_ = ambient_pressure;
+      }
     });
     steps.emplace_back([this]() {
       uint16_t sensor_altitude = 0;
-      if (this->get_register(SEN6X_CMD_SENSOR_ALTITUDE, sensor_altitude, 20))
+      if (this->get_register(SEN6X_CMD_SENSOR_ALTITUDE, sensor_altitude, 20)) {
         if (sensor_altitude != 0xFFFF)
           this->sensor_altitude_read_ = sensor_altitude;
+      }
     });
     steps.emplace_back([this]() {
       uint16_t asc_raw = 0;
