@@ -289,7 +289,7 @@ def _final_validate(config):
             return config  # No buffer needed, so no need to set a buffer size
         color_depth = get_color_depth(config)
         frac = denominator(config)
-        width, height _offset_width, _offset_height = model.get_dimensions(config)
+        width, height, _offset_width, _offset_height = model.get_dimensions(config)
 
         buffer_size = color_depth // 8 * width * height // frac
         # Target a buffer size of 20kB, except for large displays, which shouldn't end up here
