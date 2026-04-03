@@ -4,7 +4,13 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import ID
 
-from .defines import CONF_DARK_MODE, CONF_STYLE_DEFINITIONS, CONF_THEME, LValidator, literal
+from .defines import (
+    CONF_DARK_MODE,
+    CONF_STYLE_DEFINITIONS,
+    CONF_THEME,
+    LValidator,
+    literal,
+)
 from .helpers import add_lv_use
 from .lvcode import LambdaContext, lv
 from .schemas import ALL_STYLES, FULL_STYLE_SCHEMA, remap_property
