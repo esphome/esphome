@@ -7,7 +7,7 @@ namespace esphome::benchmarks {
 // Inner iteration count to amortize CodSpeed instrumentation overhead.
 static constexpr int kInnerIterations = 2000;
 
-// Minimal Number for benchmarking — control() is a no-op.
+// Minimal Number for benchmarking — control() publishes the value back.
 class BenchNumber : public number::Number {
  public:
   void configure(const char *name) { this->configure_entity_(name, 0x12345678, 0); }
