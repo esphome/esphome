@@ -234,7 +234,7 @@ uint32_t ListEntitiesBinarySensorResponse::calculate_size() const {
   size += ProtoSize::calc_bool(1, this->is_status_binary_sensor);
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += this->icon.size() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
 #ifdef USE_DEVICES
@@ -295,7 +295,7 @@ uint32_t ListEntitiesCoverResponse::calculate_size() const {
   size += ProtoSize::calc_length(1, this->device_class.size());
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += this->icon.size() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
   size += ProtoSize::calc_bool(1, this->supports_stop);
@@ -398,7 +398,7 @@ uint32_t ListEntitiesFanResponse::calculate_size() const {
   size += ProtoSize::calc_int32(1, this->supported_speed_count);
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += this->icon.size() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
   if (!this->supported_preset_modes->empty()) {
@@ -541,7 +541,7 @@ uint32_t ListEntitiesLightResponse::calculate_size() const {
   }
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += this->icon.size() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
 #ifdef USE_DEVICES
@@ -725,7 +725,7 @@ uint32_t ListEntitiesSensorResponse::calculate_size() const {
   size += 5;
   size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += this->icon.size() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_length(1, this->unit_of_measurement.size());
   size += ProtoSize::calc_int32(1, this->accuracy_decimals);
@@ -784,7 +784,7 @@ uint32_t ListEntitiesSwitchResponse::calculate_size() const {
   size += 5;
   size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += this->icon.size() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->assumed_state);
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
@@ -862,7 +862,7 @@ uint32_t ListEntitiesTextSensorResponse::calculate_size() const {
   size += 5;
   size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += this->icon.size() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
@@ -1319,7 +1319,7 @@ uint32_t ListEntitiesCameraResponse::calculate_size() const {
   size += 2 + this->name.size();
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += this->icon.size() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
 #ifdef USE_DEVICES
@@ -1450,7 +1450,7 @@ uint32_t ListEntitiesClimateResponse::calculate_size() const {
   }
   size += ProtoSize::calc_bool(2, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(2, this->icon.size());
+  size += this->icon.size() ? 3 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_uint32(2, static_cast<uint32_t>(this->entity_category));
   size += ProtoSize::calc_float(2, this->visual_current_temperature_step);
@@ -1627,7 +1627,7 @@ uint32_t ListEntitiesWaterHeaterResponse::calculate_size() const {
   size += 5;
   size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += this->icon.size() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
@@ -1742,7 +1742,7 @@ uint32_t ListEntitiesNumberResponse::calculate_size() const {
   size += 5;
   size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += this->icon.size() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_float(1, this->min_value);
   size += ProtoSize::calc_float(1, this->max_value);
@@ -1828,7 +1828,7 @@ uint32_t ListEntitiesSelectResponse::calculate_size() const {
   size += 5;
   size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += this->icon.size() ? 2 + this->icon.size() : 0;
 #endif
   if (!this->options->empty()) {
     for (const char *it : *this->options) {
@@ -1923,7 +1923,7 @@ uint32_t ListEntitiesSirenResponse::calculate_size() const {
   size += 5;
   size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += this->icon.size() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   if (!this->tones->empty()) {
@@ -2038,7 +2038,7 @@ uint32_t ListEntitiesLockResponse::calculate_size() const {
   size += 5;
   size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += this->icon.size() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
@@ -2132,7 +2132,7 @@ uint32_t ListEntitiesButtonResponse::calculate_size() const {
   size += 5;
   size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += this->icon.size() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
@@ -2210,7 +2210,7 @@ uint32_t ListEntitiesMediaPlayerResponse::calculate_size() const {
   size += 5;
   size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += this->icon.size() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
@@ -3034,7 +3034,7 @@ uint32_t ListEntitiesAlarmControlPanelResponse::calculate_size() const {
   size += 5;
   size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += this->icon.size() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
@@ -3127,7 +3127,7 @@ uint32_t ListEntitiesTextResponse::calculate_size() const {
   size += 5;
   size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += this->icon.size() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
@@ -3216,7 +3216,7 @@ uint32_t ListEntitiesDateResponse::calculate_size() const {
   size += 5;
   size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += this->icon.size() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
@@ -3303,7 +3303,7 @@ uint32_t ListEntitiesTimeResponse::calculate_size() const {
   size += 5;
   size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += this->icon.size() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
@@ -3394,7 +3394,7 @@ uint32_t ListEntitiesEventResponse::calculate_size() const {
   size += 5;
   size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += this->icon.size() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
@@ -3454,7 +3454,7 @@ uint32_t ListEntitiesValveResponse::calculate_size() const {
   size += 5;
   size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += this->icon.size() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
@@ -3541,7 +3541,7 @@ uint32_t ListEntitiesDateTimeResponse::calculate_size() const {
   size += 5;
   size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += this->icon.size() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
@@ -3619,7 +3619,7 @@ uint32_t ListEntitiesUpdateResponse::calculate_size() const {
   size += 5;
   size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += this->icon.size() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
@@ -3765,7 +3765,7 @@ uint32_t ListEntitiesInfraredResponse::calculate_size() const {
   size += 5;
   size += 2 + this->name.size();
 #ifdef USE_ENTITY_ICON
-  size += ProtoSize::calc_length(1, this->icon.size());
+  size += this->icon.size() ? 2 + this->icon.size() : 0;
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
