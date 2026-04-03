@@ -13,6 +13,7 @@ test_uart_mock_modbus_no_threshold :
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -106,11 +107,15 @@ async def test_uart_mock_modbus(
         await tracker.setup_and_start_scenario(client)
 
         await tracker.await_change(delayed_response_changed, "delayed_response")
-        await tracker.await_must_not_change(late_response_changed, "late_response")
-        await tracker.await_must_not_change(no_response_changed, "no_response")
         await tracker.await_change(basic_register_changed, "basic_register")
-        await tracker.await_must_not_change(
-            exception_response_changed, "exception_response"
+        # Run all "must not change" checks concurrently — each waits the full
+        # timeout, so sequential execution would multiply the wall time.
+        await asyncio.gather(
+            tracker.await_must_not_change(late_response_changed, "late_response"),
+            tracker.await_must_not_change(no_response_changed, "no_response"),
+            tracker.await_must_not_change(
+                exception_response_changed, "exception_response"
+            ),
         )
 
 
