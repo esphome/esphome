@@ -162,6 +162,11 @@ class TypeInfo(ABC):
         return get_field_opt(self._field, pb.max_value, None)
 
     @property
+    def max_data_length(self) -> int | None:
+        """Get the max_data_length option for this field, or None if not set."""
+        return get_field_opt(self._field, pb.max_data_length, None)
+
+    @property
     def wire_type(self) -> WireType:
         """Get the wire type for the field."""
         raise NotImplementedError
@@ -1064,7 +1069,9 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
     @property
     def encode_content(self) -> str:
         if result := self._encode_bytes_with_precomputed_tag(
-            f"this->{self.field_name}.c_str()", f"this->{self.field_name}.size()"
+            f"this->{self.field_name}.c_str()",
+            f"this->{self.field_name}.size()",
+            max_len=self.max_data_length,
         ):
             return result
         if self.force:
@@ -1089,7 +1096,13 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
         return f'dump_field(out, ESPHOME_PSTR("{self.name}"), this->{self.field_name});'
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return f"size += ProtoSize::calc_length({self.calculate_field_id_size()}, this->{self.field_name}.size());"
+        size_field = f"this->{self.field_name}.size()"
+        max_len = self.max_data_length
+        if max_len is not None and max_len < 128:
+            return self._get_single_byte_varint_size(
+                size_field, force, extra_expr=size_field
+            )
+        return self._get_simple_size_calculation(size_field, force, "length")
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical string
