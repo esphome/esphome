@@ -1392,7 +1392,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 #ifdef USE_NEXTION_MAX_QUEUE_SIZE
   /// Compile-time fixed-size ring buffer — zero dynamic allocation.
   StaticRingBuffer<NextionQueue *, NEXTION_MAX_QUEUE_SIZE> nextion_queue_;
-#else  // USE_NEXTION_MAX_QUEUE_SIZE
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
   /// Unlimited dynamic queue — allocates per node via std::list.
   std::list<NextionQueue *> nextion_queue_;
 #endif  // USE_NEXTION_MAX_QUEUE_SIZE

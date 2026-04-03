@@ -204,7 +204,7 @@ void Nextion::dump_config() {
 
 #ifdef USE_NEXTION_MAX_QUEUE_SIZE
   ESP_LOGCONFIG(TAG, "  Max queue size: %u", NEXTION_MAX_QUEUE_SIZE);
-#else  // USE_NEXTION_MAX_QUEUE_SIZE
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
   ESP_LOGCONFIG(TAG, "  Queue: unlimited");
 #endif  // USE_NEXTION_MAX_QUEUE_SIZE
 #ifdef USE_NEXTION_TFT_UPLOAD
@@ -384,7 +384,7 @@ bool Nextion::remove_from_q_(bool report_empty) {
     ESP_LOGE(TAG, "Invalid queue");
 #ifdef USE_NEXTION_MAX_QUEUE_SIZE
     this->nextion_queue_.pop();
-#else  // USE_NEXTION_MAX_QUEUE_SIZE
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
     this->nextion_queue_.pop_front();
 #endif  // USE_NEXTION_MAX_QUEUE_SIZE
     return false;
@@ -402,7 +402,7 @@ bool Nextion::remove_from_q_(bool report_empty) {
   delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
 #ifdef USE_NEXTION_MAX_QUEUE_SIZE
   this->nextion_queue_.pop();
-#else  // USE_NEXTION_MAX_QUEUE_SIZE
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
   this->nextion_queue_.pop_front();
 #endif  // USE_NEXTION_MAX_QUEUE_SIZE
   return true;
@@ -621,7 +621,7 @@ void Nextion::process_nextion_commands_() {
           ESP_LOGE(TAG, "Invalid queue entry");
 #ifdef USE_NEXTION_MAX_QUEUE_SIZE
           this->nextion_queue_.pop();
-#else  // USE_NEXTION_MAX_QUEUE_SIZE
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
           this->nextion_queue_.pop_front();
 #endif  // USE_NEXTION_MAX_QUEUE_SIZE
           return;
@@ -638,7 +638,7 @@ void Nextion::process_nextion_commands_() {
         delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
 #ifdef USE_NEXTION_MAX_QUEUE_SIZE
         this->nextion_queue_.pop();
-#else  // USE_NEXTION_MAX_QUEUE_SIZE
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
         this->nextion_queue_.pop_front();
 #endif  // USE_NEXTION_MAX_QUEUE_SIZE
         break;
@@ -667,7 +667,7 @@ void Nextion::process_nextion_commands_() {
           ESP_LOGE(TAG, "Invalid queue");
 #ifdef USE_NEXTION_MAX_QUEUE_SIZE
           this->nextion_queue_.pop();
-#else  // USE_NEXTION_MAX_QUEUE_SIZE
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
           this->nextion_queue_.pop_front();
 #endif  // USE_NEXTION_MAX_QUEUE_SIZE
           return;
@@ -688,7 +688,7 @@ void Nextion::process_nextion_commands_() {
         delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
 #ifdef USE_NEXTION_MAX_QUEUE_SIZE
         this->nextion_queue_.pop();
-#else  // USE_NEXTION_MAX_QUEUE_SIZE
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
         this->nextion_queue_.pop_front();
 #endif  // USE_NEXTION_MAX_QUEUE_SIZE
         break;
@@ -879,8 +879,7 @@ void Nextion::process_nextion_commands_() {
       ms - this->nextion_queue_.front()->queue_time > this->max_q_age_ms_) {
 #ifdef USE_NEXTION_MAX_QUEUE_SIZE
     // StaticRingBuffer path: FIFO order means oldest is always at front — pop directly.
-    while (!this->nextion_queue_.empty() &&
-           ms - this->nextion_queue_.front()->queue_time > this->max_q_age_ms_) {
+    while (!this->nextion_queue_.empty() && ms - this->nextion_queue_.front()->queue_time > this->max_q_age_ms_) {
       NextionQueue *nb = this->nextion_queue_.front();
       NextionComponentBase *component = nb->component;
       ESP_LOGV(TAG, "Remove old queue '%s':'%s'", component->get_queue_type_string(),
@@ -894,7 +893,7 @@ void Nextion::process_nextion_commands_() {
       delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
       this->nextion_queue_.pop();
     }
-#else  // USE_NEXTION_MAX_QUEUE_SIZE
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
     for (auto it = this->nextion_queue_.begin(); it != this->nextion_queue_.end();) {
       if (ms - (*it)->queue_time > this->max_q_age_ms_) {
         NextionComponentBase *component = (*it)->component;
@@ -1096,7 +1095,7 @@ void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
     delete nextion_queue;             // NOLINT(cppcoreguidelines-owning-memory)
     return;
   }
-#else  // USE_NEXTION_MAX_QUEUE_SIZE
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
   this->nextion_queue_.push_back(nextion_queue);
 #endif  // USE_NEXTION_MAX_QUEUE_SIZE
 
@@ -1146,7 +1145,7 @@ void Nextion::add_no_result_to_queue_with_pending_command_(const std::string &va
     delete nextion_queue;             // NOLINT(cppcoreguidelines-owning-memory)
     return;
   }
-#else  // USE_NEXTION_MAX_QUEUE_SIZE
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
   this->nextion_queue_.push_back(nextion_queue);
 #endif  // USE_NEXTION_MAX_QUEUE_SIZE
 
@@ -1289,7 +1288,7 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
       ESP_LOGW(TAG, "Queue full, drop GET: %s", component->get_variable_name().c_str());
       delete nextion_queue;  // NOLINT(cppcoreguidelines-owning-memory)
     }
-#else  // USE_NEXTION_MAX_QUEUE_SIZE
+#else   // USE_NEXTION_MAX_QUEUE_SIZE
     this->nextion_queue_.push_back(nextion_queue);
 #endif  // USE_NEXTION_MAX_QUEUE_SIZE
   }
