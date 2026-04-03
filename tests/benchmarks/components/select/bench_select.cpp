@@ -16,11 +16,6 @@ class BenchSelect : public select::Select {
   void control(size_t index) override { this->publish_state(index); }
 };
 
-// Option lists matching real Apollo R-PRO-1 usage patterns.
-static constexpr const char *kSmallOptions[] = {"off", "on", "auto"};
-static constexpr const char *kLargeOptions[] = {"off",     "still",   "move",    "still+move", "custom1",
-                                                "custom2", "custom3", "custom4", "custom5",    "custom6"};
-
 // Helper to create a select with the given options.
 static void setup_select(BenchSelect &select, const char *name, std::initializer_list<const char *> options) {
   select.configure(name);
