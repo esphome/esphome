@@ -1,4 +1,5 @@
 #include <array>
+#include <numeric>
 #include "mitsubishi_cn105.h"
 
 namespace esphome::mitsubishi_cn105 {
@@ -17,11 +18,7 @@ static constexpr uint8_t PACKET_TYPE_CONNECT_RESPONSE = 0x7A;
 static constexpr std::array<uint8_t, 2> CONNECT_REQUEST_PAYLOAD = {{0xCA, 0x01}};
 
 static constexpr uint8_t checksum(const uint8_t *bytes, size_t length) {
-  uint8_t sum = 0;
-  for (size_t i = 0; i < length; i++) {
-    sum += bytes[i];
-  }
-  return 0xFC - sum;
+  return static_cast<uint8_t>(0xFC - std::accumulate(bytes, bytes + length, uint8_t{0}));
 }
 
 template<std::size_t PayloadSize>
@@ -41,7 +38,7 @@ static constexpr auto make_packet(uint8_t type, const std::array<uint8_t, Payloa
 void MitsubishiCN105::initialize() { this->set_state_(State::CONNECTING); }
 
 void MitsubishiCN105::update() {
-  if (const auto start = this->write_timeout_start_ms_; start && (this->now_fn_() - *start) >= WRITE_TIMEOUT_MS) {
+  if (const auto start = this->write_timeout_start_ms_; start && (get_loop_time_ms() - *start) >= WRITE_TIMEOUT_MS) {
     this->write_timeout_start_ms_.reset();
     this->read_pos_ = 0;
     this->set_state_(State::READ_TIMEOUT);
@@ -80,11 +77,12 @@ bool MitsubishiCN105::should_transition(State from, State to) {
 void MitsubishiCN105::did_transition_(State to) {
   switch (to) {
     case State::CONNECTING:
-      this->send_packet_(make_packet(PACKET_TYPE_CONNECT_REQUEST, CONNECT_REQUEST_PAYLOAD));
+      static constexpr auto CONNECT_PACKET = make_packet(PACKET_TYPE_CONNECT_REQUEST, CONNECT_REQUEST_PAYLOAD);
+      this->send_packet_(CONNECT_PACKET);
       break;
 
     case State::CONNECTED:
-      this->response_received_();
+      this->write_timeout_start_ms_.reset();
       // TODO: read AC status after connected, next PR
       break;
 
@@ -100,7 +98,7 @@ void MitsubishiCN105::did_transition_(State to) {
 void MitsubishiCN105::send_packet_(const uint8_t *packet, size_t len) {
   dump_buffer_vv("TX", packet, len);
   this->device_.write_array(packet, len);
-  this->write_timeout_start_ms_ = this->now_fn_();
+  this->write_timeout_start_ms_ = get_loop_time_ms();
 }
 
 void MitsubishiCN105::read_incoming_bytes_() {
@@ -177,8 +175,6 @@ void MitsubishiCN105::reset_read_position_and_dump_buffer_(const char *prefix) {
   dump_buffer_vv(prefix, this->read_buffer_, this->read_pos_);
   this->read_pos_ = 0;
 }
-
-void MitsubishiCN105::response_received_() { this->write_timeout_start_ms_.reset(); }
 
 void MitsubishiCN105::dump_buffer_vv(const char *prefix, const uint8_t *data, size_t len) {
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE

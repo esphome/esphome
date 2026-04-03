@@ -45,14 +45,9 @@ class TestableMitsubishiCN105 : public MitsubishiCN105 {
   using MitsubishiCN105::state_;
   using MitsubishiCN105::write_timeout_start_ms_;
 
-  void set_current_time(uint32_t ms) {
-    this->now_fn_ = &TestableMitsubishiCN105::test_now_fn;
-    test_now_ms_ = ms;
-  }
+  static inline uint32_t test_loop_time_ms = 0;
 
- private:
-  static inline uint32_t test_now_ms_ = 0;
-  static uint32_t test_now_fn() { return test_now_ms_; }
+  void set_current_time(uint32_t ms) { test_loop_time_ms = ms; }
 };
 
 }  // namespace esphome::mitsubishi_cn105::testing

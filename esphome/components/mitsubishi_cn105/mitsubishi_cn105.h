@@ -1,10 +1,11 @@
 #pragma once
 
 #include <optional>
-#include "esphome/core/application.h"
 #include "esphome/components/uart/uart.h"
 
 namespace esphome::mitsubishi_cn105 {
+
+uint32_t get_loop_time_ms();
 
 class MitsubishiCN105 {
  public:
@@ -24,7 +25,6 @@ class MitsubishiCN105 {
   void read_incoming_bytes_();
   void process_rx_packet_(uint8_t type, const uint8_t *payload, size_t len);
   void reset_read_position_and_dump_buffer_(const char *prefix);
-  void response_received_();
   void send_packet_(const uint8_t *packet, size_t len);
   template<typename T> void send_packet_(const T &packet) { this->send_packet_(packet.data(), packet.size()); }
   static bool should_transition(State from, State to);
@@ -32,10 +32,9 @@ class MitsubishiCN105 {
   static void dump_buffer_vv(const char *prefix, const uint8_t *data, size_t len);
 
   uart::UARTDevice &device_;
-  State state_{State::NOT_CONNECTED};
   uint32_t update_interval_ms_{1000};
   std::optional<uint32_t> write_timeout_start_ms_;
-  uint32_t (*now_fn_)() = []() -> uint32_t { return App.get_loop_component_start_time(); };
+  State state_{State::NOT_CONNECTED};
 
  private:
   static constexpr size_t READ_BUFFER_SIZE = 32;
