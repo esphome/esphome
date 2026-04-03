@@ -144,3 +144,29 @@ display:
       it.filled_rectangle(0, 0, it.get_width(), it.get_height(), Color::WHITE);
       it.circle(it.get_width() / 2, it.get_height() / 2, 30, Color::BLACK);
       it.circle(it.get_width() / 2, it.get_height() / 2, 20, Color(255, 0, 0));
+
+  # Waveshare 4.26" E-Paper HAT+
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: waveshare-4.26in-hat-plus
+    lambda: |-
+      it.print(0, 0, id(my_font), "Hello 4.26!");
+
+  # Waveshare 3.97" E-Paper HAT+
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: waveshare-3.97in-hat-plus
+    lambda: |-
+      it.print(0, 0, id(my_font), "Hello 3.97!");
+
+  # ESP32-S3-ePaper-3.97 integrated board
+  - platform: epaper_spi
+    spi_id: spi_bus
+    model: waveshare-3.97in-esp32-s3
+    lambda: |-
+      it.print(0, 0, id(my_font), "Hello S3!");
+
+font:
+  - file: "gapps:Roboto"
+    id: my_font
+    size: 20

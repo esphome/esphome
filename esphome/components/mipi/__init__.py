@@ -2,7 +2,7 @@
 # Various configuration constants for MIPI displays
 # Various utility functions for MIPI DBI configuration
 
-from typing import Any, Self
+from typing import Any
 
 from esphome.components.const import CONF_COLOR_DEPTH
 from esphome.components.display import CONF_SHOW_TEST_CARD, display_ns
@@ -246,7 +246,7 @@ class DriverChip:
     Setting swap_xy to cv.UNDEFINED will indicate that the model does not support swapping X and Y axes.
     """
 
-    models: dict[str, Self] = {}
+    models: dict[str, "DriverChip"] = {}
 
     def __init__(
         self,

@@ -47,6 +47,7 @@ class EPaperBase : public Display,
     this->row_width_ = (this->width_ + 7) / 8;  // width of a row in bytes
   }
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
+  void add_enable_pin(GPIOPin *pin) { this->enable_pins_.push_back(pin); }
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
   void set_busy_pin(GPIOPin *busy) { this->busy_pin_ = busy; }
@@ -167,6 +168,7 @@ class EPaperBase : public Display,
   GPIOPin *dc_pin_{};
   GPIOPin *busy_pin_{};
   GPIOPin *reset_pin_{};
+  std::vector<GPIOPin *> enable_pins_;
   bool waiting_for_idle_{};
   uint32_t delay_until_{};  // timestamp until which to delay processing
   uint16_t next_delay_{};   // milliseconds to delay before next state

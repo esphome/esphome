@@ -2,7 +2,12 @@
 
 from __future__ import annotations
 
-from enum import StrEnum as _StrEnum
+try:
+    from enum import StrEnum as _StrEnum
+except ImportError:
+    from enum import Enum
 
-# Re-export StrEnum from standard library for backwards compatibility
+    class _StrEnum(str, Enum):
+        pass
+
 StrEnum = _StrEnum

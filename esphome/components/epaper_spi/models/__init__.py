@@ -1,11 +1,13 @@
-from typing import Any, Self
+from typing import Any, TypeVar
 
 import esphome.config_validation as cv
 from esphome.const import CONF_DIMENSIONS, CONF_HEIGHT, CONF_WIDTH
 
+T = TypeVar("T", bound="EpaperModel")
+
 
 class EpaperModel:
-    models: dict[str, Self] = {}
+    models: dict[str, "EpaperModel"] = {}
 
     def __init__(
         self,

@@ -1,5 +1,4 @@
 #include "epaper_spi.h"
-#include <cinttypes>
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -48,6 +47,10 @@ void EPaperBase::setup_pins_() const {
 
   if (this->busy_pin_ != nullptr) {
     this->busy_pin_->setup();  // INPUT
+  }
+  for (auto *pin : this->enable_pins_) {
+    pin->setup();
+    pin->digital_write(true);
   }
 }
 
@@ -213,7 +216,9 @@ void EPaperBase::process_state_() {
     case EPaperState::DEEP_SLEEP:
       this->deep_sleep();
       this->set_state_(EPaperState::IDLE);
-      ESP_LOGD(TAG, "Display update took %" PRIu32 " ms", millis() - this->update_start_time_);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
+      ESP_LOGD(TAG, "Display update took %u ms", (unsigned) (millis() - this->update_start_time_));
+#endif
       break;
   }
 }

@@ -47,7 +47,17 @@ epaper_spi_ns = cg.esphome_ns.namespace("epaper_spi")
 EPaperBase = epaper_spi_ns.class_(
     "EPaperBase", cg.PollingComponent, spi.SPIDevice, display.Display
 )
-Transform = epaper_spi_ns.enum("Transform")
+
+NONE = RawExpression("esphome::epaper_spi::NONE")
+MIRROR_X = RawExpression("esphome::epaper_spi::MIRROR_X")
+MIRROR_Y = RawExpression("esphome::epaper_spi::MIRROR_Y")
+SWAP_XY = RawExpression("esphome::epaper_spi::SWAP_XY")
+
+Transform = {
+    CONF_MIRROR_X: MIRROR_X,
+    CONF_MIRROR_Y: MIRROR_Y,
+    CONF_SWAP_XY: SWAP_XY,
+}
 
 # Import all models dynamically from the models package
 for module_info in pkgutil.iter_modules(models.__path__):
@@ -87,8 +97,9 @@ def model_schema(config):
             ),
             cv.Optional(CONF_TRANSFORM): cv.Schema(
                 {
-                    cv.Required(CONF_MIRROR_X): cv.boolean,
-                    cv.Required(CONF_MIRROR_Y): cv.boolean,
+                    cv.Optional(CONF_MIRROR_X): cv.boolean,
+                    cv.Optional(CONF_MIRROR_Y): cv.boolean,
+                    cv.Optional(CONF_SWAP_XY): cv.boolean,
                 }
             ),
             cv.Optional(CONF_FULL_UPDATE_EVERY, default=1): cv.int_range(1, 255),
@@ -194,13 +205,16 @@ async def to_code(config):
     if busy_pin := config.get(CONF_BUSY_PIN):
         busy = await cg.gpio_pin_expression(busy_pin)
         cg.add(var.set_busy_pin(busy))
+    if enable_pins := config.get(CONF_ENABLE_PIN):
+        for pin in enable_pins:
+            p = await cg.gpio_pin_expression(pin)
+            cg.add(var.add_enable_pin(p))
     cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
     if CONF_RESET_DURATION in config:
         cg.add(var.set_reset_duration(config[CONF_RESET_DURATION]))
-    if transform := config.get(CONF_TRANSFORM):
-        transform[CONF_SWAP_XY] = False
-    else:
-        transform = {x: model.get_default(x, False) for x in TRANSFORM_OPTIONS}
+    transform = {x: model.get_default(x, False) for x in TRANSFORM_OPTIONS}
+    if user_transform := config.get(CONF_TRANSFORM):
+        transform.update(user_transform)
     rotation = config[CONF_ROTATION]
     if rotation == 180:
         transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
@@ -212,11 +226,7 @@ async def to_code(config):
         transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
         transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
     transform_str = "|".join(
-        {
-            str(getattr(Transform, x.upper()))
-            for x in TRANSFORM_OPTIONS
-            if transform.get(x)
-        }
+        sorted({str(Transform[x]) for x in TRANSFORM_OPTIONS if transform.get(x)})
     )
     if transform_str:
         cg.add(var.set_transform(RawExpression(transform_str)))
