@@ -9,8 +9,7 @@
 
 #include <Updater.h>
 
-namespace esphome {
-namespace ota {
+namespace esphome::ota {
 
 static const char *const TAG = "ota.arduino_rp2040";
 
@@ -75,8 +74,6 @@ void ArduinoRP2040OTABackend::abort() {
   rp2040::preferences_prevent_write(false);
 }
 
-}  // namespace ota
-}  // namespace esphome
-
+}  // namespace esphome::ota
 #endif  // USE_RP2040
 #endif  // USE_ARDUINO

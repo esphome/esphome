@@ -7,8 +7,7 @@
 
 #include <esp_ota_ops.h>
 
-namespace esphome {
-namespace ota {
+namespace esphome::ota {
 
 class IDFOTABackend final {
  public:
@@ -29,6 +28,5 @@ class IDFOTABackend final {
 
 std::unique_ptr<IDFOTABackend> make_ota_backend();
 
-}  // namespace ota
-}  // namespace esphome
+}  // namespace esphome::ota
 #endif  // USE_ESP32

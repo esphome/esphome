@@ -1,16 +1,20 @@
 #pragma once
 
-#include <deque>
+#include <list>
 #include <vector>
 
+#include "esphome/components/display/display.h"
+#include "esphome/components/display/display_color_utils.h"
+#include "esphome/components/uart/uart.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/time.h"
 
-#include "esphome/components/uart/uart.h"
+#ifdef USE_NEXTION_WAVEFORM
+#include "esphome/core/helpers.h"
+#endif  // USE_NEXTION_WAVEFORM
+
 #include "nextion_base.h"
 #include "nextion_component.h"
-#include "esphome/components/display/display.h"
-#include "esphome/components/display/display_color_utils.h"
 
 #ifdef USE_NEXTION_TFT_UPLOAD
 #ifdef USE_ESP32
@@ -21,15 +25,12 @@
 #endif  // USE_ESP32 vs USE_ESP8266
 #endif  // USE_NEXTION_TFT_UPLOAD
 
-namespace esphome {
-namespace nextion {
+namespace esphome::nextion {
 
 class Nextion;
 class NextionComponentBase;
 
 using nextion_writer_t = display::DisplayWriter<Nextion>;
-
-static const std::string COMMAND_DELIMITER{static_cast<char>(255), static_cast<char>(255), static_cast<char>(255)};
 
 #ifdef USE_NEXTION_COMMAND_SPACING
 class NextionCommandPacer {
@@ -605,6 +606,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   void disable_component_touch(const char *component);
 
+#ifdef USE_NEXTION_WAVEFORM
   /**
    * Add waveform data to a waveform component
    * @param component_id The integer component id.
@@ -614,6 +616,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void add_waveform_data(uint8_t component_id, uint8_t channel_number, uint8_t value);
 
   void open_waveform_channel(uint8_t component_id, uint8_t channel_number, uint8_t value);
+#endif  // USE_NEXTION_WAVEFORM
 
   /**
    * Display a picture at coordinates.
@@ -1208,7 +1211,9 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
   void add_to_get_queue(NextionComponentBase *component) override;
 
+#ifdef USE_NEXTION_WAVEFORM
   void add_addt_command_to_queue(NextionComponentBase *component) override;
+#endif  // USE_NEXTION_WAVEFORM
 
   void update_components_by_prefix(const std::string &prefix);
 
@@ -1393,8 +1398,12 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void process_pending_in_queue_();
 #endif  // USE_NEXTION_COMMAND_SPACING
 
-  std::deque<NextionQueue *> nextion_queue_;
-  std::deque<NextionQueue *> waveform_queue_;
+  std::list<NextionQueue *> nextion_queue_;
+#ifdef USE_NEXTION_WAVEFORM
+  /// Fixed-size ring buffer for waveform queue. Nextion supports at most 4 waveform
+  /// channels (IDs 0-3), so 4 entries is both the correct maximum and a safe default.
+  StaticRingBuffer<NextionQueue *, 4> waveform_queue_;
+#endif  // USE_NEXTION_WAVEFORM
   uint16_t recv_ret_string_(std::string &response, uint32_t timeout, bool recv_flag);
   void all_components_send_state_(bool force_update = false);
   uint32_t comok_sent_ = 0;
@@ -1463,7 +1472,9 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
                                                  const std::string &variable_name_to_send,
                                                  const std::string &state_value, bool is_sleep_safe = false);
 
+#ifdef USE_NEXTION_WAVEFORM
   void check_pending_waveform_();
+#endif  // USE_NEXTION_WAVEFORM
 
 #ifdef USE_NEXTION_TFT_UPLOAD
 #ifdef USE_ESP8266
@@ -1549,5 +1560,4 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   uint16_t max_q_age_ms_ = 8000;         ///< Maximum age for queue items in ms
 };
 
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion
