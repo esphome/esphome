@@ -19,6 +19,7 @@ class IntertechnoProtocol : public RemoteProtocol<IntertechnoData> {
   void encode(RemoteTransmitData *dst, const IntertechnoData &data) override;
   optional<IntertechnoData> decode(RemoteReceiveData src) override;
   void dump(const IntertechnoData &data) override;
+
  private:
   void encode_0(RemoteTransmitData *dst);
   void encode_1(RemoteTransmitData *dst);
@@ -30,7 +31,7 @@ DECLARE_REMOTE_PROTOCOL(Intertechno)
 template<typename... Ts> class IntertechnoAction : public RemoteTransmitterActionBase<Ts...> {
  public:
   TEMPLATABLE_VALUE(std::string, code)
-  
+
   void encode(RemoteTransmitData *dst, Ts... x) override {
     IntertechnoData data{};
     data.code = this->code_.value(x...);

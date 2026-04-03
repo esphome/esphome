@@ -2185,6 +2185,7 @@ async def Toto_action(var, config, args):
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
     cg.add(var.set_command(template_))
 
+
 # Intertechno
 (
     IntertechnoData,
@@ -2200,6 +2201,7 @@ INTERTECHNO_SCHEMA = cv.Schema(
     }
 )
 
+
 @register_binary_sensor("intertechno", IntertechnoBinarySensor, INTERTECHNO_SCHEMA)
 def intertechno_binary_sensor(var, config):
     cg.add(
@@ -2211,13 +2213,16 @@ def intertechno_binary_sensor(var, config):
         )
     )
 
+
 @register_trigger("intertechno", IntertechnoTrigger, IntertechnoData)
 def intertechno_trigger(var, config):
     pass
 
+
 @register_dumper("intertechno", IntertechnoDumper)
 def intertechno_dumper(var, config):
     pass
+
 
 @register_action("intertechno", IntertechnoAction, INTERTECHNO_SCHEMA)
 async def intertechno_action(var, config, args):
