@@ -166,6 +166,8 @@ async def zephyr_to_code(config: ConfigType) -> None:
     zephyr_add_prj_conf("NET_IP_ADDR_CHECK", False)
     zephyr_add_prj_conf("NET_UDP", False)
 
+    cg.add_build_flag("-Wl,--wrap=zb_zcl_put_reporting_info_from_req")
+
     if CONF_IEEE802154_VENDOR_OUI in config:
         zephyr_add_prj_conf("IEEE802154_VENDOR_OUI_ENABLE", True)
         random_number = config[CONF_IEEE802154_VENDOR_OUI]
