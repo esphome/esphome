@@ -17,15 +17,15 @@ void IT8951Display::configure_model_() {
   switch (this->model_) {
     case IT8951_MODEL_SEEED_EE03:
       this->pins_ = {
-          GPIO_NUM_7,   GPIO_NUM_8,  GPIO_NUM_9,        GPIO_NUM_44, GPIO_NUM_4,
-          GPIO_NUM_43,  GPIO_NUM_38, IT8951_UNUSED_PIN, false,       "Seeed XIAO ePaper Display Board EE03",
+          GPIO_NUM_7,  GPIO_NUM_8,  GPIO_NUM_9,        GPIO_NUM_44, GPIO_NUM_4,
+          GPIO_NUM_43, GPIO_NUM_38, IT8951_UNUSED_PIN, false,       "Seeed XIAO ePaper Display Board EE03",
       };
       break;
     case IT8951_MODEL_SEEED_RETERMINAL_E1003:
     default:
       this->pins_ = {
-          GPIO_NUM_7,  GPIO_NUM_8, GPIO_NUM_9, GPIO_NUM_10, GPIO_NUM_13,
-          GPIO_NUM_11, GPIO_NUM_12, GPIO_NUM_21, true, "Seeed reTerminal E1003",
+          GPIO_NUM_7,  GPIO_NUM_8,  GPIO_NUM_9,  GPIO_NUM_10, GPIO_NUM_13,
+          GPIO_NUM_11, GPIO_NUM_12, GPIO_NUM_21, true,        "Seeed reTerminal E1003",
       };
       break;
   }
@@ -248,8 +248,8 @@ void IT8951Display::write_vcom_(uint16_t selector, uint16_t value) {
 }
 
 bool IT8951Display::has_valid_dev_info_() const {
-  return this->dev_info_.panel_width > 0 && this->dev_info_.panel_width < 10000 &&
-         this->dev_info_.panel_height > 0 && this->dev_info_.panel_height < 10000;
+  return this->dev_info_.panel_width > 0 && this->dev_info_.panel_width < 10000 && this->dev_info_.panel_height > 0 &&
+         this->dev_info_.panel_height < 10000;
 }
 
 void IT8951Display::log_dev_info_words_(const char *label) const {
@@ -257,8 +257,8 @@ void IT8951Display::log_dev_info_words_(const char *label) const {
   ESP_LOGD(TAG, "[%s] DevInfo raw [W=%u H=%u BufL=0x%04X BufH=0x%04X]", label, raw[0], raw[1], raw[2], raw[3]);
   ESP_LOGD(TAG, "[%s] DevInfo FW: %02X %02X %02X %02X %02X %02X %02X %02X", label, raw[4], raw[5], raw[6], raw[7],
            raw[8], raw[9], raw[10], raw[11]);
-  ESP_LOGD(TAG, "[%s] DevInfo LUT: %02X %02X %02X %02X %02X %02X %02X %02X", label, raw[12], raw[13], raw[14],
-           raw[15], raw[16], raw[17], raw[18], raw[19]);
+  ESP_LOGD(TAG, "[%s] DevInfo LUT: %02X %02X %02X %02X %02X %02X %02X %02X", label, raw[12], raw[13], raw[14], raw[15],
+           raw[16], raw[17], raw[18], raw[19]);
 }
 
 bool IT8951Display::probe_controller_(const char *label, bool send_sys_run, int vcom_selector) {
@@ -482,7 +482,7 @@ void IT8951Display::set_img_buf_base_addr_(uint32_t addr) {
 }
 
 void IT8951Display::it8951_load_img_area_start_(uint16_t endian, uint16_t pix_fmt, uint16_t rotate, uint16_t x,
-                                                 uint16_t y, uint16_t w, uint16_t h) {
+                                                uint16_t y, uint16_t w, uint16_t h) {
   uint16_t args[5];
   args[0] = (endian << 8) | (pix_fmt << 4) | rotate;
   args[1] = x;

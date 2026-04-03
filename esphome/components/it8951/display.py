@@ -1,7 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import display
 from esphome.components.esp32 import VARIANT_ESP32S3, only_on_variant
+import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_MODEL
 from esphome.final_validate import full_config
 
