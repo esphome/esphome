@@ -16,6 +16,7 @@ static constexpr uint8_t HEADER_BYTE_2 = 0x30;
 static constexpr uint8_t PACKET_TYPE_CONNECT_REQUEST = 0x5A;
 static constexpr uint8_t PACKET_TYPE_CONNECT_RESPONSE = 0x7A;
 static constexpr std::array<uint8_t, 2> CONNECT_REQUEST_PAYLOAD = {{0xCA, 0x01}};
+static constexpr auto CONNECT_PACKET = make_packet(PACKET_TYPE_CONNECT_REQUEST, CONNECT_REQUEST_PAYLOAD);
 
 static constexpr uint8_t checksum(const uint8_t *bytes, size_t length) {
   return static_cast<uint8_t>(0xFC - std::accumulate(bytes, bytes + length, uint8_t{0}));
@@ -77,7 +78,6 @@ bool MitsubishiCN105::should_transition(State from, State to) {
 void MitsubishiCN105::did_transition_(State to) {
   switch (to) {
     case State::CONNECTING:
-      static constexpr auto CONNECT_PACKET = make_packet(PACKET_TYPE_CONNECT_REQUEST, CONNECT_REQUEST_PAYLOAD);
       this->send_packet_(CONNECT_PACKET);
       break;
 
