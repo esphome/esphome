@@ -1,6 +1,6 @@
 #pragma once
 
-#include "esphome/components/display/display_buffer.h"
+#include "esphome/components/display/display.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/split_buffer/split_buffer.h"
 #include "esphome/core/component.h"
