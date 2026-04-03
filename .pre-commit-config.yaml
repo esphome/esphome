@@ -67,6 +67,6 @@ repos:
         additional_dependencies: []
       - id: ci-custom
         name: ci-custom
-        entry: python3 script/run-in-env.py python3 script/ci-custom.py --changed
+        entry: python3 script/run-in-env.py script/ci-custom.py --changed
         pass_filenames: false
         language: system
