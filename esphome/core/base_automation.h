@@ -9,14 +9,17 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 
+#include <array>
 #include <list>
 #include <vector>
 
 namespace esphome {
 
-template<typename... Ts> class AndCondition : public Condition<Ts...> {
+template<size_t N, typename... Ts> class AndCondition : public Condition<Ts...> {
  public:
-  explicit AndCondition(std::initializer_list<Condition<Ts...> *> conditions) : conditions_(conditions) {}
+  explicit AndCondition(std::initializer_list<Condition<Ts...> *> conditions) {
+    init_array_from(this->conditions_, conditions);
+  }
   bool check(const Ts &...x) override {
     for (auto *condition : this->conditions_) {
       if (!condition->check(x...))
@@ -27,12 +30,14 @@ template<typename... Ts> class AndCondition : public Condition<Ts...> {
   }
 
  protected:
-  FixedVector<Condition<Ts...> *> conditions_;
+  std::array<Condition<Ts...> *, N> conditions_{};
 };
 
-template<typename... Ts> class OrCondition : public Condition<Ts...> {
+template<size_t N, typename... Ts> class OrCondition : public Condition<Ts...> {
  public:
-  explicit OrCondition(std::initializer_list<Condition<Ts...> *> conditions) : conditions_(conditions) {}
+  explicit OrCondition(std::initializer_list<Condition<Ts...> *> conditions) {
+    init_array_from(this->conditions_, conditions);
+  }
   bool check(const Ts &...x) override {
     for (auto *condition : this->conditions_) {
       if (condition->check(x...))
@@ -43,7 +48,7 @@ template<typename... Ts> class OrCondition : public Condition<Ts...> {
   }
 
  protected:
-  FixedVector<Condition<Ts...> *> conditions_;
+  std::array<Condition<Ts...> *, N> conditions_{};
 };
 
 template<typename... Ts> class NotCondition : public Condition<Ts...> {
@@ -55,9 +60,11 @@ template<typename... Ts> class NotCondition : public Condition<Ts...> {
   Condition<Ts...> *condition_;
 };
 
-template<typename... Ts> class XorCondition : public Condition<Ts...> {
+template<size_t N, typename... Ts> class XorCondition : public Condition<Ts...> {
  public:
-  explicit XorCondition(std::initializer_list<Condition<Ts...> *> conditions) : conditions_(conditions) {}
+  explicit XorCondition(std::initializer_list<Condition<Ts...> *> conditions) {
+    init_array_from(this->conditions_, conditions);
+  }
   bool check(const Ts &...x) override {
     size_t result = 0;
     for (auto *condition : this->conditions_) {
@@ -68,7 +75,7 @@ template<typename... Ts> class XorCondition : public Condition<Ts...> {
   }
 
  protected:
-  FixedVector<Condition<Ts...> *> conditions_;
+  std::array<Condition<Ts...> *, N> conditions_{};
 };
 
 template<typename... Ts> class LambdaCondition : public Condition<Ts...> {
@@ -188,7 +195,7 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
     // Issue #10264: This is a workaround for parallel script delays interfering with each other.
 
     // Optimization: For no-argument delays (most common case), use direct lambda
-    // instead of std::bind to avoid bind overhead (~16 bytes heap + faster execution)
+    // to avoid overhead from capturing arguments by value
     if constexpr (sizeof...(Ts) == 0) {
       App.scheduler.set_timer_common_(
           this, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::NUMERIC_ID_INTERNAL, nullptr,
@@ -196,9 +203,9 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
           [this]() { this->play_next_(); },
           /* is_retry= */ false, /* skip_cancel= */ this->num_running_ > 1);
     } else {
-      // For delays with arguments, use std::bind to preserve argument values
+      // For delays with arguments, capture by value to preserve argument values
       // Arguments must be copied because original references may be invalid after delay
-      auto f = std::bind(&DelayAction<Ts...>::play_next_, this, x...);
+      auto f = [this, x...]() { this->play_next_(x...); };
       App.scheduler.set_timer_common_(this, Scheduler::SchedulerItem::TIMEOUT, Scheduler::NameType::NUMERIC_ID_INTERNAL,
                                       nullptr, static_cast<uint32_t>(InternalSchedulerID::DELAY_ACTION),
                                       this->delay_.value(x...), std::move(f),
@@ -264,7 +271,7 @@ template<typename... Ts> class WhileLoopContinuation : public Action<Ts...> {
   WhileAction<Ts...> *parent_;
 };
 
-template<typename... Ts> class IfAction : public Action<Ts...> {
+template<bool HasElse, typename... Ts> class IfAction : public Action<Ts...> {
  public:
   explicit IfAction(Condition<Ts...> *condition) : condition_(condition) {}
 
@@ -273,27 +280,25 @@ template<typename... Ts> class IfAction : public Action<Ts...> {
     this->then_.add_action(new ContinuationAction<Ts...>(this));
   }
 
-  void add_else(const std::initializer_list<Action<Ts...> *> &actions) {
+  void add_else(const std::initializer_list<Action<Ts...> *> &actions) requires(HasElse) {
     this->else_.add_actions(actions);
     this->else_.add_action(new ContinuationAction<Ts...>(this));
   }
 
   void play_complex(const Ts &...x) override {
     this->num_running_++;
-    bool res = this->condition_->check(x...);
-    if (res) {
-      if (this->then_.empty()) {
-        this->play_next_(x...);
-      } else if (this->num_running_ > 0) {
+    if (this->condition_->check(x...)) {
+      if (!this->then_.empty() && this->num_running_ > 0) {
         this->then_.play(x...);
+        return;
       }
-    } else {
-      if (this->else_.empty()) {
-        this->play_next_(x...);
-      } else if (this->num_running_ > 0) {
+    } else if constexpr (HasElse) {
+      if (!this->else_.empty() && this->num_running_ > 0) {
         this->else_.play(x...);
+        return;
       }
     }
+    this->play_next_(x...);
   }
 
   void play(const Ts &...x) override { /* ignore - see play_complex */
@@ -301,13 +306,16 @@ template<typename... Ts> class IfAction : public Action<Ts...> {
 
   void stop() override {
     this->then_.stop();
-    this->else_.stop();
+    if constexpr (HasElse) {
+      this->else_.stop();
+    }
   }
 
  protected:
   Condition<Ts...> *condition_;
   ActionList<Ts...> then_;
-  ActionList<Ts...> else_;
+  struct NoElse {};
+  [[no_unique_address]] std::conditional_t<HasElse, ActionList<Ts...>, NoElse> else_;
 };
 
 template<typename... Ts> class WhileAction : public Action<Ts...> {

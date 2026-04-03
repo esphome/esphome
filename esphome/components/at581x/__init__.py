@@ -89,6 +89,7 @@ AT581XSettingsAction = at581x_ns.class_("AT581XSettingsAction", automation.Actio
             cv.Required(CONF_ID): cv.use_id(AT581XComponent),
         }
     ),
+    synchronous=True,
 )
 async def at581x_reset_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -160,6 +161,7 @@ RADAR_SETTINGS_SCHEMA = cv.Schema(
     "at581x.settings",
     AT581XSettingsAction,
     RADAR_SETTINGS_SCHEMA,
+    synchronous=True,
 )
 async def at581x_settings_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -175,7 +177,7 @@ async def at581x_settings_to_code(config, action_id, template_arg, args):
         template_ = int(template_ / 1000000)
         cg.add(var.set_frequency(template_))
 
-    if sens_dist := config.get(CONF_SENSING_DISTANCE):
+    if (sens_dist := config.get(CONF_SENSING_DISTANCE)) is not None:
         template_ = await cg.templatable(sens_dist, args, int)
         cg.add(var.set_sensing_distance(template_))
 
@@ -207,7 +209,7 @@ async def at581x_settings_to_code(config, action_id, template_arg, args):
         template_ = int(template_)
         cg.add(var.set_trigger_keep(template_))
 
-    if stage_gain := config.get(CONF_STAGE_GAIN):
+    if (stage_gain := config.get(CONF_STAGE_GAIN)) is not None:
         template_ = await cg.templatable(stage_gain, args, int)
         cg.add(var.set_stage_gain(template_))
 

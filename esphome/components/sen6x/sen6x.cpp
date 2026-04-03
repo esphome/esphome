@@ -341,6 +341,21 @@ void SEN6XComponent::update() {
 
   set_read_command_and_words(this->sen6x_type_, this->read_cmd_, this->read_words_);
 
+  // Polling uses chained timeouts to guarantee each I2C operation completes
+  // before the next begins. The flow is:
+  //
+  //   poll_data_ready_()
+  //     -> write_command (data ready status)
+  //     -> timeout I2C_READ_DELAY
+  //       -> read_data (check ready flag)
+  //       -> if not ready: timeout POLL_INTERVAL -> poll_data_ready_() (retry)
+  //       -> if ready: read_measurements_()
+  //                      -> write_command (read measurement)
+  //                      -> timeout I2C_READ_DELAY
+  //                        -> parse_and_publish_measurements_()
+  //
+  // All timeouts share a single ID (TIMEOUT_POLL) since only one is active
+  // at a time. cancel_timeout in update() stops any in-flight chain.
   this->poll_retries_remaining_ = POLL_RETRIES;
   this->poll_data_ready_();
 }

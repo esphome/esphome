@@ -487,12 +487,10 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       body = this->body_.value(x...);
     }
     if (!this->json_.empty()) {
-      auto f = std::bind(&HttpRequestSendAction<Ts...>::encode_json_, this, x..., std::placeholders::_1);
-      body = json::build_json(f);
+      body = json::build_json([this, x...](JsonObject root) { this->encode_json_(x..., root); });
     }
     if (this->json_func_ != nullptr) {
-      auto f = std::bind(&HttpRequestSendAction<Ts...>::encode_json_func_, this, x..., std::placeholders::_1);
-      body = json::build_json(f);
+      body = json::build_json([this, x...](JsonObject root) { this->json_func_(x..., root); });
     }
     std::vector<Header> request_headers;
     request_headers.reserve(this->request_headers_.size());
@@ -561,7 +559,6 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       root[item.first] = val.value(x...);
     }
   }
-  void encode_json_func_(Ts... x, JsonObject root) { this->json_func_(x..., root); }
   HttpRequestComponent *parent_;
   FixedVector<std::pair<const char *, TemplatableValue<const char *, Ts...>>> request_headers_{};
   std::vector<std::string> lower_case_collect_headers_{"content-type", "content-length"};

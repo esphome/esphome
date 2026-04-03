@@ -8,8 +8,7 @@
 #include <vector>
 #endif
 
-namespace esphome {
-namespace ota {
+namespace esphome::ota {
 
 enum OTAResponseTypes {
   OTA_RESPONSE_OK = 0x00,
@@ -73,9 +72,7 @@ class OTAComponent : public Component {
    * This should be used by OTA implementations that run in separate tasks
    * (like web_server OTA) to ensure listeners execute in the main loop.
    */
-  void notify_state_deferred_(OTAState state, float progress, uint8_t error) {
-    this->defer([this, state, progress, error]() { this->notify_state_(state, progress, error); });
-  }
+  void notify_state_deferred_(OTAState state, float progress, uint8_t error);
 
   std::vector<OTAStateListener *> state_listeners_;
 #endif
@@ -119,5 +116,4 @@ OTAGlobalCallback *get_global_ota_callback();
 // - notify_state_deferred_() when in separate task (e.g., web_server OTA)
 // This ensures proper listener execution in all contexts.
 #endif
-}  // namespace ota
-}  // namespace esphome
+}  // namespace esphome::ota

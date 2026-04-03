@@ -114,14 +114,6 @@ void HonClimate::start_steri_cleaning() {
   }
 }
 
-void HonClimate::add_alarm_start_callback(std::function<void(uint8_t, const char *)> &&callback) {
-  this->alarm_start_callback_.add(std::move(callback));
-}
-
-void HonClimate::add_alarm_end_callback(std::function<void(uint8_t, const char *)> &&callback) {
-  this->alarm_end_callback_.add(std::move(callback));
-}
-
 haier_protocol::HandlerError HonClimate::get_device_version_answer_handler_(haier_protocol::FrameType request_type,
                                                                             haier_protocol::FrameType message_type,
                                                                             const uint8_t *data, size_t data_size) {
@@ -309,32 +301,38 @@ void HonClimate::set_handlers() {
   // Set handlers
   this->haier_protocol_.set_answer_handler(
       haier_protocol::FrameType::GET_DEVICE_VERSION,
-      std::bind(&HonClimate::get_device_version_answer_handler_, this, std::placeholders::_1, std::placeholders::_2,
-                std::placeholders::_3, std::placeholders::_4));
+      [this](haier_protocol::FrameType req, haier_protocol::FrameType msg, const uint8_t *data, size_t size) {
+        return this->get_device_version_answer_handler_(req, msg, data, size);
+      });
   this->haier_protocol_.set_answer_handler(
       haier_protocol::FrameType::GET_DEVICE_ID,
-      std::bind(&HonClimate::get_device_id_answer_handler_, this, std::placeholders::_1, std::placeholders::_2,
-                std::placeholders::_3, std::placeholders::_4));
+      [this](haier_protocol::FrameType req, haier_protocol::FrameType msg, const uint8_t *data, size_t size) {
+        return this->get_device_id_answer_handler_(req, msg, data, size);
+      });
   this->haier_protocol_.set_answer_handler(
       haier_protocol::FrameType::CONTROL,
-      std::bind(&HonClimate::status_handler_, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,
-                std::placeholders::_4));
+      [this](haier_protocol::FrameType req, haier_protocol::FrameType msg, const uint8_t *data, size_t size) {
+        return this->status_handler_(req, msg, data, size);
+      });
   this->haier_protocol_.set_answer_handler(
       haier_protocol::FrameType::GET_MANAGEMENT_INFORMATION,
-      std::bind(&HonClimate::get_management_information_answer_handler_, this, std::placeholders::_1,
-                std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
+      [this](haier_protocol::FrameType req, haier_protocol::FrameType msg, const uint8_t *data, size_t size) {
+        return this->get_management_information_answer_handler_(req, msg, data, size);
+      });
   this->haier_protocol_.set_answer_handler(
       haier_protocol::FrameType::GET_ALARM_STATUS,
-      std::bind(&HonClimate::get_alarm_status_answer_handler_, this, std::placeholders::_1, std::placeholders::_2,
-                std::placeholders::_3, std::placeholders::_4));
+      [this](haier_protocol::FrameType req, haier_protocol::FrameType msg, const uint8_t *data, size_t size) {
+        return this->get_alarm_status_answer_handler_(req, msg, data, size);
+      });
   this->haier_protocol_.set_answer_handler(
       haier_protocol::FrameType::REPORT_NETWORK_STATUS,
-      std::bind(&HonClimate::report_network_status_answer_handler_, this, std::placeholders::_1, std::placeholders::_2,
-                std::placeholders::_3, std::placeholders::_4));
-  this->haier_protocol_.set_message_handler(
-      haier_protocol::FrameType::ALARM_STATUS,
-      std::bind(&HonClimate::alarm_status_message_handler_, this, std::placeholders::_1, std::placeholders::_2,
-                std::placeholders::_3));
+      [this](haier_protocol::FrameType req, haier_protocol::FrameType msg, const uint8_t *data, size_t size) {
+        return this->report_network_status_answer_handler_(req, msg, data, size);
+      });
+  this->haier_protocol_.set_message_handler(haier_protocol::FrameType::ALARM_STATUS,
+                                            [this](haier_protocol::FrameType type, const uint8_t *data, size_t size) {
+                                              return this->alarm_status_message_handler_(type, data, size);
+                                            });
 }
 
 void HonClimate::dump_config() {
@@ -677,7 +675,6 @@ haier_protocol::HaierMessage HonClimate::get_control_message() {
     this->quiet_mode_state_ = (SwitchState) ((uint8_t) this->quiet_mode_state_ & 0b01);
   }
   out_data->beeper_status = ((!this->get_beeper_state()) || (!has_hvac_settings)) ? 1 : 0;
-  control_out_buffer[4] = 0;  // This byte should be cleared before setting values
   out_data->display_status = this->get_display_state() ? 1 : 0;
   this->display_status_ = (SwitchState) ((uint8_t) this->display_status_ & 0b01);
   out_data->health_mode = this->get_health_mode() ? 1 : 0;
@@ -750,7 +747,7 @@ void HonClimate::update_sub_sensor_(SubSensorType type, float value) {
   if (type < SubSensorType::SUB_SENSOR_TYPE_COUNT) {
     size_t index = (size_t) type;
     if ((this->sub_sensors_[index] != nullptr) &&
-        ((!this->sub_sensors_[index]->has_state()) || (this->sub_sensors_[index]->raw_state != value)))
+        ((!this->sub_sensors_[index]->has_state()) || (this->sub_sensors_[index]->get_raw_state() != value)))
       this->sub_sensors_[index]->publish_state(value);
   }
 }
@@ -1375,9 +1372,8 @@ void HonClimate::process_protocol_reset() {
 
 bool HonClimate::should_get_big_data_() {
   if (this->big_data_sensors_ > 0) {
-    static uint8_t counter = 0;
-    counter = (counter + 1) % 3;
-    return counter == 1;
+    this->big_data_counter_ = (this->big_data_counter_ + 1) % 3;
+    return this->big_data_counter_ == 1;
   }
   return false;
 }

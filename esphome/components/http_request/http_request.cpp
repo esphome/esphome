@@ -11,7 +11,7 @@ static const char *const TAG = "http_request";
 void HttpRequestComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "HTTP Request:\n"
-                "  Timeout: %ums\n"
+                "  Timeout: %" PRIu32 "ms\n"
                 "  User-Agent: %s\n"
                 "  Follow redirects: %s\n"
                 "  Redirect limit: %d",

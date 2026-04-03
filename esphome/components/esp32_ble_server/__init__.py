@@ -72,7 +72,6 @@ BLECharacteristic_ns = esp32_ble_server_ns.namespace("BLECharacteristic")
 BLEServer = esp32_ble_server_ns.class_(
     "BLEServer",
     cg.Component,
-    esp32_ble.GATTsEventHandler,
     cg.Parented.template(esp32_ble.ESP32BLE),
 )
 esp32_ble_server_automations_ns = esp32_ble_server_ns.namespace(
@@ -622,6 +621,7 @@ async def to_code(config):
         ),
         validate_set_value_action,
     ),
+    synchronous=True,
 )
 async def ble_server_characteristic_set_value(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -641,6 +641,7 @@ async def ble_server_characteristic_set_value(config, action_id, template_arg, a
             cv.Required(CONF_VALUE): value_schema(),
         }
     ),
+    synchronous=True,
 )
 async def ble_server_descriptor_set_value(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -662,6 +663,7 @@ async def ble_server_descriptor_set_value(config, action_id, template_arg, args)
         ),
         validate_notify_action,
     ),
+    synchronous=True,
 )
 async def ble_server_characteristic_notify(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

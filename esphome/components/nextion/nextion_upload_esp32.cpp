@@ -14,8 +14,8 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-namespace esphome {
-namespace nextion {
+namespace esphome::nextion {
+
 static const char *const TAG = "nextion.upload.esp32";
 static constexpr size_t NEXTION_MAX_RESPONSE_LOG_BYTES = 16;
 
@@ -108,6 +108,12 @@ int Nextion::upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &r
                static_cast<uint32_t>(esp_get_free_heap_size()));
 #endif
       upload_first_chunk_sent_ = true;
+      if (recv_string.empty()) {
+        ESP_LOGW(TAG, "No response from display during upload");
+        allocator.deallocate(buffer, 4096);
+        buffer = nullptr;
+        return -1;
+      }
       if (recv_string[0] == 0x08 && recv_string.size() == 5) {  // handle partial upload request
         char hex_buf[format_hex_pretty_size(NEXTION_MAX_RESPONSE_LOG_BYTES)];
         ESP_LOGD(
@@ -338,8 +344,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   return this->upload_end_(true);
 }
 
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion
 
 #endif  // USE_ESP32
 #endif  // USE_NEXTION_TFT_UPLOAD

@@ -54,6 +54,17 @@ void MIPI_DSI::setup() {
     this->smark_failed(LOG_STR("new_panel_io_dbi failed"), err);
     return;
   }
+  // clang-format off
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  auto color_format = LCD_COLOR_FMT_RGB565;
+  if (this->color_depth_ == display::COLOR_BITNESS_888) {
+    color_format = LCD_COLOR_FMT_RGB888;
+  }
+  esp_lcd_dpi_panel_config_t dpi_config = {.virtual_channel = 0,
+                                           .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
+                                           .dpi_clock_freq_mhz = this->pclk_frequency_,
+                                           .in_color_format = color_format,
+#else
   auto pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB565;
   if (this->color_depth_ == display::COLOR_BITNESS_888) {
     pixel_format = LCD_COLOR_PIXEL_FORMAT_RGB888;
@@ -62,6 +73,7 @@ void MIPI_DSI::setup() {
                                            .dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT,
                                            .dpi_clock_freq_mhz = this->pclk_frequency_,
                                            .pixel_format = pixel_format,
+#endif
                                            .num_fbs = 1,  // number of frame buffers to allocate
                                            .video_timing =
                                                {
@@ -75,13 +87,23 @@ void MIPI_DSI::setup() {
                                                    .vsync_front_porch = this->vsync_front_porch_,
                                                },
                                            .flags = {
+#if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(6, 0, 0)
                                                .use_dma2d = true,
+#endif
                                            }};
+  // clang-format on
   err = esp_lcd_new_panel_dpi(this->bus_handle_, &dpi_config, &this->handle_);
   if (err != ESP_OK) {
     this->smark_failed(LOG_STR("esp_lcd_new_panel_dpi failed"), err);
     return;
   }
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+  err = esp_lcd_dpi_panel_enable_dma2d(this->handle_);
+  if (err != ESP_OK) {
+    this->smark_failed(LOG_STR("esp_lcd_dpi_panel_enable_dma2d failed"), err);
+    return;
+  }
+#endif
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
     this->reset_pin_->digital_write(true);
@@ -370,9 +392,6 @@ void MIPI_DSI::dump_config() {
                 "\n  Model: %s"
                 "\n  Width: %u"
                 "\n  Height: %u"
-                "\n  Mirror X: %s"
-                "\n  Mirror Y: %s"
-                "\n  Swap X/Y: %s"
                 "\n  Rotation: %d degrees"
                 "\n  DSI Lanes: %u"
                 "\n  Lane Bit Rate: %.0fMbps"
@@ -384,14 +403,11 @@ void MIPI_DSI::dump_config() {
                 "\n  VSync Front Porch: %u"
                 "\n  Buffer Color Depth: %d bit"
                 "\n  Display Pixel Mode: %d bit"
-                "\n  Color Order: %s"
                 "\n  Invert Colors: %s"
                 "\n  Pixel Clock: %.1fMHz",
-                this->model_, this->width_, this->height_, YESNO(this->madctl_ & (MADCTL_XFLIP | MADCTL_MX)),
-                YESNO(this->madctl_ & (MADCTL_YFLIP | MADCTL_MY)), YESNO(this->madctl_ & MADCTL_MV), this->rotation_,
-                this->lanes_, this->lane_bit_rate_, this->hsync_pulse_width_, this->hsync_back_porch_,
-                this->hsync_front_porch_, this->vsync_pulse_width_, this->vsync_back_porch_, this->vsync_front_porch_,
-                (3 - this->color_depth_) * 8, this->pixel_mode_, this->madctl_ & MADCTL_BGR ? "BGR" : "RGB",
+                this->model_, this->width_, this->height_, this->rotation_, this->lanes_, this->lane_bit_rate_,
+                this->hsync_pulse_width_, this->hsync_back_porch_, this->hsync_front_porch_, this->vsync_pulse_width_,
+                this->vsync_back_porch_, this->vsync_front_porch_, (3 - this->color_depth_) * 8, this->pixel_mode_,
                 YESNO(this->invert_colors_), this->pclk_frequency_);
   LOG_PIN("  Reset Pin ", this->reset_pin_);
 }
