@@ -8,8 +8,7 @@
 #include <esp_task_wdt.h>
 #include <spi_flash_mmap.h>
 
-namespace esphome {
-namespace ota {
+namespace esphome::ota {
 
 std::unique_ptr<IDFOTABackend> make_ota_backend() { return make_unique<IDFOTABackend>(); }
 
@@ -112,6 +111,5 @@ void IDFOTABackend::abort() {
   this->update_handle_ = 0;
 }
 
-}  // namespace ota
-}  // namespace esphome
+}  // namespace esphome::ota
 #endif  // USE_ESP32

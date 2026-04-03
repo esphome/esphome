@@ -400,7 +400,7 @@ async def setup_climate_core_(var, config):
             )
         ) is not None:
             cg.add(
-                mqtt_.set_custom_target_temperature_state_topic(
+                mqtt_.set_custom_target_temperature_low_state_topic(
                     target_temperature_low_state_topic
                 )
             )
