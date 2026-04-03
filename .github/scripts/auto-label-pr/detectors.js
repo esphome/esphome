@@ -235,8 +235,9 @@ async function detectDeprecatedComponents(github, context, changedFiles) {
     }
   }
 
-  // Get base branch ref to check if deprecation existed before this PR
-  const baseRef = context.payload.pull_request.base.sha;
+  // Get base branch ref to check if deprecation already exists for the component
+  // This prevents flagging a PR that simply adds deprecation
+  const baseRef = context.payload.pull_request.base.ref;
 
   // Check each component's __init__.py for DEPRECATED_COMPONENT constant
   for (const component of components) {
