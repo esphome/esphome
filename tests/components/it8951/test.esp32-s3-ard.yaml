@@ -1,0 +1,27 @@
+esphome:
+  name: test-it8951
+
+esp32:
+  board: esp32-s3-devkitc-1
+  framework:
+    type: arduino
+
+psram:
+  mode: octal
+
+display:
+  - platform: it8951
+    id: e1003_display
+    model: seeed-reterminal-e1003
+    vcom: 1400
+    update_interval: never
+    lambda: |-
+      it.filled_rectangle(0, 0, 128, 128, Color::BLACK);
+
+  - platform: it8951
+    id: ee03_display
+    model: seeed-ee03
+    vcom: 1450
+    update_interval: 60s
+    lambda: |-
+      it.circle(64, 64, 32, Color::BLACK);
