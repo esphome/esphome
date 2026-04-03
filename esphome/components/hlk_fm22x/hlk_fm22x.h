@@ -91,24 +91,23 @@ class HlkFm22xComponent : public PollingComponent, public uart::UARTDevice {
   void set_version_text_sensor(text_sensor::TextSensor *version_text_sensor) {
     this->version_text_sensor_ = version_text_sensor;
   }
-  void add_on_face_scan_matched_callback(std::function<void(int16_t, std::string)> callback) {
-    this->face_scan_matched_callback_.add(std::move(callback));
+  template<typename F> void add_on_face_scan_matched_callback(F &&callback) {
+    this->face_scan_matched_callback_.add(std::forward<F>(callback));
   }
-  void add_on_face_scan_unmatched_callback(std::function<void()> callback) {
-    this->face_scan_unmatched_callback_.add(std::move(callback));
+  template<typename F> void add_on_face_scan_unmatched_callback(F &&callback) {
+    this->face_scan_unmatched_callback_.add(std::forward<F>(callback));
   }
-  void add_on_face_scan_invalid_callback(std::function<void(uint8_t)> callback) {
-    this->face_scan_invalid_callback_.add(std::move(callback));
+  template<typename F> void add_on_face_scan_invalid_callback(F &&callback) {
+    this->face_scan_invalid_callback_.add(std::forward<F>(callback));
   }
-  void add_on_face_info_callback(
-      std::function<void(int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t)> callback) {
-    this->face_info_callback_.add(std::move(callback));
+  template<typename F> void add_on_face_info_callback(F &&callback) {
+    this->face_info_callback_.add(std::forward<F>(callback));
   }
-  void add_on_enrollment_done_callback(std::function<void(int16_t, uint8_t)> callback) {
-    this->enrollment_done_callback_.add(std::move(callback));
+  template<typename F> void add_on_enrollment_done_callback(F &&callback) {
+    this->enrollment_done_callback_.add(std::forward<F>(callback));
   }
-  void add_on_enrollment_failed_callback(std::function<void(uint8_t)> callback) {
-    this->enrollment_failed_callback_.add(std::move(callback));
+  template<typename F> void add_on_enrollment_failed_callback(F &&callback) {
+    this->enrollment_failed_callback_.add(std::forward<F>(callback));
   }
 
   void enroll_face(const std::string &name, HlkFm22xFaceDirection direction);
@@ -140,52 +139,6 @@ class HlkFm22xComponent : public PollingComponent, public uart::UARTDevice {
   CallbackManager<void(int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t)> face_info_callback_;
   CallbackManager<void(int16_t, uint8_t)> enrollment_done_callback_;
   CallbackManager<void(uint8_t)> enrollment_failed_callback_;
-};
-
-class FaceScanMatchedTrigger : public Trigger<int16_t, std::string> {
- public:
-  explicit FaceScanMatchedTrigger(HlkFm22xComponent *parent) {
-    parent->add_on_face_scan_matched_callback(
-        [this](int16_t face_id, const std::string &name) { this->trigger(face_id, name); });
-  }
-};
-
-class FaceScanUnmatchedTrigger : public Trigger<> {
- public:
-  explicit FaceScanUnmatchedTrigger(HlkFm22xComponent *parent) {
-    parent->add_on_face_scan_unmatched_callback([this]() { this->trigger(); });
-  }
-};
-
-class FaceScanInvalidTrigger : public Trigger<uint8_t> {
- public:
-  explicit FaceScanInvalidTrigger(HlkFm22xComponent *parent) {
-    parent->add_on_face_scan_invalid_callback([this](uint8_t error) { this->trigger(error); });
-  }
-};
-
-class FaceInfoTrigger : public Trigger<int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t, int16_t> {
- public:
-  explicit FaceInfoTrigger(HlkFm22xComponent *parent) {
-    parent->add_on_face_info_callback(
-        [this](int16_t status, int16_t left, int16_t top, int16_t right, int16_t bottom, int16_t yaw, int16_t pitch,
-               int16_t roll) { this->trigger(status, left, top, right, bottom, yaw, pitch, roll); });
-  }
-};
-
-class EnrollmentDoneTrigger : public Trigger<int16_t, uint8_t> {
- public:
-  explicit EnrollmentDoneTrigger(HlkFm22xComponent *parent) {
-    parent->add_on_enrollment_done_callback(
-        [this](int16_t face_id, uint8_t direction) { this->trigger(face_id, direction); });
-  }
-};
-
-class EnrollmentFailedTrigger : public Trigger<uint8_t> {
- public:
-  explicit EnrollmentFailedTrigger(HlkFm22xComponent *parent) {
-    parent->add_on_enrollment_failed_callback([this](uint8_t error) { this->trigger(error); });
-  }
 };
 
 template<typename... Ts> class EnrollmentAction : public Action<Ts...>, public Parented<HlkFm22xComponent> {

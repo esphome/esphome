@@ -4,14 +4,7 @@ from pathlib import Path
 from esphome import pins
 from esphome.components import esp32
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_CLK_PIN,
-    CONF_RESET_PIN,
-    CONF_VARIANT,
-    KEY_CORE,
-    KEY_FRAMEWORK_VERSION,
-)
-from esphome.core import CORE
+from esphome.const import CONF_CLK_PIN, CONF_RESET_PIN, CONF_VARIANT
 from esphome.cpp_generator import add_define
 
 CODEOWNERS = ["@swoboda1337"]
@@ -100,9 +93,9 @@ async def to_code(config):
         int(config[CONF_SDIO_FREQUENCY] // 1000),
     )
 
-    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
-    os.environ["ESP_IDF_VERSION"] = f"{framework_ver.major}.{framework_ver.minor}"
-    if framework_ver >= cv.Version(5, 5, 0):
+    idf_ver = esp32.idf_version()
+    os.environ["ESP_IDF_VERSION"] = f"{idf_ver.major}.{idf_ver.minor}"
+    if idf_ver >= cv.Version(5, 5, 0):
         esp32.add_idf_component(name="espressif/esp_wifi_remote", ref="1.4.0")
         esp32.add_idf_component(name="espressif/eppp_link", ref="1.1.4")
         esp32.add_idf_component(name="espressif/esp_hosted", ref="2.12.1")

@@ -14,11 +14,63 @@ include the relevant `.cpp` and `.h` test files there.
 
 ### Override component code generation for testing
 
-When generating code for testing, ESPHome won't invoke the component's `to_code` function, since most components do not
-need to generate configuration code for testing.
+During C++ test builds, `to_code` is suppressed for every component by default — most components do not
+need to generate configuration code for a unit test binary.
 
-If you do need to generate code to for example configure compilation flags or add libraries,
-add the component name to the `CPP_TESTING_CODEGEN_COMPONENTS` allowlist in `script/cpp_unit_test.py`.
+#### Manifest overrides
+
+If your component needs to customise code generation behavior for testing — for example to re-enable
+`to_code`, supply a lightweight stub, add a test-only dependency, or change any other manifest attribute —
+create an `__init__.py` in your component's test directory and define `override_manifest`:
+
+**Top-level component** (`tests/components/<component>/__init__.py`):
+
+```python
+from tests.testing_helpers import ComponentManifestOverride
+
+def override_manifest(manifest: ComponentManifestOverride) -> None:
+    # Re-enable the component's own to_code (needed when the component must
+    # emit C++ setup code that the test binary depends on at link time).
+    manifest.enable_codegen()
+```
+
+Or supply a lightweight stub instead of the real `to_code`:
+
+```python
+from tests.testing_helpers import ComponentManifestOverride
+
+def override_manifest(manifest: ComponentManifestOverride) -> None:
+    async def to_code_testing(config):
+        # Only emit what the C++ tests actually need
+        pass
+
+    manifest.to_code = to_code_testing
+    manifest.dependencies = manifest.dependencies + ["some_test_only_dep"]
+```
+
+**Platform component** (`tests/components/<component>/<domain>/__init__.py`,
+e.g. `tests/components/my_sensor/sensor/__init__.py`):
+
+```python
+from tests.testing_helpers import ComponentManifestOverride
+
+def override_manifest(manifest: ComponentManifestOverride) -> None:
+    manifest.enable_codegen()
+```
+
+`override_manifest` receives a `ComponentManifestOverride` that wraps the real manifest.
+Attribute assignments store an override; reads fall back to the real manifest when no
+override is present.
+
+Key methods:
+
+| Method | Effect |
+|---|---|
+| `manifest.enable_codegen()` | Remove the `to_code` suppression, re-enabling code generation |
+| `manifest.restore()` | Clear **all** overrides, reverting every attribute to the original |
+
+The function is called after `to_code` has already been set to `None`, so calling
+`enable_codegen()` is a deliberate opt-in.
 
 ## Running component unit tests
 

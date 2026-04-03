@@ -168,6 +168,13 @@ def mock_run_miniterm() -> Generator[Mock]:
 
 
 @pytest.fixture
+def mock_wait_for_serial_port() -> Generator[Mock]:
+    """Mock _wait_for_serial_port for testing."""
+    with patch("esphome.__main__._wait_for_serial_port") as mock:
+        yield mock
+
+
+@pytest.fixture
 def mock_upload_using_esptool() -> Generator[Mock]:
     """Mock upload_using_esptool for testing."""
     with patch("esphome.__main__.upload_using_esptool") as mock:
@@ -1706,6 +1713,7 @@ def test_show_logs_serial(
     mock_get_port_type: Mock,
     mock_check_permissions: Mock,
     mock_run_miniterm: Mock,
+    mock_wait_for_serial_port: Mock,
 ) -> None:
     """Test show_logs with serial port."""
     setup_core(config={"logger": {}}, platform=PLATFORM_ESP32)
@@ -1754,7 +1762,34 @@ def test_show_logs_api(
 
     assert result == 0
     mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.1.100", "192.168.1.101"]
+        CORE.config, ["192.168.1.100", "192.168.1.101"], subscribe_states=True
+    )
+
+
+@patch("esphome.components.api.client.run_logs")
+def test_show_logs_api_no_states(
+    mock_run_logs: Mock,
+) -> None:
+    """Test show_logs with --no-states flag."""
+    setup_core(
+        config={
+            "logger": {},
+            CONF_API: {},
+            CONF_MDNS: {CONF_DISABLED: False},
+        },
+        platform=PLATFORM_ESP32,
+    )
+    mock_run_logs.return_value = 0
+
+    args = MockArgs()
+    args.no_states = True
+    devices = ["192.168.1.100"]
+
+    result = show_logs(CORE.config, args, devices)
+
+    assert result == 0
+    mock_run_logs.assert_called_once_with(
+        CORE.config, ["192.168.1.100"], subscribe_states=False
     )
 
 
@@ -1780,7 +1815,9 @@ def test_show_logs_api_with_fqdn_mdns_disabled(
 
     assert result == 0
     # Should use the FQDN directly, not try MQTT lookup
-    mock_run_logs.assert_called_once_with(CORE.config, ["device.example.com"])
+    mock_run_logs.assert_called_once_with(
+        CORE.config, ["device.example.com"], subscribe_states=True
+    )
 
 
 @patch("esphome.components.api.client.run_logs")
@@ -1808,7 +1845,9 @@ def test_show_logs_api_with_mqtt_fallback(
 
     assert result == 0
     mock_mqtt_get_ip.assert_called_once_with(CORE.config, "user", "pass", "client")
-    mock_run_logs.assert_called_once_with(CORE.config, ["192.168.1.200"])
+    mock_run_logs.assert_called_once_with(
+        CORE.config, ["192.168.1.200"], subscribe_states=True
+    )
 
 
 @patch("esphome.mqtt.show_logs")
@@ -2738,7 +2777,7 @@ def test_show_logs_api_static_ip_with_mqttip(
 
     # Verify run_logs was called with both IPs
     mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.1.100", "192.168.2.50"]
+        CORE.config, ["192.168.1.100", "192.168.2.50"], subscribe_states=True
     )
 
 
@@ -2774,7 +2813,9 @@ def test_show_logs_api_multiple_mqttip_resolves_once(
     # Note: "MQTT" is a different magic string from "MQTTIP", but both trigger MQTT resolution
     # The _resolve_network_devices helper filters out both after first resolution
     mock_run_logs.assert_called_once_with(
-        CORE.config, ["192.168.2.50", "192.168.2.51", "192.168.1.100"]
+        CORE.config,
+        ["192.168.2.50", "192.168.2.51", "192.168.1.100"],
+        subscribe_states=True,
     )
 
 
@@ -2854,7 +2895,9 @@ def test_show_logs_api_mqtt_timeout_fallback(
     mock_mqtt_get_ip.assert_called_once_with(CORE.config, "user", "pass", "client")
 
     # Verify run_logs was called with only the static IP (MQTT failed)
-    mock_run_logs.assert_called_once_with(CORE.config, ["192.168.1.100"])
+    mock_run_logs.assert_called_once_with(
+        CORE.config, ["192.168.1.100"], subscribe_states=True
+    )
 
 
 def test_detect_external_components_no_external(

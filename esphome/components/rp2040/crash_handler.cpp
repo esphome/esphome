@@ -57,14 +57,14 @@ static const char *const TAG = "rp2040.crash";
 
 // Placed in .noinit so BSS zero-init cannot race with crash_handler_read_and_clear().
 // The valid field is explicitly cleared in crash_handler_read_and_clear() instead.
-static struct {
+static struct CrashData {
   bool valid;
   uint32_t pc;
   uint32_t lr;
   uint32_t sp;
   uint32_t backtrace[MAX_BACKTRACE];
   uint8_t backtrace_count;
-} __attribute__((section(".noinit"))) s_crash_data;
+} s_crash_data __attribute__((section(".noinit")));
 
 bool crash_handler_has_data() { return s_crash_data.valid; }
 

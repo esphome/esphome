@@ -11,7 +11,7 @@ ci:
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Ruff version.
-    rev: v0.15.5
+    rev: v0.15.9
     hooks:
       # Run the linter.
       - id: ruff
@@ -65,3 +65,7 @@ repos:
         files: ^(\.clang-tidy|platformio\.ini|requirements_dev\.txt)$
         pass_filenames: false
         additional_dependencies: []
+      - id: ci-custom
+        name: ci-custom
+        entry: python3 script/run-in-env.py script/ci-custom.py
+        language: system
