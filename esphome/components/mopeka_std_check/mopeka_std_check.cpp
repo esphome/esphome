@@ -108,7 +108,7 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   }
 
   // Get temperature of sensor
-  uint8_t temp_in_c = this->parse_temperature_(mopeka_data);
+  int8_t temp_in_c = this->parse_temperature_(mopeka_data);
   if (this->temperature_ != nullptr) {
     this->temperature_->publish_state(temp_in_c);
   }
@@ -223,12 +223,12 @@ uint8_t MopekaStdCheck::parse_battery_level_(const mopeka_std_package *message) 
   return (uint8_t) percent;
 }
 
-uint8_t MopekaStdCheck::parse_temperature_(const mopeka_std_package *message) {
+int8_t MopekaStdCheck::parse_temperature_(const mopeka_std_package *message) {
   uint8_t tmp = message->raw_temp;
   if (tmp == 0x0) {
     return -40;
   } else {
-    return (uint8_t) ((tmp - 25.0f) * 1.776964f);
+    return static_cast<int8_t>((tmp - 25.0f) * 1.776964f);
   }
 }
 

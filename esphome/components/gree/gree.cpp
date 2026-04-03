@@ -180,7 +180,7 @@ uint8_t GreeClimate::operation_mode_() {
 uint8_t GreeClimate::fan_speed_() {
   // YX1FF has 4 fan speeds -- we treat low as quiet and turbo as high
   if (this->model_ == GREE_YX1FF) {
-    switch (this->fan_mode.value()) {
+    switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
       case climate::CLIMATE_FAN_QUIET:
         return GREE_FAN_1;
       case climate::CLIMATE_FAN_LOW:
@@ -195,7 +195,7 @@ uint8_t GreeClimate::fan_speed_() {
     }
   }
 
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_LOW:
       return GREE_FAN_1;
     case climate::CLIMATE_FAN_MEDIUM:
@@ -235,7 +235,7 @@ uint8_t GreeClimate::temperature_() {
 uint8_t GreeClimate::preset_() {
   // YX1FF has sleep preset
   if (this->model_ == GREE_YX1FF) {
-    switch (this->preset.value()) {
+    switch (this->preset.value_or(climate::CLIMATE_PRESET_NONE)) {
       case climate::CLIMATE_PRESET_NONE:
         return GREE_PRESET_NONE;
       case climate::CLIMATE_PRESET_SLEEP:

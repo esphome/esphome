@@ -10,7 +10,7 @@ namespace mipi_dsi {
 static constexpr size_t MIPI_DSI_MAX_CMD_LOG_BYTES = 64;
 
 static bool notify_refresh_ready(esp_lcd_panel_handle_t panel, esp_lcd_dpi_panel_event_data_t *edata, void *user_ctx) {
-  auto *sem = static_cast<SemaphoreHandle_t *>(user_ctx);
+  auto sem = static_cast<SemaphoreHandle_t>(user_ctx);
   BaseType_t need_yield = pdFALSE;
   xSemaphoreGiveFromISR(sem, &need_yield);
   return (need_yield == pdTRUE);
@@ -190,6 +190,7 @@ void MIPI_DSI::draw_pixels_at(int x_start, int y_start, int w, int h, const uint
   if (bitness != this->color_depth_) {
     display::Display::draw_pixels_at(x_start, y_start, w, h, ptr, order, bitness, big_endian, x_offset, y_offset,
                                      x_pad);
+    return;
   }
   this->write_to_display_(x_start, y_start, w, h, ptr, x_offset, y_offset, x_pad);
 }

@@ -32,7 +32,7 @@
 #include "esphome/components/status_led/status_led.h"
 #endif
 
-#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+#if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
 #include "esphome/components/socket/socket.h"
 #endif
 
@@ -79,21 +79,9 @@ static void insertion_sort_by_priority(Iterator first, Iterator last) {
   }
 }
 
-void Application::register_component_(Component *comp) {
-  if (comp == nullptr) {
-    ESP_LOGW(TAG, "Tried to register null component!");
-    return;
-  }
-
-  for (auto *c : this->components_) {
-    if (comp == c) {
-      ESP_LOGW(TAG, "Component %s already registered! (%p)", LOG_STR_ARG(c->get_component_log_str()), c);
-      return;
-    }
-  }
-  if (this->components_.size() >= ESPHOME_COMPONENT_COUNT) {
-    ESP_LOGE(TAG, "Cannot register component %s - at capacity!", LOG_STR_ARG(comp->get_component_log_str()));
-    return;
+void Application::register_component_impl_(Component *comp, bool has_loop) {
+  if (has_loop) {
+    comp->component_state_ |= COMPONENT_HAS_LOOP;
   }
   this->components_.push_back(comp);
 }
@@ -165,6 +153,14 @@ void Application::setup() {
   this->setup_wake_loop_threadsafe_();
 #endif
 
+  // Ensure all active looping components are in LOOP state.
+  // Components after the last blocking component only got one call() during setup
+  // (CONSTRUCTION→SETUP) and never received the second call() (SETUP→LOOP).
+  // The main loop calls loop() directly, bypassing call()'s state machine.
+  for (uint16_t i = 0; i < this->looping_components_active_end_; i++) {
+    this->looping_components_[i]->set_component_state_(COMPONENT_STATE_LOOP);
+  }
+
   this->schedule_dump_config();
 }
 void Application::loop() {
@@ -185,7 +181,7 @@ void Application::loop() {
     {
       this->set_current_component(component);
       WarnIfComponentBlockingGuard guard{component, last_op_end_time};
-      component->call();
+      component->loop();
       // Use the finish method to get the current time as the end time
       last_op_end_time = guard.finish();
     }
@@ -399,16 +395,8 @@ void Application::teardown_components(uint32_t timeout_ms) {
 }
 
 void Application::calculate_looping_components_() {
-  // Count total components that need looping
-  size_t total_looping = 0;
-  for (auto *obj : this->components_) {
-    if (obj->has_overridden_loop()) {
-      total_looping++;
-    }
-  }
-
-  // Initialize FixedVector with exact size - no reallocation possible
-  this->looping_components_.init(total_looping);
+  // FixedVector capacity was pre-initialized by codegen with the exact count
+  // of components that override loop(), computed at C++ compile time.
 
   // Add all components with loop override that aren't already LOOP_DONE
   // Some components (like logger) may call disable_loop() during initialization
@@ -525,8 +513,7 @@ void Application::enable_pending_loops_() {
     // Clear the pending flag and enable the loop
     component->pending_enable_loop_ = false;
     ESP_LOGVV(TAG, "%s loop enabled from ISR", LOG_STR_ARG(component->get_component_log_str()));
-    component->component_state_ &= ~COMPONENT_STATE_MASK;
-    component->component_state_ |= COMPONENT_STATE_LOOP;
+    component->set_component_state_(COMPONENT_STATE_LOOP);
 
     // Move to active section
     this->activate_looping_component_(i);
@@ -573,7 +560,32 @@ void Application::after_loop_tasks_() {
   this->in_loop_ = false;
 }
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_LWIP_FAST_SELECT
+bool Application::register_socket(struct lwip_sock *sock) {
+  // It modifies monitored_sockets_ without locking — must only be called from the main loop.
+  if (sock == nullptr)
+    return false;
+  esphome_lwip_hook_socket(sock);
+  this->monitored_sockets_.push_back(sock);
+  return true;
+}
+
+void Application::unregister_socket(struct lwip_sock *sock) {
+  // It modifies monitored_sockets_ without locking — must only be called from the main loop.
+  for (size_t i = 0; i < this->monitored_sockets_.size(); i++) {
+    if (this->monitored_sockets_[i] != sock)
+      continue;
+
+    // Swap with last element and pop - O(1) removal since order doesn't matter.
+    // No need to unhook the netconn callback — all LwIP sockets share the same
+    // static event_callback, and the socket will be closed by the caller.
+    if (i < this->monitored_sockets_.size() - 1)
+      this->monitored_sockets_[i] = this->monitored_sockets_.back();
+    this->monitored_sockets_.pop_back();
+    return;
+  }
+}
+#elif defined(USE_SOCKET_SELECT_SUPPORT)
 bool Application::register_socket_fd(int fd) {
   // WARNING: This function is NOT thread-safe and must only be called from the main loop
   // It modifies socket_fds_ and related variables without locking
@@ -592,15 +604,10 @@ bool Application::register_socket_fd(int fd) {
 #endif
 
   this->socket_fds_.push_back(fd);
-#ifdef USE_LWIP_FAST_SELECT
-  // Hook the socket's netconn callback for instant wake on receive events
-  esphome_lwip_hook_socket(fd);
-#else
   this->socket_fds_changed_ = true;
   if (fd > this->max_fd_) {
     this->max_fd_ = fd;
   }
-#endif
 
   return true;
 }
@@ -616,13 +623,9 @@ void Application::unregister_socket_fd(int fd) {
       continue;
 
     // Swap with last element and pop - O(1) removal since order doesn't matter.
-    // No need to unhook the netconn callback on fast select platforms — all LwIP
-    // sockets share the same static event_callback, and the socket will be closed
-    // by the caller.
     if (i < this->socket_fds_.size() - 1)
       this->socket_fds_[i] = this->socket_fds_.back();
     this->socket_fds_.pop_back();
-#ifndef USE_LWIP_FAST_SELECT
     this->socket_fds_changed_ = true;
     // Only recalculate max_fd if we removed the current max
     if (fd == this->max_fd_) {
@@ -632,7 +635,6 @@ void Application::unregister_socket_fd(int fd) {
           this->max_fd_ = sock_fd;
       }
     }
-#endif
     return;
   }
 }
@@ -642,7 +644,7 @@ void Application::unregister_socket_fd(int fd) {
 void Application::yield_with_select_(uint32_t delay_ms) {
   // Delay while monitoring sockets. When delay_ms is 0, always yield() to ensure other tasks run.
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_LWIP_FAST_SELECT)
-  // Fast path (ESP32/LibreTiny): reads rcvevent directly via lwip_socket_dbg_get_socket().
+  // Fast path (ESP32/LibreTiny): reads rcvevent directly from cached lwip_sock pointers.
   // Safe because this runs on the main loop which owns socket lifetime (create, read, close).
   if (delay_ms == 0) [[unlikely]] {
     yield();
@@ -653,8 +655,8 @@ void Application::yield_with_select_(uint32_t delay_ms) {
   // If a socket still has unread data (rcvevent > 0) but the task notification was already
   // consumed, ulTaskNotifyTake would block until timeout — adding up to delay_ms latency.
   // This scan preserves select() semantics: return immediately when any fd is ready.
-  for (int fd : this->socket_fds_) {
-    if (esphome_lwip_socket_has_data(fd)) {
+  for (struct lwip_sock *sock : this->monitored_sockets_) {
+    if (esphome_lwip_socket_has_data(sock)) {
       yield();
       return;
     }
@@ -711,8 +713,10 @@ void Application::yield_with_select_(uint32_t delay_ms) {
   }
   // No sockets registered or select() failed - use regular delay
   delay(delay_ms);
-#elif defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
-  // No select support but can wake on socket activity via esp_schedule()
+#elif (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
+  // No select support but can wake on socket activity
+  // ESP8266: via esp_schedule()
+  // RP2040: via __sev()/__wfe() hardware sleep/wake
   socket::socket_delay(delay_ms);
 #else
   // No select support, use regular delay

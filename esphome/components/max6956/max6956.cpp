@@ -111,6 +111,8 @@ void MAX6956::write_brightness_mode() {
 }
 
 void MAX6956::set_pin_brightness(uint8_t pin, float brightness) {
+  if (pin < MAX6956_MIN || pin > MAX6956_MAX)
+    return;
   uint8_t reg_addr = MAX6956_CURRENT_START + (pin - MAX6956_MIN) / 2;
   uint8_t config = 0;
   uint8_t shift = 4 * (pin % 2);

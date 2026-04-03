@@ -30,6 +30,7 @@ static const uint8_t RF_CODE_RFIN_BUCKET = 0xB1;
 static const uint8_t RF_CODE_BEEP = 0xC0;
 static const uint8_t RF_CODE_STOP = 0x55;
 static const uint8_t RF_DEBOUNCE = 200;
+static const size_t MAX_RX_BUFFER_SIZE = 512;
 
 struct RFBridgeData {
   uint16_t sync;

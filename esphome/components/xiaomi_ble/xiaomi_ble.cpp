@@ -121,6 +121,11 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
   // Byte 2: length
   // Byte 3..3+len-1: data point value
 
+  if (result.raw_offset < 0 || static_cast<size_t>(result.raw_offset) >= message.size()) {
+    ESP_LOGVV(TAG, "parse_xiaomi_message(): raw_offset (%d) exceeds message size (%d)!", result.raw_offset,
+              message.size());
+    return false;
+  }
   const uint8_t *payload = message.data() + result.raw_offset;
   uint8_t payload_length = message.size() - result.raw_offset;
   uint8_t payload_offset = 0;
@@ -165,6 +170,10 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   }
 
   auto raw = service_data.data;
+  if (raw.size() < 5) {
+    ESP_LOGVV(TAG, "parse_xiaomi_header(): service data too short (%d).", raw.size());
+    return {};
+  }
   result.has_data = raw[0] & 0x40;
   result.has_capability = raw[0] & 0x20;
   result.has_encryption = raw[0] & 0x08;

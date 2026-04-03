@@ -1,6 +1,6 @@
 #pragma once
 
-#include "esphome/components/ota/ota_backend.h"
+#include "esphome/components/ota/ota_backend_factory.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -39,7 +39,7 @@ class OtaHttpRequestComponent final : public ota::OTAComponent, public Parented<
   void flash();
 
  protected:
-  void cleanup_(std::unique_ptr<ota::OTABackend> backend, const std::shared_ptr<HttpContainer> &container);
+  void cleanup_(ota::OTABackendPtr backend, const std::shared_ptr<HttpContainer> &container);
   uint8_t do_ota_();
   std::string get_url_with_auth_(const std::string &url);
   bool http_get_md5_();

@@ -635,6 +635,72 @@ void APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
 #endif
+#ifdef USE_SERIAL_PROXY
+    case SerialProxyConfigureRequest::MESSAGE_TYPE: {
+      SerialProxyConfigureRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_serial_proxy_configure_request"), msg);
+#endif
+      this->on_serial_proxy_configure_request(msg);
+      break;
+    }
+#endif
+#ifdef USE_SERIAL_PROXY
+    case SerialProxyWriteRequest::MESSAGE_TYPE: {
+      SerialProxyWriteRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_serial_proxy_write_request"), msg);
+#endif
+      this->on_serial_proxy_write_request(msg);
+      break;
+    }
+#endif
+#ifdef USE_SERIAL_PROXY
+    case SerialProxySetModemPinsRequest::MESSAGE_TYPE: {
+      SerialProxySetModemPinsRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_serial_proxy_set_modem_pins_request"), msg);
+#endif
+      this->on_serial_proxy_set_modem_pins_request(msg);
+      break;
+    }
+#endif
+#ifdef USE_SERIAL_PROXY
+    case SerialProxyGetModemPinsRequest::MESSAGE_TYPE: {
+      SerialProxyGetModemPinsRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_serial_proxy_get_modem_pins_request"), msg);
+#endif
+      this->on_serial_proxy_get_modem_pins_request(msg);
+      break;
+    }
+#endif
+#ifdef USE_SERIAL_PROXY
+    case SerialProxyRequest::MESSAGE_TYPE: {
+      SerialProxyRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_serial_proxy_request"), msg);
+#endif
+      this->on_serial_proxy_request(msg);
+      break;
+    }
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+    case BluetoothSetConnectionParamsRequest::MESSAGE_TYPE: {
+      BluetoothSetConnectionParamsRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      this->log_receive_message_(LOG_STR("on_bluetooth_set_connection_params_request"), msg);
+#endif
+      this->on_bluetooth_set_connection_params_request(msg);
+      break;
+    }
+#endif
     default:
       break;
   }

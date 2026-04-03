@@ -236,8 +236,8 @@ void BLEClientBase::log_warning_(const char *message) {
   ESP_LOGW(TAG, "[%d] [%s] %s", this->connection_index_, this->address_str_, message);
 }
 
-void BLEClientBase::update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency,
-                                        uint16_t timeout, const char *param_type) {
+esp_err_t BLEClientBase::update_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency,
+                                             uint16_t timeout, const char *param_type) {
   esp_ble_conn_update_params_t conn_params = {{0}};
   memcpy(conn_params.bda, this->remote_bda_, sizeof(esp_bd_addr_t));
   conn_params.min_int = min_interval;
@@ -249,6 +249,7 @@ void BLEClientBase::update_conn_params_(uint16_t min_interval, uint16_t max_inte
   if (err != ESP_OK) {
     this->log_gattc_warning_("esp_ble_gap_update_conn_params", err);
   }
+  return err;
 }
 
 void BLEClientBase::set_conn_params_(uint16_t min_interval, uint16_t max_interval, uint16_t latency, uint16_t timeout,

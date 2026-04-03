@@ -69,7 +69,7 @@ optional<size_t> SelectCall::calculate_target_index_(const char *name) {
       ESP_LOGW(TAG, "'%s' - No option set", name);
       return {};
     }
-    return this->index_.value();
+    return this->index_;
   }
 
   // SELECT_OP_NEXT or SELECT_OP_PREVIOUS

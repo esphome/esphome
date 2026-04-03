@@ -21,7 +21,11 @@ from esphome.const import (
     DEVICE_CLASS_TIMESTAMP,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    setup_device_class,
+    setup_entity,
+)
 from esphome.cpp_generator import MockObjClass
 from esphome.util import Registry
 
@@ -197,17 +201,8 @@ async def build_filters(config):
     return await cg.build_registry_list(FILTER_REGISTRY, config)
 
 
-async def setup_text_sensor_core_(var, config):
-    await setup_entity(var, config, "text_sensor")
-
-    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
-        cg.add(var.set_device_class(device_class))
-
-    if config.get(CONF_FILTERS):  # must exist and not be empty
-        cg.add_define("USE_TEXT_SENSOR_FILTER")
-        filters = await build_filters(config[CONF_FILTERS])
-        cg.add(var.set_filters(filters))
-
+@coroutine_with_priority(CoroPriority.AUTOMATION)
+async def _build_text_sensor_automations(var, config):
     for conf in config.get(CONF_ON_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
@@ -215,6 +210,18 @@ async def setup_text_sensor_core_(var, config):
     for conf in config.get(CONF_ON_RAW_VALUE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
+
+
+@setup_entity("text_sensor")
+async def setup_text_sensor_core_(var, config):
+    setup_device_class(config)
+
+    if config.get(CONF_FILTERS):  # must exist and not be empty
+        cg.add_define("USE_TEXT_SENSOR_FILTER")
+        filters = await build_filters(config[CONF_FILTERS])
+        cg.add(var.set_filters(filters))
+
+    CORE.add_job(_build_text_sensor_automations, var, config)
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)

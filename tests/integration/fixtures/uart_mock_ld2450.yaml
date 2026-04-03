@@ -1,0 +1,221 @@
+esphome:
+  name: uart-mock-ld2450-test
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy ld2450's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  id: mock_uart
+  baud_rate: 256000
+  auto_start: false
+  responses:
+    # Catch-all response: match any command footer (04 03 02 01).
+    # Returns a generic ACK to unblock setup commands.
+    #
+    # Response layout:
+    #   [0-3]  FD FC FB FA = header
+    #   [4-5]  04 00       = length 4
+    #   [6]    FF          = cmd (handled as CMD_ENABLE_CONF)
+    #   [7]    01          = status (ACK)
+    #   [8-9]  00 00       = error = 0
+    #   [10-13] 04 03 02 01 = footer
+    - expect_tx: [0x04, 0x03, 0x02, 0x01]
+      inject_rx:
+        [
+          0xFD, 0xFC, 0xFB, 0xFA,
+          0x04, 0x00,
+          0xFF, 0x01,
+          0x00, 0x00,
+          0x04, 0x03, 0x02, 0x01,
+        ]
+
+  injections:
+    # Phase 1 (t=100ms): Valid LD2450 periodic data frame - happy path
+    # The buffer is clean at this point, so this frame should parse correctly.
+    #
+    # Target 1: X=-500mm, Y=1000mm, Speed=-50mm/s (approaching), Res=320mm
+    #   X: magnitude=500 (0x01F4), negative → high=0x01, low=0xF4
+    #   Y: magnitude=1000 (0x03E8), positive → high=0x83, low=0xE8
+    #   Speed: raw=5, negative (approaching) → high=0x00, low=0x05, decoded=-50mm/s
+    #   Resolution: 320 → low=0x40, high=0x01
+    #   Distance: sqrt(500²+1000²) = sqrt(1250000) ≈ 1118mm
+    #
+    # Target 2: X=200mm, Y=500mm, Speed=0 (stationary), Res=100mm
+    #   X: magnitude=200 (0x00C8), positive → high=0x80, low=0xC8
+    #   Y: magnitude=500 (0x01F4), positive → high=0x81, low=0xF4
+    #   Speed: 0 → 0x00, 0x00
+    #   Resolution: 100 → low=0x64, high=0x00
+    #   Distance: sqrt(200²+500²) = sqrt(290000) ≈ 538mm
+    #
+    # Target 3: No target (all zeros)
+    #   Distance: 0 → sensors publish unknown/NaN
+    #
+    # Counts: target_count=2, moving_target_count=1, still_target_count=1
+    #
+    # Frame layout (30 bytes):
+    #   [0-3]   AA FF 03 00 = periodic data header
+    #   [4-11]  Target 1 (8 bytes): X_L X_H Y_L Y_H SPD_L SPD_H RES_L RES_H
+    #   [12-19] Target 2 (8 bytes)
+    #   [20-27] Target 3 (8 bytes)
+    #   [28-29] 55 CC = periodic data footer
+    - delay: 100ms
+      inject_rx:
+        [
+          0xAA, 0xFF, 0x03, 0x00,
+          0xF4, 0x01, 0xE8, 0x83, 0x05, 0x00, 0x40, 0x01,
+          0xC8, 0x80, 0xF4, 0x81, 0x00, 0x00, 0x64, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x55, 0xCC,
+        ]
+
+    # Phase 2 (t=300ms): Garbage bytes
+    # LD2450's readline_ does NOT reject bytes at position 0 (unlike LD2412),
+    # so these bytes accumulate in the buffer. buffer_pos_ goes from 0 to 7.
+    - delay: 200ms
+      inject_rx: [0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x11, 0x22]
+
+    # Phase 3 (t=400ms): Truncated frame (header + partial data, no footer)
+    # More bytes accumulating in the buffer without a footer match.
+    # After this, buffer_pos_ = 7 + 8 = 15.
+    - delay: 100ms
+      inject_rx: [0xAA, 0xFF, 0x03, 0x00, 0x01, 0x02, 0x03, 0x04]
+
+    # Phase 4 (t=600ms): Overflow - inject 75 bytes of 0xFF (MAX_LINE_LENGTH=45)
+    # Buffer has 15 bytes from phases 2+3.
+    # readline_() stores bytes while buffer_pos_ < 44. When buffer_pos_ == 44,
+    # the next byte triggers overflow: logs warning, resets buffer_pos_ to 0,
+    # and discards that byte.
+    #
+    # First overflow: 29 bytes fill positions 15-43 (buffer_pos_=44), byte 30
+    #   triggers overflow (discarded). Total consumed: 30 bytes.
+    # Second overflow: 44 bytes fill positions 0-43 (buffer_pos_=44), byte 45
+    #   triggers overflow (discarded). Total consumed: 30+45 = 75 bytes.
+    # After both overflows, buffer_pos_ = 0 (clean state for recovery frame).
+    - delay: 200ms
+      inject_rx:
+        [
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+          0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+        ]
+
+    # Phase 5 (t=700ms): Valid frame after overflow - recovery test
+    # Buffer was reset by overflow. This valid frame should parse correctly.
+    #
+    # Target 1: X=300mm, Y=400mm, Speed=30mm/s (moving away), Res=100mm
+    #   X: magnitude=300 (0x012C), positive → high=0x81, low=0x2C
+    #   Y: magnitude=400 (0x0190), positive → high=0x81, low=0x90
+    #   Speed: raw=3, positive (moving away) → high=0x80, low=0x03, decoded=30mm/s
+    #   Resolution: 100 → low=0x64, high=0x00
+    #   Distance: sqrt(300²+400²) = 500mm
+    #
+    # Target 2 & 3: No target (all zeros)
+    # Counts: target_count=1, moving_target_count=1, still_target_count=0
+    - delay: 100ms
+      inject_rx:
+        [
+          0xAA, 0xFF, 0x03, 0x00,
+          0x2C, 0x81, 0x90, 0x81, 0x03, 0x80, 0x64, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+          0x55, 0xCC,
+        ]
+
+ld2450:
+  id: ld2450_dev
+  uart_id: mock_uart
+
+sensor:
+  - platform: ld2450
+    ld2450_id: ld2450_dev
+    target_count:
+      name: "Target Count"
+      filters: &sensor_filters
+        - timeout:
+            timeout: 50ms
+            value: last
+        - throttle_with_priority: 50ms
+    still_target_count:
+      name: "Still Target Count"
+      filters: *sensor_filters
+    moving_target_count:
+      name: "Moving Target Count"
+      filters: *sensor_filters
+    target_1:
+      x:
+        name: "Target 1 X"
+        filters: *sensor_filters
+      y:
+        name: "Target 1 Y"
+        filters: *sensor_filters
+      speed:
+        name: "Target 1 Speed"
+        filters: *sensor_filters
+      distance:
+        name: "Target 1 Distance"
+        filters: *sensor_filters
+      resolution:
+        name: "Target 1 Resolution"
+        filters: *sensor_filters
+      angle:
+        name: "Target 1 Angle"
+        filters: *sensor_filters
+    target_2:
+      x:
+        name: "Target 2 X"
+        filters: *sensor_filters
+      y:
+        name: "Target 2 Y"
+        filters: *sensor_filters
+      speed:
+        name: "Target 2 Speed"
+        filters: *sensor_filters
+      distance:
+        name: "Target 2 Distance"
+        filters: *sensor_filters
+
+binary_sensor:
+  - platform: ld2450
+    ld2450_id: ld2450_dev
+    has_target:
+      name: "Has Target"
+      filters: &binary_sensor_filters
+        - settle: 50ms
+    has_moving_target:
+      name: "Has Moving Target"
+      filters: *binary_sensor_filters
+    has_still_target:
+      name: "Has Still Target"
+      filters: *binary_sensor_filters
+
+text_sensor:
+  - platform: ld2450
+    ld2450_id: ld2450_dev
+    target_1:
+      direction:
+        name: "Target 1 Direction"
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      - lambda: 'id(mock_uart).start_scenario();'

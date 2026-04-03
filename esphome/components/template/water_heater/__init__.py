@@ -4,6 +4,7 @@ from esphome.components import water_heater
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AWAY,
+    CONF_CURRENT_TEMPERATURE,
     CONF_ID,
     CONF_MODE,
     CONF_OPTIMISTIC,
@@ -18,7 +19,6 @@ from esphome.types import ConfigType
 
 from .. import template_ns
 
-CONF_CURRENT_TEMPERATURE = "current_temperature"
 CONF_IS_ON = "is_on"
 
 TemplateWaterHeater = template_ns.class_(

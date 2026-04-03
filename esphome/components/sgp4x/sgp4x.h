@@ -81,22 +81,16 @@ class SGP4xComponent : public PollingComponent, public sensor::Sensor, public se
   void set_voc_algorithm_tuning(uint16_t index_offset, uint16_t learning_time_offset_hours,
                                 uint16_t learning_time_gain_hours, uint16_t gating_max_duration_minutes,
                                 uint16_t std_initial, uint16_t gain_factor) {
-    voc_tuning_params_.value().index_offset = index_offset;
-    voc_tuning_params_.value().learning_time_offset_hours = learning_time_offset_hours;
-    voc_tuning_params_.value().learning_time_gain_hours = learning_time_gain_hours;
-    voc_tuning_params_.value().gating_max_duration_minutes = gating_max_duration_minutes;
-    voc_tuning_params_.value().std_initial = std_initial;
-    voc_tuning_params_.value().gain_factor = gain_factor;
+    this->voc_tuning_params_ = GasTuning{
+        index_offset, learning_time_offset_hours, learning_time_gain_hours, gating_max_duration_minutes, std_initial,
+        gain_factor};
   }
   void set_nox_algorithm_tuning(uint16_t index_offset, uint16_t learning_time_offset_hours,
                                 uint16_t learning_time_gain_hours, uint16_t gating_max_duration_minutes,
                                 uint16_t gain_factor) {
-    nox_tuning_params_.value().index_offset = index_offset;
-    nox_tuning_params_.value().learning_time_offset_hours = learning_time_offset_hours;
-    nox_tuning_params_.value().learning_time_gain_hours = learning_time_gain_hours;
-    nox_tuning_params_.value().gating_max_duration_minutes = gating_max_duration_minutes;
-    nox_tuning_params_.value().std_initial = 50;
-    nox_tuning_params_.value().gain_factor = gain_factor;
+    this->nox_tuning_params_ =
+        GasTuning{index_offset, learning_time_offset_hours, learning_time_gain_hours, gating_max_duration_minutes, 50,
+                  gain_factor};
   }
 
  protected:

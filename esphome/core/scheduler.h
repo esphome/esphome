@@ -12,6 +12,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/time_64.h"
 
 namespace esphome {
 
@@ -177,9 +178,11 @@ class Scheduler {
     uint16_t next_execution_high_;  // Upper 16 bits (millis_major counter)
 
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
-    // Multi-threaded with atomics: use atomic for lock-free access
-    // Place atomic<bool> separately since it can't be packed with bit fields
-    std::atomic<bool> remove{false};
+    // Multi-threaded with atomics: use atomic uint8_t for lock-free access.
+    // std::atomic<bool> is not used because GCC on Xtensa generates an indirect
+    // function call for std::atomic<bool>::load() instead of inlining it.
+    // std::atomic<uint8_t> inlines correctly on all platforms.
+    std::atomic<uint8_t> remove{0};
 
     // Bit-packed fields (4 bits used, 4 bits padding in 1 byte)
     enum Type : uint8_t { TIMEOUT, INTERVAL } type : 1;
@@ -203,7 +206,7 @@ class Scheduler {
           next_execution_low_(0),
           next_execution_high_(0),
 #ifdef ESPHOME_THREAD_MULTI_ATOMICS
-          // remove is initialized in the member declaration as std::atomic<bool>{false}
+          // remove is initialized in the member declaration
           type(TIMEOUT),
           name_type_(NameType::STATIC_STRING),
           is_retry(false) {
@@ -284,23 +287,16 @@ class Scheduler {
   bool cancel_retry_(Component *component, NameType name_type, const char *static_name, uint32_t hash_or_id);
 
   // Extend a 32-bit millis() value to 64-bit. Use when the caller already has a fresh now.
-  // On ESP32, Host, Zephyr, and RP2040, ignores now and uses the native 64-bit time source via millis_64().
+  // On platforms with native 64-bit time, ignores now and uses millis_64() directly.
   // On other platforms, extends now to 64-bit using rollover tracking.
   uint64_t millis_64_from_(uint32_t now) {
-#if defined(USE_ESP32) || defined(USE_HOST) || defined(USE_ZEPHYR) || defined(USE_RP2040)
+#ifdef USE_NATIVE_64BIT_TIME
     (void) now;
     return millis_64();
 #else
-    return this->millis_64_impl_(now);
+    return Millis64Impl::compute(now);
 #endif
   }
-
-#if !defined(USE_ESP32) && !defined(USE_HOST) && !defined(USE_ZEPHYR) && !defined(USE_RP2040)
-  // On platforms without native 64-bit time, millis_64() HAL function delegates to this
-  // method which tracks 32-bit millis() rollover using millis_major_ and last_millis_.
-  friend uint64_t millis_64();
-  uint64_t millis_64_impl_(uint32_t now);
-#endif
   // Cleanup logically deleted items from the scheduler
   // Returns the number of items remaining after cleanup
   // IMPORTANT: This method should only be called from the main thread (loop task).
@@ -514,7 +510,7 @@ class Scheduler {
     // Multi-threaded with atomics: use atomic store with appropriate ordering
     // Release ordering when setting to true ensures cancellation is visible to other threads
     // Relaxed ordering when setting to false is sufficient for initialization
-    item->remove.store(removed, removed ? std::memory_order_release : std::memory_order_relaxed);
+    item->remove.store(removed ? 1 : 0, removed ? std::memory_order_release : std::memory_order_relaxed);
 #else
     // Single-threaded (ESPHOME_THREAD_SINGLE) or
     // multi-threaded without atomics (ESPHOME_THREAD_MULTI_NO_ATOMICS): direct write
@@ -566,39 +562,6 @@ class Scheduler {
   //   can stall the entire system, causing timing issues and dropped events for any components that need
   //   to synchronize between tasks (see https://github.com/esphome/backlog/issues/52)
   std::vector<SchedulerItemPtr> scheduler_item_pool_;
-
-#if !defined(USE_ESP32) && !defined(USE_HOST) && !defined(USE_ZEPHYR) && !defined(USE_RP2040)
-  // On platforms with native 64-bit time (ESP32, Host, Zephyr, RP2040), no rollover tracking needed.
-  // On other platforms, these fields track 32-bit millis() rollover for millis_64_impl_().
-#ifdef ESPHOME_THREAD_MULTI_ATOMICS
-  /*
-   * Multi-threaded platforms with atomic support: last_millis_ needs atomic for lock-free updates
-   *
-   * MEMORY-ORDERING NOTE
-   * --------------------
-   * `last_millis_` and `millis_major_` form a single 64-bit timestamp split in half.
-   * Writers publish `last_millis_` with memory_order_release and readers use
-   * memory_order_acquire. This ensures that once a reader sees the new low word,
-   * it also observes the corresponding increment of `millis_major_`.
-   */
-  std::atomic<uint32_t> last_millis_{0};
-#else  /* not ESPHOME_THREAD_MULTI_ATOMICS */
-  // Platforms without atomic support or single-threaded platforms
-  uint32_t last_millis_{0};
-#endif /* else ESPHOME_THREAD_MULTI_ATOMICS */
-
-  /*
-   * Upper 16 bits of the 64-bit millis counter. Incremented only while holding
-   * `lock_`; read concurrently. Atomic (relaxed) avoids a formal data race.
-   * Ordering relative to `last_millis_` is provided by its release store and the
-   * corresponding acquire loads.
-   */
-#ifdef ESPHOME_THREAD_MULTI_ATOMICS
-  std::atomic<uint16_t> millis_major_{0};
-#else  /* not ESPHOME_THREAD_MULTI_ATOMICS */
-  uint16_t millis_major_{0};
-#endif /* else ESPHOME_THREAD_MULTI_ATOMICS */
-#endif /* !USE_ESP32 && !USE_HOST && !USE_ZEPHYR && !USE_RP2040 */
 };
 
 }  // namespace esphome

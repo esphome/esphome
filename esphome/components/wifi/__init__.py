@@ -210,7 +210,13 @@ WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
 def wifi_network_ap(value):
     if value is None:
         value = {}
-    return WIFI_NETWORK_AP(value)
+    config = WIFI_NETWORK_AP(value)
+    if CONF_MANUAL_IP in config and CORE.is_rp2040:
+        raise cv.Invalid(
+            "Manual AP IP configuration is not supported on RP2040. "
+            "The AP uses the default IP 192.168.4.1"
+        )
+    return config
 
 
 WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend(

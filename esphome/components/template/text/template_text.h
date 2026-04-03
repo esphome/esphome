@@ -52,7 +52,11 @@ template<uint8_t SZ> class TextSaver : public TemplateTextSaverBase {
     bool hasdata = this->pref_.load(&temp);
 
     if (hasdata) {
-      value.assign(temp + 1, (size_t) temp[0]);
+      size_t len = static_cast<uint8_t>(temp[0]);
+      if (len > SZ) {
+        len = SZ;
+      }
+      value.assign(temp + 1, len);
     }
 
     this->prev_.assign(value);

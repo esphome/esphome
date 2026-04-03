@@ -29,6 +29,10 @@ static constexpr uint16_t MAX_MESSAGE_SIZE = 8192;  // 8 KiB for ESP8266
 static constexpr uint16_t MAX_MESSAGE_SIZE = 32768;  // 32 KiB for ESP32 and other platforms
 #endif
 
+// Extra byte reserved in rx_buf_ beyond the message size so protobuf
+// StringRef fields can be null-terminated in-place after decode.
+static constexpr uint16_t RX_BUF_NULL_TERMINATOR = 1;
+
 // Maximum number of messages to batch in a single write operation
 // Must be >= MAX_INITIAL_PER_BATCH in api_connection.h (enforced by static_assert there)
 static constexpr size_t MAX_MESSAGES_PER_BATCH = 34;
@@ -227,6 +231,17 @@ class APIFrameHelper {
     FAILED = 7,
     EXPLICIT_REJECT = 8,  // Noise only
   };
+
+  // Fast inline state check for read_packet/write_protobuf_messages hot path.
+  // Returns OK only in DATA state; maps CLOSED/FAILED to BAD_STATE and any
+  // other intermediate state to WOULD_BLOCK.
+  inline APIError ESPHOME_ALWAYS_INLINE check_data_state_() const {
+    if (this->state_ == State::DATA)
+      return APIError::OK;
+    if (this->state_ == State::CLOSED || this->state_ == State::FAILED)
+      return APIError::BAD_STATE;
+    return APIError::WOULD_BLOCK;
+  }
 
   // Containers (size varies, but typically 12+ bytes on 32-bit)
   std::array<std::unique_ptr<SendBuffer>, API_MAX_SEND_QUEUE> tx_buf_;

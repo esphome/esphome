@@ -61,7 +61,7 @@ void MatrixKeypad::loop() {
       ESP_LOGD(TAG, "key @ row %d, col %d released", row, col);
       for (auto &listener : this->listeners_)
         listener->button_released(row, col);
-      if (!this->keys_.empty()) {
+      if (this->pressed_key_ < (int) this->keys_.size()) {
         uint8_t keycode = this->keys_[this->pressed_key_];
         ESP_LOGD(TAG, "key '%c' released", keycode);
         for (auto &listener : this->listeners_)
@@ -84,7 +84,7 @@ void MatrixKeypad::loop() {
   ESP_LOGD(TAG, "key @ row %d, col %d pressed", row, col);
   for (auto &listener : this->listeners_)
     listener->button_pressed(row, col);
-  if (!this->keys_.empty()) {
+  if (key < (int) this->keys_.size()) {
     uint8_t keycode = this->keys_[key];
     ESP_LOGD(TAG, "key '%c' pressed", keycode);
     for (auto &trigger : this->key_triggers_)

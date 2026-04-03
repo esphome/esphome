@@ -12,15 +12,15 @@ namespace esphome::ota {
 /// OTA backend for ESP8266 using native SDK functions.
 /// This implementation bypasses the Arduino Updater library to save ~228 bytes of RAM
 /// by not having a global Update object in .bss.
-class ESP8266OTABackend final : public OTABackend {
+class ESP8266OTABackend final {
  public:
-  OTAResponseTypes begin(size_t image_size) override;
-  void set_update_md5(const char *md5) override;
-  OTAResponseTypes write(uint8_t *data, size_t len) override;
-  OTAResponseTypes end() override;
-  void abort() override;
+  OTAResponseTypes begin(size_t image_size);
+  void set_update_md5(const char *md5);
+  OTAResponseTypes write(uint8_t *data, size_t len);
+  OTAResponseTypes end();
+  void abort();
   // Compression supported in all ESP8266 Arduino versions ESPHome supports (>= 2.7.0)
-  bool supports_compression() override { return true; }
+  bool supports_compression() { return true; }
 
  protected:
   /// Erase flash sector if current address is at sector boundary
@@ -53,6 +53,8 @@ class ESP8266OTABackend final : public OTABackend {
   uint8_t expected_md5_[16];  // Fixed-size buffer for 128-bit (16-byte) MD5 digest
   bool md5_set_{false};
 };
+
+std::unique_ptr<ESP8266OTABackend> make_ota_backend();
 
 }  // namespace esphome::ota
 #endif  // USE_ESP8266

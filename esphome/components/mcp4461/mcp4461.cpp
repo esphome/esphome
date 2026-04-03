@@ -19,8 +19,9 @@ void Mcp4461Component::setup() {
   // save WP/WL status
   this->update_write_protection_status_();
   for (uint8_t i = 0; i < 8; i++) {
-    if (this->reg_[i].initial_value.has_value()) {
-      uint16_t initial_state = static_cast<uint16_t>(*this->reg_[i].initial_value * 256.0f);
+    auto init_val = this->reg_[i].initial_value;
+    if (init_val.has_value()) {
+      uint16_t initial_state = static_cast<uint16_t>(*init_val * 256.0f);
       this->write_wiper_level_(i, initial_state);
     }
     if (this->reg_[i].enabled) {

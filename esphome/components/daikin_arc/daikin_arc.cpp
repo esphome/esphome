@@ -176,7 +176,7 @@ uint8_t DaikinArcClimate::operation_mode_() {
 
 uint16_t DaikinArcClimate::fan_speed_() {
   uint16_t fan_speed;
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_LOW:
       fan_speed = DAIKIN_FAN_1 << 8;
       break;
@@ -485,8 +485,9 @@ bool DaikinArcClimate::on_receive(remote_base::RemoteReceiveData data) {
 }
 
 void DaikinArcClimate::control(const climate::ClimateCall &call) {
-  if (call.get_target_humidity().has_value()) {
-    this->target_humidity = *call.get_target_humidity();
+  auto target_humidity = call.get_target_humidity();
+  if (target_humidity.has_value()) {
+    this->target_humidity = *target_humidity;
   }
   climate_ir::ClimateIR::control(call);
 }

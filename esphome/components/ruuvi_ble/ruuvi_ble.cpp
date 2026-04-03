@@ -63,10 +63,13 @@ bool parse_ruuvi_data_byte(const esp32_ble_tracker::adv_data_t &adv_data, RuuviP
       result.acceleration_x = data[6] == 0xFF && data[7] == 0xFF ? NAN : acceleration_x;
       result.acceleration_y = data[8] == 0xFF && data[9] == 0xFF ? NAN : acceleration_y;
       result.acceleration_z = data[10] == 0xFF && data[11] == 0xFF ? NAN : acceleration_z;
-      result.acceleration = result.acceleration_x == NAN || result.acceleration_y == NAN || result.acceleration_z == NAN
-                                ? NAN
-                                : sqrtf(acceleration_x * acceleration_x + acceleration_y * acceleration_y +
-                                        acceleration_z * acceleration_z);
+      if ((data[6] != 0xFF || data[7] != 0xFF) && (data[8] != 0xFF || data[9] != 0xFF) &&
+          (data[10] != 0xFF || data[11] != 0xFF)) {
+        result.acceleration =
+            sqrtf(acceleration_x * acceleration_x + acceleration_y * acceleration_y + acceleration_z * acceleration_z);
+      } else {
+        result.acceleration = NAN;
+      }
       result.battery_voltage = (power_info >> 5) == 0x7FF ? NAN : battery_voltage;
       result.tx_power = (power_info & 0x1F) == 0x1F ? NAN : tx_power;
       result.movement_counter = movement_counter;

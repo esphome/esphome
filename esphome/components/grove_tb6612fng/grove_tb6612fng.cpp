@@ -131,7 +131,7 @@ void GroveMotorDriveTB6612FNG::stepper_run(StepperModeTypeT mode, int16_t steps,
   buffer_[4] = ms_per_step;
   buffer_[5] = (ms_per_step >> 8);
 
-  if (this->write_register(GROVE_MOTOR_DRIVER_I2C_CMD_STEPPER_RUN, buffer_, 1) != i2c::ERROR_OK) {
+  if (this->write_register(GROVE_MOTOR_DRIVER_I2C_CMD_STEPPER_RUN, buffer_, 6) != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Run stepper failed!");
     this->status_set_warning();
     return;

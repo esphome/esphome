@@ -35,13 +35,9 @@ void SGP4xComponent::setup() {
     this->self_test_time_ = SPG40_SELFTEST_TIME;
     this->measure_time_ = SGP40_MEASURE_TIME;
     if (this->nox_sensor_) {
-      ESP_LOGE(TAG, "SGP41 required for NOx");
-      // disable the sensor
-      this->nox_sensor_->set_disabled_by_default(true);
-      // make sure it's not visible in HA
-      this->nox_sensor_->set_internal(true);
-      this->nox_sensor_->state = NAN;
-      // remove pointer to sensor
+      ESP_LOGE(TAG, "SGP41 required for NOx, disabling NOx sensor");
+      // Drop the pointer so update() never publishes to it.
+      // The entity remains registered but will never receive state updates.
       this->nox_sensor_ = nullptr;
     }
   } else if (featureset == SGP41_FEATURESET) {
@@ -203,7 +199,7 @@ void SGP4xComponent::measure_raw_() {
       response_words = 2;
     }
   }
-  uint16_t rhticks = llround((uint16_t) ((humidity * 65535) / 100));
+  uint16_t rhticks = (uint16_t) llround((humidity * 65535) / 100);
   uint16_t tempticks = (uint16_t) (((temperature + 45) * 65535) / 175);
   // first parameter are the relative humidity ticks
   data[0] = rhticks;

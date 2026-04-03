@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 import enum
 
 import esphome.automation as auto
@@ -37,7 +38,7 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WHITE,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, ID, CoroPriority, HexInt, coroutine_with_priority
 from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
 from esphome.cpp_generator import MockObjClass
 
@@ -65,6 +66,40 @@ from .types import (  # noqa
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
+
+DOMAIN = "light"
+
+
+@dataclass
+class LightData:
+    gamma_tables: dict = field(default_factory=dict)  # gamma_value -> fwd_arr
+
+
+def _get_data() -> LightData:
+    if DOMAIN not in CORE.data:
+        CORE.data[DOMAIN] = LightData()
+    return CORE.data[DOMAIN]
+
+
+def _get_or_create_gamma_table(gamma_correct):
+    data = _get_data()
+    if gamma_correct in data.gamma_tables:
+        return data.gamma_tables[gamma_correct]
+
+    if gamma_correct > 0:
+        forward = [
+            HexInt(min(65535, int(round((i / 255.0) ** gamma_correct * 65535))))
+            for i in range(256)
+        ]
+    else:
+        forward = [HexInt(int(round(i / 255.0 * 65535))) for i in range(256)]
+
+    gamma_str = f"{gamma_correct}".replace(".", "_")
+    fwd_id = ID(f"gamma_{gamma_str}_fwd", is_declaration=True, type=cg.uint16)
+    fwd_arr = cg.progmem_array(fwd_id, forward)
+    data.gamma_tables[gamma_correct] = fwd_arr
+    return fwd_arr
+
 
 LightRestoreMode = light_ns.enum("LightRestoreMode")
 RESTORE_MODES = {
@@ -208,9 +243,8 @@ def validate_color_temperature_channels(value):
     return value
 
 
-async def setup_light_core_(light_var, output_var, config):
-    await setup_entity(light_var, config, "light")
-
+@setup_entity("light")
+async def setup_light_core_(light_var, config, output_var):
     cg.add(light_var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
     if (initial_state_config := config.get(CONF_INITIAL_STATE)) is not None:
@@ -239,6 +273,9 @@ async def setup_light_core_(light_var, output_var, config):
         cg.add(light_var.set_flash_transition_length(flash_transition_length))
     if (gamma_correct := config.get(CONF_GAMMA_CORRECT)) is not None:
         cg.add(light_var.set_gamma_correct(gamma_correct))
+        fwd_arr = _get_or_create_gamma_table(gamma_correct)
+        cg.add(light_var.set_gamma_table(fwd_arr))
+        cg.add_define("USE_LIGHT_GAMMA_LUT")
     effects = await cg.build_registry_list(
         EFFECTS_REGISTRY, config.get(CONF_EFFECTS, [])
     )
@@ -274,7 +311,7 @@ async def register_light(output_var, config):
     cg.add(cg.App.register_light(light_var))
     CORE.register_platform_component("light", light_var)
     await cg.register_component(light_var, config)
-    await setup_light_core_(light_var, output_var, config)
+    await setup_light_core_(light_var, config, output_var)
 
 
 async def new_light(config, *args):

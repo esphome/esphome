@@ -136,7 +136,7 @@ void KamstrupKMPComponent::read_command_(uint16_t command) {
   int timeout = 250;  // ms
 
   // Read the data from the UART
-  while (timeout > 0) {
+  while (timeout > 0 && buffer_len < static_cast<int>(sizeof(buffer))) {
     if (this->available()) {
       data = this->read();
       if (data > -1) {
@@ -246,7 +246,7 @@ void KamstrupKMPComponent::parse_command_message_(uint16_t command, const uint8_
 }
 
 void KamstrupKMPComponent::set_sensor_value_(uint16_t command, float value, uint8_t unit_idx) {
-  const char *unit = UNITS[unit_idx];
+  const char *unit = unit_idx < sizeof(UNITS) / sizeof(UNITS[0]) ? UNITS[unit_idx] : "";
 
   // Standard sensors
   if (command == CMD_HEAT_ENERGY && this->heat_energy_sensor_ != nullptr) {

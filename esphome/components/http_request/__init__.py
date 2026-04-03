@@ -50,6 +50,8 @@ CONF_FOLLOW_REDIRECTS = "follow_redirects"
 CONF_REDIRECT_LIMIT = "redirect_limit"
 CONF_BUFFER_SIZE_RX = "buffer_size_rx"
 CONF_BUFFER_SIZE_TX = "buffer_size_tx"
+CONF_TLS_BUFFER_SIZE_RX = "tls_buffer_size_rx"
+CONF_TLS_BUFFER_SIZE_TX = "tls_buffer_size_tx"
 CONF_CA_CERTIFICATE_PATH = "ca_certificate_path"
 
 CONF_MAX_RESPONSE_BUFFER_SIZE = "max_response_buffer_size"
@@ -124,6 +126,12 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_BUFFER_SIZE_TX, esp32=512): cv.All(
                 cv.uint16_t, cv.only_on_esp32
             ),
+            cv.SplitDefault(CONF_TLS_BUFFER_SIZE_RX, esp8266=512): cv.All(
+                cv.uint16_t, cv.only_on_esp8266
+            ),
+            cv.SplitDefault(CONF_TLS_BUFFER_SIZE_TX, esp8266=512): cv.All(
+                cv.uint16_t, cv.only_on_esp8266
+            ),
             cv.Optional(CONF_CA_CERTIFICATE_PATH): cv.All(
                 cv.file_,
                 cv.Any(cv.only_on(PLATFORM_HOST), cv.only_on_esp32),
@@ -150,6 +158,8 @@ async def to_code(config):
 
     if CORE.is_esp8266 and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]:
         cg.add_define("USE_HTTP_REQUEST_ESP8266_HTTPS")
+        cg.add(var.set_tls_buffer_size_rx(config[CONF_TLS_BUFFER_SIZE_RX]))
+        cg.add(var.set_tls_buffer_size_tx(config[CONF_TLS_BUFFER_SIZE_TX]))
 
     if timeout_ms := config.get(CONF_WATCHDOG_TIMEOUT):
         cg.add(var.set_watchdog_timeout(timeout_ms))

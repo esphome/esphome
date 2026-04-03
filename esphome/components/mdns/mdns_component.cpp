@@ -59,7 +59,7 @@ void MDNSComponent::compile_records_(StaticVector<MDNSService, MDNS_SERVICE_COUN
     service.proto = MDNS_STR(SERVICE_TCP);
     service.port = api::global_api_server->get_port();
 
-    const std::string &friendly_name = App.get_friendly_name();
+    const auto &friendly_name = App.get_friendly_name();
     bool friendly_name_empty = friendly_name.empty();
 
     // Calculate exact capacity for txt_records

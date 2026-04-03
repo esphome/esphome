@@ -3,10 +3,18 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Callable
 import logging
 from typing import TypeVar
 
-from aioesphomeapi import ButtonInfo, EntityInfo, EntityState
+from aioesphomeapi import (
+    BinarySensorState,
+    ButtonInfo,
+    EntityInfo,
+    EntityState,
+    SensorState,
+    TextSensorState,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -234,3 +242,107 @@ class InitialStateHelper:
             asyncio.TimeoutError: If initial states aren't received within timeout
         """
         await asyncio.wait_for(self._initial_states_received, timeout=timeout)
+
+
+class SensorStateCollector:
+    """Collects sensor, binary sensor, and text sensor state updates with wait helpers.
+
+    Usage:
+        collector = SensorStateCollector(
+            sensor_names=["moving_distance", "still_distance"],
+            binary_sensor_names=["has_target"],
+            text_sensor_names=["direction"],
+        )
+        # Use collector.on_state as the callback (or wrap it)
+        client.subscribe_states(helper.on_state_wrapper(collector.on_state))
+
+        # Wait for all sensors to have at least one value
+        await collector.wait_for_all(timeout=3.0)
+
+        # Access collected states
+        assert collector.sensor_states["moving_distance"][0] == approx(100.0)
+        assert collector.text_sensor_states["direction"][0] == "Approaching"
+    """
+
+    def __init__(
+        self,
+        sensor_names: list[str],
+        binary_sensor_names: list[str] | None = None,
+        text_sensor_names: list[str] | None = None,
+        entities: list[EntityInfo] | None = None,
+    ) -> None:
+        self.sensor_states: dict[str, list[float]] = {name: [] for name in sensor_names}
+        self.binary_states: dict[str, list[bool]] = {
+            name: [] for name in (binary_sensor_names or [])
+        }
+        self.text_sensor_states: dict[str, list[str]] = {
+            name: [] for name in (text_sensor_names or [])
+        }
+        self._key_to_sensor: dict[int, str] = {}
+        self._waiters: list[tuple[Callable[[], bool], asyncio.Future[bool]]] = []
+
+        if entities is not None:
+            self.build_key_mapping(entities)
+
+    def build_key_mapping(self, entities: list[EntityInfo]) -> None:
+        """Build key-to-name mapping from entities. Sorted by descending length."""
+        all_names = (
+            list(self.sensor_states.keys())
+            + list(self.binary_states.keys())
+            + list(self.text_sensor_states.keys())
+        )
+        all_names.sort(key=len, reverse=True)
+        self._key_to_sensor = build_key_to_entity_mapping(entities, all_names)
+
+    def on_state(self, state: EntityState) -> None:
+        """Process a state update."""
+        if isinstance(state, SensorState) and not state.missing_state:
+            sensor_name = self._key_to_sensor.get(state.key)
+            if sensor_name and sensor_name in self.sensor_states:
+                self.sensor_states[sensor_name].append(state.state)
+                self._check_waiters()
+        elif isinstance(state, BinarySensorState):
+            sensor_name = self._key_to_sensor.get(state.key)
+            if sensor_name and sensor_name in self.binary_states:
+                self.binary_states[sensor_name].append(state.state)
+                self._check_waiters()
+        elif isinstance(state, TextSensorState) and not state.missing_state:
+            sensor_name = self._key_to_sensor.get(state.key)
+            if sensor_name and sensor_name in self.text_sensor_states:
+                self.text_sensor_states[sensor_name].append(state.state)
+                self._check_waiters()
+
+    def _check_waiters(self) -> None:
+        """Check all pending waiters and resolve any whose condition is met."""
+        for condition, future in self._waiters:
+            if not future.done() and condition():
+                future.set_result(True)
+
+    def _all_have_values(self) -> bool:
+        """Check if all sensor, binary sensor, and text sensor lists have at least one value."""
+        return (
+            all(len(v) >= 1 for v in self.sensor_states.values())
+            and all(len(v) >= 1 for v in self.binary_states.values())
+            and all(len(v) >= 1 for v in self.text_sensor_states.values())
+        )
+
+    async def wait_for_all(self, timeout: float = 3.0) -> None:
+        """Wait until all sensors and binary sensors have at least one value."""
+        if self._all_have_values():
+            return
+        future: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
+        self._waiters.append((self._all_have_values, future))
+        await asyncio.wait_for(future, timeout=timeout)
+
+    def add_waiter(self, condition: Callable[[], bool]) -> asyncio.Future[bool]:
+        """Add a custom waiter that resolves when condition returns True.
+
+        Returns:
+            A future that resolves when the condition is met.
+        """
+        future: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
+        if condition():
+            future.set_result(True)
+        else:
+            self._waiters.append((condition, future))
+        return future

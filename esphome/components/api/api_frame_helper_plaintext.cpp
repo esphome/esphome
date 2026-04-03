@@ -163,9 +163,10 @@ APIError APIPlaintextFrameHelper::try_read_frame_() {
   }
   // header reading done
 
-  // Reserve space for body
-  if (this->rx_buf_.size() != this->rx_header_parsed_len_) {
-    this->rx_buf_.resize(this->rx_header_parsed_len_);
+  // Reserve space for body (+ null terminator so protobuf StringRef fields
+  // can be safely null-terminated in-place after decode)
+  if (this->rx_buf_.size() != this->rx_header_parsed_len_ + RX_BUF_NULL_TERMINATOR) {
+    this->rx_buf_.resize(this->rx_header_parsed_len_ + RX_BUF_NULL_TERMINATOR);
   }
 
   if (rx_buf_len_ < rx_header_parsed_len_) {
@@ -194,11 +195,11 @@ APIError APIPlaintextFrameHelper::try_read_frame_() {
 }
 
 APIError APIPlaintextFrameHelper::read_packet(ReadPacketBuffer *buffer) {
-  if (this->state_ != State::DATA) {
-    return APIError::WOULD_BLOCK;
-  }
+  APIError aerr = this->check_data_state_();
+  if (aerr != APIError::OK)
+    return aerr;
 
-  APIError aerr = this->try_read_frame_();
+  aerr = this->try_read_frame_();
   if (aerr != APIError::OK) {
     if (aerr == APIError::BAD_INDICATOR) {
       // Make sure to tell the remote that we don't
@@ -243,9 +244,9 @@ APIError APIPlaintextFrameHelper::write_protobuf_packet(uint8_t type, ProtoWrite
 
 APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffer,
                                                           std::span<const MessageInfo> messages) {
-  if (state_ != State::DATA) {
-    return APIError::BAD_STATE;
-  }
+  APIError aerr = this->check_data_state_();
+  if (aerr != APIError::OK)
+    return aerr;
 
   if (messages.empty()) {
     return APIError::OK;

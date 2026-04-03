@@ -33,7 +33,7 @@ def esp32_p4_validate_supports(value):
     is_input = mode[CONF_INPUT]
 
     if num < 0 or num > 54:
-        raise cv.Invalid(f"Invalid pin number: {value} (must be 0-54)")
+        raise cv.Invalid(f"Invalid pin number: {num} (must be 0-54)")
     if is_input:
         # All ESP32 pins support input mode
         pass

@@ -12,10 +12,9 @@ void SMT100Component::update() {
 }
 
 void SMT100Component::loop() {
-  static char buffer[MAX_LINE_LENGTH];
   while (this->available() != 0) {
-    if (readline_(read(), buffer, MAX_LINE_LENGTH) > 0) {
-      int counts = (int) strtol((strtok(buffer, ",")), nullptr, 10);
+    if (this->readline_(this->read(), this->readline_buffer_, MAX_LINE_LENGTH) > 0) {
+      int counts = (int) strtol((strtok(this->readline_buffer_, ",")), nullptr, 10);
       float permittivity = (float) strtod((strtok(nullptr, ",")), nullptr);
       float moisture = (float) strtod((strtok(nullptr, ",")), nullptr);
       float temperature = (float) strtod((strtok(nullptr, ",")), nullptr);
@@ -56,7 +55,6 @@ void SMT100Component::dump_config() {
 }
 
 int SMT100Component::readline_(int readch, char *buffer, int len) {
-  static int pos = 0;
   int rpos;
 
   if (readch > 0) {
@@ -64,13 +62,13 @@ int SMT100Component::readline_(int readch, char *buffer, int len) {
       case '\n':  // Ignore new-lines
         break;
       case '\r':  // Return on CR
-        rpos = pos;
-        pos = 0;  // Reset position index ready for next time
+        rpos = this->readline_pos_;
+        this->readline_pos_ = 0;  // Reset position index ready for next time
         return rpos;
       default:
-        if (pos < len - 1) {
-          buffer[pos++] = readch;
-          buffer[pos] = 0;
+        if (this->readline_pos_ < len - 1) {
+          buffer[this->readline_pos_++] = readch;
+          buffer[this->readline_pos_] = 0;
         }
     }
   }

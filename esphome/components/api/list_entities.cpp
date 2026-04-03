@@ -94,7 +94,7 @@ ListEntitiesIterator::ListEntitiesIterator(APIConnection *client) : client_(clie
 #ifdef USE_API_USER_DEFINED_ACTIONS
 bool ListEntitiesIterator::on_service(UserServiceDescriptor *service) {
   auto resp = service->encode_list_service_response();
-  return this->client_->send_message(resp, ListEntitiesServicesResponse::MESSAGE_TYPE);
+  return this->client_->send_message(resp);
 }
 #endif
 

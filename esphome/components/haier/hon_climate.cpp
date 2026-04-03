@@ -893,7 +893,8 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
     } else {
       this->preset = CLIMATE_PRESET_NONE;
     }
-    should_publish = should_publish || (!old_preset.has_value()) || (old_preset.value() != this->preset.value());
+    should_publish = should_publish || (!old_preset.has_value()) ||
+                     (old_preset.value_or(CLIMATE_PRESET_NONE) != this->preset.value_or(CLIMATE_PRESET_NONE));
   }
   {
     // Target temperature
@@ -936,7 +937,8 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
         this->fan_mode = CLIMATE_FAN_HIGH;
         break;
     }
-    should_publish = should_publish || (!old_fan_mode.has_value()) || (old_fan_mode.value() != fan_mode.value());
+    should_publish = should_publish || (!old_fan_mode.has_value()) ||
+                     (old_fan_mode.value_or(CLIMATE_FAN_ON) != this->fan_mode.value_or(CLIMATE_FAN_ON));
   }
   // Display status
   // should be before "Climate mode" because it is changing this->mode
@@ -1301,7 +1303,8 @@ void HonClimate::clear_control_messages_queue_() {
 }
 
 bool HonClimate::prepare_pending_action() {
-  switch (this->action_request_.value().action) {
+  auto &action_request = this->action_request_.value();  // NOLINT(bugprone-unchecked-optional-access)
+  switch (action_request.action) {
     case ActionRequest::START_SELF_CLEAN:
       if (this->control_method_ == HonControlMethod::SET_GROUP_PARAMETERS) {
         uint8_t control_out_buffer[haier_protocol::MAX_FRAME_SIZE];
@@ -1315,12 +1318,12 @@ bool HonClimate::prepare_pending_action() {
         out_data->ac_power = 1;
         out_data->ac_mode = (uint8_t) hon_protocol::ConditioningMode::DRY;
         out_data->light_status = 0;
-        this->action_request_.value().message = haier_protocol::HaierMessage(
+        action_request.message = haier_protocol::HaierMessage(
             haier_protocol::FrameType::CONTROL, (uint16_t) hon_protocol::SubcommandsControl::SET_GROUP_PARAMETERS,
             control_out_buffer, this->real_control_packet_size_);
         return true;
       } else if (this->control_method_ == HonControlMethod::SET_SINGLE_PARAMETER) {
-        this->action_request_.value().message =
+        action_request.message =
             haier_protocol::HaierMessage(haier_protocol::FrameType::CONTROL,
                                          (uint16_t) hon_protocol::SubcommandsControl::SET_SINGLE_PARAMETER +
                                              (uint8_t) hon_protocol::DataParameters::SELF_CLEANING,
@@ -1343,7 +1346,7 @@ bool HonClimate::prepare_pending_action() {
         out_data->ac_power = 1;
         out_data->ac_mode = (uint8_t) hon_protocol::ConditioningMode::DRY;
         out_data->light_status = 0;
-        this->action_request_.value().message = haier_protocol::HaierMessage(
+        action_request.message = haier_protocol::HaierMessage(
             haier_protocol::FrameType::CONTROL, (uint16_t) hon_protocol::SubcommandsControl::SET_GROUP_PARAMETERS,
             control_out_buffer, this->real_control_packet_size_);
         return true;

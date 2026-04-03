@@ -3,15 +3,11 @@ import logging
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import climate, logger, uart
-from esphome.components.climate import (
-    CONF_CURRENT_TEMPERATURE,
-    ClimateMode,
-    ClimatePreset,
-    ClimateSwingMode,
-)
+from esphome.components.climate import ClimateMode, ClimatePreset, ClimateSwingMode
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BEEPER,
+    CONF_CURRENT_TEMPERATURE,
     CONF_DISPLAY,
     CONF_ID,
     CONF_LEVEL,

@@ -7,6 +7,7 @@
 
 #ifdef USE_ESP32
 
+#include <algorithm>
 #include <nvs_flash.h>
 #include <freertos/FreeRTOSConfig.h>
 #include <esp_bt_main.h>
@@ -38,21 +39,16 @@ void BLEServer::loop() {
     case RUNNING: {
       // Start all services that are pending to start
       if (!this->services_to_start_.empty()) {
-        uint16_t index_to_remove = 0;
-        // Iterate over the services to start
-        for (unsigned i = 0; i < this->services_to_start_.size(); i++) {
-          BLEService *service = this->services_to_start_[i];
+        for (auto &service : this->services_to_start_) {
           if (service->is_created()) {
             service->start();  // Needs to be called once per characteristic in the service
-          } else {
-            index_to_remove = i + 1;
           }
         }
-        // Remove the services that have been started
-        if (index_to_remove > 0) {
-          this->services_to_start_.erase(this->services_to_start_.begin(),
-                                         this->services_to_start_.begin() + index_to_remove - 1);
-        }
+        // Remove services that have been started
+        this->services_to_start_.erase(
+            std::remove_if(this->services_to_start_.begin(), this->services_to_start_.end(),
+                           [](BLEService *service) { return service->is_starting() || service->is_running(); }),
+            this->services_to_start_.end());
       }
       break;
     }

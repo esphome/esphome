@@ -18,8 +18,6 @@ namespace esphome::http_request {
 
 static const char *const TAG = "http_request.arduino";
 #ifdef USE_ESP8266
-static constexpr int RX_BUFFER_SIZE = 512;
-static constexpr int TX_BUFFER_SIZE = 512;
 // ESP8266 Arduino core (WiFiClientSecureBearSSL.cpp) returns -1000 on OOM
 static constexpr int ESP8266_SSL_ERR_OOM = -1000;
 #endif
@@ -58,7 +56,7 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
     ESP_LOGV(TAG, "ESP8266 HTTPS connection with WiFiClientSecure");
     stream_ptr = std::make_unique<WiFiClientSecure>();
     WiFiClientSecure *secure_client = static_cast<WiFiClientSecure *>(stream_ptr.get());
-    secure_client->setBufferSizes(RX_BUFFER_SIZE, TX_BUFFER_SIZE);
+    secure_client->setBufferSizes(this->tls_buffer_size_rx_, this->tls_buffer_size_tx_);
     secure_client->setInsecure();
   } else {
     stream_ptr = std::make_unique<WiFiClient>();
@@ -138,8 +136,8 @@ std::shared_ptr<HttpContainer> HttpRequestArduino::perform(const std::string &ur
         }
         ESP_LOGW(TAG, "SSL failure: %s (Code: %d)", LOG_STR_ARG(error_msg), last_error);
         if (last_error == ESP8266_SSL_ERR_OOM) {
-          ESP_LOGW(TAG, "Heap free: %u bytes, configured buffer sizes: %u bytes", ESP.getFreeHeap(),
-                   static_cast<unsigned int>(RX_BUFFER_SIZE + TX_BUFFER_SIZE));
+          ESP_LOGW(TAG, "Configured TLS buffer sizes: %u/%u bytes, check max free heap block using the debug component",
+                   (unsigned int) this->tls_buffer_size_rx_, (unsigned int) this->tls_buffer_size_tx_);
         }
       } else {
         ESP_LOGW(TAG, "Connection failure with no error code");

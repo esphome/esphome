@@ -96,8 +96,8 @@ VolumeSetAction = media_player_ns.class_(
 )
 
 
+@setup_entity("media_player")
 async def setup_media_player_core_(var, config):
-    await setup_entity(var, config, "media_player")
     for conf_key, _ in _STATE_TRIGGERS:
         for conf in config.get(conf_key, []):
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)

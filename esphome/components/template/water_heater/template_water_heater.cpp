@@ -101,9 +101,10 @@ water_heater::WaterHeaterCallInternal TemplateWaterHeater::make_call() {
 }
 
 void TemplateWaterHeater::control(const water_heater::WaterHeaterCall &call) {
-  if (call.get_mode().has_value()) {
+  auto mode_val = call.get_mode();
+  if (mode_val.has_value()) {
     if (this->optimistic_) {
-      this->mode_ = *call.get_mode();
+      this->mode_ = *mode_val;
     }
   }
   if (!std::isnan(call.get_target_temperature())) {
@@ -112,14 +113,16 @@ void TemplateWaterHeater::control(const water_heater::WaterHeaterCall &call) {
     }
   }
 
-  if (call.get_away().has_value()) {
+  auto away_val = call.get_away();
+  if (away_val.has_value()) {
     if (this->optimistic_) {
-      this->set_state_flag_(water_heater::WATER_HEATER_STATE_AWAY, *call.get_away());
+      this->set_state_flag_(water_heater::WATER_HEATER_STATE_AWAY, *away_val);
     }
   }
-  if (call.get_on().has_value()) {
+  auto on_val = call.get_on();
+  if (on_val.has_value()) {
     if (this->optimistic_) {
-      this->set_state_flag_(water_heater::WATER_HEATER_STATE_ON, *call.get_on());
+      this->set_state_flag_(water_heater::WATER_HEATER_STATE_ON, *on_val);
     }
   }
 

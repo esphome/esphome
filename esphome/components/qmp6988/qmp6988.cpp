@@ -251,7 +251,7 @@ void QMP6988Component::set_power_mode_(uint8_t power_mode) {
 void QMP6988Component::write_filter_(QMP6988IIRFilter filter) {
   uint8_t data;
 
-  data = (filter & 0x03);
+  data = (filter & QMP6988_CONFIG_REG_FILTER_MSK);
   this->write_byte(QMP6988_CONFIG_REG, data);
   delay(10);
 }

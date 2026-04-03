@@ -12,7 +12,7 @@ static const char *const TAG = "sensirion_i2c";
 static const size_t BUFFER_STACK_SIZE = 16;
 
 bool SensirionI2CDevice::read_data(uint16_t *data, const uint8_t len) {
-  const uint8_t num_bytes = len * 3;
+  const size_t num_bytes = len * 3;
   uint8_t buf[num_bytes];
 
   this->last_error_ = this->read(buf, num_bytes);
