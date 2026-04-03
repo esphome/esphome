@@ -33,9 +33,10 @@ AUTO_LOAD = ["audio"]
 CODEOWNERS = ["@jesserockz", "@kahrendt"]
 DEPENDENCIES = ["i2s_audio"]
 
-I2SAudioSpeaker = i2s_audio_ns.class_(
-    "I2SAudioSpeaker", cg.Component, speaker.Speaker, I2SAudioOut
+I2SAudioSpeakerBase = i2s_audio_ns.class_(
+    "I2SAudioSpeakerBase", cg.Component, speaker.Speaker, I2SAudioOut
 )
+I2SAudioSpeaker = i2s_audio_ns.class_("I2SAudioSpeaker", I2SAudioSpeakerBase)
 
 CONF_DAC_TYPE = "dac_type"
 CONF_I2S_COMM_FMT = "i2s_comm_fmt"
