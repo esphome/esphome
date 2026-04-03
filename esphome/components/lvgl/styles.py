@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import ID
 
-from .defines import CONF_STYLE_DEFINITIONS, CONF_THEME, LValidator, literal
+from .defines import CONF_DARK_MODE, CONF_STYLE_DEFINITIONS, CONF_THEME, LValidator, literal
 from .helpers import add_lv_use
 from .lvcode import LambdaContext, lv
 from .schemas import ALL_STYLES, FULL_STYLE_SCHEMA, remap_property
@@ -86,6 +86,8 @@ async def theme_to_code(config):
     if theme := config.get(CONF_THEME):
         add_lv_use(CONF_THEME)
         for w_name, style in theme.items():
+            if w_name == CONF_DARK_MODE:
+                continue
             # Work around Python 3.10 bug with nested async comprehensions
             # With Python 3.11 this could be simplified
             # TODO: Now that we require Python 3.11+, this can be updated to use nested comprehensions
