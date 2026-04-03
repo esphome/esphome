@@ -6,8 +6,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/macros.h"
 
-namespace esphome {
-namespace ota {
+namespace esphome::ota {
 
 class ArduinoRP2040OTABackend final {
  public:
@@ -24,8 +23,6 @@ class ArduinoRP2040OTABackend final {
 
 std::unique_ptr<ArduinoRP2040OTABackend> make_ota_backend();
 
-}  // namespace ota
-}  // namespace esphome
-
+}  // namespace esphome::ota
 #endif  // USE_RP2040
 #endif  // USE_ARDUINO
