@@ -259,12 +259,11 @@ class TypeInfo(ABC):
         if tag >= 128:
             return None
         max_val = self.max_value
-        encode_map = (
-            self.RAW_ENCODE_SMALL_MAP
-            if max_val is not None and max_val < 128
-            else self.RAW_ENCODE_MAP
-        )
-        raw_expr = encode_map.get(self.encode_func)
+        raw_expr = None
+        if max_val is not None and max_val < 128:
+            raw_expr = self.RAW_ENCODE_SMALL_MAP.get(self.encode_func)
+        if raw_expr is None:
+            raw_expr = self.RAW_ENCODE_MAP.get(self.encode_func)
         if raw_expr is None:
             return None
         return f"buffer.write_raw_byte({tag});\n{raw_expr.format(value=value_expr)}"
