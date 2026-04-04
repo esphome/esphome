@@ -25,59 +25,27 @@ namespace esphome {
 extern volatile bool g_main_loop_woke;
 #endif
 
-// === ESP32 ===
-#if defined(USE_ESP32)
+// === ESP32 / LibreTiny (FreeRTOS) ===
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
 
+#ifdef USE_ESP32
 /// Inline impl — ISR callers inline this into IRAM.
 inline void ESPHOME_ALWAYS_INLINE wake_loop_isrsafe_inline_(int *px_higher_priority_task_woken) {
-  if (esphome_main_task_handle != nullptr)
-    vTaskNotifyGiveFromISR(esphome_main_task_handle, (BaseType_t *) px_higher_priority_task_woken);
+  esphome_main_task_notify_from_isr(px_higher_priority_task_woken);
 }
 /// IRAM_ATTR entry point — defined in wake.cpp.
 void wake_loop_isrsafe(int *px_higher_priority_task_woken);
 
-/// Inline impl — ISR callers inline this into IRAM. Uses xPortInIsrContext() to pick safe API.
-inline void ESPHOME_ALWAYS_INLINE wake_loop_any_context_inline_() {
-  if (esphome_main_task_handle == nullptr)
-    return;
-  if (xPortInIsrContext()) {
-    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-    vTaskNotifyGiveFromISR(esphome_main_task_handle, &xHigherPriorityTaskWoken);
-    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-  } else {
-    xTaskNotifyGive(esphome_main_task_handle);
-  }
-}
+/// Inline impl — ISR callers inline this into IRAM.
+inline void ESPHOME_ALWAYS_INLINE wake_loop_any_context_inline_() { esphome_main_task_notify_any_context(); }
 /// IRAM_ATTR entry point — defined in wake.cpp.
 void wake_loop_any_context();
+#else
+/// LibreTiny: no working IRAM_ATTR, no ISR callers.
+inline void wake_loop_any_context() { esphome_main_task_notify(); }
+#endif
 
-inline void wake_loop_threadsafe() {
-  if (esphome_main_task_handle != nullptr)
-    xTaskNotifyGive(esphome_main_task_handle);
-}
-
-namespace internal {
-inline void wakeable_delay(uint32_t ms) {
-  if (ms == 0) {
-    yield();
-    return;
-  }
-  ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(ms));
-}
-}  // namespace internal
-
-// === LibreTiny ===
-#elif defined(USE_LIBRETINY)
-
-inline void wake_loop_any_context() {
-  if (esphome_main_task_handle != nullptr)
-    xTaskNotifyGive(esphome_main_task_handle);
-}
-
-inline void wake_loop_threadsafe() {
-  if (esphome_main_task_handle != nullptr)
-    xTaskNotifyGive(esphome_main_task_handle);
-}
+inline void wake_loop_threadsafe() { esphome_main_task_notify(); }
 
 namespace internal {
 inline void wakeable_delay(uint32_t ms) {

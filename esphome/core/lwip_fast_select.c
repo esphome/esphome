@@ -127,12 +127,6 @@
 
 #include <stddef.h>
 
-// IRAM_ATTR is defined by esp_attr.h (included via FreeRTOS headers) on ESP32.
-// On LibreTiny it's not defined — provide a no-op fallback.
-#ifndef IRAM_ATTR
-#define IRAM_ATTR
-#endif
-
 // Compile-time verification of thread safety assumptions.
 // On ESP32 (Xtensa/RISC-V) and LibreTiny (ARM Cortex-M), naturally-aligned
 // reads/writes up to 32 bits are atomic.
@@ -229,36 +223,5 @@ bool esphome_lwip_set_nodelay(struct lwip_sock *sock, bool enable) {
   }
   return true;
 }
-
-// Wake the main loop from another FreeRTOS task. NOT ISR-safe.
-void esphome_lwip_wake_main_loop(void) {
-  TaskHandle_t task = esphome_main_task_handle;
-  if (task != NULL) {
-    xTaskNotifyGive(task);
-  }
-}
-
-// Wake the main loop from an ISR. ISR-safe variant.
-void IRAM_ATTR esphome_lwip_wake_main_loop_from_isr(int *px_higher_priority_task_woken) {
-  TaskHandle_t task = esphome_main_task_handle;
-  if (task != NULL) {
-    vTaskNotifyGiveFromISR(task, (BaseType_t *) px_higher_priority_task_woken);
-  }
-}
-
-// Wake the main loop from any context (ISR, thread, or main loop).
-// ESP32-only: uses xPortInIsrContext() to detect ISR context.
-// LibreTiny is excluded because it lacks IRAM_ATTR support needed for ISR-safe paths.
-#ifdef USE_ESP32
-void IRAM_ATTR esphome_lwip_wake_main_loop_any_context(void) {
-  if (xPortInIsrContext()) {
-    int px_higher_priority_task_woken = 0;
-    esphome_lwip_wake_main_loop_from_isr(&px_higher_priority_task_woken);
-    portYIELD_FROM_ISR(px_higher_priority_task_woken);
-  } else {
-    esphome_lwip_wake_main_loop();
-  }
-}
-#endif
 
 #endif  // USE_LWIP_FAST_SELECT
