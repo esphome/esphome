@@ -29,7 +29,6 @@ template<typename T, uint16_t N, typename P = typename std::conditional<(N > 256
 class CachedGpioExpander {
  public:
   /// @brief Read the state of the given pin.
-  /// @brief Read the state of the given pin.
   /// By default, each read invalidates the pin's cache entry so the next read
   /// of the same pin triggers a fresh hardware read. When invalidate_on_read
   /// is disabled, the cache stays valid until explicitly cleared via reset_pin_cache_().
