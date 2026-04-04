@@ -1996,47 +1996,7 @@ bool APIConnection::send_message_(uint32_t payload_size, uint8_t message_type, M
   encode_fn(msg, buffer);
   return this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type);
 }
-// Encodes a message to the buffer and returns the total number of bytes used,
-// including header and footer overhead. Returns 0 if the message doesn't fit.
-uint16_t APIConnection::encode_to_buffer(uint32_t calculated_size, MessageEncodeFn encode_fn, const void *msg,
-                                         APIConnection *conn, uint32_t remaining_size) {
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  if (conn->flags_.log_only_mode) {
-    auto *proto_msg = static_cast<const ProtoMessage *>(msg);
-    DumpBuffer dump_buf;
-    conn->log_send_message_(proto_msg->message_name(), proto_msg->dump_to(dump_buf));
-    return 1;
-  }
-#endif
-  // Cache frame sizes to avoid repeated virtual calls
-  const uint8_t header_padding = conn->helper_->frame_header_padding();
-  const uint8_t footer_size = conn->helper_->frame_footer_size();
-
-  // Calculate total size with padding for buffer allocation
-  size_t total_calculated_size = calculated_size + header_padding + footer_size;
-
-  // Check if it fits
-  if (total_calculated_size > remaining_size)
-    return 0;  // Doesn't fit
-
-  auto &shared_buf = conn->parent_->get_shared_buffer_ref();
-
-  // First message: padding already in buffer, only add payload.
-  // Subsequent messages: use exact header size for gap-free packing.
-  bool first = conn->flags_.batch_first_message;
-  if (first)
-    conn->flags_.batch_first_message = false;
-  conn->batch_header_size_ =
-      first ? header_padding : conn->helper_->frame_header_size(calculated_size, conn->batch_message_type_);
-  size_t to_add = first ? calculated_size : (calculated_size + conn->batch_header_size_ + footer_size);
-
-  shared_buf.resize(shared_buf.size() + to_add);
-  ProtoWriteBuffer buffer{&shared_buf, shared_buf.size() - calculated_size};
-  encode_fn(msg, buffer);
-
-  // Return total size (header + payload + footer)
-  return static_cast<uint16_t>(total_calculated_size);
-}
+// encode_to_buffer is defined inline in api_connection.h (ESPHOME_ALWAYS_INLINE)
 bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
   const bool is_log_message = (message_type == SubscribeLogsResponse::MESSAGE_TYPE);
 
