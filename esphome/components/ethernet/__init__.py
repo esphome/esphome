@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import logging
 
 from esphome import automation, pins
@@ -35,6 +36,7 @@ from esphome.const import (
     CONF_VALUE,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
+    KEY_NATIVE_IDF,
     Platform,
     PlatformFramework,
 )
@@ -53,6 +55,9 @@ LOGGER = logging.getLogger(__name__)
 
 # Key for tracking IP state listener count in CORE.data
 ETHERNET_IP_STATE_LISTENERS_KEY = "ethernet_ip_state_listeners"
+# Key for tracking configured ethernet type
+ETHERNET_TYPE_KEY = "ethernet_type"
+KEY_ETHERNET = "ethernet"
 
 
 def request_ethernet_ip_state_listener() -> None:
@@ -110,10 +115,12 @@ ETHERNET_TYPES = {
     "JL1101": EthernetType.ETHERNET_TYPE_JL1101,
     "KSZ8081": EthernetType.ETHERNET_TYPE_KSZ8081,
     "KSZ8081RNA": EthernetType.ETHERNET_TYPE_KSZ8081RNA,
+    "W5100": EthernetType.ETHERNET_TYPE_W5100,
     "W5500": EthernetType.ETHERNET_TYPE_W5500,
     "OPENETH": EthernetType.ETHERNET_TYPE_OPENETH,
     "DM9051": EthernetType.ETHERNET_TYPE_DM9051,
     "LAN8670": EthernetType.ETHERNET_TYPE_LAN8670,
+    "ENC28J60": EthernetType.ETHERNET_TYPE_ENC28J60,
 }
 
 # PHY types that need compile-time defines for conditional compilation
@@ -126,10 +133,48 @@ _PHY_TYPE_TO_DEFINE = {
     "JL1101": "USE_ETHERNET_JL1101",
     "KSZ8081": "USE_ETHERNET_KSZ8081",
     "KSZ8081RNA": "USE_ETHERNET_KSZ8081",
+    "W5100": "USE_ETHERNET_W5100",
+    "W5500": "USE_ETHERNET_W5500",
+    "DM9051": "USE_ETHERNET_DM9051",
     "LAN8670": "USE_ETHERNET_LAN8670",
+    "ENC28J60": "USE_ETHERNET_ENC28J60",
 }
 
-SPI_ETHERNET_TYPES = ["W5500", "DM9051"]
+
+@dataclass(frozen=True)
+class IDFRegistryComponent:
+    """An ESP-IDF component from the Espressif Component Registry."""
+
+    name: str
+    version: str
+
+
+# IDF 6.0 moved per-chip PHY/MAC drivers to the Espressif Component Registry.
+_IDF6_ETHERNET_COMPONENTS: dict[str, IDFRegistryComponent] = {
+    "LAN8720": IDFRegistryComponent("espressif/lan87xx", "1.0.0"),
+    "RTL8201": IDFRegistryComponent("espressif/rtl8201", "1.0.1"),
+    "DP83848": IDFRegistryComponent("espressif/dp83848", "1.0.0"),
+    "IP101": IDFRegistryComponent("espressif/ip101", "1.0.0"),
+    "KSZ8081": IDFRegistryComponent("espressif/ksz80xx", "1.0.0"),
+    "KSZ8081RNA": IDFRegistryComponent("espressif/ksz80xx", "1.0.0"),
+    "W5500": IDFRegistryComponent("espressif/w5500", "1.0.1"),
+    "DM9051": IDFRegistryComponent("espressif/dm9051", "1.0.0"),
+    "ENC28J60": IDFRegistryComponent("espressif/enc28j60", "1.0.1"),
+    "LAN8670": IDFRegistryComponent("espressif/lan867x", "2.0.0"),
+}
+
+# These types are always external IDF components (never built-in to ESP-IDF)
+_ALWAYS_EXTERNAL_IDF_COMPONENTS = {"LAN8670", "ENC28J60"}
+
+# ESP32-only SPI ethernet types (W5100 is RP2040-only, no ESP-IDF driver)
+SPI_ETHERNET_TYPES = {"W5500", "DM9051", "ENC28J60"}
+# RP2040-supported SPI ethernet types
+RP2040_SPI_ETHERNET_TYPES = {"W5100", "W5500", "ENC28J60"}
+_RP2040_SPI_LIBRARIES = {
+    "W5100": "lwIP_w5100",
+    "W5500": "lwIP_w5500",
+    "ENC28J60": "lwIP_enc28j60",
+}
 SPI_ETHERNET_DEFAULT_POLLING_INTERVAL = TimePeriodMilliseconds(milliseconds=10)
 
 emac_rmii_clock_mode_t = cg.global_ns.enum("emac_rmii_clock_mode_t")
@@ -190,7 +235,18 @@ def _validate(config):
 
     if CORE.is_esp32:
         if config[CONF_TYPE] in SPI_ETHERNET_TYPES:
-            if _is_framework_spi_polling_mode_supported():
+            # ENC28J60 driver does not support polling mode - interrupt is required
+            if config[CONF_TYPE] == "ENC28J60":
+                if CONF_POLLING_INTERVAL in config:
+                    raise cv.Invalid(
+                        f"'{CONF_POLLING_INTERVAL}' is not supported for ENC28J60. "
+                        f"'{CONF_INTERRUPT_PIN}' is required."
+                    )
+                if CONF_INTERRUPT_PIN not in config:
+                    raise cv.Invalid(
+                        f"'{CONF_INTERRUPT_PIN}' is a required option for ENC28J60."
+                    )
+            elif _is_framework_spi_polling_mode_supported():
                 if CONF_POLLING_INTERVAL in config and CONF_INTERRUPT_PIN in config:
                     raise cv.Invalid(
                         f"Cannot specify more than one of {CONF_INTERRUPT_PIN}, {CONF_POLLING_INTERVAL}"
@@ -245,6 +301,11 @@ def _validate(config):
                     f"{config[CONF_TYPE]} PHY requires RMII interface and is only supported "
                     f"on ESP32 classic and ESP32-P4, not {variant}"
                 )
+    elif CORE.is_rp2040 and config[CONF_TYPE] not in RP2040_SPI_ETHERNET_TYPES:
+        raise cv.Invalid(
+            f"Only {', '.join(sorted(RP2040_SPI_ETHERNET_TYPES))} are supported on RP2040, "
+            f"not {config[CONF_TYPE]}"
+        )
     return config
 
 
@@ -302,18 +363,21 @@ SPI_SCHEMA = cv.All(
                 cv.Required(CONF_CS_PIN): pins.internal_gpio_output_pin_number,
                 cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_number,
                 cv.Optional(CONF_RESET_PIN): pins.internal_gpio_output_pin_number,
-                cv.Optional(CONF_CLOCK_SPEED, default="26.67MHz"): cv.All(
-                    cv.frequency, cv.int_range(int(8e6), int(80e6))
+                cv.SplitDefault(CONF_CLOCK_SPEED, esp32="26.67MHz"): cv.All(
+                    cv.only_on_esp32,
+                    cv.frequency,
+                    cv.int_range(int(8e6), int(80e6)),
                 ),
                 # Set default value (SPI_ETHERNET_DEFAULT_POLLING_INTERVAL) at _validate()
                 cv.Optional(CONF_POLLING_INTERVAL): cv.All(
+                    cv.only_on_esp32,
                     cv.positive_time_period_milliseconds,
                     cv.Range(min=TimePeriodMilliseconds(milliseconds=1)),
                 ),
             }
         ),
     ),
-    cv.only_on([Platform.ESP32]),
+    cv.only_on([Platform.ESP32, Platform.RP2040]),
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -326,9 +390,11 @@ CONFIG_SCHEMA = cv.All(
             "JL1101": RMII_SCHEMA,
             "KSZ8081": RMII_SCHEMA,
             "KSZ8081RNA": RMII_SCHEMA,
+            "W5100": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2040])),
             "W5500": SPI_SCHEMA,
             "OPENETH": cv.All(BASE_SCHEMA, cv.only_on([Platform.ESP32])),
             "DM9051": SPI_SCHEMA,
+            "ENC28J60": SPI_SCHEMA,
             "LAN8670": RMII_SCHEMA,
         },
         upper=True,
@@ -403,9 +469,12 @@ async def to_code(config):
 
     if CORE.is_esp32:
         await _to_code_esp32(var, config)
+    elif CORE.is_rp2040:
+        await _to_code_rp2040(var, config)
 
     cg.add(var.set_type(ETHERNET_TYPES[config[CONF_TYPE]]))
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
+    CORE.data.setdefault(KEY_ETHERNET, {})[ETHERNET_TYPE_KEY] = config[CONF_TYPE]
 
     if CONF_MANUAL_IP in config:
         cg.add_define("USE_ETHERNET_MANUAL_IP")
@@ -435,10 +504,11 @@ async def to_code(config):
     CORE.add_job(final_step)
 
 
-async def _to_code_esp32(var, config):
+async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
     from esphome.components.esp32 import (
         add_idf_component,
         add_idf_sdkconfig_option,
+        idf_version,
         include_builtin_idf_component,
     )
 
@@ -459,7 +529,12 @@ async def _to_code_esp32(var, config):
 
         cg.add_define("USE_ETHERNET_SPI")
         add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
-        add_idf_sdkconfig_option(f"CONFIG_ETH_SPI_ETHERNET_{config[CONF_TYPE]}", True)
+        # CONFIG_ETH_SPI_ETHERNET_{TYPE} Kconfig options were removed in IDF 6.0
+        # ENC28J60 was never built-in to IDF, so it has no Kconfig option
+        if idf_version() < cv.Version(6, 0, 0) and config[CONF_TYPE] != "ENC28J60":
+            add_idf_sdkconfig_option(
+                f"CONFIG_ETH_SPI_ETHERNET_{config[CONF_TYPE]}", True
+            )
     elif config[CONF_TYPE] == "OPENETH":
         cg.add_define("USE_ETHERNET_OPENETH")
         add_idf_sdkconfig_option("CONFIG_ETH_USE_OPENETH", True)
@@ -487,9 +562,28 @@ async def _to_code_esp32(var, config):
     # Re-enable ESP-IDF's Ethernet driver (excluded by default to save compile time)
     include_builtin_idf_component("esp_eth")
 
-    if config[CONF_TYPE] == "LAN8670":
-        # Add LAN867x 10BASE-T1S PHY support component
-        add_idf_component(name="espressif/lan867x", ref="2.0.0")
+    if config[CONF_TYPE] in _ALWAYS_EXTERNAL_IDF_COMPONENTS:
+        component = _IDF6_ETHERNET_COMPONENTS[config[CONF_TYPE]]
+        add_idf_component(name=component.name, ref=component.version)
+    elif idf_version() >= cv.Version(6, 0, 0) and (
+        # IDF 6.0 moved per-chip PHY/MAC drivers to the Espressif Component Registry
+        component := _IDF6_ETHERNET_COMPONENTS.get(config[CONF_TYPE])
+    ):
+        add_idf_component(name=component.name, ref=component.version)
+
+
+async def _to_code_rp2040(var: cg.Pvariable, config: ConfigType) -> None:
+    cg.add(var.set_clk_pin(config[CONF_CLK_PIN]))
+    cg.add(var.set_miso_pin(config[CONF_MISO_PIN]))
+    cg.add(var.set_mosi_pin(config[CONF_MOSI_PIN]))
+    cg.add(var.set_cs_pin(config[CONF_CS_PIN]))
+    if CONF_INTERRUPT_PIN in config:
+        cg.add(var.set_interrupt_pin(config[CONF_INTERRUPT_PIN]))
+    if CONF_RESET_PIN in config:
+        cg.add(var.set_reset_pin(config[CONF_RESET_PIN]))
+
+    cg.add_define("USE_ETHERNET_SPI")
+    cg.add_library(_RP2040_SPI_LIBRARIES[config[CONF_TYPE]], None)
 
 
 def _final_validate_rmii_pins(config: ConfigType) -> None:
@@ -565,11 +659,37 @@ async def final_step():
         cg.add_define("ESPHOME_ETHERNET_IP_STATE_LISTENERS", ip_state_count)
 
 
-FILTER_SOURCE_FILES = filter_source_files_from_platform(
+_platform_filter = filter_source_files_from_platform(
     {
         "ethernet_component_esp32.cpp": {
             PlatformFramework.ESP32_IDF,
             PlatformFramework.ESP32_ARDUINO,
         },
+        "ethernet_component_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "esp_eth_phy_jl1101.c": {
+            PlatformFramework.ESP32_IDF,
+            PlatformFramework.ESP32_ARDUINO,
+        },
     }
 )
+
+
+def _filter_source_files() -> list[str]:
+    excluded = _platform_filter()
+    eth_data = CORE.data.get(KEY_ETHERNET, {})
+    eth_type = eth_data.get(ETHERNET_TYPE_KEY)
+    # Only compile the custom JL1101 driver when JL1101 is configured
+    # and pioarduino doesn't have it builtin (IDF 5.4.2 to 5.x)
+    if eth_type != "JL1101":
+        excluded.append("esp_eth_phy_jl1101.c")
+    elif CORE.is_esp32 and not CORE.data.get(KEY_NATIVE_IDF, False):
+        from esphome.components.esp32 import idf_version
+
+        # pioarduino has JL1101 builtin on IDF 5.4.2-5.x; exclude custom driver
+        # to avoid shadowing. Native IDF builds always need the custom driver.
+        if cv.Version(5, 4, 2) <= idf_version() < cv.Version(6, 0, 0):
+            excluded.append("esp_eth_phy_jl1101.c")
+    return excluded
+
+
+FILTER_SOURCE_FILES = _filter_source_files
