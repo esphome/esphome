@@ -89,10 +89,7 @@ inline void wake_loop_any_context() {
   __sev();
 }
 
-inline void wake_loop_threadsafe() {
-  g_main_loop_woke = true;
-  __sev();
-}
+inline void wake_loop_threadsafe() { wake_loop_any_context(); }
 
 /// RP2040 wakeable delay uses file-scope state (alarm callback + flag) — defined in wake.cpp.
 namespace internal {
