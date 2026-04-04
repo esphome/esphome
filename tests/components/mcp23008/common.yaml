@@ -13,6 +13,12 @@ binary_sensor:
       mcp23xxx: mcp23008_hub
       number: 0
       mode: INPUT
+  - platform: gpio
+    id: mcp23008_binary_sensor_int
+    pin:
+      mcp23xxx: mcp23008_hub_int
+      number: 0
+      mode: INPUT
 
 switch:
   - platform: gpio

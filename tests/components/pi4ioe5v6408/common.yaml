@@ -20,3 +20,8 @@ binary_sensor:
     pin:
       pi4ioe5v6408: pi4ioe1
       number: 1
+  - platform: gpio
+    id: sensor1_int
+    pin:
+      pi4ioe5v6408: pi4ioe1_int
+      number: 1
