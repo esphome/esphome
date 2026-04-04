@@ -215,9 +215,10 @@ bool MitsubishiCN105::read_incoming_bytes_() {
       continue;
     }
 
-    this->reset_read_position_and_dump_buffer_("RX");
-    return this->process_rx_packet_(this->read_buffer_[1], this->read_buffer_ + HEADER_LEN,
+    bool processed = this->process_rx_packet_(this->read_buffer_[1], this->read_buffer_ + HEADER_LEN,
                                     len_without_checksum - HEADER_LEN);
+    this->reset_read_position_and_dump_buffer_("RX");
+    return processed;
   }
 
   return false;
