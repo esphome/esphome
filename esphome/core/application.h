@@ -876,21 +876,17 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
 #endif
 
   // Use the last component's end time instead of calling millis() again
+  uint32_t delay_time = 0;
   auto elapsed = last_op_end_time - this->last_loop_;
-  if (elapsed >= this->loop_interval_ || HighFrequencyLoopRequester::is_high_frequency()) {
-    // Even if we overran the loop interval, we still need to select()
-    // to know if any sockets have data ready
-    this->yield_with_select_(0);
-  } else {
-    uint32_t delay_time = this->loop_interval_ - elapsed;
+  if (elapsed < this->loop_interval_ && !HighFrequencyLoopRequester::is_high_frequency()) {
+    delay_time = this->loop_interval_ - elapsed;
     uint32_t next_schedule = this->scheduler.next_schedule_in(last_op_end_time).value_or(delay_time);
     // next_schedule is max 0.5*delay_time
     // otherwise interval=0 schedules result in constant looping with almost no sleep
     next_schedule = std::max(next_schedule, delay_time / 2);
     delay_time = std::min(next_schedule, delay_time);
-
-    this->yield_with_select_(delay_time);
   }
+  this->yield_with_select_(delay_time);
   this->last_loop_ = last_op_end_time;
 
   if (this->dump_config_at_ < this->components_.size()) {
