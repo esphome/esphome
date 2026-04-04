@@ -271,6 +271,9 @@ ESPHOME_ALWAYS_INLINE static inline uint8_t write_plaintext_header(uint8_t *buf_
   // Batch messages 2+ (padding_size = actual header size, no unused bytes):
   //   Example (small, header=3): [0] 0x00 | [1] size | [2] type | [3...] payload
   //   Example (medium, header=4): [0] 0x00 | [1-2] size | [3] type | [4...] payload
+#ifdef ESPHOME_DEBUG_API
+  assert(padding_size >= total_header_len);
+#endif
   uint32_t header_offset = padding_size - total_header_len;
 
   // Write the plaintext header
