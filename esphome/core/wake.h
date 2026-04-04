@@ -2,12 +2,7 @@
 
 /// @file wake.h
 /// Platform-specific main loop wake primitives.
-///
-/// All functions are always available on all platforms — no opt-in needed.
-/// - wake_loop_any_context(): ISR + thread + callback safe
-/// - wake_loop_isrsafe(): ISR only, ESP32
-/// - wake_loop_threadsafe(): thread/callback safe
-/// - wakeable_delay(): sleeps until timeout or wake
+/// Always available on all platforms — no opt-in needed.
 
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
