@@ -302,17 +302,19 @@ APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffe
   assert(!messages.empty());
 #endif
   uint8_t *buffer_data = buffer.get_buffer()->data();
-  uint8_t *write_start = nullptr;
-  uint16_t total_len = 0;
 
   // First message has max padding (header_size = HEADER_PADDING), may have unused leading bytes.
   // Subsequent messages were encoded with exact header sizes (header_size = actual header len).
   // write_plaintext_header right-justifies the header within header_size bytes of padding.
-  for (const auto &msg : messages) {
-    uint8_t header_len =
-        write_plaintext_header(buffer_data + msg.offset, msg.payload_size, msg.message_type, msg.header_size);
-    if (write_start == nullptr)
-      write_start = buffer_data + msg.offset + msg.header_size - header_len;
+  const auto &first = messages[0];
+  uint8_t header_len =
+      write_plaintext_header(buffer_data + first.offset, first.payload_size, first.message_type, HEADER_PADDING);
+  uint8_t *write_start = buffer_data + first.offset + HEADER_PADDING - header_len;
+  uint16_t total_len = header_len + first.payload_size;
+
+  for (size_t i = 1; i < messages.size(); i++) {
+    const auto &msg = messages[i];
+    header_len = write_plaintext_header(buffer_data + msg.offset, msg.payload_size, msg.message_type, msg.header_size);
     total_len += header_len + msg.payload_size;
   }
 

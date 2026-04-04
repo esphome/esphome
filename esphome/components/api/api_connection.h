@@ -443,18 +443,18 @@ class APIConnection final : public APIServerConnectionBase {
 
   // Noinline version of encode_to_buffer for cold paths (entity info, zero-payload messages).
   // All cold callers share this single copy instead of each getting an ALWAYS_INLINE expansion.
-  static uint16_t encode_to_buffer_slow_(uint32_t calculated_size, MessageEncodeFn encode_fn, const void *msg,
-                                         APIConnection *conn, uint32_t remaining_size);
+  static uint16_t encode_to_buffer_slow(uint32_t calculated_size, MessageEncodeFn encode_fn, const void *msg,
+                                        APIConnection *conn, uint32_t remaining_size);
 
-  // Thin template wrapper — uses noinline encode_to_buffer_slow_ since
+  // Thin template wrapper — uses noinline encode_to_buffer_slow since
   // encode_message_to_buffer callers are cold paths (zero-payload control messages).
   // Hot paths (state/info) go through fill_and_encode_entity_state/info instead.
   template<typename T> static uint16_t encode_message_to_buffer(T &msg, APIConnection *conn, uint32_t remaining_size) {
     conn->batch_message_type_ = T::MESSAGE_TYPE;
     if constexpr (T::ESTIMATED_SIZE == 0) {
-      return encode_to_buffer_slow_(0, &encode_msg_noop, &msg, conn, remaining_size);
+      return encode_to_buffer_slow(0, &encode_msg_noop, &msg, conn, remaining_size);
     } else {
-      return encode_to_buffer_slow_(msg.calculate_size(), &proto_encode_msg<T>, &msg, conn, remaining_size);
+      return encode_to_buffer_slow(msg.calculate_size(), &proto_encode_msg<T>, &msg, conn, remaining_size);
     }
   }
 

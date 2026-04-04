@@ -398,7 +398,7 @@ uint16_t APIConnection::fill_and_encode_entity_info(EntityBase *entity, InfoResp
 #ifdef USE_DEVICES
   msg.device_id = entity->get_device_id();
 #endif
-  return encode_to_buffer_slow_(size_fn(&msg), encode_fn, &msg, conn, remaining_size);
+  return encode_to_buffer_slow(size_fn(&msg), encode_fn, &msg, conn, remaining_size);
 }
 
 uint16_t APIConnection::fill_and_encode_entity_info_with_device_class(EntityBase *entity, InfoResponseProtoMessage &msg,
@@ -1999,8 +1999,8 @@ bool APIConnection::send_message_(uint32_t payload_size, uint8_t message_type, M
 // encode_to_buffer is defined inline in api_connection.h (ESPHOME_ALWAYS_INLINE)
 
 // Noinline version for cold paths — single shared copy
-uint16_t APIConnection::encode_to_buffer_slow_(uint32_t calculated_size, MessageEncodeFn encode_fn, const void *msg,
-                                               APIConnection *conn, uint32_t remaining_size) {
+uint16_t APIConnection::encode_to_buffer_slow(uint32_t calculated_size, MessageEncodeFn encode_fn, const void *msg,
+                                              APIConnection *conn, uint32_t remaining_size) {
   return encode_to_buffer(calculated_size, encode_fn, msg, conn, remaining_size);
 }
 bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
