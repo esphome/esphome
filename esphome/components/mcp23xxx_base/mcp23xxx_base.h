@@ -16,6 +16,7 @@ template<uint8_t N> class MCP23XXXBase : public Component, public gpio_expander:
 
   void set_open_drain_ints(const bool value) { this->open_drain_ints_ = value; }
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
+  InternalGPIOPin *get_interrupt_pin() const { return this->interrupt_pin_; }
   float get_setup_priority() const override { return setup_priority::IO; }
 
   void loop() override {
