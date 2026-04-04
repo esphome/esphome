@@ -34,15 +34,10 @@ void wake_loop_isrsafe(int *px_higher_priority_task_woken);
 /// IRAM_ATTR entry point — defined in wake.cpp.
 void wake_loop_any_context();
 #else
-/// LibreTiny: GPIO ISRs are real hardware interrupts, so use ISR-safe API.
-/// vTaskNotifyGiveFromISR is safe from both ISR and task context on ARM Cortex-M.
-inline void wake_loop_any_context() {
-  if (esphome_main_task_handle != NULL) {
-    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-    vTaskNotifyGiveFromISR(esphome_main_task_handle, &xHigherPriorityTaskWoken);
-    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
-  }
-}
+/// LibreTiny: GPIO ISRs are real hardware interrupts but the FreeRTOS port
+/// may not provide vTaskNotifyGiveFromISR/portYIELD_FROM_ISR.
+/// xTaskNotifyGive is used as the best available option.
+inline void wake_loop_any_context() { esphome_main_task_notify(); }
 #endif
 
 inline void wake_loop_threadsafe() { esphome_main_task_notify(); }
