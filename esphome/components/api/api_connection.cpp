@@ -2009,27 +2009,27 @@ uint16_t APIConnection::encode_to_buffer(uint32_t calculated_size, MessageEncode
   }
 #endif
   // Cache frame sizes to avoid repeated virtual calls
+  const uint8_t header_padding = conn->helper_->frame_header_padding();
   const uint8_t footer_size = conn->helper_->frame_footer_size();
 
-  size_t to_add;
-  if (conn->flags_.batch_first_message) {
-    // First message - buffer already prepared by caller with max header padding.
-    // Use max padding for header size (actual header computed at write time).
-    conn->flags_.batch_first_message = false;
-    conn->batch_header_size_ = conn->helper_->frame_header_padding();
-    to_add = calculated_size;  // Padding already in buffer
-  } else {
-    // Subsequent batch messages use exact header size — no gaps
-    conn->batch_header_size_ = conn->helper_->frame_header_size(calculated_size, conn->batch_message_type_);
-    to_add = calculated_size + conn->batch_header_size_ + footer_size;
-  }
+  // Calculate total size with padding for buffer allocation
+  size_t total_calculated_size = calculated_size + header_padding + footer_size;
 
-  // total_calculated_size reflects wire size (header + payload + footer)
-  size_t total_calculated_size = calculated_size + conn->batch_header_size_ + footer_size;
+  // Check if it fits
   if (total_calculated_size > remaining_size)
     return 0;  // Doesn't fit
 
   auto &shared_buf = conn->parent_->get_shared_buffer_ref();
+
+  // First message: padding already in buffer, only add payload.
+  // Subsequent messages: use exact header size for gap-free packing.
+  bool first = conn->flags_.batch_first_message;
+  if (first)
+    conn->flags_.batch_first_message = false;
+  conn->batch_header_size_ =
+      first ? header_padding : conn->helper_->frame_header_size(calculated_size, conn->batch_message_type_);
+  size_t to_add = first ? calculated_size : (calculated_size + conn->batch_header_size_ + footer_size);
+
   shared_buf.resize(shared_buf.size() + to_add);
   ProtoWriteBuffer buffer{&shared_buf, shared_buf.size() - calculated_size};
   encode_fn(msg, buffer);
