@@ -29,10 +29,9 @@ template<typename T, uint16_t N, typename P = typename std::conditional<(N > 256
 class CachedGpioExpander {
  public:
   /// @brief Read the state of the given pin.
-  /// In polling mode (default), each read invalidates the pin's cache entry so
-  /// the next read of the same pin triggers a fresh hardware read.
-  /// In interrupt mode, the cache stays valid until explicitly invalidated by
-  /// reset_pin_cache_() (called from loop() when an interrupt fires).
+  /// By default, each read invalidates the pin's cache entry so the next read
+  /// of the same pin triggers a fresh hardware read. When invalidate_on_read
+  /// is disabled, the cache stays valid until explicitly cleared via reset_pin_cache_().
   /// @param pin Pin number to read
   /// @return Pin state
   bool digital_read(P pin) {
@@ -40,8 +39,8 @@ class CachedGpioExpander {
     const T pin_mask = (1 << (pin % BANK_SIZE));
     // Check if specific pin cache is valid
     if (this->read_cache_valid_[bank] & pin_mask) {
-      if (!this->interrupt_driven_) {
-        // Polling mode: invalidate pin so next read triggers hardware read
+      if (this->invalidate_on_read_) {
+        // Invalidate pin so next read triggers hardware read
         this->read_cache_valid_[bank] &= ~pin_mask;
       }
     } else {
@@ -49,8 +48,8 @@ class CachedGpioExpander {
       if (!this->digital_read_hw(pin))
         return false;
       // Mark bank cache as valid except the pin that is being returned now
-      // (in interrupt mode, mark all pins including this one as valid)
-      this->read_cache_valid_[bank] = std::numeric_limits<T>::max() & ~(this->interrupt_driven_ ? 0 : pin_mask);
+      // (when not invalidating on read, mark all pins including this one as valid)
+      this->read_cache_valid_[bank] = std::numeric_limits<T>::max() & ~(this->invalidate_on_read_ ? pin_mask : 0);
     }
     return this->digital_read_cache(pin);
   }
@@ -78,8 +77,10 @@ class CachedGpioExpander {
   /// @brief Invalidate cache. This function should be called in component loop().
   void reset_pin_cache_() { memset(this->read_cache_valid_, 0x00, CACHE_SIZE_BYTES); }
 
-  /// @brief Enable interrupt-driven mode. Cache stays valid until reset_pin_cache_() is called.
-  void set_interrupt_driven_(bool interrupt_driven) { this->interrupt_driven_ = interrupt_driven; }
+  /// @brief Control whether digital_read() invalidates the pin's cache entry after reading.
+  /// When enabled (default), each read self-invalidates so the next read triggers a hardware read.
+  /// When disabled, cache stays valid until reset_pin_cache_() is explicitly called.
+  void set_invalidate_on_read_(bool invalidate) { this->invalidate_on_read_ = invalidate; }
 
   static constexpr uint16_t BITS_PER_BYTE = 8;
   static constexpr uint16_t BANK_SIZE = sizeof(T) * BITS_PER_BYTE;
@@ -87,7 +88,7 @@ class CachedGpioExpander {
   static constexpr size_t CACHE_SIZE_BYTES = BANKS * sizeof(T);
 
   T read_cache_valid_[BANKS]{0};
-  bool interrupt_driven_{false};
+  bool invalidate_on_read_{true};
 };
 
 }  // namespace esphome::gpio_expander
