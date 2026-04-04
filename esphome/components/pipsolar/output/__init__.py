@@ -94,7 +94,7 @@ async def to_code(config):
     SetOutputAction,
     cv.Schema(
         {
-            cv.Required(CONF_ID): cv.use_id(CONF_ID),
+            cv.Required(CONF_ID): cv.use_id(PipsolarOutput),
             cv.Required(CONF_VALUE): cv.templatable(cv.positive_float),
         }
     ),
