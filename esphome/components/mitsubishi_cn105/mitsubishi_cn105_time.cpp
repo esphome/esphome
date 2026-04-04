@@ -2,8 +2,6 @@
 
 namespace esphome::mitsubishi_cn105 {
 
-#ifndef MITSUBISHI_CN105_UNIT_TEST
-uint32_t get_loop_time_ms() { return App.get_loop_component_start_time(); };
-#endif
+uint32_t __attribute__((weak)) get_loop_time_ms() { return App.get_loop_component_start_time(); };
 
 }  // namespace esphome::mitsubishi_cn105

@@ -23,15 +23,10 @@ static constexpr uint8_t checksum(const uint8_t *bytes, size_t length) {
 
 template<std::size_t PayloadSize>
 static constexpr auto make_packet(uint8_t type, const std::array<uint8_t, PayloadSize> &payload) {
-  std::array<uint8_t, PayloadSize + HEADER_LEN + 1> packet{
-      PREAMBLE, type, HEADER_BYTE_1, HEADER_BYTE_2, static_cast<uint8_t>(PayloadSize),
-  };
-
-  for (size_t i = 0; i < PayloadSize; ++i) {
-    packet[HEADER_LEN + i] = payload[i];
-  }
-
-  packet[PayloadSize + HEADER_LEN] = checksum(packet.data(), PayloadSize + HEADER_LEN);
+  const size_t full_len = PayloadSize + HEADER_LEN + 1;
+  std::array<uint8_t, full_len> packet{PREAMBLE, type, HEADER_BYTE_1, HEADER_BYTE_2, static_cast<uint8_t>(PayloadSize)};
+  std::copy_n(payload.begin(), PayloadSize, packet.begin() + HEADER_LEN);
+  packet.back() = checksum(packet.data(), packet.size() - 1);
   return packet;
 }
 
