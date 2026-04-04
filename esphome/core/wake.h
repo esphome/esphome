@@ -94,13 +94,28 @@ namespace internal {
 void wakeable_delay(uint32_t ms);
 }  // namespace internal
 
-// === Host (UDP loopback socket) ===
+// === Host / Zephyr / other ===
 #else
 
-/// Defined in wake.cpp.
+#ifdef USE_HOST
+/// Host: wakes select() via UDP loopback socket. Defined in wake.cpp.
 void wake_loop_threadsafe();
+#else
+/// Fallback for platforms without a specific wake mechanism.
+inline void wake_loop_threadsafe() {}
+#endif
 
 inline void wake_loop_any_context() { wake_loop_threadsafe(); }
+
+namespace internal {
+inline void wakeable_delay(uint32_t ms) {
+  if (ms == 0) {
+    yield();
+    return;
+  }
+  delay(ms);
+}
+}  // namespace internal
 
 #endif
 
