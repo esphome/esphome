@@ -240,10 +240,13 @@ def _validate_spi_interface(config: ConfigType) -> None:
 
     available = sum(get_hw_interface_list(), [])
     if CONF_INTERFACE not in config:
-        config[CONF_INTERFACE] = "spi3" if "spi3" in available else "spi2"
-    elif config[CONF_INTERFACE] not in available:
+        key = "spi3" if "spi3" in available else "spi2"
+        config[CONF_INTERFACE] = SPI_INTERFACE_MAP[key]
+    elif (
+        config[CONF_INTERFACE] == SPI_INTERFACE_MAP["spi3"] and "spi3" not in available
+    ):
         raise cv.Invalid(
-            f"Interface '{config[CONF_INTERFACE]}' is not available on this variant. "
+            "Interface 'spi3' is not available on this variant. "
             f"Available: {', '.join(sorted(k for k in available if k in SPI_INTERFACE_MAP))}"
         )
 
@@ -394,7 +397,7 @@ SPI_SCHEMA = cv.All(
                 ),
                 cv.Optional(CONF_INTERFACE): cv.All(
                     cv.only_on_esp32,
-                    cv.one_of(*SPI_INTERFACE_MAP.keys()),
+                    cv.enum(SPI_INTERFACE_MAP),
                 ),
                 # Set default value (SPI_ETHERNET_DEFAULT_POLLING_INTERVAL) at _validate()
                 cv.Optional(CONF_POLLING_INTERVAL): cv.All(
@@ -439,8 +442,9 @@ def _final_validate_spi(config):
     from esphome.components.spi import CONF_INTERFACE_INDEX, get_spi_interface
 
     if spi_configs := fv.full_config.get().get(CONF_SPI):
+        # config[CONF_INTERFACE] is a codegen enum (e.g. ::SPI2_HOST)
         # get_spi_interface() returns strings like "SPI2_HOST"
-        spi_host = config[CONF_INTERFACE].upper() + "_HOST"
+        spi_host = str(config[CONF_INTERFACE]).removeprefix("::")
         for spi_conf in spi_configs:
             if (index := spi_conf.get(CONF_INTERFACE_INDEX)) is not None:
                 interface = get_spi_interface(index)
@@ -539,7 +543,7 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
         cg.add_define("USE_ETHERNET_SPI")
 
         if CONF_INTERFACE in config:
-            cg.add(var.set_interface(SPI_INTERFACE_MAP[config[CONF_INTERFACE]]))
+            cg.add(var.set_interface(config[CONF_INTERFACE]))
         add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
         # CONFIG_ETH_SPI_ETHERNET_{TYPE} Kconfig options were removed in IDF 6.0
         # ENC28J60 was never built-in to IDF, so it has no Kconfig option
