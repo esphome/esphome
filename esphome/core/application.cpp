@@ -134,7 +134,7 @@ void Application::setup() {
   // when USE_LWIP_FAST_SELECT is enabled (ESP32 and LibreTiny).
   esphome_lwip_fast_select_init();
 #endif
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
   // Set up wake socket for waking main loop from tasks (platforms without fast select only)
   this->setup_wake_loop_threadsafe_();
 #endif
@@ -618,14 +618,9 @@ alignas(Application) char app_storage[sizeof(Application)] asm(
 #undef ESPHOME_STRINGIFY_
 #undef ESPHOME_STRINGIFY_IMPL_
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
-
-#ifdef USE_LWIP_FAST_SELECT
-void Application::wake_loop_threadsafe() {
-  // Direct FreeRTOS task notification — <1 us, task context only (NOT ISR-safe)
-  esphome_lwip_wake_main_loop();
-}
-#else   // !USE_LWIP_FAST_SELECT
+// Host platform wake_loop_threadsafe() and setup — needs wake_socket_fd_
+// ESP32/LibreTiny/ESP8266/RP2040 implementations are in wake.cpp
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
 
 void Application::setup_wake_loop_threadsafe_() {
   // Create UDP socket for wake notifications
@@ -681,21 +676,18 @@ void Application::setup_wake_loop_threadsafe_() {
   }
 }
 
-void Application::wake_loop_threadsafe() {
-  // Called from FreeRTOS task context when events need immediate processing
+void wake_loop_threadsafe() {
   // Wakes up lwip_select() in main loop by writing to connected loopback socket
-  if (this->wake_socket_fd_ >= 0) {
+  if (App.wake_socket_fd_ >= 0) {
     const char dummy = 1;
     // Non-blocking send - if it fails (unlikely), select() will wake on timeout anyway
     // No error checking needed: we control both ends of this loopback socket.
     // This is safe to call from FreeRTOS tasks - send() is thread-safe in lwip
     // Socket is already connected to loopback address, so send() is faster than sendto()
-    lwip_send(this->wake_socket_fd_, &dummy, 1, 0);
+    lwip_send(App.wake_socket_fd_, &dummy, 1, 0);
   }
 }
-#endif  // USE_LWIP_FAST_SELECT
-
-#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+#endif  // host wake_loop_threadsafe
 
 void Application::get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buffer) {
   ESPHOME_strncpy_P(buffer.data(), ESPHOME_BUILD_TIME_STR, buffer.size());

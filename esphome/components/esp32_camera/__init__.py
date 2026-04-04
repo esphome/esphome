@@ -2,7 +2,7 @@ import logging
 
 from esphome import automation, pins
 import esphome.codegen as cg
-from esphome.components import i2c, socket
+from esphome.components import i2c
 from esphome.components.esp32 import add_idf_component, add_idf_sdkconfig_option
 from esphome.components.psram import DOMAIN as psram_domain
 import esphome.config_validation as cv
@@ -29,7 +29,7 @@ from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
-AUTO_LOAD = ["camera", "socket"]
+AUTO_LOAD = ["camera"]
 DEPENDENCIES = ["esp32"]
 
 esp32_camera_ns = cg.esphome_ns.namespace("esp32_camera")
@@ -370,7 +370,6 @@ SETTERS = {
 
 async def to_code(config):
     cg.add_define("USE_CAMERA")
-    socket.require_wake_loop_threadsafe()
     var = cg.new_Pvariable(config[CONF_ID])
     await setup_entity(var, config, "camera")
     await cg.register_component(var, config)

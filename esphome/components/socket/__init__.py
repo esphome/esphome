@@ -31,9 +31,6 @@ MIN_UDP_SOCKETS = 6
 # Minimum listening sockets — at least api + ota baseline.
 MIN_TCP_LISTEN_SOCKETS = 2
 
-# Wake loop threadsafe support tracking
-KEY_WAKE_LOOP_THREADSAFE_REQUIRED = "wake_loop_threadsafe_required"
-
 
 class SocketType(StrEnum):
     TCP = "tcp"
@@ -123,37 +120,17 @@ def get_socket_counts() -> SocketCounts:
 
 
 def require_wake_loop_threadsafe() -> None:
-    """Mark that wake_loop_threadsafe support is required by a component.
+    """Deprecated: wake loop support is now always available on all platforms.
 
-    Call this from components that need to wake the main event loop from background threads.
-    This enables the shared UDP loopback socket mechanism (~208 bytes RAM).
-    The socket is shared across all components that use this feature.
-
-    This call is a no-op if networking is not enabled in the configuration.
-
-    IMPORTANT: This is for background thread context only, NOT ISR context.
-    Socket operations are not safe to call from ISR handlers.
-
-    On ESP32, FreeRTOS task notifications are used instead (no socket needed).
-
-    Example:
-        from esphome.components import socket
-
-        async def to_code(config):
-            socket.require_wake_loop_threadsafe()
+    This function is a no-op kept for backward compatibility with external components.
+    Remove before 2026.12.0.
     """
-
-    # Only set up once (idempotent - multiple components can call this)
-    if CORE.has_networking and not CORE.data.get(
-        KEY_WAKE_LOOP_THREADSAFE_REQUIRED, False
-    ):
-        CORE.data[KEY_WAKE_LOOP_THREADSAFE_REQUIRED] = True
-        cg.add_define("USE_WAKE_LOOP_THREADSAFE")
-        if not CORE.is_esp32 and not CORE.is_libretiny:
-            # Only platforms without fast select need a UDP socket for wake
-            # notifications. ESP32 and LibreTiny use FreeRTOS task notifications
-            # instead (no socket needed).
-            consume_sockets(1, "socket.wake_loop_threadsafe", SocketType.UDP)({})
+    # Remove before 2026.12.0
+    _LOGGER.warning(
+        "require_wake_loop_threadsafe() is deprecated and no longer needed. "
+        "Wake loop support is now always available. Remove this call. "
+        "This will be removed in 2026.12.0."
+    )
 
 
 CONFIG_SCHEMA = cv.Schema(
@@ -193,6 +170,10 @@ async def to_code(config):
     # Only when not using lwip_tcp, which does not provide select() support.
     if (CORE.is_esp32 or CORE.is_libretiny) and impl != IMPLEMENTATION_LWIP_TCP:
         cg.add_build_flag("-DUSE_LWIP_FAST_SELECT")
+    elif impl != IMPLEMENTATION_LWIP_TCP:
+        # Platforms with select() but without fast select (host) need a UDP
+        # loopback socket for wake_loop_threadsafe().
+        consume_sockets(1, "socket.wake_loop_threadsafe", SocketType.UDP)({})
 
 
 def FILTER_SOURCE_FILES() -> list[str]:

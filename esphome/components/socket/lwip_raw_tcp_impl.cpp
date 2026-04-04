@@ -8,6 +8,7 @@
 #include <sys/time.h>
 
 #include "esphome/core/helpers.h"
+#include "esphome/core/wake.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP8266
@@ -42,7 +43,8 @@ void socket_delay(uint32_t ms) {
 
 void IRAM_ATTR socket_wake() {
   s_socket_woke = true;
-  esp_schedule();
+  // Inline impl — this is IRAM_ATTR so the inlined code stays in IRAM
+  esphome::wake_loop_impl_();
 }
 #elif defined(USE_RP2040)
 // RP2040 (non-FreeRTOS) socket wake using hardware WFE/SEV instructions.
@@ -109,9 +111,8 @@ void socket_delay(uint32_t ms) {
 // callbacks via pendsv (not hard IRQ), so they execute from flash safely.
 void socket_wake() {
   s_socket_woke = true;
-  // Wake the main loop from __wfe() sleep. __sev() is a global event that
-  // wakes any core sleeping in __wfe(). This is ISR-safe.
-  __sev();
+  // Also set core wake flag so Application::wakeable_delay_() breaks out
+  esphome::wake_loop_any_context();
 }
 #endif
 

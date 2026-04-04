@@ -36,20 +36,13 @@
 #endif
 #else
 #include <sys/select.h>
-#ifdef USE_WAKE_LOOP_THREADSAFE
 #include <lwip/sockets.h>
-#endif
 #endif
 #endif  // USE_SOCKET_SELECT_SUPPORT
 #ifdef USE_RUNTIME_STATS
 #include "esphome/components/runtime_stats/runtime_stats.h"
 #endif
-#if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
-namespace esphome::socket {
-void socket_wake();              // NOLINT(readability-redundant-declaration)
-void socket_delay(uint32_t ms);  // NOLINT(readability-redundant-declaration)
-}  // namespace esphome::socket
-#endif
+#include "esphome/core/wake.h"
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
@@ -558,38 +551,18 @@ class Application {
   void unregister_socket_fd(int fd);
 #endif
 
-#ifdef USE_WAKE_LOOP_THREADSAFE
-  /// Wake the main event loop from another FreeRTOS task.
-  /// Thread-safe, but must only be called from task context (NOT ISR-safe).
-  /// On ESP32: uses xTaskNotifyGive (<1 us)
-  /// On other platforms: uses UDP loopback socket
-  void wake_loop_threadsafe();
-#endif
+  /// Wake the main event loop from another thread or callback.
+  /// @see esphome::wake_loop_threadsafe() in wake.h for platform details.
+  void wake_loop_threadsafe() { esphome::wake_loop_threadsafe(); }
 
 #ifdef USE_LWIP_FAST_SELECT
-  /// Wake the main event loop from an ISR.
-  /// Uses vTaskNotifyGiveFromISR() — <1 us, ISR-safe.
-  /// Only available on platforms with fast select (ESP32, LibreTiny).
-  /// @param px_higher_priority_task_woken Set to pdTRUE if a context switch is needed.
-  static void IRAM_ATTR wake_loop_isrsafe(int *px_higher_priority_task_woken) {
-    esphome_lwip_wake_main_loop_from_isr(px_higher_priority_task_woken);
-  }
-
-#ifdef USE_ESP32
-  /// Wake the main event loop from any context (ISR, thread, or main loop).
-  /// Detects the calling context and uses the appropriate FreeRTOS API.
-  static void IRAM_ATTR wake_loop_any_context() { esphome_lwip_wake_main_loop_any_context(); }
-#endif
+  /// Wake from ISR (ESP32/LibreTiny only). Delegates to esphome::wake_loop_isrsafe().
+  static void wake_loop_isrsafe(int *px) { esphome::wake_loop_isrsafe(px); }
 #endif
 
-#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
-  /// Wake the main event loop from any context (ISR, thread, or main loop).
-  /// Sets the socket wake flag and calls esp_schedule() to exit esp_delay() early.
-  static void IRAM_ATTR wake_loop_any_context() { socket::socket_wake(); }
-#elif defined(USE_RP2040) && defined(USE_SOCKET_IMPL_LWIP_TCP)
-  /// Wake the main event loop from any context.
-  /// Sets the socket wake flag and calls __sev() to exit __wfe() early.
-  static void wake_loop_any_context() { socket::socket_wake(); }
+#if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ESP8266) || defined(USE_RP2040)
+  /// Wake from any context (ISR, thread, callback). Delegates to esphome::wake_loop_any_context().
+  static void wake_loop_any_context() { esphome::wake_loop_any_context(); }
 #endif
 
  protected:
@@ -602,6 +575,9 @@ class Application {
 #endif
   friend void ::setup();
   friend void ::original_setup();
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
+  friend void wake_loop_threadsafe();  // Host platform accesses wake_socket_fd_
+#endif
 
 #if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
   bool is_socket_ready_(int fd) const { return FD_ISSET(fd, &this->read_fds_); }
@@ -655,7 +631,7 @@ class Application {
   inline void ESPHOME_ALWAYS_INLINE yield_with_select_(uint32_t delay_ms);
 #endif
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
   void setup_wake_loop_threadsafe_();       // Create wake notification socket
   inline void drain_wake_notifications_();  // Read pending wake notifications in main loop (hot path - inlined)
 #endif
@@ -689,7 +665,7 @@ class Application {
   std::vector<int> socket_fds_;  // Vector of all monitored socket file descriptors
 #endif
 #ifdef USE_SOCKET_SELECT_SUPPORT
-#if defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
+#if !defined(USE_LWIP_FAST_SELECT)
   int wake_socket_fd_{-1};  // Shared wake notification socket for waking main loop from tasks
 #endif
 #endif
@@ -815,7 +791,7 @@ class Application {
 /// Global storage of Application pointer - only one Application can exist.
 extern Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
 // Inline implementations for hot-path functions
 // drain_wake_notifications_() is called on every loop iteration
 
@@ -837,10 +813,10 @@ inline void Application::drain_wake_notifications_() {
     }
   }
 }
-#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
+#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
 
 inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_start_time) {
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
+#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
   // Drain wake notifications first to clear socket for next wake
   this->drain_wake_notifications_();
 #endif
@@ -953,17 +929,15 @@ inline void ESPHOME_ALWAYS_INLINE Application::yield_with_select_(uint32_t delay
   }
 
   // Sleep with instant wake via FreeRTOS task notification.
-  // Woken by: callback wrapper (socket data arrives), wake_loop_threadsafe() (other tasks), or timeout.
-  // Without USE_WAKE_LOOP_THREADSAFE, only hooked socket callbacks wake the task —
-  // background tasks won't call wake, so this degrades to a pure timeout (same as old select path).
+  // Woken by: callback wrapper (socket data), wake_loop_threadsafe() (background tasks), or timeout.
   ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(delay_ms));
-#elif (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
-  // No select support but can wake on socket activity
-  // ESP8266: via esp_schedule()
-  // RP2040: via __sev()/__wfe() hardware sleep/wake
-  socket::socket_delay(delay_ms);
+#elif defined(USE_ESP8266) || defined(USE_RP2040)
+  // Wakeable delay — broken early by wake_loop_any_context() / wake_loop_threadsafe()
+  // ESP8266: esp_delay() with wake flag callback
+  // RP2040: hardware timer + __wfe()/__sev()
+  esphome::wakeable_delay(delay_ms);
 #else
-  // No select support, use regular delay
+  // No wake mechanism available, use regular delay
   delay(delay_ms);
 #endif
 }
