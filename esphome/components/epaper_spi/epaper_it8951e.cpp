@@ -247,10 +247,20 @@ bool EPaperIT8951E::prepare_transfer_(UpdateModeE &mode) {
 
   if (x >= this->get_width_internal() || y >= this->get_height_internal()) {
     ESP_LOGE(TAG, "Position (%d, %d) out of bounds", x, y);
+    // Reset dirty region before returning to prevent reusing invalid coordinates
+    this->x_low_ = this->width_;
+    this->x_high_ = 0;
+    this->y_low_ = this->height_;
+    this->y_high_ = 0;
     return false;
   }
   if ((x + width) > this->get_width_internal() || (y + height) > this->get_height_internal()) {
     ESP_LOGE(TAG, "Dimension (%d, %d) out of bounds", x + width, y + height);
+    // Reset dirty region before returning to prevent reusing invalid coordinates
+    this->x_low_ = this->width_;
+    this->x_high_ = 0;
+    this->y_low_ = this->height_;
+    this->y_high_ = 0;
     return false;
   }
 
@@ -313,7 +323,11 @@ bool EPaperIT8951E::transfer_row_data_() {
   }
 
   this->disable();
-  this->write_command_(IT8951_TCON_LD_IMG_END);
+
+  // Only send LD_IMG_END when transfer is complete
+  if (this->transfer_row_ >= area_h) {
+    this->write_command_(IT8951_TCON_LD_IMG_END);
+  }
 
   return this->transfer_row_ >= area_h;
 }
