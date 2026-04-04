@@ -94,6 +94,9 @@ void wakeable_delay(uint32_t ms);
 /// Host platform: wakes select() via UDP loopback socket. Defined in application.cpp.
 void wake_loop_threadsafe();
 
+/// Host: no ISR, just use threadsafe version.
+inline void wake_loop_any_context() { wake_loop_threadsafe(); }
+
 #endif
 
 }  // namespace esphome
