@@ -343,26 +343,26 @@ void IndicatorLine::set_value(int value) {
 }
 
 void IndicatorLine::update_length_() {
-  uint32_t actual_needle_length;
-  auto radius = lv_obj_get_width(lv_obj_get_parent(this->obj)) / 2;
+  auto cx = lv_obj_get_width(lv_obj_get_parent(this->obj)) / 2;
+  auto cy = lv_obj_get_height(lv_obj_get_parent(this->obj)) / 2;
+  auto radius = clamp_at_most(cx, cy);
   auto length = lv_obj_get_style_length(this->obj, LV_PART_MAIN);
   auto radial_offset = lv_obj_get_style_radial_offset(this->obj, LV_PART_MAIN);
   if (LV_COORD_IS_PCT(radial_offset)) {
     radial_offset = radius * LV_COORD_GET_PCT(radial_offset) / 100;
   }
   if (LV_COORD_IS_PCT(length)) {
-    actual_needle_length = radius * LV_COORD_GET_PCT(length) / 100;
+    length = radius * LV_COORD_GET_PCT(length) / 100;
   } else if (length < 0) {
-    actual_needle_length = radius + length;
-  } else {
-    actual_needle_length = length;
+    length += radius;
   }
   auto x = lv_trigo_cos(this->angle_) / 32768.0f;
   auto y = lv_trigo_sin(this->angle_) / 32768.0f;
+  // radius here also represents the offset of the scale center from top left
   this->points_[0].x = radius + radial_offset * x;
   this->points_[0].y = radius + radial_offset * y;
-  this->points_[1].x = x * actual_needle_length + radius;
-  this->points_[1].y = y * actual_needle_length + radius;
+  this->points_[1].x = radius + x * (radial_offset + length);
+  this->points_[1].y = radius + y * (radial_offset + length);
   lv_obj_refresh_self_size(this->obj);
   lv_obj_invalidate(this->obj);
 }
@@ -682,15 +682,15 @@ void lv_scale_draw_event_cb(lv_event_t *e, int16_t range_start, int16_t range_en
     auto *line_dsc = static_cast<lv_draw_line_dsc_t *>(lv_draw_task_get_draw_dsc(task));
     int tick = line_dsc->base.id2;
     if (tick >= range_start && tick <= range_end) {
-      unsigned range = range_end - range_start;
+      int ratio;
       if (local) {
+        int range = range_end - range_start;
         tick -= range_start;
+        ratio = range == 0 ? 0 : (tick * 255) / range;
       } else {
-        range = lv_scale_get_total_tick_count(scale) - 1;
+        // total tick count is guaranteed to be at least 2.
+        ratio = (line_dsc->base.id1 * 255) / (lv_scale_get_total_tick_count(scale) - 1);
       }
-      if (range == 0)
-        range = 1;
-      auto ratio = (tick * 255) / range;
       line_dsc->color = lv_color_mix(color_end, color_start, ratio);
       line_dsc->width += width;
     }

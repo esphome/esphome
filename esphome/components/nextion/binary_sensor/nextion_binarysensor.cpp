@@ -2,8 +2,7 @@
 #include "esphome/core/util.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace nextion {
+namespace esphome::nextion {
 
 static const char *const TAG = "nextion_binarysensor";
 
@@ -64,5 +63,4 @@ void NextionBinarySensor::set_state(bool state, bool publish, bool send_to_nexti
   ESP_LOGN(TAG, "Write: %s=%s", this->variable_name_.c_str(), ONOFF(this->state));
 }
 
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion
