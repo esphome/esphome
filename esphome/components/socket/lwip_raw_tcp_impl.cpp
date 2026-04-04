@@ -111,7 +111,7 @@ void socket_delay(uint32_t ms) {
 // callbacks via pendsv (not hard IRQ), so they execute from flash safely.
 void socket_wake() {
   s_socket_woke = true;
-  // Also set core wake flag so Application::wakeable_delay_() breaks out
+  // Also set core wake flag so wakeable_delay() breaks out
   esphome::wake_loop_any_context();
 }
 #endif

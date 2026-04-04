@@ -61,6 +61,7 @@ inline void wake_loop_any_context() { esphome_lwip_wake_main_loop(); }
 
 inline void wake_loop_threadsafe() { esphome_lwip_wake_main_loop(); }
 
+namespace internal {
 inline void wakeable_delay(uint32_t ms) {
   if (ms == 0) {
     yield();
@@ -68,6 +69,7 @@ inline void wakeable_delay(uint32_t ms) {
   }
   ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(ms));
 }
+}  // namespace internal
 
 // === ESP8266 ===
 #elif defined(USE_ESP8266)
@@ -84,8 +86,10 @@ void wake_loop_any_context();
 /// Non-ISR: always inline.
 inline void wake_loop_threadsafe() { wake_loop_impl_(); }
 
+namespace internal {
 /// Wakeable delay for ESP8266. Defined in wake.cpp.
 void wakeable_delay(uint32_t ms);
+}  // namespace internal
 
 // === RP2040 ===
 #elif defined(USE_RP2040)
@@ -100,8 +104,10 @@ inline void wake_loop_threadsafe() {
   __sev();
 }
 
+namespace internal {
 /// Delay that can be woken early. Uses hardware timer + __wfe()/__sev(). Defined in wake.cpp.
 void wakeable_delay(uint32_t ms);
+}  // namespace internal
 
 // === Host (UDP loopback socket) ===
 #else

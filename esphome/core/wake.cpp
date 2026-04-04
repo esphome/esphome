@@ -29,6 +29,7 @@ volatile bool g_main_loop_woke = false;
 
 void IRAM_ATTR wake_loop_any_context() { wake_loop_impl_(); }
 
+namespace internal {
 void wakeable_delay(uint32_t ms) {
   if (ms == 0) {
     delay(0);
@@ -37,6 +38,7 @@ void wakeable_delay(uint32_t ms) {
   g_main_loop_woke = false;
   esp_delay(ms, []() { return !g_main_loop_woke; });
 }
+}  // namespace internal
 
 #endif  // USE_ESP8266
 
@@ -57,6 +59,7 @@ static int64_t alarm_callback_(alarm_id_t id, void *user_data) {
   return 0;  // One-shot
 }
 
+namespace internal {
 void wakeable_delay(uint32_t ms) {
   if (ms == 0) {
     yield();
@@ -81,6 +84,7 @@ void wakeable_delay(uint32_t ms) {
     cancel_alarm(alarm);
   g_main_loop_woke = false;
 }
+}  // namespace internal
 
 #endif  // USE_RP2040
 
