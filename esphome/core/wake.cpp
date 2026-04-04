@@ -3,9 +3,11 @@
 
 #ifdef USE_ESP8266
 #include <coredecls.h>
-#elif defined(USE_RP2040)
-#include <hardware/sync.h>
-#include <pico/time.h>
+#endif
+
+#ifdef USE_HOST
+#include "esphome/core/application.h"
+#include <sys/socket.h>
 #endif
 
 namespace esphome {
@@ -32,9 +34,6 @@ void IRAM_ATTR wake_loop_any_context() { wake_loop_impl_(); }
 
 // === Host (UDP loopback socket) ===
 #ifdef USE_HOST
-#include "esphome/core/application.h"
-#include <sys/socket.h>
-
 void wake_loop_threadsafe() {
   // Wakes up select() in main loop by writing to connected loopback socket
   if (App.wake_socket_fd_ >= 0) {
