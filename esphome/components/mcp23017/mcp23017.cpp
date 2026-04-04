@@ -33,12 +33,6 @@ void MCP23017::setup() {
     this->write_reg(mcp23x17_base::MCP23X17_IOCONB, iocon | iocon_flags);
   }
 
-  // Clear any latched interrupt by reading GPIO before attaching ISR
-  if (this->interrupt_pin_ != nullptr) {
-    uint8_t val;
-    this->read_reg(mcp23x17_base::MCP23X17_GPIOA, &val);
-    this->read_reg(mcp23x17_base::MCP23X17_GPIOB, &val);
-  }
   this->setup_interrupt_pin_();
 }
 

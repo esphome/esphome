@@ -35,9 +35,6 @@ void PI4IOE5V6408Component::setup() {
   }
 
   if (this->interrupt_pin_ != nullptr) {
-    // Clear any latched interrupt status from before boot
-    uint8_t status;
-    this->read_byte(PI4IOE5V6408_REGISTER_INTERRUPT_STATUS, &status);
     this->interrupt_pin_->setup();
     this->interrupt_pin_->attach_interrupt(&PI4IOE5V6408Component::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
     this->set_invalidate_on_read_(false);
