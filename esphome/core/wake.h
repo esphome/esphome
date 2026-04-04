@@ -54,7 +54,7 @@ inline void wakeable_delay(uint32_t ms) {
 #elif defined(USE_ESP8266)
 
 /// Inline implementation — IRAM callers inline this directly.
-inline void ESPHOME_ALWAYS_INLINE wake_loop_impl_() {
+inline void ESPHOME_ALWAYS_INLINE wake_loop_impl() {
   g_main_loop_woke = true;
   esp_schedule();
 }
@@ -63,7 +63,7 @@ inline void ESPHOME_ALWAYS_INLINE wake_loop_impl_() {
 void wake_loop_any_context();
 
 /// Non-ISR: always inline.
-inline void wake_loop_threadsafe() { wake_loop_impl_(); }
+inline void wake_loop_threadsafe() { wake_loop_impl(); }
 
 namespace internal {
 inline void wakeable_delay(uint32_t ms) {

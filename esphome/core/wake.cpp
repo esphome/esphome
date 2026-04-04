@@ -27,7 +27,7 @@ volatile bool g_main_loop_woke = false;
 #endif
 
 #ifdef USE_ESP8266
-void IRAM_ATTR wake_loop_any_context() { wake_loop_impl_(); }
+void IRAM_ATTR wake_loop_any_context() { wake_loop_impl(); }
 #endif
 
 // === RP2040 — wakeable_delay (needs file-scope state for alarm callback) ===

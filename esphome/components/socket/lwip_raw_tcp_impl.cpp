@@ -44,7 +44,7 @@ void socket_delay(uint32_t ms) {
 void IRAM_ATTR socket_wake() {
   s_socket_woke = true;
   // Inline impl — this is IRAM_ATTR so the inlined code stays in IRAM
-  esphome::wake_loop_impl_();
+  esphome::wake_loop_impl();
 }
 #elif defined(USE_RP2040)
 // RP2040 (non-FreeRTOS) socket wake using hardware WFE/SEV instructions.
