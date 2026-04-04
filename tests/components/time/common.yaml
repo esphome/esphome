@@ -6,5 +6,12 @@ api:
 
 time:
   - platform: homeassistant
+    on_time:
+      - at: "16:00:00"
+        then:
+          - logger.log: It's 16:00
+      - cron: "0 30 * * * *"
+        then:
+          - logger.log: Every hour at 30 minutes
   - platform: sntp
     id: sntp_time
