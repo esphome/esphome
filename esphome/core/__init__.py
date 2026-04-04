@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_WEB_SERVER,
     CONF_WIFI,
     KEY_CORE,
+    KEY_NATIVE_IDF,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
     PLATFORM_BK72XX,
@@ -277,9 +278,13 @@ LAMBDA_PROG = re.compile(r"\bid\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)")
 
 class Lambda:
     def __init__(self, value):
+        from esphome.cpp_generator import Expression, statement
+
         # pylint: disable=protected-access
         if isinstance(value, Lambda):
             self._value = value._value
+        elif isinstance(value, Expression):
+            self._value = str(statement(value))
         else:
             self._value = value
         self._parts = None
@@ -721,6 +726,25 @@ class EsphomeCore:
     def config_filename(self) -> str:
         return self.config_path.name
 
+    def has_at_least_one_component(self, *components: str) -> bool:
+        """
+        Are any of the given components configured?
+        :param components: component names
+        :return: true if so
+        """
+        if self.config is None:
+            raise ValueError("Config has not been loaded yet")
+
+        return any(component in self.config for component in components)
+
+    @property
+    def has_networking(self) -> bool:
+        """
+        Is a network component configured?
+        :return: true if so
+        """
+        return self.has_at_least_one_component("wifi", "ethernet", "openthread")
+
     def relative_config_path(self, *path: str | Path) -> Path:
         path_ = Path(*path).expanduser()
         return self.config_dir / path_
@@ -744,6 +768,9 @@ class EsphomeCore:
 
     @property
     def firmware_bin(self) -> Path:
+        # Check if using native ESP-IDF build (--native-idf)
+        if self.data.get(KEY_NATIVE_IDF, False):
+            return self.relative_build_path("build", f"{self.name}.bin")
         if self.is_libretiny:
             return self.relative_pioenvs_path(self.name, "firmware.uf2")
         return self.relative_pioenvs_path(self.name, "firmware.bin")
@@ -865,6 +892,16 @@ class EsphomeCore:
             library.name if "/" not in library.name else library.name.split("/")[-1]
         )
 
+        # Auto-enable Arduino libraries on ESP32 Arduino builds
+        if self.is_esp32 and self.using_arduino:
+            from esphome.components.esp32 import (
+                ARDUINO_DISABLED_LIBRARIES,
+                _enable_arduino_library,
+            )
+
+            if short_name in ARDUINO_DISABLED_LIBRARIES:
+                _enable_arduino_library(short_name)
+
         if short_name not in self.platformio_libraries:
             _LOGGER.debug("Adding library: %s", library)
             self.platformio_libraries[short_name] = library
@@ -949,6 +986,15 @@ class EsphomeCore:
         :param var: The variable (component) being registered (currently unused but kept for future use)
         """
         self.platform_counts[platform_name] += 1
+
+    def testing_ensure_platform_registered(self, platform_name: str) -> None:
+        """Ensure a platform has at least one entity registered for testing.
+
+        Used during C++ test builds to guarantee USE_* defines are emitted
+        without needing a real component variable.
+        """
+        if not self.platform_counts[platform_name]:
+            self.platform_counts[platform_name] = 1
 
     def register_controller(self) -> None:
         """Track registration of a Controller for ControllerRegistry StaticVector sizing."""

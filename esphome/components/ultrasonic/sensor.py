@@ -1,3 +1,5 @@
+import logging
+
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import sensor
@@ -10,6 +12,8 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
 )
+
+_LOGGER = logging.getLogger(__name__)
 
 CONF_PULSE_TIME = "pulse_time"
 
@@ -48,6 +52,5 @@ async def to_code(config):
     cg.add(var.set_trigger_pin(trigger))
     echo = await cg.gpio_pin_expression(config[CONF_ECHO_PIN])
     cg.add(var.set_echo_pin(echo))
-
     cg.add(var.set_timeout_us(config[CONF_TIMEOUT] / (0.000343 / 2)))
     cg.add(var.set_pulse_time_us(config[CONF_PULSE_TIME]))

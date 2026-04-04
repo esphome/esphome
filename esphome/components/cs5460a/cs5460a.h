@@ -76,7 +76,6 @@ class CS5460AComponent : public Component,
   void restart() { restart_(); }
 
   void setup() override;
-  void loop() override {}
   void dump_config() override;
 
  protected:

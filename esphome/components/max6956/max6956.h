@@ -63,8 +63,8 @@ class MAX6956 : public Component, public i2c::I2CDevice {
   bool read_reg_(uint8_t reg, uint8_t *value);
   // write a value to a given register
   bool write_reg_(uint8_t reg, uint8_t value);
-  max6956::MAX6956CURRENTMODE brightness_mode_;
-  uint8_t global_brightness_;
+  max6956::MAX6956CURRENTMODE brightness_mode_{};
+  uint8_t global_brightness_{0};
 
  private:
   int8_t prev_bright_[28] = {0};
