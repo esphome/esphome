@@ -35,12 +35,13 @@ void MCP23S08::setup() {
     this->write_reg(mcp23x08_base::MCP23X08_IOCON, IOCON_SEQOP | IOCON_HAEN | IOCON_ODR);
   }
 
-  this->setup_interrupt_pin();
+  this->setup_interrupt_pin_();
 }
 
 void MCP23S08::dump_config() {
   ESP_LOGCONFIG(TAG, "MCP23S08:");
   LOG_PIN("  CS Pin: ", this->cs_);
+  LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
 }
 
 bool MCP23S08::read_reg(uint8_t reg, uint8_t *value) {
