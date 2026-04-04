@@ -5,12 +5,17 @@
 namespace esphome::total_daily_energy {
 
 static const char *const TAG = "total_daily_energy";
-static constexpr uint32_t MIDNIGHT_TIMEOUT = 1;
+static constexpr uint32_t TIMEOUT_ID_MIDNIGHT = 1;
 static constexpr uint8_t SECONDS_PER_MINUTE = 60;
 static constexpr uint8_t MINUTES_PER_HOUR = 60;
 static constexpr uint8_t HOURS_PER_DAY = 24;
 static constexpr uint32_t SECONDS_PER_HOUR = SECONDS_PER_MINUTE * MINUTES_PER_HOUR;
-static constexpr uint16_t MS_PER_SECOND = 1000;
+static constexpr uint16_t MILLIS_PER_SECOND = 1000;
+// Wake up 90 minutes before midnight to recalculate, ensuring DST transitions
+// (which shift wall clock by 1 hour but don't change millis()) don't cause
+// the midnight reset to fire late. DST transitions don't trigger the time sync
+// callback since they change local time interpretation, not the epoch.
+static constexpr uint32_t PRE_MIDNIGHT_SECONDS = 90 * SECONDS_PER_MINUTE;
 
 void TotalDailyEnergy::setup() {
   float initial_value = 0;
@@ -29,9 +34,6 @@ void TotalDailyEnergy::setup() {
   // the time sync callback will handle it once time becomes available.
   this->schedule_midnight_reset_();
   // Re-schedule on every NTP sync in case the clock jumped across midnight.
-  // DST transitions don't trigger this callback (DST is a local time interpretation,
-  // not an epoch change), but DST is handled correctly because set_timeout uses real
-  // elapsed time (millis) and schedule_midnight_reset_ re-reads now() when it fires.
   this->time_->add_on_time_sync_callback([this]() { this->schedule_midnight_reset_(); });
 }
 
@@ -52,15 +54,24 @@ void TotalDailyEnergy::schedule_midnight_reset_() {
     this->last_day_of_year_ = t.day_of_year;
   }
 
-  // Calculate seconds until next midnight (+ 1s buffer to ensure we're past midnight).
-  // Uses the same MIDNIGHT_TIMEOUT ID so re-scheduling (e.g. from time sync) cancels
+  // Calculate seconds until next midnight.
+  // Uses the same TIMEOUT_ID_MIDNIGHT ID so re-scheduling (e.g. from time sync) cancels
   // any previously pending timeout.
   uint32_t seconds_until_midnight =
       ((HOURS_PER_DAY - 1 - t.hour) * MINUTES_PER_HOUR + (MINUTES_PER_HOUR - 1 - t.minute)) * SECONDS_PER_MINUTE +
-      (SECONDS_PER_MINUTE - t.second) + 1;
+      (SECONDS_PER_MINUTE - t.second);
 
-  ESP_LOGD(TAG, "Scheduling midnight reset in %us", seconds_until_midnight);
-  this->set_timeout(MIDNIGHT_TIMEOUT, seconds_until_midnight * MS_PER_SECOND,
+  uint32_t timeout_seconds;
+  if (seconds_until_midnight > PRE_MIDNIGHT_SECONDS) {
+    // Far from midnight — wake up 90 minutes before to recalculate with fresh wall clock
+    timeout_seconds = seconds_until_midnight - PRE_MIDNIGHT_SECONDS;
+  } else {
+    // Close to midnight — schedule the actual reset with 1s buffer
+    timeout_seconds = seconds_until_midnight + 1;
+  }
+
+  ESP_LOGD(TAG, "Scheduling midnight check in %us", timeout_seconds);
+  this->set_timeout(TIMEOUT_ID_MIDNIGHT, timeout_seconds * MILLIS_PER_SECOND,
                     [this]() { this->schedule_midnight_reset_(); });
 }
 
@@ -78,7 +89,7 @@ void TotalDailyEnergy::process_new_state_(float state) {
   const uint32_t now = App.get_loop_component_start_time();
   const float old_state = this->last_power_state_;
   const float new_state = state;
-  float delta_hours = (now - this->last_update_) / static_cast<float>(MS_PER_SECOND) / SECONDS_PER_HOUR;
+  float delta_hours = (now - this->last_update_) / static_cast<float>(MILLIS_PER_SECOND) / SECONDS_PER_HOUR;
   float delta_energy = 0.0f;
   switch (this->method_) {
     case TOTAL_DAILY_ENERGY_METHOD_TRAPEZOID:
