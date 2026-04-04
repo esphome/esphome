@@ -2,7 +2,11 @@ import esphome.codegen as cg
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_DIRECTION,
+    CONF_HUMIDITY,
     CONF_ID,
+    CONF_TEMPERATURE,
+    CONF_VOC,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
@@ -17,13 +21,8 @@ from . import ECOCOMFORT2_CLIENT_SCHEMA, Ecocomfort2Sensor, register_ecocomfort2
 from .const import (
     CONF_ACTUAL_MODE,
     CONF_ACTUAL_SPEED,
-    CONF_DIRECTION,
-    CONF_HUMIDITY,
     CONF_HUMIDITY_OFFSET,
-    CONF_ROLE,
     CONF_TEMP_OFFSET,
-    CONF_TEMPERATURE,
-    CONF_VOC,
 )
 
 CODEOWNERS = ["@gledian"]
@@ -60,7 +59,7 @@ SENSOR_TYPES = {
         accuracy_decimals=0,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
-    CONF_ROLE: sensor.sensor_schema(
+    "role": sensor.sensor_schema(
         accuracy_decimals=0,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),

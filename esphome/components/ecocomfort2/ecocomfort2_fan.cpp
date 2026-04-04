@@ -11,13 +11,13 @@ namespace ecocomfort2 {
 static const char *const TAG = "ecocomfort2.fan";
 
 void Ecocomfort2Fan::setup() {
-  auto preset = this->parent_->get_desired_preset();
+  auto mode = this->parent_->get_desired_preset();
   auto speed = this->parent_->get_desired_speed();
-  bool auto_mode = this->parent_->get_desired_auto_mode();
+  bool auto_active = this->parent_->get_desired_auto_mode();
 
-  this->state = (preset != OPER_OFF);
+  this->state = (mode != OPER_OFF);
   this->speed = this->device_speed_to_fan_(speed);
-  const char *pm = this->mode_to_preset_name_(preset, auto_mode);
+  const char *pm = this->mode_to_preset_name_(mode, auto_active);
   if (pm != nullptr) {
     this->set_preset_mode_(pm);
   } else {
@@ -47,8 +47,9 @@ void Ecocomfort2Fan::control(const fan::FanCall &call) {
   }
 
   // Handle state change (on/off)
-  if (call.get_state().has_value()) {
-    this->state = *call.get_state();
+  auto opt_state = call.get_state();
+  if (opt_state.has_value()) {
+    this->state = *opt_state;
     if (!this->state) {
       // Turning off
       this->parent_->send_operation_command(OPER_OFF, SPEED_OFF, false);
@@ -68,8 +69,9 @@ void Ecocomfort2Fan::control(const fan::FanCall &call) {
     this->set_preset_mode_(preset_name);
   }
 
-  if (call.get_speed().has_value()) {
-    int fan_speed = *call.get_speed();
+  auto opt_speed = call.get_speed();
+  if (opt_speed.has_value()) {
+    int fan_speed = *opt_speed;
     speed = this->fan_speed_to_device_(fan_speed);
     this->speed = fan_speed;
 
