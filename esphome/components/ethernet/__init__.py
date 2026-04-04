@@ -238,17 +238,13 @@ def _validate_spi_interface(config: ConfigType) -> None:
     """Set default SPI interface or validate user choice against the variant."""
     from esphome.components.spi import get_hw_interface_list
 
-    available = sum(get_hw_interface_list(), [])
+    has_spi3 = "spi3" in sum(get_hw_interface_list(), [])
     if CONF_INTERFACE not in config:
-        key = "spi3" if "spi3" in available else "spi2"
-        config[CONF_INTERFACE] = SPI_INTERFACE_MAP[key]
-    elif (
-        config[CONF_INTERFACE] == SPI_INTERFACE_MAP["spi3"] and "spi3" not in available
-    ):
-        raise cv.Invalid(
-            "Interface 'spi3' is not available on this variant. "
-            f"Available: {', '.join(sorted(k for k in available if k in SPI_INTERFACE_MAP))}"
+        config[CONF_INTERFACE] = (
+            spi_host_device_t.SPI3_HOST if has_spi3 else spi_host_device_t.SPI2_HOST
         )
+    elif config[CONF_INTERFACE] == spi_host_device_t.SPI3_HOST and not has_spi3:
+        raise cv.Invalid("Interface 'spi3' is not available on this variant.")
 
 
 def _validate(config):
