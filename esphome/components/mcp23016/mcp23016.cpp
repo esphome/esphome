@@ -26,6 +26,10 @@ void MCP23016::setup() {
   this->write_reg_(MCP23016_IODIR1, 0xFFFF);
 }
 
+void MCP23016::loop() {
+  // Invalidate cache at the start of each loop
+  this->reset_pin_cache_();
+}
 bool MCP23016::digital_read_hw(uint8_t pin) { return this->read_reg_(MCP23016_GP1, &this->input_mask_); }
 
 bool MCP23016::digital_read_cache(uint8_t pin) { return this->input_mask_ & (1 << pin); }

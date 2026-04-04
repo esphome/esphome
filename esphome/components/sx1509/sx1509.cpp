@@ -39,6 +39,9 @@ void SX1509Component::dump_config() {
 }
 
 void SX1509Component::loop() {
+  // Reset cache at the start of each loop
+  this->reset_pin_cache_();
+
   if (this->has_keypad_) {
     if (millis() - this->last_loop_timestamp_ < min_loop_period_)
       return;

@@ -43,6 +43,8 @@ void TCA9555Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   // Write GPIO to enable input mode
   this->write_gpio_modes_();
 }
+void TCA9555Component::loop() { this->reset_pin_cache_(); }
+
 bool TCA9555Component::read_gpio_outputs_() {
   if (this->is_failed())
     return false;
