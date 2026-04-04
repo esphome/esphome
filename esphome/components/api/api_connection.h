@@ -402,16 +402,59 @@ class APIConnection final : public APIServerConnectionBase {
   // Non-template buffer management for send_message
   bool send_message_(uint32_t payload_size, uint8_t message_type, MessageEncodeFn encode_fn, const void *msg);
 
-  // Non-template buffer management for batch encoding
-  static uint16_t encode_to_buffer(uint32_t calculated_size, MessageEncodeFn encode_fn, const void *msg,
-                                   APIConnection *conn, uint32_t remaining_size);
+  // Core batch encoding logic. Computes header size, checks fit, resizes buffer, encodes.
+  // ALWAYS_INLINE so the compiler can devirtualize encode_fn at hot call sites.
+  static inline uint16_t ESPHOME_ALWAYS_INLINE encode_to_buffer(uint32_t calculated_size, MessageEncodeFn encode_fn,
+                                                                const void *msg, APIConnection *conn,
+                                                                uint32_t remaining_size) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+    if (conn->flags_.log_only_mode) {
+      auto *proto_msg = static_cast<const ProtoMessage *>(msg);
+      DumpBuffer dump_buf;
+      conn->log_send_message_(proto_msg->message_name(), proto_msg->dump_to(dump_buf));
+      return 1;
+    }
+#endif
+    const uint8_t footer_size = conn->helper_->frame_footer_size();
 
-  // Thin template wrapper — computes size, delegates buffer work to non-template helper
-  template<typename T> static uint16_t encode_message_to_buffer(T &msg, APIConnection *conn, uint32_t remaining_size) {
-    if constexpr (T::ESTIMATED_SIZE == 0) {
-      return encode_to_buffer(0, &encode_msg_noop, &msg, conn, remaining_size);
+    // First message uses max padding (already in buffer), subsequent use exact header size
+    size_t to_add;
+    if (conn->flags_.batch_first_message) {
+      conn->flags_.batch_first_message = false;
+      conn->batch_header_size_ = conn->helper_->frame_header_padding();
+      to_add = calculated_size;
     } else {
-      return encode_to_buffer(msg.calculate_size(), &proto_encode_msg<T>, &msg, conn, remaining_size);
+      conn->batch_header_size_ = conn->helper_->frame_header_size(calculated_size, conn->batch_message_type_);
+      to_add = calculated_size + conn->batch_header_size_ + footer_size;
+    }
+
+    // Check if it fits (using actual header size, not max padding)
+    uint16_t total_calculated_size = calculated_size + conn->batch_header_size_ + footer_size;
+    if (total_calculated_size > remaining_size)
+      return 0;
+
+    auto &shared_buf = conn->parent_->get_shared_buffer_ref();
+    shared_buf.resize(shared_buf.size() + to_add);
+    ProtoWriteBuffer buffer{&shared_buf, shared_buf.size() - calculated_size};
+    encode_fn(msg, buffer);
+
+    return total_calculated_size;
+  }
+
+  // Noinline version of encode_to_buffer for cold paths (entity info, zero-payload messages).
+  // All cold callers share this single copy instead of each getting an ALWAYS_INLINE expansion.
+  static uint16_t encode_to_buffer_slow(uint32_t calculated_size, MessageEncodeFn encode_fn, const void *msg,
+                                        APIConnection *conn, uint32_t remaining_size);
+
+  // Thin template wrapper — uses noinline encode_to_buffer_slow since
+  // encode_message_to_buffer callers are cold paths (zero-payload control messages).
+  // Hot paths (state/info) go through fill_and_encode_entity_state/info instead.
+  template<typename T> static uint16_t encode_message_to_buffer(T &msg, APIConnection *conn, uint32_t remaining_size) {
+    conn->batch_message_type_ = T::MESSAGE_TYPE;
+    if constexpr (T::ESTIMATED_SIZE == 0) {
+      return encode_to_buffer_slow(0, &encode_msg_noop, &msg, conn, remaining_size);
+    } else {
+      return encode_to_buffer_slow(msg.calculate_size(), &proto_encode_msg<T>, &msg, conn, remaining_size);
     }
   }
 
@@ -726,9 +769,14 @@ class APIConnection final : public APIServerConnectionBase {
   // 2-byte types immediately after flags_ (no padding between them)
   uint16_t client_api_version_major_{0};
   uint16_t client_api_version_minor_{0};
-  // 1-byte type to fill padding
+  // 1-byte types to fill remaining space before next 4-byte boundary
   ActiveIterator active_iterator_{ActiveIterator::NONE};
-  // Total: 2 (flags) + 2 + 2 + 1 = 7 bytes, then 1 byte padding to next 4-byte boundary
+  uint8_t batch_message_type_{0};  // Current message type during batch encoding
+  // Total: 2 (flags) + 2 + 2 + 1 + 1 = 8 bytes, aligned to 4-byte boundary
+
+  // Actual header size used by encode_to_buffer for the current message.
+  // Read by process_batch_multi_ to pass into MessageInfo.
+  uint8_t batch_header_size_{0};
 
   uint32_t get_batch_delay_ms_() const { return this->parent_->get_batch_delay(); }
   // Message will use 8 more bytes than the minimum size, and typical
