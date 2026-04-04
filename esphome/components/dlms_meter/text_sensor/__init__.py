@@ -1,37 +1,45 @@
 import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
 
-from .. import CONF_DLMS_METER_ID, DlmsMeterComponent
+from .. import (
+    CONF_DLMS_METER_ID,
+    CONF_OBIS_CODE,
+    TEXT_KEYS,
+    DlmsMeterComponent,
+    obis_code,
+)
 
-AUTO_LOAD = ["dlms_meter"]
+DEPENDENCIES = ["dlms_meter"]
 
-CONFIG_SCHEMA = cv.Schema(
+DYNAMIC_SCHEMA = text_sensor.text_sensor_schema().extend(
     {
         cv.GenerateID(CONF_DLMS_METER_ID): cv.use_id(DlmsMeterComponent),
-        cv.Optional("timestamp"): text_sensor.text_sensor_schema(),
-        # Netz NOE
-        cv.Optional("meternumber"): text_sensor.text_sensor_schema(),
+        cv.Required(CONF_OBIS_CODE): obis_code,
     }
-).extend(cv.COMPONENT_SCHEMA)
+)
+
+OLD_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(CONF_DLMS_METER_ID): cv.use_id(DlmsMeterComponent),
+            cv.Optional("timestamp"): text_sensor.text_sensor_schema(),
+            cv.Optional("meternumber"): text_sensor.text_sensor_schema(),
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+)
+
+CONFIG_SCHEMA = cv.Any(DYNAMIC_SCHEMA, OLD_SCHEMA)
 
 
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_DLMS_METER_ID])
 
-    text_sensors = []
-    for key, conf in config.items():
-        if not isinstance(conf, dict):
-            continue
-        id = conf[CONF_ID]
-        if id and id.type == text_sensor.TextSensor:
-            sens = await text_sensor.new_text_sensor(conf)
-            cg.add(getattr(hub, f"set_{key}_text_sensor")(sens))
-            text_sensors.append(f"F({key})")
-
-    if text_sensors:
-        cg.add_define(
-            "DLMS_METER_TEXT_SENSOR_LIST(F, sep)",
-            cg.RawExpression(" sep ".join(text_sensors)),
-        )
+    if CONF_OBIS_CODE in config:
+        var = await text_sensor.new_text_sensor(config)
+        cg.add(hub.register_text_sensor(config[CONF_OBIS_CODE], var))
+    else:
+        for key, obis_val in TEXT_KEYS.items():
+            if key in config:
+                sens = await text_sensor.new_text_sensor(config[key])
+                cg.add(hub.register_text_sensor(obis_val, sens))
