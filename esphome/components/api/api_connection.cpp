@@ -2011,33 +2011,25 @@ uint16_t APIConnection::encode_to_buffer(uint32_t calculated_size, MessageEncode
   // Cache frame sizes to avoid repeated virtual calls
   const uint8_t footer_size = conn->helper_->frame_footer_size();
 
-  // Use actual header size for all batch messages (eliminates gaps between messages).
-  const uint8_t header_size = conn->helper_->frame_header_size(calculated_size, conn->batch_message_type_);
+  size_t to_add;
+  if (conn->flags_.batch_first_message) {
+    // First message - buffer already prepared by caller with max header padding.
+    // Use max padding for header size (actual header computed at write time).
+    conn->flags_.batch_first_message = false;
+    conn->batch_header_size_ = conn->helper_->frame_header_padding();
+    to_add = calculated_size;  // Padding already in buffer
+  } else {
+    // Subsequent batch messages use exact header size — no gaps
+    conn->batch_header_size_ = conn->helper_->frame_header_size(calculated_size, conn->batch_message_type_);
+    to_add = calculated_size + conn->batch_header_size_ + footer_size;
+  }
 
-  // Store for process_batch_multi_ to pass into MessageInfo
-  conn->batch_header_size_ = header_size;
-
-  // Calculate total size with header for buffer allocation
-  size_t total_calculated_size = calculated_size + header_size + footer_size;
-
-  // Check if it fits
+  // total_calculated_size reflects wire size (header + payload + footer)
+  size_t total_calculated_size = calculated_size + conn->batch_header_size_ + footer_size;
   if (total_calculated_size > remaining_size)
     return 0;  // Doesn't fit
 
   auto &shared_buf = conn->parent_->get_shared_buffer_ref();
-
-  size_t to_add;
-  if (conn->flags_.batch_first_message) {
-    // First message - buffer already prepared by caller with max header padding.
-    // We only add payload bytes since padding is already in the buffer.
-    // The unused leading bytes (max_padding - actual_header) are skipped at write time.
-    conn->flags_.batch_first_message = false;
-    to_add = calculated_size;
-  } else {
-    // Subsequent batch messages use exact header size — no gaps
-    to_add = total_calculated_size;
-  }
-
   shared_buf.resize(shared_buf.size() + to_add);
   ProtoWriteBuffer buffer{&shared_buf, shared_buf.size() - calculated_size};
   encode_fn(msg, buffer);
