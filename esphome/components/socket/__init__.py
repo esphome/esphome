@@ -122,15 +122,20 @@ def get_socket_counts() -> SocketCounts:
 def require_wake_loop_threadsafe() -> None:
     """Deprecated: wake loop support is now always available on all platforms.
 
-    This function is a no-op kept for backward compatibility with external components.
-    Remove before 2026.12.0.
+    This function adds backward-compatible defines so external components
+    that check #ifdef USE_WAKE_LOOP_THREADSAFE / USE_SOCKET_SELECT_SUPPORT
+    continue to compile. Remove before 2026.12.0.
     """
     # Remove before 2026.12.0
     _LOGGER.warning(
         "require_wake_loop_threadsafe() is deprecated and no longer needed. "
-        "Wake loop support is now always available. Remove this call. "
+        "Wake loop support is now always available. Remove this call and any "
+        "#ifdef USE_SOCKET_SELECT_SUPPORT / USE_WAKE_LOOP_THREADSAFE guards. "
         "This will be removed in 2026.12.0."
     )
+    # Add deprecated defines for backward compat with external component C++ code
+    cg.add_define("USE_WAKE_LOOP_THREADSAFE")
+    cg.add_define("USE_SOCKET_SELECT_SUPPORT")
 
 
 CONFIG_SCHEMA = cv.Schema(
@@ -168,10 +173,6 @@ async def to_code(config):
     # Only when not using lwip_tcp, which does not provide select() support.
     if (CORE.is_esp32 or CORE.is_libretiny) and impl != IMPLEMENTATION_LWIP_TCP:
         cg.add_build_flag("-DUSE_LWIP_FAST_SELECT")
-    if CORE.is_host:
-        # Host platform: uses select() syscall for socket monitoring
-        # and a UDP loopback socket for wake_loop_threadsafe()
-        consume_sockets(1, "socket.wake_loop_threadsafe", SocketType.UDP)({})
 
 
 def FILTER_SOURCE_FILES() -> list[str]:
