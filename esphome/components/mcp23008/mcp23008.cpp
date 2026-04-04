@@ -23,6 +23,11 @@ void MCP23008::setup() {
     this->write_reg(mcp23x08_base::MCP23X08_IOCON, iocon | IOCON_ODR);
   }
 
+  // Clear any latched interrupt by reading GPIO before attaching ISR
+  if (this->interrupt_pin_ != nullptr) {
+    uint8_t val;
+    this->read_reg(mcp23x08_base::MCP23X08_GPIO, &val);
+  }
   this->setup_interrupt_pin_();
 }
 
