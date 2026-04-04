@@ -27,6 +27,9 @@ template<uint8_t N> class MCP23XXXBase : public Component, public gpio_expander:
   }
 
  protected:
+  // No need to clear latched interrupts before attaching the ISR — if INT is
+  // already low the ISR fires immediately, loop runs, cache invalidates, and
+  // the GPIO read clears the latch. One harmless extra read at most.
   void setup_interrupt_pin_() {
     if (this->interrupt_pin_ != nullptr) {
       this->interrupt_pin_->setup();
