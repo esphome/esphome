@@ -144,6 +144,7 @@ esphome/components/ds1307/* @badbadc0ffee
 esphome/components/ds2484/* @mrk-its
 esphome/components/dsmr/* @glmnet @PolarGoose
 esphome/components/duty_time/* @dudanov
+esphome/components/ecocomfort2/* @gledian
 esphome/components/ee895/* @Stock-M
 esphome/components/ektf2232/touchscreen/* @jesserockz
 esphome/components/emc2101/* @ellull
