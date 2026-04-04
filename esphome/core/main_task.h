@@ -20,7 +20,7 @@ extern "C" {
 extern TaskHandle_t esphome_main_task_handle;
 
 /// Wake the main loop task from another FreeRTOS task. NOT ISR-safe.
-static inline void esphome_main_task_notify(void) {
+static inline void esphome_main_task_notify() {
   TaskHandle_t task = esphome_main_task_handle;
   if (task != NULL) {
     xTaskNotifyGive(task);
@@ -37,7 +37,7 @@ static inline void esphome_main_task_notify_from_isr(int *px_higher_priority_tas
 
 #ifdef USE_ESP32
 /// Wake the main loop from any context (ISR or task). ESP32-only (needs xPortInIsrContext).
-static inline void esphome_main_task_notify_any_context(void) {
+static inline void esphome_main_task_notify_any_context() {
   if (xPortInIsrContext()) {
     int px_higher_priority_task_woken = 0;
     esphome_main_task_notify_from_isr(&px_higher_priority_task_woken);

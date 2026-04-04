@@ -24,6 +24,9 @@
 #include "esphome/core/area.h"
 #endif
 
+#ifdef USE_LWIP_FAST_SELECT
+#include "esphome/core/lwip_fast_select.h"
+#endif
 #ifdef USE_HOST
 #include <sys/select.h>
 #include <sys/socket.h>
