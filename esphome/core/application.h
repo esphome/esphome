@@ -24,7 +24,7 @@
 #include "esphome/core/area.h"
 #endif
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_HOST
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -110,7 +110,7 @@
 #endif
 
 namespace esphome::socket {
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_HOST
 /// Shared ready() helper for fd-based socket implementations.
 bool socket_ready_fd(int fd, bool loop_monitored);  // NOLINT(readability-redundant-declaration)
 #endif
@@ -536,7 +536,7 @@ class Application {
   /// @return true if registration was successful, false if sock is null
   bool register_socket(struct lwip_sock *sock);
   void unregister_socket(struct lwip_sock *sock);
-#elif defined(USE_SOCKET_SELECT_SUPPORT)
+#elif defined(USE_HOST)
   /// Fallback select() path: monitors file descriptors.
   /// NOTE: File descriptors >= FD_SETSIZE (typically 10 on ESP) will be rejected with an error.
   /// @return true if registration was successful, false if fd exceeds limits
@@ -558,7 +558,7 @@ class Application {
 
  protected:
   friend Component;
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_HOST
   friend bool socket::socket_ready_fd(int fd, bool loop_monitored);
 #endif
 #ifdef USE_RUNTIME_STATS
@@ -566,11 +566,11 @@ class Application {
 #endif
   friend void ::setup();
   friend void ::original_setup();
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_HOST
   friend void wake_loop_threadsafe();  // Host platform accesses wake_socket_fd_
 #endif
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_HOST
   bool is_socket_ready_(int fd) const { return FD_ISSET(fd, &this->read_fds_); }
 #endif
 
@@ -615,14 +615,14 @@ class Application {
   void feed_wdt_arch_();
 
   /// Perform a delay while also monitoring socket file descriptors for readiness
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_HOST
   // select() fallback path is too complex to inline (host platform)
   void yield_with_select_(uint32_t delay_ms);
 #else
   inline void ESPHOME_ALWAYS_INLINE yield_with_select_(uint32_t delay_ms);
 #endif
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_HOST
   void setup_wake_loop_threadsafe_();       // Create wake notification socket
   inline void drain_wake_notifications_();  // Read pending wake notifications in main loop (hot path - inlined)
 #endif
@@ -652,10 +652,10 @@ class Application {
   FixedVector<Component *> looping_components_{};
 #ifdef USE_LWIP_FAST_SELECT
   std::vector<struct lwip_sock *> monitored_sockets_;  // Cached lwip_sock pointers for direct rcvevent read
-#elif defined(USE_SOCKET_SELECT_SUPPORT)
+#elif defined(USE_HOST)
   std::vector<int> socket_fds_;  // Vector of all monitored socket file descriptors
 #endif
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_HOST
   int wake_socket_fd_{-1};  // Shared wake notification socket for waking main loop from tasks
 #endif
 
@@ -667,7 +667,7 @@ class Application {
   uint32_t last_loop_{0};
   uint32_t loop_component_start_time_{0};
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_HOST
   int max_fd_{-1};  // Highest file descriptor number for select()
 #endif
 
@@ -683,11 +683,11 @@ class Application {
   bool in_loop_{false};
   volatile bool has_pending_enable_loop_requests_{false};
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_HOST
   bool socket_fds_changed_{false};  // Flag to rebuild base_read_fds_ when socket_fds_ changes
 #endif
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_HOST
   // Variable-sized members (not needed with fast select — is_socket_ready_ reads rcvevent directly)
   fd_set read_fds_{};       // Working fd_set: populated by select()
   fd_set base_read_fds_{};  // Cached fd_set rebuilt only when socket_fds_ changes
@@ -780,7 +780,7 @@ class Application {
 /// Global storage of Application pointer - only one Application can exist.
 extern Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_HOST
 // Inline implementations for hot-path functions
 // drain_wake_notifications_() is called on every loop iteration
 
@@ -802,10 +802,10 @@ inline void Application::drain_wake_notifications_() {
     }
   }
 }
-#endif  // USE_SOCKET_SELECT_SUPPORT
+#endif  // USE_HOST
 
 inline void ESPHOME_ALWAYS_INLINE Application::before_loop_tasks_(uint32_t loop_start_time) {
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_HOST
   // Drain wake notifications first to clear socket for next wake
   this->drain_wake_notifications_();
 #endif
@@ -896,7 +896,7 @@ inline void ESPHOME_ALWAYS_INLINE Application::loop() {
 }
 
 // Inline yield_with_select_ for all paths except the select() fallback
-#ifndef USE_SOCKET_SELECT_SUPPORT
+#ifndef USE_HOST
 inline void ESPHOME_ALWAYS_INLINE Application::yield_with_select_(uint32_t delay_ms) {
 #ifdef USE_LWIP_FAST_SELECT
   // Fast path (ESP32/LibreTiny): reads rcvevent directly from cached lwip_sock pointers.
@@ -922,6 +922,6 @@ inline void ESPHOME_ALWAYS_INLINE Application::yield_with_select_(uint32_t delay
 #endif
   esphome::internal::wakeable_delay(delay_ms);
 }
-#endif  // !USE_SOCKET_SELECT_SUPPORT
+#endif  // !USE_HOST
 
 }  // namespace esphome

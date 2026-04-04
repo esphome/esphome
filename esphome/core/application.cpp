@@ -28,7 +28,7 @@
 #include "esphome/components/socket/socket.h"
 #endif
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_HOST
 #include <cerrno>
 #endif
 
@@ -120,7 +120,7 @@ void Application::setup() {
   // when USE_LWIP_FAST_SELECT is enabled (ESP32 and LibreTiny).
   esphome_lwip_fast_select_init();
 #endif
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_HOST
   // Set up wake socket for waking main loop from tasks (platforms without fast select only)
   this->setup_wake_loop_threadsafe_();
 #endif
@@ -476,7 +476,7 @@ void Application::unregister_socket(struct lwip_sock *sock) {
     return;
   }
 }
-#elif defined(USE_SOCKET_SELECT_SUPPORT)
+#elif defined(USE_HOST)
 bool Application::register_socket_fd(int fd) {
   // WARNING: This function is NOT thread-safe and must only be called from the main loop
   // It modifies socket_fds_ and related variables without locking
@@ -527,7 +527,7 @@ void Application::unregister_socket_fd(int fd) {
 #endif
 
 // Only the select() fallback path remains in the .cpp — all other paths are inlined in application.h
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_HOST
 void Application::yield_with_select_(uint32_t delay_ms) {
   // Fallback select() path (host platform and any future platforms without fast select).
   if (!this->socket_fds_.empty()) [[likely]] {
@@ -573,7 +573,7 @@ void Application::yield_with_select_(uint32_t delay_ms) {
   // No sockets registered or select() failed - use regular delay
   delay(delay_ms);
 }
-#endif  // USE_SOCKET_SELECT_SUPPORT
+#endif  // USE_HOST
 
 // App storage — asm label shares the linker symbol with "extern Application App".
 // char[] is trivially destructible, so no __cxa_atexit or destructor chain is emitted.
@@ -596,7 +596,7 @@ alignas(Application) char app_storage[sizeof(Application)] asm(
 
 // Host platform wake_loop_threadsafe() and setup — needs wake_socket_fd_
 // ESP32/LibreTiny/ESP8266/RP2040 implementations are in wake.cpp
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_HOST
 
 void Application::setup_wake_loop_threadsafe_() {
   // Create UDP socket for wake notifications
@@ -652,7 +652,7 @@ void Application::setup_wake_loop_threadsafe_() {
   }
 }
 
-#endif  // USE_SOCKET_SELECT_SUPPORT
+#endif  // USE_HOST
 
 void Application::get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buffer) {
   ESPHOME_strncpy_P(buffer.data(), ESPHOME_BUILD_TIME_STR, buffer.size());

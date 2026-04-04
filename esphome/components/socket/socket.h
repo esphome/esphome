@@ -45,7 +45,7 @@ using ListenSocket = LWIPRawListenImpl;
 inline bool socket_ready(struct lwip_sock *cached_sock, bool loop_monitored) {
   return !loop_monitored || (cached_sock != nullptr && esphome_lwip_socket_has_data(cached_sock));
 }
-#elif defined(USE_SOCKET_SELECT_SUPPORT)
+#elif defined(USE_HOST)
 /// Shared ready() helper for fd-based socket implementations.
 /// Checks if the Application's select() loop has marked this fd as ready.
 bool socket_ready_fd(int fd, bool loop_monitored);

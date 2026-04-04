@@ -40,7 +40,7 @@ volatile bool g_main_loop_woke = false;
 #endif  // USE_RP2040
 
 // === Host (UDP loopback socket) ===
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_HOST
 #include "esphome/core/application.h"
 #include <sys/socket.h>
 
@@ -51,6 +51,6 @@ void wake_loop_threadsafe() {
     ::send(App.wake_socket_fd_, &dummy, 1, 0);
   }
 }
-#endif  // USE_SOCKET_SELECT_SUPPORT
+#endif  // USE_HOST
 
 }  // namespace esphome

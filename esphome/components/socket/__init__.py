@@ -175,7 +175,6 @@ async def to_code(config):
     ):
         # Host platform: uses select() syscall for socket monitoring
         # and a UDP loopback socket for wake_loop_threadsafe()
-        cg.add_define("USE_SOCKET_SELECT_SUPPORT")
         consume_sockets(1, "socket.wake_loop_threadsafe", SocketType.UDP)({})
 
 
