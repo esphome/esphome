@@ -6,6 +6,8 @@ namespace mcp23008 {
 
 static const char *const TAG = "mcp23008";
 
+static constexpr uint8_t IOCON_ODR = 0x04;  // Open-drain output for INT pin
+
 void MCP23008::setup() {
   uint8_t iocon;
   if (!this->read_reg(mcp23x08_base::MCP23X08_IOCON, &iocon)) {
@@ -18,7 +20,7 @@ void MCP23008::setup() {
 
   if (this->open_drain_ints_) {
     // enable open-drain interrupt pins, 3.3V-safe
-    this->write_reg(mcp23x08_base::MCP23X08_IOCON, 0x04);
+    this->write_reg(mcp23x08_base::MCP23X08_IOCON, iocon | IOCON_ODR);
   }
 }
 

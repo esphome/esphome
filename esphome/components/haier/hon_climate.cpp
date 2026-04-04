@@ -675,7 +675,6 @@ haier_protocol::HaierMessage HonClimate::get_control_message() {
     this->quiet_mode_state_ = (SwitchState) ((uint8_t) this->quiet_mode_state_ & 0b01);
   }
   out_data->beeper_status = ((!this->get_beeper_state()) || (!has_hvac_settings)) ? 1 : 0;
-  control_out_buffer[4] = 0;  // This byte should be cleared before setting values
   out_data->display_status = this->get_display_state() ? 1 : 0;
   this->display_status_ = (SwitchState) ((uint8_t) this->display_status_ & 0b01);
   out_data->health_mode = this->get_health_mode() ? 1 : 0;
@@ -748,7 +747,7 @@ void HonClimate::update_sub_sensor_(SubSensorType type, float value) {
   if (type < SubSensorType::SUB_SENSOR_TYPE_COUNT) {
     size_t index = (size_t) type;
     if ((this->sub_sensors_[index] != nullptr) &&
-        ((!this->sub_sensors_[index]->has_state()) || (this->sub_sensors_[index]->raw_state != value)))
+        ((!this->sub_sensors_[index]->has_state()) || (this->sub_sensors_[index]->get_raw_state() != value)))
       this->sub_sensors_[index]->publish_state(value);
   }
 }
