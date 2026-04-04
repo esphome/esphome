@@ -556,12 +556,12 @@ class Application {
   void wake_loop_threadsafe() { esphome::wake_loop_threadsafe(); }
 
 #ifdef USE_LWIP_FAST_SELECT
-  /// Wake from ISR (ESP32/LibreTiny only). Delegates to esphome::wake_loop_isrsafe().
+  /// Wake from ISR (ESP32/LibreTiny only).
   static void wake_loop_isrsafe(int *px) { esphome::wake_loop_isrsafe(px); }
 #endif
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY) || defined(USE_ESP8266) || defined(USE_RP2040)
-  /// Wake from any context (ISR, thread, callback). Delegates to esphome::wake_loop_any_context().
+  /// Wake from any context (ISR, thread, callback).
   static void wake_loop_any_context() { esphome::wake_loop_any_context(); }
 #endif
 
