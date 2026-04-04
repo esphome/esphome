@@ -238,6 +238,7 @@ class VoiceAssistant : public Component {
   void set_state_(State state, State desired_state);
   void signal_stop_();
   void start_playback_timeout_();
+  void start_media_player_start_timeout_();
 
   std::unique_ptr<socket::Socket> socket_ = nullptr;
   struct sockaddr_storage dest_addr_;
@@ -291,6 +292,7 @@ class VoiceAssistant : public Component {
   media_player::MediaPlayer *media_player_{nullptr};
   std::string tts_response_url_{""};
   bool started_streaming_tts_{false};
+  bool media_player_response_started_{false};
 
   MediaPlayerResponseState media_player_response_state_{MediaPlayerResponseState::IDLE};
 #endif
