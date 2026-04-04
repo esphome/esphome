@@ -114,10 +114,12 @@ void Application::setup() {
   clear_setup_priority_overrides();
 #endif
 
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  // Save main loop task handle for wake_loop_*() FreeRTOS notifications.
+  g_main_task_handle = xTaskGetCurrentTaskHandle();
+#endif
 #ifdef USE_LWIP_FAST_SELECT
-  // Initialize fast select: saves main loop task handle for xTaskNotifyGive wake.
-  // The fast path (rcvevent reads + ulTaskNotifyTake) is used unconditionally
-  // when USE_LWIP_FAST_SELECT is enabled (ESP32 and LibreTiny).
+  // Initialize fast select: hooks socket monitoring for direct rcvevent reads.
   esphome_lwip_fast_select_init();
 #endif
 #ifdef USE_HOST
