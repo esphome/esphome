@@ -20,100 +20,18 @@
 
 namespace esphome::socket {
 
+#if defined(USE_ESP8266) || defined(USE_RP2040)
+// socket_delay() and socket_wake() delegate to the core wake mechanism.
+// socket_wake() calls wake_loop_any_context() which sets g_main_loop_woke,
+// and socket_delay() calls wakeable_delay() which checks that flag.
+
+void socket_delay(uint32_t ms) { esphome::internal::wakeable_delay(ms); }
+
 #ifdef USE_ESP8266
-// Flag to signal socket activity - checked by socket_delay() to exit early
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-static volatile bool s_socket_woke = false;
-
-void socket_delay(uint32_t ms) {
-  // Use esp_delay with a callback that checks if socket data arrived.
-  // This allows the delay to exit early when socket_wake() is called by
-  // lwip recv_fn/accept_fn callbacks, reducing socket latency.
-  //
-  // When ms is 0, we must use delay(0) because esp_delay(0, callback)
-  // exits immediately without yielding, which can cause watchdog timeouts
-  // when the main loop runs in high-frequency mode (e.g., during light effects).
-  if (ms == 0) {
-    delay(0);
-    return;
-  }
-  s_socket_woke = false;
-  esp_delay(ms, []() { return !s_socket_woke; });
-}
-
-void IRAM_ATTR socket_wake() {
-  s_socket_woke = true;
-  // Inline impl — this is IRAM_ATTR so the inlined code stays in IRAM
-  esphome::wake_loop_impl();
-}
-#elif defined(USE_RP2040)
-// RP2040 (non-FreeRTOS) socket wake using hardware WFE/SEV instructions.
-//
-// Same pattern as ESP8266's esp_delay()/esp_schedule(): set a one-shot timer,
-// then sleep with __wfe(). Wake on either:
-//   - Timer alarm fires → callback calls __sev() → __wfe() returns → timeout
-//   - Socket data arrives → LWIP callback calls socket_wake() → __sev() → __wfe() returns → early wake
-//
-// CYW43 WiFi chip communicates via SPI interrupts on core 0. When data arrives,
-// the GPIO interrupt fires → async_context pendsv processes CYW43/LWIP → recv/accept
-// callbacks call socket_wake() → __sev() wakes the main loop from __wfe() sleep.
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-static volatile bool s_socket_woke = false;
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-static volatile bool s_delay_expired = false;
-
-static int64_t alarm_callback(alarm_id_t id, void *user_data) {
-  (void) id;
-  (void) user_data;
-  s_delay_expired = true;
-  // Wake the main loop from __wfe() sleep — timeout expired.
-  __sev();
-  // Return 0 = don't reschedule (one-shot)
-  return 0;
-}
-
-void socket_delay(uint32_t ms) {
-  if (ms == 0) {
-    yield();
-    return;
-  }
-  // If a wake was already signalled, consume it and return immediately
-  // instead of going to sleep. This avoids losing a wake that arrived
-  // between loop iterations.
-  if (s_socket_woke) {
-    s_socket_woke = false;
-    return;
-  }
-  // Don't clear s_socket_woke here — if an IRQ fires between the check above
-  // and the while loop below, the while condition sees it immediately. Clearing
-  // here would lose that wake and sleep until the timer fires.
-  s_delay_expired = false;
-  // Set a one-shot timer to wake us after the timeout.
-  // add_alarm_in_ms returns >0 on success, 0 if time already passed, <0 on error.
-  alarm_id_t alarm = add_alarm_in_ms(ms, alarm_callback, nullptr, true);
-  if (alarm <= 0) {
-    delay(ms);
-    return;
-  }
-  // Sleep until woken by either the timer alarm or socket_wake().
-  // __wfe() may return spuriously (stale event register, other interrupts),
-  // so we loop checking both flags.
-  while (!s_socket_woke && !s_delay_expired) {
-    __wfe();
-  }
-  // Cancel timer if we woke early (socket data arrived before timeout)
-  if (!s_delay_expired)
-    cancel_alarm(alarm);
-  s_socket_woke = false;  // consume the wake for next call
-}
-
-// No IRAM_ATTR equivalent needed: on RP2040, CYW43 async_context runs LWIP
-// callbacks via pendsv (not hard IRQ), so they execute from flash safely.
-void socket_wake() {
-  s_socket_woke = true;
-  // Also set core wake flag so wakeable_delay() breaks out
-  esphome::wake_loop_any_context();
-}
+void IRAM_ATTR socket_wake() { esphome::wake_loop_impl(); }
+#else
+void socket_wake() { esphome::wake_loop_any_context(); }
+#endif
 #endif
 
 // ---- LWIP thread safety ----
