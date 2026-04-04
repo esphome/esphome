@@ -64,10 +64,8 @@ void RP2040GPIOPin::pin_mode(gpio::Flags flags) {
   pinMode(pin_, flags_to_mode(flags, pin_));  // NOLINT
 }
 
-std::string RP2040GPIOPin::dump_summary() const {
-  char buffer[32];
-  snprintf(buffer, sizeof(buffer), "GPIO%u", pin_);
-  return buffer;
+size_t RP2040GPIOPin::dump_summary(char *buffer, size_t len) const {
+  return snprintf(buffer, len, "GPIO%u", this->pin_);
 }
 
 bool RP2040GPIOPin::digital_read() {
@@ -108,7 +106,7 @@ void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
     sio_hw->gpio_oe_set = arg->mask;
   } else if (flags & gpio::FLAG_INPUT) {
     sio_hw->gpio_oe_clr = arg->mask;
-    hw_write_masked(&padsbank0_hw->io[arg->pin],
+    hw_write_masked(&pads_bank0_hw->io[arg->pin],
                     (bool_to_bit(flags & gpio::FLAG_PULLUP) << PADS_BANK0_GPIO0_PUE_LSB) |
                         (bool_to_bit(flags & gpio::FLAG_PULLDOWN) << PADS_BANK0_GPIO0_PDE_LSB),
                     PADS_BANK0_GPIO0_PUE_BITS | PADS_BANK0_GPIO0_PDE_BITS);

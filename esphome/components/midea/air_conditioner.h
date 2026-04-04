@@ -46,8 +46,8 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner>,
   void set_supported_modes(ClimateModeMask modes) { this->supported_modes_ = modes; }
   void set_supported_swing_modes(ClimateSwingModeMask modes) { this->supported_swing_modes_ = modes; }
   void set_supported_presets(ClimatePresetMask presets) { this->supported_presets_ = presets; }
-  void set_custom_presets(const std::vector<std::string> &presets) { this->supported_custom_presets_ = presets; }
-  void set_custom_fan_modes(const std::vector<std::string> &modes) { this->supported_custom_fan_modes_ = modes; }
+  void set_custom_presets(std::initializer_list<const char *> presets) { this->supported_custom_presets_ = presets; }
+  void set_custom_fan_modes(std::initializer_list<const char *> modes) { this->supported_custom_fan_modes_ = modes; }
 
  protected:
   void control(const ClimateCall &call) override;
@@ -55,8 +55,8 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner>,
   ClimateModeMask supported_modes_{};
   ClimateSwingModeMask supported_swing_modes_{};
   ClimatePresetMask supported_presets_{};
-  std::vector<std::string> supported_custom_presets_{};
-  std::vector<std::string> supported_custom_fan_modes_{};
+  std::vector<const char *> supported_custom_presets_{};
+  std::vector<const char *> supported_custom_fan_modes_{};
   Sensor *outdoor_sensor_{nullptr};
   Sensor *humidity_sensor_{nullptr};
   Sensor *power_sensor_{nullptr};

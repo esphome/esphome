@@ -23,17 +23,23 @@ class SPS30Component : public PollingComponent, public sensirion_common::Sensiri
 
   void set_pm_size_sensor(sensor::Sensor *pm_size) { pm_size_sensor_ = pm_size; }
   void set_auto_cleaning_interval(uint32_t auto_cleaning_interval) { fan_interval_ = auto_cleaning_interval; }
+  void set_idle_interval(uint32_t idle_interval) { idle_interval_ = idle_interval; }
   void setup() override;
   void update() override;
   void dump_config() override;
 
   bool start_fan_cleaning();
+  bool stop_measurement();
+  bool start_measurement();
 
  protected:
   bool setup_complete_{false};
   uint16_t raw_firmware_version_;
   char serial_number_[17] = {0};  /// Terminating NULL character
   uint8_t skipped_data_read_cycles_ = 0;
+  uint32_t next_state_ms_ = 0;
+
+  enum NextState : uint8_t { WAKE, READ, NONE } next_state_{NONE};
 
   bool start_continuous_measurement_();
 
@@ -58,6 +64,7 @@ class SPS30Component : public PollingComponent, public sensirion_common::Sensiri
   sensor::Sensor *pmc_10_0_sensor_{nullptr};
   sensor::Sensor *pm_size_sensor_{nullptr};
   optional<uint32_t> fan_interval_;
+  optional<uint32_t> idle_interval_;
 };
 
 }  // namespace sps30

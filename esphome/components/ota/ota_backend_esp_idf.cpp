@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 #include "ota_backend_esp_idf.h"
 
 #include "esphome/components/md5/md5.h"
@@ -8,12 +8,18 @@
 #include <esp_task_wdt.h>
 #include <spi_flash_mmap.h>
 
-namespace esphome {
-namespace ota {
+namespace esphome::ota {
 
-std::unique_ptr<ota::OTABackend> make_ota_backend() { return make_unique<ota::IDFOTABackend>(); }
+std::unique_ptr<IDFOTABackend> make_ota_backend() { return make_unique<IDFOTABackend>(); }
 
 OTAResponseTypes IDFOTABackend::begin(size_t image_size) {
+#ifdef USE_OTA_ROLLBACK
+  // If we're starting an OTA, the current boot is good enough - mark it valid
+  // to prevent rollback and allow the OTA to proceed even if the safe mode
+  // timer hasn't expired yet.
+  esp_ota_mark_app_valid_cancel_rollback();
+#endif
+
   this->partition_ = esp_ota_get_next_update_partition(nullptr);
   if (this->partition_ == nullptr) {
     return OTA_RESPONSE_ERROR_NO_UPDATE_PARTITION;
@@ -105,6 +111,5 @@ void IDFOTABackend::abort() {
   this->update_handle_ = 0;
 }
 
-}  // namespace ota
-}  // namespace esphome
-#endif
+}  // namespace esphome::ota
+#endif  // USE_ESP32

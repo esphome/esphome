@@ -210,8 +210,8 @@ def final_validate(config):
     ):
         LOGGER.info("Consider enabling PSRAM if available for the display buffer")
 
-    return spi.final_validate_device_schema(
-        "ili9xxx", require_miso=False, require_mosi=True
+    spi.final_validate_device_schema("ili9xxx", require_miso=False, require_mosi=True)(
+        config
     )
 
 
@@ -223,7 +223,7 @@ async def to_code(config):
     var = cg.Pvariable(config[CONF_ID], rhs)
 
     await display.register_display(var, config)
-    await spi.register_spi_device(var, config)
+    await spi.register_spi_device(var, config, write_only=True)
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))
     if init_sequences := config.get(CONF_INIT_SEQUENCE):

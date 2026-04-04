@@ -9,7 +9,7 @@ static const char *const TAG = "modbus_controller.select";
 void ModbusSelect::dump_config() { LOG_SELECT(TAG, "Modbus Controller Select", this); }
 
 void ModbusSelect::parse_and_publish(const std::vector<uint8_t> &data) {
-  int64_t value = payload_to_number(data, this->sensor_value_type, this->offset, this->bitmask);
+  int64_t value = modbus::helpers::payload_to_number(data, this->sensor_value_type, this->offset, this->bitmask);
 
   ESP_LOGD(TAG, "New select value %lld from payload", value);
 
@@ -28,8 +28,9 @@ void ModbusSelect::parse_and_publish(const std::vector<uint8_t> &data) {
 
     if (map_it != this->mapping_.cend()) {
       size_t idx = std::distance(this->mapping_.cbegin(), map_it);
-      new_state = std::string(this->option_at(idx));
-      ESP_LOGV(TAG, "Found option %s for value %lld", new_state->c_str(), value);
+      ESP_LOGV(TAG, "Found option %s for value %lld", this->option_at(idx), value);
+      this->publish_state(idx);
+      return;
     } else {
       ESP_LOGE(TAG, "No option found for mapping %lld", value);
     }
@@ -40,21 +41,18 @@ void ModbusSelect::parse_and_publish(const std::vector<uint8_t> &data) {
   }
 }
 
-void ModbusSelect::control(const std::string &value) {
-  auto idx = this->index_of(value);
-  if (!idx.has_value()) {
-    ESP_LOGW(TAG, "Invalid option '%s'", value.c_str());
-    return;
-  }
-  optional<int64_t> mapval = this->mapping_[idx.value()];
-  ESP_LOGD(TAG, "Found value %lld for option '%s'", *mapval, value.c_str());
+void ModbusSelect::control(size_t index) {
+  optional<int64_t> mapval = this->mapping_[index];
+  const char *option = this->option_at(index);
+  ESP_LOGD(TAG, "Found value %lld for option '%s'", *mapval, option);
 
   std::vector<uint16_t> data;
 
   if (this->write_transform_func_.has_value()) {
-    auto val = (*this->write_transform_func_)(this, value, *mapval, data);
+    // Transform func requires string parameter for backward compatibility
+    auto val = (*this->write_transform_func_)(this, std::string(option), *mapval, data);
     if (val.has_value()) {
-      mapval = *val;
+      mapval = val;
       ESP_LOGV(TAG, "write_lambda returned mapping value %lld", *mapval);
     } else {
       ESP_LOGD(TAG, "Communication handled by write_lambda - exiting control");
@@ -63,7 +61,7 @@ void ModbusSelect::control(const std::string &value) {
   }
 
   if (data.empty()) {
-    number_to_payload(data, *mapval, this->sensor_value_type);
+    modbus::helpers::number_to_payload(data, *mapval, this->sensor_value_type);
   } else {
     ESP_LOGV(TAG, "Using payload from write lambda");
   }
@@ -85,7 +83,7 @@ void ModbusSelect::control(const std::string &value) {
   this->parent_->queue_command(write_cmd);
 
   if (this->optimistic_)
-    this->publish_state(value);
+    this->publish_state(index);
 }
 
 }  // namespace modbus_controller

@@ -1,25 +1,10 @@
 #pragma once
 #include "esphome/core/defines.h"
 #ifdef USE_NETWORK
-#include <memory>
 #include <utility>
 #include <vector>
 
-#include "esphome/core/component.h"
-
-// Platform-agnostic macros for web server components
-// On ESP32 (both Arduino and IDF): Use plain strings (no PROGMEM)
-// On ESP8266: Use Arduino's F() macro for PROGMEM strings
-#ifdef USE_ESP32
-#define ESPHOME_F(string_literal) (string_literal)
-#define ESPHOME_PGM_P const char *
-#define ESPHOME_strncpy_P strncpy
-#else
-// ESP8266 uses Arduino macros
-#define ESPHOME_F(string_literal) F(string_literal)
-#define ESPHOME_PGM_P PGM_P
-#define ESPHOME_strncpy_P strncpy_P
-#endif
+#include "esphome/core/progmem.h"
 
 #if USE_ESP32
 #include "esphome/core/hal.h"
@@ -34,8 +19,7 @@ using PlatformString = std::string;
 using PlatformString = String;
 #endif
 
-namespace esphome {
-namespace web_server_base {
+namespace esphome::web_server_base {
 
 class WebServerBase;
 extern WebServerBase *global_web_server_base;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -104,16 +88,18 @@ class AuthMiddlewareHandler : public MiddlewareHandler {
 
 }  // namespace internal
 
-class WebServerBase : public Component {
+class WebServerBase {
  public:
   void init() {
     if (this->initialized_) {
       this->initialized_++;
       return;
     }
-    this->server_ = std::make_shared<AsyncWebServer>(this->port_);
+    this->server_ = new AsyncWebServer(this->port_);
     // All content is controlled and created by user - so allowing all origins is fine here.
-    DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
+    // NOTE: Currently 1 header. If more are added, update in __init__.py:
+    //   cg.add_define("WEB_SERVER_DEFAULT_HEADERS_COUNT", 1)
+    DefaultHeaders::Instance().addHeader(ESPHOME_F("Access-Control-Allow-Origin"), ESPHOME_F("*"));
     this->server_->begin();
 
     for (auto *handler : this->handlers_)
@@ -124,11 +110,11 @@ class WebServerBase : public Component {
   void deinit() {
     this->initialized_--;
     if (this->initialized_ == 0) {
+      delete this->server_;
       this->server_ = nullptr;
     }
   }
-  std::shared_ptr<AsyncWebServer> get_server() const { return server_; }
-  float get_setup_priority() const override;
+  AsyncWebServer *get_server() const { return this->server_; }
 
 #ifdef USE_WEBSERVER_AUTH
   void set_auth_username(std::string auth_username) { credentials_.username = std::move(auth_username); }
@@ -136,20 +122,27 @@ class WebServerBase : public Component {
 #endif
 
   void add_handler(AsyncWebHandler *handler);
+  /**
+   * WARNING: Registers a handler that bypasses the USE_WEBSERVER_AUTH middleware.
+   *
+   * This should only be used for endpoints that are intentionally unauthenticated
+   * (for example, captive portal or very limited-status endpoints). For normal
+   * endpoints that should respect web server authentication, use add_handler().
+   */
+  void add_handler_without_auth(AsyncWebHandler *handler);
 
   void set_port(uint16_t port) { port_ = port; }
   uint16_t get_port() const { return port_; }
 
  protected:
-  int initialized_{0};
+  uint8_t initialized_{0};
   uint16_t port_{80};
-  std::shared_ptr<AsyncWebServer> server_{nullptr};
+  AsyncWebServer *server_{nullptr};
   std::vector<AsyncWebHandler *> handlers_;
 #ifdef USE_WEBSERVER_AUTH
   internal::Credentials credentials_;
 #endif
 };
 
-}  // namespace web_server_base
-}  // namespace esphome
+}  // namespace esphome::web_server_base
 #endif

@@ -8,8 +8,7 @@
 
 #include "esphome/components/cover/cover.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 class MQTTCoverComponent : public mqtt::MQTTComponent {
  public:
@@ -28,16 +27,21 @@ class MQTTCoverComponent : public mqtt::MQTTComponent {
   bool publish_state();
 
   void dump_config() override;
+#ifdef USE_MQTT_COVER_JSON
+  void set_use_json_format(bool use_json_format) { this->use_json_format_ = use_json_format; }
+#endif
 
  protected:
-  std::string component_type() const override;
+  const char *component_type() const override;
   const EntityBase *get_entity() const override;
 
   cover::Cover *cover_;
+#ifdef USE_MQTT_COVER_JSON
+  bool use_json_format_{false};
+#endif
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif  // USE_MQTT

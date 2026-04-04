@@ -14,8 +14,7 @@
 #include "esphome/components/power_supply/power_supply.h"
 #endif
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 /// Convert the color information from a `LightColorValues` object to a `Color` object (does not apply brightness).
 Color color_from_light_color_values(LightColorValues val);
@@ -67,11 +66,13 @@ class AddressableLight : public LightOutput, public Component {
         Color(to_uint8_scale(red), to_uint8_scale(green), to_uint8_scale(blue), to_uint8_scale(white)));
   }
   void setup_state(LightState *state) override {
-    this->correction_.calculate_gamma_table(state->get_gamma_correct());
+#ifdef USE_LIGHT_GAMMA_LUT
+    this->correction_.set_gamma_table(state->get_gamma_table());
+#endif
     this->state_parent_ = state;
   }
   void update_state(LightState *state) override;
-  void schedule_show() { this->state_parent_->next_write_ = true; }
+  void schedule_show() { this->state_parent_->schedule_write_(); }
 
 #ifdef USE_POWER_SUPPLY
   void set_power_supply(power_supply::PowerSupply *power_supply) { this->power_.set_parent(power_supply); }
@@ -116,5 +117,4 @@ class AddressableLightTransformer : public LightTransformer {
   Color target_color_{};
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

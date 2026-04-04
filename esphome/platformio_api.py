@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import time
 from typing import Any
 
 from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
@@ -44,31 +45,61 @@ def patch_structhash():
 
 
 def patch_file_downloader():
-    """Patch PlatformIO's FileDownloader to retry on PackageException errors."""
+    """Patch PlatformIO's FileDownloader to retry on PackageException errors.
+
+    PlatformIO's FileDownloader uses HTTPSession which lacks built-in retry
+    for 502/503 errors. We add retries with exponential backoff and close the
+    session between attempts to force a fresh TCP connection, which may route
+    to a different CDN edge node.
+    """
     from platformio.package.download import FileDownloader
     from platformio.package.exception import PackageException
+
+    if getattr(FileDownloader.__init__, "_esphome_patched", False):
+        return
 
     original_init = FileDownloader.__init__
 
     def patched_init(self, *args: Any, **kwargs: Any) -> None:
-        max_retries = 3
+        max_retries = 5
 
         for attempt in range(max_retries):
             try:
-                return original_init(self, *args, **kwargs)
+                original_init(self, *args, **kwargs)
+                return
             except PackageException as e:
                 if attempt < max_retries - 1:
+                    # Exponential backoff: 2, 4, 8, 16 seconds
+                    delay = 2 ** (attempt + 1)
                     _LOGGER.warning(
-                        "Package download failed: %s. Retrying... (attempt %d/%d)",
+                        "Package download failed: %s. "
+                        "Retrying in %d seconds... (attempt %d/%d)",
                         str(e),
+                        delay,
                         attempt + 1,
                         max_retries,
                     )
+                    # Close the response and session to free resources
+                    # and force a new TCP connection on retry, which may
+                    # route to a different CDN edge node
+                    # pylint: disable=protected-access,broad-except
+                    try:
+                        if (
+                            hasattr(self, "_http_response")
+                            and self._http_response is not None
+                        ):
+                            self._http_response.close()
+                        if hasattr(self, "_http_session"):
+                            self._http_session.close()
+                    except Exception:
+                        pass
+                    # pylint: enable=protected-access,broad-except
+                    time.sleep(delay)
                 else:
                     # Final attempt - re-raise
                     raise
-        return None
 
+    patched_init._esphome_patched = True  # type: ignore[attr-defined]  # pylint: disable=protected-access
     FileDownloader.__init__ = patched_init
 
 
@@ -107,7 +138,22 @@ FILTER_PLATFORMIO_LINES = [
     r"Warning: DEPRECATED: 'esptool.py' is deprecated. Please use 'esptool' instead. The '.py' suffix will be removed in a future major release.",
     r"Warning: esp-idf-size exited with code 2",
     r"esp_idf_size: error: unrecognized arguments: --ng",
+    r"Package configuration completed successfully",
 ]
+
+
+class PlatformioLogFilter(logging.Filter):
+    """Filter to suppress noisy platformio log messages."""
+
+    _PATTERN = re.compile(
+        r"|".join(r"(?:" + pattern + r")" for pattern in FILTER_PLATFORMIO_LINES)
+    )
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        # Only filter messages from platformio-related loggers
+        if "platformio" not in record.name.lower():
+            return True
+        return self._PATTERN.match(record.getMessage()) is None
 
 
 def run_platformio_cli(*args, **kwargs) -> str | int:
@@ -118,6 +164,8 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
     )
     # Suppress Python syntax warnings from third-party scripts during compilation
     os.environ.setdefault("PYTHONWARNINGS", "ignore::SyntaxWarning")
+    # Increase uv retry count to handle transient network errors (default is 3)
+    os.environ.setdefault("UV_HTTP_RETRIES", "10")
     cmd = ["platformio"] + list(args)
 
     if not CORE.verbose:
@@ -130,7 +178,18 @@ def run_platformio_cli(*args, **kwargs) -> str | int:
 
     patch_structhash()
     patch_file_downloader()
-    return run_external_command(platformio.__main__.main, *cmd, **kwargs)
+
+    # Add log filter to suppress noisy platformio messages
+    log_filter = PlatformioLogFilter() if not CORE.verbose else None
+    if log_filter:
+        for handler in logging.getLogger().handlers:
+            handler.addFilter(log_filter)
+    try:
+        return run_external_command(platformio.__main__.main, *cmd, **kwargs)
+    finally:
+        if log_filter:
+            for handler in logging.getLogger().handlers:
+                handler.removeFilter(log_filter)
 
 
 def run_platformio_cli_run(config, verbose, *args, **kwargs) -> str | int:
@@ -281,6 +340,8 @@ STACKTRACE_ESP32_BACKTRACE_RE = re.compile(
     r"Backtrace:(?:\s*0x[0-9a-fA-F]{8}:0x[0-9a-fA-F]{8})+"
 )
 STACKTRACE_ESP32_BACKTRACE_PC_RE = re.compile(r"4[0-9a-f]{7}")
+# ESP32 crash handler (stored backtrace from previous boot)
+STACKTRACE_ESP32_CRASH_BT_RE = re.compile(r"BT\d+:\s*0x([0-9a-fA-F]{8})")
 STACKTRACE_ESP8266_BACKTRACE_PC_RE = re.compile(r"4[0-9a-f]{7}")
 
 
@@ -310,6 +371,11 @@ def process_stacktrace(config, line, backtrace_state):
         _LOGGER.warning(
             "Memory allocation of %s bytes failed at %s", match.group(2), match.group(1)
         )
+        _decode_pc(config, match.group(1))
+
+    # ESP32 crash handler backtrace (from previous boot)
+    match = re.search(STACKTRACE_ESP32_CRASH_BT_RE, line)
+    if match is not None:
         _decode_pc(config, match.group(1))
 
     # ESP32 single-line backtrace
@@ -394,3 +460,8 @@ class IDEData:
             if path.endswith(".exe")
             else f"{path[:-3]}readelf"
         )
+
+    @property
+    def defines(self) -> list[str]:
+        """Return the list of preprocessor defines from idedata."""
+        return self.raw.get("defines", [])

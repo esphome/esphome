@@ -58,81 +58,80 @@ Gate 0 high thresh = 10 00 uint16_t 0x0010, Threshold value = 60 EA 00 00 uint32
 Gate 0 low thresh = 20 00 uint16_t 0x0020, Threshold value = 60 EA 00 00 uint32_t 0x0000EA60
 */
 
-namespace esphome {
-namespace ld2420 {
+namespace esphome::ld2420 {
 
 static const char *const TAG = "ld2420";
 
 // Local const's
-static const uint16_t REFRESH_RATE_MS = 1000;
+static constexpr uint16_t REFRESH_RATE_MS = 1000;
 
 // Command sets
-static const uint16_t CMD_DISABLE_CONF = 0x00FE;
-static const uint16_t CMD_ENABLE_CONF = 0x00FF;
-static const uint16_t CMD_PARM_HIGH_TRESH = 0x0012;
-static const uint16_t CMD_PARM_LOW_TRESH = 0x0021;
-static const uint16_t CMD_PROTOCOL_VER = 0x0002;
-static const uint16_t CMD_READ_ABD_PARAM = 0x0008;
-static const uint16_t CMD_READ_REG_ADDR = 0x0020;
-static const uint16_t CMD_READ_REGISTER = 0x0002;
-static const uint16_t CMD_READ_SERIAL_NUM = 0x0011;
-static const uint16_t CMD_READ_SYS_PARAM = 0x0013;
-static const uint16_t CMD_READ_VERSION = 0x0000;
-static const uint16_t CMD_RESTART = 0x0068;
-static const uint16_t CMD_SYSTEM_MODE = 0x0000;
-static const uint16_t CMD_SYSTEM_MODE_GR = 0x0003;
-static const uint16_t CMD_SYSTEM_MODE_MTT = 0x0001;
-static const uint16_t CMD_SYSTEM_MODE_SIMPLE = 0x0064;
-static const uint16_t CMD_SYSTEM_MODE_DEBUG = 0x0000;
-static const uint16_t CMD_SYSTEM_MODE_ENERGY = 0x0004;
-static const uint16_t CMD_SYSTEM_MODE_VS = 0x0002;
-static const uint16_t CMD_WRITE_ABD_PARAM = 0x0007;
-static const uint16_t CMD_WRITE_REGISTER = 0x0001;
-static const uint16_t CMD_WRITE_SYS_PARAM = 0x0012;
+static constexpr uint16_t CMD_DISABLE_CONF = 0x00FE;
+static constexpr uint16_t CMD_ENABLE_CONF = 0x00FF;
+static constexpr uint16_t CMD_PARM_HIGH_TRESH = 0x0012;
+static constexpr uint16_t CMD_PARM_LOW_TRESH = 0x0021;
+static constexpr uint16_t CMD_PROTOCOL_VER = 0x0002;
+static constexpr uint16_t CMD_READ_ABD_PARAM = 0x0008;
+static constexpr uint16_t CMD_READ_REG_ADDR = 0x0020;
+static constexpr uint16_t CMD_READ_REGISTER = 0x0002;
+static constexpr uint16_t CMD_READ_SERIAL_NUM = 0x0011;
+static constexpr uint16_t CMD_READ_SYS_PARAM = 0x0013;
+static constexpr uint16_t CMD_READ_VERSION = 0x0000;
+static constexpr uint16_t CMD_RESTART = 0x0068;
+static constexpr uint16_t CMD_SYSTEM_MODE = 0x0000;
+static constexpr uint16_t CMD_SYSTEM_MODE_GR = 0x0003;
+static constexpr uint16_t CMD_SYSTEM_MODE_MTT = 0x0001;
+static constexpr uint16_t CMD_SYSTEM_MODE_SIMPLE = 0x0064;
+static constexpr uint16_t CMD_SYSTEM_MODE_DEBUG = 0x0000;
+static constexpr uint16_t CMD_SYSTEM_MODE_ENERGY = 0x0004;
+static constexpr uint16_t CMD_SYSTEM_MODE_VS = 0x0002;
+static constexpr uint16_t CMD_WRITE_ABD_PARAM = 0x0007;
+static constexpr uint16_t CMD_WRITE_REGISTER = 0x0001;
+static constexpr uint16_t CMD_WRITE_SYS_PARAM = 0x0012;
 
-static const uint8_t CMD_ABD_DATA_REPLY_SIZE = 0x04;
-static const uint8_t CMD_ABD_DATA_REPLY_START = 0x0A;
-static const uint8_t CMD_MAX_BYTES = 0x64;
-static const uint8_t CMD_REG_DATA_REPLY_SIZE = 0x02;
+static constexpr uint8_t CMD_ABD_DATA_REPLY_SIZE = 0x04;
+static constexpr uint8_t CMD_ABD_DATA_REPLY_START = 0x0A;
+static constexpr uint8_t CMD_MAX_BYTES = 0x64;
+static constexpr uint8_t CMD_REG_DATA_REPLY_SIZE = 0x02;
 
-static const uint8_t LD2420_ERROR_NONE = 0x00;
-static const uint8_t LD2420_ERROR_TIMEOUT = 0x02;
-static const uint8_t LD2420_ERROR_UNKNOWN = 0x01;
+static constexpr uint8_t LD2420_ERROR_NONE = 0x00;
+static constexpr uint8_t LD2420_ERROR_TIMEOUT = 0x02;
+static constexpr uint8_t LD2420_ERROR_UNKNOWN = 0x01;
 
 // Register address values
-static const uint16_t CMD_MIN_GATE_REG = 0x0000;
-static const uint16_t CMD_MAX_GATE_REG = 0x0001;
-static const uint16_t CMD_TIMEOUT_REG = 0x0004;
-static const uint16_t CMD_GATE_MOVE_THRESH[TOTAL_GATES] = {0x0010, 0x0011, 0x0012, 0x0013, 0x0014, 0x0015,
-                                                           0x0016, 0x0017, 0x0018, 0x0019, 0x001A, 0x001B,
-                                                           0x001C, 0x001D, 0x001E, 0x001F};
-static const uint16_t CMD_GATE_STILL_THRESH[TOTAL_GATES] = {0x0020, 0x0021, 0x0022, 0x0023, 0x0024, 0x0025,
-                                                            0x0026, 0x0027, 0x0028, 0x0029, 0x002A, 0x002B,
-                                                            0x002C, 0x002D, 0x002E, 0x002F};
-static const uint32_t FACTORY_MOVE_THRESH[TOTAL_GATES] = {60000, 30000, 400, 250, 250, 250, 250, 250,
-                                                          250,   250,   250, 250, 250, 250, 250, 250};
-static const uint32_t FACTORY_STILL_THRESH[TOTAL_GATES] = {40000, 20000, 200, 200, 200, 200, 200, 150,
-                                                           150,   100,   100, 100, 100, 100, 100, 100};
-static const uint16_t FACTORY_TIMEOUT = 120;
-static const uint16_t FACTORY_MIN_GATE = 1;
-static const uint16_t FACTORY_MAX_GATE = 12;
+static constexpr uint16_t CMD_MIN_GATE_REG = 0x0000;
+static constexpr uint16_t CMD_MAX_GATE_REG = 0x0001;
+static constexpr uint16_t CMD_TIMEOUT_REG = 0x0004;
+static constexpr uint16_t CMD_GATE_MOVE_THRESH[TOTAL_GATES] = {0x0010, 0x0011, 0x0012, 0x0013, 0x0014, 0x0015,
+                                                               0x0016, 0x0017, 0x0018, 0x0019, 0x001A, 0x001B,
+                                                               0x001C, 0x001D, 0x001E, 0x001F};
+static constexpr uint16_t CMD_GATE_STILL_THRESH[TOTAL_GATES] = {0x0020, 0x0021, 0x0022, 0x0023, 0x0024, 0x0025,
+                                                                0x0026, 0x0027, 0x0028, 0x0029, 0x002A, 0x002B,
+                                                                0x002C, 0x002D, 0x002E, 0x002F};
+static constexpr uint32_t FACTORY_MOVE_THRESH[TOTAL_GATES] = {60000, 30000, 400, 250, 250, 250, 250, 250,
+                                                              250,   250,   250, 250, 250, 250, 250, 250};
+static constexpr uint32_t FACTORY_STILL_THRESH[TOTAL_GATES] = {40000, 20000, 200, 200, 200, 200, 200, 150,
+                                                               150,   100,   100, 100, 100, 100, 100, 100};
+static constexpr uint16_t FACTORY_TIMEOUT = 120;
+static constexpr uint16_t FACTORY_MIN_GATE = 1;
+static constexpr uint16_t FACTORY_MAX_GATE = 12;
 
 // COMMAND_BYTE Header & Footer
-static const uint32_t CMD_FRAME_FOOTER = 0x01020304;
-static const uint32_t CMD_FRAME_HEADER = 0xFAFBFCFD;
-static const uint32_t DEBUG_FRAME_FOOTER = 0xFAFBFCFD;
-static const uint32_t DEBUG_FRAME_HEADER = 0x1410BFAA;
-static const uint32_t ENERGY_FRAME_FOOTER = 0xF5F6F7F8;
-static const uint32_t ENERGY_FRAME_HEADER = 0xF1F2F3F4;
-static const int CALIBRATE_VERSION_MIN = 154;
-static const uint8_t CMD_FRAME_COMMAND = 6;
-static const uint8_t CMD_FRAME_DATA_LENGTH = 4;
-static const uint8_t CMD_FRAME_STATUS = 7;
-static const uint8_t CMD_ERROR_WORD = 8;
-static const uint8_t ENERGY_SENSOR_START = 9;
-static const uint8_t CALIBRATE_REPORT_INTERVAL = 4;
-static const std::string OP_NORMAL_MODE_STRING = "Normal";
-static const std::string OP_SIMPLE_MODE_STRING = "Simple";
+static constexpr uint32_t CMD_FRAME_FOOTER = 0x01020304;
+static constexpr uint32_t CMD_FRAME_HEADER = 0xFAFBFCFD;
+static constexpr uint32_t DEBUG_FRAME_FOOTER = 0xFAFBFCFD;
+static constexpr uint32_t DEBUG_FRAME_HEADER = 0x1410BFAA;
+static constexpr uint32_t ENERGY_FRAME_FOOTER = 0xF5F6F7F8;
+static constexpr uint32_t ENERGY_FRAME_HEADER = 0xF1F2F3F4;
+static constexpr int CALIBRATE_VERSION_MIN = 154;
+static constexpr uint8_t CMD_FRAME_COMMAND = 6;
+static constexpr uint8_t CMD_FRAME_DATA_LENGTH = 4;
+static constexpr uint8_t CMD_FRAME_STATUS = 7;
+static constexpr uint8_t CMD_ERROR_WORD = 8;
+static constexpr uint8_t ENERGY_SENSOR_START = 9;
+static constexpr uint8_t CALIBRATE_REPORT_INTERVAL = 4;
+static const char *const OP_NORMAL_MODE_STRING = "Normal";
+static const char *const OP_SIMPLE_MODE_STRING = "Simple";
 
 // Memory-efficient lookup tables
 struct StringToUint8 {
@@ -171,14 +170,18 @@ static uint8_t calc_checksum(void *data, size_t size) {
   return checksum;
 }
 
-static int get_firmware_int(const char *version_string) {
-  std::string version_str = version_string;
-  if (version_str[0] == 'v') {
-    version_str = version_str.substr(1);
+static int32_t get_firmware_int(const char *version_string) {
+  // Convert "v1.5.4" -> 154 by skipping 'v' and '.', accumulating digits
+  const char *p = (*version_string == 'v') ? version_string + 1 : version_string;
+  int32_t result = 0;
+  for (; *p != '\0'; p++) {
+    if (*p == '.')
+      continue;
+    if (*p < '0' || *p > '9')
+      return 0;
+    result = result * 10 + (*p - '0');
   }
-  version_str.erase(remove(version_str.begin(), version_str.end(), '.'), version_str.end());
-  int version_integer = stoi(version_str);
-  return version_integer;
+  return result;
 }
 
 float LD2420Component::get_setup_priority() const { return setup_priority::BUS; }
@@ -205,8 +208,10 @@ void LD2420Component::dump_config() {
   LOG_BUTTON("  ", "Factory Reset:", this->factory_reset_button_);
   LOG_BUTTON("  ", "Restart Module:", this->restart_module_button_);
 #endif
+#ifdef USE_SELECT
   ESP_LOGCONFIG(TAG, "Select:");
   LOG_SELECT("  ", "Operating Mode", this->operating_selector_);
+#endif
   if (ld2420::get_firmware_int(this->firmware_ver_) < CALIBRATE_VERSION_MIN) {
     ESP_LOGW(TAG, "Firmware version %s and older supports Simple Mode only", this->firmware_ver_);
   }
@@ -238,12 +243,20 @@ void LD2420Component::setup() {
   memcpy(&this->new_config, &this->current_config, sizeof(this->current_config));
   if (ld2420::get_firmware_int(this->firmware_ver_) < CALIBRATE_VERSION_MIN) {
     this->set_operating_mode(OP_SIMPLE_MODE_STRING);
-    this->operating_selector_->publish_state(OP_SIMPLE_MODE_STRING);
+#ifdef USE_SELECT
+    if (this->operating_selector_ != nullptr) {
+      this->operating_selector_->publish_state(OP_SIMPLE_MODE_STRING);
+    }
+#endif
     this->set_mode_(CMD_SYSTEM_MODE_SIMPLE);
     ESP_LOGW(TAG, "Firmware version %s and older supports Simple Mode only", this->firmware_ver_);
   } else {
     this->set_mode_(CMD_SYSTEM_MODE_ENERGY);
-    this->operating_selector_->publish_state(OP_NORMAL_MODE_STRING);
+#ifdef USE_SELECT
+    if (this->operating_selector_ != nullptr) {
+      this->operating_selector_->publish_state(OP_NORMAL_MODE_STRING);
+    }
+#endif
   }
 #ifdef USE_NUMBER
   this->init_gate_config_numbers();
@@ -326,9 +339,10 @@ void LD2420Component::revert_config_action() {
 
 void LD2420Component::loop() {
   // If there is a active send command do not process it here, the send command call will handle it.
-  while (!this->cmd_active_ && this->available()) {
-    this->readline_(this->read(), this->buffer_data_, MAX_LINE_LENGTH);
+  if (this->cmd_active_) {
+    return;
   }
+  this->read_batch_(this->buffer_data_);
 }
 
 void LD2420Component::update_radar_data(uint16_t const *gate_energy, uint8_t sample_number) {
@@ -379,12 +393,16 @@ void LD2420Component::report_gate_data() {
   ESP_LOGI(TAG, "Total samples: %d", this->total_sample_number_counter);
 }
 
-void LD2420Component::set_operating_mode(const std::string &state) {
+void LD2420Component::set_operating_mode(const char *state) {
   // If unsupported firmware ignore mode select
   if (ld2420::get_firmware_int(firmware_ver_) >= CALIBRATE_VERSION_MIN) {
     this->current_operating_mode = find_uint8(OP_MODE_BY_STR, state);
-    // Entering Auto Calibrate we need to clear the privoiuos data collection
-    this->operating_selector_->publish_state(state);
+    // Entering Auto Calibrate we need to clear the previous data collection
+#ifdef USE_SELECT
+    if (this->operating_selector_ != nullptr) {
+      this->operating_selector_->publish_state(state);
+    }
+#endif
     if (current_operating_mode == OP_CALIBRATE_MODE) {
       this->set_calibration_(true);
       for (uint8_t gate = 0; gate < TOTAL_GATES; gate++) {
@@ -404,7 +422,11 @@ void LD2420Component::set_operating_mode(const std::string &state) {
     }
   } else {
     this->current_operating_mode = OP_SIMPLE_MODE;
-    this->operating_selector_->publish_state(OP_SIMPLE_MODE_STRING);
+#ifdef USE_SELECT
+    if (this->operating_selector_ != nullptr) {
+      this->operating_selector_->publish_state(OP_SIMPLE_MODE_STRING);
+    }
+#endif
   }
 }
 
@@ -442,6 +464,10 @@ void LD2420Component::handle_energy_mode_(uint8_t *buffer, int len) {
   uint8_t index = 6;  // Start at presence byte position
   uint16_t range;
   const uint8_t elements = sizeof(this->gate_energy_) / sizeof(this->gate_energy_[0]);
+  if (len < static_cast<int>(index + 1 + sizeof(range) + elements * sizeof(this->gate_energy_[0]))) {
+    ESP_LOGW(TAG, "Energy frame too short: %d bytes", len);
+    return;
+  }
   this->set_presence_(buffer[index]);
   index++;
   memcpy(&range, &buffer[index], sizeof(range));
@@ -453,8 +479,11 @@ void LD2420Component::handle_energy_mode_(uint8_t *buffer, int len) {
   }
 
   if (this->current_operating_mode == OP_CALIBRATE_MODE) {
-    this->update_radar_data(gate_energy_, sample_number_counter);
-    this->sample_number_counter > CALIBRATE_SAMPLES ? this->sample_number_counter = 0 : this->sample_number_counter++;
+    this->update_radar_data(gate_energy_, this->sample_number_counter);
+    this->sample_number_counter++;
+    if (this->sample_number_counter >= CALIBRATE_SAMPLES) {
+      this->sample_number_counter = 0;
+    }
   }
 
   // Resonable refresh rate for home assistant database size health
@@ -485,22 +514,20 @@ void LD2420Component::handle_simple_mode_(const uint8_t *inbuf, int len) {
   char *endptr{nullptr};
   char outbuf[bufsize]{0};
   while (true) {
-    if (inbuf[pos - 2] == 'O' && inbuf[pos - 1] == 'F' && inbuf[pos] == 'F') {
+    if (pos >= 2 && inbuf[pos - 2] == 'O' && inbuf[pos - 1] == 'F' && inbuf[pos] == 'F') {
       this->set_presence_(false);
-    } else if (inbuf[pos - 1] == 'O' && inbuf[pos] == 'N') {
+    } else if (pos >= 1 && inbuf[pos - 1] == 'O' && inbuf[pos] == 'N') {
       this->set_presence_(true);
     }
     if (inbuf[pos] >= '0' && inbuf[pos] <= '9') {
       if (index < bufsize - 1) {
         outbuf[index++] = inbuf[pos];
-        pos++;
       }
+    }
+    if (pos < len - 1) {
+      pos++;
     } else {
-      if (pos < len - 1) {
-        pos++;
-      } else {
-        break;
-      }
+      break;
     }
   }
   outbuf[index] = '\0';
@@ -522,11 +549,26 @@ void LD2420Component::handle_simple_mode_(const uint8_t *inbuf, int len) {
   }
 }
 
+void LD2420Component::read_batch_(std::span<uint8_t, MAX_LINE_LENGTH> buffer) {
+  // Read all available bytes in batches to reduce UART call overhead.
+  size_t avail = this->available();
+  uint8_t buf[MAX_LINE_LENGTH];
+  while (avail > 0) {
+    size_t to_read = std::min(avail, sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
+    }
+    avail -= to_read;
+
+    for (size_t i = 0; i < to_read; i++) {
+      this->readline_(buf[i], buffer.data(), buffer.size());
+    }
+  }
+}
+
 void LD2420Component::handle_ack_data_(uint8_t *buffer, int len) {
   this->cmd_reply_.command = buffer[CMD_FRAME_COMMAND];
   this->cmd_reply_.length = buffer[CMD_FRAME_DATA_LENGTH];
-  uint8_t reg_element = 0;
-  uint8_t data_element = 0;
   uint16_t data_pos = 0;
   if (this->cmd_reply_.length > CMD_MAX_BYTES) {
     ESP_LOGW(TAG, "Reply frame too long");
@@ -548,43 +590,44 @@ void LD2420Component::handle_ack_data_(uint8_t *buffer, int len) {
     case (CMD_DISABLE_CONF):
       ESP_LOGV(TAG, "Set config disable: CMD = %2X %s", CMD_DISABLE_CONF, result);
       break;
-    case (CMD_READ_REGISTER):
+    case (CMD_READ_REGISTER): {
       ESP_LOGV(TAG, "Read register: CMD = %2X %s", CMD_READ_REGISTER, result);
       // TODO Read/Write register is not implemented yet, this will get flushed out to a proper header file
       data_pos = 0x0A;
-      for (uint16_t index = 0; index < (CMD_REG_DATA_REPLY_SIZE *  // NOLINT
-                                        ((buffer[CMD_FRAME_DATA_LENGTH] - 4) / CMD_REG_DATA_REPLY_SIZE));
-           index += CMD_REG_DATA_REPLY_SIZE) {
-        memcpy(&this->cmd_reply_.data[reg_element], &buffer[data_pos + index], sizeof(CMD_REG_DATA_REPLY_SIZE));
-        byteswap(this->cmd_reply_.data[reg_element]);
-        reg_element++;
+      uint16_t reg_count = std::min<uint16_t>((buffer[CMD_FRAME_DATA_LENGTH] - 4) / CMD_REG_DATA_REPLY_SIZE,
+                                              sizeof(this->cmd_reply_.data) / sizeof(this->cmd_reply_.data[0]));
+      for (uint16_t i = 0; i < reg_count; i++) {
+        memcpy(&this->cmd_reply_.data[i], &buffer[data_pos + i * CMD_REG_DATA_REPLY_SIZE], CMD_REG_DATA_REPLY_SIZE);
       }
       break;
+    }
     case (CMD_WRITE_REGISTER):
       ESP_LOGV(TAG, "Write register: CMD = %2X %s", CMD_WRITE_REGISTER, result);
       break;
     case (CMD_WRITE_ABD_PARAM):
       ESP_LOGV(TAG, "Write gate parameter(s): %2X %s", CMD_WRITE_ABD_PARAM, result);
       break;
-    case (CMD_READ_ABD_PARAM):
+    case (CMD_READ_ABD_PARAM): {
       ESP_LOGV(TAG, "Read gate parameter(s): %2X %s", CMD_READ_ABD_PARAM, result);
       data_pos = CMD_ABD_DATA_REPLY_START;
-      for (uint16_t index = 0; index < (CMD_ABD_DATA_REPLY_SIZE *  // NOLINT
-                                        ((buffer[CMD_FRAME_DATA_LENGTH] - 4) / CMD_ABD_DATA_REPLY_SIZE));
-           index += CMD_ABD_DATA_REPLY_SIZE) {
-        memcpy(&this->cmd_reply_.data[data_element], &buffer[data_pos + index],
-               sizeof(this->cmd_reply_.data[data_element]));
-        byteswap(this->cmd_reply_.data[data_element]);
-        data_element++;
+      uint16_t abd_count = std::min<uint16_t>((buffer[CMD_FRAME_DATA_LENGTH] - 4) / CMD_ABD_DATA_REPLY_SIZE,
+                                              sizeof(this->cmd_reply_.data) / sizeof(this->cmd_reply_.data[0]));
+      for (uint16_t i = 0; i < abd_count; i++) {
+        memcpy(&this->cmd_reply_.data[i], &buffer[data_pos + i * CMD_ABD_DATA_REPLY_SIZE],
+               sizeof(this->cmd_reply_.data[i]));
       }
       break;
+    }
     case (CMD_WRITE_SYS_PARAM):
       ESP_LOGV(TAG, "Set system parameter(s): %2X %s", CMD_WRITE_SYS_PARAM, result);
       break;
-    case (CMD_READ_VERSION):
-      memcpy(this->firmware_ver_, &buffer[12], buffer[10]);
-      ESP_LOGV(TAG, "Firmware version: %7s %s", this->firmware_ver_, result);
+    case (CMD_READ_VERSION): {
+      uint8_t ver_len = std::min<uint8_t>(buffer[10], sizeof(this->firmware_ver_) - 1);
+      memcpy(this->firmware_ver_, &buffer[12], ver_len);
+      this->firmware_ver_[ver_len] = '\0';
+      ESP_LOGV(TAG, "Firmware version: %s %s", this->firmware_ver_, result);
       break;
+    }
     default:
       break;
   }
@@ -644,7 +687,7 @@ int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
       retry = 0;
     }
     if (this->cmd_reply_.error > 0) {
-      this->handle_cmd_error(error);
+      this->handle_cmd_error(this->cmd_reply_.error);
     }
   }
   return error;
@@ -694,9 +737,9 @@ void LD2420Component::set_reg_value(uint16_t reg, uint16_t value) {
   cmd_frame.data_length = 0;
   cmd_frame.header = CMD_FRAME_HEADER;
   cmd_frame.command = CMD_WRITE_REGISTER;
-  memcpy(&cmd_frame.data[cmd_frame.data_length], &reg, sizeof(CMD_REG_DATA_REPLY_SIZE));
+  memcpy(&cmd_frame.data[cmd_frame.data_length], &reg, CMD_REG_DATA_REPLY_SIZE);
   cmd_frame.data_length += 2;
-  memcpy(&cmd_frame.data[cmd_frame.data_length], &value, sizeof(CMD_REG_DATA_REPLY_SIZE));
+  memcpy(&cmd_frame.data[cmd_frame.data_length], &value, CMD_REG_DATA_REPLY_SIZE);
   cmd_frame.data_length += 2;
   cmd_frame.footer = CMD_FRAME_FOOTER;
   ESP_LOGV(TAG, "Sending write register %4X command: %2X data = %4X", reg, cmd_frame.command, value);
@@ -880,5 +923,4 @@ void LD2420Component::refresh_gate_config_numbers() {
 
 #endif
 
-}  // namespace ld2420
-}  // namespace esphome
+}  // namespace esphome::ld2420

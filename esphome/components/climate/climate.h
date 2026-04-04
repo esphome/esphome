@@ -5,11 +5,11 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/preferences.h"
+#include "esphome/core/string_ref.h"
 #include "climate_mode.h"
 #include "climate_traits.h"
 
-namespace esphome {
-namespace climate {
+namespace esphome::climate {
 
 #define LOG_CLIMATE(prefix, type, obj) \
   if ((obj) != nullptr) { \
@@ -41,6 +41,8 @@ class ClimateCall {
   ClimateCall &set_mode(optional<ClimateMode> mode);
   /// Set the mode of the climate device based on a string.
   ClimateCall &set_mode(const std::string &mode);
+  /// Set the mode of the climate device based on a C string.
+  ClimateCall &set_mode(const char *mode, size_t len);
   /// Set the target temperature of the climate device.
   ClimateCall &set_target_temperature(float target_temperature);
   /// Set the target temperature of the climate device.
@@ -77,12 +79,18 @@ class ClimateCall {
   ClimateCall &set_fan_mode(const std::string &fan_mode);
   /// Set the fan mode of the climate device based on a string.
   ClimateCall &set_fan_mode(optional<std::string> fan_mode);
+  /// Set the custom fan mode of the climate device.
+  ClimateCall &set_fan_mode(const char *custom_fan_mode);
+  /// Set the custom fan mode of the climate device (zero-copy API path).
+  ClimateCall &set_fan_mode(const char *custom_fan_mode, size_t len);
   /// Set the swing mode of the climate device.
   ClimateCall &set_swing_mode(ClimateSwingMode swing_mode);
   /// Set the swing mode of the climate device.
   ClimateCall &set_swing_mode(optional<ClimateSwingMode> swing_mode);
   /// Set the swing mode of the climate device based on a string.
   ClimateCall &set_swing_mode(const std::string &swing_mode);
+  /// Set the swing mode of the climate device based on a C string.
+  ClimateCall &set_swing_mode(const char *swing_mode, size_t len);
   /// Set the preset of the climate device.
   ClimateCall &set_preset(ClimatePreset preset);
   /// Set the preset of the climate device.
@@ -91,6 +99,10 @@ class ClimateCall {
   ClimateCall &set_preset(const std::string &preset);
   /// Set the preset of the climate device based on a string.
   ClimateCall &set_preset(optional<std::string> preset);
+  /// Set the custom preset of the climate device.
+  ClimateCall &set_preset(const char *custom_preset);
+  /// Set the custom preset of the climate device (zero-copy API path).
+  ClimateCall &set_preset(const char *custom_preset, size_t len);
 
   void perform();
 
@@ -103,8 +115,10 @@ class ClimateCall {
   const optional<ClimateFanMode> &get_fan_mode() const;
   const optional<ClimateSwingMode> &get_swing_mode() const;
   const optional<ClimatePreset> &get_preset() const;
-  const optional<std::string> &get_custom_fan_mode() const;
-  const optional<std::string> &get_custom_preset() const;
+  StringRef get_custom_fan_mode() const { return StringRef::from_maybe_nullptr(this->custom_fan_mode_); }
+  StringRef get_custom_preset() const { return StringRef::from_maybe_nullptr(this->custom_preset_); }
+  bool has_custom_fan_mode() const { return this->custom_fan_mode_ != nullptr; }
+  bool has_custom_preset() const { return this->custom_preset_ != nullptr; }
 
  protected:
   void validate_();
@@ -118,8 +132,10 @@ class ClimateCall {
   optional<ClimateFanMode> fan_mode_;
   optional<ClimateSwingMode> swing_mode_;
   optional<ClimatePreset> preset_;
-  optional<std::string> custom_fan_mode_;
-  optional<std::string> custom_preset_;
+
+ private:
+  const char *custom_fan_mode_{nullptr};
+  const char *custom_preset_{nullptr};
 };
 
 /// Struct used to save the state of the climate device in restore memory.
@@ -176,7 +192,9 @@ class Climate : public EntityBase {
    *
    * @param callback The callback to call.
    */
-  void add_on_state_callback(std::function<void(Climate &)> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
   /**
    * Add a callback for the climate device configuration; each time the configuration parameters of a climate device
@@ -184,7 +202,9 @@ class Climate : public EntityBase {
    *
    * @param callback The callback to call.
    */
-  void add_on_control_callback(std::function<void(ClimateCall &)> &&callback);
+  template<typename F> void add_on_control_callback(F &&callback) {
+    this->control_callback_.add(std::forward<F>(callback));
+  }
 
   /** Make a climate device control call, this is used to control the climate device, see the ClimateCall description
    * for more info.
@@ -206,11 +226,19 @@ class Climate : public EntityBase {
    */
   ClimateTraits get_traits();
 
+#ifdef USE_CLIMATE_VISUAL_OVERRIDES
   void set_visual_min_temperature_override(float visual_min_temperature_override);
   void set_visual_max_temperature_override(float visual_max_temperature_override);
   void set_visual_temperature_step_override(float target, float current);
   void set_visual_min_humidity_override(float visual_min_humidity_override);
   void set_visual_max_humidity_override(float visual_max_humidity_override);
+#endif
+
+  /// Check if a custom fan mode is currently active.
+  bool has_custom_fan_mode() const { return this->custom_fan_mode_ != nullptr; }
+
+  /// Check if a custom preset is currently active.
+  bool has_custom_preset() const { return this->custom_preset_ != nullptr; }
 
   /// The current temperature of the climate device, as reported from the integration.
   float current_temperature{NAN};
@@ -238,12 +266,6 @@ class Climate : public EntityBase {
   /// The active preset of the climate device.
   optional<ClimatePreset> preset;
 
-  /// The active custom fan mode of the climate device.
-  optional<std::string> custom_fan_mode;
-
-  /// The active custom preset mode of the climate device.
-  optional<std::string> custom_preset;
-
   /// The active mode of the climate device.
   ClimateMode mode{CLIMATE_MODE_OFF};
 
@@ -253,20 +275,43 @@ class Climate : public EntityBase {
   /// The active swing mode of the climate device.
   ClimateSwingMode swing_mode{CLIMATE_SWING_OFF};
 
+  /// Get the active custom fan mode (read-only access). Returns StringRef.
+  StringRef get_custom_fan_mode() const { return StringRef::from_maybe_nullptr(this->custom_fan_mode_); }
+
+  /// Get the active custom preset (read-only access). Returns StringRef.
+  StringRef get_custom_preset() const { return StringRef::from_maybe_nullptr(this->custom_preset_); }
+
  protected:
   friend ClimateCall;
+  friend struct ClimateDeviceRestoreState;
 
   /// Set fan mode. Reset custom fan mode. Return true if fan mode has been changed.
   bool set_fan_mode_(ClimateFanMode mode);
 
   /// Set custom fan mode. Reset primary fan mode. Return true if fan mode has been changed.
-  bool set_custom_fan_mode_(const std::string &mode);
+  bool set_custom_fan_mode_(const char *mode) { return this->set_custom_fan_mode_(mode, strlen(mode)); }
+  bool set_custom_fan_mode_(const char *mode, size_t len);
+  bool set_custom_fan_mode_(StringRef mode) { return this->set_custom_fan_mode_(mode.c_str(), mode.size()); }
+  /// Clear custom fan mode.
+  void clear_custom_fan_mode_();
 
   /// Set preset. Reset custom preset. Return true if preset has been changed.
   bool set_preset_(ClimatePreset preset);
 
   /// Set custom preset. Reset primary preset. Return true if preset has been changed.
-  bool set_custom_preset_(const std::string &preset);
+  bool set_custom_preset_(const char *preset) { return this->set_custom_preset_(preset, strlen(preset)); }
+  bool set_custom_preset_(const char *preset, size_t len);
+  bool set_custom_preset_(StringRef preset) { return this->set_custom_preset_(preset.c_str(), preset.size()); }
+  /// Clear custom preset.
+  void clear_custom_preset_();
+
+  /// Find and return the matching custom fan mode pointer from traits, or nullptr if not found.
+  const char *find_custom_fan_mode_(const char *custom_fan_mode);
+  const char *find_custom_fan_mode_(const char *custom_fan_mode, size_t len);
+
+  /// Find and return the matching custom preset pointer from traits, or nullptr if not found.
+  const char *find_custom_preset_(const char *custom_preset);
+  const char *find_custom_preset_(const char *custom_preset, size_t len);
 
   /** Get the default traits of this climate device.
    *
@@ -290,20 +335,37 @@ class Climate : public EntityBase {
   /** Internal method to save the state of the climate device to recover memory. This is automatically
    * called from publish_state()
    */
-  void save_state_();
+  void save_state_(const ClimateTraits &traits);
+  void save_state_() { this->save_state_(this->traits()); }
 
   void dump_traits_(const char *tag);
 
-  CallbackManager<void(Climate &)> state_callback_{};
-  CallbackManager<void(ClimateCall &)> control_callback_{};
+  LazyCallbackManager<void(Climate &)> state_callback_{};
+  LazyCallbackManager<void(ClimateCall &)> control_callback_{};
   ESPPreferenceObject rtc_;
-  optional<float> visual_min_temperature_override_{};
-  optional<float> visual_max_temperature_override_{};
-  optional<float> visual_target_temperature_step_override_{};
-  optional<float> visual_current_temperature_step_override_{};
-  optional<float> visual_min_humidity_override_{};
-  optional<float> visual_max_humidity_override_{};
+#ifdef USE_CLIMATE_VISUAL_OVERRIDES
+  float visual_min_temperature_override_{NAN};
+  float visual_max_temperature_override_{NAN};
+  float visual_target_temperature_step_override_{NAN};
+  float visual_current_temperature_step_override_{NAN};
+  float visual_min_humidity_override_{NAN};
+  float visual_max_humidity_override_{NAN};
+#endif
+
+ private:
+  /** The active custom fan mode (private - enforces use of safe setters).
+   *
+   * Points to an entry in traits.supported_custom_fan_modes_ or nullptr.
+   * Use get_custom_fan_mode() to read, set_custom_fan_mode_() to modify.
+   */
+  const char *custom_fan_mode_{nullptr};
+
+  /** The active custom preset (private - enforces use of safe setters).
+   *
+   * Points to an entry in traits.supported_custom_presets_ or nullptr.
+   * Use get_custom_preset() to read, set_custom_preset_() to modify.
+   */
+  const char *custom_preset_{nullptr};
 };
 
-}  // namespace climate
-}  // namespace esphome
+}  // namespace esphome::climate

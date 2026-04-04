@@ -31,8 +31,6 @@ void HM3301Component::dump_config() {
   LOG_SENSOR("  ", "AQI", this->aqi_sensor_);
 }
 
-float HM3301Component::get_setup_priority() const { return setup_priority::DATA; }
-
 void HM3301Component::update() {
   if (this->read(data_buffer_, 29) != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Read result failed");
@@ -63,7 +61,7 @@ void HM3301Component::update() {
 
   int16_t aqi_value = -1;
   if (this->aqi_sensor_ != nullptr && pm_2_5_value != -1 && pm_10_0_value != -1) {
-    AbstractAQICalculator *calculator = this->aqi_calculator_factory_.get_calculator(this->aqi_calc_type_);
+    aqi::AbstractAQICalculator *calculator = this->aqi_calculator_factory_.get_calculator(this->aqi_calc_type_);
     aqi_value = calculator->get_aqi(pm_2_5_value, pm_10_0_value);
   }
 

@@ -3,8 +3,7 @@
 #include "../ld2420.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
-namespace esphome {
-namespace ld2420 {
+namespace esphome::ld2420 {
 
 class LD2420BinarySensor : public LD2420Listener, public Component, binary_sensor::BinarySensor {
  public:
@@ -21,5 +20,4 @@ class LD2420BinarySensor : public LD2420Listener, public Component, binary_senso
   binary_sensor::BinarySensor *presence_bsensor_{nullptr};
 };
 
-}  // namespace ld2420
-}  // namespace esphome
+}  // namespace esphome::ld2420

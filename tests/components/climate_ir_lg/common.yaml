@@ -1,4 +1,16 @@
+sensor:
+  - platform: template
+    id: temp_sensor
+    lambda: return 22.0;
+    update_interval: 60s
+  - platform: template
+    id: humidity_sensor
+    lambda: return 50.0;
+    update_interval: 60s
+
 climate:
   - platform: climate_ir_lg
     name: LG Climate
     transmitter_id: xmitr
+    sensor: temp_sensor
+    humidity_sensor: humidity_sensor

@@ -1,5 +1,5 @@
 #pragma once
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 #include "ota_backend.h"
 
 #include "esphome/components/md5/md5.h"
@@ -7,17 +7,16 @@
 
 #include <esp_ota_ops.h>
 
-namespace esphome {
-namespace ota {
+namespace esphome::ota {
 
-class IDFOTABackend : public OTABackend {
+class IDFOTABackend final {
  public:
-  OTAResponseTypes begin(size_t image_size) override;
-  void set_update_md5(const char *md5) override;
-  OTAResponseTypes write(uint8_t *data, size_t len) override;
-  OTAResponseTypes end() override;
-  void abort() override;
-  bool supports_compression() override { return false; }
+  OTAResponseTypes begin(size_t image_size);
+  void set_update_md5(const char *md5);
+  OTAResponseTypes write(uint8_t *data, size_t len);
+  OTAResponseTypes end();
+  void abort();
+  bool supports_compression() { return false; }
 
  private:
   esp_ota_handle_t update_handle_{0};
@@ -27,6 +26,7 @@ class IDFOTABackend : public OTABackend {
   bool md5_set_{false};
 };
 
-}  // namespace ota
-}  // namespace esphome
-#endif
+std::unique_ptr<IDFOTABackend> make_ota_backend();
+
+}  // namespace esphome::ota
+#endif  // USE_ESP32

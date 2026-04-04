@@ -39,7 +39,7 @@ from esphome.const import (
     CONF_WAND_ID,
     CONF_ZERO,
 )
-from esphome.core import coroutine
+from esphome.core import ID, coroutine
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.util import Registry, SimpleRegistry
 
@@ -108,9 +108,6 @@ def register_trigger(name, type, data_type):
     validator = automation.validate_automation(
         {
             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(type),
-            cv.Optional(CONF_RECEIVER_ID): cv.invalid(
-                "This has been removed in ESPHome 2022.3.0 and the trigger attaches directly to the parent receiver."
-            ),
         }
     )
     registerer = TRIGGER_REGISTRY.register(f"on_{name}", validator)
@@ -166,7 +163,10 @@ BASE_REMOTE_TRANSMITTER_SCHEMA = cv.Schema(
 def register_action(name, type_, schema):
     validator = templatize(schema).extend(BASE_REMOTE_TRANSMITTER_SCHEMA)
     registerer = automation.register_action(
-        f"remote_transmitter.transmit_{name}", type_, validator
+        f"remote_transmitter.transmit_{name}",
+        type_,
+        validator,
+        synchronous=True,
     )
 
     def decorator(func):
@@ -207,13 +207,7 @@ validate_binary_sensor = cv.validate_registry_entry(
     "remote receiver", BINARY_SENSOR_REGISTRY
 )
 TRIGGER_REGISTRY = SimpleRegistry()
-DUMPER_REGISTRY = Registry(
-    {
-        cv.Optional(CONF_RECEIVER_ID): cv.invalid(
-            "This has been removed in ESPHome 1.20.0 and the dumper attaches directly to the parent receiver."
-        ),
-    }
-)
+DUMPER_REGISTRY = Registry()
 
 
 def validate_dumpers(value):
@@ -314,6 +308,50 @@ async def beo4_action(var, config, args):
     cg.add(var.set_command(template_))
     template_ = await cg.templatable(config[CONF_COMMAND_REPEATS], args, cg.uint8)
     cg.add(var.set_repeats(template_))
+
+
+# Brennenstuhl
+(
+    BrennenstuhlData,
+    BrennenstuhlBinarySensor,
+    BrennenstuhlTrigger,
+    BrennenstuhlAction,
+    BrennenstuhlDumper,
+) = declare_protocol("Brennenstuhl")
+
+BRENNENSTUHL_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_CODE): cv.hex_uint32_t,
+    }
+)
+
+
+@register_binary_sensor("brennenstuhl", BrennenstuhlBinarySensor, BRENNENSTUHL_SCHEMA)
+def brennenstuhl_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                BrennenstuhlData,
+                ("code", config[CONF_CODE]),
+            )
+        )
+    )
+
+
+@register_trigger("brennenstuhl", BrennenstuhlTrigger, BrennenstuhlData)
+def brennenstuhl_trigger(var, config):
+    pass
+
+
+@register_dumper("brennenstuhl", BrennenstuhlDumper)
+def brennenstuhl_dumper(var, config):
+    pass
+
+
+@register_action("brennenstuhl", BrennenstuhlAction, BRENNENSTUHL_SCHEMA)
+async def brennenstuhl_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_CODE], args, cg.uint32)
+    cg.add(var.set_code(template_))
 
 
 # ByronSX
@@ -480,10 +518,6 @@ COOLIX_BASE_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_FIRST): cv.hex_int_range(0, 16777215),
         cv.Optional(CONF_SECOND, default=0): cv.hex_int_range(0, 16777215),
-        cv.Optional(CONF_DATA): cv.invalid(
-            "'data' option has been removed in ESPHome 2023.8. "
-            "Use the 'first' and 'second' options instead."
-        ),
     }
 )
 
@@ -2104,7 +2138,9 @@ async def abbwelcome_action(var, config, args):
             )
             cg.add(var.set_data_template(template_))
         else:
-            cg.add(var.set_data_static(data_))
+            arr_id = ID(f"{var.base}_data", is_declaration=True, type=cg.uint8)
+            arr = cg.static_const_array(arr_id, cg.ArrayInitializer(*data_))
+            cg.add(var.set_data_static(arr, len(data_)))
 
 
 # Mirage

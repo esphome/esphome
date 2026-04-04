@@ -6,7 +6,13 @@ from pathlib import Path
 
 from esphome import automation, external_files
 import esphome.codegen as cg
-from esphome.components import audio, esp32, media_player, psram, speaker
+from esphome.components import audio, esp32, media_player, network, ota, psram, speaker
+from esphome.components.const import (
+    CONF_VOLUME_INCREMENT,
+    CONF_VOLUME_INITIAL,
+    CONF_VOLUME_MAX,
+    CONF_VOLUME_MIN,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUFFER_SIZE,
@@ -15,6 +21,8 @@ from esphome.const import (
     CONF_FORMAT,
     CONF_ID,
     CONF_NUM_CHANNELS,
+    CONF_ON_TURN_OFF,
+    CONF_ON_TURN_ON,
     CONF_PATH,
     CONF_RAW_DATA_ID,
     CONF_SAMPLE_RATE,
@@ -26,24 +34,19 @@ from esphome.const import (
 from esphome.core import CORE, HexInt
 from esphome.core.entity_helpers import inherit_property_from
 from esphome.external_files import download_content
-from esphome.types import ConfigType
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def AUTO_LOAD(config: ConfigType) -> list[str]:
-    load = ["audio"]
-    if (
-        not config
-        or config.get(CONF_TASK_STACK_IN_PSRAM)
-        or config.get(CONF_CODEC_SUPPORT_ENABLED)
-    ):
-        return load + ["psram"]
-    return load
-
+AUTO_LOAD = ["audio"]
+DEPENDENCIES = ["network"]
 
 CODEOWNERS = ["@kahrendt", "@synesthesiam"]
 DOMAIN = "media_player"
+
+CODEC_SUPPORT_ALL = "all"
+CODEC_SUPPORT_NEEDED = "needed"
+CODEC_SUPPORT_NONE = "none"
 
 TYPE_LOCAL = "local"
 TYPE_WEB = "web"
@@ -58,10 +61,6 @@ CONF_ON_MUTE = "on_mute"
 CONF_ON_UNMUTE = "on_unmute"
 CONF_ON_VOLUME = "on_volume"
 CONF_STREAM = "stream"
-CONF_VOLUME_INCREMENT = "volume_increment"
-CONF_VOLUME_INITIAL = "volume_initial"
-CONF_VOLUME_MIN = "volume_min"
-CONF_VOLUME_MAX = "volume_max"
 
 
 speaker_ns = cg.esphome_ns.namespace("speaker")
@@ -118,6 +117,8 @@ def _get_supported_format_struct(pipeline, type):
         args.append(("format", "flac"))
     elif pipeline[CONF_FORMAT] == "MP3":
         args.append(("format", "mp3"))
+    elif pipeline[CONF_FORMAT] == "OPUS":
+        args.append(("format", "opus"))
     elif pipeline[CONF_FORMAT] == "WAV":
         args.append(("format", "wav"))
 
@@ -165,8 +166,14 @@ def _read_audio_file_and_type(file_config):
 
     import puremagic
 
-    file_type: str = puremagic.from_string(data)
-    file_type = file_type.removeprefix(".")
+    try:
+        file_type: str = puremagic.from_string(data)
+        file_type = file_type.removeprefix(".")
+    except puremagic.PureError as e:
+        raise cv.Invalid(
+            f"Unable to determine audio file type of '{path}'. "
+            f"Try re-encoding the file into a supported format. Details: {e}"
+        )
 
     media_file_type = audio.AUDIO_FILE_TYPE_ENUM["NONE"]
     if file_type in ("wav"):
@@ -175,6 +182,13 @@ def _read_audio_file_and_type(file_config):
         media_file_type = audio.AUDIO_FILE_TYPE_ENUM["MP3"]
     elif file_type in ("flac"):
         media_file_type = audio.AUDIO_FILE_TYPE_ENUM["FLAC"]
+    elif (
+        file_type in ("ogg")
+        and len(data) >= 36
+        and data.startswith(b"OggS")
+        and data[28:36] == b"OpusHead"
+    ):
+        media_file_type = audio.AUDIO_FILE_TYPE_ENUM["OPUS"]
 
     return data, media_file_type
 
@@ -201,6 +215,10 @@ def _validate_pipeline(config):
     inherit_property_from(CONF_NUM_CHANNELS, CONF_SPEAKER)(config)
     inherit_property_from(CONF_SAMPLE_RATE, CONF_SPEAKER)(config)
 
+    # Opus only supports 48 kHz
+    if config.get(CONF_FORMAT) == "OPUS" and config.get(CONF_SAMPLE_RATE) != 48000:
+        raise cv.Invalid("Opus only supports a sample rate of 48000 Hz")
+
     # Validate the transcoder settings is compatible with the speaker
     audio.final_validate_audio_schema(
         "speaker media_player",
@@ -226,18 +244,60 @@ def _validate_repeated_speaker(config):
     return config
 
 
-def _validate_supported_local_file(config):
+def _final_validate(config):
+    # Normalize boolean values to string equivalents
+    codec_mode = config[CONF_CODEC_SUPPORT_ENABLED]
+    if codec_mode is True:
+        codec_mode = CODEC_SUPPORT_ALL
+    elif codec_mode is False:
+        codec_mode = CODEC_SUPPORT_NONE
+
+    use_codec = codec_mode != CODEC_SUPPORT_NONE
+
+    # In "needed" mode, collect formats from pipelines and files
+    needed_formats = set()
+    need_all = False
+    if codec_mode == CODEC_SUPPORT_NEEDED:
+        for pipeline_key in (CONF_ANNOUNCEMENT_PIPELINE, CONF_MEDIA_PIPELINE):
+            if pipeline := config.get(pipeline_key):
+                fmt = pipeline[CONF_FORMAT]
+                if fmt == "NONE":
+                    # No preferred format means any format could arrive
+                    need_all = True
+                else:
+                    needed_formats.add(fmt)
+
     for file_config in config.get(CONF_FILES, []):
         _, media_file_type = _read_audio_file_and_type(file_config)
         if str(media_file_type) == str(audio.AUDIO_FILE_TYPE_ENUM["NONE"]):
             raise cv.Invalid("Unsupported local media file")
-        if not config[CONF_CODEC_SUPPORT_ENABLED] and str(media_file_type) != str(
+        if not use_codec and str(media_file_type) != str(
             audio.AUDIO_FILE_TYPE_ENUM["WAV"]
         ):
             # Only wav files are supported
             raise cv.Invalid(
                 f"Unsupported local media file type, set {CONF_CODEC_SUPPORT_ENABLED} to true or convert the media file to wav"
             )
+        # In "needed" mode, add file format to needed codecs
+        if codec_mode == CODEC_SUPPORT_NEEDED:
+            for fmt_name, fmt_enum in audio.AUDIO_FILE_TYPE_ENUM.items():
+                if str(media_file_type) == str(fmt_enum):
+                    if fmt_name not in ("WAV", "NONE"):
+                        needed_formats.add(fmt_name)
+                    break
+
+    # Request codec support
+    if codec_mode == CODEC_SUPPORT_ALL or need_all:
+        audio.request_flac_support()
+        audio.request_mp3_support()
+        audio.request_opus_support()
+    elif codec_mode == CODEC_SUPPORT_NEEDED:
+        if "FLAC" in needed_formats:
+            audio.request_flac_support()
+        if "MP3" in needed_formats:
+            audio.request_mp3_support()
+        if "OPUS" in needed_formats:
+            audio.request_opus_support()
 
     return config
 
@@ -282,6 +342,18 @@ PIPELINE_SCHEMA = cv.Schema(
     }
 )
 
+
+def _request_high_performance_networking(config):
+    """Request high performance networking for streaming media.
+
+    Speaker media player streams audio data, so it always benefits from
+    optimized WiFi and lwip settings regardless of codec support.
+    Called during config validation to ensure flags are set before to_code().
+    """
+    network.require_high_performance_networking()
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     media_player.media_player_schema(SpeakerMediaPlayer).extend(
         {
@@ -291,10 +363,20 @@ CONFIG_SCHEMA = cv.All(
                 min=4000, max=4000000
             ),
             cv.Optional(
-                CONF_CODEC_SUPPORT_ENABLED, default=psram.supported()
-            ): cv.boolean,
+                CONF_CODEC_SUPPORT_ENABLED, default=CODEC_SUPPORT_NEEDED
+            ): cv.Any(
+                cv.boolean,
+                cv.one_of(
+                    CODEC_SUPPORT_ALL,
+                    CODEC_SUPPORT_NEEDED,
+                    CODEC_SUPPORT_NONE,
+                    lower=True,
+                ),
+            ),
             cv.Optional(CONF_FILES): cv.ensure_list(MEDIA_FILE_TYPE_SCHEMA),
-            cv.Optional(CONF_TASK_STACK_IN_PSRAM, default=False): cv.boolean,
+            cv.Optional(CONF_TASK_STACK_IN_PSRAM): cv.All(
+                cv.boolean, cv.requires_component(psram.DOMAIN)
+            ),
             cv.Optional(CONF_VOLUME_INCREMENT, default=0.05): cv.percentage,
             cv.Optional(CONF_VOLUME_INITIAL, default=0.5): cv.percentage,
             cv.Optional(CONF_VOLUME_MAX, default=1.0): cv.percentage,
@@ -304,8 +386,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_VOLUME): automation.validate_automation(single=True),
         }
     ),
-    cv.only_with_esp_idf,
+    cv.only_on_esp32,
     _validate_repeated_speaker,
+    _request_high_performance_networking,
 )
 
 
@@ -317,43 +400,23 @@ FINAL_VALIDATE_SCHEMA = cv.All(
         },
         extra=cv.ALLOW_EXTRA,
     ),
-    _validate_supported_local_file,
+    _final_validate,
 )
 
 
 async def to_code(config):
-    if config[CONF_CODEC_SUPPORT_ENABLED]:
-        # Compile all supported audio codecs and optimize the wifi settings
-
-        cg.add_define("USE_AUDIO_FLAC_SUPPORT", True)
-        cg.add_define("USE_AUDIO_MP3_SUPPORT", True)
-
-        # Based on https://github.com/espressif/esp-idf/blob/release/v5.4/examples/wifi/iperf/sdkconfig.defaults.esp32
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM", 16)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM", 64)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM", 64)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_TX_ENABLED", True)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_TX_BA_WIN", 32)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_AMPDU_RX_ENABLED", True)
-        esp32.add_idf_sdkconfig_option("CONFIG_ESP_WIFI_RX_BA_WIN", 32)
-
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_SND_BUF_DEFAULT", 65534)
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_WND_DEFAULT", 65534)
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCP_RECVMBOX_SIZE", 64)
-        esp32.add_idf_sdkconfig_option("CONFIG_LWIP_TCPIP_RECVMBOX_SIZE", 64)
-
-        # Allocate wifi buffers in PSRAM
-        esp32.add_idf_sdkconfig_option("CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP", True)
+    if CONF_ON_TURN_OFF in config or CONF_ON_TURN_ON in config:
+        cg.add_define("USE_SPEAKER_MEDIA_PLAYER_ON_OFF", True)
 
     var = await media_player.new_media_player(config)
     await cg.register_component(var, config)
 
-    cg.add_define("USE_OTA_STATE_CALLBACK")
+    ota.request_ota_state_listeners()
 
     cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
 
-    cg.add(var.set_task_stack_in_psram(config[CONF_TASK_STACK_IN_PSRAM]))
-    if config[CONF_TASK_STACK_IN_PSRAM]:
+    if config.get(CONF_TASK_STACK_IN_PSRAM):
+        cg.add(var.set_task_stack_in_psram(True))
         esp32.add_idf_sdkconfig_option(
             "CONFIG_SPIRAM_ALLOW_STACK_EXTERNAL_MEMORY", True
         )
@@ -444,6 +507,7 @@ async def to_code(config):
         },
         key=CONF_MEDIA_FILE,
     ),
+    synchronous=True,
 )
 async def play_on_device_media_media_action(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

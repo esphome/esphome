@@ -148,10 +148,13 @@ void EzoPMP::read_command_result_() {
     char current_char = response_buffer[i];
 
     if (current_char == '\0') {
-      ESP_LOGV(TAG, "Read Response from device: %s", (char *) response_buffer);
-      ESP_LOGV(TAG, "First Component: %s", (char *) first_parameter_buffer);
-      ESP_LOGV(TAG, "Second Component: %s", (char *) second_parameter_buffer);
-      ESP_LOGV(TAG, "Third Component: %s", (char *) third_parameter_buffer);
+      ESP_LOGV(TAG,
+               "Read Response from device: %s\n"
+               "  First Component: %s\n"
+               "  Second Component: %s\n"
+               "  Third Component: %s",
+               (char *) response_buffer, (char *) first_parameter_buffer, (char *) second_parameter_buffer,
+               (char *) third_parameter_buffer);
 
       break;
     }
@@ -162,22 +165,23 @@ void EzoPMP::read_command_result_() {
       continue;
     }
 
-    switch (current_parameter) {
-      case 1:
-        first_parameter_buffer[position_in_parameter_buffer] = current_char;
-        first_parameter_buffer[position_in_parameter_buffer + 1] = '\0';
-        break;
-      case 2:
-        second_parameter_buffer[position_in_parameter_buffer] = current_char;
-        second_parameter_buffer[position_in_parameter_buffer + 1] = '\0';
-        break;
-      case 3:
-        third_parameter_buffer[position_in_parameter_buffer] = current_char;
-        third_parameter_buffer[position_in_parameter_buffer + 1] = '\0';
-        break;
+    if (position_in_parameter_buffer < sizeof(first_parameter_buffer) - 1) {
+      switch (current_parameter) {
+        case 1:
+          first_parameter_buffer[position_in_parameter_buffer] = current_char;
+          first_parameter_buffer[position_in_parameter_buffer + 1] = '\0';
+          break;
+        case 2:
+          second_parameter_buffer[position_in_parameter_buffer] = current_char;
+          second_parameter_buffer[position_in_parameter_buffer + 1] = '\0';
+          break;
+        case 3:
+          third_parameter_buffer[position_in_parameter_buffer] = current_char;
+          third_parameter_buffer[position_in_parameter_buffer + 1] = '\0';
+          break;
+      }
+      position_in_parameter_buffer++;
     }
-
-    position_in_parameter_buffer++;
   }
 
   auto parsed_first_parameter = parse_number<float>(first_parameter_buffer);
@@ -315,90 +319,94 @@ void EzoPMP::send_next_command_() {
   switch (this->next_command_) {
     // Read Commands
     case EZO_PMP_COMMAND_READ_DOSING:  // Page 54
-      command_buffer_length = sprintf((char *) command_buffer, "D,?");
+      command_buffer_length = snprintf((char *) command_buffer, sizeof(command_buffer), "D,?");
       break;
 
     case EZO_PMP_COMMAND_READ_SINGLE_REPORT:  // Single Report (page 53)
-      command_buffer_length = sprintf((char *) command_buffer, "R");
+      command_buffer_length = snprintf((char *) command_buffer, sizeof(command_buffer), "R");
       break;
 
     case EZO_PMP_COMMAND_READ_MAX_FLOW_RATE:
-      command_buffer_length = sprintf((char *) command_buffer, "DC,?");
+      command_buffer_length = snprintf((char *) command_buffer, sizeof(command_buffer), "DC,?");
       break;
 
     case EZO_PMP_COMMAND_READ_PAUSE_STATUS:
-      command_buffer_length = sprintf((char *) command_buffer, "P,?");
+      command_buffer_length = snprintf((char *) command_buffer, sizeof(command_buffer), "P,?");
       break;
 
     case EZO_PMP_COMMAND_READ_TOTAL_VOLUME_DOSED:
-      command_buffer_length = sprintf((char *) command_buffer, "TV,?");
+      command_buffer_length = snprintf((char *) command_buffer, sizeof(command_buffer), "TV,?");
       break;
 
     case EZO_PMP_COMMAND_READ_ABSOLUTE_TOTAL_VOLUME_DOSED:
-      command_buffer_length = sprintf((char *) command_buffer, "ATV,?");
+      command_buffer_length = snprintf((char *) command_buffer, sizeof(command_buffer), "ATV,?");
       break;
 
     case EZO_PMP_COMMAND_READ_CALIBRATION_STATUS:
-      command_buffer_length = sprintf((char *) command_buffer, "Cal,?");
+      command_buffer_length = snprintf((char *) command_buffer, sizeof(command_buffer), "Cal,?");
       break;
 
     case EZO_PMP_COMMAND_READ_PUMP_VOLTAGE:
-      command_buffer_length = sprintf((char *) command_buffer, "PV,?");
+      command_buffer_length = snprintf((char *) command_buffer, sizeof(command_buffer), "PV,?");
       break;
 
       // Non-Read Commands
 
     case EZO_PMP_COMMAND_FIND:  // Find (page 52)
-      command_buffer_length = sprintf((char *) command_buffer, "Find");
+      command_buffer_length = snprintf((char *) command_buffer, sizeof(command_buffer), "Find");
       wait_time_for_command = 60000;  // This command will block all updates for a minute
       break;
 
     case EZO_PMP_COMMAND_DOSE_CONTINUOUSLY:  // Continuous Dispensing (page 54)
-      command_buffer_length = sprintf((char *) command_buffer, "D,*");
+      command_buffer_length = snprintf((char *) command_buffer, sizeof(command_buffer), "D,*");
       break;
 
     case EZO_PMP_COMMAND_CLEAR_TOTAL_VOLUME_DOSED:  // Clear Total Volume Dosed (page 64)
-      command_buffer_length = sprintf((char *) command_buffer, "Clear");
+      command_buffer_length = snprintf((char *) command_buffer, sizeof(command_buffer), "Clear");
       break;
 
     case EZO_PMP_COMMAND_CLEAR_CALIBRATION:  // Clear Calibration (page 65)
-      command_buffer_length = sprintf((char *) command_buffer, "Cal,clear");
+      command_buffer_length = snprintf((char *) command_buffer, sizeof(command_buffer), "Cal,clear");
       break;
 
     case EZO_PMP_COMMAND_PAUSE_DOSING:  // Pause (page 61)
-      command_buffer_length = sprintf((char *) command_buffer, "P");
+      command_buffer_length = snprintf((char *) command_buffer, sizeof(command_buffer), "P");
       break;
 
     case EZO_PMP_COMMAND_STOP_DOSING:  // Stop (page 62)
-      command_buffer_length = sprintf((char *) command_buffer, "X");
+      command_buffer_length = snprintf((char *) command_buffer, sizeof(command_buffer), "X");
       break;
 
       // Non-Read commands with parameters
 
     case EZO_PMP_COMMAND_DOSE_VOLUME:  // Volume Dispensing (page 55)
-      command_buffer_length = sprintf((char *) command_buffer, "D,%0.1f", this->next_command_volume_);
+      command_buffer_length =
+          snprintf((char *) command_buffer, sizeof(command_buffer), "D,%0.1f", this->next_command_volume_);
       break;
 
     case EZO_PMP_COMMAND_DOSE_VOLUME_OVER_TIME:  // Dose over time (page 56)
-      command_buffer_length =
-          sprintf((char *) command_buffer, "D,%0.1f,%i", this->next_command_volume_, this->next_command_duration_);
+      command_buffer_length = snprintf((char *) command_buffer, sizeof(command_buffer), "D,%0.1f,%i",
+                                       this->next_command_volume_, this->next_command_duration_);
       break;
 
     case EZO_PMP_COMMAND_DOSE_WITH_CONSTANT_FLOW_RATE:  // Constant Flow Rate (page 57)
-      command_buffer_length =
-          sprintf((char *) command_buffer, "DC,%0.1f,%i", this->next_command_volume_, this->next_command_duration_);
+      command_buffer_length = snprintf((char *) command_buffer, sizeof(command_buffer), "DC,%0.1f,%i",
+                                       this->next_command_volume_, this->next_command_duration_);
       break;
 
     case EZO_PMP_COMMAND_SET_CALIBRATION_VOLUME:  // Set Calibration Volume (page 65)
-      command_buffer_length = sprintf((char *) command_buffer, "Cal,%0.2f", this->next_command_volume_);
+      command_buffer_length =
+          snprintf((char *) command_buffer, sizeof(command_buffer), "Cal,%0.2f", this->next_command_volume_);
       break;
 
     case EZO_PMP_COMMAND_CHANGE_I2C_ADDRESS:  // Change I2C Address (page 73)
-      command_buffer_length = sprintf((char *) command_buffer, "I2C,%i", this->next_command_duration_);
+      command_buffer_length =
+          snprintf((char *) command_buffer, sizeof(command_buffer), "I2C,%i", this->next_command_duration_);
       break;
 
     case EZO_PMP_COMMAND_EXEC_ARBITRARY_COMMAND_ADDRESS:  // Run an arbitrary command
-      command_buffer_length = sprintf((char *) command_buffer, this->arbitrary_command_, this->next_command_duration_);
+      command_buffer_length =
+          snprintf((char *) command_buffer, sizeof(command_buffer), "%s", this->arbitrary_command_.c_str());
       ESP_LOGI(TAG, "Sending arbitrary command: %s", (char *) command_buffer);
       break;
 
@@ -535,7 +543,7 @@ void EzoPMP::change_i2c_address(int address) {
 }
 
 void EzoPMP::exec_arbitrary_command(const std::basic_string<char> &command) {
-  this->arbitrary_command_ = command.c_str();
+  this->arbitrary_command_ = command;
   this->queue_command_(EZO_PMP_COMMAND_EXEC_ARBITRARY_COMMAND_ADDRESS, 0, 0, true);
 }
 

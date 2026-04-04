@@ -52,7 +52,7 @@ from esphome.util import get_serial_ports, shlex_quote
 from esphome.yaml_util import FastestAvailableSafeLoader
 
 from ..helpers import write_file
-from .const import DASHBOARD_COMMAND, DashboardEvent
+from .const import DASHBOARD_COMMAND, ESPHOME_COMMAND, DashboardEvent
 from .core import DASHBOARD, ESPHomeDashboard, Event
 from .entries import UNKNOWN_STATE, DashboardEntry, entry_state_to_bool
 from .models import build_device_list_response
@@ -120,8 +120,11 @@ def is_authenticated(handler: BaseHandler) -> bool:
         if auth_header := handler.request.headers.get("Authorization"):
             assert isinstance(auth_header, str)
             if auth_header.startswith("Basic "):
-                auth_decoded = base64.b64decode(auth_header[6:]).decode()
-                username, password = auth_decoded.split(":", 1)
+                try:
+                    auth_decoded = base64.b64decode(auth_header[6:]).decode()
+                    username, password = auth_decoded.split(":", 1)
+                except (binascii.Error, ValueError, UnicodeDecodeError):
+                    return False
                 return settings.check_password(username, password)
         return handler.get_secure_cookie(AUTH_COOKIE_NAME) == COOKIE_AUTHENTICATED_YES
 
@@ -164,8 +167,24 @@ def websocket_method(name):
     return wrap
 
 
+class CheckOriginMixin:
+    """Mixin to handle WebSocket origin checks for reverse proxy setups."""
+
+    def check_origin(self, origin: str) -> bool:
+        if "ESPHOME_TRUSTED_DOMAINS" not in os.environ:
+            return super().check_origin(origin)
+        trusted_domains = [
+            s.strip() for s in os.environ["ESPHOME_TRUSTED_DOMAINS"].split(",")
+        ]
+        url = urlparse(origin)
+        if url.hostname in trusted_domains:
+            return True
+        _LOGGER.info("check_origin %s, domain is not trusted", origin)
+        return False
+
+
 @websocket_class
-class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
+class EsphomeCommandWebSocket(CheckOriginMixin, tornado.websocket.WebSocketHandler):
     """Base class for ESPHome websocket commands."""
 
     def __init__(
@@ -182,18 +201,6 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         # Windows doesn't support non-blocking pipes,
         # use Popen() with a reading thread instead
         self._use_popen = os.name == "nt"
-
-    def check_origin(self, origin):
-        if "ESPHOME_TRUSTED_DOMAINS" not in os.environ:
-            return super().check_origin(origin)
-        trusted_domains = [
-            s.strip() for s in os.environ["ESPHOME_TRUSTED_DOMAINS"].split(",")
-        ]
-        url = urlparse(origin)
-        if url.hostname in trusted_domains:
-            return True
-        _LOGGER.info("check_origin %s, domain is not trusted", origin)
-        return False
 
     def open(self, *args: str, **kwargs: str) -> None:
         """Handle new WebSocket connection."""
@@ -313,6 +320,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
             # Check if the proc was not forcibly closed
             _LOGGER.info("Process exited with return code %s", returncode)
             self.write_message({"event": "exit", "code": returncode})
+            self.close()
 
     def on_close(self) -> None:
         # Check if proc exists (if 'start' has been run)
@@ -601,7 +609,7 @@ DASHBOARD_SUBSCRIBER = DashboardSubscriber()
 
 
 @websocket_class
-class DashboardEventsWebSocket(tornado.websocket.WebSocketHandler):
+class DashboardEventsWebSocket(CheckOriginMixin, tornado.websocket.WebSocketHandler):
     """WebSocket handler for real-time dashboard events."""
 
     _event_listeners: list[Callable[[], None]] | None = None
@@ -1049,20 +1057,29 @@ class DownloadBinaryRequestHandler(BaseHandler):
         # fallback to type=, but prioritize file=
         file_name = self.get_argument("type", None)
         file_name = self.get_argument("file", file_name)
-        if file_name is None:
+        if file_name is None or not file_name.strip():
             self.send_error(400)
             return
-        file_name = file_name.replace("..", "").lstrip("/")
         # get requested download name, or build it based on filename
         download_name = self.get_argument(
             "download",
             f"{storage_json.name}-{file_name}",
         )
 
-        path = storage_json.firmware_bin_path.parent.joinpath(file_name)
+        if storage_json.firmware_bin_path is None:
+            self.send_error(404)
+            return
+
+        base_dir = storage_json.firmware_bin_path.parent.resolve()
+        path = base_dir.joinpath(file_name).resolve()
+        try:
+            path.relative_to(base_dir)
+        except ValueError:
+            self.send_error(403)
+            return
 
         if not path.is_file():
-            args = ["esphome", "idedata", settings.rel_path(configuration)]
+            args = [*ESPHOME_COMMAND, "idedata", settings.rel_path(configuration)]
             rc, stdout, _ = await async_run_system_command(args)
 
             if rc != 0:
@@ -1073,7 +1090,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
 
             found = False
             for image in idedata.extra_flash_images:
-                if image.path.endswith(file_name):
+                if image.path.as_posix().endswith(file_name):
                     path = image.path
                     download_name = file_name
                     found = True
@@ -1445,7 +1462,7 @@ class JsonConfigRequestHandler(BaseHandler):
             self.send_error(404)
             return
 
-        args = ["esphome", "config", str(filename), "--show-secrets"]
+        args = [*ESPHOME_COMMAND, "config", str(filename), "--show-secrets"]
 
         rc, stdout, stderr = await async_run_system_command(args)
 

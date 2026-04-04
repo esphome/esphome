@@ -127,30 +127,30 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   void set_enrolling_binary_sensor(binary_sensor::BinarySensor *enrolling_binary_sensor) {
     this->enrolling_binary_sensor_ = enrolling_binary_sensor;
   }
-  void add_on_finger_scan_start_callback(std::function<void()> callback) {
-    this->finger_scan_start_callback_.add(std::move(callback));
+  template<typename F> void add_on_finger_scan_start_callback(F &&callback) {
+    this->finger_scan_start_callback_.add(std::forward<F>(callback));
   }
-  void add_on_finger_scan_matched_callback(std::function<void(uint16_t, uint16_t)> callback) {
-    this->finger_scan_matched_callback_.add(std::move(callback));
+  template<typename F> void add_on_finger_scan_matched_callback(F &&callback) {
+    this->finger_scan_matched_callback_.add(std::forward<F>(callback));
   }
-  void add_on_finger_scan_unmatched_callback(std::function<void()> callback) {
-    this->finger_scan_unmatched_callback_.add(std::move(callback));
+  template<typename F> void add_on_finger_scan_unmatched_callback(F &&callback) {
+    this->finger_scan_unmatched_callback_.add(std::forward<F>(callback));
   }
-  void add_on_finger_scan_misplaced_callback(std::function<void()> callback) {
-    this->finger_scan_misplaced_callback_.add(std::move(callback));
+  template<typename F> void add_on_finger_scan_misplaced_callback(F &&callback) {
+    this->finger_scan_misplaced_callback_.add(std::forward<F>(callback));
   }
-  void add_on_finger_scan_invalid_callback(std::function<void()> callback) {
-    this->finger_scan_invalid_callback_.add(std::move(callback));
+  template<typename F> void add_on_finger_scan_invalid_callback(F &&callback) {
+    this->finger_scan_invalid_callback_.add(std::forward<F>(callback));
   }
-  void add_on_enrollment_scan_callback(std::function<void(uint8_t, uint16_t)> callback) {
-    this->enrollment_scan_callback_.add(std::move(callback));
+  template<typename F> void add_on_enrollment_scan_callback(F &&callback) {
+    this->enrollment_scan_callback_.add(std::forward<F>(callback));
   }
-  void add_on_enrollment_done_callback(std::function<void(uint16_t)> callback) {
-    this->enrollment_done_callback_.add(std::move(callback));
+  template<typename F> void add_on_enrollment_done_callback(F &&callback) {
+    this->enrollment_done_callback_.add(std::forward<F>(callback));
   }
 
-  void add_on_enrollment_failed_callback(std::function<void(uint16_t)> callback) {
-    this->enrollment_failed_callback_.add(std::move(callback));
+  template<typename F> void add_on_enrollment_failed_callback(F &&callback) {
+    this->enrollment_failed_callback_.add(std::forward<F>(callback));
   }
 
   void enroll_fingerprint(uint16_t finger_id, uint8_t num_buffers);
@@ -169,7 +169,7 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   bool set_password_();
   bool get_parameters_();
   void get_fingerprint_count_();
-  uint8_t transfer_(std::vector<uint8_t> *p_data_buffer);
+  uint8_t transfer_(std::vector<uint8_t> &data_buffer);
   uint8_t send_command_();
   void sensor_wakeup_();
   void sensor_sleep_();
@@ -190,7 +190,7 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   bool is_sensor_awake_ = false;
   uint32_t last_transfer_ms_ = 0;
   uint32_t last_aura_led_control_ = 0;
-  uint16_t last_aura_led_duration_ = 0;
+  uint32_t last_aura_led_duration_ = 0;
   uint16_t system_identifier_code_ = 0;
   uint32_t idle_period_to_sleep_ms_ = UINT32_MAX;
   sensor::Sensor *fingerprint_count_sensor_{nullptr};
@@ -210,70 +210,12 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   CallbackManager<void(uint16_t)> enrollment_failed_callback_;
 };
 
-class FingerScanStartTrigger : public Trigger<> {
- public:
-  explicit FingerScanStartTrigger(FingerprintGrowComponent *parent) {
-    parent->add_on_finger_scan_start_callback([this]() { this->trigger(); });
-  }
-};
-
-class FingerScanMatchedTrigger : public Trigger<uint16_t, uint16_t> {
- public:
-  explicit FingerScanMatchedTrigger(FingerprintGrowComponent *parent) {
-    parent->add_on_finger_scan_matched_callback(
-        [this](uint16_t finger_id, uint16_t confidence) { this->trigger(finger_id, confidence); });
-  }
-};
-
-class FingerScanUnmatchedTrigger : public Trigger<> {
- public:
-  explicit FingerScanUnmatchedTrigger(FingerprintGrowComponent *parent) {
-    parent->add_on_finger_scan_unmatched_callback([this]() { this->trigger(); });
-  }
-};
-
-class FingerScanMisplacedTrigger : public Trigger<> {
- public:
-  explicit FingerScanMisplacedTrigger(FingerprintGrowComponent *parent) {
-    parent->add_on_finger_scan_misplaced_callback([this]() { this->trigger(); });
-  }
-};
-
-class FingerScanInvalidTrigger : public Trigger<> {
- public:
-  explicit FingerScanInvalidTrigger(FingerprintGrowComponent *parent) {
-    parent->add_on_finger_scan_invalid_callback([this]() { this->trigger(); });
-  }
-};
-
-class EnrollmentScanTrigger : public Trigger<uint8_t, uint16_t> {
- public:
-  explicit EnrollmentScanTrigger(FingerprintGrowComponent *parent) {
-    parent->add_on_enrollment_scan_callback(
-        [this](uint8_t scan_num, uint16_t finger_id) { this->trigger(scan_num, finger_id); });
-  }
-};
-
-class EnrollmentDoneTrigger : public Trigger<uint16_t> {
- public:
-  explicit EnrollmentDoneTrigger(FingerprintGrowComponent *parent) {
-    parent->add_on_enrollment_done_callback([this](uint16_t finger_id) { this->trigger(finger_id); });
-  }
-};
-
-class EnrollmentFailedTrigger : public Trigger<uint16_t> {
- public:
-  explicit EnrollmentFailedTrigger(FingerprintGrowComponent *parent) {
-    parent->add_on_enrollment_failed_callback([this](uint16_t finger_id) { this->trigger(finger_id); });
-  }
-};
-
 template<typename... Ts> class EnrollmentAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
   TEMPLATABLE_VALUE(uint16_t, finger_id)
   TEMPLATABLE_VALUE(uint8_t, num_scans)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto finger_id = this->finger_id_.value(x...);
     auto num_scans = this->num_scans_.value(x...);
     if (num_scans) {
@@ -287,14 +229,14 @@ template<typename... Ts> class EnrollmentAction : public Action<Ts...>, public P
 template<typename... Ts>
 class CancelEnrollmentAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
-  void play(Ts... x) override { this->parent_->finish_enrollment(1); }
+  void play(const Ts &...x) override { this->parent_->finish_enrollment(1); }
 };
 
 template<typename... Ts> class DeleteAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
   TEMPLATABLE_VALUE(uint16_t, finger_id)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto finger_id = this->finger_id_.value(x...);
     this->parent_->delete_fingerprint(finger_id);
   }
@@ -302,14 +244,14 @@ template<typename... Ts> class DeleteAction : public Action<Ts...>, public Paren
 
 template<typename... Ts> class DeleteAllAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
-  void play(Ts... x) override { this->parent_->delete_all_fingerprints(); }
+  void play(const Ts &...x) override { this->parent_->delete_all_fingerprints(); }
 };
 
 template<typename... Ts> class LEDControlAction : public Action<Ts...>, public Parented<FingerprintGrowComponent> {
  public:
   TEMPLATABLE_VALUE(bool, state)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto state = this->state_.value(x...);
     this->parent_->led_control(state);
   }
@@ -322,7 +264,7 @@ template<typename... Ts> class AuraLEDControlAction : public Action<Ts...>, publ
   TEMPLATABLE_VALUE(uint8_t, color)
   TEMPLATABLE_VALUE(uint8_t, count)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     auto state = this->state_.value(x...);
     auto speed = this->speed_.value(x...);
     auto color = this->color_.value(x...);

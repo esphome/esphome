@@ -10,8 +10,7 @@
 #ifdef USE_ESP32
 #include <esp_gattc_api.h>
 
-namespace esphome {
-namespace ble_client {
+namespace esphome::ble_client {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
@@ -48,6 +47,5 @@ class BLESensor : public sensor::Sensor, public PollingComponent, public BLEClie
   espbt::ESPBTUUID descr_uuid_;
 };
 
-}  // namespace ble_client
-}  // namespace esphome
+}  // namespace esphome::ble_client
 #endif

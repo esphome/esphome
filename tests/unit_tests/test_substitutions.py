@@ -2,13 +2,18 @@ import glob
 import logging
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from esphome import config as config_module, yaml_util
 from esphome.components import substitutions
+from esphome.components.packages import do_packages_pass, merge_packages
 from esphome.config import resolve_extend_remove
-from esphome.config_helpers import merge_config
-from esphome.const import CONF_PACKAGES, CONF_SUBSTITUTIONS
-from esphome.core import CORE
+from esphome.config_helpers import Extend, merge_config
+import esphome.config_validation as cv
+from esphome.const import CONF_SUBSTITUTIONS
+from esphome.core import CORE, Lambda
 from esphome.util import OrderedDict
 
 _LOGGER = logging.getLogger(__name__)
@@ -70,6 +75,8 @@ def verify_database(value: Any, path: str = "") -> str | None:
         return None
     if isinstance(value, dict):
         for k, v in value.items():
+            if path == "" and k == CONF_SUBSTITUTIONS:
+                return None  # ignore substitutions key at top level since it is merged.
             key_result = verify_database(k, f"{path}/{k}")
             if key_result is not None:
                 return key_result
@@ -84,73 +91,105 @@ def verify_database(value: Any, path: str = "") -> str | None:
     return None
 
 
-def test_substitutions_fixtures(fixture_path):
-    base_dir = fixture_path / "substitutions"
-    sources = sorted(glob.glob(str(base_dir / "*.input.yaml")))
-    assert sources, f"No input YAML files found in {base_dir}"
+# Mapping of (url, ref) to local test repository path under fixtures/substitutions
+REMOTES = {
+    ("https://github.com/esphome/repo1", "main"): "remotes/repo1/main",
+    ("https://github.com/esphome/repo2", "main"): "remotes/repo2/main",
+}
 
-    failures = []
-    for source_path in sources:
-        source_path = Path(source_path)
-        try:
-            expected_path = source_path.with_suffix("").with_suffix(".approved.yaml")
-            test_case = source_path.with_suffix("").stem
+# Collect all input YAML files for test_substitutions_fixtures parametrized tests:
+HERE = Path(__file__).parent
+BASE_DIR = HERE / "fixtures" / "substitutions"
+SOURCES = sorted(glob.glob(str(BASE_DIR / "*.input.yaml")))
+assert SOURCES, f"test_substitutions_fixtures: No input YAML files found in {BASE_DIR}"
 
-            # Load using ESPHome's YAML loader
-            config = yaml_util.load_yaml(source_path)
 
-            if CONF_PACKAGES in config:
-                from esphome.components.packages import do_packages_pass
-
-                config = do_packages_pass(config)
-
-            substitutions.do_substitution_pass(config, None)
-
-            resolve_extend_remove(config)
-            verify_database_result = verify_database(config)
-            if verify_database_result is not None:
-                raise AssertionError(verify_database_result)
-
-            # Also load expected using ESPHome's loader, or use {} if missing and DEV_MODE
-            if expected_path.is_file():
-                expected = yaml_util.load_yaml(expected_path)
-            elif DEV_MODE:
-                expected = {}
-            else:
-                assert expected_path.is_file(), (
-                    f"Expected file missing: {expected_path}"
+@pytest.mark.parametrize(
+    "source_path",
+    [Path(p) for p in SOURCES],
+    ids=lambda p: p.name,
+)
+@patch("esphome.git.clone_or_update")
+def test_substitutions_fixtures(
+    mock_clone_or_update: MagicMock, source_path: Path
+) -> None:
+    def fake_clone_or_update(
+        *,
+        url: str,
+        ref: str | None = None,
+        refresh=None,
+        domain: str,
+        username: str | None = None,
+        password: str | None = None,
+        submodules: list[str] | None = None,
+        _recover_broken: bool = True,
+    ) -> tuple[Path, None]:
+        path = REMOTES.get((url, ref))
+        if path is None:
+            path = REMOTES.get((url.rstrip(".git"), ref))
+            if path is None:
+                raise RuntimeError(
+                    f"Cannot find test repository for {url} @ {ref}. Check the REMOTES mapping in test_substitutions.py"
                 )
+        return BASE_DIR / path, None
 
-            # Sort dicts only (not lists) for comparison
-            got_sorted = sort_dicts(config)
-            expected_sorted = sort_dicts(expected)
+    mock_clone_or_update.side_effect = fake_clone_or_update
 
-            if got_sorted != expected_sorted:
-                diff = "\n".join(dict_diff(got_sorted, expected_sorted))
-                msg = (
-                    f"Substitution result mismatch for {source_path.name}\n"
-                    f"Diff:\n{diff}\n\n"
-                    f"Got:      {got_sorted}\n"
-                    f"Expected: {expected_sorted}"
-                )
-                # Write out the received file when test fails
-                if DEV_MODE:
-                    received_path = source_path.with_name(f"{test_case}.received.yaml")
-                    write_yaml(received_path, config)
-                    print(msg)
-                    failures.append(msg)
-                else:
-                    raise AssertionError(msg)
-        except Exception as err:
-            _LOGGER.error("Error in test file %s", source_path)
-            raise err
+    expected_path = source_path.with_suffix("").with_suffix(".approved.yaml")
+    test_case = source_path.with_suffix("").stem
 
-    if DEV_MODE and failures:
-        print(f"\n{len(failures)} substitution test case(s) failed.")
+    # Load using ESPHome's YAML loader
+    config = yaml_util.load_yaml(source_path)
+
+    command_line_substitutions = config.pop("command_line_substitutions", None)
+
+    config = do_packages_pass(
+        config, command_line_substitutions=command_line_substitutions
+    )
+
+    config = substitutions.do_substitution_pass(config, command_line_substitutions)
+
+    config = merge_packages(config)
+
+    resolve_extend_remove(config)
+    verify_database_result = verify_database(config)
+    if verify_database_result is not None:
+        raise AssertionError(verify_database_result)
+
+    # Also load expected using ESPHome's loader, or use {} if missing and DEV_MODE
+    if expected_path.is_file():
+        expected = yaml_util.load_yaml(expected_path)
+    elif DEV_MODE:
+        expected = {}
+    else:
+        assert expected_path.is_file(), f"Expected file missing: {expected_path}"
+
+    # Sort dicts only (not lists) for comparison
+    got_sorted = sort_dicts(config)
+    expected_sorted = sort_dicts(expected)
+
+    if got_sorted != expected_sorted:
+        diff = "\n".join(dict_diff(got_sorted, expected_sorted))
+        msg = (
+            f"Substitution result mismatch for {source_path.name}\n"
+            f"Diff:\n{diff}\n\n"
+            f"Got:      {got_sorted}\n"
+            f"Expected: {expected_sorted}"
+        )
+        # Write out the received file when test fails
+        if DEV_MODE:
+            received_path = source_path.with_name(f"{test_case}.received.yaml")
+            write_yaml(received_path, config)
+            msg += f"\nWrote received file to {received_path}."
+        raise AssertionError(msg)
 
     if DEV_MODE:
         _LOGGER.error("Tests passed, but Dev mode is enabled.")
-    assert not DEV_MODE  # make sure DEV_MODE is disabled after you are finished.
+    assert (
+        not DEV_MODE  # make sure DEV_MODE is disabled after you are finished.
+    ), (
+        "Test passed but DEV_MODE must be disabled when running tests. Please set DEV_MODE=False."
+    )
 
 
 def test_substitutions_with_command_line_maintains_ordered_dict() -> None:
@@ -170,7 +209,7 @@ def test_substitutions_with_command_line_maintains_ordered_dict() -> None:
     command_line_subs = {"var2": "override", "var3": "new_value"}
 
     # Call do_substitution_pass with command line substitutions
-    substitutions.do_substitution_pass(config, command_line_subs)
+    config = substitutions.do_substitution_pass(config, command_line_subs)
 
     # Verify that config is still an OrderedDict
     assert isinstance(config, OrderedDict), "Config should remain an OrderedDict"
@@ -198,7 +237,7 @@ def test_substitutions_without_command_line_maintains_ordered_dict() -> None:
     config["other_key"] = "other_value"
 
     # Call without command line substitutions
-    substitutions.do_substitution_pass(config, None)
+    config = substitutions.do_substitution_pass(config, None)
 
     # Verify that config is still an OrderedDict
     assert isinstance(config, OrderedDict), "Config should remain an OrderedDict"
@@ -232,7 +271,7 @@ def test_substitutions_after_merge_config_maintains_ordered_dict() -> None:
     )
 
     # Now try to run substitution pass on the merged config
-    substitutions.do_substitution_pass(merged_config, None)
+    merged_config = substitutions.do_substitution_pass(merged_config, None)
 
     # Should not raise AttributeError
     assert isinstance(merged_config, OrderedDict), (
@@ -243,7 +282,7 @@ def test_substitutions_after_merge_config_maintains_ordered_dict() -> None:
 
 
 def test_validate_config_with_command_line_substitutions_maintains_ordered_dict(
-    tmp_path,
+    tmp_path: Path,
 ) -> None:
     """Test that validate_config preserves OrderedDict when merging command-line substitutions.
 
@@ -252,7 +291,7 @@ def test_validate_config_with_command_line_substitutions_maintains_ordered_dict(
     """
     # Create a minimal valid config
     test_config = OrderedDict()
-    test_config["esphome"] = {"name": "test_device", "platform": "ESP32"}
+    test_config["esphome"] = {"name": "test_device"}
     test_config[CONF_SUBSTITUTIONS] = OrderedDict({"var1": "value1", "var2": "value2"})
     test_config["esp32"] = {"board": "esp32dev"}
 
@@ -278,17 +317,11 @@ def test_validate_config_with_command_line_substitutions_maintains_ordered_dict(
     assert result[CONF_SUBSTITUTIONS]["var3"] == "new_value"
 
 
-def test_validate_config_without_command_line_substitutions_maintains_ordered_dict(
-    tmp_path,
-) -> None:
-    """Test that validate_config preserves OrderedDict without command-line substitutions.
-
-    This tests the code path in config.py where result[CONF_SUBSTITUTIONS] is set
-    using merge_dicts_ordered() when command_line_substitutions is None.
-    """
+def _get_test_minimal_valid_config(tmp_path: Path) -> OrderedDict:
+    """Helper to create a minimal valid config for testing."""
     # Create a minimal valid config
     test_config = OrderedDict()
-    test_config["esphome"] = {"name": "test_device", "platform": "ESP32"}
+    test_config["esphome"] = {"name": "test_device"}
     test_config[CONF_SUBSTITUTIONS] = OrderedDict({"var1": "value1", "var2": "value2"})
     test_config["esp32"] = {"board": "esp32dev"}
 
@@ -296,6 +329,19 @@ def test_validate_config_without_command_line_substitutions_maintains_ordered_di
     test_yaml = tmp_path / "test.yaml"
     test_yaml.write_text("# test config")
     CORE.config_path = test_yaml
+    return test_config
+
+
+def test_validate_config_without_command_line_substitutions_maintains_ordered_dict(
+    tmp_path: Path,
+) -> None:
+    """Test that validate_config preserves OrderedDict without command-line substitutions.
+
+    This tests the code path in config.py where result[CONF_SUBSTITUTIONS] is set
+    using merge_dicts_ordered() when command_line_substitutions is None.
+    """
+
+    test_config = _get_test_minimal_valid_config(tmp_path)
 
     # Call validate_config without command line substitutions
     result = config_module.validate_config(test_config, None)
@@ -348,3 +394,239 @@ def test_merge_config_preserves_ordered_dict() -> None:
     assert not isinstance(result, OrderedDict), (
         "dict + dict should not return OrderedDict"
     )
+
+
+def test_substitution_pass_error_gets_captured(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """vol.Invalid from do_substitution_pass is captured by validate_config."""
+
+    # Patch the target: in config_module.do_substitution_pass (NOT where it's defined)
+    def fake_do_substitution_pass(*args, **kwargs):
+        raise cv.Invalid("Error in do_substitutions_pass!!")
+
+    monkeypatch.setattr(
+        config_module, "do_substitution_pass", fake_do_substitution_pass
+    )
+
+    # Prepare minimal config + no CLI substitutions
+    config = _get_test_minimal_valid_config(tmp_path)
+
+    # Call the function under test
+    result = config_module.validate_config(config, None)
+
+    # Now assert that add_error was called with the vol.Invalid
+
+    assert "Error in do_substitutions_pass!!" in str(result.get_error_for_path([]))
+
+
+@pytest.mark.parametrize(
+    "value", ["", "   ", "1foo", "9VAR", "0abc", "$1foo", "$9VAR", "$0abc"]
+)
+def test_validate_substitution_key_empty_raises(value: str) -> None:
+    """Empty (or all-whitespace) substitution keys are rejected."""
+    with pytest.raises(cv.Invalid):
+        substitutions.validate_substitution_key(value)
+
+
+@pytest.mark.parametrize(
+    "input_value, expected_output",
+    [
+        ("$FOO_bar9", "FOO_bar9"),  # Valid key with leading '$'
+        ("Foo_bar9", "Foo_bar9"),  # Normal valid key
+    ],
+)
+def test_validate_substitution_key_valid(
+    input_value: str, expected_output: str
+) -> None:
+    """Valid substitution keys are accepted with optional leading '$'."""
+    result = substitutions.validate_substitution_key(input_value)
+    assert result == expected_output
+
+
+def test_circular_dependency_warnings(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Circular substitution references produce warnings naming the cause."""
+    config = OrderedDict(
+        {
+            CONF_SUBSTITUTIONS: OrderedDict({"x": "${y}", "y": "${x}"}),
+            "key": "value",
+        }
+    )
+    with caplog.at_level(logging.WARNING):
+        substitutions.do_substitution_pass(config)
+
+    assert "Could not resolve substitution variable 'x'" in caplog.text
+    assert "'y' is undefined" in caplog.text
+    assert "Could not resolve substitution variable 'y'" in caplog.text
+    assert "'x' is undefined" in caplog.text
+    # Verify path includes location
+    assert "substitutions->x" in caplog.text
+    assert "substitutions->y" in caplog.text
+
+
+def test_missing_dependency_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A substitution referencing an undefined variable warns with the cause."""
+    config = OrderedDict(
+        {
+            CONF_SUBSTITUTIONS: OrderedDict({"a": "${missing}"}),
+            "key": "value",
+        }
+    )
+    with caplog.at_level(logging.WARNING):
+        substitutions.do_substitution_pass(config)
+
+    assert "Could not resolve substitution variable 'a'" in caplog.text
+    assert "'missing' is undefined" in caplog.text
+    assert "substitutions->a" in caplog.text
+
+
+def test_undefined_variable_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A reference to an undefined variable in config values produces a warning."""
+    config = OrderedDict(
+        {
+            "key": "${undefined_var}",
+        }
+    )
+    with caplog.at_level(logging.WARNING):
+        substitutions.do_substitution_pass(config)
+
+    assert "'undefined_var' is undefined" in caplog.text
+
+
+def test_password_field_warnings_suppressed(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Undefined variables in password fields should not produce warnings."""
+    config = OrderedDict(
+        {
+            "password": "${undefined_var}",
+        }
+    )
+    with caplog.at_level(logging.WARNING):
+        substitutions.do_substitution_pass(config)
+
+    assert caplog.text == ""
+
+
+def test_config_context_unresolvable_warns(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Unresolvable vars in a ConfigContext produce warnings via push_context."""
+    inner = OrderedDict({"key": "${a}"})
+    yaml_util.add_context(inner, {"a": "${undefined}"})
+    config = OrderedDict({"items": [inner]})
+    with caplog.at_level(logging.WARNING):
+        substitutions.do_substitution_pass(config)
+
+    assert "Could not resolve substitution variable 'a'" in caplog.text
+    assert "'undefined' is undefined" in caplog.text
+
+
+def test_non_string_substitution_value_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Undefined vars in non-string contexts (e.g. dict keys) produce warnings."""
+    config = OrderedDict(
+        {
+            "items": {"${undefined_key}": "value"},
+        }
+    )
+    with caplog.at_level(logging.WARNING):
+        substitutions.do_substitution_pass(config)
+
+    assert "'undefined_key' is undefined" in caplog.text
+
+
+def test_lambda_substitution() -> None:
+    """Substitution inside a Lambda value should be expanded."""
+    lam = Lambda("return ${var};")
+    config = OrderedDict(
+        {
+            CONF_SUBSTITUTIONS: OrderedDict({"var": "42"}),
+            "lambda": lam,
+        }
+    )
+    config = substitutions.do_substitution_pass(config)
+    assert config["lambda"].value == "return 42;"
+
+
+def test_lambda_no_substitution_unchanged() -> None:
+    """A Lambda with no variable references should not be mutated."""
+    lam = Lambda("return 1;")
+    original_value = lam.value
+    config = OrderedDict(
+        {
+            CONF_SUBSTITUTIONS: OrderedDict({"var": "42"}),
+            "lambda": lam,
+        }
+    )
+    config = substitutions.do_substitution_pass(config)
+    assert config["lambda"].value is original_value
+
+
+def test_extend_substitution() -> None:
+    """Substitution inside an Extend value should be expanded."""
+    ext = Extend("${component_id}")
+    config = OrderedDict(
+        {
+            CONF_SUBSTITUTIONS: OrderedDict({"component_id": "my_sensor"}),
+            "sensor": ext,
+        }
+    )
+    config = substitutions.do_substitution_pass(config)
+    assert config["sensor"].value == "my_sensor"
+
+
+def test_substitute_does_not_mutate_input() -> None:
+    """substitute() must return a new tree without modifying the original."""
+    inner_list = ["${var}", "static"]
+    inner_dict = OrderedDict({"key": "${var}"})
+    lam = Lambda("return ${var};")
+    config = OrderedDict(
+        {
+            "a_list": inner_list,
+            "a_dict": inner_dict,
+            "a_lambda": lam,
+            "plain": "${var}",
+        }
+    )
+    context = substitutions.ContextVars({"var": "replaced"})
+    result = substitutions.substitute(config, [], context, strict_undefined=True)
+
+    # Result has substitutions applied
+    assert result["plain"] == "replaced"
+    assert result["a_list"] == ["replaced", "static"]
+    assert result["a_dict"]["key"] == "replaced"
+    assert result["a_lambda"].value == "return replaced;"
+
+    # Original input is untouched
+    assert config["plain"] == "${var}"
+    assert inner_list == ["${var}", "static"]
+    assert inner_dict["key"] == "${var}"
+    assert lam.value == "return ${var};"
+
+    # Containers are new objects, not the originals
+    assert result["a_list"] is not inner_list
+    assert result["a_dict"] is not inner_dict
+    assert result["a_lambda"] is not lam
+
+
+def test_do_substitution_pass_substitutions_must_be_mapping_from_config() -> None:
+    """Non-mapping substitutions raises cv.Invalid."""
+    config = OrderedDict(
+        {
+            CONF_SUBSTITUTIONS: ["not", "a", "mapping"],
+            "other": "value",
+        }
+    )
+
+    with pytest.raises(
+        cv.Invalid, match="Substitutions must be a key to value mapping"
+    ):
+        substitutions.do_substitution_pass(config)

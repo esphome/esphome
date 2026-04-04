@@ -23,9 +23,9 @@
 
 namespace esphome::bluetooth_proxy {
 
-static const esp_err_t ESP_GATT_NOT_CONNECTED = -1;
-static const int DONE_SENDING_SERVICES = -2;
-static const int INIT_SENDING_SERVICES = -3;
+static constexpr esp_err_t ESP_GATT_NOT_CONNECTED = -1;
+static constexpr int DONE_SENDING_SERVICES = -2;
+static constexpr int INIT_SENDING_SERVICES = -3;
 
 using namespace esp32_ble_client;
 
@@ -35,8 +35,8 @@ using namespace esp32_ble_client;
 // Version 3: New connection API
 // Version 4: Pairing support
 // Version 5: Cache clear support
-static const uint32_t LEGACY_ACTIVE_CONNECTIONS_VERSION = 5;
-static const uint32_t LEGACY_PASSIVE_ONLY_VERSION = 1;
+static constexpr uint32_t LEGACY_ACTIVE_CONNECTIONS_VERSION = 5;
+static constexpr uint32_t LEGACY_PASSIVE_ONLY_VERSION = 1;
 
 enum BluetoothProxyFeature : uint32_t {
   FEATURE_PASSIVE_SCAN = 1 << 0,
@@ -46,13 +46,16 @@ enum BluetoothProxyFeature : uint32_t {
   FEATURE_CACHE_CLEARING = 1 << 4,
   FEATURE_RAW_ADVERTISEMENTS = 1 << 5,
   FEATURE_STATE_AND_MODE = 1 << 6,
+  FEATURE_CONNECTION_PARAMS_SETTING = 1 << 7,
 };
 
 enum BluetoothProxySubscriptionFlag : uint32_t {
   SUBSCRIPTION_RAW_ADVERTISEMENTS = 1 << 0,
 };
 
-class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener, public Component {
+class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
+                             public esp32_ble_tracker::BLEScannerStateListener,
+                             public Component {
   friend class BluetoothConnection;  // Allow connection to update connections_free_response_
  public:
   BluetoothProxy();
@@ -62,8 +65,6 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener, publ
   bool parse_devices(const esp32_ble::BLEScanResult *scan_results, size_t count) override;
   void dump_config() override;
   void setup() override;
-  void loop() override;
-  void flush_pending_advertisements();
   esp32_ble_tracker::AdvertisementParserType get_advertisement_parser_type() override;
 
   void register_connection(BluetoothConnection *connection) {
@@ -80,6 +81,7 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener, publ
   void bluetooth_gatt_write_descriptor(const api::BluetoothGATTWriteDescriptorRequest &msg);
   void bluetooth_gatt_send_services(const api::BluetoothGATTGetServicesRequest &msg);
   void bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest &msg);
+  void bluetooth_set_connection_params(const api::BluetoothSetConnectionParamsRequest &msg);
 
   void subscribe_api_connection(api::APIConnection *api_connection, uint32_t flags);
   void unsubscribe_api_connection(api::APIConnection *api_connection);
@@ -108,6 +110,9 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener, publ
   void set_active(bool active) { this->active_ = active; }
   bool has_active() { return this->active_; }
 
+  /// BLEScannerStateListener interface
+  void on_scanner_state(esp32_ble_tracker::ScannerState state) override;
+
   uint32_t get_legacy_version() const {
     if (this->active_) {
       return LEGACY_ACTIVE_CONNECTIONS_VERSION;
@@ -125,20 +130,35 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener, publ
       flags |= BluetoothProxyFeature::FEATURE_REMOTE_CACHING;
       flags |= BluetoothProxyFeature::FEATURE_PAIRING;
       flags |= BluetoothProxyFeature::FEATURE_CACHE_CLEARING;
+      flags |= BluetoothProxyFeature::FEATURE_CONNECTION_PARAMS_SETTING;
     }
 
     return flags;
   }
 
-  std::string get_bluetooth_mac_address_pretty() {
+  void get_bluetooth_mac_address_pretty(std::span<char, 18> output) {
     const uint8_t *mac = esp_bt_dev_get_address();
-    char buf[18];
-    format_mac_addr_upper(mac, buf);
-    return std::string(buf);
+    if (mac != nullptr) {
+      format_mac_addr_upper(mac, output.data());
+    } else {
+      output[0] = '\0';
+    }
   }
 
  protected:
   void send_bluetooth_scanner_state_(esp32_ble_tracker::ScannerState state);
+
+  /// Caller must ensure api_connection_ is non-null and API server is connected.
+  void flush_pending_advertisements_() {
+    if (this->response_.advertisements_len == 0)
+      return;
+    this->api_connection_->send_message(this->response_);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    this->log_advertisement_flush_();
+#endif
+    this->response_.advertisements_len = 0;
+  }
+  void log_advertisement_flush_();
 
   BluetoothConnection *get_connection_(uint64_t address, bool reserve);
   void log_connection_request_ignored_(BluetoothConnection *connection, espbt::ClientState state);
@@ -155,9 +175,6 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener, publ
 
   // BLE advertisement batching
   api::BluetoothLERawAdvertisementsResponse response_;
-
-  // Group 3: 4-byte types
-  uint32_t last_advertisement_flush_time_{0};
 
   // Pre-allocated response message - always ready to send
   api::BluetoothConnectionsFreeResponse connections_free_response_;

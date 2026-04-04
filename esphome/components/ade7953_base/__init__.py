@@ -24,6 +24,8 @@ from esphome.const import (
     UNIT_WATT,
 )
 
+CODEOWNERS = ["@angelnu"]
+
 CONF_CURRENT_A = "current_a"
 CONF_CURRENT_B = "current_b"
 CONF_ACTIVE_POWER_A = "active_power_a"

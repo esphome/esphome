@@ -5,7 +5,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from esphome.components.packages import CONFIG_SCHEMA, do_packages_pass
+from esphome.components.packages import CONFIG_SCHEMA, do_packages_pass, merge_packages
+from esphome.components.substitutions import do_substitution_pass
+import esphome.config as config_module
 from esphome.config import resolve_extend_remove
 from esphome.config_helpers import Extend, Remove
 import esphome.config_validation as cv
@@ -27,12 +29,15 @@ from esphome.const import (
     CONF_REFRESH,
     CONF_SENSOR,
     CONF_SSID,
+    CONF_SUBSTITUTIONS,
     CONF_UPDATE_INTERVAL,
     CONF_URL,
     CONF_VARS,
     CONF_WIFI,
 )
+from esphome.core import CORE
 from esphome.util import OrderedDict
+from esphome.yaml_util import add_context
 
 # Test strings
 TEST_DEVICE_NAME = "test_device_name"
@@ -66,13 +71,15 @@ def fixture_basic_esphome():
 
 
 def packages_pass(config):
-    """Wrapper around packages_pass that also resolves Extend and Remove."""
+    """Passes the config through the packages processing steps."""
     config = do_packages_pass(config)
+    config = do_substitution_pass(config)
+    config = merge_packages(config)
     resolve_extend_remove(config)
     return config
 
 
-def test_package_unused(basic_esphome, basic_wifi):
+def test_package_unused(basic_esphome, basic_wifi) -> None:
     """
     Ensures do_package_pass does not change a config if packages aren't used.
     """
@@ -82,7 +89,7 @@ def test_package_unused(basic_esphome, basic_wifi):
     assert actual == config
 
 
-def test_package_invalid_dict(basic_esphome, basic_wifi):
+def test_package_invalid_dict(basic_esphome, basic_wifi) -> None:
     """
     If a url: key is present, it's expected to be well-formed remote package spec. Ensure an error is raised if not.
     Any other simple dict passed as a package will be merged as usual but may fail later validation.
@@ -95,7 +102,7 @@ def test_package_invalid_dict(basic_esphome, basic_wifi):
 
 
 @pytest.mark.parametrize(
-    "package",
+    "packages",
     [
         {"package1": "github://esphome/non-existant-repo/file1.yml@main"},
         {"package2": "github://esphome/non-existant-repo/file1.yml"},
@@ -107,12 +114,12 @@ def test_package_invalid_dict(basic_esphome, basic_wifi):
         ],
     ],
 )
-def test_package_shorthand(package):
-    CONFIG_SCHEMA(package)
+def test_package_shorthand(packages) -> None:
+    CONFIG_SCHEMA(packages)
 
 
 @pytest.mark.parametrize(
-    "package",
+    "packages",
     [
         # not github
         {"package1": "someplace://esphome/non-existant-repo/file1.yml@main"},
@@ -133,12 +140,12 @@ def test_package_shorthand(package):
         [3],
     ],
 )
-def test_package_invalid(package):
+def test_package_invalid(packages) -> None:
     with pytest.raises(cv.Invalid):
-        CONFIG_SCHEMA(package)
+        CONFIG_SCHEMA(packages)
 
 
-def test_package_include(basic_wifi, basic_esphome):
+def test_package_include(basic_wifi, basic_esphome) -> None:
     """
     Tests the simple case where an independent config present in a package is added to the top-level config as is.
 
@@ -155,7 +162,31 @@ def test_package_include(basic_wifi, basic_esphome):
     assert actual == expected
 
 
-def test_package_append(basic_wifi, basic_esphome):
+def test_single_package(
+    basic_esphome,
+    basic_wifi,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """
+    Tests the simple case where a single package is added to the top-level config as is.
+    In this test, the CONF_WIFI config is expected to be simply added to the top-level config.
+    This tests the case where the user just put packages: !include package.yaml, not
+    part of a list or mapping of packages.
+    This behavior is deprecated, the test also checks if a warning is issued.
+    """
+    config = {CONF_ESPHOME: basic_esphome, CONF_PACKAGES: {CONF_WIFI: basic_wifi}}
+
+    expected = {CONF_ESPHOME: basic_esphome, CONF_WIFI: basic_wifi}
+
+    with caplog.at_level("WARNING"):
+        actual = packages_pass(config)
+
+    assert actual == expected
+
+    assert "This method for including packages will go away in 2026.7.0" in caplog.text
+
+
+def test_package_append(basic_wifi, basic_esphome) -> None:
     """
     Tests the case where a key is present in both a package and top-level config.
 
@@ -180,7 +211,7 @@ def test_package_append(basic_wifi, basic_esphome):
     assert actual == expected
 
 
-def test_package_override(basic_wifi, basic_esphome):
+def test_package_override(basic_wifi, basic_esphome) -> None:
     """
     Ensures that the top-level configuration takes precedence over duplicate keys defined in a package.
 
@@ -204,7 +235,7 @@ def test_package_override(basic_wifi, basic_esphome):
     assert actual == expected
 
 
-def test_multiple_package_order():
+def test_multiple_package_order() -> None:
     """
     Ensures that mutiple packages are merged in order.
     """
@@ -233,7 +264,7 @@ def test_multiple_package_order():
     assert actual == expected
 
 
-def test_package_list_merge():
+def test_package_list_merge() -> None:
     """
     Ensures lists defined in both a package and the top-level config are merged correctly
     """
@@ -289,7 +320,7 @@ def test_package_list_merge():
     assert actual == expected
 
 
-def test_package_list_merge_by_id():
+def test_package_list_merge_by_id() -> None:
     """
     Ensures that components with matching IDs are merged correctly.
 
@@ -367,7 +398,7 @@ def test_package_list_merge_by_id():
     assert actual == expected
 
 
-def test_package_merge_by_id_with_list():
+def test_package_merge_by_id_with_list() -> None:
     """
     Ensures that components with matching IDs are merged correctly when their configuration contains lists.
 
@@ -406,7 +437,7 @@ def test_package_merge_by_id_with_list():
     assert actual == expected
 
 
-def test_package_merge_by_missing_id():
+def test_package_merge_by_missing_id() -> None:
     """
     Ensures that a validation error is thrown when trying to extend a missing ID.
     """
@@ -442,7 +473,7 @@ def test_package_merge_by_missing_id():
     assert error_raised
 
 
-def test_package_list_remove_by_id():
+def test_package_list_remove_by_id() -> None:
     """
     Ensures that components with matching IDs are removed correctly.
 
@@ -493,7 +524,7 @@ def test_package_list_remove_by_id():
     assert actual == expected
 
 
-def test_multiple_package_list_remove_by_id():
+def test_multiple_package_list_remove_by_id() -> None:
     """
     Ensures that components with matching IDs are removed correctly.
 
@@ -539,7 +570,7 @@ def test_multiple_package_list_remove_by_id():
     assert actual == expected
 
 
-def test_package_dict_remove_by_id(basic_wifi, basic_esphome):
+def test_package_dict_remove_by_id(basic_wifi, basic_esphome) -> None:
     """
     Ensures that components with missing IDs are removed from dict.
     Ensures that the top-level configuration takes precedence over duplicate keys defined in a package.
@@ -560,7 +591,7 @@ def test_package_dict_remove_by_id(basic_wifi, basic_esphome):
     assert actual == expected
 
 
-def test_package_remove_by_missing_id():
+def test_package_remove_by_missing_id() -> None:
     """
     Ensures that components with missing IDs are not merged.
     """
@@ -608,7 +639,7 @@ def test_package_remove_by_missing_id():
 @patch("esphome.git.clone_or_update")
 def test_remote_packages_with_files_list(
     mock_clone_or_update, mock_is_file, mock_load_yaml
-):
+) -> None:
     """
     Ensures that packages are loaded as mixed list of dictionary and strings
     """
@@ -678,9 +709,88 @@ def test_remote_packages_with_files_list(
 @patch("esphome.yaml_util.load_yaml")
 @patch("pathlib.Path.is_file")
 @patch("esphome.git.clone_or_update")
+def test_remote_packages_with_files_list_and_substitutions(
+    mock_clone_or_update, mock_is_file, mock_load_yaml
+) -> None:
+    """
+    Ensures that packages are loaded as mixed list of dictionary and strings
+    """
+    # Mock the response from git.clone_or_update
+    mock_revert = MagicMock()
+    mock_clone_or_update.return_value = (Path("/tmp/noexists"), mock_revert)
+
+    # Mock the response from pathlib.Path.is_file
+    mock_is_file.return_value = True
+
+    # Mock the response from esphome.yaml_util.load_yaml
+    mock_load_yaml.side_effect = [
+        OrderedDict(
+            {
+                CONF_SENSOR: [
+                    {
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: TEST_SENSOR_NAME_1,
+                    }
+                ]
+            }
+        ),
+        OrderedDict(
+            {
+                CONF_SENSOR: [
+                    {
+                        CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                        CONF_NAME: TEST_SENSOR_NAME_2,
+                    }
+                ]
+            }
+        ),
+    ]
+
+    # Define the input config
+    config = {
+        CONF_PACKAGES: {
+            "package1": add_context(
+                {
+                    CONF_URL: r"${url}",
+                    CONF_REF: r"${branch}",
+                    CONF_FILES: [
+                        {CONF_PATH: r"$file"},
+                        "sensor2.yaml",
+                    ],
+                    CONF_REFRESH: "1d",
+                },
+                {
+                    "branch": "main",
+                    "file": TEST_YAML_FILENAME,
+                    "url": "https://github.com/esphome/non-existant-repo",
+                },
+            )
+        }
+    }
+
+    expected = {
+        CONF_SENSOR: [
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                CONF_NAME: TEST_SENSOR_NAME_1,
+            },
+            {
+                CONF_PLATFORM: TEST_SENSOR_PLATFORM_1,
+                CONF_NAME: TEST_SENSOR_NAME_2,
+            },
+        ]
+    }
+
+    actual = packages_pass(config)
+    assert actual == expected
+
+
+@patch("esphome.yaml_util.load_yaml")
+@patch("pathlib.Path.is_file")
+@patch("esphome.git.clone_or_update")
 def test_remote_packages_with_files_and_vars(
     mock_clone_or_update, mock_is_file, mock_load_yaml
-):
+) -> None:
     """
     Ensures that packages are loaded as mixed list of dictionary and strings with vars
     """
@@ -769,3 +879,305 @@ def test_remote_packages_with_files_and_vars(
 
     actual = packages_pass(config)
     assert actual == expected
+
+
+def test_packages_merge_substitutions() -> None:
+    """
+    Tests that substitutions from packages in a complex package hierarchy
+    are extracted and merged into the top-level config.
+    """
+    config = {
+        CONF_SUBSTITUTIONS: {
+            "a": 1,
+            "b": 2,
+            "c": 3,
+        },
+        CONF_PACKAGES: {
+            "package1": {
+                "logger": {
+                    "level": "DEBUG",
+                },
+                CONF_PACKAGES: [
+                    {
+                        CONF_SUBSTITUTIONS: {
+                            "a": 10,
+                            "e": 5,
+                        },
+                        "sensor": [
+                            {"platform": "template", "id": "sensor1"},
+                        ],
+                    },
+                ],
+                "sensor": [
+                    {"platform": "template", "id": "sensor2"},
+                ],
+            },
+            "package2": {
+                "logger": {
+                    "level": "VERBOSE",
+                },
+            },
+            "package3": {
+                CONF_PACKAGES: [
+                    {
+                        CONF_PACKAGES: [
+                            {
+                                CONF_SUBSTITUTIONS: {
+                                    "b": 20,
+                                    "d": 4,
+                                },
+                                "sensor": [
+                                    {"platform": "template", "id": "sensor3"},
+                                ],
+                            },
+                        ],
+                        CONF_SUBSTITUTIONS: {
+                            "b": 20,
+                            "d": 6,
+                        },
+                        "sensor": [
+                            {"platform": "template", "id": "sensor4"},
+                        ],
+                    },
+                ],
+            },
+        },
+    }
+
+    expected = {
+        CONF_SUBSTITUTIONS: {"a": 1, "e": 5, "b": 2, "d": 6, "c": 3},
+        CONF_PACKAGES: {
+            "package1": {
+                "logger": {
+                    "level": "DEBUG",
+                },
+                CONF_PACKAGES: [
+                    {
+                        "sensor": [
+                            {"platform": "template", "id": "sensor1"},
+                        ],
+                    },
+                ],
+                "sensor": [
+                    {"platform": "template", "id": "sensor2"},
+                ],
+            },
+            "package2": {
+                "logger": {
+                    "level": "VERBOSE",
+                },
+            },
+            "package3": {
+                CONF_PACKAGES: [
+                    {
+                        CONF_PACKAGES: [
+                            {
+                                "sensor": [
+                                    {"platform": "template", "id": "sensor3"},
+                                ],
+                            },
+                        ],
+                        "sensor": [
+                            {"platform": "template", "id": "sensor4"},
+                        ],
+                    },
+                ],
+            },
+        },
+    }
+
+    actual = do_packages_pass(config, command_line_substitutions={})
+    assert actual == expected
+
+
+def test_package_merge() -> None:
+    """
+    Tests that all packages are merged into the top-level config.
+    """
+    config = {
+        CONF_SUBSTITUTIONS: {"a": 1, "e": 5, "b": 2, "d": 6, "c": 3},
+        CONF_PACKAGES: {
+            "package1": {
+                "logger": {
+                    "level": "DEBUG",
+                },
+                CONF_PACKAGES: [
+                    {
+                        "sensor": [
+                            {"platform": "template", "id": "sensor1"},
+                        ],
+                    },
+                ],
+                "sensor": [
+                    {"platform": "template", "id": "sensor2"},
+                ],
+            },
+            "package2": {
+                "logger": {
+                    "level": "VERBOSE",
+                },
+            },
+            "package3": {
+                CONF_PACKAGES: [
+                    {
+                        CONF_PACKAGES: [
+                            {
+                                "sensor": [
+                                    {"platform": "template", "id": "sensor3"},
+                                ],
+                            },
+                        ],
+                        "sensor": [
+                            {"platform": "template", "id": "sensor4"},
+                        ],
+                    },
+                ],
+            },
+        },
+    }
+    expected = {
+        "sensor": [
+            {"platform": "template", "id": "sensor1"},
+            {"platform": "template", "id": "sensor2"},
+            {"platform": "template", "id": "sensor3"},
+            {"platform": "template", "id": "sensor4"},
+        ],
+        "logger": {"level": "VERBOSE"},
+        CONF_SUBSTITUTIONS: {"a": 1, "e": 5, "b": 2, "d": 6, "c": 3},
+    }
+    actual = merge_packages(config)
+
+    assert actual == expected
+
+
+def test_packages_invalid_type_raises() -> None:
+    """Packages that are not a dict or list raise cv.Invalid."""
+    config = {
+        CONF_PACKAGES: "not_a_dict_or_list",
+    }
+    with pytest.raises(
+        cv.Invalid, match="Packages must be a key to value mapping or list"
+    ):
+        do_packages_pass(config)
+
+
+@pytest.mark.parametrize(
+    "invalid_package",
+    [
+        6,
+        "some string",
+        True,
+    ],
+)
+def test_invalid_package_contents_rejected(invalid_package: object) -> None:
+    """Invalid package contents are rejected by PACKAGE_SCHEMA during do_packages_pass."""
+    config = {
+        CONF_PACKAGES: {
+            "some_package": invalid_package,
+        },
+    }
+    with pytest.raises(cv.Invalid):
+        do_packages_pass(config)
+
+
+@pytest.mark.xfail(
+    reason="Deprecated single-package fallback swallows these errors. "
+    "Remove xfail when single-package deprecation is removed (2026.7.0).",
+    strict=True,
+)
+@pytest.mark.parametrize(
+    "invalid_package",
+    [
+        None,
+        ["some string"],
+        {"some_component": 8},
+        {3: 2},
+    ],
+)
+def test_invalid_package_contents_masked_by_deprecation(
+    invalid_package: object,
+) -> None:
+    """These invalid packages are swallowed by the deprecated single-package fallback."""
+    config = {
+        CONF_PACKAGES: {
+            "some_package": invalid_package,
+        },
+    }
+    with pytest.raises(cv.Invalid):
+        do_packages_pass(config)
+
+
+def test_merge_packages_invalid_nested_type_raises() -> None:
+    """Invalid nested packages type during merge raises cv.Invalid."""
+    config = {
+        CONF_PACKAGES: {
+            "pkg": {
+                CONF_PACKAGES: "invalid",
+            },
+        },
+    }
+    with pytest.raises(
+        cv.Invalid, match="Packages must be a key to value mapping or list"
+    ):
+        merge_packages(config)
+
+
+@patch("esphome.yaml_util.load_yaml")
+@patch("pathlib.Path.is_file")
+@patch("esphome.git.clone_or_update")
+def test_remote_packages_no_revert(
+    mock_clone_or_update, mock_is_file, mock_load_yaml
+) -> None:
+    """Remote packages with revert=None load without retry logic."""
+    mock_clone_or_update.return_value = (Path("/tmp/noexists"), None)
+    mock_is_file.return_value = True
+    mock_load_yaml.return_value = OrderedDict(
+        {CONF_SENSOR: [{CONF_PLATFORM: TEST_SENSOR_PLATFORM_1, CONF_NAME: "test"}]}
+    )
+
+    config = {
+        CONF_PACKAGES: {
+            "pkg": {
+                CONF_URL: "https://github.com/esphome/repo",
+                CONF_REF: "main",
+                CONF_FILES: [{CONF_PATH: "file.yaml"}],
+                CONF_REFRESH: "1d",
+            }
+        }
+    }
+    actual = packages_pass(config)
+    assert actual[CONF_SENSOR] == [
+        {CONF_PLATFORM: TEST_SENSOR_PLATFORM_1, CONF_NAME: "test"}
+    ]
+
+
+def test_raw_config_contains_merged_esphome_from_package(tmp_path) -> None:
+    """Test that CORE.raw_config contains esphome section from merged package.
+
+    This is a regression test for the bug where CORE.raw_config was set before
+    packages were merged, causing KeyError when components accessed
+    CORE.raw_config[CONF_ESPHOME] and the esphome section came from a package.
+    """
+    # Create a config where esphome section comes from a package
+    test_config = OrderedDict()
+    test_config[CONF_PACKAGES] = {
+        "base": {
+            CONF_ESPHOME: {CONF_NAME: TEST_DEVICE_NAME},
+        }
+    }
+    test_config["esp32"] = {"board": "esp32dev"}
+
+    # Set up CORE for the test
+    test_yaml = tmp_path / "test.yaml"
+    test_yaml.write_text("# test config")
+    CORE.reset()
+    CORE.config_path = test_yaml
+
+    # Call validate_config - this should merge packages and set CORE.raw_config
+    config_module.validate_config(test_config, {})
+
+    # Verify that CORE.raw_config contains the esphome section from the package
+    assert CONF_ESPHOME in CORE.raw_config, (
+        "CORE.raw_config should contain esphome section after package merge"
+    )
+    assert CORE.raw_config[CONF_ESPHOME][CONF_NAME] == TEST_DEVICE_NAME

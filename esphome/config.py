@@ -12,7 +12,8 @@ from typing import Any
 import voluptuous as vol
 
 from esphome import core, loader, pins, yaml_util
-from esphome.config_helpers import Extend, Remove, merge_config, merge_dicts_ordered
+from esphome.components.substitutions import do_substitution_pass
+from esphome.config_helpers import Extend, Remove, merge_config
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ESPHOME,
@@ -319,6 +320,9 @@ def iter_ids(config, path=None):
             yield from iter_ids(item, path + [i])
     elif isinstance(config, dict):
         for key, value in config.items():
+            if len(path) == 0 and key == CONF_SUBSTITUTIONS:
+                # Ignore IDs in substitution definitions.
+                continue
             if isinstance(key, core.ID):
                 yield key, path
             yield from iter_ids(value, path + [key])
@@ -335,21 +339,46 @@ def check_replaceme(value):
         )
 
 
-def _build_list_index(lst):
+def _get_item_id(item: Any) -> str | Extend | Remove | None:
+    """Attempts to get a list item's ID"""
+    if not isinstance(item, dict):
+        return None  # not a dict, can't have ID
+    # 1.- Check regular case:
+    # - id: my_id
+    item_id = item.get(CONF_ID)
+    if item_id is None and len(item) == 1:
+        # 2.- Check single-key dict case:
+        # - obj:
+        #     id: my_id
+        item = next(iter(item.values()))
+        if isinstance(item, dict):
+            item_id = item.get(CONF_ID)
+    if isinstance(item_id, Extend):
+        # Remove instances of Extend so they don't overwrite the original item when merging:
+        del item[CONF_ID]
+    elif not isinstance(item_id, (str, Remove)):
+        return None
+    return item_id
+
+
+def _build_list_index(
+    lst: list[Any],
+) -> tuple[
+    OrderedDict[str | Extend | Remove, Any], list[tuple[int, str, Any]], set[str]
+]:
     index = OrderedDict()
     extensions, removals = [], set()
-    for item in lst:
+    for pos, item in enumerate(lst):
         if item is None:
             removals.add(None)
             continue
-        item_id = None
-        if isinstance(item, dict) and (item_id := item.get(CONF_ID)):
-            if isinstance(item_id, Extend):
-                extensions.append(item)
-                continue
-            if isinstance(item_id, Remove):
-                removals.add(item_id.value)
-                continue
+        item_id = _get_item_id(item)
+        if isinstance(item_id, Extend):
+            extensions.append((pos, item_id.value, item))
+            continue
+        if isinstance(item_id, Remove):
+            removals.add(item_id.value)
+            continue
         if not item_id or item_id in index:
             # no id or duplicate -> pass through with identity-based key
             item_id = id(item)
@@ -357,7 +386,7 @@ def _build_list_index(lst):
     return index, extensions, removals
 
 
-def resolve_extend_remove(value, is_key=None):
+def resolve_extend_remove(value: Any, is_key: bool = False) -> None:
     if isinstance(value, ESPLiteralValue):
         return  # do not check inside literal blocks
     if isinstance(value, list):
@@ -365,26 +394,16 @@ def resolve_extend_remove(value, is_key=None):
         if extensions or removals:
             # Rebuild the original list after
             # processing all extensions and removals
-            for item in extensions:
-                item_id = item[CONF_ID].value
+            for pos, item_id, item in extensions:
                 if item_id in removals:
                     continue
                 old = index.get(item_id)
                 if old is None:
                     # Failed to find source for extension
-                    # Find index of item to show error at correct position
-                    i = next(
-                        (
-                            i
-                            for i, d in enumerate(value)
-                            if d.get(CONF_ID) == item[CONF_ID]
-                        )
-                    )
-                    with cv.prepend_path(i):
+                    with cv.prepend_path(pos):
                         raise cv.Invalid(
                             f"Source for extension of ID '{item_id}' was not found."
                         )
-                item[CONF_ID] = item_id
                 index[item_id] = merge_config(old, item)
             for item_id in removals:
                 index.pop(item_id, None)
@@ -939,6 +958,23 @@ class FinalValidateValidationStep(ConfigValidationStep):
         fv.full_config.reset(token)
 
 
+class CoreFinalValidateStep(ConfigValidationStep):
+    """Run final validation on core esphome config (area/device hash collisions)."""
+
+    # Same priority as component final validate steps
+    priority = -20.0
+
+    def run(self, result: Config) -> None:
+        if result.errors:
+            return
+
+        token = fv.full_config.set(result)
+        with result.catch_error([CONF_ESPHOME]):
+            if CONF_ESPHOME in result:
+                core_config.validate_ids_and_references(result[CONF_ESPHOME])
+        fv.full_config.reset(token)
+
+
 class PinUseValidationCheck(ConfigValidationStep):
     """Check for pin reuse"""
 
@@ -956,7 +992,7 @@ class PinUseValidationCheck(ConfigValidationStep):
 
 def validate_config(
     config: dict[str, Any],
-    command_line_substitutions: dict[str, Any],
+    command_line_substitutions: dict[str, Any] | None,
     skip_external_update: bool = False,
 ) -> Config:
     result = Config()
@@ -970,38 +1006,45 @@ def validate_config(
 
         result.add_output_path([CONF_PACKAGES], CONF_PACKAGES)
         try:
-            config = do_packages_pass(config, skip_update=skip_external_update)
+            config = do_packages_pass(
+                config,
+                command_line_substitutions=command_line_substitutions,
+                skip_update=skip_external_update,
+            )
         except vol.Invalid as err:
             result.update(config)
             result.add_error(err)
             return result
 
-    CORE.raw_config = config
-
     # 1. Load substitutions
     if CONF_SUBSTITUTIONS in config or command_line_substitutions:
-        from esphome.components import substitutions
-
-        result[CONF_SUBSTITUTIONS] = merge_dicts_ordered(
-            config.get(CONF_SUBSTITUTIONS) or {}, command_line_substitutions
-        )
         result.add_output_path([CONF_SUBSTITUTIONS], CONF_SUBSTITUTIONS)
-        try:
-            substitutions.do_substitution_pass(config, command_line_substitutions)
-        except vol.Invalid as err:
-            result.add_error(err)
-            return result
+    try:
+        config = do_substitution_pass(config, command_line_substitutions)
+    except vol.Invalid as err:
+        CORE.raw_config = config
+        result.add_error(err)
+        return result
 
+    # 1.1. Merge packages
+    if CONF_PACKAGES in config:
+        from esphome.components.packages import merge_packages
+
+        config = merge_packages(config)
+
+    # Remove substitutions from config during validation to prevent
+    # re-substitution. Re-added to result at the end of this function.
+    substitutions = config.pop(CONF_SUBSTITUTIONS, None)
     CORE.raw_config = config
 
-    # 1.1. Resolve !extend and !remove and check for REPLACEME
+    # 1.2. Resolve !extend and !remove and check for REPLACEME
     # After this step, there will not be any Extend or Remove values in the config anymore
     try:
         resolve_extend_remove(config)
     except vol.Invalid as err:
         result.add_error(err)
 
-    # 1.2. Load external_components
+    # 1.3. Load external_components
     if CONF_EXTERNAL_COMPONENTS in config:
         from esphome.components.external_components import do_external_components_pass
 
@@ -1059,11 +1102,16 @@ def validate_config(
     for domain, conf in config.items():
         result.add_validation_step(LoadValidationStep(domain, conf))
     result.add_validation_step(IDPassValidationStep())
+    result.add_validation_step(CoreFinalValidateStep())
     result.add_validation_step(PinUseValidationCheck())
 
     result.add_validation_step(RemoveReferenceValidationStep())
 
     result.run_validation_steps()
+
+    if substitutions is not None:
+        result[CONF_SUBSTITUTIONS] = substitutions
+        result.move_to_end(CONF_SUBSTITUTIONS, last=False)
 
     return result
 

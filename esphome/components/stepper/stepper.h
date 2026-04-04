@@ -44,7 +44,7 @@ template<typename... Ts> class SetTargetAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(int32_t, target)
 
-  void play(Ts... x) override { this->parent_->set_target(this->target_.value(x...)); }
+  void play(const Ts &...x) override { this->parent_->set_target(this->target_.value(x...)); }
 
  protected:
   Stepper *parent_;
@@ -56,7 +56,7 @@ template<typename... Ts> class ReportPositionAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(int32_t, position)
 
-  void play(Ts... x) override { this->parent_->report_position(this->position_.value(x...)); }
+  void play(const Ts &...x) override { this->parent_->report_position(this->position_.value(x...)); }
 
  protected:
   Stepper *parent_;
@@ -68,7 +68,7 @@ template<typename... Ts> class SetSpeedAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(float, speed);
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     float speed = this->speed_.value(x...);
     this->parent_->set_max_speed(speed);
     this->parent_->on_update_speed();
@@ -84,7 +84,7 @@ template<typename... Ts> class SetAccelerationAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(float, acceleration);
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     float acceleration = this->acceleration_.value(x...);
     this->parent_->set_acceleration(acceleration);
   }
@@ -99,7 +99,7 @@ template<typename... Ts> class SetDecelerationAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(float, deceleration);
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     float deceleration = this->deceleration_.value(x...);
     this->parent_->set_deceleration(deceleration);
   }

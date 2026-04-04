@@ -62,7 +62,7 @@ packet_transport:
     sensors:
       - temp_sensor
     providers:
-      - name: test_provider
+      - name: test-provider
         encryption:
           key: "0123456789abcdef0123456789abcdef"
 
@@ -71,6 +71,6 @@ sensor:
     id: temp_sensor
 
   - platform: packet_transport
-    provider: test_provider
+    provider: test-provider
     remote_id: temp_sensor
     id: remote_temp

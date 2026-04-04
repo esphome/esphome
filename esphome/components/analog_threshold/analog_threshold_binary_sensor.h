@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/sensor/sensor.h"
@@ -20,6 +21,7 @@ class AnalogThresholdBinarySensor : public Component, public binary_sensor::Bina
   sensor::Sensor *sensor_{nullptr};
   TemplatableValue<float> upper_threshold_{};
   TemplatableValue<float> lower_threshold_{};
+  bool raw_state_{false};  // Pre-filter state for hysteresis logic
 };
 
 }  // namespace analog_threshold

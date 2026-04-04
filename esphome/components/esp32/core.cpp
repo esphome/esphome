@@ -1,33 +1,31 @@
 #ifdef USE_ESP32
 
+#include "esphome/core/defines.h"
+#include "crash_handler.h"
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "preferences.h"
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
+#include <esp_clk_tree.h>
+#include <esp_cpu.h>
 #include <esp_idf_version.h>
 #include <esp_ota_ops.h>
 #include <esp_task_wdt.h>
 #include <esp_timer.h>
-#include <soc/rtc.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
-#include <hal/cpu_hal.h>
+void setup();  // NOLINT(readability-redundant-declaration)
 
-#ifdef USE_ARDUINO
-#include <Esp.h>
-#else
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
-#include <esp_clk_tree.h>
-#endif
-void setup();
-void loop();
-#endif
+// Weak stub for initArduino - overridden when the Arduino component is present
+extern "C" __attribute__((weak)) void initArduino() {}
 
 namespace esphome {
 
-void IRAM_ATTR HOT yield() { vPortYield(); }
-uint32_t IRAM_ATTR HOT millis() { return (uint32_t) (esp_timer_get_time() / 1000ULL); }
-void IRAM_ATTR HOT delay(uint32_t ms) { vTaskDelay(ms / portTICK_PERIOD_MS); }
+void HOT yield() { vPortYield(); }
+uint32_t IRAM_ATTR HOT millis() { return micros_to_millis(static_cast<uint64_t>(esp_timer_get_time())); }
+uint64_t HOT millis_64() { return micros_to_millis<uint64_t>(static_cast<uint64_t>(esp_timer_get_time())); }
+void HOT delay(uint32_t ms) { vTaskDelay(ms / portTICK_PERIOD_MS); }
 uint32_t IRAM_ATTR HOT micros() { return (uint32_t) esp_timer_get_time(); }
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }
 void arch_restart() {
@@ -39,70 +37,47 @@ void arch_restart() {
 }
 
 void arch_init() {
+#ifdef USE_ESP32_CRASH_HANDLER
+  // Read crash data from previous boot before anything else
+  esp32::crash_handler_read_and_clear();
+#endif
+
   // Enable the task watchdog only on the loop task (from which we're currently running)
-#if defined(USE_ESP_IDF)
   esp_task_wdt_add(nullptr);
-  // Idle task watchdog is disabled on ESP-IDF
-#elif defined(USE_ARDUINO)
-  enableLoopWDT();
-  // Disable idle task watchdog on the core we're using (Arduino pins the task to a core)
-#if defined(CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0) && CONFIG_ARDUINO_RUNNING_CORE == 0
-  disableCore0WDT();
-#endif
-#if defined(CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1) && CONFIG_ARDUINO_RUNNING_CORE == 1
-  disableCore1WDT();
-#endif
-#endif
 
-  // If the bootloader was compiled with CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE the current
-  // partition will get rolled back unless it is marked as valid.
-  esp_ota_img_states_t state;
-  const esp_partition_t *running = esp_ota_get_running_partition();
-  if (esp_ota_get_state_partition(running, &state) == ESP_OK) {
-    if (state == ESP_OTA_IMG_PENDING_VERIFY) {
-      esp_ota_mark_app_valid_cancel_rollback();
-    }
-  }
+  // Handle OTA rollback: mark partition valid immediately unless USE_OTA_ROLLBACK is enabled,
+  // in which case safe_mode will mark it valid after confirming successful boot.
+#ifndef USE_OTA_ROLLBACK
+  esp_ota_mark_app_valid_cancel_rollback();
+#endif
 }
-void IRAM_ATTR HOT arch_feed_wdt() { esp_task_wdt_reset(); }
+void HOT arch_feed_wdt() { esp_task_wdt_reset(); }
 
-uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
 uint32_t arch_get_cpu_cycle_count() { return esp_cpu_get_cycle_count(); }
 uint32_t arch_get_cpu_freq_hz() {
   uint32_t freq = 0;
-#ifdef USE_ESP_IDF
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 1, 0)
   esp_clk_tree_src_get_freq_hz(SOC_MOD_CLK_CPU, ESP_CLK_TREE_SRC_FREQ_PRECISION_CACHED, &freq);
-#else
-  rtc_cpu_freq_config_t config;
-  rtc_clk_cpu_freq_get_config(&config);
-  freq = config.freq_mhz * 1000000U;
-#endif
-#elif defined(USE_ARDUINO)
-  freq = ESP.getCpuFreqMHz() * 1000000;
-#endif
   return freq;
 }
 
-#ifdef USE_ESP_IDF
 TaskHandle_t loop_task_handle = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 void loop_task(void *pv_params) {
   setup();
   while (true) {
-    loop();
+    App.loop();
   }
 }
 
 extern "C" void app_main() {
+  initArduino();
   esp32::setup_preferences();
-  xTaskCreate(loop_task, "loopTask", 8192, nullptr, 1, &loop_task_handle);
+#if CONFIG_FREERTOS_UNICORE
+  xTaskCreate(loop_task, "loopTask", ESPHOME_LOOP_TASK_STACK_SIZE, nullptr, 1, &loop_task_handle);
+#else
+  xTaskCreatePinnedToCore(loop_task, "loopTask", ESPHOME_LOOP_TASK_STACK_SIZE, nullptr, 1, &loop_task_handle, 1);
+#endif
 }
-#endif  // USE_ESP_IDF
-
-#ifdef USE_ARDUINO
-extern "C" void init() { esp32::setup_preferences(); }
-#endif  // USE_ARDUINO
 
 }  // namespace esphome
 

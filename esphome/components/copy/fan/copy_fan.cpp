@@ -8,20 +8,24 @@ static const char *const TAG = "copy.fan";
 
 void CopyFan::setup() {
   source_->add_on_state_callback([this]() {
-    this->state = source_->state;
-    this->oscillating = source_->oscillating;
-    this->speed = source_->speed;
-    this->direction = source_->direction;
-    this->preset_mode = source_->preset_mode;
+    this->copy_state_from_source_();
     this->publish_state();
   });
 
+  this->copy_state_from_source_();
+  this->publish_state();
+}
+
+void CopyFan::copy_state_from_source_() {
   this->state = source_->state;
   this->oscillating = source_->oscillating;
   this->speed = source_->speed;
   this->direction = source_->direction;
-  this->preset_mode = source_->preset_mode;
-  this->publish_state();
+  if (source_->has_preset_mode()) {
+    this->set_preset_mode_(source_->get_preset_mode());
+  } else {
+    this->clear_preset_mode_();
+  }
 }
 
 void CopyFan::dump_config() { LOG_FAN("", "Copy Fan", this); }
@@ -41,15 +45,19 @@ fan::FanTraits CopyFan::get_traits() {
 
 void CopyFan::control(const fan::FanCall &call) {
   auto call2 = source_->make_call();
-  if (call.get_state().has_value())
-    call2.set_state(*call.get_state());
-  if (call.get_oscillating().has_value())
-    call2.set_oscillating(*call.get_oscillating());
-  if (call.get_speed().has_value())
-    call2.set_speed(*call.get_speed());
-  if (call.get_direction().has_value())
-    call2.set_direction(*call.get_direction());
-  if (!call.get_preset_mode().empty())
+  auto state = call.get_state();
+  if (state.has_value())
+    call2.set_state(*state);
+  auto oscillating = call.get_oscillating();
+  if (oscillating.has_value())
+    call2.set_oscillating(*oscillating);
+  auto speed = call.get_speed();
+  if (speed.has_value())
+    call2.set_speed(*speed);
+  auto direction = call.get_direction();
+  if (direction.has_value())
+    call2.set_direction(*direction);
+  if (call.has_preset_mode())
     call2.set_preset_mode(call.get_preset_mode());
   call2.perform();
 }

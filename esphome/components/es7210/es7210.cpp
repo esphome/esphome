@@ -172,7 +172,7 @@ uint8_t ES7210::es7210_gain_reg_value_(float mic_gain) {
   // reg: 12 - 34.5dB, 13 - 36dB, 14 - 37.5dB
   mic_gain += 0.5;
   if (mic_gain <= 33.0) {
-    return (uint8_t) mic_gain / 3;
+    return (uint8_t) (mic_gain / 3);
   }
   if (mic_gain < 36.0) {
     return 12;

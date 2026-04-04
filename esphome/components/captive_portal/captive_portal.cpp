@@ -13,14 +13,16 @@ static const char *const TAG = "captive_portal";
 void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream(ESPHOME_F("application/json"));
   stream->addHeader(ESPHOME_F("cache-control"), ESPHOME_F("public, max-age=0, must-revalidate"));
+  char mac_s[18];
+  const char *mac_str = get_mac_address_pretty_into_buffer(mac_s);
 #ifdef USE_ESP8266
   stream->print(ESPHOME_F("{\"mac\":\""));
-  stream->print(get_mac_address_pretty().c_str());
+  stream->print(mac_str);
   stream->print(ESPHOME_F("\",\"name\":\""));
   stream->print(App.get_name().c_str());
   stream->print(ESPHOME_F("\",\"aps\":[{}"));
 #else
-  stream->printf(R"({"mac":"%s","name":"%s","aps":[{})", get_mac_address_pretty().c_str(), App.get_name().c_str());
+  stream->printf(R"({"mac":"%s","name":"%s","aps":[{})", mac_str, App.get_name().c_str());
 #endif
 
   for (auto &scan : wifi::global_wifi_component->get_scan_result()) {
@@ -45,14 +47,21 @@ void CaptivePortal::handle_config(AsyncWebServerRequest *request) {
   request->send(stream);
 }
 void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
-  std::string ssid = request->arg("ssid").c_str();  // NOLINT(readability-redundant-string-cstr)
-  std::string psk = request->arg("psk").c_str();    // NOLINT(readability-redundant-string-cstr)
-  ESP_LOGI(TAG, "Requested WiFi Settings Change:");
-  ESP_LOGI(TAG, "  SSID='%s'", ssid.c_str());
-  ESP_LOGI(TAG, "  Password=" LOG_SECRET("'%s'"), psk.c_str());
-  wifi::global_wifi_component->save_wifi_sta(ssid, psk);
-  wifi::global_wifi_component->start_scanning();
-  request->redirect(ESPHOME_F("/?save"));
+  const auto &ssid = request->arg("ssid");
+  const auto &psk = request->arg("psk");
+  ESP_LOGI(TAG,
+           "Requested WiFi Settings Change:\n"
+           "  SSID='%s'\n"
+           "  Password=" LOG_SECRET("'%s'"),
+           ssid.c_str(), psk.c_str());
+#ifdef USE_ESP8266
+  // ESP8266 is single-threaded, call directly
+  wifi::global_wifi_component->save_wifi_sta(ssid.c_str(), psk.c_str());
+#else
+  // Defer save to main loop thread to avoid NVS operations from HTTP thread
+  this->defer([ssid, psk]() { wifi::global_wifi_component->save_wifi_sta(ssid.c_str(), psk.c_str()); });
+#endif
+  request->send(200, ESPHOME_F("text/plain"), ESPHOME_F("Saved. Connecting..."));
 }
 
 void CaptivePortal::setup() {
@@ -62,17 +71,16 @@ void CaptivePortal::setup() {
 void CaptivePortal::start() {
   this->base_->init();
   if (!this->initialized_) {
-    this->base_->add_handler(this);
+    this->base_->add_handler_without_auth(this);
   }
 
   network::IPAddress ip = wifi::global_wifi_component->wifi_soft_ap_ip();
 
-#ifdef USE_ESP_IDF
+#if defined(USE_ESP32)
   // Create DNS server instance for ESP-IDF
   this->dns_server_ = make_unique<DNSServer>();
   this->dns_server_->start(ip);
-#endif
-#ifdef USE_ARDUINO
+#elif defined(USE_ARDUINO)
   this->dns_server_ = make_unique<DNSServer>();
   this->dns_server_->setErrorReplyCode(DNSReplyCode::NoError);
   this->dns_server_->start(53, ESPHOME_F("*"), ip);
@@ -88,10 +96,16 @@ void CaptivePortal::start() {
 }
 
 void CaptivePortal::handleRequest(AsyncWebServerRequest *req) {
-  if (req->url() == ESPHOME_F("/config.json")) {
+#ifdef USE_ESP32
+  char url_buf[AsyncWebServerRequest::URL_BUF_SIZE];
+  StringRef url = req->url_to(url_buf);
+#else
+  const auto &url = req->url();
+#endif
+  if (url == ESPHOME_F("/config.json")) {
     this->handle_config(req);
     return;
-  } else if (req->url() == ESPHOME_F("/wifisave")) {
+  } else if (url == ESPHOME_F("/wifisave")) {
     this->handle_wifisave(req);
     return;
   }
@@ -104,7 +118,11 @@ void CaptivePortal::handleRequest(AsyncWebServerRequest *req) {
 #else
   auto *response = req->beginResponse_P(200, ESPHOME_F("text/html"), INDEX_GZ, sizeof(INDEX_GZ));
 #endif
+#ifdef USE_CAPTIVE_PORTAL_GZIP
   response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("gzip"));
+#else
+  response->addHeader(ESPHOME_F("Content-Encoding"), ESPHOME_F("br"));
+#endif
   req->send(response);
 }
 
