@@ -26,7 +26,11 @@
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
 #include <sys/select.h>
-#include <lwip/sockets.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #endif
 #ifdef USE_RUNTIME_STATS
 #include "esphome/components/runtime_stats/runtime_stats.h"
@@ -793,7 +797,7 @@ inline void Application::drain_wake_notifications_() {
     // Multiple wake events may have triggered multiple writes, so drain until EWOULDBLOCK
     // We control both ends of this loopback socket (always write 1 byte per wake),
     // so no error checking needed - any errors indicate catastrophic system failure
-    while (lwip_recvfrom(this->wake_socket_fd_, buffer, sizeof(buffer), 0, nullptr, nullptr) > 0) {
+    while (::recvfrom(this->wake_socket_fd_, buffer, sizeof(buffer), 0, nullptr, nullptr) > 0) {
       // Just draining, no action needed - wake has already occurred
     }
   }

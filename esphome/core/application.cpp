@@ -624,7 +624,7 @@ alignas(Application) char app_storage[sizeof(Application)] asm(
 
 void Application::setup_wake_loop_threadsafe_() {
   // Create UDP socket for wake notifications
-  this->wake_socket_fd_ = lwip_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  this->wake_socket_fd_ = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
   if (this->wake_socket_fd_ < 0) {
     ESP_LOGW(TAG, "Wake socket create failed: %d", errno);
     return;
@@ -633,12 +633,12 @@ void Application::setup_wake_loop_threadsafe_() {
   // Bind to loopback with auto-assigned port
   struct sockaddr_in addr = {};
   addr.sin_family = AF_INET;
-  addr.sin_addr.s_addr = lwip_htonl(INADDR_LOOPBACK);
+  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
   addr.sin_port = 0;  // Auto-assign port
 
-  if (lwip_bind(this->wake_socket_fd_, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
+  if (::bind(this->wake_socket_fd_, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
     ESP_LOGW(TAG, "Wake socket bind failed: %d", errno);
-    lwip_close(this->wake_socket_fd_);
+    ::close(this->wake_socket_fd_);
     this->wake_socket_fd_ = -1;
     return;
   }
@@ -647,30 +647,30 @@ void Application::setup_wake_loop_threadsafe_() {
   // Connecting a UDP socket allows using send() instead of sendto() for better performance
   struct sockaddr_in wake_addr;
   socklen_t len = sizeof(wake_addr);
-  if (lwip_getsockname(this->wake_socket_fd_, (struct sockaddr *) &wake_addr, &len) < 0) {
+  if (::getsockname(this->wake_socket_fd_, (struct sockaddr *) &wake_addr, &len) < 0) {
     ESP_LOGW(TAG, "Wake socket address failed: %d", errno);
-    lwip_close(this->wake_socket_fd_);
+    ::close(this->wake_socket_fd_);
     this->wake_socket_fd_ = -1;
     return;
   }
 
   // Connect to self (loopback) - allows using send() instead of sendto()
   // After connect(), no need to store wake_addr - the socket remembers it
-  if (lwip_connect(this->wake_socket_fd_, (struct sockaddr *) &wake_addr, sizeof(wake_addr)) < 0) {
+  if (::connect(this->wake_socket_fd_, (struct sockaddr *) &wake_addr, sizeof(wake_addr)) < 0) {
     ESP_LOGW(TAG, "Wake socket connect failed: %d", errno);
-    lwip_close(this->wake_socket_fd_);
+    ::close(this->wake_socket_fd_);
     this->wake_socket_fd_ = -1;
     return;
   }
 
   // Set non-blocking mode
-  int flags = lwip_fcntl(this->wake_socket_fd_, F_GETFL, 0);
-  lwip_fcntl(this->wake_socket_fd_, F_SETFL, flags | O_NONBLOCK);
+  int flags = ::fcntl(this->wake_socket_fd_, F_GETFL, 0);
+  ::fcntl(this->wake_socket_fd_, F_SETFL, flags | O_NONBLOCK);
 
   // Register with application's select() loop
   if (!this->register_socket_fd(this->wake_socket_fd_)) {
     ESP_LOGW(TAG, "Wake socket register failed");
-    lwip_close(this->wake_socket_fd_);
+    ::close(this->wake_socket_fd_);
     this->wake_socket_fd_ = -1;
     return;
   }

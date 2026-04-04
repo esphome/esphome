@@ -87,13 +87,13 @@ void wakeable_delay(uint32_t ms) {
 // === Host (UDP loopback socket) ===
 #ifdef USE_SOCKET_SELECT_SUPPORT
 #include "esphome/core/application.h"
-#include <lwip/sockets.h>
+#include <sys/socket.h>
 
 void wake_loop_threadsafe() {
-  // Wakes up lwip_select() in main loop by writing to connected loopback socket
+  // Wakes up select() in main loop by writing to connected loopback socket
   if (App.wake_socket_fd_ >= 0) {
     const char dummy = 1;
-    lwip_send(App.wake_socket_fd_, &dummy, 1, 0);
+    ::send(App.wake_socket_fd_, &dummy, 1, 0);
   }
 }
 #endif  // USE_SOCKET_SELECT_SUPPORT
