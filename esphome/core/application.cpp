@@ -676,18 +676,7 @@ void Application::setup_wake_loop_threadsafe_() {
   }
 }
 
-void wake_loop_threadsafe() {
-  // Wakes up lwip_select() in main loop by writing to connected loopback socket
-  if (App.wake_socket_fd_ >= 0) {
-    const char dummy = 1;
-    // Non-blocking send - if it fails (unlikely), select() will wake on timeout anyway
-    // No error checking needed: we control both ends of this loopback socket.
-    // This is safe to call from FreeRTOS tasks - send() is thread-safe in lwip
-    // Socket is already connected to loopback address, so send() is faster than sendto()
-    lwip_send(App.wake_socket_fd_, &dummy, 1, 0);
-  }
-}
-#endif  // host wake_loop_threadsafe
+#endif  // USE_SOCKET_SELECT_SUPPORT
 
 void Application::get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buffer) {
   ESPHOME_strncpy_P(buffer.data(), ESPHOME_BUILD_TIME_STR, buffer.size());
