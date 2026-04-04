@@ -11,7 +11,7 @@ template<typename T> class CaravanSensorBase : public Component, public Parented
  public:
   void set_variable(Variable<T> *variable) {
     this->variable_ = variable;
-    this->variable_->set_on_decode_callback(std::bind(&CaravanSensorBase::on_decoded, this, std::placeholders::_1));
+    this->variable_->set_on_decode_callback([this](auto arg) { this->on_decoded(arg); });
   }
 
   Variable<T> *get_variable() { return this->variable_; }
