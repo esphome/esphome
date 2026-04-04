@@ -30,20 +30,6 @@
 
 #ifdef USE_SOCKET_SELECT_SUPPORT
 #include <cerrno>
-
-#ifdef USE_SOCKET_IMPL_LWIP_SOCKETS
-// LWIP sockets implementation
-#include <lwip/sockets.h>
-#elif defined(USE_SOCKET_IMPL_BSD_SOCKETS)
-// BSD sockets implementation
-#ifdef USE_ESP32
-// ESP32 "BSD sockets" are actually LWIP under the hood
-#include <lwip/sockets.h>
-#else
-// True BSD sockets (e.g., host platform)
-#include <sys/select.h>
-#endif
-#endif
 #endif
 
 namespace esphome {
@@ -497,16 +483,10 @@ bool Application::register_socket_fd(int fd) {
   if (fd < 0)
     return false;
 
-#ifndef USE_ESP32
-  // Only check on non-ESP32 platforms
-  // On ESP32 (both Arduino and ESP-IDF), CONFIG_LWIP_MAX_SOCKETS is always <= FD_SETSIZE by design
-  // (LWIP_SOCKET_OFFSET = FD_SETSIZE - CONFIG_LWIP_MAX_SOCKETS per lwipopts.h)
-  // Other platforms may not have this guarantee
   if (fd >= FD_SETSIZE) {
     ESP_LOGE(TAG, "fd %d exceeds FD_SETSIZE %d", fd, FD_SETSIZE);
     return false;
   }
-#endif
 
   this->socket_fds_.push_back(fd);
   this->socket_fds_changed_ = true;
@@ -570,11 +550,7 @@ void Application::yield_with_select_(uint32_t delay_ms) {
     tv.tv_usec = (delay_ms - tv.tv_sec * 1000) * 1000;
 
     // Call select with timeout
-#ifdef USE_SOCKET_IMPL_LWIP_SOCKETS
-    int ret = lwip_select(this->max_fd_ + 1, &this->read_fds_, nullptr, nullptr, &tv);
-#else
     int ret = ::select(this->max_fd_ + 1, &this->read_fds_, nullptr, nullptr, &tv);
-#endif
 
     // Process select() result:
     // ret > 0: socket(s) have data ready - normal and expected
