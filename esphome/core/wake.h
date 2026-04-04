@@ -30,7 +30,7 @@ extern volatile bool g_main_loop_woke;
 
 #ifdef USE_ESP32
 /// IRAM_ATTR entry point — defined in wake.cpp.
-void wake_loop_isrsafe(int *px_higher_priority_task_woken);
+void wake_loop_isrsafe(BaseType_t *px_higher_priority_task_woken);
 /// IRAM_ATTR entry point — defined in wake.cpp.
 void wake_loop_any_context();
 #else
@@ -73,7 +73,10 @@ inline void wakeable_delay(uint32_t ms) {
     delay(0);
     return;
   }
-  g_main_loop_woke = false;
+  if (g_main_loop_woke) {
+    g_main_loop_woke = false;
+    return;
+  }
   esp_delay(ms, []() { return !g_main_loop_woke; });
 }
 }  // namespace internal

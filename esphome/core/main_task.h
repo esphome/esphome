@@ -28,10 +28,10 @@ static inline void esphome_main_task_notify() {
 }
 
 /// Wake the main loop task from an ISR. ISR-safe.
-static inline void esphome_main_task_notify_from_isr(int *px_higher_priority_task_woken) {
+static inline void esphome_main_task_notify_from_isr(BaseType_t *px_higher_priority_task_woken) {
   TaskHandle_t task = esphome_main_task_handle;
   if (task != NULL) {
-    vTaskNotifyGiveFromISR(task, (BaseType_t *) px_higher_priority_task_woken);
+    vTaskNotifyGiveFromISR(task, px_higher_priority_task_woken);
   }
 }
 

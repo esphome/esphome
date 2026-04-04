@@ -14,7 +14,7 @@ namespace esphome {
 
 // === ESP32 — IRAM_ATTR entry points ===
 #ifdef USE_ESP32
-void IRAM_ATTR wake_loop_isrsafe(int *px_higher_priority_task_woken) {
+void IRAM_ATTR wake_loop_isrsafe(BaseType_t *px_higher_priority_task_woken) {
   esphome_main_task_notify_from_isr(px_higher_priority_task_woken);
 }
 void IRAM_ATTR wake_loop_any_context() { esphome_main_task_notify_any_context(); }
