@@ -14,6 +14,13 @@
 
 #ifdef USE_LWIP_FAST_SELECT
 #include "esphome/core/lwip_fast_select.h"
+#ifdef USE_ESP32
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#else
+#include <FreeRTOS.h>
+#include <task.h>
+#endif
 #endif
 #ifdef USE_ESP8266
 #include <coredecls.h>
@@ -53,6 +60,14 @@ inline void wake_loop_any_context() { esphome_lwip_wake_main_loop(); }
 #endif
 
 inline void wake_loop_threadsafe() { esphome_lwip_wake_main_loop(); }
+
+inline void wakeable_delay(uint32_t ms) {
+  if (ms == 0) {
+    yield();
+    return;
+  }
+  ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(ms));
+}
 
 // === ESP8266 ===
 #elif defined(USE_ESP8266)
