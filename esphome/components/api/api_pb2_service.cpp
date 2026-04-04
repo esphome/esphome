@@ -12,6 +12,11 @@ static const char *const TAG = "api.service";
 void APIServerConnectionBase::log_send_message_(const LogString *name, const char *dump) {
   ESP_LOGVV(TAG, "send_message %s: %s", LOG_STR_ARG(name), dump);
 }
+void APIServerConnectionBase::log_send_message_(const void *msg) {
+  auto *proto_msg = static_cast<const ProtoMessage *>(msg);
+  DumpBuffer dump_buf;
+  this->log_send_message_(proto_msg->message_name(), proto_msg->dump_to(dump_buf));
+}
 void APIServerConnectionBase::log_receive_message_(const LogString *name, const ProtoMessage &msg) {
   DumpBuffer dump_buf;
   ESP_LOGVV(TAG, "%s: %s", LOG_STR_ARG(name), msg.dump_to(dump_buf));

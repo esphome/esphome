@@ -410,53 +410,71 @@ class APIConnection final : public APIServerConnectionBase {
                                                                 uint32_t remaining_size) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
     if (conn->flags_.log_only_mode) {
-      auto *proto_msg = static_cast<const ProtoMessage *>(msg);
-      DumpBuffer dump_buf;
-      conn->log_send_message_(proto_msg->message_name(), proto_msg->dump_to(dump_buf));
+      conn->log_send_message_(msg);
       return 1;
     }
 #endif
-    // Cache frame sizes to avoid repeated virtual calls
-    const uint8_t header_padding = conn->helper_->frame_header_padding();
     const uint8_t footer_size = conn->helper_->frame_footer_size();
 
-    // Calculate total size with padding for buffer allocation
-    size_t total_calculated_size = calculated_size + header_padding + footer_size;
-
-    // Check if it fits
-    if (total_calculated_size > remaining_size)
-      return 0;  // Doesn't fit
-
-    auto &shared_buf = conn->parent_->get_shared_buffer_ref();
-
-    // First message: padding already in buffer, only add payload.
-    // Subsequent messages: use exact header size for gap-free packing.
+    // First message uses max padding (already in buffer), subsequent use exact header size
     size_t to_add;
     if (conn->flags_.batch_first_message) {
       conn->flags_.batch_first_message = false;
-      conn->batch_header_size_ = header_padding;
+      conn->batch_header_size_ = conn->helper_->frame_header_padding();
       to_add = calculated_size;
     } else {
       conn->batch_header_size_ = conn->helper_->frame_header_size(calculated_size, conn->batch_message_type_);
       to_add = calculated_size + conn->batch_header_size_ + footer_size;
     }
 
+    // Check if it fits (using actual header size, not max padding)
+    uint16_t total_calculated_size = calculated_size + conn->batch_header_size_ + footer_size;
+    if (total_calculated_size > remaining_size)
+      return 0;
+
+    auto &shared_buf = conn->parent_->get_shared_buffer_ref();
     shared_buf.resize(shared_buf.size() + to_add);
     ProtoWriteBuffer buffer{&shared_buf, shared_buf.size() - calculated_size};
     encode_fn(msg, buffer);
 
-    // Return total size (header + payload + footer)
-    return static_cast<uint16_t>(total_calculated_size);
+    return total_calculated_size;
   }
 
-  // Noinline path for zero-payload messages (ping, disconnect, list_info_done).
-  // Avoids duplicating encode_to_buffer at each cold call site.
-  static uint16_t encode_empty_to_buffer(const void *msg, APIConnection *conn, uint32_t remaining_size);
+  // Specialized path for zero-payload messages (ping, disconnect, list_info_done).
+  // No payload means no encode callback and no payload resize needed.
+  // Noinline — the three callers share a single copy via a call.
+  __attribute__((noinline)) static uint16_t encode_empty_to_buffer(const void *msg, uint8_t message_type,
+                                                                   APIConnection *conn, uint32_t remaining_size) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+    if (conn->flags_.log_only_mode) {
+      conn->log_send_message_(msg);
+      return 1;
+    }
+#endif
+    const uint8_t footer_size = conn->helper_->frame_footer_size();
+    bool first = conn->flags_.batch_first_message;
+    if (first) {
+      conn->flags_.batch_first_message = false;
+      conn->batch_header_size_ = conn->helper_->frame_header_padding();
+    } else {
+      conn->batch_header_size_ = conn->helper_->frame_header_size(0, message_type);
+    }
+    uint16_t total = conn->batch_header_size_ + footer_size;
+    if (total > remaining_size)
+      return 0;
+    if (!first) {
+      // Non-first: grow buffer by header + footer (no payload)
+      auto &shared_buf = conn->parent_->get_shared_buffer_ref();
+      shared_buf.resize(shared_buf.size() + total);
+    }
+    // First message: padding already in buffer from prepare_first_message_buffer
+    return total;
+  }
 
   // Thin template wrapper — computes size, delegates buffer work to non-template helper
   template<typename T> static uint16_t encode_message_to_buffer(T &msg, APIConnection *conn, uint32_t remaining_size) {
     if constexpr (T::ESTIMATED_SIZE == 0) {
-      return encode_empty_to_buffer(&msg, conn, remaining_size);
+      return encode_empty_to_buffer(&msg, T::MESSAGE_TYPE, conn, remaining_size);
     } else {
       return encode_to_buffer(msg.calculate_size(), &proto_encode_msg<T>, &msg, conn, remaining_size);
     }
