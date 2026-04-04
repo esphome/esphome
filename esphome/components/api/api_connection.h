@@ -449,8 +449,8 @@ class APIConnection final : public APIServerConnectionBase {
   // Thin template wrapper — uses noinline encode_to_buffer_slow since
   // encode_message_to_buffer callers are cold paths (zero-payload control messages).
   // Hot paths (state/info) go through fill_and_encode_entity_state/info instead.
+  // batch_message_type_ is already set by dispatch_message_ before reaching here.
   template<typename T> static uint16_t encode_message_to_buffer(T &msg, APIConnection *conn, uint32_t remaining_size) {
-    conn->batch_message_type_ = T::MESSAGE_TYPE;
     if constexpr (T::ESTIMATED_SIZE == 0) {
       return encode_to_buffer_slow(0, &encode_msg_noop, &msg, conn, remaining_size);
     } else {
