@@ -200,8 +200,7 @@ void Ecocomfort2Hub::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
       if (param->read.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "[%s] Error reading char at handle 0x%x, status=%d", this->log_id_(), param->read.handle,
                  param->read.status);
-        if ((param->read.status == ESP_GATT_INSUF_ENCRYPTION ||
-             param->read.status == ESP_GATT_INSUF_AUTHENTICATION) &&
+        if ((param->read.status == ESP_GATT_INSUF_ENCRYPTION || param->read.status == ESP_GATT_INSUF_AUTHENTICATION) &&
             this->ready_) {
           this->ready_ = false;
           this->status_set_warning();
