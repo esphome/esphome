@@ -58,16 +58,16 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
                     0x00, 0x00, 0x00, 0x00, 0x03, 0xB0, 0x00, 0x00, 0x00, 0x00, 0x99});
 
   // Settings should still have initial values
-  EXPECT_FALSE(ctx.sut.status().settings.power_on);
-  EXPECT_THAT(ctx.sut.status().settings.target_temperature, ::testing::IsNan());
+  EXPECT_FALSE(ctx.sut.status().power_on);
+  EXPECT_THAT(ctx.sut.status().target_temperature, ::testing::IsNan());
 
   ctx.sut.set_current_time(300);
   ASSERT_FALSE(ctx.sut.update());
   EXPECT_TRUE(ctx.uart.rx.empty());
 
   // Check settings that we just read from received package
-  EXPECT_FALSE(ctx.sut.status().settings.power_on);
-  EXPECT_EQ(ctx.sut.status().settings.target_temperature, 24.0f);
+  EXPECT_FALSE(ctx.sut.status().power_on);
+  EXPECT_EQ(ctx.sut.status().target_temperature, 24.0f);
 
   // Now fetch room temperature (0x03)
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::UPDATING_STATUS);
@@ -230,7 +230,7 @@ TEST(MitsubishiCN105Tests, NextStatusUpdateAfterUpdateIntervalMilliseconds) {
   ctx.sut.set_current_time(80000);
 
   // No scheduled status update
-  EXPECT_FALSE(ctx.sut.status_update_start_ms_);
+  EXPECT_FALSE(ctx.sut.status_update_start_ms_.has_value());
 
   // Status update completed, schedule next status update
   ctx.sut.state_ = TestableMitsubishiCN105::State::STATUS_UPDATED;
@@ -253,7 +253,7 @@ TEST(MitsubishiCN105Tests, NextStatusUpdateAfterUpdateIntervalMilliseconds) {
   ASSERT_FALSE(ctx.sut.update());
   EXPECT_FALSE(ctx.uart.tx.empty());
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::UPDATING_STATUS);
-  EXPECT_FALSE(ctx.sut.status_update_start_ms_);
+  EXPECT_FALSE(ctx.sut.status_update_start_ms_.has_value());
 }
 
 TEST(MitsubishiCN105Tests, DecodeStatusSettingsPackageTempEncodedA) {
@@ -264,8 +264,8 @@ TEST(MitsubishiCN105Tests, DecodeStatusSettingsPackageTempEncodedA) {
 
   ctx.sut.update();
 
-  EXPECT_TRUE(ctx.sut.status().settings.power_on);
-  EXPECT_EQ(ctx.sut.status().settings.target_temperature, 26.0f);
+  EXPECT_TRUE(ctx.sut.status().power_on);
+  EXPECT_EQ(ctx.sut.status().target_temperature, 26.0f);
 }
 
 TEST(MitsubishiCN105Tests, DecodeStatusSettingsPackageTempEncodedB) {
@@ -276,8 +276,8 @@ TEST(MitsubishiCN105Tests, DecodeStatusSettingsPackageTempEncodedB) {
 
   ctx.sut.update();
 
-  EXPECT_FALSE(ctx.sut.status().settings.power_on);
-  EXPECT_EQ(ctx.sut.status().settings.target_temperature, 18.5f);
+  EXPECT_FALSE(ctx.sut.status().power_on);
+  EXPECT_EQ(ctx.sut.status().target_temperature, 18.5f);
 }
 
 TEST(MitsubishiCN105Tests, DecodeStatusRoomTempPackageTempEncodedA) {

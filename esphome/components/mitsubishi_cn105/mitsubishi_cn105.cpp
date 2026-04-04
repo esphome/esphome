@@ -277,8 +277,8 @@ bool MitsubishiCN105::parse_status_settings_(const uint8_t *payload, size_t len)
     return false;
   }
 
-  this->status_.settings.power_on = payload[2] != 0;
-  this->status_.settings.target_temperature = decode_temperature(-payload[4], payload[10], 31);
+  this->status_.power_on = payload[2] != 0;
+  this->status_.target_temperature = decode_temperature(-payload[4], payload[10], 31);
 
   return true;
 }

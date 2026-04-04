@@ -9,17 +9,11 @@ uint32_t get_loop_time_ms();
 
 class MitsubishiCN105 {
  public:
-  struct Settings {
-    bool operator==(const Settings &) const = default;
-
-    bool power_on{false};
-    float target_temperature{NAN};
-  };
-
   struct Status {
     bool operator==(const Status &) const = default;
 
-    Settings settings{};
+    bool power_on{false};
+    float target_temperature{NAN};
     float room_temperature{NAN};
   };
 
