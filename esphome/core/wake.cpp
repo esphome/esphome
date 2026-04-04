@@ -12,17 +12,21 @@
 
 namespace esphome {
 
-// === ESP32 — IRAM_ATTR entry points (inline impls in wake.h) ===
-#ifdef USE_ESP32
-
+// === ESP32 — IRAM_ATTR entry points (fast-select only) ===
+#if defined(USE_ESP32) && defined(USE_LWIP_FAST_SELECT)
 void IRAM_ATTR wake_loop_isrsafe(int *px_higher_priority_task_woken) {
   wake_loop_isrsafe_inline_(px_higher_priority_task_woken);
 }
-
 void IRAM_ATTR wake_loop_any_context() { wake_loop_any_context_inline_(); }
+#endif
 
-#endif  // USE_ESP32
+// === FreeRTOS task handle for non-fast-select ESP32/LibreTiny ===
+#if (defined(USE_ESP32) || defined(USE_LIBRETINY)) && !defined(USE_LWIP_FAST_SELECT)
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+TaskHandle_t g_main_task_handle = nullptr;
+#endif
 
+// === ESP8266 / RP2040 ===
 #if defined(USE_ESP8266) || defined(USE_RP2040)
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 volatile bool g_main_loop_woke = false;
@@ -35,12 +39,11 @@ void IRAM_ATTR wake_loop_any_context() { wake_loop_impl_(); }
 // === Host (UDP loopback socket) ===
 #ifdef USE_HOST
 void wake_loop_threadsafe() {
-  // Wakes up select() in main loop by writing to connected loopback socket
   if (App.wake_socket_fd_ >= 0) {
     const char dummy = 1;
     ::send(App.wake_socket_fd_, &dummy, 1, 0);
   }
 }
-#endif  // USE_HOST
+#endif
 
 }  // namespace esphome

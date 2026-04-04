@@ -9,6 +9,8 @@
 
 #ifdef USE_LWIP_FAST_SELECT
 #include "esphome/core/lwip_fast_select.h"
+#endif
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
 #ifdef USE_ESP32
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
@@ -27,38 +29,81 @@
 namespace esphome {
 
 // === Wake flag for ESP8266/RP2040 ===
-// Checked by wakeable_delay() to exit early. Set by wake functions.
 #if defined(USE_ESP8266) || defined(USE_RP2040)
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern volatile bool g_main_loop_woke;
 #endif
 
-// === ESP32/LibreTiny (FreeRTOS) ===
-#ifdef USE_LWIP_FAST_SELECT
+// === ESP32/LibreTiny — FreeRTOS task handle for non-fast-select path ===
+#if (defined(USE_ESP32) || defined(USE_LIBRETINY)) && !defined(USE_LWIP_FAST_SELECT)
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+extern TaskHandle_t g_main_task_handle;
+#endif
 
-#ifdef USE_ESP32
-/// Inline implementation — callers in IRAM get it inlined, keeping it IRAM-safe.
-/// IRAM_ATTR entry points in wake.cpp exist for callers that aren't themselves IRAM.
+// === ESP32 ===
+#if defined(USE_ESP32)
+
+#ifdef USE_LWIP_FAST_SELECT
 inline void ESPHOME_ALWAYS_INLINE wake_loop_isrsafe_inline_(int *px_higher_priority_task_woken) {
   esphome_lwip_wake_main_loop_from_isr(px_higher_priority_task_woken);
 }
-
 /// IRAM_ATTR entry point — defined in wake.cpp.
 void wake_loop_isrsafe(int *px_higher_priority_task_woken);
 
 inline void ESPHOME_ALWAYS_INLINE wake_loop_any_context_inline_() { esphome_lwip_wake_main_loop_any_context(); }
-
 /// IRAM_ATTR entry point — defined in wake.cpp.
 void wake_loop_any_context();
-#else
-/// LibreTiny: no working IRAM_ATTR — just use threadsafe version.
-inline void wake_loop_any_context() { esphome_lwip_wake_main_loop(); }
-#endif
 
 inline void wake_loop_threadsafe() { esphome_lwip_wake_main_loop(); }
+#else
+inline void wake_loop_any_context() {
+  if (g_main_task_handle != nullptr)
+    xTaskNotifyGive(g_main_task_handle);
+}
+inline void wake_loop_threadsafe() {
+  if (g_main_task_handle != nullptr)
+    xTaskNotifyGive(g_main_task_handle);
+}
+#endif
 
 namespace internal {
 inline void wakeable_delay(uint32_t ms) {
+#ifndef USE_LWIP_FAST_SELECT
+  // Cache main task handle on first call
+  if (g_main_task_handle == nullptr)
+    g_main_task_handle = xTaskGetCurrentTaskHandle();
+#endif
+  if (ms == 0) {
+    yield();
+    return;
+  }
+  ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(ms));
+}
+}  // namespace internal
+
+// === LibreTiny ===
+#elif defined(USE_LIBRETINY)
+
+#ifdef USE_LWIP_FAST_SELECT
+inline void wake_loop_any_context() { esphome_lwip_wake_main_loop(); }
+inline void wake_loop_threadsafe() { esphome_lwip_wake_main_loop(); }
+#else
+inline void wake_loop_any_context() {
+  if (g_main_task_handle != nullptr)
+    xTaskNotifyGive(g_main_task_handle);
+}
+inline void wake_loop_threadsafe() {
+  if (g_main_task_handle != nullptr)
+    xTaskNotifyGive(g_main_task_handle);
+}
+#endif
+
+namespace internal {
+inline void wakeable_delay(uint32_t ms) {
+#ifndef USE_LWIP_FAST_SELECT
+  if (g_main_task_handle == nullptr)
+    g_main_task_handle = xTaskGetCurrentTaskHandle();
+#endif
   if (ms == 0) {
     yield();
     return;
@@ -108,7 +153,6 @@ inline void wake_loop_threadsafe() {
 
 namespace internal {
 inline void wakeable_delay(uint32_t ms) {
-  // Function-local statics — safe because this is only called from the main loop.
   static volatile bool s_delay_expired = false;
   if (ms == 0) {
     yield();
@@ -141,10 +185,9 @@ inline void wakeable_delay(uint32_t ms) {
 // === Host (UDP loopback socket) ===
 #else
 
-/// Host platform: wakes select() via UDP loopback socket. Defined in application.cpp.
+/// Defined in wake.cpp.
 void wake_loop_threadsafe();
 
-/// Host: no ISR, just use threadsafe version.
 inline void wake_loop_any_context() { wake_loop_threadsafe(); }
 
 #endif
