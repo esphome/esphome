@@ -391,7 +391,7 @@ SPI_SCHEMA = cv.All(
                 ),
                 cv.Optional(CONF_INTERFACE): cv.All(
                     cv.only_on_esp32,
-                    cv.one_of(*SPI_INTERFACE_MAP.keys()),
+                    cv.one_of(*SPI_INTERFACE_MAP.keys(), lower=True),
                 ),
                 # Set default value (SPI_ETHERNET_DEFAULT_POLLING_INTERVAL) at _validate()
                 cv.Optional(CONF_POLLING_INTERVAL): cv.All(
