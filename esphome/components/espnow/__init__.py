@@ -1,6 +1,6 @@
 from esphome import automation, core
 import esphome.codegen as cg
-from esphome.components import socket, wifi
+from esphome.components import wifi
 from esphome.components.udp import CONF_ON_RECEIVE
 import esphome.config_validation as cv
 from esphome.const import (
@@ -17,7 +17,7 @@ from esphome.core import HexInt
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
-AUTO_LOAD = ["socket"]
+
 
 byte_vector = cg.std_vector.template(cg.uint8)
 peer_address_t = cg.std_ns.class_("array").template(cg.uint8, 6)
@@ -123,10 +123,6 @@ async def _trigger_to_code(config):
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-
-    # ESP-NOW uses wake_loop_threadsafe() to wake the main loop from ESP-NOW callbacks
-    # This enables low-latency event processing instead of waiting for select() timeout
-    socket.require_wake_loop_threadsafe()
 
     cg.add_define("USE_ESPNOW")
     if wifi_channel := config.get(CONF_CHANNEL):
