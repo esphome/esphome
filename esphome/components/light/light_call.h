@@ -10,6 +10,7 @@ struct LogString;
 namespace light {
 
 class LightState;
+class LightTraits;
 
 /** This class represents a requested change in a light state.
  *
@@ -188,11 +189,11 @@ class LightCall {
   LightColorValues validate_();
 
   //// Compute the color mode that should be used for this call.
-  ColorMode compute_color_mode_();
+  ColorMode compute_color_mode_(const LightTraits &traits);
   /// Get potential color modes bitmask for this light call.
   color_mode_bitmask_t get_suitable_color_modes_mask_();
   /// Some color modes also can be set using non-native parameters, transform those calls.
-  void transform_parameters_();
+  void transform_parameters_(const LightTraits &traits);
 
   // Bitfield flags - each flag indicates whether a corresponding value has been set.
   enum FieldFlags : uint16_t {

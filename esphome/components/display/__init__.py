@@ -117,8 +117,9 @@ FULL_DISPLAY_SCHEMA.add_extra(_validate_test_card)
 
 
 async def setup_display_core_(var, config):
-    if CONF_ROTATION in config:
-        cg.add(var.set_rotation(DISPLAY_ROTATIONS[config[CONF_ROTATION]]))
+    if rotation := config.get(CONF_ROTATION, 0):
+        # Default initialised value for rotation is 0
+        cg.add(var.set_rotation(DISPLAY_ROTATIONS[rotation]))
 
     if (auto_clear := config.get(CONF_AUTO_CLEAR_ENABLED)) is not None:
         # Default to true if pages or lambda is specified. Ideally this would be done during validation, but
