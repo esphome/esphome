@@ -34,6 +34,8 @@ void MCP23S08::setup() {
     // enable open-drain interrupt pins, 3.3V-safe (addressed, only this chip)
     this->write_reg(mcp23x08_base::MCP23X08_IOCON, IOCON_SEQOP | IOCON_HAEN | IOCON_ODR);
   }
+
+  this->setup_interrupt_pin_();
 }
 
 void MCP23S08::dump_config() {

@@ -33,9 +33,18 @@ void PI4IOE5V6408Component::setup() {
       return;
     }
   }
+
+  if (this->interrupt_pin_ != nullptr) {
+    this->interrupt_pin_->setup();
+    this->interrupt_pin_->attach_interrupt(&PI4IOE5V6408Component::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+    this->set_invalidate_on_read_(false);
+    this->disable_loop();
+  }
 }
+void IRAM_ATTR PI4IOE5V6408Component::gpio_intr(PI4IOE5V6408Component *arg) { arg->enable_loop_soon_any_context(); }
 void PI4IOE5V6408Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PI4IOE5V6408:");
+  LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_I2C_DEVICE(this)
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -60,7 +69,12 @@ void PI4IOE5V6408Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   this->write_gpio_modes_();
 }
 
-void PI4IOE5V6408Component::loop() { this->reset_pin_cache_(); }
+void PI4IOE5V6408Component::loop() {
+  this->reset_pin_cache_();
+  if (this->interrupt_pin_ != nullptr) {
+    this->disable_loop();
+  }
+}
 
 bool PI4IOE5V6408Component::read_gpio_outputs_() {
   if (this->is_failed())
