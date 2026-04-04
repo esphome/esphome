@@ -128,13 +128,13 @@ void Application::setup() {
   clear_setup_priority_overrides();
 #endif
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_LWIP_FAST_SELECT)
+#ifdef USE_LWIP_FAST_SELECT
   // Initialize fast select: saves main loop task handle for xTaskNotifyGive wake.
   // The fast path (rcvevent reads + ulTaskNotifyTake) is used unconditionally
   // when USE_LWIP_FAST_SELECT is enabled (ESP32 and LibreTiny).
   esphome_lwip_fast_select_init();
 #endif
-#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
+#ifdef USE_SOCKET_SELECT_SUPPORT
   // Set up wake socket for waking main loop from tasks (platforms without fast select only)
   this->setup_wake_loop_threadsafe_();
 #endif
@@ -547,7 +547,7 @@ void Application::unregister_socket_fd(int fd) {
 #endif
 
 // Only the select() fallback path remains in the .cpp — all other paths are inlined in application.h
-#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
+#ifdef USE_SOCKET_SELECT_SUPPORT
 void Application::yield_with_select_(uint32_t delay_ms) {
   // Fallback select() path (host platform and any future platforms without fast select).
   if (!this->socket_fds_.empty()) [[likely]] {
@@ -597,7 +597,7 @@ void Application::yield_with_select_(uint32_t delay_ms) {
   // No sockets registered or select() failed - use regular delay
   delay(delay_ms);
 }
-#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
+#endif  // USE_SOCKET_SELECT_SUPPORT
 
 // App storage — asm label shares the linker symbol with "extern Application App".
 // char[] is trivially destructible, so no __cxa_atexit or destructor chain is emitted.
@@ -620,7 +620,7 @@ alignas(Application) char app_storage[sizeof(Application)] asm(
 
 // Host platform wake_loop_threadsafe() and setup — needs wake_socket_fd_
 // ESP32/LibreTiny/ESP8266/RP2040 implementations are in wake.cpp
-#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
+#ifdef USE_SOCKET_SELECT_SUPPORT
 
 void Application::setup_wake_loop_threadsafe_() {
   // Create UDP socket for wake notifications

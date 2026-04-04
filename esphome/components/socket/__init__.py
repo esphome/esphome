@@ -161,16 +161,16 @@ async def to_code(config):
         cg.add_define("USE_SOCKET_IMPL_LWIP_TCP")
     elif impl == IMPLEMENTATION_LWIP_SOCKETS:
         cg.add_define("USE_SOCKET_IMPL_LWIP_SOCKETS")
-        cg.add_define("USE_SOCKET_SELECT_SUPPORT")
     elif impl == IMPLEMENTATION_BSD_SOCKETS:
         cg.add_define("USE_SOCKET_IMPL_BSD_SOCKETS")
-        cg.add_define("USE_SOCKET_SELECT_SUPPORT")
     # ESP32 and LibreTiny both have LwIP >= 2.1.3 with lwip_socket_dbg_get_socket()
     # and FreeRTOS task notifications — enable fast select to bypass lwip_select().
     # Only when not using lwip_tcp, which does not provide select() support.
     if (CORE.is_esp32 or CORE.is_libretiny) and impl != IMPLEMENTATION_LWIP_TCP:
         cg.add_build_flag("-DUSE_LWIP_FAST_SELECT")
     elif impl != IMPLEMENTATION_LWIP_TCP:
+        # Host platform: uses select() syscall for socket monitoring
+        cg.add_define("USE_SOCKET_SELECT_SUPPORT")
         # Platforms with select() but without fast select (host) need a UDP
         # loopback socket for wake_loop_threadsafe().
         consume_sockets(1, "socket.wake_loop_threadsafe", SocketType.UDP)({})
