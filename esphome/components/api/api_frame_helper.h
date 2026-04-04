@@ -53,8 +53,10 @@ struct MessageInfo {
   uint16_t offset;        // Offset in buffer where message starts
   uint16_t payload_size;  // Size of the message payload
   uint8_t message_type;   // Message type (0-255)
+  uint8_t header_size;    // Actual header size used (avoids recomputation in write path)
 
-  MessageInfo(uint8_t type, uint16_t off, uint16_t size) : offset(off), payload_size(size), message_type(type) {}
+  MessageInfo(uint8_t type, uint16_t off, uint16_t size, uint8_t hdr)
+      : offset(off), payload_size(size), message_type(type), header_size(hdr) {}
 };
 
 enum class APIError : uint16_t {
@@ -169,8 +171,22 @@ class APIFrameHelper {
   // messages contains (message_type, offset, length) for each message in the buffer.
   // The buffer contains all messages with appropriate padding before each.
   virtual APIError write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) = 0;
-  // Get the frame header padding required by this protocol
+  // Get the maximum frame header padding required by this protocol (worst case)
   uint8_t frame_header_padding() const { return frame_header_padding_; }
+  // Get the actual frame header size for a specific message.
+  // For noise: always returns frame_header_padding_ (fixed 7-byte header).
+  // For plaintext: computes actual size from varint lengths (3-6 bytes).
+  uint8_t frame_header_size(uint16_t payload_size, uint8_t message_type) const {
+#if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
+    return this->frame_footer_size_
+               ? this->frame_header_padding_
+               : static_cast<uint8_t>(1 + ProtoSize::varint16(payload_size) + ProtoSize::varint8(message_type));
+#elif defined(USE_API_NOISE)
+    return this->frame_header_padding_;
+#else  // USE_API_PLAINTEXT only
+    return static_cast<uint8_t>(1 + ProtoSize::varint16(payload_size) + ProtoSize::varint8(message_type));
+#endif
+  }
   // Get the frame footer size required by this protocol
   uint8_t frame_footer_size() const { return frame_footer_size_; }
   // Check if socket has data ready to read

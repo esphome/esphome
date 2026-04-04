@@ -726,9 +726,14 @@ class APIConnection final : public APIServerConnectionBase {
   // 2-byte types immediately after flags_ (no padding between them)
   uint16_t client_api_version_major_{0};
   uint16_t client_api_version_minor_{0};
-  // 1-byte type to fill padding
+  // 1-byte types to fill remaining space before next 4-byte boundary
   ActiveIterator active_iterator_{ActiveIterator::NONE};
-  // Total: 2 (flags) + 2 + 2 + 1 = 7 bytes, then 1 byte padding to next 4-byte boundary
+  uint8_t batch_message_type_{0};  // Current message type during batch encoding
+  // Total: 2 (flags) + 2 + 2 + 1 + 1 = 8 bytes, aligned to 4-byte boundary
+
+  // Actual header size used by encode_to_buffer for the current message.
+  // Read by process_batch_multi_ to pass into MessageInfo.
+  uint8_t batch_header_size_{0};
 
   uint32_t get_batch_delay_ms_() const { return this->parent_->get_batch_delay(); }
   // Message will use 8 more bytes than the minimum size, and typical

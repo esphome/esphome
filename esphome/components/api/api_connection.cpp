@@ -2009,11 +2009,16 @@ uint16_t APIConnection::encode_to_buffer(uint32_t calculated_size, MessageEncode
   }
 #endif
   // Cache frame sizes to avoid repeated virtual calls
-  const uint8_t header_padding = conn->helper_->frame_header_padding();
   const uint8_t footer_size = conn->helper_->frame_footer_size();
 
-  // Calculate total size with padding for buffer allocation
-  size_t total_calculated_size = calculated_size + header_padding + footer_size;
+  // Use actual header size for all batch messages (eliminates gaps between messages).
+  const uint8_t header_size = conn->helper_->frame_header_size(calculated_size, conn->batch_message_type_);
+
+  // Store for process_batch_multi_ to pass into MessageInfo
+  conn->batch_header_size_ = header_size;
+
+  // Calculate total size with header for buffer allocation
+  size_t total_calculated_size = calculated_size + header_size + footer_size;
 
   // Check if it fits
   if (total_calculated_size > remaining_size)
@@ -2023,12 +2028,13 @@ uint16_t APIConnection::encode_to_buffer(uint32_t calculated_size, MessageEncode
 
   size_t to_add;
   if (conn->flags_.batch_first_message) {
-    // First message - buffer already prepared by caller, just clear flag
+    // First message - buffer already prepared by caller with max header padding.
+    // We only add payload bytes since padding is already in the buffer.
+    // The unused leading bytes (max_padding - actual_header) are skipped at write time.
     conn->flags_.batch_first_message = false;
     to_add = calculated_size;
   } else {
-    // Batch message second or later
-    // Reserve for full message, resize to include footer gap + header padding + payload
+    // Subsequent batch messages use exact header size — no gaps
     to_add = total_calculated_size;
   }
 
@@ -2164,17 +2170,15 @@ void APIConnection::process_batch_multi_(APIBuffer &shared_buf, size_t num_items
                 "MessageInfo must remain trivially destructible with this placement-new approach");
 
   const size_t messages_to_process = std::min(num_items, MAX_MESSAGES_PER_BATCH);
-  const uint8_t frame_overhead = header_padding + footer_size;
 
   // Stack-allocated array for message info
   alignas(MessageInfo) char message_info_storage[MAX_MESSAGES_PER_BATCH * sizeof(MessageInfo)];
   MessageInfo *message_info = reinterpret_cast<MessageInfo *>(message_info_storage);
   size_t items_processed = 0;
   uint16_t remaining_size = std::numeric_limits<uint16_t>::max();
-  // Track where each message's header padding begins in the buffer
-  // For plaintext: this is where the 6-byte header padding starts
-  // For noise: this is where the 7-byte header padding starts
-  // The actual message data follows after the header padding
+  // Track where each message's header begins in the buffer
+  // First message: offset 0 (max padding, may have unused leading bytes)
+  // Subsequent messages: offset points to exact header start (no gaps)
   uint32_t current_offset = 0;
 
   // Process items and encode directly to buffer (up to our limit)
@@ -2190,13 +2194,14 @@ void APIConnection::process_batch_multi_(APIBuffer &shared_buf, size_t num_items
     }
 
     // Message was encoded successfully
-    // payload_size is header_padding + actual payload size + footer_size
-    uint16_t proto_payload_size = payload_size - frame_overhead;
+    // payload_size = header_size + proto_payload_size + footer_size
+    uint16_t proto_payload_size = payload_size - this->batch_header_size_ - footer_size;
     // Use placement new to construct MessageInfo in pre-allocated stack array
     // This avoids default-constructing all MAX_MESSAGES_PER_BATCH elements
     // Explicit destruction is not needed because MessageInfo is trivially destructible,
     // as ensured by the static_assert in its definition.
-    new (&message_info[items_processed++]) MessageInfo(item.message_type, current_offset, proto_payload_size);
+    new (&message_info[items_processed++])
+        MessageInfo(item.message_type, current_offset, proto_payload_size, this->batch_header_size_);
     // After first message, set remaining size to MAX_BATCH_PACKET_SIZE to avoid fragmentation
     if (items_processed == 1) {
       remaining_size = MAX_BATCH_PACKET_SIZE;
@@ -2246,6 +2251,7 @@ void APIConnection::process_batch_multi_(APIBuffer &shared_buf, size_t num_items
 uint16_t APIConnection::dispatch_message_(const DeferredBatch::BatchItem &item, uint32_t remaining_size,
                                           bool batch_first) {
   this->flags_.batch_first_message = batch_first;
+  this->batch_message_type_ = item.message_type;
 #ifdef USE_EVENT
   // Events need aux_data_index to look up event type from entity
   if (item.message_type == EventResponse::MESSAGE_TYPE) {
