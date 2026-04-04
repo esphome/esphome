@@ -1074,10 +1074,16 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
 
     @property
     def encode_content(self) -> str:
+        max_len = self.max_data_length
+        if max_len is not None and max_len < 128 and self.force:
+            tag = self.calculate_tag()
+            if tag < 128:
+                return (
+                    f"buffer.encode_raw_short_string({tag}, this->{self.field_name});"
+                )
         if result := self._encode_bytes_with_precomputed_tag(
             f"this->{self.field_name}.c_str()",
             f"this->{self.field_name}.size()",
-            max_len=self.max_data_length,
         ):
             return result
         if self.force:

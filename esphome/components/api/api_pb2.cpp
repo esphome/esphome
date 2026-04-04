@@ -207,13 +207,9 @@ uint32_t DeviceInfoResponse::calculate_size() const {
 }
 #ifdef USE_BINARY_SENSOR
 void ListEntitiesBinarySensorResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
   buffer.encode_string(5, this->device_class);
   buffer.encode_bool(6, this->is_status_binary_sensor);
   buffer.encode_bool(7, this->disabled_by_default);
@@ -263,13 +259,9 @@ uint32_t BinarySensorStateResponse::calculate_size() const {
 #endif
 #ifdef USE_COVER
 void ListEntitiesCoverResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
   buffer.encode_bool(5, this->assumed_state);
   buffer.encode_bool(6, this->supports_position);
   buffer.encode_bool(7, this->supports_tilt);
@@ -364,13 +356,9 @@ bool CoverCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_FAN
 void ListEntitiesFanResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
   buffer.encode_bool(5, this->supports_oscillation);
   buffer.encode_bool(6, this->supports_speed);
   buffer.encode_bool(7, this->supports_direction);
@@ -498,13 +486,9 @@ bool FanCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_LIGHT
 void ListEntitiesLightResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
   for (const auto &it : *this->supported_color_modes) {
     buffer.encode_uint32(12, static_cast<uint32_t>(it), true);
   }
@@ -698,13 +682,9 @@ bool LightCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_SENSOR
 void ListEntitiesSensorResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(5, this->icon);
 #endif
@@ -760,13 +740,9 @@ uint32_t SensorStateResponse::calculate_size() const {
 #endif
 #ifdef USE_SWITCH
 void ListEntitiesSwitchResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(5, this->icon);
 #endif
@@ -839,13 +815,9 @@ bool SwitchCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_TEXT_SENSOR
 void ListEntitiesTextSensorResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(5, this->icon);
 #endif
@@ -1296,13 +1268,9 @@ uint32_t ExecuteServiceResponse::calculate_size() const {
 #endif
 #ifdef USE_CAMERA
 void ListEntitiesCameraResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
   buffer.encode_bool(5, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(6, this->icon);
@@ -1361,13 +1329,9 @@ bool CameraImageRequest::decode_varint(uint32_t field_id, proto_varint_value_t v
 #endif
 #ifdef USE_CLIMATE
 void ListEntitiesClimateResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
   buffer.encode_bool(5, this->supports_current_temperature);
   buffer.encode_bool(6, this->supports_two_point_target_temperature);
   for (const auto &it : *this->supported_modes) {
@@ -1598,13 +1562,9 @@ bool ClimateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_WATER_HEATER
 void ListEntitiesWaterHeaterResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(4, this->icon);
 #endif
@@ -1714,13 +1674,9 @@ bool WaterHeaterCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value
 #endif
 #ifdef USE_NUMBER
 void ListEntitiesNumberResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(5, this->icon);
 #endif
@@ -1803,13 +1759,9 @@ bool NumberCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_SELECT
 void ListEntitiesSelectResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(5, this->icon);
 #endif
@@ -1896,13 +1848,9 @@ bool SelectCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_SIREN
 void ListEntitiesSirenResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(5, this->icon);
 #endif
@@ -2012,13 +1960,9 @@ bool SirenCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_LOCK
 void ListEntitiesLockResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(5, this->icon);
 #endif
@@ -2109,13 +2053,9 @@ bool LockCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_BUTTON
 void ListEntitiesButtonResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(5, this->icon);
 #endif
@@ -2183,13 +2123,9 @@ uint32_t MediaPlayerSupportedFormat::calculate_size() const {
   return size;
 }
 void ListEntitiesMediaPlayerResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(5, this->icon);
 #endif
@@ -3009,13 +2945,9 @@ bool VoiceAssistantSetConfiguration::decode_length(uint32_t field_id, ProtoLengt
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
 void ListEntitiesAlarmControlPanelResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(5, this->icon);
 #endif
@@ -3101,13 +3033,9 @@ bool AlarmControlPanelCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit
 #endif
 #ifdef USE_TEXT
 void ListEntitiesTextResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(5, this->icon);
 #endif
@@ -3194,13 +3122,9 @@ bool TextCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_DATETIME_DATE
 void ListEntitiesDateResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(5, this->icon);
 #endif
@@ -3281,13 +3205,9 @@ bool DateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_DATETIME_TIME
 void ListEntitiesTimeResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(5, this->icon);
 #endif
@@ -3368,13 +3288,9 @@ bool TimeCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_EVENT
 void ListEntitiesEventResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(5, this->icon);
 #endif
@@ -3428,13 +3344,9 @@ uint32_t EventResponse::calculate_size() const {
 #endif
 #ifdef USE_VALVE
 void ListEntitiesValveResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(5, this->icon);
 #endif
@@ -3519,13 +3431,9 @@ bool ValveCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_DATETIME_DATETIME
 void ListEntitiesDateTimeResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(5, this->icon);
 #endif
@@ -3596,13 +3504,9 @@ bool DateTimeCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_UPDATE
 void ListEntitiesUpdateResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(5, this->icon);
 #endif
@@ -3741,13 +3645,9 @@ uint32_t ZWaveProxyRequest::calculate_size() const {
 #endif
 #ifdef USE_INFRARED
 void ListEntitiesInfraredResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.write_raw_byte(10);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->object_id.size()));
-  buffer.encode_raw(this->object_id.c_str(), this->object_id.size());
+  buffer.encode_raw_short_string(10, this->object_id);
   buffer.write_tag_and_fixed32(21, this->key);
-  buffer.write_raw_byte(26);
-  buffer.write_raw_byte(static_cast<uint8_t>(this->name.size()));
-  buffer.encode_raw(this->name.c_str(), this->name.size());
+  buffer.encode_raw_short_string(26, this->name);
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(4, this->icon);
 #endif
