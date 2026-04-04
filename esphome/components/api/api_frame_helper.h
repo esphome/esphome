@@ -49,6 +49,9 @@ struct ReadPacketBuffer {
 };
 
 // Packed message info structure to minimize memory usage
+// Note: message_type is uint8_t — all current protobuf message types fit in 8 bits.
+// The noise wire format encodes types as 16-bit, but the high byte is always 0.
+// If message types ever exceed 255, this and encrypt_noise_message_ must be updated.
 struct MessageInfo {
   uint16_t offset;        // Offset in buffer where message starts
   uint16_t payload_size;  // Size of the message payload
@@ -176,6 +179,9 @@ class APIFrameHelper {
   // Get the actual frame header size for a specific message.
   // For noise: always returns frame_header_padding_ (fixed 7-byte header).
   // For plaintext: computes actual size from varint lengths (3-6 bytes).
+  // Distinguishes protocols via frame_footer_size_ (noise always has a non-zero MAC
+  // footer, plaintext has footer=0). If a protocol with a plaintext footer is ever
+  // added, this should become a virtual method.
   uint8_t frame_header_size(uint16_t payload_size, uint8_t message_type) const {
 #if defined(USE_API_NOISE) && defined(USE_API_PLAINTEXT)
     return this->frame_footer_size_
