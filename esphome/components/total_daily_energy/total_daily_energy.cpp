@@ -61,12 +61,14 @@ void TotalDailyEnergy::schedule_midnight_reset_() {
       ((HOURS_PER_DAY - 1 - t.hour) * MINUTES_PER_HOUR + (MINUTES_PER_HOUR - 1 - t.minute)) * SECONDS_PER_MINUTE +
       (SECONDS_PER_MINUTE - t.second);
 
+  // set_timeout counts real elapsed millis, but DST shifts wall clock by up to 1 hour
+  // without changing millis. To avoid firing up to 1 hour late/early, we use two stages:
+  // 1) Wake up 90 minutes before midnight to recalculate with current wall clock
+  // 2) From there, schedule the precise midnight reset
   uint32_t timeout_seconds;
   if (seconds_until_midnight > PRE_MIDNIGHT_SECONDS) {
-    // Far from midnight — wake up 90 minutes before to recalculate with fresh wall clock
     timeout_seconds = seconds_until_midnight - PRE_MIDNIGHT_SECONDS;
   } else {
-    // Close to midnight — schedule the actual reset with 1s buffer
     timeout_seconds = seconds_until_midnight + 1;
   }
 
