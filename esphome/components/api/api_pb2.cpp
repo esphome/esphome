@@ -226,7 +226,7 @@ uint32_t ListEntitiesBinarySensorResponse::calculate_size() const {
   size += 2 + this->object_id.size();
   size += 5;
   size += 2 + this->name.size();
-  size += ProtoSize::calc_length(1, this->device_class.size());
+  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
   size += ProtoSize::calc_bool(1, this->is_status_binary_sensor);
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
@@ -284,7 +284,7 @@ uint32_t ListEntitiesCoverResponse::calculate_size() const {
   size += ProtoSize::calc_bool(1, this->assumed_state);
   size += ProtoSize::calc_bool(1, this->supports_position);
   size += ProtoSize::calc_bool(1, this->supports_tilt);
-  size += ProtoSize::calc_length(1, this->device_class.size());
+  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
   size += !this->icon.empty() ? 2 + this->icon.size() : 0;
@@ -710,7 +710,7 @@ uint32_t ListEntitiesSensorResponse::calculate_size() const {
   size += ProtoSize::calc_length(1, this->unit_of_measurement.size());
   size += ProtoSize::calc_int32(1, this->accuracy_decimals);
   size += ProtoSize::calc_bool(1, this->force_update);
-  size += ProtoSize::calc_length(1, this->device_class.size());
+  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->state_class));
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
@@ -765,7 +765,7 @@ uint32_t ListEntitiesSwitchResponse::calculate_size() const {
   size += ProtoSize::calc_bool(1, this->assumed_state);
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
-  size += ProtoSize::calc_length(1, this->device_class.size());
+  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
 #ifdef USE_DEVICES
   size += ProtoSize::calc_uint32(1, this->device_id);
 #endif
@@ -838,7 +838,7 @@ uint32_t ListEntitiesTextSensorResponse::calculate_size() const {
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
-  size += ProtoSize::calc_length(1, this->device_class.size());
+  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
 #ifdef USE_DEVICES
   size += ProtoSize::calc_uint32(1, this->device_id);
 #endif
@@ -1707,7 +1707,7 @@ uint32_t ListEntitiesNumberResponse::calculate_size() const {
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
   size += ProtoSize::calc_length(1, this->unit_of_measurement.size());
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->mode));
-  size += ProtoSize::calc_length(1, this->device_class.size());
+  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
 #ifdef USE_DEVICES
   size += ProtoSize::calc_uint32(1, this->device_id);
 #endif
@@ -2076,7 +2076,7 @@ uint32_t ListEntitiesButtonResponse::calculate_size() const {
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
-  size += ProtoSize::calc_length(1, this->device_class.size());
+  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
 #ifdef USE_DEVICES
   size += ProtoSize::calc_uint32(1, this->device_id);
 #endif
@@ -3314,7 +3314,7 @@ uint32_t ListEntitiesEventResponse::calculate_size() const {
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
-  size += ProtoSize::calc_length(1, this->device_class.size());
+  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
   if (!this->event_types->empty()) {
     for (const char *it : *this->event_types) {
       size += ProtoSize::calc_length_force(1, strlen(it));
@@ -3370,7 +3370,7 @@ uint32_t ListEntitiesValveResponse::calculate_size() const {
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
-  size += ProtoSize::calc_length(1, this->device_class.size());
+  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
   size += ProtoSize::calc_bool(1, this->assumed_state);
   size += ProtoSize::calc_bool(1, this->supports_position);
   size += ProtoSize::calc_bool(1, this->supports_stop);
@@ -3527,7 +3527,7 @@ uint32_t ListEntitiesUpdateResponse::calculate_size() const {
 #endif
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += ProtoSize::calc_uint32(1, static_cast<uint32_t>(this->entity_category));
-  size += ProtoSize::calc_length(1, this->device_class.size());
+  size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
 #ifdef USE_DEVICES
   size += ProtoSize::calc_uint32(1, this->device_id);
 #endif

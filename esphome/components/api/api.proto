@@ -308,9 +308,10 @@ enum EntityCategory {
   ENTITY_CATEGORY_DIAGNOSTIC = 2;
 }
 
-// Entity name/object_id max_data_length = 120 matches NAME_MAX_LENGTH,
-// icon max_data_length = 63 matches ICON_MAX_LENGTH.
-// Both defined in esphome/core/config.py and validated at config time.
+// Entity field max_data_length values match constants in esphome/core/config.py:
+//   name/object_id = 120 (NAME_MAX_LENGTH)
+//   icon = 63 (ICON_MAX_LENGTH)
+//   device_class = 47 (DEVICE_CLASS_MAX_LENGTH)
 
 // ==================== BINARY SENSOR ====================
 message ListEntitiesBinarySensorResponse {
@@ -324,7 +325,7 @@ message ListEntitiesBinarySensorResponse {
   string name = 3 [(max_data_length) = 120, (force) = true];
   reserved 4; // Deprecated: was string unique_id
 
-  string device_class = 5;
+  string device_class = 5 [(max_data_length) = 47];
   bool is_status_binary_sensor = 6;
   bool disabled_by_default = 7;
   string icon = 8 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
@@ -361,7 +362,7 @@ message ListEntitiesCoverResponse {
   bool assumed_state = 5;
   bool supports_position = 6;
   bool supports_tilt = 7;
-  string device_class = 8;
+  string device_class = 8 [(max_data_length) = 47];
   bool disabled_by_default = 9;
   string icon = 10 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   EntityCategory entity_category = 11;
@@ -639,7 +640,7 @@ message ListEntitiesSensorResponse {
   string unit_of_measurement = 6;
   int32 accuracy_decimals = 7;
   bool force_update = 8;
-  string device_class = 9;
+  string device_class = 9 [(max_data_length) = 47];
   SensorStateClass state_class = 10;
   // Last reset type removed in 2021.9.0
   // Deprecated in API version 1.5
@@ -679,7 +680,7 @@ message ListEntitiesSwitchResponse {
   bool assumed_state = 6;
   bool disabled_by_default = 7;
   EntityCategory entity_category = 8;
-  string device_class = 9;
+  string device_class = 9 [(max_data_length) = 47];
   uint32 device_id = 10 [(field_ifdef) = "USE_DEVICES"];
 }
 message SwitchStateResponse {
@@ -720,7 +721,7 @@ message ListEntitiesTextSensorResponse {
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
-  string device_class = 8;
+  string device_class = 8 [(max_data_length) = 47];
   uint32 device_id = 9 [(field_ifdef) = "USE_DEVICES"];
 }
 message TextSensorStateResponse {
@@ -1260,7 +1261,7 @@ message ListEntitiesNumberResponse {
   EntityCategory entity_category = 10;
   string unit_of_measurement = 11;
   NumberMode mode = 12;
-  string device_class = 13;
+  string device_class = 13 [(max_data_length) = 47];
   uint32 device_id = 14 [(field_ifdef) = "USE_DEVICES"];
 }
 message NumberStateResponse {
@@ -1460,7 +1461,7 @@ message ListEntitiesButtonResponse {
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
-  string device_class = 8;
+  string device_class = 8 [(max_data_length) = 47];
   uint32 device_id = 9 [(field_ifdef) = "USE_DEVICES"];
 }
 message ButtonCommandRequest {
@@ -2304,7 +2305,7 @@ message ListEntitiesEventResponse {
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
-  string device_class = 8;
+  string device_class = 8 [(max_data_length) = 47];
 
   repeated string event_types = 9 [(container_pointer_no_template) = "FixedVector<const char *>"];
   uint32 device_id = 10 [(field_ifdef) = "USE_DEVICES"];
@@ -2335,7 +2336,7 @@ message ListEntitiesValveResponse {
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
-  string device_class = 8;
+  string device_class = 8 [(max_data_length) = 47];
 
   bool assumed_state = 9;
   bool supports_position = 10;
@@ -2433,7 +2434,7 @@ message ListEntitiesUpdateResponse {
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
-  string device_class = 8;
+  string device_class = 8 [(max_data_length) = 47];
   uint32 device_id = 9 [(field_ifdef) = "USE_DEVICES"];
 }
 message UpdateStateResponse {
