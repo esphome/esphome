@@ -28,7 +28,11 @@ namespace esphome::gpio_expander {
 template<typename T, uint16_t N, typename P = typename std::conditional<(N > 256), uint16_t, uint8_t>::type>
 class CachedGpioExpander {
  public:
-  /// @brief Read the state of the given pin. This will invalidate the cache for the given pin number.
+  /// @brief Read the state of the given pin.
+  /// In polling mode (default), each read invalidates the pin's cache entry so
+  /// the next read of the same pin triggers a fresh hardware read.
+  /// In interrupt mode, the cache stays valid until explicitly invalidated by
+  /// reset_pin_cache_() (called from loop() when an interrupt fires).
   /// @param pin Pin number to read
   /// @return Pin state
   bool digital_read(P pin) {
@@ -36,14 +40,17 @@ class CachedGpioExpander {
     const T pin_mask = (1 << (pin % BANK_SIZE));
     // Check if specific pin cache is valid
     if (this->read_cache_valid_[bank] & pin_mask) {
-      // Invalidate pin
-      this->read_cache_valid_[bank] &= ~pin_mask;
+      if (!this->interrupt_driven_) {
+        // Polling mode: invalidate pin so next read triggers hardware read
+        this->read_cache_valid_[bank] &= ~pin_mask;
+      }
     } else {
       // Read whole bank from hardware
       if (!this->digital_read_hw(pin))
         return false;
       // Mark bank cache as valid except the pin that is being returned now
-      this->read_cache_valid_[bank] = std::numeric_limits<T>::max() & ~pin_mask;
+      // (in interrupt mode, mark all pins including this one as valid)
+      this->read_cache_valid_[bank] = std::numeric_limits<T>::max() & ~(this->interrupt_driven_ ? 0 : pin_mask);
     }
     return this->digital_read_cache(pin);
   }
@@ -71,12 +78,16 @@ class CachedGpioExpander {
   /// @brief Invalidate cache. This function should be called in component loop().
   void reset_pin_cache_() { memset(this->read_cache_valid_, 0x00, CACHE_SIZE_BYTES); }
 
+  /// @brief Enable interrupt-driven mode. Cache stays valid until reset_pin_cache_() is called.
+  void set_interrupt_driven_(bool interrupt_driven) { this->interrupt_driven_ = interrupt_driven; }
+
   static constexpr uint16_t BITS_PER_BYTE = 8;
   static constexpr uint16_t BANK_SIZE = sizeof(T) * BITS_PER_BYTE;
   static constexpr size_t BANKS = N / BANK_SIZE;
   static constexpr size_t CACHE_SIZE_BYTES = BANKS * sizeof(T);
 
   T read_cache_valid_[BANKS]{0};
+  bool interrupt_driven_{false};
 };
 
 }  // namespace esphome::gpio_expander
