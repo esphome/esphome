@@ -168,11 +168,7 @@ async def to_code(config):
     # Only when not using lwip_tcp, which does not provide select() support.
     if (CORE.is_esp32 or CORE.is_libretiny) and impl != IMPLEMENTATION_LWIP_TCP:
         cg.add_build_flag("-DUSE_LWIP_FAST_SELECT")
-    if (
-        impl == IMPLEMENTATION_BSD_SOCKETS
-        and not CORE.is_esp32
-        and not CORE.is_libretiny
-    ):
+    if CORE.is_host:
         # Host platform: uses select() syscall for socket monitoring
         # and a UDP loopback socket for wake_loop_threadsafe()
         consume_sockets(1, "socket.wake_loop_threadsafe", SocketType.UDP)({})
