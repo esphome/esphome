@@ -169,7 +169,7 @@ class DeferredUpdateEventSourceList final : public std::list<DeferredUpdateEvent
   void on_client_disconnect_(DeferredUpdateEventSource *source);
 
  public:
-  /// Returns true if there are still connected clients.
+  /// Returns true if there are event sources remaining (including pending cleanup).
   bool loop();
 
   void deferrable_send_state(void *source, const char *event_type, message_generator_t *message_generator);
