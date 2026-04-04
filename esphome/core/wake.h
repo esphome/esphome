@@ -101,7 +101,9 @@ void wakeable_delay(uint32_t ms);
 /// Host: wakes select() via UDP loopback socket. Defined in wake.cpp.
 void wake_loop_threadsafe();
 #else
-/// Fallback for platforms without a specific wake mechanism.
+/// Zephyr is currently the only platform without a wake mechanism.
+/// wake_loop_threadsafe() is a no-op and wakeable_delay() falls back to delay().
+/// TODO: implement proper Zephyr wake using k_poll / k_sem or similar.
 inline void wake_loop_threadsafe() {}
 #endif
 
