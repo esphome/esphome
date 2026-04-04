@@ -5,6 +5,7 @@
 #include <cstring>
 #include <limits>
 #include <type_traits>
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 
 namespace esphome::gpio_expander {
@@ -32,6 +33,15 @@ class CachedGpioExpander {
   /// @param pin Pin number to read
   /// @return Pin state
   bool digital_read(P pin) {
+    // Invalidate cache once per loop iteration so we always get a fresh
+    // hardware read on the first access each loop, while still caching
+    // within the same iteration for other pins in the same bank.
+    const uint32_t now = App.get_loop_component_start_time();
+    if (now != this->last_loop_time_) {
+      this->last_loop_time_ = now;
+      this->reset_pin_cache_();
+    }
+
     const P bank = pin / BANK_SIZE;
     const T pin_mask = (1 << (pin % BANK_SIZE));
     // Check if specific pin cache is valid
@@ -68,7 +78,7 @@ class CachedGpioExpander {
   /// @param value Pin state to write (true = HIGH, false = LOW)
   virtual void digital_write_hw(P pin, bool value) = 0;
 
-  /// @brief Invalidate cache. This function should be called in component loop().
+  /// @brief Invalidate all cached pin states, forcing the next digital_read() to read from hardware.
   void reset_pin_cache_() { memset(this->read_cache_valid_, 0x00, CACHE_SIZE_BYTES); }
 
   static constexpr uint16_t BITS_PER_BYTE = 8;
@@ -76,6 +86,7 @@ class CachedGpioExpander {
   static constexpr size_t BANKS = N / BANK_SIZE;
   static constexpr size_t CACHE_SIZE_BYTES = BANKS * sizeof(T);
 
+  uint32_t last_loop_time_{0};
   T read_cache_valid_[BANKS]{0};
 };
 

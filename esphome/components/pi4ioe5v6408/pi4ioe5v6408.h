@@ -18,7 +18,6 @@ class PI4IOE5V6408Component : public Component,
 
   float get_setup_priority() const override;
   void dump_config() override;
-  void loop() override;
 
   /// Indicate if the component should reset the state during setup
   void set_reset(bool reset) { this->reset_ = reset; }

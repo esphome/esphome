@@ -36,12 +36,6 @@ void PCA9554Component::setup() {
            this->status_has_error());
 }
 
-void PCA9554Component::loop() {
-  // Invalidate the cache at the start of each loop.
-  // The actual read will happen on demand when digital_read() is called
-  this->reset_pin_cache_();
-}
-
 void PCA9554Component::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "PCA9554:\n"

@@ -51,11 +51,6 @@ void PCA6416AComponent::setup() {
            this->status_has_error());
 }
 
-void PCA6416AComponent::loop() {
-  // Invalidate cache at the start of each loop
-  this->reset_pin_cache_();
-}
-
 void PCA6416AComponent::dump_config() {
   if (this->has_pullup_) {
     ESP_LOGCONFIG(TAG, "PCAL6416A:");

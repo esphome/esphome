@@ -16,7 +16,6 @@ class PCA6416AComponent : public Component,
 
   /// Check i2c availability and setup masks
   void setup() override;
-  void loop() override;
   /// Helper function to set the pin mode of a pin.
   void pin_mode(uint8_t pin, gpio::Flags flags);
 

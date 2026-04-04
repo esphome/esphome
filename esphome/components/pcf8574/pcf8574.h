@@ -20,8 +20,6 @@ class PCF8574Component : public Component,
 
   /// Check i2c availability and setup masks
   void setup() override;
-  /// Invalidate cache at start of each loop
-  void loop() override;
   /// Helper function to set the pin mode of a pin.
   void pin_mode(uint8_t pin, gpio::Flags flags);
 

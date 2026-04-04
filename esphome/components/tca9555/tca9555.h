@@ -22,8 +22,6 @@ class TCA9555Component : public Component,
 
   void dump_config() override;
 
-  void loop() override;
-
  protected:
   bool digital_read_hw(uint8_t pin) override;
   bool digital_read_cache(uint8_t pin) override;

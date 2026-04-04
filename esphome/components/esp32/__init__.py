@@ -48,7 +48,7 @@ from esphome.coroutine import CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
 from esphome.types import ConfigType
-from esphome.writer import clean_cmake_cache
+from esphome.writer import clean_build, clean_cmake_cache
 
 from .boards import BOARDS, STANDARD_BOARDS
 from .const import (  # noqa
@@ -2195,6 +2195,7 @@ def _write_sdkconfig():
     if write_file_if_changed(internal_path, contents):
         # internal changed, update real one
         write_file_if_changed(sdk_path, contents)
+        clean_build(clear_pio_cache=False)
 
 
 def _write_idf_component_yml():

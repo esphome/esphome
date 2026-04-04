@@ -17,8 +17,6 @@ template<uint8_t N> class MCP23XXXBase : public Component, public gpio_expander:
   void set_open_drain_ints(const bool value) { this->open_drain_ints_ = value; }
   float get_setup_priority() const override { return setup_priority::IO; }
 
-  void loop() override { this->reset_pin_cache_(); }
-
  protected:
   // read a given register
   virtual bool read_reg(uint8_t reg, uint8_t *value) = 0;
