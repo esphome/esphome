@@ -830,7 +830,7 @@ void Nextion::process_nextion_commands_() {
         auto &nb = this->waveform_queue_.front();
         auto *component = nb->component;
         size_t buffer_to_send = component->get_wave_buffer_size() < 255 ? component->get_wave_buffer_size() : 255;
-        this->write_array(component->get_wave_buffer().data(), static_cast<int>(buffer_to_send));
+        this->write_array(component->get_wave_buffer(), static_cast<int>(buffer_to_send));
         ESP_LOGN(TAG, "Send waveform: component id %d, waveform id %d, size %zu", component->get_component_id(),
                  component->get_wave_channel_id(), buffer_to_send);
         component->clear_wave_buffer(buffer_to_send);

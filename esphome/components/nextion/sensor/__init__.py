@@ -87,14 +87,13 @@ async def to_code(config):
     if CONF_WAVE_CHANNEL_ID in config:
         cg.add_define("USE_NEXTION_WAVEFORM")
         cg.add(var.set_wave_channel_id(config[CONF_WAVE_CHANNEL_ID]))
+        cg.add_define("NEXTION_WAVE_MAX_LENGTH", config[CONF_WAVE_MAX_LENGTH])
         if CONF_WAVEFORM_SEND_LAST_VALUE in config:
             cg.add(
                 var.set_waveform_send_last_value(config[CONF_WAVEFORM_SEND_LAST_VALUE])
             )
         if CONF_WAVE_MAX_VALUE in config:
             cg.add(var.set_wave_max_value(config[CONF_WAVE_MAX_VALUE]))
-        if CONF_WAVE_MAX_LENGTH in config:
-            cg.add(var.set_wave_max_length(config[CONF_WAVE_MAX_LENGTH]))
 
 
 @automation.register_action(

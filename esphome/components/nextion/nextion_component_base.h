@@ -1,8 +1,9 @@
 #pragma once
 
+#include <array>
+#include <cstring>
 #include <string>
 #include <utility>
-#include <vector>
 #include "esphome/core/defines.h"
 
 namespace esphome::nextion {
@@ -68,13 +69,15 @@ class NextionComponentBase {
   uint8_t get_wave_channel_id() const { return this->wave_chan_id_; }
   void set_wave_channel_id(uint8_t wave_chan_id) { this->wave_chan_id_ = wave_chan_id; }
 
-  const std::vector<uint8_t> &get_wave_buffer() const { return this->wave_buffer_; }
-  size_t get_wave_buffer_size() const { return this->wave_buffer_.size(); }
+  const uint8_t *get_wave_buffer() const { return this->wave_buffer_.data(); }
+  size_t get_wave_buffer_size() const { return this->wave_buffer_size_; }
   void clear_wave_buffer(size_t buffer_sent) {
-    if (this->wave_buffer_.size() <= buffer_sent) {
-      this->wave_buffer_.clear();
+    if (this->wave_buffer_size_ <= buffer_sent) {
+      this->wave_buffer_size_ = 0;
     } else {
-      this->wave_buffer_.erase(this->wave_buffer_.begin(), this->wave_buffer_.begin() + buffer_sent);
+      this->wave_buffer_size_ -= buffer_sent;
+      std::memmove(this->wave_buffer_.data(), this->wave_buffer_.data() + buffer_sent,
+                   this->wave_buffer_size_);
     }
   }
 #endif  // USE_NEXTION_WAVEFORM
@@ -91,7 +94,6 @@ class NextionComponentBase {
   // Remove before 2026.10.0
   ESPDEPRECATED("Use get_wave_channel_id() instead. Will be removed in 2026.10.0", "2026.4.0")
   uint8_t get_wave_chan_id() const { return this->get_wave_channel_id(); }
-  void set_wave_max_length(int wave_max_length) { this->wave_max_length_ = wave_max_length; }
 #endif  // USE_NEXTION_WAVEFORM
 
  protected:
@@ -101,8 +103,9 @@ class NextionComponentBase {
   uint8_t component_id_ = 0;
 #ifdef USE_NEXTION_WAVEFORM
   uint8_t wave_chan_id_ = UINT8_MAX;
-  std::vector<uint8_t> wave_buffer_;
-  int wave_max_length_ = 255;
+  /// Compile-time fixed-size waveform buffer — contiguous, zero heap allocation.
+  std::array<uint8_t, NEXTION_WAVE_MAX_LENGTH> wave_buffer_{};
+  size_t wave_buffer_size_ = 0;
 #endif  // USE_NEXTION_WAVEFORM
 
   bool needs_to_send_update_;

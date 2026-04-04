@@ -25,10 +25,13 @@ void NextionSensor::process_sensor(const std::string &variable_name, int state) 
 void NextionSensor::add_to_wave_buffer(float state) {
   this->needs_to_send_update_ = true;
   int wave_state = (int) ((state / (float) this->wave_maxvalue_) * 100);
-  this->wave_buffer_.push_back(wave_state);
-  if (this->wave_buffer_.size() > (size_t) this->wave_max_length_) {
-    this->wave_buffer_.erase(this->wave_buffer_.begin());
+  if (this->wave_buffer_size_ >= NEXTION_WAVE_MAX_LENGTH) {
+    // Buffer full — drop oldest sample to make room (FIFO).
+    std::memmove(this->wave_buffer_.data(), this->wave_buffer_.data() + 1,
+                 NEXTION_WAVE_MAX_LENGTH - 1);
+    this->wave_buffer_size_ = NEXTION_WAVE_MAX_LENGTH - 1;
   }
+  this->wave_buffer_[this->wave_buffer_size_++] = static_cast<uint8_t>(wave_state);
 }
 #endif  // USE_NEXTION_WAVEFORM
 
@@ -100,14 +103,12 @@ void NextionSensor::set_state(float state, bool publish, bool send_to_nextion) {
 
 #ifdef USE_NEXTION_WAVEFORM
 void NextionSensor::wave_update_() {
-  if (this->nextion_->is_sleeping() || this->wave_buffer_.empty()) {
+  if (this->nextion_->is_sleeping() || this->wave_buffer_size_ == 0) {
     return;
   }
 #ifdef NEXTION_PROTOCOL_LOG
-  size_t buffer_to_send =
-      this->wave_buffer_.size() < 255 ? this->wave_buffer_.size() : 255;  // ADDT command can only send 255
-  ESP_LOGN(TAG, "Wave update: %zu/%zu vals to comp %d ch %d", buffer_to_send, this->wave_buffer_.size(),
-           this->component_id_, this->wave_chan_id_);
+  size_t buffer_to_send = this->wave_buffer_size_ < 255 ? this->wave_buffer_size_ : 255;  // ADDT command can only send 255
+  ESP_LOGN(TAG, "Wave update: %zu/%zu vals to comp %d ch %d", buffer_to_send, this->wave_buffer_size_, this->component_id_, this->wave_chan_id_);
 #endif  // NEXTION_PROTOCOL_LOG
   this->nextion_->add_addt_command_to_queue(this);
 }
