@@ -3,6 +3,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
+
 #include <hal/gpio_hal.h>
 
 namespace esphome {
@@ -193,7 +195,7 @@ void Inkplate::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "  Greyscale: %s\n"
                 "  Partial Updating: %s\n"
-                "  Full Update Every: %d",
+                "  Full Update Every: %" PRIu32,
                 YESNO(this->greyscale_), YESNO(this->partial_updating_), this->full_update_every_);
   // Log pins
   LOG_PIN("  CKV Pin: ", this->ckv_pin_);
@@ -306,7 +308,7 @@ void Inkplate::fill(Color color) {
   // If clipping is active, fall back to base implementation
   if (this->get_clipping().is_set()) {
     Display::fill(color);
-    ESP_LOGV(TAG, "Fill finished (%ums)", millis() - start_time);
+    ESP_LOGV(TAG, "Fill finished (%" PRIu32 "ms)", millis() - start_time);
     return;
   }
 
@@ -329,12 +331,12 @@ void Inkplate::display() {
     this->display3b_();
   } else {
     if (this->partial_updating_ && this->partial_update_()) {
-      ESP_LOGV(TAG, "Display finished (partial) (%ums)", millis() - start_time);
+      ESP_LOGV(TAG, "Display finished (partial) (%" PRIu32 "ms)", millis() - start_time);
       return;
     }
     this->display1b_();
   }
-  ESP_LOGV(TAG, "Display finished (full) (%ums)", millis() - start_time);
+  ESP_LOGV(TAG, "Display finished (full) (%" PRIu32 "ms)", millis() - start_time);
 }
 
 void Inkplate::display1b_() {
@@ -409,7 +411,7 @@ void Inkplate::display1b_() {
 
   uint32_t clock = (1UL << this->cl_pin_->get_pin());
   uint32_t data_mask = this->get_data_pin_mask_();
-  ESP_LOGV(TAG, "Display1b start loops (%ums)", millis() - start_time);
+  ESP_LOGV(TAG, "Display1b start loops (%" PRIu32 "ms)", millis() - start_time);
 
   for (uint8_t k = 0; k < rep; k++) {
     buffer_ptr = &this->buffer_[this->get_buffer_length_() - 1];
@@ -440,7 +442,7 @@ void Inkplate::display1b_() {
     }
     delayMicroseconds(230);
   }
-  ESP_LOGV(TAG, "Display1b first loop x %d (%ums)", 4, millis() - start_time);
+  ESP_LOGV(TAG, "Display1b first loop x %d (%" PRIu32 "ms)", 4, millis() - start_time);
 
   buffer_ptr = &this->buffer_[this->get_buffer_length_() - 1];
   vscan_start_();
@@ -469,7 +471,7 @@ void Inkplate::display1b_() {
     vscan_end_();
   }
   delayMicroseconds(230);
-  ESP_LOGV(TAG, "Display1b second loop (%ums)", millis() - start_time);
+  ESP_LOGV(TAG, "Display1b second loop (%" PRIu32 "ms)", millis() - start_time);
 
   if (this->model_ == INKPLATE_6_PLUS) {
     clean_fast_(2, 2);
@@ -495,13 +497,13 @@ void Inkplate::display1b_() {
       vscan_end_();
     }
     delayMicroseconds(230);
-    ESP_LOGV(TAG, "Display1b third loop (%ums)", millis() - start_time);
+    ESP_LOGV(TAG, "Display1b third loop (%" PRIu32 "ms)", millis() - start_time);
   }
   vscan_start_();
   eink_off_();
   this->block_partial_ = false;
   this->partial_updates_ = 0;
-  ESP_LOGV(TAG, "Display1b finished (%ums)", millis() - start_time);
+  ESP_LOGV(TAG, "Display1b finished (%" PRIu32 "ms)", millis() - start_time);
 }
 
 void Inkplate::display3b_() {
@@ -614,7 +616,7 @@ void Inkplate::display3b_() {
   clean_fast_(3, 1);
   vscan_start_();
   eink_off_();
-  ESP_LOGV(TAG, "Display3b finished (%ums)", millis() - start_time);
+  ESP_LOGV(TAG, "Display3b finished (%" PRIu32 "ms)", millis() - start_time);
 }
 
 bool Inkplate::partial_update_() {
@@ -641,7 +643,7 @@ bool Inkplate::partial_update_() {
       this->partial_buffer_2_[n--] = LUTW[diffw & 0x0F] & LUTB[diffb & 0x0F];
     }
   }
-  ESP_LOGV(TAG, "Partial update buffer built after (%ums)", millis() - start_time);
+  ESP_LOGV(TAG, "Partial update buffer built after (%" PRIu32 "ms)", millis() - start_time);
 
   int rep = (this->model_ == INKPLATE_6_V2) ? 6 : 5;
 
@@ -667,7 +669,7 @@ bool Inkplate::partial_update_() {
       vscan_end_();
     }
     delayMicroseconds(230);
-    ESP_LOGV(TAG, "Partial update loop k=%d (%ums)", k, millis() - start_time);
+    ESP_LOGV(TAG, "Partial update loop k=%d (%" PRIu32 "ms)", k, millis() - start_time);
   }
   clean_fast_(2, 2);
   clean_fast_(3, 1);
@@ -675,7 +677,7 @@ bool Inkplate::partial_update_() {
   eink_off_();
 
   memcpy(this->buffer_, this->partial_buffer_, this->get_buffer_length_());
-  ESP_LOGV(TAG, "Partial update finished (%ums)", millis() - start_time);
+  ESP_LOGV(TAG, "Partial update finished (%" PRIu32 "ms)", millis() - start_time);
   return true;
 }
 
@@ -730,7 +732,7 @@ void Inkplate::clean() {
   clean_fast_(0, 8);   // Black to Black
   clean_fast_(2, 1);   // Black to White
   clean_fast_(1, 10);  // White to White
-  ESP_LOGV(TAG, "Clean finished (%ums)", millis() - start_time);
+  ESP_LOGV(TAG, "Clean finished (%" PRIu32 "ms)", millis() - start_time);
 }
 
 void Inkplate::clean_fast_(uint8_t c, uint8_t rep) {
@@ -773,9 +775,9 @@ void Inkplate::clean_fast_(uint8_t c, uint8_t rep) {
       vscan_end_();
     }
     delayMicroseconds(230);
-    ESP_LOGV(TAG, "Clean fast rep loop %d finished (%ums)", k, millis() - start_time);
+    ESP_LOGV(TAG, "Clean fast rep loop %d finished (%" PRIu32 "ms)", k, millis() - start_time);
   }
-  ESP_LOGV(TAG, "Clean fast finished (%ums)", millis() - start_time);
+  ESP_LOGV(TAG, "Clean fast finished (%" PRIu32 "ms)", millis() - start_time);
 }
 
 void Inkplate::pins_z_state_() {

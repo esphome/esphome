@@ -313,7 +313,7 @@ void Modbus::send_next_frame_() {
   this->last_send_ = millis();
   this->tx_buffer_.pop_front();
   if (!this->tx_buffer_.empty()) {
-    ESP_LOGV(TAG, "Write queue contains %" PRIu32 " items.", this->tx_buffer_.size());
+    ESP_LOGV(TAG, "Write queue contains %zu items.", this->tx_buffer_.size());
   }
 }
 

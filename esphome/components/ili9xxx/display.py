@@ -210,8 +210,8 @@ def final_validate(config):
     ):
         LOGGER.info("Consider enabling PSRAM if available for the display buffer")
 
-    return spi.final_validate_device_schema(
-        "ili9xxx", require_miso=False, require_mosi=True
+    spi.final_validate_device_schema("ili9xxx", require_miso=False, require_mosi=True)(
+        config
     )
 
 
@@ -219,6 +219,9 @@ FINAL_VALIDATE_SCHEMA = final_validate
 
 
 async def to_code(config):
+    LOGGER.warning(
+        "The 'ili9xxx' component is deprecated, it is recommended to use 'mipi_spi' instead."
+    )
     rhs = MODELS[config[CONF_MODEL]].new()
     var = cg.Pvariable(config[CONF_ID], rhs)
 
