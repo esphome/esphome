@@ -123,8 +123,8 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
                 f"Can't have more than two '/' in one time expression, got {part}"
             )
         offset, repeat = data
-        offset_n = 0
-        if offset:
+        offset_n = min_value
+        if offset and offset not in ("*", "?"):
             offset_n = _parse_cron_int(
                 offset,
                 special_mapping,

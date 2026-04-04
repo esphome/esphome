@@ -1,3 +1,4 @@
+#include <cinttypes>
 #include "mitsubishi_cn105_climate.h"
 #include "esphome/core/log.h"
 
@@ -14,9 +15,9 @@ void MitsubishiCN105Climate::dump_config() {
                 LOG_STR_ARG(parity_to_str(this->parent_->get_parity())), this->parent_->get_stop_bits());
 }
 
-void MitsubishiCN105Climate::setup() {}
+void MitsubishiCN105Climate::setup() { this->hp_.initialize(); }
 
-void MitsubishiCN105Climate::loop() {}
+void MitsubishiCN105Climate::loop() { this->hp_.update(); }
 
 climate::ClimateTraits MitsubishiCN105Climate::traits() {
   climate::ClimateTraits traits;
