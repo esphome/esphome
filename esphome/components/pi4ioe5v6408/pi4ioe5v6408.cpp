@@ -156,6 +156,13 @@ bool PI4IOE5V6408Component::write_gpio_modes_() {
     this->status_set_warning(LOG_STR("Failed to write GPIO pull enable"));
     return false;
   }
+  // Enable interrupts for input pins when interrupt pin is configured
+  // (input pins have mode_mask_ bit cleared)
+  if (this->interrupt_pin_ != nullptr &&
+      !this->write_byte(PI4IOE5V6408_REGISTER_INTERRUPT_ENABLE_MASK, ~this->mode_mask_)) {
+    this->status_set_warning(LOG_STR("Failed to write interrupt enable mask"));
+    return false;
+  }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGV(TAG,
            "Wrote GPIO config:\n"
