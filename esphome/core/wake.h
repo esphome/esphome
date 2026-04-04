@@ -89,35 +89,9 @@ inline void wake_loop_threadsafe() {
   __sev();
 }
 
+/// RP2040 wakeable delay uses file-scope state (alarm callback + flag) — defined in wake.cpp.
 namespace internal {
-inline void wakeable_delay(uint32_t ms) {
-  static volatile bool s_delay_expired = false;
-  if (ms == 0) {
-    yield();
-    return;
-  }
-  if (g_main_loop_woke) {
-    g_main_loop_woke = false;
-    return;
-  }
-  s_delay_expired = false;
-  auto alarm_cb = [](alarm_id_t, void *) -> int64_t {
-    s_delay_expired = true;
-    __sev();
-    return 0;
-  };
-  alarm_id_t alarm = add_alarm_in_ms(ms, alarm_cb, nullptr, true);
-  if (alarm <= 0) {
-    delay(ms);
-    return;
-  }
-  while (!g_main_loop_woke && !s_delay_expired) {
-    __wfe();
-  }
-  if (!s_delay_expired)
-    cancel_alarm(alarm);
-  g_main_loop_woke = false;
-}
+void wakeable_delay(uint32_t ms);
 }  // namespace internal
 
 // === Host (UDP loopback socket) ===

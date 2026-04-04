@@ -30,6 +30,45 @@ volatile bool g_main_loop_woke = false;
 void IRAM_ATTR wake_loop_any_context() { wake_loop_impl_(); }
 #endif
 
+// === RP2040 — wakeable_delay (needs file-scope state for alarm callback) ===
+#ifdef USE_RP2040
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+static volatile bool s_delay_expired = false;
+
+static int64_t alarm_callback_(alarm_id_t id, void *user_data) {
+  (void) id;
+  (void) user_data;
+  s_delay_expired = true;
+  __sev();
+  return 0;
+}
+
+namespace internal {
+void wakeable_delay(uint32_t ms) {
+  if (ms == 0) {
+    yield();
+    return;
+  }
+  if (g_main_loop_woke) {
+    g_main_loop_woke = false;
+    return;
+  }
+  s_delay_expired = false;
+  alarm_id_t alarm = add_alarm_in_ms(ms, alarm_callback_, nullptr, true);
+  if (alarm <= 0) {
+    delay(ms);
+    return;
+  }
+  while (!g_main_loop_woke && !s_delay_expired) {
+    __wfe();
+  }
+  if (!s_delay_expired)
+    cancel_alarm(alarm);
+  g_main_loop_woke = false;
+}
+}  // namespace internal
+#endif  // USE_RP2040
+
 // === Host (UDP loopback socket) ===
 #ifdef USE_HOST
 void wake_loop_threadsafe() {
