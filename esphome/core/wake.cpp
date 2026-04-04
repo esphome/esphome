@@ -12,11 +12,13 @@
 
 namespace esphome {
 
-// === ESP32 — IRAM_ATTR entry points (fast-select only) ===
-#if defined(USE_ESP32) && defined(USE_LWIP_FAST_SELECT)
+// === ESP32 — IRAM_ATTR entry points ===
+#ifdef USE_ESP32
+#ifdef USE_LWIP_FAST_SELECT
 void IRAM_ATTR wake_loop_isrsafe(int *px_higher_priority_task_woken) {
   wake_loop_isrsafe_inline_(px_higher_priority_task_woken);
 }
+#endif
 void IRAM_ATTR wake_loop_any_context() { wake_loop_any_context_inline_(); }
 #endif
 

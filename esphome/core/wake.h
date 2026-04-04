@@ -56,10 +56,21 @@ void wake_loop_any_context();
 
 inline void wake_loop_threadsafe() { esphome_lwip_wake_main_loop(); }
 #else
-inline void wake_loop_any_context() {
-  if (g_main_task_handle != nullptr)
+/// Inline impl — ISR callers inline this into IRAM. Uses xPortInIsrContext() to pick safe API.
+inline void ESPHOME_ALWAYS_INLINE wake_loop_any_context_inline_() {
+  if (g_main_task_handle == nullptr)
+    return;
+  if (xPortInIsrContext()) {
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    vTaskNotifyGiveFromISR(g_main_task_handle, &xHigherPriorityTaskWoken);
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+  } else {
     xTaskNotifyGive(g_main_task_handle);
+  }
 }
+/// IRAM_ATTR entry point — defined in wake.cpp.
+void wake_loop_any_context();
+
 inline void wake_loop_threadsafe() {
   if (g_main_task_handle != nullptr)
     xTaskNotifyGive(g_main_task_handle);
@@ -69,7 +80,6 @@ inline void wake_loop_threadsafe() {
 namespace internal {
 inline void wakeable_delay(uint32_t ms) {
 #ifndef USE_LWIP_FAST_SELECT
-  // Cache main task handle on first call
   if (g_main_task_handle == nullptr)
     g_main_task_handle = xTaskGetCurrentTaskHandle();
 #endif
