@@ -1,0 +1,7 @@
+sensor:
+  - platform: hdc2080
+    temperature:
+      name: Temperature
+    humidity:
+      name: Humidity
+    update_interval: 15s

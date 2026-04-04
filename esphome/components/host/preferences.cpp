@@ -4,17 +4,22 @@
 #include <fstream>
 #include "preferences.h"
 #include "esphome/core/application.h"
+#include "esphome/core/log.h"
 
-namespace esphome {
-namespace host {
+namespace esphome::host {
 namespace fs = std::filesystem;
 
-static const char *const TAG = "host.preferences";
+static const char *const TAG = "preferences";
 
 void HostPreferences::setup_() {
   if (this->setup_complete_)
     return;
-  this->filename_.append(getenv("HOME"));
+  const char *home = getenv("HOME");
+  if (home == nullptr) {
+    ESP_LOGE(TAG, "HOME environment variable is not set");
+    abort();
+  }
+  this->filename_.append(home);
   this->filename_.append("/.esphome");
   this->filename_.append("/prefs");
   fs::create_directories(this->filename_);
@@ -44,9 +49,12 @@ void HostPreferences::setup_() {
 bool HostPreferences::sync() {
   this->setup_();
   FILE *fp = fopen(this->filename_.c_str(), "wb");
-  std::map<uint32_t, std::vector<uint8_t>>::iterator it;
+  if (fp == nullptr) {
+    ESP_LOGE(TAG, "Failed to open preferences file for writing: %s", this->filename_.c_str());
+    return false;
+  }
 
-  for (it = this->data.begin(); it != this->data.end(); ++it) {
+  for (auto it = this->data.begin(); it != this->data.end(); ++it) {
     fwrite(&it->first, sizeof(uint32_t), 1, fp);
     uint8_t len = it->second.size();
     fwrite(&len, sizeof(len), 1, fp);
@@ -68,6 +76,8 @@ ESPPreferenceObject HostPreferences::make_preference(size_t length, uint32_t typ
 
 static HostPreferences s_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+HostPreferences *get_preferences() { return &s_preferences; }
+
 void setup_preferences() {
   host_preferences = &s_preferences;
   global_preferences = &s_preferences;
@@ -79,9 +89,11 @@ bool HostPreferenceBackend::save(const uint8_t *data, size_t len) {
 
 bool HostPreferenceBackend::load(uint8_t *data, size_t len) { return host_preferences->load(this->key_, data, len); }
 
-HostPreferences *host_preferences;
-}  // namespace host
+HostPreferences *host_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+}  // namespace esphome::host
+
+namespace esphome {
 ESPPreferences *global_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 }  // namespace esphome
 

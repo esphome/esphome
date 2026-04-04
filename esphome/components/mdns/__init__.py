@@ -21,7 +21,7 @@ DEPENDENCIES = ["network"]
 # Components that create mDNS services at runtime
 # IMPORTANT: If you add a new component here, you must also update the corresponding
 # #ifdef blocks in mdns_component.cpp compile_records_() method
-COMPONENTS_WITH_MDNS_SERVICES = ("api", "prometheus", "web_server")
+COMPONENTS_WITH_MDNS_SERVICES = ("api", "prometheus", "sendspin", "web_server")
 
 mdns_ns = cg.esphome_ns.namespace("mdns")
 MDNSComponent = mdns_ns.class_("MDNSComponent", cg.Component)
@@ -56,7 +56,7 @@ def _consume_mdns_sockets(config: ConfigType) -> ConfigType:
     from esphome.components import socket
 
     # mDNS needs 2 sockets (IPv4 + IPv6 multicast)
-    socket.consume_sockets(2, "mdns")(config)
+    socket.consume_sockets(2, "mdns", socket.SocketType.UDP)(config)
     return config
 
 
@@ -163,7 +163,7 @@ async def to_code(config):
             cg.add_library("LEAmDNS", None)
 
     if CORE.is_esp32:
-        add_idf_component(name="espressif/mdns", ref="1.9.1")
+        add_idf_component(name="espressif/mdns", ref="1.10.0")
 
     cg.add_define("USE_MDNS")
 

@@ -59,6 +59,7 @@ async def to_code(config):
             cv.Required(CONF_STATE): cv.templatable(cv.boolean),
         }
     ),
+    synchronous=True,
 )
 async def binary_sensor_template_publish_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

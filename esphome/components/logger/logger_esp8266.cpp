@@ -28,11 +28,6 @@ void Logger::pre_setup() {
   ESP_LOGI(TAG, "Log initialized");
 }
 
-void HOT Logger::write_msg_(const char *msg, uint16_t len) {
-  // Single write with newline already in buffer (added by caller)
-  this->hw_serial_->write(msg, len);
-}
-
 const LogString *Logger::get_uart_selection_() {
 #if defined(USE_ESP8266_LOGGER_SERIAL)
   if (this->uart_ == UART_SELECTION_UART0_SWAP) {

@@ -8,10 +8,9 @@
 #include <esp_task_wdt.h>
 #include <spi_flash_mmap.h>
 
-namespace esphome {
-namespace ota {
+namespace esphome::ota {
 
-std::unique_ptr<ota::OTABackend> make_ota_backend() { return make_unique<ota::IDFOTABackend>(); }
+std::unique_ptr<IDFOTABackend> make_ota_backend() { return make_unique<IDFOTABackend>(); }
 
 OTAResponseTypes IDFOTABackend::begin(size_t image_size) {
 #ifdef USE_OTA_ROLLBACK
@@ -112,6 +111,5 @@ void IDFOTABackend::abort() {
   this->update_handle_ = 0;
 }
 
-}  // namespace ota
-}  // namespace esphome
+}  // namespace esphome::ota
 #endif  // USE_ESP32

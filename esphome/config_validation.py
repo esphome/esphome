@@ -70,6 +70,7 @@ from esphome.const import (
     KEY_TARGET_FRAMEWORK,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_NRF52,
     PLATFORM_RP2040,
     SCHEDULER_DONT_RUN,
     TYPE_GIT,
@@ -243,6 +244,8 @@ RESERVED_IDS = [
     "open",
     "setup",
     "loop",
+    "spi0",
+    "spi1",
     "uart0",
     "uart1",
     "uart2",
@@ -313,7 +316,7 @@ class Version:
 
     @classmethod
     def parse(cls, value: str) -> Version:
-        match = re.match(r"^(\d+).(\d+).(\d+)-?(\w*)$", value)
+        match = re.match(r"^(\d+).(\d+).(\d+)[-.]?(\w*)$", value)
         if match is None:
             raise ValueError(f"Not a valid version number {value}")
         major = int(match[1])
@@ -399,19 +402,30 @@ def string_strict(value):
 
 def icon(value):
     """Validate that a given config value is a valid icon."""
+    from esphome.core.config import ICON_MAX_LENGTH
+
     value = string_strict(value)
     if not value:
         return value
-    if re.match("^[\\w\\-]+:[\\w\\-]+$", value):
-        return value
-    raise Invalid(
-        'Icons must match the format "[icon pack]:[icon]", e.g. "mdi:home-assistant"'
-    )
+    if not re.match("^[\\w\\-]+:[\\w\\-]+$", value):
+        raise Invalid(
+            'Icons must match the format "[icon pack]:[icon]", e.g. "mdi:home-assistant"'
+        )
+    if len(value) > ICON_MAX_LENGTH:
+        raise Invalid(
+            f"Icon string is too long ({len(value)} chars, max {ICON_MAX_LENGTH}). "
+            "Icons are stored in PROGMEM with a 64-byte buffer limit."
+        )
+    return value
 
 
+@schema_extractor("use_id")
 def sub_device_id(value: str | None) -> core.ID | None:
     # Lazy import to avoid circular imports
     from esphome.core.config import Device
+
+    if value == SCHEMA_EXTRACT:
+        return Device
 
     if not value:
         return None
@@ -484,6 +498,13 @@ def hex_int(value):
     purposes of the generated code.
     """
     return HexInt(int_(value))
+
+
+def int_to_hex_string(value: int | str) -> str:
+    """Convert an integer to a hex string (e.g. 64 -> '0x40'). Pass-through strings."""
+    if isinstance(value, int):
+        return f"0x{value:X}"
+    return value
 
 
 def int_(value):
@@ -695,6 +716,7 @@ def only_with_framework(
 
 only_on_esp32 = only_on(PLATFORM_ESP32)
 only_on_esp8266 = only_on(PLATFORM_ESP8266)
+only_on_nrf52 = only_on(PLATFORM_NRF52)
 only_on_rp2040 = only_on(PLATFORM_RP2040)
 only_with_arduino = only_with_framework(Framework.ARDUINO)
 
@@ -1638,7 +1660,10 @@ def dimensions(value):
         if width <= 0 or height <= 0:
             raise Invalid("Width and height must at least be 1")
         return [width, height]
-    value = string(value)
+    if not isinstance(value, str):
+        raise Invalid(
+            "Dimensions must be a string (WIDTHxHEIGHT). Got a number instead, try quoting the value."
+        )
     match = re.match(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
     if not match:
         raise Invalid(
