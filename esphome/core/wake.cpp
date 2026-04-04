@@ -21,23 +21,14 @@ void IRAM_ATTR wake_loop_any_context() { wake_loop_any_context_inline_(); }
 
 #endif  // USE_ESP32
 
-// === ESP8266 — IRAM_ATTR entry point + wakeable_delay ===
+#if defined(USE_ESP8266) || defined(USE_RP2040)
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+volatile bool g_main_loop_woke = false;
+#endif
+
 #ifdef USE_ESP8266
-
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-volatile bool g_main_loop_woke = false;
-
 void IRAM_ATTR wake_loop_any_context() { wake_loop_impl_(); }
-
-#endif  // USE_ESP8266
-
-// === RP2040 — g_main_loop_woke definition (wake functions + wakeable_delay are inline in wake.h) ===
-#ifdef USE_RP2040
-
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-volatile bool g_main_loop_woke = false;
-
-#endif  // USE_RP2040
+#endif
 
 // === Host (UDP loopback socket) ===
 #ifdef USE_HOST
