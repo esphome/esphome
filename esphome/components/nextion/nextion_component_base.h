@@ -76,8 +76,7 @@ class NextionComponentBase {
       this->wave_buffer_size_ = 0;
     } else {
       this->wave_buffer_size_ -= buffer_sent;
-      std::memmove(this->wave_buffer_.data(), this->wave_buffer_.data() + buffer_sent,
-                   this->wave_buffer_size_);
+      std::memmove(this->wave_buffer_.data(), this->wave_buffer_.data() + buffer_sent, this->wave_buffer_size_);
     }
   }
 #endif  // USE_NEXTION_WAVEFORM
