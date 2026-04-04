@@ -234,6 +234,41 @@ def _is_framework_spi_polling_mode_supported() -> bool:
     return False
 
 
+def _has_spi3(variant: str) -> bool:
+    """Check if the ESP32 variant has SPI3_HOST available."""
+    from esphome.components.esp32 import (
+        VARIANT_ESP32C2,
+        VARIANT_ESP32C3,
+        VARIANT_ESP32C5,
+        VARIANT_ESP32C6,
+        VARIANT_ESP32C61,
+        VARIANT_ESP32H2,
+    )
+
+    return variant not in {
+        VARIANT_ESP32C2,
+        VARIANT_ESP32C3,
+        VARIANT_ESP32C5,
+        VARIANT_ESP32C6,
+        VARIANT_ESP32C61,
+        VARIANT_ESP32H2,
+    }
+
+
+def _validate_spi_interface(config):
+    """Set default SPI interface or validate user choice against the variant."""
+    from esphome.components.esp32 import get_esp32_variant
+
+    variant = get_esp32_variant()
+    if CONF_INTERFACE not in config:
+        config[CONF_INTERFACE] = "spi3" if _has_spi3(variant) else "spi2"
+    elif config[CONF_INTERFACE] == "spi3" and not _has_spi3(variant):
+        raise cv.Invalid(
+            f"Interface 'spi3' is not available on {variant}. "
+            f"Only 'spi2' is supported on this variant."
+        )
+
+
 def _validate(config):
     if CONF_USE_ADDRESS not in config:
         if CONF_MANUAL_IP in config:
@@ -280,35 +315,7 @@ def _validate(config):
                         f"({CORE.target_framework} {CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}), "
                         f"'{CONF_INTERRUPT_PIN}' is a required option for [ethernet]."
                     )
-            from esphome.components.esp32 import (
-                VARIANT_ESP32C2,
-                VARIANT_ESP32C3,
-                VARIANT_ESP32C5,
-                VARIANT_ESP32C6,
-                VARIANT_ESP32C61,
-                VARIANT_ESP32H2,
-                get_esp32_variant,
-            )
-
-            spi2_only_variants = {
-                VARIANT_ESP32C2,
-                VARIANT_ESP32C3,
-                VARIANT_ESP32C5,
-                VARIANT_ESP32C6,
-                VARIANT_ESP32C61,
-                VARIANT_ESP32H2,
-            }
-            variant = get_esp32_variant()
-            if CONF_INTERFACE not in config:
-                if variant in spi2_only_variants:
-                    config[CONF_INTERFACE] = "spi2"
-                else:
-                    config[CONF_INTERFACE] = "spi3"
-            elif config[CONF_INTERFACE] == "spi3" and variant in spi2_only_variants:
-                raise cv.Invalid(
-                    f"Interface 'spi3' is not available on {variant}. "
-                    f"Only 'spi2' is supported on this variant."
-                )
+            _validate_spi_interface(config)
         elif config[CONF_TYPE] != "OPENETH":
             from esphome.components.esp32 import (
                 VARIANT_ESP32,
