@@ -935,8 +935,7 @@ inline void ESPHOME_ALWAYS_INLINE Application::yield_with_select_(uint32_t delay
   // RP2040: hardware timer + __wfe()/__sev()
   esphome::wakeable_delay(delay_ms);
 #else
-  // No wake mechanism available, use regular delay
-  delay(delay_ms);
+#error "No wakeable delay implementation for this platform"
 #endif
 }
 #endif  // !defined(USE_SOCKET_SELECT_SUPPORT) || defined(USE_LWIP_FAST_SELECT)
