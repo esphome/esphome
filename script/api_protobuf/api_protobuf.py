@@ -1078,7 +1078,7 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
         if max_len is not None and max_len < 128 and self.force:
             tag = self.calculate_tag()
             if tag < 128:
-                return f"buffer.encode_short_string({tag}, this->{self.field_name});"
+                return f"buffer.write_short_string({tag}, this->{self.field_name});"
         if result := self._encode_bytes_with_precomputed_tag(
             f"this->{self.field_name}.c_str()",
             f"this->{self.field_name}.size()",
