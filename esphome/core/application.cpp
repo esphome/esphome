@@ -115,12 +115,8 @@ void Application::setup() {
 #endif
 
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
-  // Save main loop task handle for wake_loop_*() FreeRTOS notifications.
-  g_main_task_handle = xTaskGetCurrentTaskHandle();
-#endif
-#ifdef USE_LWIP_FAST_SELECT
-  // Initialize fast select: hooks socket monitoring for direct rcvevent reads.
-  esphome_lwip_fast_select_init();
+  // Save main loop task handle for wake_loop_*() / fast select FreeRTOS notifications.
+  esphome_main_task_handle = xTaskGetCurrentTaskHandle();
 #endif
 #ifdef USE_HOST
   // Set up wake socket for waking main loop from tasks (platforms without fast select only)

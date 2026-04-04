@@ -12,12 +12,6 @@
 
 namespace esphome {
 
-// === ESP32/LibreTiny — FreeRTOS task handle ===
-#if defined(USE_ESP32) || defined(USE_LIBRETINY)
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-TaskHandle_t g_main_task_handle = nullptr;
-#endif
-
 // === ESP32 — IRAM_ATTR entry points ===
 #ifdef USE_ESP32
 void IRAM_ATTR wake_loop_isrsafe(int *px_higher_priority_task_woken) {

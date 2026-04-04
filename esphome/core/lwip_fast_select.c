@@ -63,11 +63,11 @@
 //
 // Shared state and safety rationale:
 //
-//   s_main_loop_task (TaskHandle_t, 4 bytes):
+//   esphome_main_task_handle (TaskHandle_t, 4 bytes):
 //     Written once by main loop in init(). Read by TCP/IP thread (in callback)
 //     and background tasks (in wake).
 //     Safe: write-once-then-read pattern. Socket hooks may run before init(),
-//     but the NULL check on s_main_loop_task in the callback provides correct
+//     but the NULL check on esphome_main_task_handle in the callback provides correct
 //     degraded behavior — notifications are simply skipped until init() completes.
 //
 //   s_original_callback (netconn_callback, 4-byte function pointer):
@@ -123,6 +123,7 @@
 #endif
 
 #include "esphome/core/lwip_fast_select.h"
+#include "esphome/core/main_task.h"
 
 #include <stddef.h>
 
@@ -157,8 +158,7 @@ _Static_assert(offsetof(struct lwip_sock, rcvevent) % sizeof(((struct lwip_sock 
 _Static_assert(offsetof(struct lwip_sock, rcvevent) == ESPHOME_LWIP_SOCK_RCVEVENT_OFFSET,
                "lwip_sock.rcvevent offset changed — update ESPHOME_LWIP_SOCK_RCVEVENT_OFFSET in lwip_fast_select.h");
 
-// Task handle for the main loop — written once in init(), read from TCP/IP and background tasks.
-static TaskHandle_t s_main_loop_task = NULL;
+// Task handle is in main_task.c (esphome_main_task_handle) — shared with wake.h.
 
 // Saved original event_callback pointer — written once in first hook_socket(), read from TCP/IP task.
 static netconn_callback s_original_callback = NULL;
@@ -177,14 +177,12 @@ static void esphome_socket_event_callback(struct netconn *conn, enum netconn_evt
   // (rcvevent++ with a NULL pbuf or error in recvmbox), so error conditions
   // already wake the main loop through the RCVPLUS path.
   if (evt == NETCONN_EVT_RCVPLUS) {
-    TaskHandle_t task = s_main_loop_task;
+    TaskHandle_t task = esphome_main_task_handle;
     if (task != NULL) {
       xTaskNotifyGive(task);
     }
   }
 }
-
-void esphome_lwip_fast_select_init(void) { s_main_loop_task = xTaskGetCurrentTaskHandle(); }
 
 // lwip_socket_dbg_get_socket() is a thin wrapper around the static
 // tryget_socket_unconn_nouse() — a direct array lookup without the refcount
@@ -234,7 +232,7 @@ bool esphome_lwip_set_nodelay(struct lwip_sock *sock, bool enable) {
 
 // Wake the main loop from another FreeRTOS task. NOT ISR-safe.
 void esphome_lwip_wake_main_loop(void) {
-  TaskHandle_t task = s_main_loop_task;
+  TaskHandle_t task = esphome_main_task_handle;
   if (task != NULL) {
     xTaskNotifyGive(task);
   }
@@ -242,7 +240,7 @@ void esphome_lwip_wake_main_loop(void) {
 
 // Wake the main loop from an ISR. ISR-safe variant.
 void IRAM_ATTR esphome_lwip_wake_main_loop_from_isr(int *px_higher_priority_task_woken) {
-  TaskHandle_t task = s_main_loop_task;
+  TaskHandle_t task = esphome_main_task_handle;
   if (task != NULL) {
     vTaskNotifyGiveFromISR(task, (BaseType_t *) px_higher_priority_task_woken);
   }

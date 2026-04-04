@@ -20,10 +20,6 @@ enum { ESPHOME_LWIP_SOCK_RCVEVENT_OFFSET = 8 };
 extern "C" {
 #endif
 
-/// Initialize fast select — must be called from the main loop task during setup().
-/// Saves the current task handle for xTaskNotifyGive() wake notifications.
-void esphome_lwip_fast_select_init(void);
-
 /// Look up a LwIP socket struct from a file descriptor.
 /// Returns NULL if fd is invalid or the socket/netconn is not initialized.
 /// Use this at registration time to cache the pointer for esphome_lwip_socket_has_data().
