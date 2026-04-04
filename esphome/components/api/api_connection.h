@@ -402,9 +402,8 @@ class APIConnection final : public APIServerConnectionBase {
   // Non-template buffer management for send_message
   bool send_message_(uint32_t payload_size, uint8_t message_type, MessageEncodeFn encode_fn, const void *msg);
 
-  // Non-template buffer management for batch encoding.
-  // ALWAYS_INLINE so it merges into each call site — the compiler can then
-  // inline the encode_fn callback and eliminate the indirect call.
+  // Core batch encoding logic. Computes header size, checks fit, resizes buffer, encodes.
+  // ALWAYS_INLINE so the compiler can devirtualize encode_fn at hot call sites.
   static inline uint16_t ESPHOME_ALWAYS_INLINE encode_to_buffer(uint32_t calculated_size, MessageEncodeFn encode_fn,
                                                                 const void *msg, APIConnection *conn,
                                                                 uint32_t remaining_size) {
@@ -440,43 +439,20 @@ class APIConnection final : public APIServerConnectionBase {
     return total_calculated_size;
   }
 
-  // Specialized path for zero-payload messages (ping, disconnect, list_info_done).
-  // No payload means no encode callback and no payload resize needed.
-  // Noinline — the three callers share a single copy via a call.
-  __attribute__((noinline)) static uint16_t encode_empty_to_buffer(const void *msg, uint8_t message_type,
-                                                                   APIConnection *conn, uint32_t remaining_size) {
-#ifdef HAS_PROTO_MESSAGE_DUMP
-    if (conn->flags_.log_only_mode) {
-      conn->log_send_message_(msg);
-      return 1;
-    }
-#endif
-    const uint8_t footer_size = conn->helper_->frame_footer_size();
-    bool first = conn->flags_.batch_first_message;
-    if (first) {
-      conn->flags_.batch_first_message = false;
-      conn->batch_header_size_ = conn->helper_->frame_header_padding();
-    } else {
-      conn->batch_header_size_ = conn->helper_->frame_header_size(0, message_type);
-    }
-    uint16_t total = conn->batch_header_size_ + footer_size;
-    if (total > remaining_size)
-      return 0;
-    if (!first) {
-      // Non-first: grow buffer by header + footer (no payload)
-      auto &shared_buf = conn->parent_->get_shared_buffer_ref();
-      shared_buf.resize(shared_buf.size() + total);
-    }
-    // First message: padding already in buffer from prepare_first_message_buffer
-    return total;
-  }
+  // Noinline version of encode_to_buffer for cold paths (entity info, zero-payload messages).
+  // All cold callers share this single copy instead of each getting an ALWAYS_INLINE expansion.
+  static uint16_t encode_to_buffer_slow_(uint32_t calculated_size, MessageEncodeFn encode_fn, const void *msg,
+                                         APIConnection *conn, uint32_t remaining_size);
 
-  // Thin template wrapper — computes size, delegates buffer work to non-template helper
+  // Thin template wrapper — uses noinline encode_to_buffer_slow_ since
+  // encode_message_to_buffer callers are cold paths (zero-payload control messages).
+  // Hot paths (state/info) go through fill_and_encode_entity_state/info instead.
   template<typename T> static uint16_t encode_message_to_buffer(T &msg, APIConnection *conn, uint32_t remaining_size) {
+    conn->batch_message_type_ = T::MESSAGE_TYPE;
     if constexpr (T::ESTIMATED_SIZE == 0) {
-      return encode_empty_to_buffer(&msg, T::MESSAGE_TYPE, conn, remaining_size);
+      return encode_to_buffer_slow_(0, &encode_msg_noop, &msg, conn, remaining_size);
     } else {
-      return encode_to_buffer(msg.calculate_size(), &proto_encode_msg<T>, &msg, conn, remaining_size);
+      return encode_to_buffer_slow_(msg.calculate_size(), &proto_encode_msg<T>, &msg, conn, remaining_size);
     }
   }
 
