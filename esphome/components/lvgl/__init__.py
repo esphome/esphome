@@ -392,7 +392,7 @@ async def to_code(configs):
     } & styles_used:
         df.add_define("LV_COLOR_SCREEN_TRANSP", "1")
 
-    if (theme := configs[0].get(df.CONF_THEME)) and theme.get(df.CONF_DARK_MODE, False):
+    if configs[0].get(df.CONF_THEME, {})[df.CONF_DARK_MODE]:
         df.add_define("LV_THEME_DEFAULT_DARK", "1")
 
     # Currently always need RGB565 for the display buffer, and ARGB8888 is used for layer blending
