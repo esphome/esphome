@@ -10,21 +10,26 @@ StaticVector<Controller *, CONTROLLER_REGISTRY_MAX> ControllerRegistry::controll
 
 void ControllerRegistry::register_controller(Controller *controller) { controllers.push_back(controller); }
 
-// Macro for standard registry notification dispatch - calls on_<entity_name>_update()
+// Each notify method directly iterates controllers and calls the virtual method.
+// This avoids the overhead of a shared noinline dispatch loop with function pointer
+// indirection. The loop is tiny (~20 bytes per entity type) so the flash cost of
+// duplicating it is negligible compared to eliminating two levels of indirection
+// (noinline call + function pointer) from every state publish.
+// NOLINTBEGIN(bugprone-macro-parentheses)
 #define CONTROLLER_REGISTRY_NOTIFY(entity_type, entity_name) \
-  void ControllerRegistry::notify_##entity_name##_update(entity_type *obj) { /* NOLINT(bugprone-macro-parentheses) */ \
+  void ControllerRegistry::notify_##entity_name##_update(entity_type *obj) { \
     for (auto *controller : controllers) { \
       controller->on_##entity_name##_update(obj); \
     } \
   }
 
-// Macro for entities where controller method has no "_update" suffix (Event, Update)
 #define CONTROLLER_REGISTRY_NOTIFY_NO_UPDATE_SUFFIX(entity_type, entity_name) \
-  void ControllerRegistry::notify_##entity_name(entity_type *obj) { /* NOLINT(bugprone-macro-parentheses) */ \
+  void ControllerRegistry::notify_##entity_name(entity_type *obj) { \
     for (auto *controller : controllers) { \
       controller->on_##entity_name(obj); \
     } \
   }
+// NOLINTEND(bugprone-macro-parentheses)
 
 #ifdef USE_BINARY_SENSOR
 CONTROLLER_REGISTRY_NOTIFY(binary_sensor::BinarySensor, binary_sensor)

@@ -15,7 +15,7 @@ class APIConnection;
     return this->client_->schedule_message_(entity, ResponseType::MESSAGE_TYPE, ResponseType::ESTIMATED_SIZE); \
   }
 
-class ListEntitiesIterator : public ComponentIterator {
+class ListEntitiesIterator final : public ComponentIterator {
  public:
   ListEntitiesIterator(APIConnection *client);
 #ifdef USE_BINARY_SENSOR
@@ -94,7 +94,6 @@ class ListEntitiesIterator : public ComponentIterator {
   bool on_update(update::UpdateEntity *entity) override;
 #endif
   bool on_end() override;
-  bool completed() { return this->state_ == IteratorState::NONE; }
 
  protected:
   APIConnection *client_;

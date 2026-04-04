@@ -7,6 +7,7 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/defines.h"
 #include <map>
+#include <queue>
 
 #ifdef USE_BSEC
 #include <bsec.h>
@@ -64,7 +65,6 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void loop() override;
 
  protected:

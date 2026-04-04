@@ -1,10 +1,10 @@
 import esphome.codegen as cg
 from esphome.components import output
+from esphome.components.modbus.helpers import SENSOR_VALUE_TYPE
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_MULTIPLY
 
 from .. import (
-    SENSOR_VALUE_TYPE,
     ModbusItemBaseSchema,
     SensorItem,
     modbus_calc_properties,

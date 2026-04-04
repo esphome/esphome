@@ -15,6 +15,7 @@ from esphome.components.esp32 import (
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
     get_esp32_variant,
+    include_builtin_idf_component,
 )
 import esphome.config_validation as cv
 from esphome.const import (
@@ -121,6 +122,10 @@ def get_default_tx_enqueue_timeout(bit_rate):
 
 
 async def to_code(config):
+    # Legacy driver component provides driver/twai.h header
+    include_builtin_idf_component("driver")
+    # Also enable esp_driver_twai for future migration to new API
+    include_builtin_idf_component("esp_driver_twai")
     var = cg.new_Pvariable(config[CONF_ID])
     await canbus.register_canbus(var, config)
 

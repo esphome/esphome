@@ -278,9 +278,13 @@ LAMBDA_PROG = re.compile(r"\bid\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)")
 
 class Lambda:
     def __init__(self, value):
+        from esphome.cpp_generator import Expression, statement
+
         # pylint: disable=protected-access
         if isinstance(value, Lambda):
             self._value = value._value
+        elif isinstance(value, Expression):
+            self._value = str(statement(value))
         else:
             self._value = value
         self._parts = None
@@ -888,6 +892,16 @@ class EsphomeCore:
             library.name if "/" not in library.name else library.name.split("/")[-1]
         )
 
+        # Auto-enable Arduino libraries on ESP32 Arduino builds
+        if self.is_esp32 and self.using_arduino:
+            from esphome.components.esp32 import (
+                ARDUINO_DISABLED_LIBRARIES,
+                _enable_arduino_library,
+            )
+
+            if short_name in ARDUINO_DISABLED_LIBRARIES:
+                _enable_arduino_library(short_name)
+
         if short_name not in self.platformio_libraries:
             _LOGGER.debug("Adding library: %s", library)
             self.platformio_libraries[short_name] = library
@@ -972,6 +986,15 @@ class EsphomeCore:
         :param var: The variable (component) being registered (currently unused but kept for future use)
         """
         self.platform_counts[platform_name] += 1
+
+    def testing_ensure_platform_registered(self, platform_name: str) -> None:
+        """Ensure a platform has at least one entity registered for testing.
+
+        Used during C++ test builds to guarantee USE_* defines are emitted
+        without needing a real component variable.
+        """
+        if not self.platform_counts[platform_name]:
+            self.platform_counts[platform_name] = 1
 
     def register_controller(self) -> None:
         """Track registration of a Controller for ControllerRegistry StaticVector sizing."""

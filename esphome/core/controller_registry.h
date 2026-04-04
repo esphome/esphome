@@ -146,8 +146,8 @@ class UpdateEntity;
  * entities call ControllerRegistry::notify_*_update() which iterates the small list
  * of registered controllers (typically 2: API and WebServer).
  *
- * Controllers read state directly from entities using existing accessors (obj->state, etc.)
- * rather than receiving it as callback parameters that were being ignored anyway.
+ * Each notify method directly iterates controllers and calls the virtual method,
+ * avoiding function pointer indirection for minimal dispatch overhead.
  *
  * Memory savings: 32 bytes per entity (2 controllers × 16 bytes std::function overhead)
  * Typical config (25 entities): ~780 bytes saved

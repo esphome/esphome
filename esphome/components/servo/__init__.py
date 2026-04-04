@@ -62,6 +62,7 @@ async def to_code(config):
             cv.Required(CONF_LEVEL): cv.templatable(cv.possibly_negative_percentage),
         }
     ),
+    synchronous=True,
 )
 async def servo_write_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -79,6 +80,7 @@ async def servo_write_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_ID): cv.use_id(Servo),
         }
     ),
+    synchronous=True,
 )
 async def servo_detach_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

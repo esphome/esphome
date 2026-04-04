@@ -38,8 +38,6 @@ void Tx20Component::loop() {
   }
 }
 
-float Tx20Component::get_setup_priority() const { return setup_priority::DATA; }
-
 std::string Tx20Component::get_wind_cardinal_direction() const { return this->wind_cardinal_direction_; }
 
 void Tx20Component::decode_and_publish_() {
@@ -193,7 +191,7 @@ void IRAM_ATTR Tx20ComponentStore::gpio_intr(Tx20ComponentStore *arg) {
     arg->tx20_available = true;
     return;
   }
-  if (index <= MAX_BUFFER_SIZE) {
+  if (index < MAX_BUFFER_SIZE) {
     arg->buffer[index] = delay;
   }
   arg->spent_time += delay;

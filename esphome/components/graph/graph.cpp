@@ -171,7 +171,7 @@ void Graph::draw(Display *buff, uint16_t x_offset, uint16_t y_offset, Color colo
     bool prev_b = false;
     int16_t prev_y = 0;
     for (uint32_t i = 0; i < this->width_; i++) {
-      float v = (trace->get_tracedata()->get_value(i) - ymin) / yrange;
+      float v = yrange != 0 ? (trace->get_tracedata()->get_value(i) - ymin) / yrange : NAN;
       if (!std::isnan(v) && (thick > 0)) {
         int16_t x = this->width_ - 1 - i + x_offset;
         uint8_t bit = 1 << ((i % (thick * LineType::PATTERN_LENGTH)) / thick);
