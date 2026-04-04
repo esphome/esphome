@@ -916,10 +916,8 @@ inline void ESPHOME_ALWAYS_INLINE Application::yield_with_select_(uint32_t delay
   // Sleep with instant wake via FreeRTOS task notification.
   // Woken by: callback wrapper (socket data), wake_loop_threadsafe() (background tasks), or timeout.
   esphome::wakeable_delay(delay_ms);
-#elif defined(USE_ESP8266) || defined(USE_RP2040)
-  esphome::wakeable_delay(delay_ms);
 #else
-  delay(delay_ms);
+  esphome::wakeable_delay(delay_ms);
 #endif
 }
 #endif  // !USE_SOCKET_SELECT_SUPPORT

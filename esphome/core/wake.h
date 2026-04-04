@@ -112,6 +112,9 @@ void wake_loop_threadsafe();
 /// Host: no ISR, just use threadsafe version.
 inline void wake_loop_any_context() { wake_loop_threadsafe(); }
 
+/// Host: select() handles the delay, this is a simple fallback.
+inline void wakeable_delay(uint32_t ms) { delay(ms); }
+
 #endif
 
 }  // namespace esphome
