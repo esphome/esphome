@@ -38,8 +38,8 @@ void PCA9554Component::setup() {
   if (this->interrupt_pin_ != nullptr) {
     this->interrupt_pin_->setup();
     this->interrupt_pin_->attach_interrupt(&PCA9554Component::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
-    // Cache stays valid until interrupt fires and loop() invalidates it
-    this->set_interrupt_driven_(true);
+    // Don't invalidate cache on read — only invalidate when interrupt fires
+    this->set_invalidate_on_read_(false);
     // With interrupt pin, only run loop when interrupt fires
     this->disable_loop();
   }
