@@ -29,15 +29,8 @@ extern volatile bool g_main_loop_woke;
 #if defined(USE_ESP32) || defined(USE_LIBRETINY)
 
 #ifdef USE_ESP32
-/// Inline impl — ISR callers inline this into IRAM.
-inline void ESPHOME_ALWAYS_INLINE wake_loop_isrsafe_inline_(int *px_higher_priority_task_woken) {
-  esphome_main_task_notify_from_isr(px_higher_priority_task_woken);
-}
 /// IRAM_ATTR entry point — defined in wake.cpp.
 void wake_loop_isrsafe(int *px_higher_priority_task_woken);
-
-/// Inline impl — ISR callers inline this into IRAM.
-inline void ESPHOME_ALWAYS_INLINE wake_loop_any_context_inline_() { esphome_main_task_notify_any_context(); }
 /// IRAM_ATTR entry point — defined in wake.cpp.
 void wake_loop_any_context();
 #else
