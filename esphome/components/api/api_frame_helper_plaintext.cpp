@@ -307,9 +307,9 @@ APIError APIPlaintextFrameHelper::write_protobuf_messages(ProtoWriteBuffer buffe
   // Subsequent messages were encoded with exact header sizes (header_size = actual header len).
   // write_plaintext_header right-justifies the header within header_size bytes of padding.
   const auto &first = messages[0];
-  uint8_t header_len =
-      write_plaintext_header(buffer_data + first.offset, first.payload_size, first.message_type, HEADER_PADDING);
-  uint8_t *write_start = buffer_data + first.offset + HEADER_PADDING - header_len;
+  uint8_t *first_start = buffer_data + first.offset;
+  uint8_t header_len = write_plaintext_header(first_start, first.payload_size, first.message_type, HEADER_PADDING);
+  uint8_t *write_start = first_start + HEADER_PADDING - header_len;
   uint16_t total_len = header_len + first.payload_size;
 
   for (size_t i = 1; i < messages.size(); i++) {
