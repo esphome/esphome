@@ -6,6 +6,8 @@ what files have changed. It outputs JSON with the following structure:
 
 {
   "integration_tests": true/false,
+  "integration_tests_run_all": true/false,
+  "integration_test_files": ["tests/integration/test_foo.py", ...],
   "clang_tidy": true/false,
   "clang_format": true/false,
   "python_linters": true/false,
@@ -56,13 +58,13 @@ from helpers import (
     core_changed,
     filter_component_and_test_cpp_files,
     filter_component_and_test_files,
-    get_all_dependencies,
     get_changed_components,
     get_component_from_path,
     get_component_test_files,
-    get_components_from_integration_fixtures,
     get_components_with_dependencies,
     get_cpp_changed_components,
+    get_fixture_to_test_files,
+    get_integration_test_files_for_components,
     get_target_branch,
     git_ls_files,
     parse_test_filename,
@@ -89,6 +91,11 @@ class Platform(StrEnum):
     ESP32_C6_IDF = "esp32-c6-idf"
     ESP32_S2_IDF = "esp32-s2-idf"
     ESP32_S3_IDF = "esp32-s3-idf"
+    BK72XX_ARD = "bk72xx-ard"  # LibreTiny BK7231N
+    RTL87XX_ARD = "rtl87xx-ard"  # LibreTiny RTL8720x
+    LN882X_ARD = "ln882x-ard"  # LibreTiny LN882x
+    RP2040_ARD = "rp2040-ard"  # Raspberry Pi Pico
+    NRF52_ZEPHYR = "nrf52-adafruit"  # Nordic nRF52 (Zephyr)
 
 
 # Memory impact analysis constants
@@ -104,11 +111,13 @@ PLATFORM_SPECIFIC_COMPONENTS = frozenset(
         "esp32",  # ESP32 platform implementation
         "esp8266",  # ESP8266 platform implementation
         "rp2040",  # Raspberry Pi Pico / RP2040 platform implementation
+        "libretiny",  # LibreTiny base platform implementation
         "bk72xx",  # Beken BK72xx platform implementation (uses LibreTiny)
         "rtl87xx",  # Realtek RTL87xx platform implementation (uses LibreTiny)
         "ln882x",  # Winner Micro LN882x platform implementation (uses LibreTiny)
         "host",  # Host platform (for testing on development machine)
-        "nrf52",  # Nordic nRF52 platform implementation
+        "nrf52",  # Nordic nRF52 platform implementation (uses Zephyr)
+        "zephyr",  # Zephyr RTOS platform implementation
     }
 )
 
@@ -120,6 +129,9 @@ PLATFORM_SPECIFIC_COMPONENTS = frozenset(
 #                      fastest build times, most sensitive to code size changes
 # 3. ESP32 IDF - Primary ESP32 platform, most representative of modern ESPHome
 # 4-6. Other ESP32 variants - Less commonly used but still supported
+# 7-9. LibreTiny platforms (BK72XX, RTL87XX, LN882X) - good for detecting LibreTiny-specific changes
+# 10. RP2040 - Raspberry Pi Pico platform
+# 11. nRF52 - Nordic nRF52 with Zephyr (good for detecting Zephyr-specific changes)
 MEMORY_IMPACT_PLATFORM_PREFERENCE = [
     Platform.ESP32_C6_IDF,  # ESP32-C6 IDF (newest, supports Thread/Zigbee)
     Platform.ESP8266_ARD,  # ESP8266 Arduino (most memory constrained, fastest builds)
@@ -127,68 +139,96 @@ MEMORY_IMPACT_PLATFORM_PREFERENCE = [
     Platform.ESP32_C3_IDF,  # ESP32-C3 IDF
     Platform.ESP32_S2_IDF,  # ESP32-S2 IDF
     Platform.ESP32_S3_IDF,  # ESP32-S3 IDF
+    Platform.BK72XX_ARD,  # LibreTiny BK7231N
+    Platform.RTL87XX_ARD,  # LibreTiny RTL8720x
+    Platform.LN882X_ARD,  # LibreTiny LN882x
+    Platform.RP2040_ARD,  # Raspberry Pi Pico
+    Platform.NRF52_ZEPHYR,  # Nordic nRF52 (Zephyr)
 ]
 
 
-def should_run_integration_tests(branch: str | None = None) -> bool:
-    """Determine if integration tests should run based on changed files.
+def determine_integration_tests(branch: str | None = None) -> tuple[bool, list[str]]:
+    """Determine which integration tests should run based on changed files.
 
-    This function is used by the CI workflow to intelligently skip integration tests when they're
-    not needed, saving significant CI time and resources.
+    This function is used by the CI workflow to intelligently skip or filter
+    integration tests, saving significant CI time and resources.
 
-    Integration tests will run when ANY of the following conditions are met:
+    Returns (run_all=True, []) when ANY of the following conditions are met:
 
     1. Core C++ files changed (esphome/core/*)
        - Any .cpp, .h, .tcc files in the core directory
        - These files contain fundamental functionality used throughout ESPHome
-       - Examples: esphome/core/component.cpp, esphome/core/application.h
 
     2. Core Python files changed (esphome/core/*.py)
        - Only .py files in the esphome/core/ directory
        - These are core Python files that affect the entire system
-       - Examples: esphome/core/config.py, esphome/core/__init__.py
-       - NOT included: esphome/*.py, esphome/dashboard/*.py, esphome/components/*/*.py
 
-    3. Integration test files changed
-       - Any file in tests/integration/ directory
-       - This includes test files themselves and fixture YAML files
-       - Examples: tests/integration/test_api.py, tests/integration/fixtures/api.yaml
+    3. Integration test infrastructure files changed
+       - conftest.py, types.py, const.py, entity_utils.py, state_utils.py, etc.
 
-    4. Components used by integration tests (or their dependencies) changed
-       - The function parses all YAML files in tests/integration/fixtures/
-       - Extracts which components are used in integration tests
-       - Recursively finds all dependencies of those components
-       - If any of these components have changes, tests must run
-       - Example: If api.yaml uses 'sensor' and 'api' components, and 'api' depends on 'socket',
-         then changes to sensor/, api/, or socket/ components trigger tests
+    Returns (run_all=False, [test_files...]) when:
+
+    4. Specific integration test files changed
+       - Only those specific test files are returned
+
+    5. Components used by integration tests (or their dependencies) changed
+       - Only test files whose fixtures use the changed components are returned
 
     Args:
         branch: Branch to compare against. If None, uses default.
 
     Returns:
-        True if integration tests should run, False otherwise.
+        Tuple of (run_all, test_files) where:
+        - run_all: True if all integration tests should run
+        - test_files: List of specific test file paths to run (empty if run_all
+          is True, or if no tests need to run)
     """
     files = changed_files(branch)
 
     if core_changed(files):
-        # If any core files changed, run integration tests
-        return True
+        # If any core files changed, run all integration tests
+        return (True, [])
 
-    # Check if any integration test files changed
-    if any("tests/integration" in file for file in files):
-        return True
+    # If infrastructure Python files changed (conftest, utils, etc.), run all tests
+    # Excludes test files (test_*.py), fixtures, and non-Python files (README.md)
+    if any(
+        f.startswith("tests/integration/")
+        and f.endswith(".py")
+        and not f.startswith("tests/integration/test_")
+        and "/fixtures/" not in f
+        for f in files
+    ):
+        return (True, [])
 
-    # Get all components used in integration tests and their dependencies
-    fixture_components = get_components_from_integration_fixtures()
-    all_required_components = get_all_dependencies(fixture_components)
+    # Collect specific test files that need to run
+    test_files: set[str] = set()
+    fixture_to_test_files = get_fixture_to_test_files()
 
-    # Check if any required components changed
-    for file in files:
-        component = get_component_from_path(file)
-        if component and component in all_required_components:
-            return True
+    for f in files:
+        if f.startswith("tests/integration/test_") and f.endswith(".py"):
+            test_files.add(f)
+        elif f.startswith("tests/integration/fixtures/"):
+            if f.endswith(".yaml"):
+                # Fixture YAML changed - add corresponding test file(s)
+                test_files.update(fixture_to_test_files.get(Path(f).stem, ()))
+            else:
+                # Non-YAML fixture file changed (e.g., external_components/)
+                # Run all tests since we can't determine which tests are affected
+                return (True, [])
 
-    return False
+    # Find test files whose fixtures use any of the changed components
+    changed_component_set = {
+        component for file in files if (component := get_component_from_path(file))
+    }
+    if changed_component_set:
+        test_files.update(
+            get_integration_test_files_for_components(changed_component_set)
+        )
+
+    if test_files:
+        return (False, sorted(test_files))
+
+    return (False, [])
 
 
 @cache
@@ -343,6 +383,63 @@ def determine_cpp_unit_tests(
     return (False, get_cpp_changed_components(cpp_files))
 
 
+# Paths within tests/benchmarks/ that contain component benchmark files
+BENCHMARKS_COMPONENTS_PATH = "tests/benchmarks/components"
+
+# Files that, when changed, should trigger benchmark runs
+BENCHMARK_INFRASTRUCTURE_FILES = frozenset(
+    {
+        "script/cpp_benchmark.py",
+        "script/build_helpers.py",
+        "script/setup_codspeed_lib.py",
+    }
+)
+
+
+def should_run_benchmarks(branch: str | None = None) -> bool:
+    """Determine if C++ benchmarks should run based on changed files.
+
+    Benchmarks run when any of the following conditions are met:
+
+    1. Core C++ files changed (esphome/core/*)
+    2. A directly changed component has benchmark files (no dependency expansion)
+    3. Benchmark infrastructure changed (tests/benchmarks/*, script/cpp_benchmark.py,
+       script/build_helpers.py, script/setup_codspeed_lib.py)
+
+    Unlike unit tests, benchmarks do NOT expand to dependent components.
+    Changing ``sensor`` does not trigger ``api`` benchmarks just because
+    api depends on sensor.
+
+    Args:
+        branch: Branch to compare against. If None, uses default.
+
+    Returns:
+        True if benchmarks should run, False otherwise.
+    """
+    files = changed_files(branch)
+    if core_changed(files):
+        return True
+
+    # Check if benchmark infrastructure changed
+    if any(
+        f.startswith("tests/benchmarks/") or f in BENCHMARK_INFRASTRUCTURE_FILES
+        for f in files
+    ):
+        return True
+
+    # Check if any directly changed component has benchmarks
+    benchmarks_dir = Path(root_path) / BENCHMARKS_COMPONENTS_PATH
+    if not benchmarks_dir.is_dir():
+        return False
+    benchmarked_components = {
+        d.name
+        for d in benchmarks_dir.iterdir()
+        if d.is_dir() and (any(d.glob("*.cpp")) or any(d.glob("*.h")))
+    }
+    # Only direct changes — no dependency expansion
+    return any(get_component_from_path(f) in benchmarked_components for f in files)
+
+
 def _any_changed_file_endswith(branch: str | None, extensions: tuple[str, ...]) -> bool:
     """Check if a changed file ends with any of the specified extensions."""
     return any(file.endswith(extensions) for file in changed_files(branch))
@@ -404,8 +501,10 @@ def _detect_platform_hint_from_filename(filename: str) -> Platform | None:
     - wifi_component_esp_idf.cpp, *_idf.h -> ESP32 IDF variants
     - wifi_component_esp8266.cpp, *_esp8266.h -> ESP8266_ARD
     - *_esp32*.cpp -> ESP32 IDF (generic)
-    - *_libretiny.cpp, *_retiny.* -> LibreTiny (not in preference list)
-    - *_pico.cpp, *_rp2040.* -> RP2040 (not in preference list)
+    - *_libretiny.cpp, *_bk72*.* -> BK72XX (LibreTiny)
+    - *_rtl87*.* -> RTL87XX (LibreTiny Realtek)
+    - *_ln882*.* -> LN882X (LibreTiny Lightning)
+    - *_pico.cpp, *_rp2040.* -> RP2040_ARD
 
     Args:
         filename: File path to check
@@ -438,12 +537,22 @@ def _detect_platform_hint_from_filename(filename: str) -> Platform | None:
     if "esp32" in filename_lower:
         return Platform.ESP32_IDF
 
-    # LibreTiny and RP2040 are not in MEMORY_IMPACT_PLATFORM_PREFERENCE
-    # so we don't return them as hints
-    # if "retiny" in filename_lower or "libretiny" in filename_lower:
-    #     return None  # No specific LibreTiny platform preference
-    # if "pico" in filename_lower or "rp2040" in filename_lower:
-    #     return None  # No RP2040 platform preference
+    # LibreTiny platforms (check specific variants before generic libretiny)
+    # Check specific variants first to handle paths like libretiny/wifi_rtl87xx.cpp
+    if "rtl87" in filename_lower:
+        return Platform.RTL87XX_ARD
+    if "ln882" in filename_lower:
+        return Platform.LN882X_ARD
+    if "libretiny" in filename_lower or "bk72" in filename_lower:
+        return Platform.BK72XX_ARD
+
+    # RP2040 / Raspberry Pi Pico
+    if "pico" in filename_lower or "rp2040" in filename_lower:
+        return Platform.RP2040_ARD
+
+    # nRF52 / Zephyr
+    if "nrf52" in filename_lower or "zephyr" in filename_lower:
+        return Platform.NRF52_ZEPHYR
 
     return None
 
@@ -657,7 +766,10 @@ def main() -> None:
     args = parser.parse_args()
 
     # Determine what should run
-    run_integration = should_run_integration_tests(args.branch)
+    integration_run_all, integration_test_files = determine_integration_tests(
+        args.branch
+    )
+    run_integration = integration_run_all or bool(integration_test_files)
     run_clang_tidy = should_run_clang_tidy(args.branch)
     run_clang_format = should_run_clang_format(args.branch)
     run_python_linters = should_run_python_linters(args.branch)
@@ -751,6 +863,9 @@ def main() -> None:
     # Determine which C++ unit tests to run
     cpp_run_all, cpp_components = determine_cpp_unit_tests(args.branch)
 
+    # Determine if benchmarks should run
+    run_benchmarks = should_run_benchmarks(args.branch)
+
     # Split components into batches for CI testing
     # This intelligently groups components with similar bus configurations
     component_test_batches: list[str]
@@ -785,6 +900,8 @@ def main() -> None:
 
     output: dict[str, Any] = {
         "integration_tests": run_integration,
+        "integration_tests_run_all": integration_run_all,
+        "integration_test_files": integration_test_files,
         "clang_tidy": run_clang_tidy,
         "clang_tidy_mode": clang_tidy_mode,
         "clang_format": run_clang_format,
@@ -801,6 +918,7 @@ def main() -> None:
         "cpp_unit_tests_run_all": cpp_run_all,
         "cpp_unit_tests_components": cpp_components,
         "component_test_batches": component_test_batches,
+        "benchmarks": run_benchmarks,
     }
 
     # Output as JSON

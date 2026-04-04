@@ -9,6 +9,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import socket
 from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
+from esphome.components.esp32.const import VARIANT_ESP32C2
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ENABLE_ON_BOOT,
@@ -20,9 +21,9 @@ from esphome.const import (
 )
 from esphome.core import CORE, CoroPriority, TimePeriod, coroutine_with_priority
 import esphome.final_validate as fv
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["esp32"]
-AUTO_LOAD = ["socket"]
 CODEOWNERS = ["@jesserockz", "@Rapsssito", "@bdraco"]
 DOMAIN = "esp32_ble"
 
@@ -133,10 +134,38 @@ class HandlerCounts:
 _handler_counts = HandlerCounts()
 
 
+def _add_callback(
+    parent_var: cg.MockObj,
+    method: str,
+    handler_var: cg.MockObj,
+    params: str,
+    call_args: str,
+) -> None:
+    """Generate a lambda callback that forwards to a handler method.
+
+    Uses a braced scope with a local pointer variable so the generated C++
+    lambda captures only that pointer, avoiding GCC warnings about capturing
+    variables with static storage duration.
+    """
+    cg.add(
+        cg.RawStatement(
+            f"{{ auto *h = {handler_var}; "
+            f"{parent_var}->{method}("
+            f"[h]({params}) {{ h->{call_args}; }}); }}"
+        )
+    )
+
+
 def register_gap_event_handler(parent_var: cg.MockObj, handler_var: cg.MockObj) -> None:
     """Register a GAP event handler and track the count."""
     _handler_counts.gap_event += 1
-    cg.add(parent_var.register_gap_event_handler(handler_var))
+    _add_callback(
+        parent_var,
+        "add_gap_event_callback",
+        handler_var,
+        "esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param",
+        "gap_event_handler(event, param)",
+    )
 
 
 def register_gap_scan_event_handler(
@@ -144,7 +173,13 @@ def register_gap_scan_event_handler(
 ) -> None:
     """Register a GAP scan event handler and track the count."""
     _handler_counts.gap_scan_event += 1
-    cg.add(parent_var.register_gap_scan_event_handler(handler_var))
+    _add_callback(
+        parent_var,
+        "add_gap_scan_event_callback",
+        handler_var,
+        "const esphome::esp32_ble::BLEScanResult &scan_result",
+        "gap_scan_event_handler(scan_result)",
+    )
 
 
 def register_gattc_event_handler(
@@ -152,7 +187,13 @@ def register_gattc_event_handler(
 ) -> None:
     """Register a GATTc event handler and track the count."""
     _handler_counts.gattc_event += 1
-    cg.add(parent_var.register_gattc_event_handler(handler_var))
+    _add_callback(
+        parent_var,
+        "add_gattc_event_callback",
+        handler_var,
+        "esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param",
+        "gattc_event_handler(event, gattc_if, param)",
+    )
 
 
 def register_gatts_event_handler(
@@ -160,7 +201,13 @@ def register_gatts_event_handler(
 ) -> None:
     """Register a GATTs event handler and track the count."""
     _handler_counts.gatts_event += 1
-    cg.add(parent_var.register_gatts_event_handler(handler_var))
+    _add_callback(
+        parent_var,
+        "add_gatts_event_callback",
+        handler_var,
+        "esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param",
+        "gatts_event_handler(event, gatts_if, param)",
+    )
 
 
 def register_ble_status_event_handler(
@@ -168,7 +215,13 @@ def register_ble_status_event_handler(
 ) -> None:
     """Register a BLE status event handler and track the count."""
     _handler_counts.ble_status_event += 1
-    cg.add(parent_var.register_ble_status_event_handler(handler_var))
+    _add_callback(
+        parent_var,
+        "add_ble_status_event_callback",
+        handler_var,
+        "",
+        "ble_before_disabled_event_handler()",
+    )
 
 
 def register_bt_logger(*loggers: BTLoggers) -> None:
@@ -188,6 +241,9 @@ def register_bt_logger(*loggers: BTLoggers) -> None:
 
 CONF_BLE_ID = "ble_id"
 CONF_IO_CAPABILITY = "io_capability"
+CONF_AUTH_REQ_MODE = "auth_req_mode"
+CONF_MAX_KEY_SIZE = "max_key_size"
+CONF_MIN_KEY_SIZE = "min_key_size"
 CONF_ADVERTISING = "advertising"
 CONF_ADVERTISING_CYCLE_TIME = "advertising_cycle_time"
 CONF_DISABLE_BT_LOGS = "disable_bt_logs"
@@ -221,10 +277,6 @@ NO_BLUETOOTH_VARIANTS = [const.VARIANT_ESP32S2]
 esp32_ble_ns = cg.esphome_ns.namespace("esp32_ble")
 ESP32BLE = esp32_ble_ns.class_("ESP32BLE", cg.Component)
 
-GAPEventHandler = esp32_ble_ns.class_("GAPEventHandler")
-GATTcEventHandler = esp32_ble_ns.class_("GATTcEventHandler")
-GATTsEventHandler = esp32_ble_ns.class_("GATTsEventHandler")
-
 BLEEnabledCondition = esp32_ble_ns.class_("BLEEnabledCondition", automation.Condition)
 BLEEnableAction = esp32_ble_ns.class_("BLEEnableAction", automation.Action)
 BLEDisableAction = esp32_ble_ns.class_("BLEDisableAction", automation.Action)
@@ -236,6 +288,18 @@ IO_CAPABILITY = {
     "keyboard_display": IoCapability.IO_CAP_KBDISP,
     "display_only": IoCapability.IO_CAP_OUT,
     "display_yes_no": IoCapability.IO_CAP_IO,
+}
+
+AuthReqMode = esp32_ble_ns.enum("AuthReqMode")
+AUTH_REQ_MODE = {
+    "no_bond": AuthReqMode.AUTH_REQ_NO_BOND,
+    "bond": AuthReqMode.AUTH_REQ_BOND,
+    "mitm": AuthReqMode.AUTH_REQ_MITM,
+    "bond_mitm": AuthReqMode.AUTH_REQ_BOND_MITM,
+    "sc_only": AuthReqMode.AUTH_REQ_SC_ONLY,
+    "sc_bond": AuthReqMode.AUTH_REQ_SC_BOND,
+    "sc_mitm": AuthReqMode.AUTH_REQ_SC_MITM,
+    "sc_mitm_bond": AuthReqMode.AUTH_REQ_SC_MITM_BOND,
 }
 
 esp_power_level_t = cg.global_ns.enum("esp_power_level_t")
@@ -258,6 +322,10 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_IO_CAPABILITY, default="none"): cv.enum(
             IO_CAPABILITY, lower=True
         ),
+        # note: no defaults so we can action them not being present
+        cv.Optional(CONF_AUTH_REQ_MODE): cv.enum(AUTH_REQ_MODE, lower=True),
+        cv.Optional(CONF_MAX_KEY_SIZE): cv.int_range(min=7, max=16),
+        cv.Optional(CONF_MIN_KEY_SIZE): cv.int_range(min=7, max=16),
         cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
         cv.Optional(CONF_ADVERTISING, default=False): cv.boolean,
         cv.Optional(
@@ -277,6 +345,23 @@ CONFIG_SCHEMA = cv.Schema(
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
+
+
+def _validate_key_sizes(config: ConfigType) -> ConfigType:
+    if (
+        CONF_MIN_KEY_SIZE in config
+        and CONF_MAX_KEY_SIZE in config
+        and config[CONF_MIN_KEY_SIZE] > config[CONF_MAX_KEY_SIZE]
+    ):
+        raise cv.Invalid(
+            f"min_key_size ({config[CONF_MIN_KEY_SIZE]}) must be "
+            f"less than or equal to "
+            f"max_key_size ({config[CONF_MAX_KEY_SIZE]})"
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(CONFIG_SCHEMA, _validate_key_sizes)
 
 
 bt_uuid16_format = "XXXX"
@@ -388,6 +473,15 @@ def final_validation(config):
                 f"Name '{name}' is too long, maximum length is {max_length} characters"
             )
 
+    # ESP32-C2 has very limited RAM (~272KB). Without releasing BLE IRAM,
+    # esp_bt_controller_init fails with ESP_ERR_NO_MEM.
+    # CONFIG_BT_RELEASE_IRAM changes the memory layout so IRAM and DRAM share
+    # space more flexibly, giving the BT controller enough contiguous memory.
+    # This requires CONFIG_ESP_SYSTEM_PMP_IDRAM_SPLIT to be disabled.
+    if get_esp32_variant() == VARIANT_ESP32C2:
+        add_idf_sdkconfig_option("CONFIG_BT_RELEASE_IRAM", True)
+        add_idf_sdkconfig_option("CONFIG_ESP_SYSTEM_PMP_IDRAM_SPLIT", False)
+
     # Set GATT Client/Server sdkconfig options based on which components are loaded
     full_config = fv.full_config.get()
 
@@ -404,16 +498,16 @@ def final_validation(config):
         add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID", True)
         add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_BLUEDROID_HCI_VHCI", True)
 
-    # Check if BLE Server is needed
-    has_ble_server = "esp32_ble_server" in full_config
-
     # Check if BLE Client is needed (via esp32_ble_tracker or esp32_ble_client)
     has_ble_client = (
         "esp32_ble_tracker" in full_config or "esp32_ble_client" in full_config
     )
 
+    # Check if BLE Server is needed
+    has_ble_server = "esp32_ble_server" in full_config
+
     # ESP-IDF BLE stack requires GATT Server to be enabled when GATT Client is enabled
-    # This is an internal dependency in the Bluedroid stack (tested ESP-IDF 5.4.2-5.5.1)
+    # This is an internal dependency in the Bluedroid stack
     # See: https://github.com/espressif/esp-idf/issues/17724
     add_idf_sdkconfig_option("CONFIG_BT_GATTS_ENABLE", has_ble_server or has_ble_client)
     add_idf_sdkconfig_option("CONFIG_BT_GATTC_ENABLE", has_ble_client)
@@ -478,6 +572,21 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
     cg.add(var.set_io_capability(config[CONF_IO_CAPABILITY]))
+
+    if (
+        CONF_AUTH_REQ_MODE in config
+        or CONF_MAX_KEY_SIZE in config
+        or CONF_MIN_KEY_SIZE in config
+    ):
+        cg.add_define("ESPHOME_ESP32_BLE_EXTENDED_AUTH_PARAMS", None)
+
+    if CONF_AUTH_REQ_MODE in config:
+        cg.add(var.set_auth_req(config[CONF_AUTH_REQ_MODE]))
+    if CONF_MAX_KEY_SIZE in config:
+        cg.add(var.set_max_key_size(config[CONF_MAX_KEY_SIZE]))
+    if CONF_MIN_KEY_SIZE in config:
+        cg.add(var.set_min_key_size(config[CONF_MIN_KEY_SIZE]))
+
     cg.add(var.set_advertising_cycle_time(config[CONF_ADVERTISING_CYCLE_TIME]))
     if (name := config.get(CONF_NAME)) is not None:
         cg.add(var.set_name(name))
@@ -543,11 +652,15 @@ async def ble_enabled_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg)
 
 
-@automation.register_action("ble.enable", BLEEnableAction, cv.Schema({}))
+@automation.register_action(
+    "ble.enable", BLEEnableAction, cv.Schema({}), synchronous=True
+)
 async def ble_enable_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg)
 
 
-@automation.register_action("ble.disable", BLEDisableAction, cv.Schema({}))
+@automation.register_action(
+    "ble.disable", BLEDisableAction, cv.Schema({}), synchronous=True
+)
 async def ble_disable_to_code(config, action_id, template_arg, args):
     return cg.new_Pvariable(action_id, template_arg)
