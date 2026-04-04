@@ -20,20 +20,6 @@
 
 namespace esphome::socket {
 
-#if defined(USE_ESP8266) || defined(USE_RP2040)
-// socket_delay() and socket_wake() delegate to the core wake mechanism.
-// socket_wake() calls wake_loop_any_context() which sets g_main_loop_woke,
-// and socket_delay() calls wakeable_delay() which checks that flag.
-
-void socket_delay(uint32_t ms) { esphome::internal::wakeable_delay(ms); }
-
-#ifdef USE_ESP8266
-void IRAM_ATTR socket_wake() { esphome::wake_loop_impl(); }
-#else
-void socket_wake() { esphome::wake_loop_any_context(); }
-#endif
-#endif
-
 // ---- LWIP thread safety ----
 //
 // On RP2040 (Pico W), arduino-pico sets PICO_CYW43_ARCH_THREADSAFE_BACKGROUND=1.
@@ -462,10 +448,8 @@ err_t LWIPRawImpl::recv_fn(struct pbuf *pb, err_t err) {
   } else {
     pbuf_cat(this->rx_buf_, pb);
   }
-#if (defined(USE_ESP8266) || defined(USE_RP2040))
   // Wake the main loop immediately so it can process the received data.
-  socket_wake();
-#endif
+  esphome::wake_loop_any_context();
   return ERR_OK;
 }
 
@@ -474,15 +458,15 @@ void LWIPRawImpl::wait_for_data_() {
   // (needs async_context lock).
   //
   // Loop until data arrives, connection closes, or the full timeout elapses.
-  // socket_delay() may return early due to other sockets waking the global
-  // socket_wake() flag, so we re-enter for the remaining time.
+  // wakeable_delay() may return early due to any wake source,
+  // so we re-enter for the remaining time.
   uint32_t timeout_ms = this->recv_timeout_cs_ * 10;
   uint32_t start = millis();
   while (this->waiting_for_data_()) {
     uint32_t elapsed = millis() - start;
     if (elapsed >= timeout_ms)
       break;
-    socket_delay(timeout_ms - elapsed);
+    esphome::internal::wakeable_delay(timeout_ms - elapsed);
   }
 }
 
@@ -870,10 +854,8 @@ err_t LWIPRawListenImpl::accept_fn_(struct tcp_pcb *newpcb, err_t err) {
   tcp_err(newpcb, LWIPRawListenImpl::s_queued_err_fn);
   tcp_recv(newpcb, LWIPRawListenImpl::s_queued_recv_fn);
   LWIP_LOG("Accepted connection, queue size: %d", this->accepted_socket_count_);
-#if (defined(USE_ESP8266) || defined(USE_RP2040))
   // Wake the main loop immediately so it can accept the new connection.
-  socket_wake();
-#endif
+  esphome::wake_loop_any_context();
   return ERR_OK;
 }
 
