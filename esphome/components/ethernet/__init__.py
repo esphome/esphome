@@ -240,10 +240,8 @@ def _validate_spi_interface(config: ConfigType) -> None:
 
     has_spi3 = "spi3" in sum(get_hw_interface_list(), [])
     if CONF_INTERFACE not in config:
-        config[CONF_INTERFACE] = (
-            spi_host_device_t.SPI3_HOST if has_spi3 else spi_host_device_t.SPI2_HOST
-        )
-    elif config[CONF_INTERFACE] == spi_host_device_t.SPI3_HOST and not has_spi3:
+        config[CONF_INTERFACE] = "spi3" if has_spi3 else "spi2"
+    elif config[CONF_INTERFACE] == "spi3" and not has_spi3:
         raise cv.Invalid("Interface 'spi3' is not available on this variant.")
 
 
@@ -393,7 +391,7 @@ SPI_SCHEMA = cv.All(
                 ),
                 cv.Optional(CONF_INTERFACE): cv.All(
                     cv.only_on_esp32,
-                    cv.enum(SPI_INTERFACE_MAP),
+                    cv.one_of(*SPI_INTERFACE_MAP.keys()),
                 ),
                 # Set default value (SPI_ETHERNET_DEFAULT_POLLING_INTERVAL) at _validate()
                 cv.Optional(CONF_POLLING_INTERVAL): cv.All(
@@ -438,9 +436,8 @@ def _final_validate_spi(config):
     from esphome.components.spi import CONF_INTERFACE_INDEX, get_spi_interface
 
     if spi_configs := fv.full_config.get().get(CONF_SPI):
-        # config[CONF_INTERFACE] is a codegen enum (e.g. ::SPI2_HOST)
         # get_spi_interface() returns strings like "SPI2_HOST"
-        spi_host = str(config[CONF_INTERFACE]).removeprefix("::")
+        spi_host = config[CONF_INTERFACE].upper() + "_HOST"
         for spi_conf in spi_configs:
             if (index := spi_conf.get(CONF_INTERFACE_INDEX)) is not None:
                 interface = get_spi_interface(index)
@@ -539,7 +536,7 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
         cg.add_define("USE_ETHERNET_SPI")
 
         if CONF_INTERFACE in config:
-            cg.add(var.set_interface(config[CONF_INTERFACE]))
+            cg.add(var.set_interface(SPI_INTERFACE_MAP[config[CONF_INTERFACE]]))
         add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
         # CONFIG_ETH_SPI_ETHERNET_{TYPE} Kconfig options were removed in IDF 6.0
         # ENC28J60 was never built-in to IDF, so it has no Kconfig option
