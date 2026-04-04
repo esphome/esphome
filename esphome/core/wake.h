@@ -34,9 +34,9 @@ void wake_loop_isrsafe(int *px_higher_priority_task_woken);
 /// IRAM_ATTR entry point — defined in wake.cpp.
 void wake_loop_any_context();
 #else
-/// LibreTiny: GPIO ISRs are real hardware interrupts but the FreeRTOS port
-/// may not provide vTaskNotifyGiveFromISR/portYIELD_FROM_ISR.
-/// xTaskNotifyGive is used as the best available option.
+/// LibreTiny: IRAM_ATTR is not functional and the FreeRTOS port does not
+/// provide vTaskNotifyGiveFromISR/portYIELD_FROM_ISR, so ISR-safe wake
+/// is not possible. xTaskNotifyGive is used as the best available option.
 inline void wake_loop_any_context() { esphome_main_task_notify(); }
 #endif
 
