@@ -13,8 +13,6 @@ class APIServerConnectionBase {
 #ifdef HAS_PROTO_MESSAGE_DUMP
  protected:
   void log_send_message_(const LogString *name, const char *dump);
-  // Log a message being sent from a void pointer (for use in encode_to_buffer paths)
-  void log_send_message_(const void *msg);
   void log_receive_message_(const LogString *name, const ProtoMessage &msg);
   void log_receive_message_(const LogString *name);
 

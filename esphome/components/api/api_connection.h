@@ -409,7 +409,9 @@ class APIConnection final : public APIServerConnectionBase {
                                                                 uint32_t remaining_size) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
     if (conn->flags_.log_only_mode) {
-      conn->log_send_message_(msg);
+      auto *proto_msg = static_cast<const ProtoMessage *>(msg);
+      DumpBuffer dump_buf;
+      conn->log_send_message_(proto_msg->message_name(), proto_msg->dump_to(dump_buf));
       return 1;
     }
 #endif
