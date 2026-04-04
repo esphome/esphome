@@ -87,8 +87,14 @@ void wake_loop_any_context();
 inline void wake_loop_threadsafe() { wake_loop_impl_(); }
 
 namespace internal {
-/// Wakeable delay for ESP8266. Defined in wake.cpp.
-void wakeable_delay(uint32_t ms);
+inline void wakeable_delay(uint32_t ms) {
+  if (ms == 0) {
+    delay(0);
+    return;
+  }
+  g_main_loop_woke = false;
+  esp_delay(ms, []() { return !g_main_loop_woke; });
+}
 }  // namespace internal
 
 // === RP2040 ===

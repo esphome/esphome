@@ -29,17 +29,6 @@ volatile bool g_main_loop_woke = false;
 
 void IRAM_ATTR wake_loop_any_context() { wake_loop_impl_(); }
 
-namespace internal {
-void wakeable_delay(uint32_t ms) {
-  if (ms == 0) {
-    delay(0);
-    return;
-  }
-  g_main_loop_woke = false;
-  esp_delay(ms, []() { return !g_main_loop_woke; });
-}
-}  // namespace internal
-
 #endif  // USE_ESP8266
 
 // === RP2040 — wakeable_delay (wake functions are inline in wake.h) ===
