@@ -40,8 +40,8 @@ void VoiceAssistant::setup() {
 
 #ifdef USE_MEDIA_PLAYER
   if (this->media_player_ != nullptr) {
-    this->media_player_->add_on_state_callback([this](media_player::MediaPlayerState state) {
-      switch (state) {
+    this->media_player_->add_on_state_callback([this](auto...) {
+      switch (this->media_player_->state) {
         case media_player::MediaPlayerState::MEDIA_PLAYER_STATE_ANNOUNCING:
           if (this->media_player_response_state_ == MediaPlayerResponseState::URL_SENT) {
             // State changed to announcing after receiving the url
