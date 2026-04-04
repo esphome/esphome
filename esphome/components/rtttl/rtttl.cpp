@@ -1,5 +1,6 @@
 #include "rtttl.h"
 #include <cmath>
+#include "esphome/core/application.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/progmem.h"
@@ -88,7 +89,8 @@ void Rtttl::loop() {
   }
 
 #ifdef USE_OUTPUT
-  if (this->output_ != nullptr && millis() - this->last_note_start_time_ < this->note_duration_) {
+  if (this->output_ != nullptr &&
+      App.get_loop_component_start_time() - this->last_note_start_time_ < this->note_duration_) {
     return;
   }
 #endif  // USE_OUTPUT
@@ -260,7 +262,7 @@ void Rtttl::loop() {
   }
 #endif  // USE_SPEAKER
 
-  this->last_note_start_time_ = millis();
+  this->last_note_start_time_ = App.get_loop_component_start_time();
 }
 
 void Rtttl::play(std::string rtttl) {
@@ -350,7 +352,7 @@ void Rtttl::play(std::string rtttl) {
   this->wholenote_duration_ = 60 * 1000L * 4 / bpm;  // This is the time for whole note (in milliseconds)
 
   this->output_freq_ = 0;
-  this->last_note_start_time_ = millis();
+  this->last_note_start_time_ = App.get_loop_component_start_time();
   this->note_duration_ = 1;
 
 #ifdef USE_OUTPUT
