@@ -21,6 +21,8 @@ class MitsubishiCN105Climate : public climate::Climate, public Component, public
   void set_update_interval(uint32_t ms) { hp_.set_update_interval(ms); }
 
  protected:
+  void apply_values_();
+
   MitsubishiCN105 hp_;
 };
 
