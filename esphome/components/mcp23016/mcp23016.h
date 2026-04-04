@@ -30,7 +30,6 @@ class MCP23016 : public Component, public i2c::I2CDevice, public gpio_expander::
   MCP23016() = default;
 
   void setup() override;
-  void loop() override;
   void pin_mode(uint8_t pin, gpio::Flags flags);
 
   float get_setup_priority() const override;

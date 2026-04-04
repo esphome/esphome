@@ -60,8 +60,6 @@ void PI4IOE5V6408Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   this->write_gpio_modes_();
 }
 
-void PI4IOE5V6408Component::loop() { this->reset_pin_cache_(); }
-
 bool PI4IOE5V6408Component::read_gpio_outputs_() {
   if (this->is_failed())
     return false;

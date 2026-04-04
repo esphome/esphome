@@ -16,10 +16,6 @@ void PCF8574Component::setup() {
   this->write_gpio_();
   this->read_gpio_();
 }
-void PCF8574Component::loop() {
-  // Invalidate the cache at the start of each loop
-  this->reset_pin_cache_();
-}
 void PCF8574Component::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "PCF8574:\n"
