@@ -234,38 +234,17 @@ def _is_framework_spi_polling_mode_supported() -> bool:
     return False
 
 
-def _has_spi3(variant: str) -> bool:
-    """Check if the ESP32 variant has SPI3_HOST available."""
-    from esphome.components.esp32 import (
-        VARIANT_ESP32C2,
-        VARIANT_ESP32C3,
-        VARIANT_ESP32C5,
-        VARIANT_ESP32C6,
-        VARIANT_ESP32C61,
-        VARIANT_ESP32H2,
-    )
-
-    return variant not in {
-        VARIANT_ESP32C2,
-        VARIANT_ESP32C3,
-        VARIANT_ESP32C5,
-        VARIANT_ESP32C6,
-        VARIANT_ESP32C61,
-        VARIANT_ESP32H2,
-    }
-
-
-def _validate_spi_interface(config):
+def _validate_spi_interface(config: ConfigType) -> None:
     """Set default SPI interface or validate user choice against the variant."""
-    from esphome.components.esp32 import get_esp32_variant
+    from esphome.components.spi import get_hw_interface_list
 
-    variant = get_esp32_variant()
+    available = sum(get_hw_interface_list(), [])
     if CONF_INTERFACE not in config:
-        config[CONF_INTERFACE] = "spi3" if _has_spi3(variant) else "spi2"
-    elif config[CONF_INTERFACE] == "spi3" and not _has_spi3(variant):
+        config[CONF_INTERFACE] = "spi3" if "spi3" in available else "spi2"
+    elif config[CONF_INTERFACE] not in available:
         raise cv.Invalid(
-            f"Interface 'spi3' is not available on {variant}. "
-            f"Only 'spi2' is supported on this variant."
+            f"Interface '{config[CONF_INTERFACE]}' is not available on this variant. "
+            f"Available: {', '.join(sorted(k for k in available if k in SPI_INTERFACE_MAP))}"
         )
 
 
