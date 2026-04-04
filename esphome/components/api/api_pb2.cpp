@@ -707,7 +707,7 @@ uint32_t ListEntitiesSensorResponse::calculate_size() const {
 #ifdef USE_ENTITY_ICON
   size += !this->icon.empty() ? 2 + this->icon.size() : 0;
 #endif
-  size += ProtoSize::calc_length(1, this->unit_of_measurement.size());
+  size += !this->unit_of_measurement.empty() ? 2 + this->unit_of_measurement.size() : 0;
   size += ProtoSize::calc_int32(1, this->accuracy_decimals);
   size += ProtoSize::calc_bool(1, this->force_update);
   size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;

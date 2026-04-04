@@ -312,6 +312,7 @@ enum EntityCategory {
 //   name/object_id = 120 (NAME_MAX_LENGTH)
 //   icon = 63 (ICON_MAX_LENGTH)
 //   device_class = 47 (DEVICE_CLASS_MAX_LENGTH)
+//   unit_of_measurement = 63 (UNIT_OF_MEASUREMENT_MAX_LENGTH)
 
 // ==================== BINARY SENSOR ====================
 message ListEntitiesBinarySensorResponse {
@@ -637,7 +638,7 @@ message ListEntitiesSensorResponse {
   reserved 4; // Deprecated: was string unique_id
 
   string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
-  string unit_of_measurement = 6;
+  string unit_of_measurement = 6 [(max_data_length) = 63];
   int32 accuracy_decimals = 7;
   bool force_update = 8;
   string device_class = 9 [(max_data_length) = 47];
