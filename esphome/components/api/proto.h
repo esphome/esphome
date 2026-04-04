@@ -280,6 +280,16 @@ class ProtoWriteBuffer {
     std::memcpy(pos, data, len);
     this->pos_ = pos + len;
   }
+  /// Write tag + 1-byte length + raw string data. For strings with max_data_length < 128.
+  /// Tag must be a single-byte varint (< 128). Always encodes (no zero check).
+  inline void write_short_string(uint8_t tag, const StringRef &ref) ESPHOME_ALWAYS_INLINE {
+    this->debug_check_bounds_(2 + ref.size());
+    uint8_t *__restrict__ pos = this->pos_;
+    *pos++ = tag;
+    *pos++ = static_cast<uint8_t>(ref.size());
+    std::memcpy(pos, ref.c_str(), ref.size());
+    this->pos_ = pos + ref.size();
+  }
   /// Write a precomputed tag byte + 32-bit value in one operation.
   /// Tag must be a single-byte varint (< 128). No zero check.
   inline void write_tag_and_fixed32(uint8_t tag, uint32_t value) ESPHOME_ALWAYS_INLINE {

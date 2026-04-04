@@ -308,6 +308,12 @@ enum EntityCategory {
   ENTITY_CATEGORY_DIAGNOSTIC = 2;
 }
 
+// Entity field max_data_length values match constants in esphome/core/config.py:
+//   name/object_id = 120 (NAME_MAX_LENGTH)
+//   icon = 63 (ICON_MAX_LENGTH)
+//   device_class = 47 (DEVICE_CLASS_MAX_LENGTH)
+//   unit_of_measurement = 63 (UNIT_OF_MEASUREMENT_MAX_LENGTH)
+
 // ==================== BINARY SENSOR ====================
 message ListEntitiesBinarySensorResponse {
   option (id) = 12;
@@ -315,15 +321,15 @@ message ListEntitiesBinarySensorResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_BINARY_SENSOR";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
+  string name = 3 [(max_data_length) = 120, (force) = true];
   reserved 4; // Deprecated: was string unique_id
 
-  string device_class = 5;
+  string device_class = 5 [(max_data_length) = 47];
   bool is_status_binary_sensor = 6;
   bool disabled_by_default = 7;
-  string icon = 8 [(field_ifdef) = "USE_ENTITY_ICON"];
+  string icon = 8 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   EntityCategory entity_category = 9;
   uint32 device_id = 10 [(field_ifdef) = "USE_DEVICES"];
 }
@@ -349,17 +355,17 @@ message ListEntitiesCoverResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_COVER";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
+  string name = 3 [(max_data_length) = 120, (force) = true];
   reserved 4; // Deprecated: was string unique_id
 
   bool assumed_state = 5;
   bool supports_position = 6;
   bool supports_tilt = 7;
-  string device_class = 8;
+  string device_class = 8 [(max_data_length) = 47];
   bool disabled_by_default = 9;
-  string icon = 10 [(field_ifdef) = "USE_ENTITY_ICON"];
+  string icon = 10 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   EntityCategory entity_category = 11;
   bool supports_stop = 12;
   uint32 device_id = 13 [(field_ifdef) = "USE_DEVICES"];
@@ -433,9 +439,9 @@ message ListEntitiesFanResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_FAN";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
+  string name = 3 [(max_data_length) = 120, (force) = true];
   reserved 4; // Deprecated: was string unique_id
 
   bool supports_oscillation = 5;
@@ -443,7 +449,7 @@ message ListEntitiesFanResponse {
   bool supports_direction = 7;
   int32 supported_speed_count = 8;
   bool disabled_by_default = 9;
-  string icon = 10 [(field_ifdef) = "USE_ENTITY_ICON"];
+  string icon = 10 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   EntityCategory entity_category = 11;
   repeated string supported_preset_modes = 12 [(container_pointer_no_template) = "std::vector<const char *>"];
   uint32 device_id = 13 [(field_ifdef) = "USE_DEVICES"];
@@ -521,9 +527,9 @@ message ListEntitiesLightResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_LIGHT";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
+  string name = 3 [(max_data_length) = 120, (force) = true];
   reserved 4; // Deprecated: was string unique_id
 
   repeated ColorMode supported_color_modes = 12 [(container_pointer_no_template) = "light::ColorModeMask"];
@@ -540,7 +546,7 @@ message ListEntitiesLightResponse {
   float max_mireds = 10;
   repeated string effects = 11 [(container_pointer_no_template) = "FixedVector<const char *>"];
   bool disabled_by_default = 13;
-  string icon = 14 [(field_ifdef) = "USE_ENTITY_ICON"];
+  string icon = 14 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   EntityCategory entity_category = 15;
   uint32 device_id = 16 [(field_ifdef) = "USE_DEVICES"];
 }
@@ -626,16 +632,16 @@ message ListEntitiesSensorResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_SENSOR";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
+  string name = 3 [(max_data_length) = 120, (force) = true];
   reserved 4; // Deprecated: was string unique_id
 
-  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
-  string unit_of_measurement = 6;
+  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
+  string unit_of_measurement = 6 [(max_data_length) = 63];
   int32 accuracy_decimals = 7;
   bool force_update = 8;
-  string device_class = 9;
+  string device_class = 9 [(max_data_length) = 47];
   SensorStateClass state_class = 10;
   // Last reset type removed in 2021.9.0
   // Deprecated in API version 1.5
@@ -666,16 +672,16 @@ message ListEntitiesSwitchResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_SWITCH";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
+  string name = 3 [(max_data_length) = 120, (force) = true];
   reserved 4; // Deprecated: was string unique_id
 
-  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
+  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool assumed_state = 6;
   bool disabled_by_default = 7;
   EntityCategory entity_category = 8;
-  string device_class = 9;
+  string device_class = 9 [(max_data_length) = 47];
   uint32 device_id = 10 [(field_ifdef) = "USE_DEVICES"];
 }
 message SwitchStateResponse {
@@ -708,15 +714,15 @@ message ListEntitiesTextSensorResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_TEXT_SENSOR";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
+  string name = 3 [(max_data_length) = 120, (force) = true];
   reserved 4; // Deprecated: was string unique_id
 
-  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
+  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
-  string device_class = 8;
+  string device_class = 8 [(max_data_length) = 47];
   uint32 device_id = 9 [(field_ifdef) = "USE_DEVICES"];
 }
 message TextSensorStateResponse {
@@ -971,12 +977,12 @@ message ListEntitiesCameraResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_CAMERA";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
+  string name = 3 [(max_data_length) = 120, (force) = true];
   reserved 4; // Deprecated: was string unique_id
   bool disabled_by_default = 5;
-  string icon = 6 [(field_ifdef) = "USE_ENTITY_ICON"];
+  string icon = 6 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   EntityCategory entity_category = 7;
   uint32 device_id = 8 [(field_ifdef) = "USE_DEVICES"];
 }
@@ -1056,9 +1062,9 @@ message ListEntitiesClimateResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_CLIMATE";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
+  string name = 3 [(max_data_length) = 120, (force) = true];
   reserved 4; // Deprecated: was string unique_id
 
   bool supports_current_temperature = 5; // Deprecated: use feature_flags
@@ -1078,7 +1084,7 @@ message ListEntitiesClimateResponse {
   repeated ClimatePreset supported_presets = 16 [(container_pointer_no_template) = "climate::ClimatePresetMask"];
   repeated string supported_custom_presets = 17 [(container_pointer_no_template) = "std::vector<const char *>"];
   bool disabled_by_default = 18;
-  string icon = 19 [(field_ifdef) = "USE_ENTITY_ICON"];
+  string icon = 19 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   EntityCategory entity_category = 20;
   float visual_current_temperature_step = 21;
   bool supports_current_humidity = 22; // Deprecated: use feature_flags
@@ -1167,10 +1173,10 @@ message ListEntitiesWaterHeaterResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_WATER_HEATER";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
-  string icon = 4 [(field_ifdef) = "USE_ENTITY_ICON"];
+  string name = 3 [(max_data_length) = 120, (force) = true];
+  string icon = 4 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 5;
   EntityCategory entity_category = 6;
   uint32 device_id = 7 [(field_ifdef) = "USE_DEVICES"];
@@ -1243,12 +1249,12 @@ message ListEntitiesNumberResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_NUMBER";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
+  string name = 3 [(max_data_length) = 120, (force) = true];
   reserved 4; // Deprecated: was string unique_id
 
-  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
+  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   float min_value = 6;
   float max_value = 7;
   float step = 8;
@@ -1256,7 +1262,7 @@ message ListEntitiesNumberResponse {
   EntityCategory entity_category = 10;
   string unit_of_measurement = 11;
   NumberMode mode = 12;
-  string device_class = 13;
+  string device_class = 13 [(max_data_length) = 47];
   uint32 device_id = 14 [(field_ifdef) = "USE_DEVICES"];
 }
 message NumberStateResponse {
@@ -1292,12 +1298,12 @@ message ListEntitiesSelectResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_SELECT";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
+  string name = 3 [(max_data_length) = 120, (force) = true];
   reserved 4; // Deprecated: was string unique_id
 
-  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
+  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   repeated string options = 6 [(container_pointer_no_template) = "FixedVector<const char *>"];
   bool disabled_by_default = 7;
   EntityCategory entity_category = 8;
@@ -1336,12 +1342,12 @@ message ListEntitiesSirenResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_SIREN";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
+  string name = 3 [(max_data_length) = 120, (force) = true];
   reserved 4; // Deprecated: was string unique_id
 
-  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
+  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 6;
   repeated string tones = 7 [(container_pointer_no_template) = "FixedVector<const char *>"];
   bool supports_duration = 8;
@@ -1399,12 +1405,12 @@ message ListEntitiesLockResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_LOCK";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
+  string name = 3 [(max_data_length) = 120, (force) = true];
   reserved 4; // Deprecated: was string unique_id
 
-  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
+  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
   bool assumed_state = 8;
@@ -1448,15 +1454,15 @@ message ListEntitiesButtonResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_BUTTON";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
+  string name = 3 [(max_data_length) = 120, (force) = true];
   reserved 4; // Deprecated: was string unique_id
 
-  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
+  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
-  string device_class = 8;
+  string device_class = 8 [(max_data_length) = 47];
   uint32 device_id = 9 [(field_ifdef) = "USE_DEVICES"];
 }
 message ButtonCommandRequest {
@@ -1515,12 +1521,12 @@ message ListEntitiesMediaPlayerResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_MEDIA_PLAYER";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
+  string name = 3 [(max_data_length) = 120, (force) = true];
   reserved 4; // Deprecated: was string unique_id
 
-  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
+  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
 
@@ -2103,11 +2109,11 @@ message ListEntitiesAlarmControlPanelResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_ALARM_CONTROL_PANEL";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
+  string name = 3 [(max_data_length) = 120, (force) = true];
   reserved 4; // Deprecated: was string unique_id
-  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
+  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
   uint32 supported_features = 8;
@@ -2150,11 +2156,11 @@ message ListEntitiesTextResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_TEXT";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
+  string name = 3 [(max_data_length) = 120, (force) = true];
   reserved 4; // Deprecated: was string unique_id
-  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
+  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
 
@@ -2198,12 +2204,12 @@ message ListEntitiesDateResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_DATETIME_DATE";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
+  string name = 3 [(max_data_length) = 120, (force) = true];
   reserved 4; // Deprecated: was string unique_id
 
-  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
+  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
   uint32 device_id = 8 [(field_ifdef) = "USE_DEVICES"];
@@ -2245,12 +2251,12 @@ message ListEntitiesTimeResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_DATETIME_TIME";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
+  string name = 3 [(max_data_length) = 120, (force) = true];
   reserved 4; // Deprecated: was string unique_id
 
-  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
+  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
   uint32 device_id = 8 [(field_ifdef) = "USE_DEVICES"];
@@ -2292,15 +2298,15 @@ message ListEntitiesEventResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_EVENT";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
+  string name = 3 [(max_data_length) = 120, (force) = true];
   reserved 4; // Deprecated: was string unique_id
 
-  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
+  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
-  string device_class = 8;
+  string device_class = 8 [(max_data_length) = 47];
 
   repeated string event_types = 9 [(container_pointer_no_template) = "FixedVector<const char *>"];
   uint32 device_id = 10 [(field_ifdef) = "USE_DEVICES"];
@@ -2323,15 +2329,15 @@ message ListEntitiesValveResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_VALVE";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
+  string name = 3 [(max_data_length) = 120, (force) = true];
   reserved 4; // Deprecated: was string unique_id
 
-  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
+  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
-  string device_class = 8;
+  string device_class = 8 [(max_data_length) = 47];
 
   bool assumed_state = 9;
   bool supports_position = 10;
@@ -2378,12 +2384,12 @@ message ListEntitiesDateTimeResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_DATETIME_DATETIME";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
+  string name = 3 [(max_data_length) = 120, (force) = true];
   reserved 4; // Deprecated: was string unique_id
 
-  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
+  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
   uint32 device_id = 8 [(field_ifdef) = "USE_DEVICES"];
@@ -2421,15 +2427,15 @@ message ListEntitiesUpdateResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_UPDATE";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
+  string name = 3 [(max_data_length) = 120, (force) = true];
   reserved 4; // Deprecated: was string unique_id
 
-  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON"];
+  string icon = 5 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 6;
   EntityCategory entity_category = 7;
-  string device_class = 8;
+  string device_class = 8 [(max_data_length) = 47];
   uint32 device_id = 9 [(field_ifdef) = "USE_DEVICES"];
 }
 message UpdateStateResponse {
@@ -2504,10 +2510,10 @@ message ListEntitiesInfraredResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_INFRARED";
 
-  string object_id = 1;
+  string object_id = 1 [(max_data_length) = 120, (force) = true];
   fixed32 key = 2 [(force) = true];
-  string name = 3;
-  string icon = 4 [(field_ifdef) = "USE_ENTITY_ICON"];
+  string name = 3 [(max_data_length) = 120, (force) = true];
+  string icon = 4 [(field_ifdef) = "USE_ENTITY_ICON", (max_data_length) = 63];
   bool disabled_by_default = 5;
   EntityCategory entity_category = 6;
   uint32 device_id = 7 [(field_ifdef) = "USE_DEVICES"];

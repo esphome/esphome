@@ -162,6 +162,11 @@ class TypeInfo(ABC):
         return get_field_opt(self._field, pb.max_value, None)
 
     @property
+    def max_data_length(self) -> int | None:
+        """Get the max_data_length option for this field, or None if not set."""
+        return get_field_opt(self._field, pb.max_data_length, None)
+
+    @property
     def wire_type(self) -> WireType:
         """Get the wire type for the field."""
         raise NotImplementedError
@@ -371,7 +376,11 @@ class TypeInfo(ABC):
         return f"size += ProtoSize::{method}({field_id_size}, {value});"
 
     def _get_single_byte_varint_size(
-        self, name: str, force: bool, extra_expr: str | None = None
+        self,
+        name: str,
+        force: bool,
+        extra_expr: str | None = None,
+        zero_check: str | None = None,
     ) -> str:
         """Size calculation when the varint is guaranteed to be 1 byte.
 
@@ -382,12 +391,14 @@ class TypeInfo(ABC):
             name: Expression to check for zero (non-force only)
             force: Whether to skip the zero check
             extra_expr: Additional variable expression to add (e.g., data length)
+            zero_check: Override expression for the zero check (e.g., "!x.empty()")
         """
         fixed = self.calculate_field_id_size() + 1
         size_expr = f"{fixed} + {extra_expr}" if extra_expr else str(fixed)
         if force:
             return f"size += {size_expr};"
-        return f"size += {name} ? {size_expr} : 0;"
+        check = zero_check or name
+        return f"size += {check} ? {size_expr} : 0;"
 
     @abstractmethod
     def get_size_calculation(self, name: str, force: bool = False) -> str:
@@ -1063,8 +1074,14 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
 
     @property
     def encode_content(self) -> str:
+        max_len = self.max_data_length
+        if max_len is not None and max_len < 128 and self.force:
+            tag = self.calculate_tag()
+            if tag < 128:
+                return f"buffer.write_short_string({tag}, this->{self.field_name});"
         if result := self._encode_bytes_with_precomputed_tag(
-            f"this->{self.field_name}.c_str()", f"this->{self.field_name}.size()"
+            f"this->{self.field_name}.c_str()",
+            f"this->{self.field_name}.size()",
         ):
             return result
         if self.force:
@@ -1089,7 +1106,16 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
         return f'dump_field(out, ESPHOME_PSTR("{self.name}"), this->{self.field_name});'
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return f"size += ProtoSize::calc_length({self.calculate_field_id_size()}, this->{self.field_name}.size());"
+        size_field = f"this->{self.field_name}.size()"
+        max_len = self.max_data_length
+        if max_len is not None and max_len < 128:
+            return self._get_single_byte_varint_size(
+                size_field,
+                force,
+                extra_expr=size_field,
+                zero_check=f"!this->{self.field_name}.empty()",
+            )
+        return self._get_simple_size_calculation(size_field, force, "length")
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical string
