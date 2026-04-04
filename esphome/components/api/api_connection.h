@@ -403,9 +403,8 @@ class APIConnection final : public APIServerConnectionBase {
   bool send_message_(uint32_t payload_size, uint8_t message_type, MessageEncodeFn encode_fn, const void *msg);
 
   // Non-template buffer management for batch encoding.
-  // ALWAYS_INLINE so it merges into each call site (encode_message_to_buffer,
-  // fill_and_encode_entity_state) — the compiler can then inline the encode_fn
-  // callback and eliminate the indirect call.
+  // ALWAYS_INLINE so it merges into each call site — the compiler can then
+  // inline the encode_fn callback and eliminate the indirect call.
   static inline uint16_t ESPHOME_ALWAYS_INLINE encode_to_buffer(uint32_t calculated_size, MessageEncodeFn encode_fn,
                                                                 const void *msg, APIConnection *conn,
                                                                 uint32_t remaining_size) {
@@ -450,10 +449,14 @@ class APIConnection final : public APIServerConnectionBase {
     return static_cast<uint16_t>(total_calculated_size);
   }
 
+  // Noinline path for zero-payload messages (ping, disconnect, list_info_done).
+  // Avoids duplicating encode_to_buffer at each cold call site.
+  static uint16_t encode_empty_to_buffer(const void *msg, APIConnection *conn, uint32_t remaining_size);
+
   // Thin template wrapper — computes size, delegates buffer work to non-template helper
   template<typename T> static uint16_t encode_message_to_buffer(T &msg, APIConnection *conn, uint32_t remaining_size) {
     if constexpr (T::ESTIMATED_SIZE == 0) {
-      return encode_to_buffer(0, &encode_msg_noop, &msg, conn, remaining_size);
+      return encode_empty_to_buffer(&msg, conn, remaining_size);
     } else {
       return encode_to_buffer(msg.calculate_size(), &proto_encode_msg<T>, &msg, conn, remaining_size);
     }

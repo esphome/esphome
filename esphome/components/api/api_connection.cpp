@@ -1997,6 +1997,12 @@ bool APIConnection::send_message_(uint32_t payload_size, uint8_t message_type, M
   return this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type);
 }
 // encode_to_buffer is defined inline in api_connection.h (ESPHOME_ALWAYS_INLINE)
+
+// Noinline wrapper for zero-payload messages — single shared copy instead of
+// duplicating encode_to_buffer at each cold call site.
+uint16_t APIConnection::encode_empty_to_buffer(const void *msg, APIConnection *conn, uint32_t remaining_size) {
+  return encode_to_buffer(0, &encode_msg_noop, msg, conn, remaining_size);
+}
 bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
   const bool is_log_message = (message_type == SubscribeLogsResponse::MESSAGE_TYPE);
 
