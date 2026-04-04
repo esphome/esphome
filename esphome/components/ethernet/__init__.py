@@ -193,9 +193,11 @@ CLK_MODES_DEPRECATED = {
     "GPIO17_OUT": ("CLK_OUT", 17),
 }
 
+spi_host_device_t = cg.global_ns.enum("spi_host_device_t")
+
 SPI_INTERFACE_MAP = {
-    "spi2": "SPI2_HOST",
-    "spi3": "SPI3_HOST",
+    "spi2": spi_host_device_t.SPI2_HOST,
+    "spi3": spi_host_device_t.SPI3_HOST,
 }
 
 MANUAL_IP_SCHEMA = cv.Schema(
@@ -278,29 +280,35 @@ def _validate(config):
                         f"({CORE.target_framework} {CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}), "
                         f"'{CONF_INTERRUPT_PIN}' is a required option for [ethernet]."
                     )
-            if CONF_INTERFACE not in config:
-                from esphome.components.esp32 import (
-                    VARIANT_ESP32C3,
-                    VARIANT_ESP32C5,
-                    VARIANT_ESP32C6,
-                    VARIANT_ESP32C61,
-                    VARIANT_ESP32S2,
-                    VARIANT_ESP32S3,
-                    get_esp32_variant,
-                )
+            from esphome.components.esp32 import (
+                VARIANT_ESP32C2,
+                VARIANT_ESP32C3,
+                VARIANT_ESP32C5,
+                VARIANT_ESP32C6,
+                VARIANT_ESP32C61,
+                VARIANT_ESP32H2,
+                get_esp32_variant,
+            )
 
-                variant = get_esp32_variant()
-                if variant in (
-                    VARIANT_ESP32C3,
-                    VARIANT_ESP32C5,
-                    VARIANT_ESP32C6,
-                    VARIANT_ESP32C61,
-                    VARIANT_ESP32S2,
-                    VARIANT_ESP32S3,
-                ):
+            spi2_only_variants = {
+                VARIANT_ESP32C2,
+                VARIANT_ESP32C3,
+                VARIANT_ESP32C5,
+                VARIANT_ESP32C6,
+                VARIANT_ESP32C61,
+                VARIANT_ESP32H2,
+            }
+            variant = get_esp32_variant()
+            if CONF_INTERFACE not in config:
+                if variant in spi2_only_variants:
                     config[CONF_INTERFACE] = "spi2"
                 else:
                     config[CONF_INTERFACE] = "spi3"
+            elif config[CONF_INTERFACE] == "spi3" and variant in spi2_only_variants:
+                raise cv.Invalid(
+                    f"Interface 'spi3' is not available on {variant}. "
+                    f"Only 'spi2' is supported on this variant."
+                )
         elif config[CONF_TYPE] != "OPENETH":
             from esphome.components.esp32 import (
                 VARIANT_ESP32,
@@ -445,7 +453,8 @@ def _final_validate_spi(config):
     from esphome.components.spi import CONF_INTERFACE_INDEX, get_spi_interface
 
     if spi_configs := fv.full_config.get().get(CONF_SPI):
-        spi_host = SPI_INTERFACE_MAP[config[CONF_INTERFACE]]
+        # get_spi_interface() returns strings like "SPI2_HOST"
+        spi_host = config[CONF_INTERFACE].upper() + "_HOST"
         for spi_conf in spi_configs:
             if (index := spi_conf.get(CONF_INTERFACE_INDEX)) is not None:
                 interface = get_spi_interface(index)
@@ -544,12 +553,7 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
         cg.add_define("USE_ETHERNET_SPI")
 
         if CONF_INTERFACE in config:
-            spi_host_device_t = cg.global_ns.enum("spi_host_device_t")
-            map = {
-                "spi2": spi_host_device_t.SPI2_HOST,
-                "spi3": spi_host_device_t.SPI3_HOST,
-            }
-            cg.add(var.set_interface(map[config[CONF_INTERFACE]]))
+            cg.add(var.set_interface(SPI_INTERFACE_MAP[config[CONF_INTERFACE]]))
         add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
         # CONFIG_ETH_SPI_ETHERNET_{TYPE} Kconfig options were removed in IDF 6.0
         # ENC28J60 was never built-in to IDF, so it has no Kconfig option
