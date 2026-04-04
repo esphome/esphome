@@ -31,49 +31,11 @@ void IRAM_ATTR wake_loop_any_context() { wake_loop_impl_(); }
 
 #endif  // USE_ESP8266
 
-// === RP2040 — wakeable_delay (wake functions are inline in wake.h) ===
+// === RP2040 — g_main_loop_woke definition (wake functions + wakeable_delay are inline in wake.h) ===
 #ifdef USE_RP2040
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 volatile bool g_main_loop_woke = false;
-
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-static volatile bool s_delay_expired = false;
-
-static int64_t alarm_callback_(alarm_id_t id, void *user_data) {
-  (void) id;
-  (void) user_data;
-  s_delay_expired = true;
-  __sev();   // Wake from __wfe() — timeout expired.
-  return 0;  // One-shot
-}
-
-namespace internal {
-void wakeable_delay(uint32_t ms) {
-  if (ms == 0) {
-    yield();
-    return;
-  }
-  // If a wake was already signalled, consume it and return immediately
-  if (g_main_loop_woke) {
-    g_main_loop_woke = false;
-    return;
-  }
-  s_delay_expired = false;
-  alarm_id_t alarm = add_alarm_in_ms(ms, alarm_callback_, nullptr, true);
-  if (alarm <= 0) {
-    delay(ms);
-    return;
-  }
-  // Sleep until woken by either the timer alarm or wake_loop_any_context()/wake_loop_threadsafe()
-  while (!g_main_loop_woke && !s_delay_expired) {
-    __wfe();
-  }
-  if (!s_delay_expired)
-    cancel_alarm(alarm);
-  g_main_loop_woke = false;
-}
-}  // namespace internal
 
 #endif  // USE_RP2040
 

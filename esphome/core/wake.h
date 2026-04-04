@@ -26,6 +26,7 @@
 #include <coredecls.h>
 #elif defined(USE_RP2040)
 #include <hardware/sync.h>
+#include <pico/time.h>
 #endif
 
 namespace esphome {
@@ -111,8 +112,35 @@ inline void wake_loop_threadsafe() {
 }
 
 namespace internal {
-/// Delay that can be woken early. Uses hardware timer + __wfe()/__sev(). Defined in wake.cpp.
-void wakeable_delay(uint32_t ms);
+inline void wakeable_delay(uint32_t ms) {
+  // Function-local statics — safe because this is only called from the main loop.
+  static volatile bool s_delay_expired = false;
+  if (ms == 0) {
+    yield();
+    return;
+  }
+  if (g_main_loop_woke) {
+    g_main_loop_woke = false;
+    return;
+  }
+  s_delay_expired = false;
+  auto alarm_cb = [](alarm_id_t, void *) -> int64_t {
+    s_delay_expired = true;
+    __sev();
+    return 0;
+  };
+  alarm_id_t alarm = add_alarm_in_ms(ms, alarm_cb, nullptr, true);
+  if (alarm <= 0) {
+    delay(ms);
+    return;
+  }
+  while (!g_main_loop_woke && !s_delay_expired) {
+    __wfe();
+  }
+  if (!s_delay_expired)
+    cancel_alarm(alarm);
+  g_main_loop_woke = false;
+}
 }  // namespace internal
 
 // === Host (UDP loopback socket) ===
