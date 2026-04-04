@@ -39,7 +39,7 @@ climate::ClimateTraits MitsubishiCN105Climate::traits() {
 void MitsubishiCN105Climate::control(const climate::ClimateCall &call) {}
 
 void MitsubishiCN105Climate::apply_values_() {
-  const auto status = this->hp_.status();
+  const auto &status = this->hp_.status();
 
   this->target_temperature = status.target_temperature;
   this->current_temperature = status.room_temperature;
