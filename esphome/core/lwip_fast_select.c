@@ -63,12 +63,12 @@
 //
 // Shared state and safety rationale:
 //
-//   esphome_main_task_handle (TaskHandle_t, 4 bytes):
-//     Written once by main loop in init(). Read by TCP/IP thread (in callback)
-//     and background tasks (in wake).
-//     Safe: write-once-then-read pattern. Socket hooks may run before init(),
+//   esphome_main_task_handle (TaskHandle_t, 4 bytes, defined in main_task.c):
+//     Written once by main loop in Application::setup(). Read by TCP/IP thread
+//     (in callback) and background tasks (in wake).
+//     Safe: write-once-then-read pattern. Socket hooks may run before setup(),
 //     but the NULL check on esphome_main_task_handle in the callback provides correct
-//     degraded behavior — notifications are simply skipped until init() completes.
+//     degraded behavior — notifications are simply skipped until setup() completes.
 //
 //   s_original_callback (netconn_callback, 4-byte function pointer):
 //     Written by main loop in hook_socket() (only when NULL — set once).
