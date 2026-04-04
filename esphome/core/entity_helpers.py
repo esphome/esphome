@@ -17,7 +17,11 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
 )
 from esphome.core import CORE, ID, CoroPriority, coroutine_with_priority
-from esphome.core.config import DEVICE_CLASS_MAX_LENGTH, ICON_MAX_LENGTH
+from esphome.core.config import (
+    DEVICE_CLASS_MAX_LENGTH,
+    ICON_MAX_LENGTH,
+    UNIT_OF_MEASUREMENT_MAX_LENGTH,
+)
 from esphome.cpp_generator import MockObj, RawStatement, add, get_variable
 import esphome.final_validate as fv
 from esphome.helpers import cpp_string_escape, fnv1_hash_object_id, sanitize, snake_case
@@ -200,6 +204,11 @@ def register_device_class(value: str) -> int:
 
 def register_unit_of_measurement(value: str) -> int:
     """Register a unit_of_measurement string and return its 1-based index."""
+    if value and len(value) > UNIT_OF_MEASUREMENT_MAX_LENGTH:
+        raise ValueError(
+            f"Unit of measurement string too long ({len(value)} chars, "
+            f"max {UNIT_OF_MEASUREMENT_MAX_LENGTH}): '{value}'"
+        )
     return _register_string(value, _get_pool().units, _MAX_UNITS, "unit_of_measurement")
 
 

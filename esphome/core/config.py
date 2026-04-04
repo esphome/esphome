@@ -233,6 +233,9 @@ DEVICE_CLASS_MAX_LENGTH = 47
 # Keep in sync with MAX_ICON_LENGTH in esphome/core/entity_base.h
 ICON_MAX_LENGTH = 63
 
+# Max unit of measurement string length
+UNIT_OF_MEASUREMENT_MAX_LENGTH = 63
+
 AREA_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(Area),

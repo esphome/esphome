@@ -778,19 +778,23 @@ network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {WiFi.subnetMask(
 network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {WiFi.gatewayIP()}; }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return {WiFi.dnsIP(num)}; }
 bool WiFiComponent::wifi_loop_() {
-  // Fast path: skip dropped count check and pop loop when queue is empty
-  if (this->event_queue_.empty())
+  // Use pop() directly instead of empty() — avoids redundant synchronization.
+  // LockFreeQueue: pop() costs 1 memw vs empty()'s 2 memw on Xtensa.
+  // FreeRTOSQueue: pop() is 1 critical section vs empty() + pop() = 2.
+  LTWiFiEvent *event = this->event_queue_.pop();
+  if (event == nullptr)
     return false;
 
+  do {
+    wifi_process_event_(event);
+    delete event;  // NOLINT(cppcoreguidelines-owning-memory)
+  } while ((event = this->event_queue_.pop()) != nullptr);
+
+  // Drops only occur when the queue is full, and only this loop drains it,
+  // so if pop() returned nullptr above we can skip this check.
   uint16_t dropped = this->event_queue_.get_and_reset_dropped_count();
   if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %" PRIu16 " WiFi events due to buffer overflow", dropped);
-  }
-
-  LTWiFiEvent *event;
-  while ((event = this->event_queue_.pop()) != nullptr) {
-    wifi_process_event_(event);
-    delete event;  // NOLINT(cppcoreguidelines-owning-memory)
   }
   return true;
 }

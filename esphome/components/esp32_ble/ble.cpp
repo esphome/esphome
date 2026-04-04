@@ -399,8 +399,17 @@ void ESP32BLE::loop() {
     return;
   }
 
+#ifdef USE_ESP32_BLE_ADVERTISING
+  if (this->advertising_ != nullptr) {
+    this->advertising_->loop();
+  }
+#endif
+
   BLEEvent *ble_event = this->ble_events_.pop();
-  while (ble_event != nullptr) {
+  if (ble_event == nullptr)
+    return;
+
+  do {
     switch (ble_event->type_) {
 #if defined(USE_ESP32_BLE_SERVER) && defined(ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT)
       case BLEEvent::GATTS: {
@@ -488,15 +497,11 @@ void ESP32BLE::loop() {
     }
     // Return the event to the pool
     this->ble_event_pool_.release(ble_event);
-    ble_event = this->ble_events_.pop();
-  }
-#ifdef USE_ESP32_BLE_ADVERTISING
-  if (this->advertising_ != nullptr) {
-    this->advertising_->loop();
-  }
-#endif
+  } while ((ble_event = this->ble_events_.pop()) != nullptr);
 
-  // Log dropped events periodically
+  // Log dropped events - only reachable when events were processed.
+  // Drops only occur when the queue is full, and only this loop drains it,
+  // so if pop() returned nullptr above we can skip this check (saves a memw).
   uint16_t dropped = this->ble_events_.get_and_reset_dropped_count();
   if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u BLE events due to buffer overflow", dropped);
