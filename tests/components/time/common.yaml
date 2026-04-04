@@ -7,7 +7,7 @@ api:
 time:
   - platform: homeassistant
     on_time:
-      - cron: "*/10 * * * * *"
+      - seconds: "0,10,20,30,40,50"
         then:
           - logger.log: "CronTrigger fired (every 10 seconds)"
   - platform: sntp
