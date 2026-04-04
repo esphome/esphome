@@ -43,7 +43,7 @@ void MCP23S17::setup() {
     this->write_reg(mcp23x17_base::MCP23X17_IOCONB, IOCON_SEQOP | IOCON_HAEN | IOCON_ODR);
   }
 
-  this->setup_interrupt_pin_();
+  this->setup_interrupt_pin();
 }
 
 void MCP23S17::dump_config() {

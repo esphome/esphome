@@ -18,7 +18,7 @@ template<uint8_t N> class MCP23XXXBase : public Component, public gpio_expander:
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
   float get_setup_priority() const override { return setup_priority::IO; }
 
-  void setup_interrupt_pin_() {
+  void setup_interrupt_pin() {
     if (this->interrupt_pin_ != nullptr) {
       this->interrupt_pin_->setup();
       this->interrupt_pin_->attach_interrupt(&MCP23XXXBase::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);

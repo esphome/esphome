@@ -25,7 +25,7 @@ void MCP23017::setup() {
     this->write_reg(mcp23x17_base::MCP23X17_IOCONB, iocon | IOCON_ODR);
   }
 
-  this->setup_interrupt_pin_();
+  this->setup_interrupt_pin();
 }
 
 void MCP23017::dump_config() { ESP_LOGCONFIG(TAG, "MCP23017:"); }
