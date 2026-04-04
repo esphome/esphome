@@ -33,6 +33,7 @@ extern volatile bool g_main_loop_woke;
 // === ESP32/LibreTiny (FreeRTOS) ===
 #ifdef USE_LWIP_FAST_SELECT
 
+#ifdef USE_ESP32
 /// Inline implementation — callers in IRAM get it inlined, keeping it IRAM-safe.
 /// IRAM_ATTR entry points in wake.cpp exist for callers that aren't themselves IRAM.
 inline void ESPHOME_ALWAYS_INLINE wake_loop_isrsafe_inline_(int *px_higher_priority_task_woken) {
@@ -42,7 +43,6 @@ inline void ESPHOME_ALWAYS_INLINE wake_loop_isrsafe_inline_(int *px_higher_prior
 /// IRAM_ATTR entry point — defined in wake.cpp.
 void wake_loop_isrsafe(int *px_higher_priority_task_woken);
 
-#ifdef USE_ESP32
 inline void ESPHOME_ALWAYS_INLINE wake_loop_any_context_inline_() { esphome_lwip_wake_main_loop_any_context(); }
 
 /// IRAM_ATTR entry point — defined in wake.cpp.

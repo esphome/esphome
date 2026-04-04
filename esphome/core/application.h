@@ -555,8 +555,8 @@ class Application {
   /// @see esphome::wake_loop_threadsafe() in wake.h for platform details.
   void wake_loop_threadsafe() { esphome::wake_loop_threadsafe(); }
 
-#ifdef USE_LWIP_FAST_SELECT
-  /// Wake from ISR (ESP32/LibreTiny only).
+#ifdef USE_ESP32
+  /// Wake from ISR (ESP32 only).
   static void wake_loop_isrsafe(int *px) { esphome::wake_loop_isrsafe(px); }
 #endif
 

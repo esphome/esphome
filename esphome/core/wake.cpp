@@ -10,19 +10,19 @@
 
 namespace esphome {
 
-// === ESP32/LibreTiny — IRAM_ATTR entry points (inline impls in wake.h) ===
-#ifdef USE_LWIP_FAST_SELECT
+// === ESP32 — IRAM_ATTR entry points (inline impls in wake.h) ===
+#ifdef USE_ESP32
 
 void IRAM_ATTR wake_loop_isrsafe(int *px_higher_priority_task_woken) {
   wake_loop_isrsafe_inline_(px_higher_priority_task_woken);
 }
 
-#ifdef USE_ESP32
 void IRAM_ATTR wake_loop_any_context() { wake_loop_any_context_inline_(); }
-#endif
+
+#endif  // USE_ESP32
 
 // === ESP8266 — IRAM_ATTR entry point + wakeable_delay ===
-#elif defined(USE_ESP8266)
+#ifdef USE_ESP8266
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 volatile bool g_main_loop_woke = false;
@@ -38,8 +38,10 @@ void wakeable_delay(uint32_t ms) {
   esp_delay(ms, []() { return !g_main_loop_woke; });
 }
 
+#endif  // USE_ESP8266
+
 // === RP2040 — wakeable_delay (wake functions are inline in wake.h) ===
-#elif defined(USE_RP2040)
+#ifdef USE_RP2040
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 volatile bool g_main_loop_woke = false;
@@ -80,7 +82,7 @@ void wakeable_delay(uint32_t ms) {
   g_main_loop_woke = false;
 }
 
-#endif
+#endif  // USE_RP2040
 
 // Host platform wake_loop_threadsafe() is in application.cpp (needs App.wake_socket_fd_)
 
