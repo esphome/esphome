@@ -200,7 +200,6 @@ async def to_code(config):
     )
 
     await display.register_display(var, config)
-    await spi.register_spi_device(var, config, write_only=True)
 
     # Models without DC pin (e.g. IT8951E) read from SPI, so must not be write-only
     write_only = model.get_default(CONF_DC_PIN, None) is not False
