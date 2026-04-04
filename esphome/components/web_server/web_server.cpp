@@ -415,6 +415,8 @@ void WebServer::setup() {
   // doesn't need defer functionality - if the queue is full, the client JS knows it's alive because it's clearly
   // getting a lot of events
   this->set_interval(10000, [this]() {
+    if (this->events_.empty())
+      return;
     char buf[32];
     auto uptime = static_cast<uint32_t>(millis_64() / 1000);
     buf_append_printf(buf, sizeof(buf), 0, "{\"uptime\":%" PRIu32 "}", uptime);
