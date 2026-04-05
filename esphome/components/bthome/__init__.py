@@ -70,9 +70,7 @@ ESP32BLEListener = bthome_ns.class_(
 
 # Server-side classes
 server_ns = bthome_ns.namespace("server")
-BTHomeServerBase = server_ns.class_(
-    "BTHomeServerBase", cg.Component, esp32_ble.GAPEventHandler
-)
+BTHomeServerBase = server_ns.class_("BTHomeServerBase", cg.Component)
 BTHomeServer = server_ns.class_("BTHomeServer", BTHomeServerBase)
 BTHomeLocalSensor = server_ns.class_("BTHomeLocalSensor")
 BTHomeLocalBinarySensor = server_ns.class_("BTHomeLocalBinarySensor")
