@@ -34,18 +34,16 @@ extern uint8_t _irom0_text_end;    // NOLINT(bugprone-reserved-identifier,readab
 }
 
 // Check if a value looks like a code address in IRAM or flash-mapped IROM.
-// Must be IRAM_ATTR since it's called from custom_crash_callback (exception context).
-// Using linker symbols (&_irom0_text_start/end) is safe in IRAM — they're link-time
-// constants, no flash read needed. This gives precise bounds matching the actual
-// firmware, eliminating false positives from addresses beyond the flash mapping.
-static inline bool IRAM_ATTR is_code_addr(uint32_t val) {
+// Inlined into custom_crash_callback (IRAM_ATTR), so no separate IRAM placement needed.
+// Linker symbols are link-time constants — safe to reference from any context.
+static inline bool is_code_addr(uint32_t val) {
   uint32_t addr = (val & XTENSA_ADDR_MASK) | XTENSA_CODE_BASE;
   return (addr >= IRAM_START && addr < IRAM_END) || (addr >= reinterpret_cast<uint32_t>(&_irom0_text_start) &&
                                                      addr < reinterpret_cast<uint32_t>(&_irom0_text_end));
 }
 
 // Recover the actual code address from a windowed-ABI return address on the stack.
-static inline uint32_t IRAM_ATTR recover_code_addr(uint32_t val) { return (val & XTENSA_ADDR_MASK) | XTENSA_CODE_BASE; }
+static inline uint32_t recover_code_addr(uint32_t val) { return (val & XTENSA_ADDR_MASK) | XTENSA_CODE_BASE; }
 
 // RTC user memory layout for crash backtrace data.
 // User-accessible RTC memory: blocks 64-191 (each block = 4 bytes).
