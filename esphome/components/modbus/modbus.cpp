@@ -548,8 +548,11 @@ void ModbusServerHub::send_raw(const std::vector<uint8_t> &payload) {
 
   ModbusFrame frame(payload.data(), static_cast<uint16_t>(payload.size()));
 
+  // In the rare case that the server is blocked (turnaround delay is greater than the MODBUS_TX_MAX_DELAY_MS), we delay
+  // the send. This should only happen at low baud rates with long turnaround times.
   if (this->tx_blocked()) {
-    this->set_timeout("send_frame", this->turnaround_delay_remaining_(), [this, &frame] { this->send_frame_(frame); });
+    this->set_timeout(this->turnaround_delay_remaining_(),
+                      [this, frame = std::move(frame)]() mutable { this->send_frame_(frame); });
   } else {
     this->send_frame_(frame);
   }
