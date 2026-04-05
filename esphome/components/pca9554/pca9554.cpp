@@ -99,8 +99,30 @@ void PCA9554Component::digital_write_hw(uint8_t pin, bool value) {
 
 /*void PCA9554Component::do_stuff() {
   uint8_t i;
-  i = 2;
-  // ESP_LOGD("pca9554", "set pin mode for %d with flags %d", i, this->saved_flags_[i]);
+  i = 13;
+  uint16_t reg_val = 0;
+  uint8_t OD_val = 0;
+
+  this->read_register_(OUTPUT_DRIVE_1, reg_val);
+  ESP_LOGD("pca9554", "OUTPUT_DRIVE_1: 0x%04X", reg_val);
+
+  if (i > 7) {
+    OD_val = (reg_val>>(2U*(i-8U)))&(3U);
+  } else {
+    OD_val = (reg_val>>(2U*i))&(3U);
+  }
+
+  ESP_LOGD("pca9554", "OD of pin %d: %d", i, OD_val);
+  OD_val = OD_val + 1;
+  if(OD_val > 3) {
+    OD_val = 0;
+  }
+  ESP_LOGD("pca9554", "Setting value to %d", OD_val);
+  this->set_drive_strength(i, OD_val);
+
+  this->read_register_(OUTPUT_DRIVE_1, reg_val);
+  ESP_LOGD("pca9554", "OUTPUT_DRIVE_1: 0x%04X", reg_val);
+
   // this->pin_mode(i, this->saved_flags_[i]);
 
   //i = 4;
@@ -264,8 +286,15 @@ void PCA9554Component::set_interrupt(uint8_t pin, bool interrupt_state) {
   this->set_register_bit_(INTERRUPT_MASK, pin, !interrupt_state);
 }
 
-// Not implemented yet.
-void PCA9554Component::set_drive_strength(uint8_t pin, uint8_t strength_to_set) {
+// Sets drive strength
+//  0: 1/4 strength
+//  1: 1/2 strength
+//  2: 3/4 strength
+//  3: full strength
+void PCA9554Component::set_drive_strength(uint8_t pin, uint16_t strength_to_set) {
+  uint8_t register_to_modify = OUTPUT_DRIVE_0;
+  uint16_t reg_value = 0;
+
   if (pin > (this->pin_count_ - 1)) {
     ESP_LOGE(TAG, "Invalid pin %d", pin);
     return;
@@ -275,7 +304,15 @@ void PCA9554Component::set_drive_strength(uint8_t pin, uint8_t strength_to_set) 
     return;
   }
 
-  // TODO: Set drive strength here
+  if (pin > 7) {
+    register_to_modify = OUTPUT_DRIVE_1;
+    pin = pin - 8;
+  }
+
+  if (!this->read_register_(register_to_modify, reg_value)) { return; }
+  reg_value &= ~(3U<<(2U*pin));
+  reg_value |= strength_to_set<<(2U*pin);
+  this->write_register_(register_to_modify, reg_value);
 }
 
 // Set `state_open_drain` to true to turn on open drain for that bank.
