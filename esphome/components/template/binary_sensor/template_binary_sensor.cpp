@@ -5,8 +5,8 @@ namespace esphome::template_ {
 
 static const char *const TAG = "template.binary_sensor";
 
-void log_template_binary_sensor(binary_sensor::BinarySensor *obj) {
-  LOG_BINARY_SENSOR("", "Template Binary Sensor", obj);
-}
+void TemplateBinarySensor::setup() { this->loop(); }
+
+void TemplateBinarySensor::dump_config() { LOG_BINARY_SENSOR("", "Template Binary Sensor", this); }
 
 }  // namespace esphome::template_

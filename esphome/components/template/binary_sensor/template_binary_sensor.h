@@ -5,13 +5,11 @@
 
 namespace esphome::template_ {
 
-/// Out-of-line dump_config shared by all template binary sensor variants.
-void log_template_binary_sensor(binary_sensor::BinarySensor *obj);
-
 /// Action-driven template binary sensor (no lambda). State set via binary_sensor.template.publish.
 class TemplateBinarySensor : public Component, public binary_sensor::BinarySensor {
  public:
-  void dump_config() override { log_template_binary_sensor(this); }
+  void setup() override;
+  void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 };
 
@@ -19,8 +17,6 @@ class TemplateBinarySensor : public Component, public binary_sensor::BinarySenso
 /// @tparam Func Constexpr function pointer returning optional<bool>.
 template<optional<bool> (*Func)()> class TemplateBinarySensorLambda final : public TemplateBinarySensor {
  public:
-  void setup() override { this->loop(); }
-
   void loop() override {
     auto s = Func();
     if (s.has_value()) {
