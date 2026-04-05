@@ -11,7 +11,6 @@ from esphome.const import (
     CONF_INVERTED,
     CONF_MODE,
     CONF_NUMBER,
-    CONF_OPEN_DRAIN,
     CONF_OUTPUT,
     CONF_PULLDOWN,
     CONF_PULLUP,
@@ -26,6 +25,10 @@ DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 CONF_PIN_COUNT = "pin_count"
 pca9554_ns = cg.esphome_ns.namespace("pca9554")
+
+# Note: the PCAL95xx devices have open drain output capability, but I have not implemented it because
+# 1: I don't plan to use it and 2: this PR is already getting pretty large and I don't want to make it any bigger.
+# If this PR is accepted, I can submit a follow up that enables this capability.
 
 
 # Define capabilities of the expander. Set a 1 to this bit to enable this functionality.
@@ -89,7 +92,7 @@ PCA9554_DEVICE_TYPES = {
             CONF_DRIVE_STRENGTH,
         ],
         "pins": 8,
-        "open_drain": True,  # Device has open drain capability TODO: open drain can only be set for all of port 0 or port 1. Indicate that here?
+        "open_drain": True,
     },
     "PCAL9555": {
         "modes": [
@@ -102,7 +105,7 @@ PCA9554_DEVICE_TYPES = {
             CONF_DRIVE_STRENGTH,
         ],
         "pins": 16,
-        "open_drain": True,  # Device has open drain capability TODO: open drain can only be set for all of port 0 or port 1. Indicate that here?
+        "open_drain": True,
     },
 }
 
@@ -119,12 +122,10 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_DEVICE, default="NONE"): cv.enum(
                 PCA9554_DEVICE_TYPES, upper=True
             ),
-            cv.Optional(CONF_PIN_COUNT): cv.one_of(
-                4, 8, 16
-            ),  # to maintain backwards compatibility and to also allow the device type to set pin count, we remove the default here. If this is not set, the number of pins is set from the device type using the dict defintion above.
-            cv.Optional(
-                CONF_OPEN_DRAIN, default=False
-            ): cv.boolean,  # This is a per-port setting for the PCAL devices, how do we deal with the user setting this on incompabitle devices? just ignore it? Probably...
+            # To maintain backwards compatibility and to also allow the device type to set pin count,
+            # we remove the default here. If this is not set, the number of pins is set from the device
+            # type using the dict defintion above.
+            cv.Optional(CONF_PIN_COUNT): cv.one_of(4, 8, 16),
             cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
         }
     )
@@ -140,11 +141,6 @@ async def to_code(config):
     device_dict = PCA9554_DEVICE_TYPES[config[CONF_DEVICE]]
 
     cg.add(var.set_capability(generate_capability(device_dict["modes"])))
-
-    if (config[CONF_OPEN_DRAIN]) and not (device_dict["open_drain"]):
-        raise cv.Invalid(
-            "Device does not support open-drain pin mode"
-        )  # This doesnt throw the error properly. It does make an error, but it doesnt look right.
 
     # This doesnt run until after the pin configs are validated, so we cant set the pin count here only.
     # To maintain backwards compatibiliy, we allow the pin count to be manually set. If it is not manually set, the number of pins is set from the device dict above.
@@ -171,14 +167,14 @@ def validate_mode(value):
         raise cv.Invalid("Outputs cannot generate interrupts.")
     if value[CONF_LATCH] and value[CONF_OUTPUT]:
         raise cv.Invalid("Outputs cannot be latched.")
-    # if value[CONF_DRIVE_STRENGTH] and value[CONF_OUTPUT]):
-    #    raise cv.Invalid("Drive strength only applies to outputs.")
     return value
 
 
 PCA9554_PIN_SCHEMA = pins.gpio_base_schema(
     PCA9554GPIOPin,
     cv.int_range(min=0, max=15),
+    # These are all possible modes supported by this component, they are not necessarily
+    # the modes supported by the selected device. That is checked later.
     modes=[
         CONF_INPUT,
         CONF_OUTPUT,
@@ -186,7 +182,7 @@ PCA9554_PIN_SCHEMA = pins.gpio_base_schema(
         CONF_PULLUP,
         CONF_INTERRUPT,
         CONF_LATCH,
-    ],  # These are all possible modes supported by this component, they are not nessecarially the modes supported by the selected device. That is checked later.
+    ],
     mode_validator=validate_mode,
 ).extend(
     {
@@ -202,10 +198,8 @@ def pca9554_pin_final_validate(pin_config, parent_config):
 
     # To maintain backwards compatibility, we allow the pin count to be manually set.
     if CONF_PIN_COUNT in parent_config:
-        # print("Pin count manually set")
         count = parent_config[CONF_PIN_COUNT]
     else:
-        # print("Setting pin count from dict")
         count = device_dict["pins"]
 
     # Make sure the user entered a valid pin number
@@ -213,8 +207,6 @@ def pca9554_pin_final_validate(pin_config, parent_config):
         raise cv.Invalid(f"Pin number must be in range 0-{count - 1}")
 
     # Verify that pin modes requested are supported by the device
-    #  We also remove entries from the pin_config['mode'] dictionary that are not supported by the device.
-    #  This is to distinguish between setting them to 'false' and not setting them at all.
     for entered_mode, active in list(pin_config["mode"].items()):
         if active and (entered_mode not in device_dict["modes"]):
             raise cv.Invalid(

@@ -59,7 +59,9 @@ void PCA9554Component::setup() {
   // For polling mode, loop is re-enabled when pin_mode() registers an input pin
   this->disable_loop();
 }
+
 void IRAM_ATTR PCA9554Component::gpio_intr(PCA9554Component *arg) { arg->enable_loop_soon_any_context(); }
+
 void PCA9554Component::loop() {
   // Invalidate the cache so the next digital_read() triggers a fresh I2C read
   this->reset_pin_cache_();
@@ -72,8 +74,9 @@ void PCA9554Component::loop() {
 void PCA9554Component::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "PCA9554:\n"
-                "  I/O Pins: %d",
-                this->pin_count_);
+                "  I/O Pins: %d\n"
+                "  Capability: 0x%02X",
+                this->pin_count_, this->capability_);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_I2C_DEVICE(this)
   if (this->is_failed()) {
@@ -95,14 +98,10 @@ void PCA9554Component::digital_write_hw(uint8_t pin, bool value) {
   this->set_register_bit_(OUTPUT_REG, pin, value);
 }
 
-void PCA9554Component::do_stuff() {
-  uint8_t i;
-  i = 13;
+/*void PCA9554Component::do_stuff() {
   uint16_t reg_val = 0;
-  uint8_t OD_val = 0;
 
   ESP_LOGD("pca9554", "Capability: %d", this->capability_);
-
   this->read_register_(CONFIG_REG, reg_val);
   ESP_LOGD("pca9554", "CONFIG_REG: 0x%04X", reg_val);
   this->read_register_(OUTPUT_DRIVE_0, reg_val);
@@ -117,33 +116,9 @@ void PCA9554Component::do_stuff() {
   ESP_LOGD("pca9554", "PUPD_SEL: 0x%04X", reg_val);
   this->read_register_(INTERRUPT_MASK, reg_val);
   ESP_LOGD("pca9554", "INTERRUPT_MASK: 0x%04X", reg_val);
-  /*if (i > 7) {
-    OD_val = (reg_val>>(2U*(i-8U)))&(3U);
-  } else {
-    OD_val = (reg_val>>(2U*i))&(3U);
-  }
-
-  ESP_LOGD("pca9554", "OD of pin %d: %d", i, OD_val);
-  OD_val = OD_val + 1;
-  if(OD_val > 3) {
-    OD_val = 0;
-  }
-  ESP_LOGD("pca9554", "Setting value to %d", OD_val);
-  this->set_drive_strength(i, OD_val);
-
-  this->read_register_(OUTPUT_DRIVE_1, reg_val);
-  ESP_LOGD("pca9554", "OUTPUT_DRIVE_1: 0x%04X", reg_val);
-
-  // this->pin_mode(i, this->saved_flags_[i]);
-
-  //i = 4;
-  //ESP_LOGD("pca9554", "set pin mode for %d with flags %d", i, gpio::FLAG_OUTPUT);
-  //this->pin_mode(i, gpio::FLAG_OUTPUT);*/
-}
+}*/
 
 void PCA9554Component::pin_mode(uint8_t pin, gpio::Flags flags) {
-  // Note: no checks are done here to validate that the flags are legitimate.
-  //  This should have happened in the python code.
   if (pin > (this->pin_count_ - 1)) {
     ESP_LOGE(TAG, "Invalid pin %d", pin);
     return;
