@@ -654,28 +654,28 @@ def declare_id(type):
     return validator
 
 
+LAMBDA_SHORTHAND_KEYS = {
+    CONF_ARGUMENT,
+    CONF_ENTITY_STATE,
+}
+
+
 def convert_id_state_to_lambda(value) -> Lambda | None:
     """
     Convert an ID state to a lambda that returns the state of the ID, or the value of an argument.
     If not well-formed, return None.
     """
-    if isinstance(value, dict):
-        value = has_exactly_one_key(CONF_ARGUMENT, CONF_ENTITY_STATE)(
+    if isinstance(value, dict) and LAMBDA_SHORTHAND_KEYS & value.keys():
+        value = has_exactly_one_key(*LAMBDA_SHORTHAND_KEYS)(
             Schema(
-                {
-                    Optional(CONF_ENTITY_STATE): validate_id_name,
-                    Optional(CONF_ARGUMENT): validate_id_name,
-                },
-                extra=vol.ALLOW_EXTRA,
+                {Optional(x): validate_id_name for x in LAMBDA_SHORTHAND_KEYS},
             )(value)
         )
-        if len(value) != 1:
-            raise Invalid(
-                f"The only valid keys are '{CONF_ARGUMENT}' or '{CONF_ENTITY_STATE}'"
-            )
         if entity_state := value.get(CONF_ENTITY_STATE):
             return Lambda(f"return id({entity_state}).state;")
-        return Lambda(f"return {value[CONF_ARGUMENT]};")
+        if argument := value.get(CONF_ARGUMENT):
+            return Lambda(f"return {argument};")
+        # Fall through and let other validators issue an error (though in practice this should never happen)
     return None
 
 
