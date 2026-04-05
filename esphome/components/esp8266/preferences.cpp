@@ -22,6 +22,9 @@ static constexpr uint32_t ESP_RTC_USER_MEM_SIZE_BYTES = ESP_RTC_USER_MEM_SIZE_WO
 // RTC memory layout for preferences:
 // - Eboot region: RTC words 0-31 (reserved, mapped from preference offset 96-127)
 // - Normal region: RTC words 32-127 (mapped from preference offset 0-95)
+// Note: The crash handler (crash_handler.cpp) uses RTC blocks 174-191 (words 110-127)
+// for stack backtrace data written only during crashes. Preferences fill from the start
+// so this only conflicts if 110+ words of RTC preferences are allocated.
 static constexpr uint32_t RTC_EBOOT_REGION_WORDS = 32;   // Words 0-31 reserved for eboot
 static constexpr uint32_t RTC_NORMAL_REGION_WORDS = 96;  // Words 32-127 for normal prefs
 static constexpr uint32_t PREF_TOTAL_WORDS = RTC_EBOOT_REGION_WORDS + RTC_NORMAL_REGION_WORDS;  // 128
