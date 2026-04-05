@@ -148,7 +148,7 @@ bool PCA9554Component::read_inputs_() {
 
   uint16_t input_values = 0;
   if (this->read_register_(INPUT_REG, input_values)) {
-    //Register read successfully
+    // Register read successfully
     this->input_mask_ = input_values;
     return true;
   }
