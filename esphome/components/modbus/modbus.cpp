@@ -6,6 +6,8 @@
 namespace esphome {
 namespace modbus {
 
+using namespace helpers;
+
 static const char *const TAG = "modbus";
 
 // Maximum bytes to log for Modbus frames (truncated if larger)
