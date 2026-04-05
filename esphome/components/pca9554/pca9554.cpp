@@ -95,7 +95,7 @@ void PCA9554Component::digital_write_hw(uint8_t pin, bool value) {
   this->write_register_(OUTPUT_REG, this->output_mask_);
 }
 
-void PCA9554Component::do_stuff() {
+/*void PCA9554Component::do_stuff() {
   uint8_t i;
   i = 2;
   //ESP_LOGD("pca9554", "set pin mode for %d with flags %d", i, this->saved_flags_[i]);
@@ -104,7 +104,7 @@ void PCA9554Component::do_stuff() {
   //i = 4;
   //ESP_LOGD("pca9554", "set pin mode for %d with flags %d", i, gpio::FLAG_OUTPUT);
   //this->pin_mode(i, gpio::FLAG_OUTPUT);
-}
+}*/
 
 void PCA9554Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   //Note: no checks are done here to validate that the flags are legitimate.
