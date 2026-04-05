@@ -12,6 +12,19 @@ tuya:
       then:
         - logger.log: Datapoint 6 updated
 
+fan:
+  - platform: tuya
+    id: tuya_fan
+    switch_datapoint: 1
+    speed_datapoint: 3
+    oscillation_datapoint: 5
+    speed_count: 15
+    preset_modes_datapoint: 2
+    preset_modes:
+      - Normal
+      - Natural
+      - Sleep
+
 binary_sensor:
   - platform: tuya
     id: tuya_binary_sensor
