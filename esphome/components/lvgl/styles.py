@@ -4,16 +4,10 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import ID
 
-from .defines import (
-    CONF_STYLE_DEFINITIONS,
-    CONF_THEME,
-    LValidator,
-    literal,
-)
-from .schemas import WIDGET_TYPES
+from .defines import CONF_STYLE_DEFINITIONS, CONF_THEME, LValidator, literal
 from .helpers import add_lv_use
 from .lvcode import LambdaContext, lv
-from .schemas import ALL_STYLES, FULL_STYLE_SCHEMA, remap_property
+from .schemas import ALL_STYLES, FULL_STYLE_SCHEMA, WIDGET_TYPES, remap_property
 from .types import ObjUpdateAction, lv_style_t
 from .widgets import collect_parts, theme_widget_map, wait_for_widgets
 
