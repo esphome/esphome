@@ -3,13 +3,20 @@
 from __future__ import annotations
 
 from argparse import Namespace
+import os
 from pathlib import Path
 import tempfile
 
 import pytest
 
 from esphome.core import CORE
-from esphome.dashboard.settings import DashboardSettings
+from esphome.dashboard.settings import (
+    ENV_PASSWORD,
+    ENV_PASSWORD_FILE,
+    ENV_USERNAME,
+    ENV_USERNAME_FILE,
+    DashboardSettings,
+)
 from esphome.dashboard.util.password import password_hash
 
 
@@ -268,6 +275,46 @@ def test_check_password_non_ascii_username(
     assert dashboard_settings.check_password("\u00e9l\u00e8ve", "pass") is True
     assert dashboard_settings.check_password("\u00e9l\u00e8ve", "wrong") is False
     assert dashboard_settings.check_password("other", "pass") is False
+
+
+def test_check_password_env() -> None:
+    # Pass the credentials through environment variables
+    os.environ[ENV_USERNAME] = "env_user"
+    os.environ[ENV_PASSWORD] = "env_password"
+
+    settings = DashboardSettings()
+    args = Namespace(
+        configuration="no_config",
+        password=None,
+        username=None,
+        ha_addon=False,
+        verbose=False,
+    )
+    settings.parse_args(args)
+    settings.check_password("env_user", "env_password")
+
+
+def test_check_password_file() -> None:
+    # Pass the credentials as files declared through environment variables
+    with tempfile.TemporaryDirectory() as temp:
+        tempdir_path = Path(temp)
+        username_path = tempdir_path / "username.txt"
+        username_path.write_text("env_user")
+        os.environ[ENV_USERNAME_FILE] = str(username_path)
+        password_path = tempdir_path / "password.txt"
+        password_path.write_text("env_password")
+        os.environ[ENV_PASSWORD_FILE] = str(password_path)
+
+        settings = DashboardSettings()
+        args = Namespace(
+            configuration=temp,
+            password=None,
+            username=None,
+            ha_addon=False,
+            verbose=False,
+        )
+        settings.parse_args(args)
+        settings.check_password("env_user", "env_password")
 
 
 def test_check_password_ha_addon_no_password(

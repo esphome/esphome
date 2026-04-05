@@ -14,6 +14,11 @@ from .util.password import password_hash
 # This ensures .parent returns the config directory instead of root.
 _DASHBOARD_SENTINEL_FILE = "___DASHBOARD_SENTINEL___.yaml"
 
+ENV_USERNAME = "USERNAME"
+ENV_PASSWORD = "PASSWORD"
+ENV_USERNAME_FILE = "USERNAME_FILE"
+ENV_PASSWORD_FILE = "PASSWORD_FILE"
+
 
 class DashboardSettings:
     """Settings for the dashboard."""
@@ -43,9 +48,13 @@ class DashboardSettings:
     def parse_args(self, args: Any) -> None:
         """Parse the arguments."""
         self.on_ha_addon: bool = args.ha_addon
-        password = args.password or os.getenv("PASSWORD") or ""
+        password = args.password or os.getenv(ENV_PASSWORD) or ""
+        if not password and (password_file := os.getenv(ENV_PASSWORD_FILE)):
+            password = Path(password_file).read_text("utf-8").strip()
         if not self.on_ha_addon:
-            self.username = args.username or os.getenv("USERNAME") or ""
+            self.username = args.username or os.getenv(ENV_USERNAME) or ""
+            if not self.username and (username_file := os.getenv(ENV_USERNAME_FILE)):
+                self.username = Path(username_file).read_text("utf-8").strip()
             self.using_password = bool(password)
         if self.using_password:
             self.password_hash = password_hash(password)
