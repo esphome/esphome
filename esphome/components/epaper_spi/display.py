@@ -118,12 +118,21 @@ def model_schema(config):
                 cv.Range(max=core.TimePeriod(milliseconds=500)),
             ),
             **(
-                {cv.Optional(CONF_REVERSED, default=model.get_default(CONF_REVERSED, False)): cv.boolean}
+                {
+                    cv.Optional(
+                        CONF_REVERSED, default=model.get_default(CONF_REVERSED, False)
+                    ): cv.boolean
+                }
                 if model.get_default(CONF_REVERSED) is not None
                 else {}
             ),
             **(
-                {cv.Optional(CONF_SLEEP_WHEN_DONE, default=model.get_default(CONF_SLEEP_WHEN_DONE, True)): cv.boolean}
+                {
+                    cv.Optional(
+                        CONF_SLEEP_WHEN_DONE,
+                        default=model.get_default(CONF_SLEEP_WHEN_DONE, True),
+                    ): cv.boolean
+                }
                 if model.get_default(CONF_SLEEP_WHEN_DONE) is not None
                 else {}
             ),
