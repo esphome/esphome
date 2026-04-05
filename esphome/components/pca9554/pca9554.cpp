@@ -10,6 +10,16 @@ const uint8_t OUTPUT_REG = 1;
 const uint8_t INVERT_REG = 2;
 const uint8_t CONFIG_REG = 3;
 
+const uint8_t OUTPUT_DRIVE_0 = 0x40;
+const uint8_t OUTPUT_DRIVE_1 = 0x41;
+const uint8_t INPUT_LATCH = 0x42;
+const uint8_t PUPD_ENABLE = 0x43;
+const uint8_t PUPD_SEL = 0x44;
+const uint8_t INTERRUPT_MASK = 0x45;
+const uint8_t INTERRUPT_STATUS = 0x46;
+
+const uint8_t OUTPUT_PORT_CONFIG = 0x4F;
+
 static const char *const TAG = "pca9554";
 
 void PCA9554Component::setup() {
@@ -72,17 +82,45 @@ void PCA9554Component::digital_write_hw(uint8_t pin, bool value) {
   this->write_register_(OUTPUT_REG, this->output_mask_);
 }
 
-void PCA9554Component::pin_mode(uint8_t pin, gpio::Flags flags) {
-  if (flags == gpio::FLAG_INPUT) {
-    // Clear mode mask bit
-    this->config_mask_ &= ~(1 << pin);
-  } else if (flags == gpio::FLAG_OUTPUT) {
-    // Set mode mask bit
-    this->config_mask_ |= 1 << pin;
-  }
-  this->write_register_(CONFIG_REG, ~this->config_mask_);
+void PCA9554Component::do_stuff() {
+  uint8_t i;
+  i = 2;
+  //ESP_LOGD("pca9554", "set pin mode for %d with flags %d", i, this->saved_flags_[i]);
+  //this->pin_mode(i, this->saved_flags_[i]);
+
+  //i = 4;
+  //ESP_LOGD("pca9554", "set pin mode for %d with flags %d", i, gpio::FLAG_OUTPUT);
+  //this->pin_mode(i, gpio::FLAG_OUTPUT);
 }
 
+void PCA9554Component::pin_mode(uint8_t pin, gpio::Flags flags) {
+  //Note: no checks are done here to validate that the flags are legitimate.
+  // This should have happened in the python code.
+  if (pin > (this->pin_count_-1)) {
+    ESP_LOGE(TAG, "Invalid pin %d", pin);
+    return;
+  }
+
+  if (flags & gpio::FLAG_INPUT) {
+    //Set the pin as input (1)
+    this->set_register_bit_(CONFIG_REG, pin, true);
+  } else if (flags & gpio::FLAG_OUTPUT) {
+    //Set the pin as output (0)
+    this->set_register_bit_(CONFIG_REG, pin, false);
+  }
+
+  if (flags & gpio::FLAG_PULLUP) {
+    this->set_register_bit_(PUPD_ENABLE, pin, true);
+    this->set_register_bit_(PUPD_SEL, pin, true);
+  } else if (flags & gpio::FLAG_PULLDOWN) {
+    this->set_register_bit_(PUPD_ENABLE, pin, true);
+    this->set_register_bit_(PUPD_SEL, pin, false);
+  } else {
+    this->set_register_bit_(PUPD_ENABLE, pin, false);
+  }
+}
+
+//TODO: Modify this to use the read_register_ function?
 bool PCA9554Component::read_inputs_() {
   uint8_t inputs[2];
 
@@ -105,11 +143,36 @@ bool PCA9554Component::read_inputs_() {
   return true;
 }
 
+uint8_t PCA9554Component::get_register_address_(uint8_t reg) {
+  //Determine the actual register address.
+  if(reg == OUTPUT_PORT_CONFIG) {
+    // OUTPUT_PORT_CONFIG does not change between device types
+    return OUTPUT_PORT_CONFIG;
+  } else if (reg <= CONFIG_REG) {
+    //Double the first four registers for devices with >8 pins
+    return reg*this->reg_width_;
+  } else if ((reg >= OUTPUT_DRIVE_0) && (reg <= INTERRUPT_STATUS) ) {
+    //For devices with >8 pins, these registers start at 0x40 and should be doubled
+    return 0x40 + ((reg - 0x40)*this->reg_width_);
+  } else {
+    //Invald register, 0xFF is not a valid register address, so it can be used to indicate an error.
+    return 0xFF;
+  }
+}
+
 bool PCA9554Component::write_register_(uint8_t reg, uint16_t value) {
   uint8_t outputs[2];
   outputs[0] = (uint8_t) value;
   outputs[1] = (uint8_t) (value >> 8);
-  this->last_error_ = this->write_register(reg * this->reg_width_, outputs, this->reg_width_);
+  uint8_t register_to_write = this->get_register_address_(reg);
+
+  if(register_to_write == 0xFF) {
+    this->status_set_warning();
+    ESP_LOGE(TAG, "write_register_(): Attempt to write to invalid register 0x%02X", reg);
+    return false;
+  }
+
+  this->last_error_ = this->write_register(register_to_write, outputs, this->reg_width_);
   if (this->last_error_ != i2c::ERROR_OK) {
     this->status_set_warning();
     ESP_LOGE(TAG, "write_register_(): I2C I/O error: %d", (int) this->last_error_);
@@ -120,12 +183,119 @@ bool PCA9554Component::write_register_(uint8_t reg, uint16_t value) {
   return true;
 }
 
+bool PCA9554Component::read_register_(uint8_t reg, uint16_t &register_value) {
+  uint8_t register_to_read = this->get_register_address_(reg);
+  uint8_t reg_data[2];
+  reg_data[0] = 0;
+  reg_data[1] = 0;
+
+  if(register_to_read == 0xFF) {
+    this->status_set_warning();
+    ESP_LOGE(TAG, "read_register_(): Attempt to read from invalid register 0x%02X", reg);
+    return false;
+  }
+
+  this->last_error_ = this->read_register(register_to_read, reg_data, this->reg_width_);
+  if (this->last_error_ != i2c::ERROR_OK) {
+    this->status_set_warning();
+    ESP_LOGE(TAG, "read_register_(): I2C I/O error: %d", (int) this->last_error_);
+    return false;
+  }
+
+  this->status_clear_warning();
+  register_value = (reg_data[1] << 8) + reg_data[0];
+  return true;
+}
+
+bool PCA9554Component::set_register_bit_(uint8_t reg, uint8_t bit, bool value)
+{
+  uint16_t reg_data;
+
+  //Get current register value
+  if (!(this->read_register_(reg, reg_data))) {
+    return false;
+  }
+
+  //Modify bit
+  if (value) {
+    //Set the bit to 1
+    reg_data |= 1U<<bit;
+  } else {
+    //Set the bit to 0
+    reg_data &= ~(1U<<bit);
+  }
+
+  //Write modified register
+  if (!(this->write_register_(reg, reg_data))) {
+    return false;
+  }
+  return true;
+}
+
 float PCA9554Component::get_setup_priority() const { return setup_priority::IO; }
 
-void PCA9554GPIOPin::setup() { pin_mode(flags_); }
+void PCA9554Component::set_latch(uint8_t pin, bool latch_state) {
+  if (pin > (this->pin_count_-1)) {
+    ESP_LOGE(TAG, "Invalid pin %d", pin);
+    return;
+  }
+
+  this->set_register_bit_(INPUT_LATCH, pin, latch_state);
+}
+
+void PCA9554Component::set_interrupt(uint8_t pin, bool interrupt_state) {
+  if (pin > (this->pin_count_-1)) {
+    ESP_LOGE(TAG, "Invalid pin %d", pin);
+    return;
+  }
+
+  //In this register, a zero indicates the interrupt is unmasked.
+  this->set_register_bit_(INTERRUPT_MASK, pin, !interrupt_state);
+}
+
+//Not implemented yet.
+void PCA9554Component::set_drive_strength(uint8_t pin, uint8_t strength_to_set) {
+  if (pin > (this->pin_count_-1)) {
+    ESP_LOGE(TAG, "Invalid pin %d", pin);
+    return;
+  }
+  if(strength_to_set > 0x03) {
+    ESP_LOGE(TAG, "Invalid drive strength %d", strength_to_set);
+    return;
+  }
+
+  //TODO: Set drive strength here
+}
+
+//Set `state_open_drain` to true to turn on open drain for that bank.
+void PCA9554Component::set_open_drain(uint8_t bank_to_set, bool state_open_drain) {
+  if( ((this->pin_count_ > 8) && (bank_to_set <= 1)) || ((this->pin_count_ <= 8) && (bank_to_set == 0)) ) {
+    this->set_register_bit_(OUTPUT_PORT_CONFIG, bank_to_set, state_open_drain);
+    return;
+  }
+  ESP_LOGE(TAG, "Invalid bank %d", bank_to_set);
+}
+
+//Returns 0xFFFF if a read error occurs.
+uint16_t PCA9554Component::get_interrupt_status() {
+  uint16_t status_to_report;
+  if (this->read_register_(INTERRUPT_STATUS, status_to_report)) {
+    return status_to_report;
+  }
+  return 0xFFFF;
+}
+
+void PCA9554GPIOPin::setup() {
+  this->pin_mode(flags_);                     //TODO: Do we need the pin_mode function, or can we call the parent pin mode directly?
+  this->parent_->set_latch(this->pin_, this->latch_);
+  this->parent_->set_interrupt(this->pin_, this->interrupt_);
+}
+
 void PCA9554GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
 bool PCA9554GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
-void PCA9554GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
+void PCA9554GPIOPin::digital_write(bool value) {
+  this->parent_->digital_write(this->pin_, value != this->inverted_);
+}
 size_t PCA9554GPIOPin::dump_summary(char *buffer, size_t len) const {
   return buf_append_printf(buffer, len, 0, "%u via PCA9554", this->pin_);
 }

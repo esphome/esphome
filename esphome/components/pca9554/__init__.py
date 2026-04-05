@@ -44,6 +44,18 @@ PCA9554_DEVICE_TYPES = {
         "pins": 8,
         "open_drain": True,  # Device has open drain capability TODO: open drain can only be set for all of port 0 or port 1. Indicate that here?
     },
+    "PCAL9555": {
+        "modes": [
+            CONF_INPUT,
+            CONF_OUTPUT,
+            CONF_PULLDOWN,
+            CONF_PULLUP,
+            CONF_INTERRUPT,
+            CONF_LATCH,
+        ],  # , CONF_OPEN_DRAIN], (open drain is a per-port setting here)
+        "pins": 16,
+        "open_drain": True,  # Device has open drain capability TODO: open drain can only be set for all of port 0 or port 1. Indicate that here?
+    },
 }
 
 PCA9554Component = pca9554_ns.class_("PCA9554Component", cg.Component, i2c.I2CDevice)
@@ -76,11 +88,7 @@ CONFIG_SCHEMA = (
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-
     device_dict = PCA9554_DEVICE_TYPES[config[CONF_DEVICE]]
-    print(config)
-    print("Device dict:")
-    print(device_dict)
 
     if (config[CONF_OPEN_DRAIN]) and not (device_dict["open_drain"]):
         raise cv.Invalid(
@@ -100,9 +108,6 @@ async def to_code(config):
 
 def validate_mode(value):
     # Note: here we cannot validate that the modes entered are supported by the device, only that the modes entered are compatible.
-    # print("validate mode:")
-    # print(value)
-    # print(value) Here we validate that the user didnt enter something extra stupid (like config for both input and output or soemthing)
     if not (value[CONF_INPUT] or value[CONF_OUTPUT]):  # TODO: Does this need to be xor?
         raise cv.Invalid("Mode must be either input or output")
     if value[CONF_INPUT] and value[CONF_OUTPUT]:
@@ -119,7 +124,6 @@ def validate_mode(value):
 PCA9554_PIN_SCHEMA = pins.gpio_base_schema(
     PCA9554GPIOPin,
     cv.int_range(min=0, max=15),
-    # modes=[CONF_INPUT, CONF_OUTPUT],   #with this gone, it allows all options from the pin schema
     modes=[
         CONF_INPUT,
         CONF_OUTPUT,
@@ -149,30 +153,20 @@ def pca9554_pin_final_validate(pin_config, parent_config):
         count = device_dict["pins"]
     # print(count)
 
-    # print("parent config:")
-    # print(parent_config)
-
-    # print("device dict:")
-    # print(device_dict)  # This is the dict that should have all the relevant parameters
-
-    # print("pin config:")
-    # print(pin_config)  # The config of the pin
-
     # Make sure the user entered a valid pin number
     if pin_config[CONF_NUMBER] >= count:
         raise cv.Invalid(f"Pin number must be in range 0-{count - 1}")
 
     # Verify that pin modes requested are supported by the device
-    for entered_mode, active in pin_config["mode"].items():
-        if active and (entered_mode not in device_dict["modes"]):
-            raise cv.Invalid(
-                f"Pin mode '{entered_mode}' is not valid for device {device_name}."
-            )
-            # print("key:", entered_mode)
-            # if entered_mode in device_dict["modes"]:
-            #    print("key is valid")
-            # raise cv.Invalid("Outputs cannot be latched.")
-        # print("value:", active)
+    #  We also remove entries from the pin_config['mode'] dictionary that are not supported by the device.
+    #  This is to distinguish between setting them to 'false' and not setting them at all.
+    for entered_mode, active in list(pin_config["mode"].items()):
+        if entered_mode not in device_dict["modes"]:
+            if active:
+                raise cv.Invalid(
+                    f"Pin mode '{entered_mode}' is not valid for device {device_name}."
+                )
+            del pin_config["mode"][entered_mode]
 
 
 @pins.PIN_SCHEMA_REGISTRY.register(
@@ -182,11 +176,14 @@ async def pca9554_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     parent = await cg.get_variable(config[CONF_PCA9554])
 
-    print("pin to code")
     cg.add(var.set_parent(parent))
 
     num = config[CONF_NUMBER]
     cg.add(var.set_pin(num))
     cg.add(var.set_inverted(config[CONF_INVERTED]))
     cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
+    if "latch" in config[CONF_MODE]:
+        cg.add(var.set_latch(config[CONF_MODE]["latch"]))
+    if "interrupt" in config[CONF_MODE]:
+        cg.add(var.set_interrupt(config[CONF_MODE]["interrupt"]))
     return var

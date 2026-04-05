@@ -19,7 +19,12 @@ class PCA9554Component : public Component,
   /// Invalidate cache at start of each loop
   void loop() override;
   /// Helper function to set the pin mode of a pin.
-  void pin_mode(uint8_t pin, gpio::Flags flags);
+  virtual void pin_mode(uint8_t pin, gpio::Flags flags);            //TODO: do we need virtual here?
+  void set_latch(uint8_t pin, bool latch_state);
+  void set_interrupt(uint8_t pin, bool interrupt_state);
+  void set_drive_strength(uint8_t pin, uint8_t strength_to_set);
+  void set_open_drain(uint8_t bank_to_set, bool state_open_drain);
+  uint16_t get_interrupt_status();
 
   float get_setup_priority() const override;
 
@@ -27,9 +32,15 @@ class PCA9554Component : public Component,
 
   void set_pin_count(size_t pin_count) { this->pin_count_ = pin_count; }
 
+  //test function, delete this later
+  void do_stuff();
+
  protected:
   bool read_inputs_();
+  uint8_t get_register_address_(uint8_t reg);
   bool write_register_(uint8_t reg, uint16_t value);
+  bool read_register_(uint8_t reg, uint16_t &register_value);
+  bool set_register_bit_(uint8_t reg, uint8_t bit, bool value);
 
   // Virtual methods from CachedGpioExpander
   bool digital_read_hw(uint8_t pin) override;
@@ -63,6 +74,8 @@ class PCA9554GPIOPin : public GPIOPin {
   void set_pin(uint8_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }
   void set_flags(gpio::Flags flags) { flags_ = flags; }
+  void set_latch(bool latch) { latch_ = latch; }
+  void set_interrupt(bool interrupt) { interrupt_ = interrupt; }
 
   gpio::Flags get_flags() const override { return this->flags_; }
 
@@ -70,6 +83,8 @@ class PCA9554GPIOPin : public GPIOPin {
   PCA9554Component *parent_;
   uint8_t pin_;
   bool inverted_;
+  bool latch_;
+  bool interrupt_;
   gpio::Flags flags_;
 };
 
