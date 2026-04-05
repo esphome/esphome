@@ -40,9 +40,11 @@ void PCA9554Component::setup() {
     this->interrupt_pin_->attach_interrupt(&PCA9554Component::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
     // Don't invalidate cache on read — only invalidate when interrupt fires
     this->set_invalidate_on_read_(false);
-    // With interrupt pin, only run loop when interrupt fires
-    this->disable_loop();
   }
+  // Disable loop until an input pin is configured via pin_mode()
+  // For interrupt-driven mode, loop is re-enabled by the ISR
+  // For polling mode, loop is re-enabled when pin_mode() registers an input pin
+  this->disable_loop();
 }
 void IRAM_ATTR PCA9554Component::gpio_intr(PCA9554Component *arg) { arg->enable_loop_soon_any_context(); }
 void PCA9554Component::loop() {
@@ -89,6 +91,11 @@ void PCA9554Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   if (flags == gpio::FLAG_INPUT) {
     // Clear mode mask bit
     this->config_mask_ &= ~(1 << pin);
+    // Enable polling loop for input pins (not needed for interrupt-driven mode
+    // where the ISR handles re-enabling loop)
+    if (this->interrupt_pin_ == nullptr) {
+      this->enable_loop();
+    }
   } else if (flags == gpio::FLAG_OUTPUT) {
     // Set mode mask bit
     this->config_mask_ |= 1 << pin;
