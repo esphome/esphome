@@ -89,54 +89,26 @@ static inline bool is_crash_reason(uint32_t reason) {
 
 bool crash_handler_has_data() { return is_crash_reason(resetInfo.reason); }
 
-// Xtensa exception cause names (shared with ESP32, same ISA).
-// Keep in sync with Xtensa ISA reference manual Table 4-64.
-// Uses if-else with LOG_STR instead of switch to avoid CSWTCH jump tables
-// (placed in RAM rodata on ESP8266). LOG_STR stores strings in flash via
-// PSTR; if-else generates comparison branches with no data table.
+// Xtensa exception cause names for the LX106 core (ESP8266).
+// Only includes causes that can actually occur on the LX106 — it has no MMU,
+// no TLB, no PIF, and no privilege levels, so causes 12-18 and 24-26 are
+// impossible and omitted. The numeric cause is always logged as fallback.
+// Uses if-else with LOG_STR to avoid CSWTCH jump tables (RAM on ESP8266).
 static const LogString *get_exception_cause(uint32_t cause) {
   if (cause == 0)
-    return LOG_STR("IllegalInstruction");
-  if (cause == 1)
-    return LOG_STR("Syscall");
+    return LOG_STR("IllegalInst");
   if (cause == 2)
-    return LOG_STR("InstructionFetchError");
+    return LOG_STR("InstFetchErr");
   if (cause == 3)
-    return LOG_STR("LoadStoreError");
+    return LOG_STR("LoadStoreErr");
   if (cause == 4)
-    return LOG_STR("Level1Interrupt");
-  if (cause == 5)
-    return LOG_STR("Alloca");
+    return LOG_STR("Level1Int");
   if (cause == 6)
-    return LOG_STR("IntegerDivideByZero");
-  if (cause == 7)
-    return LOG_STR("PCValue");
-  if (cause == 8)
-    return LOG_STR("Privileged");
+    return LOG_STR("DivByZero");
   if (cause == 9)
-    return LOG_STR("LoadStoreAlignment");
-  if (cause == 12)
-    return LOG_STR("InstrPDAddrError");
-  if (cause == 13)
-    return LOG_STR("LoadStorePIFDataError");
-  if (cause == 14)
-    return LOG_STR("InstrPIFAddrError");
-  if (cause == 15)
-    return LOG_STR("LoadStorePIFAddrError");
-  if (cause == 16)
-    return LOG_STR("InstTLBMiss");
-  if (cause == 17)
-    return LOG_STR("InstTLBMultiHit");
-  if (cause == 18)
-    return LOG_STR("InstFetchPrivilege");
+    return LOG_STR("Alignment");
   if (cause == 20)
-    return LOG_STR("InstrFetchProhibited");
-  if (cause == 24)
-    return LOG_STR("LoadStoreTLBMiss");
-  if (cause == 25)
-    return LOG_STR("LoadStoreTLBMultihit");
-  if (cause == 26)
-    return LOG_STR("LoadStorePrivilege");
+    return LOG_STR("InstFetchProhibited");
   if (cause == 28)
     return LOG_STR("LoadProhibited");
   if (cause == 29)
