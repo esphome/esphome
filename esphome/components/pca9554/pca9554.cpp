@@ -284,7 +284,7 @@ void PCA9554Component::set_interrupt(uint8_t pin, bool interrupt_state) {
 void PCA9554Component::set_drive_strength(uint8_t pin, uint16_t strength_to_set) {
   if (this->capability_ & CAPABILITY_DRIVE_STRENGTH) {
     uint8_t register_to_modify = OUTPUT_DRIVE_0;
-    uint16_t reg_value = 0;
+    uint16_t register_value = 0;
 
     if (pin > (this->pin_count_ - 1)) {
       ESP_LOGE(TAG, "Invalid pin %d", pin);
@@ -300,12 +300,12 @@ void PCA9554Component::set_drive_strength(uint8_t pin, uint16_t strength_to_set)
       pin = pin - 8;
     }
 
-    if (!this->read_register_(register_to_modify, reg_value)) {
+    if (!this->read_register_(register_to_modify, register_value)) {
       return;
     }
-    reg_value &= ~(3U << (2U * pin));
-    reg_value |= strength_to_set << (2U * pin);
-    this->write_register_(register_to_modify, reg_value);
+    register_value &= ~(3U << (2U * pin));
+    register_value |= strength_to_set << (2U * pin);
+    this->write_register_(register_to_modify, register_value);
   }
 }
 
