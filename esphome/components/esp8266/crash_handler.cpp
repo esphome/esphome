@@ -6,7 +6,6 @@
 #include "crash_handler.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/progmem.h"
 
 #include <cinttypes>
 
@@ -36,18 +35,11 @@ extern uint8_t _irom0_text_start;  // NOLINT(bugprone-reserved-identifier,readab
 extern uint8_t _irom0_text_end;    // NOLINT(bugprone-reserved-identifier,readability-identifier-naming)
 }
 
-// Xtensa CALL instruction opcodes (3-byte instructions).
-// A return address on the stack points to the instruction AFTER a CALL,
-// so the CALL instruction is at addr-3.
-static constexpr uint8_t XTENSA_CALL_OPCODE = 0x05;   // CALL0/4/8/12: bits[3:0] = 0x5
-static constexpr uint8_t XTENSA_CALLX_OPCODE = 0x00;  // CALLX0/4/8/12: bits[3:0] = 0x0
-static constexpr uint8_t XTENSA_CALLX_MIN = 0xC0;     // CALLX: bits[19:16] >= 0xC (byte 2 upper nibble)
-static constexpr uint8_t XTENSA_OPCODE_MASK = 0x0F;
-
 // Check if a value looks like a code address in IRAM or flash-mapped IROM.
 // Must be IRAM_ATTR since it's called from custom_crash_callback (exception context).
 // Using linker symbols (&_irom0_text_start/end) is safe in IRAM — they're link-time
-// constants, no flash read needed.
+// constants, no flash read needed. This gives precise bounds matching the actual
+// firmware, eliminating false positives from addresses beyond the flash mapping.
 static inline bool IRAM_ATTR is_code_addr(uint32_t val) {
   uint32_t addr = (val & XTENSA_ADDR_MASK) | XTENSA_CODE_BASE;
   return (addr >= IRAM_START && addr < IRAM_END) || (addr >= reinterpret_cast<uint32_t>(&_irom0_text_start) &&
@@ -56,35 +48,6 @@ static inline bool IRAM_ATTR is_code_addr(uint32_t val) {
 
 // Recover the actual code address from a windowed-ABI return address on the stack.
 static inline uint32_t IRAM_ATTR recover_code_addr(uint32_t val) { return (val & XTENSA_ADDR_MASK) | XTENSA_CODE_BASE; }
-
-// Read a byte safely from any code address (IRAM or IROM).
-// Uses esphome::progmem_read_byte which handles ESP8266 flash alignment requirements
-// (SPI flash cache requires special access patterns for byte reads).
-static inline uint8_t safe_read_code_byte(uint32_t addr) {
-  return esphome::progmem_read_byte(reinterpret_cast<const uint8_t *>(addr));
-}
-
-// Check if a code address is a real return address by verifying the preceding
-// instruction is a CALL or CALLX. Called at log time (not during panic) so
-// flash cache is available and both IRAM and IROM are safely readable.
-//
-// On Xtensa, CALL0/4/8/12 and CALLX0/4/8/12 are 3-byte instructions.
-// A return address points to the instruction after the CALL, so we check addr-3.
-static inline bool is_return_addr(uint32_t addr) {
-  if (!is_code_addr(addr) || addr < 3)
-    return false;
-  uint8_t b0 = safe_read_code_byte(addr - 3);
-  // Direct CALL0/4/8/12: bits[3:0] == 0x5
-  if ((b0 & XTENSA_OPCODE_MASK) == XTENSA_CALL_OPCODE)
-    return true;
-  // CALLX0/4/8/12: bits[3:0] == 0x0, byte[2] upper nibble >= 0xC
-  if ((b0 & XTENSA_OPCODE_MASK) == XTENSA_CALLX_OPCODE) {
-    uint8_t b2 = safe_read_code_byte(addr - 1);
-    if ((b2 & 0xF0) >= XTENSA_CALLX_MIN)
-      return true;
-  }
-  return false;
-}
 
 // RTC user memory layout for crash backtrace data.
 // User-accessible RTC memory: blocks 64-191 (each block = 4 bytes).
@@ -216,14 +179,15 @@ static uint8_t read_rtc_backtrace(uint32_t *backtrace, size_t max_entries) {
   uint8_t raw_count = magic & CRASH_COUNT_MASK;
   if (raw_count > MAX_BACKTRACE)
     raw_count = MAX_BACKTRACE;
-  // Filter: only keep entries that are real return addresses (preceded by CALL instruction).
-  // Also skip any that match epc1 (already reported as the fault PC).
+  // Skip any that match epc1 (already reported as the fault PC).
+  // Note: we cannot verify CALL instructions at addr-3 on ESP8266 because
+  // reading from IROM causes LoadStoreError due to flash cache conflicts
+  // (the reading code and target can share a direct-mapped cache line).
+  // The linker-symbol IROM bounds already eliminate most false positives.
   uint8_t out = 0;
   for (uint8_t i = 0; i < raw_count && out < max_entries; i++) {
     uint32_t addr = rtc_data.backtrace[i];
-    if (addr == rtc_data.epc1)
-      continue;
-    if (is_return_addr(addr))
+    if (addr != rtc_data.epc1)
       backtrace[out++] = addr;
   }
   return out;
