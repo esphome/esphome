@@ -22,7 +22,11 @@ from esphome.const import (
     DEVICE_CLASS_WATER,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    setup_device_class,
+    setup_entity,
+)
 from esphome.cpp_generator import MockObjClass
 
 IS_PLATFORM_COMPONENT = True
@@ -129,11 +133,9 @@ def valve_schema(
     return _VALVE_SCHEMA.extend(schema)
 
 
+@setup_entity("valve")
 async def _setup_valve_core(var, config):
-    await setup_entity(var, config, "valve")
-
-    if device_class_config := config.get(CONF_DEVICE_CLASS):
-        cg.add(var.set_device_class(device_class_config))
+    setup_device_class(config)
 
     for conf in config.get(CONF_ON_OPEN, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
@@ -178,25 +180,33 @@ VALVE_ACTION_SCHEMA = maybe_simple_id(
 )
 
 
-@automation.register_action("valve.open", OpenAction, VALVE_ACTION_SCHEMA)
+@automation.register_action(
+    "valve.open", OpenAction, VALVE_ACTION_SCHEMA, synchronous=True
+)
 async def valve_open_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("valve.close", CloseAction, VALVE_ACTION_SCHEMA)
+@automation.register_action(
+    "valve.close", CloseAction, VALVE_ACTION_SCHEMA, synchronous=True
+)
 async def valve_close_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("valve.stop", StopAction, VALVE_ACTION_SCHEMA)
+@automation.register_action(
+    "valve.stop", StopAction, VALVE_ACTION_SCHEMA, synchronous=True
+)
 async def valve_stop_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@automation.register_action("valve.toggle", ToggleAction, VALVE_ACTION_SCHEMA)
+@automation.register_action(
+    "valve.toggle", ToggleAction, VALVE_ACTION_SCHEMA, synchronous=True
+)
 async def valve_toggle_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
@@ -212,7 +222,9 @@ VALVE_CONTROL_ACTION_SCHEMA = cv.Schema(
 )
 
 
-@automation.register_action("valve.control", ControlAction, VALVE_CONTROL_ACTION_SCHEMA)
+@automation.register_action(
+    "valve.control", ControlAction, VALVE_CONTROL_ACTION_SCHEMA, synchronous=True
+)
 async def valve_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)

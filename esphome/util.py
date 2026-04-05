@@ -1,5 +1,6 @@
 import collections
 from collections.abc import Callable
+from dataclasses import dataclass
 import io
 import logging
 from pathlib import Path
@@ -24,11 +25,14 @@ class RegistryEntry:
         fun: Callable[..., Any],
         type_id: "MockObjClass",
         schema: "Schema",
+        *,
+        synchronous: bool = False,
     ):
         self.name = name
         self.fun = fun
         self.type_id = type_id
         self.raw_schema = schema
+        self.synchronous = synchronous
 
     @property
     def coroutine_fun(self):
@@ -49,9 +53,18 @@ class Registry(dict[str, RegistryEntry]):
         self.base_schema = base_schema or {}
         self.type_id_key = type_id_key
 
-    def register(self, name: str, type_id: "MockObjClass", schema: "Schema"):
+    def register(
+        self,
+        name: str,
+        type_id: "MockObjClass",
+        schema: "Schema",
+        *,
+        synchronous: bool = False,
+    ):
         def decorator(fun: Callable[..., Any]):
-            self[name] = RegistryEntry(name, fun, type_id, schema)
+            self[name] = RegistryEntry(
+                name, fun, type_id, schema, synchronous=synchronous
+            )
             return fun
 
         return decorator
@@ -112,7 +125,12 @@ ANSI_ESCAPE = re.compile(r"\033[@-_][0-?]*[ -/]*[@-~]")
 
 
 class RedirectText:
-    def __init__(self, out, filter_lines=None):
+    def __init__(
+        self,
+        out,
+        filter_lines: list[str] | None = None,
+        line_callbacks: list[Callable[[str], str | None]] | None = None,
+    ) -> None:
         self._out = out
         if filter_lines is None:
             self._filter_pattern = None
@@ -120,6 +138,7 @@ class RedirectText:
             pattern = r"|".join(r"(?:" + pattern + r")" for pattern in filter_lines)
             self._filter_pattern = re.compile(pattern)
         self._line_buffer = ""
+        self._line_callbacks = line_callbacks or []
 
     def __getattr__(self, item):
         return getattr(self._out, item)
@@ -144,7 +163,7 @@ class RedirectText:
         if not isinstance(s, str):
             s = s.decode()
 
-        if self._filter_pattern is not None:
+        if self._filter_pattern is not None or self._line_callbacks:
             self._line_buffer += s
             lines = self._line_buffer.splitlines(True)
             for line in lines:
@@ -156,7 +175,10 @@ class RedirectText:
 
                 line_without_ansi = ANSI_ESCAPE.sub("", line)
                 line_without_end = line_without_ansi.rstrip()
-                if self._filter_pattern.match(line_without_end) is not None:
+                if (
+                    self._filter_pattern is not None
+                    and self._filter_pattern.match(line_without_end) is not None
+                ):
                     # Filter pattern matched, ignore the line
                     continue
 
@@ -168,6 +190,9 @@ class RedirectText:
                     and (help_msg := get_esp32_arduino_flash_error_help())
                 ):
                     self._write_color_replace(help_msg)
+                for callback in self._line_callbacks:
+                    if msg := callback(line_without_end):
+                        self._write_color_replace(msg)
         else:
             self._write_color_replace(s)
 
@@ -181,7 +206,11 @@ class RedirectText:
 
 
 def run_external_command(
-    func, *cmd, capture_stdout: bool = False, filter_lines: str = None
+    func,
+    *cmd,
+    capture_stdout: bool = False,
+    filter_lines: list[str] | None = None,
+    line_callbacks: list[Callable[[str], str | None]] | None = None,
 ) -> int | str:
     """
     Run a function from an external package that acts like a main method.
@@ -191,7 +220,9 @@ def run_external_command(
     :param func: Function to execute
     :param cmd: Command to run as (eg first element of sys.argv)
     :param capture_stdout: Capture text from stdout and return that.
-    :param filter_lines: Regular expression used to filter captured output.
+        Note: line_callbacks are not invoked when capture_stdout is True.
+    :param filter_lines: Regular expressions used to filter captured output.
+    :param line_callbacks: Callbacks invoked per line; non-None returns are written to output.
     :return: str if `capture_stdout` is set else int exit code.
 
     """
@@ -205,9 +236,13 @@ def run_external_command(
     _LOGGER.debug("Running:  %s", full_cmd)
 
     orig_stdout = sys.stdout
-    sys.stdout = RedirectText(sys.stdout, filter_lines=filter_lines)
+    sys.stdout = RedirectText(
+        sys.stdout, filter_lines=filter_lines, line_callbacks=line_callbacks
+    )
     orig_stderr = sys.stderr
-    sys.stderr = RedirectText(sys.stderr, filter_lines=filter_lines)
+    sys.stderr = RedirectText(
+        sys.stderr, filter_lines=filter_lines, line_callbacks=line_callbacks
+    )
 
     if capture_stdout:
         cap_stdout = sys.stdout = io.StringIO()
@@ -241,14 +276,19 @@ def run_external_process(*cmd: str, **kwargs: Any) -> int | str:
     full_cmd = " ".join(shlex_quote(x) for x in cmd)
     _LOGGER.debug("Running:  %s", full_cmd)
     filter_lines = kwargs.get("filter_lines")
+    line_callbacks = kwargs.get("line_callbacks")
 
     capture_stdout = kwargs.get("capture_stdout", False)
     if capture_stdout:
         sub_stdout = subprocess.PIPE
     else:
-        sub_stdout = RedirectText(sys.stdout, filter_lines=filter_lines)
+        sub_stdout = RedirectText(
+            sys.stdout, filter_lines=filter_lines, line_callbacks=line_callbacks
+        )
 
-    sub_stderr = RedirectText(sys.stderr, filter_lines=filter_lines)
+    sub_stderr = RedirectText(
+        sys.stderr, filter_lines=filter_lines, line_callbacks=line_callbacks
+    )
 
     try:
         proc = subprocess.run(
@@ -341,6 +381,75 @@ def get_serial_ports() -> list[SerialPort]:
 
     result.sort(key=lambda x: x.path)
     return result
+
+
+PICOTOOL_PACKAGE = "tool-picotool-rp2040-earlephilhower"
+
+
+def get_picotool_path(cc_path: str) -> Path | None:
+    """Derive the picotool binary path from the PlatformIO toolchain cc_path.
+
+    The cc_path from IDEData points to the toolchain package, e.g.:
+    ~/.platformio/packages/toolchain-rp2040-earlephilhower/bin/arm-none-eabi-gcc
+    Picotool is in a sibling package:
+    ~/.platformio/packages/tool-picotool-rp2040-earlephilhower/picotool
+    """
+    cc = Path(cc_path)
+    # Go from .../packages/toolchain-.../bin/gcc up to .../packages/
+    packages_dir = cc.parent.parent.parent
+    binary_name = "picotool.exe" if sys.platform == "win32" else "picotool"
+    picotool = packages_dir / PICOTOOL_PACKAGE / binary_name
+    if picotool.is_file():
+        return picotool
+    return None
+
+
+def is_picotool_usb_permission_error(output: str | bytes) -> bool:
+    """Check if picotool output indicates a USB permission error."""
+    if isinstance(output, str):
+        return (
+            "unable to connect" in output
+            or "LIBUSB_ERROR_ACCESS" in output
+            or "Permission denied" in output
+        )
+    return (
+        b"unable to connect" in output
+        or b"LIBUSB_ERROR_ACCESS" in output
+        or b"Permission denied" in output
+    )
+
+
+@dataclass
+class BootselResult:
+    """Result of RP2040 BOOTSEL detection."""
+
+    device_count: int
+    permission_error: bool = False
+
+
+def detect_rp2040_bootsel(picotool_path: str | Path) -> BootselResult:
+    """Detect RP2040/RP2350 devices in BOOTSEL mode using picotool.
+
+    Returns a BootselResult with the number of devices found (by counting
+    'type:' lines in output), and whether a permission error was detected.
+    """
+    try:
+        result = subprocess.run(
+            [str(picotool_path), "info", "-d"],
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+        device_count = result.stdout.count(b"type:")
+        if device_count > 0:
+            return BootselResult(device_count)
+        # Check for permission issues — picotool can see the device
+        # on the USB bus but can't connect without proper permissions
+        if is_picotool_usb_permission_error(result.stderr + result.stdout):
+            return BootselResult(0, permission_error=True)
+        return BootselResult(0)
+    except (OSError, subprocess.TimeoutExpired):
+        return BootselResult(0)
 
 
 def get_esp32_arduino_flash_error_help() -> str | None:

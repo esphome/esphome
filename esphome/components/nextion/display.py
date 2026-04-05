@@ -2,13 +2,7 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components import display, esp32, uart
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_BRIGHTNESS,
-    CONF_ID,
-    CONF_LAMBDA,
-    CONF_ON_TOUCH,
-    CONF_TRIGGER_ID,
-)
+from esphome.const import CONF_BRIGHTNESS, CONF_ID, CONF_LAMBDA, CONF_ON_TOUCH
 from esphome.core import CORE, TimePeriod
 
 from . import (  # noqa: F401  pylint: disable=unused-import
@@ -33,29 +27,47 @@ from .base_component import (
     CONF_SKIP_CONNECTION_HANDSHAKE,
     CONF_START_UP_PAGE,
     CONF_STARTUP_OVERRIDE_MS,
+    CONF_TFT_UPLOAD_HTTP_RETRIES,
+    CONF_TFT_UPLOAD_HTTP_TIMEOUT,
+    CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT,
     CONF_TFT_URL,
     CONF_TOUCH_SLEEP_TIMEOUT,
     CONF_WAKE_UP_PAGE,
 )
 
 CODEOWNERS = ["@senexcrenshaw", "@edwardtfn"]
-
 DEPENDENCIES = ["uart"]
-AUTO_LOAD = ["binary_sensor", "switch", "sensor", "text_sensor"]
+
+
+def AUTO_LOAD() -> list[str]:
+    base = ["binary_sensor", "switch", "sensor", "text_sensor"]
+    if CORE.is_esp32:
+        base.append("watchdog")
+    return base
+
 
 NextionSetBrightnessAction = nextion_ns.class_(
     "NextionSetBrightnessAction", automation.Action
 )
-SetupTrigger = nextion_ns.class_("SetupTrigger", automation.Trigger.template())
-SleepTrigger = nextion_ns.class_("SleepTrigger", automation.Trigger.template())
-WakeTrigger = nextion_ns.class_("WakeTrigger", automation.Trigger.template())
-PageTrigger = nextion_ns.class_("PageTrigger", automation.Trigger.template())
-TouchTrigger = nextion_ns.class_("TouchTrigger", automation.Trigger.template())
-BufferOverflowTrigger = nextion_ns.class_(
-    "BufferOverflowTrigger", automation.Trigger.template()
-)
 
-CONFIG_SCHEMA = (
+
+def _validate_tft_upload(config):
+    has_tft_url = CONF_TFT_URL in config
+    for conf_key in (
+        CONF_TFT_UPLOAD_HTTP_TIMEOUT,
+        CONF_TFT_UPLOAD_HTTP_RETRIES,
+        CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT,
+    ):
+        if conf_key in config and not has_tft_url:
+            raise cv.Invalid(f"{conf_key} requires {CONF_TFT_URL} to be set")
+    if CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT in config and not CORE.is_esp32:
+        raise cv.Invalid(
+            f"{CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT} is only available on ESP32"
+        )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     display.BASIC_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(Nextion),
@@ -75,38 +87,12 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_MAX_COMMANDS_PER_LOOP): cv.uint16_t,
             cv.Optional(CONF_MAX_QUEUE_SIZE): cv.positive_int,
-            cv.Optional(CONF_ON_BUFFER_OVERFLOW): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        BufferOverflowTrigger
-                    ),
-                }
-            ),
-            cv.Optional(CONF_ON_PAGE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PageTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_SETUP): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SetupTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_SLEEP): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SleepTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_TOUCH): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TouchTrigger),
-                }
-            ),
-            cv.Optional(CONF_ON_WAKE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(WakeTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_BUFFER_OVERFLOW): automation.validate_automation({}),
+            cv.Optional(CONF_ON_PAGE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_SETUP): automation.validate_automation({}),
+            cv.Optional(CONF_ON_SLEEP): automation.validate_automation({}),
+            cv.Optional(CONF_ON_TOUCH): automation.validate_automation({}),
+            cv.Optional(CONF_ON_WAKE): automation.validate_automation({}),
             cv.Optional(CONF_SKIP_CONNECTION_HANDSHAKE, default=False): cv.boolean,
             cv.Optional(CONF_STARTUP_OVERRIDE_MS, default="8000ms"): cv.All(
                 cv.positive_time_period_milliseconds,
@@ -115,6 +101,14 @@ CONFIG_SCHEMA = (
                 ),
             ),
             cv.Optional(CONF_START_UP_PAGE): cv.uint8_t,
+            cv.Optional(CONF_TFT_UPLOAD_HTTP_RETRIES): cv.int_range(min=1, max=255),
+            cv.Optional(CONF_TFT_UPLOAD_HTTP_TIMEOUT): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(max=TimePeriod(milliseconds=65535)),
+            ),
+            cv.Optional(
+                CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT
+            ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_TFT_URL): cv.url,
             cv.Optional(CONF_TOUCH_SLEEP_TIMEOUT): cv.Any(
                 0, cv.int_range(min=3, max=65535)
@@ -123,7 +117,8 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("5s"))
-    .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(uart.UART_DEVICE_SCHEMA),
+    _validate_tft_upload,
 )
 
 
@@ -137,6 +132,7 @@ CONFIG_SCHEMA = (
         },
         key=CONF_BRIGHTNESS,
     ),
+    synchronous=True,
 )
 async def nextion_set_brightness_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -176,7 +172,32 @@ async def to_code(config):
     if CONF_TFT_URL in config:
         cg.add_define("USE_NEXTION_TFT_UPLOAD")
         cg.add(var.set_tft_url(config[CONF_TFT_URL]))
+
+        # TFT upload HTTP timeout (default: 4.5s)
+        if CONF_TFT_UPLOAD_HTTP_TIMEOUT in config:
+            cg.add(
+                var.set_tft_upload_http_timeout(
+                    config[CONF_TFT_UPLOAD_HTTP_TIMEOUT].total_milliseconds
+                )
+            )
+
+        # TFT upload HTTP retries (default: 5)
+        if CONF_TFT_UPLOAD_HTTP_RETRIES in config:
+            cg.add(
+                var.set_tft_upload_http_retries(config[CONF_TFT_UPLOAD_HTTP_RETRIES])
+            )
+
+        # TFT upload watchdog timeout (default: 0 = no adjustment)
+        if CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT in config:
+            cg.add(
+                var.set_tft_upload_watchdog_timeout(
+                    config[CONF_TFT_UPLOAD_WATCHDOG_TIMEOUT].total_milliseconds
+                )
+            )
+
         if CORE.is_esp32:
+            # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time)
+            esp32.include_builtin_idf_component("esp_http_client")
             esp32.add_idf_sdkconfig_option("CONFIG_ESP_TLS_INSECURE", True)
             esp32.add_idf_sdkconfig_option(
                 "CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY", True
@@ -212,25 +233,25 @@ async def to_code(config):
     await display.register_display(var, config)
 
     for conf in config.get(CONF_ON_SETUP, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-
+        await automation.build_callback_automation(
+            var, "add_setup_state_callback", [], conf
+        )
     for conf in config.get(CONF_ON_SLEEP, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-
+        await automation.build_callback_automation(
+            var, "add_sleep_state_callback", [], conf
+        )
     for conf in config.get(CONF_ON_WAKE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-
+        await automation.build_callback_automation(
+            var, "add_wake_state_callback", [], conf
+        )
     for conf in config.get(CONF_ON_PAGE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.uint8, "x")], conf)
-
+        await automation.build_callback_automation(
+            var, "add_new_page_callback", [(cg.uint8, "x")], conf
+        )
     for conf in config.get(CONF_ON_TOUCH, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger,
+        await automation.build_callback_automation(
+            var,
+            "add_touch_event_callback",
             [
                 (cg.uint8, "page_id"),
                 (cg.uint8, "component_id"),
@@ -238,7 +259,7 @@ async def to_code(config):
             ],
             conf,
         )
-
     for conf in config.get(CONF_ON_BUFFER_OVERFLOW, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            var, "add_buffer_overflow_event_callback", [], conf
+        )

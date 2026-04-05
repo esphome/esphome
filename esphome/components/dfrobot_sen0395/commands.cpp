@@ -187,18 +187,18 @@ uint8_t DetRangeCfgCommand::on_message(std::string &message) {
   } else if (message == "Done") {
     ESP_LOGI(TAG,
              "Updated detection area config:\n"
-             "Detection area 1 from %.02fm to %.02fm.",
+             "  Detection area 1 from %.02fm to %.02fm.",
              this->min1_, this->max1_);
     if (this->min2_ >= 0 && this->max2_ >= 0) {
-      ESP_LOGI(TAG, "Detection area 2 from %.02fm to %.02fm.", this->min2_, this->max2_);
+      ESP_LOGI(TAG, "  Detection area 2 from %.02fm to %.02fm.", this->min2_, this->max2_);
     }
     if (this->min3_ >= 0 && this->max3_ >= 0) {
-      ESP_LOGI(TAG, "Detection area 3 from %.02fm to %.02fm.", this->min3_, this->max3_);
+      ESP_LOGI(TAG, "  Detection area 3 from %.02fm to %.02fm.", this->min3_, this->max3_);
     }
     if (this->min4_ >= 0 && this->max4_ >= 0) {
-      ESP_LOGI(TAG, "Detection area 4 from %.02fm to %.02fm.", this->min4_, this->max4_);
+      ESP_LOGI(TAG, "  Detection area 4 from %.02fm to %.02fm.", this->min4_, this->max4_);
     }
-    ESP_LOGD(TAG, "Used command: %s", this->cmd_.c_str());
+    ESP_LOGD(TAG, "  Used command: %s", this->cmd_.c_str());
     return 1;  // Command done
   }
   return 0;  // Command not done yet.
@@ -222,10 +222,10 @@ uint8_t SetLatencyCommand::on_message(std::string &message) {
   } else if (message == "Done") {
     ESP_LOGI(TAG,
              "Updated output latency config:\n"
-             "Signal that someone was detected is delayed by %.03f s.\n"
-             "Signal that nobody is detected anymore is delayed by %.03f s.",
+             "  Signal that someone was detected is delayed by %.03f s.\n"
+             "  Signal that nobody is detected anymore is delayed by %.03f s.",
              this->delay_after_detection_, this->delay_after_disappear_);
-    ESP_LOGD(TAG, "Used command: %s", this->cmd_.c_str());
+    ESP_LOGD(TAG, "  Used command: %s", this->cmd_.c_str());
     return 1;  // Command done
   }
   return 0;  // Command not done yet

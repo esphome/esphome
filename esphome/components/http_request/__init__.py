@@ -50,6 +50,8 @@ CONF_FOLLOW_REDIRECTS = "follow_redirects"
 CONF_REDIRECT_LIMIT = "redirect_limit"
 CONF_BUFFER_SIZE_RX = "buffer_size_rx"
 CONF_BUFFER_SIZE_TX = "buffer_size_tx"
+CONF_TLS_BUFFER_SIZE_RX = "tls_buffer_size_rx"
+CONF_TLS_BUFFER_SIZE_TX = "tls_buffer_size_tx"
 CONF_CA_CERTIFICATE_PATH = "ca_certificate_path"
 
 CONF_MAX_RESPONSE_BUFFER_SIZE = "max_response_buffer_size"
@@ -124,9 +126,15 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_BUFFER_SIZE_TX, esp32=512): cv.All(
                 cv.uint16_t, cv.only_on_esp32
             ),
+            cv.SplitDefault(CONF_TLS_BUFFER_SIZE_RX, esp8266=512): cv.All(
+                cv.uint16_t, cv.only_on_esp8266
+            ),
+            cv.SplitDefault(CONF_TLS_BUFFER_SIZE_TX, esp8266=512): cv.All(
+                cv.uint16_t, cv.only_on_esp8266
+            ),
             cv.Optional(CONF_CA_CERTIFICATE_PATH): cv.All(
                 cv.file_,
-                cv.only_on(PLATFORM_HOST),
+                cv.Any(cv.only_on(PLATFORM_HOST), cv.only_on_esp32),
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -150,17 +158,39 @@ async def to_code(config):
 
     if CORE.is_esp8266 and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]:
         cg.add_define("USE_HTTP_REQUEST_ESP8266_HTTPS")
+        cg.add(var.set_tls_buffer_size_rx(config[CONF_TLS_BUFFER_SIZE_RX]))
+        cg.add(var.set_tls_buffer_size_tx(config[CONF_TLS_BUFFER_SIZE_TX]))
 
     if timeout_ms := config.get(CONF_WATCHDOG_TIMEOUT):
         cg.add(var.set_watchdog_timeout(timeout_ms))
 
     if CORE.is_esp32:
+        # Re-enable ESP-IDF's HTTP client (excluded by default to save compile time)
+        esp32.include_builtin_idf_component("esp_http_client")
+
         cg.add(var.set_buffer_size_rx(config[CONF_BUFFER_SIZE_RX]))
         cg.add(var.set_buffer_size_tx(config[CONF_BUFFER_SIZE_TX]))
         cg.add(var.set_verify_ssl(config[CONF_VERIFY_SSL]))
 
         if config.get(CONF_VERIFY_SSL):
-            esp32.add_idf_sdkconfig_option("CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True)
+            if ca_cert_path := config.get(CONF_CA_CERTIFICATE_PATH):
+                with open(ca_cert_path, encoding="utf-8") as f:
+                    ca_cert_content = f.read()
+                cg.add(var.set_ca_certificate(ca_cert_content))
+            else:
+                # Uses the certificate bundle configured in esp32 component.
+                # By default, ESPHome uses the CMN (common CAs) bundle which covers
+                # ~99% of websites including GitHub, Let's Encrypt, DigiCert, etc.
+                # If connecting to services with uncommon CAs, components can call:
+                #   esp32.require_full_certificate_bundle()
+                # Or users can set in their config:
+                #   esp32:
+                #     framework:
+                #       advanced:
+                #         use_full_certificate_bundle: true
+                esp32.add_idf_sdkconfig_option(
+                    "CONFIG_MBEDTLS_CERTIFICATE_BUNDLE", True
+                )
 
         esp32.add_idf_sdkconfig_option(
             "CONFIG_ESP_TLS_INSECURE",
@@ -249,13 +279,22 @@ HTTP_REQUEST_SEND_ACTION_SCHEMA = HTTP_REQUEST_ACTION_SCHEMA.extend(
 
 
 @automation.register_action(
-    "http_request.get", HttpRequestSendAction, HTTP_REQUEST_GET_ACTION_SCHEMA
+    "http_request.get",
+    HttpRequestSendAction,
+    HTTP_REQUEST_GET_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "http_request.post", HttpRequestSendAction, HTTP_REQUEST_POST_ACTION_SCHEMA
+    "http_request.post",
+    HttpRequestSendAction,
+    HTTP_REQUEST_POST_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "http_request.send", HttpRequestSendAction, HTTP_REQUEST_SEND_ACTION_SCHEMA
+    "http_request.send",
+    HttpRequestSendAction,
+    HTTP_REQUEST_SEND_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def http_request_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -282,15 +321,19 @@ async def http_request_action_to_code(config, action_id, template_arg, args):
             lambda_ = await cg.process_lambda(json_, args_, return_type=cg.void)
             cg.add(var.set_json(lambda_))
         else:
+            cg.add(var.init_json(len(json_)))
             for key in json_:
                 template_ = await cg.templatable(json_[key], args, cg.std_string)
                 cg.add(var.add_json(key, template_))
-    for key, value in config.get(CONF_REQUEST_HEADERS, {}).items():
+    request_headers = config.get(CONF_REQUEST_HEADERS, {})
+    if request_headers:
+        cg.add(var.init_request_headers(len(request_headers)))
+    for key, value in request_headers.items():
         template_ = await cg.templatable(value, args, cg.const_char_ptr)
         cg.add(var.add_request_header(key, template_))
 
     for value in config.get(CONF_COLLECT_HEADERS, []):
-        cg.add(var.add_collect_header(value))
+        cg.add(var.add_collect_header(value.lower()))
 
     if response_conf := config.get(CONF_ON_RESPONSE):
         if capture_response:

@@ -15,7 +15,7 @@ class OneWireDevice {
  public:
   /// @brief store the address of the device
   /// @param address of the device
-  void set_address(uint64_t address) { this->address_ = address; }
+  void set_address(uint64_t address);
 
   void set_index(uint8_t index) { this->index_ = index; }
 

@@ -13,6 +13,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_LN882X,
+    PLATFORM_RP2040,
     PLATFORM_RTL87XX,
     PlatformFramework,
 )
@@ -53,6 +54,7 @@ CONFIG_SCHEMA = cv.All(
             PLATFORM_ESP8266,
             PLATFORM_BK72XX,
             PLATFORM_LN882X,
+            PLATFORM_RP2040,
             PLATFORM_RTL87XX,
         ]
     ),
@@ -76,13 +78,15 @@ def _final_validate(config: ConfigType) -> ConfigType:
 
     # Register socket needs for DNS server and additional HTTP connections
     # - 1 UDP socket for DNS server
-    # - 3 additional TCP sockets for captive portal detection probes + configuration requests
+    # - 3 TCP sockets for captive portal detection probes + configuration requests
     #   OS captive portal detection makes multiple probe requests that stay in TIME_WAIT.
     #   Need headroom for actual user configuration requests.
     #   LRU purging will reclaim idle sockets to prevent exhaustion from repeated attempts.
+    # The listening socket is registered by web_server_base (shared HTTP server).
     from esphome.components import socket
 
-    socket.consume_sockets(4, "captive_portal")(config)
+    socket.consume_sockets(3, "captive_portal")(config)
+    socket.consume_sockets(1, "captive_portal", socket.SocketType.UDP)(config)
 
     return config
 
@@ -101,11 +105,8 @@ async def to_code(config):
     if config[CONF_COMPRESSION] == "gzip":
         cg.add_define("USE_CAPTIVE_PORTAL_GZIP")
 
-    if CORE.using_arduino:
-        if CORE.is_esp8266:
-            cg.add_library("DNSServer", None)
-        if CORE.is_libretiny:
-            cg.add_library("DNSServer", None)
+    if CORE.using_arduino and (CORE.is_esp8266 or CORE.is_libretiny or CORE.is_rp2040):
+        cg.add_library("DNSServer", None)
 
 
 # Only compile the ESP-IDF DNS server when using ESP-IDF framework

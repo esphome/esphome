@@ -18,7 +18,14 @@ from esphome.coroutine import CoroPriority
 OTA_STATE_LISTENER_KEY = "ota_state_listener"
 
 CODEOWNERS = ["@esphome/core"]
-AUTO_LOAD = ["md5", "safe_mode"]
+
+
+def AUTO_LOAD() -> list[str]:
+    components = ["safe_mode"]
+    if not CORE.using_zephyr:
+        components.extend(["md5"])
+    return components
+
 
 IS_PLATFORM_COMPONENT = True
 

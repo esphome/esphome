@@ -11,8 +11,6 @@ namespace esphome::hc8 {
 
 class HC8Component : public PollingComponent, public uart::UARTDevice {
  public:
-  float get_setup_priority() const override;
-
   void setup() override;
   void update() override;
   void dump_config() override;
@@ -25,6 +23,7 @@ class HC8Component : public PollingComponent, public uart::UARTDevice {
  protected:
   sensor::Sensor *co2_sensor_{nullptr};
   uint32_t warmup_seconds_{0};
+  bool warmup_complete_{false};
 };
 
 template<typename... Ts> class HC8CalibrateAction : public Action<Ts...>, public Parented<HC8Component> {

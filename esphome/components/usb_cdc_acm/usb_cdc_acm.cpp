@@ -26,16 +26,13 @@ void USBCDCACMInstance::queue_line_state_event(bool dtr, bool rts) {
   event->data.line_state.dtr = dtr;
   event->data.line_state.rts = rts;
 
-  if (!this->event_queue_.push(event)) {
-    ESP_LOGW(TAG, "Event queue full, line state event dropped (itf=%d)", this->itf_);
-    // Return event to pool since we couldn't queue it
-    this->event_pool_.release(event);
-  } else {
-    // Wake main loop immediately to process event
+  // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+  // allocate() returned non-null, the queue cannot be full.
+  this->event_queue_.push(event);
+
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
-    App.wake_loop_threadsafe();
+  App.wake_loop_threadsafe();
 #endif
-  }
 }
 
 void USBCDCACMInstance::queue_line_coding_event(uint32_t bit_rate, uint8_t stop_bits, uint8_t parity,
@@ -53,16 +50,13 @@ void USBCDCACMInstance::queue_line_coding_event(uint32_t bit_rate, uint8_t stop_
   event->data.line_coding.parity = parity;
   event->data.line_coding.data_bits = data_bits;
 
-  if (!this->event_queue_.push(event)) {
-    ESP_LOGW(TAG, "Event queue full, line coding event dropped (itf=%d)", this->itf_);
-    // Return event to pool since we couldn't queue it
-    this->event_pool_.release(event);
-  } else {
-    // Wake main loop immediately to process event
+  // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+  // allocate() returned non-null, the queue cannot be full.
+  this->event_queue_.push(event);
+
 #if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
-    App.wake_loop_threadsafe();
+  App.wake_loop_threadsafe();
 #endif
-  }
 }
 
 void USBCDCACMInstance::process_events_() {
