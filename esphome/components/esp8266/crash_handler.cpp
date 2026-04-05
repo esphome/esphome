@@ -100,9 +100,9 @@ void crash_handler_read_and_clear() {
 
 // Xtensa exception cause names (shared with ESP32, same ISA).
 // Keep in sync with Xtensa ISA reference manual Table 4-64.
-// Uses if-else instead of switch to avoid CSWTCH jump tables (RAM on ESP8266).
-// PROGMEM_STRING_TABLE also crashes due to flash cache conflicts in API paths.
-// LOG_STR strings are in flash via PSTR; if-else generates comparison branches only.
+// Uses if-else with LOG_STR instead of switch to avoid CSWTCH jump tables
+// (placed in RAM rodata on ESP8266). LOG_STR stores strings in flash via
+// PSTR; if-else generates comparison branches with no data table.
 static const LogString *get_exception_cause(uint32_t cause) {
   if (cause == 0)
     return LOG_STR("IllegalInstruction");
