@@ -6,7 +6,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, PLATFORM_ESP32, PLATFORM_ESP8266
 from esphome.core import CORE
 
-CODEOWNERS = ["@SimonFischer04"]
+CODEOWNERS = ["@SimonFischer04", "@Tomer27cz", "@latonita", "@PolarGoose"]
 DEPENDENCIES = ["uart"]
 
 CONF_DLMS_METER_ID = "dlms_meter_id"
