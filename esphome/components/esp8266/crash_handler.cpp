@@ -163,11 +163,13 @@ PROGMEM_STRING_TABLE(ExcCauseHigh,       // Causes 12-29 (offset by 12)
 );
 // clang-format on
 
+static constexpr uint32_t EXC_CAUSE_HIGH_BASE = 12;  // First cause code in ExcCauseHigh table
+
 static const LogString *get_exception_cause(uint32_t cause) {
-  if (cause <= 9)
+  if (cause < ExcCauseLow::COUNT)
     return ExcCauseLow::get_log_str(cause, ExcCauseLow::LAST_INDEX);
-  if (cause >= 12 && cause <= 29) {
-    const LogString *str = ExcCauseHigh::get_log_str(cause - 12, ExcCauseHigh::LAST_INDEX);
+  if (cause >= EXC_CAUSE_HIGH_BASE && cause < EXC_CAUSE_HIGH_BASE + ExcCauseHigh::COUNT) {
+    const LogString *str = ExcCauseHigh::get_log_str(cause - EXC_CAUSE_HIGH_BASE, ExcCauseHigh::LAST_INDEX);
     // Empty strings are gap entries — return nullptr so caller knows cause is unknown
     if (LOG_STR_ARG(str)[0] == '\0')
       return nullptr;
