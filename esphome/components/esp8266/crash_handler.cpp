@@ -27,6 +27,14 @@ static constexpr uint32_t IRAM_END = 0x40108000;  // 32KB
 static constexpr uint32_t IROM_START = 0x40200000;
 static constexpr uint32_t IROM_END = 0x40400000;  // 2MB conservative upper bound
 
+// Xtensa CALL instruction opcodes (3-byte instructions).
+// A return address on the stack points to the instruction AFTER a CALL,
+// so the CALL instruction is at addr-3.
+static constexpr uint8_t XTENSA_CALL_OPCODE = 0x05;   // CALL0/4/8/12: bits[3:0] = 0x5
+static constexpr uint8_t XTENSA_CALLX_OPCODE = 0x00;  // CALLX0/4/8/12: bits[3:0] = 0x0
+static constexpr uint8_t XTENSA_CALLX_MIN = 0xC0;     // CALLX: bits[19:16] >= 0xC (byte 2 upper nibble)
+static constexpr uint8_t XTENSA_OPCODE_MASK = 0x0F;
+
 // Check if a value looks like a code address in IRAM or flash-mapped IROM.
 // Must be IRAM_ATTR since it's called from custom_crash_callback (exception context).
 static inline bool IRAM_ATTR is_code_addr(uint32_t val) {
@@ -37,12 +45,42 @@ static inline bool IRAM_ATTR is_code_addr(uint32_t val) {
 // Recover the actual code address from a windowed-ABI return address on the stack.
 static inline uint32_t IRAM_ATTR recover_code_addr(uint32_t val) { return (val & XTENSA_ADDR_MASK) | XTENSA_CODE_BASE; }
 
+// Read a byte safely from any code address (IRAM or IROM).
+// ESP8266 flash requires aligned 32-bit reads; byte extraction avoids alignment faults.
+static inline uint8_t safe_read_code_byte(uint32_t addr) {
+  uint32_t aligned = addr & ~3u;
+  uint32_t word = *reinterpret_cast<volatile uint32_t *>(aligned);
+  return (word >> ((addr & 3u) * 8)) & 0xFF;
+}
+
+// Check if a code address is a real return address by verifying the preceding
+// instruction is a CALL or CALLX. Called at log time (not during panic) so
+// flash cache is available and both IRAM and IROM are safely readable.
+//
+// On Xtensa, CALL0/4/8/12 and CALLX0/4/8/12 are 3-byte instructions.
+// A return address points to the instruction after the CALL, so we check addr-3.
+static inline bool is_return_addr(uint32_t addr) {
+  if (!is_code_addr(addr) || addr < 3)
+    return false;
+  uint8_t b0 = safe_read_code_byte(addr - 3);
+  // Direct CALL0/4/8/12: bits[3:0] == 0x5
+  if ((b0 & XTENSA_OPCODE_MASK) == XTENSA_CALL_OPCODE)
+    return true;
+  // CALLX0/4/8/12: bits[3:0] == 0x0, byte[2] upper nibble >= 0xC
+  if ((b0 & XTENSA_OPCODE_MASK) == XTENSA_CALLX_OPCODE) {
+    uint8_t b2 = safe_read_code_byte(addr - 1);
+    if ((b2 & 0xF0) >= XTENSA_CALLX_MIN)
+      return true;
+  }
+  return false;
+}
+
 // RTC user memory layout for crash backtrace data.
 // User-accessible RTC memory: blocks 64-191 (each block = 4 bytes).
-// We use blocks 183-191 (last 9 blocks, 36 bytes) to minimize conflicts.
-static constexpr uint8_t RTC_CRASH_BASE = 183;
-static constexpr size_t MAX_BACKTRACE = 8;
-static constexpr size_t STACK_SCAN_WORDS = 64;  // Scan up to 256 bytes of stack
+// We use blocks 174-191 (last 18 blocks, 72 bytes) to minimize conflicts.
+// Store 16 raw candidates, filter to real return addresses at log time.
+static constexpr uint8_t RTC_CRASH_BASE = 174;
+static constexpr size_t MAX_BACKTRACE = 16;
 
 // Magic word packs sentinel, version, and count into one uint32_t:
 //   bits[31:16] = 0xDEAD (sentinel)
@@ -54,14 +92,16 @@ static constexpr uint32_t CRASH_SENTINEL_MASK = 0xFFFF0000;
 static constexpr uint32_t CRASH_VERSION_MASK = 0x0000FF00;
 static constexpr uint32_t CRASH_COUNT_MASK = 0x000000FF;
 
-// Struct layout: 9 RTC blocks (36 bytes):
+// Struct layout: 18 RTC blocks (72 bytes):
 // [0] = magic (sentinel | version | count)
-// [1..8] = up to 8 code addresses from stack scanning
+// [1..16] = up to 16 code addresses from stack scanning
+// [17] = epc1 at crash time (to skip duplicates at log time)
 struct RtcCrashData {
   uint32_t magic;
   uint32_t backtrace[MAX_BACKTRACE];
+  uint32_t epc1;  // Fault PC, used to filter duplicates
 };
-static_assert(sizeof(RtcCrashData) == 36, "RtcCrashData must fit in 9 RTC blocks");
+static_assert(sizeof(RtcCrashData) == 72, "RtcCrashData must fit in 18 RTC blocks");
 
 namespace esphome::esp8266 {
 
@@ -155,13 +195,20 @@ static uint8_t read_rtc_backtrace(uint32_t *backtrace, size_t max_entries) {
   uint32_t magic = rtc_data.magic;
   if ((magic & CRASH_SENTINEL_MASK) != CRASH_SENTINEL || (magic & CRASH_VERSION_MASK) != CRASH_VERSION)
     return 0;
-  uint8_t count = magic & CRASH_COUNT_MASK;
-  if (count > max_entries)
-    count = max_entries;
-  for (uint8_t i = 0; i < count; i++) {
-    backtrace[i] = rtc_data.backtrace[i];
+  uint8_t raw_count = magic & CRASH_COUNT_MASK;
+  if (raw_count > MAX_BACKTRACE)
+    raw_count = MAX_BACKTRACE;
+  // Filter: only keep entries that are real return addresses (preceded by CALL instruction).
+  // Also skip any that match epc1 (already reported as the fault PC).
+  uint8_t out = 0;
+  for (uint8_t i = 0; i < raw_count && out < max_entries; i++) {
+    uint32_t addr = rtc_data.backtrace[i];
+    if (addr == rtc_data.epc1)
+      continue;
+    if (is_return_addr(addr))
+      backtrace[out++] = addr;
   }
-  return count;
+  return out;
 }
 
 // Intentionally uses separate ESP_LOGE calls per line instead of combining into
@@ -173,7 +220,7 @@ void crash_handler_log() {
   if (!s_crash_valid)
     return;
 
-  // Read backtrace from RTC into stack-local buffer (no persistent RAM cost).
+  // Read and filter backtrace from RTC into stack-local buffer (no persistent RAM cost).
   // Both resetInfo and RTC data survive until the next reset, so this can be
   // called multiple times (logger init + API subscribe) with the same result.
   uint32_t backtrace[MAX_BACKTRACE];
@@ -202,10 +249,10 @@ void crash_handler_log() {
     ESP_LOGE(TAG, "  DEPC: 0x%08" PRIX32 "  (double exception)", resetInfo.depc);
   }
   for (uint8_t i = 0; i < bt_count; i++) {
-    ESP_LOGE(TAG, "  BT%d: 0x%08" PRIX32 "  (stack scan)", i, backtrace[i]);
+    ESP_LOGE(TAG, "  BT%d: 0x%08" PRIX32 "  (backtrace)", i, backtrace[i]);
   }
   // Build addr2line hint with all captured addresses for easy copy-paste
-  char hint[200];
+  char hint[256];
   size_t pos =
       buf_append_printf(hint, sizeof(hint), 0, "Use: addr2line -pfiaC -e firmware.elf 0x%08" PRIX32, resetInfo.epc1);
   for (uint8_t i = 0; i < bt_count; i++) {
@@ -219,24 +266,29 @@ void crash_handler_log() {
 // --- Custom crash callback ---
 // Overrides the weak custom_crash_callback() from Arduino core's
 // core_esp8266_postmortem.cpp. Called during exception handling before
-// the device restarts. We scan the stack for return addresses and store
-// them in RTC user memory (which survives software reset).
-extern "C" void IRAM_ATTR custom_crash_callback(struct rst_info * /*rst_info*/, uint32_t stack, uint32_t stack_end) {
+// the device restarts. We scan the full stack for return addresses and store
+// them in RTC user memory (which survives software reset). Filtering for
+// real return addresses (preceded by CALL instructions) happens at log time
+// when flash is accessible.
+extern "C" void IRAM_ATTR custom_crash_callback(struct rst_info *rst_info, uint32_t stack, uint32_t stack_end) {
   RtcCrashData data = {};
   uint8_t count = 0;
 
   auto *scan = reinterpret_cast<uint32_t *>(stack);
   auto *end = reinterpret_cast<uint32_t *>(stack_end);
-  if (end > scan + STACK_SCAN_WORDS)
-    end = scan + STACK_SCAN_WORDS;
+  uint32_t epc1 = rst_info->epc1;
 
   for (; scan < end && count < MAX_BACKTRACE; scan++) {
     uint32_t val = *scan;
     if (is_code_addr(val)) {
-      data.backtrace[count++] = recover_code_addr(val);
+      uint32_t addr = recover_code_addr(val);
+      // Skip epc1 — already reported as the fault PC
+      if (addr != epc1)
+        data.backtrace[count++] = addr;
     }
   }
 
+  data.epc1 = epc1;
   data.magic = CRASH_SENTINEL | CRASH_VERSION | count;
 
   system_rtc_mem_write(RTC_CRASH_BASE, &data, sizeof(data));
