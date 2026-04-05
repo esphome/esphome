@@ -34,16 +34,16 @@ extern void _irom0_text_end(void);    // NOLINT(bugprone-reserved-identifier,rea
 }
 
 // Check if a value looks like a code address in IRAM or flash-mapped IROM.
-// Inlined into custom_crash_callback (IRAM_ATTR), so no separate IRAM placement needed.
-// Linker symbols are link-time constants — safe to reference from any context.
-static inline bool is_code_addr(uint32_t val) {
+// IRAM_ATTR as safety net — normally inlined into custom_crash_callback, but
+// ensures correctness if the compiler ever chooses not to inline.
+static inline bool IRAM_ATTR is_code_addr(uint32_t val) {
   uint32_t addr = (val & XTENSA_ADDR_MASK) | XTENSA_CODE_BASE;
   return (addr >= IRAM_START && addr < IRAM_END) ||
          (addr >= (uint32_t) _irom0_text_start && addr < (uint32_t) _irom0_text_end);
 }
 
 // Recover the actual code address from a windowed-ABI return address on the stack.
-static inline uint32_t recover_code_addr(uint32_t val) { return (val & XTENSA_ADDR_MASK) | XTENSA_CODE_BASE; }
+static inline uint32_t IRAM_ATTR recover_code_addr(uint32_t val) { return (val & XTENSA_ADDR_MASK) | XTENSA_CODE_BASE; }
 
 // RTC user memory layout for crash backtrace data.
 // User-accessible RTC memory: blocks 64-191 (each block = 4 bytes).
@@ -188,6 +188,9 @@ void crash_handler_log() {
     ESP_LOGE(TAG, "  Reason: %s", LOG_STR_ARG(get_reset_reason(resetInfo.reason)));
   }
   ESP_LOGE(TAG, "  PC: 0x%08" PRIX32, resetInfo.epc1);
+  if (resetInfo.reason == REASON_EXCEPTION_RST) {
+    ESP_LOGE(TAG, "  EXCVADDR: 0x%08" PRIX32, resetInfo.excvaddr);
+  }
   for (uint8_t i = 0; i < bt_count; i++) {
     ESP_LOGE(TAG, "  BT%d: 0x%08" PRIX32, i, backtrace[i]);
   }
@@ -206,6 +209,7 @@ extern "C" void IRAM_ATTR custom_crash_callback(struct rst_info *rst_info, uint3
   RtcCrashData data;  // NOLINT(cppcoreguidelines-pro-type-member-init)
   uint8_t count = 0;
 
+  // Stack pointer from the Xtensa exception frame is always 4-byte aligned.
   auto *scan = (uint32_t *) stack;     // NOLINT(performance-no-int-to-ptr)
   auto *end = (uint32_t *) stack_end;  // NOLINT(performance-no-int-to-ptr)
   uint32_t epc1 = rst_info->epc1;
