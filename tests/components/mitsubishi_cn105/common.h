@@ -44,6 +44,9 @@ class TestableMitsubishiCN105 : public MitsubishiCN105 {
   using MitsubishiCN105::State;
   using MitsubishiCN105::state_;
   using MitsubishiCN105::write_timeout_start_ms_;
+  using MitsubishiCN105::status_update_start_ms_;
+
+  void set_state(State s) { this->set_state_(s); }
 
   static inline uint32_t test_loop_time_ms = 0;
 

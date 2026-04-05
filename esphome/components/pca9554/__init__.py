@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_ID,
     CONF_INPUT,
     CONF_INTERRUPT,
+    CONF_INTERRUPT_PIN,
     CONF_INVERTED,
     CONF_MODE,
     CONF_NUMBER,
@@ -77,6 +78,7 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_OPEN_DRAIN, default=False
             ): cv.boolean,  # This is a per-port setting for the PCAL devices, how do we deal with the user setting this on incompabitle devices? just ignore it? Probably...
+            cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -104,6 +106,8 @@ async def to_code(config):
 
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
+    if interrupt_pin := config.get(CONF_INTERRUPT_PIN):
+        cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
 
 
 def validate_mode(value):
