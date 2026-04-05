@@ -185,6 +185,16 @@ void ESPHomeOTAComponent::handle_handshake_() {
     }
 
     case OTAState::FEATURE_ACK: {
+      // No password: switch to blocking before writing so the feature ACK
+      // byte is flushed to the wire before entering the blocking data phase.
+      // lwIP may not transmit data written in non-blocking mode when the
+      // socket immediately switches to blocking and blocks in recv().
+#ifdef USE_OTA_PASSWORD
+      if (this->password_.empty())
+#endif
+      {
+        this->client_->setblocking(true);
+      }
       // Acknowledge header - 1 byte
       if (!this->try_write_(1, LOG_STR("ack feature"))) {
         return;
