@@ -1,3 +1,6 @@
+dlms_meter:
+  decryption_key: "36C66639E48A8CA4D6BC8B282A793BBB"
+
 sensor:
   - platform: dlms_meter
     voltage_l1:
@@ -20,6 +23,10 @@ sensor:
       name: "Active energy taken from grid"
     active_energy_minus:
       name: "Active energy put into grid"
+    reactive_energy_plus:
+      name: "Reactive energy taken from grid"
+    reactive_energy_minus:
+      name: "Reactive energy put into grid"
 
 text_sensor:
   - platform: dlms_meter
