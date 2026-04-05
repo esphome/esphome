@@ -8,7 +8,6 @@ namespace esphome::template_ {
 /// Action-driven template binary sensor (no lambda). State set via binary_sensor.template.publish.
 class TemplateBinarySensor : public Component, public binary_sensor::BinarySensor {
  public:
-  void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 };
@@ -17,6 +16,7 @@ class TemplateBinarySensor : public Component, public binary_sensor::BinarySenso
 /// @tparam Func Constexpr function pointer returning optional<bool>.
 template<optional<bool> (*Func)()> class TemplateBinarySensorLambda final : public TemplateBinarySensor {
  public:
+  void setup() override { this->loop(); }
   void loop() override {
     auto s = Func();
     if (s.has_value()) {
