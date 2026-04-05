@@ -108,11 +108,11 @@ static const LogString *get_exception_cause(uint32_t cause) {
   if (cause == 9)
     return LOG_STR("Alignment");
   if (cause == 20)
-    return LOG_STR("InstFetchProhibited");
+    return LOG_STR("InstFetchProhibit");
   if (cause == 28)
-    return LOG_STR("LoadProhibited");
+    return LOG_STR("LoadProhibit");
   if (cause == 29)
-    return LOG_STR("StoreProhibited");
+    return LOG_STR("StoreProhibit");
   return nullptr;
 }
 
