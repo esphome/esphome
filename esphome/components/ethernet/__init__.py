@@ -450,8 +450,8 @@ def _final_validate_spi(config):
                 interface = get_spi_interface(index)
                 if interface == spi_host:
                     raise cv.Invalid(
-                        f"this and an `spi` component are both using interface '{interface}'. "
-                        f"To use {config[CONF_TYPE]}, you must change the `interface` on one of these."
+                        f"The `ethernet` and `spi` components are both using interface '{interface}'. "
+                        f"To use {config[CONF_TYPE]}, change the `interface` on either `ethernet:` or `spi:`."
                     )
 
 

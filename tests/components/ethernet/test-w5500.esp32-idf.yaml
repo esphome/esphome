@@ -12,4 +12,9 @@ ethernet:
     gateway: 192.168.178.1
     subnet: 255.255.255.0
   domain: .local
+  mac_address: "02:AA:BB:CC:DD:01"
   interface: spi2
+  on_connect:
+    - logger.log: "Ethernet connected!"
+  on_disconnect:
+    - logger.log: "Ethernet disconnected!"
