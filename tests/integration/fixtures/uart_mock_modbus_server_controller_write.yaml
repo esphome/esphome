@@ -20,7 +20,11 @@ uart:
 uart_mock:
   - id: virtual_uart_server
     baud_rate: 9600
-    auto_start: false
+    # auto_start must be true for loopback fixtures: the modbus controller
+    # polls on its update_interval immediately at boot, so the uart_mock
+    # forwarding must already be active or early requests are lost and
+    # generate modbus warnings.
+    auto_start: true
     debug:
     on_tx:
       - then:
@@ -29,7 +33,7 @@ uart_mock:
               data: !lambda return data;
   - id: virtual_uart_controller
     baud_rate: 9600
-    auto_start: false
+    auto_start: true # See comment on virtual_uart_server above
     debug:
     on_tx:
       - then:
@@ -87,6 +91,7 @@ modbus:
 modbus_controller:
   - address: 1
     modbus_id: virtual_modbus_controller
+    id: modbus_controller_1
     update_interval: 2s
 
 modbus_server:
@@ -144,61 +149,73 @@ modbus_server:
 
 sensor:
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "reg_u_word"
     address: 0x01
     register_type: holding
     value_type: U_WORD
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "reg_s_word"
     address: 0x03
     register_type: holding
     value_type: S_WORD
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "reg_u_dword"
     address: 0x05
     register_type: holding
     value_type: U_DWORD
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "reg_s_dword"
     address: 0x08
     register_type: holding
     value_type: S_DWORD
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "reg_u_dword_r"
     address: 0x0B
     register_type: holding
     value_type: U_DWORD_R
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "reg_s_dword_r"
     address: 0x0E
     register_type: holding
     value_type: S_DWORD_R
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "reg_u_qword"
     address: 0x11
     register_type: holding
     value_type: U_QWORD
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "reg_s_qword"
     address: 0x16
     register_type: holding
     value_type: S_QWORD
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "reg_u_qword_r"
     address: 0x1B
     register_type: holding
     value_type: U_QWORD_R
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "reg_s_qword_r"
     address: 0x20
     register_type: holding
     value_type: S_QWORD_R
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "reg_fp32"
     address: 0x25
     register_type: holding
     value_type: FP32
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "reg_fp32_r"
     address: 0x28
     register_type: holding
@@ -206,6 +223,7 @@ sensor:
 
 number:
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "write_u_word"
     address: 0x01
     register_type: holding
@@ -213,6 +231,7 @@ number:
     min_value: 0
     max_value: 65535
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "write_s_word"
     address: 0x03
     register_type: holding
@@ -220,6 +239,7 @@ number:
     min_value: -16777215
     max_value: 16777215
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "write_u_dword"
     address: 0x05
     register_type: holding
@@ -227,6 +247,7 @@ number:
     min_value: 0
     max_value: 16777215
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "write_s_dword"
     address: 0x08
     register_type: holding
@@ -234,6 +255,7 @@ number:
     min_value: -16777215
     max_value: 16777215
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "write_u_dword_r"
     address: 0x0B
     register_type: holding
@@ -241,6 +263,7 @@ number:
     min_value: 0
     max_value: 16777215
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "write_s_dword_r"
     address: 0x0E
     register_type: holding
@@ -248,6 +271,7 @@ number:
     min_value: -16777215
     max_value: 16777215
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "write_u_qword"
     address: 0x11
     register_type: holding
@@ -255,6 +279,7 @@ number:
     min_value: 0
     max_value: 16777215
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "write_s_qword"
     address: 0x16
     register_type: holding
@@ -262,6 +287,7 @@ number:
     min_value: -16777215
     max_value: 16777215
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "write_u_qword_r"
     address: 0x1B
     register_type: holding
@@ -269,6 +295,7 @@ number:
     min_value: 0
     max_value: 16777215
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "write_s_qword_r"
     address: 0x20
     register_type: holding
@@ -276,6 +303,7 @@ number:
     min_value: -16777215
     max_value: 16777215
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "write_fp32"
     address: 0x25
     register_type: holding
@@ -284,6 +312,7 @@ number:
     max_value: 16777215
     step: 0.01
   - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
     name: "write_fp32_r"
     address: 0x28
     register_type: holding
@@ -296,6 +325,4 @@ button:
   - platform: template
     name: "Start Scenario"
     id: start_scenario_btn
-    on_press:
-      - lambda: "id(virtual_uart_server).start_scenario();"
-      - lambda: "id(virtual_uart_controller).start_scenario();"
+    # This test does not have anything to start (mock is autostart)
