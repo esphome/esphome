@@ -6,6 +6,7 @@
 #include "crash_handler.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 #include <cinttypes>
 
@@ -120,70 +121,69 @@ void crash_handler_read_and_clear() {
 
 // Xtensa exception cause names (shared with ESP32, same ISA).
 // Keep in sync with Xtensa ISA reference manual Table 4-64.
+// Split into two PROGMEM_STRING_TABLEs to stay under 255-byte blob limit.
+// clang-format off
+PROGMEM_STRING_TABLE(ExcCauseLow,        // Causes 0-9
+  "IllegalInstruction",                  // 0
+  "Syscall",                             // 1
+  "InstructionFetchError",               // 2
+  "LoadStoreError",                      // 3
+  "Level1Interrupt",                     // 4
+  "Alloca",                              // 5
+  "IntegerDivideByZero",                 // 6
+  "PCValue",                             // 7
+  "Privileged",                          // 8
+  "LoadStoreAlignment"                   // 9
+);
+PROGMEM_STRING_TABLE(ExcCauseHigh,       // Causes 12-29 (offset by 12)
+  "InstrPDAddrError",                    // 12
+  "LoadStorePIFDataError",               // 13
+  "InstrPIFAddrError",                   // 14
+  "LoadStorePIFAddrError",               // 15
+  "InstTLBMiss",                         // 16
+  "InstTLBMultiHit",                     // 17
+  "InstFetchPrivilege",                  // 18
+  "",                                    // 19 (unused)
+  "InstrFetchProhibited",                // 20
+  "",                                    // 21 (unused)
+  "",                                    // 22 (unused)
+  "",                                    // 23 (unused)
+  "LoadStoreTLBMiss",                    // 24
+  "LoadStoreTLBMultihit",                // 25
+  "LoadStorePrivilege",                  // 26
+  "",                                    // 27 (unused)
+  "LoadProhibited",                      // 28
+  "StoreProhibited"                      // 29
+);
+// clang-format on
+
 static const LogString *get_exception_cause(uint32_t cause) {
-  switch (cause) {
-    case 0:
-      return LOG_STR("IllegalInstruction");
-    case 1:
-      return LOG_STR("Syscall");
-    case 2:
-      return LOG_STR("InstructionFetchError");
-    case 3:
-      return LOG_STR("LoadStoreError");
-    case 4:
-      return LOG_STR("Level1Interrupt");
-    case 5:
-      return LOG_STR("Alloca");
-    case 6:
-      return LOG_STR("IntegerDivideByZero");
-    case 7:
-      return LOG_STR("PCValue");
-    case 8:
-      return LOG_STR("Privileged");
-    case 9:
-      return LOG_STR("LoadStoreAlignment");
-    case 12:
-      return LOG_STR("InstrPDAddrError");
-    case 13:
-      return LOG_STR("LoadStorePIFDataError");
-    case 14:
-      return LOG_STR("InstrPIFAddrError");
-    case 15:
-      return LOG_STR("LoadStorePIFAddrError");
-    case 16:
-      return LOG_STR("InstTLBMiss");
-    case 17:
-      return LOG_STR("InstTLBMultiHit");
-    case 18:
-      return LOG_STR("InstFetchPrivilege");
-    case 20:
-      return LOG_STR("InstrFetchProhibited");
-    case 24:
-      return LOG_STR("LoadStoreTLBMiss");
-    case 25:
-      return LOG_STR("LoadStoreTLBMultihit");
-    case 26:
-      return LOG_STR("LoadStorePrivilege");
-    case 28:
-      return LOG_STR("LoadProhibited");
-    case 29:
-      return LOG_STR("StoreProhibited");
-    default:
+  if (cause <= 9)
+    return ExcCauseLow::get_log_str(cause, ExcCauseLow::LAST_INDEX);
+  if (cause >= 12 && cause <= 29) {
+    const LogString *str = ExcCauseHigh::get_log_str(cause - 12, ExcCauseHigh::LAST_INDEX);
+    // Empty strings are gap entries — return nullptr so caller knows cause is unknown
+    if (LOG_STR_ARG(str)[0] == '\0')
       return nullptr;
+    return str;
   }
+  return nullptr;
 }
 
+// clang-format off
+PROGMEM_STRING_TABLE(ResetReasonStrings,
+  "Unknown",            // 0 = fallback
+  "Hardware Watchdog",  // 1 = REASON_WDT_RST
+  "Exception",          // 2 = REASON_EXCEPTION_RST
+  "Software Watchdog"   // 3 = REASON_SOFT_WDT_RST
+);
+// clang-format on
+static_assert(REASON_WDT_RST == 1, "Reset reason enum values must match table indices");
+static_assert(REASON_EXCEPTION_RST == 2, "Reset reason enum values must match table indices");
+static_assert(REASON_SOFT_WDT_RST == 3, "Reset reason enum values must match table indices");
+
 static const LogString *get_reset_reason(uint32_t reason) {
-  switch (reason) {
-    case REASON_WDT_RST:
-      return LOG_STR("Hardware Watchdog");
-    case REASON_EXCEPTION_RST:
-      return LOG_STR("Exception");
-    case REASON_SOFT_WDT_RST:
-      return LOG_STR("Software Watchdog");
-    default:
-      return LOG_STR("Unknown");
-  }
+  return ResetReasonStrings::get_log_str(static_cast<uint8_t>(reason), 0);
 }
 
 // Read backtrace from RTC user memory into caller-provided buffer.
