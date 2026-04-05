@@ -236,11 +236,17 @@ def _is_framework_spi_polling_mode_supported() -> bool:
 
 def _validate_spi_interface(config: ConfigType) -> None:
     """Set default SPI interface or validate user choice against the variant."""
+    from esphome.components.esp32 import get_esp32_variant
     from esphome.components.spi import get_hw_interface_list
 
     has_spi3 = "spi3" in sum(get_hw_interface_list(), [])
     if CONF_INTERFACE not in config:
-        config[CONF_INTERFACE] = "spi3" if has_spi3 else "spi2"
+        # Match the original C++ variant-based defaults:
+        # Only classic ESP32 defaults to spi3; all others default to spi2
+        variant = get_esp32_variant()
+        from esphome.components.esp32 import VARIANT_ESP32
+
+        config[CONF_INTERFACE] = "spi3" if variant == VARIANT_ESP32 else "spi2"
     elif config[CONF_INTERFACE] == "spi3" and not has_spi3:
         raise cv.Invalid("Interface 'spi3' is not available on this variant.")
 
