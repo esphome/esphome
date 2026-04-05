@@ -200,19 +200,15 @@ void crash_handler_log() {
   uint8_t bt_count = read_rtc_backtrace(backtrace, MAX_BACKTRACE);
 
   ESP_LOGE(TAG, "*** CRASH DETECTED ON PREVIOUS BOOT ***");
+  // Show exception cause for all crash types — WDT resets also populate exccause
   const LogString *cause = get_exception_cause(resetInfo.exccause);
-  if (resetInfo.reason == REASON_EXCEPTION_RST && cause != nullptr) {
+  if (cause != nullptr) {
     ESP_LOGE(TAG, "  Reason: %s - %s (exccause=%" PRIu32 ")", LOG_STR_ARG(get_reset_reason(resetInfo.reason)),
              LOG_STR_ARG(cause), resetInfo.exccause);
   } else {
     ESP_LOGE(TAG, "  Reason: %s", LOG_STR_ARG(get_reset_reason(resetInfo.reason)));
   }
-  if (resetInfo.reason == REASON_EXCEPTION_RST) {
-    // Log PC and EXCVADDR together — 0x00000000 IS the diagnostic for null pointer crashes
-    ESP_LOGE(TAG, "  PC: 0x%08" PRIX32 " EXCVADDR: 0x%08" PRIX32, resetInfo.epc1, resetInfo.excvaddr);
-  } else {
-    ESP_LOGE(TAG, "  PC: 0x%08" PRIX32, resetInfo.epc1);
-  }
+  ESP_LOGE(TAG, "  PC: 0x%08" PRIX32, resetInfo.epc1);
   for (uint8_t i = 0; i < bt_count; i++) {
     ESP_LOGE(TAG, "  BT%d: 0x%08" PRIX32, i, backtrace[i]);
   }
