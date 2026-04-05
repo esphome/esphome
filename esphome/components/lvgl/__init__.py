@@ -262,6 +262,7 @@ async def to_code(configs):
     df.add_define("LV_USE_STDLIB_SPRINTF", "LV_STDLIB_CLIB")
     df.add_define("LV_USE_STDLIB_STRING", "LV_STDLIB_CLIB")
     df.add_define("LV_USE_STDLIB_MALLOC", "LV_STDLIB_CUSTOM")
+    df.add_define("LV_DEF_REFR_PERIOD", "16")
     cg.add_define("USE_LVGL")
     # suppress default enabling of extra widgets
     # cg.add_define("LV_KCONFIG_PRESENT")
@@ -341,7 +342,10 @@ async def to_code(configs):
                 df.LOGGER.info("LVGL will use hardware rotation via display driver")
             else:
                 rotation_type = RotationType.ROTATION_SOFTWARE
-                df.LOGGER.info("LVGL will use software rotation")
+                if get_esp32_variant() == VARIANT_ESP32P4:
+                    df.LOGGER.info("LVGL will use software rotation (PPA accelerated)")
+                else:
+                    df.LOGGER.info("LVGL will use software rotation")
         lv_component = cg.new_Pvariable(
             config[CONF_ID],
             displays,
