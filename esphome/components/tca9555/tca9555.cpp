@@ -119,9 +119,9 @@ void TCA9555Component::digital_write_hw(uint8_t pin, bool value) {
     //   LOW  = driven LOW (output mode)
     // With inverted: true in YAML, the switch logic is flipped by the pin layer.
     if (value) {
-      this->mode_mask_ |= pin_mask;       // input = high-Z (released)
+      this->mode_mask_ |= pin_mask;  // input = high-Z (released)
     } else {
-      this->mode_mask_ &= ~pin_mask;      // output = drive (LOW by default)
+      this->mode_mask_ &= ~pin_mask;  // output = drive (LOW by default)
     }
     this->write_gpio_modes_();
   } else {
