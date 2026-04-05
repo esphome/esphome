@@ -202,7 +202,8 @@ bool Modbus::parse_modbus_server_frame_() {
       return false;
   }
 
-  // We have a valid frame - process before clearing so we can point into rx_buffer_ directly
+  // Process before clearing: process_modbus_server_frame (receiving a response or peer message) never sends a reply
+  // synchronously We can safely point directly into rx_buffer_ and avoid a copy.
   uint8_t data_offset = server_frame_data_offset(this->rx_buffer_);
   const uint8_t *data = this->rx_buffer_.data() + data_offset;
   uint16_t data_len = frame_length - 2 - data_offset;
@@ -233,8 +234,9 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
       return false;
   }
 
-  // Copy frame data to a local buffer before clearing, so the rx_buffer_ is empty when we
-  // call process_modbus_client_frame_ (which may send a response that echoes back into rx_buffer_).
+  // Clear before processing: process_modbus_client_frame_ dispatches to a server device which sends
+  // a response immediately. We need to clear the rx buffer first so the response doesn't snag tx_blocked.
+  // This requires copying the frame data to a local buffer beforehand.
   uint8_t data_offset = client_frame_data_offset(this->rx_buffer_);
   uint16_t data_len = frame_length - 2 - data_offset;
   uint8_t data[MAX_FRAME_SIZE];
