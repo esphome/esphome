@@ -3,7 +3,14 @@ import re
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, PLATFORM_ESP32, PLATFORM_ESP8266
+from esphome.const import (
+    CONF_ID,
+    CONF_NAME,
+    CONF_PATTERN,
+    CONF_PRIORITY,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+)
 from esphome.core import CORE
 
 CODEOWNERS = ["@SimonFischer04", "@Tomer27cz", "@latonita", "@PolarGoose"]
@@ -15,6 +22,7 @@ CONF_AUTH_KEY = "auth_key"
 CONF_OBIS_CODE = "obis_code"
 CONF_CUSTOM_PATTERNS = "custom_patterns"
 CONF_SKIP_CRC = "skip_crc"
+CONF_DEFAULT_OBIS = "default_obis"
 
 dlms_meter_component_ns = cg.esphome_ns.namespace("dlms_meter")
 DlmsMeterComponent = dlms_meter_component_ns.class_(
@@ -63,13 +71,56 @@ def obis_code(value):
     return value
 
 
+def parse_obis_code_bytes(value):
+    value = cv.string(value)
+    normalized = re.sub(r"[\-\:\*]", ".", value)
+    parts = normalized.split(".")
+    if len(parts) < 5 or len(parts) > 6:
+        raise cv.Invalid("OBIS code must have 5 or 6 parts")
+    try:
+        bytes_list = [int(p) for p in parts]
+    except ValueError as exc:
+        raise cv.Invalid("OBIS code parts must be integers") from exc
+    for b in bytes_list:
+        if b < 0 or b > 255:
+            raise cv.Invalid("OBIS code parts must be between 0 and 255")
+    if len(bytes_list) == 5:
+        bytes_list.append(255)
+    return bytes_list
+
+
+def custom_pattern_dict(value):
+    if isinstance(value, str):
+        return {CONF_PATTERN: value}
+    return value
+
+
+def validate_custom_pattern(value):
+    if CONF_DEFAULT_OBIS in value and CONF_NAME not in value:
+        raise cv.Invalid(f"'{CONF_DEFAULT_OBIS}' requires '{CONF_NAME}' to be set")
+    return value
+
+
+CUSTOM_PATTERN_SCHEMA = cv.All(
+    custom_pattern_dict,
+    cv.Schema(
+        {
+            cv.Required(CONF_PATTERN): cv.string,
+            cv.Optional(CONF_NAME): cv.string,
+            cv.Optional(CONF_PRIORITY, default=0): cv.int_,
+            cv.Optional(CONF_DEFAULT_OBIS): parse_obis_code_bytes,
+        }
+    ),
+    validate_custom_pattern,
+)
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(DlmsMeterComponent),
             cv.Optional(CONF_DECRYPTION_KEY): validate_key,
             cv.Optional(CONF_AUTH_KEY): validate_key,
-            cv.Optional(CONF_CUSTOM_PATTERNS): cv.ensure_list(cv.string),
+            cv.Optional(CONF_CUSTOM_PATTERNS): cv.ensure_list(CUSTOM_PATTERN_SCHEMA),
             cv.Optional(CONF_SKIP_CRC, default=False): cv.boolean,
         }
     )
@@ -103,7 +154,24 @@ async def to_code(config):
         cg.add(var.set_authentication_key(cg.RawExpression(f"{{{auth}}}")))
 
     if CONF_CUSTOM_PATTERNS in config:
-        for pattern in config[CONF_CUSTOM_PATTERNS]:
-            cg.add(var.add_custom_pattern(pattern))
+        for p in config[CONF_CUSTOM_PATTERNS]:
+            if CONF_DEFAULT_OBIS in p:
+                obis_vals = p[CONF_DEFAULT_OBIS]
+                obis_expr = cg.RawExpression(
+                    f"std::array<uint8_t, 6>{{{obis_vals[0]}, {obis_vals[1]}, {obis_vals[2]}, {obis_vals[3]}, {obis_vals[4]}, {obis_vals[5]}}}"
+                )
+                cg.add(
+                    var.add_custom_pattern(
+                        p[CONF_PATTERN], p[CONF_NAME], p[CONF_PRIORITY], obis_expr
+                    )
+                )
+            elif CONF_NAME in p:
+                cg.add(
+                    var.add_custom_pattern(
+                        p[CONF_PATTERN], p[CONF_NAME], p[CONF_PRIORITY]
+                    )
+                )
+            else:
+                cg.add(var.add_custom_pattern(p[CONF_PATTERN]))
 
     cg.add_library("dlms_parser", None, "https://github.com/esphome-libs/dlms_parser")

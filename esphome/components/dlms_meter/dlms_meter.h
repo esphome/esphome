@@ -40,6 +40,7 @@ using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorBearSsl;
 #include <vector>
 #include <string>
 #include <array>
+#include <optional>
 
 namespace esphome::dlms_meter {
 
@@ -62,6 +63,13 @@ struct BinarySensorItem {
 };
 #endif
 
+struct CustomPattern {
+  std::string pattern;
+  std::optional<std::string> name;
+  int priority{0};
+  std::optional<std::array<uint8_t, 6>> default_obis;
+};
+
 class DlmsMeterComponent : public Component, public uart::UARTDevice {
  public:
   DlmsMeterComponent() : parser_(&decryptor_) {}
@@ -72,7 +80,17 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
 
   void set_decryption_key(const std::array<uint8_t, 16> &key);
   void set_authentication_key(const std::array<uint8_t, 16> &key);
-  void add_custom_pattern(const std::string &pattern) { this->custom_patterns_.push_back(pattern); }
+
+  void add_custom_pattern(std::string pattern) {
+    this->custom_patterns_.push_back({std::move(pattern), std::nullopt, 0, std::nullopt});
+  }
+  void add_custom_pattern(std::string pattern, std::string name, int priority) {
+    this->custom_patterns_.push_back({std::move(pattern), std::move(name), priority, std::nullopt});
+  }
+  void add_custom_pattern(std::string pattern, std::string name, int priority, std::array<uint8_t, 6> default_obis) {
+    this->custom_patterns_.push_back({std::move(pattern), std::move(name), priority, default_obis});
+  }
+
   void set_skip_crc_check(bool skip) { this->skip_crc_check_ = skip; }
 
 #ifdef USE_SENSOR
@@ -98,7 +116,7 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
   uint32_t receive_timeout_ms_{500};
   bool skip_crc_check_{false};
 
-  std::vector<std::string> custom_patterns_;
+  std::vector<CustomPattern> custom_patterns_;
 
   Aes128GcmDecryptorImpl decryptor_;
   dlms_parser::DlmsParser parser_;

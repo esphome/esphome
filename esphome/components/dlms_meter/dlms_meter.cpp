@@ -38,7 +38,14 @@ void DlmsMeterComponent::setup() {
   this->parser_.set_skip_crc_check(this->skip_crc_check_);
   this->parser_.load_default_patterns();
   for (const auto &pattern : this->custom_patterns_) {
-    this->parser_.register_pattern(pattern.c_str());
+    if (pattern.default_obis.has_value() && pattern.name.has_value()) {
+      this->parser_.register_pattern(pattern.name->c_str(), pattern.pattern.c_str(), pattern.priority,
+                                     pattern.default_obis.value());
+    } else if (pattern.name.has_value()) {
+      this->parser_.register_pattern(pattern.name->c_str(), pattern.pattern.c_str(), pattern.priority);
+    } else {
+      this->parser_.register_pattern(pattern.pattern.c_str());
+    }
   }
 
   // Flush UART
@@ -53,7 +60,17 @@ void DlmsMeterComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Skip CRC Check: %s", YESNO(this->skip_crc_check_));
 
   for (const auto &pattern : this->custom_patterns_) {
-    ESP_LOGCONFIG(TAG, "  Custom Pattern: %s", pattern.c_str());
+    if (pattern.default_obis.has_value() && pattern.name.has_value()) {
+      const auto &obis = pattern.default_obis.value();
+      ESP_LOGCONFIG(TAG, "  Custom Pattern: '%s' (name: %s, priority: %d, default_obis: %d.%d.%d.%d.%d.%d)",
+                    pattern.pattern.c_str(), pattern.name->c_str(), pattern.priority, obis[0], obis[1], obis[2],
+                    obis[3], obis[4], obis[5]);
+    } else if (pattern.name.has_value()) {
+      ESP_LOGCONFIG(TAG, "  Custom Pattern: '%s' (name: %s, priority: %d)", pattern.pattern.c_str(),
+                    pattern.name->c_str(), pattern.priority);
+    } else {
+      ESP_LOGCONFIG(TAG, "  Custom Pattern: '%s'", pattern.pattern.c_str());
+    }
   }
 
 #ifdef USE_SENSOR
