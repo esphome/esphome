@@ -68,7 +68,7 @@ async def to_code(config):
         func_expr = None
 
     if func_expr is not None:
-        # TemplateBinarySensor<func> — compiler inlines the call
+        # TemplateBinarySensorLambda<func> — compiler inlines the call
         id_ = config[CONF_ID]
         id_ = id_.copy()
         id_.type = TemplateBinarySensorLambda.template(func_expr)
