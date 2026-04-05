@@ -453,12 +453,11 @@ void EthernetComponent::dump_config() {
                 "  MOSI Pin: %u\n"
                 "  CS Pin: %u",
                 this->clk_pin_, this->miso_pin_, this->mosi_pin_, this->cs_pin_);
-  {
-    constexpr std::array<const char *, 3> values{"spi1", "spi2", "spi3"};
-    if (this->interface_ < values.size()) {
-      ESP_LOGCONFIG(TAG, "  Interface: %s", values[this->interface_]);
-    }
+  const char *spi_interface = "spi3";
+  if (this->interface_ == SPI2_HOST) {
+    spi_interface = "spi2";
   }
+  ESP_LOGCONFIG(TAG, "  Interface: %s", spi_interface);
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   if (this->polling_interval_ != 0) {
     ESP_LOGCONFIG(TAG, "  Polling Interval: %" PRIu32 " ms", this->polling_interval_);

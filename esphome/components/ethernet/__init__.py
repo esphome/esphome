@@ -437,7 +437,7 @@ def _final_validate_spi(config):
 
     if spi_configs := fv.full_config.get().get(CONF_SPI):
         # get_spi_interface() returns strings like "SPI2_HOST"
-        spi_host = config[CONF_INTERFACE].upper() + "_HOST"
+        spi_host = f"{config[CONF_INTERFACE].upper()}_HOST"
         for spi_conf in spi_configs:
             if (index := spi_conf.get(CONF_INTERFACE_INDEX)) is not None:
                 interface = get_spi_interface(index)
@@ -535,8 +535,7 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
 
         cg.add_define("USE_ETHERNET_SPI")
 
-        if CONF_INTERFACE in config:
-            cg.add(var.set_interface(SPI_INTERFACE_MAP[config[CONF_INTERFACE]]))
+        cg.add(var.set_interface(SPI_INTERFACE_MAP[config[CONF_INTERFACE]]))
         add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
         # CONFIG_ETH_SPI_ETHERNET_{TYPE} Kconfig options were removed in IDF 6.0
         # ENC28J60 was never built-in to IDF, so it has no Kconfig option
