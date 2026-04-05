@@ -68,8 +68,8 @@ class Modbus : public uart::UARTDevice, public Component {
   int32_t turnaround_delay_remaining_();
   virtual void parse_modbus_frames() = 0;
   bool parse_modbus_server_frame_();
-  virtual void process_modbus_server_frame(uint8_t address, uint8_t function_code,
-                                           const std::vector<uint8_t> &data) = 0;
+  virtual void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data,
+                                           uint16_t len) = 0;
   void clear_rx_buffer_(const LogString *reason, bool warn = false, size_t bytes_to_clear = 0);
   bool send_frame_(const ModbusFrame &frame);
   // Scans forward from min_length to find a frame boundary by CRC match for custom function codes.
@@ -112,6 +112,8 @@ class ModbusClientHub : public Modbus {
   void send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
             uint8_t payload_len = 0, const uint8_t *payload = nullptr, ModbusClientDevice *device = nullptr,
             bool allow_duplicates = false);
+  void send_raw(const uint8_t *payload, uint16_t len, ModbusClientDevice *device = nullptr,
+                bool allow_duplicates = false);
   void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr,
                 bool allow_duplicates = false);
   void clear_tx_queue_for_address(uint8_t address, bool clear_sent = true);
@@ -119,7 +121,7 @@ class ModbusClientHub : public Modbus {
 
  protected:
   void parse_modbus_frames() override;
-  void process_modbus_server_frame(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &data) override;
+  void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len) override;
   void send_next_frame_();
 
   uint16_t send_wait_time_{2000};
@@ -136,14 +138,15 @@ class ModbusServerHub : public Modbus {
   ModbusServerHub() = default;
   void dump_config() override;
   void send(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &payload);
+  void send_raw(const uint8_t *payload, uint16_t len);
   void send_raw(const std::vector<uint8_t> &payload);
   void register_device(ModbusServerDevice *device) { this->devices_.push_back(device); }
 
  protected:
   void parse_modbus_frames() override;
   bool parse_modbus_client_frame_();
-  void process_modbus_server_frame(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &data) override;
-  void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &data);
+  void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len) override;
+  void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len);
   uint8_t expecting_peer_response_{0};
   std::vector<ModbusServerDevice *> devices_;
 };
@@ -164,12 +167,15 @@ class ModbusClientDevice {
     this->parent_->send(this->address_, function, start_address, number_of_entities, payload_len, payload, this);
   }
   void send_pdu(const std::vector<uint8_t> &pdu) {
-    std::vector<uint8_t> payload;
-    payload.reserve(1 + pdu.size());
-    payload.push_back(this->address_);
-    payload.insert(payload.end(), pdu.begin(), pdu.end());
-    this->parent_->send_raw(payload, this);
+    if (pdu.size() >= MAX_FRAME_SIZE) {
+      return;
+    }
+    uint8_t payload[MAX_FRAME_SIZE];
+    payload[0] = this->address_;
+    std::memcpy(payload + 1, pdu.data(), pdu.size());
+    this->parent_->send_raw(payload, static_cast<uint16_t>(1 + pdu.size()), this);
   }
+  void send_raw(const uint8_t *payload, uint16_t len) { this->parent_->send_raw(payload, len, this); }
   void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload, this); }
   inline void clear_tx_queue_for_address(bool clear_sent = true) {
     this->parent_->clear_tx_queue_for_address(this->address_, clear_sent);
@@ -200,14 +206,12 @@ class ModbusServerDevice {
   void send(uint8_t function, const std::vector<uint8_t> &payload) {
     this->parent_->send(this->address_, function, payload);
   }
+  void send_raw(const uint8_t *payload, uint16_t len) { this->parent_->send_raw(payload, len); }
   void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload); }
   void send_error(uint8_t function_code, ModbusExceptionCode exception_code) {
-    std::vector<uint8_t> error_response;
-    error_response.reserve(3);
-    error_response.push_back(this->address_);
-    error_response.push_back(function_code | FUNCTION_CODE_EXCEPTION_MASK);
-    error_response.push_back(static_cast<uint8_t>(exception_code));
-    this->send_raw(error_response);
+    uint8_t error_response[3] = {this->address_, uint8_t(function_code | FUNCTION_CODE_EXCEPTION_MASK),
+                                 static_cast<uint8_t>(exception_code)};
+    this->send_raw(error_response, 3);
   }
 
  protected:

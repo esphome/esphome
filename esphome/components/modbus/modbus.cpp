@@ -202,13 +202,13 @@ bool Modbus::parse_modbus_server_frame_() {
       return false;
   }
 
-  // We have a valid frame
+  // We have a valid frame - process before clearing so we can point into rx_buffer_ directly
   uint8_t data_offset = server_frame_data_offset(this->rx_buffer_);
-  std::vector<uint8_t> data(this->rx_buffer_.begin() + data_offset, this->rx_buffer_.begin() + frame_length - 2);
+  const uint8_t *data = this->rx_buffer_.data() + data_offset;
+  uint16_t data_len = frame_length - 2 - data_offset;
 
+  this->process_modbus_server_frame(address, function_code, data, data_len);
   this->clear_rx_buffer_(LOG_STR("parse succeeded"), false, frame_length);
-
-  this->process_modbus_server_frame(address, function_code, data);
 
   return true;
 }
@@ -233,19 +233,21 @@ bool ModbusServerHub::parse_modbus_client_frame_() {
       return false;
   }
 
-  // We have a valid frame
+  // Copy frame data to a local buffer before clearing, so the rx_buffer_ is empty when we
+  // call process_modbus_client_frame_ (which may send a response that echoes back into rx_buffer_).
   uint8_t data_offset = client_frame_data_offset(this->rx_buffer_);
-  std::vector<uint8_t> data(this->rx_buffer_.begin() + data_offset, this->rx_buffer_.begin() + frame_length - 2);
-
+  uint16_t data_len = frame_length - 2 - data_offset;
+  uint8_t data[MAX_FRAME_SIZE];
+  std::memcpy(data, this->rx_buffer_.data() + data_offset, data_len);
   this->clear_rx_buffer_(LOG_STR("parse succeeded"), false, frame_length);
 
-  this->process_modbus_client_frame_(address, function_code, data);
+  this->process_modbus_client_frame_(address, function_code, data, data_len);
 
   return true;
 }
 
-void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t function_code,
-                                                  const std::vector<uint8_t> &data) {
+void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data,
+                                                  uint16_t len) {
   if (!this->waiting_for_response_.has_value()) {
     ESP_LOGW(TAG,
              "Received unexpected frame from address %" PRIu8 ", function code 0x%X, %" PRIu32 "ms after last send",
@@ -282,7 +284,7 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t funct
       this->waiting_for_response_.reset();
       // Is it an error response?
       if (is_function_code_exception(function_code)) {
-        uint8_t exception = data[0];
+        uint8_t exception = len > 0 ? data[0] : 0;
         ESP_LOGW(TAG,
                  "Error function code: 0x%X exception: %" PRIu8 ", address: %" PRIu8 ", %" PRIu32 "ms after last send",
                  function_code, exception, address, this->last_modbus_byte_ - this->last_send_);
@@ -290,7 +292,8 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t funct
           wfr.device->on_modbus_error(function_code & FUNCTION_CODE_MASK, exception);
 
       } else if (wfr.device) {  // Not an error response
-        wfr.device->on_modbus_data(data);
+        // on_modbus_data is existing public API taking const std::vector<uint8_t>&
+        wfr.device->on_modbus_data(std::vector<uint8_t>(data, data + len));
       } else {  // Not an error response, but no device to respond to
         ESP_LOGV(TAG, "Ignoring response from %" PRIu8 " - no callback device set, %" PRIu32 "ms after last send",
                  address, this->last_modbus_byte_ - this->last_send_);
@@ -299,8 +302,7 @@ void ModbusClientHub::process_modbus_server_frame(uint8_t address, uint8_t funct
   }
 }
 
-void ModbusServerHub::process_modbus_server_frame(uint8_t address, uint8_t function_code,
-                                                  const std::vector<uint8_t> &) {
+void ModbusServerHub::process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *, uint16_t) {
   for (auto *device : this->devices_) {
     if (device->address_ == address) {
       ESP_LOGE(TAG, "Unexpected response from address %" PRIu8 ", which is mapped to this device.", address);
@@ -318,8 +320,8 @@ void ModbusServerHub::process_modbus_server_frame(uint8_t address, uint8_t funct
   this->expecting_peer_response_ = 0;
 }
 
-void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code,
-                                                   const std::vector<uint8_t> &data) {
+void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data,
+                                                   uint16_t len) {
   bool found = false;
 
   for (auto *device : this->devices_) {
@@ -331,7 +333,7 @@ void ModbusServerHub::process_modbus_client_frame_(uint8_t address, uint8_t func
         device->on_modbus_read_registers(function_code, get_data<uint16_t>(data, 0), get_data<uint16_t>(data, 2));
       } else if (function_code == ModbusFunctionCode::WRITE_SINGLE_REGISTER ||
                  function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
-        device->on_modbus_write_registers(function_code, data);
+        device->on_modbus_write_registers(function_code, std::vector<uint8_t>(data, data + len));
       } else {
         ESP_LOGW(TAG, "Unsupported function code %" PRIu8, function_code);
         device->send_error(function_code, ModbusExceptionCode::ILLEGAL_FUNCTION);
@@ -447,12 +449,57 @@ void ModbusClientHub::send(uint8_t address, uint8_t function_code, uint16_t star
 }
 
 void ModbusServerHub::send(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &payload) {
-  std::vector<uint8_t> frame;
-  frame.reserve(2 + payload.size());
-  frame.push_back(address);
-  frame.push_back(function_code);
-  frame.insert(frame.end(), payload.begin(), payload.end());
-  this->send_raw(frame);
+  const uint16_t len = static_cast<uint16_t>(2 + payload.size());
+  if (len > MAX_FRAME_SIZE) {
+    ESP_LOGE(TAG, "Server send frame too large (%" PRIu16 " bytes)", len);
+    return;
+  }
+  uint8_t frame[MAX_FRAME_SIZE];
+  frame[0] = address;
+  frame[1] = function_code;
+  std::memcpy(frame + 2, payload.data(), payload.size());
+  this->send_raw(frame, len);
+}
+
+// Raw send for client: pushes to tx queue. Everything except the CRC must be contained in payload.
+void ModbusClientHub::send_raw(const uint8_t *payload, uint16_t len, ModbusClientDevice *device,
+                               bool allow_duplicates) {
+  if (len == 0) {
+    if (device)
+      device->on_modbus_not_sent();
+    return;
+  }
+
+  if (!allow_duplicates) {
+    for (const auto &item : this->tx_buffer_) {
+      // Compare raw bytes (excluding CRC which is appended by ModbusFrame constructor)
+      if (item.device == device && item.frame.size - 2 == len &&
+          std::memcmp(item.frame.data.get(), payload, len) == 0) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARNING
+        char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
+#endif
+        ESP_LOGW(TAG, "Frame already in tx queue, dropping: %s", format_hex_pretty_to(hex_buf, payload, len));
+        if (device)
+          device->on_modbus_not_sent();
+        return;
+      }
+    }
+  }
+
+  if (this->tx_buffer_.size() < MODBUS_TX_BUFFER_SIZE) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
+#endif
+    ESP_LOGV(TAG, "Adding frame to tx queue: %s", format_hex_pretty_to(hex_buf, payload, len));
+    this->tx_buffer_.emplace_back(device, payload, len);
+  } else {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
+    char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
+#endif
+    ESP_LOGE(TAG, "Write buffer full, dropped: %s", format_hex_pretty_to(hex_buf, payload, len));
+    if (device)
+      device->on_modbus_not_sent();
+  }
 }
 
 // Helper function for lambdas
@@ -476,37 +523,7 @@ void ModbusClientHub::send_raw(const std::vector<uint8_t> &payload, ModbusClient
     //  return;
   }
 
-  if (!allow_duplicates) {
-    for (const auto &item : this->tx_buffer_) {
-      if (item.device == device && item.frame == payload) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARNING
-        char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
-#endif
-        ESP_LOGW(TAG, "Frame already in tx queue, dropping: %s",
-                 format_hex_pretty_to(hex_buf, payload.data(), payload.size()));
-        if (device)
-          device->on_modbus_not_sent();
-        return;
-      }
-    }
-  }
-
-  if (this->tx_buffer_.size() < MODBUS_TX_BUFFER_SIZE) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
-    char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
-#endif
-    ESP_LOGV(TAG, "Adding frame to tx queue: %s", format_hex_pretty_to(hex_buf, payload.data(), payload.size()));
-    uint8_t data[MAX_FRAME_SIZE];
-    std::memcpy(data, payload.data(), payload.size());
-    this->tx_buffer_.emplace_back(device, data, static_cast<uint16_t>(payload.size()));
-  } else {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
-    char hex_buf[format_hex_pretty_size(MODBUS_MAX_LOG_BYTES)];
-#endif
-    ESP_LOGE(TAG, "Write buffer full, dropped: %s", format_hex_pretty_to(hex_buf, payload.data(), payload.size()));
-    if (device)
-      device->on_modbus_not_sent();
-  }
+  this->send_raw(payload.data(), static_cast<uint16_t>(payload.size()), device, allow_duplicates);
 }
 
 void ModbusClientHub::clear_tx_queue_for_address(uint8_t address, bool clear_sent) {
@@ -541,21 +558,24 @@ void ModbusClientHub::clear_tx_queue_for_device(ModbusClientDevice *device) {
 }
 
 // Send raw command for server replies immediately. Except CRC everything must be contained in payload
-void ModbusServerHub::send_raw(const std::vector<uint8_t> &payload) {
-  if (payload.empty()) {
+void ModbusServerHub::send_raw(const uint8_t *payload, uint16_t len) {
+  if (len == 0) {
     return;
   }
-
-  ModbusFrame frame(payload.data(), static_cast<uint16_t>(payload.size()));
 
   // In the rare case that the server is blocked (turnaround delay is greater than the MODBUS_TX_MAX_DELAY_MS), we delay
   // the send. This should only happen at low baud rates with long turnaround times.
   if (this->tx_blocked()) {
-    this->set_timeout(this->turnaround_delay_remaining_(),
-                      [this, frame = std::move(frame)]() mutable { this->send_frame_(frame); });
+    auto frame = std::make_shared<ModbusFrame>(payload, len);
+    this->set_timeout(this->turnaround_delay_remaining_(), [this, frame]() { this->send_frame_(*frame); });
   } else {
+    ModbusFrame frame(payload, len);
     this->send_frame_(frame);
   }
+}
+
+void ModbusServerHub::send_raw(const std::vector<uint8_t> &payload) {
+  this->send_raw(payload.data(), static_cast<uint16_t>(payload.size()));
 }
 
 void Modbus::clear_rx_buffer_(const LogString *reason, bool warn, size_t bytes_to_clear) {
