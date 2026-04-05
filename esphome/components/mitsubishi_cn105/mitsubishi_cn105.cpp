@@ -80,12 +80,12 @@ bool MitsubishiCN105::update() {
 
   if (const auto start = this->write_timeout_start_ms_; start && (get_loop_time_ms() - *start) >= WRITE_TIMEOUT_MS) {
     this->write_timeout_start_ms_.reset();
-    this->frameParser_.reset();
+    this->frame_parser_.reset();
     this->set_state_(State::READ_TIMEOUT);
     return false;
   }
 
-  return this->frameParser_.read_and_parse(this->device_, [this](uint8_t type, const uint8_t *payload, size_t len) {
+  return this->frame_parser_.read_and_parse(this->device_, [this](uint8_t type, const uint8_t *payload, size_t len) {
     return this->process_rx_packet_(type, payload, len);
   });
 }

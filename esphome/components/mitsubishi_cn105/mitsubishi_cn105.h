@@ -72,8 +72,10 @@ class MitsubishiCN105 {
    public:
     template<typename Callback> bool read_and_parse(uart::UARTDevice &device, Callback &&callback);
     void reset() { read_pos_ = 0; }
-    void reset_and_dump_buffer_(const char *prefix);
     static void dump_buffer_vv(const char *prefix, const uint8_t *data, size_t len);
+
+   protected:
+    void reset_and_dump_buffer_(const char *prefix);
 
    private:
     static constexpr size_t READ_BUFFER_SIZE = 32;
@@ -105,7 +107,7 @@ class MitsubishiCN105 {
   Status status_{};
   State state_{State::NOT_CONNECTED};
   uint8_t current_status_msg_type_{0};
-  FrameParser frameParser_;
+  FrameParser frame_parser_;
 };
 
 }  // namespace esphome::mitsubishi_cn105
