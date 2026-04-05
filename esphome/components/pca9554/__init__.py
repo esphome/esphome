@@ -33,6 +33,26 @@ PCA9554_DEVICE_TYPES = {
         "pins": 8,
         "open_drain": False,  # Device has open drain capability
     },
+    "PCA9536": {
+        "modes": [CONF_INPUT, CONF_OUTPUT],
+        "pins": 4,
+        "open_drain": False,  # Device has open drain capability
+    },
+    "PCA9554": {
+        "modes": [CONF_INPUT, CONF_OUTPUT],
+        "pins": 8,
+        "open_drain": False,  # Device has open drain capability
+    },
+    "PCA9554A": {
+        "modes": [CONF_INPUT, CONF_OUTPUT],
+        "pins": 8,
+        "open_drain": False,  # Device has open drain capability
+    },
+    "PCA9535": {
+        "modes": [CONF_INPUT, CONF_OUTPUT],
+        "pins": 16,
+        "open_drain": False,  # Device has open drain capability
+    },
     "PCAL9554": {
         "modes": [
             CONF_INPUT,
@@ -41,7 +61,7 @@ PCA9554_DEVICE_TYPES = {
             CONF_PULLUP,
             CONF_INTERRUPT,
             CONF_LATCH,
-        ],  # , CONF_OPEN_DRAIN], (open drain is a per-port setting here)
+        ],
         "pins": 8,
         "open_drain": True,  # Device has open drain capability TODO: open drain can only be set for all of port 0 or port 1. Indicate that here?
     },
@@ -53,7 +73,7 @@ PCA9554_DEVICE_TYPES = {
             CONF_PULLUP,
             CONF_INTERRUPT,
             CONF_LATCH,
-        ],  # , CONF_OPEN_DRAIN], (open drain is a per-port setting here)
+        ],
         "pins": 16,
         "open_drain": True,  # Device has open drain capability TODO: open drain can only be set for all of port 0 or port 1. Indicate that here?
     },
