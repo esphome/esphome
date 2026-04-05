@@ -25,7 +25,9 @@ from tests.component_tests.types import SetCoreConfigCallable
 
 def validated_config(config):
     """Run schema + final validation and return the validated config."""
-    return FINAL_VALIDATE_SCHEMA(CONFIG_SCHEMA(config))
+    config = CONFIG_SCHEMA(config)
+    FINAL_VALIDATE_SCHEMA(config)
+    return config
 
 
 def test_metadata_native_quad_default_test_card(
