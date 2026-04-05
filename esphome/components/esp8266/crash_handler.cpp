@@ -150,11 +150,11 @@ static const LogString *get_exception_cause(uint32_t cause) {
 
 static const LogString *get_reset_reason(uint32_t reason) {
   if (reason == REASON_WDT_RST)
-    return LOG_STR("Hardware Watchdog");
+    return LOG_STR("Hardware WDT");
   if (reason == REASON_EXCEPTION_RST)
     return LOG_STR("Exception");
   if (reason == REASON_SOFT_WDT_RST)
-    return LOG_STR("Software Watchdog");
+    return LOG_STR("Soft WDT");
   return LOG_STR("Unknown");
 }
 
