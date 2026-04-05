@@ -84,14 +84,20 @@ static constexpr uint8_t RTC_CRASH_BASE = 174;
 static constexpr size_t MAX_BACKTRACE = 16;
 
 // Magic word packs sentinel, version, and count into one uint32_t:
-//   bits[31:16] = 0xDEAD (sentinel)
-//   bits[15:8]  = version (1)
+//   bits[31:16] = sentinel
+//   bits[15:8]  = version
 //   bits[7:0]   = backtrace count
-static constexpr uint32_t CRASH_SENTINEL = 0xDEAD0000;
-static constexpr uint32_t CRASH_VERSION = 0x00000100;  // version 1 in bits[15:8]
-static constexpr uint32_t CRASH_SENTINEL_MASK = 0xFFFF0000;
-static constexpr uint32_t CRASH_VERSION_MASK = 0x0000FF00;
-static constexpr uint32_t CRASH_COUNT_MASK = 0x000000FF;
+static constexpr uint8_t CRASH_SENTINEL_BITS = 16;
+static constexpr uint8_t CRASH_VERSION_BITS = 8;
+
+static constexpr uint16_t CRASH_SENTINEL_VALUE = 0xDEAD;
+static constexpr uint8_t CRASH_VERSION_VALUE = 1;
+
+static constexpr uint32_t CRASH_SENTINEL = static_cast<uint32_t>(CRASH_SENTINEL_VALUE) << CRASH_SENTINEL_BITS;
+static constexpr uint32_t CRASH_VERSION = static_cast<uint32_t>(CRASH_VERSION_VALUE) << CRASH_VERSION_BITS;
+static constexpr uint32_t CRASH_SENTINEL_MASK = static_cast<uint32_t>(0xFFFF) << CRASH_SENTINEL_BITS;
+static constexpr uint32_t CRASH_VERSION_MASK = static_cast<uint32_t>(0xFF) << CRASH_VERSION_BITS;
+static constexpr uint32_t CRASH_COUNT_MASK = 0xFF;
 
 // Struct layout: 18 RTC blocks (72 bytes):
 // [0] = magic (sentinel | version | count)
