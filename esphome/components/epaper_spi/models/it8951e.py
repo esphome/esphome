@@ -17,6 +17,8 @@ EpaperModel(
     class_name="EPaperIT8951E",
     initsequence=(),
     dc_pin=False,
+    reversed=False,
+    sleep_when_done=True,
 )
 
 # M5EPD-specific model with pre-filled dimensions
@@ -30,4 +32,6 @@ EpaperModel(
     reset_pin=23,
     cs_pin=15,
     dc_pin=False,
+    reversed=False,
+    sleep_when_done=True,
 )
