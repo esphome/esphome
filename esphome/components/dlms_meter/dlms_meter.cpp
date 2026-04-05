@@ -20,6 +20,9 @@ static void log_callback(dlms_parser::LogLevel level, const char *fmt, va_list a
     case dlms_parser::LogLevel::INFO:
       ESP_LOGI(TAG, "%s", buf);
       break;
+    case dlms_parser::LogLevel::DEBUG:
+      ESP_LOGD(TAG, "%s", buf);
+      break;
     case dlms_parser::LogLevel::VERBOSE:
       ESP_LOGV(TAG, "%s", buf);
       break;
@@ -33,38 +36,40 @@ void DlmsMeterComponent::setup() {
   dlms_parser::Logger::set_log_function(log_callback);
   this->parser_ = std::make_unique<dlms_parser::DlmsParser>(&this->decryptor_);
 
+  this->parser_->set_skip_crc_check(this->skip_crc_check_);
   this->parser_->load_default_patterns();
   for (const auto &pattern : this->custom_patterns_) {
     this->parser_->register_pattern(pattern.c_str());
   }
 
-  // Pre-allocate to minimize heap fragmentation
   this->rx_buffer_.reserve(MAX_RX_BUFFER_SIZE);
 }
 
 void DlmsMeterComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "DLMS Meter:");
   ESP_LOGCONFIG(TAG, "  Receive Timeout: %u ms", this->receive_timeout_ms_);
+  ESP_LOGCONFIG(TAG, "  Skip CRC Check: %s", YESNO(this->skip_crc_check_));
+
   for (const auto &pattern : this->custom_patterns_) {
     ESP_LOGCONFIG(TAG, "  Custom Pattern: %s", pattern.c_str());
   }
 
 #ifdef USE_SENSOR
   for (const auto &entry : this->sensors_) {
-    LOG_SENSOR("  ", "Numeric Sensor (OBIS)", entry.sensor);
-    ESP_LOGCONFIG(TAG, "    OBIS: %s", entry.obis.c_str());
+    LOG_SENSOR("  ", "Numeric Sensor (OBIS)", entry.second);
+    ESP_LOGCONFIG(TAG, "    OBIS: %s", entry.first.c_str());
   }
 #endif
 #ifdef USE_TEXT_SENSOR
   for (const auto &entry : this->text_sensors_) {
-    LOG_TEXT_SENSOR("  ", "Text Sensor (OBIS)", entry.sensor);
-    ESP_LOGCONFIG(TAG, "    OBIS: %s", entry.obis.c_str());
+    LOG_TEXT_SENSOR("  ", "Text Sensor (OBIS)", entry.second);
+    ESP_LOGCONFIG(TAG, "    OBIS: %s", entry.first.c_str());
   }
 #endif
 #ifdef USE_BINARY_SENSOR
   for (const auto &entry : this->binary_sensors_) {
-    LOG_BINARY_SENSOR("  ", "Binary Sensor (OBIS)", entry.sensor);
-    ESP_LOGCONFIG(TAG, "    OBIS: %s", entry.obis.c_str());
+    LOG_BINARY_SENSOR("  ", "Binary Sensor (OBIS)", entry.second);
+    ESP_LOGCONFIG(TAG, "    OBIS: %s", entry.first.c_str());
   }
 #endif
 }
@@ -96,20 +101,21 @@ void DlmsMeterComponent::read_rx_buffer_() {
   this->receiving_ = true;
   this->last_rx_char_time_ = millis();
 
-  while (this->available()) {
-    if (this->rx_buffer_.size() >= MAX_RX_BUFFER_SIZE) {
-      ESP_LOGW(TAG, "RX Buffer overflow. Frame too large! Truncating.");
-      this->read();
-      continue;
-    }
+  size_t current_size = this->rx_buffer_.size();
 
-    uint8_t byte;
-    if (this->read_byte(&byte)) {
-      this->rx_buffer_.push_back(byte);
-    } else {
-      break;
+  if (current_size + available > MAX_RX_BUFFER_SIZE) {
+    ESP_LOGW(TAG, "RX Buffer overflow. Frame too large! Dropping frame.");
+    this->rx_buffer_.clear();
+    this->receiving_ = false;
+
+    while (this->available()) {
+      this->read();
     }
+    return;
   }
+
+  this->rx_buffer_.resize(current_size + available);
+  this->read_array(&this->rx_buffer_[current_size], available);
 }
 
 void DlmsMeterComponent::process_frame_() {
@@ -130,25 +136,24 @@ void DlmsMeterComponent::process_frame_() {
 
 void DlmsMeterComponent::on_data_(const char *obis_code, float float_val, const char *str_val, bool is_numeric) {
   int updated_count = 0;
+  std::string obis_str(obis_code);
 
 #ifdef USE_SENSOR
   if (is_numeric) {
-    for (const auto &entry : this->sensors_) {
-      if (entry.obis == obis_code) {
-        entry.sensor->publish_state(float_val);
-        updated_count++;
-      }
+    auto it = this->sensors_.find(obis_str);
+    if (it != this->sensors_.end()) {
+      it->second->publish_state(float_val);
+      updated_count++;
     }
   }
 #endif
 
 #ifdef USE_TEXT_SENSOR
   if (!is_numeric && str_val != nullptr) {
-    for (const auto &entry : this->text_sensors_) {
-      if (entry.obis == obis_code) {
-        entry.sensor->publish_state(str_val);
-        updated_count++;
-      }
+    auto it = this->text_sensors_.find(obis_str);
+    if (it != this->text_sensors_.end()) {
+      it->second->publish_state(str_val);
+      updated_count++;
     }
   }
 #endif
@@ -156,11 +161,10 @@ void DlmsMeterComponent::on_data_(const char *obis_code, float float_val, const 
 #ifdef USE_BINARY_SENSOR
   if (is_numeric) {
     bool state = float_val != 0.0f;
-    for (const auto &entry : this->binary_sensors_) {
-      if (entry.obis == obis_code) {
-        entry.sensor->publish_state(state);
-        updated_count++;
-      }
+    auto it = this->binary_sensors_.find(obis_str);
+    if (it != this->binary_sensors_.end()) {
+      it->second->publish_state(state);
+      updated_count++;
     }
   }
 #endif
@@ -172,17 +176,17 @@ void DlmsMeterComponent::on_data_(const char *obis_code, float float_val, const 
 
 #ifdef USE_SENSOR
 void DlmsMeterComponent::register_sensor(const std::string &obis_code, sensor::Sensor *sensor) {
-  this->sensors_.push_back({obis_code, sensor});
+  this->sensors_[obis_code] = sensor;
 }
 #endif
 #ifdef USE_TEXT_SENSOR
 void DlmsMeterComponent::register_text_sensor(const std::string &obis_code, text_sensor::TextSensor *sensor) {
-  this->text_sensors_.push_back({obis_code, sensor});
+  this->text_sensors_[obis_code] = sensor;
 }
 #endif
 #ifdef USE_BINARY_SENSOR
 void DlmsMeterComponent::register_binary_sensor(const std::string &obis_code, binary_sensor::BinarySensor *sensor) {
-  this->binary_sensors_.push_back({obis_code, sensor});
+  this->binary_sensors_[obis_code] = sensor;
 }
 #endif
 

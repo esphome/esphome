@@ -4,6 +4,7 @@ import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, PLATFORM_ESP32, PLATFORM_ESP8266
+from esphome.core import CORE
 
 CODEOWNERS = ["@SimonFischer04"]
 DEPENDENCIES = ["uart"]
@@ -13,6 +14,7 @@ CONF_DECRYPTION_KEY = "decryption_key"
 CONF_AUTH_KEY = "auth_key"
 CONF_OBIS_CODE = "obis_code"
 CONF_CUSTOM_PATTERNS = "custom_patterns"
+CONF_SKIP_CRC = "skip_crc"
 
 dlms_meter_component_ns = cg.esphome_ns.namespace("dlms_meter")
 DlmsMeterComponent = dlms_meter_component_ns.class_(
@@ -54,12 +56,10 @@ def validate_key(value):
 
 def obis_code(value):
     value = cv.string(value)
-    # Validate standard OBIS format: A.B.C.D.E.F (e.g., 1.0.1.8.0.255)
-    match = re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", value)
+    # Validate flexible OBIS format, e.g., 1.0.1.8.0.255 or 1-0:32.7.0
+    match = re.match(r"^[0-9\.\-\:\*]+$", value)
     if match is None:
-        raise cv.Invalid(
-            f"{value} is not a valid OBIS code (expected format: A.B.C.D.E.F)"
-        )
+        raise cv.Invalid(f"{value} is not a valid OBIS code format")
     return value
 
 
@@ -70,6 +70,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DECRYPTION_KEY): validate_key,
             cv.Optional(CONF_AUTH_KEY): validate_key,
             cv.Optional(CONF_CUSTOM_PATTERNS): cv.ensure_list(cv.string),
+            cv.Optional(CONF_SKIP_CRC, default=False): cv.boolean,
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
@@ -84,6 +85,14 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
+
+    if CORE.is_esp8266:
+        # Force PlatformIO to add the nested bearssl folder to the include path
+        cg.add_build_flag(
+            "-I${PROJECT_PACKAGES_DIR}/framework-arduinoespressif8266/tools/sdk/include/bearssl"
+        )
+
+    cg.add(var.set_skip_crc_check(config[CONF_SKIP_CRC]))
 
     if CONF_DECRYPTION_KEY in config:
         key = ", ".join(str(b) for b in config[CONF_DECRYPTION_KEY])

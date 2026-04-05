@@ -23,6 +23,7 @@
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
 #include <dlms_parser/decryption/aes_128_gcm_decryptor_tfpsa.h>
 #else
+#include <mbedtls/esp_config.h>
 #include <dlms_parser/decryption/aes_128_gcm_decryptor_mbedtls.h>
 #endif
 #else
@@ -33,6 +34,7 @@
 #include <string>
 #include <array>
 #include <memory>
+#include <unordered_map>
 
 namespace esphome::dlms_meter {
 
@@ -47,6 +49,7 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
   void set_decryption_key(const std::array<uint8_t, 16> &key);
   void set_authentication_key(const std::array<uint8_t, 16> &key);
   void add_custom_pattern(const std::string &pattern) { this->custom_patterns_.push_back(pattern); }
+  void set_skip_crc_check(bool skip) { this->skip_crc_check_ = skip; }
 
 #ifdef USE_SENSOR
   void register_sensor(const std::string &obis_code, sensor::Sensor *sensor);
@@ -67,7 +70,9 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
   std::vector<uint8_t> rx_buffer_;
   uint32_t last_rx_char_time_{0};
   bool receiving_{false};
+
   uint32_t receive_timeout_ms_{50};
+  bool skip_crc_check_{false};
 
   std::vector<std::string> custom_patterns_;
 
@@ -84,25 +89,13 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
   std::unique_ptr<dlms_parser::DlmsParser> parser_;
 
 #ifdef USE_SENSOR
-  struct NumericSensorEntry {
-    std::string obis;
-    sensor::Sensor *sensor;
-  };
-  std::vector<NumericSensorEntry> sensors_;
+  std::unordered_map<std::string, sensor::Sensor *> sensors_;
 #endif
 #ifdef USE_TEXT_SENSOR
-  struct TextSensorEntry {
-    std::string obis;
-    text_sensor::TextSensor *sensor;
-  };
-  std::vector<TextSensorEntry> text_sensors_;
+  std::unordered_map<std::string, text_sensor::TextSensor *> text_sensors_;
 #endif
 #ifdef USE_BINARY_SENSOR
-  struct BinarySensorEntry {
-    std::string obis;
-    binary_sensor::BinarySensor *sensor;
-  };
-  std::vector<BinarySensorEntry> binary_sensors_;
+  std::unordered_map<std::string, binary_sensor::BinarySensor *> binary_sensors_;
 #endif
 };
 
