@@ -33,14 +33,31 @@
 #include <vector>
 #include <string>
 #include <array>
-#include <memory>
-#include <unordered_map>
 
 namespace esphome::dlms_meter {
 
+#ifdef USE_SENSOR
+struct SensorItem {
+  std::string obis_code;
+  sensor::Sensor *sensor;
+};
+#endif
+#ifdef USE_TEXT_SENSOR
+struct TextSensorItem {
+  std::string obis_code;
+  text_sensor::TextSensor *sensor;
+};
+#endif
+#ifdef USE_BINARY_SENSOR
+struct BinarySensorItem {
+  std::string obis_code;
+  binary_sensor::BinarySensor *sensor;
+};
+#endif
+
 class DlmsMeterComponent : public Component, public uart::UARTDevice {
  public:
-  DlmsMeterComponent() = default;
+  DlmsMeterComponent() : parser_(&decryptor_) {}
 
   void setup() override;
   void dump_config() override;
@@ -67,7 +84,8 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
   void on_data_(const char *obis_code, float float_val, const char *str_val, bool is_numeric);
 
   static constexpr size_t MAX_RX_BUFFER_SIZE = 2048;
-  std::vector<uint8_t> rx_buffer_;
+  uint8_t rx_buffer_[MAX_RX_BUFFER_SIZE];
+  size_t rx_buffer_len_{0};
   uint32_t last_rx_char_time_{0};
   bool receiving_{false};
 
@@ -86,16 +104,16 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
 #endif
 #endif
 
-  std::unique_ptr<dlms_parser::DlmsParser> parser_;
+  dlms_parser::DlmsParser parser_;
 
 #ifdef USE_SENSOR
-  std::unordered_map<std::string, sensor::Sensor *> sensors_;
+  std::vector<SensorItem> sensors_;
 #endif
 #ifdef USE_TEXT_SENSOR
-  std::unordered_map<std::string, text_sensor::TextSensor *> text_sensors_;
+  std::vector<TextSensorItem> text_sensors_;
 #endif
 #ifdef USE_BINARY_SENSOR
-  std::unordered_map<std::string, binary_sensor::BinarySensor *> binary_sensors_;
+  std::vector<BinarySensorItem> binary_sensors_;
 #endif
 };
 
