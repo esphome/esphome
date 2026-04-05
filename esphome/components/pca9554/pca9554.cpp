@@ -34,12 +34,24 @@ void PCA9554Component::setup() {
   this->read_inputs_();
   ESP_LOGD(TAG, "Initialization complete. Warning: %d, Error: %d", this->status_has_warning(),
            this->status_has_error());
-}
 
+  if (this->interrupt_pin_ != nullptr) {
+    this->interrupt_pin_->setup();
+    this->interrupt_pin_->attach_interrupt(&PCA9554Component::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+    // Don't invalidate cache on read — only invalidate when interrupt fires
+    this->set_invalidate_on_read_(false);
+    // With interrupt pin, only run loop when interrupt fires
+    this->disable_loop();
+  }
+}
+void IRAM_ATTR PCA9554Component::gpio_intr(PCA9554Component *arg) { arg->enable_loop_soon_any_context(); }
 void PCA9554Component::loop() {
-  // Invalidate the cache at the start of each loop.
-  // The actual read will happen on demand when digital_read() is called
+  // Invalidate the cache so the next digital_read() triggers a fresh I2C read
   this->reset_pin_cache_();
+  if (this->interrupt_pin_ != nullptr) {
+    // Interrupt-driven: disable loop until next interrupt fires
+    this->disable_loop();
+  }
 }
 
 void PCA9554Component::dump_config() {
@@ -47,6 +59,7 @@ void PCA9554Component::dump_config() {
                 "PCA9554:\n"
                 "  I/O Pins: %d",
                 this->pin_count_);
+  LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_I2C_DEVICE(this)
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
