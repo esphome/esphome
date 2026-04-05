@@ -212,25 +212,17 @@ void crash_handler_log() {
   } else {
     ESP_LOGE(TAG, "  Reason: %s", LOG_STR_ARG(get_reset_reason(resetInfo.reason)));
   }
-  ESP_LOGE(TAG, "  PC:  0x%08" PRIX32 "  (fault location)", resetInfo.epc1);
-  if (resetInfo.epc2 != 0) {
-    ESP_LOGE(TAG, "  EPC2: 0x%08" PRIX32, resetInfo.epc2);
-  }
-  if (resetInfo.epc3 != 0) {
-    ESP_LOGE(TAG, "  EPC3: 0x%08" PRIX32, resetInfo.epc3);
-  }
   if (resetInfo.reason == REASON_EXCEPTION_RST) {
-    // Always log EXCVADDR for exceptions — 0x00000000 IS the diagnostic for null pointer crashes
-    ESP_LOGE(TAG, "  EXCVADDR: 0x%08" PRIX32 "  (faulting address)", resetInfo.excvaddr);
-  }
-  if (resetInfo.depc != 0) {
-    ESP_LOGE(TAG, "  DEPC: 0x%08" PRIX32 "  (double exception)", resetInfo.depc);
+    // Log PC and EXCVADDR together — 0x00000000 IS the diagnostic for null pointer crashes
+    ESP_LOGE(TAG, "  PC: 0x%08" PRIX32 " EXCVADDR: 0x%08" PRIX32, resetInfo.epc1, resetInfo.excvaddr);
+  } else {
+    ESP_LOGE(TAG, "  PC: 0x%08" PRIX32, resetInfo.epc1);
   }
   for (uint8_t i = 0; i < bt_count; i++) {
-    ESP_LOGE(TAG, "  BT%d: 0x%08" PRIX32 "  (backtrace)", i, backtrace[i]);
+    ESP_LOGE(TAG, "  BT%d: 0x%08" PRIX32, i, backtrace[i]);
   }
   // Build addr2line hint with all captured addresses for easy copy-paste
-  char hint[256];
+  char hint[220];
   size_t pos =
       buf_append_printf(hint, sizeof(hint), 0, "Use: addr2line -pfiaC -e firmware.elf 0x%08" PRIX32, resetInfo.epc1);
   for (uint8_t i = 0; i < bt_count; i++) {
