@@ -18,7 +18,7 @@ class PCA9554Component : public Component,
   void setup() override;
   void loop() override;
   /// Helper function to set the pin mode of a pin.
-  virtual void pin_mode(uint8_t pin, gpio::Flags flags);            //TODO: do we need virtual here?
+  virtual void pin_mode(uint8_t pin, gpio::Flags flags);  // TODO: do we need virtual here?
   void set_latch(uint8_t pin, bool latch_state);
   void set_interrupt(uint8_t pin, bool interrupt_state);
   void set_drive_strength(uint8_t pin, uint8_t strength_to_set);
@@ -32,7 +32,7 @@ class PCA9554Component : public Component,
   void set_pin_count(size_t pin_count) { this->pin_count_ = pin_count; }
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
 
-  //test function, delete this later
+  // test function, delete this later
   void do_stuff();
 
  protected:
