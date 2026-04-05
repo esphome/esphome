@@ -13,8 +13,8 @@ from esphome.dashboard.settings import DashboardSettings
 from esphome.dashboard.util.password import password_hash
 
 
-@pytest.fixture
-def dashboard_settings(tmp_path: Path) -> DashboardSettings:
+@pytest.fixture(name="dashboard_settings")
+def fixture_dashboard_settings(tmp_path: Path) -> DashboardSettings:
     """Create DashboardSettings instance with temp directory."""
     settings = DashboardSettings()
     # Resolve symlinks to ensure paths match
@@ -224,8 +224,8 @@ def test_config_path_parent_resolves_to_config_dir(tmp_path: Path) -> None:
     assert not CORE.config_path.exists()  # Sentinel file doesn't actually exist
 
 
-@pytest.fixture
-def auth_settings(dashboard_settings: DashboardSettings) -> DashboardSettings:
+@pytest.fixture(name="auth_settings")
+def fixture_auth_settings(dashboard_settings: DashboardSettings) -> DashboardSettings:
     """Create DashboardSettings with auth configured, based on dashboard_settings."""
     dashboard_settings.username = "admin"
     dashboard_settings.using_password = True
