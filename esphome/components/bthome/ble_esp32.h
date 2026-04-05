@@ -22,7 +22,7 @@ namespace bthome {
 
 #ifdef USE_BTHOME_SERVER
 
-class ESP32BLEAdvertiser : public IBLEAdvertiser, public esp32_ble::GAPEventHandler {
+class ESP32BLEAdvertiser : public IBLEAdvertiser {
  private:
   bool advertising_{false};
 
@@ -33,7 +33,7 @@ class ESP32BLEAdvertiser : public IBLEAdvertiser, public esp32_ble::GAPEventHand
 
   void config_adv_data_raw(const uint8_t *data, size_t len) override;
 
-  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
+  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
 };
 
 #endif  // USE_BTHOME_SERVER
