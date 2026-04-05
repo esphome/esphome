@@ -2,6 +2,9 @@
 
 #include "core.h"
 #include "esphome/core/defines.h"
+#ifdef USE_ESP8266_CRASH_HANDLER
+#include "crash_handler.h"
+#endif
 #include "esphome/core/hal.h"
 #include "esphome/core/time_64.h"
 #include "esphome/core/helpers.h"
@@ -28,7 +31,11 @@ void arch_restart() {
     yield();
   }
 }
-void arch_init() {}
+void arch_init() {
+#ifdef USE_ESP8266_CRASH_HANDLER
+  esp8266::crash_handler_read_and_clear();
+#endif
+}
 void HOT arch_feed_wdt() { system_soft_wdt_feed(); }
 
 uint8_t progmem_read_byte(const uint8_t *addr) {
