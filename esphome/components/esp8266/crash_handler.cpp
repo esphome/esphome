@@ -36,23 +36,28 @@ static inline uint32_t IRAM_ATTR recover_code_addr(uint32_t val) { return (val &
 
 // RTC user memory layout for crash backtrace data.
 // User-accessible RTC memory: blocks 64-191 (each block = 4 bytes).
-// We use blocks 184-191 (last 8 blocks) to minimize conflicts with other users.
-static constexpr uint8_t RTC_CRASH_BASE = 184;
-static constexpr uint32_t CRASH_MAGIC_SENTINEL = 0xDEAD0000;
-static constexpr uint32_t CRASH_DATA_VERSION = 1;
-static constexpr uint32_t CRASH_MAGIC_V1 = CRASH_MAGIC_SENTINEL | CRASH_DATA_VERSION;
-static constexpr size_t MAX_BACKTRACE = 6;
+// We use blocks 187-191 (last 5 blocks, 20 bytes) to minimize conflicts.
+static constexpr uint8_t RTC_CRASH_BASE = 187;
+static constexpr size_t MAX_BACKTRACE = 4;
 
-// Struct layout matches 8 RTC blocks (32 bytes):
-// [0] = magic (0xDEAD0001)
-// [1..6] = up to 6 code addresses from stack scanning
-// [7] = backtrace count (lower 8 bits)
+// Magic word packs sentinel, version, and count into one uint32_t:
+//   bits[31:16] = 0xDEAD (sentinel)
+//   bits[15:8]  = version (1)
+//   bits[7:0]   = backtrace count
+static constexpr uint32_t CRASH_SENTINEL = 0xDEAD0000;
+static constexpr uint32_t CRASH_VERSION = 0x00000100;  // version 1 in bits[15:8]
+static constexpr uint32_t CRASH_SENTINEL_MASK = 0xFFFF0000;
+static constexpr uint32_t CRASH_VERSION_MASK = 0x0000FF00;
+static constexpr uint32_t CRASH_COUNT_MASK = 0x000000FF;
+
+// Struct layout: 5 RTC blocks (20 bytes):
+// [0] = magic (sentinel | version | count)
+// [1..4] = up to 4 code addresses from stack scanning
 struct RtcCrashData {
   uint32_t magic;
   uint32_t backtrace[MAX_BACKTRACE];
-  uint32_t backtrace_count;  // Only lower 8 bits used; uint32_t for RTC alignment
 };
-static_assert(sizeof(RtcCrashData) == 32, "RtcCrashData must fit in 8 RTC blocks");
+static_assert(sizeof(RtcCrashData) == 20, "RtcCrashData must fit in 5 RTC blocks");
 
 namespace esphome::esp8266 {
 
@@ -144,9 +149,9 @@ static uint8_t read_rtc_backtrace(uint32_t *backtrace, size_t max_entries) {
   if (!system_rtc_mem_read(RTC_CRASH_BASE, &rtc_data, sizeof(rtc_data)))
     return 0;
   uint32_t magic = rtc_data.magic;
-  if ((magic & 0xFFFF0000) != CRASH_MAGIC_SENTINEL || (magic & 0xFFFF) != CRASH_DATA_VERSION)
+  if ((magic & CRASH_SENTINEL_MASK) != CRASH_SENTINEL || (magic & CRASH_VERSION_MASK) != CRASH_VERSION)
     return 0;
-  uint8_t count = rtc_data.backtrace_count;
+  uint8_t count = magic & CRASH_COUNT_MASK;
   if (count > max_entries)
     count = max_entries;
   for (uint8_t i = 0; i < count; i++) {
@@ -228,8 +233,7 @@ extern "C" void IRAM_ATTR custom_crash_callback(struct rst_info * /*rst_info*/, 
     }
   }
 
-  data.backtrace_count = count;
-  data.magic = CRASH_MAGIC_V1;
+  data.magic = CRASH_SENTINEL | CRASH_VERSION | count;
 
   system_rtc_mem_write(RTC_CRASH_BASE, &data, sizeof(data));
 }
