@@ -54,12 +54,8 @@ class PCA9554Component : public Component,
   size_t pin_count_{8};
   /// width of registers
   size_t reg_width_{1};
-  /// Mask for the pin config - 1 means OUTPUT, 0 means INPUT
-  uint16_t config_mask_{0x00};
-  /// The mask to write as output state - 1 means HIGH, 0 means LOW
-  uint16_t output_mask_{0x00};
-  /// The state of the actual input pin states - 1 means HIGH, 0 means LOW
-  uint16_t input_mask_{0x00};
+  /// The state of the actual pins - 1 means HIGH, 0 means LOW
+  uint16_t input_states_{0x00};
   /// Storage for last I2C error seen
   esphome::i2c::ErrorCode last_error_;
   InternalGPIOPin *interrupt_pin_{nullptr};

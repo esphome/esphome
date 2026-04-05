@@ -39,13 +39,10 @@ void PCA9554Component::setup() {
 
   // No polarity inversion
   this->write_register_(INVERT_REG, 0);
-  // All inputs at initialization
-  this->config_mask_ = 0;
-  // Invert mask as the part sees a 1 as an input
-  this->write_register_(CONFIG_REG, ~this->config_mask_);
-  // All outputs low
-  this->output_mask_ = 0;
-  this->write_register_(OUTPUT_REG, this->output_mask_);
+  // Set all pins to input
+  this->write_register_(CONFIG_REG, 0xFFFF);
+  // Set all outputs low
+  this->write_register_(OUTPUT_REG, 0x0000);
   // Read the inputs
   this->read_inputs_();
   ESP_LOGD(TAG, "Initialization complete. Warning: %d, Error: %d", this->status_has_warning(),
@@ -85,22 +82,17 @@ void PCA9554Component::dump_config() {
 }
 
 bool PCA9554Component::digital_read_hw(uint8_t pin) {
-  // Read all pins from hardware into input_mask_
+  // Read all pins from hardware into input_states_
   return this->read_inputs_();  // Return true if I2C read succeeded, false on error
 }
 
 bool PCA9554Component::digital_read_cache(uint8_t pin) {
-  // Return the cached pin state from input_mask_
-  return this->input_mask_ & (1 << pin);
+  // Return the cached pin state from input_states_
+  return this->input_states_ & (1 << pin);
 }
 
 void PCA9554Component::digital_write_hw(uint8_t pin, bool value) {
-  if (value) {
-    this->output_mask_ |= (1 << pin);
-  } else {
-    this->output_mask_ &= ~(1 << pin);
-  }
-  this->write_register_(OUTPUT_REG, this->output_mask_);
+  this->set_register_bit_(OUTPUT_REG, pin, value);
 }
 
 void PCA9554Component::do_stuff() {
@@ -192,7 +184,7 @@ bool PCA9554Component::read_inputs_() {
   uint16_t input_values = 0;
   if (this->read_register_(INPUT_REG, input_values)) {
     // Register read successfully
-    this->input_mask_ = input_values;
+    this->input_states_ = input_values;
     return true;
   }
   return false;
