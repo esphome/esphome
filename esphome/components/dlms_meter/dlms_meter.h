@@ -16,18 +16,35 @@
 #endif
 
 #include <dlms_parser/dlms_parser.h>
-#if defined(USE_ESP8266_FRAMEWORK_ARDUINO)
-#include <dlms_parser/decryption/aes_128_gcm_decryptor_bearssl.h>
-#elif defined(USE_ESP32)
+
+#if __has_include(<esp_idf_version.h>)
 #include <esp_idf_version.h>
+#endif
+
+#if defined(ESP_IDF_VERSION) && defined(ESP_IDF_VERSION_VAL)
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-#include <dlms_parser/decryption/aes_128_gcm_decryptor_tfpsa.h>
+#define DLMS_METER_USE_TFPSA
 #else
+#define DLMS_METER_USE_MBEDTLS
+#endif
+#elif __has_include(<mbedtls/gcm.h>)
+#define DLMS_METER_USE_MBEDTLS
+#elif __has_include(<bearssl.h>)
+#define DLMS_METER_USE_BEARSSL
+#else
+#error "The platform doesn't provide a compatible encryption library for dlms_meter"
+#endif
+
+#if defined(DLMS_METER_USE_TFPSA)
+#include <dlms_parser/decryption/aes_128_gcm_decryptor_tfpsa.h>
+using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorTfPsa;
+#elif defined(DLMS_METER_USE_MBEDTLS)
 #include <mbedtls/esp_config.h>
 #include <dlms_parser/decryption/aes_128_gcm_decryptor_mbedtls.h>
-#endif
-#else
-#error "Unsupported platform for dlms_meter"
+using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorMbedTls;
+#elif defined(DLMS_METER_USE_BEARSSL)
+#include <dlms_parser/decryption/aes_128_gcm_decryptor_bearssl.h>
+using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorBearSsl;
 #endif
 
 #include <vector>
@@ -83,27 +100,17 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
   void process_frame_();
   void on_data_(const char *obis_code, float float_val, const char *str_val, bool is_numeric);
 
-  static constexpr size_t MAX_RX_BUFFER_SIZE = 2048;
-  uint8_t rx_buffer_[MAX_RX_BUFFER_SIZE];
-  size_t rx_buffer_len_{0};
+  std::array<uint8_t, 2048> rx_buffer_;
+  size_t bytes_accumulated_{0};
   uint32_t last_rx_char_time_{0};
   bool receiving_{false};
 
-  uint32_t receive_timeout_ms_{50};
+  uint32_t receive_timeout_ms_{500};
   bool skip_crc_check_{false};
 
   std::vector<std::string> custom_patterns_;
 
-#if defined(USE_ESP8266_FRAMEWORK_ARDUINO)
-  dlms_parser::Aes128GcmDecryptorBearSsl decryptor_;
-#elif defined(USE_ESP32)
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
-  dlms_parser::Aes128GcmDecryptorTfPsa decryptor_;
-#else
-  dlms_parser::Aes128GcmDecryptorMbedTls decryptor_;
-#endif
-#endif
-
+  Aes128GcmDecryptorImpl decryptor_;
   dlms_parser::DlmsParser parser_;
 
 #ifdef USE_SENSOR

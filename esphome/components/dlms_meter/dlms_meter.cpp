@@ -40,6 +40,10 @@ void DlmsMeterComponent::setup() {
   for (const auto &pattern : this->custom_patterns_) {
     this->parser_.register_pattern(pattern.c_str());
   }
+
+  while (this->available()) {
+    this->read();
+  }
 }
 
 void DlmsMeterComponent::dump_config() {
@@ -73,14 +77,20 @@ void DlmsMeterComponent::dump_config() {
 
 void DlmsMeterComponent::set_decryption_key(const std::array<uint8_t, 16> &key) {
   auto opt_key = dlms_parser::Aes128GcmDecryptionKey::from_bytes(key);
-  if (opt_key)
+  if (opt_key) {
     this->parser_.set_decryption_key(*opt_key);
+  } else {
+    ESP_LOGE(TAG, "Failed to set decryption key: invalid key format");
+  }
 }
 
 void DlmsMeterComponent::set_authentication_key(const std::array<uint8_t, 16> &key) {
   auto opt_key = dlms_parser::Aes128GcmAuthenticationKey::from_bytes(key);
-  if (opt_key)
+  if (opt_key) {
     this->parser_.set_authentication_key(*opt_key);
+  } else {
+    ESP_LOGE(TAG, "Failed to set authentication key: invalid key format");
+  }
 }
 
 void DlmsMeterComponent::loop() {
@@ -96,11 +106,10 @@ void DlmsMeterComponent::read_rx_buffer_() {
     return;
 
   this->receiving_ = true;
-  this->last_rx_char_time_ = millis();
 
-  if (this->rx_buffer_len_ + available > MAX_RX_BUFFER_SIZE) {
+  if (this->bytes_accumulated_ + available > this->rx_buffer_.size()) {
     ESP_LOGW(TAG, "RX Buffer overflow. Frame too large! Dropping frame.");
-    this->rx_buffer_len_ = 0;
+    this->bytes_accumulated_ = 0;
     this->receiving_ = false;
 
     while (this->available()) {
@@ -109,23 +118,26 @@ void DlmsMeterComponent::read_rx_buffer_() {
     return;
   }
 
-  this->read_array(&this->rx_buffer_[this->rx_buffer_len_], available);
-  this->rx_buffer_len_ += available;
+  this->read_array(this->rx_buffer_.data() + this->bytes_accumulated_, available);
+  this->bytes_accumulated_ += available;
+
+  // Updated after consuming the chars from the buffer
+  this->last_rx_char_time_ = millis();
 }
 
 void DlmsMeterComponent::process_frame_() {
-  if (this->rx_buffer_len_ == 0)
+  if (this->bytes_accumulated_ == 0)
     return;
 
-  ESP_LOGD(TAG, "Processing frame of size: %zu bytes", this->rx_buffer_len_);
+  ESP_LOGD(TAG, "Processing frame of size: %zu bytes", this->bytes_accumulated_);
 
   auto callback = [this](const char *obis_code, float float_val, const char *str_val, bool is_numeric) {
     this->on_data_(obis_code, float_val, str_val, is_numeric);
   };
 
-  this->parser_.parse(std::span<uint8_t>(this->rx_buffer_, this->rx_buffer_len_), callback);
+  this->parser_.parse(std::span<uint8_t>{this->rx_buffer_.data(), this->bytes_accumulated_}, callback);
 
-  this->rx_buffer_len_ = 0;
+  this->bytes_accumulated_ = 0;
   this->receiving_ = false;
 }
 
