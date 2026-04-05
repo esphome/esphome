@@ -16,13 +16,13 @@ class TemplateBinarySensor : public Component, public binary_sensor::BinarySenso
 };
 
 /// Template binary sensor with compile-time lambda for zero-overhead inlined evaluation.
-/// @tparam F Constexpr function pointer returning optional<bool>.
-template<optional<bool> (*F)()> class TemplateBinarySensorLambda final : public TemplateBinarySensor {
+/// @tparam Func Constexpr function pointer returning optional<bool>.
+template<optional<bool> (*Func)()> class TemplateBinarySensorLambda final : public TemplateBinarySensor {
  public:
   void setup() override { this->loop(); }
 
   void loop() override {
-    auto s = F();
+    auto s = Func();
     if (s.has_value()) {
       this->publish_state(*s);
     }
