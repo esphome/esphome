@@ -234,7 +234,7 @@ def _is_framework_spi_polling_mode_supported() -> bool:
     return False
 
 
-def _validate_spi_interface(config):
+def _validate_spi_interface(config: ConfigType) -> ConfigType:
     """Set default SPI interface or validate user choice against the variant."""
     if not CORE.is_esp32:
         return config
