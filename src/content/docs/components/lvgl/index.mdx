@@ -151,7 +151,7 @@ The following configuration variables apply to the main `lvgl` component, in ord
 - **default_font** (*Optional*, ID): The ID of the [font](#lvgl-fonts) used by default to render the text or symbols. Defaults to LVGL's internal `montserrat_14` if not specified.
 - **style_definitions** (*Optional*, list): A batch of style definitions to use in LVGL widget's `styles` configuration. See [below](#lvgl-theme) for more details.
 - **gradients** (*Optional*, list): A list of gradient definitions to use in *bg_grad* styles. See [below](#lvgl-gradients) for more details.
-- **theme** (*Optional*, list): A list of styles to be applied to all widgets. See [below](#lvgl-theme) for more details.
+- **theme** (*Optional*, dict): Theme configuration. Supports `dark_mode` and per-widget style defaults. See [below](#lvgl-theme) for more details.
 - **widgets** (*Optional*, list): A list of [Widgets](/components/lvgl/widgets/) to be drawn on the root display. May not be used if `pages` (below) is configured.
 - **pages** (*Optional*, list): A list of page IDs. Each page acts as a parent for widgets placed on it. May not be used with `widgets` (above). Options for each page:
   - **skip** (*Optional*, boolean): Option to skip this page when navigating between them with [`lvgl.page.next`, `lvgl.page.previous`](#lvgl-page-next-previous-action).
@@ -462,12 +462,24 @@ In addition to the above, the following special fonts are available from LVGL as
 
 ### Themes
 
-You can configure a global theme for all widgets of a given type at the top level with the `theme:` configuration variable. In the example below, all the `arc`, `slider` and `button` widgets will, by default, use the styles and properties defined here. A combination of styles and [states](/components/lvgl/widgets#lvgl-widgetproperty-state) can be chosen for every widget.
+You can configure a global theme at the top level with the `theme:` configuration variable.
+
+- **dark_mode** (*Optional*, boolean): Enables LVGL's built-in dark default theme, which applies a dark color scheme (dark backgrounds, light text) to all widgets automatically. Defaults to `false`.
+
+```yaml
+# Example: enable the dark theme
+lvgl:
+  theme:
+    dark_mode: true
+```
+
+You can also apply default styles to all widgets of a given type. In the example below, all the `arc`, `slider` and `button` widgets will, by default, use the styles and properties defined here. A combination of styles and [states](/components/lvgl/widgets#lvgl-widgetproperty-state) can be chosen for every widget. These per-widget styles work alongside `dark_mode` — you can enable the dark theme and still override specific widget styles.
 
 ```yaml
 # Example theme configuration entry
 lvgl:
   theme:
+    dark_mode: true
     arc:
       scroll_on_focus: true
       group: general
