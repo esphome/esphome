@@ -8,6 +8,9 @@ pca9554:
     pin_count: 8
     address: 0x3E
     interrupt_pin: ${interrupt_pin}
+  - id: pcal9554
+    address: 0x70
+    device: PCAL9554
 
 binary_sensor:
   - platform: gpio
@@ -25,3 +28,14 @@ binary_sensor:
       number: 0
       mode: OUTPUT
       inverted: false
+  - platform: gpio
+    id: pcal9554_input
+    pin:
+      pca9554: pcal9554
+      number: 3
+      mode:
+        input: true
+        pullup: true
+        pulldown: false
+        latch: false
+        interrupt: true
