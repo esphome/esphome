@@ -283,6 +283,11 @@ void ESPHomeOTAComponent::handle_data_() {
   this->client_->setsockopt(SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
   this->client_->setblocking(true);
 
+  // Yield to flush any pending non-blocking writes (e.g. the feature ACK byte)
+  // before entering the blocking data transfer. lwIP may not transmit data
+  // written in non-blocking mode until the task yields.
+  delay(0);
+
   // Acknowledge auth OK - 1 byte
   this->write_byte_(ota::OTA_RESPONSE_AUTH_OK);
 
