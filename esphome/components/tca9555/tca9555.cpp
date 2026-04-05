@@ -33,14 +33,25 @@ void TCA9555Component::dump_config() {
   }
 }
 void TCA9555Component::pin_mode(uint8_t pin, gpio::Flags flags) {
-  if (flags == gpio::FLAG_INPUT) {
-    // Set mode mask bit
-    this->mode_mask_ |= 1 << pin;
-  } else if (flags == gpio::FLAG_OUTPUT) {
-    // Clear mode mask bit
-    this->mode_mask_ &= ~(1 << pin);
+  uint16_t pin_mask = 1 << pin;
+  if (flags & gpio::FLAG_INPUT) {
+    // Set mode mask bit (1 = input)
+    this->mode_mask_ |= pin_mask;
+    this->open_drain_mask_ &= ~pin_mask;
+  } else if (flags & gpio::FLAG_OUTPUT) {
+    if (flags & gpio::FLAG_OPEN_DRAIN) {
+      // Open-drain emulation: start in high-Z (input) state.
+      // digital_write will toggle between input (high-Z) and output (driven LOW).
+      this->mode_mask_ |= pin_mask;
+      this->open_drain_mask_ |= pin_mask;
+      // Ensure output register is LOW for when we switch to output mode
+      this->output_mask_ &= ~pin_mask;
+    } else {
+      // Regular output: clear mode mask bit (0 = output)
+      this->mode_mask_ &= ~pin_mask;
+      this->open_drain_mask_ &= ~pin_mask;
+    }
   }
-  // Write GPIO to enable input mode
   this->write_gpio_modes_();
 }
 void TCA9555Component::loop() { this->reset_pin_cache_(); }
@@ -98,10 +109,28 @@ void TCA9555Component::digital_write_hw(uint8_t pin, bool value) {
   if (this->is_failed())
     return;
 
-  if (value) {
-    this->output_mask_ |= (1 << pin);
+  uint16_t pin_mask = 1 << pin;
+
+  if (this->open_drain_mask_ & pin_mask) {
+    // Open-drain emulation: toggle between high-Z (input) and driven output.
+    // The output register value is set during pin_mode() and determines the
+    // driven level. By default it's LOW (standard open-drain behavior):
+    //   HIGH = high-Z (input mode)
+    //   LOW  = driven LOW (output mode)
+    // With inverted: true in YAML, the switch logic is flipped by the pin layer.
+    if (value) {
+      this->mode_mask_ |= pin_mask;       // input = high-Z (released)
+    } else {
+      this->mode_mask_ &= ~pin_mask;      // output = drive (LOW by default)
+    }
+    this->write_gpio_modes_();
   } else {
-    this->output_mask_ &= ~(1 << pin);
+    // Normal output mode
+    if (value) {
+      this->output_mask_ |= pin_mask;
+    } else {
+      this->output_mask_ &= ~pin_mask;
+    }
   }
 
   uint8_t data[2];

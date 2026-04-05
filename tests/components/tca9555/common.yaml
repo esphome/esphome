@@ -21,3 +21,12 @@ output:
       number: 0
       mode: OUTPUT
       inverted: false
+  - platform: gpio
+    id: tca9555_open_drain_output
+    pin:
+      tca9555: tca9555_hub
+      number: 2
+      mode:
+        output: true
+        open_drain: true
+      inverted: false

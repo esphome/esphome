@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_INVERTED,
     CONF_MODE,
     CONF_NUMBER,
+    CONF_OPEN_DRAIN,
     CONF_OUTPUT,
 )
 
@@ -41,6 +42,10 @@ async def to_code(config):
 
 
 def validate_mode(value):
+    if value.get(CONF_OPEN_DRAIN) and not value.get(CONF_OUTPUT):
+        raise cv.Invalid("Open-drain only works with output mode")
+    if value.get(CONF_OPEN_DRAIN) and value.get(CONF_INPUT):
+        raise cv.Invalid("Open-drain is not available in input mode")
     if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
         raise cv.Invalid("Mode must be either input or output")
     if value[CONF_INPUT] and value[CONF_OUTPUT]:
@@ -51,7 +56,7 @@ def validate_mode(value):
 TCA9555_PIN_SCHEMA = pins.gpio_base_schema(
     TCA9555GPIOPin,
     cv.int_range(min=0, max=15),
-    modes=[CONF_INPUT, CONF_OUTPUT],
+    modes=[CONF_INPUT, CONF_OUTPUT, CONF_OPEN_DRAIN],
     mode_validator=validate_mode,
     invertible=True,
 ).extend(

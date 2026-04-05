@@ -29,12 +29,14 @@ class TCA9555Component : public Component,
   bool digital_read_cache(uint8_t pin) override;
   void digital_write_hw(uint8_t pin, bool value) override;
 
-  /// Mask for the pin mode - 1 means output, 0 means input
+  /// Mask for the pin mode - 1 means input, 0 means output
   uint16_t mode_mask_{0x00};
   /// The mask to write as output state - 1 means HIGH, 0 means LOW
   uint16_t output_mask_{0x00};
   /// The state read in digital_read_hw - 1 means HIGH, 0 means LOW
   uint16_t input_mask_{0x00};
+  /// Mask for open-drain pins - 1 means open-drain emulation enabled
+  uint16_t open_drain_mask_{0x00};
 
   bool read_gpio_modes_();
   bool write_gpio_modes_();
