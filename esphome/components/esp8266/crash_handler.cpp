@@ -27,10 +27,11 @@ static constexpr uint32_t IRAM_END = 0x40108000;  // 32KB
 // Linker symbols for the actual firmware IROM section.
 // Using these instead of a conservative upper bound (0x40400000) prevents
 // false positives from stale stack values beyond the actual flash mapping.
-// Declared as void functions to match the Arduino core's mmu_iram.h declarations.
 extern "C" {
-extern void _irom0_text_start(void);  // NOLINT(bugprone-reserved-identifier,readability-identifier-naming)
-extern void _irom0_text_end(void);    // NOLINT(bugprone-reserved-identifier,readability-identifier-naming)
+// NOLINTBEGIN(bugprone-reserved-identifier,readability-identifier-naming,readability-redundant-declaration)
+extern void _irom0_text_start(void);
+extern void _irom0_text_end(void);
+// NOLINTEND(bugprone-reserved-identifier,readability-identifier-naming,readability-redundant-declaration)
 }
 
 // Check if a value looks like a code address in IRAM or flash-mapped IROM.
