@@ -58,10 +58,10 @@ static inline bool IRAM_ATTR is_code_addr(uint32_t val) {
 static inline uint32_t IRAM_ATTR recover_code_addr(uint32_t val) { return (val & XTENSA_ADDR_MASK) | XTENSA_CODE_BASE; }
 
 // Read a byte safely from any code address (IRAM or IROM).
-// Uses progmem_read_byte which handles ESP8266 flash alignment requirements
+// Uses esphome::progmem_read_byte which handles ESP8266 flash alignment requirements
 // (SPI flash cache requires special access patterns for byte reads).
 static inline uint8_t safe_read_code_byte(uint32_t addr) {
-  return progmem_read_byte(reinterpret_cast<const uint8_t *>(addr));
+  return esphome::progmem_read_byte(reinterpret_cast<const uint8_t *>(addr));
 }
 
 // Check if a code address is a real return address by verifying the preceding
