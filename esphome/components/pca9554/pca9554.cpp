@@ -309,9 +309,11 @@ void PCA9554Component::set_drive_strength(uint8_t pin, uint16_t strength_to_set)
     pin = pin - 8;
   }
 
-  if (!this->read_register_(register_to_modify, reg_value)) { return; }
-  reg_value &= ~(3U<<(2U*pin));
-  reg_value |= strength_to_set<<(2U*pin);
+  if (!this->read_register_(register_to_modify, reg_value)) {
+    return;
+  }
+  reg_value &= ~(3U << (2U * pin));
+  reg_value |= strength_to_set << (2U * pin);
   this->write_register_(register_to_modify, reg_value);
 }
 
