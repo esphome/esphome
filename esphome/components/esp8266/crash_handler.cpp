@@ -200,11 +200,17 @@ void crash_handler_log() {
   uint8_t bt_count = read_rtc_backtrace(backtrace, MAX_BACKTRACE);
 
   ESP_LOGE(TAG, "*** CRASH DETECTED ON PREVIOUS BOOT ***");
-  // Show exception cause for all crash types — WDT resets also populate exccause
-  const LogString *cause = get_exception_cause(resetInfo.exccause);
+  // GCC's ROM divide routine triggers IllegalInstruction (exccause=0) at specific
+  // ROM addresses instead of IntegerDivideByZero (exccause=6). Patch to match
+  // the Arduino core's postmortem handler behavior.
+  uint32_t exccause = resetInfo.exccause;
+  if (exccause == 0 && (resetInfo.epc1 == 0x4000dce5 || resetInfo.epc1 == 0x4000dd3d)) {
+    exccause = 6;  // IntegerDivideByZero
+  }
+  const LogString *cause = get_exception_cause(exccause);
   if (cause != nullptr) {
     ESP_LOGE(TAG, "  Reason: %s - %s (exccause=%" PRIu32 ")", LOG_STR_ARG(get_reset_reason(resetInfo.reason)),
-             LOG_STR_ARG(cause), resetInfo.exccause);
+             LOG_STR_ARG(cause), exccause);
   } else {
     ESP_LOGE(TAG, "  Reason: %s", LOG_STR_ARG(get_reset_reason(resetInfo.reason)));
   }
