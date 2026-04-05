@@ -15,11 +15,31 @@ template<uint8_t N> class MCP23XXXBase : public Component, public gpio_expander:
   virtual void pin_interrupt_mode(uint8_t pin, MCP23XXXInterruptMode interrupt_mode);
 
   void set_open_drain_ints(const bool value) { this->open_drain_ints_ = value; }
+  void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
+  InternalGPIOPin *get_interrupt_pin() const { return this->interrupt_pin_; }
   float get_setup_priority() const override { return setup_priority::IO; }
 
-  void loop() override { this->reset_pin_cache_(); }
+  void loop() override {
+    this->reset_pin_cache_();
+    if (this->interrupt_pin_ != nullptr) {
+      this->disable_loop();
+    }
+  }
 
  protected:
+  // No need to clear latched interrupts before attaching the ISR — if INT is
+  // already low the ISR fires immediately, loop runs, cache invalidates, and
+  // the GPIO read clears the latch. One harmless extra read at most.
+  void setup_interrupt_pin_() {
+    if (this->interrupt_pin_ != nullptr) {
+      this->interrupt_pin_->setup();
+      this->interrupt_pin_->attach_interrupt(&MCP23XXXBase::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+      this->set_invalidate_on_read_(false);
+      this->disable_loop();
+    }
+  }
+  static void IRAM_ATTR gpio_intr(MCP23XXXBase *arg) { arg->enable_loop_soon_any_context(); }
+
   // read a given register
   virtual bool read_reg(uint8_t reg, uint8_t *value) = 0;
   // write a value to a given register
@@ -28,6 +48,7 @@ template<uint8_t N> class MCP23XXXBase : public Component, public gpio_expander:
   virtual void update_reg(uint8_t pin, bool pin_value, uint8_t reg_a) = 0;
 
   bool open_drain_ints_;
+  InternalGPIOPin *interrupt_pin_{nullptr};
 };
 
 template<uint8_t N> class MCP23XXXGPIOPin : public GPIOPin {
