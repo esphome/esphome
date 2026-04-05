@@ -6,7 +6,6 @@
 #include "crash_handler.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/progmem.h"
 
 #include <cinttypes>
 
@@ -101,71 +100,67 @@ void crash_handler_read_and_clear() {
 
 // Xtensa exception cause names (shared with ESP32, same ISA).
 // Keep in sync with Xtensa ISA reference manual Table 4-64.
-// Split into two PROGMEM_STRING_TABLEs to stay under 255-byte blob limit.
-// clang-format off
-PROGMEM_STRING_TABLE(ExcCauseLow,        // Causes 0-9
-  "IllegalInstruction",                  // 0
-  "Syscall",                             // 1
-  "InstructionFetchError",               // 2
-  "LoadStoreError",                      // 3
-  "Level1Interrupt",                     // 4
-  "Alloca",                              // 5
-  "IntegerDivideByZero",                 // 6
-  "PCValue",                             // 7
-  "Privileged",                          // 8
-  "LoadStoreAlignment"                   // 9
-);
-PROGMEM_STRING_TABLE(ExcCauseHigh,       // Causes 12-29 (offset by 12)
-  "InstrPDAddrError",                    // 12
-  "LoadStorePIFDataError",               // 13
-  "InstrPIFAddrError",                   // 14
-  "LoadStorePIFAddrError",               // 15
-  "InstTLBMiss",                         // 16
-  "InstTLBMultiHit",                     // 17
-  "InstFetchPrivilege",                  // 18
-  "",                                    // 19 (unused)
-  "InstrFetchProhibited",                // 20
-  "",                                    // 21 (unused)
-  "",                                    // 22 (unused)
-  "",                                    // 23 (unused)
-  "LoadStoreTLBMiss",                    // 24
-  "LoadStoreTLBMultihit",                // 25
-  "LoadStorePrivilege",                  // 26
-  "",                                    // 27 (unused)
-  "LoadProhibited",                      // 28
-  "StoreProhibited"                      // 29
-);
-// clang-format on
-
-static constexpr uint32_t EXC_CAUSE_HIGH_BASE = 12;  // First cause code in ExcCauseHigh table
-
+// Uses if-else instead of switch to avoid CSWTCH jump tables (RAM on ESP8266).
+// PROGMEM_STRING_TABLE also crashes due to flash cache conflicts in API paths.
+// LOG_STR strings are in flash via PSTR; if-else generates comparison branches only.
 static const LogString *get_exception_cause(uint32_t cause) {
-  if (cause < ExcCauseLow::COUNT)
-    return ExcCauseLow::get_log_str(cause, ExcCauseLow::LAST_INDEX);
-  if (cause >= EXC_CAUSE_HIGH_BASE && cause < EXC_CAUSE_HIGH_BASE + ExcCauseHigh::COUNT) {
-    const LogString *str = ExcCauseHigh::get_log_str(cause - EXC_CAUSE_HIGH_BASE, ExcCauseHigh::LAST_INDEX);
-    // Empty strings are gap entries — return nullptr so caller knows cause is unknown
-    if (LOG_STR_ARG(str)[0] == '\0')
-      return nullptr;
-    return str;
-  }
+  if (cause == 0)
+    return LOG_STR("IllegalInstruction");
+  if (cause == 1)
+    return LOG_STR("Syscall");
+  if (cause == 2)
+    return LOG_STR("InstructionFetchError");
+  if (cause == 3)
+    return LOG_STR("LoadStoreError");
+  if (cause == 4)
+    return LOG_STR("Level1Interrupt");
+  if (cause == 5)
+    return LOG_STR("Alloca");
+  if (cause == 6)
+    return LOG_STR("IntegerDivideByZero");
+  if (cause == 7)
+    return LOG_STR("PCValue");
+  if (cause == 8)
+    return LOG_STR("Privileged");
+  if (cause == 9)
+    return LOG_STR("LoadStoreAlignment");
+  if (cause == 12)
+    return LOG_STR("InstrPDAddrError");
+  if (cause == 13)
+    return LOG_STR("LoadStorePIFDataError");
+  if (cause == 14)
+    return LOG_STR("InstrPIFAddrError");
+  if (cause == 15)
+    return LOG_STR("LoadStorePIFAddrError");
+  if (cause == 16)
+    return LOG_STR("InstTLBMiss");
+  if (cause == 17)
+    return LOG_STR("InstTLBMultiHit");
+  if (cause == 18)
+    return LOG_STR("InstFetchPrivilege");
+  if (cause == 20)
+    return LOG_STR("InstrFetchProhibited");
+  if (cause == 24)
+    return LOG_STR("LoadStoreTLBMiss");
+  if (cause == 25)
+    return LOG_STR("LoadStoreTLBMultihit");
+  if (cause == 26)
+    return LOG_STR("LoadStorePrivilege");
+  if (cause == 28)
+    return LOG_STR("LoadProhibited");
+  if (cause == 29)
+    return LOG_STR("StoreProhibited");
   return nullptr;
 }
 
-// clang-format off
-PROGMEM_STRING_TABLE(ResetReasonStrings,
-  "Unknown",            // 0 = fallback
-  "Hardware Watchdog",  // 1 = REASON_WDT_RST
-  "Exception",          // 2 = REASON_EXCEPTION_RST
-  "Software Watchdog"   // 3 = REASON_SOFT_WDT_RST
-);
-// clang-format on
-static_assert(REASON_WDT_RST == 1, "Reset reason enum values must match table indices");
-static_assert(REASON_EXCEPTION_RST == 2, "Reset reason enum values must match table indices");
-static_assert(REASON_SOFT_WDT_RST == 3, "Reset reason enum values must match table indices");
-
 static const LogString *get_reset_reason(uint32_t reason) {
-  return ResetReasonStrings::get_log_str(static_cast<uint8_t>(reason), 0);
+  if (reason == REASON_WDT_RST)
+    return LOG_STR("Hardware Watchdog");
+  if (reason == REASON_EXCEPTION_RST)
+    return LOG_STR("Exception");
+  if (reason == REASON_SOFT_WDT_RST)
+    return LOG_STR("Software Watchdog");
+  return LOG_STR("Unknown");
 }
 
 // Read backtrace from RTC user memory into caller-provided buffer.
