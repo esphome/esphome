@@ -42,6 +42,7 @@ static inline uint32_t IRAM_ATTR recover_code_addr(uint32_t val) { return (val &
 // We use blocks 183-191 (last 9 blocks, 36 bytes) to minimize conflicts.
 static constexpr uint8_t RTC_CRASH_BASE = 183;
 static constexpr size_t MAX_BACKTRACE = 8;
+static constexpr size_t STACK_SCAN_WORDS = 64;  // Scan up to 256 bytes of stack
 
 // Magic word packs sentinel, version, and count into one uint32_t:
 //   bits[31:16] = 0xDEAD (sentinel)
@@ -225,9 +226,8 @@ extern "C" void IRAM_ATTR custom_crash_callback(struct rst_info * /*rst_info*/, 
 
   auto *scan = reinterpret_cast<uint32_t *>(stack);
   auto *end = reinterpret_cast<uint32_t *>(stack_end);
-  // Limit scan to 64 words (256 bytes) to avoid excessive scanning
-  if (end > scan + 64)
-    end = scan + 64;
+  if (end > scan + STACK_SCAN_WORDS)
+    end = scan + STACK_SCAN_WORDS;
 
   for (; scan < end && count < MAX_BACKTRACE; scan++) {
     uint32_t val = *scan;

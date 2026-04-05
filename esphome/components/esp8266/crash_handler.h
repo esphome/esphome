@@ -8,7 +8,7 @@
 
 namespace esphome::esp8266 {
 
-/// Read crash data from rst_info and RTC user memory, then clear RTC data.
+/// Check if previous boot was a crash and set validity flag.
 void crash_handler_read_and_clear();
 
 /// Log crash data if a crash was detected on previous boot.
