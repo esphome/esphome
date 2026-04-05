@@ -91,9 +91,7 @@ bool PCA9554Component::digital_read_cache(uint8_t pin) {
   return this->input_states_ & (1 << pin);
 }
 
-void PCA9554Component::digital_write_hw(uint8_t pin, bool value) {
-  this->set_register_bit_(OUTPUT_REG, pin, value);
-}
+void PCA9554Component::digital_write_hw(uint8_t pin, bool value) { this->set_register_bit_(OUTPUT_REG, pin, value); }
 
 void PCA9554Component::do_stuff() {
   uint8_t i;
