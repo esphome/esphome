@@ -36,9 +36,9 @@ static inline uint32_t IRAM_ATTR recover_code_addr(uint32_t val) { return (val &
 
 // RTC user memory layout for crash backtrace data.
 // User-accessible RTC memory: blocks 64-191 (each block = 4 bytes).
-// We use blocks 187-191 (last 5 blocks, 20 bytes) to minimize conflicts.
-static constexpr uint8_t RTC_CRASH_BASE = 187;
-static constexpr size_t MAX_BACKTRACE = 4;
+// We use blocks 183-191 (last 9 blocks, 36 bytes) to minimize conflicts.
+static constexpr uint8_t RTC_CRASH_BASE = 183;
+static constexpr size_t MAX_BACKTRACE = 8;
 
 // Magic word packs sentinel, version, and count into one uint32_t:
 //   bits[31:16] = 0xDEAD (sentinel)
@@ -50,14 +50,14 @@ static constexpr uint32_t CRASH_SENTINEL_MASK = 0xFFFF0000;
 static constexpr uint32_t CRASH_VERSION_MASK = 0x0000FF00;
 static constexpr uint32_t CRASH_COUNT_MASK = 0x000000FF;
 
-// Struct layout: 5 RTC blocks (20 bytes):
+// Struct layout: 9 RTC blocks (36 bytes):
 // [0] = magic (sentinel | version | count)
-// [1..4] = up to 4 code addresses from stack scanning
+// [1..8] = up to 8 code addresses from stack scanning
 struct RtcCrashData {
   uint32_t magic;
   uint32_t backtrace[MAX_BACKTRACE];
 };
-static_assert(sizeof(RtcCrashData) == 20, "RtcCrashData must fit in 5 RTC blocks");
+static_assert(sizeof(RtcCrashData) == 36, "RtcCrashData must fit in 9 RTC blocks");
 
 namespace esphome::esp8266 {
 
