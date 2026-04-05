@@ -45,7 +45,7 @@ class MitsubishiCN105 {
   void set_update_interval(uint32_t interval_ms) { this->update_interval_ms_ = interval_ms; }
 
   uint32_t get_room_temperature_min_interval() const { return this->room_temperature_min_interval_ms_; }
-  bool is_room_temperature_enabled() const { return this->room_temperature_min_interval_ms_ != 0; }
+  bool is_room_temperature_enabled() const { return this->room_temperature_min_interval_ms_ != SCHEDULER_DONT_RUN; }
   void set_room_temperature_min_interval(uint32_t interval_ms) {
     this->room_temperature_min_interval_ms_ = interval_ms;
   }
