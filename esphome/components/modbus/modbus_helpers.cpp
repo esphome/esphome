@@ -140,9 +140,8 @@ int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sens
 }
 
 void create_client_pdu(std::vector<uint8_t> &pdu, ModbusFunctionCode function_code, uint16_t start_address,
-                       uint16_t number_of_entities, const std::vector<uint8_t> &values) {
+                       uint16_t number_of_entities, const uint8_t *values, size_t values_len) {
   pdu.push_back(static_cast<uint8_t>(function_code));
-
   pdu.push_back(start_address >> 8);
   pdu.push_back(start_address >> 0);
   if (function_code != ModbusFunctionCode::WRITE_SINGLE_COIL &&
@@ -150,48 +149,51 @@ void create_client_pdu(std::vector<uint8_t> &pdu, ModbusFunctionCode function_co
     pdu.push_back(number_of_entities >> 8);
     pdu.push_back(number_of_entities >> 0);
   }
-
-  if (!values.empty() && is_function_code_write(static_cast<uint8_t>(function_code))) {
+  if (values_len > 0 && is_function_code_write(static_cast<uint8_t>(function_code))) {
     if (function_code == ModbusFunctionCode::WRITE_MULTIPLE_COILS ||
-        function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {  // Write multiple
-      pdu.push_back(values.size());                                       // Byte count is required for write
-      pdu.insert(pdu.end(), values.begin(), values.end());
+        function_code == ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS) {
+      pdu.push_back(values_len);  // Byte count is required for write multiple
+      pdu.insert(pdu.end(), values, values + values_len);
     } else {
       // Write single register or coil (2 bytes)
-      pdu.insert(pdu.end(), values.begin(), values.begin() + 2);
+      pdu.insert(pdu.end(), values, values + 2);
     }
   }
 }
 
+void create_client_pdu(std::vector<uint8_t> &pdu, ModbusFunctionCode function_code, uint16_t start_address,
+                       uint16_t number_of_entities, const std::vector<uint8_t> &values) {
+  create_client_pdu(pdu, function_code, start_address, number_of_entities, values.data(), values.size());
+}
+
 void create_write_multiple_pdu(std::vector<uint8_t> &pdu, uint16_t start_address, uint16_t register_count,
                                const std::vector<uint16_t> &values) {
-  std::vector<uint8_t> payload;
+  uint8_t payload[MAX_FRAME_SIZE];
+  size_t payload_len = 0;
   for (auto v : values) {
     auto decoded_value = decode_value(v);
-    payload.push_back(decoded_value[0]);
-    payload.push_back(decoded_value[1]);
+    payload[payload_len++] = decoded_value[0];
+    payload[payload_len++] = decoded_value[1];
   }
-  create_client_pdu(pdu, ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS, start_address, register_count, payload);
+  create_client_pdu(pdu, ModbusFunctionCode::WRITE_MULTIPLE_REGISTERS, start_address, register_count, payload,
+                    payload_len);
 }
 
 void create_write_single_pdu(std::vector<uint8_t> &pdu, uint16_t start_address, uint16_t value) {
-  std::vector<uint8_t> payload;
   auto decoded_value = decode_value(value);
-  payload.push_back(decoded_value[0]);
-  payload.push_back(decoded_value[1]);
-  create_client_pdu(pdu, ModbusFunctionCode::WRITE_SINGLE_REGISTER, start_address, 1, payload);
+  uint8_t payload[2] = {decoded_value[0], decoded_value[1]};
+  create_client_pdu(pdu, ModbusFunctionCode::WRITE_SINGLE_REGISTER, start_address, 1, payload, sizeof(payload));
 }
 
 void create_write_single_coil_pdu(std::vector<uint8_t> &pdu, uint16_t address, bool value) {
-  std::vector<uint8_t> payload;
-  payload.push_back(value ? 0xFF : 0);
-  payload.push_back(0);
-  create_client_pdu(pdu, ModbusFunctionCode::WRITE_SINGLE_COIL, address, 1, payload);
+  uint8_t payload[2] = {uint8_t(value ? 0xFF : 0), 0};
+  create_client_pdu(pdu, ModbusFunctionCode::WRITE_SINGLE_COIL, address, 1, payload, sizeof(payload));
 }
 
 void create_write_multiple_coils_pdu(std::vector<uint8_t> &pdu, uint16_t start_address,
                                      const std::vector<bool> &values) {
-  std::vector<uint8_t> payload;
+  uint8_t payload[MAX_FRAME_SIZE];
+  size_t payload_len = 0;
   uint8_t bitmask = 0;
   int bitcounter = 0;
   for (auto coil : values) {
@@ -200,15 +202,15 @@ void create_write_multiple_coils_pdu(std::vector<uint8_t> &pdu, uint16_t start_a
     }
     bitcounter++;
     if (bitcounter % 8 == 0) {
-      payload.push_back(bitmask);
+      payload[payload_len++] = bitmask;
       bitmask = 0;
     }
   }
   // add remaining bits
   if (bitcounter % 8) {
-    payload.push_back(bitmask);
+    payload[payload_len++] = bitmask;
   }
-  create_client_pdu(pdu, ModbusFunctionCode::WRITE_MULTIPLE_COILS, start_address, values.size(), payload);
+  create_client_pdu(pdu, ModbusFunctionCode::WRITE_MULTIPLE_COILS, start_address, values.size(), payload, payload_len);
 }
 
 std::vector<uint8_t> add_crc_to_payload(const std::vector<uint8_t> &payload) {

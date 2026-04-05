@@ -360,7 +360,9 @@ int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sens
  * @param values vector of the values to write.
  */
 void create_client_pdu(std::vector<uint8_t> &pdu, ModbusFunctionCode function_code, uint16_t start_address,
-                       uint16_t number_of_entities, const std::vector<uint8_t> &values = {});
+                       uint16_t number_of_entities, const uint8_t *values = nullptr, size_t values_len = 0);
+void create_client_pdu(std::vector<uint8_t> &pdu, ModbusFunctionCode function_code, uint16_t start_address,
+                       uint16_t number_of_entities, const std::vector<uint8_t> &values);
 
 /** Create modbus write multiple registers command
  *  Function 0x10 Write Multiple Registers

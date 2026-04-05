@@ -452,9 +452,8 @@ void ModbusClientHub::send(uint8_t address, uint8_t function_code, uint16_t star
             address, function_code, start_address, number_of_entities);
   std::vector<uint8_t> data;
   data.push_back(address);
-  std::vector<uint8_t> values(payload, payload + payload_len);
-  create_client_pdu(data, (ModbusFunctionCode) function_code, start_address, number_of_entities, values);
-  this->send_raw(data, device, allow_duplicates);
+  create_client_pdu(data, (ModbusFunctionCode) function_code, start_address, number_of_entities, payload, payload_len);
+  this->send_raw(data.data(), static_cast<uint16_t>(data.size()), device, allow_duplicates);
 }
 
 void ModbusServerHub::send(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &payload) {
