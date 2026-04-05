@@ -194,7 +194,8 @@ void crash_handler_log() {
   if (resetInfo.epc3 != 0) {
     ESP_LOGE(TAG, "  EPC3: 0x%08" PRIX32, resetInfo.epc3);
   }
-  if (resetInfo.excvaddr != 0) {
+  if (resetInfo.reason == REASON_EXCEPTION_RST) {
+    // Always log EXCVADDR for exceptions — 0x00000000 IS the diagnostic for null pointer crashes
     ESP_LOGE(TAG, "  EXCVADDR: 0x%08" PRIX32 "  (faulting address)", resetInfo.excvaddr);
   }
   if (resetInfo.depc != 0) {
