@@ -27,9 +27,7 @@ static constexpr uint32_t IRAM_END = 0x40108000;  // 32KB
 
 // Linker symbols for the actual firmware IROM section.
 // Using these instead of a conservative upper bound (0x40400000) prevents
-// false positives from stale stack values beyond the actual flash mapping,
-// and avoids LoadStoreError faults when is_return_addr() tries to read
-// unmapped flash to verify CALL instructions.
+// false positives from stale stack values beyond the actual flash mapping.
 extern "C" {
 extern uint8_t _irom0_text_start;  // NOLINT(bugprone-reserved-identifier,readability-identifier-naming)
 extern uint8_t _irom0_text_end;    // NOLINT(bugprone-reserved-identifier,readability-identifier-naming)
@@ -238,10 +236,8 @@ void crash_handler_log() {
 // --- Custom crash callback ---
 // Overrides the weak custom_crash_callback() from Arduino core's
 // core_esp8266_postmortem.cpp. Called during exception handling before
-// the device restarts. We scan the full stack for return addresses and store
-// them in RTC user memory (which survives software reset). Filtering for
-// real return addresses (preceded by CALL instructions) happens at log time
-// when flash is accessible.
+// the device restarts. We scan the full stack for code addresses and store
+// them in RTC user memory (which survives software reset).
 extern "C" void IRAM_ATTR custom_crash_callback(struct rst_info *rst_info, uint32_t stack, uint32_t stack_end) {
   RtcCrashData data = {};
   uint8_t count = 0;
