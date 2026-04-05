@@ -29,6 +29,7 @@ KEY_COLOR_FORMATS = "color_formats"
 KEY_LV_DEFINES = "lv_defines"
 KEY_REMAPPED_USES = "remapped_uses"
 KEY_UPDATED_WIDGETS = "updated_widgets"
+KEY_OPTIONS = "options"
 KEY_WARNINGS = "warnings"
 
 
@@ -54,6 +55,10 @@ def get_remapped_uses():
 
 def add_warning(msg: str):
     get_warnings().add(msg)
+
+
+def get_options():
+    return get_data(KEY_OPTIONS)
 
 
 class StaticCastExpression(Expression):
