@@ -41,6 +41,7 @@ void DlmsMeterComponent::setup() {
     this->parser_.register_pattern(pattern.c_str());
   }
 
+  // Flush UART
   while (this->available()) {
     this->read();
   }
@@ -135,7 +136,7 @@ void DlmsMeterComponent::process_frame_() {
     this->on_data_(obis_code, float_val, str_val, is_numeric);
   };
 
-  this->parser_.parse(std::span<uint8_t>{this->rx_buffer_.data(), this->bytes_accumulated_}, callback);
+  this->parser_.parse({this->rx_buffer_.data(), this->bytes_accumulated_}, callback);
 
   this->bytes_accumulated_ = 0;
   this->receiving_ = false;
