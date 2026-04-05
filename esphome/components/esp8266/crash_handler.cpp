@@ -85,7 +85,7 @@ static_assert(sizeof(RtcCrashData) == 72, "RtcCrashData must fit in 18 RTC block
 
 namespace esphome::esp8266 {
 
-static const char *const TAG = "esp8266.crash";
+static const char *const TAG = "esp8266";
 
 static inline bool is_crash_reason(uint32_t reason) {
   return reason == REASON_WDT_RST || reason == REASON_EXCEPTION_RST || reason == REASON_SOFT_WDT_RST;
