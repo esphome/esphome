@@ -16,23 +16,26 @@ extern "C" {
 extern struct rst_info resetInfo;
 }
 
+// Xtensa windowed-ABI: bits[31:30] encode call type (CALL0=00, CALL4=01,
+// CALL8=10, CALL12=11). Mask and force bit 30 to recover the real address.
+static constexpr uint32_t XTENSA_ADDR_MASK = 0x3FFFFFFF;
+static constexpr uint32_t XTENSA_CODE_BASE = 0x40000000;
+
+// ESP8266 memory map boundaries for code regions
+static constexpr uint32_t IRAM_START = 0x40100000;
+static constexpr uint32_t IRAM_END = 0x40108000;  // 32KB
+static constexpr uint32_t IROM_START = 0x40200000;
+static constexpr uint32_t IROM_END = 0x40400000;  // 2MB conservative upper bound
+
 // Check if a value looks like a code address in IRAM or flash-mapped IROM.
-// On Xtensa with windowed register ABI, return addresses stored on the stack
-// have bits[31:30] encoding the call type (CALL0=00, CALL4=01, CALL8=10,
-// CALL12=11). Code lives at 0x40xxxxxx (bits[31:30]=01), so CALL4 return
-// addresses look normal, but CALL8 (0x80...) and CALL12 (0xC0...) need
-// masking. We recover the real address with (val & 0x3FFFFFFF) | 0x40000000.
-//
 // Must be IRAM_ATTR since it's called from custom_crash_callback (exception context).
 static inline bool IRAM_ATTR is_code_addr(uint32_t val) {
-  uint32_t addr = (val & 0x3FFFFFFF) | 0x40000000;
-  // IRAM:  0x40100000 - 0x40108000 (32KB)
-  // IROM:  0x40200000 - 0x40400000 (2MB, conservative upper bound)
-  return (addr >= 0x40100000 && addr < 0x40108000) || (addr >= 0x40200000 && addr < 0x40400000);
+  uint32_t addr = (val & XTENSA_ADDR_MASK) | XTENSA_CODE_BASE;
+  return (addr >= IRAM_START && addr < IRAM_END) || (addr >= IROM_START && addr < IROM_END);
 }
 
 // Recover the actual code address from a windowed-ABI return address on the stack.
-static inline uint32_t IRAM_ATTR recover_code_addr(uint32_t val) { return (val & 0x3FFFFFFF) | 0x40000000; }
+static inline uint32_t IRAM_ATTR recover_code_addr(uint32_t val) { return (val & XTENSA_ADDR_MASK) | XTENSA_CODE_BASE; }
 
 // RTC user memory layout for crash backtrace data.
 // User-accessible RTC memory: blocks 64-191 (each block = 4 bytes).
