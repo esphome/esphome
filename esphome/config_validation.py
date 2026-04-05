@@ -28,6 +28,7 @@ from esphome import core
 import esphome.codegen as cg
 from esphome.const import (
     ALLOWED_NAME_CHARS,
+    CONF_ARGUMENT,
     CONF_AVAILABILITY,
     CONF_COMMAND_RETAIN,
     CONF_COMMAND_TOPIC,
@@ -130,9 +131,6 @@ RequiredFieldInvalid = vol.RequiredFieldInvalid
 # this sentinel object can be placed in an 'Invalid' path to say
 # the rest of the error path is relative to the root config path
 ROOT_CONFIG_PATH = object()
-
-# defined here since const.py is frozen.
-CONF_ARGUMENT = "argument"
 
 RESERVED_IDS = [
     # C++ keywords https://en.cppreference.com/w/cpp/keyword
