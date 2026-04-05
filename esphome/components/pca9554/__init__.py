@@ -81,7 +81,7 @@ PCA9554_DEVICE_TYPES = {
         "pins": 16,
         "open_drain": False,
     },
-    "PCAL9554": {
+    "PCAL9538": {
         "modes": [
             CONF_INPUT,
             CONF_OUTPUT,
