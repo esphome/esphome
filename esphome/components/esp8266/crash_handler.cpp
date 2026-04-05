@@ -4,7 +4,6 @@
 #ifdef USE_ESP8266_CRASH_HANDLER
 
 #include "crash_handler.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #include <cinttypes>
@@ -191,14 +190,6 @@ void crash_handler_log() {
   for (uint8_t i = 0; i < bt_count; i++) {
     ESP_LOGE(TAG, "  BT%d: 0x%08" PRIX32, i, backtrace[i]);
   }
-  // Build addr2line hint with all captured addresses for easy copy-paste
-  char hint[220];
-  size_t pos =
-      buf_append_printf(hint, sizeof(hint), 0, "Use: addr2line -pfiaC -e firmware.elf 0x%08" PRIX32, resetInfo.epc1);
-  for (uint8_t i = 0; i < bt_count; i++) {
-    pos = buf_append_printf(hint, sizeof(hint), pos, " 0x%08" PRIX32, backtrace[i]);
-  }
-  ESP_LOGE(TAG, "%s", hint);
 }
 
 }  // namespace esphome::esp8266
