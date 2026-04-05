@@ -25,8 +25,16 @@ static constexpr uint32_t XTENSA_CODE_BASE = 0x40000000;
 // ESP8266 memory map boundaries for code regions
 static constexpr uint32_t IRAM_START = 0x40100000;
 static constexpr uint32_t IRAM_END = 0x40108000;  // 32KB
-static constexpr uint32_t IROM_START = 0x40200000;
-static constexpr uint32_t IROM_END = 0x40400000;  // 2MB conservative upper bound
+
+// Linker symbols for the actual firmware IROM section.
+// Using these instead of a conservative upper bound (0x40400000) prevents
+// false positives from stale stack values beyond the actual flash mapping,
+// and avoids LoadStoreError faults when is_return_addr() tries to read
+// unmapped flash to verify CALL instructions.
+extern "C" {
+extern uint8_t _irom0_text_start;  // NOLINT(bugprone-reserved-identifier,readability-identifier-naming)
+extern uint8_t _irom0_text_end;    // NOLINT(bugprone-reserved-identifier,readability-identifier-naming)
+}
 
 // Xtensa CALL instruction opcodes (3-byte instructions).
 // A return address on the stack points to the instruction AFTER a CALL,
@@ -38,20 +46,22 @@ static constexpr uint8_t XTENSA_OPCODE_MASK = 0x0F;
 
 // Check if a value looks like a code address in IRAM or flash-mapped IROM.
 // Must be IRAM_ATTR since it's called from custom_crash_callback (exception context).
+// Using linker symbols (&_irom0_text_start/end) is safe in IRAM — they're link-time
+// constants, no flash read needed.
 static inline bool IRAM_ATTR is_code_addr(uint32_t val) {
   uint32_t addr = (val & XTENSA_ADDR_MASK) | XTENSA_CODE_BASE;
-  return (addr >= IRAM_START && addr < IRAM_END) || (addr >= IROM_START && addr < IROM_END);
+  return (addr >= IRAM_START && addr < IRAM_END) || (addr >= reinterpret_cast<uint32_t>(&_irom0_text_start) &&
+                                                     addr < reinterpret_cast<uint32_t>(&_irom0_text_end));
 }
 
 // Recover the actual code address from a windowed-ABI return address on the stack.
 static inline uint32_t IRAM_ATTR recover_code_addr(uint32_t val) { return (val & XTENSA_ADDR_MASK) | XTENSA_CODE_BASE; }
 
 // Read a byte safely from any code address (IRAM or IROM).
-// ESP8266 flash requires aligned 32-bit reads; byte extraction avoids alignment faults.
+// Uses progmem_read_byte which handles ESP8266 flash alignment requirements
+// (SPI flash cache requires special access patterns for byte reads).
 static inline uint8_t safe_read_code_byte(uint32_t addr) {
-  uint32_t aligned = addr & ~3u;
-  uint32_t word = *reinterpret_cast<volatile uint32_t *>(aligned);
-  return (word >> ((addr & 3u) * 8)) & 0xFF;
+  return progmem_read_byte(reinterpret_cast<const uint8_t *>(addr));
 }
 
 // Check if a code address is a real return address by verifying the preceding
