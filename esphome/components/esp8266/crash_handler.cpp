@@ -203,9 +203,14 @@ void crash_handler_log() {
   // GCC's ROM divide routine triggers IllegalInstruction (exccause=0) at specific
   // ROM addresses instead of IntegerDivideByZero (exccause=6). Patch to match
   // the Arduino core's postmortem handler behavior.
+  static constexpr uint32_t EXCCAUSE_ILLEGAL_INSTRUCTION = 0;
+  static constexpr uint32_t EXCCAUSE_INTEGER_DIVIDE_BY_ZERO = 6;
+  static constexpr uint32_t ROM_DIV_ZERO_ADDR_1 = 0x4000dce5;
+  static constexpr uint32_t ROM_DIV_ZERO_ADDR_2 = 0x4000dd3d;
   uint32_t exccause = resetInfo.exccause;
-  if (exccause == 0 && (resetInfo.epc1 == 0x4000dce5 || resetInfo.epc1 == 0x4000dd3d)) {
-    exccause = 6;  // IntegerDivideByZero
+  if (exccause == EXCCAUSE_ILLEGAL_INSTRUCTION &&
+      (resetInfo.epc1 == ROM_DIV_ZERO_ADDR_1 || resetInfo.epc1 == ROM_DIV_ZERO_ADDR_2)) {
+    exccause = EXCCAUSE_INTEGER_DIVIDE_BY_ZERO;
   }
   const LogString *cause = get_exception_cause(exccause);
   if (cause != nullptr) {
