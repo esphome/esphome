@@ -18,6 +18,7 @@ from esphome.const import (
 )
 
 CONF_LATCH = "latch"
+CONF_DRIVE_STRENGTH = "drive_strength"
 
 CODEOWNERS = ["@hwstar", "@clydebarrow", "@bdraco"]
 AUTO_LOAD = ["gpio_expander"]
@@ -26,32 +27,56 @@ MULTI_CONF = True
 CONF_PIN_COUNT = "pin_count"
 pca9554_ns = cg.esphome_ns.namespace("pca9554")
 
+
+# Define capabilities of the expander. Set a 1 to this bit to enable this functionality.
+# Bit 0: Input/Output, all expanders have this one
+# Bit 1: Pull-up
+# Bit 2: Pull-down
+# bit 3: latch
+# bit 4: interrupt mask
+# bit 5: drive strength
+def generate_capability(modes):
+    capability = 1
+    if "pullup" in modes:
+        capability |= 2
+    if "pulldown" in modes:
+        capability |= 4
+    if "latch" in modes:
+        capability |= 8
+    if "interrupt" in modes:
+        capability |= 16
+    if "drive_strength" in modes:
+        capability |= 32
+
+    return capability
+
+
 # We could define allowable device addresses in here, but I don't know if that is a good idea.
 PCA9554_DEVICE_TYPES = {
     "NONE": {
         "modes": [CONF_INPUT, CONF_OUTPUT],
         "pins": 8,
-        "open_drain": False,  # Device has open drain capability
+        "open_drain": False,
     },
     "PCA9536": {
         "modes": [CONF_INPUT, CONF_OUTPUT],
         "pins": 4,
-        "open_drain": False,  # Device has open drain capability
+        "open_drain": False,
     },
     "PCA9554": {
         "modes": [CONF_INPUT, CONF_OUTPUT],
         "pins": 8,
-        "open_drain": False,  # Device has open drain capability
+        "open_drain": False,
     },
     "PCA9554A": {
         "modes": [CONF_INPUT, CONF_OUTPUT],
         "pins": 8,
-        "open_drain": False,  # Device has open drain capability
+        "open_drain": False,
     },
     "PCA9535": {
         "modes": [CONF_INPUT, CONF_OUTPUT],
         "pins": 16,
-        "open_drain": False,  # Device has open drain capability
+        "open_drain": False,
     },
     "PCAL9554": {
         "modes": [
@@ -61,6 +86,7 @@ PCA9554_DEVICE_TYPES = {
             CONF_PULLUP,
             CONF_INTERRUPT,
             CONF_LATCH,
+            CONF_DRIVE_STRENGTH,
         ],
         "pins": 8,
         "open_drain": True,  # Device has open drain capability TODO: open drain can only be set for all of port 0 or port 1. Indicate that here?
@@ -73,6 +99,7 @@ PCA9554_DEVICE_TYPES = {
             CONF_PULLUP,
             CONF_INTERRUPT,
             CONF_LATCH,
+            CONF_DRIVE_STRENGTH,
         ],
         "pins": 16,
         "open_drain": True,  # Device has open drain capability TODO: open drain can only be set for all of port 0 or port 1. Indicate that here?
@@ -112,6 +139,8 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     device_dict = PCA9554_DEVICE_TYPES[config[CONF_DEVICE]]
 
+    cg.add(var.set_capability(generate_capability(device_dict["modes"])))
+
     if (config[CONF_OPEN_DRAIN]) and not (device_dict["open_drain"]):
         raise cv.Invalid(
             "Device does not support open-drain pin mode"
@@ -132,7 +161,7 @@ async def to_code(config):
 
 def validate_mode(value):
     # Note: here we cannot validate that the modes entered are supported by the device, only that the modes entered are compatible.
-    if not (value[CONF_INPUT] or value[CONF_OUTPUT]):  # TODO: Does this need to be xor?
+    if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
         raise cv.Invalid("Mode must be either input or output")
     if value[CONF_INPUT] and value[CONF_OUTPUT]:
         raise cv.Invalid("Mode must be either input or output")
@@ -142,6 +171,8 @@ def validate_mode(value):
         raise cv.Invalid("Outputs cannot generate interrupts.")
     if value[CONF_LATCH] and value[CONF_OUTPUT]:
         raise cv.Invalid("Outputs cannot be latched.")
+    # if value[CONF_DRIVE_STRENGTH] and value[CONF_OUTPUT]):
+    #    raise cv.Invalid("Drive strength only applies to outputs.")
     return value
 
 
@@ -160,6 +191,7 @@ PCA9554_PIN_SCHEMA = pins.gpio_base_schema(
 ).extend(
     {
         cv.Required(CONF_PCA9554): cv.use_id(PCA9554Component),
+        cv.Optional(CONF_DRIVE_STRENGTH, default=3): cv.int_range(min=0, max=3),
     }
 )
 
@@ -175,7 +207,6 @@ def pca9554_pin_final_validate(pin_config, parent_config):
     else:
         # print("Setting pin count from dict")
         count = device_dict["pins"]
-    # print(count)
 
     # Make sure the user entered a valid pin number
     if pin_config[CONF_NUMBER] >= count:
@@ -185,12 +216,10 @@ def pca9554_pin_final_validate(pin_config, parent_config):
     #  We also remove entries from the pin_config['mode'] dictionary that are not supported by the device.
     #  This is to distinguish between setting them to 'false' and not setting them at all.
     for entered_mode, active in list(pin_config["mode"].items()):
-        if entered_mode not in device_dict["modes"]:
-            if active:
-                raise cv.Invalid(
-                    f"Pin mode '{entered_mode}' is not valid for device {device_name}."
-                )
-            del pin_config["mode"][entered_mode]
+        if active and (entered_mode not in device_dict["modes"]):
+            raise cv.Invalid(
+                f"Pin mode '{entered_mode}' is not valid for device {device_name}."
+            )
 
 
 @pins.PIN_SCHEMA_REGISTRY.register(
@@ -206,8 +235,7 @@ async def pca9554_pin_to_code(config):
     cg.add(var.set_pin(num))
     cg.add(var.set_inverted(config[CONF_INVERTED]))
     cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
-    if "latch" in config[CONF_MODE]:
-        cg.add(var.set_latch(config[CONF_MODE]["latch"]))
-    if "interrupt" in config[CONF_MODE]:
-        cg.add(var.set_interrupt(config[CONF_MODE]["interrupt"]))
+    cg.add(var.set_drive_strength(config[CONF_DRIVE_STRENGTH]))
+    cg.add(var.set_latch(config[CONF_MODE]["latch"]))
+    cg.add(var.set_interrupt(config[CONF_MODE]["interrupt"]))
     return var

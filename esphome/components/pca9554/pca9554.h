@@ -31,9 +31,10 @@ class PCA9554Component : public Component,
 
   void set_pin_count(size_t pin_count) { this->pin_count_ = pin_count; }
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
+  void set_capability(uint8_t capability) { this->capability_ = capability; }
 
   // test function, delete this later
-  // void do_stuff();
+  void do_stuff();
 
  protected:
   static void IRAM_ATTR gpio_intr(PCA9554Component *arg);
@@ -62,6 +63,8 @@ class PCA9554Component : public Component,
   /// Storage for last I2C error seen
   esphome::i2c::ErrorCode last_error_;
   InternalGPIOPin *interrupt_pin_{nullptr};
+
+  uint8_t capability_{0};
 };
 
 /// Helper class to expose a PCA9554 pin as an internal input GPIO pin.
@@ -73,12 +76,13 @@ class PCA9554GPIOPin : public GPIOPin {
   void digital_write(bool value) override;
   size_t dump_summary(char *buffer, size_t len) const override;
 
-  void set_parent(PCA9554Component *parent) { parent_ = parent; }
-  void set_pin(uint8_t pin) { pin_ = pin; }
-  void set_inverted(bool inverted) { inverted_ = inverted; }
-  void set_flags(gpio::Flags flags) { flags_ = flags; }
-  void set_latch(bool latch) { latch_ = latch; }
-  void set_interrupt(bool interrupt) { interrupt_ = interrupt; }
+  void set_parent(PCA9554Component *parent) { this->parent_ = parent; }
+  void set_pin(uint8_t pin) { this->pin_ = pin; }
+  void set_inverted(bool inverted) { this->inverted_ = inverted; }
+  void set_flags(gpio::Flags flags) { this->flags_ = flags; }
+  void set_latch(bool latch) { this->latch_ = latch; }
+  void set_interrupt(bool interrupt) { this->interrupt_ = interrupt; }
+  void set_drive_strength(uint8_t drive_strength) { this->drive_strength_ = drive_strength; }
 
   gpio::Flags get_flags() const override { return this->flags_; }
 
@@ -86,9 +90,10 @@ class PCA9554GPIOPin : public GPIOPin {
   PCA9554Component *parent_;
   uint8_t pin_;
   bool inverted_;
-  bool latch_;
-  bool interrupt_;
+  bool latch_{false};
+  bool interrupt_{false};
   gpio::Flags flags_;
+  uint8_t drive_strength_;
 };
 
 }  // namespace pca9554

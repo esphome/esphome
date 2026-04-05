@@ -20,6 +20,17 @@ const uint8_t INTERRUPT_STATUS = 0x46;
 
 const uint8_t OUTPUT_PORT_CONFIG = 0x4F;
 
+
+const uint8_t CAPABILITY_PULLUP = 0x02U;
+const uint8_t CAPABILITY_PULLDOWN = 0x04U;
+const uint8_t CAPABILITY_LATCH = 0x08U;
+const uint8_t CAPABILITY_INTERRUPT = 0x10U;
+const uint8_t CAPABILITY_DRIVE_STRENGTH = 0x20U;
+
+
+
+
+
 static const char *const TAG = "pca9554";
 
 void PCA9554Component::setup() {
@@ -97,16 +108,29 @@ void PCA9554Component::digital_write_hw(uint8_t pin, bool value) {
   this->write_register_(OUTPUT_REG, this->output_mask_);
 }
 
-/*void PCA9554Component::do_stuff() {
+void PCA9554Component::do_stuff() {
   uint8_t i;
   i = 13;
   uint16_t reg_val = 0;
   uint8_t OD_val = 0;
 
+  ESP_LOGD("pca9554", "Capability: %d", this->capability_);
+
+  this->read_register_(CONFIG_REG, reg_val);
+  ESP_LOGD("pca9554", "CONFIG_REG: 0x%04X", reg_val);
+  this->read_register_(OUTPUT_DRIVE_0, reg_val);
+  ESP_LOGD("pca9554", "OUTPUT_DRIVE_0: 0x%04X", reg_val);
   this->read_register_(OUTPUT_DRIVE_1, reg_val);
   ESP_LOGD("pca9554", "OUTPUT_DRIVE_1: 0x%04X", reg_val);
-
-  if (i > 7) {
+  this->read_register_(INPUT_LATCH, reg_val);
+  ESP_LOGD("pca9554", "INPUT_LATCH: 0x%04X", reg_val);
+  this->read_register_(PUPD_ENABLE, reg_val);
+  ESP_LOGD("pca9554", "PUPD_ENABLE: 0x%04X", reg_val);
+  this->read_register_(PUPD_SEL, reg_val);
+  ESP_LOGD("pca9554", "PUPD_SEL: 0x%04X", reg_val);
+  this->read_register_(INTERRUPT_MASK, reg_val);
+  ESP_LOGD("pca9554", "INTERRUPT_MASK: 0x%04X", reg_val);
+  /*if (i > 7) {
     OD_val = (reg_val>>(2U*(i-8U)))&(3U);
   } else {
     OD_val = (reg_val>>(2U*i))&(3U);
@@ -127,8 +151,8 @@ void PCA9554Component::digital_write_hw(uint8_t pin, bool value) {
 
   //i = 4;
   //ESP_LOGD("pca9554", "set pin mode for %d with flags %d", i, gpio::FLAG_OUTPUT);
-  //this->pin_mode(i, gpio::FLAG_OUTPUT);
-}*/
+  //this->pin_mode(i, gpio::FLAG_OUTPUT);*/
+}
 
 void PCA9554Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   // Note: no checks are done here to validate that the flags are legitimate.
@@ -151,14 +175,16 @@ void PCA9554Component::pin_mode(uint8_t pin, gpio::Flags flags) {
     this->set_register_bit_(CONFIG_REG, pin, false);
   }
 
-  if (flags & gpio::FLAG_PULLUP) {
-    this->set_register_bit_(PUPD_ENABLE, pin, true);
-    this->set_register_bit_(PUPD_SEL, pin, true);
-  } else if (flags & gpio::FLAG_PULLDOWN) {
-    this->set_register_bit_(PUPD_ENABLE, pin, true);
-    this->set_register_bit_(PUPD_SEL, pin, false);
-  } else {
-    this->set_register_bit_(PUPD_ENABLE, pin, false);
+  if ( (this->capability_ & CAPABILITY_PULLUP) | (this->capability_ & CAPABILITY_PULLDOWN) ) {
+    if (flags & gpio::FLAG_PULLUP) {
+      this->set_register_bit_(PUPD_ENABLE, pin, true);
+      this->set_register_bit_(PUPD_SEL, pin, true);
+    } else if (flags & gpio::FLAG_PULLDOWN) {
+      this->set_register_bit_(PUPD_ENABLE, pin, true);
+      this->set_register_bit_(PUPD_SEL, pin, false);
+    } else {
+      this->set_register_bit_(PUPD_ENABLE, pin, false);
+    }
   }
 }
 
@@ -268,22 +294,26 @@ bool PCA9554Component::set_register_bit_(uint8_t reg, uint8_t bit, bool value) {
 float PCA9554Component::get_setup_priority() const { return setup_priority::IO; }
 
 void PCA9554Component::set_latch(uint8_t pin, bool latch_state) {
-  if (pin > (this->pin_count_ - 1)) {
-    ESP_LOGE(TAG, "Invalid pin %d", pin);
-    return;
-  }
+  if(this->capability_ & CAPABILITY_LATCH) {
+    if (pin > (this->pin_count_ - 1)) {
+      ESP_LOGE(TAG, "Invalid pin %d", pin);
+      return;
+    }
 
-  this->set_register_bit_(INPUT_LATCH, pin, latch_state);
+    this->set_register_bit_(INPUT_LATCH, pin, latch_state);
+  }
 }
 
 void PCA9554Component::set_interrupt(uint8_t pin, bool interrupt_state) {
-  if (pin > (this->pin_count_ - 1)) {
-    ESP_LOGE(TAG, "Invalid pin %d", pin);
-    return;
-  }
+  if(this->capability_ & CAPABILITY_INTERRUPT) {
+    if (pin > (this->pin_count_ - 1)) {
+      ESP_LOGE(TAG, "Invalid pin %d", pin);
+      return;
+    }
 
-  // In this register, a zero indicates the interrupt is unmasked.
-  this->set_register_bit_(INTERRUPT_MASK, pin, !interrupt_state);
+    // In this register, a zero indicates the interrupt is unmasked.
+    this->set_register_bit_(INTERRUPT_MASK, pin, !interrupt_state);
+  }
 }
 
 // Sets drive strength
@@ -292,29 +322,29 @@ void PCA9554Component::set_interrupt(uint8_t pin, bool interrupt_state) {
 //  2: 3/4 strength
 //  3: full strength
 void PCA9554Component::set_drive_strength(uint8_t pin, uint16_t strength_to_set) {
-  uint8_t register_to_modify = OUTPUT_DRIVE_0;
-  uint16_t reg_value = 0;
+  if(this->capability_ & CAPABILITY_DRIVE_STRENGTH) {
+    uint8_t register_to_modify = OUTPUT_DRIVE_0;
+    uint16_t reg_value = 0;
 
-  if (pin > (this->pin_count_ - 1)) {
-    ESP_LOGE(TAG, "Invalid pin %d", pin);
-    return;
-  }
-  if (strength_to_set > 0x03) {
-    ESP_LOGE(TAG, "Invalid drive strength %d", strength_to_set);
-    return;
-  }
+    if (pin > (this->pin_count_ - 1)) {
+      ESP_LOGE(TAG, "Invalid pin %d", pin);
+      return;
+    }
+    if (strength_to_set > 0x03) {
+      ESP_LOGE(TAG, "Invalid drive strength %d", strength_to_set);
+      return;
+    }
 
-  if (pin > 7) {
-    register_to_modify = OUTPUT_DRIVE_1;
-    pin = pin - 8;
-  }
+    if (pin > 7) {
+      register_to_modify = OUTPUT_DRIVE_1;
+      pin = pin - 8;
+    }
 
-  if (!this->read_register_(register_to_modify, reg_value)) {
-    return;
+    if (!this->read_register_(register_to_modify, reg_value)) { return; }
+    reg_value &= ~(3U<<(2U*pin));
+    reg_value |= strength_to_set<<(2U*pin);
+    this->write_register_(register_to_modify, reg_value);
   }
-  reg_value &= ~(3U << (2U * pin));
-  reg_value |= strength_to_set << (2U * pin);
-  this->write_register_(register_to_modify, reg_value);
 }
 
 // Set `state_open_drain` to true to turn on open drain for that bank.
@@ -336,9 +366,10 @@ uint16_t PCA9554Component::get_interrupt_status() {
 }
 
 void PCA9554GPIOPin::setup() {
-  this->pin_mode(flags_);  // TODO: Do we need the pin_mode function, or can we call the parent pin mode directly?
+  this->pin_mode(flags_);
   this->parent_->set_latch(this->pin_, this->latch_);
   this->parent_->set_interrupt(this->pin_, this->interrupt_);
+  this->parent_->set_drive_strength(this->pin_, this->drive_strength_);
 }
 
 void PCA9554GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
