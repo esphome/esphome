@@ -42,4 +42,3 @@ status_led:
 
 # Include API at priority 40
 api:
-  password: "apipassword"

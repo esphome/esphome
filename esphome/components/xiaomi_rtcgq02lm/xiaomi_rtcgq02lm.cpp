@@ -30,7 +30,9 @@ bool XiaomiRTCGQ02LM::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
   }
-  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", device.address_str().c_str());
+  char addr_buf[MAC_ADDRESS_PRETTY_BUFFER_SIZE];
+  const char *addr_str = device.address_str_to(addr_buf);
+  ESP_LOGVV(TAG, "parse_device(): MAC address %s found.", addr_str);
 
   bool success = false;
   for (auto &service_data : device.get_service_datas()) {
@@ -50,21 +52,19 @@ bool XiaomiRTCGQ02LM::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
       continue;
     }
 
-    if (!(xiaomi_ble::report_xiaomi_results(res, device.address_str()))) {
+    if (!(xiaomi_ble::report_xiaomi_results(res, addr_str))) {
       continue;
     }
 #ifdef USE_BINARY_SENSOR
     if (res->has_motion.has_value() && this->motion_ != nullptr) {
       this->motion_->publish_state(*res->has_motion);
-      this->set_timeout("motion_timeout", this->motion_timeout_,
-                        [this, res]() { this->motion_->publish_state(false); });
+      this->set_timeout("motion_timeout", this->motion_timeout_, [this]() { this->motion_->publish_state(false); });
     }
     if (res->is_light.has_value() && this->light_ != nullptr)
       this->light_->publish_state(*res->is_light);
     if (res->button_press.has_value() && this->button_ != nullptr) {
       this->button_->publish_state(*res->button_press);
-      this->set_timeout("button_timeout", this->button_timeout_,
-                        [this, res]() { this->button_->publish_state(false); });
+      this->set_timeout("button_timeout", this->button_timeout_, [this]() { this->button_->publish_state(false); });
     }
 #endif
 #ifdef USE_SENSOR
@@ -77,17 +77,7 @@ bool XiaomiRTCGQ02LM::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
   return success;
 }
 
-void XiaomiRTCGQ02LM::set_bindkey(const std::string &bindkey) {
-  memset(bindkey_, 0, 16);
-  if (bindkey.size() != 32) {
-    return;
-  }
-  char temp[3] = {0};
-  for (int i = 0; i < 16; i++) {
-    strncpy(temp, &(bindkey.c_str()[i * 2]), 2);
-    bindkey_[i] = std::strtoul(temp, nullptr, 16);
-  }
-}
+void XiaomiRTCGQ02LM::set_bindkey(const char *bindkey) { parse_hex(bindkey, this->bindkey_, sizeof(this->bindkey_)); }
 
 }  // namespace xiaomi_rtcgq02lm
 }  // namespace esphome

@@ -314,6 +314,8 @@ void ESP32ImprovComponent::dump_config() {
 }
 
 void ESP32ImprovComponent::process_incoming_data_() {
+  if (this->incoming_data_.size() < 3)
+    return;
   uint8_t length = this->incoming_data_[1];
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
@@ -338,8 +340,8 @@ void ESP32ImprovComponent::process_incoming_data_() {
           return;
         }
         wifi::WiFiAP sta{};
-        sta.set_ssid(command.ssid);
-        sta.set_password(command.password);
+        sta.set_ssid(command.ssid.c_str());
+        sta.set_password(command.password.c_str());
         this->connecting_sta_ = sta;
 
         wifi::global_wifi_component->set_sta(sta);
@@ -348,8 +350,7 @@ void ESP32ImprovComponent::process_incoming_data_() {
         ESP_LOGD(TAG, "Received Improv Wi-Fi settings ssid=%s, password=" LOG_SECRET("%s"), command.ssid.c_str(),
                  command.password.c_str());
 
-        auto f = std::bind(&ESP32ImprovComponent::on_wifi_connect_timeout_, this);
-        this->set_timeout("wifi-connect-timeout", 30000, f);
+        this->set_timeout("wifi-connect-timeout", 30000, [this]() { this->on_wifi_connect_timeout_(); });
         this->incoming_data_.clear();
         break;
       }
@@ -398,9 +399,12 @@ void ESP32ImprovComponent::check_wifi_connection_() {
 
 #ifdef USE_ESP32_IMPROV_NEXT_URL
     // Add next_url if configured (should be first per Improv BLE spec)
-    std::string next_url = this->get_formatted_next_url_();
-    if (!next_url.empty()) {
-      url_strings[url_count++] = std::move(next_url);
+    {
+      char url_buffer[384];
+      size_t len = this->get_formatted_next_url_(url_buffer, sizeof(url_buffer));
+      if (len > 0) {
+        url_strings[url_count++] = std::string(url_buffer, len);
+      }
     }
 #endif
 

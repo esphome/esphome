@@ -4,6 +4,7 @@ import logging
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
+from esphome.components.logger import request_log_listener
 from esphome.config_helpers import get_logger_level
 import esphome.config_validation as cv
 from esphome.const import (
@@ -75,7 +76,7 @@ SERVICE_ARG_NATIVE_TYPES: dict[str, MockObj] = {
     "bool": cg.bool_,
     "int": cg.int32,
     "float": cg.float_,
-    "string": cg.std_string,
+    "string": cg.StringRef,
     "bool[]": cg.FixedVector.template(cg.bool_).operator("const").operator("ref"),
     "int[]": cg.FixedVector.template(cg.int32).operator("const").operator("ref"),
     "float[]": cg.FixedVector.template(cg.float_).operator("const").operator("ref"),
@@ -226,40 +227,14 @@ def _encryption_schema(config):
     return ENCRYPTION_SCHEMA(config)
 
 
-def _validate_api_config(config: ConfigType) -> ConfigType:
-    """Validate API configuration with mutual exclusivity check and deprecation warning."""
-    # Check if both password and encryption are configured
-    has_password = CONF_PASSWORD in config and config[CONF_PASSWORD]
-    has_encryption = CONF_ENCRYPTION in config
-
-    if has_password and has_encryption:
-        raise cv.Invalid(
-            "The 'password' and 'encryption' options are mutually exclusive. "
-            "The API client only supports one authentication method at a time. "
-            "Please remove one of them. "
-            "Note: 'password' authentication is deprecated and will be removed in version 2026.1.0. "
-            "We strongly recommend using 'encryption' instead for better security."
-        )
-
-    # Warn about password deprecation
-    if has_password:
-        _LOGGER.warning(
-            "API 'password' authentication has been deprecated since May 2022 and will be removed in version 2026.1.0. "
-            "Please migrate to the 'encryption' configuration. "
-            "See https://esphome.io/components/api/#configuration-variables"
-        )
-
-    return config
-
-
 def _consume_api_sockets(config: ConfigType) -> ConfigType:
     """Register socket needs for API component."""
     from esphome.components import socket
 
     # API needs 1 listening socket + typically 3 concurrent client connections
     # (not max_connections, which is the upper limit rarely reached)
-    sockets_needed = 1 + 3
-    socket.consume_sockets(sockets_needed, "api")(config)
+    socket.consume_sockets(3, "api")(config)
+    socket.consume_sockets(1, "api", socket.SocketType.TCP_LISTEN)(config)
     return config
 
 
@@ -268,7 +243,17 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(APIServer),
             cv.Optional(CONF_PORT, default=6053): cv.port,
-            cv.Optional(CONF_PASSWORD, default=""): cv.string_strict,
+            # Removed in 2026.1.0 - kept to provide helpful error message
+            cv.Optional(CONF_PASSWORD): cv.invalid(
+                "The 'password' option has been removed in ESPHome 2026.1.0.\n"
+                "Password authentication was deprecated in May 2022.\n"
+                "Please migrate to encryption for secure API communication:\n\n"
+                "api:\n"
+                "  encryption:\n"
+                "    key: !secret api_encryption_key\n\n"
+                "Generate a key with: openssl rand -base64 32\n"
+                "Or visit https://esphome.io/components/api/#configuration-variables"
+            ),
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="15min"
             ): cv.positive_time_period_milliseconds,
@@ -316,11 +301,12 @@ CONFIG_SCHEMA = cv.All(
             # Maximum queued send buffers per connection before dropping connection
             # Each buffer uses ~8-12 bytes overhead plus actual message size
             # Platform defaults based on available RAM and typical message rates:
+            # CONF_MAX_SEND_QUEUE defaults are power of 2 for efficient modulo
             cv.SplitDefault(
                 CONF_MAX_SEND_QUEUE,
-                esp8266=5,  # Limited RAM, need to fail fast
+                esp8266=4,  # Limited RAM, need to fail fast
                 esp32=8,  # More RAM, can buffer more
-                rp2040=5,  # Limited RAM
+                rp2040=8,  # Moderate RAM
                 bk72xx=8,  # Moderate RAM
                 nrf52=8,  # Moderate RAM
                 rtl87xx=8,  # Moderate RAM
@@ -330,7 +316,6 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.rename_key(CONF_SERVICES, CONF_ACTIONS),
-    _validate_api_config,
     _consume_api_sockets,
 )
 
@@ -343,10 +328,10 @@ async def to_code(config: ConfigType) -> None:
     # Track controller registration for StaticVector sizing
     CORE.register_controller()
 
+    # Request a log listener slot for API log streaming
+    request_log_listener()
+
     cg.add(var.set_port(config[CONF_PORT]))
-    if config[CONF_PASSWORD]:
-        cg.add_define("USE_API_PASSWORD")
-        cg.add(var.set_password(config[CONF_PASSWORD]))
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_batch_delay(config[CONF_BATCH_DELAY]))
     if CONF_LISTEN_BACKLOG in config:
@@ -396,9 +381,18 @@ async def to_code(config: ConfigType) -> None:
                 if is_optional:
                     func_args.append((cg.bool_, "return_response"))
 
+            # Check if action chain has non-synchronous actions that would make
+            # non-owning StringRef dangle (rx_buf_ reused after delay)
+            has_non_synchronous = automation.has_non_synchronous_actions(
+                conf.get(CONF_THEN, [])
+            )
+
             service_arg_names: list[str] = []
             for name, var_ in conf[CONF_VARIABLES].items():
                 native = SERVICE_ARG_NATIVE_TYPES[var_]
+                # Fall back to std::string for string args if non-synchronous actions exist
+                if has_non_synchronous and native is cg.StringRef:
+                    native = cg.std_string
                 service_template_args.append(native)
                 func_args.append((native, name))
                 service_arg_names.append(name)
@@ -460,7 +454,10 @@ async def to_code(config: ConfigType) -> None:
             # and plaintext disabled. Only a factory reset can remove it.
             cg.add_define("USE_API_PLAINTEXT")
         cg.add_define("USE_API_NOISE")
-        cg.add_library("esphome/noise-c", "0.1.10")
+        cg.add_library("esphome/noise-c", "0.1.11")
+        # Enable optimized memzero/memcmp in libsodium instead of volatile byte loops
+        cg.add_build_flag("-DHAVE_WEAK_SYMBOLS=1")
+        cg.add_build_flag("-DHAVE_INLINE_ASM=1")
     else:
         cg.add_define("USE_API_PLAINTEXT")
 
@@ -525,11 +522,13 @@ HOMEASSISTANT_ACTION_ACTION_SCHEMA = cv.All(
     "homeassistant.action",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
     "homeassistant.service",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_ACTION_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def homeassistant_service_to_code(
     config: ConfigType,
@@ -540,24 +539,31 @@ async def homeassistant_service_to_code(
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, False)
-    templ = await cg.templatable(config[CONF_ACTION], args, None)
+    templ = await cg.templatable(config[CONF_ACTION], args, cg.std_string)
     cg.add(var.set_service(templ))
 
     # Initialize FixedVectors with exact sizes from config
     cg.add(var.init_data(len(config[CONF_DATA])))
     for key, value in config[CONF_DATA].items():
+        # output_type=None because lambdas can return non-string types (int,
+        # float, char*) that TemplatableStringValue converts via to_string.
+        # Static strings are manually wrapped for PROGMEM on ESP8266.
         templ = await cg.templatable(value, args, None)
-        cg.add(var.add_data(key, templ))
+        if isinstance(templ, str):
+            templ = cg.FlashStringLiteral(templ)
+        cg.add(var.add_data(cg.FlashStringLiteral(key), templ))
 
     cg.add(var.init_data_template(len(config[CONF_DATA_TEMPLATE])))
     for key, value in config[CONF_DATA_TEMPLATE].items():
         templ = await cg.templatable(value, args, None)
-        cg.add(var.add_data_template(key, templ))
+        if isinstance(templ, str):
+            templ = cg.FlashStringLiteral(templ)
+        cg.add(var.add_data_template(cg.FlashStringLiteral(key), templ))
 
     cg.add(var.init_variables(len(config[CONF_VARIABLES])))
     for key, value in config[CONF_VARIABLES].items():
         templ = await cg.templatable(value, args, None)
-        cg.add(var.add_variable(key, templ))
+        cg.add(var.add_variable(cg.FlashStringLiteral(key), templ))
 
     if on_error := config.get(CONF_ON_ERROR):
         cg.add_define("USE_API_HOMEASSISTANT_ACTION_RESPONSES")
@@ -620,29 +626,37 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema(
     "homeassistant.event",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_EVENT_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def homeassistant_event_to_code(config, action_id, template_arg, args):
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
-    templ = await cg.templatable(config[CONF_EVENT], args, None)
+    templ = await cg.templatable(config[CONF_EVENT], args, cg.std_string)
     cg.add(var.set_service(templ))
 
     # Initialize FixedVectors with exact sizes from config
     cg.add(var.init_data(len(config[CONF_DATA])))
     for key, value in config[CONF_DATA].items():
+        # output_type=None because lambdas can return non-string types (int,
+        # float, char*) that TemplatableStringValue converts via to_string.
+        # Static strings are manually wrapped for PROGMEM on ESP8266.
         templ = await cg.templatable(value, args, None)
-        cg.add(var.add_data(key, templ))
+        if isinstance(templ, str):
+            templ = cg.FlashStringLiteral(templ)
+        cg.add(var.add_data(cg.FlashStringLiteral(key), templ))
 
     cg.add(var.init_data_template(len(config[CONF_DATA_TEMPLATE])))
     for key, value in config[CONF_DATA_TEMPLATE].items():
         templ = await cg.templatable(value, args, None)
-        cg.add(var.add_data_template(key, templ))
+        if isinstance(templ, str):
+            templ = cg.FlashStringLiteral(templ)
+        cg.add(var.add_data_template(cg.FlashStringLiteral(key), templ))
 
     cg.add(var.init_variables(len(config[CONF_VARIABLES])))
     for key, value in config[CONF_VARIABLES].items():
         templ = await cg.templatable(value, args, None)
-        cg.add(var.add_variable(key, templ))
+        cg.add(var.add_variable(cg.FlashStringLiteral(key), templ))
 
     return var
 
@@ -660,16 +674,17 @@ HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA = cv.maybe_simple_value(
     "homeassistant.tag_scanned",
     HomeAssistantServiceCallAction,
     HOMEASSISTANT_TAG_SCANNED_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def homeassistant_tag_scanned_to_code(config, action_id, template_arg, args):
     cg.add_define("USE_API_HOMEASSISTANT_SERVICES")
     serv = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
-    cg.add(var.set_service("esphome.tag_scanned"))
+    cg.add(var.set_service(cg.FlashStringLiteral("esphome.tag_scanned")))
     # Initialize FixedVector with exact size (1 data field)
     cg.add(var.init_data(1))
     templ = await cg.templatable(config[CONF_TAG], args, cg.std_string)
-    cg.add(var.add_data("tag_id", templ))
+    cg.add(var.add_data(cg.FlashStringLiteral("tag_id"), templ))
     return var
 
 
@@ -701,6 +716,7 @@ API_RESPOND_ACTION_SCHEMA = cv.All(
     "api.respond",
     APIRespondAction,
     API_RESPOND_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def api_respond_to_code(
     config: ConfigType,

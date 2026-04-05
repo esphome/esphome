@@ -33,9 +33,21 @@ void PI4IOE5V6408Component::setup() {
       return;
     }
   }
+
+  // No need to clear latched interrupts before attaching the ISR — if INT is
+  // already low the ISR fires immediately, loop runs, cache invalidates, and
+  // the read clears the latch. One harmless extra read at most.
+  if (this->interrupt_pin_ != nullptr) {
+    this->interrupt_pin_->setup();
+    this->interrupt_pin_->attach_interrupt(&PI4IOE5V6408Component::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+    this->set_invalidate_on_read_(false);
+    this->disable_loop();
+  }
 }
+void IRAM_ATTR PI4IOE5V6408Component::gpio_intr(PI4IOE5V6408Component *arg) { arg->enable_loop_soon_any_context(); }
 void PI4IOE5V6408Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PI4IOE5V6408:");
+  LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_I2C_DEVICE(this)
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -60,7 +72,12 @@ void PI4IOE5V6408Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   this->write_gpio_modes_();
 }
 
-void PI4IOE5V6408Component::loop() { this->reset_pin_cache_(); }
+void PI4IOE5V6408Component::loop() {
+  this->reset_pin_cache_();
+  if (this->interrupt_pin_ != nullptr) {
+    this->disable_loop();
+  }
+}
 
 bool PI4IOE5V6408Component::read_gpio_outputs_() {
   if (this->is_failed())
@@ -142,11 +159,19 @@ bool PI4IOE5V6408Component::write_gpio_modes_() {
     this->status_set_warning(LOG_STR("Failed to write GPIO pull enable"));
     return false;
   }
+  // Enable interrupts for input pins when interrupt pin is configured
+  // (input pins have mode_mask_ bit cleared)
+  if (this->interrupt_pin_ != nullptr &&
+      !this->write_byte(PI4IOE5V6408_REGISTER_INTERRUPT_ENABLE_MASK, static_cast<uint8_t>(~this->mode_mask_))) {
+    this->status_set_warning(LOG_STR("Failed to write interrupt enable mask"));
+    return false;
+  }
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   ESP_LOGV(TAG,
-           "Wrote GPIO modes: 0b" BYTE_TO_BINARY_PATTERN "\n"
-           "Wrote GPIO pullup/pulldown: 0b" BYTE_TO_BINARY_PATTERN "\n"
-           "Wrote GPIO pull enable: 0b" BYTE_TO_BINARY_PATTERN,
+           "Wrote GPIO config:\n"
+           "  modes: 0b" BYTE_TO_BINARY_PATTERN "\n"
+           "  pullup/pulldown: 0b" BYTE_TO_BINARY_PATTERN "\n"
+           "  pull enable: 0b" BYTE_TO_BINARY_PATTERN,
            BYTE_TO_BINARY(this->mode_mask_), BYTE_TO_BINARY(this->pull_up_down_mask_),
            BYTE_TO_BINARY(this->pull_enable_mask_));
 #endif
@@ -165,7 +190,7 @@ void PI4IOE5V6408GPIOPin::digital_write(bool value) {
   this->parent_->digital_write(this->pin_, value != this->inverted_);
 }
 size_t PI4IOE5V6408GPIOPin::dump_summary(char *buffer, size_t len) const {
-  return snprintf(buffer, len, "%u via PI4IOE5V6408", this->pin_);
+  return buf_append_printf(buffer, len, 0, "%u via PI4IOE5V6408", this->pin_);
 }
 
 }  // namespace pi4ioe5v6408

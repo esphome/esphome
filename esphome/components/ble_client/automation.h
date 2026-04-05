@@ -186,8 +186,10 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
       case ESP_GATTC_SEARCH_CMPL_EVT: {
         auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
         if (chr == nullptr) {
+          char char_buf[esp32_ble::UUID_STR_LEN];
+          char service_buf[esp32_ble::UUID_STR_LEN];
           esph_log_w("ble_write_action", "Characteristic %s was not found in service %s",
-                     this->char_uuid_.to_string().c_str(), this->service_uuid_.to_string().c_str());
+                     this->char_uuid_.to_str(char_buf), this->service_uuid_.to_str(service_buf));
           break;
         }
         this->char_handle_ = chr->handle;
@@ -199,11 +201,13 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
           this->write_type_ = ESP_GATT_WRITE_TYPE_NO_RSP;
           esph_log_d(Automation::TAG, "Write type: ESP_GATT_WRITE_TYPE_NO_RSP");
         } else {
-          esph_log_e(Automation::TAG, "Characteristic %s does not allow writing", this->char_uuid_.to_string().c_str());
+          char char_buf[esp32_ble::UUID_STR_LEN];
+          esph_log_e(Automation::TAG, "Characteristic %s does not allow writing", this->char_uuid_.to_str(char_buf));
           break;
         }
         this->node_state = espbt::ClientState::ESTABLISHED;
-        esph_log_d(Automation::TAG, "Found characteristic %s on device %s", this->char_uuid_.to_string().c_str(),
+        char char_buf[esp32_ble::UUID_STR_LEN];
+        esph_log_d(Automation::TAG, "Found characteristic %s on device %s", this->char_uuid_.to_str(char_buf),
                    ble_client_->address_str());
         break;
       }
