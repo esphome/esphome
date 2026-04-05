@@ -32,8 +32,8 @@ class PCA9554Component : public Component,
   void set_pin_count(size_t pin_count) { this->pin_count_ = pin_count; }
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
 
-  //test function, delete this later
-  //void do_stuff();
+  // test function, delete this later
+  // void do_stuff();
 
  protected:
   static void IRAM_ATTR gpio_intr(PCA9554Component *arg);
