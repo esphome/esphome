@@ -63,6 +63,8 @@ class EPaperBase : public Display,
     this->update_effective_transform_();
   }
   void set_full_update_every(uint8_t full_update_every) { this->full_update_every_ = full_update_every; }
+  void set_reversed(bool reversed) { this->reversed_ = reversed; }
+  void set_sleep_when_done(bool sleep_when_done) { this->sleep_when_done_ = sleep_when_done; }
   void dump_config() override;
 
   void command(uint8_t value);
@@ -211,6 +213,8 @@ class EPaperBase : public Display,
   EPaperState state_{EPaperState::IDLE};
   uint32_t reset_duration_{10};
   uint8_t full_update_every_{1};
+  bool reversed_{false};
+  bool sleep_when_done_{false};
   std::string update_mode_{};
 };
 

@@ -130,7 +130,7 @@ def model_schema(config):
                 {
                     cv.Optional(
                         CONF_SLEEP_WHEN_DONE,
-                        default=model.get_default(CONF_SLEEP_WHEN_DONE, True),
+                        default=model.get_default(CONF_SLEEP_WHEN_DONE, False),
                     ): cv.boolean
                 }
                 if model.get_default(CONF_SLEEP_WHEN_DONE) is not None
