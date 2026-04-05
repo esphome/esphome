@@ -140,27 +140,19 @@ void PCA9554Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   }
 }
 
-// TODO: Modify this to use the read_register_ function?
 bool PCA9554Component::read_inputs_() {
-  uint8_t inputs[2];
-
   if (this->is_failed()) {
     ESP_LOGD(TAG, "Device marked failed");
     return false;
   }
 
-  this->last_error_ = this->read_register(INPUT_REG * this->reg_width_, inputs, this->reg_width_);
-  if (this->last_error_ != i2c::ERROR_OK) {
-    this->status_set_warning();
-    ESP_LOGE(TAG, "read_register_(): I2C I/O error: %d", (int) this->last_error_);
-    return false;
+  uint16_t input_values = 0;
+  if (this->read_register_(INPUT_REG, input_values)) {
+    //Register read successfully
+    this->input_mask_ = input_values;
+    return true;
   }
-  this->status_clear_warning();
-  this->input_mask_ = inputs[0];
-  if (this->reg_width_ == 2) {
-    this->input_mask_ |= inputs[1] << 8;
-  }
-  return true;
+  return false;
 }
 
 uint8_t PCA9554Component::get_register_address_(uint8_t reg) {
