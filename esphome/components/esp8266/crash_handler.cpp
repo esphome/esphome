@@ -27,9 +27,10 @@ static constexpr uint32_t IRAM_END = 0x40108000;  // 32KB
 // Linker symbols for the actual firmware IROM section.
 // Using these instead of a conservative upper bound (0x40400000) prevents
 // false positives from stale stack values beyond the actual flash mapping.
+// Declared as void functions to match the Arduino core's mmu_iram.h declarations.
 extern "C" {
-extern uint8_t _irom0_text_start;  // NOLINT(bugprone-reserved-identifier,readability-identifier-naming)
-extern uint8_t _irom0_text_end;    // NOLINT(bugprone-reserved-identifier,readability-identifier-naming)
+extern void _irom0_text_start(void);  // NOLINT(bugprone-reserved-identifier,readability-identifier-naming)
+extern void _irom0_text_end(void);    // NOLINT(bugprone-reserved-identifier,readability-identifier-naming)
 }
 
 // Check if a value looks like a code address in IRAM or flash-mapped IROM.
@@ -37,8 +38,8 @@ extern uint8_t _irom0_text_end;    // NOLINT(bugprone-reserved-identifier,readab
 // Linker symbols are link-time constants — safe to reference from any context.
 static inline bool is_code_addr(uint32_t val) {
   uint32_t addr = (val & XTENSA_ADDR_MASK) | XTENSA_CODE_BASE;
-  return (addr >= IRAM_START && addr < IRAM_END) || (addr >= reinterpret_cast<uint32_t>(&_irom0_text_start) &&
-                                                     addr < reinterpret_cast<uint32_t>(&_irom0_text_end));
+  return (addr >= IRAM_START && addr < IRAM_END) ||
+         (addr >= (uint32_t) _irom0_text_start && addr < (uint32_t) _irom0_text_end);
 }
 
 // Recover the actual code address from a windowed-ABI return address on the stack.
@@ -205,8 +206,8 @@ extern "C" void IRAM_ATTR custom_crash_callback(struct rst_info *rst_info, uint3
   RtcCrashData data;  // NOLINT(cppcoreguidelines-pro-type-member-init)
   uint8_t count = 0;
 
-  auto *scan = reinterpret_cast<uint32_t *>(stack);
-  auto *end = reinterpret_cast<uint32_t *>(stack_end);
+  auto *scan = (uint32_t *) stack;     // NOLINT(performance-no-int-to-ptr)
+  auto *end = (uint32_t *) stack_end;  // NOLINT(performance-no-int-to-ptr)
   uint32_t epc1 = rst_info->epc1;
 
   for (; scan < end && count < MAX_BACKTRACE; scan++) {
