@@ -297,7 +297,6 @@ def _validate(config):
                         f"({CORE.target_framework} {CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]}), "
                         f"'{CONF_INTERRUPT_PIN}' is a required option for [ethernet]."
                     )
-            _validate_spi_interface(config)
         elif config[CONF_TYPE] != "OPENETH":
             from esphome.components.esp32 import (
                 VARIANT_ESP32,
@@ -409,6 +408,7 @@ SPI_SCHEMA = cv.All(
         ),
     ),
     cv.only_on([Platform.ESP32, Platform.RP2040]),
+    _validate_spi_interface,
 )
 
 CONFIG_SCHEMA = cv.All(
