@@ -87,16 +87,11 @@ namespace esphome::esp8266 {
 
 static const char *const TAG = "esp8266.crash";
 
-// Whether the previous boot was a crash. Set once in crash_handler_read_and_clear().
-// resetInfo and RTC backtrace data persist until the next reset, so no caching needed.
-static bool s_crash_valid = false;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-bool crash_handler_has_data() { return s_crash_valid; }
-
-void crash_handler_read_and_clear() {
-  uint32_t reason = resetInfo.reason;
-  s_crash_valid = (reason == REASON_WDT_RST || reason == REASON_EXCEPTION_RST || reason == REASON_SOFT_WDT_RST);
+static inline bool is_crash_reason(uint32_t reason) {
+  return reason == REASON_WDT_RST || reason == REASON_EXCEPTION_RST || reason == REASON_SOFT_WDT_RST;
 }
+
+bool crash_handler_has_data() { return is_crash_reason(resetInfo.reason); }
 
 // Xtensa exception cause names (shared with ESP32, same ISA).
 // Keep in sync with Xtensa ISA reference manual Table 4-64.
@@ -195,7 +190,7 @@ static uint8_t read_rtc_backtrace(uint32_t *backtrace, size_t max_entries) {
 // crashes again during boot, and allowing the CLI's process_stacktrace to match
 // and decode each address individually.
 void crash_handler_log() {
-  if (!s_crash_valid)
+  if (!is_crash_reason(resetInfo.reason))
     return;
 
   // Read and filter backtrace from RTC into stack-local buffer (no persistent RAM cost).
