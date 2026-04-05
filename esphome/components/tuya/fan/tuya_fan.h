@@ -16,8 +16,10 @@ class TuyaFan : public Component, public fan::Fan {
   void set_switch_id(uint8_t switch_id) { this->switch_id_ = switch_id; }
   void set_oscillation_id(uint8_t oscillation_id) { this->oscillation_id_ = oscillation_id; }
   void set_direction_id(uint8_t direction_id) { this->direction_id_ = direction_id; }
+  void set_preset_modes_id(uint8_t preset_modes_id) { this->preset_modes_id_ = preset_modes_id; }
+  void set_preset_modes(std::initializer_list<const char *> presets) { this->preset_modes_ = presets; }
 
-  fan::FanTraits get_traits() override;
+  fan::FanTraits get_traits() override { return this->traits_; }
 
  protected:
   void control(const fan::FanCall &call) override;
@@ -27,9 +29,13 @@ class TuyaFan : public Component, public fan::Fan {
   optional<uint8_t> switch_id_{};
   optional<uint8_t> oscillation_id_{};
   optional<uint8_t> direction_id_{};
+  optional<uint8_t> preset_modes_id_{};
+  std::vector<const char *> preset_modes_{};
+  fan::FanTraits traits_;
   int speed_count_{};
   TuyaDatapointType speed_type_{};
   TuyaDatapointType oscillation_type_{};
+  TuyaDatapointType preset_modes_type_{};
 };
 
 }  // namespace tuya

@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "esphome/core/log.h"
 #include "tuya_fan.h"
 
@@ -7,6 +8,10 @@ namespace tuya {
 static const char *const TAG = "tuya.fan";
 
 void TuyaFan::setup() {
+  this->traits_ = fan::FanTraits(this->oscillation_id_.has_value(), this->speed_id_.has_value(),
+                                 this->direction_id_.has_value(), this->speed_count_);
+  this->traits_.set_supported_preset_modes(this->preset_modes_);
+
   auto speed_id = this->speed_id_;
   if (speed_id.has_value()) {
     this->parent_->register_listener(*speed_id, [this](const TuyaDatapoint &datapoint) {
@@ -54,6 +59,25 @@ void TuyaFan::setup() {
       this->publish_state();
     });
   }
+  auto preset_modes_id = this->preset_modes_id_;
+  if (preset_modes_id.has_value()) {
+    this->parent_->register_listener(*preset_modes_id, [this](const TuyaDatapoint &datapoint) {
+      uint8_t preset_mode = 0;
+      if (datapoint.type == TuyaDatapointType::ENUM) {
+        preset_mode = datapoint.value_enum;
+      } else if (datapoint.type == TuyaDatapointType::INTEGER) {
+        preset_mode = datapoint.value_int;
+      }
+      ESP_LOGV(TAG, "MCU reported preset mode of: %d", preset_mode);
+      if ((std::size_t) preset_mode >= this->preset_modes_.size()) {
+        ESP_LOGE(TAG, "Preset mode has invalid value %d", preset_mode);
+      } else {
+        this->set_preset_mode_(this->preset_modes_[preset_mode]);
+        this->publish_state();
+      }
+      this->preset_modes_type_ = datapoint.type;
+    });
+  }
 
   this->parent_->add_on_initialized_callback([this]() {
     auto restored = this->restore_state_();
@@ -80,11 +104,10 @@ void TuyaFan::dump_config() {
   if (direction_dp_id.has_value()) {
     ESP_LOGCONFIG(TAG, "  Direction has datapoint ID %u", *direction_dp_id);
   }
-}
-
-fan::FanTraits TuyaFan::get_traits() {
-  return fan::FanTraits(this->oscillation_id_.has_value(), this->speed_id_.has_value(), this->direction_id_.has_value(),
-                        this->speed_count_);
+  auto preset_modes_dp_id = this->preset_modes_id_;
+  if (preset_modes_dp_id.has_value()) {
+    ESP_LOGCONFIG(TAG, "  Preset modes has datapoint ID %u", *preset_modes_dp_id);
+  }
 }
 
 void TuyaFan::control(const fan::FanCall &call) {
@@ -123,6 +146,23 @@ void TuyaFan::control(const fan::FanCall &call) {
       } else if (this->speed_type_ == TuyaDatapointType::INTEGER) {
         this->parent_->set_integer_datapoint_value(*spd_id, *speed);
       }
+    }
+  }
+
+  auto mode_id = this->preset_modes_id_;
+  if (mode_id.has_value() && call.has_preset_mode()) {
+    const char *mode = call.get_preset_mode();
+
+    auto preset_mode = std::find(this->preset_modes_.begin(), this->preset_modes_.end(), mode);
+    if (preset_mode != this->preset_modes_.end()) {
+      auto mode_idx = preset_mode - this->preset_modes_.begin();
+      if (this->preset_modes_type_ == TuyaDatapointType::ENUM) {
+        this->parent_->set_enum_datapoint_value(*mode_id, mode_idx);
+      } else if (this->preset_modes_type_ == TuyaDatapointType::INTEGER) {
+        this->parent_->set_integer_datapoint_value(*mode_id, mode_idx);
+      }
+    } else {
+      ESP_LOGE(TAG, "Preset mode '%s' is not supported", mode);
     }
   }
 }
