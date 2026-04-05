@@ -20,16 +20,11 @@ const uint8_t INTERRUPT_STATUS = 0x46;
 
 const uint8_t OUTPUT_PORT_CONFIG = 0x4F;
 
-
 const uint8_t CAPABILITY_PULLUP = 0x02U;
 const uint8_t CAPABILITY_PULLDOWN = 0x04U;
 const uint8_t CAPABILITY_LATCH = 0x08U;
 const uint8_t CAPABILITY_INTERRUPT = 0x10U;
 const uint8_t CAPABILITY_DRIVE_STRENGTH = 0x20U;
-
-
-
-
 
 static const char *const TAG = "pca9554";
 
@@ -175,7 +170,7 @@ void PCA9554Component::pin_mode(uint8_t pin, gpio::Flags flags) {
     this->set_register_bit_(CONFIG_REG, pin, false);
   }
 
-  if ( (this->capability_ & CAPABILITY_PULLUP) | (this->capability_ & CAPABILITY_PULLDOWN) ) {
+  if ((this->capability_ & CAPABILITY_PULLUP) | (this->capability_ & CAPABILITY_PULLDOWN)) {
     if (flags & gpio::FLAG_PULLUP) {
       this->set_register_bit_(PUPD_ENABLE, pin, true);
       this->set_register_bit_(PUPD_SEL, pin, true);
@@ -294,7 +289,7 @@ bool PCA9554Component::set_register_bit_(uint8_t reg, uint8_t bit, bool value) {
 float PCA9554Component::get_setup_priority() const { return setup_priority::IO; }
 
 void PCA9554Component::set_latch(uint8_t pin, bool latch_state) {
-  if(this->capability_ & CAPABILITY_LATCH) {
+  if (this->capability_ & CAPABILITY_LATCH) {
     if (pin > (this->pin_count_ - 1)) {
       ESP_LOGE(TAG, "Invalid pin %d", pin);
       return;
@@ -305,7 +300,7 @@ void PCA9554Component::set_latch(uint8_t pin, bool latch_state) {
 }
 
 void PCA9554Component::set_interrupt(uint8_t pin, bool interrupt_state) {
-  if(this->capability_ & CAPABILITY_INTERRUPT) {
+  if (this->capability_ & CAPABILITY_INTERRUPT) {
     if (pin > (this->pin_count_ - 1)) {
       ESP_LOGE(TAG, "Invalid pin %d", pin);
       return;
@@ -322,7 +317,7 @@ void PCA9554Component::set_interrupt(uint8_t pin, bool interrupt_state) {
 //  2: 3/4 strength
 //  3: full strength
 void PCA9554Component::set_drive_strength(uint8_t pin, uint16_t strength_to_set) {
-  if(this->capability_ & CAPABILITY_DRIVE_STRENGTH) {
+  if (this->capability_ & CAPABILITY_DRIVE_STRENGTH) {
     uint8_t register_to_modify = OUTPUT_DRIVE_0;
     uint16_t reg_value = 0;
 
@@ -340,9 +335,11 @@ void PCA9554Component::set_drive_strength(uint8_t pin, uint16_t strength_to_set)
       pin = pin - 8;
     }
 
-    if (!this->read_register_(register_to_modify, reg_value)) { return; }
-    reg_value &= ~(3U<<(2U*pin));
-    reg_value |= strength_to_set<<(2U*pin);
+    if (!this->read_register_(register_to_modify, reg_value)) {
+      return;
+    }
+    reg_value &= ~(3U << (2U * pin));
+    reg_value |= strength_to_set << (2U * pin);
     this->write_register_(register_to_modify, reg_value);
   }
 }
