@@ -237,7 +237,9 @@ void crash_handler_log() {
 // the device restarts. We scan the full stack for code addresses and store
 // them in RTC user memory (which survives software reset).
 extern "C" void IRAM_ATTR custom_crash_callback(struct rst_info *rst_info, uint32_t stack, uint32_t stack_end) {
-  RtcCrashData data = {};
+  // No zero-init — only magic, epc1, and backtrace[0..count-1] are read.
+  // Saves the IRAM cost of a 72-byte zero-init loop.
+  RtcCrashData data;  // NOLINT(cppcoreguidelines-pro-type-member-init)
   uint8_t count = 0;
 
   auto *scan = reinterpret_cast<uint32_t *>(stack);
