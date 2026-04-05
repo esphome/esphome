@@ -164,10 +164,7 @@ class ModbusClientDevice {
             const uint8_t *payload = nullptr) {
     this->parent_->send(this->address_, function, start_address, number_of_entities, payload_len, payload, this);
   }
-  void send_pdu(const std::vector<uint8_t> &pdu) {
-    if (pdu.size() >= MAX_FRAME_SIZE) {
-      return;
-    }
+  void send_pdu(const StaticVector<uint8_t, MAX_FRAME_SIZE> &pdu) {
     uint8_t payload[MAX_FRAME_SIZE];
     payload[0] = this->address_;
     std::memcpy(payload + 1, pdu.data(), pdu.size());

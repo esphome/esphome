@@ -355,49 +355,50 @@ int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sens
  * WRITE_SINGLE_REGISTER
  * WRITE_MULTIPLE_COILS
  * WRITE_MULTIPLE_REGISTERS
- * @param start_address coil/register/input starting ddress
+ * @param start_address coil/register/input starting address
  * @param number_of_entities number of coils/registers/inputs to read/write
- * @param values vector of the values to write.
+ * @param values optional payload bytes to write (nullptr for read commands)
+ * @param values_len length of values array
+ * @return PDU (function code + data, no address, no CRC)
  */
-void create_client_pdu(std::vector<uint8_t> &pdu, ModbusFunctionCode function_code, uint16_t start_address,
-                       uint16_t number_of_entities, const uint8_t *values = nullptr, size_t values_len = 0);
-void create_client_pdu(std::vector<uint8_t> &pdu, ModbusFunctionCode function_code, uint16_t start_address,
-                       uint16_t number_of_entities, const std::vector<uint8_t> &values);
+StaticVector<uint8_t, MAX_FRAME_SIZE> create_client_pdu(ModbusFunctionCode function_code, uint16_t start_address,
+                                                        uint16_t number_of_entities, const uint8_t *values = nullptr,
+                                                        size_t values_len = 0);
 
 /** Create modbus write multiple registers command
  *  Function 0x10 Write Multiple Registers
- * @param pdu target for modbus protocol data unit (function code + data)
- * @param start_address modbus address of the first register to read
- * @param register_count number of registers to read
+ * @param start_address modbus address of the first register to write
+ * @param register_count number of registers to write
  * @param values uint16_t register values to write
+ * @return PDU (function code + data, no address, no CRC)
  */
-void create_write_multiple_pdu(std::vector<uint8_t> &pdu, uint16_t start_address, uint16_t register_count,
-                               const std::vector<uint16_t> &values);
+StaticVector<uint8_t, MAX_FRAME_SIZE> create_write_multiple_pdu(uint16_t start_address, uint16_t register_count,
+                                                                const std::vector<uint16_t> &values);
 
-/** Create modbus write single registers command
+/** Create modbus write single register command
  *  Function 0x06 Write Single Register
- * @param pdu target for modbus protocol data unit (function code + data)
- * @param start_address modbus address of the first coil to read
- * @param value uint16_t data to be written to the coils
+ * @param start_address modbus address of the register to write
+ * @param value uint16_t value to write
+ * @return PDU (function code + data, no address, no CRC)
  */
-void create_write_single_pdu(std::vector<uint8_t> &pdu, uint16_t start_address, uint16_t value);
+StaticVector<uint8_t, MAX_FRAME_SIZE> create_write_single_pdu(uint16_t start_address, uint16_t value);
 
 /** Create modbus write single coil command
  *  Function 0x05 Write Single Coil
- * @param pdu target for modbus protocol data unit (function code + data)
- * @param start_address modbus address of the first coil to write
- * @param value data to be written to the coils
+ * @param address modbus address of the coil to write
+ * @param value coil value to write
+ * @return PDU (function code + data, no address, no CRC)
  */
-void create_write_single_coil_pdu(std::vector<uint8_t> &pdu, uint16_t address, bool value);
+StaticVector<uint8_t, MAX_FRAME_SIZE> create_write_single_coil_pdu(uint16_t address, bool value);
 
 /** Create modbus write multiple coils command
  *  Function 0x0F Write Multiple Coils
- * @param pdu target for modbus protocol data unit (function code + data)
- * @param start_address modbus address of the first register to read
- * @param value bool vector of values to be written to the coils
+ * @param start_address modbus address of the first coil to write
+ * @param values bool vector of coil values to write
+ * @return PDU (function code + data, no address, no CRC)
  */
-void create_write_multiple_coils_pdu(std::vector<uint8_t> &pdu, uint16_t start_address,
-                                     const std::vector<bool> &values);
+StaticVector<uint8_t, MAX_FRAME_SIZE> create_write_multiple_coils_pdu(uint16_t start_address,
+                                                                      const std::vector<bool> &values);
 
 std::vector<uint8_t> add_crc_to_payload(const std::vector<uint8_t> &payload);
 
