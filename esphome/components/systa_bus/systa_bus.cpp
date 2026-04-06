@@ -13,7 +13,7 @@ void SystaBus::dump_config() {
   check_uart_settings(9600);
 }
 
-static bool checksum(std::vector<uint8_t> data) {
+static bool checksum(const std::vector<uint8_t>& data) {
   uint8_t csum = 0;
   for (uint8_t i : data)
     csum += i;
