@@ -35,7 +35,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(AGS10Component),
-            cv.Optional(CONF_TVOC): sensor.sensor_schema(
+            cv.Required(CONF_TVOC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_BILLION,
                 icon=ICON_RADIATOR,
                 accuracy_decimals=0,
