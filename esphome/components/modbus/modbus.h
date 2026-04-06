@@ -113,6 +113,7 @@ class ModbusClientHub : public Modbus {
             bool allow_duplicates = false);
   void send_raw(const uint8_t *payload, uint16_t len, ModbusClientDevice *device = nullptr,
                 bool allow_duplicates = false);
+  ESPDEPRECATED("Use send_raw(const uint8_t *, uint16_t) instead. Removed in 2026.10.0", "2026.4.0")
   void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr,
                 bool allow_duplicates = false);
   void send_pdu(uint8_t address, const StaticVector<uint8_t, MAX_FRAME_SIZE> &pdu, ModbusClientDevice *device = nullptr,
@@ -179,6 +180,7 @@ class ModbusClientDevice {
     this->parent_->send_pdu(this->address_, pdu, this);
   }
   void send_raw(const uint8_t *payload, uint16_t len) { this->parent_->send_raw(payload, len, this); }
+  ESPDEPRECATED("Use send_pdu(StaticVector<uint8_t, MAX_FRAME_SIZE>) instead. Removed in 2026.10.0", "2026.4.0")
   void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload, this); }
   inline void clear_tx_queue_for_address(bool clear_sent = true) {
     this->parent_->clear_tx_queue_for_address(this->address_, clear_sent);

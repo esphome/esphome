@@ -522,7 +522,7 @@ bool ModbusCommandItem::send() {
     modbusdevice->send(uint8_t(this->function_code), this->register_address, this->register_count, this->payload.size(),
                        this->payload.empty() ? nullptr : &this->payload[0]);
   } else {
-    modbusdevice->send_raw(this->payload);
+    modbusdevice->send_raw(this->payload.data(), static_cast<uint16_t>(this->payload.size()));
   }
   this->send_count_++;
   ESP_LOGV(TAG, "Command sent %d 0x%X %d send_count: %d", uint8_t(this->function_code), this->register_address,
