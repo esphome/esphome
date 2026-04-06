@@ -245,7 +245,7 @@ async def send_action(
 
     data = config.get(CONF_DATA, [])
     if isinstance(data, str):
-        data = [cg.RawExpression(f"'{c}'") for c in data]
+        data = list(data.encode())
     templ = await cg.templatable(data, args, byte_vector, byte_vector)
     cg.add(var.set_data(templ))
 
