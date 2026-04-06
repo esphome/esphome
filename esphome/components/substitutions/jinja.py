@@ -9,6 +9,7 @@ import jinja2 as jinja
 from jinja2.nativetypes import NativeCodeGenerator, NativeTemplate
 from jinja2.runtime import missing as Missing
 
+# Re-exported for backward compatibility — consumers import has_jinja from here
 from esphome.expression import has_jinja  # noqa: F401
 
 TemplateError = jinja.TemplateError

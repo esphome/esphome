@@ -132,7 +132,11 @@ class ConfigContext:
         self._context_vars = vars
 
     def copy_context_to_children(self) -> None:
-        """Propagate context to children."""
+        """Propagate context to children.
+
+        isinstance(self, dict/list) works because ConfigContext is dynamically
+        mixed into dict/list subclasses via add_class_to_obj in add_context().
+        """
         if isinstance(self, dict):
             tagged = {
                 add_context(k, self.vars): add_context(v, self.vars)
@@ -209,6 +213,24 @@ def _add_data_ref(fn):
         return res
 
     return wrapped
+
+
+def _resolve_merge_include(value: Any, node: yaml.Node, value_node: yaml.Node) -> Any:
+    """Resolve an IncludeFile and propagate context for merge key handling."""
+    if isinstance(value, IncludeFile):
+        if value.has_unresolved_expressions():
+            raise yaml.constructor.ConstructorError(
+                "While constructing a mapping",
+                node.start_mark,
+                "Substitution in include filename with merge keys is not supported yet.",
+                value_node.start_mark,
+            )
+        value = value.load()
+    if isinstance(value, ConfigContext):
+        # Since the parent dict/list will disappear, propagate
+        # context to children now to retain context vars
+        value.copy_context_to_children()
+    return value
 
 
 class ESPHomeLoaderMixin:
@@ -303,20 +325,7 @@ class ESPHomeLoaderMixin:
             # This is a merge key, resolve value and add to merge_pairs
             value = self.construct_object(value_node)
 
-            if isinstance(value, IncludeFile):
-                if value.has_unresolved_expressions():
-                    raise yaml.constructor.ConstructorError(
-                        "While constructing a mapping",
-                        node.start_mark,
-                        "Substitution in include filename with merge keys is not supported yet.",
-                        value_node.start_mark,
-                    )
-                value = value.load()
-
-            if isinstance(value, ConfigContext):
-                # Since the parent dict/list will disappear, propagate
-                # context to children now to retain context vars
-                value.copy_context_to_children()
+            value = _resolve_merge_include(value, node, value_node)
 
             if isinstance(value, dict):
                 # base case, copy directly to merge_pairs
@@ -325,15 +334,7 @@ class ESPHomeLoaderMixin:
             elif isinstance(value, list):
                 # sequence merge, like "<<: [{some_key: some_value}, {other_key: some_value}]"
                 for item in value:
-                    if isinstance(item, IncludeFile):
-                        if item.has_unresolved_expressions():
-                            raise yaml.constructor.ConstructorError(
-                                "While constructing a mapping",
-                                node.start_mark,
-                                "Substitution in include filename with merge keys is not supported yet.",
-                                value_node.start_mark,
-                            )
-                        item = item.load()
+                    item = _resolve_merge_include(item, node, value_node)
                     if not isinstance(item, dict):
                         raise yaml.constructor.ConstructorError(
                             "While constructing a mapping",
@@ -341,8 +342,6 @@ class ESPHomeLoaderMixin:
                             f"Expected a mapping for merging, but found {type(item)}",
                             value_node.start_mark,
                         )
-                    if isinstance(item, ConfigContext):
-                        item.copy_context_to_children()
                     merge_pairs.extend(item.items())
             else:
                 raise yaml.constructor.ConstructorError(

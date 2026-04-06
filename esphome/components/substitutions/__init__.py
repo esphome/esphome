@@ -305,6 +305,8 @@ def resolve_include(
     Returns the loaded content and the resolved filename.
 
     Note: no path-traversal validation is performed on the resolved filename.
+    A substitution that resolves to an absolute path will bypass the parent
+    directory (Path.__truediv__ ignores the left operand for absolute paths).
     ESPHome's trust model assumes the config author controls all substitution
     values (including command-line substitutions), so path restrictions are
     an explicit non-goal here.
