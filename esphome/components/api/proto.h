@@ -296,9 +296,7 @@ inline void ESPHOME_ALWAYS_INLINE proto_encode_field_raw(uint8_t *__restrict__ &
   proto_encode_varint_raw(pos, (field_id << 3) | type);
 }
 /// Write a single precomputed tag byte. Tag must be < 128.
-inline void ESPHOME_ALWAYS_INLINE proto_write_raw_byte(uint8_t *__restrict__ &pos, uint8_t b) {
-  *pos++ = b;
-}
+inline void ESPHOME_ALWAYS_INLINE proto_write_raw_byte(uint8_t *__restrict__ &pos, uint8_t b) { *pos++ = b; }
 /// Write raw bytes to the buffer (no tag, no length prefix).
 inline void ESPHOME_ALWAYS_INLINE proto_encode_raw(uint8_t *__restrict__ &pos, const void *data, size_t len) {
   std::memcpy(pos, data, len);
