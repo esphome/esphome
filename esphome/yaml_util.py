@@ -179,6 +179,11 @@ class IncludeFile:
         return f"IncludeFile({self.file.as_posix()})"
 
     def load(self) -> Any:
+        """Load and cache the included file content.
+
+        Note: returns the cached mutable object on subsequent calls.
+        Callers that need to modify the result should copy it first.
+        """
         if self._content is not _UNSET:
             return self._content
         if self.has_unresolved_expressions():

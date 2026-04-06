@@ -36,6 +36,7 @@ from esphome.core import EsphomeError
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = CONF_PACKAGES
+# Guard against infinite include chains (e.g. A includes B includes A).
 MAX_INCLUDE_DEPTH = 20
 
 
