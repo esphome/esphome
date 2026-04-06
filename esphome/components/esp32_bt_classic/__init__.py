@@ -30,7 +30,7 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-AUTO_LOAD = ["esp32_bt_common", "text_sensor"]
+AUTO_LOAD = ["text_sensor"]
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@RoboMagus"]
 
@@ -176,7 +176,6 @@ async def to_code(config):
     if CONF_LAST_ERROR in config:
         sens = await text_sensor.new_text_sensor(config[CONF_LAST_ERROR])
         cg.add(var.set_last_error_sensor(sens))
-
 
     if revert_config := config.get(CONF_RESET_BT_STACK):
         b = await button.new_button(revert_config)

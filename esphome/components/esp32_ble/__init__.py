@@ -23,7 +23,6 @@ from esphome.core import CORE, CoroPriority, TimePeriod, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.types import ConfigType
 
-AUTO_LOAD = ["esp32_bt_common"]
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@jesserockz", "@Rapsssito", "@bdraco"]
 DOMAIN = "esp32_ble"

@@ -12,7 +12,6 @@
 #include <freertos/task.h>
 #include <nvs_flash.h>
 
-#include "esphome/components/esp32_bt_common/bt_defs.h"
 // For time getting:
 #include "esphome/components/homeassistant/time/homeassistant_time.h"
 
