@@ -75,9 +75,11 @@ TYPES: dict[str, cv.Schema] = {
     ),
 }
 
-CONFIG_SCHEMA = PYLONTECH_COMPONENT_SCHEMA.extend(
-    {cv.GenerateID(): cv.declare_id(PylontechSensor)}
-).extend({cv.Optional(marker): schema for marker, schema in TYPES.items()})
+CONFIG_SCHEMA = (
+    PYLONTECH_COMPONENT_SCHEMA.extend({cv.GenerateID(): cv.declare_id(PylontechSensor)})
+    .extend({cv.Optional(marker): schema for marker, schema in TYPES.items()})
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):
@@ -89,4 +91,5 @@ async def to_code(config):
             sens = await sensor.new_sensor(marker_config)
             cg.add(getattr(bat, f"set_{marker}_sensor")(sens))
 
+    await cg.register_component(bat, config)
     cg.add(paren.register_listener(bat))

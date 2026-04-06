@@ -19,9 +19,15 @@ MARKERS: list[str] = [
     CONF_TEMPERATURE_STATE,
 ]
 
-CONFIG_SCHEMA = PYLONTECH_COMPONENT_SCHEMA.extend(
-    {cv.GenerateID(): cv.declare_id(PylontechTextSensor)}
-).extend({cv.Optional(marker): text_sensor.text_sensor_schema() for marker in MARKERS})
+CONFIG_SCHEMA = (
+    PYLONTECH_COMPONENT_SCHEMA.extend(
+        {cv.GenerateID(): cv.declare_id(PylontechTextSensor)}
+    )
+    .extend(
+        {cv.Optional(marker): text_sensor.text_sensor_schema() for marker in MARKERS}
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):
@@ -33,4 +39,5 @@ async def to_code(config):
             var = await text_sensor.new_text_sensor(marker_config)
             cg.add(getattr(bat, f"set_{marker}_text_sensor")(var))
 
+    await cg.register_component(bat, config)
     cg.add(paren.register_listener(bat))
