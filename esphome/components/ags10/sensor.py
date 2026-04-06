@@ -131,6 +131,6 @@ async def ags10setzeropoint_to_code(config, action_id, template_arg, args):
         config.get(CONF_MODE), args, AGS10SetZeroPointActionMode
     )
     cg.add(var.set_mode(mode))
-    value = await cg.templatable(config[CONF_VALUE], args, int)
+    value = await cg.templatable(config[CONF_VALUE], args, cg.uint16)
     cg.add(var.set_value(value))
     return var
