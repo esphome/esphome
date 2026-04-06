@@ -1342,7 +1342,7 @@ class EnumType(TypeInfo):
                 return (
                     f"if (this->{self.field_name}) {{\n"
                     f"  buffer.write_raw_byte({tag});\n"
-                    f"  buffer.write_raw_byte(static_cast<uint8_t>({value_expr}));\n"
+                    f"  buffer.write_raw_byte(static_cast<uint8_t>(this->{self.field_name}));\n"
                     f"}}"
                 )
         if self.force:
