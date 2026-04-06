@@ -39,6 +39,7 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_PERCENT,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_BATTERY,
+                state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_IDLE_TIME): sensor.sensor_schema(
@@ -52,6 +53,7 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_LUX,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_ILLUMINANCE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     )
