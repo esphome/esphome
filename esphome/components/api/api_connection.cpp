@@ -1993,7 +1993,7 @@ bool APIConnection::send_message_(uint32_t payload_size, uint8_t message_type, M
   size_t write_start = shared_buf.size();
   shared_buf.resize(write_start + payload_size);
   ProtoWriteBuffer buffer{&shared_buf, write_start};
-  encode_fn(msg, buffer);
+  encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
   return this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type);
 }
 // encode_to_buffer is defined inline in api_connection.h (ESPHOME_ALWAYS_INLINE)
