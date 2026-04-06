@@ -17,12 +17,14 @@ import os
 from pathlib import Path
 import secrets
 import shutil
+import socket
 import subprocess
 import threading
 import time
 from typing import TYPE_CHECKING, Any, TypeVar
 from urllib.parse import urlparse
 
+import psutil
 import tornado
 import tornado.concurrent
 import tornado.gen
@@ -1602,6 +1604,27 @@ def make_app(debug=get_bool_env(ENV_DEV)) -> tornado.web.Application:
     )
 
 
+def get_ip_addresses_of_network_interface(interface_name: str) -> list[str]:
+    interface_ip_addresses = psutil.net_if_addrs().get(interface_name)
+
+    ip_addresses = [
+        (
+            f"{addr.address}%{socket.if_nametoindex(interface_name)}"
+            if addr.family == socket.AF_INET6
+            and addr.address.lower().startswith("fe80:")
+            and "%" not in addr.address
+            else addr.address
+        )
+        for addr in interface_ip_addresses
+        if addr.family in (socket.AF_INET, socket.AF_INET6)
+    ]
+
+    if not ip_addresses:
+        raise OSError(f"no IP addresses found for interface {interface_name!r}")
+
+    return ip_addresses
+
+
 def start_web_server(
     app: tornado.web.Application,
     socket: str | None,
@@ -1618,13 +1641,20 @@ def start_web_server(
         shutil.move(trash_path, archive_path)
 
     if socket is None:
-        _LOGGER.info(
-            "Starting dashboard web server on http://%s:%s and configuration dir %s...",
-            address,
-            port,
-            config_dir,
-        )
-        app.listen(port, address)
+        if address:
+            # Check if address is a network interface name
+            if address in psutil.net_if_addrs():
+                addresses = get_ip_addresses_of_network_interface(address)
+            else:
+                addresses = [address]
+            for binding_address in addresses:
+                _LOGGER.info(
+                    "Starting dashboard web server on http://%s:%s and configuration dir %s...",
+                    binding_address,
+                    port,
+                    config_dir,
+                )
+                app.listen(port, binding_address)
         return
 
     _LOGGER.info(

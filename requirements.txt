@@ -25,6 +25,7 @@ jinja2==3.1.6
 bleak==2.1.1
 smpclient==6.0.0
 requests==2.33.0
+psutil>=5.9.0
 
 # esp-idf >= 5.0 requires this
 pyparsing >= 3.0
