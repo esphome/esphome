@@ -23,6 +23,7 @@ from esphome.core.config import StartupTrigger
 
 from . import defines as df, lv_validation as lvalid
 from .defines import (
+    CONF_EXT_CLICK_AREA,
     CONF_SCROLL_DIR,
     CONF_SCROLL_SNAP_X,
     CONF_SCROLL_SNAP_Y,
@@ -311,6 +312,7 @@ STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).ex
         cv.Optional(df.CONF_SCROLLBAR_MODE): df.LvConstant(
             "LV_SCROLLBAR_MODE_", "OFF", "ON", "ACTIVE", "AUTO"
         ).one_of,
+        cv.Optional(CONF_EXT_CLICK_AREA): lvalid.pixels,
         cv.Optional(CONF_SCROLL_DIR): df.SCROLL_DIRECTIONS.one_of,
         cv.Optional(CONF_SCROLL_SNAP_X): df.SNAP_DIRECTIONS.one_of,
         cv.Optional(CONF_SCROLL_SNAP_Y): df.SNAP_DIRECTIONS.one_of,
@@ -318,6 +320,7 @@ STYLE_SCHEMA = cv.Schema({cv.Optional(k): v for k, v in STYLE_PROPS.items()}).ex
 )
 
 OBJ_PROPERTIES = {
+    CONF_EXT_CLICK_AREA,
     CONF_SCROLL_SNAP_X,
     CONF_SCROLL_SNAP_Y,
     CONF_SCROLL_DIR,
@@ -433,7 +436,6 @@ def obj_schema(widget_type: WidgetType):
     return (
         part_schema(widget_type.parts)
         .extend(ALIGN_TO_SCHEMA)
-        .extend({cv.Optional(df.CONF_EXT_CLICK_AREA): lvalid.pixels})
         .extend(automation_schema(widget_type.w_type))
         .extend(
             {

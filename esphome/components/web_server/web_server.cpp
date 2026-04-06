@@ -286,10 +286,11 @@ void DeferredUpdateEventSource::try_send_nodefer(const char *message, const char
   this->send(message, event, id, reconnect);
 }
 
-void DeferredUpdateEventSourceList::loop() {
+bool DeferredUpdateEventSourceList::loop() {
   for (DeferredUpdateEventSource *dues : *this) {
     dues->loop();
   }
+  return !this->empty();
 }
 
 void DeferredUpdateEventSourceList::deferrable_send_state(void *source, const char *event_type,
@@ -318,6 +319,7 @@ void DeferredUpdateEventSourceList::add_new_client(WebServer *ws, AsyncWebServer
   es->onDisconnect([this, es](AsyncEventSourceClient *client) { this->on_client_disconnect_(es); });
 
   es->handleRequest(request);
+  ws->enable_loop_soon_any_context();
 }
 
 void DeferredUpdateEventSourceList::on_client_connect_(DeferredUpdateEventSource *source) {
@@ -413,13 +415,24 @@ void WebServer::setup() {
   // doesn't need defer functionality - if the queue is full, the client JS knows it's alive because it's clearly
   // getting a lot of events
   this->set_interval(10000, [this]() {
+    if (this->events_.empty())
+      return;
     char buf[32];
     auto uptime = static_cast<uint32_t>(millis_64() / 1000);
     buf_append_printf(buf, sizeof(buf), 0, "{\"uptime\":%" PRIu32 "}", uptime);
     this->events_.try_send_nodefer(buf, "ping", millis(), 30000);
   });
 }
-void WebServer::loop() { this->events_.loop(); }
+void WebServer::loop() {
+  // No SSE clients connected; stop looping until a new client connects via
+  // enable_loop_soon_any_context(). This is safe because:
+  // - set_interval/set_timeout/defer run via the Scheduler, independent of loop()
+  // - deferrable_send_state early-outs when no clients are connected
+  // - try_send_nodefer (log, ping) iterates sessions which are empty
+  // - REST API handlers use defer() which runs via the Scheduler
+  if (!this->events_.loop())
+    this->disable_loop();
+}
 
 #ifdef USE_LOGGER
 void WebServer::on_log(uint8_t level, const char *tag, const char *message, size_t message_len) {

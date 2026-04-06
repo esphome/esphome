@@ -132,6 +132,7 @@ async def to_code(config):
     if wifi_channel := config.get(CONF_CHANNEL):
         cg.add(var.set_wifi_channel(wifi_channel))
 
+    cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
     cg.add(var.set_auto_add_peer(config[CONF_AUTO_ADD_PEER]))
 
     for peer in config.get(CONF_PEERS, []):
