@@ -18,7 +18,7 @@ from esphome.const import (
 
 from .. import CONF_BATTERY, CONF_PYLONTECH_ID, PYLONTECH_COMPONENT_SCHEMA, pylontech_ns
 
-PylontechSensor = pylontech_ns.class_("PylontechSensor", cg.Component)
+PylontechSensor = pylontech_ns.class_("PylontechSensor")
 
 CONF_COULOMB = "coulomb"
 CONF_TEMPERATURE_LOW = "temperature_low"
