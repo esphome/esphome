@@ -260,7 +260,7 @@ class TypeInfo(ABC):
 
         Returns the raw encode string if the tag is a single byte and the
         encode_func has a known raw equivalent, or None otherwise.
-        When max_value < 128, uses encode_small_varint instead of varint encoding.
+        When max_value < 128, uses direct byte write instead of varint encoding.
         """
         if not self.force:
             return None
@@ -1359,13 +1359,6 @@ class EnumType(TypeInfo):
         value_expr = f"static_cast<uint32_t>(this->{self.field_name})"
         if result := self._encode_with_precomputed_tag(value_expr):
             return result
-        # For non-forced enum fields with max < 128 and single-byte tag,
-        # emit a zero-check + two raw byte writes instead of encode_uint32
-        max_val = self.max_value
-        if max_val is not None and max_val < 128 and not self.force:
-            tag = self.calculate_tag()
-            if tag < 128:
-                return f"buffer.encode_small_varint({tag}, static_cast<uint8_t>(this->{self.field_name}));"
         if self.force:
             return f"buffer.{self.encode_func}({self.number}, {value_expr}, true);"
         return f"buffer.{self.encode_func}({self.number}, {value_expr});"
