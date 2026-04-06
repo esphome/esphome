@@ -238,10 +238,6 @@ class ProtoWriteBuffer {
   void encode_optional_sub_message(uint32_t field_id, uint32_t nested_size, const void *value,
                                    void (*encode_fn)(const void *, ProtoWriteBuffer &));
   APIBuffer *get_buffer() const { return buffer_; }
-  /// Get current write position for ProtoCursor initialization.
-  uint8_t *get_pos() const { return pos_; }
-  /// Set write position after ProtoCursor is done.
-  void set_pos(uint8_t *pos) { pos_ = pos; }
 
  protected:
   // Slow path for encode_varint_raw values >= 128, outlined to keep fast path small
@@ -259,9 +255,17 @@ class ProtoWriteBuffer {
 };
 
 /// Lightweight cursor that hoists ProtoWriteBuffer::pos_ into a __restrict__ local.
-/// Generated encode() functions create this on the stack and explicitly write pos_
-/// back to buffer at the end. No constructor/destructor overhead.
-struct ProtoCursor {
+/// Created at the top of generated encode() functions; destructor writes pos_ back.
+/// This eliminates store-reload chains between consecutive write calls.
+class ProtoCursor {
+ public:
+  explicit ProtoCursor(ProtoWriteBuffer &buf) : buf_(buf), pos_(buf.pos_) {}
+  ~ProtoCursor() { this->buf_.pos_ = this->pos_; }
+
+  // Non-copyable
+  ProtoCursor(const ProtoCursor &) = delete;
+  ProtoCursor &operator=(const ProtoCursor &) = delete;
+
   /// Write a multi-byte varint directly through pos_.
   template<typename T> void encode_varint_raw_loop(T value) {
     do {
@@ -427,6 +431,7 @@ struct ProtoCursor {
     this->reload_();
   }
 
+ protected:
   /// Write local pos_ back to buffer
   void flush_() { this->buf_.pos_ = this->pos_; }
   /// Reload local pos_ from buffer
