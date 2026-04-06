@@ -1641,7 +1641,6 @@ def start_web_server(
         shutil.move(trash_path, archive_path)
 
     if binding_socket is None:
-        # Check if address is a network interface name
         if binding_address in psutil.net_if_addrs():
             binding_addresses = get_ip_addresses_of_network_interface(binding_address)
         else:
