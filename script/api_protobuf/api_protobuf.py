@@ -337,18 +337,8 @@ class TypeInfo(ABC):
 
         Returns:
             The number of bytes needed to encode the field ID
-
-        Raises:
-            ValueError: If the tag exceeds 2 varint bytes (field_id > 2047).
-                ProtoCursor::encode_field_raw assumes all tags fit in 1-2 bytes.
         """
         tag = self.calculate_tag()
-
-        if tag >= 16384:
-            raise ValueError(
-                f"Field tag {tag} (field_id={self.number}) exceeds 2 varint bytes. "
-                f"ProtoCursor::encode_field_raw only supports 1-2 byte tags."
-            )
 
         # Calculate the varint size
         if tag < 128:
