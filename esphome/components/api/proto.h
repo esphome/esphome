@@ -202,10 +202,10 @@ class Proto32Bit {
 #define PROTO_ENCODE_DEBUG_PARAM , uint8_t *proto_debug_end_
 #define PROTO_ENCODE_DEBUG_ARG , proto_debug_end_
 #define PROTO_ENCODE_DEBUG_INIT(buf) , (buf)->data() + (buf)->size()
-#define PROTO_ENCODE_CHECK_BOUNDS(pos, n)                                                                              \
-  do {                                                                                                                 \
-    if ((pos) + (n) > proto_debug_end_)                                                                                \
-      proto_check_bounds_failed(pos, n, proto_debug_end_, __builtin_FUNCTION());                                       \
+#define PROTO_ENCODE_CHECK_BOUNDS(pos, n) \
+  do { \
+    if ((pos) + (n) > proto_debug_end_) \
+      proto_check_bounds_failed(pos, n, proto_debug_end_, __builtin_FUNCTION()); \
   } while (0)
 void proto_check_bounds_failed(const uint8_t *pos, size_t bytes, const uint8_t *end, const char *caller);
 #else
