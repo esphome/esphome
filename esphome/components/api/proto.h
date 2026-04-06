@@ -254,6 +254,10 @@ class ProtoWriteBuffer {
   uint8_t *pos_;
 };
 
+// Varint encoding thresholds — used by both proto_encode_* free functions and ProtoSize.
+constexpr uint32_t VARINT_MAX_1_BYTE = 1 << 7;   // 128
+constexpr uint32_t VARINT_MAX_2_BYTE = 1 << 14;  // 16384
+
 // ProtoCursor is not a class — it's a coding pattern.
 // Generated encode() functions hoist buffer.pos_ into a local
 // uint8_t *__restrict__ pos, then call these static helpers
@@ -271,7 +275,7 @@ template<typename T> inline void proto_encode_varint_raw_loop(uint8_t *__restric
   *pos++ = static_cast<uint8_t>(value);
 }
 inline void ESPHOME_ALWAYS_INLINE proto_encode_varint_raw(uint8_t *__restrict__ &pos, uint32_t value) {
-  if (value < 128) [[likely]] {
+  if (value < VARINT_MAX_1_BYTE) [[likely]] {
     *pos++ = static_cast<uint8_t>(value);
     return;
   }
@@ -279,11 +283,11 @@ inline void ESPHOME_ALWAYS_INLINE proto_encode_varint_raw(uint8_t *__restrict__ 
 }
 /// Encode a varint that is expected to be 1-2 bytes (e.g. zigzag RSSI, small lengths).
 inline void ESPHOME_ALWAYS_INLINE proto_encode_varint_raw_short(uint8_t *__restrict__ &pos, uint32_t value) {
-  if (value < 128) [[likely]] {
+  if (value < VARINT_MAX_1_BYTE) [[likely]] {
     *pos++ = static_cast<uint8_t>(value);
     return;
   }
-  if (value < 16384) [[likely]] {
+  if (value < VARINT_MAX_2_BYTE) [[likely]] {
     *pos++ = static_cast<uint8_t>(value | 0x80);
     *pos++ = static_cast<uint8_t>(value >> 7);
     return;
@@ -321,7 +325,7 @@ inline void proto_encode_string(uint8_t *__restrict__ &pos, uint32_t field_id, c
   if (len == 0 && !force)
     return;
   proto_encode_field_raw(pos, field_id, 2);  // type 2: Length-delimited string
-  if (len < 128) [[likely]] {
+  if (len < VARINT_MAX_1_BYTE) [[likely]] {
     *pos++ = static_cast<uint8_t>(len);
   } else {
     proto_encode_varint_raw_loop(pos, len);
@@ -557,9 +561,10 @@ class ProtoDecodableMessage : public ProtoMessage {
 
 class ProtoSize {
  public:
-  // Varint encoding thresholds: values below each threshold fit in N bytes
-  static constexpr uint32_t VARINT_THRESHOLD_1_BYTE = 1 << 7;   // 128
-  static constexpr uint32_t VARINT_THRESHOLD_2_BYTE = 1 << 14;  // 16384
+  // Varint encoding thresholds — use namespace-level constants for 1/2 byte,
+  // class-level for 3/4 byte (only used within ProtoSize).
+  static constexpr uint32_t VARINT_THRESHOLD_1_BYTE = VARINT_MAX_1_BYTE;
+  static constexpr uint32_t VARINT_THRESHOLD_2_BYTE = VARINT_MAX_2_BYTE;
   static constexpr uint32_t VARINT_THRESHOLD_3_BYTE = 1 << 21;  // 2097152
   static constexpr uint32_t VARINT_THRESHOLD_4_BYTE = 1 << 28;  // 268435456
 
