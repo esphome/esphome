@@ -132,8 +132,6 @@ APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *pa
 #endif
 }
 
-uint32_t APIConnection::get_batch_delay_ms_() const { return this->parent_->get_batch_delay(); }
-
 void APIConnection::start() {
   this->last_traffic_ = App.get_loop_component_start_time();
 
@@ -1465,7 +1463,7 @@ void APIConnection::send_infrared_rf_receive_event(const InfraredRFReceiveEvent 
 void APIConnection::on_serial_proxy_configure_request(const SerialProxyConfigureRequest &msg) {
   auto &proxies = App.get_serial_proxies();
   if (msg.instance >= proxies.size()) {
-    ESP_LOGW(TAG, "Serial proxy instance %u out of range (max %u)", msg.instance,
+    ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range (max %" PRIu32 ")", msg.instance,
              static_cast<uint32_t>(proxies.size()));
     return;
   }
@@ -1476,7 +1474,7 @@ void APIConnection::on_serial_proxy_configure_request(const SerialProxyConfigure
 void APIConnection::on_serial_proxy_write_request(const SerialProxyWriteRequest &msg) {
   auto &proxies = App.get_serial_proxies();
   if (msg.instance >= proxies.size()) {
-    ESP_LOGW(TAG, "Serial proxy instance %u out of range", msg.instance);
+    ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
     return;
   }
   proxies[msg.instance]->write_from_client(msg.data, msg.data_len);
@@ -1485,7 +1483,7 @@ void APIConnection::on_serial_proxy_write_request(const SerialProxyWriteRequest 
 void APIConnection::on_serial_proxy_set_modem_pins_request(const SerialProxySetModemPinsRequest &msg) {
   auto &proxies = App.get_serial_proxies();
   if (msg.instance >= proxies.size()) {
-    ESP_LOGW(TAG, "Serial proxy instance %u out of range", msg.instance);
+    ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
     return;
   }
   proxies[msg.instance]->set_modem_pins(msg.line_states);
@@ -1494,7 +1492,7 @@ void APIConnection::on_serial_proxy_set_modem_pins_request(const SerialProxySetM
 void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetModemPinsRequest &msg) {
   auto &proxies = App.get_serial_proxies();
   if (msg.instance >= proxies.size()) {
-    ESP_LOGW(TAG, "Serial proxy instance %u out of range", msg.instance);
+    ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
     return;
   }
   SerialProxyGetModemPinsResponse resp{};
@@ -1506,7 +1504,7 @@ void APIConnection::on_serial_proxy_get_modem_pins_request(const SerialProxyGetM
 void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
   auto &proxies = App.get_serial_proxies();
   if (msg.instance >= proxies.size()) {
-    ESP_LOGW(TAG, "Serial proxy instance %u out of range", msg.instance);
+    ESP_LOGW(TAG, "Serial proxy instance %" PRIu32 " out of range", msg.instance);
     return;
   }
   switch (msg.type) {
@@ -1536,7 +1534,7 @@ void APIConnection::on_serial_proxy_request(const SerialProxyRequest &msg) {
       break;
     }
     default:
-      ESP_LOGW(TAG, "Unknown serial proxy request type: %u", static_cast<uint32_t>(msg.type));
+      ESP_LOGW(TAG, "Unknown serial proxy request type: %" PRIu32, static_cast<uint32_t>(msg.type));
       break;
   }
 }
@@ -2023,24 +2021,23 @@ uint16_t APIConnection::encode_to_buffer(uint32_t calculated_size, MessageEncode
 
   auto &shared_buf = conn->parent_->get_shared_buffer_ref();
 
+  size_t to_add;
   if (conn->flags_.batch_first_message) {
     // First message - buffer already prepared by caller, just clear flag
     conn->flags_.batch_first_message = false;
+    to_add = calculated_size;
   } else {
     // Batch message second or later
-    // Add padding for previous message footer + this message header
-    size_t current_size = shared_buf.size();
-    shared_buf.reserve_and_resize(current_size + total_calculated_size, current_size + footer_size + header_padding);
+    // Reserve for full message, resize to include footer gap + header padding + payload
+    to_add = total_calculated_size;
   }
 
-  // Pre-resize buffer to include payload, then encode through raw pointer
-  size_t write_start = shared_buf.size();
-  shared_buf.resize(write_start + calculated_size);
-  ProtoWriteBuffer buffer{&shared_buf, write_start};
+  shared_buf.resize(shared_buf.size() + to_add);
+  ProtoWriteBuffer buffer{&shared_buf, shared_buf.size() - calculated_size};
   encode_fn(msg, buffer);
 
   // Return total size (header + payload + footer)
-  return static_cast<uint16_t>(header_padding + calculated_size + footer_size);
+  return static_cast<uint16_t>(total_calculated_size);
 }
 bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
   const bool is_log_message = (message_type == SubscribeLogsResponse::MESSAGE_TYPE);
@@ -2072,37 +2069,9 @@ void APIConnection::on_fatal_error() {
   this->flags_.remove = true;
 }
 
-void __attribute__((flatten)) APIConnection::DeferredBatch::push_item(const BatchItem &item) { items.push_back(item); }
-
-void APIConnection::DeferredBatch::add_item(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
-                                            uint8_t aux_data_index) {
-  // Check if we already have a message of this type for this entity
-  // This provides deduplication per entity/message_type combination
-  // O(n) but optimized for RAM and not performance.
-  // Skip deduplication for events - they are edge-triggered, every occurrence matters
-#ifdef USE_EVENT
-  if (message_type != EventResponse::MESSAGE_TYPE)
-#endif
-  {
-    for (const auto &item : items) {
-      if (item.entity == entity && item.message_type == message_type)
-        return;  // Already queued
-    }
-  }
-  // No existing item found (or event), add new one
-  this->push_item({entity, message_type, estimated_size, aux_data_index});
-}
-
-void APIConnection::DeferredBatch::add_item_front(EntityBase *entity, uint8_t message_type, uint8_t estimated_size) {
-  // Add high priority message and swap to front
-  // This avoids expensive vector::insert which shifts all elements
-  // Note: We only ever have one high-priority message at a time (ping OR disconnect)
-  // If we're disconnecting, pings are blocked, so this simple swap is sufficient
-  this->push_item({entity, message_type, estimated_size, AUX_DATA_UNUSED});
-  if (items.size() > 1) {
-    // Swap the new high-priority item to the front
-    std::swap(items.front(), items.back());
-  }
+bool APIConnection::schedule_message_front_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size) {
+  this->deferred_batch_.add_item_front(entity, message_type, estimated_size);
+  return this->schedule_batch_();
 }
 
 bool APIConnection::send_message_smart_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,

@@ -136,7 +136,7 @@ async def update_to_code(config, action_id, template_arg, args):
             widget.type.w_type.value_property is not None
             and widget.type.w_type.value_property in config
         ):
-            lv.event_send(widget.obj, UPDATE_EVENT, nullptr)
+            lv_obj.send_event(widget.obj, UPDATE_EVENT, nullptr)
 
     widgets = await get_widgets(config[CONF_ID])
     return await action_to_code(
@@ -455,6 +455,6 @@ async def obj_refresh_to_code(config, action_id, template_arg, args):
                 widget.type.w_type.value_property is not None
                 and widget.type.w_type.value_property in config
             ):
-                lv.event_send(widget.obj, UPDATE_EVENT, nullptr)
+                lv_obj.send_event(widget.obj, UPDATE_EVENT, nullptr)
 
     return await action_to_code(widget, do_refresh, action_id, template_arg, args)
