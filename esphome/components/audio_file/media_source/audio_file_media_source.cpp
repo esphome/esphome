@@ -4,6 +4,7 @@
 
 #include "esphome/components/audio/audio_decoder.h"
 
+#include <cinttypes>
 #include <cstring>
 
 namespace esphome::audio_file {
@@ -249,7 +250,7 @@ void AudioFileMediaSource::decode_task(void *params) {
 
         audio::AudioStreamInfo stream_info = decoder->get_audio_stream_info().value();
 
-        ESP_LOGD(TAG, "Bits per sample: %d, Channels: %d, Sample rate: %d", stream_info.get_bits_per_sample(),
+        ESP_LOGD(TAG, "Bits per sample: %d, Channels: %d, Sample rate: %" PRIu32, stream_info.get_bits_per_sample(),
                  stream_info.get_channels(), stream_info.get_sample_rate());
 
         if (stream_info.get_bits_per_sample() != 16 || stream_info.get_channels() > 2) {

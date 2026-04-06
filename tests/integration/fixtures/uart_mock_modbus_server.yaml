@@ -1,0 +1,124 @@
+esphome:
+  name: uart-mock-modbus-server-test
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy modbus's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  - id: virtual_uart_dev
+    baud_rate: 9600
+    rx_full_threshold: 120
+    rx_timeout: 2
+    auto_start: false
+    debug:
+    injections:
+      - delay: 100ms
+        inject_rx: [0x01, 0x03, 0x00, 0x03, 0x00, 0x01, 0x74, 0x0A] #  Read holding register 3 on device 1 (basic_read)
+      - delay: 100ms
+        #  Read holding register 7 on device 2
+        #  Reply from device 2
+        #  Read holding register 5 on device 1 (read_after_peer_response)
+        inject_rx:
+          [
+            0x02,
+            0x03,
+            0x00,
+            0x07,
+            0x00,
+            0x01,
+            0x35,
+            0xF8,
+            0x02,
+            0x03,
+            0x02,
+            0x00,
+            0xF0,
+            0xFC,
+            0x00,
+            0x01,
+            0x03,
+            0x00,
+            0x05,
+            0x00,
+            0x01,
+            0x94,
+            0x0B,
+          ]
+      - delay: 100ms
+        inject_rx: [0x02, 0x03, 0x00, 0x07, 0x00, 0x01, 0x35, 0xF8] #  Read holding register 7 on device 2, with no response
+      - delay: 100ms
+        #  Read holding register 7 on device 2, with no response
+        #  Read holding register A on device 1 (read_after_peer_timeout)
+        inject_rx:
+          [
+            0x02,
+            0x03,
+            0x00,
+            0x07,
+            0x00,
+            0x01,
+            0x35,
+            0xF8,
+            0x01,
+            0x03,
+            0x00,
+            0x0A,
+            0x00,
+            0x01,
+            0xA4,
+            0x08,
+          ]
+
+modbus:
+  uart_id: virtual_uart_dev
+  role: server
+
+modbus_controller:
+  - address: 1
+    server_registers:
+      - address: 0x03
+        value_type: U_WORD
+        read_lambda: |-
+          id(basic_read).publish_state(1);
+          return 1;
+      - address: 0x05
+        value_type: U_WORD
+        read_lambda: |-
+          id(read_after_peer_response).publish_state(1);
+          return 1;
+      - address: 0x0A
+        value_type: U_WORD
+        read_lambda: |-
+          id(read_after_peer_timeout).publish_state(1);
+          return 1;
+
+sensor:
+  - platform: template
+    name: "basic_read"
+    id: basic_read
+  - platform: template
+    name: "read_after_peer_response"
+    id: read_after_peer_response
+  - platform: template
+    name: "read_after_peer_timeout"
+    id: read_after_peer_timeout
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      - lambda: "id(virtual_uart_dev).start_scenario();"
