@@ -190,4 +190,3 @@ void EPaper3in97::deep_sleep() {
 }
 
 }  // namespace esphome::epaper_spi
-
