@@ -228,10 +228,11 @@ class ProtoWriteBuffer {
   template<typename T> void encode_optional_sub_message(uint32_t field_id, const T &value);
 
   // Non-template core for encode_sub_message — backpatch approach.
-  void encode_sub_message(uint32_t field_id, const void *value, uint8_t *(*encode_fn)(const void *, ProtoWriteBuffer &));
+  void encode_sub_message(uint32_t field_id, const void *value,
+                          uint8_t *(*encode_fn)(const void *, ProtoWriteBuffer &) );
   // Non-template core for encode_optional_sub_message.
   void encode_optional_sub_message(uint32_t field_id, uint32_t nested_size, const void *value,
-                                   uint8_t *(*encode_fn)(const void *, ProtoWriteBuffer &));
+                                   uint8_t *(*encode_fn)(const void *, ProtoWriteBuffer &) );
   APIBuffer *get_buffer() const { return buffer_; }
   /// Get current write position for ProtoCursor initialization.
   uint8_t *get_pos() const { return pos_; }
