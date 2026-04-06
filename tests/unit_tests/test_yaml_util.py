@@ -480,6 +480,24 @@ def test_include_file_load_caches_result(tmp_path: Path) -> None:
     assert first is second
 
 
+def test_include_file_load_caches_none_result(tmp_path: Path) -> None:
+    """load() caches None content (empty YAML files) and does not re-invoke the loader."""
+    parent = tmp_path / "main.yaml"
+    call_count = 0
+
+    def counting_loader(_):
+        nonlocal call_count
+        call_count += 1
+
+    include = yaml_util.IncludeFile(parent, "empty.yaml", None, counting_loader)
+    first = include.load()
+    second = include.load()
+
+    assert call_count == 1
+    assert first is None
+    assert second is None
+
+
 @pytest.mark.parametrize(
     "filename, expected",
     [

@@ -143,6 +143,9 @@ class ConfigContext:
                 self[i] = add_context(item, self.vars)
 
 
+_UNSET = object()
+
+
 class IncludeFile:
     def __init__(
         self,
@@ -155,17 +158,17 @@ class IncludeFile:
         self.file = Path(file)
         self.vars = vars
         self.yaml_loader = yaml_loader
-        self.content: Any = None
+        self._content: Any = _UNSET
 
     def __repr__(self) -> str:
         return f"IncludeFile({self.file.as_posix()})"
 
     def load(self) -> Any:
-        if self.content is not None:
-            return self.content
-        self.content = self.yaml_loader(Path(self.parent_file.parent / self.file))
-        self.content = add_context(self.content, self.vars)
-        return self.content
+        if self._content is not _UNSET:
+            return self._content
+        self._content = self.yaml_loader(Path(self.parent_file.parent / self.file))
+        self._content = add_context(self._content, self.vars)
+        return self._content
 
     def has_filename_substitutions(self) -> bool:
         return "$" in str(self.file)
