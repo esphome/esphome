@@ -127,7 +127,9 @@ AGS10_SET_ZERO_POINT_SCHEMA = cv.Schema(
 async def ags10setzeropoint_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    mode = await cg.templatable(config.get(CONF_MODE), args, enumerate)
+    mode = await cg.templatable(
+        config.get(CONF_MODE), args, AGS10SetZeroPointActionMode
+    )
     cg.add(var.set_mode(mode))
     value = await cg.templatable(config[CONF_VALUE], args, int)
     cg.add(var.set_value(value))
