@@ -362,10 +362,10 @@ class ProtoEncode {
   static inline void ESPHOME_ALWAYS_INLINE write_short_string(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM,
                                                               uint8_t tag, const StringRef &ref) {
     PROTO_ENCODE_CHECK_BOUNDS(pos, 2 + ref.size());
-    *pos++ = tag;
-    *pos++ = static_cast<uint8_t>(ref.size());
-    std::memcpy(pos, ref.c_str(), ref.size());
-    pos += ref.size();
+    pos[0] = tag;
+    pos[1] = static_cast<uint8_t>(ref.size());
+    std::memcpy(pos + 2, ref.c_str(), ref.size());
+    pos += 2 + ref.size();
   }
   /// Write a precomputed tag byte + 32-bit value in one operation.
   static inline void ESPHOME_ALWAYS_INLINE write_tag_and_fixed32(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM,
