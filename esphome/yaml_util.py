@@ -220,9 +220,14 @@ def _add_data_ref(fn):
     return wrapped
 
 
+_MAX_MERGE_INCLUDE_DEPTH = 10
+
+
 def _resolve_merge_include(value: Any, node: yaml.Node, value_node: yaml.Node) -> Any:
-    """Resolve an IncludeFile and propagate context for merge key handling."""
-    if isinstance(value, IncludeFile):
+    """Resolve an IncludeFile (and chains) and propagate context for merge key handling."""
+    for _ in range(_MAX_MERGE_INCLUDE_DEPTH):
+        if not isinstance(value, IncludeFile):
+            break
         if value.has_unresolved_expressions():
             raise yaml.constructor.ConstructorError(
                 "While constructing a mapping",
@@ -231,6 +236,13 @@ def _resolve_merge_include(value: Any, node: yaml.Node, value_node: yaml.Node) -
                 value_node.start_mark,
             )
         value = value.load()
+    else:
+        raise yaml.constructor.ConstructorError(
+            "While constructing a mapping",
+            node.start_mark,
+            f"Maximum include chain depth ({_MAX_MERGE_INCLUDE_DEPTH}) exceeded in merge key",
+            value_node.start_mark,
+        )
     if isinstance(value, ConfigContext):
         # Since the parent dict/list will disappear, propagate
         # context to children now to retain context vars

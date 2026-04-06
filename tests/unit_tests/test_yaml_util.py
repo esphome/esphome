@@ -581,3 +581,30 @@ def test_yaml_merge_list_include_with_filename_substitution_raises() -> None:
         yaml_util.parse_yaml(
             Path("/fake/main.yaml"), io.StringIO(yaml_text), lambda _: {}
         )
+
+
+def test_yaml_merge_chain_include_resolves() -> None:
+    """Chained includes in merge keys resolve through multiple IncludeFile layers."""
+    parent = Path("/fake/main.yaml")
+
+    inner = yaml_util.IncludeFile(parent, "inner.yaml", None, lambda _: {"x": 1})
+    outer = yaml_util.IncludeFile(parent, "outer.yaml", None, lambda _: inner)
+
+    yaml_text = "base:\n  existing: value\n  <<: !include outer.yaml\n"
+    config = yaml_util.parse_yaml(parent, io.StringIO(yaml_text), lambda _: outer)
+    config = substitutions.do_substitution_pass(config)
+
+    assert config["base"]["x"] == 1
+    assert config["base"]["existing"] == "value"
+
+
+def test_yaml_merge_chain_include_depth_exceeded() -> None:
+    """Chain includes in merge keys exceeding depth limit raise a clear error."""
+    parent = Path("/fake/main.yaml")
+
+    def self_referencing_loader(path: Path) -> yaml_util.IncludeFile:
+        return yaml_util.IncludeFile(parent, path.name, None, self_referencing_loader)
+
+    yaml_text = "base:\n  <<: !include loop.yaml\n"
+    with pytest.raises(EsphomeError, match="Maximum include chain depth"):
+        yaml_util.parse_yaml(parent, io.StringIO(yaml_text), self_referencing_loader)
