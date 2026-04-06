@@ -534,7 +534,7 @@ class ProtoMessage {
   // All call sites use templates to preserve the concrete type, so virtual
   // dispatch is not needed. This eliminates per-message vtable entries for
   // encode/calculate_size, saving ~1.3 KB of flash across all message types.
-  void encode(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM) const {}
+  void encode(ProtoWriteBuffer &buffer) const {}
   uint32_t calculate_size() const { return 0; }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   virtual const char *dump_to(DumpBuffer &out) const = 0;
