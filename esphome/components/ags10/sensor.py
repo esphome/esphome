@@ -112,7 +112,9 @@ AGS10_SET_ZERO_POINT_ACTION_MODE = {
 AGS10_SET_ZERO_POINT_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(AGS10Component),
-        cv.Required(CONF_MODE): cv.enum(AGS10_SET_ZERO_POINT_ACTION_MODE, upper=True),
+        cv.Required(CONF_MODE): cv.templatable(
+            cv.enum(AGS10_SET_ZERO_POINT_ACTION_MODE, upper=True)
+        ),
         cv.Optional(CONF_VALUE, default=0xFFFF): cv.templatable(cv.uint16_t),
     },
 )
