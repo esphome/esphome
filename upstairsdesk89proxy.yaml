@@ -1,0 +1,594 @@
+runtime_stats:
+
+
+
+substitutions:
+  devicename: "upstairsdesk89proxy"
+  friendly_name: "upstairsdesk89proxy"
+  upper_devicename: upstairsdesk89proxy
+
+esphome:
+  name: $devicename
+  friendly_name: $friendly_name
+
+esp32:
+  board: esp32-poe-iso
+  framework:
+    type: esp-idf
+    advanced:
+       sram1_as_iram: true
+       minimum_chip_revision: "3.0"
+
+esp32_ble_tracker:
+  scan_parameters:
+    active: false
+bluetooth_proxy:
+  active: true
+
+
+ethernet:
+  type: LAN8720
+  mdc_pin: GPIO23
+  mdio_pin: GPIO18
+  clk_mode: GPIO17_OUT
+  phy_addr: 0
+  power_pin: GPIO12
+# Enable logging
+
+
+logger:
+#  level: VERBOSE
+#  logs:
+#    bluetooth_proxy.component: VERBOSE
+#    esp32_ble.component: DEBUG
+#  level: VERY_VERBOSE
+
+
+api:
+
+ota:
+  platform: esphome
+
+
+
+button:
+  - platform: restart
+    name: Restart
+  - platform: template
+    name: "Proto Benchmark BLE"
+    on_press:
+      - lambda: |-
+          using namespace esphome::api;
+          static const char *TAG = "proto_bench";
+          const int ITERATIONS = 10000;
+
+          // --- BluetoothLERawAdvertisementsResponse (12 adverts) ---
+          {
+            BluetoothLERawAdvertisementsResponse msg;
+            msg.advertisements_len = 12;
+            static const uint8_t fake_adv_data[] = {
+              0x02, 0x01, 0x06, 0x03, 0x03, 0x9F, 0xFE, 0x17, 0x16, 0x9F, 0xFE,
+              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+              0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+            };
+            for (int i = 0; i < 12; i++) {
+              auto &adv = msg.advertisements[i];
+              adv.address = 0xAABBCCDD0000ULL + i;
+              adv.rssi = -60 - i;
+              adv.address_type = 1;
+              memcpy(adv.data, fake_adv_data, sizeof(fake_adv_data));
+              adv.data_len = sizeof(fake_adv_data);
+            }
+
+            uint32_t total_size = msg.calculate_size();
+
+            // Benchmark calculate_size alone
+            uint32_t cs = 0;
+            uint32_t start = micros();
+            for (int i = 0; i < ITERATIONS; i++) {
+              cs += msg.calculate_size();
+            }
+            uint32_t elapsed = micros() - start;
+            ESP_LOGI(TAG, "BLERawAdvs12 calculate_size: %u us / %d = %.1f ns/op (cs=%u)",
+                     elapsed, ITERATIONS, (double)elapsed * 1000.0 / ITERATIONS, cs);
+
+            // Benchmark encode alone (pre-sized buffer, no resize in loop)
+            esphome::api::APIBuffer buf;
+            buf.resize(total_size);
+            start = micros();
+            for (int i = 0; i < ITERATIONS; i++) {
+              uint8_t *__restrict__ pos = buf.data();
+              msg.encode(pos);
+            }
+            elapsed = micros() - start;
+            ESP_LOGI(TAG, "BLERawAdvs12 encode:         %u us / %d = %.1f ns/op (%u bytes)",
+                     elapsed, ITERATIONS, (double)elapsed * 1000.0 / ITERATIONS, total_size);
+
+            // Benchmark full send path: calculate_size + encode (what actually happens per flush)
+            start = micros();
+            for (int i = 0; i < ITERATIONS; i++) {
+              uint32_t sz = msg.calculate_size();
+              buf.resize(sz);
+              uint8_t *__restrict__ pos = buf.data();
+              msg.encode(pos);
+            }
+            elapsed = micros() - start;
+            ESP_LOGI(TAG, "BLERawAdvs12 calc+encode:    %u us / %d = %.1f ns/op (%u bytes)",
+                     elapsed, ITERATIONS, (double)elapsed * 1000.0 / ITERATIONS, total_size);
+          }
+  - platform: template
+    name: "Log millis"
+    on_press:
+      - lambda: |-
+          ESP_LOGI("millis_test", "millis()=%u  millis_64()=%" PRIu64, millis(), millis_64());
+  - platform: template
+    name: "Benchmark TCP_NODELAY"
+    on_press:
+      - lambda: |-
+          static const char *TAG = "bench_nodelay";
+
+          int fd = lwip_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+          if (fd < 0) {
+            ESP_LOGE(TAG, "Failed to create socket");
+            return;
+          }
+
+          struct lwip_sock *sock = esphome_lwip_get_sock(fd);
+          if (sock == nullptr) {
+            ESP_LOGE(TAG, "Failed to get lwip_sock");
+            lwip_close(fd);
+            return;
+          }
+
+          const int iterations = 10000;
+          int val;
+
+          // Warm up
+          val = 1;
+          lwip_setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(int));
+          val = 0;
+          lwip_setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(int));
+          {
+            esphome::LwIPLock lock;
+            esphome_lwip_set_nodelay(sock, true);
+          }
+          {
+            esphome::LwIPLock lock;
+            esphome_lwip_set_nodelay(sock, false);
+          }
+
+          App.feed_wdt();
+
+          // Benchmark slow path: lwip_setsockopt
+          uint32_t t0 = micros();
+          for (int i = 0; i < iterations; i++) {
+            val = 1;
+            lwip_setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(int));
+            val = 0;
+            lwip_setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(int));
+          }
+          uint32_t slow_us = micros() - t0;
+
+          App.feed_wdt();
+
+          // Benchmark fast path: esphome_lwip_set_nodelay under LwIPLock
+          t0 = micros();
+          for (int i = 0; i < iterations; i++) {
+            {
+              esphome::LwIPLock lock;
+              esphome_lwip_set_nodelay(sock, true);
+            }
+            {
+              esphome::LwIPLock lock;
+              esphome_lwip_set_nodelay(sock, false);
+            }
+          }
+          uint32_t fast_us = micros() - t0;
+
+          float slow_ns = (float) slow_us / (iterations * 2) * 1000.0f;
+          float fast_ns = (float) fast_us / (iterations * 2) * 1000.0f;
+
+          ESP_LOGW(TAG, "TCP_NODELAY setsockopt benchmark (%d iterations, 2 calls each):", iterations);
+          ESP_LOGW(TAG, "  lwip_setsockopt: %u us (%.1f ns/call)", slow_us, slow_ns);
+          ESP_LOGW(TAG, "  fast path:       %u us (%.1f ns/call)", fast_us, fast_ns);
+          ESP_LOGW(TAG, "  speedup:         %.1fx", (float) slow_us / (float) fast_us);
+
+          lwip_close(fd);
+  - platform: template
+    name: "Benchmark millis()"
+    on_press:
+      - lambda: |-
+          // 1x divide-by-1000 with carry handling (Euclidean decomposition)
+          // 2^32 = 4294967*1000 + 296, so:
+          // (hi*2^32 + lo)/1000 = hi*4294967 + (hi*296 + lo)/1000
+          auto millis_onediv = [](uint64_t us) -> uint32_t {
+            uint32_t lo = (uint32_t) us;
+            uint32_t hi = (uint32_t) (us >> 32);
+            uint32_t adj = hi * 296U + lo;
+            if (adj < lo) {
+              return hi * 4294967U + (adj + 296U) / 1000U + 4294967U;
+            }
+            return hi * 4294967U + adj / 1000U;
+          };
+
+          auto millis_ternary = [](uint64_t us) -> uint32_t {
+            uint32_t lo = (uint32_t) us;
+            uint32_t hi = (uint32_t) (us >> 32);
+            uint32_t adj = hi * 296U + lo;
+            return hi * 4294967U + (adj < lo ? (adj + 296U) / 1000U + 4294967U : adj / 1000U);
+          };
+
+          // 1000 = 8 * 125: shift out factor of 8, then Euclidean decompose /125
+          // 2^32 = 34359738*125 + 46
+          auto millis_shift3 = [](uint64_t us) -> uint32_t {
+            uint64_t x = us >> 3;
+            uint32_t lo = (uint32_t) x;
+            uint32_t hi = (uint32_t) (x >> 32);
+            uint32_t adj = hi * 46U + lo;
+            return hi * 34359738U + (adj < lo ? (adj + 46U) / 125U + 34359738U : adj / 125U);
+          };
+
+          auto div64_current = [](uint64_t us) -> uint32_t {
+            return (uint32_t)(us / 1000ULL);
+          };
+
+          // 64-bit result variants
+          auto div64_64bit = [](uint64_t us) -> uint64_t {
+            return us / 1000ULL;
+          };
+
+          auto shift3_64bit = [](uint64_t us) -> uint64_t {
+            uint64_t x = us >> 3;
+            uint32_t lo = (uint32_t) x;
+            uint32_t hi = (uint32_t) (x >> 32);
+            uint32_t adj = hi * 46U + lo;
+            return (uint64_t)hi * 34359738U + (adj < lo ? (adj + 46U) / 125U + 34359738U : adj / 125U);
+          };
+
+          const uint32_t ITERATIONS = 100000;
+          volatile uint32_t sink = 0;
+          volatile uint64_t sink64 = 0;
+
+          uint64_t base_fresh = millis_64() * 1000ULL;
+          // 30 days: hi=603
+          uint64_t base_aged = base_fresh + 2592000000000ULL;
+          // Force carry: hi*296+lo must overflow uint32.
+          uint64_t base_carry = (603ULL << 32) | 0xFFFFF000ULL;
+
+          const char *labels[] = {"FRESH (hi=0)", "AGED (hi>0)", "CARRY (overflow)"};
+          uint64_t bases[] = {base_fresh, base_aged, base_carry};
+
+          for (int phase = 0; phase < 3; phase++) {
+            uint64_t base_us = bases[phase];
+            const char *label = labels[phase];
+
+            ESP_LOGI("bench", "--- %s: base_us=%" PRIu64 " hi=%u lo=%u ---",
+                     label, base_us, (uint32_t)(base_us >> 32), (uint32_t)base_us);
+
+            // Correctness (32-bit)
+            uint32_t v1 = div64_current(base_us);
+            uint32_t v2 = millis_onediv(base_us);
+            uint32_t v3 = millis_ternary(base_us);
+            uint32_t v4 = millis_shift3(base_us);
+            ESP_LOGI("bench", "  check32: div64=%u onediv=%u ternary=%u shift3=%u match=%s",
+                     v1, v2, v3, v4, (v1 == v2 && v1 == v3 && v1 == v4) ? "YES" : "NO");
+
+            // Correctness (64-bit)
+            uint64_t w1 = div64_64bit(base_us);
+            uint64_t w2 = shift3_64bit(base_us);
+            ESP_LOGI("bench", "  check64: div64=%" PRIu64 " shift3=%" PRIu64 " match=%s",
+                     w1, w2, (w1 == w2) ? "YES" : "NO");
+
+            // Warmup
+            for (uint32_t i = 0; i < 1000; i++) {
+              sink = div64_current(base_us + i);
+              sink = millis_onediv(base_us + i);
+              sink = millis_ternary(base_us + i);
+              sink = millis_shift3(base_us + i);
+              sink64 = div64_64bit(base_us + i);
+              sink64 = shift3_64bit(base_us + i);
+            }
+
+            uint32_t t0 = micros();
+            for (uint32_t i = 0; i < ITERATIONS; i++) sink = div64_current(base_us + i);
+            uint32_t dur_div64 = micros() - t0;
+
+            t0 = micros();
+            for (uint32_t i = 0; i < ITERATIONS; i++) sink = millis_onediv(base_us + i);
+            uint32_t dur_onediv = micros() - t0;
+
+            t0 = micros();
+            for (uint32_t i = 0; i < ITERATIONS; i++) sink = millis_ternary(base_us + i);
+            uint32_t dur_ternary = micros() - t0;
+
+            t0 = micros();
+            for (uint32_t i = 0; i < ITERATIONS; i++) sink = millis_shift3(base_us + i);
+            uint32_t dur_shift3 = micros() - t0;
+
+            t0 = micros();
+            for (uint32_t i = 0; i < ITERATIONS; i++) sink64 = div64_64bit(base_us + i);
+            uint32_t dur_div64_64 = micros() - t0;
+
+            t0 = micros();
+            for (uint32_t i = 0; i < ITERATIONS; i++) sink64 = shift3_64bit(base_us + i);
+            uint32_t dur_shift3_64 = micros() - t0;
+
+            t0 = micros();
+            for (uint32_t i = 0; i < ITERATIONS; i++) sink = millis();
+            uint32_t dur_millis = micros() - t0;
+
+            t0 = micros();
+            for (uint32_t i = 0; i < ITERATIONS; i++) sink64 = millis_64();
+            uint32_t dur_millis64 = micros() - t0;
+
+            t0 = micros();
+            for (uint32_t i = 0; i < ITERATIONS; i++) sink = micros();
+            uint32_t dur_micros = micros() - t0;
+
+            float ns_d = (float) dur_div64 / ITERATIONS * 1000.0f;
+            float ns_o = (float) dur_onediv / ITERATIONS * 1000.0f;
+            float ns_t = (float) dur_ternary / ITERATIONS * 1000.0f;
+            float ns_s = (float) dur_shift3 / ITERATIONS * 1000.0f;
+            float ns_d64 = (float) dur_div64_64 / ITERATIONS * 1000.0f;
+            float ns_s64 = (float) dur_shift3_64 / ITERATIONS * 1000.0f;
+            float ns_m = (float) dur_millis / ITERATIONS * 1000.0f;
+            float ns_m64 = (float) dur_millis64 / ITERATIONS * 1000.0f;
+            float ns_u = (float) dur_micros / ITERATIONS * 1000.0f;
+
+            ESP_LOGI("bench", "  micros() [timer read]:    %7.1f ns", ns_u);
+            ESP_LOGI("bench", "  millis() [current impl]:  %7.1f ns", ns_m);
+            ESP_LOGI("bench", "  millis_64() [current]:    %7.1f ns", ns_m64);
+            ESP_LOGI("bench", "  --- 32-bit result ---");
+            ESP_LOGI("bench", "  __udivdi3 only:           %7.1f ns", ns_d);
+            ESP_LOGI("bench", "  onediv (if/else):         %7.1f ns", ns_o);
+            ESP_LOGI("bench", "  onediv (ternary):         %7.1f ns", ns_t);
+            ESP_LOGI("bench", "  shift3+div125 (ternary):  %7.1f ns", ns_s);
+            ESP_LOGI("bench", "  --- 64-bit result ---");
+            ESP_LOGI("bench", "  __udivdi3 (64-bit):       %7.1f ns", ns_d64);
+            ESP_LOGI("bench", "  shift3+div125 (64-bit):   %7.1f ns", ns_s64);
+            ESP_LOGI("bench", "  speedup 32: div64/shift3=%.2fx  64: div64/shift3=%.2fx",
+                     (float)dur_div64 / dur_shift3, (float)dur_div64_64 / dur_shift3_64);
+          }
+
+#  - platform: template
+#    name: Decode Benchmark
+#    on_press:
+#      - lambda: |-
+#          using namespace esphome::api;
+#          static const char *TAG = "decode_bench";
+#          const int ITERATIONS = 100000;
+#
+#          // Helper to encode a varint into a buffer, returns length
+#          auto encode_varint = [](uint64_t value, uint8_t *buf) -> int {
+#            int n = 0;
+#            while (value > 0x7F) {
+#              buf[n++] = static_cast<uint8_t>(value | 0x80);
+#              value >>= 7;
+#            }
+#            buf[n++] = static_cast<uint8_t>(value);
+#            return n;
+#          };
+#
+#          // === OLD decode loop: uses OldVarInt with optional + consumed ptr ===
+#          // This replicates ProtoDecodableMessage::decode() but with the old parse API
+#          struct OldVarInt {
+#            uint64_t value_;
+#            uint32_t as_uint32() const { return static_cast<uint32_t>(value_); }
+#            static optional<OldVarInt> parse(const uint8_t *buffer, uint32_t len, uint32_t *consumed) {
+#              if (len == 0) return {};
+#              if ((buffer[0] & 0x80) == 0) {
+#                *consumed = 1;
+#                return OldVarInt{buffer[0]};
+#              }
+#              uint64_t result = buffer[0] & 0x7F;
+#              uint8_t bitpos = 7;
+#              uint32_t max_len = std::min(len, uint32_t(10));
+#              for (uint32_t i = 1; i < max_len; i++) {
+#                uint8_t val = buffer[i];
+#                result |= uint64_t(val & 0x7F) << uint64_t(bitpos);
+#                bitpos += 7;
+#                if ((val & 0x80) == 0) {
+#                  *consumed = i + 1;
+#                  return OldVarInt{result};
+#                }
+#              }
+#              return {};
+#            }
+#          };
+#
+#          // Old decode loop - mirrors ProtoDecodableMessage::decode() but with old parse API
+#          auto old_decode = [](const uint8_t *buffer, size_t length) __attribute__((noinline)) {
+#            const uint8_t *ptr = buffer;
+#            const uint8_t *end = buffer + length;
+#            volatile uint32_t sink = 0;
+#            while (ptr < end) {
+#              uint32_t consumed;
+#              auto res = OldVarInt::parse(ptr, end - ptr, &consumed);
+#              if (!res.has_value()) return;
+#              uint32_t tag = res->as_uint32();
+#              uint32_t field_type = tag & 0x07;
+#              ptr += consumed;
+#              switch (field_type) {
+#                case 0: {  // varint
+#                  res = OldVarInt::parse(ptr, end - ptr, &consumed);
+#                  if (!res.has_value()) return;
+#                  sink += res->as_uint32();
+#                  ptr += consumed;
+#                  break;
+#                }
+#                case 2: {  // length-delimited
+#                  res = OldVarInt::parse(ptr, end - ptr, &consumed);
+#                  if (!res.has_value()) return;
+#                  ptr += consumed + res->as_uint32();
+#                  break;
+#                }
+#                case 5: {  // fixed32
+#                  if (end - ptr < 4) return;
+#                  sink += ptr[0];
+#                  ptr += 4;
+#                  break;
+#                }
+#                default: return;
+#              }
+#            }
+#          };
+#
+#          // New decode loop - mirrors ProtoDecodableMessage::decode() with new ProtoVarIntResult API
+#          auto new_decode = [](const uint8_t *buffer, size_t length) __attribute__((noinline)) {
+#            const uint8_t *ptr = buffer;
+#            const uint8_t *end = buffer + length;
+#            volatile uint32_t sink = 0;
+#            while (ptr < end) {
+#              auto res = ProtoVarInt::parse(ptr, end - ptr);
+#              if (!res.has_value()) return;
+#              uint32_t tag = static_cast<uint32_t>(res.value);
+#              uint32_t field_type = tag & 0x07;
+#              ptr += res.consumed;
+#              switch (field_type) {
+#                case 0: {  // varint
+#                  res = ProtoVarInt::parse(ptr, end - ptr);
+#                  if (!res.has_value()) return;
+#                  sink += static_cast<uint32_t>(res.value);
+#                  ptr += res.consumed;
+#                  break;
+#                }
+#                case 2: {  // length-delimited
+#                  res = ProtoVarInt::parse(ptr, end - ptr);
+#                  if (!res.has_value()) return;
+#                  ptr += res.consumed + static_cast<uint32_t>(res.value);
+#                  break;
+#                }
+#                case 5: {  // fixed32
+#                  if (end - ptr < 4) return;
+#                  sink += ptr[0];
+#                  ptr += 4;
+#                  break;
+#                }
+#                default: return;
+#              }
+#            }
+#          };
+#
+#          // Build test messages:
+#          // 1) "Small" - HelloRequest-like: 1 string + 2 varints (3 fields, ~10 bytes)
+#          //    field 1 = "aioesphomeapi" (length-delimited), field 2 = varint 1, field 3 = varint 10
+#          uint8_t small_buf[32];
+#          int small_pos = 0;
+#          // field 1, wire type 2 (length-delimited): tag = 0x0A
+#          small_buf[small_pos++] = 0x0A;
+#          const char *client = "aioesphomeapi";
+#          uint8_t clen = strlen(client);
+#          small_pos += encode_varint(clen, small_buf + small_pos);
+#          memcpy(small_buf + small_pos, client, clen);
+#          small_pos += clen;
+#          // field 2, wire type 0 (varint): tag = 0x10, value = 1
+#          small_buf[small_pos++] = 0x10;
+#          small_pos += encode_varint(1, small_buf + small_pos);
+#          // field 3, wire type 0 (varint): tag = 0x18, value = 10
+#          small_buf[small_pos++] = 0x18;
+#          small_pos += encode_varint(10, small_buf + small_pos);
+#
+#          // 2) "Medium" - 10 varint fields (20 parse() calls: 10 tags + 10 values)
+#          uint8_t med_buf[64];
+#          int med_pos = 0;
+#          for (int f = 1; f <= 10; f++) {
+#            med_pos += encode_varint((f << 3) | 0, med_buf + med_pos);  // tag: field f, wire type 0
+#            med_pos += encode_varint(f * 42, med_buf + med_pos);        // value
+#          }
+#
+#          // 3) "Large" - 10 varints + 5 fixed32 + 1 string (mixed, like a command request)
+#          uint8_t large_buf[128];
+#          int large_pos = 0;
+#          // 10 varint fields
+#          for (int f = 1; f <= 10; f++) {
+#            large_pos += encode_varint((f << 3) | 0, large_buf + large_pos);
+#            large_pos += encode_varint(f < 8 ? 1 : f * 100, large_buf + large_pos);
+#          }
+#          // 5 fixed32 fields (fields 11-15)
+#          for (int f = 11; f <= 15; f++) {
+#            large_pos += encode_varint((f << 3) | 5, large_buf + large_pos);
+#            float fv = f * 0.1f;
+#            memcpy(large_buf + large_pos, &fv, 4);
+#            large_pos += 4;
+#          }
+#          // 1 string field (field 16)
+#          large_pos += encode_varint((16 << 3) | 2, large_buf + large_pos);
+#          const char *effect = "rainbow";
+#          uint8_t elen = strlen(effect);
+#          large_pos += encode_varint(elen, large_buf + large_pos);
+#          memcpy(large_buf + large_pos, effect, elen);
+#          large_pos += elen;
+#
+#          struct BenchCase {
+#            const char *label;
+#            const uint8_t *buf;
+#            int len;
+#          };
+#
+#          BenchCase cases[] = {
+#            {"Small (3 fields, HelloReq)", small_buf, small_pos},
+#            {"Medium (10 varints)", med_buf, med_pos},
+#            {"Large (10vi+5f32+1str)", large_buf, large_pos},
+#          };
+#
+#          ESP_LOGI(TAG, "=== Decode Benchmark (%d iters) ===", ITERATIONS);
+#          ESP_LOGI(TAG, "Old = optional<ProtoVarInt> + consumed ptr decode loop");
+#          ESP_LOGI(TAG, "New = ProtoVarIntResult decode loop (inlined parse)");
+#          ESP_LOGI(TAG, "%-30s  %10s  %10s  %8s", "Case", "Old (ns)", "New (ns)", "Delta");
+#          ESP_LOGI(TAG, "%-30s  %10s  %10s  %8s", "----", "--------", "--------", "-----");
+#
+#          for (auto &tc : cases) {
+#            // Warm up
+#            for (int i = 0; i < 1000; i++) {
+#              old_decode(tc.buf, tc.len);
+#              new_decode(tc.buf, tc.len);
+#            }
+#
+#            App.feed_wdt();
+#
+#            // Benchmark OLD
+#            uint32_t t0 = micros();
+#            for (int i = 0; i < ITERATIONS; i++) {
+#              old_decode(tc.buf, tc.len);
+#            }
+#            uint32_t elapsed_old = micros() - t0;
+#
+#            App.feed_wdt();
+#
+#            // Benchmark NEW
+#            t0 = micros();
+#            for (int i = 0; i < ITERATIONS; i++) {
+#              new_decode(tc.buf, tc.len);
+#            }
+#            uint32_t elapsed_new = micros() - t0;
+#
+#            double old_ns = (double)elapsed_old * 1000.0 / ITERATIONS;
+#            double new_ns = (double)elapsed_new * 1000.0 / ITERATIONS;
+#            double pct = old_ns > 0 ? (new_ns - old_ns) / old_ns * 100.0 : 0;
+#
+#            ESP_LOGI(TAG, "%-30s  %9.1f   %9.1f   %+5.1f%%  (%d bytes)",
+#                     tc.label, old_ns, new_ns, pct, tc.len);
+#          }
+#
+#          ESP_LOGI(TAG, "=== Decode Benchmark complete ===");
+#
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+  - platform: sntp
+    id: sntp_time
+
+#sensor:
+#  # Uptime sensor.
+#  - platform: uptime
+#    name: Upstairs Desk Uptime
+# Sensors with general information.
+sensor:
+  # Uptime sensor.
+  - platform: uptime
+    name: Ethernet Uptime
+  - platform: template
+    name: Free Memory
+    lambda: return heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    unit_of_measurement: 'B'
+    state_class: measurement

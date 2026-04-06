@@ -144,16 +144,14 @@ uint32_t ProtoDecodableMessage::count_repeated_field(const uint8_t *buffer, size
 //   After writing 2-byte varint at len_pos:
 //   [tag][v1][v2][body ..... body]
 //                                ^-- pos_ = element end, within buffer
-void ProtoWriteBuffer::encode_sub_message(uint32_t field_id, const void *value,
-                                          void (*encode_fn)(const void *, ProtoWriteBuffer &)) {
-  this->encode_field_raw(field_id, 2);
+void proto_encode_sub_message_core(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, uint32_t field_id,
+                                   const void *value, ProtoEncodeFn encode_fn) {
+  proto_encode_field_raw(pos PROTO_ENCODE_DEBUG_ARG, field_id, 2);
   // Reserve 1 byte for length varint (optimistic: submessage < 128 bytes)
-  uint8_t *len_pos = this->pos_;
-  this->debug_check_bounds_(1);
-  this->pos_++;
-  uint8_t *body_start = this->pos_;
-  encode_fn(value, *this);
-  uint32_t body_size = static_cast<uint32_t>(this->pos_ - body_start);
+  uint8_t *len_pos = pos++;
+  uint8_t *body_start = pos;
+  encode_fn(value, pos PROTO_ENCODE_DEBUG_ARG);
+  uint32_t body_size = static_cast<uint32_t>(pos - body_start);
   if (body_size < 128) [[likely]] {
     // Common case: 1-byte varint, just backpatch
     *len_pos = static_cast<uint8_t>(body_size);
@@ -162,33 +160,37 @@ void ProtoWriteBuffer::encode_sub_message(uint32_t field_id, const void *value,
   // Compute extra bytes needed for varint beyond the 1 already reserved
   uint8_t extra = ProtoSize::varint(body_size) - 1;
   // Shift body forward to make room for the extra varint bytes
-  this->debug_check_bounds_(extra);
   std::memmove(body_start + extra, body_start, body_size);
-  uint8_t *end = this->pos_ + extra;
+  pos += extra;
   // Write the full varint at len_pos
-  this->pos_ = len_pos;
-  this->encode_varint_raw(body_size);
-  this->pos_ = end;
+  uint8_t *vpos = len_pos;
+  proto_encode_varint_raw_loop(vpos PROTO_ENCODE_DEBUG_ARG, body_size);
 }
 
-// Non-template core for encode_optional_sub_message.
-void ProtoWriteBuffer::encode_optional_sub_message(uint32_t field_id, uint32_t nested_size, const void *value,
-                                                   void (*encode_fn)(const void *, ProtoWriteBuffer &)) {
+void proto_encode_optional_sub_message_core(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, uint32_t field_id,
+                                            uint32_t nested_size, const void *value, ProtoEncodeFn encode_fn) {
   if (nested_size == 0)
     return;
-  this->encode_field_raw(field_id, 2);
-  this->encode_varint_raw(nested_size);
+  proto_encode_field_raw(pos PROTO_ENCODE_DEBUG_ARG, field_id, 2);
+  proto_encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, nested_size);
 #ifdef ESPHOME_DEBUG_API
-  uint8_t *start = this->pos_;
-  encode_fn(value, *this);
-  if (static_cast<uint32_t>(this->pos_ - start) != nested_size)
-    this->debug_check_encode_size_(field_id, nested_size, this->pos_ - start);
+  uint8_t *start = pos;
+  encode_fn(value, pos PROTO_ENCODE_DEBUG_ARG);
+  if (static_cast<uint32_t>(pos - start) != nested_size) {
+    ESP_LOGE(TAG, "encode_message: size mismatch for field %" PRIu32 ": calculated=%" PRIu32 " actual=%td", field_id,
+             nested_size, pos - start);
+    abort();
+  }
 #else
-  encode_fn(value, *this);
+  encode_fn(value, pos PROTO_ENCODE_DEBUG_ARG);
 #endif
 }
 
 #ifdef ESPHOME_DEBUG_API
+void proto_check_bounds_failed(const uint8_t *pos, size_t bytes, const uint8_t *end, const char *caller) {
+  ESP_LOGE(TAG, "Proto encode bounds check failed in %s: bytes=%zu pos=%p end=%p", caller, bytes, pos, end);
+  abort();
+}
 void ProtoWriteBuffer::debug_check_bounds_(size_t bytes, const char *caller) {
   if (this->pos_ + bytes > this->buffer_->data() + this->buffer_->size()) {
     ESP_LOGE(TAG, "ProtoWriteBuffer bounds check failed in %s: bytes=%zu offset=%td buf_size=%zu", caller, bytes,
@@ -201,7 +203,6 @@ void ProtoWriteBuffer::debug_check_encode_size_(uint32_t field_id, uint32_t expe
            expected, actual);
   abort();
 }
-
 #endif
 
 void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {
