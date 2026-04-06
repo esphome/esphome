@@ -31,7 +31,7 @@ class IDFUARTComponent : public UARTComponent, public Component {
   bool read_array(uint8_t *data, size_t len) override;
 
   size_t available() override;
-  FlushResult flush() override;
+  UARTFlushResult flush() override;
 
   void set_flush_timeout(uint32_t flush_timeout_ms) override { this->flush_timeout_ms_ = flush_timeout_ms; }
 
