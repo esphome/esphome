@@ -26,12 +26,9 @@ MULTI_CONF = True
 CONF_PIN_COUNT = "pin_count"
 pca9554_ns = cg.esphome_ns.namespace("pca9554")
 
-# Note: the PCAL95xx devices have open drain output capability, but I have not implemented it because
-# 1: I don't plan to use it and 2: this PR is already getting pretty large and I don't want to make it any bigger.
-# If this PR is accepted, I can submit a follow up that enables this capability.
 
-
-# Define capabilities of the expander. Set a 1 to this bit to enable this functionality.
+# Define capabilities of the expander. Set a 1 to this bit to
+# enable this functionality.
 # Bit 0: Input/Output, all expanders have this one
 # Bit 1: Pull-up
 # Bit 2: Pull-down
@@ -54,7 +51,6 @@ def generate_capability(modes):
     return capability
 
 
-# We could define allowable device addresses in here, but I don't know if that is a good idea.
 PCA9554_DEVICE_TYPES = {
     "NONE": {
         "modes": [CONF_INPUT, CONF_OUTPUT],
@@ -122,9 +118,10 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_DEVICE, default="NONE"): cv.enum(
                 PCA9554_DEVICE_TYPES, upper=True
             ),
-            # To maintain backwards compatibility and to also allow the device type to set pin count,
-            # we remove the default here. If this is not set, the number of pins is set from the device
-            # type using the dict defintion above.
+            # To maintain backwards compatibility and to also allow the device
+            # type to set pin count, we remove the default here. If this is not
+            # set, the number of pins is set from the device type using the dict
+            # defintion above.
             cv.Optional(CONF_PIN_COUNT): cv.one_of(4, 8, 16),
             cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
         }
@@ -142,8 +139,11 @@ async def to_code(config):
 
     cg.add(var.set_capability(generate_capability(device_dict["modes"])))
 
-    # This doesnt run until after the pin configs are validated, so we cant set the pin count here only.
-    # To maintain backwards compatibiliy, we allow the pin count to be manually set. If it is not manually set, the number of pins is set from the device dict above.
+    # This doesnt run until after the pin configs are validated, so we cant set
+    # the pin count here only.
+    # To maintain backwards compatibiliy, we allow the pin count to be manually
+    # set. If it is not manually set, the number of pins is set from the device
+    # dict above.
     if CONF_PIN_COUNT in config:
         cg.add(var.set_pin_count(config[CONF_PIN_COUNT]))
     else:
@@ -156,7 +156,8 @@ async def to_code(config):
 
 
 def validate_mode(value):
-    # Note: here we cannot validate that the modes entered are supported by the device, only that the modes entered are compatible.
+    # Note: here we cannot validate that the modes entered are supported by the
+    # device, only that the modes entered are compatible.
     if not (value[CONF_INPUT] or value[CONF_OUTPUT]):
         raise cv.Invalid("Mode must be either input or output")
     if value[CONF_INPUT] and value[CONF_OUTPUT]:
@@ -173,8 +174,9 @@ def validate_mode(value):
 PCA9554_PIN_SCHEMA = pins.gpio_base_schema(
     PCA9554GPIOPin,
     cv.int_range(min=0, max=15),
-    # These are all possible modes supported by this component, they are not necessarily
-    # the modes supported by the selected device. That is checked later.
+    # These are all possible modes supported by this component, they are not
+    # necessarily the modes supported by the selected device. That is checked
+    # later.
     modes=[
         CONF_INPUT,
         CONF_OUTPUT,
