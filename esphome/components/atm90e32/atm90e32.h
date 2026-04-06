@@ -176,7 +176,6 @@ class ATM90E32Component : public PollingComponent,
   static uint16_t calculate_current_threshold_from_amps(float current_rms, uint16_t igain);
   static uint16_t calculate_frequency_threshold_from_hz(float frequency_hz);
   uint16_t calculate_voltage_threshold(int line_freq, uint16_t ugain, float multiplier);
-  int32_t last_periodic_millis = millis();
 
  protected:
 #ifdef USE_NUMBER

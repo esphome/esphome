@@ -14,9 +14,6 @@ class StatusLED : public Component {
   void dump_config() override;
   void loop() override;
   float get_setup_priority() const override;
-#ifdef USE_LOOP_PRIORITY
-  float get_loop_priority() const override;
-#endif
 
  protected:
   GPIOPin *pin_;
