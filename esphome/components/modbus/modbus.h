@@ -107,6 +107,7 @@ class ModbusClientHub : public Modbus {
   void set_turnaround_time(uint16_t time_in_ms) { turnaround_delay_ms_ = time_in_ms; }
   bool tx_buffer_empty();
   bool tx_blocked() override;
+  ESPDEPRECATED("Use send_pdu() with create_client_pdu() instead. Removed in 2026.10.0", "2026.4.0")
   void send(uint8_t address, uint8_t function_code, uint16_t start_address, uint16_t number_of_entities,
             uint8_t payload_len = 0, const uint8_t *payload = nullptr, ModbusClientDevice *device = nullptr,
             bool allow_duplicates = false);
@@ -169,7 +170,10 @@ class ModbusClientDevice {
   virtual void on_modbus_no_response() {}
   void send(uint8_t function, uint16_t start_address, uint16_t number_of_entities, uint8_t payload_len = 0,
             const uint8_t *payload = nullptr) {
-    this->parent_->send(this->address_, function, start_address, number_of_entities, payload_len, payload, this);
+    this->parent_->send_pdu(this->address_,
+                            helpers::create_client_pdu((ModbusFunctionCode) function, start_address, number_of_entities,
+                                                       payload, payload_len),
+                            this);
   }
   void send_pdu(const StaticVector<uint8_t, MAX_FRAME_SIZE> &pdu) {
     this->parent_->send_pdu(this->address_, pdu, this);
