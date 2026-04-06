@@ -220,8 +220,7 @@ void ATM90E32Component::setup() {
                                       : (static_cast<float>(this->line_freq_) + DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ);
   const float current_peak_a_raw =
       this->has_threshold_current_peak_a_ ? this->threshold_current_peak_a_ : DEFAULT_CURRENT_PEAK_A;
-  const float current_peak_a =
-      (current_peak_a_raw > MAX_CURRENT_PEAK_A) ? MAX_CURRENT_PEAK_A : current_peak_a_raw;
+  const float current_peak_a = (current_peak_a_raw > MAX_CURRENT_PEAK_A) ? MAX_CURRENT_PEAK_A : current_peak_a_raw;
   if (current_peak_a != current_peak_a_raw) {
     ESP_LOGW(TAG,
              "Configured current peak threshold %.3f A exceeds the ATM90E32 native limit of %.3f A; "
