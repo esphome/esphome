@@ -267,7 +267,7 @@ class ProtoCursor {
   ProtoCursor &operator=(const ProtoCursor &) = delete;
 
   /// Write a multi-byte varint directly through pos_.
-  template<typename T> void encode_varint_raw_loop_(T value) {
+  template<typename T> void encode_varint_raw_loop(T value) {
     do {
       this->debug_check_bounds_(1);
       *this->pos_++ = static_cast<uint8_t>(value | 0x80);
@@ -282,7 +282,7 @@ class ProtoCursor {
       *this->pos_++ = static_cast<uint8_t>(value);
       return;
     }
-    this->encode_varint_raw_loop_(value);
+    this->encode_varint_raw_loop(value);
   }
   /// Encode a varint that is expected to be 1-2 bytes (e.g. zigzag RSSI, small lengths).
   /// Inlines both the 1-byte and 2-byte paths; falls back to slow path for 3+ bytes.
@@ -298,9 +298,9 @@ class ProtoCursor {
       *this->pos_++ = static_cast<uint8_t>(value >> 7);
       return;
     }
-    this->encode_varint_raw_loop_(value);
+    this->encode_varint_raw_loop(value);
   }
-  void encode_varint_raw_64(uint64_t value) { this->encode_varint_raw_loop_(value); }
+  void encode_varint_raw_64(uint64_t value) { this->encode_varint_raw_loop(value); }
   /// Encode field tag — all ESPHome field IDs fit in 1-2 varint bytes.
   inline void ESPHOME_ALWAYS_INLINE encode_field_raw(uint32_t field_id, uint32_t type) {
     uint32_t tag = (field_id << 3) | type;
@@ -347,7 +347,7 @@ class ProtoCursor {
       this->debug_check_bounds_(1 + len);
       *this->pos_++ = static_cast<uint8_t>(len);
     } else {
-      this->encode_varint_raw_loop_(len);
+      this->encode_varint_raw_loop(len);
       this->debug_check_bounds_(len);
     }
     std::memcpy(this->pos_, string, len);
