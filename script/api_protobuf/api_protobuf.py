@@ -232,18 +232,18 @@ class TypeInfo(ABC):
     # eliminating the zero-check branch and encode_field_raw indirection.
     # {value} is replaced with the actual field expression.
     RAW_ENCODE_MAP: dict[str, str] = {
-        "encode_uint32": "buffer.encode_varint_raw({value});",
-        "encode_uint64": "buffer.encode_varint_raw_64({value});",
-        "encode_sint32": "buffer.encode_varint_raw_short(encode_zigzag32({value}));",
-        "encode_sint64": "buffer.encode_varint_raw_64(encode_zigzag64({value}));",
-        "encode_int64": "buffer.encode_varint_raw_64(static_cast<uint64_t>({value}));",
-        "encode_bool": "buffer.write_raw_byte({value} ? 0x01 : 0x00);",
+        "encode_uint32": "proto_encode_varint_raw(pos, {value});",
+        "encode_uint64": "proto_encode_varint_raw_64(pos, {value});",
+        "encode_sint32": "proto_encode_varint_raw_short(pos, encode_zigzag32({value}));",
+        "encode_sint64": "proto_encode_varint_raw_64(pos, encode_zigzag64({value}));",
+        "encode_int64": "proto_encode_varint_raw_64(pos, static_cast<uint64_t>({value}));",
+        "encode_bool": "proto_write_raw_byte(pos, {value} ? 0x01 : 0x00);",
     }
 
     # When max_value < 128, the varint is always 1 byte — use a direct byte write
     RAW_ENCODE_SMALL_MAP: dict[str, str] = {
-        "encode_uint32": "buffer.write_raw_byte(static_cast<uint8_t>({value}));",
-        "encode_uint64": "buffer.write_raw_byte(static_cast<uint8_t>({value}));",
+        "encode_uint32": "proto_write_raw_byte(pos, static_cast<uint8_t>({value}));",
+        "encode_uint64": "proto_write_raw_byte(pos, static_cast<uint8_t>({value}));",
     }
 
     def _encode_with_precomputed_tag(self, value_expr: str) -> str | None:
@@ -266,7 +266,7 @@ class TypeInfo(ABC):
             raw_expr = self.RAW_ENCODE_MAP.get(self.encode_func)
         if raw_expr is None:
             return None
-        return f"buffer.write_raw_byte({tag});\n{raw_expr.format(value=value_expr)}"
+        return f"proto_write_raw_byte(pos, {tag});\n{raw_expr.format(value=value_expr)}"
 
     def _encode_bytes_with_precomputed_tag(
         self, data_expr: str, len_expr: str, max_len: int | None = None
@@ -283,14 +283,14 @@ class TypeInfo(ABC):
             return None
         # When max_len < 128, length varint is always 1 byte
         len_encode = (
-            f"buffer.write_raw_byte(static_cast<uint8_t>({len_expr}));"
+            f"proto_write_raw_byte(pos, static_cast<uint8_t>({len_expr}));"
             if max_len is not None and max_len < 128
-            else f"buffer.encode_varint_raw({len_expr});"
+            else f"proto_encode_varint_raw(pos, {len_expr});"
         )
         return (
-            f"buffer.write_raw_byte({tag});\n"
+            f"proto_write_raw_byte(pos, {tag});\n"
             f"{len_encode}\n"
-            f"buffer.encode_raw({data_expr}, {len_expr});"
+            f"proto_encode_raw(pos, {data_expr}, {len_expr});"
         )
 
     @property
@@ -298,8 +298,8 @@ class TypeInfo(ABC):
         if result := self._encode_with_precomputed_tag(f"this->{self.field_name}"):
             return result
         if self.force:
-            return f"buffer.{self.encode_func}({self.number}, this->{self.field_name}, true);"
-        return f"buffer.{self.encode_func}({self.number}, this->{self.field_name});"
+            return f"proto_{self.encode_func}(pos, {self.number}, this->{self.field_name}, true);"
+        return f"proto_{self.encode_func}(pos, {self.number}, this->{self.field_name});"
 
     encode_func = None
 
@@ -667,10 +667,10 @@ class Fixed32Type(TypeInfo):
         tag = self.calculate_tag()
         if self.force and tag < 128:
             # Emit combined tag+value write: precomputed tag + direct memcpy
-            return f"buffer.write_tag_and_fixed32({tag}, this->{self.field_name});"
+            return f"proto_write_tag_and_fixed32(pos, {tag}, this->{self.field_name});"
         if self.force:
-            return f"buffer.{self.encode_func}({self.number}, this->{self.field_name}, true);"
-        return f"buffer.{self.encode_func}({self.number}, this->{self.field_name});"
+            return f"proto_{self.encode_func}(pos, {self.number}, this->{self.field_name}, true);"
+        return f"proto_{self.encode_func}(pos, {self.number}, this->{self.field_name});"
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
@@ -744,8 +744,8 @@ class StringType(TypeInfo):
         ):
             return result
         if self.force:
-            return f"buffer.encode_string({self.number}, this->{self.field_name}_ref_, true);"
-        return f"buffer.encode_string({self.number}, this->{self.field_name}_ref_);"
+            return f"proto_encode_string(pos, {self.number}, this->{self.field_name}_ref_, true);"
+        return f"proto_encode_string(pos, {self.number}, this->{self.field_name}_ref_);"
 
     def dump(self, name):
         # If name is 'it', this is a repeated field element - always use string
@@ -833,7 +833,7 @@ class MessageType(TypeInfo):
     @property
     def encode_content(self) -> str:
         # encode_sub_message always encodes (uses backpatch), no force needed
-        return f"buffer.{self.encode_func}({self.number}, this->{self.field_name});"
+        return f"proto_{self.encode_func}(pos, {self.number}, this->{self.field_name});"
 
     @property
     def decode_length(self) -> str:
@@ -914,8 +914,8 @@ class BytesType(TypeInfo):
         ):
             return result
         if self.force:
-            return f"buffer.encode_bytes({self.number}, this->{self.field_name}_ptr_, this->{self.field_name}_len_, true);"
-        return f"buffer.encode_bytes({self.number}, this->{self.field_name}_ptr_, this->{self.field_name}_len_);"
+            return f"proto_encode_bytes(pos, {self.number}, this->{self.field_name}_ptr_, this->{self.field_name}_len_, true);"
+        return f"proto_encode_bytes(pos, {self.number}, this->{self.field_name}_ptr_, this->{self.field_name}_len_);"
 
     def dump(self, name: str) -> str:
         ptr_dump = f"format_hex_pretty(this->{self.field_name}_ptr_, this->{self.field_name}_len_)"
@@ -1025,8 +1025,8 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
         ):
             return result
         if self.force:
-            return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len, true);"
-        return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len);"
+            return f"proto_encode_bytes(pos, {self.number}, this->{self.field_name}, this->{self.field_name}_len, true);"
+        return f"proto_encode_bytes(pos, {self.number}, this->{self.field_name}, this->{self.field_name}_len);"
 
     @property
     def decode_length_content(self) -> str | None:
@@ -1079,9 +1079,9 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
             return result
         if self.force:
             return (
-                f"buffer.encode_string({self.number}, this->{self.field_name}, true);"
+                f"proto_encode_string(pos, {self.number}, this->{self.field_name}, true);"
             )
-        return f"buffer.encode_string({self.number}, this->{self.field_name});"
+        return f"proto_encode_string(pos, {self.number}, this->{self.field_name});"
 
     @property
     def decode_length_content(self) -> str | None:
@@ -1250,8 +1250,8 @@ class FixedArrayBytesType(TypeInfo):
         ):
             return result
         if self.force:
-            return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len, true);"
-        return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len);"
+            return f"proto_encode_bytes(pos, {self.number}, this->{self.field_name}, this->{self.field_name}_len, true);"
+        return f"proto_encode_bytes(pos, {self.number}, this->{self.field_name}, this->{self.field_name}_len);"
 
     def dump(self, name: str) -> str:
         return f"out.append(format_hex_pretty({name}, {name}_len));"
@@ -1333,8 +1333,8 @@ class EnumType(TypeInfo):
         ):
             return result
         if self.force:
-            return f"buffer.{self.encode_func}({self.number}, static_cast<uint32_t>(this->{self.field_name}), true);"
-        return f"buffer.{self.encode_func}({self.number}, static_cast<uint32_t>(this->{self.field_name}));"
+            return f"proto_{self.encode_func}(pos, {self.number}, static_cast<uint32_t>(this->{self.field_name}), true);"
+        return f"proto_{self.encode_func}(pos, {self.number}, static_cast<uint32_t>(this->{self.field_name}));"
 
     def dump(self, name: str) -> str:
         return f"out.append_p(proto_enum_to_string<{self.cpp_type}>({name}));"
@@ -1497,11 +1497,11 @@ class FixedArrayRepeatedType(TypeInfo):
     def _encode_element(self, element: str) -> str:
         """Helper to generate encode statement for a single element."""
         if isinstance(self._ti, EnumType):
-            return f"buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>({element}), true);"
+            return f"proto_{self._ti.encode_func}(pos, {self.number}, static_cast<uint32_t>({element}), true);"
         # Repeated message elements use encode_sub_message (force=true is default)
         if isinstance(self._ti, MessageType):
-            return f"buffer.encode_sub_message({self.number}, {element});"
-        return f"buffer.{self._ti.encode_func}({self.number}, {element}, true);"
+            return f"proto_encode_sub_message(pos, buffer, {self.number}, {element});"
+        return f"proto_{self._ti.encode_func}(pos, {self.number}, {element}, true);"
 
     @property
     def cpp_type(self) -> str:
@@ -1825,11 +1825,11 @@ class RepeatedTypeInfo(TypeInfo):
     def _encode_element_call(self, element: str) -> str:
         """Helper to generate encode call for a single element."""
         if isinstance(self._ti, EnumType):
-            return f"buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>({element}), true);"
+            return f"proto_{self._ti.encode_func}(pos, {self.number}, static_cast<uint32_t>({element}), true);"
         # Repeated message elements use encode_sub_message (force=true is default)
         if isinstance(self._ti, MessageType):
-            return f"buffer.encode_sub_message({self.number}, {element});"
-        return f"buffer.{self._ti.encode_func}({self.number}, {element}, true);"
+            return f"proto_encode_sub_message(pos, buffer, {self.number}, {element});"
+        return f"proto_{self._ti.encode_func}(pos, {self.number}, {element}, true);"
 
     @property
     def encode_content(self) -> str:
@@ -1838,7 +1838,7 @@ class RepeatedTypeInfo(TypeInfo):
             # Special handling for const char* elements (when container_no_template contains "const char")
             if "const char" in self._container_no_template:
                 o = f"for (const char *it : *this->{self.field_name}) {{\n"
-                o += f"  buffer.{self._ti.encode_func}({self.number}, it, strlen(it), true);\n"
+                o += f"  proto_{self._ti.encode_func}(pos, {self.number}, it, strlen(it), true);\n"
             else:
                 o = f"for (const auto &it : *this->{self.field_name}) {{\n"
                 o += f"  {self._encode_element_call('it')}\n"
@@ -2413,28 +2413,9 @@ def build_message_type(
 
     # Only generate encode method if this message needs encoding and has fields
     if needs_encode and encode:
-        # Transform buffer.method(...) calls to proto_method(pos, ...) free function calls.
-        # This hoists buffer.pos_ into a local __restrict__ variable for the entire function.
-        import re
-
-        def _to_proto_call(line: str) -> str:
-            """Replace buffer.method(args) with proto_method(pos, args).
-
-            Sub-message calls also need buffer passed for backpatch/sync.
-            """
-            # Sub-message calls need buffer as second arg
-            line = re.sub(
-                r"buffer\.(encode_sub_message|encode_optional_sub_message)\(",
-                r"proto_\1(pos, buffer, ",
-                line,
-            )
-            # All other buffer.method() calls
-            return re.sub(r"buffer\.(\w+)\(", r"proto_\1(pos, ", line)
-
-        encode_pos = [_to_proto_call(line) for line in encode]
         o = f"void {desc.name}::encode(ProtoWriteBuffer &buffer) const {{\n"
         o += "  uint8_t *__restrict__ pos = buffer.get_pos();\n"
-        o += indent("\n".join(encode_pos)) + "\n"
+        o += indent("\n".join(encode)) + "\n"
         o += "  buffer.set_pos(pos);\n"
         o += "}\n"
         cpp += o
