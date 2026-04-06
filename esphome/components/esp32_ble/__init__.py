@@ -7,7 +7,6 @@ from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import socket
 from esphome.components.esp32 import add_idf_sdkconfig_option, const, get_esp32_variant
 from esphome.components.esp32.const import VARIANT_ESP32C2
 import esphome.config_validation as cv
@@ -591,11 +590,6 @@ async def to_code(config):
     if (name := config.get(CONF_NAME)) is not None:
         cg.add(var.set_name(name))
     await cg.register_component(var, config)
-
-    # BLE uses the socket wake_loop_threadsafe() mechanism to wake the main loop from BLE tasks
-    # This enables low-latency (~12μs) BLE event processing instead of waiting for
-    # select() timeout (0-16ms). The wake socket is shared across all components.
-    socket.require_wake_loop_threadsafe()
 
     # Define max connections for use in C++ code (e.g., ble_server.h)
     max_connections = config.get(CONF_MAX_CONNECTIONS, DEFAULT_MAX_CONNECTIONS)

@@ -427,7 +427,7 @@ CONFIG_SCHEMA = cv.All(
 async def sprinkler_set_divider_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_DIVIDER], args, cg.float_)
+    template_ = await cg.templatable(config[CONF_DIVIDER], args, cg.uint32)
     cg.add(var.set_divider(template_))
     return var
 
@@ -471,7 +471,7 @@ async def sprinkler_set_queued_valve_to_code(config, action_id, template_arg, ar
 async def sprinkler_set_repeat_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_REPEAT], args, cg.float_)
+    template_ = await cg.templatable(config[CONF_REPEAT], args, cg.uint32)
     cg.add(var.set_repeat(template_))
     return var
 

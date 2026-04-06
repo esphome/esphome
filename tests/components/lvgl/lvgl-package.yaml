@@ -30,12 +30,19 @@ binary_sensor:
                   return y;
 
 lvgl:
+  id: lvgl_id
+  rotation: 90
   log_level: debug
   resume_on_input: true
   on_pause:
-    logger.log: LVGL is Paused
+    - logger.log: LVGL is Paused
+    - lvgl.display.set_rotation: 90
   on_resume:
-    logger.log: LVGL has resumed
+    - logger.log: LVGL has resumed
+    - lvgl.display.set_rotation:
+        rotation: 0
+        lvgl_id: lvgl_id
+
   on_boot:
     - logger.log: LVGL has started
     - lvgl.indicator.update:
