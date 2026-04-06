@@ -24,7 +24,7 @@ DEPENDENCIES = ["uart"]
 
 gcja5_ns = cg.esphome_ns.namespace("gcja5")
 
-GCJA5Component = gcja5_ns.class_("GCJA5Component", cg.PollingComponent, uart.UARTDevice)
+GCJA5Component = gcja5_ns.class_("GCJA5Component", cg.Component, uart.UARTDevice)
 
 CONF_PMC_0_3 = "pmc_0_3"
 CONF_PMC_5_0 = "pmc_5_0"
