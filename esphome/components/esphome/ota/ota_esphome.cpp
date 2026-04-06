@@ -193,12 +193,20 @@ void ESPHomeOTAComponent::handle_handshake_() {
       if (this->password_.empty())
 #endif
       {
+        ESP_LOGD(TAG, "No password, switching to blocking before feature ACK write");
         this->client_->setblocking(true);
       }
+#ifdef USE_OTA_PASSWORD
+      if (!this->password_.empty()) {
+        ESP_LOGD(TAG, "Password set, staying non-blocking for feature ACK write");
+      }
+#endif
       // Acknowledge header - 1 byte
+      ESP_LOGD(TAG, "Writing feature ACK byte: 0x%02X", this->handshake_buf_[0]);
       if (!this->try_write_(1, LOG_STR("ack feature"))) {
         return;
       }
+      ESP_LOGD(TAG, "Feature ACK byte written successfully");
 #ifdef USE_OTA_PASSWORD
       // If password is set, move to auth phase
       if (!this->password_.empty()) {
@@ -207,6 +215,7 @@ void ESPHomeOTAComponent::handle_handshake_() {
 #endif
       {
         // No password, move directly to data phase
+        ESP_LOGD(TAG, "No password, transitioning directly to DATA phase");
         this->transition_ota_state_(OTAState::DATA);
       }
       [[fallthrough]];
@@ -233,6 +242,7 @@ void ESPHomeOTAComponent::handle_handshake_() {
 #endif
 
     case OTAState::DATA:
+      ESP_LOGD(TAG, "Entering blocking data transfer phase");
       this->handle_data_();
       return;
 
