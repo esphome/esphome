@@ -232,7 +232,7 @@ class TypeInfo(ABC):
     # eliminating the zero-check branch and encode_field_raw indirection.
     # {value} is replaced with the actual field expression.
     RAW_ENCODE_MAP: dict[str, str] = {
-        "encode_uint32": "proto_encode_varint_raw(pos,{value});",
+        "encode_uint32": "proto_encode_varint_raw(pos, {value});",
         "encode_uint64": "proto_encode_varint_raw_64(pos, {value});",
         "encode_sint32": "proto_encode_varint_raw_short(pos, encode_zigzag32({value}));",
         "encode_sint64": "proto_encode_varint_raw_64(pos, encode_zigzag64({value}));",
@@ -285,7 +285,7 @@ class TypeInfo(ABC):
         len_encode = (
             f"proto_write_raw_byte(pos, static_cast<uint8_t>({len_expr}));"
             if max_len is not None and max_len < 128
-            else f"proto_encode_varint_raw(pos,{len_expr});"
+            else f"proto_encode_varint_raw(pos, {len_expr});"
         )
         return (
             f"proto_write_raw_byte(pos, {tag});\n"
@@ -832,7 +832,8 @@ class MessageType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
-        return f"proto_{self.encode_func}(pos, {self.number}, this->{self.field_name});"
+        # Sub-message encoding needs buffer for backpatch/sync
+        return f"proto_{self.encode_func}(pos, buffer, {self.number}, this->{self.field_name});"
 
     @property
     def decode_length(self) -> str:
@@ -1497,7 +1498,7 @@ class FixedArrayRepeatedType(TypeInfo):
             return f"proto_{self._ti.encode_func}(pos, {self.number}, static_cast<uint32_t>({element}), true);"
         # Repeated message elements use encode_sub_message (force=true is default)
         if isinstance(self._ti, MessageType):
-            return f"proto_encode_sub_message(pos,{self.number}, {element});"
+            return f"proto_encode_sub_message(pos, buffer, {self.number}, {element});"
         return f"proto_{self._ti.encode_func}(pos, {self.number}, {element}, true);"
 
     @property
@@ -1825,7 +1826,7 @@ class RepeatedTypeInfo(TypeInfo):
             return f"proto_{self._ti.encode_func}(pos, {self.number}, static_cast<uint32_t>({element}), true);"
         # Repeated message elements use encode_sub_message (force=true is default)
         if isinstance(self._ti, MessageType):
-            return f"proto_encode_sub_message(pos,{self.number}, {element});"
+            return f"proto_encode_sub_message(pos, buffer, {self.number}, {element});"
         return f"proto_{self._ti.encode_func}(pos, {self.number}, {element}, true);"
 
     @property
@@ -2410,13 +2411,13 @@ def build_message_type(
 
     # Only generate encode method if this message needs encoding and has fields
     if needs_encode and encode:
-        # Add PROTO_ENCODE_DEBUG_ARG after pos in all proto_* calls
-        encode_debug = [line.replace("(pos,", "(pos PROTO_ENCODE_DEBUG_ARG,") for line in encode]
-        o = f"void {desc.name}::encode(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM) const {{\n"
-        o += indent("\n".join(encode_debug)) + "\n"
+        o = f"void {desc.name}::encode(ProtoWriteBuffer &buffer) const {{\n"
+        o += "  uint8_t *__restrict__ pos = buffer.get_pos();\n"
+        o += indent("\n".join(encode)) + "\n"
+        o += "  buffer.set_pos(pos);\n"
         o += "}\n"
         cpp += o
-        prot = "void encode(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM) const;"
+        prot = "void encode(ProtoWriteBuffer &buffer) const;"
         public_content.append(prot)
     # If no fields to encode or message doesn't need encoding, the default implementation in ProtoMessage will be used
 
