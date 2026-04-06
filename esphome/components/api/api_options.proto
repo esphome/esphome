@@ -96,4 +96,10 @@ extend google.protobuf.FieldOptions {
     // variant of the calc_ method. Use on fields that are almost always non-default
     // to eliminate dead branches on hot paths.
     optional bool force = 50016 [default=false];
+
+    // max_value: Maximum value a field can have.
+    // When max_value < 128, the code generator emits constant-size calculations
+    // and direct byte writes instead of varint branching, since the encoded varint
+    // is guaranteed to be 1 byte.
+    optional uint32 max_value = 50017;
 }

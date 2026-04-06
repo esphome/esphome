@@ -14,8 +14,8 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-namespace esphome {
-namespace nextion {
+namespace esphome::nextion {
+
 static const char *const TAG = "nextion.upload.esp32";
 static constexpr size_t NEXTION_MAX_RESPONSE_LOG_BYTES = 16;
 
@@ -344,8 +344,7 @@ bool Nextion::upload_tft(uint32_t baud_rate, bool exit_reparse) {
   return this->upload_end_(true);
 }
 
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion
 
 #endif  // USE_ESP32
 #endif  // USE_NEXTION_TFT_UPLOAD
