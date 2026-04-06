@@ -335,7 +335,8 @@ class Climate : public EntityBase {
   /** Internal method to save the state of the climate device to recover memory. This is automatically
    * called from publish_state()
    */
-  void save_state_();
+  void save_state_(const ClimateTraits &traits);
+  void save_state_() { this->save_state_(this->traits()); }
 
   void dump_traits_(const char *tag);
 

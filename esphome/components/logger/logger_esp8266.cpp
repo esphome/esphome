@@ -1,5 +1,9 @@
 #ifdef USE_ESP8266
 #include "logger.h"
+#include "esphome/core/defines.h"
+#ifdef USE_ESP8266_CRASH_HANDLER
+#include "esphome/components/esp8266/crash_handler.h"
+#endif
 #include "esphome/core/log.h"
 
 namespace esphome::logger {
@@ -26,6 +30,9 @@ void Logger::pre_setup() {
   global_logger = this;
 
   ESP_LOGI(TAG, "Log initialized");
+#ifdef USE_ESP8266_CRASH_HANDLER
+  esp8266::crash_handler_log();
+#endif
 }
 
 const LogString *Logger::get_uart_selection_() {
