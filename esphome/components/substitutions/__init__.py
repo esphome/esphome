@@ -303,6 +303,11 @@ def resolve_include(
     """Resolve an include, substituting the filename if needed.
 
     Returns the loaded content and the resolved filename.
+
+    Note: no path-traversal validation is performed on the resolved filename.
+    ESPHome's trust model assumes the config author controls all substitution
+    values (including command-line substitutions), so path restrictions are
+    an explicit non-goal here.
     """
     original = str(include.file)
     filename = str(

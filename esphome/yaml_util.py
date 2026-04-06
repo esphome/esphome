@@ -180,7 +180,9 @@ class IncludeFile:
         return self._content
 
     def has_filename_substitutions(self) -> bool:
-        return "$" in str(self.file)
+        from esphome.config_validation import VARIABLE_PROG
+
+        return VARIABLE_PROG.search(str(self.file)) is not None
 
 
 def _add_data_ref(fn):
@@ -316,6 +318,15 @@ class ESPHomeLoaderMixin:
             elif isinstance(value, list):
                 # sequence merge, like "<<: [{some_key: some_value}, {other_key: some_value}]"
                 for item in value:
+                    if isinstance(item, IncludeFile):
+                        if item.has_filename_substitutions():
+                            raise yaml.constructor.ConstructorError(
+                                "While constructing a mapping",
+                                node.start_mark,
+                                "Substitution in include filename with merge keys is not supported yet.",
+                                value_node.start_mark,
+                            )
+                        item = item.load()
                     if not isinstance(item, dict):
                         raise yaml.constructor.ConstructorError(
                             "While constructing a mapping",

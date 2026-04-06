@@ -505,12 +505,14 @@ def test_include_file_load_caches_none_result(tmp_path: Path) -> None:
         ("$platform.yaml", True),
         ("device.yaml", False),
         ("path/to/device.yaml", False),
+        ("my$file.yaml", True),  # $file is a valid substitution
+        ("price-100$.yaml", False),  # $ at end, not followed by valid substitution
     ],
 )
 def test_include_file_has_filename_substitutions(
     tmp_path: Path, filename: str, expected: bool
 ) -> None:
-    """has_filename_substitutions() detects $ anywhere in the filename."""
+    """has_filename_substitutions() detects substitution patterns in the filename."""
     parent = tmp_path / "main.yaml"
     include = yaml_util.IncludeFile(parent, filename, None, lambda _: {})
     assert include.has_filename_substitutions() == expected
@@ -556,6 +558,15 @@ def test_yaml_merge_include_with_filename_substitution_raises() -> None:
     """<<: !include ${expr} raises a clear error — substitutions in merge-key filenames
     are not yet supported, and the error message must say so."""
     yaml_text = "base:\n  existing: value\n  <<: !include ${filename}.yaml\n"
+    with pytest.raises(EsphomeError, match="not supported yet"):
+        yaml_util.parse_yaml(
+            Path("/fake/main.yaml"), io.StringIO(yaml_text), lambda _: {}
+        )
+
+
+def test_yaml_merge_list_include_with_filename_substitution_raises() -> None:
+    """Substitutions in include filenames within merge-key lists raise a clear error."""
+    yaml_text = "base:\n  existing: value\n  <<:\n    - !include ${filename}.yaml\n"
     with pytest.raises(EsphomeError, match="not supported yet"):
         yaml_util.parse_yaml(
             Path("/fake/main.yaml"), io.StringIO(yaml_text), lambda _: {}
