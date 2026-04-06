@@ -230,8 +230,7 @@ def _default_voltage_nominal(line_frequency):
 
 
 def _validate_thresholds(config):
-    thresholds = config.get(CONF_THRESHOLDS, {})
-    if not thresholds:
+    if (thresholds := config.get(CONF_THRESHOLDS)) is None:
         return config
 
     allow_unsafe = thresholds[CONF_ALLOW_UNSAFE_THRESHOLDS]
