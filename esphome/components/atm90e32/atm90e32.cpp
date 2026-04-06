@@ -212,16 +212,23 @@ void ATM90E32Component::setup() {
           : voltage_nominal *
                 (this->has_threshold_voltage_peak_pct_ ? this->threshold_voltage_peak_pct_ : DEFAULT_VOLTAGE_PEAK_PCT);
 
-  const float frequency_nominal_hz = this->has_threshold_frequency_nominal_hz_ ? this->threshold_frequency_nominal_hz_
-                                                                               : static_cast<float>(this->line_freq_);
   const float frequency_low_hz = this->has_threshold_frequency_low_hz_
                                      ? this->threshold_frequency_low_hz_
-                                     : (frequency_nominal_hz - DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ);
+                                     : (static_cast<float>(this->line_freq_) - DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ);
   const float frequency_high_hz = this->has_threshold_frequency_high_hz_
                                       ? this->threshold_frequency_high_hz_
-                                      : (frequency_nominal_hz + DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ);
-  const float current_peak_a =
+                                      : (static_cast<float>(this->line_freq_) + DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ);
+  const float current_peak_a_raw =
       this->has_threshold_current_peak_a_ ? this->threshold_current_peak_a_ : DEFAULT_CURRENT_PEAK_A;
+  const float current_peak_a =
+      (current_peak_a_raw > MAX_CURRENT_PEAK_A) ? MAX_CURRENT_PEAK_A : current_peak_a_raw;
+  if (current_peak_a != current_peak_a_raw) {
+    ESP_LOGW(TAG,
+             "Configured current peak threshold %.3f A exceeds the ATM90E32 native limit of %.3f A; "
+             "clamping to %.3f A to avoid OITH register overflow. Lowering gain_ct and scaling published "
+             "current or power values does not extend the valid current_peak threshold range.",
+             current_peak_a_raw, MAX_CURRENT_PEAK_A, current_peak_a);
+  }
   this->active_current_peak_threshold_a_ = current_peak_a;
   uint16_t oith = 0xC000;  // Preserve legacy behavior when current threshold is not configured.
   if (this->has_threshold_current_peak_a_) {

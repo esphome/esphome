@@ -118,10 +118,6 @@ class ATM90E32Component : public PollingComponent,
     this->threshold_current_peak_a_ = current;
     this->has_threshold_current_peak_a_ = true;
   }
-  void set_threshold_frequency_nominal_hz(float frequency) {
-    this->threshold_frequency_nominal_hz_ = frequency;
-    this->has_threshold_frequency_nominal_hz_ = true;
-  }
   void set_threshold_frequency_low_hz(float frequency) {
     this->threshold_frequency_low_hz_ = frequency;
     this->has_threshold_frequency_low_hz_ = true;
@@ -174,6 +170,7 @@ class ATM90E32Component : public PollingComponent,
   static constexpr float DEFAULT_VOLTAGE_SAG_PCT = 0.78f;
   static constexpr float DEFAULT_VOLTAGE_PEAK_PCT = 1.22f;
   static constexpr float DEFAULT_CURRENT_PEAK_A = 65.53f;
+  static constexpr float MAX_CURRENT_PEAK_A = 65.535f;
   static constexpr float DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ = 3.0f;
   static uint16_t calculate_voltage_threshold_from_volts(float voltage_rms, uint16_t ugain);
   static uint16_t calculate_current_threshold_from_amps(float current_rms, uint16_t igain);
@@ -315,7 +312,6 @@ class ATM90E32Component : public PollingComponent,
   bool has_threshold_voltage_sag_v_{false};
   bool has_threshold_voltage_peak_v_{false};
   bool has_threshold_current_peak_a_{false};
-  bool has_threshold_frequency_nominal_hz_{false};
   bool has_threshold_frequency_low_hz_{false};
   bool has_threshold_frequency_high_hz_{false};
   float threshold_voltage_nominal_v_{0.0f};
@@ -324,7 +320,6 @@ class ATM90E32Component : public PollingComponent,
   float threshold_voltage_sag_v_{0.0f};
   float threshold_voltage_peak_v_{0.0f};
   float threshold_current_peak_a_{0.0f};
-  float threshold_frequency_nominal_hz_{0.0f};
   float threshold_frequency_low_hz_{0.0f};
   float threshold_frequency_high_hz_{0.0f};
   float active_current_peak_threshold_a_{DEFAULT_CURRENT_PEAK_A};

@@ -67,7 +67,6 @@ CONF_VOLTAGE_PEAK_PCT = "voltage_peak_pct"
 CONF_VOLTAGE_SAG_V = "voltage_sag_v"
 CONF_VOLTAGE_PEAK_V = "voltage_peak_v"
 CONF_CURRENT_PEAK = "current_peak"
-CONF_FREQUENCY_NOMINAL = "frequency_nominal"
 CONF_FREQUENCY_LOW_HZ = "frequency_low_hz"
 CONF_FREQUENCY_HIGH_HZ = "frequency_high_hz"
 UNIT_DEG = "degrees"
@@ -87,6 +86,7 @@ PGA_GAINS = {
 
 DEFAULT_VOLTAGE_SAG_PCT = 0.78
 DEFAULT_VOLTAGE_PEAK_PCT = 1.22
+MAX_CURRENT_PEAK_A = 65.535
 DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ = 3.0
 
 ATM90E32Component = atm90e32_ns.class_(
@@ -186,6 +186,12 @@ def _validate_threshold_percent(value):
     return value
 
 
+def _line_frequency_hz(line_frequency):
+    if isinstance(line_frequency, str):
+        return float(LINE_FREQS[line_frequency.upper()])
+    return float(line_frequency)
+
+
 THRESHOLDS_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_ALLOW_UNSAFE_THRESHOLDS, default=False): cv.boolean,
@@ -209,9 +215,6 @@ THRESHOLDS_SCHEMA = cv.Schema(
         cv.Exclusive(CONF_CURRENT_PEAK, "current_peak_threshold"): cv.All(
             cv.current, cv.Range(min=0.0, min_included=False)
         ),
-        cv.Optional(CONF_FREQUENCY_NOMINAL): cv.All(
-            cv.frequency, cv.Range(min=0.0, min_included=False)
-        ),
         cv.Optional(CONF_FREQUENCY_LOW_HZ): cv.All(
             cv.frequency, cv.Range(min=0.0, min_included=False)
         ),
@@ -223,7 +226,7 @@ THRESHOLDS_SCHEMA = cv.Schema(
 
 
 def _default_voltage_nominal(line_frequency):
-    return 120.0 if line_frequency == 60 else 220.0
+    return 120.0 if _line_frequency_hz(line_frequency) == 60.0 else 220.0
 
 
 def _validate_thresholds(config):
@@ -248,6 +251,17 @@ def _validate_thresholds(config):
                 "set thresholds.allow_unsafe_thresholds: true to override."
             )
 
+    if (
+        CONF_CURRENT_PEAK in thresholds
+        and thresholds[CONF_CURRENT_PEAK] > MAX_CURRENT_PEAK_A
+    ):
+        raise cv.Invalid(
+            "thresholds.current_peak must be 65.535A or less because the ATM90E32 "
+            "native current register cannot represent a higher threshold. Lowering "
+            "gain_ct and scaling published current or power values with filters does "
+            "not extend the valid thresholds.current_peak range."
+        )
+
     nominal_voltage = thresholds.get(
         CONF_VOLTAGE_NOMINAL, _default_voltage_nominal(config[CONF_LINE_FREQUENCY])
     )
@@ -267,9 +281,7 @@ def _validate_thresholds(config):
             f"(got {sag_voltage:.3f}V < {nominal_voltage:.3f}V < {peak_voltage:.3f}V)."
         )
 
-    nominal_frequency = thresholds.get(
-        CONF_FREQUENCY_NOMINAL, float(config[CONF_LINE_FREQUENCY])
-    )
+    nominal_frequency = _line_frequency_hz(config[CONF_LINE_FREQUENCY])
     frequency_low = thresholds.get(
         CONF_FREQUENCY_LOW_HZ, nominal_frequency - DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ
     )
@@ -280,15 +292,6 @@ def _validate_thresholds(config):
     if not frequency_low < frequency_high:
         raise cv.Invalid(
             "Invalid frequency thresholds: thresholds.frequency_low_hz must be lower than "
-            "thresholds.frequency_high_hz."
-        )
-
-    if CONF_FREQUENCY_NOMINAL in thresholds and not (
-        frequency_low < nominal_frequency < frequency_high
-    ):
-        raise cv.Invalid(
-            "Invalid frequency thresholds: expected "
-            "thresholds.frequency_low_hz < thresholds.frequency_nominal < "
             "thresholds.frequency_high_hz."
         )
 
@@ -408,12 +411,6 @@ async def to_code(config):
             cg.add(var.set_threshold_voltage_peak_v(thresholds[CONF_VOLTAGE_PEAK_V]))
         if CONF_CURRENT_PEAK in thresholds:
             cg.add(var.set_threshold_current_peak_a(thresholds[CONF_CURRENT_PEAK]))
-        if CONF_FREQUENCY_NOMINAL in thresholds:
-            cg.add(
-                var.set_threshold_frequency_nominal_hz(
-                    thresholds[CONF_FREQUENCY_NOMINAL]
-                )
-            )
         if CONF_FREQUENCY_LOW_HZ in thresholds:
             cg.add(
                 var.set_threshold_frequency_low_hz(thresholds[CONF_FREQUENCY_LOW_HZ])
