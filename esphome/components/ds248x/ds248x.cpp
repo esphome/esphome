@@ -81,8 +81,12 @@ bool DS248xComponent::wait_busy_() {
     delayMicroseconds(100);
   }
   ESP_LOGW(TAG, "DS248x busy timeout");
-  this->device_reset_();
+  bool recovered = this->device_reset_() && this->device_configure_();
   this->current_channel_ = -1;
+  if (!recovered) {
+    ESP_LOGE(TAG, "DS248x recovery failed after busy timeout");
+    this->mark_failed();
+  }
   return false;
 }
 
@@ -119,16 +123,16 @@ bool DS248xComponent::device_configure_() {
 
   // DS2484 Configuration
   if (this->ds2484_mode_) {
-    if (this->ds2484_trstl_ > 0)
-      this->configure_ds2484_port_(0x0, this->ds2484_trstl_);
-    if (this->ds2484_tmsp_ > 0)
-      this->configure_ds2484_port_(0x1, this->ds2484_tmsp_);
-    if (this->ds2484_tw0l_ > 0)
-      this->configure_ds2484_port_(0x2, this->ds2484_tw0l_);
-    if (this->ds2484_trec0_ > 0)
-      this->configure_ds2484_port_(0x3, this->ds2484_trec0_);
-    if (this->ds2484_rwpu_ > 0)
-      this->configure_ds2484_port_(0x4, this->ds2484_rwpu_);
+    if (this->ds2484_trstl_ != DS2484_PARAM_UNSET && !this->configure_ds2484_port_(0x0, this->ds2484_trstl_))
+      return false;
+    if (this->ds2484_tmsp_ != DS2484_PARAM_UNSET && !this->configure_ds2484_port_(0x1, this->ds2484_tmsp_))
+      return false;
+    if (this->ds2484_tw0l_ != DS2484_PARAM_UNSET && !this->configure_ds2484_port_(0x2, this->ds2484_tw0l_))
+      return false;
+    if (this->ds2484_trec0_ != DS2484_PARAM_UNSET && !this->configure_ds2484_port_(0x3, this->ds2484_trec0_))
+      return false;
+    if (this->ds2484_rwpu_ != DS2484_PARAM_UNSET && !this->configure_ds2484_port_(0x4, this->ds2484_rwpu_))
+      return false;
   }
 
   return true;
@@ -144,22 +148,30 @@ bool DS248xComponent::configure_ds2484_port_(uint8_t param, uint8_t val) {
     return false;
   }
 
+  uint8_t read_config;
+  if (this->read(&read_config, 1) != i2c::ERROR_OK) {
+    ESP_LOGW(TAG, "Failed to read back DS2484 port config for param %d", param);
+    return false;
+  }
+
+  if ((read_config & 0x0F) != (val & 0x0F)) {
+    ESP_LOGW(TAG, "DS2484 port config mismatch for param %d: wrote 0x%01x, read 0x%01x", param, val & 0x0F,
+             read_config & 0x0F);
+    return false;
+  }
+
   return this->set_read_pointer_(DS248X_POINTER_STATUS);
 }
 
 bool DS248xComponent::set_strong_pullup_mode_(bool enable) {
   uint8_t config = 0;
-  if (this->active_pullup_ || enable)
+  if (this->active_pullup_)
     config |= DS248X_CONFIG_ACTIVE_PULLUP;
-  if (this->overdrive_speed_)
-    config |= DS248X_CONFIG_OVERDRIVE;
-  // Match the legacy ds2484 backend: when configured, keep SPU armed across commands.
-  if (this->strong_pullup_enabled_ || enable)
+  if (enable && this->strong_pullup_enabled_)
     config |= DS248X_CONFIG_STRONG_PULLUP;
 
   uint8_t config_byte = (config & 0x0F) | ((~config & 0x0F) << 4);
-  if (config_byte == this->last_config_byte_) {
-    this->strong_pullup_active_ = enable;
+  if (!enable && !this->strong_pullup_active_ && config_byte == this->last_config_byte_) {
     return this->set_read_pointer_(DS248X_POINTER_STATUS);
   }
 
@@ -184,7 +196,7 @@ bool DS248xComponent::set_strong_pullup_mode_(bool enable) {
   }
 
   this->last_config_byte_ = config_byte;
-  this->strong_pullup_active_ = enable;
+  this->strong_pullup_active_ = enable && this->strong_pullup_enabled_;
   return this->set_read_pointer_(DS248X_POINTER_STATUS);
 }
 
@@ -230,6 +242,11 @@ bool DS248xComponent::select_channel(uint8_t channel) {
 // --- 1-Wire Bus Operations ---
 
 bool DS248xComponent::ow_reset(bool &presence) {
+  if (this->strong_pullup_active_ && !this->set_strong_pullup_mode_(false)) {
+    ESP_LOGW(TAG, "Failed to restore config before reset");
+    return false;
+  }
+
   if (!this->set_read_pointer_(DS248X_POINTER_STATUS))
     return false;
 
@@ -258,10 +275,17 @@ bool DS248xComponent::ow_reset(bool &presence) {
 }
 
 bool DS248xComponent::ow_write_byte(uint8_t byte, bool keep_strong_pullup) {
+  if (!keep_strong_pullup && this->strong_pullup_active_) {
+    if (!this->set_strong_pullup_mode_(false)) {
+      ESP_LOGW(TAG, "Failed to restore config before writing byte 0x%02x", byte);
+      return false;
+    }
+  }
+
   if (!this->set_read_pointer_(DS248X_POINTER_STATUS))
     return false;
 
-  if (keep_strong_pullup) {
+  if (keep_strong_pullup || this->strong_pullup_enabled_) {
     if (!this->set_strong_pullup_mode_(true)) {
       ESP_LOGW(TAG, "Failed to arm strong pullup for byte 0x%02x", byte);
       return false;
@@ -284,14 +308,13 @@ bool DS248xComponent::ow_write_byte(uint8_t byte, bool keep_strong_pullup) {
     return false;
   }
 
-  if (!keep_strong_pullup && this->strong_pullup_active_) {
-    this->set_strong_pullup_mode_(false);
-  }
-
   return true;
 }
 
 bool DS248xComponent::ow_read_byte(uint8_t &byte) {
+  if (this->strong_pullup_active_ && !this->set_strong_pullup_mode_(false))
+    return false;
+
   if (!this->set_read_pointer_(DS248X_POINTER_STATUS))
     return false;
 
@@ -312,6 +335,9 @@ bool DS248xComponent::ow_read_byte(uint8_t &byte) {
 }
 
 uint8_t DS248xComponent::search_triplet(bool search_direction) {
+  if (this->strong_pullup_active_ && !this->set_strong_pullup_mode_(false))
+    return 0;
+
   if (!this->set_read_pointer_(DS248X_POINTER_STATUS))
     return 0;
 

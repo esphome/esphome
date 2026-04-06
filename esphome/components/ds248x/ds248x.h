@@ -39,7 +39,6 @@ static constexpr uint8_t DS248X_POINTER_CONFIG = 0xC3;
 // DS248x Configuration Bits
 static constexpr uint8_t DS248X_CONFIG_ACTIVE_PULLUP = 0x01;
 static constexpr uint8_t DS248X_CONFIG_STRONG_PULLUP = 0x04;
-static constexpr uint8_t DS248X_CONFIG_OVERDRIVE = 0x08;
 
 /**
  * @brief DS248x I2C-to-1-Wire Bridge Component.
@@ -64,7 +63,6 @@ class DS248xComponent : public Component, public i2c::I2CDevice {
   void set_channel_count(uint8_t count) { this->channel_count_ = count; }
   void set_active_pullup(bool enabled) { this->active_pullup_ = enabled; }
   void set_strong_pullup(bool enabled) { this->strong_pullup_enabled_ = enabled; }
-  void set_overdrive_speed(bool enabled) { this->overdrive_speed_ = enabled; }
 
   // DS2484 Timing Parameters
   void set_val_trstl(uint8_t val) {
@@ -107,15 +105,15 @@ class DS248xComponent : public Component, public i2c::I2CDevice {
   bool hub_sleep_{false};
   bool active_pullup_ = false;
   bool strong_pullup_enabled_ = false;
-  bool overdrive_speed_ = false;
 
   // DS2484 Config
   bool ds2484_mode_ = false;
-  uint8_t ds2484_trstl_ = 0;
-  uint8_t ds2484_tmsp_ = 0;
-  uint8_t ds2484_tw0l_ = 0;
-  uint8_t ds2484_trec0_ = 0;
-  uint8_t ds2484_rwpu_ = 0;
+  static constexpr uint8_t DS2484_PARAM_UNSET = 0xFF;
+  uint8_t ds2484_trstl_{DS2484_PARAM_UNSET};
+  uint8_t ds2484_tmsp_{DS2484_PARAM_UNSET};
+  uint8_t ds2484_tw0l_{DS2484_PARAM_UNSET};
+  uint8_t ds2484_trec0_{DS2484_PARAM_UNSET};
+  uint8_t ds2484_rwpu_{DS2484_PARAM_UNSET};
 
   int8_t current_channel_{-1};
   bool strong_pullup_active_{false};

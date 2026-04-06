@@ -6,8 +6,7 @@ ds248x:
   address: 0x18
   type: ds2482-100
   active_pullup: true
-  strong_pullup: true     # Required for parasitic power devices
-  overdrive_speed: false  # Overdrive mode (10x faster, shorter cables)
+  strong_pullup: true  # Required for parasitic power devices
 
 one_wire:
   - platform: ds248x

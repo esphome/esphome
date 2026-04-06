@@ -13,7 +13,6 @@ CONF_BUS_SLEEP = "bus_sleep"
 CONF_HUB_SLEEP = "hub_sleep"
 CONF_ACTIVE_PULLUP = "active_pullup"
 CONF_STRONG_PULLUP = "strong_pullup"
-CONF_OVERDRIVE_SPEED = "overdrive_speed"
 
 CONF_DS2484_RESET_LOW_TIME = "ds2484_reset_low_time"
 CONF_DS2484_MASTER_SAMPLE_TIME = "ds2484_master_sample_time"
@@ -43,7 +42,6 @@ def _component_schema(*extras):
             cv.GenerateID(): cv.declare_id(DS248xComponent),
             cv.Optional(CONF_ACTIVE_PULLUP, default=False): cv.boolean,
             cv.Optional(CONF_STRONG_PULLUP, default=False): cv.boolean,
-            cv.Optional(CONF_OVERDRIVE_SPEED, default=False): cv.boolean,
         }
     )
     for extra in extras:
@@ -64,8 +62,8 @@ DS2484_SCHEMA = {
     cv.Optional(CONF_DS2484_RECOVERY_TIME): cv.int_range(min=0, max=15),
     cv.Optional(CONF_DS2484_ACTIVE_PULLUP_RESISTANCE): cv.enum(
         {
-            "1000ohm": 0,
-            "500ohm": 1,
+            "500ohm": 0,
+            "1000ohm": 3,
         }
     ),
 }
@@ -93,7 +91,6 @@ async def to_code(config):
 
     cg.add(var.set_active_pullup(config[CONF_ACTIVE_PULLUP]))
     cg.add(var.set_strong_pullup(config[CONF_STRONG_PULLUP]))
-    cg.add(var.set_overdrive_speed(config[CONF_OVERDRIVE_SPEED]))
     cg.add(var.set_channel_count(get_channel_count(config)))
 
     if CONF_BUS_SLEEP in config:
