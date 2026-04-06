@@ -286,7 +286,7 @@ async def ezo_pmp_change_i2c_address_to_code(config, action_id, template_arg, ar
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
-    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.double)
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.int_)
     cg.add(var.set_address(template_))
 
     return var

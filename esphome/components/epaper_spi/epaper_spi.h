@@ -1,6 +1,6 @@
 #pragma once
 
-#include "esphome/components/display/display_buffer.h"
+#include "esphome/components/display/display.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/split_buffer/split_buffer.h"
 #include "esphome/core/component.h"
@@ -51,7 +51,14 @@ class EPaperBase : public Display,
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
   void set_busy_pin(GPIOPin *busy) { this->busy_pin_ = busy; }
   void set_reset_duration(uint32_t reset_duration) { this->reset_duration_ = reset_duration; }
-  void set_transform(uint8_t transform) { this->transform_ = transform; }
+  void set_transform(uint8_t transform) {
+    this->transform_ = transform;
+    this->update_effective_transform_();
+  }
+  void set_rotation(DisplayRotation rotation) override {
+    Display::set_rotation(rotation);
+    this->update_effective_transform_();
+  }
   void set_full_update_every(uint8_t full_update_every) { this->full_update_every_ = full_update_every; }
   void dump_config() override;
 
@@ -106,8 +113,8 @@ class EPaperBase : public Display,
  protected:
   int get_height_internal() override { return this->height_; };
   int get_width_internal() override { return this->width_; };
-  int get_width() override { return this->transform_ & SWAP_XY ? this->height_ : this->width_; }
-  int get_height() override { return this->transform_ & SWAP_XY ? this->width_ : this->height_; }
+  int get_width() override { return this->effective_transform_ & SWAP_XY ? this->height_ : this->width_; }
+  int get_height() override { return this->effective_transform_ & SWAP_XY ? this->width_ : this->height_; }
   void draw_pixel_at(int x, int y, Color color) override;
   void process_state_();
 
@@ -119,6 +126,7 @@ class EPaperBase : public Display,
   void send_init_sequence_(const uint8_t *sequence, size_t length);
   void wait_for_idle_(bool should_wait);
   bool init_buffer_(size_t buffer_length);
+  void update_effective_transform_();
   bool rotate_coordinates_(int &x, int &y);
 
   /**
@@ -171,6 +179,7 @@ class EPaperBase : public Display,
   uint32_t delay_until_{};  // timestamp until which to delay processing
   uint16_t next_delay_{};   // milliseconds to delay before next state
   uint8_t transform_{};
+  uint8_t effective_transform_{};
   uint8_t update_count_{};
   // these values represent the bounds of the updated buffer. Note that x_high and y_high
   // point to the pixel past the last one updated, i.e. may range up to width/height.

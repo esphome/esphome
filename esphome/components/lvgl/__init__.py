@@ -392,6 +392,9 @@ async def to_code(configs):
     } & styles_used:
         df.add_define("LV_COLOR_SCREEN_TRANSP", "1")
 
+    if configs[0].get(df.CONF_THEME, {}).get(df.CONF_DARK_MODE):
+        df.add_define("LV_THEME_DEFAULT_DARK", "1")
+
     # Currently always need RGB565 for the display buffer, and ARGB8888 is used for layer blending
     lv_image_formats = {"RGB565", "ARGB8888"}
     if {
@@ -459,8 +462,11 @@ def add_hello_world(config):
 def _theme_schema(value):
     return cv.Schema(
         {
-            cv.Optional(name): obj_schema(w).extend(FULL_STYLE_SCHEMA)
-            for name, w in WIDGET_TYPES.items()
+            cv.Optional(df.CONF_DARK_MODE, default=False): cv.boolean,
+            **{
+                cv.Optional(name): obj_schema(w).extend(FULL_STYLE_SCHEMA)
+                for name, w in WIDGET_TYPES.items()
+            },
         }
     )(value)
 
