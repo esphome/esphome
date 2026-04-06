@@ -266,13 +266,8 @@ class ProtoCursor {
   ProtoCursor(const ProtoCursor &) = delete;
   ProtoCursor &operator=(const ProtoCursor &) = delete;
 
-  inline void ESPHOME_ALWAYS_INLINE encode_varint_raw(uint32_t value) {
-    if (value < 128) [[likely]] {
-      this->debug_check_bounds_(1);
-      *this->pos_++ = static_cast<uint8_t>(value);
-      return;
-    }
-    // Write varint bytes directly through pos_ — no flush/reload needed
+  /// Write a multi-byte varint directly through pos_.
+  template<typename T> void encode_varint_raw_loop_(T value) {
     do {
       this->debug_check_bounds_(1);
       *this->pos_++ = static_cast<uint8_t>(value | 0x80);
@@ -280,6 +275,14 @@ class ProtoCursor {
     } while (value > 0x7F);
     this->debug_check_bounds_(1);
     *this->pos_++ = static_cast<uint8_t>(value);
+  }
+  inline void ESPHOME_ALWAYS_INLINE encode_varint_raw(uint32_t value) {
+    if (value < 128) [[likely]] {
+      this->debug_check_bounds_(1);
+      *this->pos_++ = static_cast<uint8_t>(value);
+      return;
+    }
+    this->encode_varint_raw_loop_(value);
   }
   /// Encode a varint that is expected to be 1-2 bytes (e.g. zigzag RSSI, small lengths).
   /// Inlines both the 1-byte and 2-byte paths; falls back to slow path for 3+ bytes.
@@ -295,24 +298,9 @@ class ProtoCursor {
       *this->pos_++ = static_cast<uint8_t>(value >> 7);
       return;
     }
-    // Write varint bytes directly through pos_ — no flush/reload needed
-    do {
-      this->debug_check_bounds_(1);
-      *this->pos_++ = static_cast<uint8_t>(value | 0x80);
-      value >>= 7;
-    } while (value > 0x7F);
-    this->debug_check_bounds_(1);
-    *this->pos_++ = static_cast<uint8_t>(value);
+    this->encode_varint_raw_loop_(value);
   }
-  void encode_varint_raw_64(uint64_t value) {
-    while (value > 0x7F) {
-      this->debug_check_bounds_(1);
-      *this->pos_++ = static_cast<uint8_t>(value | 0x80);
-      value >>= 7;
-    }
-    this->debug_check_bounds_(1);
-    *this->pos_++ = static_cast<uint8_t>(value);
-  }
+  void encode_varint_raw_64(uint64_t value) { this->encode_varint_raw_loop_(value); }
   inline void ESPHOME_ALWAYS_INLINE encode_field_raw(uint32_t field_id, uint32_t type) {
     this->encode_varint_raw((field_id << 3) | type);
   }
@@ -350,15 +338,7 @@ class ProtoCursor {
       this->debug_check_bounds_(1 + len);
       *this->pos_++ = static_cast<uint8_t>(len);
     } else {
-      // Write length varint directly through pos_ — no flush/reload needed
-      size_t tmp = len;
-      do {
-        this->debug_check_bounds_(1);
-        *this->pos_++ = static_cast<uint8_t>(tmp | 0x80);
-        tmp >>= 7;
-      } while (tmp > 0x7F);
-      this->debug_check_bounds_(1);
-      *this->pos_++ = static_cast<uint8_t>(tmp);
+      this->encode_varint_raw_loop_(len);
       this->debug_check_bounds_(len);
     }
     std::memcpy(this->pos_, string, len);
