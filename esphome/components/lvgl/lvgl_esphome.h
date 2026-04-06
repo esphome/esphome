@@ -156,13 +156,18 @@ template<typename... Ts> class ObjUpdateAction : public Action<Ts...> {
 #ifdef USE_LVGL_ANIMIMG
 void lv_animimg_stop(lv_obj_t *obj);
 #endif  // USE_LVGL_ANIMIMG
+enum RotationType : uint8_t {
+  ROTATION_UNUSED,
+  ROTATION_SOFTWARE,
+  ROTATION_HARDWARE,
+};
 
 class LvglComponent : public PollingComponent {
   constexpr static const char *const TAG = "lvgl";
 
  public:
   LvglComponent(std::vector<display::Display *> displays, float buffer_frac, bool full_refresh, int draw_rounding,
-                bool resume_on_input, bool update_when_display_idle);
+                bool resume_on_input, bool update_when_display_idle, RotationType rotation_type);
   static void static_flush_cb(lv_display_t *disp_drv, const lv_area_t *area, uint8_t *color_p);
 
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
@@ -216,13 +221,16 @@ class LvglComponent : public PollingComponent {
   // rounding factor to align bounds of update area when drawing
   size_t draw_rounding{2};
 
-  display::DisplayRotation rotation{display::DISPLAY_ROTATION_0_DEGREES};
   void set_pause_trigger(Trigger<> *trigger) { this->pause_callback_ = trigger; }
   void set_resume_trigger(Trigger<> *trigger) { this->resume_callback_ = trigger; }
   void set_draw_start_trigger(Trigger<> *trigger) { this->draw_start_callback_ = trigger; }
   void set_draw_end_trigger(Trigger<> *trigger) { this->draw_end_callback_ = trigger; }
+  void set_rotation(display::DisplayRotation rotation);
+  display::DisplayRotation get_rotation() const { return this->rotation_; }
+  void rotate_coordinates(int32_t &x, int32_t &y) const;
 
  protected:
+  void set_resolution_() const;
   void draw_end_();
   // Not checking for non-null callback since the
   // LVGL callback that calls it is not set in that case
@@ -256,6 +264,8 @@ class LvglComponent : public PollingComponent {
   Trigger<> *draw_start_callback_{};
   Trigger<> *draw_end_callback_{};
   void *rotate_buf_{};
+  display::DisplayRotation rotation_{display::DISPLAY_ROTATION_0_DEGREES};
+  RotationType rotation_type_;
 };
 
 class IdleTrigger : public Trigger<> {
