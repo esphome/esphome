@@ -195,12 +195,7 @@ class Proto32Bit {
 
 // NOTE: Proto64Bit class removed - wire type 1 (64-bit fixed) not supported
 
-// Forward declaration
-class ProtoCursor;
-
 class ProtoWriteBuffer {
-  friend class ProtoCursor;
-
  public:
   ProtoWriteBuffer(APIBuffer *buffer) : buffer_(buffer), pos_(buffer->data() + buffer->size()) {}
   ProtoWriteBuffer(APIBuffer *buffer, size_t write_pos) : buffer_(buffer), pos_(buffer->data() + write_pos) {}
@@ -258,189 +253,173 @@ class ProtoWriteBuffer {
   uint8_t *pos_;
 };
 
-/// Lightweight cursor that hoists ProtoWriteBuffer::pos_ into a __restrict__ local.
-/// Generated encode() functions create this on the stack and explicitly write pos_
-/// back to buffer at the end. No constructor/destructor overhead.
-struct ProtoCursor {
-  /// Write a multi-byte varint directly through pos_.
-  template<typename T> void encode_varint_raw_loop(T value) {
-    do {
-      this->debug_check_bounds_(1);
-      *this->pos_++ = static_cast<uint8_t>(value | 0x80);
-      value >>= 7;
-    } while (value > 0x7F);
-    this->debug_check_bounds_(1);
-    *this->pos_++ = static_cast<uint8_t>(value);
+// ProtoCursor is not a class — it's a coding pattern.
+// Generated encode() functions hoist buffer.pos_ into a local
+// uint8_t *__restrict__ pos, then call these static helpers
+// which take pos by reference. No struct, no overhead.
+//
+// For sub-messages, pos is synced back to buffer before the call
+// and reloaded after, since the nested encode writes through buffer.
+
+/// Write a multi-byte varint directly through a pos pointer.
+template<typename T> inline void proto_encode_varint_raw_loop(uint8_t *__restrict__ &pos, T value) {
+  do {
+    *pos++ = static_cast<uint8_t>(value | 0x80);
+    value >>= 7;
+  } while (value > 0x7F);
+  *pos++ = static_cast<uint8_t>(value);
+}
+inline void ESPHOME_ALWAYS_INLINE proto_encode_varint_raw(uint8_t *__restrict__ &pos, uint32_t value) {
+  if (value < 128) [[likely]] {
+    *pos++ = static_cast<uint8_t>(value);
+    return;
   }
-  inline void ESPHOME_ALWAYS_INLINE encode_varint_raw(uint32_t value) {
-    if (value < 128) [[likely]] {
-      this->debug_check_bounds_(1);
-      *this->pos_++ = static_cast<uint8_t>(value);
-      return;
-    }
-    this->encode_varint_raw_loop(value);
+  proto_encode_varint_raw_loop(pos, value);
+}
+/// Encode a varint that is expected to be 1-2 bytes (e.g. zigzag RSSI, small lengths).
+inline void ESPHOME_ALWAYS_INLINE proto_encode_varint_raw_short(uint8_t *__restrict__ &pos, uint32_t value) {
+  if (value < 128) [[likely]] {
+    *pos++ = static_cast<uint8_t>(value);
+    return;
   }
-  /// Encode a varint that is expected to be 1-2 bytes (e.g. zigzag RSSI, small lengths).
-  /// Inlines both the 1-byte and 2-byte paths; falls back to slow path for 3+ bytes.
-  inline void ESPHOME_ALWAYS_INLINE encode_varint_raw_short(uint32_t value) {
-    if (value < 128) [[likely]] {
-      this->debug_check_bounds_(1);
-      *this->pos_++ = static_cast<uint8_t>(value);
-      return;
-    }
-    if (value < 16384) [[likely]] {
-      this->debug_check_bounds_(2);
-      *this->pos_++ = static_cast<uint8_t>(value | 0x80);
-      *this->pos_++ = static_cast<uint8_t>(value >> 7);
-      return;
-    }
-    this->encode_varint_raw_loop(value);
+  if (value < 16384) [[likely]] {
+    *pos++ = static_cast<uint8_t>(value | 0x80);
+    *pos++ = static_cast<uint8_t>(value >> 7);
+    return;
   }
-  void encode_varint_raw_64(uint64_t value) { this->encode_varint_raw_loop(value); }
-  inline void ESPHOME_ALWAYS_INLINE encode_field_raw(uint32_t field_id, uint32_t type) {
-    this->encode_varint_raw((field_id << 3) | type);
-  }
-  /// Write a single precomputed tag byte. Tag must be < 128.
-  inline void ESPHOME_ALWAYS_INLINE write_raw_byte(uint8_t b) {
-    this->debug_check_bounds_(1);
-    *this->pos_++ = b;
-  }
-  /// Write raw bytes to the buffer (no tag, no length prefix).
-  inline void ESPHOME_ALWAYS_INLINE encode_raw(const void *data, size_t len) {
-    this->debug_check_bounds_(len);
-    std::memcpy(this->pos_, data, len);
-    this->pos_ += len;
-  }
-  /// Write a precomputed tag byte + 32-bit value in one operation.
-  /// Tag must be a single-byte varint (< 128). No zero check.
-  inline void ESPHOME_ALWAYS_INLINE write_tag_and_fixed32(uint8_t tag, uint32_t value) {
-    this->debug_check_bounds_(5);
-    this->pos_[0] = tag;
+  proto_encode_varint_raw_loop(pos, value);
+}
+inline void ESPHOME_ALWAYS_INLINE proto_encode_varint_raw_64(uint8_t *__restrict__ &pos, uint64_t value) {
+  proto_encode_varint_raw_loop(pos, value);
+}
+inline void ESPHOME_ALWAYS_INLINE proto_encode_field_raw(uint8_t *__restrict__ &pos, uint32_t field_id, uint32_t type) {
+  proto_encode_varint_raw(pos, (field_id << 3) | type);
+}
+/// Write a single precomputed tag byte. Tag must be < 128.
+inline void ESPHOME_ALWAYS_INLINE proto_write_raw_byte(uint8_t *__restrict__ &pos, uint8_t b) {
+  *pos++ = b;
+}
+/// Write raw bytes to the buffer (no tag, no length prefix).
+inline void ESPHOME_ALWAYS_INLINE proto_encode_raw(uint8_t *__restrict__ &pos, const void *data, size_t len) {
+  std::memcpy(pos, data, len);
+  pos += len;
+}
+/// Write a precomputed tag byte + 32-bit value in one operation.
+inline void ESPHOME_ALWAYS_INLINE proto_write_tag_and_fixed32(uint8_t *__restrict__ &pos, uint8_t tag, uint32_t value) {
+  pos[0] = tag;
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    std::memcpy(this->pos_ + 1, &value, 4);
+  std::memcpy(pos + 1, &value, 4);
 #else
-    this->pos_[1] = static_cast<uint8_t>(value & 0xFF);
-    this->pos_[2] = static_cast<uint8_t>((value >> 8) & 0xFF);
-    this->pos_[3] = static_cast<uint8_t>((value >> 16) & 0xFF);
-    this->pos_[4] = static_cast<uint8_t>((value >> 24) & 0xFF);
+  pos[1] = static_cast<uint8_t>(value & 0xFF);
+  pos[2] = static_cast<uint8_t>((value >> 8) & 0xFF);
+  pos[3] = static_cast<uint8_t>((value >> 16) & 0xFF);
+  pos[4] = static_cast<uint8_t>((value >> 24) & 0xFF);
 #endif
-    this->pos_ += 5;
+  pos += 5;
+}
+inline void proto_encode_string(uint8_t *__restrict__ &pos, uint32_t field_id, const char *string, size_t len,
+                                bool force = false) {
+  if (len == 0 && !force)
+    return;
+  proto_encode_field_raw(pos, field_id, 2);  // type 2: Length-delimited string
+  if (len < 128) [[likely]] {
+    *pos++ = static_cast<uint8_t>(len);
+  } else {
+    proto_encode_varint_raw_loop(pos, len);
   }
-  void encode_string(uint32_t field_id, const char *string, size_t len, bool force = false) {
-    if (len == 0 && !force)
-      return;
-    this->encode_field_raw(field_id, 2);  // type 2: Length-delimited string
-    if (len < 128) [[likely]] {
-      this->debug_check_bounds_(1 + len);
-      *this->pos_++ = static_cast<uint8_t>(len);
-    } else {
-      this->encode_varint_raw_loop(len);
-      this->debug_check_bounds_(len);
-    }
-    std::memcpy(this->pos_, string, len);
-    this->pos_ += len;
-  }
-  void encode_string(uint32_t field_id, const std::string &value, bool force = false) {
-    this->encode_string(field_id, value.data(), value.size(), force);
-  }
-  void encode_string(uint32_t field_id, const StringRef &ref, bool force = false) {
-    this->encode_string(field_id, ref.c_str(), ref.size(), force);
-  }
-  void encode_bytes(uint32_t field_id, const uint8_t *data, size_t len, bool force = false) {
-    this->encode_string(field_id, reinterpret_cast<const char *>(data), len, force);
-  }
-  void encode_uint32(uint32_t field_id, uint32_t value, bool force = false) {
-    if (value == 0 && !force)
-      return;
-    this->encode_field_raw(field_id, 0);  // type 0: Varint - uint32
-    this->encode_varint_raw(value);
-  }
-  void encode_uint64(uint32_t field_id, uint64_t value, bool force = false) {
-    if (value == 0 && !force)
-      return;
-    this->encode_field_raw(field_id, 0);  // type 0: Varint - uint64
-    this->encode_varint_raw_64(value);
-  }
-  void encode_bool(uint32_t field_id, bool value, bool force = false) {
-    if (!value && !force)
-      return;
-    this->encode_field_raw(field_id, 0);  // type 0: Varint - bool
-    this->debug_check_bounds_(1);
-    *this->pos_++ = value ? 0x01 : 0x00;
-  }
-  void encode_fixed32(uint32_t field_id, uint32_t value, bool force = false) {
-    if (value == 0 && !force)
-      return;
-    this->encode_field_raw(field_id, 5);  // type 5: 32-bit fixed32
-    this->debug_check_bounds_(4);
+  std::memcpy(pos, string, len);
+  pos += len;
+}
+inline void proto_encode_string(uint8_t *__restrict__ &pos, uint32_t field_id, const std::string &value,
+                                bool force = false) {
+  proto_encode_string(pos, field_id, value.data(), value.size(), force);
+}
+inline void proto_encode_string(uint8_t *__restrict__ &pos, uint32_t field_id, const StringRef &ref,
+                                bool force = false) {
+  proto_encode_string(pos, field_id, ref.c_str(), ref.size(), force);
+}
+inline void proto_encode_bytes(uint8_t *__restrict__ &pos, uint32_t field_id, const uint8_t *data, size_t len,
+                               bool force = false) {
+  proto_encode_string(pos, field_id, reinterpret_cast<const char *>(data), len, force);
+}
+inline void proto_encode_uint32(uint8_t *__restrict__ &pos, uint32_t field_id, uint32_t value, bool force = false) {
+  if (value == 0 && !force)
+    return;
+  proto_encode_field_raw(pos, field_id, 0);  // type 0: Varint - uint32
+  proto_encode_varint_raw(pos, value);
+}
+inline void proto_encode_uint64(uint8_t *__restrict__ &pos, uint32_t field_id, uint64_t value, bool force = false) {
+  if (value == 0 && !force)
+    return;
+  proto_encode_field_raw(pos, field_id, 0);  // type 0: Varint - uint64
+  proto_encode_varint_raw_64(pos, value);
+}
+inline void proto_encode_bool(uint8_t *__restrict__ &pos, uint32_t field_id, bool value, bool force = false) {
+  if (!value && !force)
+    return;
+  proto_encode_field_raw(pos, field_id, 0);  // type 0: Varint - bool
+  *pos++ = value ? 0x01 : 0x00;
+}
+inline void proto_encode_fixed32(uint8_t *__restrict__ &pos, uint32_t field_id, uint32_t value, bool force = false) {
+  if (value == 0 && !force)
+    return;
+  proto_encode_field_raw(pos, field_id, 5);  // type 5: 32-bit fixed32
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    // Protobuf fixed32 is little-endian, so direct copy works
-    std::memcpy(this->pos_, &value, 4);
-    this->pos_ += 4;
+  std::memcpy(pos, &value, 4);
+  pos += 4;
 #else
-    *this->pos_++ = (value >> 0) & 0xFF;
-    *this->pos_++ = (value >> 8) & 0xFF;
-    *this->pos_++ = (value >> 16) & 0xFF;
-    *this->pos_++ = (value >> 24) & 0xFF;
+  *pos++ = (value >> 0) & 0xFF;
+  *pos++ = (value >> 8) & 0xFF;
+  *pos++ = (value >> 16) & 0xFF;
+  *pos++ = (value >> 24) & 0xFF;
 #endif
+}
+// NOTE: Wire type 1 (64-bit fixed: double, fixed64, sfixed64) is intentionally
+// not supported to reduce overhead on embedded systems. All ESPHome devices are
+// 32-bit microcontrollers where 64-bit operations are expensive. If 64-bit support
+// is needed in the future, the necessary encoding/decoding functions must be added.
+inline void proto_encode_float(uint8_t *__restrict__ &pos, uint32_t field_id, float value, bool force = false) {
+  if (value == 0.0f && !force)
+    return;
+  union {
+    float value;
+    uint32_t raw;
+  } val{};
+  val.value = value;
+  proto_encode_fixed32(pos, field_id, val.raw);
+}
+inline void proto_encode_int32(uint8_t *__restrict__ &pos, uint32_t field_id, int32_t value, bool force = false) {
+  if (value < 0) {
+    // negative int32 is always 10 byte long
+    proto_encode_uint64(pos, field_id, static_cast<uint64_t>(value), force);
+    return;
   }
-  // NOTE: Wire type 1 (64-bit fixed: double, fixed64, sfixed64) is intentionally
-  // not supported to reduce overhead on embedded systems. All ESPHome devices are
-  // 32-bit microcontrollers where 64-bit operations are expensive. If 64-bit support
-  // is needed in the future, the necessary encoding/decoding functions must be added.
-  void encode_float(uint32_t field_id, float value, bool force = false) {
-    if (value == 0.0f && !force)
-      return;
-    union {
-      float value;
-      uint32_t raw;
-    } val{};
-    val.value = value;
-    this->encode_fixed32(field_id, val.raw);
-  }
-  void encode_int32(uint32_t field_id, int32_t value, bool force = false) {
-    if (value < 0) {
-      // negative int32 is always 10 byte long
-      this->encode_int64(field_id, value, force);
-      return;
-    }
-    this->encode_uint32(field_id, static_cast<uint32_t>(value), force);
-  }
-  void encode_int64(uint32_t field_id, int64_t value, bool force = false) {
-    this->encode_uint64(field_id, static_cast<uint64_t>(value), force);
-  }
-  void encode_sint32(uint32_t field_id, int32_t value, bool force = false) {
-    this->encode_uint32(field_id, encode_zigzag32(value), force);
-  }
-  void encode_sint64(uint32_t field_id, int64_t value, bool force = false) {
-    this->encode_uint64(field_id, encode_zigzag64(value), force);
-  }
-  /// Delegate to ProtoWriteBuffer for complex sub-message encoding (backpatch).
-  template<typename T> void encode_sub_message(uint32_t field_id, const T &value) {
-    this->flush_();
-    this->buf_.encode_sub_message(field_id, value);
-    this->reload_();
-  }
-  template<typename T> void encode_optional_sub_message(uint32_t field_id, const T &value) {
-    this->flush_();
-    this->buf_.encode_optional_sub_message(field_id, value);
-    this->reload_();
-  }
-
-  /// Write local pos_ back to buffer
-  void flush_() { this->buf_.pos_ = this->pos_; }
-  /// Reload local pos_ from buffer
-  void reload_() { this->pos_ = this->buf_.pos_; }
-
-#ifdef ESPHOME_DEBUG_API
-  void debug_check_bounds_(size_t bytes, const char *caller = __builtin_FUNCTION());
-#else
-  void debug_check_bounds_([[maybe_unused]] size_t bytes) {}
-#endif
-
-  ProtoWriteBuffer &buf_;
-  uint8_t *__restrict__ pos_;
-};
+  proto_encode_uint32(pos, field_id, static_cast<uint32_t>(value), force);
+}
+inline void proto_encode_int64(uint8_t *__restrict__ &pos, uint32_t field_id, int64_t value, bool force = false) {
+  proto_encode_uint64(pos, field_id, static_cast<uint64_t>(value), force);
+}
+inline void proto_encode_sint32(uint8_t *__restrict__ &pos, uint32_t field_id, int32_t value, bool force = false) {
+  proto_encode_uint32(pos, field_id, encode_zigzag32(value), force);
+}
+inline void proto_encode_sint64(uint8_t *__restrict__ &pos, uint32_t field_id, int64_t value, bool force = false) {
+  proto_encode_uint64(pos, field_id, encode_zigzag64(value), force);
+}
+/// Sub-message encoding: sync pos back to buffer, delegate, reload.
+template<typename T>
+inline void proto_encode_sub_message(uint8_t *__restrict__ &pos, ProtoWriteBuffer &buffer, uint32_t field_id,
+                                     const T &value) {
+  buffer.set_pos(pos);
+  buffer.encode_sub_message(field_id, value);
+  pos = buffer.get_pos();
+}
+template<typename T>
+inline void proto_encode_optional_sub_message(uint8_t *__restrict__ &pos, ProtoWriteBuffer &buffer, uint32_t field_id,
+                                              const T &value) {
+  buffer.set_pos(pos);
+  buffer.encode_optional_sub_message(field_id, value);
+  pos = buffer.get_pos();
+}
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
 /**

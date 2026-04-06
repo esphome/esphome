@@ -201,13 +201,7 @@ void ProtoWriteBuffer::debug_check_encode_size_(uint32_t field_id, uint32_t expe
            expected, actual);
   abort();
 }
-void ProtoCursor::debug_check_bounds_(size_t bytes, const char *caller) {
-  if (this->pos_ + bytes > this->buf_.buffer_->data() + this->buf_.buffer_->size()) {
-    ESP_LOGE(TAG, "ProtoCursor bounds check failed in %s: bytes=%zu offset=%td buf_size=%zu", caller, bytes,
-             this->pos_ - this->buf_.buffer_->data(), this->buf_.buffer_->size());
-    abort();
-  }
-}
+
 #endif
 
 void ProtoDecodableMessage::decode(const uint8_t *buffer, size_t length) {

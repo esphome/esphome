@@ -32,12 +32,12 @@ bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) 
   return true;
 }
 void HelloResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_uint32(1, this->api_version_major);
-  cursor.encode_uint32(2, this->api_version_minor);
-  cursor.encode_string(3, this->server_info);
-  cursor.encode_string(4, this->name);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_uint32(pos, 1, this->api_version_major);
+  proto_encode_uint32(pos, 2, this->api_version_minor);
+  proto_encode_string(pos, 3, this->server_info);
+  proto_encode_string(pos, 4, this->name);
+  buffer.set_pos(pos);
 }
 uint32_t HelloResponse::calculate_size() const {
   uint32_t size = 0;
@@ -49,10 +49,10 @@ uint32_t HelloResponse::calculate_size() const {
 }
 #ifdef USE_AREAS
 void AreaInfo::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_uint32(1, this->area_id);
-  cursor.encode_string(2, this->name);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_uint32(pos, 1, this->area_id);
+  proto_encode_string(pos, 2, this->name);
+  buffer.set_pos(pos);
 }
 uint32_t AreaInfo::calculate_size() const {
   uint32_t size = 0;
@@ -63,11 +63,11 @@ uint32_t AreaInfo::calculate_size() const {
 #endif
 #ifdef USE_DEVICES
 void DeviceInfo::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_uint32(1, this->device_id);
-  cursor.encode_string(2, this->name);
-  cursor.encode_uint32(3, this->area_id);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_uint32(pos, 1, this->device_id);
+  proto_encode_string(pos, 2, this->name);
+  proto_encode_uint32(pos, 3, this->area_id);
+  buffer.set_pos(pos);
 }
 uint32_t DeviceInfo::calculate_size() const {
   uint32_t size = 0;
@@ -79,10 +79,10 @@ uint32_t DeviceInfo::calculate_size() const {
 #endif
 #ifdef USE_SERIAL_PROXY
 void SerialProxyInfo::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->name);
-  cursor.encode_uint32(2, static_cast<uint32_t>(this->port_type));
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->name);
+  proto_encode_uint32(pos, 2, static_cast<uint32_t>(this->port_type));
+  buffer.set_pos(pos);
 }
 uint32_t SerialProxyInfo::calculate_size() const {
   uint32_t size = 0;
@@ -92,66 +92,66 @@ uint32_t SerialProxyInfo::calculate_size() const {
 }
 #endif
 void DeviceInfoResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(2, this->name);
-  cursor.encode_string(3, this->mac_address);
-  cursor.encode_string(4, this->esphome_version);
-  cursor.encode_string(5, this->compilation_time);
-  cursor.encode_string(6, this->model);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 2, this->name);
+  proto_encode_string(pos, 3, this->mac_address);
+  proto_encode_string(pos, 4, this->esphome_version);
+  proto_encode_string(pos, 5, this->compilation_time);
+  proto_encode_string(pos, 6, this->model);
 #ifdef USE_DEEP_SLEEP
-  cursor.encode_bool(7, this->has_deep_sleep);
+  proto_encode_bool(pos, 7, this->has_deep_sleep);
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  cursor.encode_string(8, this->project_name);
+  proto_encode_string(pos, 8, this->project_name);
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  cursor.encode_string(9, this->project_version);
+  proto_encode_string(pos, 9, this->project_version);
 #endif
 #ifdef USE_WEBSERVER
-  cursor.encode_uint32(10, this->webserver_port);
+  proto_encode_uint32(pos, 10, this->webserver_port);
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  cursor.encode_uint32(15, this->bluetooth_proxy_feature_flags);
+  proto_encode_uint32(pos, 15, this->bluetooth_proxy_feature_flags);
 #endif
-  cursor.encode_string(12, this->manufacturer);
-  cursor.encode_string(13, this->friendly_name);
+  proto_encode_string(pos, 12, this->manufacturer);
+  proto_encode_string(pos, 13, this->friendly_name);
 #ifdef USE_VOICE_ASSISTANT
-  cursor.encode_uint32(17, this->voice_assistant_feature_flags);
+  proto_encode_uint32(pos, 17, this->voice_assistant_feature_flags);
 #endif
 #ifdef USE_AREAS
-  cursor.encode_string(16, this->suggested_area);
+  proto_encode_string(pos, 16, this->suggested_area);
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  cursor.encode_string(18, this->bluetooth_mac_address);
+  proto_encode_string(pos, 18, this->bluetooth_mac_address);
 #endif
 #ifdef USE_API_NOISE
-  cursor.encode_bool(19, this->api_encryption_supported);
+  proto_encode_bool(pos, 19, this->api_encryption_supported);
 #endif
 #ifdef USE_DEVICES
   for (const auto &it : this->devices) {
-    cursor.encode_sub_message(20, it);
+    proto_encode_sub_message(pos, buffer, 20, it);
   }
 #endif
 #ifdef USE_AREAS
   for (const auto &it : this->areas) {
-    cursor.encode_sub_message(21, it);
+    proto_encode_sub_message(pos, buffer, 21, it);
   }
 #endif
 #ifdef USE_AREAS
-  cursor.encode_optional_sub_message(22, this->area);
+  proto_encode_optional_sub_message(pos, buffer, 22, this->area);
 #endif
 #ifdef USE_ZWAVE_PROXY
-  cursor.encode_uint32(23, this->zwave_proxy_feature_flags);
+  proto_encode_uint32(pos, 23, this->zwave_proxy_feature_flags);
 #endif
 #ifdef USE_ZWAVE_PROXY
-  cursor.encode_uint32(24, this->zwave_home_id);
+  proto_encode_uint32(pos, 24, this->zwave_home_id);
 #endif
 #ifdef USE_SERIAL_PROXY
   for (const auto &it : this->serial_proxies) {
-    cursor.encode_sub_message(25, it);
+    proto_encode_sub_message(pos, buffer, 25, it);
   }
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t DeviceInfoResponse::calculate_size() const {
   uint32_t size = 0;
@@ -217,21 +217,21 @@ uint32_t DeviceInfoResponse::calculate_size() const {
 }
 #ifdef USE_BINARY_SENSOR
 void ListEntitiesBinarySensorResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
-  cursor.encode_string(5, this->device_class);
-  cursor.encode_bool(6, this->is_status_binary_sensor);
-  cursor.encode_bool(7, this->disabled_by_default);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
+  proto_encode_string(pos, 5, this->device_class);
+  proto_encode_bool(pos, 6, this->is_status_binary_sensor);
+  proto_encode_bool(pos, 7, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(8, this->icon);
+  proto_encode_string(pos, 8, this->icon);
 #endif
-  cursor.encode_uint32(9, static_cast<uint32_t>(this->entity_category));
+  proto_encode_uint32(pos, 9, static_cast<uint32_t>(this->entity_category));
 #ifdef USE_DEVICES
-  cursor.encode_uint32(10, this->device_id);
+  proto_encode_uint32(pos, 10, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesBinarySensorResponse::calculate_size() const {
   uint32_t size = 0;
@@ -251,14 +251,14 @@ uint32_t ListEntitiesBinarySensorResponse::calculate_size() const {
   return size;
 }
 void BinarySensorStateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.write_tag_and_fixed32(13, this->key);
-  cursor.encode_bool(2, this->state);
-  cursor.encode_bool(3, this->missing_state);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_write_tag_and_fixed32(pos, 13, this->key);
+  proto_encode_bool(pos, 2, this->state);
+  proto_encode_bool(pos, 3, this->missing_state);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(4, this->device_id);
+  proto_encode_uint32(pos, 4, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t BinarySensorStateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -273,24 +273,24 @@ uint32_t BinarySensorStateResponse::calculate_size() const {
 #endif
 #ifdef USE_COVER
 void ListEntitiesCoverResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
-  cursor.encode_bool(5, this->assumed_state);
-  cursor.encode_bool(6, this->supports_position);
-  cursor.encode_bool(7, this->supports_tilt);
-  cursor.encode_string(8, this->device_class);
-  cursor.encode_bool(9, this->disabled_by_default);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
+  proto_encode_bool(pos, 5, this->assumed_state);
+  proto_encode_bool(pos, 6, this->supports_position);
+  proto_encode_bool(pos, 7, this->supports_tilt);
+  proto_encode_string(pos, 8, this->device_class);
+  proto_encode_bool(pos, 9, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(10, this->icon);
+  proto_encode_string(pos, 10, this->icon);
 #endif
-  cursor.encode_uint32(11, static_cast<uint32_t>(this->entity_category));
-  cursor.encode_bool(12, this->supports_stop);
+  proto_encode_uint32(pos, 11, static_cast<uint32_t>(this->entity_category));
+  proto_encode_bool(pos, 12, this->supports_stop);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(13, this->device_id);
+  proto_encode_uint32(pos, 13, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesCoverResponse::calculate_size() const {
   uint32_t size = 0;
@@ -313,15 +313,15 @@ uint32_t ListEntitiesCoverResponse::calculate_size() const {
   return size;
 }
 void CoverStateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.write_tag_and_fixed32(13, this->key);
-  cursor.encode_float(3, this->position);
-  cursor.encode_float(4, this->tilt);
-  cursor.encode_uint32(5, static_cast<uint32_t>(this->current_operation));
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_write_tag_and_fixed32(pos, 13, this->key);
+  proto_encode_float(pos, 3, this->position);
+  proto_encode_float(pos, 4, this->tilt);
+  proto_encode_uint32(pos, 5, static_cast<uint32_t>(this->current_operation));
 #ifdef USE_DEVICES
-  cursor.encode_uint32(6, this->device_id);
+  proto_encode_uint32(pos, 6, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t CoverStateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -374,26 +374,26 @@ bool CoverCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_FAN
 void ListEntitiesFanResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
-  cursor.encode_bool(5, this->supports_oscillation);
-  cursor.encode_bool(6, this->supports_speed);
-  cursor.encode_bool(7, this->supports_direction);
-  cursor.encode_int32(8, this->supported_speed_count);
-  cursor.encode_bool(9, this->disabled_by_default);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
+  proto_encode_bool(pos, 5, this->supports_oscillation);
+  proto_encode_bool(pos, 6, this->supports_speed);
+  proto_encode_bool(pos, 7, this->supports_direction);
+  proto_encode_int32(pos, 8, this->supported_speed_count);
+  proto_encode_bool(pos, 9, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(10, this->icon);
+  proto_encode_string(pos, 10, this->icon);
 #endif
-  cursor.encode_uint32(11, static_cast<uint32_t>(this->entity_category));
+  proto_encode_uint32(pos, 11, static_cast<uint32_t>(this->entity_category));
   for (const char *it : *this->supported_preset_modes) {
-    cursor.encode_string(12, it, strlen(it), true);
+    proto_encode_string(pos, 12, it, strlen(it), true);
   }
 #ifdef USE_DEVICES
-  cursor.encode_uint32(13, this->device_id);
+  proto_encode_uint32(pos, 13, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesFanResponse::calculate_size() const {
   uint32_t size = 0;
@@ -420,17 +420,17 @@ uint32_t ListEntitiesFanResponse::calculate_size() const {
   return size;
 }
 void FanStateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.write_tag_and_fixed32(13, this->key);
-  cursor.encode_bool(2, this->state);
-  cursor.encode_bool(3, this->oscillating);
-  cursor.encode_uint32(5, static_cast<uint32_t>(this->direction));
-  cursor.encode_int32(6, this->speed_level);
-  cursor.encode_string(7, this->preset_mode);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_write_tag_and_fixed32(pos, 13, this->key);
+  proto_encode_bool(pos, 2, this->state);
+  proto_encode_bool(pos, 3, this->oscillating);
+  proto_encode_uint32(pos, 5, static_cast<uint32_t>(this->direction));
+  proto_encode_int32(pos, 6, this->speed_level);
+  proto_encode_string(pos, 7, this->preset_mode);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(8, this->device_id);
+  proto_encode_uint32(pos, 8, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t FanStateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -508,27 +508,27 @@ bool FanCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_LIGHT
 void ListEntitiesLightResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
   for (const auto &it : *this->supported_color_modes) {
-    cursor.encode_uint32(12, static_cast<uint32_t>(it), true);
+    proto_encode_uint32(pos, 12, static_cast<uint32_t>(it), true);
   }
-  cursor.encode_float(9, this->min_mireds);
-  cursor.encode_float(10, this->max_mireds);
+  proto_encode_float(pos, 9, this->min_mireds);
+  proto_encode_float(pos, 10, this->max_mireds);
   for (const char *it : *this->effects) {
-    cursor.encode_string(11, it, strlen(it), true);
+    proto_encode_string(pos, 11, it, strlen(it), true);
   }
-  cursor.encode_bool(13, this->disabled_by_default);
+  proto_encode_bool(pos, 13, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(14, this->icon);
+  proto_encode_string(pos, 14, this->icon);
 #endif
-  cursor.encode_uint32(15, static_cast<uint32_t>(this->entity_category));
+  proto_encode_uint32(pos, 15, static_cast<uint32_t>(this->entity_category));
 #ifdef USE_DEVICES
-  cursor.encode_uint32(16, this->device_id);
+  proto_encode_uint32(pos, 16, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesLightResponse::calculate_size() const {
   uint32_t size = 0;
@@ -558,24 +558,24 @@ uint32_t ListEntitiesLightResponse::calculate_size() const {
   return size;
 }
 void LightStateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.write_tag_and_fixed32(13, this->key);
-  cursor.encode_bool(2, this->state);
-  cursor.encode_float(3, this->brightness);
-  cursor.encode_uint32(11, static_cast<uint32_t>(this->color_mode));
-  cursor.encode_float(10, this->color_brightness);
-  cursor.encode_float(4, this->red);
-  cursor.encode_float(5, this->green);
-  cursor.encode_float(6, this->blue);
-  cursor.encode_float(7, this->white);
-  cursor.encode_float(8, this->color_temperature);
-  cursor.encode_float(12, this->cold_white);
-  cursor.encode_float(13, this->warm_white);
-  cursor.encode_string(9, this->effect);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_write_tag_and_fixed32(pos, 13, this->key);
+  proto_encode_bool(pos, 2, this->state);
+  proto_encode_float(pos, 3, this->brightness);
+  proto_encode_uint32(pos, 11, static_cast<uint32_t>(this->color_mode));
+  proto_encode_float(pos, 10, this->color_brightness);
+  proto_encode_float(pos, 4, this->red);
+  proto_encode_float(pos, 5, this->green);
+  proto_encode_float(pos, 6, this->blue);
+  proto_encode_float(pos, 7, this->white);
+  proto_encode_float(pos, 8, this->color_temperature);
+  proto_encode_float(pos, 12, this->cold_white);
+  proto_encode_float(pos, 13, this->warm_white);
+  proto_encode_string(pos, 9, this->effect);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(14, this->device_id);
+  proto_encode_uint32(pos, 14, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t LightStateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -708,24 +708,24 @@ bool LightCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_SENSOR
 void ListEntitiesSensorResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(5, this->icon);
+  proto_encode_string(pos, 5, this->icon);
 #endif
-  cursor.encode_string(6, this->unit_of_measurement);
-  cursor.encode_int32(7, this->accuracy_decimals);
-  cursor.encode_bool(8, this->force_update);
-  cursor.encode_string(9, this->device_class);
-  cursor.encode_uint32(10, static_cast<uint32_t>(this->state_class));
-  cursor.encode_bool(12, this->disabled_by_default);
-  cursor.encode_uint32(13, static_cast<uint32_t>(this->entity_category));
+  proto_encode_string(pos, 6, this->unit_of_measurement);
+  proto_encode_int32(pos, 7, this->accuracy_decimals);
+  proto_encode_bool(pos, 8, this->force_update);
+  proto_encode_string(pos, 9, this->device_class);
+  proto_encode_uint32(pos, 10, static_cast<uint32_t>(this->state_class));
+  proto_encode_bool(pos, 12, this->disabled_by_default);
+  proto_encode_uint32(pos, 13, static_cast<uint32_t>(this->entity_category));
 #ifdef USE_DEVICES
-  cursor.encode_uint32(14, this->device_id);
+  proto_encode_uint32(pos, 14, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesSensorResponse::calculate_size() const {
   uint32_t size = 0;
@@ -748,14 +748,14 @@ uint32_t ListEntitiesSensorResponse::calculate_size() const {
   return size;
 }
 void SensorStateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.write_tag_and_fixed32(13, this->key);
-  cursor.encode_float(2, this->state);
-  cursor.encode_bool(3, this->missing_state);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_write_tag_and_fixed32(pos, 13, this->key);
+  proto_encode_float(pos, 2, this->state);
+  proto_encode_bool(pos, 3, this->missing_state);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(4, this->device_id);
+  proto_encode_uint32(pos, 4, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t SensorStateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -770,21 +770,21 @@ uint32_t SensorStateResponse::calculate_size() const {
 #endif
 #ifdef USE_SWITCH
 void ListEntitiesSwitchResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(5, this->icon);
+  proto_encode_string(pos, 5, this->icon);
 #endif
-  cursor.encode_bool(6, this->assumed_state);
-  cursor.encode_bool(7, this->disabled_by_default);
-  cursor.encode_uint32(8, static_cast<uint32_t>(this->entity_category));
-  cursor.encode_string(9, this->device_class);
+  proto_encode_bool(pos, 6, this->assumed_state);
+  proto_encode_bool(pos, 7, this->disabled_by_default);
+  proto_encode_uint32(pos, 8, static_cast<uint32_t>(this->entity_category));
+  proto_encode_string(pos, 9, this->device_class);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(10, this->device_id);
+  proto_encode_uint32(pos, 10, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesSwitchResponse::calculate_size() const {
   uint32_t size = 0;
@@ -804,13 +804,13 @@ uint32_t ListEntitiesSwitchResponse::calculate_size() const {
   return size;
 }
 void SwitchStateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.write_tag_and_fixed32(13, this->key);
-  cursor.encode_bool(2, this->state);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_write_tag_and_fixed32(pos, 13, this->key);
+  proto_encode_bool(pos, 2, this->state);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(3, this->device_id);
+  proto_encode_uint32(pos, 3, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t SwitchStateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -849,20 +849,20 @@ bool SwitchCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_TEXT_SENSOR
 void ListEntitiesTextSensorResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(5, this->icon);
+  proto_encode_string(pos, 5, this->icon);
 #endif
-  cursor.encode_bool(6, this->disabled_by_default);
-  cursor.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
-  cursor.encode_string(8, this->device_class);
+  proto_encode_bool(pos, 6, this->disabled_by_default);
+  proto_encode_uint32(pos, 7, static_cast<uint32_t>(this->entity_category));
+  proto_encode_string(pos, 8, this->device_class);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(9, this->device_id);
+  proto_encode_uint32(pos, 9, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesTextSensorResponse::calculate_size() const {
   uint32_t size = 0;
@@ -881,14 +881,14 @@ uint32_t ListEntitiesTextSensorResponse::calculate_size() const {
   return size;
 }
 void TextSensorStateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.write_tag_and_fixed32(13, this->key);
-  cursor.encode_string(2, this->state);
-  cursor.encode_bool(3, this->missing_state);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_write_tag_and_fixed32(pos, 13, this->key);
+  proto_encode_string(pos, 2, this->state);
+  proto_encode_bool(pos, 3, this->missing_state);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(4, this->device_id);
+  proto_encode_uint32(pos, 4, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t TextSensorStateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -915,10 +915,10 @@ bool SubscribeLogsRequest::decode_varint(uint32_t field_id, proto_varint_value_t
   return true;
 }
 void SubscribeLogsResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_uint32(1, static_cast<uint32_t>(this->level));
-  cursor.encode_bytes(3, this->message_ptr_, this->message_len_);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_uint32(pos, 1, static_cast<uint32_t>(this->level));
+  proto_encode_bytes(pos, 3, this->message_ptr_, this->message_len_);
+  buffer.set_pos(pos);
 }
 uint32_t SubscribeLogsResponse::calculate_size() const {
   uint32_t size = 0;
@@ -940,9 +940,9 @@ bool NoiseEncryptionSetKeyRequest::decode_length(uint32_t field_id, ProtoLengthD
   return true;
 }
 void NoiseEncryptionSetKeyResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_bool(1, this->success);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_bool(pos, 1, this->success);
+  buffer.set_pos(pos);
 }
 uint32_t NoiseEncryptionSetKeyResponse::calculate_size() const {
   uint32_t size = 0;
@@ -952,10 +952,10 @@ uint32_t NoiseEncryptionSetKeyResponse::calculate_size() const {
 #endif
 #ifdef USE_API_HOMEASSISTANT_SERVICES
 void HomeassistantServiceMap::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->key);
-  cursor.encode_string(2, this->value);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->key);
+  proto_encode_string(pos, 2, this->value);
+  buffer.set_pos(pos);
 }
 uint32_t HomeassistantServiceMap::calculate_size() const {
   uint32_t size = 0;
@@ -964,28 +964,28 @@ uint32_t HomeassistantServiceMap::calculate_size() const {
   return size;
 }
 void HomeassistantActionRequest::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->service);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->service);
   for (auto &it : this->data) {
-    cursor.encode_sub_message(2, it);
+    proto_encode_sub_message(pos, buffer, 2, it);
   }
   for (auto &it : this->data_template) {
-    cursor.encode_sub_message(3, it);
+    proto_encode_sub_message(pos, buffer, 3, it);
   }
   for (auto &it : this->variables) {
-    cursor.encode_sub_message(4, it);
+    proto_encode_sub_message(pos, buffer, 4, it);
   }
-  cursor.encode_bool(5, this->is_event);
+  proto_encode_bool(pos, 5, this->is_event);
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES
-  cursor.encode_uint32(6, this->call_id);
+  proto_encode_uint32(pos, 6, this->call_id);
 #endif
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  cursor.encode_bool(7, this->wants_response);
+  proto_encode_bool(pos, 7, this->wants_response);
 #endif
 #ifdef USE_API_HOMEASSISTANT_ACTION_RESPONSES_JSON
-  cursor.encode_string(8, this->response_template);
+  proto_encode_string(pos, 8, this->response_template);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t HomeassistantActionRequest::calculate_size() const {
   uint32_t size = 0;
@@ -1053,11 +1053,11 @@ bool HomeassistantActionResponse::decode_length(uint32_t field_id, ProtoLengthDe
 #endif
 #ifdef USE_API_HOMEASSISTANT_STATES
 void SubscribeHomeAssistantStateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->entity_id);
-  cursor.encode_string(2, this->attribute);
-  cursor.encode_bool(3, this->once);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->entity_id);
+  proto_encode_string(pos, 2, this->attribute);
+  proto_encode_bool(pos, 3, this->once);
+  buffer.set_pos(pos);
 }
 uint32_t SubscribeHomeAssistantStateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -1163,10 +1163,10 @@ bool GetTimeResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
 }
 #ifdef USE_API_USER_DEFINED_ACTIONS
 void ListEntitiesServicesArgument::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->name);
-  cursor.encode_uint32(2, static_cast<uint32_t>(this->type));
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->name);
+  proto_encode_uint32(pos, 2, static_cast<uint32_t>(this->type));
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesServicesArgument::calculate_size() const {
   uint32_t size = 0;
@@ -1175,14 +1175,14 @@ uint32_t ListEntitiesServicesArgument::calculate_size() const {
   return size;
 }
 void ListEntitiesServicesResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->name);
-  cursor.write_tag_and_fixed32(21, this->key);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->name);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
   for (auto &it : this->args) {
-    cursor.encode_sub_message(3, it);
+    proto_encode_sub_message(pos, buffer, 3, it);
   }
-  cursor.encode_uint32(4, static_cast<uint32_t>(this->supports_response));
-  buffer.set_pos(cursor.pos_);
+  proto_encode_uint32(pos, 4, static_cast<uint32_t>(this->supports_response));
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesServicesResponse::calculate_size() const {
   uint32_t size = 0;
@@ -1302,14 +1302,14 @@ void ExecuteServiceRequest::decode(const uint8_t *buffer, size_t length) {
 #endif
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES
 void ExecuteServiceResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_uint32(1, this->call_id);
-  cursor.encode_bool(2, this->success);
-  cursor.encode_string(3, this->error_message);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_uint32(pos, 1, this->call_id);
+  proto_encode_bool(pos, 2, this->success);
+  proto_encode_string(pos, 3, this->error_message);
 #ifdef USE_API_USER_DEFINED_ACTION_RESPONSES_JSON
-  cursor.encode_bytes(4, this->response_data, this->response_data_len);
+  proto_encode_bytes(pos, 4, this->response_data, this->response_data_len);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t ExecuteServiceResponse::calculate_size() const {
   uint32_t size = 0;
@@ -1324,19 +1324,19 @@ uint32_t ExecuteServiceResponse::calculate_size() const {
 #endif
 #ifdef USE_CAMERA
 void ListEntitiesCameraResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
-  cursor.encode_bool(5, this->disabled_by_default);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
+  proto_encode_bool(pos, 5, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(6, this->icon);
+  proto_encode_string(pos, 6, this->icon);
 #endif
-  cursor.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
+  proto_encode_uint32(pos, 7, static_cast<uint32_t>(this->entity_category));
 #ifdef USE_DEVICES
-  cursor.encode_uint32(8, this->device_id);
+  proto_encode_uint32(pos, 8, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesCameraResponse::calculate_size() const {
   uint32_t size = 0;
@@ -1354,14 +1354,14 @@ uint32_t ListEntitiesCameraResponse::calculate_size() const {
   return size;
 }
 void CameraImageResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.write_tag_and_fixed32(13, this->key);
-  cursor.encode_bytes(2, this->data_ptr_, this->data_len_);
-  cursor.encode_bool(3, this->done);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_write_tag_and_fixed32(pos, 13, this->key);
+  proto_encode_bytes(pos, 2, this->data_ptr_, this->data_len_);
+  proto_encode_bool(pos, 3, this->done);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(4, this->device_id);
+  proto_encode_uint32(pos, 4, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t CameraImageResponse::calculate_size() const {
   uint32_t size = 0;
@@ -1389,49 +1389,49 @@ bool CameraImageRequest::decode_varint(uint32_t field_id, proto_varint_value_t v
 #endif
 #ifdef USE_CLIMATE
 void ListEntitiesClimateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
-  cursor.encode_bool(5, this->supports_current_temperature);
-  cursor.encode_bool(6, this->supports_two_point_target_temperature);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
+  proto_encode_bool(pos, 5, this->supports_current_temperature);
+  proto_encode_bool(pos, 6, this->supports_two_point_target_temperature);
   for (const auto &it : *this->supported_modes) {
-    cursor.encode_uint32(7, static_cast<uint32_t>(it), true);
+    proto_encode_uint32(pos, 7, static_cast<uint32_t>(it), true);
   }
-  cursor.encode_float(8, this->visual_min_temperature);
-  cursor.encode_float(9, this->visual_max_temperature);
-  cursor.encode_float(10, this->visual_target_temperature_step);
-  cursor.encode_bool(12, this->supports_action);
+  proto_encode_float(pos, 8, this->visual_min_temperature);
+  proto_encode_float(pos, 9, this->visual_max_temperature);
+  proto_encode_float(pos, 10, this->visual_target_temperature_step);
+  proto_encode_bool(pos, 12, this->supports_action);
   for (const auto &it : *this->supported_fan_modes) {
-    cursor.encode_uint32(13, static_cast<uint32_t>(it), true);
+    proto_encode_uint32(pos, 13, static_cast<uint32_t>(it), true);
   }
   for (const auto &it : *this->supported_swing_modes) {
-    cursor.encode_uint32(14, static_cast<uint32_t>(it), true);
+    proto_encode_uint32(pos, 14, static_cast<uint32_t>(it), true);
   }
   for (const char *it : *this->supported_custom_fan_modes) {
-    cursor.encode_string(15, it, strlen(it), true);
+    proto_encode_string(pos, 15, it, strlen(it), true);
   }
   for (const auto &it : *this->supported_presets) {
-    cursor.encode_uint32(16, static_cast<uint32_t>(it), true);
+    proto_encode_uint32(pos, 16, static_cast<uint32_t>(it), true);
   }
   for (const char *it : *this->supported_custom_presets) {
-    cursor.encode_string(17, it, strlen(it), true);
+    proto_encode_string(pos, 17, it, strlen(it), true);
   }
-  cursor.encode_bool(18, this->disabled_by_default);
+  proto_encode_bool(pos, 18, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(19, this->icon);
+  proto_encode_string(pos, 19, this->icon);
 #endif
-  cursor.encode_uint32(20, static_cast<uint32_t>(this->entity_category));
-  cursor.encode_float(21, this->visual_current_temperature_step);
-  cursor.encode_bool(22, this->supports_current_humidity);
-  cursor.encode_bool(23, this->supports_target_humidity);
-  cursor.encode_float(24, this->visual_min_humidity);
-  cursor.encode_float(25, this->visual_max_humidity);
+  proto_encode_uint32(pos, 20, static_cast<uint32_t>(this->entity_category));
+  proto_encode_float(pos, 21, this->visual_current_temperature_step);
+  proto_encode_bool(pos, 22, this->supports_current_humidity);
+  proto_encode_bool(pos, 23, this->supports_target_humidity);
+  proto_encode_float(pos, 24, this->visual_min_humidity);
+  proto_encode_float(pos, 25, this->visual_max_humidity);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(26, this->device_id);
+  proto_encode_uint32(pos, 26, this->device_id);
 #endif
-  cursor.encode_uint32(27, this->feature_flags);
-  buffer.set_pos(cursor.pos_);
+  proto_encode_uint32(pos, 27, this->feature_flags);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesClimateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -1491,25 +1491,25 @@ uint32_t ListEntitiesClimateResponse::calculate_size() const {
   return size;
 }
 void ClimateStateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.write_tag_and_fixed32(13, this->key);
-  cursor.encode_uint32(2, static_cast<uint32_t>(this->mode));
-  cursor.encode_float(3, this->current_temperature);
-  cursor.encode_float(4, this->target_temperature);
-  cursor.encode_float(5, this->target_temperature_low);
-  cursor.encode_float(6, this->target_temperature_high);
-  cursor.encode_uint32(8, static_cast<uint32_t>(this->action));
-  cursor.encode_uint32(9, static_cast<uint32_t>(this->fan_mode));
-  cursor.encode_uint32(10, static_cast<uint32_t>(this->swing_mode));
-  cursor.encode_string(11, this->custom_fan_mode);
-  cursor.encode_uint32(12, static_cast<uint32_t>(this->preset));
-  cursor.encode_string(13, this->custom_preset);
-  cursor.encode_float(14, this->current_humidity);
-  cursor.encode_float(15, this->target_humidity);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_write_tag_and_fixed32(pos, 13, this->key);
+  proto_encode_uint32(pos, 2, static_cast<uint32_t>(this->mode));
+  proto_encode_float(pos, 3, this->current_temperature);
+  proto_encode_float(pos, 4, this->target_temperature);
+  proto_encode_float(pos, 5, this->target_temperature_low);
+  proto_encode_float(pos, 6, this->target_temperature_high);
+  proto_encode_uint32(pos, 8, static_cast<uint32_t>(this->action));
+  proto_encode_uint32(pos, 9, static_cast<uint32_t>(this->fan_mode));
+  proto_encode_uint32(pos, 10, static_cast<uint32_t>(this->swing_mode));
+  proto_encode_string(pos, 11, this->custom_fan_mode);
+  proto_encode_uint32(pos, 12, static_cast<uint32_t>(this->preset));
+  proto_encode_string(pos, 13, this->custom_preset);
+  proto_encode_float(pos, 14, this->current_humidity);
+  proto_encode_float(pos, 15, this->target_humidity);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(16, this->device_id);
+  proto_encode_uint32(pos, 16, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t ClimateStateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -1626,26 +1626,26 @@ bool ClimateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_WATER_HEATER
 void ListEntitiesWaterHeaterResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(4, this->icon);
+  proto_encode_string(pos, 4, this->icon);
 #endif
-  cursor.encode_bool(5, this->disabled_by_default);
-  cursor.encode_uint32(6, static_cast<uint32_t>(this->entity_category));
+  proto_encode_bool(pos, 5, this->disabled_by_default);
+  proto_encode_uint32(pos, 6, static_cast<uint32_t>(this->entity_category));
 #ifdef USE_DEVICES
-  cursor.encode_uint32(7, this->device_id);
+  proto_encode_uint32(pos, 7, this->device_id);
 #endif
-  cursor.encode_float(8, this->min_temperature);
-  cursor.encode_float(9, this->max_temperature);
-  cursor.encode_float(10, this->target_temperature_step);
+  proto_encode_float(pos, 8, this->min_temperature);
+  proto_encode_float(pos, 9, this->max_temperature);
+  proto_encode_float(pos, 10, this->target_temperature_step);
   for (const auto &it : *this->supported_modes) {
-    cursor.encode_uint32(11, static_cast<uint32_t>(it), true);
+    proto_encode_uint32(pos, 11, static_cast<uint32_t>(it), true);
   }
-  cursor.encode_uint32(12, this->supported_features);
-  buffer.set_pos(cursor.pos_);
+  proto_encode_uint32(pos, 12, this->supported_features);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesWaterHeaterResponse::calculate_size() const {
   uint32_t size = 0;
@@ -1672,18 +1672,18 @@ uint32_t ListEntitiesWaterHeaterResponse::calculate_size() const {
   return size;
 }
 void WaterHeaterStateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.write_tag_and_fixed32(13, this->key);
-  cursor.encode_float(2, this->current_temperature);
-  cursor.encode_float(3, this->target_temperature);
-  cursor.encode_uint32(4, static_cast<uint32_t>(this->mode));
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_write_tag_and_fixed32(pos, 13, this->key);
+  proto_encode_float(pos, 2, this->current_temperature);
+  proto_encode_float(pos, 3, this->target_temperature);
+  proto_encode_uint32(pos, 4, static_cast<uint32_t>(this->mode));
 #ifdef USE_DEVICES
-  cursor.encode_uint32(5, this->device_id);
+  proto_encode_uint32(pos, 5, this->device_id);
 #endif
-  cursor.encode_uint32(6, this->state);
-  cursor.encode_float(7, this->target_temperature_low);
-  cursor.encode_float(8, this->target_temperature_high);
-  buffer.set_pos(cursor.pos_);
+  proto_encode_uint32(pos, 6, this->state);
+  proto_encode_float(pos, 7, this->target_temperature_low);
+  proto_encode_float(pos, 8, this->target_temperature_high);
+  buffer.set_pos(pos);
 }
 uint32_t WaterHeaterStateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -1742,25 +1742,25 @@ bool WaterHeaterCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value
 #endif
 #ifdef USE_NUMBER
 void ListEntitiesNumberResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(5, this->icon);
+  proto_encode_string(pos, 5, this->icon);
 #endif
-  cursor.encode_float(6, this->min_value);
-  cursor.encode_float(7, this->max_value);
-  cursor.encode_float(8, this->step);
-  cursor.encode_bool(9, this->disabled_by_default);
-  cursor.encode_uint32(10, static_cast<uint32_t>(this->entity_category));
-  cursor.encode_string(11, this->unit_of_measurement);
-  cursor.encode_uint32(12, static_cast<uint32_t>(this->mode));
-  cursor.encode_string(13, this->device_class);
+  proto_encode_float(pos, 6, this->min_value);
+  proto_encode_float(pos, 7, this->max_value);
+  proto_encode_float(pos, 8, this->step);
+  proto_encode_bool(pos, 9, this->disabled_by_default);
+  proto_encode_uint32(pos, 10, static_cast<uint32_t>(this->entity_category));
+  proto_encode_string(pos, 11, this->unit_of_measurement);
+  proto_encode_uint32(pos, 12, static_cast<uint32_t>(this->mode));
+  proto_encode_string(pos, 13, this->device_class);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(14, this->device_id);
+  proto_encode_uint32(pos, 14, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesNumberResponse::calculate_size() const {
   uint32_t size = 0;
@@ -1784,14 +1784,14 @@ uint32_t ListEntitiesNumberResponse::calculate_size() const {
   return size;
 }
 void NumberStateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.write_tag_and_fixed32(13, this->key);
-  cursor.encode_float(2, this->state);
-  cursor.encode_bool(3, this->missing_state);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_write_tag_and_fixed32(pos, 13, this->key);
+  proto_encode_float(pos, 2, this->state);
+  proto_encode_bool(pos, 3, this->missing_state);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(4, this->device_id);
+  proto_encode_uint32(pos, 4, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t NumberStateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -1831,22 +1831,22 @@ bool NumberCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_SELECT
 void ListEntitiesSelectResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(5, this->icon);
+  proto_encode_string(pos, 5, this->icon);
 #endif
   for (const char *it : *this->options) {
-    cursor.encode_string(6, it, strlen(it), true);
+    proto_encode_string(pos, 6, it, strlen(it), true);
   }
-  cursor.encode_bool(7, this->disabled_by_default);
-  cursor.encode_uint32(8, static_cast<uint32_t>(this->entity_category));
+  proto_encode_bool(pos, 7, this->disabled_by_default);
+  proto_encode_uint32(pos, 8, static_cast<uint32_t>(this->entity_category));
 #ifdef USE_DEVICES
-  cursor.encode_uint32(9, this->device_id);
+  proto_encode_uint32(pos, 9, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesSelectResponse::calculate_size() const {
   uint32_t size = 0;
@@ -1869,14 +1869,14 @@ uint32_t ListEntitiesSelectResponse::calculate_size() const {
   return size;
 }
 void SelectStateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.write_tag_and_fixed32(13, this->key);
-  cursor.encode_string(2, this->state);
-  cursor.encode_bool(3, this->missing_state);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_write_tag_and_fixed32(pos, 13, this->key);
+  proto_encode_string(pos, 2, this->state);
+  proto_encode_bool(pos, 3, this->missing_state);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(4, this->device_id);
+  proto_encode_uint32(pos, 4, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t SelectStateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -1924,24 +1924,24 @@ bool SelectCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_SIREN
 void ListEntitiesSirenResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(5, this->icon);
+  proto_encode_string(pos, 5, this->icon);
 #endif
-  cursor.encode_bool(6, this->disabled_by_default);
+  proto_encode_bool(pos, 6, this->disabled_by_default);
   for (const char *it : *this->tones) {
-    cursor.encode_string(7, it, strlen(it), true);
+    proto_encode_string(pos, 7, it, strlen(it), true);
   }
-  cursor.encode_bool(8, this->supports_duration);
-  cursor.encode_bool(9, this->supports_volume);
-  cursor.encode_uint32(10, static_cast<uint32_t>(this->entity_category));
+  proto_encode_bool(pos, 8, this->supports_duration);
+  proto_encode_bool(pos, 9, this->supports_volume);
+  proto_encode_uint32(pos, 10, static_cast<uint32_t>(this->entity_category));
 #ifdef USE_DEVICES
-  cursor.encode_uint32(11, this->device_id);
+  proto_encode_uint32(pos, 11, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesSirenResponse::calculate_size() const {
   uint32_t size = 0;
@@ -1966,13 +1966,13 @@ uint32_t ListEntitiesSirenResponse::calculate_size() const {
   return size;
 }
 void SirenStateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.write_tag_and_fixed32(13, this->key);
-  cursor.encode_bool(2, this->state);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_write_tag_and_fixed32(pos, 13, this->key);
+  proto_encode_bool(pos, 2, this->state);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(3, this->device_id);
+  proto_encode_uint32(pos, 3, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t SirenStateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -2040,23 +2040,23 @@ bool SirenCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_LOCK
 void ListEntitiesLockResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(5, this->icon);
+  proto_encode_string(pos, 5, this->icon);
 #endif
-  cursor.encode_bool(6, this->disabled_by_default);
-  cursor.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
-  cursor.encode_bool(8, this->assumed_state);
-  cursor.encode_bool(9, this->supports_open);
-  cursor.encode_bool(10, this->requires_code);
-  cursor.encode_string(11, this->code_format);
+  proto_encode_bool(pos, 6, this->disabled_by_default);
+  proto_encode_uint32(pos, 7, static_cast<uint32_t>(this->entity_category));
+  proto_encode_bool(pos, 8, this->assumed_state);
+  proto_encode_bool(pos, 9, this->supports_open);
+  proto_encode_bool(pos, 10, this->requires_code);
+  proto_encode_string(pos, 11, this->code_format);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(12, this->device_id);
+  proto_encode_uint32(pos, 12, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesLockResponse::calculate_size() const {
   uint32_t size = 0;
@@ -2078,13 +2078,13 @@ uint32_t ListEntitiesLockResponse::calculate_size() const {
   return size;
 }
 void LockStateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.write_tag_and_fixed32(13, this->key);
-  cursor.encode_uint32(2, static_cast<uint32_t>(this->state));
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_write_tag_and_fixed32(pos, 13, this->key);
+  proto_encode_uint32(pos, 2, static_cast<uint32_t>(this->state));
 #ifdef USE_DEVICES
-  cursor.encode_uint32(3, this->device_id);
+  proto_encode_uint32(pos, 3, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t LockStateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -2137,20 +2137,20 @@ bool LockCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_BUTTON
 void ListEntitiesButtonResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(5, this->icon);
+  proto_encode_string(pos, 5, this->icon);
 #endif
-  cursor.encode_bool(6, this->disabled_by_default);
-  cursor.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
-  cursor.encode_string(8, this->device_class);
+  proto_encode_bool(pos, 6, this->disabled_by_default);
+  proto_encode_uint32(pos, 7, static_cast<uint32_t>(this->entity_category));
+  proto_encode_string(pos, 8, this->device_class);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(9, this->device_id);
+  proto_encode_uint32(pos, 9, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesButtonResponse::calculate_size() const {
   uint32_t size = 0;
@@ -2193,13 +2193,13 @@ bool ButtonCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_MEDIA_PLAYER
 void MediaPlayerSupportedFormat::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->format);
-  cursor.encode_uint32(2, this->sample_rate);
-  cursor.encode_uint32(3, this->num_channels);
-  cursor.encode_uint32(4, static_cast<uint32_t>(this->purpose));
-  cursor.encode_uint32(5, this->sample_bytes);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->format);
+  proto_encode_uint32(pos, 2, this->sample_rate);
+  proto_encode_uint32(pos, 3, this->num_channels);
+  proto_encode_uint32(pos, 4, static_cast<uint32_t>(this->purpose));
+  proto_encode_uint32(pos, 5, this->sample_bytes);
+  buffer.set_pos(pos);
 }
 uint32_t MediaPlayerSupportedFormat::calculate_size() const {
   uint32_t size = 0;
@@ -2211,24 +2211,24 @@ uint32_t MediaPlayerSupportedFormat::calculate_size() const {
   return size;
 }
 void ListEntitiesMediaPlayerResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(5, this->icon);
+  proto_encode_string(pos, 5, this->icon);
 #endif
-  cursor.encode_bool(6, this->disabled_by_default);
-  cursor.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
-  cursor.encode_bool(8, this->supports_pause);
+  proto_encode_bool(pos, 6, this->disabled_by_default);
+  proto_encode_uint32(pos, 7, static_cast<uint32_t>(this->entity_category));
+  proto_encode_bool(pos, 8, this->supports_pause);
   for (auto &it : this->supported_formats) {
-    cursor.encode_sub_message(9, it);
+    proto_encode_sub_message(pos, buffer, 9, it);
   }
 #ifdef USE_DEVICES
-  cursor.encode_uint32(10, this->device_id);
+  proto_encode_uint32(pos, 10, this->device_id);
 #endif
-  cursor.encode_uint32(11, this->feature_flags);
-  buffer.set_pos(cursor.pos_);
+  proto_encode_uint32(pos, 11, this->feature_flags);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesMediaPlayerResponse::calculate_size() const {
   uint32_t size = 0;
@@ -2253,15 +2253,15 @@ uint32_t ListEntitiesMediaPlayerResponse::calculate_size() const {
   return size;
 }
 void MediaPlayerStateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.write_tag_and_fixed32(13, this->key);
-  cursor.encode_uint32(2, static_cast<uint32_t>(this->state));
-  cursor.encode_float(3, this->volume);
-  cursor.encode_bool(4, this->muted);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_write_tag_and_fixed32(pos, 13, this->key);
+  proto_encode_uint32(pos, 2, static_cast<uint32_t>(this->state));
+  proto_encode_float(pos, 3, this->volume);
+  proto_encode_bool(pos, 4, this->muted);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(5, this->device_id);
+  proto_encode_uint32(pos, 5, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t MediaPlayerStateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -2341,16 +2341,16 @@ bool SubscribeBluetoothLEAdvertisementsRequest::decode_varint(uint32_t field_id,
   return true;
 }
 void BluetoothLERawAdvertisement::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.write_raw_byte(8);
-  cursor.encode_varint_raw_64(this->address);
-  cursor.write_raw_byte(16);
-  cursor.encode_varint_raw_short(encode_zigzag32(this->rssi));
-  cursor.encode_uint32(3, this->address_type);
-  cursor.write_raw_byte(34);
-  cursor.write_raw_byte(static_cast<uint8_t>(this->data_len));
-  cursor.encode_raw(this->data, this->data_len);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_write_raw_byte(pos, 8);
+  proto_encode_varint_raw_64(pos, this->address);
+  proto_write_raw_byte(pos, 16);
+  proto_encode_varint_raw_short(pos, encode_zigzag32(this->rssi));
+  proto_encode_uint32(pos, 3, this->address_type);
+  proto_write_raw_byte(pos, 34);
+  proto_write_raw_byte(pos, static_cast<uint8_t>(this->data_len));
+  proto_encode_raw(pos, this->data, this->data_len);
+  buffer.set_pos(pos);
 }
 uint32_t BluetoothLERawAdvertisement::calculate_size() const {
   uint32_t size = 0;
@@ -2361,11 +2361,11 @@ uint32_t BluetoothLERawAdvertisement::calculate_size() const {
   return size;
 }
 void BluetoothLERawAdvertisementsResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
+  uint8_t *__restrict__ pos = buffer.get_pos();
   for (uint16_t i = 0; i < this->advertisements_len; i++) {
-    cursor.encode_sub_message(1, this->advertisements[i]);
+    proto_encode_sub_message(pos, buffer, 1, this->advertisements[i]);
   }
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t BluetoothLERawAdvertisementsResponse::calculate_size() const {
   uint32_t size = 0;
@@ -2394,12 +2394,12 @@ bool BluetoothDeviceRequest::decode_varint(uint32_t field_id, proto_varint_value
   return true;
 }
 void BluetoothDeviceConnectionResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_uint64(1, this->address);
-  cursor.encode_bool(2, this->connected);
-  cursor.encode_uint32(3, this->mtu);
-  cursor.encode_int32(4, this->error);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_uint64(pos, 1, this->address);
+  proto_encode_bool(pos, 2, this->connected);
+  proto_encode_uint32(pos, 3, this->mtu);
+  proto_encode_int32(pos, 4, this->error);
+  buffer.set_pos(pos);
 }
 uint32_t BluetoothDeviceConnectionResponse::calculate_size() const {
   uint32_t size = 0;
@@ -2420,14 +2420,14 @@ bool BluetoothGATTGetServicesRequest::decode_varint(uint32_t field_id, proto_var
   return true;
 }
 void BluetoothGATTDescriptor::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
+  uint8_t *__restrict__ pos = buffer.get_pos();
   if (this->uuid[0] != 0 || this->uuid[1] != 0) {
-    cursor.encode_uint64(1, this->uuid[0], true);
-    cursor.encode_uint64(1, this->uuid[1], true);
+    proto_encode_uint64(pos, 1, this->uuid[0], true);
+    proto_encode_uint64(pos, 1, this->uuid[1], true);
   }
-  cursor.encode_uint32(2, this->handle);
-  cursor.encode_uint32(3, this->short_uuid);
-  buffer.set_pos(cursor.pos_);
+  proto_encode_uint32(pos, 2, this->handle);
+  proto_encode_uint32(pos, 3, this->short_uuid);
+  buffer.set_pos(pos);
 }
 uint32_t BluetoothGATTDescriptor::calculate_size() const {
   uint32_t size = 0;
@@ -2440,18 +2440,18 @@ uint32_t BluetoothGATTDescriptor::calculate_size() const {
   return size;
 }
 void BluetoothGATTCharacteristic::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
+  uint8_t *__restrict__ pos = buffer.get_pos();
   if (this->uuid[0] != 0 || this->uuid[1] != 0) {
-    cursor.encode_uint64(1, this->uuid[0], true);
-    cursor.encode_uint64(1, this->uuid[1], true);
+    proto_encode_uint64(pos, 1, this->uuid[0], true);
+    proto_encode_uint64(pos, 1, this->uuid[1], true);
   }
-  cursor.encode_uint32(2, this->handle);
-  cursor.encode_uint32(3, this->properties);
+  proto_encode_uint32(pos, 2, this->handle);
+  proto_encode_uint32(pos, 3, this->properties);
   for (auto &it : this->descriptors) {
-    cursor.encode_sub_message(4, it);
+    proto_encode_sub_message(pos, buffer, 4, it);
   }
-  cursor.encode_uint32(5, this->short_uuid);
-  buffer.set_pos(cursor.pos_);
+  proto_encode_uint32(pos, 5, this->short_uuid);
+  buffer.set_pos(pos);
 }
 uint32_t BluetoothGATTCharacteristic::calculate_size() const {
   uint32_t size = 0;
@@ -2470,17 +2470,17 @@ uint32_t BluetoothGATTCharacteristic::calculate_size() const {
   return size;
 }
 void BluetoothGATTService::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
+  uint8_t *__restrict__ pos = buffer.get_pos();
   if (this->uuid[0] != 0 || this->uuid[1] != 0) {
-    cursor.encode_uint64(1, this->uuid[0], true);
-    cursor.encode_uint64(1, this->uuid[1], true);
+    proto_encode_uint64(pos, 1, this->uuid[0], true);
+    proto_encode_uint64(pos, 1, this->uuid[1], true);
   }
-  cursor.encode_uint32(2, this->handle);
+  proto_encode_uint32(pos, 2, this->handle);
   for (auto &it : this->characteristics) {
-    cursor.encode_sub_message(3, it);
+    proto_encode_sub_message(pos, buffer, 3, it);
   }
-  cursor.encode_uint32(4, this->short_uuid);
-  buffer.set_pos(cursor.pos_);
+  proto_encode_uint32(pos, 4, this->short_uuid);
+  buffer.set_pos(pos);
 }
 uint32_t BluetoothGATTService::calculate_size() const {
   uint32_t size = 0;
@@ -2498,12 +2498,12 @@ uint32_t BluetoothGATTService::calculate_size() const {
   return size;
 }
 void BluetoothGATTGetServicesResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_uint64(1, this->address);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_uint64(pos, 1, this->address);
   for (auto &it : this->services) {
-    cursor.encode_sub_message(2, it);
+    proto_encode_sub_message(pos, buffer, 2, it);
   }
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t BluetoothGATTGetServicesResponse::calculate_size() const {
   uint32_t size = 0;
@@ -2516,9 +2516,9 @@ uint32_t BluetoothGATTGetServicesResponse::calculate_size() const {
   return size;
 }
 void BluetoothGATTGetServicesDoneResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_uint64(1, this->address);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_uint64(pos, 1, this->address);
+  buffer.set_pos(pos);
 }
 uint32_t BluetoothGATTGetServicesDoneResponse::calculate_size() const {
   uint32_t size = 0;
@@ -2539,11 +2539,11 @@ bool BluetoothGATTReadRequest::decode_varint(uint32_t field_id, proto_varint_val
   return true;
 }
 void BluetoothGATTReadResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_uint64(1, this->address);
-  cursor.encode_uint32(2, this->handle);
-  cursor.encode_bytes(3, this->data_ptr_, this->data_len_);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_uint64(pos, 1, this->address);
+  proto_encode_uint32(pos, 2, this->handle);
+  proto_encode_bytes(pos, 3, this->data_ptr_, this->data_len_);
+  buffer.set_pos(pos);
 }
 uint32_t BluetoothGATTReadResponse::calculate_size() const {
   uint32_t size = 0;
@@ -2635,11 +2635,11 @@ bool BluetoothGATTNotifyRequest::decode_varint(uint32_t field_id, proto_varint_v
   return true;
 }
 void BluetoothGATTNotifyDataResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_uint64(1, this->address);
-  cursor.encode_uint32(2, this->handle);
-  cursor.encode_bytes(3, this->data_ptr_, this->data_len_);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_uint64(pos, 1, this->address);
+  proto_encode_uint32(pos, 2, this->handle);
+  proto_encode_bytes(pos, 3, this->data_ptr_, this->data_len_);
+  buffer.set_pos(pos);
 }
 uint32_t BluetoothGATTNotifyDataResponse::calculate_size() const {
   uint32_t size = 0;
@@ -2649,15 +2649,15 @@ uint32_t BluetoothGATTNotifyDataResponse::calculate_size() const {
   return size;
 }
 void BluetoothConnectionsFreeResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_uint32(1, this->free);
-  cursor.encode_uint32(2, this->limit);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_uint32(pos, 1, this->free);
+  proto_encode_uint32(pos, 2, this->limit);
   for (const auto &it : this->allocated) {
     if (it != 0) {
-      cursor.encode_uint64(3, it, true);
+      proto_encode_uint64(pos, 3, it, true);
     }
   }
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t BluetoothConnectionsFreeResponse::calculate_size() const {
   uint32_t size = 0;
@@ -2671,11 +2671,11 @@ uint32_t BluetoothConnectionsFreeResponse::calculate_size() const {
   return size;
 }
 void BluetoothGATTErrorResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_uint64(1, this->address);
-  cursor.encode_uint32(2, this->handle);
-  cursor.encode_int32(3, this->error);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_uint64(pos, 1, this->address);
+  proto_encode_uint32(pos, 2, this->handle);
+  proto_encode_int32(pos, 3, this->error);
+  buffer.set_pos(pos);
 }
 uint32_t BluetoothGATTErrorResponse::calculate_size() const {
   uint32_t size = 0;
@@ -2685,10 +2685,10 @@ uint32_t BluetoothGATTErrorResponse::calculate_size() const {
   return size;
 }
 void BluetoothGATTWriteResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_uint64(1, this->address);
-  cursor.encode_uint32(2, this->handle);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_uint64(pos, 1, this->address);
+  proto_encode_uint32(pos, 2, this->handle);
+  buffer.set_pos(pos);
 }
 uint32_t BluetoothGATTWriteResponse::calculate_size() const {
   uint32_t size = 0;
@@ -2697,10 +2697,10 @@ uint32_t BluetoothGATTWriteResponse::calculate_size() const {
   return size;
 }
 void BluetoothGATTNotifyResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_uint64(1, this->address);
-  cursor.encode_uint32(2, this->handle);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_uint64(pos, 1, this->address);
+  proto_encode_uint32(pos, 2, this->handle);
+  buffer.set_pos(pos);
 }
 uint32_t BluetoothGATTNotifyResponse::calculate_size() const {
   uint32_t size = 0;
@@ -2709,11 +2709,11 @@ uint32_t BluetoothGATTNotifyResponse::calculate_size() const {
   return size;
 }
 void BluetoothDevicePairingResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_uint64(1, this->address);
-  cursor.encode_bool(2, this->paired);
-  cursor.encode_int32(3, this->error);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_uint64(pos, 1, this->address);
+  proto_encode_bool(pos, 2, this->paired);
+  proto_encode_int32(pos, 3, this->error);
+  buffer.set_pos(pos);
 }
 uint32_t BluetoothDevicePairingResponse::calculate_size() const {
   uint32_t size = 0;
@@ -2723,11 +2723,11 @@ uint32_t BluetoothDevicePairingResponse::calculate_size() const {
   return size;
 }
 void BluetoothDeviceUnpairingResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_uint64(1, this->address);
-  cursor.encode_bool(2, this->success);
-  cursor.encode_int32(3, this->error);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_uint64(pos, 1, this->address);
+  proto_encode_bool(pos, 2, this->success);
+  proto_encode_int32(pos, 3, this->error);
+  buffer.set_pos(pos);
 }
 uint32_t BluetoothDeviceUnpairingResponse::calculate_size() const {
   uint32_t size = 0;
@@ -2737,11 +2737,11 @@ uint32_t BluetoothDeviceUnpairingResponse::calculate_size() const {
   return size;
 }
 void BluetoothDeviceClearCacheResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_uint64(1, this->address);
-  cursor.encode_bool(2, this->success);
-  cursor.encode_int32(3, this->error);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_uint64(pos, 1, this->address);
+  proto_encode_bool(pos, 2, this->success);
+  proto_encode_int32(pos, 3, this->error);
+  buffer.set_pos(pos);
 }
 uint32_t BluetoothDeviceClearCacheResponse::calculate_size() const {
   uint32_t size = 0;
@@ -2751,11 +2751,11 @@ uint32_t BluetoothDeviceClearCacheResponse::calculate_size() const {
   return size;
 }
 void BluetoothScannerStateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_uint32(1, static_cast<uint32_t>(this->state));
-  cursor.encode_uint32(2, static_cast<uint32_t>(this->mode));
-  cursor.encode_uint32(3, static_cast<uint32_t>(this->configured_mode));
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_uint32(pos, 1, static_cast<uint32_t>(this->state));
+  proto_encode_uint32(pos, 2, static_cast<uint32_t>(this->mode));
+  proto_encode_uint32(pos, 3, static_cast<uint32_t>(this->configured_mode));
+  buffer.set_pos(pos);
 }
 uint32_t BluetoothScannerStateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -2790,11 +2790,11 @@ bool SubscribeVoiceAssistantRequest::decode_varint(uint32_t field_id, proto_vari
   return true;
 }
 void VoiceAssistantAudioSettings::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_uint32(1, this->noise_suppression_level);
-  cursor.encode_uint32(2, this->auto_gain);
-  cursor.encode_float(3, this->volume_multiplier);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_uint32(pos, 1, this->noise_suppression_level);
+  proto_encode_uint32(pos, 2, this->auto_gain);
+  proto_encode_float(pos, 3, this->volume_multiplier);
+  buffer.set_pos(pos);
 }
 uint32_t VoiceAssistantAudioSettings::calculate_size() const {
   uint32_t size = 0;
@@ -2804,13 +2804,13 @@ uint32_t VoiceAssistantAudioSettings::calculate_size() const {
   return size;
 }
 void VoiceAssistantRequest::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_bool(1, this->start);
-  cursor.encode_string(2, this->conversation_id);
-  cursor.encode_uint32(3, this->flags);
-  cursor.encode_optional_sub_message(4, this->audio_settings);
-  cursor.encode_string(5, this->wake_word_phrase);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_bool(pos, 1, this->start);
+  proto_encode_string(pos, 2, this->conversation_id);
+  proto_encode_uint32(pos, 3, this->flags);
+  proto_encode_optional_sub_message(pos, buffer, 4, this->audio_settings);
+  proto_encode_string(pos, 5, this->wake_word_phrase);
+  buffer.set_pos(pos);
 }
 uint32_t VoiceAssistantRequest::calculate_size() const {
   uint32_t size = 0;
@@ -2893,10 +2893,10 @@ bool VoiceAssistantAudio::decode_length(uint32_t field_id, ProtoLengthDelimited 
   return true;
 }
 void VoiceAssistantAudio::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_bytes(1, this->data, this->data_len);
-  cursor.encode_bool(2, this->end);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_bytes(pos, 1, this->data, this->data_len);
+  proto_encode_bool(pos, 2, this->end);
+  buffer.set_pos(pos);
 }
 uint32_t VoiceAssistantAudio::calculate_size() const {
   uint32_t size = 0;
@@ -2968,9 +2968,9 @@ bool VoiceAssistantAnnounceRequest::decode_length(uint32_t field_id, ProtoLength
   return true;
 }
 void VoiceAssistantAnnounceFinished::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_bool(1, this->success);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_bool(pos, 1, this->success);
+  buffer.set_pos(pos);
 }
 uint32_t VoiceAssistantAnnounceFinished::calculate_size() const {
   uint32_t size = 0;
@@ -2978,13 +2978,13 @@ uint32_t VoiceAssistantAnnounceFinished::calculate_size() const {
   return size;
 }
 void VoiceAssistantWakeWord::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->id);
-  cursor.encode_string(2, this->wake_word);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->id);
+  proto_encode_string(pos, 2, this->wake_word);
   for (auto &it : this->trained_languages) {
-    cursor.encode_string(3, it, true);
+    proto_encode_string(pos, 3, it, true);
   }
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t VoiceAssistantWakeWord::calculate_size() const {
   uint32_t size = 0;
@@ -3049,15 +3049,15 @@ bool VoiceAssistantConfigurationRequest::decode_length(uint32_t field_id, ProtoL
   return true;
 }
 void VoiceAssistantConfigurationResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
+  uint8_t *__restrict__ pos = buffer.get_pos();
   for (auto &it : this->available_wake_words) {
-    cursor.encode_sub_message(1, it);
+    proto_encode_sub_message(pos, buffer, 1, it);
   }
   for (const auto &it : *this->active_wake_words) {
-    cursor.encode_string(2, it, true);
+    proto_encode_string(pos, 2, it, true);
   }
-  cursor.encode_uint32(3, this->max_active_wake_words);
-  buffer.set_pos(cursor.pos_);
+  proto_encode_uint32(pos, 3, this->max_active_wake_words);
+  buffer.set_pos(pos);
 }
 uint32_t VoiceAssistantConfigurationResponse::calculate_size() const {
   uint32_t size = 0;
@@ -3087,22 +3087,22 @@ bool VoiceAssistantSetConfiguration::decode_length(uint32_t field_id, ProtoLengt
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
 void ListEntitiesAlarmControlPanelResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(5, this->icon);
+  proto_encode_string(pos, 5, this->icon);
 #endif
-  cursor.encode_bool(6, this->disabled_by_default);
-  cursor.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
-  cursor.encode_uint32(8, this->supported_features);
-  cursor.encode_bool(9, this->requires_code);
-  cursor.encode_bool(10, this->requires_code_to_arm);
+  proto_encode_bool(pos, 6, this->disabled_by_default);
+  proto_encode_uint32(pos, 7, static_cast<uint32_t>(this->entity_category));
+  proto_encode_uint32(pos, 8, this->supported_features);
+  proto_encode_bool(pos, 9, this->requires_code);
+  proto_encode_bool(pos, 10, this->requires_code_to_arm);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(11, this->device_id);
+  proto_encode_uint32(pos, 11, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesAlarmControlPanelResponse::calculate_size() const {
   uint32_t size = 0;
@@ -3123,13 +3123,13 @@ uint32_t ListEntitiesAlarmControlPanelResponse::calculate_size() const {
   return size;
 }
 void AlarmControlPanelStateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.write_tag_and_fixed32(13, this->key);
-  cursor.encode_uint32(2, static_cast<uint32_t>(this->state));
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_write_tag_and_fixed32(pos, 13, this->key);
+  proto_encode_uint32(pos, 2, static_cast<uint32_t>(this->state));
 #ifdef USE_DEVICES
-  cursor.encode_uint32(3, this->device_id);
+  proto_encode_uint32(pos, 3, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t AlarmControlPanelStateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -3179,23 +3179,23 @@ bool AlarmControlPanelCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit
 #endif
 #ifdef USE_TEXT
 void ListEntitiesTextResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(5, this->icon);
+  proto_encode_string(pos, 5, this->icon);
 #endif
-  cursor.encode_bool(6, this->disabled_by_default);
-  cursor.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
-  cursor.encode_uint32(8, this->min_length);
-  cursor.encode_uint32(9, this->max_length);
-  cursor.encode_string(10, this->pattern);
-  cursor.encode_uint32(11, static_cast<uint32_t>(this->mode));
+  proto_encode_bool(pos, 6, this->disabled_by_default);
+  proto_encode_uint32(pos, 7, static_cast<uint32_t>(this->entity_category));
+  proto_encode_uint32(pos, 8, this->min_length);
+  proto_encode_uint32(pos, 9, this->max_length);
+  proto_encode_string(pos, 10, this->pattern);
+  proto_encode_uint32(pos, 11, static_cast<uint32_t>(this->mode));
 #ifdef USE_DEVICES
-  cursor.encode_uint32(12, this->device_id);
+  proto_encode_uint32(pos, 12, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesTextResponse::calculate_size() const {
   uint32_t size = 0;
@@ -3217,14 +3217,14 @@ uint32_t ListEntitiesTextResponse::calculate_size() const {
   return size;
 }
 void TextStateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.write_tag_and_fixed32(13, this->key);
-  cursor.encode_string(2, this->state);
-  cursor.encode_bool(3, this->missing_state);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_write_tag_and_fixed32(pos, 13, this->key);
+  proto_encode_string(pos, 2, this->state);
+  proto_encode_bool(pos, 3, this->missing_state);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(4, this->device_id);
+  proto_encode_uint32(pos, 4, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t TextStateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -3272,19 +3272,19 @@ bool TextCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_DATETIME_DATE
 void ListEntitiesDateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(5, this->icon);
+  proto_encode_string(pos, 5, this->icon);
 #endif
-  cursor.encode_bool(6, this->disabled_by_default);
-  cursor.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
+  proto_encode_bool(pos, 6, this->disabled_by_default);
+  proto_encode_uint32(pos, 7, static_cast<uint32_t>(this->entity_category));
 #ifdef USE_DEVICES
-  cursor.encode_uint32(8, this->device_id);
+  proto_encode_uint32(pos, 8, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesDateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -3302,16 +3302,16 @@ uint32_t ListEntitiesDateResponse::calculate_size() const {
   return size;
 }
 void DateStateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.write_tag_and_fixed32(13, this->key);
-  cursor.encode_bool(2, this->missing_state);
-  cursor.encode_uint32(3, this->year);
-  cursor.encode_uint32(4, this->month);
-  cursor.encode_uint32(5, this->day);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_write_tag_and_fixed32(pos, 13, this->key);
+  proto_encode_bool(pos, 2, this->missing_state);
+  proto_encode_uint32(pos, 3, this->year);
+  proto_encode_uint32(pos, 4, this->month);
+  proto_encode_uint32(pos, 5, this->day);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(6, this->device_id);
+  proto_encode_uint32(pos, 6, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t DateStateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -3359,19 +3359,19 @@ bool DateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_DATETIME_TIME
 void ListEntitiesTimeResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(5, this->icon);
+  proto_encode_string(pos, 5, this->icon);
 #endif
-  cursor.encode_bool(6, this->disabled_by_default);
-  cursor.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
+  proto_encode_bool(pos, 6, this->disabled_by_default);
+  proto_encode_uint32(pos, 7, static_cast<uint32_t>(this->entity_category));
 #ifdef USE_DEVICES
-  cursor.encode_uint32(8, this->device_id);
+  proto_encode_uint32(pos, 8, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesTimeResponse::calculate_size() const {
   uint32_t size = 0;
@@ -3389,16 +3389,16 @@ uint32_t ListEntitiesTimeResponse::calculate_size() const {
   return size;
 }
 void TimeStateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.write_tag_and_fixed32(13, this->key);
-  cursor.encode_bool(2, this->missing_state);
-  cursor.encode_uint32(3, this->hour);
-  cursor.encode_uint32(4, this->minute);
-  cursor.encode_uint32(5, this->second);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_write_tag_and_fixed32(pos, 13, this->key);
+  proto_encode_bool(pos, 2, this->missing_state);
+  proto_encode_uint32(pos, 3, this->hour);
+  proto_encode_uint32(pos, 4, this->minute);
+  proto_encode_uint32(pos, 5, this->second);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(6, this->device_id);
+  proto_encode_uint32(pos, 6, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t TimeStateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -3446,23 +3446,23 @@ bool TimeCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_EVENT
 void ListEntitiesEventResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(5, this->icon);
+  proto_encode_string(pos, 5, this->icon);
 #endif
-  cursor.encode_bool(6, this->disabled_by_default);
-  cursor.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
-  cursor.encode_string(8, this->device_class);
+  proto_encode_bool(pos, 6, this->disabled_by_default);
+  proto_encode_uint32(pos, 7, static_cast<uint32_t>(this->entity_category));
+  proto_encode_string(pos, 8, this->device_class);
   for (const char *it : *this->event_types) {
-    cursor.encode_string(9, it, strlen(it), true);
+    proto_encode_string(pos, 9, it, strlen(it), true);
   }
 #ifdef USE_DEVICES
-  cursor.encode_uint32(10, this->device_id);
+  proto_encode_uint32(pos, 10, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesEventResponse::calculate_size() const {
   uint32_t size = 0;
@@ -3486,13 +3486,13 @@ uint32_t ListEntitiesEventResponse::calculate_size() const {
   return size;
 }
 void EventResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.write_tag_and_fixed32(13, this->key);
-  cursor.encode_string(2, this->event_type);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_write_tag_and_fixed32(pos, 13, this->key);
+  proto_encode_string(pos, 2, this->event_type);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(3, this->device_id);
+  proto_encode_uint32(pos, 3, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t EventResponse::calculate_size() const {
   uint32_t size = 0;
@@ -3506,23 +3506,23 @@ uint32_t EventResponse::calculate_size() const {
 #endif
 #ifdef USE_VALVE
 void ListEntitiesValveResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(5, this->icon);
+  proto_encode_string(pos, 5, this->icon);
 #endif
-  cursor.encode_bool(6, this->disabled_by_default);
-  cursor.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
-  cursor.encode_string(8, this->device_class);
-  cursor.encode_bool(9, this->assumed_state);
-  cursor.encode_bool(10, this->supports_position);
-  cursor.encode_bool(11, this->supports_stop);
+  proto_encode_bool(pos, 6, this->disabled_by_default);
+  proto_encode_uint32(pos, 7, static_cast<uint32_t>(this->entity_category));
+  proto_encode_string(pos, 8, this->device_class);
+  proto_encode_bool(pos, 9, this->assumed_state);
+  proto_encode_bool(pos, 10, this->supports_position);
+  proto_encode_bool(pos, 11, this->supports_stop);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(12, this->device_id);
+  proto_encode_uint32(pos, 12, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesValveResponse::calculate_size() const {
   uint32_t size = 0;
@@ -3544,14 +3544,14 @@ uint32_t ListEntitiesValveResponse::calculate_size() const {
   return size;
 }
 void ValveStateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.write_tag_and_fixed32(13, this->key);
-  cursor.encode_float(2, this->position);
-  cursor.encode_uint32(3, static_cast<uint32_t>(this->current_operation));
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_write_tag_and_fixed32(pos, 13, this->key);
+  proto_encode_float(pos, 2, this->position);
+  proto_encode_uint32(pos, 3, static_cast<uint32_t>(this->current_operation));
 #ifdef USE_DEVICES
-  cursor.encode_uint32(4, this->device_id);
+  proto_encode_uint32(pos, 4, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t ValveStateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -3597,19 +3597,19 @@ bool ValveCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_DATETIME_DATETIME
 void ListEntitiesDateTimeResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(5, this->icon);
+  proto_encode_string(pos, 5, this->icon);
 #endif
-  cursor.encode_bool(6, this->disabled_by_default);
-  cursor.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
+  proto_encode_bool(pos, 6, this->disabled_by_default);
+  proto_encode_uint32(pos, 7, static_cast<uint32_t>(this->entity_category));
 #ifdef USE_DEVICES
-  cursor.encode_uint32(8, this->device_id);
+  proto_encode_uint32(pos, 8, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesDateTimeResponse::calculate_size() const {
   uint32_t size = 0;
@@ -3627,14 +3627,14 @@ uint32_t ListEntitiesDateTimeResponse::calculate_size() const {
   return size;
 }
 void DateTimeStateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.write_tag_and_fixed32(13, this->key);
-  cursor.encode_bool(2, this->missing_state);
-  cursor.encode_fixed32(3, this->epoch_seconds);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_write_tag_and_fixed32(pos, 13, this->key);
+  proto_encode_bool(pos, 2, this->missing_state);
+  proto_encode_fixed32(pos, 3, this->epoch_seconds);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(4, this->device_id);
+  proto_encode_uint32(pos, 4, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t DateTimeStateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -3674,20 +3674,20 @@ bool DateTimeCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #endif
 #ifdef USE_UPDATE
 void ListEntitiesUpdateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(5, this->icon);
+  proto_encode_string(pos, 5, this->icon);
 #endif
-  cursor.encode_bool(6, this->disabled_by_default);
-  cursor.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
-  cursor.encode_string(8, this->device_class);
+  proto_encode_bool(pos, 6, this->disabled_by_default);
+  proto_encode_uint32(pos, 7, static_cast<uint32_t>(this->entity_category));
+  proto_encode_string(pos, 8, this->device_class);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(9, this->device_id);
+  proto_encode_uint32(pos, 9, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesUpdateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -3706,21 +3706,21 @@ uint32_t ListEntitiesUpdateResponse::calculate_size() const {
   return size;
 }
 void UpdateStateResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.write_tag_and_fixed32(13, this->key);
-  cursor.encode_bool(2, this->missing_state);
-  cursor.encode_bool(3, this->in_progress);
-  cursor.encode_bool(4, this->has_progress);
-  cursor.encode_float(5, this->progress);
-  cursor.encode_string(6, this->current_version);
-  cursor.encode_string(7, this->latest_version);
-  cursor.encode_string(8, this->title);
-  cursor.encode_string(9, this->release_summary);
-  cursor.encode_string(10, this->release_url);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_write_tag_and_fixed32(pos, 13, this->key);
+  proto_encode_bool(pos, 2, this->missing_state);
+  proto_encode_bool(pos, 3, this->in_progress);
+  proto_encode_bool(pos, 4, this->has_progress);
+  proto_encode_float(pos, 5, this->progress);
+  proto_encode_string(pos, 6, this->current_version);
+  proto_encode_string(pos, 7, this->latest_version);
+  proto_encode_string(pos, 8, this->title);
+  proto_encode_string(pos, 9, this->release_summary);
+  proto_encode_string(pos, 10, this->release_url);
 #ifdef USE_DEVICES
-  cursor.encode_uint32(11, this->device_id);
+  proto_encode_uint32(pos, 11, this->device_id);
 #endif
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t UpdateStateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -3779,9 +3779,9 @@ bool ZWaveProxyFrame::decode_length(uint32_t field_id, ProtoLengthDelimited valu
   return true;
 }
 void ZWaveProxyFrame::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_bytes(1, this->data, this->data_len);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_bytes(pos, 1, this->data, this->data_len);
+  buffer.set_pos(pos);
 }
 uint32_t ZWaveProxyFrame::calculate_size() const {
   uint32_t size = 0;
@@ -3811,10 +3811,10 @@ bool ZWaveProxyRequest::decode_length(uint32_t field_id, ProtoLengthDelimited va
   return true;
 }
 void ZWaveProxyRequest::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_uint32(1, static_cast<uint32_t>(this->type));
-  cursor.encode_bytes(2, this->data, this->data_len);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_uint32(pos, 1, static_cast<uint32_t>(this->type));
+  proto_encode_bytes(pos, 2, this->data, this->data_len);
+  buffer.set_pos(pos);
 }
 uint32_t ZWaveProxyRequest::calculate_size() const {
   uint32_t size = 0;
@@ -3825,21 +3825,21 @@ uint32_t ZWaveProxyRequest::calculate_size() const {
 #endif
 #ifdef USE_INFRARED
 void ListEntitiesInfraredResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_string(1, this->object_id);
-  cursor.write_tag_and_fixed32(21, this->key);
-  cursor.encode_string(3, this->name);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_string(pos, 1, this->object_id);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
+  proto_encode_string(pos, 3, this->name);
 #ifdef USE_ENTITY_ICON
-  cursor.encode_string(4, this->icon);
+  proto_encode_string(pos, 4, this->icon);
 #endif
-  cursor.encode_bool(5, this->disabled_by_default);
-  cursor.encode_uint32(6, static_cast<uint32_t>(this->entity_category));
+  proto_encode_bool(pos, 5, this->disabled_by_default);
+  proto_encode_uint32(pos, 6, static_cast<uint32_t>(this->entity_category));
 #ifdef USE_DEVICES
-  cursor.encode_uint32(7, this->device_id);
+  proto_encode_uint32(pos, 7, this->device_id);
 #endif
-  cursor.encode_uint32(8, this->capabilities);
-  cursor.encode_uint32(9, this->receiver_frequency);
-  buffer.set_pos(cursor.pos_);
+  proto_encode_uint32(pos, 8, this->capabilities);
+  proto_encode_uint32(pos, 9, this->receiver_frequency);
+  buffer.set_pos(pos);
 }
 uint32_t ListEntitiesInfraredResponse::calculate_size() const {
   uint32_t size = 0;
@@ -3902,15 +3902,15 @@ bool InfraredRFTransmitRawTimingsRequest::decode_32bit(uint32_t field_id, Proto3
   return true;
 }
 void InfraredRFReceiveEvent::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
+  uint8_t *__restrict__ pos = buffer.get_pos();
 #ifdef USE_DEVICES
-  cursor.encode_uint32(1, this->device_id);
+  proto_encode_uint32(pos, 1, this->device_id);
 #endif
-  cursor.write_tag_and_fixed32(21, this->key);
+  proto_write_tag_and_fixed32(pos, 21, this->key);
   for (const auto &it : *this->timings) {
-    cursor.encode_sint32(3, it, true);
+    proto_encode_sint32(pos, 3, it, true);
   }
-  buffer.set_pos(cursor.pos_);
+  buffer.set_pos(pos);
 }
 uint32_t InfraredRFReceiveEvent::calculate_size() const {
   uint32_t size = 0;
@@ -3953,10 +3953,10 @@ bool SerialProxyConfigureRequest::decode_varint(uint32_t field_id, proto_varint_
   return true;
 }
 void SerialProxyDataReceived::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_uint32(1, this->instance);
-  cursor.encode_bytes(2, this->data_ptr_, this->data_len_);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_uint32(pos, 1, this->instance);
+  proto_encode_bytes(pos, 2, this->data_ptr_, this->data_len_);
+  buffer.set_pos(pos);
 }
 uint32_t SerialProxyDataReceived::calculate_size() const {
   uint32_t size = 0;
@@ -4010,10 +4010,10 @@ bool SerialProxyGetModemPinsRequest::decode_varint(uint32_t field_id, proto_vari
   return true;
 }
 void SerialProxyGetModemPinsResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_uint32(1, this->instance);
-  cursor.encode_uint32(2, this->line_states);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_uint32(pos, 1, this->instance);
+  proto_encode_uint32(pos, 2, this->line_states);
+  buffer.set_pos(pos);
 }
 uint32_t SerialProxyGetModemPinsResponse::calculate_size() const {
   uint32_t size = 0;
@@ -4035,12 +4035,12 @@ bool SerialProxyRequest::decode_varint(uint32_t field_id, proto_varint_value_t v
   return true;
 }
 void SerialProxyRequestResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_uint32(1, this->instance);
-  cursor.encode_uint32(2, static_cast<uint32_t>(this->type));
-  cursor.encode_uint32(3, static_cast<uint32_t>(this->status));
-  cursor.encode_string(4, this->error_message);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_uint32(pos, 1, this->instance);
+  proto_encode_uint32(pos, 2, static_cast<uint32_t>(this->type));
+  proto_encode_uint32(pos, 3, static_cast<uint32_t>(this->status));
+  proto_encode_string(pos, 4, this->error_message);
+  buffer.set_pos(pos);
 }
 uint32_t SerialProxyRequestResponse::calculate_size() const {
   uint32_t size = 0;
@@ -4075,10 +4075,10 @@ bool BluetoothSetConnectionParamsRequest::decode_varint(uint32_t field_id, proto
   return true;
 }
 void BluetoothSetConnectionParamsResponse::encode(ProtoWriteBuffer &buffer) const {
-  ProtoCursor cursor{buffer, buffer.get_pos()};
-  cursor.encode_uint64(1, this->address);
-  cursor.encode_int32(2, this->error);
-  buffer.set_pos(cursor.pos_);
+  uint8_t *__restrict__ pos = buffer.get_pos();
+  proto_encode_uint64(pos, 1, this->address);
+  proto_encode_int32(pos, 2, this->error);
+  buffer.set_pos(pos);
 }
 uint32_t BluetoothSetConnectionParamsResponse::calculate_size() const {
   uint32_t size = 0;

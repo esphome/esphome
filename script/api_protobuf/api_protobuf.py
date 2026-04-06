@@ -2413,14 +2413,29 @@ def build_message_type(
 
     # Only generate encode method if this message needs encoding and has fields
     if needs_encode and encode:
-        # Replace buffer. with cursor. for ProtoCursor pattern
-        encode_cursor = [line.replace("buffer.", "cursor.") for line in encode]
-        cursor_init = "ProtoCursor cursor{buffer, buffer.get_pos()};"
-        cursor_end = "buffer.set_pos(cursor.pos_);"
+        # Transform buffer.method(...) calls to proto_method(pos, ...) free function calls.
+        # This hoists buffer.pos_ into a local __restrict__ variable for the entire function.
+        import re
+
+        def _to_proto_call(line: str) -> str:
+            """Replace buffer.method(args) with proto_method(pos, args).
+
+            Sub-message calls also need buffer passed for backpatch/sync.
+            """
+            # Sub-message calls need buffer as second arg
+            line = re.sub(
+                r"buffer\.(encode_sub_message|encode_optional_sub_message)\(",
+                r"proto_\1(pos, buffer, ",
+                line,
+            )
+            # All other buffer.method() calls
+            return re.sub(r"buffer\.(\w+)\(", r"proto_\1(pos, ", line)
+
+        encode_pos = [_to_proto_call(line) for line in encode]
         o = f"void {desc.name}::encode(ProtoWriteBuffer &buffer) const {{\n"
-        o += f"  {cursor_init}\n"
-        o += indent("\n".join(encode_cursor)) + "\n"
-        o += f"  {cursor_end}\n"
+        o += "  uint8_t *__restrict__ pos = buffer.get_pos();\n"
+        o += indent("\n".join(encode_pos)) + "\n"
+        o += "  buffer.set_pos(pos);\n"
         o += "}\n"
         cpp += o
         prot = "void encode(ProtoWriteBuffer &buffer) const;"
