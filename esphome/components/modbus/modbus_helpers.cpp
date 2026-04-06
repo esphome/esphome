@@ -213,13 +213,4 @@ StaticVector<uint8_t, MAX_FRAME_SIZE> create_write_multiple_coils_pdu(uint16_t s
   return create_client_pdu(ModbusFunctionCode::WRITE_MULTIPLE_COILS, start_address, values.size(), payload,
                            payload_len);
 }
-
-std::vector<uint8_t> add_crc_to_payload(const std::vector<uint8_t> &payload) {
-  std::vector<uint8_t> data = payload;
-  auto crc = crc16(data.data(), data.size());
-  data.push_back(crc >> 0);
-  data.push_back(crc >> 8);
-  return data;
-}
-
 }  // namespace esphome::modbus::helpers

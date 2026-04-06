@@ -400,8 +400,6 @@ StaticVector<uint8_t, MAX_FRAME_SIZE> create_write_single_coil_pdu(uint16_t addr
 StaticVector<uint8_t, MAX_FRAME_SIZE> create_write_multiple_coils_pdu(uint16_t start_address,
                                                                       const std::vector<bool> &values);
 
-std::vector<uint8_t> add_crc_to_payload(const std::vector<uint8_t> &payload);
-
 /** Convert float to vector<uint8_t> response payload.
  * @param value value to convert
  * @param value_type  defines if 16/32/64 bits or FP32 is used
