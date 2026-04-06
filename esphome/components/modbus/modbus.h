@@ -145,15 +145,18 @@ class ModbusServerHub : public Modbus {
   ModbusServerHub() = default;
   void dump_config() override;
   void send(uint8_t address, uint8_t function_code, const std::vector<uint8_t> &payload);
-  void send_raw(const uint8_t *payload, uint16_t len);
+  ESPDEPRECATED("Use send_raw(const uint8_t *, uint16_t) instead. Removed in 2026.10.0", "2026.4.0")
   void send_raw(const std::vector<uint8_t> &payload);
   void register_device(ModbusServerDevice *device) { this->devices_.push_back(device); }
 
  protected:
+  friend class ModbusServerDevice;
+
   void parse_modbus_frames() override;
   bool parse_modbus_client_frame_();
   void process_modbus_server_frame(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len) override;
   void process_modbus_client_frame_(uint8_t address, uint8_t function_code, const uint8_t *data, uint16_t len);
+  void send_raw_(const uint8_t *payload, uint16_t len);
   uint8_t expecting_peer_response_{0};
   std::vector<ModbusServerDevice *> devices_;
 };
@@ -181,7 +184,9 @@ class ModbusClientDevice {
   }
   void send_raw(const uint8_t *payload, uint16_t len) { this->parent_->send_raw(payload, len, this); }
   ESPDEPRECATED("Use send_pdu(StaticVector<uint8_t, MAX_FRAME_SIZE>) instead. Removed in 2026.10.0", "2026.4.0")
-  void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload, this); }
+  void send_raw(const std::vector<uint8_t> &payload) {
+    this->parent_->send_raw(payload.data(), static_cast<uint16_t>(payload.size()), this);
+  }
   inline void clear_tx_queue_for_address(bool clear_sent = true) {
     this->parent_->clear_tx_queue_for_address(this->address_, clear_sent);
   }
@@ -211,12 +216,13 @@ class ModbusServerDevice {
   void send(uint8_t function, const std::vector<uint8_t> &payload) {
     this->parent_->send(this->address_, function, payload);
   }
-  void send_raw(const uint8_t *payload, uint16_t len) { this->parent_->send_raw(payload, len); }
-  void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload); }
+  void send_raw(const std::vector<uint8_t> &payload) {
+    this->parent_->send_raw_(payload.data(), static_cast<uint16_t>(payload.size()));
+  }
   void send_error(uint8_t function_code, ModbusExceptionCode exception_code) {
     uint8_t error_response[3] = {this->address_, uint8_t(function_code | FUNCTION_CODE_EXCEPTION_MASK),
                                  static_cast<uint8_t>(exception_code)};
-    this->send_raw(error_response, 3);
+    this->parent_->send_raw_(error_response, 3);
   }
 
  protected:

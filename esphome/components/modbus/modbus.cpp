@@ -468,7 +468,7 @@ void ModbusServerHub::send(uint8_t address, uint8_t function_code, const std::ve
   frame[0] = address;
   frame[1] = function_code;
   std::memcpy(frame + 2, payload.data(), payload.size());
-  this->send_raw(frame, len);
+  this->send_raw_(frame, len);
 }
 
 // Raw send for client: pushes to tx queue. Everything except the CRC must be contained in payload.
@@ -568,7 +568,7 @@ void ModbusClientHub::clear_tx_queue_for_device(ModbusClientDevice *device) {
 }
 
 // Send raw command for server replies immediately. Except CRC everything must be contained in payload
-void ModbusServerHub::send_raw(const uint8_t *payload, uint16_t len) {
+void ModbusServerHub::send_raw_(const uint8_t *payload, uint16_t len) {
   if (len == 0) {
     return;
   }
@@ -585,7 +585,7 @@ void ModbusServerHub::send_raw(const uint8_t *payload, uint16_t len) {
 }
 
 void ModbusServerHub::send_raw(const std::vector<uint8_t> &payload) {
-  this->send_raw(payload.data(), static_cast<uint16_t>(payload.size()));
+  this->send_raw_(payload.data(), static_cast<uint16_t>(payload.size()));
 }
 
 void Modbus::clear_rx_buffer_(const LogString *reason, bool warn, size_t bytes_to_clear) {
