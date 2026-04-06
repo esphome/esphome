@@ -83,8 +83,7 @@ void NAU7802Sensor::setup() {
 
   // turn on AFE
   pu_ctrl |= PU_CTRL_POWERUP_ANALOG;
-  auto f = std::bind(&NAU7802Sensor::complete_setup_, this);
-  this->set_timeout(600, f);
+  this->set_timeout(600, [this]() { this->complete_setup_(); });
 }
 
 void NAU7802Sensor::complete_setup_() {
