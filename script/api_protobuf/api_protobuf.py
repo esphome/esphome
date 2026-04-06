@@ -2415,14 +2415,13 @@ def build_message_type(
     if needs_encode and encode:
         # Replace buffer. with cursor. for ProtoCursor pattern
         encode_cursor = [line.replace("buffer.", "cursor.") for line in encode]
-        o = f"void {desc.name}::encode(ProtoWriteBuffer &buffer) const {{"
-        if len(encode_cursor) == 1 and len(encode_cursor[0]) + len(o) + 27 < 120:
-            o += f" ProtoCursor cursor(buffer); {encode_cursor[0]} }}\n"
-        else:
-            o += "\n"
-            o += "  ProtoCursor cursor(buffer);\n"
-            o += indent("\n".join(encode_cursor)) + "\n"
-            o += "}\n"
+        cursor_init = "ProtoCursor cursor{buffer, buffer.get_pos()};"
+        cursor_end = "buffer.set_pos(cursor.pos_);"
+        o = f"void {desc.name}::encode(ProtoWriteBuffer &buffer) const {{\n"
+        o += f"  {cursor_init}\n"
+        o += indent("\n".join(encode_cursor)) + "\n"
+        o += f"  {cursor_end}\n"
+        o += "}\n"
         cpp += o
         prot = "void encode(ProtoWriteBuffer &buffer) const;"
         public_content.append(prot)
