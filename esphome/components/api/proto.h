@@ -304,15 +304,19 @@ class ProtoCursor {
   inline void ESPHOME_ALWAYS_INLINE encode_field_raw(uint32_t field_id, uint32_t type) {
     this->encode_varint_raw((field_id << 3) | type);
   }
+  /// Write a single precomputed tag byte. Tag must be < 128.
   inline void ESPHOME_ALWAYS_INLINE write_raw_byte(uint8_t b) {
     this->debug_check_bounds_(1);
     *this->pos_++ = b;
   }
+  /// Write raw bytes to the buffer (no tag, no length prefix).
   inline void ESPHOME_ALWAYS_INLINE encode_raw(const void *data, size_t len) {
     this->debug_check_bounds_(len);
     std::memcpy(this->pos_, data, len);
     this->pos_ += len;
   }
+  /// Write a precomputed tag byte + 32-bit value in one operation.
+  /// Tag must be a single-byte varint (< 128). No zero check.
   inline void ESPHOME_ALWAYS_INLINE write_tag_and_fixed32(uint8_t tag, uint32_t value) {
     this->debug_check_bounds_(5);
     this->pos_[0] = tag;
@@ -329,7 +333,7 @@ class ProtoCursor {
   void encode_string(uint32_t field_id, const char *string, size_t len, bool force = false) {
     if (len == 0 && !force)
       return;
-    this->encode_field_raw(field_id, 2);
+    this->encode_field_raw(field_id, 2);  // type 2: Length-delimited string
     if (len < 128) [[likely]] {
       this->debug_check_bounds_(1 + len);
       *this->pos_++ = static_cast<uint8_t>(len);
@@ -354,28 +358,29 @@ class ProtoCursor {
   void encode_uint32(uint32_t field_id, uint32_t value, bool force = false) {
     if (value == 0 && !force)
       return;
-    this->encode_field_raw(field_id, 0);
+    this->encode_field_raw(field_id, 0);  // type 0: Varint - uint32
     this->encode_varint_raw(value);
   }
   void encode_uint64(uint32_t field_id, uint64_t value, bool force = false) {
     if (value == 0 && !force)
       return;
-    this->encode_field_raw(field_id, 0);
+    this->encode_field_raw(field_id, 0);  // type 0: Varint - uint64
     this->encode_varint_raw_64(value);
   }
   void encode_bool(uint32_t field_id, bool value, bool force = false) {
     if (!value && !force)
       return;
-    this->encode_field_raw(field_id, 0);
+    this->encode_field_raw(field_id, 0);  // type 0: Varint - bool
     this->debug_check_bounds_(1);
     *this->pos_++ = value ? 0x01 : 0x00;
   }
   void encode_fixed32(uint32_t field_id, uint32_t value, bool force = false) {
     if (value == 0 && !force)
       return;
-    this->encode_field_raw(field_id, 5);
+    this->encode_field_raw(field_id, 5);  // type 5: 32-bit fixed32
     this->debug_check_bounds_(4);
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    // Protobuf fixed32 is little-endian, so direct copy works
     std::memcpy(this->pos_, &value, 4);
     this->pos_ += 4;
 #else
@@ -385,6 +390,10 @@ class ProtoCursor {
     *this->pos_++ = (value >> 24) & 0xFF;
 #endif
   }
+  // NOTE: Wire type 1 (64-bit fixed: double, fixed64, sfixed64) is intentionally
+  // not supported to reduce overhead on embedded systems. All ESPHome devices are
+  // 32-bit microcontrollers where 64-bit operations are expensive. If 64-bit support
+  // is needed in the future, the necessary encoding/decoding functions must be added.
   void encode_float(uint32_t field_id, float value, bool force = false) {
     if (value == 0.0f && !force)
       return;
@@ -397,6 +406,7 @@ class ProtoCursor {
   }
   void encode_int32(uint32_t field_id, int32_t value, bool force = false) {
     if (value < 0) {
+      // negative int32 is always 10 byte long
       this->encode_int64(field_id, value, force);
       return;
     }
