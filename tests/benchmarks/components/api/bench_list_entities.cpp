@@ -53,8 +53,8 @@ static void Encode_ListEntitiesSensorResponse(benchmark::State &state) {
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
-      uint8_t *__restrict__ pos = buffer.data();
-      msg.encode(pos);
+      ProtoWriteBuffer writer(&buffer, 0);
+      msg.encode(writer);
     }
     benchmark::DoNotOptimize(buffer.data());
   }
@@ -70,8 +70,8 @@ static void CalcAndEncode_ListEntitiesSensorResponse(benchmark::State &state) {
     for (int i = 0; i < kInnerIterations; i++) {
       uint32_t size = msg.calculate_size();
       buffer.resize(size);
-      uint8_t *__restrict__ pos = buffer.data();
-      msg.encode(pos);
+      ProtoWriteBuffer writer(&buffer, 0);
+      msg.encode(writer);
     }
     benchmark::DoNotOptimize(buffer.data());
   }
@@ -121,8 +121,8 @@ static void Encode_ListEntitiesBinarySensorResponse(benchmark::State &state) {
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
-      uint8_t *__restrict__ pos = buffer.data();
-      msg.encode(pos);
+      ProtoWriteBuffer writer(&buffer, 0);
+      msg.encode(writer);
     }
     benchmark::DoNotOptimize(buffer.data());
   }
@@ -138,8 +138,8 @@ static void CalcAndEncode_ListEntitiesBinarySensorResponse(benchmark::State &sta
     for (int i = 0; i < kInnerIterations; i++) {
       uint32_t size = msg.calculate_size();
       buffer.resize(size);
-      uint8_t *__restrict__ pos = buffer.data();
-      msg.encode(pos);
+      ProtoWriteBuffer writer(&buffer, 0);
+      msg.encode(writer);
     }
     benchmark::DoNotOptimize(buffer.data());
   }
@@ -206,8 +206,8 @@ static void Encode_ListEntitiesLightResponse(benchmark::State &state) {
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
-      uint8_t *__restrict__ pos = buffer.data();
-      msg.encode(pos);
+      ProtoWriteBuffer writer(&buffer, 0);
+      msg.encode(writer);
     }
     benchmark::DoNotOptimize(buffer.data());
   }
@@ -223,8 +223,8 @@ static void CalcAndEncode_ListEntitiesLightResponse(benchmark::State &state) {
     for (int i = 0; i < kInnerIterations; i++) {
       uint32_t size = msg.calculate_size();
       buffer.resize(size);
-      uint8_t *__restrict__ pos = buffer.data();
-      msg.encode(pos);
+      ProtoWriteBuffer writer(&buffer, 0);
+      msg.encode(writer);
     }
     benchmark::DoNotOptimize(buffer.data());
   }

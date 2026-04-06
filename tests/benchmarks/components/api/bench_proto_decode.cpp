@@ -17,8 +17,8 @@ template<typename T> static APIBuffer encode_message(const T &msg) {
   APIBuffer buffer;
   uint32_t size = msg.calculate_size();
   buffer.resize(size);
-  uint8_t *__restrict__ pos = buffer.data();
-  msg.encode(pos);
+  ProtoWriteBuffer writer(&buffer, 0);
+  msg.encode(writer);
   return buffer;
 }
 

@@ -62,8 +62,8 @@ static void Encode_Varint_Small(benchmark::State &state) {
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
-      uint8_t *__restrict__ pos = buffer.data();
-      proto_encode_varint_raw(pos, 42);
+      ProtoWriteBuffer writer(&buffer, 0);
+      writer.encode_varint_raw(42);
     }
     benchmark::DoNotOptimize(buffer.data());
   }
@@ -77,8 +77,8 @@ static void Encode_Varint_Large(benchmark::State &state) {
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
-      uint8_t *__restrict__ pos = buffer.data();
-      proto_encode_varint_raw(pos, 300);
+      ProtoWriteBuffer writer(&buffer, 0);
+      writer.encode_varint_raw(300);
     }
     benchmark::DoNotOptimize(buffer.data());
   }
@@ -92,8 +92,8 @@ static void Encode_Varint_MaxUint32(benchmark::State &state) {
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
-      uint8_t *__restrict__ pos = buffer.data();
-      proto_encode_varint_raw(pos, 0xFFFFFFFF);
+      ProtoWriteBuffer writer(&buffer, 0);
+      writer.encode_varint_raw(0xFFFFFFFF);
     }
     benchmark::DoNotOptimize(buffer.data());
   }
