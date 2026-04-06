@@ -195,6 +195,26 @@ class Proto32Bit {
 
 // NOTE: Proto64Bit class removed - wire type 1 (64-bit fixed) not supported
 
+// Debug bounds checking for proto encode functions.
+// In debug mode (ESPHOME_DEBUG_API), an extra end-of-buffer pointer is threaded
+// through the entire encode chain. In production, these expand to nothing.
+#ifdef ESPHOME_DEBUG_API
+#define PROTO_ENCODE_DEBUG_PARAM , uint8_t *proto_debug_end_
+#define PROTO_ENCODE_DEBUG_ARG , proto_debug_end_
+#define PROTO_ENCODE_DEBUG_INIT(buf) , (buf)->data() + (buf)->size()
+#define PROTO_ENCODE_CHECK_BOUNDS(pos, n)                                                                              \
+  do {                                                                                                                 \
+    if ((pos) + (n) > proto_debug_end_)                                                                                \
+      proto_check_bounds_failed(pos, n, proto_debug_end_, __builtin_FUNCTION());                                       \
+  } while (0)
+void proto_check_bounds_failed(const uint8_t *pos, size_t bytes, const uint8_t *end, const char *caller);
+#else
+#define PROTO_ENCODE_DEBUG_PARAM
+#define PROTO_ENCODE_DEBUG_ARG
+#define PROTO_ENCODE_DEBUG_INIT(buf)
+#define PROTO_ENCODE_CHECK_BOUNDS(pos, n)
+#endif
+
 class ProtoWriteBuffer {
  public:
   ProtoWriteBuffer(APIBuffer *buffer) : buffer_(buffer), pos_(buffer->data() + buffer->size()) {}
@@ -257,26 +277,6 @@ class ProtoWriteBuffer {
 // Varint encoding thresholds — used by both proto_encode_* free functions and ProtoSize.
 constexpr uint32_t VARINT_MAX_1_BYTE = 1 << 7;   // 128
 constexpr uint32_t VARINT_MAX_2_BYTE = 1 << 14;  // 16384
-
-// Debug bounds checking for proto encode free functions.
-// In debug mode (ESPHOME_DEBUG_API), an extra end-of-buffer pointer is threaded
-// through the entire encode chain. In production, these expand to nothing.
-#ifdef ESPHOME_DEBUG_API
-#define PROTO_ENCODE_DEBUG_PARAM , uint8_t *proto_debug_end_
-#define PROTO_ENCODE_DEBUG_ARG , proto_debug_end_
-#define PROTO_ENCODE_DEBUG_INIT(buf) , (buf)->data() + (buf)->size()
-#define PROTO_ENCODE_CHECK_BOUNDS(pos, n) \
-  do { \
-    if ((pos) + (n) > proto_debug_end_) \
-      proto_check_bounds_failed(pos, n, proto_debug_end_, __builtin_FUNCTION()); \
-  } while (0)
-void proto_check_bounds_failed(const uint8_t *pos, size_t bytes, const uint8_t *end, const char *caller);
-#else
-#define PROTO_ENCODE_DEBUG_PARAM
-#define PROTO_ENCODE_DEBUG_ARG
-#define PROTO_ENCODE_DEBUG_INIT(buf)
-#define PROTO_ENCODE_CHECK_BOUNDS(pos, n)
-#endif
 
 /// Static encode helpers for generated encode() functions.
 /// Generated code hoists buffer.pos_ into a local uint8_t *__restrict__ pos,
