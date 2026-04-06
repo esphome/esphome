@@ -25,9 +25,9 @@ namespace esphome::api {
 #define PROTO_ENCODE_DEBUG_PARAM , uint8_t *proto_debug_end_
 #define PROTO_ENCODE_DEBUG_ARG , proto_debug_end_
 #define PROTO_ENCODE_DEBUG_INIT(buf) , (buf)->data() + (buf)->size()
-#define PROTO_ENCODE_CHECK_BOUNDS(pos, n) \
-  do { \
-    if ((pos) + (n) > proto_debug_end_) \
+#define PROTO_ENCODE_CHECK_BOUNDS(pos, n)                                          \
+  do {                                                                             \
+    if ((pos) + (n) > proto_debug_end_)                                            \
       proto_check_bounds_failed(pos, n, proto_debug_end_, __builtin_FUNCTION()); \
   } while (0)
 void proto_check_bounds_failed(const uint8_t *pos, size_t bytes, const uint8_t *end, const char *caller);
@@ -312,7 +312,8 @@ inline void ESPHOME_ALWAYS_INLINE proto_encode_field_raw(uint8_t *__restrict__ &
   proto_encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, (field_id << 3) | type);
 }
 /// Write a single precomputed tag byte. Tag must be < 128.
-inline void ESPHOME_ALWAYS_INLINE proto_write_raw_byte(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, uint8_t b) {
+inline void ESPHOME_ALWAYS_INLINE proto_write_raw_byte(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM,
+                                                       uint8_t b) {
   PROTO_ENCODE_CHECK_BOUNDS(pos, 1);
   *pos++ = b;
 }
@@ -387,8 +388,8 @@ inline void proto_encode_bool(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARA
   PROTO_ENCODE_CHECK_BOUNDS(pos, 1);
   *pos++ = value ? 0x01 : 0x00;
 }
-inline void proto_encode_fixed32(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, uint32_t field_id, uint32_t value,
-                                 bool force = false) {
+inline void proto_encode_fixed32(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, uint32_t field_id,
+                                 uint32_t value, bool force = false) {
   if (value == 0 && !force)
     return;
   proto_encode_field_raw(pos PROTO_ENCODE_DEBUG_ARG, field_id, 5);  // type 5: 32-bit fixed32
@@ -767,7 +768,7 @@ class ProtoSize {
 // Implementation of methods that depend on ProtoSize being fully defined
 
 /// Encode callback type — takes a message pointer and a pos reference.
-using ProtoEncodeFn = void (*)(const void *, uint8_t *__restrict__ &PROTO_ENCODE_DEBUG_PARAM);
+using ProtoEncodeFn = void (*)(const void *, uint8_t *__restrict__ & PROTO_ENCODE_DEBUG_PARAM);
 
 // Encode thunk — converts void* back to concrete type for direct encode() call
 template<typename T> void proto_encode_msg(const void *msg, uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM) {

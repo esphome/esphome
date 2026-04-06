@@ -2411,9 +2411,7 @@ def build_message_type(
     # Only generate encode method if this message needs encoding and has fields
     if needs_encode and encode:
         # Add PROTO_ENCODE_DEBUG_ARG after pos in all proto_* calls
-        encode_debug = [
-            line.replace("(pos,", "(pos PROTO_ENCODE_DEBUG_ARG,") for line in encode
-        ]
+        encode_debug = [line.replace("(pos,", "(pos PROTO_ENCODE_DEBUG_ARG,") for line in encode]
         o = f"void {desc.name}::encode(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM) const {{\n"
         o += indent("\n".join(encode_debug)) + "\n"
         o += "}\n"

@@ -403,7 +403,7 @@ class APIConnection final : public APIServerConnectionBase {
   }
 
   // Shared no-op encode thunk for empty messages (ESTIMATED_SIZE == 0)
-  static void encode_msg_noop(const void *, uint8_t *__restrict__ &PROTO_ENCODE_DEBUG_PARAM) {}
+  static void encode_msg_noop(const void *, uint8_t *__restrict__ & PROTO_ENCODE_DEBUG_PARAM) {}
 
   // Non-template buffer management for send_message
   bool send_message_(uint32_t payload_size, uint8_t message_type, MessageEncodeFn encode_fn, const void *msg);
