@@ -89,6 +89,7 @@ from esphome.core import (
     TimePeriodNanoseconds,
     TimePeriodSeconds,
 )
+from esphome.expression import SUBSTITUTION_VARIABLE_PROG as VARIABLE_PROG
 from esphome.helpers import add_class_to_obj, docs_url, list_starts_with
 from esphome.schema_extractors import (
     SCHEMA_EXTRACT,
@@ -102,8 +103,6 @@ from esphome.voluptuous_schema import _Schema
 from esphome.yaml_util import make_data_base
 
 _LOGGER = logging.getLogger(__name__)
-
-from esphome.expression import SUBSTITUTION_VARIABLE_PROG as VARIABLE_PROG  # noqa: E402
 
 # pylint: disable=invalid-name
 

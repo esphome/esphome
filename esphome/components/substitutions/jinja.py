@@ -10,7 +10,7 @@ from jinja2.nativetypes import NativeCodeGenerator, NativeTemplate
 from jinja2.runtime import missing as Missing
 
 # Re-exported for backward compatibility — consumers import has_jinja from here
-from esphome.expression import has_jinja  # noqa: F401
+from esphome.expression import has_jinja  # noqa: F401  # pylint: disable=unused-import
 
 TemplateError = jinja.TemplateError
 TemplateSyntaxError = jinja.TemplateSyntaxError

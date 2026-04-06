@@ -17,8 +17,6 @@ import yaml
 from yaml import SafeLoader as PurePythonLoader
 import yaml.constructor
 
-from esphome.expression import has_substitution_or_expression
-
 try:
     from yaml import CSafeLoader as FastestAvailableSafeLoader
 except ImportError:
@@ -35,6 +33,7 @@ from esphome.core import (
     MACAddress,
     TimePeriod,
 )
+from esphome.expression import has_substitution_or_expression
 from esphome.helpers import add_class_to_obj
 from esphome.util import OrderedDict, filter_yaml_files
 
@@ -138,6 +137,7 @@ class ConfigContext:
         mixed into dict/list subclasses via add_class_to_obj in add_context().
         """
         if isinstance(self, dict):
+            # pylint: disable=no-member
             tagged = {
                 add_context(k, self.vars): add_context(v, self.vars)
                 for k, v in self.items()
