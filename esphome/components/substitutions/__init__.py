@@ -304,12 +304,13 @@ def resolve_include(
 
     Returns the loaded content and the resolved filename.
     """
+    original = str(include.file)
     filename = str(
         _expand_substitutions(
-            str(include.file), path + [".file"], context_vars, strict_undefined, errors
+            original, path + [".file"], context_vars, strict_undefined, errors
         )
     )
-    if filename != str(include.file):
+    if filename != original:
         include = IncludeFile(
             include.parent_file, filename, include.vars, include.yaml_loader
         )
@@ -317,8 +318,8 @@ def resolve_include(
         return include.load(), filename
     except esphome.core.EsphomeError as err:
         raise cv.Invalid(
-            f"Error including file '{include.file}': {err}",
-            path + [f"<{include.file}>"],
+            f"Error including file '{filename}': {err}",
+            path + [f"<{filename}>"],
         ) from err
 
 
