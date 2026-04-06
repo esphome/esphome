@@ -326,8 +326,7 @@ class ProtoCursor {
 #endif
     this->pos_ += 5;
   }
-  inline void ESPHOME_ALWAYS_INLINE encode_string(uint32_t field_id, const char *string, size_t len,
-                                                  bool force = false) {
+  void encode_string(uint32_t field_id, const char *string, size_t len, bool force = false) {
     if (len == 0 && !force)
       return;
     this->encode_field_raw(field_id, 2);
@@ -343,36 +342,35 @@ class ProtoCursor {
     std::memcpy(this->pos_, string, len);
     this->pos_ += len;
   }
-  inline void ESPHOME_ALWAYS_INLINE encode_string(uint32_t field_id, const std::string &value, bool force = false) {
+  void encode_string(uint32_t field_id, const std::string &value, bool force = false) {
     this->encode_string(field_id, value.data(), value.size(), force);
   }
-  inline void ESPHOME_ALWAYS_INLINE encode_string(uint32_t field_id, const StringRef &ref, bool force = false) {
+  void encode_string(uint32_t field_id, const StringRef &ref, bool force = false) {
     this->encode_string(field_id, ref.c_str(), ref.size(), force);
   }
-  inline void ESPHOME_ALWAYS_INLINE encode_bytes(uint32_t field_id, const uint8_t *data, size_t len,
-                                                 bool force = false) {
+  void encode_bytes(uint32_t field_id, const uint8_t *data, size_t len, bool force = false) {
     this->encode_string(field_id, reinterpret_cast<const char *>(data), len, force);
   }
-  inline void ESPHOME_ALWAYS_INLINE encode_uint32(uint32_t field_id, uint32_t value, bool force = false) {
+  void encode_uint32(uint32_t field_id, uint32_t value, bool force = false) {
     if (value == 0 && !force)
       return;
     this->encode_field_raw(field_id, 0);
     this->encode_varint_raw(value);
   }
-  inline void ESPHOME_ALWAYS_INLINE encode_uint64(uint32_t field_id, uint64_t value, bool force = false) {
+  void encode_uint64(uint32_t field_id, uint64_t value, bool force = false) {
     if (value == 0 && !force)
       return;
     this->encode_field_raw(field_id, 0);
     this->encode_varint_raw_64(value);
   }
-  inline void ESPHOME_ALWAYS_INLINE encode_bool(uint32_t field_id, bool value, bool force = false) {
+  void encode_bool(uint32_t field_id, bool value, bool force = false) {
     if (!value && !force)
       return;
     this->encode_field_raw(field_id, 0);
     this->debug_check_bounds_(1);
     *this->pos_++ = value ? 0x01 : 0x00;
   }
-  inline void ESPHOME_ALWAYS_INLINE encode_fixed32(uint32_t field_id, uint32_t value, bool force = false) {
+  void encode_fixed32(uint32_t field_id, uint32_t value, bool force = false) {
     if (value == 0 && !force)
       return;
     this->encode_field_raw(field_id, 5);
@@ -387,7 +385,7 @@ class ProtoCursor {
     *this->pos_++ = (value >> 24) & 0xFF;
 #endif
   }
-  inline void ESPHOME_ALWAYS_INLINE encode_float(uint32_t field_id, float value, bool force = false) {
+  void encode_float(uint32_t field_id, float value, bool force = false) {
     if (value == 0.0f && !force)
       return;
     union {
@@ -397,20 +395,20 @@ class ProtoCursor {
     val.value = value;
     this->encode_fixed32(field_id, val.raw);
   }
-  inline void ESPHOME_ALWAYS_INLINE encode_int32(uint32_t field_id, int32_t value, bool force = false) {
+  void encode_int32(uint32_t field_id, int32_t value, bool force = false) {
     if (value < 0) {
       this->encode_int64(field_id, value, force);
       return;
     }
     this->encode_uint32(field_id, static_cast<uint32_t>(value), force);
   }
-  inline void ESPHOME_ALWAYS_INLINE encode_int64(uint32_t field_id, int64_t value, bool force = false) {
+  void encode_int64(uint32_t field_id, int64_t value, bool force = false) {
     this->encode_uint64(field_id, static_cast<uint64_t>(value), force);
   }
-  inline void ESPHOME_ALWAYS_INLINE encode_sint32(uint32_t field_id, int32_t value, bool force = false) {
+  void encode_sint32(uint32_t field_id, int32_t value, bool force = false) {
     this->encode_uint32(field_id, encode_zigzag32(value), force);
   }
-  inline void ESPHOME_ALWAYS_INLINE encode_sint64(uint32_t field_id, int64_t value, bool force = false) {
+  void encode_sint64(uint32_t field_id, int64_t value, bool force = false) {
     this->encode_uint64(field_id, encode_zigzag64(value), force);
   }
   /// Delegate to ProtoWriteBuffer for complex sub-message encoding (backpatch).
