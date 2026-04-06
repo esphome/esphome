@@ -60,6 +60,8 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
   // Settings should still have initial values
   EXPECT_FALSE(ctx.sut.status().power_on);
   EXPECT_THAT(ctx.sut.status().target_temperature, ::testing::IsNan());
+  EXPECT_EQ(ctx.sut.status().mode, TestableMitsubishiCN105::Mode::UNKNOWN);
+  EXPECT_EQ(ctx.sut.status().fan_mode, TestableMitsubishiCN105::FanMode::UNKNOWN);
 
   ctx.sut.set_current_time(300);
   ASSERT_FALSE(ctx.sut.update());
@@ -68,6 +70,8 @@ TEST(MitsubishiCN105Tests, ConnectAndUpdateStatus) {
   // Check settings that we just read from received package
   EXPECT_FALSE(ctx.sut.status().power_on);
   EXPECT_EQ(ctx.sut.status().target_temperature, 24.0f);
+  EXPECT_EQ(ctx.sut.status().mode, TestableMitsubishiCN105::Mode::AUTO);
+  EXPECT_EQ(ctx.sut.status().fan_mode, TestableMitsubishiCN105::FanMode::AUTO);
 
   // Now fetch room temperature (0x03)
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::UPDATING_STATUS);
@@ -260,24 +264,28 @@ TEST(MitsubishiCN105Tests, DecodeStatusSettingsPackageTempEncodedA) {
   auto ctx = TestContext{};
 
   ctx.uart.push_rx(
-      {0xFC, 0x62, 0x01, 0x30, 0x0C, 0x02, 0x00, 0x00, 0x01, 0x03, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x56});
+      {0xFC, 0x62, 0x01, 0x30, 0x0C, 0x02, 0x00, 0x00, 0x01, 0x03, 0x05, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x55});
 
   ctx.sut.update();
 
   EXPECT_TRUE(ctx.sut.status().power_on);
   EXPECT_EQ(ctx.sut.status().target_temperature, 26.0f);
+  EXPECT_EQ(ctx.sut.status().mode, TestableMitsubishiCN105::Mode::COOL);
+  EXPECT_EQ(ctx.sut.status().fan_mode, TestableMitsubishiCN105::FanMode::QUIET);
 }
 
 TEST(MitsubishiCN105Tests, DecodeStatusSettingsPackageTempEncodedB) {
   auto ctx = TestContext{};
 
   ctx.uart.push_rx(
-      {0xFC, 0x62, 0x01, 0x30, 0x0C, 0x02, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA5, 0xB7});
+      {0xFC, 0x62, 0x01, 0x30, 0x0C, 0x02, 0x00, 0x00, 0x00, 0x07, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0xA5, 0xAD});
 
   ctx.sut.update();
 
   EXPECT_FALSE(ctx.sut.status().power_on);
   EXPECT_EQ(ctx.sut.status().target_temperature, 18.5f);
+  EXPECT_EQ(ctx.sut.status().mode, TestableMitsubishiCN105::Mode::FAN_ONLY);
+  EXPECT_EQ(ctx.sut.status().fan_mode, TestableMitsubishiCN105::FanMode::SPEED_4);
 }
 
 TEST(MitsubishiCN105Tests, DecodeStatusRoomTempPackageTempEncodedA) {
