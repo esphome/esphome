@@ -22,7 +22,33 @@ static constexpr uint8_t PACKET_TYPE_STATUS_REQUEST = 0x42;
 static constexpr uint8_t PACKET_TYPE_STATUS_RESPONSE = 0x62;
 static constexpr uint8_t STATUS_MSG_SETTINGS = 0x02;
 static constexpr uint8_t STATUS_MSG_ROOM_TEMP = 0x03;
-static constexpr std::array<uint8_t, 2> STATUS_MSG_TYPES = {STATUS_MSG_SETTINGS, STATUS_MSG_ROOM_TEMP};
+
+static constexpr std::array<std::optional<MitsubishiCN105::Mode>, 9> PROTOCOL_MODE_MAP = {
+    std::nullopt,                     // 0x00
+    MitsubishiCN105::Mode::HEAT,      // 0x01
+    MitsubishiCN105::Mode::DRY,       // 0x02
+    MitsubishiCN105::Mode::COOL,      // 0x03
+    std::nullopt,                     // 0x04
+    std::nullopt,                     // 0x05
+    std::nullopt,                     // 0x06
+    MitsubishiCN105::Mode::FAN_ONLY,  // 0x07
+    MitsubishiCN105::Mode::AUTO       // 0x08
+};
+
+static constexpr std::array<std::optional<MitsubishiCN105::FanMode>, 7> PROTOCOL_FAN_MODE_MAP = {
+    MitsubishiCN105::FanMode::AUTO,     // 0x00
+    MitsubishiCN105::FanMode::QUIET,    // 0x01
+    MitsubishiCN105::FanMode::SPEED_1,  // 0x02
+    MitsubishiCN105::FanMode::SPEED_2,  // 0x03
+    std::nullopt,                       // 0x04
+    MitsubishiCN105::FanMode::SPEED_3,  // 0x05
+    MitsubishiCN105::FanMode::SPEED_4   // 0x06
+};
+
+template<typename T, size_t N>
+static constexpr std::optional<T> lookup(const std::array<std::optional<T>, N> &table, uint8_t value) {
+  return (value < N) ? table[value] : std::nullopt;
+}
 
 static constexpr uint8_t checksum(const uint8_t *bytes, size_t length) {
   return static_cast<uint8_t>(0xFC - std::accumulate(bytes, bytes + length, uint8_t{0}));
@@ -54,12 +80,14 @@ bool MitsubishiCN105::update() {
 
   if (const auto start = this->write_timeout_start_ms_; start && (get_loop_time_ms() - *start) >= WRITE_TIMEOUT_MS) {
     this->write_timeout_start_ms_.reset();
-    this->read_pos_ = 0;
+    this->frame_parser_.reset();
     this->set_state_(State::READ_TIMEOUT);
     return false;
   }
 
-  return this->read_incoming_bytes_();
+  return this->frame_parser_.read_and_parse(this->device_, [this](uint8_t type, const uint8_t *payload, size_t len) {
+    return this->process_rx_packet_(type, payload, len);
+  });
 }
 
 void MitsubishiCN105::set_state_(State new_state) {
@@ -111,7 +139,7 @@ void MitsubishiCN105::did_transition_(State to) {
 
     case State::CONNECTED:
       this->write_timeout_start_ms_.reset();
-      this->status_msg_index_ = 0;
+      this->current_status_msg_type_ = STATUS_MSG_SETTINGS;
       this->set_state_(State::UPDATING_STATUS);
       break;
 
@@ -121,10 +149,8 @@ void MitsubishiCN105::did_transition_(State to) {
 
     case State::STATUS_UPDATED: {
       this->write_timeout_start_ms_.reset();
-      if (++this->status_msg_index_ >= STATUS_MSG_TYPES.size()) {
-        this->status_msg_index_ = 0;
-      }
-      if (this->status_msg_index_ != 0) {
+      if (this->current_status_msg_type_ == STATUS_MSG_SETTINGS && this->should_request_room_temperature_()) {
+        this->current_status_msg_type_ = STATUS_MSG_ROOM_TEMP;
         this->set_state_(State::UPDATING_STATUS);
       } else {
         this->set_state_(State::SCHEDULE_NEXT_STATUS_UPDATE);
@@ -134,6 +160,7 @@ void MitsubishiCN105::did_transition_(State to) {
 
     case State::SCHEDULE_NEXT_STATUS_UPDATE:
       this->status_update_start_ms_ = get_loop_time_ms();
+      this->current_status_msg_type_ = STATUS_MSG_SETTINGS;
       this->set_state_(State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
       break;
 
@@ -146,82 +173,32 @@ void MitsubishiCN105::did_transition_(State to) {
   }
 }
 
+bool MitsubishiCN105::should_request_room_temperature_() const {
+  if (!this->is_room_temperature_enabled()) {
+    return false;
+  }
+
+  if (!this->last_room_temperature_update_ms_.has_value()) {
+    return true;
+  }
+
+  return (get_loop_time_ms() - *this->last_room_temperature_update_ms_) >= this->room_temperature_min_interval_ms_;
+}
+
 void MitsubishiCN105::send_packet_(const uint8_t *packet, size_t len) {
-  dump_buffer_vv("TX", packet, len);
+  FrameParser::dump_buffer_vv("TX", packet, len);
   this->device_.write_array(packet, len);
   this->write_timeout_start_ms_ = get_loop_time_ms();
 }
 
 void MitsubishiCN105::update_status_() {
-  ESP_LOGV(TAG, "Requesting status update, index=%u", this->status_msg_index_);
-  std::array<uint8_t, REQUEST_PAYLOAD_LEN> payload = {STATUS_MSG_TYPES[this->status_msg_index_]};
+  std::array<uint8_t, REQUEST_PAYLOAD_LEN> payload = {this->current_status_msg_type_};
   this->send_packet_(make_packet(PACKET_TYPE_STATUS_REQUEST, payload));
 }
 
 void MitsubishiCN105::cancel_waiting_and_transition_to_(State state) {
   this->status_update_start_ms_.reset();
   this->set_state_(state);
-}
-
-bool MitsubishiCN105::read_incoming_bytes_() {
-  uint8_t watchdog = 64;
-  while (this->device_.available() > 0 && watchdog-- > 0) {
-    uint8_t &value = this->read_buffer_[this->read_pos_];
-    if (!this->device_.read_byte(&value)) {
-      ESP_LOGW(TAG, "UART read failed while data available");
-      return false;
-    }
-
-    switch (++this->read_pos_) {
-      case 1:
-        if (value != PREAMBLE) {
-          this->reset_read_position_and_dump_buffer_("RX ignoring preamble");
-        }
-        continue;
-
-      case 2:
-        continue;
-
-      case 3:
-        if (value != HEADER_BYTE_1) {
-          this->reset_read_position_and_dump_buffer_("RX invalid: header 1 mismatch");
-        }
-        continue;
-
-      case 4:
-        if (value != HEADER_BYTE_2) {
-          this->reset_read_position_and_dump_buffer_("RX invalid: header 2 mismatch");
-        }
-        continue;
-
-      case HEADER_LEN:
-        static_assert(READ_BUFFER_SIZE > HEADER_LEN);
-        if (this->read_buffer_[HEADER_LEN - 1] >= READ_BUFFER_SIZE - HEADER_LEN) {
-          this->reset_read_position_and_dump_buffer_("RX invalid: payload too large");
-        }
-        continue;
-
-      default:
-        break;
-    }
-
-    const size_t len_without_checksum = HEADER_LEN + static_cast<size_t>(this->read_buffer_[HEADER_LEN - 1]);
-    if (this->read_pos_ <= len_without_checksum) {
-      continue;
-    }
-
-    if (checksum(this->read_buffer_, len_without_checksum) != value) {
-      this->reset_read_position_and_dump_buffer_("RX invalid: checksum mismatch");
-      continue;
-    }
-
-    bool processed = this->process_rx_packet_(this->read_buffer_[1], this->read_buffer_ + HEADER_LEN,
-                                              len_without_checksum - HEADER_LEN);
-    this->reset_read_position_and_dump_buffer_("RX");
-    return processed;
-  }
-
-  return false;
 }
 
 bool MitsubishiCN105::process_rx_packet_(uint8_t type, const uint8_t *payload, size_t len) {
@@ -251,11 +228,19 @@ bool MitsubishiCN105::process_status_packet_(const uint8_t *payload, size_t len)
     return false;
   }
 
-  if (msg_type == STATUS_MSG_TYPES[this->status_msg_index_]) {
+  if (msg_type == this->current_status_msg_type_) {
     this->set_state_(State::STATUS_UPDATED);
   }
 
-  return previous != this->status_ && this->is_status_initialized();
+  bool changed = previous.power_on != this->status_.power_on || previous.mode != this->status_.mode ||
+                 previous.fan_mode != this->status_.fan_mode ||
+                 previous.target_temperature != this->status_.target_temperature;
+
+  if (this->is_room_temperature_enabled()) {
+    changed |= previous.room_temperature != this->status_.room_temperature;
+  }
+
+  return changed && this->is_status_initialized();
 }
 
 bool MitsubishiCN105::parse_status_payload_(uint8_t msg_type, const uint8_t *payload, size_t len) {
@@ -278,6 +263,9 @@ bool MitsubishiCN105::parse_status_settings_(const uint8_t *payload, size_t len)
     return false;
   }
 
+  const bool i_see = payload[3] > 0x08;
+  this->status_.mode = lookup(PROTOCOL_MODE_MAP, payload[3] - (i_see ? 0x08 : 0)).value_or(Mode::UNKNOWN);
+  this->status_.fan_mode = lookup(PROTOCOL_FAN_MODE_MAP, payload[5]).value_or(FanMode::UNKNOWN);
   this->status_.power_on = payload[2] != 0;
   this->status_.target_temperature = decode_temperature(-payload[4], payload[10], 31);
 
@@ -291,19 +279,9 @@ bool MitsubishiCN105::parse_status_room_temperature_(const uint8_t *payload, siz
   }
 
   this->status_.room_temperature = decode_temperature(payload[2], payload[5], 10);
+  this->last_room_temperature_update_ms_ = get_loop_time_ms();
+
   return true;
-}
-
-void MitsubishiCN105::reset_read_position_and_dump_buffer_(const char *prefix) {
-  dump_buffer_vv(prefix, this->read_buffer_, this->read_pos_);
-  this->read_pos_ = 0;
-}
-
-void MitsubishiCN105::dump_buffer_vv(const char *prefix, const uint8_t *data, size_t len) {
-#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
-  char buf[format_hex_pretty_size(READ_BUFFER_SIZE)];
-  ESP_LOGVV(TAG, "%s (%zu): %s", prefix, len, format_hex_pretty_to(buf, data, len));
-#endif
 }
 
 const LogString *MitsubishiCN105::state_to_string(State state) {
@@ -326,6 +304,81 @@ const LogString *MitsubishiCN105::state_to_string(State state) {
       return LOG_STR("ReadTimeout");
   }
   return LOG_STR("Unknown");
+}
+
+template<typename Callback>
+bool MitsubishiCN105::FrameParser::read_and_parse(uart::UARTDevice &device, Callback &&callback) {
+  uint8_t watchdog = 64;
+  while (device.available() > 0 && watchdog-- > 0) {
+    uint8_t &value = this->read_buffer_[this->read_pos_];
+    if (!device.read_byte(&value)) {
+      ESP_LOGW(TAG, "UART read failed while data available");
+      return false;
+    }
+
+    switch (++this->read_pos_) {
+      case 1:
+        if (value != PREAMBLE) {
+          this->reset_and_dump_buffer_("RX ignoring preamble");
+        }
+        continue;
+
+      case 2:
+        continue;
+
+      case 3:
+        if (value != HEADER_BYTE_1) {
+          this->reset_and_dump_buffer_("RX invalid: header 1 mismatch");
+        }
+        continue;
+
+      case 4:
+        if (value != HEADER_BYTE_2) {
+          this->reset_and_dump_buffer_("RX invalid: header 2 mismatch");
+        }
+        continue;
+
+      case HEADER_LEN:
+        static_assert(READ_BUFFER_SIZE > HEADER_LEN);
+        if (this->read_buffer_[HEADER_LEN - 1] >= READ_BUFFER_SIZE - HEADER_LEN) {
+          this->reset_and_dump_buffer_("RX invalid: payload too large");
+        }
+        continue;
+
+      default:
+        break;
+    }
+
+    const size_t len_without_checksum = HEADER_LEN + static_cast<size_t>(this->read_buffer_[HEADER_LEN - 1]);
+    if (this->read_pos_ <= len_without_checksum) {
+      continue;
+    }
+
+    if (checksum(this->read_buffer_, len_without_checksum) != value) {
+      this->reset_and_dump_buffer_("RX invalid: checksum mismatch");
+      continue;
+    }
+
+    dump_buffer_vv("RX", this->read_buffer_, this->read_pos_);
+    const bool processed =
+        callback(this->read_buffer_[1], this->read_buffer_ + HEADER_LEN, len_without_checksum - HEADER_LEN);
+    this->read_pos_ = 0;
+    return processed;
+  }
+
+  return false;
+}
+
+void MitsubishiCN105::FrameParser::reset_and_dump_buffer_(const char *prefix) {
+  dump_buffer_vv(prefix, this->read_buffer_, this->read_pos_);
+  this->read_pos_ = 0;
+}
+
+void MitsubishiCN105::FrameParser::dump_buffer_vv(const char *prefix, const uint8_t *data, size_t len) {
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
+  char buf[format_hex_pretty_size(READ_BUFFER_SIZE)];
+  ESP_LOGVV(TAG, "%s (%zu): %s", prefix, len, format_hex_pretty_to(buf, data, len));
+#endif
 }
 
 }  // namespace esphome::mitsubishi_cn105

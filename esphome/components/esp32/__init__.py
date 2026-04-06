@@ -97,8 +97,12 @@ CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
 CONF_MINIMUM_CHIP_REVISION = "minimum_chip_revision"
 CONF_RELEASE = "release"
+CONF_SIGNED_OTA_VERIFICATION = "signed_ota_verification"
+CONF_SIGNING_KEY = "signing_key"
+CONF_SIGNING_SCHEME = "signing_scheme"
 CONF_SRAM1_AS_IRAM = "sram1_as_iram"
 CONF_SUBTYPE = "subtype"
+CONF_VERIFICATION_KEY = "verification_key"
 
 ARDUINO_FRAMEWORK_NAME = "framework-arduinoespressif32"
 ARDUINO_FRAMEWORK_PKG = f"pioarduino/{ARDUINO_FRAMEWORK_NAME}"
@@ -118,6 +122,27 @@ ASSERTION_LEVELS = {
     "DISABLE": "CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_DISABLE",
     "ENABLE": "CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_ENABLE",
     "SILENT": "CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_SILENT",
+}
+
+SIGNING_SCHEMES = {
+    "rsa3072": "CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME",
+    "ecdsa256": "CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME",
+}
+
+# Chip variants that only support one signing scheme for Secure Boot V2.
+# Based on SOC_SECURE_BOOT_V2_RSA / SOC_SECURE_BOOT_V2_ECC in soc_caps.h.
+# Variants not listed in either set support both RSA and ECDSA
+# (e.g. C5, C6, H2, P4). New variants should be added to the
+# appropriate set if they only support one scheme.
+SIGNED_OTA_RSA_ONLY_VARIANTS = {
+    VARIANT_ESP32,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32C3,
+}
+SIGNED_OTA_ECC_ONLY_VARIANTS = {
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C61,
 }
 
 COMPILER_OPTIMIZATIONS = {
@@ -962,6 +987,47 @@ def final_validate(config):
                 )
             # disable the rollback feature anyway since it can't be used.
             advanced[CONF_ENABLE_OTA_ROLLBACK] = False
+    if signed_ota := advanced.get(CONF_SIGNED_OTA_VERIFICATION):
+        scheme = signed_ota[CONF_SIGNING_SCHEME]
+        variant = config[CONF_VARIANT]
+        scheme_variant_conflicts = {
+            "ecdsa256": (SIGNED_OTA_RSA_ONLY_VARIANTS, "rsa3072"),
+            "rsa3072": (SIGNED_OTA_ECC_ONLY_VARIANTS, "ecdsa256"),
+        }
+        if (conflict := scheme_variant_conflicts.get(scheme)) and variant in conflict[
+            0
+        ]:
+            errs.append(
+                cv.Invalid(
+                    f"Signing scheme '{scheme}' is not supported on "
+                    f"{VARIANT_FRIENDLY[variant]}. Use '{conflict[1]}' instead.",
+                    path=[
+                        CONF_FRAMEWORK,
+                        CONF_ADVANCED,
+                        CONF_SIGNED_OTA_VERIFICATION,
+                        CONF_SIGNING_SCHEME,
+                    ],
+                )
+            )
+        if CONF_OTA not in full_config:
+            _LOGGER.warning(
+                "Signed OTA verification is enabled but no OTA component is configured. "
+                "The initial firmware will be signed but OTA updates won't be possible "
+                "until an OTA component is added."
+            )
+        if CONF_SIGNING_KEY in signed_ota:
+            _LOGGER.info(
+                "Signed OTA verification is enabled. Keep your signing key safe! "
+                "If you lose the signing key, you will NOT be able to OTA update "
+                "devices running firmware signed with this key. "
+                "Without the key, you'll need to reflash via serial."
+            )
+        else:
+            _LOGGER.info(
+                "Signed OTA verification is configured with a public verification key. "
+                "Binaries will NOT be signed automatically during build. "
+                "You must sign them externally before flashing."
+            )
     if errs:
         raise cv.MultipleInvalid(errs)
 
@@ -1173,6 +1239,18 @@ FRAMEWORK_SCHEMA = cv.Schema(
                     min=8192, max=32768
                 ),
                 cv.Optional(CONF_ENABLE_OTA_ROLLBACK, default=True): cv.boolean,
+                cv.Optional(CONF_SIGNED_OTA_VERIFICATION): cv.All(
+                    cv.Schema(
+                        {
+                            cv.Optional(CONF_SIGNING_KEY): cv.file_,
+                            cv.Optional(CONF_VERIFICATION_KEY): cv.file_,
+                            cv.Optional(
+                                CONF_SIGNING_SCHEME, default="rsa3072"
+                            ): cv.one_of(*SIGNING_SCHEMES, lower=True),
+                        }
+                    ),
+                    cv.has_exactly_one_key(CONF_SIGNING_KEY, CONF_VERIFICATION_KEY),
+                ),
                 cv.Optional(
                     CONF_USE_FULL_CERTIFICATE_BUNDLE, default=False
                 ): cv.boolean,
@@ -1877,6 +1955,32 @@ async def to_code(config):
     if advanced[CONF_ENABLE_OTA_ROLLBACK]:
         add_idf_sdkconfig_option("CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE", True)
         cg.add_define("USE_OTA_ROLLBACK")
+
+    # Enable signed app verification without hardware secure boot
+    if signed_ota := advanced.get(CONF_SIGNED_OTA_VERIFICATION):
+        add_idf_sdkconfig_option("CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT", True)
+        add_idf_sdkconfig_option("CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT", True)
+
+        scheme = signed_ota[CONF_SIGNING_SCHEME]
+        for key, flag in SIGNING_SCHEMES.items():
+            add_idf_sdkconfig_option(flag, scheme == key)
+
+        if CONF_SIGNING_KEY in signed_ota:
+            # Private key mode — auto-sign binaries during build
+            add_idf_sdkconfig_option("CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES", True)
+            add_idf_sdkconfig_option(
+                "CONFIG_SECURE_BOOT_SIGNING_KEY",
+                str(signed_ota[CONF_SIGNING_KEY].resolve()),
+            )
+        else:
+            # Public key mode — verification only, external signing required
+            add_idf_sdkconfig_option("CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES", False)
+            add_idf_sdkconfig_option(
+                "CONFIG_SECURE_BOOT_VERIFICATION_KEY",
+                str(signed_ota[CONF_VERIFICATION_KEY].resolve()),
+            )
+
+        cg.add_define("USE_OTA_SIGNED_VERIFICATION")
 
     cg.add_define("ESPHOME_LOOP_TASK_STACK_SIZE", advanced[CONF_LOOP_TASK_STACK_SIZE])
 
