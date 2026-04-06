@@ -114,6 +114,13 @@ class ModbusClientHub : public Modbus {
                 bool allow_duplicates = false);
   void send_raw(const std::vector<uint8_t> &payload, ModbusClientDevice *device = nullptr,
                 bool allow_duplicates = false);
+  void send_pdu(uint8_t address, const StaticVector<uint8_t, MAX_FRAME_SIZE> &pdu, ModbusClientDevice *device = nullptr,
+                bool allow_duplicates = false) {
+    uint8_t frame[MAX_FRAME_SIZE];
+    frame[0] = address;
+    std::memcpy(frame + 1, pdu.data(), pdu.size());
+    this->send_raw(frame, static_cast<uint16_t>(1 + pdu.size()), device, allow_duplicates);
+  }
   void clear_tx_queue_for_address(uint8_t address, bool clear_sent = true);
   void clear_tx_queue_for_device(ModbusClientDevice *device);
 
@@ -165,10 +172,7 @@ class ModbusClientDevice {
     this->parent_->send(this->address_, function, start_address, number_of_entities, payload_len, payload, this);
   }
   void send_pdu(const StaticVector<uint8_t, MAX_FRAME_SIZE> &pdu) {
-    uint8_t payload[MAX_FRAME_SIZE];
-    payload[0] = this->address_;
-    std::memcpy(payload + 1, pdu.data(), pdu.size());
-    this->parent_->send_raw(payload, static_cast<uint16_t>(1 + pdu.size()), this);
+    this->parent_->send_pdu(this->address_, pdu, this);
   }
   void send_raw(const uint8_t *payload, uint16_t len) { this->parent_->send_raw(payload, len, this); }
   void send_raw(const std::vector<uint8_t> &payload) { this->parent_->send_raw(payload, this); }
