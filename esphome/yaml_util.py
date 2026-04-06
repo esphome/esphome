@@ -148,6 +148,14 @@ _UNSET = object()
 
 
 class IncludeFile:
+    """Deferred !include that is resolved during the substitution pass.
+
+    Created during YAML parsing instead of loading the file immediately,
+    allowing substitution variables to appear in the filename path
+    (e.g. ``!include device-${platform}.yaml``). The actual file is
+    loaded on the first call to ``load()``, and the result is cached.
+    """
+
     def __init__(
         self,
         parent_file: Path,
