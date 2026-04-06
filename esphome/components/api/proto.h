@@ -276,6 +276,13 @@ class ProtoWriteBuffer {
   void encode_bytes(uint32_t field_id, const uint8_t *data, size_t len, bool force = false) {
     this->encode_string(field_id, reinterpret_cast<const char *>(data), len, force);
   }
+  /** Encode a small varint field where both tag and value fit in one byte each.
+   *  The tag is precomputed by the code generator. value must be < 128. */
+  void encode_small_varint(uint8_t precomputed_tag, uint8_t value) {
+    this->debug_check_bounds_(2);
+    *this->pos_++ = precomputed_tag;
+    *this->pos_++ = value;
+  }
   void encode_uint32(uint32_t field_id, uint32_t value, bool force = false) {
     if (value == 0 && !force)
       return;
