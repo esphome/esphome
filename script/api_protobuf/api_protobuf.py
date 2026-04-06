@@ -1078,7 +1078,9 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
             return result
         if self.force:
             return f"ProtoEncode::encode_string(pos, {self.number}, this->{self.field_name}, true);"
-        return f"ProtoEncode::encode_string(pos, {self.number}, this->{self.field_name});"
+        return (
+            f"ProtoEncode::encode_string(pos, {self.number}, this->{self.field_name});"
+        )
 
     @property
     def decode_length_content(self) -> str | None:
@@ -1498,7 +1500,9 @@ class FixedArrayRepeatedType(TypeInfo):
         # Repeated message elements use encode_sub_message (force=true is default)
         if isinstance(self._ti, MessageType):
             return f"ProtoEncode::encode_sub_message(pos, buffer, {self.number}, {element});"
-        return f"ProtoEncode::{self._ti.encode_func}(pos, {self.number}, {element}, true);"
+        return (
+            f"ProtoEncode::{self._ti.encode_func}(pos, {self.number}, {element}, true);"
+        )
 
     @property
     def cpp_type(self) -> str:
@@ -1826,7 +1830,9 @@ class RepeatedTypeInfo(TypeInfo):
         # Repeated message elements use encode_sub_message (force=true is default)
         if isinstance(self._ti, MessageType):
             return f"ProtoEncode::encode_sub_message(pos, buffer, {self.number}, {element});"
-        return f"ProtoEncode::{self._ti.encode_func}(pos, {self.number}, {element}, true);"
+        return (
+            f"ProtoEncode::{self._ti.encode_func}(pos, {self.number}, {element}, true);"
+        )
 
     @property
     def encode_content(self) -> str:

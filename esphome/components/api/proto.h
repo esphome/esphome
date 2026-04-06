@@ -229,10 +229,10 @@ class ProtoWriteBuffer {
 
   // Non-template core for encode_sub_message — backpatch approach.
   void encode_sub_message(uint32_t field_id, const void *value,
-                          uint8_t *(*encode_fn)(const void *, ProtoWriteBuffer & PROTO_ENCODE_DEBUG_PARAM) );
+                          uint8_t *(*encode_fn)(const void *, ProtoWriteBuffer &PROTO_ENCODE_DEBUG_PARAM));
   // Non-template core for encode_optional_sub_message.
   void encode_optional_sub_message(uint32_t field_id, uint32_t nested_size, const void *value,
-                                   uint8_t *(*encode_fn)(const void *, ProtoWriteBuffer & PROTO_ENCODE_DEBUG_PARAM) );
+                                   uint8_t *(*encode_fn)(const void *, ProtoWriteBuffer &PROTO_ENCODE_DEBUG_PARAM));
   APIBuffer *get_buffer() const { return buffer_; }
   uint8_t *get_pos() const { return pos_; }
   void set_pos(uint8_t *pos) { pos_ = pos; }
@@ -263,10 +263,10 @@ constexpr uint32_t VARINT_MAX_2_BYTE = 1 << 14;  // 16384
 #define PROTO_ENCODE_DEBUG_PARAM , uint8_t *proto_debug_end_
 #define PROTO_ENCODE_DEBUG_ARG , proto_debug_end_
 #define PROTO_ENCODE_DEBUG_INIT(buf) , (buf)->data() + (buf)->size()
-#define PROTO_ENCODE_CHECK_BOUNDS(pos, n)                                                  \
-  do {                                                                                     \
-    if ((pos) + (n) > proto_debug_end_)                                                    \
-      proto_check_bounds_failed(pos, n, proto_debug_end_, __builtin_FUNCTION());           \
+#define PROTO_ENCODE_CHECK_BOUNDS(pos, n) \
+  do { \
+    if ((pos) + (n) > proto_debug_end_) \
+      proto_check_bounds_failed(pos, n, proto_debug_end_, __builtin_FUNCTION()); \
   } while (0)
 void proto_check_bounds_failed(const uint8_t *pos, size_t bytes, const uint8_t *end, const char *caller);
 #else
@@ -439,8 +439,8 @@ class ProtoEncode {
     val.value = value;
     encode_fixed32(pos PROTO_ENCODE_DEBUG_ARG, field_id, val.raw);
   }
-  static inline void encode_int32(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, uint32_t field_id,
-                                  int32_t value, bool force = false) {
+  static inline void encode_int32(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, uint32_t field_id, int32_t value,
+                                  bool force = false) {
     if (value < 0) {
       // negative int32 is always 10 byte long
       encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, field_id, static_cast<uint64_t>(value), force);
@@ -448,8 +448,8 @@ class ProtoEncode {
     }
     encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, field_id, static_cast<uint32_t>(value), force);
   }
-  static inline void encode_int64(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, uint32_t field_id,
-                                  int64_t value, bool force = false) {
+  static inline void encode_int64(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, uint32_t field_id, int64_t value,
+                                  bool force = false) {
     encode_uint64(pos PROTO_ENCODE_DEBUG_ARG, field_id, static_cast<uint64_t>(value), force);
   }
   static inline void encode_sint32(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, uint32_t field_id,
@@ -462,8 +462,8 @@ class ProtoEncode {
   }
   /// Sub-message encoding: sync pos to buffer, delegate, get pos from return value.
   template<typename T>
-  static inline void encode_sub_message(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM,
-                                        ProtoWriteBuffer &buffer, uint32_t field_id, const T &value) {
+  static inline void encode_sub_message(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, ProtoWriteBuffer &buffer,
+                                        uint32_t field_id, const T &value) {
     buffer.set_pos(pos);
     buffer.encode_sub_message(field_id, value);
     pos = buffer.get_pos();
@@ -806,8 +806,7 @@ class ProtoSize {
 // Implementation of methods that depend on ProtoSize being fully defined
 
 // Encode thunk — converts void* back to concrete type for direct encode() call
-template<typename T>
-uint8_t *proto_encode_msg(const void *msg, ProtoWriteBuffer &buf PROTO_ENCODE_DEBUG_PARAM) {
+template<typename T> uint8_t *proto_encode_msg(const void *msg, ProtoWriteBuffer &buf PROTO_ENCODE_DEBUG_PARAM) {
   return static_cast<const T *>(msg)->encode(buf PROTO_ENCODE_DEBUG_ARG);
 }
 
