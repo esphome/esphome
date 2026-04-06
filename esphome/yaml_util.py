@@ -132,9 +132,10 @@ class ConfigContext:
     def copy_context_to_children(self):
         """Propagate context to children."""
         if isinstance(self, dict):
-            tagged = {}
-            for k, v in self.items():
-                tagged[add_context(k, self.vars)] = add_context(v, self.vars)
+            tagged = {
+                add_context(k, self.vars): add_context(v, self.vars)
+                for k, v in self.items()
+            }
             self.clear()
             self.update(tagged)
         elif isinstance(self, list):

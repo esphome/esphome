@@ -499,7 +499,7 @@ def test_include_file_load_caches_none_result(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    "filename, expected",
+    ("filename", "expected"),
     [
         ("device-${platform}.yaml", True),
         ("$platform.yaml", True),
