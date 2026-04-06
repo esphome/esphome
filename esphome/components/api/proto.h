@@ -280,8 +280,10 @@ class ProtoWriteBuffer {
    *  The tag is precomputed by the code generator. value must be < 128. */
   void encode_small_varint(uint8_t precomputed_tag, uint8_t value) {
     this->debug_check_bounds_(2);
-    *this->pos_++ = precomputed_tag;
-    *this->pos_++ = value;
+    auto *p = this->pos_;
+    p[0] = precomputed_tag;
+    p[1] = value;
+    this->pos_ = p + 2;
   }
   void encode_uint32(uint32_t field_id, uint32_t value, bool force = false) {
     if (value == 0 && !force)
