@@ -17,6 +17,8 @@ import yaml
 from yaml import SafeLoader as PurePythonLoader
 import yaml.constructor
 
+from esphome.expression import has_substitution_or_expression
+
 try:
     from yaml import CSafeLoader as FastestAvailableSafeLoader
 except ImportError:
@@ -175,14 +177,19 @@ class IncludeFile:
     def load(self) -> Any:
         if self._content is not _UNSET:
             return self._content
+        if self.has_unresolved_expressions():
+            from esphome.config_validation import Invalid
+
+            raise Invalid(
+                f"Cannot load include with unresolved substitutions: {self.file}"
+            )
         self._content = self.yaml_loader(Path(self.parent_file.parent / self.file))
         self._content = add_context(self._content, self.vars)
         return self._content
 
-    def has_filename_substitutions(self) -> bool:
-        from esphome.config_validation import VARIABLE_PROG
-
-        return VARIABLE_PROG.search(str(self.file)) is not None
+    def has_unresolved_expressions(self) -> bool:
+        """Check if the filename contains substitution variables or Jinja expressions."""
+        return has_substitution_or_expression(str(self.file))
 
 
 def _add_data_ref(fn):
@@ -297,7 +304,7 @@ class ESPHomeLoaderMixin:
             value = self.construct_object(value_node)
 
             if isinstance(value, IncludeFile):
-                if value.has_filename_substitutions():
+                if value.has_unresolved_expressions():
                     raise yaml.constructor.ConstructorError(
                         "While constructing a mapping",
                         node.start_mark,
@@ -319,7 +326,7 @@ class ESPHomeLoaderMixin:
                 # sequence merge, like "<<: [{some_key: some_value}, {other_key: some_value}]"
                 for item in value:
                     if isinstance(item, IncludeFile):
-                        if item.has_filename_substitutions():
+                        if item.has_unresolved_expressions():
                             raise yaml.constructor.ConstructorError(
                                 "While constructing a mapping",
                                 node.start_mark,

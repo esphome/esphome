@@ -2,7 +2,6 @@ from ast import literal_eval
 from collections.abc import Iterator, Mapping
 from itertools import chain, islice
 import math
-import re
 from types import GeneratorType
 from typing import Any
 
@@ -18,18 +17,6 @@ Undefined = jinja.Undefined
 # Sentinel key for resolver callback in ContextVars.
 # Dots are invalid in substitution names so this can never collide with user keys.
 Resolver = ".resolver"
-
-
-DETECT_JINJA = r"(\$\{)"
-detect_jinja_re = re.compile(
-    r"<%.+?%>"  # Block form expression: <% ... %>
-    r"|\$\{[^}]+\}",  # Braced form expression: ${ ... }
-    flags=re.MULTILINE,
-)
-
-
-def has_jinja(st: str) -> bool:
-    return detect_jinja_re.search(st) is not None
 
 
 # SAFE_GLOBALS defines a allowlist of built-in functions or modules that are considered safe to expose

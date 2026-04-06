@@ -8,6 +8,7 @@ import pytest
 from esphome import core, yaml_util
 from esphome.components import substitutions
 from esphome.config_helpers import Extend, Remove
+import esphome.config_validation as cv
 from esphome.core import EsphomeError
 from esphome.util import OrderedDict
 
@@ -498,24 +499,33 @@ def test_include_file_load_caches_none_result(tmp_path: Path) -> None:
     assert second is None
 
 
+def test_include_file_load_raises_on_unresolved_expressions(tmp_path: Path) -> None:
+    """load() raises if the filename contains unresolved substitutions or expressions."""
+    parent = tmp_path / "main.yaml"
+    include = yaml_util.IncludeFile(parent, "${undefined_var}.yaml", None, lambda _: {})
+    with pytest.raises(cv.Invalid, match="unresolved"):
+        include.load()
+
+
 @pytest.mark.parametrize(
     ("filename", "expected"),
     [
         ("device-${platform}.yaml", True),
         ("$platform.yaml", True),
+        ("${a + b}.yaml", True),  # Jinja expression
         ("device.yaml", False),
         ("path/to/device.yaml", False),
         ("my$file.yaml", True),  # $file is a valid substitution
         ("price-100$.yaml", False),  # $ at end, not followed by valid substitution
     ],
 )
-def test_include_file_has_filename_substitutions(
+def test_include_file_has_unresolved_expressions(
     tmp_path: Path, filename: str, expected: bool
 ) -> None:
-    """has_filename_substitutions() detects substitution patterns in the filename."""
+    """has_unresolved_expressions() detects substitution patterns in the filename."""
     parent = tmp_path / "main.yaml"
     include = yaml_util.IncludeFile(parent, filename, None, lambda _: {})
-    assert include.has_filename_substitutions() == expected
+    assert include.has_unresolved_expressions() == expected
 
 
 def test_include_in_list_context() -> None:

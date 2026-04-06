@@ -692,5 +692,5 @@ def test_resolve_package_undefined_var_in_include_filename(tmp_path: Path) -> No
         parent, "${undefined_var}.yaml", None, loader
     )
     processor = _PackageProcessor({}, None, False)
-    with pytest.raises(cv.Invalid, match="Error including file"):
+    with pytest.raises(cv.Invalid, match="unresolved substitutions"):
         processor.resolve_package(package_config, substitutions.ContextVars())

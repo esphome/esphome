@@ -75,7 +75,6 @@ from esphome.const import (
     SCHEDULER_DONT_RUN,
     TYPE_GIT,
     TYPE_LOCAL,
-    VALID_SUBSTITUTIONS_CHARACTERS,
     Framework,
     __version__ as ESPHOME_VERSION,
 )
@@ -104,10 +103,7 @@ from esphome.yaml_util import make_data_base
 
 _LOGGER = logging.getLogger(__name__)
 
-# pylint: disable=consider-using-f-string
-VARIABLE_PROG = re.compile(
-    f"\\$([{VALID_SUBSTITUTIONS_CHARACTERS}]+|\\{{[{VALID_SUBSTITUTIONS_CHARACTERS}]*\\}})"
-)
+from esphome.expression import SUBSTITUTION_VARIABLE_PROG as VARIABLE_PROG  # noqa: E402
 
 # pylint: disable=invalid-name
 
