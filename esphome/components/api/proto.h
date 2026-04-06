@@ -359,13 +359,13 @@ class ProtoEncode {
   }
   /// Write tag + 1-byte length + raw string data. For strings with max_data_length < 128.
   /// Tag must be a single-byte varint (< 128). Always encodes (no zero check).
-  inline void write_short_string(uint8_t tag, const StringRef &ref) ESPHOME_ALWAYS_INLINE {
-    this->debug_check_bounds_(2 + ref.size());
-    uint8_t *__restrict__ pos = this->pos_;
+  static inline void ESPHOME_ALWAYS_INLINE write_short_string(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM,
+                                                              uint8_t tag, const StringRef &ref) {
+    PROTO_ENCODE_CHECK_BOUNDS(pos, 2 + ref.size());
     *pos++ = tag;
     *pos++ = static_cast<uint8_t>(ref.size());
     std::memcpy(pos, ref.c_str(), ref.size());
-    this->pos_ = pos + ref.size();
+    pos += ref.size();
   }
   /// Write a precomputed tag byte + 32-bit value in one operation.
   static inline void ESPHOME_ALWAYS_INLINE write_tag_and_fixed32(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM,

@@ -444,7 +444,7 @@ class APIConnection final : public APIServerConnectionBase {
     auto &shared_buf = conn->parent_->get_shared_buffer_ref();
     shared_buf.resize(shared_buf.size() + to_add);
     ProtoWriteBuffer buffer{&shared_buf, shared_buf.size() - calculated_size};
-    encode_fn(msg, buffer);
+    encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
 
     return total_calculated_size;
   }

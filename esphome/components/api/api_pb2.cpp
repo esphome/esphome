@@ -221,9 +221,9 @@ uint32_t DeviceInfoResponse::calculate_size() const {
 #ifdef USE_BINARY_SENSOR
 uint8_t *ListEntitiesBinarySensorResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->device_class);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->is_status_binary_sensor);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, this->disabled_by_default);
@@ -280,9 +280,9 @@ uint32_t BinarySensorStateResponse::calculate_size() const {
 #ifdef USE_COVER
 uint8_t *ListEntitiesCoverResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, this->assumed_state);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->supports_position);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, this->supports_tilt);
@@ -387,9 +387,9 @@ bool CoverCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_FAN
 uint8_t *ListEntitiesFanResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, this->supports_oscillation);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->supports_speed);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, this->supports_direction);
@@ -527,9 +527,9 @@ bool FanCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_LIGHT
 uint8_t *ListEntitiesLightResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
   for (const auto &it : *this->supported_color_modes) {
     ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 12, static_cast<uint32_t>(it), true);
   }
@@ -731,9 +731,9 @@ bool LightCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_SENSOR
 uint8_t *ListEntitiesSensorResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -799,9 +799,9 @@ uint32_t SensorStateResponse::calculate_size() const {
 #ifdef USE_SWITCH
 uint8_t *ListEntitiesSwitchResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -881,9 +881,9 @@ bool SwitchCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_TEXT_SENSOR
 uint8_t *ListEntitiesTextSensorResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -1364,9 +1364,9 @@ uint32_t ExecuteServiceResponse::calculate_size() const {
 #ifdef USE_CAMERA
 uint8_t *ListEntitiesCameraResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 6, this->icon);
@@ -1432,9 +1432,9 @@ bool CameraImageRequest::decode_varint(uint32_t field_id, proto_varint_value_t v
 #ifdef USE_CLIMATE
 uint8_t *ListEntitiesClimateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, this->supports_current_temperature);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->supports_two_point_target_temperature);
   for (const auto &it : *this->supported_modes) {
@@ -1676,9 +1676,9 @@ bool ClimateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_WATER_HEATER
 uint8_t *ListEntitiesWaterHeaterResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, this->icon);
 #endif
@@ -1796,9 +1796,9 @@ bool WaterHeaterCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value
 #ifdef USE_NUMBER
 uint8_t *ListEntitiesNumberResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -1891,9 +1891,9 @@ bool NumberCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_SELECT
 uint8_t *ListEntitiesSelectResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -1987,9 +1987,9 @@ bool SelectCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_SIREN
 uint8_t *ListEntitiesSirenResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -2106,9 +2106,9 @@ bool SirenCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_LOCK
 uint8_t *ListEntitiesLockResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -2209,9 +2209,9 @@ bool LockCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_BUTTON
 uint8_t *ListEntitiesButtonResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -2289,9 +2289,9 @@ uint32_t MediaPlayerSupportedFormat::calculate_size() const {
 }
 uint8_t *ListEntitiesMediaPlayerResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -3183,9 +3183,9 @@ bool VoiceAssistantSetConfiguration::decode_length(uint32_t field_id, ProtoLengt
 #ifdef USE_ALARM_CONTROL_PANEL
 uint8_t *ListEntitiesAlarmControlPanelResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -3281,9 +3281,9 @@ bool AlarmControlPanelCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit
 #ifdef USE_TEXT
 uint8_t *ListEntitiesTextResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -3380,9 +3380,9 @@ bool TextCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_DATETIME_DATE
 uint8_t *ListEntitiesDateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -3470,9 +3470,9 @@ bool DateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_DATETIME_TIME
 uint8_t *ListEntitiesTimeResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -3560,9 +3560,9 @@ bool TimeCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_EVENT
 uint8_t *ListEntitiesEventResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -3623,9 +3623,9 @@ uint32_t EventResponse::calculate_size() const {
 #ifdef USE_VALVE
 uint8_t *ListEntitiesValveResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -3720,9 +3720,9 @@ bool ValveCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_DATETIME_DATETIME
 uint8_t *ListEntitiesDateTimeResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -3800,9 +3800,9 @@ bool DateTimeCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_UPDATE
 uint8_t *ListEntitiesUpdateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
@@ -3957,9 +3957,9 @@ uint32_t ZWaveProxyRequest::calculate_size() const {
 #ifdef USE_INFRARED
 uint8_t *ListEntitiesInfraredResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  buffer.write_short_string(10, this->object_id);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
-  buffer.write_short_string(26, this->name);
+  ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, this->icon);
 #endif
