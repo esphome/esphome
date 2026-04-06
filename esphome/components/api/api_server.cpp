@@ -46,10 +46,8 @@ void APIServer::setup() {
 
 #ifndef USE_API_NOISE_PSK_FROM_YAML
   // Only load saved PSK if not set from YAML
-  SavedNoisePsk noise_pref_saved{};
-  if (this->noise_pref_.load(&noise_pref_saved)) {
+  if (this->load_and_apply_noise_psk_()) {
     ESP_LOGD(TAG, "Loaded saved Noise PSK");
-    this->set_noise_psk(noise_pref_saved.psk);
   }
 #endif
 #endif
@@ -110,7 +108,7 @@ void APIServer::setup() {
   this->last_connected_ = App.get_loop_component_start_time();
   // Set warning status if reboot timeout is enabled
   if (this->reboot_timeout_ != 0) {
-    this->status_set_warning();
+    this->status_set_warning(LOG_STR("waiting for client connection"));
   }
 }
 
@@ -189,7 +187,7 @@ void APIServer::remove_client_(size_t client_index) {
 
   // Last client disconnected - set warning and start tracking for reboot timeout
   if (this->clients_.empty() && this->reboot_timeout_ != 0) {
-    this->status_set_warning();
+    this->status_set_warning(LOG_STR("waiting for client connection"));
     this->last_connected_ = App.get_loop_component_start_time();
   }
 
@@ -514,7 +512,7 @@ void APIServer::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeo
 
 #ifdef USE_API_NOISE
 bool APIServer::update_noise_psk_(const SavedNoisePsk &new_psk, const LogString *save_log_msg,
-                                  const LogString *fail_log_msg, const psk_t &active_psk, bool make_active) {
+                                  const LogString *fail_log_msg, bool make_active) {
   if (!this->noise_pref_.save(&new_psk)) {
     ESP_LOGW(TAG, "%s", LOG_STR_ARG(fail_log_msg));
     return false;
@@ -526,15 +524,28 @@ bool APIServer::update_noise_psk_(const SavedNoisePsk &new_psk, const LogString 
   }
   ESP_LOGD(TAG, "%s", LOG_STR_ARG(save_log_msg));
   if (make_active) {
-    this->set_timeout(100, [this, active_psk]() {
+    this->set_timeout(100, [this]() {
+      // Re-read the PSK from preferences rather than capturing the 32-byte array
+      // in the lambda (which would exceed std::function SBO and heap-allocate).
+      if (!this->load_and_apply_noise_psk_()) {
+        ESP_LOGW(TAG, "Failed to load saved PSK for activation");
+        return;
+      }
       ESP_LOGW(TAG, "Disconnecting all clients to reset PSK");
-      this->set_noise_psk(active_psk);
       for (auto &c : this->clients_) {
         DisconnectRequest req;
         c->send_message(req);
       }
     });
   }
+  return true;
+}
+
+bool APIServer::load_and_apply_noise_psk_() {
+  SavedNoisePsk saved{};
+  if (!this->noise_pref_.load(&saved))
+    return false;
+  this->set_noise_psk(saved.psk);
   return true;
 }
 
@@ -552,7 +563,7 @@ bool APIServer::save_noise_psk(psk_t psk, bool make_active) {
   }
 
   SavedNoisePsk new_saved_psk{psk};
-  return this->update_noise_psk_(new_saved_psk, LOG_STR("Noise PSK saved"), LOG_STR("Failed to save Noise PSK"), psk,
+  return this->update_noise_psk_(new_saved_psk, LOG_STR("Noise PSK saved"), LOG_STR("Failed to save Noise PSK"),
                                  make_active);
 #endif
 }
@@ -564,8 +575,7 @@ bool APIServer::clear_noise_psk(bool make_active) {
   return false;
 #else
   SavedNoisePsk empty_psk{};
-  psk_t empty{};
-  return this->update_noise_psk_(empty_psk, LOG_STR("Noise PSK cleared"), LOG_STR("Failed to clear Noise PSK"), empty,
+  return this->update_noise_psk_(empty_psk, LOG_STR("Noise PSK cleared"), LOG_STR("Failed to clear Noise PSK"),
                                  make_active);
 #endif
 }

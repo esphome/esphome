@@ -52,10 +52,6 @@ def get_remapped_uses():
     return get_data(KEY_REMAPPED_USES, set())
 
 
-def get_color_formats():
-    return get_data(KEY_COLOR_FORMATS, set())
-
-
 def add_warning(msg: str):
     get_warnings().add(msg)
 
@@ -255,22 +251,75 @@ LV_FONTS = list(f"montserrat_{s}" for s in range(8, 50, 2)) + [
 ]
 
 LV_EVENT_MAP = {
-    "PRESS": "PRESSED",
-    "SHORT_CLICK": "SHORT_CLICKED",
+    "ALL_EVENTS": "ALL",
+    "CANCEL": "CANCEL",
+    "CHANGE": "VALUE_CHANGED",
+    "CHILD_CHANGE": "CHILD_CHANGED",
+    "CHILD_CREATE": "CHILD_CREATED",
+    "CHILD_DELETE": "CHILD_DELETED",
+    "CLICK": "CLICKED",
+    "COLOR_FORMAT_CHANGE": "COLOR_FORMAT_CHANGED",
+    "COVER_CHECK": "COVER_CHECK",
+    "CREATE": "CREATE",
+    "DEFOCUS": "DEFOCUSED",
+    "DELETE": "DELETE",
+    "DOUBLE_CLICK": "DOUBLE_CLICKED",
+    "DRAW_MAIN": "DRAW_MAIN",
+    "DRAW_MAIN_BEGIN": "DRAW_MAIN_BEGIN",
+    "DRAW_MAIN_END": "DRAW_MAIN_END",
+    "DRAW_POST": "DRAW_POST",
+    "DRAW_POST_BEGIN": "DRAW_POST_BEGIN",
+    "DRAW_POST_END": "DRAW_POST_END",
+    "DRAW_TASK_ADD": "DRAW_TASK_ADDED",
+    "FLUSH_FINISH": "FLUSH_FINISH",
+    "FLUSH_START": "FLUSH_START",
+    "FLUSH_WAIT_FINISH": "FLUSH_WAIT_FINISH",
+    "FLUSH_WAIT_START": "FLUSH_WAIT_START",
+    "FOCUS": "FOCUSED",
+    "GESTURE": "GESTURE",
+    "GET_SELF_SIZE": "GET_SELF_SIZE",
+    "HIT_TEST": "HIT_TEST",
+    "HOVER_LEAVE": "HOVER_LEAVE",
+    "HOVER_OVER": "HOVER_OVER",
+    "INDEV_RESET": "INDEV_RESET",
+    "INSERT": "INSERT",
+    "INVALIDATE_AREA": "INVALIDATE_AREA",
+    "KEY": "KEY",
+    "LAYOUT_CHANGE": "LAYOUT_CHANGED",
+    "LEAVE": "LEAVE",
     "LONG_PRESS": "LONG_PRESSED",
     "LONG_PRESS_REPEAT": "LONG_PRESSED_REPEAT",
-    "CLICK": "CLICKED",
+    "PRESS": "PRESSED",
+    "PRESS_LOST": "PRESS_LOST",
+    "PRESSING": "PRESSING",
+    "READY": "READY",
+    "REFRESH": "REFRESH",
+    "REFR_EXT_DRAW_SIZE": "REFR_EXT_DRAW_SIZE",
+    "REFR_READY": "REFR_READY",
+    "REFR_REQUEST": "REFR_REQUEST",
+    "REFR_START": "REFR_START",
     "RELEASE": "RELEASED",
+    "RENDER_READY": "RENDER_READY",
+    "RENDER_START": "RENDER_START",
+    "RESOLUTION_CHANGE": "RESOLUTION_CHANGED",
+    "ROTARY": "ROTARY",
+    "SCREEN_LOAD": "SCREEN_LOADED",
+    "SCREEN_LOAD_START": "SCREEN_LOAD_START",
+    "SCREEN_UNLOAD": "SCREEN_UNLOADED",
+    "SCREEN_UNLOAD_START": "SCREEN_UNLOAD_START",
+    "SCROLL": "SCROLL",
     "SCROLL_BEGIN": "SCROLL_BEGIN",
     "SCROLL_END": "SCROLL_END",
-    "SCROLL": "SCROLL",
-    "FOCUS": "FOCUSED",
-    "DEFOCUS": "DEFOCUSED",
-    "READY": "READY",
-    "CANCEL": "CANCEL",
-    "ALL_EVENTS": "ALL",
-    "CHANGE": "VALUE_CHANGED",
-    "GESTURE": "GESTURE",
+    "SCROLL_THROW_BEGIN": "SCROLL_THROW_BEGIN",
+    "SHORT_CLICK": "SHORT_CLICKED",
+    "SINGLE_CLICK": "SINGLE_CLICKED",
+    "SIZE_CHANGE": "SIZE_CHANGED",
+    "STATE_CHANGE": "STATE_CHANGED",
+    "STYLE_CHANGE": "STYLE_CHANGED",
+    "TRIPLE_CLICK": "TRIPLE_CLICKED",
+    "UPDATE_LAYOUT_COMPLETE": "UPDATE_LAYOUT_COMPLETED",
+    "VSYNC": "VSYNC",
+    "VSYNC_REQUEST": "VSYNC_REQUEST",
 }
 
 LV_EVENT_TRIGGERS = tuple(f"on_{x.lower()}" for x in LV_EVENT_MAP)
@@ -280,7 +329,7 @@ SWIPE_TRIGGERS = tuple(
 
 
 LV_ANIM = LvConstant(
-    "LV_SCR_LOAD_ANIM_",
+    "LV_SCREEN_LOAD_ANIM_",
     "NONE",
     "OVER_LEFT",
     "OVER_RIGHT",
@@ -504,6 +553,7 @@ CONF_ACCEPTED_CHARS = "accepted_chars"
 CONF_ADJUSTABLE = "adjustable"
 CONF_ALIGN = "align"
 CONF_ALIGN_TO = "align_to"
+CONF_ALIGN_TO_LAMBDA_ID = "align_to_lambda_id"
 CONF_ANGLE_RANGE = "angle_range"
 CONF_ANIMATED = "animated"
 CONF_ANIMATION = "animation"
@@ -540,6 +590,7 @@ CONF_END_ANGLE = "end_angle"
 CONF_END_VALUE = "end_value"
 CONF_ENTER_BUTTON = "enter_button"
 CONF_ENTRIES = "entries"
+CONF_EXT_CLICK_AREA = "ext_click_area"
 CONF_FLAGS = "flags"
 CONF_FLEX_FLOW = "flex_flow"
 CONF_FLEX_ALIGN_MAIN = "flex_align_main"
@@ -547,6 +598,7 @@ CONF_FLEX_ALIGN_CROSS = "flex_align_cross"
 CONF_FLEX_ALIGN_TRACK = "flex_align_track"
 CONF_FLEX_GROW = "flex_grow"
 CONF_FREEZE = "freeze"
+CONF_DARK_MODE = "dark_mode"
 CONF_FULL_REFRESH = "full_refresh"
 CONF_GRADIENTS = "gradients"
 CONF_GRID_CELL_ROW_POS = "grid_cell_row_pos"

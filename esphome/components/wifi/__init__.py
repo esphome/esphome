@@ -235,6 +235,14 @@ def validate_variant(_):
         variant = get_esp32_variant()
         if variant in NO_WIFI_VARIANTS and "esp32_hosted" not in fv.full_config.get():
             raise cv.Invalid(f"WiFi requires component esp32_hosted on {variant}")
+    if CORE.is_rp2040:
+        from esphome.components.rp2040 import board_has_wifi, get_board
+
+        if not board_has_wifi():
+            raise cv.Invalid(
+                f"Board '{get_board()}' does not have WiFi support (no CYW43 wireless chip). "
+                f"Use a WiFi-capable board like 'rpipicow' or 'rpipico2w'."
+            )
 
 
 def _apply_min_auth_mode_default(config):
