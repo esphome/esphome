@@ -185,9 +185,9 @@ RFBRIDGE_SEND_ADVANCED_CODE_SCHEMA = cv.Schema(
 async def rf_bridge_send_advanced_code_to_code(config, action_id, template_args, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_args, paren)
-    template_ = await cg.templatable(config[CONF_LENGTH], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_LENGTH], args, cg.uint8)
     cg.add(var.set_length(template_))
-    template_ = await cg.templatable(config[CONF_PROTOCOL], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_PROTOCOL], args, cg.uint8)
     cg.add(var.set_protocol(template_))
     template_ = await cg.templatable(config[CONF_CODE], args, cg.std_string)
     cg.add(var.set_code(template_))
