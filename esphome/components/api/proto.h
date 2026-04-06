@@ -228,9 +228,11 @@ class ProtoWriteBuffer {
   template<typename T> void encode_optional_sub_message(uint32_t field_id, const T &value);
 
   // Non-template core for encode_sub_message — backpatch approach.
+  // NOLINTNEXTLINE(readability-identifier-naming)
   void encode_sub_message(uint32_t field_id, const void *value,
                           uint8_t *(*encode_fn)(const void *, ProtoWriteBuffer &PROTO_ENCODE_DEBUG_PARAM));
   // Non-template core for encode_optional_sub_message.
+  // NOLINTNEXTLINE(readability-identifier-naming)
   void encode_optional_sub_message(uint32_t field_id, uint32_t nested_size, const void *value,
                                    uint8_t *(*encode_fn)(const void *, ProtoWriteBuffer &PROTO_ENCODE_DEBUG_PARAM));
   APIBuffer *get_buffer() const { return buffer_; }
