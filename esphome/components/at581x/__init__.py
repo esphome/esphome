@@ -183,15 +183,21 @@ async def at581x_settings_to_code(config, action_id, template_arg, args):
         template_ = await cg.templatable(sens_dist, args, int)
         cg.add(var.set_sensing_distance(template_))
 
-    for key, setter in (
-        (CONF_POWERON_SELFCHECK_TIME, var.set_poweron_selfcheck_time),
-        (CONF_PROTECT_TIME, var.set_protect_time),
-        (CONF_TRIGGER_BASE, var.set_trigger_base),
-        (CONF_TRIGGER_KEEP, var.set_trigger_keep),
-    ):
-        if (value := config.get(key)) is not None:
-            template_ = await cg.templatable(value, args, cg.int32)
-            cg.add(setter(template_))
+    if selfcheck := config.get(CONF_POWERON_SELFCHECK_TIME):
+        template_ = await cg.templatable(selfcheck, args, cg.int32)
+        cg.add(var.set_poweron_selfcheck_time(template_))
+
+    if protect := config.get(CONF_PROTECT_TIME):
+        template_ = await cg.templatable(protect, args, cg.int32)
+        cg.add(var.set_protect_time(template_))
+
+    if trig_base := config.get(CONF_TRIGGER_BASE):
+        template_ = await cg.templatable(trig_base, args, cg.int32)
+        cg.add(var.set_trigger_base(template_))
+
+    if trig_keep := config.get(CONF_TRIGGER_KEEP):
+        template_ = await cg.templatable(trig_keep, args, cg.int32)
+        cg.add(var.set_trigger_keep(template_))
 
     if stage_gain := config.get(CONF_STAGE_GAIN):
         template_ = await cg.templatable(stage_gain, args, int)
