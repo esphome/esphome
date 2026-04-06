@@ -26,7 +26,7 @@ CONFIG_SCHEMA = cv.Schema(
             accuracy_decimals=1,
         ),
     }
-).extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):

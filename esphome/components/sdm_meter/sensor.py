@@ -19,8 +19,10 @@ from esphome.const import (
     CONF_REACTIVE_POWER,
     CONF_TOTAL_POWER,
     CONF_VOLTAGE,
+    DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_VOLTAGE,
@@ -67,6 +69,7 @@ PHASE_SENSORS = {
     CONF_APPARENT_POWER: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT_AMPS,
         accuracy_decimals=2,
+        device_class=DEVICE_CLASS_APPARENT_POWER,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_REACTIVE_POWER: sensor.sensor_schema(
@@ -80,7 +83,10 @@ PHASE_SENSORS = {
         state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_PHASE_ANGLE: sensor.sensor_schema(
-        unit_of_measurement=UNIT_DEGREES, icon=ICON_FLASH, accuracy_decimals=3
+        unit_of_measurement=UNIT_DEGREES,
+        icon=ICON_FLASH,
+        accuracy_decimals=3,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
 }
 
@@ -99,6 +105,7 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_HERTZ,
                 icon=ICON_CURRENT_AC,
                 accuracy_decimals=3,
+                device_class=DEVICE_CLASS_FREQUENCY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_TOTAL_POWER): sensor.sensor_schema(
