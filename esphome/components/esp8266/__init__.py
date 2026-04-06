@@ -233,6 +233,7 @@ async def to_code(config):
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "ESP8266")
     cg.add_define(ThreadModel.SINGLE)
+    cg.add_define("USE_ESP8266_CRASH_HANDLER")
 
     enable_scanf_float = config.get(CONF_ENABLE_SCANF_FLOAT)
     if enable_scanf_float is None and lambdas_use_scanf_float(CORE.config):
