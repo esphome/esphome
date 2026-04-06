@@ -20,8 +20,6 @@ static const uint8_t DAC7678_REG_INTERNAL_REF_0 = 0x80;
 static const uint8_t DAC7678_REG_INTERNAL_REF_1 = 0x90;
 
 void DAC7678Output::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   ESP_LOGV(TAG, "Resetting device");
 
   // Reset device
@@ -64,6 +62,8 @@ void DAC7678Output::register_channel(DAC7678Channel *channel) {
 }
 
 void DAC7678Output::set_channel_value_(uint8_t channel, uint16_t value) {
+  if (channel >= std::size(this->dac_input_reg_))
+    return;
   if (this->dac_input_reg_[channel] != value) {
     ESP_LOGV(TAG, "Channel %01u: input_reg=%04u ", channel, value);
 

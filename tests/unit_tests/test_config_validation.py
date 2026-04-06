@@ -3,9 +3,10 @@ import string
 from hypothesis import example, given
 from hypothesis.strategies import builds, integers, ip_addresses, one_of, text
 import pytest
+import voluptuous as vol
 
 from esphome import config_validation
-from esphome.components.esp32.const import (
+from esphome.components.esp32 import (
     VARIANT_ESP32,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
@@ -20,6 +21,7 @@ from esphome.const import (
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_HOST,
+    PLATFORM_LN882X,
     PLATFORM_RP2040,
     PLATFORM_RTL87XX,
 )
@@ -146,6 +148,18 @@ def test_icon__invalid():
         config_validation.icon("foo")
 
 
+def test_icon__max_length():
+    """Test that icons exceeding 63 characters are rejected."""
+    # Exactly 63 chars should pass
+    max_icon = "mdi:" + "a" * 59  # 63 chars total
+    assert config_validation.icon(max_icon) == max_icon
+
+    # 64 chars should fail
+    too_long = "mdi:" + "a" * 60  # 64 chars total
+    with pytest.raises(Invalid, match="Icon string is too long"):
+        config_validation.icon(too_long)
+
+
 @pytest.mark.parametrize("value", ("True", "YES", "on", "enAblE", True))
 def test_boolean__valid_true(value):
     assert config_validation.boolean(value) is True
@@ -214,11 +228,12 @@ def hex_int__valid(value):
         ("arduino", PLATFORM_RP2040, None, "20", "20", "20", "20"),
         ("arduino", PLATFORM_BK72XX, None, "21", "21", "21", "21"),
         ("arduino", PLATFORM_RTL87XX, None, "22", "22", "22", "22"),
-        ("host", PLATFORM_HOST, None, "23", "23", "23", "23"),
+        ("arduino", PLATFORM_LN882X, None, "23", "23", "23", "23"),
+        ("host", PLATFORM_HOST, None, "24", "24", "24", "24"),
     ],
 )
 def test_split_default(framework, platform, variant, full, idf, arduino, simple):
-    from esphome.components.esp32.const import KEY_ESP32
+    from esphome.components.esp32 import KEY_ESP32
     from esphome.const import (
         KEY_CORE,
         KEY_TARGET_FRAMEWORK,
@@ -244,16 +259,8 @@ def test_split_default(framework, platform, variant, full, idf, arduino, simple)
         "rp2040": "20",
         "bk72xx": "21",
         "rtl87xx": "22",
-        "host": "23",
-    }
-
-    idf_mappings = {
-        "esp32_idf": "4",
-        "esp32_s2_idf": "7",
-        "esp32_s3_idf": "10",
-        "esp32_c3_idf": "13",
-        "esp32_c6_idf": "16",
-        "esp32_h2_idf": "19",
+        "ln882x": "23",
+        "host": "24",
     }
 
     arduino_mappings = {
@@ -263,6 +270,15 @@ def test_split_default(framework, platform, variant, full, idf, arduino, simple)
         "esp32_c3_arduino": "12",
         "esp32_c6_arduino": "15",
         "esp32_h2_arduino": "18",
+    }
+
+    idf_mappings = {
+        "esp32_idf": "4",
+        "esp32_s2_idf": "7",
+        "esp32_s3_idf": "10",
+        "esp32_c3_idf": "13",
+        "esp32_c6_idf": "16",
+        "esp32_h2_idf": "19",
     }
 
     schema = config_validation.Schema(
@@ -289,8 +305,8 @@ def test_split_default(framework, platform, variant, full, idf, arduino, simple)
 @pytest.mark.parametrize(
     "framework, platform, message",
     [
-        ("esp-idf", PLATFORM_ESP32, "ESP32 using esp-idf framework"),
         ("arduino", PLATFORM_ESP32, "ESP32 using arduino framework"),
+        ("esp-idf", PLATFORM_ESP32, "ESP32 using esp-idf framework"),
         ("arduino", PLATFORM_ESP8266, "ESP8266 using arduino framework"),
         ("arduino", PLATFORM_RP2040, "RP2040 using arduino framework"),
         ("arduino", PLATFORM_BK72XX, "BK72XX using arduino framework"),
@@ -298,8 +314,6 @@ def test_split_default(framework, platform, variant, full, idf, arduino, simple)
     ],
 )
 def test_require_framework_version(framework, platform, message):
-    import voluptuous as vol
-
     from esphome.const import (
         KEY_CORE,
         KEY_FRAMEWORK_VERSION,
@@ -374,3 +388,203 @@ def test_require_framework_version(framework, platform, message):
         config_validation.require_framework_version(
             extra_message="test 5",
         )("test")
+
+
+def test_only_with_single_component_loaded() -> None:
+    """Test OnlyWith with single component when component is loaded."""
+    CORE.loaded_integrations = {"mqtt"}
+
+    schema = config_validation.Schema(
+        {
+            config_validation.OnlyWith("mqtt_id", "mqtt", default="test_mqtt"): str,
+        }
+    )
+
+    result = schema({})
+    assert result.get("mqtt_id") == "test_mqtt"
+
+
+def test_only_with_single_component_not_loaded() -> None:
+    """Test OnlyWith with single component when component is not loaded."""
+    CORE.loaded_integrations = set()
+
+    schema = config_validation.Schema(
+        {
+            config_validation.OnlyWith("mqtt_id", "mqtt", default="test_mqtt"): str,
+        }
+    )
+
+    result = schema({})
+    assert "mqtt_id" not in result
+
+
+def test_only_with_list_all_components_loaded() -> None:
+    """Test OnlyWith with list when all components are loaded."""
+    CORE.loaded_integrations = {"zigbee", "nrf52"}
+
+    schema = config_validation.Schema(
+        {
+            config_validation.OnlyWith(
+                "zigbee_id", ["zigbee", "nrf52"], default="test_zigbee"
+            ): str,
+        }
+    )
+
+    result = schema({})
+    assert result.get("zigbee_id") == "test_zigbee"
+
+
+def test_only_with_list_partial_components_loaded() -> None:
+    """Test OnlyWith with list when only some components are loaded."""
+    CORE.loaded_integrations = {"zigbee"}  # Only zigbee, not nrf52
+
+    schema = config_validation.Schema(
+        {
+            config_validation.OnlyWith(
+                "zigbee_id", ["zigbee", "nrf52"], default="test_zigbee"
+            ): str,
+        }
+    )
+
+    result = schema({})
+    assert "zigbee_id" not in result
+
+
+def test_only_with_list_no_components_loaded() -> None:
+    """Test OnlyWith with list when no components are loaded."""
+    CORE.loaded_integrations = set()
+
+    schema = config_validation.Schema(
+        {
+            config_validation.OnlyWith(
+                "zigbee_id", ["zigbee", "nrf52"], default="test_zigbee"
+            ): str,
+        }
+    )
+
+    result = schema({})
+    assert "zigbee_id" not in result
+
+
+def test_only_with_list_multiple_components() -> None:
+    """Test OnlyWith with list requiring three components."""
+    CORE.loaded_integrations = {"comp1", "comp2", "comp3"}
+
+    schema = config_validation.Schema(
+        {
+            config_validation.OnlyWith(
+                "test_id", ["comp1", "comp2", "comp3"], default="test_value"
+            ): str,
+        }
+    )
+
+    result = schema({})
+    assert result.get("test_id") == "test_value"
+
+    # Test with one missing
+    CORE.loaded_integrations = {"comp1", "comp2"}
+    result = schema({})
+    assert "test_id" not in result
+
+
+def test_only_with_empty_list() -> None:
+    """Test OnlyWith with empty list (edge case)."""
+    CORE.loaded_integrations = set()
+
+    schema = config_validation.Schema(
+        {
+            config_validation.OnlyWith("test_id", [], default="test_value"): str,
+        }
+    )
+
+    # all([]) returns True, so default should be applied
+    result = schema({})
+    assert result.get("test_id") == "test_value"
+
+
+def test_only_with_user_value_overrides_default() -> None:
+    """Test OnlyWith respects user-provided values over defaults."""
+    CORE.loaded_integrations = {"mqtt"}
+
+    schema = config_validation.Schema(
+        {
+            config_validation.OnlyWith("mqtt_id", "mqtt", default="default_id"): str,
+        }
+    )
+
+    result = schema({"mqtt_id": "custom_id"})
+    assert result.get("mqtt_id") == "custom_id"
+
+
+@pytest.mark.parametrize("value", ("hello", "Hello World", "test_name", "温度"))
+def test_string_no_slash__valid(value: str) -> None:
+    actual = config_validation.string_no_slash(value)
+    assert actual == value
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    (
+        ("has/slash", "has⁄slash"),
+        ("a/b/c", "a⁄b⁄c"),
+        ("/leading", "⁄leading"),
+        ("trailing/", "trailing⁄"),
+    ),
+)
+def test_string_no_slash__slash_replaced_with_warning(
+    value: str, expected: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Test that '/' is auto-replaced with fraction slash and warning is logged."""
+    actual = config_validation.string_no_slash(value)
+    assert actual == expected
+    assert "reserved as a URL path separator" in caplog.text
+    assert "will become an error in ESPHome 2026.7.0" in caplog.text
+
+
+def test_string_no_slash__long_string_allowed() -> None:
+    # string_no_slash doesn't enforce length - use cv.Length() separately
+    long_value = "x" * 200
+    assert config_validation.string_no_slash(long_value) == long_value
+
+
+def test_string_no_slash__empty() -> None:
+    assert config_validation.string_no_slash("") == ""
+
+
+@pytest.mark.parametrize("value", ("Temperature", "Living Room Light", "温度传感器"))
+def test_validate_entity_name__valid(value: str) -> None:
+    actual = config_validation._validate_entity_name(value)
+    assert actual == value
+
+
+def test_validate_entity_name__slash_replaced_with_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that '/' in entity names is auto-replaced with fraction slash."""
+    actual = config_validation._validate_entity_name("has/slash")
+    assert actual == "has⁄slash"
+    assert "reserved as a URL path separator" in caplog.text
+
+
+def test_validate_entity_name__max_length() -> None:
+    # 120 chars should pass
+    assert config_validation._validate_entity_name("x" * 120) == "x" * 120
+
+    # 121 chars should fail
+    with pytest.raises(Invalid, match="too long.*121 chars.*Maximum.*120"):
+        config_validation._validate_entity_name("x" * 121)
+
+
+def test_validate_entity_name__none_without_friendly_name() -> None:
+    # When name is "None" and friendly_name is not set, it should fail
+    CORE.friendly_name = None
+    with pytest.raises(Invalid, match="friendly_name is not set"):
+        config_validation._validate_entity_name("None")
+
+
+def test_validate_entity_name__none_with_friendly_name() -> None:
+    # When name is "None" but friendly_name is set, it should return None
+    CORE.friendly_name = "My Device"
+    result = config_validation._validate_entity_name("None")
+    assert result is None
+    CORE.friendly_name = None  # Reset

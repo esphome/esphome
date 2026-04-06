@@ -27,7 +27,7 @@ const uint8_t TM1637_DATA_FIXED_ADDR = 0x04;     //!< Fixed address
 //     ---
 //      D   X
 // XABCDEFG
-const uint8_t TM1637_ASCII_TO_RAW[] PROGMEM = {
+constexpr uint8_t TM1637_ASCII_TO_RAW[] PROGMEM = {
     0b00000000,           // ' ', ord 0x20
     0b10110000,           // '!', ord 0x21
     0b00100010,           // '"', ord 0x22
@@ -125,8 +125,6 @@ const uint8_t TM1637_ASCII_TO_RAW[] PROGMEM = {
     0b01100011,           // '~', ord 0x7E (degree symbol)
 };
 void TM1637Display::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   this->clk_pin_->setup();               // OUTPUT
   this->clk_pin_->digital_write(false);  // LOW
   this->dio_pin_->setup();               // OUTPUT
@@ -350,6 +348,12 @@ uint8_t TM1637Display::print(uint8_t start_pos, const char *str) {
   return pos - start_pos;
 }
 uint8_t TM1637Display::print(const char *str) { return this->print(0, str); }
+
+void TM1637Display::set_buffer(const uint8_t *data, uint8_t length) {
+  uint8_t len = std::min(length, (uint8_t) sizeof(this->buffer_));
+  memcpy(this->buffer_, data, len);
+}
+
 uint8_t TM1637Display::printf(uint8_t pos, const char *format, ...) {
   va_list arg;
   va_start(arg, format);

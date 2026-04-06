@@ -138,9 +138,10 @@ def _validate(config):
     ]:
         raise cv.Invalid("Selected model can't run on ESP8266.")
 
-    if model == "CUSTOM":
-        if CONF_INIT_SEQUENCE not in config or CONF_DIMENSIONS not in config:
-            raise cv.Invalid("CUSTOM model requires init_sequence and dimensions")
+    if model == "CUSTOM" and (
+        CONF_INIT_SEQUENCE not in config or CONF_DIMENSIONS not in config
+    ):
+        raise cv.Invalid("CUSTOM model requires init_sequence and dimensions")
 
     return config
 
@@ -209,8 +210,8 @@ def final_validate(config):
     ):
         LOGGER.info("Consider enabling PSRAM if available for the display buffer")
 
-    return spi.final_validate_device_schema(
-        "ili9xxx", require_miso=False, require_mosi=True
+    spi.final_validate_device_schema("ili9xxx", require_miso=False, require_mosi=True)(
+        config
     )
 
 
@@ -218,11 +219,14 @@ FINAL_VALIDATE_SCHEMA = final_validate
 
 
 async def to_code(config):
+    LOGGER.warning(
+        "The 'ili9xxx' component is deprecated, it is recommended to use 'mipi_spi' instead."
+    )
     rhs = MODELS[config[CONF_MODEL]].new()
     var = cg.Pvariable(config[CONF_ID], rhs)
 
     await display.register_display(var, config)
-    await spi.register_spi_device(var, config)
+    await spi.register_spi_device(var, config, write_only=True)
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))
     if init_sequences := config.get(CONF_INIT_SEQUENCE):

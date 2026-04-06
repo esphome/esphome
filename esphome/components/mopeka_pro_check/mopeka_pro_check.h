@@ -34,7 +34,6 @@ class MopekaProCheck : public Component, public esp32_ble_tracker::ESPBTDeviceLi
 
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void set_min_signal_quality(SensorReadQuality min) { this->min_signal_quality_ = min; };
 
   void set_level(sensor::Sensor *level) { level_ = level; };
@@ -62,7 +61,7 @@ class MopekaProCheck : public Component, public esp32_ble_tracker::ESPBTDeviceLi
 
   uint8_t parse_battery_level_(const std::vector<uint8_t> &message);
   uint32_t parse_distance_(const std::vector<uint8_t> &message);
-  uint8_t parse_temperature_(const std::vector<uint8_t> &message);
+  int8_t parse_temperature_(const std::vector<uint8_t> &message);
   SensorReadQuality parse_read_quality_(const std::vector<uint8_t> &message);
 };
 

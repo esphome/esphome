@@ -7,8 +7,6 @@
 
 #ifdef USE_ESP32
 
-#include "esphome/components/esp32_bt_common/queue.h"
-
 #ifdef USE_BUTTON
 #include "esphome/components/button/button.h"
 #endif
@@ -185,8 +183,8 @@ class ESP32BtClassic : public Component, public BtClassicItf {
   std::vector<BtClassicScanStartListner *> scan_start_listners_;
   std::vector<BtClassicScanResultListner *> scan_result_listners_;
 
-  // Ble-Queue which thread safety precautions:
-  esp32_bt_common::LockFreeQueue<BtGapEvent, 16> bt_events_;
+  // Queue which thread safety precautions:
+  esphome::LockFreeQueue<BtGapEvent, 16> bt_events_;
 
 #ifdef USE_BUTTON
   button::Button *reset_bt_stack_button_{nullptr};

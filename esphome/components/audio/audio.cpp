@@ -1,5 +1,9 @@
 #include "audio.h"
 
+#include "esphome/core/helpers.h"
+
+#include <cstring>
+
 namespace esphome {
 namespace audio {
 
@@ -47,6 +51,10 @@ const char *audio_file_type_to_string(AudioFileType file_type) {
     case AudioFileType::MP3:
       return "MP3";
 #endif
+#ifdef USE_AUDIO_OPUS_SUPPORT
+    case AudioFileType::OPUS:
+      return "OPUS";
+#endif
     case AudioFileType::WAV:
       return "WAV";
     default:
@@ -54,10 +62,62 @@ const char *audio_file_type_to_string(AudioFileType file_type) {
   }
 }
 
+AudioFileType detect_audio_file_type(const char *content_type, const char *url) {
+  // Try Content-Type header first
+  if (content_type != nullptr && content_type[0] != '\0') {
+#ifdef USE_AUDIO_MP3_SUPPORT
+    if (strcasecmp(content_type, "mp3") == 0 || strcasecmp(content_type, "audio/mp3") == 0 ||
+        strcasecmp(content_type, "audio/mpeg") == 0) {
+      return AudioFileType::MP3;
+    }
+#endif
+    if (strcasecmp(content_type, "audio/wav") == 0) {
+      return AudioFileType::WAV;
+    }
+#ifdef USE_AUDIO_FLAC_SUPPORT
+    if (strcasecmp(content_type, "audio/flac") == 0 || strcasecmp(content_type, "audio/x-flac") == 0) {
+      return AudioFileType::FLAC;
+    }
+#endif
+#ifdef USE_AUDIO_OPUS_SUPPORT
+    // Match "audio/ogg" with a codecs parameter containing "opus"
+    // Valid forms: audio/ogg;codecs=opus, audio/ogg; codecs="opus", etc.
+    // Plain "audio/ogg" without opus is not matched (almost always Ogg Vorbis)
+    if (strncasecmp(content_type, "audio/ogg", 9) == 0 && strcasestr(content_type + 9, "opus") != nullptr) {
+      return AudioFileType::OPUS;
+    }
+#endif
+  }
+
+  // Fallback to URL extension
+  if (url != nullptr && url[0] != '\0') {
+    if (str_endswith_ignore_case(url, ".wav")) {
+      return AudioFileType::WAV;
+    }
+#ifdef USE_AUDIO_MP3_SUPPORT
+    if (str_endswith_ignore_case(url, ".mp3")) {
+      return AudioFileType::MP3;
+    }
+#endif
+#ifdef USE_AUDIO_FLAC_SUPPORT
+    if (str_endswith_ignore_case(url, ".flac")) {
+      return AudioFileType::FLAC;
+    }
+#endif
+#ifdef USE_AUDIO_OPUS_SUPPORT
+    if (str_endswith_ignore_case(url, ".opus")) {
+      return AudioFileType::OPUS;
+    }
+#endif
+  }
+
+  return AudioFileType::NONE;
+}
+
 void scale_audio_samples(const int16_t *audio_samples, int16_t *output_buffer, int16_t scale_factor,
                          size_t samples_to_scale) {
   // Note the assembly dsps_mulc function has audio glitches if the input and output buffers are the same.
-  for (int i = 0; i < samples_to_scale; i++) {
+  for (size_t i = 0; i < samples_to_scale; i++) {
     int32_t acc = (int32_t) audio_samples[i] * (int32_t) scale_factor;
     output_buffer[i] = (int16_t) (acc >> 15);
   }

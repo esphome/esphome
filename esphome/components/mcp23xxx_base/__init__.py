@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_ID,
     CONF_INPUT,
     CONF_INTERRUPT,
+    CONF_INTERRUPT_PIN,
     CONF_INVERTED,
     CONF_MODE,
     CONF_NUMBER,
@@ -12,8 +13,9 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_PULLUP,
 )
-from esphome.core import coroutine
+from esphome.core import CORE, ID, coroutine
 
+AUTO_LOAD = ["gpio_expander"]
 CODEOWNERS = ["@jesserockz"]
 
 mcp23xxx_base_ns = cg.esphome_ns.namespace("mcp23xxx_base")
@@ -31,15 +33,20 @@ MCP23XXX_INTERRUPT_MODES = {
 MCP23XXX_CONFIG_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_OPEN_DRAIN_INTERRUPT, default=False): cv.boolean,
+        cv.Optional(CONF_INTERRUPT_PIN): pins.internal_gpio_input_pin_schema,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
 
 @coroutine
-async def register_mcp23xxx(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def register_mcp23xxx(config, num_pins):
+    id: ID = config[CONF_ID]
+    var = cg.new_Pvariable(id)
     await cg.register_component(var, config)
+    CORE.data.setdefault(CONF_MCP23XXX, {})[id.id] = num_pins
     cg.add(var.set_open_drain_ints(config[CONF_OPEN_DRAIN_INTERRUPT]))
+    if interrupt_pin := config.get(CONF_INTERRUPT_PIN):
+        cg.add(var.set_interrupt_pin(await cg.gpio_pin_expression(interrupt_pin)))
     return var
 
 
@@ -60,7 +67,7 @@ MCP23XXX_PIN_SCHEMA = pins.gpio_base_schema(
     cv.int_range(min=0, max=15),
     modes=[CONF_INPUT, CONF_OUTPUT, CONF_PULLUP],
     mode_validator=validate_mode,
-    invertable=True,
+    invertible=True,
 ).extend(
     {
         cv.Required(CONF_MCP23XXX): cv.use_id(MCP23XXXBase),
@@ -73,9 +80,12 @@ MCP23XXX_PIN_SCHEMA = pins.gpio_base_schema(
 
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_MCP23XXX, MCP23XXX_PIN_SCHEMA)
 async def mcp23xxx_pin_to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    parent = await cg.get_variable(config[CONF_MCP23XXX])
+    parent_id: ID = config[CONF_MCP23XXX]
+    parent = await cg.get_variable(parent_id)
 
+    num_pins = cg.TemplateArguments(CORE.data[CONF_MCP23XXX][parent_id.id])
+
+    var = cg.new_Pvariable(config[CONF_ID], num_pins)
     cg.add(var.set_parent(parent))
 
     num = config[CONF_NUMBER]

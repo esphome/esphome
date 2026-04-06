@@ -1,5 +1,6 @@
 ch422g:
   - id: ch422g_hub
+    i2c_id: i2c_bus
 
 binary_sensor:
   - platform: gpio

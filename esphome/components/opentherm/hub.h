@@ -1,10 +1,10 @@
 #pragma once
 
+#include <vector>
+#include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
-#include "esphome/core/component.h"
 #include "esphome/core/log.h"
-#include <vector>
 
 #include "opentherm.h"
 
@@ -17,21 +17,21 @@
 #endif
 
 #ifdef OPENTHERM_USE_SWITCH
-#include "esphome/components/opentherm/switch/switch.h"
+#include "esphome/components/opentherm/switch/opentherm_switch.h"
 #endif
 
 #ifdef OPENTHERM_USE_OUTPUT
-#include "esphome/components/opentherm/output/output.h"
+#include "esphome/components/opentherm/output/opentherm_output.h"
 #endif
 
 #ifdef OPENTHERM_USE_NUMBER
-#include "esphome/components/opentherm/number/number.h"
+#include "esphome/components/opentherm/number/opentherm_number.h"
 #endif
 
+#include <functional>
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
-#include <functional>
 
 #include "opentherm_macros.h"
 
@@ -160,11 +160,11 @@ class OpenthermHub : public Component {
   void set_dhw_block(bool value) { this->dhw_block = value; }
   void set_sync_mode(bool sync_mode) { this->sync_mode_ = sync_mode; }
 
-  void add_on_before_send_callback(std::function<void(OpenthermData &)> &&callback) {
-    this->before_send_callback_.add(std::move(callback));
+  template<typename F> void add_on_before_send_callback(F &&callback) {
+    this->before_send_callback_.add(std::forward<F>(callback));
   }
-  void add_on_before_process_response_callback(std::function<void(OpenthermData &)> &&callback) {
-    this->before_process_response_callback_.add(std::move(callback));
+  template<typename F> void add_on_before_process_response_callback(F &&callback) {
+    this->before_process_response_callback_.add(std::forward<F>(callback));
   }
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }

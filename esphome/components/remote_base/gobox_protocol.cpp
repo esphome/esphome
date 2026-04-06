@@ -1,5 +1,6 @@
 #include "gobox_protocol.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace remote_base {
@@ -10,8 +11,8 @@ constexpr uint32_t BIT_MARK_US = 580;  // 70us seems like a safe time delta for 
 constexpr uint32_t BIT_ONE_SPACE_US = 1640;
 constexpr uint32_t BIT_ZERO_SPACE_US = 545;
 constexpr uint64_t HEADER = 0b011001001100010uL;  // 15 bits
-constexpr uint64_t HEADER_SIZE = 15;
-constexpr uint64_t CODE_SIZE = 17;
+constexpr size_t HEADER_SIZE = 15;
+constexpr size_t CODE_SIZE = 17;
 
 void GoboxProtocol::dump_timings_(const RawTimings &timings) const {
   ESP_LOGD(TAG, "Gobox: size=%u", timings.size());
@@ -25,7 +26,7 @@ void GoboxProtocol::encode(RemoteTransmitData *dst, const GoboxData &data) {
   dst->set_carrier_frequency(38000);
   dst->reserve((HEADER_SIZE + CODE_SIZE + 1) * 2);
   uint64_t code = (HEADER << CODE_SIZE) | (data.code & ((1UL << CODE_SIZE) - 1));
-  ESP_LOGI(TAG, "Send Gobox: code=0x%Lx", code);
+  ESP_LOGI(TAG, "Send Gobox: code=0x%016" PRIx64, code);
   for (int16_t i = (HEADER_SIZE + CODE_SIZE - 1); i >= 0; i--) {
     if (code & ((uint64_t) 1 << i)) {
       dst->item(BIT_MARK_US, BIT_ONE_SPACE_US);
@@ -39,7 +40,7 @@ void GoboxProtocol::encode(RemoteTransmitData *dst, const GoboxData &data) {
 }
 
 optional<GoboxData> GoboxProtocol::decode(RemoteReceiveData src) {
-  if (src.size() < ((HEADER_SIZE + CODE_SIZE) * 2 + 1)) {
+  if (static_cast<size_t>(src.size()) < ((HEADER_SIZE + CODE_SIZE) * 2 + 1)) {
     return {};
   }
 

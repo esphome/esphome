@@ -10,7 +10,6 @@ namespace pcf85063 {
 static const char *const TAG = "pcf85063";
 
 void PCF85063Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   if (!this->read_rtc_()) {
     this->mark_failed();
   }
@@ -24,10 +23,8 @@ void PCF85063Component::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
-  ESP_LOGCONFIG(TAG, "  Timezone: '%s'", this->timezone_.c_str());
+  RealTimeClock::dump_config();
 }
-
-float PCF85063Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void PCF85063Component::read_time() {
   if (!this->read_rtc_()) {
@@ -43,11 +40,8 @@ void PCF85063Component::read_time() {
       .hour = uint8_t(pcf85063_.reg.hour + 10u * pcf85063_.reg.hour_10),
       .day_of_week = uint8_t(pcf85063_.reg.weekday),
       .day_of_month = uint8_t(pcf85063_.reg.day + 10u * pcf85063_.reg.day_10),
-      .day_of_year = 1,  // ignored by recalc_timestamp_utc(false)
       .month = uint8_t(pcf85063_.reg.month + 10u * pcf85063_.reg.month_10),
       .year = uint16_t(pcf85063_.reg.year + 10u * pcf85063_.reg.year_10 + 2000),
-      .is_dst = false,  // not used
-      .timestamp = 0,   // overwritten by recalc_timestamp_utc(false)
   };
   rtc_time.recalc_timestamp_utc(false);
   if (!rtc_time.is_valid()) {

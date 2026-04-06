@@ -8,8 +8,6 @@ namespace sx1509 {
 static const char *const TAG = "sx1509";
 
 void SX1509Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   ESP_LOGV(TAG, "  Resetting devices");
   if (!this->write_byte(REG_RESET, 0x12)) {
     this->mark_failed();
@@ -41,6 +39,9 @@ void SX1509Component::dump_config() {
 }
 
 void SX1509Component::loop() {
+  // Reset cache at the start of each loop
+  this->reset_pin_cache_();
+
   if (this->has_keypad_) {
     if (millis() - this->last_loop_timestamp_ < min_loop_period_)
       return;
@@ -55,11 +56,11 @@ void SX1509Component::loop() {
       return;
     }
     int row, col;
-    for (row = 0; row < 7; row++) {
+    for (row = 0; row < 8; row++) {
       if (key_data & (1 << row))
         break;
     }
-    for (col = 8; col < 15; col++) {
+    for (col = 8; col < 16; col++) {
       if (key_data & (1 << col))
         break;
     }
@@ -75,18 +76,20 @@ void SX1509Component::loop() {
   }
 }
 
-bool SX1509Component::digital_read(uint8_t pin) {
+bool SX1509Component::digital_read_hw(uint8_t pin) {
+  // Always read all pins when any input pin is accessed
+  return this->read_byte_16(REG_DATA_B, &this->input_mask_);
+}
+
+bool SX1509Component::digital_read_cache(uint8_t pin) {
+  // Return cached value for input pins, false for output pins
   if (this->ddr_mask_ & (1 << pin)) {
-    uint16_t temp_reg_data;
-    if (!this->read_byte_16(REG_DATA_B, &temp_reg_data))
-      return false;
-    if (temp_reg_data & (1 << pin))
-      return true;
+    return (this->input_mask_ & (1 << pin)) != 0;
   }
   return false;
 }
 
-void SX1509Component::digital_write(uint8_t pin, bool bit_value) {
+void SX1509Component::digital_write_hw(uint8_t pin, bool bit_value) {
   if ((~this->ddr_mask_) & (1 << pin)) {
     // If the pin is an output, write high/low
     uint16_t temp_reg_data = 0;
@@ -226,7 +229,7 @@ void SX1509Component::setup_keypad_() {
   this->read_byte_16(REG_DIR_B, &this->ddr_mask_);
   for (int i = 0; i < this->rows_; i++)
     this->ddr_mask_ &= ~(1 << i);
-  for (int i = 8; i < (this->cols_ * 2); i++)
+  for (int i = 8; i < (8 + this->cols_); i++)
     this->ddr_mask_ |= (1 << i);
   this->write_byte_16(REG_DIR_B, this->ddr_mask_);
 
@@ -306,8 +309,8 @@ void SX1509Component::set_debounce_keypad_(uint8_t time, uint8_t num_rows, uint8
   set_debounce_time_(time);
   for (uint16_t i = 0; i < num_rows; i++)
     set_debounce_pin_(i);
-  for (uint16_t i = 0; i < (8 + num_cols); i++)
-    set_debounce_pin_(i);
+  for (uint16_t i = 0; i < num_cols; i++)
+    set_debounce_pin_(i + 8);
 }
 
 }  // namespace sx1509

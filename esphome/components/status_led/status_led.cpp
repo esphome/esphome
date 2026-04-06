@@ -11,7 +11,6 @@ StatusLED *global_status_led = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-c
 
 StatusLED::StatusLED(GPIOPin *pin) : pin_(pin) { global_status_led = this; }
 void StatusLED::pre_setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->pin_->setup();
   this->pin_->digital_write(false);
 }
@@ -29,7 +28,6 @@ void StatusLED::loop() {
   }
 }
 float StatusLED::get_setup_priority() const { return setup_priority::HARDWARE; }
-float StatusLED::get_loop_priority() const { return 50.0f; }
 
 }  // namespace status_led
 }  // namespace esphome

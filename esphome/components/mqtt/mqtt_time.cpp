@@ -8,8 +8,7 @@
 #ifdef USE_MQTT
 #ifdef USE_DATETIME_TIME
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 static const char *const TAG = "mqtt.datetime.time";
 
@@ -20,14 +19,14 @@ MQTTTimeComponent::MQTTTimeComponent(TimeEntity *time) : time_(time) {}
 void MQTTTimeComponent::setup() {
   this->subscribe_json(this->get_command_topic_(), [this](const std::string &topic, JsonObject root) {
     auto call = this->time_->make_call();
-    if (root.containsKey("hour")) {
-      call.set_hour(root["hour"]);
+    if (root[ESPHOME_F("hour")].is<uint8_t>()) {
+      call.set_hour(root[ESPHOME_F("hour")]);
     }
-    if (root.containsKey("minute")) {
-      call.set_minute(root["minute"]);
+    if (root[ESPHOME_F("minute")].is<uint8_t>()) {
+      call.set_minute(root[ESPHOME_F("minute")]);
     }
-    if (root.containsKey("second")) {
-      call.set_second(root["second"]);
+    if (root[ESPHOME_F("second")].is<uint8_t>()) {
+      call.set_second(root[ESPHOME_F("second")]);
     }
     call.perform();
   });
@@ -37,10 +36,10 @@ void MQTTTimeComponent::setup() {
 
 void MQTTTimeComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Time '%s':", this->time_->get_name().c_str());
-  LOG_MQTT_COMPONENT(true, true)
+  LOG_MQTT_COMPONENT(true, true);
 }
 
-std::string MQTTTimeComponent::component_type() const { return "time"; }
+MQTT_COMPONENT_TYPE(MQTTTimeComponent, "time")
 const EntityBase *MQTTTimeComponent::get_entity() const { return this->time_; }
 
 void MQTTTimeComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
@@ -54,15 +53,16 @@ bool MQTTTimeComponent::send_initial_state() {
   }
 }
 bool MQTTTimeComponent::publish_state(uint8_t hour, uint8_t minute, uint8_t second) {
-  return this->publish_json(this->get_state_topic_(), [hour, minute, second](JsonObject root) {
-    root["hour"] = hour;
-    root["minute"] = minute;
-    root["second"] = second;
+  char topic_buf[MQTT_DEFAULT_TOPIC_MAX_LEN];
+  return this->publish_json(this->get_state_topic_to_(topic_buf), [hour, minute, second](JsonObject root) {
+    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks) false positive with ArduinoJson
+    root[ESPHOME_F("hour")] = hour;
+    root[ESPHOME_F("minute")] = minute;
+    root[ESPHOME_F("second")] = second;
   });
 }
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif  // USE_DATETIME_TIME
 #endif  // USE_MQTT

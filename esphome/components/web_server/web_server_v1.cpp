@@ -3,8 +3,30 @@
 
 #if USE_WEBSERVER_VERSION == 1
 
-namespace esphome {
-namespace web_server {
+namespace esphome::web_server {
+
+// Write HTML-escaped text to stream (escapes ", &, <, >)
+static void write_html_escaped(AsyncResponseStream *stream, const char *text) {
+  for (const char *p = text; *p; ++p) {
+    switch (*p) {
+      case '"':
+        stream->print("&quot;");
+        break;
+      case '&':
+        stream->print("&amp;");
+        break;
+      case '<':
+        stream->print("&lt;");
+        break;
+      case '>':
+        stream->print("&gt;");
+        break;
+      default:
+        stream->write(*p);
+        break;
+    }
+  }
+}
 
 void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &klass, const std::string &action,
                const std::function<void(AsyncResponseStream &stream, EntityBase *obj)> &action_func = nullptr) {
@@ -15,9 +37,29 @@ void write_row(AsyncResponseStream *stream, EntityBase *obj, const std::string &
   stream->print("\" id=\"");
   stream->print(klass.c_str());
   stream->print("-");
-  stream->print(obj->get_object_id().c_str());
+  char object_id_buf[OBJECT_ID_MAX_LEN];
+  stream->print(obj->get_object_id_to(object_id_buf).c_str());
+  // Add data attributes for hierarchical URL support
+  stream->print("\" data-domain=\"");
+  stream->print(klass.c_str());
+  stream->print("\" data-name=\"");
+  write_html_escaped(stream, obj->get_name().c_str());
+#ifdef USE_DEVICES
+  Device *device = obj->get_device();
+  if (device != nullptr) {
+    stream->print("\" data-device=\"");
+    write_html_escaped(stream, device->get_name());
+  }
+#endif
   stream->print("\"><td>");
-  stream->print(obj->get_name().c_str());
+#ifdef USE_DEVICES
+  if (device != nullptr) {
+    stream->print("[");
+    write_html_escaped(stream, device->get_name());
+    stream->print("] ");
+  }
+#endif
+  write_html_escaped(stream, obj->get_name().c_str());
   stream->print("</td><td></td><td>");
   stream->print(action.c_str());
   if (action_func) {
@@ -32,25 +74,25 @@ void WebServer::set_css_url(const char *css_url) { this->css_url_ = css_url; }
 void WebServer::set_js_url(const char *js_url) { this->js_url_ = js_url; }
 
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
-  AsyncResponseStream *stream = request->beginResponseStream("text/html");
-  const std::string &title = App.get_name();
-  stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><meta "
-                  "name=viewport content=\"width=device-width, initial-scale=1,user-scalable=no\"><title>"));
+  AsyncResponseStream *stream = request->beginResponseStream(ESPHOME_F("text/html"));
+  const auto &title = App.get_name();
+  stream->print(ESPHOME_F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><meta "
+                          "name=viewport content=\"width=device-width, initial-scale=1,user-scalable=no\"><title>"));
   stream->print(title.c_str());
-  stream->print(F("</title>"));
+  stream->print(ESPHOME_F("</title>"));
 #ifdef USE_WEBSERVER_CSS_INCLUDE
-  stream->print(F("<link rel=\"stylesheet\" href=\"/0.css\">"));
+  stream->print(ESPHOME_F("<link rel=\"stylesheet\" href=\"/0.css\">"));
 #endif
   if (strlen(this->css_url_) > 0) {
-    stream->print(F(R"(<link rel="stylesheet" href=")"));
+    stream->print(ESPHOME_F(R"(<link rel="stylesheet" href=")"));
     stream->print(this->css_url_);
-    stream->print(F("\">"));
+    stream->print(ESPHOME_F("\">"));
   }
-  stream->print(F("</head><body>"));
-  stream->print(F("<article class=\"markdown-body\"><h1>"));
+  stream->print(ESPHOME_F("</head><body>"));
+  stream->print(ESPHOME_F("<article class=\"markdown-body\"><h1>"));
   stream->print(title.c_str());
-  stream->print(F("</h1>"));
-  stream->print(F("<h2>States</h2><table id=\"states\"><thead><tr><th>Name<th>State<th>Actions<tbody>"));
+  stream->print(ESPHOME_F("</h1>"));
+  stream->print(ESPHOME_F("<h2>States</h2><table id=\"states\"><thead><tr><th>Name<th>State<th>Actions<tbody>"));
 
 #ifdef USE_SENSOR
   for (auto *obj : App.get_sensors()) {
@@ -142,7 +184,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
         stream.print(R"(" maxlength=")");
         stream.print(text->traits.get_max_length());
         stream.print(R"(" pattern=")");
-        stream.print(text->traits.get_pattern().c_str());
+        stream.print(text->traits.get_pattern_c_str());
         stream.print(R"(" value=")");
         stream.print(text->state.c_str());
         stream.print(R"("/>)");
@@ -160,7 +202,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
         stream.print("<option></option>");
         for (auto const &option : select->traits.get_options()) {
           stream.print("<option>");
-          stream.print(option.c_str());
+          stream.print(option);
           stream.print("</option>");
         }
         stream.print("</select>");
@@ -190,28 +232,36 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   }
 #endif
 
-  stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
-                  "REST API documentation.</p>"));
-  if (this->allow_ota_) {
-    stream->print(
-        F("<h2>OTA Update</h2><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input "
-          "type=\"file\" name=\"update\"><input type=\"submit\" value=\"Update\"></form>"));
+#ifdef USE_WATER_HEATER
+  for (auto *obj : App.get_water_heaters()) {
+    if (this->include_internal_ || !obj->is_internal())
+      write_row(stream, obj, "water_heater", "");
   }
-  stream->print(F("<h2>Debug Log</h2><pre id=\"log\"></pre>"));
+#endif
+
+  stream->print(ESPHOME_F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/\">ESPHome Web API</a> for "
+                          "REST API documentation.</p>"));
+#if defined(USE_WEBSERVER_OTA) && !defined(USE_WEBSERVER_OTA_DISABLED)
+  // Show OTA form only if web_server OTA is not explicitly disabled
+  // Note: USE_WEBSERVER_OTA_DISABLED only affects web_server, not captive_portal
+  stream->print(
+      ESPHOME_F("<h2>OTA Update</h2><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input "
+                "type=\"file\" name=\"update\"><input type=\"submit\" value=\"Update\"></form>"));
+#endif
+  stream->print(ESPHOME_F("<h2>Debug Log</h2><pre id=\"log\"></pre>"));
 #ifdef USE_WEBSERVER_JS_INCLUDE
   if (this->js_include_ != nullptr) {
-    stream->print(F("<script type=\"module\" src=\"/0.js\"></script>"));
+    stream->print(ESPHOME_F("<script type=\"module\" src=\"/0.js\"></script>"));
   }
 #endif
   if (strlen(this->js_url_) > 0) {
-    stream->print(F("<script src=\""));
+    stream->print(ESPHOME_F("<script src=\""));
     stream->print(this->js_url_);
-    stream->print(F("\"></script>"));
+    stream->print(ESPHOME_F("\"></script>"));
   }
-  stream->print(F("</article></body></html>"));
+  stream->print(ESPHOME_F("</article></body></html>"));
   request->send(stream);
 }
 
-}  // namespace web_server
-}  // namespace esphome
+}  // namespace esphome::web_server
 #endif

@@ -1,38 +1,33 @@
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && !defined(USE_ESP32)
 
 #include "i2c_bus_arduino.h"
+#include <Arduino.h>
+#include <cstring>
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include <Arduino.h>
-#include <cstring>
 
-namespace esphome {
-namespace i2c {
+namespace esphome::i2c {
 
 static const char *const TAG = "i2c.arduino";
 
+// Maximum bytes to log in hex format (truncates larger transfers)
+static constexpr size_t I2C_MAX_LOG_BYTES = 32;
+
 void ArduinoI2CBus::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   recover_();
 
-#if defined(USE_ESP32)
-  static uint8_t next_bus_num = 0;
-  if (next_bus_num == 0) {
-    wire_ = &Wire;
-  } else {
-    wire_ = new TwoWire(next_bus_num);  // NOLINT(cppcoreguidelines-owning-memory)
-  }
-  next_bus_num++;
-#elif defined(USE_ESP8266)
+#if defined(USE_ESP8266)
   wire_ = new TwoWire();  // NOLINT(cppcoreguidelines-owning-memory)
 #elif defined(USE_RP2040)
-  static bool first = true;
-  if (first) {
+  // Select Wire instance based on pin assignment, not definition order.
+  // I2C controller = (gpio / 2) % 2: even pairs (0-1,4-5,...) → I2C0, odd pairs (2-3,6-7,...) → I2C1
+  // RP2040 datasheet Table 2 (section 1.4.3): https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf
+  // RP2350 datasheet Table 7 (section 9.4): https://datasheets.raspberrypi.com/rp2350/rp2350-datasheet.pdf
+  if ((this->sda_pin_ / 2) % 2 == 0) {
     wire_ = &Wire;
-    first = false;
   } else {
-    wire_ = &Wire1;  // NOLINT(cppcoreguidelines-owning-memory)
+    wire_ = &Wire1;
   }
 #endif
 
@@ -54,10 +49,7 @@ void ArduinoI2CBus::set_pins_and_clock_() {
   wire_->begin(static_cast<int>(sda_pin_), static_cast<int>(scl_pin_));
 #endif
   if (timeout_ > 0) {  // if timeout specified in yaml
-#if defined(USE_ESP32)
-    // https://github.com/espressif/arduino-esp32/blob/master/libraries/Wire/src/Wire.cpp
-    wire_->setTimeOut(timeout_ / 1000);  // unit: ms
-#elif defined(USE_ESP8266)
+#if defined(USE_ESP8266)
     // https://github.com/esp8266/Arduino/blob/master/libraries/Wire/Wire.h
     wire_->setClockStretchLimit(timeout_);  // unit: us
 #elif defined(USE_RP2040)
@@ -76,9 +68,7 @@ void ArduinoI2CBus::dump_config() {
                 "  Frequency: %u Hz",
                 this->sda_pin_, this->scl_pin_, this->frequency_);
   if (timeout_ > 0) {
-#if defined(USE_ESP32)
-    ESP_LOGCONFIG(TAG, "  Timeout: %u ms", this->timeout_ / 1000);
-#elif defined(USE_ESP8266)
+#if defined(USE_ESP8266)
     ESP_LOGCONFIG(TAG, "  Timeout: %u us", this->timeout_);
 #elif defined(USE_RP2040)
     ESP_LOGCONFIG(TAG, "  Timeout: %u ms", this->timeout_ / 1000);
@@ -111,107 +101,57 @@ void ArduinoI2CBus::dump_config() {
   }
 }
 
-ErrorCode ArduinoI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
+ErrorCode ArduinoI2CBus::write_readv(uint8_t address, const uint8_t *write_buffer, size_t write_count,
+                                     uint8_t *read_buffer, size_t read_count) {
 #if defined(USE_ESP8266)
   this->set_pins_and_clock_();  // reconfigure Wire global state in case there are multiple instances
 #endif
-
-  // logging is only enabled with vv level, if warnings are shown the caller
-  // should log them
   if (!initialized_) {
-    ESP_LOGVV(TAG, "i2c bus not initialized!");
-    return ERROR_NOT_INITIALIZED;
-  }
-  size_t to_request = 0;
-  for (size_t i = 0; i < cnt; i++)
-    to_request += buffers[i].len;
-  size_t ret = wire_->requestFrom((int) address, (int) to_request, 1);
-  if (ret != to_request) {
-    ESP_LOGVV(TAG, "RX %u from %02X failed with error %u", to_request, address, ret);
-    return ERROR_TIMEOUT;
-  }
-
-  for (size_t i = 0; i < cnt; i++) {
-    const auto &buf = buffers[i];
-    for (size_t j = 0; j < buf.len; j++)
-      buf.data[j] = wire_->read();
-  }
-
-#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-  char debug_buf[4];
-  std::string debug_hex;
-
-  for (size_t i = 0; i < cnt; i++) {
-    const auto &buf = buffers[i];
-    for (size_t j = 0; j < buf.len; j++) {
-      snprintf(debug_buf, sizeof(debug_buf), "%02X", buf.data[j]);
-      debug_hex += debug_buf;
-    }
-  }
-  ESP_LOGVV(TAG, "0x%02X RX %s", address, debug_hex.c_str());
-#endif
-
-  return ERROR_OK;
-}
-ErrorCode ArduinoI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt, bool stop) {
-#if defined(USE_ESP8266)
-  this->set_pins_and_clock_();  // reconfigure Wire global state in case there are multiple instances
-#endif
-
-  // logging is only enabled with vv level, if warnings are shown the caller
-  // should log them
-  if (!initialized_) {
-    ESP_LOGVV(TAG, "i2c bus not initialized!");
+    ESP_LOGD(TAG, "i2c bus not initialized!");
     return ERROR_NOT_INITIALIZED;
   }
 
-#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-  char debug_buf[4];
-  std::string debug_hex;
-
-  for (size_t i = 0; i < cnt; i++) {
-    const auto &buf = buffers[i];
-    for (size_t j = 0; j < buf.len; j++) {
-      snprintf(debug_buf, sizeof(debug_buf), "%02X", buf.data[j]);
-      debug_hex += debug_buf;
-    }
-  }
-  ESP_LOGVV(TAG, "0x%02X TX %s", address, debug_hex.c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  char hex_buf[format_hex_pretty_size(I2C_MAX_LOG_BYTES)];
+  ESP_LOGV(TAG, "0x%02X TX %s", address, format_hex_pretty_to(hex_buf, write_buffer, write_count));
 #endif
 
-  wire_->beginTransmission(address);
-  size_t written = 0;
-  for (size_t i = 0; i < cnt; i++) {
-    const auto &buf = buffers[i];
-    if (buf.len == 0)
-      continue;
-    size_t ret = wire_->write(buf.data, buf.len);
-    written += ret;
-    if (ret != buf.len) {
-      ESP_LOGVV(TAG, "TX failed at %u", written);
+  uint8_t status = 0;
+  if (write_count != 0 || read_count == 0) {
+    wire_->beginTransmission(address);
+    size_t ret = wire_->write(write_buffer, write_count);
+    if (ret != write_count) {
+      ESP_LOGV(TAG, "TX failed");
       return ERROR_UNKNOWN;
     }
+    status = wire_->endTransmission(read_count == 0);
   }
-  uint8_t status = wire_->endTransmission(stop);
-  switch (status) {
-    case 0:
-      return ERROR_OK;
-    case 1:
-      // transmit buffer not large enough
-      ESP_LOGVV(TAG, "TX failed: buffer not large enough");
-      return ERROR_UNKNOWN;
-    case 2:
-    case 3:
-      ESP_LOGVV(TAG, "TX failed: not acknowledged: %d", status);
-      return ERROR_NOT_ACKNOWLEDGED;
-    case 5:
-      ESP_LOGVV(TAG, "TX failed: timeout");
-      return ERROR_UNKNOWN;
-    case 4:
-    default:
-      ESP_LOGVV(TAG, "TX failed: unknown error %u", status);
-      return ERROR_UNKNOWN;
+  if (status == 0 && read_count != 0) {
+    size_t ret2 = wire_->requestFrom(address, read_count, true);
+    if (ret2 != read_count) {
+      ESP_LOGVV(TAG, "RX %u from %02X failed with error %u", read_count, address, ret2);
+      return ERROR_TIMEOUT;
+    }
+    for (size_t j = 0; j != read_count; j++)
+      read_buffer[j] = wire_->read();
   }
+  // Avoid switch to prevent compiler-generated lookup table in RAM on ESP8266
+  if (status == 0)
+    return ERROR_OK;
+  if (status == 1) {
+    ESP_LOGVV(TAG, "TX failed: buffer not large enough");
+    return ERROR_UNKNOWN;
+  }
+  if (status == 2 || status == 3) {
+    ESP_LOGVV(TAG, "TX failed: not acknowledged: %u", status);
+    return ERROR_NOT_ACKNOWLEDGED;
+  }
+  if (status == 5) {
+    ESP_LOGVV(TAG, "TX failed: timeout");
+    return ERROR_UNKNOWN;
+  }
+  ESP_LOGVV(TAG, "TX failed: unknown error %u", status);
+  return ERROR_UNKNOWN;
 }
 
 /// Perform I2C bus recovery, see:
@@ -323,7 +263,6 @@ void ArduinoI2CBus::recover_() {
 
   recovery_result_ = RECOVERY_COMPLETED;
 }
-}  // namespace i2c
-}  // namespace esphome
+}  // namespace esphome::i2c
 
-#endif  // USE_ESP_IDF
+#endif  // defined(USE_ARDUINO) && !defined(USE_ESP32)

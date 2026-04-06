@@ -8,13 +8,19 @@
 #endif  // CYW43_USES_VSYS_PIN
 #include <hardware/adc.h>
 
+// PICO_VSYS_PIN is defined in pico-sdk board headers (e.g. boards/pico2.h),
+// but the Arduino framework's config_autogen.h includes a generic board header
+// that doesn't define it. Provide the standard value (pin 29) as a fallback.
+#ifndef PICO_VSYS_PIN
+#define PICO_VSYS_PIN 29  // NOLINT(cppcoreguidelines-macro-usage)
+#endif
+
 namespace esphome {
 namespace adc {
 
 static const char *const TAG = "adc.rp2040";
 
 void ADCSensor::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->get_name().c_str());
   static bool initialized = false;
   if (!initialized) {
     adc_init();
@@ -42,7 +48,7 @@ void ADCSensor::dump_config() {
 
 float ADCSensor::sample() {
   uint32_t raw = 0;
-  auto aggr = Aggregator(this->sampling_mode_);
+  auto aggr = Aggregator<uint32_t>(this->sampling_mode_);
 
   if (this->is_temperature_) {
     adc_set_temp_sensor_enabled(true);

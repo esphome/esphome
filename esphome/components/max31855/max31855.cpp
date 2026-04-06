@@ -15,14 +15,10 @@ void MAX31855Sensor::update() {
   this->disable();
 
   // Conversion time typ: 170ms, max: 220ms
-  auto f = std::bind(&MAX31855Sensor::read_data_, this);
-  this->set_timeout("value", 220, f);
+  this->set_timeout("value", 220, [this]() { this->read_data_(); });
 }
 
-void MAX31855Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->name_.c_str());
-  this->spi_setup();
-}
+void MAX31855Sensor::setup() { this->spi_setup(); }
 void MAX31855Sensor::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX31855:");
   LOG_PIN("  CS Pin: ", this->cs_);
@@ -34,7 +30,6 @@ void MAX31855Sensor::dump_config() {
     ESP_LOGCONFIG(TAG, "  Reference temperature disabled.");
   }
 }
-float MAX31855Sensor::get_setup_priority() const { return setup_priority::DATA; }
 void MAX31855Sensor::read_data_() {
   this->enable();
   delay(1);

@@ -2,21 +2,23 @@
 
 #ifdef USE_ESP32
 
-#include "esphome/core/automation.h"
-#include "esphome/core/component.h"
-#include "esphome/core/entity_base.h"
-#include "esphome/core/helpers.h"
+#include <atomic>
 #include <esp_camera.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
+#include "esphome/core/automation.h"
+#include "esphome/core/component.h"
+#include "esphome/components/camera/camera.h"
+#include "esphome/core/helpers.h"
+
+#ifdef USE_I2C
+#include "esphome/components/i2c/i2c_bus.h"
+#endif  // USE_I2C
 
 namespace esphome {
 namespace esp32_camera {
 
 class ESP32Camera;
-
-/* ---------------- enum classes ---------------- */
-enum CameraRequester { IDLE, API_REQUESTER, WEB_REQUESTER };
 
 enum ESP32CameraFrameSize {
   ESP32_CAMERA_SIZE_160X120,    // QQVGA
@@ -37,6 +39,18 @@ enum ESP32CameraFrameSize {
   ESP32_CAMERA_SIZE_2560X1600,  // WQXGA
   ESP32_CAMERA_SIZE_1080X1920,  // PFHD
   ESP32_CAMERA_SIZE_2560X1920,  // QSXGA
+};
+
+enum ESP32CameraPixelFormat {
+  ESP32_PIXEL_FORMAT_RGB565,
+  ESP32_PIXEL_FORMAT_YUV422,
+  ESP32_PIXEL_FORMAT_YUV420,
+  ESP32_PIXEL_FORMAT_GRAYSCALE,
+  ESP32_PIXEL_FORMAT_JPEG,
+  ESP32_PIXEL_FORMAT_RGB888,
+  ESP32_PIXEL_FORMAT_RAW,
+  ESP32_PIXEL_FORMAT_RGB444,
+  ESP32_PIXEL_FORMAT_RGB555,
 };
 
 enum ESP32AgcGainCeiling {
@@ -73,13 +87,13 @@ enum ESP32SpecialEffect {
 };
 
 /* ---------------- CameraImage class ---------------- */
-class CameraImage {
+class ESP32CameraImage : public camera::CameraImage {
  public:
-  CameraImage(camera_fb_t *buffer, uint8_t requester);
+  ESP32CameraImage(camera_fb_t *buffer, uint8_t requester);
   camera_fb_t *get_raw_buffer();
-  uint8_t *get_data_buffer();
-  size_t get_data_length();
-  bool was_requested_by(CameraRequester requester) const;
+  uint8_t *get_data_buffer() override;
+  size_t get_data_length() override;
+  bool was_requested_by(camera::CameraRequester requester) const override;
 
  protected:
   camera_fb_t *buffer_;
@@ -92,21 +106,21 @@ struct CameraImageData {
 };
 
 /* ---------------- CameraImageReader class ---------------- */
-class CameraImageReader {
+class ESP32CameraImageReader : public camera::CameraImageReader {
  public:
-  void set_image(std::shared_ptr<CameraImage> image);
-  size_t available() const;
-  uint8_t *peek_data_buffer();
-  void consume_data(size_t consumed);
-  void return_image();
+  void set_image(std::shared_ptr<camera::CameraImage> image) override;
+  size_t available() const override;
+  uint8_t *peek_data_buffer() override;
+  void consume_data(size_t consumed) override;
+  void return_image() override;
 
  protected:
-  std::shared_ptr<CameraImage> image_;
+  std::shared_ptr<ESP32CameraImage> image_;
   size_t offset_{0};
 };
 
 /* ---------------- ESP32Camera class ---------------- */
-class ESP32Camera : public EntityBase, public Component {
+class ESP32Camera : public camera::Camera {
  public:
   ESP32Camera();
 
@@ -118,9 +132,13 @@ class ESP32Camera : public EntityBase, public Component {
   void set_pixel_clock_pin(uint8_t pin);
   void set_external_clock(uint8_t pin, uint32_t frequency);
   void set_i2c_pins(uint8_t sda, uint8_t scl);
+#ifdef USE_I2C
+  void set_i2c_id(i2c::InternalI2CBus *i2c_bus);
+#endif  // USE_I2C
   void set_reset_pin(uint8_t pin);
   void set_power_down_pin(uint8_t pin);
   /* -- image */
+  void set_pixel_format(ESP32CameraPixelFormat format);
   void set_frame_size(ESP32CameraFrameSize size);
   void set_jpeg_quality(uint8_t quality);
   void set_vertical_flip(bool vertical_flip);
@@ -148,21 +166,21 @@ class ESP32Camera : public EntityBase, public Component {
   /* -- frame buffer */
   void set_frame_buffer_mode(camera_grab_mode_t mode);
   void set_frame_buffer_count(uint8_t fb_count);
+  void set_frame_buffer_location(camera_fb_location_t fb_location);
 
   /* public API (derivated) */
   void setup() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   /* public API (specific) */
-  void start_stream(CameraRequester requester);
-  void stop_stream(CameraRequester requester);
-  void request_image(CameraRequester requester);
+  void start_stream(camera::CameraRequester requester) override;
+  void stop_stream(camera::CameraRequester requester) override;
+  void request_image(camera::CameraRequester requester) override;
   void update_camera_parameters();
 
-  void add_image_callback(std::function<void(std::shared_ptr<CameraImage>)> &&callback);
-  void add_stream_start_callback(std::function<void()> &&callback);
-  void add_stream_stop_callback(std::function<void()> &&callback);
+  /// Add a listener to receive camera events
+  void add_listener(camera::CameraListener *listener) override { this->listeners_.push_back(listener); }
+  camera::CameraImageReader *create_image_reader() override;
 
  protected:
   /* internal methods */
@@ -199,49 +217,46 @@ class ESP32Camera : public EntityBase, public Component {
   uint32_t idle_update_interval_{15000};
 
   esp_err_t init_error_{ESP_OK};
-  std::shared_ptr<CameraImage> current_image_;
-  uint8_t single_requesters_{0};
-  uint8_t stream_requesters_{0};
+  std::shared_ptr<ESP32CameraImage> current_image_;
+  std::atomic<uint8_t> single_requesters_{0};
+  std::atomic<uint8_t> stream_requesters_{0};
   QueueHandle_t framebuffer_get_queue_;
   QueueHandle_t framebuffer_return_queue_;
-  CallbackManager<void(std::shared_ptr<CameraImage>)> new_image_callback_{};
-  CallbackManager<void()> stream_start_callback_{};
-  CallbackManager<void()> stream_stop_callback_{};
+  std::vector<camera::CameraListener *> listeners_;
 
   uint32_t last_idle_request_{0};
   uint32_t last_update_{0};
+#if ESPHOME_LOG_LEVEL < ESPHOME_LOG_LEVEL_VERBOSE
+  uint32_t last_log_time_{0};
+  uint16_t frame_count_{0};
+#endif
+#ifdef USE_I2C
+  i2c::InternalI2CBus *i2c_bus_{nullptr};
+#endif  // USE_I2C
+  RAMAllocator<camera_fb_t> fb_allocator_{RAMAllocator<camera_fb_t>::ALLOC_INTERNAL};
 };
 
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-extern ESP32Camera *global_esp32_camera;
-
-class ESP32CameraImageTrigger : public Trigger<CameraImageData> {
+class ESP32CameraImageTrigger : public Trigger<CameraImageData>, public camera::CameraListener {
  public:
-  explicit ESP32CameraImageTrigger(ESP32Camera *parent) {
-    parent->add_image_callback([this](const std::shared_ptr<esp32_camera::CameraImage> &image) {
-      CameraImageData camera_image_data{};
-      camera_image_data.length = image->get_data_length();
-      camera_image_data.data = image->get_data_buffer();
-      this->trigger(camera_image_data);
-    });
+  explicit ESP32CameraImageTrigger(ESP32Camera *parent) { parent->add_listener(this); }
+  void on_camera_image(const std::shared_ptr<camera::CameraImage> &image) override {
+    CameraImageData camera_image_data{};
+    camera_image_data.length = image->get_data_length();
+    camera_image_data.data = image->get_data_buffer();
+    this->trigger(camera_image_data);
   }
 };
 
-class ESP32CameraStreamStartTrigger : public Trigger<> {
+class ESP32CameraStreamStartTrigger : public Trigger<>, public camera::CameraListener {
  public:
-  explicit ESP32CameraStreamStartTrigger(ESP32Camera *parent) {
-    parent->add_stream_start_callback([this]() { this->trigger(); });
-  }
-
- protected:
+  explicit ESP32CameraStreamStartTrigger(ESP32Camera *parent) { parent->add_listener(this); }
+  void on_stream_start() override { this->trigger(); }
 };
-class ESP32CameraStreamStopTrigger : public Trigger<> {
- public:
-  explicit ESP32CameraStreamStopTrigger(ESP32Camera *parent) {
-    parent->add_stream_stop_callback([this]() { this->trigger(); });
-  }
 
- protected:
+class ESP32CameraStreamStopTrigger : public Trigger<>, public camera::CameraListener {
+ public:
+  explicit ESP32CameraStreamStopTrigger(ESP32Camera *parent) { parent->add_listener(this); }
+  void on_stream_stop() override { this->trigger(); }
 };
 
 }  // namespace esp32_camera

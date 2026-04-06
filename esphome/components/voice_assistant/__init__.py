@@ -11,19 +11,20 @@ from esphome.const import (
     CONF_ON_CLIENT_DISCONNECTED,
     CONF_ON_ERROR,
     CONF_ON_IDLE,
+    CONF_ON_START,
     CONF_SPEAKER,
 )
 
 AUTO_LOAD = ["socket"]
 DEPENDENCIES = ["api", "microphone"]
 
-CODEOWNERS = ["@jesserockz"]
+CODEOWNERS = ["@jesserockz", "@kahrendt"]
 
 CONF_ON_END = "on_end"
 CONF_ON_INTENT_END = "on_intent_end"
+CONF_ON_INTENT_PROGRESS = "on_intent_progress"
 CONF_ON_INTENT_START = "on_intent_start"
 CONF_ON_LISTENING = "on_listening"
-CONF_ON_START = "on_start"
 CONF_ON_STT_END = "on_stt_end"
 CONF_ON_STT_VAD_END = "on_stt_vad_end"
 CONF_ON_STT_VAD_START = "on_stt_vad_start"
@@ -134,6 +135,9 @@ CONFIG_SCHEMA = cv.All(
                 single=True
             ),
             cv.Optional(CONF_ON_INTENT_START): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_ON_INTENT_PROGRESS): automation.validate_automation(
                 single=True
             ),
             cv.Optional(CONF_ON_INTENT_END): automation.validate_automation(
@@ -282,6 +286,13 @@ async def to_code(config):
             config[CONF_ON_INTENT_START],
         )
 
+    if CONF_ON_INTENT_PROGRESS in config:
+        await automation.build_automation(
+            var.get_intent_progress_trigger(),
+            [(cg.std_string, "x")],
+            config[CONF_ON_INTENT_PROGRESS],
+        )
+
     if CONF_ON_INTENT_END in config:
         await automation.build_automation(
             var.get_intent_end_trigger(),
@@ -360,7 +371,12 @@ async def to_code(config):
     if on_timer_tick := config.get(CONF_ON_TIMER_TICK):
         await automation.build_automation(
             var.get_timer_tick_trigger(),
-            [(cg.std_vector.template(Timer), "timers")],
+            [
+                (
+                    cg.std_vector.template(Timer).operator("const").operator("ref"),
+                    "timers",
+                )
+            ],
             on_timer_tick,
         )
         has_timers = True
@@ -377,6 +393,7 @@ VOICE_ASSISTANT_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(VoiceAssis
     "voice_assistant.start_continuous",
     StartContinuousAction,
     VOICE_ASSISTANT_ACTION_SCHEMA,
+    synchronous=True,
 )
 @register_action(
     "voice_assistant.start",
@@ -387,6 +404,7 @@ VOICE_ASSISTANT_ACTION_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(VoiceAssis
             cv.Optional(CONF_WAKE_WORD): cv.templatable(cv.string),
         }
     ),
+    synchronous=True,
 )
 async def voice_assistant_listen_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -399,7 +417,9 @@ async def voice_assistant_listen_to_code(config, action_id, template_arg, args):
     return var
 
 
-@register_action("voice_assistant.stop", StopAction, VOICE_ASSISTANT_ACTION_SCHEMA)
+@register_action(
+    "voice_assistant.stop", StopAction, VOICE_ASSISTANT_ACTION_SCHEMA, synchronous=True
+)
 async def voice_assistant_stop_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])

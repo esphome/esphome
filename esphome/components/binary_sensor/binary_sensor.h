@@ -1,23 +1,19 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
+#ifdef USE_BINARY_SENSOR_FILTER
 #include "esphome/components/binary_sensor/filter.h"
+#endif
 
-#include <vector>
+#include <initializer_list>
 
-namespace esphome {
+namespace esphome::binary_sensor {
 
-namespace binary_sensor {
+class BinarySensor;
+void log_binary_sensor(const char *tag, const char *prefix, const char *type, BinarySensor *obj);
 
-#define LOG_BINARY_SENSOR(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    if (!(obj)->get_device_class().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class().c_str()); \
-    } \
-  }
+#define LOG_BINARY_SENSOR(prefix, type, obj) log_binary_sensor(TAG, prefix, LOG_STR_LITERAL(type), obj)
 
 #define SUB_BINARY_SENSOR(name) \
  protected: \
@@ -34,58 +30,61 @@ namespace binary_sensor {
  * The sub classes should notify the front-end of new states via the publish_state() method which
  * handles inverted inputs for you.
  */
-class BinarySensor : public EntityBase, public EntityBase_DeviceClass {
+class BinarySensor : public StatefulEntityBase<bool> {
  public:
-  explicit BinarySensor();
+  explicit BinarySensor() = default;
 
-  /** Add a callback to be notified of state changes.
-   *
-   * @param callback The void(bool) callback.
-   */
-  void add_on_state_callback(std::function<void(bool)> &&callback);
+  const bool &get_state() const override { return this->state; }
+  void set_trigger_on_initial_state(bool value) { this->trigger_on_initial_state_ = value; }
 
   /** Publish a new state to the front-end.
    *
-   * @param state The new state.
+   * @param new_state The new state.
    */
-  void publish_state(bool state);
+  void publish_state(bool new_state);
 
   /** Publish the initial state, this will not make the callback manager send callbacks
    * and is meant only for the initial state on boot.
    *
-   * @param state The new state.
+   * @param new_state The new state.
    */
-  void publish_initial_state(bool state);
+  void publish_initial_state(bool new_state);
 
-  /// The current reported state of the binary sensor.
-  bool state{false};
-
+#ifdef USE_BINARY_SENSOR_FILTER
   void add_filter(Filter *filter);
-  void add_filters(const std::vector<Filter *> &filters);
-
-  void set_publish_initial_state(bool publish_initial_state) { this->publish_initial_state_ = publish_initial_state; }
+  void add_filters(std::initializer_list<Filter *> filters);
+#endif
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
-  void send_state_internal(bool state, bool is_initial);
+  void send_state_internal(bool new_state) {
+    // Fast path: skip virtual dispatch when state hasn't changed
+    if (this->flags_.has_state && this->state == new_state)
+      return;
+    this->set_new_state(new_state);
+  }
 
   /// Return whether this binary sensor has outputted a state.
-  virtual bool has_state() const;
-
   virtual bool is_status_binary_sensor() const;
 
+  /// The current state of this binary sensor. Also used as the backing storage for StatefulEntityBase.
+  bool state{};
+
  protected:
-  CallbackManager<void(bool)> state_callback_{};
+  bool get_trigger_on_initial_state() const override { return this->trigger_on_initial_state_; }
+  void set_state_value(const bool &value) override { this->state = value; }
+
+  bool trigger_on_initial_state_{true};
+#ifdef USE_BINARY_SENSOR_FILTER
   Filter *filter_list_{nullptr};
-  bool has_state_{false};
-  bool publish_initial_state_{false};
-  Deduplicator<bool> publish_dedup_;
+#endif
+
+  bool set_new_state(const optional<bool> &new_state) override;
 };
 
 class BinarySensorInitiallyOff : public BinarySensor {
  public:
-  bool has_state() const override { return true; }
+  BinarySensorInitiallyOff() { this->set_has_state(true); }
 };
 
-}  // namespace binary_sensor
-}  // namespace esphome
+}  // namespace esphome::binary_sensor

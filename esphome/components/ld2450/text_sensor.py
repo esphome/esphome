@@ -3,6 +3,7 @@ from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DIRECTION,
+    CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_VERSION,
     ENTITY_CATEGORY_DIAGNOSTIC,
@@ -20,6 +21,7 @@ MAX_TARGETS = 3
 
 CONFIG_SCHEMA = cv.Schema(
     {
+        cv.GenerateID(CONF_ID): cv.declare_id(cg.EntityBase),
         cv.GenerateID(CONF_LD2450_ID): cv.use_id(LD2450Component),
         cv.Optional(CONF_VERSION): text_sensor.text_sensor_schema(
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
@@ -56,7 +58,8 @@ async def to_code(config):
         sens = await text_sensor.new_text_sensor(mac_address_config)
         cg.add(ld2450_component.set_mac_text_sensor(sens))
     for n in range(MAX_TARGETS):
-        if direction_conf := config.get(f"target_{n + 1}"):
-            if direction_config := direction_conf.get(CONF_DIRECTION):
-                sens = await text_sensor.new_text_sensor(direction_config)
-                cg.add(ld2450_component.set_direction_text_sensor(n, sens))
+        if (direction_conf := config.get(f"target_{n + 1}")) and (
+            direction_config := direction_conf.get(CONF_DIRECTION)
+        ):
+            sens = await text_sensor.new_text_sensor(direction_config)
+            cg.add(ld2450_component.set_direction_text_sensor(n, sens))

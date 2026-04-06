@@ -6,8 +6,7 @@
 #include "light_state.h"
 #include "light_transformer.h"
 
-namespace esphome {
-namespace light {
+namespace esphome::light {
 
 class LightTransitionTransformer : public LightTransformer {
  public:
@@ -28,7 +27,7 @@ class LightTransitionTransformer : public LightTransformer {
     }
 
     // When changing color mode, go through off state, as color modes are orthogonal and there can't be two active.
-    if (this->start_values_.get_color_mode() != this->target_values_.get_color_mode()) {
+    if (this->start_values_.get_color_mode() != this->end_values_.get_color_mode()) {
       this->changing_color_mode_ = true;
       this->intermediate_values_ = this->start_values_;
       this->intermediate_values_.set_state(false);
@@ -40,8 +39,8 @@ class LightTransitionTransformer : public LightTransformer {
 
     // Halfway through, when intermediate state (off) is reached, flip it to the target, but remain off.
     if (this->changing_color_mode_ && p > 0.5f &&
-        this->intermediate_values_.get_color_mode() != this->target_values_.get_color_mode()) {
-      this->intermediate_values_ = this->target_values_;
+        this->intermediate_values_.get_color_mode() != this->end_values_.get_color_mode()) {
+      this->intermediate_values_ = this->end_values_;
       this->intermediate_values_.set_state(false);
     }
 
@@ -50,18 +49,14 @@ class LightTransitionTransformer : public LightTransformer {
     if (this->changing_color_mode_)
       p = p < 0.5f ? p * 2 : (p - 0.5) * 2;
 
-    float v = LightTransitionTransformer::smoothed_progress(p);
+    float v = LightTransformer::smoothed_progress(p);
     return LightColorValues::lerp(start, end, v);
   }
 
  protected:
-  // This looks crazy, but it reduces to 6x^5 - 15x^4 + 10x^3 which is just a smooth sigmoid-like
-  // transition from 0 to 1 on x = [0, 1]
-  static float smoothed_progress(float x) { return x * x * x * (x * (x * 6.0f - 15.0f) + 10.0f); }
-
-  bool changing_color_mode_{false};
   LightColorValues end_values_{};
   LightColorValues intermediate_values_{};
+  bool changing_color_mode_{false};
 };
 
 class LightFlashTransformer : public LightTransformer {
@@ -83,7 +78,7 @@ class LightFlashTransformer : public LightTransformer {
   optional<LightColorValues> apply() override {
     optional<LightColorValues> result = {};
 
-    if (this->transformer_ == nullptr && millis() > this->start_time_ + this->length_ - this->transition_length_) {
+    if (this->transformer_ == nullptr && millis() - this->start_time_ > this->length_ - this->transition_length_) {
       // second transition back to start value
       this->transformer_ = this->state_.get_output()->create_default_transition();
       this->transformer_->setup(this->state_.current_values, this->get_start_values(), this->transition_length_);
@@ -117,10 +112,9 @@ class LightFlashTransformer : public LightTransformer {
 
  protected:
   LightState &state_;
-  uint32_t transition_length_;
   std::unique_ptr<LightTransformer> transformer_{nullptr};
+  uint32_t transition_length_;
   bool begun_lightstate_restore_;
 };
 
-}  // namespace light
-}  // namespace esphome
+}  // namespace esphome::light

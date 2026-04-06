@@ -137,7 +137,7 @@ def main():
     print()
     print("Running pyupgrade...")
     print()
-    PYUPGRADE_TARGET = "--py310-plus"
+    PYUPGRADE_TARGET = "--py311-plus"
     for files in filesets:
         cmd = ["pyupgrade", PYUPGRADE_TARGET] + files
         log = get_err(*cmd)

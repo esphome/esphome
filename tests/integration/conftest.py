@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, Callable, Generator
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
+import fcntl
 import logging
 import os
 from pathlib import Path
 import platform
 import signal
 import socket
+import subprocess
 import sys
 import tempfile
 from typing import TextIO
@@ -46,7 +48,69 @@ if platform.system() == "Windows":
         "Integration tests are not supported on Windows", allow_module_level=True
     )
 
+
 import pty  # not available on Windows
+
+# Register assert rewrite for entity_utils so assertions have proper error messages
+pytest.register_assert_rewrite("tests.integration.entity_utils")
+
+
+def _get_platformio_env(cache_dir: Path) -> dict[str, str]:
+    """Get environment variables for PlatformIO with shared cache."""
+    env = os.environ.copy()
+    env["PLATFORMIO_CORE_DIR"] = str(cache_dir)
+    env["PLATFORMIO_CACHE_DIR"] = str(cache_dir / ".cache")
+    env["PLATFORMIO_LIBDEPS_DIR"] = str(cache_dir / "libdeps")
+    # Prevent cache cleaning during integration tests
+    env["ESPHOME_SKIP_CLEAN_BUILD"] = "1"
+    return env
+
+
+@pytest.fixture(scope="session")
+def shared_platformio_cache() -> Generator[Path]:
+    """Initialize a shared PlatformIO cache for all integration tests."""
+    # Use a dedicated directory for integration tests to avoid conflicts
+    test_cache_dir = Path.home() / ".esphome-integration-tests"
+    cache_dir = test_cache_dir / "platformio"
+
+    # Use a lock file in the home directory to ensure only one process initializes the cache
+    # This is needed when running with pytest-xdist
+    # The lock file must be in a directory that already exists to avoid race conditions
+    lock_file = Path.home() / ".esphome-integration-tests-init.lock"
+
+    # Always acquire the lock to ensure cache is ready before proceeding
+    with open(lock_file, "w") as lock_fd:
+        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX)
+
+        # Check if the native platform is installed (the actual indicator of a populated cache)
+        native_platform = cache_dir / "platforms" / "native"
+        if not native_platform.exists():
+            # Create the test cache directory if it doesn't exist
+            test_cache_dir.mkdir(exist_ok=True)
+
+            with tempfile.TemporaryDirectory() as tmpdir:
+                # Use the cache_init fixture for initialization
+                init_dir = Path(tmpdir)
+                fixture_path = Path(__file__).parent / "fixtures" / "cache_init.yaml"
+                config_path = init_dir / "cache_init.yaml"
+                config_path.write_text(fixture_path.read_text())
+
+                # Run compilation to populate the cache
+                # We must succeed here to avoid race conditions where multiple
+                # tests try to populate the same cache directory simultaneously
+                env = _get_platformio_env(cache_dir)
+
+                subprocess.run(
+                    ["esphome", "compile", str(config_path)],
+                    check=True,
+                    cwd=init_dir,
+                    env=env,
+                    close_fds=False,
+                )
+
+        # Lock is held until here, ensuring cache is fully populated before any test proceeds
+
+    yield cache_dir
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -120,19 +184,26 @@ async def yaml_config(request: pytest.FixtureRequest, unused_tcp_port: int) -> s
         content = content.replace("api:", f"api:\n  port: {unused_tcp_port}")
 
     # Add debug build flags for integration tests to enable assertions
-    if "esphome:" in content:
-        # Check if platformio_options already exists
-        if "platformio_options:" not in content:
-            # Add platformio_options with debug flags after esphome:
-            content = content.replace(
-                "esphome:",
-                "esphome:\n"
-                "  # Enable assertions for integration tests\n"
-                "  platformio_options:\n"
-                "    build_flags:\n"
-                '      - "-DDEBUG"  # Enable assert() statements\n'
-                '      - "-g"       # Add debug symbols',
-            )
+    if "esphome:" in content and "platformio_options:" not in content:
+        # Add platformio_options with debug flags after esphome:
+        content = content.replace(
+            "esphome:",
+            "esphome:\n"
+            "  # Enable assertions for integration tests\n"
+            "  platformio_options:\n"
+            "    build_flags:\n"
+            '      - "-DDEBUG"  # Enable assert() statements\n'
+            '      - "-DESPHOME_DEBUG"  # Enable ESPHOME_DEBUG_ASSERT checks\n'
+            '      - "-DESPHOME_DEBUG_API"  # Enable API protocol asserts\n'
+            '      - "-g"       # Add debug symbols',
+        )
+
+    # Replace external component path placeholder if present
+    if "EXTERNAL_COMPONENT_PATH" in content:
+        external_components_path = str(
+            Path(__file__).parent / "fixtures" / "external_components"
+        )
+        content = content.replace("EXTERNAL_COMPONENT_PATH", external_components_path)
 
     return content
 
@@ -160,10 +231,15 @@ async def write_yaml_config(
 @pytest_asyncio.fixture
 async def compile_esphome(
     integration_test_dir: Path,
+    shared_platformio_cache: Path,
 ) -> AsyncGenerator[CompileFunction]:
     """Compile an ESPHome configuration and return the binary path."""
 
     async def _compile(config_path: Path) -> Path:
+        # Use the shared PlatformIO cache for faster compilation
+        # This avoids re-downloading dependencies for each test
+        env = _get_platformio_env(shared_platformio_cache)
+
         # Retry compilation up to 3 times if we get a segfault
         max_retries = 3
         for attempt in range(max_retries):
@@ -178,31 +254,33 @@ async def compile_esphome(
                 stdin=asyncio.subprocess.DEVNULL,
                 # Start in a new process group to isolate signal handling
                 start_new_session=True,
+                env=env,
+                close_fds=False,
             )
             await proc.wait()
 
             if proc.returncode == 0:
                 # Success!
                 break
-            elif proc.returncode == -11 and attempt < max_retries - 1:
+            if proc.returncode == -11 and attempt < max_retries - 1:
                 # Segfault (-11 = SIGSEGV), retry
                 print(
                     f"Compilation segfaulted (attempt {attempt + 1}/{max_retries}), retrying..."
                 )
                 await asyncio.sleep(1)  # Brief pause before retry
                 continue
-            else:
-                # Other error or final retry
-                raise RuntimeError(
-                    f"Failed to compile {config_path}, return code: {proc.returncode}. "
-                    f"Run with 'pytest -s' to see compilation output."
-                )
+            # Other error or final retry
+            raise RuntimeError(
+                f"Failed to compile {config_path}, return code: {proc.returncode}. "
+                f"Run with 'pytest -s' to see compilation output."
+            )
 
         # Load the config to get idedata (blocking call, must use executor)
         loop = asyncio.get_running_loop()
 
         def _read_config_and_get_binary():
-            CORE.config_path = str(config_path)
+            CORE.reset()  # Reset CORE state between test runs
+            CORE.config_path = config_path
             config = esphome.config.read_config(
                 {"command": "compile", "config": str(config_path)}
             )
@@ -277,7 +355,8 @@ async def wait_and_connect_api_client(
     noise_psk: str | None = None,
     client_info: str = "integration-test",
     timeout: float = API_CONNECTION_TIMEOUT,
-) -> AsyncGenerator[APIClient]:
+    return_disconnect_event: bool = False,
+) -> AsyncGenerator[APIClient | tuple[APIClient, asyncio.Event]]:
     """Wait for API to be available and connect."""
     client = APIClient(
         address=address,
@@ -290,14 +369,17 @@ async def wait_and_connect_api_client(
     # Create a future to signal when connected
     loop = asyncio.get_running_loop()
     connected_future: asyncio.Future[None] = loop.create_future()
+    disconnect_event = asyncio.Event()
 
     async def on_connect() -> None:
         """Called when successfully connected."""
+        disconnect_event.clear()  # Clear the disconnect event on new connection
         if not connected_future.done():
             connected_future.set_result(None)
 
     async def on_disconnect(expected_disconnect: bool) -> None:
         """Called when disconnected."""
+        disconnect_event.set()
         if not connected_future.done() and not expected_disconnect:
             connected_future.set_exception(
                 APIConnectionError("Disconnected before fully connected")
@@ -325,10 +407,13 @@ async def wait_and_connect_api_client(
         # Wait for connection with timeout
         try:
             await asyncio.wait_for(connected_future, timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise TimeoutError(f"Failed to connect to API after {timeout} seconds")
 
-        yield client
+        if return_disconnect_event:
+            yield client, disconnect_event
+        else:
+            yield client
     finally:
         # Stop reconnect logic and disconnect
         await reconnect_logic.stop()
@@ -361,8 +446,38 @@ async def api_client_connected(
     yield _connect_client
 
 
+@pytest_asyncio.fixture
+async def api_client_connected_with_disconnect(
+    unused_tcp_port: int,
+) -> AsyncGenerator:
+    """Factory for creating connected API client context managers with disconnect event."""
+
+    def _connect_client_with_disconnect(
+        address: str = LOCALHOST,
+        port: int | None = None,
+        password: str = "",
+        noise_psk: str | None = None,
+        client_info: str = "integration-test",
+        timeout: float = API_CONNECTION_TIMEOUT,
+    ):
+        return wait_and_connect_api_client(
+            address=address,
+            port=port if port is not None else unused_tcp_port,
+            password=password,
+            noise_psk=noise_psk,
+            client_info=client_info,
+            timeout=timeout,
+            return_disconnect_event=True,
+        )
+
+    yield _connect_client_with_disconnect
+
+
 async def _read_stream_lines(
-    stream: asyncio.StreamReader, lines: list[str], output_stream: TextIO
+    stream: asyncio.StreamReader,
+    lines: list[str],
+    output_stream: TextIO,
+    line_callback: Callable[[str], None] | None = None,
 ) -> None:
     """Read lines from a stream, append to list, and echo to output stream."""
     log_parser = LogParser()
@@ -380,6 +495,9 @@ async def _read_stream_lines(
             file=output_stream,
             flush=True,
         )
+        # Call the callback if provided
+        if line_callback:
+            line_callback(decoded_line.rstrip())
 
 
 @asynccontextmanager
@@ -388,6 +506,7 @@ async def run_binary_and_wait_for_port(
     host: str,
     port: int,
     timeout: float = PORT_WAIT_TIMEOUT,
+    line_callback: Callable[[str], None] | None = None,
 ) -> AsyncGenerator[None]:
     """Run a binary, wait for it to open a port, and clean up on exit."""
     # Create a pseudo-terminal to make the binary think it's running interactively
@@ -403,6 +522,7 @@ async def run_binary_and_wait_for_port(
         # Start in a new process group to isolate signal handling
         start_new_session=True,
         pass_fds=(device_fd,),
+        close_fds=False,
     )
 
     # Close the device end in the parent process
@@ -435,7 +555,9 @@ async def run_binary_and_wait_for_port(
         # Read from output stream
         output_tasks = [
             asyncio.create_task(
-                _read_stream_lines(output_reader, stdout_lines, sys.stdout)
+                _read_stream_lines(
+                    output_reader, stdout_lines, sys.stdout, line_callback
+                )
             )
         ]
 
@@ -496,12 +618,12 @@ async def run_binary_and_wait_for_port(
             process.send_signal(signal.SIGINT)
             try:
                 await asyncio.wait_for(process.wait(), timeout=SIGINT_TIMEOUT)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # If SIGINT didn't work, try SIGTERM
                 process.terminate()
                 try:
                     await asyncio.wait_for(process.wait(), timeout=SIGTERM_TIMEOUT)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     # Last resort: SIGKILL
                     process.kill()
                     await process.wait()
@@ -515,6 +637,7 @@ async def run_compiled_context(
     compile_esphome: CompileFunction,
     port: int,
     port_socket: socket.socket | None = None,
+    line_callback: Callable[[str], None] | None = None,
 ) -> AsyncGenerator[None]:
     """Context manager to write, compile and run an ESPHome configuration."""
     # Write the YAML config
@@ -528,7 +651,9 @@ async def run_compiled_context(
         port_socket.close()
 
     # Run the binary and wait for the API server to start
-    async with run_binary_and_wait_for_port(binary_path, LOCALHOST, port):
+    async with run_binary_and_wait_for_port(
+        binary_path, LOCALHOST, port, line_callback=line_callback
+    ):
         yield
 
 
@@ -542,7 +667,9 @@ async def run_compiled(
     port, port_socket = reserved_tcp_port
 
     def _run_compiled(
-        yaml_content: str, filename: str | None = None
+        yaml_content: str,
+        filename: str | None = None,
+        line_callback: Callable[[str], None] | None = None,
     ) -> AbstractAsyncContextManager[asyncio.subprocess.Process]:
         return run_compiled_context(
             yaml_content,
@@ -551,6 +678,7 @@ async def run_compiled(
             compile_esphome,
             port,
             port_socket,
+            line_callback=line_callback,
         )
 
     yield _run_compiled

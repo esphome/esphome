@@ -3,19 +3,59 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/automation.h"
 #include "esphome/components/network/ip_address.h"
 
-#ifdef USE_ESP32
+#ifdef USE_ETHERNET
 
+#ifdef USE_ESP32
 #include "esp_eth.h"
+#ifdef USE_ETHERNET_SPI
+#include "hal/spi_types.h"
+#endif
 #include "esp_eth_mac.h"
+#include "esp_eth_mac_esp.h"
 #include "esp_netif.h"
 #include "esp_mac.h"
+#include "esp_idf_version.h"
 
-namespace esphome {
-namespace ethernet {
+#if CONFIG_ETH_USE_ESP32_EMAC
+extern "C" eth_esp32_emac_config_t eth_esp32_emac_default_config(void);
+#endif
+#endif  // USE_ESP32
 
-enum EthernetType {
+#ifdef USE_RP2040
+#if defined(USE_ETHERNET_W5500)
+#include <W5500lwIP.h>
+#elif defined(USE_ETHERNET_W5100)
+#include <W5100lwIP.h>
+#elif defined(USE_ETHERNET_ENC28J60)
+#include <ENC28J60lwIP.h>
+#else
+#error "Unsupported RP2040 SPI Ethernet type"
+#endif
+#endif
+
+namespace esphome::ethernet {
+
+#ifdef USE_ETHERNET_IP_STATE_LISTENERS
+/** Listener interface for Ethernet IP state changes.
+ *
+ * Components can implement this interface to receive IP address updates
+ * without the overhead of std::function callbacks or polling.
+ *
+ * @note Components must call ethernet.request_ethernet_ip_state_listener() in their
+ *       Python to_code() to register for this listener type.
+ */
+class EthernetIPStateListener {
+ public:
+  virtual void on_ip_state(const network::IPAddresses &ips, const network::IPAddress &dns1,
+                           const network::IPAddress &dns2) = 0;
+};
+#endif  // USE_ETHERNET_IP_STATE_LISTENERS
+
+enum EthernetType : uint8_t {
   ETHERNET_TYPE_UNKNOWN = 0,
   ETHERNET_TYPE_LAN8720,
   ETHERNET_TYPE_RTL8201,
@@ -24,8 +64,12 @@ enum EthernetType {
   ETHERNET_TYPE_JL1101,
   ETHERNET_TYPE_KSZ8081,
   ETHERNET_TYPE_KSZ8081RNA,
+  ETHERNET_TYPE_W5100,
   ETHERNET_TYPE_W5500,
   ETHERNET_TYPE_OPENETH,
+  ETHERNET_TYPE_DM9051,
+  ETHERNET_TYPE_LAN8670,
+  ETHERNET_TYPE_ENC28J60,
 };
 
 struct ManualIP {
@@ -42,22 +86,49 @@ struct PHYRegister {
   uint32_t page;
 };
 
-enum class EthernetComponentState {
+enum class EthernetComponentState : uint8_t {
   STOPPED,
   CONNECTING,
   CONNECTED,
 };
 
-class EthernetComponent : public Component {
+// Platform-neutral duplex/speed types
+#ifndef USE_ESP32
+enum eth_duplex_t { ETH_DUPLEX_HALF, ETH_DUPLEX_FULL };
+enum eth_speed_t { ETH_SPEED_10M, ETH_SPEED_100M };
+#endif
+
+class EthernetComponent final : public Component {
  public:
   EthernetComponent();
   void setup() override;
   void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
-  bool can_proceed() override;
   void on_powerdown() override { powerdown(); }
-  bool is_connected();
+  bool is_connected() { return this->state_ == EthernetComponentState::CONNECTED; }
+
+  void set_type(EthernetType type);
+#ifdef USE_ETHERNET_MANUAL_IP
+  void set_manual_ip(const ManualIP &manual_ip);
+#endif
+  void set_fixed_mac(const std::array<uint8_t, 6> &mac) { this->fixed_mac_ = mac; }
+
+  network::IPAddresses get_ip_addresses();
+  network::IPAddress get_dns_address(uint8_t num);
+  const char *get_use_address() const { return this->use_address_; }
+  void set_use_address(const char *use_address) { this->use_address_ = use_address; }
+  void get_eth_mac_address_raw(uint8_t *mac);
+  // Remove before 2026.9.0
+  ESPDEPRECATED("Use get_eth_mac_address_pretty_into_buffer() instead. Removed in 2026.9.0", "2026.3.0")
+  std::string get_eth_mac_address_pretty();
+  const char *get_eth_mac_address_pretty_into_buffer(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf);
+  eth_duplex_t get_duplex_mode();
+  eth_speed_t get_link_speed();
+  bool powerdown();
+
+#ifdef USE_ESP32
+  esp_eth_handle_t get_eth_handle() const { return this->eth_handle_; }
 
 #ifdef USE_ETHERNET_SPI
   void set_clk_pin(uint8_t clk_pin);
@@ -67,6 +138,7 @@ class EthernetComponent : public Component {
   void set_interrupt_pin(uint8_t interrupt_pin);
   void set_reset_pin(uint8_t reset_pin);
   void set_clock_speed(int clock_speed);
+  void set_interface(spi_host_device_t interface);
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   void set_polling_interval(uint32_t polling_interval);
 #endif
@@ -75,37 +147,55 @@ class EthernetComponent : public Component {
   void set_power_pin(int power_pin);
   void set_mdc_pin(uint8_t mdc_pin);
   void set_mdio_pin(uint8_t mdio_pin);
-  void set_clk_mode(emac_rmii_clock_mode_t clk_mode, emac_rmii_clock_gpio_t clk_gpio);
+  void set_clk_pin(uint8_t clk_pin);
+  void set_clk_mode(emac_rmii_clock_mode_t clk_mode);
   void add_phy_register(PHYRegister register_value);
-#endif
-  void set_type(EthernetType type);
-  void set_manual_ip(const ManualIP &manual_ip);
+#endif  // USE_ETHERNET_SPI
+#endif  // USE_ESP32
 
-  network::IPAddresses get_ip_addresses();
-  network::IPAddress get_dns_address(uint8_t num);
-  std::string get_use_address() const;
-  void set_use_address(const std::string &use_address);
-  void get_eth_mac_address_raw(uint8_t *mac);
-  std::string get_eth_mac_address_pretty();
-  eth_duplex_t get_duplex_mode();
-  eth_speed_t get_link_speed();
-  bool powerdown();
+#ifdef USE_RP2040
+  void set_clk_pin(uint8_t clk_pin);
+  void set_miso_pin(uint8_t miso_pin);
+  void set_mosi_pin(uint8_t mosi_pin);
+  void set_cs_pin(uint8_t cs_pin);
+  void set_interrupt_pin(int8_t interrupt_pin);
+  void set_reset_pin(int8_t reset_pin);
+#endif  // USE_RP2040
+
+#ifdef USE_ETHERNET_IP_STATE_LISTENERS
+  void add_ip_state_listener(EthernetIPStateListener *listener) { this->ip_state_listeners_.push_back(listener); }
+#endif
+
+#ifdef USE_ETHERNET_CONNECT_TRIGGER
+  Trigger<> *get_connect_trigger() { return &this->connect_trigger_; }
+#endif
+#ifdef USE_ETHERNET_DISCONNECT_TRIGGER
+  Trigger<> *get_disconnect_trigger() { return &this->disconnect_trigger_; }
+#endif
 
  protected:
+  void start_connect_();
+  void finish_connect_();
+  void dump_connect_params_();
+
+#ifdef USE_ETHERNET_IP_STATE_LISTENERS
+  void notify_ip_state_listeners_();
+#endif
+
+#ifdef USE_ESP32
   static void eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
   static void got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 #if LWIP_IPV6
   static void got_ip6_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
 #endif /* LWIP_IPV6 */
-
-  void start_connect_();
-  void dump_connect_params_();
+  void log_error_and_mark_failed_(esp_err_t err, const char *message);
+#ifdef USE_ETHERNET_KSZ8081
   /// @brief Set `RMII Reference Clock Select` bit for KSZ8081.
   void ksz8081_set_clock_reference_(esp_eth_mac_t *mac);
+#endif
   /// @brief Set arbitratry PHY registers from config.
   void write_phy_register_(esp_eth_mac_t *mac, PHYRegister register_data);
 
-  std::string use_address_;
 #ifdef USE_ETHERNET_SPI
   uint8_t clk_pin_;
   uint8_t miso_pin_;
@@ -115,39 +205,99 @@ class EthernetComponent : public Component {
   int reset_pin_{-1};
   int phy_addr_spi_{-1};
   int clock_speed_;
+  spi_host_device_t interface_{SPI3_HOST};
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   uint32_t polling_interval_{0};
 #endif
 #else
-  uint8_t phy_addr_{0};
+  // Group all 32-bit members first
   int power_pin_{-1};
+  emac_rmii_clock_mode_t clk_mode_{EMAC_CLK_EXT_IN};
+  std::vector<PHYRegister> phy_registers_{};
+
+  // Group all 8-bit members together
+  uint8_t clk_pin_{0};
+  uint8_t phy_addr_{0};
   uint8_t mdc_pin_{23};
   uint8_t mdio_pin_{18};
-  emac_rmii_clock_mode_t clk_mode_{EMAC_CLK_EXT_IN};
-  emac_rmii_clock_gpio_t clk_gpio_{EMAC_CLK_IN_GPIO};
-  std::vector<PHYRegister> phy_registers_{};
-#endif
-  EthernetType type_{ETHERNET_TYPE_UNKNOWN};
-  optional<ManualIP> manual_ip_{};
+#endif  // USE_ETHERNET_SPI
 
+  // ESP32 pointers
+  esp_netif_t *eth_netif_{nullptr};
+  esp_eth_handle_t eth_handle_;
+  esp_eth_phy_t *phy_{nullptr};
+#endif  // USE_ESP32
+
+#ifdef USE_RP2040
+  static constexpr uint32_t LINK_CHECK_INTERVAL = 500;  // ms between link/IP polls
+#if defined(USE_ETHERNET_W5100)
+  static constexpr uint32_t RESET_DELAY_MS = 150;  // W5100S PLL lock time
+#else
+  static constexpr uint32_t RESET_DELAY_MS = 10;
+#endif
+#if defined(USE_ETHERNET_W5500)
+  Wiznet5500lwIP *eth_{nullptr};
+#elif defined(USE_ETHERNET_W5100)
+  Wiznet5100lwIP *eth_{nullptr};
+#elif defined(USE_ETHERNET_ENC28J60)
+  ENC28J60lwIP *eth_{nullptr};
+#else
+#error "Unsupported RP2040 SPI Ethernet type"
+#endif
+  uint32_t last_link_check_{0};
+  uint8_t clk_pin_;
+  uint8_t miso_pin_;
+  uint8_t mosi_pin_;
+  uint8_t cs_pin_;
+  int8_t interrupt_pin_{-1};
+  int8_t reset_pin_{-1};
+#endif  // USE_RP2040
+
+  // Common members
+#ifdef USE_ETHERNET_MANUAL_IP
+  optional<ManualIP> manual_ip_{};
+#endif
+  uint32_t connect_begin_;
+
+  // Group all uint8_t types together (enums and bools)
+  EthernetType type_{ETHERNET_TYPE_UNKNOWN};
+  EthernetComponentState state_{EthernetComponentState::STOPPED};
   bool started_{false};
   bool connected_{false};
   bool got_ipv4_address_{false};
 #if LWIP_IPV6
   uint8_t ipv6_count_{0};
+  bool ipv6_setup_done_{false};
 #endif /* LWIP_IPV6 */
-  EthernetComponentState state_{EthernetComponentState::STOPPED};
-  uint32_t connect_begin_;
-  esp_netif_t *eth_netif_{nullptr};
-  esp_eth_handle_t eth_handle_;
-  esp_eth_phy_t *phy_{nullptr};
+
+  optional<std::array<uint8_t, 6>> fixed_mac_;
+
+#ifdef USE_ETHERNET_IP_STATE_LISTENERS
+  StaticVector<EthernetIPStateListener *, ESPHOME_ETHERNET_IP_STATE_LISTENERS> ip_state_listeners_;
+#endif
+
+#ifdef USE_ETHERNET_CONNECT_TRIGGER
+  Trigger<> connect_trigger_;
+#endif
+#ifdef USE_ETHERNET_DISCONNECT_TRIGGER
+  Trigger<> disconnect_trigger_;
+#endif
+ private:
+  // Stores a pointer to a string literal (static storage duration).
+  // ONLY set from Python-generated code with string literals - never dynamic strings.
+  const char *use_address_{""};
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern EthernetComponent *global_eth_component;
+
+#ifdef USE_ESP32
+#if defined(USE_ETHERNET_JL1101) && (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0) || \
+                                     ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 4, 2) || !defined(PLATFORMIO))
 extern "C" esp_eth_phy_t *esp_eth_phy_new_jl1101(const eth_phy_config_t *config);
-
-}  // namespace ethernet
-}  // namespace esphome
-
+#endif
 #endif  // USE_ESP32
+
+}  // namespace esphome::ethernet
+
+#endif  // USE_ETHERNET

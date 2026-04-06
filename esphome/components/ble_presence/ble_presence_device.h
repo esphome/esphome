@@ -76,11 +76,12 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
         }
         break;
       case MATCH_BY_IBEACON_UUID:
-        if (!device.get_ibeacon().has_value()) {
+        auto maybe_ibeacon = device.get_ibeacon();
+        if (!maybe_ibeacon.has_value()) {
           return false;
         }
 
-        auto ibeacon = device.get_ibeacon().value();
+        auto ibeacon = *maybe_ibeacon;
 
         if (this->ibeacon_uuid_ != ibeacon.get_uuid()) {
           return false;
@@ -101,11 +102,10 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
   }
 
   void loop() override {
-    if (this->found_ && this->last_seen_ + this->timeout_ < millis())
+    if (this->found_ && millis() - this->last_seen_ > this->timeout_)
       this->set_found_(false);
   }
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
   void set_found_(bool state) {

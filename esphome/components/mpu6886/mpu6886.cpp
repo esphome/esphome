@@ -26,7 +26,6 @@ const float TEMPERATURE_SENSITIVITY = 326.8;
 const float TEMPERATURE_OFFSET = 25.0;
 
 void MPU6886Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t who_am_i;
   if (!this->read_byte(MPU6886_REGISTER_WHO_AM_I, &who_am_i) || who_am_i != MPU6886_WHO_AM_I_IDENTIFIER) {
     this->mark_failed();
@@ -81,7 +80,7 @@ void MPU6886Component::setup() {
   accel_config &= 0b11100111;
   accel_config |= (MPU6886_RANGE_2G << 3);
   ESP_LOGV(TAG, "    Output accel_config: 0b" BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(accel_config));
-  if (!this->write_byte(MPU6886_REGISTER_GYRO_CONFIG, gyro_config)) {
+  if (!this->write_byte(MPU6886_REGISTER_ACCEL_CONFIG, accel_config)) {
     this->mark_failed();
     return;
   }
@@ -146,8 +145,6 @@ void MPU6886Component::update() {
 
   this->status_clear_warning();
 }
-
-float MPU6886Component::get_setup_priority() const { return setup_priority::DATA; }
 
 }  // namespace mpu6886
 }  // namespace esphome

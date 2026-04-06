@@ -65,7 +65,7 @@ HaierClimateBase::HaierClimateBase()
       {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH});
   this->traits_.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH,
                                            climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL});
-  this->traits_.set_supports_current_temperature(true);
+  this->traits_.add_feature_flags(climate::CLIMATE_SUPPORTS_CURRENT_TEMPERATURE);
 }
 
 HaierClimateBase::~HaierClimateBase() {}
@@ -171,7 +171,7 @@ void HaierClimateBase::toggle_power() {
       PendingAction({ActionRequest::TOGGLE_POWER, esphome::optional<haier_protocol::HaierMessage>()});
 }
 
-void HaierClimateBase::set_supported_swing_modes(const std::set<climate::ClimateSwingMode> &modes) {
+void HaierClimateBase::set_supported_swing_modes(climate::ClimateSwingModeMask modes) {
   this->traits_.set_supported_swing_modes(modes);
   if (!modes.empty())
     this->traits_.add_supported_swing_mode(climate::CLIMATE_SWING_OFF);
@@ -179,13 +179,13 @@ void HaierClimateBase::set_supported_swing_modes(const std::set<climate::Climate
 
 void HaierClimateBase::set_answer_timeout(uint32_t timeout) { this->haier_protocol_.set_answer_timeout(timeout); }
 
-void HaierClimateBase::set_supported_modes(const std::set<climate::ClimateMode> &modes) {
+void HaierClimateBase::set_supported_modes(climate::ClimateModeMask modes) {
   this->traits_.set_supported_modes(modes);
   this->traits_.add_supported_mode(climate::CLIMATE_MODE_OFF);        // Always available
   this->traits_.add_supported_mode(climate::CLIMATE_MODE_HEAT_COOL);  // Always available
 }
 
-void HaierClimateBase::set_supported_presets(const std::set<climate::ClimatePreset> &presets) {
+void HaierClimateBase::set_supported_presets(climate::ClimatePresetMask presets) {
   this->traits_.set_supported_presets(presets);
   if (!presets.empty())
     this->traits_.add_supported_preset(climate::CLIMATE_PRESET_NONE);
@@ -195,10 +195,6 @@ void HaierClimateBase::set_send_wifi(bool send_wifi) { this->send_wifi_signal_ =
 
 void HaierClimateBase::send_custom_command(const haier_protocol::HaierMessage &message) {
   this->action_request_ = PendingAction({ActionRequest::SEND_CUSTOM_COMMAND, message});
-}
-
-void HaierClimateBase::add_status_message_callback(std::function<void(const char *, size_t)> &&callback) {
-  this->status_message_callback_.add(std::move(callback));
 }
 
 haier_protocol::HandlerError HaierClimateBase::answer_preprocess_(
@@ -242,12 +238,11 @@ haier_protocol::HandlerError HaierClimateBase::timeout_default_handler_(haier_pr
 }
 
 void HaierClimateBase::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   // Set timestamp here to give AC time to boot
   this->last_request_timestamp_ = std::chrono::steady_clock::now();
   this->set_phase(ProtocolPhases::SENDING_INIT_1);
   this->haier_protocol_.set_default_timeout_handler(
-      std::bind(&esphome::haier::HaierClimateBase::timeout_default_handler_, this, std::placeholders::_1));
+      [this](haier_protocol::FrameType type) { return this->timeout_default_handler_(type); });
   this->set_handlers();
   this->initialization();
 }
@@ -351,8 +346,7 @@ ClimateTraits HaierClimateBase::traits() { return traits_; }
 
 void HaierClimateBase::initialization() {
   constexpr uint32_t restore_settings_version = 0xA77D21EF;
-  this->base_rtc_ =
-      global_preferences->make_preference<HaierBaseSettings>(this->get_object_id_hash() ^ restore_settings_version);
+  this->base_rtc_ = this->make_entity_preference<HaierBaseSettings>(restore_settings_version);
   HaierBaseSettings recovered;
   if (!this->base_rtc_.load(&recovered)) {
     recovered = {false, true};

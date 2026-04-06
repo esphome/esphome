@@ -7,259 +7,295 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace esp32_touch {
+namespace esphome::esp32_touch {
+
+template<size_t N> static const char *lookup_str(const char *const (&table)[N], size_t index) {
+  return (index < N) ? table[index] : "UNKNOWN";
+}
 
 static const char *const TAG = "esp32_touch";
 
+static constexpr uint32_t SETUP_MODE_LOG_INTERVAL_MS = 250;
+static constexpr uint32_t INITIAL_STATE_DELAY_MS = 1500;
+static constexpr uint32_t ONESHOT_SCAN_COUNT = 3;
+static constexpr uint32_t ONESHOT_SCAN_TIMEOUT_MS = 2000;
+
+// V1: called from esp_timer context (software filter)
+// V2/V3: called from ISR context
+// xQueueSendFromISR is safe from both contexts.
+
+bool IRAM_ATTR ESP32TouchComponent::on_active_cb(touch_sensor_handle_t handle, const touch_active_event_data_t *event,
+                                                 void *ctx) {
+  auto *comp = static_cast<ESP32TouchComponent *>(ctx);
+  TouchEvent te{event->chan_id, true};
+  BaseType_t higher = pdFALSE;
+  xQueueSendFromISR(comp->touch_queue_, &te, &higher);
+  comp->enable_loop_soon_any_context();
+  return higher == pdTRUE;
+}
+
+bool IRAM_ATTR ESP32TouchComponent::on_inactive_cb(touch_sensor_handle_t handle,
+                                                   const touch_inactive_event_data_t *event, void *ctx) {
+  auto *comp = static_cast<ESP32TouchComponent *>(ctx);
+  TouchEvent te{event->chan_id, false};
+  BaseType_t higher = pdFALSE;
+  xQueueSendFromISR(comp->touch_queue_, &te, &higher);
+  comp->enable_loop_soon_any_context();
+  return higher == pdTRUE;
+}
+
 void ESP32TouchComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-  touch_pad_init();
-// set up and enable/start filtering based on ESP32 variant
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
-  if (this->filter_configured_()) {
-    touch_filter_config_t filter_info = {
-        .mode = this->filter_mode_,
-        .debounce_cnt = this->debounce_count_,
-        .noise_thr = this->noise_threshold_,
-        .jitter_step = this->jitter_step_,
-        .smh_lvl = this->smooth_level_,
-    };
-    touch_pad_filter_set_config(&filter_info);
-    touch_pad_filter_enable();
+  if (!this->create_touch_queue_()) {
+    return;
   }
 
-  if (this->denoise_configured_()) {
-    touch_pad_denoise_t denoise = {
-        .grade = this->grade_,
-        .cap_level = this->cap_level_,
-    };
-    touch_pad_denoise_set_config(&denoise);
-    touch_pad_denoise_enable();
-  }
-
-  if (this->waterproof_configured_()) {
-    touch_pad_waterproof_t waterproof = {
-        .guard_ring_pad = this->waterproof_guard_ring_pad_,
-        .shield_driver = this->waterproof_shield_driver_,
-    };
-    touch_pad_waterproof_set_config(&waterproof);
-    touch_pad_waterproof_enable();
-  }
+  // Create sample config - differs per hardware version
+#ifdef USE_ESP32_VARIANT_ESP32
+  touch_sensor_sample_config_t sample_cfg = TOUCH_SENSOR_V1_DEFAULT_SAMPLE_CONFIG(
+      this->charge_duration_ms_, this->low_voltage_reference_, this->high_voltage_reference_);
+#elif defined(USE_ESP32_VARIANT_ESP32P4)
+  // div_num=8 (data scaling divisor), coarse_freq_tune=2, fine_freq_tune=2
+  touch_sensor_sample_config_t sample_cfg = TOUCH_SENSOR_V3_DEFAULT_SAMPLE_CONFIG(8, 2, 2);
+  sample_cfg.charge_times = this->charge_times_;
 #else
-  if (this->iir_filter_enabled_()) {
-    touch_pad_filter_start(this->iir_filter_);
-  }
+  // ESP32-S2/S3 (V2)
+  touch_sensor_sample_config_t sample_cfg = TOUCH_SENSOR_V2_DEFAULT_SAMPLE_CONFIG(
+      this->charge_times_, this->low_voltage_reference_, this->high_voltage_reference_);
 #endif
 
-#if ESP_IDF_VERSION_MAJOR >= 5 && defined(USE_ESP32_VARIANT_ESP32)
-  touch_pad_set_measurement_clock_cycles(this->meas_cycle_);
-  touch_pad_set_measurement_interval(this->sleep_cycle_);
-#else
-  touch_pad_set_meas_time(this->sleep_cycle_, this->meas_cycle_);
+  // Create controller
+  touch_sensor_config_t sens_cfg = TOUCH_SENSOR_DEFAULT_BASIC_CONFIG(1, &sample_cfg);
+  sens_cfg.meas_interval_us = this->meas_interval_us_;
+#ifndef USE_ESP32_VARIANT_ESP32
+  sens_cfg.max_meas_time_us = 0;  // Disable measurement timeout (V2/V3 only)
 #endif
-  touch_pad_set_voltage(this->high_voltage_reference_, this->low_voltage_reference_, this->voltage_attenuation_);
 
+  esp_err_t err = touch_sensor_new_controller(&sens_cfg, &this->sens_handle_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to create touch controller: %s", esp_err_to_name(err));
+    this->cleanup_touch_queue_();
+    this->mark_failed();
+    return;
+  }
+
+  // Create channels for all children
   for (auto *child : this->children_) {
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
-    touch_pad_config(child->get_touch_pad());
+    touch_channel_config_t chan_cfg = {};
+#ifdef USE_ESP32_VARIANT_ESP32
+    chan_cfg.abs_active_thresh[0] = child->get_threshold();
+    chan_cfg.charge_speed = TOUCH_CHARGE_SPEED_7;
+    chan_cfg.init_charge_volt = TOUCH_INIT_CHARGE_VOLT_DEFAULT;
+    chan_cfg.group = TOUCH_CHAN_TRIG_GROUP_BOTH;
+#elif defined(USE_ESP32_VARIANT_ESP32P4)
+    chan_cfg.active_thresh[0] = child->get_threshold();
 #else
-    // Disable interrupt threshold
-    touch_pad_config(child->get_touch_pad(), 0);
+    // ESP32-S2/S3 (V2)
+    chan_cfg.active_thresh[0] = child->get_threshold();
+    chan_cfg.charge_speed = TOUCH_CHARGE_SPEED_7;
+    chan_cfg.init_charge_volt = TOUCH_INIT_CHARGE_VOLT_DEFAULT;
 #endif
+
+    err = touch_sensor_new_channel(this->sens_handle_, child->get_channel_id(), &chan_cfg, &child->chan_handle_);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to create touch channel %d: %s", child->get_channel_id(), esp_err_to_name(err));
+      this->cleanup_touch_queue_();
+      this->mark_failed();
+      return;
+    }
   }
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
-  touch_pad_set_fsm_mode(TOUCH_FSM_MODE_TIMER);
-  touch_pad_fsm_start();
+
+  // Configure filter
+#ifdef USE_ESP32_VARIANT_ESP32
+  // Software filter is REQUIRED for V1 on_active/on_inactive callbacks
+  {
+    touch_sensor_filter_config_t filter_cfg = TOUCH_SENSOR_DEFAULT_FILTER_CONFIG();
+    if (this->iir_filter_enabled_()) {
+      filter_cfg.interval_ms = this->iir_filter_;
+    }
+    err = touch_sensor_config_filter(this->sens_handle_, &filter_cfg);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "Failed to configure filter: %s", esp_err_to_name(err));
+      this->cleanup_touch_queue_();
+      this->mark_failed();
+      return;
+    }
+  }
+#else
+  // V2/V3: Hardware benchmark filter
+  {
+    touch_sensor_filter_config_t filter_cfg = TOUCH_SENSOR_DEFAULT_FILTER_CONFIG();
+    if (this->filter_configured_) {
+      filter_cfg.benchmark.filter_mode = this->filter_mode_;
+      filter_cfg.benchmark.jitter_step = this->jitter_step_;
+      filter_cfg.benchmark.denoise_lvl = this->noise_threshold_;
+      filter_cfg.data.smooth_filter = this->smooth_level_;
+      filter_cfg.data.debounce_cnt = this->debounce_count_;
+    }
+    err = touch_sensor_config_filter(this->sens_handle_, &filter_cfg);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Failed to configure filter: %s", esp_err_to_name(err));
+    }
+  }
 #endif
+
+#if SOC_TOUCH_SUPPORT_DENOISE_CHAN
+  if (this->denoise_configured_) {
+    touch_denoise_chan_config_t denoise_cfg = {};
+    denoise_cfg.charge_speed = TOUCH_CHARGE_SPEED_7;
+    denoise_cfg.init_charge_volt = TOUCH_INIT_CHARGE_VOLT_DEFAULT;
+    denoise_cfg.ref_cap = this->denoise_cap_level_;
+    denoise_cfg.resolution = this->denoise_grade_;
+    err = touch_sensor_config_denoise_channel(this->sens_handle_, &denoise_cfg);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Failed to configure denoise: %s", esp_err_to_name(err));
+    }
+  }
+#endif
+
+#if SOC_TOUCH_SUPPORT_WATERPROOF
+  if (this->waterproof_configured_) {
+    touch_channel_handle_t guard_chan = nullptr;
+    for (auto *child : this->children_) {
+      if (child->get_channel_id() == this->waterproof_guard_ring_pad_) {
+        guard_chan = child->chan_handle_;
+        break;
+      }
+    }
+
+    touch_channel_handle_t shield_chan = nullptr;
+    touch_channel_config_t shield_cfg = {};
+#ifdef USE_ESP32_VARIANT_ESP32P4
+    shield_cfg.active_thresh[0] = 0;
+    err = touch_sensor_new_channel(this->sens_handle_, SOC_TOUCH_MAX_CHAN_ID, &shield_cfg, &shield_chan);
+#else
+    shield_cfg.active_thresh[0] = 0;
+    shield_cfg.charge_speed = TOUCH_CHARGE_SPEED_7;
+    shield_cfg.init_charge_volt = TOUCH_INIT_CHARGE_VOLT_DEFAULT;
+    err = touch_sensor_new_channel(this->sens_handle_, TOUCH_SHIELD_CHAN_ID, &shield_cfg, &shield_chan);
+#endif
+    if (err == ESP_OK) {
+      touch_waterproof_config_t wp_cfg = {};
+      wp_cfg.guard_chan = guard_chan;
+      wp_cfg.shield_chan = shield_chan;
+      wp_cfg.shield_drv = this->waterproof_shield_driver_;
+      wp_cfg.flags.immersion_proof = 1;
+      err = touch_sensor_config_waterproof(this->sens_handle_, &wp_cfg);
+      if (err != ESP_OK) {
+        ESP_LOGW(TAG, "Failed to configure waterproof: %s", esp_err_to_name(err));
+      }
+    } else {
+      ESP_LOGW(TAG, "Failed to create shield channel: %s", esp_err_to_name(err));
+    }
+  }
+#endif
+
+  // Configure wakeup pads before enabling (must be done in INIT state)
+  this->configure_wakeup_pads_();
+
+  // Register callbacks
+  touch_event_callbacks_t cbs = {};
+  cbs.on_active = on_active_cb;
+  cbs.on_inactive = on_inactive_cb;
+  err = touch_sensor_register_callbacks(this->sens_handle_, &cbs, this);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to register callbacks: %s", esp_err_to_name(err));
+    this->cleanup_touch_queue_();
+    this->mark_failed();
+    return;
+  }
+
+  // Enable and start scanning
+  err = touch_sensor_enable(this->sens_handle_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to enable touch sensor: %s", esp_err_to_name(err));
+    this->cleanup_touch_queue_();
+    this->mark_failed();
+    return;
+  }
+
+  // Do initial oneshot scans to populate baseline values
+  for (uint32_t i = 0; i < ONESHOT_SCAN_COUNT; i++) {
+    err = touch_sensor_trigger_oneshot_scanning(this->sens_handle_, ONESHOT_SCAN_TIMEOUT_MS);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Oneshot scan %" PRIu32 " failed: %s", i, esp_err_to_name(err));
+    }
+  }
+
+  err = touch_sensor_start_continuous_scanning(this->sens_handle_);
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "Failed to start continuous scanning: %s", esp_err_to_name(err));
+    this->mark_failed();
+    return;
+  }
 }
 
 void ESP32TouchComponent::dump_config() {
+#if !defined(USE_ESP32_VARIANT_ESP32P4)
+  static constexpr const char *LV_STRS[] = {"0.5V", "0.6V", "0.7V", "0.8V"};
+  static constexpr const char *HV_STRS[] = {"0.9V", "1.0V", "1.1V", "1.2V", "1.4V", "1.5V", "1.6V", "1.7V",
+                                            "1.9V", "2.0V", "2.1V", "2.2V", "2.4V", "2.5V", "2.6V", "2.7V"};
+  const char *lv_s = lookup_str(LV_STRS, this->low_voltage_reference_);
+  const char *hv_s = lookup_str(HV_STRS, this->high_voltage_reference_);
+
   ESP_LOGCONFIG(TAG,
                 "Config for ESP32 Touch Hub:\n"
-                "  Meas cycle: %.2fms\n"
-                "  Sleep cycle: %.2fms",
-                this->meas_cycle_ / (8000000.0f / 1000.0f), this->sleep_cycle_ / (150000.0f / 1000.0f));
+                "  Measurement interval: %.1fus\n"
+                "  Low Voltage Reference: %s\n"
+                "  High Voltage Reference: %s",
+                this->meas_interval_us_, lv_s, hv_s);
+#else
+  ESP_LOGCONFIG(TAG,
+                "Config for ESP32 Touch Hub:\n"
+                "  Measurement interval: %.1fus",
+                this->meas_interval_us_);
+#endif
 
-  const char *lv_s;
-  switch (this->low_voltage_reference_) {
-    case TOUCH_LVOLT_0V5:
-      lv_s = "0.5V";
-      break;
-    case TOUCH_LVOLT_0V6:
-      lv_s = "0.6V";
-      break;
-    case TOUCH_LVOLT_0V7:
-      lv_s = "0.7V";
-      break;
-    case TOUCH_LVOLT_0V8:
-      lv_s = "0.8V";
-      break;
-    default:
-      lv_s = "UNKNOWN";
-      break;
+#ifdef USE_ESP32_VARIANT_ESP32
+  if (this->iir_filter_enabled_()) {
+    ESP_LOGCONFIG(TAG, "  IIR Filter: %" PRIu32 "ms", this->iir_filter_);
+  } else {
+    ESP_LOGCONFIG(TAG, "  IIR Filter: 10ms (default)");
   }
-  ESP_LOGCONFIG(TAG, "  Low Voltage Reference: %s", lv_s);
-
-  const char *hv_s;
-  switch (this->high_voltage_reference_) {
-    case TOUCH_HVOLT_2V4:
-      hv_s = "2.4V";
-      break;
-    case TOUCH_HVOLT_2V5:
-      hv_s = "2.5V";
-      break;
-    case TOUCH_HVOLT_2V6:
-      hv_s = "2.6V";
-      break;
-    case TOUCH_HVOLT_2V7:
-      hv_s = "2.7V";
-      break;
-    default:
-      hv_s = "UNKNOWN";
-      break;
-  }
-  ESP_LOGCONFIG(TAG, "  High Voltage Reference: %s", hv_s);
-
-  const char *atten_s;
-  switch (this->voltage_attenuation_) {
-    case TOUCH_HVOLT_ATTEN_1V5:
-      atten_s = "1.5V";
-      break;
-    case TOUCH_HVOLT_ATTEN_1V:
-      atten_s = "1V";
-      break;
-    case TOUCH_HVOLT_ATTEN_0V5:
-      atten_s = "0.5V";
-      break;
-    case TOUCH_HVOLT_ATTEN_0V:
-      atten_s = "0V";
-      break;
-    default:
-      atten_s = "UNKNOWN";
-      break;
-  }
-  ESP_LOGCONFIG(TAG, "  Voltage Attenuation: %s", atten_s);
-
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
-  if (this->filter_configured_()) {
-    const char *filter_mode_s;
-    switch (this->filter_mode_) {
-      case TOUCH_PAD_FILTER_IIR_4:
-        filter_mode_s = "IIR_4";
-        break;
-      case TOUCH_PAD_FILTER_IIR_8:
-        filter_mode_s = "IIR_8";
-        break;
-      case TOUCH_PAD_FILTER_IIR_16:
-        filter_mode_s = "IIR_16";
-        break;
-      case TOUCH_PAD_FILTER_IIR_32:
-        filter_mode_s = "IIR_32";
-        break;
-      case TOUCH_PAD_FILTER_IIR_64:
-        filter_mode_s = "IIR_64";
-        break;
-      case TOUCH_PAD_FILTER_IIR_128:
-        filter_mode_s = "IIR_128";
-        break;
-      case TOUCH_PAD_FILTER_IIR_256:
-        filter_mode_s = "IIR_256";
-        break;
-      case TOUCH_PAD_FILTER_JITTER:
-        filter_mode_s = "JITTER";
-        break;
-      default:
-        filter_mode_s = "UNKNOWN";
-        break;
-    }
+#else
+  if (this->filter_configured_) {
+    // TOUCH_BM_IIR_FILTER_256 only exists on V2, shifting JITTER's position
+    static constexpr const char *FILTER_STRS[] = {
+      "IIR_4",
+      "IIR_8",
+      "IIR_16",
+      "IIR_32",
+      "IIR_64",
+      "IIR_128",
+#if SOC_TOUCH_SENSOR_VERSION == 2
+      "IIR_256",
+#endif
+      "JITTER",
+    };
+    static constexpr const char *SMOOTH_STRS[] = {"OFF", "IIR_2", "IIR_4", "IIR_8"};
+    const char *filter_s = lookup_str(FILTER_STRS, this->filter_mode_);
+    const char *smooth_s = lookup_str(SMOOTH_STRS, this->smooth_level_);
     ESP_LOGCONFIG(TAG,
                   "  Filter mode: %s\n"
                   "  Debounce count: %" PRIu32 "\n"
                   "  Noise threshold coefficient: %" PRIu32 "\n"
-                  "  Jitter filter step size: %" PRIu32,
-                  filter_mode_s, this->debounce_count_, this->noise_threshold_, this->jitter_step_);
-    const char *smooth_level_s;
-    switch (this->smooth_level_) {
-      case TOUCH_PAD_SMOOTH_OFF:
-        smooth_level_s = "OFF";
-        break;
-      case TOUCH_PAD_SMOOTH_IIR_2:
-        smooth_level_s = "IIR_2";
-        break;
-      case TOUCH_PAD_SMOOTH_IIR_4:
-        smooth_level_s = "IIR_4";
-        break;
-      case TOUCH_PAD_SMOOTH_IIR_8:
-        smooth_level_s = "IIR_8";
-        break;
-      default:
-        smooth_level_s = "UNKNOWN";
-        break;
-    }
-    ESP_LOGCONFIG(TAG, "  Smooth level: %s", smooth_level_s);
+                  "  Jitter filter step size: %" PRIu32 "\n"
+                  "  Smooth level: %s",
+                  filter_s, this->debounce_count_, this->noise_threshold_, this->jitter_step_, smooth_s);
   }
 
-  if (this->denoise_configured_()) {
-    const char *grade_s;
-    switch (this->grade_) {
-      case TOUCH_PAD_DENOISE_BIT12:
-        grade_s = "BIT12";
-        break;
-      case TOUCH_PAD_DENOISE_BIT10:
-        grade_s = "BIT10";
-        break;
-      case TOUCH_PAD_DENOISE_BIT8:
-        grade_s = "BIT8";
-        break;
-      case TOUCH_PAD_DENOISE_BIT4:
-        grade_s = "BIT4";
-        break;
-      default:
-        grade_s = "UNKNOWN";
-        break;
-    }
-    ESP_LOGCONFIG(TAG, "  Denoise grade: %s", grade_s);
-
-    const char *cap_level_s;
-    switch (this->cap_level_) {
-      case TOUCH_PAD_DENOISE_CAP_L0:
-        cap_level_s = "L0";
-        break;
-      case TOUCH_PAD_DENOISE_CAP_L1:
-        cap_level_s = "L1";
-        break;
-      case TOUCH_PAD_DENOISE_CAP_L2:
-        cap_level_s = "L2";
-        break;
-      case TOUCH_PAD_DENOISE_CAP_L3:
-        cap_level_s = "L3";
-        break;
-      case TOUCH_PAD_DENOISE_CAP_L4:
-        cap_level_s = "L4";
-        break;
-      case TOUCH_PAD_DENOISE_CAP_L5:
-        cap_level_s = "L5";
-        break;
-      case TOUCH_PAD_DENOISE_CAP_L6:
-        cap_level_s = "L6";
-        break;
-      case TOUCH_PAD_DENOISE_CAP_L7:
-        cap_level_s = "L7";
-        break;
-      default:
-        cap_level_s = "UNKNOWN";
-        break;
-    }
-    ESP_LOGCONFIG(TAG, "  Denoise capacitance level: %s", cap_level_s);
-  }
-#else
-  if (this->iir_filter_enabled_()) {
-    ESP_LOGCONFIG(TAG, "    IIR Filter: %" PRIu32 "ms", this->iir_filter_);
-  } else {
-    ESP_LOGCONFIG(TAG, "  IIR Filter DISABLED");
+#if SOC_TOUCH_SUPPORT_DENOISE_CHAN
+  if (this->denoise_configured_) {
+    static constexpr const char *GRADE_STRS[] = {"BIT12", "BIT10", "BIT8", "BIT4"};
+    static constexpr const char *CAP_STRS[] = {"5pF", "6.4pF", "7.8pF", "9.2pF", "10.6pF", "12pF", "13.4pF", "14.8pF"};
+    const char *grade_s = lookup_str(GRADE_STRS, this->denoise_grade_);
+    const char *cap_s = lookup_str(CAP_STRS, this->denoise_cap_level_);
+    ESP_LOGCONFIG(TAG,
+                  "  Denoise grade: %s\n"
+                  "  Denoise capacitance level: %s",
+                  grade_s, cap_s);
   }
 #endif
+#endif  // !USE_ESP32_VARIANT_ESP32
 
   if (this->setup_mode_) {
     ESP_LOGCONFIG(TAG, "  Setup Mode ENABLED");
@@ -267,89 +303,203 @@ void ESP32TouchComponent::dump_config() {
 
   for (auto *child : this->children_) {
     LOG_BINARY_SENSOR("  ", "Touch Pad", child);
-    ESP_LOGCONFIG(TAG, "    Pad: T%" PRIu32, (uint32_t) child->get_touch_pad());
-    ESP_LOGCONFIG(TAG, "    Threshold: %" PRIu32, child->get_threshold());
+    ESP_LOGCONFIG(TAG,
+                  "    Channel: %d\n"
+                  "    Threshold: %" PRIu32 "\n"
+                  "    Benchmark: %" PRIu32,
+                  child->channel_id_, child->threshold_, child->benchmark_);
   }
-}
-
-uint32_t ESP32TouchComponent::component_touch_pad_read(touch_pad_t tp) {
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
-  uint32_t value = 0;
-  if (this->filter_configured_()) {
-    touch_pad_filter_read_smooth(tp, &value);
-  } else {
-    touch_pad_read_raw_data(tp, &value);
-  }
-#else
-  uint16_t value = 0;
-  if (this->iir_filter_enabled_()) {
-    touch_pad_read_filtered(tp, &value);
-  } else {
-    touch_pad_read(tp, &value);
-  }
-#endif
-  return value;
 }
 
 void ESP32TouchComponent::loop() {
   const uint32_t now = App.get_loop_component_start_time();
-  bool should_print = this->setup_mode_ && now - this->setup_mode_last_log_print_ > 250;
-  for (auto *child : this->children_) {
-    child->value_ = this->component_touch_pad_read(child->get_touch_pad());
-#if !(defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3))
-    child->publish_state(child->value_ < child->get_threshold());
-#else
-    child->publish_state(child->value_ > child->get_threshold());
+
+  // In setup mode, periodically log all pad values
+  this->process_setup_mode_logging_(now);
+
+  // Process queued touch events from callbacks
+  TouchEvent event;
+  while (xQueueReceive(this->touch_queue_, &event, 0) == pdTRUE) {
+    for (auto *child : this->children_) {
+      if (child->get_channel_id() != event.chan_id) {
+        continue;
+      }
+
+      // Read current smooth value
+      uint32_t value = 0;
+      touch_channel_read_data(child->chan_handle_, TOUCH_CHAN_DATA_TYPE_SMOOTH, &value);
+      child->value_ = value;
+
+#ifndef USE_ESP32_VARIANT_ESP32
+      // V2/V3: also read benchmark
+      uint32_t benchmark = 0;
+      touch_channel_read_data(child->chan_handle_, TOUCH_CHAN_DATA_TYPE_BENCHMARK, &benchmark);
+      child->benchmark_ = benchmark;
 #endif
 
-    if (should_print) {
-      ESP_LOGD(TAG, "Touch Pad '%s' (T%" PRIu32 "): %" PRIu32, child->get_name().c_str(),
-               (uint32_t) child->get_touch_pad(), child->value_);
-    }
+      bool new_state = event.is_active;
 
-    App.feed_wdt();
+      if (new_state != child->last_state_) {
+        child->initial_state_published_ = true;
+        child->last_state_ = new_state;
+        child->publish_state(new_state);
+#ifdef USE_ESP32_VARIANT_ESP32
+        ESP_LOGV(TAG, "Touch Pad '%s' state: %s (value: %" PRIu32 ", threshold: %" PRIu32 ")",
+                 child->get_name().c_str(), ONOFF(new_state), value, child->get_threshold());
+#else
+        if (new_state) {
+          ESP_LOGV(TAG, "Touch Pad '%s' state: ON (value: %" PRIu32 ", benchmark: %" PRIu32 ", threshold: %" PRIu32 ")",
+                   child->get_name().c_str(), value, benchmark, child->get_threshold());
+        } else {
+          ESP_LOGV(TAG, "Touch Pad '%s' state: OFF", child->get_name().c_str());
+        }
+#endif
+      }
+      break;
+    }
   }
 
-  if (should_print) {
-    // Avoid spamming logs
-    this->setup_mode_last_log_print_ = now;
+  // Publish initial OFF state for sensors that haven't received events yet
+  bool all_initial_published = true;
+  for (auto *child : this->children_) {
+    this->publish_initial_state_if_needed_(child, now);
+    if (!child->initial_state_published_) {
+      all_initial_published = false;
+    }
+  }
+
+  // Only disable loop once all initial states are published
+  if (!this->setup_mode_ && all_initial_published) {
+    this->disable_loop();
   }
 }
 
 void ESP32TouchComponent::on_shutdown() {
-  bool is_wakeup_source = false;
+  if (this->sens_handle_ == nullptr)
+    return;
 
-#if !(defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3))
-  if (this->iir_filter_enabled_()) {
-    touch_pad_filter_stop();
-    touch_pad_filter_delete();
-  }
-#endif
+  touch_sensor_stop_continuous_scanning(this->sens_handle_);
+  touch_sensor_disable(this->sens_handle_);
 
   for (auto *child : this->children_) {
-    if (child->get_wakeup_threshold() != 0) {
-      if (!is_wakeup_source) {
-        is_wakeup_source = true;
-        // Touch sensor FSM mode must be 'TOUCH_FSM_MODE_TIMER' to use it to wake-up.
-        touch_pad_set_fsm_mode(TOUCH_FSM_MODE_TIMER);
-      }
-
-#if !(defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3))
-      // No filter available when using as wake-up source.
-      touch_pad_config(child->get_touch_pad(), child->get_wakeup_threshold());
-#endif
+    if (child->chan_handle_ != nullptr) {
+      touch_sensor_del_channel(child->chan_handle_);
+      child->chan_handle_ = nullptr;
     }
   }
 
-  if (!is_wakeup_source) {
-    touch_pad_deinit();
+  touch_sensor_del_controller(this->sens_handle_);
+  this->sens_handle_ = nullptr;
+
+  this->cleanup_touch_queue_();
+}
+
+bool ESP32TouchComponent::create_touch_queue_() {
+  size_t queue_size = this->children_.size() * 4;
+  if (queue_size < 8)
+    queue_size = 8;
+
+  this->touch_queue_ = xQueueCreate(queue_size, sizeof(TouchEvent));
+
+  if (this->touch_queue_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to create touch event queue of size %" PRIu32, (uint32_t) queue_size);
+    this->mark_failed();
+    return false;
+  }
+  return true;
+}
+
+void ESP32TouchComponent::cleanup_touch_queue_() {
+  if (this->touch_queue_) {
+    vQueueDelete(this->touch_queue_);
+    this->touch_queue_ = nullptr;
   }
 }
 
-ESP32TouchBinarySensor::ESP32TouchBinarySensor(touch_pad_t touch_pad, uint32_t threshold, uint32_t wakeup_threshold)
-    : touch_pad_(touch_pad), threshold_(threshold), wakeup_threshold_(wakeup_threshold) {}
+void ESP32TouchComponent::configure_wakeup_pads_() {
+#if SOC_TOUCH_SUPPORT_SLEEP_WAKEUP
+  bool has_wakeup = false;
+  for (auto *child : this->children_) {
+    if (child->get_wakeup_threshold() != 0) {
+      has_wakeup = true;
+      break;
+    }
+  }
 
-}  // namespace esp32_touch
-}  // namespace esphome
+  if (!has_wakeup)
+    return;
 
+#ifdef USE_ESP32_VARIANT_ESP32
+  // V1: Simple sleep config - threshold is set via channel config's abs_active_thresh
+  touch_sleep_config_t sleep_cfg = TOUCH_SENSOR_DEFAULT_DSLP_CONFIG();
+  sleep_cfg.deep_slp_sens_cfg = nullptr;
+  esp_err_t err = touch_sensor_config_sleep_wakeup(this->sens_handle_, &sleep_cfg);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "Failed to configure touch sleep wakeup: %s", esp_err_to_name(err));
+  }
+#else
+  // V2/V3: Need to specify a deep sleep channel and threshold
+  touch_channel_handle_t wakeup_chan = nullptr;
+  uint32_t wakeup_thresh = 0;
+  for (auto *child : this->children_) {
+    if (child->get_wakeup_threshold() != 0) {
+      wakeup_chan = child->chan_handle_;
+      wakeup_thresh = child->get_wakeup_threshold();
+      break;  // Only one deep sleep wakeup channel is supported
+    }
+  }
+
+  if (wakeup_chan != nullptr) {
+    touch_sleep_config_t sleep_cfg = TOUCH_SENSOR_DEFAULT_DSLP_CONFIG();
+    sleep_cfg.deep_slp_chan = wakeup_chan;
+    sleep_cfg.deep_slp_thresh[0] = wakeup_thresh;
+    sleep_cfg.deep_slp_sens_cfg = nullptr;
+    esp_err_t err = touch_sensor_config_sleep_wakeup(this->sens_handle_, &sleep_cfg);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "Failed to configure touch sleep wakeup: %s", esp_err_to_name(err));
+    }
+  }
 #endif
+#endif  // SOC_TOUCH_SUPPORT_SLEEP_WAKEUP
+}
+
+void ESP32TouchComponent::process_setup_mode_logging_(uint32_t now) {
+  if (this->setup_mode_ && now - this->setup_mode_last_log_print_ > SETUP_MODE_LOG_INTERVAL_MS) {
+    for (auto *child : this->children_) {
+      if (child->chan_handle_ == nullptr)
+        continue;
+
+      uint32_t smooth_value = 0;
+      touch_channel_read_data(child->chan_handle_, TOUCH_CHAN_DATA_TYPE_SMOOTH, &smooth_value);
+      child->value_ = smooth_value;
+
+#ifdef USE_ESP32_VARIANT_ESP32
+      ESP_LOGD(TAG, "Touch Pad '%s' (Ch%d): %" PRIu32, child->get_name().c_str(), child->channel_id_, smooth_value);
+#else
+      uint32_t benchmark = 0;
+      touch_channel_read_data(child->chan_handle_, TOUCH_CHAN_DATA_TYPE_BENCHMARK, &benchmark);
+      child->benchmark_ = benchmark;
+      int32_t difference = static_cast<int32_t>(smooth_value) - static_cast<int32_t>(benchmark);
+      ESP_LOGD(TAG,
+               "Touch Pad '%s' (Ch%d): value=%" PRIu32 ", benchmark=%" PRIu32 ", difference=%" PRId32
+               " (set threshold < %" PRId32 " to detect touch)",
+               child->get_name().c_str(), child->channel_id_, smooth_value, benchmark, difference, difference);
+#endif
+    }
+    this->setup_mode_last_log_print_ = now;
+  }
+}
+
+void ESP32TouchComponent::publish_initial_state_if_needed_(ESP32TouchBinarySensor *child, uint32_t now) {
+  if (!child->initial_state_published_) {
+    if (now > INITIAL_STATE_DELAY_MS) {
+      child->publish_initial_state(false);
+      child->initial_state_published_ = true;
+      ESP_LOGV(TAG, "Touch Pad '%s' state: OFF (initial)", child->get_name().c_str());
+    }
+  }
+}
+
+}  // namespace esphome::esp32_touch
+
+#endif  // USE_ESP32

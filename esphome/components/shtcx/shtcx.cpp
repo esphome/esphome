@@ -2,30 +2,28 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
-namespace esphome {
-namespace shtcx {
+namespace esphome::shtcx {
 
 static const char *const TAG = "shtcx";
 
-static const uint16_t SHTCX_COMMAND_SLEEP = 0xB098;
-static const uint16_t SHTCX_COMMAND_WAKEUP = 0x3517;
-static const uint16_t SHTCX_COMMAND_READ_ID_REGISTER = 0xEFC8;
-static const uint16_t SHTCX_COMMAND_SOFT_RESET = 0x805D;
-static const uint16_t SHTCX_COMMAND_POLLING_H = 0x7866;
+static constexpr uint16_t SHTCX_COMMAND_SLEEP = 0xB098;
+static constexpr uint16_t SHTCX_COMMAND_WAKEUP = 0x3517;
+static constexpr uint16_t SHTCX_COMMAND_READ_ID_REGISTER = 0xEFC8;
+static constexpr uint16_t SHTCX_COMMAND_SOFT_RESET = 0x805D;
+static constexpr uint16_t SHTCX_COMMAND_POLLING_H = 0x7866;
 
-inline const char *to_string(SHTCXType type) {
+static const LogString *shtcx_type_to_string(SHTCXType type) {
   switch (type) {
     case SHTCX_TYPE_SHTC3:
-      return "SHTC3";
+      return LOG_STR("SHTC3");
     case SHTCX_TYPE_SHTC1:
-      return "SHTC1";
+      return LOG_STR("SHTC1");
     default:
-      return "UNKNOWN";
+      return LOG_STR("UNKNOWN");
   }
 }
 
 void SHTCXComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->wake_up();
   this->soft_reset();
 
@@ -50,8 +48,10 @@ void SHTCXComponent::setup() {
 }
 
 void SHTCXComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "SHTCx:");
-  ESP_LOGCONFIG(TAG, "  Model: %s (%04x)", to_string(this->type_), this->sensor_id_);
+  ESP_LOGCONFIG(TAG,
+                "SHTCx:\n"
+                "  Model: %s (%04x)",
+                LOG_STR_ARG(shtcx_type_to_string(this->type_)), this->sensor_id_);
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -61,8 +61,6 @@ void SHTCXComponent::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
-
-float SHTCXComponent::get_setup_priority() const { return setup_priority::DATA; }
 
 void SHTCXComponent::update() {
   if (this->status_has_warning()) {
@@ -92,8 +90,6 @@ void SHTCXComponent::update() {
     } else {
       temperature = 175.0f * float(raw_data[0]) / 65536.0f - 45.0f;
       humidity = 100.0f * float(raw_data[1]) / 65536.0f;
-
-      ESP_LOGD(TAG, "Temperature=%.2f°C Humidity=%.2f%%", temperature, humidity);
     }
     if (this->temperature_sensor_ != nullptr)
       this->temperature_sensor_->publish_state(temperature);
@@ -118,5 +114,4 @@ void SHTCXComponent::wake_up() {
   delayMicroseconds(200);
 }
 
-}  // namespace shtcx
-}  // namespace esphome
+}  // namespace esphome::shtcx

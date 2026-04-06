@@ -4,8 +4,7 @@
 
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace template_ {
+namespace esphome::template_ {
 
 static const char *const TAG = "template.datetime";
 
@@ -19,8 +18,7 @@ void TemplateDateTime::setup() {
     state = this->initial_value_;
   } else {
     datetime::DateTimeEntityRestoreState temp;
-    this->pref_ = global_preferences->make_preference<datetime::DateTimeEntityRestoreState>(194434090U ^
-                                                                                            this->get_object_id_hash());
+    this->pref_ = this->make_entity_preference<datetime::DateTimeEntityRestoreState>(194434090U);
     if (this->pref_.load(&temp)) {
       temp.apply(this);
       return;
@@ -43,93 +41,98 @@ void TemplateDateTime::update() {
   if (!this->f_.has_value())
     return;
 
-  auto val = (*this->f_)();
-  if (!val.has_value())
-    return;
-
-  this->year_ = val->year;
-  this->month_ = val->month;
-  this->day_ = val->day_of_month;
-  this->hour_ = val->hour;
-  this->minute_ = val->minute;
-  this->second_ = val->second;
-  this->publish_state();
+  auto val = this->f_();
+  if (val.has_value()) {
+    this->year_ = val->year;
+    this->month_ = val->month;
+    this->day_ = val->day_of_month;
+    this->hour_ = val->hour;
+    this->minute_ = val->minute;
+    this->second_ = val->second;
+    this->publish_state();
+  }
 }
 
 void TemplateDateTime::control(const datetime::DateTimeCall &call) {
-  bool has_year = call.get_year().has_value();
-  bool has_month = call.get_month().has_value();
-  bool has_day = call.get_day().has_value();
-  bool has_hour = call.get_hour().has_value();
-  bool has_minute = call.get_minute().has_value();
-  bool has_second = call.get_second().has_value();
+  auto opt_year = call.get_year();
+  auto opt_month = call.get_month();
+  auto opt_day = call.get_day();
+  auto opt_hour = call.get_hour();
+  auto opt_minute = call.get_minute();
+  auto opt_second = call.get_second();
+  bool has_year = opt_year.has_value();
+  bool has_month = opt_month.has_value();
+  bool has_day = opt_day.has_value();
+  bool has_hour = opt_hour.has_value();
+  bool has_minute = opt_minute.has_value();
+  bool has_second = opt_second.has_value();
 
   ESPTime value = {};
   if (has_year)
-    value.year = *call.get_year();
+    value.year = *opt_year;
 
   if (has_month)
-    value.month = *call.get_month();
+    value.month = *opt_month;
 
   if (has_day)
-    value.day_of_month = *call.get_day();
+    value.day_of_month = *opt_day;
 
   if (has_hour)
-    value.hour = *call.get_hour();
+    value.hour = *opt_hour;
 
   if (has_minute)
-    value.minute = *call.get_minute();
+    value.minute = *opt_minute;
 
   if (has_second)
-    value.second = *call.get_second();
+    value.second = *opt_second;
 
-  this->set_trigger_->trigger(value);
+  this->set_trigger_.trigger(value);
 
   if (this->optimistic_) {
     if (has_year)
-      this->year_ = *call.get_year();
+      this->year_ = *opt_year;
     if (has_month)
-      this->month_ = *call.get_month();
+      this->month_ = *opt_month;
     if (has_day)
-      this->day_ = *call.get_day();
+      this->day_ = *opt_day;
     if (has_hour)
-      this->hour_ = *call.get_hour();
+      this->hour_ = *opt_hour;
     if (has_minute)
-      this->minute_ = *call.get_minute();
+      this->minute_ = *opt_minute;
     if (has_second)
-      this->second_ = *call.get_second();
+      this->second_ = *opt_second;
     this->publish_state();
   }
 
   if (this->restore_value_) {
     datetime::DateTimeEntityRestoreState temp = {};
     if (has_year) {
-      temp.year = *call.get_year();
+      temp.year = *opt_year;
     } else {
       temp.year = this->year_;
     }
     if (has_month) {
-      temp.month = *call.get_month();
+      temp.month = *opt_month;
     } else {
       temp.month = this->month_;
     }
     if (has_day) {
-      temp.day = *call.get_day();
+      temp.day = *opt_day;
     } else {
       temp.day = this->day_;
     }
     if (has_hour) {
-      temp.hour = *call.get_hour();
+      temp.hour = *opt_hour;
     } else {
       temp.hour = this->hour_;
     }
     if (has_minute) {
-      temp.minute = *call.get_minute();
+      temp.minute = *opt_minute;
     } else {
       temp.minute = this->minute_;
     }
     if (has_second) {
-      temp.second = *call.get_second();
+      temp.second = *opt_second;
     } else {
       temp.second = this->second_;
     }
@@ -144,7 +147,6 @@ void TemplateDateTime::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-}  // namespace template_
-}  // namespace esphome
+}  // namespace esphome::template_
 
 #endif  // USE_DATETIME_DATETIME

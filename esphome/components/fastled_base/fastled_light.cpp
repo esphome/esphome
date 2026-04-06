@@ -9,7 +9,6 @@ namespace fastled_base {
 static const char *const TAG = "fastled";
 
 void FastLEDLightOutput::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   this->controller_->init();
   this->controller_->setLeds(this->leds_, this->num_leds_);
   this->effect_data_ = new uint8_t[this->num_leds_];  // NOLINT
@@ -22,12 +21,13 @@ void FastLEDLightOutput::dump_config() {
                 "FastLED light:\n"
                 "  Num LEDs: %u\n"
                 "  Max refresh rate: %u",
-                this->num_leds_, *this->max_refresh_rate_);
+                this->num_leds_, this->max_refresh_rate_.value_or(0));
 }
 void FastLEDLightOutput::write_state(light::LightState *state) {
   // protect from refreshing too often
   uint32_t now = micros();
-  if (*this->max_refresh_rate_ != 0 && (now - this->last_refresh_) < *this->max_refresh_rate_) {
+  uint32_t max_rate = this->max_refresh_rate_.value_or(0);
+  if (max_rate != 0 && (now - this->last_refresh_) < max_rate) {
     // try again next loop iteration, so that this change won't get lost
     this->schedule_show();
     return;

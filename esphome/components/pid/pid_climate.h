@@ -28,7 +28,11 @@ class PIDClimate : public climate::Climate, public Component {
   void set_min_integral(float min_integral) { controller_.min_integral_ = min_integral; }
   void set_max_integral(float max_integral) { controller_.max_integral_ = max_integral; }
   void set_output_samples(int in) { controller_.output_samples_ = in; }
-  void set_derivative_samples(int in) { controller_.derivative_samples_ = in; }
+  void set_derivative_samples(int in) {
+    controller_.derivative_samples_ = in;
+    if (in > 1)  // No allocation needed when samples=1 (ring_buffer_average_ short-circuits)
+      controller_.derivative_window_.init(in);
+  }
 
   void set_threshold_low(float in) { controller_.threshold_low_ = in; }
   void set_threshold_high(float in) { controller_.threshold_high_ = in; }
@@ -38,6 +42,10 @@ class PIDClimate : public climate::Climate, public Component {
   void set_starting_integral_term(float in) { controller_.set_starting_integral_term(in); }
 
   void set_deadband_output_samples(int in) { controller_.deadband_output_samples_ = in; }
+  void init_output_buffer(int size) {
+    if (size > 1)  // No allocation needed when samples=1 (ring_buffer_average_ short-circuits)
+      controller_.output_window_.init(size);
+  }
 
   float get_output_value() const { return output_value_; }
   float get_error_value() const { return controller_.error_; }
@@ -64,8 +72,8 @@ class PIDClimate : public climate::Climate, public Component {
   // float get_deadband() const { return controller_.deadband; }
   // float get_proportional_deadband_multiplier() const { return controller_.proportional_deadband_multiplier; }
 
-  void add_on_pid_computed_callback(std::function<void()> &&callback) {
-    pid_computed_callback_.add(std::move(callback));
+  template<typename F> void add_on_pid_computed_callback(F &&callback) {
+    this->pid_computed_callback_.add(std::forward<F>(callback));
   }
   void set_default_target_temperature(float default_target_temperature) {
     default_target_temperature_ = default_target_temperature;
@@ -109,7 +117,7 @@ template<typename... Ts> class PIDAutotuneAction : public Action<Ts...> {
   void set_positive_output(float positive_output) { positive_output_ = positive_output; }
   void set_negative_output(float negative_output) { negative_output_ = negative_output; }
 
-  void play(Ts... x) {
+  void play(const Ts &...x) {
     auto tuner = make_unique<PIDAutotuner>();
     tuner->set_noiseband(this->noiseband_);
     tuner->set_output_negative(this->negative_output_);
@@ -128,7 +136,7 @@ template<typename... Ts> class PIDResetIntegralTermAction : public Action<Ts...>
  public:
   PIDResetIntegralTermAction(PIDClimate *parent) : parent_(parent) {}
 
-  void play(Ts... x) { this->parent_->reset_integral_term(); }
+  void play(const Ts &...x) { this->parent_->reset_integral_term(); }
 
  protected:
   PIDClimate *parent_;
@@ -138,7 +146,7 @@ template<typename... Ts> class PIDSetControlParametersAction : public Action<Ts.
  public:
   PIDSetControlParametersAction(PIDClimate *parent) : parent_(parent) {}
 
-  void play(Ts... x) {
+  void play(const Ts &...x) {
     auto kp = this->kp_.value(x...);
     auto ki = this->ki_.value(x...);
     auto kd = this->kd_.value(x...);

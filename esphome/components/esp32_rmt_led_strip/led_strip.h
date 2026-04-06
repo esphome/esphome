@@ -11,12 +11,7 @@
 #include <driver/gpio.h>
 #include <esp_err.h>
 #include <esp_idf_version.h>
-
-#if ESP_IDF_VERSION_MAJOR >= 5
 #include <driver/rmt_tx.h>
-#else
-#include <driver/rmt.h>
-#endif
 
 namespace esphome {
 namespace esp32_rmt_led_strip {
@@ -28,6 +23,12 @@ enum RGBOrder : uint8_t {
   ORDER_GBR,
   ORDER_BGR,
   ORDER_BRG,
+};
+
+struct LedParams {
+  rmt_symbol_word_t bit0;
+  rmt_symbol_word_t bit1;
+  rmt_symbol_word_t reset;
 };
 
 class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
@@ -48,6 +49,7 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
   }
 
   void set_pin(uint8_t pin) { this->pin_ = pin; }
+  void set_inverted(bool inverted) { this->invert_out_ = inverted; }
   void set_num_leds(uint16_t num_leds) { this->num_leds_ = num_leds; }
   void set_is_rgbw(bool is_rgbw) { this->is_rgbw_ = is_rgbw; }
   void set_is_wrgb(bool is_wrgb) { this->is_wrgb_ = is_wrgb; }
@@ -61,11 +63,7 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
                       uint32_t reset_time_high, uint32_t reset_time_low);
 
   void set_rgb_order(RGBOrder rgb_order) { this->rgb_order_ = rgb_order; }
-#if ESP_IDF_VERSION_MAJOR >= 5
   void set_rmt_symbols(uint32_t rmt_symbols) { this->rmt_symbols_ = rmt_symbols; }
-#else
-  void set_rmt_channel(rmt_channel_t channel) { this->channel_ = channel; }
-#endif
 
   void clear_effect_data() override {
     for (int i = 0; i < this->size(); i++)
@@ -81,24 +79,22 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
 
   uint8_t *buf_{nullptr};
   uint8_t *effect_data_{nullptr};
-#if ESP_IDF_VERSION_MAJOR >= 5
+  LedParams params_;
   rmt_channel_handle_t channel_{nullptr};
   rmt_encoder_handle_t encoder_{nullptr};
-  rmt_symbol_word_t *rmt_buf_{nullptr};
-  rmt_symbol_word_t bit0_, bit1_, reset_;
-  uint32_t rmt_symbols_{48};
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 3, 0)
+  uint8_t *rmt_buf_{nullptr};
 #else
-  rmt_item32_t *rmt_buf_{nullptr};
-  rmt_item32_t bit0_, bit1_, reset_;
-  rmt_channel_t channel_{RMT_CHANNEL_0};
+  rmt_symbol_word_t *rmt_buf_{nullptr};
 #endif
-
+  uint32_t rmt_symbols_{48};
   uint8_t pin_;
   uint16_t num_leds_;
   bool is_rgbw_{false};
   bool is_wrgb_{false};
   bool use_dma_{false};
   bool use_psram_{false};
+  bool invert_out_{false};
 
   RGBOrder rgb_order_{ORDER_RGB};
 

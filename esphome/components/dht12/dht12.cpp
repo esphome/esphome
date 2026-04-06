@@ -34,7 +34,6 @@ void DHT12Component::update() {
   this->status_clear_warning();
 }
 void DHT12Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t data[5];
   if (!this->read_data_(data)) {
     this->mark_failed();
@@ -50,7 +49,7 @@ void DHT12Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
-float DHT12Component::get_setup_priority() const { return setup_priority::DATA; }
+
 bool DHT12Component::read_data_(uint8_t *data) {
   if (!this->read_bytes(0, data, 5)) {
     ESP_LOGW(TAG, "Updating DHT12 failed!");

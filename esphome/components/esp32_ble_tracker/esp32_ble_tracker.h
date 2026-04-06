@@ -6,11 +6,18 @@
 #include "esphome/core/helpers.h"
 
 #include <array>
-#include <atomic>
+#include <span>
 #include <string>
 #include <vector>
 
 #ifdef USE_ESP32
+
+#include <esp_idf_version.h>
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+// mbedtls 4.0 (IDF 6.0) removed the legacy mbedtls AES API.
+// Use the PSA Crypto API instead.
+#define USE_BLE_TRACKER_PSA_AES
+#endif
 
 #include <esp_bt_defs.h>
 #include <esp_gap_ble_api.h>
@@ -21,9 +28,13 @@
 
 #include "esphome/components/esp32_ble/ble.h"
 #include "esphome/components/esp32_ble/ble_uuid.h"
+#include "esphome/components/esp32_ble/ble_scan_result.h"
 
-namespace esphome {
-namespace esp32_ble_tracker {
+#ifdef USE_OTA_STATE_LISTENER
+#include "esphome/components/ota/ota_backend.h"
+#endif
+
+namespace esphome::esp32_ble_tracker {
 
 using namespace esp32_ble;
 
@@ -34,11 +45,14 @@ enum AdvertisementParserType {
   RAW_ADVERTISEMENTS,
 };
 
+#ifdef USE_ESP32_BLE_UUID
 struct ServiceData {
   ESPBTUUID uuid;
   adv_data_t data;
 };
+#endif
 
+#ifdef USE_ESP32_BLE_DEVICE
 class ESPBLEiBeacon {
  public:
   ESPBLEiBeacon() { memset(&this->beacon_data_, 0, sizeof(this->beacon_data_)); }
@@ -67,6 +81,12 @@ class ESPBTDevice {
 
   std::string address_str() const;
 
+  /// Format MAC address into provided buffer, returns pointer to buffer for convenience
+  const char *address_str_to(std::span<char, MAC_ADDRESS_PRETTY_BUFFER_SIZE> buf) const {
+    format_mac_addr_upper(this->address_, buf.data());
+    return buf.data();
+  }
+
   uint64_t address_uint64() const;
 
   const uint8_t *address() const { return address_; }
@@ -85,13 +105,16 @@ class ESPBTDevice {
 
   const std::vector<ServiceData> &get_service_datas() const { return service_datas_; }
 
+  // Exposed through a function for use in lambdas
+  const BLEScanResult &get_scan_result() const { return *scan_result_; }
+
   bool resolve_irk(const uint8_t *irk) const;
 
   optional<ESPBLEiBeacon> get_ibeacon() const {
     for (auto &it : this->manufacturer_datas_) {
       auto res = ESPBLEiBeacon::from_manufacturer_data(it);
       if (res.has_value())
-        return *res;
+        return res;
     }
     return {};
   }
@@ -111,14 +134,18 @@ class ESPBTDevice {
   std::vector<ESPBTUUID> service_uuids_{};
   std::vector<ServiceData> manufacturer_datas_{};
   std::vector<ServiceData> service_datas_{};
+  const BLEScanResult *scan_result_{nullptr};
 };
+#endif  // USE_ESP32_BLE_DEVICE
 
 class ESP32BLETracker;
 
 class ESPBTDeviceListener {
  public:
   virtual void on_scan_end() {}
+#ifdef USE_ESP32_BLE_DEVICE
   virtual bool parse_device(const ESPBTDevice &device) = 0;
+#endif
   virtual bool parse_devices(const BLEScanResult *scan_results, size_t count) { return false; };
   virtual AdvertisementParserType get_advertisement_parser_type() {
     return AdvertisementParserType::PARSED_ADVERTISEMENTS;
@@ -129,19 +156,27 @@ class ESPBTDeviceListener {
   ESP32BLETracker *parent_{nullptr};
 };
 
-enum class ClientState {
+struct ClientStateCounts {
+  uint8_t connecting = 0;
+  uint8_t discovered = 0;
+  uint8_t disconnecting = 0;
+
+  bool operator==(const ClientStateCounts &other) const {
+    return connecting == other.connecting && discovered == other.discovered && disconnecting == other.disconnecting;
+  }
+
+  bool operator!=(const ClientStateCounts &other) const { return !(*this == other); }
+};
+
+enum class ClientState : uint8_t {
   // Connection is allocated
   INIT,
   // Client is disconnecting
   DISCONNECTING,
   // Connection is idle, no device detected.
   IDLE,
-  // Searching for device.
-  SEARCHING,
   // Device advertisement found.
   DISCOVERED,
-  // Device is discovered and the scanner is stopped
-  READY_TO_CONNECT,
   // Connection in progress.
   CONNECTING,
   // Initial connection established.
@@ -151,21 +186,32 @@ enum class ClientState {
 };
 
 enum class ScannerState {
-  // Scanner is idle, init state, set from the main loop when processing STOPPED
+  // Scanner is idle, init state
   IDLE,
-  // Scanner is starting, set from the main loop only
+  // Scanner is starting
   STARTING,
-  // Scanner is running, set from the ESP callback only
+  // Scanner is running
   RUNNING,
-  // Scanner failed to start, set from the ESP callback only
+  // Scanner failed to start
   FAILED,
-  // Scanner is stopping, set from the main loop only
+  // Scanner is stopping
   STOPPING,
-  // Scanner is stopped, set from the ESP callback only
-  STOPPED,
 };
 
-enum class ConnectionType {
+/** Listener interface for BLE scanner state changes.
+ *
+ * Components can implement this interface to receive scanner state updates
+ * without the overhead of std::function callbacks.
+ */
+class BLEScannerStateListener {
+ public:
+  virtual void on_scanner_state(ScannerState state) = 0;
+};
+
+// Helper function to convert ClientState to string
+const char *client_state_to_string(ClientState state);
+
+enum class ConnectionType : uint8_t {
   // The default connection type, we hold all the services in ram
   // for the duration of the connection.
   V1,
@@ -177,6 +223,19 @@ enum class ConnectionType {
   V3_WITHOUT_CACHE
 };
 
+/// Base class for BLE GATT clients that connect to remote devices.
+///
+/// State Change Tracking Design:
+/// -----------------------------
+/// ESP32BLETracker::loop() needs to know when client states change to avoid
+/// expensive polling. Rather than checking all clients every iteration (~7000/min),
+/// we use a version counter owned by ESP32BLETracker that clients increment on
+/// state changes. The tracker compares versions to skip work when nothing changed.
+///
+/// Ownership: ESP32BLETracker owns state_version_. Clients hold a non-owning
+/// pointer (tracker_state_version_) set during register_client(). Clients
+/// increment the counter through this pointer when their state changes.
+/// The pointer may be null if the client is not registered with a tracker.
 class ESPBTClient : public ESPBTDeviceListener {
  public:
   virtual bool gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
@@ -186,29 +245,55 @@ class ESPBTClient : public ESPBTDeviceListener {
   virtual void disconnect() = 0;
   bool disconnect_pending() const { return this->want_disconnect_; }
   void cancel_pending_disconnect() { this->want_disconnect_ = false; }
+
+  /// Set the client state with IDLE handling (clears want_disconnect_).
+  /// Notifies the tracker of state change for loop optimization.
   virtual void set_state(ClientState st) {
-    this->state_ = st;
+    this->set_state_internal_(st);
     if (st == ClientState::IDLE) {
       this->want_disconnect_ = false;
     }
   }
-  ClientState state() const { return state_; }
-  int app_id;
+  ClientState state() const { return this->state_; }
+
+  /// Called by ESP32BLETracker::register_client() to enable state change notifications.
+  /// The pointer must remain valid for the lifetime of the client (guaranteed since
+  /// ESP32BLETracker is a singleton that outlives all clients).
+  void set_tracker_state_version(uint8_t *version) { this->tracker_state_version_ = version; }
+
+  // Memory optimized layout
+  uint8_t app_id;  // App IDs are small integers assigned sequentially
 
  protected:
-  ClientState state_{ClientState::INIT};
+  /// Set state without IDLE handling - use for direct state transitions.
+  /// Increments the tracker's state version counter to signal that loop()
+  /// should do full processing on the next iteration.
+  void set_state_internal_(ClientState st) {
+    this->state_ = st;
+    // Notify tracker that state changed (tracker_state_version_ is owned by ESP32BLETracker)
+    if (this->tracker_state_version_ != nullptr) {
+      (*this->tracker_state_version_)++;
+    }
+  }
+
   // want_disconnect_ is set to true when a disconnect is requested
   // while the client is connecting. This is used to disconnect the
   // client as soon as we get the connection id (conn_id_) from the
   // ESP_GATTC_OPEN_EVT event.
   bool want_disconnect_{false};
+
+ private:
+  ClientState state_{ClientState::INIT};
+  /// Non-owning pointer to ESP32BLETracker::state_version_. When this client's
+  /// state changes, we increment the tracker's counter to signal that loop()
+  /// should perform full processing. Null if client not registered with tracker.
+  uint8_t *tracker_state_version_{nullptr};
 };
 
 class ESP32BLETracker : public Component,
-                        public GAPEventHandler,
-                        public GAPScanEventHandler,
-                        public GATTcEventHandler,
-                        public BLEStatusEventHandler,
+#ifdef USE_OTA_STATE_LISTENER
+                        public ota::OTAGlobalStateListener,
+#endif
                         public Parented<ESP32BLE> {
  public:
   void set_scan_duration(uint32_t scan_duration) { scan_duration_ = scan_duration; }
@@ -229,19 +314,25 @@ class ESP32BLETracker : public Component,
   void register_client(ESPBTClient *client);
   void recalculate_advertisement_parser_types();
 
+#ifdef USE_ESP32_BLE_DEVICE
   void print_bt_device_info(const ESPBTDevice &device);
+#endif
 
   void start_scan();
   void stop_scan();
 
-  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                           esp_ble_gattc_cb_param_t *param) override;
-  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
-  void gap_scan_event_handler(const BLEScanResult &scan_result) override;
-  void ble_before_disabled_event_handler() override;
+  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
+  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
+  void gap_scan_event_handler(const BLEScanResult &scan_result);
+  void ble_before_disabled_event_handler();
 
-  void add_scanner_state_callback(std::function<void(ScannerState)> &&callback) {
-    this->scanner_state_callbacks_.add(std::move(callback));
+#ifdef USE_OTA_STATE_LISTENER
+  void on_ota_global_state(ota::OTAState state, float progress, uint8_t error, ota::OTAComponent *comp) override;
+#endif
+
+  /// Add a listener for scanner state changes
+  void add_scanner_state_listener(BLEScannerStateListener *listener) {
+    this->scanner_state_listeners_.push_back(listener);
   }
   ScannerState get_scanner_state() const { return this->scanner_state_; }
 
@@ -249,8 +340,6 @@ class ESP32BLETracker : public Component,
   void stop_scan_();
   /// Start a single scan by setting up the parameters and doing some esp-idf calls.
   void start_scan_(bool first);
-  /// Called when a scan ends
-  void end_of_scan_();
   /// Called when a `ESP_GAP_BLE_SCAN_RESULT_EVT` event is received.
   void gap_scan_result_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param);
   /// Called when a `ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT` event is received.
@@ -261,53 +350,111 @@ class ESP32BLETracker : public Component,
   void gap_scan_stop_complete_(const esp_ble_gap_cb_param_t::ble_scan_stop_cmpl_evt_param &param);
   /// Called to set the scanner state. Will also call callbacks to let listeners know when state is changed.
   void set_scanner_state_(ScannerState state);
+  /// Common cleanup logic when transitioning scanner to IDLE state
+  void cleanup_scan_state_(bool is_stop_complete);
+  /// Process a single scan result immediately
+  void process_scan_result_(const BLEScanResult &scan_result);
+  /// Handle scanner failure states
+  void handle_scanner_failure_();
+  /// Try to promote discovered clients to ready to connect
+  void try_promote_discovered_clients_();
+  /// Convert scanner state enum to string for logging
+  const char *scanner_state_to_string_(ScannerState state) const;
+  /// Log an unexpected scanner state
+  void log_unexpected_state_(const char *operation, ScannerState expected_state) const;
+#ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
+  /// Update BLE coexistence preference
+  void update_coex_preference_(bool force_ble);
+#endif
+  /// Count clients in each state
+  ClientStateCounts count_client_states_() const {
+    ClientStateCounts counts;
+#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
+    for (auto *client : this->clients_) {
+      switch (client->state()) {
+        case ClientState::DISCONNECTING:
+          counts.disconnecting++;
+          break;
+        case ClientState::DISCOVERED:
+          counts.discovered++;
+          break;
+        case ClientState::CONNECTING:
+          counts.connecting++;
+          break;
+        default:
+          break;
+      }
+    }
+#endif
+    return counts;
+  }
 
-  int app_id_{0};
-
+  // Group 1: Large objects (12+ bytes) - vectors
+#ifdef ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT
+  StaticVector<ESPBTDeviceListener *, ESPHOME_ESP32_BLE_TRACKER_LISTENER_COUNT> listeners_;
+#endif
+#ifdef ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT
+  StaticVector<ESPBTClient *, ESPHOME_ESP32_BLE_TRACKER_CLIENT_COUNT> clients_;
+#endif
+  std::vector<BLEScannerStateListener *> scanner_state_listeners_;
+#ifdef USE_ESP32_BLE_DEVICE
   /// Vector of addresses that have already been printed in print_bt_device_info
   std::vector<uint64_t> already_discovered_;
-  std::vector<ESPBTDeviceListener *> listeners_;
-  /// Client parameters.
-  std::vector<ESPBTClient *> clients_;
+#endif
+
+  // Group 2: Structs (aligned to 4 bytes)
   /// A structure holding the ESP BLE scan parameters.
   esp_ble_scan_params_t scan_params_;
+  ClientStateCounts client_state_counts_;
+
+  // Group 3: 4-byte types
   /// The interval in seconds to perform scans.
   uint32_t scan_duration_;
   uint32_t scan_interval_;
   uint32_t scan_window_;
+  esp_bt_status_t scan_start_failed_{ESP_BT_STATUS_SUCCESS};
+  esp_bt_status_t scan_set_param_failed_{ESP_BT_STATUS_SUCCESS};
+
+  // Group 4: 1-byte types (enums, uint8_t, bool)
+  uint8_t app_id_{0};
   uint8_t scan_start_fail_count_{0};
+  /// Version counter for loop() fast-path optimization. Incremented when:
+  /// - Scanner state changes (via set_scanner_state_())
+  /// - Any registered client's state changes (clients hold pointer to this counter)
+  /// Owned by this class; clients receive non-owning pointer via register_client().
+  /// When loop() sees state_version_ == last_processed_version_, it skips expensive
+  /// client state counting and takes the fast path (just timeout check + return).
+  uint8_t state_version_{0};
+  /// Last state_version_ value when loop() did full processing. Compared against
+  /// state_version_ to detect if any state changed since last iteration.
+  uint8_t last_processed_version_{0};
+  ScannerState scanner_state_{ScannerState::IDLE};
   bool scan_continuous_;
   bool scan_active_;
-  ScannerState scanner_state_{ScannerState::IDLE};
-  CallbackManager<void(ScannerState)> scanner_state_callbacks_;
+#ifdef USE_OTA_STATE_LISTENER
+  bool scan_continuous_before_ota_{false};
+#endif
   bool ble_was_disabled_{true};
   bool raw_advertisements_{false};
   bool parse_advertisements_{false};
-
-  // Lock-free Single-Producer Single-Consumer (SPSC) ring buffer for scan results
-  // Producer: ESP-IDF Bluetooth stack callback (gap_scan_event_handler)
-  // Consumer: ESPHome main loop (loop() method)
-  // This design ensures zero blocking in the BT callback and prevents scan result loss
-  BLEScanResult *scan_ring_buffer_;
-  std::atomic<size_t> ring_write_index_{0};      // Written only by BT callback (producer)
-  std::atomic<size_t> ring_read_index_{0};       // Written only by main loop (consumer)
-  std::atomic<size_t> scan_results_dropped_{0};  // Tracks buffer overflow events
-
-  esp_bt_status_t scan_start_failed_{ESP_BT_STATUS_SUCCESS};
-  esp_bt_status_t scan_set_param_failed_{ESP_BT_STATUS_SUCCESS};
-  int connecting_{0};
-  int discovered_{0};
-  int searching_{0};
-  int disconnecting_{0};
 #ifdef USE_ESP32_BLE_SOFTWARE_COEXISTENCE
   bool coex_prefer_ble_{false};
 #endif
+  // Scan timeout state machine
+  enum class ScanTimeoutState : uint8_t {
+    INACTIVE,       // No timeout monitoring
+    MONITORING,     // Actively monitoring for timeout
+    EXCEEDED_WAIT,  // Timeout exceeded, waiting one loop before reboot
+  };
+  uint32_t scan_start_time_{0};
+  /// Precomputed timeout value: scan_duration_ * 2000
+  uint32_t scan_timeout_ms_{0};
+  ScanTimeoutState scan_timeout_state_{ScanTimeoutState::INACTIVE};
 };
 
 // NOLINTNEXTLINE
 extern ESP32BLETracker *global_esp32_ble_tracker;
 
-}  // namespace esp32_ble_tracker
-}  // namespace esphome
+}  // namespace esphome::esp32_ble_tracker
 
 #endif

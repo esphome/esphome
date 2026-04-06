@@ -1,4 +1,5 @@
 #include "fingerprint_grow.h"
+#include "esphome/core/gpio.h"
 #include "esphome/core/log.h"
 #include <cinttypes>
 
@@ -57,8 +58,6 @@ void FingerprintGrowComponent::update() {
 }
 
 void FingerprintGrowComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   this->has_sensing_pin_ = (this->sensing_pin_ != nullptr);
   this->has_power_pin_ = (this->sensor_power_pin_ != nullptr);
 
@@ -82,7 +81,7 @@ void FingerprintGrowComponent::setup() {
   delay(20);  // This delay guarantees the sensor will in fact be powered power.
 
   if (this->check_password_()) {
-    if (this->new_password_ != -1) {
+    if (this->new_password_ != std::numeric_limits<uint32_t>::max()) {
       if (this->set_password_())
         return;
     } else {
@@ -362,7 +361,7 @@ void FingerprintGrowComponent::aura_led_control(uint8_t state, uint8_t speed, ui
   }
 }
 
-uint8_t FingerprintGrowComponent::transfer_(std::vector<uint8_t> *p_data_buffer) {
+uint8_t FingerprintGrowComponent::transfer_(std::vector<uint8_t> &data_buffer) {
   while (this->available())
     this->read();
   this->write((uint8_t) (START_CODE >> 8));
@@ -373,12 +372,12 @@ uint8_t FingerprintGrowComponent::transfer_(std::vector<uint8_t> *p_data_buffer)
   this->write(this->address_[3]);
   this->write(COMMAND);
 
-  uint16_t wire_length = p_data_buffer->size() + 2;
+  uint16_t wire_length = data_buffer.size() + 2;
   this->write((uint8_t) (wire_length >> 8));
   this->write((uint8_t) (wire_length & 0xFF));
 
   uint16_t sum = (wire_length >> 8) + (wire_length & 0xFF) + COMMAND;
-  for (auto data : *p_data_buffer) {
+  for (auto data : data_buffer) {
     this->write(data);
     sum += data;
   }
@@ -386,7 +385,7 @@ uint8_t FingerprintGrowComponent::transfer_(std::vector<uint8_t> *p_data_buffer)
   this->write((uint8_t) (sum >> 8));
   this->write((uint8_t) (sum & 0xFF));
 
-  p_data_buffer->clear();
+  data_buffer.clear();
 
   uint8_t byte;
   uint16_t idx = 0, length = 0;
@@ -432,9 +431,9 @@ uint8_t FingerprintGrowComponent::transfer_(std::vector<uint8_t> *p_data_buffer)
         length |= byte;
         break;
       default:
-        p_data_buffer->push_back(byte);
+        data_buffer.push_back(byte);
         if ((idx - 8) == length) {
-          switch ((*p_data_buffer)[0]) {
+          switch (data_buffer[0]) {
             case OK:
             case NO_FINGER:
             case IMAGE_FAIL:
@@ -454,25 +453,26 @@ uint8_t FingerprintGrowComponent::transfer_(std::vector<uint8_t> *p_data_buffer)
               ESP_LOGE(TAG, "Reader failed to process request");
               break;
             default:
-              ESP_LOGE(TAG, "Unknown response received from reader: 0x%.2X", (*p_data_buffer)[0]);
+              ESP_LOGE(TAG, "Unknown response received from reader: 0x%.2X", data_buffer[0]);
               break;
           }
           this->last_transfer_ms_ = millis();
-          return (*p_data_buffer)[0];
+          return data_buffer[0];
         }
         break;
     }
     idx++;
   }
   ESP_LOGE(TAG, "No response received from reader");
-  (*p_data_buffer)[0] = TIMEOUT;
+  data_buffer.clear();
+  data_buffer.push_back(TIMEOUT);
   this->last_transfer_ms_ = millis();
   return TIMEOUT;
 }
 
 uint8_t FingerprintGrowComponent::send_command_() {
   this->sensor_wakeup_();
-  return this->transfer_(&this->data_);
+  return this->transfer_(this->data_);
 }
 
 void FingerprintGrowComponent::sensor_wakeup_() {
@@ -518,7 +518,7 @@ void FingerprintGrowComponent::sensor_wakeup_() {
   std::vector<uint8_t> buffer = {VERIFY_PASSWORD, (uint8_t) (this->password_ >> 24), (uint8_t) (this->password_ >> 16),
                                  (uint8_t) (this->password_ >> 8), (uint8_t) (this->password_ & 0xFF)};
 
-  if (this->transfer_(&buffer) != OK) {
+  if (this->transfer_(buffer) != OK) {
     ESP_LOGE(TAG, "Wrong password");
   }
 }
@@ -534,14 +534,21 @@ void FingerprintGrowComponent::sensor_sleep_() {
 }
 
 void FingerprintGrowComponent::dump_config() {
+  char sensing_pin_buf[GPIO_SUMMARY_MAX_LEN];
+  char power_pin_buf[GPIO_SUMMARY_MAX_LEN];
+  if (this->has_sensing_pin_) {
+    this->sensing_pin_->dump_summary(sensing_pin_buf, sizeof(sensing_pin_buf));
+  }
+  if (this->has_power_pin_) {
+    this->sensor_power_pin_->dump_summary(power_pin_buf, sizeof(power_pin_buf));
+  }
   ESP_LOGCONFIG(TAG,
                 "GROW_FINGERPRINT_READER:\n"
                 "  System Identifier Code: 0x%.4X\n"
                 "  Touch Sensing Pin: %s\n"
                 "  Sensor Power Pin: %s",
-                this->system_identifier_code_,
-                this->has_sensing_pin_ ? this->sensing_pin_->dump_summary().c_str() : "None",
-                this->has_power_pin_ ? this->sensor_power_pin_->dump_summary().c_str() : "None");
+                this->system_identifier_code_, this->has_sensing_pin_ ? sensing_pin_buf : "None",
+                this->has_power_pin_ ? power_pin_buf : "None");
   if (this->idle_period_to_sleep_ms_ < UINT32_MAX) {
     ESP_LOGCONFIG(TAG, "  Idle Period to Sleep: %" PRIu32 " ms", this->idle_period_to_sleep_ms_);
   } else {

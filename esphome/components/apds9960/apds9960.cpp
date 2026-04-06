@@ -15,7 +15,6 @@ static const char *const TAG = "apds9960";
 #define APDS9960_WRITE_BYTE(reg, value) APDS9960_ERROR_CHECK(this->write_byte(reg, value));
 
 void APDS9960::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t id;
   if (!this->read_byte(0x92, &id)) {  // ID register
     this->error_code_ = COMMUNICATION_FAILED;
@@ -23,7 +22,7 @@ void APDS9960::setup() {
     return;
   }
 
-  if (id != 0xAB && id != 0x9C && id != 0xA8) {  // APDS9960 all should have one of these IDs
+  if (id != 0xAB && id != 0x9C && id != 0xA8 && id != 0x9E) {  // APDS9960 all should have one of these IDs
     this->error_code_ = WRONG_ID;
     this->mark_failed();
     return;
@@ -252,11 +251,11 @@ void APDS9960::read_gesture_data_() {
 
   uint8_t buf[128];
   for (uint8_t pos = 0; pos < fifo_level * 4; pos += 32) {
-    // The ESP's i2c driver has a limited buffer size.
-    // This way of retrieving the data should be wrong according to the datasheet
-    // but it seems to work.
+    // Read in 32-byte chunks due to ESP8266 I2C buffer limit.
+    // Always read from 0xFC — the FIFO auto-increments through 0xFC-0xFF
+    // and advances its internal pointer after every 4th byte.
     uint8_t read = std::min(32, fifo_level * 4 - pos);
-    APDS9960_WARNING_CHECK(this->read_bytes(0xFC + pos, buf + pos, read), "Reading FIFO buffer failed.");
+    APDS9960_WARNING_CHECK(this->read_bytes(0xFC, buf + pos, read), "Reading FIFO buffer failed.");
   }
 
   if (millis() - this->gesture_start_ > 500) {
@@ -385,7 +384,6 @@ void APDS9960::process_dataset_(int up, int down, int left, int right) {
     }
   }
 }
-float APDS9960::get_setup_priority() const { return setup_priority::DATA; }
 bool APDS9960::is_proximity_enabled_() const {
   return
 #ifdef USE_SENSOR

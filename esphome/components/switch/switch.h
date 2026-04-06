@@ -5,8 +5,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 
-namespace esphome {
-namespace switch_ {
+namespace esphome::switch_ {
 
 #define SUB_SWITCH(name) \
  protected: \
@@ -16,10 +15,10 @@ namespace switch_ {
   void set_##name##_switch(switch_::Switch *s) { this->name##_switch_ = s; }
 
 // bit0: on/off. bit1: persistent. bit2: inverted. bit3: disabled
-const int RESTORE_MODE_ON_MASK = 0x01;
-const int RESTORE_MODE_PERSISTENT_MASK = 0x02;
-const int RESTORE_MODE_INVERTED_MASK = 0x04;
-const int RESTORE_MODE_DISABLED_MASK = 0x08;
+constexpr int RESTORE_MODE_ON_MASK = 0x01;
+constexpr int RESTORE_MODE_PERSISTENT_MASK = 0x02;
+constexpr int RESTORE_MODE_INVERTED_MASK = 0x04;
+constexpr int RESTORE_MODE_DISABLED_MASK = 0x08;
 
 enum SwitchRestoreMode : uint8_t {
   SWITCH_ALWAYS_OFF = !RESTORE_MODE_ON_MASK,
@@ -36,7 +35,7 @@ enum SwitchRestoreMode : uint8_t {
  * A switch is basically just a combination of a binary sensor (for reporting switch values)
  * and a write_state method that writes a state to the hardware.
  */
-class Switch : public EntityBase, public EntityBase_DeviceClass {
+class Switch : public EntityBase {
  public:
   explicit Switch();
 
@@ -55,6 +54,14 @@ class Switch : public EntityBase, public EntityBase_DeviceClass {
   /// The current reported state of the binary sensor.
   bool state;
 
+  /** Control this switch using a boolean state value.
+   *
+   * This method provides a unified interface for setting the switch state based on a boolean parameter.
+   * It automatically calls turn_on() when state is true or turn_off() when state is false.
+   *
+   * @param target_state The desired state: true to turn the switch ON, false to turn it OFF.
+   */
+  void control(bool target_state);
   /** Turn this switch on. This is called by the front-end.
    *
    * For implementing switches, please override write_state.
@@ -86,7 +93,9 @@ class Switch : public EntityBase, public EntityBase_DeviceClass {
    *
    * @param callback The void(bool) callback.
    */
-  void add_on_state_callback(std::function<void(bool)> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
   /** Returns the initial state of the switch, as persisted previously,
     or empty if never persisted.
@@ -126,8 +135,8 @@ class Switch : public EntityBase, public EntityBase_DeviceClass {
   // Pointer first (4 bytes)
   ESPPreferenceObject rtc_;
 
-  // CallbackManager (12 bytes on 32-bit - contains vector)
-  CallbackManager<void(bool)> state_callback_{};
+  // LazyCallbackManager (4 bytes on 32-bit - nullptr when empty)
+  LazyCallbackManager<void(bool)> state_callback_{};
 
   // Small types grouped together
   Deduplicator<bool> publish_dedup_;  // 2 bytes (bool has_value_ + bool last_value_)
@@ -138,5 +147,4 @@ class Switch : public EntityBase, public EntityBase_DeviceClass {
 #define LOG_SWITCH(prefix, type, obj) log_switch((TAG), (prefix), LOG_STR_LITERAL(type), (obj))
 void log_switch(const char *tag, const char *prefix, const char *type, Switch *obj);
 
-}  // namespace switch_
-}  // namespace esphome
+}  // namespace esphome::switch_

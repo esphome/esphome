@@ -70,6 +70,7 @@ PROTOCOLS = {
     "airway": Protocol.PROTOCOL_AIRWAY,
     "bgh_aud": Protocol.PROTOCOL_BGH_AUD,
     "panasonic_altdke": Protocol.PROTOCOL_PANASONIC_ALTDKE,
+    "philco_phs32": Protocol.PROTOCOL_PHILCO_PHS32,
     "vaillantvai8": Protocol.PROTOCOL_VAILLANTVAI8,
     "r51m": Protocol.PROTOCOL_R51M,
 }
@@ -106,7 +107,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MAX_TEMPERATURE): cv.temperature,
         }
     ),
-    cv.only_with_arduino,
+    cv.Any(cv.only_with_arduino, cv.only_on_esp32),
 )
 
 
@@ -124,7 +125,8 @@ async def to_code(config):
     cg.add(var.set_vertical_default(config[CONF_VERTICAL_DEFAULT]))
     cg.add(var.set_max_temperature(config[CONF_MAX_TEMPERATURE]))
     cg.add(var.set_min_temperature(config[CONF_MIN_TEMPERATURE]))
+    cg.add_build_flag("-Wno-error=overloaded-virtual")
 
-    cg.add_library("tonia/HeatpumpIR", "1.0.32")
-    if CORE.is_libretiny:
-        CORE.add_platformio_option("lib_ignore", "IRremoteESP8266")
+    cg.add_library("tonia/HeatpumpIR", "1.0.40")
+    if CORE.is_libretiny or CORE.is_esp32:
+        CORE.add_platformio_option("lib_ignore", ["IRremoteESP8266"])

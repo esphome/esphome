@@ -27,6 +27,6 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    var = await mcp23xxx_base.register_mcp23xxx(config)
+    var = await mcp23xxx_base.register_mcp23xxx(config, mcp23x17_base.NUM_PINS)
     cg.add(var.set_device_address(config[CONF_DEVICEADDRESS]))
     await spi.register_spi_device(var, config)

@@ -9,8 +9,8 @@
 #include <hardware/dma.h>
 #include <hardware/irq.h>
 #include <hardware/pio.h>
-#include <pico/stdlib.h>
 #include <pico/sem.h>
+#include <pico/stdlib.h>
 
 namespace esphome {
 namespace rp2040_pio_led_strip {
@@ -40,11 +40,9 @@ void RP2040PIOLEDStripLightOutput::dma_write_complete_handler_() {
 }
 
 void RP2040PIOLEDStripLightOutput::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   size_t buffer_size = this->get_buffer_size_();
 
-  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  RAMAllocator<uint8_t> allocator;
   this->buf_ = allocator.allocate(buffer_size);
   if (this->buf_ == nullptr) {
     ESP_LOGE(TAG, "Failed to allocate buffer of size %u", buffer_size);
@@ -72,7 +70,7 @@ void RP2040PIOLEDStripLightOutput::setup() {
   // but there are only 4 state machines on each PIO so we can only have 4 strips per PIO
   uint offset = 0;
 
-  if (RP2040PIOLEDStripLightOutput::num_instance_[this->pio_ == pio0 ? 0 : 1] > 4) {
+  if (RP2040PIOLEDStripLightOutput::num_instance_[this->pio_ == pio0 ? 0 : 1] >= 4) {
     ESP_LOGE(TAG, "Too many instances of PIO program");
     this->mark_failed();
     return;

@@ -94,14 +94,15 @@ async def to_code(config):
     SetOutputAction,
     cv.Schema(
         {
-            cv.Required(CONF_ID): cv.use_id(CONF_ID),
+            cv.Required(CONF_ID): cv.use_id(PipsolarOutput),
             cv.Required(CONF_VALUE): cv.templatable(cv.positive_float),
         }
     ),
+    synchronous=True,
 )
-def output_pipsolar_set_level_to_code(config, action_id, template_arg, args):
-    paren = yield cg.get_variable(config[CONF_ID])
+async def output_pipsolar_set_level_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = yield cg.templatable(config[CONF_VALUE], args, float)
+    template_ = await cg.templatable(config[CONF_VALUE], args, float)
     cg.add(var.set_level(template_))
-    yield var
+    return var

@@ -15,7 +15,7 @@ class AudioStreamInfo {
    *  - An audio sample represents a unit of audio for one channel.
    *  - A frame represents a unit of audio with a sample for every channel.
    *
-   * In gneneral, converting between bytes, samples, and frames shouldn't result in rounding errors so long as frames
+   * In general, converting between bytes, samples, and frames shouldn't result in rounding errors so long as frames
    * are used as the main unit when transferring audio data. Durations may result in rounding for certain sample rates;
    * e.g., 44.1 KHz. The ``frames_to_milliseconds_with_remainder`` function should be used for accuracy, as it takes
    * into account the remainder rather than just ignoring any rounding.
@@ -76,7 +76,7 @@ class AudioStreamInfo {
 
   /// @brief Computes the duration, in microseconds, the given amount of frames represents.
   /// @param frames Number of audio frames
-  /// @return Duration in microseconds `frames` respresents. May be slightly inaccurate due to integer divison rounding
+  /// @return Duration in microseconds `frames` represents. May be slightly inaccurate due to integer division rounding
   ///         for certain sample rates.
   uint32_t frames_to_microseconds(uint32_t frames) const;
 
@@ -113,6 +113,9 @@ enum class AudioFileType : uint8_t {
 #ifdef USE_AUDIO_MP3_SUPPORT
   MP3,
 #endif
+#ifdef USE_AUDIO_OPUS_SUPPORT
+  OPUS,
+#endif
   WAV,
 };
 
@@ -126,6 +129,13 @@ struct AudioFile {
 /// @param file_type
 /// @return const char pointer to the readable file type
 const char *audio_file_type_to_string(AudioFileType file_type);
+
+/// @brief Detect audio file type from a Content-Type header value and/or URL extension.
+/// Tries Content-Type first, then falls back to URL extension. Either parameter may be null.
+/// @param content_type Content-Type header value (may be null or empty)
+/// @param url URL to inspect for file extension (may be null or empty)
+/// @return The detected AudioFileType, or NONE if unknown
+AudioFileType detect_audio_file_type(const char *content_type, const char *url);
 
 /// @brief Scales Q15 fixed point audio samples. Scales in place if audio_samples == output_buffer.
 /// @param audio_samples PCM int16 audio samples

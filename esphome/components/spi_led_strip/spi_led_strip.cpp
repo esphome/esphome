@@ -1,11 +1,12 @@
 #include "spi_led_strip.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace spi_led_strip {
 
 SpiLedStrip::SpiLedStrip(uint16_t num_leds) {
   this->num_leds_ = num_leds;
-  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  RAMAllocator<uint8_t> allocator;
   this->buffer_size_ = num_leds * 4 + 8;
   this->buf_ = allocator.allocate(this->buffer_size_);
   if (this->buf_ == nullptr) {
@@ -34,8 +35,10 @@ light::LightTraits SpiLedStrip::get_traits() {
   return traits;
 }
 void SpiLedStrip::dump_config() {
-  esph_log_config(TAG, "SPI LED Strip:");
-  esph_log_config(TAG, "  LEDs: %d", this->num_leds_);
+  esph_log_config(TAG,
+                  "SPI LED Strip:\n"
+                  "  LEDs: %d",
+                  this->num_leds_);
   if (this->data_rate_ >= spi::DATA_RATE_1MHZ) {
     esph_log_config(TAG, "  Data rate: %uMHz", (unsigned) (this->data_rate_ / 1000000));
   } else {
@@ -45,15 +48,14 @@ void SpiLedStrip::dump_config() {
 void SpiLedStrip::write_state(light::LightState *state) {
   if (this->is_failed())
     return;
-  if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE) {
-    char strbuf[49];
-    size_t len = std::min(this->buffer_size_, (size_t) (sizeof(strbuf) - 1) / 3);
-    memset(strbuf, 0, sizeof(strbuf));
-    for (size_t i = 0; i != len; i++) {
-      sprintf(strbuf + i * 3, "%02X ", this->buf_[i]);
-    }
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  {
+    char strbuf[49];  // format_hex_pretty_size(16) = 48, fits 16 bytes
+    size_t len = std::min(this->buffer_size_, (size_t) 16);
+    format_hex_pretty_to(strbuf, sizeof(strbuf), this->buf_, len, ' ');
     esph_log_v(TAG, "write_state: buf = %s", strbuf);
   }
+#endif
   this->enable();
   this->write_array(this->buf_, this->buffer_size_);
   this->disable();

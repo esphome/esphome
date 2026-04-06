@@ -1,10 +1,10 @@
 """CM1106 Sensor component for ESPHome."""
 
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
+import esphome.codegen as cg
 from esphome.components import sensor, uart
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_CO2,
     CONF_ID,
@@ -65,6 +65,7 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
     "cm1106.calibrate_zero",
     CM1106CalibrateZeroAction,
     CALIBRATION_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def cm1106_calibration_to_code(config, action_id, template_arg, args) -> None:
     """Service code generation entry point."""

@@ -6,4 +6,4 @@ substitutions:
   rmt_symbols: "64"
 
 packages:
-  common: !include esp32-common-idf.yaml
+  common: !include esp32-common.yaml

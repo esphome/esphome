@@ -1,9 +1,5 @@
-i2c:
-  - id: i2c_emc2101
-    scl: ${scl_pin}
-    sda: ${sda_pin}
-
 emc2101:
+  i2c_id: i2c_bus
   pwm:
     resolution: 8
 

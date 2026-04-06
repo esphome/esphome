@@ -2,8 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-namespace esphome {
-namespace spi {
+namespace esphome::spi {
 
 const char *const TAG = "spi";
 
@@ -16,12 +15,13 @@ bool SPIDelegate::is_ready() { return true; }
 GPIOPin *const NullPin::NULL_PIN = new NullPin();  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
-                                           GPIOPin *cs_pin) {
+                                           GPIOPin *cs_pin, bool release_device, bool write_only) {
   if (this->devices_.count(device) != 0) {
     ESP_LOGE(TAG, "Device already registered");
     return this->devices_[device];
   }
-  SPIDelegate *delegate = this->spi_bus_->get_delegate(data_rate, bit_order, mode, cs_pin);  // NOLINT
+  SPIDelegate *delegate =
+      this->spi_bus_->get_delegate(data_rate, bit_order, mode, cs_pin, release_device, write_only);  // NOLINT
   this->devices_[device] = delegate;
   return delegate;
 }
@@ -36,8 +36,6 @@ void SPIComponent::unregister_device(SPIClient *device) {
 }
 
 void SPIComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
-
   if (this->sdo_pin_ == nullptr)
     this->sdo_pin_ = NullPin::NULL_PIN;
   if (this->sdi_pin_ == nullptr)
@@ -66,11 +64,11 @@ void SPIComponent::setup() {
 
 void SPIComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SPI bus:");
-  LOG_PIN("  CLK Pin: ", this->clk_pin_)
-  LOG_PIN("  SDI Pin: ", this->sdi_pin_)
-  LOG_PIN("  SDO Pin: ", this->sdo_pin_)
+  LOG_PIN("  CLK Pin: ", this->clk_pin_);
+  LOG_PIN("  SDI Pin: ", this->sdi_pin_);
+  LOG_PIN("  SDO Pin: ", this->sdo_pin_);
   for (size_t i = 0; i != this->data_pins_.size(); i++) {
-    ESP_LOGCONFIG(TAG, "  Data pin %u: GPIO%d", i, this->data_pins_[i]);
+    ESP_LOGCONFIG(TAG, "  Data pin %zu: GPIO%d", i, this->data_pins_[i]);
   }
   if (this->spi_bus_->is_hw()) {
     ESP_LOGCONFIG(TAG, "  Using HW SPI: %s", this->interface_name_);
@@ -120,5 +118,12 @@ uint16_t SPIDelegateBitBash::transfer_(uint16_t data, size_t num_bits) {
   return out_data;
 }
 
-}  // namespace spi
-}  // namespace esphome
+#if !defined(USE_ESP32) && !defined(USE_ARDUINO)
+// Stub for unsupported platforms (host, Zephyr, etc.) - hardware SPI is unavailable
+SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi,
+                              const std::vector<uint8_t> &data_pins) {
+  return nullptr;
+}
+#endif
+
+}  // namespace esphome::spi

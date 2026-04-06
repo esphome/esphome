@@ -1,24 +1,17 @@
 #pragma once
 
+#include "esphome/components/i2c/i2c.h"
+#include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/components/sensor/sensor.h"
-#include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
 namespace qmp6988 {
 
-#define QMP6988_U16_t unsigned short
-#define QMP6988_S16_t short
-#define QMP6988_U32_t unsigned int
-#define QMP6988_S32_t int
-#define QMP6988_U64_t unsigned long long
-#define QMP6988_S64_t long long
-
 /* oversampling */
-enum QMP6988Oversampling {
+enum QMP6988Oversampling : uint8_t {
   QMP6988_OVERSAMPLING_SKIPPED = 0x00,
   QMP6988_OVERSAMPLING_1X = 0x01,
   QMP6988_OVERSAMPLING_2X = 0x02,
@@ -30,7 +23,7 @@ enum QMP6988Oversampling {
 };
 
 /* filter */
-enum QMP6988IIRFilter {
+enum QMP6988IIRFilter : uint8_t {
   QMP6988_IIR_FILTER_OFF = 0x00,
   QMP6988_IIR_FILTER_2X = 0x01,
   QMP6988_IIR_FILTER_4X = 0x02,
@@ -40,18 +33,18 @@ enum QMP6988IIRFilter {
 };
 
 using qmp6988_cali_data_t = struct Qmp6988CaliData {
-  QMP6988_S32_t COE_a0;
-  QMP6988_S16_t COE_a1;
-  QMP6988_S16_t COE_a2;
-  QMP6988_S32_t COE_b00;
-  QMP6988_S16_t COE_bt1;
-  QMP6988_S16_t COE_bt2;
-  QMP6988_S16_t COE_bp1;
-  QMP6988_S16_t COE_b11;
-  QMP6988_S16_t COE_bp2;
-  QMP6988_S16_t COE_b12;
-  QMP6988_S16_t COE_b21;
-  QMP6988_S16_t COE_bp3;
+  int32_t COE_a0;
+  int16_t COE_a1;
+  int16_t COE_a2;
+  int32_t COE_b00;
+  int16_t COE_bt1;
+  int16_t COE_bt2;
+  int16_t COE_bp1;
+  int16_t COE_b11;
+  int16_t COE_bp2;
+  int16_t COE_b12;
+  int16_t COE_b21;
+  int16_t COE_bp3;
 };
 
 using qmp6988_fk_data_t = struct Qmp6988FkData {
@@ -60,9 +53,9 @@ using qmp6988_fk_data_t = struct Qmp6988FkData {
 };
 
 using qmp6988_ik_data_t = struct Qmp6988IkData {
-  QMP6988_S32_t a0, b00;
-  QMP6988_S32_t a1, a2;
-  QMP6988_S64_t bt1, bt2, bp1, b11, bp2, b12, b21, bp3;
+  int32_t a0, b00;
+  int32_t a1, a2;
+  int64_t bt1, bt2, bp1, b11, bp2, b12, b21, bp3;
 };
 
 using qmp6988_data_t = struct Qmp6988Data {
@@ -77,17 +70,18 @@ using qmp6988_data_t = struct Qmp6988Data {
 
 class QMP6988Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
-  void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
+  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
+  void set_pressure_sensor(sensor::Sensor *pressure_sensor) { this->pressure_sensor_ = pressure_sensor; }
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
   void update() override;
 
-  void set_iir_filter(QMP6988IIRFilter iirfilter);
-  void set_temperature_oversampling(QMP6988Oversampling oversampling_t);
-  void set_pressure_oversampling(QMP6988Oversampling oversampling_p);
+  void set_iir_filter(QMP6988IIRFilter iirfilter) { this->iir_filter_ = iirfilter; }
+  void set_temperature_oversampling(QMP6988Oversampling oversampling_t) {
+    this->temperature_oversampling_ = oversampling_t;
+  }
+  void set_pressure_oversampling(QMP6988Oversampling oversampling_p) { this->pressure_oversampling_ = oversampling_p; }
 
  protected:
   qmp6988_data_t qmp6988_data_;
@@ -102,14 +96,14 @@ class QMP6988Component : public PollingComponent, public i2c::I2CDevice {
   bool get_calibration_data_();
   bool device_check_();
   void set_power_mode_(uint8_t power_mode);
-  void write_oversampling_temperature_(unsigned char oversampling_t);
-  void write_oversampling_pressure_(unsigned char oversampling_p);
-  void write_filter_(unsigned char filter);
+  void write_oversampling_temperature_(QMP6988Oversampling oversampling_t);
+  void write_oversampling_pressure_(QMP6988Oversampling oversampling_p);
+  void write_filter_(QMP6988IIRFilter filter);
   void calculate_pressure_();
   void calculate_altitude_(float pressure, float temp);
 
-  QMP6988_S32_t get_compensated_pressure_(qmp6988_ik_data_t *ik, QMP6988_S32_t dp, QMP6988_S16_t tx);
-  QMP6988_S16_t get_compensated_temperature_(qmp6988_ik_data_t *ik, QMP6988_S32_t dt);
+  int32_t get_compensated_pressure_(qmp6988_ik_data_t *ik, int32_t dp, int16_t tx);
+  int16_t get_compensated_temperature_(qmp6988_ik_data_t *ik, int32_t dt);
 };
 
 }  // namespace qmp6988

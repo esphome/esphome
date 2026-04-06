@@ -22,13 +22,13 @@ static const uint8_t BME680_REGISTER_CHIPID = 0xD0;
 
 static const uint8_t BME680_REGISTER_FIELD0 = 0x1D;
 
-const float BME680_GAS_LOOKUP_TABLE_1[16] PROGMEM = {0.0, 0.0, 0.0,  0.0,  0.0, -1.0, 0.0, -0.8,
-                                                     0.0, 0.0, -0.2, -0.5, 0.0, -1.0, 0.0, 0.0};
+constexpr float BME680_GAS_LOOKUP_TABLE_1[16] PROGMEM = {0.0, 0.0, 0.0,  0.0,  0.0, -1.0, 0.0, -0.8,
+                                                         0.0, 0.0, -0.2, -0.5, 0.0, -1.0, 0.0, 0.0};
 
-const float BME680_GAS_LOOKUP_TABLE_2[16] PROGMEM = {0.0,  0.0, 0.0, 0.0, 0.1, 0.7, 0.0, -0.8,
-                                                     -0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+constexpr float BME680_GAS_LOOKUP_TABLE_2[16] PROGMEM = {0.0,  0.0, 0.0, 0.0, 0.1, 0.7, 0.0, -0.8,
+                                                         -0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
-static const char *oversampling_to_str(BME680Oversampling oversampling) {
+[[maybe_unused]] static const char *oversampling_to_str(BME680Oversampling oversampling) {
   switch (oversampling) {
     case BME680_OVERSAMPLING_NONE:
       return "None";
@@ -47,7 +47,7 @@ static const char *oversampling_to_str(BME680Oversampling oversampling) {
   }
 }
 
-static const char *iir_filter_to_str(BME680IIRFilter filter) {
+[[maybe_unused]] static const char *iir_filter_to_str(BME680IIRFilter filter) {
   switch (filter) {
     case BME680_IIR_FILTER_OFF:
       return "OFF";
@@ -71,7 +71,6 @@ static const char *iir_filter_to_str(BME680IIRFilter filter) {
 }
 
 void BME680Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   uint8_t chip_id;
   if (!this->read_byte(BME680_REGISTER_CHIPID, &chip_id) || chip_id != 0x61) {
     this->mark_failed();
@@ -233,8 +232,6 @@ void BME680Component::dump_config() {
     ESP_LOGCONFIG(TAG, "  Heater temperature=%u°C duration=%ums", this->heater_temperature_, this->heater_duration_);
   }
 }
-
-float BME680Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void BME680Component::update() {
   uint8_t meas_control = 0;  // No need to fetch, we're setting all fields

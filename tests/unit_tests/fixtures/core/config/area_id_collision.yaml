@@ -1,0 +1,10 @@
+esphome:
+  name: test-collision
+  area:
+    id: duplicate_id
+    name: Area 1
+  areas:
+    - id: duplicate_id
+      name: Area 2
+
+host:

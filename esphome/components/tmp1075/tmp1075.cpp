@@ -32,7 +32,7 @@ void TMP1075Sensor::update() {
   uint16_t regvalue;
   if (!read_byte_16(REG_TEMP, &regvalue)) {
     ESP_LOGW(TAG, "'%s' - unable to read temperature register", this->name_.c_str());
-    this->status_set_warning("can't read");
+    this->status_set_warning(LOG_STR("can't read"));
     return;
   }
   this->status_clear_warning();
@@ -73,12 +73,15 @@ void TMP1075Sensor::set_fault_count(const int faults) {
 }
 
 void TMP1075Sensor::log_config_() {
-  ESP_LOGV(TAG, "  oneshot   : %d", config_.fields.oneshot);
-  ESP_LOGV(TAG, "  rate      : %d", config_.fields.rate);
-  ESP_LOGV(TAG, "  faults    : %d", config_.fields.faults);
-  ESP_LOGV(TAG, "  polarity  : %d", config_.fields.polarity);
-  ESP_LOGV(TAG, "  alert_mode: %d", config_.fields.alert_mode);
-  ESP_LOGV(TAG, "  shutdown  : %d", config_.fields.shutdown);
+  ESP_LOGV(TAG,
+           "  oneshot   : %d\n"
+           "  rate      : %d\n"
+           "  faults    : %d\n"
+           "  polarity  : %d\n"
+           "  alert_mode: %d\n"
+           "  shutdown  : %d",
+           config_.fields.oneshot, config_.fields.rate, config_.fields.faults, config_.fields.polarity,
+           config_.fields.alert_mode, config_.fields.shutdown);
 }
 
 void TMP1075Sensor::write_config() {
@@ -115,8 +118,8 @@ void TMP1075Sensor::send_alert_limit_high_() {
 }
 
 static uint16_t temp2regvalue(const float temp) {
-  const uint16_t regvalue = temp / 0.0625f;
-  return regvalue << 4;
+  const int16_t regvalue = static_cast<int16_t>(temp / 0.0625f);
+  return static_cast<uint16_t>(regvalue << 4);
 }
 
 static float regvalue2temp(const uint16_t regvalue) {

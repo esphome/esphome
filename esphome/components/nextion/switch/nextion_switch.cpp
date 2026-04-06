@@ -2,8 +2,7 @@
 #include "esphome/core/util.h"
 #include "esphome/core/log.h"
 
-namespace esphome {
-namespace nextion {
+namespace esphome::nextion {
 
 static const char *const TAG = "nextion_switch";
 
@@ -28,7 +27,7 @@ void NextionSwitch::set_state(bool state, bool publish, bool send_to_nextion) {
     return;
 
   if (send_to_nextion) {
-    if (this->nextion_->is_sleeping() || !this->visible_) {
+    if (this->nextion_->is_sleeping() || !this->component_flags_.visible) {
       this->needs_to_send_update_ = true;
     } else {
       this->needs_to_send_update_ = false;
@@ -48,5 +47,4 @@ void NextionSwitch::set_state(bool state, bool publish, bool send_to_nextion) {
 
 void NextionSwitch::write_state(bool state) { this->set_state(state); }
 
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion

@@ -43,7 +43,6 @@ void TSL2591Component::disable_if_power_saving_() {
 }
 
 void TSL2591Component::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for address 0x%02X", this->address_);
   switch (this->component_gain_) {
     case TSL2591_CGAIN_LOW:
       this->gain_ = TSL2591_GAIN_LOW;
@@ -232,7 +231,7 @@ void TSL2591Component::set_integration_time_and_gain(TSL2591IntegrationTime inte
   this->integration_time_ = integration_time;
   this->gain_ = gain;
   if (!this->write_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_CONTROL,
-                        this->integration_time_ | this->gain_)) {  // NOLINT
+                        static_cast<uint8_t>(this->integration_time_) | static_cast<uint8_t>(this->gain_))) {
     ESP_LOGE(TAG, "I2C write failed");
   }
   // The ADC values can be confused if gain or integration time are changed in the middle of a cycle.
@@ -247,8 +246,6 @@ void TSL2591Component::set_integration_time_and_gain(TSL2591IntegrationTime inte
 void TSL2591Component::set_power_save_mode(bool enable) { this->power_save_mode_enabled_ = enable; }
 
 void TSL2591Component::set_name(const char *name) { this->name_ = name; }
-
-float TSL2591Component::get_setup_priority() const { return setup_priority::DATA; }
 
 bool TSL2591Component::is_adc_valid() {
   uint8_t status;
@@ -330,7 +327,9 @@ uint16_t TSL2591Component::get_illuminance(TSL2591SensorChannel channel, uint32_
     return (combined_illuminance >> 16);
   } else if (channel == TSL2591_SENSOR_CHANNEL_VISIBLE) {
     // Reads all and subtracts out the infrared
-    return ((combined_illuminance & 0xFFFF) - (combined_illuminance >> 16));
+    uint16_t full = combined_illuminance & 0xFFFF;
+    uint16_t ir = combined_illuminance >> 16;
+    return (ir > full) ? 0 : (full - ir);
   }
   // unknown channel!
   ESP_LOGE(TAG, "get_illuminance() caller requested an unknown channel: %d", channel);

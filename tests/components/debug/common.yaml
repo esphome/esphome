@@ -11,8 +11,9 @@ sensor:
   - platform: debug
     free:
       name: "Heap Free"
+    block:
+      name: "Heap Block"
     loop_time:
       name: "Loop Time"
     cpu_frequency:
       name: "CPU Frequency"
-

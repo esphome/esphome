@@ -5,46 +5,127 @@
 #ifdef USE_ESP32
 
 #include <string>
-#include <queue>
+#include <cstring>
 #include <mqtt_client.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include "esphome/components/network/ip_address.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/lock_free_queue.h"
+#include "esphome/core/event_pool.h"
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 struct Event {
-  esp_mqtt_event_id_t event_id;
+  esp_mqtt_event_id_t event_id{};
   std::vector<char> data;
-  int total_data_len;
-  int current_data_offset;
+  int total_data_len{0};
+  int current_data_offset{0};
   std::string topic;
-  int msg_id;
-  bool retain;
-  int qos;
-  bool dup;
-  bool session_present;
-  esp_mqtt_error_codes_t error_handle;
+  int msg_id{0};
+  bool retain{false};
+  int qos{0};
+  bool dup{false};
+  bool session_present{false};
+  esp_mqtt_error_codes_t error_handle{};
 
-  // Construct from esp_mqtt_event_t
-  // Any pointer values that are unsafe to keep are converted to safe copies
-  Event(const esp_mqtt_event_t &event)
-      : event_id(event.event_id),
-        data(event.data, event.data + event.data_len),
-        total_data_len(event.total_data_len),
-        current_data_offset(event.current_data_offset),
-        topic(event.topic, event.topic_len),
-        msg_id(event.msg_id),
-        retain(event.retain),
-        qos(event.qos),
-        dup(event.dup),
-        session_present(event.session_present),
-        error_handle(*event.error_handle) {}
+  // Populate from esp_mqtt_event_t
+  // Copies pointer-based data to owned storage for safe cross-thread transfer
+  void populate(const esp_mqtt_event_t &event) {
+    this->event_id = event.event_id;
+    this->data.assign(event.data, event.data + event.data_len);
+    this->total_data_len = event.total_data_len;
+    this->current_data_offset = event.current_data_offset;
+    this->topic.assign(event.topic, event.topic_len);
+    this->msg_id = event.msg_id;
+    this->retain = event.retain;
+    this->qos = event.qos;
+    this->dup = event.dup;
+    this->session_present = event.session_present;
+    this->error_handle = *event.error_handle;
+  }
+
+  // Release owned resources for pool reuse (keeps allocated capacity for efficiency)
+  void release() {
+    this->data.clear();
+    this->topic.clear();
+  }
+};
+
+enum MqttQueueTypeT : uint8_t {
+  MQTT_QUEUE_TYPE_NONE = 0,
+  MQTT_QUEUE_TYPE_SUBSCRIBE,
+  MQTT_QUEUE_TYPE_UNSUBSCRIBE,
+  MQTT_QUEUE_TYPE_PUBLISH,
+};
+
+struct QueueElement {
+  char *topic;
+  char *payload;
+  uint16_t payload_len;  // MQTT max payload is 64KiB
+  uint8_t type : 2;
+  uint8_t qos : 2;  // QoS only needs values 0-2
+  uint8_t retain : 1;
+  uint8_t reserved : 3;  // Reserved for future use
+
+  QueueElement() : topic(nullptr), payload(nullptr), payload_len(0), qos(0), retain(0), reserved(0) {}
+
+  // Helper to set topic/payload (uses RAMAllocator)
+  bool set_data(const char *topic_str, const char *payload_data, size_t len) {
+    // Check payload size limit (MQTT max is 64KiB)
+    if (len > std::numeric_limits<uint16_t>::max()) {
+      return false;
+    }
+
+    // Use RAMAllocator with default flags (tries external RAM first, falls back to internal)
+    RAMAllocator<char> allocator;
+
+    // Allocate and copy topic
+    size_t topic_len = strlen(topic_str) + 1;
+    topic = allocator.allocate(topic_len);
+    if (!topic)
+      return false;
+    memcpy(topic, topic_str, topic_len);
+
+    if (payload_data && len) {
+      payload = allocator.allocate(len);
+      if (!payload) {
+        allocator.deallocate(topic, topic_len);
+        topic = nullptr;
+        return false;
+      }
+      memcpy(payload, payload_data, len);
+      payload_len = static_cast<uint16_t>(len);
+    } else {
+      payload = nullptr;
+      payload_len = 0;
+    }
+    return true;
+  }
+
+  // Helper to release (uses RAMAllocator)
+  void release() {
+    RAMAllocator<char> allocator;
+    if (topic) {
+      allocator.deallocate(topic, strlen(topic) + 1);
+      topic = nullptr;
+    }
+    if (payload) {
+      allocator.deallocate(payload, payload_len);
+      payload = nullptr;
+    }
+    payload_len = 0;
+  }
 };
 
 class MQTTBackendESP32 final : public MQTTBackend {
  public:
-  static const size_t MQTT_BUFFER_SIZE = 4096;
+  static constexpr size_t MQTT_BUFFER_SIZE = 4096;
+  static constexpr size_t TASK_STACK_SIZE = 3072;
+  static constexpr size_t TASK_STACK_SIZE_TLS = 4096;  // Larger stack for TLS operations
+  static constexpr ssize_t TASK_PRIORITY = 5;
+  static constexpr uint8_t MQTT_QUEUE_LENGTH = 30;        // 30*12 bytes = 360
+  static constexpr uint8_t MQTT_EVENT_QUEUE_LENGTH = 32;  // Inbound events from broker
 
   void set_keep_alive(uint16_t keep_alive) final { this->keep_alive_ = keep_alive; }
   void set_client_id(const char *client_id) final { this->client_id_ = client_id; }
@@ -65,7 +146,8 @@ class MQTTBackendESP32 final : public MQTTBackend {
     this->lwt_retain_ = retain;
   }
   void set_server(network::IPAddress ip, uint16_t port) final {
-    this->host_ = ip.str();
+    char ip_buf[network::IP_ADDRESS_BUFFER_SIZE];
+    this->host_ = ip.str_to(ip_buf);
     this->port_ = port;
   }
   void set_server(const char *host, uint16_t port) final {
@@ -105,15 +187,23 @@ class MQTTBackendESP32 final : public MQTTBackend {
   }
 
   bool subscribe(const char *topic, uint8_t qos) final {
+#if defined(USE_MQTT_IDF_ENQUEUE)
+    return enqueue_(MQTT_QUEUE_TYPE_SUBSCRIBE, topic, qos);
+#else
     return esp_mqtt_client_subscribe(handler_.get(), topic, qos) != -1;
+#endif
   }
-  bool unsubscribe(const char *topic) final { return esp_mqtt_client_unsubscribe(handler_.get(), topic) != -1; }
+  bool unsubscribe(const char *topic) final {
+#if defined(USE_MQTT_IDF_ENQUEUE)
+    return enqueue_(MQTT_QUEUE_TYPE_UNSUBSCRIBE, topic);
+#else
+    return esp_mqtt_client_unsubscribe(handler_.get(), topic) != -1;
+#endif
+  }
 
   bool publish(const char *topic, const char *payload, size_t length, uint8_t qos, bool retain) final {
 #if defined(USE_MQTT_IDF_ENQUEUE)
-    // use the non-blocking version
-    // it can delay sending a couple of seconds but won't block
-    return esp_mqtt_client_enqueue(handler_.get(), topic, payload, length, qos, retain, true) != -1;
+    return enqueue_(MQTT_QUEUE_TYPE_PUBLISH, topic, qos, retain, payload, length);
 #else
     // might block for several seconds, either due to network timeout (10s)
     // or if publishing payloads longer than internal buffer (due to message fragmentation)
@@ -128,6 +218,12 @@ class MQTTBackendESP32 final : public MQTTBackend {
   void set_cl_certificate(const std::string &cert) { cl_certificate_ = cert; }
   void set_cl_key(const std::string &key) { cl_key_ = key; }
   void set_skip_cert_cn_check(bool skip_check) { skip_cert_cn_check_ = skip_check; }
+
+  // No destructor needed: ESPHome components live for the entire device runtime.
+  // The MQTT task and queue will run until the device reboots or loses power,
+  // at which point the entire process terminates and FreeRTOS cleans up all tasks.
+  // Implementing a destructor would add complexity and potential race conditions
+  // for a scenario that never occurs in practice.
 
  protected:
   bool initialize_();
@@ -160,6 +256,15 @@ class MQTTBackendESP32 final : public MQTTBackend {
   optional<std::string> cl_certificate_;
   optional<std::string> cl_key_;
   bool skip_cert_cn_check_{false};
+#if defined(USE_MQTT_IDF_ENQUEUE)
+  static void esphome_mqtt_task(void *params);
+  // Pool sized to queue capacity (SIZE-1) — see mqtt_event_pool_ comment.
+  EventPool<struct QueueElement, MQTT_QUEUE_LENGTH - 1> mqtt_outbound_pool_;
+  NotifyingLockFreeQueue<struct QueueElement, MQTT_QUEUE_LENGTH> mqtt_queue_;
+  TaskHandle_t task_handle_{nullptr};
+  bool enqueue_(MqttQueueTypeT type, const char *topic, int qos = 0, bool retain = false, const char *payload = NULL,
+                size_t len = 0);
+#endif
 
   // callbacks
   CallbackManager<on_connect_callback_t> on_connect_;
@@ -168,11 +273,23 @@ class MQTTBackendESP32 final : public MQTTBackend {
   CallbackManager<on_unsubscribe_callback_t> on_unsubscribe_;
   CallbackManager<on_message_callback_t> on_message_;
   CallbackManager<on_publish_user_callback_t> on_publish_;
-  std::queue<Event> mqtt_events_;
+  std::string cached_topic_;
+  // Pool sized to queue capacity (SIZE-1) because LockFreeQueue<T,N> is a ring
+  // buffer that holds N-1 elements (one slot distinguishes full from empty).
+  // This guarantees allocate() returns nullptr before push() can fail, which:
+  //  1. Prevents leaking a pool slot (the Nth allocate succeeds but push fails)
+  //  2. Avoids needing release() on the producer path after a failed push(),
+  //     preserving the SPSC contract on the pool's internal free list
+  EventPool<Event, MQTT_EVENT_QUEUE_LENGTH - 1> mqtt_event_pool_;
+  LockFreeQueue<Event, MQTT_EVENT_QUEUE_LENGTH> mqtt_event_queue_;
+
+#if defined(USE_MQTT_IDF_ENQUEUE)
+  uint32_t last_dropped_log_time_{0};
+  static constexpr uint32_t DROP_LOG_INTERVAL_MS = 10000;  // Log every 10 seconds
+#endif
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+}  // namespace esphome::mqtt
 
 #endif
 #endif

@@ -14,7 +14,6 @@ class ES7243E : public audio_adc::AudioAdc, public Component, public i2c::I2CDev
    */
  public:
   void setup() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void dump_config() override;
 
   bool set_mic_gain(float mic_gain) override;

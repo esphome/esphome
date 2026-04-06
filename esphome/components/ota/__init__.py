@@ -1,5 +1,8 @@
+import logging
+
 from esphome import automation
 import esphome.codegen as cg
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_ESPHOME,
@@ -7,11 +10,22 @@ from esphome.const import (
     CONF_OTA,
     CONF_PLATFORM,
     CONF_TRIGGER_ID,
+    PlatformFramework,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.coroutine import CoroPriority
+
+OTA_STATE_LISTENER_KEY = "ota_state_listener"
 
 CODEOWNERS = ["@esphome/core"]
-AUTO_LOAD = ["md5", "safe_mode"]
+
+
+def AUTO_LOAD() -> list[str]:
+    components = ["safe_mode"]
+    if not CORE.using_zephyr:
+        components.extend(["md5"])
+    return components
+
 
 IS_PLATFORM_COMPONENT = True
 
@@ -21,6 +35,8 @@ CONF_ON_END = "on_end"
 CONF_ON_PROGRESS = "on_progress"
 CONF_ON_STATE_CHANGE = "on_state_change"
 
+
+_LOGGER = logging.getLogger(__name__)
 
 ota_ns = cg.esphome_ns.namespace("ota")
 OTAComponent = ota_ns.class_("OTAComponent", cg.Component)
@@ -39,6 +55,10 @@ def _ota_final_validate(config):
     if len(config) < 1:
         raise cv.Invalid(
             f"At least one platform must be specified for '{CONF_OTA}'; add '{CONF_PLATFORM}: {CONF_ESPHOME}' for original OTA functionality"
+        )
+    if CORE.is_host:
+        _LOGGER.warning(
+            "OTA not available for platform 'host'. OTA functionality disabled."
         )
 
 
@@ -80,12 +100,10 @@ BASE_OTA_SCHEMA = cv.Schema(
 )
 
 
-@coroutine_with_priority(54.0)
+@coroutine_with_priority(CoroPriority.OTA_UPDATES)
 async def to_code(config):
     cg.add_define("USE_OTA")
-
-    if CORE.is_esp32 and CORE.using_arduino:
-        cg.add_library("Update", None)
+    CORE.add_job(final_step)
 
     if CORE.is_rp2040 and CORE.using_arduino:
         cg.add_library("Updater", None)
@@ -119,4 +137,38 @@ async def ota_to_code(var, config):
         await automation.build_automation(trigger, [(cg.uint8, "x")], conf)
         use_state_callback = True
     if use_state_callback:
-        cg.add_define("USE_OTA_STATE_CALLBACK")
+        request_ota_state_listeners()
+
+
+def request_ota_state_listeners() -> None:
+    """Request that OTA state listeners be compiled in.
+
+    Components that need to be notified about OTA state changes (start, progress,
+    complete, error) should call this function during their code generation.
+    This enables the add_state_listener() API on OTAComponent.
+    """
+    CORE.data[OTA_STATE_LISTENER_KEY] = True
+
+
+@coroutine_with_priority(CoroPriority.FINAL)
+async def final_step():
+    """Final code generation step to configure optional OTA features."""
+    if CORE.data.get(OTA_STATE_LISTENER_KEY, False):
+        cg.add_define("USE_OTA_STATE_LISTENER")
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "ota_backend_esp_idf.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
+        "ota_backend_esp8266.cpp": {PlatformFramework.ESP8266_ARDUINO},
+        "ota_backend_arduino_rp2040.cpp": {PlatformFramework.RP2040_ARDUINO},
+        "ota_backend_arduino_libretiny.cpp": {
+            PlatformFramework.BK72XX_ARDUINO,
+            PlatformFramework.RTL87XX_ARDUINO,
+            PlatformFramework.LN882X_ARDUINO,
+        },
+    }
+)

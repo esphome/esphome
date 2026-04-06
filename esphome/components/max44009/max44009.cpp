@@ -8,20 +8,19 @@ namespace max44009 {
 static const char *const TAG = "max44009.sensor";
 
 // REGISTERS
-static const uint8_t MAX44009_REGISTER_CONFIGURATION = 0x02;
-static const uint8_t MAX44009_LUX_READING_HIGH = 0x03;
-static const uint8_t MAX44009_LUX_READING_LOW = 0x04;
+static constexpr uint8_t MAX44009_REGISTER_CONFIGURATION = 0x02;
+static constexpr uint8_t MAX44009_LUX_READING_HIGH = 0x03;
+static constexpr uint8_t MAX44009_LUX_READING_LOW = 0x04;
 // CONFIGURATION MASKS
-static const uint8_t MAX44009_CFG_CONTINUOUS = 0x80;
+static constexpr uint8_t MAX44009_CFG_CONTINUOUS = 0x80;
 // ERROR CODES
-static const uint8_t MAX44009_OK = 0;
-static const uint8_t MAX44009_ERROR_WIRE_REQUEST = -10;
-static const uint8_t MAX44009_ERROR_OVERFLOW = -20;
-static const uint8_t MAX44009_ERROR_HIGH_BYTE = -30;
-static const uint8_t MAX44009_ERROR_LOW_BYTE = -31;
+static constexpr int8_t MAX44009_OK = 0;
+static constexpr int8_t MAX44009_ERROR_WIRE_REQUEST = -10;
+static constexpr int8_t MAX44009_ERROR_OVERFLOW = -20;
+static constexpr int8_t MAX44009_ERROR_HIGH_BYTE = -30;
+static constexpr int8_t MAX44009_ERROR_LOW_BYTE = -31;
 
 void MAX44009Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup");
   bool state_ok = false;
   if (this->mode_ == MAX44009Mode::MAX44009_MODE_LOW_POWER) {
     state_ok = this->set_low_power_mode();
@@ -51,8 +50,6 @@ void MAX44009Sensor::dump_config() {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
 }
-
-float MAX44009Sensor::get_setup_priority() const { return setup_priority::DATA; }
 
 void MAX44009Sensor::update() {
   // update sensor illuminance value

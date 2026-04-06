@@ -11,14 +11,10 @@ static const char *const TAG = "max31856";
 // Based on Adafruit's library: https://github.com/adafruit/Adafruit_MAX31856
 
 void MAX31856Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->name_.c_str());
   this->spi_setup();
 
   // assert on any fault
-  ESP_LOGCONFIG(TAG, "Setting up assertion on all faults");
   this->write_register_(MAX31856_MASK_REG, 0x0);
-
-  ESP_LOGCONFIG(TAG, "Setting up open circuit fault detection");
   this->write_register_(MAX31856_CR0_REG, MAX31856_CR0_OCFAULT01);
 
   this->set_thermocouple_type_();
@@ -45,8 +41,8 @@ void MAX31856Sensor::update() {
   this->one_shot_temperature_();
 
   // Datasheet max conversion time for 1 shot is 155ms for 60Hz / 185ms for 50Hz
-  auto f = std::bind(&MAX31856Sensor::read_thermocouple_temperature_, this);
-  this->set_timeout("MAX31856Sensor::read_thermocouple_temperature_", filter_ == FILTER_60HZ ? 155 : 185, f);
+  this->set_timeout("MAX31856Sensor::read_thermocouple_temperature_", filter_ == FILTER_60HZ ? 155 : 185,
+                    [this]() { this->read_thermocouple_temperature_(); });
 }
 
 void MAX31856Sensor::read_thermocouple_temperature_() {
@@ -200,8 +196,6 @@ uint32_t MAX31856Sensor::read_register24_(uint8_t reg) {
   ESP_LOGV(TAG, "read_register_24_ reg=0x%02X: value=0x%06" PRIX32, reg, value);
   return value;
 }
-
-float MAX31856Sensor::get_setup_priority() const { return setup_priority::DATA; }
 
 }  // namespace max31856
 }  // namespace esphome

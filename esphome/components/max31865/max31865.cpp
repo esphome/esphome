@@ -60,12 +60,10 @@ void MAX31865Sensor::update() {
   this->write_config_(0b11100000, 0b10100000);
 
   // Datasheet max conversion time is 55ms for 60Hz / 66ms for 50Hz
-  auto f = std::bind(&MAX31865Sensor::read_data_, this);
-  this->set_timeout("value", filter_ == FILTER_60HZ ? 55 : 66, f);
+  this->set_timeout("value", filter_ == FILTER_60HZ ? 55 : 66, [this]() { this->read_data_(); });
 }
 
 void MAX31865Sensor::setup() {
-  ESP_LOGCONFIG(TAG, "Running setup for '%s'", this->name_.c_str());
   this->spi_setup();
 
   // Build base configuration
@@ -90,8 +88,6 @@ void MAX31865Sensor::dump_config() {
                 reference_resistance_, rtd_wires_, rtd_nominal_resistance_,
                 (filter_ == FILTER_60HZ ? "60 Hz" : (filter_ == FILTER_50HZ ? "50 Hz" : "Unknown!")));
 }
-
-float MAX31865Sensor::get_setup_priority() const { return setup_priority::DATA; }
 
 void MAX31865Sensor::read_data_() {
   // Read temperature, disable V_BIAS (save power)
