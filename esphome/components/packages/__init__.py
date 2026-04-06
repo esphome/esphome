@@ -403,7 +403,9 @@ class _PackageProcessor:
         self.skip_update = skip_update
 
     def resolve_package(
-        self, package_config: dict | str, context_vars: ContextVars | None
+        self,
+        package_config: dict | str | yaml_util.IncludeFile,
+        context_vars: ContextVars | None,
     ) -> dict:
         """Resolve a package definition to a concrete ``dict`` and fetch remote packages.
 

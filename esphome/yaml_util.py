@@ -129,7 +129,7 @@ class ConfigContext:
         # pylint: disable=attribute-defined-outside-init
         self._context_vars = vars
 
-    def copy_context_to_children(self):
+    def copy_context_to_children(self) -> None:
         """Propagate context to children."""
         if isinstance(self, dict):
             tagged = {
@@ -161,7 +161,7 @@ class IncludeFile:
         parent_file: Path,
         file: Path | str,
         vars: dict[str, Any] | None,
-        yaml_loader: Callable[[Path], dict[str, Any]],
+        yaml_loader: Callable[[Path], Any],
     ) -> None:
         self.parent_file = parent_file
         self.file = Path(file)
