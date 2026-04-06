@@ -23,7 +23,7 @@ static constexpr uint8_t PACKET_TYPE_STATUS_RESPONSE = 0x62;
 static constexpr uint8_t STATUS_MSG_SETTINGS = 0x02;
 static constexpr uint8_t STATUS_MSG_ROOM_TEMP = 0x03;
 
-static constexpr std::array<std::optional<MitsubishiCN105::Mode>, 9> MODE_MAP = {
+static constexpr std::array<std::optional<MitsubishiCN105::Mode>, 9> PROTOCOL_MODE_MAP = {
     std::nullopt,                     // 0x00
     MitsubishiCN105::Mode::HEAT,      // 0x01
     MitsubishiCN105::Mode::DRY,       // 0x02
@@ -35,7 +35,7 @@ static constexpr std::array<std::optional<MitsubishiCN105::Mode>, 9> MODE_MAP = 
     MitsubishiCN105::Mode::AUTO       // 0x08
 };
 
-static constexpr std::array<std::optional<MitsubishiCN105::FanMode>, 7> FAN_MODE_MAP = {
+static constexpr std::array<std::optional<MitsubishiCN105::FanMode>, 7> PROTOCOL_FAN_MODE_MAP = {
     MitsubishiCN105::FanMode::AUTO,     // 0x00
     MitsubishiCN105::FanMode::QUIET,    // 0x01
     MitsubishiCN105::FanMode::SPEED_1,  // 0x02
@@ -264,8 +264,8 @@ bool MitsubishiCN105::parse_status_settings_(const uint8_t *payload, size_t len)
   }
 
   const bool i_see = payload[3] > 0x08;
-  this->status_.mode = lookup(MODE_MAP, payload[3] - (i_see ? 0x08 : 0)).value_or(Mode::UNKNOWN);
-  this->status_.fan_mode = lookup(FAN_MODE_MAP, payload[5]).value_or(FanMode::UNKNOWN);
+  this->status_.mode = lookup(PROTOCOL_MODE_MAP, payload[3] - (i_see ? 0x08 : 0)).value_or(Mode::UNKNOWN);
+  this->status_.fan_mode = lookup(PROTOCOL_FAN_MODE_MAP, payload[5]).value_or(FanMode::UNKNOWN);
   this->status_.power_on = payload[2] != 0;
   this->status_.target_temperature = decode_temperature(-payload[4], payload[10], 31);
 
@@ -359,8 +359,11 @@ bool MitsubishiCN105::FrameParser::read_and_parse(uart::UARTDevice &device, Call
       continue;
     }
 
-    this->reset_and_dump_buffer_("RX");
-    return callback(this->read_buffer_[1], this->read_buffer_ + HEADER_LEN, len_without_checksum - HEADER_LEN);
+    dump_buffer_vv("RX", this->read_buffer_, this->read_pos_);
+    const bool processed =
+        callback(this->read_buffer_[1], this->read_buffer_ + HEADER_LEN, len_without_checksum - HEADER_LEN);
+    this->read_pos_ = 0;
+    return processed;
   }
 
   return false;
