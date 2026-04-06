@@ -49,6 +49,7 @@ lvgl:
           bg_color: 0x000000
           bg_opa: cover
   theme:
+    dark_mode: true
     obj:
       border_width: 1
 
