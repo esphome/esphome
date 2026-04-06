@@ -272,9 +272,14 @@ class ProtoCursor {
       *this->pos_++ = static_cast<uint8_t>(value);
       return;
     }
-    this->flush_();
-    this->buf_.encode_varint_raw_slow_(value);
-    this->reload_();
+    // Write varint bytes directly through pos_ — no flush/reload needed
+    do {
+      this->debug_check_bounds_(1);
+      *this->pos_++ = static_cast<uint8_t>(value | 0x80);
+      value >>= 7;
+    } while (value > 0x7F);
+    this->debug_check_bounds_(1);
+    *this->pos_++ = static_cast<uint8_t>(value);
   }
   /// Encode a varint that is expected to be 1-2 bytes (e.g. zigzag RSSI, small lengths).
   /// Inlines both the 1-byte and 2-byte paths; falls back to slow path for 3+ bytes.
@@ -290,9 +295,14 @@ class ProtoCursor {
       *this->pos_++ = static_cast<uint8_t>(value >> 7);
       return;
     }
-    this->flush_();
-    this->buf_.encode_varint_raw_slow_(value);
-    this->reload_();
+    // Write varint bytes directly through pos_ — no flush/reload needed
+    do {
+      this->debug_check_bounds_(1);
+      *this->pos_++ = static_cast<uint8_t>(value | 0x80);
+      value >>= 7;
+    } while (value > 0x7F);
+    this->debug_check_bounds_(1);
+    *this->pos_++ = static_cast<uint8_t>(value);
   }
   void encode_varint_raw_64(uint64_t value) {
     while (value > 0x7F) {
@@ -340,9 +350,15 @@ class ProtoCursor {
       this->debug_check_bounds_(1 + len);
       *this->pos_++ = static_cast<uint8_t>(len);
     } else {
-      this->flush_();
-      this->buf_.encode_varint_raw_slow_(len);
-      this->reload_();
+      // Write length varint directly through pos_ — no flush/reload needed
+      size_t tmp = len;
+      do {
+        this->debug_check_bounds_(1);
+        *this->pos_++ = static_cast<uint8_t>(tmp | 0x80);
+        tmp >>= 7;
+      } while (tmp > 0x7F);
+      this->debug_check_bounds_(1);
+      *this->pos_++ = static_cast<uint8_t>(tmp);
       this->debug_check_bounds_(len);
     }
     std::memcpy(this->pos_, string, len);
