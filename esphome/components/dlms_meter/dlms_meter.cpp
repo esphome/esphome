@@ -5,29 +5,27 @@
 
 namespace esphome::dlms_meter {
 
-static constexpr const char *TAG = "dlms_meter";
+static constexpr auto &TAG = "dlms_meter";
 
 static void log_callback(dlms_parser::LogLevel level, const char *fmt, va_list args) {
-  static char buf[256];
-  vsnprintf(buf, sizeof(buf), fmt, args);
   switch (level) {
     case dlms_parser::LogLevel::ERROR:
-      ESP_LOGE(TAG, "%s", buf);
+      esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_ERROR, TAG, 0, fmt, args);
       break;
     case dlms_parser::LogLevel::WARNING:
-      ESP_LOGW(TAG, "%s", buf);
+      esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_WARN, TAG, 0, fmt, args);
       break;
     case dlms_parser::LogLevel::INFO:
-      ESP_LOGI(TAG, "%s", buf);
+      esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_INFO, TAG, 0, fmt, args);
       break;
     case dlms_parser::LogLevel::DEBUG:
-      ESP_LOGD(TAG, "%s", buf);
+      esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_DEBUG, TAG, 0, fmt, args);
       break;
     case dlms_parser::LogLevel::VERBOSE:
-      ESP_LOGV(TAG, "%s", buf);
+      esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_VERBOSE, TAG, 0, fmt, args);
       break;
-    default:
-      ESP_LOGVV(TAG, "%s", buf);
+    case dlms_parser::LogLevel::VERY_VERBOSE:
+      esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_VERY_VERBOSE, TAG, 0, fmt, args);
       break;
   }
 }
@@ -48,10 +46,7 @@ void DlmsMeterComponent::setup() {
     }
   }
 
-  // Flush UART
-  while (this->available()) {
-    this->read();
-  }
+  this->flush_rx_buffer_();
 }
 
 void DlmsMeterComponent::dump_config() {
@@ -113,8 +108,14 @@ void DlmsMeterComponent::set_authentication_key(const std::array<uint8_t, 16> &k
 
 void DlmsMeterComponent::loop() {
   this->read_rx_buffer_();
-  if (this->receiving_ && millis() - this->last_rx_char_time_ > this->receive_timeout_ms_) {
+  if (this->bytes_accumulated_ > 0 && millis() - this->last_rx_char_time_ > this->receive_timeout_ms_) {
     this->process_frame_();
+  }
+}
+
+void DlmsMeterComponent::flush_rx_buffer_() {
+  while (this->available()) {
+    this->read();
   }
 }
 
@@ -123,23 +124,17 @@ void DlmsMeterComponent::read_rx_buffer_() {
   if (available == 0)
     return;
 
-  this->receiving_ = true;
-
   if (this->bytes_accumulated_ + available > this->rx_buffer_.size()) {
     ESP_LOGW(TAG, "RX Buffer overflow. Frame too large! Dropping frame.");
     this->bytes_accumulated_ = 0;
-    this->receiving_ = false;
 
-    while (this->available()) {
-      this->read();
-    }
+    this->flush_rx_buffer_();
     return;
   }
 
   this->read_array(this->rx_buffer_.data() + this->bytes_accumulated_, available);
   this->bytes_accumulated_ += available;
 
-  // Updated after consuming the chars from the buffer
   this->last_rx_char_time_ = millis();
 }
 
@@ -156,7 +151,6 @@ void DlmsMeterComponent::process_frame_() {
   this->parser_.parse({this->rx_buffer_.data(), this->bytes_accumulated_}, callback);
 
   this->bytes_accumulated_ = 0;
-  this->receiving_ = false;
 }
 
 void DlmsMeterComponent::on_data_(const char *obis_code, float float_val, const char *str_val, bool is_numeric) {

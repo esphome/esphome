@@ -17,20 +17,14 @@
 
 #include <dlms_parser/dlms_parser.h>
 
-#if defined(ESP_IDF_VERSION) && defined(ESP_IDF_VERSION_VAL)
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
+#if __has_include(<psa/crypto.h>)
 #include <dlms_parser/decryption/aes_128_gcm_decryptor_tfpsa.h>
 using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorTfPsa;
-#else
-#include <mbedtls/esp_config.h>
-#include <dlms_parser/decryption/aes_128_gcm_decryptor_mbedtls.h>
-using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorMbedTls;
-#endif
 #elif __has_include(<mbedtls/gcm.h>)
 #include <mbedtls/esp_config.h>
 #include <dlms_parser/decryption/aes_128_gcm_decryptor_mbedtls.h>
 using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorMbedTls;
-#elif __has_include(<bearssl.h>)
+#elif __has_include(<bearssl/bearssl.h>)
 #include <dlms_parser/decryption/aes_128_gcm_decryptor_bearssl.h>
 using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorBearSsl;
 #else
@@ -105,13 +99,13 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
 
  protected:
   void read_rx_buffer_();
+  void flush_rx_buffer_();
   void process_frame_();
   void on_data_(const char *obis_code, float float_val, const char *str_val, bool is_numeric);
 
   std::array<uint8_t, 2048> rx_buffer_;
   size_t bytes_accumulated_{0};
   uint32_t last_rx_char_time_{0};
-  bool receiving_{false};
 
   uint32_t receive_timeout_ms_{500};
   bool skip_crc_check_{false};

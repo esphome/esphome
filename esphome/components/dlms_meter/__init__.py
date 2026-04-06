@@ -3,14 +3,7 @@ import re
 import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
-from esphome.const import (
-    CONF_ID,
-    CONF_NAME,
-    CONF_PATTERN,
-    CONF_PRIORITY,
-    PLATFORM_ESP32,
-    PLATFORM_ESP8266,
-)
+from esphome.const import CONF_ID, CONF_NAME, CONF_PATTERN, CONF_PRIORITY
 from esphome.core import CORE
 
 CODEOWNERS = ["@SimonFischer04", "@Tomer27cz", "@latonita", "@PolarGoose"]
@@ -126,7 +119,6 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.COMPONENT_SCHEMA),
-    cv.only_on([PLATFORM_ESP8266, PLATFORM_ESP32]),
 )
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema("dlms_meter", require_rx=True)
@@ -146,12 +138,10 @@ async def to_code(config):
     cg.add(var.set_skip_crc_check(config[CONF_SKIP_CRC]))
 
     if CONF_DECRYPTION_KEY in config:
-        key = ", ".join(str(b) for b in config[CONF_DECRYPTION_KEY])
-        cg.add(var.set_decryption_key(cg.RawExpression(f"{{{key}}}")))
+        cg.add(var.set_decryption_key(config[CONF_DECRYPTION_KEY]))
 
     if CONF_AUTH_KEY in config:
-        auth = ", ".join(str(b) for b in config[CONF_AUTH_KEY])
-        cg.add(var.set_authentication_key(cg.RawExpression(f"{{{auth}}}")))
+        cg.add(var.set_authentication_key(config[CONF_AUTH_KEY]))
 
     if CONF_CUSTOM_PATTERNS in config:
         for p in config[CONF_CUSTOM_PATTERNS]:
