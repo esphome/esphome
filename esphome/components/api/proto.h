@@ -228,10 +228,10 @@ class ProtoWriteBuffer {
   template<typename T> void encode_optional_sub_message(uint32_t field_id, const T &value);
 
   // Non-template core for encode_sub_message — backpatch approach.
-  void encode_sub_message(uint32_t field_id, const void *value, void (*encode_fn)(const void *, ProtoWriteBuffer &));
+  void encode_sub_message(uint32_t field_id, const void *value, uint8_t *(*encode_fn)(const void *, ProtoWriteBuffer &));
   // Non-template core for encode_optional_sub_message.
   void encode_optional_sub_message(uint32_t field_id, uint32_t nested_size, const void *value,
-                                   void (*encode_fn)(const void *, ProtoWriteBuffer &));
+                                   uint8_t *(*encode_fn)(const void *, ProtoWriteBuffer &));
   APIBuffer *get_buffer() const { return buffer_; }
   /// Get current write position for ProtoCursor initialization.
   uint8_t *get_pos() const { return pos_; }
@@ -403,7 +403,7 @@ inline void proto_encode_sint32(uint8_t *__restrict__ &pos, uint32_t field_id, i
 inline void proto_encode_sint64(uint8_t *__restrict__ &pos, uint32_t field_id, int64_t value, bool force = false) {
   proto_encode_uint64(pos, field_id, encode_zigzag64(value), force);
 }
-/// Sub-message encoding: sync pos back to buffer, delegate, reload.
+/// Sub-message encoding: sync pos to buffer, delegate, get pos from return value.
 template<typename T>
 inline void proto_encode_sub_message(uint8_t *__restrict__ &pos, ProtoWriteBuffer &buffer, uint32_t field_id,
                                      const T &value) {
@@ -514,7 +514,7 @@ class ProtoMessage {
   // All call sites use templates to preserve the concrete type, so virtual
   // dispatch is not needed. This eliminates per-message vtable entries for
   // encode/calculate_size, saving ~1.3 KB of flash across all message types.
-  void encode(ProtoWriteBuffer &buffer) const {}
+  uint8_t *encode(ProtoWriteBuffer &buffer) const { return buffer.get_pos(); }
   uint32_t calculate_size() const { return 0; }
 #ifdef HAS_PROTO_MESSAGE_DUMP
   virtual const char *dump_to(DumpBuffer &out) const = 0;
@@ -747,8 +747,8 @@ class ProtoSize {
 // Implementation of methods that depend on ProtoSize being fully defined
 
 // Encode thunk — converts void* back to concrete type for direct encode() call
-template<typename T> void proto_encode_msg(const void *msg, ProtoWriteBuffer &buf) {
-  static_cast<const T *>(msg)->encode(buf);
+template<typename T> uint8_t *proto_encode_msg(const void *msg, ProtoWriteBuffer &buf) {
+  return static_cast<const T *>(msg)->encode(buf);
 }
 
 // Thin template wrapper; delegates to non-template core in proto.cpp.

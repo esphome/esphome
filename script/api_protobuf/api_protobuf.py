@@ -2411,13 +2411,13 @@ def build_message_type(
 
     # Only generate encode method if this message needs encoding and has fields
     if needs_encode and encode:
-        o = f"void {desc.name}::encode(ProtoWriteBuffer &buffer) const {{\n"
+        o = f"uint8_t *{desc.name}::encode(ProtoWriteBuffer &buffer) const {{\n"
         o += "  uint8_t *__restrict__ pos = buffer.get_pos();\n"
         o += indent("\n".join(encode)) + "\n"
-        o += "  buffer.set_pos(pos);\n"
+        o += "  return pos;\n"
         o += "}\n"
         cpp += o
-        prot = "void encode(ProtoWriteBuffer &buffer) const;"
+        prot = "uint8_t *encode(ProtoWriteBuffer &buffer) const;"
         public_content.append(prot)
     # If no fields to encode or message doesn't need encoding, the default implementation in ProtoMessage will be used
 

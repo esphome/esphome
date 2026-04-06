@@ -145,14 +145,14 @@ uint32_t ProtoDecodableMessage::count_repeated_field(const uint8_t *buffer, size
 //   [tag][v1][v2][body ..... body]
 //                                ^-- pos_ = element end, within buffer
 void ProtoWriteBuffer::encode_sub_message(uint32_t field_id, const void *value,
-                                          void (*encode_fn)(const void *, ProtoWriteBuffer &)) {
+                                          uint8_t *(*encode_fn)(const void *, ProtoWriteBuffer &)) {
   this->encode_field_raw(field_id, 2);
   // Reserve 1 byte for length varint (optimistic: submessage < 128 bytes)
   uint8_t *len_pos = this->pos_;
   this->debug_check_bounds_(1);
   this->pos_++;
   uint8_t *body_start = this->pos_;
-  encode_fn(value, *this);
+  this->pos_ = encode_fn(value, *this);
   uint32_t body_size = static_cast<uint32_t>(this->pos_ - body_start);
   if (body_size < 128) [[likely]] {
     // Common case: 1-byte varint, just backpatch
@@ -173,18 +173,18 @@ void ProtoWriteBuffer::encode_sub_message(uint32_t field_id, const void *value,
 
 // Non-template core for encode_optional_sub_message.
 void ProtoWriteBuffer::encode_optional_sub_message(uint32_t field_id, uint32_t nested_size, const void *value,
-                                                   void (*encode_fn)(const void *, ProtoWriteBuffer &)) {
+                                                   uint8_t *(*encode_fn)(const void *, ProtoWriteBuffer &)) {
   if (nested_size == 0)
     return;
   this->encode_field_raw(field_id, 2);
   this->encode_varint_raw(nested_size);
 #ifdef ESPHOME_DEBUG_API
   uint8_t *start = this->pos_;
-  encode_fn(value, *this);
+  this->pos_ = encode_fn(value, *this);
   if (static_cast<uint32_t>(this->pos_ - start) != nested_size)
     this->debug_check_encode_size_(field_id, nested_size, this->pos_ - start);
 #else
-  encode_fn(value, *this);
+  this->pos_ = encode_fn(value, *this);
 #endif
 }
 
