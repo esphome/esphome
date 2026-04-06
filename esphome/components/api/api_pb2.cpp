@@ -224,13 +224,11 @@ uint8_t *ListEntitiesBinarySensorResponse::encode(ProtoWriteBuffer &buffer PROTO
   ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->object_id);
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
   ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
-  if (!this->device_class.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 42, this->device_class);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->device_class);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->is_status_binary_sensor);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  if (!this->icon.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 66, this->icon);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, this->icon);
 #endif
   if (this->entity_category) {
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 72);
@@ -288,12 +286,10 @@ uint8_t *ListEntitiesCoverResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, this->assumed_state);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->supports_position);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, this->supports_tilt);
-  if (!this->device_class.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 66, this->device_class);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, this->device_class);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 9, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  if (!this->icon.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 82, this->icon);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->icon);
 #endif
   if (this->entity_category) {
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 88);
@@ -400,8 +396,7 @@ uint8_t *ListEntitiesFanResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_D
   ProtoEncode::encode_int32(pos PROTO_ENCODE_DEBUG_ARG, 8, this->supported_speed_count);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 9, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  if (!this->icon.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 82, this->icon);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 10, this->icon);
 #endif
   if (this->entity_category) {
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 88);
@@ -545,8 +540,7 @@ uint8_t *ListEntitiesLightResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE
   }
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 13, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  if (!this->icon.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 114, this->icon);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 14, this->icon);
 #endif
   if (this->entity_category) {
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 120);
@@ -741,15 +735,12 @@ uint8_t *ListEntitiesSensorResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCOD
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
   ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
-  if (!this->icon.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 42, this->icon);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
-  if (!this->unit_of_measurement.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 50, this->unit_of_measurement);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 6, this->unit_of_measurement);
   ProtoEncode::encode_int32(pos PROTO_ENCODE_DEBUG_ARG, 7, this->accuracy_decimals);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 8, this->force_update);
-  if (!this->device_class.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 74, this->device_class);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 9, this->device_class);
   if (this->state_class) {
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 80);
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, static_cast<uint8_t>(this->state_class));
@@ -812,8 +803,7 @@ uint8_t *ListEntitiesSwitchResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCOD
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
   ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
-  if (!this->icon.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 42, this->icon);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->assumed_state);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, this->disabled_by_default);
@@ -821,8 +811,7 @@ uint8_t *ListEntitiesSwitchResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCOD
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 64);
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, static_cast<uint8_t>(this->entity_category));
   }
-  if (!this->device_class.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 74, this->device_class);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 9, this->device_class);
 #ifdef USE_DEVICES
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, this->device_id);
 #endif
@@ -896,16 +885,14 @@ uint8_t *ListEntitiesTextSensorResponse::encode(ProtoWriteBuffer &buffer PROTO_E
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
   ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
-  if (!this->icon.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 42, this->icon);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
   if (this->entity_category) {
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 56);
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, static_cast<uint8_t>(this->entity_category));
   }
-  if (!this->device_class.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 66, this->device_class);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, this->device_class);
 #ifdef USE_DEVICES
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 9, this->device_id);
 #endif
@@ -1382,8 +1369,7 @@ uint8_t *ListEntitiesCameraResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCOD
   ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, this->disabled_by_default);
 #ifdef USE_ENTITY_ICON
-  if (!this->icon.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 50, this->icon);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 6, this->icon);
 #endif
   if (this->entity_category) {
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 56);
@@ -1694,8 +1680,7 @@ uint8_t *ListEntitiesWaterHeaterResponse::encode(ProtoWriteBuffer &buffer PROTO_
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
   ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
-  if (!this->icon.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 34, this->icon);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, this->icon);
 #endif
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, this->disabled_by_default);
   if (this->entity_category) {
@@ -1815,8 +1800,7 @@ uint8_t *ListEntitiesNumberResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCOD
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
   ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
-  if (!this->icon.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 42, this->icon);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
   ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 6, this->min_value);
   ProtoEncode::encode_float(pos PROTO_ENCODE_DEBUG_ARG, 7, this->max_value);
@@ -1826,14 +1810,12 @@ uint8_t *ListEntitiesNumberResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCOD
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 80);
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, static_cast<uint8_t>(this->entity_category));
   }
-  if (!this->unit_of_measurement.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 90, this->unit_of_measurement);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 11, this->unit_of_measurement);
   if (this->mode) {
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 96);
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, static_cast<uint8_t>(this->mode));
   }
-  if (!this->device_class.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 106, this->device_class);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 13, this->device_class);
 #ifdef USE_DEVICES
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 14, this->device_id);
 #endif
@@ -1913,8 +1895,7 @@ uint8_t *ListEntitiesSelectResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCOD
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
   ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
-  if (!this->icon.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 42, this->icon);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
   for (const char *it : *this->options) {
     ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 6, it, strlen(it), true);
@@ -2010,8 +1991,7 @@ uint8_t *ListEntitiesSirenResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
   ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
-  if (!this->icon.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 42, this->icon);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
   for (const char *it : *this->tones) {
@@ -2130,8 +2110,7 @@ uint8_t *ListEntitiesLockResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
   ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
-  if (!this->icon.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 42, this->icon);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
   if (this->entity_category) {
@@ -2234,16 +2213,14 @@ uint8_t *ListEntitiesButtonResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCOD
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
   ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
-  if (!this->icon.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 42, this->icon);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
   if (this->entity_category) {
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 56);
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, static_cast<uint8_t>(this->entity_category));
   }
-  if (!this->device_class.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 66, this->device_class);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, this->device_class);
 #ifdef USE_DEVICES
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 9, this->device_id);
 #endif
@@ -2316,8 +2293,7 @@ uint8_t *ListEntitiesMediaPlayerResponse::encode(ProtoWriteBuffer &buffer PROTO_
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
   ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
-  if (!this->icon.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 42, this->icon);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
   if (this->entity_category) {
@@ -3211,8 +3187,7 @@ uint8_t *ListEntitiesAlarmControlPanelResponse::encode(ProtoWriteBuffer &buffer 
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
   ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
-  if (!this->icon.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 42, this->icon);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
   if (this->entity_category) {
@@ -3310,8 +3285,7 @@ uint8_t *ListEntitiesTextResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
   ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
-  if (!this->icon.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 42, this->icon);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
   if (this->entity_category) {
@@ -3410,8 +3384,7 @@ uint8_t *ListEntitiesDateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
   ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
-  if (!this->icon.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 42, this->icon);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
   if (this->entity_category) {
@@ -3501,8 +3474,7 @@ uint8_t *ListEntitiesTimeResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
   ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
-  if (!this->icon.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 42, this->icon);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
   if (this->entity_category) {
@@ -3592,16 +3564,14 @@ uint8_t *ListEntitiesEventResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
   ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
-  if (!this->icon.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 42, this->icon);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
   if (this->entity_category) {
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 56);
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, static_cast<uint8_t>(this->entity_category));
   }
-  if (!this->device_class.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 66, this->device_class);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, this->device_class);
   for (const char *it : *this->event_types) {
     ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 9, it, strlen(it), true);
   }
@@ -3657,16 +3627,14 @@ uint8_t *ListEntitiesValveResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
   ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
-  if (!this->icon.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 42, this->icon);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
   if (this->entity_category) {
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 56);
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, static_cast<uint8_t>(this->entity_category));
   }
-  if (!this->device_class.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 66, this->device_class);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, this->device_class);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 9, this->assumed_state);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 10, this->supports_position);
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 11, this->supports_stop);
@@ -3756,8 +3724,7 @@ uint8_t *ListEntitiesDateTimeResponse::encode(ProtoWriteBuffer &buffer PROTO_ENC
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
   ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
-  if (!this->icon.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 42, this->icon);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
   if (this->entity_category) {
@@ -3837,16 +3804,14 @@ uint8_t *ListEntitiesUpdateResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCOD
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
   ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
-  if (!this->icon.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 42, this->icon);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->icon);
 #endif
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 6, this->disabled_by_default);
   if (this->entity_category) {
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, 56);
     ProtoEncode::write_raw_byte(pos PROTO_ENCODE_DEBUG_ARG, static_cast<uint8_t>(this->entity_category));
   }
-  if (!this->device_class.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 66, this->device_class);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, this->device_class);
 #ifdef USE_DEVICES
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 9, this->device_id);
 #endif
@@ -3996,8 +3961,7 @@ uint8_t *ListEntitiesInfraredResponse::encode(ProtoWriteBuffer &buffer PROTO_ENC
   ProtoEncode::write_tag_and_fixed32(pos PROTO_ENCODE_DEBUG_ARG, 21, this->key);
   ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 26, this->name);
 #ifdef USE_ENTITY_ICON
-  if (!this->icon.empty())
-    ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, 34, this->icon);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, this->icon);
 #endif
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 5, this->disabled_by_default);
   if (this->entity_category) {
