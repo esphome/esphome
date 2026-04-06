@@ -119,12 +119,20 @@ def test_code_generation(
 
     main_cpp = generate_main(component_fixture_path("mipi_dsi.yaml"))
     assert (
-        "p4_nano = new mipi_dsi::MIPI_DSI(800, 1280, display::COLOR_BITNESS_565, 16);"
+        "alignas(mipi_dsi::MIPI_DSI) static unsigned char mipi_dsi__p4_nano__pstorage[sizeof(mipi_dsi::MIPI_DSI)];"
+        in main_cpp
+    )
+    assert (
+        "static mipi_dsi::MIPI_DSI *const p4_nano = reinterpret_cast<mipi_dsi::MIPI_DSI *>(mipi_dsi__p4_nano__pstorage);"
+        in main_cpp
+    )
+    assert (
+        "new(p4_nano) mipi_dsi::MIPI_DSI(800, 1280, display::COLOR_BITNESS_565, 16);"
         in main_cpp
     )
     assert "set_init_sequence({224, 1, 0, 225, 1, 147, 226, 1," in main_cpp
     assert "p4_nano->set_lane_bit_rate(1500.0f);" in main_cpp
     assert "p4_nano->set_rotation(display::DISPLAY_ROTATION_90_DEGREES);" in main_cpp
-    assert "p4_86->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);" in main_cpp
+    assert "p4_86->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);" not in main_cpp
     assert "custom_id->set_rotation(display::DISPLAY_ROTATION_180_DEGREES);" in main_cpp
     # assert "backlight_id = new light::LightState(mipi_dsi_dsibacklight_id);" in main_cpp

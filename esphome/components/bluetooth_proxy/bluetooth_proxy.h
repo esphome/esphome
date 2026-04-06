@@ -65,8 +65,6 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
   bool parse_devices(const esp32_ble::BLEScanResult *scan_results, size_t count) override;
   void dump_config() override;
   void setup() override;
-  void loop() override;
-  void flush_pending_advertisements();
   esp32_ble_tracker::AdvertisementParserType get_advertisement_parser_type() override;
 
   void register_connection(BluetoothConnection *connection) {
@@ -150,6 +148,18 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
  protected:
   void send_bluetooth_scanner_state_(esp32_ble_tracker::ScannerState state);
 
+  /// Caller must ensure api_connection_ is non-null and API server is connected.
+  void flush_pending_advertisements_() {
+    if (this->response_.advertisements_len == 0)
+      return;
+    this->api_connection_->send_message(this->response_);
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+    this->log_advertisement_flush_();
+#endif
+    this->response_.advertisements_len = 0;
+  }
+  void log_advertisement_flush_();
+
   BluetoothConnection *get_connection_(uint64_t address, bool reserve);
   void log_connection_request_ignored_(BluetoothConnection *connection, espbt::ClientState state);
   void log_connection_info_(BluetoothConnection *connection, const char *message);
@@ -165,9 +175,6 @@ class BluetoothProxy final : public esp32_ble_tracker::ESPBTDeviceListener,
 
   // BLE advertisement batching
   api::BluetoothLERawAdvertisementsResponse response_;
-
-  // Group 3: 4-byte types
-  uint32_t last_advertisement_flush_time_{0};
 
   // Pre-allocated response message - always ready to send
   api::BluetoothConnectionsFreeResponse connections_free_response_;

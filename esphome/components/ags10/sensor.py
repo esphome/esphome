@@ -112,7 +112,9 @@ AGS10_SET_ZERO_POINT_ACTION_MODE = {
 AGS10_SET_ZERO_POINT_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(AGS10Component),
-        cv.Required(CONF_MODE): cv.enum(AGS10_SET_ZERO_POINT_ACTION_MODE, upper=True),
+        cv.Required(CONF_MODE): cv.templatable(
+            cv.enum(AGS10_SET_ZERO_POINT_ACTION_MODE, upper=True)
+        ),
         cv.Optional(CONF_VALUE, default=0xFFFF): cv.templatable(cv.uint16_t),
     },
 )
@@ -127,8 +129,10 @@ AGS10_SET_ZERO_POINT_SCHEMA = cv.Schema(
 async def ags10setzeropoint_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    mode = await cg.templatable(config.get(CONF_MODE), args, enumerate)
+    mode = await cg.templatable(
+        config.get(CONF_MODE), args, AGS10SetZeroPointActionMode
+    )
     cg.add(var.set_mode(mode))
-    value = await cg.templatable(config[CONF_VALUE], args, int)
+    value = await cg.templatable(config[CONF_VALUE], args, cg.uint16)
     cg.add(var.set_value(value))
     return var

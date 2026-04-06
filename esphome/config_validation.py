@@ -244,6 +244,8 @@ RESERVED_IDS = [
     "open",
     "setup",
     "loop",
+    "spi0",
+    "spi1",
     "uart0",
     "uart1",
     "uart2",
@@ -417,9 +419,13 @@ def icon(value):
     return value
 
 
+@schema_extractor("use_id")
 def sub_device_id(value: str | None) -> core.ID | None:
     # Lazy import to avoid circular imports
     from esphome.core.config import Device
+
+    if value == SCHEMA_EXTRACT:
+        return Device
 
     if not value:
         return None
