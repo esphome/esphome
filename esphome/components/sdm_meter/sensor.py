@@ -25,6 +25,7 @@ from esphome.const import (
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
+    DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_VOLTAGE,
     ICON_CURRENT_AC,
     ICON_FLASH,
@@ -75,6 +76,7 @@ PHASE_SENSORS = {
     CONF_REACTIVE_POWER: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
         accuracy_decimals=2,
+        device_class=DEVICE_CLASS_REACTIVE_POWER,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_POWER_FACTOR: sensor.sensor_schema(
