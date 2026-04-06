@@ -313,7 +313,7 @@ void IRAM_ATTR Component::enable_loop_soon_any_context() {
   App.has_pending_enable_loop_requests_ = true;
   // Wake the main loop from sleep. Without this, the main loop would not
   // wake until the select/delay timeout expires (~16ms).
-  Application::wake_loop_any_context();
+  wake_loop_any_context();
 }
 void Component::reset_to_construction_state() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED) {
