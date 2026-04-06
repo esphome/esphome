@@ -22,8 +22,6 @@
 
 namespace esphome::zigbee {
 
-static const char *const TAG = "zigbee";
-
 enum ZigbeeReportT {
   ZIGBEE_REPORT_NO,
   ZIGBEE_REPORT_YES,
@@ -56,17 +54,16 @@ class ZigbeeComponent : public Component {
 
   template<typename T>
   void add_attr(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
-                uint8_t attr_type, uint8_t attr_access, uint8_t max_size, T value);
+                uint8_t max_size, T value);
 
   template<typename T>
-  void add_attr(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id, uint8_t attr_type,
-                uint8_t attr_access, uint8_t max_size, T value);
+  void add_attr(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id, uint8_t max_size, T value);
 
   void handle_attribute(esp_zb_device_cb_common_info_t info, esp_zb_zcl_attribute_t attribute);
 
   void factory_reset() {
     esp_zb_lock_acquire(portMAX_DELAY);
-    esp_zb_factory_reset();
+    esp_zb_factory_reset();  // triggers a reboot
     esp_zb_lock_release();
   }
 
@@ -75,6 +72,7 @@ class ZigbeeComponent : public Component {
   std::atomic<bool> connected_ = false;
   std::atomic<bool> started_ = false;
 
+ protected:
   struct {
     std::string model;
     std::string manufacturer;
@@ -85,12 +83,10 @@ class ZigbeeComponent : public Component {
 #else
   esp_zb_nwk_device_type_t device_role_ = ESP_ZB_DEVICE_TYPE_ROUTER;
 #endif
-
- protected:
   esp_zb_attribute_list_t *create_basic_cluster_();
   template<typename T>
   void add_attr_(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
-                 uint8_t attr_type, uint8_t attr_access, T *value_p);
+                 T *value_p);
   // endpoint_list_ and attribute_list_ are only used during setup and are cleared afterwards
   // value tuple could be replaced by struct
   std::map<uint8_t, std::tuple<zb_ha_standard_devs_e, esp_zb_cluster_list_t *>> endpoint_list_;
@@ -107,34 +103,33 @@ extern "C" void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct);
 
 template<typename T>
 void ZigbeeComponent::add_attr(uint8_t endpoint_id, uint16_t cluster_id, uint8_t role, uint16_t attr_id,
-                               uint8_t attr_type, uint8_t attr_access, uint8_t max_size, T value) {
-  this->add_attr<T>(nullptr, endpoint_id, cluster_id, role, attr_id, attr_type, attr_access, max_size, value);
+                               uint8_t max_size, T value) {
+  this->add_attr<T>(nullptr, endpoint_id, cluster_id, role, attr_id, max_size, value);
 }
 
 template<typename T>
 void ZigbeeComponent::add_attr(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role,
-                               uint16_t attr_id, uint8_t attr_type, uint8_t attr_access, uint8_t max_size, T value) {
+                               uint16_t attr_id, uint8_t max_size, T value) {
   // The size byte of the zcl_str must be set to the maximum value,
   // even though the initial string may be shorter.
   if constexpr (std::is_same<T, std::string>::value) {
     auto zcl_str = get_zcl_string(value.c_str(), max_size, true);
-    add_attr_(attr, endpoint_id, cluster_id, role, attr_id, attr_type, attr_access, zcl_str);
+    add_attr_(attr, endpoint_id, cluster_id, role, attr_id, zcl_str);
     delete[] zcl_str;
   } else if constexpr (std::is_convertible<T, const char *>::value) {
     auto zcl_str = get_zcl_string(value, max_size, true);
-    add_attr_(attr, endpoint_id, cluster_id, role, attr_id, attr_type, attr_access, zcl_str);
+    add_attr_(attr, endpoint_id, cluster_id, role, attr_id, zcl_str);
     delete[] zcl_str;
   } else {
-    add_attr_(attr, endpoint_id, cluster_id, role, attr_id, attr_type, attr_access, &value);
+    add_attr_(attr, endpoint_id, cluster_id, role, attr_id, &value);
   }
 }
 
 template<typename T>
 void ZigbeeComponent::add_attr_(ZigbeeAttribute *attr, uint8_t endpoint_id, uint16_t cluster_id, uint8_t role,
-                                uint16_t attr_id, uint8_t attr_type, uint8_t attr_access, T *value_p) {
+                                uint16_t attr_id, T *value_p) {
   esp_zb_attribute_list_t *attr_list = this->attribute_list_[{endpoint_id, cluster_id, role}];
-  esp_err_t ret =
-      esphome_zb_cluster_add_or_update_attr(cluster_id, attr_list, attr_id, attr_type, attr_access, value_p);
+  esp_err_t ret = esphome_zb_cluster_add_or_update_attr(cluster_id, attr_list, attr_id, value_p);
 
   if (attr != nullptr) {
     this->attributes_[{endpoint_id, cluster_id, role, attr_id}] = attr;

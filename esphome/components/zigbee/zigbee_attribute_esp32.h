@@ -31,7 +31,7 @@ class ZigbeeAttribute : public Component {
         scale_(scale),
         max_size_(max_size) {}
   void loop() override;
-  template<typename T> void add_attr(uint8_t attr_access, T value);
+  template<typename T> void add_attr(T value);
   esp_zb_zcl_reporting_info_t get_reporting_info();
   template<typename T> void set_attr(const T &value);
   uint8_t attr_type() { return attr_type_; }
@@ -54,13 +54,12 @@ class ZigbeeAttribute : public Component {
   float scale_;
   void *value_p_{nullptr};
   bool set_attr_requested_{false};
-  bool report_requested_{false};
   bool force_report_{false};
 };
 
-template<typename T> void ZigbeeAttribute::add_attr(uint8_t attr_access, T value) {
-  this->zb_->add_attr(this, this->endpoint_id_, this->cluster_id_, this->role_, this->attr_id_, this->attr_type_,
-                      attr_access, this->max_size_, std::move(value));
+template<typename T> void ZigbeeAttribute::add_attr(T value) {
+  this->zb_->add_attr(this, this->endpoint_id_, this->cluster_id_, this->role_, this->attr_id_, this->max_size_,
+                      std::move(value));
 }
 
 template<typename T> void ZigbeeAttribute::set_attr(const T &value) {

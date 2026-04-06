@@ -78,7 +78,9 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(CONF_ID): cv.declare_id(ZigbeeComponent),
-            cv.Optional(CONF_MODEL, default=CORE.name): cv.string,
+            cv.Optional(CONF_MODEL, default=CORE.name): cv.All(
+                cv.string, cv.Length(max=31)
+            ),
             cv.OnlyWith(CONF_ROUTER, "esp32", default=False): cv.All(
                 cv.requires_component("esp32"),
                 cv.boolean,

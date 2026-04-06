@@ -5,13 +5,8 @@
 #include "ha/esp_zigbee_ha_standard.h"
 #include "zigbee_helpers_esp32.h"
 
-esp_zb_cluster_list_t *esphome_zb_default_clusters_create(esp_zb_ha_standard_devices_t device_type) {
-  return esp_zb_zcl_cluster_list_create();
-}
-
 esp_err_t esphome_zb_cluster_add_or_update_attr(uint16_t cluster_id, esp_zb_attribute_list_t *attr_list,
-                                                uint16_t attr_id, uint8_t attr_type, uint8_t attr_access,
-                                                void *value_p) {
+                                                uint16_t attr_id, void *value_p) {
   esp_err_t ret;
   ret = esp_zb_cluster_update_attr(attr_list, attr_id, value_p);
   if (ret != ESP_OK) {

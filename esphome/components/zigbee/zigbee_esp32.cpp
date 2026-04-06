@@ -16,6 +16,8 @@
 
 namespace esphome::zigbee {
 
+static const char *const TAG = "zigbee";
+
 static ZigbeeComponent *global_zigbee = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 uint8_t *get_zcl_string(const char *str, uint8_t max_size, bool use_max_size) {
@@ -125,7 +127,7 @@ static esp_err_t zb_action_handler(esp_zb_core_action_callback_id_t callback_id,
 }
 
 void ZigbeeComponent::create_default_cluster(uint8_t endpoint_id, zb_ha_standard_devs_e device_id) {
-  esp_zb_cluster_list_t *cluster_list = esphome_zb_default_clusters_create((esp_zb_ha_standard_devices_t) device_id);
+  esp_zb_cluster_list_t *cluster_list = esp_zb_zcl_cluster_list_create();
   this->endpoint_list_[endpoint_id] =
       std::tuple<zb_ha_standard_devs_e, esp_zb_cluster_list_t *>(device_id, cluster_list);
   // Add basic cluster
@@ -160,9 +162,9 @@ esp_zb_attribute_list_t *ZigbeeComponent::create_basic_cluster_() {
       .zcl_version = ESP_ZB_ZCL_BASIC_ZCL_VERSION_DEFAULT_VALUE,
       .power_source = 0,
   };
-  uint8_t *manufacturer_name = get_zcl_string(this->basic_cluster_data_.manufacturer.c_str(), 32);
-  uint8_t *model_identifier = get_zcl_string(this->basic_cluster_data_.model.c_str(), 32);
-  uint8_t *date_code = get_zcl_string(this->basic_cluster_data_.date.c_str(), 16);
+  uint8_t *manufacturer_name = get_zcl_string(this->basic_cluster_data_.manufacturer.c_str(), 31);
+  uint8_t *model_identifier = get_zcl_string(this->basic_cluster_data_.model.c_str(), 31);
+  uint8_t *date_code = get_zcl_string(this->basic_cluster_data_.date.c_str(), 15);
   esp_zb_attribute_list_t *attr_list = esp_zb_basic_cluster_create(&basic_cluster_cfg);
   esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_MANUFACTURER_NAME_ID, manufacturer_name);
   esp_zb_basic_cluster_add_attr(attr_list, ESP_ZB_ZCL_ATTR_BASIC_MODEL_IDENTIFIER_ID, model_identifier);

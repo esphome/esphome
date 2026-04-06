@@ -151,7 +151,7 @@ def validate_binary_sensor_esp32(config: ConfigType) -> ConfigType:
             ):  # set name
                 name = (
                     config[CONF_NAME].encode("ascii", "ignore").decode()
-                )  # use unidecode
+                )  # or use unidecode
                 attr[CONF_VALUE] = str(name)
                 attr[CONF_MAX_LENGTH] = len(str(name))
             if CONF_DEVICE in attr:  # connect device
@@ -206,8 +206,6 @@ async def attributes_to_code(
                     CLUSTER_ID.get(cl[CONF_ID], cl[CONF_ID]),
                     cl[ROLE],
                     attr[CONF_ATTRIBUTE_ID],
-                    ATTR_TYPE[attr[CONF_TYPE]],
-                    0,
                     attr.get(CONF_MAX_LENGTH, 0),
                     attr[CONF_VALUE],
                 )
@@ -226,7 +224,7 @@ async def attributes_to_code(
         )
         await cg.register_component(attr_var, attr)
 
-        cg.add(attr_var.add_attr(0, attr[CONF_VALUE]))
+        cg.add(attr_var.add_attr(attr[CONF_VALUE]))
         if CONF_REPORT in attr and attr[CONF_REPORT]:
             cg.add(attr_var.set_report(attr[CONF_REPORT] == REPORT["force"]))
 

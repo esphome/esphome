@@ -6,6 +6,8 @@
 
 namespace esphome::zigbee {
 
+static const char *const TAG = "zigbee.attribute";
+
 void ZigbeeAttribute::set_attr_() {
   if (!this->zb_->is_connected()) {
     return;
@@ -41,7 +43,6 @@ void ZigbeeAttribute::report_(bool has_lock) {
     cmd.attributeID = this->attr_id_;
 
     esp_zb_zcl_report_attr_cmd_req(&cmd);
-    this->report_requested_ = false;
     if (!has_lock) {
       esp_zb_lock_release();
     }
