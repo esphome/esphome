@@ -3,7 +3,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/macros.h"
 #include "esphome/core/application.h"
+#include <algorithm>
 #include <cstring>
+#include <limits>
 
 #ifdef USE_ESP32
 
@@ -28,6 +30,19 @@ void BluetoothProxy::setup() {
   this->configured_scan_active_ = this->parent_->get_scan_active();
 
   this->parent_->add_scanner_state_listener(this);
+
+  this->set_interval(100, [this]() {
+    if (api::global_api_server->is_connected() && this->api_connection_ != nullptr) {
+      this->flush_pending_advertisements_();
+      return;
+    }
+    for (uint8_t i = 0; i < this->connection_count_; i++) {
+      auto *connection = this->connections_[i];
+      if (connection->get_address() != 0 && !connection->disconnect_pending()) {
+        connection->disconnect();
+      }
+    }
+  });
 }
 
 void BluetoothProxy::on_scanner_state(esp32_ble_tracker::ScannerState state) {
@@ -99,25 +114,15 @@ bool BluetoothProxy::parse_devices(const esp32_ble::BLEScanResult *scan_results,
 
     // Flush if we have reached BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE
     if (this->response_.advertisements_len >= BLUETOOTH_PROXY_ADVERTISEMENT_BATCH_SIZE) {
-      this->flush_pending_advertisements();
+      this->flush_pending_advertisements_();
     }
   }
 
   return true;
 }
 
-void BluetoothProxy::flush_pending_advertisements() {
-  if (this->response_.advertisements_len == 0 || !api::global_api_server->is_connected() ||
-      this->api_connection_ == nullptr)
-    return;
-
-  // Send the message
-  this->api_connection_->send_message(this->response_);
-
+void BluetoothProxy::log_advertisement_flush_() {
   ESP_LOGV(TAG, "Sent batch of %u BLE advertisements", this->response_.advertisements_len);
-
-  // Reset the length for the next batch
-  this->response_.advertisements_len = 0;
 }
 
 void BluetoothProxy::dump_config() {
@@ -126,27 +131,6 @@ void BluetoothProxy::dump_config() {
                 "  Active: %s\n"
                 "  Connections: %d",
                 YESNO(this->active_), this->connection_count_);
-}
-
-void BluetoothProxy::loop() {
-  if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr) {
-    for (uint8_t i = 0; i < this->connection_count_; i++) {
-      auto *connection = this->connections_[i];
-      if (connection->get_address() != 0 && !connection->disconnect_pending()) {
-        connection->disconnect();
-      }
-    }
-    return;
-  }
-
-  // Flush any pending BLE advertisements that have been accumulated but not yet sent
-  uint32_t now = App.get_loop_component_start_time();
-
-  // Flush accumulated advertisements every 100ms
-  if (now - this->last_advertisement_flush_time_ >= 100) {
-    this->flush_pending_advertisements();
-    this->last_advertisement_flush_time_ = now;
-  }
 }
 
 esp32_ble_tracker::AdvertisementParserType BluetoothProxy::get_advertisement_parser_type() {
@@ -359,6 +343,33 @@ void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest
   if (err != ESP_OK) {
     this->send_gatt_error(msg.address, msg.handle, err);
   }
+}
+
+void BluetoothProxy::bluetooth_set_connection_params(const api::BluetoothSetConnectionParamsRequest &msg) {
+  if (this->api_connection_ == nullptr)
+    return;
+
+  auto *connection = this->get_connection_(msg.address, false);
+  api::BluetoothSetConnectionParamsResponse resp;
+  resp.address = msg.address;
+
+  if (connection == nullptr || !connection->connected()) {
+    ESP_LOGW(TAG, "[%d] [%s] Cannot set connection params, not connected",
+             connection ? static_cast<int>(connection->connection_index_) : -1,
+             connection ? connection->address_str() : "unknown");
+    resp.error = ESP_GATT_NOT_CONNECTED;
+    this->api_connection_->send_message(resp);
+    return;
+  }
+
+  // Protobuf fields are uint32_t to future-proof the API if BLE ever supports wider values;
+  // clamp to uint16_t since the current BLE spec defines these as 16-bit.
+  constexpr uint32_t max_val = std::numeric_limits<uint16_t>::max();
+  resp.error = connection->update_connection_params(static_cast<uint16_t>(std::min(msg.min_interval, max_val)),
+                                                    static_cast<uint16_t>(std::min(msg.max_interval, max_val)),
+                                                    static_cast<uint16_t>(std::min(msg.latency, max_val)),
+                                                    static_cast<uint16_t>(std::min(msg.timeout, max_val)));
+  this->api_connection_->send_message(resp);
 }
 
 void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection, uint32_t flags) {

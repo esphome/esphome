@@ -10,6 +10,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
+#include <cinttypes>
 #include <cmath>
 #include <numbers>
 
@@ -133,7 +134,7 @@ static constexpr uint8_t DATA_FRAME_FOOTER[2] = {0x55, 0xCC};
 // MAC address the module uses when Bluetooth is disabled
 static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
 
-static inline uint16_t convert_seconds_to_ms(uint16_t value) { return value * 1000; };
+static inline uint32_t convert_seconds_to_ms(uint16_t value) { return (uint32_t) value * 1000; };
 
 static inline void convert_int_values_to_hex(const int *values, uint8_t *bytes) {
   for (uint8_t i = 0; i < 4; i++) {
@@ -407,10 +408,6 @@ void LD2450Component::restart_and_read_all_info() {
   this->set_timeout(1500, [this]() { this->read_all_info(); });
 }
 
-void LD2450Component::add_on_data_callback(std::function<void()> &&callback) {
-  this->data_callback_.add(std::move(callback));
-}
-
 // Send command with values to LD2450
 void LD2450Component::send_command_(uint8_t command, const uint8_t *command_value, uint8_t command_value_len) {
   ESP_LOGV(TAG, "Sending COMMAND %02X", command);
@@ -534,10 +531,11 @@ void LD2450Component::handle_periodic_data_() {
     }
 #endif
 
-    // Store target info for zone target count
-    this->target_info_[index].x = tx;
-    this->target_info_[index].y = ty;
-    this->target_info_[index].is_moving = is_moving;
+    // Store target info for zone target count. Zero out untracked targets (td==0)
+    // so stale coordinates don't produce ghost counts in count_targets_in_zone_().
+    this->target_info_[index].x = (td > 0) ? tx : 0;
+    this->target_info_[index].y = (td > 0) ? ty : 0;
+    this->target_info_[index].is_moving = (td > 0) && is_moving;
 
   }  // End loop thru targets
 
@@ -578,7 +576,7 @@ void LD2450Component::handle_periodic_data_() {
       if (this->get_timeout_status_(this->presence_millis_)) {
         this->target_binary_sensor_->publish_state(false);
       } else {
-        ESP_LOGV(TAG, "Clear presence waiting timeout: %d", this->timeout_);
+        ESP_LOGV(TAG, "Clear presence waiting timeout: %" PRIu32, this->timeout_);
       }
     }
   }

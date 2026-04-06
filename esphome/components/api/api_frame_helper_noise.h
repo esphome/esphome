@@ -22,11 +22,15 @@ class APINoiseFrameHelper final : public APIFrameHelper {
   APIError init() override;
   APIError loop() override;
   APIError read_packet(ReadPacketBuffer *buffer) override;
-  APIError write_protobuf_packet(uint8_t type, ProtoWriteBuffer buffer) override;
   APIError write_protobuf_messages(ProtoWriteBuffer buffer, std::span<const MessageInfo> messages) override;
 
  protected:
   APIError state_action_();
+  APIError state_action_client_hello_();
+  APIError state_action_server_hello_();
+  APIError state_action_handshake_();
+  APIError state_action_handshake_read_();
+  APIError state_action_handshake_write_();
   APIError try_read_frame_();
   APIError write_frame_(const uint8_t *data, uint16_t len);
   APIError init_handshake_();
@@ -43,8 +47,8 @@ class APINoiseFrameHelper final : public APIFrameHelper {
   // Reference to noise context (4 bytes on 32-bit)
   APINoiseContext &ctx_;
 
-  // Vector (12 bytes on 32-bit)
-  std::vector<uint8_t> prologue_;
+  // Buffer for noise handshake prologue (released after handshake)
+  APIBuffer prologue_;
 
   // NoiseProtocolId (size depends on implementation)
   NoiseProtocolId nid_;

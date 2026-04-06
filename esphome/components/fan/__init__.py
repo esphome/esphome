@@ -365,6 +365,7 @@ async def fan_turn_on_to_code(config, action_id, template_arg, args):
             cv.Optional(CONF_OFF_SPEED_CYCLE, default=True): cv.boolean,
         }
     ),
+    synchronous=True,
 )
 async def fan_cycle_speed_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

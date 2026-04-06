@@ -340,6 +340,8 @@ STACKTRACE_ESP32_BACKTRACE_RE = re.compile(
     r"Backtrace:(?:\s*0x[0-9a-fA-F]{8}:0x[0-9a-fA-F]{8})+"
 )
 STACKTRACE_ESP32_BACKTRACE_PC_RE = re.compile(r"4[0-9a-f]{7}")
+# ESP32 crash handler (stored backtrace from previous boot)
+STACKTRACE_ESP32_CRASH_BT_RE = re.compile(r"BT\d+:\s*0x([0-9a-fA-F]{8})")
 STACKTRACE_ESP8266_BACKTRACE_PC_RE = re.compile(r"4[0-9a-f]{7}")
 
 
@@ -369,6 +371,11 @@ def process_stacktrace(config, line, backtrace_state):
         _LOGGER.warning(
             "Memory allocation of %s bytes failed at %s", match.group(2), match.group(1)
         )
+        _decode_pc(config, match.group(1))
+
+    # ESP32 crash handler backtrace (from previous boot)
+    match = re.search(STACKTRACE_ESP32_CRASH_BT_RE, line)
+    if match is not None:
         _decode_pc(config, match.group(1))
 
     # ESP32 single-line backtrace

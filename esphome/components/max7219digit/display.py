@@ -133,10 +133,16 @@ MAX7219_ON_ACTION_SCHEMA = automation.maybe_simple_id(
 
 
 @automation.register_action(
-    "max7219digit.invert_off", DisplayInvertAction, MAX7219_OFF_ACTION_SCHEMA
+    "max7219digit.invert_off",
+    DisplayInvertAction,
+    MAX7219_OFF_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "max7219digit.invert_on", DisplayInvertAction, MAX7219_ON_ACTION_SCHEMA
+    "max7219digit.invert_on",
+    DisplayInvertAction,
+    MAX7219_ON_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def max7219digit_invert_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -146,10 +152,16 @@ async def max7219digit_invert_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "max7219digit.turn_off", DisplayVisibilityAction, MAX7219_OFF_ACTION_SCHEMA
+    "max7219digit.turn_off",
+    DisplayVisibilityAction,
+    MAX7219_OFF_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "max7219digit.turn_on", DisplayVisibilityAction, MAX7219_ON_ACTION_SCHEMA
+    "max7219digit.turn_on",
+    DisplayVisibilityAction,
+    MAX7219_ON_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def max7219digit_visible_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -159,10 +171,16 @@ async def max7219digit_visible_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "max7219digit.reverse_off", DisplayReverseAction, MAX7219_OFF_ACTION_SCHEMA
+    "max7219digit.reverse_off",
+    DisplayReverseAction,
+    MAX7219_OFF_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "max7219digit.reverse_on", DisplayReverseAction, MAX7219_ON_ACTION_SCHEMA
+    "max7219digit.reverse_on",
+    DisplayReverseAction,
+    MAX7219_ON_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def max7219digit_reverse_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -183,7 +201,10 @@ MAX7219_INTENSITY_SCHEMA = cv.maybe_simple_value(
 
 
 @automation.register_action(
-    "max7219digit.intensity", DisplayIntensityAction, MAX7219_INTENSITY_SCHEMA
+    "max7219digit.intensity",
+    DisplayIntensityAction,
+    MAX7219_INTENSITY_SCHEMA,
+    synchronous=True,
 )
 async def max7219digit_intensity_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

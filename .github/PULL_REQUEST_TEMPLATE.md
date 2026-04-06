@@ -25,7 +25,7 @@
 - [ ] ESP32
 - [ ] ESP32 IDF
 - [ ] ESP8266
-- [ ] RP2040
+- [ ] RP2040/RP2350
 - [ ] BK72xx
 - [ ] RTL87xx
 - [ ] LN882x

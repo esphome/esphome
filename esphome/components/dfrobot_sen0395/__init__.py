@@ -52,6 +52,7 @@ async def to_code(config):
             cv.GenerateID(): cv.use_id(DfrobotSen0395Component),
         }
     ),
+    synchronous=True,
 )
 async def dfrobot_sen0395_reset_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -151,6 +152,7 @@ MMWAVE_SETTINGS_SCHEMA = cv.Schema(
     "dfrobot_sen0395.settings",
     DfrobotSen0395SettingsAction,
     MMWAVE_SETTINGS_SCHEMA,
+    synchronous=True,
 )
 async def dfrobot_sen0395_settings_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

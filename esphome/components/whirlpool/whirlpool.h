@@ -19,11 +19,7 @@ const float WHIRLPOOL_DG11J1_91_TEMP_MIN = 16.0;
 
 class WhirlpoolClimate : public climate_ir::ClimateIR {
  public:
-  WhirlpoolClimate()
-      : climate_ir::ClimateIR(temperature_min_(), temperature_max_(), 1.0f, true, true,
-                              {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
-                               climate::CLIMATE_FAN_HIGH},
-                              {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}) {}
+  WhirlpoolClimate();
 
   void setup() override {
     climate_ir::ClimateIR::setup();
@@ -37,7 +33,11 @@ class WhirlpoolClimate : public climate_ir::ClimateIR {
     climate_ir::ClimateIR::control(call);
   }
 
-  void set_model(Model model) { this->model_ = model; }
+  void set_model(Model model) {
+    this->model_ = model;
+    this->minimum_temperature_ = temperature_min_();
+    this->maximum_temperature_ = temperature_max_();
+  }
 
   // used to track when to send the power toggle command
   bool powered_on_assumed;

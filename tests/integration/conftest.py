@@ -193,9 +193,17 @@ async def yaml_config(request: pytest.FixtureRequest, unused_tcp_port: int) -> s
             "  platformio_options:\n"
             "    build_flags:\n"
             '      - "-DDEBUG"  # Enable assert() statements\n'
+            '      - "-DESPHOME_DEBUG"  # Enable ESPHOME_DEBUG_ASSERT checks\n'
             '      - "-DESPHOME_DEBUG_API"  # Enable API protocol asserts\n'
             '      - "-g"       # Add debug symbols',
         )
+
+    # Replace external component path placeholder if present
+    if "EXTERNAL_COMPONENT_PATH" in content:
+        external_components_path = str(
+            Path(__file__).parent / "fixtures" / "external_components"
+        )
+        content = content.replace("EXTERNAL_COMPONENT_PATH", external_components_path)
 
     return content
 

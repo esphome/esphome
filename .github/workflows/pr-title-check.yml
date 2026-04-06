@@ -65,6 +65,18 @@ jobs:
               return;
             }
 
+            // Check for angle brackets not wrapped in backticks.
+            // Astro docs MDX treats bare < as JSX component opening tags.
+            const stripped = title.replace(/`[^`]*`/g, '');
+            if (/[<>]/.test(stripped)) {
+              core.setFailed(
+                'PR title contains `<` or `>` not wrapped in backticks.\n' +
+                'Astro docs MDX interprets bare `<` as JSX components.\n' +
+                'Please wrap angle brackets with backticks, e.g.: [component] Add `<feature>` support'
+              );
+              return;
+            }
+
             // Check title starts with [tag] prefix
             const bracketPattern = /^\[\w+\]/;
             if (!bracketPattern.test(title)) {
