@@ -286,11 +286,5 @@ void OpenThreadComponent::apply_linkmode(otInstance *instance) {
 #endif
 }
 
-// set_use_address() is guaranteed to be called during component setup by Python code generation,
-// so use_address_ will always be valid when get_use_address() is called - no fallback needed.
-const char *OpenThreadComponent::get_use_address() const { return this->use_address_; }
-
-void OpenThreadComponent::set_use_address(const char *use_address) { this->use_address_ = use_address; }
-
 }  // namespace esphome::openthread
 #endif
