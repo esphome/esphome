@@ -1078,9 +1078,7 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
         ):
             return result
         if self.force:
-            return (
-                f"proto_encode_string(pos, {self.number}, this->{self.field_name}, true);"
-            )
+            return f"proto_encode_string(pos, {self.number}, this->{self.field_name}, true);"
         return f"proto_encode_string(pos, {self.number}, this->{self.field_name});"
 
     @property
