@@ -83,7 +83,10 @@ PHASE_SENSORS = {
         state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_PHASE_ANGLE: sensor.sensor_schema(
-        unit_of_measurement=UNIT_DEGREES, icon=ICON_FLASH, accuracy_decimals=3
+        unit_of_measurement=UNIT_DEGREES,
+        icon=ICON_FLASH,
+        accuracy_decimals=3,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
 }
 
