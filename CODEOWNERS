@@ -501,6 +501,7 @@ esphome/components/sx126x/* @swoboda1337
 esphome/components/sx127x/* @swoboda1337
 esphome/components/sy6970/* @linkedupbits
 esphome/components/syslog/* @clydebarrow
+esphome/components/systa_bus/* @Mat931
 esphome/components/t6615/* @tylermenezes
 esphome/components/tc74/* @sethgirvan
 esphome/components/tca9548a/* @andreashergert1984

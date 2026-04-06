@@ -12,7 +12,7 @@ MULTI_CONF = True
 systa_bus_ns = cg.esphome_ns.namespace("systa_bus")
 SystaBus = systa_bus_ns.class_("SystaBus", cg.Component, uart.UARTDevice)
 
-CONF_SYSTA_BUS_ID = "systa_bus"
+CONF_SYSTA_BUS_ID = "systa_bus_id"
 
 CONF_SYSTASOLAR_AQUA = "systasolar_aqua"
 

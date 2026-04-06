@@ -32,10 +32,9 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    if config[CONF_MODEL] == CONF_SYSTASOLAR_AQUA:
-        if CONF_ERROR_CODE in config:
-            sens = await text_sensor.new_text_sensor(config[CONF_ERROR_CODE])
-            cg.add(var.set_error_code_text_sensor(sens))
+    if config[CONF_MODEL] == CONF_SYSTASOLAR_AQUA and CONF_ERROR_CODE in config:
+        sens = await text_sensor.new_text_sensor(config[CONF_ERROR_CODE])
+        cg.add(var.set_error_code_text_sensor(sens))
 
     systa_bus = await cg.get_variable(config[CONF_SYSTA_BUS_ID])
     cg.add(systa_bus.register_listener(var))

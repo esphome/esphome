@@ -15,8 +15,8 @@ void SystaBus::dump_config() {
 
 static bool checksum(std::vector<uint8_t> data) {
   uint8_t csum = 0;
-  for (int i = 0; i < data.size(); i++)
-    csum += data[i];
+  for (uint8_t i : data)
+    csum += i;
   return csum == 0;
 }
 
