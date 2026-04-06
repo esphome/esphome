@@ -414,6 +414,10 @@ class ESPHomeLoaderMixin:
 
         return IncludeFile(self.name, file, vars, self.yaml_loader)
 
+    # Directory includes (!include_dir_*) load eagerly during YAML parsing
+    # because their paths are directory names, not individual files, and
+    # substitutions in directory paths are not supported.
+
     @_add_data_ref
     def construct_include_dir_list(self, node: yaml.Node) -> list[dict[str, Any]]:
         files = filter_yaml_files(_find_files(self._rel_path(node.value), "*.yaml"))
