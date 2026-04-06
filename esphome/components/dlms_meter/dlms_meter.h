@@ -21,7 +21,9 @@
 #include <dlms_parser/decryption/aes_128_gcm_decryptor_tfpsa.h>
 using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorTfPsa;
 #elif __has_include(<mbedtls/gcm.h>)
+#if __has_include(<mbedtls/esp_config.h>)
 #include <mbedtls/esp_config.h>
+#endif
 #include <dlms_parser/decryption/aes_128_gcm_decryptor_mbedtls.h>
 using Aes128GcmDecryptorImpl = dlms_parser::Aes128GcmDecryptorMbedTls;
 #elif __has_include(<bearssl/bearssl.h>)
@@ -75,14 +77,15 @@ class DlmsMeterComponent : public Component, public uart::UARTDevice {
   void set_decryption_key(const std::array<uint8_t, 16> &key);
   void set_authentication_key(const std::array<uint8_t, 16> &key);
 
-  void add_custom_pattern(std::string pattern) {
-    this->custom_patterns_.push_back({std::move(pattern), std::nullopt, 0, std::nullopt});
+  void add_custom_pattern(const std::string &pattern) {
+    this->custom_patterns_.push_back({pattern, std::nullopt, 0, std::nullopt});
   }
-  void add_custom_pattern(std::string pattern, std::string name, int priority) {
-    this->custom_patterns_.push_back({std::move(pattern), std::move(name), priority, std::nullopt});
+  void add_custom_pattern(const std::string &pattern, const std::string &name, int priority) {
+    this->custom_patterns_.push_back({pattern, name, priority, std::nullopt});
   }
-  void add_custom_pattern(std::string pattern, std::string name, int priority, std::array<uint8_t, 6> default_obis) {
-    this->custom_patterns_.push_back({std::move(pattern), std::move(name), priority, default_obis});
+  void add_custom_pattern(const std::string &pattern, const std::string &name, int priority,
+                          const std::array<uint8_t, 6> &default_obis) {
+    this->custom_patterns_.push_back({pattern, name, priority, default_obis});
   }
 
   void set_skip_crc_check(bool skip) { this->skip_crc_check_ = skip; }

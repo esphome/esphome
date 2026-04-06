@@ -8,24 +8,26 @@ namespace esphome::dlms_meter {
 static constexpr auto &TAG = "dlms_meter";
 
 static void log_callback(dlms_parser::LogLevel level, const char *fmt, va_list args) {
+  std::array<char, 256> buf;
+  vsnprintf(buf.data(), buf.size(), fmt, args);
   switch (level) {
     case dlms_parser::LogLevel::ERROR:
-      esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_ERROR, TAG, 0, fmt, args);
+      ESP_LOGE(TAG, "%s", buf.data());
       break;
     case dlms_parser::LogLevel::WARNING:
-      esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_WARN, TAG, 0, fmt, args);
+      ESP_LOGW(TAG, "%s", buf.data());
       break;
     case dlms_parser::LogLevel::INFO:
-      esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_INFO, TAG, 0, fmt, args);
-      break;
-    case dlms_parser::LogLevel::DEBUG:
-      esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_DEBUG, TAG, 0, fmt, args);
+      ESP_LOGI(TAG, "%s", buf.data());
       break;
     case dlms_parser::LogLevel::VERBOSE:
-      esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_VERBOSE, TAG, 0, fmt, args);
+      ESP_LOGV(TAG, "%s", buf.data());
       break;
     case dlms_parser::LogLevel::VERY_VERBOSE:
-      esphome::esp_log_printf_(ESPHOME_LOG_LEVEL_VERY_VERBOSE, TAG, 0, fmt, args);
+      ESP_LOGVV(TAG, "%s", buf.data());
+      break;
+    case dlms_parser::LogLevel::DEBUG:
+      ESP_LOGD(TAG, "%s", buf.data());
       break;
   }
 }
