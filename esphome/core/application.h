@@ -557,7 +557,7 @@ class Application {
 #endif
 
   /// Wake from any context (ISR, thread, callback).
-  static void wake_loop_any_context() { esphome::wake_loop_any_context(); }
+  static void IRAM_ATTR wake_loop_any_context() { esphome::wake_loop_any_context(); }
 
  protected:
   friend Component;
