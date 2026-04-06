@@ -56,6 +56,10 @@ FILE_HEADER = """// This file was automatically generated with a tool.
 // See script/api_protobuf/api_protobuf.py
 """
 
+# Populated by main() before any TypeInfo creation.
+# Maps enum type name (e.g. ".BluetoothDeviceRequestType") to max enum value.
+_enum_max_values: dict[str, int] = {}
+
 
 def indent_list(text: str, padding: str = "  ") -> list[str]:
     """Indent each line of the given text with the specified padding."""
@@ -240,12 +244,6 @@ class TypeInfo(ABC):
         "encode_bool": "ProtoEncode::write_raw_byte(pos, {value} ? 0x01 : 0x00);",
     }
 
-    # When max_value < 128, the varint is always 1 byte — use a direct byte write
-    RAW_ENCODE_SMALL_MAP: dict[str, str] = {
-        "encode_uint32": "ProtoEncode::write_raw_byte(pos, static_cast<uint8_t>({value}));",
-        "encode_uint64": "ProtoEncode::write_raw_byte(pos, static_cast<uint8_t>({value}));",
-    }
-
     def _encode_with_precomputed_tag(self, value_expr: str) -> str | None:
         """Try to emit a precomputed-tag encode for a field.
 
@@ -255,19 +253,14 @@ class TypeInfo(ABC):
 
         Returns the raw encode string if the tag is a single byte and the
         encode_func has a known raw equivalent, or None otherwise.
-        When max_value < 128, uses direct byte write instead of varint encoding.
         """
         tag = self.calculate_tag()
         if tag >= 128:
             return None
         max_val = self.max_value
+        # Only use RAW_ENCODE_MAP for forced fields or fields with max_value
         raw_expr = None
-        if max_val is not None and max_val < 128:
-            raw_expr = self.RAW_ENCODE_SMALL_MAP.get(self.encode_func)
-        if raw_expr is None:
-            # Only use RAW_ENCODE_MAP for forced fields or fields with max_value
-            if not self.force and max_val is None:
-                return None
+        if self.force or max_val is not None:
             raw_expr = self.RAW_ENCODE_MAP.get(self.encode_func)
         if raw_expr is None:
             return None
@@ -1322,18 +1315,23 @@ class EnumType(TypeInfo):
     wire_type = WireType.VARINT  # Uses wire type 0
 
     @property
+    def max_value(self) -> int | None:
+        """Get max_value from explicit annotation or auto-derive from enum definition."""
+        explicit = super().max_value
+        if explicit is not None:
+            return explicit
+        return _enum_max_values.get(self._field.type_name)
+
+    @property
     def encode_func(self) -> str:
         return "encode_uint32"
 
     @property
     def encode_content(self) -> str:
-        if result := self._encode_with_precomputed_tag(
-            f"static_cast<uint32_t>(this->{self.field_name})"
-        ):
-            return result
+        value_expr = f"static_cast<uint32_t>(this->{self.field_name})"
         if self.force:
-            return f"ProtoEncode::{self.encode_func}(pos, {self.number}, static_cast<uint32_t>(this->{self.field_name}), true);"
-        return f"ProtoEncode::{self.encode_func}(pos, {self.number}, static_cast<uint32_t>(this->{self.field_name}));"
+            return f"ProtoEncode::{self.encode_func}(pos, {self.number}, {value_expr}, true);"
+        return f"ProtoEncode::{self.encode_func}(pos, {self.number}, {value_expr});"
 
     def dump(self, name: str) -> str:
         return f"out.append_p(proto_enum_to_string<{self.cpp_type}>({name}));"
@@ -1343,6 +1341,9 @@ class EnumType(TypeInfo):
         return f"static_cast<{self.cpp_type}>({value})"
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
+        max_val = self.max_value
+        if max_val is not None and max_val < 128:
+            return self._get_single_byte_varint_size(name, force)
         return self._get_simple_size_calculation(
             name, force, "uint32", f"static_cast<uint32_t>({name})"
         )
@@ -1905,17 +1906,27 @@ class RepeatedTypeInfo(TypeInfo):
             size_expr = f"{name}->size()" if self._use_pointer else f"{name}.size()"
             o += f"  size += {size_expr} * {bytes_per_element};\n"
         else:
-            # Other types need the actual value
+            # Check if inner type produces a constant size (doesn't depend on value)
+            inner_size = self._ti.get_size_calculation("it", True)
+            if "it" not in inner_size:
+                # Constant size per element — use multiply instead of loop
+                # Extract the constant from "size += N;"
+                const_val = (
+                    inner_size.strip().removeprefix("size += ").removesuffix(";")
+                )
+                size_expr = f"{name}->size()" if self._use_pointer else f"{name}.size()"
+                o += f"  size += {size_expr} * {const_val};\n"
             # Special handling for const char* elements
-            if self._use_pointer and "const char" in self._container_no_template:
+            elif self._use_pointer and "const char" in self._container_no_template:
                 field_id_size = self.calculate_field_id_size()
                 o += f"  for (const char *it : {container_ref}) {{\n"
                 o += f"    size += ProtoSize::calc_length_force({field_id_size}, strlen(it));\n"
+                o += "  }\n"
             else:
                 auto_ref = "" if self._ti_is_bool else "&"
                 o += f"  for (const auto {auto_ref}it : {container_ref}) {{\n"
-                o += f"    {self._ti.get_size_calculation('it', True)}\n"
-            o += "  }\n"
+                o += f"    {inner_size}\n"
+                o += "  }\n"
 
         o += "}"
         return o
@@ -2787,6 +2798,11 @@ def main() -> None:
     d = descriptor.FileDescriptorSet.FromString(proto_content)
 
     file = d.file[0]
+
+    # Build enum max value map so EnumType can auto-derive max_value
+    for enum in file.enum_type:
+        if not enum.options.deprecated and enum.value:
+            _enum_max_values[f".{enum.name}"] = max(v.number for v in enum.value)
 
     # Build dynamic ifdef mappings early so we can emit USE_API_VARINT64 before includes
     enum_ifdef_map, message_ifdef_map, message_source_map, used_messages = (
