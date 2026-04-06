@@ -1,3 +1,4 @@
+import io
 from pathlib import Path
 import shutil
 from unittest.mock import patch
@@ -536,8 +537,6 @@ def test_include_plain_filename_loads_after_deferred_refactor() -> None:
 def test_yaml_merge_include_with_filename_substitution_raises() -> None:
     """<<: !include ${expr} raises a clear error — substitutions in merge-key filenames
     are not yet supported, and the error message must say so."""
-    import io
-
     yaml_text = "base:\n  existing: value\n  <<: !include ${filename}.yaml\n"
     with pytest.raises(EsphomeError, match="not supported yet"):
         yaml_util.parse_yaml(
