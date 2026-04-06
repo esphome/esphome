@@ -251,7 +251,9 @@ async def and_condition_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     conditions = await build_condition_list(config, template_arg, args)
-    return cg.new_Pvariable(condition_id, template_arg, conditions)
+    return cg.new_Pvariable(
+        condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
+    )
 
 
 @register_condition("or", OrCondition, validate_condition_list)
@@ -262,7 +264,9 @@ async def or_condition_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     conditions = await build_condition_list(config, template_arg, args)
-    return cg.new_Pvariable(condition_id, template_arg, conditions)
+    return cg.new_Pvariable(
+        condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
+    )
 
 
 @register_condition("all", AndCondition, validate_condition_list)
@@ -273,7 +277,9 @@ async def all_condition_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     conditions = await build_condition_list(config, template_arg, args)
-    return cg.new_Pvariable(condition_id, template_arg, conditions)
+    return cg.new_Pvariable(
+        condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
+    )
 
 
 @register_condition("any", OrCondition, validate_condition_list)
@@ -284,7 +290,9 @@ async def any_condition_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     conditions = await build_condition_list(config, template_arg, args)
-    return cg.new_Pvariable(condition_id, template_arg, conditions)
+    return cg.new_Pvariable(
+        condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
+    )
 
 
 @register_condition("not", NotCondition, validate_potentially_and_condition)
@@ -306,7 +314,9 @@ async def xor_condition_to_code(
     args: TemplateArgsType,
 ) -> MockObj:
     conditions = await build_condition_list(config, template_arg, args)
-    return cg.new_Pvariable(condition_id, template_arg, conditions)
+    return cg.new_Pvariable(
+        condition_id, cg.TemplateArguments(len(conditions), *template_arg), conditions
+    )
 
 
 @register_condition("lambda", LambdaCondition, cv.returning_lambda)

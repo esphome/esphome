@@ -124,9 +124,10 @@ ClickTrigger = binary_sensor_ns.class_("ClickTrigger", automation.Trigger.templa
 DoubleClickTrigger = binary_sensor_ns.class_(
     "DoubleClickTrigger", automation.Trigger.template()
 )
-MultiClickTrigger = binary_sensor_ns.class_(
-    "MultiClickTrigger", automation.Trigger.template(), cg.Component
+MultiClickTriggerBase = binary_sensor_ns.class_(
+    "MultiClickTriggerBase", automation.Trigger.template(), cg.Component
 )
+MultiClickTrigger = binary_sensor_ns.class_("MultiClickTrigger", MultiClickTriggerBase)
 MultiClickTriggerEvent = binary_sensor_ns.struct("MultiClickTriggerEvent")
 
 BinarySensorPublishAction = binary_sensor_ns.class_(
@@ -255,6 +256,7 @@ async def delayed_off_filter_to_code(config, filter_id):
                 ): cv.positive_time_period_milliseconds,
             }
         ),
+        cv.Length(max=254),
     ),
 )
 async def autorepeat_filter_to_code(config, filter_id):
@@ -283,7 +285,7 @@ async def autorepeat_filter_to_code(config, filter_id):
                 ),
             )
         ]
-    var = cg.new_Pvariable(filter_id, timings)
+    var = cg.new_Pvariable(filter_id, cg.TemplateArguments(len(timings)), timings)
     await cg.register_component(var, {})
     return var
 
@@ -483,7 +485,9 @@ _BINARY_SENSOR_SCHEMA = (
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MultiClickTrigger),
                     cv.Required(CONF_TIMING): cv.All(
-                        [parse_multi_click_timing_str], validate_multi_click_timing
+                        [parse_multi_click_timing_str],
+                        validate_multi_click_timing,
+                        cv.Length(min=1, max=255),
                     ),
                     cv.Optional(
                         CONF_INVALID_COOLDOWN, default="1s"
@@ -575,7 +579,9 @@ async def _build_binary_sensor_automations(var, config):
             )
             for tim in conf[CONF_TIMING]
         ]
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, timings)
+        trigger = cg.new_Pvariable(
+            conf[CONF_TRIGGER_ID], cg.TemplateArguments(len(timings)), var, timings
+        )
         if CONF_INVALID_COOLDOWN in conf:
             cg.add(trigger.set_invalid_cooldown(conf[CONF_INVALID_COOLDOWN]))
         await cg.register_component(trigger, conf)

@@ -74,11 +74,13 @@ inline void lv_style_set_text_font(lv_style_t *style, const font::Font *font) {
 #if defined(USE_LVGL_IMAGE) && defined(USE_IMAGE)
 // Shortcut / overload, so that the source of an image can easily be updated
 // from within a lambda.
-inline void lv_image_set_src(lv_obj_t *obj, esphome::image::Image *image) {
-  lv_image_set_src(obj, image->get_lv_image_dsc());
+inline void lv_image_set_src(lv_obj_t *obj, image::Image *image) { lv_image_set_src(obj, image->get_lv_image_dsc()); }
+
+inline void lv_obj_set_style_bitmap_mask_src(lv_obj_t *obj, image::Image *image, lv_style_selector_t selector) {
+  lv_obj_set_style_bitmap_mask_src(obj, image->get_lv_image_dsc(), selector);
 }
 
-inline void lv_obj_set_style_bg_image_src(lv_obj_t *obj, esphome::image::Image *image, lv_style_selector_t selector) {
+inline void lv_obj_set_style_bg_image_src(lv_obj_t *obj, image::Image *image, lv_style_selector_t selector) {
   lv_obj_set_style_bg_image_src(obj, image->get_lv_image_dsc(), selector);
 }
 #endif  // USE_LVGL_IMAGE
@@ -128,10 +130,19 @@ class LvPageType : public Parented<LvglComponent> {
   bool skip;
 };
 
-using LvLambdaType = std::function<void(lv_obj_t *)>;
-using set_value_lambda_t = std::function<void(float)>;
 using event_callback_t = void(lv_event_t *);
-using text_lambda_t = std::function<const char *()>;
+
+class LvLambdaComponent : public Component {
+ public:
+  LvLambdaComponent(void (*callback)()) : callback_(callback) {}
+
+  void setup() override { this->callback_(); }
+  // execute after the LvglComponent is setup
+  float get_setup_priority() const override { return setup_priority::PROCESSOR - 5; }
+
+ protected:
+  void (*callback_)();
+};
 
 template<typename... Ts> class ObjUpdateAction : public Action<Ts...> {
  public:

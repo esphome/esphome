@@ -2,6 +2,7 @@
 
 #include "adc_sensor.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace adc {
@@ -346,7 +347,8 @@ float ADCSensor::sample_autorange_() {
   ESP_LOGVV(TAG, "Autorange summary:");
   ESP_LOGVV(TAG, "  Raw readings: 12db=%d, 6db=%d, 2.5db=%d, 0db=%d", raw12, raw6, raw2, raw0);
   ESP_LOGVV(TAG, "  Voltages: 12db=%.6f, 6db=%.6f, 2.5db=%.6f, 0db=%.6f", mv12, mv6, mv2, mv0);
-  ESP_LOGVV(TAG, "  Coefficients: c12=%u, c6=%u, c2=%u, c0=%u, sum=%u", c12, c6, c2, c0, csum);
+  ESP_LOGVV(TAG, "  Coefficients: c12=%" PRIu32 ", c6=%" PRIu32 ", c2=%" PRIu32 ", c0=%" PRIu32 ", sum=%" PRIu32, c12,
+            c6, c2, c0, csum);
 
   if (csum == 0) {
     ESP_LOGE(TAG, "Invalid weight sum in autorange calculation");
@@ -354,8 +356,10 @@ float ADCSensor::sample_autorange_() {
   }
 
   const float final_result = (mv12 * c12 + mv6 * c6 + mv2 * c2 + mv0 * c0) / csum;
-  ESP_LOGV(TAG, "Autorange final: (%.6f*%u + %.6f*%u + %.6f*%u + %.6f*%u)/%u = %.6fV", mv12, c12, mv6, c6, mv2, c2, mv0,
-           c0, csum, final_result);
+  ESP_LOGV(TAG,
+           "Autorange final: (%.6f*%" PRIu32 " + %.6f*%" PRIu32 " + %.6f*%" PRIu32 " + %.6f*%" PRIu32 ")/%" PRIu32
+           " = %.6fV",
+           mv12, c12, mv6, c6, mv2, c2, mv0, c0, csum, final_result);
 
   return final_result;
 }
