@@ -75,11 +75,9 @@ TYPES: dict[str, cv.Schema] = {
     ),
 }
 
-CONFIG_SCHEMA = (
-    PYLONTECH_COMPONENT_SCHEMA.extend({cv.GenerateID(): cv.declare_id(PylontechSensor)})
-    .extend({cv.Optional(marker): schema for marker, schema in TYPES.items()})
-    .extend(cv.COMPONENT_SCHEMA)
-)
+CONFIG_SCHEMA = PYLONTECH_COMPONENT_SCHEMA.extend(
+    {cv.GenerateID(): cv.declare_id(PylontechSensor)}
+).extend({cv.Optional(marker): schema for marker, schema in TYPES.items()})
 
 
 async def to_code(config):
