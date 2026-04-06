@@ -128,6 +128,8 @@ constexpr Uint8ToString OUT_PIN_LEVELS_BY_UINT[] = {
     {OUT_PIN_LEVEL_HIGH, "high"},
 };
 
+constexpr uint32_t BAUD_RATES[] = {9600, 19200, 38400, 57600, 115200, 230400, 256000, 460800};
+
 // Helper functions for lookups
 template<size_t N> uint8_t find_uint8(const StringToUint8 (&arr)[N], const char *str) {
   for (const auto &entry : arr) {
@@ -189,8 +191,6 @@ static constexpr uint8_t DATA_FRAME_HEADER[HEADER_FOOTER_SIZE] = {0xF4, 0xF3, 0x
 static constexpr uint8_t DATA_FRAME_FOOTER[HEADER_FOOTER_SIZE] = {0xF8, 0xF7, 0xF6, 0xF5};
 // MAC address the module uses when Bluetooth is disabled
 static constexpr uint8_t NO_MAC[] = {0x08, 0x05, 0x04, 0x03, 0x02, 0x01};
-
-static inline int two_byte_to_int(char firstbyte, char secondbyte) { return (int16_t) (secondbyte << 8) + firstbyte; }
 
 static inline bool validate_header_footer(const uint8_t *header_footer, const uint8_t *buffer) {
   return std::memcmp(header_footer, buffer, HEADER_FOOTER_SIZE) == 0;
@@ -293,9 +293,10 @@ void LD2412Component::read_all_info() {
 #endif
   this->set_config_mode_(false);
 #ifdef USE_SELECT
-  const auto baud_rate = std::to_string(this->parent_->get_baud_rate());
   if (this->baud_rate_select_ != nullptr) {
-    this->baud_rate_select_->publish_state(baud_rate);
+    if (auto index = ld24xx::find_index(BAUD_RATES, this->parent_->get_baud_rate())) {
+      this->baud_rate_select_->publish_state(*index);
+    }
   }
 #endif
 }
@@ -307,8 +308,19 @@ void LD2412Component::restart_and_read_all_info() {
 }
 
 void LD2412Component::loop() {
-  while (this->available()) {
-    this->readline_(this->read());
+  // Read all available bytes in batches to reduce UART call overhead.
+  size_t avail = this->available();
+  uint8_t buf[MAX_LINE_LENGTH];
+  while (avail > 0) {
+    size_t to_read = std::min(avail, sizeof(buf));
+    if (!this->read_array(buf, to_read)) {
+      break;
+    }
+    avail -= to_read;
+
+    for (size_t i = 0; i < to_read; i++) {
+      this->readline_(buf[i]);
+    }
   }
 }
 
@@ -384,44 +396,46 @@ void LD2412Component::handle_periodic_data_() {
     Detect distance: 16~17th bytes
   */
 #ifdef USE_SENSOR
-  SAFE_PUBLISH_SENSOR(
-      this->moving_target_distance_sensor_,
-      ld2412::two_byte_to_int(this->buffer_data_[MOVING_TARGET_LOW], this->buffer_data_[MOVING_TARGET_HIGH]))
+  SAFE_PUBLISH_SENSOR(this->moving_target_distance_sensor_,
+                      encode_uint16(this->buffer_data_[MOVING_TARGET_HIGH], this->buffer_data_[MOVING_TARGET_LOW]))
   SAFE_PUBLISH_SENSOR(this->moving_target_energy_sensor_, this->buffer_data_[MOVING_ENERGY])
-  SAFE_PUBLISH_SENSOR(
-      this->still_target_distance_sensor_,
-      ld2412::two_byte_to_int(this->buffer_data_[STILL_TARGET_LOW], this->buffer_data_[STILL_TARGET_HIGH]))
+  SAFE_PUBLISH_SENSOR(this->still_target_distance_sensor_,
+                      encode_uint16(this->buffer_data_[STILL_TARGET_HIGH], this->buffer_data_[STILL_TARGET_LOW]))
   SAFE_PUBLISH_SENSOR(this->still_target_energy_sensor_, this->buffer_data_[STILL_ENERGY])
   if (this->detection_distance_sensor_ != nullptr) {
     int new_detect_distance = 0;
     if (target_state != 0x00 && (target_state & MOVE_BITMASK)) {
       new_detect_distance =
-          ld2412::two_byte_to_int(this->buffer_data_[MOVING_TARGET_LOW], this->buffer_data_[MOVING_TARGET_HIGH]);
+          encode_uint16(this->buffer_data_[MOVING_TARGET_HIGH], this->buffer_data_[MOVING_TARGET_LOW]);
     } else if (target_state != 0x00) {
-      new_detect_distance =
-          ld2412::two_byte_to_int(this->buffer_data_[STILL_TARGET_LOW], this->buffer_data_[STILL_TARGET_HIGH]);
+      new_detect_distance = encode_uint16(this->buffer_data_[STILL_TARGET_HIGH], this->buffer_data_[STILL_TARGET_LOW]);
     }
     this->detection_distance_sensor_->publish_state_if_not_dup(new_detect_distance);
   }
   if (engineering_mode) {
-    /*
-      Moving distance range: 18th byte
-      Still distance range: 19th byte
-      Moving energy: 20~28th bytes
-    */
-    for (uint8_t i = 0; i < TOTAL_GATES; i++) {
-      SAFE_PUBLISH_SENSOR(this->gate_move_sensors_[i], this->buffer_data_[MOVING_SENSOR_START + i])
+    // Engineering mode needs at least LIGHT_SENSOR + 1 bytes
+    if (this->buffer_pos_ < LIGHT_SENSOR + 1) {
+      ESP_LOGW(TAG, "Engineering mode packet too short: %u", this->buffer_pos_);
+    } else {
+      /*
+        Moving distance range: 18th byte
+        Still distance range: 19th byte
+        Moving energy: 20~28th bytes
+      */
+      for (uint8_t i = 0; i < TOTAL_GATES; i++) {
+        SAFE_PUBLISH_SENSOR(this->gate_move_sensors_[i], this->buffer_data_[MOVING_SENSOR_START + i])
+      }
+      /*
+        Still energy: 29~37th bytes
+      */
+      for (uint8_t i = 0; i < TOTAL_GATES; i++) {
+        SAFE_PUBLISH_SENSOR(this->gate_still_sensors_[i], this->buffer_data_[STILL_SENSOR_START + i])
+      }
+      /*
+        Light sensor value
+      */
+      SAFE_PUBLISH_SENSOR(this->light_sensor_, this->buffer_data_[LIGHT_SENSOR])
     }
-    /*
-      Still energy: 29~37th bytes
-    */
-    for (uint8_t i = 0; i < TOTAL_GATES; i++) {
-      SAFE_PUBLISH_SENSOR(this->gate_still_sensors_[i], this->buffer_data_[STILL_SENSOR_START + i])
-    }
-    /*
-      Light sensor: 38th bytes
-    */
-    SAFE_PUBLISH_SENSOR(this->light_sensor_, this->buffer_data_[LIGHT_SENSOR])
   } else {
     for (auto &gate_move_sensor : this->gate_move_sensors_) {
       SAFE_PUBLISH_SENSOR_UNKNOWN(gate_move_sensor)
@@ -441,12 +455,10 @@ void LD2412Component::handle_periodic_data_() {
 }
 
 #ifdef USE_NUMBER
-std::function<void(void)> set_number_value(number::Number *n, float value) {
+void set_number_value(number::Number *n, float value) {
   if (n != nullptr && (!n->has_state() || n->state != value)) {
-    n->state = value;
-    return [n, value]() { n->publish_state(value); };
+    n->publish_state(value);
   }
-  return []() {};
 }
 #endif
 
@@ -483,12 +495,16 @@ bool LD2412Component::handle_ack_data_() {
       ESP_LOGV(TAG, "Baud rate change");
 #ifdef USE_SELECT
       if (this->baud_rate_select_ != nullptr) {
-        ESP_LOGW(TAG, "Change baud rate to %s and reinstall", this->baud_rate_select_->current_option());
+        auto baud = this->baud_rate_select_->current_option();
+        ESP_LOGW(TAG, "Change baud rate to %.*s and reinstall", (int) baud.size(), baud.c_str());
       }
 #endif
       break;
 
     case CMD_QUERY_VERSION: {
+      if (this->buffer_pos_ < 12 + sizeof(this->version_)) {
+        return false;
+      }
       std::memcpy(this->version_, &this->buffer_data_[12], sizeof(this->version_));
       char version_s[20];
       ld24xx::format_version_str(this->version_, version_s);
@@ -515,10 +531,7 @@ bool LD2412Component::handle_ack_data_() {
       this->light_function_ = this->buffer_data_[10];
       this->light_threshold_ = this->buffer_data_[11];
       const auto *light_function_str = find_str(LIGHT_FUNCTIONS_BY_UINT, this->light_function_);
-      ESP_LOGV(TAG,
-               "Light function: %s\n"
-               "Light threshold: %u",
-               light_function_str, this->light_threshold_);
+      ESP_LOGV(TAG, "Light function: %s, threshold: %u", light_function_str, this->light_threshold_);
 #ifdef USE_SELECT
       if (this->light_function_select_ != nullptr) {
         this->light_function_select_->publish_state(light_function_str);
@@ -584,13 +597,8 @@ bool LD2412Component::handle_ack_data_() {
 
     case CMD_QUERY_MOTION_GATE_SENS: {
 #ifdef USE_NUMBER
-      std::vector<std::function<void(void)>> updates;
-      updates.reserve(this->gate_still_threshold_numbers_.size());
-      for (size_t i = 0; i < this->gate_still_threshold_numbers_.size(); i++) {
-        updates.push_back(set_number_value(this->gate_move_threshold_numbers_[i], this->buffer_data_[10 + i]));
-      }
-      for (auto &update : updates) {
-        update();
+      for (size_t i = 0; i < this->gate_move_threshold_numbers_.size() && (10 + i) < this->buffer_pos_; i++) {
+        set_number_value(this->gate_move_threshold_numbers_[i], this->buffer_data_[10 + i]);
       }
 #endif
       break;
@@ -598,13 +606,8 @@ bool LD2412Component::handle_ack_data_() {
 
     case CMD_QUERY_STATIC_GATE_SENS: {
 #ifdef USE_NUMBER
-      std::vector<std::function<void(void)>> updates;
-      updates.reserve(this->gate_still_threshold_numbers_.size());
-      for (size_t i = 0; i < this->gate_still_threshold_numbers_.size(); i++) {
-        updates.push_back(set_number_value(this->gate_still_threshold_numbers_[i], this->buffer_data_[10 + i]));
-      }
-      for (auto &update : updates) {
-        update();
+      for (size_t i = 0; i < this->gate_still_threshold_numbers_.size() && (10 + i) < this->buffer_pos_; i++) {
+        set_number_value(this->gate_still_threshold_numbers_[i], this->buffer_data_[10 + i]);
       }
 #endif
       break;
@@ -613,21 +616,22 @@ bool LD2412Component::handle_ack_data_() {
     case CMD_QUERY_BASIC_CONF:  // Query parameters response
     {
 #ifdef USE_NUMBER
+      if (this->buffer_pos_ < 15) {
+        return false;
+      }
       /*
         Moving distance range: 9th byte
         Still distance range: 10th byte
       */
-      std::vector<std::function<void(void)>> updates;
-      updates.push_back(set_number_value(this->min_distance_gate_number_, this->buffer_data_[10]));
-      updates.push_back(set_number_value(this->max_distance_gate_number_, this->buffer_data_[11] - 1));
+      set_number_value(this->min_distance_gate_number_, this->buffer_data_[10]);
+      set_number_value(this->max_distance_gate_number_, this->buffer_data_[11] - 1);
       ESP_LOGV(TAG, "min_distance_gate_number_: %u, max_distance_gate_number_ %u", this->buffer_data_[10],
                this->buffer_data_[11]);
       /*
         None Duration: 11~12th bytes
       */
-      updates.push_back(set_number_value(this->timeout_number_,
-                                         ld2412::two_byte_to_int(this->buffer_data_[12], this->buffer_data_[13])));
-      ESP_LOGV(TAG, "timeout_number_: %u", ld2412::two_byte_to_int(this->buffer_data_[12], this->buffer_data_[13]));
+      set_number_value(this->timeout_number_, encode_uint16(this->buffer_data_[13], this->buffer_data_[12]));
+      ESP_LOGV(TAG, "timeout_number_: %u", encode_uint16(this->buffer_data_[13], this->buffer_data_[12]));
       /*
         Output pin configuration: 13th bytes
       */
@@ -638,9 +642,6 @@ bool LD2412Component::handle_ack_data_() {
         this->out_pin_level_select_->publish_state(out_pin_level_str);
       }
 #endif
-      for (auto &update : updates) {
-        update();
-      }
 #endif
     } break;
     default:
@@ -787,7 +788,7 @@ void LD2412Component::set_basic_config() {
       1,    TOTAL_GATES, DEFAULT_PRESENCE_TIMEOUT, 0,
 #endif
 #ifdef USE_SELECT
-      find_uint8(OUT_PIN_LEVELS_BY_STR, this->out_pin_level_select_->current_option()),
+      find_uint8(OUT_PIN_LEVELS_BY_STR, this->out_pin_level_select_->current_option().c_str()),
 #else
       0x01,  // Default value if not using select
 #endif
@@ -824,13 +825,6 @@ void LD2412Component::get_gate_threshold() {
   this->send_command_(CMD_QUERY_STATIC_GATE_SENS, nullptr, 0);
 }
 
-void LD2412Component::set_gate_still_threshold_number(uint8_t gate, number::Number *n) {
-  this->gate_still_threshold_numbers_[gate] = n;
-}
-
-void LD2412Component::set_gate_move_threshold_number(uint8_t gate, number::Number *n) {
-  this->gate_move_threshold_numbers_[gate] = n;
-}
 #endif
 
 void LD2412Component::set_light_out_control() {
@@ -841,7 +835,7 @@ void LD2412Component::set_light_out_control() {
 #endif
 #ifdef USE_SELECT
   if (this->light_function_select_ != nullptr && this->light_function_select_->has_state()) {
-    this->light_function_ = find_uint8(LIGHT_FUNCTIONS_BY_STR, this->light_function_select_->current_option());
+    this->light_function_ = find_uint8(LIGHT_FUNCTIONS_BY_STR, this->light_function_select_->current_option().c_str());
   }
 #endif
   uint8_t value[2] = {this->light_function_, this->light_threshold_};

@@ -55,15 +55,15 @@ void HomeassistantNumber::step_retrieved_(StringRef step) {
 }
 
 void HomeassistantNumber::setup() {
-  api::global_api_server->subscribe_home_assistant_state(
-      this->entity_id_, nullptr, std::bind(&HomeassistantNumber::state_changed_, this, std::placeholders::_1));
+  api::global_api_server->subscribe_home_assistant_state(this->entity_id_, nullptr,
+                                                         [this](StringRef state) { this->state_changed_(state); });
 
-  api::global_api_server->get_home_assistant_state(
-      this->entity_id_, "min", std::bind(&HomeassistantNumber::min_retrieved_, this, std::placeholders::_1));
-  api::global_api_server->get_home_assistant_state(
-      this->entity_id_, "max", std::bind(&HomeassistantNumber::max_retrieved_, this, std::placeholders::_1));
-  api::global_api_server->get_home_assistant_state(
-      this->entity_id_, "step", std::bind(&HomeassistantNumber::step_retrieved_, this, std::placeholders::_1));
+  api::global_api_server->get_home_assistant_state(this->entity_id_, "min",
+                                                   [this](StringRef min) { this->min_retrieved_(min); });
+  api::global_api_server->get_home_assistant_state(this->entity_id_, "max",
+                                                   [this](StringRef max) { this->max_retrieved_(max); });
+  api::global_api_server->get_home_assistant_state(this->entity_id_, "step",
+                                                   [this](StringRef step) { this->step_retrieved_(step); });
 }
 
 void HomeassistantNumber::dump_config() {
@@ -86,16 +86,19 @@ void HomeassistantNumber::control(float value) {
   static constexpr auto VALUE_KEY = StringRef::from_lit("value");
 
   api::HomeassistantActionRequest resp;
-  resp.set_service(SERVICE_NAME);
+  resp.service = SERVICE_NAME;
 
   resp.data.init(2);
   auto &entity_id = resp.data.emplace_back();
-  entity_id.set_key(ENTITY_ID_KEY);
-  entity_id.value = this->entity_id_;
+  entity_id.key = ENTITY_ID_KEY;
+  entity_id.value = StringRef(this->entity_id_);
 
   auto &entity_value = resp.data.emplace_back();
-  entity_value.set_key(VALUE_KEY);
-  entity_value.value = to_string(value);
+  entity_value.key = VALUE_KEY;
+  // Stack buffer - no heap allocation; %g produces shortest representation
+  char value_buf[16];
+  buf_append_printf(value_buf, sizeof(value_buf), 0, "%g", value);
+  entity_value.value = StringRef(value_buf);
 
   api::global_api_server->send_homeassistant_action(resp);
 }

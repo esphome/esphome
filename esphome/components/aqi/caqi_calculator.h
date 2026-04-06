@@ -1,45 +1,70 @@
 #pragma once
 
-#include "esphome/core/log.h"
+#include <algorithm>
+#include <cmath>
+#include <limits>
 #include "abstract_aqi_calculator.h"
 
 namespace esphome::aqi {
 
 class CAQICalculator : public AbstractAQICalculator {
  public:
-  uint16_t get_aqi(uint16_t pm2_5_value, uint16_t pm10_0_value) override {
-    int pm2_5_index = calculate_index_(pm2_5_value, pm2_5_calculation_grid_);
-    int pm10_0_index = calculate_index_(pm10_0_value, pm10_0_calculation_grid_);
+  uint16_t get_aqi(float pm2_5_value, float pm10_0_value) override {
+    float pm2_5_index = calculate_index(pm2_5_value, PM2_5_GRID);
+    float pm10_0_index = calculate_index(pm10_0_value, PM10_0_GRID);
 
-    return (pm2_5_index < pm10_0_index) ? pm10_0_index : pm2_5_index;
+    float aqi = std::max(pm2_5_index, pm10_0_index);
+    if (aqi < 0.0f) {
+      aqi = 0.0f;
+    }
+    return static_cast<uint16_t>(std::lround(aqi));
   }
 
  protected:
-  static const int AMOUNT_OF_LEVELS = 5;
+  static constexpr int NUM_LEVELS = 5;
 
-  int index_grid_[AMOUNT_OF_LEVELS][2] = {{0, 25}, {26, 50}, {51, 75}, {76, 100}, {101, 400}};
+  static constexpr int INDEX_GRID[NUM_LEVELS][2] = {{0, 25}, {26, 50}, {51, 75}, {76, 100}, {101, 400}};
 
-  int pm2_5_calculation_grid_[AMOUNT_OF_LEVELS][2] = {{0, 15}, {16, 30}, {31, 55}, {56, 110}, {111, 400}};
+  static constexpr float PM2_5_GRID[NUM_LEVELS][2] = {
+      // clang-format off
+      {0.0f, 15.1f},
+      {15.1f, 30.1f},
+      {30.1f, 55.1f},
+      {55.1f, 110.1f},
+      {110.1f, std::numeric_limits<float>::max()}
+      // clang-format on
+  };
 
-  int pm10_0_calculation_grid_[AMOUNT_OF_LEVELS][2] = {{0, 25}, {26, 50}, {51, 90}, {91, 180}, {181, 400}};
+  static constexpr float PM10_0_GRID[NUM_LEVELS][2] = {
+      // clang-format off
+      {0.0f, 25.1f},
+      {25.1f, 50.1f},
+      {50.1f, 90.1f},
+      {90.1f, 180.1f},
+      {180.1f, std::numeric_limits<float>::max()}
+      // clang-format on
+  };
 
-  int calculate_index_(uint16_t value, int array[AMOUNT_OF_LEVELS][2]) {
-    int grid_index = get_grid_index_(value, array);
+  static float calculate_index(float value, const float array[NUM_LEVELS][2]) {
+    int grid_index = get_grid_index(value, array);
     if (grid_index == -1) {
-      return -1;
+      return -1.0f;
     }
 
-    int aqi_lo = index_grid_[grid_index][0];
-    int aqi_hi = index_grid_[grid_index][1];
-    int conc_lo = array[grid_index][0];
-    int conc_hi = array[grid_index][1];
+    float aqi_lo = INDEX_GRID[grid_index][0];
+    float aqi_hi = INDEX_GRID[grid_index][1];
+    float conc_lo = array[grid_index][0];
+    float conc_hi = array[grid_index][1];
 
     return (value - conc_lo) * (aqi_hi - aqi_lo) / (conc_hi - conc_lo) + aqi_lo;
   }
 
-  int get_grid_index_(uint16_t value, int array[AMOUNT_OF_LEVELS][2]) {
-    for (int i = 0; i < AMOUNT_OF_LEVELS; i++) {
-      if (value >= array[i][0] && value <= array[i][1]) {
+  static int get_grid_index(float value, const float array[NUM_LEVELS][2]) {
+    for (int i = 0; i < NUM_LEVELS; i++) {
+      const bool in_range =
+          (value >= array[i][0]) && ((i == NUM_LEVELS - 1) ? (value <= array[i][1])   // last bucket inclusive
+                                                           : (value < array[i][1]));  // others exclusive on hi
+      if (in_range) {
         return i;
       }
     }

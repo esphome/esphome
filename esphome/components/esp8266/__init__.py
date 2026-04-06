@@ -1,11 +1,13 @@
 import logging
 from pathlib import Path
+import re
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
     CONF_BOARD_FLASH_MODE,
+    CONF_ENABLE_FULL_PRINTF,
     CONF_FRAMEWORK,
     CONF_PLATFORM_VERSION,
     CONF_SOURCE,
@@ -17,26 +19,63 @@ from esphome.const import (
     PLATFORM_ESP8266,
     ThreadModel,
 )
-from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed
+from esphome.types import ConfigType
 
 from .boards import BOARDS, ESP8266_LD_SCRIPTS
 from .const import (
     CONF_EARLY_PIN_INIT,
+    CONF_ENABLE_SERIAL,
+    CONF_ENABLE_SERIAL1,
     CONF_RESTORE_FROM_FLASH,
     KEY_BOARD,
     KEY_ESP8266,
     KEY_FLASH_SIZE,
     KEY_PIN_INITIAL_STATES,
+    KEY_SERIAL1_REQUIRED,
+    KEY_SERIAL_REQUIRED,
     KEY_WAVEFORM_REQUIRED,
+    enable_serial,
+    enable_serial1,
     esp8266_ns,
 )
 from .gpio import PinInitialState, add_pin_initial_states_array
+
+CONF_ENABLE_SCANF_FLOAT = "enable_scanf_float"
+# Heuristically matches scanf/sscanf calls with float format specifiers.
+# Standard scanf float conversions: %f %F %e %E %g %G %a %A
+# With optional modifiers: %*f (suppression), %8f (width), %lf %Lf (length)
+# Also matches non-standard patterns like %.2f as a heuristic — these are
+# invalid in scanf but users may write them by analogy with printf.
+# Uses [^;]*? to stay within a single statement, preventing false positives
+# from e.g. sscanf(buf, "%d", &x); printf("%f", val);
+_SCANF_FLOAT_RE = re.compile(r"scanf\s*\([^;]*?%[*\d.]*[hlL]*[feEgGaAF]")
 
 CODEOWNERS = ["@esphome/core"]
 _LOGGER = logging.getLogger(__name__)
 AUTO_LOAD = ["preferences"]
 IS_TARGET_PLATFORM = True
+
+
+def lambdas_use_scanf_float(config: ConfigType) -> bool:
+    """Check if any lambda in the config uses scanf with a float format specifier.
+
+    Comments are stripped before matching to avoid false positives from
+    commented-out code. The cost of a false positive is only ~8KB flash.
+    """
+    stack: list = [config]
+    while stack:
+        obj = stack.pop()
+        if isinstance(obj, Lambda):
+            src = obj.comment_remover(obj.value)
+            if _SCANF_FLOAT_RE.search(src):
+                return True
+        elif isinstance(obj, dict):
+            stack.extend(obj.values())
+        elif isinstance(obj, list):
+            stack.extend(obj)
+    return False
 
 
 def set_core_data(config):
@@ -171,6 +210,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BOARD_FLASH_MODE, default="dout"): cv.one_of(
                 *BUILD_FLASH_MODES, lower=True
             ),
+            cv.Optional(CONF_ENABLE_SERIAL): cv.boolean,
+            cv.Optional(CONF_ENABLE_SERIAL1): cv.boolean,
+            cv.Optional(CONF_ENABLE_FULL_PRINTF, default=False): cv.boolean,
+            cv.Optional(CONF_ENABLE_SCANF_FLOAT): cv.boolean,
         }
     ),
     set_core_data,
@@ -190,16 +233,25 @@ async def to_code(config):
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "ESP8266")
     cg.add_define(ThreadModel.SINGLE)
+    cg.add_define("USE_ESP8266_CRASH_HANDLER")
 
-    cg.add_platformio_option(
-        "extra_scripts",
-        [
-            "pre:testing_mode.py",
-            "pre:exclude_updater.py",
-            "pre:exclude_waveform.py",
-            "post:post_build.py",
-        ],
-    )
+    enable_scanf_float = config.get(CONF_ENABLE_SCANF_FLOAT)
+    if enable_scanf_float is None and lambdas_use_scanf_float(CORE.config):
+        enable_scanf_float = True
+        _LOGGER.warning(
+            "Lambda uses scanf with a float format specifier; "
+            "enabling scanf float support (~8KB flash)"
+        )
+
+    extra_scripts = [
+        "pre:testing_mode.py",
+        "pre:exclude_updater.py",
+        "pre:exclude_waveform.py",
+    ]
+    if not enable_scanf_float:
+        extra_scripts.append("pre:remove_float_scanf.py")
+    extra_scripts.append("post:post_build.py")
+    cg.add_platformio_option("extra_scripts", extra_scripts)
 
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("framework", "arduino")
@@ -231,6 +283,12 @@ async def to_code(config):
     if config[CONF_EARLY_PIN_INIT]:
         cg.add_define("USE_ESP8266_EARLY_PIN_INIT")
 
+    # Allow users to force-enable Serial objects for use in lambdas or external libraries
+    if config.get(CONF_ENABLE_SERIAL):
+        enable_serial()
+    if config.get(CONF_ENABLE_SERIAL1):
+        enable_serial1()
+
     # Arduino 2 has a non-standards conformant new that returns a nullptr instead of failing when
     # out of memory and exceptions are disabled. Since Arduino 2.6.0, this flag can be used to make
     # new abort instead. Use it so that OOM fails early (on allocation) instead of on dereference of
@@ -244,6 +302,14 @@ async def to_code(config):
     # we pretend it has much larger memory to test that components compile together
     if CORE.testing_mode:
         cg.add_build_flag("-DESPHOME_TESTING_MODE")
+
+    # Wrap FILE*-based printf functions to eliminate newlib's _vfiprintf_r
+    # (~1.6 KB). See printf_stubs.cpp for implementation.
+    if config.get(CONF_ENABLE_FULL_PRINTF):
+        cg.add_define("USE_FULL_PRINTF")
+    else:
+        for symbol in ("vprintf", "printf", "fprintf"):
+            cg.add_build_flag(f"-Wl,--wrap={symbol}")
 
     cg.add_platformio_option("board_build.flash_mode", config[CONF_BOARD_FLASH_MODE])
 
@@ -271,6 +337,7 @@ async def to_code(config):
 
     CORE.add_job(add_pin_initial_states_array)
     CORE.add_job(finalize_waveform_config)
+    CORE.add_job(finalize_serial_config)
 
 
 @coroutine_with_priority(CoroPriority.WORKAROUNDS)
@@ -284,6 +351,24 @@ async def finalize_waveform_config() -> None:
         # No component needs waveform - enable stubs and exclude Arduino waveform code
         # Use build flag (visible to both C++ code and PlatformIO script)
         cg.add_build_flag("-DUSE_ESP8266_WAVEFORM_STUBS")
+
+
+@coroutine_with_priority(CoroPriority.WORKAROUNDS)
+async def finalize_serial_config() -> None:
+    """Exclude unused Arduino Serial objects from the build.
+
+    This runs at WORKAROUNDS priority (-999) to ensure all components
+    have had a chance to call enable_serial() or enable_serial1() first.
+
+    The Arduino ESP8266 core defines two global Serial objects (32 bytes each).
+    By adding NO_GLOBAL_SERIAL or NO_GLOBAL_SERIAL1 build flags, we prevent
+    unused Serial objects from being linked, saving 32 bytes each.
+    """
+    esp8266_data = CORE.data.get(KEY_ESP8266, {})
+    if not esp8266_data.get(KEY_SERIAL_REQUIRED, False):
+        cg.add_build_flag("-DNO_GLOBAL_SERIAL")
+    if not esp8266_data.get(KEY_SERIAL1_REQUIRED, False):
+        cg.add_build_flag("-DNO_GLOBAL_SERIAL1")
 
 
 # Called by writer.py
@@ -308,4 +393,9 @@ def copy_files() -> None:
     copy_file_if_changed(
         exclude_waveform_file,
         CORE.relative_build_path("exclude_waveform.py"),
+    )
+    remove_float_scanf_file = dir / "remove_float_scanf.py.script"
+    copy_file_if_changed(
+        remove_float_scanf_file,
+        CORE.relative_build_path("remove_float_scanf.py"),
     )

@@ -13,7 +13,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_WIFI,
 )
-from esphome.core import CORE, HexInt
+from esphome.core import HexInt
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@jesserockz"]
@@ -66,11 +66,17 @@ CONF_WAIT_FOR_SENT = "wait_for_sent"
 MAX_ESPNOW_PACKET_SIZE = 250  # Maximum size of the payload in bytes
 
 
+def validate_channel(value):
+    if value is None:
+        raise cv.Invalid("channel is required if wifi is not configured")
+    return wifi.validate_channel(value)
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ESPNowComponent),
-            cv.OnlyWithout(CONF_CHANNEL, CONF_WIFI): wifi.validate_channel,
+            cv.OnlyWithout(CONF_CHANNEL, CONF_WIFI): validate_channel,
             cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_AUTO_ADD_PEER, default=False): cv.boolean,
             cv.Optional(CONF_PEERS): cv.ensure_list(cv.mac_address),
@@ -118,9 +124,6 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    if CORE.using_arduino:
-        cg.add_library("WiFi", None)
-
     # ESP-NOW uses wake_loop_threadsafe() to wake the main loop from ESP-NOW callbacks
     # This enables low-latency event processing instead of waiting for select() timeout
     socket.require_wake_loop_threadsafe()
@@ -129,6 +132,7 @@ async def to_code(config):
     if wifi_channel := config.get(CONF_CHANNEL):
         cg.add(var.set_wifi_channel(wifi_channel))
 
+    cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
     cg.add(var.set_auto_add_peer(config[CONF_AUTO_ADD_PEER]))
 
     for peer in config.get(CONF_PEERS, []):
@@ -217,6 +221,7 @@ SEND_SCHEMA.add_extra(_validate_send_action)
     "espnow.send",
     SendAction,
     SEND_SCHEMA,
+    synchronous=False,
 )
 @automation.register_action(
     "espnow.broadcast",
@@ -229,6 +234,7 @@ SEND_SCHEMA.add_extra(_validate_send_action)
         ),
         key=CONF_DATA,
     ),
+    synchronous=False,
 )
 async def send_action(
     config: ConfigType,
@@ -268,6 +274,7 @@ async def send_action(
         PEER_SCHEMA,
         key=CONF_ADDRESS,
     ),
+    synchronous=True,
 )
 @automation.register_action(
     "espnow.peer.delete",
@@ -276,6 +283,7 @@ async def send_action(
         PEER_SCHEMA,
         key=CONF_ADDRESS,
     ),
+    synchronous=True,
 )
 async def peer_action(
     config: ConfigType,
@@ -300,6 +308,7 @@ async def peer_action(
         },
         key=CONF_CHANNEL,
     ),
+    synchronous=True,
 )
 async def channel_action(
     config: ConfigType,

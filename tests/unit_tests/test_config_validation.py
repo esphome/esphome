@@ -148,6 +148,18 @@ def test_icon__invalid():
         config_validation.icon("foo")
 
 
+def test_icon__max_length():
+    """Test that icons exceeding 63 characters are rejected."""
+    # Exactly 63 chars should pass
+    max_icon = "mdi:" + "a" * 59  # 63 chars total
+    assert config_validation.icon(max_icon) == max_icon
+
+    # 64 chars should fail
+    too_long = "mdi:" + "a" * 60  # 64 chars total
+    with pytest.raises(Invalid, match="Icon string is too long"):
+        config_validation.icon(too_long)
+
+
 @pytest.mark.parametrize("value", ("True", "YES", "on", "enAblE", True))
 def test_boolean__valid_true(value):
     assert config_validation.boolean(value) is True
@@ -510,10 +522,23 @@ def test_string_no_slash__valid(value: str) -> None:
     assert actual == value
 
 
-@pytest.mark.parametrize("value", ("has/slash", "a/b/c", "/leading", "trailing/"))
-def test_string_no_slash__slash_rejected(value: str) -> None:
-    with pytest.raises(Invalid, match="cannot contain '/' character"):
-        config_validation.string_no_slash(value)
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    (
+        ("has/slash", "has⁄slash"),
+        ("a/b/c", "a⁄b⁄c"),
+        ("/leading", "⁄leading"),
+        ("trailing/", "trailing⁄"),
+    ),
+)
+def test_string_no_slash__slash_replaced_with_warning(
+    value: str, expected: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Test that '/' is auto-replaced with fraction slash and warning is logged."""
+    actual = config_validation.string_no_slash(value)
+    assert actual == expected
+    assert "reserved as a URL path separator" in caplog.text
+    assert "will become an error in ESPHome 2026.7.0" in caplog.text
 
 
 def test_string_no_slash__long_string_allowed() -> None:
@@ -532,9 +557,13 @@ def test_validate_entity_name__valid(value: str) -> None:
     assert actual == value
 
 
-def test_validate_entity_name__slash_rejected() -> None:
-    with pytest.raises(Invalid, match="cannot contain '/' character"):
-        config_validation._validate_entity_name("has/slash")
+def test_validate_entity_name__slash_replaced_with_warning(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that '/' in entity names is auto-replaced with fraction slash."""
+    actual = config_validation._validate_entity_name("has/slash")
+    assert actual == "has⁄slash"
+    assert "reserved as a URL path separator" in caplog.text
 
 
 def test_validate_entity_name__max_length() -> None:
