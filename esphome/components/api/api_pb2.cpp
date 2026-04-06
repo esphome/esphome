@@ -74,7 +74,10 @@ uint32_t DeviceInfo::calculate_size() const {
 #ifdef USE_SERIAL_PROXY
 void SerialProxyInfo::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_string(1, this->name);
-  buffer.encode_uint32(2, static_cast<uint32_t>(this->port_type));
+  if (this->port_type) {
+    buffer.write_raw_byte(16);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->port_type)));
+  }
 }
 uint32_t SerialProxyInfo::calculate_size() const {
   uint32_t size = 0;
@@ -216,7 +219,10 @@ void ListEntitiesBinarySensorResponse::encode(ProtoWriteBuffer &buffer) const {
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(8, this->icon);
 #endif
-  buffer.encode_uint32(9, static_cast<uint32_t>(this->entity_category));
+  if (this->entity_category) {
+    buffer.write_raw_byte(72);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->entity_category)));
+  }
 #ifdef USE_DEVICES
   buffer.encode_uint32(10, this->device_id);
 #endif
@@ -270,7 +276,10 @@ void ListEntitiesCoverResponse::encode(ProtoWriteBuffer &buffer) const {
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(10, this->icon);
 #endif
-  buffer.encode_uint32(11, static_cast<uint32_t>(this->entity_category));
+  if (this->entity_category) {
+    buffer.write_raw_byte(88);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->entity_category)));
+  }
   buffer.encode_bool(12, this->supports_stop);
 #ifdef USE_DEVICES
   buffer.encode_uint32(13, this->device_id);
@@ -300,7 +309,10 @@ void CoverStateResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.write_tag_and_fixed32(13, this->key);
   buffer.encode_float(3, this->position);
   buffer.encode_float(4, this->tilt);
-  buffer.encode_uint32(5, static_cast<uint32_t>(this->current_operation));
+  if (this->current_operation) {
+    buffer.write_raw_byte(40);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->current_operation)));
+  }
 #ifdef USE_DEVICES
   buffer.encode_uint32(6, this->device_id);
 #endif
@@ -367,7 +379,10 @@ void ListEntitiesFanResponse::encode(ProtoWriteBuffer &buffer) const {
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(10, this->icon);
 #endif
-  buffer.encode_uint32(11, static_cast<uint32_t>(this->entity_category));
+  if (this->entity_category) {
+    buffer.write_raw_byte(88);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->entity_category)));
+  }
   for (const char *it : *this->supported_preset_modes) {
     buffer.encode_string(12, it, strlen(it), true);
   }
@@ -403,7 +418,10 @@ void FanStateResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.write_tag_and_fixed32(13, this->key);
   buffer.encode_bool(2, this->state);
   buffer.encode_bool(3, this->oscillating);
-  buffer.encode_uint32(5, static_cast<uint32_t>(this->direction));
+  if (this->direction) {
+    buffer.write_raw_byte(40);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->direction)));
+  }
   buffer.encode_int32(6, this->speed_level);
   buffer.encode_string(7, this->preset_mode);
 #ifdef USE_DEVICES
@@ -501,7 +519,10 @@ void ListEntitiesLightResponse::encode(ProtoWriteBuffer &buffer) const {
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(14, this->icon);
 #endif
-  buffer.encode_uint32(15, static_cast<uint32_t>(this->entity_category));
+  if (this->entity_category) {
+    buffer.write_raw_byte(120);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->entity_category)));
+  }
 #ifdef USE_DEVICES
   buffer.encode_uint32(16, this->device_id);
 #endif
@@ -535,7 +556,10 @@ void LightStateResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.write_tag_and_fixed32(13, this->key);
   buffer.encode_bool(2, this->state);
   buffer.encode_float(3, this->brightness);
-  buffer.encode_uint32(11, static_cast<uint32_t>(this->color_mode));
+  if (this->color_mode) {
+    buffer.write_raw_byte(88);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->color_mode)));
+  }
   buffer.encode_float(10, this->color_brightness);
   buffer.encode_float(4, this->red);
   buffer.encode_float(5, this->green);
@@ -690,9 +714,15 @@ void ListEntitiesSensorResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_int32(7, this->accuracy_decimals);
   buffer.encode_bool(8, this->force_update);
   buffer.encode_string(9, this->device_class);
-  buffer.encode_uint32(10, static_cast<uint32_t>(this->state_class));
+  if (this->state_class) {
+    buffer.write_raw_byte(80);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->state_class)));
+  }
   buffer.encode_bool(12, this->disabled_by_default);
-  buffer.encode_uint32(13, static_cast<uint32_t>(this->entity_category));
+  if (this->entity_category) {
+    buffer.write_raw_byte(104);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->entity_category)));
+  }
 #ifdef USE_DEVICES
   buffer.encode_uint32(14, this->device_id);
 #endif
@@ -746,7 +776,10 @@ void ListEntitiesSwitchResponse::encode(ProtoWriteBuffer &buffer) const {
 #endif
   buffer.encode_bool(6, this->assumed_state);
   buffer.encode_bool(7, this->disabled_by_default);
-  buffer.encode_uint32(8, static_cast<uint32_t>(this->entity_category));
+  if (this->entity_category) {
+    buffer.write_raw_byte(64);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->entity_category)));
+  }
   buffer.encode_string(9, this->device_class);
 #ifdef USE_DEVICES
   buffer.encode_uint32(10, this->device_id);
@@ -820,7 +853,10 @@ void ListEntitiesTextSensorResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_string(5, this->icon);
 #endif
   buffer.encode_bool(6, this->disabled_by_default);
-  buffer.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
+  if (this->entity_category) {
+    buffer.write_raw_byte(56);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->entity_category)));
+  }
   buffer.encode_string(8, this->device_class);
 #ifdef USE_DEVICES
   buffer.encode_uint32(9, this->device_id);
@@ -875,7 +911,10 @@ bool SubscribeLogsRequest::decode_varint(uint32_t field_id, proto_varint_value_t
   return true;
 }
 void SubscribeLogsResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.encode_uint32(1, static_cast<uint32_t>(this->level));
+  if (this->level) {
+    buffer.write_raw_byte(8);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->level)));
+  }
   buffer.encode_bytes(3, this->message_ptr_, this->message_len_);
 }
 uint32_t SubscribeLogsResponse::calculate_size() const {
@@ -1112,7 +1151,10 @@ bool GetTimeResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
 #ifdef USE_API_USER_DEFINED_ACTIONS
 void ListEntitiesServicesArgument::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_string(1, this->name);
-  buffer.encode_uint32(2, static_cast<uint32_t>(this->type));
+  if (this->type) {
+    buffer.write_raw_byte(16);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->type)));
+  }
 }
 uint32_t ListEntitiesServicesArgument::calculate_size() const {
   uint32_t size = 0;
@@ -1126,7 +1168,10 @@ void ListEntitiesServicesResponse::encode(ProtoWriteBuffer &buffer) const {
   for (auto &it : this->args) {
     buffer.encode_sub_message(3, it);
   }
-  buffer.encode_uint32(4, static_cast<uint32_t>(this->supports_response));
+  if (this->supports_response) {
+    buffer.write_raw_byte(32);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->supports_response)));
+  }
 }
 uint32_t ListEntitiesServicesResponse::calculate_size() const {
   uint32_t size = 0;
@@ -1273,7 +1318,10 @@ void ListEntitiesCameraResponse::encode(ProtoWriteBuffer &buffer) const {
 #ifdef USE_ENTITY_ICON
   buffer.encode_string(6, this->icon);
 #endif
-  buffer.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
+  if (this->entity_category) {
+    buffer.write_raw_byte(56);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->entity_category)));
+  }
 #ifdef USE_DEVICES
   buffer.encode_uint32(8, this->device_id);
 #endif
@@ -1420,16 +1468,31 @@ uint32_t ListEntitiesClimateResponse::calculate_size() const {
 }
 void ClimateStateResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.write_tag_and_fixed32(13, this->key);
-  buffer.encode_uint32(2, static_cast<uint32_t>(this->mode));
+  if (this->mode) {
+    buffer.write_raw_byte(16);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->mode)));
+  }
   buffer.encode_float(3, this->current_temperature);
   buffer.encode_float(4, this->target_temperature);
   buffer.encode_float(5, this->target_temperature_low);
   buffer.encode_float(6, this->target_temperature_high);
-  buffer.encode_uint32(8, static_cast<uint32_t>(this->action));
-  buffer.encode_uint32(9, static_cast<uint32_t>(this->fan_mode));
-  buffer.encode_uint32(10, static_cast<uint32_t>(this->swing_mode));
+  if (this->action) {
+    buffer.write_raw_byte(64);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->action)));
+  }
+  if (this->fan_mode) {
+    buffer.write_raw_byte(72);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->fan_mode)));
+  }
+  if (this->swing_mode) {
+    buffer.write_raw_byte(80);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->swing_mode)));
+  }
   buffer.encode_string(11, this->custom_fan_mode);
-  buffer.encode_uint32(12, static_cast<uint32_t>(this->preset));
+  if (this->preset) {
+    buffer.write_raw_byte(96);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->preset)));
+  }
   buffer.encode_string(13, this->custom_preset);
   buffer.encode_float(14, this->current_humidity);
   buffer.encode_float(15, this->target_humidity);
@@ -1559,7 +1622,10 @@ void ListEntitiesWaterHeaterResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_string(4, this->icon);
 #endif
   buffer.encode_bool(5, this->disabled_by_default);
-  buffer.encode_uint32(6, static_cast<uint32_t>(this->entity_category));
+  if (this->entity_category) {
+    buffer.write_raw_byte(48);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->entity_category)));
+  }
 #ifdef USE_DEVICES
   buffer.encode_uint32(7, this->device_id);
 #endif
@@ -1597,7 +1663,10 @@ void WaterHeaterStateResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.write_tag_and_fixed32(13, this->key);
   buffer.encode_float(2, this->current_temperature);
   buffer.encode_float(3, this->target_temperature);
-  buffer.encode_uint32(4, static_cast<uint32_t>(this->mode));
+  if (this->mode) {
+    buffer.write_raw_byte(32);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->mode)));
+  }
 #ifdef USE_DEVICES
   buffer.encode_uint32(5, this->device_id);
 #endif
@@ -1672,9 +1741,15 @@ void ListEntitiesNumberResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_float(7, this->max_value);
   buffer.encode_float(8, this->step);
   buffer.encode_bool(9, this->disabled_by_default);
-  buffer.encode_uint32(10, static_cast<uint32_t>(this->entity_category));
+  if (this->entity_category) {
+    buffer.write_raw_byte(80);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->entity_category)));
+  }
   buffer.encode_string(11, this->unit_of_measurement);
-  buffer.encode_uint32(12, static_cast<uint32_t>(this->mode));
+  if (this->mode) {
+    buffer.write_raw_byte(96);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->mode)));
+  }
   buffer.encode_string(13, this->device_class);
 #ifdef USE_DEVICES
   buffer.encode_uint32(14, this->device_id);
@@ -1757,7 +1832,10 @@ void ListEntitiesSelectResponse::encode(ProtoWriteBuffer &buffer) const {
     buffer.encode_string(6, it, strlen(it), true);
   }
   buffer.encode_bool(7, this->disabled_by_default);
-  buffer.encode_uint32(8, static_cast<uint32_t>(this->entity_category));
+  if (this->entity_category) {
+    buffer.write_raw_byte(64);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->entity_category)));
+  }
 #ifdef USE_DEVICES
   buffer.encode_uint32(9, this->device_id);
 #endif
@@ -1848,7 +1926,10 @@ void ListEntitiesSirenResponse::encode(ProtoWriteBuffer &buffer) const {
   }
   buffer.encode_bool(8, this->supports_duration);
   buffer.encode_bool(9, this->supports_volume);
-  buffer.encode_uint32(10, static_cast<uint32_t>(this->entity_category));
+  if (this->entity_category) {
+    buffer.write_raw_byte(80);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->entity_category)));
+  }
 #ifdef USE_DEVICES
   buffer.encode_uint32(11, this->device_id);
 #endif
@@ -1955,7 +2036,10 @@ void ListEntitiesLockResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_string(5, this->icon);
 #endif
   buffer.encode_bool(6, this->disabled_by_default);
-  buffer.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
+  if (this->entity_category) {
+    buffer.write_raw_byte(56);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->entity_category)));
+  }
   buffer.encode_bool(8, this->assumed_state);
   buffer.encode_bool(9, this->supports_open);
   buffer.encode_bool(10, this->requires_code);
@@ -1985,7 +2069,10 @@ uint32_t ListEntitiesLockResponse::calculate_size() const {
 }
 void LockStateResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.write_tag_and_fixed32(13, this->key);
-  buffer.encode_uint32(2, static_cast<uint32_t>(this->state));
+  if (this->state) {
+    buffer.write_raw_byte(16);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->state)));
+  }
 #ifdef USE_DEVICES
   buffer.encode_uint32(3, this->device_id);
 #endif
@@ -2048,7 +2135,10 @@ void ListEntitiesButtonResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_string(5, this->icon);
 #endif
   buffer.encode_bool(6, this->disabled_by_default);
-  buffer.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
+  if (this->entity_category) {
+    buffer.write_raw_byte(56);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->entity_category)));
+  }
   buffer.encode_string(8, this->device_class);
 #ifdef USE_DEVICES
   buffer.encode_uint32(9, this->device_id);
@@ -2098,7 +2188,10 @@ void MediaPlayerSupportedFormat::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_string(1, this->format);
   buffer.encode_uint32(2, this->sample_rate);
   buffer.encode_uint32(3, this->num_channels);
-  buffer.encode_uint32(4, static_cast<uint32_t>(this->purpose));
+  if (this->purpose) {
+    buffer.write_raw_byte(32);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->purpose)));
+  }
   buffer.encode_uint32(5, this->sample_bytes);
 }
 uint32_t MediaPlayerSupportedFormat::calculate_size() const {
@@ -2118,7 +2211,10 @@ void ListEntitiesMediaPlayerResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_string(5, this->icon);
 #endif
   buffer.encode_bool(6, this->disabled_by_default);
-  buffer.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
+  if (this->entity_category) {
+    buffer.write_raw_byte(56);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->entity_category)));
+  }
   buffer.encode_bool(8, this->supports_pause);
   for (auto &it : this->supported_formats) {
     buffer.encode_sub_message(9, it);
@@ -2152,7 +2248,10 @@ uint32_t ListEntitiesMediaPlayerResponse::calculate_size() const {
 }
 void MediaPlayerStateResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.write_tag_and_fixed32(13, this->key);
-  buffer.encode_uint32(2, static_cast<uint32_t>(this->state));
+  if (this->state) {
+    buffer.write_raw_byte(16);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->state)));
+  }
   buffer.encode_float(3, this->volume);
   buffer.encode_bool(4, this->muted);
 #ifdef USE_DEVICES
@@ -2613,9 +2712,18 @@ uint32_t BluetoothDeviceClearCacheResponse::calculate_size() const {
   return size;
 }
 void BluetoothScannerStateResponse::encode(ProtoWriteBuffer &buffer) const {
-  buffer.encode_uint32(1, static_cast<uint32_t>(this->state));
-  buffer.encode_uint32(2, static_cast<uint32_t>(this->mode));
-  buffer.encode_uint32(3, static_cast<uint32_t>(this->configured_mode));
+  if (this->state) {
+    buffer.write_raw_byte(8);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->state)));
+  }
+  if (this->mode) {
+    buffer.write_raw_byte(16);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->mode)));
+  }
+  if (this->configured_mode) {
+    buffer.write_raw_byte(24);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->configured_mode)));
+  }
 }
 uint32_t BluetoothScannerStateResponse::calculate_size() const {
   uint32_t size = 0;
@@ -2940,7 +3048,10 @@ void ListEntitiesAlarmControlPanelResponse::encode(ProtoWriteBuffer &buffer) con
   buffer.encode_string(5, this->icon);
 #endif
   buffer.encode_bool(6, this->disabled_by_default);
-  buffer.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
+  if (this->entity_category) {
+    buffer.write_raw_byte(56);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->entity_category)));
+  }
   buffer.encode_uint32(8, this->supported_features);
   buffer.encode_bool(9, this->requires_code);
   buffer.encode_bool(10, this->requires_code_to_arm);
@@ -2968,7 +3079,10 @@ uint32_t ListEntitiesAlarmControlPanelResponse::calculate_size() const {
 }
 void AlarmControlPanelStateResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.write_tag_and_fixed32(13, this->key);
-  buffer.encode_uint32(2, static_cast<uint32_t>(this->state));
+  if (this->state) {
+    buffer.write_raw_byte(16);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->state)));
+  }
 #ifdef USE_DEVICES
   buffer.encode_uint32(3, this->device_id);
 #endif
@@ -3028,11 +3142,17 @@ void ListEntitiesTextResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_string(5, this->icon);
 #endif
   buffer.encode_bool(6, this->disabled_by_default);
-  buffer.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
+  if (this->entity_category) {
+    buffer.write_raw_byte(56);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->entity_category)));
+  }
   buffer.encode_uint32(8, this->min_length);
   buffer.encode_uint32(9, this->max_length);
   buffer.encode_string(10, this->pattern);
-  buffer.encode_uint32(11, static_cast<uint32_t>(this->mode));
+  if (this->mode) {
+    buffer.write_raw_byte(88);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->mode)));
+  }
 #ifdef USE_DEVICES
   buffer.encode_uint32(12, this->device_id);
 #endif
@@ -3117,7 +3237,10 @@ void ListEntitiesDateResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_string(5, this->icon);
 #endif
   buffer.encode_bool(6, this->disabled_by_default);
-  buffer.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
+  if (this->entity_category) {
+    buffer.write_raw_byte(56);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->entity_category)));
+  }
 #ifdef USE_DEVICES
   buffer.encode_uint32(8, this->device_id);
 #endif
@@ -3200,7 +3323,10 @@ void ListEntitiesTimeResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_string(5, this->icon);
 #endif
   buffer.encode_bool(6, this->disabled_by_default);
-  buffer.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
+  if (this->entity_category) {
+    buffer.write_raw_byte(56);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->entity_category)));
+  }
 #ifdef USE_DEVICES
   buffer.encode_uint32(8, this->device_id);
 #endif
@@ -3283,7 +3409,10 @@ void ListEntitiesEventResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_string(5, this->icon);
 #endif
   buffer.encode_bool(6, this->disabled_by_default);
-  buffer.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
+  if (this->entity_category) {
+    buffer.write_raw_byte(56);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->entity_category)));
+  }
   buffer.encode_string(8, this->device_class);
   for (const char *it : *this->event_types) {
     buffer.encode_string(9, it, strlen(it), true);
@@ -3339,7 +3468,10 @@ void ListEntitiesValveResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_string(5, this->icon);
 #endif
   buffer.encode_bool(6, this->disabled_by_default);
-  buffer.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
+  if (this->entity_category) {
+    buffer.write_raw_byte(56);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->entity_category)));
+  }
   buffer.encode_string(8, this->device_class);
   buffer.encode_bool(9, this->assumed_state);
   buffer.encode_bool(10, this->supports_position);
@@ -3370,7 +3502,10 @@ uint32_t ListEntitiesValveResponse::calculate_size() const {
 void ValveStateResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.write_tag_and_fixed32(13, this->key);
   buffer.encode_float(2, this->position);
-  buffer.encode_uint32(3, static_cast<uint32_t>(this->current_operation));
+  if (this->current_operation) {
+    buffer.write_raw_byte(24);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->current_operation)));
+  }
 #ifdef USE_DEVICES
   buffer.encode_uint32(4, this->device_id);
 #endif
@@ -3426,7 +3561,10 @@ void ListEntitiesDateTimeResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_string(5, this->icon);
 #endif
   buffer.encode_bool(6, this->disabled_by_default);
-  buffer.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
+  if (this->entity_category) {
+    buffer.write_raw_byte(56);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->entity_category)));
+  }
 #ifdef USE_DEVICES
   buffer.encode_uint32(8, this->device_id);
 #endif
@@ -3499,7 +3637,10 @@ void ListEntitiesUpdateResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_string(5, this->icon);
 #endif
   buffer.encode_bool(6, this->disabled_by_default);
-  buffer.encode_uint32(7, static_cast<uint32_t>(this->entity_category));
+  if (this->entity_category) {
+    buffer.write_raw_byte(56);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->entity_category)));
+  }
   buffer.encode_string(8, this->device_class);
 #ifdef USE_DEVICES
   buffer.encode_uint32(9, this->device_id);
@@ -3621,7 +3762,10 @@ bool ZWaveProxyRequest::decode_length(uint32_t field_id, ProtoLengthDelimited va
   return true;
 }
 void ZWaveProxyRequest::encode(ProtoWriteBuffer &buffer) const {
-  buffer.encode_uint32(1, static_cast<uint32_t>(this->type));
+  if (this->type) {
+    buffer.write_raw_byte(8);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->type)));
+  }
   buffer.encode_bytes(2, this->data, this->data_len);
 }
 uint32_t ZWaveProxyRequest::calculate_size() const {
@@ -3640,7 +3784,10 @@ void ListEntitiesInfraredResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_string(4, this->icon);
 #endif
   buffer.encode_bool(5, this->disabled_by_default);
-  buffer.encode_uint32(6, static_cast<uint32_t>(this->entity_category));
+  if (this->entity_category) {
+    buffer.write_raw_byte(48);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->entity_category)));
+  }
 #ifdef USE_DEVICES
   buffer.encode_uint32(7, this->device_id);
 #endif
@@ -3836,8 +3983,14 @@ bool SerialProxyRequest::decode_varint(uint32_t field_id, proto_varint_value_t v
 }
 void SerialProxyRequestResponse::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_uint32(1, this->instance);
-  buffer.encode_uint32(2, static_cast<uint32_t>(this->type));
-  buffer.encode_uint32(3, static_cast<uint32_t>(this->status));
+  if (this->type) {
+    buffer.write_raw_byte(16);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->type)));
+  }
+  if (this->status) {
+    buffer.write_raw_byte(24);
+    buffer.write_raw_byte(static_cast<uint8_t>(static_cast<uint32_t>(this->status)));
+  }
   buffer.encode_string(4, this->error_message);
 }
 uint32_t SerialProxyRequestResponse::calculate_size() const {
