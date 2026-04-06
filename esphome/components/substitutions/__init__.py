@@ -323,6 +323,22 @@ def resolve_include(
         ) from err
 
 
+def _substitute_include(
+    include: IncludeFile,
+    path: list[int | str],
+    context_vars: ContextVars,
+    strict_undefined: bool,
+    errors: ErrList | None,
+) -> Any:
+    """Resolve an include and substitute its content."""
+    content, filename = resolve_include(
+        include, path, context_vars, strict_undefined, errors
+    )
+    return substitute(
+        content, path + [f"<{filename}>"], context_vars, strict_undefined, errors
+    )
+
+
 def substitute(
     item: Any,
     path: SubstitutionPath,
@@ -366,12 +382,7 @@ def substitute(
             result = type(item)(value)
 
     elif isinstance(item, IncludeFile):
-        content, filename = resolve_include(
-            item, path, context_vars, strict_undefined, errors
-        )
-        result = substitute(
-            content, path + [f"<{filename}>"], context_vars, strict_undefined, errors
-        )
+        result = _substitute_include(item, path, context_vars, strict_undefined, errors)
 
     if isinstance(item, ESPHomeDataBase):
         result = make_data_base(result, item)
