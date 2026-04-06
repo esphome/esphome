@@ -11,17 +11,13 @@ static const char *const TAG = "api.proto";
 uint32_t ProtoSize::varint_slow(uint32_t value) { return varint_wide(value); }
 
 void ProtoWriteBuffer::encode_varint_raw_slow_(uint32_t value) {
-  // Use __restrict__ so the compiler knows pos doesn't alias this->
-  // and can keep it in a register across the loop.
-  uint8_t *__restrict__ pos = this->pos_;
   do {
-    this->sync_debug_check_bounds_(pos, 1);
-    *pos++ = static_cast<uint8_t>(value | 0x80);
+    this->debug_check_bounds_(1);
+    *this->pos_++ = static_cast<uint8_t>(value | 0x80);
     value >>= 7;
   } while (value > 0x7F);
-  this->sync_debug_check_bounds_(pos, 1);
-  *pos++ = static_cast<uint8_t>(value);
-  this->pos_ = pos;
+  this->debug_check_bounds_(1);
+  *this->pos_++ = static_cast<uint8_t>(value);
 }
 
 ProtoVarIntResult ProtoVarInt::parse_slow(const uint8_t *buffer, uint32_t len) {
@@ -204,6 +200,13 @@ void ProtoWriteBuffer::debug_check_encode_size_(uint32_t field_id, uint32_t expe
   ESP_LOGE(TAG, "encode_message: size mismatch for field %" PRIu32 ": calculated=%" PRIu32 " actual=%td", field_id,
            expected, actual);
   abort();
+}
+void ProtoCursor::debug_check_bounds_(size_t bytes, const char *caller) {
+  if (this->pos_ + bytes > this->buf_.buffer_->data() + this->buf_.buffer_->size()) {
+    ESP_LOGE(TAG, "ProtoCursor bounds check failed in %s: bytes=%zu offset=%td buf_size=%zu", caller, bytes,
+             this->pos_ - this->buf_.buffer_->data(), this->buf_.buffer_->size());
+    abort();
+  }
 }
 #endif
 

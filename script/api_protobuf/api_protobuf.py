@@ -2403,12 +2403,15 @@ def build_message_type(
 
     # Only generate encode method if this message needs encoding and has fields
     if needs_encode and encode:
+        # Replace buffer. with cursor. for ProtoCursor pattern
+        encode_cursor = [line.replace("buffer.", "cursor.") for line in encode]
         o = f"void {desc.name}::encode(ProtoWriteBuffer &buffer) const {{"
-        if len(encode) == 1 and len(encode[0]) + len(o) + 3 < 120:
-            o += f" {encode[0]} }}\n"
+        if len(encode_cursor) == 1 and len(encode_cursor[0]) + len(o) + 27 < 120:
+            o += f" ProtoCursor cursor(buffer); {encode_cursor[0]} }}\n"
         else:
             o += "\n"
-            o += indent("\n".join(encode)) + "\n"
+            o += "  ProtoCursor cursor(buffer);\n"
+            o += indent("\n".join(encode_cursor)) + "\n"
             o += "}\n"
         cpp += o
         prot = "void encode(ProtoWriteBuffer &buffer) const;"
