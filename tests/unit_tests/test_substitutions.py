@@ -18,7 +18,7 @@ from esphome.config import resolve_extend_remove
 from esphome.config_helpers import Extend, merge_config
 import esphome.config_validation as cv
 from esphome.const import CONF_SUBSTITUTIONS
-from esphome.core import CORE, Lambda
+from esphome.core import CORE, EsphomeError, Lambda
 from esphome.util import OrderedDict
 
 _LOGGER = logging.getLogger(__name__)
@@ -673,3 +673,24 @@ def test_include_filename_substitution_undefined_var(tmp_path: Path) -> None:
     config = yaml_util.load_yaml(main_file)
     with pytest.raises(cv.Invalid, match=r"\$\{undefined_var\}"):
         substitutions.do_substitution_pass(config)
+
+
+def test_resolve_package_undefined_var_in_include_filename(tmp_path: Path) -> None:
+    """An undefined substitution in a package include filename raises cv.Invalid.
+
+    Previously this would raise an unhandled UndefinedError. With
+    strict_undefined=False, the unresolved filename passes through to
+    file loading which produces a clean cv.Invalid error.
+    """
+    parent = tmp_path / "main.yaml"
+    parent.write_text("")
+
+    def loader(path: Path):
+        raise EsphomeError(f"Error reading file {path}: No such file")
+
+    package_config = yaml_util.IncludeFile(
+        parent, "${undefined_var}.yaml", None, loader
+    )
+    processor = _PackageProcessor({}, None, False)
+    with pytest.raises(cv.Invalid, match="Error including file"):
+        processor.resolve_package(package_config, substitutions.ContextVars())
