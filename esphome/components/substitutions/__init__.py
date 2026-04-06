@@ -312,7 +312,7 @@ def resolve_include(
     original = str(include.file)
     filename = str(
         _expand_substitutions(
-            original, path + [".file"], context_vars, strict_undefined, errors
+            original, path + ["file"], context_vars, strict_undefined, errors
         )
     )
     if filename != original:

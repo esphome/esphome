@@ -429,7 +429,10 @@ class _PackageProcessor:
         for _ in range(MAX_INCLUDE_DEPTH):
             if isinstance(package_config, yaml_util.IncludeFile):
                 package_config, _ = resolve_include(
-                    package_config, [], context_vars, strict_undefined=False
+                    package_config,
+                    [],
+                    context_vars or ContextVars(),
+                    strict_undefined=False,
                 )
 
             package_config = _substitute_package_definition(
