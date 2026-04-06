@@ -1627,9 +1627,9 @@ def get_ip_addresses_of_network_interface(interface_name: str) -> list[str]:
 
 def start_web_server(
     app: tornado.web.Application,
-    socket: str | None,
-    address: str | None,
-    port: int | None,
+    binding_socket: str | None,
+    binding_address: str | None,
+    binding_port: int | None,
     config_dir: str,
 ) -> None:
     """Start the web server listener."""
@@ -1640,28 +1640,30 @@ def start_web_server(
         archive_path = archive_storage_path()
         shutil.move(trash_path, archive_path)
 
-    if socket is None:
-        if address:
+    if binding_socket is None:
+        if binding_address:
             # Check if address is a network interface name
-            if address in psutil.net_if_addrs():
-                addresses = get_ip_addresses_of_network_interface(address)
+            if binding_address in psutil.net_if_addrs():
+                binding_addresses = get_ip_addresses_of_network_interface(
+                    binding_address
+                )
             else:
-                addresses = [address]
-            for binding_address in addresses:
+                binding_addresses = [binding_address]
+            for address in binding_addresses:
                 _LOGGER.info(
                     "Starting dashboard web server on http://%s:%s and configuration dir %s...",
-                    binding_address,
-                    port,
+                    address,
+                    binding_port,
                     config_dir,
                 )
-                app.listen(port, binding_address)
+                app.listen(binding_port, address)
         return
 
     _LOGGER.info(
         "Starting dashboard web server on unix socket %s and configuration dir %s...",
-        socket,
+        binding_socket,
         config_dir,
     )
     server = tornado.httpserver.HTTPServer(app)
-    socket = tornado.netutil.bind_unix_socket(socket, mode=0o666)
-    server.add_socket(socket)
+    binding_socket = tornado.netutil.bind_unix_socket(binding_socket, mode=0o666)
+    server.add_socket(binding_socket)
