@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import climate, uart
 import esphome.config_validation as cv
-from esphome.const import CONF_UPDATE_INTERVAL
+from esphome.const import CONF_UPDATE_INTERVAL, CONF_USE_FAHRENHEIT
 from esphome.types import ConfigType
 
 DEPENDENCIES = ["uart"]
@@ -28,6 +28,7 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_CURRENT_TEMPERATURE_MIN_INTERVAL, default="60s"
             ): cv.update_interval,
+            cv.Optional(CONF_USE_FAHRENHEIT, default=False): cv.boolean,
         }
     )
 )
@@ -53,3 +54,4 @@ async def to_code(config: ConfigType) -> None:
             config[CONF_CURRENT_TEMPERATURE_MIN_INTERVAL]
         )
     )
+    cg.add(var.set_fahrenheit(config[CONF_USE_FAHRENHEIT]))

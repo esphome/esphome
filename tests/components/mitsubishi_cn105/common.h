@@ -8,6 +8,7 @@
 #include <vector>
 #include "esphome/components/uart/uart_component.h"
 #include "esphome/components/mitsubishi_cn105/mitsubishi_cn105.h"
+#include "esphome/components/mitsubishi_cn105/mitsubishi_cn105_climate.h"
 
 namespace esphome::mitsubishi_cn105::testing {
 

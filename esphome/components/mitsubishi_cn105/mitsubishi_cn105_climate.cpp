@@ -60,9 +60,11 @@ void MitsubishiCN105Climate::dump_config() {
   }
   ESP_LOGCONFIG(TAG,
                 "  Update interval: %" PRIu32 " ms\n"
+                "  Temperature mapping: %s\n"
                 "  UART: baud_rate=%" PRIu32 " data_bits=%u parity=%s stop_bits=%u",
-                this->hp_.get_update_interval(), this->parent_->get_baud_rate(), this->parent_->get_data_bits(),
-                LOG_STR_ARG(parity_to_str(this->parent_->get_parity())), this->parent_->get_stop_bits());
+                this->hp_.get_update_interval(), this->use_fahrenheit_ ? "F" : "C", this->parent_->get_baud_rate(),
+                this->parent_->get_data_bits(), LOG_STR_ARG(parity_to_str(this->parent_->get_parity())),
+                this->parent_->get_stop_bits());
 }
 
 void MitsubishiCN105Climate::setup() { this->hp_.initialize(); }
@@ -95,7 +97,7 @@ climate::ClimateTraits MitsubishiCN105Climate::traits() {
   });
 
   traits.set_visual_min_temperature(16.0f);
-  traits.set_visual_max_temperature(31.0f);
+  traits.set_visual_max_temperature(31.2f);
   traits.set_visual_temperature_step(1.0f);
 
   if (this->hp_.is_room_temperature_enabled()) {
@@ -108,7 +110,8 @@ climate::ClimateTraits MitsubishiCN105Climate::traits() {
 
 void MitsubishiCN105Climate::control(const climate::ClimateCall &call) {
   if (const auto target_temperature = call.get_target_temperature()) {
-    this->hp_.set_target_temperature(*target_temperature);
+    const auto adjusted = this->temperature_mapping_.to_mitsubishi(*target_temperature);
+    this->hp_.set_target_temperature(adjusted);
   }
 
   if (const auto mode = call.get_mode()) {
@@ -132,10 +135,10 @@ void MitsubishiCN105Climate::control(const climate::ClimateCall &call) {
 void MitsubishiCN105Climate::apply_values_() {
   const auto &status = this->hp_.status();
 
-  this->target_temperature = status.target_temperature;
+  this->target_temperature = this->temperature_mapping_.from_mitsubishi(status.target_temperature);
 
   if (this->hp_.is_room_temperature_enabled()) {
-    this->current_temperature = status.room_temperature;
+    this->current_temperature = this->temperature_mapping_.from_mitsubishi(status.room_temperature);
   }
 
   if (status.power_on) {
@@ -154,6 +157,31 @@ void MitsubishiCN105Climate::apply_values_() {
   }
 
   this->publish_state();
+}
+
+void MitsubishiCN105Climate::set_fahrenheit(bool value) {
+  this->use_fahrenheit_ = value;
+  this->temperature_mapping_ = value ? TemperatureMapping::fahrenheit() : TemperatureMapping::identity();
+}
+
+TemperatureMapping TemperatureMapping::identity() {
+  return TemperatureMapping{
+      .to_mitsubishi = [](float c) -> float { return c; },
+      .from_mitsubishi = [](float c) -> float { return c; },
+  };
+}
+
+TemperatureMapping TemperatureMapping::fahrenheit() {
+  return TemperatureMapping{
+      .to_mitsubishi = [](float c) -> float {
+        const int f = std::clamp(static_cast<int>(std::round(c * 1.8f + 32.0f)), 61, 88);
+        return 0.5f * (f - 28 + (f > 68) - (f < 68));
+      },
+      .from_mitsubishi = [](float c) -> float {
+        const int mh = static_cast<int>(std::round(c * 2.0f));
+        return (mh - 3 - (mh >= 40) - (mh > 40)) * (5.0f / 9.0f);
+      },
+  };
 }
 
 }  // namespace esphome::mitsubishi_cn105

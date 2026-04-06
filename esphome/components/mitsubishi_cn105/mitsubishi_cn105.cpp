@@ -352,7 +352,7 @@ void MitsubishiCN105::set_target_temperature(float target_temperature) {
     ESP_LOGD(TAG, "Setting temperature out-of-range: %.1f", target_temperature);
     return;
   }
-  this->status_.target_temperature = std::round(target_temperature);
+  this->status_.target_temperature = std::round(target_temperature * 2.0f) * 0.5f;
   this->pending_updates_.set(UpdateFlag::TEMPERATURE);
 }
 

@@ -7,6 +7,14 @@
 
 namespace esphome::mitsubishi_cn105 {
 
+struct TemperatureMapping {
+  float (*to_mitsubishi)(float);
+  float (*from_mitsubishi)(float);
+
+  static TemperatureMapping identity();
+  static TemperatureMapping fahrenheit();
+};
+
 class MitsubishiCN105Climate : public climate::Climate, public Component, public uart::UARTDevice {
  public:
   explicit MitsubishiCN105Climate() : hp_(*this) {}
@@ -20,11 +28,14 @@ class MitsubishiCN105Climate : public climate::Climate, public Component, public
 
   void set_update_interval(uint32_t ms) { hp_.set_update_interval(ms); }
   void set_current_temperature_min_interval(uint32_t ms) { hp_.set_room_temperature_min_interval(ms); }
+  void set_fahrenheit(bool value);
 
  protected:
   void apply_values_();
 
   MitsubishiCN105 hp_;
+  bool use_fahrenheit_{false};
+  TemperatureMapping temperature_mapping_{TemperatureMapping::identity()};
 };
 
 }  // namespace esphome::mitsubishi_cn105
