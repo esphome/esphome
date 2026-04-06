@@ -12,6 +12,7 @@ from esphome.const import (
     DEVICE_CLASS_MOTION,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ICON_TIMELAPSE,
+    STATE_CLASS_MEASUREMENT,
     UNIT_LUX,
     UNIT_MINUTE,
     UNIT_PERCENT,
@@ -45,6 +46,7 @@ CONFIG_SCHEMA = cv.All(
                 icon=ICON_TIMELAPSE,
                 accuracy_decimals=0,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_LUX,
