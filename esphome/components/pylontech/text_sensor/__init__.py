@@ -33,5 +33,4 @@ async def to_code(config):
             var = await text_sensor.new_text_sensor(marker_config)
             cg.add(getattr(bat, f"set_{marker}_text_sensor")(var))
 
-    await cg.register_component(bat, config)
     cg.add(paren.register_listener(bat))

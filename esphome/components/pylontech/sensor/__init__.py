@@ -89,5 +89,4 @@ async def to_code(config):
             sens = await sensor.new_sensor(marker_config)
             cg.add(getattr(bat, f"set_{marker}_sensor")(sens))
 
-    await cg.register_component(bat, config)
     cg.add(paren.register_listener(bat))
