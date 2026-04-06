@@ -266,19 +266,15 @@ class ProtoCursor {
   ProtoCursor(const ProtoCursor &) = delete;
   ProtoCursor &operator=(const ProtoCursor &) = delete;
 
-  // Slow path for varint >= 128: sync pos_ to buffer, call outlined slow path, reload.
-  void encode_varint_raw_slow_(uint32_t value) __attribute__((noinline)) {
-    this->flush_();
-    this->buf_.encode_varint_raw_slow_(value);
-    this->reload_();
-  }
   inline void ESPHOME_ALWAYS_INLINE encode_varint_raw(uint32_t value) {
     if (value < 128) [[likely]] {
       this->debug_check_bounds_(1);
       *this->pos_++ = static_cast<uint8_t>(value);
       return;
     }
-    this->encode_varint_raw_slow_(value);
+    this->flush_();
+    this->buf_.encode_varint_raw_slow_(value);
+    this->reload_();
   }
   /// Encode a varint that is expected to be 1-2 bytes (e.g. zigzag RSSI, small lengths).
   /// Inlines both the 1-byte and 2-byte paths; falls back to slow path for 3+ bytes.
@@ -294,7 +290,9 @@ class ProtoCursor {
       *this->pos_++ = static_cast<uint8_t>(value >> 7);
       return;
     }
-    this->encode_varint_raw_slow_(value);
+    this->flush_();
+    this->buf_.encode_varint_raw_slow_(value);
+    this->reload_();
   }
   void encode_varint_raw_64(uint64_t value) {
     while (value > 0x7F) {
@@ -342,7 +340,9 @@ class ProtoCursor {
       this->debug_check_bounds_(1 + len);
       *this->pos_++ = static_cast<uint8_t>(len);
     } else {
-      this->encode_varint_raw_slow_(len);
+      this->flush_();
+      this->buf_.encode_varint_raw_slow_(len);
+      this->reload_();
       this->debug_check_bounds_(len);
     }
     std::memcpy(this->pos_, string, len);
