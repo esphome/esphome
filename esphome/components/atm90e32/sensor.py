@@ -396,8 +396,8 @@ async def to_code(config):
     cg.add(var.set_enable_gain_calibration(config[CONF_ENABLE_GAIN_CALIBRATION]))
 
     if thresholds := config.get(CONF_THRESHOLDS):
-        if CONF_VOLTAGE_NOMINAL in thresholds:
-            cg.add(var.set_threshold_voltage_nominal(thresholds[CONF_VOLTAGE_NOMINAL]))
+        if (threshold := thresholds.get(CONF_VOLTAGE_NOMINAL, None) is not None:
+            cg.add(var.set_threshold_voltage_nominal(threshold))
         if CONF_VOLTAGE_SAG_PCT in thresholds:
             cg.add(var.set_threshold_voltage_sag_pct(thresholds[CONF_VOLTAGE_SAG_PCT]))
         if CONF_VOLTAGE_SAG_V in thresholds:
