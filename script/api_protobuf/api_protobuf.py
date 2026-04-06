@@ -1345,11 +1345,7 @@ class EnumType(TypeInfo):
         if max_val is not None and max_val < 128 and not self.force:
             tag = self.calculate_tag()
             if tag < 128:
-                return (
-                    f"if (this->{self.field_name}) {{\n"
-                    f"  buffer.encode_small_varint({tag}, static_cast<uint8_t>(this->{self.field_name}));\n"
-                    f"}}"
-                )
+                return f"buffer.encode_small_varint({tag}, static_cast<uint8_t>(this->{self.field_name}));"
         if self.force:
             return f"buffer.{self.encode_func}({self.number}, {value_expr}, true);"
         return f"buffer.{self.encode_func}({self.number}, {value_expr});"

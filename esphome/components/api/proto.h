@@ -277,8 +277,11 @@ class ProtoWriteBuffer {
     this->encode_string(field_id, reinterpret_cast<const char *>(data), len, force);
   }
   /** Encode a small varint field where both tag and value fit in one byte each.
-   *  The tag is precomputed by the code generator. value must be < 128. */
+   *  The tag is precomputed by the code generator. value must be < 128.
+   *  Skips encoding when value is zero (default protobuf behavior). */
   void encode_small_varint(uint8_t precomputed_tag, uint8_t value) {
+    if (value == 0)
+      return;
     this->debug_check_bounds_(2);
     auto *p = this->pos_;
     p[0] = precomputed_tag;
