@@ -324,7 +324,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_no_setup_connection();
 
   // Function pointer type for type-erased message encoding
-  using MessageEncodeFn = uint8_t *(*)(const void *, ProtoWriteBuffer & PROTO_ENCODE_DEBUG_PARAM);
+  using MessageEncodeFn = uint8_t *(*) (const void *, ProtoWriteBuffer &PROTO_ENCODE_DEBUG_PARAM);
   // Function pointer type for type-erased size calculation
   using CalculateSizeFn = uint32_t (*)(const void *);
 

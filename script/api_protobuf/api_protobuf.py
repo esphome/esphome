@@ -2411,14 +2411,18 @@ def build_message_type(
     # Only generate encode method if this message needs encoding and has fields
     if needs_encode and encode:
         # Add PROTO_ENCODE_DEBUG_ARG after pos in all proto_* calls
-        encode_debug = [line.replace("(pos,", "(pos PROTO_ENCODE_DEBUG_ARG,") for line in encode]
+        encode_debug = [
+            line.replace("(pos,", "(pos PROTO_ENCODE_DEBUG_ARG,") for line in encode
+        ]
         o = f"uint8_t *{desc.name}::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {{\n"
         o += "  uint8_t *__restrict__ pos = buffer.get_pos();\n"
         o += indent("\n".join(encode_debug)) + "\n"
         o += "  return pos;\n"
         o += "}\n"
         cpp += o
-        prot = "uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;"
+        prot = (
+            "uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;"
+        )
         public_content.append(prot)
     # If no fields to encode or message doesn't need encoding, the default implementation in ProtoMessage will be used
 

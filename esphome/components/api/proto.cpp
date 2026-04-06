@@ -144,9 +144,9 @@ uint32_t ProtoDecodableMessage::count_repeated_field(const uint8_t *buffer, size
 //   After writing 2-byte varint at len_pos:
 //   [tag][v1][v2][body ..... body]
 //                                ^-- pos_ = element end, within buffer
-void ProtoWriteBuffer::encode_sub_message(
-    uint32_t field_id, const void *value,
-    uint8_t *(*encode_fn)(const void *, ProtoWriteBuffer & PROTO_ENCODE_DEBUG_PARAM)) {
+void ProtoWriteBuffer::encode_sub_message(uint32_t field_id, const void *value,
+                                          uint8_t *(*encode_fn)(const void *,
+                                                                ProtoWriteBuffer &PROTO_ENCODE_DEBUG_PARAM)) {
   this->encode_field_raw(field_id, 2);
   // Reserve 1 byte for length varint (optimistic: submessage < 128 bytes)
   uint8_t *len_pos = this->pos_;
@@ -173,9 +173,9 @@ void ProtoWriteBuffer::encode_sub_message(
 }
 
 // Non-template core for encode_optional_sub_message.
-void ProtoWriteBuffer::encode_optional_sub_message(
-    uint32_t field_id, uint32_t nested_size, const void *value,
-    uint8_t *(*encode_fn)(const void *, ProtoWriteBuffer & PROTO_ENCODE_DEBUG_PARAM)) {
+void ProtoWriteBuffer::encode_optional_sub_message(uint32_t field_id, uint32_t nested_size, const void *value,
+                                                   uint8_t *(*encode_fn)(const void *,
+                                                                         ProtoWriteBuffer &PROTO_ENCODE_DEBUG_PARAM)) {
   if (nested_size == 0)
     return;
   this->encode_field_raw(field_id, 2);

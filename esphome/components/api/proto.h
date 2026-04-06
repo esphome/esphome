@@ -229,10 +229,10 @@ class ProtoWriteBuffer {
 
   // Non-template core for encode_sub_message — backpatch approach.
   void encode_sub_message(uint32_t field_id, const void *value,
-                          uint8_t *(*encode_fn)(const void *, ProtoWriteBuffer & PROTO_ENCODE_DEBUG_PARAM) );
+                          uint8_t *(*encode_fn)(const void *, ProtoWriteBuffer &PROTO_ENCODE_DEBUG_PARAM));
   // Non-template core for encode_optional_sub_message.
   void encode_optional_sub_message(uint32_t field_id, uint32_t nested_size, const void *value,
-                                   uint8_t *(*encode_fn)(const void *, ProtoWriteBuffer & PROTO_ENCODE_DEBUG_PARAM) );
+                                   uint8_t *(*encode_fn)(const void *, ProtoWriteBuffer &PROTO_ENCODE_DEBUG_PARAM));
   APIBuffer *get_buffer() const { return buffer_; }
   uint8_t *get_pos() const { return pos_; }
   void set_pos(uint8_t *pos) { pos_ = pos; }
@@ -263,10 +263,10 @@ constexpr uint32_t VARINT_MAX_2_BYTE = 1 << 14;  // 16384
 #define PROTO_ENCODE_DEBUG_PARAM , uint8_t *proto_debug_end_
 #define PROTO_ENCODE_DEBUG_ARG , proto_debug_end_
 #define PROTO_ENCODE_DEBUG_INIT(buf) , (buf)->data() + (buf)->size()
-#define PROTO_ENCODE_CHECK_BOUNDS(pos, n)                                                  \
-  do {                                                                                     \
-    if ((pos) + (n) > proto_debug_end_)                                                    \
-      proto_check_bounds_failed(pos, n, proto_debug_end_, __builtin_FUNCTION());           \
+#define PROTO_ENCODE_CHECK_BOUNDS(pos, n) \
+  do { \
+    if ((pos) + (n) > proto_debug_end_) \
+      proto_check_bounds_failed(pos, n, proto_debug_end_, __builtin_FUNCTION()); \
   } while (0)
 void proto_check_bounds_failed(const uint8_t *pos, size_t bytes, const uint8_t *end, const char *caller);
 #else
@@ -334,8 +334,7 @@ inline void ESPHOME_ALWAYS_INLINE proto_encode_field_raw(uint8_t *__restrict__ &
   proto_encode_varint_raw(pos PROTO_ENCODE_DEBUG_ARG, (field_id << 3) | type);
 }
 /// Write a single precomputed tag byte. Tag must be < 128.
-inline void ESPHOME_ALWAYS_INLINE proto_write_raw_byte(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM,
-                                                       uint8_t b) {
+inline void ESPHOME_ALWAYS_INLINE proto_write_raw_byte(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, uint8_t b) {
   PROTO_ENCODE_CHECK_BOUNDS(pos, 1);
   *pos++ = b;
 }
@@ -410,8 +409,8 @@ inline void proto_encode_bool(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARA
   PROTO_ENCODE_CHECK_BOUNDS(pos, 1);
   *pos++ = value ? 0x01 : 0x00;
 }
-inline void proto_encode_fixed32(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, uint32_t field_id,
-                                 uint32_t value, bool force = false) {
+inline void proto_encode_fixed32(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, uint32_t field_id, uint32_t value,
+                                 bool force = false) {
   if (value == 0 && !force)
     return;
   proto_encode_field_raw(pos PROTO_ENCODE_DEBUG_ARG, field_id, 5);
@@ -807,8 +806,7 @@ class ProtoSize {
 // Implementation of methods that depend on ProtoSize being fully defined
 
 // Encode thunk — converts void* back to concrete type for direct encode() call
-template<typename T>
-uint8_t *proto_encode_msg(const void *msg, ProtoWriteBuffer &buf PROTO_ENCODE_DEBUG_PARAM) {
+template<typename T> uint8_t *proto_encode_msg(const void *msg, ProtoWriteBuffer &buf PROTO_ENCODE_DEBUG_PARAM) {
   return static_cast<const T *>(msg)->encode(buf PROTO_ENCODE_DEBUG_ARG);
 }
 
