@@ -225,98 +225,6 @@ class ProtoWriteBuffer {
    * Following https://protobuf.dev/programming-guides/encoding/#structure
    */
   void encode_field_raw(uint32_t field_id, uint32_t type) { this->encode_varint_raw((field_id << 3) | type); }
-  void encode_string(uint32_t field_id, const char *string, size_t len, bool force = false) {
-    if (len == 0 && !force)
-      return;
-    this->encode_field_raw(field_id, 2);
-    if (len < 128) [[likely]] {
-      this->debug_check_bounds_(1 + len);
-      *this->pos_++ = static_cast<uint8_t>(len);
-    } else {
-      this->encode_varint_raw_slow_(len);
-      this->debug_check_bounds_(len);
-    }
-    std::memcpy(this->pos_, string, len);
-    this->pos_ += len;
-  }
-  void encode_string(uint32_t field_id, const std::string &value, bool force = false) {
-    this->encode_string(field_id, value.data(), value.size(), force);
-  }
-  void encode_string(uint32_t field_id, const StringRef &ref, bool force = false) {
-    this->encode_string(field_id, ref.c_str(), ref.size(), force);
-  }
-  void encode_bytes(uint32_t field_id, const uint8_t *data, size_t len, bool force = false) {
-    this->encode_string(field_id, reinterpret_cast<const char *>(data), len, force);
-  }
-  void encode_uint32(uint32_t field_id, uint32_t value, bool force = false) {
-    if (value == 0 && !force)
-      return;
-    this->encode_field_raw(field_id, 0);
-    this->encode_varint_raw(value);
-  }
-  void encode_uint64(uint32_t field_id, uint64_t value, bool force = false) {
-    if (value == 0 && !force)
-      return;
-    this->encode_field_raw(field_id, 0);
-    this->encode_varint_raw_64(value);
-  }
-  void encode_varint_raw_64(uint64_t value) {
-    while (value > 0x7F) {
-      this->debug_check_bounds_(1);
-      *this->pos_++ = static_cast<uint8_t>(value | 0x80);
-      value >>= 7;
-    }
-    this->debug_check_bounds_(1);
-    *this->pos_++ = static_cast<uint8_t>(value);
-  }
-  void encode_bool(uint32_t field_id, bool value, bool force = false) {
-    if (!value && !force)
-      return;
-    this->encode_field_raw(field_id, 0);
-    this->debug_check_bounds_(1);
-    *this->pos_++ = value ? 0x01 : 0x00;
-  }
-  void encode_fixed32(uint32_t field_id, uint32_t value, bool force = false) {
-    if (value == 0 && !force)
-      return;
-    this->encode_field_raw(field_id, 5);
-    this->debug_check_bounds_(4);
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    std::memcpy(this->pos_, &value, 4);
-    this->pos_ += 4;
-#else
-    *this->pos_++ = (value >> 0) & 0xFF;
-    *this->pos_++ = (value >> 8) & 0xFF;
-    *this->pos_++ = (value >> 16) & 0xFF;
-    *this->pos_++ = (value >> 24) & 0xFF;
-#endif
-  }
-  void encode_float(uint32_t field_id, float value, bool force = false) {
-    if (value == 0.0f && !force)
-      return;
-    union {
-      float value;
-      uint32_t raw;
-    } val{};
-    val.value = value;
-    this->encode_fixed32(field_id, val.raw);
-  }
-  void encode_int32(uint32_t field_id, int32_t value, bool force = false) {
-    if (value < 0) {
-      this->encode_int64(field_id, value, force);
-      return;
-    }
-    this->encode_uint32(field_id, static_cast<uint32_t>(value), force);
-  }
-  void encode_int64(uint32_t field_id, int64_t value, bool force = false) {
-    this->encode_uint64(field_id, static_cast<uint64_t>(value), force);
-  }
-  void encode_sint32(uint32_t field_id, int32_t value, bool force = false) {
-    this->encode_uint32(field_id, encode_zigzag32(value), force);
-  }
-  void encode_sint64(uint32_t field_id, int64_t value, bool force = false) {
-    this->encode_uint64(field_id, encode_zigzag64(value), force);
-  }
   /// Single-pass encode for repeated submessage elements.
   /// Thin template wrapper; all buffer work is in the non-template core.
   template<typename T> void encode_sub_message(uint32_t field_id, const T &value);
@@ -418,71 +326,90 @@ class ProtoCursor {
 #endif
     this->pos_ += 5;
   }
-  /// Higher-level encode methods delegate to ProtoWriteBuffer (outlined, no duplication).
   void encode_string(uint32_t field_id, const char *string, size_t len, bool force = false) {
-    this->flush_();
-    this->buf_.encode_string(field_id, string, len, force);
-    this->reload_();
+    if (len == 0 && !force)
+      return;
+    this->encode_field_raw(field_id, 2);
+    if (len < 128) [[likely]] {
+      this->debug_check_bounds_(1 + len);
+      *this->pos_++ = static_cast<uint8_t>(len);
+    } else {
+      this->flush_();
+      this->buf_.encode_varint_raw_slow_(len);
+      this->reload_();
+      this->debug_check_bounds_(len);
+    }
+    std::memcpy(this->pos_, string, len);
+    this->pos_ += len;
   }
   void encode_string(uint32_t field_id, const std::string &value, bool force = false) {
-    this->flush_();
-    this->buf_.encode_string(field_id, value, force);
-    this->reload_();
+    this->encode_string(field_id, value.data(), value.size(), force);
   }
   void encode_string(uint32_t field_id, const StringRef &ref, bool force = false) {
-    this->flush_();
-    this->buf_.encode_string(field_id, ref, force);
-    this->reload_();
+    this->encode_string(field_id, ref.c_str(), ref.size(), force);
   }
   void encode_bytes(uint32_t field_id, const uint8_t *data, size_t len, bool force = false) {
-    this->flush_();
-    this->buf_.encode_bytes(field_id, data, len, force);
-    this->reload_();
+    this->encode_string(field_id, reinterpret_cast<const char *>(data), len, force);
   }
   void encode_uint32(uint32_t field_id, uint32_t value, bool force = false) {
-    this->flush_();
-    this->buf_.encode_uint32(field_id, value, force);
-    this->reload_();
+    if (value == 0 && !force)
+      return;
+    this->encode_field_raw(field_id, 0);
+    this->encode_varint_raw(value);
   }
   void encode_uint64(uint32_t field_id, uint64_t value, bool force = false) {
-    this->flush_();
-    this->buf_.encode_uint64(field_id, value, force);
-    this->reload_();
+    if (value == 0 && !force)
+      return;
+    this->encode_field_raw(field_id, 0);
+    this->encode_varint_raw_64(value);
   }
   void encode_bool(uint32_t field_id, bool value, bool force = false) {
-    this->flush_();
-    this->buf_.encode_bool(field_id, value, force);
-    this->reload_();
+    if (!value && !force)
+      return;
+    this->encode_field_raw(field_id, 0);
+    this->debug_check_bounds_(1);
+    *this->pos_++ = value ? 0x01 : 0x00;
   }
   void encode_fixed32(uint32_t field_id, uint32_t value, bool force = false) {
-    this->flush_();
-    this->buf_.encode_fixed32(field_id, value, force);
-    this->reload_();
+    if (value == 0 && !force)
+      return;
+    this->encode_field_raw(field_id, 5);
+    this->debug_check_bounds_(4);
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    std::memcpy(this->pos_, &value, 4);
+    this->pos_ += 4;
+#else
+    *this->pos_++ = (value >> 0) & 0xFF;
+    *this->pos_++ = (value >> 8) & 0xFF;
+    *this->pos_++ = (value >> 16) & 0xFF;
+    *this->pos_++ = (value >> 24) & 0xFF;
+#endif
   }
   void encode_float(uint32_t field_id, float value, bool force = false) {
-    this->flush_();
-    this->buf_.encode_float(field_id, value, force);
-    this->reload_();
+    if (value == 0.0f && !force)
+      return;
+    union {
+      float value;
+      uint32_t raw;
+    } val{};
+    val.value = value;
+    this->encode_fixed32(field_id, val.raw);
   }
   void encode_int32(uint32_t field_id, int32_t value, bool force = false) {
-    this->flush_();
-    this->buf_.encode_int32(field_id, value, force);
-    this->reload_();
+    if (value < 0) {
+      this->encode_int64(field_id, value, force);
+      return;
+    }
+    this->encode_uint32(field_id, static_cast<uint32_t>(value), force);
   }
   void encode_int64(uint32_t field_id, int64_t value, bool force = false) {
-    this->flush_();
-    this->buf_.encode_int64(field_id, value, force);
-    this->reload_();
+    this->encode_uint64(field_id, static_cast<uint64_t>(value), force);
   }
   void encode_sint32(uint32_t field_id, int32_t value, bool force = false) {
-    this->flush_();
-    this->buf_.encode_sint32(field_id, value, force);
-    this->reload_();
+    this->encode_uint32(field_id, encode_zigzag32(value), force);
   }
   void encode_sint64(uint32_t field_id, int64_t value, bool force = false) {
-    this->flush_();
-    this->buf_.encode_sint64(field_id, value, force);
-    this->reload_();
+    this->encode_uint64(field_id, encode_zigzag64(value), force);
   }
   /// Delegate to ProtoWriteBuffer for complex sub-message encoding (backpatch).
   template<typename T> void encode_sub_message(uint32_t field_id, const T &value) {
