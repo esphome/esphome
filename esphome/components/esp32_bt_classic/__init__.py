@@ -36,14 +36,6 @@ CODEOWNERS = ["@RoboMagus"]
 
 NO_BLUETOOTH_VARIANTS = [esp32_const.VARIANT_ESP32S2]
 
-# Required for support where BT scans report MAC for scan-result
-#MIN_IDF_VERSION = cv.Version(4, 4, 4)
-MIN_ARDUINO_VERSION = cv.Version(2, 0, 5)
-
-# IDF V5+ seems to fix 'scans not working after a while...'
-MIN_IDF_VERSION = cv.Version(5, 1, 0)
-#MIN_ARDUINO_VERSION = cv.Version(3, 0, 0)
-
 esp32_bt_classic_ns = cg.esphome_ns.namespace("esp32_bt_classic")
 ESP32BtClassic = esp32_bt_classic_ns.class_("ESP32BtClassic", cg.Component)
 
@@ -104,11 +96,6 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.require_framework_version(
-        esp_idf=MIN_IDF_VERSION,
-        esp32_arduino=MIN_ARDUINO_VERSION,
-        extra_message="Because of ESP-IDF compatibility...",
-    ),
 )
 
 
