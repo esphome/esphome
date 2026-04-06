@@ -108,16 +108,21 @@ bool LibreTinyPreferences::sync() {
       }
       written++;
     } else {
-      ESP_LOGD(TAG, "FDB data not changed; skipping %" PRIu32 "  len=%zu", save.key, save.data.size());
+      ESP_LOGV(TAG, "FDB data not changed; skipping %" PRIu32 "  len=%zu", save.key, save.data.size());
       cached++;
     }
   }
   s_pending_save.clear();
 
-  ESP_LOGD(TAG, "Writing %d items: %d cached, %d written, %d failed", cached + written + failed, cached, written,
-           failed);
   if (failed > 0) {
-    ESP_LOGE(TAG, "Writing %d items failed. Last error=%d for key=%" PRIu32, failed, last_err, last_key);
+    ESP_LOGE(TAG, "Writing %d items: %d cached, %d written, %d failed. Last error=%d for key=%" PRIu32,
+             cached + written + failed, cached, written, failed, last_err, last_key);
+  } else if (written > 0) {
+    ESP_LOGD(TAG, "Writing %d items: %d cached, %d written, %d failed", cached + written + failed, cached, written,
+             failed);
+  } else {
+    ESP_LOGV(TAG, "Writing %d items: %d cached, %d written, %d failed", cached + written + failed, cached, written,
+             failed);
   }
 
   return failed == 0;

@@ -157,6 +157,11 @@ class TypeInfo(ABC):
         return get_field_opt(self._field, pb.force, False)
 
     @property
+    def max_value(self) -> int | None:
+        """Get the max_value option for this field, or None if not set."""
+        return get_field_opt(self._field, pb.max_value, None)
+
+    @property
     def wire_type(self) -> WireType:
         """Get the wire type for the field."""
         raise NotImplementedError
@@ -235,37 +240,56 @@ class TypeInfo(ABC):
         "encode_bool": "buffer.write_raw_byte({value} ? 0x01 : 0x00);",
     }
 
+    # When max_value < 128, the varint is always 1 byte — use a direct byte write
+    RAW_ENCODE_SMALL_MAP: dict[str, str] = {
+        "encode_uint32": "buffer.write_raw_byte(static_cast<uint8_t>({value}));",
+        "encode_uint64": "buffer.write_raw_byte(static_cast<uint8_t>({value}));",
+    }
+
     def _encode_with_precomputed_tag(self, value_expr: str) -> str | None:
         """Try to emit a precomputed-tag encode for a forced field.
 
         Returns the raw encode string if the tag is a single byte and the
         encode_func has a known raw equivalent, or None otherwise.
+        When max_value < 128, uses direct byte write instead of varint encoding.
         """
         if not self.force:
             return None
         tag = self.calculate_tag()
         if tag >= 128:
             return None
-        raw_expr = self.RAW_ENCODE_MAP.get(self.encode_func)
+        max_val = self.max_value
+        raw_expr = None
+        if max_val is not None and max_val < 128:
+            raw_expr = self.RAW_ENCODE_SMALL_MAP.get(self.encode_func)
+        if raw_expr is None:
+            raw_expr = self.RAW_ENCODE_MAP.get(self.encode_func)
         if raw_expr is None:
             return None
         return f"buffer.write_raw_byte({tag});\n{raw_expr.format(value=value_expr)}"
 
     def _encode_bytes_with_precomputed_tag(
-        self, data_expr: str, len_expr: str
+        self, data_expr: str, len_expr: str, max_len: int | None = None
     ) -> str | None:
         """Try to emit a precomputed-tag encode for a forced bytes/string field.
 
         Returns the raw encode string if the tag is a single byte, or None.
+        When max_len < 128, uses direct byte write for the length varint.
         """
         if not self.force:
             return None
         tag = self.calculate_tag()
         if tag >= 128:
             return None
+        # When max_len < 128, length varint is always 1 byte
+        len_encode = (
+            f"buffer.write_raw_byte(static_cast<uint8_t>({len_expr}));"
+            if max_len is not None and max_len < 128
+            else f"buffer.encode_varint_raw({len_expr});"
+        )
         return (
             f"buffer.write_raw_byte({tag});\n"
-            f"buffer.encode_varint_raw({len_expr});\n"
+            f"{len_encode}\n"
             f"buffer.encode_raw({data_expr}, {len_expr});"
         )
 
@@ -345,6 +369,25 @@ class TypeInfo(ABC):
             return f"size += ProtoSize::{method}({field_id_size});"
         value = value_expr or name
         return f"size += ProtoSize::{method}({field_id_size}, {value});"
+
+    def _get_single_byte_varint_size(
+        self, name: str, force: bool, extra_expr: str | None = None
+    ) -> str:
+        """Size calculation when the varint is guaranteed to be 1 byte.
+
+        Used when max_value < 128 or fixed_array_size < 128.
+        The fixed part is field_id_size + 1 (tag + 1-byte varint).
+
+        Args:
+            name: Expression to check for zero (non-force only)
+            force: Whether to skip the zero check
+            extra_expr: Additional variable expression to add (e.g., data length)
+        """
+        fixed = self.calculate_field_id_size() + 1
+        size_expr = f"{fixed} + {extra_expr}" if extra_expr else str(fixed)
+        if force:
+            return f"size += {size_expr};"
+        return f"size += {name} ? {size_expr} : 0;"
 
     @abstractmethod
     def get_size_calculation(self, name: str, force: bool = False) -> str:
@@ -1191,8 +1234,9 @@ class FixedArrayBytesType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
+        max_len = self.array_size if isinstance(self.array_size, int) else None
         if result := self._encode_bytes_with_precomputed_tag(
-            f"this->{self.field_name}", f"this->{self.field_name}_len"
+            f"this->{self.field_name}", f"this->{self.field_name}_len", max_len=max_len
         ):
             return result
         if self.force:
@@ -1212,13 +1256,14 @@ class FixedArrayBytesType(TypeInfo):
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         # Use the actual length stored in the _len field
         length_field = f"this->{self.field_name}_len"
-        field_id_size = self.calculate_field_id_size()
 
-        if force:
-            # For repeated fields, always calculate size (no zero check)
-            return f"size += ProtoSize::calc_length_force({field_id_size}, {length_field});"
-        # For non-repeated fields, length already checks for zero
-        return f"size += ProtoSize::calc_length({field_id_size}, {length_field});"
+        # When array_size < 128, length varint is always 1 byte
+        if isinstance(self.array_size, int) and self.array_size < 128:
+            return self._get_single_byte_varint_size(
+                length_field, force, extra_expr=length_field
+            )
+
+        return self._get_simple_size_calculation(length_field, force, "length")
 
     def get_estimated_size(self) -> int:
         # Estimate based on typical BLE advertisement size
@@ -1245,6 +1290,9 @@ class UInt32Type(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
+        max_val = self.max_value
+        if max_val is not None and max_val < 128:
+            return self._get_single_byte_varint_size(name, force)
         return self._get_simple_size_calculation(name, force, "uint32")
 
     def get_estimated_size(self) -> int:

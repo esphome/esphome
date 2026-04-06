@@ -2,6 +2,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome::thermostat {
 
@@ -1346,15 +1347,16 @@ void ThermostatClimate::set_timer_duration_in_sec_(ThermostatClimateTimerIndex t
 
     if (elapsed >= new_duration_ms) {
       // Timer should complete immediately (including when new_duration_ms is 0)
-      ESP_LOGVV(TAG, "timer %d completing immediately (elapsed %d >= new %d)", timer_index, elapsed, new_duration_ms);
+      ESP_LOGVV(TAG, "timer %d completing immediately (elapsed %" PRIu32 " >= new %" PRIu32 ")", timer_index, elapsed,
+                new_duration_ms);
       this->timer_[timer_index].active = false;
       // Trigger the timer callback immediately
       this->call_timer_callback_(timer_index);
       return;
     } else {
       // Adjust timer to run for remaining time - keep original start time
-      ESP_LOGVV(TAG, "timer %d adjusted: elapsed %d, new total %d, remaining %d", timer_index, elapsed, new_duration_ms,
-                new_duration_ms - elapsed);
+      ESP_LOGVV(TAG, "timer %d adjusted: elapsed %" PRIu32 ", new total %" PRIu32 ", remaining %" PRIu32, timer_index,
+                elapsed, new_duration_ms, new_duration_ms - elapsed);
       this->timer_[timer_index].time = new_duration_ms;
       return;
     }
