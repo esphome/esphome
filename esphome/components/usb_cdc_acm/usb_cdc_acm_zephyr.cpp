@@ -167,11 +167,11 @@ uart::UARTFlushResult USBCDCACMInstance::flush() {
   while (!ring_buf_is_empty(&this->tx_ringbuf_)) {
     if (millis() - start > timeout_500ms) {
       ESP_LOGW(TAG, "Flush timeout");
-      return uart::UARTFlushResult::TIMEOUT;
+      return uart::UARTFlushResult::UART_FLUSH_RESULT_TIMEOUT;
     }
     delay(1);
   }
-  return uart::UARTFlushResult::SUCCESS;
+  return uart::UARTFlushResult::UART_FLUSH_RESULT_SUCCESS;
 }
 
 void USBCDCACMInstance::write_array(const uint8_t *data, size_t len) {
