@@ -90,8 +90,6 @@ esp32_ble_tracker_ns = cg.esphome_ns.namespace("esp32_ble_tracker")
 ESP32BLETracker = esp32_ble_tracker_ns.class_(
     "ESP32BLETracker",
     cg.Component,
-    esp32_ble.GAPEventHandler,
-    esp32_ble.GATTcEventHandler,
     cg.Parented.template(esp32_ble.ESP32BLE),
 )
 ESPBTClient = esp32_ble_tracker_ns.class_("ESPBTClient")

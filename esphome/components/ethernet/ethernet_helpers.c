@@ -1,3 +1,5 @@
+#include "esphome/core/defines.h"
+#ifdef USE_ESP32
 #include "esp_eth_mac_esp.h"
 
 // ETH_ESP32_EMAC_DEFAULT_CONFIG() uses out-of-order designated initializers
@@ -8,3 +10,4 @@ eth_esp32_emac_config_t eth_esp32_emac_default_config(void) {
   return (eth_esp32_emac_config_t) ETH_ESP32_EMAC_DEFAULT_CONFIG();
 }
 #endif
+#endif  // USE_ESP32
