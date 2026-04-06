@@ -234,9 +234,7 @@ class ProtoWriteBuffer {
   void encode_optional_sub_message(uint32_t field_id, uint32_t nested_size, const void *value,
                                    uint8_t *(*encode_fn)(const void *, ProtoWriteBuffer &) );
   APIBuffer *get_buffer() const { return buffer_; }
-  /// Get current write position for ProtoCursor initialization.
   uint8_t *get_pos() const { return pos_; }
-  /// Set write position after ProtoCursor is done.
   void set_pos(uint8_t *pos) { pos_ = pos; }
 
  protected:
@@ -258,9 +256,9 @@ class ProtoWriteBuffer {
 constexpr uint32_t VARINT_MAX_1_BYTE = 1 << 7;   // 128
 constexpr uint32_t VARINT_MAX_2_BYTE = 1 << 14;  // 16384
 
-// ProtoCursor is not a class — it's a coding pattern.
+// Proto encode free functions.
 // Generated encode() functions hoist buffer.pos_ into a local
-// uint8_t *__restrict__ pos, then call these static helpers
+// uint8_t *__restrict__ pos, then call these inline helpers
 // which take pos by reference. No struct, no overhead.
 //
 // For sub-messages, pos is synced back to buffer before the call
