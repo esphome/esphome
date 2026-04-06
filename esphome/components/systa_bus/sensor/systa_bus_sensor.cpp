@@ -34,5 +34,4 @@ void SystaSolarAquaSensor::handle_message(std::vector<uint8_t> &message) {
   }
 }
 
-
 }  // namespace esphome::systa_bus

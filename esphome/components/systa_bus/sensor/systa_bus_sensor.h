@@ -14,6 +14,7 @@ class SystaSolarAquaSensor : public SystaBusListener, public Component {
   void set_temperature_tw2_sensor(sensor::Sensor *sensor) { this->temperature_tw2_sensor_ = sensor; }
   void set_pump_speed_sensor(sensor::Sensor *sensor) { this->pump_speed_sensor_ = sensor; }
   void handle_message(std::vector<uint8_t> &message) override;
+
  protected:
   sensor::Sensor *temperature_tsa_sensor_{nullptr};
   sensor::Sensor *temperature_tse_sensor_{nullptr};

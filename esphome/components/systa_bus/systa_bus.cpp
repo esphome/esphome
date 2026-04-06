@@ -56,5 +56,4 @@ void SystaBus::loop() {
   }
 }
 
-
 }  // namespace esphome::systa_bus

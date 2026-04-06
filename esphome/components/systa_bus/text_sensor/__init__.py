@@ -1,14 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import text_sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_MODEL
 
-from .. import (
-    CONF_SYSTA_BUS_ID,
-    CONF_SYSTASOLAR_AQUA,
-    SystaBus,
-    systa_bus_ns,
-)
+from .. import CONF_SYSTA_BUS_ID, CONF_SYSTASOLAR_AQUA, SystaBus, systa_bus_ns
 
 SystaSolar_Aqua = systa_bus_ns.class_(
     "SystaSolarAquaTextSensor", text_sensor.TextSensor, cg.Component

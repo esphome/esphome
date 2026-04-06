@@ -5,9 +5,7 @@
 
 namespace esphome::systa_bus {
 
-static inline uint16_t get_message_type(std::vector<uint8_t> &message) {
-  return (message[0] << 8) + message[1];
-}
+static inline uint16_t get_message_type(std::vector<uint8_t> &message) { return (message[0] << 8) + message[1]; }
 
 class SystaBusListener {
  public:
@@ -20,7 +18,7 @@ class SystaBus : public uart::UARTDevice, public Component {
   void loop() override;
 
   void register_listener(SystaBusListener *listener) { this->listeners_.push_back(listener); }
-  
+
  protected:
   int state_{0};
   std::vector<uint8_t> buffer_;

@@ -10,6 +10,7 @@ class SystaSolarAquaTextSensor : public SystaBusListener, public Component {
   void dump_config() override;
   void set_error_code_text_sensor(text_sensor::TextSensor *sensor) { this->error_code_text_sensor_ = sensor; }
   void handle_message(std::vector<uint8_t> &message) override;
+
  protected:
   text_sensor::TextSensor *error_code_text_sensor_{nullptr};
 };
