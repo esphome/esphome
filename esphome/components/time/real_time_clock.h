@@ -46,6 +46,9 @@ class RealTimeClock : public PollingComponent {
   void set_timezone(const std::string &tz) { this->apply_timezone_(tz.c_str()); }
 #endif
 
+  void set_time(uint32_t epoch) { this->synchronize_epoch_(epoch); }
+
+
   /// Get the time in the currently defined timezone.
   ESPTime now();
 
