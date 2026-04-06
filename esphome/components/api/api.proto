@@ -308,11 +308,11 @@ enum EntityCategory {
   ENTITY_CATEGORY_DIAGNOSTIC = 2;
 }
 
-// Entity field max_data_length values match constants in esphome/core/config.py:
-//   name/object_id = 120 (NAME_MAX_LENGTH)
-//   icon = 63 (ICON_MAX_LENGTH)
-//   device_class = 47 (DEVICE_CLASS_MAX_LENGTH)
-//   unit_of_measurement = 63 (UNIT_OF_MEASUREMENT_MAX_LENGTH)
+// Entity field max_data_length values match Python validation constants:
+//   name/object_id = 120 (config_validation.NAME_MAX_LENGTH)
+//   icon = 63 (core/config.ICON_MAX_LENGTH)
+//   device_class = 47 (core/config.DEVICE_CLASS_MAX_LENGTH)
+//   unit_of_measurement = 63 (core/config.UNIT_OF_MEASUREMENT_MAX_LENGTH)
 
 // ==================== BINARY SENSOR ====================
 message ListEntitiesBinarySensorResponse {
@@ -1260,7 +1260,7 @@ message ListEntitiesNumberResponse {
   float step = 8;
   bool disabled_by_default = 9;
   EntityCategory entity_category = 10;
-  string unit_of_measurement = 11;
+  string unit_of_measurement = 11 [(max_data_length) = 63];
   NumberMode mode = 12;
   string device_class = 13 [(max_data_length) = 47];
   uint32 device_id = 14 [(field_ifdef) = "USE_DEVICES"];
