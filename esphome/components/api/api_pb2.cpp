@@ -512,9 +512,7 @@ uint32_t ListEntitiesLightResponse::calculate_size() const {
   size += 5;
   size += ProtoSize::calc_length(1, this->name.size());
   if (!this->supported_color_modes->empty()) {
-    for (const auto &it : *this->supported_color_modes) {
-      size += 2;
-    }
+    size += this->supported_color_modes->size() * 2;
   }
   size += ProtoSize::calc_float(1, this->min_mireds);
   size += ProtoSize::calc_float(1, this->max_mireds);
@@ -1379,23 +1377,17 @@ uint32_t ListEntitiesClimateResponse::calculate_size() const {
   size += ProtoSize::calc_bool(1, this->supports_current_temperature);
   size += ProtoSize::calc_bool(1, this->supports_two_point_target_temperature);
   if (!this->supported_modes->empty()) {
-    for (const auto &it : *this->supported_modes) {
-      size += 2;
-    }
+    size += this->supported_modes->size() * 2;
   }
   size += ProtoSize::calc_float(1, this->visual_min_temperature);
   size += ProtoSize::calc_float(1, this->visual_max_temperature);
   size += ProtoSize::calc_float(1, this->visual_target_temperature_step);
   size += ProtoSize::calc_bool(1, this->supports_action);
   if (!this->supported_fan_modes->empty()) {
-    for (const auto &it : *this->supported_fan_modes) {
-      size += 2;
-    }
+    size += this->supported_fan_modes->size() * 2;
   }
   if (!this->supported_swing_modes->empty()) {
-    for (const auto &it : *this->supported_swing_modes) {
-      size += 2;
-    }
+    size += this->supported_swing_modes->size() * 2;
   }
   if (!this->supported_custom_fan_modes->empty()) {
     for (const char *it : *this->supported_custom_fan_modes) {
@@ -1403,9 +1395,7 @@ uint32_t ListEntitiesClimateResponse::calculate_size() const {
     }
   }
   if (!this->supported_presets->empty()) {
-    for (const auto &it : *this->supported_presets) {
-      size += 3;
-    }
+    size += this->supported_presets->size() * 3;
   }
   if (!this->supported_custom_presets->empty()) {
     for (const char *it : *this->supported_custom_presets) {
@@ -1598,9 +1588,7 @@ uint32_t ListEntitiesWaterHeaterResponse::calculate_size() const {
   size += ProtoSize::calc_float(1, this->max_temperature);
   size += ProtoSize::calc_float(1, this->target_temperature_step);
   if (!this->supported_modes->empty()) {
-    for (const auto &it : *this->supported_modes) {
-      size += 2;
-    }
+    size += this->supported_modes->size() * 2;
   }
   size += ProtoSize::calc_uint32(1, this->supported_features);
   return size;
