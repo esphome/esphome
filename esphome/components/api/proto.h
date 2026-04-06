@@ -293,6 +293,10 @@ inline void ESPHOME_ALWAYS_INLINE proto_encode_varint_raw_short(uint8_t *__restr
   proto_encode_varint_raw_loop(pos, value);
 }
 inline void ESPHOME_ALWAYS_INLINE proto_encode_varint_raw_64(uint8_t *__restrict__ &pos, uint64_t value) {
+  if (value < VARINT_MAX_1_BYTE) [[likely]] {
+    *pos++ = static_cast<uint8_t>(value);
+    return;
+  }
   proto_encode_varint_raw_loop(pos, value);
 }
 inline void ESPHOME_ALWAYS_INLINE proto_encode_field_raw(uint8_t *__restrict__ &pos, uint32_t field_id, uint32_t type) {
