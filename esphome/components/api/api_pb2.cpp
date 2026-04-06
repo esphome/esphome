@@ -2255,15 +2255,15 @@ void BluetoothLERawAdvertisement::encode(ProtoWriteBuffer &buffer) const {
   buffer.encode_varint_raw(encode_zigzag32(this->rssi));
   buffer.encode_uint32(3, this->address_type);
   buffer.write_raw_byte(34);
-  buffer.encode_varint_raw(this->data_len);
+  buffer.write_raw_byte(static_cast<uint8_t>(this->data_len));
   buffer.encode_raw(this->data, this->data_len);
 }
 uint32_t BluetoothLERawAdvertisement::calculate_size() const {
   uint32_t size = 0;
   size += ProtoSize::calc_uint64_force(1, this->address);
   size += ProtoSize::calc_sint32_force(1, this->rssi);
-  size += ProtoSize::calc_uint32(1, this->address_type);
-  size += ProtoSize::calc_length_force(1, this->data_len);
+  size += this->address_type ? 2 : 0;
+  size += 2 + this->data_len;
   return size;
 }
 void BluetoothLERawAdvertisementsResponse::encode(ProtoWriteBuffer &buffer) const {

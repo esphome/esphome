@@ -242,7 +242,10 @@ class Component {
    * @note Components should call this->enable_loop() on themselves, not on other components.
    *       This ensures the component's state is properly updated along with the loop partition.
    */
-  void enable_loop();
+  void enable_loop() {
+    if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE)
+      this->enable_loop_slow_path_();
+  }
 
   /** Thread and ISR-safe version of enable_loop() that can be called from any context.
    *
@@ -343,6 +346,8 @@ class Component {
 
   virtual void call_setup();
   void call_dump_config_();
+
+  void enable_loop_slow_path_();
 
   /// Helper to set component state (clears state bits and sets new state)
   inline void set_component_state_(uint8_t state) {
