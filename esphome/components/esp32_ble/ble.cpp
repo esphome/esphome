@@ -399,8 +399,17 @@ void ESP32BLE::loop() {
     return;
   }
 
+#ifdef USE_ESP32_BLE_ADVERTISING
+  if (this->advertising_ != nullptr) {
+    this->advertising_->loop();
+  }
+#endif
+
   BLEEvent *ble_event = this->ble_events_.pop();
-  while (ble_event != nullptr) {
+  if (ble_event == nullptr)
+    return;
+
+  do {
     switch (ble_event->type_) {
 #if defined(USE_ESP32_BLE_SERVER) && defined(ESPHOME_ESP32_BLE_GATTS_EVENT_HANDLER_COUNT)
       case BLEEvent::GATTS: {
@@ -408,9 +417,7 @@ void ESP32BLE::loop() {
         esp_gatt_if_t gatts_if = ble_event->event_.gatts.gatts_if;
         esp_ble_gatts_cb_param_t *param = &ble_event->event_.gatts.gatts_param;
         ESP_LOGV(TAG, "gatts_event [esp_gatt_if: %d] - %d", gatts_if, event);
-        for (auto *gatts_handler : this->gatts_event_handlers_) {
-          gatts_handler->gatts_event_handler(event, gatts_if, param);
-        }
+        this->gatts_event_callbacks_.call(event, gatts_if, param);
         break;
       }
 #endif
@@ -420,9 +427,7 @@ void ESP32BLE::loop() {
         esp_gatt_if_t gattc_if = ble_event->event_.gattc.gattc_if;
         esp_ble_gattc_cb_param_t *param = &ble_event->event_.gattc.gattc_param;
         ESP_LOGV(TAG, "gattc_event [esp_gatt_if: %d] - %d", gattc_if, event);
-        for (auto *gattc_handler : this->gattc_event_handlers_) {
-          gattc_handler->gattc_event_handler(event, gattc_if, param);
-        }
+        this->gattc_event_callbacks_.call(event, gattc_if, param);
         break;
       }
 #endif
@@ -431,10 +436,7 @@ void ESP32BLE::loop() {
         switch (gap_event) {
           case ESP_GAP_BLE_SCAN_RESULT_EVT:
 #ifdef ESPHOME_ESP32_BLE_GAP_SCAN_EVENT_HANDLER_COUNT
-            // Use the new scan event handler - no memcpy!
-            for (auto *scan_handler : this->gap_scan_event_handlers_) {
-              scan_handler->gap_scan_event_handler(ble_event->scan_result());
-            }
+            this->gap_scan_event_callbacks_.call(ble_event->scan_result());
 #endif
             break;
 
@@ -478,9 +480,7 @@ void ESP32BLE::loop() {
               }
               // clang-format on
               // Dispatch to all registered handlers
-              for (auto *gap_handler : this->gap_event_handlers_) {
-                gap_handler->gap_event_handler(gap_event, param);
-              }
+              this->gap_event_callbacks_.call(gap_event, param);
             }
 #endif
             break;
@@ -497,15 +497,11 @@ void ESP32BLE::loop() {
     }
     // Return the event to the pool
     this->ble_event_pool_.release(ble_event);
-    ble_event = this->ble_events_.pop();
-  }
-#ifdef USE_ESP32_BLE_ADVERTISING
-  if (this->advertising_ != nullptr) {
-    this->advertising_->loop();
-  }
-#endif
+  } while ((ble_event = this->ble_events_.pop()) != nullptr);
 
-  // Log dropped events periodically
+  // Log dropped events - only reachable when events were processed.
+  // Drops only occur when the queue is full, and only this loop drains it,
+  // so if pop() returned nullptr above we can skip this check (saves a memw).
   uint16_t dropped = this->ble_events_.get_and_reset_dropped_count();
   if (dropped > 0) {
     ESP_LOGW(TAG, "Dropped %u BLE events due to buffer overflow", dropped);
@@ -518,9 +514,7 @@ void ESP32BLE::loop_handle_state_transition_not_active_() {
     ESP_LOGD(TAG, "Disabling");
 
 #ifdef ESPHOME_ESP32_BLE_BLE_STATUS_EVENT_HANDLER_COUNT
-    for (auto *ble_event_handler : this->ble_status_event_handlers_) {
-      ble_event_handler->ble_before_disabled_event_handler();
-    }
+    this->ble_status_event_callbacks_.call();
 #endif
 
     if (!ble_dismantle_()) {

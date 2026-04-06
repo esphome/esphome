@@ -129,11 +129,15 @@ bool ESP32Preferences::sync() {
   }
   s_pending_save.clear();
 
-  ESP_LOGD(TAG, "Writing %d items: %d cached, %d written, %d failed", cached + written + failed, cached, written,
-           failed);
   if (failed > 0) {
-    ESP_LOGE(TAG, "Writing %d items failed. Last error=%s for key=%" PRIu32, failed, esp_err_to_name(last_err),
-             last_key);
+    ESP_LOGE(TAG, "Writing %d items: %d cached, %d written, %d failed. Last error=%s for key=%" PRIu32,
+             cached + written + failed, cached, written, failed, esp_err_to_name(last_err), last_key);
+  } else if (written > 0) {
+    ESP_LOGD(TAG, "Writing %d items: %d cached, %d written, %d failed", cached + written + failed, cached, written,
+             failed);
+  } else {
+    ESP_LOGV(TAG, "Writing %d items: %d cached, %d written, %d failed", cached + written + failed, cached, written,
+             failed);
   }
 
   // note: commit on esp-idf currently is a no-op, nvs_set_blob always writes

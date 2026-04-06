@@ -143,7 +143,9 @@ def test_substitutions_fixtures(
 
     command_line_substitutions = config.pop("command_line_substitutions", None)
 
-    config = do_packages_pass(config)
+    config = do_packages_pass(
+        config, command_line_substitutions=command_line_substitutions
+    )
 
     config = substitutions.do_substitution_pass(config, command_line_substitutions)
 

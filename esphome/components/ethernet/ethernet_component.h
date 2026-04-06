@@ -11,6 +11,9 @@
 
 #ifdef USE_ESP32
 #include "esp_eth.h"
+#ifdef USE_ETHERNET_SPI
+#include "hal/spi_types.h"
+#endif
 #include "esp_eth_mac.h"
 #include "esp_eth_mac_esp.h"
 #include "esp_netif.h"
@@ -25,6 +28,8 @@ extern "C" eth_esp32_emac_config_t eth_esp32_emac_default_config(void);
 #ifdef USE_RP2040
 #if defined(USE_ETHERNET_W5500)
 #include <W5500lwIP.h>
+#elif defined(USE_ETHERNET_W5100)
+#include <W5100lwIP.h>
 #elif defined(USE_ETHERNET_ENC28J60)
 #include <ENC28J60lwIP.h>
 #else
@@ -59,6 +64,7 @@ enum EthernetType : uint8_t {
   ETHERNET_TYPE_JL1101,
   ETHERNET_TYPE_KSZ8081,
   ETHERNET_TYPE_KSZ8081RNA,
+  ETHERNET_TYPE_W5100,
   ETHERNET_TYPE_W5500,
   ETHERNET_TYPE_OPENETH,
   ETHERNET_TYPE_DM9051,
@@ -132,6 +138,7 @@ class EthernetComponent final : public Component {
   void set_interrupt_pin(uint8_t interrupt_pin);
   void set_reset_pin(uint8_t reset_pin);
   void set_clock_speed(int clock_speed);
+  void set_interface(spi_host_device_t interface);
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   void set_polling_interval(uint32_t polling_interval);
 #endif
@@ -198,6 +205,7 @@ class EthernetComponent final : public Component {
   int reset_pin_{-1};
   int phy_addr_spi_{-1};
   int clock_speed_;
+  spi_host_device_t interface_{SPI3_HOST};
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   uint32_t polling_interval_{0};
 #endif
@@ -222,8 +230,15 @@ class EthernetComponent final : public Component {
 
 #ifdef USE_RP2040
   static constexpr uint32_t LINK_CHECK_INTERVAL = 500;  // ms between link/IP polls
+#if defined(USE_ETHERNET_W5100)
+  static constexpr uint32_t RESET_DELAY_MS = 150;  // W5100S PLL lock time
+#else
+  static constexpr uint32_t RESET_DELAY_MS = 10;
+#endif
 #if defined(USE_ETHERNET_W5500)
   Wiznet5500lwIP *eth_{nullptr};
+#elif defined(USE_ETHERNET_W5100)
+  Wiznet5100lwIP *eth_{nullptr};
 #elif defined(USE_ETHERNET_ENC28J60)
   ENC28J60lwIP *eth_{nullptr};
 #else
