@@ -33,9 +33,6 @@ class PCA9554Component : public Component,
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
   void set_capability(uint8_t capability) { this->capability_ = capability; }
 
-  // test function, delete this later
-  // void do_stuff();
-
  protected:
   static void IRAM_ATTR gpio_intr(PCA9554Component *arg);
 

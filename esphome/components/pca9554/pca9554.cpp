@@ -96,26 +96,6 @@ bool PCA9554Component::digital_read_cache(uint8_t pin) {
 
 void PCA9554Component::digital_write_hw(uint8_t pin, bool value) { this->set_register_bit_(OUTPUT_REG, pin, value); }
 
-/*void PCA9554Component::do_stuff() {
-  uint16_t reg_val = 0;
-
-  ESP_LOGD("pca9554", "Capability: %d", this->capability_);
-  this->read_register_(CONFIG_REG, reg_val);
-  ESP_LOGD("pca9554", "CONFIG_REG: 0x%04X", reg_val);
-  this->read_register_(OUTPUT_DRIVE_0, reg_val);
-  ESP_LOGD("pca9554", "OUTPUT_DRIVE_0: 0x%04X", reg_val);
-  this->read_register_(OUTPUT_DRIVE_1, reg_val);
-  ESP_LOGD("pca9554", "OUTPUT_DRIVE_1: 0x%04X", reg_val);
-  this->read_register_(INPUT_LATCH, reg_val);
-  ESP_LOGD("pca9554", "INPUT_LATCH: 0x%04X", reg_val);
-  this->read_register_(PUPD_ENABLE, reg_val);
-  ESP_LOGD("pca9554", "PUPD_ENABLE: 0x%04X", reg_val);
-  this->read_register_(PUPD_SEL, reg_val);
-  ESP_LOGD("pca9554", "PUPD_SEL: 0x%04X", reg_val);
-  this->read_register_(INTERRUPT_MASK, reg_val);
-  ESP_LOGD("pca9554", "INTERRUPT_MASK: 0x%04X", reg_val);
-}*/
-
 void PCA9554Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   if (pin > (this->pin_count_ - 1)) {
     ESP_LOGE(TAG, "Invalid pin %d", pin);
