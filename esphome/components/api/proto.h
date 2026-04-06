@@ -301,17 +301,8 @@ class ProtoCursor {
     this->encode_varint_raw_loop(value);
   }
   void encode_varint_raw_64(uint64_t value) { this->encode_varint_raw_loop(value); }
-  /// Encode field tag — all ESPHome field IDs fit in 1-2 varint bytes.
   inline void ESPHOME_ALWAYS_INLINE encode_field_raw(uint32_t field_id, uint32_t type) {
-    uint32_t tag = (field_id << 3) | type;
-    if (tag < 128) [[likely]] {
-      this->debug_check_bounds_(1);
-      *this->pos_++ = static_cast<uint8_t>(tag);
-    } else {
-      this->debug_check_bounds_(2);
-      *this->pos_++ = static_cast<uint8_t>(tag | 0x80);
-      *this->pos_++ = static_cast<uint8_t>(tag >> 7);
-    }
+    this->encode_varint_raw((field_id << 3) | type);
   }
   /// Write a single precomputed tag byte. Tag must be < 128.
   inline void ESPHOME_ALWAYS_INLINE write_raw_byte(uint8_t b) {
