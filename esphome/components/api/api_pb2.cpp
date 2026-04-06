@@ -1689,7 +1689,7 @@ uint32_t ListEntitiesNumberResponse::calculate_size() const {
   size += ProtoSize::calc_float(1, this->step);
   size += ProtoSize::calc_bool(1, this->disabled_by_default);
   size += this->entity_category ? 2 : 0;
-  size += ProtoSize::calc_length(1, this->unit_of_measurement.size());
+  size += !this->unit_of_measurement.empty() ? 2 + this->unit_of_measurement.size() : 0;
   size += this->mode ? 2 : 0;
   size += !this->device_class.empty() ? 2 + this->device_class.size() : 0;
 #ifdef USE_DEVICES
