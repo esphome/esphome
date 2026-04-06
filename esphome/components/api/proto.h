@@ -225,8 +225,6 @@ class ProtoWriteBuffer {
    * Following https://protobuf.dev/programming-guides/encoding/#structure
    */
   void encode_field_raw(uint32_t field_id, uint32_t type) { this->encode_varint_raw((field_id << 3) | type); }
-  /// Encode a packed repeated sint32 field (zero-copy from vector)
-  void encode_packed_sint32(uint32_t field_id, const std::vector<int32_t> &values);
   /// Single-pass encode for repeated submessage elements.
   /// Thin template wrapper; all buffer work is in the non-template core.
   template<typename T> void encode_sub_message(uint32_t field_id, const T &value);
@@ -420,11 +418,6 @@ class ProtoCursor {
   template<typename T> void encode_optional_sub_message(uint32_t field_id, const T &value) {
     this->flush_();
     this->buf_.encode_optional_sub_message(field_id, value);
-    this->reload_();
-  }
-  void encode_packed_sint32(uint32_t field_id, const std::vector<int32_t> &values) {
-    this->flush_();
-    this->buf_.encode_packed_sint32(field_id, values);
     this->reload_();
   }
 
@@ -770,25 +763,6 @@ class ProtoSize {
 };
 
 // Implementation of methods that depend on ProtoSize being fully defined
-
-// Implementation of encode_packed_sint32 - must be after ProtoSize is defined
-inline void ProtoWriteBuffer::encode_packed_sint32(uint32_t field_id, const std::vector<int32_t> &values) {
-  if (values.empty())
-    return;
-
-  // Calculate packed size
-  size_t packed_size = 0;
-  for (int value : values) {
-    packed_size += ProtoSize::varint(encode_zigzag32(value));
-  }
-
-  // Write tag (LENGTH_DELIMITED) + length + all zigzag-encoded values
-  this->encode_field_raw(field_id, WIRE_TYPE_LENGTH_DELIMITED);
-  this->encode_varint_raw(packed_size);
-  for (int value : values) {
-    this->encode_varint_raw(encode_zigzag32(value));
-  }
-}
 
 // Encode thunk — converts void* back to concrete type for direct encode() call
 template<typename T> void proto_encode_msg(const void *msg, ProtoWriteBuffer &buf) {
