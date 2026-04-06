@@ -20,30 +20,14 @@ void DS248xComponent::setup() {
 
   // Probe device
   ESP_LOGD(TAG, "Probing DS248x...");
-  uint8_t status;
-  bool found = false;
-  for (int i = 0; i < 5; i++) {
-    if (this->read(&status, 1) == i2c::ERROR_OK) {
-      ESP_LOGD(TAG, "Device responded! Status: 0x%02x", status);
-      found = true;
-      break;
-    }
-  }
-
-  if (!found) {
+  uint8_t status = 0;
+  if (this->read(&status, 1) == i2c::ERROR_OK) {
+    ESP_LOGD(TAG, "Device responded! Status: 0x%02x", status);
+  } else {
     ESP_LOGW(TAG, "Device did not respond. Trying reset anyway...");
   }
 
-  // Device Reset - Try multiple times for bus stability
-  bool reset_success = false;
-  for (int i = 0; i < 3; i++) {
-    if (this->device_reset_()) {
-      reset_success = true;
-      break;
-    }
-  }
-
-  if (!reset_success) {
+  if (!this->device_reset_()) {
     ESP_LOGW(TAG, "DS248x reset failed during setup!");
   }
 
@@ -79,7 +63,8 @@ void DS248xComponent::dump_config() {
 
 // --- Internal Helpers ---
 
-static constexpr uint32_t BUSY_TIMEOUT_MS = 50;
+// Datasheet command durations are sub-2ms; allow a little margin before forcing recovery.
+static constexpr uint32_t BUSY_TIMEOUT_MS = 5;
 
 bool DS248xComponent::set_read_pointer_(uint8_t ptr) { return this->write_byte(DS248X_COMMAND_SETREADPTR, ptr); }
 
@@ -168,7 +153,8 @@ bool DS248xComponent::set_strong_pullup_mode_(bool enable) {
     config |= DS248X_CONFIG_ACTIVE_PULLUP;
   if (this->overdrive_speed_)
     config |= DS248X_CONFIG_OVERDRIVE;
-  if (enable)
+  // Match the legacy ds2484 backend: when configured, keep SPU armed across commands.
+  if (this->strong_pullup_enabled_ || enable)
     config |= DS248X_CONFIG_STRONG_PULLUP;
 
   uint8_t config_byte = (config & 0x0F) | ((~config & 0x0F) << 4);

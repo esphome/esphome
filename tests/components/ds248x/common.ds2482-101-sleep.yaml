@@ -4,7 +4,7 @@
 ds248x:
   id: ds2482_101
   address: 0x18
-  channel_count: 1
+  type: ds2482-101
   active_pullup: true
   sleep_pin:
     number: GPIO4

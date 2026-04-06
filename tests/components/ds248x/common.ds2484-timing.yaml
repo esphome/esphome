@@ -4,7 +4,7 @@
 ds248x:
   id: ds2484_hub
   address: 0x18
-  channel_count: 1
+  type: ds2484
   active_pullup: true
   strong_pullup: true
   # DS2484-specific timing parameters (optional fine-tuning)

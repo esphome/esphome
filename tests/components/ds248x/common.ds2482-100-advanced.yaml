@@ -4,7 +4,7 @@
 ds248x:
   id: ds2482_100
   address: 0x18
-  channel_count: 1
+  type: ds2482-100
   active_pullup: true
   strong_pullup: true     # Required for parasitic power devices
   overdrive_speed: false  # Overdrive mode (10x faster, shorter cables)

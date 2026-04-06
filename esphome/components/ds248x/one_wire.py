@@ -1,21 +1,22 @@
 """DS248x 1-Wire Bus Platform.
 
 This platform creates one_wire bus instances backed by a DS248x I2C-to-1-Wire bridge.
-It supports DS2482-100 (single channel), DS2482-800 (8 channels), and DS2484 (single channel).
+It supports DS2482-100/101 (single channel), DS2482-800 (8 channels), and DS2484 (single channel).
 
 For multi-channel devices (DS2482-800), create one platform entry per channel.
 Each entry becomes a separate one_wire bus that can be used by dallas_temp and other 1-Wire devices.
 """
 
-from esphome import final_validate
+from esphome import final_validate as fv
 import esphome.codegen as cg
 from esphome.components.one_wire import OneWireBus
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ID
 
-from . import CONF_CHANNEL_COUNT, CONF_DS248X_ID, DS248xComponent, ds248x_ns
+from . import CONF_DS248X_ID, DS248xComponent, ds248x_ns, get_channel_count
 
 CODEOWNERS = ["@tomwellnitz"]
+DEPENDENCIES = ["ds248x"]
 
 DS248xOneWireBus = ds248x_ns.class_("DS248xOneWireBus", OneWireBus, cg.Component)
 
@@ -30,23 +31,10 @@ CONFIG_SCHEMA = cv.Schema(
 
 def _final_validate(config):
     """Validate that the channel is within the parent's channel count."""
-    full = final_validate.full_config.get()
-    parent_id = config[CONF_DS248X_ID]
-
-    # Find the parent component configuration
-    if "ds248x" not in full:
-        return
-
-    parent_config = None
-    for ds248x_conf in full["ds248x"]:
-        if ds248x_conf[CONF_ID] == parent_id:
-            parent_config = ds248x_conf
-            break
-
-    if parent_config is None:
-        return
-
-    channel_count = parent_config.get(CONF_CHANNEL_COUNT, 1)
+    fconf = fv.full_config.get()
+    path = fconf.get_path_for_id(config[CONF_DS248X_ID])[:-1]
+    parent_config = fconf.get_config_for_path(path)
+    channel_count = get_channel_count(parent_config)
     channel = config[CONF_CHANNEL]
 
     if channel >= channel_count:

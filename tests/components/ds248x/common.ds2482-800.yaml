@@ -4,7 +4,7 @@
 ds248x:
   id: ds2482_800_full
   address: 0x18
-  channel_count: 8
+  type: ds2482-800
   active_pullup: true
   strong_pullup: true
 

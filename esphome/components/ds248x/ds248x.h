@@ -41,11 +41,6 @@ static constexpr uint8_t DS248X_CONFIG_ACTIVE_PULLUP = 0x01;
 static constexpr uint8_t DS248X_CONFIG_STRONG_PULLUP = 0x04;
 static constexpr uint8_t DS248X_CONFIG_OVERDRIVE = 0x08;
 
-// 1-Wire ROM Commands (used by OneWireBus implementation)
-static constexpr uint8_t ONEWIRE_ROM_SEARCH = 0xF0;
-
-class DS248xOneWireBus;
-
 /**
  * @brief DS248x I2C-to-1-Wire Bridge Component.
  *

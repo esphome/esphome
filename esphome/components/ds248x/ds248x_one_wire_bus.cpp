@@ -1,4 +1,4 @@
-#include "one_wire_bus.h"
+#include "ds248x_one_wire_bus.h"
 #include "ds248x.h"
 #include "esphome/core/log.h"
 
@@ -110,18 +110,6 @@ uint64_t DS248xOneWireBus::search_int() {
   }
 
   if (this->search_last_device_flag_) {
-    return 0;
-  }
-
-  bool presence = false;
-  if (!this->parent_->ow_reset(presence) || !presence) {
-    this->reset_search();
-    return 0;
-  }
-
-  // Send Search ROM command (0xF0)
-  if (!this->parent_->ow_write_byte(ONEWIRE_ROM_SEARCH)) {
-    this->reset_search();
     return 0;
   }
 

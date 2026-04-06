@@ -4,7 +4,7 @@
 ds248x:
   id: ds248x_hub
   address: 0x18
-  channel_count: 1
+  type: ds2482-100
   active_pullup: true
 
 one_wire:
