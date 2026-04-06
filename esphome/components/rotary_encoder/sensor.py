@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_RESTORE_MODE,
     CONF_VALUE,
     ICON_ROTATE_RIGHT,
+    STATE_CLASS_MEASUREMENT,
     UNIT_STEPS,
 )
 
@@ -60,6 +61,7 @@ CONFIG_SCHEMA = cv.All(
         unit_of_measurement=UNIT_STEPS,
         icon=ICON_ROTATE_RIGHT,
         accuracy_decimals=0,
+        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {
