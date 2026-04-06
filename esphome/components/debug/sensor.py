@@ -14,6 +14,7 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_LN882X,
     PLATFORM_RTL87XX,
+    STATE_CLASS_MEASUREMENT,
     UNIT_BYTES,
     UNIT_HERTZ,
     UNIT_MILLISECOND,
@@ -38,12 +39,14 @@ CONFIG_SCHEMA = {
         icon=ICON_COUNTER,
         accuracy_decimals=0,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     cv.Optional(CONF_BLOCK): sensor.sensor_schema(
         unit_of_measurement=UNIT_BYTES,
         icon=ICON_COUNTER,
         accuracy_decimals=0,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     cv.Optional(CONF_FRAGMENTATION): cv.All(
         cv.Any(
@@ -59,6 +62,7 @@ CONFIG_SCHEMA = {
             icon=ICON_COUNTER,
             accuracy_decimals=1,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
     ),
     cv.Optional(CONF_MIN_FREE): cv.All(
@@ -72,6 +76,7 @@ CONFIG_SCHEMA = {
             icon=ICON_COUNTER,
             accuracy_decimals=0,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
     ),
     cv.Optional(CONF_LOOP_TIME): sensor.sensor_schema(
@@ -79,6 +84,7 @@ CONFIG_SCHEMA = {
         icon=ICON_TIMER,
         accuracy_decimals=0,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
     cv.Optional(CONF_PSRAM): cv.All(
         cv.only_on_esp32,
@@ -88,6 +94,7 @@ CONFIG_SCHEMA = {
             icon=ICON_COUNTER,
             accuracy_decimals=0,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
     ),
     cv.Optional(CONF_CPU_FREQUENCY): cv.All(
@@ -96,6 +103,7 @@ CONFIG_SCHEMA = {
             icon="mdi:speedometer",
             accuracy_decimals=0,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
     ),
 }

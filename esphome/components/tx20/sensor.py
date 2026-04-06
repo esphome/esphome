@@ -30,6 +30,7 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_DEGREES,
             icon=ICON_SIGN_DIRECTION,
             accuracy_decimals=1,
+            state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema),
     }
