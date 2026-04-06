@@ -118,10 +118,8 @@ PRESET_CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_MODE): validate_climate_mode,
         cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
         cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
-        cv.Optional(CONF_FAN_MODE): cv.templatable(climate.validate_climate_fan_mode),
-        cv.Optional(CONF_SWING_MODE): cv.templatable(
-            climate.validate_climate_swing_mode
-        ),
+        cv.Optional(CONF_FAN_MODE): climate.validate_climate_fan_mode,
+        cv.Optional(CONF_SWING_MODE): climate.validate_climate_swing_mode,
     }
 )
 
@@ -451,8 +449,6 @@ def validate_thermostat(config):
                 continue
 
             fan_mode = preset_config[CONF_FAN_MODE]
-            if isinstance(fan_mode, cv.Lambda):
-                continue
 
             for req in requirements[fan_mode]:
                 if req not in config:
@@ -473,8 +469,6 @@ def validate_thermostat(config):
                 continue
 
             swing_mode = preset_config[CONF_SWING_MODE]
-            if isinstance(swing_mode, cv.Lambda):
-                continue
 
             for req in requirements[swing_mode]:
                 if req not in config:
@@ -485,24 +479,24 @@ def validate_thermostat(config):
     # If a default preset is requested then ensure that preset is defined
     if CONF_DEFAULT_PRESET in config:
         default_preset = config[CONF_DEFAULT_PRESET]
-        if not isinstance(default_preset, cv.Lambda):
-            if CONF_PRESET not in config:
-                raise cv.Invalid(
-                    f"{CONF_DEFAULT_PRESET} is specified but no presets are defined"
-                )
 
-            presets = config[CONF_PRESET]
-            found_preset = False
+        if CONF_PRESET not in config:
+            raise cv.Invalid(
+                f"{CONF_DEFAULT_PRESET} is specified but no presets are defined"
+            )
 
-            for preset in presets:
-                if preset[CONF_NAME] == default_preset:
-                    found_preset = True
-                    break
+        presets = config[CONF_PRESET]
+        found_preset = False
 
-            if found_preset is False:
-                raise cv.Invalid(
-                    f"{CONF_DEFAULT_PRESET} set to '{default_preset}' but no such preset has been defined. Available presets: {[preset[CONF_NAME] for preset in presets]}"
-                )
+        for preset in presets:
+            if preset[CONF_NAME] == default_preset:
+                found_preset = True
+                break
+
+        if found_preset is False:
+            raise cv.Invalid(
+                f"{CONF_DEFAULT_PRESET} set to '{default_preset}' but no such preset has been defined. Available presets: {[preset[CONF_NAME] for preset in presets]}"
+            )
 
     # If restoring default preset on boot is true then ensure we have a default preset
     if (
@@ -635,7 +629,7 @@ CONFIG_SCHEMA = cv.All(
             ): automation.validate_automation(single=True),
             cv.Optional(CONF_HUMIDITY_HYSTERESIS, default=1.0): cv.percentage,
             cv.Optional(CONF_DEFAULT_MODE, default=None): cv.valid,
-            cv.Optional(CONF_DEFAULT_PRESET): cv.templatable(cv.string),
+            cv.Optional(CONF_DEFAULT_PRESET): cv.string,
             cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
             cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
             cv.Optional(
