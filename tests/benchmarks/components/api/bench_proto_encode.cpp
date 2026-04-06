@@ -23,8 +23,8 @@ static void Encode_SensorStateResponse(benchmark::State &state) {
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
-      ProtoWriteBuffer writer(&buffer, 0);
-      msg.encode(writer);
+      uint8_t *__restrict__ pos = buffer.data();
+      msg.encode(pos);
     }
     benchmark::DoNotOptimize(buffer.data());
   }
@@ -61,8 +61,8 @@ static void CalcAndEncode_SensorStateResponse(benchmark::State &state) {
     for (int i = 0; i < kInnerIterations; i++) {
       uint32_t size = msg.calculate_size();
       buffer.resize(size);
-      ProtoWriteBuffer writer(&buffer, 0);
-      msg.encode(writer);
+      uint8_t *__restrict__ pos = buffer.data();
+      msg.encode(pos);
     }
     benchmark::DoNotOptimize(buffer.data());
   }
@@ -85,8 +85,8 @@ static void CalcAndEncode_SensorStateResponse_Fresh(benchmark::State &state) {
       APIBuffer buffer;
       uint32_t size = msg.calculate_size();
       buffer.resize(size);
-      ProtoWriteBuffer writer(&buffer, 0);
-      msg.encode(writer);
+      uint8_t *__restrict__ pos = buffer.data();
+      msg.encode(pos);
       benchmark::DoNotOptimize(buffer.data());
     }
   }
@@ -107,8 +107,8 @@ static void Encode_BinarySensorStateResponse(benchmark::State &state) {
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
-      ProtoWriteBuffer writer(&buffer, 0);
-      msg.encode(writer);
+      uint8_t *__restrict__ pos = buffer.data();
+      msg.encode(pos);
     }
     benchmark::DoNotOptimize(buffer.data());
   }
@@ -130,8 +130,8 @@ static void Encode_HelloResponse(benchmark::State &state) {
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
-      ProtoWriteBuffer writer(&buffer, 0);
-      msg.encode(writer);
+      uint8_t *__restrict__ pos = buffer.data();
+      msg.encode(pos);
     }
     benchmark::DoNotOptimize(buffer.data());
   }
@@ -162,8 +162,8 @@ static void Encode_LightStateResponse(benchmark::State &state) {
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
-      ProtoWriteBuffer writer(&buffer, 0);
-      msg.encode(writer);
+      uint8_t *__restrict__ pos = buffer.data();
+      msg.encode(pos);
     }
     benchmark::DoNotOptimize(buffer.data());
   }
@@ -247,8 +247,8 @@ static void Encode_DeviceInfoResponse(benchmark::State &state) {
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
-      ProtoWriteBuffer writer(&buffer, 0);
-      msg.encode(writer);
+      uint8_t *__restrict__ pos = buffer.data();
+      msg.encode(pos);
     }
     benchmark::DoNotOptimize(buffer.data());
   }
@@ -265,8 +265,8 @@ static void CalcAndEncode_DeviceInfoResponse(benchmark::State &state) {
     for (int i = 0; i < kInnerIterations; i++) {
       uint32_t size = msg.calculate_size();
       buffer.resize(size);
-      ProtoWriteBuffer writer(&buffer, 0);
-      msg.encode(writer);
+      uint8_t *__restrict__ pos = buffer.data();
+      msg.encode(pos);
     }
     benchmark::DoNotOptimize(buffer.data());
   }
@@ -286,8 +286,8 @@ static void CalcAndEncode_DeviceInfoResponse_Fresh(benchmark::State &state) {
       APIBuffer buffer;
       uint32_t size = msg.calculate_size();
       buffer.resize(size);
-      ProtoWriteBuffer writer(&buffer, 0);
-      msg.encode(writer);
+      uint8_t *__restrict__ pos = buffer.data();
+      msg.encode(pos);
       benchmark::DoNotOptimize(buffer.data());
     }
   }
@@ -339,8 +339,8 @@ static void Encode_BLERawAdvs12(benchmark::State &state) {
 
   for (auto _ : state) {
     for (int i = 0; i < kInnerIterations; i++) {
-      ProtoWriteBuffer writer(&buffer, 0);
-      msg.encode(writer);
+      uint8_t *__restrict__ pos = buffer.data();
+      msg.encode(pos);
     }
     benchmark::DoNotOptimize(buffer.data());
   }
@@ -356,8 +356,8 @@ static void CalcAndEncode_BLERawAdvs12(benchmark::State &state) {
     for (int i = 0; i < kInnerIterations; i++) {
       uint32_t size = msg.calculate_size();
       buffer.resize(size);
-      ProtoWriteBuffer writer(&buffer, 0);
-      msg.encode(writer);
+      uint8_t *__restrict__ pos = buffer.data();
+      msg.encode(pos);
     }
     benchmark::DoNotOptimize(buffer.data());
   }
@@ -373,8 +373,8 @@ static void CalcAndEncode_BLERawAdvs12_Fresh(benchmark::State &state) {
       APIBuffer buffer;
       uint32_t size = msg.calculate_size();
       buffer.resize(size);
-      ProtoWriteBuffer writer(&buffer, 0);
-      msg.encode(writer);
+      uint8_t *__restrict__ pos = buffer.data();
+      msg.encode(pos);
       benchmark::DoNotOptimize(buffer.data());
     }
   }

@@ -45,9 +45,10 @@ static void PlaintextFrame_WriteSensorState(benchmark::State &state) {
 
       uint32_t size = msg.calculate_size();
       buffer.resize(padding + size);
-      ProtoWriteBuffer writer(&buffer, padding);
-      msg.encode(writer);
+      uint8_t *__restrict__ pos = buffer.data() + padding;
+      msg.encode(pos);
 
+      ProtoWriteBuffer writer(&buffer);
       helper->write_protobuf_packet(SensorStateResponse::MESSAGE_TYPE, writer);
     }
     drain_socket(read_fd);
@@ -86,8 +87,8 @@ static void PlaintextFrame_WriteBatch5(benchmark::State &state) {
 
         uint32_t size = msg.calculate_size();
         buffer.resize(offset + padding + size + footer);
-        ProtoWriteBuffer writer(&buffer, offset + padding);
-        msg.encode(writer);
+        uint8_t *__restrict__ pos = buffer.data() + offset + padding;
+        msg.encode(pos);
 
         messages[j] = MessageInfo(SensorStateResponse::MESSAGE_TYPE, offset, size);
       }
