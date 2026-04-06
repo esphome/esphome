@@ -832,8 +832,8 @@ class MessageType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
-        # encode_sub_message always encodes (uses backpatch), no force needed
-        return f"proto_{self.encode_func}(pos, {self.number}, this->{self.field_name});"
+        # Sub-message encoding needs buffer for backpatch/sync
+        return f"proto_{self.encode_func}(pos, buffer, {self.number}, this->{self.field_name});"
 
     @property
     def decode_length(self) -> str:

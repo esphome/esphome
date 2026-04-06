@@ -138,7 +138,7 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer &buffer) const {
   }
 #endif
 #ifdef USE_AREAS
-  proto_encode_optional_sub_message(pos, 22, this->area);
+  proto_encode_optional_sub_message(pos, buffer, 22, this->area);
 #endif
 #ifdef USE_ZWAVE_PROXY
   proto_encode_uint32(pos, 23, this->zwave_proxy_feature_flags);
@@ -2808,7 +2808,7 @@ void VoiceAssistantRequest::encode(ProtoWriteBuffer &buffer) const {
   proto_encode_bool(pos, 1, this->start);
   proto_encode_string(pos, 2, this->conversation_id);
   proto_encode_uint32(pos, 3, this->flags);
-  proto_encode_optional_sub_message(pos, 4, this->audio_settings);
+  proto_encode_optional_sub_message(pos, buffer, 4, this->audio_settings);
   proto_encode_string(pos, 5, this->wake_word_phrase);
   buffer.set_pos(pos);
 }
