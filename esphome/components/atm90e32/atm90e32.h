@@ -184,7 +184,7 @@ class ATM90E32Component : public PollingComponent,
   bool verify_gain_writes_();
   bool validate_spi_read_(uint16_t expected, const char *context = nullptr);
   void log_calibration_status_();
-  const char *get_calibration_id_(std::span<char, GPIO_SUMMARY_MAX_LEN> fallback_buffer);
+  const char *get_calibration_id_();
   void get_cs_summary_(std::span<char, GPIO_SUMMARY_MAX_LEN> buffer);
 
   struct ATM90E32Phase {
