@@ -11,7 +11,7 @@ namespace esphome::esp8266 {
 /// Log crash data if a crash was detected on previous boot.
 void crash_handler_log();
 
-/// Returns true if crash data was found this boot.
+/// Returns true if the previous boot was a crash (exception, WDT, or soft WDT).
 bool crash_handler_has_data();
 
 }  // namespace esphome::esp8266

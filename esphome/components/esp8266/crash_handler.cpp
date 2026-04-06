@@ -186,7 +186,7 @@ void crash_handler_log() {
     ESP_LOGE(TAG, "  Reason: %s - %s (exccause=%" PRIu32 ")", LOG_STR_ARG(get_reset_reason(resetInfo.reason)),
              LOG_STR_ARG(cause), exccause);
   } else {
-    ESP_LOGE(TAG, "  Reason: %s", LOG_STR_ARG(get_reset_reason(resetInfo.reason)));
+    ESP_LOGE(TAG, "  Reason: %s (exccause=%" PRIu32 ")", LOG_STR_ARG(get_reset_reason(resetInfo.reason)), exccause);
   }
   ESP_LOGE(TAG, "  PC: 0x%08" PRIX32, resetInfo.epc1);
   if (resetInfo.reason == REASON_EXCEPTION_RST) {
