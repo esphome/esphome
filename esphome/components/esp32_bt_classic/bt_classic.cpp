@@ -59,12 +59,6 @@ bool ESP32BtClassic::bt_setup_() {
     return false;
   }
 #else
-  ESP_LOGI(TAG, "BT_MODE: %d", BT_MODE);
-  // ESP_BT_MODE_IDLE = 0x00
-  // ESP_BT_MODE_BLE = 0x01
-  // ESP_BT_MODE_CLASSIC_BT = 0x02
-  // ESP_BT_MODE_BTDM = 0x03
-
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
     // start bt controller
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE) {
@@ -78,7 +72,7 @@ bool ESP32BtClassic::bt_setup_() {
         ;
     }
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_INITED) {
-      err = esp_bt_controller_enable(BT_MODE);
+      err = esp_bt_controller_enable(ESP_BT_MODE_BTDM);
       if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_bt_controller_enable failed: %s", esp_err_to_name(err));
         return false;

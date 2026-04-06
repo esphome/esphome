@@ -40,7 +40,7 @@ template<typename... Ts> class BtClassicScanAction : public Action<Ts...>, publi
  public:
   BtClassicScanAction(ESP32BtClassic *bt_client) : BtClassicScannerNode(bt_client) {}
 
-  void play(Ts... x) override {
+  void play(const Ts &... x) override {
     uint8_t scanCount = this->num_scans_simple_;
     if (num_scans_template_ != nullptr) {
       scanCount = this->num_scans_template_(x...);
