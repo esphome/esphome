@@ -12,7 +12,7 @@ void SystaSolarAquaTextSensor::dump_config() {
 }
 
 void SystaSolarAquaTextSensor::handle_message(std::vector<uint8_t> &message) {
-  if (get_message_type(message) == 0xfc16) {
+  if (get_message_type(message) == MESSAGE_TYPE_AQUA_SENSOR_DATA) {
     if (this->error_code_text_sensor_ != nullptr) {
       char buf[4];
       int len = snprintf(buf, sizeof(buf), message[15] == 0 ? "--" : "%02d", message[15]);

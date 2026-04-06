@@ -20,7 +20,7 @@ void SystaSolarAquaSensor::dump_config() {
 }
 
 void SystaSolarAquaSensor::handle_message(std::vector<uint8_t> &message) {
-  if (get_message_type(message) == 0xfc16) {
+  if (get_message_type(message) == MESSAGE_TYPE_AQUA_SENSOR_DATA) {
     if (this->temperature_tsa_sensor_ != nullptr)
       this->temperature_tsa_sensor_->publish_state(get_i16be(message, 4) * 0.1f);
     if (this->temperature_tse_sensor_ != nullptr)

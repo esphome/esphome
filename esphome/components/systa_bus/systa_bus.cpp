@@ -35,9 +35,9 @@ void SystaBus::loop() {
     } else if (this->state_ == 1) {
       this->state_ = 2;
       this->buffer_.push_back(c);
-      this->message_type_ = (this->buffer_[0] << 8) + this->buffer_[1];
+      this->message_type_ = get_message_type(this->buffer_);
       this->length_ = this->buffer_[1] + 3;
-      if (!(this->message_type_ == 0xfc16)) {
+      if (!(this->message_type_ == MESSAGE_TYPE_AQUA_SENSOR_DATA)) {
         ESP_LOGW(TAG, "Unknown message type 0x%04x", this->message_type_);
         this->state_ = 0;
       }
