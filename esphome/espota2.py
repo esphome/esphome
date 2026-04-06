@@ -40,6 +40,8 @@ RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE = 0x88
 RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE = 0x89
 RESPONSE_ERROR_NO_UPDATE_PARTITION = 0x8A
 RESPONSE_ERROR_MD5_MISMATCH = 0x8B
+RESPONSE_ERROR_RP2040_NOT_ENOUGH_SPACE = 0x8C
+RESPONSE_ERROR_SIGNATURE_INVALID = 0x8D
 RESPONSE_ERROR_UNKNOWN = 0xFF
 
 OTA_VERSION_1_0 = 1
@@ -191,6 +193,12 @@ def check_error(data: list[int] | bytes, expect: int | list[int] | None) -> None
         raise OTAError(
             "Error: Application MD5 code mismatch. Please try again "
             "or flash over USB with a good quality cable."
+        )
+    if dat == RESPONSE_ERROR_SIGNATURE_INVALID:
+        raise OTAError(
+            "Error: Firmware signature verification failed. The firmware was not signed "
+            "with the correct key. Ensure the signing key matches the one used to build "
+            "the firmware currently running on the device."
         )
     if dat == RESPONSE_ERROR_UNKNOWN:
         raise OTAError("Unknown error from ESP")

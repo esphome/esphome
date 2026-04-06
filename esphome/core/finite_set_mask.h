@@ -119,7 +119,7 @@ template<typename ValueType, typename BitPolicy = DefaultBitPolicy<ValueType, 16
 
     constexpr ValueType operator*() const {
       // Return value for the first set bit
-      return BitPolicy::from_bit(find_next_set_bit(mask_, 0));
+      return BitPolicy::from_bit(find_lowest_set_bit(mask_));
     }
 
     constexpr Iterator &operator++() {
@@ -151,17 +151,32 @@ template<typename ValueType, typename BitPolicy = DefaultBitPolicy<ValueType, 16
   /// Get the first value from a raw bitmask
   /// Used for optimizing intersection logic (e.g., "pick first suitable mode")
   static constexpr ValueType first_value_from_mask(bitmask_t mask) {
-    return BitPolicy::from_bit(find_next_set_bit(mask, 0));
+    return BitPolicy::from_bit(find_lowest_set_bit(mask));
   }
 
-  /// Find the next set bit in a bitmask starting from a given position
-  /// Returns the bit position, or MAX_BITS if no more bits are set
-  static constexpr int find_next_set_bit(bitmask_t mask, int start_bit) {
-    int bit = start_bit;
+  /// Find the lowest set bit in a bitmask
+  /// Returns the bit position, or MAX_BITS if no bits are set
+  static constexpr int find_lowest_set_bit(bitmask_t mask) {
+    if (mask == 0) {
+      return BitPolicy::MAX_BITS;
+    }
+#if defined(__GNUC__) || defined(__clang__)
+    int bit;
+    if constexpr (sizeof(bitmask_t) <= sizeof(unsigned int)) {
+      bit = __builtin_ctz(static_cast<unsigned int>(mask));
+    } else if constexpr (sizeof(bitmask_t) <= sizeof(uint32_t)) {
+      bit = __builtin_ctzl(static_cast<uint32_t>(mask));
+    } else {
+      bit = __builtin_ctzll(static_cast<uint64_t>(mask));
+    }
+    return bit < BitPolicy::MAX_BITS ? bit : BitPolicy::MAX_BITS;
+#else
+    int bit = 0;
     while (bit < BitPolicy::MAX_BITS && !(mask & (static_cast<bitmask_t>(1) << bit))) {
       ++bit;
     }
     return bit;
+#endif
   }
 
  protected:
