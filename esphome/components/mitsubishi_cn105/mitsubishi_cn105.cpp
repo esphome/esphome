@@ -57,7 +57,7 @@ static constexpr std::optional<T> lookup(const std::array<std::optional<T>, N> &
 
 template<typename T, size_t N>
 static constexpr bool reverse_lookup(const std::array<std::optional<T>, N> &table, T value, uint8_t &placeholder) {
-  for (uint8_t i = 0; i < N; ++i) {
+  for (size_t i = 0; i < N; ++i) {
     const auto &table_value = table[i];
     if (table_value.has_value() && table_value == value) {
       placeholder = i;
