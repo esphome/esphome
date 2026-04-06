@@ -400,7 +400,7 @@ def upload_program(config: ConfigType, args, host: str) -> bool:
     mcumgr_device: str | None = None
 
     if (
-        get_port_type(host) == "SERIAL"
+        get_port_type(host) == PortType.SERIAL
         and config["nrf52"][KEY_BOOTLOADER] != BOOTLOADER_MCUBOOT
     ):
         check_permissions(host)
