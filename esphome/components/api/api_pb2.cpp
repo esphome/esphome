@@ -2346,7 +2346,10 @@ uint8_t *BluetoothLERawAdvertisement::encode(ProtoWriteBuffer &buffer) const {
   proto_encode_varint_raw_64(pos, this->address);
   proto_write_raw_byte(pos, 16);
   proto_encode_varint_raw_short(pos, encode_zigzag32(this->rssi));
-  proto_encode_uint32(pos, 3, this->address_type);
+  if (this->address_type) {
+    proto_write_raw_byte(pos, 24);
+    proto_write_raw_byte(pos, static_cast<uint8_t>(this->address_type));
+  }
   proto_write_raw_byte(pos, 34);
   proto_write_raw_byte(pos, static_cast<uint8_t>(this->data_len));
   proto_encode_raw(pos, this->data, this->data_len);

@@ -247,14 +247,16 @@ class TypeInfo(ABC):
     }
 
     def _encode_with_precomputed_tag(self, value_expr: str) -> str | None:
-        """Try to emit a precomputed-tag encode for a forced field.
+        """Try to emit a precomputed-tag encode for a field.
+
+        For forced fields: emits raw tag + value unconditionally.
+        For non-forced fields with single-byte tag: emits inline zero-check
+        + raw tag + value, avoiding an outlined function call.
 
         Returns the raw encode string if the tag is a single byte and the
         encode_func has a known raw equivalent, or None otherwise.
         When max_value < 128, uses direct byte write instead of varint encoding.
         """
-        if not self.force:
-            return None
         tag = self.calculate_tag()
         if tag >= 128:
             return None
@@ -263,10 +265,17 @@ class TypeInfo(ABC):
         if max_val is not None and max_val < 128:
             raw_expr = self.RAW_ENCODE_SMALL_MAP.get(self.encode_func)
         if raw_expr is None:
+            # Only use RAW_ENCODE_MAP for forced fields or fields with max_value
+            if not self.force and max_val is None:
+                return None
             raw_expr = self.RAW_ENCODE_MAP.get(self.encode_func)
         if raw_expr is None:
             return None
-        return f"proto_write_raw_byte(pos, {tag});\n{raw_expr.format(value=value_expr)}"
+        body = f"proto_write_raw_byte(pos, {tag});\n{raw_expr.format(value=value_expr)}"
+        if self.force:
+            return body
+        # Non-forced with max_value: inline zero-check + raw encode
+        return f"if ({value_expr}) {{\n  {body}\n}}"
 
     def _encode_bytes_with_precomputed_tag(
         self, data_expr: str, len_expr: str, max_len: int | None = None
