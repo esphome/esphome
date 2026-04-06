@@ -135,7 +135,7 @@ void PCA9554Component::pin_mode(uint8_t pin, gpio::Flags flags) {
     this->set_register_bit_(CONFIG_REG, pin, false);
   }
 
-  if ((this->capability_ & CAPABILITY_PULLUP) | (this->capability_ & CAPABILITY_PULLDOWN)) {
+  if ((this->capability_ & CAPABILITY_PULLUP) || (this->capability_ & CAPABILITY_PULLDOWN)) {
     if (flags & gpio::FLAG_PULLUP) {
       this->set_register_bit_(PUPD_ENABLE, pin, true);
       this->set_register_bit_(PUPD_SEL, pin, true);
