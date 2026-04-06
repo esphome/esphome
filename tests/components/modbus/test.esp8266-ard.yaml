@@ -1,9 +1,9 @@
-uart:
-  - id: uart_modbus
-    tx_pin: 4
-    rx_pin: 5
-    baud_rate: 9600
+substitutions:
+  tx_pin: GPIO0
+  rx_pin: GPIO2
+  flow_control_pin: GPIO15
 
-modbus:
-  id: mod_bus1
-  flow_control_pin: 12
+packages:
+  uart: !include ../../test_build_components/common/uart/esp8266-ard.yaml
+
+<<: !include common.yaml

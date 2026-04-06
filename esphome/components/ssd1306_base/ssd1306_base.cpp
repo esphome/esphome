@@ -1,6 +1,7 @@
 #include "ssd1306_base.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome {
 namespace ssd1306_base {
@@ -32,11 +33,62 @@ static const uint8_t SSD1306_COMMAND_PAGE_ADDRESS = 0x22;
 static const uint8_t SSD1306_COMMAND_NORMAL_DISPLAY = 0xA6;
 static const uint8_t SSD1306_COMMAND_INVERSE_DISPLAY = 0xA7;
 
+static const uint8_t SSD1306B_COMMAND_SELECT_IREF = 0xAD;
+
 static const uint8_t SSD1305_COMMAND_SET_BRIGHTNESS = 0x82;
 static const uint8_t SSD1305_COMMAND_SET_AREA_COLOR = 0xD8;
 
 static const uint8_t SH1107_COMMAND_SET_START_LINE = 0xDC;
 static const uint8_t SH1107_COMMAND_CHARGE_PUMP = 0xAD;
+
+// Verify first enum value and table sizes match SSD1306_MODEL_COUNT
+static_assert(SSD1306_MODEL_128_32 == 0, "SSD1306Model enum must start at 0");
+
+// PROGMEM lookup table indexed by SSD1306Model enum (width, height per model)
+struct ModelDimensions {
+  uint8_t width;
+  uint8_t height;
+};
+static constexpr ModelDimensions MODEL_DIMS[] PROGMEM = {
+    {128, 32},   // SSD1306_MODEL_128_32
+    {128, 64},   // SSD1306_MODEL_128_64
+    {96, 16},    // SSD1306_MODEL_96_16
+    {64, 48},    // SSD1306_MODEL_64_48
+    {64, 32},    // SSD1306_MODEL_64_32
+    {72, 40},    // SSD1306_MODEL_72_40
+    {128, 32},   // SH1106_MODEL_128_32
+    {128, 64},   // SH1106_MODEL_128_64
+    {96, 16},    // SH1106_MODEL_96_16
+    {64, 48},    // SH1106_MODEL_64_48
+    {64, 128},   // SH1107_MODEL_128_64 (note: width is 64, height is 128)
+    {128, 128},  // SH1107_MODEL_128_128
+    {128, 32},   // SSD1305_MODEL_128_32
+    {128, 64},   // SSD1305_MODEL_128_64
+};
+
+// clang-format off
+PROGMEM_STRING_TABLE(ModelStrings,
+    "SSD1306 128x32",  // SSD1306_MODEL_128_32
+    "SSD1306 128x64",  // SSD1306_MODEL_128_64
+    "SSD1306 96x16",   // SSD1306_MODEL_96_16
+    "SSD1306 64x48",   // SSD1306_MODEL_64_48
+    "SSD1306 64x32",   // SSD1306_MODEL_64_32
+    "SSD1306 72x40",   // SSD1306_MODEL_72_40
+    "SH1106 128x32",   // SH1106_MODEL_128_32
+    "SH1106 128x64",   // SH1106_MODEL_128_64
+    "SH1106 96x16",    // SH1106_MODEL_96_16
+    "SH1106 64x48",    // SH1106_MODEL_64_48
+    "SH1107 128x64",   // SH1107_MODEL_128_64
+    "SH1107 128x128",  // SH1107_MODEL_128_128
+    "SSD1305 128x32",  // SSD1305_MODEL_128_32
+    "SSD1305 128x64",  // SSD1305_MODEL_128_64
+    "Unknown"          // fallback
+);
+// clang-format on
+static_assert(sizeof(MODEL_DIMS) / sizeof(MODEL_DIMS[0]) == SSD1306_MODEL_COUNT,
+              "MODEL_DIMS must have one entry per SSD1306Model");
+static_assert(ModelStrings::COUNT == SSD1306_MODEL_COUNT + 1,
+              "ModelStrings must have one entry per SSD1306Model plus fallback");
 
 void SSD1306::setup() {
   this->init_internal_(this->get_buffer_length_());
@@ -95,6 +147,12 @@ void SSD1306::setup() {
       this->command(0x8B);
     }
   } else {
+    if (this->is_ssd1306b_()) {
+      // Select external or internal Iref (0xAD)
+      this->command(SSD1306B_COMMAND_SELECT_IREF);
+      // Enable internal Iref and change from 19ua (POR) to 30uA
+      this->command(0x20 | 0x10);
+    }
     // Enable charge pump (0x8D)
     this->command(SSD1306_COMMAND_CHARGE_PUMP);
     if (this->external_vcc_) {
@@ -138,6 +196,7 @@ void SSD1306::setup() {
         break;
       case SH1107_MODEL_128_64:
       case SH1107_MODEL_128_128:
+      case SSD1306_MODEL_COUNT:
         // Not used, but prevents build warning
         break;
     }
@@ -176,7 +235,7 @@ void SSD1306::setup() {
   // Disable scrolling mode (0x2E)
   this->command(SSD1306_COMMAND_DEACTIVATE_SCROLL);
 
-  // Contrast and brighrness
+  // Contrast and brightness
   // SSD1306 does not have brightness setting
   set_contrast(this->contrast_);
   if (this->is_ssd1305_())
@@ -224,8 +283,10 @@ bool SSD1306::is_sh1106_() const {
 }
 bool SSD1306::is_sh1107_() const { return this->model_ == SH1107_MODEL_128_64 || this->model_ == SH1107_MODEL_128_128; }
 bool SSD1306::is_ssd1305_() const {
-  return this->model_ == SSD1305_MODEL_128_64 || this->model_ == SSD1305_MODEL_128_64;
+  return this->model_ == SSD1305_MODEL_128_64 || this->model_ == SSD1305_MODEL_128_32;
 }
+bool SSD1306::is_ssd1306b_() const { return this->model_ == SSD1306_MODEL_72_40; }
+
 void SSD1306::update() {
   this->do_update_();
   this->display();
@@ -264,54 +325,14 @@ void SSD1306::turn_off() {
   this->is_on_ = false;
 }
 int SSD1306::get_height_internal() {
-  switch (this->model_) {
-    case SH1107_MODEL_128_64:
-    case SH1107_MODEL_128_128:
-      return 128;
-    case SSD1306_MODEL_128_32:
-    case SSD1306_MODEL_64_32:
-    case SH1106_MODEL_128_32:
-    case SSD1305_MODEL_128_32:
-      return 32;
-    case SSD1306_MODEL_128_64:
-    case SH1106_MODEL_128_64:
-    case SSD1305_MODEL_128_64:
-      return 64;
-    case SSD1306_MODEL_96_16:
-    case SH1106_MODEL_96_16:
-      return 16;
-    case SSD1306_MODEL_64_48:
-    case SH1106_MODEL_64_48:
-      return 48;
-    case SSD1306_MODEL_72_40:
-      return 40;
-    default:
-      return 0;
-  }
+  if (this->model_ >= SSD1306_MODEL_COUNT)
+    return 0;
+  return progmem_read_byte(&MODEL_DIMS[this->model_].height);
 }
 int SSD1306::get_width_internal() {
-  switch (this->model_) {
-    case SSD1306_MODEL_128_32:
-    case SH1106_MODEL_128_32:
-    case SSD1306_MODEL_128_64:
-    case SH1106_MODEL_128_64:
-    case SSD1305_MODEL_128_32:
-    case SSD1305_MODEL_128_64:
-    case SH1107_MODEL_128_128:
-      return 128;
-    case SSD1306_MODEL_96_16:
-    case SH1106_MODEL_96_16:
-      return 96;
-    case SSD1306_MODEL_64_48:
-    case SSD1306_MODEL_64_32:
-    case SH1106_MODEL_64_48:
-    case SH1107_MODEL_128_64:
-      return 64;
-    case SSD1306_MODEL_72_40:
-      return 72;
-    default:
-      return 0;
-  }
+  if (this->model_ >= SSD1306_MODEL_COUNT)
+    return 0;
+  return progmem_read_byte(&MODEL_DIMS[this->model_].width);
 }
 size_t SSD1306::get_buffer_length_() {
   return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / 8u;
@@ -329,6 +350,12 @@ void HOT SSD1306::draw_absolute_pixel_internal(int x, int y, Color color) {
   }
 }
 void SSD1306::fill(Color color) {
+  // If clipping is active, fall back to base implementation
+  if (this->get_clipping().is_set()) {
+    Display::fill(color);
+    return;
+  }
+
   uint8_t fill = color.is_on() ? 0xFF : 0x00;
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;
@@ -345,37 +372,8 @@ void SSD1306::init_reset_() {
     this->reset_pin_->digital_write(true);
   }
 }
-const char *SSD1306::model_str_() {
-  switch (this->model_) {
-    case SSD1306_MODEL_128_32:
-      return "SSD1306 128x32";
-    case SSD1306_MODEL_128_64:
-      return "SSD1306 128x64";
-    case SSD1306_MODEL_64_32:
-      return "SSD1306 64x32";
-    case SSD1306_MODEL_96_16:
-      return "SSD1306 96x16";
-    case SSD1306_MODEL_64_48:
-      return "SSD1306 64x48";
-    case SSD1306_MODEL_72_40:
-      return "SSD1306 72x40";
-    case SH1106_MODEL_128_32:
-      return "SH1106 128x32";
-    case SH1106_MODEL_128_64:
-      return "SH1106 128x64";
-    case SH1106_MODEL_96_16:
-      return "SH1106 96x16";
-    case SH1106_MODEL_64_48:
-      return "SH1106 64x48";
-    case SH1107_MODEL_128_64:
-      return "SH1107 128x64";
-    case SSD1305_MODEL_128_32:
-      return "SSD1305 128x32";
-    case SSD1305_MODEL_128_64:
-      return "SSD1305 128x64";
-    default:
-      return "Unknown";
-  }
+const LogString *SSD1306::model_str_() {
+  return ModelStrings::get_log_str(static_cast<uint8_t>(this->model_), ModelStrings::LAST_INDEX);
 }
 
 }  // namespace ssd1306_base

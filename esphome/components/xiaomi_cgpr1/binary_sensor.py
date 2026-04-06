@@ -1,20 +1,21 @@
 import esphome.codegen as cg
+from esphome.components import binary_sensor, esp32_ble_tracker, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, binary_sensor, esp32_ble_tracker
 from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_BINDKEY,
+    CONF_IDLE_TIME,
+    CONF_ILLUMINANCE,
     CONF_MAC_ADDRESS,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_ILLUMINANCE,
     DEVICE_CLASS_MOTION,
     ENTITY_CATEGORY_DIAGNOSTIC,
-    UNIT_PERCENT,
-    CONF_IDLE_TIME,
-    CONF_ILLUMINANCE,
-    UNIT_MINUTE,
-    UNIT_LUX,
     ICON_TIMELAPSE,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_LUX,
+    UNIT_MINUTE,
+    UNIT_PERCENT,
 )
 
 DEPENDENCIES = ["esp32_ble_tracker"]
@@ -38,6 +39,7 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_PERCENT,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_BATTERY,
+                state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
             cv.Optional(CONF_IDLE_TIME): sensor.sensor_schema(
@@ -45,11 +47,13 @@ CONFIG_SCHEMA = cv.All(
                 icon=ICON_TIMELAPSE,
                 accuracy_decimals=0,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_LUX,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_ILLUMINANCE,
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     )

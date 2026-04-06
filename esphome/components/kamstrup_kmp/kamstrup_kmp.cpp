@@ -10,7 +10,7 @@ static const char *const TAG = "kamstrup_kmp";
 void KamstrupKMPComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "kamstrup_kmp:");
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with Kamstrup meter failed!");
+    ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
   }
   LOG_UPDATE_INTERVAL(this);
 
@@ -22,15 +22,13 @@ void KamstrupKMPComponent::dump_config() {
   LOG_SENSOR("  ", "Flow", this->flow_sensor_);
   LOG_SENSOR("  ", "Volume", this->volume_sensor_);
 
-  for (int i = 0; i < this->custom_sensors_.size(); i++) {
+  for (size_t i = 0; i < this->custom_sensors_.size(); i++) {
     LOG_SENSOR("  ", "Custom Sensor", this->custom_sensors_[i]);
     ESP_LOGCONFIG(TAG, "    Command: 0x%04X", this->custom_commands_[i]);
   }
 
   this->check_uart_settings(1200, 2, uart::UART_CONFIG_PARITY_NONE, 8);
 }
-
-float KamstrupKMPComponent::get_setup_priority() const { return setup_priority::DATA; }
 
 void KamstrupKMPComponent::update() {
   if (this->heat_energy_sensor_ != nullptr) {
@@ -112,9 +110,17 @@ void KamstrupKMPComponent::send_message_(const uint8_t *msg, int msg_len) {
 
   for (int i = 0; i < buffer_len; i++) {
     if (buffer[i] == 0x06 || buffer[i] == 0x0d || buffer[i] == 0x1b || buffer[i] == 0x40 || buffer[i] == 0x80) {
+      if (tx_msg_len + 2 >= static_cast<int>(sizeof(tx_msg))) {
+        ESP_LOGE(TAG, "TX message overflow");
+        return;
+      }
       tx_msg[tx_msg_len++] = 0x1b;
       tx_msg[tx_msg_len++] = buffer[i] ^ 0xff;
     } else {
+      if (tx_msg_len + 1 >= static_cast<int>(sizeof(tx_msg))) {
+        ESP_LOGE(TAG, "TX message overflow");
+        return;
+      }
       tx_msg[tx_msg_len++] = buffer[i];
     }
   }
@@ -138,7 +144,7 @@ void KamstrupKMPComponent::read_command_(uint16_t command) {
   int timeout = 250;  // ms
 
   // Read the data from the UART
-  while (timeout > 0) {
+  while (timeout > 0 && buffer_len < static_cast<int>(sizeof(buffer))) {
     if (this->available()) {
       data = this->read();
       if (data > -1) {
@@ -218,17 +224,17 @@ void KamstrupKMPComponent::parse_command_message_(uint16_t command, const uint8_
   uint8_t unit_idx = msg[4];
   uint8_t mantissa_range = msg[5];
 
-  if (mantissa_range > 4) {
-    ESP_LOGE(TAG, "Received invalid message (mantissa size too large %d, expected 4)", mantissa_range);
+  if (mantissa_range > 4 || msg_len < 7 + mantissa_range) {
+    ESP_LOGE(TAG, "Received invalid message (mantissa size %d, msg_len %d)", mantissa_range, msg_len);
     return;
   }
 
   // Calculate exponent
-  float exponent = msg[6] & 0x3F;
+  int8_t exp_val = msg[6] & 0x3F;
   if (msg[6] & 0x40) {
-    exponent = -exponent;
+    exp_val = -exp_val;
   }
-  exponent = powf(10, exponent);
+  float exponent = pow10_int(exp_val);
   if (msg[6] & 0x80) {
     exponent = -exponent;
   }
@@ -248,7 +254,7 @@ void KamstrupKMPComponent::parse_command_message_(uint16_t command, const uint8_
 }
 
 void KamstrupKMPComponent::set_sensor_value_(uint16_t command, float value, uint8_t unit_idx) {
-  const char *unit = UNITS[unit_idx];
+  const char *unit = unit_idx < sizeof(UNITS) / sizeof(UNITS[0]) ? UNITS[unit_idx] : "";
 
   // Standard sensors
   if (command == CMD_HEAT_ENERGY && this->heat_energy_sensor_ != nullptr) {
@@ -268,7 +274,7 @@ void KamstrupKMPComponent::set_sensor_value_(uint16_t command, float value, uint
   }
 
   // Custom sensors
-  for (int i = 0; i < this->custom_commands_.size(); i++) {
+  for (size_t i = 0; i < this->custom_commands_.size(); i++) {
     if (command == this->custom_commands_[i]) {
       this->custom_sensors_[i]->publish_state(value);
     }

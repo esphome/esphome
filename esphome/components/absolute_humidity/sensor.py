@@ -1,12 +1,12 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
+    CONF_EQUATION,
     CONF_HUMIDITY,
     CONF_TEMPERATURE,
+    DEVICE_CLASS_ABSOLUTE_HUMIDITY,
     STATE_CLASS_MEASUREMENT,
-    CONF_EQUATION,
-    ICON_WATER,
     UNIT_GRAMS_PER_CUBIC_METER,
 )
 
@@ -27,8 +27,8 @@ EQUATION = {
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
         unit_of_measurement=UNIT_GRAMS_PER_CUBIC_METER,
-        icon=ICON_WATER,
         accuracy_decimals=2,
+        device_class=DEVICE_CLASS_ABSOLUTE_HUMIDITY,
         state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(

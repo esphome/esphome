@@ -9,133 +9,239 @@
 namespace esphome {
 namespace http_request {
 
+// The update function runs in a task only on ESP32s.
+#ifdef USE_ESP32
+// vTaskDelete doesn't return, but clang-tidy doesn't know that
+#define UPDATE_RETURN \
+  do { \
+    vTaskDelete(nullptr); \
+    __builtin_unreachable(); \
+  } while (0)
+#else
+#define UPDATE_RETURN return
+#endif
+
 static const char *const TAG = "http_request.update";
 
+// Wraps UpdateInfo + error for the task→main-loop handoff.
+struct TaskResult {
+  update::UpdateInfo info;
+  const LogString *error_str{nullptr};
+};
+
 static const size_t MAX_READ_SIZE = 256;
+static constexpr uint32_t INITIAL_CHECK_INTERVAL_ID = 0;
+static constexpr uint32_t INITIAL_CHECK_INTERVAL_MS = 10000;
+static constexpr uint8_t INITIAL_CHECK_MAX_ATTEMPTS = 6;
 
 void HttpRequestUpdate::setup() {
-  this->ota_parent_->add_on_state_callback([this](ota::OTAState state, float progress, uint8_t err) {
-    if (state == ota::OTAState::OTA_IN_PROGRESS) {
-      this->state_ = update::UPDATE_STATE_INSTALLING;
-      this->update_info_.has_progress = true;
-      this->update_info_.progress = progress;
-      this->publish_state();
-    } else if (state == ota::OTAState::OTA_ABORT || state == ota::OTAState::OTA_ERROR) {
-      this->state_ = update::UPDATE_STATE_AVAILABLE;
-      this->status_set_error("Failed to install firmware");
-      this->publish_state();
-    }
-  });
+  this->ota_parent_->add_state_listener(this);
+
+  // Check periodically until network is ready
+  // Only if update interval is > total retry window to avoid redundant checks
+  if (this->get_update_interval() != SCHEDULER_DONT_RUN &&
+      this->get_update_interval() > INITIAL_CHECK_INTERVAL_MS * INITIAL_CHECK_MAX_ATTEMPTS) {
+    this->initial_check_remaining_ = INITIAL_CHECK_MAX_ATTEMPTS;
+    this->set_interval(INITIAL_CHECK_INTERVAL_ID, INITIAL_CHECK_INTERVAL_MS, [this]() {
+      bool connected = network::is_connected();
+      if (--this->initial_check_remaining_ == 0 || connected) {
+        this->cancel_interval(INITIAL_CHECK_INTERVAL_ID);
+        if (connected) {
+          this->update();
+        }
+      }
+    });
+  }
+}
+
+void HttpRequestUpdate::on_ota_state(ota::OTAState state, float progress, uint8_t error) {
+  if (state == ota::OTAState::OTA_IN_PROGRESS) {
+    this->state_ = update::UPDATE_STATE_INSTALLING;
+    this->update_info_.has_progress = true;
+    this->update_info_.progress = progress;
+    this->publish_state();
+  } else if (state == ota::OTAState::OTA_ABORT || state == ota::OTAState::OTA_ERROR) {
+    this->state_ = update::UPDATE_STATE_AVAILABLE;
+    this->status_set_error(LOG_STR("Failed to install firmware"));
+    this->publish_state();
+  }
 }
 
 void HttpRequestUpdate::update() {
-  auto container = this->request_parent_->get(this->source_url_);
-
-  if (container == nullptr) {
-    std::string msg = str_sprintf("Failed to fetch manifest from %s", this->source_url_.c_str());
-    this->status_set_error(msg.c_str());
+  if (!network::is_connected()) {
+    ESP_LOGD(TAG, "Network not connected, skipping update check");
     return;
   }
+  this->cancel_interval(INITIAL_CHECK_INTERVAL_ID);
+#ifdef USE_ESP32
+  if (this->update_task_handle_ != nullptr) {
+    ESP_LOGW(TAG, "Update check already in progress");
+    return;
+  }
+  xTaskCreate(HttpRequestUpdate::update_task, "update_task", 8192, (void *) this, 1, &this->update_task_handle_);
+#else
+  this->update_task(this);
+#endif
+}
 
-  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
-  uint8_t *data = allocator.allocate(container->content_length);
-  if (data == nullptr) {
-    std::string msg = str_sprintf("Failed to allocate %d bytes for manifest", container->content_length);
-    this->status_set_error(msg.c_str());
+void HttpRequestUpdate::update_task(void *params) {
+  HttpRequestUpdate *this_update = (HttpRequestUpdate *) params;
+
+  // Allocate once — every path below returns via the single defer at the end.
+  // On failure, error_str is set; on success it is nullptr.
+  auto *result = new TaskResult();
+  auto *info = &result->info;
+
+  auto container = this_update->request_parent_->get(this_update->source_url_);
+
+  if (container == nullptr || container->status_code != HTTP_STATUS_OK) {
+    ESP_LOGE(TAG, "Failed to fetch manifest from %s", this_update->source_url_.c_str());
+    if (container != nullptr)
+      container->end();
+    result->error_str = LOG_STR("Failed to fetch manifest");
+    goto defer;  // NOLINT(cppcoreguidelines-avoid-goto)
+  }
+
+  {
+    RAMAllocator<uint8_t> allocator;
+    uint8_t *data = allocator.allocate(container->content_length);
+    if (data == nullptr) {
+      ESP_LOGE(TAG, "Failed to allocate %zu bytes for manifest", container->content_length);
+      container->end();
+      result->error_str = LOG_STR("Failed to allocate memory for manifest");
+      goto defer;  // NOLINT(cppcoreguidelines-avoid-goto)
+    }
+
+    auto read_result = http_read_fully(container.get(), data, container->content_length, MAX_READ_SIZE,
+                                       this_update->request_parent_->get_timeout());
+    if (read_result.status != HttpReadStatus::OK) {
+      if (read_result.status == HttpReadStatus::TIMEOUT) {
+        ESP_LOGE(TAG, "Timeout reading manifest");
+      } else {
+        ESP_LOGE(TAG, "Error reading manifest: %d", read_result.error_code);
+      }
+      allocator.deallocate(data, container->content_length);
+      container->end();
+      result->error_str = LOG_STR("Failed to read manifest");
+      goto defer;  // NOLINT(cppcoreguidelines-avoid-goto)
+    }
+    size_t read_index = container->get_bytes_read();
+    size_t content_length = container->content_length;
+
     container->end();
-    return;
-  }
+    container.reset();  // Release ownership of the container's shared_ptr
 
-  size_t read_index = 0;
-  while (container->get_bytes_read() < container->content_length) {
-    int read_bytes = container->read(data + read_index, MAX_READ_SIZE);
+    bool valid = false;
+    {  // Scope to ensure JsonDocument is destroyed before deallocating buffer
+      valid = json::parse_json(data, read_index, [info](JsonObject root) -> bool {
+        if (!root[ESPHOME_F("name")].is<const char *>() || !root[ESPHOME_F("version")].is<const char *>() ||
+            !root[ESPHOME_F("builds")].is<JsonArray>()) {
+          ESP_LOGE(TAG, "Manifest does not contain required fields");
+          return false;
+        }
+        info->title = root[ESPHOME_F("name")].as<std::string>();
+        info->latest_version = root[ESPHOME_F("version")].as<std::string>();
 
-    App.feed_wdt();
-    yield();
+        auto builds_array = root[ESPHOME_F("builds")].as<JsonArray>();
+        for (auto build : builds_array) {
+          if (!build[ESPHOME_F("chipFamily")].is<const char *>()) {
+            ESP_LOGE(TAG, "Manifest does not contain required fields");
+            return false;
+          }
+          if (build[ESPHOME_F("chipFamily")] == ESPHOME_VARIANT) {
+            if (!build[ESPHOME_F("ota")].is<JsonObject>()) {
+              ESP_LOGE(TAG, "Manifest does not contain required fields");
+              return false;
+            }
+            JsonObject ota = build[ESPHOME_F("ota")].as<JsonObject>();
+            if (!ota[ESPHOME_F("path")].is<const char *>() || !ota[ESPHOME_F("md5")].is<const char *>()) {
+              ESP_LOGE(TAG, "Manifest does not contain required fields");
+              return false;
+            }
+            info->firmware_url = ota[ESPHOME_F("path")].as<std::string>();
+            info->md5 = ota[ESPHOME_F("md5")].as<std::string>();
 
-    read_index += read_bytes;
-  }
+            if (ota[ESPHOME_F("summary")].is<const char *>())
+              info->summary = ota[ESPHOME_F("summary")].as<std::string>();
+            if (ota[ESPHOME_F("release_url")].is<const char *>())
+              info->release_url = ota[ESPHOME_F("release_url")].as<std::string>();
 
-  std::string response((char *) data, read_index);
-  allocator.deallocate(data, container->content_length);
-
-  container->end();
-
-  bool valid = json::parse_json(response, [this](JsonObject root) -> bool {
-    if (!root.containsKey("name") || !root.containsKey("version") || !root.containsKey("builds")) {
-      ESP_LOGE(TAG, "Manifest does not contain required fields");
-      return false;
-    }
-    this->update_info_.title = root["name"].as<std::string>();
-    this->update_info_.latest_version = root["version"].as<std::string>();
-
-    for (auto build : root["builds"].as<JsonArray>()) {
-      if (!build.containsKey("chipFamily")) {
-        ESP_LOGE(TAG, "Manifest does not contain required fields");
+            return true;
+          }
+        }
         return false;
-      }
-      if (build["chipFamily"] == ESPHOME_VARIANT) {
-        if (!build.containsKey("ota")) {
-          ESP_LOGE(TAG, "Manifest does not contain required fields");
-          return false;
-        }
-        auto ota = build["ota"];
-        if (!ota.containsKey("path") || !ota.containsKey("md5")) {
-          ESP_LOGE(TAG, "Manifest does not contain required fields");
-          return false;
-        }
-        this->update_info_.firmware_url = ota["path"].as<std::string>();
-        this->update_info_.md5 = ota["md5"].as<std::string>();
+      });
+    }
+    allocator.deallocate(data, content_length);
 
-        if (ota.containsKey("summary"))
-          this->update_info_.summary = ota["summary"].as<std::string>();
-        if (ota.containsKey("release_url"))
-          this->update_info_.release_url = ota["release_url"].as<std::string>();
+    if (!valid) {
+      ESP_LOGE(TAG, "Failed to parse JSON from %s", this_update->source_url_.c_str());
+      result->error_str = LOG_STR("Failed to parse manifest JSON");
+      goto defer;  // NOLINT(cppcoreguidelines-avoid-goto)
+    }
 
-        return true;
+    // Merge source_url_ and firmware_url
+    if (!info->firmware_url.empty() && info->firmware_url.find("http") == std::string::npos) {
+      std::string path = info->firmware_url;
+      if (path[0] == '/') {
+        std::string domain = this_update->source_url_.substr(0, this_update->source_url_.find('/', 8));
+        info->firmware_url = domain + path;
+      } else {
+        std::string domain = this_update->source_url_.substr(0, this_update->source_url_.rfind('/') + 1);
+        info->firmware_url = domain + path;
       }
     }
-    return false;
+
+#ifdef ESPHOME_PROJECT_VERSION
+    info->current_version = ESPHOME_PROJECT_VERSION;
+#else
+    info->current_version = ESPHOME_VERSION;
+#endif
+  }
+
+defer:
+  // Release container before vTaskDelete (which doesn't call destructors)
+  container.reset();
+
+  // Defer to the main loop so all update_info_ and state_ writes happen on the
+  // same thread as readers (API, MQTT, web server). This is a single defer for
+  // both success and error paths to avoid multiple std::function instantiations.
+  // Lambda captures only 2 pointers (8 bytes) — fits in std::function SBO on supported toolchains.
+  this_update->defer([this_update, result]() {
+#ifdef USE_ESP32
+    this_update->update_task_handle_ = nullptr;
+#endif
+    if (result->error_str != nullptr) {
+      this_update->status_set_error(result->error_str);
+      delete result;
+      return;
+    }
+
+    // Determine new state on main loop (avoids extra lambda captures from task)
+    bool trigger_update_available = false;
+    update::UpdateState new_state;
+    if (result->info.latest_version.empty() || result->info.latest_version == result->info.current_version) {
+      new_state = update::UPDATE_STATE_NO_UPDATE;
+    } else {
+      new_state = update::UPDATE_STATE_AVAILABLE;
+      if (this_update->state_ != update::UPDATE_STATE_AVAILABLE) {
+        trigger_update_available = true;
+      }
+    }
+
+    this_update->update_info_ = std::move(result->info);
+    this_update->state_ = new_state;
+    delete result;  // Safe: moved-from state is valid for destruction
+
+    this_update->status_clear_error();
+    this_update->publish_state();
+
+    if (trigger_update_available) {
+      this_update->get_update_available_trigger()->trigger(this_update->update_info_);
+    }
   });
 
-  if (!valid) {
-    std::string msg = str_sprintf("Failed to parse JSON from %s", this->source_url_.c_str());
-    this->status_set_error(msg.c_str());
-    return;
-  }
-
-  // Merge source_url_ and this->update_info_.firmware_url
-  if (this->update_info_.firmware_url.find("http") == std::string::npos) {
-    std::string path = this->update_info_.firmware_url;
-    if (path[0] == '/') {
-      std::string domain = this->source_url_.substr(0, this->source_url_.find('/', 8));
-      this->update_info_.firmware_url = domain + path;
-    } else {
-      std::string domain = this->source_url_.substr(0, this->source_url_.rfind('/') + 1);
-      this->update_info_.firmware_url = domain + path;
-    }
-  }
-
-  std::string current_version;
-#ifdef ESPHOME_PROJECT_VERSION
-  current_version = ESPHOME_PROJECT_VERSION;
-#else
-  current_version = ESPHOME_VERSION;
-#endif
-
-  this->update_info_.current_version = current_version;
-
-  if (this->update_info_.latest_version.empty() || this->update_info_.latest_version == update_info_.current_version) {
-    this->state_ = update::UPDATE_STATE_NO_UPDATE;
-  } else {
-    this->state_ = update::UPDATE_STATE_AVAILABLE;
-  }
-
-  this->update_info_.has_progress = false;
-  this->update_info_.progress = 0.0f;
-
-  this->status_clear_error();
-  this->publish_state();
+  UPDATE_RETURN;
 }
 
 void HttpRequestUpdate::perform(bool force) {

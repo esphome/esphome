@@ -1,0 +1,5 @@
+sensor:
+  - platform: cm1106
+    co2:
+      name: CM1106 CO2 Value
+    update_interval: 15s

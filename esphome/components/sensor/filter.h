@@ -1,13 +1,16 @@
 #pragma once
 
-#include <queue>
+#include "esphome/core/defines.h"
+#ifdef USE_SENSOR_FILTER
+
+#include <array>
 #include <utility>
 #include <vector>
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-namespace esphome {
-namespace sensor {
+namespace esphome::sensor {
 
 class Sensor;
 
@@ -43,11 +46,70 @@ class Filter {
   Sensor *parent_{nullptr};
 };
 
+/** Base class for filters that use a sliding window of values.
+ *
+ * Uses a ring buffer to efficiently maintain a fixed-size sliding window without
+ * reallocations or pop_front() overhead. Eliminates deque fragmentation issues.
+ */
+class SlidingWindowFilter : public Filter {
+ public:
+  SlidingWindowFilter(uint16_t window_size, uint16_t send_every, uint16_t send_first_at);
+
+  optional<float> new_value(float value) final;
+
+ protected:
+  /// Called by new_value() to compute the filtered result from the current window
+  virtual float compute_result() = 0;
+
+  /// Sliding window ring buffer - automatically overwrites oldest values when full
+  FixedRingBuffer<float> window_;
+  uint16_t send_every_;  ///< Send result every N values
+  uint16_t send_at_;     ///< Counter for send_every
+};
+
+/** Base class for Min/Max filters.
+ *
+ * Provides a templated helper to find extremum values efficiently.
+ */
+class MinMaxFilter : public SlidingWindowFilter {
+ public:
+  using SlidingWindowFilter::SlidingWindowFilter;
+
+ protected:
+  /// Helper to find min or max value in window, skipping NaN values
+  /// Usage: find_extremum_<std::less<float>>() for min, find_extremum_<std::greater<float>>() for max
+  template<typename Compare> float find_extremum_() {
+    float result = NAN;
+    Compare comp;
+    for (float v : this->window_) {
+      if (!std::isnan(v)) {
+        result = std::isnan(result) ? v : (comp(v, result) ? v : result);
+      }
+    }
+    return result;
+  }
+};
+
+/** Base class for filters that need a sorted window (Median, Quantile).
+ *
+ * Extends SlidingWindowFilter to provide a helper that filters out NaN values.
+ * Derived classes use std::nth_element for efficient partial sorting.
+ */
+class SortedWindowFilter : public SlidingWindowFilter {
+ public:
+  using SlidingWindowFilter::SlidingWindowFilter;
+
+ protected:
+  /// Helper to get non-NaN values from the window (not sorted - caller will use nth_element)
+  /// Returns empty FixedVector if all values are NaN
+  FixedVector<float> get_window_values_();
+};
+
 /** Simple quantile filter.
  *
- * Takes the quantile of the last <send_every> values and pushes it out every <send_every>.
+ * Takes the quantile of the last <window_size> values and pushes it out every <send_every>.
  */
-class QuantileFilter : public Filter {
+class QuantileFilter : public SortedWindowFilter {
  public:
   /** Construct a QuantileFilter.
    *
@@ -60,25 +122,18 @@ class QuantileFilter : public Filter {
    */
   explicit QuantileFilter(size_t window_size, size_t send_every, size_t send_first_at, float quantile);
 
-  optional<float> new_value(float value) override;
-
-  void set_send_every(size_t send_every);
-  void set_window_size(size_t window_size);
-  void set_quantile(float quantile);
+  void set_quantile(float quantile) { this->quantile_ = quantile; }
 
  protected:
-  std::deque<float> queue_;
-  size_t send_every_;
-  size_t send_at_;
-  size_t window_size_;
+  float compute_result() override;
   float quantile_;
 };
 
 /** Simple median filter.
  *
- * Takes the median of the last <send_every> values and pushes it out every <send_every>.
+ * Takes the median of the last <window_size> values and pushes it out every <send_every>.
  */
-class MedianFilter : public Filter {
+class MedianFilter : public SortedWindowFilter {
  public:
   /** Construct a MedianFilter.
    *
@@ -88,18 +143,10 @@ class MedianFilter : public Filter {
    *   on startup being published on the first *raw* value, so with no filter applied. Must be less than or equal to
    *   send_every.
    */
-  explicit MedianFilter(size_t window_size, size_t send_every, size_t send_first_at);
-
-  optional<float> new_value(float value) override;
-
-  void set_send_every(size_t send_every);
-  void set_window_size(size_t window_size);
+  using SortedWindowFilter::SortedWindowFilter;
 
  protected:
-  std::deque<float> queue_;
-  size_t send_every_;
-  size_t send_at_;
-  size_t window_size_;
+  float compute_result() override;
 };
 
 /** Simple skip filter.
@@ -122,9 +169,9 @@ class SkipInitialFilter : public Filter {
 
 /** Simple min filter.
  *
- * Takes the min of the last <send_every> values and pushes it out every <send_every>.
+ * Takes the min of the last <window_size> values and pushes it out every <send_every>.
  */
-class MinFilter : public Filter {
+class MinFilter : public MinMaxFilter {
  public:
   /** Construct a MinFilter.
    *
@@ -134,25 +181,17 @@ class MinFilter : public Filter {
    *   on startup being published on the first *raw* value, so with no filter applied. Must be less than or equal to
    *   send_every.
    */
-  explicit MinFilter(size_t window_size, size_t send_every, size_t send_first_at);
-
-  optional<float> new_value(float value) override;
-
-  void set_send_every(size_t send_every);
-  void set_window_size(size_t window_size);
+  using MinMaxFilter::MinMaxFilter;
 
  protected:
-  std::deque<float> queue_;
-  size_t send_every_;
-  size_t send_at_;
-  size_t window_size_;
+  float compute_result() override;
 };
 
 /** Simple max filter.
  *
- * Takes the max of the last <send_every> values and pushes it out every <send_every>.
+ * Takes the max of the last <window_size> values and pushes it out every <send_every>.
  */
-class MaxFilter : public Filter {
+class MaxFilter : public MinMaxFilter {
  public:
   /** Construct a MaxFilter.
    *
@@ -162,18 +201,10 @@ class MaxFilter : public Filter {
    *   on startup being published on the first *raw* value, so with no filter applied. Must be less than or equal to
    *   send_every.
    */
-  explicit MaxFilter(size_t window_size, size_t send_every, size_t send_first_at);
-
-  optional<float> new_value(float value) override;
-
-  void set_send_every(size_t send_every);
-  void set_window_size(size_t window_size);
+  using MinMaxFilter::MinMaxFilter;
 
  protected:
-  std::deque<float> queue_;
-  size_t send_every_;
-  size_t send_at_;
-  size_t window_size_;
+  float compute_result() override;
 };
 
 /** Simple sliding window moving average filter.
@@ -181,7 +212,7 @@ class MaxFilter : public Filter {
  * Essentially just takes takes the average of the last window_size values and pushes them out
  * every send_every.
  */
-class SlidingWindowMovingAverageFilter : public Filter {
+class SlidingWindowMovingAverageFilter : public SlidingWindowFilter {
  public:
   /** Construct a SlidingWindowMovingAverageFilter.
    *
@@ -191,18 +222,10 @@ class SlidingWindowMovingAverageFilter : public Filter {
    *   on startup being published on the first *raw* value, so with no filter applied. Must be less than or equal to
    *   send_every.
    */
-  explicit SlidingWindowMovingAverageFilter(size_t window_size, size_t send_every, size_t send_first_at);
-
-  optional<float> new_value(float value) override;
-
-  void set_send_every(size_t send_every);
-  void set_window_size(size_t window_size);
+  using SlidingWindowFilter::SlidingWindowFilter;
 
  protected:
-  std::deque<float> queue_;
-  size_t send_every_;
-  size_t send_at_;
-  size_t window_size_;
+  float compute_result() override;
 };
 
 /** Simple exponential moving average filter.
@@ -212,19 +235,19 @@ class SlidingWindowMovingAverageFilter : public Filter {
  */
 class ExponentialMovingAverageFilter : public Filter {
  public:
-  ExponentialMovingAverageFilter(float alpha, size_t send_every, size_t send_first_at);
+  ExponentialMovingAverageFilter(float alpha, uint16_t send_every, uint16_t send_first_at);
 
   optional<float> new_value(float value) override;
 
-  void set_send_every(size_t send_every);
+  void set_send_every(uint16_t send_every);
   void set_alpha(float alpha);
 
  protected:
-  bool first_value_{true};
   float accumulator_{NAN};
-  size_t send_every_;
-  size_t send_at_;
   float alpha_;
+  uint16_t send_every_;
+  uint16_t send_at_;
+  bool first_value_{true};
 };
 
 /** Simple throttle average filter.
@@ -242,9 +265,9 @@ class ThrottleAverageFilter : public Filter, public Component {
   float get_setup_priority() const override;
 
  protected:
-  uint32_t time_period_;
   float sum_{0.0f};
   unsigned int n_{0};
+  uint32_t time_period_;
   bool have_nan_{false};
 };
 
@@ -270,37 +293,78 @@ class LambdaFilter : public Filter {
   lambda_filter_t lambda_filter_;
 };
 
+/** Optimized lambda filter for stateless lambdas (no capture).
+ *
+ * Uses function pointer instead of std::function to reduce memory overhead.
+ * Memory: 4 bytes (function pointer on 32-bit) vs 32 bytes (std::function).
+ */
+class StatelessLambdaFilter : public Filter {
+ public:
+  explicit StatelessLambdaFilter(optional<float> (*lambda_filter)(float)) : lambda_filter_(lambda_filter) {}
+
+  optional<float> new_value(float value) override { return this->lambda_filter_(value); }
+
+ protected:
+  optional<float> (*lambda_filter_)(float);
+};
+
 /// A simple filter that adds `offset` to each value it receives.
 class OffsetFilter : public Filter {
  public:
-  explicit OffsetFilter(float offset);
+  explicit OffsetFilter(TemplatableValue<float> offset);
 
   optional<float> new_value(float value) override;
 
  protected:
-  float offset_;
+  TemplatableValue<float> offset_;
 };
 
 /// A simple filter that multiplies to each value it receives by `multiplier`.
 class MultiplyFilter : public Filter {
  public:
-  explicit MultiplyFilter(float multiplier);
-
+  explicit MultiplyFilter(TemplatableValue<float> multiplier);
   optional<float> new_value(float value) override;
 
  protected:
-  float multiplier_;
+  TemplatableValue<float> multiplier_;
+};
+
+/// Non-template helper for value matching (implementation in filter.cpp)
+bool value_list_matches_any(Sensor *parent, float sensor_value, const TemplatableValue<float> *values, size_t count);
+
+/** Base class for filters that compare sensor values against a fixed list of configured values.
+ *
+ * Templated on N (the number of values) so the list is stored inline in a std::array,
+ * avoiding heap allocation and the overhead of FixedVector.
+ *
+ * @tparam N Number of values in the filter list, set by code generation to match
+ *           the exact number of values configured in YAML.
+ */
+template<size_t N> class ValueListFilter : public Filter {
+ protected:
+  explicit ValueListFilter(std::initializer_list<TemplatableValue<float>> values) {
+    init_array_from(this->values_, values);
+  }
+
+  /// Check if sensor value matches any configured value (with accuracy rounding)
+  bool value_matches_any_(float sensor_value) {
+    return value_list_matches_any(this->parent_, sensor_value, this->values_.data(), N);
+  }
+
+  std::array<TemplatableValue<float>, N> values_{};
 };
 
 /// A simple filter that only forwards the filter chain if it doesn't receive `value_to_filter_out`.
-class FilterOutValueFilter : public Filter {
+template<size_t N> class FilterOutValueFilter : public ValueListFilter<N> {
  public:
-  explicit FilterOutValueFilter(float value_to_filter_out);
+  explicit FilterOutValueFilter(std::initializer_list<TemplatableValue<float>> values_to_filter_out)
+      : ValueListFilter<N>(values_to_filter_out) {}
 
-  optional<float> new_value(float value) override;
-
- protected:
-  float value_to_filter_out_;
+  optional<float> new_value(float value) override {
+    if (this->value_matches_any_(value))
+      return {};   // Filter out
+    return value;  // Pass through
+  }
 };
 
 class ThrottleFilter : public Filter {
@@ -314,18 +378,67 @@ class ThrottleFilter : public Filter {
   uint32_t min_time_between_inputs_;
 };
 
-class TimeoutFilter : public Filter, public Component {
+/// Non-template helper for ThrottleWithPriorityFilter (implementation in filter.cpp)
+optional<float> throttle_with_priority_new_value(Sensor *parent, float value, const TemplatableValue<float> *values,
+                                                 size_t count, uint32_t &last_input, uint32_t min_time_between_inputs);
+
+/// Same as 'throttle' but will immediately publish values contained in `value_to_prioritize`.
+template<size_t N> class ThrottleWithPriorityFilter : public ValueListFilter<N> {
  public:
-  explicit TimeoutFilter(uint32_t time_period, float new_value);
-  void set_value(float new_value) { this->value_ = new_value; }
+  explicit ThrottleWithPriorityFilter(uint32_t min_time_between_inputs,
+                                      std::initializer_list<TemplatableValue<float>> prioritized_values)
+      : ValueListFilter<N>(prioritized_values), min_time_between_inputs_(min_time_between_inputs) {}
 
-  optional<float> new_value(float value) override;
+  optional<float> new_value(float value) override {
+    return throttle_with_priority_new_value(this->parent_, value, this->values_.data(), N, this->last_input_,
+                                            this->min_time_between_inputs_);
+  }
 
+ protected:
+  uint32_t last_input_{0};
+  uint32_t min_time_between_inputs_;
+};
+
+// Base class for timeout filters - contains common loop logic
+class TimeoutFilterBase : public Filter, public Component {
+ public:
+  void loop() override;
   float get_setup_priority() const override;
 
  protected:
-  uint32_t time_period_;
-  float value_;
+  explicit TimeoutFilterBase(uint32_t time_period) : time_period_(time_period) { this->disable_loop(); }
+  virtual float get_output_value() = 0;
+
+  uint32_t time_period_;            // 4 bytes (timeout duration in ms)
+  uint32_t timeout_start_time_{0};  // 4 bytes (when the timeout was started)
+  // Total base: 8 bytes
+};
+
+// Timeout filter for "last" mode - outputs the last received value after timeout
+class TimeoutFilterLast : public TimeoutFilterBase {
+ public:
+  explicit TimeoutFilterLast(uint32_t time_period) : TimeoutFilterBase(time_period) {}
+
+  optional<float> new_value(float value) override;
+
+ protected:
+  float get_output_value() override { return this->pending_value_; }
+  float pending_value_{0};  // 4 bytes (value to output when timeout fires)
+  // Total: 8 (base) + 4 = 12 bytes + vtable ptr + Component overhead
+};
+
+// Timeout filter with configured value - evaluates TemplatableValue after timeout
+class TimeoutFilterConfigured : public TimeoutFilterBase {
+ public:
+  explicit TimeoutFilterConfigured(uint32_t time_period, const TemplatableValue<float> &new_value)
+      : TimeoutFilterBase(time_period), value_(new_value) {}
+
+  optional<float> new_value(float value) override;
+
+ protected:
+  float get_output_value() override { return this->value_.value(); }
+  TemplatableValue<float> value_;  // 16 bytes (configured output value, can be lambda)
+  // Total: 8 (base) + 16 = 24 bytes + vtable ptr + Component overhead
 };
 
 class DebounceFilter : public Filter, public Component {
@@ -345,70 +458,108 @@ class HeartbeatFilter : public Filter, public Component {
   explicit HeartbeatFilter(uint32_t time_period);
 
   void setup() override;
-
   optional<float> new_value(float value) override;
-
   float get_setup_priority() const override;
+
+  void set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
 
  protected:
   uint32_t time_period_;
   float last_input_;
   bool has_value_{false};
+  bool optimistic_{false};
 };
 
 class DeltaFilter : public Filter {
  public:
-  explicit DeltaFilter(float delta, bool percentage_mode);
+  explicit DeltaFilter(float min_a0, float min_a1, float max_a0, float max_a1);
+
+  void set_baseline(float (*fn)(float));
 
   optional<float> new_value(float value) override;
 
  protected:
-  float delta_;
-  float current_delta_;
-  bool percentage_mode_;
+  // These values represent linear equations for the min and max values but in practice only one of a0 and a1 will be
+  // non-zero Each limit is calculated as fabs(a0 + value * a1)
+
+  float min_a0_, min_a1_, max_a0_, max_a1_;
+  // default baseline is the previous value
+  float (*baseline_)(float) = [](float last_value) { return last_value; };
+
   float last_value_{NAN};
 };
 
-class OrFilter : public Filter {
+/// Non-template helpers for OrFilter (implementation in filter.cpp)
+void or_filter_initialize(Filter **filters, size_t count, Sensor *parent, Filter *phi);
+optional<float> or_filter_new_value(Filter **filters, size_t count, float value, bool &has_value);
+
+/// N is set by code generation to match the exact number of filters configured in YAML.
+template<size_t N> class OrFilter : public Filter {
  public:
-  explicit OrFilter(std::vector<Filter *> filters);
+  explicit OrFilter(std::initializer_list<Filter *> filters) { init_array_from(this->filters_, filters); }
 
-  void initialize(Sensor *parent, Filter *next) override;
+  void initialize(Sensor *parent, Filter *next) override {
+    Filter::initialize(parent, next);
+    or_filter_initialize(this->filters_.data(), N, parent, &this->phi_);
+  }
 
-  optional<float> new_value(float value) override;
+  optional<float> new_value(float value) override {
+    return or_filter_new_value(this->filters_.data(), N, value, this->has_value_);
+  }
 
  protected:
   class PhiNode : public Filter {
    public:
-    PhiNode(OrFilter *or_parent);
-    optional<float> new_value(float value) override;
+    PhiNode(OrFilter *or_parent) : or_parent_(or_parent) {}
+    optional<float> new_value(float value) override {
+      if (!this->or_parent_->has_value_) {
+        this->or_parent_->output(value);
+        this->or_parent_->has_value_ = true;
+      }
+      return {};
+    }
 
    protected:
     OrFilter *or_parent_;
   };
 
-  std::vector<Filter *> filters_;
+  std::array<Filter *, N> filters_{};
+  PhiNode phi_{this};
   bool has_value_{false};
-  PhiNode phi_;
 };
 
-class CalibrateLinearFilter : public Filter {
+/// Non-template helper for linear calibration (implementation in filter.cpp)
+optional<float> calibrate_linear_compute(const std::array<float, 3> *functions, size_t count, float value);
+
+/// N is set by code generation to match the exact number of calibration segments.
+template<size_t N> class CalibrateLinearFilter : public Filter {
  public:
-  CalibrateLinearFilter(std::vector<std::array<float, 3>> linear_functions)
-      : linear_functions_(std::move(linear_functions)) {}
-  optional<float> new_value(float value) override;
+  explicit CalibrateLinearFilter(std::initializer_list<std::array<float, 3>> linear_functions) {
+    init_array_from(this->linear_functions_, linear_functions);
+  }
+  optional<float> new_value(float value) override {
+    return calibrate_linear_compute(this->linear_functions_.data(), N, value);
+  }
 
  protected:
-  std::vector<std::array<float, 3>> linear_functions_;
+  std::array<std::array<float, 3>, N> linear_functions_{};
 };
 
-class CalibratePolynomialFilter : public Filter {
+/// Non-template helper for polynomial calibration (implementation in filter.cpp)
+optional<float> calibrate_polynomial_compute(const float *coefficients, size_t count, float value);
+
+/// N is set by code generation to match the exact number of polynomial coefficients.
+template<size_t N> class CalibratePolynomialFilter : public Filter {
  public:
-  CalibratePolynomialFilter(std::vector<float> coefficients) : coefficients_(std::move(coefficients)) {}
-  optional<float> new_value(float value) override;
+  explicit CalibratePolynomialFilter(std::initializer_list<float> coefficients) {
+    init_array_from(this->coefficients_, coefficients);
+  }
+  optional<float> new_value(float value) override {
+    return calibrate_polynomial_compute(this->coefficients_.data(), N, value);
+  }
 
  protected:
-  std::vector<float> coefficients_;
+  std::array<float, N> coefficients_{};
 };
 
 class ClampFilter : public Filter {
@@ -440,5 +591,104 @@ class RoundMultipleFilter : public Filter {
   float multiple_;
 };
 
-}  // namespace sensor
-}  // namespace esphome
+class ToNTCResistanceFilter : public Filter {
+ public:
+  ToNTCResistanceFilter(double a, double b, double c) : a_(a), b_(b), c_(c) {}
+  optional<float> new_value(float value) override;
+
+ protected:
+  double a_;
+  double b_;
+  double c_;
+};
+
+class ToNTCTemperatureFilter : public Filter {
+ public:
+  ToNTCTemperatureFilter(double a, double b, double c) : a_(a), b_(b), c_(c) {}
+  optional<float> new_value(float value) override;
+
+ protected:
+  double a_;
+  double b_;
+  double c_;
+};
+
+/** Base class for streaming filters (batch windows where window_size == send_every).
+ *
+ * When window_size equals send_every, we don't need a sliding window.
+ * This base class handles the common batching logic.
+ */
+class StreamingFilter : public Filter {
+ public:
+  StreamingFilter(uint16_t window_size, uint16_t send_first_at);
+
+  optional<float> new_value(float value) final;
+
+ protected:
+  /// Called by new_value() to process each value in the batch
+  virtual void process_value(float value) = 0;
+
+  /// Called by new_value() to compute the result after collecting window_size values
+  virtual float compute_batch_result() = 0;
+
+  /// Called by new_value() to reset internal state after sending a result
+  virtual void reset_batch() = 0;
+
+  uint16_t window_size_;
+  uint16_t count_{0};
+  uint16_t send_first_at_;
+  bool first_send_{true};
+};
+
+/** Streaming min filter for batch windows (window_size == send_every).
+ *
+ * Uses O(1) memory instead of O(n) by tracking only the minimum value.
+ */
+class StreamingMinFilter : public StreamingFilter {
+ public:
+  using StreamingFilter::StreamingFilter;
+
+ protected:
+  void process_value(float value) override;
+  float compute_batch_result() override;
+  void reset_batch() override;
+
+  float current_min_{NAN};
+};
+
+/** Streaming max filter for batch windows (window_size == send_every).
+ *
+ * Uses O(1) memory instead of O(n) by tracking only the maximum value.
+ */
+class StreamingMaxFilter : public StreamingFilter {
+ public:
+  using StreamingFilter::StreamingFilter;
+
+ protected:
+  void process_value(float value) override;
+  float compute_batch_result() override;
+  void reset_batch() override;
+
+  float current_max_{NAN};
+};
+
+/** Streaming moving average filter for batch windows (window_size == send_every).
+ *
+ * Uses O(1) memory instead of O(n) by tracking only sum and count.
+ */
+class StreamingMovingAverageFilter : public StreamingFilter {
+ public:
+  using StreamingFilter::StreamingFilter;
+
+ protected:
+  void process_value(float value) override;
+  float compute_batch_result() override;
+  void reset_batch() override;
+
+  float sum_{0.0f};
+  size_t valid_count_{0};
+};
+
+}  // namespace esphome::sensor
+
+#endif  // USE_SENSOR_FILTER

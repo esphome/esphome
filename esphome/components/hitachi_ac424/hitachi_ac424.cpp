@@ -133,8 +133,10 @@ bool HitachiClimate::get_swing_v_() {
 }
 
 void HitachiClimate::set_swing_h_(uint8_t position) {
-  if (position > HITACHI_AC424_SWINGH_LEFT_MAX)
-    return set_swing_h_(HITACHI_AC424_SWINGH_MIDDLE);
+  if (position > HITACHI_AC424_SWINGH_LEFT_MAX) {
+    set_swing_h_(HITACHI_AC424_SWINGH_MIDDLE);
+    return;
+  }
   set_bits(&remote_state_[HITACHI_AC424_SWINGH_BYTE], HITACHI_AC424_SWINGH_OFFSET, HITACHI_AC424_SWINGH_SIZE, position);
   set_button_(HITACHI_AC424_BUTTON_SWINGH);
 }
@@ -174,7 +176,7 @@ void HitachiClimate::transmit_state() {
 
   set_temp_(static_cast<uint8_t>(this->target_temperature));
 
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_LOW:
       set_fan_(HITACHI_AC424_FAN_LOW);
       break;

@@ -1,9 +1,4 @@
-sensor:
-  - platform: adc
-    id: my_sensor
-    pin: A0
-    attenuation: 2.5db
-  - platform: integration
-    sensor: my_sensor
-    name: Integration Sensor
-    time_unit: s
+substitutions:
+  pin: A0
+
+<<: !include common-esp32.yaml

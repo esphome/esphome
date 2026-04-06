@@ -1,21 +1,22 @@
 import esphome.codegen as cg
+from esphome.components import airthings_wave_base, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, airthings_wave_base
-
 from esphome.const import (
-    DEVICE_CLASS_CARBON_DIOXIDE,
-    STATE_CLASS_MEASUREMENT,
-    ICON_RADIOACTIVE,
+    CONF_CO2,
     CONF_ID,
+    CONF_ILLUMINANCE,
     CONF_RADON,
     CONF_RADON_LONG_TERM,
-    CONF_CO2,
-    UNIT_BECQUEREL_PER_CUBIC_METER,
-    UNIT_PARTS_PER_MILLION,
-    CONF_ILLUMINANCE,
-    UNIT_LUX,
+    CONF_TVOC,
+    DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_ILLUMINANCE,
+    ICON_RADIOACTIVE,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_BECQUEREL_PER_CUBIC_METER,
+    UNIT_LUX,
+    UNIT_PARTS_PER_MILLION,
 )
+from esphome.types import ConfigType
 
 DEPENDENCIES = airthings_wave_base.DEPENDENCIES
 
@@ -26,35 +27,59 @@ AirthingsWavePlus = airthings_wave_plus_ns.class_(
     "AirthingsWavePlus", airthings_wave_base.AirthingsWaveBase
 )
 
+CONF_DEVICE_TYPE = "device_type"
+WaveDeviceType = airthings_wave_plus_ns.enum("WaveDeviceType")
+DEVICE_TYPES = {
+    "WAVE_PLUS": WaveDeviceType.WAVE_PLUS,
+    "WAVE_GEN2": WaveDeviceType.WAVE_GEN2,
+}
 
-CONFIG_SCHEMA = airthings_wave_base.BASE_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(AirthingsWavePlus),
-        cv.Optional(CONF_RADON): sensor.sensor_schema(
-            unit_of_measurement=UNIT_BECQUEREL_PER_CUBIC_METER,
-            icon=ICON_RADIOACTIVE,
-            accuracy_decimals=0,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_RADON_LONG_TERM): sensor.sensor_schema(
-            unit_of_measurement=UNIT_BECQUEREL_PER_CUBIC_METER,
-            icon=ICON_RADIOACTIVE,
-            accuracy_decimals=0,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_CO2): sensor.sensor_schema(
-            unit_of_measurement=UNIT_PARTS_PER_MILLION,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_CARBON_DIOXIDE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-        cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
-            unit_of_measurement=UNIT_LUX,
-            accuracy_decimals=0,
-            device_class=DEVICE_CLASS_ILLUMINANCE,
-            state_class=STATE_CLASS_MEASUREMENT,
-        ),
-    }
+
+def validate_wave_gen2_config(config: ConfigType) -> ConfigType:
+    """Validate that Wave Gen2 devices don't have CO2 or TVOC sensors."""
+    if config[CONF_DEVICE_TYPE] == "WAVE_GEN2":
+        if CONF_CO2 in config:
+            raise cv.Invalid("Wave Gen2 devices do not support CO2 sensor")
+        # Check for TVOC in the base schema config
+        if CONF_TVOC in config:
+            raise cv.Invalid("Wave Gen2 devices do not support TVOC sensor")
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    airthings_wave_base.BASE_SCHEMA.extend(
+        {
+            cv.GenerateID(): cv.declare_id(AirthingsWavePlus),
+            cv.Optional(CONF_RADON): sensor.sensor_schema(
+                unit_of_measurement=UNIT_BECQUEREL_PER_CUBIC_METER,
+                icon=ICON_RADIOACTIVE,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_RADON_LONG_TERM): sensor.sensor_schema(
+                unit_of_measurement=UNIT_BECQUEREL_PER_CUBIC_METER,
+                icon=ICON_RADIOACTIVE,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_CO2): sensor.sensor_schema(
+                unit_of_measurement=UNIT_PARTS_PER_MILLION,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_CARBON_DIOXIDE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_LUX,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_ILLUMINANCE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_DEVICE_TYPE, default="WAVE_PLUS"): cv.enum(
+                DEVICE_TYPES, upper=True
+            ),
+        }
+    ),
+    validate_wave_gen2_config,
 )
 
 
@@ -74,3 +99,4 @@ async def to_code(config):
     if config_illuminance := config.get(CONF_ILLUMINANCE):
         sens = await sensor.new_sensor(config_illuminance)
         cg.add(var.set_illuminance(sens))
+    cg.add(var.set_device_type(config[CONF_DEVICE_TYPE]))

@@ -1,0 +1,4 @@
+sensor:
+  - platform: a02yyuw
+    id: a02yyuw_sensor
+    name: a02yyuw Distance

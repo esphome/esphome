@@ -4,11 +4,15 @@
 
 #ifdef USE_MQTT
 
-#include "esphome/core/component.h"
-#include "esphome/core/automation.h"
-#include "esphome/core/log.h"
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/ip_address.h"
+#include "esphome/core/automation.h"
+#include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+#ifdef USE_LOGGER
+#include "esphome/components/logger/logger.h"
+#endif
 #if defined(USE_ESP32)
 #include "mqtt_backend_esp32.h"
 #elif defined(USE_ESP8266)
@@ -20,8 +24,7 @@
 
 #include <vector>
 
-namespace esphome {
-namespace mqtt {
+namespace esphome::mqtt {
 
 /** Callback for MQTT events.
  */
@@ -51,6 +54,7 @@ struct MQTTCredentials {
   std::string username;
   std::string password;
   std::string client_id;  ///< The client ID. Will automatically be truncated to 23 characters.
+  bool clean_session;     ///< Whether the session will be cleaned or remembered between connects.
 };
 
 /// Simple data struct for Home Assistant component availability.
@@ -86,7 +90,8 @@ struct MQTTDiscoveryInfo {
 };
 
 enum MQTTClientState {
-  MQTT_CLIENT_DISCONNECTED = 0,
+  MQTT_CLIENT_DISABLED = 0,
+  MQTT_CLIENT_DISCONNECTED,
   MQTT_CLIENT_RESOLVING_ADDRESS,
   MQTT_CLIENT_CONNECTING,
   MQTT_CLIENT_CONNECTED,
@@ -132,21 +137,6 @@ class MQTTClientComponent : public Component {
   bool is_discovery_enabled() const;
   bool is_discovery_ip_enabled() const;
 
-#if ASYNC_TCP_SSL_ENABLED
-  /** Add a SSL fingerprint to use for TCP SSL connections to the MQTT broker.
-   *
-   * To use this feature you first have to globally enable the `ASYNC_TCP_SSL_ENABLED` define flag.
-   * This function can be called multiple times and any certificate that matches any of the provided fingerprints
-   * will match. Calling this method will also automatically disable all non-ssl connections.
-   *
-   * @warning This is *not* secure and *not* how SSL is usually done. You'll have to add
-   *          a separate fingerprint for every certificate you use. Additionally, the hashing
-   *          algorithm used here due to the constraints of the MCU, SHA1, is known to be insecure.
-   *
-   * @param fingerprint The SSL fingerprint as a 20 value long std::array.
-   */
-  void add_ssl_fingerprint(const std::array<uint8_t, SHA1_SIZE> &fingerprint);
-#endif
 #ifdef USE_ESP32
   void set_ca_certificate(const char *cert) { this->mqtt_backend_.set_ca_certificate(cert); }
   void set_cl_certificate(const char *cert) { this->mqtt_backend_.set_cl_certificate(cert); }
@@ -163,7 +153,7 @@ class MQTTClientComponent : public Component {
    *
    * @param topic_prefix The topic prefix. The last "/" is appended automatically.
    */
-  void set_topic_prefix(const std::string &topic_prefix);
+  void set_topic_prefix(const std::string &topic_prefix, const std::string &check_topic_prefix);
   /// Get the topic prefix of this device, using default if necessary
   const std::string &get_topic_prefix() const;
 
@@ -219,6 +209,9 @@ class MQTTClientComponent : public Component {
   bool publish(const std::string &topic, const char *payload, size_t payload_length, uint8_t qos = 0,
                bool retain = false);
 
+  /// Publish directly without creating MQTTMessage (avoids heap allocation for topic)
+  bool publish(const char *topic, const char *payload, size_t payload_length, uint8_t qos = 0, bool retain = false);
+
   /** Construct and send a JSON MQTT message.
    *
    * @param topic The topic.
@@ -227,6 +220,9 @@ class MQTTClientComponent : public Component {
    */
   bool publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos = 0, bool retain = false);
 
+  /// Publish JSON directly without heap allocation for topic
+  bool publish_json(const char *topic, const json::json_build_t &f, uint8_t qos = 0, bool retain = false);
+
   /// Setup the MQTT client, registering a bunch of callbacks and attempting to connect.
   void setup() override;
   void dump_config() override;
@@ -234,6 +230,10 @@ class MQTTClientComponent : public Component {
   void loop() override;
   /// MQTT client setup priority
   float get_setup_priority() const override;
+
+#ifdef USE_LOGGER
+  void on_log(uint8_t level, const char *tag, const char *message, size_t message_len);
+#endif
 
   void on_message(const std::string &topic, const std::string &payload);
 
@@ -246,6 +246,9 @@ class MQTTClientComponent : public Component {
   void register_mqtt_component(MQTTComponent *component);
 
   bool is_connected();
+  void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
+  void enable();
+  void disable();
 
   void on_shutdown() override;
 
@@ -254,8 +257,15 @@ class MQTTClientComponent : public Component {
   void set_username(const std::string &username) { this->credentials_.username = username; }
   void set_password(const std::string &password) { this->credentials_.password = password; }
   void set_client_id(const std::string &client_id) { this->credentials_.client_id = client_id; }
+  void set_clean_session(const bool &clean_session) { this->credentials_.clean_session = clean_session; }
   void set_on_connect(mqtt_on_connect_callback_t &&callback);
   void set_on_disconnect(mqtt_on_disconnect_callback_t &&callback);
+
+  // Publish None state instead of NaN for Home Assistant
+  void set_publish_nan_as_none(bool publish_nan_as_none);
+  bool is_publish_nan_as_none() const;
+
+  void set_wait_for_connection(bool wait_for_connection) { this->wait_for_connection_ = wait_for_connection; }
 
  protected:
   void send_device_info_();
@@ -312,15 +322,20 @@ class MQTTClientComponent : public Component {
   MQTTBackendLibreTiny mqtt_backend_;
 #endif
 
-  MQTTClientState state_{MQTT_CLIENT_DISCONNECTED};
+  MQTTClientState state_{MQTT_CLIENT_DISABLED};
   network::IPAddress ip_;
   bool dns_resolved_{false};
   bool dns_resolve_error_{false};
+  bool enable_on_boot_{true};
   std::vector<MQTTComponent *> children_;
   uint32_t reboot_timeout_{300000};
   uint32_t connect_begin_;
   uint32_t last_connected_{0};
   optional<MQTTClientDisconnectReason> disconnect_reason_{};
+  CallbackManager<MQTTBackend::on_disconnect_callback_t> on_disconnect_;
+
+  bool publish_nan_as_none_{false};
+  bool wait_for_connection_{false};
 };
 
 extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -349,17 +364,17 @@ class MQTTJsonMessageTrigger : public Trigger<JsonObjectConst> {
   }
 };
 
-class MQTTConnectTrigger : public Trigger<> {
+class MQTTConnectTrigger : public Trigger<bool> {
  public:
-  explicit MQTTConnectTrigger(MQTTClientComponent *&client) {
-    client->set_on_connect([this](bool session_present) { this->trigger(); });
+  explicit MQTTConnectTrigger(MQTTClientComponent *client) {
+    client->set_on_connect([this](bool session_present) { this->trigger(session_present); });
   }
 };
 
-class MQTTDisconnectTrigger : public Trigger<> {
+class MQTTDisconnectTrigger : public Trigger<MQTTClientDisconnectReason> {
  public:
-  explicit MQTTDisconnectTrigger(MQTTClientComponent *&client) {
-    client->set_on_disconnect([this](MQTTClientDisconnectReason reason) { this->trigger(); });
+  explicit MQTTDisconnectTrigger(MQTTClientComponent *client) {
+    client->set_on_disconnect([this](MQTTClientDisconnectReason reason) { this->trigger(reason); });
   }
 };
 
@@ -371,7 +386,7 @@ template<typename... Ts> class MQTTPublishAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(uint8_t, qos)
   TEMPLATABLE_VALUE(bool, retain)
 
-  void play(Ts... x) override {
+  void play(const Ts &...x) override {
     this->parent_->publish(this->topic_.value(x...), this->payload_.value(x...), this->qos_.value(x...),
                            this->retain_.value(x...));
   }
@@ -389,16 +404,15 @@ template<typename... Ts> class MQTTPublishJsonAction : public Action<Ts...> {
 
   void set_payload(std::function<void(Ts..., JsonObject)> payload) { this->payload_ = payload; }
 
-  void play(Ts... x) override {
-    auto f = std::bind(&MQTTPublishJsonAction<Ts...>::encode_, this, x..., std::placeholders::_1);
+  void play(const Ts &...x) override {
     auto topic = this->topic_.value(x...);
     auto qos = this->qos_.value(x...);
     auto retain = this->retain_.value(x...);
-    this->parent_->publish_json(topic, f, qos, retain);
+    this->parent_->publish_json(
+        topic, [this, x...](JsonObject root) { this->payload_(x..., root); }, qos, retain);
   }
 
  protected:
-  void encode_(Ts... x, JsonObject root) { this->payload_(x..., root); }
   std::function<void(Ts..., JsonObject)> payload_;
   MQTTClientComponent *parent_;
 };
@@ -406,13 +420,32 @@ template<typename... Ts> class MQTTPublishJsonAction : public Action<Ts...> {
 template<typename... Ts> class MQTTConnectedCondition : public Condition<Ts...> {
  public:
   MQTTConnectedCondition(MQTTClientComponent *parent) : parent_(parent) {}
-  bool check(Ts... x) override { return this->parent_->is_connected(); }
+  bool check(const Ts &...x) override { return this->parent_->is_connected(); }
 
  protected:
   MQTTClientComponent *parent_;
 };
 
-}  // namespace mqtt
-}  // namespace esphome
+template<typename... Ts> class MQTTEnableAction : public Action<Ts...> {
+ public:
+  MQTTEnableAction(MQTTClientComponent *parent) : parent_(parent) {}
+
+  void play(const Ts &...x) override { this->parent_->enable(); }
+
+ protected:
+  MQTTClientComponent *parent_;
+};
+
+template<typename... Ts> class MQTTDisableAction : public Action<Ts...> {
+ public:
+  MQTTDisableAction(MQTTClientComponent *parent) : parent_(parent) {}
+
+  void play(const Ts &...x) override { this->parent_->disable(); }
+
+ protected:
+  MQTTClientComponent *parent_;
+};
+
+}  // namespace esphome::mqtt
 
 #endif  // USE_MQTT

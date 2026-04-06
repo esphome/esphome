@@ -1,0 +1,7 @@
+sensor:
+  - platform: hx711
+    name: HX711 Value
+    clk_pin: ${clk_pin}
+    dout_pin: ${dout_pin}
+    gain: 128
+    update_interval: 15s

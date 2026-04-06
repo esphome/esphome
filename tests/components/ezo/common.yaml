@@ -1,0 +1,6 @@
+sensor:
+  - platform: ezo
+    i2c_id: i2c_bus
+    id: ph_ezo
+    address: 99
+    unit_of_measurement: pH

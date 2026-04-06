@@ -1,19 +1,19 @@
+from esphome import automation, pins
 import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome import pins, automation
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
-    CONF_RESOLUTION,
-    CONF_MIN_VALUE,
     CONF_MAX_VALUE,
-    UNIT_STEPS,
-    ICON_ROTATE_RIGHT,
-    CONF_VALUE,
+    CONF_MIN_VALUE,
     CONF_PIN_A,
     CONF_PIN_B,
-    CONF_TRIGGER_ID,
+    CONF_RESOLUTION,
     CONF_RESTORE_MODE,
+    CONF_VALUE,
+    ICON_ROTATE_RIGHT,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_STEPS,
 )
 
 rotary_encoder_ns = cg.esphome_ns.namespace("rotary_encoder")
@@ -43,13 +43,6 @@ RotaryEncoderSetValueAction = rotary_encoder_ns.class_(
     "RotaryEncoderSetValueAction", automation.Action
 )
 
-RotaryEncoderClockwiseTrigger = rotary_encoder_ns.class_(
-    "RotaryEncoderClockwiseTrigger", automation.Trigger
-)
-RotaryEncoderAnticlockwiseTrigger = rotary_encoder_ns.class_(
-    "RotaryEncoderAnticlockwiseTrigger", automation.Trigger
-)
-
 
 def validate_min_max_value(config):
     if CONF_MIN_VALUE in config and CONF_MAX_VALUE in config:
@@ -68,6 +61,7 @@ CONFIG_SCHEMA = cv.All(
         unit_of_measurement=UNIT_STEPS,
         icon=ICON_ROTATE_RIGHT,
         accuracy_decimals=0,
+        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {
@@ -81,20 +75,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RESTORE_MODE, default="RESTORE_DEFAULT_ZERO"): cv.enum(
                 RESTORE_MODES, upper=True, space="_"
             ),
-            cv.Optional(CONF_ON_CLOCKWISE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        RotaryEncoderClockwiseTrigger
-                    ),
-                }
-            ),
-            cv.Optional(CONF_ON_ANTICLOCKWISE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        RotaryEncoderAnticlockwiseTrigger
-                    ),
-                }
-            ),
+            cv.Optional(CONF_ON_CLOCKWISE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_ANTICLOCKWISE): automation.validate_automation({}),
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
@@ -123,11 +105,13 @@ async def to_code(config):
         cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
 
     for conf in config.get(CONF_ON_CLOCKWISE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            var, "add_on_clockwise_callback", [], conf
+        )
     for conf in config.get(CONF_ON_ANTICLOCKWISE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_callback_automation(
+            var, "add_on_anticlockwise_callback", [], conf
+        )
 
 
 @automation.register_action(
@@ -139,6 +123,7 @@ async def to_code(config):
             cv.Required(CONF_VALUE): cv.templatable(cv.int_),
         }
     ),
+    synchronous=True,
 )
 async def sensor_template_publish_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

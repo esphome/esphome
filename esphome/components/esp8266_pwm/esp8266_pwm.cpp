@@ -1,10 +1,10 @@
 #ifdef USE_ESP8266
 
 #include "esp8266_pwm.h"
-#include "esphome/core/macros.h"
 #include "esphome/core/defines.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+#include "esphome/core/macros.h"
 
 #include <core_esp8266_waveform.h>
 
@@ -14,14 +14,15 @@ namespace esp8266_pwm {
 static const char *const TAG = "esp8266_pwm";
 
 void ESP8266PWM::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up ESP8266 PWM Output...");
   this->pin_->setup();
   this->turn_off();
 }
 void ESP8266PWM::dump_config() {
-  ESP_LOGCONFIG(TAG, "ESP8266 PWM:");
+  ESP_LOGCONFIG(TAG,
+                "ESP8266 PWM:\n"
+                "  Frequency: %.1f Hz",
+                this->frequency_);
   LOG_PIN("  Pin: ", this->pin_);
-  ESP_LOGCONFIG(TAG, "  Frequency: %.1f Hz", this->frequency_);
   LOG_FLOAT_OUTPUT(this);
 }
 void HOT ESP8266PWM::write_state(float state) {

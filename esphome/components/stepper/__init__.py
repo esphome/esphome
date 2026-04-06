@@ -1,16 +1,16 @@
+from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation
 from esphome.const import (
     CONF_ACCELERATION,
     CONF_DECELERATION,
     CONF_ID,
     CONF_MAX_SPEED,
     CONF_POSITION,
-    CONF_TARGET,
     CONF_SPEED,
+    CONF_TARGET,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
 
@@ -27,8 +27,7 @@ SetDecelerationAction = stepper_ns.class_("SetDecelerationAction", automation.Ac
 def validate_acceleration(value):
     value = cv.string(value)
     for suffix in ("steps/s^2", "steps/s*s", "steps/s/s", "steps/ss", "steps/(s*s)"):
-        if value.endswith(suffix):
-            value = value[: -len(suffix)]
+        value = value.removesuffix(suffix)
 
     if value == "inf":
         return 1e6
@@ -48,8 +47,7 @@ def validate_acceleration(value):
 def validate_speed(value):
     value = cv.string(value)
     for suffix in ("steps/s", "steps/s"):
-        if value.endswith(suffix):
-            value = value[: -len(suffix)]
+        value = value.removesuffix(suffix)
 
     if value == "inf":
         return 1e6
@@ -99,6 +97,7 @@ async def register_stepper(var, config):
             cv.Required(CONF_TARGET): cv.templatable(cv.int_),
         }
     ),
+    synchronous=True,
 )
 async def stepper_set_target_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -117,6 +116,7 @@ async def stepper_set_target_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_POSITION): cv.templatable(cv.int_),
         }
     ),
+    synchronous=True,
 )
 async def stepper_report_position_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -135,6 +135,7 @@ async def stepper_report_position_to_code(config, action_id, template_arg, args)
             cv.Required(CONF_SPEED): cv.templatable(validate_speed),
         }
     ),
+    synchronous=True,
 )
 async def stepper_set_speed_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -153,6 +154,7 @@ async def stepper_set_speed_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_ACCELERATION): cv.templatable(validate_acceleration),
         }
     ),
+    synchronous=True,
 )
 async def stepper_set_acceleration_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -171,6 +173,7 @@ async def stepper_set_acceleration_to_code(config, action_id, template_arg, args
             cv.Required(CONF_DECELERATION): cv.templatable(validate_acceleration),
         }
     ),
+    synchronous=True,
 )
 async def stepper_set_deceleration_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -180,6 +183,6 @@ async def stepper_set_deceleration_to_code(config, action_id, template_arg, args
     return var
 
 
-@coroutine_with_priority(100.0)
+@coroutine_with_priority(CoroPriority.CORE)
 async def to_code(config):
     cg.add_global(stepper_ns.using)

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <cstring>
 #include <iterator>
 #include <memory>
@@ -9,6 +10,10 @@
 #ifdef USE_JSON
 #include "esphome/components/json/json_util.h"
 #endif  // USE_JSON
+
+#ifdef USE_ESP8266
+#include <pgmspace.h>
+#endif  // USE_ESP8266
 
 namespace esphome {
 
@@ -67,13 +72,63 @@ class StringRef {
 
   constexpr const char *c_str() const { return base_; }
   constexpr size_type size() const { return len_; }
+  constexpr size_type length() const { return len_; }
   constexpr bool empty() const { return len_ == 0; }
   constexpr const_reference operator[](size_type pos) const { return *(base_ + pos); }
+
+  /// Copy characters to destination buffer (std::string::copy-like, but returns 0 instead of throwing on out-of-range)
+  size_type copy(char *dest, size_type count, size_type pos = 0) const {
+    if (pos >= len_)
+      return 0;
+    size_type actual = (count > len_ - pos) ? len_ - pos : count;
+    std::memcpy(dest, base_ + pos, actual);
+    return actual;
+  }
 
   std::string str() const { return std::string(base_, len_); }
   const uint8_t *byte() const { return reinterpret_cast<const uint8_t *>(base_); }
 
   operator std::string() const { return str(); }
+
+  /// Compare (compatible with std::string::compare)
+  int compare(const StringRef &other) const {
+    int result = std::memcmp(base_, other.base_, std::min(len_, other.len_));
+    if (result != 0)
+      return result;
+    if (len_ < other.len_)
+      return -1;
+    if (len_ > other.len_)
+      return 1;
+    return 0;
+  }
+  int compare(const char *s) const { return compare(StringRef(s)); }
+  int compare(const std::string &s) const { return compare(StringRef(s)); }
+
+  /// Find first occurrence of substring, returns std::string::npos if not found.
+  /// Note: Requires the underlying string to be null-terminated.
+  size_type find(const char *s, size_type pos = 0) const {
+    if (pos >= len_)
+      return std::string::npos;
+    const char *result = std::strstr(base_ + pos, s);
+    // Verify entire match is within bounds (strstr searches to null terminator)
+    if (result && result + std::strlen(s) <= base_ + len_)
+      return static_cast<size_type>(result - base_);
+    return std::string::npos;
+  }
+  size_type find(char c, size_type pos = 0) const {
+    if (pos >= len_)
+      return std::string::npos;
+    const void *result = std::memchr(base_ + pos, static_cast<unsigned char>(c), len_ - pos);
+    return result ? static_cast<size_type>(static_cast<const char *>(result) - base_) : std::string::npos;
+  }
+
+  /// Return substring as std::string
+  std::string substr(size_type pos = 0, size_type count = std::string::npos) const {
+    if (pos >= len_)
+      return std::string();
+    size_type actual_count = (count == std::string::npos || pos + count > len_) ? len_ - pos : count;
+    return std::string(base_ + pos, actual_count);
+  }
 
  private:
   const char *base_;
@@ -106,6 +161,23 @@ inline bool operator!=(const StringRef &lhs, const char *rhs) { return !(lhs == 
 
 inline bool operator!=(const char *lhs, const StringRef &rhs) { return !(rhs == lhs); }
 
+#ifdef USE_ESP8266
+inline bool operator==(const StringRef &lhs, const __FlashStringHelper *rhs) {
+  PGM_P p = reinterpret_cast<PGM_P>(rhs);
+  size_t rhs_len = strlen_P(p);
+  if (lhs.size() != rhs_len) {
+    return false;
+  }
+  return memcmp_P(lhs.c_str(), p, rhs_len) == 0;
+}
+
+inline bool operator==(const __FlashStringHelper *lhs, const StringRef &rhs) { return rhs == lhs; }
+
+inline bool operator!=(const StringRef &lhs, const __FlashStringHelper *rhs) { return !(lhs == rhs); }
+
+inline bool operator!=(const __FlashStringHelper *lhs, const StringRef &rhs) { return !(rhs == lhs); }
+#endif  // USE_ESP8266
+
 inline bool operator<(const StringRef &lhs, const StringRef &rhs) {
   return std::lexicographical_compare(std::begin(lhs), std::end(lhs), std::begin(rhs), std::end(rhs));
 }
@@ -127,9 +199,57 @@ inline std::string operator+(const StringRef &lhs, const char *rhs) {
   return str;
 }
 
+inline std::string operator+(const StringRef &lhs, const std::string &rhs) {
+  auto str = lhs.str();
+  str.append(rhs);
+  return str;
+}
+
+inline std::string operator+(const std::string &lhs, const StringRef &rhs) {
+  std::string str(lhs);
+  str.append(rhs.c_str(), rhs.size());
+  return str;
+}
+// String conversion functions for ADL compatibility (allows stoi(x) where x is StringRef)
+// Must be in esphome namespace for ADL to find them. Uses strtol/strtod directly to avoid heap allocation.
+namespace internal {
+// NOLINTBEGIN(google-runtime-int)
+template<typename R, typename F> inline R parse_number(const StringRef &str, size_t *pos, F conv) {
+  char *end;
+  R result = conv(str.c_str(), &end);
+  // Set pos to 0 on conversion failure (when no characters consumed), otherwise index after number
+  if (pos)
+    *pos = (end == str.c_str()) ? 0 : static_cast<size_t>(end - str.c_str());
+  return result;
+}
+template<typename R, typename F> inline R parse_number(const StringRef &str, size_t *pos, int base, F conv) {
+  char *end;
+  R result = conv(str.c_str(), &end, base);
+  // Set pos to 0 on conversion failure (when no characters consumed), otherwise index after number
+  if (pos)
+    *pos = (end == str.c_str()) ? 0 : static_cast<size_t>(end - str.c_str());
+  return result;
+}
+// NOLINTEND(google-runtime-int)
+}  // namespace internal
+// NOLINTBEGIN(readability-identifier-naming,google-runtime-int)
+inline int stoi(const StringRef &str, size_t *pos = nullptr, int base = 10) {
+  return static_cast<int>(internal::parse_number<long>(str, pos, base, std::strtol));
+}
+inline long stol(const StringRef &str, size_t *pos = nullptr, int base = 10) {
+  return internal::parse_number<long>(str, pos, base, std::strtol);
+}
+inline float stof(const StringRef &str, size_t *pos = nullptr) {
+  return internal::parse_number<float>(str, pos, std::strtof);
+}
+inline double stod(const StringRef &str, size_t *pos = nullptr) {
+  return internal::parse_number<double>(str, pos, std::strtod);
+}
+// NOLINTEND(readability-identifier-naming,google-runtime-int)
+
 #ifdef USE_JSON
 // NOLINTNEXTLINE(readability-identifier-naming)
-void convertToJson(const StringRef &src, JsonVariant dst);
+inline void convertToJson(const StringRef &src, JsonVariant dst) { dst.set(src.c_str()); }
 #endif  // USE_JSON
 
 }  // namespace esphome

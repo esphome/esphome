@@ -1,6 +1,6 @@
 import esphome.codegen as cg
+from esphome.components import rc522, spi
 import esphome.config_validation as cv
-from esphome.components import spi, rc522
 from esphome.const import CONF_ID
 
 CODEOWNERS = ["@glmnet"]

@@ -6,9 +6,11 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/time.h"
+#ifdef USE_TIME_TIMEZONE
+#include "posix_tz.h"
+#endif
 
-namespace esphome {
-namespace time {
+namespace esphome::time {
 
 /// The RealTimeClock class exposes common timekeeping functions via the device's local real-time clock.
 ///
@@ -20,16 +22,32 @@ class RealTimeClock : public PollingComponent {
  public:
   explicit RealTimeClock();
 
-  /// Set the time zone.
-  void set_timezone(const std::string &tz) { this->timezone_ = tz; }
+#ifdef USE_TIME_TIMEZONE
+  /// Set the time zone from a POSIX TZ string.
+  void set_timezone(const char *tz) { this->apply_timezone_(tz); }
 
-  void set_epoch(uint32_t epoch) { this->synchronize_epoch_(epoch); }
+  /// Set the time zone from a character buffer with known length.
+  /// The buffer does not need to be null-terminated.
+  void set_timezone(const char *tz, size_t len) {
+    if (tz == nullptr) {
+      this->apply_timezone_(nullptr);
+      return;
+    }
+    // Stack buffer - TZ strings from tzdata are typically short (< 50 chars)
+    char buf[128];
+    if (len >= sizeof(buf))
+      len = sizeof(buf) - 1;
+    memcpy(buf, tz, len);
+    buf[len] = '\0';
+    this->apply_timezone_(buf);
+  }
 
-  /// Get the time zone currently in use.
-  std::string get_timezone() { return this->timezone_; }
+  /// Set the time zone from a std::string.
+  void set_timezone(const std::string &tz) { this->apply_timezone_(tz.c_str()); }
+#endif
 
   /// Get the time in the currently defined timezone.
-  ESPTime now() { return ESPTime::from_epoch_local(this->timestamp_now()); }
+  ESPTime now();
 
   /// Get the time without any time zone or DST corrections.
   ESPTime utcnow() { return ESPTime::from_epoch_utc(this->timestamp_now()); }
@@ -37,30 +55,30 @@ class RealTimeClock : public PollingComponent {
   /// Get the current time as the UTC epoch since January 1st 1970.
   time_t timestamp_now() { return ::time(nullptr); }
 
-  void call_setup() override;
+  template<typename F> void add_on_time_sync_callback(F &&callback) {
+    this->time_sync_callback_.add(std::forward<F>(callback));
+  }
 
-  void add_on_time_sync_callback(std::function<void()> callback) {
-    this->time_sync_callback_.add(std::move(callback));
-  };
+  void dump_config() override;
 
  protected:
   /// Report a unix epoch as current time.
   void synchronize_epoch_(uint32_t epoch);
 
-  std::string timezone_{};
-  void apply_timezone_();
+#ifdef USE_TIME_TIMEZONE
+  void apply_timezone_(const char *tz);
+#endif
 
-  CallbackManager<void()> time_sync_callback_;
+  LazyCallbackManager<void()> time_sync_callback_;
 };
 
 template<typename... Ts> class TimeHasTimeCondition : public Condition<Ts...> {
  public:
   TimeHasTimeCondition(RealTimeClock *parent) : parent_(parent) {}
-  bool check(Ts... x) override { return this->parent_->now().is_valid(); }
+  bool check(const Ts &...x) override { return this->parent_->now().is_valid(); }
 
  protected:
   RealTimeClock *parent_;
 };
 
-}  // namespace time
-}  // namespace esphome
+}  // namespace esphome::time

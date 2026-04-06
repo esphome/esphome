@@ -1,14 +1,45 @@
 #include "heatpumpir.h"
 
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) || defined(USE_ESP32)
 
 #include <map>
-#include "ir_sender_esphome.h"
-#include "HeatpumpIRFactory.h"
+#include <IRSender.h>
+#include <HeatpumpIRFactory.h>
+#include "esphome/components/remote_base/remote_base.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace heatpumpir {
+
+// IRSenderESPHome - bridge between ESPHome's remote_transmitter and HeatpumpIR library
+// Defined here (not in a header) to isolate HeatpumpIR's headers from the rest of ESPHome,
+// as they define conflicting symbols like millis() in the global namespace.
+class IRSenderESPHome : public IRSender {
+ public:
+  IRSenderESPHome(remote_base::RemoteTransmitterBase *transmitter) : IRSender(0), transmit_(transmitter->transmit()) {}
+
+  void setFrequency(int frequency) override {  // NOLINT(readability-identifier-naming)
+    auto *data = this->transmit_.get_data();
+    data->set_carrier_frequency(1000 * frequency);
+  }
+
+  void space(int space_length) override {
+    if (space_length) {
+      auto *data = this->transmit_.get_data();
+      data->space(space_length);
+    } else {
+      this->transmit_.perform();
+    }
+  }
+
+  void mark(int mark_length) override {
+    auto *data = this->transmit_.get_data();
+    data->mark(mark_length);
+  }
+
+ protected:
+  remote_base::RemoteTransmitterBase::TransmitCall transmit_;
+};
 
 static const char *const TAG = "heatpumpir.climate";
 
@@ -47,6 +78,7 @@ const std::map<Protocol, std::function<HeatpumpIR *()>> PROTOCOL_CONSTRUCTOR_MAP
     {PROTOCOL_MITSUBISHI_SEZ, []() { return new MitsubishiSEZKDXXHeatpumpIR(); }},           // NOLINT
     {PROTOCOL_PANASONIC_CKP, []() { return new PanasonicCKPHeatpumpIR(); }},                 // NOLINT
     {PROTOCOL_PANASONIC_DKE, []() { return new PanasonicDKEHeatpumpIR(); }},                 // NOLINT
+    {PROTOCOL_PANASONIC_EKE, []() { return new PanasonicEKEHeatpumpIR(); }},                 // NOLINT
     {PROTOCOL_PANASONIC_JKE, []() { return new PanasonicJKEHeatpumpIR(); }},                 // NOLINT
     {PROTOCOL_PANASONIC_LKE, []() { return new PanasonicLKEHeatpumpIR(); }},                 // NOLINT
     {PROTOCOL_PANASONIC_NKE, []() { return new PanasonicNKEHeatpumpIR(); }},                 // NOLINT
@@ -64,6 +96,7 @@ const std::map<Protocol, std::function<HeatpumpIR *()>> PROTOCOL_CONSTRUCTOR_MAP
     {PROTOCOL_AIRWAY, []() { return new AIRWAYHeatpumpIR(); }},                              // NOLINT
     {PROTOCOL_BGH_AUD, []() { return new BGHHeatpumpIR(); }},                                // NOLINT
     {PROTOCOL_PANASONIC_ALTDKE, []() { return new PanasonicAltDKEHeatpumpIR(); }},           // NOLINT
+    {PROTOCOL_PHILCO_PHS32, []() { return new PhilcoPHS32HeatpumpIR(); }},                   // NOLINT
     {PROTOCOL_VAILLANTVAI8, []() { return new VaillantHeatpumpIR(); }},                      // NOLINT
     {PROTOCOL_R51M, []() { return new R51MHeatpumpIR(); }},                                  // NOLINT
 };
@@ -81,14 +114,15 @@ void HeatpumpIRClimate::setup() {
       this->current_temperature = state;
 
       IRSenderESPHome esp_sender(this->transmitter_);
-      this->heatpump_ir_->send(esp_sender, uint8_t(lround(this->current_temperature + 0.5)));
+      this->heatpump_ir_->send(esp_sender, uint8_t(lround(this->current_temperature)));
 
       // current temperature changed, publish state
       this->publish_state();
     });
     this->current_temperature = this->sensor_->state;
-  } else
+  } else {
     this->current_temperature = NAN;
+  }
 }
 
 void HeatpumpIRClimate::transmit_state() {
@@ -178,6 +212,11 @@ void HeatpumpIRClimate::transmit_state() {
       power_mode_cmd = POWER_ON;
       operating_mode_cmd = MODE_HEAT;
       break;
+    // Map HEAT_COOL to hardware AUTO mode (automatic heat/cool changeover based on temperature).
+    // In hardware AUTO mode, the device automatically switches between heating and cooling
+    // based on the current temperature versus the target temperature.
+    // See https://github.com/esphome/esphome/issues/11161 for further discussion.
+    case climate::CLIMATE_MODE_HEAT_COOL:
     case climate::CLIMATE_MODE_AUTO:
       power_mode_cmd = POWER_ON;
       operating_mode_cmd = MODE_AUTO;

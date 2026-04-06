@@ -1,42 +1,115 @@
 #pragma once
 
-#include <deque>
+#include <list>
 #include <vector>
 
+#include "esphome/components/display/display.h"
+#include "esphome/components/display/display_color_utils.h"
+#include "esphome/components/uart/uart.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/time.h"
 
-#include "esphome/components/uart/uart.h"
+#ifdef USE_NEXTION_WAVEFORM
+#include "esphome/core/helpers.h"
+#endif  // USE_NEXTION_WAVEFORM
+
 #include "nextion_base.h"
 #include "nextion_component.h"
-#include "esphome/components/display/display_color_utils.h"
 
 #ifdef USE_NEXTION_TFT_UPLOAD
-#ifdef USE_ARDUINO
 #ifdef USE_ESP32
-#include <HTTPClient.h>
-#endif  // USE_ESP32
-#ifdef USE_ESP8266
+#include <esp_http_client.h>
+#elif defined(USE_ESP8266)
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
-#endif  // USE_ESP8266
-#elif defined(USE_ESP_IDF)
-#include <esp_http_client.h>
-#endif  // ARDUINO vs USE_ESP_IDF
+#endif  // USE_ESP32 vs USE_ESP8266
 #endif  // USE_NEXTION_TFT_UPLOAD
 
-namespace esphome {
-namespace nextion {
+namespace esphome::nextion {
 
 class Nextion;
 class NextionComponentBase;
 
-using nextion_writer_t = std::function<void(Nextion &)>;
+using nextion_writer_t = display::DisplayWriter<Nextion>;
 
-static const std::string COMMAND_DELIMITER{static_cast<char>(255), static_cast<char>(255), static_cast<char>(255)};
+#ifdef USE_NEXTION_COMMAND_SPACING
+class NextionCommandPacer {
+ public:
+  /**
+   * @brief Creates command pacer with initial spacing
+   * @param initial_spacing Initial time between commands in milliseconds
+   */
+  explicit NextionCommandPacer(uint8_t initial_spacing = 0) : spacing_ms_(initial_spacing) {}
+
+  /**
+   * @brief Set the minimum time between commands
+   * @param spacing_ms Spacing in milliseconds
+   */
+  void set_spacing(uint8_t spacing_ms) { spacing_ms_ = spacing_ms; }
+
+  /**
+   * @brief Get current command spacing
+   * @return Current spacing in milliseconds
+   */
+  uint8_t get_spacing() const { return spacing_ms_; }
+
+  /**
+   * @brief Check if enough time has passed to send next command
+   * @return true if enough time has passed since last command
+   */
+  bool can_send() const { return (millis() - last_command_time_) >= spacing_ms_; }
+
+  /**
+   * @brief Mark a command as sent, updating the timing
+   */
+  void mark_sent() { last_command_time_ = millis(); }
+
+ private:
+  uint8_t spacing_ms_;
+  uint32_t last_command_time_{0};
+};
+#endif  // USE_NEXTION_COMMAND_SPACING
 
 class Nextion : public NextionBase, public PollingComponent, public uart::UARTDevice {
  public:
+#ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
+  /**
+   * @brief Set the maximum number of commands to process in each loop iteration
+   * @param value Maximum number of commands (default: 20)
+   *
+   * Limiting the number of commands per loop helps prevent stack overflows
+   * when a large number of commands are queued at once, especially during boot.
+   */
+  inline void set_max_commands_per_loop(uint16_t value) { this->max_commands_per_loop_ = value; }
+
+  /**
+   * @brief Get the current maximum number of commands allowed per loop iteration
+   * @return Configured command limit per loop
+   */
+  inline uint16_t get_max_commands_per_loop() const { return this->max_commands_per_loop_; }
+#endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
+#ifdef USE_NEXTION_MAX_QUEUE_SIZE
+  /**
+   * @brief Set the maximum allowed queue size
+   * @param size Max number of entries allowed in nextion_queue_
+   */
+  inline void set_max_queue_size(size_t size) { this->max_queue_size_ = size; }
+
+  /**
+   * @brief Get the maximum allowed queue size
+   * @return Current limit (0 = unlimited)
+   */
+  inline size_t get_max_queue_size() const { return this->max_queue_size_; }
+#endif  // USE_NEXTION_MAX_QUEUE_SIZE
+
+#ifdef USE_NEXTION_COMMAND_SPACING
+  /**
+   * @brief Set the command spacing for the display
+   * @param spacing_ms Time in milliseconds between commands
+   */
+  void set_command_spacing(uint32_t spacing_ms) { this->command_pacer_.set_spacing(spacing_ms); }
+#endif  // USE_NEXTION_COMMAND_SPACING
+
   /**
    * Set the text of a component to a static string.
    * @param component The component name.
@@ -94,7 +167,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * This will change the image of the component `pic` to the image with ID `4`.
    */
-  void set_component_picture(const char *component, uint8_t picture_id);
+  void set_component_picture(const char *component, uint8_t picture_id) { set_component_picc(component, picture_id); };
 
   /**
    * Set the background color of a component.
@@ -297,7 +370,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * This will change the picture id of the component `textview`.
    */
-  void set_component_pic(const char *component, uint8_t pic_id);
+  void set_component_pic(const char *component, uint16_t pic_id);
 
   /**
    * Set the background picture id of component.
@@ -311,7 +384,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * This will change the background picture id of the component `textview`.
    */
-  void set_component_picc(const char *component, uint8_t pic_id);
+  void set_component_picc(const char *component, uint16_t pic_id);
 
   /**
    * Set the font color of a component.
@@ -465,6 +538,23 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void goto_page(uint8_t page);
 
   /**
+   * Set the visibility of a component.
+   *
+   * @param component The component name.
+   * @param show True to show the component, false to hide it.
+   *
+   * @see show_component()
+   * @see hide_component()
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_visibility("textview", true);   // Equivalent to show_component("textview")
+   * it.set_component_visibility("textview", false);  // Equivalent to hide_component("textview")
+   * ```
+   */
+  void set_component_visibility(const char *component, bool show) override;
+
+  /**
    * Hide a component.
    * @param component The component name.
    *
@@ -516,6 +606,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   void disable_component_touch(const char *component);
 
+#ifdef USE_NEXTION_WAVEFORM
   /**
    * Add waveform data to a waveform component
    * @param component_id The integer component id.
@@ -525,6 +616,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void add_waveform_data(uint8_t component_id, uint8_t channel_number, uint8_t value);
 
   void open_waveform_channel(uint8_t component_id, uint8_t channel_number, uint8_t value);
+#endif  // USE_NEXTION_WAVEFORM
 
   /**
    * Display a picture at coordinates.
@@ -816,7 +908,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Draws a QR code with a Wi-Fi network credentials starting at the given coordinates (25,25).
    */
   void qrcode(uint16_t x1, uint16_t y1, const char *content, uint16_t size = 200, uint16_t background_color = 65535,
-              uint16_t foreground_color = 0, uint8_t logo_pic = -1, uint8_t border_width = 8);
+              uint16_t foreground_color = 0, int32_t logo_pic = -1, uint8_t border_width = 8);
 
   /**
    * Draws a QR code in the screen
@@ -841,7 +933,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   void qrcode(uint16_t x1, uint16_t y1, const char *content, uint16_t size,
               Color background_color = Color(255, 255, 255), Color foreground_color = Color(0, 0, 0),
-              uint8_t logo_pic = -1, uint8_t border_width = 8);
+              int32_t logo_pic = -1, uint8_t border_width = 8);
 
   /** Set the brightness of the backlight.
    *
@@ -855,76 +947,6 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Changes the brightness of the display to 30%.
    */
   void set_backlight_brightness(float brightness);
-
-  /**
-   * Set the touch sleep timeout of the display.
-   * @param timeout Timeout in seconds.
-   *
-   * Example:
-   * ```cpp
-   * it.set_touch_sleep_timeout(30);
-   * ```
-   *
-   * After 30 seconds the display will go to sleep. Note: the display will only wakeup by a restart or by setting up
-   * `thup`.
-   */
-  void set_touch_sleep_timeout(uint16_t timeout);
-
-  /**
-   * Sets which page Nextion loads when exiting sleep mode. Note this can be set even when Nextion is in sleep mode.
-   * @param page_id The page id, from 0 to the lage page in Nextion. Set 255 (not set to any existing page) to
-   * wakes up to current page.
-   *
-   * Example:
-   * ```cpp
-   * it.set_wake_up_page(2);
-   * ```
-   *
-   * The display will wake up to page 2.
-   */
-  void set_wake_up_page(uint8_t page_id = 255);
-
-  /**
-   * Sets which page Nextion loads when connecting to ESPHome.
-   * @param page_id The page id, from 0 to the lage page in Nextion. Set 255 (not set to any existing page) to
-   * wakes up to current page.
-   *
-   * Example:
-   * ```cpp
-   * it.set_start_up_page(2);
-   * ```
-   *
-   * The display will go to page 2 when it establishes a connection to ESPHome.
-   */
-  void set_start_up_page(uint8_t page_id = 255);
-
-  /**
-   * Sets if Nextion should auto-wake from sleep when touch press occurs.
-   * @param auto_wake True or false. When auto_wake is true and Nextion is in sleep mode,
-   * the first touch will only trigger the auto wake mode and not trigger a Touch Event.
-   *
-   * Example:
-   * ```cpp
-   * it.set_auto_wake_on_touch(true);
-   * ```
-   *
-   * The display will wake up by touch.
-   */
-  void set_auto_wake_on_touch(bool auto_wake);
-
-  /**
-   * Sets if Nextion should exit the active reparse mode before the "connect" command is sent
-   * @param exit_reparse True or false. When exit_reparse is true, the exit reparse command
-   * will be sent before requesting the connection from Nextion.
-   *
-   * Example:
-   * ```cpp
-   * it.set_exit_reparse_on_start(true);
-   * ```
-   *
-   * The display will be requested to leave active reparse mode before setup.
-   */
-  void set_exit_reparse_on_start(bool exit_reparse);
 
   /**
    * Sets Nextion mode between sleep and awake
@@ -1029,7 +1051,6 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
   void setup() override;
   void set_brightness(float brightness) { this->brightness_ = brightness; }
-  float get_setup_priority() const override;
   void update() override;
   void loop() override;
   void set_writer(const nextion_writer_t &writer);
@@ -1054,7 +1075,34 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
 #ifdef USE_NEXTION_TFT_UPLOAD
   /**
-   * Set the tft file URL. https seems problematic with Arduino..
+   * @brief Set the HTTP timeout for TFT upload requests.
+   * @param timeout_ms Timeout in milliseconds. Defaults to 4500ms (4.5s).
+   */
+  void set_tft_upload_http_timeout(uint16_t timeout_ms) { this->tft_upload_http_timeout_ = timeout_ms; }
+
+#ifdef USE_ESP32
+  /**
+   * @brief Set the watchdog timeout during TFT upload.
+   *
+   * The system watchdog timeout is temporarily adjusted to this value
+   * during the entire TFT transfer process and restored to the original
+   * value after the transfer completes (whether successful or not).
+   *
+   * A value of 0 means no watchdog adjustment (default).
+   *
+   * @param timeout_ms Watchdog timeout in milliseconds. 0 = no adjustment.
+   */
+  void set_tft_upload_watchdog_timeout(uint32_t timeout_ms) { this->tft_upload_watchdog_timeout_ = timeout_ms; }
+#endif  // USE_ESP32
+
+  /**
+   * @brief Set the number of HTTP retries for TFT upload requests.
+   * @param retries Number of retries. Defaults to 5. Range: 1-255.
+   */
+  void set_tft_upload_http_retries(uint8_t retries) { this->tft_upload_http_retries_ = retries; }
+
+  /**
+   * Set the tft file URL.
    */
   void set_tft_url(const std::string &tft_url) { this->tft_url_ = tft_url; }
 
@@ -1093,31 +1141,47 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * @param callback The void() callback.
    */
-  void add_sleep_state_callback(std::function<void()> &&callback);
+  template<typename F> void add_sleep_state_callback(F &&callback) {
+    this->sleep_callback_.add(std::forward<F>(callback));
+  }
 
   /** Add a callback to be notified of wake state changes.
    *
    * @param callback The void() callback.
    */
-  void add_wake_state_callback(std::function<void()> &&callback);
+  template<typename F> void add_wake_state_callback(F &&callback) {
+    this->wake_callback_.add(std::forward<F>(callback));
+  }
 
   /** Add a callback to be notified when the nextion completes its initialize setup.
    *
    * @param callback The void() callback.
    */
-  void add_setup_state_callback(std::function<void()> &&callback);
+  template<typename F> void add_setup_state_callback(F &&callback) {
+    this->setup_callback_.add(std::forward<F>(callback));
+  }
 
   /** Add a callback to be notified when the nextion changes pages.
    *
-   * @param callback The void(std::string) callback.
+   * @param callback The void(uint8_t) callback.
    */
-  void add_new_page_callback(std::function<void(uint8_t)> &&callback);
+  template<typename F> void add_new_page_callback(F &&callback) { this->page_callback_.add(std::forward<F>(callback)); }
 
   /** Add a callback to be notified when Nextion has a touch event.
    *
+   * @param callback The void(uint8_t, uint8_t, bool) callback.
+   */
+  template<typename F> void add_touch_event_callback(F &&callback) {
+    this->touch_callback_.add(std::forward<F>(callback));
+  }
+
+  /** Add a callback to be notified when the nextion reports a buffer overflow.
+   *
    * @param callback The void() callback.
    */
-  void add_touch_event_callback(std::function<void(uint8_t, uint8_t, bool)> &&callback);
+  template<typename F> void add_buffer_overflow_event_callback(F &&callback) {
+    this->buffer_overflow_callback_.add(std::forward<F>(callback));
+  }
 
   void update_all_components();
 
@@ -1147,19 +1211,90 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
   void add_to_get_queue(NextionComponentBase *component) override;
 
+#ifdef USE_NEXTION_WAVEFORM
   void add_addt_command_to_queue(NextionComponentBase *component) override;
+#endif  // USE_NEXTION_WAVEFORM
 
   void update_components_by_prefix(const std::string &prefix);
 
-  void set_touch_sleep_timeout_internal(uint32_t touch_sleep_timeout) {
-    this->touch_sleep_timeout_ = touch_sleep_timeout;
-  }
-  void set_wake_up_page_internal(uint8_t wake_up_page) { this->wake_up_page_ = wake_up_page; }
-  void set_start_up_page_internal(uint8_t start_up_page) { this->start_up_page_ = start_up_page; }
-  void set_auto_wake_on_touch_internal(bool auto_wake_on_touch) { this->auto_wake_on_touch_ = auto_wake_on_touch; }
-  void set_exit_reparse_on_start_internal(bool exit_reparse_on_start) {
-    this->exit_reparse_on_start_ = exit_reparse_on_start;
-  }
+  /**
+   * Set the touch sleep timeout of the display using the `thsp` command.
+   *
+   * Sets internal No-touch-then-sleep timer to specified value in seconds.
+   * Nextion will auto-enter sleep mode if and when this timer expires.
+   *
+   * @param touch_sleep_timeout Timeout in seconds.
+   *                           Range: 3 to 65535 seconds (minimum 3 seconds, maximum ~18 hours 12 minutes 15 seconds)
+   *                           Use 0 to disable touch sleep timeout.
+   *
+   * @note Once `thsp` is set, it will persist until reboot or reset. The Nextion device
+   *       needs to exit sleep mode to issue `thsp=0` to disable sleep on no touch.
+   *
+   * @note The display will only wake up by a restart or by setting up `thup` (auto wake on touch).
+   *       See set_auto_wake_on_touch() to configure wake behavior.
+   *
+   * Example:
+   * ```cpp
+   * // Set 30 second touch timeout
+   * it.set_touch_sleep_timeout(30);
+   *
+   * // Set maximum timeout (~18 hours)
+   * it.set_touch_sleep_timeout(65535);
+   *
+   * // Disable touch sleep timeout
+   * it.set_touch_sleep_timeout(0);
+   * ```
+   *
+   * Related Nextion instruction: `thsp=<value>`
+   *
+   * @see set_auto_wake_on_touch() Configure automatic wake on touch
+   * @see sleep() Manually control sleep state
+   */
+  void set_touch_sleep_timeout(uint16_t touch_sleep_timeout = 0);
+
+  /**
+   * Sets which page Nextion loads when exiting sleep mode. Note this can be set even when Nextion is in sleep mode.
+   * @param wake_up_page The page id, from 0 to the last page in Nextion. Set 255 (not set to any existing page) to
+   * wakes up to current page.
+   *
+   * Example:
+   * ```cpp
+   * it.set_wake_up_page(2);
+   * ```
+   *
+   * The display will wake up to page 2.
+   */
+  void set_wake_up_page(uint8_t wake_up_page = 255);
+
+#ifdef USE_NEXTION_CONF_START_UP_PAGE
+  /**
+   * Sets which page Nextion loads when connecting to ESPHome.
+   * @param start_up_page The page id, from 0 to the last page in Nextion. Set 255 (not set to any existing page) to
+   * wakes up to current page.
+   *
+   * Example:
+   * ```cpp
+   * it.set_start_up_page(2);
+   * ```
+   *
+   * The display will go to page 2 when it establishes a connection to ESPHome.
+   */
+  void set_start_up_page(uint8_t start_up_page = 255) { this->start_up_page_ = start_up_page; }
+#endif  // USE_NEXTION_CONF_START_UP_PAGE
+
+  /**
+   * Sets if Nextion should auto-wake from sleep when touch press occurs.
+   * @param auto_wake_on_touch True or false. When auto_wake is true and Nextion is in sleep mode,
+   * the first touch will only trigger the auto wake mode and not trigger a Touch Event.
+   *
+   * Example:
+   * ```cpp
+   * it.set_auto_wake_on_touch(true);
+   * ```
+   *
+   * The display will wake up by touch.
+   */
+  void set_auto_wake_on_touch(bool auto_wake_on_touch);
 
   /**
    * @brief Retrieves the number of commands pending in the Nextion command queue.
@@ -1196,31 +1331,108 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   bool is_updating() override;
 
+  /**
+   * @brief Check if the Nextion display is successfully connected.
+   *
+   * This method returns whether a successful connection has been established with
+   * the Nextion display. A connection is considered established when:
+   *
+   * - The initial handshake with the display is completed successfully, or
+   * - The handshake is skipped via USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE flag
+   *
+   * The connection status is particularly useful when:
+   * - Troubleshooting communication issues
+   * - Ensuring the display is ready before sending commands
+   * - Implementing connection-dependent behaviors
+   *
+   * @return true if the Nextion display is connected and ready to receive commands
+   * @return false if the display is not yet connected or connection was lost
+   */
+  bool is_connected() { return this->connection_state_.is_connected_; }
+
+  /**
+   * @brief Set the maximum age for queue items
+   * @param age_ms Maximum age in milliseconds before queue items are removed
+   */
+  inline void set_max_queue_age(uint16_t age_ms) { this->max_q_age_ms_ = age_ms; }
+
+  /**
+   * @brief Get the maximum age for queue items
+   * @return Maximum age in milliseconds
+   */
+  inline uint16_t get_max_queue_age() const { return this->max_q_age_ms_; }
+
+  /**
+   * @brief Set the startup override timeout
+   * @param timeout_ms Time in milliseconds to wait before forcing setup complete
+   */
+  inline void set_startup_override_ms(uint16_t timeout_ms) { this->startup_override_ms_ = timeout_ms; }
+
+  /**
+   * @brief Get the startup override timeout
+   * @return Startup override timeout in milliseconds
+   */
+  inline uint16_t get_startup_override_ms() const { return this->startup_override_ms_; }
+
  protected:
-  std::deque<NextionQueue *> nextion_queue_;
-  std::deque<NextionQueue *> waveform_queue_;
+#ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
+  uint16_t max_commands_per_loop_{1000};
+#endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
+#ifdef USE_NEXTION_MAX_QUEUE_SIZE
+  size_t max_queue_size_{0};
+#endif  // USE_NEXTION_MAX_QUEUE_SIZE
+
+#ifdef USE_NEXTION_COMMAND_SPACING
+  NextionCommandPacer command_pacer_{0};
+
+  /**
+   * @brief Process any commands in the queue that are pending due to command spacing
+   *
+   * This method checks if the first item in the nextion_queue_ has a pending command
+   * that was previously blocked by command spacing. If spacing now allows and a
+   * pending command exists, it attempts to send the command. Once successfully sent,
+   * the pending command is cleared and the queue item continues normal processing.
+   *
+   * Called from loop() to retry sending commands that were delayed by spacing.
+   */
+  void process_pending_in_queue_();
+#endif  // USE_NEXTION_COMMAND_SPACING
+
+  std::list<NextionQueue *> nextion_queue_;
+#ifdef USE_NEXTION_WAVEFORM
+  /// Fixed-size ring buffer for waveform queue. Nextion supports at most 4 waveform
+  /// channels (IDs 0-3), so 4 entries is both the correct maximum and a safe default.
+  StaticRingBuffer<NextionQueue *, 4> waveform_queue_;
+#endif  // USE_NEXTION_WAVEFORM
   uint16_t recv_ret_string_(std::string &response, uint32_t timeout, bool recv_flag);
   void all_components_send_state_(bool force_update = false);
-  uint64_t comok_sent_ = 0;
+  uint32_t comok_sent_ = 0;
   bool remove_from_q_(bool report_empty = true);
 
   /**
-   * @brief
-   * Sends commands ignoring of the Nextion has been setup.
+   * @brief Status flags for Nextion display state management
+   *
+   * Uses bitfields to pack multiple boolean states into a single byte,
+   * saving 5 bytes of RAM compared to individual bool variables.
    */
-  bool ignore_is_setup_ = false;
-
-  bool nextion_reports_is_setup_ = false;
-  uint8_t nextion_event_;
+  struct {
+    uint8_t is_connected_ : 1;              ///< Connection established with Nextion display
+    uint8_t sent_setup_commands_ : 1;       ///< Initial setup commands have been sent
+    uint8_t ignore_is_setup_ : 1;           ///< Temporarily ignore setup state for special operations
+    uint8_t nextion_reports_is_setup_ : 1;  ///< Nextion has reported successful initialization
+    uint8_t is_updating_ : 1;               ///< TFT firmware update is currently in progress
+    uint8_t auto_wake_on_touch_ : 1;        ///< Display should wake automatically on touch (default: true)
+    uint8_t reserved_ : 2;                  ///< Reserved bits for future flag additions
+  } connection_state_{};                    ///< Zero-initialized status flags (all start as false)
 
   void process_nextion_commands_();
   void process_serial_();
-  bool is_updating_ = false;
-  uint32_t touch_sleep_timeout_ = 0;
-  int16_t wake_up_page_ = -1;
-  int16_t start_up_page_ = -1;
+  uint16_t touch_sleep_timeout_ = 0;
+  uint8_t wake_up_page_ = 255;
+#ifdef USE_NEXTION_CONF_START_UP_PAGE
+  uint8_t start_up_page_ = 255;
+#endif  // USE_NEXTION_CONF_START_UP_PAGE
   bool auto_wake_on_touch_ = true;
-  bool exit_reparse_on_start_ = false;
 
   /**
    * Manually send a raw command to the display and don't wait for an acknowledgement packet.
@@ -1231,6 +1443,23 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   bool add_no_result_to_queue_with_ignore_sleep_printf_(const std::string &variable_name, const char *format, ...)
       __attribute__((format(printf, 3, 4)));
   void add_no_result_to_queue_with_command_(const std::string &variable_name, const std::string &command);
+
+#ifdef USE_NEXTION_COMMAND_SPACING
+  /**
+   * @brief Add a command to the Nextion queue with a pending command for retry
+   *
+   * This method creates a queue entry for a command that was blocked by command spacing.
+   * The command string is stored in the queue item's pending_command field so it can
+   * be retried later when spacing allows. This ensures commands are not lost when
+   * sent too quickly.
+   *
+   * If the max_queue_size limit is configured and reached, the command will be dropped.
+   *
+   * @param variable_name Name of the variable or component associated with the command
+   * @param command The actual command string to be sent when spacing allows
+   */
+  void add_no_result_to_queue_with_pending_command_(const std::string &variable_name, const std::string &command);
+#endif  // USE_NEXTION_COMMAND_SPACING
 
   bool add_no_result_to_queue_with_printf_(const std::string &variable_name, const char *format, ...)
       __attribute__((format(printf, 3, 4)));
@@ -1243,7 +1472,9 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
                                                  const std::string &variable_name_to_send,
                                                  const std::string &state_value, bool is_sleep_safe = false);
 
+#ifdef USE_NEXTION_WAVEFORM
   void check_pending_waveform_();
+#endif  // USE_NEXTION_WAVEFORM
 
 #ifdef USE_NEXTION_TFT_UPLOAD
 #ifdef USE_ESP8266
@@ -1256,17 +1487,12 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   int tft_size_ = 0;
   uint32_t original_baud_rate_ = 0;
   bool upload_first_chunk_sent_ = false;
+  uint16_t tft_upload_http_timeout_{4500};  ///< HTTP timeout in ms (default: 4.5s)
+  uint8_t tft_upload_http_retries_{5};      ///< HTTP retry count (default: 5)
 
-#ifdef USE_ARDUINO
-  /**
-   * will request chunk_size chunks from the web server
-   * and send each to the nextion
-   * @param HTTPClient http_client HTTP client handler.
-   * @param int range_start Position of next byte to transfer.
-   * @return position of last byte transferred, -1 for failure.
-   */
-  int upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start);
-#elif defined(USE_ESP_IDF)
+#ifdef USE_ESP32
+  uint32_t tft_upload_watchdog_timeout_{0};  ///< WDT timeout in ms (0 = no adjustment)
+
   /**
    * will request 4096 bytes chunks from the web server
    * and send each to Nextion
@@ -1275,7 +1501,16 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @return position of last byte transferred, -1 for failure.
    */
   int upload_by_chunks_(esp_http_client_handle_t http_client, uint32_t &range_start);
-#endif  // USE_ARDUINO vs USE_ESP_IDF
+#elif defined(USE_ARDUINO)
+  /**
+   * will request chunk_size chunks from the web server
+   * and send each to the nextion
+   * @param HTTPClient http_client HTTP client handler.
+   * @param int range_start Position of next byte to transfer.
+   * @return position of last byte transferred, -1 for failure.
+   */
+  int upload_by_chunks_(HTTPClient &http_client, uint32_t &range_start);
+#endif  // USE_ESP32 vs USE_ARDUINO
 
   /**
    * Ends the upload process, restart Nextion and, if successful,
@@ -1285,15 +1520,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   bool upload_end_(bool successful);
 
-  /**
-   * Returns the ESP Free Heap memory. This is framework independent.
-   * @return Free Heap in bytes.
-   */
-  uint32_t get_free_heap_();
-
 #endif  // USE_NEXTION_TFT_UPLOAD
-
-  bool get_is_connected_() { return this->is_connected_; }
 
   bool check_connect_();
 
@@ -1307,14 +1534,17 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   CallbackManager<void()> wake_callback_{};
   CallbackManager<void(uint8_t)> page_callback_{};
   CallbackManager<void(uint8_t, uint8_t, bool)> touch_callback_{};
+  CallbackManager<void()> buffer_overflow_callback_{};
 
-  optional<nextion_writer_t> writer_;
-  float brightness_{1.0};
+  nextion_writer_t writer_;
+  optional<float> brightness_;
 
+#ifdef USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
   std::string device_model_;
   std::string firmware_version_;
   std::string serial_number_;
   std::string flash_size_;
+#endif  // USE_NEXTION_CONFIG_DUMP_DEVICE_INFO
 
   void remove_front_no_sensors_();
 
@@ -1324,11 +1554,10 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void reset_(bool reset_nextion = true);
 
   std::string command_data_;
-  bool is_connected_ = false;
-  const uint16_t startup_override_ms_ = 8000;
-  const uint16_t max_q_age_ms_ = 8000;
   uint32_t started_ms_ = 0;
-  bool sent_setup_commands_ = false;
+
+  uint16_t startup_override_ms_ = 8000;  ///< Timeout before forcing setup complete
+  uint16_t max_q_age_ms_ = 8000;         ///< Maximum age for queue items in ms
 };
-}  // namespace nextion
-}  // namespace esphome
+
+}  // namespace esphome::nextion

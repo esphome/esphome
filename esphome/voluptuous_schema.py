@@ -15,7 +15,9 @@ class ExtraKeysInvalid(vol.Invalid):
 def ensure_multiple_invalid(err):
     if isinstance(err, vol.MultipleInvalid):
         return err
-    return vol.MultipleInvalid(err)
+    if isinstance(err, list):
+        return vol.MultipleInvalid(err)
+    return vol.MultipleInvalid([err])
 
 
 # pylint: disable=protected-access, unidiomatic-typecheck
@@ -173,6 +175,12 @@ class _Schema(vol.Schema):
                 else:
                     if self.extra == vol.ALLOW_EXTRA:
                         out[key] = value
+                    elif key == "id":
+                        # Silently drop 'id' on any dict so that
+                        # !extend / !remove work on every list-based
+                        # config without requiring each component to
+                        # declare an id in its schema.
+                        pass
                     elif self.extra != vol.REMOVE_EXTRA:
                         if isinstance(key, str) and key_names:
                             matches = difflib.get_close_matches(key, key_names)
@@ -223,7 +231,10 @@ class _Schema(vol.Schema):
             return ret
 
         schema = schemas[0]
+        extra_schemas = self._extra_schemas.copy()
+        if isinstance(schema, _Schema):
+            extra_schemas.extend(schema._extra_schemas)
         if isinstance(schema, vol.Schema):
             schema = schema.schema
         ret = super().extend(schema, extra=extra)
-        return _Schema(ret.schema, extra=ret.extra, extra_schemas=self._extra_schemas)
+        return _Schema(ret.schema, extra=ret.extra, extra_schemas=extra_schemas)

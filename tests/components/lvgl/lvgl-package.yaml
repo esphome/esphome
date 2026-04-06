@@ -1,9 +1,123 @@
+substitutions:
+  light_recessed: "\U000F179B"
+  wall_sconce_round: "\U000F0748"
+  gas_burner: "\U000F1A1B"
+  home_icon: "\U000F02DC"
+  menu_left: "\U000F0A02"
+  menu_right: "\U000F035F"
+  close: "\U000F0156"
+  delete: "\U000F01B4"
+  backspace: "\U000F006E"
+  check: "\U000F012C"
+  arrow_down: "\U000F004B"
+
+binary_sensor:
+  - id: enter_sensor
+    platform: template
+  - id: left_sensor
+    platform: template
+  - platform: lvgl
+    id: button_checker
+    name: LVGL button
+    widget: button_button
+    on_state:
+      then:
+        - lvgl.checkbox.update:
+            id: checkbox_id
+            state:
+              checked: !lambda |-
+                  auto y = x; // block inlining of one line return
+                  return y;
+
 lvgl:
-  log_level: TRACE
+  id: lvgl_id
+  rotation: 90
+  log_level: debug
+  resume_on_input: true
+  on_pause:
+    - logger.log: LVGL is Paused
+    - lvgl.display.set_rotation: 90
+  on_resume:
+    - logger.log: LVGL has resumed
+    - lvgl.display.set_rotation:
+        rotation: 0
+        lvgl_id: lvgl_id
+
+  on_boot:
+    - logger.log: LVGL has started
+    - lvgl.indicator.update:
+        id: meter_arc_indicator
+        start_value: 0
+        end_value: 180
+  on_invalidate_area:
+    logger.log: Invalidate area
+  on_resolution_change:
+    logger.log: Resolution changed
+  on_color_format_change:
+    logger.log: Color format changed
+  on_refr_request:
+    logger.log: Refresh request
+  on_refr_start:
+    logger.log: Refresh start
+  on_refr_ready:
+    logger.log: Refresh ready
+  on_render_start:
+    logger.log: Render start
+  on_render_ready:
+    logger.log: Render ready
+  on_flush_start:
+    logger.log: Flush start
+  on_flush_finish:
+    logger.log: Flush finish
+  on_flush_wait_start:
+    logger.log: Flush wait start
+  on_flush_wait_finish:
+    logger.log: Flush wait finish
+  on_update_layout_complete:
+    logger.log: Update layout complete
+  on_vsync:
+    logger.log: Vsync
+  on_vsync_request:
+    logger.log: Vsync request
+  on_screen_load_start:
+    logger.log: Screen load start
+  on_screen_load:
+    logger.log: Screen loaded
+  on_screen_unload:
+    logger.log: Screen unloaded
+  on_screen_unload_start:
+    logger.log: Screen unload start
   bg_color: light_blue
+  bottom_layer:
+    widgets:
+      - obj:
+          bg_color: 0x000000
+          bg_opa: cover
   theme:
+    dark_mode: true
     obj:
       border_width: 1
+
+  gradients:
+    - id: color_bar
+      direction: hor
+      stops:
+        - color: 0xFF0000
+          position: 0
+          opa: 100%
+        - color: 0xFFFF00
+          position: 42
+          opa: 80%
+        - color: 0x00FF00
+          position: 84
+        - color: 0x00FFFF
+          position: 127
+        - color: 0x0000FF
+          position: 169
+        - color: 0xFF00FF
+          position: 212
+        - color: 0xFF0000
+          position: 255
 
   style_definitions:
     - id: style_test
@@ -16,8 +130,8 @@ lvgl:
       border_width: 0
       radius: 0
       pad_all: 0
-      border_color: 0x0077b3
-      text_color: 0xFFFFFF
+      border_color: tomato
+      text_color: springgreen
       width: 100%
       height: 30
       border_side: [left, top]
@@ -27,9 +141,9 @@ lvgl:
       line_width: 8
       line_rounded: true
     - id: date_style
-      text_font: roboto10
+      text_font: !lambda return id(roboto10);
       align: center
-      text_color: 0x000000
+      text_color: !lambda return color_id2;
       bg_opa: cover
       radius: 4
       pad_all: 2
@@ -45,61 +159,231 @@ lvgl:
       border_width: 2
       pad_all: 4
       align: center
+    - id: image_recolor
+      image_recolor: 0x10ca1e
+      image_recolor_opa: cover
 
   touchscreens:
     - touchscreen_id: tft_touch
       long_press_repeat_time: 200ms
       long_press_time: 500ms
+  keypads:
+    - initial_focus: button_button
+      enter: enter_sensor
+      next: left_sensor
+
+  msgboxes:
+    - id: message_box
+      close_button: true
+      title: Messagebox
+      bg_color: 0xffff
+      widgets:
+        # Test single widget without list
+        label:
+          text: Hello Msgbox
+          id: msgbox_label
+      body:
+        text: This is a sample messagebox
+        bg_color: 0x808080
+      buttons:
+        - id: msgbox_button
+          text: Button
+          bg_color: 0x00ff00
+          border_width: 4
+        - id: msgbox_apply
+          text: "Close"
+          on_click:
+            then:
+              - lvgl.widget.hide: message_box
+              - lvgl.style.update:
+                  id: style_test
+                  bg_color: blue
+                  bg_opa: !lambda return 0.5;
+              - lvgl.image.update:
+                  id: lv_image
+                  scale: !lambda return 512;
+                  rotation: !lambda return 100;
+                  pivot_x: !lambda return 20;
+                  pivot_y: !lambda return 20;
+                  offset_x: !lambda return 20;
+                  offset_y: !lambda return 20;
+                  antialias: !lambda return true;
+    - id: msgbox_with_header_buttons
+      title: Header Buttons Test
+      body:
+        text: Testing header buttons
+      header_buttons:
+        - src: cat_image
+          on_click:
+            logger.log: Header button clicked
+      buttons:
+        - text: OK
+    - id: simple_msgbox
+      title: Simple
+
   pages:
     - id: page1
+      on_swipe_top:
+        logger.log: "swiped up"
+      on_swipe_bottom:
+        logger.log: "swiped down"
+      on_swipe_up:
+        logger.log: "swiped up"
+      on_swipe_down:
+        logger.log: "swiped down"
+      on_swipe_left:
+        logger.log: "swiped left"
+      on_swipe_right:
+        logger.log: "swiped right"
+      bg_image_src: cat_image
+      on_load:
+        - logger.log: page loaded
+        - lvgl.widget.focus:
+            action: restore
+        - if:
+            condition:
+              lvgl.page.is_showing: page1
+            then:
+              logger.log: "Yes, page1 showing"
+        - if:
+            condition:
+              lvgl.is_idle:
+                timeout: !lambda return 5000;
+            then:
+              logger.log: LVGL is idle
+      on_unload:
+        - logger.log: page unloaded
+        - lvgl.widget.focus: mark
+        - lvgl.widget.redraw: hello_label
+        - lvgl.widget.redraw:
+        - lvgl.label.update:
+            id: msgbox_label
+            text: Unloaded
+        - lvgl.label.update:
+            id: msgbox_label
+            text: ""  # Empty text
+      on_all_events:
+        logger.log:
+          format: "Event %s"
+          args: ['lv_event_code_name_for(event).c_str()']
       skip: true
       layout:
-        type: flex
+        type: Flex
         pad_row: 4
         pad_column: 4px
         flex_align_main: center
         flex_align_cross: start
         flex_align_track: end
       widgets:
+        - roller:
+            id: lv_roller
+            visible_row_count: 2
+            anim_duration: 500ms
+            options:
+              - Nov
+              - Dec
+            selected_index: 1
+            on_change:
+              then:
+                - logger.log:
+                    format: "Roller changed = %d: %s"
+                    args: [x, text.c_str()]
+            on_value:
+              then:
+                - logger.log:
+                    format: "Roller changed = %d: %s"
+                    args: [x, text.c_str()]
         - animimg:
             height: 60
             id: anim_img
-            src: [cat_image, dog_image]
+            src: !lambda "return {dog_image, cat_image};"
             repeat_count: 10
             duration: 1s
             auto_start: true
+            on_all_events:
+              - logger.log:
+                  format: "Event %s"
+                  args: ['lv_event_code_name_for(event).c_str()']
+              - lvgl.animimg.update:
+                  id: anim_img
+                  src: !lambda "return {dog_image, cat_image};"
+                  duration: 2s
+              - lvgl.widget.refresh: anim_img
         - label:
+            on_boot:
+              lvgl.label.update:
+                id: hello_label
+                text: Goodbye Cruel World
             id: hello_label
             text: Hello world
             text_color: 0xFF8000
             align: center
             text_font: montserrat_40
             border_post: true
+            on_press:
+              lvgl.label.update:
+                id: hello_label
+                text: Goodbye
             on_click:
               then:
                 - lvgl.animimg.stop: anim_img
+                - lvgl.update:
+                    bottom_layer:
+                      bg_color: 0xffff00
+                - lvgl.widget.show: message_box
         - label:
             text: "Hello shiny day"
             text_color: 0xFFFFFF
-            align: bottom_mid
-            text_font: space16
-        - obj:
+            align_to:
+              id: hello_label
+              align: OUT_LEFT_TOP
+        - label:
+            id: setup_lambda_label
+            # Test lambda in widget property during setup (LvContext)
+            # Should NOT receive lv_component parameter
+            text: !lambda |-
+              char buf[32];
+              snprintf(buf, sizeof(buf), "Setup: %d", 42);
+              return std::string(buf);
+            align: top_mid
+            text_font: !lambda return id(space16);
+        - label:
+            id: chip_info_label
+            # Test complex setup lambda (real-world pattern)
+            # Should NOT receive lv_component parameter
+            text: !lambda |-
+              // Test conditional compilation and string formatting
+              char buf[64];
+              #ifdef USE_ESP_IDF
+              snprintf(buf, sizeof(buf), "IDF: v%d.%d", ESP_IDF_VERSION_MAJOR, ESP_IDF_VERSION_MINOR);
+              #else
+              snprintf(buf, sizeof(buf), "Arduino");
+              #endif
+              return std::string(buf);
+            align: top_left
+        - container:
             align: center
+            anim_duration: 1s
             arc_opa: COVER
             arc_color: 0xFF0000
             arc_rounded: false
             arc_width: 3
-            anim_time: 1s
+            base_dir: auto
             bg_color: light_blue
             bg_grad_color: light_blue
-            bg_dither_mode: ordered
             bg_grad_dir: hor
+            bg_grad_opa: cover
             bg_grad_stop: 128
             bg_image_opa: transp
             bg_image_recolor: light_blue
             bg_image_recolor_opa: 50%
+            bg_main_opa: cover
             bg_main_stop: 0
             bg_opa: 20%
+            blend_mode: normal
+            blur_backdrop: false
+            blur_quality: auto
+            blur_radius: 0
             border_color: 0x00FF00
             border_opa: cover
             border_post: true
@@ -107,7 +391,15 @@ lvgl:
             border_width: 4
             clip_corner: false
             color_filter_opa: transp
+            drop_shadow_color: 0x000000
+            drop_shadow_offset_x: 5
+            drop_shadow_offset_y: 5
+            drop_shadow_opa: cover
+            drop_shadow_quality: precision
+            drop_shadow_radius: 10
+            ext_click_area: 100px
             height: 50%
+            image_opa: cover
             image_recolor: light_blue
             image_recolor_opa: cover
             line_width: 10
@@ -115,6 +407,10 @@ lvgl:
             line_dash_gap: 10
             line_rounded: false
             line_color: light_blue
+            margin_bottom: 4
+            margin_left: 4
+            margin_right: 4
+            margin_top: 4
             opa: cover
             opa_layered: cover
             outline_color: light_blue
@@ -124,11 +420,13 @@ lvgl:
             pad_all: 10px
             pad_bottom: 10px
             pad_left: 10px
+            pad_radial: 0
             pad_right: 10px
             pad_top: 10px
+            recolor: 0xFF0000
+            recolor_opa: transp
+            rotary_sensitivity: 256
             shadow_color: light_blue
-            shadow_ofs_x: 5
-            shadow_ofs_y: 5
             shadow_opa: cover
             shadow_spread: 5
             shadow_width: 10
@@ -139,11 +437,22 @@ lvgl:
             text_letter_space: 4
             text_line_space: 4
             text_opa: cover
-            transform_angle: 180
+            text_outline_stroke_color: 0x000000
+            text_outline_stroke_opa: cover
+            text_outline_stroke_width: 2
+            transform_rotation: 90
             transform_height: 100
             transform_pivot_x: 50%
             transform_pivot_y: 50%
-            transform_zoom: 0.5
+            transform_scale: 2.0
+            transform_scale_x: 1.5
+            transform_scale_y: 0.8
+            transform_skew_x: 10
+            transform_skew_y: 20
+            transform_width: 100
+            shadow_offset_x: 3
+            shadow_offset_y: 3
+            translate_radial: 0
             translate_x: 10
             translate_y: 10
             max_height: 100
@@ -156,9 +465,13 @@ lvgl:
             y: 120
         - buttonmatrix:
             on_press:
-              logger.log:
-                format: "matrix button pressed: %d"
-                args: ["x"]
+              then:
+                - logger.log:
+                    format: "matrix button pressed: %d"
+                    args: ["x"]
+                - lvgl.widget.show: b_matrix
+                - lvgl.widget.redraw:
+
             on_long_press:
               lvgl.matrix.button.update:
                 id: [button_a, button_e, button_c]
@@ -212,18 +525,50 @@ lvgl:
               - buttons:
                   - id: button_e
         - button:
+            id: button_with_text
+            text: Button
+            on_click:
+              lvgl.button.update:
+                id: button_with_text
+                text: Clicked
+
+        - button:
+            layout: 2x1
             id: button_button
             width: 20%
             height: 10%
+            transform_rotation: !lambda return(180*100);
+            arc_width: !lambda return 4;
+            border_width: !lambda return 6;
+            shadow_offset_x: !lambda return 6;
+            shadow_offset_y: !lambda return 6;
+            shadow_spread: !lambda return 6;
+            shadow_width: !lambda return 6;
             pressed:
               bg_color: light_blue
             checkable: true
             checked:
               bg_color: 0x000000
             widgets:
-              - label:
-                  text: Button
+              # Test parse a dict instead of list
+              label:
+                text: Button
+                align: bottom_right
+              image:
+                src: cat_image
+                align: top_left
+                bitmap_mask_src: alert
             on_click:
+              - lvgl.widget.focus: spin_up
+              - lvgl.widget.focus: next
+              - lvgl.widget.focus: previous
+              - lvgl.widget.focus:
+                  action: previous
+                  freeze: true
+              - lvgl.widget.focus:
+                  id: spin_up
+                  freeze: true
+                  editing: true
               - lvgl.label.update:
                   id: hello_label
                   bg_color: 0x123456
@@ -252,19 +597,19 @@ lvgl:
                   id: hello_label
                   text:
                     time_format: "%c"
-                    time: time_id
+                    time: sntp_time
               - lvgl.label.update:
                   id: hello_label
                   text:
                     time_format: "%c"
-                    time: !lambda return id(time_id).now();
+                    time: !lambda return id(sntp_time).now();
               - lvgl.label.update:
                   id: hello_label
                   text:
                     time_format: "%c"
                     time: !lambda |-
                         ESP_LOGD("label", "multi-line lambda");
-                        return id(time_id).now();
+                        return id(sntp_time).now();
             on_value:
               logger.log:
                 format: "state now %d"
@@ -291,6 +636,76 @@ lvgl:
               logger.log: Button clicked
             on_long_press_repeat:
               logger.log: Button clicked
+            on_pressing:
+              logger.log: Button pressing
+            on_press_lost:
+              logger.log: Button press lost
+            on_single_click:
+              logger.log: Button single clicked
+            on_double_click:
+              logger.log: Button double clicked
+            on_triple_click:
+              logger.log: Button triple clicked
+            on_scroll_throw_begin:
+              logger.log: Scroll throw begin
+            on_gesture:
+              logger.log: Gesture detected
+            on_key:
+              logger.log: Key event
+            on_rotary:
+              logger.log: Rotary event
+            on_leave:
+              logger.log: Leave event
+            on_hit_test:
+              logger.log: Hit test
+            on_indev_reset:
+              logger.log: Indev reset
+            on_hover_over:
+              logger.log: Hover over
+            on_hover_leave:
+              logger.log: Hover leave
+            on_cover_check:
+              logger.log: Cover check
+            on_refr_ext_draw_size:
+              logger.log: Refr ext draw size
+            on_draw_main_begin:
+              logger.log: Draw main begin
+            on_draw_main:
+              logger.log: Draw main
+            on_draw_main_end:
+              logger.log: Draw main end
+            on_draw_post_begin:
+              logger.log: Draw post begin
+            on_draw_post:
+              logger.log: Draw post
+            on_draw_post_end:
+              logger.log: Draw post end
+            on_draw_task_add:
+              logger.log: Draw task add
+            on_insert:
+              logger.log: Insert event
+            on_refresh:
+              logger.log: Refresh event
+            on_state_change:
+              logger.log: State changed
+            on_create:
+              logger.log: Create event
+            on_delete:
+              logger.log: Delete event
+            on_child_change:
+              logger.log: Child changed
+            on_child_create:
+              logger.log: Child created
+            on_child_delete:
+              logger.log: Child deleted
+            on_size_change:
+              logger.log: Size changed
+            on_style_change:
+              logger.log: Style changed
+            on_layout_change:
+              logger.log: Layout changed
+            on_get_self_size:
+              logger.log: Get self size
         - led:
             id: lv_led
             color: 0x00FF00
@@ -300,13 +715,200 @@ lvgl:
             arc_length: 120
             spin_time: 2s
             align: left_mid
+        - spinner:
+            align: right_mid
+            send_draw_task_events: true
         - image:
+            id: lv_image
             src: cat_image
             align: top_left
-            y: 50
+            y: "50"
+            scale: 2.0
+            rotation: 45
+        - tileview:
+            id: tileview_id
+            scrollbar_mode: active
+            scroll_dir: all
+            scroll_elastic: true
+            scroll_momentum: true
+            on_value:
+              then:
+                - if:
+                    condition:
+                      lambda: return tile == id(tile_1);
+                    then:
+                      - logger.log: "tile 1 is now showing"
+            tiles:
+              - id: tile_1
+                scroll_snap_y: center
+                scroll_snap_x: start
+                layout: vertical
+                pad_all: 6px
+                row: 0
+                column: 0
+                dir: ALL
+                widgets:
+                  - obj:
+                      bg_color: 0x000000
+              - id: tile_2
+                row: 1
+                column: 0
+                dir: [VER, HOR]
+                widgets:
+                  - obj:
+                      bg_color: 0x000000
 
     - id: page2
+      layout: vertical
       widgets:
+        - canvas:
+            id: canvas_id
+            align: center
+            width: 400
+            height: 400
+            transparent: true
+            on_boot:
+              - lvgl.canvas.fill:
+                  color: blue
+                  opa: 50%
+              - lvgl.canvas.draw_rectangle:
+                  x: 20
+                  y: 20
+                  width: 150
+                  height: 150
+                  bg_color: green
+                  bg_opa: cover
+                  radius: 5
+                  border_color: black
+                  border_width: 4
+                  border_opa: 80%
+                  shadow_color: black
+                  shadow_width: 10
+                  shadow_offset_x: 5
+                  shadow_offset_y: 5
+                  shadow_spread: 4
+                  shadow_opa: cover
+                  outline_color: red
+                  outline_width: 4
+                  outline_pad: 4
+                  outline_opa: cover
+              - lvgl.canvas.set_pixels:
+                  color: red
+                  points:
+                    - x: 100
+                      y: 100
+                    - 100,101
+                    - 100,102
+                    - 100,103
+                    - 100,104
+              - lvgl.canvas.set_pixels:
+                  opa: 50%
+                  color: !lambda return lv_color_make(255,255,255);
+                  points:
+                    - x: !lambda return random_uint32() % 200;
+                      y: !lambda return random_uint32() % 200;
+                    - 121,120
+                    - 122,120
+                    - 123,120
+                    - 124,120
+                    - 125,120
+
+              - lvgl.canvas.draw_text:
+                  x: 100
+                  y: 100
+                  font: montserrat_18
+                  color: white
+                  opa: cover
+                  decor: underline
+                  letter_space: 1
+                  line_space: 2
+                  text: Canvas Text
+                  align: center
+                  max_width: 150
+              - lvgl.canvas.draw_image:
+                  src: cat_image
+                  x: 100
+                  y: 100
+                  rotation: 90
+                  scale_x: 2.0
+                  scale_y: 1.5
+                  skew_x: 10
+                  skew_y: 5
+                  pivot_x: 25
+                  pivot_y: 25
+              - lvgl.canvas.draw_line:
+                  color: blue
+                  width: 4
+                  round_end: true
+                  round_start: false
+                  points:
+                    - 50,50
+                    - 50, 200
+                    - 200, 200
+                    - 200, 50
+                    - 50,50
+              - lvgl.canvas.draw_polygon:
+                  bg_color: teal
+                  border_color: white
+                  border_width: 2
+                  border_opa: cover
+                  points:
+                    - 150,150
+                    - 150, 300
+                    - 300, 300
+                    - 350, 250
+              - lvgl.canvas.draw_arc:
+                  x: 200
+                  y: 200
+                  radius: 40
+                  opa: 50%
+                  color: purple
+                  width: 6
+                  rounded: true
+                  start_angle: 10
+                  end_angle: !lambda return 900;
+
+        - qrcode:
+            id: lv_qr
+            align: left_mid
+            size: 100
+            light_color: whitesmoke
+            dark_color: steelblue
+            text: esphome.io
+            on_click:
+              lvgl.qrcode.update:
+                id: lv_qr
+                text:
+                  format: "A string with a number %d"
+                  args: ['(int)(random_uint32() % 1000)']
+                size: 120
+                dark_color: navy
+                light_color: white
+
+        - slider:
+            min_value: 0
+            max_value: 255
+            bg_opa: cover
+            bg_grad: color_bar
+            radius: 0
+            indicator:
+              bg_opa: transp
+            knob:
+              radius: 1
+              width: "4"
+              pad_left: -5
+              pad_top: 5
+              height: 10%
+              bg_color: 0x000000
+            width: 100%
+            height: 10%
+            align: top_mid
+            on_value:
+              - lvgl.spinbox.update:
+                  id: spinbox_id
+                  value: !lambda |-
+                      static float yyy = 83.0;
+                      return yyy + .8;
         - button:
             styles: spin_button
             id: spin_up
@@ -323,7 +925,7 @@ lvgl:
             width: 120
             range_from: -10
             range_to: 1000
-            step: 5.0
+            selected_digit: 2
             rollover: false
             digits: 6
             decimal_places: 2
@@ -333,6 +935,12 @@ lvgl:
                 - logger.log:
                     format: "Spinbox value is %f"
                     args: [x]
+                - lvgl.label.update:
+                    id: hello_label
+                    text:
+                      format: "value is %.1f now"
+                      args: [x]
+                      if_nan: "Value unknown"
         - button:
             styles: spin_button
             id: spin_down
@@ -362,6 +970,32 @@ lvgl:
                 arc_color: 0xFFFF00
               focused:
                 arc_color: 0x808080
+        - arc:
+            align: center
+            id: lv_arc_1
+            value: !lambda return 75;
+            min_value: !lambda return 50;
+            max_value: !lambda return 60;
+            arc_color: 0xFF0000
+            indicator:
+              arc_width: !lambda return 20;
+              arc_color: 0xF000FF
+              pressed:
+                arc_color: 0xFFFF00
+              focused:
+                arc_color: 0x808080
+            on_click:
+              then:
+                - lvgl.arc.update:
+                    id: lv_arc_1
+                    value: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    min_value: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    max_value: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    start_angle: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    end_angle: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    rotation: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    change_rate: !lambda return (uint)((float)rand() / RAND_MAX * 100);
+                    mode: NORMAL
         - bar:
             id: bar_id
             align: top_mid
@@ -369,25 +1003,42 @@ lvgl:
             value: 30
             max_value: 100
             min_value: 10
+            start_value: 20
             mode: range
             on_click:
               then:
                 - lvgl.bar.update:
                     id: bar_id
                     value: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    start_value: !lambda return (int)((float)rand() / RAND_MAX * 100);
+                    mode: range
                 - logger.log:
                     format: "bar value %f"
                     args: [x]
         - line:
+            id: lv_line_id
             align: center
             points:
               - 5, 5
+              - x: !lambda return random_uint32() % 100;
+                y: !lambda return random_uint32() % 100;
               - 70, 70
               - 120, 10
               - 180, 60
               - 240, 10
             on_click:
-              lvgl.page.next:
+              - lvgl.line.update:
+                  id: lv_line_id
+                  line_color: 0xFFFF
+                  points:
+                    - 5, 5
+                    - x: !lambda return random_uint32() % 100;
+                      y: !lambda return random_uint32() % 100;
+                    - 70, 70
+                    - 120, 10
+                    - 180, 60
+                    - 240, 10
+              - lvgl.page.next:
         - switch:
             align: right_mid
         - checkbox:
@@ -414,6 +1065,13 @@ lvgl:
                     value: !lambda return (int)((float)rand() / RAND_MAX * 100);
         - tabview:
             id: tabview_id
+            tab_style:
+              border_color: 0x00FF00
+              border_width: 6
+              items:
+                text_color: 0x0000FF
+            content_style:
+              scrollable: false
             width: 100%
             height: 80%
             position: top
@@ -432,17 +1090,18 @@ lvgl:
                 width: 100%
                 pad_all: 8
                 layout:
-                  type: grid
+                  type: GRid
                   grid_row_align: end
                   grid_rows: [25px, fr(1), content]
                   grid_columns: [40, fr(1), fr(1)]
                   pad_row: 6px
                   pad_column: 0
+                  multiple_widgets_per_cell: true
                 widgets:
                   - image:
                       grid_cell_row_pos: 0
                       grid_cell_column_pos: 0
-                      src: dog_image
+                      src: !lambda return dog_image;
                       on_click:
                         then:
                           - lvgl.tabview.select:
@@ -453,9 +1112,7 @@ lvgl:
                       styles: bdr_style
                       grid_cell_x_align: center
                       grid_cell_y_align: stretch
-                      grid_cell_row_pos: 0
-                      grid_cell_column_pos: 1
-                      grid_cell_column_span: 1
+                      grid_cell_column_span: 2
                       text: "Grid cell 0/1"
                   - label:
                       grid_cell_x_align: end
@@ -463,6 +1120,10 @@ lvgl:
                       grid_cell_row_pos: 1
                       grid_cell_column_pos: 0
                       text: "Grid cell 1/0"
+                  - label:
+                      grid_cell_row_pos: 1
+                      grid_cell_column_pos: 0
+                      text: "Duplicate for 1/0"
                   - label:
                       styles: bdr_style
                       grid_cell_row_pos: 1
@@ -477,15 +1138,157 @@ lvgl:
               - name: Cat
                 id: tabview_tab_2
                 widgets:
+                  - dropdown:
+                      indicator:
+                        text_font: helvetica20
+                      id: lv_dropdown
+                      options:
+                        - First
+                        - Second
+                        - Third
+                        - 6th
+                        - 7th
+                        - 8th
+                        - 9th
+                      selected_index: 2
+                      dir: top
+                      symbol: ${arrow_down}
+                      dropdown_list:
+                        max_height: 100px
+                        bg_color: 0x000080
+                        text_color: 0xFF00
+                        selected:
+                          bg_color: 0xFFFF00
+                          checked:
+                            bg_color: 0x00
+                            text_color: 0xFF0000
+                        scrollbar:
+                          bg_color: 0xFF
+                      on_value:
+                        logger.log:
+                          format: "Dropdown changed = %d: %s"
+                          args: [x, text.c_str()]
+                      on_cancel:
+                        logger.log:
+                          format: "Dropdown closed = %d"
+                          args: [x]
                   - image:
                       src: cat_image
                       on_click:
                         then:
+                          - lvgl.dropdown.update:
+                              id: lv_dropdown
+                              options:
+                                ["First", "Second", "Third", "4th", "5th", "6th", "7th", "8th", "9th", "10th", "11th"]
+                              selected_index: 3
                           - logger.log: Cat image clicked
                           - lvgl.tabview.select:
                               id: tabview_id
                               index: 0
                               animated: true
+                  - meter:
+                      height: 200px
+                      width: 200px
+                      indicator:
+                        bg_color: 0xFF
+                        radius: 0
+                      bg_opa: TRANSP
+                      text_color: 0xFFFFFF
+                      scales:
+                        - ticks:
+                            width: 1
+                            count: 61
+                            length: 20
+                            radial_offset: 5
+                            color: 0xFFFFFF
+                            major:
+                              stride: 5
+                              width: 2
+                              length: 8
+                              color: 0xC0C0C0
+                              radial_offset: 3
+                              label_gap: 6
+                          range_from: 0
+                          range_to: 60
+                          angle_range: 360
+                          rotation: !lambda return 2700;
+                          indicators:
+                            - tick_style:
+                                start_value: 0
+                                end_value: 60
+                                color_start: 0x0000bd
+                                color_end: 0xbd0000
+                                width: 1
+                            - line:
+                                opa: 50%
+                                id: minute_hand
+                                color: 0xFF0000
+                                length: 99%
+                                radial_offset: 2
+                                width: 1
+                        - angle_range: 330
+                          rotation: 300
+                          range_from: 1
+                          range_to: 12
+                          ticks:
+                            width: 1
+                            count: 12
+                            length: 1
+                            major:
+                              stride: 1
+                              width: 4
+                              length: 8
+                              color: 0xC0C0C0
+                              label_gap: 6
+                        - angle_range: 360
+                          rotation: 270
+                          range_from: 0
+                          range_to: 720
+                          indicators:
+                            - line:
+                                id: hour_hand
+                                value: 180
+                                width: 4
+                                color: 0xA0A0A0
+                                length: 80%
+                                opa: 0%
+                            - arc:
+                                id: meter_arc_indicator
+                                color: 0xFF0000
+                                width: 6
+                                start_value: 0
+                                end_value: 360
+    - id: page3
+      layout: Horizontal
+      pad_all: 6px
+      widgets:
+        - keyboard:
+            id: lv_keyboard
+            align: bottom_mid
+            on_value:
+              then:
+                - logger.log:
+                    format: "keyboard value %s"
+                    args: [text.c_str()]
+                - lvgl.keyboard.update:
+                    id: lv_keyboard
+                    hidden: true
+            on_ready:
+              - lvgl.widget.update:
+                  id: lv_keyboard
+              - lvgl.keyboard.update:
+                  id: lv_keyboard
+                  hidden: true
+
+        - keyboard:
+            id: lv_keyboard1
+            mode: special
+            on_ready:
+              lvgl.keyboard.update:
+                id: lv_keyboard1
+                hidden: true
+                mode: text_lower
+
 font:
   - file: "gfonts://Roboto"
     id: space16
@@ -495,11 +1298,41 @@ image:
   - id: cat_image
     resize: 256x48
     file: $component_dir/logo-text.svg
+    type: RGB565
+    transparency: alpha_channel
   - id: dog_image
     file: $component_dir/logo-text.svg
     resize: 256x48
-    type: TRANSPARENT_BINARY
+    type: BINARY
+    transparency: chroma_key
+
+  - id: alert
+    file: $component_dir/logo-text.svg
+    type: grayscale
+    resize: 100x100
+    invert_alpha: true
+    transparency: alpha_channel
 
 color:
   - id: light_blue
     hex: "3340FF"
+  - id: color_id
+    red: 0.5
+    green: 0.5
+    blue: 0.5
+    white: 0.5
+  - id: color_id2
+    red_int: 0xFF
+    green_int: 123
+    blue_int: 64
+    white_int: 255
+
+select:
+  - platform: lvgl
+    id: lv_roller_select
+    widget: lv_roller
+    restore_value: true
+  - platform: lvgl
+    id: lv_dropdown_select
+    widget: lv_dropdown
+    restore_value: false

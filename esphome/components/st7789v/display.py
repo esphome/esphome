@@ -1,22 +1,23 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import display, spi, power_supply
+import esphome.codegen as cg
+from esphome.components import display, power_supply, spi
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_BACKLIGHT_PIN,
+    CONF_CS_PIN,
     CONF_DC_PIN,
     CONF_HEIGHT,
     CONF_ID,
     CONF_LAMBDA,
     CONF_MODEL,
-    CONF_RESET_PIN,
-    CONF_WIDTH,
-    CONF_POWER_SUPPLY,
-    CONF_ROTATION,
-    CONF_CS_PIN,
     CONF_OFFSET_HEIGHT,
     CONF_OFFSET_WIDTH,
+    CONF_POWER_SUPPLY,
+    CONF_RESET_PIN,
+    CONF_ROTATION,
+    CONF_WIDTH,
 )
+
 from . import st7789v_ns
 
 CONF_EIGHTBITCOLOR = "eightbitcolor"
@@ -168,11 +169,15 @@ CONFIG_SCHEMA = cv.All(
     validate_st7789v,
 )
 
+FINAL_VALIDATE_SCHEMA = spi.final_validate_device_schema(
+    "st7789v", require_miso=False, require_mosi=True
+)
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await display.register_display(var, config)
-    await spi.register_spi_device(var, config)
+    await spi.register_spi_device(var, config, write_only=True)
 
     cg.add(var.set_model_str(config[CONF_MODEL]))
 

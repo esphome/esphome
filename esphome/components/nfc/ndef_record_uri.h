@@ -1,7 +1,7 @@
 #pragma once
 
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "ndef_record.h"
 
 #include <vector>
@@ -9,7 +9,7 @@
 namespace esphome {
 namespace nfc {
 
-static const uint8_t PAYLOAD_IDENTIFIERS_COUNT = 0x23;
+static constexpr uint8_t PAYLOAD_IDENTIFIERS_COUNT = 0x23;
 static const char *const PAYLOAD_IDENTIFIERS[] = {"",
                                                   "http://www.",
                                                   "https://www.",

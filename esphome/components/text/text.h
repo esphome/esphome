@@ -6,15 +6,12 @@
 #include "text_call.h"
 #include "text_traits.h"
 
-namespace esphome {
-namespace text {
+namespace esphome::text {
 
 #define LOG_TEXT(prefix, type, obj) \
   if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    if (!(obj)->get_icon().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
-    } \
+    LOG_ENTITY_ICON(TAG, prefix, *(obj)); \
   }
 
 /** Base-class for all text inputs.
@@ -27,14 +24,15 @@ class Text : public EntityBase {
   TextTraits traits;
 
   void publish_state(const std::string &state);
-
-  /// Return whether this text input has gotten a full state yet.
-  bool has_state() const { return has_state_; }
+  void publish_state(const char *state);
+  void publish_state(const char *state, size_t len);
 
   /// Instantiate a TextCall object to modify this text component's state.
   TextCall make_call() { return TextCall(this); }
 
-  void add_on_state_callback(std::function<void(std::string)> &&callback);
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callback_.add(std::forward<F>(callback));
+  }
 
  protected:
   friend class TextCall;
@@ -47,9 +45,7 @@ class Text : public EntityBase {
    */
   virtual void control(const std::string &value) = 0;
 
-  CallbackManager<void(std::string)> state_callback_;
-  bool has_state_{false};
+  LazyCallbackManager<void(const std::string &)> state_callback_;
 };
 
-}  // namespace text
-}  // namespace esphome
+}  // namespace esphome::text

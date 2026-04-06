@@ -20,23 +20,23 @@
 # place: https://hackaday.io/project/176690-the-water-watcher
 
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_GAIN,
     CONF_ACTUAL_GAIN,
-    CONF_ID,
-    CONF_NAME,
-    CONF_INTEGRATION_TIME,
-    CONF_FULL_SPECTRUM,
-    CONF_INFRARED,
-    CONF_POWER_SAVE_MODE,
-    CONF_VISIBLE,
     CONF_CALCULATED_LUX,
     CONF_DEVICE_FACTOR,
+    CONF_FULL_SPECTRUM,
+    CONF_GAIN,
     CONF_GLASS_ATTENUATION_FACTOR,
-    ICON_BRIGHTNESS_6,
+    CONF_ID,
+    CONF_INFRARED,
+    CONF_INTEGRATION_TIME,
+    CONF_NAME,
+    CONF_POWER_SAVE_MODE,
+    CONF_VISIBLE,
     DEVICE_CLASS_ILLUMINANCE,
+    ICON_BRIGHTNESS_6,
     STATE_CLASS_MEASUREMENT,
     UNIT_LUX,
 )

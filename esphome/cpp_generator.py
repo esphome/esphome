@@ -1,9 +1,9 @@
 import abc
-from collections.abc import Sequence
+from collections.abc import Callable
 import inspect
 import math
 import re
-from typing import Any, Callable, Optional, Union
+from typing import Any
 
 from esphome.core import (
     CORE,
@@ -13,7 +13,6 @@ from esphome.core import (
     HexInt,
     Lambda,
     Library,
-    TimePeriod,
     TimePeriodMicroseconds,
     TimePeriodMilliseconds,
     TimePeriodMinutes,
@@ -21,33 +20,9 @@ from esphome.core import (
     TimePeriodSeconds,
 )
 from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
+from esphome.types import Expression, SafeExpType, TemplateArgsType
 from esphome.util import OrderedDict
 from esphome.yaml_util import ESPHomeDataBase
-
-
-class Expression(abc.ABC):
-    __slots__ = ()
-
-    @abc.abstractmethod
-    def __str__(self):
-        """
-        Convert expression into C++ code
-        """
-
-
-SafeExpType = Union[
-    Expression,
-    bool,
-    str,
-    str,
-    int,
-    float,
-    TimePeriod,
-    type[bool],
-    type[int],
-    type[float],
-    Sequence[Any],
-]
 
 
 class RawExpression(Expression):
@@ -76,21 +51,25 @@ class AssignmentExpression(Expression):
 
 
 class VariableDeclarationExpression(Expression):
-    __slots__ = ("type", "modifier", "name")
+    __slots__ = ("type", "modifier", "name", "static")
 
-    def __init__(self, type_, modifier, name):
+    def __init__(
+        self, type_: "MockObj", modifier: str, name: ID, *, static: bool = False
+    ) -> None:
         self.type = type_
         self.modifier = modifier
         self.name = name
+        self.static = static
 
-    def __str__(self):
-        return f"{self.type} {self.modifier}{self.name}"
+    def __str__(self) -> str:
+        prefix = "static " if self.static else ""
+        return f"{prefix}{self.type} {self.modifier}{self.name}"
 
 
 class ExpressionList(Expression):
     __slots__ = ("args",)
 
-    def __init__(self, *args: Optional[SafeExpType]):
+    def __init__(self, *args: SafeExpType | None):
         # Remove every None on end
         args = list(args)
         while args and args[-1] is None:
@@ -139,7 +118,7 @@ class CallExpression(Expression):
 class StructInitializer(Expression):
     __slots__ = ("base", "args")
 
-    def __init__(self, base: Expression, *args: tuple[str, Optional[SafeExpType]]):
+    def __init__(self, base: Expression, *args: tuple[str, SafeExpType | None]):
         self.base = base
         # TODO: args is always a Tuple, is this check required?
         if not isinstance(args, OrderedDict):
@@ -197,9 +176,7 @@ class ParameterExpression(Expression):
 class ParameterListExpression(Expression):
     __slots__ = ("parameters",)
 
-    def __init__(
-        self, *parameters: Union[ParameterExpression, tuple[SafeExpType, str]]
-    ):
+    def __init__(self, *parameters: ParameterExpression | tuple[SafeExpType, str]):
         self.parameters = []
         for parameter in parameters:
             if not isinstance(parameter, ParameterExpression):
@@ -225,6 +202,8 @@ class LambdaExpression(Expression):
         self.return_type = safe_exp(return_type) if return_type is not None else None
 
     def __str__(self):
+        # Stateless lambdas (empty capture) implicitly convert to function pointers
+        # when assigned to function pointer types - no unary + needed
         cpp = f"[{self.capture}]({self.parameters})"
         if self.return_type is not None:
             cpp += f" -> {self.return_type}"
@@ -253,6 +232,36 @@ class StringLiteral(Literal):
 
     def __str__(self):
         return cpp_string_escape(self.string)
+
+
+class LogStringLiteral(Literal):
+    """A string literal that uses LOG_STR() macro for flash storage on ESP8266."""
+
+    __slots__ = ("string",)
+
+    def __init__(self, string: str) -> None:
+        super().__init__()
+        self.string = string
+
+    def __str__(self) -> str:
+        return f"LOG_STR({cpp_string_escape(self.string)})"
+
+
+class FlashStringLiteral(Literal):
+    """A string literal wrapped in ESPHOME_F() for PROGMEM storage on ESP8266.
+
+    On ESP8266, ESPHOME_F(s) expands to F(s) which stores the string in flash (PROGMEM).
+    On other platforms, ESPHOME_F(s) expands to plain s (no-op).
+    """
+
+    __slots__ = ("string",)
+
+    def __init__(self, string: str) -> None:
+        super().__init__()
+        self.string = string
+
+    def __str__(self) -> str:
+        return f"ESPHOME_F({cpp_string_escape(self.string)})"
 
 
 class IntLiteral(Literal):
@@ -418,7 +427,9 @@ class LineComment(Statement):
         self.value = value
 
     def __str__(self):
-        parts = re.sub(r"\\\s*\n", r"<cont>\n", self.value, re.MULTILINE).split("\n")
+        parts = re.sub(r"\\\s*\n", r"<cont>\n", self.value, flags=re.MULTILINE).split(
+            "\n"
+        )
         parts = [f"// {x}" for x in parts]
         return "\n".join(parts)
 
@@ -430,7 +441,7 @@ class ProgmemAssignmentExpression(AssignmentExpression):
         super().__init__(type_, "", name, rhs)
 
     def __str__(self):
-        return f"static const {self.type} {self.name}[] PROGMEM = {self.rhs}"
+        return f"static constexpr {self.type} {self.name}[] PROGMEM = {self.rhs}"
 
 
 class StaticConstAssignmentExpression(AssignmentExpression):
@@ -461,11 +472,21 @@ def static_const_array(id_, rhs) -> "MockObj":
     return obj
 
 
-def statement(expression: Union[Expression, Statement]) -> Statement:
+def statement(expression: Expression | Statement) -> Statement:
     """Convert expression into a statement unless is already a statement."""
     if isinstance(expression, Statement):
         return expression
     return ExpressionStatement(expression)
+
+
+def literal(name: str) -> "MockObj":
+    """Create a literal name that will appear in the generated code
+    not surrounded by quotes.
+
+    :param name: The name of the literal.
+    :return: The literal as a MockObj.
+    """
+    return MockObj(name, "")
 
 
 def variable(
@@ -506,9 +527,9 @@ def with_local_variable(id_: ID, rhs: SafeExpType, callback: Callable, *args) ->
     """
 
     # throw if the callback is async:
-    assert not inspect.iscoroutinefunction(
-        callback
-    ), "with_local_variable() callback cannot be async!"
+    assert not inspect.iscoroutinefunction(callback), (
+        "with_local_variable() callback cannot be async!"
+    )
 
     CORE.add(RawStatement("{"))  # output opening curly brace
     obj = variable(id_, rhs, None, True)
@@ -517,13 +538,17 @@ def with_local_variable(id_: ID, rhs: SafeExpType, callback: Callable, *args) ->
     CORE.add(RawStatement("}"))  # output closing curly brace
 
 
-def new_variable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
+def new_variable(
+    id_: ID, rhs: SafeExpType, type_: "MockObj" = None, *, static: bool = True
+) -> "MockObj":
     """Declare and define a new variable, not pointer type, in the code generation.
 
     :param id_: The ID used to declare the variable.
     :param rhs: The expression to place on the right hand side of the assignment.
     :param type_: Manually define a type for the variable, only use this when it's not possible
       to do so during config validation phase (for example because of template arguments).
+    :param static: If True (default), declare with static storage class for optimization.
+      Set to False when the variable must have external linkage (e.g., to match library declarations).
 
     :return: The new variable as a MockObj.
     """
@@ -532,12 +557,35 @@ def new_variable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj
     obj = MockObj(id_, ".")
     if type_ is not None:
         id_.type = type_
-    decl = VariableDeclarationExpression(id_.type, "", id_)
+    decl = VariableDeclarationExpression(id_.type, "", id_, static=static)
     CORE.add_global(decl)
     assignment = AssignmentExpression(None, "", id_, rhs)
     CORE.add(assignment)
     CORE.register_variable(id_, obj)
     return obj
+
+
+def _extract_component_ns(type_str: str) -> str:
+    """Extract the component namespace from a fully-qualified C++ type string.
+
+    Strips leading ``esphome::`` and template arguments, then returns
+    the first namespace segment.  Falls back to ``"esphome"`` when the
+    type has no namespace qualifier (after stripping templates).
+
+    Examples::
+
+        esphome::dsmr::Dsmr                                        -> dsmr
+        esphome::logger::Logger                                     -> logger
+        esphome::Automation<std::optional<bool>, std::optional<bool>> -> esphome
+        Logger                                                      -> esphome
+    """
+    bare = type_str.removeprefix("esphome::")
+    # Strip template arguments before namespace extraction to avoid
+    # matching :: inside template params (e.g. Automation<std::optional<bool>>)
+    bare_no_template = bare.split("<", maxsplit=1)[0]
+    if "::" in bare_no_template:
+        return bare_no_template.split("::", maxsplit=1)[0].rstrip("_")
+    return "esphome"
 
 
 def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
@@ -554,15 +602,48 @@ def Pvariable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
     obj = MockObj(id_, "->")
     if type_ is not None:
         id_.type = type_
-    decl = VariableDeclarationExpression(id_.type, "*", id_)
-    CORE.add_global(decl)
-    assignment = AssignmentExpression(None, None, id_, rhs)
-    CORE.add(assignment)
+
+    if isinstance(rhs, MockObj) and rhs.is_new_expr:
+        # For 'new' allocations, use placement new into static storage
+        # to avoid heap fragmentation on embedded devices.
+        the_type = id_.type
+        # Extract component namespace from type for memory analysis attribution
+        component_ns = _extract_component_ns(str(the_type))
+        storage_name = f"{component_ns}__{id_.id}__pstorage"
+
+        # Declare aligned byte array for the object storage
+        CORE.add_global(
+            RawStatement(
+                f"alignas({the_type}) static unsigned char {storage_name}[sizeof({the_type})];"
+            )
+        )
+        CORE.add_global(
+            AssignmentExpression(
+                f"static {the_type}",
+                "*const ",
+                id_,
+                MockObj(f"reinterpret_cast<{the_type} *>({storage_name})"),
+            )
+        )
+        # Extract args from the CallExpression and rebuild as placement new.
+        # Template args are already encoded in the_type (e.g. GlobalsComponent<int>),
+        # so we only pass the constructor args, not template_args.
+        call_expr = rhs.base
+        assert isinstance(call_expr, CallExpression), (
+            f"Expected CallExpression for placement new, got {type(call_expr)}"
+        )
+        placement_new = CallExpression(f"new({id_.id}) {the_type}", *call_expr.args)
+        CORE.add(ExpressionStatement(placement_new))
+    else:
+        decl = VariableDeclarationExpression(id_.type, "*", id_, static=True)
+        CORE.add_global(decl)
+        CORE.add(AssignmentExpression(None, None, id_, rhs))
+
     CORE.register_variable(id_, obj)
     return obj
 
 
-def new_Pvariable(id_: ID, *args: SafeExpType) -> Pvariable:
+def new_Pvariable(id_: ID, *args: SafeExpType) -> "MockObj":
     """Declare a new pointer variable in the code generation by calling it's constructor
     with the given arguments.
 
@@ -579,21 +660,21 @@ def new_Pvariable(id_: ID, *args: SafeExpType) -> Pvariable:
     return Pvariable(id_, rhs)
 
 
-def add(expression: Union[Expression, Statement]):
+def add(expression: Expression | Statement, prepend: bool = False):
     """Add an expression to the codegen section.
 
     After this is called, the given given expression will
     show up in the setup() function after this has been called.
     """
-    CORE.add(expression)
+    CORE.add(expression, prepend)
 
 
-def add_global(expression: Union[SafeExpType, Statement]):
+def add_global(expression: SafeExpType | Statement, prepend: bool = False):
     """Add an expression to the codegen global storage (above setup())."""
-    CORE.add_global(expression)
+    CORE.add_global(expression, prepend)
 
 
-def add_library(name: str, version: Optional[str], repository: Optional[str] = None):
+def add_library(name: str, version: str | None, repository: str | None = None):
     """Add a library to the codegen library storage.
 
     :param name: The name of the library (for example 'AsyncTCP')
@@ -608,6 +689,23 @@ def add_build_flag(build_flag: str):
     CORE.add_build_flag(build_flag)
 
 
+def add_build_unflag(build_unflag: str) -> None:
+    """Add a global build unflag to the compiler flags."""
+    CORE.add_build_unflag(build_unflag)
+
+
+def set_cpp_standard(standard: str) -> None:
+    """Set C++ standard with compiler flag `-std={standard}`."""
+    CORE.add_build_unflag("-std=gnu++11")
+    CORE.add_build_unflag("-std=gnu++14")
+    CORE.add_build_unflag("-std=gnu++17")
+    CORE.add_build_unflag("-std=gnu++23")
+    CORE.add_build_unflag("-std=gnu++2a")
+    CORE.add_build_unflag("-std=gnu++2b")
+    CORE.add_build_unflag("-std=gnu++2c")
+    CORE.add_build_flag(f"-std={standard}")
+
+
 def add_define(name: str, value: SafeExpType = None):
     """Add a global define to the auto-generated defines.h file.
 
@@ -619,7 +717,7 @@ def add_define(name: str, value: SafeExpType = None):
         CORE.add_define(Define(name, safe_exp(value)))
 
 
-def add_platformio_option(key: str, value: Union[str, list[str]]):
+def add_platformio_option(key: str, value: str | list[str]):
     CORE.add_platformio_option(key, value)
 
 
@@ -628,7 +726,7 @@ async def get_variable(id_: ID) -> "MockObj":
     Wait for the given ID to be defined in the code generation and
     return it as a MockObj.
 
-    This is a coroutine, you need to await it with a 'await' expression!
+    This is a coroutine, you need to await it with an 'await' expression!
 
     :param id_: The ID to retrieve
     :return: The variable as a MockObj.
@@ -641,7 +739,7 @@ async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
     Wait for the given ID to be defined in the code generation and
     return it as a MockObj.
 
-    This is a coroutine, you need to await it with a 'await' expression!
+    This is a coroutine, you need to await it with an 'await' expression!
 
     :param id_: The ID to retrieve
     :return: The variable as a MockObj.
@@ -650,11 +748,11 @@ async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
 
 
 async def process_lambda(
-    value: Lambda,
-    parameters: list[tuple[SafeExpType, str]],
-    capture: str = "=",
+    value: Lambda | Expression,
+    parameters: TemplateArgsType,
+    capture: str = "",
     return_type: SafeExpType = None,
-) -> Union[LambdaExpression, None]:
+) -> LambdaExpression | None:
     """Process the given lambda value into a LambdaExpression.
 
     This is a coroutine because lambdas can depend on other IDs,
@@ -674,6 +772,14 @@ async def process_lambda(
 
     if value is None:
         return None
+    # Inadvertently passing a malformed parameters value will lead to the build process mysteriously hanging at the
+    # "Generating C++ source..." stage, so check here to save the developer's hair.
+    assert isinstance(parameters, list) and all(
+        isinstance(p, tuple) and len(p) == 2 for p in parameters
+    )
+    if isinstance(value, Expression):
+        value = Lambda(value)
+
     parts = value.parts[:]
     for i, id in enumerate(value.requires_ids):
         full_id, var = await get_variable_with_full_id(id)
@@ -711,8 +817,8 @@ def is_template(value):
 async def templatable(
     value: Any,
     args: list[tuple[SafeExpType, str]],
-    output_type: Optional[SafeExpType],
-    to_exp: Union[Callable, dict] = None,
+    output_type: SafeExpType | None,
+    to_exp: Callable | dict = None,
 ):
     """Generate code for a templatable config option.
 
@@ -728,6 +834,15 @@ async def templatable(
     if is_template(value):
         return await process_lambda(value, args, return_type=output_type)
     if to_exp is None:
+        # Automatically wrap static strings in ESPHOME_F() for PROGMEM storage on ESP8266.
+        # On other platforms ESPHOME_F() is a no-op returning const char*.
+        # Lazy import to avoid circular dependency (cpp_generator <-> cpp_types).
+        # Identity check (is) avoids brittle string comparison.
+        if isinstance(value, str) and output_type is not None:
+            from esphome.cpp_types import std_string
+
+            if output_type is std_string:
+                return FlashStringLiteral(value)
         return value
     if isinstance(to_exp, dict):
         return to_exp[value]
@@ -740,11 +855,12 @@ class MockObj(Expression):
     Mostly consists of magic methods that allow ESPHome's codegen syntax.
     """
 
-    __slots__ = ("base", "op")
+    __slots__ = ("base", "op", "is_new_expr")
 
-    def __init__(self, base, op="."):
+    def __init__(self, base, op=".", is_new_expr=False) -> None:
         self.base = base
         self.op = op
+        self.is_new_expr = is_new_expr
 
     def __getattr__(self, attr: str) -> "MockObj":
         # prevent python dunder methods being replaced by mock objects
@@ -754,13 +870,12 @@ class MockObj(Expression):
         if attr.startswith("P") and self.op not in ["::", ""]:
             attr = attr[1:]
             next_op = "->"
-        if attr.startswith("_"):
-            attr = attr[1:]
+        attr = attr.removeprefix("_")
         return MockObj(f"{self.base}{self.op}{attr}", next_op)
 
     def __call__(self, *args: SafeExpType) -> "MockObj":
         call = CallExpression(self.base, *args)
-        return MockObj(call, self.op)
+        return MockObj(call, self.op, is_new_expr=self.is_new_expr)
 
     def __str__(self):
         return str(self.base)
@@ -774,7 +889,7 @@ class MockObj(Expression):
 
     @property
     def new(self) -> "MockObj":
-        return MockObj(f"new {self.base}", "->")
+        return MockObj(f"new {self.base}", "->", is_new_expr=True)
 
     def template(self, *args: SafeExpType) -> "MockObj":
         """Apply template parameters to this object."""
@@ -789,13 +904,17 @@ class MockObj(Expression):
 
     def class_(self, name: str, *parents: "MockObjClass") -> "MockObjClass":
         op = "" if self.op == "" else "::"
-        return MockObjClass(f"{self.base}{op}{name}", ".", parents=parents)
+        result = MockObjClass(f"{self.base}{op}{name}", ".", parents=parents)
+        CORE.id_classes[str(result)] = result
+        return result
 
     def struct(self, name: str) -> "MockObjClass":
         return self.class_(name)
 
     def enum(self, name: str, is_class: bool = False) -> "MockObj":
-        return MockObjEnum(enum=name, is_class=is_class, base=self.base, op=self.op)
+        result = MockObjEnum(enum=name, is_class=is_class, base=self.base, op=self.op)
+        CORE.id_classes[str(result)] = result
+        return result
 
     def operator(self, name: str) -> "MockObj":
         """Various other operations.
@@ -817,7 +936,7 @@ class MockObj(Expression):
         assert self.op == "::"
         return MockObj(f"using namespace {self.base}")
 
-    def __getitem__(self, item: Union[str, Expression]) -> "MockObj":
+    def __getitem__(self, item: str | Expression) -> "MockObj":
         next_op = "."
         if isinstance(item, str) and item.startswith("P"):
             item = item[1:]
@@ -1016,10 +1135,7 @@ class MockObjClass(MockObj):
     def inherits_from(self, other: "MockObjClass") -> bool:
         if str(self) == str(other):
             return True
-        for parent in self._parents:
-            if str(parent) == str(other):
-                return True
-        return False
+        return any(str(parent) == str(other) for parent in self._parents)
 
     def template(self, *args: SafeExpType) -> "MockObjClass":
         if len(args) != 1 or not isinstance(args[0], TemplateArguments):

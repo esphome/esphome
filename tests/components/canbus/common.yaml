@@ -37,6 +37,15 @@ canbus:
                   break;
               }
 
+number:
+  - platform: template
+    name: "Test Number"
+    id: test_number
+    optimistic: true
+    min_value: 0
+    max_value: 255
+    step: 1
+
 button:
   - platform: template
     name: Canbus Actions
@@ -44,3 +53,7 @@ button:
       - canbus.send: "abc"
       - canbus.send: [0, 1, 2]
       - canbus.send: !lambda return {0, 1, 2};
+      # Test canbus.send with lambda that references a component (function pointer)
+      - canbus.send: !lambda |-
+          uint8_t val = (uint8_t)id(test_number).state;
+          return std::vector<uint8_t>{0xAA, val, 0xBB};

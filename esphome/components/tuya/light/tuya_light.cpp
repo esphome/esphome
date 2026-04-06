@@ -57,6 +57,9 @@ void TuyaLight::setup() {
         return;
       }
 
+      if (!this->color_type_.has_value())
+        return;
+
       float red, green, blue;
       switch (*this->color_type_) {
         case TuyaColorType::RGBHSV:
@@ -120,8 +123,9 @@ light::LightTraits TuyaLight::get_traits() {
         traits.set_supported_color_modes(
             {light::ColorMode::RGB_COLOR_TEMPERATURE, light::ColorMode::COLOR_TEMPERATURE});
       }
-    } else
+    } else {
       traits.set_supported_color_modes({light::ColorMode::COLOR_TEMPERATURE});
+    }
     traits.set_min_mireds(this->cold_white_temperature_);
     traits.set_max_mireds(this->warm_white_temperature_);
   } else if (this->color_id_.has_value()) {
@@ -131,8 +135,9 @@ light::LightTraits TuyaLight::get_traits() {
       } else {
         traits.set_supported_color_modes({light::ColorMode::RGB_WHITE});
       }
-    } else
+    } else {
       traits.set_supported_color_modes({light::ColorMode::RGB});
+    }
   } else if (this->dimmer_id_.has_value()) {
     traits.set_supported_color_modes({light::ColorMode::BRIGHTNESS});
   } else {
@@ -183,12 +188,13 @@ void TuyaLight::write_state(light::LightState *state) {
     }
   }
 
-  if (this->color_id_.has_value() && (brightness == 0.0f || !color_interlock_)) {
+  if (this->color_id_.has_value() && this->color_type_.has_value() && (brightness == 0.0f || !color_interlock_)) {
     std::string color_value;
     switch (*this->color_type_) {
       case TuyaColorType::RGB: {
         char buffer[7];
-        sprintf(buffer, "%02X%02X%02X", int(red * 255), int(green * 255), int(blue * 255));
+        const char *format_str = this->color_type_lowercase_ ? "%02x%02x%02x" : "%02X%02X%02X";
+        snprintf(buffer, sizeof(buffer), format_str, int(red * 255), int(green * 255), int(blue * 255));
         color_value = buffer;
         break;
       }
@@ -197,7 +203,8 @@ void TuyaLight::write_state(light::LightState *state) {
         float saturation, value;
         rgb_to_hsv(red, green, blue, hue, saturation, value);
         char buffer[13];
-        sprintf(buffer, "%04X%04X%04X", hue, int(saturation * 1000), int(value * 1000));
+        const char *format_str = this->color_type_lowercase_ ? "%04x%04x%04x" : "%04X%04X%04X";
+        snprintf(buffer, sizeof(buffer), format_str, hue, int(saturation * 1000), int(value * 1000));
         color_value = buffer;
         break;
       }
@@ -206,8 +213,9 @@ void TuyaLight::write_state(light::LightState *state) {
         float saturation, value;
         rgb_to_hsv(red, green, blue, hue, saturation, value);
         char buffer[15];
-        sprintf(buffer, "%02X%02X%02X%04X%02X%02X", int(red * 255), int(green * 255), int(blue * 255), hue,
-                int(saturation * 255), int(value * 255));
+        const char *format_str = this->color_type_lowercase_ ? "%02x%02x%02x%04x%02x%02x" : "%02X%02X%02X%04X%02X%02X";
+        snprintf(buffer, sizeof(buffer), format_str, int(red * 255), int(green * 255), int(blue * 255), hue,
+                 int(saturation * 255), int(value * 255));
         color_value = buffer;
         break;
       }

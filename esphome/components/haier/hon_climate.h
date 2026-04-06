@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <queue>
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
@@ -9,6 +10,9 @@
 #endif
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
+#endif
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
 #endif
 #include "esphome/core/automation.h"
 #include "haier_base.h"
@@ -26,8 +30,10 @@ enum class CleaningState : uint8_t {
 enum class HonControlMethod { MONITOR_ONLY = 0, SET_GROUP_PARAMETERS, SET_SINGLE_PARAMETER };
 
 struct HonSettings {
-  hon_protocol::VerticalSwingMode last_vertiacal_swing;
-  hon_protocol::HorizontalSwingMode last_horizontal_swing;
+  hon_protocol::VerticalSwingMode last_vertiacal_swing{hon_protocol::VerticalSwingMode::CENTER};
+  hon_protocol::HorizontalSwingMode last_horizontal_swing{hon_protocol::HorizontalSwingMode::CENTER};
+  bool beeper_state{true};
+  bool quiet_mode_state{false};
 };
 
 class HonClimate : public HaierClimateBase {
@@ -87,6 +93,15 @@ class HonClimate : public HaierClimateBase {
   void update_sub_text_sensor_(SubTextSensorType type, const std::string &value);
   text_sensor::TextSensor *sub_text_sensors_[(size_t) SubTextSensorType::SUB_TEXT_SENSOR_TYPE_COUNT]{nullptr};
 #endif
+#ifdef USE_SWITCH
+ public:
+  void set_beeper_switch(switch_::Switch *sw);
+  void set_quiet_mode_switch(switch_::Switch *sw);
+
+ protected:
+  switch_::Switch *beeper_switch_{nullptr};
+  switch_::Switch *quiet_mode_switch_{nullptr};
+#endif
  public:
   HonClimate();
   HonClimate(const HonClimate &) = delete;
@@ -95,6 +110,8 @@ class HonClimate : public HaierClimateBase {
   void dump_config() override;
   void set_beeper_state(bool state);
   bool get_beeper_state() const;
+  void set_quiet_mode_state(bool state);
+  bool get_quiet_mode_state() const;
   esphome::optional<hon_protocol::VerticalSwingMode> get_vertical_airflow() const;
   void set_vertical_airflow(hon_protocol::VerticalSwingMode direction);
   esphome::optional<hon_protocol::HorizontalSwingMode> get_horizontal_airflow() const;
@@ -107,8 +124,12 @@ class HonClimate : public HaierClimateBase {
   void set_extra_sensors_packet_bytes_size(size_t size) { this->extra_sensors_packet_bytes_ = size; };
   void set_status_message_header_size(size_t size) { this->status_message_header_size_ = size; };
   void set_control_method(HonControlMethod method) { this->control_method_ = method; };
-  void add_alarm_start_callback(std::function<void(uint8_t, const char *)> &&callback);
-  void add_alarm_end_callback(std::function<void(uint8_t, const char *)> &&callback);
+  template<typename F> void add_alarm_start_callback(F &&callback) {
+    this->alarm_start_callback_.add(std::forward<F>(callback));
+  }
+  template<typename F> void add_alarm_end_callback(F &&callback) {
+    this->alarm_end_callback_.add(std::forward<F>(callback));
+  }
   float get_active_alarm_count() const { return this->active_alarm_count_; }
 
  protected:
@@ -153,7 +174,6 @@ class HonClimate : public HaierClimateBase {
     bool functions_[5];
   };
 
-  bool beeper_status_;
   CleaningState cleaning_status_;
   bool got_valid_outdoor_temp_;
   esphome::optional<hon_protocol::VerticalSwingMode> pending_vertical_direction_{};
@@ -163,7 +183,7 @@ class HonClimate : public HaierClimateBase {
   int extra_control_packet_bytes_{0};
   int extra_sensors_packet_bytes_{4};
   int status_message_header_size_{0};
-  int real_control_packet_size_{sizeof(hon_protocol::HaierPacketControl)};
+  size_t real_control_packet_size_{sizeof(hon_protocol::HaierPacketControl)};
   int real_sensors_packet_size_{sizeof(hon_protocol::HaierPacketSensors) + 4};
   HonControlMethod control_method_;
   std::queue<haier_protocol::HaierMessage> control_messages_queue_;
@@ -172,26 +192,12 @@ class HonClimate : public HaierClimateBase {
   float active_alarm_count_{NAN};
   std::chrono::steady_clock::time_point last_alarm_request_;
   int big_data_sensors_{0};
+  uint8_t big_data_counter_{0};
   esphome::optional<hon_protocol::VerticalSwingMode> current_vertical_swing_{};
   esphome::optional<hon_protocol::HorizontalSwingMode> current_horizontal_swing_{};
-  HonSettings settings_;
-  ESPPreferenceObject rtc_;
-};
-
-class HaierAlarmStartTrigger : public Trigger<uint8_t, const char *> {
- public:
-  explicit HaierAlarmStartTrigger(HonClimate *parent) {
-    parent->add_alarm_start_callback(
-        [this](uint8_t alarm_code, const char *alarm_message) { this->trigger(alarm_code, alarm_message); });
-  }
-};
-
-class HaierAlarmEndTrigger : public Trigger<uint8_t, const char *> {
- public:
-  explicit HaierAlarmEndTrigger(HonClimate *parent) {
-    parent->add_alarm_end_callback(
-        [this](uint8_t alarm_code, const char *alarm_message) { this->trigger(alarm_code, alarm_message); });
-  }
+  HonSettings settings_{};
+  ESPPreferenceObject hon_rtc_;
+  SwitchState quiet_mode_state_{SwitchState::OFF};
 };
 
 }  // namespace haier

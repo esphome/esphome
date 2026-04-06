@@ -4,8 +4,7 @@
 
 #include <cinttypes>
 
-namespace esphome {
-namespace time {
+namespace esphome::time {
 
 static const char *const TAG = "automation";
 static const int MAX_TIMESTAMP_DRIFT = 900;  // how far can the clock drift before we consider
@@ -21,7 +20,12 @@ bool CronTrigger::matches(const ESPTime &time) {
   return time.is_valid() && this->seconds_[time.second] && this->minutes_[time.minute] && this->hours_[time.hour] &&
          this->days_of_month_[time.day_of_month] && this->months_[time.month] && this->days_of_week_[time.day_of_week];
 }
-void CronTrigger::loop() {
+void CronTrigger::setup() {
+  // Cron resolution is 1 second — check once per second instead of every loop iteration
+  this->set_interval(1000, [this]() { this->check_time_(); });
+}
+
+void CronTrigger::check_time_() {
   ESPTime time = this->rtc_->now();
   if (!time.is_valid())
     return;
@@ -92,5 +96,4 @@ SyncTrigger::SyncTrigger(RealTimeClock *rtc) : rtc_(rtc) {
   rtc->add_on_time_sync_callback([this]() { this->trigger(); });
 }
 
-}  // namespace time
-}  // namespace esphome
+}  // namespace esphome::time

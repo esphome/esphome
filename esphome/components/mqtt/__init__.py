@@ -1,16 +1,21 @@
-import re
-
 from esphome import automation
 from esphome.automation import Condition
 import esphome.codegen as cg
-from esphome.components import logger
-from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.components import logger, socket
+from esphome.components.esp32 import (
+    add_idf_component,
+    add_idf_sdkconfig_option,
+    idf_version,
+    include_builtin_idf_component,
+)
+from esphome.config_helpers import filter_source_files_from_platform
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_AVAILABILITY,
     CONF_BIRTH_MESSAGE,
     CONF_BROKER,
     CONF_CERTIFICATE_AUTHORITY,
+    CONF_CLEAN_SESSION,
     CONF_CLIENT_CERTIFICATE,
     CONF_CLIENT_CERTIFICATE_KEY,
     CONF_CLIENT_ID,
@@ -21,6 +26,7 @@ from esphome.const import (
     CONF_DISCOVERY_PREFIX,
     CONF_DISCOVERY_RETAIN,
     CONF_DISCOVERY_UNIQUE_ID_GENERATOR,
+    CONF_ENABLE_ON_BOOT,
     CONF_ID,
     CONF_KEEPALIVE,
     CONF_LEVEL,
@@ -34,12 +40,14 @@ from esphome.const import (
     CONF_PAYLOAD_AVAILABLE,
     CONF_PAYLOAD_NOT_AVAILABLE,
     CONF_PORT,
+    CONF_PUBLISH_NAN_AS_NONE,
     CONF_QOS,
     CONF_REBOOT_TIMEOUT,
     CONF_RETAIN,
     CONF_SHUTDOWN_MESSAGE,
-    CONF_SSL_FINGERPRINTS,
+    CONF_SKIP_CERT_CN_CHECK,
     CONF_STATE_TOPIC,
+    CONF_SUBSCRIBE_QOS,
     CONF_TOPIC,
     CONF_TOPIC_PREFIX,
     CONF_TRIGGER_ID,
@@ -49,8 +57,11 @@ from esphome.const import (
     PLATFORM_BK72XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
+    PLATFORM_RTL87XX,
+    PlatformFramework,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.types import ConfigType
 
 DEPENDENCIES = ["network"]
 
@@ -63,7 +74,14 @@ def AUTO_LOAD():
 
 CONF_DISCOVER_IP = "discover_ip"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
-CONF_SKIP_CERT_CN_CHECK = "skip_cert_cn_check"
+CONF_WAIT_FOR_CONNECTION = "wait_for_connection"
+
+# Max lengths for stack-based topic building.
+# These values are used in cv.Length() validators below to ensure the C++ code
+# in mqtt_component.cpp can safely use fixed-size stack buffers without overflow.
+# If you change these, update the corresponding constants in mqtt_component.cpp.
+TOPIC_PREFIX_MAX_LEN = 64  # Default is device name, typically short
+DISCOVERY_PREFIX_MAX_LEN = 64  # Default is "homeassistant" (13 chars)
 
 
 def validate_message_just_topic(value):
@@ -94,18 +112,23 @@ MQTT_MESSAGE_SCHEMA = cv.Any(
 
 mqtt_ns = cg.esphome_ns.namespace("mqtt")
 MQTTMessage = mqtt_ns.struct("MQTTMessage")
+MQTTClientDisconnectReason = mqtt_ns.enum("MQTTClientDisconnectReason")
 MQTTClientComponent = mqtt_ns.class_("MQTTClientComponent", cg.Component)
 MQTTPublishAction = mqtt_ns.class_("MQTTPublishAction", automation.Action)
 MQTTPublishJsonAction = mqtt_ns.class_("MQTTPublishJsonAction", automation.Action)
+MQTTEnableAction = mqtt_ns.class_("MQTTEnableAction", automation.Action)
+MQTTDisableAction = mqtt_ns.class_("MQTTDisableAction", automation.Action)
 MQTTMessageTrigger = mqtt_ns.class_(
     "MQTTMessageTrigger", automation.Trigger.template(cg.std_string), cg.Component
 )
 MQTTJsonMessageTrigger = mqtt_ns.class_(
     "MQTTJsonMessageTrigger", automation.Trigger.template(cg.JsonObjectConst)
 )
-MQTTConnectTrigger = mqtt_ns.class_("MQTTConnectTrigger", automation.Trigger.template())
+MQTTConnectTrigger = mqtt_ns.class_(
+    "MQTTConnectTrigger", automation.Trigger.template(cg.bool_)
+)
 MQTTDisconnectTrigger = mqtt_ns.class_(
-    "MQTTDisconnectTrigger", automation.Trigger.template()
+    "MQTTDisconnectTrigger", automation.Trigger.template(MQTTClientDisconnectReason)
 )
 MQTTComponent = mqtt_ns.class_("MQTTComponent", cg.Component)
 MQTTConnectedCondition = mqtt_ns.class_("MQTTConnectedCondition", Condition)
@@ -194,11 +217,11 @@ def validate_config(value):
     return out
 
 
-def validate_fingerprint(value):
-    value = cv.string(value)
-    if re.match(r"^[0-9a-f]{40}$", value) is None:
-        raise cv.Invalid("fingerprint must be valid SHA1 hash")
-    return value
+def _consume_mqtt_sockets(config: ConfigType) -> ConfigType:
+    """Register socket needs for MQTT component."""
+    # MQTT needs 1 socket for the broker connection
+    socket.consume_sockets(1, "mqtt")(config)
+    return config
 
 
 CONFIG_SCHEMA = cv.All(
@@ -206,15 +229,17 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(MQTTClientComponent),
             cv.Required(CONF_BROKER): cv.string_strict,
+            cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_PORT, default=1883): cv.port,
             cv.Optional(CONF_USERNAME, default=""): cv.string,
             cv.Optional(CONF_PASSWORD, default=""): cv.string,
+            cv.Optional(CONF_CLEAN_SESSION, default=False): cv.boolean,
             cv.Optional(CONF_CLIENT_ID): cv.string,
-            cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32_idf=False): cv.All(
-                cv.boolean, cv.only_with_esp_idf
+            cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32=False): cv.All(
+                cv.boolean, cv.only_on_esp32
             ),
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): cv.All(
-                cv.string, cv.only_with_esp_idf
+                cv.string, cv.only_on_esp32
             ),
             cv.Inclusive(CONF_CLIENT_CERTIFICATE, "cert-key-pair"): cv.All(
                 cv.string, cv.only_on_esp32
@@ -222,17 +247,17 @@ CONFIG_SCHEMA = cv.All(
             cv.Inclusive(CONF_CLIENT_CERTIFICATE_KEY, "cert-key-pair"): cv.All(
                 cv.string, cv.only_on_esp32
             ),
-            cv.SplitDefault(CONF_SKIP_CERT_CN_CHECK, esp32_idf=False): cv.All(
-                cv.boolean, cv.only_with_esp_idf
+            cv.SplitDefault(CONF_SKIP_CERT_CN_CHECK, esp32=False): cv.All(
+                cv.boolean, cv.only_on_esp32
             ),
             cv.Optional(CONF_DISCOVERY, default=True): cv.Any(
                 cv.boolean, cv.one_of("CLEAN", upper=True)
             ),
             cv.Optional(CONF_DISCOVERY_RETAIN, default=True): cv.boolean,
             cv.Optional(CONF_DISCOVER_IP, default=True): cv.boolean,
-            cv.Optional(
-                CONF_DISCOVERY_PREFIX, default="homeassistant"
-            ): cv.publish_topic,
+            cv.Optional(CONF_DISCOVERY_PREFIX, default="homeassistant"): cv.All(
+                cv.publish_topic, cv.Length(max=DISCOVERY_PREFIX_MAX_LEN)
+            ),
             cv.Optional(CONF_DISCOVERY_UNIQUE_ID_GENERATOR, default="legacy"): cv.enum(
                 MQTT_DISCOVERY_UNIQUE_ID_GENERATOR_OPTIONS
             ),
@@ -243,7 +268,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BIRTH_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_WILL_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_SHUTDOWN_MESSAGE): MQTT_MESSAGE_SCHEMA,
-            cv.Optional(CONF_TOPIC_PREFIX, default=lambda: CORE.name): cv.publish_topic,
+            cv.Optional(CONF_TOPIC_PREFIX, default=lambda: CORE.name): cv.All(
+                cv.publish_topic, cv.Length(max=TOPIC_PREFIX_MAX_LEN)
+            ),
             cv.Optional(CONF_LOG_TOPIC): cv.Any(
                 None,
                 MQTT_MESSAGE_BASE.extend(
@@ -252,9 +279,6 @@ CONFIG_SCHEMA = cv.All(
                     }
                 ),
                 validate_message_just_topic,
-            ),
-            cv.Optional(CONF_SSL_FINGERPRINTS): cv.All(
-                cv.only_on_esp8266, cv.ensure_list(validate_fingerprint)
             ),
             cv.Optional(CONF_KEEPALIVE, default="15s"): cv.positive_time_period_seconds,
             cv.Optional(
@@ -289,42 +313,55 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
                 }
             ),
+            cv.Optional(CONF_PUBLISH_NAN_AS_NONE, default=False): cv.boolean,
+            cv.Optional(CONF_WAIT_FOR_CONNECTION, default=False): cv.boolean,
         }
     ),
     validate_config,
-    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX]),
+    cv.only_on([PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_BK72XX, PLATFORM_RTL87XX]),
+    _consume_mqtt_sockets,
 )
 
 
 def exp_mqtt_message(config):
     if config is None:
         return cg.optional(cg.TemplateArguments(MQTTMessage))
-    exp = cg.StructInitializer(
+    return cg.StructInitializer(
         MQTTMessage,
         ("topic", config[CONF_TOPIC]),
         ("payload", config.get(CONF_PAYLOAD, "")),
         ("qos", config[CONF_QOS]),
         ("retain", config[CONF_RETAIN]),
     )
-    return exp
 
 
-@coroutine_with_priority(40.0)
+@coroutine_with_priority(CoroPriority.WEB)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
     # Add required libraries for ESP8266 and LibreTiny
     if CORE.is_esp8266 or CORE.is_libretiny:
         # https://github.com/heman/async-mqtt-client/blob/master/library.json
         cg.add_library("heman/AsyncMqttClient-esphome", "2.0.0")
 
+    if CORE.is_esp32:
+        # Re-enable ESP-IDF's mqtt component (excluded by default to save compile time)
+        # IDF 6.0 moved esp-mqtt to an external component
+        if idf_version() >= cv.Version(6, 0, 0):
+            add_idf_component(name="espressif/mqtt", ref="1.0.0")
+        else:
+            include_builtin_idf_component("mqtt")
+
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
 
     cg.add(var.set_broker_address(config[CONF_BROKER]))
+    cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
     cg.add(var.set_broker_port(config[CONF_PORT]))
     cg.add(var.set_username(config[CONF_USERNAME]))
     cg.add(var.set_password(config[CONF_PASSWORD]))
+    cg.add(var.set_clean_session(config[CONF_CLEAN_SESSION]))
     if CONF_CLIENT_ID in config:
         cg.add(var.set_client_id(config[CONF_CLIENT_ID]))
 
@@ -362,7 +399,7 @@ async def to_code(config):
             )
         )
 
-    cg.add(var.set_topic_prefix(config[CONF_TOPIC_PREFIX]))
+    cg.add(var.set_topic_prefix(config[CONF_TOPIC_PREFIX], CORE.name))
 
     if config[CONF_USE_ABBREVIATIONS]:
         cg.add_define("USE_MQTT_ABBREVIATIONS")
@@ -388,17 +425,11 @@ async def to_code(config):
         cg.add(var.disable_log_message())
     else:
         cg.add(var.set_log_message_template(exp_mqtt_message(log_topic)))
+        # Request a log listener slot only when log topic is enabled
+        logger.request_log_listener()
 
         if CONF_LEVEL in log_topic:
             cg.add(var.set_log_level(logger.LOG_LEVELS[log_topic[CONF_LEVEL]]))
-
-    if CONF_SSL_FINGERPRINTS in config:
-        for fingerprint in config[CONF_SSL_FINGERPRINTS]:
-            arr = [
-                cg.RawExpression(f"0x{fingerprint[i:i + 2]}") for i in range(0, 40, 2)
-            ]
-            cg.add(var.add_ssl_fingerprint(arr))
-        cg.add_build_flag("-DASYNC_TCP_SSL_ENABLED=1")
 
     cg.add(var.set_keep_alive(config[CONF_KEEPALIVE]))
 
@@ -434,11 +465,19 @@ async def to_code(config):
 
     for conf in config.get(CONF_ON_CONNECT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_automation(
+            trigger, [(cg.bool_, "session_present")], conf
+        )
 
     for conf in config.get(CONF_ON_DISCONNECT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_automation(
+            trigger, [(MQTTClientDisconnectReason, "reason")], conf
+        )
+
+    cg.add(var.set_publish_nan_as_none(config[CONF_PUBLISH_NAN_AS_NONE]))
+
+    cg.add(var.set_wait_for_connection(config[CONF_WAIT_FOR_CONNECTION]))
 
 
 MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema(
@@ -453,7 +492,7 @@ MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "mqtt.publish", MQTTPublishAction, MQTT_PUBLISH_ACTION_SCHEMA
+    "mqtt.publish", MQTTPublishAction, MQTT_PUBLISH_ACTION_SCHEMA, synchronous=True
 )
 async def mqtt_publish_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -482,7 +521,10 @@ MQTT_PUBLISH_JSON_ACTION_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "mqtt.publish_json", MQTTPublishJsonAction, MQTT_PUBLISH_JSON_ACTION_SCHEMA
+    "mqtt.publish_json",
+    MQTTPublishJsonAction,
+    MQTT_PUBLISH_JSON_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def mqtt_publish_json_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -515,12 +557,18 @@ async def register_mqtt_component(var, config):
         cg.add(var.set_qos(config[CONF_QOS]))
     if CONF_RETAIN in config:
         cg.add(var.set_retain(config[CONF_RETAIN]))
+    if CONF_SUBSCRIBE_QOS in config:
+        cg.add(var.set_subscribe_qos(config[CONF_SUBSCRIBE_QOS]))
     if not config.get(CONF_DISCOVERY, True):
         cg.add(var.disable_discovery())
     if CONF_STATE_TOPIC in config:
-        cg.add(var.set_custom_state_topic(config[CONF_STATE_TOPIC]))
+        state_topic = await cg.templatable(config[CONF_STATE_TOPIC], [], cg.std_string)
+        cg.add(var.set_custom_state_topic(state_topic))
     if CONF_COMMAND_TOPIC in config:
-        cg.add(var.set_custom_command_topic(config[CONF_COMMAND_TOPIC]))
+        command_topic = await cg.templatable(
+            config[CONF_COMMAND_TOPIC], [], cg.std_string
+        )
+        cg.add(var.set_custom_command_topic(command_topic))
     if CONF_COMMAND_RETAIN in config:
         cg.add(var.set_command_retain(config[CONF_COMMAND_RETAIN]))
     if CONF_AVAILABILITY in config:
@@ -549,3 +597,43 @@ async def register_mqtt_component(var, config):
 async def mqtt_connected_to_code(config, condition_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(condition_id, template_arg, paren)
+
+
+@automation.register_action(
+    "mqtt.enable",
+    MQTTEnableAction,
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(MQTTClientComponent),
+        }
+    ),
+    synchronous=True,
+)
+async def mqtt_enable_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+@automation.register_action(
+    "mqtt.disable",
+    MQTTDisableAction,
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(MQTTClientComponent),
+        }
+    ),
+    synchronous=True,
+)
+async def mqtt_disable_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    return cg.new_Pvariable(action_id, template_arg, paren)
+
+
+FILTER_SOURCE_FILES = filter_source_files_from_platform(
+    {
+        "mqtt_backend_esp32.cpp": {
+            PlatformFramework.ESP32_ARDUINO,
+            PlatformFramework.ESP32_IDF,
+        },
+    }
+)

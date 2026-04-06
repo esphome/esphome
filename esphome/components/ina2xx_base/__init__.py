@@ -1,6 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+from esphome.components.const import UNIT_AMPERE_HOUR
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_BUS_VOLTAGE,
     CONF_CURRENT,
@@ -18,11 +19,12 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL_INCREASING,
     UNIT_AMPERE,
     UNIT_CELSIUS,
     UNIT_VOLT,
-    UNIT_WATT_HOURS,
     UNIT_WATT,
+    UNIT_WATT_HOURS,
 )
 
 CODEOWNERS = ["@latonita"]
@@ -34,7 +36,7 @@ CONF_CHARGE = "charge"
 CONF_CHARGE_COULOMBS = "charge_coulombs"
 CONF_ENERGY_JOULES = "energy_joules"
 CONF_TEMPERATURE_COEFFICIENT = "temperature_coefficient"
-UNIT_AMPERE_HOURS = "Ah"
+CONF_RESET_ON_BOOT = "reset_on_boot"
 UNIT_COULOMB = "C"
 UNIT_JOULE = "J"
 UNIT_MILLIVOLT = "mV"
@@ -78,11 +80,8 @@ def validate_model_config(config):
     model = config[CONF_MODEL]
 
     for key in config:
-        if key in SENSOR_MODEL_OPTIONS:
-            if model not in SENSOR_MODEL_OPTIONS[key]:
-                raise cv.Invalid(
-                    f"Device model '{model}' does not support '{key}' sensor"
-                )
+        if key in SENSOR_MODEL_OPTIONS and model not in SENSOR_MODEL_OPTIONS[key]:
+            raise cv.Invalid(f"Device model '{model}' does not support '{key}' sensor")
 
     tempco = config[CONF_TEMPERATURE_COEFFICIENT]
     if tempco > 0 and model not in ["INA228", "INA229"]:
@@ -115,6 +114,7 @@ INA2XX_SCHEMA = cv.Schema(
         cv.Optional(CONF_TEMPERATURE_COEFFICIENT, default=0): cv.int_range(
             min=0, max=16383
         ),
+        cv.Optional(CONF_RESET_ON_BOOT, default=True): cv.boolean,
         cv.Optional(CONF_SHUNT_VOLTAGE): cv.maybe_simple_value(
             sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIVOLT,
@@ -165,7 +165,7 @@ INA2XX_SCHEMA = cv.Schema(
                 unit_of_measurement=UNIT_WATT_HOURS,
                 accuracy_decimals=8,
                 device_class=DEVICE_CLASS_ENERGY,
-                state_class=STATE_CLASS_MEASUREMENT,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
             key=CONF_NAME,
         ),
@@ -173,13 +173,14 @@ INA2XX_SCHEMA = cv.Schema(
             sensor.sensor_schema(
                 unit_of_measurement=UNIT_JOULE,
                 accuracy_decimals=8,
-                state_class=STATE_CLASS_MEASUREMENT,
+                device_class=DEVICE_CLASS_ENERGY,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
             key=CONF_NAME,
         ),
         cv.Optional(CONF_CHARGE): cv.maybe_simple_value(
             sensor.sensor_schema(
-                unit_of_measurement=UNIT_AMPERE_HOURS,
+                unit_of_measurement=UNIT_AMPERE_HOUR,
                 accuracy_decimals=8,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
@@ -207,6 +208,7 @@ async def setup_ina2xx(var, config):
     cg.add(var.set_adc_range(config[CONF_ADC_RANGE]))
     cg.add(var.set_adc_avg_samples(config[CONF_ADC_AVERAGING]))
     cg.add(var.set_shunt_tempco(config[CONF_TEMPERATURE_COEFFICIENT]))
+    cg.add(var.set_reset_on_boot(config[CONF_RESET_ON_BOOT]))
 
     adc_time_config = config[CONF_ADC_TIME]
     if isinstance(adc_time_config, dict):

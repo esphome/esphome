@@ -10,26 +10,15 @@
 namespace esphome {
 namespace lvgl {
 
-class LVGLSwitch : public switch_::Switch {
+class LVGLSwitch : public switch_::Switch, public Component {
  public:
-  void set_control_lambda(std::function<void(bool)> state_lambda) {
-    this->state_lambda_ = std::move(state_lambda);
-    if (this->initial_state_.has_value()) {
-      this->state_lambda_(this->initial_state_.value());
-      this->initial_state_.reset();
-    }
-  }
+  LVGLSwitch(std::function<void(bool)> state_lambda) : state_lambda_(std::move(state_lambda)) {}
+
+  void setup() override { this->write_state(this->get_initial_state_with_restore_mode().value_or(false)); }
 
  protected:
-  void write_state(bool value) override {
-    if (this->state_lambda_ != nullptr) {
-      this->state_lambda_(value);
-    } else {
-      this->initial_state_ = value;
-    }
-  }
+  void write_state(bool value) override { this->state_lambda_(value); }
   std::function<void(bool)> state_lambda_{};
-  optional<bool> initial_state_{};
 };
 
 }  // namespace lvgl

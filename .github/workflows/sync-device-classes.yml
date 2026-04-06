@@ -13,34 +13,39 @@ jobs:
     if: github.repository == 'esphome/esphome'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Checkout Home Assistant
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           repository: home-assistant/core
           path: lib/home-assistant
 
       - name: Setup Python
-        uses: actions/setup-python@v5.1.0
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
-          python-version: 3.12
+          python-version: "3.14"
 
       - name: Install Home Assistant
         run: |
           python -m pip install --upgrade pip
           pip install -e lib/home-assistant
+          pip install -r requirements_test.txt pre-commit
 
       - name: Sync
         run: |
           python ./script/sync-device_class.py
 
+      - name: Run pre-commit hooks
+        run: |
+          python script/run-in-env.py pre-commit run --all-files
+
       - name: Commit changes
-        uses: peter-evans/create-pull-request@v6.1.0
+        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
         with:
           commit-message: "Synchronise Device Classes from Home Assistant"
-          committer: esphomebot <esphome@nabucasa.com>
-          author: esphomebot <esphome@nabucasa.com>
+          committer: esphomebot <esphome@openhomefoundation.org>
+          author: esphomebot <esphome@openhomefoundation.org>
           branch: sync/device-classes
           delete-branch: true
           title: "Synchronise Device Classes from Home Assistant"

@@ -1,8 +1,9 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import output
-from esphome.const import CONF_ID, CONF_MIN_POWER, CONF_METHOD
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_METHOD, CONF_MIN_POWER
+from esphome.core import CORE
 
 CODEOWNERS = ["@glmnet"]
 
@@ -31,11 +32,16 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_with_arduino,
 )
 
 
 async def to_code(config):
+    if CORE.is_esp8266:
+        # ac_dimmer uses setTimer1Callback which requires the waveform generator
+        from esphome.components.esp8266.const import require_waveform
+
+        require_waveform()
+
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

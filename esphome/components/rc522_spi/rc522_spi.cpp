@@ -1,4 +1,5 @@
 #include "rc522_spi.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 // Based on:
@@ -10,7 +11,6 @@ namespace rc522_spi {
 static const char *const TAG = "rc522_spi";
 
 void RC522Spi::setup() {
-  ESP_LOGI(TAG, "SPI Setup");
   this->spi_setup();
 
   RC522::setup();
@@ -71,7 +71,7 @@ void RC522Spi::pcd_read_register(PcdRegister reg,  ///< The register to read fro
     index++;
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-    sprintf(cstrb, " %x", values[0]);
+    buf_append_printf(cstrb, sizeof(cstrb), 0, " %x", values[0]);
     buf.append(cstrb);
 #endif
   }
@@ -79,7 +79,7 @@ void RC522Spi::pcd_read_register(PcdRegister reg,  ///< The register to read fro
     values[index] = transfer_byte(address);  // Read value and tell that we want to read the same address again.
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-    sprintf(cstrb, " %x", values[index]);
+    buf_append_printf(cstrb, sizeof(cstrb), 0, " %x", values[index]);
     buf.append(cstrb);
 #endif
 
@@ -89,7 +89,7 @@ void RC522Spi::pcd_read_register(PcdRegister reg,  ///< The register to read fro
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   buf = buf + " ";
-  sprintf(cstrb, "%x", values[index]);
+  buf_append_printf(cstrb, sizeof(cstrb), 0, "%x", values[index]);
   buf.append(cstrb);
 
   ESP_LOGVV(TAG, "read_register_array_(%x, %d, , %d) -> %s", reg, count, rx_align, buf.c_str());
@@ -128,7 +128,7 @@ void RC522Spi::pcd_write_register(PcdRegister reg,  ///< The register to write t
     transfer_byte(values[index]);
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-    sprintf(cstrb, " %x", values[index]);
+    buf_append_printf(cstrb, sizeof(cstrb), 0, " %x", values[index]);
     buf.append(cstrb);
 #endif
   }

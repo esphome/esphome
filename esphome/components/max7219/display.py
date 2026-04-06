@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import display, spi
+import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_INTENSITY, CONF_LAMBDA, CONF_NUM_CHIPS
 
 DEPENDENCIES = ["spi"]
@@ -28,11 +28,10 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await spi.register_spi_device(var, config)
+    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NUM_CHIPS])
+    await spi.register_spi_device(var, config, write_only=True)
     await display.register_display(var, config)
 
-    cg.add(var.set_num_chips(config[CONF_NUM_CHIPS]))
     cg.add(var.set_intensity(config[CONF_INTENSITY]))
     cg.add(var.set_reverse(config[CONF_REVERSE_ENABLE]))
 

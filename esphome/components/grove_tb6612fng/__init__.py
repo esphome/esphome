@@ -1,14 +1,13 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import i2c
-
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
-    CONF_CHANNEL,
-    CONF_SPEED,
-    CONF_DIRECTION,
     CONF_ADDRESS,
+    CONF_CHANNEL,
+    CONF_DIRECTION,
+    CONF_ID,
+    CONF_SPEED,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -73,6 +72,7 @@ async def to_code(config):
             cv.Required(CONF_DIRECTION): cv.enum(DIRECTION_TYPE, upper=True),
         }
     ),
+    synchronous=True,
 )
 async def grove_tb6612fng_run_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -97,6 +97,7 @@ async def grove_tb6612fng_run_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_CHANNEL): cv.templatable(cv.int_range(min=0, max=1)),
         }
     ),
+    synchronous=True,
 )
 async def grove_tb6612fng_break_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -116,6 +117,7 @@ async def grove_tb6612fng_break_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_CHANNEL): cv.templatable(cv.int_range(min=0, max=1)),
         }
     ),
+    synchronous=True,
 )
 async def grove_tb6612fng_stop_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -134,6 +136,7 @@ async def grove_tb6612fng_stop_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_ID): cv.use_id(GROVE_TB6612FNG),
         }
     ),
+    synchronous=True,
 )
 async def grove_tb6612fng_standby_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -150,6 +153,7 @@ async def grove_tb6612fng_standby_to_code(config, action_id, template_arg, args)
             cv.Required(CONF_ID): cv.use_id(GROVE_TB6612FNG),
         }
     ),
+    synchronous=True,
 )
 async def grove_tb6612fng_no_standby_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -167,6 +171,7 @@ async def grove_tb6612fng_no_standby_to_code(config, action_id, template_arg, ar
             cv.Required(CONF_ADDRESS): cv.i2c_address,
         }
     ),
+    synchronous=True,
 )
 async def grove_tb6612fng_change_address_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

@@ -1,0 +1,11 @@
+esphome:
+  on_boot:
+    then:
+      - audio_dac.mute_off:
+      - audio_dac.mute_on:
+      - audio_dac.set_volume:
+          volume: 50%
+
+audio_dac:
+  - platform: es8156
+    i2c_id: i2c_bus

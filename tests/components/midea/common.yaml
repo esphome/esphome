@@ -1,0 +1,68 @@
+wifi:
+  ssid: MySSID
+  password: password1
+
+climate:
+  - platform: midea
+    id: midea_unit
+    name: Midea Climate
+    on_control:
+      - logger.log: Control message received!
+      - lambda: |-
+          x.set_mode(CLIMATE_MODE_FAN_ONLY);
+    on_state:
+      - logger.log: State changed!
+      - lambda: |-
+          // Test get_custom_fan_mode() returns StringRef
+          if (id(midea_unit).has_custom_fan_mode()) {
+            auto fan_mode = id(midea_unit).get_custom_fan_mode();
+            // Compare with string literal using ==
+            if (fan_mode == "SILENT") {
+              ESP_LOGD("test", "Fan mode is SILENT");
+            }
+            // Log using %.*s format for StringRef
+            ESP_LOGD("test", "Custom fan mode: %.*s", (int) fan_mode.size(), fan_mode.c_str());
+          }
+          // Test get_custom_preset() returns StringRef
+          if (id(midea_unit).has_custom_preset()) {
+            auto preset = id(midea_unit).get_custom_preset();
+            // Check if empty
+            if (!preset.empty()) {
+              ESP_LOGD("test", "Custom preset: %.*s", (int) preset.size(), preset.c_str());
+            }
+          }
+    transmitter_id: xmitr
+    period: 1s
+    num_attempts: 5
+    timeout: 2s
+    beeper: false
+    autoconf: true
+    visual:
+      min_temperature: 17 °C
+      max_temperature: 30 °C
+      temperature_step: 0.5 °C
+    supported_modes:
+      - FAN_ONLY
+      - HEAT_COOL
+      - COOL
+      - HEAT
+      - DRY
+    custom_fan_modes:
+      - SILENT
+      - TURBO
+    supported_presets:
+      - ECO
+      - BOOST
+      - SLEEP
+    custom_presets:
+      - FREEZE_PROTECTION
+    supported_swing_modes:
+      - VERTICAL
+      - HORIZONTAL
+      - BOTH
+    outdoor_temperature:
+      name: Temp
+    power_usage:
+      name: Power
+    humidity_setpoint:
+      name: Humidity

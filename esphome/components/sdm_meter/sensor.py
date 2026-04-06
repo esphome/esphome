@@ -1,26 +1,31 @@
-from esphome.components.atm90e32.sensor import CONF_PHASE_A, CONF_PHASE_B, CONF_PHASE_C
 import esphome.codegen as cg
+from esphome.components import modbus, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, modbus
 from esphome.const import (
     CONF_ACTIVE_POWER,
     CONF_APPARENT_POWER,
     CONF_CURRENT,
     CONF_EXPORT_ACTIVE_ENERGY,
     CONF_EXPORT_REACTIVE_ENERGY,
-    CONF_TOTAL_POWER,
     CONF_FREQUENCY,
     CONF_ID,
     CONF_IMPORT_ACTIVE_ENERGY,
     CONF_IMPORT_REACTIVE_ENERGY,
+    CONF_PHASE_A,
     CONF_PHASE_ANGLE,
+    CONF_PHASE_B,
+    CONF_PHASE_C,
     CONF_POWER_FACTOR,
     CONF_REACTIVE_POWER,
+    CONF_TOTAL_POWER,
     CONF_VOLTAGE,
+    DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
+    DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_VOLTAGE,
     ICON_CURRENT_AC,
     ICON_FLASH,
@@ -65,11 +70,13 @@ PHASE_SENSORS = {
     CONF_APPARENT_POWER: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT_AMPS,
         accuracy_decimals=2,
+        device_class=DEVICE_CLASS_APPARENT_POWER,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_REACTIVE_POWER: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
         accuracy_decimals=2,
+        device_class=DEVICE_CLASS_REACTIVE_POWER,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_POWER_FACTOR: sensor.sensor_schema(
@@ -78,7 +85,10 @@ PHASE_SENSORS = {
         state_class=STATE_CLASS_MEASUREMENT,
     ),
     CONF_PHASE_ANGLE: sensor.sensor_schema(
-        unit_of_measurement=UNIT_DEGREES, icon=ICON_FLASH, accuracy_decimals=3
+        unit_of_measurement=UNIT_DEGREES,
+        icon=ICON_FLASH,
+        accuracy_decimals=3,
+        state_class=STATE_CLASS_MEASUREMENT,
     ),
 }
 
@@ -97,6 +107,7 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_HERTZ,
                 icon=ICON_CURRENT_AC,
                 accuracy_decimals=3,
+                device_class=DEVICE_CLASS_FREQUENCY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_TOTAL_POWER): sensor.sensor_schema(

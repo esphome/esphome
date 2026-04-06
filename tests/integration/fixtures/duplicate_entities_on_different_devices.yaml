@@ -1,0 +1,154 @@
+esphome:
+  name: duplicate-entities-test
+  # Define devices to test multi-device duplicate handling
+  devices:
+    - id: controller_1
+      name: Controller 1
+    - id: controller_2
+      name: Controller 2
+    - id: controller_3
+      name: Controller 3
+
+host:
+api:  # Port will be automatically injected
+logger:
+
+# Test that duplicate entity names are allowed on different devices
+
+# Scenario 1: Same sensor name on different devices (allowed)
+sensor:
+  - platform: template
+    name: Temperature
+    device_id: controller_1
+    lambda: return 21.0;
+    update_interval: 0.1s
+
+  - platform: template
+    name: Temperature
+    device_id: controller_2
+    lambda: return 22.0;
+    update_interval: 0.1s
+
+  - platform: template
+    name: Temperature
+    device_id: controller_3
+    lambda: return 23.0;
+    update_interval: 0.1s
+
+  # Main device sensor (no device_id)
+  - platform: template
+    name: Temperature
+    lambda: return 20.0;
+    update_interval: 0.1s
+
+  # Different sensor with unique name
+  - platform: template
+    name: Humidity
+    lambda: return 60.0;
+    update_interval: 0.1s
+
+# Scenario 2: Same binary sensor name on different devices (allowed)
+binary_sensor:
+  - platform: template
+    name: Status
+    device_id: controller_1
+    lambda: return true;
+
+  - platform: template
+    name: Status
+    device_id: controller_2
+    lambda: return false;
+
+  - platform: template
+    name: Status
+    lambda: return true;  # Main device
+
+  # Different platform can have same name as sensor
+  - platform: template
+    name: Temperature
+    lambda: return true;
+
+# Scenario 3: Same text sensor name on different devices
+text_sensor:
+  - platform: template
+    name: Device Info
+    device_id: controller_1
+    lambda: return {"Controller 1 Active"};
+    update_interval: 0.1s
+
+  - platform: template
+    name: Device Info
+    device_id: controller_2
+    lambda: return {"Controller 2 Active"};
+    update_interval: 0.1s
+
+  - platform: template
+    name: Device Info
+    lambda: return {"Main Device Active"};
+    update_interval: 0.1s
+
+# Scenario 4: Same switch name on different devices
+switch:
+  - platform: template
+    name: Power
+    device_id: controller_1
+    lambda: return false;
+    turn_on_action: []
+    turn_off_action: []
+
+  - platform: template
+    name: Power
+    device_id: controller_2
+    lambda: return true;
+    turn_on_action: []
+    turn_off_action: []
+
+  - platform: template
+    name: Power
+    device_id: controller_3
+    lambda: return false;
+    turn_on_action: []
+    turn_off_action: []
+
+  # Unique switch on main device
+  - platform: template
+    name: Main Power
+    lambda: return true;
+    turn_on_action: []
+    turn_off_action: []
+
+# Scenario 5: Empty names on different devices (should use device name)
+button:
+  - platform: template
+    name: ""
+    device_id: controller_1
+    on_press: []
+
+  - platform: template
+    name: ""
+    device_id: controller_2
+    on_press: []
+
+  - platform: template
+    name: ""
+    on_press: []  # Main device
+
+# Scenario 6: Special characters in names
+number:
+  - platform: template
+    name: "Temperature Setpoint!"
+    device_id: controller_1
+    min_value: 10.0
+    max_value: 30.0
+    step: 0.1
+    lambda: return 21.0;
+    set_action: []
+
+  - platform: template
+    name: "Temperature Setpoint!"
+    device_id: controller_2
+    min_value: 10.0
+    max_value: 30.0
+    step: 0.1
+    lambda: return 22.0;
+    set_action: []

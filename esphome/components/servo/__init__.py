@@ -1,15 +1,15 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
+import esphome.codegen as cg
 from esphome.components.output import FloatOutput
+import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_IDLE_LEVEL,
+    CONF_LEVEL,
     CONF_MAX_LEVEL,
     CONF_MIN_LEVEL,
     CONF_OUTPUT,
-    CONF_LEVEL,
     CONF_RESTORE,
     CONF_TRANSITION_LENGTH,
 )
@@ -62,6 +62,7 @@ async def to_code(config):
             cv.Required(CONF_LEVEL): cv.templatable(cv.possibly_negative_percentage),
         }
     ),
+    synchronous=True,
 )
 async def servo_write_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -79,6 +80,7 @@ async def servo_write_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_ID): cv.use_id(Servo),
         }
     ),
+    synchronous=True,
 )
 async def servo_detach_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

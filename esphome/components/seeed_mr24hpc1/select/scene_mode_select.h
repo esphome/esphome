@@ -11,7 +11,7 @@ class SceneModeSelect : public select::Select, public Parented<MR24HPC1Component
   SceneModeSelect() = default;
 
  protected:
-  void control(const std::string &value) override;
+  void control(size_t index) override;
 };
 
 }  // namespace seeed_mr24hpc1

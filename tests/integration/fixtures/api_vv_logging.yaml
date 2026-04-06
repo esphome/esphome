@@ -1,0 +1,89 @@
+esphome:
+  name: vv-logging-test
+
+host:
+
+api:
+
+logger:
+  level: VERY_VERBOSE
+  # Enable VV logging for API components where the issue occurs
+  logs:
+    api.connection: VERY_VERBOSE
+    api.service: VERY_VERBOSE
+    api.proto: VERY_VERBOSE
+    sensor: VERY_VERBOSE
+
+# Create many sensors that update frequently to generate API traffic
+# This will cause many messages to be batched and sent, triggering the
+# code path where VV logging could cause buffer corruption
+sensor:
+  - platform: template
+    name: "Test Sensor 1"
+    lambda: 'return millis() / 1000.0;'
+    update_interval: 50ms
+    unit_of_measurement: "s"
+
+  - platform: template
+    name: "Test Sensor 2"
+    lambda: 'return (millis() / 1000.0) + 10;'
+    update_interval: 50ms
+    unit_of_measurement: "s"
+
+  - platform: template
+    name: "Test Sensor 3"
+    lambda: 'return (millis() / 1000.0) + 20;'
+    update_interval: 50ms
+    unit_of_measurement: "s"
+
+  - platform: template
+    name: "Test Sensor 4"
+    lambda: 'return (millis() / 1000.0) + 30;'
+    update_interval: 50ms
+    unit_of_measurement: "s"
+
+  - platform: template
+    name: "Test Sensor 5"
+    lambda: 'return (millis() / 1000.0) + 40;'
+    update_interval: 50ms
+    unit_of_measurement: "s"
+
+  - platform: template
+    name: "Test Sensor 6"
+    lambda: 'return (millis() / 1000.0) + 50;'
+    update_interval: 50ms
+    unit_of_measurement: "s"
+
+  - platform: template
+    name: "Test Sensor 7"
+    lambda: 'return (millis() / 1000.0) + 60;'
+    update_interval: 50ms
+    unit_of_measurement: "s"
+
+  - platform: template
+    name: "Test Sensor 8"
+    lambda: 'return (millis() / 1000.0) + 70;'
+    update_interval: 50ms
+    unit_of_measurement: "s"
+
+  - platform: template
+    name: "Test Sensor 9"
+    lambda: 'return (millis() / 1000.0) + 80;'
+    update_interval: 50ms
+    unit_of_measurement: "s"
+
+  - platform: template
+    name: "Test Sensor 10"
+    lambda: 'return (millis() / 1000.0) + 90;'
+    update_interval: 50ms
+    unit_of_measurement: "s"
+
+# Add some binary sensors too for variety
+binary_sensor:
+  - platform: template
+    name: "Test Binary 1"
+    lambda: 'return (millis() / 1000) % 2 == 0;'
+
+  - platform: template
+    name: "Test Binary 2"
+    lambda: 'return (millis() / 1000) % 3 == 0;'

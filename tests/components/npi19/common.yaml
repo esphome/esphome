@@ -1,0 +1,10 @@
+sensor:
+  - platform: npi19
+    i2c_id: i2c_bus
+    update_interval: 1s
+
+    temperature:
+      name: water temperature
+
+    raw_pressure:
+      name: water pressure

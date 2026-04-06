@@ -1,18 +1,14 @@
 from __future__ import annotations
+
 from typing import Literal
 
-import esphome.codegen as cg
-import esphome.config_validation as cv
-import esphome.final_validate as fv
-from esphome.cpp_helpers import gpio_pin_expression
-from esphome.components import uart
-from esphome.const import (
-    CONF_FLOW_CONTROL_PIN,
-    CONF_ID,
-    CONF_ADDRESS,
-    CONF_DISABLE_CRC,
-)
 from esphome import pins
+import esphome.codegen as cg
+from esphome.components import uart
+import esphome.config_validation as cv
+from esphome.const import CONF_ADDRESS, CONF_DISABLE_CRC, CONF_FLOW_CONTROL_PIN, CONF_ID
+from esphome.cpp_helpers import gpio_pin_expression
+import esphome.final_validate as fv
 
 DEPENDENCIES = ["uart"]
 
@@ -24,6 +20,7 @@ MULTI_CONF = True
 CONF_ROLE = "role"
 CONF_MODBUS_ID = "modbus_id"
 CONF_SEND_WAIT_TIME = "send_wait_time"
+CONF_TURNAROUND_TIME = "turnaround_time"
 
 ModbusRole = modbus_ns.enum("ModbusRole")
 MODBUS_ROLES = {
@@ -39,6 +36,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_FLOW_CONTROL_PIN): pins.gpio_output_pin_schema,
             cv.Optional(
                 CONF_SEND_WAIT_TIME, default="250ms"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_TURNAROUND_TIME, default="100ms"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_DISABLE_CRC, default=False): cv.boolean,
         }
@@ -61,6 +61,7 @@ async def to_code(config):
         cg.add(var.set_flow_control_pin(pin))
 
     cg.add(var.set_send_wait_time(config[CONF_SEND_WAIT_TIME]))
+    cg.add(var.set_turnaround_time(config[CONF_TURNAROUND_TIME]))
     cg.add(var.set_disable_crc(config[CONF_DISABLE_CRC]))
 
 
