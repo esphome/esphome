@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_RESOLUTION,
     CONF_TEMPERATURE,
     CONF_TEMPERATURE_COMPENSATION,
+    DEVICE_CLASS_TEMPERATURE,
     ICON_MAGNET,
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
@@ -107,6 +108,7 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_CELSIUS,
                 accuracy_decimals=1,
                 icon=ICON_THERMOMETER,
+                device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(
                 cv.Schema(

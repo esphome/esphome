@@ -9,6 +9,9 @@ from esphome.const import (
     CONF_POWER,
     CONF_SPEED,
     CONF_VOLTAGE,
+    DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_POWER,
+    DEVICE_CLASS_VOLTAGE,
     UNIT_AMPERE,
     UNIT_CUBIC_METER_PER_HOUR,
     UNIT_METER,
@@ -35,10 +38,12 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_POWER): sensor.sensor_schema(
                 unit_of_measurement=UNIT_WATT,
                 accuracy_decimals=2,
+                device_class=DEVICE_CLASS_POWER,
             ),
             cv.Optional(CONF_CURRENT): sensor.sensor_schema(
                 unit_of_measurement=UNIT_AMPERE,
                 accuracy_decimals=2,
+                device_class=DEVICE_CLASS_CURRENT,
             ),
             cv.Optional(CONF_SPEED): sensor.sensor_schema(
                 unit_of_measurement=UNIT_REVOLUTIONS_PER_MINUTE,
@@ -47,6 +52,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_VOLT,
                 accuracy_decimals=2,
+                device_class=DEVICE_CLASS_VOLTAGE,
             ),
         }
     )
