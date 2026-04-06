@@ -25,7 +25,7 @@ bool EPaper3in97::wait_busy_demo_() {
     return true;
   }
 
-  delay(100);
+  delay(100);  // NOLINT: required by Waveshare reference implementation
   const uint32_t start = millis();
   while (this->busy_pin_->digital_read()) {
     if (millis() - start > 5000) {
@@ -186,7 +186,7 @@ void EPaper3in97::deep_sleep() {
   ESP_LOGV(TAG, "Deep sleep");
   this->send_command_(0x10);
   this->send_data_(0x01);
-  delay(100);
+  delay(100);  // NOLINT: required by Waveshare reference implementation
 }
 
 }  // namespace esphome::epaper_spi
