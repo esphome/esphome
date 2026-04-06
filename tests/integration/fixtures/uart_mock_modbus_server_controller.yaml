@@ -1,0 +1,180 @@
+esphome:
+  name: uart-mock-modbus-server-contro
+
+host:
+api:
+logger:
+  level: VERBOSE
+
+external_components:
+  - source:
+      type: local
+      path: EXTERNAL_COMPONENT_PATH
+
+# Dummy uart entry to satisfy modbus's DEPENDENCIES = ["uart"]
+# The actual UART bus used is the uart_mock component below
+uart:
+  baud_rate: 115200
+  port: /dev/null
+
+uart_mock:
+  - id: virtual_uart_server
+    baud_rate: 9600
+    # auto_start must be true for loopback fixtures: the modbus controller
+    # polls on its update_interval immediately at boot, so the uart_mock
+    # forwarding must already be active or early requests are lost and
+    # generate modbus warnings.
+    auto_start: true
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_controller
+              data: !lambda return data;
+  - id: virtual_uart_controller
+    baud_rate: 9600
+    auto_start: true  # See comment on virtual_uart_server above
+    debug:
+    on_tx:
+      - then:
+          - uart_mock.inject_rx:
+              id: virtual_uart_server
+              data: !lambda return data;
+
+modbus:
+  - uart_id: virtual_uart_server
+    id: virtual_modbus_server
+    role: server
+  - uart_id: virtual_uart_controller
+    id: virtual_modbus_controller
+    role: client
+    turnaround_time: 10ms
+
+modbus_controller:
+  - address: 1
+    modbus_id: virtual_modbus_controller
+    update_interval: 1s
+    id: modbus_controller_1
+
+  - address: 1
+    modbus_id: virtual_modbus_server
+    id: modbus_server_1
+    server_registers:
+      - address: 0x01
+        value_type: U_WORD
+        read_lambda: return 99;
+      - address: 0x03
+        value_type: S_WORD
+        read_lambda: return -99;
+      - address: 0x05
+        value_type: U_DWORD
+        read_lambda: return 16909060;
+      - address: 0x08
+        value_type: S_DWORD
+        read_lambda: return -16909060;
+      - address: 0x0B
+        value_type: U_DWORD_R
+        read_lambda: return 67305985;
+      - address: 0x0E
+        value_type: S_DWORD_R
+        read_lambda: return -67305985;
+      - address: 0x11
+        value_type: U_QWORD
+        read_lambda: return 72623859790382856;
+      - address: 0x16
+        value_type: S_QWORD
+        read_lambda: return -72623859790382856;
+      - address: 0x1B
+        value_type: U_QWORD_R
+        read_lambda: return 578437695752307201;
+      - address: 0x20
+        value_type: S_QWORD_R
+        read_lambda: return -578437695752307201;
+      - address: 0x25
+        value_type: FP32
+        read_lambda: return 3.14;
+      - address: 0x28
+        value_type: FP32_R
+        read_lambda: return 3.14;
+
+sensor:
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "reg_u_word"
+    address: 0x01
+    register_type: holding
+    value_type: U_WORD
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "reg_s_word"
+    address: 0x03
+    register_type: holding
+    value_type: S_WORD
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "reg_u_dword"
+    address: 0x05
+    register_type: holding
+    value_type: U_DWORD
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "reg_s_dword"
+    address: 0x08
+    register_type: holding
+    value_type: S_DWORD
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "reg_u_dword_r"
+    address: 0x0B
+    register_type: holding
+    value_type: U_DWORD_R
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "reg_s_dword_r"
+    address: 0x0E
+    register_type: holding
+    value_type: S_DWORD_R
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "reg_u_qword"
+    address: 0x11
+    register_type: holding
+    value_type: U_QWORD
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "reg_s_qword"
+    address: 0x16
+    register_type: holding
+    value_type: S_QWORD
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "reg_u_qword_r"
+    address: 0x1B
+    register_type: holding
+    value_type: U_QWORD_R
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "reg_s_qword_r"
+    address: 0x20
+    register_type: holding
+    value_type: S_QWORD_R
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "reg_fp32"
+    address: 0x25
+    register_type: holding
+    value_type: FP32
+  - platform: modbus_controller
+    modbus_controller_id: modbus_controller_1
+    name: "reg_fp32_r"
+    address: 0x28
+    register_type: holding
+    value_type: FP32_R
+
+button:
+  - platform: template
+    name: "Start Scenario"
+    id: start_scenario_btn
+    on_press:
+      - lambda: "id(virtual_uart_server).start_scenario();"
+      - lambda: "id(virtual_uart_controller).start_scenario();"

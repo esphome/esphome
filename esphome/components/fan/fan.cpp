@@ -44,22 +44,22 @@ FanCall &FanCall::set_preset_mode(const char *preset_mode, size_t len) {
 }
 
 void FanCall::perform() {
-  ESP_LOGD(TAG, "'%s' - Setting:", this->parent_.get_name().c_str());
+  ESP_LOGV(TAG, "'%s' - Setting:", this->parent_.get_name().c_str());
   this->validate_();
   if (this->binary_state_.has_value()) {
-    ESP_LOGD(TAG, "  State: %s", ONOFF(*this->binary_state_));
+    ESP_LOGV(TAG, "  State: %s", ONOFF(*this->binary_state_));
   }
   if (this->oscillating_.has_value()) {
-    ESP_LOGD(TAG, "  Oscillating: %s", YESNO(*this->oscillating_));
+    ESP_LOGV(TAG, "  Oscillating: %s", YESNO(*this->oscillating_));
   }
   if (this->speed_.has_value()) {
-    ESP_LOGD(TAG, "  Speed: %d", *this->speed_);
+    ESP_LOGV(TAG, "  Speed: %d", *this->speed_);
   }
   if (this->direction_.has_value()) {
-    ESP_LOGD(TAG, "  Direction: %s", LOG_STR_ARG(fan_direction_to_string(*this->direction_)));
+    ESP_LOGV(TAG, "  Direction: %s", LOG_STR_ARG(fan_direction_to_string(*this->direction_)));
   }
   if (this->preset_mode_ != nullptr) {
-    ESP_LOGD(TAG, "  Preset Mode: %s", this->preset_mode_);
+    ESP_LOGV(TAG, "  Preset Mode: %s", this->preset_mode_);
   }
   this->parent_.control(*this);
 }
@@ -196,21 +196,21 @@ void Fan::apply_preset_mode_(const FanCall &call) {
 void Fan::publish_state() {
   auto traits = this->get_traits();
 
-  ESP_LOGD(TAG,
+  ESP_LOGV(TAG,
            "'%s' >>\n"
            "  State: %s",
            this->name_.c_str(), ONOFF(this->state));
   if (traits.supports_speed()) {
-    ESP_LOGD(TAG, "  Speed: %d", this->speed);
+    ESP_LOGV(TAG, "  Speed: %d", this->speed);
   }
   if (traits.supports_oscillation()) {
-    ESP_LOGD(TAG, "  Oscillating: %s", YESNO(this->oscillating));
+    ESP_LOGV(TAG, "  Oscillating: %s", YESNO(this->oscillating));
   }
   if (traits.supports_direction()) {
-    ESP_LOGD(TAG, "  Direction: %s", LOG_STR_ARG(fan_direction_to_string(this->direction)));
+    ESP_LOGV(TAG, "  Direction: %s", LOG_STR_ARG(fan_direction_to_string(this->direction)));
   }
   if (this->preset_mode_ != nullptr) {
-    ESP_LOGD(TAG, "  Preset Mode: %s", this->preset_mode_);
+    ESP_LOGV(TAG, "  Preset Mode: %s", this->preset_mode_);
   }
   this->state_callback_.call();
 #if defined(USE_FAN) && defined(USE_CONTROLLER_REGISTRY)

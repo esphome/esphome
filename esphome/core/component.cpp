@@ -9,9 +9,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#ifdef USE_RUNTIME_STATS
-#include "esphome/components/runtime_stats/runtime_stats.h"
-#endif
 
 namespace esphome {
 
@@ -84,10 +81,8 @@ void store_component_error_message(const Component *component, const char *messa
 
 static constexpr uint16_t WARN_IF_BLOCKING_INCREMENT_MS =
     10U;  ///< How long the blocking time must be larger to warn again
-
-#ifdef USE_LOOP_PRIORITY
-float Component::get_loop_priority() const { return 0.0f; }
-#endif
+// Threshold in ms (computed from centiseconds constant in component.h)
+static constexpr uint32_t WARN_IF_BLOCKING_OVER_MS = static_cast<uint32_t>(WARN_IF_BLOCKING_OVER_CS) * 10U;
 
 float Component::get_setup_priority() const { return setup_priority::DATA; }
 
@@ -272,18 +267,15 @@ void Component::call() {
       break;
   }
 }
-const LogString *Component::get_component_log_str() const {
-  return this->component_source_ == nullptr ? LOG_STR("<unknown>") : this->component_source_;
-}
 bool Component::should_warn_of_blocking(uint32_t blocking_time) {
-  if (blocking_time > this->warn_if_blocking_over_) {
-    // Prevent overflow when adding increment - if we're about to overflow, just max out
-    if (blocking_time + WARN_IF_BLOCKING_INCREMENT_MS < blocking_time ||
-        blocking_time + WARN_IF_BLOCKING_INCREMENT_MS > std::numeric_limits<uint16_t>::max()) {
-      this->warn_if_blocking_over_ = std::numeric_limits<uint16_t>::max();
-    } else {
-      this->warn_if_blocking_over_ = static_cast<uint16_t>(blocking_time + WARN_IF_BLOCKING_INCREMENT_MS);
-    }
+  // Convert centisecond threshold to milliseconds for comparison
+  uint32_t threshold_ms = static_cast<uint32_t>(this->warn_if_blocking_over_) * 10U;
+  if (blocking_time > threshold_ms) {
+    // Set new threshold: blocking_time + increment, converted back to centiseconds
+    uint32_t new_threshold_ms = blocking_time + WARN_IF_BLOCKING_INCREMENT_MS;
+    uint32_t new_cs = new_threshold_ms / 10U;
+    // Saturate at uint8_t max (255 = 2550ms)
+    this->warn_if_blocking_over_ = static_cast<uint8_t>(new_cs > 255U ? 255U : new_cs);
     return true;
   }
   return false;
@@ -302,12 +294,10 @@ void Component::disable_loop() {
     App.disable_component_loop_(this);
   }
 }
-void Component::enable_loop() {
-  if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE) {
-    ESP_LOGVV(TAG, "%s loop enabled", LOG_STR_ARG(this->get_component_log_str()));
-    this->set_component_state_(COMPONENT_STATE_LOOP);
-    App.enable_component_loop_(this);
-  }
+void Component::enable_loop_slow_path_() {
+  ESP_LOGVV(TAG, "%s loop enabled", LOG_STR_ARG(this->get_component_log_str()));
+  this->set_component_state_(COMPONENT_STATE_LOOP);
+  App.enable_component_loop_(this);
 }
 void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
   // This method is thread and ISR-safe because:
@@ -524,18 +514,6 @@ WarnIfComponentBlockingGuard::warn_blocking(Component *component, uint32_t block
   }
 }
 
-#ifdef USE_RUNTIME_STATS
-void WarnIfComponentBlockingGuard::record_runtime_stats_() {
-  // Use micros() for accurate sub-millisecond timing. millis() has insufficient
-  // resolution — most components complete in microseconds but millis() only has
-  // 1ms granularity, so results were essentially random noise.
-  if (global_runtime_stats != nullptr) {
-    uint32_t duration_us = micros() - this->started_us_;
-    global_runtime_stats->record_component_time(this->component_, duration_us);
-  }
-}
-#endif
-
 #ifdef USE_SETUP_PRIORITY_OVERRIDE
 void clear_setup_priority_overrides() {
   // Free the setup priority map completely
@@ -543,5 +521,8 @@ void clear_setup_priority_overrides() {
   setup_priority_overrides = nullptr;
 }
 #endif
+
+// Weak default for component_source_lookup - overridden by generated code
+__attribute__((weak)) const LogString *component_source_lookup(uint8_t) { return LOG_STR("<unknown>"); }
 
 }  // namespace esphome
