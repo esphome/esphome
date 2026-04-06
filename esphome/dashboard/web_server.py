@@ -1641,22 +1641,19 @@ def start_web_server(
         shutil.move(trash_path, archive_path)
 
     if binding_socket is None:
-        if binding_address:
-            # Check if address is a network interface name
-            if binding_address in psutil.net_if_addrs():
-                binding_addresses = get_ip_addresses_of_network_interface(
-                    binding_address
-                )
-            else:
-                binding_addresses = [binding_address]
-            for address in binding_addresses:
-                _LOGGER.info(
-                    "Starting dashboard web server on http://%s:%s and configuration dir %s...",
-                    address,
-                    binding_port,
-                    config_dir,
-                )
-                app.listen(binding_port, address)
+        # Check if address is a network interface name
+        if binding_address in psutil.net_if_addrs():
+            binding_addresses = get_ip_addresses_of_network_interface(binding_address)
+        else:
+            binding_addresses = [binding_address]
+        for address in binding_addresses:
+            _LOGGER.info(
+                "Starting dashboard web server on http://%s:%s and configuration dir %s...",
+                address,
+                binding_port,
+                config_dir,
+            )
+            app.listen(binding_port, address)
         return
 
     _LOGGER.info(
