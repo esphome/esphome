@@ -10,7 +10,7 @@ class BLEServer : public Component {
  public:
   void setup() override;
   void dump_config() override;
-  void add_passkey_callback(std::function<void(uint32_t)> &&cb) { this->passkey_cb_.add(std::move(cb)); }
+  template<typename F> void add_passkey_callback(F &&callback) { this->passkey_cb_.add(std::forward<F>(callback)); }
   void bt_conn_auth(bool confirm);
 
  protected:
@@ -19,13 +19,6 @@ class BLEServer : public Component {
   static void auth_passkey_confirm(struct bt_conn *conn, unsigned int passkey);
   bt_conn *conn_{};
   CallbackManager<void(uint32_t)> passkey_cb_;
-};
-
-class BLENumericComparisonRequestTrigger : public Trigger<uint32_t> {
- public:
-  explicit BLENumericComparisonRequestTrigger(BLEServer *parent) {
-    parent->add_passkey_callback([this](uint32_t key) { this->trigger(key); });
-  }
 };
 
 template<typename... Ts> class BLENumericComparisonReplyAction : public Action<Ts...> {

@@ -2,16 +2,11 @@ from esphome import automation
 import esphome.codegen as cg
 from esphome.components.zephyr import zephyr_add_prj_conf
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TRIGGER_ID, Framework
+from esphome.const import CONF_ID, Framework
 from esphome.core import CORE
 
 zephyr_ble_server_ns = cg.esphome_ns.namespace("zephyr_ble_server")
 BLEServer = zephyr_ble_server_ns.class_("BLEServer", cg.Component)
-
-BLENumericComparisonRequestTrigger = zephyr_ble_server_ns.class_(
-    "BLENumericComparisonRequestTrigger",
-    automation.Trigger.template(cg.uint32),
-)
 
 CONF_ON_NUMERIC_COMPARISON_REQUEST = "on_numeric_comparison_request"
 CONF_ACCEPT = "accept"
@@ -22,16 +17,18 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(BLEServer),
             cv.Optional(
                 CONF_ON_NUMERIC_COMPARISON_REQUEST
-            ): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        BLENumericComparisonRequestTrigger
-                    ),
-                }
-            ),
+            ): automation.validate_automation({}),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_framework(Framework.ZEPHYR),
+)
+
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_NUMERIC_COMPARISON_REQUEST,
+        "add_passkey_callback",
+        [(cg.uint32, "passkey")],
+    ),
 )
 
 
@@ -42,14 +39,12 @@ async def to_code(config):
     zephyr_add_prj_conf("BT_RX_STACK_SIZE", 1536)
     zephyr_add_prj_conf("BT_DEVICE_NAME", CORE.name)
     await cg.register_component(var, config)
-    for conf in config.get(CONF_ON_NUMERIC_COMPARISON_REQUEST, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(cg.uint32, "passkey")], conf)
-    if len(config.get(CONF_ON_NUMERIC_COMPARISON_REQUEST, [])) > 0:
+    if config.get(CONF_ON_NUMERIC_COMPARISON_REQUEST):
         zephyr_add_prj_conf("BT_SMP", True)
         zephyr_add_prj_conf("BT_SETTINGS", True)
         zephyr_add_prj_conf("BT_SMP_SC_ONLY", True)
         zephyr_add_prj_conf("BT_KEYS_OVERWRITE_OLDEST", True)
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 BLENumericComparisonReplyAction = zephyr_ble_server_ns.class_(
