@@ -108,6 +108,12 @@ void Application::setup() {
   }
 
   ESP_LOGI(TAG, "setup() finished successfully!");
+  // Shrink scheduler vectors after startup transients settle (one-shot timeouts
+  // from setup cause temporary vector growth).
+  if (!this->components_.empty()) {
+    this->scheduler.set_timeout(this->components_[0], InternalSchedulerID::SCHEDULER_SHRINK, 5000,
+                                [this]() { this->scheduler.shrink_to_fit(); });
+  }
 
 #ifdef USE_SETUP_PRIORITY_OVERRIDE
   // Clear setup priority overrides to free memory

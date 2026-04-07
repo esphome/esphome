@@ -63,8 +63,9 @@ inline constexpr uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
 /// Uses a separate NameType (NUMERIC_ID_INTERNAL) so IDs can never collide
 /// with component-level NUMERIC_ID values, even if the uint32_t values overlap.
 enum class InternalSchedulerID : uint32_t {
-  POLLING_UPDATE = 0,  // PollingComponent interval
-  DELAY_ACTION = 1,    // DelayAction timeout
+  POLLING_UPDATE = 0,    // PollingComponent interval
+  DELAY_ACTION = 1,      // DelayAction timeout
+  SCHEDULER_SHRINK = 2,  // Post-startup scheduler vector shrink
 };
 
 // Forward declaration

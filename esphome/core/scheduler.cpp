@@ -822,6 +822,19 @@ bool HOT Scheduler::SchedulerItem::cmp(SchedulerItem *a, SchedulerItem *b) {
                                                               : (a->next_execution_high_ > b->next_execution_high_);
 }
 
+void Scheduler::shrink_to_fit() {
+  LockGuard guard{this->lock_};
+  // Swap with right-sized copies to release excess capacity.
+  // shrink_to_fit() is non-binding on most embedded allocators, so we
+  // must copy-and-swap to guarantee memory is actually freed.
+  if (this->items_.capacity() > this->items_.size()) {
+    std::vector<SchedulerItem *>(this->items_).swap(this->items_);
+  }
+  if (this->to_add_.capacity() > 0) {
+    std::vector<SchedulerItem *>().swap(this->to_add_);
+  }
+}
+
 // Recycle a SchedulerItem back to the pool for reuse.
 // IMPORTANT: Caller must hold the scheduler lock before calling this function.
 // This protects scheduler_item_pool_ from concurrent access by other threads

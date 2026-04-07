@@ -144,6 +144,8 @@ class Scheduler {
     this->process_to_add_slow_path_();
   }
 
+  void shrink_to_fit();
+
   // Name storage type discriminator for SchedulerItem
   // Used to distinguish between static strings, hashed strings, numeric IDs, and internal numeric IDs
   enum class NameType : uint8_t {
