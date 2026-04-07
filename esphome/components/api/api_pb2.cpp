@@ -97,15 +97,15 @@ uint8_t *DeviceInfoResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_
   ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->mac_address);
   ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 34, this->esphome_version);
   ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 42, this->compilation_time);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 6, this->model);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 50, this->model);
 #ifdef USE_DEEP_SLEEP
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, this->has_deep_sleep);
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, this->project_name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 66, this->project_name);
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 9, this->project_version);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 74, this->project_version);
 #endif
 #ifdef USE_WEBSERVER
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, this->webserver_port);
@@ -159,15 +159,15 @@ uint32_t DeviceInfoResponse::calculate_size() const {
   size += 2 + this->mac_address.size();
   size += 2 + this->esphome_version.size();
   size += 2 + this->compilation_time.size();
-  size += ProtoSize::calc_length(1, this->model.size());
+  size += 2 + this->model.size();
 #ifdef USE_DEEP_SLEEP
   size += ProtoSize::calc_bool(1, this->has_deep_sleep);
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  size += ProtoSize::calc_length(1, this->project_name.size());
+  size += 2 + this->project_name.size();
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  size += ProtoSize::calc_length(1, this->project_version.size());
+  size += 2 + this->project_version.size();
 #endif
 #ifdef USE_WEBSERVER
   size += ProtoSize::calc_uint32(1, this->webserver_port);

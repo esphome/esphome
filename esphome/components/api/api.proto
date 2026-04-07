@@ -225,6 +225,8 @@ message SerialProxyInfo {
 //   esphome_version = 32 (ESPHOME_VERSION string literal)
 //   compilation_time = 25 (Application::BUILD_TIME_STR_SIZE - 1, constexpr)
 //   manufacturer = 20 (longest hardcoded literal: "Nordic Semiconductor")
+//   model = 127 (core/config.BOARD_MAX_LENGTH, validated in platform schemas)
+//   project_name/project_version = 127 (core/config.PROJECT_MAX_LENGTH)
 message DeviceInfoResponse {
   option (id) = 10;
   option (source) = SOURCE_SERVER;
@@ -248,13 +250,15 @@ message DeviceInfoResponse {
   string compilation_time = 5 [(max_data_length) = 25, (force) = true];
 
   // The model of the board. For example NodeMCU
-  string model = 6;
+  // max_data_length matches core/config.BOARD_MAX_LENGTH (validated in platform schemas)
+  string model = 6 [(max_data_length) = 127, (force) = true];
 
   bool has_deep_sleep = 7 [(field_ifdef) = "USE_DEEP_SLEEP"];
 
   // The esphome project details if set
-  string project_name = 8 [(field_ifdef) = "ESPHOME_PROJECT_NAME"];
-  string project_version = 9 [(field_ifdef) = "ESPHOME_PROJECT_NAME"];
+  // max_data_length matches core/config.PROJECT_MAX_LENGTH
+  string project_name = 8 [(max_data_length) = 127, (force) = true, (field_ifdef) = "ESPHOME_PROJECT_NAME"];
+  string project_version = 9 [(max_data_length) = 127, (force) = true, (field_ifdef) = "ESPHOME_PROJECT_NAME"];
 
   uint32 webserver_port = 10 [(field_ifdef) = "USE_WEBSERVER"];
 

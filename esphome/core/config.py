@@ -236,6 +236,12 @@ ICON_MAX_LENGTH = 63
 # Max unit of measurement string length
 UNIT_OF_MEASUREMENT_MAX_LENGTH = 63
 
+# Max project name/version string length (must fit in single-byte varint for proto encoding)
+PROJECT_MAX_LENGTH = 127
+
+# Max board/model string length (must fit in single-byte varint for proto encoding)
+BOARD_MAX_LENGTH = 127
+
 AREA_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(Area),
@@ -306,9 +312,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PROJECT): cv.Schema(
                 {
                     cv.Required(CONF_NAME): cv.All(
-                        cv.string_strict, valid_project_name
+                        cv.string_strict,
+                        valid_project_name,
+                        cv.Length(max=PROJECT_MAX_LENGTH),
                     ),
-                    cv.Required(CONF_VERSION): cv.string_strict,
+                    cv.Required(CONF_VERSION): cv.All(
+                        cv.string_strict, cv.Length(max=PROJECT_MAX_LENGTH)
+                    ),
                     cv.Optional(CONF_ON_UPDATE): automation.validate_automation(
                         {
                             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
