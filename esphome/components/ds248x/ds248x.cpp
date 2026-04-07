@@ -334,28 +334,27 @@ bool DS248xComponent::ow_read_byte(uint8_t &byte) {
   return true;
 }
 
-uint8_t DS248xComponent::search_triplet(bool search_direction) {
+bool DS248xComponent::search_triplet(bool search_direction, uint8_t &status) {
   if (this->strong_pullup_active_ && !this->set_strong_pullup_mode_(false))
-    return 0;
+    return false;
 
   if (!this->set_read_pointer_(DS248X_POINTER_STATUS))
-    return 0;
+    return false;
 
   // DS248x Datasheet: 1-Wire Triplet command requires 2 bytes:
   // Byte 1: Command code 0x78
   // Byte 2: Direction byte (bit 7 = V, search direction if discrepancy)
   uint8_t buffer[2] = {DS248X_COMMAND_TRIPLET, static_cast<uint8_t>(search_direction ? 0x80 : 0x00)};
   if (this->write(buffer, 2) != i2c::ERROR_OK)
-    return 0;
+    return false;
 
   if (!this->wait_busy_())
-    return 0;
+    return false;
 
-  uint8_t status;
   if (this->read(&status, 1) != i2c::ERROR_OK)
-    return 0;
+    return false;
 
-  return status;
+  return true;
 }
 
 }  // namespace ds248x

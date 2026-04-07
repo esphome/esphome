@@ -62,8 +62,9 @@ DS2484_SCHEMA = {
     cv.Optional(CONF_DS2484_RECOVERY_TIME): cv.int_range(min=0, max=15),
     cv.Optional(CONF_DS2484_ACTIVE_PULLUP_RESISTANCE): cv.enum(
         {
+            # DS2484 Table 7: value codes 0-5 map to 500 ohm, 6-15 map to 1000 ohm.
             "500ohm": 0,
-            "1000ohm": 3,
+            "1000ohm": 6,
         }
     ),
 }

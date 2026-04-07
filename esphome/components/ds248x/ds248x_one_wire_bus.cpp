@@ -129,8 +129,8 @@ uint64_t DS248xOneWireBus::search_int() {
     }
 
     // Perform triplet operation
-    uint8_t status = this->parent_->search_triplet(search_direction);
-    if (status == 0) {
+    uint8_t status = 0;
+    if (!this->parent_->search_triplet(search_direction, status)) {
       // Error during triplet
       this->reset_search();
       return 0;

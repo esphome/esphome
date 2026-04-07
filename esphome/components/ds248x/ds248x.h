@@ -96,7 +96,7 @@ class DS248xComponent : public Component, public i2c::I2CDevice {
   bool ow_read_byte(uint8_t &byte);
 
   // --- Search support (used by DS248xOneWireBus) ---
-  uint8_t search_triplet(bool search_direction);
+  bool search_triplet(bool search_direction, uint8_t &status);
 
  protected:
   InternalGPIOPin *sleep_pin_{nullptr};
