@@ -192,17 +192,19 @@ async def to_code(config):
         await cg.register_parented(b, var)
         cg.add(var.set_reset_bt_stack_button(b))
 
-    if CORE.using_esp_idf:
-        add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
-        add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_MODE_BTDM", True)
-        add_idf_sdkconfig_option("CONFIG_BT_CLASSIC_ENABLED", True)
-        add_idf_sdkconfig_option("CONFIG_BTU_TASK_STACK_SIZE", 8192)
+    add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
+    add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_MODE_BTDM", True)
+    add_idf_sdkconfig_option("CONFIG_BT_CLASSIC_ENABLED", True)
+    add_idf_sdkconfig_option("CONFIG_BTU_TASK_STACK_SIZE", 8192)
 
-        add_idf_sdkconfig_option("CONFIG_BT_LOG_GAP_TRACE_LEVEL_DEBUG", True)
-        add_idf_sdkconfig_option("CONFIG_BT_LOG_GAP_TRACE_LEVEL", 5)
+    add_idf_sdkconfig_option("CONFIG_BT_LOG_GAP_TRACE_LEVEL_DEBUG", True)
+    add_idf_sdkconfig_option("CONFIG_BT_LOG_GAP_TRACE_LEVEL", 5)
 
-        add_idf_sdkconfig_option("CONFIG_BT_LOG_BTC_TRACE_LEVEL_DEBUG", True)
-        add_idf_sdkconfig_option("CONFIG_BT_LOG_BTC_TRACE_LEVEL", 5)
+    add_idf_sdkconfig_option("CONFIG_BT_LOG_BTC_TRACE_LEVEL_DEBUG", True)
+    add_idf_sdkconfig_option("CONFIG_BT_LOG_BTC_TRACE_LEVEL", 5)
+
+    cg.add_define("DISABLE_BT_CLASSIC_MEM_RELEASE")
+    cg.add_build_flag("-DBT_CONTROLLER_MODE=ESP_BT_MODE_BTDM")
 
 
 @automation.register_action(

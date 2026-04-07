@@ -498,6 +498,12 @@ def final_validation(config):
         add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID", True)
         add_idf_sdkconfig_option("CONFIG_ESP_HOSTED_BLUEDROID_HCI_VHCI", True)
 
+    if "esp32_bt_classic" in full_config:
+        cg.add_define("DISABLE_BT_CLASSIC_MEM_RELEASE")
+        cg.add_build_flag("-DBT_CONTROLLER_MODE=ESP_BT_MODE_BTDM")
+    else:
+        cg.add_build_flag("-DBT_CONTROLLER_MODE=ESP_BT_MODE_BLE")
+
     # Check if BLE Client is needed (via esp32_ble_tracker or esp32_ble_client)
     has_ble_client = (
         "esp32_ble_tracker" in full_config or "esp32_ble_client" in full_config

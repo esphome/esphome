@@ -15,6 +15,9 @@
 // For time getting:
 #include "esphome/components/homeassistant/time/homeassistant_time.h"
 
+#ifdef CONFIG_ESP_HOSTED_ENABLE_BT_BLUEDROID
+#error Not compatible with ESP_HOSTED
+#endif
 namespace esphome {
 namespace esp32_bt_classic {
 
@@ -24,8 +27,7 @@ void ResetBtStackButton::press_action() { this->parent_->reset_bt_stack(); }
 
 float ESP32BtClassic::get_setup_priority() const {
   // Setup just after BLE, (but before AFTER_BLUETOOTH) to ensure both can co-exist!
-  // return setup_priority::BLUETOOTH - 5.0f;
-  return setup_priority::AFTER_BLUETOOTH + 5.0f;
+  return setup_priority::BLUETOOTH + 5.0f;
 }
 
 void ESP32BtClassic::setup() {
@@ -79,7 +81,7 @@ bool ESP32BtClassic::bt_pre_setup_() {
     return false;
   }
   return true;
-  }
+}
 
 bool ESP32BtClassic::bt_setup_() {
   esp_err_t err;
@@ -96,7 +98,7 @@ bool ESP32BtClassic::bt_setup_() {
         ;
     }
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_INITED) {
-      err = esp_bt_controller_enable(ESP_BT_MODE_BTDM);
+      err = esp_bt_controller_enable(BT_CONTROLLER_MODE);
       if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_bt_controller_enable failed: %s", esp_err_to_name(err));
         return false;
