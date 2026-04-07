@@ -44,6 +44,9 @@ void GDK101Component::setup() {
     this->reset_retries_remaining_ = NUMBER_OF_RESET_RETRIES;
     this->set_interval(RESET_INTERVAL_ID, RESET_INTERVAL_MS, [this]() {
       if (this->try_reset_()) {
+        if (this->reset_complete_) {
+          this->update();
+        }
         return;
       }
       if (--this->reset_retries_remaining_ == 0) {
@@ -115,7 +118,6 @@ bool GDK101Component::reset_sensor_(uint8_t *data) {
   // after a while we can send another reset command and read "0x01" as confirmation
   // Documentation not going in to such details unfortunately
   if (!this->read_bytes_with_retry_(GDK101_REG_RESET, data, 2)) {
-    ESP_LOGE(TAG, "Updating GDK101 failed!");
     return false;
   }
 
