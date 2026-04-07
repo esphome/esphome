@@ -20,7 +20,7 @@ void EPaperMono::deep_sleep() {
 
 bool EPaperMono::reset() {
   if (EPaperBase::reset()) {
-    this->command(0x12);
+    this->cmd_data(0x12, {0x03});
     return true;
   }
   return false;
