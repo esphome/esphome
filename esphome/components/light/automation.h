@@ -36,27 +36,28 @@ template<typename... Ts> class LightControlAction : public Action<Ts...> {
  public:
   explicit LightControlAction(LightState *parent) : parent_(parent) {}
 
-// clang-format off
 #define LIGHT_CONTROL_FIELDS(X) \
-  X(ColorMode, color_mode)      \
-  X(bool, state)                \
-  X(uint32_t, transition_length)\
-  X(uint32_t, flash_length)     \
-  X(float, brightness)          \
-  X(float, color_brightness)    \
-  X(float, red)                 \
-  X(float, green)               \
-  X(float, blue)                \
-  X(float, white)               \
-  X(float, color_temperature)   \
-  X(float, cold_white)          \
-  X(float, warm_white)          \
+  X(ColorMode, color_mode) \
+  X(bool, state) \
+  X(uint32_t, transition_length) \
+  X(uint32_t, flash_length) \
+  X(float, brightness) \
+  X(float, color_brightness) \
+  X(float, red) \
+  X(float, green) \
+  X(float, blue) \
+  X(float, white) \
+  X(float, color_temperature) \
+  X(float, cold_white) \
+  X(float, warm_white) \
   X(uint32_t, effect)
 
-#define LIGHT_FIELD_SETTER_(type, name) void set_##name(type (*f)(Ts...)) { this->name##_ = f; }
-#define LIGHT_FIELD_APPLY_(type, name) if (this->name##_) call.set_##name(this->name##_(x...));
+#define LIGHT_FIELD_SETTER_(type, name) \
+  void set_##name(type (*f)(Ts...)) { this->name##_ = f; }
+#define LIGHT_FIELD_APPLY_(type, name) \
+  if (this->name##_) \
+    call.set_##name(this->name##_(x...));
 #define LIGHT_FIELD_DECL_(type, name) type (*name##_)(Ts...){nullptr};
-  // clang-format on
 
   LIGHT_CONTROL_FIELDS(LIGHT_FIELD_SETTER_)
 
