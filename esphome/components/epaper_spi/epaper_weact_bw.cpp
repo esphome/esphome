@@ -22,7 +22,7 @@ bool EPaperWeActBW::initialise(bool partial) {
 }
 
 bool HOT EPaperWeActBW::transfer_data() {
-  // Always transfer the full screen buffer, but for partial updates, the controller 
+  // Always transfer the full screen buffer, but for partial updates, the controller
   // will only apply the diff to the changed area.
   // Using dirty-rect windows for partial updates causes stale 0x24 data outside the
   // dirty area, which breaks the per-pixel diff that drives partial refresh.
