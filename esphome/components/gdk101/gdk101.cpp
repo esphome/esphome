@@ -117,11 +117,7 @@ bool GDK101Component::reset_sensor_(uint8_t *data) {
   // After sending reset command it looks that sensor start performing reset and is unresponsible during read
   // after a while we can send another reset command and read "0x01" as confirmation
   // Documentation not going in to such details unfortunately
-  if (!this->read_bytes_with_retry_(GDK101_REG_RESET, data, 2)) {
-    return false;
-  }
-
-  return true;
+  return this->read_bytes_with_retry_(GDK101_REG_RESET, data, 2);
 }
 
 bool GDK101Component::read_dose_1m_(uint8_t *data) {
