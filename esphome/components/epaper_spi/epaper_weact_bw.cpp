@@ -22,7 +22,8 @@ bool EPaperWeActBW::initialise(bool partial) {
 }
 
 bool HOT EPaperWeActBW::transfer_data() {
-  // Always transfer the full screen buffer, matching the GDEY042T81 reference driver.
+  // Always transfer the full screen buffer, but for partial updates, the controller 
+  // will only apply the diff to the changed area.
   // Using dirty-rect windows for partial updates causes stale 0x24 data outside the
   // dirty area, which breaks the per-pixel diff that drives partial refresh.
   const bool full_cycle_update = !this->current_partial_update_;
@@ -72,12 +73,12 @@ void EPaperWeActBW::refresh_screen(bool partial) {
   this->cmd_data(0x4F, {0x00, 0x00});
 
   if (partial) {
-    // GDEY042T81-compatible partial update sequence.
+    // partial update sequence
     this->cmd_data(0x3C, {0x80});
     this->cmd_data(0x21, {0x00, 0x00});
     this->cmd_data(0x22, {0xFC});
   } else {
-    // GDEY042T81-compatible full update sequence.
+    // full update sequence
     this->cmd_data(0x3C, {0x01});
     this->cmd_data(0x21, {0x40, 0x00});
     this->cmd_data(0x1A, {0x6E});
