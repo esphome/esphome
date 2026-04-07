@@ -1993,7 +1993,7 @@ bool APIConnection::send_message_(uint32_t payload_size, uint8_t message_type, M
   size_t write_start = shared_buf.size();
   shared_buf.resize(write_start + payload_size);
   ProtoWriteBuffer buffer{&shared_buf, write_start};
-  encode_fn(msg, buffer);
+  encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
   return this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type);
 }
 // Encodes a message to the buffer and returns the total number of bytes used,
@@ -2034,7 +2034,7 @@ uint16_t APIConnection::encode_to_buffer(uint32_t calculated_size, MessageEncode
 
   shared_buf.resize(shared_buf.size() + to_add);
   ProtoWriteBuffer buffer{&shared_buf, shared_buf.size() - calculated_size};
-  encode_fn(msg, buffer);
+  encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
 
   // Return total size (header + payload + footer)
   return static_cast<uint16_t>(total_calculated_size);

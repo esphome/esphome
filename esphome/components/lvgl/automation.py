@@ -3,8 +3,9 @@ from typing import Any
 
 from esphome import automation
 import esphome.codegen as cg
+from esphome.components.display import validate_rotation
 import esphome.config_validation as cv
-from esphome.const import CONF_ACTION, CONF_GROUP, CONF_ID, CONF_TIMEOUT
+from esphome.const import CONF_ACTION, CONF_GROUP, CONF_ID, CONF_ROTATION, CONF_TIMEOUT
 from esphome.core import Lambda
 from esphome.cpp_generator import TemplateArguments, get_variable
 from esphome.cpp_types import nullptr
@@ -23,6 +24,7 @@ from .defines import (
     PARTS,
     StaticCastExpression,
     add_warning,
+    get_options,
 )
 from .lv_validation import lv_bool, lv_milliseconds
 from .lvcode import (
@@ -189,6 +191,33 @@ async def lvgl_is_idle(config, condition_id, template_arg, args):
     )
     await cg.register_parented(var, lvgl)
     return var
+
+
+def _validate_rotation(value):
+    # Note that we need rotation
+    get_options()[CONF_ROTATION] = True
+    return validate_rotation(value)
+
+
+@automation.register_action(
+    "lvgl.display.set_rotation",
+    ObjUpdateAction,
+    cv.maybe_simple_value(
+        LVGL_SCHEMA.extend(
+            {
+                cv.Required(CONF_ROTATION): _validate_rotation,
+            }
+        ),
+        key=CONF_ROTATION,
+    ),
+    synchronous=True,
+)
+async def lvgl_set_rotation(config, action_id, template_arg, args):
+    lv_comp = await cg.get_variable(config[CONF_LVGL_ID])
+    async with LambdaContext() as context:
+        add_line_marks(where=action_id)
+        lv_add(lv_comp.set_rotation(config[CONF_ROTATION]))
+    return cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
 
 
 @automation.register_action(
