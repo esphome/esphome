@@ -6,6 +6,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TX_POWER, CONF_TYPE, CONF_UUID
 from esphome.core import TimePeriod
 
+AUTO_LOAD = ["esp32_ble"]
 DEPENDENCIES = ["esp32"]
 
 esp32_ble_beacon_ns = cg.esphome_ns.namespace("esp32_ble_beacon")

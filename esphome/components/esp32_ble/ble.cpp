@@ -190,9 +190,7 @@ bool ESP32BLE::ble_setup_() {
     }
   }
 
-#ifdef BT_CLASSIC_INCLUDED_PLEASE_DONT_MEM_RELEASE
   esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
-#endif
 #else
   esp_hosted_connect_to_slave();  // NOLINT
 
