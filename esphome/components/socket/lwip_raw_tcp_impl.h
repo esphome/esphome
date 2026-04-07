@@ -109,7 +109,7 @@ class LWIPRawImpl : public LWIPRawCommon {
       return -1;
     }
     // Raw TCP doesn't use a blocking flag directly. Blocking behavior
-    // is provided by SO_RCVTIMEO which makes read() wait via socket_delay().
+    // is provided by SO_RCVTIMEO which makes read() wait via wakeable_delay().
     return 0;
   }
   int loop() { return 0; }
