@@ -669,11 +669,10 @@ async def test_templatable__int_with_std_string() -> None:
 
 @pytest.mark.asyncio
 async def test_templatable__string_with_non_string_output_type() -> None:
-    """Static string with non-std::string output_type returns raw string."""
+    """Static string with non-std::string output_type returns stateless lambda."""
     result = await cg.templatable("hello", [], ct.bool_)
 
-    assert isinstance(result, str)
-    assert result == "hello"
+    assert isinstance(result, cg.LambdaExpression)
 
 
 @pytest.mark.asyncio

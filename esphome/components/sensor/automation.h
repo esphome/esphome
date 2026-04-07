@@ -79,8 +79,8 @@ class ValueRangeTrigger : public Trigger<float>, public Component {
   Sensor *parent_;
   ESPPreferenceObject rtc_;
   bool previous_in_range_{false};
-  TemplatableValue<float, float> min_{NAN};
-  TemplatableValue<float, float> max_{NAN};
+  TemplatableValue<float, float> min_{[](float) -> float { return NAN; }};
+  TemplatableValue<float, float> max_{[](float) -> float { return NAN; }};
 };
 
 template<typename... Ts> class SensorInRangeCondition : public Condition<Ts...> {
