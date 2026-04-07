@@ -127,7 +127,7 @@ def validate_st7789v(config):
 
     if model_data[REQUIRE_PS] and CONF_POWER_SUPPLY not in config:
         raise cv.Invalid(
-            f'{CONF_POWER_SUPPLY} must be specified when {CONF_MODEL} is {config[CONF_MODEL]}"'
+            f"{CONF_POWER_SUPPLY} must be specified when {CONF_MODEL} is {config[CONF_MODEL]}"
         )
 
     if (

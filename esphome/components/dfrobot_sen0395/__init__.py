@@ -97,7 +97,7 @@ def range_segment_list(input):
         )
 
     largest_distance = -1
-    for distance in input:
+    for i, distance in enumerate(input):
         if isinstance(distance, cv.Lambda):
             continue
         m = cv.distance(distance)
@@ -112,7 +112,7 @@ def range_segment_list(input):
             )
         largest_distance = m
         # Replace distance object with meters float
-        input[input.index(distance)] = m
+        input[i] = m
 
     return input
 
