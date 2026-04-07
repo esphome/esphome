@@ -1667,7 +1667,7 @@ def dimensions(value):
     match = re.match(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
     if not match:
         raise Invalid(
-            "Invalid value '{}' for dimensions. Only WIDTHxHEIGHT is allowed."
+            f"Invalid value '{value}' for dimensions. Only WIDTHxHEIGHT is allowed."
         )
     return dimensions([match.group(1), match.group(2)])
 

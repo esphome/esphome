@@ -25,6 +25,19 @@ constexpr uint8_t WIRE_TYPE_LENGTH_DELIMITED = 2;  // string, bytes, embedded me
 constexpr uint8_t WIRE_TYPE_FIXED32 = 5;           // fixed32, sfixed32, float
 constexpr uint8_t WIRE_TYPE_MASK = 0b111;          // Mask to extract wire type from tag
 
+// Reinterpret float bits as uint32_t without floating-point comparison.
+// Used by both encode_float() and calc_float() to ensure identical zero checks.
+// Uses union type-punning which is a GCC/Clang extension (not standard C++),
+// but bit_cast/memcpy don't optimize to a no-op on xtensa-gcc (ESP8266).
+inline uint32_t float_to_raw(float value) {
+  union {
+    float f;
+    uint32_t u;
+  } v;
+  v.f = value;
+  return v.u;
+}
+
 // Helper functions for ZigZag encoding/decoding
 inline constexpr uint32_t encode_zigzag32(int32_t value) {
   return (static_cast<uint32_t>(value) << 1) ^ (static_cast<uint32_t>(value >> 31));
@@ -432,14 +445,10 @@ class ProtoEncode {
   // is needed in the future, the necessary encoding/decoding functions must be added.
   static inline void encode_float(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, uint32_t field_id, float value,
                                   bool force = false) {
-    if (value == 0.0f && !force)
+    uint32_t raw = float_to_raw(value);
+    if (raw == 0 && !force)
       return;
-    union {
-      float value;
-      uint32_t raw;
-    } val{};
-    val.value = value;
-    encode_fixed32(pos PROTO_ENCODE_DEBUG_ARG, field_id, val.raw);
+    encode_fixed32(pos PROTO_ENCODE_DEBUG_ARG, field_id, raw);
   }
   static inline void encode_int32(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, uint32_t field_id, int32_t value,
                                   bool force = false) {
@@ -751,8 +760,8 @@ class ProtoSize {
   }
   static constexpr uint32_t calc_bool(uint32_t field_id_size, bool value) { return value ? field_id_size + 1 : 0; }
   static constexpr uint32_t calc_bool_force(uint32_t field_id_size) { return field_id_size + 1; }
-  static constexpr uint32_t calc_float(uint32_t field_id_size, float value) {
-    return value != 0.0f ? field_id_size + 4 : 0;
+  static uint32_t calc_float(uint32_t field_id_size, float value) {
+    return float_to_raw(value) != 0 ? field_id_size + 4 : 0;
   }
   static constexpr uint32_t calc_fixed32(uint32_t field_id_size, uint32_t value) {
     return value ? field_id_size + 4 : 0;
