@@ -4,7 +4,6 @@ import esphome.codegen as cg
 from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_NAME, CONF_PATTERN, CONF_PRIORITY
-from esphome.core import CORE
 
 CODEOWNERS = ["@SimonFischer04", "@Tomer27cz", "@latonita", "@PolarGoose"]
 DEPENDENCIES = ["uart"]
@@ -128,12 +127,6 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-
-    if CORE.is_esp8266:
-        # Force PlatformIO to add the nested bearssl folder to the include path
-        cg.add_build_flag(
-            "-I${PROJECT_PACKAGES_DIR}/framework-arduinoespressif8266/tools/sdk/include/bearssl"
-        )
 
     cg.add(var.set_skip_crc_check(config[CONF_SKIP_CRC]))
 
