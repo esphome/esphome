@@ -42,7 +42,6 @@ from ..defines import (
     CONF_SRC,
     CONF_START_ANGLE,
     addr,
-    get_color_formats,
     literal,
 )
 from ..lv_validation import (
@@ -99,7 +98,6 @@ class CanvasType(WidgetType):
         # RGB565 is 16-bit (2 bytes per pixel), ARGB8888 is 32-bit (4 bytes per pixel)
         if config[CONF_TRANSPARENT]:
             color_format = "LV_COLOR_FORMAT_ARGB8888"
-            get_color_formats().add("ARGB8888")
         else:
             color_format = "LV_COLOR_FORMAT_NATIVE"
 

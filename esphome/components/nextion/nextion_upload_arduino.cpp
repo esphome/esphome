@@ -11,8 +11,8 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-namespace esphome {
-namespace nextion {
+namespace esphome::nextion {
+
 static const char *const TAG = "nextion.upload.arduino";
 static constexpr size_t NEXTION_MAX_RESPONSE_LOG_BYTES = 16;
 
@@ -342,8 +342,7 @@ WiFiClient *Nextion::get_wifi_client_() {
 }
 #endif  // USE_ESP8266
 
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion
 
 #endif  // NOT USE_ESP32
 #endif  // USE_NEXTION_TFT_UPLOAD

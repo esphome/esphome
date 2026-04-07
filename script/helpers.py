@@ -15,8 +15,6 @@ from typing import Any
 
 import colorama
 
-from esphome.loader import get_platform
-
 root_path = os.path.abspath(os.path.normpath(os.path.join(__file__, "..", "..")))
 basepath = os.path.join(root_path, "esphome")
 temp_folder = os.path.join(root_path, ".temp")
@@ -644,7 +642,7 @@ def get_all_dependencies(
         PLATFORM_HOST,
     )
     from esphome.core import CORE
-    from esphome.loader import get_component
+    from esphome.loader import get_component, get_platform
 
     all_components: set[str] = set(component_names)
 
