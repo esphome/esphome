@@ -66,7 +66,7 @@ KNOWN_FIRMWARE = {
 
 
 def parse_firmware_version(value):
-    match = re.match(r"(\d+).(\d+)", value)
+    match = re.match(r"(\d+)\.(\d+)", value)
     if match is None:
         raise ValueError(f"Not a valid version number {value}")
     major = int(match[1])
@@ -128,7 +128,7 @@ def validate_firmware(value):
 
 def validate_sha256(value):
     value = cv.string(value)
-    if not value.isalnum() or not len(value) == 64:
+    if len(value) != 64 or not re.fullmatch(r"[0-9a-fA-F]{64}", value):
         raise ValueError(f"Not a valid SHA256 hex string: {value}")
     return value
 
