@@ -1,5 +1,6 @@
 #include "pulse_counter_ulp_sensor.h"
 #include "driver/rtc_io.h"
+// NOLINTNEXTLINE: Provided by ESP-IDF - but clang-tidy doesn't know that
 #include "esp32/ulp.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
