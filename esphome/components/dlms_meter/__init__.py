@@ -24,24 +24,24 @@ DlmsMeterComponent = dlms_meter_component_ns.class_(
 
 # Maintain backwards compatibility mappings
 NUMERIC_KEYS = {
-    "voltage_l1": "1-0:32.7.0",
-    "voltage_l2": "1-0:52.7.0",
-    "voltage_l3": "1-0:72.7.0",
-    "current_l1": "1-0:31.7.0",
-    "current_l2": "1-0:51.7.0",
-    "current_l3": "1-0:71.7.0",
-    "active_power_plus": "1-0:1.7.0",
-    "active_power_minus": "1-0:2.7.0",
-    "active_energy_plus": "1-0:1.8.0",
-    "active_energy_minus": "1-0:2.8.0",
-    "reactive_energy_plus": "1-0:3.8.0",
-    "reactive_energy_minus": "1-0:4.8.0",
-    "power_factor": "1-0:13.7.0",
+    "voltage_l1": "1.0.32.7.0.255",
+    "voltage_l2": "1.0.52.7.0.255",
+    "voltage_l3": "1.0.72.7.0.255",
+    "current_l1": "1.0.31.7.0.255",
+    "current_l2": "1.0.51.7.0.255",
+    "current_l3": "1.0.71.7.0.255",
+    "active_power_plus": "1.0.1.7.0.255",
+    "active_power_minus": "1.0.2.7.0.255",
+    "active_energy_plus": "1.0.1.8.0.255",
+    "active_energy_minus": "1.0.2.8.0.255",
+    "reactive_energy_plus": "1.0.3.8.0.255",
+    "reactive_energy_minus": "1.0.4.8.0.255",
+    "power_factor": "1.0.13.7.0.255",
 }
 
 TEXT_KEYS = {
-    "timestamp": "0-0:1.0.0",
-    "meternumber": "0-0:96.1.0",
+    "timestamp": "0.0.1.0.0.255",
+    "meternumber": "0.0.96.1.0.255",
 }
 
 
@@ -56,12 +56,9 @@ def validate_key(value):
 
 
 def obis_code(value):
-    value = cv.string(value)
-    # Validate flexible OBIS format, e.g., 1.0.1.8.0.255 or 1-0:32.7.0
-    match = re.match(r"^[0-9\.\-\:\*]+$", value)
-    if match is None:
-        raise cv.Invalid(f"{value} is not a valid OBIS code format")
-    return value
+    # Normalize the OBIS code to the strict A.B.C.D.E.F format
+    bytes_list = parse_obis_code_bytes(value)
+    return ".".join(str(b) for b in bytes_list)
 
 
 def parse_obis_code_bytes(value):
