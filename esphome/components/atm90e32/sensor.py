@@ -407,14 +407,10 @@ async def to_code(config):
     cg.add(var.set_threshold_voltage_sag_v(resolved_thresholds[CONF_VOLTAGE_SAG_V]))
     cg.add(var.set_threshold_voltage_peak_v(resolved_thresholds[CONF_VOLTAGE_PEAK_V]))
     cg.add(
-        var.set_threshold_frequency_low_hz(
-            resolved_thresholds[CONF_FREQUENCY_LOW_HZ]
-        )
+        var.set_threshold_frequency_low_hz(resolved_thresholds[CONF_FREQUENCY_LOW_HZ])
     )
     cg.add(
-        var.set_threshold_frequency_high_hz(
-            resolved_thresholds[CONF_FREQUENCY_HIGH_HZ]
-        )
+        var.set_threshold_frequency_high_hz(resolved_thresholds[CONF_FREQUENCY_HIGH_HZ])
     )
     if (thresholds := config.get(CONF_THRESHOLDS)) is not None:
         if (threshold := thresholds.get(CONF_CURRENT_PEAK)) is not None:
