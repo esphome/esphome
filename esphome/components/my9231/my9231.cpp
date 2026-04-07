@@ -83,7 +83,7 @@ void MY9231OutputComponent::loop() {
 }
 void MY9231OutputComponent::set_channel_value_(uint16_t channel, uint16_t value) {
   ESP_LOGV(TAG, "set channels %u to %u", channel, value);
-  uint8_t index = this->num_channels_ - channel - 1;
+  uint16_t index = this->num_channels_ - channel - 1;
   if (this->pwm_amounts_[index] != value) {
     this->update_ = true;
   }
