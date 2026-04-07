@@ -294,7 +294,7 @@ RoundMultipleFilter = sensor_ns.class_("RoundMultipleFilter", Filter)
 validate_unit_of_measurement = cv.All(
     cv.string_strict,
     # Keep in sync with max_data_length in api.proto
-    cv.Length(max=UNIT_OF_MEASUREMENT_MAX_LENGTH),
+    cv.ByteLength(max=UNIT_OF_MEASUREMENT_MAX_LENGTH),
 )
 validate_accuracy_decimals = cv.int_
 validate_icon = cv.icon

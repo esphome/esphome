@@ -323,6 +323,60 @@ def test_dump_sort_keys() -> None:
     assert sorted_dump.index("a_key:") < sorted_dump.index("z_key:")
 
 
+# ---------------------------------------------------------------------------
+# track_yaml_loads
+# ---------------------------------------------------------------------------
+
+
+def test_track_yaml_loads_records_files(tmp_path: Path) -> None:
+    """track_yaml_loads records every file loaded inside the context."""
+    yaml_file = tmp_path / "test.yaml"
+    yaml_file.write_text("key: value\n")
+
+    with yaml_util.track_yaml_loads() as loaded:
+        yaml_util.load_yaml(yaml_file)
+
+    assert len(loaded) == 1
+    assert loaded[0] == yaml_file.resolve()
+
+
+def test_track_yaml_loads_records_includes(tmp_path: Path) -> None:
+    """track_yaml_loads records nested !include files."""
+    inc = tmp_path / "included.yaml"
+    inc.write_text("included_key: 42\n")
+    main = tmp_path / "main.yaml"
+    main.write_text("child: !include included.yaml\n")
+
+    with yaml_util.track_yaml_loads() as loaded:
+        yaml_util.load_yaml(main)
+
+    resolved = [p.name for p in loaded]
+    assert "main.yaml" in resolved
+    assert "included.yaml" in resolved
+
+
+def test_track_yaml_loads_empty_outside_context(tmp_path: Path) -> None:
+    """Files loaded outside the context are not recorded."""
+    yaml_file = tmp_path / "test.yaml"
+    yaml_file.write_text("key: value\n")
+
+    with yaml_util.track_yaml_loads() as loaded:
+        pass  # load nothing inside
+
+    yaml_util.load_yaml(yaml_file)
+    assert loaded == []
+
+
+def test_track_yaml_loads_cleanup_on_exception(tmp_path: Path) -> None:
+    """Listener is removed even if the body raises."""
+    before = len(yaml_util._load_listeners)
+
+    with pytest.raises(RuntimeError), yaml_util.track_yaml_loads():
+        raise RuntimeError("boom")
+
+    assert len(yaml_util._load_listeners) == before
+
+
 @pytest.mark.parametrize(
     "data",
     [
