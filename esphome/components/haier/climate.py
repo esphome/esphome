@@ -215,9 +215,7 @@ CONFIG_SCHEMA = cv.All(
                 {
                     cv.Optional(
                         CONF_CONTROL_METHOD, default="SET_GROUP_PARAMETERS"
-                    ): cv.ensure_list(
-                        cv.enum(SUPPORTED_HON_CONTROL_METHODS, upper=True)
-                    ),
+                    ): cv.enum(SUPPORTED_HON_CONTROL_METHODS, upper=True),
                     cv.Optional(CONF_BEEPER): cv.invalid(
                         f"The {CONF_BEEPER} option is deprecated, use beeper_on/beeper_off actions or beeper switch for a haier platform instead"
                     ),
