@@ -62,9 +62,9 @@ void MitsubishiCN105Climate::dump_config() {
                 "  Update interval: %" PRIu32 " ms\n"
                 "  Temperature mapping: %s\n"
                 "  UART: baud_rate=%" PRIu32 " data_bits=%u parity=%s stop_bits=%u",
-                this->hp_.get_update_interval(), this->use_fahrenheit_ ? "F" : "C", this->parent_->get_baud_rate(),
-                this->parent_->get_data_bits(), LOG_STR_ARG(parity_to_str(this->parent_->get_parity())),
-                this->parent_->get_stop_bits());
+                this->hp_.get_update_interval(), this->temperature_mapping_.get_fahrenheit() ? "F" : "C",
+                this->parent_->get_baud_rate(), this->parent_->get_data_bits(),
+                LOG_STR_ARG(parity_to_str(this->parent_->get_parity())), this->parent_->get_stop_bits());
 }
 
 void MitsubishiCN105Climate::setup() { this->hp_.initialize(); }
@@ -159,29 +159,20 @@ void MitsubishiCN105Climate::apply_values_() {
   this->publish_state();
 }
 
-void MitsubishiCN105Climate::set_fahrenheit(bool value) {
-  this->use_fahrenheit_ = value;
-  this->temperature_mapping_ = value ? TemperatureMapping::fahrenheit() : TemperatureMapping::identity();
+float TemperatureMapping::to_mitsubishi(float value) const {
+  if (!this->fahrenheit_) {
+    return value;
+  }
+  const int f = std::clamp(static_cast<int>(std::round(value * 1.8f + 32.0f)), 61, 88);
+  return 0.5f * (f - 28 + (f > 68) - (f < 68));
 }
 
-TemperatureMapping TemperatureMapping::identity() {
-  return TemperatureMapping{
-      .to_mitsubishi = [](float c) -> float { return c; },
-      .from_mitsubishi = [](float c) -> float { return c; },
-  };
-}
-
-TemperatureMapping TemperatureMapping::fahrenheit() {
-  return TemperatureMapping{
-      .to_mitsubishi = [](float c) -> float {
-        const int f = std::clamp(static_cast<int>(std::round(c * 1.8f + 32.0f)), 61, 88);
-        return 0.5f * (f - 28 + (f > 68) - (f < 68));
-      },
-      .from_mitsubishi = [](float c) -> float {
-        const int mh = static_cast<int>(std::round(c * 2.0f));
-        return (mh - 3 - (mh >= 40) - (mh > 40)) * (5.0f / 9.0f);
-      },
-  };
+float TemperatureMapping::from_mitsubishi(float value) const {
+  if (!this->fahrenheit_) {
+    return value;
+  }
+  const int mh = static_cast<int>(std::round(value * 2.0f));
+  return (mh - 3 - (mh >= 40) - (mh > 40)) * (5.0f / 9.0f);
 }
 
 }  // namespace esphome::mitsubishi_cn105

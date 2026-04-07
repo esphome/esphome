@@ -3,7 +3,9 @@
 namespace esphome::mitsubishi_cn105::testing {
 
 TEST(MitsubishiCN105ClimateTests, FahrenheitTemperatureMappingMatchesExpectedValues) {
-  const auto mapping = TemperatureMapping::fahrenheit();
+  auto mapping = TemperatureMapping();
+  mapping.set_fahrenheit(true);
+
   const std::array cases{
       std::pair{61, 16.0f}, std::pair{62, 16.5f}, std::pair{63, 17.0f}, std::pair{64, 17.5f}, std::pair{65, 18.0f},
       std::pair{66, 18.5f}, std::pair{67, 19.0f}, std::pair{68, 20.0f}, std::pair{69, 21.0f}, std::pair{70, 21.5f},
