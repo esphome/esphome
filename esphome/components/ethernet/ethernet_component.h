@@ -11,6 +11,9 @@
 
 #ifdef USE_ESP32
 #include "esp_eth.h"
+#ifdef USE_ETHERNET_SPI
+#include "hal/spi_types.h"
+#endif
 #include "esp_eth_mac.h"
 #include "esp_eth_mac_esp.h"
 #include "esp_netif.h"
@@ -135,6 +138,7 @@ class EthernetComponent final : public Component {
   void set_interrupt_pin(uint8_t interrupt_pin);
   void set_reset_pin(uint8_t reset_pin);
   void set_clock_speed(int clock_speed);
+  void set_interface(spi_host_device_t interface);
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   void set_polling_interval(uint32_t polling_interval);
 #endif
@@ -201,6 +205,7 @@ class EthernetComponent final : public Component {
   int reset_pin_{-1};
   int phy_addr_spi_{-1};
   int clock_speed_;
+  spi_host_device_t interface_{SPI3_HOST};
 #ifdef USE_ETHERNET_SPI_POLLING_SUPPORT
   uint32_t polling_interval_{0};
 #endif
