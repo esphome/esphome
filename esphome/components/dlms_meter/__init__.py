@@ -15,6 +15,7 @@ CONF_OBIS_CODE = "obis_code"
 CONF_CUSTOM_PATTERNS = "custom_patterns"
 CONF_SKIP_CRC = "skip_crc"
 CONF_DEFAULT_OBIS = "default_obis"
+CONF_PROVIDER = "provider"
 
 dlms_meter_component_ns = cg.esphome_ns.namespace("dlms_meter")
 DlmsMeterComponent = dlms_meter_component_ns.class_(
@@ -114,6 +115,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_AUTH_KEY): validate_key,
             cv.Optional(CONF_CUSTOM_PATTERNS): cv.ensure_list(CUSTOM_PATTERN_SCHEMA),
             cv.Optional(CONF_SKIP_CRC, default=False): cv.boolean,
+            cv.Optional(CONF_PROVIDER): cv.invalid(
+                "The 'provider' option has been removed. The dlms_parser library now handles quirks dynamically. Please remove this option from your configuration."
+            ),
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
