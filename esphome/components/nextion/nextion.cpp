@@ -706,7 +706,7 @@ void Nextion::process_nextion_commands_() {
         auto index = to_process.find('\0');
         if (index == std::string::npos || (to_process_length - index - 1) < 1) {
           ESP_LOGE(TAG, "Bad switch data (0x90)");
-          ESP_LOGN(TAG, "proc: %s %zu %d", to_process.c_str(), to_process_length, index);
+          ESP_LOGN(TAG, "proc: %s %zu %zu", to_process.c_str(), to_process_length, index);
           break;
         }
 
@@ -732,7 +732,7 @@ void Nextion::process_nextion_commands_() {
         auto index = to_process.find('\0');
         if (index == std::string::npos || (to_process_length - index - 1) != 4) {
           ESP_LOGE(TAG, "Bad sensor data (0x91)");
-          ESP_LOGN(TAG, "proc: %s %zu %d", to_process.c_str(), to_process_length, index);
+          ESP_LOGN(TAG, "proc: %s %zu %zu", to_process.c_str(), to_process_length, index);
           break;
         }
 
@@ -765,7 +765,7 @@ void Nextion::process_nextion_commands_() {
         auto index = to_process.find('\0');
         if (index == std::string::npos || (to_process_length - index - 1) < 1) {
           ESP_LOGE(TAG, "Bad text data (0x92)");
-          ESP_LOGN(TAG, "proc: %s %zu %d", to_process.c_str(), to_process_length, index);
+          ESP_LOGN(TAG, "proc: %s %zu %zu", to_process.c_str(), to_process_length, index);
           break;
         }
 
@@ -798,8 +798,8 @@ void Nextion::process_nextion_commands_() {
         // Get variable name
         auto index = to_process.find('\0');
         if (index == std::string::npos || (to_process_length - index - 1) < 1) {
-          ESP_LOGE(TAG, "Bad binary data (0x92)");
-          ESP_LOGN(TAG, "proc: %s %zu %d", to_process.c_str(), to_process_length, index);
+          ESP_LOGE(TAG, "Bad binary data (0x93)");
+          ESP_LOGN(TAG, "proc: %s %zu %zu", to_process.c_str(), to_process_length, index);
           break;
         }
 
