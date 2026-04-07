@@ -33,6 +33,7 @@ from ..styles import LVStyle
 from ..types import LV_EVENT, lv_obj_t
 from . import Widget, WidgetType, add_widgets, set_obj_properties, widget_to_code
 from .button import button_spec, lv_button_t
+from .img import CONF_IMAGE
 from .label import CONF_LABEL
 from .obj import obj_spec
 
@@ -41,7 +42,7 @@ CONF_MSGBOX = "msgbox"
 OUTER_STYLE = LVStyle(
     "msgbox_outer",
     {
-        "bg_opa": 128,
+        "bg_opa": 0.5,
         "bg_color": "black",
         "border_width": 0,
         "pad_all": 0,
@@ -119,6 +120,7 @@ async def msgbox_to_code(top_layer, conf):
         CONF_BUTTON,
         CONF_LABEL,
         CONF_MSGBOX,
+        CONF_IMAGE,
         *button_spec.get_uses(),
     )
     if CONF_BUTTON_STYLE in conf:
@@ -156,7 +158,7 @@ async def msgbox_to_code(top_layer, conf):
         with LocalVariable(
             "close_btn_", lv_obj_t, lv_expr.msgbox_add_close_button(msgbox)
         ) as close_btn:
-            lv_obj.remove_event_cb(close_btn, nullptr)
+            lv_obj.remove_event(close_btn, 0)
             lv_obj.add_event_cb(
                 close_btn,
                 await close_action.get_lambda(),
@@ -170,6 +172,6 @@ async def msgbox_to_code(top_layer, conf):
 
 
 async def msgboxes_to_code(lv_component, config):
-    top_layer = lv.disp_get_layer_top(lv_component.get_disp())
+    top_layer = lv_expr.disp_get_layer_top(lv_component.get_disp())
     for conf in config.get(CONF_MSGBOXES, ()):
         await msgbox_to_code(top_layer, conf)
