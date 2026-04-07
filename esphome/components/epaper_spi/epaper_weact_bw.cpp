@@ -48,7 +48,7 @@ bool HOT EPaperWeActBW::transfer_data() {
   this->start_data_();
   while (this->current_data_index_ < this->height_) {
     for (uint16_t x = 0; x < this->row_width_; ++x) {
-      this->write_byte((uint8_t) ~this->buffer_[(size_t) this->current_data_index_ * this->row_width_ + x]);
+      this->write_byte((uint8_t) this->buffer_[(size_t) this->current_data_index_ * this->row_width_ + x]);
     }
     ++this->current_data_index_;
     if (millis() - start_time > MAX_TRANSFER_TIME) {
@@ -126,7 +126,7 @@ void EPaperWeActBW::power_off() {
   this->start_data_();
   for (uint16_t y = 0; y < this->height_; ++y) {
     for (uint16_t x = 0; x < this->row_width_; ++x) {
-      this->write_byte((uint8_t) ~this->buffer_[(size_t) y * this->row_width_ + x]);
+      this->write_byte((uint8_t) this->buffer_[(size_t) y * this->row_width_ + x]);
     }
   }
   this->disable();
