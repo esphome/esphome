@@ -28,7 +28,7 @@ async def to_code(config):
     if operating_mode_config := config.get(CONF_OPERATING_MODE):
         sel = await select.new_select(
             operating_mode_config,
-            options=[CONF_SELECTS],
+            options=CONF_SELECTS,
         )
         await cg.register_parented(sel, config[CONF_LD2420_ID])
         cg.add(LD2420_component.set_operating_mode_select(sel))
