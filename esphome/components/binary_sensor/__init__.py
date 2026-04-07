@@ -390,7 +390,7 @@ def validate_multi_click_timing(value):
         new_state = v_.get(CONF_STATE, not state)
         if new_state == state:
             raise cv.Invalid(
-                f"Timings must have alternating state. Indices {i} and {i + 1} have the same state {state}"
+                f"Timings must have alternating state. Indices {i - 1} and {i} have the same state {state}"
             )
         if max_length is not None and max_length < min_length:
             raise cv.Invalid(

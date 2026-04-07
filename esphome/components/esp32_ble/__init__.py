@@ -373,14 +373,14 @@ def bt_uuid(value):
     value = in_value.upper()
 
     if len(value) == len(bt_uuid16_format):
-        pattern = re.compile("^[A-F|0-9]{4,}$")
+        pattern = re.compile("^[A-F0-9]{4,}$")
         if not pattern.match(value):
             raise cv.Invalid(
                 f"Invalid hexadecimal value for 16 bit UUID format: '{in_value}'"
             )
         return value
     if len(value) == len(bt_uuid32_format):
-        pattern = re.compile("^[A-F|0-9]{8,}$")
+        pattern = re.compile("^[A-F0-9]{8,}$")
         if not pattern.match(value):
             raise cv.Invalid(
                 f"Invalid hexadecimal value for 32 bit UUID format: '{in_value}'"
@@ -388,7 +388,7 @@ def bt_uuid(value):
         return value
     if len(value) == len(bt_uuid128_format):
         pattern = re.compile(
-            "^[A-F|0-9]{8,}-[A-F|0-9]{4,}-[A-F|0-9]{4,}-[A-F|0-9]{4,}-[A-F|0-9]{12,}$"
+            "^[A-F0-9]{8,}-[A-F0-9]{4,}-[A-F0-9]{4,}-[A-F0-9]{4,}-[A-F0-9]{12,}$"
         )
         if not pattern.match(value):
             raise cv.Invalid(

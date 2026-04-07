@@ -272,7 +272,7 @@ SPRINKLER_VALVE_SCHEMA = cv.Schema(
                     ),
                     cv.Optional(
                         CONF_UNIT_OF_MEASUREMENT, default=UNIT_SECOND
-                    ): cv.one_of(UNIT_MINUTE, UNIT_SECOND, lower="True"),
+                    ): cv.one_of(UNIT_MINUTE, UNIT_SECOND, lower=True),
                 }
             )
             .extend(cv.COMPONENT_SCHEMA),

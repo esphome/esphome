@@ -359,6 +359,19 @@ class ProtoEncode {
     std::memcpy(pos, data, len);
     pos += len;
   }
+  /// Encode tag + 1-byte length + raw string data. For strings with max_data_length < 128.
+  /// Tag must be a single-byte varint (< 128). Always encodes (no zero check).
+  static inline void encode_short_string_force(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, uint8_t tag,
+                                               const StringRef &ref) {
+#ifdef ESPHOME_DEBUG_API
+    assert(ref.size() < 128 && "encode_short_string_force: string exceeds max_data_length < 128");
+#endif
+    PROTO_ENCODE_CHECK_BOUNDS(pos, 2 + ref.size());
+    pos[0] = tag;
+    pos[1] = static_cast<uint8_t>(ref.size());
+    std::memcpy(pos + 2, ref.c_str(), ref.size());
+    pos += 2 + ref.size();
+  }
   /// Write a precomputed tag byte + 32-bit value in one operation.
   static inline void ESPHOME_ALWAYS_INLINE write_tag_and_fixed32(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM,
                                                                  uint8_t tag, uint32_t value) {
