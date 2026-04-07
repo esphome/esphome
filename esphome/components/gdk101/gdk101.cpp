@@ -55,6 +55,7 @@ void GDK101Component::setup() {
   }
 }
 
+/// Attempt to reset the sensor and read firmware version. Returns true on success or hard failure.
 bool GDK101Component::try_reset_() {
   uint8_t data[2] = {0};
   if (!this->reset_sensor_(data)) {
