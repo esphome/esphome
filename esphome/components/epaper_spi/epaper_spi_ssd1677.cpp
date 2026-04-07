@@ -47,13 +47,11 @@ bool EPaperSSD1677::reset() {
   }
 }
 
-bool EPaperSSD1677::initialise(bool partial) {
-  (void) partial;
-
+bool EPaperSSD1677::initialise([[maybe_unused]] bool partial) {
   switch (this->step_) {
     case FSMState::INIT_STEP0_SWRESET:
       ESP_LOGVV(TAG, "init step 0: swreset");
-      this->command(0x12);  // SWRESET
+      this->command(0x12);
       this->step_ = FSMState::INIT_STEP1_REGULARINIT;
       this->wait_for_idle_(true);
       return false;
@@ -78,8 +76,8 @@ bool EPaperSSD1677::transfer_data() {
   uint8_t bytes_to_send[MAX_TRANSFER_SIZE];
   size_t buf_idx = 0;
 
-  // Demo's stable full/base path writes both 0x24 and 0x26 with the same 1bpp image.
-  // Phase 1: write BW RAM (0x24)
+  // The Waveshare reference full/base update path writes the same 1bpp image
+  // to both RAMs (0x24 and 0x26).
   if (this->current_data_index_ == 0) {
     ESP_LOGV(TAG, "transfer: write RAM 0x24");
     this->command(0x24);
@@ -100,6 +98,7 @@ bool EPaperSSD1677::transfer_data() {
         }
       }
     }
+
     if (buf_idx != 0) {
       this->write_array(bytes_to_send, buf_idx);
       buf_idx = 0;
@@ -107,7 +106,6 @@ bool EPaperSSD1677::transfer_data() {
     this->disable();
   }
 
-  // Phase 2: write second RAM (0x26) with same data
   if (this->current_data_index_ == buffer_length) {
     ESP_LOGV(TAG, "transfer: write RAM 0x26");
     this->command(0x26);
@@ -130,6 +128,7 @@ bool EPaperSSD1677::transfer_data() {
         }
       }
     }
+
     if (buf_idx != 0) {
       this->write_array(bytes_to_send, buf_idx);
     }
@@ -140,9 +139,9 @@ bool EPaperSSD1677::transfer_data() {
   return true;
 }
 
-void EPaperSSD1677::refresh_screen(bool partial) {
+void EPaperSSD1677::refresh_screen([[maybe_unused]] bool partial) {
   ESP_LOGV(TAG, "refresh");
-  this->cmd_data(0x22, {partial ? (uint8_t) 0xFF : (uint8_t) 0xF7});
+  this->cmd_data(0x22, {0xF7});
   this->command(0x20);
 }
 
