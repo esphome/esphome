@@ -8,18 +8,14 @@ namespace gdk101 {
 static const char *const TAG = "gdk101";
 static constexpr uint8_t NUMBER_OF_READ_RETRIES = 5;
 static constexpr uint8_t NUMBER_OF_RESET_RETRIES = 10;
+static constexpr uint32_t RESET_INTERVAL_ID = 0;
+static constexpr uint32_t RESET_INTERVAL_MS = 1000;
 
 void GDK101Component::update() {
-  uint8_t data[2];
-
-  if (this->reset_retries_remaining_ > 0 && !this->try_reset_()) {
-    if (--this->reset_retries_remaining_ == 0) {
-      this->status_set_error(LOG_STR("Reset failed after retries"));
-      this->mark_failed();
-    }
+  if (!this->reset_complete_)
     return;
-  }
 
+  uint8_t data[2];
   if (!this->read_dose_1m_(data)) {
     this->status_set_warning(LOG_STR("Failed to read dose 1m"));
     return;
@@ -44,14 +40,23 @@ void GDK101Component::update() {
 
 void GDK101Component::setup() {
   if (!this->try_reset_()) {
-    // Sensor not ready yet, retry on subsequent update() calls
+    // Sensor MCU boots slowly after power cycle — retry on a short interval
     this->reset_retries_remaining_ = NUMBER_OF_RESET_RETRIES;
+    this->set_interval(RESET_INTERVAL_ID, RESET_INTERVAL_MS, [this]() {
+      if (this->try_reset_()) {
+        return;
+      }
+      if (--this->reset_retries_remaining_ == 0) {
+        this->status_set_error(LOG_STR("Reset failed after retries"));
+        this->mark_failed();
+        this->cancel_interval(RESET_INTERVAL_ID);
+      }
+    });
   }
 }
 
 bool GDK101Component::try_reset_() {
   uint8_t data[2] = {0};
-  // first, reset the sensor
   if (!this->reset_sensor_(data)) {
     this->status_set_warning(LOG_STR("Sensor not answering reset, will retry"));
     return false;
@@ -61,14 +66,15 @@ bool GDK101Component::try_reset_() {
     return false;
   }
   delay(10);
-  // read firmware version
   if (!this->read_fw_version_(data)) {
     this->status_set_error(LOG_STR("Failed to read firmware version"));
     this->mark_failed();
-    return true;  // Don't retry, hard failure
+    this->cancel_interval(RESET_INTERVAL_ID);
+    return true;
   }
-  this->reset_retries_remaining_ = 0;
+  this->reset_complete_ = true;
   this->status_clear_warning();
+  this->cancel_interval(RESET_INTERVAL_ID);
   return true;
 }
 
