@@ -45,7 +45,7 @@ using ListenSocket = LWIPRawListenImpl;
 inline bool socket_ready(struct lwip_sock *cached_sock, bool loop_monitored) {
   return !loop_monitored || (cached_sock != nullptr && esphome_lwip_socket_has_data(cached_sock));
 }
-#elif defined(USE_SOCKET_SELECT_SUPPORT)
+#elif defined(USE_HOST)
 /// Shared ready() helper for fd-based socket implementations.
 /// Checks if the Application's select() loop has marked this fd as ready.
 bool socket_ready_fd(int fd, bool loop_monitored);
@@ -119,16 +119,6 @@ socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t po
 
 /// Format sockaddr into caller-provided buffer, returns length written (excluding null)
 size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::span<char, SOCKADDR_STR_LEN> buf);
-
-#if defined(USE_ESP8266) && defined(USE_SOCKET_IMPL_LWIP_TCP)
-/// Delay that can be woken early by socket activity.
-/// On ESP8266, lwip callbacks set a flag and call esp_schedule() to wake the delay.
-void socket_delay(uint32_t ms);
-
-/// Signal socket/IO activity and wake the main loop from esp_delay() early.
-/// ISR-safe: uses IRAM_ATTR internally and only sets a volatile flag + esp_schedule().
-void socket_wake();  // NOLINT(readability-redundant-declaration)
-#endif
 
 }  // namespace esphome::socket
 #endif

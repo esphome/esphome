@@ -79,8 +79,8 @@ void Mcp4461Component::dump_config() {
     // reworked to be a one-line intentionally, as output would not be in order
     if (i < 4) {
       ESP_LOGCONFIG(TAG, "  ├── Volatile wiper [%u] level: %u, Status: %s, HW: %s, A: %s, B: %s, W: %s", i,
-                    this->reg_[i].state, ONOFF(this->reg_[i].terminal_hw), ONOFF(this->reg_[i].terminal_a),
-                    ONOFF(this->reg_[i].terminal_b), ONOFF(this->reg_[i].terminal_w), ONOFF(this->reg_[i].enabled));
+                    this->reg_[i].state, ONOFF(this->reg_[i].enabled), ONOFF(this->reg_[i].terminal_hw),
+                    ONOFF(this->reg_[i].terminal_a), ONOFF(this->reg_[i].terminal_b), ONOFF(this->reg_[i].terminal_w));
     } else {
       ESP_LOGCONFIG(TAG, "  ├── Nonvolatile wiper [%u] level: %u", i, this->reg_[i].state);
     }
@@ -315,9 +315,9 @@ void Mcp4461Component::disable_wiper_(Mcp4461WiperIdx wiper) {
     return;
   }
   ESP_LOGV(TAG, "Disabling wiper %u", wiper_idx);
-  this->reg_[wiper_idx].enabled = true;
+  this->reg_[wiper_idx].enabled = false;
   if (wiper_idx < 4) {
-    this->reg_[wiper_idx].terminal_hw = true;
+    this->reg_[wiper_idx].terminal_hw = false;
     this->reg_[wiper_idx].update_terminal = true;
   }
 }
@@ -490,7 +490,7 @@ void Mcp4461Component::enable_terminal_(Mcp4461WiperIdx wiper, char terminal) {
       ESP_LOGW(TAG, "Unknown terminal %c specified", terminal);
       return;
   }
-  this->reg_[wiper_idx].update_terminal = false;
+  this->reg_[wiper_idx].update_terminal = true;
 }
 
 void Mcp4461Component::disable_terminal_(Mcp4461WiperIdx wiper, char terminal) {
@@ -517,7 +517,7 @@ void Mcp4461Component::disable_terminal_(Mcp4461WiperIdx wiper, char terminal) {
       ESP_LOGW(TAG, "Unknown terminal %c specified", terminal);
       return;
   }
-  this->reg_[wiper_idx].update_terminal = false;
+  this->reg_[wiper_idx].update_terminal = true;
 }
 
 uint16_t Mcp4461Component::get_eeprom_value(Mcp4461EepromLocation location) {

@@ -28,12 +28,14 @@ class UARTStream : public Stream {
   int available() override { return this->uart_->available(); }
   int read() override {
     uint8_t data;
-    this->uart_->read_byte(&data);
+    if (!this->uart_->read_byte(&data))
+      return -1;
     return data;
   }
   int peek() override {
     uint8_t data;
-    this->uart_->peek_byte(&data);
+    if (!this->uart_->peek_byte(&data))
+      return -1;
     return data;
   }
   size_t write(uint8_t data) override {
@@ -57,7 +59,7 @@ template<typename T> class ApplianceBase : public Component {
  public:
   ApplianceBase() {
     this->base_.setStream(&this->stream_);
-    this->base_.addOnStateCallback(std::bind(&ApplianceBase::on_status_change, this));
+    this->base_.addOnStateCallback([this]() { this->on_status_change(); });
     dudanov::midea::ApplianceBase::setLogger(
         [](int level, const char *tag, int line, const String &format, va_list args) {
           esp_log_vprintf_(level, tag, line, format.c_str(), args);

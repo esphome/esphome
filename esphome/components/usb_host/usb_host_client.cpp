@@ -193,16 +193,15 @@ static void client_event_cb(const usb_host_client_event_msg_t *event_msg, void *
       return;
   }
 
-  // Push to lock-free queue (always succeeds since pool size == queue size)
+  // Push always succeeds: pool is sized to queue capacity (SIZE-1), so if
+  // allocate() returned non-null, the queue cannot be full.
   client->event_queue.push(event);
 
   // Re-enable component loop to process the queued event
   client->enable_loop_soon_any_context();
 
-  // Wake main loop immediately to process USB event instead of waiting for select() timeout
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+  // Wake main loop immediately to process USB event
   App.wake_loop_threadsafe();
-#endif
 }
 void USBClient::setup() {
   usb_host_client_config_t config{.is_synchronous = false,
@@ -490,6 +489,11 @@ bool USBClient::transfer_in(uint8_t ep_address, const transfer_cb_t &callback, u
   auto *trq = this->get_trq_();
   if (trq == nullptr) {
     ESP_LOGE(TAG, "Too many requests queued");
+    return false;
+  }
+  if (length > trq->transfer->data_buffer_size) {
+    ESP_LOGE(TAG, "transfer_in: data length %u exceeds buffer size %u", length, trq->transfer->data_buffer_size);
+    this->release_trq(trq);
     return false;
   }
   trq->callback = callback;

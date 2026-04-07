@@ -11,6 +11,11 @@ static const char *const TAG = "modbus";
 // Maximum bytes to log for Modbus frames (truncated if larger)
 static constexpr size_t MODBUS_MAX_LOG_BYTES = 64;
 
+// Approximate bits per character on the wire (depends on parity/stop bit config)
+static constexpr uint32_t MODBUS_BITS_PER_CHAR = 11;
+// Milliseconds per second
+static constexpr uint32_t MS_PER_SEC = 1000;
+
 void Modbus::setup() {
   if (this->flow_control_pin_ != nullptr) {
     this->flow_control_pin_->setup();
@@ -19,10 +24,17 @@ void Modbus::setup() {
   this->frame_delay_ms_ =
       std::max(2,  // 1750us minimum per spec - rounded up to 2ms.
                    // 3.5 characters * 11 bits per character * 1000ms/sec / (bits/sec) (Standard modbus frame delay)
-               (uint16_t) (3.5 * 11 * 1000 / this->parent_->get_baud_rate()) + 1);
+               (uint16_t) (3.5 * MODBUS_BITS_PER_CHAR * MS_PER_SEC / this->parent_->get_baud_rate()) + 1);
 
+  // When rx_full_threshold is configured (non-zero), the UART has a hardware FIFO with a
+  // meaningful threshold (e.g., ESP32 native UART), so we can calculate a precise delay.
+  // Otherwise (e.g., USB UART), use 50ms to handle data arriving in chunks.
+  static constexpr uint16_t DEFAULT_LONG_RX_BUFFER_DELAY_MS = 50;
+  size_t rx_threshold = this->parent_->get_rx_full_threshold();
   this->long_rx_buffer_delay_ms_ =
-      (this->parent_->get_rx_full_threshold() * 11 * 1000 / this->parent_->get_baud_rate()) + 1;
+      rx_threshold != uart::UARTComponent::RX_FULL_THRESHOLD_UNSET
+          ? (rx_threshold * MODBUS_BITS_PER_CHAR * MS_PER_SEC / this->parent_->get_baud_rate()) + 1
+          : DEFAULT_LONG_RX_BUFFER_DELAY_MS;
 }
 
 void Modbus::loop() {
@@ -113,12 +125,16 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
   // Byte 0: modbus address (match all)
   if (at == 0)
     return true;
-  uint8_t address = raw[0];
-  uint8_t function_code = raw[1];
+  // Byte 1: function code
+  if (at == 1)
+    return true;
   // Byte 2: Size (with modbus rtu function code 4/3)
   // See also https://en.wikipedia.org/wiki/Modbus
   if (at == 2)
     return true;
+
+  uint8_t address = raw[0];
+  uint8_t function_code = raw[1];
 
   uint8_t data_len = raw[2];
   uint8_t data_offset = 3;
@@ -133,10 +149,6 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
     // installed, but wait, there is the CRC, and if we get a hit there is a good
     // chance that this is a complete message ... admittedly there is a small chance is
     // isn't but that is quite small given the purpose of the CRC in the first place
-
-    // Fewer than 2 bytes can't calc CRC
-    if (at < 2)
-      return true;
 
     data_len = at - 2;
     data_offset = 1;
@@ -290,7 +302,7 @@ void Modbus::send_next_frame_() {
     this->last_send_tx_offset_ = 0;
   } else {
     this->write_array(frame.data.get(), frame.size);
-    this->last_send_tx_offset_ = frame.size * 11 * 1000 / this->parent_->get_baud_rate() + 1;
+    this->last_send_tx_offset_ = frame.size * MODBUS_BITS_PER_CHAR * MS_PER_SEC / this->parent_->get_baud_rate() + 1;
   }
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
@@ -301,7 +313,7 @@ void Modbus::send_next_frame_() {
   this->last_send_ = millis();
   this->tx_buffer_.pop_front();
   if (!this->tx_buffer_.empty()) {
-    ESP_LOGV(TAG, "Write queue contains %" PRIu32 " items.", this->tx_buffer_.size());
+    ESP_LOGV(TAG, "Write queue contains %zu items.", this->tx_buffer_.size());
   }
 }
 
@@ -403,10 +415,10 @@ void Modbus::clear_rx_buffer_(const LogString *reason, bool warn) {
   size_t at = this->rx_buffer_.size();
   if (at > 0) {
     if (warn) {
-      ESP_LOGW(TAG, "Clearing buffer of %" PRIu32 " bytes - %s %" PRIu32 "ms after last send", at, LOG_STR_ARG(reason),
+      ESP_LOGW(TAG, "Clearing buffer of %zu bytes - %s %" PRIu32 "ms after last send", at, LOG_STR_ARG(reason),
                millis() - this->last_send_);
     } else {
-      ESP_LOGV(TAG, "Clearing buffer of %" PRIu32 " bytes - %s %" PRIu32 "ms after last send", at, LOG_STR_ARG(reason),
+      ESP_LOGV(TAG, "Clearing buffer of %zu bytes - %s %" PRIu32 "ms after last send", at, LOG_STR_ARG(reason),
                millis() - this->last_send_);
     }
     this->rx_buffer_.clear();

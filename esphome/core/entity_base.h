@@ -55,11 +55,20 @@ enum EntityCategory : uint8_t {
   ENTITY_CATEGORY_DIAGNOSTIC = 2,
 };
 
+// Bit layout for entity_fields parameter in configure_entity_().
+// Keep in sync with _*_SHIFT constants in esphome/core/entity_helpers.py
+static constexpr uint8_t ENTITY_FIELD_DC_SHIFT = 0;
+static constexpr uint8_t ENTITY_FIELD_UOM_SHIFT = 8;
+static constexpr uint8_t ENTITY_FIELD_ICON_SHIFT = 16;
+static constexpr uint8_t ENTITY_FIELD_INTERNAL_SHIFT = 24;
+static constexpr uint8_t ENTITY_FIELD_DISABLED_BY_DEFAULT_SHIFT = 25;
+static constexpr uint8_t ENTITY_FIELD_ENTITY_CATEGORY_SHIFT = 26;
+
 // The generic Entity base class that provides an interface common to all Entities.
 class EntityBase {
  public:
   // Get the name of this Entity
-  const StringRef &get_name() const;
+  const StringRef &get_name() const { return this->name_; }
 
   // Get whether this Entity has its own name or it should use the device friendly_name.
   bool has_own_name() const { return this->flags_.has_own_name; }
@@ -77,7 +86,7 @@ class EntityBase {
   std::string get_object_id() const;
 
   // Get the unique Object ID of this Entity
-  uint32_t get_object_id_hash();
+  uint32_t get_object_id_hash() const { return this->object_id_hash_; }
 
   /// Get object_id with zero heap allocation
   /// For static case: returns StringRef to internal storage (buffer unused)
@@ -88,21 +97,24 @@ class EntityBase {
   /// Useful for building compound strings without intermediate buffer
   size_t write_object_id_to(char *buf, size_t buf_size) const;
 
-  // Get/set whether this Entity should be hidden outside ESPHome
+  // Get whether this Entity should be hidden outside ESPHome
   bool is_internal() const { return this->flags_.internal; }
+
+  // Deprecated: Calling set_internal() at runtime is undefined behavior. Components and clients
+  // are NOT notified of the change, the flag may have already been read during setup, and there
+  // is NO guarantee any consumer will observe the new value. Use the 'internal:' YAML key instead.
+  ESPDEPRECATED("set_internal() is undefined behavior at runtime — components and Home Assistant are NOT "
+                "notified. Use the 'internal:' YAML key instead. Will be removed in 2027.3.0.",
+                "2026.3.0")
   void set_internal(bool internal) { this->flags_.internal = internal; }
 
   // Check if this object is declared to be disabled by default.
   // That means that when the device gets added to Home Assistant (or other clients) it should
   // not be added to the default view by default, and a user action is necessary to manually add it.
   bool is_disabled_by_default() const { return this->flags_.disabled_by_default; }
-  void set_disabled_by_default(bool disabled_by_default) { this->flags_.disabled_by_default = disabled_by_default; }
 
-  // Get/set the entity category.
+  // Get the entity category.
   EntityCategory get_entity_category() const { return static_cast<EntityCategory>(this->flags_.entity_category); }
-  void set_entity_category(EntityCategory entity_category) {
-    this->flags_.entity_category = static_cast<uint8_t>(entity_category);
-  }
 
   // Get this entity's device class into a stack buffer.
   // On non-ESP8266: returns pointer to PROGMEM string directly (buffer unused).
@@ -164,14 +176,13 @@ class EntityBase {
 #endif
 
 #ifdef USE_DEVICES
-  // Get/set this entity's device id
+  // Get this entity's device id
   uint32_t get_device_id() const {
     if (this->device_ == nullptr) {
       return 0;  // No device set, return 0
     }
     return this->device_->get_device_id();
   }
-  void set_device(Device *device) { this->device_ = device; }
   // Get the device this entity belongs to (nullptr if main device)
   Device *get_device() const { return this->device_; }
 #endif
@@ -228,8 +239,14 @@ class EntityBase {
   friend void ::setup();
   friend void ::original_setup();
 
-  /// Combined entity setup from codegen: set name, object_id hash, and entity string indices.
-  void configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_strings_packed);
+  /// Combined entity setup from codegen: set name, object_id hash, entity string indices, and flags.
+  /// Bit layout of entity_fields is defined by the ENTITY_FIELD_*_SHIFT constants above.
+  void configure_entity_(const char *name, uint32_t object_id_hash, uint32_t entity_fields);
+
+#ifdef USE_DEVICES
+  // Codegen-only setter — only accessible from setup() via friend declaration.
+  void set_device_(Device *device) { this->device_ = device; }
+#endif
 
   /// Non-template helper for make_entity_preference() to avoid code bloat.
   /// When preference hash algorithm changes, migration logic goes here.
@@ -279,58 +296,86 @@ void log_entity_device_class(const char *tag, const char *prefix, const EntityBa
 #define LOG_ENTITY_UNIT_OF_MEASUREMENT(tag, prefix, obj) log_entity_unit_of_measurement(tag, prefix, obj)
 void log_entity_unit_of_measurement(const char *tag, const char *prefix, const EntityBase &obj);
 
-/**
- * An entity that has a state.
- * @tparam T The type of the state
+/** Base class for entities that track a typed state value with change-detection and callbacks.
+ *
+ * This class does not store the state value — subclasses own their storage. Whether a state
+ * has been set is tracked by EntityBase::has_state().
+ *
+ * Subclasses must implement:
+ *   - get_state(): return a const reference to the current value
+ *   - set_state_value(): store a new value (called only when the state actually changes)
+ *   - get_trigger_on_initial_state(): return whether callbacks should fire on the first state
+ *
+ * Subclasses may override set_new_state() to add behavior (logging, notifications) after calling
+ * the base implementation. Since set_new_state() is virtual, callers like invalidate_state()
+ * dispatch through the vtable to the subclass override in the .cpp, avoiding template code
+ * bloat at inline call sites. Subclasses may also add a fast-path dedup check before calling
+ * set_new_state() to skip virtual dispatch entirely when the state hasn't changed.
+ *
+ * Callback behavior:
+ *   - full_state_callbacks_: fired on every change, receives optional<T> previous and current
+ *   - state_callbacks_: fired only when the new state has a value, and either this is not the
+ *     first state (had_state) or trigger_on_initial_state is set
+ *
+ * @tparam T The type of the state value
  */
 template<typename T> class StatefulEntityBase : public EntityBase {
  public:
-  virtual bool has_state() const { return this->state_.has_value(); }
-  virtual const T &get_state() const { return this->state_.value(); }  // NOLINT(bugprone-unchecked-optional-access)
-  virtual T get_state_default(T default_value) const { return this->state_.value_or(default_value); }
+  /// Return the current state value. Only valid when has_state() is true.
+  virtual const T &get_state() const = 0;
+  /// Return the current state if available, otherwise return the provided default.
+  T get_state_default(T default_value) const { return this->has_state() ? this->get_state() : default_value; }
+  /// Clear the state — sets has_state() to false and fires callbacks with nullopt.
   void invalidate_state() { this->set_new_state({}); }
 
-  void add_full_state_callback(std::function<void(optional<T> previous, optional<T> current)> &&callback) {
-    if (this->full_state_callbacks_ == nullptr)
-      this->full_state_callbacks_ = new CallbackManager<void(optional<T> previous, optional<T> current)>();  // NOLINT
-    this->full_state_callbacks_->add(std::move(callback));
+  template<typename F> void add_full_state_callback(F &&callback) {
+    this->full_state_callbacks_.add(std::forward<F>(callback));
   }
-  void add_on_state_callback(std::function<void(T)> &&callback) {
-    if (this->state_callbacks_ == nullptr)
-      this->state_callbacks_ = new CallbackManager<void(T)>();  // NOLINT
-    this->state_callbacks_->add(std::move(callback));
-  }
-
-  void set_trigger_on_initial_state(bool trigger_on_initial_state) {
-    this->trigger_on_initial_state_ = trigger_on_initial_state;
+  template<typename F> void add_on_state_callback(F &&callback) {
+    this->state_callbacks_.add(std::forward<F>(callback));
   }
 
  protected:
-  optional<T> state_{};
-  /**
-   * Set a new state for this entity. This will trigger callbacks only if the new state is different from the previous.
+  /// Subclasses return whether callbacks should fire on the very first state.
+  virtual bool get_trigger_on_initial_state() const = 0;
+
+  /** Apply a new state, de-duplicating and firing callbacks as needed.
    *
-   * @param new_state The new state.
-   * @return True if the state was changed, false if it was the same as before.
+   * Pass nullopt to invalidate (clear) the state. Pass a value to set it.
+   * Returns true if the state actually changed, false if it was the same.
+   * Subclasses may override to add logging/notifications after calling the base.
    */
   virtual bool set_new_state(const optional<T> &new_state) {
-    if (this->state_ != new_state) {
-      // call the full state callbacks with the previous and new state
-      if (this->full_state_callbacks_ != nullptr)
-        this->full_state_callbacks_->call(this->state_, new_state);
-      // trigger legacy callbacks only if the new state is valid and either the trigger on initial state is enabled or
-      // the previous state was valid
-      auto had_state = this->has_state();
-      this->state_ = new_state;
-      if (this->state_callbacks_ != nullptr && new_state.has_value() && (this->trigger_on_initial_state_ || had_state))
-        this->state_callbacks_->call(new_state.value());
-      return true;
+    // Access flags_ directly to avoid function call overhead in this hot path
+    bool had_state = this->flags_.has_state;
+    // Use pointer to avoid requiring T to be default-constructible
+    const T *current = had_state ? &this->get_state() : nullptr;
+    if (new_state.has_value()) {
+      if (current != nullptr && *current == new_state.value())
+        return false;  // same value, no change
+    } else if (!had_state) {
+      return false;  // already invalidated, no change
     }
-    return false;
+    // Capture old_state before set_state_value — current pointer aliases subclass storage
+    bool has_full_cbs = !this->full_state_callbacks_.empty();
+    optional<T> old_state;
+    if (has_full_cbs)
+      old_state = current != nullptr ? optional<T>(*current) : nullopt;
+    // Update storage before firing callbacks so callback code can inspect current state
+    this->flags_.has_state = new_state.has_value();
+    if (new_state.has_value()) {
+      this->set_state_value(new_state.value());
+    }
+    if (has_full_cbs)
+      this->full_state_callbacks_.call(old_state, new_state);
+    // had_state first: on every change except the first, skips the virtual call
+    if (new_state.has_value() && (had_state || this->get_trigger_on_initial_state()))
+      this->state_callbacks_.call(new_state.value());
+    return true;
   }
-  bool trigger_on_initial_state_{true};
-  // callbacks with full state and previous state
-  CallbackManager<void(optional<T> previous, optional<T> current)> *full_state_callbacks_{};
-  CallbackManager<void(T)> *state_callbacks_{};
+  /// Subclasses implement this to store the actual value into their own storage.
+  virtual void set_state_value(const T &value) = 0;
+  LazyCallbackManager<void(optional<T> previous, optional<T> current)> full_state_callbacks_;
+  LazyCallbackManager<void(T)> state_callbacks_;
 };
 }  // namespace esphome

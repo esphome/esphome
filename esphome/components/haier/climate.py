@@ -22,7 +22,6 @@ from esphome.const import (
     CONF_SUPPORTED_SWING_MODES,
     CONF_TARGET_TEMPERATURE,
     CONF_TEMPERATURE_STEP,
-    CONF_TRIGGER_ID,
     CONF_VISUAL,
     CONF_WIFI,
 )
@@ -122,21 +121,6 @@ SUPPORTED_HON_CONTROL_METHODS = {
     "SET_SINGLE_PARAMETER": HonControlMethod.SET_SINGLE_PARAMETER,
 }
 
-HaierAlarmStartTrigger = haier_ns.class_(
-    "HaierAlarmStartTrigger",
-    automation.Trigger.template(cg.uint8, cg.const_char_ptr),
-)
-
-HaierAlarmEndTrigger = haier_ns.class_(
-    "HaierAlarmEndTrigger",
-    automation.Trigger.template(cg.uint8, cg.const_char_ptr),
-)
-
-StatusMessageTrigger = haier_ns.class_(
-    "StatusMessageTrigger",
-    automation.Trigger.template(cg.const_char_ptr, cg.size_t),
-)
-
 
 def validate_visual(config):
     if CONF_VISUAL in config:
@@ -203,13 +187,7 @@ def _base_config_schema(class_: MockObjClass) -> cv.Schema:
                 cv.Optional(
                     CONF_ANSWER_TIMEOUT,
                 ): cv.positive_time_period_milliseconds,
-                cv.Optional(CONF_ON_STATUS_MESSAGE): automation.validate_automation(
-                    {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                            StatusMessageTrigger
-                        ),
-                    }
-                ),
+                cv.Optional(CONF_ON_STATUS_MESSAGE): automation.validate_automation({}),
             }
         )
         .extend(uart.UART_DEVICE_SCHEMA)
@@ -264,19 +242,9 @@ CONFIG_SCHEMA = cv.All(
                         f"The {CONF_OUTDOOR_TEMPERATURE} option is deprecated, use a sensor for a haier platform instead"
                     ),
                     cv.Optional(CONF_ON_ALARM_START): automation.validate_automation(
-                        {
-                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                                HaierAlarmStartTrigger
-                            ),
-                        }
+                        {}
                     ),
-                    cv.Optional(CONF_ON_ALARM_END): automation.validate_automation(
-                        {
-                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                                HaierAlarmEndTrigger
-                            ),
-                        }
-                    ),
+                    cv.Optional(CONF_ON_ALARM_END): automation.validate_automation({}),
                 }
             ),
         },
@@ -319,10 +287,16 @@ HAIER_HON_BASE_ACTION_SCHEMA = automation.maybe_simple_id(
 
 
 @automation.register_action(
-    "climate.haier.display_on", DisplayOnAction, HAIER_BASE_ACTION_SCHEMA
+    "climate.haier.display_on",
+    DisplayOnAction,
+    HAIER_BASE_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "climate.haier.display_off", DisplayOffAction, HAIER_BASE_ACTION_SCHEMA
+    "climate.haier.display_off",
+    DisplayOffAction,
+    HAIER_BASE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def display_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -330,10 +304,16 @@ async def display_action_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "climate.haier.beeper_on", BeeperOnAction, HAIER_HON_BASE_ACTION_SCHEMA
+    "climate.haier.beeper_on",
+    BeeperOnAction,
+    HAIER_HON_BASE_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "climate.haier.beeper_off", BeeperOffAction, HAIER_HON_BASE_ACTION_SCHEMA
+    "climate.haier.beeper_off",
+    BeeperOffAction,
+    HAIER_HON_BASE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def beeper_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -345,11 +325,13 @@ async def beeper_action_to_code(config, action_id, template_arg, args):
     "climate.haier.start_self_cleaning",
     StartSelfCleaningAction,
     HAIER_HON_BASE_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
     "climate.haier.start_steri_cleaning",
     StartSteriCleaningAction,
     HAIER_HON_BASE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def start_cleaning_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -368,6 +350,7 @@ async def start_cleaning_to_code(config, action_id, template_arg, args):
             ),
         }
     ),
+    synchronous=True,
 )
 async def haier_set_vertical_airflow_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -391,6 +374,7 @@ async def haier_set_vertical_airflow_to_code(config, action_id, template_arg, ar
             ),
         }
     ),
+    synchronous=True,
 )
 async def haier_set_horizontal_airflow_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -403,10 +387,16 @@ async def haier_set_horizontal_airflow_to_code(config, action_id, template_arg, 
 
 
 @automation.register_action(
-    "climate.haier.health_on", HealthOnAction, HAIER_BASE_ACTION_SCHEMA
+    "climate.haier.health_on",
+    HealthOnAction,
+    HAIER_BASE_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "climate.haier.health_off", HealthOffAction, HAIER_BASE_ACTION_SCHEMA
+    "climate.haier.health_off",
+    HealthOffAction,
+    HAIER_BASE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def health_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -414,13 +404,22 @@ async def health_action_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "climate.haier.power_on", PowerOnAction, HAIER_BASE_ACTION_SCHEMA
+    "climate.haier.power_on",
+    PowerOnAction,
+    HAIER_BASE_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "climate.haier.power_off", PowerOffAction, HAIER_BASE_ACTION_SCHEMA
+    "climate.haier.power_off",
+    PowerOffAction,
+    HAIER_BASE_ACTION_SCHEMA,
+    synchronous=True,
 )
 @automation.register_action(
-    "climate.haier.power_toggle", PowerToggleAction, HAIER_BASE_ACTION_SCHEMA
+    "climate.haier.power_toggle",
+    PowerToggleAction,
+    HAIER_BASE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def power_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -499,19 +498,25 @@ async def to_code(config):
             var.set_status_message_header_size(config[CONF_STATUS_MESSAGE_HEADER_SIZE])
         )
     for conf in config.get(CONF_ON_ALARM_START, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(cg.uint8, "code"), (cg.const_char_ptr, "message")], conf
+        await automation.build_callback_automation(
+            var,
+            "add_alarm_start_callback",
+            [(cg.uint8, "code"), (cg.const_char_ptr, "message")],
+            conf,
         )
     for conf in config.get(CONF_ON_ALARM_END, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(cg.uint8, "code"), (cg.const_char_ptr, "message")], conf
+        await automation.build_callback_automation(
+            var,
+            "add_alarm_end_callback",
+            [(cg.uint8, "code"), (cg.const_char_ptr, "message")],
+            conf,
         )
     for conf in config.get(CONF_ON_STATUS_MESSAGE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(cg.const_char_ptr, "data"), (cg.size_t, "data_size")], conf
+        await automation.build_callback_automation(
+            var,
+            "add_status_message_callback",
+            [(cg.const_char_ptr, "data"), (cg.size_t, "data_size")],
+            conf,
         )
     # https://github.com/paveldn/HaierProtocol
     cg.add_library("pavlodn/HaierProtocol", "0.9.31")

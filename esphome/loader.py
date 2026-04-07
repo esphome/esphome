@@ -238,3 +238,13 @@ def get_platform(domain: str, platform: str) -> ComponentManifest | None:
 _COMPONENT_CACHE: dict[str, ComponentManifest] = {}
 CORE_COMPONENTS_PATH = (Path(__file__).parent / "components").resolve()
 _COMPONENT_CACHE["esphome"] = ComponentManifest(esphome.core.config)
+
+
+def _replace_component_manifest(domain: str, manifest: ComponentManifest) -> None:
+    """Replace the cached manifest for a component.
+
+    This is an intentionally-supported hook for the C++ test infrastructure
+    to install ``ComponentManifestOverride`` wrappers.  Normal application
+    code should never call this.
+    """
+    _COMPONENT_CACHE[domain] = manifest

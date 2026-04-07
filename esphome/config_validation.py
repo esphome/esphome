@@ -244,6 +244,8 @@ RESERVED_IDS = [
     "open",
     "setup",
     "loop",
+    "spi0",
+    "spi1",
     "uart0",
     "uart1",
     "uart2",
@@ -314,7 +316,7 @@ class Version:
 
     @classmethod
     def parse(cls, value: str) -> Version:
-        match = re.match(r"^(\d+).(\d+).(\d+)-?(\w*)$", value)
+        match = re.match(r"^(\d+).(\d+).(\d+)[-.]?(\w*)$", value)
         if match is None:
             raise ValueError(f"Not a valid version number {value}")
         major = int(match[1])
@@ -417,9 +419,13 @@ def icon(value):
     return value
 
 
+@schema_extractor("use_id")
 def sub_device_id(value: str | None) -> core.ID | None:
     # Lazy import to avoid circular imports
     from esphome.core.config import Device
+
+    if value == SCHEMA_EXTRACT:
+        return Device
 
     if not value:
         return None
@@ -492,6 +498,13 @@ def hex_int(value):
     purposes of the generated code.
     """
     return HexInt(int_(value))
+
+
+def int_to_hex_string(value: int | str) -> str:
+    """Convert an integer to a hex string (e.g. 64 -> '0x40'). Pass-through strings."""
+    if isinstance(value, int):
+        return f"0x{value:X}"
+    return value
 
 
 def int_(value):
@@ -1654,7 +1667,7 @@ def dimensions(value):
     match = re.match(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
     if not match:
         raise Invalid(
-            "Invalid value '{}' for dimensions. Only WIDTHxHEIGHT is allowed."
+            f"Invalid value '{value}' for dimensions. Only WIDTHxHEIGHT is allowed."
         )
     return dimensions([match.group(1), match.group(2)])
 

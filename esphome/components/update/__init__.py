@@ -138,6 +138,7 @@ async def to_code(config):
             cv.Optional(CONF_FORCE_UPDATE, default=False): cv.templatable(cv.boolean),
         }
     ),
+    synchronous=True,
 )
 async def update_perform_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -156,6 +157,7 @@ async def update_perform_action_to_code(config, action_id, template_arg, args):
             cv.GenerateID(): cv.use_id(UpdateEntity),
         }
     ),
+    synchronous=True,
 )
 async def update_check_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

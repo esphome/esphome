@@ -987,6 +987,15 @@ class EsphomeCore:
         """
         self.platform_counts[platform_name] += 1
 
+    def testing_ensure_platform_registered(self, platform_name: str) -> None:
+        """Ensure a platform has at least one entity registered for testing.
+
+        Used during C++ test builds to guarantee USE_* defines are emitted
+        without needing a real component variable.
+        """
+        if not self.platform_counts[platform_name]:
+            self.platform_counts[platform_name] = 1
+
     def register_controller(self) -> None:
         """Track registration of a Controller for ControllerRegistry StaticVector sizing."""
         controller_count = self.data.setdefault(KEY_CONTROLLER_REGISTRY_COUNT, 0)
