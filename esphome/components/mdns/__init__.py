@@ -131,6 +131,13 @@ def mdns_service(
     Returns:
         A StructInitializer representing a MDNSService struct
     """
+    # Wrap port in a stateless lambda for TemplatableFn storage
+    from esphome.cpp_generator import LambdaExpression
+
+    if not isinstance(port, LambdaExpression):
+        port = LambdaExpression(
+            f"return {cg.safe_exp(port)};", [], capture="", return_type=cg.uint16
+        )
     return cg.StructInitializer(
         MDNSService,
         ("service_type", cg.RawExpression(f"MDNS_STR({cg.safe_exp(service)})")),
