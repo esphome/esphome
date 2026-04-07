@@ -278,7 +278,7 @@ def perform_ota(
             raise OTAError("ESP requests password, but no password given!")
 
         nonce_bytes = receive_exactly(
-            sock, nonce_size, f"{hash_name} authentication nonce", [], decode=False
+            sock, nonce_size, f"{hash_name} authentication nonce", None, decode=False
         )
         assert isinstance(nonce_bytes, bytes)
         nonce = nonce_bytes.decode()
