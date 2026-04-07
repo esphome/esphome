@@ -206,7 +206,8 @@ void ESPHomeOTAComponent::handle_handshake_() {
       if (!this->try_write_(1, LOG_STR("ack feature"))) {
         return;
       }
-      ESP_LOGD(TAG, "Feature ACK byte written successfully");
+      ESP_LOGD(TAG, "Feature ACK written, yielding for TCP flush");
+      delay(1);
 #ifdef USE_OTA_PASSWORD
       // If password is set, move to auth phase
       if (!this->password_.empty()) {
@@ -565,6 +566,7 @@ bool ESPHomeOTAComponent::try_write_(size_t to_write, const LogString *desc) {
   // Write bytes from handshake buffer, starting at handshake_buf_pos_
   size_t bytes_to_write = to_write - this->handshake_buf_pos_;
   ssize_t written = this->client_->write(this->handshake_buf_ + this->handshake_buf_pos_, bytes_to_write);
+  ESP_LOGD(TAG, "write(%zu) for %s returned %zd, errno %d", bytes_to_write, LOG_STR_ARG(desc), written, errno);
 
   if (!this->handle_write_error_(written, desc)) {
     return false;
