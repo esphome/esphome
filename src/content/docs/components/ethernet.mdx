@@ -8,7 +8,7 @@ import APIRef from '@components/APIRef.astro';
 This ESPHome component enables *wired* Ethernet connections for ESP32 and RP2040 boards.
 
 - **ESP32**: Supports RMII PHY chips (LAN8720, RTL8201, etc.) and SPI Ethernet chips (W5500, DM9051, ENC28J60).
-- **RP2040**: Supports SPI Ethernet chips (W5500, ENC28J60).
+- **RP2040**: Supports SPI Ethernet chips (W5100, W5500, ENC28J60).
 
 This component and the Wi-Fi component may **not** be used simultaneously, even if both are physically available.
 
@@ -67,6 +67,7 @@ ethernet:
   - `JL1101` (RMII, ESP32 only)
   - `KSZ8081` (RMII, ESP32 only)
   - `KSZ8081RNA` (RMII, ESP32 only)
+  - `W5100` (SPI, RP2040 only)
   - `W5500` (SPI, ESP32 and RP2040)
   - `OPENETH` (QEMU, ESP32 only)
   - `DM9051` (SPI, ESP32 only)
@@ -455,6 +456,22 @@ rp2040:
 
 ethernet:
   type: W5500
+  clk_pin: 18
+  mosi_pin: 19
+  miso_pin: 16
+  cs_pin: 17
+  interrupt_pin: 21
+  reset_pin: 20
+```
+
+**WIZnet W5100S-EVB-Pico** (RP2040):
+
+```yaml
+rp2040:
+  board: wiznet_5100s_evb_pico
+
+ethernet:
+  type: W5100
   clk_pin: 18
   mosi_pin: 19
   miso_pin: 16
