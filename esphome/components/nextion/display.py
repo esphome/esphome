@@ -144,6 +144,28 @@ async def nextion_set_brightness_to_code(config, action_id, template_arg, args):
     return var
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(CONF_ON_SETUP, "add_setup_state_callback"),
+    automation.CallbackAutomation(CONF_ON_SLEEP, "add_sleep_state_callback"),
+    automation.CallbackAutomation(CONF_ON_WAKE, "add_wake_state_callback"),
+    automation.CallbackAutomation(
+        CONF_ON_PAGE, "add_new_page_callback", [(cg.uint8, "x")]
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_TOUCH,
+        "add_touch_event_callback",
+        [
+            (cg.uint8, "page_id"),
+            (cg.uint8, "component_id"),
+            (cg.bool_, "touch_event"),
+        ],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_BUFFER_OVERFLOW, "add_buffer_overflow_event_callback"
+    ),
+)
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await uart.register_uart_device(var, config)
@@ -232,34 +254,4 @@ async def to_code(config):
 
     await display.register_display(var, config)
 
-    for conf in config.get(CONF_ON_SETUP, []):
-        await automation.build_callback_automation(
-            var, "add_setup_state_callback", [], conf
-        )
-    for conf in config.get(CONF_ON_SLEEP, []):
-        await automation.build_callback_automation(
-            var, "add_sleep_state_callback", [], conf
-        )
-    for conf in config.get(CONF_ON_WAKE, []):
-        await automation.build_callback_automation(
-            var, "add_wake_state_callback", [], conf
-        )
-    for conf in config.get(CONF_ON_PAGE, []):
-        await automation.build_callback_automation(
-            var, "add_new_page_callback", [(cg.uint8, "x")], conf
-        )
-    for conf in config.get(CONF_ON_TOUCH, []):
-        await automation.build_callback_automation(
-            var,
-            "add_touch_event_callback",
-            [
-                (cg.uint8, "page_id"),
-                (cg.uint8, "component_id"),
-                (cg.bool_, "touch_event"),
-            ],
-            conf,
-        )
-    for conf in config.get(CONF_ON_BUFFER_OVERFLOW, []):
-        await automation.build_callback_automation(
-            var, "add_buffer_overflow_event_callback", [], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
