@@ -173,9 +173,6 @@ _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_BUFFER_OVERFLOW, "add_buffer_overflow_event_callback"
     ),
-)
-
-_CUSTOM_CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_CUSTOM_BINARY_SENSOR,
         "add_custom_binary_sensor_callback",
@@ -294,12 +291,8 @@ async def to_code(config):
         cg.add(var.set_max_commands_per_loop(max_commands_per_loop))
 
     await display.register_display(var, config)
-    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
-
     for conf_key, define_name in _CUSTOM_TRIGGER_DEFINES.items():
         if config.get(conf_key):
             cg.add_define(define_name)
 
-    await automation.build_callback_automations(
-        var, config, _CUSTOM_CALLBACK_AUTOMATIONS
-    )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
