@@ -17,10 +17,6 @@ globals:
   - id: slow_count
     type: int
     initial_value: "0"
-  # Track ordering: set when medium fires before fast has fired 5 times
-  - id: order_ok
-    type: bool
-    initial_value: "true"
   # Track interval that cancels itself
   - id: self_cancel_count
     type: int

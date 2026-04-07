@@ -88,7 +88,7 @@ async def test_scheduler_interval_reschedule(
         # Fast runs at 50ms, medium at 100ms, so fast should be ~2x medium
         # Allow some slack for scheduling jitter
         assert fast_at_medium_5 >= 7, (
-            f"Fast interval should have fired ~10 times when medium hit 5, "
+            f"Fast interval should have fired at least 7 times when medium hit 5, "
             f"but only fired {fast_at_medium_5} times"
         )
 
@@ -102,11 +102,11 @@ async def test_scheduler_interval_reschedule(
         fast_at_slow_3, medium_at_slow_3 = result
         # At 600ms: fast ~12, medium ~6, slow 3
         assert fast_at_slow_3 >= 8, (
-            f"Fast should have fired ~12 times when slow hit 3, "
+            f"Fast should have fired at least 8 times when slow hit 3, "
             f"but only fired {fast_at_slow_3}"
         )
         assert medium_at_slow_3 >= 4, (
-            f"Medium should have fired ~6 times when slow hit 3, "
+            f"Medium should have fired at least 4 times when slow hit 3, "
             f"but only fired {medium_at_slow_3}"
         )
 
