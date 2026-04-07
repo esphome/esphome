@@ -132,7 +132,6 @@ ATM90E32_PHASE_SCHEMA = cv.Schema(
         cv.Optional(CONF_PHASE_ANGLE): sensor.sensor_schema(
             unit_of_measurement=UNIT_DEGREES,
             accuracy_decimals=2,
-            device_class=DEVICE_CLASS_POWER,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_HARMONIC_POWER): sensor.sensor_schema(

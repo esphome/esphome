@@ -2,7 +2,7 @@ import importlib
 from pathlib import Path
 import pkgutil
 
-from esphome.automation import build_automation, validate_automation
+from esphome.automation import Trigger, build_automation, validate_automation
 import esphome.codegen as cg
 from esphome.components.const import (
     CONF_BYTE_ORDER,
@@ -34,7 +34,6 @@ from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
     CONF_LOG_LEVEL,
-    CONF_ON_BOOT,
     CONF_ON_IDLE,
     CONF_PAGES,
     CONF_ROTATION,
@@ -59,7 +58,7 @@ from .encoders import (
 from .gradient import GRADIENT_SCHEMA, gradients_to_code
 from .keypads import KEYPADS_CONFIG, keypads_to_code
 from .lv_validation import lv_bool, lv_images_used
-from .lvcode import LvContext, LvglComponent, lvgl_static
+from .lvcode import LvContext, LvglComponent, lv_event_t_ptr, lvgl_static
 from .schemas import (
     DISP_BG_SCHEMA,
     FULL_STYLE_SCHEMA,
@@ -71,7 +70,7 @@ from .schemas import (
 )
 from .styles import styles_to_code, theme_to_code
 from .touchscreens import touchscreen_schema, touchscreens_to_code
-from .trigger import add_on_boot_triggers, generate_align_tos, generate_triggers
+from .trigger import generate_align_tos, generate_triggers
 from .types import (
     IdleTrigger,
     PlainTrigger,
@@ -79,6 +78,7 @@ from .types import (
     lv_font_t,
     lv_group_t,
     lv_lambda_t,
+    lv_obj_t_ptr,
     lv_style_t,
     lvgl_ns,
 )
@@ -398,7 +398,6 @@ async def to_code(configs):
                             f"set_{trigger_name.removeprefix('on_')}_trigger",
                         )(trigger_var)
                     )
-            await add_on_boot_triggers(config.get(CONF_ON_BOOT, ()))
 
     # This must be done after all widgets are created
     for comp in helpers.lvgl_components_required:
@@ -502,6 +501,17 @@ LVGL_SCHEMA = cv.All(
         cv.polling_component_schema("1s")
         .extend(
             {
+                **{
+                    cv.Optional(event): validate_automation(
+                        {
+                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                                Trigger.template(lv_obj_t_ptr, lv_event_t_ptr)
+                            ),
+                        }
+                    )
+                    for event in df.LV_SCREEN_EVENT_TRIGGERS
+                    + df.LV_DISPLAY_EVENT_TRIGGERS
+                },
                 cv.GenerateID(CONF_ID): cv.declare_id(LvglComponent),
                 cv.GenerateID(CONF_ALIGN_TO_LAMBDA_ID): cv.declare_id(lv_lambda_t),
                 cv.GenerateID(df.CONF_DISPLAYS): display_schema,

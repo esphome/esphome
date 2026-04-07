@@ -46,7 +46,7 @@ def validate_acceleration(value):
 
 def validate_speed(value):
     value = cv.string(value)
-    for suffix in ("steps/s", "steps/s"):
+    for suffix in ("steps/s",):
         value = value.removesuffix(suffix)
 
     if value == "inf":
