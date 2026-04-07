@@ -13,6 +13,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, Lambda, coroutine_with_priority
 from esphome.coroutine import CoroPriority
+from esphome.cpp_generator import LambdaExpression
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
@@ -132,8 +133,6 @@ def mdns_service(
         A StructInitializer representing a MDNSService struct
     """
     # Wrap port in a stateless lambda for TemplatableFn storage
-    from esphome.cpp_generator import LambdaExpression
-
     if not isinstance(port, LambdaExpression):
         port = LambdaExpression(
             f"return {cg.safe_exp(port)};", [], capture="", return_type=cg.uint16
