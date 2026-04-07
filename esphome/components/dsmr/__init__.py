@@ -46,7 +46,9 @@ CONFIG_SCHEMA = cv.All(
                 CONF_RECEIVE_TIMEOUT, default="200ms"
             ): cv.positive_time_period_milliseconds,
         }
-    ).extend(uart.UART_DEVICE_SCHEMA),
+    )
+    .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
 )
 
 
