@@ -66,7 +66,7 @@ KNOWN_FIRMWARE = {
 
 
 def parse_firmware_version(value):
-    match = re.match(r"(\d+)\.(\d+)", value)
+    match = re.fullmatch(r"(\d+)\.(\d+)", value)
     if match is None:
         raise ValueError(f"Not a valid version number {value}")
     major = int(match[1])
