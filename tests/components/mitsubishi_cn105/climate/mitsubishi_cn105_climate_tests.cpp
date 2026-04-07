@@ -2,6 +2,18 @@
 
 namespace esphome::mitsubishi_cn105::testing {
 
+TEST(MitsubishiCN105ClimateTests, CelsiusTemperatureMappingMatchesExpectedValues) {
+  const auto mapping = TemperatureMapping();
+
+  for (float t = 16.0f; t <= 31.0f; t += 1.0f) {
+    EXPECT_EQ(mapping.to_mitsubishi(t), t);
+  }
+
+  for (float t = 16.0f; t <= 31.0f; t += 1.0f) {
+    EXPECT_EQ(mapping.from_mitsubishi(t), t);
+  }
+}
+
 TEST(MitsubishiCN105ClimateTests, FahrenheitTemperatureMappingMatchesExpectedValues) {
   auto mapping = TemperatureMapping();
   mapping.set_fahrenheit(true);
