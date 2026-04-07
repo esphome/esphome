@@ -69,7 +69,7 @@ StateEnterForwarder = media_player_ns.class_("StateEnterForwarder")
 MediaPlayerState = media_player_ns.enum("MediaPlayerState")
 
 # State triggers: (config_key, state enum or None for any-state)
-_STATE_TRIGGERS = [
+_STATE_TRIGGERS = (
     (CONF_ON_STATE, None),
     (CONF_ON_IDLE, MediaPlayerState.MEDIA_PLAYER_STATE_IDLE),
     (CONF_ON_PLAY, MediaPlayerState.MEDIA_PLAYER_STATE_PLAYING),
@@ -77,7 +77,7 @@ _STATE_TRIGGERS = [
     (CONF_ON_ANNOUNCEMENT, MediaPlayerState.MEDIA_PLAYER_STATE_ANNOUNCING),
     (CONF_ON_TURN_ON, MediaPlayerState.MEDIA_PLAYER_STATE_ON),
     (CONF_ON_TURN_OFF, MediaPlayerState.MEDIA_PLAYER_STATE_OFF),
-]
+)
 
 # State conditions that all share the same schema and codegen handler
 _STATE_CONDITIONS = [
@@ -102,17 +102,54 @@ VolumeSetAction = media_player_ns.class_(
 )
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_STATE, "add_on_state_callback", forwarder=StateAnyForwarder
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_IDLE,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(
+            MediaPlayerState.MEDIA_PLAYER_STATE_IDLE
+        ),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_PLAY,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(
+            MediaPlayerState.MEDIA_PLAYER_STATE_PLAYING
+        ),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_PAUSE,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(
+            MediaPlayerState.MEDIA_PLAYER_STATE_PAUSED
+        ),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_ANNOUNCEMENT,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(
+            MediaPlayerState.MEDIA_PLAYER_STATE_ANNOUNCING
+        ),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_TURN_ON,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(MediaPlayerState.MEDIA_PLAYER_STATE_ON),
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_TURN_OFF,
+        "add_on_state_callback",
+        forwarder=StateEnterForwarder.template(MediaPlayerState.MEDIA_PLAYER_STATE_OFF),
+    ),
+)
+
+
 @setup_entity("media_player")
 async def setup_media_player_core_(var, config):
-    for conf_key, state_enum in _STATE_TRIGGERS:
-        for conf in config.get(conf_key, []):
-            if state_enum is None:
-                forwarder = StateAnyForwarder
-            else:
-                forwarder = StateEnterForwarder.template(state_enum)
-            await automation.build_callback_automation(
-                var, "add_on_state_callback", [], conf, forwarder=forwarder
-            )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 async def register_media_player(var, config):

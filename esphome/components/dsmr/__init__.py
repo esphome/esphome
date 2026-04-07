@@ -37,7 +37,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_GAS_MBUS_ID, default=1): cv.int_,
             cv.Optional(CONF_WATER_MBUS_ID, default=2): cv.int_,
             cv.Optional(CONF_THERMAL_MBUS_ID, default=3): cv.int_,
-            cv.Optional(CONF_MAX_TELEGRAM_LENGTH, default=1500): cv.int_,
+            cv.Optional(CONF_MAX_TELEGRAM_LENGTH, default=1500): cv.int_range(min=1),
             cv.Optional(CONF_REQUEST_PIN): pins.gpio_output_pin_schema,
             cv.Optional(
                 CONF_REQUEST_INTERVAL, default="0ms"

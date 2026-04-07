@@ -7,6 +7,7 @@
 #include "esphome/components/display/display_color_utils.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/string_ref.h"
 #include "esphome/core/time.h"
 
 #ifdef USE_NEXTION_WAVEFORM
@@ -1183,6 +1184,59 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
     this->buffer_overflow_callback_.add(std::forward<F>(callback));
   }
 
+  // Callbacks for Nextion "custom protocol" frames (0x90..0x93)
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
+  /** Add a callback to be notified when Nextion sends a custom binary sensor protocol frame (0x93).
+   *
+   * This callback is invoked when a Nextion custom binary sensor frame is received,
+   * providing the component name as the key and the decoded boolean value.
+   *
+   * @param callback The void(const StringRef &key, bool value) callback.
+   */
+  template<typename F> void add_custom_binary_sensor_callback(F &&callback) {
+    this->custom_binary_sensor_callback_.add(std::forward<F>(callback));
+  }
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
+
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_SENSOR
+  /** Add a callback to be notified when Nextion sends a custom sensor protocol frame (0x91).
+   *
+   * This callback is invoked when a Nextion custom sensor frame is received,
+   * providing the component name as the key and the decoded integer value.
+   *
+   * @param callback The void(StringRef key, int32_t value) callback.
+   */
+  template<typename F> void add_custom_sensor_callback(F &&callback) {
+    this->custom_sensor_callback_.add(std::forward<F>(callback));
+  }
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_SENSOR
+
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_SWITCH
+  /** Add a callback to be notified when Nextion sends a custom switch protocol frame (0x90).
+   *
+   * This callback is invoked when a Nextion custom switch frame is received,
+   * providing the component name as the key and the decoded boolean value.
+   *
+   * @param callback The void(const StringRef &key, bool value) callback.
+   */
+  template<typename F> void add_custom_switch_callback(F &&callback) {
+    this->custom_switch_callback_.add(std::forward<F>(callback));
+  }
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_SWITCH
+
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
+  /** Add a callback to be notified when Nextion sends a custom text sensor protocol frame (0x92).
+   *
+   * This callback is invoked when a Nextion custom text sensor frame is received,
+   * providing the component name as the key and the decoded text value.
+   *
+   * @param callback The void(const StringRef &key, const StringRef &value) callback.
+   */
+  template<typename F> void add_custom_text_sensor_callback(F &&callback) {
+    this->custom_text_sensor_callback_.add(std::forward<F>(callback));
+  }
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
+
   void update_all_components();
 
   /**
@@ -1535,6 +1589,18 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   CallbackManager<void(uint8_t)> page_callback_{};
   CallbackManager<void(uint8_t, uint8_t, bool)> touch_callback_{};
   CallbackManager<void()> buffer_overflow_callback_{};
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
+  CallbackManager<void(StringRef, bool)> custom_binary_sensor_callback_{};
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_SENSOR
+  CallbackManager<void(StringRef, int32_t)> custom_sensor_callback_{};
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_SENSOR
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_SWITCH
+  CallbackManager<void(StringRef, bool)> custom_switch_callback_{};
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_SWITCH
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
+  CallbackManager<void(StringRef, StringRef)> custom_text_sensor_callback_{};
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
 
   nextion_writer_t writer_;
   optional<float> brightness_;

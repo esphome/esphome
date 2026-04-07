@@ -24,46 +24,51 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
   LightState *state_;
 };
 
+/// Compact light control action — each field is a function pointer (nullptr = unset).
+/// Codegen wraps constants in stateless lambdas. 72 bytes vs 128 with TemplatableValue.
 template<typename... Ts> class LightControlAction : public Action<Ts...> {
  public:
   explicit LightControlAction(LightState *parent) : parent_(parent) {}
 
-  TEMPLATABLE_VALUE(ColorMode, color_mode)
-  TEMPLATABLE_VALUE(bool, state)
-  TEMPLATABLE_VALUE(uint32_t, transition_length)
-  TEMPLATABLE_VALUE(uint32_t, flash_length)
-  TEMPLATABLE_VALUE(float, brightness)
-  TEMPLATABLE_VALUE(float, color_brightness)
-  TEMPLATABLE_VALUE(float, red)
-  TEMPLATABLE_VALUE(float, green)
-  TEMPLATABLE_VALUE(float, blue)
-  TEMPLATABLE_VALUE(float, white)
-  TEMPLATABLE_VALUE(float, color_temperature)
-  TEMPLATABLE_VALUE(float, cold_white)
-  TEMPLATABLE_VALUE(float, warm_white)
-  TEMPLATABLE_VALUE(uint32_t, effect)
+#define LIGHT_CONTROL_FIELDS(X) \
+  X(ColorMode, color_mode) \
+  X(bool, state) \
+  X(uint32_t, transition_length) \
+  X(uint32_t, flash_length) \
+  X(float, brightness) \
+  X(float, color_brightness) \
+  X(float, red) \
+  X(float, green) \
+  X(float, blue) \
+  X(float, white) \
+  X(float, color_temperature) \
+  X(float, cold_white) \
+  X(float, warm_white) \
+  X(uint32_t, effect)
+
+#define LIGHT_FIELD_SETTER_(type, name) \
+  void set_##name(type (*f)(Ts...)) { this->name##_ = f; }
+#define LIGHT_FIELD_APPLY_(type, name) \
+  if (this->name##_) \
+    call.set_##name(this->name##_(x...));
+#define LIGHT_FIELD_DECL_(type, name) type (*name##_)(Ts...){nullptr};
+
+  LIGHT_CONTROL_FIELDS(LIGHT_FIELD_SETTER_)
 
   void play(const Ts &...x) override {
     auto call = this->parent_->make_call();
-    call.set_color_mode(this->color_mode_.optional_value(x...));
-    call.set_state(this->state_.optional_value(x...));
-    call.set_brightness(this->brightness_.optional_value(x...));
-    call.set_color_brightness(this->color_brightness_.optional_value(x...));
-    call.set_red(this->red_.optional_value(x...));
-    call.set_green(this->green_.optional_value(x...));
-    call.set_blue(this->blue_.optional_value(x...));
-    call.set_white(this->white_.optional_value(x...));
-    call.set_color_temperature(this->color_temperature_.optional_value(x...));
-    call.set_cold_white(this->cold_white_.optional_value(x...));
-    call.set_warm_white(this->warm_white_.optional_value(x...));
-    call.set_effect(this->effect_.optional_value(x...));
-    call.set_flash_length(this->flash_length_.optional_value(x...));
-    call.set_transition_length(this->transition_length_.optional_value(x...));
+    LIGHT_CONTROL_FIELDS(LIGHT_FIELD_APPLY_)
     call.perform();
   }
 
  protected:
   LightState *parent_;
+  LIGHT_CONTROL_FIELDS(LIGHT_FIELD_DECL_)
+
+#undef LIGHT_FIELD_DECL_
+#undef LIGHT_FIELD_APPLY_
+#undef LIGHT_FIELD_SETTER_
+#undef LIGHT_CONTROL_FIELDS
 };
 
 template<typename... Ts> class DimRelativeAction : public Action<Ts...> {
