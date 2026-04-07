@@ -323,6 +323,11 @@ esphome logs my-device.yaml --device 192.168.1.100 --device 2001:db8::1
 : If set, reset the device before starting the logs. May also be configured with the environment variable
 `ESPHOME_SERIAL_LOGGING_RESET=true`.
 
+**`--no-states`**
+: Do not show entity state changes in log output. By default, when using the native API for logging,
+state changes are shown as `[S]` lines (e.g., `[S][sensor]: 'Temperature' >> 22.5 °C`). Use this flag
+to suppress them and only see firmware log messages.
+
 
 ## Using Bash or ZSH auto-completion
 
