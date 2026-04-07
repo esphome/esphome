@@ -83,6 +83,44 @@ std::string lv_event_code_name_for(lv_event_t *event) {
   return buf;
 }
 
+void LvglComponent::set_rotation(display::DisplayRotation rotation) {
+  if (this->rotation_type_ == RotationType::ROTATION_UNUSED) {
+    ESP_LOGW(TAG, "Display rotation cannot be changed unless rotation was enabled during setup.");
+    return;
+  }
+  this->rotation_ = rotation;
+  if (this->is_ready()) {
+    this->set_resolution_();
+    lv_obj_update_layout(this->get_screen_active());
+    lv_obj_invalidate(this->get_screen_active());
+  }
+}
+
+void LvglComponent::rotate_coordinates(int32_t &x, int32_t &y) const {
+  switch (this->rotation_) {
+    default:
+      break;
+
+    case display::DISPLAY_ROTATION_180_DEGREES: {
+      x = this->width_ - x - 1;
+      y = this->height_ - y - 1;
+      break;
+    }
+    case display::DISPLAY_ROTATION_270_DEGREES: {
+      auto tmp = x;
+      x = this->height_ - y - 1;
+      y = tmp;
+      break;
+    }
+    case display::DISPLAY_ROTATION_90_DEGREES: {
+      auto tmp = y;
+      y = this->width_ - x - 1;
+      x = tmp;
+      break;
+    }
+  }
+}
+
 static void rounder_cb(lv_event_t *event) {
   auto *comp = static_cast<LvglComponent *>(lv_event_get_user_data(event));
   auto *area = static_cast<lv_area_t *>(lv_event_get_param(event));
@@ -118,7 +156,11 @@ void LvglComponent::dump_config() {
                 "  Buffer size: %zu%%\n"
                 "  Rotation: %d\n"
                 "  Draw rounding: %d",
-                this->width_, this->height_, 100 / this->buffer_frac_, this->rotation, (int) this->draw_rounding);
+                this->width_, this->height_, 100 / this->buffer_frac_, this->rotation_, (int) this->draw_rounding);
+  if (this->rotation_type_ != ROTATION_UNUSED) {
+    ESP_LOGCONFIG(TAG, "  Rotation type: %s",
+                  this->rotation_type_ == RotationType::ROTATION_SOFTWARE ? "software" : "hardware via display driver");
+  }
 }
 
 void LvglComponent::set_paused(bool paused, bool show_snow) {
@@ -216,48 +258,51 @@ void LvglComponent::draw_buffer_(const lv_area_t *area, lv_color_data *ptr) {
   auto height_rounded = (height + this->draw_rounding - 1) / this->draw_rounding * this->draw_rounding;
   auto x1 = area->x1;
   auto y1 = area->y1;
-  lv_color_data *dst = reinterpret_cast<lv_color_data *>(this->rotate_buf_);
-  switch (this->rotation) {
-    case display::DISPLAY_ROTATION_90_DEGREES:
-      for (lv_coord_t x = height; x-- != 0;) {
-        for (lv_coord_t y = 0; y != width; y++) {
-          dst[y * height_rounded + x] = *ptr++;
+  if (this->rotation_type_ == RotationType::ROTATION_SOFTWARE) {
+    lv_color_data *dst = reinterpret_cast<lv_color_data *>(this->rotate_buf_);
+    switch (this->rotation_) {
+      case display::DISPLAY_ROTATION_90_DEGREES:
+        for (lv_coord_t x = height; x-- != 0;) {
+          for (lv_coord_t y = 0; y != width; y++) {
+            dst[y * height_rounded + x] = *ptr++;
+          }
         }
-      }
-      y1 = x1;
-      x1 = this->height_ - area->y1 - height;
-      height = width;
-      width = height_rounded;
-      break;
+        y1 = x1;
+        x1 = this->width_ - area->y1 - height;
+        height = width;
+        width = height_rounded;
+        break;
 
-    case display::DISPLAY_ROTATION_180_DEGREES:
-      for (lv_coord_t y = height; y-- != 0;) {
-        for (lv_coord_t x = width; x-- != 0;) {
-          dst[y * width + x] = *ptr++;
+      case display::DISPLAY_ROTATION_180_DEGREES:
+        for (lv_coord_t y = height; y-- != 0;) {
+          for (lv_coord_t x = width; x-- != 0;) {
+            dst[y * width + x] = *ptr++;
+          }
         }
-      }
-      x1 = this->width_ - x1 - width;
-      y1 = this->height_ - y1 - height;
-      break;
+        x1 = this->width_ - x1 - width;
+        y1 = this->height_ - y1 - height;
+        break;
 
-    case display::DISPLAY_ROTATION_270_DEGREES:
-      for (lv_coord_t x = 0; x != height; x++) {
-        for (lv_coord_t y = width; y-- != 0;) {
-          dst[y * height_rounded + x] = *ptr++;
+      case display::DISPLAY_ROTATION_270_DEGREES:
+        for (lv_coord_t x = 0; x != height; x++) {
+          for (lv_coord_t y = width; y-- != 0;) {
+            dst[y * height_rounded + x] = *ptr++;
+          }
         }
-      }
-      x1 = y1;
-      y1 = this->width_ - area->x1 - width;
-      height = width;
-      width = height_rounded;
-      break;
+        x1 = y1;
+        y1 = this->height_ - area->x1 - width;
+        height = width;
+        width = height_rounded;
+        break;
 
-    default:
-      dst = ptr;
-      break;
+      default:
+        dst = ptr;
+        break;
+    }
+    ptr = dst;
   }
   for (auto *display : this->displays_) {
-    display->draw_pixels_at(x1, y1, width, height, (const uint8_t *) dst, display::COLOR_ORDER_RGB, LV_BITNESS,
+    display->draw_pixels_at(x1, y1, width, height, (const uint8_t *) ptr, display::COLOR_ORDER_RGB, LV_BITNESS,
                             this->big_endian_);
   }
 }
@@ -297,6 +342,7 @@ LVTouchListener::LVTouchListener(uint16_t long_press_time, uint16_t long_press_r
     if (l->touch_pressed_) {
       data->point.x = l->touch_point_.x;
       data->point.y = l->touch_point_.y;
+      l->parent_->rotate_coordinates(data->point.x, data->point.y);
       data->state = LV_INDEV_STATE_PRESSED;
     } else {
       data->state = LV_INDEV_STATE_RELEASED;
@@ -543,26 +589,44 @@ void LvglComponent::write_random_() {
  *                      multiple of 2, and so on.
  * @param resume_on_input if true, this component will resume rendering when the user
  *                         presses a key or clicks on the screen.
+ * @param rotation_type What rotation type to use, if any
  */
 LvglComponent::LvglComponent(std::vector<display::Display *> displays, float buffer_frac, bool full_refresh,
-                             int draw_rounding, bool resume_on_input, bool update_when_display_idle)
+                             int draw_rounding, bool resume_on_input, bool update_when_display_idle,
+                             RotationType rotation_type)
     : draw_rounding(draw_rounding),
       displays_(std::move(displays)),
       buffer_frac_(buffer_frac),
       full_refresh_(full_refresh),
       resume_on_input_(resume_on_input),
-      update_when_display_idle_(update_when_display_idle) {
+      update_when_display_idle_(update_when_display_idle),
+      rotation_type_(rotation_type) {
   this->disp_ = lv_display_create(240, 240);
 }
 
+void LvglComponent::set_resolution_() const {
+  int32_t width = this->width_;
+  int32_t height = this->height_;
+  if (this->rotation_ == display::DISPLAY_ROTATION_90_DEGREES ||
+      this->rotation_ == display::DISPLAY_ROTATION_270_DEGREES) {
+    std::swap(width, height);
+  }
+  ESP_LOGD(TAG, "Setting resolution to %u x %u (rotation %d)", (unsigned) width, (unsigned) height,
+           (int) this->rotation_);
+  if (this->rotation_type_ == RotationType::ROTATION_HARDWARE) {
+    for (auto *display : this->displays_)
+      display->set_rotation(this->rotation_);
+  }
+  lv_display_set_resolution(this->disp_, width, height);
+}
 void LvglComponent::setup() {
   auto *display = this->displays_[0];
   auto rounding = this->draw_rounding;
+  this->width_ = display->get_native_width();
+  this->height_ = display->get_native_height();
   // cater for displays with dimensions that don't divide by the required rounding
-  this->width_ = display->get_width();
-  this->height_ = display->get_height();
-  auto width = (display->get_width() + rounding - 1) / rounding * rounding;
-  auto height = (display->get_height() + rounding - 1) / rounding * rounding;
+  auto width = (this->width_ + rounding - 1) / rounding * rounding;
+  auto height = (this->height_ + rounding - 1) / rounding * rounding;
   auto frac = this->buffer_frac_;
   if (frac == 0)
     frac = 1;
@@ -586,15 +650,14 @@ void LvglComponent::setup() {
     return;
   }
   this->draw_buf_ = static_cast<uint8_t *>(buffer);
-  lv_display_set_resolution(this->disp_, this->width_, this->height_);
+  this->set_resolution_();
   lv_display_set_color_format(this->disp_, LV_COLOR_FORMAT_RGB565);
   lv_display_set_flush_cb(this->disp_, static_flush_cb);
   lv_display_set_user_data(this->disp_, this);
   lv_display_add_event_cb(this->disp_, rounder_cb, LV_EVENT_INVALIDATE_AREA, this);
   lv_display_set_buffers(this->disp_, this->draw_buf_, nullptr, buf_bytes,
                          this->full_refresh_ ? LV_DISPLAY_RENDER_MODE_FULL : LV_DISPLAY_RENDER_MODE_PARTIAL);
-  this->rotation = display->get_rotation();
-  if (this->rotation != display::DISPLAY_ROTATION_0_DEGREES) {
+  if (this->rotation_type_ == RotationType::ROTATION_SOFTWARE) {
     this->rotate_buf_ = static_cast<lv_color_t *>(lv_alloc_draw_buf(buf_bytes, false));  // NOLINT
     if (this->rotate_buf_ == nullptr) {
       this->status_set_error(LOG_STR("Memory allocation failure"));
@@ -620,9 +683,6 @@ void LvglComponent::setup() {
     esp_log_printf_(LOG_LEVEL_MAP[level], TAG, 0, "%.*s", (int) strlen(buf) - 1, buf);
   });
 #endif
-  // Rotation will be handled by our drawing function, so reset the display rotation.
-  for (auto *disp : this->displays_)
-    disp->set_rotation(display::DISPLAY_ROTATION_0_DEGREES);
   this->show_page(0, LV_SCREEN_LOAD_ANIM_NONE, 0);
   lv_display_trigger_activity(this->disp_);
 }
