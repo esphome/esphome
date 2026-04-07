@@ -815,13 +815,6 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type
   return total_cancelled > 0;
 }
 
-bool HOT Scheduler::SchedulerItem::cmp(SchedulerItem *a, SchedulerItem *b) {
-  // High bits are almost always equal (change only on 32-bit rollover ~49 days)
-  // Optimize for common case: check low bits first when high bits are equal
-  return (a->next_execution_high_ == b->next_execution_high_) ? (a->next_execution_low_ > b->next_execution_low_)
-                                                              : (a->next_execution_high_ > b->next_execution_high_);
-}
-
 // Recycle a SchedulerItem back to the pool for reuse.
 // IMPORTANT: Caller must hold the scheduler lock before calling this function.
 // This protects scheduler_item_pool_ from concurrent access by other threads
