@@ -175,6 +175,37 @@ _CALLBACK_AUTOMATIONS = (
     ),
 )
 
+_CUSTOM_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_CUSTOM_BINARY_SENSOR,
+        "add_custom_binary_sensor_callback",
+        [(cg.StringRef, "key"), (cg.bool_, "value")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CUSTOM_SENSOR,
+        "add_custom_sensor_callback",
+        [(cg.StringRef, "key"), (cg.int32, "value")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CUSTOM_SWITCH,
+        "add_custom_switch_callback",
+        [(cg.StringRef, "key"), (cg.bool_, "value")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CUSTOM_TEXT_SENSOR,
+        "add_custom_text_sensor_callback",
+        [(cg.StringRef, "key"), (cg.StringRef, "value")],
+    ),
+)
+
+# Map custom trigger config keys to their conditional defines
+_CUSTOM_TRIGGER_DEFINES = {
+    CONF_ON_CUSTOM_BINARY_SENSOR: "USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR",
+    CONF_ON_CUSTOM_SENSOR: "USE_NEXTION_TRIGGER_CUSTOM_SENSOR",
+    CONF_ON_CUSTOM_SWITCH: "USE_NEXTION_TRIGGER_CUSTOM_SWITCH",
+    CONF_ON_CUSTOM_TEXT_SENSOR: "USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR",
+}
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -265,43 +296,10 @@ async def to_code(config):
     await display.register_display(var, config)
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
-    # Register custom component triggers. Each tuple holds:
-    #   (conf_key, define_name, value_type, callback_name)
-    for conf_key, define_name, value_type, callback_name in (
-        (
-            CONF_ON_CUSTOM_BINARY_SENSOR,
-            "USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR",
-            cg.bool_,
-            "add_custom_binary_sensor_callback",
-        ),
-        (
-            CONF_ON_CUSTOM_SENSOR,
-            "USE_NEXTION_TRIGGER_CUSTOM_SENSOR",
-            cg.int32,
-            "add_custom_sensor_callback",
-        ),
-        (
-            CONF_ON_CUSTOM_SWITCH,
-            "USE_NEXTION_TRIGGER_CUSTOM_SWITCH",
-            cg.bool_,
-            "add_custom_switch_callback",
-        ),
-        (
-            CONF_ON_CUSTOM_TEXT_SENSOR,
-            "USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR",
-            cg.StringRef,
-            "add_custom_text_sensor_callback",
-        ),
-    ):
-        if custom_items := config.get(conf_key, []):
+    for conf_key, define_name in _CUSTOM_TRIGGER_DEFINES.items():
+        if config.get(conf_key):
             cg.add_define(define_name)
-            for conf in custom_items:
-                await automation.build_callback_automation(
-                    var,
-                    callback_name,
-                    [
-                        (cg.StringRef, "key"),
-                        (value_type, "value"),
-                    ],
-                    conf,
-                )
+
+    await automation.build_callback_automations(
+        var, config, _CUSTOM_CALLBACK_AUTOMATIONS
+    )
