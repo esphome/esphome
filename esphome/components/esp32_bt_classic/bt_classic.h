@@ -38,7 +38,8 @@ struct BtGapEvent {
 
 struct bt_scan_item {
   bt_scan_item() : address{}, scans_remaining{}, next_scan_time{}, scan_duration{} {}
-  bt_scan_item(uint64_t u64_addr, uint8_t num_scans) : address(u64_addr), scans_remaining(num_scans), next_scan_time{}, scan_duration{} {}
+  bt_scan_item(uint64_t u64_addr, uint8_t num_scans)
+      : address(u64_addr), scans_remaining(num_scans), next_scan_time{}, scan_duration{} {}
   uint64_t address;
   uint8_t scans_remaining;
   uint32_t next_scan_time;
@@ -80,7 +81,6 @@ struct BtStatus {
   esp_bt_status_t status_;
 };
 
-
 struct ScanStatus {
   ScanStatus(scan_status_t status) : status_(status) {}
 
@@ -94,7 +94,7 @@ struct ScanStatus {
   const char *c_str() const { return scan_status_to_str(status_); }
   std::string str() const { return c_str(); }
 
-protected:
+ protected:
   scan_status_t status_;
 };
 
@@ -138,7 +138,7 @@ class ResetBtStackButton : public button::Button, public Parented<ESP32BtClassic
 //
 class ESP32BtClassic : public Component, public BtClassicItf {
  public:
-  virtual ~ESP32BtClassic() {};
+  virtual ~ESP32BtClassic(){};
   void setup() override;
   void reset_bt_stack();
   void loop() override;
@@ -151,7 +151,7 @@ class ESP32BtClassic : public Component, public BtClassicItf {
   void disable();
 
 #ifdef USE_BUTTON
-  void set_reset_bt_stack_button(button::Button *button) {reset_bt_stack_button_ = button; }
+  void set_reset_bt_stack_button(button::Button *button) { reset_bt_stack_button_ = button; }
 #endif
 
 #ifdef USE_TEXT_SENSOR

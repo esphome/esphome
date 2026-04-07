@@ -40,7 +40,7 @@ template<typename... Ts> class BtClassicScanAction : public Action<Ts...>, publi
  public:
   BtClassicScanAction(ESP32BtClassic *bt_client) : BtClassicScannerNode(bt_client) {}
 
-  void play(const Ts &... x) override {
+  void play(const Ts &...x) override {
     uint8_t scanCount = this->num_scans_simple_;
     if (num_scans_template_ != nullptr) {
       scanCount = this->num_scans_template_(x...);
@@ -74,16 +74,16 @@ class BtClassicScanStartTrigger : public Trigger<>, public BtClassicScanStartLis
   void on_scan_start() override { this->trigger(); }
 };
 
-class BtClassicScanResultTrigger : public Trigger<const BtAddress &, const BtStatus &, const char *, const ScanStatus &>,
-                                   public BtClassicScanResultListner {
+class BtClassicScanResultTrigger
+    : public Trigger<const BtAddress &, const BtStatus &, const char *, const ScanStatus &>,
+      public BtClassicScanResultListner {
  public:
   explicit BtClassicScanResultTrigger(ESP32BtClassic *parent, std::initializer_list<uint64_t> addresses = {})
       : addresses_(addresses) {
     parent->register_scan_result_listener(this);
   }
 
-  void on_scan_result(const rmt_name_result &result, const optional<bt_scan_item>& scan_item) override {
-
+  void on_scan_result(const rmt_name_result &result, const optional<bt_scan_item> &scan_item) override {
     uint64_t result_addr = bd_addr_to_uint64(result.bda);
     if (!addresses_.empty()) {
       if (std::find(addresses_.begin(), addresses_.end(), result_addr) == addresses_.end()) {
@@ -94,8 +94,7 @@ class BtClassicScanResultTrigger : public Trigger<const BtAddress &, const BtSta
     ScanStatus scan_status = SCAN_STATUS_SCANNING;
     if (result.stat == ESP_BT_STATUS_SUCCESS) {
       scan_status = SCAN_STATUS_FOUND;
-    }
-    else if(scan_item.has_value() && result.stat == ESP_BT_STATUS_FAIL && scan_item.value().scans_remaining == 0) {
+    } else if (scan_item.has_value() && result.stat == ESP_BT_STATUS_FAIL && scan_item.value().scans_remaining == 0) {
       scan_status = SCAN_STATUS_NOT_FOUND;
     }
     this->trigger(result_addr, result.stat, (const char *) result.rmt_name, scan_status);

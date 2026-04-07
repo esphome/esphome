@@ -61,17 +61,17 @@ void ESP32BtClassic::enable() {
   }
 }
 void ESP32BtClassic::disable() {
-    ESP_LOGD(TAG, "Disabling");
-    if (!bt_dismantle_()) {
-      ESP_LOGE(TAG, "Could not be dismantled");
-      this->mark_failed();
+  ESP_LOGD(TAG, "Disabling");
+  if (!bt_dismantle_()) {
+    ESP_LOGE(TAG, "Could not be dismantled");
+    this->mark_failed();
 #ifdef USE_TEXT_SENSOR
-      if (last_error_sensor_) {
-        last_error_sensor_->publish_state("dismantle");
-      }
-#endif
-      return;
+    if (last_error_sensor_) {
+      last_error_sensor_->publish_state("dismantle");
     }
+#endif
+    return;
+  }
 }
 
 bool ESP32BtClassic::bt_pre_setup_() {

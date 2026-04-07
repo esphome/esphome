@@ -15,7 +15,8 @@ void BTClassicPresenceDevice::update() {
   parent()->addScan(esp32_bt_classic::bt_scan_item(u64_addr, num_scans));
 }
 
-void BTClassicPresenceDevice::on_scan_result(const esp32_bt_classic::rmt_name_result &result, const optional<esp32_bt_classic::bt_scan_item>& scan_item) {
+void BTClassicPresenceDevice::on_scan_result(const esp32_bt_classic::rmt_name_result &result,
+                                             const optional<esp32_bt_classic::bt_scan_item> &scan_item) {
   const uint64_t result_addr = esp32_bt_classic::bd_addr_to_uint64(result.bda);
   // ToDo: Use provided scan_item scans_remaining!!
   if (result_addr == u64_addr) {

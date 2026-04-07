@@ -1,6 +1,13 @@
 import logging
 
+from esphome import automation
 import esphome.codegen as cg
+from esphome.components import button, text_sensor
+from esphome.components.esp32 import (
+    add_idf_sdkconfig_option,
+    const as esp32_const,
+    get_esp32_variant,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DELAY,
@@ -14,18 +21,11 @@ from esphome.const import (
     ICON_RESTART,
 )
 from esphome.core import CORE
-from esphome import automation
-from esphome.components import button, text_sensor
-from esphome.components.esp32 import (
-    add_idf_sdkconfig_option,
-    get_esp32_variant,
-    const as esp32_const,
-)
 
 from .const import (
-    CONF_ON_SCAN_START,
-    CONF_ON_SCAN_RESULT,
     CONF_LAST_ERROR,
+    CONF_ON_SCAN_RESULT,
+    CONF_ON_SCAN_START,
     CONF_RESET_BT_STACK,
 )
 

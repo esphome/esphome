@@ -18,9 +18,9 @@ typedef struct {
 } scan_status_msg_t;
 
 static const scan_status_msg_t scan_status_msg_table[] = {
-  {SCAN_STATUS_SCANNING, "Scanning"},
-  {SCAN_STATUS_FOUND, "Found"},
-  {SCAN_STATUS_NOT_FOUND, "Not Found"},
+    {SCAN_STATUS_SCANNING, "Scanning"},
+    {SCAN_STATUS_FOUND, "Found"},
+    {SCAN_STATUS_NOT_FOUND, "Not Found"},
 };
 
 typedef struct {
@@ -100,9 +100,9 @@ std::string u64_addr_to_str(uint64_t address) {
   return mac;
 }
 
-uint64_t str_to_u64_addr(const char* addr_str) {
+uint64_t str_to_u64_addr(const char *addr_str) {
   esp_bd_addr_t addr;
-  if(str_to_bd_addr(addr_str, addr)) {
+  if (str_to_bd_addr(addr_str, addr)) {
     return bd_addr_to_uint64(addr);
   }
   return 0;
