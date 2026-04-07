@@ -158,7 +158,7 @@ def validate_peer(value):
 
 def _validate_raw_data(value):
     if isinstance(value, str):
-        if len(value) >= MAX_ESPNOW_PACKET_SIZE:
+        if len(value) > MAX_ESPNOW_PACKET_SIZE:
             raise cv.Invalid(
                 f"'{CONF_DATA}' must be less than {MAX_ESPNOW_PACKET_SIZE} characters long, got {len(value)}"
             )
