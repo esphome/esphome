@@ -405,7 +405,7 @@ def _model_config_to_manifest_data(model_config):
         file = _compute_local_file_path(model_config) / "manifest.json"
 
     else:
-        raise ValueError("Unsupported config type: {model_config[CONF_TYPE]}")
+        raise ValueError(f"Unsupported config type: {model_config[CONF_TYPE]}")
 
     return _load_model_data(file)
 
