@@ -553,11 +553,11 @@ class Application {
 
 #ifdef USE_ESP32
   /// Wake from ISR (ESP32 only).
-  static void wake_loop_isrsafe(BaseType_t *px) { esphome::wake_loop_isrsafe(px); }
+  static void IRAM_ATTR wake_loop_isrsafe(BaseType_t *px) { esphome::wake_loop_isrsafe(px); }
 #endif
 
   /// Wake from any context (ISR, thread, callback).
-  static void wake_loop_any_context() { esphome::wake_loop_any_context(); }
+  static void IRAM_ATTR wake_loop_any_context() { esphome::wake_loop_any_context(); }
 
  protected:
   friend Component;

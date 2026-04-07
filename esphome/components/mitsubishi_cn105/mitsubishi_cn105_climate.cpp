@@ -34,6 +34,22 @@ static bool map_lookup(const std::array<std::pair<A, B>, N> &map, A key, B &out)
   return false;
 }
 
+template<typename Left, typename Right, std::size_t N>
+static constexpr std::optional<Left> reverse_map_lookup(const std::array<std::pair<Left, Right>, N> &map, Right key) {
+  for (const auto &entry : map) {
+    if (entry.second == key) {
+      return entry.first;
+    }
+  }
+  return std::nullopt;
+}
+
+template<typename Left, typename Right, std::size_t N>
+static constexpr std::optional<Left> reverse_map_lookup(const std::array<std::pair<Left, Right>, N> &map,
+                                                        const std::optional<Right> &key) {
+  return key.has_value() ? reverse_map_lookup(map, *key) : std::nullopt;
+}
+
 void MitsubishiCN105Climate::dump_config() {
   LOG_CLIMATE("", "Mitsubishi CN105 Climate", this);
   if (this->hp_.is_room_temperature_enabled()) {
@@ -90,7 +106,28 @@ climate::ClimateTraits MitsubishiCN105Climate::traits() {
   return traits;
 }
 
-void MitsubishiCN105Climate::control(const climate::ClimateCall &call) {}
+void MitsubishiCN105Climate::control(const climate::ClimateCall &call) {
+  if (const auto target_temperature = call.get_target_temperature()) {
+    this->hp_.set_target_temperature(*target_temperature);
+  }
+
+  if (const auto mode = call.get_mode()) {
+    if (*mode == climate::CLIMATE_MODE_OFF) {
+      this->hp_.set_power(false);
+    } else if (const auto mapped = reverse_map_lookup(MODE_MAP, *mode)) {
+      this->hp_.set_power(true);
+      this->hp_.set_mode(*mapped);
+    }
+  }
+
+  if (const auto fan_mode = reverse_map_lookup(FAN_MODE_MAP, call.get_fan_mode())) {
+    this->hp_.set_fan_mode(*fan_mode);
+  }
+
+  if (this->hp_.is_status_initialized()) {
+    this->apply_values_();
+  }
+}
 
 void MitsubishiCN105Climate::apply_values_() {
   const auto &status = this->hp_.status();

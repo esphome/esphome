@@ -249,12 +249,6 @@ class TypeInfo(ABC):
         "encode_bool": "ProtoEncode::write_raw_byte(pos, {value} ? 0x01 : 0x00);",
     }
 
-    # When max_value < 128 and forced, the varint is always 1 byte — write tag + value directly
-    RAW_ENCODE_SMALL_MAP: dict[str, str] = {
-        "encode_uint32": "ProtoEncode::write_raw_byte(pos, static_cast<uint8_t>({value}));",
-        "encode_uint64": "ProtoEncode::write_raw_byte(pos, static_cast<uint8_t>({value}));",
-    }
-
     def _encode_with_precomputed_tag(self, value_expr: str) -> str | None:
         """Try to emit a precomputed-tag encode for a field.
 
@@ -264,19 +258,14 @@ class TypeInfo(ABC):
 
         Returns the raw encode string if the tag is a single byte and the
         encode_func has a known raw equivalent, or None otherwise.
-        When max_value < 128, uses direct byte write instead of varint encoding.
         """
         tag = self.calculate_tag()
         if tag >= 128:
             return None
         max_val = self.max_value
+        # Only use RAW_ENCODE_MAP for forced fields or fields with max_value
         raw_expr = None
-        if max_val is not None and max_val < 128:
-            raw_expr = self.RAW_ENCODE_SMALL_MAP.get(self.encode_func)
-        if raw_expr is None:
-            # Only use RAW_ENCODE_MAP for forced fields or fields with max_value
-            if not self.force and max_val is None:
-                return None
+        if self.force or max_val is not None:
             raw_expr = self.RAW_ENCODE_MAP.get(self.encode_func)
         if raw_expr is None:
             return None
@@ -1091,7 +1080,7 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
         if max_len is not None and max_len < 128 and self.force:
             tag = self.calculate_tag()
             if tag < 128:
-                return f"ProtoEncode::write_short_string(pos PROTO_ENCODE_DEBUG_ARG, {tag}, this->{self.field_name});"
+                return f"ProtoEncode::encode_short_string_force(pos, {tag}, this->{self.field_name});"
         if result := self._encode_bytes_with_precomputed_tag(
             f"this->{self.field_name}.c_str()",
             f"this->{self.field_name}.size()",
@@ -1365,10 +1354,6 @@ class EnumType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
-        # Use raw field ref for precomputed tag path (static_cast<uint8_t> handles narrowing)
-        if result := self._encode_with_precomputed_tag(f"this->{self.field_name}"):
-            return result
-        # Outlined function call needs explicit cast to uint32_t for enum types
         value_expr = f"static_cast<uint32_t>(this->{self.field_name})"
         if self.force:
             return f"ProtoEncode::{self.encode_func}(pos, {self.number}, {value_expr}, true);"

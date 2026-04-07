@@ -299,7 +299,7 @@ void Component::enable_loop_slow_path_() {
   this->set_component_state_(COMPONENT_STATE_LOOP);
   App.enable_component_loop_(this);
 }
-void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
+void IRAM_ATTR Component::enable_loop_soon_any_context() {
   // This method is thread and ISR-safe because:
   // 1. Only performs simple assignments to volatile variables (atomic on all platforms)
   // 2. No read-modify-write operations that could be interrupted

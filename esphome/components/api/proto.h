@@ -27,6 +27,8 @@ constexpr uint8_t WIRE_TYPE_MASK = 0b111;          // Mask to extract wire type 
 
 // Reinterpret float bits as uint32_t without floating-point comparison.
 // Used by both encode_float() and calc_float() to ensure identical zero checks.
+// Uses union type-punning which is a GCC/Clang extension (not standard C++),
+// but bit_cast/memcpy don't optimize to a no-op on xtensa-gcc (ESP8266).
 inline uint32_t float_to_raw(float value) {
   union {
     float f;
@@ -357,10 +359,13 @@ class ProtoEncode {
     std::memcpy(pos, data, len);
     pos += len;
   }
-  /// Write tag + 1-byte length + raw string data. For strings with max_data_length < 128.
+  /// Encode tag + 1-byte length + raw string data. For strings with max_data_length < 128.
   /// Tag must be a single-byte varint (< 128). Always encodes (no zero check).
-  static inline void ESPHOME_ALWAYS_INLINE write_short_string(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM,
-                                                              uint8_t tag, const StringRef &ref) {
+  static inline void encode_short_string_force(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, uint8_t tag,
+                                               const StringRef &ref) {
+#ifdef ESPHOME_DEBUG_API
+    assert(ref.size() < 128 && "encode_short_string_force: string exceeds max_data_length < 128");
+#endif
     PROTO_ENCODE_CHECK_BOUNDS(pos, 2 + ref.size());
     pos[0] = tag;
     pos[1] = static_cast<uint8_t>(ref.size());
@@ -453,14 +458,10 @@ class ProtoEncode {
   // is needed in the future, the necessary encoding/decoding functions must be added.
   static inline void encode_float(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, uint32_t field_id, float value,
                                   bool force = false) {
-    if (value == 0.0f && !force)
+    uint32_t raw = float_to_raw(value);
+    if (raw == 0 && !force)
       return;
-    union {
-      float value;
-      uint32_t raw;
-    } val{};
-    val.value = value;
-    encode_fixed32(pos PROTO_ENCODE_DEBUG_ARG, field_id, val.raw);
+    encode_fixed32(pos PROTO_ENCODE_DEBUG_ARG, field_id, raw);
   }
   static inline void encode_int32(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, uint32_t field_id, int32_t value,
                                   bool force = false) {
