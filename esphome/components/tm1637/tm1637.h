@@ -47,6 +47,9 @@ class TM1637Display : public PollingComponent {
   /// Print `str` at position 0.
   uint8_t print(const char *str);
 
+  /// Set raw buffer bytes from data array up to length bytes.
+  void set_buffer(const uint8_t *data, uint8_t length);
+
   void set_intensity(uint8_t intensity) { this->intensity_ = intensity; }
   void set_inverted(bool inverted) { this->inverted_ = inverted; }
   void set_length(uint8_t length) { this->length_ = length; }

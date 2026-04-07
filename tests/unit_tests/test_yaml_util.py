@@ -98,13 +98,15 @@ def test_construct_secret_missing(fixture_path: Path, tmp_path: Path) -> None:
     """Test that missing secrets raise proper errors."""
     # Create a YAML file with a secret that doesn't exist
     test_yaml = tmp_path / "test.yaml"
-    test_yaml.write_text("""
+    test_yaml.write_text(
+        """
 esphome:
   name: test
 
 wifi:
   password: !secret nonexistent_secret
-""")
+"""
+    )
 
     # Create an empty secrets file
     secrets_yaml = tmp_path / "secrets.yaml"
@@ -118,10 +120,12 @@ def test_construct_secret_no_secrets_file(tmp_path: Path) -> None:
     """Test that missing secrets.yaml file raises proper error."""
     # Create a YAML file with a secret but no secrets.yaml
     test_yaml = tmp_path / "test.yaml"
-    test_yaml.write_text("""
+    test_yaml.write_text(
+        """
 wifi:
   password: !secret some_secret
-""")
+"""
+    )
 
     # Mock CORE.config_path to avoid NoneType error
     with (
@@ -140,10 +144,12 @@ def test_construct_secret_fallback_to_main_config_dir(
     subdir.mkdir()
 
     test_yaml = subdir / "test.yaml"
-    test_yaml.write_text("""
+    test_yaml.write_text(
+        """
 wifi:
   password: !secret test_secret
-""")
+"""
+    )
 
     # Create secrets.yaml in the main directory
     main_secrets = tmp_path / "secrets.yaml"
@@ -164,9 +170,11 @@ def test_construct_include_dir_named(fixture_path: Path, tmp_path: Path) -> None
 
     # Create test YAML that uses include_dir_named
     test_yaml = dst_dir / "test_include_named.yaml"
-    test_yaml.write_text("""
+    test_yaml.write_text(
+        """
 sensor: !include_dir_named named_dir
-""")
+"""
+    )
 
     actual = yaml_util.load_yaml(test_yaml)
     actual_sensor = actual["sensor"]
@@ -199,9 +207,11 @@ def test_construct_include_dir_named_empty_dir(tmp_path: Path) -> None:
     empty_dir.mkdir()
 
     test_yaml = tmp_path / "test.yaml"
-    test_yaml.write_text("""
+    test_yaml.write_text(
+        """
 sensor: !include_dir_named empty_dir
-""")
+"""
+    )
 
     actual = yaml_util.load_yaml(test_yaml)
 
@@ -231,9 +241,11 @@ def test_construct_include_dir_named_with_dots(tmp_path: Path) -> None:
     hidden_subfile.write_text("key: hidden_subfile_value")
 
     test_yaml = tmp_path / "test.yaml"
-    test_yaml.write_text("""
+    test_yaml.write_text(
+        """
 test: !include_dir_named test_dir
-""")
+"""
+    )
 
     actual = yaml_util.load_yaml(test_yaml)
 
@@ -255,9 +267,11 @@ def test_find_files_recursive(fixture_path: Path, tmp_path: Path) -> None:
 
     # This indirectly tests _find_files by using include_dir_named
     test_yaml = dst_dir / "test_include_recursive.yaml"
-    test_yaml.write_text("""
+    test_yaml.write_text(
+        """
 all_sensors: !include_dir_named named_dir
-""")
+"""
+    )
 
     actual = yaml_util.load_yaml(test_yaml)
 
@@ -307,6 +321,60 @@ def test_dump_sort_keys() -> None:
     # nested keys should also be sorted
     assert "a_key:" in sorted_dump
     assert sorted_dump.index("a_key:") < sorted_dump.index("z_key:")
+
+
+# ---------------------------------------------------------------------------
+# track_yaml_loads
+# ---------------------------------------------------------------------------
+
+
+def test_track_yaml_loads_records_files(tmp_path: Path) -> None:
+    """track_yaml_loads records every file loaded inside the context."""
+    yaml_file = tmp_path / "test.yaml"
+    yaml_file.write_text("key: value\n")
+
+    with yaml_util.track_yaml_loads() as loaded:
+        yaml_util.load_yaml(yaml_file)
+
+    assert len(loaded) == 1
+    assert loaded[0] == yaml_file.resolve()
+
+
+def test_track_yaml_loads_records_includes(tmp_path: Path) -> None:
+    """track_yaml_loads records nested !include files."""
+    inc = tmp_path / "included.yaml"
+    inc.write_text("included_key: 42\n")
+    main = tmp_path / "main.yaml"
+    main.write_text("child: !include included.yaml\n")
+
+    with yaml_util.track_yaml_loads() as loaded:
+        yaml_util.load_yaml(main)
+
+    resolved = [p.name for p in loaded]
+    assert "main.yaml" in resolved
+    assert "included.yaml" in resolved
+
+
+def test_track_yaml_loads_empty_outside_context(tmp_path: Path) -> None:
+    """Files loaded outside the context are not recorded."""
+    yaml_file = tmp_path / "test.yaml"
+    yaml_file.write_text("key: value\n")
+
+    with yaml_util.track_yaml_loads() as loaded:
+        pass  # load nothing inside
+
+    yaml_util.load_yaml(yaml_file)
+    assert loaded == []
+
+
+def test_track_yaml_loads_cleanup_on_exception(tmp_path: Path) -> None:
+    """Listener is removed even if the body raises."""
+    before = len(yaml_util._load_listeners)
+
+    with pytest.raises(RuntimeError), yaml_util.track_yaml_loads():
+        raise RuntimeError("boom")
+
+    assert len(yaml_util._load_listeners) == before
 
 
 @pytest.mark.parametrize(

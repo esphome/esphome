@@ -10,9 +10,9 @@ from esphome.const import (
     CONF_PIN_B,
     CONF_RESOLUTION,
     CONF_RESTORE_MODE,
-    CONF_TRIGGER_ID,
     CONF_VALUE,
     ICON_ROTATE_RIGHT,
+    STATE_CLASS_MEASUREMENT,
     UNIT_STEPS,
 )
 
@@ -43,13 +43,6 @@ RotaryEncoderSetValueAction = rotary_encoder_ns.class_(
     "RotaryEncoderSetValueAction", automation.Action
 )
 
-RotaryEncoderClockwiseTrigger = rotary_encoder_ns.class_(
-    "RotaryEncoderClockwiseTrigger", automation.Trigger
-)
-RotaryEncoderAnticlockwiseTrigger = rotary_encoder_ns.class_(
-    "RotaryEncoderAnticlockwiseTrigger", automation.Trigger
-)
-
 
 def validate_min_max_value(config):
     if CONF_MIN_VALUE in config and CONF_MAX_VALUE in config:
@@ -57,7 +50,7 @@ def validate_min_max_value(config):
         max_val = config[CONF_MAX_VALUE]
         if min_val >= max_val:
             raise cv.Invalid(
-                f"Max value {max_val} must be smaller than min value {min_val}"
+                f"Max value {max_val} must be greater than min value {min_val}"
             )
     return config
 
@@ -68,6 +61,7 @@ CONFIG_SCHEMA = cv.All(
         unit_of_measurement=UNIT_STEPS,
         icon=ICON_ROTATE_RIGHT,
         accuracy_decimals=0,
+        state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
         {
@@ -81,24 +75,20 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RESTORE_MODE, default="RESTORE_DEFAULT_ZERO"): cv.enum(
                 RESTORE_MODES, upper=True, space="_"
             ),
-            cv.Optional(CONF_ON_CLOCKWISE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        RotaryEncoderClockwiseTrigger
-                    ),
-                }
-            ),
-            cv.Optional(CONF_ON_ANTICLOCKWISE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        RotaryEncoderAnticlockwiseTrigger
-                    ),
-                }
-            ),
+            cv.Optional(CONF_ON_CLOCKWISE): automation.validate_automation({}),
+            cv.Optional(CONF_ON_ANTICLOCKWISE): automation.validate_automation({}),
         }
     )
     .extend(cv.COMPONENT_SCHEMA),
     validate_min_max_value,
+)
+
+
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(CONF_ON_CLOCKWISE, "add_on_clockwise_callback"),
+    automation.CallbackAutomation(
+        CONF_ON_ANTICLOCKWISE, "add_on_anticlockwise_callback"
+    ),
 )
 
 
@@ -122,12 +112,7 @@ async def to_code(config):
     if CONF_MAX_VALUE in config:
         cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
 
-    for conf in config.get(CONF_ON_CLOCKWISE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
-    for conf in config.get(CONF_ON_ANTICLOCKWISE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 @automation.register_action(

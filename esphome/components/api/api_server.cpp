@@ -108,7 +108,7 @@ void APIServer::setup() {
   this->last_connected_ = App.get_loop_component_start_time();
   // Set warning status if reboot timeout is enabled
   if (this->reboot_timeout_ != 0) {
-    this->status_set_warning();
+    this->status_set_warning(LOG_STR("waiting for client connection"));
   }
 }
 
@@ -187,7 +187,7 @@ void APIServer::remove_client_(size_t client_index) {
 
   // Last client disconnected - set warning and start tracking for reboot timeout
   if (this->clients_.empty() && this->reboot_timeout_ != 0) {
-    this->status_set_warning();
+    this->status_set_warning(LOG_STR("waiting for client connection"));
     this->last_connected_ = App.get_loop_component_start_time();
   }
 

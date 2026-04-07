@@ -130,6 +130,26 @@ RequiredFieldInvalid = vol.RequiredFieldInvalid
 # the rest of the error path is relative to the root config path
 ROOT_CONFIG_PATH = object()
 
+
+def ByteLength(*, max: int) -> Callable[[str], str]:
+    """Validate that the UTF-8 byte length of a string does not exceed max.
+
+    Use instead of Length() when the limit must apply to encoded bytes,
+    not characters (e.g. for protobuf length-varint constraints).
+    """
+
+    def validator(value: str) -> str:
+        byte_len = len(str(value).encode("utf-8"))
+        if byte_len > max:
+            raise Invalid(
+                f"String is too long ({byte_len} bytes, max {max}). "
+                f"Multibyte characters count as multiple bytes."
+            )
+        return value
+
+    return validator
+
+
 RESERVED_IDS = [
     # C++ keywords https://en.cppreference.com/w/cpp/keyword
     "alarm",
@@ -244,6 +264,8 @@ RESERVED_IDS = [
     "open",
     "setup",
     "loop",
+    "spi0",
+    "spi1",
     "uart0",
     "uart1",
     "uart2",
@@ -409,17 +431,22 @@ def icon(value):
         raise Invalid(
             'Icons must match the format "[icon pack]:[icon]", e.g. "mdi:home-assistant"'
         )
-    if len(value) > ICON_MAX_LENGTH:
+    byte_len = len(value.encode("utf-8"))
+    if byte_len > ICON_MAX_LENGTH:
         raise Invalid(
-            f"Icon string is too long ({len(value)} chars, max {ICON_MAX_LENGTH}). "
+            f"Icon string is too long ({byte_len} bytes, max {ICON_MAX_LENGTH}). "
             "Icons are stored in PROGMEM with a 64-byte buffer limit."
         )
     return value
 
 
+@schema_extractor("use_id")
 def sub_device_id(value: str | None) -> core.ID | None:
     # Lazy import to avoid circular imports
     from esphome.core.config import Device
+
+    if value == SCHEMA_EXTRACT:
+        return Device
 
     if not value:
         return None
@@ -1661,7 +1688,7 @@ def dimensions(value):
     match = re.match(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
     if not match:
         raise Invalid(
-            "Invalid value '{}' for dimensions. Only WIDTHxHEIGHT is allowed."
+            f"Invalid value '{value}' for dimensions. Only WIDTHxHEIGHT is allowed."
         )
     return dimensions([match.group(1), match.group(2)])
 
@@ -2061,11 +2088,12 @@ def _validate_entity_name(value):
             "Name cannot be None when esphome->friendly_name is not set!"
         )(value)
     if value is not None:
-        # Validate length for web server URL compatibility
-        if len(value) > NAME_MAX_LENGTH:
+        # Validate byte length for web server URL and proto encoding compatibility
+        byte_len = len(value.encode("utf-8"))
+        if byte_len > NAME_MAX_LENGTH:
             raise Invalid(
-                f"Name is too long ({len(value)} chars). "
-                f"Maximum length is {NAME_MAX_LENGTH} characters."
+                f"Name is too long ({byte_len} bytes). "
+                f"Maximum length is {NAME_MAX_LENGTH} bytes."
             )
         # Validate no '/' in name for web server URL compatibility
         value = _validate_no_slash(value)

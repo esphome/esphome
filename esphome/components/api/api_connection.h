@@ -20,6 +20,9 @@
 #ifdef USE_RP2040_CRASH_HANDLER
 #include "esphome/components/rp2040/crash_handler.h"
 #endif
+#ifdef USE_ESP8266_CRASH_HANDLER
+#include "esphome/components/esp8266/crash_handler.h"
+#endif
 #include "esphome/core/entity_base.h"
 #include "esphome/core/string_ref.h"
 
@@ -44,10 +47,22 @@ static constexpr size_t MAX_INITIAL_PER_BATCH = 34;         // For clients >= AP
 static_assert(MAX_MESSAGES_PER_BATCH >= MAX_INITIAL_PER_BATCH,
               "MAX_MESSAGES_PER_BATCH must be >= MAX_INITIAL_PER_BATCH");
 
+#ifdef USE_BENCHMARK
+class APIConnection;
+void bench_enable_immediate_send(APIConnection *conn);
+void bench_clear_batch(APIConnection *conn);
+void bench_process_batch(APIConnection *conn);
+#endif
+
 class APIConnection final : public APIServerConnectionBase {
  public:
   friend class APIServer;
   friend class ListEntitiesIterator;
+#ifdef USE_BENCHMARK
+  friend void bench_enable_immediate_send(APIConnection *conn);
+  friend void bench_clear_batch(APIConnection *conn);
+  friend void bench_process_batch(APIConnection *conn);
+#endif
   APIConnection(std::unique_ptr<socket::Socket> socket, APIServer *parent);
   ~APIConnection();
 
@@ -265,6 +280,9 @@ class APIConnection final : public APIServerConnectionBase {
 #ifdef USE_RP2040_CRASH_HANDLER
     rp2040::crash_handler_log();
 #endif
+#ifdef USE_ESP8266_CRASH_HANDLER
+    esp8266::crash_handler_log();
+#endif
   }
 #ifdef USE_API_HOMEASSISTANT_SERVICES
   void on_subscribe_homeassistant_services_request() { this->flags_.service_call_subscription = true; }
@@ -306,7 +324,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_no_setup_connection();
 
   // Function pointer type for type-erased message encoding
-  using MessageEncodeFn = void (*)(const void *, ProtoWriteBuffer &);
+  using MessageEncodeFn = uint8_t *(*) (const void *, ProtoWriteBuffer &PROTO_ENCODE_DEBUG_PARAM);
   // Function pointer type for type-erased size calculation
   using CalculateSizeFn = uint32_t (*)(const void *);
 
@@ -385,7 +403,9 @@ class APIConnection final : public APIServerConnectionBase {
   }
 
   // Shared no-op encode thunk for empty messages (ESTIMATED_SIZE == 0)
-  static void encode_msg_noop(const void *, ProtoWriteBuffer &) {}
+  static uint8_t *encode_msg_noop(const void *, ProtoWriteBuffer &buf PROTO_ENCODE_DEBUG_PARAM) {
+    return buf.get_pos();
+  }
 
   // Non-template buffer management for send_message
   bool send_message_(uint32_t payload_size, uint8_t message_type, MessageEncodeFn encode_fn, const void *msg);
@@ -632,11 +652,28 @@ class APIConnection final : public APIServerConnectionBase {
 
     // Add item to the batch (with deduplication)
     void add_item(EntityBase *entity, uint8_t message_type, uint8_t estimated_size,
-                  uint8_t aux_data_index = AUX_DATA_UNUSED);
+                  uint8_t aux_data_index = AUX_DATA_UNUSED) {
+      // Dedup: O(n) scan but optimized for RAM over performance
+      // Skip deduplication for events - they are edge-triggered, every occurrence matters
+#ifdef USE_EVENT
+      if (message_type != EventResponse::MESSAGE_TYPE)
+#endif
+      {
+        for (const auto &item : this->items) {
+          if (item.entity == entity && item.message_type == message_type)
+            return;  // Already queued
+        }
+      }
+      this->items.push_back({entity, message_type, estimated_size, aux_data_index});
+    }
     // Add item to the front of the batch (for high priority messages like ping)
-    void add_item_front(EntityBase *entity, uint8_t message_type, uint8_t estimated_size);
-    // Single push_back site to avoid duplicate _M_realloc_insert instantiation
-    void push_item(const BatchItem &item);
+    void add_item_front(EntityBase *entity, uint8_t message_type, uint8_t estimated_size) {
+      // Swap to front avoids expensive vector::insert which shifts all elements
+      this->items.push_back({entity, message_type, estimated_size, AUX_DATA_UNUSED});
+      if (this->items.size() > 1) {
+        std::swap(this->items.front(), this->items.back());
+      }
+    }
 
     // Clear all items
     void clear() {
@@ -701,7 +738,7 @@ class APIConnection final : public APIServerConnectionBase {
   ActiveIterator active_iterator_{ActiveIterator::NONE};
   // Total: 2 (flags) + 2 + 2 + 1 = 7 bytes, then 1 byte padding to next 4-byte boundary
 
-  uint32_t get_batch_delay_ms_() const;
+  uint32_t get_batch_delay_ms_() const { return this->parent_->get_batch_delay(); }
   // Message will use 8 more bytes than the minimum size, and typical
   // MTU is 1500. Sometimes users will see as low as 1460 MTU.
   // If its IPv6 the header is 40 bytes, and if its IPv4
@@ -768,10 +805,8 @@ class APIConnection final : public APIServerConnectionBase {
   }
 
   // Helper function to schedule a high priority message at the front of the batch
-  bool schedule_message_front_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size) {
-    this->deferred_batch_.add_item_front(entity, message_type, estimated_size);
-    return this->schedule_batch_();
-  }
+  // Out-of-line: callers (on_shutdown, check_keepalive_) are cold paths
+  bool schedule_message_front_(EntityBase *entity, uint8_t message_type, uint8_t estimated_size);
 
   // Helper function to log client messages with name and peername
   void log_client_(int level, const LogString *message);

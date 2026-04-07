@@ -104,6 +104,8 @@ CONF_CLK_MODE = "clk_mode"
 CONF_POWER_PIN = "power_pin"
 CONF_PHY_REGISTERS = "phy_registers"
 
+CONF_INTERFACE = "interface"
+
 CONF_CLOCK_SPEED = "clock_speed"
 
 EthernetType = ethernet_ns.enum("EthernetType")
@@ -115,6 +117,7 @@ ETHERNET_TYPES = {
     "JL1101": EthernetType.ETHERNET_TYPE_JL1101,
     "KSZ8081": EthernetType.ETHERNET_TYPE_KSZ8081,
     "KSZ8081RNA": EthernetType.ETHERNET_TYPE_KSZ8081RNA,
+    "W5100": EthernetType.ETHERNET_TYPE_W5100,
     "W5500": EthernetType.ETHERNET_TYPE_W5500,
     "OPENETH": EthernetType.ETHERNET_TYPE_OPENETH,
     "DM9051": EthernetType.ETHERNET_TYPE_DM9051,
@@ -132,6 +135,7 @@ _PHY_TYPE_TO_DEFINE = {
     "JL1101": "USE_ETHERNET_JL1101",
     "KSZ8081": "USE_ETHERNET_KSZ8081",
     "KSZ8081RNA": "USE_ETHERNET_KSZ8081",
+    "W5100": "USE_ETHERNET_W5100",
     "W5500": "USE_ETHERNET_W5500",
     "DM9051": "USE_ETHERNET_DM9051",
     "LAN8670": "USE_ETHERNET_LAN8670",
@@ -164,9 +168,15 @@ _IDF6_ETHERNET_COMPONENTS: dict[str, IDFRegistryComponent] = {
 # These types are always external IDF components (never built-in to ESP-IDF)
 _ALWAYS_EXTERNAL_IDF_COMPONENTS = {"LAN8670", "ENC28J60"}
 
-SPI_ETHERNET_TYPES = ["W5500", "DM9051", "ENC28J60"]
+# ESP32-only SPI ethernet types (W5100 is RP2040-only, no ESP-IDF driver)
+SPI_ETHERNET_TYPES = {"W5500", "DM9051", "ENC28J60"}
 # RP2040-supported SPI ethernet types
-RP2040_SPI_ETHERNET_TYPES = ["W5500", "ENC28J60"]
+RP2040_SPI_ETHERNET_TYPES = {"W5100", "W5500", "ENC28J60"}
+_RP2040_SPI_LIBRARIES = {
+    "W5100": "lwIP_w5100",
+    "W5500": "lwIP_w5500",
+    "ENC28J60": "lwIP_enc28j60",
+}
 SPI_ETHERNET_DEFAULT_POLLING_INTERVAL = TimePeriodMilliseconds(milliseconds=10)
 
 emac_rmii_clock_mode_t = cg.global_ns.enum("emac_rmii_clock_mode_t")
@@ -181,6 +191,13 @@ CLK_MODES_DEPRECATED = {
     "GPIO0_OUT": ("CLK_OUT", 0),
     "GPIO16_OUT": ("CLK_OUT", 16),
     "GPIO17_OUT": ("CLK_OUT", 17),
+}
+
+spi_host_device_t = cg.global_ns.enum("spi_host_device_t")
+
+SPI_INTERFACE_MAP = {
+    "spi2": spi_host_device_t.SPI2_HOST,
+    "spi3": spi_host_device_t.SPI3_HOST,
 }
 
 MANUAL_IP_SCHEMA = cv.Schema(
@@ -215,6 +232,24 @@ def _is_framework_spi_polling_mode_supported() -> bool:
     if cv.Version(5, 2, 0) > ver >= cv.Version(5, 1, 4):  # noqa: SIM103
         return True
     return False
+
+
+def _validate_spi_interface(config: ConfigType) -> ConfigType:
+    """Set default SPI interface or validate user choice against the variant."""
+    if not CORE.is_esp32:
+        return config
+    from esphome.components.esp32 import VARIANT_ESP32, get_esp32_variant
+    from esphome.components.spi import get_hw_interface_list
+
+    has_spi3 = "spi3" in sum(get_hw_interface_list(), [])
+    if CONF_INTERFACE not in config:
+        # Only classic ESP32 defaults to spi3; all others default to spi2
+        config[CONF_INTERFACE] = (
+            "spi3" if get_esp32_variant() == VARIANT_ESP32 else "spi2"
+        )
+    elif config[CONF_INTERFACE] == "spi3" and not has_spi3:
+        raise cv.Invalid("Interface 'spi3' is not available on this variant.")
+    return config
 
 
 def _validate(config):
@@ -295,7 +330,7 @@ def _validate(config):
                 )
     elif CORE.is_rp2040 and config[CONF_TYPE] not in RP2040_SPI_ETHERNET_TYPES:
         raise cv.Invalid(
-            f"Only {', '.join(RP2040_SPI_ETHERNET_TYPES)} are supported on RP2040, "
+            f"Only {', '.join(sorted(RP2040_SPI_ETHERNET_TYPES))} are supported on RP2040, "
             f"not {config[CONF_TYPE]}"
         )
     return config
@@ -360,6 +395,10 @@ SPI_SCHEMA = cv.All(
                     cv.frequency,
                     cv.int_range(int(8e6), int(80e6)),
                 ),
+                cv.Optional(CONF_INTERFACE): cv.All(
+                    cv.only_on_esp32,
+                    cv.one_of(*SPI_INTERFACE_MAP.keys(), lower=True),
+                ),
                 # Set default value (SPI_ETHERNET_DEFAULT_POLLING_INTERVAL) at _validate()
                 cv.Optional(CONF_POLLING_INTERVAL): cv.All(
                     cv.only_on_esp32,
@@ -370,6 +409,7 @@ SPI_SCHEMA = cv.All(
         ),
     ),
     cv.only_on([Platform.ESP32, Platform.RP2040]),
+    _validate_spi_interface,
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -382,6 +422,7 @@ CONFIG_SCHEMA = cv.All(
             "JL1101": RMII_SCHEMA,
             "KSZ8081": RMII_SCHEMA,
             "KSZ8081RNA": RMII_SCHEMA,
+            "W5100": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2040])),
             "W5500": SPI_SCHEMA,
             "OPENETH": cv.All(BASE_SCHEMA, cv.only_on([Platform.ESP32])),
             "DM9051": SPI_SCHEMA,
@@ -399,37 +440,18 @@ def _final_validate_spi(config):
         return  # SPI interface validation is ESP32-only
     if config[CONF_TYPE] not in SPI_ETHERNET_TYPES:
         return
-    from esphome.components.esp32 import (
-        VARIANT_ESP32C3,
-        VARIANT_ESP32C5,
-        VARIANT_ESP32C6,
-        VARIANT_ESP32C61,
-        VARIANT_ESP32S2,
-        VARIANT_ESP32S3,
-        get_esp32_variant,
-    )
     from esphome.components.spi import CONF_INTERFACE_INDEX, get_spi_interface
 
     if spi_configs := fv.full_config.get().get(CONF_SPI):
-        variant = get_esp32_variant()
-        if variant in (
-            VARIANT_ESP32C3,
-            VARIANT_ESP32C5,
-            VARIANT_ESP32C6,
-            VARIANT_ESP32C61,
-            VARIANT_ESP32S2,
-            VARIANT_ESP32S3,
-        ):
-            spi_host = "SPI2_HOST"
-        else:
-            spi_host = "SPI3_HOST"
+        # get_spi_interface() returns strings like "SPI2_HOST"
+        spi_host = f"{config[CONF_INTERFACE].upper()}_HOST"
         for spi_conf in spi_configs:
             if (index := spi_conf.get(CONF_INTERFACE_INDEX)) is not None:
                 interface = get_spi_interface(index)
                 if interface == spi_host:
                     raise cv.Invalid(
-                        f"`spi` component is using interface '{interface}'. "
-                        f"To use {config[CONF_TYPE]}, you must change the `interface` on the `spi` component.",
+                        f"The `ethernet` and `spi` components are both using interface '{interface}'. "
+                        f"To use {config[CONF_TYPE]}, change the `interface` on either `ethernet:` or `spi:`."
                     )
 
 
@@ -519,6 +541,8 @@ async def _to_code_esp32(var: cg.Pvariable, config: ConfigType) -> None:
         cg.add(var.set_clock_speed(config[CONF_CLOCK_SPEED]))
 
         cg.add_define("USE_ETHERNET_SPI")
+
+        cg.add(var.set_interface(SPI_INTERFACE_MAP[config[CONF_INTERFACE]]))
         add_idf_sdkconfig_option("CONFIG_ETH_USE_SPI_ETHERNET", True)
         # CONFIG_ETH_SPI_ETHERNET_{TYPE} Kconfig options were removed in IDF 6.0
         # ENC28J60 was never built-in to IDF, so it has no Kconfig option
@@ -574,10 +598,7 @@ async def _to_code_rp2040(var: cg.Pvariable, config: ConfigType) -> None:
         cg.add(var.set_reset_pin(config[CONF_RESET_PIN]))
 
     cg.add_define("USE_ETHERNET_SPI")
-    if config[CONF_TYPE] == "ENC28J60":
-        cg.add_library("lwIP_enc28j60", None)
-    else:
-        cg.add_library("lwIP_w5500", None)
+    cg.add_library(_RP2040_SPI_LIBRARIES[config[CONF_TYPE]], None)
 
 
 def _final_validate_rmii_pins(config: ConfigType) -> None:

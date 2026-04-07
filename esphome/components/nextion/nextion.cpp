@@ -5,10 +5,13 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
-namespace esphome {
-namespace nextion {
+namespace esphome::nextion {
 
 static const char *const TAG = "nextion";
+
+// Nextion command terminator: three consecutive 0xFF bytes (per Nextion Instruction Set v1.1).
+static constexpr uint8_t COMMAND_DELIMITER[3] = {0xFF, 0xFF, 0xFF};
+static constexpr size_t DELIMITER_SIZE = sizeof(COMMAND_DELIMITER);
 
 void Nextion::setup() {
   this->is_setup_ = false;
@@ -50,10 +53,10 @@ bool Nextion::check_connect_() {
     return true;
 
 #ifdef USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
-  ESP_LOGW(TAG, "Connected (no handshake)");  // Log the connection status without handshake
-  this->is_connected_ = true;                 // Set the connection status to true
-  return true;                                // Return true indicating the connection is set
-#else                                         // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
+  ESP_LOGW(TAG, "Connected (no handshake)");     // Log the connection status without handshake
+  this->connection_state_.is_connected_ = true;  // Set the connection status to true
+  return true;                                   // Return true indicating the connection is set
+#else                                            // USE_NEXTION_CONFIG_SKIP_CONNECTION_HANDSHAKE
   if (this->comok_sent_ == 0) {
     this->reset_(false);
 
@@ -90,7 +93,7 @@ bool Nextion::check_connect_() {
 #endif  // NEXTION_PROTOCOL_LOG
 
     ESP_LOGW(TAG, "Not connected");
-    comok_sent_ = 0;
+    this->comok_sent_ = 0;
     return false;
   }
 
@@ -139,9 +142,20 @@ void Nextion::reset_(bool reset_nextion) {
 
   while (this->available()) {  // Clear receive buffer
     this->read_byte(&d);
-  };
+  }
+  for (auto *entry : this->nextion_queue_) {
+    if (entry->component != nullptr && entry->component->get_queue_type() == NextionQueueType::NO_RESULT) {
+      delete entry->component;  // NOLINT(cppcoreguidelines-owning-memory)
+    }
+    delete entry;  // NOLINT(cppcoreguidelines-owning-memory)
+  }
   this->nextion_queue_.clear();
+#ifdef USE_NEXTION_WAVEFORM
+  for (auto *entry : this->waveform_queue_) {
+    delete entry;  // NOLINT(cppcoreguidelines-owning-memory)
+  }
   this->waveform_queue_.clear();
+#endif  // USE_NEXTION_WAVEFORM
 }
 
 void Nextion::dump_config() {
@@ -237,7 +251,7 @@ bool Nextion::send_command(const char *command) {
     return false;
 
   if (this->send_command_(command)) {
-    this->add_no_result_to_queue_("send_command");
+    this->add_no_result_to_queue_("command");
     return true;
   }
   return false;
@@ -258,7 +272,7 @@ bool Nextion::send_command_printf(const char *format, ...) {
   }
 
   if (this->send_command_(buffer)) {
-    this->add_no_result_to_queue_("send_command_printf");
+    this->add_no_result_to_queue_("command_printf");
     return true;
   }
   return false;
@@ -277,7 +291,7 @@ void Nextion::print_queue_members_() {
       ESP_LOGN(TAG, "Queue null");
     } else {
       ESP_LOGN(TAG, "Queue type: %d:%s, name: %s", i->component->get_queue_type(),
-               i->component->get_queue_type_string().c_str(), i->component->get_variable_name().c_str());
+               i->component->get_queue_type_string(), i->component->get_variable_name().c_str());
     }
   }
   ESP_LOGN(TAG, "*******************************************");
@@ -415,16 +429,17 @@ void Nextion::process_nextion_commands_() {
 #ifdef NEXTION_PROTOCOL_LOG
   this->print_queue_members_();
 #endif
-  while ((to_process_length = this->command_data_.find(COMMAND_DELIMITER)) != std::string::npos) {
+  while ((to_process_length = this->command_data_.find(reinterpret_cast<const char *>(COMMAND_DELIMITER), 0,
+                                                       DELIMITER_SIZE)) != std::string::npos) {
 #ifdef USE_NEXTION_MAX_COMMANDS_PER_LOOP
     if (++commands_processed > this->max_commands_per_loop_) {
-      ESP_LOGW(TAG, "Command processing limit exceeded");
+      ESP_LOGV(TAG, "Command limit reached, deferring");
       break;
     }
 #endif  // USE_NEXTION_MAX_COMMANDS_PER_LOOP
     ESP_LOGN(TAG, "queue size: %zu", this->nextion_queue_.size());
-    while (to_process_length + COMMAND_DELIMITER.length() < this->command_data_.length() &&
-           static_cast<uint8_t>(this->command_data_[to_process_length + COMMAND_DELIMITER.length()]) == 0xFF) {
+    while (to_process_length + DELIMITER_SIZE < this->command_data_.length() &&
+           static_cast<uint8_t>(this->command_data_[to_process_length + DELIMITER_SIZE]) == 0xFF) {
       ++to_process_length;
       ESP_LOGN(TAG, "Add 0xFF");
     }
@@ -483,20 +498,21 @@ void Nextion::process_nextion_commands_() {
         ESP_LOGW(TAG, "Invalid baud rate");
         break;
       case 0x12:  // invalid Waveform ID or Channel # was used
+#ifdef USE_NEXTION_WAVEFORM
         if (this->waveform_queue_.empty()) {
           ESP_LOGW(TAG, "Waveform ID/ch used but no sensor queued");
         } else {
           auto &nb = this->waveform_queue_.front();
           NextionComponentBase *component = nb->component;
-
           ESP_LOGW(TAG, "Invalid waveform ID %d/ch %d", component->get_component_id(),
                    component->get_wave_channel_id());
-
           ESP_LOGN(TAG, "Remove waveform ID %d/ch %d", component->get_component_id(), component->get_wave_channel_id());
-
           delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
-          this->waveform_queue_.pop_front();
+          this->waveform_queue_.pop();
         }
+#else   // USE_NEXTION_WAVEFORM
+        ESP_LOGW(TAG, "Waveform ID/ch error but waveform not enabled");
+#endif  // USE_NEXTION_WAVEFORM
         break;
       case 0x1A:  // variable name invalid
         ESP_LOGW(TAG, "Invalid variable name");
@@ -602,7 +618,7 @@ void Nextion::process_nextion_commands_() {
           ESP_LOGE(TAG, "String return but '%s' not text sensor", component->get_variable_name().c_str());
         } else {
           ESP_LOGN(TAG, "String resp: '%s' id: %s type: %s", to_process.c_str(), component->get_variable_name().c_str(),
-                   component->get_queue_type_string().c_str());
+                   component->get_queue_type_string());
         }
 
         delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
@@ -644,7 +660,7 @@ void Nextion::process_nextion_commands_() {
                    component->get_queue_type());
         } else {
           ESP_LOGN(TAG, "Numeric: %s type %d:%s val %d", component->get_variable_name().c_str(),
-                   component->get_queue_type(), component->get_queue_type_string().c_str(), value);
+                   component->get_queue_type(), component->get_queue_type_string(), value);
           component->set_state_from_int(value, true, false);
         }
 
@@ -690,7 +706,7 @@ void Nextion::process_nextion_commands_() {
         auto index = to_process.find('\0');
         if (index == std::string::npos || (to_process_length - index - 1) < 1) {
           ESP_LOGE(TAG, "Bad switch data (0x90)");
-          ESP_LOGN(TAG, "proc: %s %zu %d", to_process.c_str(), to_process_length, index);
+          ESP_LOGN(TAG, "proc: %s %zu %zu", to_process.c_str(), to_process_length, index);
           break;
         }
 
@@ -716,7 +732,7 @@ void Nextion::process_nextion_commands_() {
         auto index = to_process.find('\0');
         if (index == std::string::npos || (to_process_length - index - 1) != 4) {
           ESP_LOGE(TAG, "Bad sensor data (0x91)");
-          ESP_LOGN(TAG, "proc: %s %zu %d", to_process.c_str(), to_process_length, index);
+          ESP_LOGN(TAG, "proc: %s %zu %zu", to_process.c_str(), to_process_length, index);
           break;
         }
 
@@ -749,7 +765,7 @@ void Nextion::process_nextion_commands_() {
         auto index = to_process.find('\0');
         if (index == std::string::npos || (to_process_length - index - 1) < 1) {
           ESP_LOGE(TAG, "Bad text data (0x92)");
-          ESP_LOGN(TAG, "proc: %s %zu %d", to_process.c_str(), to_process_length, index);
+          ESP_LOGN(TAG, "proc: %s %zu %zu", to_process.c_str(), to_process_length, index);
           break;
         }
 
@@ -782,8 +798,8 @@ void Nextion::process_nextion_commands_() {
         // Get variable name
         auto index = to_process.find('\0');
         if (index == std::string::npos || (to_process_length - index - 1) < 1) {
-          ESP_LOGE(TAG, "Bad binary data (0x92)");
-          ESP_LOGN(TAG, "proc: %s %zu %d", to_process.c_str(), to_process_length, index);
+          ESP_LOGE(TAG, "Bad binary data (0x93)");
+          ESP_LOGN(TAG, "proc: %s %zu %zu", to_process.c_str(), to_process_length, index);
           break;
         }
 
@@ -799,29 +815,30 @@ void Nextion::process_nextion_commands_() {
       }
       case 0xFD: {  // data transparent transmit finished
         ESP_LOGVV(TAG, "Data transmit done");
+#ifdef USE_NEXTION_WAVEFORM
         this->check_pending_waveform_();
+#endif  // USE_NEXTION_WAVEFORM
         break;
       }
       case 0xFE: {  // data transparent transmit ready
         ESP_LOGVV(TAG, "Ready for transmit");
+#ifdef USE_NEXTION_WAVEFORM
         if (this->waveform_queue_.empty()) {
           ESP_LOGE(TAG, "No waveforms queued");
           break;
         }
-
         auto &nb = this->waveform_queue_.front();
         auto *component = nb->component;
-        size_t buffer_to_send = component->get_wave_buffer_size() < 255 ? component->get_wave_buffer_size()
-                                                                        : 255;  // ADDT command can only send 255
-
+        size_t buffer_to_send = component->get_wave_buffer_size() < 255 ? component->get_wave_buffer_size() : 255;
         this->write_array(component->get_wave_buffer().data(), static_cast<int>(buffer_to_send));
-
         ESP_LOGN(TAG, "Send waveform: component id %d, waveform id %d, size %zu", component->get_component_id(),
                  component->get_wave_channel_id(), buffer_to_send);
-
         component->clear_wave_buffer(buffer_to_send);
         delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
-        this->waveform_queue_.pop_front();
+        this->waveform_queue_.pop();
+#else   // USE_NEXTION_WAVEFORM
+        ESP_LOGW(TAG, "Waveform transmit ready but waveform not enabled");
+#endif  // USE_NEXTION_WAVEFORM
         break;
       }
       default:
@@ -829,26 +846,17 @@ void Nextion::process_nextion_commands_() {
         break;
     }
 
-    this->command_data_.erase(0, to_process_length + COMMAND_DELIMITER.length() + 1);
+    this->command_data_.erase(0, to_process_length + DELIMITER_SIZE + 1);
   }
 
   const uint32_t ms = App.get_loop_component_start_time();
 
   if (this->max_q_age_ms_ > 0 && !this->nextion_queue_.empty() &&
       ms - this->nextion_queue_.front()->queue_time > this->max_q_age_ms_) {
-    for (size_t i = 0; i < this->nextion_queue_.size(); i++) {
-      NextionComponentBase *component = this->nextion_queue_[i]->component;
-      if (ms - this->nextion_queue_[i]->queue_time > this->max_q_age_ms_) {
-        if (this->nextion_queue_[i]->queue_time == 0) {
-          ESP_LOGD(TAG, "Remove old queue '%s':'%s' (t=0)", component->get_queue_type_string().c_str(),
-                   component->get_variable_name().c_str());
-        }
-
-        if (component->get_variable_name() == "sleep_wake") {
-          this->is_sleeping_ = false;
-        }
-
-        ESP_LOGD(TAG, "Remove old queue '%s':'%s'", component->get_queue_type_string().c_str(),
+    for (auto it = this->nextion_queue_.begin(); it != this->nextion_queue_.end();) {
+      if (ms - (*it)->queue_time > this->max_q_age_ms_) {
+        NextionComponentBase *component = (*it)->component;
+        ESP_LOGV(TAG, "Remove old queue '%s':'%s'", component->get_queue_type_string(),
                  component->get_variable_name().c_str());
 
         if (component->get_queue_type() == NextionQueueType::NO_RESULT) {
@@ -858,10 +866,8 @@ void Nextion::process_nextion_commands_() {
           delete component;  // NOLINT(cppcoreguidelines-owning-memory)
         }
 
-        delete this->nextion_queue_[i];  // NOLINT(cppcoreguidelines-owning-memory)
-
-        this->nextion_queue_.erase(this->nextion_queue_.begin() + i);
-        i--;
+        delete *it;  // NOLINT(cppcoreguidelines-owning-memory)
+        it = this->nextion_queue_.erase(it);
 
       } else {
         break;
@@ -932,8 +938,13 @@ void Nextion::all_components_send_state_(bool force_update) {
       binarysensortype->send_state_to_nextion();
   }
   for (auto *sensortype : this->sensortype_) {
-    if ((force_update || sensortype->get_needs_to_send_update()) && sensortype->get_wave_chan_id() == 0)
+#ifdef USE_NEXTION_WAVEFORM
+    if ((force_update || sensortype->get_needs_to_send_update()) && sensortype->get_wave_channel_id() == UINT8_MAX) {
+#else   // USE_NEXTION_WAVEFORM
+    if (force_update || sensortype->get_needs_to_send_update()) {
+#endif  // USE_NEXTION_WAVEFORM
       sensortype->send_state_to_nextion();
+    }
   }
   for (auto *switchtype : this->switchtype_) {
     if (force_update || switchtype->get_needs_to_send_update())
@@ -1040,7 +1051,7 @@ void Nextion::add_no_result_to_queue_(const std::string &variable_name) {
   nextion_queue->component = new nextion::NextionComponentBase;
   nextion_queue->component->set_variable_name(variable_name);
 
-  nextion_queue->queue_time = millis();
+  nextion_queue->queue_time = App.get_loop_component_start_time();
 
   this->nextion_queue_.push_back(nextion_queue);
 
@@ -1228,7 +1239,7 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
   nextion_queue->component = component;
   nextion_queue->queue_time = App.get_loop_component_start_time();
 
-  ESP_LOGN(TAG, "Queue %s: %s", component->get_queue_type_string().c_str(), component->get_variable_name().c_str());
+  ESP_LOGN(TAG, "Queue %s: %s", component->get_queue_type_string(), component->get_variable_name().c_str());
 
   std::string command = "get " + component->get_variable_name_to_send();
 
@@ -1237,13 +1248,11 @@ void Nextion::add_to_get_queue(NextionComponentBase *component) {
   }
 }
 
+#ifdef USE_NEXTION_WAVEFORM
 /**
- * @brief Add addt command to the queue
+ * @brief Add addt command to the waveform queue.
  *
- * @param component_id The waveform component id
- * @param wave_chan_id The waveform channel to send it to
- * @param buffer_to_send The buffer size
- * @param buffer_size The buffer data
+ * @param component Pointer to the Nextion component with waveform data to send.
  */
 void Nextion::add_addt_command_to_queue(NextionComponentBase *component) {
   if ((!this->is_setup() && !this->connection_state_.ignore_is_setup_) || this->is_sleeping())
@@ -1260,7 +1269,11 @@ void Nextion::add_addt_command_to_queue(NextionComponentBase *component) {
   nextion_queue->component = component;
   nextion_queue->queue_time = App.get_loop_component_start_time();
 
-  this->waveform_queue_.push_back(nextion_queue);
+  if (!this->waveform_queue_.push(nextion_queue)) {
+    ESP_LOGW(TAG, "Waveform queue full, drop");
+    delete nextion_queue;  // NOLINT(cppcoreguidelines-owning-memory)
+    return;
+  }
   if (this->waveform_queue_.size() == 1)
     this->check_pending_waveform_();
 }
@@ -1271,21 +1284,20 @@ void Nextion::check_pending_waveform_() {
 
   auto *nb = this->waveform_queue_.front();
   auto *component = nb->component;
-  size_t buffer_to_send = component->get_wave_buffer_size() < 255 ? component->get_wave_buffer_size()
-                                                                  : 255;  // ADDT command can only send 255
+  size_t buffer_to_send = component->get_wave_buffer_size() < 255 ? component->get_wave_buffer_size() : 255;
 
   char command[24];  // "addt " + uint8 + "," + uint8 + "," + uint8 + null = max 17 chars
   buf_append_printf(command, sizeof(command), 0, "addt %u,%u,%zu", component->get_component_id(),
                     component->get_wave_channel_id(), buffer_to_send);
   if (!this->send_command_(command)) {
     delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
-    this->waveform_queue_.pop_front();
+    this->waveform_queue_.pop();
   }
 }
+#endif  // USE_NEXTION_WAVEFORM
 
 void Nextion::set_writer(const nextion_writer_t &writer) { this->writer_ = writer; }
 
 bool Nextion::is_updating() { return this->connection_state_.is_updating_; }
 
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion

@@ -37,8 +37,6 @@ substitutions:
         - id: component8
           value: 8
     fancy_package:
-      substitutions:
-        fancy_subst: 42
       fancy_component: *id001
   pin: 12
   some_switches: *id002
