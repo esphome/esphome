@@ -35,29 +35,29 @@ uint8_t *HelloResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM
   uint8_t *__restrict__ pos = buffer.get_pos();
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->api_version_major);
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 2, this->api_version_minor);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->server_info);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->server_info);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 34, this->name);
   return pos;
 }
 uint32_t HelloResponse::calculate_size() const {
   uint32_t size = 0;
   size += ProtoSize::calc_uint32(1, this->api_version_major);
   size += ProtoSize::calc_uint32(1, this->api_version_minor);
-  size += ProtoSize::calc_length(1, this->server_info.size());
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->server_info.size();
+  size += 2 + this->name.size();
   return size;
 }
 #ifdef USE_AREAS
 uint8_t *AreaInfo::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->area_id);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 18, this->name);
   return pos;
 }
 uint32_t AreaInfo::calculate_size() const {
   uint32_t size = 0;
   size += ProtoSize::calc_uint32(1, this->area_id);
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
   return size;
 }
 #endif
@@ -65,14 +65,14 @@ uint32_t AreaInfo::calculate_size() const {
 uint8_t *DeviceInfo::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 1, this->device_id);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 18, this->name);
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 3, this->area_id);
   return pos;
 }
 uint32_t DeviceInfo::calculate_size() const {
   uint32_t size = 0;
   size += ProtoSize::calc_uint32(1, this->device_id);
-  size += ProtoSize::calc_length(1, this->name.size());
+  size += 2 + this->name.size();
   size += ProtoSize::calc_uint32(1, this->area_id);
   return size;
 }
@@ -93,19 +93,19 @@ uint32_t SerialProxyInfo::calculate_size() const {
 #endif
 uint8_t *DeviceInfoResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {
   uint8_t *__restrict__ pos = buffer.get_pos();
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 2, this->name);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 3, this->mac_address);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 4, this->esphome_version);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 5, this->compilation_time);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 6, this->model);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 18, this->name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 26, this->mac_address);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 34, this->esphome_version);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 42, this->compilation_time);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 50, this->model);
 #ifdef USE_DEEP_SLEEP
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 7, this->has_deep_sleep);
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 8, this->project_name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 66, this->project_name);
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 9, this->project_version);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 74, this->project_version);
 #endif
 #ifdef USE_WEBSERVER
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 10, this->webserver_port);
@@ -113,16 +113,16 @@ uint8_t *DeviceInfoResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_
 #ifdef USE_BLUETOOTH_PROXY
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 15, this->bluetooth_proxy_feature_flags);
 #endif
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 12, this->manufacturer);
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 13, this->friendly_name);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 98, this->manufacturer);
+  ProtoEncode::encode_short_string_force(pos PROTO_ENCODE_DEBUG_ARG, 106, this->friendly_name);
 #ifdef USE_VOICE_ASSISTANT
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 17, this->voice_assistant_feature_flags);
 #endif
 #ifdef USE_AREAS
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 16, this->suggested_area);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 16, this->suggested_area, true);
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 18, this->bluetooth_mac_address);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 18, this->bluetooth_mac_address, true);
 #endif
 #ifdef USE_API_NOISE
   ProtoEncode::encode_bool(pos PROTO_ENCODE_DEBUG_ARG, 19, this->api_encryption_supported);
@@ -155,19 +155,19 @@ uint8_t *DeviceInfoResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_
 }
 uint32_t DeviceInfoResponse::calculate_size() const {
   uint32_t size = 0;
-  size += ProtoSize::calc_length(1, this->name.size());
-  size += ProtoSize::calc_length(1, this->mac_address.size());
-  size += ProtoSize::calc_length(1, this->esphome_version.size());
-  size += ProtoSize::calc_length(1, this->compilation_time.size());
-  size += ProtoSize::calc_length(1, this->model.size());
+  size += 2 + this->name.size();
+  size += 2 + this->mac_address.size();
+  size += 2 + this->esphome_version.size();
+  size += 2 + this->compilation_time.size();
+  size += 2 + this->model.size();
 #ifdef USE_DEEP_SLEEP
   size += ProtoSize::calc_bool(1, this->has_deep_sleep);
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  size += ProtoSize::calc_length(1, this->project_name.size());
+  size += 2 + this->project_name.size();
 #endif
 #ifdef ESPHOME_PROJECT_NAME
-  size += ProtoSize::calc_length(1, this->project_version.size());
+  size += 2 + this->project_version.size();
 #endif
 #ifdef USE_WEBSERVER
   size += ProtoSize::calc_uint32(1, this->webserver_port);
@@ -175,16 +175,16 @@ uint32_t DeviceInfoResponse::calculate_size() const {
 #ifdef USE_BLUETOOTH_PROXY
   size += ProtoSize::calc_uint32(1, this->bluetooth_proxy_feature_flags);
 #endif
-  size += ProtoSize::calc_length(1, this->manufacturer.size());
-  size += ProtoSize::calc_length(1, this->friendly_name.size());
+  size += 2 + this->manufacturer.size();
+  size += 2 + this->friendly_name.size();
 #ifdef USE_VOICE_ASSISTANT
   size += ProtoSize::calc_uint32(2, this->voice_assistant_feature_flags);
 #endif
 #ifdef USE_AREAS
-  size += ProtoSize::calc_length(2, this->suggested_area.size());
+  size += 3 + this->suggested_area.size();
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  size += ProtoSize::calc_length(2, this->bluetooth_mac_address.size());
+  size += 3 + this->bluetooth_mac_address.size();
 #endif
 #ifdef USE_API_NOISE
   size += ProtoSize::calc_bool(2, this->api_encryption_supported);
