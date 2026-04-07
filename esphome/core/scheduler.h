@@ -247,12 +247,7 @@ class Scheduler {
       name_type_ = type;
     }
 
-    static inline bool cmp(SchedulerItem *a, SchedulerItem *b) {
-      // High bits are almost always equal (change only on 32-bit rollover ~49 days)
-      // Optimize for common case: check low bits first when high bits are equal
-      return (a->next_execution_high_ == b->next_execution_high_) ? (a->next_execution_low_ > b->next_execution_low_)
-                                                                  : (a->next_execution_high_ > b->next_execution_high_);
-    }
+    static bool cmp(SchedulerItem *a, SchedulerItem *b);
 
     // Note: We use 48 bits total (32 + 16), stored in a 64-bit value for API compatibility.
     // The upper 16 bits of the 64-bit value are always zero, which is fine since
