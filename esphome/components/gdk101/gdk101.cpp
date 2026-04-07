@@ -47,9 +47,8 @@ void GDK101Component::setup() {
         return;
       }
       if (--this->reset_retries_remaining_ == 0) {
-        this->status_set_error(LOG_STR("Reset failed after retries"));
-        this->mark_failed();
         this->cancel_interval(RESET_INTERVAL_ID);
+        this->mark_failed(LOG_STR("Reset failed after retries"));
       }
     });
   }
@@ -68,9 +67,8 @@ bool GDK101Component::try_reset_() {
   }
   delay(10);
   if (!this->read_fw_version_(data)) {
-    this->status_set_error(LOG_STR("Failed to read firmware version"));
-    this->mark_failed();
     this->cancel_interval(RESET_INTERVAL_ID);
+    this->mark_failed(LOG_STR("Failed to read firmware version"));
     return true;
   }
   this->reset_complete_ = true;
