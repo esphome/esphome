@@ -47,6 +47,7 @@ PDM_VARIANTS = [
     esp32.VARIANT_ESP32C61,
 ]
 
+
 def _validate_esp32_variant(config):
     variant = esp32.get_esp32_variant()
     if config[CONF_ADC_TYPE] == "external":
