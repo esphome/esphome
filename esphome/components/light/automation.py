@@ -1,3 +1,5 @@
+from typing import Any
+
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -28,7 +30,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, Lambda
 from esphome.cpp_generator import LambdaExpression
-from esphome.types import ConfigType
+from esphome.types import ConfigType, SafeExpType
 
 from .types import (
     COLOR_MODES,
@@ -116,6 +118,28 @@ LIGHT_TURN_ON_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
+async def _as_lambda(
+    value: Any,
+    args: list[tuple[SafeExpType, str]],
+    output_type: SafeExpType,
+) -> LambdaExpression:
+    """Return a stateless lambda expression for a templatable value.
+
+    If value is already a lambda, process it normally. Otherwise wrap
+    the constant in a ``[](...) -> T { return <value>; }`` expression
+    so that LightControlAction can store every field as a plain
+    function pointer.
+    """
+    if cg.is_template(value):
+        return await cg.process_lambda(value, args, return_type=output_type)
+    return LambdaExpression(
+        f"return {cg.safe_exp(value)};",
+        args,
+        capture="",
+        return_type=output_type,
+    )
+
+
 def _resolve_effect_index(config: ConfigType) -> int:
     """Resolve a static effect name to its 1-based index at codegen time.
 
@@ -149,46 +173,57 @@ async def light_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     if CONF_COLOR_MODE in config:
-        template_ = await cg.templatable(config[CONF_COLOR_MODE], args, ColorMode)
-        cg.add(var.set_color_mode(template_))
-    if CONF_STATE in config:
-        template_ = await cg.templatable(config[CONF_STATE], args, bool)
-        cg.add(var.set_state(template_))
-    if CONF_TRANSITION_LENGTH in config:
-        template_ = await cg.templatable(
-            config[CONF_TRANSITION_LENGTH], args, cg.uint32
+        cg.add(
+            var.set_color_mode(
+                await _as_lambda(config[CONF_COLOR_MODE], args, ColorMode)
+            )
         )
-        cg.add(var.set_transition_length(template_))
+    if CONF_STATE in config:
+        cg.add(var.set_state(await _as_lambda(config[CONF_STATE], args, bool)))
+    if CONF_TRANSITION_LENGTH in config:
+        cg.add(
+            var.set_transition_length(
+                await _as_lambda(config[CONF_TRANSITION_LENGTH], args, cg.uint32)
+            )
+        )
     if CONF_FLASH_LENGTH in config:
-        template_ = await cg.templatable(config[CONF_FLASH_LENGTH], args, cg.uint32)
-        cg.add(var.set_flash_length(template_))
+        cg.add(
+            var.set_flash_length(
+                await _as_lambda(config[CONF_FLASH_LENGTH], args, cg.uint32)
+            )
+        )
     if CONF_BRIGHTNESS in config:
-        template_ = await cg.templatable(config[CONF_BRIGHTNESS], args, float)
-        cg.add(var.set_brightness(template_))
+        cg.add(
+            var.set_brightness(await _as_lambda(config[CONF_BRIGHTNESS], args, float))
+        )
     if CONF_COLOR_BRIGHTNESS in config:
-        template_ = await cg.templatable(config[CONF_COLOR_BRIGHTNESS], args, float)
-        cg.add(var.set_color_brightness(template_))
+        cg.add(
+            var.set_color_brightness(
+                await _as_lambda(config[CONF_COLOR_BRIGHTNESS], args, float)
+            )
+        )
     if CONF_RED in config:
-        template_ = await cg.templatable(config[CONF_RED], args, float)
-        cg.add(var.set_red(template_))
+        cg.add(var.set_red(await _as_lambda(config[CONF_RED], args, float)))
     if CONF_GREEN in config:
-        template_ = await cg.templatable(config[CONF_GREEN], args, float)
-        cg.add(var.set_green(template_))
+        cg.add(var.set_green(await _as_lambda(config[CONF_GREEN], args, float)))
     if CONF_BLUE in config:
-        template_ = await cg.templatable(config[CONF_BLUE], args, float)
-        cg.add(var.set_blue(template_))
+        cg.add(var.set_blue(await _as_lambda(config[CONF_BLUE], args, float)))
     if CONF_WHITE in config:
-        template_ = await cg.templatable(config[CONF_WHITE], args, float)
-        cg.add(var.set_white(template_))
+        cg.add(var.set_white(await _as_lambda(config[CONF_WHITE], args, float)))
     if CONF_COLOR_TEMPERATURE in config:
-        template_ = await cg.templatable(config[CONF_COLOR_TEMPERATURE], args, float)
-        cg.add(var.set_color_temperature(template_))
+        cg.add(
+            var.set_color_temperature(
+                await _as_lambda(config[CONF_COLOR_TEMPERATURE], args, float)
+            )
+        )
     if CONF_COLD_WHITE in config:
-        template_ = await cg.templatable(config[CONF_COLD_WHITE], args, float)
-        cg.add(var.set_cold_white(template_))
+        cg.add(
+            var.set_cold_white(await _as_lambda(config[CONF_COLD_WHITE], args, float))
+        )
     if CONF_WARM_WHITE in config:
-        template_ = await cg.templatable(config[CONF_WARM_WHITE], args, float)
-        cg.add(var.set_warm_white(template_))
+        cg.add(
+            var.set_warm_white(await _as_lambda(config[CONF_WARM_WHITE], args, float))
+        )
     if CONF_EFFECT in config:
         if isinstance(config[CONF_EFFECT], Lambda):
             # Lambda returns a string — wrap in a C++ lambda that resolves
@@ -211,8 +246,11 @@ async def light_control_to_code(config, action_id, template_arg, args):
             cg.add(var.set_effect(wrapper))
         else:
             # Static string — resolve effect name to index at codegen time
-            effect_index = _resolve_effect_index(config)
-            cg.add(var.set_effect(effect_index))
+            cg.add(
+                var.set_effect(
+                    await _as_lambda(_resolve_effect_index(config), args, cg.uint32)
+                )
+            )
     return var
 
 

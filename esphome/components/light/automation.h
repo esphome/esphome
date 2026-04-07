@@ -24,22 +24,19 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
   LightState *state_;
 };
 
-/** Compact light control action using per-field union storage.
+/** Compact light control action — every field is a function pointer.
  *
- * Each field stores either a constant value or a function pointer in the same
- * word. A 2-bit-per-field type tag in a uint32_t tracks whether each field is
- * unset, a constant, or a lambda (stateless function pointer — ESPHome codegen
- * always produces empty-capture lambdas).
+ * Python codegen wraps constant values in stateless lambdas, so each field
+ * is either nullptr (unset) or a typed function pointer. No tagged union,
+ * no type dispatch, no memcpy — just call through the pointer.
  *
- * Size: ~76 bytes on ESP32 (vs ~128 bytes with TemplatableValue per field).
- * No per-field heap allocation.
+ * Size: ~72 bytes on ESP32 (vs ~128 bytes with TemplatableValue per field).
  */
 template<typename... Ts> class LightControlAction : public Action<Ts...> {
  public:
   explicit LightControlAction(LightState *parent) : parent_(parent) {}
 
 // clang-format off
-// Single field list — drives enum, setters, and play().
 #define LIGHT_CONTROL_FIELDS(X) \
   X(ColorMode, color_mode)      \
   X(bool, state)                \
@@ -57,75 +54,22 @@ template<typename... Ts> class LightControlAction : public Action<Ts...> {
   X(uint32_t, effect)
 
 #define LIGHT_CONTROL_SETTER_(type, name) \
-  void set_##name(type v) { this->set_constant_(FIELD_##name, v); } \
-  template<typename F> void set_##name(F f) requires std::invocable<F, Ts...> { \
-    this->template set_lambda_<type>(FIELD_##name, std::forward<F>(f)); \
+  template<typename F> void set_##name(F f) { \
+    static_assert(std::convertible_to<F, type (*)(Ts...)>, \
+                  "LightControlAction: only stateless lambdas are supported"); \
+    this->name##_ = static_cast<type (*)(Ts...)>(f); \
   }
 
 #define APPLY_LIGHT_FIELD_(type, name) \
-  if (auto t = this->get_field_type_(FIELD_##name); t) \
-    call.set_##name(this->get_value_<type>(FIELD_##name, t, x...));
+  if (this->name##_) call.set_##name(this->name##_(x...));
   // clang-format on
 
  protected:
-  enum FieldIndex : uint8_t {
-#define FIELD_ENUM_(type, name) FIELD_##name,
-    LIGHT_CONTROL_FIELDS(FIELD_ENUM_)
-#undef FIELD_ENUM_
-        NUM_FIELDS
-  };
-
-  /// 2-bit field type encoded in field_types_
-  enum FieldType : uint8_t { TYPE_NONE = 0, TYPE_CONSTANT = 1, TYPE_LAMBDA = 2 };
-  static_assert(NUM_FIELDS * 2 <= 32, "Too many fields for uint32_t field_types_");
-
-  /// Per-field storage: constant value or function pointer bytes in the same word.
-  /// All access is via memcpy to avoid type-punning and void*-to-function-pointer UB.
-  union FieldValue {
-    uint8_t raw[sizeof(void *)];
-  };
-
-  FieldType get_field_type_(uint8_t field) const {
-    return static_cast<FieldType>((this->field_types_ >> (field * 2)) & 0x3);
-  }
-
-  void set_field_type_(uint8_t field, FieldType type) {
-    uint32_t shift = field * 2;
-    this->field_types_ = (this->field_types_ & ~(0x3u << shift)) | (static_cast<uint32_t>(type) << shift);
-  }
-
-  template<typename T> void set_constant_(uint8_t field, T value) {
-    static_assert(std::is_trivially_copyable_v<T>);
-    static_assert(sizeof(T) <= sizeof(FieldValue));
-    this->set_field_type_(field, TYPE_CONSTANT);
-    memcpy(&this->values_[field], &value, sizeof(T));
-  }
-
-  template<typename T, typename F> void set_lambda_(uint8_t field, F f) {
-    // ESPHome codegen always produces stateless lambdas (empty capture list),
-    // which are convertible to function pointers.
-    static_assert(std::convertible_to<F, T (*)(Ts...)>, "LightControlAction only supports stateless lambdas");
-    static_assert(sizeof(T(*)(Ts...)) <= sizeof(FieldValue));
-    this->set_field_type_(field, TYPE_LAMBDA);
-    auto fn = static_cast<T (*)(Ts...)>(f);
-    memcpy(&this->values_[field], &fn, sizeof(fn));
-  }
-
-  template<typename T> T get_value_(uint8_t field, FieldType type, const Ts &...x) const {
-    if (type == TYPE_CONSTANT) {
-      T value;
-      memcpy(&value, &this->values_[field], sizeof(T));
-      return value;
-    }
-    // TYPE_LAMBDA — function pointer stored via memcpy
-    T (*fn)(Ts...);
-    memcpy(&fn, &this->values_[field], sizeof(fn));
-    return fn(x...);
-  }
+#define LIGHT_CONTROL_FIELD_DECL_(type, name) type (*name##_)(Ts...){nullptr};
 
   LightState *parent_;
-  uint32_t field_types_{0};  ///< 2 bits per field
-  FieldValue values_[NUM_FIELDS]{};
+  LIGHT_CONTROL_FIELDS(LIGHT_CONTROL_FIELD_DECL_)
+#undef LIGHT_CONTROL_FIELD_DECL_
 
  public:
   LIGHT_CONTROL_FIELDS(LIGHT_CONTROL_SETTER_)
