@@ -139,7 +139,7 @@ bool DS248xComponent::device_configure_() {
 }
 
 bool DS248xComponent::configure_ds2484_port_(uint8_t param, uint8_t val) {
-  uint8_t cmd = 0xC3;
+  uint8_t cmd = DS2484_COMMAND_ADJUSTPORT;
   // Control Byte format (DS2484 Table 6): P[2:0] in bits 7:5, OD in bit 4, VAL[3:0] in bits 3:0
   uint8_t data = ((param & 0x07) << 5) | (val & 0x0F);
 
@@ -285,6 +285,8 @@ bool DS248xComponent::ow_write_byte(uint8_t byte, bool keep_strong_pullup) {
   if (!this->set_read_pointer_(DS248X_POINTER_STATUS))
     return false;
 
+  // DS248x strong pullup is armed for the next 1-Wire slot. When strong_pullup is enabled for the bus we
+  // re-arm it before each write, while keep_strong_pullup keeps the pullup active across the next operation.
   if (keep_strong_pullup || this->strong_pullup_enabled_) {
     if (!this->set_strong_pullup_mode_(true)) {
       ESP_LOGW(TAG, "Failed to arm strong pullup for byte 0x%02x", byte);

@@ -21,6 +21,7 @@ static constexpr uint8_t DS248X_COMMAND_RESETWIRE = 0xB4;
 static constexpr uint8_t DS248X_COMMAND_WRITEBYTE = 0xA5;
 static constexpr uint8_t DS248X_COMMAND_READBYTE = 0x96;
 static constexpr uint8_t DS248X_COMMAND_TRIPLET = 0x78;
+static constexpr uint8_t DS2484_COMMAND_ADJUSTPORT = 0xC3;
 
 // DS248x Status Register Bits
 static constexpr uint8_t DS248X_STATUS_BUSY = 0x01;
