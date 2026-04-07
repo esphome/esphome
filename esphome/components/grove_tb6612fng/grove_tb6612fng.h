@@ -172,11 +172,15 @@ class GROVETB6612FNGMotorRunAction : public Action<Ts...>, public Parented<Grove
 
   void play(const Ts &...x) override {
     auto channel = this->channel_.value(x...);
-    int16_t speed = this->speed_.value(x...);
-    if (!this->forward_) {
-      speed = -speed;
+    int32_t speed = this->speed_.value(x...);
+    if (speed > 255) {
+      speed = 255;
     }
-    this->parent_->dc_motor_run(channel, speed);
+    int16_t signed_speed = static_cast<int16_t>(speed);
+    if (!this->forward_) {
+      signed_speed = -signed_speed;
+    }
+    this->parent_->dc_motor_run(channel, signed_speed);
   }
 
  protected:
