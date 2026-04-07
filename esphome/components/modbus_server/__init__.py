@@ -17,7 +17,7 @@ from .const import (
     CONF_VALUE_TYPE,
 )
 
-CODEOWNERS = ["@martgras"]
+CODEOWNERS = ["@exciton"]
 
 AUTO_LOAD = ["modbus"]
 
