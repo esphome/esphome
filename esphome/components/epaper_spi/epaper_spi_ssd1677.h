@@ -21,7 +21,20 @@ class EPaperSSD1677 final : public EPaperBase {
   void power_off() override {}
   void deep_sleep() override;
 
-  void set_window_();
+  enum class FSMState : uint8_t {
+    NONE = 0,
+    RESET_STEP0_H,
+    RESET_STEP1_L,
+    RESET_STEP2_IDLECHECK,
+    INIT_STEP0_SWRESET,
+    INIT_STEP1_REGULARINIT,
+  };
+
+  FSMState step_{FSMState::NONE};
+
+  static constexpr uint16_t RESET_HIGH_MS_0 = 20;
+  static constexpr uint16_t RESET_LOW_MS = 2;
+  static constexpr uint16_t RESET_HIGH_MS_1 = 20;
 };
 
 }  // namespace esphome::epaper_spi
