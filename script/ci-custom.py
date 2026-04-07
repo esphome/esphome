@@ -1006,6 +1006,18 @@ def lint_log_in_header(fname, line, col, content):
     )
 
 
+@lint_content_find_check(
+    "FINAL_VALIDATE_SCHEMA",
+    include=["esphome/core/*.py"],
+    exclude=["esphome/core/entity_helpers.py"],
+)
+def lint_final_validate_in_core(fname, line, col, content):
+    return (
+        "FINAL_VALIDATE_SCHEMA in esphome/core/ is not picked up by the component loader. "
+        "Use CoreFinalValidateStep in esphome/config.py instead."
+    )
+
+
 def main():
     colorama.init()
 

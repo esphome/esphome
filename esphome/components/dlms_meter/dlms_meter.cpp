@@ -1,5 +1,7 @@
 #include "dlms_meter.h"
 
+#include <cinttypes>
+
 #if defined(USE_ESP8266_FRAMEWORK_ARDUINO)
 #include <bearssl/bearssl.h>
 #elif defined(USE_ESP32)
@@ -21,7 +23,7 @@ void DlmsMeterComponent::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "DLMS Meter:\n"
                 "  Provider: %s\n"
-                "  Read Timeout: %u ms",
+                "  Read Timeout: %" PRIu32 " ms",
                 provider_name, this->read_timeout_);
 #define DLMS_METER_LOG_SENSOR(s) LOG_SENSOR("  ", #s, this->s##_sensor_);
   DLMS_METER_SENSOR_LIST(DLMS_METER_LOG_SENSOR, )
