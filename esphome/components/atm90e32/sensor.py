@@ -416,6 +416,7 @@ async def to_code(config):
             resolved_thresholds[CONF_FREQUENCY_HIGH_HZ]
         )
     )
-    if (thresholds := config.get(CONF_THRESHOLDS)) is not None:
-        if (threshold := thresholds.get(CONF_CURRENT_PEAK)) is not None:
-            cg.add(var.set_threshold_current_peak_a(threshold))
+    if (thresholds := config.get(CONF_THRESHOLDS)) is not None and (
+        threshold := thresholds.get(CONF_CURRENT_PEAK)
+    ) is not None:
+        cg.add(var.set_threshold_current_peak_a(threshold))
