@@ -130,7 +130,7 @@ def check_error(data: list[int] | bytes, expect: int | list[int] | None) -> None
     :param expect: Expected response code(s), None to skip validation.
     :raises OTAError: If an error code is detected or response doesn't match expected.
     """
-    if not expect:
+    if expect is None:
         return
     if not data:
         raise OTAError(
