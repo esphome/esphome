@@ -9,6 +9,7 @@ Key scenarios tested:
 2. Heap ordering is preserved — faster intervals fire proportionally more often
 3. An interval that cancels itself mid-callback is not rescheduled
 4. A timeout scheduled from within an interval callback (to_add_ path) still works
+5. An interval that replaces itself via set_interval from within its callback
 """
 
 from __future__ import annotations
@@ -36,11 +37,14 @@ async def test_scheduler_interval_reschedule(
     slow_3_future: asyncio.Future[tuple[int, int]] = loop.create_future()
     self_cancel_stopped_future: asyncio.Future[None] = loop.create_future()
     callback_timeout_future: asyncio.Future[None] = loop.create_future()
+    replace_original_future: asyncio.Future[None] = loop.create_future()
+    replaced_stopped_future: asyncio.Future[None] = loop.create_future()
 
     self_cancel_fire_count = 0
+    replaced_fire_count = 0
 
     def on_log_line(line: str) -> None:
-        nonlocal self_cancel_fire_count
+        nonlocal self_cancel_fire_count, replaced_fire_count
 
         if "FAST_10_REACHED" in line and not fast_10_future.done():
             fast_10_future.set_result(None)
@@ -62,6 +66,16 @@ async def test_scheduler_interval_reschedule(
 
         if "CALLBACK_TIMEOUT_FIRED" in line and not callback_timeout_future.done():
             callback_timeout_future.set_result(None)
+
+        if "REPLACE_ORIGINAL_FIRE" in line and not replace_original_future.done():
+            replace_original_future.set_result(None)
+
+        match = re.search(r"REPLACED_FIRE count=(\d+)", line)
+        if match:
+            replaced_fire_count = int(match.group(1))
+
+        if "REPLACED_STOPPED" in line and not replaced_stopped_future.done():
+            replaced_stopped_future.set_result(None)
 
     async with (
         run_compiled(yaml_config, line_callback=on_log_line),
@@ -128,3 +142,24 @@ async def test_scheduler_interval_reschedule(
             await asyncio.wait_for(callback_timeout_future, timeout=5.0)
         except TimeoutError:
             pytest.fail("Timeout scheduled from interval callback did not fire")
+
+        # 6. Interval that replaces itself via set_interval from within callback
+        #    The original fires once, sets up a new named interval, then stops itself.
+        #    The replacement interval should fire 3 times then cancel itself.
+        try:
+            await asyncio.wait_for(replace_original_future, timeout=5.0)
+        except TimeoutError:
+            pytest.fail("Replace-test original interval did not fire")
+
+        try:
+            await asyncio.wait_for(replaced_stopped_future, timeout=5.0)
+        except TimeoutError:
+            pytest.fail(
+                f"Replaced interval did not stop. Fired {replaced_fire_count} times"
+            )
+
+        # Wait to ensure replacement doesn't fire again after cancellation
+        await asyncio.sleep(0.3)
+        assert replaced_fire_count == 3, (
+            f"Replaced interval fired {replaced_fire_count} times, expected exactly 3"
+        )

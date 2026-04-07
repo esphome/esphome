@@ -25,6 +25,13 @@ globals:
   - id: callback_timeout_fired
     type: bool
     initial_value: "false"
+  # Track set_interval replacing itself from within callback
+  - id: replace_count
+    type: int
+    initial_value: "0"
+  - id: replaced_count
+    type: int
+    initial_value: "0"
 
 interval:
   # Fast interval: 50ms
@@ -80,4 +87,27 @@ interval:
             });
             // Stop this interval after scheduling the timeout
             id(timeout_creator)->stop_poller();
+          }
+
+  # Interval that calls set_interval with the same name from within its callback,
+  # replacing itself. Tests that the old item (marked removed) is not rescheduled
+  # via push_heap, and the new item goes through to_add_ correctly.
+  - interval: 60ms
+    id: replace_test
+    then:
+      - lambda: |-
+          id(replace_count) += 1;
+          if (id(replace_count) == 1) {
+            ESP_LOGI("test", "REPLACE_ORIGINAL_FIRE");
+            // Replace the polling interval with a named interval on the same component
+            id(replace_test)->set_interval("replaced_interval", 80, []() {
+              id(replaced_count) += 1;
+              ESP_LOGI("test", "REPLACED_FIRE count=%d", id(replaced_count));
+              if (id(replaced_count) >= 3) {
+                id(replace_test)->cancel_interval("replaced_interval");
+                ESP_LOGI("test", "REPLACED_STOPPED");
+              }
+            });
+            // Stop the original polling interval
+            id(replace_test)->stop_poller();
           }
