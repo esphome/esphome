@@ -128,7 +128,7 @@ def validate_firmware(value):
 
 def validate_sha256(value):
     value = cv.string(value)
-    if len(value) != 64 or not re.fullmatch(r"[0-9a-fA-F]{64}", value):
+    if not re.fullmatch(r"[0-9a-fA-F]{64}", value):
         raise ValueError(f"Not a valid SHA256 hex string: {value}")
     return value
 
