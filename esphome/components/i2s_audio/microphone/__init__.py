@@ -36,8 +36,16 @@ I2SAudioMicrophone = i2s_audio_ns.class_(
 )
 
 INTERNAL_ADC_VARIANTS = [esp32.VARIANT_ESP32]
-PDM_VARIANTS = [esp32.VARIANT_ESP32, esp32.VARIANT_ESP32S3]
-
+PDM_VARIANTS = [
+    esp32.VARIANT_ESP32,
+    esp32.VARIANT_ESP32S3,
+    esp32.VARIANT_ESP32P4,
+    esp32.VARIANT_ESP32C3,
+    esp32.VARIANT_ESP32C6,
+    esp32.VARIANT_ESP32H2,
+    esp32.VARIANT_ESP32C5,
+    esp32.VARIANT_ESP32C61,
+]
 
 def _validate_esp32_variant(config):
     variant = esp32.get_esp32_variant()
