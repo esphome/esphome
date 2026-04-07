@@ -97,7 +97,6 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.polling_component_schema("60s")),
     cv.only_on_esp32,
-    cv.only_with_esp_idf,
 )
 
 
