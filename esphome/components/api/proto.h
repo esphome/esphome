@@ -393,8 +393,8 @@ class ProtoEncode {
                                    const std::string &value, bool force = false) {
     encode_string(pos PROTO_ENCODE_DEBUG_ARG, field_id, value.data(), value.size(), force);
   }
-  static inline void encode_string(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, uint32_t field_id,
-                                   const StringRef &ref, bool force = false) {
+  static inline void ESPHOME_ALWAYS_INLINE encode_string(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM,
+                                                         uint32_t field_id, const StringRef &ref, bool force = false) {
     encode_string(pos PROTO_ENCODE_DEBUG_ARG, field_id, ref.c_str(), ref.size(), force);
   }
   static inline void encode_bytes(uint8_t *__restrict__ &pos PROTO_ENCODE_DEBUG_PARAM, uint32_t field_id,
