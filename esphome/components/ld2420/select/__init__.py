@@ -12,7 +12,7 @@ CONF_SELECTS = [
     "Simple",
 ]
 
-LD2420Select = ld2420_ns.class_("LD2420Select", cg.Component)
+LD2420Select = ld2420_ns.class_("LD2420Select", select.Select, cg.Component)
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_LD2420_ID): cv.use_id(LD2420Component),
