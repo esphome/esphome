@@ -123,6 +123,8 @@ ETHERNET_TYPES = {
     "DM9051": EthernetType.ETHERNET_TYPE_DM9051,
     "LAN8670": EthernetType.ETHERNET_TYPE_LAN8670,
     "ENC28J60": EthernetType.ETHERNET_TYPE_ENC28J60,
+    "W6100": EthernetType.ETHERNET_TYPE_W6100,
+    "W6300": EthernetType.ETHERNET_TYPE_W6300,
 }
 
 # PHY types that need compile-time defines for conditional compilation
@@ -140,6 +142,8 @@ _PHY_TYPE_TO_DEFINE = {
     "DM9051": "USE_ETHERNET_DM9051",
     "LAN8670": "USE_ETHERNET_LAN8670",
     "ENC28J60": "USE_ETHERNET_ENC28J60",
+    "W6100": "USE_ETHERNET_W6100",
+    "W6300": "USE_ETHERNET_W6300",
 }
 
 
@@ -171,11 +175,13 @@ _ALWAYS_EXTERNAL_IDF_COMPONENTS = {"LAN8670", "ENC28J60"}
 # ESP32-only SPI ethernet types (W5100 is RP2040-only, no ESP-IDF driver)
 SPI_ETHERNET_TYPES = {"W5500", "DM9051", "ENC28J60"}
 # RP2040-supported SPI ethernet types
-RP2040_SPI_ETHERNET_TYPES = {"W5100", "W5500", "ENC28J60"}
+RP2040_SPI_ETHERNET_TYPES = {"W5100", "W5500", "W6100", "W6300", "ENC28J60"}
 _RP2040_SPI_LIBRARIES = {
     "W5100": "lwIP_w5100",
     "W5500": "lwIP_w5500",
     "ENC28J60": "lwIP_enc28j60",
+    "W6100": "lwIP_w6100",
+    "W6300": "lwIP_w6300",
 }
 SPI_ETHERNET_DEFAULT_POLLING_INTERVAL = TimePeriodMilliseconds(milliseconds=10)
 
@@ -427,6 +433,8 @@ CONFIG_SCHEMA = cv.All(
             "OPENETH": cv.All(BASE_SCHEMA, cv.only_on([Platform.ESP32])),
             "DM9051": SPI_SCHEMA,
             "ENC28J60": SPI_SCHEMA,
+            "W6100": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2040])),
+            "W6300": cv.All(SPI_SCHEMA, cv.only_on([Platform.RP2040])),
             "LAN8670": RMII_SCHEMA,
         },
         upper=True,

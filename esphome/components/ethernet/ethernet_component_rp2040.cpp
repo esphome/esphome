@@ -40,6 +40,10 @@ void EthernetComponent::setup() {
   this->eth_ = new Wiznet5500lwIP(this->cs_pin_, SPI, this->interrupt_pin_);  // NOLINT
 #elif defined(USE_ETHERNET_W5100)
   this->eth_ = new Wiznet5100lwIP(this->cs_pin_, SPI, this->interrupt_pin_);  // NOLINT
+#elif defined(USE_ETHERNET_W6100)
+  this->eth_ = new Wiznet6100lwIP(this->cs_pin_, SPI, this->interrupt_pin_);  // NOLINT
+#elif defined(USE_ETHERNET_W6300)
+  this->eth_ = new Wiznet6300lwIP(this->cs_pin_, SPI, this->interrupt_pin_);  // NOLINT
 #elif defined(USE_ETHERNET_ENC28J60)
   this->eth_ = new ENC28J60lwIP(this->cs_pin_, SPI, this->interrupt_pin_);  // NOLINT
 #endif
@@ -183,6 +187,10 @@ void EthernetComponent::dump_config() {
   type_str = "W5500";
 #elif defined(USE_ETHERNET_W5100)
   type_str = "W5100";
+#elif defined(USE_ETHERNET_W6100)
+  type_str = "W6100";
+#elif defined(USE_ETHERNET_W6300)
+  type_str = "W6300";
 #elif defined(USE_ETHERNET_ENC28J60)
   type_str = "ENC28J60";
 #endif

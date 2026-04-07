@@ -30,6 +30,10 @@ extern "C" eth_esp32_emac_config_t eth_esp32_emac_default_config(void);
 #include <W5500lwIP.h>
 #elif defined(USE_ETHERNET_W5100)
 #include <W5100lwIP.h>
+#elif defined(USE_ETHERNET_W6100)
+#include <W6100lwIP.h>
+#elif defined(USE_ETHERNET_W6300)
+#include <W6300lwIP.h>
 #elif defined(USE_ETHERNET_ENC28J60)
 #include <ENC28J60lwIP.h>
 #else
@@ -70,6 +74,8 @@ enum EthernetType : uint8_t {
   ETHERNET_TYPE_DM9051,
   ETHERNET_TYPE_LAN8670,
   ETHERNET_TYPE_ENC28J60,
+  ETHERNET_TYPE_W6100,
+  ETHERNET_TYPE_W6300,
 };
 
 struct ManualIP {
@@ -239,6 +245,10 @@ class EthernetComponent final : public Component {
   Wiznet5500lwIP *eth_{nullptr};
 #elif defined(USE_ETHERNET_W5100)
   Wiznet5100lwIP *eth_{nullptr};
+#elif defined(USE_ETHERNET_W6100)
+  Wiznet6100lwIP *eth_{nullptr};
+#elif defined(USE_ETHERNET_W6300)
+  Wiznet6300lwIP *eth_{nullptr};
 #elif defined(USE_ETHERNET_ENC28J60)
   ENC28J60lwIP *eth_{nullptr};
 #else
