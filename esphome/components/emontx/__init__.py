@@ -101,6 +101,18 @@ def final_validate(config: ConfigType) -> ConfigType:
 FINAL_VALIDATE_SCHEMA = final_validate
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_JSON,
+        "add_on_json_callback",
+        [(cg.JsonObject, "json"), (cg.std_string, "raw_json")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_DATA, "add_on_data_callback", [(cg.std_string, "data")]
+    ),
+)
+
+
 async def to_code(config: ConfigType) -> None:
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -111,16 +123,7 @@ async def to_code(config: ConfigType) -> None:
     if sensor_count > 0:
         cg.add(var.init_sensors(sensor_count))
 
-    for conf_key, callback_method, args in (
-        (
-            CONF_ON_JSON,
-            "add_on_json_callback",
-            [(cg.JsonObject, "json"), (cg.std_string, "raw_json")],
-        ),
-        (CONF_ON_DATA, "add_on_data_callback", [(cg.std_string, "data")]),
-    ):
-        for conf in config.get(conf_key, []):
-            await automation.build_callback_automation(var, callback_method, args, conf)
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 # Action: emontx.send_command
