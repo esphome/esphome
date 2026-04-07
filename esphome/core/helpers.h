@@ -1835,15 +1835,9 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
     other.capacity_ = 0;
   }
   CallbackManager &operator=(CallbackManager &&other) noexcept {
-    if (this != &other) {
-      ::operator delete(this->data_);
-      this->data_ = other.data_;
-      this->size_ = other.size_;
-      this->capacity_ = other.capacity_;
-      other.data_ = nullptr;
-      other.size_ = 0;
-      other.capacity_ = 0;
-    }
+    std::swap(this->data_, other.data_);
+    std::swap(this->size_, other.size_);
+    std::swap(this->capacity_, other.capacity_);
     return *this;
   }
 
