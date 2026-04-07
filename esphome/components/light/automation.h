@@ -24,14 +24,8 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
   LightState *state_;
 };
 
-/** Compact light control action — every field is a function pointer.
- *
- * Python codegen wraps constant values in stateless lambdas, so each field
- * is either nullptr (unset) or a typed function pointer. No tagged union,
- * no type dispatch, no memcpy — just call through the pointer.
- *
- * Size: ~72 bytes on ESP32 (vs ~128 bytes with TemplatableValue per field).
- */
+/// Compact light control action — each field is a function pointer (nullptr = unset).
+/// Codegen wraps constants in stateless lambdas. 72 bytes vs 128 with TemplatableValue.
 template<typename... Ts> class LightControlAction : public Action<Ts...> {
  public:
   explicit LightControlAction(LightState *parent) : parent_(parent) {}
