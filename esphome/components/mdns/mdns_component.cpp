@@ -199,7 +199,7 @@ void MDNSComponent::dump_config() {
   ESP_LOGV(TAG, "  Services:");
   for (const auto &service : this->services_) {
     ESP_LOGV(TAG, "  - %s, %s, %d", MDNS_STR_ARG(service.service_type), MDNS_STR_ARG(service.proto),
-             const_cast<TemplatableValue<uint16_t> &>(service.port).value());
+             service.port.value());
     for (const auto &record : service.txt_records) {
       ESP_LOGV(TAG, "    TXT: %s = %s", MDNS_STR_ARG(record.key), MDNS_STR_ARG(record.value));
     }
