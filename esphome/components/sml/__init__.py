@@ -19,12 +19,16 @@ CONF_OBIS_CODE = "obis_code"
 CONF_SERVER_ID = "server_id"
 
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(Sml),
-        cv.Optional(CONF_ON_DATA): automation.validate_automation({}),
-    }
-).extend(uart.UART_DEVICE_SCHEMA)
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(Sml),
+            cv.Optional(CONF_ON_DATA): automation.validate_automation({}),
+        }
+    )
+    .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):

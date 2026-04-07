@@ -33,4 +33,6 @@ ICON_CURRENT_DC = "mdi:current-dc"
 ICON_SOLAR_PANEL = "mdi:solar-panel"
 ICON_SOLAR_POWER = "mdi:solar-power"
 
+KEY_METADATA = "metadata"
+
 UNIT_AMPERE_HOUR = "Ah"
