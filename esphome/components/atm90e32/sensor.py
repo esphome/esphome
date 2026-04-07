@@ -83,6 +83,7 @@ PGA_GAINS = {
     "2X": 0x15,
     "4X": 0x2A,
 }
+LINE_FREQUENCY_SCHEMA = cv.All(cv.enum(LINE_FREQS, upper=True), LINE_FREQS.__getitem__)
 
 DEFAULT_VOLTAGE_SAG_PCT = 0.78
 DEFAULT_VOLTAGE_PEAK_PCT = 1.22
@@ -186,12 +187,6 @@ def _validate_threshold_percent(value):
     return value
 
 
-def _line_frequency_hz(line_frequency):
-    if isinstance(line_frequency, str):
-        return float(LINE_FREQS[line_frequency.upper()])
-    return float(line_frequency)
-
-
 THRESHOLDS_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_ALLOW_UNSAFE_THRESHOLDS, default=False): cv.boolean,
@@ -226,7 +221,31 @@ THRESHOLDS_SCHEMA = cv.Schema(
 
 
 def _default_voltage_nominal(line_frequency):
-    return 120.0 if _line_frequency_hz(line_frequency) == 60.0 else 220.0
+    return 120.0 if line_frequency == 60 else 220.0
+
+
+def _resolve_thresholds(config, thresholds=None):
+    resolved = dict(thresholds or {})
+    nominal_voltage = resolved.setdefault(
+        CONF_VOLTAGE_NOMINAL, _default_voltage_nominal(config[CONF_LINE_FREQUENCY])
+    )
+    resolved[CONF_VOLTAGE_SAG_V] = resolved.get(
+        CONF_VOLTAGE_SAG_V,
+        nominal_voltage * resolved.get(CONF_VOLTAGE_SAG_PCT, DEFAULT_VOLTAGE_SAG_PCT),
+    )
+    resolved[CONF_VOLTAGE_PEAK_V] = resolved.get(
+        CONF_VOLTAGE_PEAK_V,
+        nominal_voltage * resolved.get(CONF_VOLTAGE_PEAK_PCT, DEFAULT_VOLTAGE_PEAK_PCT),
+    )
+    resolved[CONF_FREQUENCY_LOW_HZ] = resolved.get(
+        CONF_FREQUENCY_LOW_HZ,
+        config[CONF_LINE_FREQUENCY] - DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ,
+    )
+    resolved[CONF_FREQUENCY_HIGH_HZ] = resolved.get(
+        CONF_FREQUENCY_HIGH_HZ,
+        config[CONF_LINE_FREQUENCY] + DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ,
+    )
+    return resolved
 
 
 def _validate_thresholds(config):
@@ -261,18 +280,10 @@ def _validate_thresholds(config):
             "not extend the valid thresholds.current_peak range."
         )
 
-    nominal_voltage = thresholds.get(
-        CONF_VOLTAGE_NOMINAL, _default_voltage_nominal(config[CONF_LINE_FREQUENCY])
-    )
-    sag_voltage = thresholds.get(
-        CONF_VOLTAGE_SAG_V,
-        nominal_voltage * thresholds.get(CONF_VOLTAGE_SAG_PCT, DEFAULT_VOLTAGE_SAG_PCT),
-    )
-    peak_voltage = thresholds.get(
-        CONF_VOLTAGE_PEAK_V,
-        nominal_voltage
-        * thresholds.get(CONF_VOLTAGE_PEAK_PCT, DEFAULT_VOLTAGE_PEAK_PCT),
-    )
+    thresholds = _resolve_thresholds(config, thresholds)
+    nominal_voltage = thresholds[CONF_VOLTAGE_NOMINAL]
+    sag_voltage = thresholds[CONF_VOLTAGE_SAG_V]
+    peak_voltage = thresholds[CONF_VOLTAGE_PEAK_V]
 
     if not sag_voltage < nominal_voltage < peak_voltage:
         raise cv.Invalid(
@@ -280,13 +291,8 @@ def _validate_thresholds(config):
             f"(got {sag_voltage:.3f}V < {nominal_voltage:.3f}V < {peak_voltage:.3f}V)."
         )
 
-    nominal_frequency = _line_frequency_hz(config[CONF_LINE_FREQUENCY])
-    frequency_low = thresholds.get(
-        CONF_FREQUENCY_LOW_HZ, nominal_frequency - DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ
-    )
-    frequency_high = thresholds.get(
-        CONF_FREQUENCY_HIGH_HZ, nominal_frequency + DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ
-    )
+    frequency_low = thresholds[CONF_FREQUENCY_LOW_HZ]
+    frequency_high = thresholds[CONF_FREQUENCY_HIGH_HZ]
 
     if not frequency_low < frequency_high:
         raise cv.Invalid(
@@ -294,6 +300,7 @@ def _validate_thresholds(config):
             "thresholds.frequency_high_hz."
         )
 
+    config[CONF_THRESHOLDS] = thresholds
     return config
 
 
@@ -317,7 +324,7 @@ CONFIG_SCHEMA = cv.All(
                 state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
-            cv.Required(CONF_LINE_FREQUENCY): cv.enum(LINE_FREQS, upper=True),
+            cv.Required(CONF_LINE_FREQUENCY): LINE_FREQUENCY_SCHEMA,
             cv.Optional(CONF_CURRENT_PHASES, default="3"): cv.enum(
                 CURRENT_PHASES, upper=True
             ),
@@ -395,26 +402,20 @@ async def to_code(config):
     cg.add(var.set_enable_offset_calibration(config[CONF_ENABLE_OFFSET_CALIBRATION]))
     cg.add(var.set_enable_gain_calibration(config[CONF_ENABLE_GAIN_CALIBRATION]))
 
-    if thresholds := config.get(CONF_THRESHOLDS):
-        if (threshold := thresholds.get(CONF_VOLTAGE_NOMINAL, None) is not None:
-            cg.add(var.set_threshold_voltage_nominal(threshold))
-        if CONF_VOLTAGE_SAG_PCT in thresholds:
-            cg.add(var.set_threshold_voltage_sag_pct(thresholds[CONF_VOLTAGE_SAG_PCT]))
-        if CONF_VOLTAGE_SAG_V in thresholds:
-            cg.add(var.set_threshold_voltage_sag_v(thresholds[CONF_VOLTAGE_SAG_V]))
-        if CONF_VOLTAGE_PEAK_PCT in thresholds:
-            cg.add(
-                var.set_threshold_voltage_peak_pct(thresholds[CONF_VOLTAGE_PEAK_PCT])
-            )
-        if CONF_VOLTAGE_PEAK_V in thresholds:
-            cg.add(var.set_threshold_voltage_peak_v(thresholds[CONF_VOLTAGE_PEAK_V]))
-        if CONF_CURRENT_PEAK in thresholds:
-            cg.add(var.set_threshold_current_peak_a(thresholds[CONF_CURRENT_PEAK]))
-        if CONF_FREQUENCY_LOW_HZ in thresholds:
-            cg.add(
-                var.set_threshold_frequency_low_hz(thresholds[CONF_FREQUENCY_LOW_HZ])
-            )
-        if CONF_FREQUENCY_HIGH_HZ in thresholds:
-            cg.add(
-                var.set_threshold_frequency_high_hz(thresholds[CONF_FREQUENCY_HIGH_HZ])
-            )
+    resolved_thresholds = _resolve_thresholds(config, config.get(CONF_THRESHOLDS))
+    cg.add(var.set_threshold_voltage_nominal(resolved_thresholds[CONF_VOLTAGE_NOMINAL]))
+    cg.add(var.set_threshold_voltage_sag_v(resolved_thresholds[CONF_VOLTAGE_SAG_V]))
+    cg.add(var.set_threshold_voltage_peak_v(resolved_thresholds[CONF_VOLTAGE_PEAK_V]))
+    cg.add(
+        var.set_threshold_frequency_low_hz(
+            resolved_thresholds[CONF_FREQUENCY_LOW_HZ]
+        )
+    )
+    cg.add(
+        var.set_threshold_frequency_high_hz(
+            resolved_thresholds[CONF_FREQUENCY_HIGH_HZ]
+        )
+    )
+    if (thresholds := config.get(CONF_THRESHOLDS)) is not None:
+        if (threshold := thresholds.get(CONF_CURRENT_PEAK)) is not None:
+            cg.add(var.set_threshold_current_peak_a(threshold))

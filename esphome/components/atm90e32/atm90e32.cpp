@@ -198,26 +198,11 @@ void ATM90E32Component::setup() {
     }
   }
 
-  const float default_voltage_nominal = (this->line_freq_ == 60) ? 120.0f : 220.0f;
-  const float voltage_nominal =
-      this->has_threshold_voltage_nominal_v_ ? this->threshold_voltage_nominal_v_ : default_voltage_nominal;
-  const float sag_voltage =
-      this->has_threshold_voltage_sag_v_
-          ? this->threshold_voltage_sag_v_
-          : voltage_nominal *
-                (this->has_threshold_voltage_sag_pct_ ? this->threshold_voltage_sag_pct_ : DEFAULT_VOLTAGE_SAG_PCT);
-  const float peak_voltage =
-      this->has_threshold_voltage_peak_v_
-          ? this->threshold_voltage_peak_v_
-          : voltage_nominal *
-                (this->has_threshold_voltage_peak_pct_ ? this->threshold_voltage_peak_pct_ : DEFAULT_VOLTAGE_PEAK_PCT);
-
-  const float frequency_low_hz = this->has_threshold_frequency_low_hz_
-                                     ? this->threshold_frequency_low_hz_
-                                     : (static_cast<float>(this->line_freq_) - DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ);
-  const float frequency_high_hz = this->has_threshold_frequency_high_hz_
-                                      ? this->threshold_frequency_high_hz_
-                                      : (static_cast<float>(this->line_freq_) + DEFAULT_FREQUENCY_THRESHOLD_BAND_HZ);
+  const float voltage_nominal = this->threshold_voltage_nominal_v_;
+  const float sag_voltage = this->threshold_voltage_sag_v_;
+  const float peak_voltage = this->threshold_voltage_peak_v_;
+  const float frequency_low_hz = this->threshold_frequency_low_hz_;
+  const float frequency_high_hz = this->threshold_frequency_high_hz_;
   const float current_peak_a_raw =
       this->has_threshold_current_peak_a_ ? this->threshold_current_peak_a_ : DEFAULT_CURRENT_PEAK_A;
   const float current_peak_a = (current_peak_a_raw > MAX_CURRENT_PEAK_A) ? MAX_CURRENT_PEAK_A : current_peak_a_raw;
