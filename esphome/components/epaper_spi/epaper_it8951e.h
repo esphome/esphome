@@ -16,9 +16,6 @@ class EPaperIT8951E : public EPaperBase {
     this->buffer_length_ = static_cast<size_t>(this->row_width_) * static_cast<size_t>(height);
   }
 
-  void set_reversed(bool reversed) { this->reversed_ = reversed; }
-  void set_sleep_when_done(bool sleep_when_done) { this->sleep_when_done_ = sleep_when_done; }
-
   // Component overrides
   void setup() override;
   void loop() override;
@@ -79,10 +76,6 @@ class EPaperIT8951E : public EPaperBase {
   uint16_t us_img_buf_addr_h_{0x0012};
   uint16_t m_endian_type_{0};
   uint16_t m_pix_bpp_{0};
-
-  // Configuration
-  bool reversed_{false};
-  bool sleep_when_done_{true};
 
   // State tracking
   bool initialized_{false};

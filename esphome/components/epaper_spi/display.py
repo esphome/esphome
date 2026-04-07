@@ -123,7 +123,7 @@ def model_schema(config):
                         CONF_REVERSED, default=model.get_default(CONF_REVERSED, False)
                     ): cv.boolean
                 }
-                if model.get_default(CONF_REVERSED) is not None
+                if model.get_default(CONF_REVERSED, None) is not None
                 else {}
             ),
             **(
@@ -133,7 +133,7 @@ def model_schema(config):
                         default=model.get_default(CONF_SLEEP_WHEN_DONE, False),
                     ): cv.boolean
                 }
-                if model.get_default(CONF_SLEEP_WHEN_DONE) is not None
+                if model.get_default(CONF_SLEEP_WHEN_DONE, None) is not None
                 else {}
             ),
             cv.Optional(CONF_UPDATE_MODE): cv.string_strict,

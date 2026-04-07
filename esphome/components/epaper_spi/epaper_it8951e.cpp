@@ -48,8 +48,7 @@ void EPaperIT8951E::write_reg_(uint16_t addr, uint16_t data) {
   this->write_command_(IT8951_TCON_REG_WR);
   this->wait_busy_();
   this->enable();
-  // Preamble byte (not 16-bit) per IT8951 spec
-  this->write_byte(IT8951_PACKET_TYPE_WRITE);
+  this->write_byte16(IT8951_PACKET_TYPE_WRITE);
   this->wait_busy_();
   this->write_byte16(addr);
   this->wait_busy_();
@@ -285,17 +284,16 @@ bool EPaperIT8951E::transfer_row_data_() {
   this->m_pix_bpp_ = IT8951_4BPP;
   const uint32_t start_time = millis();
 
-  if (this->transfer_row_ == 0) {
-    this->set_target_memory_addr_(this->us_img_buf_addr_l_, this->us_img_buf_addr_h_);
-  }
-
   const uint16_t area_x = this->pending_x_;
   const uint16_t area_y = this->pending_y_;
   const uint16_t area_w = this->pending_w_;
   const uint16_t area_h = this->pending_h_;
 
-  const uint16_t remaining_h = area_h - this->transfer_row_;
-  this->set_area_(area_x, area_y + this->transfer_row_, area_w, remaining_h);
+  if (this->transfer_row_ == 0) {
+    this->set_target_memory_addr_(this->us_img_buf_addr_l_, this->us_img_buf_addr_h_);
+    this->set_area_(area_x, area_y, area_w, area_h);
+  }
+
   this->enable();
   this->write_byte16(IT8951_PACKET_TYPE_WRITE);
 
