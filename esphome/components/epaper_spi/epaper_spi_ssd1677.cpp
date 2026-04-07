@@ -44,13 +44,11 @@ void EPaperSSD1677::set_window_() {
   const uint16_t y_start = 0;
   const uint16_t y_end = this->height_ - 1;
 
-  this->cmd_data(0x44,
-                 {(uint8_t) (x_start & 0xFF), (uint8_t) (x_start >> 8), (uint8_t) (x_end & 0xFF),
-                  (uint8_t) (x_end >> 8)});
+  this->cmd_data(
+      0x44, {(uint8_t) (x_start & 0xFF), (uint8_t) (x_start >> 8), (uint8_t) (x_end & 0xFF), (uint8_t) (x_end >> 8)});
 
-  this->cmd_data(0x45,
-                 {(uint8_t) (y_end & 0xFF), (uint8_t) (y_end >> 8), (uint8_t) (y_start & 0xFF),
-                  (uint8_t) (y_start >> 8)});
+  this->cmd_data(
+      0x45, {(uint8_t) (y_end & 0xFF), (uint8_t) (y_end >> 8), (uint8_t) (y_start & 0xFF), (uint8_t) (y_start >> 8)});
 
   this->cmd_data(0x4E, {(uint8_t) (x_start & 0xFF), (uint8_t) (x_start >> 8)});
   this->cmd_data(0x4F, {(uint8_t) (y_start & 0xFF), (uint8_t) (y_start >> 8)});
