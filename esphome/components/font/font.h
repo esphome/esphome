@@ -3,8 +3,15 @@
 #include "esphome/core/color.h"
 #include "esphome/core/datatypes.h"
 #include "esphome/core/defines.h"
+#include <memory>
+#include <vector>
 #ifdef USE_DISPLAY
 #include "esphome/components/display/display.h"
+#endif
+#ifdef USE_FONT_PTE
+extern "C" {
+#include "pte.h"
+}
 #endif
 #ifdef USE_LVGL_FONT
 #include <lvgl.h>
@@ -38,11 +45,18 @@ class Glyph {
   int height;
 };
 
-class Font
+class BaseFont
 #ifdef USE_DISPLAY
-    : public display::BaseFont
+  : public display::BaseFont
 #endif
 {
+ public:
+#ifdef USE_LVGL_FONT
+  virtual const lv_font_t *get_lv_font(int size = 0) const = 0;
+#endif
+};
+
+class Font : public BaseFont {
  public:
   /** Construct the font with the given glyphs.
    *
@@ -74,7 +88,7 @@ class Font
   inline int get_capheight() { return this->capheight_; }
   inline int get_bpp() { return this->bpp_; }
 #ifdef USE_LVGL_FONT
-  const lv_font_t *get_lv_font() const { return &this->lv_font_; }
+  const lv_font_t *get_lv_font(int size = 0) const override { return &this->lv_font_; }
 #endif
 
   const ConstVector<Glyph> &get_glyphs() const { return glyphs_; }
@@ -97,6 +111,70 @@ class Font
   const Glyph *last_data_{};
 #endif
 };
+
+#ifdef USE_FONT_PTE
+class PTEFont : public BaseFont {
+ public:
+  PTEFont(int sample_size, const uint8_t *data, const pte_glyph *glyphs, int glyph_count, const pte_kern *kerns,
+          int kern_count, int line_height, int baseline, int default_render_size = 20);
+
+#ifdef USE_DISPLAY
+  void print(int x_start, int y_start, display::Display *display, Color color, const char *text,
+             Color background) override;
+  void print(int x_start, int y_start, display::Display *display, Color color, const char *text, Color background,
+             int size) override;
+  void measure(const char *str, int *width, int *x_offset, int *baseline, int *height) override;
+  void measure(const char *str, int *width, int *x_offset, int *baseline, int *height, int size) override;
+  display::BaseFont *get_size_font(int size) override;
+#endif
+
+#ifdef USE_LVGL_FONT
+  const lv_font_t *get_lv_font(int size = 0) const override;
+#endif
+
+ protected:
+  int scale_(int value, int size) const;
+  int scale_box_(int value, int size) const;
+  const pte_glyph *find_glyph_(uint32_t codepoint) const;
+  const pte_kern *find_kern_(uint32_t first, uint32_t second) const;
+
+#ifdef USE_LVGL_FONT
+  struct LVGLFontAdapter {
+    lv_font_t lv_font{};
+    const PTEFont *owner{nullptr};
+    int size{0};
+    mutable uint32_t last_letter{0};
+    mutable const pte_glyph *last_data{nullptr};
+    mutable uint32_t last_metrics_letter{0};
+    mutable int last_metrics_ofs_x{0};
+    mutable int last_metrics_ofs_y{0};
+    mutable int last_metrics_box_w{0};
+    mutable int last_metrics_box_h{0};
+  };
+
+  static const void *get_lv_glyph_bitmap_(lv_font_glyph_dsc_t *dsc, lv_draw_buf_t *draw_buf);
+  static bool get_lv_glyph_dsc_cb_(const lv_font_t *font, lv_font_glyph_dsc_t *dsc, uint32_t unicode_letter,
+                                   uint32_t next);
+  const pte_glyph *get_lv_glyph_data_(const LVGLFontAdapter *adapter, uint32_t unicode_letter) const;
+  bool measure_lv_glyph_bounds_(const LVGLFontAdapter *adapter, const pte_glyph *glyph, int *ofs_x, int *ofs_y,
+                                int *box_w, int *box_h) const;
+  static size_t encode_utf8_(uint32_t codepoint, char *buffer);
+  static void render_lv_glyph_bitmap_(const LVGLFontAdapter *adapter, const pte_glyph *glyph, lv_draw_buf_t *draw_buf);
+
+  mutable std::vector<std::unique_ptr<LVGLFontAdapter>> lv_fonts_{};
+#endif
+
+  pte_base_font base_font_{};
+  int default_render_size_{20};
+#ifdef USE_DISPLAY
+  struct SizedFontCacheEntry {
+    int size;
+    std::unique_ptr<BaseFont> font;
+  };
+  mutable std::vector<SizedFontCacheEntry> sized_fonts_{};
+#endif
+};
+#endif
 
 }  // namespace font
 }  // namespace esphome

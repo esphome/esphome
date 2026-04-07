@@ -570,9 +570,17 @@ async def set_obj_properties(w: Widget, config):
                 lv_state = join_enums((state, part))
             for style_id in props.get(CONF_STYLES, ()):
                 w.add_style(style_id, lv_state)
+            if (value := props.get("text_font")) is not None:
+                size = props.get("text_size", 0)
+                validator = ALL_STYLES["text_font"]
+                if isinstance(validator, LValidator):
+                    value = await validator.process(value, size=size)
+                w.set_style("text_font", value, lv_state)
             for prop, value in {
                 k: v for k, v in props.items() if k in ALL_STYLES
             }.items():
+                if prop in ("text_font", "text_size"):
+                    continue
                 if isinstance(ALL_STYLES[prop], LValidator):
                     value = await ALL_STYLES[prop].process(value)
                 prop_r = remap_property(prop)

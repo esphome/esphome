@@ -1,6 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import color, sensor
-from esphome.components.font import Font
+from esphome.components import color, font, sensor
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BORDER,
@@ -77,8 +76,8 @@ GRAPH_TRACE_SCHEMA = cv.Schema(
 GRAPH_LEGEND_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(GraphLegend),
-        cv.Required(CONF_NAME_FONT): cv.use_id(Font),
-        cv.Optional(CONF_VALUE_FONT): cv.use_id(Font),
+        cv.Required(CONF_NAME_FONT): font.FONT_REFERENCE_SCHEMA,
+        cv.Optional(CONF_VALUE_FONT): font.FONT_REFERENCE_SCHEMA,
         cv.Optional(CONF_WIDTH): cv.positive_not_null_int,
         cv.Optional(CONF_HEIGHT): cv.positive_not_null_int,
         cv.Optional(CONF_BORDER): cv.boolean,
@@ -195,11 +194,11 @@ async def to_code(config):
         lgd = config[CONF_LEGEND][0]
         legend = cg.new_Pvariable(lgd[CONF_ID], GraphLegend())
         if CONF_NAME_FONT in lgd:
-            font = await cg.get_variable(lgd[CONF_NAME_FONT])
-            cg.add(legend.set_name_font(font))
+            legend_font = await font.font_reference_to_code(lgd[CONF_NAME_FONT])
+            cg.add(legend.set_name_font(legend_font))
         if CONF_VALUE_FONT in lgd:
-            font = await cg.get_variable(lgd[CONF_VALUE_FONT])
-            cg.add(legend.set_value_font(font))
+            value_font = await font.font_reference_to_code(lgd[CONF_VALUE_FONT])
+            cg.add(legend.set_value_font(value_font))
         if CONF_WIDTH in lgd:
             cg.add(legend.set_width(lgd[CONF_WIDTH]))
         if CONF_HEIGHT in lgd:

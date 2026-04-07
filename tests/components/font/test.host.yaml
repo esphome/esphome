@@ -10,7 +10,7 @@ font:
   - file: "gfonts://Roboto"
     id: roboto
     size: 20
-    glyphs: "0123456789."
+    glyphs: "Helo, Wrd!0123456789."
     extras:
       - file: "gfonts://Roboto"
         glyphs: ["\u00C4", "\u00C5", "\U000000C7"]
@@ -20,7 +20,7 @@ font:
   - file: "gfonts://Roboto"
     id: roboto_greek
     size: 20
-    glyphs: ["\u0300", "\u00C5", "\U000000C7"]
+    glyphs: "Helo \u03ba\u03cc\u03c3\u03bc\u03b5!"
   - file: "https://media.esphome.io/tests/fonts/Monocraft.ttf"
     id: monocraft
     size: 20
@@ -41,6 +41,10 @@ font:
 
   - file: $component_dir/MatrixChunky8X.bdf
     id: default_font
+  - file: $component_dir/Monocraft.ttf
+    id: pte_monocraft
+    engine: pte
+    glyphs: "Helo, Wrd!"
 
 display:
   - platform: sdl
@@ -55,3 +59,5 @@ display:
       it.print(0, 60, id(monocraft), "Hello, World!");
       it.print(0, 80, id(monocraft2), "Hello, World!");
       it.print(0, 100, id(monocraft3), "Hello, World!");
+      it.print(0, 130, pte_font(pte_monocraft,20), "Hello, World!");
+      it.print(0, 150, pte_font(pte_monocraft,24), "Hello, World!");

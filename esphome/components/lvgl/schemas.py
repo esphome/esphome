@@ -213,6 +213,7 @@ STYLE_PROPS = {
         "LV_TEXT_DECOR_", "NONE", "UNDERLINE", "STRIKETHROUGH"
     ).several_of,
     "text_font": lv_font,
+    "text_size": lvalid.lv_positive_int,
     "text_letter_space": lvalid.lv_positive_int,
     "text_line_space": lvalid.lv_positive_int,
     "text_opa": lvalid.opacity,

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/components/display/display.h"
 #include "esphome/core/color.h"
 #include "esphome/components/display_menu_base/display_menu_base.h"
 #include "esphome/components/display_menu_base/menu_item.h"
@@ -7,14 +8,6 @@
 #include <cstdlib>
 
 namespace esphome {
-
-// forward declare from display namespace
-namespace display {
-class Display;
-class DisplayPage;
-class BaseFont;
-class Rect;
-}  // namespace display
 
 namespace graphical_display_menu {
 

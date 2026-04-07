@@ -291,7 +291,7 @@ async def to_code(configs):
         # static=False because LV_FONT_CUSTOM_DECLARE creates an extern declaration
         cg.new_variable(
             globfont_id,
-            MockObj(await lvalid.lv_font.process(default_font), "->").get_lv_font(),
+            await lvalid.lv_font.process(default_font),
             static=False,
         )
         df.add_define("LV_FONT_DEFAULT", df.DEFAULT_ESPHOME_FONT)

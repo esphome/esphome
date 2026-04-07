@@ -872,4 +872,7 @@ class DisplayOnPageChangeTrigger : public Trigger<DisplayPage *, DisplayPage *> 
 const LogString *text_align_to_string(TextAlign textalign);
 
 }  // namespace display
+
+using display::pte_font;
+
 }  // namespace esphome

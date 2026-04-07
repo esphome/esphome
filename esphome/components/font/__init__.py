@@ -10,6 +10,7 @@ import esphome_glyphsets as glyphsets
 
 # pylint: disable=no-name-in-module
 from freetype import (
+    FT_KERNING_DEFAULT,
     FT_LOAD_NO_BITMAP,
     FT_LOAD_RENDER,
     FT_LOAD_TARGET_MONO,
@@ -25,6 +26,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_FAMILY,
     CONF_FILE,
+    CONF_FONT,
     CONF_GLYPHS,
     CONF_ID,
     CONF_PATH,
@@ -47,14 +49,27 @@ CODEOWNERS = ["@esphome/core", "@clydebarrow"]
 
 font_ns = cg.esphome_ns.namespace("font")
 
-Font = font_ns.class_("Font")
+BaseFont = font_ns.class_("BaseFont")
+Font = font_ns.class_("Font", BaseFont)
+PTEFont = font_ns.class_("PTEFont", BaseFont)
 Glyph = font_ns.class_("Glyph")
+PTEGlyph = cg.global_ns.struct("pte_glyph")
+PTEKern = cg.global_ns.struct("pte_kern")
 
 CONF_BPP = "bpp"
+CONF_ENGINE = "engine"
 CONF_EXTRAS = "extras"
 CONF_FONTS = "fonts"
 CONF_GLYPHSETS = "glyphsets"
 CONF_IGNORE_MISSING_GLYPHS = "ignore_missing_glyphs"
+CONF_RAW_KERN_ID = "raw_kern_id"
+CONF_RAW_PTE_GLYPH_ID = "raw_pte_glyph_id"
+
+ENGINE_BITMAP = "bitmap"
+ENGINE_PTE = "pte"
+PTE_SAMPLE_SIZE = 128
+PTE_DEFAULT_RENDER_SIZE = 20
+PTE_FONT_REFERENCE_RE = re.compile(r"^pte_font\(\s*([^,]+?)\s*,\s*(\d+)\s*\)$")
 
 
 # Cache loaded freetype fonts
@@ -173,6 +188,41 @@ def validate_font_config(config):
     Check for duplicate codepoints, then check that all requested codepoints actually
     have glyphs defined in the appropriate font file.
     """
+
+    if config[CONF_ENGINE] == ENGINE_PTE:
+        if CONF_SIZE in config:
+            raise cv.Invalid("The pte engine does not accept a build-time size")
+        if CONF_BPP in config:
+            raise cv.Invalid("The pte engine does not accept a bpp setting")
+        if config[CONF_EXTRAS]:
+            raise cv.Invalid("The pte engine does not support extras yet")
+
+        fileconf = config[CONF_FILE]
+        font = FONT_CACHE[fileconf]
+        if not font.is_scalable:
+            raise cv.Invalid("The pte engine currently requires a scalable font file")
+
+        if not config[CONF_GLYPHS] and not config[CONF_GLYPHSETS]:
+            config[CONF_GLYPHS] = [DEFAULT_GLYPHS]
+
+        glyphspoints = flatten(config[CONF_GLYPHS])
+        if len(set(glyphspoints)) != len(glyphspoints):
+            duplicates = {x for x in glyphspoints if glyphspoints.count(x) > 1}
+            dup_str = ", ".join(f"{x} ({x.encode('unicode_escape')})" for x in duplicates)
+            raise cv.Invalid(
+                f"Found duplicate glyph{'s' if len(duplicates) != 1 else ''}: {dup_str}"
+            )
+
+        glyphspoints = {ord(x) for x in glyphspoints}
+        setpoints = set(
+            flatten([glyphsets.unicodes_per_glyphset(x) for x in config[CONF_GLYPHSETS]])
+        )
+        setpoints.difference_update(glyphspoints)
+
+        check_missing_glyphs(fileconf, glyphspoints)
+        if not config[CONF_IGNORE_MISSING_GLYPHS]:
+            check_missing_glyphs(fileconf, setpoints, warning=True)
+        return config
 
     # Collect all glyph codepoints and flatten to a list of chars
     glyphspoints = flatten(
@@ -443,15 +493,16 @@ CONF_RAW_GLYPH_ID = "raw_glyph_id"
 
 FONT_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_ID): cv.declare_id(Font),
+        cv.Required(CONF_ID): cv.declare_id(BaseFont),
         cv.Required(CONF_FILE): font_file_schema,
+        cv.Optional(CONF_ENGINE, default=ENGINE_BITMAP): cv.one_of(ENGINE_BITMAP, ENGINE_PTE),
         cv.Optional(CONF_GLYPHS, default=[]): cv.ensure_list(cv.string_strict),
         cv.Optional(CONF_GLYPHSETS, default=[]): cv.ensure_list(
             cv.one_of(*glyphsets.defined_glyphsets())
         ),
         cv.Optional(CONF_IGNORE_MISSING_GLYPHS, default=False): cv.boolean,
         cv.Optional(CONF_SIZE): cv.int_range(min=1),
-        cv.Optional(CONF_BPP, default=1): cv.one_of(1, 2, 4, 8),
+        cv.Optional(CONF_BPP): cv.one_of(1, 2, 4, 8),
         cv.Optional(CONF_EXTRAS, default=[]): cv.ensure_list(
             cv.Schema(
                 {
@@ -462,10 +513,51 @@ FONT_SCHEMA = cv.Schema(
         ),
         cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
         cv.GenerateID(CONF_RAW_GLYPH_ID): cv.declare_id(Glyph),
+        cv.GenerateID(CONF_RAW_PTE_GLYPH_ID): cv.declare_id(PTEGlyph),
+        cv.GenerateID(CONF_RAW_KERN_ID): cv.declare_id(PTEKern),
     },
 )
 
 CONFIG_SCHEMA = cv.All(FONT_SCHEMA, validate_font_config)
+
+
+def _validate_pte_font_reference_shorthand(value):
+    value = cv.string_strict(value)
+    match = PTE_FONT_REFERENCE_RE.fullmatch(value)
+    if match is None:
+        raise cv.Invalid(
+            "Expected a font ID or pte_font(<font_id>, <size>) shorthand"
+        )
+    return {
+        CONF_FONT: cv.use_id(BaseFont)(match.group(1).strip()),
+        CONF_SIZE: cv.int_range(min=1)(match.group(2)),
+    }
+
+
+FONT_REFERENCE_SCHEMA = cv.Any(
+    cv.use_id(BaseFont),
+    cv.Schema(
+        {
+            cv.Required(CONF_FONT): cv.use_id(BaseFont),
+            cv.Required(CONF_SIZE): cv.int_range(min=1),
+        }
+    ),
+    cv.All(cv.string_strict, _validate_pte_font_reference_shorthand),
+)
+
+
+async def font_reference_to_code(value):
+    if isinstance(value, dict):
+        base_font = await cg.get_variable(value[CONF_FONT])
+        return cg.RawExpression(f"display::pte_font({base_font}, {value[CONF_SIZE]})")
+    return await cg.get_variable(value)
+
+
+async def font_reference_to_base_and_size(value):
+    if isinstance(value, dict):
+        base_font = await cg.get_variable(value[CONF_FONT])
+        return base_font, value[CONF_SIZE]
+    return await cg.get_variable(value), 0
 
 
 class EFont:
@@ -543,6 +635,158 @@ def glyph_to_glyphinfo(glyph, font, size, bpp):
     )
 
 
+class PTEGlyphInfo:
+    def __init__(self, code_point, data, advance, offset_x, offset_y, width, height):
+        self.code_point = code_point
+        self.bitmap_data = data
+        self.advance = advance
+        self.offset_x = offset_x
+        self.offset_y = offset_y
+        self.width = width
+        self.height = height
+
+
+def pte_encode_bitmap(font, code_point):
+    font.set_pixel_sizes(PTE_SAMPLE_SIZE, 0)
+    font.load_char(code_point, FT_LOAD_RENDER | FT_LOAD_TARGET_MONO)
+
+    width = font.glyph.bitmap.width
+    height = font.glyph.bitmap.rows
+    pitch = font.glyph.bitmap.pitch
+    buffer = font.glyph.bitmap.buffer
+    bitmap_data = []
+    pixel = 0
+    run_of_on = False
+    pixels_so_far = 0
+
+    def output_pixel(current_run, count, current_pixel):
+        if current_run:
+            current_pixel |= count << 4
+        else:
+            current_pixel |= count
+            bitmap_data.append(current_pixel)
+            current_pixel = 0
+        return (not current_run), 0, current_pixel
+
+    for y in range(height):
+        for x in range(width):
+            on = bool(buffer[y * pitch + x // 8] & (1 << (7 - x % 8)))
+            last_pixel = y == height - 1 and x == width - 1
+            if run_of_on != on:
+                run_of_on, pixels_so_far, pixel = output_pixel(
+                    run_of_on, pixels_so_far, pixel
+                )
+            pixels_so_far += 1
+            if pixels_so_far == 15:
+                run_of_on, pixels_so_far, pixel = output_pixel(
+                    run_of_on, pixels_so_far, pixel
+                )
+            if last_pixel and pixels_so_far != 0:
+                run_of_on, pixels_so_far, pixel = output_pixel(
+                    run_of_on, pixels_so_far, pixel
+                )
+            if last_pixel and run_of_on:
+                run_of_on, pixels_so_far, pixel = output_pixel(
+                    run_of_on, pixels_so_far, pixel
+                )
+
+    ascender = pt_to_px(font.size.ascender)
+    if ascender == 0:
+        ascender = PTE_SAMPLE_SIZE
+
+    return PTEGlyphInfo(
+        code_point,
+        bitmap_data,
+        pt_to_px(font.glyph.metrics.horiAdvance),
+        font.glyph.bitmap_left,
+        font.glyph.bitmap_top,
+        width,
+        height,
+    )
+
+
+def pte_build_kerns(font, codepoints):
+    kerns = []
+    if not hasattr(font, "get_kerning"):
+        return kerns
+
+    for first in codepoints:
+        for second in codepoints:
+            kerning = font.get_kerning(first, second, FT_KERNING_DEFAULT)
+            amount = pt_to_px(kerning.x)
+            if amount != 0:
+                kerns.append((first, second, amount))
+    kerns.sort()
+    return kerns
+
+
+async def to_code_pte(config):
+    cg.add_define("USE_FONT")
+    cg.add_define("USE_FONT_PTE")
+
+    point_set: set[str] = {
+        chr(x)
+        for x in flatten(
+            [glyphsets.unicodes_per_glyphset(x) for x in config[CONF_GLYPHSETS]]
+        )
+    }
+    point_set.update(flatten(config[CONF_GLYPHS]))
+
+    base_font = FONT_CACHE[config[CONF_FILE]]
+    codepoints = sorted(ord(x) for x in point_set)
+    glyph_args = [pte_encode_bitmap(base_font, code_point) for code_point in codepoints]
+
+    rhs = [HexInt(x) for x in flatten([x.bitmap_data for x in glyph_args])]
+    prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
+
+    offset = 0
+    glyph_initializer = []
+    for glyph in glyph_args:
+        glyph_initializer.append(
+            [
+                glyph.code_point,
+                glyph.width,
+                glyph.height,
+                glyph.offset_x,
+                glyph.offset_y,
+                glyph.advance,
+                offset,
+            ]
+        )
+        offset += len(glyph.bitmap_data)
+
+    glyphs = cg.static_const_array(config[CONF_RAW_PTE_GLYPH_ID], glyph_initializer)
+
+    kern_initializer = pte_build_kerns(base_font, codepoints)
+    kerns = cg.nullptr
+    if kern_initializer:
+        kerns = cg.static_const_array(config[CONF_RAW_KERN_ID], kern_initializer)
+
+    base_font.set_pixel_sizes(PTE_SAMPLE_SIZE, 0)
+    line_height = pt_to_px(base_font.size.height)
+    baseline = pt_to_px(base_font.size.ascender)
+    if line_height == 0:
+        line_height = PTE_SAMPLE_SIZE
+    if baseline == 0:
+        baseline = line_height
+
+    cg.Pvariable(
+        config[CONF_ID],
+        PTEFont.new(
+            PTE_SAMPLE_SIZE,
+            prog_arr,
+            glyphs,
+            len(glyph_initializer),
+            kerns,
+            len(kern_initializer),
+            line_height,
+            baseline,
+            PTE_DEFAULT_RENDER_SIZE,
+        ),
+        type_=PTEFont,
+    )
+
+
 async def to_code(config):
     """
     Collect all glyph codepoints, construct a map from a codepoint to a font file.
@@ -550,6 +794,10 @@ async def to_code(config):
     Codepoints listed in extras use the extra font and override codepoints from glyphsets.
     Achieve this by processing the base codepoints first, then the extras
     """
+
+    if config[CONF_ENGINE] == ENGINE_PTE:
+        await to_code_pte(config)
+        return
 
     # get the codepoints from glyphsets and flatten to a set of chrs.
     cg.add_define("USE_FONT")
@@ -573,7 +821,7 @@ async def to_code(config):
 
     codepoints = list(point_set)
     codepoints.sort(key=functools.cmp_to_key(glyph_comparator))
-    bpp = config[CONF_BPP]
+    bpp = config.get(CONF_BPP, 1)
     size = config[CONF_SIZE]
     # create the data array for all glyphs
     glyph_args = [
@@ -613,14 +861,17 @@ async def to_code(config):
             ascender = font_height
         else:
             _LOGGER.error("Unable to determine height of font %s", config[CONF_FILE])
-    cg.new_Pvariable(
+    cg.Pvariable(
         config[CONF_ID],
-        glyphs,
-        len(glyph_initializer),
-        ascender,
-        font_height,
-        descender,
-        xheight,
-        capheight,
-        bpp,
+        Font.new(
+            glyphs,
+            len(glyph_initializer),
+            ascender,
+            font_height,
+            descender,
+            xheight,
+            capheight,
+            bpp,
+        ),
+        type_=Font,
     )

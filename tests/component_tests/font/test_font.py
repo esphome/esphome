@@ -10,13 +10,20 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from esphome.cpp_generator import MockObj
 from esphome.components.font import (
     CONF_BPP,
+    CONF_ENGINE,
     CONF_EXTRAS,
     CONF_GLYPHSETS,
     CONF_IGNORE_MISSING_GLYPHS,
+    CONF_RAW_KERN_ID,
     CONF_RAW_GLYPH_ID,
+    CONF_RAW_PTE_GLYPH_ID,
+    ENGINE_PTE,
+    FONT_REFERENCE_SCHEMA,
     FONT_CACHE,
+    font_reference_to_code,
     flatten,
     glyph_comparator,
     to_code,
@@ -25,6 +32,7 @@ from esphome.components.font import (
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_FILE,
+    CONF_FONT,
     CONF_GLYPHS,
     CONF_ID,
     CONF_PATH,
@@ -56,6 +64,7 @@ def _make_config(
     """Build a config dict matching what FONT_SCHEMA produces."""
     return {
         CONF_FILE: _file_conf(),
+        CONF_ENGINE: "bitmap",
         CONF_GLYPHS: glyphs,
         CONF_GLYPHSETS: glyphsets or [],
         CONF_IGNORE_MISSING_GLYPHS: ignore_missing,
@@ -155,6 +164,53 @@ def test_valid_latin_glyphs_pass_validation():
     result = validate_font_config(config)
     assert result is not None
     assert result[CONF_SIZE] == 20
+
+
+def test_pte_font_validation_defaults_without_size_or_bpp():
+    config = _make_config(["ABC"])
+    config[CONF_ENGINE] = ENGINE_PTE
+    config.pop(CONF_SIZE)
+    config.pop(CONF_BPP)
+
+    result = validate_font_config(config)
+    assert result is not None
+    assert CONF_SIZE not in result
+    assert CONF_BPP not in result
+
+
+def test_pte_font_rejects_build_time_size():
+    config = _make_config(["ABC"])
+    config[CONF_ENGINE] = ENGINE_PTE
+    with pytest.raises(cv.Invalid, match="build-time size"):
+        validate_font_config(config)
+
+
+def test_pte_font_rejects_bpp():
+    config = _make_config(["ABC"])
+    config[CONF_ENGINE] = ENGINE_PTE
+    config.pop(CONF_SIZE)
+    with pytest.raises(cv.Invalid, match="bpp"):
+        validate_font_config(config)
+
+
+def test_font_reference_schema_accepts_pte_font_shorthand():
+    result = FONT_REFERENCE_SCHEMA("pte_font(ui_font, 20)")
+
+    assert result[CONF_FONT].id == "ui_font"
+    assert result[CONF_SIZE] == 20
+
+
+@pytest.mark.asyncio
+async def test_font_reference_to_code_emits_pte_font_call():
+    font_ref = FONT_REFERENCE_SCHEMA("pte_font(ui_font, 20)")
+
+    with patch(
+        "esphome.components.font.cg.get_variable",
+        return_value=MockObj("ui_font", ""),
+    ):
+        expression = await font_reference_to_code(font_ref)
+
+    assert str(expression) == "display::pte_font(ui_font, 20)"
 
 
 def test_long_latin_glyphs_pass_validation():
@@ -259,14 +315,16 @@ def mock_cg():
     """Mock all cg codegen functions used by to_code."""
     with (
         patch("esphome.components.font.cg.add_define") as mock_define,
+        patch("esphome.components.font.cg.Pvariable") as mock_pvar,
         patch("esphome.components.font.cg.progmem_array") as mock_progmem,
         patch("esphome.components.font.cg.static_const_array") as mock_static,
         patch("esphome.components.font.cg.new_Pvariable") as mock_new_pvar,
     ):
-        mock_progmem.return_value = MagicMock()
-        mock_static.return_value = MagicMock()
+        mock_progmem.return_value = MockObj("progmem_data", "")
+        mock_static.return_value = MockObj("static_array", "")
         yield {
             "add_define": mock_define,
+            "Pvariable": mock_pvar,
             "progmem_array": mock_progmem,
             "static_const_array": mock_static,
             "new_Pvariable": mock_new_pvar,
@@ -297,11 +355,8 @@ async def test_to_code_long_latin_generates_all_glyphs(mock_cg):
     glyph_initializer = mock_cg["static_const_array"].call_args.args[1]
     assert len(glyph_initializer) == glyph_count
 
-    # new_Pvariable is called with the correct glyph count
-    mock_cg["new_Pvariable"].assert_called_once()
-    pvar_args = mock_cg["new_Pvariable"].call_args.args
-    assert pvar_args[2] == glyph_count  # len(glyph_initializer)
-    assert pvar_args[8] == 1  # bpp
+    # Pvariable is used to register the constructed font instance
+    mock_cg["Pvariable"].assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -320,6 +375,26 @@ async def test_to_code_glyph_entries_contain_expected_fields(mock_cg):
         codepoint = entry[0]
         assert isinstance(codepoint, int)
         assert 0x100 <= codepoint <= 0x1C7
+
+
+@pytest.mark.asyncio
+async def test_to_code_pte_emits_runtime_font_tables(mock_cg):
+    config = _make_config(["ABC"])
+    config[CONF_ENGINE] = ENGINE_PTE
+    config.pop(CONF_SIZE)
+    config.pop(CONF_BPP)
+    config[CONF_ID] = MagicMock()
+    config[CONF_RAW_DATA_ID] = MagicMock()
+    config[CONF_RAW_GLYPH_ID] = MagicMock()
+    config[CONF_RAW_PTE_GLYPH_ID] = MagicMock()
+    config[CONF_RAW_KERN_ID] = MagicMock()
+
+    await to_code(config)
+
+    mock_cg["add_define"].assert_any_call("USE_FONT_PTE")
+    mock_cg["progmem_array"].assert_called_once()
+    mock_cg["static_const_array"].assert_called()
+    assert mock_cg["Pvariable"].called
 
 
 @pytest.mark.asyncio

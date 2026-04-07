@@ -41,6 +41,10 @@ font:
 
   - file: $component_dir/MatrixChunky8X.bdf
     id: default_font
+  - file: $component_dir/Monocraft.ttf
+    id: pte_monocraft
+    engine: pte
+    glyphs: "Helo, Wrd!"
   - file: $component_dir/x11.pcf
     id: pcf_font
   - file: $component_dir/Tamzen5x9b.bdf
@@ -60,3 +64,4 @@ display:
       it.print(0, 60, id(monocraft2), "Hello, World!");
       it.print(0, 80, id(monocraft3), "Hello, World!");
       it.print(0, 100, id(roboto_greek), "Hello κόσμε!");
+      it.print(0, 110, pte_font(pte_monocraft, 24), "Hello, World!");

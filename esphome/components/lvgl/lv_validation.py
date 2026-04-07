@@ -4,7 +4,7 @@ from typing import Any
 import esphome.codegen as cg
 from esphome.components import image
 from esphome.components.color import CONF_HEX, ColorStruct, from_rgbw
-from esphome.components.font import Font
+from esphome.components.font import BaseFont
 from esphome.components.image import Image_
 import esphome.config_validation as cv
 from esphome.const import (
@@ -505,20 +505,19 @@ class LvFont(LValidator):
             if is_lv_font(value):
                 return lv_builtin_font(value)
             add_lv_use("font")
-            fontval = cv.use_id(Font)(value)
+            fontval = cv.use_id(BaseFont)(value)
             esphome_fonts_used.add(fontval)
             return requires_component("font")(fontval)
 
-        # Use font::Font* as return type for lambdas returning ESPHome fonts
-        # The inline overloads in lvgl_esphome.h handle conversion to lv_font_t*
-        super().__init__(validator, Font.operator("ptr"))
+        super().__init__(validator, BaseFont.operator("ptr"))
 
-    async def process(self, value, args=()):
+    async def process(self, value, args=(), size=0):
         if is_lv_font(value):
             return literal(f"&lv_font_{value}")
         if isinstance(value, str):
             return literal(f"{value}")
-        return await super().process(value, args)
+        font = await super().process(value, args)
+        return MockObj(font, "->").get_lv_font(size)
 
 
 lv_font = LvFont()

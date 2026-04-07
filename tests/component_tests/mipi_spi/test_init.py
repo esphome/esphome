@@ -21,6 +21,8 @@ from esphome.components.mipi_spi.display import (
     MODELS,
     dimension_schema,
 )
+from esphome.components.lvgl.automation import focused_widgets, refreshed_widgets
+from esphome.components.lvgl.widgets import styles_used, theme_widget_map, widget_map
 from esphome.const import (
     CONF_DC_PIN,
     CONF_DIMENSIONS,
@@ -341,3 +343,19 @@ def test_lvgl_generation(
     assert "set_init_sequence({1, 0, 10, 255, 177" in main_cpp
     assert "show_test_card();" not in main_cpp
     assert "set_auto_clear(false);" in main_cpp
+
+
+def test_lvgl_pte_text_size_generation(
+    generate_main: Callable[[str | Path], str],
+    component_fixture_path: Callable[[str], Path],
+) -> None:
+    """Test LVGL generation for PTE fonts with runtime text_size."""
+
+    focused_widgets.clear()
+    refreshed_widgets.clear()
+    widget_map.clear()
+    styles_used.clear()
+    theme_widget_map.clear()
+    main_cpp = generate_main(component_fixture_path("lvgl_pte_font.yaml"))
+    assert "obj_set_style_text_font" in main_cpp
+    assert "get_lv_font(14)" in main_cpp

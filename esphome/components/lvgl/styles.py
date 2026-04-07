@@ -31,7 +31,16 @@ def has_style_props(config) -> bool:
 
 
 async def style_set(svar, style):
+    if (value := style.get("text_font")) is not None:
+        size = style.get("text_size", 0)
+        validator = ALL_STYLES["text_font"]
+        if isinstance(validator, LValidator):
+            value = await validator.process(value, size=size)
+        lv.call("style_set_text_font", svar, value)
+
     for prop, validator in ALL_STYLES.items():
+        if prop in ("text_font", "text_size"):
+            continue
         if (value := style.get(prop)) is not None:
             if isinstance(validator, LValidator):
                 value = await validator.process(value)

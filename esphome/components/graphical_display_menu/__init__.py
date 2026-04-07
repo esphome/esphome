@@ -43,7 +43,7 @@ CONFIG_SCHEMA = DISPLAY_MENU_BASE_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(GraphicalDisplayMenu),
             cv.Optional(CONF_DISPLAY): cv.use_id(display.Display),
-            cv.Required(CONF_FONT): cv.use_id(font.Font),
+            cv.Required(CONF_FONT): font.FONT_REFERENCE_SCHEMA,
             cv.Optional(CONF_MENU_ITEM_VALUE): cv.templatable(cv.string),
             cv.Optional(CONF_FOREGROUND_COLOR): cv.use_id(color.ColorStruct),
             cv.Optional(CONF_BACKGROUND_COLOR): cv.use_id(color.ColorStruct),
@@ -67,7 +67,7 @@ async def to_code(config):
         drawing_display = await cg.get_variable(display_config)
         cg.add(var.set_display(drawing_display))
 
-    menu_font = await cg.get_variable(config[CONF_FONT])
+    menu_font = await font.font_reference_to_code(config[CONF_FONT])
     cg.add(var.set_font(menu_font))
 
     if (menu_item_value_config := config.get(CONF_MENU_ITEM_VALUE, None)) is not None:
