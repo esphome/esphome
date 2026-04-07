@@ -50,7 +50,7 @@ def validate_min_max_value(config):
         max_val = config[CONF_MAX_VALUE]
         if min_val >= max_val:
             raise cv.Invalid(
-                f"Max value {max_val} must be smaller than min value {min_val}"
+                f"Max value {max_val} must be greater than min value {min_val}"
             )
     return config
 

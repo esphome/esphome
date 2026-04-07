@@ -214,8 +214,9 @@ void HOT Scheduler::set_timer_common_(Component *component, SchedulerItem::Type 
 #endif /* ESPHOME_DEBUG_SCHEDULER */
   }
 
-  // Common epilogue: atomic cancel-and-add (unless skip_cancel is true)
-  if (!skip_cancel) {
+  // Common epilogue: atomic cancel-and-add (unless skip_cancel is true or anonymous)
+  // Anonymous items (STATIC_STRING with nullptr) can never match anything, so skip the scan.
+  if (!skip_cancel && (name_type != NameType::STATIC_STRING || static_name != nullptr)) {
     this->cancel_item_locked_(component, name_type, static_name, hash_or_id, type, /* match_retry= */ false,
                               /* find_first= */ true);
   }
@@ -742,6 +743,23 @@ bool HOT Scheduler::cancel_item_(Component *component, NameType name_type, const
 // When find_first=false, cancels ALL matches across all containers (needed for
 // public cancel path where DelayAction parallel mode can create duplicates).
 // name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
+size_t Scheduler::mark_matching_items_removed_slow_locked_(std::vector<SchedulerItem *> &container,
+                                                           Component *component, NameType name_type,
+                                                           const char *static_name, uint32_t hash_or_id,
+                                                           SchedulerItem::Type type, bool match_retry,
+                                                           bool find_first) {
+  size_t count = 0;
+  for (auto *item : container) {
+    if (this->matches_item_locked_(item, component, name_type, static_name, hash_or_id, type, match_retry)) {
+      this->set_item_removed_(item, true);
+      if (find_first)
+        return 1;
+      count++;
+    }
+  }
+  return count;
+}
+
 bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type, const char *static_name,
                                         uint32_t hash_or_id, SchedulerItem::Type type, bool match_retry,
                                         bool find_first) {
@@ -767,7 +785,7 @@ bool HOT Scheduler::cancel_item_locked_(Component *component, NameType name_type
   // The main loop may be executing an item's callback right now, and recycling
   // would destroy the callback while it's running (use-after-free).
   // Only the main loop in call() should recycle items after execution completes.
-  if (!this->items_.empty()) {
+  {
     size_t heap_cancelled = this->mark_matching_items_removed_locked_(this->items_, component, name_type, static_name,
                                                                       hash_or_id, type, match_retry, find_first);
     total_cancelled += heap_cancelled;

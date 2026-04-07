@@ -158,15 +158,15 @@ def validate_peer(value):
 
 def _validate_raw_data(value):
     if isinstance(value, str):
-        if len(value) >= MAX_ESPNOW_PACKET_SIZE:
+        if len(value) > MAX_ESPNOW_PACKET_SIZE:
             raise cv.Invalid(
-                f"'{CONF_DATA}' must be less than {MAX_ESPNOW_PACKET_SIZE} characters long, got {len(value)}"
+                f"'{CONF_DATA}' must be at most {MAX_ESPNOW_PACKET_SIZE} characters long, got {len(value)}"
             )
         return value
     if isinstance(value, list):
         if len(value) > MAX_ESPNOW_PACKET_SIZE:
             raise cv.Invalid(
-                f"'{CONF_DATA}' must be less than {MAX_ESPNOW_PACKET_SIZE} bytes long, got {len(value)}"
+                f"'{CONF_DATA}' must be at most {MAX_ESPNOW_PACKET_SIZE} bytes long, got {len(value)}"
             )
         return cv.Schema([cv.hex_uint8_t])(value)
     raise cv.Invalid(
