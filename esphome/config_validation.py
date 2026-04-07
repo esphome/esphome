@@ -131,14 +131,14 @@ RequiredFieldInvalid = vol.RequiredFieldInvalid
 ROOT_CONFIG_PATH = object()
 
 
-def ByteLength(*, max: int):
+def ByteLength(*, max: int) -> Callable[[str], str]:
     """Validate that the UTF-8 byte length of a string does not exceed max.
 
     Use instead of Length() when the limit must apply to encoded bytes,
     not characters (e.g. for protobuf length-varint constraints).
     """
 
-    def validator(value):
+    def validator(value: str) -> str:
         byte_len = len(str(value).encode("utf-8"))
         if byte_len > max:
             raise Invalid(
