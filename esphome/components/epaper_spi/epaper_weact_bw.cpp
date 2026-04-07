@@ -113,6 +113,9 @@ void EPaperWeActBW::power_off() {
   // Partial update completed: sync the OLD frame buffer (0x26) so the next
   // partial update diffs against the frame just displayed, not the original
   // full-cycle seed.
+  // TODO: Consider chunking this buffer transfer (using current_data_index_ and MAX_TRANSFER_TIME)
+  // to keep the main loop responsive during large partial-cycle syncs. This would require
+  // changing power_off() to be resumable (bool return). Can be optimized in a follow-up PR.
   const uint8_t x_end = (uint8_t) (this->row_width_ - 1);
   const uint16_t y_end = (uint16_t) (this->height_ - 1);
   this->cmd_data(0x44, {0x00, x_end});
