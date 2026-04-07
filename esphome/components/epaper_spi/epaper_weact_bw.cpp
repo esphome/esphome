@@ -14,10 +14,10 @@ bool EPaperWeActBW::initialise(bool partial) {
   // Full update starts a new cycle: wake/reset/init the controller.
   // Partial updates keep panel state and do not re-run init sequence.
   this->current_partial_update_ = partial;
+  this->write_old_buffer_pass_ = false;
   if (!partial) {
     EPaperBase::initialise(false);
   }
-  this->send_red_ = true;
   return true;
 }
 
@@ -38,7 +38,7 @@ bool HOT EPaperWeActBW::transfer_data() {
     // Full cycle: pass 1 = 0x24 (new frame), pass 2 = 0x26 (old frame seed).
     // Partial: write 0x24 (new frame) only; 0x26 is updated post-refresh in power_off().
     if (full_cycle_update) {
-      this->command(this->send_red_ ? 0x24 : 0x26);
+      this->command(this->write_old_buffer_pass_ ? 0x26 : 0x24);
     } else {
       this->command(0x24);
     }
@@ -60,11 +60,11 @@ bool HOT EPaperWeActBW::transfer_data() {
   this->disable();
   this->current_data_index_ = 0;
 
-  if (full_cycle_update && this->send_red_) {
-    this->send_red_ = false;
+  if (full_cycle_update && !this->write_old_buffer_pass_) {
+    this->write_old_buffer_pass_ = true;
     return false;  // Trigger second pass for 0x26.
   }
-  this->send_red_ = false;
+  this->write_old_buffer_pass_ = false;
   return true;
 }
 

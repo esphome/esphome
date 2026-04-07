@@ -20,6 +20,7 @@ class EPaperWeActBW final : public EPaperMono {
   void deep_sleep() override;
 
   bool current_partial_update_{false};
+  bool write_old_buffer_pass_{false};
 };
 
 }  // namespace esphome::epaper_spi
