@@ -4,6 +4,19 @@
 
 namespace esphome::epaper_spi {
 
+/**
+ * Waveshare 3.97" / SSD1677 driver
+ *
+ * Supports:
+ * - 1bpp black/white
+ * - full-frame transfer
+ * - full refresh
+ *
+ * Not supported yet:
+ * - partial refresh
+ * - fast refresh
+ * - 4-gray mode
+ */
 class EPaperSSD1677 final : public EPaperBase {
  public:
   EPaperSSD1677(const char *name, uint16_t width, uint16_t height, const uint8_t *init_sequence,
