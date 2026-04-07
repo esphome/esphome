@@ -15,12 +15,12 @@ void EPaperMono::refresh_screen(bool partial) {
 
 void EPaperMono::deep_sleep() {
   ESP_LOGV(TAG, "Deep sleep");
-  this->command(0x10);
+  this->cmd_data(0x10, {0x03});
 }
 
 bool EPaperMono::reset() {
   if (EPaperBase::reset()) {
-    this->cmd_data(0x12, {0x03});
+    this->command(0x12);
     return true;
   }
   return false;
