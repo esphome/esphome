@@ -1204,7 +1204,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * This callback is invoked when a Nextion custom sensor frame is received,
    * providing the component name as the key and the decoded integer value.
    *
-   * @param callback The void(const StringRef &key, int value) callback.
+   * @param callback The void(StringRef key, int32_t value) callback.
    */
   template<typename F> void add_custom_sensor_callback(F &&callback) {
     this->custom_sensor_callback_.add(std::forward<F>(callback));
