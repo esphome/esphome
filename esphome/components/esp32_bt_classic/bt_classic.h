@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
@@ -144,6 +145,11 @@ class ESP32BtClassic : public Component, public BtClassicItf {
   void dump_config() override;
   float get_setup_priority() const override;
 
+  void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
+
+  void enable();
+  void disable();
+
 #ifdef USE_BUTTON
   void set_reset_bt_stack_button(button::Button *button) {reset_bt_stack_button_ = button; }
 #endif
@@ -173,9 +179,12 @@ class ESP32BtClassic : public Component, public BtClassicItf {
 
   optional<bt_scan_item> handle_scan_result(const rmt_name_result &result);
 
+  bool bt_pre_setup_();
   bool bt_setup_();
+  bool bt_dismantle_();
   bool gap_startup();
 
+  bool enable_on_boot_{};
   bool scanPending_{false};
   uint32_t last_scan_ms{};
   std::vector<bt_scan_item> active_scan_list_{};
@@ -198,6 +207,22 @@ class ESP32BtClassic : public Component, public BtClassicItf {
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern ESP32BtClassic *global_bt_classic;
+
+template<typename... Ts> class BTClassicEnableAction : public Action<Ts...> {
+ public:
+  void play(const Ts &...x) override {
+    if (global_bt_classic != nullptr)
+      global_bt_classic->enable();
+  }
+};
+
+template<typename... Ts> class BTClassicDisableAction : public Action<Ts...> {
+ public:
+  void play(const Ts &...x) override {
+    if (global_bt_classic != nullptr)
+      global_bt_classic->disable();
+  }
+};
 
 }  // namespace esp32_bt_classic
 }  // namespace esphome

@@ -4,6 +4,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DELAY,
+    CONF_ENABLE_ON_BOOT,
     CONF_ID,
     CONF_MAC_ADDRESS,
     CONF_NUM_SCANS,
@@ -39,6 +40,13 @@ NO_BLUETOOTH_VARIANTS = [esp32_const.VARIANT_ESP32S2]
 esp32_bt_classic_ns = cg.esphome_ns.namespace("esp32_bt_classic")
 ESP32BtClassic = esp32_bt_classic_ns.class_("ESP32BtClassic", cg.Component)
 
+BTClassicEnableAction = esp32_bt_classic_ns.class_(
+    "BTClassicEnableAction", automation.Action
+)
+BTClassicDisableAction = esp32_bt_classic_ns.class_(
+    "BTClassicDisableAction", automation.Action
+)
+
 BtAddress = esp32_bt_classic_ns.class_("BtAddress")
 BtAddressConstRef = BtAddress.operator("ref").operator("const")
 
@@ -71,6 +79,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ESP32BtClassic),
+            cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
             cv.Optional(CONF_ON_SCAN_START): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -151,6 +160,7 @@ async def bt_classic_scan_to_code(config, action_id, template_arg, args):
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+    cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
 
     for conf in config.get(CONF_ON_SCAN_START, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
@@ -194,4 +204,16 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_BT_LOG_BTC_TRACE_LEVEL_DEBUG", True)
         add_idf_sdkconfig_option("CONFIG_BT_LOG_BTC_TRACE_LEVEL", 5)
 
-    cg.add_define("BT_CLASSIC_INCLUDED_PLEASE_DONT_MEM_RELEASE")
+
+@automation.register_action(
+    "bt_classic.enable", BTClassicEnableAction, cv.Schema({}), synchronous=True
+)
+async def bt_classic_enable_to_code(config, action_id, template_arg, args):
+    return cg.new_Pvariable(action_id, template_arg)
+
+
+@automation.register_action(
+    "bt_classic.disable", BTClassicDisableAction, cv.Schema({}), synchronous=True
+)
+async def bt_classic_disable_to_code(config, action_id, template_arg, args):
+    return cg.new_Pvariable(action_id, template_arg)

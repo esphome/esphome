@@ -32,33 +32,57 @@ void ESP32BtClassic::setup() {
   global_bt_classic = this;
   ESP_LOGCONFIG(TAG, "Setting up BT Classic...");
 
-  if (!bt_setup_()) {
-    ESP_LOGE(TAG, "BT Classic could not be set up");
+  if (!bt_pre_setup_()) {
+    ESP_LOGE(TAG, "BT Classic could not be prepared for configuration");
     this->mark_failed();
-#ifdef USE_TEXT_SENSOR
-    if (last_error_sensor_) {
-      last_error_sensor_->publish_state("boot");
-    }
-#endif
     return;
+  }
+
+  if (this->enable_on_boot_) {
+    this->enable();
   }
 
   ESP_LOGD(TAG, "BT Classic setup complete");
 }
 
-bool ESP32BtClassic::bt_setup_() {
+void ESP32BtClassic::enable() {
+  ESP_LOGD(TAG, "Enabling");
+  if (!bt_setup_()) {
+    ESP_LOGE(TAG, "BT Classic could not be set up");
+    this->mark_failed();
+#ifdef USE_TEXT_SENSOR
+    if (last_error_sensor_) {
+      last_error_sensor_->publish_state("setup");
+    }
+#endif
+    return;
+  }
+}
+void ESP32BtClassic::disable() {
+    ESP_LOGD(TAG, "Disabling");
+    if (!bt_dismantle_()) {
+      ESP_LOGE(TAG, "Could not be dismantled");
+      this->mark_failed();
+#ifdef USE_TEXT_SENSOR
+      if (last_error_sensor_) {
+        last_error_sensor_->publish_state("dismantle");
+      }
+#endif
+      return;
+    }
+}
+
+bool ESP32BtClassic::bt_pre_setup_() {
   esp_err_t err = nvs_flash_init();
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "nvs_flash_init failed: %d", err);
     return false;
   }
-
-#ifdef USE_ARDUINO
-  if (!btStart()) {
-    ESP_LOGE(TAG, "btStart failed: %d", esp_bt_controller_get_status());
-    return false;
+  return true;
   }
-#else
+
+bool ESP32BtClassic::bt_setup_() {
+  esp_err_t err;
   if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
     // start bt controller
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE) {
@@ -83,7 +107,6 @@ bool ESP32BtClassic::bt_setup_() {
       return false;
     }
   }
-#endif
 
   if (esp_bluedroid_get_status() == ESP_BLUEDROID_STATUS_UNINITIALIZED) {
     ESP_LOGD(TAG, "Initializing BlueDroid");
@@ -114,6 +137,52 @@ bool ESP32BtClassic::bt_setup_() {
   }
 
   return success;
+}
+
+bool ESP32BtClassic::bt_dismantle_() {
+  esp_err_t err = esp_bluedroid_disable();
+  if (err != ESP_OK) {
+    // ESP_ERR_INVALID_STATE means Bluedroid is already disabled, which is fine
+    if (err != ESP_ERR_INVALID_STATE) {
+      ESP_LOGE(TAG, "esp_bluedroid_disable failed: %d", err);
+      return false;
+    }
+    ESP_LOGD(TAG, "Already disabled");
+  }
+  err = esp_bluedroid_deinit();
+  if (err != ESP_OK) {
+    // ESP_ERR_INVALID_STATE means Bluedroid is already deinitialized, which is fine
+    if (err != ESP_ERR_INVALID_STATE) {
+      ESP_LOGE(TAG, "esp_bluedroid_deinit failed: %d", err);
+      return false;
+    }
+    ESP_LOGD(TAG, "Already deinitialized");
+  }
+
+  if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_IDLE) {
+    // stop bt controller
+    if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_ENABLED) {
+      err = esp_bt_controller_disable();
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_bt_controller_disable failed: %s", esp_err_to_name(err));
+        return false;
+      }
+      while (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_ENABLED)
+        ;
+    }
+    if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_INITED) {
+      err = esp_bt_controller_deinit();
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_bt_controller_deinit failed: %s", esp_err_to_name(err));
+        return false;
+      }
+    }
+    if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_IDLE) {
+      ESP_LOGE(TAG, "esp bt controller disable failed");
+      return false;
+    }
+  }
+  return true;
 }
 
 bool ESP32BtClassic::gap_startup() {
