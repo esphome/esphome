@@ -15,6 +15,7 @@ from esphome.const import (
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_POWER,
+    DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_VOLTAGE,
     ICON_CURRENT_AC,
     STATE_CLASS_MEASUREMENT,
@@ -138,6 +139,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_REACTIVE_POWER): sensor.sensor_schema(
                 unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
                 accuracy_decimals=2,
+                device_class=DEVICE_CLASS_REACTIVE_POWER,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_ENERGY_PRODUCTION_DAY): sensor.sensor_schema(
@@ -186,21 +188,25 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_GFCI_VALUE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIAMPERE,
                 accuracy_decimals=0,
+                device_class=DEVICE_CLASS_CURRENT,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_DCI_OF_R): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIAMPERE,
                 accuracy_decimals=0,
+                device_class=DEVICE_CLASS_CURRENT,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_DCI_OF_S): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIAMPERE,
                 accuracy_decimals=0,
+                device_class=DEVICE_CLASS_CURRENT,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_DCI_OF_T): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIAMPERE,
                 accuracy_decimals=0,
+                device_class=DEVICE_CLASS_CURRENT,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }

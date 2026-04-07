@@ -106,6 +106,7 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
+from esphome.core.config import UNIT_OF_MEASUREMENT_MAX_LENGTH
 from esphome.core.entity_helpers import (
     entity_duplicate_validator,
     setup_device_class,
@@ -290,7 +291,11 @@ ClampFilter = sensor_ns.class_("ClampFilter", Filter)
 RoundFilter = sensor_ns.class_("RoundFilter", Filter)
 RoundMultipleFilter = sensor_ns.class_("RoundMultipleFilter", Filter)
 
-validate_unit_of_measurement = cv.string_strict
+validate_unit_of_measurement = cv.All(
+    cv.string_strict,
+    # Keep in sync with max_data_length in api.proto
+    cv.Length(max=UNIT_OF_MEASUREMENT_MAX_LENGTH),
+)
 validate_accuracy_decimals = cv.int_
 validate_icon = cv.icon
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
