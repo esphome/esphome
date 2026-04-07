@@ -53,34 +53,26 @@ template<typename... Ts> class LightControlAction : public Action<Ts...> {
   X(float, warm_white)          \
   X(uint32_t, effect)
 
-#define LIGHT_CONTROL_SETTER_(type, name) \
-  template<typename F> void set_##name(F f) { \
-    static_assert(std::convertible_to<F, type (*)(Ts...)>, \
-                  "LightControlAction: only stateless lambdas are supported"); \
-    this->name##_ = static_cast<type (*)(Ts...)>(f); \
-  }
-
-#define APPLY_LIGHT_FIELD_(type, name) \
-  if (this->name##_) call.set_##name(this->name##_(x...));
+#define LIGHT_FIELD_SETTER_(type, name) void set_##name(type (*f)(Ts...)) { this->name##_ = f; }
+#define LIGHT_FIELD_APPLY_(type, name) if (this->name##_) call.set_##name(this->name##_(x...));
+#define LIGHT_FIELD_DECL_(type, name) type (*name##_)(Ts...){nullptr};
   // clang-format on
 
- protected:
-#define LIGHT_CONTROL_FIELD_DECL_(type, name) type (*name##_)(Ts...){nullptr};
-
-  LightState *parent_;
-  LIGHT_CONTROL_FIELDS(LIGHT_CONTROL_FIELD_DECL_)
-#undef LIGHT_CONTROL_FIELD_DECL_
-
- public:
-  LIGHT_CONTROL_FIELDS(LIGHT_CONTROL_SETTER_)
-#undef LIGHT_CONTROL_SETTER_
+  LIGHT_CONTROL_FIELDS(LIGHT_FIELD_SETTER_)
 
   void play(const Ts &...x) override {
     auto call = this->parent_->make_call();
-    LIGHT_CONTROL_FIELDS(APPLY_LIGHT_FIELD_)
+    LIGHT_CONTROL_FIELDS(LIGHT_FIELD_APPLY_)
     call.perform();
   }
-#undef APPLY_LIGHT_FIELD_
+
+ protected:
+  LightState *parent_;
+  LIGHT_CONTROL_FIELDS(LIGHT_FIELD_DECL_)
+
+#undef LIGHT_FIELD_DECL_
+#undef LIGHT_FIELD_APPLY_
+#undef LIGHT_FIELD_SETTER_
 #undef LIGHT_CONTROL_FIELDS
 };
 
