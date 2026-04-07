@@ -65,6 +65,9 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
 
  protected:
   bool set_home_id_(const uint8_t *new_home_id);  // Store a new home ID. Returns true if it changed.
+  void clear_home_id_();                          // Clear home ID and notify API clients
+  void on_connection_changed_(bool connected);    // Handle modem connect/disconnect transitions
+  void retry_home_id_query_();                    // Retry home ID query after reconnect
   void send_homeid_changed_msg_(api::APIConnection *conn = nullptr);
   void send_simple_command_(uint8_t command_id);
   bool parse_byte_(uint8_t byte);  // Returns true if frame parsing was completed (a frame is ready in the buffer)
@@ -80,14 +83,17 @@ class ZWaveProxy : public uart::UARTDevice, public Component {
   // Pointers and 32-bit values (aligned together)
   api::APIConnection *api_connection_{nullptr};  // Current subscribed client
   uint32_t setup_time_{0};                       // Time when setup() was called
+  uint32_t reconnect_time_{0};                   // Timestamp of reconnect detection (0 = no pending query)
 
   // Small values (grouped by size to minimize padding)
   uint16_t buffer_index_{0};     // Index for populating the data buffer
   uint16_t end_frame_after_{0};  // Payload reception ends after this index
   uint8_t last_response_{0};     // Last response type sent
+  uint8_t query_retries_{0};     // Number of home ID query attempts after reconnect
   ZWaveParsingState parsing_state_{ZWAVE_PARSING_STATE_WAIT_START};
   bool in_bootloader_{false};  // True if the device is detected to be in bootloader mode
   bool home_id_ready_{false};  // True when home ID has been received from Z-Wave module
+  bool was_connected_{false};  // Previous UART connection state for edge detection
 };
 
 extern ZWaveProxy *global_zwave_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

@@ -5,10 +5,16 @@
 #include "esphome/core/helpers.h"
 #include "preferences.h"
 
+#include <csignal>
 #include <sched.h>
 #include <time.h>
 #include <cmath>
 #include <cstdlib>
+
+namespace {
+volatile sig_atomic_t s_signal_received = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+void signal_handler(int signal) { s_signal_received = signal; }
+}  // namespace
 
 namespace esphome {
 
@@ -72,11 +78,17 @@ uint32_t arch_get_cpu_freq_hz() { return 1000000000U; }
 void setup();
 void loop();
 int main() {
+  // Install signal handlers for graceful shutdown (flushes preferences to disk)
+  std::signal(SIGINT, signal_handler);
+  std::signal(SIGTERM, signal_handler);
+
   esphome::host::setup_preferences();
   setup();
-  while (true) {
+  while (s_signal_received == 0) {
     loop();
   }
+  esphome::App.run_safe_shutdown_hooks();
+  return 0;
 }
 
 #endif  // USE_HOST
