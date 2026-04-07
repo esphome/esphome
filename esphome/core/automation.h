@@ -34,28 +34,17 @@ template<int... S> struct gens<0, S...> { using type = seq<S...>; };
 #endif
 // NOLINTEND(readability-identifier-naming)
 
-#define TEMPLATABLE_VALUE_(type, name) \
- protected: \
-  TemplatableValue<type, Ts...> name##_{}; \
-\
- public: \
-  template<typename V> void set_##name(V name) { this->name##_ = name; }
-
-#define TEMPLATABLE_VALUE(type, name) TEMPLATABLE_VALUE_(type, name)
-
-/// Primary template: function-pointer-only storage (4 bytes on 32-bit).
+/// Function-pointer-only templatable storage (4 bytes on 32-bit).
+/// Used by the TEMPLATABLE_VALUE macro for codegen-managed fields.
 /// Codegen wraps constants in stateless lambdas so only a function pointer is needed.
-/// Stateful lambdas (std::function) are rejected at compile time.
-template<typename T, typename... X> class TemplatableValue {
+template<typename T, typename... X> class TemplatableFn {
  public:
-  TemplatableValue() = default;
+  TemplatableFn() = default;
 
-  // Accept stateless lambdas (convertible to function pointer)
-  template<typename F> TemplatableValue(F f) requires std::convertible_to<F, T (*)(X...)> : f_(f) {}
+  template<typename F> TemplatableFn(F f) requires std::convertible_to<F, T (*)(X...)> : f_(f) {}
 
-  // Reject stateful lambdas at compile time
   template<typename F>
-  TemplatableValue(F) requires std::invocable<F, X...> &&(!std::convertible_to<F, T (*)(X...)>) = delete;
+  TemplatableFn(F) requires std::invocable<F, X...> &&(!std::convertible_to<F, T (*)(X...)>) = delete;
 
   bool has_value() const { return this->f_ != nullptr; }
 
@@ -71,6 +60,117 @@ template<typename T, typename... X> class TemplatableValue {
 
  protected:
   T (*f_)(X...){nullptr};
+};
+
+#define TEMPLATABLE_VALUE_(type, name) \
+ protected: \
+  TemplatableFn<type, Ts...> name##_{}; \
+\
+ public: \
+  template<typename V> void set_##name(V name) { this->name##_ = name; }
+
+#define TEMPLATABLE_VALUE(type, name) TEMPLATABLE_VALUE_(type, name)
+
+/// Primary TemplatableValue: stores either a constant value or a function pointer.
+/// No std::function, no string-specific paths. 8 bytes on 32-bit.
+/// Accepts raw constants for backward compatibility with direct C++ usage.
+template<typename T, typename... X> class TemplatableValue {
+ public:
+  TemplatableValue() = default;
+
+  // Accept raw constants
+  template<typename V> TemplatableValue(V value) requires(!std::invocable<V, X...>) : tag_(VALUE) {
+    new (&this->value_) T(static_cast<T>(std::move(value)));
+  }
+
+  // Accept stateless lambdas (convertible to function pointer)
+  template<typename F> TemplatableValue(F f) requires std::convertible_to<F, T (*)(X...)> : tag_(FN) { this->f_ = f; }
+
+  // Reject stateful lambdas at compile time
+  template<typename F>
+  TemplatableValue(F) requires std::invocable<F, X...> &&(!std::convertible_to<F, T (*)(X...)>) = delete;
+
+  TemplatableValue(const TemplatableValue &other) : tag_(other.tag_) {
+    if (this->tag_ == VALUE) {
+      new (&this->value_) T(other.value_);
+    } else if (this->tag_ == FN) {
+      this->f_ = other.f_;
+    }
+  }
+
+  TemplatableValue(TemplatableValue &&other) noexcept : tag_(other.tag_) {
+    if (this->tag_ == VALUE) {
+      new (&this->value_) T(std::move(other.value_));
+    } else if (this->tag_ == FN) {
+      this->f_ = other.f_;
+    }
+    other.tag_ = NONE;
+  }
+
+  TemplatableValue &operator=(const TemplatableValue &other) {
+    if (this != &other) {
+      this->destroy_();
+      this->tag_ = other.tag_;
+      if (this->tag_ == VALUE) {
+        new (&this->value_) T(other.value_);
+      } else if (this->tag_ == FN) {
+        this->f_ = other.f_;
+      }
+    }
+    return *this;
+  }
+
+  TemplatableValue &operator=(TemplatableValue &&other) noexcept {
+    if (this != &other) {
+      this->destroy_();
+      this->tag_ = other.tag_;
+      if (this->tag_ == VALUE) {
+        new (&this->value_) T(std::move(other.value_));
+      } else if (this->tag_ == FN) {
+        this->f_ = other.f_;
+      }
+      other.tag_ = NONE;
+    }
+    return *this;
+  }
+
+  ~TemplatableValue() { this->destroy_(); }
+
+  bool has_value() const { return this->tag_ != NONE; }
+
+  T value(X... x) const {
+    if (this->tag_ == FN)
+      return this->f_(x...);
+    if (this->tag_ == VALUE)
+      return this->value_;
+    return T{};
+  }
+
+  optional<T> optional_value(X... x) const {
+    if (this->tag_ == NONE)
+      return {};
+    return this->value(x...);
+  }
+
+  T value_or(X... x, T default_value) const {
+    if (this->tag_ == NONE)
+      return default_value;
+    return this->value(x...);
+  }
+
+ protected:
+  void destroy_() {
+    if constexpr (!std::is_trivially_destructible_v<T>) {
+      if (this->tag_ == VALUE)
+        this->value_.~T();
+    }
+  }
+
+  enum Tag : uint8_t { NONE, VALUE, FN } tag_{NONE};
+  union {
+    T value_;
+    T (*f_)(X...);
+  };
 };
 
 /// Specialization for std::string: supports VALUE, STATIC_STRING, FLASH_STRING,

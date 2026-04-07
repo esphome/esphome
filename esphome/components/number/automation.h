@@ -63,8 +63,8 @@ class ValueRangeTrigger : public Trigger<float>, public Component {
   Number *parent_;
   ESPPreferenceObject rtc_;
   bool previous_in_range_{false};
-  TemplatableValue<float, float> min_{[](float) -> float { return NAN; }};  // NAN = no bound
-  TemplatableValue<float, float> max_{[](float) -> float { return NAN; }};  // NAN = no bound
+  TemplatableFn<float, float> min_{[](float) -> float { return NAN; }};
+  TemplatableFn<float, float> max_{[](float) -> float { return NAN; }};
 };
 
 template<typename... Ts> class NumberInRangeCondition : public Condition<Ts...> {
