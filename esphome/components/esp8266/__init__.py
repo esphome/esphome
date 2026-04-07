@@ -205,7 +205,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_BOARD): cv.All(
-                cv.string_strict, cv.Length(max=BOARD_MAX_LENGTH)
+                cv.string_strict, cv.ByteLength(max=BOARD_MAX_LENGTH)
             ),
             cv.Optional(CONF_FRAMEWORK, default={}): ARDUINO_FRAMEWORK_SCHEMA,
             cv.Optional(CONF_RESTORE_FROM_FLASH, default=False): cv.boolean,

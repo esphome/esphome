@@ -1405,7 +1405,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_BOARD): cv.All(
-                cv.string_strict, cv.Length(max=BOARD_MAX_LENGTH)
+                cv.string_strict, cv.ByteLength(max=BOARD_MAX_LENGTH)
             ),
             cv.Optional(CONF_CPU_FREQUENCY): cv.one_of(
                 *FULL_CPU_FREQUENCIES, upper=True

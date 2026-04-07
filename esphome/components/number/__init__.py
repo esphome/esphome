@@ -190,7 +190,7 @@ validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 validate_unit_of_measurement = cv.All(
     cv.string_strict,
     # Keep in sync with max_data_length in api.proto
-    cv.Length(max=UNIT_OF_MEASUREMENT_MAX_LENGTH),
+    cv.ByteLength(max=UNIT_OF_MEASUREMENT_MAX_LENGTH),
 )
 
 _NUMBER_SCHEMA = (

@@ -268,7 +268,7 @@ BASE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(LTComponent),
         cv.Required(CONF_BOARD): cv.All(
-            cv.string_strict, cv.Length(max=BOARD_MAX_LENGTH)
+            cv.string_strict, cv.ByteLength(max=BOARD_MAX_LENGTH)
         ),
         cv.Optional(CONF_FAMILY): cv.one_of(*FAMILIES, upper=True),
         cv.Optional(CONF_FRAMEWORK, default={}): FRAMEWORK_SCHEMA,
