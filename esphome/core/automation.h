@@ -101,6 +101,7 @@ template<typename T, typename... X> class TemplatableValue {
   TemplatableValue(TemplatableValue &&other) noexcept : tag_(other.tag_) {
     if (this->tag_ == VALUE) {
       new (&this->value_) T(std::move(other.value_));
+      other.destroy_();
     } else if (this->tag_ == FN) {
       this->f_ = other.f_;
     }
@@ -126,6 +127,7 @@ template<typename T, typename... X> class TemplatableValue {
       this->tag_ = other.tag_;
       if (this->tag_ == VALUE) {
         new (&this->value_) T(std::move(other.value_));
+        other.destroy_();
       } else if (this->tag_ == FN) {
         this->f_ = other.f_;
       }
