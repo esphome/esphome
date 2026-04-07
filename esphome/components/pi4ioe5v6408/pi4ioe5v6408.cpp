@@ -41,8 +41,11 @@ void PI4IOE5V6408Component::setup() {
     this->interrupt_pin_->setup();
     this->interrupt_pin_->attach_interrupt(&PI4IOE5V6408Component::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
     this->set_invalidate_on_read_(false);
-    this->disable_loop();
   }
+  // Disable loop until an input pin is configured via pin_mode()
+  // For interrupt-driven mode, loop is re-enabled by the ISR
+  // For polling mode, loop is re-enabled when pin_mode() registers an input pin
+  this->disable_loop();
 }
 void IRAM_ATTR PI4IOE5V6408Component::gpio_intr(PI4IOE5V6408Component *arg) { arg->enable_loop_soon_any_context(); }
 void PI4IOE5V6408Component::dump_config() {
@@ -66,6 +69,11 @@ void PI4IOE5V6408Component::pin_mode(uint8_t pin, gpio::Flags flags) {
     } else if (flags & gpio::FLAG_PULLDOWN) {
       this->pull_up_down_mask_ &= ~(1 << pin);
       this->pull_enable_mask_ |= 1 << pin;
+    }
+    // Enable polling loop for input pins (not needed for interrupt-driven mode
+    // where the ISR handles re-enabling loop)
+    if (this->interrupt_pin_ == nullptr) {
+      this->enable_loop();
     }
   }
   // Write GPIO to enable input mode

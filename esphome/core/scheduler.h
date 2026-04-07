@@ -495,22 +495,22 @@ class Scheduler {
   // name_type determines matching: STATIC_STRING uses static_name, others use hash_or_id
   // Returns the number of items marked for removal.
   // IMPORTANT: Must be called with scheduler lock held
-  __attribute__((noinline)) size_t mark_matching_items_removed_locked_(std::vector<SchedulerItem *> &container,
-                                                                       Component *component, NameType name_type,
-                                                                       const char *static_name, uint32_t hash_or_id,
-                                                                       SchedulerItem::Type type, bool match_retry,
-                                                                       bool find_first = false) {
-    size_t count = 0;
-    for (auto *item : container) {
-      if (this->matches_item_locked_(item, component, name_type, static_name, hash_or_id, type, match_retry)) {
-        this->set_item_removed_(item, true);
-        if (find_first)
-          return 1;
-        count++;
-      }
-    }
-    return count;
+  // Inlined: the fast path (empty container) avoids calling the out-of-line scan.
+  inline size_t HOT mark_matching_items_removed_locked_(std::vector<SchedulerItem *> &container, Component *component,
+                                                        NameType name_type, const char *static_name,
+                                                        uint32_t hash_or_id, SchedulerItem::Type type, bool match_retry,
+                                                        bool find_first = false) {
+    if (container.empty())
+      return 0;
+    return this->mark_matching_items_removed_slow_locked_(container, component, name_type, static_name, hash_or_id,
+                                                          type, match_retry, find_first);
   }
+
+  // Out-of-line slow path for mark_matching_items_removed_locked_ when container is non-empty.
+  // IMPORTANT: Must be called with scheduler lock held
+  __attribute__((noinline)) size_t mark_matching_items_removed_slow_locked_(
+      std::vector<SchedulerItem *> &container, Component *component, NameType name_type, const char *static_name,
+      uint32_t hash_or_id, SchedulerItem::Type type, bool match_retry, bool find_first);
 
   Mutex lock_;
   std::vector<SchedulerItem *> items_;

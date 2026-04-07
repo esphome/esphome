@@ -1606,7 +1606,7 @@ message BluetoothLEAdvertisementResponse {
 message BluetoothLERawAdvertisement {
   uint64 address = 1 [(force) = true];
   sint32 rssi = 2 [(force) = true];
-  uint32 address_type = 3;
+  uint32 address_type = 3 [(max_value) = 4];
 
   bytes data = 4 [(fixed_array_size) = 62, (force) = true];
 }

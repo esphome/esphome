@@ -3,6 +3,9 @@ name: PR Title Check
 on:
   pull_request:
     types: [opened, edited, synchronize, reopened]
+    branches-ignore:
+      - release
+      - beta
 
 permissions:
   contents: read
