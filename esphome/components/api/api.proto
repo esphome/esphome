@@ -132,9 +132,9 @@ message HelloResponse {
   // Currently set to ESPHOME_VERSION string literal.
   string server_info = 3 [(max_data_length) = 32, (force) = true];
 
-  // The name of the server (App.get_name())
-  // max_data_length matches config_validation.NAME_MAX_LENGTH
-  string name = 4 [(max_data_length) = 120, (force) = true];
+  // The name of the server (App.get_name() - device hostname)
+  // max_data_length matches ESPHOME_DEVICE_NAME_MAX_LEN (validated by validate_hostname)
+  string name = 4 [(max_data_length) = 31, (force) = true];
 }
 
 // DEPRECATED in ESPHome 2026.1.0 - Password authentication is no longer supported.
@@ -220,13 +220,15 @@ message SerialProxyInfo {
 }
 
 // DeviceInfoResponse max_data_length values:
-//   name/friendly_name = 120 (config_validation.NAME_MAX_LENGTH / core/config.FRIENDLY_NAME_MAX_LEN)
+//   name = 31 (ESPHOME_DEVICE_NAME_MAX_LEN, validated by validate_hostname)
+//   friendly_name = 120 (core/config.FRIENDLY_NAME_MAX_LEN)
 //   mac_address/bluetooth_mac_address = 17 (MAC_ADDRESS_PRETTY_BUFFER_SIZE - 1, constexpr)
 //   esphome_version = 32 (ESPHOME_VERSION string literal)
 //   compilation_time = 25 (Application::BUILD_TIME_STR_SIZE - 1, constexpr)
 //   manufacturer = 20 (longest hardcoded literal: "Nordic Semiconductor")
 //   model = 127 (core/config.BOARD_MAX_LENGTH, validated in platform schemas)
 //   project_name/project_version = 127 (core/config.PROJECT_MAX_LENGTH)
+//   suggested_area = 120 (core/config.FRIENDLY_NAME_MAX_LEN via AREA_SCHEMA)
 message DeviceInfoResponse {
   option (id) = 10;
   option (source) = SOURCE_SERVER;
@@ -235,8 +237,8 @@ message DeviceInfoResponse {
   // with older ESPHome versions that still send this field.
   bool uses_password = 1 [deprecated = true];
 
-  // The name of the node, given by "App.set_name()"
-  string name = 2 [(max_data_length) = 120, (force) = true];
+  // The name of the node, given by "App.set_name()" - device hostname
+  string name = 2 [(max_data_length) = 31, (force) = true];
 
   // The mac address of the device. For example "AC:BC:32:89:0E:A9"
   string mac_address = 3 [(max_data_length) = 17, (force) = true];
@@ -274,7 +276,7 @@ message DeviceInfoResponse {
   uint32 legacy_voice_assistant_version = 14 [deprecated=true, (field_ifdef) = "USE_VOICE_ASSISTANT"];
   uint32 voice_assistant_feature_flags = 17 [(field_ifdef) = "USE_VOICE_ASSISTANT"];
 
-  string suggested_area = 16 [(field_ifdef) = "USE_AREAS"];
+  string suggested_area = 16 [(max_data_length) = 120, (force) = true, (field_ifdef) = "USE_AREAS"];
 
   // The Bluetooth mac address of the device. For example "AC:BC:32:89:0E:AA"
   string bluetooth_mac_address = 18 [(max_data_length) = 17, (force) = true, (field_ifdef) = "USE_BLUETOOTH_PROXY"];

@@ -77,6 +77,8 @@ static_assert(MAC_ADDRESS_PRETTY_BUFFER_SIZE - 1 == 17,
               "Update max_data_length for mac_address/bluetooth_mac_address in api.proto");
 static_assert(Application::BUILD_TIME_STR_SIZE - 1 == 25, "Update max_data_length for compilation_time in api.proto");
 static_assert(sizeof(ESPHOME_VERSION) - 1 <= 32, "Update max_data_length for esphome_version in api.proto");
+static_assert(ESPHOME_DEVICE_NAME_MAX_LEN <= 31, "Update max_data_length for name in api.proto");
+static_assert(ESPHOME_FRIENDLY_NAME_MAX_LEN <= 120, "Update max_data_length for friendly_name in api.proto");
 
 static const char *const TAG = "api.connection";
 #ifdef USE_CAMERA

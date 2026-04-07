@@ -119,7 +119,7 @@ uint8_t *DeviceInfoResponse::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_
   ProtoEncode::encode_uint32(pos PROTO_ENCODE_DEBUG_ARG, 17, this->voice_assistant_feature_flags);
 #endif
 #ifdef USE_AREAS
-  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 16, this->suggested_area);
+  ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 16, this->suggested_area, true);
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   ProtoEncode::encode_string(pos PROTO_ENCODE_DEBUG_ARG, 18, this->bluetooth_mac_address, true);
@@ -181,7 +181,7 @@ uint32_t DeviceInfoResponse::calculate_size() const {
   size += ProtoSize::calc_uint32(2, this->voice_assistant_feature_flags);
 #endif
 #ifdef USE_AREAS
-  size += ProtoSize::calc_length(2, this->suggested_area.size());
+  size += 3 + this->suggested_area.size();
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   size += 3 + this->bluetooth_mac_address.size();
