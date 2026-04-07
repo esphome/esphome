@@ -1,5 +1,5 @@
 #include "epaper_spi_ssd1677.h"
-#error
+
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
