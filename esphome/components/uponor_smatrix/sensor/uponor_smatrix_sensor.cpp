@@ -2,6 +2,8 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace uponor_smatrix {
 
@@ -10,7 +12,7 @@ static const char *const TAG = "uponor_smatrix.sensor";
 void UponorSmatrixSensor::dump_config() {
   ESP_LOGCONFIG(TAG,
                 "Uponor Smatrix Sensor\n"
-                "  Device address: 0x%08X",
+                "  Device address: 0x%08" PRIX32,
                 this->address_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "External Temperature", this->external_temperature_sensor_);

@@ -34,7 +34,7 @@ CONFIG_SCHEMA = (
         {
             cv.Required(CONF_TRIGGER_PIN): pins.internal_gpio_output_pin_schema,
             cv.Required(CONF_ECHO_PIN): pins.internal_gpio_input_pin_schema,
-            cv.Optional(CONF_TIMEOUT): cv.distance,
+            cv.Optional(CONF_TIMEOUT, default="2m"): cv.distance,
             cv.Optional(
                 CONF_PULSE_TIME, default="10us"
             ): cv.positive_time_period_microseconds,
@@ -52,12 +52,5 @@ async def to_code(config):
     cg.add(var.set_trigger_pin(trigger))
     echo = await cg.gpio_pin_expression(config[CONF_ECHO_PIN])
     cg.add(var.set_echo_pin(echo))
-
-    # Remove before 2026.8.0
-    if CONF_TIMEOUT in config:
-        _LOGGER.warning(
-            "'timeout' option is deprecated and will be removed in 2026.8.0. "
-            "The option has no effect and can be safely removed."
-        )
-
+    cg.add(var.set_timeout_us(config[CONF_TIMEOUT] / (0.000343 / 2)))
     cg.add(var.set_pulse_time_us(config[CONF_PULSE_TIME]))

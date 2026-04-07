@@ -8,14 +8,14 @@
 namespace esphome {
 namespace nfc {
 
-static const uint8_t TNF_EMPTY = 0x00;
-static const uint8_t TNF_WELL_KNOWN = 0x01;
-static const uint8_t TNF_MIME_MEDIA = 0x02;
-static const uint8_t TNF_ABSOLUTE_URI = 0x03;
-static const uint8_t TNF_EXTERNAL_TYPE = 0x04;
-static const uint8_t TNF_UNKNOWN = 0x05;
-static const uint8_t TNF_UNCHANGED = 0x06;
-static const uint8_t TNF_RESERVED = 0x07;
+static constexpr uint8_t TNF_EMPTY = 0x00;
+static constexpr uint8_t TNF_WELL_KNOWN = 0x01;
+static constexpr uint8_t TNF_MIME_MEDIA = 0x02;
+static constexpr uint8_t TNF_ABSOLUTE_URI = 0x03;
+static constexpr uint8_t TNF_EXTERNAL_TYPE = 0x04;
+static constexpr uint8_t TNF_UNKNOWN = 0x05;
+static constexpr uint8_t TNF_UNCHANGED = 0x06;
+static constexpr uint8_t TNF_RESERVED = 0x07;
 
 class NdefRecord {
  public:

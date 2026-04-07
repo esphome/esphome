@@ -3,6 +3,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace uponor_smatrix {
 
@@ -10,7 +12,7 @@ static const char *const TAG = "uponor_smatrix.climate";
 
 void UponorSmatrixClimate::dump_config() {
   LOG_CLIMATE("", "Uponor Smatrix Climate", this);
-  ESP_LOGCONFIG(TAG, "  Device address: 0x%08X", this->address_);
+  ESP_LOGCONFIG(TAG, "  Device address: 0x%08" PRIX32, this->address_);
 }
 
 void UponorSmatrixClimate::loop() {
@@ -51,10 +53,11 @@ climate::ClimateTraits UponorSmatrixClimate::traits() {
 }
 
 void UponorSmatrixClimate::control(const climate::ClimateCall &call) {
-  if (call.get_target_temperature().has_value()) {
+  auto temp = call.get_target_temperature();
+  if (temp.has_value()) {
     // Convert temperature to raw value and remove offsets that are currently applied
     // by the thermostat based on the current mode
-    uint16_t temp_raw = celsius_to_raw(*call.get_target_temperature());
+    uint16_t temp_raw = celsius_to_raw(*temp);
     if (this->mode == climate::CLIMATE_MODE_HEAT) {
       if (this->preset == climate::CLIMATE_PRESET_ECO)
         temp_raw += this->eco_setback_value_raw_;
@@ -63,7 +66,6 @@ void UponorSmatrixClimate::control(const climate::ClimateCall &call) {
       if (this->preset == climate::CLIMATE_PRESET_ECO)
         temp_raw -= this->eco_setback_value_raw_;
     }
-
     // For unknown reasons, we need to send a null setpoint first for the thermostat to react
     UponorSmatrixData data[] = {{UPONOR_ID_TARGET_TEMP, 0}, {UPONOR_ID_TARGET_TEMP, temp_raw}};
     this->send(data, sizeof(data) / sizeof(data[0]));

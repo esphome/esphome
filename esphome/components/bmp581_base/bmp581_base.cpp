@@ -11,57 +11,26 @@
  */
 
 #include "bmp581_base.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/log.h"
+#include "esphome/core/progmem.h"
 
 namespace esphome::bmp581_base {
 
 static const char *const TAG = "bmp581";
 
+// Oversampling strings indexed by Oversampling enum (0-7): NONE, X2, X4, X8, X16, X32, X64, X128
+PROGMEM_STRING_TABLE(OversamplingStrings, "None", "2x", "4x", "8x", "16x", "32x", "64x", "128x", "");
+
 static const LogString *oversampling_to_str(Oversampling oversampling) {
-  switch (oversampling) {
-    case Oversampling::OVERSAMPLING_NONE:
-      return LOG_STR("None");
-    case Oversampling::OVERSAMPLING_X2:
-      return LOG_STR("2x");
-    case Oversampling::OVERSAMPLING_X4:
-      return LOG_STR("4x");
-    case Oversampling::OVERSAMPLING_X8:
-      return LOG_STR("8x");
-    case Oversampling::OVERSAMPLING_X16:
-      return LOG_STR("16x");
-    case Oversampling::OVERSAMPLING_X32:
-      return LOG_STR("32x");
-    case Oversampling::OVERSAMPLING_X64:
-      return LOG_STR("64x");
-    case Oversampling::OVERSAMPLING_X128:
-      return LOG_STR("128x");
-    default:
-      return LOG_STR("");
-  }
+  return OversamplingStrings::get_log_str(static_cast<uint8_t>(oversampling), OversamplingStrings::LAST_INDEX);
 }
 
+// IIR filter strings indexed by IIRFilter enum (0-7): OFF, 2, 4, 8, 16, 32, 64, 128
+PROGMEM_STRING_TABLE(IIRFilterStrings, "OFF", "2x", "4x", "8x", "16x", "32x", "64x", "128x", "");
+
 static const LogString *iir_filter_to_str(IIRFilter filter) {
-  switch (filter) {
-    case IIRFilter::IIR_FILTER_OFF:
-      return LOG_STR("OFF");
-    case IIRFilter::IIR_FILTER_2:
-      return LOG_STR("2x");
-    case IIRFilter::IIR_FILTER_4:
-      return LOG_STR("4x");
-    case IIRFilter::IIR_FILTER_8:
-      return LOG_STR("8x");
-    case IIRFilter::IIR_FILTER_16:
-      return LOG_STR("16x");
-    case IIRFilter::IIR_FILTER_32:
-      return LOG_STR("32x");
-    case IIRFilter::IIR_FILTER_64:
-      return LOG_STR("64x");
-    case IIRFilter::IIR_FILTER_128:
-      return LOG_STR("128x");
-    default:
-      return LOG_STR("");
-  }
+  return IIRFilterStrings::get_log_str(static_cast<uint8_t>(filter), IIRFilterStrings::LAST_INDEX);
 }
 
 void BMP581Component::dump_config() {
@@ -157,7 +126,7 @@ void BMP581Component::setup() {
   }
 
   // verify id
-  if (chip_id != BMP581_ASIC_ID) {
+  if (chip_id != BMP581_ASIC_ID && chip_id != BMP585_ASIC_ID) {
     ESP_LOGE(TAG, "Unknown chip ID");
 
     this->error_code_ = ERROR_WRONG_CHIP_ID;
@@ -460,7 +429,7 @@ bool BMP581Component::read_temperature_(float &temperature) {
   }
 
   // temperature MSB is in data[2], LSB is in data[1], XLSB in data[0]
-  int32_t raw_temp = (int32_t) data[2] << 16 | (int32_t) data[1] << 8 | (int32_t) data[0];
+  int32_t raw_temp = static_cast<int32_t>(encode_uint32(data[2], data[1], data[0], 0)) >> 8;
   temperature = (float) (raw_temp / 65536.0);  // convert measurement to degrees Celsius (page 22 of datasheet)
 
   return true;
@@ -489,7 +458,7 @@ bool BMP581Component::read_temperature_and_pressure_(float &temperature, float &
   }
 
   // temperature MSB is in data[2], LSB is in data[1], XLSB in data[0]
-  int32_t raw_temp = (int32_t) data[2] << 16 | (int32_t) data[1] << 8 | (int32_t) data[0];
+  int32_t raw_temp = static_cast<int32_t>(encode_uint32(data[2], data[1], data[0], 0)) >> 8;
   temperature = (float) (raw_temp / 65536.0);  // convert measurement to degrees Celsius (page 22 of datasheet)
 
   // pressure MSB is in data[5], LSB is in data[4], XLSB in data[3]
@@ -500,20 +469,27 @@ bool BMP581Component::read_temperature_and_pressure_(float &temperature, float &
 }
 
 bool BMP581Component::reset_() {
+  // - activates interface (only relevant for SPI mode)
   // - writes reset command to the command register
   // - waits for sensor to complete reset
+  // - activates interface (only relevant for SPI mode)
   // - returns the Power-On-Reboot interrupt status, which is asserted if successful
+
+  // activates communication interface (SPI only)
+  this->activate_interface();
 
   // writes reset command to BMP's command register
   if (!this->bmp_write_byte(BMP581_COMMAND, RESET_COMMAND)) {
     ESP_LOGE(TAG, "Failed to write reset command");
-
     return false;
   }
 
   // t_{soft_res} = 2ms (page 11 of datasheet); time it takes to enter standby mode
   //  - round up to 3 ms
   delay(3);
+
+  // reactivates communication interface after reset (SPI only)
+  this->activate_interface();
 
   // read interrupt status register
   if (!this->bmp_read_byte(BMP581_INT_STATUS, &this->int_status_.reg)) {
@@ -522,7 +498,7 @@ bool BMP581Component::reset_() {
     return false;
   }
 
-  // Power-On-Reboot bit is asserted if sensor successfully reset
+  // power-On-Reboot bit is asserted if sensor successfully reset
   return this->int_status_.bit.por;
 }
 

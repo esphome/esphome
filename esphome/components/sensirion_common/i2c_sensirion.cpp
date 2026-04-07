@@ -12,24 +12,25 @@ static const char *const TAG = "sensirion_i2c";
 static const size_t BUFFER_STACK_SIZE = 16;
 
 bool SensirionI2CDevice::read_data(uint16_t *data, const uint8_t len) {
-  const uint8_t num_bytes = len * 3;
-  uint8_t buf[num_bytes];
+  const size_t required_buffer_len = len * 3;
+  SmallBufferWithHeapFallback<BUFFER_STACK_SIZE> buffer(required_buffer_len);
+  uint8_t *temp = buffer.get();
 
-  this->last_error_ = this->read(buf, num_bytes);
+  this->last_error_ = this->read(temp, required_buffer_len);
   if (this->last_error_ != i2c::ERROR_OK) {
     return false;
   }
 
-  for (uint8_t i = 0; i < len; i++) {
-    const uint8_t j = 3 * i;
+  for (size_t i = 0; i < len; i++) {
+    const size_t j = i * 3;
     // Use MSB first since Sensirion devices use CRC-8 with MSB first
-    uint8_t crc = crc8(&buf[j], 2, 0xFF, CRC_POLYNOMIAL, true);
-    if (crc != buf[j + 2]) {
-      ESP_LOGE(TAG, "CRC invalid @ %d! 0x%02X != 0x%02X", i, buf[j + 2], crc);
+    uint8_t crc = crc8(&temp[j], 2, 0xFF, CRC_POLYNOMIAL, true);
+    if (crc != temp[j + 2]) {
+      ESP_LOGE(TAG, "CRC invalid @ %zu! 0x%02X != 0x%02X", i, temp[j + 2], crc);
       this->last_error_ = i2c::ERROR_CRC;
       return false;
     }
-    data[i] = encode_uint16(buf[j], buf[j + 1]);
+    data[i] = encode_uint16(temp[j], temp[j + 1]);
   }
   return true;
 }

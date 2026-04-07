@@ -25,7 +25,6 @@ from esphome.const import (
     CONF_TEMPERATURE_COMPENSATION,
     CONF_TIME_CONSTANT,
     CONF_VOC,
-    CONF_VOC_BASELINE,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_PM1,
@@ -165,7 +164,6 @@ CONFIG_SCHEMA = (
                 gain_factor=230,
             ),
             cv.Optional(CONF_STORE_BASELINE, default=True): cv.boolean,
-            cv.Optional(CONF_VOC_BASELINE): cv.hex_uint16_t,
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
                 icon=ICON_THERMOMETER,
@@ -267,7 +265,10 @@ SEN5X_ACTION_SCHEMA = maybe_simple_id(
 
 
 @automation.register_action(
-    "sen5x.start_fan_autoclean", StartFanAction, SEN5X_ACTION_SCHEMA
+    "sen5x.start_fan_autoclean",
+    StartFanAction,
+    SEN5X_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def sen54_fan_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

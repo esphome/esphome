@@ -2,6 +2,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome::thermostat {
 
@@ -84,7 +85,7 @@ void ThermostatClimate::refresh() {
   this->switch_to_mode_(this->mode, false);
   this->switch_to_action_(this->compute_action_(), false);
   this->switch_to_supplemental_action_(this->compute_supplemental_action_());
-  this->switch_to_fan_mode_(this->fan_mode.value(), false);
+  this->switch_to_fan_mode_(this->fan_mode.value_or(climate::CLIMATE_FAN_ON), false);
   this->switch_to_swing_mode_(this->swing_mode, false);
   this->switch_to_humidity_control_action_(this->compute_humidity_control_action_());
   this->check_humidity_change_trigger_();
@@ -211,12 +212,13 @@ void ThermostatClimate::validate_target_humidity() {
 void ThermostatClimate::control(const climate::ClimateCall &call) {
   bool target_temperature_high_changed = false;
 
-  if (call.get_preset().has_value()) {
+  auto preset = call.get_preset();
+  if (preset.has_value()) {
     // setup_complete_ blocks modifying/resetting the temps immediately after boot
     if (this->setup_complete_) {
-      this->change_preset_(call.get_preset().value());
+      this->change_preset_(*preset);
     } else {
-      this->preset = call.get_preset().value();
+      this->preset = preset;
     }
   }
   if (call.has_custom_preset()) {
@@ -229,34 +231,41 @@ void ThermostatClimate::control(const climate::ClimateCall &call) {
     }
   }
 
-  if (call.get_mode().has_value()) {
-    this->mode = call.get_mode().value();
+  auto mode = call.get_mode();
+  if (mode.has_value()) {
+    this->mode = *mode;
   }
-  if (call.get_fan_mode().has_value()) {
-    this->fan_mode = call.get_fan_mode().value();
+  auto fan_mode = call.get_fan_mode();
+  if (fan_mode.has_value()) {
+    this->fan_mode = fan_mode;
   }
-  if (call.get_swing_mode().has_value()) {
-    this->swing_mode = call.get_swing_mode().value();
+  auto swing_mode = call.get_swing_mode();
+  if (swing_mode.has_value()) {
+    this->swing_mode = *swing_mode;
   }
   if (this->supports_two_points_) {
-    if (call.get_target_temperature_low().has_value()) {
-      this->target_temperature_low = call.get_target_temperature_low().value();
+    auto target_temp_low = call.get_target_temperature_low();
+    if (target_temp_low.has_value()) {
+      this->target_temperature_low = *target_temp_low;
     }
-    if (call.get_target_temperature_high().has_value()) {
-      target_temperature_high_changed = this->target_temperature_high != call.get_target_temperature_high().value();
-      this->target_temperature_high = call.get_target_temperature_high().value();
+    auto target_temp_high = call.get_target_temperature_high();
+    if (target_temp_high.has_value()) {
+      target_temperature_high_changed = this->target_temperature_high != *target_temp_high;
+      this->target_temperature_high = *target_temp_high;
     }
     // ensure the two set points are valid and adjust one of them if necessary
     this->validate_target_temperatures(target_temperature_high_changed ||
                                        (this->prev_mode_ == climate::CLIMATE_MODE_COOL));
   } else {
-    if (call.get_target_temperature().has_value()) {
-      this->target_temperature = call.get_target_temperature().value();
+    auto target_temp = call.get_target_temperature();
+    if (target_temp.has_value()) {
+      this->target_temperature = *target_temp;
       this->validate_target_temperature();
     }
   }
-  if (call.get_target_humidity().has_value()) {
-    this->target_humidity = call.get_target_humidity().value();
+  auto target_humidity = call.get_target_humidity();
+  if (target_humidity.has_value()) {
+    this->target_humidity = *target_humidity;
     this->validate_target_humidity();
   }
   // make any changes happen
@@ -499,7 +508,7 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action, bool pu
   }
 
   bool action_ready = false;
-  Trigger<> *trig = this->idle_action_trigger_, *trig_fan = nullptr;
+  Trigger<> *trig = &this->idle_action_trigger_, *trig_fan = nullptr;
   switch (action) {
     case climate::CLIMATE_ACTION_OFF:
     case climate::CLIMATE_ACTION_IDLE:
@@ -529,10 +538,10 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action, bool pu
         this->start_timer_(thermostat::THERMOSTAT_TIMER_COOLING_MAX_RUN_TIME);
         if (this->supports_fan_with_cooling_) {
           this->start_timer_(thermostat::THERMOSTAT_TIMER_FANNING_ON);
-          trig_fan = this->fan_only_action_trigger_;
+          trig_fan = &this->fan_only_action_trigger_;
         }
         this->cooling_max_runtime_exceeded_ = false;
-        trig = this->cool_action_trigger_;
+        trig = &this->cool_action_trigger_;
         ESP_LOGVV(TAG, "Switching to COOLING action");
         action_ready = true;
       }
@@ -543,10 +552,10 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action, bool pu
         this->start_timer_(thermostat::THERMOSTAT_TIMER_HEATING_MAX_RUN_TIME);
         if (this->supports_fan_with_heating_) {
           this->start_timer_(thermostat::THERMOSTAT_TIMER_FANNING_ON);
-          trig_fan = this->fan_only_action_trigger_;
+          trig_fan = &this->fan_only_action_trigger_;
         }
         this->heating_max_runtime_exceeded_ = false;
-        trig = this->heat_action_trigger_;
+        trig = &this->heat_action_trigger_;
         ESP_LOGVV(TAG, "Switching to HEATING action");
         action_ready = true;
       }
@@ -558,7 +567,7 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action, bool pu
         } else {
           this->start_timer_(thermostat::THERMOSTAT_TIMER_FANNING_ON);
         }
-        trig = this->fan_only_action_trigger_;
+        trig = &this->fan_only_action_trigger_;
         ESP_LOGVV(TAG, "Switching to FAN_ONLY action");
         action_ready = true;
       }
@@ -567,7 +576,7 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action, bool pu
       if (this->drying_action_ready_()) {
         this->start_timer_(thermostat::THERMOSTAT_TIMER_COOLING_ON);
         this->start_timer_(thermostat::THERMOSTAT_TIMER_FANNING_ON);
-        trig = this->dry_action_trigger_;
+        trig = &this->dry_action_trigger_;
         ESP_LOGVV(TAG, "Switching to DRYING action");
         action_ready = true;
       }
@@ -586,9 +595,7 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action, bool pu
     }
     this->action = action;
     this->prev_action_trigger_ = trig;
-    if (trig != nullptr) {
-      trig->trigger();
-    }
+    trig->trigger();
     // if enabled, call the fan_only action with cooling/heating actions
     if (trig_fan != nullptr) {
       ESP_LOGVV(TAG, "Calling FAN_ONLY action with HEATING/COOLING action");
@@ -600,6 +607,16 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action, bool pu
 }
 
 void ThermostatClimate::switch_to_supplemental_action_(climate::ClimateAction action) {
+  // Always cancel max-runtime timers and clear exceeded flags when transitioning to idle/off,
+  // even if supplemental_action_ is already idle (early-return path). This prevents a stale
+  // heating_max_runtime_exceeded_ flag from triggering supplemental on the next heating cycle
+  // when HEATING_MAX_RUN_TIME fires while the main action is already IDLE.
+  if (action == climate::CLIMATE_ACTION_OFF || action == climate::CLIMATE_ACTION_IDLE) {
+    this->cancel_timer_(thermostat::THERMOSTAT_TIMER_COOLING_MAX_RUN_TIME);
+    this->cancel_timer_(thermostat::THERMOSTAT_TIMER_HEATING_MAX_RUN_TIME);
+    this->cooling_max_runtime_exceeded_ = false;
+    this->heating_max_runtime_exceeded_ = false;
+  }
   // setup_complete_ helps us ensure an action is called immediately after boot
   if ((action == this->supplemental_action_) && this->setup_complete_) {
     // already in target mode
@@ -634,14 +651,14 @@ void ThermostatClimate::trigger_supplemental_action_() {
       if (!this->timer_active_(thermostat::THERMOSTAT_TIMER_COOLING_MAX_RUN_TIME)) {
         this->start_timer_(thermostat::THERMOSTAT_TIMER_COOLING_MAX_RUN_TIME);
       }
-      trig = this->supplemental_cool_action_trigger_;
+      trig = &this->supplemental_cool_action_trigger_;
       ESP_LOGVV(TAG, "Calling supplemental COOLING action");
       break;
     case climate::CLIMATE_ACTION_HEATING:
       if (!this->timer_active_(thermostat::THERMOSTAT_TIMER_HEATING_MAX_RUN_TIME)) {
         this->start_timer_(thermostat::THERMOSTAT_TIMER_HEATING_MAX_RUN_TIME);
       }
-      trig = this->supplemental_heat_action_trigger_;
+      trig = &this->supplemental_heat_action_trigger_;
       ESP_LOGVV(TAG, "Calling supplemental HEATING action");
       break;
     default:
@@ -660,24 +677,24 @@ void ThermostatClimate::switch_to_humidity_control_action_(HumidificationAction 
     return;
   }
 
-  Trigger<> *trig = this->humidity_control_off_action_trigger_;
+  Trigger<> *trig = &this->humidity_control_off_action_trigger_;
   switch (action) {
     case THERMOSTAT_HUMIDITY_CONTROL_ACTION_OFF:
-      // trig = this->humidity_control_off_action_trigger_;
+      // trig = &this->humidity_control_off_action_trigger_;
       ESP_LOGVV(TAG, "Switching to HUMIDIFICATION_OFF action");
       break;
     case THERMOSTAT_HUMIDITY_CONTROL_ACTION_DEHUMIDIFY:
-      trig = this->humidity_control_dehumidify_action_trigger_;
+      trig = &this->humidity_control_dehumidify_action_trigger_;
       ESP_LOGVV(TAG, "Switching to DEHUMIDIFY action");
       break;
     case THERMOSTAT_HUMIDITY_CONTROL_ACTION_HUMIDIFY:
-      trig = this->humidity_control_humidify_action_trigger_;
+      trig = &this->humidity_control_humidify_action_trigger_;
       ESP_LOGVV(TAG, "Switching to HUMIDIFY action");
       break;
     case THERMOSTAT_HUMIDITY_CONTROL_ACTION_NONE:
     default:
       action = THERMOSTAT_HUMIDITY_CONTROL_ACTION_OFF;
-      // trig = this->humidity_control_off_action_trigger_;
+      // trig = &this->humidity_control_off_action_trigger_;
   }
 
   if (this->prev_humidity_control_trigger_ != nullptr) {
@@ -686,9 +703,7 @@ void ThermostatClimate::switch_to_humidity_control_action_(HumidificationAction 
   }
   this->humidification_action = action;
   this->prev_humidity_control_trigger_ = trig;
-  if (trig != nullptr) {
-    trig->trigger();
-  }
+  trig->trigger();
 }
 
 void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode, bool publish_state) {
@@ -703,62 +718,60 @@ void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode, bo
     this->publish_state();
 
   if (this->fan_mode_ready_()) {
-    Trigger<> *trig = this->fan_mode_auto_trigger_;
+    Trigger<> *trig = &this->fan_mode_auto_trigger_;
     switch (fan_mode) {
       case climate::CLIMATE_FAN_ON:
-        trig = this->fan_mode_on_trigger_;
+        trig = &this->fan_mode_on_trigger_;
         ESP_LOGVV(TAG, "Switching to FAN_ON mode");
         break;
       case climate::CLIMATE_FAN_OFF:
-        trig = this->fan_mode_off_trigger_;
+        trig = &this->fan_mode_off_trigger_;
         ESP_LOGVV(TAG, "Switching to FAN_OFF mode");
         break;
       case climate::CLIMATE_FAN_AUTO:
-        // trig = this->fan_mode_auto_trigger_;
+        // trig = &this->fan_mode_auto_trigger_;
         ESP_LOGVV(TAG, "Switching to FAN_AUTO mode");
         break;
       case climate::CLIMATE_FAN_LOW:
-        trig = this->fan_mode_low_trigger_;
+        trig = &this->fan_mode_low_trigger_;
         ESP_LOGVV(TAG, "Switching to FAN_LOW mode");
         break;
       case climate::CLIMATE_FAN_MEDIUM:
-        trig = this->fan_mode_medium_trigger_;
+        trig = &this->fan_mode_medium_trigger_;
         ESP_LOGVV(TAG, "Switching to FAN_MEDIUM mode");
         break;
       case climate::CLIMATE_FAN_HIGH:
-        trig = this->fan_mode_high_trigger_;
+        trig = &this->fan_mode_high_trigger_;
         ESP_LOGVV(TAG, "Switching to FAN_HIGH mode");
         break;
       case climate::CLIMATE_FAN_MIDDLE:
-        trig = this->fan_mode_middle_trigger_;
+        trig = &this->fan_mode_middle_trigger_;
         ESP_LOGVV(TAG, "Switching to FAN_MIDDLE mode");
         break;
       case climate::CLIMATE_FAN_FOCUS:
-        trig = this->fan_mode_focus_trigger_;
+        trig = &this->fan_mode_focus_trigger_;
         ESP_LOGVV(TAG, "Switching to FAN_FOCUS mode");
         break;
       case climate::CLIMATE_FAN_DIFFUSE:
-        trig = this->fan_mode_diffuse_trigger_;
+        trig = &this->fan_mode_diffuse_trigger_;
         ESP_LOGVV(TAG, "Switching to FAN_DIFFUSE mode");
         break;
       case climate::CLIMATE_FAN_QUIET:
-        trig = this->fan_mode_quiet_trigger_;
+        trig = &this->fan_mode_quiet_trigger_;
         ESP_LOGVV(TAG, "Switching to FAN_QUIET mode");
         break;
       default:
         // we cannot report an invalid mode back to HA (even if it asked for one)
         //  and must assume some valid value
         fan_mode = climate::CLIMATE_FAN_AUTO;
-        // trig = this->fan_mode_auto_trigger_;
+        // trig = &this->fan_mode_auto_trigger_;
     }
     if (this->prev_fan_mode_trigger_ != nullptr) {
       this->prev_fan_mode_trigger_->stop_action();
       this->prev_fan_mode_trigger_ = nullptr;
     }
     this->start_timer_(thermostat::THERMOSTAT_TIMER_FAN_MODE);
-    if (trig != nullptr) {
-      trig->trigger();
-    }
+    trig->trigger();
     this->prev_fan_mode_ = fan_mode;
     this->prev_fan_mode_trigger_ = trig;
   }
@@ -775,25 +788,25 @@ void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode, bool publish_
     this->prev_mode_trigger_->stop_action();
     this->prev_mode_trigger_ = nullptr;
   }
-  Trigger<> *trig = this->off_mode_trigger_;
+  Trigger<> *trig = &this->off_mode_trigger_;
   switch (mode) {
     case climate::CLIMATE_MODE_AUTO:
-      trig = this->auto_mode_trigger_;
+      trig = &this->auto_mode_trigger_;
       break;
     case climate::CLIMATE_MODE_HEAT_COOL:
-      trig = this->heat_cool_mode_trigger_;
+      trig = &this->heat_cool_mode_trigger_;
       break;
     case climate::CLIMATE_MODE_COOL:
-      trig = this->cool_mode_trigger_;
+      trig = &this->cool_mode_trigger_;
       break;
     case climate::CLIMATE_MODE_HEAT:
-      trig = this->heat_mode_trigger_;
+      trig = &this->heat_mode_trigger_;
       break;
     case climate::CLIMATE_MODE_FAN_ONLY:
-      trig = this->fan_only_mode_trigger_;
+      trig = &this->fan_only_mode_trigger_;
       break;
     case climate::CLIMATE_MODE_DRY:
-      trig = this->dry_mode_trigger_;
+      trig = &this->dry_mode_trigger_;
       break;
     case climate::CLIMATE_MODE_OFF:
     default:
@@ -802,9 +815,7 @@ void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode, bool publish_
       mode = climate::CLIMATE_MODE_OFF;
       // trig = this->off_mode_trigger_;
   }
-  if (trig != nullptr) {
-    trig->trigger();
-  }
+  trig->trigger();
   this->mode = mode;
   this->prev_mode_ = mode;
   this->prev_mode_trigger_ = trig;
@@ -824,29 +835,27 @@ void ThermostatClimate::switch_to_swing_mode_(climate::ClimateSwingMode swing_mo
     this->prev_swing_mode_trigger_->stop_action();
     this->prev_swing_mode_trigger_ = nullptr;
   }
-  Trigger<> *trig = this->swing_mode_off_trigger_;
+  Trigger<> *trig = &this->swing_mode_off_trigger_;
   switch (swing_mode) {
     case climate::CLIMATE_SWING_BOTH:
-      trig = this->swing_mode_both_trigger_;
+      trig = &this->swing_mode_both_trigger_;
       break;
     case climate::CLIMATE_SWING_HORIZONTAL:
-      trig = this->swing_mode_horizontal_trigger_;
+      trig = &this->swing_mode_horizontal_trigger_;
       break;
     case climate::CLIMATE_SWING_OFF:
-      // trig = this->swing_mode_off_trigger_;
+      // trig = &this->swing_mode_off_trigger_;
       break;
     case climate::CLIMATE_SWING_VERTICAL:
-      trig = this->swing_mode_vertical_trigger_;
+      trig = &this->swing_mode_vertical_trigger_;
       break;
     default:
       // we cannot report an invalid mode back to HA (even if it asked for one)
       //  and must assume some valid value
       swing_mode = climate::CLIMATE_SWING_OFF;
-      // trig = this->swing_mode_off_trigger_;
+      // trig = &this->swing_mode_off_trigger_;
   }
-  if (trig != nullptr) {
-    trig->trigger();
-  }
+  trig->trigger();
   this->swing_mode = swing_mode;
   this->prev_swing_mode_ = swing_mode;
   this->prev_swing_mode_trigger_ = trig;
@@ -977,8 +986,10 @@ void ThermostatClimate::cooling_on_timer_callback_() {
 void ThermostatClimate::fan_mode_timer_callback_() {
   ESP_LOGVV(TAG, "fan_mode timer expired");
   this->switch_to_fan_mode_(this->fan_mode.value_or(climate::CLIMATE_FAN_ON));
-  if (this->supports_fan_only_action_uses_fan_mode_timer_)
+  if (this->supports_fan_only_action_uses_fan_mode_timer_) {
     this->switch_to_action_(this->compute_action_());
+    this->switch_to_supplemental_action_(this->compute_supplemental_action_());
+  }
 }
 
 void ThermostatClimate::fanning_off_timer_callback_() {
@@ -1024,10 +1035,8 @@ void ThermostatClimate::check_humidity_change_trigger_() {
     this->prev_target_humidity_ = this->target_humidity;
   }
   // trigger the action
-  Trigger<> *trig = this->humidity_change_trigger_;
-  if (trig != nullptr) {
-    trig->trigger();
-  }
+  Trigger<> *trig = &this->humidity_change_trigger_;
+  trig->trigger();
 }
 
 void ThermostatClimate::check_temperature_change_trigger_() {
@@ -1050,10 +1059,8 @@ void ThermostatClimate::check_temperature_change_trigger_() {
     }
   }
   // trigger the action
-  Trigger<> *trig = this->temperature_change_trigger_;
-  if (trig != nullptr) {
-    trig->trigger();
-  }
+  Trigger<> *trig = &this->temperature_change_trigger_;
+  trig->trigger();
 }
 
 bool ThermostatClimate::cooling_required_() {
@@ -1202,12 +1209,10 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
   if (config != nullptr) {
     ESP_LOGV(TAG, "Preset %s requested", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
     if (this->change_preset_internal_(*config) || (!this->preset.has_value()) || this->preset.value() != preset) {
-      // Fire any preset changed trigger if defined
-      Trigger<> *trig = this->preset_change_trigger_;
+      // Fire preset changed trigger
+      Trigger<> *trig = &this->preset_change_trigger_;
       this->set_preset_(preset);
-      if (trig != nullptr) {
-        trig->trigger();
-      }
+      trig->trigger();
 
       this->refresh();
       ESP_LOGI(TAG, "Preset %s applied", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
@@ -1234,13 +1239,11 @@ void ThermostatClimate::change_custom_preset_(const char *custom_preset, size_t 
     ESP_LOGV(TAG, "Custom preset %s requested", custom_preset);
     if (this->change_preset_internal_(*config) || !this->has_custom_preset() ||
         this->get_custom_preset() != custom_preset) {
-      // Fire any preset changed trigger if defined
-      Trigger<> *trig = this->preset_change_trigger_;
+      // Fire preset changed trigger
+      Trigger<> *trig = &this->preset_change_trigger_;
       // Use the base class method which handles pointer lookup and preset reset internally
       this->set_custom_preset_(custom_preset);
-      if (trig != nullptr) {
-        trig->trigger();
-      }
+      trig->trigger();
 
       this->refresh();
       ESP_LOGI(TAG, "Custom preset %s applied", custom_preset);
@@ -1282,9 +1285,9 @@ bool ThermostatClimate::change_preset_internal_(const ThermostatClimateTargetTem
     something_changed = true;
   }
 
-  if (config.fan_mode_.has_value() && (this->fan_mode != config.fan_mode_.value())) {
+  if (config.fan_mode_.has_value() && (this->fan_mode != config.fan_mode_)) {
     ESP_LOGV(TAG, "Setting fan mode to %s", LOG_STR_ARG(climate::climate_fan_mode_to_string(*config.fan_mode_)));
-    this->fan_mode = *config.fan_mode_;
+    this->fan_mode = config.fan_mode_;
     something_changed = true;
   }
 
@@ -1305,41 +1308,7 @@ void ThermostatClimate::set_custom_preset_config(std::initializer_list<CustomPre
   this->custom_preset_config_ = presets;
 }
 
-ThermostatClimate::ThermostatClimate()
-    : cool_action_trigger_(new Trigger<>()),
-      supplemental_cool_action_trigger_(new Trigger<>()),
-      cool_mode_trigger_(new Trigger<>()),
-      dry_action_trigger_(new Trigger<>()),
-      dry_mode_trigger_(new Trigger<>()),
-      heat_action_trigger_(new Trigger<>()),
-      supplemental_heat_action_trigger_(new Trigger<>()),
-      heat_mode_trigger_(new Trigger<>()),
-      heat_cool_mode_trigger_(new Trigger<>()),
-      auto_mode_trigger_(new Trigger<>()),
-      idle_action_trigger_(new Trigger<>()),
-      off_mode_trigger_(new Trigger<>()),
-      fan_only_action_trigger_(new Trigger<>()),
-      fan_only_mode_trigger_(new Trigger<>()),
-      fan_mode_on_trigger_(new Trigger<>()),
-      fan_mode_off_trigger_(new Trigger<>()),
-      fan_mode_auto_trigger_(new Trigger<>()),
-      fan_mode_low_trigger_(new Trigger<>()),
-      fan_mode_medium_trigger_(new Trigger<>()),
-      fan_mode_high_trigger_(new Trigger<>()),
-      fan_mode_middle_trigger_(new Trigger<>()),
-      fan_mode_focus_trigger_(new Trigger<>()),
-      fan_mode_diffuse_trigger_(new Trigger<>()),
-      fan_mode_quiet_trigger_(new Trigger<>()),
-      swing_mode_both_trigger_(new Trigger<>()),
-      swing_mode_off_trigger_(new Trigger<>()),
-      swing_mode_horizontal_trigger_(new Trigger<>()),
-      swing_mode_vertical_trigger_(new Trigger<>()),
-      humidity_change_trigger_(new Trigger<>()),
-      temperature_change_trigger_(new Trigger<>()),
-      preset_change_trigger_(new Trigger<>()),
-      humidity_control_dehumidify_action_trigger_(new Trigger<>()),
-      humidity_control_humidify_action_trigger_(new Trigger<>()),
-      humidity_control_off_action_trigger_(new Trigger<>()) {}
+ThermostatClimate::ThermostatClimate() = default;
 
 void ThermostatClimate::set_default_preset(const char *custom_preset) {
   // Find the preset in custom_preset_config_ and store pointer from there
@@ -1378,15 +1347,16 @@ void ThermostatClimate::set_timer_duration_in_sec_(ThermostatClimateTimerIndex t
 
     if (elapsed >= new_duration_ms) {
       // Timer should complete immediately (including when new_duration_ms is 0)
-      ESP_LOGVV(TAG, "timer %d completing immediately (elapsed %d >= new %d)", timer_index, elapsed, new_duration_ms);
+      ESP_LOGVV(TAG, "timer %d completing immediately (elapsed %" PRIu32 " >= new %" PRIu32 ")", timer_index, elapsed,
+                new_duration_ms);
       this->timer_[timer_index].active = false;
       // Trigger the timer callback immediately
       this->call_timer_callback_(timer_index);
       return;
     } else {
       // Adjust timer to run for remaining time - keep original start time
-      ESP_LOGVV(TAG, "timer %d adjusted: elapsed %d, new total %d, remaining %d", timer_index, elapsed, new_duration_ms,
-                new_duration_ms - elapsed);
+      ESP_LOGVV(TAG, "timer %d adjusted: elapsed %" PRIu32 ", new total %" PRIu32 ", remaining %" PRIu32, timer_index,
+                elapsed, new_duration_ms, new_duration_ms - elapsed);
       this->timer_[timer_index].time = new_duration_ms;
       return;
     }
@@ -1513,49 +1483,49 @@ void ThermostatClimate::set_supports_humidification(bool supports_humidification
   }
 }
 
-Trigger<> *ThermostatClimate::get_cool_action_trigger() const { return this->cool_action_trigger_; }
-Trigger<> *ThermostatClimate::get_supplemental_cool_action_trigger() const {
-  return this->supplemental_cool_action_trigger_;
+Trigger<> *ThermostatClimate::get_cool_action_trigger() { return &this->cool_action_trigger_; }
+Trigger<> *ThermostatClimate::get_supplemental_cool_action_trigger() {
+  return &this->supplemental_cool_action_trigger_;
 }
-Trigger<> *ThermostatClimate::get_dry_action_trigger() const { return this->dry_action_trigger_; }
-Trigger<> *ThermostatClimate::get_fan_only_action_trigger() const { return this->fan_only_action_trigger_; }
-Trigger<> *ThermostatClimate::get_heat_action_trigger() const { return this->heat_action_trigger_; }
-Trigger<> *ThermostatClimate::get_supplemental_heat_action_trigger() const {
-  return this->supplemental_heat_action_trigger_;
+Trigger<> *ThermostatClimate::get_dry_action_trigger() { return &this->dry_action_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_only_action_trigger() { return &this->fan_only_action_trigger_; }
+Trigger<> *ThermostatClimate::get_heat_action_trigger() { return &this->heat_action_trigger_; }
+Trigger<> *ThermostatClimate::get_supplemental_heat_action_trigger() {
+  return &this->supplemental_heat_action_trigger_;
 }
-Trigger<> *ThermostatClimate::get_idle_action_trigger() const { return this->idle_action_trigger_; }
-Trigger<> *ThermostatClimate::get_auto_mode_trigger() const { return this->auto_mode_trigger_; }
-Trigger<> *ThermostatClimate::get_cool_mode_trigger() const { return this->cool_mode_trigger_; }
-Trigger<> *ThermostatClimate::get_dry_mode_trigger() const { return this->dry_mode_trigger_; }
-Trigger<> *ThermostatClimate::get_fan_only_mode_trigger() const { return this->fan_only_mode_trigger_; }
-Trigger<> *ThermostatClimate::get_heat_mode_trigger() const { return this->heat_mode_trigger_; }
-Trigger<> *ThermostatClimate::get_heat_cool_mode_trigger() const { return this->heat_cool_mode_trigger_; }
-Trigger<> *ThermostatClimate::get_off_mode_trigger() const { return this->off_mode_trigger_; }
-Trigger<> *ThermostatClimate::get_fan_mode_on_trigger() const { return this->fan_mode_on_trigger_; }
-Trigger<> *ThermostatClimate::get_fan_mode_off_trigger() const { return this->fan_mode_off_trigger_; }
-Trigger<> *ThermostatClimate::get_fan_mode_auto_trigger() const { return this->fan_mode_auto_trigger_; }
-Trigger<> *ThermostatClimate::get_fan_mode_low_trigger() const { return this->fan_mode_low_trigger_; }
-Trigger<> *ThermostatClimate::get_fan_mode_medium_trigger() const { return this->fan_mode_medium_trigger_; }
-Trigger<> *ThermostatClimate::get_fan_mode_high_trigger() const { return this->fan_mode_high_trigger_; }
-Trigger<> *ThermostatClimate::get_fan_mode_middle_trigger() const { return this->fan_mode_middle_trigger_; }
-Trigger<> *ThermostatClimate::get_fan_mode_focus_trigger() const { return this->fan_mode_focus_trigger_; }
-Trigger<> *ThermostatClimate::get_fan_mode_diffuse_trigger() const { return this->fan_mode_diffuse_trigger_; }
-Trigger<> *ThermostatClimate::get_fan_mode_quiet_trigger() const { return this->fan_mode_quiet_trigger_; }
-Trigger<> *ThermostatClimate::get_swing_mode_both_trigger() const { return this->swing_mode_both_trigger_; }
-Trigger<> *ThermostatClimate::get_swing_mode_off_trigger() const { return this->swing_mode_off_trigger_; }
-Trigger<> *ThermostatClimate::get_swing_mode_horizontal_trigger() const { return this->swing_mode_horizontal_trigger_; }
-Trigger<> *ThermostatClimate::get_swing_mode_vertical_trigger() const { return this->swing_mode_vertical_trigger_; }
-Trigger<> *ThermostatClimate::get_humidity_change_trigger() const { return this->humidity_change_trigger_; }
-Trigger<> *ThermostatClimate::get_temperature_change_trigger() const { return this->temperature_change_trigger_; }
-Trigger<> *ThermostatClimate::get_preset_change_trigger() const { return this->preset_change_trigger_; }
-Trigger<> *ThermostatClimate::get_humidity_control_dehumidify_action_trigger() const {
-  return this->humidity_control_dehumidify_action_trigger_;
+Trigger<> *ThermostatClimate::get_idle_action_trigger() { return &this->idle_action_trigger_; }
+Trigger<> *ThermostatClimate::get_auto_mode_trigger() { return &this->auto_mode_trigger_; }
+Trigger<> *ThermostatClimate::get_cool_mode_trigger() { return &this->cool_mode_trigger_; }
+Trigger<> *ThermostatClimate::get_dry_mode_trigger() { return &this->dry_mode_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_only_mode_trigger() { return &this->fan_only_mode_trigger_; }
+Trigger<> *ThermostatClimate::get_heat_mode_trigger() { return &this->heat_mode_trigger_; }
+Trigger<> *ThermostatClimate::get_heat_cool_mode_trigger() { return &this->heat_cool_mode_trigger_; }
+Trigger<> *ThermostatClimate::get_off_mode_trigger() { return &this->off_mode_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_mode_on_trigger() { return &this->fan_mode_on_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_mode_off_trigger() { return &this->fan_mode_off_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_mode_auto_trigger() { return &this->fan_mode_auto_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_mode_low_trigger() { return &this->fan_mode_low_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_mode_medium_trigger() { return &this->fan_mode_medium_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_mode_high_trigger() { return &this->fan_mode_high_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_mode_middle_trigger() { return &this->fan_mode_middle_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_mode_focus_trigger() { return &this->fan_mode_focus_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_mode_diffuse_trigger() { return &this->fan_mode_diffuse_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_mode_quiet_trigger() { return &this->fan_mode_quiet_trigger_; }
+Trigger<> *ThermostatClimate::get_swing_mode_both_trigger() { return &this->swing_mode_both_trigger_; }
+Trigger<> *ThermostatClimate::get_swing_mode_off_trigger() { return &this->swing_mode_off_trigger_; }
+Trigger<> *ThermostatClimate::get_swing_mode_horizontal_trigger() { return &this->swing_mode_horizontal_trigger_; }
+Trigger<> *ThermostatClimate::get_swing_mode_vertical_trigger() { return &this->swing_mode_vertical_trigger_; }
+Trigger<> *ThermostatClimate::get_humidity_change_trigger() { return &this->humidity_change_trigger_; }
+Trigger<> *ThermostatClimate::get_temperature_change_trigger() { return &this->temperature_change_trigger_; }
+Trigger<> *ThermostatClimate::get_preset_change_trigger() { return &this->preset_change_trigger_; }
+Trigger<> *ThermostatClimate::get_humidity_control_dehumidify_action_trigger() {
+  return &this->humidity_control_dehumidify_action_trigger_;
 }
-Trigger<> *ThermostatClimate::get_humidity_control_humidify_action_trigger() const {
-  return this->humidity_control_humidify_action_trigger_;
+Trigger<> *ThermostatClimate::get_humidity_control_humidify_action_trigger() {
+  return &this->humidity_control_humidify_action_trigger_;
 }
-Trigger<> *ThermostatClimate::get_humidity_control_off_action_trigger() const {
-  return this->humidity_control_off_action_trigger_;
+Trigger<> *ThermostatClimate::get_humidity_control_off_action_trigger() {
+  return &this->humidity_control_off_action_trigger_;
 }
 
 void ThermostatClimate::dump_config() {
