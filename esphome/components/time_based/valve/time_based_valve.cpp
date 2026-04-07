@@ -78,6 +78,10 @@ void TimeBasedValve::reset_position() {
   this->measured_position_max_ = 0;
 }
 
+bool TimeBasedValve::is_endstop_reached() {
+  return (this->measured_position_max_ - this->measured_position_min_) >= 1.0f;
+}
+
 void TimeBasedValve::set_position(float position, bool relative) {
   ValveOperation op;
 
@@ -205,10 +209,9 @@ void TimeBasedValve::recompute_position_() {
   } else if (this->measured_position_ < this->measured_position_min_) {
     this->measured_position_min_ = this->measured_position_;
   }
-  bool endstop_reached = (this->measured_position_max_ - this->measured_position_min_) >= 1.0f;
 
   this->position += distance;
-  if (endstop_reached) {
+  if (this->is_endstop_reached()) {
     this->position = clamp(this->position, 0.0f, 1.0f);
   } else {
     // Full duration not traveled yet -> keep value 1% off end

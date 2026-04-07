@@ -101,6 +101,7 @@ TEST_F(TimeBasedValvePositionTest, RestoredPositionOpen) {
   valve.loop();
   EXPECT_EQ(valve.measured_position_, 0.4f);
   EXPECT_EQ(valve.position, 0.99f);
+  EXPECT_FALSE(valve.is_endstop_reached());
   EXPECT_FALSE(valve.is_fully_open());
   EXPECT_EQ((int) valve.current_operation, (int) VALVE_OPERATION_IDLE);
 
@@ -111,6 +112,7 @@ TEST_F(TimeBasedValvePositionTest, RestoredPositionOpen) {
   valve.loop();
   EXPECT_EQ(valve.measured_position_, 1.0f);
   EXPECT_EQ(valve.position, VALVE_OPEN);
+  EXPECT_TRUE(valve.is_endstop_reached());
   EXPECT_TRUE(valve.is_fully_open());
   EXPECT_EQ((int) valve.current_operation, (int) VALVE_OPERATION_IDLE);
 

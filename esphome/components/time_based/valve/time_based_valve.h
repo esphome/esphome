@@ -30,6 +30,7 @@ class TimeBasedValve : public valve::Valve, public Component {
   void set_restore_mode(TimeBasedValveRestoreMode restore_mode) { restore_mode_ = restore_mode; }
   void set_position(float position, bool relative = false);
   void reset_position();
+  bool is_endstop_reached();
 
  protected:
   void control(const valve::ValveCall &call) override;
