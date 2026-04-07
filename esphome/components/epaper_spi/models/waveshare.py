@@ -88,8 +88,6 @@ WaveshareModel(
 )
 
 
-from . import EpaperModel
-
 EpaperModel(
     "waveshare-3.97in",
     "EPaperSSD1677",
