@@ -7,7 +7,7 @@ bool EPaperWeActBW::reset() {
   if (this->update_count_ != 0) {
     return true;
   }
-  return EPaperBase::reset();
+  return EPaperMono::reset();
 }
 
 bool EPaperWeActBW::initialise(bool partial) {
