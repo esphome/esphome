@@ -41,10 +41,16 @@ template<typename T, typename... X> class TemplatableFn {
  public:
   TemplatableFn() = default;
 
+  // Exact return type match — direct function pointer storage
   template<typename F> TemplatableFn(F f) requires std::convertible_to<F, T (*)(X...)> : f_(f) {}
 
+  // Convertible return type (e.g., int -> uint8_t) — casting trampoline.
+  // Stateless lambdas are default-constructible in C++20, so F{} recreates the lambda inside
+  // the trampoline without capturing. This compiles to the same code as a direct call + cast.
   template<typename F>
-  TemplatableFn(F) requires std::invocable<F, X...> &&(!std::convertible_to<F, T (*)(X...)>) = delete;
+      TemplatableFn(F) requires(!std::convertible_to<F, T (*)(X...)>) &&
+      std::invocable<F, X...> &&std::convertible_to<std::invoke_result_t<F, X...>, T> &&std::is_empty_v<F>
+          &&std::default_initializable<F> : f_([](X... x) -> T { return static_cast<T>(F{}(x...)); }) {}
 
   bool has_value() const { return this->f_ != nullptr; }
 
