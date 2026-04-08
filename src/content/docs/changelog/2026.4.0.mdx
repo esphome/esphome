@@ -241,7 +241,7 @@ This release adds support for several new sensors and hardware components:
 
 - **LVGL Rotation**: The `rotation` option must be moved from the display configuration to the `lvgl:` block. LVGL now handles rotation directly, with support for runtime rotation changes via `lvgl.display.set_rotation`. [#14955](https://github.com/esphome/esphome/pull/14955)
 
-- **I2S Audio**: The legacy I2S driver (`use_legacy` option) has been removed. The `i2s_audio` media player sub-component has also been removed. Users should migrate to the [speaker media player](https://esphome.io/components/media_player/speaker.html) component. [#14932](https://github.com/esphome/esphome/pull/14932)
+- **I2S Audio**: The legacy I2S driver (`use_legacy` option) has been removed. The `i2s_audio` media player sub-component has also been removed. Users should migrate to the [speaker media player](/components/media_player/speaker/) component. [#14932](https://github.com/esphome/esphome/pull/14932)
 
 - **Substitutions**: When multiple YAML keys resolve to the same substituted name, the last-appearing key now takes precedence ("last writer wins"), instead of the first. This only affects the edge case where multiple keys in the same dict resolve to the same substituted name. [#14918](https://github.com/esphome/esphome/pull/14918)
 
