@@ -33,6 +33,10 @@ esp32_ble_server:
     - uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc42d
       advertise: false
       characteristics:
+        - id: test_lambda_characteristic
+          uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc12c
+          read: true
+          value: !lambda return { 1, 2 };
         - id: test_change_characteristic
           uuid: 2a24b789-7a1b-4535-af3e-ee76a35cc11c
           read: true
@@ -65,3 +69,11 @@ esp32_ble_server:
               - ble_server.descriptor.set_value:
                   id: test_change_descriptor
                   value: !lambda return bytebuffer::ByteBuffer::wrap({0x03, 0x04, 0x05}).get_data();
+              - ble_server.characteristic.set_value:
+                  id: test_change_characteristic
+                  value:
+                    data: [0xfc, 0xef, 0xfe, 0x86]
+              - ble_server.descriptor.set_value:
+                  id: test_change_descriptor
+                  value:
+                    data: [0x01, 0x02, 0x03]

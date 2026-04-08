@@ -79,7 +79,13 @@ from esphome.const import (
     DEVICE_CLASS_WIND_SPEED,
 )
 from esphome.core import CORE, CoroPriority, coroutine_with_priority
-from esphome.core.entity_helpers import entity_duplicate_validator, setup_entity
+from esphome.core.config import UNIT_OF_MEASUREMENT_MAX_LENGTH
+from esphome.core.entity_helpers import (
+    entity_duplicate_validator,
+    setup_device_class,
+    setup_entity,
+    setup_unit_of_measurement,
+)
 from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@esphome/core"]
@@ -150,9 +156,6 @@ Number = number_ns.class_("Number", cg.EntityBase)
 NumberPtr = Number.operator("ptr")
 
 # Triggers
-NumberStateTrigger = number_ns.class_(
-    "NumberStateTrigger", automation.Trigger.template(cg.float_)
-)
 ValueRangeTrigger = number_ns.class_(
     "ValueRangeTrigger", automation.Trigger.template(cg.float_), cg.Component
 )
@@ -184,7 +187,11 @@ NUMBER_OPERATION_OPTIONS = {
 }
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
-validate_unit_of_measurement = cv.string_strict
+validate_unit_of_measurement = cv.All(
+    cv.string_strict,
+    # Keep in sync with max_data_length in api.proto
+    cv.ByteLength(max=UNIT_OF_MEASUREMENT_MAX_LENGTH),
+)
 
 _NUMBER_SCHEMA = (
     cv.ENTITY_BASE_SCHEMA.extend(web_server.WEBSERVER_SORTING_SCHEMA)
@@ -193,11 +200,7 @@ _NUMBER_SCHEMA = (
     .extend(
         {
             cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTNumberComponent),
-            cv.Optional(CONF_ON_VALUE): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(NumberStateTrigger),
-                }
-            ),
+            cv.Optional(CONF_ON_VALUE): automation.validate_automation({}),
             cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
@@ -240,23 +243,16 @@ def number_schema(
     return _NUMBER_SCHEMA.extend(schema)
 
 
-async def setup_number_core_(
-    var, config, *, min_value: float, max_value: float, step: float
-):
-    await setup_entity(var, config, "number")
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_VALUE, "add_on_state_callback", [(float, "x")]
+    ),
+)
 
-    cg.add(var.traits.set_min_value(min_value))
-    cg.add(var.traits.set_max_value(max_value))
-    cg.add(var.traits.set_step(step))
 
-    # Only set if non-default to avoid bloating setup() function
-    # (mode_ is initialized to NUMBER_MODE_AUTO in the header)
-    if config[CONF_MODE] != NumberMode.NUMBER_MODE_AUTO:
-        cg.add(var.traits.set_mode(config[CONF_MODE]))
-
-    for conf in config.get(CONF_ON_VALUE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [(float, "x")], conf)
+@coroutine_with_priority(CoroPriority.AUTOMATION)
+async def _build_number_automations(var, config):
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
     for conf in config.get(CONF_ON_VALUE_RANGE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await cg.register_component(trigger, conf)
@@ -268,10 +264,24 @@ async def setup_number_core_(
             cg.add(trigger.set_max(template_))
         await automation.build_automation(trigger, [(float, "x")], conf)
 
-    if (unit_of_measurement := config.get(CONF_UNIT_OF_MEASUREMENT)) is not None:
-        cg.add(var.traits.set_unit_of_measurement(unit_of_measurement))
-    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
-        cg.add(var.traits.set_device_class(device_class))
+
+@setup_entity("number")
+async def setup_number_core_(
+    var, config, *, min_value: float, max_value: float, step: float
+):
+    cg.add(var.traits.set_min_value(min_value))
+    cg.add(var.traits.set_max_value(max_value))
+    cg.add(var.traits.set_step(step))
+
+    # Only set if non-default to avoid bloating setup() function
+    # (mode_ is initialized to NUMBER_MODE_AUTO in the header)
+    if config[CONF_MODE] != NumberMode.NUMBER_MODE_AUTO:
+        cg.add(var.traits.set_mode(config[CONF_MODE]))
+
+    CORE.add_job(_build_number_automations, var, config)
+
+    setup_device_class(config)
+    setup_unit_of_measurement(config)
 
     if (mqtt_id := config.get(CONF_MQTT_ID)) is not None:
         mqtt_ = cg.new_Pvariable(mqtt_id, var)
@@ -347,6 +357,7 @@ OPERATION_BASE_SCHEMA = cv.Schema(
             cv.Required(CONF_VALUE): cv.templatable(cv.float_),
         }
     ),
+    synchronous=True,
 )
 async def number_set_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -369,6 +380,7 @@ async def number_set_to_code(config, action_id, template_arg, args):
             }
         )
     ),
+    synchronous=True,
 )
 @automation.register_action(
     "number.decrement",
@@ -383,6 +395,7 @@ async def number_set_to_code(config, action_id, template_arg, args):
             }
         )
     ),
+    synchronous=True,
 )
 @automation.register_action(
     "number.to_min",
@@ -396,6 +409,7 @@ async def number_set_to_code(config, action_id, template_arg, args):
             }
         )
     ),
+    synchronous=True,
 )
 @automation.register_action(
     "number.to_max",
@@ -409,6 +423,7 @@ async def number_set_to_code(config, action_id, template_arg, args):
             }
         )
     ),
+    synchronous=True,
 )
 @automation.register_action(
     "number.operation",
@@ -421,6 +436,7 @@ async def number_set_to_code(config, action_id, template_arg, args):
             cv.Optional(CONF_CYCLE, default=True): cv.templatable(cv.boolean),
         }
     ),
+    synchronous=True,
 )
 async def number_to_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

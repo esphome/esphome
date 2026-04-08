@@ -52,6 +52,7 @@ async def to_code(config):
             cv.GenerateID(): cv.use_id(DfrobotSen0395Component),
         }
     ),
+    synchronous=True,
 )
 async def dfrobot_sen0395_reset_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -96,7 +97,7 @@ def range_segment_list(input):
         )
 
     largest_distance = -1
-    for distance in input:
+    for i, distance in enumerate(input):
         if isinstance(distance, cv.Lambda):
             continue
         m = cv.distance(distance)
@@ -111,7 +112,7 @@ def range_segment_list(input):
             )
         largest_distance = m
         # Replace distance object with meters float
-        input[input.index(distance)] = m
+        input[i] = m
 
     return input
 
@@ -151,6 +152,7 @@ MMWAVE_SETTINGS_SCHEMA = cv.Schema(
     "dfrobot_sen0395.settings",
     DfrobotSen0395SettingsAction,
     MMWAVE_SETTINGS_SCHEMA,
+    synchronous=True,
 )
 async def dfrobot_sen0395_settings_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)

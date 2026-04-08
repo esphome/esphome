@@ -35,6 +35,8 @@ bool SmlFile::setup_node(SmlNode *node) {
 
   // Check if we need additional length bytes
   if (overlength) {
+    if (this->pos_ + 1 >= this->buffer_.size())
+      return false;
     // Shift the current length to the higher nibble
     // and add the lower nibble of the next byte to the length
     length = (length << 4) + (this->buffer_[this->pos_ + 1] & 0x0f);

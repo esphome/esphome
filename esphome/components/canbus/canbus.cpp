@@ -1,4 +1,5 @@
 #include "canbus.h"
+#include <algorithm>
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -82,7 +83,7 @@ void Canbus::loop() {
     std::vector<uint8_t> data;
 
     // show data received
-    for (int i = 0; i < can_message.can_data_length_code; i++) {
+    for (int i = 0; i < std::min(can_message.can_data_length_code, CAN_MAX_DATA_LENGTH); i++) {
       ESP_LOGV(TAG, "  can_message.data[%d]=%02x", i, can_message.data[i]);
       data.push_back(can_message.data[i]);
     }

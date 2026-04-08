@@ -1,7 +1,7 @@
 #include "ota_web_server.h"
 #ifdef USE_WEBSERVER_OTA
 
-#include "esphome/components/ota/ota_backend.h"
+#include "esphome/components/ota/ota_backend_factory.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
@@ -71,7 +71,7 @@ class OTARequestHandler : public AsyncWebHandler {
   bool ota_success_{false};
 
  private:
-  std::unique_ptr<ota::OTABackend> ota_backend_{nullptr};
+  ota::OTABackendPtr ota_backend_{nullptr};
 };
 
 void OTARequestHandler::report_ota_progress_(AsyncWebServerRequest *request) {

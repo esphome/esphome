@@ -89,6 +89,7 @@ AT581XSettingsAction = at581x_ns.class_("AT581XSettingsAction", automation.Actio
             cv.Required(CONF_ID): cv.use_id(AT581XComponent),
         }
     ),
+    synchronous=True,
 )
 async def at581x_reset_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -160,6 +161,7 @@ RADAR_SETTINGS_SCHEMA = cv.Schema(
     "at581x.settings",
     AT581XSettingsAction,
     RADAR_SETTINGS_SCHEMA,
+    synchronous=True,
 )
 async def at581x_settings_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -171,49 +173,41 @@ async def at581x_settings_to_code(config, action_id, template_arg, args):
         cg.add(var.set_hw_frontend_reset(template_))
 
     if freq := config.get(CONF_FREQUENCY):
-        template_ = await cg.templatable(freq, args, float)
-        template_ = int(template_ / 1000000)
+        if cg.is_template(freq):
+            template_ = await cg.templatable(freq, args, cg.int32)
+        else:
+            template_ = int(freq / 1000000)
         cg.add(var.set_frequency(template_))
 
-    if sens_dist := config.get(CONF_SENSING_DISTANCE):
+    if (sens_dist := config.get(CONF_SENSING_DISTANCE)) is not None:
         template_ = await cg.templatable(sens_dist, args, int)
         cg.add(var.set_sensing_distance(template_))
 
     if selfcheck := config.get(CONF_POWERON_SELFCHECK_TIME):
-        template_ = await cg.templatable(selfcheck, args, float)
-        if isinstance(template_, cv.TimePeriod):
-            template_ = template_.total_milliseconds
-        template_ = int(template_)
+        template_ = await cg.templatable(selfcheck, args, cg.int32)
         cg.add(var.set_poweron_selfcheck_time(template_))
 
     if protect := config.get(CONF_PROTECT_TIME):
-        template_ = await cg.templatable(protect, args, float)
-        if isinstance(template_, cv.TimePeriod):
-            template_ = template_.total_milliseconds
-        template_ = int(template_)
+        template_ = await cg.templatable(protect, args, cg.int32)
         cg.add(var.set_protect_time(template_))
 
     if trig_base := config.get(CONF_TRIGGER_BASE):
-        template_ = await cg.templatable(trig_base, args, float)
-        if isinstance(template_, cv.TimePeriod):
-            template_ = template_.total_milliseconds
-        template_ = int(template_)
+        template_ = await cg.templatable(trig_base, args, cg.int32)
         cg.add(var.set_trigger_base(template_))
 
     if trig_keep := config.get(CONF_TRIGGER_KEEP):
-        template_ = await cg.templatable(trig_keep, args, float)
-        if isinstance(template_, cv.TimePeriod):
-            template_ = template_.total_milliseconds
-        template_ = int(template_)
+        template_ = await cg.templatable(trig_keep, args, cg.int32)
         cg.add(var.set_trigger_keep(template_))
 
-    if stage_gain := config.get(CONF_STAGE_GAIN):
+    if (stage_gain := config.get(CONF_STAGE_GAIN)) is not None:
         template_ = await cg.templatable(stage_gain, args, int)
         cg.add(var.set_stage_gain(template_))
 
     if power := config.get(CONF_POWER_CONSUMPTION):
-        template_ = await cg.templatable(power, args, float)
-        template_ = int(template_ * 1000000)
+        if cg.is_template(power):
+            template_ = await cg.templatable(power, args, cg.int32)
+        else:
+            template_ = int(power * 1000000)
         cg.add(var.set_power_consumption(template_))
 
     return var

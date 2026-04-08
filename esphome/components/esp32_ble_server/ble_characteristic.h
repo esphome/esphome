@@ -16,8 +16,6 @@
 #include <esp_gattc_api.h>
 #include <esp_gatts_api.h>
 #include <esp_bt_defs.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
 
 namespace esphome {
 namespace esp32_ble_server {
@@ -57,12 +55,12 @@ class BLECharacteristic {
   ESPBTUUID get_uuid() { return this->uuid_; }
   std::vector<uint8_t> &get_value() { return this->value_; }
 
-  static const uint32_t PROPERTY_READ = 1 << 0;
-  static const uint32_t PROPERTY_WRITE = 1 << 1;
-  static const uint32_t PROPERTY_NOTIFY = 1 << 2;
-  static const uint32_t PROPERTY_BROADCAST = 1 << 3;
-  static const uint32_t PROPERTY_INDICATE = 1 << 4;
-  static const uint32_t PROPERTY_WRITE_NR = 1 << 5;
+  static constexpr uint32_t PROPERTY_READ = 1 << 0;
+  static constexpr uint32_t PROPERTY_WRITE = 1 << 1;
+  static constexpr uint32_t PROPERTY_NOTIFY = 1 << 2;
+  static constexpr uint32_t PROPERTY_BROADCAST = 1 << 3;
+  static constexpr uint32_t PROPERTY_INDICATE = 1 << 4;
+  static constexpr uint32_t PROPERTY_WRITE_NR = 1 << 5;
 
   bool is_created();
   bool is_failed();
@@ -84,8 +82,6 @@ class BLECharacteristic {
 
   uint16_t value_read_offset_{0};
   std::vector<uint8_t> value_;
-  SemaphoreHandle_t set_value_lock_;
-
   std::vector<BLEDescriptor *> descriptors_;
 
   struct ClientNotificationEntry {
