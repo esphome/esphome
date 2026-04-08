@@ -147,11 +147,12 @@ lvgl:
               id: dimmer_slider
               x: 20
               y: 50
-              width: 30
+              width: 20
               height: 220
               pad_all: 8
               min_value: 0
               max_value: 255
+              ext_click_area: 20
               on_release:
                 - homeassistant.action:
                     action: light.turn_on
@@ -160,11 +161,12 @@ lvgl:
                       brightness: !lambda return int(x);
 ```
 
-Note that Home Assistant expects an integer at the `brightness` parameter of the `light.turn_on` action call, and since
-ESPHome uses floats, `x` needs to be converted.
+The `ext_click_area` option is used to enlarge the touchable area around the widget by `20` pixels.
 
-This is applicable to action calls like `fan.set_percentage` or `valve.set_valve_position`, too; the only difference
-is that `max_value` has to be `100`.
+> [!NOTE]
+> Home Assistant expects an integer at the `brightness` parameter of the `light.turn_on` action call, and since ESPHome uses floats, `x` needs to be converted.
+> 
+> This is applicable to action calls like `fan.set_percentage` or `valve.set_valve_position` too; the only difference is that `max_value` has to be `100`.
 
 <span id="lvgl-cookbook-volume"></span>
 
@@ -867,11 +869,9 @@ lvgl:
           text_color: 0xFFFFFF
 ```
 
-Of note:
-
-- The widget starts *hidden* at boot and it's only shown when triggered by connection with the API.
-- Alignment of the widget: since the *align* option is given, the *x* and *y* options are used to position the widget
-- relative to the calculated position.
+> [!NOTE]
+> - The widget starts *hidden* at boot and it's only shown when triggered by connection with the API.
+> - Alignment of the widget: since the *align* option is given, the *x* and *y* options are used to position the widget relative to the calculated position.
 
 <span id="lvgl-cookbook-titlebar"></span>
 
@@ -1909,13 +1909,11 @@ key_collector:
                 color: 0xFF0000
 ```
 
-Of note:
-
-- A base object `obj` is used as a parent for the label; this allows proper centering of the label as well as
-- emphasizing it with shadows independently of the label's dimensions.
-- `align_to` is used to align the label to the `led` vertically.
-- Changing the background color of the buttons in `pressed` state.
-- Use of the `key_code` configuration to send a different character to `key_collector` instead of the displayed symbol.
+> [!NOTE]
+> - A base object `obj` is used as a parent for the label; this allows proper centering of the label as well as emphasizing it with shadows independently of the label's dimensions.
+> - `align_to` is used to align the label to the `led` vertically.
+> - Changing the background color of the buttons in `pressed` state.
+> - Use of the `key_code` configuration to send a different character to `key_collector` instead of the displayed symbol.
 
 <span id="lvgl-cookbook-weather"></span>
 

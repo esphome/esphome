@@ -23,7 +23,7 @@ To use LVGL with a [display](/components#display-hw) in ESPHome, you'll need an 
 The graphic display should be configured with `auto_clear_enabled: false` and should not have any `lambda` set.
 The LVGL component will take care of the display rendering. For most displays, the `update_interval` should be
 set to `never`, but note that some displays such as OLED and e-paper will need the update interval set to a suitable
-interval, or the `update_when_display_idle` option used, or make use of the [`on_draw_end`](#on_draw_end) trigger to manually update the display.
+interval, or the `update_when_display_idle` option used, or make use of the [`on_draw_end`](#lvgl-on-draw-end-trigger) trigger to manually update the display.
 
 For interactivity, a [Touchscreen](/components/touchscreen/) (capacitive highly preferred), a [Rotary Encoder](/components/sensor/rotary_encoder/) or a custom keypad made up from discrete [Binary Sensors](/components/binary_sensor/) can be used.
 
@@ -787,7 +787,7 @@ Widget level [interaction triggers](/components/lvgl/widgets#lvgl-automation-tri
 
 <span id="lvgl-on-idle-trigger"></span>
 
-### `on_idle`
+### `on_idle` trigger
 
 LVGL has a notion of screen inactivity -- i.e. the time since the last user interaction with the screen is tracked. This can, for example, be used to dim the display backlight or turn it off after a moment of inactivity (like a screen saver). Every use of an input device (touchscreen, rotary encoder) counts as an activity and resets the inactivity counter.
 
@@ -812,25 +812,27 @@ See [Turn off screen when idle](/cookbook/lvgl#lvgl-cookbook-idlescreen) for an 
 
 <span id="lvgl_on_pause_trigger"></span>
 
-### `on_pause`
+### `on_pause` trigger
 
 This [trigger](/components/lvgl/widgets#lvgl-automation-triggers) is triggered when LVGL is paused. This can be used to perform any desired actions when the screen is locked, such as turning off the display backlight.
 
 <span id="lvgl_on_resume_trigger"></span>
 
-### `on_resume`
+### `on_resume` trigger
 
 This [trigger](/components/lvgl/widgets#lvgl-automation-triggers) is triggered when LVGL is resumed. This can be used to perform any desired actions when the screen is unlocked, such as turning on the display backlight.
 
-### `on_boot`
+### `on_boot` trigger
 
 This [trigger](/components/lvgl/widgets#lvgl-automation-triggers) is triggered after LVGL has been setup. It is available on the `lvgl` component and any widget and can be used to perform any LVGL related setup that is not possible with static configuration. When used on a widget, it does not act specifically on that widget but can be used to keep actions related to that widget together with its configuration.
 
-### `on_draw_start`
+### `on_draw_start` trigger
 
 This [trigger](/components/lvgl/widgets#lvgl-automation-triggers) is executed before each LVGL drawing operation.
 
-### `on_draw_end`
+<span id="lvgl-on-draw-end-trigger"></span>
+
+### `on_draw_end` trigger
 
 This [trigger](/components/lvgl/widgets#lvgl-automation-triggers) is executed after LVGL has completed drawing all updated screen elements. It
 may be used for example to trigger an update of a display component like an e-paper screen that requires the buffer
@@ -841,6 +843,25 @@ lvgl:
   on_draw_end:
     - component.update: my_display_id
 ```
+
+### Display event triggers
+
+- `on_invalidate_area`: Occurs when an area is invalidated (marked for redraw).
+- `on_resolution_change`: Occurs when the display resolution changed.
+- `on_color_format_change`: Occurs when the display color format changed.
+- `on_refr_request`: Occurs when something happened that requires a redraw.
+- `on_refr_start`: Sent before a refreshing cycle starts.
+- `on_refr_ready`: Sent when refreshing has been completed.
+- `on_render_start`: Sent just before rendering begins.
+- `on_render_ready`: Sent after rendering has been completed.
+- `on_flush_start`: Sent before the flush callback is called.
+- `on_flush_finish`: Sent after the flush callback has returned.
+- `on_flush_wait_start`: Sent before the flush wait callback is called.
+- `on_flush_wait_finish`: Sent after the flush wait callback has returned.
+- `on_update_layout_complete`: Sent after a layout update completes.
+- `on_vsync`: Vertical sync event.
+- `on_vsync_request`: Vertical sync request.
+
 
 ## See Also
 
