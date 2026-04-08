@@ -819,6 +819,8 @@ async def templatable(
     args: list[tuple[SafeExpType, str]],
     output_type: SafeExpType | None,
     to_exp: Callable | dict = None,
+    *,
+    wrap_constant: bool = False,
 ):
     """Generate code for a templatable config option.
 
@@ -850,9 +852,8 @@ async def templatable(
         return FlashStringLiteral(value)
     # Wrap non-string constants in stateless lambdas so that TemplatableFn
     # (used by TEMPLATABLE_VALUE macro) stores them as function pointers.
-    # When output_type is None, the lambda omits the return type annotation
-    # and the C++ compiler deduces it (used by globals where T is unknown).
-    if output_type is not std_string:
+    # wrap_constant=True forces wrapping even with output_type=None (compiler deduces type).
+    if (output_type is not None or wrap_constant) and output_type is not std_string:
         return LambdaExpression(
             f"return {safe_exp(value)};",
             args,
