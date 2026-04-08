@@ -339,7 +339,7 @@ jobs:
           echo "binary=$BINARY" >> $GITHUB_OUTPUT
 
       - name: Run CodSpeed benchmarks
-        uses: CodSpeedHQ/action@d872884a306dd4853acf0f584f4b706cf0cc72a2 # v4
+        uses: CodSpeedHQ/action@db35df748deb45fdef0960669f57d627c1956c30 # v4
         with:
           run: ${{ steps.build.outputs.binary }}
           mode: simulation
