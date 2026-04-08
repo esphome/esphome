@@ -877,9 +877,9 @@ def _process_dependencies(component: IDFComponent):
         version = dependency["version"]
         url = None
         try:
-            result = urlparse(url)
+            result = urlparse(version)
             if all([result.scheme, result.netloc]):
-                url, version = version, url
+                url, version = version, None
         except (TypeError, ValueError):
             pass
 
