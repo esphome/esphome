@@ -616,3 +616,152 @@ def test_validate_entity_name__none_with_friendly_name() -> None:
     result = config_validation._validate_entity_name("None")
     assert result is None
     CORE.friendly_name = None  # Reset
+
+
+# --- percentage validators ---
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    (
+        ("0%", 0.0),
+        ("50%", 0.5),
+        ("100%", 1.0),
+        (0.0, 0.0),
+        (0.5, 0.5),
+        (1.0, 1.0),
+        ("0.0", 0.0),
+        ("0.5", 0.5),
+        ("1.0", 1.0),
+    ),
+)
+def test_percentage__valid(value: object, expected: float) -> None:
+    assert config_validation.percentage(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        "150%",
+        "-10%",
+        "-0.1",
+        "1.1",
+        2,
+        -1,
+        "foo",
+        None,
+    ),
+)
+def test_percentage__invalid(value: object) -> None:
+    with pytest.raises(Invalid):
+        config_validation.percentage(value)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    (
+        ("0%", 0.0),
+        ("50%", 0.5),
+        ("100%", 1.0),
+        ("-50%", -0.5),
+        ("-100%", -1.0),
+        (0.0, 0.0),
+        (0.5, 0.5),
+        (-0.5, -0.5),
+        (1.0, 1.0),
+        (-1.0, -1.0),
+    ),
+)
+def test_possibly_negative_percentage__valid(value: object, expected: float) -> None:
+    assert config_validation.possibly_negative_percentage(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        "150%",
+        "-150%",
+        2,
+        -2,
+        "foo",
+        None,
+    ),
+)
+def test_possibly_negative_percentage__invalid(value: object) -> None:
+    with pytest.raises(Invalid):
+        config_validation.possibly_negative_percentage(value)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    (
+        ("0%", 0.0),
+        ("50%", 0.5),
+        ("100%", 1.0),
+        ("150%", 1.5),
+        ("200%", 2.0),
+        (0.0, 0.0),
+        (0.5, 0.5),
+        (1.0, 1.0),
+    ),
+)
+def test_unbounded_percentage__valid(value: object, expected: float) -> None:
+    assert config_validation.unbounded_percentage(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value",
+    (
+        "-10%",
+        "-0.5",
+        -1,
+        "foo",
+        None,
+    ),
+)
+def test_unbounded_percentage__invalid(value: object) -> None:
+    with pytest.raises(Invalid):
+        config_validation.unbounded_percentage(value)
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    (
+        ("0%", 0.0),
+        ("50%", 0.5),
+        ("150%", 1.5),
+        ("-50%", -0.5),
+        ("-150%", -1.5),
+        ("200%", 2.0),
+        ("-200%", -2.0),
+        (0.0, 0.0),
+        (0.5, 0.5),
+        (-0.5, -0.5),
+        (1.0, 1.0),
+        (-1.0, -1.0),
+    ),
+)
+def test_unbounded_possibly_negative_percentage__valid(
+    value: object, expected: float
+) -> None:
+    assert config_validation.unbounded_possibly_negative_percentage(value) == expected
+
+
+@pytest.mark.parametrize("value", ("foo", None))
+def test_unbounded_possibly_negative_percentage__invalid(value: object) -> None:
+    with pytest.raises(Invalid):
+        config_validation.unbounded_possibly_negative_percentage(value)
+
+
+@pytest.mark.parametrize(
+    "value",
+    (50, -50, 2, -2),
+)
+def test_percentage_validators__raw_number_above_one_without_percent_sign(
+    value: object,
+) -> None:
+    """Raw numeric values outside [-1, 1] must use a percent sign."""
+    with pytest.raises(Invalid, match="percent sign"):
+        config_validation.unbounded_percentage(value)
+    with pytest.raises(Invalid, match="percent sign"):
+        config_validation.unbounded_possibly_negative_percentage(value)

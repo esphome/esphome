@@ -892,16 +892,19 @@ async def build_filters(config):
     return await cg.build_registry_list(FILTER_REGISTRY, config)
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_VALUE, "add_on_state_callback", [(float, "x")]
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_RAW_VALUE, "add_on_raw_state_callback", [(float, "x")]
+    ),
+)
+
+
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _build_sensor_automations(var, config):
-    for conf_key, callback in (
-        (CONF_ON_VALUE, "add_on_state_callback"),
-        (CONF_ON_RAW_VALUE, "add_on_raw_state_callback"),
-    ):
-        for conf in config.get(conf_key, []):
-            await automation.build_callback_automation(
-                var, callback, [(float, "x")], conf
-            )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
     for conf in config.get(CONF_ON_VALUE_RANGE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await cg.register_component(trigger, conf)
