@@ -41,10 +41,12 @@ TIMEOUT_ACTION_SCHEMA = automation.maybe_conf(
     cv.Schema(
         {
             cv.GenerateID(): cv.use_id(WatchdogManagerComponent),
-            cv.Required(CONF_TIMEOUT): cv.All(
-                cv.Any(cv.only_on_esp32, cv.only_on_rp2040),
-                cv.positive_not_null_time_period,
-                cv.positive_time_period_milliseconds,
+            cv.Required(CONF_TIMEOUT): cv.templatable(
+                cv.All(
+                    cv.Any(cv.only_on_esp32, cv.only_on_rp2040),
+                    cv.positive_not_null_time_period,
+                    cv.positive_time_period_milliseconds,
+                )
             ),
         }
     ),
@@ -60,6 +62,7 @@ TIMEOUT_ACTION_SCHEMA = automation.maybe_conf(
 async def coap_client_request_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    cg.add(var.set_timeout_ms(config.get(CONF_TIMEOUT)))
+    template_ = await cg.templatable(config[CONF_TIMEOUT], args, cg.uint32)
+    cg.add(var.set_timeout_ms(template_))
 
     return var
