@@ -35,6 +35,7 @@ CONFIG_SCHEMA = cv.typed_schema(
         "coil": output.BINARY_OUTPUT_SCHEMA.extend(ModbusItemBaseSchema).extend(
             {
                 cv.GenerateID(): cv.declare_id(ModbusBinaryOutput),
+                cv.Required(CONF_ADDRESS): cv.positive_int,
                 cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
                 cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
             }
@@ -42,6 +43,7 @@ CONFIG_SCHEMA = cv.typed_schema(
         "holding": output.FLOAT_OUTPUT_SCHEMA.extend(ModbusItemBaseSchema).extend(
             {
                 cv.GenerateID(): cv.declare_id(ModbusFloatOutput),
+                cv.Required(CONF_ADDRESS): cv.positive_int,
                 cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(
                     SENSOR_VALUE_TYPE
                 ),
