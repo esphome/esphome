@@ -54,8 +54,12 @@ template<typename T, typename... X> class TemplatableFn {
       std::invocable<F, X...> &&std::convertible_to<std::invoke_result_t<F, X...>, T> &&std::is_empty_v<F>
           &&std::default_initializable<F> : f_([](X... x) -> T { return static_cast<T>(F{}(x...)); }) {}
 
-  // Reject stateful lambdas (non-empty, i.e. capturing) with a clear error
-  template<typename F> TemplatableFn(F) requires std::invocable<F, X...> &&(!std::is_empty_v<F>) = delete;
+  // Reject any callable that didn't match the above (stateful lambdas or inconvertible return types)
+  template<typename F>
+  TemplatableFn(F) requires std::invocable<F, X...> &&
+      (!std::convertible_to<F, T (*)(X...)>) &&(!std::is_empty_v<F> ||
+                                                !std::convertible_to<std::invoke_result_t<F, X...>, T> ||
+                                                !std::default_initializable<F>) = delete;
 
   bool has_value() const { return this->f_ != nullptr; }
 

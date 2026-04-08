@@ -685,6 +685,15 @@ async def test_templatable__with_to_exp_callable() -> None:
 
 
 @pytest.mark.asyncio
+async def test_templatable__with_to_exp_callable_and_output_type() -> None:
+    """When to_exp is provided with non-string output_type, result is lambda-wrapped."""
+    result = await cg.templatable(42, [], ct.int_, to_exp=lambda x: x * 2)
+
+    assert isinstance(result, cg.LambdaExpression)
+    assert result.capture == ""
+
+
+@pytest.mark.asyncio
 async def test_templatable__with_to_exp_dict() -> None:
     """When to_exp is a dict, value is looked up."""
     mapping: dict[str, int] = {"on": 1, "off": 0}
