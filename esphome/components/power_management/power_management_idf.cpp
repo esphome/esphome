@@ -3,6 +3,9 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include <cstdio>
+#ifdef CONFIG_OPENTHREAD_MTD
+#include "esphome/components/openthread/openthread.h"
+#endif
 
 namespace esphome::power_management {
 
@@ -82,7 +85,11 @@ void PowerManagement::setup() {
 
 void PowerManagement::loop() {
 #if CONFIG_PM_LIGHT_SLEEP_CALLBACKS
+#if CONFIG_OPENTHREAD_MTD
+  if (openthread::global_openthread_component->is_sed() && this->ready_to_sleep_()) {
+#else
   if (this->ready_to_sleep_()) {
+#endif
     this->is_delay_aborted = false;
     ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(60000));
     if (this->is_delay_aborted) {
