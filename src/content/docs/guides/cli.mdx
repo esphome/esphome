@@ -201,6 +201,16 @@ The `esphome version` command shows the current ESPHome version and exits.
 
 The `esphome clean <CONFIG>` command cleans all build files and can help with some build issues.
 
+### `clean-all` Command
+
+The `esphome clean-all [<CONFIG>...]` command cleans all build files, PlatformIO platform and package
+files, and the PlatformIO core directory. Unlike `clean`, this command does not require a
+configuration file — if none is provided, it will clean the `.esphome` directory in the current
+working directory. Arguments can be YAML configuration files or directories containing them.
+
+Storage files (`.json` files and the `storage` directory inside `.esphome`) are preserved so that
+the dashboard continues to function correctly.
+
 ### `dashboard` Command
 
 The `esphome dashboard <CONFIG>` command starts the ESPHome dashboard server for using ESPHome
@@ -328,6 +338,13 @@ esphome logs my-device.yaml --device 192.168.1.100 --device 2001:db8::1
 state changes are shown as `[S]` lines (e.g., `[S][sensor]: 'Temperature' >> 22.5 °C`). Use this flag
 to suppress them and only see firmware log messages.
 
+
+### `update-all` Command
+
+The `esphome update-all <CONFIG>...` command compiles and uploads firmware to all devices via OTA.
+Arguments can be YAML configuration files or directories containing them. For each configuration
+found, it runs `esphome run <CONFIG> --no-logs --device OTA` and prints a summary of successes and
+failures at the end.
 
 ## Using Bash or ZSH auto-completion
 
