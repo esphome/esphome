@@ -26,6 +26,8 @@ enum MAX6956GPIORange : uint8_t {
 static constexpr uint8_t MAX6956_BANK_SIZE = 8;
 static constexpr uint8_t MAX6956_TOTAL_PINS = 32;  // Includes pins 0-3 (unused) for cache alignment
 static constexpr uint8_t MAX6956_BANK0_SHIFT = 4;
+static_assert(MAX6956_TOTAL_PINS % MAX6956_BANK_SIZE == 0,
+              "MAX6956_TOTAL_PINS must be an exact multiple of MAX6956_BANK_SIZE for CachedGpioExpander");
 
 enum MAX6956GPIORegisters {
   MAX6956_GLOBAL_CURRENT = 0x02,
