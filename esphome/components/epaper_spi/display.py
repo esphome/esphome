@@ -175,9 +175,7 @@ async def to_code(config):
         *model.get_constructor_args(config),
     )
 
-    # Rotation is handled by setting the transform
-    display_config = {k: v for k, v in config.items() if k != CONF_ROTATION}
-    await display.register_display(var, display_config)
+    await display.register_display(var, config)
     await spi.register_spi_device(var, config, write_only=True)
 
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
@@ -201,16 +199,6 @@ async def to_code(config):
         transform[CONF_SWAP_XY] = False
     else:
         transform = {x: model.get_default(x, False) for x in TRANSFORM_OPTIONS}
-    rotation = config[CONF_ROTATION]
-    if rotation == 180:
-        transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
-        transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
-    elif rotation == 90:
-        transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
-        transform[CONF_MIRROR_X] = not transform[CONF_MIRROR_X]
-    elif rotation == 270:
-        transform[CONF_SWAP_XY] = not transform[CONF_SWAP_XY]
-        transform[CONF_MIRROR_Y] = not transform[CONF_MIRROR_Y]
     transform_str = "|".join(
         {
             str(getattr(Transform, x.upper()))

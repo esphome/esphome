@@ -9,6 +9,8 @@
 #endif
 #ifdef USE_ESP32
 #include <esp_chip_info.h>
+#include <esp_ota_ops.h>
+#include <esp_bootloader_desc.h>
 #endif
 #ifdef USE_LWIP_FAST_SELECT
 #include "esphome/core/lwip_fast_select.h"
@@ -26,22 +28,8 @@
 #include "esphome/components/socket/socket.h"
 #endif
 
-#ifdef USE_SOCKET_SELECT_SUPPORT
+#ifdef USE_HOST
 #include <cerrno>
-
-#ifdef USE_SOCKET_IMPL_LWIP_SOCKETS
-// LWIP sockets implementation
-#include <lwip/sockets.h>
-#elif defined(USE_SOCKET_IMPL_BSD_SOCKETS)
-// BSD sockets implementation
-#ifdef USE_ESP32
-// ESP32 "BSD sockets" are actually LWIP under the hood
-#include <lwip/sockets.h>
-#else
-// True BSD sockets (e.g., host platform)
-#include <sys/select.h>
-#endif
-#endif
 #endif
 
 namespace esphome {
@@ -97,12 +85,6 @@ void Application::setup() {
     if (component->can_proceed())
       continue;
 
-#ifdef USE_LOOP_PRIORITY
-    // Sort components 0 through i by loop priority
-    insertion_sort_by_priority<decltype(this->components_.begin()), &Component::get_loop_priority>(
-        this->components_.begin(), this->components_.begin() + i + 1);
-#endif
-
     do {
       uint8_t new_app_state = STATUS_LED_WARNING;
       uint32_t now = millis();
@@ -132,13 +114,11 @@ void Application::setup() {
   clear_setup_priority_overrides();
 #endif
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_LWIP_FAST_SELECT)
-  // Initialize fast select: saves main loop task handle for xTaskNotifyGive wake.
-  // The fast path (rcvevent reads + ulTaskNotifyTake) is used unconditionally
-  // when USE_LWIP_FAST_SELECT is enabled (ESP32 and LibreTiny).
-  esphome_lwip_fast_select_init();
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
+  // Save main loop task handle for wake_loop_*() / fast select FreeRTOS notifications.
+  esphome_main_task_handle = xTaskGetCurrentTaskHandle();
 #endif
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE) && !defined(USE_LWIP_FAST_SELECT)
+#ifdef USE_HOST
   // Set up wake socket for waking main loop from tasks (platforms without fast select only)
   this->setup_wake_loop_threadsafe_();
 #endif
@@ -167,19 +147,49 @@ void Application::process_dump_config_() {
     esp_chip_info(&chip_info);
     ESP_LOGI(TAG, "ESP32 Chip: %s rev%d.%d, %d core(s)", ESPHOME_VARIANT, chip_info.revision / 100,
              chip_info.revision % 100, chip_info.cores);
-#if defined(USE_ESP32_VARIANT_ESP32) && !defined(USE_ESP32_MIN_CHIP_REVISION_SET)
-    // Suggest optimization for chips that don't need the PSRAM cache workaround
-    if (chip_info.revision >= 300) {
-#ifdef USE_PSRAM
-      ESP_LOGW(TAG, "Set minimum_chip_revision: \"%d.%d\" to save ~10KB IRAM", chip_info.revision / 100,
-               chip_info.revision % 100);
-#else
-      ESP_LOGW(TAG, "Set minimum_chip_revision: \"%d.%d\" to reduce binary size", chip_info.revision / 100,
-               chip_info.revision % 100);
+#if defined(USE_ESP32_VARIANT_ESP32) && (!defined(USE_ESP32_MIN_CHIP_REVISION_SET) || !defined(USE_ESP32_SRAM1_AS_IRAM))
+    static const char *const ESP32_ADVANCED_PATH = "under esp32 > framework > advanced";
 #endif
+#if defined(USE_ESP32_VARIANT_ESP32) && !defined(USE_ESP32_MIN_CHIP_REVISION_SET)
+    {
+      // Suggest optimization for chips that don't need the PSRAM cache workaround
+      if (chip_info.revision >= 300) {
+#ifdef USE_PSRAM
+        ESP_LOGW(TAG, "Chip rev >= 3.0 detected. Set minimum_chip_revision: \"%d.%d\" %s to save ~10KB IRAM",
+                 chip_info.revision / 100, chip_info.revision % 100, ESP32_ADVANCED_PATH);
+#else
+        ESP_LOGW(TAG, "Chip rev >= 3.0 detected. Set minimum_chip_revision: \"%d.%d\" %s to reduce binary size",
+                 chip_info.revision / 100, chip_info.revision % 100, ESP32_ADVANCED_PATH);
+#endif
+      }
     }
 #endif
+    {
+      // esp_bootloader_desc_t is available in ESP-IDF >= 5.2; if readable the bootloader is modern.
+      //
+      // Design decision: We intentionally do NOT mention sram1_as_iram when the bootloader is too old.
+      // Enabling sram1_as_iram with an old bootloader causes a hard brick (device fails to boot,
+      // requires USB reflash to recover). Users don't always read warnings carefully, so we only
+      // suggest the option once we've confirmed the bootloader can handle it. In practice this
+      // means a user with an old bootloader may need to flash twice: once via USB to update the
+      // bootloader (they'll see the suggestion on next boot), then OTA with sram1_as_iram: true.
+      // Two flashes is a better outcome than a bricked device.
+      esp_bootloader_desc_t boot_desc;
+      if (esp_ota_get_bootloader_description(nullptr, &boot_desc) != ESP_OK) {
+#ifdef USE_ESP32_VARIANT_ESP32
+        ESP_LOGW(TAG, "Bootloader too old for OTA rollback and SRAM1 as IRAM (+40KB). "
+                      "Flash via USB once to update the bootloader");
+#else
+        ESP_LOGW(TAG, "Bootloader too old for OTA rollback. Flash via USB once to update the bootloader");
 #endif
+      }
+#if defined(USE_ESP32_VARIANT_ESP32) && !defined(USE_ESP32_SRAM1_AS_IRAM)
+      else {
+        ESP_LOGW(TAG, "Bootloader supports SRAM1 as IRAM (+40KB). Set sram1_as_iram: true %s", ESP32_ADVANCED_PATH);
+      }
+#endif
+    }
+#endif  // USE_ESP32
   }
 
   this->components_[this->dump_config_at_]->call_dump_config_();
@@ -464,23 +474,17 @@ void Application::unregister_socket(struct lwip_sock *sock) {
     return;
   }
 }
-#elif defined(USE_SOCKET_SELECT_SUPPORT)
+#elif defined(USE_HOST)
 bool Application::register_socket_fd(int fd) {
   // WARNING: This function is NOT thread-safe and must only be called from the main loop
   // It modifies socket_fds_ and related variables without locking
   if (fd < 0)
     return false;
 
-#ifndef USE_ESP32
-  // Only check on non-ESP32 platforms
-  // On ESP32 (both Arduino and ESP-IDF), CONFIG_LWIP_MAX_SOCKETS is always <= FD_SETSIZE by design
-  // (LWIP_SOCKET_OFFSET = FD_SETSIZE - CONFIG_LWIP_MAX_SOCKETS per lwipopts.h)
-  // Other platforms may not have this guarantee
   if (fd >= FD_SETSIZE) {
     ESP_LOGE(TAG, "fd %d exceeds FD_SETSIZE %d", fd, FD_SETSIZE);
     return false;
   }
-#endif
 
   this->socket_fds_.push_back(fd);
   this->socket_fds_changed_ = true;
@@ -521,7 +525,7 @@ void Application::unregister_socket_fd(int fd) {
 #endif
 
 // Only the select() fallback path remains in the .cpp — all other paths are inlined in application.h
-#if defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
+#ifdef USE_HOST
 void Application::yield_with_select_(uint32_t delay_ms) {
   // Fallback select() path (host platform and any future platforms without fast select).
   if (!this->socket_fds_.empty()) [[likely]] {
@@ -544,11 +548,7 @@ void Application::yield_with_select_(uint32_t delay_ms) {
     tv.tv_usec = (delay_ms - tv.tv_sec * 1000) * 1000;
 
     // Call select with timeout
-#ifdef USE_SOCKET_IMPL_LWIP_SOCKETS
-    int ret = lwip_select(this->max_fd_ + 1, &this->read_fds_, nullptr, nullptr, &tv);
-#else
     int ret = ::select(this->max_fd_ + 1, &this->read_fds_, nullptr, nullptr, &tv);
-#endif
 
     // Process select() result:
     // ret > 0: socket(s) have data ready - normal and expected
@@ -571,7 +571,7 @@ void Application::yield_with_select_(uint32_t delay_ms) {
   // No sockets registered or select() failed - use regular delay
   delay(delay_ms);
 }
-#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && !defined(USE_LWIP_FAST_SELECT)
+#endif  // USE_HOST
 
 // App storage — asm label shares the linker symbol with "extern Application App".
 // char[] is trivially destructible, so no __cxa_atexit or destructor chain is emitted.
@@ -592,18 +592,13 @@ alignas(Application) char app_storage[sizeof(Application)] asm(
 #undef ESPHOME_STRINGIFY_
 #undef ESPHOME_STRINGIFY_IMPL_
 
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
-
-#ifdef USE_LWIP_FAST_SELECT
-void Application::wake_loop_threadsafe() {
-  // Direct FreeRTOS task notification — <1 us, task context only (NOT ISR-safe)
-  esphome_lwip_wake_main_loop();
-}
-#else   // !USE_LWIP_FAST_SELECT
+// Host platform wake_loop_threadsafe() and setup — needs wake_socket_fd_
+// ESP32/LibreTiny/ESP8266/RP2040 implementations are in wake.cpp
+#ifdef USE_HOST
 
 void Application::setup_wake_loop_threadsafe_() {
   // Create UDP socket for wake notifications
-  this->wake_socket_fd_ = lwip_socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+  this->wake_socket_fd_ = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
   if (this->wake_socket_fd_ < 0) {
     ESP_LOGW(TAG, "Wake socket create failed: %d", errno);
     return;
@@ -612,12 +607,12 @@ void Application::setup_wake_loop_threadsafe_() {
   // Bind to loopback with auto-assigned port
   struct sockaddr_in addr = {};
   addr.sin_family = AF_INET;
-  addr.sin_addr.s_addr = lwip_htonl(INADDR_LOOPBACK);
+  addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
   addr.sin_port = 0;  // Auto-assign port
 
-  if (lwip_bind(this->wake_socket_fd_, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
+  if (::bind(this->wake_socket_fd_, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
     ESP_LOGW(TAG, "Wake socket bind failed: %d", errno);
-    lwip_close(this->wake_socket_fd_);
+    ::close(this->wake_socket_fd_);
     this->wake_socket_fd_ = -1;
     return;
   }
@@ -626,50 +621,36 @@ void Application::setup_wake_loop_threadsafe_() {
   // Connecting a UDP socket allows using send() instead of sendto() for better performance
   struct sockaddr_in wake_addr;
   socklen_t len = sizeof(wake_addr);
-  if (lwip_getsockname(this->wake_socket_fd_, (struct sockaddr *) &wake_addr, &len) < 0) {
+  if (::getsockname(this->wake_socket_fd_, (struct sockaddr *) &wake_addr, &len) < 0) {
     ESP_LOGW(TAG, "Wake socket address failed: %d", errno);
-    lwip_close(this->wake_socket_fd_);
+    ::close(this->wake_socket_fd_);
     this->wake_socket_fd_ = -1;
     return;
   }
 
   // Connect to self (loopback) - allows using send() instead of sendto()
   // After connect(), no need to store wake_addr - the socket remembers it
-  if (lwip_connect(this->wake_socket_fd_, (struct sockaddr *) &wake_addr, sizeof(wake_addr)) < 0) {
+  if (::connect(this->wake_socket_fd_, (struct sockaddr *) &wake_addr, sizeof(wake_addr)) < 0) {
     ESP_LOGW(TAG, "Wake socket connect failed: %d", errno);
-    lwip_close(this->wake_socket_fd_);
+    ::close(this->wake_socket_fd_);
     this->wake_socket_fd_ = -1;
     return;
   }
 
   // Set non-blocking mode
-  int flags = lwip_fcntl(this->wake_socket_fd_, F_GETFL, 0);
-  lwip_fcntl(this->wake_socket_fd_, F_SETFL, flags | O_NONBLOCK);
+  int flags = ::fcntl(this->wake_socket_fd_, F_GETFL, 0);
+  ::fcntl(this->wake_socket_fd_, F_SETFL, flags | O_NONBLOCK);
 
   // Register with application's select() loop
   if (!this->register_socket_fd(this->wake_socket_fd_)) {
     ESP_LOGW(TAG, "Wake socket register failed");
-    lwip_close(this->wake_socket_fd_);
+    ::close(this->wake_socket_fd_);
     this->wake_socket_fd_ = -1;
     return;
   }
 }
 
-void Application::wake_loop_threadsafe() {
-  // Called from FreeRTOS task context when events need immediate processing
-  // Wakes up lwip_select() in main loop by writing to connected loopback socket
-  if (this->wake_socket_fd_ >= 0) {
-    const char dummy = 1;
-    // Non-blocking send - if it fails (unlikely), select() will wake on timeout anyway
-    // No error checking needed: we control both ends of this loopback socket.
-    // This is safe to call from FreeRTOS tasks - send() is thread-safe in lwip
-    // Socket is already connected to loopback address, so send() is faster than sendto()
-    lwip_send(this->wake_socket_fd_, &dummy, 1, 0);
-  }
-}
-#endif  // USE_LWIP_FAST_SELECT
-
-#endif  // defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+#endif  // USE_HOST
 
 void Application::get_build_time_string(std::span<char, BUILD_TIME_STR_SIZE> buffer) {
   ESPHOME_strncpy_P(buffer.data(), ESPHOME_BUILD_TIME_STR, buffer.size());

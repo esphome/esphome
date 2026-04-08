@@ -102,7 +102,7 @@ CONFIG_SCHEMA = cv.All(
                         }
                     ),
                 ),
-                cv.Optional(CONF_COLOR_ORDER): cv.one_of(
+                cv.Optional(CONF_COLOR_ORDER, default="BGR"): cv.one_of(
                     *COLOR_ORDERS.keys(), upper=True
                 ),
                 cv.Optional(CONF_INVERT_COLORS, default=False): cv.boolean,
