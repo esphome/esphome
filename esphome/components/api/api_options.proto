@@ -102,4 +102,10 @@ extend google.protobuf.FieldOptions {
     // and direct byte writes instead of varint branching, since the encoded varint
     // is guaranteed to be 1 byte.
     optional uint32 max_value = 50017;
+
+    // max_data_length: Maximum length of a string or bytes field.
+    // When max_data_length < 128, the code generator emits constant-size
+    // length varint calculations and direct byte writes, since the length
+    // varint is guaranteed to be 1 byte.
+    optional uint32 max_data_length = 50018;
 }

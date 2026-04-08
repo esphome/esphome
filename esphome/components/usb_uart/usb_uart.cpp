@@ -325,10 +325,8 @@ void USBUartComponent::start_input(USBUartChannel *channel) {
       // Re-enable component loop to process the queued data
       this->enable_loop_soon_any_context();
 
-      // Wake main loop immediately to process USB data instead of waiting for select() timeout
-#if defined(USE_SOCKET_SELECT_SUPPORT) && defined(USE_WAKE_LOOP_THREADSAFE)
+      // Wake main loop immediately to process USB data
       App.wake_loop_threadsafe();
-#endif
     }
 
     // On success, restart input immediately from USB task for performance

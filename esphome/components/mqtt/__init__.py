@@ -69,9 +69,6 @@ DEPENDENCIES = ["network"]
 def AUTO_LOAD():
     if CORE.is_esp8266 or CORE.is_libretiny:
         return ["async_tcp", "json"]
-    # ESP32 needs socket for wake_loop_threadsafe()
-    if CORE.is_esp32:
-        return ["json", "socket"]
     return ["json"]
 
 
@@ -348,10 +345,7 @@ async def to_code(config):
         # https://github.com/heman/async-mqtt-client/blob/master/library.json
         cg.add_library("heman/AsyncMqttClient-esphome", "2.0.0")
 
-    # MQTT on ESP32 uses wake_loop_threadsafe() to wake the main loop from the MQTT event handler
-    # This enables low-latency MQTT event processing instead of waiting for select() timeout
     if CORE.is_esp32:
-        socket.require_wake_loop_threadsafe()
         # Re-enable ESP-IDF's mqtt component (excluded by default to save compile time)
         # IDF 6.0 moved esp-mqtt to an external component
         if idf_version() >= cv.Version(6, 0, 0):
