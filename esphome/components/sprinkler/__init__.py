@@ -455,7 +455,7 @@ async def sprinkler_set_multiplier_to_code(config, action_id, template_arg, args
 async def sprinkler_set_queued_valve_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_VALVE_NUMBER], args, cg.uint8)
+    template_ = await cg.templatable(config[CONF_VALVE_NUMBER], args, cg.size_t)
     cg.add(var.set_valve_number(template_))
     template_ = await cg.templatable(config[CONF_RUN_DURATION], args, cg.uint32)
     cg.add(var.set_valve_run_duration(template_))
@@ -487,7 +487,7 @@ async def sprinkler_set_valve_run_duration_to_code(
 ):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_VALVE_NUMBER], args, cg.uint8)
+    template_ = await cg.templatable(config[CONF_VALVE_NUMBER], args, cg.size_t)
     cg.add(var.set_valve_number(template_))
     template_ = await cg.templatable(config[CONF_RUN_DURATION], args, cg.uint32)
     cg.add(var.set_valve_run_duration(template_))
@@ -525,7 +525,7 @@ async def sprinkler_start_full_cycle_to_code(config, action_id, template_arg, ar
 async def sprinkler_start_single_valve_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_VALVE_NUMBER], args, cg.uint8)
+    template_ = await cg.templatable(config[CONF_VALVE_NUMBER], args, cg.size_t)
     cg.add(var.set_valve_to_start(template_))
     if CONF_RUN_DURATION in config:
         template_ = await cg.templatable(config[CONF_RUN_DURATION], args, cg.uint32)
