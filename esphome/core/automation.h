@@ -34,70 +34,198 @@ template<int... S> struct gens<0, S...> { using type = seq<S...>; };
 #endif
 // NOLINTEND(readability-identifier-naming)
 
+/// Function-pointer-only templatable storage (4 bytes on 32-bit).
+/// Used by the TEMPLATABLE_VALUE macro for codegen-managed fields.
+/// Codegen wraps constants in stateless lambdas so only a function pointer is needed.
+template<typename T, typename... X> class TemplatableFn {
+ public:
+  TemplatableFn() = default;
+
+  template<typename F> TemplatableFn(F f) requires std::convertible_to<F, T (*)(X...)> : f_(f) {}
+
+  template<typename F>
+  TemplatableFn(F) requires std::invocable<F, X...> &&(!std::convertible_to<F, T (*)(X...)>) = delete;
+
+  bool has_value() const { return this->f_ != nullptr; }
+
+  T value(X... x) const { return this->f_ ? this->f_(x...) : T{}; }
+
+  optional<T> optional_value(X... x) const {
+    if (!this->f_)
+      return {};
+    return this->f_(x...);
+  }
+
+  T value_or(X... x, T default_value) const { return this->f_ ? this->f_(x...) : default_value; }
+
+ protected:
+  T (*f_)(X...){nullptr};
+};
+
+// Forward declaration for TemplatableValue (string specialization needs it)
+template<typename T, typename... X> class TemplatableValue;
+
+/// Selects TemplatableFn (4 bytes) for non-string types, TemplatableValue (8 bytes) for std::string.
+/// std::string needs TemplatableValue for const char*, __FlashStringHelper*, and PROGMEM support.
+template<typename T, typename... X>
+using TemplatableStorage =
+    std::conditional_t<std::same_as<T, std::string>, TemplatableValue<T, X...>, TemplatableFn<T, X...>>;
+
 #define TEMPLATABLE_VALUE_(type, name) \
  protected: \
-  TemplatableValue<type, Ts...> name##_{}; \
+  TemplatableStorage<type, Ts...> name##_{}; \
 \
  public: \
   template<typename V> void set_##name(V name) { this->name##_ = name; }
 
 #define TEMPLATABLE_VALUE(type, name) TEMPLATABLE_VALUE_(type, name)
 
+/// Primary TemplatableValue: stores either a constant value or a function pointer.
+/// No std::function, no string-specific paths. 8 bytes on 32-bit.
+/// Accepts raw constants for backward compatibility with direct C++ usage.
 template<typename T, typename... X> class TemplatableValue {
-  // For std::string, store pointer to heap-allocated string to keep union pointer-sized.
-  // For other types, store value inline.
-  static constexpr bool USE_HEAP_STORAGE = std::same_as<T, std::string>;
+ public:
+  TemplatableValue() = default;
 
+  // Accept raw constants
+  template<typename V> TemplatableValue(V value) requires(!std::invocable<V, X...>) : tag_(VALUE) {
+    new (&this->value_) T(static_cast<T>(std::move(value)));
+  }
+
+  // Accept stateless lambdas (convertible to function pointer)
+  template<typename F> TemplatableValue(F f) requires std::convertible_to<F, T (*)(X...)> : tag_(FN) { this->f_ = f; }
+
+  // Reject stateful lambdas at compile time
+  template<typename F>
+  TemplatableValue(F) requires std::invocable<F, X...> &&(!std::convertible_to<F, T (*)(X...)>) = delete;
+
+  TemplatableValue(const TemplatableValue &other) : tag_(other.tag_) {
+    if (this->tag_ == VALUE) {
+      new (&this->value_) T(other.value_);
+    } else if (this->tag_ == FN) {
+      this->f_ = other.f_;
+    }
+  }
+
+  TemplatableValue(TemplatableValue &&other) noexcept : tag_(other.tag_) {
+    if (this->tag_ == VALUE) {
+      new (&this->value_) T(std::move(other.value_));
+      other.destroy_();
+    } else if (this->tag_ == FN) {
+      this->f_ = other.f_;
+    }
+    other.tag_ = NONE;
+  }
+
+  TemplatableValue &operator=(const TemplatableValue &other) {
+    if (this != &other) {
+      this->destroy_();
+      this->tag_ = other.tag_;
+      if (this->tag_ == VALUE) {
+        new (&this->value_) T(other.value_);
+      } else if (this->tag_ == FN) {
+        this->f_ = other.f_;
+      }
+    }
+    return *this;
+  }
+
+  TemplatableValue &operator=(TemplatableValue &&other) noexcept {
+    if (this != &other) {
+      this->destroy_();
+      this->tag_ = other.tag_;
+      if (this->tag_ == VALUE) {
+        new (&this->value_) T(std::move(other.value_));
+        other.destroy_();
+      } else if (this->tag_ == FN) {
+        this->f_ = other.f_;
+      }
+      other.tag_ = NONE;
+    }
+    return *this;
+  }
+
+  ~TemplatableValue() { this->destroy_(); }
+
+  bool has_value() const { return this->tag_ != NONE; }
+
+  T value(X... x) const {
+    if (this->tag_ == FN)
+      return this->f_(x...);
+    if (this->tag_ == VALUE)
+      return this->value_;
+    return T{};
+  }
+
+  optional<T> optional_value(X... x) const {
+    if (this->tag_ == NONE)
+      return {};
+    return this->value(x...);
+  }
+
+  T value_or(X... x, T default_value) const {
+    if (this->tag_ == NONE)
+      return default_value;
+    return this->value(x...);
+  }
+
+ protected:
+  void destroy_() {
+    if constexpr (!std::is_trivially_destructible_v<T>) {
+      if (this->tag_ == VALUE)
+        this->value_.~T();
+    }
+  }
+
+  enum Tag : uint8_t { NONE, VALUE, FN } tag_{NONE};
+  union {
+    T value_;
+    T (*f_)(X...);
+  };
+};
+
+/// Specialization for std::string: supports VALUE, STATIC_STRING, FLASH_STRING,
+/// stateless lambdas, and stateful lambdas (std::function).
+template<typename... X> class TemplatableValue<std::string, X...> {
  public:
   TemplatableValue() : type_(NONE) {}
 
-  // For const char* when T is std::string: store pointer directly, no heap allocation
-  // String remains in flash and is only converted to std::string when value() is called
-  TemplatableValue(const char *str) requires std::same_as<T, std::string> : type_(STATIC_STRING) {
-    this->static_str_ = str;
-  }
+  // For const char*: store pointer directly, no heap allocation.
+  // String remains in flash and is only converted to std::string when value() is called.
+  TemplatableValue(const char *str) : type_(STATIC_STRING) { this->static_str_ = str; }
 
 #ifdef USE_ESP8266
   // On ESP8266, __FlashStringHelper* is a distinct type from const char*.
   // ESPHOME_F(s) expands to F(s) which returns __FlashStringHelper* pointing to PROGMEM.
-  // Store as FLASH_STRING — value()/is_empty()/ref_or_copy_to() use _P functions
-  // to access the PROGMEM pointer safely.
-  TemplatableValue(const __FlashStringHelper *str) requires std::same_as<T, std::string> : type_(FLASH_STRING) {
+  // Store as FLASH_STRING — value()/is_empty()/ref_or_copy_to() use _P functions.
+  TemplatableValue(const __FlashStringHelper *str) : type_(FLASH_STRING) {
     this->static_str_ = reinterpret_cast<const char *>(str);
   }
 #endif
 
   template<typename F> TemplatableValue(F value) requires(!std::invocable<F, X...>) : type_(VALUE) {
-    if constexpr (USE_HEAP_STORAGE) {
-      this->value_ = new T(std::move(value));
-    } else {
-      new (&this->value_) T(std::move(value));
-    }
+    this->value_ = new std::string(std::move(value));
   }
 
   // For stateless lambdas (convertible to function pointer): use function pointer
   template<typename F>
-  TemplatableValue(F f) requires std::invocable<F, X...> && std::convertible_to<F, T (*)(X...)>
+  TemplatableValue(F f) requires std::invocable<F, X...> && std::convertible_to<F, std::string (*)(X...)>
       : type_(STATELESS_LAMBDA) {
-    this->stateless_f_ = f;  // Implicit conversion to function pointer
+    this->stateless_f_ = f;
   }
 
   // For stateful lambdas (not convertible to function pointer): use std::function
   template<typename F>
-  TemplatableValue(F f) requires std::invocable<F, X...> &&(!std::convertible_to<F, T (*)(X...)>) : type_(LAMBDA) {
-    this->f_ = new std::function<T(X...)>(std::move(f));
+  TemplatableValue(F f) requires std::invocable<F, X...> &&(!std::convertible_to<F, std::string (*)(X...)>)
+      : type_(LAMBDA) {
+    this->f_ = new std::function<std::string(X...)>(std::move(f));
   }
 
-  // Copy constructor
   TemplatableValue(const TemplatableValue &other) : type_(other.type_) {
     if (this->type_ == VALUE) {
-      if constexpr (USE_HEAP_STORAGE) {
-        this->value_ = new T(*other.value_);
-      } else {
-        new (&this->value_) T(other.value_);
-      }
+      this->value_ = new std::string(*other.value_);
     } else if (this->type_ == LAMBDA) {
-      this->f_ = new std::function<T(X...)>(*other.f_);
+      this->f_ = new std::function<std::string(X...)>(*other.f_);
     } else if (this->type_ == STATELESS_LAMBDA) {
       this->stateless_f_ = other.stateless_f_;
     } else if (this->type_ == STATIC_STRING || this->type_ == FLASH_STRING) {
@@ -105,15 +233,10 @@ template<typename T, typename... X> class TemplatableValue {
     }
   }
 
-  // Move constructor
   TemplatableValue(TemplatableValue &&other) noexcept : type_(other.type_) {
     if (this->type_ == VALUE) {
-      if constexpr (USE_HEAP_STORAGE) {
-        this->value_ = other.value_;
-        other.value_ = nullptr;
-      } else {
-        new (&this->value_) T(std::move(other.value_));
-      }
+      this->value_ = other.value_;
+      other.value_ = nullptr;
     } else if (this->type_ == LAMBDA) {
       this->f_ = other.f_;
       other.f_ = nullptr;
@@ -125,7 +248,6 @@ template<typename T, typename... X> class TemplatableValue {
     other.type_ = NONE;
   }
 
-  // Assignment operators
   TemplatableValue &operator=(const TemplatableValue &other) {
     if (this != &other) {
       this->~TemplatableValue();
@@ -144,82 +266,58 @@ template<typename T, typename... X> class TemplatableValue {
 
   ~TemplatableValue() {
     if (this->type_ == VALUE) {
-      if constexpr (USE_HEAP_STORAGE) {
-        delete this->value_;
-      } else {
-        this->value_.~T();
-      }
+      delete this->value_;
     } else if (this->type_ == LAMBDA) {
       delete this->f_;
     }
-    // STATELESS_LAMBDA/STATIC_STRING/FLASH_STRING/NONE: no cleanup needed (pointers, not heap-allocated)
   }
 
   bool has_value() const { return this->type_ != NONE; }
 
-  T value(X... x) const {
+  std::string value(X... x) const {
     switch (this->type_) {
       case STATELESS_LAMBDA:
-        return this->stateless_f_(x...);  // Direct function pointer call
+        return this->stateless_f_(x...);
       case LAMBDA:
-        return (*this->f_)(x...);  // std::function call
+        return (*this->f_)(x...);
       case VALUE:
-        if constexpr (USE_HEAP_STORAGE) {
-          return *this->value_;
-        } else {
-          return this->value_;
-        }
+        return *this->value_;
       case STATIC_STRING:
-        // if constexpr required: code must compile for all T, but STATIC_STRING
-        // can only be set when T is std::string (enforced by constructor constraint)
-        if constexpr (std::same_as<T, std::string>) {
-          return std::string(this->static_str_);
-        }
-        __builtin_unreachable();
+        return std::string(this->static_str_);
 #ifdef USE_ESP8266
-      case FLASH_STRING:
-        // PROGMEM pointer — must use _P functions to access on ESP8266
-        if constexpr (std::same_as<T, std::string>) {
-          size_t len = strlen_P(this->static_str_);
-          std::string result(len, '\0');
-          memcpy_P(result.data(), this->static_str_, len);
-          return result;
-        }
-        __builtin_unreachable();
+      case FLASH_STRING: {
+        size_t len = strlen_P(this->static_str_);
+        std::string result(len, '\0');
+        memcpy_P(result.data(), this->static_str_, len);
+        return result;
+      }
 #endif
       case NONE:
       default:
-        return T{};
+        return {};
     }
   }
 
-  optional<T> optional_value(X... x) {
-    if (!this->has_value()) {
+  optional<std::string> optional_value(X... x) const {
+    if (!this->has_value())
       return {};
-    }
     return this->value(x...);
   }
 
-  T value_or(X... x, T default_value) {
-    if (!this->has_value()) {
+  std::string value_or(X... x, std::string default_value) const {
+    if (!this->has_value())
       return default_value;
-    }
     return this->value(x...);
   }
 
-  /// Check if this holds a static string (const char* stored without allocation)
-  /// The pointer is always directly readable (RAM or flash-mapped).
-  /// Returns false for FLASH_STRING (PROGMEM on ESP8266, requires _P functions).
+  /// Check if this holds a static string (const char* stored without allocation).
   bool is_static_string() const { return this->type_ == STATIC_STRING; }
 
-  /// Get the static string pointer (only valid if is_static_string() returns true)
-  /// The pointer is always directly readable — FLASH_STRING uses a separate type.
+  /// Get the static string pointer (only valid if is_static_string() returns true).
   const char *get_static_string() const { return this->static_str_; }
 
-  /// Check if the string value is empty without allocating (for std::string specialization).
-  /// For NONE, returns true. For STATIC_STRING/VALUE, checks without allocation.
-  /// For LAMBDA/STATELESS_LAMBDA, must call value() which may allocate.
-  bool is_empty() const requires std::same_as<T, std::string> {
+  /// Check if the string value is empty without allocating.
+  bool is_empty() const {
     switch (this->type_) {
       case NONE:
         return true;
@@ -227,25 +325,18 @@ template<typename T, typename... X> class TemplatableValue {
         return this->static_str_ == nullptr || this->static_str_[0] == '\0';
 #ifdef USE_ESP8266
       case FLASH_STRING:
-        // PROGMEM pointer — must use progmem_read_byte on ESP8266
         return this->static_str_ == nullptr ||
                progmem_read_byte(reinterpret_cast<const uint8_t *>(this->static_str_)) == '\0';
 #endif
       case VALUE:
         return this->value_->empty();
-      default:  // LAMBDA/STATELESS_LAMBDA - must call value()
+      default:
         return this->value().empty();
     }
   }
 
-  /// Get a StringRef to the string value without heap allocation when possible.
-  /// For STATIC_STRING/VALUE, returns reference to existing data (no allocation).
-  /// For FLASH_STRING (ESP8266 PROGMEM), copies to provided buffer via _P functions.
-  /// For LAMBDA/STATELESS_LAMBDA, calls value(), copies to provided buffer, returns ref to buffer.
-  /// @param lambda_buf Buffer used only for copy cases (must remain valid while StringRef is used).
-  /// @param lambda_buf_size Size of the buffer.
-  /// @return StringRef pointing to the string data.
-  StringRef ref_or_copy_to(char *lambda_buf, size_t lambda_buf_size) const requires std::same_as<T, std::string> {
+  /// Get a StringRef without heap allocation when possible.
+  StringRef ref_or_copy_to(char *lambda_buf, size_t lambda_buf_size) const {
     switch (this->type_) {
       case NONE:
         return StringRef();
@@ -258,7 +349,6 @@ template<typename T, typename... X> class TemplatableValue {
         if (this->static_str_ == nullptr)
           return StringRef();
         {
-          // PROGMEM pointer — copy to buffer via _P functions
           size_t len = strlen_P(this->static_str_);
           size_t copy_len = std::min(len, lambda_buf_size - 1);
           memcpy_P(lambda_buf, this->static_str_, copy_len);
@@ -268,7 +358,7 @@ template<typename T, typename... X> class TemplatableValue {
 #endif
       case VALUE:
         return StringRef(this->value_->data(), this->value_->size());
-      default: {  // LAMBDA/STATELESS_LAMBDA - must call value() and copy
+      default: {
         std::string result = this->value();
         size_t copy_len = std::min(result.size(), lambda_buf_size - 1);
         memcpy(lambda_buf, result.data(), copy_len);
@@ -278,22 +368,20 @@ template<typename T, typename... X> class TemplatableValue {
     }
   }
 
- protected : enum : uint8_t {
-   NONE,
-   VALUE,
-   LAMBDA,
-   STATELESS_LAMBDA,
-   STATIC_STRING,  // For const char* when T is std::string - avoids heap allocation
-   FLASH_STRING,   // PROGMEM pointer on ESP8266; never set on other platforms
- } type_;
-  // For std::string, use heap pointer to minimize union size (4 bytes vs 12+).
-  // For other types, store value inline as before.
-  using ValueStorage = std::conditional_t<USE_HEAP_STORAGE, T *, T>;
+ protected:
+  enum : uint8_t {
+    NONE,
+    VALUE,
+    LAMBDA,
+    STATELESS_LAMBDA,
+    STATIC_STRING,
+    FLASH_STRING,
+  } type_;
   union {
-    ValueStorage value_;  // T for inline storage, T* for heap storage
-    std::function<T(X...)> *f_;
-    T (*stateless_f_)(X...);
-    const char *static_str_;  // For STATIC_STRING and FLASH_STRING types
+    std::string *value_;
+    std::function<std::string(X...)> *f_;
+    std::string (*stateless_f_)(X...);
+    const char *static_str_;
   };
 };
 
