@@ -47,7 +47,7 @@ def _get_idf_env(version: str | None = None) -> dict[str, str]:
     """
     version = version or _get_core_framework_version()
     if version not in _idf_env_cache:
-        _idf_env_cache[version] = os.environ
+        _idf_env_cache[version] = os.environ.copy()
 
         # Use provided IDF framework if available
         if "IDF_PATH" not in os.environ:

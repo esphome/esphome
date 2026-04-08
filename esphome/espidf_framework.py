@@ -16,6 +16,7 @@ import uuid
 
 import requests
 
+from esphome.config_validation import Version
 from esphome.core import CORE
 from esphome.helpers import get_str_env, rmtree
 
@@ -58,7 +59,7 @@ ESPHOME_IDF_DEFAULT_FEATURES = _str_to_lst_of_str(
 ESPHOME_IDF_FRAMEWORK_MIRRORS = _str_to_lst_of_str(
     os.environ.get(
         "ESPHOME_IDF_FRAMEWORK_MIRRORS",
-        "https://github.com/espressif/esp-idf/releases/download/v{VERSION}/esp-idf-v{VERSION}.zip",
+        "https://github.com/espressif/esp-idf/releases/download/v{VERSION}/esp-idf-v{VERSION}.zip;https://github.com/espressif/esp-idf/releases/download/v{MAJOR}.{MINOR}/esp-idf-v{MAJOR}.{MINOR}.zip",
     )
 )
 
@@ -317,7 +318,7 @@ print(get_idf_version())
     if stdout:
         stdout = stdout.strip()
     if not success or not stdout:
-        raise RuntimeError("Can't get ESP-IDF version of {idf_framework_root}")
+        raise RuntimeError(f"Can't get ESP-IDF version of {idf_framework_root}")
     return stdout
 
 
@@ -385,7 +386,7 @@ print(json.dumps(dict(paths_to_export=paths_to_export, export_vars=export_vars))
         return data["paths_to_export"], data["export_vars"]
     except Exception as e:
         raise RuntimeError(
-            "Can't extract ESP-IDF tool paths of {idf_framework_root}"
+            f"Can't extract ESP-IDF tool paths of {idf_framework_root}"
         ) from e
 
 
@@ -436,7 +437,7 @@ def _create_venv(root: PathType, msg: str | None = None):
         Exception: If virtual environment creation fails
     """
     cmd = [_get_pythonexe_path(), "-m", "venv", "--clear", root]
-    if not _exec_ok(cmd, msg=f"Create Python virtual environement for {msg}"):
+    if not _exec_ok(cmd, msg=f"Create Python virtual environment for {msg}"):
         raise RuntimeError(f"Can't create Python virtual environment for {msg}")
 
 
@@ -448,10 +449,42 @@ def _tar_extract_all(data: io.BufferedIOBase, extract_dir: PathType = "."):
         data: File-like object containing the TAR archive
         extract_dir: Directory to extract contents to
     """
+    import stat
     import tarfile
 
-    with tarfile.open(fileobj=data, mode="r") as zip_ref:
-        zip_ref.extractall(extract_dir, filter="tar")
+    extract_dir = os.fspath(extract_dir)
+    abs_dest = os.path.abspath(extract_dir)
+
+    with tarfile.open(fileobj=data, mode="r") as tar_ref:
+        safe_members = []
+
+        for member in tar_ref.getmembers():
+            # 1. Strip leading slashes
+            name = member.name.lstrip("/\\")
+
+            # 2. Reject absolute paths (incl. Windows drive)
+            if os.path.isabs(name) or (
+                os.name == "nt" and ":" in name.split(os.sep)[0]
+            ):
+                continue
+
+            # 3. Compute final path
+            target_path = os.path.abspath(os.path.join(abs_dest, name))
+
+            if os.path.commonpath([abs_dest, target_path]) != abs_dest:
+                continue
+
+            # 4. Sanitize permissions
+            if member.mode is not None:
+                member.mode &= ~(stat.S_ISUID | stat.S_ISGID | stat.S_ISVTX)
+                member.mode &= ~(stat.S_IWGRP | stat.S_IWOTH)
+
+            # 5. Assign sanitized name back
+            member.name = name
+
+            safe_members.append(member)
+
+        tar_ref.extractall(path=abs_dest, members=safe_members)
 
 
 def _zip_extract_all(data: io.BufferedIOBase, extract_dir: PathType = "."):
@@ -464,8 +497,30 @@ def _zip_extract_all(data: io.BufferedIOBase, extract_dir: PathType = "."):
     """
     import zipfile
 
+    extract_dir = os.path.abspath(extract_dir)
+
     with zipfile.ZipFile(data, "r") as zip_ref:
-        zip_ref.extractall(extract_dir)
+        for member in zip_ref.infolist():
+            # 1. Normalize name
+            name = member.filename.lstrip("/\\")
+
+            # 2. Reject absolute paths / Windows drives
+            if os.path.isabs(name) or (
+                os.name == "nt" and ":" in name.split(os.sep)[0]
+            ):
+                continue
+
+            # 3. Compute safe target path
+            target_path = os.path.abspath(os.path.join(extract_dir, name))
+
+            if os.path.commonpath([extract_dir, target_path]) != extract_dir:
+                raise ValueError(f"Unsafe path detected: {member.filename}")
+
+            # 4. Assign sanitized name back
+            member.filename = name
+
+            # 5. Extract
+            zip_ref.extract(member, extract_dir)
 
 
 _ARCHIVE_MAGIC_MAP = {
@@ -494,7 +549,7 @@ def archive_extract_all(
     # 1. Handle different archive input types
     with ExitStack() as stack:
         archive_ref: io.BufferedIOBase
-        if isinstance(archive, PathType):
+        if isinstance(archive, (str, os.PathLike)):
             archive_ref = stack.enter_context(open(archive, "rb"))
         elif isinstance(archive, (io.BufferedReader, io.BufferedRandom)):
             archive_ref = archive
@@ -558,7 +613,7 @@ def download_from_mirrors(
     """
     # 1. Open target file for writing if path given
     with ExitStack() as stack:
-        if isinstance(target, PathType):
+        if isinstance(target, (str, os.PathLike)):
             f = stack.enter_context(open(target, "wb"))
         elif isinstance(target, (io.RawIOBase, io.IOBase)):
             f = target
@@ -579,6 +634,8 @@ def download_from_mirrors(
             try:
                 # 4. Reset file pointer and download
                 f.seek(0)
+                f.truncate(0)
+
                 with requests.get(url, stream=True, timeout=timeout) as r:
                     r.raise_for_status()
                     # 5. Write downloaded content
@@ -647,8 +704,20 @@ def _check_esphome_idf_framework_install(
         # Download in temporary file
         with tempfile.NamedTemporaryFile() as tmp:
             _LOGGER.info("Downloading ESP-IDF %s framework ...", version)
+
+            # Create substitutions for the URLs
+            substitutions = {"VERSION": version}
+            try:
+                ver = Version.parse(version)
+                substitutions["MAJOR"] = str(ver.major)
+                substitutions["MINOR"] = str(ver.minor)
+                substitutions["PATCH"] = str(ver.patch)
+                substitutions["EXTRA"] = ver.extra
+            except ValueError:
+                pass
+
             download_from_mirrors(
-                ESPHOME_IDF_FRAMEWORK_MIRRORS, {"VERSION": version}, tmp.file
+                ESPHOME_IDF_FRAMEWORK_MIRRORS, substitutions, tmp.file
             )
 
             # Create temporary directory for extracting archive: if the process is interrupted the framework will not be considered as extracted
@@ -748,7 +817,7 @@ def _check_esp_idf_python_env_install(
         )
         _LOGGER.debug("ESP-IDF version %s", esp_idf_version)
 
-        _LOGGER.info("Downloading constaints file for ESP-IDF %s ...", esp_idf_version)
+        _LOGGER.info("Downloading constraints file for ESP-IDF %s ...", esp_idf_version)
         download_from_mirrors(
             ESP_IDF_CONSTRAINTS_MIRRORS,
             {"VERSION": esp_idf_version},

@@ -505,7 +505,7 @@ def final_validation(config):
     # Check if BLE Server is needed
     has_ble_server = "esp32_ble_server" in full_config
 
-    # Always enable GATTS when using native IDF : ESP-IDF 5.5.2.260206 has a bug in gatt_main.c where a
+    # Always enable GATTS when using native IDF : ESP-IDF 5.5.3 has a bug in gatt_main.c where a
     # GATT_TRACE_DEBUG references 'msg_len' outside the GATTS_INCLUDED/GATTC_INCLUDED
     # guard, causing a compile error when both are disabled.
     framework_ver: cv.Version = CORE.data[KEY_ESP32][KEY_IDF_VERSION]

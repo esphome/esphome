@@ -420,9 +420,7 @@ def _owner_pkgname_to_name(owner: str | None, pkgname: str) -> str:
     return "/".join([owner, pkgname]) if owner else pkgname
 
 
-def _collect_filtered_files(
-    src_dir: PathType, src_filters: list[str], followlinks=True
-) -> list[str]:
+def _collect_filtered_files(src_dir: PathType, src_filters: list[str]) -> list[str]:
     """
     Recursively match files in a directory according to include/exclude patterns.
 
@@ -436,8 +434,6 @@ def _collect_filtered_files(
         src_filters (list[str]): List of filter strings, which may contain multiple
             patterns. Each pattern can start with '+' or '-' to indicate inclusion
             or exclusion.
-        followlinks (bool, optional): If True, follow symbolic links when traversing
-            directories. Defaults to True.
 
     Returns:
         list[str]: List of matched file paths as strings. Only files (not directories)
@@ -466,13 +462,7 @@ def _collect_filtered_files(
             else:
                 # PlatformIO quirk: a directory matched with "*" should include all its
                 # nested files and subdirectories, not just the directory itself.
-                for root, dirs, files in os.walk(item, followlinks=followlinks):
-                    dirs = dirs if not followlinks else []
-                    matched.extend(
-                        os.path.join(root, d)
-                        for d in dirs
-                        if os.path.islink(os.path.join(root, d))
-                    )
+                for root, _, files in os.walk(item, followlinks=True):
                     matched.extend([os.path.join(root, f) for f in files])
 
         if sign == "+":
