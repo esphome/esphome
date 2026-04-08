@@ -69,11 +69,7 @@ async def numeric_comparison_reply_to_code(config, action_id, template_arg, args
     parent = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, parent)
 
-    accept = config[CONF_ACCEPT]
-    if cg.is_template(accept):
-        templ = await cg.templatable(accept, args, cg.bool_)
-        cg.add(var.set_value_template(templ))
-    else:
-        cg.add(var.set_value_simple(accept))
+    templ = await cg.templatable(config[CONF_ACCEPT], args, cg.bool_)
+    cg.add(var.set_accept(templ))
 
     return var

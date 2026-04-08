@@ -23,33 +23,14 @@ class BLEServer : public Component {
 
 template<typename... Ts> class BLENumericComparisonReplyAction : public Action<Ts...> {
  public:
-  BLENumericComparisonReplyAction(BLEServer *parent) { this->parent_ = parent; }
+  explicit BLENumericComparisonReplyAction(BLEServer *parent) : parent_(parent) {}
 
-  void play(const Ts &...x) override {
-    if (has_simple_value_) {
-      this->parent_->bt_conn_auth(this->value_.simple);
-    } else {
-      this->parent_->bt_conn_auth(this->value_.template_func(x...));
-    }
-  }
+  TEMPLATABLE_VALUE(bool, accept)
 
-  void set_value_template(bool (*func)(Ts...)) {
-    this->value_.template_func = func;
-    this->has_simple_value_ = false;
-  }
+  void play(const Ts &...x) override { this->parent_->bt_conn_auth(this->accept_.value(x...)); }
 
-  void set_value_simple(const bool &value) {
-    this->value_.simple = value;
-    this->has_simple_value_ = true;
-  }
-
- private:
-  BLEServer *parent_{nullptr};
-  bool has_simple_value_ = true;
-  union {
-    bool simple;
-    bool (*template_func)(Ts...);
-  } value_{.simple = false};
+ protected:
+  BLEServer *parent_;
 };
 
 }  // namespace esphome::zephyr_ble_server
