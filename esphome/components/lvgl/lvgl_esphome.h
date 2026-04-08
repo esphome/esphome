@@ -233,6 +233,9 @@ class LvglComponent : public PollingComponent {
   display::DisplayRotation get_rotation() const { return this->rotation_; }
   void rotate_coordinates(int32_t &x, int32_t &y) const;
 
+  uint16_t get_width() const { return lv_display_get_horizontal_resolution(this->disp_); }
+  uint16_t get_height() const { return lv_display_get_vertical_resolution(this->disp_); }
+
  protected:
   void set_resolution_() const;
   void draw_end_();
