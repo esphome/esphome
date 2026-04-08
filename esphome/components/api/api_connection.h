@@ -276,6 +276,7 @@ class APIConnection final : public APIServerConnectionBase {
       App.schedule_dump_config();
 #ifdef USE_ESP32_CRASH_HANDLER
     esp32::crash_handler_log();
+    esp32::crash_handler_clear();
 #endif
 #ifdef USE_RP2040_CRASH_HANDLER
     rp2040::crash_handler_log();

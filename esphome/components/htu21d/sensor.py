@@ -98,7 +98,7 @@ async def to_code(config):
 async def set_heater_level_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    level_ = await cg.templatable(config[CONF_LEVEL], args, int)
+    level_ = await cg.templatable(config[CONF_LEVEL], args, cg.uint8)
     cg.add(var.set_level(level_))
     return var
 
