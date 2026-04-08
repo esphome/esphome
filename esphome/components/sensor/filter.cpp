@@ -213,12 +213,12 @@ optional<float> LambdaFilter::new_value(float value) {
 }
 
 // OffsetFilter
-OffsetFilter::OffsetFilter(TemplatableFn<float> offset) : offset_(std::move(offset)) {}
+OffsetFilter::OffsetFilter(TemplatableFn<float> offset) : offset_(offset) {}
 
 optional<float> OffsetFilter::new_value(float value) { return value + this->offset_.value(); }
 
 // MultiplyFilter
-MultiplyFilter::MultiplyFilter(TemplatableFn<float> multiplier) : multiplier_(std::move(multiplier)) {}
+MultiplyFilter::MultiplyFilter(TemplatableFn<float> multiplier) : multiplier_(multiplier) {}
 
 optional<float> MultiplyFilter::new_value(float value) { return value * this->multiplier_.value(); }
 
