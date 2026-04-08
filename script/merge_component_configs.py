@@ -27,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from esphome import yaml_util
 from esphome.config_helpers import merge_config
+from esphome.yaml_util import IncludeFile
 from script.analyze_component_buses import PACKAGE_DEPENDENCIES, get_common_bus_packages
 
 # Prefix for dependency markers in package tracking
@@ -46,7 +47,12 @@ def load_yaml_file(yaml_file: Path) -> dict:
     if not yaml_file.exists():
         raise FileNotFoundError(f"YAML file not found: {yaml_file}")
 
-    return yaml_util.load_yaml(yaml_file)
+    data = yaml_util.load_yaml(yaml_file)
+    # Top-level !include (e.g., `!include common.yaml`) returns an IncludeFile
+    # that must be resolved before we can work with it as a dict.
+    if isinstance(data, IncludeFile):
+        data = data.load()
+    return data
 
 
 @lru_cache(maxsize=256)
