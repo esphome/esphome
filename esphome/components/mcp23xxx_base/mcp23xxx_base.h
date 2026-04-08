@@ -35,8 +35,11 @@ template<uint8_t N> class MCP23XXXBase : public Component, public gpio_expander:
       this->interrupt_pin_->setup();
       this->interrupt_pin_->attach_interrupt(&MCP23XXXBase::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
       this->set_invalidate_on_read_(false);
-      this->disable_loop();
     }
+    // Disable loop until an input pin is configured via pin_mode()
+    // For interrupt-driven mode, loop is re-enabled by the ISR
+    // For polling mode, loop is re-enabled when pin_mode() registers an input pin
+    this->disable_loop();
   }
   static void IRAM_ATTR gpio_intr(MCP23XXXBase *arg) { arg->enable_loop_soon_any_context(); }
 

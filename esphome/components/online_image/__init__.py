@@ -105,6 +105,14 @@ async def online_image_action_to_code(config, action_id, template_arg, args):
     return var
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_DOWNLOAD_FINISHED, "add_on_finished_callback", [(bool, "cached")]
+    ),
+    automation.CallbackAutomation(CONF_ON_ERROR, "add_on_error_callback"),
+)
+
+
 async def to_code(config):
     # Use the enhanced helper function to get all runtime image parameters
     settings = await runtime_image.process_runtime_image_config(config)
@@ -139,12 +147,4 @@ async def to_code(config):
         else:
             cg.add(var.add_request_header(key, value))
 
-    for conf in config.get(CONF_ON_DOWNLOAD_FINISHED, []):
-        await automation.build_callback_automation(
-            var, "add_on_finished_callback", [(bool, "cached")], conf
-        )
-
-    for conf in config.get(CONF_ON_ERROR, []):
-        await automation.build_callback_automation(
-            var, "add_on_error_callback", [], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)

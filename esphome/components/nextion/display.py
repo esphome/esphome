@@ -20,6 +20,10 @@ from .base_component import (
     CONF_MAX_QUEUE_AGE,
     CONF_MAX_QUEUE_SIZE,
     CONF_ON_BUFFER_OVERFLOW,
+    CONF_ON_CUSTOM_BINARY_SENSOR,
+    CONF_ON_CUSTOM_SENSOR,
+    CONF_ON_CUSTOM_SWITCH,
+    CONF_ON_CUSTOM_TEXT_SENSOR,
     CONF_ON_PAGE,
     CONF_ON_SETUP,
     CONF_ON_SLEEP,
@@ -88,6 +92,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_COMMANDS_PER_LOOP): cv.uint16_t,
             cv.Optional(CONF_MAX_QUEUE_SIZE): cv.positive_int,
             cv.Optional(CONF_ON_BUFFER_OVERFLOW): automation.validate_automation({}),
+            cv.Optional(CONF_ON_CUSTOM_BINARY_SENSOR): automation.validate_automation(
+                {}
+            ),
+            cv.Optional(CONF_ON_CUSTOM_SENSOR): automation.validate_automation({}),
+            cv.Optional(CONF_ON_CUSTOM_SWITCH): automation.validate_automation({}),
+            cv.Optional(CONF_ON_CUSTOM_TEXT_SENSOR): automation.validate_automation({}),
             cv.Optional(CONF_ON_PAGE): automation.validate_automation({}),
             cv.Optional(CONF_ON_SETUP): automation.validate_automation({}),
             cv.Optional(CONF_ON_SLEEP): automation.validate_automation({}),
@@ -142,6 +152,56 @@ async def nextion_set_brightness_to_code(config, action_id, template_arg, args):
     cg.add(var.set_brightness(template_))
 
     return var
+
+
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(CONF_ON_SETUP, "add_setup_state_callback"),
+    automation.CallbackAutomation(CONF_ON_SLEEP, "add_sleep_state_callback"),
+    automation.CallbackAutomation(CONF_ON_WAKE, "add_wake_state_callback"),
+    automation.CallbackAutomation(
+        CONF_ON_PAGE, "add_new_page_callback", [(cg.uint8, "x")]
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_TOUCH,
+        "add_touch_event_callback",
+        [
+            (cg.uint8, "page_id"),
+            (cg.uint8, "component_id"),
+            (cg.bool_, "touch_event"),
+        ],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_BUFFER_OVERFLOW, "add_buffer_overflow_event_callback"
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CUSTOM_BINARY_SENSOR,
+        "add_custom_binary_sensor_callback",
+        [(cg.StringRef, "key"), (cg.bool_, "value")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CUSTOM_SENSOR,
+        "add_custom_sensor_callback",
+        [(cg.StringRef, "key"), (cg.int32, "value")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CUSTOM_SWITCH,
+        "add_custom_switch_callback",
+        [(cg.StringRef, "key"), (cg.bool_, "value")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CUSTOM_TEXT_SENSOR,
+        "add_custom_text_sensor_callback",
+        [(cg.StringRef, "key"), (cg.StringRef, "value")],
+    ),
+)
+
+# Map custom trigger config keys to their conditional defines
+_CUSTOM_TRIGGER_DEFINES = {
+    CONF_ON_CUSTOM_BINARY_SENSOR: "USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR",
+    CONF_ON_CUSTOM_SENSOR: "USE_NEXTION_TRIGGER_CUSTOM_SENSOR",
+    CONF_ON_CUSTOM_SWITCH: "USE_NEXTION_TRIGGER_CUSTOM_SWITCH",
+    CONF_ON_CUSTOM_TEXT_SENSOR: "USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR",
+}
 
 
 async def to_code(config):
@@ -231,35 +291,8 @@ async def to_code(config):
         cg.add(var.set_max_commands_per_loop(max_commands_per_loop))
 
     await display.register_display(var, config)
+    for conf_key, define_name in _CUSTOM_TRIGGER_DEFINES.items():
+        if config.get(conf_key):
+            cg.add_define(define_name)
 
-    for conf in config.get(CONF_ON_SETUP, []):
-        await automation.build_callback_automation(
-            var, "add_setup_state_callback", [], conf
-        )
-    for conf in config.get(CONF_ON_SLEEP, []):
-        await automation.build_callback_automation(
-            var, "add_sleep_state_callback", [], conf
-        )
-    for conf in config.get(CONF_ON_WAKE, []):
-        await automation.build_callback_automation(
-            var, "add_wake_state_callback", [], conf
-        )
-    for conf in config.get(CONF_ON_PAGE, []):
-        await automation.build_callback_automation(
-            var, "add_new_page_callback", [(cg.uint8, "x")], conf
-        )
-    for conf in config.get(CONF_ON_TOUCH, []):
-        await automation.build_callback_automation(
-            var,
-            "add_touch_event_callback",
-            [
-                (cg.uint8, "page_id"),
-                (cg.uint8, "component_id"),
-                (cg.bool_, "touch_event"),
-            ],
-            conf,
-        )
-    for conf in config.get(CONF_ON_BUFFER_OVERFLOW, []):
-        await automation.build_callback_automation(
-            var, "add_buffer_overflow_event_callback", [], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
