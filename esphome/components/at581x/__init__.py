@@ -173,10 +173,9 @@ async def at581x_settings_to_code(config, action_id, template_arg, args):
         cg.add(var.set_hw_frontend_reset(template_))
 
     if freq := config.get(CONF_FREQUENCY):
-        if cg.is_template(freq):
-            template_ = await cg.templatable(freq, args, cg.int32)
-        else:
-            template_ = int(freq / 1000000)
+        if not cg.is_template(freq):
+            freq = int(freq / 1000000)
+        template_ = await cg.templatable(freq, args, cg.int_)
         cg.add(var.set_frequency(template_))
 
     if (sens_dist := config.get(CONF_SENSING_DISTANCE)) is not None:
@@ -204,10 +203,9 @@ async def at581x_settings_to_code(config, action_id, template_arg, args):
         cg.add(var.set_stage_gain(template_))
 
     if power := config.get(CONF_POWER_CONSUMPTION):
-        if cg.is_template(power):
-            template_ = await cg.templatable(power, args, cg.int32)
-        else:
-            template_ = int(power * 1000000)
+        if not cg.is_template(power):
+            power = int(power * 1000000)
+        template_ = await cg.templatable(power, args, cg.int_)
         cg.add(var.set_power_consumption(template_))
 
     return var
