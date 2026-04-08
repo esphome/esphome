@@ -119,10 +119,10 @@ async def sensor_nextion_publish_to_code(config, action_id, template_arg, args):
     template_ = await cg.templatable(config[CONF_STATE], args, float)
     cg.add(var.set_state(template_))
 
-    template_ = await cg.templatable(config[CONF_PUBLISH_STATE], args, bool)
+    template_ = await cg.templatable(config[CONF_PUBLISH_STATE], args, cg.bool_)
     cg.add(var.set_publish_state(template_))
 
-    template_ = await cg.templatable(config[CONF_SEND_TO_NEXTION], args, bool)
+    template_ = await cg.templatable(config[CONF_SEND_TO_NEXTION], args, cg.bool_)
     cg.add(var.set_send_to_nextion(template_))
 
     return var
