@@ -34,6 +34,16 @@ extern "C" eth_esp32_emac_config_t eth_esp32_emac_default_config(void);
 #include <W6100lwIP.h>
 #elif defined(USE_ETHERNET_W6300)
 #include <W6300lwIP.h>
+// W6300 uses PIO QSPI, not Arduino SPI. The upstream Wiznet6300 class
+// incorrectly returns needsSPI()=true, causing LwipIntfDev::begin() to
+// call SPI.begin() which claims GPIOs that PIO QSPI needs.
+// This wrapper hides needsSPI() with a version returning false.
+class Wiznet6300NoSPI : public Wiznet6300 {
+ public:
+  using Wiznet6300::Wiznet6300;
+  constexpr bool needsSPI() const { return false; }
+};
+using Wiznet6300lwIPFixed = LwipIntfDev<Wiznet6300NoSPI>;
 #elif defined(USE_ETHERNET_ENC28J60)
 #include <ENC28J60lwIP.h>
 #else
@@ -238,6 +248,8 @@ class EthernetComponent final : public Component {
   static constexpr uint32_t LINK_CHECK_INTERVAL = 500;  // ms between link/IP polls
 #if defined(USE_ETHERNET_W5100)
   static constexpr uint32_t RESET_DELAY_MS = 150;  // W5100S PLL lock time
+#elif defined(USE_ETHERNET_W6300)
+  static constexpr uint32_t RESET_DELAY_MS = 100;  // W6300 needs 100ms after hardware reset
 #else
   static constexpr uint32_t RESET_DELAY_MS = 10;
 #endif
@@ -248,7 +260,7 @@ class EthernetComponent final : public Component {
 #elif defined(USE_ETHERNET_W6100)
   Wiznet6100lwIP *eth_{nullptr};
 #elif defined(USE_ETHERNET_W6300)
-  Wiznet6300lwIP *eth_{nullptr};
+  Wiznet6300lwIPFixed *eth_{nullptr};
 #elif defined(USE_ETHERNET_ENC28J60)
   ENC28J60lwIP *eth_{nullptr};
 #else
