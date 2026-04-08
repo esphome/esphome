@@ -823,9 +823,11 @@ async def templatable(
     """Generate code for a templatable config option.
 
     If `value` is a templated value, the lambda expression is returned.
-    For std::string output, constants are returned as-is (with PROGMEM wrapping).
+    For std::string output, constants are returned as-is (with PROGMEM wrapping),
+    using the std::string-specific TemplatableValue specialization.
     For all other output types, constants are wrapped in stateless lambdas
-    so that TemplatableValue can store them as function pointers.
+    so that TemplatableFn-backed macro-generated fields can store them as
+    function pointers.
 
     :param value: The value to process.
     :param args: The arguments for the lambda expression.
