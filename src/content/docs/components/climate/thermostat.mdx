@@ -364,7 +364,7 @@ experience and automation.
     - `dry`
     - `fan_only`
     - `auto`
-  - **fan_mode** (*Optional*, climate fan mode, [templatable](/automations/templates)): The fan mode the thermostat should switch to when this preset
+  - **fan_mode** (*Optional*, climate fan mode): The fan mode the thermostat should switch to when this preset
     is activated. If not specified, the thermostat's fan mode will remain unchanged when the preset is activated.
     One of:
 
@@ -378,7 +378,7 @@ experience and automation.
     - `focus`
     - `diffuse`
     - `quiet`
-  - **swing_mode** (*Optional*, climate swing mode, [templatable](/automations/templates)): The fan swing mode the thermostat should switch to when this
+  - **swing_mode** (*Optional*, climate swing mode): The fan swing mode the thermostat should switch to when this
     preset is activated. If not specified, the thermostat's fan swing mode will remain unchanged when the preset
     is activated. One of:
 
@@ -429,7 +429,7 @@ climate:
 
 These configuration items determine default values the thermostat controller should use when it starts.
 
-- **default_preset** (*Optional*, string, [templatable](/automations/templates)): The name of the preset to use by default. Must match a preset
+- **default_preset** (*Optional*, string): The name of the preset to use by default. Must match a preset
   as per [preset](#thermostat-preset).
 
 - **on_boot_restore_from**: (*Optional*, on_boot_restore_from): Controls what the thermostat will do when
