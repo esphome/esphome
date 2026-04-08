@@ -352,7 +352,9 @@ def test_track_yaml_loads_records_includes(tmp_path: Path) -> None:
     main.write_text("child: !include included.yaml\n")
 
     with yaml_util.track_yaml_loads() as loaded:
-        yaml_util.load_yaml(main)
+        result = yaml_util.load_yaml(main)
+        # !include is deferred; resolve it to trigger the nested load
+        result["child"].load()
 
     resolved = [p.name for p in loaded]
     assert "main.yaml" in resolved
