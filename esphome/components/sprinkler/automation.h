@@ -108,7 +108,9 @@ template<typename... Ts> class StartSingleValveAction : public Action<Ts...> {
  public:
   explicit StartSingleValveAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
 
-  TEMPLATABLE_VALUE(size_t, valve_to_start)
+  // valve_to_start uses TemplatableValue (not TemplatableFn) because it is set
+  // from both codegen (lambdas) and C++ (raw values in sprinkler.cpp).
+  template<typename V> void set_valve_to_start(V valve_to_start) { this->valve_to_start_ = valve_to_start; }
   TEMPLATABLE_VALUE(uint32_t, valve_run_duration)
 
   void play(const Ts &...x) override {
@@ -118,6 +120,7 @@ template<typename... Ts> class StartSingleValveAction : public Action<Ts...> {
 
  protected:
   Sprinkler *sprinkler_;
+  TemplatableValue<size_t, Ts...> valve_to_start_{};
 };
 
 template<typename... Ts> class ShutdownAction : public Action<Ts...> {
