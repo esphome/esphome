@@ -18,8 +18,11 @@ class MitsubishiCN105Climate : public climate::Climate, public Component, public
   climate::ClimateTraits traits() override;
   void control(const climate::ClimateCall &call) override;
 
-  void set_update_interval(uint32_t ms) { hp_.set_update_interval(ms); }
-  void set_current_temperature_min_interval(uint32_t ms) { hp_.set_room_temperature_min_interval(ms); }
+  void set_update_interval(uint32_t ms) { this->hp_.set_update_interval(ms); }
+  void set_current_temperature_min_interval(uint32_t ms) { this->hp_.set_room_temperature_min_interval(ms); }
+
+  void set_remote_temperature(float temperature) { this->hp_.set_remote_temperature(temperature); }
+  void clear_remote_temperature() { this->hp_.clear_remote_temperature(); }
 
  protected:
   void apply_values_();

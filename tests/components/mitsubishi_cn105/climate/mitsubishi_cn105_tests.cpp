@@ -404,4 +404,39 @@ TEST(MitsubishiCN105Tests, WriteInterruptsWaitingForNextStatusUpdate) {
   EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
 }
 
+TEST(MitsubishiCN105Tests, SetAndClearRemoteRoomTemp) {
+  auto ctx = TestContext{};
+
+  // Set remote temperature
+  ctx.sut.set_remote_temperature(28.5f);
+
+  ctx.sut.state_ = TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE;
+  ctx.sut.set_state(TestableMitsubishiCN105::State::APPLYING_SETTINGS);
+
+  EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x07, 0x01, 0x29, 0xB9, 0x00, 0x00,
+                                                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x94));
+
+  // Write ACK response
+  ctx.uart.push_rx({0xFC, 0x61, 0x01, 0x30, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5E});
+  ASSERT_FALSE(ctx.sut.update());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+
+  ctx.uart.tx.clear();
+
+  // Clear remote temperature
+  ctx.sut.clear_remote_temperature();
+
+  ctx.sut.set_state(TestableMitsubishiCN105::State::APPLYING_SETTINGS);
+
+  EXPECT_THAT(ctx.uart.tx, ::testing::ElementsAre(0xFC, 0x41, 0x01, 0x30, 0x10, 0x07, 0x00, 0x00, 0x80, 0x00, 0x00,
+                                                  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xF7));
+
+  // Write ACK response
+  ctx.uart.push_rx({0xFC, 0x61, 0x01, 0x30, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x5E});
+  ASSERT_FALSE(ctx.sut.update());
+  EXPECT_EQ(ctx.sut.state_, TestableMitsubishiCN105::State::WAITING_FOR_SCHEDULED_STATUS_UPDATE);
+}
+
 }  // namespace esphome::mitsubishi_cn105::testing

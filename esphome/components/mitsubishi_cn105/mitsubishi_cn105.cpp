@@ -198,7 +198,6 @@ void MitsubishiCN105::did_transition_(State to) {
 
     case State::APPLYING_SETTINGS:
       this->apply_settings_();
-      this->pending_updates_.clear();
       break;
 
     case State::SETTINGS_APPLIED:
@@ -376,31 +375,68 @@ void MitsubishiCN105::set_fan_mode(FanMode fan_mode) {
   this->pending_updates_.set(UpdateFlag::FAN);
 }
 
+void MitsubishiCN105::set_remote_temperature(float temperature) {
+  if (std::isnan(temperature)) {
+    ESP_LOGD(TAG, "Ignoring NaN remote temperature");
+    return;
+  }
+  const uint8_t temperature_half_deg = static_cast<uint8_t>(std::round(temperature * 2.0f));
+  if (temperature_half_deg < 16 || temperature_half_deg > 79) {
+    ESP_LOGD(TAG, "Ignoring out-of-range remote temperature: %.1f", temperature);
+    return;
+  }
+  this->set_remote_temperature_(temperature_half_deg);
+}
+
+void MitsubishiCN105::clear_remote_temperature() { this->set_remote_temperature_(0); }
+
+void MitsubishiCN105::set_remote_temperature_(uint8_t temperature_half_deg) {
+  this->remote_temperature_half_deg_ = temperature_half_deg;
+  this->pending_updates_.set(UpdateFlag::REMOTE_TEMPERATURE);
+}
+
 void MitsubishiCN105::apply_settings_() {
-  std::array<uint8_t, REQUEST_PAYLOAD_LEN> payload = {0x01};
+  std::array<uint8_t, REQUEST_PAYLOAD_LEN> payload{};
 
-  if (this->pending_updates_.has(UpdateFlag::POWER)) {
-    payload[1] |= 0x01;
-    payload[3] = this->status_.power_on ? 0x01 : 0x00;
-  }
-
-  if (this->pending_updates_.has(UpdateFlag::TEMPERATURE)) {
-    payload[1] |= 0x04;
-    if (this->use_temperature_encoding_b_) {
-      payload[14] = static_cast<uint8_t>(std::round(this->status_.target_temperature * 2.0f) + 128);
+  // If any setting is pending, set it before remote temperature
+  if (this->pending_updates_.has_only(UpdateFlag::REMOTE_TEMPERATURE)) {
+    payload[0] = 0x07;
+    if (this->remote_temperature_half_deg_ == 0) {
+      payload[3] = 0x80;
     } else {
-      payload[5] = static_cast<uint8_t>(TARGET_TEMPERATURE_ENC_A_OFFSET - std::round(this->status_.target_temperature));
+      payload[1] = 0x01;
+      payload[2] = static_cast<uint8_t>(this->remote_temperature_half_deg_ - 16);
+      payload[3] = static_cast<uint8_t>(this->remote_temperature_half_deg_ + 128);
     }
-  }
+    this->pending_updates_.clear(UpdateFlag::REMOTE_TEMPERATURE);
 
-  if (this->pending_updates_.has(UpdateFlag::MODE) &&
-      reverse_lookup(PROTOCOL_MODE_MAP, this->status_.mode, payload[4])) {
-    payload[1] |= 0x02;
-  }
+  } else {
+    payload[0] = 0x01;
+    if (this->pending_updates_.has(UpdateFlag::POWER)) {
+      payload[1] |= 0x01;
+      payload[3] = this->status_.power_on ? 0x01 : 0x00;
+    }
 
-  if (this->pending_updates_.has(UpdateFlag::FAN) &&
-      reverse_lookup(PROTOCOL_FAN_MODE_MAP, this->status_.fan_mode, payload[6])) {
-    payload[1] |= 0x08;
+    if (this->pending_updates_.has(UpdateFlag::TEMPERATURE)) {
+      payload[1] |= 0x04;
+      if (this->use_temperature_encoding_b_) {
+        payload[14] = static_cast<uint8_t>(this->status_.target_temperature * 2.0f + 128.0f);
+      } else {
+        payload[5] = static_cast<uint8_t>(TARGET_TEMPERATURE_ENC_A_OFFSET - this->status_.target_temperature);
+      }
+    }
+
+    if (this->pending_updates_.has(UpdateFlag::MODE) &&
+        reverse_lookup(PROTOCOL_MODE_MAP, this->status_.mode, payload[4])) {
+      payload[1] |= 0x02;
+    }
+
+    if (this->pending_updates_.has(UpdateFlag::FAN) &&
+        reverse_lookup(PROTOCOL_FAN_MODE_MAP, this->status_.fan_mode, payload[6])) {
+      payload[1] |= 0x08;
+    }
+
+    this->pending_updates_.clear(UpdateFlag::TEMPERATURE, UpdateFlag::POWER, UpdateFlag::MODE, UpdateFlag::FAN);
   }
 
   this->send_packet_(make_packet(PACKET_TYPE_WRITE_SETTINGS_REQUEST, payload));

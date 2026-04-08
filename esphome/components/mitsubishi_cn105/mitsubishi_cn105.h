@@ -60,6 +60,8 @@ class MitsubishiCN105 {
   void set_target_temperature(float target_temperature);
   void set_mode(Mode mode);
   void set_fan_mode(FanMode fan_mode);
+  void set_remote_temperature(float temperature);
+  void clear_remote_temperature();
 
  protected:
   enum class State : uint8_t {
@@ -95,13 +97,15 @@ class MitsubishiCN105 {
     POWER = 1 << 1,
     MODE = 1 << 2,
     FAN = 1 << 3,
+    REMOTE_TEMPERATURE = 1 << 4,
   };
 
   struct UpdateFlags {
-    void set(UpdateFlag f) { flags_ |= static_cast<uint8_t>(f); }
-    void clear() { flags_ = 0; }
-    bool any() const { return flags_ != 0; }
-    bool has(UpdateFlag f) const { return (flags_ & static_cast<uint8_t>(f)) != 0; }
+    void set(UpdateFlag f) { this->flags_ |= static_cast<uint8_t>(f); }
+    template<typename... Flags> void clear(Flags... flags) { this->flags_ &= ~(static_cast<uint8_t>(flags) | ...); }
+    bool any() const { return this->flags_ != 0; }
+    bool has(UpdateFlag f) const { return (this->flags_ & static_cast<uint8_t>(f)) != 0; }
+    bool has_only(UpdateFlag f) const { return this->flags_ == static_cast<uint8_t>(f); }
 
    protected:
     uint8_t flags_{0};
@@ -119,6 +123,7 @@ class MitsubishiCN105 {
   void cancel_waiting_and_transition_to_(State state);
   bool should_request_room_temperature_() const;
   void apply_settings_();
+  void set_remote_temperature_(uint8_t temperature_half_deg);
   template<typename T> void send_packet_(const T &packet) { this->send_packet_(packet.data(), packet.size()); }
   static bool should_transition(State from, State to);
   static const LogString *state_to_string(State state);
@@ -134,6 +139,7 @@ class MitsubishiCN105 {
   UpdateFlags pending_updates_;
   bool use_temperature_encoding_b_{false};
   uint8_t current_status_msg_type_{0};
+  uint8_t remote_temperature_half_deg_{0};
   FrameParser frame_parser_;
 };
 
