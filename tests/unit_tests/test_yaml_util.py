@@ -508,6 +508,28 @@ def test_represent_remove() -> None:
     assert yaml_util.dump({"key": Remove("my_id")}) == "key: !remove 'my_id'\n"
 
 
+def test_represent_include_file() -> None:
+    """Test that IncludeFile objects are dumped as !include scalars."""
+    include = yaml_util.IncludeFile(
+        Path("/fake/main.yaml"), "path/to/file.yaml", None, lambda _: {}
+    )
+    assert yaml_util.dump({"key": include}) == "key: !include 'path/to/file.yaml'\n"
+
+
+def test_represent_include_file_with_data_base_mixin() -> None:
+    """Test that IncludeFile wrapped with ESPHomeDataBase mixin is also dumped correctly.
+
+    The YAML loader wraps IncludeFile via add_class_to_obj, creating a dynamic
+    subclass. add_multi_representer must match this subclass through the MRO.
+    """
+    include = yaml_util.IncludeFile(
+        Path("/fake/main.yaml"), "common/spi.yaml", None, lambda _: {}
+    )
+    wrapped = yaml_util.make_data_base(include)
+    assert isinstance(wrapped, yaml_util.ESPHomeDataBase)
+    assert yaml_util.dump({"pkg": wrapped}) == "pkg: !include 'common/spi.yaml'\n"
+
+
 # ── IncludeFile unit tests ──────────────────────────────────────────────────
 
 
