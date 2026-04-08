@@ -109,7 +109,7 @@ async def globals_set_to_code(config, action_id, template_arg, args):
     template_arg = cg.TemplateArguments(full_id.type, *template_arg)
     var = cg.new_Pvariable(action_id, template_arg, paren)
     templ = await cg.templatable(
-        config[CONF_VALUE], args, None, to_exp=cg.RawExpression
+        config[CONF_VALUE], args, None, to_exp=cg.RawExpression, wrap_constant=True
     )
     cg.add(var.set_value(templ))
     return var

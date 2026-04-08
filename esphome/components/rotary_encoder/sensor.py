@@ -84,6 +84,14 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(CONF_ON_CLOCKWISE, "add_on_clockwise_callback"),
+    automation.CallbackAutomation(
+        CONF_ON_ANTICLOCKWISE, "add_on_anticlockwise_callback"
+    ),
+)
+
+
 async def to_code(config):
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
@@ -104,14 +112,7 @@ async def to_code(config):
     if CONF_MAX_VALUE in config:
         cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
 
-    for conf in config.get(CONF_ON_CLOCKWISE, []):
-        await automation.build_callback_automation(
-            var, "add_on_clockwise_callback", [], conf
-        )
-    for conf in config.get(CONF_ON_ANTICLOCKWISE, []):
-        await automation.build_callback_automation(
-            var, "add_on_anticlockwise_callback", [], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 @automation.register_action(
@@ -119,7 +120,7 @@ async def to_code(config):
     RotaryEncoderSetValueAction,
     cv.Schema(
         {
-            cv.Required(CONF_ID): cv.use_id(sensor.Sensor),
+            cv.Required(CONF_ID): cv.use_id(RotaryEncoderSensor),
             cv.Required(CONF_VALUE): cv.templatable(cv.int_),
         }
     ),

@@ -6,7 +6,12 @@ from pathlib import Path
 from typing import Any
 
 from esphome import git, yaml_util
-from esphome.components.substitutions import ContextVars, push_context, substitute
+from esphome.components.substitutions import (
+    ContextVars,
+    push_context,
+    resolve_include,
+    substitute,
+)
 from esphome.components.substitutions.jinja import has_jinja
 from esphome.config_helpers import Remove, merge_config
 import esphome.config_validation as cv
@@ -31,6 +36,8 @@ from esphome.core import EsphomeError
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = CONF_PACKAGES
+# Guard against infinite include chains (e.g. A includes B includes A).
+MAX_INCLUDE_DEPTH = 20
 
 
 def is_remote_package(package_config: dict) -> bool:
@@ -59,8 +66,8 @@ def valid_package_contents(package_config: dict) -> dict:
     for k, v in package_config.items():
         if not isinstance(k, str):
             raise cv.Invalid("Package content keys must be strings")
-        if isinstance(v, (dict, list, Remove)):
-            continue  # e.g. script: [], psram: !remove, logger: {level: debug}
+        if isinstance(v, (dict, list, Remove, yaml_util.IncludeFile)):
+            continue  # e.g. script: [], psram: !remove, logger: {level: debug}, switch: !include switches.yaml
         if v is None:
             continue  # e.g. web_server:
         if isinstance(v, str) and has_jinja(v):
@@ -160,6 +167,7 @@ REMOTE_PACKAGE_SCHEMA = cv.All(
 PACKAGE_SCHEMA = cv.Any(  # A package definition is either:
     validate_source_shorthand,  # A git URL shorthand string that expands to a remote package schema, or
     REMOTE_PACKAGE_SCHEMA,  # a valid remote package schema, or
+    yaml_util.IncludeFile,  # isinstance check — passes IncludeFile objects through unchanged, or:
     valid_package_contents,  # Something that at least looks like an actual package, e.g. {wifi:{ssid: xxx}}
     # which will have to be fully validated later as per each component's schema.
 )
@@ -396,16 +404,49 @@ class _PackageProcessor:
         self.skip_update = skip_update
 
     def resolve_package(
-        self, package_config: dict | str, context_vars: ContextVars | None
+        self,
+        package_config: dict | str | yaml_util.IncludeFile,
+        context_vars: ContextVars | None,
     ) -> dict:
-        """Substitute variables in the definition and fetch remote packages.
+        """Resolve a package definition to a concrete ``dict`` and fetch remote packages.
 
-        The input may be a ``str`` (git shorthand or Jinja expression) or a
-        ``dict`` (remote or local package).  After ``PACKAGE_SCHEMA`` validation
-        the result is always a ``dict``.
+        The input may be a ``str`` (git shorthand or Jinja expression), a
+        ``dict`` (remote or local package), or an ``IncludeFile`` whose filename
+        may itself contain substitution expressions.
+
+        The loop handles the case where loading an ``IncludeFile`` yields another
+        ``IncludeFile`` (e.g. a chain of deferred includes).  Each iteration:
+
+        1. If the current value is an ``IncludeFile``, load it — resolving any
+           substitutions in its filename first.
+        2. Substitute variables in the resulting value (for strings and remote
+           package dicts).
+        3. Validate against ``PACKAGE_SCHEMA``.  If the result is a ``dict``,
+           the loop exits; otherwise another iteration is needed.
+
+        Raises ``cv.Invalid`` if the chain has not resolved to a ``dict`` after
+        ``MAX_INCLUDE_DEPTH`` iterations.
         """
-        package_config = _substitute_package_definition(package_config, context_vars)
-        package_config = PACKAGE_SCHEMA(package_config)
+        for _ in range(MAX_INCLUDE_DEPTH):
+            if isinstance(package_config, yaml_util.IncludeFile):
+                package_config, _ = resolve_include(
+                    package_config,
+                    [],
+                    context_vars or ContextVars(),
+                    strict_undefined=False,
+                )
+
+            package_config = _substitute_package_definition(
+                package_config, context_vars
+            )
+            package_config = PACKAGE_SCHEMA(package_config)
+            if isinstance(package_config, dict):
+                break
+        else:
+            raise cv.Invalid(
+                f"Maximum include nesting depth ({MAX_INCLUDE_DEPTH}) exceeded"
+            )
+
         if is_remote_package(package_config):
             package_config = _process_remote_package(package_config, self.skip_update)
         return package_config
