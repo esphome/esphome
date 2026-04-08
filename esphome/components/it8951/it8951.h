@@ -64,8 +64,8 @@ struct IT8951DevInfo {
 };
 
 class IT8951Display : public display::DisplayBuffer,
-                      public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                                            spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
+                      public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
+                                            spi::DATA_RATE_1MHZ> {
  public:
   void set_model(IT8951Model model) { this->model_ = model; }
   void set_vcom(uint16_t vcom) { this->vcom_ = vcom; }

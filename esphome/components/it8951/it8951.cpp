@@ -22,8 +22,7 @@ void IT8951Display::configure_model_() {
   switch (this->model_) {
     case IT8951_MODEL_SEEED_EE03:
       this->pins_ = {
-          GPIO_NUM_4, IT8951_GPIO_43, IT8951_GPIO_38, IT8951_UNUSED_PIN, false,
-          "Seeed XIAO ePaper Display Board EE03",
+          GPIO_NUM_4, IT8951_GPIO_43, IT8951_GPIO_38, IT8951_UNUSED_PIN, false, "Seeed XIAO ePaper Display Board EE03",
       };
       break;
     case IT8951_MODEL_SEEED_RETERMINAL_E1003:
