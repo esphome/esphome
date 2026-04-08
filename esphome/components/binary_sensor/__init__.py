@@ -124,9 +124,10 @@ ClickTrigger = binary_sensor_ns.class_("ClickTrigger", automation.Trigger.templa
 DoubleClickTrigger = binary_sensor_ns.class_(
     "DoubleClickTrigger", automation.Trigger.template()
 )
-MultiClickTrigger = binary_sensor_ns.class_(
-    "MultiClickTrigger", automation.Trigger.template(), cg.Component
+MultiClickTriggerBase = binary_sensor_ns.class_(
+    "MultiClickTriggerBase", automation.Trigger.template(), cg.Component
 )
+MultiClickTrigger = binary_sensor_ns.class_("MultiClickTrigger", MultiClickTriggerBase)
 MultiClickTriggerEvent = binary_sensor_ns.struct("MultiClickTriggerEvent")
 
 BinarySensorPublishAction = binary_sensor_ns.class_(
@@ -255,6 +256,7 @@ async def delayed_off_filter_to_code(config, filter_id):
                 ): cv.positive_time_period_milliseconds,
             }
         ),
+        cv.Length(max=254),
     ),
 )
 async def autorepeat_filter_to_code(config, filter_id):
@@ -283,7 +285,7 @@ async def autorepeat_filter_to_code(config, filter_id):
                 ),
             )
         ]
-    var = cg.new_Pvariable(filter_id, timings)
+    var = cg.new_Pvariable(filter_id, cg.TemplateArguments(len(timings)), timings)
     await cg.register_component(var, {})
     return var
 
@@ -388,7 +390,7 @@ def validate_multi_click_timing(value):
         new_state = v_.get(CONF_STATE, not state)
         if new_state == state:
             raise cv.Invalid(
-                f"Timings must have alternating state. Indices {i} and {i + 1} have the same state {state}"
+                f"Timings must have alternating state. Indices {i - 1} and {i} have the same state {state}"
             )
         if max_length is not None and max_length < min_length:
             raise cv.Invalid(
@@ -483,7 +485,9 @@ _BINARY_SENSOR_SCHEMA = (
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MultiClickTrigger),
                     cv.Required(CONF_TIMING): cv.All(
-                        [parse_multi_click_timing_str], validate_multi_click_timing
+                        [parse_multi_click_timing_str],
+                        validate_multi_click_timing,
+                        cv.Length(min=1, max=255),
                     ),
                     cv.Optional(
                         CONF_INVALID_COOLDOWN, default="1s"
@@ -527,16 +531,31 @@ def binary_sensor_schema(
     return _BINARY_SENSOR_SCHEMA.extend(schema)
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_PRESS,
+        "add_on_state_callback",
+        forwarder=automation.TriggerOnTrueForwarder,
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_RELEASE,
+        "add_on_state_callback",
+        forwarder=automation.TriggerOnFalseForwarder,
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_STATE, "add_on_state_callback", [(bool, "x")]
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_STATE_CHANGE,
+        "add_full_state_callback",
+        [(cg.optional.template(bool), "x_previous"), (cg.optional.template(bool), "x")],
+    ),
+)
+
+
 @coroutine_with_priority(CoroPriority.AUTOMATION)
 async def _build_binary_sensor_automations(var, config):
-    for conf_key, forwarder in (
-        (CONF_ON_PRESS, automation.TriggerOnTrueForwarder),
-        (CONF_ON_RELEASE, automation.TriggerOnFalseForwarder),
-    ):
-        for conf in config.get(conf_key, []):
-            await automation.build_callback_automation(
-                var, "add_on_state_callback", [], conf, forwarder=forwarder
-            )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
     for conf in config.get(CONF_ON_CLICK, []):
         trigger = cg.new_Pvariable(
@@ -560,27 +579,13 @@ async def _build_binary_sensor_automations(var, config):
             )
             for tim in conf[CONF_TIMING]
         ]
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, timings)
+        trigger = cg.new_Pvariable(
+            conf[CONF_TRIGGER_ID], cg.TemplateArguments(len(timings)), var, timings
+        )
         if CONF_INVALID_COOLDOWN in conf:
             cg.add(trigger.set_invalid_cooldown(conf[CONF_INVALID_COOLDOWN]))
         await cg.register_component(trigger, conf)
         await automation.build_automation(trigger, [], conf)
-
-    for conf in config.get(CONF_ON_STATE, []):
-        await automation.build_callback_automation(
-            var, "add_on_state_callback", [(bool, "x")], conf
-        )
-
-    for conf in config.get(CONF_ON_STATE_CHANGE, []):
-        await automation.build_callback_automation(
-            var,
-            "add_full_state_callback",
-            [
-                (cg.optional.template(bool), "x_previous"),
-                (cg.optional.template(bool), "x"),
-            ],
-            conf,
-        )
 
 
 @setup_entity("binary_sensor")

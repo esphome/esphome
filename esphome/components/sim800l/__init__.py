@@ -48,34 +48,37 @@ FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
 )
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_SMS_RECEIVED,
+        "add_on_sms_received_callback",
+        [(cg.std_string, "message"), (cg.std_string, "sender")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_INCOMING_CALL,
+        "add_on_incoming_call_callback",
+        [(cg.std_string, "caller_id")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CALL_CONNECTED, "add_on_call_connected_callback"
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CALL_DISCONNECTED, "add_on_call_disconnected_callback"
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_USSD_RECEIVED,
+        "add_on_ussd_received_callback",
+        [(cg.std_string, "ussd")],
+    ),
+)
+
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    for conf in config.get(CONF_ON_SMS_RECEIVED, []):
-        await automation.build_callback_automation(
-            var,
-            "add_on_sms_received_callback",
-            [(cg.std_string, "message"), (cg.std_string, "sender")],
-            conf,
-        )
-    for conf in config.get(CONF_ON_INCOMING_CALL, []):
-        await automation.build_callback_automation(
-            var, "add_on_incoming_call_callback", [(cg.std_string, "caller_id")], conf
-        )
-    for conf in config.get(CONF_ON_CALL_CONNECTED, []):
-        await automation.build_callback_automation(
-            var, "add_on_call_connected_callback", [], conf
-        )
-    for conf in config.get(CONF_ON_CALL_DISCONNECTED, []):
-        await automation.build_callback_automation(
-            var, "add_on_call_disconnected_callback", [], conf
-        )
-    for conf in config.get(CONF_ON_USSD_RECEIVED, []):
-        await automation.build_callback_automation(
-            var, "add_on_ussd_received_callback", [(cg.std_string, "ussd")], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
 
 
 SIM800L_SEND_SMS_SCHEMA = cv.Schema(

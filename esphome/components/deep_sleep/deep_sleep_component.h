@@ -113,9 +113,6 @@ class DeepSleepComponent : public Component {
   void setup() override;
   void dump_config() override;
   void loop() override;
-#ifdef USE_LOOP_PRIORITY
-  float get_loop_priority() const override;
-#endif
   float get_setup_priority() const override;
 
   /// Helper to enter deep sleep mode
