@@ -21,7 +21,6 @@ class DC01Component : public Component, public uart::UARTDevice {
   void dump_config() override;
   void loop() override;
 
-
  protected:
   optional<bool> check_byte_() const;
   void parse_data_();
