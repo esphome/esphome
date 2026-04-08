@@ -652,11 +652,11 @@ async def test_templatable__empty_string_with_std_string() -> None:
 
 @pytest.mark.asyncio
 async def test_templatable__string_with_none_output_type() -> None:
-    """Static string with output_type=None returns stateless lambda (no return type)."""
+    """Static string with output_type=None returns raw string (no wrapping)."""
     result = await cg.templatable("hello", [], None)
 
-    assert isinstance(result, cg.LambdaExpression)
-    assert result.capture == ""
+    assert isinstance(result, str)
+    assert result == "hello"
 
 
 @pytest.mark.asyncio
@@ -678,11 +678,10 @@ async def test_templatable__string_with_non_string_output_type() -> None:
 
 @pytest.mark.asyncio
 async def test_templatable__with_to_exp_callable() -> None:
-    """When to_exp is provided with output_type=None, result is lambda-wrapped."""
+    """When to_exp is provided, it is applied to non-template values."""
     result = await cg.templatable(42, [], None, to_exp=lambda x: x * 2)
 
-    assert isinstance(result, cg.LambdaExpression)
-    assert result.capture == ""
+    assert result == 84
 
 
 @pytest.mark.asyncio
@@ -696,12 +695,11 @@ async def test_templatable__with_to_exp_callable_and_output_type() -> None:
 
 @pytest.mark.asyncio
 async def test_templatable__with_to_exp_dict() -> None:
-    """When to_exp is a dict, value is looked up and lambda-wrapped."""
+    """When to_exp is a dict, value is looked up."""
     mapping: dict[str, int] = {"on": 1, "off": 0}
     result = await cg.templatable("on", [], None, to_exp=mapping)
 
-    assert isinstance(result, cg.LambdaExpression)
-    assert result.capture == ""
+    assert result == 1
 
 
 @pytest.mark.asyncio

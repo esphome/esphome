@@ -40,6 +40,7 @@ template<int... S> struct gens<0, S...> { using type = seq<S...>; };
 template<typename T, typename... X> class TemplatableFn {
  public:
   TemplatableFn() = default;
+  TemplatableFn(std::nullptr_t) = delete;
 
   // Exact return type match — direct function pointer storage
   template<typename F> TemplatableFn(F f) requires std::convertible_to<F, T (*)(X...)> : f_(f) {}
@@ -102,6 +103,7 @@ using TemplatableStorage =
 template<typename T, typename... X> class TemplatableValue {
  public:
   TemplatableValue() = default;
+  TemplatableValue(std::nullptr_t) = delete;
 
   // Accept raw constants
   template<typename V> TemplatableValue(V value) requires(!std::invocable<V, X...>) : tag_(VALUE) {
