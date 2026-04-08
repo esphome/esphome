@@ -216,7 +216,6 @@ def _validate_rotation(value):
 async def lvgl_set_rotation(config, action_id, template_arg, args):
     lv_comp = await cg.get_variable(config[CONF_LVGL_ID])
     async with LambdaContext(args, where=action_id) as context:
-        add_line_marks(where=action_id)
         lv_add(lv_comp.set_rotation(config[CONF_ROTATION]))
     return cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
 
