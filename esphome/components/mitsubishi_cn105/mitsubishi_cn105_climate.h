@@ -21,7 +21,10 @@ class MitsubishiCN105Climate : public climate::Climate, public Component, public
   void set_update_interval(uint32_t ms) { this->hp_.set_update_interval(ms); }
   void set_current_temperature_min_interval(uint32_t ms) { this->hp_.set_room_temperature_min_interval(ms); }
 
+  // Documented in esphome.io - PUBLIC API
   void set_remote_temperature(float temperature) { this->hp_.set_remote_temperature(temperature); }
+
+  // Documented in esphome.io - PUBLIC API
   void clear_remote_temperature() { this->hp_.clear_remote_temperature(); }
 
  protected:

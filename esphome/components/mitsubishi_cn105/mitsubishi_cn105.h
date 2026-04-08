@@ -60,9 +60,8 @@ class MitsubishiCN105 {
   void set_target_temperature(float target_temperature);
   void set_mode(Mode mode);
   void set_fan_mode(FanMode fan_mode);
-
-  void set_remote_temperature(float temperature);  // Documented in esphome.io - PUBLIC API
-  void clear_remote_temperature();                 // Documented in esphome.io - PUBLIC API
+  void set_remote_temperature(float temperature);
+  void clear_remote_temperature();
 
  protected:
   enum class State : uint8_t {
