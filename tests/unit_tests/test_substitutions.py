@@ -8,12 +8,17 @@ import pytest
 
 from esphome import config as config_module, yaml_util
 from esphome.components import substitutions
-from esphome.components.packages import do_packages_pass, merge_packages
+from esphome.components.packages import (
+    MAX_INCLUDE_DEPTH,
+    _PackageProcessor,
+    do_packages_pass,
+    merge_packages,
+)
 from esphome.config import resolve_extend_remove
 from esphome.config_helpers import Extend, merge_config
 import esphome.config_validation as cv
 from esphome.const import CONF_SUBSTITUTIONS
-from esphome.core import CORE, Lambda
+from esphome.core import CORE, EsphomeError, Lambda
 from esphome.util import OrderedDict
 
 _LOGGER = logging.getLogger(__name__)
@@ -630,3 +635,62 @@ def test_do_substitution_pass_substitutions_must_be_mapping_from_config() -> Non
         cv.Invalid, match="Substitutions must be a key to value mapping"
     ):
         substitutions.do_substitution_pass(config)
+
+
+# ── IncludeFile / package loading tests ────────────────────────────────────
+
+
+def test_resolve_package_max_depth_exceeded(tmp_path: Path) -> None:
+    """A yaml_loader that always returns another IncludeFile triggers the depth guard."""
+    parent = tmp_path / "main.yaml"
+    parent.write_text("")
+
+    # Each call to the loader returns a fresh IncludeFile pointing at itself,
+    # so PACKAGE_SCHEMA always sees an IncludeFile and never a dict.
+    def always_returns_include(path: Path) -> yaml_util.IncludeFile:
+        return yaml_util.IncludeFile(parent, path.name, None, always_returns_include)
+
+    package_config = yaml_util.IncludeFile(
+        parent, "test.yaml", None, always_returns_include
+    )
+    processor = _PackageProcessor({}, None, False)
+    with pytest.raises(
+        cv.Invalid,
+        match=f"Maximum include nesting depth \\({MAX_INCLUDE_DEPTH}\\) exceeded",
+    ):
+        processor.resolve_package(package_config, substitutions.ContextVars())
+
+
+def test_include_filename_substitution_undefined_var(tmp_path: Path) -> None:
+    """!include with an undefined substitution variable raises cv.Invalid.
+
+    The error message must reference the unresolved filename template so the
+    user knows which include failed, rather than seeing a bare file-not-found.
+    """
+    main_file = tmp_path / "main.yaml"
+    main_file.write_text("result: !include ${undefined_var}.yaml\n")
+
+    config = yaml_util.load_yaml(main_file)
+    with pytest.raises(cv.Invalid, match=r"\$\{undefined_var\}"):
+        substitutions.do_substitution_pass(config)
+
+
+def test_resolve_package_undefined_var_in_include_filename(tmp_path: Path) -> None:
+    """An undefined substitution in a package include filename raises cv.Invalid.
+
+    Previously this would raise an unhandled UndefinedError. With
+    strict_undefined=False, the unresolved filename passes through to
+    file loading which produces a clean cv.Invalid error.
+    """
+    parent = tmp_path / "main.yaml"
+    parent.write_text("")
+
+    def loader(path: Path):
+        raise EsphomeError(f"Error reading file {path}: No such file")
+
+    package_config = yaml_util.IncludeFile(
+        parent, "${undefined_var}.yaml", None, loader
+    )
+    processor = _PackageProcessor({}, None, False)
+    with pytest.raises(cv.Invalid, match="unresolved substitutions"):
+        processor.resolve_package(package_config, substitutions.ContextVars())

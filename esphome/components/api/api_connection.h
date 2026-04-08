@@ -324,7 +324,7 @@ class APIConnection final : public APIServerConnectionBase {
   void on_no_setup_connection();
 
   // Function pointer type for type-erased message encoding
-  using MessageEncodeFn = void (*)(const void *, ProtoWriteBuffer &);
+  using MessageEncodeFn = uint8_t *(*) (const void *, ProtoWriteBuffer &PROTO_ENCODE_DEBUG_PARAM);
   // Function pointer type for type-erased size calculation
   using CalculateSizeFn = uint32_t (*)(const void *);
 
@@ -403,7 +403,9 @@ class APIConnection final : public APIServerConnectionBase {
   }
 
   // Shared no-op encode thunk for empty messages (ESTIMATED_SIZE == 0)
-  static void encode_msg_noop(const void *, ProtoWriteBuffer &) {}
+  static uint8_t *encode_msg_noop(const void *, ProtoWriteBuffer &buf PROTO_ENCODE_DEBUG_PARAM) {
+    return buf.get_pos();
+  }
 
   // Non-template buffer management for send_message
   bool send_message_(uint32_t payload_size, uint8_t message_type, MessageEncodeFn encode_fn, const void *msg);
