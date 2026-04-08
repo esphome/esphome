@@ -179,7 +179,7 @@ async def at581x_settings_to_code(config, action_id, template_arg, args):
         cg.add(var.set_frequency(template_))
 
     if (sens_dist := config.get(CONF_SENSING_DISTANCE)) is not None:
-        template_ = await cg.templatable(sens_dist, args, int)
+        template_ = await cg.templatable(sens_dist, args, cg.int_)
         cg.add(var.set_sensing_distance(template_))
 
     if selfcheck := config.get(CONF_POWERON_SELFCHECK_TIME):
@@ -199,7 +199,7 @@ async def at581x_settings_to_code(config, action_id, template_arg, args):
         cg.add(var.set_trigger_keep(template_))
 
     if (stage_gain := config.get(CONF_STAGE_GAIN)) is not None:
-        template_ = await cg.templatable(stage_gain, args, int)
+        template_ = await cg.templatable(stage_gain, args, cg.int_)
         cg.add(var.set_stage_gain(template_))
 
     if power := config.get(CONF_POWER_CONSUMPTION):
