@@ -448,7 +448,11 @@ async def number_to_to_code(config, action_id, template_arg, args):
             template_ = await cg.templatable(cycle, args, bool)
             cg.add(var.set_cycle(template_))
     if (mode := config.get(CONF_MODE)) is not None:
-        cg.add(var.set_operation(NUMBER_OPERATION_OPTIONS[mode]))
+        template_ = await cg.templatable(
+            NUMBER_OPERATION_OPTIONS[mode], args, NumberOperation
+        )
+        cg.add(var.set_operation(template_))
         if (cycle := config.get(CONF_CYCLE)) is not None:
-            cg.add(var.set_cycle(cycle))
+            template_ = await cg.templatable(cycle, args, cg.bool_)
+            cg.add(var.set_cycle(template_))
     return var

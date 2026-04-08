@@ -2123,7 +2123,8 @@ async def abbwelcome_action(var, config, args):
             await cg.templatable(config[CONF_MESSAGE_TYPE], args, cg.uint8)
         )
     )
-    cg.add(var.set_auto_message_id(CONF_MESSAGE_ID not in config))
+    template_ = await cg.templatable(CONF_MESSAGE_ID not in config, args, cg.bool_)
+    cg.add(var.set_auto_message_id(template_))
     if CONF_MESSAGE_ID in config:
         cg.add(
             var.set_message_id(
@@ -2231,3 +2232,9 @@ async def Toto_action(var, config, args):
     cg.add(var.set_rc_code_2(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
     cg.add(var.set_command(template_))
+    # Set toto-specific defaults (only if user didn't configure repeat)
+    if CONF_REPEAT not in config:
+        template_ = await cg.templatable(3, args, cg.uint32)
+        cg.add(var.set_send_times(template_))
+        template_ = await cg.templatable(36000, args, cg.uint32)
+        cg.add(var.set_send_wait(template_))
