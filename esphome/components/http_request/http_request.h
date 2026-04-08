@@ -457,7 +457,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
 #endif
 
   void init_request_headers(size_t count) { this->request_headers_.init(count); }
-  void add_request_header(const char *key, TemplatableValue<const char *, Ts...> value) {
+  void add_request_header(const char *key, TemplatableFn<const char *, Ts...> value) {
     this->request_headers_.push_back({key, value});
   }
 
@@ -560,7 +560,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
     }
   }
   HttpRequestComponent *parent_;
-  FixedVector<std::pair<const char *, TemplatableValue<const char *, Ts...>>> request_headers_{};
+  FixedVector<std::pair<const char *, TemplatableFn<const char *, Ts...>>> request_headers_{};
   std::vector<std::string> lower_case_collect_headers_{"content-type", "content-length"};
   FixedVector<std::pair<const char *, TemplatableValue<std::string, Ts...>>> json_{};
   std::function<void(Ts..., JsonObject)> json_func_{nullptr};

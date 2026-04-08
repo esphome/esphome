@@ -412,7 +412,7 @@ void LvglComponent::flush_cb_(lv_display_t *disp_drv, const lv_area_t *area, uin
   lv_display_flush_ready(disp_drv);
 }
 
-IdleTrigger::IdleTrigger(LvglComponent *parent, TemplatableValue<uint32_t> timeout) : timeout_(std::move(timeout)) {
+IdleTrigger::IdleTrigger(LvglComponent *parent, TemplatableFn<uint32_t> timeout) : timeout_(timeout) {
   parent->add_on_idle_callback([this](uint32_t idle_time) {
     if (!this->is_idle_ && idle_time > this->timeout_.value()) {
       this->is_idle_ = true;

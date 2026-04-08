@@ -196,7 +196,7 @@ SWITCH_CONTROL_ACTION_SCHEMA = automation.maybe_simple_id(
 async def switch_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_STATE], args, bool)
+    template_ = await cg.templatable(config[CONF_STATE], args, cg.bool_)
     cg.add(var.set_state(template_))
     return var
 

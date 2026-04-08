@@ -599,9 +599,14 @@ def _load_yaml_internal(fname: Path) -> Any:
         listener(fname)
     try:
         with fname.open(encoding="utf-8") as f_handle:
-            return parse_yaml(fname, f_handle)
+            res = parse_yaml(fname, f_handle)
     except (UnicodeDecodeError, OSError) as err:
         raise EsphomeError(f"Error reading file {fname}: {err}") from err
+    # Top-level !include returns a deferred IncludeFile; resolve it so
+    # callers always receive the final content.
+    if isinstance(res, IncludeFile):
+        res = res.load()
+    return res
 
 
 def parse_yaml(file_name: Path, file_handle: TextIOWrapper, yaml_loader=None) -> Any:
