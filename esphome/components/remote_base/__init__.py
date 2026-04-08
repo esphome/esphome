@@ -470,7 +470,7 @@ CANALSATLD_SCHEMA = cv.Schema(
 )
 
 
-@register_binary_sensor("canalsatld", CanalSatLDBinarySensor, CANALSAT_SCHEMA)
+@register_binary_sensor("canalsatld", CanalSatLDBinarySensor, CANALSATLD_SCHEMA)
 def canalsatld_binary_sensor(var, config):
     cg.add(
         var.set_data(
@@ -1130,7 +1130,7 @@ def sony_dumper(var, config):
 async def sony_action(var, config, args):
     template_ = await cg.templatable(config[CONF_DATA], args, cg.uint32)
     cg.add(var.set_data(template_))
-    template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint32)
+    template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint8)
     cg.add(var.set_nbits(template_))
 
 
@@ -1174,7 +1174,7 @@ def symphony_dumper(var, config):
 async def symphony_action(var, config, args):
     template_ = await cg.templatable(config[CONF_DATA], args, cg.uint32)
     cg.add(var.set_data(template_))
-    template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint32)
+    template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint8)
     cg.add(var.set_nbits(template_))
     template_ = await cg.templatable(config[CONF_COMMAND_REPEATS], args, cg.uint8)
     cg.add(var.set_repeats(template_))
@@ -1188,7 +1188,7 @@ def validate_raw_alternating(value):
         this_negative = val < 0
         if i != 0 and this_negative == last_negative:
             raise cv.Invalid(
-                f"Values must alternate between being positive and negative, please see index {i} and {i + 1}",
+                f"Values must alternate between being positive and negative, please see index {i - 1} and {i}",
                 [i],
             )
         last_negative = this_negative
@@ -2105,12 +2105,12 @@ async def abbwelcome_action(var, config, args):
     )
     cg.add(
         var.set_source_address(
-            await cg.templatable(config[CONF_SOURCE_ADDRESS], args, cg.uint16)
+            await cg.templatable(config[CONF_SOURCE_ADDRESS], args, cg.uint32)
         )
     )
     cg.add(
         var.set_destination_address(
-            await cg.templatable(config[CONF_DESTINATION_ADDRESS], args, cg.uint16)
+            await cg.templatable(config[CONF_DESTINATION_ADDRESS], args, cg.uint32)
         )
     )
     cg.add(
