@@ -45,7 +45,7 @@ using ListenSocket = LWIPRawListenImpl;
 inline bool socket_ready(struct lwip_sock *cached_sock, bool loop_monitored) {
   return !loop_monitored || (cached_sock != nullptr && esphome_lwip_socket_has_data(cached_sock));
 }
-#elif defined(USE_SOCKET_SELECT_SUPPORT)
+#elif defined(USE_HOST)
 /// Shared ready() helper for fd-based socket implementations.
 /// Checks if the Application's select() loop has marked this fd as ready.
 bool socket_ready_fd(int fd, bool loop_monitored);
@@ -119,20 +119,6 @@ socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t po
 
 /// Format sockaddr into caller-provided buffer, returns length written (excluding null)
 size_t format_sockaddr_to(const struct sockaddr *addr_ptr, socklen_t len, std::span<char, SOCKADDR_STR_LEN> buf);
-
-#if (defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP)
-/// Delay that can be woken early by socket activity.
-/// On ESP8266, uses esp_delay() with a callback that checks socket activity.
-/// On RP2040, uses __wfe() (Wait For Event) to truly sleep until an interrupt
-/// (for example, CYW43 GPIO or a timer alarm) fires and wakes the CPU.
-void socket_delay(uint32_t ms);
-
-/// Signal socket/IO activity and wake the main loop early.
-/// On ESP8266: sets flag + esp_schedule().
-/// On RP2040: sets flag + __sev() (Send Event) to wake from __wfe().
-/// ISR-safe on both platforms.
-void socket_wake();  // NOLINT(readability-redundant-declaration)
-#endif
 
 }  // namespace esphome::socket
 #endif

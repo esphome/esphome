@@ -56,6 +56,10 @@ FILE_HEADER = """// This file was automatically generated with a tool.
 // See script/api_protobuf/api_protobuf.py
 """
 
+# Populated by main() before any TypeInfo creation.
+# Maps enum type name (e.g. ".BluetoothDeviceRequestType") to max enum value.
+_enum_max_values: dict[str, int] = {}
+
 
 def indent_list(text: str, padding: str = "  ") -> list[str]:
     """Indent each line of the given text with the specified padding."""
@@ -157,6 +161,16 @@ class TypeInfo(ABC):
         return get_field_opt(self._field, pb.force, False)
 
     @property
+    def max_value(self) -> int | None:
+        """Get the max_value option for this field, or None if not set."""
+        return get_field_opt(self._field, pb.max_value, None)
+
+    @property
+    def max_data_length(self) -> int | None:
+        """Get the max_data_length option for this field, or None if not set."""
+        return get_field_opt(self._field, pb.max_data_length, None)
+
+    @property
     def wire_type(self) -> WireType:
         """Get the wire type for the field."""
         raise NotImplementedError
@@ -221,11 +235,78 @@ class TypeInfo(ABC):
 
     decode_64bit = None
 
+    # Mapping from encode_func to raw encode expression template.
+    # When a forced field has a single-byte tag, the code generator emits
+    # write_raw_byte(tag) + raw encode instead of the full encode_* method,
+    # eliminating the zero-check branch and encode_field_raw indirection.
+    # {value} is replaced with the actual field expression.
+    RAW_ENCODE_MAP: dict[str, str] = {
+        "encode_uint32": "ProtoEncode::encode_varint_raw(pos, {value});",
+        "encode_uint64": "ProtoEncode::encode_varint_raw_64(pos, {value});",
+        "encode_sint32": "ProtoEncode::encode_varint_raw_short(pos, encode_zigzag32({value}));",
+        "encode_sint64": "ProtoEncode::encode_varint_raw_64(pos, encode_zigzag64({value}));",
+        "encode_int64": "ProtoEncode::encode_varint_raw_64(pos, static_cast<uint64_t>({value}));",
+        "encode_bool": "ProtoEncode::write_raw_byte(pos, {value} ? 0x01 : 0x00);",
+    }
+
+    def _encode_with_precomputed_tag(self, value_expr: str) -> str | None:
+        """Try to emit a precomputed-tag encode for a field.
+
+        For forced fields: emits raw tag + value unconditionally.
+        For non-forced fields with single-byte tag: emits inline zero-check
+        + raw tag + value, avoiding an outlined function call.
+
+        Returns the raw encode string if the tag is a single byte and the
+        encode_func has a known raw equivalent, or None otherwise.
+        """
+        tag = self.calculate_tag()
+        if tag >= 128:
+            return None
+        max_val = self.max_value
+        # Only use RAW_ENCODE_MAP for forced fields or fields with max_value
+        raw_expr = None
+        if self.force or max_val is not None:
+            raw_expr = self.RAW_ENCODE_MAP.get(self.encode_func)
+        if raw_expr is None:
+            return None
+        body = f"ProtoEncode::write_raw_byte(pos, {tag});\n{raw_expr.format(value=value_expr)}"
+        if self.force:
+            return body
+        # Non-forced with max_value: inline zero-check + raw encode
+        return f"if ({value_expr}) {{\n  {body}\n}}"
+
+    def _encode_bytes_with_precomputed_tag(
+        self, data_expr: str, len_expr: str, max_len: int | None = None
+    ) -> str | None:
+        """Try to emit a precomputed-tag encode for a forced bytes/string field.
+
+        Returns the raw encode string if the tag is a single byte, or None.
+        When max_len < 128, uses direct byte write for the length varint.
+        """
+        if not self.force:
+            return None
+        tag = self.calculate_tag()
+        if tag >= 128:
+            return None
+        # When max_len < 128, length varint is always 1 byte
+        len_encode = (
+            f"ProtoEncode::write_raw_byte(pos, static_cast<uint8_t>({len_expr}));"
+            if max_len is not None and max_len < 128
+            else f"ProtoEncode::encode_varint_raw(pos, {len_expr});"
+        )
+        return (
+            f"ProtoEncode::write_raw_byte(pos, {tag});\n"
+            f"{len_encode}\n"
+            f"ProtoEncode::encode_raw(pos, {data_expr}, {len_expr});"
+        )
+
     @property
     def encode_content(self) -> str:
+        if result := self._encode_with_precomputed_tag(f"this->{self.field_name}"):
+            return result
         if self.force:
-            return f"buffer.{self.encode_func}({self.number}, this->{self.field_name}, true);"
-        return f"buffer.{self.encode_func}({self.number}, this->{self.field_name});"
+            return f"ProtoEncode::{self.encode_func}(pos, {self.number}, this->{self.field_name}, true);"
+        return f"ProtoEncode::{self.encode_func}(pos, {self.number}, this->{self.field_name});"
 
     encode_func = None
 
@@ -248,11 +329,15 @@ class TypeInfo(ABC):
     @property
     def dump_content(self) -> str:
         # Default implementation - subclasses can override if they need special handling
-        return f'dump_field(out, "{self.name}", {self.dump_field_value(f"this->{self.field_name}")});'
+        return f'dump_field(out, ESPHOME_PSTR("{self.name}"), {self.dump_field_value(f"this->{self.field_name}")});'
 
     @abstractmethod
     def dump(self, name: str) -> str:
         """Dump the value to the output."""
+
+    def calculate_tag(self) -> int:
+        """Calculate the protobuf tag (field_id << 3 | wire_type)."""
+        return (self.number << 3) | (self.wire_type & 0b111)
 
     def calculate_field_id_size(self) -> int:
         """Calculates the size of a field ID in bytes.
@@ -260,8 +345,7 @@ class TypeInfo(ABC):
         Returns:
             The number of bytes needed to encode the field ID
         """
-        # Calculate the tag by combining field_id and wire_type
-        tag = (self.number << 3) | (self.wire_type & 0b111)
+        tag = self.calculate_tag()
 
         # Calculate the varint size
         if tag < 128:
@@ -292,6 +376,31 @@ class TypeInfo(ABC):
             return f"size += ProtoSize::{method}({field_id_size});"
         value = value_expr or name
         return f"size += ProtoSize::{method}({field_id_size}, {value});"
+
+    def _get_single_byte_varint_size(
+        self,
+        name: str,
+        force: bool,
+        extra_expr: str | None = None,
+        zero_check: str | None = None,
+    ) -> str:
+        """Size calculation when the varint is guaranteed to be 1 byte.
+
+        Used when max_value < 128 or fixed_array_size < 128.
+        The fixed part is field_id_size + 1 (tag + 1-byte varint).
+
+        Args:
+            name: Expression to check for zero (non-force only)
+            force: Whether to skip the zero check
+            extra_expr: Additional variable expression to add (e.g., data length)
+            zero_check: Override expression for the zero check (e.g., "!x.empty()")
+        """
+        fixed = self.calculate_field_id_size() + 1
+        size_expr = f"{fixed} + {extra_expr}" if extra_expr else str(fixed)
+        if force:
+            return f"size += {size_expr};"
+        check = zero_check or name
+        return f"size += {check} ? {size_expr} : 0;"
 
     @abstractmethod
     def get_size_calculation(self, name: str, force: bool = False) -> str:
@@ -556,6 +665,16 @@ class Fixed32Type(TypeInfo):
         o += "out.append(buffer);"
         return o
 
+    @property
+    def encode_content(self) -> str:
+        tag = self.calculate_tag()
+        if self.force and tag < 128:
+            # Emit combined tag+value write: precomputed tag + direct memcpy
+            return f"ProtoEncode::write_tag_and_fixed32(pos, {tag}, this->{self.field_name});"
+        if self.force:
+            return f"ProtoEncode::{self.encode_func}(pos, {self.number}, this->{self.field_name}, true);"
+        return f"ProtoEncode::{self.encode_func}(pos, {self.number}, this->{self.field_name});"
+
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         field_id_size = self.calculate_field_id_size()
         if force:
@@ -622,9 +741,14 @@ class StringType(TypeInfo):
     @property
     def encode_content(self) -> str:
         # Use the StringRef
+        if result := self._encode_bytes_with_precomputed_tag(
+            f"this->{self.field_name}_ref_.c_str()",
+            f"this->{self.field_name}_ref_.size()",
+        ):
+            return result
         if self.force:
-            return f"buffer.encode_string({self.number}, this->{self.field_name}_ref_, true);"
-        return f"buffer.encode_string({self.number}, this->{self.field_name}_ref_);"
+            return f"ProtoEncode::encode_string(pos, {self.number}, this->{self.field_name}_ref_, true);"
+        return f"ProtoEncode::encode_string(pos, {self.number}, this->{self.field_name}_ref_);"
 
     def dump(self, name):
         # If name is 'it', this is a repeated field element - always use string
@@ -652,14 +776,14 @@ class StringType(TypeInfo):
     def dump_content(self) -> str:
         # For SOURCE_CLIENT only, use std::string
         if not self._needs_encode:
-            return f'dump_field(out, "{self.name}", this->{self.field_name});'
+            return f'dump_field(out, ESPHOME_PSTR("{self.name}"), this->{self.field_name});'
 
         # For SOURCE_SERVER, use StringRef with _ref_ suffix
         if not self._needs_decode:
-            return f'dump_field(out, "{self.name}", this->{self.field_name}_ref_);'
+            return f'dump_field(out, ESPHOME_PSTR("{self.name}"), this->{self.field_name}_ref_);'
 
         # For SOURCE_BOTH, we need custom logic
-        o = f'out.append("  {self.name}: ");\n'
+        o = f'out.append(2, \' \').append_p(ESPHOME_PSTR("{self.name}")).append(": ");\n'
         o += self.dump(f"this->{self.field_name}") + "\n"
         o += 'out.append("\\n");'
         return o
@@ -711,8 +835,8 @@ class MessageType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
-        # encode_sub_message always encodes (uses backpatch), no force needed
-        return f"buffer.{self.encode_func}({self.number}, this->{self.field_name});"
+        # Sub-message encoding needs buffer for backpatch/sync
+        return f"ProtoEncode::{self.encode_func}(pos, buffer, {self.number}, this->{self.field_name});"
 
     @property
     def decode_length(self) -> str:
@@ -732,7 +856,7 @@ class MessageType(TypeInfo):
 
     @property
     def dump_content(self) -> str:
-        o = f'out.append("  {self.name}: ");\n'
+        o = f'out.append(2, \' \').append_p(ESPHOME_PSTR("{self.name}")).append(": ");\n'
         o += f"this->{self.field_name}.dump_to(out);\n"
         o += 'out.append("\\n");'
         return o
@@ -788,9 +912,13 @@ class BytesType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
+        if result := self._encode_bytes_with_precomputed_tag(
+            f"this->{self.field_name}_ptr_", f"this->{self.field_name}_len_"
+        ):
+            return result
         if self.force:
-            return f"buffer.encode_bytes({self.number}, this->{self.field_name}_ptr_, this->{self.field_name}_len_, true);"
-        return f"buffer.encode_bytes({self.number}, this->{self.field_name}_ptr_, this->{self.field_name}_len_);"
+            return f"ProtoEncode::encode_bytes(pos, {self.number}, this->{self.field_name}_ptr_, this->{self.field_name}_len_, true);"
+        return f"ProtoEncode::encode_bytes(pos, {self.number}, this->{self.field_name}_ptr_, this->{self.field_name}_len_);"
 
     def dump(self, name: str) -> str:
         ptr_dump = f"format_hex_pretty(this->{self.field_name}_ptr_, this->{self.field_name}_len_)"
@@ -818,7 +946,7 @@ class BytesType(TypeInfo):
         # For SOURCE_CLIENT only, always use std::string
         if not self._needs_encode:
             return (
-                f'dump_bytes_field(out, "{self.name}", '
+                f'dump_bytes_field(out, ESPHOME_PSTR("{self.name}"), '
                 f"reinterpret_cast<const uint8_t*>(this->{self.field_name}.data()), "
                 f"this->{self.field_name}.size());"
             )
@@ -826,17 +954,17 @@ class BytesType(TypeInfo):
         # For SOURCE_SERVER, always use pointer/length
         if not self._needs_decode:
             return (
-                f'dump_bytes_field(out, "{self.name}", '
+                f'dump_bytes_field(out, ESPHOME_PSTR("{self.name}"), '
                 f"this->{self.field_name}_ptr_, this->{self.field_name}_len_);"
             )
 
         # For SOURCE_BOTH, check if pointer is set (sending) or use string (received)
         return (
             f"if (this->{self.field_name}_ptr_ != nullptr) {{\n"
-            f'  dump_bytes_field(out, "{self.name}", '
+            f'  dump_bytes_field(out, ESPHOME_PSTR("{self.name}"), '
             f"this->{self.field_name}_ptr_, this->{self.field_name}_len_);\n"
             f"}} else {{\n"
-            f'  dump_bytes_field(out, "{self.name}", '
+            f'  dump_bytes_field(out, ESPHOME_PSTR("{self.name}"), '
             f"reinterpret_cast<const uint8_t*>(this->{self.field_name}.data()), "
             f"this->{self.field_name}.size());\n"
             f"}}"
@@ -895,9 +1023,13 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
 
     @property
     def encode_content(self) -> str:
+        if result := self._encode_bytes_with_precomputed_tag(
+            f"this->{self.field_name}", f"this->{self.field_name}_len"
+        ):
+            return result
         if self.force:
-            return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len, true);"
-        return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len);"
+            return f"ProtoEncode::encode_bytes(pos, {self.number}, this->{self.field_name}, this->{self.field_name}_len, true);"
+        return f"ProtoEncode::encode_bytes(pos, {self.number}, this->{self.field_name}, this->{self.field_name}_len);"
 
     @property
     def decode_length_content(self) -> str | None:
@@ -915,7 +1047,7 @@ class PointerToBytesBufferType(PointerToBufferTypeBase):
     @property
     def dump_content(self) -> str:
         return (
-            f'dump_bytes_field(out, "{self.name}", '
+            f'dump_bytes_field(out, ESPHOME_PSTR("{self.name}"), '
             f"this->{self.field_name}, this->{self.field_name}_len);"
         )
 
@@ -944,11 +1076,21 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
 
     @property
     def encode_content(self) -> str:
+        max_len = self.max_data_length
+        if max_len is not None and max_len < 128 and self.force:
+            tag = self.calculate_tag()
+            if tag < 128:
+                return f"ProtoEncode::encode_short_string_force(pos, {tag}, this->{self.field_name});"
+        if result := self._encode_bytes_with_precomputed_tag(
+            f"this->{self.field_name}.c_str()",
+            f"this->{self.field_name}.size()",
+        ):
+            return result
         if self.force:
-            return (
-                f"buffer.encode_string({self.number}, this->{self.field_name}, true);"
-            )
-        return f"buffer.encode_string({self.number}, this->{self.field_name});"
+            return f"ProtoEncode::encode_string(pos, {self.number}, this->{self.field_name}, true);"
+        return (
+            f"ProtoEncode::encode_string(pos, {self.number}, this->{self.field_name});"
+        )
 
     @property
     def decode_length_content(self) -> str | None:
@@ -963,10 +1105,19 @@ class PointerToStringBufferType(PointerToBufferTypeBase):
 
     @property
     def dump_content(self) -> str:
-        return f'dump_field(out, "{self.name}", this->{self.field_name});'
+        return f'dump_field(out, ESPHOME_PSTR("{self.name}"), this->{self.field_name});'
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
-        return f"size += ProtoSize::calc_length({self.calculate_field_id_size()}, this->{self.field_name}.size());"
+        size_field = f"this->{self.field_name}.size()"
+        max_len = self.max_data_length
+        if max_len is not None and max_len < 128:
+            return self._get_single_byte_varint_size(
+                size_field,
+                force,
+                extra_expr=size_field,
+                zero_check=f"!this->{self.field_name}.empty()",
+            )
+        return self._get_simple_size_calculation(size_field, force, "length")
 
     def get_estimated_size(self) -> int:
         return self.calculate_field_id_size() + 8  # field ID + 8 bytes typical string
@@ -1023,12 +1174,12 @@ class PackedBufferTypeInfo(TypeInfo):
     def dump_content(self) -> str:
         """Dump shows buffer info but not decoded values."""
         return (
-            f'out.append("  {self.name}: ");\n'
-            + 'out.append("packed buffer [");\n'
+            f'out.append(2, \' \').append_p(ESPHOME_PSTR("{self.name}")).append(": ");\n'
+            + 'out.append_p(ESPHOME_PSTR("packed buffer ["));\n'
             + f"append_uint(out, this->{self.field_name}_count_);\n"
-            + 'out.append(" values, ");\n'
+            + 'out.append_p(ESPHOME_PSTR(" values, "));\n'
             + f"append_uint(out, this->{self.field_name}_length_);\n"
-            + 'out.append(" bytes]\\n");'
+            + 'out.append_p(ESPHOME_PSTR(" bytes]\\n"));'
         )
 
     def dump(self, name: str) -> str:
@@ -1111,9 +1262,14 @@ class FixedArrayBytesType(TypeInfo):
 
     @property
     def encode_content(self) -> str:
+        max_len = self.array_size if isinstance(self.array_size, int) else None
+        if result := self._encode_bytes_with_precomputed_tag(
+            f"this->{self.field_name}", f"this->{self.field_name}_len", max_len=max_len
+        ):
+            return result
         if self.force:
-            return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len, true);"
-        return f"buffer.encode_bytes({self.number}, this->{self.field_name}, this->{self.field_name}_len);"
+            return f"ProtoEncode::encode_bytes(pos, {self.number}, this->{self.field_name}, this->{self.field_name}_len, true);"
+        return f"ProtoEncode::encode_bytes(pos, {self.number}, this->{self.field_name}, this->{self.field_name}_len);"
 
     def dump(self, name: str) -> str:
         return f"out.append(format_hex_pretty({name}, {name}_len));"
@@ -1121,20 +1277,21 @@ class FixedArrayBytesType(TypeInfo):
     @property
     def dump_content(self) -> str:
         return (
-            f'dump_bytes_field(out, "{self.name}", '
+            f'dump_bytes_field(out, ESPHOME_PSTR("{self.name}"), '
             f"this->{self.field_name}, this->{self.field_name}_len);"
         )
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
         # Use the actual length stored in the _len field
         length_field = f"this->{self.field_name}_len"
-        field_id_size = self.calculate_field_id_size()
 
-        if force:
-            # For repeated fields, always calculate size (no zero check)
-            return f"size += ProtoSize::calc_length_force({field_id_size}, {length_field});"
-        # For non-repeated fields, length already checks for zero
-        return f"size += ProtoSize::calc_length({field_id_size}, {length_field});"
+        # When array_size < 128, length varint is always 1 byte
+        if isinstance(self.array_size, int) and self.array_size < 128:
+            return self._get_single_byte_varint_size(
+                length_field, force, extra_expr=length_field
+            )
+
+        return self._get_simple_size_calculation(length_field, force, "length")
 
     def get_estimated_size(self) -> int:
         # Estimate based on typical BLE advertisement size
@@ -1161,6 +1318,9 @@ class UInt32Type(TypeInfo):
         return o
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
+        max_val = self.max_value
+        if max_val is not None and max_val < 128:
+            return self._get_single_byte_varint_size(name, force)
         return self._get_simple_size_calculation(name, force, "uint32")
 
     def get_estimated_size(self) -> int:
@@ -1181,23 +1341,35 @@ class EnumType(TypeInfo):
     wire_type = WireType.VARINT  # Uses wire type 0
 
     @property
+    def max_value(self) -> int | None:
+        """Get max_value from explicit annotation or auto-derive from enum definition."""
+        explicit = super().max_value
+        if explicit is not None:
+            return explicit
+        return _enum_max_values.get(self._field.type_name)
+
+    @property
     def encode_func(self) -> str:
         return "encode_uint32"
 
     @property
     def encode_content(self) -> str:
+        value_expr = f"static_cast<uint32_t>(this->{self.field_name})"
         if self.force:
-            return f"buffer.{self.encode_func}({self.number}, static_cast<uint32_t>(this->{self.field_name}), true);"
-        return f"buffer.{self.encode_func}({self.number}, static_cast<uint32_t>(this->{self.field_name}));"
+            return f"ProtoEncode::{self.encode_func}(pos, {self.number}, {value_expr}, true);"
+        return f"ProtoEncode::{self.encode_func}(pos, {self.number}, {value_expr});"
 
     def dump(self, name: str) -> str:
-        return f"out.append(proto_enum_to_string<{self.cpp_type}>({name}));"
+        return f"out.append_p(proto_enum_to_string<{self.cpp_type}>({name}));"
 
     def dump_field_value(self, value: str) -> str:
         # Enums need explicit cast for the template
         return f"static_cast<{self.cpp_type}>({value})"
 
     def get_size_calculation(self, name: str, force: bool = False) -> str:
+        max_val = self.max_value
+        if max_val is not None and max_val < 128:
+            return self._get_single_byte_varint_size(name, force)
         return self._get_simple_size_calculation(
             name, force, "uint32", f"static_cast<uint32_t>({name})"
         )
@@ -1313,15 +1485,15 @@ def _generate_array_dump_content(
     # Check if underlying type can use dump_field
     if is_const_char_ptr:
         # Special case for const char* - use it directly
-        o += f'  dump_field(out, "{name}", it, 4);\n'
+        o += f'  dump_field(out, ESPHOME_PSTR("{name}"), it, 4);\n'
     elif ti.can_use_dump_field():
         # For types that have dump_field overloads, use them with extra indent
         # std::vector<bool> iterators return proxy objects, need explicit cast
         value_expr = "static_cast<bool>(it)" if is_bool else ti.dump_field_value("it")
-        o += f'  dump_field(out, "{name}", {value_expr}, 4);\n'
+        o += f'  dump_field(out, ESPHOME_PSTR("{name}"), {value_expr}, 4);\n'
     else:
         # For complex types (messages, bytes), use the old pattern
-        o += f'  out.append("  {name}: ");\n'
+        o += f'  out.append(4, \' \').append_p(ESPHOME_PSTR("{name}")).append(": ");\n'
         o += indent(ti.dump("it")) + "\n"
         o += '  out.append("\\n");\n'
     o += "}"
@@ -1351,11 +1523,13 @@ class FixedArrayRepeatedType(TypeInfo):
     def _encode_element(self, element: str) -> str:
         """Helper to generate encode statement for a single element."""
         if isinstance(self._ti, EnumType):
-            return f"buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>({element}), true);"
+            return f"ProtoEncode::{self._ti.encode_func}(pos, {self.number}, static_cast<uint32_t>({element}), true);"
         # Repeated message elements use encode_sub_message (force=true is default)
         if isinstance(self._ti, MessageType):
-            return f"buffer.encode_sub_message({self.number}, {element});"
-        return f"buffer.{self._ti.encode_func}({self.number}, {element}, true);"
+            return f"ProtoEncode::encode_sub_message(pos, buffer, {self.number}, {element});"
+        return (
+            f"ProtoEncode::{self._ti.encode_func}(pos, {self.number}, {element}, true);"
+        )
 
     @property
     def cpp_type(self) -> str:
@@ -1530,9 +1704,9 @@ class FixedArrayWithLengthRepeatedType(FixedArrayRepeatedType):
         o = f"for (uint16_t i = 0; i < this->{self.field_name}_len; i++) {{\n"
         # Check if underlying type can use dump_field
         if self._ti.can_use_dump_field():
-            o += f'  dump_field(out, "{self.name}", {self._ti.dump_field_value(f"this->{self.field_name}[i]")}, 4);\n'
+            o += f'  dump_field(out, ESPHOME_PSTR("{self.name}"), {self._ti.dump_field_value(f"this->{self.field_name}[i]")}, 4);\n'
         else:
-            o += f'  out.append("  {self.name}: ");\n'
+            o += f'  out.append(4, \' \').append_p(ESPHOME_PSTR("{self.name}")).append(": ");\n'
             o += indent(self._ti.dump(f"this->{self.field_name}[i]")) + "\n"
             o += '  out.append("\\n");\n'
         o += "}"
@@ -1679,11 +1853,13 @@ class RepeatedTypeInfo(TypeInfo):
     def _encode_element_call(self, element: str) -> str:
         """Helper to generate encode call for a single element."""
         if isinstance(self._ti, EnumType):
-            return f"buffer.{self._ti.encode_func}({self.number}, static_cast<uint32_t>({element}), true);"
+            return f"ProtoEncode::{self._ti.encode_func}(pos, {self.number}, static_cast<uint32_t>({element}), true);"
         # Repeated message elements use encode_sub_message (force=true is default)
         if isinstance(self._ti, MessageType):
-            return f"buffer.encode_sub_message({self.number}, {element});"
-        return f"buffer.{self._ti.encode_func}({self.number}, {element}, true);"
+            return f"ProtoEncode::encode_sub_message(pos, buffer, {self.number}, {element});"
+        return (
+            f"ProtoEncode::{self._ti.encode_func}(pos, {self.number}, {element}, true);"
+        )
 
     @property
     def encode_content(self) -> str:
@@ -1692,7 +1868,7 @@ class RepeatedTypeInfo(TypeInfo):
             # Special handling for const char* elements (when container_no_template contains "const char")
             if "const char" in self._container_no_template:
                 o = f"for (const char *it : *this->{self.field_name}) {{\n"
-                o += f"  buffer.{self._ti.encode_func}({self.number}, it, strlen(it), true);\n"
+                o += f"  ProtoEncode::{self._ti.encode_func}(pos, {self.number}, it, strlen(it), true);\n"
             else:
                 o = f"for (const auto &it : *this->{self.field_name}) {{\n"
                 o += f"  {self._encode_element_call('it')}\n"
@@ -1756,17 +1932,27 @@ class RepeatedTypeInfo(TypeInfo):
             size_expr = f"{name}->size()" if self._use_pointer else f"{name}.size()"
             o += f"  size += {size_expr} * {bytes_per_element};\n"
         else:
-            # Other types need the actual value
+            # Check if inner type produces a constant size (doesn't depend on value)
+            inner_size = self._ti.get_size_calculation("it", True)
+            if "it" not in inner_size:
+                # Constant size per element — use multiply instead of loop
+                # Extract the constant from "size += N;"
+                const_val = (
+                    inner_size.strip().removeprefix("size += ").removesuffix(";")
+                )
+                size_expr = f"{name}->size()" if self._use_pointer else f"{name}.size()"
+                o += f"  size += {size_expr} * {const_val};\n"
             # Special handling for const char* elements
-            if self._use_pointer and "const char" in self._container_no_template:
+            elif self._use_pointer and "const char" in self._container_no_template:
                 field_id_size = self.calculate_field_id_size()
                 o += f"  for (const char *it : {container_ref}) {{\n"
                 o += f"    size += ProtoSize::calc_length_force({field_id_size}, strlen(it));\n"
+                o += "  }\n"
             else:
                 auto_ref = "" if self._ti_is_bool else "&"
                 o += f"  for (const auto {auto_ref}it : {container_ref}) {{\n"
-                o += f"    {self._ti.get_size_calculation('it', True)}\n"
-            o += "  }\n"
+                o += f"    {inner_size}\n"
+                o += "  }\n"
 
         o += "}"
         return o
@@ -2010,9 +2196,9 @@ def build_enum_type(desc, enum_ifdef_map) -> tuple[str, str, str]:
     dump_cpp += "  switch (value) {\n"
     for v in desc.value:
         dump_cpp += f"    case enums::{v.name}:\n"
-        dump_cpp += f'      return "{v.name}";\n'
+        dump_cpp += f'      return ESPHOME_PSTR("{v.name}");\n'
     dump_cpp += "    default:\n"
-    dump_cpp += '      return "UNKNOWN";\n'
+    dump_cpp += '      return ESPHOME_PSTR("UNKNOWN");\n'
     dump_cpp += "  }\n"
     dump_cpp += "}\n"
 
@@ -2094,7 +2280,7 @@ def build_message_type(
         public_content.append("#ifdef HAS_PROTO_MESSAGE_DUMP")
         snake_name = camel_to_snake(desc.name)
         public_content.append(
-            f'const char *message_name() const override {{ return "{snake_name}"; }}'
+            f'const LogString *message_name() const override {{ return LOG_STR("{snake_name}"); }}'
         )
         public_content.append("#endif")
 
@@ -2262,20 +2448,24 @@ def build_message_type(
         o += "}\n"
         cpp += o
         # Generate the decode() declaration in header (public method)
-        prot = "void decode(const uint8_t *buffer, size_t length) override;"
+        prot = "void decode(const uint8_t *buffer, size_t length);"
         public_content.append(prot)
 
     # Only generate encode method if this message needs encoding and has fields
     if needs_encode and encode:
-        o = f"void {desc.name}::encode(ProtoWriteBuffer &buffer) const {{"
-        if len(encode) == 1 and len(encode[0]) + len(o) + 3 < 120:
-            o += f" {encode[0]} }}\n"
-        else:
-            o += "\n"
-            o += indent("\n".join(encode)) + "\n"
-            o += "}\n"
+        # Add PROTO_ENCODE_DEBUG_ARG after pos in all proto_* calls
+        encode_debug = [
+            line.replace("(pos,", "(pos PROTO_ENCODE_DEBUG_ARG,") for line in encode
+        ]
+        o = f"uint8_t *{desc.name}::encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const {{\n"
+        o += "  uint8_t *__restrict__ pos = buffer.get_pos();\n"
+        o += indent("\n".join(encode_debug)) + "\n"
+        o += "  return pos;\n"
+        o += "}\n"
         cpp += o
-        prot = "void encode(ProtoWriteBuffer &buffer) const;"
+        prot = (
+            "uint8_t *encode(ProtoWriteBuffer &buffer PROTO_ENCODE_DEBUG_PARAM) const;"
+        )
         public_content.append(prot)
     # If no fields to encode or message doesn't need encoding, the default implementation in ProtoMessage will be used
 
@@ -2302,12 +2492,12 @@ def build_message_type(
     if dump:
         # Always use MessageDumpHelper for consistent output formatting
         dump_impl += "\n"
-        dump_impl += f'  MessageDumpHelper helper(out, "{desc.name}");\n'
+        dump_impl += f'  MessageDumpHelper helper(out, ESPHOME_PSTR("{desc.name}"));\n'
         dump_impl += indent("\n".join(dump)) + "\n"
         dump_impl += "  return out.c_str();\n"
     else:
         dump_impl += "\n"
-        dump_impl += f'  out.append("{desc.name} {{}}");\n'
+        dump_impl += f'  out.append_p(ESPHOME_PSTR("{desc.name} {{}}"));\n'
         dump_impl += "  return out.c_str();\n"
     dump_impl += "}\n"
 
@@ -2595,7 +2785,7 @@ def build_service_message_type(
         is_empty = not has_fields
         if is_empty:
             EMPTY_MESSAGES.add(mt.name)
-        hout += f"virtual void {func}({'' if is_empty else f'const {mt.name} &value'}){{}};\n"
+        hout += f"void {func}({'' if is_empty else f'const {mt.name} &value'}){{}};\n"
         case = ""
         if not is_empty:
             case += f"{mt.name} msg;\n"
@@ -2634,6 +2824,11 @@ def main() -> None:
     d = descriptor.FileDescriptorSet.FromString(proto_content)
 
     file = d.file[0]
+
+    # Build enum max value map so EnumType can auto-derive max_value
+    for enum in file.enum_type:
+        if not enum.options.deprecated and enum.value:
+            _enum_max_values[f".{enum.name}"] = max(v.number for v in enum.value)
 
     # Build dynamic ifdef mappings early so we can emit USE_API_VARINT64 before includes
     enum_ifdef_map, message_ifdef_map, message_source_map, used_messages = (
@@ -2694,12 +2889,28 @@ namespace esphome::api {
     dump_cpp += """\
 #include "api_pb2.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/progmem.h"
 
 #include <cinttypes>
 
 #ifdef HAS_PROTO_MESSAGE_DUMP
 
 namespace esphome::api {
+
+#ifdef USE_ESP8266
+// Out-of-line to avoid inlining strlen_P/memcpy_P at every call site
+void DumpBuffer::append_p_esp8266(const char *str) {
+  size_t len = strlen_P(str);
+  size_t space = CAPACITY - 1 - pos_;
+  if (len > space)
+    len = space;
+  if (len > 0) {
+    memcpy_P(buf_ + pos_, str, len);
+    pos_ += len;
+    buf_[pos_] = '\\0';
+  }
+}
+#endif
 
 // Helper function to append a quoted string, handling empty StringRef
 static inline void append_quoted_string(DumpBuffer &out, const StringRef &ref) {
@@ -2711,8 +2922,9 @@ static inline void append_quoted_string(DumpBuffer &out, const StringRef &ref) {
 }
 
 // Common helpers for dump_field functions
+// field_name is a PROGMEM pointer (flash on ESP8266, regular pointer on other platforms)
 static inline void append_field_prefix(DumpBuffer &out, const char *field_name, int indent) {
-  out.append(indent, ' ').append(field_name).append(": ");
+  out.append(indent, ' ').append_p(field_name).append(": ");
 }
 
 static inline void append_uint(DumpBuffer &out, uint32_t value) {
@@ -2720,10 +2932,11 @@ static inline void append_uint(DumpBuffer &out, uint32_t value) {
 }
 
 // RAII helper for message dump formatting
+// message_name is a PROGMEM pointer (flash on ESP8266, regular pointer on other platforms)
 class MessageDumpHelper {
  public:
   MessageDumpHelper(DumpBuffer &out, const char *message_name) : out_(out) {
-    out_.append(message_name);
+    out_.append_p(message_name);
     out_.append(" {\\n");
   }
   ~MessageDumpHelper() { out_.append(" }"); }
@@ -2733,6 +2946,10 @@ class MessageDumpHelper {
 };
 
 // Helper functions to reduce code duplication in dump methods
+// field_name parameters are PROGMEM pointers (flash on ESP8266, regular pointers on other platforms)
+// Not all overloads are used in every build (depends on enabled components)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
 static void dump_field(DumpBuffer &out, const char *field_name, int32_t value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
   out.set_pos(buf_append_printf(out.data(), DumpBuffer::CAPACITY, out.pos(), "%" PRId32 "\\n", value));
@@ -2777,21 +2994,23 @@ static void dump_field(DumpBuffer &out, const char *field_name, const char *valu
   out.append("\\n");
 }
 
-template<typename T>
-static void dump_field(DumpBuffer &out, const char *field_name, T value, int indent = 2) {
+// proto_enum_to_string returns PROGMEM pointers, so use append_p
+template<typename T> static void dump_field(DumpBuffer &out, const char *field_name, T value, int indent = 2) {
   append_field_prefix(out, field_name, indent);
-  out.append(proto_enum_to_string<T>(value));
+  out.append_p(proto_enum_to_string<T>(value));
   out.append("\\n");
 }
 
 // Helper for bytes fields - uses stack buffer to avoid heap allocation
 // Buffer sized for 160 bytes of data (480 chars with separators) to fit typical log buffer
+// field_name is a PROGMEM pointer (flash on ESP8266, regular pointer on other platforms)
 static void dump_bytes_field(DumpBuffer &out, const char *field_name, const uint8_t *data, size_t len, int indent = 2) {
   char hex_buf[format_hex_pretty_size(160)];
   append_field_prefix(out, field_name, indent);
   format_hex_pretty_to(hex_buf, data, len);
   out.append(hex_buf).append("\\n");
 }
+#pragma GCC diagnostic pop
 
 """
 
@@ -2947,6 +3166,7 @@ namespace esphome::api {
     cpp = FILE_HEADER
     cpp += """\
 #include "api_pb2_service.h"
+#include "api_connection.h"
 #include "esphome/core/log.h"
 
 namespace esphome::api {
@@ -2957,13 +3177,13 @@ static const char *const TAG = "api.service";
 
     class_name = "APIServerConnectionBase"
 
-    hpp += f"class {class_name} : public ProtoService {{\n"
+    hpp += f"class {class_name} {{\n"
     hpp += " public:\n"
 
     # Add logging helper method declarations
     hpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
     hpp += " protected:\n"
-    hpp += "  void log_send_message_(const char *name, const char *dump);\n"
+    hpp += "  void log_send_message_(const LogString *name, const char *dump);\n"
     hpp += (
         "  void log_receive_message_(const LogString *name, const ProtoMessage &msg);\n"
     )
@@ -2976,10 +3196,8 @@ static const char *const TAG = "api.service";
 
     # Add logging helper method implementations to cpp
     cpp += "#ifdef HAS_PROTO_MESSAGE_DUMP\n"
-    cpp += (
-        f"void {class_name}::log_send_message_(const char *name, const char *dump) {{\n"
-    )
-    cpp += '  ESP_LOGVV(TAG, "send_message %s: %s", name, dump);\n'
+    cpp += f"void {class_name}::log_send_message_(const LogString *name, const char *dump) {{\n"
+    cpp += '  ESP_LOGVV(TAG, "send_message %s: %s", LOG_STR_ARG(name), dump);\n'
     cpp += "}\n"
     cpp += f"void {class_name}::log_receive_message_(const LogString *name, const ProtoMessage &msg) {{\n"
     cpp += "  DumpBuffer dump_buf;\n"
@@ -3050,11 +3268,11 @@ static const char *const TAG = "api.service";
                 result += "#endif\n"
         return result
 
-    # Generate read_message with auth check before dispatch
-    hpp += " protected:\n"
-    hpp += "  void read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) override;\n"
+    # Generate read_message_ as APIConnection method (not base class) so the compiler
+    # can devirtualize and inline the on_* handler calls within the same class.
+    # APIConnection declares this method in api_connection.h.
 
-    out = f"void {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {{\n"
+    out = "void APIConnection::read_message_(uint32_t msg_size, uint32_t msg_type, const uint8_t *msg_data) {\n"
 
     # Auth check block before dispatch switch
     out += "  // Check authentication/connection requirements\n"

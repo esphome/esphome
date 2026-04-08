@@ -25,7 +25,7 @@ _BACKGROUND_TASKS: set[asyncio.Task] = set()
 
 
 class DashboardStatus:
-    def __init__(self, on_update: Callable[[dict[str, bool | None], []]]) -> None:
+    def __init__(self, on_update: Callable[[dict[str, bool | None]], None]) -> None:
         """Initialize the dashboard status."""
         self.on_update = on_update
 

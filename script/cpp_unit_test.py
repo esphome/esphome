@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 from functools import partial
+import os
 from pathlib import Path
 import sys
 
@@ -35,6 +36,7 @@ PLATFORMIO_OPTIONS = {
 
 
 def run_tests(selected_components: list[str]) -> int:
+    os.environ["ASAN_OPTIONS"] = "detect_leaks=0"
     return build_and_run(
         selected_components=selected_components,
         tests_dir=COMPONENTS_TESTS_DIR,

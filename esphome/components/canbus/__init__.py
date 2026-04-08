@@ -161,7 +161,7 @@ async def canbus_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_CANBUS_ID])
 
-    if can_id := config.get(CONF_CAN_ID):
+    if (can_id := config.get(CONF_CAN_ID)) is not None:
         can_id = await cg.templatable(can_id, args, cg.uint32)
         cg.add(var.set_can_id(can_id))
         cg.add(var.set_use_extended_id(config[CONF_USE_EXTENDED_ID]))

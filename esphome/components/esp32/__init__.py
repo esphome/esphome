@@ -28,6 +28,7 @@ from esphome.const import (
     CONF_PLATFORMIO_OPTIONS,
     CONF_REF,
     CONF_SAFE_MODE,
+    CONF_SIZE,
     CONF_SOURCE,
     CONF_TYPE,
     CONF_VARIANT,
@@ -43,11 +44,12 @@ from esphome.const import (
     __version__,
 )
 from esphome.core import CORE, HexInt
+from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.coroutine import CoroPriority, coroutine_with_priority
 import esphome.final_validate as fv
 from esphome.helpers import copy_file_if_changed, rmtree, write_file_if_changed
 from esphome.types import ConfigType
-from esphome.writer import clean_cmake_cache
+from esphome.writer import clean_build, clean_cmake_cache
 
 from .boards import BOARDS, STANDARD_BOARDS
 from .const import (  # noqa
@@ -96,6 +98,12 @@ CONF_ENABLE_LWIP_ASSERT = "enable_lwip_assert"
 CONF_EXECUTE_FROM_PSRAM = "execute_from_psram"
 CONF_MINIMUM_CHIP_REVISION = "minimum_chip_revision"
 CONF_RELEASE = "release"
+CONF_SIGNED_OTA_VERIFICATION = "signed_ota_verification"
+CONF_SIGNING_KEY = "signing_key"
+CONF_SIGNING_SCHEME = "signing_scheme"
+CONF_SRAM1_AS_IRAM = "sram1_as_iram"
+CONF_SUBTYPE = "subtype"
+CONF_VERIFICATION_KEY = "verification_key"
 
 ARDUINO_FRAMEWORK_NAME = "framework-arduinoespressif32"
 ARDUINO_FRAMEWORK_PKG = f"pioarduino/{ARDUINO_FRAMEWORK_NAME}"
@@ -115,6 +123,27 @@ ASSERTION_LEVELS = {
     "DISABLE": "CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_DISABLE",
     "ENABLE": "CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_ENABLE",
     "SILENT": "CONFIG_COMPILER_OPTIMIZATION_ASSERTIONS_SILENT",
+}
+
+SIGNING_SCHEMES = {
+    "rsa3072": "CONFIG_SECURE_SIGNED_APPS_RSA_SCHEME",
+    "ecdsa256": "CONFIG_SECURE_SIGNED_APPS_ECDSA_V2_SCHEME",
+}
+
+# Chip variants that only support one signing scheme for Secure Boot V2.
+# Based on SOC_SECURE_BOOT_V2_RSA / SOC_SECURE_BOOT_V2_ECC in soc_caps.h.
+# Variants not listed in either set support both RSA and ECDSA
+# (e.g. C5, C6, H2, P4). New variants should be added to the
+# appropriate set if they only support one scheme.
+SIGNED_OTA_RSA_ONLY_VARIANTS = {
+    VARIANT_ESP32,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+    VARIANT_ESP32C3,
+}
+SIGNED_OTA_ECC_ONLY_VARIANTS = {
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C61,
 }
 
 COMPILER_OPTIMIZATIONS = {
@@ -376,12 +405,11 @@ FULL_CPU_FREQUENCIES = set(itertools.chain.from_iterable(CPU_FREQUENCIES.values(
 def set_core_data(config):
     cpu_frequency = config.get(CONF_CPU_FREQUENCY, None)
     variant = config[CONF_VARIANT]
-    # if not specified in config, set to 160MHz if supported, the fastest otherwise
+    # if not specified in config, default to the maximum supported frequency
+    # (ESP32-P4 engineering samples are limited to 360MHz, non-engineering can do 400MHz)
     if cpu_frequency is None:
         choices = CPU_FREQUENCIES[variant]
-        if "160MHZ" in choices:
-            cpu_frequency = "160MHZ"
-        elif "360MHZ" in choices:
+        if variant == VARIANT_ESP32P4 and config.get(CONF_ENGINEERING_SAMPLE):
             cpu_frequency = "360MHZ"
         else:
             cpu_frequency = choices[-1]
@@ -688,9 +716,15 @@ ARDUINO_IDF_VERSION_LOOKUP = {
 ESP_IDF_FRAMEWORK_VERSION_LOOKUP = {
     "recommended": cv.Version(5, 5, 3, "1"),
     "latest": cv.Version(5, 5, 3, "1"),
-    "dev": cv.Version(5, 5, 3, "1"),
+    "dev": cv.Version(5, 5, 4),
 }
 ESP_IDF_PLATFORM_VERSION_LOOKUP = {
+    cv.Version(
+        6, 0, 0
+    ): "https://github.com/pioarduino/platform-espressif32.git#prep_IDF6",
+    cv.Version(
+        5, 5, 4
+    ): "https://github.com/pioarduino/platform-espressif32.git#develop",
     cv.Version(5, 5, 3, "1"): cv.Version(55, 3, 37),
     cv.Version(5, 5, 3): cv.Version(55, 3, 37),
     cv.Version(5, 5, 2): cv.Version(55, 3, 37),
@@ -882,6 +916,13 @@ def final_validate(config):
                 path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_MINIMUM_CHIP_REVISION],
             )
         )
+    if config[CONF_VARIANT] != VARIANT_ESP32 and advanced[CONF_SRAM1_AS_IRAM]:
+        errs.append(
+            cv.Invalid(
+                f"'{CONF_SRAM1_AS_IRAM}' is only supported on {VARIANT_ESP32}",
+                path=[CONF_FRAMEWORK, CONF_ADVANCED, CONF_SRAM1_AS_IRAM],
+            )
+        )
     if (
         config[CONF_VARIANT] != VARIANT_ESP32P4
         and config.get(CONF_ENGINEERING_SAMPLE) is not None
@@ -947,6 +988,47 @@ def final_validate(config):
                 )
             # disable the rollback feature anyway since it can't be used.
             advanced[CONF_ENABLE_OTA_ROLLBACK] = False
+    if signed_ota := advanced.get(CONF_SIGNED_OTA_VERIFICATION):
+        scheme = signed_ota[CONF_SIGNING_SCHEME]
+        variant = config[CONF_VARIANT]
+        scheme_variant_conflicts = {
+            "ecdsa256": (SIGNED_OTA_RSA_ONLY_VARIANTS, "rsa3072"),
+            "rsa3072": (SIGNED_OTA_ECC_ONLY_VARIANTS, "ecdsa256"),
+        }
+        if (conflict := scheme_variant_conflicts.get(scheme)) and variant in conflict[
+            0
+        ]:
+            errs.append(
+                cv.Invalid(
+                    f"Signing scheme '{scheme}' is not supported on "
+                    f"{VARIANT_FRIENDLY[variant]}. Use '{conflict[1]}' instead.",
+                    path=[
+                        CONF_FRAMEWORK,
+                        CONF_ADVANCED,
+                        CONF_SIGNED_OTA_VERIFICATION,
+                        CONF_SIGNING_SCHEME,
+                    ],
+                )
+            )
+        if CONF_OTA not in full_config:
+            _LOGGER.warning(
+                "Signed OTA verification is enabled but no OTA component is configured. "
+                "The initial firmware will be signed but OTA updates won't be possible "
+                "until an OTA component is added."
+            )
+        if CONF_SIGNING_KEY in signed_ota:
+            _LOGGER.info(
+                "Signed OTA verification is enabled. Keep your signing key safe! "
+                "If you lose the signing key, you will NOT be able to OTA update "
+                "devices running firmware signed with this key. "
+                "Without the key, you'll need to reflash via serial."
+            )
+        else:
+            _LOGGER.info(
+                "Signed OTA verification is configured with a public verification key. "
+                "Binaries will NOT be signed automatically during build. "
+                "You must sign them externally before flashing."
+            )
     if errs:
         raise cv.MultipleInvalid(errs)
 
@@ -1129,6 +1211,7 @@ FRAMEWORK_SCHEMA = cv.Schema(
                 cv.Optional(CONF_MINIMUM_CHIP_REVISION): cv.one_of(
                     *ESP32_CHIP_REVISIONS
                 ),
+                cv.Optional(CONF_SRAM1_AS_IRAM, default=False): cv.boolean,
                 # DHCP server is needed for WiFi AP mode. When WiFi component is used,
                 # it will handle disabling DHCP server when AP is not configured.
                 # Default to false (disabled) when WiFi is not used.
@@ -1157,6 +1240,18 @@ FRAMEWORK_SCHEMA = cv.Schema(
                     min=8192, max=32768
                 ),
                 cv.Optional(CONF_ENABLE_OTA_ROLLBACK, default=True): cv.boolean,
+                cv.Optional(CONF_SIGNED_OTA_VERIFICATION): cv.All(
+                    cv.Schema(
+                        {
+                            cv.Optional(CONF_SIGNING_KEY): cv.file_,
+                            cv.Optional(CONF_VERIFICATION_KEY): cv.file_,
+                            cv.Optional(
+                                CONF_SIGNING_SCHEME, default="rsa3072"
+                            ): cv.one_of(*SIGNING_SCHEMES, lower=True),
+                        }
+                    ),
+                    cv.has_exactly_one_key(CONF_SIGNING_KEY, CONF_VERIFICATION_KEY),
+                ),
                 cv.Optional(
                     CONF_USE_FULL_CERTIFICATE_BUNDLE, default=False
                 ): cv.boolean,
@@ -1258,6 +1353,43 @@ def _set_default_framework(config):
     return config
 
 
+RESERVED_PARTITION_NAMES = {
+    "nvs",
+    "app0",
+    "app1",
+    "otadata",
+    "eeprom",
+    "spiffs",
+    "phy_init",
+}
+
+VALID_APP_SUBTYPES = {"factory", "test"}
+VALID_DATA_SUBTYPES = {
+    "nvs",
+    "nvs_keys",
+    "spiffs",
+    "coredump",
+    "efuse",
+    "fat",
+    "undefined",
+    "littlefs",
+}
+
+
+def _validate_custom_partition(config: ConfigType) -> ConfigType:
+    """Voluptuous validator for custom partition schema."""
+    try:
+        _validate_partition(
+            config[CONF_NAME],
+            config[CONF_TYPE],
+            config[CONF_SUBTYPE],
+            config[CONF_SIZE],
+        )
+    except ValueError as e:
+        raise cv.Invalid(str(e)) from e
+    return config
+
+
 FLASH_SIZES = [
     "2MB",
     "4MB",
@@ -1272,7 +1404,9 @@ CONF_PARTITIONS = "partitions"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Optional(CONF_BOARD): cv.string_strict,
+            cv.Optional(CONF_BOARD): cv.All(
+                cv.string_strict, cv.ByteLength(max=BOARD_MAX_LENGTH)
+            ),
             cv.Optional(CONF_CPU_FREQUENCY): cv.one_of(
                 *FULL_CPU_FREQUENCIES, upper=True
             ),
@@ -1280,7 +1414,28 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FLASH_SIZE, default="4MB"): cv.one_of(
                 *FLASH_SIZES, upper=True
             ),
-            cv.Optional(CONF_PARTITIONS): cv.file_,
+            cv.Optional(CONF_PARTITIONS): cv.Any(
+                cv.file_,
+                cv.ensure_list(
+                    cv.All(
+                        cv.Schema(
+                            {
+                                cv.Required(CONF_NAME): cv.string_strict,
+                                cv.Required(CONF_TYPE): cv.All(
+                                    cv.Any(cv.string_strict, cv.int_range(0x40, 0xFE)),
+                                    cv.int_to_hex_string,
+                                ),
+                                cv.Required(CONF_SUBTYPE): cv.All(
+                                    cv.Any(cv.string_strict, cv.int_range(0, 0xFE)),
+                                    cv.int_to_hex_string,
+                                ),
+                                cv.Required(CONF_SIZE): cv.int_range(min=0x1000),
+                            }
+                        ),
+                        _validate_custom_partition,
+                    ),
+                ),
+            ),
             cv.Optional(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
             cv.Optional(CONF_FRAMEWORK): FRAMEWORK_SCHEMA,
         }
@@ -1519,7 +1674,7 @@ async def to_code(config):
         if conf[CONF_ADVANCED][CONF_ENABLE_FULL_PRINTF]:
             cg.add_define("USE_FULL_PRINTF")
         else:
-            for symbol in ("vprintf", "printf", "fprintf"):
+            for symbol in ("vprintf", "printf", "fprintf", "vfprintf"):
                 cg.add_build_flag(f"-Wl,--wrap={symbol}")
     else:
         cg.add_build_flag("-DUSE_ARDUINO")
@@ -1595,6 +1750,16 @@ async def to_code(config):
             for rev, flag in ESP32_CHIP_REVISIONS.items():
                 add_idf_sdkconfig_option(flag, rev == min_rev)
             cg.add_define("USE_ESP32_MIN_CHIP_REVISION_SET")
+
+    # Use SRAM1 region as IRAM on ESP32 (original) variant
+    # This provides an additional 40KB of IRAM by using SRAM1 memory that was previously
+    # reserved for bootloader DRAM. Requires a bootloader from ESP-IDF v5.1 or later.
+    # WARNING: If the device has an old bootloader (pre-v5.1), the app will fail to boot.
+    # A USB flash will update the bootloader automatically. OTA updates do not.
+    # See: https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-guides/performance/ram-usage.html
+    if variant == VARIANT_ESP32 and conf[CONF_ADVANCED][CONF_SRAM1_AS_IRAM]:
+        add_idf_sdkconfig_option("CONFIG_ESP_SYSTEM_ESP32_SRAM1_REGION_AS_IRAM", True)
+        cg.add_define("USE_ESP32_SRAM1_AS_IRAM")
     add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_SINGLE_APP", False)
     add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_CUSTOM", True)
     add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_CUSTOM_FILENAME", "partitions.csv")
@@ -1749,9 +1914,18 @@ async def to_code(config):
     if use_platformio:
         cg.add_platformio_option("board_build.partitions", "partitions.csv")
     if CONF_PARTITIONS in config:
-        add_extra_build_file(
-            "partitions.csv", CORE.relative_config_path(config[CONF_PARTITIONS])
-        )
+        if isinstance(config[CONF_PARTITIONS], list):
+            for partition in config[CONF_PARTITIONS]:
+                add_partition(
+                    partition[CONF_NAME],
+                    partition[CONF_TYPE],
+                    partition[CONF_SUBTYPE],
+                    partition[CONF_SIZE],
+                )
+        else:
+            add_extra_build_file(
+                "partitions.csv", CORE.relative_config_path(config[CONF_PARTITIONS])
+            )
 
     if assertion_level := advanced.get(CONF_ASSERTION_LEVEL):
         for key, flag in ASSERTION_LEVELS.items():
@@ -1784,6 +1958,32 @@ async def to_code(config):
     if advanced[CONF_ENABLE_OTA_ROLLBACK]:
         add_idf_sdkconfig_option("CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE", True)
         cg.add_define("USE_OTA_ROLLBACK")
+
+    # Enable signed app verification without hardware secure boot
+    if signed_ota := advanced.get(CONF_SIGNED_OTA_VERIFICATION):
+        add_idf_sdkconfig_option("CONFIG_SECURE_SIGNED_APPS_NO_SECURE_BOOT", True)
+        add_idf_sdkconfig_option("CONFIG_SECURE_SIGNED_ON_UPDATE_NO_SECURE_BOOT", True)
+
+        scheme = signed_ota[CONF_SIGNING_SCHEME]
+        for key, flag in SIGNING_SCHEMES.items():
+            add_idf_sdkconfig_option(flag, scheme == key)
+
+        if CONF_SIGNING_KEY in signed_ota:
+            # Private key mode — auto-sign binaries during build
+            add_idf_sdkconfig_option("CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES", True)
+            add_idf_sdkconfig_option(
+                "CONFIG_SECURE_BOOT_SIGNING_KEY",
+                str(signed_ota[CONF_SIGNING_KEY].resolve()),
+            )
+        else:
+            # Public key mode — verification only, external signing required
+            add_idf_sdkconfig_option("CONFIG_SECURE_BOOT_BUILD_SIGNED_BINARIES", False)
+            add_idf_sdkconfig_option(
+                "CONFIG_SECURE_BOOT_VERIFICATION_KEY",
+                str(signed_ota[CONF_VERIFICATION_KEY].resolve()),
+            )
+
+        cg.add_define("USE_OTA_SIGNED_VERIFICATION")
 
     cg.add_define("ESPHOME_LOOP_TASK_STACK_SIZE", advanced[CONF_LOOP_TASK_STACK_SIZE])
 
@@ -1851,6 +2051,18 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_SHA384_C", False)
         add_idf_sdkconfig_option("CONFIG_MBEDTLS_SHA512_C", False)
 
+    # Disable PicolibC Newlib compatibility shim on IDF 6.0+
+    # IDF 6.0 switched from Newlib to PicolibC. The shim provides thread-local
+    # stdin/stdout/stderr and getreent() for code compiled against Newlib.
+    # ESPHome doesn't link against Newlib-built libraries that use stdio.
+    # If a component needs it (e.g. precompiled Newlib binaries), re-enable via:
+    #   esp32:
+    #     framework:
+    #       sdkconfig_options:
+    #         CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY: "y"
+    if idf_version() >= cv.Version(6, 0, 0):
+        add_idf_sdkconfig_option("CONFIG_LIBC_PICOLIBC_NEWLIB_COMPATIBILITY", False)
+
     # Disable regi2c control functions in IRAM
     # Only needed if using analog peripherals (ADC, DAC, etc.) from ISRs while cache is disabled
     if advanced[CONF_DISABLE_REGI2C_IN_IRAM]:
@@ -1885,45 +2097,175 @@ async def to_code(config):
         CORE.add_job(_write_arduino_libraries_sdkconfig)
 
 
-APP_PARTITION_SIZES = {
-    "2MB": 0x0C0000,  # 768 KB
-    "4MB": 0x1C0000,  # 1792 KB
-    "8MB": 0x3C0000,  # 3840 KB
-    "16MB": 0x7C0000,  # 7936 KB
-    "32MB": 0xFC0000,  # 16128 KB
+KEY_CUSTOM_PARTITIONS = "custom_partitions"
+
+
+@dataclass
+class PartitionEntry:
+    name: str
+    type: str
+    subtype: str
+    size: int
+
+
+# Partition sizes (offsets auto-placed by gen_esp32part.py).
+# These constants are the single source of truth — used in both
+# the CSV generation and the overhead calculation.
+BOOTLOADER_SIZE = 0x8000
+PARTITION_TABLE_SIZE = 0x1000
+FIRST_PARTITION_OFFSET = BOOTLOADER_SIZE + PARTITION_TABLE_SIZE
+OTADATA_SIZE = 0x2000
+PHY_INIT_SIZE = 0x1000
+EEPROM_SIZE = 0x1000  # Arduino only
+SPIFFS_SIZE = 0xF000  # Arduino only
+ARDUINO_NVS_SIZE = 0x60000
+IDF_NVS_SIZE = 0x70000
+
+
+def _get_partition_overhead() -> int:
+    """Total non-app partition budget (system partitions + nvs + padding).
+
+    Custom partitions are appended at the end and steal from app.
+    """
+    # otadata + phy_init are followed by app0 which requires 64KB alignment,
+    # so pad up to the next 64KB boundary.
+    overhead = (
+        FIRST_PARTITION_OFFSET + OTADATA_SIZE + PHY_INIT_SIZE + 0xFFFF
+    ) & ~0xFFFF
+    if CORE.using_arduino:
+        overhead += EEPROM_SIZE + SPIFFS_SIZE + ARDUINO_NVS_SIZE
+    else:
+        overhead += IDF_NVS_SIZE
+    return overhead
+
+
+VALID_SUBTYPES: dict[str, set[str]] = {
+    "app": VALID_APP_SUBTYPES,
+    "data": VALID_DATA_SUBTYPES,
 }
 
 
-def get_arduino_partition_csv(flash_size: str):
-    app_partition_size = APP_PARTITION_SIZES[flash_size]
-    eeprom_partition_size = 0x1000  # 4 KB
-    spiffs_partition_size = 0xF000  # 60 KB
+def _validate_partition(
+    name: str, p_type: str | int, subtype: str | int, size: int
+) -> None:
+    """Validate partition parameters. Raises ValueError on invalid input."""
+    if name in RESERVED_PARTITION_NAMES:
+        raise ValueError(f"Partition name '{name}' is reserved.")
+    if size % 0x1000 != 0:
+        raise ValueError("Partition size must be 4KB (0x1000) aligned.")
+    # Numeric or already-normalized hex types/subtypes skip string validation
+    if not isinstance(p_type, str) or p_type.startswith("0x"):
+        return
+    if p_type not in VALID_SUBTYPES:
+        raise ValueError(
+            f"Type '{p_type}' is invalid. Only 'app' and 'data' are allowed."
+            " Use numbers for custom types."
+        )
+    if not isinstance(subtype, str) or subtype.startswith("0x"):
+        return
+    valid = VALID_SUBTYPES[p_type]
+    if subtype not in valid:
+        raise ValueError(
+            f"Subtype '{subtype}' is invalid for {p_type} type."
+            f" Only {', '.join(sorted(valid))} are allowed."
+            " Use numbers for custom subtypes."
+        )
 
-    app0_partition_start = 0x010000  # 64 KB
-    app1_partition_start = app0_partition_start + app_partition_size
-    eeprom_partition_start = app1_partition_start + app_partition_size
-    spiffs_partition_start = eeprom_partition_start + eeprom_partition_size
 
-    return f"""\
-nvs,      data, nvs,     0x9000, 0x5000,
-otadata,  data, ota,     0xE000, 0x2000,
-app0,     app,  ota_0,   0x{app0_partition_start:X}, 0x{app_partition_size:X},
-app1,     app,  ota_1,   0x{app1_partition_start:X}, 0x{app_partition_size:X},
-eeprom,   data, 0x99,    0x{eeprom_partition_start:X}, 0x{eeprom_partition_size:X},
-spiffs,   data, spiffs,  0x{spiffs_partition_start:X}, 0x{spiffs_partition_size:X}
-"""
+def add_partition(name: str, p_type: str | int, subtype: str | int, size: int) -> None:
+    """Register a custom partition to be appended to the partition table.
+
+    Called from component to_code() to request additional flash partitions.
+    Size must be 4KB aligned. Integer types/subtypes are converted to hex strings.
+    """
+    if name in CORE.data[KEY_ESP32].get(KEY_CUSTOM_PARTITIONS, {}):
+        raise ValueError(f"Partition name '{name}' is already defined.")
+    _validate_partition(name, p_type, subtype, size)
+    p_type_str = f"0x{p_type:X}" if isinstance(p_type, int) else p_type
+    subtype_str = f"0x{subtype:X}" if isinstance(subtype, int) else subtype
+    custom_partitions = CORE.data[KEY_ESP32].setdefault(KEY_CUSTOM_PARTITIONS, {})
+    custom_partitions[name] = PartitionEntry(
+        name=name, type=p_type_str, subtype=subtype_str, size=size
+    )
 
 
-def get_idf_partition_csv(flash_size: str):
-    app_partition_size = APP_PARTITION_SIZES[flash_size]
+def _flash_size_to_bytes(flash_size_mb: str) -> int:
+    """Convert flash size string (e.g. '4MB') to bytes."""
+    return int(flash_size_mb.removesuffix("MB")) * 1024 * 1024
 
-    return f"""\
-otadata,  data, ota,     ,        0x2000,
-phy_init, data, phy,     ,        0x1000,
-app0,     app,  ota_0,   ,        0x{app_partition_size:X},
-app1,     app,  ota_1,   ,        0x{app_partition_size:X},
-nvs,      data, nvs,     ,        0x6D000,
-"""
+
+def _get_custom_partitions_total_size() -> int:
+    """Total size of custom partitions including alignment padding."""
+    size = 0
+    for partition in CORE.data[KEY_ESP32].get(KEY_CUSTOM_PARTITIONS, {}).values():
+        if partition.type == "app":
+            size = (size + 0xFFFF) & ~0xFFFF  # align to 64KB
+        size += partition.size
+    return size
+
+
+def _get_app_partition_size(flash_size_mb: str) -> int:
+    flash_bytes = _flash_size_to_bytes(flash_size_mb)
+    custom_total = _get_custom_partitions_total_size()
+    # Align down to 64KB — app partitions require 64KB-aligned offsets,
+    # so the size must also be aligned to avoid unbudgeted padding.
+    raw_size = (flash_bytes - _get_partition_overhead() - custom_total) // 2
+    app_size = raw_size & ~0xFFFF
+    wasted = (raw_size - app_size) * 2
+    if wasted:
+        _LOGGER.info(
+            "Custom partitions cause %dKB of wasted flash due to 64KB app partition alignment.",
+            wasted // 1024,
+        )
+    if app_size <= 0x10000:  # 64 KB
+        raise ValueError(
+            "Custom partitions are too large to fit in the available flash size. "
+            "Reduce custom partition sizes."
+        )
+    if app_size <= 0x80000:  # 512 KB
+        _LOGGER.warning(
+            "App partition size is only %dKB. This may be too small for firmware with "
+            "many components. Consider reducing custom partition sizes or using a "
+            "larger flash chip.",
+            app_size // 1024,
+        )
+    return app_size
+
+
+def get_partition_csv(flash_size_mb: str) -> str:
+    app_size = _get_app_partition_size(flash_size_mb)
+
+    partitions: list[PartitionEntry] = [
+        PartitionEntry(name="otadata", type="data", subtype="ota", size=OTADATA_SIZE),
+        PartitionEntry(name="phy_init", type="data", subtype="phy", size=PHY_INIT_SIZE),
+        PartitionEntry(name="app0", type="app", subtype="ota_0", size=app_size),
+        PartitionEntry(name="app1", type="app", subtype="ota_1", size=app_size),
+    ]
+    if CORE.using_arduino:
+        partitions.append(
+            PartitionEntry(name="eeprom", type="data", subtype="0x99", size=EEPROM_SIZE)
+        )
+        partitions.append(
+            PartitionEntry(
+                name="spiffs", type="data", subtype="spiffs", size=SPIFFS_SIZE
+            )
+        )
+        partitions.append(
+            PartitionEntry(
+                name="nvs", type="data", subtype="nvs", size=ARDUINO_NVS_SIZE
+            )
+        )
+    else:
+        partitions.append(
+            PartitionEntry(name="nvs", type="data", subtype="nvs", size=IDF_NVS_SIZE)
+        )
+    partitions.extend(CORE.data[KEY_ESP32].get(KEY_CUSTOM_PARTITIONS, {}).values())
+
+    csv = "".join(
+        f"{p.name}, {p.type}, {p.subtype}, , 0x{p.size:X},\n" for p in partitions
+    )
+    _LOGGER.debug("Partition table:\n%s", csv)
+    return csv
 
 
 def _format_sdkconfig_val(value: SdkconfigValueType) -> str:
@@ -1960,6 +2302,7 @@ def _write_sdkconfig():
     if write_file_if_changed(internal_path, contents):
         # internal changed, update real one
         write_file_if_changed(sdk_path, contents)
+        clean_build(clear_pio_cache=False)
 
 
 def _write_idf_component_yml():
@@ -2030,16 +2373,10 @@ def copy_files():
 
     if "partitions.csv" not in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES]:
         flash_size = CORE.data[KEY_ESP32][KEY_FLASH_SIZE]
-        if CORE.using_arduino:
-            write_file_if_changed(
-                CORE.relative_build_path("partitions.csv"),
-                get_arduino_partition_csv(flash_size),
-            )
-        else:
-            write_file_if_changed(
-                CORE.relative_build_path("partitions.csv"),
-                get_idf_partition_csv(flash_size),
-            )
+        write_file_if_changed(
+            CORE.relative_build_path("partitions.csv"),
+            get_partition_csv(flash_size),
+        )
     # IDF build scripts look for version string to put in the build.
     # However, if the build path does not have an initialized git repo,
     # and no version.txt file exists, the CMake script fails for some setups.
