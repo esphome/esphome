@@ -315,6 +315,8 @@ void APIConnection::process_active_iterator_() {
       this->destroy_active_iterator_();
       if (this->flags_.state_subscription) {
         this->begin_iterator_(ActiveIterator::INITIAL_STATE);
+      } else {
+        this->finalize_iterator_sync_();
       }
     } else {
       this->process_iterator_batch_(this->iterator_storage_.list_entities);
@@ -322,19 +324,25 @@ void APIConnection::process_active_iterator_() {
   } else {  // INITIAL_STATE
     if (this->iterator_storage_.initial_state.completed()) {
       this->destroy_active_iterator_();
-      // Process any remaining batched messages immediately
-      if (!this->deferred_batch_.empty()) {
-        this->process_batch_();
-      }
-      // Now that everything is sent, enable immediate sending for future state changes
-      this->flags_.should_try_send_immediately = true;
-      // Release excess memory from buffers that grew during initial sync
-      this->deferred_batch_.release_buffer();
-      this->helper_->release_buffers();
+      this->finalize_iterator_sync_();
     } else {
       this->process_iterator_batch_(this->iterator_storage_.initial_state);
     }
   }
+}
+
+void APIConnection::finalize_iterator_sync_() {
+  // Flush any remaining batched messages immediately so clients
+  // receive completion responses (e.g. ListEntitiesDoneResponse)
+  // without waiting for the batch timer.
+  if (!this->deferred_batch_.empty()) {
+    this->process_batch_();
+  }
+  // Enable immediate sending for future state changes
+  this->flags_.should_try_send_immediately = true;
+  // Release excess memory from buffers that grew during initial sync
+  this->deferred_batch_.release_buffer();
+  this->helper_->release_buffers();
 }
 
 void APIConnection::process_iterator_batch_(ComponentIterator &iterator) {
@@ -2184,6 +2192,13 @@ void APIConnection::process_batch_multi_(APIBuffer &shared_buf, size_t num_items
     if (footer_size > 0) {
       shared_buf.resize(shared_buf.size() + footer_size);
     }
+
+    // Ensure TCP_NODELAY is on before writing batch data.
+    // Log messages enable Nagle (NODELAY off) to coalesce small packets.
+    // Without this, batch data written to the socket sits in LWIP's Nagle
+    // buffer — the remote won't ACK until it sends its own data (e.g. a
+    // ping), which can take 20+ seconds.
+    this->helper_->set_nodelay_for_message(false);
 
     // Send all collected messages
     APIError err = this->helper_->write_protobuf_messages(ProtoWriteBuffer{&shared_buf},

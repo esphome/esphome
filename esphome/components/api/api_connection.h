@@ -661,6 +661,7 @@ class APIConnection final : public APIServerConnectionBase {
   // Helper methods for iterator lifecycle management
   void destroy_active_iterator_();
   void begin_iterator_(ActiveIterator type);
+  void finalize_iterator_sync_();
 #ifdef USE_CAMERA
   std::unique_ptr<camera::CameraImageReader> image_reader_;
 #endif
