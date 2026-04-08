@@ -2190,8 +2190,9 @@ json::SerializationBuffer<> WebServer::radio_frequency_json_(radio_frequency::Ra
 
   root[ESPHOME_F("supports_transmitter")] = bool(caps & radio_frequency::CAPABILITY_TRANSMITTER);
   root[ESPHOME_F("supports_receiver")] = bool(caps & radio_frequency::CAPABILITY_RECEIVER);
-  if (traits.get_frequency_hz() != 0) {
-    root[ESPHOME_F("frequency")] = traits.get_frequency_hz();
+  if (traits.get_frequency_min_hz() != 0) {
+    root[ESPHOME_F("frequency_min")] = traits.get_frequency_min_hz();
+    root[ESPHOME_F("frequency_max")] = traits.get_frequency_max_hz();
   }
 
   if (start_config == DETAIL_ALL) {
