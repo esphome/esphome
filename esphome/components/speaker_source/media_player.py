@@ -1,6 +1,12 @@
 from esphome import automation
 import esphome.codegen as cg
 from esphome.components import audio, media_player, media_source, speaker
+from esphome.components.const import (
+    CONF_VOLUME_INCREMENT,
+    CONF_VOLUME_INITIAL,
+    CONF_VOLUME_MAX,
+    CONF_VOLUME_MIN,
+)
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_DELAY,
@@ -27,10 +33,6 @@ CONF_PIPELINE = "pipeline"
 CONF_ON_UNMUTE = "on_unmute"
 CONF_ON_VOLUME = "on_volume"
 CONF_SOURCES = "sources"
-CONF_VOLUME_INCREMENT = "volume_increment"
-CONF_VOLUME_INITIAL = "volume_initial"
-CONF_VOLUME_MAX = "volume_max"
-CONF_VOLUME_MIN = "volume_min"
 
 speaker_source_ns = cg.esphome_ns.namespace("speaker_source")
 
@@ -310,7 +312,8 @@ async def set_playlist_delay_action_to_code(
     parent = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, parent)
 
-    cg.add(var.set_pipeline(config[CONF_PIPELINE]))
+    template_ = await cg.templatable(config[CONF_PIPELINE], args, cg.uint8)
+    cg.add(var.set_pipeline(template_))
 
     template_ = await cg.templatable(config[CONF_DELAY], args, cg.uint32)
     cg.add(var.set_delay(template_))

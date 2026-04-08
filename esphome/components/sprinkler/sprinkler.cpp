@@ -335,8 +335,8 @@ Sprinkler::Sprinkler(const char *name) : name_(name) {
   // The `name` is stored for dump_config logging
   this->timer_.init(2);
   // Timer names only need to be unique within this component instance
-  this->timer_.push_back({"sm", false, 0, 0, std::bind(&Sprinkler::sm_timer_callback_, this)});
-  this->timer_.push_back({"vs", false, 0, 0, std::bind(&Sprinkler::valve_selection_callback_, this)});
+  this->timer_.push_back({"sm", false, 0, 0, [this]() { this->sm_timer_callback_(); }});
+  this->timer_.push_back({"vs", false, 0, 0, [this]() { this->valve_selection_callback_(); }});
 }
 
 void Sprinkler::setup() {

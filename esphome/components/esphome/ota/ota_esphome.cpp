@@ -262,7 +262,7 @@ void ESPHomeOTAComponent::handle_data_() {
   ///   BSD sockets (ESP32):     setblocking(true) makes read/write block
   ///   lwip sockets (LT):      setblocking(true) makes read/write block
   ///   Raw TCP (8266, RP2040):  setblocking is no-op; SO_RCVTIMEO uses
-  ///                            socket_delay()/socket_wake() in read();
+  ///                            wakeable_delay() in read();
   ///                            write() always returns immediately
   ota::OTAResponseTypes error_code = ota::OTA_RESPONSE_ERROR_UNKNOWN;
   bool update_started = false;
@@ -332,12 +332,13 @@ void ESPHomeOTAComponent::handle_data_() {
     size_t requested = remaining < OTA_BUFFER_SIZE ? remaining : OTA_BUFFER_SIZE;
     ssize_t read = this->client_->read(buf, requested);
     if (read == -1) {
-      if (this->would_block_(errno)) {
+      const int err = errno;
+      if (this->would_block_(err)) {
         // read() already waited up to SO_RCVTIMEO for data, just feed WDT
         App.feed_wdt();
         continue;
       }
-      ESP_LOGW(TAG, "Read err %d", errno);
+      ESP_LOGW(TAG, "Read err %d", err);
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     } else if (read == 0) {
       ESP_LOGW(TAG, "Remote closed");
@@ -426,8 +427,9 @@ bool ESPHomeOTAComponent::readall_(uint8_t *buf, size_t len) {
 
     ssize_t read = this->client_->read(buf + at, len - at);
     if (read == -1) {
-      if (!this->would_block_(errno)) {
-        ESP_LOGW(TAG, "Read err %zu bytes, errno %d", len, errno);
+      const int err = errno;
+      if (!this->would_block_(err)) {
+        ESP_LOGW(TAG, "Read err %zu bytes, errno %d", len, err);
         return false;
       }
     } else if (read == 0) {
@@ -455,8 +457,9 @@ bool ESPHomeOTAComponent::writeall_(const uint8_t *buf, size_t len) {
 
     ssize_t written = this->client_->write(buf + at, len - at);
     if (written == -1) {
-      if (!this->would_block_(errno)) {
-        ESP_LOGW(TAG, "Write err %zu bytes, errno %d", len, errno);
+      const int err = errno;
+      if (!this->would_block_(err)) {
+        ESP_LOGW(TAG, "Write err %zu bytes, errno %d", len, err);
         return false;
       }
       // EWOULDBLOCK: on raw TCP writes never block, delay(1) prevents spinning

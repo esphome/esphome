@@ -34,12 +34,26 @@ void PCA9554Component::setup() {
   this->read_inputs_();
   ESP_LOGD(TAG, "Initialization complete. Warning: %d, Error: %d", this->status_has_warning(),
            this->status_has_error());
-}
 
+  if (this->interrupt_pin_ != nullptr) {
+    this->interrupt_pin_->setup();
+    this->interrupt_pin_->attach_interrupt(&PCA9554Component::gpio_intr, this, gpio::INTERRUPT_FALLING_EDGE);
+    // Don't invalidate cache on read — only invalidate when interrupt fires
+    this->set_invalidate_on_read_(false);
+  }
+  // Disable loop until an input pin is configured via pin_mode()
+  // For interrupt-driven mode, loop is re-enabled by the ISR
+  // For polling mode, loop is re-enabled when pin_mode() registers an input pin
+  this->disable_loop();
+}
+void IRAM_ATTR PCA9554Component::gpio_intr(PCA9554Component *arg) { arg->enable_loop_soon_any_context(); }
 void PCA9554Component::loop() {
-  // Invalidate the cache at the start of each loop.
-  // The actual read will happen on demand when digital_read() is called
+  // Invalidate the cache so the next digital_read() triggers a fresh I2C read
   this->reset_pin_cache_();
+  if (this->interrupt_pin_ != nullptr) {
+    // Interrupt-driven: disable loop until next interrupt fires
+    this->disable_loop();
+  }
 }
 
 void PCA9554Component::dump_config() {
@@ -47,6 +61,7 @@ void PCA9554Component::dump_config() {
                 "PCA9554:\n"
                 "  I/O Pins: %d",
                 this->pin_count_);
+  LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
   LOG_I2C_DEVICE(this)
   if (this->is_failed()) {
     ESP_LOGE(TAG, ESP_LOG_MSG_COMM_FAIL);
@@ -76,6 +91,11 @@ void PCA9554Component::pin_mode(uint8_t pin, gpio::Flags flags) {
   if (flags == gpio::FLAG_INPUT) {
     // Clear mode mask bit
     this->config_mask_ &= ~(1 << pin);
+    // Enable polling loop for input pins (not needed for interrupt-driven mode
+    // where the ISR handles re-enabling loop)
+    if (this->interrupt_pin_ == nullptr) {
+      this->enable_loop();
+    }
   } else if (flags == gpio::FLAG_OUTPUT) {
     // Set mode mask bit
     this->config_mask_ |= 1 << pin;
@@ -121,11 +141,6 @@ bool PCA9554Component::write_register_(uint8_t reg, uint16_t value) {
 }
 
 float PCA9554Component::get_setup_priority() const { return setup_priority::IO; }
-
-#ifdef USE_LOOP_PRIORITY
-// Run our loop() method early to invalidate cache before any other components access the pins
-float PCA9554Component::get_loop_priority() const { return 9.0f; }  // Just after WIFI
-#endif
 
 void PCA9554GPIOPin::setup() { pin_mode(flags_); }
 void PCA9554GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }

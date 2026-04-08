@@ -279,10 +279,14 @@ async def select_operation_to_code(config, action_id, template_arg, args):
         op_ = await cg.templatable(operation, args, SelectOperation)
         cg.add(var.set_operation(op_))
         if (cycle := config.get(CONF_CYCLE)) is not None:
-            template_ = await cg.templatable(cycle, args, bool)
+            template_ = await cg.templatable(cycle, args, cg.bool_)
             cg.add(var.set_cycle(template_))
     if (mode := config.get(CONF_MODE)) is not None:
-        cg.add(var.set_operation(SELECT_OPERATION_OPTIONS[mode]))
+        template_ = await cg.templatable(
+            SELECT_OPERATION_OPTIONS[mode], args, SelectOperation
+        )
+        cg.add(var.set_operation(template_))
         if (cycle := config.get(CONF_CYCLE)) is not None:
-            cg.add(var.set_cycle(cycle))
+            template_ = await cg.templatable(cycle, args, cg.bool_)
+            cg.add(var.set_cycle(template_))
     return var

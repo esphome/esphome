@@ -189,13 +189,13 @@ async def set_control_parameters(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
-    kp_template_ = await cg.templatable(config[CONF_KP], args, float)
+    kp_template_ = await cg.templatable(config[CONF_KP], args, cg.float_)
     cg.add(var.set_kp(kp_template_))
 
-    ki_template_ = await cg.templatable(config[CONF_KI], args, float)
+    ki_template_ = await cg.templatable(config[CONF_KI], args, cg.float_)
     cg.add(var.set_ki(ki_template_))
 
-    kd_template_ = await cg.templatable(config[CONF_KD], args, float)
+    kd_template_ = await cg.templatable(config[CONF_KD], args, cg.float_)
     cg.add(var.set_kd(kd_template_))
 
     return var

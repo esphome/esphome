@@ -22,7 +22,6 @@ from esphome.const import (
     CONF_SUPPORTED_SWING_MODES,
     CONF_TARGET_TEMPERATURE,
     CONF_TEMPERATURE_STEP,
-    CONF_TRIGGER_ID,
     CONF_VISUAL,
     CONF_WIFI,
 )
@@ -122,21 +121,6 @@ SUPPORTED_HON_CONTROL_METHODS = {
     "SET_SINGLE_PARAMETER": HonControlMethod.SET_SINGLE_PARAMETER,
 }
 
-HaierAlarmStartTrigger = haier_ns.class_(
-    "HaierAlarmStartTrigger",
-    automation.Trigger.template(cg.uint8, cg.const_char_ptr),
-)
-
-HaierAlarmEndTrigger = haier_ns.class_(
-    "HaierAlarmEndTrigger",
-    automation.Trigger.template(cg.uint8, cg.const_char_ptr),
-)
-
-StatusMessageTrigger = haier_ns.class_(
-    "StatusMessageTrigger",
-    automation.Trigger.template(cg.const_char_ptr, cg.size_t),
-)
-
 
 def validate_visual(config):
     if CONF_VISUAL in config:
@@ -203,13 +187,7 @@ def _base_config_schema(class_: MockObjClass) -> cv.Schema:
                 cv.Optional(
                     CONF_ANSWER_TIMEOUT,
                 ): cv.positive_time_period_milliseconds,
-                cv.Optional(CONF_ON_STATUS_MESSAGE): automation.validate_automation(
-                    {
-                        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                            StatusMessageTrigger
-                        ),
-                    }
-                ),
+                cv.Optional(CONF_ON_STATUS_MESSAGE): automation.validate_automation({}),
             }
         )
         .extend(uart.UART_DEVICE_SCHEMA)
@@ -237,9 +215,7 @@ CONFIG_SCHEMA = cv.All(
                 {
                     cv.Optional(
                         CONF_CONTROL_METHOD, default="SET_GROUP_PARAMETERS"
-                    ): cv.ensure_list(
-                        cv.enum(SUPPORTED_HON_CONTROL_METHODS, upper=True)
-                    ),
+                    ): cv.enum(SUPPORTED_HON_CONTROL_METHODS, upper=True),
                     cv.Optional(CONF_BEEPER): cv.invalid(
                         f"The {CONF_BEEPER} option is deprecated, use beeper_on/beeper_off actions or beeper switch for a haier platform instead"
                     ),
@@ -264,19 +240,9 @@ CONFIG_SCHEMA = cv.All(
                         f"The {CONF_OUTDOOR_TEMPERATURE} option is deprecated, use a sensor for a haier platform instead"
                     ),
                     cv.Optional(CONF_ON_ALARM_START): automation.validate_automation(
-                        {
-                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                                HaierAlarmStartTrigger
-                            ),
-                        }
+                        {}
                     ),
-                    cv.Optional(CONF_ON_ALARM_END): automation.validate_automation(
-                        {
-                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                                HaierAlarmEndTrigger
-                            ),
-                        }
-                    ),
+                    cv.Optional(CONF_ON_ALARM_END): automation.validate_automation({}),
                 }
             ),
         },
@@ -488,6 +454,25 @@ def _final_validate(config):
 FINAL_VALIDATE_SCHEMA = _final_validate
 
 
+_CALLBACK_AUTOMATIONS = (
+    automation.CallbackAutomation(
+        CONF_ON_ALARM_START,
+        "add_alarm_start_callback",
+        [(cg.uint8, "code"), (cg.const_char_ptr, "message")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_ALARM_END,
+        "add_alarm_end_callback",
+        [(cg.uint8, "code"), (cg.const_char_ptr, "message")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_STATUS_MESSAGE,
+        "add_status_message_callback",
+        [(cg.const_char_ptr, "data"), (cg.size_t, "data_size")],
+    ),
+)
+
+
 async def to_code(config):
     cg.add(haier_ns.init_haier_protocol_logging())
     var = await climate.new_climate(config)
@@ -529,20 +514,6 @@ async def to_code(config):
         cg.add(
             var.set_status_message_header_size(config[CONF_STATUS_MESSAGE_HEADER_SIZE])
         )
-    for conf in config.get(CONF_ON_ALARM_START, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(cg.uint8, "code"), (cg.const_char_ptr, "message")], conf
-        )
-    for conf in config.get(CONF_ON_ALARM_END, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(cg.uint8, "code"), (cg.const_char_ptr, "message")], conf
-        )
-    for conf in config.get(CONF_ON_STATUS_MESSAGE, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(
-            trigger, [(cg.const_char_ptr, "data"), (cg.size_t, "data_size")], conf
-        )
+    await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)
     # https://github.com/paveldn/HaierProtocol
     cg.add_library("pavlodn/HaierProtocol", "0.9.31")

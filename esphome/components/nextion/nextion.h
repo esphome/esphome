@@ -1,16 +1,21 @@
 #pragma once
 
-#include <deque>
+#include <list>
 #include <vector>
 
-#include "esphome/core/defines.h"
-#include "esphome/core/time.h"
-
-#include "esphome/components/uart/uart.h"
-#include "nextion_base.h"
-#include "nextion_component.h"
 #include "esphome/components/display/display.h"
 #include "esphome/components/display/display_color_utils.h"
+#include "esphome/components/uart/uart.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/string_ref.h"
+#include "esphome/core/time.h"
+
+#ifdef USE_NEXTION_WAVEFORM
+#include "esphome/core/helpers.h"
+#endif  // USE_NEXTION_WAVEFORM
+
+#include "nextion_base.h"
+#include "nextion_component.h"
 
 #ifdef USE_NEXTION_TFT_UPLOAD
 #ifdef USE_ESP32
@@ -21,15 +26,12 @@
 #endif  // USE_ESP32 vs USE_ESP8266
 #endif  // USE_NEXTION_TFT_UPLOAD
 
-namespace esphome {
-namespace nextion {
+namespace esphome::nextion {
 
 class Nextion;
 class NextionComponentBase;
 
 using nextion_writer_t = display::DisplayWriter<Nextion>;
-
-static const std::string COMMAND_DELIMITER{static_cast<char>(255), static_cast<char>(255), static_cast<char>(255)};
 
 #ifdef USE_NEXTION_COMMAND_SPACING
 class NextionCommandPacer {
@@ -605,6 +607,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    */
   void disable_component_touch(const char *component);
 
+#ifdef USE_NEXTION_WAVEFORM
   /**
    * Add waveform data to a waveform component
    * @param component_id The integer component id.
@@ -614,6 +617,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void add_waveform_data(uint8_t component_id, uint8_t channel_number, uint8_t value);
 
   void open_waveform_channel(uint8_t component_id, uint8_t channel_number, uint8_t value);
+#endif  // USE_NEXTION_WAVEFORM
 
   /**
    * Display a picture at coordinates.
@@ -1138,37 +1142,100 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    *
    * @param callback The void() callback.
    */
-  void add_sleep_state_callback(std::function<void()> &&callback);
+  template<typename F> void add_sleep_state_callback(F &&callback) {
+    this->sleep_callback_.add(std::forward<F>(callback));
+  }
 
   /** Add a callback to be notified of wake state changes.
    *
    * @param callback The void() callback.
    */
-  void add_wake_state_callback(std::function<void()> &&callback);
+  template<typename F> void add_wake_state_callback(F &&callback) {
+    this->wake_callback_.add(std::forward<F>(callback));
+  }
 
   /** Add a callback to be notified when the nextion completes its initialize setup.
    *
    * @param callback The void() callback.
    */
-  void add_setup_state_callback(std::function<void()> &&callback);
+  template<typename F> void add_setup_state_callback(F &&callback) {
+    this->setup_callback_.add(std::forward<F>(callback));
+  }
 
   /** Add a callback to be notified when the nextion changes pages.
    *
-   * @param callback The void(std::string) callback.
+   * @param callback The void(uint8_t) callback.
    */
-  void add_new_page_callback(std::function<void(uint8_t)> &&callback);
+  template<typename F> void add_new_page_callback(F &&callback) { this->page_callback_.add(std::forward<F>(callback)); }
 
   /** Add a callback to be notified when Nextion has a touch event.
    *
-   * @param callback The void() callback.
+   * @param callback The void(uint8_t, uint8_t, bool) callback.
    */
-  void add_touch_event_callback(std::function<void(uint8_t, uint8_t, bool)> &&callback);
+  template<typename F> void add_touch_event_callback(F &&callback) {
+    this->touch_callback_.add(std::forward<F>(callback));
+  }
 
   /** Add a callback to be notified when the nextion reports a buffer overflow.
    *
    * @param callback The void() callback.
    */
-  void add_buffer_overflow_event_callback(std::function<void()> &&callback);
+  template<typename F> void add_buffer_overflow_event_callback(F &&callback) {
+    this->buffer_overflow_callback_.add(std::forward<F>(callback));
+  }
+
+  // Callbacks for Nextion "custom protocol" frames (0x90..0x93)
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
+  /** Add a callback to be notified when Nextion sends a custom binary sensor protocol frame (0x93).
+   *
+   * This callback is invoked when a Nextion custom binary sensor frame is received,
+   * providing the component name as the key and the decoded boolean value.
+   *
+   * @param callback The void(const StringRef &key, bool value) callback.
+   */
+  template<typename F> void add_custom_binary_sensor_callback(F &&callback) {
+    this->custom_binary_sensor_callback_.add(std::forward<F>(callback));
+  }
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
+
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_SENSOR
+  /** Add a callback to be notified when Nextion sends a custom sensor protocol frame (0x91).
+   *
+   * This callback is invoked when a Nextion custom sensor frame is received,
+   * providing the component name as the key and the decoded integer value.
+   *
+   * @param callback The void(StringRef key, int32_t value) callback.
+   */
+  template<typename F> void add_custom_sensor_callback(F &&callback) {
+    this->custom_sensor_callback_.add(std::forward<F>(callback));
+  }
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_SENSOR
+
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_SWITCH
+  /** Add a callback to be notified when Nextion sends a custom switch protocol frame (0x90).
+   *
+   * This callback is invoked when a Nextion custom switch frame is received,
+   * providing the component name as the key and the decoded boolean value.
+   *
+   * @param callback The void(const StringRef &key, bool value) callback.
+   */
+  template<typename F> void add_custom_switch_callback(F &&callback) {
+    this->custom_switch_callback_.add(std::forward<F>(callback));
+  }
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_SWITCH
+
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
+  /** Add a callback to be notified when Nextion sends a custom text sensor protocol frame (0x92).
+   *
+   * This callback is invoked when a Nextion custom text sensor frame is received,
+   * providing the component name as the key and the decoded text value.
+   *
+   * @param callback The void(const StringRef &key, const StringRef &value) callback.
+   */
+  template<typename F> void add_custom_text_sensor_callback(F &&callback) {
+    this->custom_text_sensor_callback_.add(std::forward<F>(callback));
+  }
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
 
   void update_all_components();
 
@@ -1198,7 +1265,9 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
 
   void add_to_get_queue(NextionComponentBase *component) override;
 
+#ifdef USE_NEXTION_WAVEFORM
   void add_addt_command_to_queue(NextionComponentBase *component) override;
+#endif  // USE_NEXTION_WAVEFORM
 
   void update_components_by_prefix(const std::string &prefix);
 
@@ -1383,8 +1452,12 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void process_pending_in_queue_();
 #endif  // USE_NEXTION_COMMAND_SPACING
 
-  std::deque<NextionQueue *> nextion_queue_;
-  std::deque<NextionQueue *> waveform_queue_;
+  std::list<NextionQueue *> nextion_queue_;
+#ifdef USE_NEXTION_WAVEFORM
+  /// Fixed-size ring buffer for waveform queue. Nextion supports at most 4 waveform
+  /// channels (IDs 0-3), so 4 entries is both the correct maximum and a safe default.
+  StaticRingBuffer<NextionQueue *, 4> waveform_queue_;
+#endif  // USE_NEXTION_WAVEFORM
   uint16_t recv_ret_string_(std::string &response, uint32_t timeout, bool recv_flag);
   void all_components_send_state_(bool force_update = false);
   uint32_t comok_sent_ = 0;
@@ -1453,7 +1526,9 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
                                                  const std::string &variable_name_to_send,
                                                  const std::string &state_value, bool is_sleep_safe = false);
 
+#ifdef USE_NEXTION_WAVEFORM
   void check_pending_waveform_();
+#endif  // USE_NEXTION_WAVEFORM
 
 #ifdef USE_NEXTION_TFT_UPLOAD
 #ifdef USE_ESP8266
@@ -1514,6 +1589,18 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   CallbackManager<void(uint8_t)> page_callback_{};
   CallbackManager<void(uint8_t, uint8_t, bool)> touch_callback_{};
   CallbackManager<void()> buffer_overflow_callback_{};
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
+  CallbackManager<void(StringRef, bool)> custom_binary_sensor_callback_{};
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_SENSOR
+  CallbackManager<void(StringRef, int32_t)> custom_sensor_callback_{};
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_SENSOR
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_SWITCH
+  CallbackManager<void(StringRef, bool)> custom_switch_callback_{};
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_SWITCH
+#ifdef USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
+  CallbackManager<void(StringRef, StringRef)> custom_text_sensor_callback_{};
+#endif  // USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR
 
   nextion_writer_t writer_;
   optional<float> brightness_;
@@ -1539,5 +1626,4 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   uint16_t max_q_age_ms_ = 8000;         ///< Maximum age for queue items in ms
 };
 
-}  // namespace nextion
-}  // namespace esphome
+}  // namespace esphome::nextion

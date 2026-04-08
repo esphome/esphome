@@ -13,7 +13,8 @@ def test_text_is_setup(generate_main):
     main_cpp = generate_main("tests/component_tests/text/test_text.yaml")
 
     # Then
-    assert "new template_::TemplateText();" in main_cpp
+    assert "static template_::TemplateText *const" in main_cpp
+    assert ") template_::TemplateText();" in main_cpp
     assert "App.register_text" in main_cpp
 
 

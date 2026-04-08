@@ -108,7 +108,6 @@ async def to_code(config):
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
     cg.add(var.set_assumed_state(config[CONF_ASSUMED_STATE]))
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
-    cg.add(var.set_has_position(config[CONF_HAS_POSITION]))
 
 
 @automation.register_action(
@@ -131,13 +130,13 @@ async def cover_template_publish_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     if CONF_STATE in config:
-        template_ = await cg.templatable(config[CONF_STATE], args, float)
+        template_ = await cg.templatable(config[CONF_STATE], args, cg.float_)
         cg.add(var.set_position(template_))
     if CONF_POSITION in config:
-        template_ = await cg.templatable(config[CONF_POSITION], args, float)
+        template_ = await cg.templatable(config[CONF_POSITION], args, cg.float_)
         cg.add(var.set_position(template_))
     if CONF_TILT in config:
-        template_ = await cg.templatable(config[CONF_TILT], args, float)
+        template_ = await cg.templatable(config[CONF_TILT], args, cg.float_)
         cg.add(var.set_tilt(template_))
     if CONF_CURRENT_OPERATION in config:
         template_ = await cg.templatable(

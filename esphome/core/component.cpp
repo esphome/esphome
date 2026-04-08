@@ -9,9 +9,6 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#ifdef USE_RUNTIME_STATS
-#include "esphome/components/runtime_stats/runtime_stats.h"
-#endif
 
 namespace esphome {
 
@@ -84,10 +81,8 @@ void store_component_error_message(const Component *component, const char *messa
 
 static constexpr uint16_t WARN_IF_BLOCKING_INCREMENT_MS =
     10U;  ///< How long the blocking time must be larger to warn again
-
-#ifdef USE_LOOP_PRIORITY
-float Component::get_loop_priority() const { return 0.0f; }
-#endif
+// Threshold in ms (computed from centiseconds constant in component.h)
+static constexpr uint32_t WARN_IF_BLOCKING_OVER_MS = static_cast<uint32_t>(WARN_IF_BLOCKING_OVER_CS) * 10U;
 
 float Component::get_setup_priority() const { return setup_priority::DATA; }
 
@@ -209,7 +204,6 @@ bool Component::cancel_retry(uint32_t id) {
 #pragma GCC diagnostic pop
 }
 
-void Component::call_loop_() { this->loop(); }
 void Component::call_setup() { this->setup(); }
 void Component::call_dump_config_() {
   this->dump_config();
@@ -259,11 +253,11 @@ void Component::call() {
     case COMPONENT_STATE_SETUP:
       // State setup: Call first loop and set state to loop
       this->set_component_state_(COMPONENT_STATE_LOOP);
-      this->call_loop_();
+      this->loop();
       break;
     case COMPONENT_STATE_LOOP:
       // State loop: Call loop
-      this->call_loop_();
+      this->loop();
       break;
     case COMPONENT_STATE_FAILED:
       // State failed: Do nothing
@@ -273,18 +267,15 @@ void Component::call() {
       break;
   }
 }
-const LogString *Component::get_component_log_str() const {
-  return this->component_source_ == nullptr ? LOG_STR("<unknown>") : this->component_source_;
-}
 bool Component::should_warn_of_blocking(uint32_t blocking_time) {
-  if (blocking_time > this->warn_if_blocking_over_) {
-    // Prevent overflow when adding increment - if we're about to overflow, just max out
-    if (blocking_time + WARN_IF_BLOCKING_INCREMENT_MS < blocking_time ||
-        blocking_time + WARN_IF_BLOCKING_INCREMENT_MS > std::numeric_limits<uint16_t>::max()) {
-      this->warn_if_blocking_over_ = std::numeric_limits<uint16_t>::max();
-    } else {
-      this->warn_if_blocking_over_ = static_cast<uint16_t>(blocking_time + WARN_IF_BLOCKING_INCREMENT_MS);
-    }
+  // Convert centisecond threshold to milliseconds for comparison
+  uint32_t threshold_ms = static_cast<uint32_t>(this->warn_if_blocking_over_) * 10U;
+  if (blocking_time > threshold_ms) {
+    // Set new threshold: blocking_time + increment, converted back to centiseconds
+    uint32_t new_threshold_ms = blocking_time + WARN_IF_BLOCKING_INCREMENT_MS;
+    uint32_t new_cs = new_threshold_ms / 10U;
+    // Saturate at uint8_t max (255 = 2550ms)
+    this->warn_if_blocking_over_ = static_cast<uint8_t>(new_cs > 255U ? 255U : new_cs);
     return true;
   }
   return false;
@@ -303,14 +294,12 @@ void Component::disable_loop() {
     App.disable_component_loop_(this);
   }
 }
-void Component::enable_loop() {
-  if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE) {
-    ESP_LOGVV(TAG, "%s loop enabled", LOG_STR_ARG(this->get_component_log_str()));
-    this->set_component_state_(COMPONENT_STATE_LOOP);
-    App.enable_component_loop_(this);
-  }
+void Component::enable_loop_slow_path_() {
+  ESP_LOGVV(TAG, "%s loop enabled", LOG_STR_ARG(this->get_component_log_str()));
+  this->set_component_state_(COMPONENT_STATE_LOOP);
+  App.enable_component_loop_(this);
 }
-void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
+void IRAM_ATTR Component::enable_loop_soon_any_context() {
   // This method is thread and ISR-safe because:
   // 1. Only performs simple assignments to volatile variables (atomic on all platforms)
   // 2. No read-modify-write operations that could be interrupted
@@ -322,15 +311,9 @@ void IRAM_ATTR HOT Component::enable_loop_soon_any_context() {
   // 8. Race condition with main loop is handled by clearing flag before processing
   this->pending_enable_loop_ = true;
   App.has_pending_enable_loop_requests_ = true;
-#if (defined(USE_LWIP_FAST_SELECT) && defined(USE_ESP32)) || \
-    ((defined(USE_ESP8266) || defined(USE_RP2040)) && defined(USE_SOCKET_IMPL_LWIP_TCP))
   // Wake the main loop from sleep. Without this, the main loop would not
   // wake until the select/delay timeout expires (~16ms).
-  // ESP32: uses xPortInIsrContext() to choose the correct FreeRTOS notify API.
-  // ESP8266: sets socket wake flag and calls esp_schedule() to exit esp_delay() early.
-  // RP2040: sets socket wake flag and calls __sev() to exit __wfe() early.
-  Application::wake_loop_any_context();
-#endif
+  wake_loop_any_context();
 }
 void Component::reset_to_construction_state() {
   if ((this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED) {
@@ -379,9 +362,10 @@ void Component::set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std:
 #pragma GCC diagnostic pop
 }
 bool Component::is_ready() const {
-  return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP ||
-         (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP_DONE ||
-         (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_SETUP;
+  // Bitmask check: valid states are SETUP(1), LOOP(2), LOOP_DONE(4)
+  // (1 << state) & 0b10110 checks membership in one instruction
+  return ((1u << (this->component_state_ & COMPONENT_STATE_MASK)) &
+          ((1u << COMPONENT_STATE_SETUP) | (1u << COMPONENT_STATE_LOOP) | (1u << COMPONENT_STATE_LOOP_DONE))) != 0;
 }
 bool Component::can_proceed() { return true; }
 bool Component::set_status_flag_(uint8_t flag) {
@@ -392,6 +376,7 @@ bool Component::set_status_flag_(uint8_t flag) {
   return true;
 }
 
+void Component::status_set_warning() { this->status_set_warning((const LogString *) nullptr); }
 void Component::status_set_warning(const char *message) {
   if (!this->set_status_flag_(STATUS_LED_WARNING))
     return;
@@ -507,9 +492,9 @@ void PollingComponent::stop_poller() {
 }
 
 uint32_t PollingComponent::get_update_interval() const { return this->update_interval_; }
-void PollingComponent::set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
 
-static void __attribute__((noinline, cold)) warn_blocking(Component *component, uint32_t blocking_time) {
+void __attribute__((noinline, cold))
+WarnIfComponentBlockingGuard::warn_blocking(Component *component, uint32_t blocking_time) {
   bool should_warn;
   if (component != nullptr) {
     should_warn = component->should_warn_of_blocking(blocking_time);
@@ -523,24 +508,6 @@ static void __attribute__((noinline, cold)) warn_blocking(Component *component, 
   }
 }
 
-uint32_t WarnIfComponentBlockingGuard::finish() {
-  uint32_t curr_time = millis();
-  uint32_t blocking_time = curr_time - this->started_;
-#ifdef USE_RUNTIME_STATS
-  // Use micros() for accurate sub-millisecond timing. millis() has insufficient
-  // resolution — most components complete in microseconds but millis() only has
-  // 1ms granularity, so results were essentially random noise.
-  if (global_runtime_stats != nullptr) {
-    uint32_t duration_us = micros() - this->started_us_;
-    global_runtime_stats->record_component_time(this->component_, duration_us);
-  }
-#endif
-  if (blocking_time > WARN_IF_BLOCKING_OVER_MS) {
-    warn_blocking(this->component_, blocking_time);
-  }
-  return curr_time;
-}
-
 #ifdef USE_SETUP_PRIORITY_OVERRIDE
 void clear_setup_priority_overrides() {
   // Free the setup priority map completely
@@ -548,5 +515,8 @@ void clear_setup_priority_overrides() {
   setup_priority_overrides = nullptr;
 }
 #endif
+
+// Weak default for component_source_lookup - overridden by generated code
+__attribute__((weak)) const LogString *component_source_lookup(uint8_t) { return LOG_STR("<unknown>"); }
 
 }  // namespace esphome

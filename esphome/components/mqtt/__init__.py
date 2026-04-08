@@ -3,7 +3,9 @@ from esphome.automation import Condition
 import esphome.codegen as cg
 from esphome.components import logger, socket
 from esphome.components.esp32 import (
+    add_idf_component,
     add_idf_sdkconfig_option,
+    idf_version,
     include_builtin_idf_component,
 )
 from esphome.config_helpers import filter_source_files_from_platform
@@ -67,9 +69,6 @@ DEPENDENCIES = ["network"]
 def AUTO_LOAD():
     if CORE.is_esp8266 or CORE.is_libretiny:
         return ["async_tcp", "json"]
-    # ESP32 needs socket for wake_loop_threadsafe()
-    if CORE.is_esp32:
-        return ["json", "socket"]
     return ["json"]
 
 
@@ -346,12 +345,13 @@ async def to_code(config):
         # https://github.com/heman/async-mqtt-client/blob/master/library.json
         cg.add_library("heman/AsyncMqttClient-esphome", "2.0.0")
 
-    # MQTT on ESP32 uses wake_loop_threadsafe() to wake the main loop from the MQTT event handler
-    # This enables low-latency MQTT event processing instead of waiting for select() timeout
     if CORE.is_esp32:
-        socket.require_wake_loop_threadsafe()
         # Re-enable ESP-IDF's mqtt component (excluded by default to save compile time)
-        include_builtin_idf_component("mqtt")
+        # IDF 6.0 moved esp-mqtt to an external component
+        if idf_version() >= cv.Version(6, 0, 0):
+            add_idf_component(name="espressif/mqtt", ref="1.0.0")
+        else:
+            include_builtin_idf_component("mqtt")
 
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
@@ -504,7 +504,7 @@ async def mqtt_publish_action_to_code(config, action_id, template_arg, args):
     cg.add(var.set_payload(template_))
     template_ = await cg.templatable(config[CONF_QOS], args, cg.uint8)
     cg.add(var.set_qos(template_))
-    template_ = await cg.templatable(config[CONF_RETAIN], args, bool)
+    template_ = await cg.templatable(config[CONF_RETAIN], args, cg.bool_)
     cg.add(var.set_retain(template_))
     return var
 
@@ -537,7 +537,7 @@ async def mqtt_publish_json_action_to_code(config, action_id, template_arg, args
     cg.add(var.set_payload(lambda_))
     template_ = await cg.templatable(config[CONF_QOS], args, cg.uint8)
     cg.add(var.set_qos(template_))
-    template_ = await cg.templatable(config[CONF_RETAIN], args, bool)
+    template_ = await cg.templatable(config[CONF_RETAIN], args, cg.bool_)
     cg.add(var.set_retain(template_))
     return var
 
