@@ -110,9 +110,21 @@ template<typename T, typename... X> class TemplatableValue {
   // Accept stateless lambdas (convertible to function pointer)
   template<typename F> TemplatableValue(F f) requires std::convertible_to<F, T (*)(X...)> : tag_(FN) { this->f_ = f; }
 
-  // Reject stateful lambdas at compile time
+  // Convertible return type (e.g., int -> uint8_t) — casting trampoline
   template<typename F>
-  TemplatableValue(F) requires std::invocable<F, X...> &&(!std::convertible_to<F, T (*)(X...)>) = delete;
+      [[deprecated("Lambda return type does not match TemplatableValue<T> — use the correct type in "
+                   "codegen")]] TemplatableValue(F) requires(!std::convertible_to<F, T (*)(X...)>) &&
+      std::invocable<F, X...> &&std::convertible_to<std::invoke_result_t<F, X...>, T> &&std::is_empty_v<F>
+          &&std::default_initializable<F> : tag_(FN) {
+    this->f_ = [](X... x) -> T { return static_cast<T>(F{}(x...)); };
+  }
+
+  // Reject any callable that didn't match the above
+  template<typename F>
+  TemplatableValue(F) requires std::invocable<F, X...> &&
+      (!std::convertible_to<F, T (*)(X...)>) &&(!std::is_empty_v<F> ||
+                                                !std::convertible_to<std::invoke_result_t<F, X...>, T> ||
+                                                !std::default_initializable<F>) = delete;
 
   TemplatableValue(const TemplatableValue &other) : tag_(other.tag_) {
     if (this->tag_ == VALUE) {

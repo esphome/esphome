@@ -108,8 +108,7 @@ template<typename... Ts> class StartSingleValveAction : public Action<Ts...> {
  public:
   explicit StartSingleValveAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
 
-  // valve_to_start uses TemplatableValue (not TemplatableFn) because it is set
-  // from both codegen (lambdas) and C++ (raw values in sprinkler.cpp).
+  // TemplatableValue (not TemplatableFn) — also set from C++ with raw values in sprinkler.cpp
   template<typename V> void set_valve_to_start(V valve_to_start) { this->valve_to_start_ = valve_to_start; }
   TEMPLATABLE_VALUE(uint32_t, valve_run_duration)
 
