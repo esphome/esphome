@@ -845,7 +845,7 @@ async def templatable(
         if output_type is std_string:
             return FlashStringLiteral(value)
     # For non-string types, wrap constants in stateless lambdas so that
-    # TemplatableValue stores them as function pointers (4 bytes vs 8).
+    # TemplatableFn (used by TEMPLATABLE_VALUE macro) stores them as function pointers.
     if output_type is not None:
         from esphome.cpp_types import std_string
 

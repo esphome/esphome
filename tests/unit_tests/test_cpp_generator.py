@@ -673,6 +673,7 @@ async def test_templatable__string_with_non_string_output_type() -> None:
     result = await cg.templatable("hello", [], ct.bool_)
 
     assert isinstance(result, cg.LambdaExpression)
+    assert result.capture == ""
 
 
 @pytest.mark.asyncio
