@@ -6,12 +6,8 @@ namespace dc01 {
 
 static const char *const TAG = "dc01";
 
-static const uint8_t DC01_RESPONSE_HEADER = 0xA5;
-static const uint8_t DCO1_RESPONSE_SIZE = 4;
-
-void DC01Component::setup() {
-  // because this implementation is currently rx-only, there is nothing to setup
-}
+static constexpr uint8_t DC01_RESPONSE_HEADER = 0xA5;
+static constexpr uint8_t DCO1_RESPONSE_SIZE = 4;
 
 void DC01Component::dump_config() {
   ESP_LOGCONFIG(TAG, "DC01:");
@@ -38,10 +34,8 @@ void DC01Component::loop() {
   }
 }
 
-float DC01Component::get_setup_priority() const { return setup_priority::DATA; }
-
 // the checksum us the low 7 bits of the sum of the first 3 bytes of the payload
-uint8_t DC01Component::dc01_checksum_(const uint8_t *command_data) const {
+static inline uint8_t ESPHOME_ALWAYS_INLINE dc01_checksum(const uint8_t *command_data) {
   uint8_t sum = 0;
   for (uint8_t i = 0; i < 3; i++) {
     sum += command_data[i];
@@ -66,9 +60,9 @@ optional<bool> DC01Component::check_byte_() const {
 
   // the fourth byte is the checksum
   if (index == 3) {
-    uint8_t checksum = dc01_checksum_(this->data_);
+    uint8_t checksum = dc01_checksum(this->data_);
     if (checksum != byte) {
-      ESP_LOGW(TAG, "DC01 checksum is wrong: %02x, expected %02x", checksum, byte);
+      ESP_LOGW(TAG, "Invalid checksum: %02x, expected %02x", checksum, byte);
       return false;
     }
     return {};

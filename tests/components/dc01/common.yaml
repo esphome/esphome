@@ -1,10 +1,5 @@
-uart:
-  - id: uart_dc01
-    tx_pin: ${tx_pin}
-    rx_pin: ${rx_pin}
-    baud_rate: 9600
-
 sensor:
   - platform: dc01
+    uart_id: uart_bus
     pm_2_5:
       name: Particulate Matter 2.5µm Concentration
