@@ -312,7 +312,8 @@ async def set_playlist_delay_action_to_code(
     parent = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, parent)
 
-    cg.add(var.set_pipeline(config[CONF_PIPELINE]))
+    template_ = await cg.templatable(config[CONF_PIPELINE], args, cg.uint8)
+    cg.add(var.set_pipeline(template_))
 
     template_ = await cg.templatable(config[CONF_DELAY], args, cg.uint32)
     cg.add(var.set_delay(template_))

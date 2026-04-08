@@ -20,6 +20,7 @@ from esphome.const import (
     ThreadModel,
 )
 from esphome.core import CORE, CoroPriority, Lambda, coroutine_with_priority
+from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed
 from esphome.types import ConfigType
 
@@ -203,7 +204,9 @@ BUILD_FLASH_MODES = ["qio", "qout", "dio", "dout"]
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Required(CONF_BOARD): cv.string_strict,
+            cv.Required(CONF_BOARD): cv.All(
+                cv.string_strict, cv.ByteLength(max=BOARD_MAX_LENGTH)
+            ),
             cv.Optional(CONF_FRAMEWORK, default={}): ARDUINO_FRAMEWORK_SCHEMA,
             cv.Optional(CONF_RESTORE_FROM_FLASH, default=False): cv.boolean,
             cv.Optional(CONF_EARLY_PIN_INIT, default=True): cv.boolean,
@@ -233,6 +236,7 @@ async def to_code(config):
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", "ESP8266")
     cg.add_define(ThreadModel.SINGLE)
+    cg.add_define("USE_ESP8266_CRASH_HANDLER")
 
     enable_scanf_float = config.get(CONF_ENABLE_SCANF_FLOAT)
     if enable_scanf_float is None and lambdas_use_scanf_float(CORE.config):

@@ -4,7 +4,7 @@ from esphome.components import uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_RECEIVE_TIMEOUT, CONF_UART_ID
 
-CODEOWNERS = ["@glmnet", "@zuidwijk", "@PolarGoose"]
+CODEOWNERS = ["@glmnet", "@PolarGoose"]
 
 MULTI_CONF = True
 
@@ -16,6 +16,7 @@ CONF_DECRYPTION_KEY = "decryption_key"
 CONF_DSMR_ID = "dsmr_id"
 CONF_GAS_MBUS_ID = "gas_mbus_id"
 CONF_WATER_MBUS_ID = "water_mbus_id"
+CONF_THERMAL_MBUS_ID = "thermal_mbus_id"
 CONF_MAX_TELEGRAM_LENGTH = "max_telegram_length"
 CONF_REQUEST_INTERVAL = "request_interval"
 CONF_REQUEST_PIN = "request_pin"
@@ -35,7 +36,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CRC_CHECK, default=True): cv.boolean,
             cv.Optional(CONF_GAS_MBUS_ID, default=1): cv.int_,
             cv.Optional(CONF_WATER_MBUS_ID, default=2): cv.int_,
-            cv.Optional(CONF_MAX_TELEGRAM_LENGTH, default=1500): cv.int_,
+            cv.Optional(CONF_THERMAL_MBUS_ID, default=3): cv.int_,
+            cv.Optional(CONF_MAX_TELEGRAM_LENGTH, default=1500): cv.int_range(min=1),
             cv.Optional(CONF_REQUEST_PIN): pins.gpio_output_pin_schema,
             cv.Optional(
                 CONF_REQUEST_INTERVAL, default="0ms"
@@ -44,7 +46,9 @@ CONFIG_SCHEMA = cv.All(
                 CONF_RECEIVE_TIMEOUT, default="200ms"
             ): cv.positive_time_period_milliseconds,
         }
-    ).extend(uart.UART_DEVICE_SCHEMA),
+    )
+    .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA),
 )
 
 
@@ -64,6 +68,7 @@ async def to_code(config):
 
     cg.add_build_flag("-DDSMR_GAS_MBUS_ID=" + str(config[CONF_GAS_MBUS_ID]))
     cg.add_build_flag("-DDSMR_WATER_MBUS_ID=" + str(config[CONF_WATER_MBUS_ID]))
+    cg.add_build_flag("-DDSMR_THERMAL_MBUS_ID=" + str(config[CONF_THERMAL_MBUS_ID]))
 
     # DSMR Parser
     cg.add_library("esphome/dsmr_parser", "1.1.0")
