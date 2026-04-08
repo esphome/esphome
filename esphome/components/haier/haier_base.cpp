@@ -197,10 +197,6 @@ void HaierClimateBase::send_custom_command(const haier_protocol::HaierMessage &m
   this->action_request_ = PendingAction({ActionRequest::SEND_CUSTOM_COMMAND, message});
 }
 
-void HaierClimateBase::add_status_message_callback(std::function<void(const char *, size_t)> &&callback) {
-  this->status_message_callback_.add(std::move(callback));
-}
-
 haier_protocol::HandlerError HaierClimateBase::answer_preprocess_(
     haier_protocol::FrameType request_message_type, haier_protocol::FrameType expected_request_message_type,
     haier_protocol::FrameType answer_message_type, haier_protocol::FrameType expected_answer_message_type,
@@ -246,7 +242,7 @@ void HaierClimateBase::setup() {
   this->last_request_timestamp_ = std::chrono::steady_clock::now();
   this->set_phase(ProtocolPhases::SENDING_INIT_1);
   this->haier_protocol_.set_default_timeout_handler(
-      std::bind(&esphome::haier::HaierClimateBase::timeout_default_handler_, this, std::placeholders::_1));
+      [this](haier_protocol::FrameType type) { return this->timeout_default_handler_(type); });
   this->set_handlers();
   this->initialization();
 }
@@ -350,8 +346,7 @@ ClimateTraits HaierClimateBase::traits() { return traits_; }
 
 void HaierClimateBase::initialization() {
   constexpr uint32_t restore_settings_version = 0xA77D21EF;
-  this->base_rtc_ =
-      global_preferences->make_preference<HaierBaseSettings>(this->get_preference_hash() ^ restore_settings_version);
+  this->base_rtc_ = this->make_entity_preference<HaierBaseSettings>(restore_settings_version);
   HaierBaseSettings recovered;
   if (!this->base_rtc_.load(&recovered)) {
     recovered = {false, true};

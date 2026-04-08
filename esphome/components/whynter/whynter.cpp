@@ -69,7 +69,7 @@ void Whynter::transmit_state() {
   }
   mode_before_ = this->mode;
 
-  switch (this->fan_mode.value()) {
+  switch (this->fan_mode.value_or(climate::CLIMATE_FAN_ON)) {
     case climate::CLIMATE_FAN_LOW:
       remote_state |= FAN_LOW;
       break;

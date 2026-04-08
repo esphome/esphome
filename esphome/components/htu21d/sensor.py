@@ -93,6 +93,7 @@ async def to_code(config):
         },
         key=CONF_LEVEL,
     ),
+    synchronous=True,
 )
 async def set_heater_level_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -112,10 +113,11 @@ async def set_heater_level_to_code(config, action_id, template_arg, args):
         },
         key=CONF_STATUS,
     ),
+    synchronous=True,
 )
 async def set_heater_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
-    status_ = await cg.templatable(config[CONF_LEVEL], args, bool)
+    status_ = await cg.templatable(config[CONF_STATUS], args, bool)
     cg.add(var.set_status(status_))
     return var

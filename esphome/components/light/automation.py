@@ -1,5 +1,8 @@
+from typing import Any
+
 from esphome import automation
 import esphome.codegen as cg
+from esphome.config import path_context
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BLUE,
@@ -10,6 +13,7 @@ from esphome.const import (
     CONF_COLOR_MODE,
     CONF_COLOR_TEMPERATURE,
     CONF_EFFECT,
+    CONF_EFFECTS,
     CONF_FLASH_LENGTH,
     CONF_GREEN,
     CONF_ID,
@@ -24,6 +28,9 @@ from esphome.const import (
     CONF_WARM_WHITE,
     CONF_WHITE,
 )
+from esphome.core import CORE, EsphomeError, Lambda
+from esphome.cpp_generator import LambdaExpression
+from esphome.types import ConfigType, SafeExpType
 
 from .types import (
     COLOR_MODES,
@@ -51,6 +58,7 @@ from .types import (
             ),
         }
     ),
+    synchronous=True,
 )
 async def light_toggle_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -92,6 +100,31 @@ LIGHT_CONTROL_ACTION_SCHEMA = LIGHT_STATE_SCHEMA.extend(
     }
 )
 
+
+def _record_effect_ref(config: ConfigType) -> ConfigType:
+    """Record a static effect name reference for later cross-component validation."""
+    if CONF_EFFECT not in config:
+        return config
+    effect = config[CONF_EFFECT]
+    if isinstance(effect, Lambda):
+        return config  # Lambda effects resolved at runtime
+    if effect.lower() == "none":
+        return config  # "None" is always valid
+
+    from . import EffectRef, _get_data
+
+    _get_data().effect_refs.append(
+        EffectRef(
+            light_id=config[CONF_ID],
+            effect_name=effect,
+            component_path=path_context.get(),
+        )
+    )
+    return config
+
+
+LIGHT_CONTROL_ACTION_SCHEMA.add_extra(_record_effect_ref)
+
 LIGHT_TURN_OFF_ACTION_SCHEMA = automation.maybe_simple_id(
     {
         cv.Required(CONF_ID): cv.use_id(LightState),
@@ -110,62 +143,116 @@ LIGHT_TURN_ON_ACTION_SCHEMA = automation.maybe_simple_id(
 )
 
 
+async def _as_lambda(
+    value: Any,
+    args: list[tuple[SafeExpType, str]],
+    output_type: SafeExpType,
+) -> LambdaExpression:
+    """Return a stateless lambda expression for a templatable value.
+
+    If value is already a lambda, process it normally. Otherwise wrap
+    the constant in a ``[](...) -> T { return <value>; }`` expression
+    so that LightControlAction can store every field as a plain
+    function pointer.
+    """
+    if cg.is_template(value):
+        return await cg.process_lambda(value, args, return_type=output_type)
+    return LambdaExpression(
+        f"return {cg.safe_exp(value)};",
+        args,
+        capture="",
+        return_type=output_type,
+    )
+
+
+def _resolve_effect_index(config: ConfigType) -> int:
+    """Resolve a static effect name to its 1-based index at codegen time.
+
+    Effect index 0 means "None" (no effect). Effects are 1-indexed matching
+    the C++ convention in LightState.
+    """
+    from . import available_effects_str, find_effect_index
+
+    original_name = config[CONF_EFFECT]
+    if original_name.lower() == "none":
+        return 0
+    light_id = config[CONF_ID]
+    light_path = CORE.config.get_path_for_id(light_id)[:-1]
+    light_config = CORE.config.get_config_for_path(light_path)
+    effects = light_config.get(CONF_EFFECTS, [])
+    index = find_effect_index(effects, original_name)
+    if index is not None:
+        return index
+    # Should never reach here — effect names are validated during config
+    # validation in FINAL_VALIDATE_SCHEMA. This is a safety net.
+    raise EsphomeError(
+        f"Effect '{original_name}' not found for light '{light_id}'. "
+        f"Available effects: {available_effects_str(effects)}"
+    )
+
+
 @automation.register_action(
-    "light.turn_off", LightControlAction, LIGHT_TURN_OFF_ACTION_SCHEMA
+    "light.turn_off", LightControlAction, LIGHT_TURN_OFF_ACTION_SCHEMA, synchronous=True
 )
 @automation.register_action(
-    "light.turn_on", LightControlAction, LIGHT_TURN_ON_ACTION_SCHEMA
+    "light.turn_on", LightControlAction, LIGHT_TURN_ON_ACTION_SCHEMA, synchronous=True
 )
 @automation.register_action(
-    "light.control", LightControlAction, LIGHT_CONTROL_ACTION_SCHEMA
+    "light.control", LightControlAction, LIGHT_CONTROL_ACTION_SCHEMA, synchronous=True
 )
 async def light_control_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_COLOR_MODE in config:
-        template_ = await cg.templatable(config[CONF_COLOR_MODE], args, ColorMode)
-        cg.add(var.set_color_mode(template_))
-    if CONF_STATE in config:
-        template_ = await cg.templatable(config[CONF_STATE], args, bool)
-        cg.add(var.set_state(template_))
-    if CONF_TRANSITION_LENGTH in config:
-        template_ = await cg.templatable(
-            config[CONF_TRANSITION_LENGTH], args, cg.uint32
-        )
-        cg.add(var.set_transition_length(template_))
-    if CONF_FLASH_LENGTH in config:
-        template_ = await cg.templatable(config[CONF_FLASH_LENGTH], args, cg.uint32)
-        cg.add(var.set_flash_length(template_))
-    if CONF_BRIGHTNESS in config:
-        template_ = await cg.templatable(config[CONF_BRIGHTNESS], args, float)
-        cg.add(var.set_brightness(template_))
-    if CONF_COLOR_BRIGHTNESS in config:
-        template_ = await cg.templatable(config[CONF_COLOR_BRIGHTNESS], args, float)
-        cg.add(var.set_color_brightness(template_))
-    if CONF_RED in config:
-        template_ = await cg.templatable(config[CONF_RED], args, float)
-        cg.add(var.set_red(template_))
-    if CONF_GREEN in config:
-        template_ = await cg.templatable(config[CONF_GREEN], args, float)
-        cg.add(var.set_green(template_))
-    if CONF_BLUE in config:
-        template_ = await cg.templatable(config[CONF_BLUE], args, float)
-        cg.add(var.set_blue(template_))
-    if CONF_WHITE in config:
-        template_ = await cg.templatable(config[CONF_WHITE], args, float)
-        cg.add(var.set_white(template_))
-    if CONF_COLOR_TEMPERATURE in config:
-        template_ = await cg.templatable(config[CONF_COLOR_TEMPERATURE], args, float)
-        cg.add(var.set_color_temperature(template_))
-    if CONF_COLD_WHITE in config:
-        template_ = await cg.templatable(config[CONF_COLD_WHITE], args, float)
-        cg.add(var.set_cold_white(template_))
-    if CONF_WARM_WHITE in config:
-        template_ = await cg.templatable(config[CONF_WARM_WHITE], args, float)
-        cg.add(var.set_warm_white(template_))
+
+    # (config_key, setter_name, c++ type)
+    FIELDS = (
+        (CONF_COLOR_MODE, "set_color_mode", ColorMode),
+        (CONF_STATE, "set_state", bool),
+        (CONF_TRANSITION_LENGTH, "set_transition_length", cg.uint32),
+        (CONF_FLASH_LENGTH, "set_flash_length", cg.uint32),
+        (CONF_BRIGHTNESS, "set_brightness", float),
+        (CONF_COLOR_BRIGHTNESS, "set_color_brightness", float),
+        (CONF_RED, "set_red", float),
+        (CONF_GREEN, "set_green", float),
+        (CONF_BLUE, "set_blue", float),
+        (CONF_WHITE, "set_white", float),
+        (CONF_COLOR_TEMPERATURE, "set_color_temperature", float),
+        (CONF_COLD_WHITE, "set_cold_white", float),
+        (CONF_WARM_WHITE, "set_warm_white", float),
+    )
+    for conf_key, setter, type_ in FIELDS:
+        if conf_key in config:
+            cg.add(
+                getattr(var, setter)(await _as_lambda(config[conf_key], args, type_))
+            )
+
     if CONF_EFFECT in config:
-        template_ = await cg.templatable(config[CONF_EFFECT], args, cg.std_string)
-        cg.add(var.set_effect(template_))
+        if isinstance(config[CONF_EFFECT], Lambda):
+            # Lambda returns a string — wrap in a C++ lambda that resolves
+            # the effect name to its uint32_t index at runtime
+            inner_lambda = await cg.process_lambda(
+                config[CONF_EFFECT], args, return_type=cg.std_string
+            )
+            fwd_args = ", ".join(n for _, n in args)
+            # capture="" is correct: paren is a global variable name
+            # string-interpolated into the body at codegen time, not a
+            # C++ runtime capture.
+            wrapper = LambdaExpression(
+                f"auto __effect_s = ({inner_lambda})({fwd_args});\n"
+                f"return {paren}->get_effect_index("
+                f"__effect_s.c_str(), __effect_s.size());",
+                args,
+                capture="",
+                return_type=cg.uint32,
+            )
+            cg.add(var.set_effect(wrapper))
+        else:
+            # Static string — resolve effect name to index at codegen time
+            cg.add(
+                var.set_effect(
+                    await _as_lambda(_resolve_effect_index(config), args, cg.uint32)
+                )
+            )
     return var
 
 
@@ -193,7 +280,10 @@ LIGHT_DIM_RELATIVE_ACTION_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "light.dim_relative", DimRelativeAction, LIGHT_DIM_RELATIVE_ACTION_SCHEMA
+    "light.dim_relative",
+    DimRelativeAction,
+    LIGHT_DIM_RELATIVE_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def light_dim_relative_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -228,7 +318,10 @@ LIGHT_ADDRESSABLE_SET_ACTION_SCHEMA = cv.Schema(
 
 
 @automation.register_action(
-    "light.addressable_set", AddressableSet, LIGHT_ADDRESSABLE_SET_ACTION_SCHEMA
+    "light.addressable_set",
+    AddressableSet,
+    LIGHT_ADDRESSABLE_SET_ACTION_SCHEMA,
+    synchronous=True,
 )
 async def light_addressable_set_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])

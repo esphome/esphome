@@ -79,8 +79,8 @@ class MAX6956 : public Component,
   bool read_reg_(uint8_t reg, uint8_t *value);
   // write a value to a given register
   bool write_reg_(uint8_t reg, uint8_t value);
-  max6956::MAX6956CURRENTMODE brightness_mode_;
-  uint8_t global_brightness_;
+  max6956::MAX6956CURRENTMODE brightness_mode_{};
+  uint8_t global_brightness_{0};
 
   // Cache for the 4 banks of 8 pins each (aligned with base class view)
   // Bank 0: bits 0-7 (bits 0-3 unused as MAX6956 pins start at 4, bits 4-7 = pins 4-7)

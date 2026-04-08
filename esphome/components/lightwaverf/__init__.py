@@ -28,7 +28,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(LIGHTWAVERFComponent),
         cv.Optional(CONF_READ_PIN, default=13): pins.internal_gpio_input_pin_schema,
-        cv.Optional(CONF_WRITE_PIN, default=14): pins.internal_gpio_input_pin_schema,
+        cv.Optional(CONF_WRITE_PIN, default=14): pins.internal_gpio_output_pin_schema,
     }
 ).extend(cv.polling_component_schema("1s"))
 
@@ -55,6 +55,7 @@ LIGHTWAVE_SEND_SCHEMA = cv.Any(
     "lightwaverf.send_raw",
     LightwaveRawAction,
     LIGHTWAVE_SEND_SCHEMA,
+    synchronous=True,
 )
 async def send_raw_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
