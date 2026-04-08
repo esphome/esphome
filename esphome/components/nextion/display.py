@@ -20,6 +20,10 @@ from .base_component import (
     CONF_MAX_QUEUE_AGE,
     CONF_MAX_QUEUE_SIZE,
     CONF_ON_BUFFER_OVERFLOW,
+    CONF_ON_CUSTOM_BINARY_SENSOR,
+    CONF_ON_CUSTOM_SENSOR,
+    CONF_ON_CUSTOM_SWITCH,
+    CONF_ON_CUSTOM_TEXT_SENSOR,
     CONF_ON_PAGE,
     CONF_ON_SETUP,
     CONF_ON_SLEEP,
@@ -88,6 +92,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_COMMANDS_PER_LOOP): cv.uint16_t,
             cv.Optional(CONF_MAX_QUEUE_SIZE): cv.positive_int,
             cv.Optional(CONF_ON_BUFFER_OVERFLOW): automation.validate_automation({}),
+            cv.Optional(CONF_ON_CUSTOM_BINARY_SENSOR): automation.validate_automation(
+                {}
+            ),
+            cv.Optional(CONF_ON_CUSTOM_SENSOR): automation.validate_automation({}),
+            cv.Optional(CONF_ON_CUSTOM_SWITCH): automation.validate_automation({}),
+            cv.Optional(CONF_ON_CUSTOM_TEXT_SENSOR): automation.validate_automation({}),
             cv.Optional(CONF_ON_PAGE): automation.validate_automation({}),
             cv.Optional(CONF_ON_SETUP): automation.validate_automation({}),
             cv.Optional(CONF_ON_SLEEP): automation.validate_automation({}),
@@ -163,7 +173,35 @@ _CALLBACK_AUTOMATIONS = (
     automation.CallbackAutomation(
         CONF_ON_BUFFER_OVERFLOW, "add_buffer_overflow_event_callback"
     ),
+    automation.CallbackAutomation(
+        CONF_ON_CUSTOM_BINARY_SENSOR,
+        "add_custom_binary_sensor_callback",
+        [(cg.StringRef, "key"), (cg.bool_, "value")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CUSTOM_SENSOR,
+        "add_custom_sensor_callback",
+        [(cg.StringRef, "key"), (cg.int32, "value")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CUSTOM_SWITCH,
+        "add_custom_switch_callback",
+        [(cg.StringRef, "key"), (cg.bool_, "value")],
+    ),
+    automation.CallbackAutomation(
+        CONF_ON_CUSTOM_TEXT_SENSOR,
+        "add_custom_text_sensor_callback",
+        [(cg.StringRef, "key"), (cg.StringRef, "value")],
+    ),
 )
+
+# Map custom trigger config keys to their conditional defines
+_CUSTOM_TRIGGER_DEFINES = {
+    CONF_ON_CUSTOM_BINARY_SENSOR: "USE_NEXTION_TRIGGER_CUSTOM_BINARY_SENSOR",
+    CONF_ON_CUSTOM_SENSOR: "USE_NEXTION_TRIGGER_CUSTOM_SENSOR",
+    CONF_ON_CUSTOM_SWITCH: "USE_NEXTION_TRIGGER_CUSTOM_SWITCH",
+    CONF_ON_CUSTOM_TEXT_SENSOR: "USE_NEXTION_TRIGGER_CUSTOM_TEXT_SENSOR",
+}
 
 
 async def to_code(config):
@@ -253,5 +291,8 @@ async def to_code(config):
         cg.add(var.set_max_commands_per_loop(max_commands_per_loop))
 
     await display.register_display(var, config)
+    for conf_key, define_name in _CUSTOM_TRIGGER_DEFINES.items():
+        if config.get(conf_key):
+            cg.add_define(define_name)
 
     await automation.build_callback_automations(var, config, _CALLBACK_AUTOMATIONS)

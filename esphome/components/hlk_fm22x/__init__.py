@@ -131,7 +131,7 @@ async def hlk_fm22x_enroll_to_code(config, action_id, template_arg, args):
     cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(HlkFm22xComponent),
-            cv.Required(CONF_FACE_ID): cv.templatable(cv.uint16_t),
+            cv.Required(CONF_FACE_ID): cv.templatable(cv.int_range(min=0, max=32767)),
         },
         key=CONF_FACE_ID,
     ),
