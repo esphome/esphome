@@ -40,6 +40,7 @@ template<int... S> struct gens<0, S...> { using type = seq<S...>; };
 template<typename T, typename... X> class TemplatableFn {
  public:
   TemplatableFn() = default;
+  TemplatableFn(std::nullptr_t) = delete;
 
   // Exact return type match — direct function pointer storage
   template<typename F> TemplatableFn(F f) requires std::convertible_to<F, T (*)(X...)> : f_(f) {}
@@ -80,11 +81,12 @@ template<typename T, typename... X> class TemplatableFn {
 // Forward declaration for TemplatableValue (string specialization needs it)
 template<typename T, typename... X> class TemplatableValue;
 
-/// Selects TemplatableFn (4 bytes) for non-string types, TemplatableValue (8 bytes) for std::string.
-/// std::string needs TemplatableValue for const char*, __FlashStringHelper*, and PROGMEM support.
+/// Selects TemplatableFn (4 bytes) for trivially copyable types, TemplatableValue (8 bytes) otherwise.
+/// Non-trivial types (std::string, std::vector<uint8_t>, etc.) need TemplatableValue for raw value
+/// storage, PROGMEM/FlashStringHelper support (strings), and proper copy/move/destruction.
 template<typename T, typename... X>
 using TemplatableStorage =
-    std::conditional_t<std::same_as<T, std::string>, TemplatableValue<T, X...>, TemplatableFn<T, X...>>;
+    std::conditional_t<std::is_trivially_copyable_v<T>, TemplatableFn<T, X...>, TemplatableValue<T, X...>>;
 
 #define TEMPLATABLE_VALUE_(type, name) \
  protected: \
@@ -101,14 +103,17 @@ using TemplatableStorage =
 template<typename T, typename... X> class TemplatableValue {
  public:
   TemplatableValue() = default;
+  TemplatableValue(std::nullptr_t) = delete;
 
   // Accept raw constants
   template<typename V> TemplatableValue(V value) requires(!std::invocable<V, X...>) : tag_(VALUE) {
-    new (&this->value_) T(static_cast<T>(std::move(value)));
+    new (&this->storage_.value_) T(static_cast<T>(std::move(value)));
   }
 
   // Accept stateless lambdas (convertible to function pointer)
-  template<typename F> TemplatableValue(F f) requires std::convertible_to<F, T (*)(X...)> : tag_(FN) { this->f_ = f; }
+  template<typename F> TemplatableValue(F f) requires std::convertible_to<F, T (*)(X...)> : tag_(FN) {
+    this->storage_.f_ = f;
+  }
 
   // Convertible return type (e.g., int -> uint8_t) — casting trampoline
   template<typename F>
@@ -116,7 +121,7 @@ template<typename T, typename... X> class TemplatableValue {
                    "codegen")]] TemplatableValue(F) requires(!std::convertible_to<F, T (*)(X...)>) &&
       std::invocable<F, X...> &&std::convertible_to<std::invoke_result_t<F, X...>, T> &&std::is_empty_v<F>
           &&std::default_initializable<F> : tag_(FN) {
-    this->f_ = [](X... x) -> T { return static_cast<T>(F{}(x...)); };
+    this->storage_.f_ = [](X... x) -> T { return static_cast<T>(F{}(x...)); };
   }
 
   // Reject any callable that didn't match the above
@@ -128,18 +133,18 @@ template<typename T, typename... X> class TemplatableValue {
 
   TemplatableValue(const TemplatableValue &other) : tag_(other.tag_) {
     if (this->tag_ == VALUE) {
-      new (&this->value_) T(other.value_);
+      new (&this->storage_.value_) T(other.storage_.value_);
     } else if (this->tag_ == FN) {
-      this->f_ = other.f_;
+      this->storage_.f_ = other.storage_.f_;
     }
   }
 
   TemplatableValue(TemplatableValue &&other) noexcept : tag_(other.tag_) {
     if (this->tag_ == VALUE) {
-      new (&this->value_) T(std::move(other.value_));
+      new (&this->storage_.value_) T(std::move(other.storage_.value_));
       other.destroy_();
     } else if (this->tag_ == FN) {
-      this->f_ = other.f_;
+      this->storage_.f_ = other.storage_.f_;
     }
     other.tag_ = NONE;
   }
@@ -149,9 +154,9 @@ template<typename T, typename... X> class TemplatableValue {
       this->destroy_();
       this->tag_ = other.tag_;
       if (this->tag_ == VALUE) {
-        new (&this->value_) T(other.value_);
+        new (&this->storage_.value_) T(other.storage_.value_);
       } else if (this->tag_ == FN) {
-        this->f_ = other.f_;
+        this->storage_.f_ = other.storage_.f_;
       }
     }
     return *this;
@@ -162,10 +167,10 @@ template<typename T, typename... X> class TemplatableValue {
       this->destroy_();
       this->tag_ = other.tag_;
       if (this->tag_ == VALUE) {
-        new (&this->value_) T(std::move(other.value_));
+        new (&this->storage_.value_) T(std::move(other.storage_.value_));
         other.destroy_();
       } else if (this->tag_ == FN) {
-        this->f_ = other.f_;
+        this->storage_.f_ = other.storage_.f_;
       }
       other.tag_ = NONE;
     }
@@ -178,9 +183,9 @@ template<typename T, typename... X> class TemplatableValue {
 
   T value(X... x) const {
     if (this->tag_ == FN)
-      return this->f_(x...);
+      return this->storage_.f_(x...);
     if (this->tag_ == VALUE)
-      return this->value_;
+      return this->storage_.value_;
     return T{};
   }
 
@@ -200,15 +205,20 @@ template<typename T, typename... X> class TemplatableValue {
   void destroy_() {
     if constexpr (!std::is_trivially_destructible_v<T>) {
       if (this->tag_ == VALUE)
-        this->value_.~T();
+        this->storage_.value_.~T();
     }
   }
 
   enum Tag : uint8_t { NONE, VALUE, FN } tag_{NONE};
-  union {
+  // Union with explicit ctor/dtor to support non-trivially-constructible/destructible T
+  // (e.g., std::vector<uint8_t>). Lifetime of value_ is managed externally via
+  // placement new and destroy_().
+  union Storage {
+    constexpr Storage() : f_(nullptr) {}
+    constexpr ~Storage() {}
     T value_;
     T (*f_)(X...);
-  };
+  } storage_;
 };
 
 /// Specialization for std::string: supports VALUE, STATIC_STRING, FLASH_STRING,

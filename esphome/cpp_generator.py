@@ -848,9 +848,11 @@ async def templatable(
         # Automatically wrap static strings in ESPHOME_F() for PROGMEM storage on ESP8266.
         # On other platforms ESPHOME_F() is a no-op returning const char*.
         return FlashStringLiteral(value)
-    # For non-string types, wrap constants in stateless lambdas so that
-    # TemplatableFn (used by TEMPLATABLE_VALUE macro) stores them as function pointers.
-    if output_type is not None and output_type is not std_string:
+    # Wrap non-string constants in stateless lambdas so that TemplatableFn
+    # (used by TEMPLATABLE_VALUE macro) stores them as function pointers.
+    # When output_type is None, the lambda omits the return type annotation
+    # and the C++ compiler deduces it (used by globals where T is unknown).
+    if output_type is not std_string:
         return LambdaExpression(
             f"return {safe_exp(value)};",
             args,
