@@ -56,6 +56,11 @@ switch:
   Defaults to `0x21`.
 
 - **pcf8575** (*Optional*, boolean): Whether this is a 16-pin PCF8575. Defaults to `false`.
+- **interrupt_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The pin connected to the
+  INT output of the PCF8574/PCF8575. When configured, the component becomes interrupt-driven instead of
+  polling — it only reads the chip when a pin actually changes state, significantly reducing I²C bus traffic
+  and CPU usage. The INT pin is active-low and open-drain, so an external or internal pull-up resistor is
+  required. Must be an internal GPIO pin (not another expander pin).
 
 > [!NOTE]
 > If you use PCF8575, pin numbers are from 0 to 15, not 0 to 7 and 10 to 17 as datasheet states!

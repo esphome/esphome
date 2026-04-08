@@ -46,6 +46,10 @@ binary_sensor:
 - **reset** (*Optional*, boolean): Whether to reset the device state during setup. When `true` (default),
   all pins are configured as inputs with high impedance during setup. When `false`, the component will
   read the current state from the device registers. Defaults to `true`.
+- **interrupt_pin** (*Optional*, [Pin Schema](/guides/configuration-types#pin-schema)): The pin connected to the
+  INT output of the PI4IOE5V6408. When configured, the component becomes interrupt-driven instead of
+  polling — it only reads the chip when a pin actually changes state, significantly reducing I²C bus traffic
+  and CPU usage. Must be an internal GPIO pin (not another expander pin).
 
 ## Pin configuration variables
 
