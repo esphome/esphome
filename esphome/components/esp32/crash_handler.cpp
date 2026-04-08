@@ -79,6 +79,7 @@ struct RawCrashData {
   uint32_t cause;  // Architecture-specific: exccause (Xtensa) or mcause (RISC-V)
   uint8_t crashed_core;
 #if SOC_CPU_CORES_NUM > 1
+  static_assert(SOC_CPU_CORES_NUM == 2, "Dual-core logic assumes exactly 2 cores");
   uint8_t other_backtrace_count;
   uint8_t other_reg_frame_count;
   uint32_t other_backtrace[MAX_BACKTRACE];
@@ -365,7 +366,7 @@ void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
   // Capture the other core's backtrace from the global frame array.
   // Both cores save their frames to g_exc_frames[] before esp_panic_handler
   // is called, so the other core's frame is available here.
-  {
+  if (info->core >= 0 && info->core < SOC_CPU_CORES_NUM) {
     int other_core = 1 - info->core;
     auto *other_frame = (XtExcFrame *) g_exc_frames[other_core];
     if (other_frame != nullptr) {
@@ -427,7 +428,7 @@ void IRAM_ATTR __wrap_esp_panic_handler(panic_info_t *info) {
 
 #if SOC_CPU_CORES_NUM > 1
   // Capture the other core's backtrace from the global frame array.
-  {
+  if (info->core >= 0 && info->core < SOC_CPU_CORES_NUM) {
     int other_core = 1 - info->core;
     auto *other_frame = (RvExcFrame *) g_exc_frames[other_core];
     if (other_frame != nullptr) {
