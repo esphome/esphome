@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_VALUE,
 )
 from esphome.core import CoroPriority, coroutine_with_priority
+from esphome.cpp_generator import LambdaExpression
 from esphome.types import ConfigType
 
 CODEOWNERS = ["@esphome/core"]
@@ -108,8 +109,16 @@ async def globals_set_to_code(config, action_id, template_arg, args):
     full_id, paren = await cg.get_variable_with_full_id(config[CONF_ID])
     template_arg = cg.TemplateArguments(full_id.type, *template_arg)
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    templ = await cg.templatable(
-        config[CONF_VALUE], args, None, to_exp=cg.RawExpression
-    )
+    value = config[CONF_VALUE]
+    if cg.is_template(value):
+        templ = await cg.templatable(value, args, None, to_exp=cg.RawExpression)
+    else:
+        # Wrap raw constant in a stateless lambda for TemplatableFn storage.
+        # Use RawExpression for the value since T is a template parameter
+        # (the C++ compiler handles the type deduction).
+        raw_value = cg.RawExpression(value)
+        templ = LambdaExpression(
+            f"return {cg.safe_exp(raw_value)};", args, capture="", return_type=None
+        )
     cg.add(var.set_value(templ))
     return var
