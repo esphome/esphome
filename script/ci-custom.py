@@ -1031,7 +1031,7 @@ def lint_test_package_key_matches_bus(fname, content):
                     1,
                     f"Package key {highlight(pkg_key)} does not match bus directory "
                     f"{highlight(bus_dir)}. The package key must match the directory "
-                    f"name under test_build_components/common/. "
+                    f"name under tests/test_build_components/common/. "
                     f"Change {highlight(pkg_key)} to {highlight(bus_dir)}.",
                 )
             )
