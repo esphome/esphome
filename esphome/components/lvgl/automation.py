@@ -2,6 +2,7 @@ from collections.abc import Callable
 from typing import Any
 
 from esphome import automation
+from esphome.automation import StatelessLambdaAction
 import esphome.codegen as cg
 from esphome.components.display import validate_rotation
 import esphome.config_validation as cv
@@ -201,7 +202,7 @@ def _validate_rotation(value):
 
 @automation.register_action(
     "lvgl.display.set_rotation",
-    ObjUpdateAction,
+    StatelessLambdaAction,
     cv.maybe_simple_value(
         LVGL_SCHEMA.extend(
             {
@@ -214,8 +215,7 @@ def _validate_rotation(value):
 )
 async def lvgl_set_rotation(config, action_id, template_arg, args):
     lv_comp = await cg.get_variable(config[CONF_LVGL_ID])
-    async with LambdaContext() as context:
-        add_line_marks(where=action_id)
+    async with LambdaContext(args, where=action_id) as context:
         lv_add(lv_comp.set_rotation(config[CONF_ROTATION]))
     return cg.new_Pvariable(action_id, template_arg, await context.get_lambda())
 
