@@ -345,8 +345,8 @@ void crash_handler_log() {
   pos = append_addrs_to_hint(hint, sizeof(hint), pos, s_raw_crash_data.backtrace, s_raw_crash_data.backtrace_count,
                              s_raw_crash_data.reg_frame_count);
 #if SOC_CPU_CORES_NUM > 1
-  pos = append_addrs_to_hint(hint, sizeof(hint), pos, s_raw_crash_data.other_backtrace,
-                             s_raw_crash_data.other_backtrace_count, s_raw_crash_data.other_reg_frame_count);
+  append_addrs_to_hint(hint, sizeof(hint), pos, s_raw_crash_data.other_backtrace,
+                       s_raw_crash_data.other_backtrace_count, s_raw_crash_data.other_reg_frame_count);
 #endif
   ESP_LOGE(TAG, "%s", hint);
 }
