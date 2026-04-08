@@ -80,6 +80,21 @@ def _make_ifdef_line(condition: str) -> str:
     return f"#ifdef {condition}"
 
 
+def _make_ifdef_line(condition: str) -> str:
+    """Return the correct preprocessor open-guard line for a condition string.
+
+    Simple identifiers use ``#ifdef IDENTIFIER``.
+    Compound expressions (containing ``||`` or ``&&``) use
+    ``#if defined(A) || defined(B)`` so that the preprocessor
+    evaluates them correctly.
+    """
+    if any(op in condition for op in ("||", "&&", "!")):
+        # Replace each bare identifier token with defined(token)
+        expr = re.sub(r"\b([A-Za-z_]\w*)\b", r"defined(\1)", condition)
+        return f"#if {expr}"
+    return f"#ifdef {condition}"
+
+
 def indent_list(text: str, padding: str = "  ") -> list[str]:
     """Indent each line of the given text with the specified padding."""
     lines = []
