@@ -159,7 +159,7 @@ async def dfrobot_sen0395_settings_to_code(config, action_id, template_arg, args
     await cg.register_parented(var, config[CONF_ID])
 
     if factory_reset_config := config.get(CONF_FACTORY_RESET):
-        template_ = await cg.templatable(factory_reset_config, args, int)
+        template_ = await cg.templatable(factory_reset_config, args, cg.int8)
         cg.add(var.set_factory_reset(template_))
 
     if CONF_DETECTION_SEGMENTS in config:
@@ -200,7 +200,7 @@ async def dfrobot_sen0395_settings_to_code(config, action_id, template_arg, args
             template_ = template_.total_milliseconds / 1000
         cg.add(var.set_delay_after_disappear(template_))
     if CONF_SENSITIVITY in config:
-        template_ = await cg.templatable(config[CONF_SENSITIVITY], args, int)
+        template_ = await cg.templatable(config[CONF_SENSITIVITY], args, cg.int8)
         cg.add(var.set_sensitivity(template_))
 
     return var

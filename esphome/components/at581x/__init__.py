@@ -169,7 +169,7 @@ async def at581x_settings_to_code(config, action_id, template_arg, args):
 
     # Radar configuration
     if frontend_reset := config.get(CONF_HW_FRONTEND_RESET):
-        template_ = await cg.templatable(frontend_reset, args, int)
+        template_ = await cg.templatable(frontend_reset, args, cg.int8)
         cg.add(var.set_hw_frontend_reset(template_))
 
     if freq := config.get(CONF_FREQUENCY):
