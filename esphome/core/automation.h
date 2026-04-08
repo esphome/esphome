@@ -62,9 +62,18 @@ template<typename T, typename... X> class TemplatableFn {
   T (*f_)(X...){nullptr};
 };
 
+// Forward declaration for TemplatableValue (string specialization needs it)
+template<typename T, typename... X> class TemplatableValue;
+
+/// Selects TemplatableFn (4 bytes) for non-string types, TemplatableValue (8 bytes) for std::string.
+/// std::string needs TemplatableValue for const char*, __FlashStringHelper*, and PROGMEM support.
+template<typename T, typename... X>
+using TemplatableStorage =
+    std::conditional_t<std::same_as<T, std::string>, TemplatableValue<T, X...>, TemplatableFn<T, X...>>;
+
 #define TEMPLATABLE_VALUE_(type, name) \
  protected: \
-  TemplatableFn<type, Ts...> name##_{}; \
+  TemplatableStorage<type, Ts...> name##_{}; \
 \
  public: \
   template<typename V> void set_##name(V name) { this->name##_ = name; }
