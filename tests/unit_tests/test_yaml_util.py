@@ -516,6 +516,20 @@ def test_represent_include_file() -> None:
     assert yaml_util.dump({"key": include}) == "key: !include 'path/to/file.yaml'\n"
 
 
+def test_represent_include_file_with_vars() -> None:
+    """Test that IncludeFile with vars is dumped as !include mapping form."""
+    include = yaml_util.IncludeFile(
+        Path("/fake/main.yaml"),
+        "path/to/file.yaml",
+        {"key": "value"},
+        lambda _: {},
+    )
+    result = yaml_util.dump({"key": include})
+    assert "!include" in result
+    assert "file: path/to/file.yaml" in result
+    assert "key: value" in result
+
+
 def test_represent_include_file_with_data_base_mixin() -> None:
     """Test that IncludeFile wrapped with ESPHomeDataBase mixin is also dumped correctly.
 
