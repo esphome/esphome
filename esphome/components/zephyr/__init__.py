@@ -203,7 +203,7 @@ def copy_files():
             f"""
                 / {{
                     zephyr,user {{
-                        {[f"{key} = {', '.join(value)};" for key, value in user.items()][0]}
+                        {chr(10).join(f"{key} = {', '.join(value)};" for key, value in user.items())}
                     }};
                 }};
             """
