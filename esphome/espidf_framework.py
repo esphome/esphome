@@ -378,7 +378,7 @@ print(json.dumps(dict(paths_to_export=paths_to_export, export_vars=export_vars))
         | {"PYTHONPATH": str(Path(idf_framework_root) / "tools")},
     )
     if not success or not stdout:
-        raise RuntimeError("Can't get ESP-IDF tool paths of {idf_framework_root}")
+        raise RuntimeError(f"Can't get ESP-IDF tool paths of {idf_framework_root}")
 
     # Extract json values
     try:
