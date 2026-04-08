@@ -47,8 +47,10 @@ template<typename T, typename... X> class TemplatableFn {
   // Convertible return type (e.g., int -> uint8_t) — casting trampoline.
   // Stateless lambdas are default-constructible in C++20, so F{} recreates the lambda inside
   // the trampoline without capturing. This compiles to the same code as a direct call + cast.
+  // Deprecated: codegen should use the correct output type to avoid the trampoline.
   template<typename F>
-      TemplatableFn(F) requires(!std::convertible_to<F, T (*)(X...)>) &&
+      [[deprecated("Lambda return type does not match TemplatableFn<T> — use the correct type in "
+                   "codegen")]] TemplatableFn(F) requires(!std::convertible_to<F, T (*)(X...)>) &&
       std::invocable<F, X...> &&std::convertible_to<std::invoke_result_t<F, X...>, T> &&std::is_empty_v<F>
           &&std::default_initializable<F> : f_([](X... x) -> T { return static_cast<T>(F{}(x...)); }) {}
 
