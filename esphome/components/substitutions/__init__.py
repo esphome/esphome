@@ -2,6 +2,7 @@ from collections import ChainMap
 import logging
 from typing import Any
 
+import esphome
 from esphome import core
 from esphome.config_helpers import Extend, Remove, merge_config, merge_dicts_ordered
 import esphome.config_validation as cv
@@ -12,6 +13,7 @@ from esphome.yaml_util import (
     ConfigContext,
     ESPHomeDataBase,
     ESPLiteralValue,
+    IncludeFile,
     make_data_base,
 )
 
@@ -291,6 +293,59 @@ def push_context(
     return parent_context
 
 
+def resolve_include(
+    include: IncludeFile,
+    path: list[int | str],
+    context_vars: ContextVars,
+    strict_undefined: bool = True,
+    errors: ErrList | None = None,
+) -> tuple[Any, str]:
+    """Resolve an include, substituting the filename if needed.
+
+    Returns the loaded content and the resolved filename.
+
+    Note: no path-traversal validation is performed on the resolved filename.
+    A substitution that resolves to an absolute path will bypass the parent
+    directory (Path.__truediv__ ignores the left operand for absolute paths).
+    ESPHome's trust model assumes the config author controls all substitution
+    values (including command-line substitutions), so path restrictions are
+    an explicit non-goal here.
+    """
+    original = str(include.file)
+    filename = str(
+        _expand_substitutions(
+            original, path + ["file"], context_vars, strict_undefined, errors
+        )
+    )
+    if filename != original:
+        include = IncludeFile(
+            include.parent_file, filename, include.vars, include.yaml_loader
+        )
+    try:
+        return include.load(), filename
+    except esphome.core.EsphomeError as err:
+        raise cv.Invalid(
+            f"Error including file '{filename}': {err}",
+            path + [f"<{filename}>"],
+        ) from err
+
+
+def _substitute_include(
+    include: IncludeFile,
+    path: list[int | str],
+    context_vars: ContextVars,
+    strict_undefined: bool,
+    errors: ErrList | None,
+) -> Any:
+    """Resolve an include and substitute its content."""
+    content, filename = resolve_include(
+        include, path, context_vars, strict_undefined, errors
+    )
+    return substitute(
+        content, path + [f"<{filename}>"], context_vars, strict_undefined, errors
+    )
+
+
 def substitute(
     item: Any,
     path: SubstitutionPath,
@@ -332,6 +387,9 @@ def substitute(
         )
         if item.value != value:
             result = type(item)(value)
+
+    elif isinstance(item, IncludeFile):
+        result = _substitute_include(item, path, context_vars, strict_undefined, errors)
 
     if isinstance(item, ESPHomeDataBase):
         result = make_data_base(result, item)

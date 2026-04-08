@@ -22,6 +22,7 @@ from esphome.const import (
     ThreadModel,
 )
 from esphome.core import CORE, CoroPriority, EsphomeError, coroutine_with_priority
+from esphome.core.config import BOARD_MAX_LENGTH
 from esphome.helpers import copy_file_if_changed, read_file, write_file_if_changed
 
 from . import boards
@@ -168,7 +169,9 @@ ARDUINO_FRAMEWORK_SCHEMA = cv.All(
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.Required(CONF_BOARD): cv.string_strict,
+            cv.Required(CONF_BOARD): cv.All(
+                cv.string_strict, cv.ByteLength(max=BOARD_MAX_LENGTH)
+            ),
             cv.Optional(CONF_FRAMEWORK, default={}): ARDUINO_FRAMEWORK_SCHEMA,
             cv.Optional(CONF_WATCHDOG_TIMEOUT, default="8388ms"): cv.All(
                 cv.positive_time_period_milliseconds,

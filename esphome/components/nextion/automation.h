@@ -1,5 +1,8 @@
 #pragma once
+
 #include "esphome/core/automation.h"
+#include "esphome/core/string_ref.h"
+
 #include "nextion.h"
 
 namespace esphome::nextion {

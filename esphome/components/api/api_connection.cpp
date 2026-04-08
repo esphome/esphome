@@ -72,6 +72,14 @@ static constexpr uint32_t HANDSHAKE_TIMEOUT_MS = 60000;
 
 static constexpr auto ESPHOME_VERSION_REF = StringRef::from_lit(ESPHOME_VERSION);
 
+// Cross-validate C++ constants against proto max_data_length annotations in api.proto
+static_assert(MAC_ADDRESS_PRETTY_BUFFER_SIZE - 1 == 17,
+              "Update max_data_length for mac_address/bluetooth_mac_address in api.proto");
+static_assert(Application::BUILD_TIME_STR_SIZE - 1 == 25, "Update max_data_length for compilation_time in api.proto");
+static_assert(sizeof(ESPHOME_VERSION) - 1 <= 32, "Update max_data_length for esphome_version in api.proto");
+static_assert(ESPHOME_DEVICE_NAME_MAX_LEN <= 31, "Update max_data_length for name in api.proto");
+static_assert(ESPHOME_FRIENDLY_NAME_MAX_LEN <= 120, "Update max_data_length for friendly_name in api.proto");
+
 static const char *const TAG = "api.connection";
 #ifdef USE_CAMERA
 static const int CAMERA_STOP_STREAM = 5000;
@@ -307,6 +315,8 @@ void APIConnection::process_active_iterator_() {
       this->destroy_active_iterator_();
       if (this->flags_.state_subscription) {
         this->begin_iterator_(ActiveIterator::INITIAL_STATE);
+      } else {
+        this->finalize_iterator_sync_();
       }
     } else {
       this->process_iterator_batch_(this->iterator_storage_.list_entities);
@@ -314,19 +324,25 @@ void APIConnection::process_active_iterator_() {
   } else {  // INITIAL_STATE
     if (this->iterator_storage_.initial_state.completed()) {
       this->destroy_active_iterator_();
-      // Process any remaining batched messages immediately
-      if (!this->deferred_batch_.empty()) {
-        this->process_batch_();
-      }
-      // Now that everything is sent, enable immediate sending for future state changes
-      this->flags_.should_try_send_immediately = true;
-      // Release excess memory from buffers that grew during initial sync
-      this->deferred_batch_.release_buffer();
-      this->helper_->release_buffers();
+      this->finalize_iterator_sync_();
     } else {
       this->process_iterator_batch_(this->iterator_storage_.initial_state);
     }
   }
+}
+
+void APIConnection::finalize_iterator_sync_() {
+  // Flush any remaining batched messages immediately so clients
+  // receive completion responses (e.g. ListEntitiesDoneResponse)
+  // without waiting for the batch timer.
+  if (!this->deferred_batch_.empty()) {
+    this->process_batch_();
+  }
+  // Enable immediate sending for future state changes
+  this->flags_.should_try_send_immediately = true;
+  // Release excess memory from buffers that grew during initial sync
+  this->deferred_batch_.release_buffer();
+  this->helper_->release_buffers();
 }
 
 void APIConnection::process_iterator_batch_(ComponentIterator &iterator) {
@@ -398,7 +414,7 @@ uint16_t APIConnection::fill_and_encode_entity_info(EntityBase *entity, InfoResp
 #ifdef USE_DEVICES
   msg.device_id = entity->get_device_id();
 #endif
-  return encode_to_buffer(size_fn(&msg), encode_fn, &msg, conn, remaining_size);
+  return encode_to_buffer_slow(size_fn(&msg), encode_fn, &msg, conn, remaining_size);
 }
 
 uint16_t APIConnection::fill_and_encode_entity_info_with_device_class(EntityBase *entity, InfoResponseProtoMessage &msg,
@@ -1716,6 +1732,7 @@ bool APIConnection::send_device_info_response_() {
   static constexpr auto MANUFACTURER = StringRef::from_lit(ESPHOME_MANUFACTURER);
   resp.manufacturer = MANUFACTURER;
 #endif
+  static_assert(sizeof(ESPHOME_MANUFACTURER) - 1 <= 20, "Update max_data_length for manufacturer in api.proto");
 #undef ESPHOME_MANUFACTURER
 
 #ifdef USE_ESP8266
@@ -1993,51 +2010,15 @@ bool APIConnection::send_message_(uint32_t payload_size, uint8_t message_type, M
   size_t write_start = shared_buf.size();
   shared_buf.resize(write_start + payload_size);
   ProtoWriteBuffer buffer{&shared_buf, write_start};
-  encode_fn(msg, buffer);
+  encode_fn(msg, buffer PROTO_ENCODE_DEBUG_INIT(&shared_buf));
   return this->send_buffer(ProtoWriteBuffer{&shared_buf}, message_type);
 }
-// Encodes a message to the buffer and returns the total number of bytes used,
-// including header and footer overhead. Returns 0 if the message doesn't fit.
-uint16_t APIConnection::encode_to_buffer(uint32_t calculated_size, MessageEncodeFn encode_fn, const void *msg,
-                                         APIConnection *conn, uint32_t remaining_size) {
-#ifdef HAS_PROTO_MESSAGE_DUMP
-  if (conn->flags_.log_only_mode) {
-    auto *proto_msg = static_cast<const ProtoMessage *>(msg);
-    DumpBuffer dump_buf;
-    conn->log_send_message_(proto_msg->message_name(), proto_msg->dump_to(dump_buf));
-    return 1;
-  }
-#endif
-  // Cache frame sizes to avoid repeated virtual calls
-  const uint8_t header_padding = conn->helper_->frame_header_padding();
-  const uint8_t footer_size = conn->helper_->frame_footer_size();
+// encode_to_buffer is defined inline in api_connection.h (ESPHOME_ALWAYS_INLINE)
 
-  // Calculate total size with padding for buffer allocation
-  size_t total_calculated_size = calculated_size + header_padding + footer_size;
-
-  // Check if it fits
-  if (total_calculated_size > remaining_size)
-    return 0;  // Doesn't fit
-
-  auto &shared_buf = conn->parent_->get_shared_buffer_ref();
-
-  size_t to_add;
-  if (conn->flags_.batch_first_message) {
-    // First message - buffer already prepared by caller, just clear flag
-    conn->flags_.batch_first_message = false;
-    to_add = calculated_size;
-  } else {
-    // Batch message second or later
-    // Reserve for full message, resize to include footer gap + header padding + payload
-    to_add = total_calculated_size;
-  }
-
-  shared_buf.resize(shared_buf.size() + to_add);
-  ProtoWriteBuffer buffer{&shared_buf, shared_buf.size() - calculated_size};
-  encode_fn(msg, buffer);
-
-  // Return total size (header + payload + footer)
-  return static_cast<uint16_t>(total_calculated_size);
+// Noinline version for cold paths — single shared copy
+uint16_t APIConnection::encode_to_buffer_slow(uint32_t calculated_size, MessageEncodeFn encode_fn, const void *msg,
+                                              APIConnection *conn, uint32_t remaining_size) {
+  return encode_to_buffer(calculated_size, encode_fn, msg, conn, remaining_size);
 }
 bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint8_t message_type) {
   const bool is_log_message = (message_type == SubscribeLogsResponse::MESSAGE_TYPE);
@@ -2164,17 +2145,15 @@ void APIConnection::process_batch_multi_(APIBuffer &shared_buf, size_t num_items
                 "MessageInfo must remain trivially destructible with this placement-new approach");
 
   const size_t messages_to_process = std::min(num_items, MAX_MESSAGES_PER_BATCH);
-  const uint8_t frame_overhead = header_padding + footer_size;
 
   // Stack-allocated array for message info
   alignas(MessageInfo) char message_info_storage[MAX_MESSAGES_PER_BATCH * sizeof(MessageInfo)];
   MessageInfo *message_info = reinterpret_cast<MessageInfo *>(message_info_storage);
   size_t items_processed = 0;
   uint16_t remaining_size = std::numeric_limits<uint16_t>::max();
-  // Track where each message's header padding begins in the buffer
-  // For plaintext: this is where the 6-byte header padding starts
-  // For noise: this is where the 7-byte header padding starts
-  // The actual message data follows after the header padding
+  // Track where each message's header begins in the buffer
+  // First message: offset 0 (max padding, may have unused leading bytes)
+  // Subsequent messages: offset points to exact header start (no gaps)
   uint32_t current_offset = 0;
 
   // Process items and encode directly to buffer (up to our limit)
@@ -2190,13 +2169,14 @@ void APIConnection::process_batch_multi_(APIBuffer &shared_buf, size_t num_items
     }
 
     // Message was encoded successfully
-    // payload_size is header_padding + actual payload size + footer_size
-    uint16_t proto_payload_size = payload_size - frame_overhead;
+    // payload_size = header_size + proto_payload_size + footer_size
+    uint16_t proto_payload_size = payload_size - this->batch_header_size_ - footer_size;
     // Use placement new to construct MessageInfo in pre-allocated stack array
     // This avoids default-constructing all MAX_MESSAGES_PER_BATCH elements
     // Explicit destruction is not needed because MessageInfo is trivially destructible,
     // as ensured by the static_assert in its definition.
-    new (&message_info[items_processed++]) MessageInfo(item.message_type, current_offset, proto_payload_size);
+    new (&message_info[items_processed++])
+        MessageInfo(item.message_type, current_offset, proto_payload_size, this->batch_header_size_);
     // After first message, set remaining size to MAX_BATCH_PACKET_SIZE to avoid fragmentation
     if (items_processed == 1) {
       remaining_size = MAX_BATCH_PACKET_SIZE;
@@ -2212,6 +2192,13 @@ void APIConnection::process_batch_multi_(APIBuffer &shared_buf, size_t num_items
     if (footer_size > 0) {
       shared_buf.resize(shared_buf.size() + footer_size);
     }
+
+    // Ensure TCP_NODELAY is on before writing batch data.
+    // Log messages enable Nagle (NODELAY off) to coalesce small packets.
+    // Without this, batch data written to the socket sits in LWIP's Nagle
+    // buffer — the remote won't ACK until it sends its own data (e.g. a
+    // ping), which can take 20+ seconds.
+    this->helper_->set_nodelay_for_message(false);
 
     // Send all collected messages
     APIError err = this->helper_->write_protobuf_messages(ProtoWriteBuffer{&shared_buf},
@@ -2246,6 +2233,7 @@ void APIConnection::process_batch_multi_(APIBuffer &shared_buf, size_t num_items
 uint16_t APIConnection::dispatch_message_(const DeferredBatch::BatchItem &item, uint32_t remaining_size,
                                           bool batch_first) {
   this->flags_.batch_first_message = batch_first;
+  this->batch_message_type_ = item.message_type;
 #ifdef USE_EVENT
   // Events need aux_data_index to look up event type from entity
   if (item.message_type == EventResponse::MESSAGE_TYPE) {

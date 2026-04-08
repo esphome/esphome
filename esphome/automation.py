@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 import logging
 
 import esphome.codegen as cg
@@ -715,3 +716,35 @@ async def build_callback_automation(
     # MockObjs (not user input), and there's no Expression type for positional
     # aggregate initialization (StructInitializer uses named fields).
     cg.add(getattr(parent, callback_method)(cg.RawExpression(f"{forwarder}{{{obj}}}")))
+
+
+@dataclass(frozen=True, slots=True)
+class CallbackAutomation:
+    """A single callback automation entry for build_callback_automations."""
+
+    conf_key: str
+    callback_method: str
+    args: TemplateArgsType = field(default_factory=list)
+    forwarder: MockObj | MockObjClass | None = None
+
+
+async def build_callback_automations(
+    parent: MockObj,
+    config: ConfigType,
+    entries: tuple[CallbackAutomation, ...],
+) -> None:
+    """Build multiple callback automations from a tuple of entries.
+
+    :param parent: The component object (e.g., button, sensor).
+    :param config: The full component config dict.
+    :param entries: Tuple of CallbackAutomation entries to process.
+    """
+    for entry in entries:
+        for conf in config.get(entry.conf_key, []):
+            await build_callback_automation(
+                parent,
+                entry.callback_method,
+                entry.args,
+                conf,
+                forwarder=entry.forwarder,
+            )
