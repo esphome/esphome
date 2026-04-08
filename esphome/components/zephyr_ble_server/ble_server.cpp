@@ -133,7 +133,7 @@ static void auth_passkey_display(bt_conn *conn, unsigned int passkey) {
   ESP_LOGI(TAG, "Passkey for %s: %s", addr, passkey_str);
 }
 
-void conn_addr_str(bt_conn *conn, char *addr, size_t len) {
+static void conn_addr_str(bt_conn *conn, char *addr, size_t len) {
   struct bt_conn_info info;
 
   if (bt_conn_get_info(conn, &info) < 0) {
@@ -301,13 +301,13 @@ void BLEServer::dump_config() {
 #endif
 }
 
-void BLEServer::bt_conn_auth(bool confirm) {
+void BLEServer::numeric_comparison_reply(bool accept) {
   if (this->conn_ == nullptr) {
     ESP_LOGE(TAG, "Not connected");
     return;
   }
-  ESP_LOGD(TAG, "Connection auth %s", confirm ? "passkey confirm" : "cancel");
-  if (confirm) {
+  ESP_LOGD(TAG, "Numeric comparison %s", accept ? "accepted" : "rejected");
+  if (accept) {
     bt_conn_auth_passkey_confirm(this->conn_);
   } else {
     bt_conn_auth_cancel(this->conn_);

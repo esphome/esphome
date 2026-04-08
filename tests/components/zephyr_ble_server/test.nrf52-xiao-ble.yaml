@@ -6,3 +6,5 @@ zephyr_ble_server:
           args: [passkey]
       - ble_server.numeric_comparison_reply:
           accept: True
+      - ble_server.numeric_comparison_reply:
+          accept: !lambda "return true;"

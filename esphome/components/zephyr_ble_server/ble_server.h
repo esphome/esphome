@@ -11,12 +11,12 @@ class BLEServer : public Component {
   void setup() override;
   void dump_config() override;
   template<typename F> void add_passkey_callback(F &&callback) { this->passkey_cb_.add(std::forward<F>(callback)); }
-  void bt_conn_auth(bool confirm);
+  void numeric_comparison_reply(bool accept);
 
  protected:
   static void connected(bt_conn *conn, uint8_t err);
   static void disconnected(bt_conn *conn, uint8_t reason);
-  static void auth_passkey_confirm(struct bt_conn *conn, unsigned int passkey);
+  static void auth_passkey_confirm(bt_conn *conn, unsigned int passkey);
   bt_conn *conn_{};
   CallbackManager<void(uint32_t)> passkey_cb_;
 };
@@ -27,7 +27,7 @@ template<typename... Ts> class BLENumericComparisonReplyAction : public Action<T
 
   TEMPLATABLE_VALUE(bool, accept)
 
-  void play(const Ts &...x) override { this->parent_->bt_conn_auth(this->accept_.value(x...)); }
+  void play(const Ts &...x) override { this->parent_->numeric_comparison_reply(this->accept_.value(x...)); }
 
  protected:
   BLEServer *parent_;
