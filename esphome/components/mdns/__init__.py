@@ -132,7 +132,8 @@ def mdns_service(
     Returns:
         A StructInitializer representing a MDNSService struct
     """
-    # Wrap port in a stateless lambda for TemplatableFn storage
+    # Wrap port in a stateless lambda for TemplatableFn storage.
+    # Can't use cg.templatable() here because this is a sync function.
     if not isinstance(port, LambdaExpression):
         port = LambdaExpression(
             f"return {cg.safe_exp(port)};", [], capture="", return_type=cg.uint16
