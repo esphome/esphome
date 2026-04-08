@@ -174,8 +174,8 @@ _ALWAYS_EXTERNAL_IDF_COMPONENTS = {"LAN8670", "ENC28J60"}
 
 # ESP32-only SPI ethernet types (W5100 is RP2040-only, no ESP-IDF driver)
 SPI_ETHERNET_TYPES = {"W5500", "DM9051", "ENC28J60"}
-# RP2040-supported SPI ethernet types
-RP2040_SPI_ETHERNET_TYPES = {"W5100", "W5500", "W6100", "W6300", "ENC28J60"}
+# RP2040-supported ethernet types (SPI and PIO QSPI)
+RP2040_ETHERNET_TYPES = {"W5100", "W5500", "W6100", "W6300", "ENC28J60"}
 _RP2040_SPI_LIBRARIES = {
     "W5100": "lwIP_w5100",
     "W5500": "lwIP_w5500",
@@ -334,9 +334,9 @@ def _validate(config):
                     f"{config[CONF_TYPE]} PHY requires RMII interface and is only supported "
                     f"on ESP32 classic and ESP32-P4, not {variant}"
                 )
-    elif CORE.is_rp2040 and config[CONF_TYPE] not in RP2040_SPI_ETHERNET_TYPES:
+    elif CORE.is_rp2040 and config[CONF_TYPE] not in RP2040_ETHERNET_TYPES:
         raise cv.Invalid(
-            f"Only {', '.join(sorted(RP2040_SPI_ETHERNET_TYPES))} are supported on RP2040, "
+            f"Only {', '.join(sorted(RP2040_ETHERNET_TYPES))} are supported on RP2040, "
             f"not {config[CONF_TYPE]}"
         )
     return config

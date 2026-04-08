@@ -199,6 +199,16 @@ void EthernetComponent::dump_config() {
 #elif defined(USE_ETHERNET_ENC28J60)
   type_str = "ENC28J60";
 #endif
+#if defined(USE_ETHERNET_W6300)
+  // W6300 uses PIO QSPI with hardcoded pins — SPI pin fields are not used
+  ESP_LOGCONFIG(TAG,
+                "Ethernet:\n"
+                "  Type: %s (PIO QSPI)\n"
+                "  Connected: %s\n"
+                "  IRQ Pin: %d\n"
+                "  Reset Pin: %d",
+                type_str, YESNO(this->is_connected()), this->interrupt_pin_, this->reset_pin_);
+#else
   ESP_LOGCONFIG(TAG,
                 "Ethernet:\n"
                 "  Type: %s\n"
@@ -211,6 +221,7 @@ void EthernetComponent::dump_config() {
                 "  Reset Pin: %d",
                 type_str, YESNO(this->is_connected()), this->clk_pin_, this->miso_pin_, this->mosi_pin_, this->cs_pin_,
                 this->interrupt_pin_, this->reset_pin_);
+#endif
   this->dump_connect_params_();
 }
 
