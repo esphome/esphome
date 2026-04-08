@@ -221,9 +221,6 @@ def analyze_yaml_file(yaml_file: Path) -> dict[str, Any]:
 
     try:
         data = yaml_util.load_yaml(yaml_file)
-        # Top-level !include returns an IncludeFile that must be resolved
-        if isinstance(data, yaml_util.IncludeFile):
-            data = data.load()
         result["loaded"] = True
     except Exception:  # pylint: disable=broad-exception-caught
         return result
