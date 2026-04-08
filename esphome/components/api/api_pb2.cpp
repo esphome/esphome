@@ -3861,7 +3861,7 @@ uint32_t ListEntitiesInfraredResponse::calculate_size() const {
   return size;
 }
 #endif
-#ifdef USE_IR_RF || USE_RADIO_FREQUENCY
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
 bool InfraredRFTransmitRawTimingsRequest::decode_varint(uint32_t field_id, proto_varint_value_t value) {
   switch (field_id) {
 #ifdef USE_DEVICES

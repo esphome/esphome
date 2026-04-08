@@ -2576,7 +2576,7 @@ const char *ListEntitiesInfraredResponse::dump_to(DumpBuffer &out) const {
   return out.c_str();
 }
 #endif
-#ifdef USE_IR_RF || USE_RADIO_FREQUENCY
+#if defined(USE_IR_RF) || defined(USE_RADIO_FREQUENCY)
 const char *InfraredRFTransmitRawTimingsRequest::dump_to(DumpBuffer &out) const {
   MessageDumpHelper helper(out, ESPHOME_PSTR("InfraredRFTransmitRawTimingsRequest"));
 #ifdef USE_DEVICES
