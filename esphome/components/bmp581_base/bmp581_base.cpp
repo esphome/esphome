@@ -126,7 +126,7 @@ void BMP581Component::setup() {
   }
 
   // verify id
-  if (chip_id != BMP581_ASIC_ID) {
+  if (chip_id != BMP581_ASIC_ID && chip_id != BMP585_ASIC_ID) {
     ESP_LOGE(TAG, "Unknown chip ID");
 
     this->error_code_ = ERROR_WRONG_CHIP_ID;

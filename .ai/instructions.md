@@ -239,6 +239,123 @@ This document provides essential context for AI models interacting with this pro
               var = await switch.new_switch(config)
           ```
 
+*   **Automations (Triggers, Actions, Conditions):**
+
+    Automations have three building blocks: **Triggers** (fire when something happens), **Actions** (do something), and **Conditions** (check if something is true).
+
+    *   **Triggers -- Callback method (preferred):**
+
+        Use `build_callback_automation()` for simple triggers. This eliminates the need for a C++ Trigger class by using a lightweight pointer-sized forwarder struct registered directly as a callback. No `CONF_TRIGGER_ID` in the schema.
+
+        **Python:**
+        ```python
+        from esphome import automation
+
+        CONFIG_SCHEMA = cv.Schema({
+            cv.GenerateID(): cv.declare_id(MyComponent),
+            cv.Optional(CONF_ON_STATE): automation.validate_automation({}),
+        }).extend(cv.COMPONENT_SCHEMA)
+
+        async def to_code(config):
+            var = cg.new_Pvariable(config[CONF_ID])
+            await cg.register_component(var, config)
+            for conf in config.get(CONF_ON_STATE, []):
+                await automation.build_callback_automation(
+                    var, "add_on_state_callback", [(bool, "x")], conf
+                )
+        ```
+
+        `build_callback_automation` arguments: `parent`, `callback_method` (C++ method name), `args` (template args as `[(type, name)]` tuples), `config`, and optional `forwarder` (defaults to `TriggerForwarder<Ts...>`).
+
+        For boolean filtering (e.g. `on_press`/`on_release`), use built-in forwarders with `args=[]`:
+        ```python
+        for conf_key, forwarder in (
+            (CONF_ON_PRESS, automation.TriggerOnTrueForwarder),
+            (CONF_ON_RELEASE, automation.TriggerOnFalseForwarder),
+        ):
+            for conf in config.get(conf_key, []):
+                await automation.build_callback_automation(
+                    var, "add_on_state_callback", [], conf, forwarder=forwarder
+                )
+        ```
+
+        **C++ -- no trigger class needed.** The callback registration method must be templatized to accept both `std::function` and lightweight forwarder structs (which avoid heap allocation):
+        ```cpp
+        class MyComponent : public Component {
+         public:
+          // Must be a template -- accepts both std::function and pointer-sized forwarder structs
+          template<typename F> void add_on_state_callback(F &&callback) {
+            this->state_callback_.add(std::forward<F>(callback));
+          }
+         protected:
+          // Use CallbackManager when callbacks are always registered (e.g. core components)
+          CallbackManager<void(bool)> state_callback_;
+          // Use LazyCallbackManager when callbacks are often not registered -- saves 8 bytes
+          // (nullptr vs empty std::vector) per instance when no callbacks are added
+          // LazyCallbackManager<void(bool)> state_callback_;
+        };
+        ```
+
+    *   **Triggers -- Trigger class method:**
+
+        Use `build_automation()` with a `Trigger<Ts...>` subclass only when the forwarder needs **mutable state beyond a single `Automation*` pointer** (e.g. edge detection tracking previous state, timing logic).
+
+        **Python:**
+        ```python
+        TurnOnTrigger = my_ns.class_("TurnOnTrigger", automation.Trigger.template())
+
+        CONFIG_SCHEMA = cv.Schema({
+            cv.Optional(CONF_ON_TURN_ON): automation.validate_automation(
+                {cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TurnOnTrigger)}
+            ),
+        })
+
+        async def to_code(config):
+            for conf in config.get(CONF_ON_TURN_ON, []):
+                trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+                await automation.build_automation(trigger, [], conf)
+        ```
+
+        **C++:**
+        ```cpp
+        class TurnOnTrigger : public Trigger<> {
+         public:
+          explicit TurnOnTrigger(MyComponent *parent) : last_on_{false} {
+            parent->add_on_state_callback([this](bool state) {
+              if (state && !this->last_on_)
+                this->trigger();
+              this->last_on_ = state;
+            });
+          }
+         protected:
+          bool last_on_;
+        };
+        ```
+
+    *   **Actions:**
+        ```cpp
+        template<typename... Ts> class MyAction : public Action<Ts...> {
+         public:
+          explicit MyAction(MyComponent *parent) : parent_(parent) {}
+          void play(const Ts &...) override { this->parent_->do_something(); }
+         protected:
+          MyComponent *parent_;
+        };
+        ```
+        Register with `@automation.register_action("my_component.do_something", MyAction, schema, synchronous=True)`. Use `synchronous=True` for actions that run to completion inside `play()` without deferring. Use `synchronous=False` if the action may suspend/defer execution (e.g. `delay`, `wait_until`, `script.wait`) or store trigger arguments for later use.
+
+    *   **Conditions:**
+        ```cpp
+        template<typename... Ts> class MyCondition : public Condition<Ts...> {
+         public:
+          explicit MyCondition(MyComponent *parent) : parent_(parent) {}
+          bool check(const Ts &...) override { return this->parent_->is_active(); }
+         protected:
+          MyComponent *parent_;
+        };
+        ```
+        Register with `@automation.register_condition("my_component.is_active", MyCondition, schema)`.
+
 *   **Configuration Validation:**
     *   **Common Validators:** `cv.int_`, `cv.float_`, `cv.string`, `cv.boolean`, `cv.int_range(min=0, max=100)`, `cv.positive_int`, `cv.percentage`.
     *   **Complex Validation:** `cv.All(cv.string, cv.Length(min=1, max=50))`, `cv.Any(cv.int_, cv.string)`.
@@ -274,10 +391,39 @@ This document provides essential context for AI models interacting with this pro
     *   **Component Tests:** YAML-based compilation tests are located in `tests/`. The structure is as follows:
         ```
         tests/
-        ├── test_build_components/ # Base test configurations
-        └── components/[component]/ # Component-specific tests
+        ├── test_build_components/
+        │   └── common/          # Shared bus packages (uart, i2c, spi, etc.)
+        │       ├── uart/        # UART at default baud rate
+        │       ├── uart_115200/ # UART at 115200 baud
+        │       ├── i2c/         # I2C bus
+        │       └── spi/         # SPI bus
+        └── components/[component]/
+            ├── common.yaml      # Component-only config (no bus definitions)
+            ├── test.esp32-idf.yaml
+            ├── test.esp8266-ard.yaml
+            └── test.rp2040-ard.yaml
         ```
         Run them using `script/test_build_components`. Use `-c <component>` to test specific components and `-t <target>` for specific platforms.
+
+    *   **Test Grouping with Packages:** Components that use shared bus packages can be grouped together in CI to reduce build count. **Never define buses (uart, i2c, spi, modbus) directly in test YAML files** — always use packages from `test_build_components/common/`:
+        ```yaml
+        # test.esp32-idf.yaml — use packages for buses
+        packages:
+          uart: !include ../../test_build_components/common/uart_115200/esp32-idf.yaml
+
+        <<: !include common.yaml
+        ```
+        ```yaml
+        # common.yaml — component config only, NO bus definitions
+        my_component:
+          id: my_instance
+
+        sensor:
+          - platform: my_component
+            name: My Sensor
+        ```
+        Components that define buses directly are flagged as "NEEDS MIGRATION" and cannot be grouped, increasing CI build time.
+
     *   **Testing All Components Together:** To verify that all components can be tested together without ID conflicts or configuration issues, use:
         ```bash
         ./script/test_component_grouping.py -e config --all
@@ -416,6 +562,30 @@ This document provides essential context for AI models interacting with this pro
         - Components causing flash size complaints
 
         Note: Avoiding heap allocation after `setup()` is always required regardless of component type. The prioritization above is about the effort spent on container optimization (e.g., migrating from `std::vector` to `StaticVector`).
+
+        **Callback Managers:**
+
+        ESPHome provides two callback manager types in `esphome/core/helpers.h` for the observer pattern. Both support `std::function`, lambdas, and lightweight forwarder structs via their templatized `add()` method.
+
+        | Type | Idle overhead (32-bit) | When to use |
+        |------|----------------------|-------------|
+        | `CallbackManager<void(Ts...)>` | 12 bytes (empty `std::vector`) | Callbacks are always or almost always registered |
+        | `LazyCallbackManager<void(Ts...)>` | 4 bytes (`nullptr`) | Callbacks are often not registered (common case) |
+
+        `LazyCallbackManager` is a drop-in replacement for `CallbackManager` that defers allocation until the first callback is added. Prefer it for entity-level callbacks where most instances have no subscribers.
+
+        **Important:** Registration methods that add to a callback manager **must always be templatized** to accept both `std::function` and pointer-sized forwarder structs (used by `build_callback_automation`). Never use `std::function` in the method signature:
+        ```cpp
+        // Bad -- forces heap allocation for forwarder structs
+        void add_on_state_callback(std::function<void(bool)> &&callback) {
+          this->state_callback_.add(std::move(callback));
+        }
+
+        // Good -- accepts any callable without forcing std::function wrapping
+        template<typename F> void add_on_state_callback(F &&callback) {
+          this->state_callback_.add(std::forward<F>(callback));
+        }
+        ```
 
     *   **State Management:** Use `CORE.data` for component state that needs to persist during configuration generation. Avoid module-level mutable globals.
 
