@@ -213,7 +213,7 @@ def _configure_spi(config):
 
 async def to_code(config):
     add_define("USE_ESP32_HOSTED")
-    transport = config.get(CONF_TYPE, "sdio")
+    transport = config[CONF_TYPE]
     transport_prefix = "SDIO" if transport == "sdio" else "SPI"
 
     # Reset polarity
