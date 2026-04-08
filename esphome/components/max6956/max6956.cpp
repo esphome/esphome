@@ -54,7 +54,7 @@ bool MAX6956::digital_read_hw(uint8_t pin) {
   // Calculate bank index based on the base class view (no offset adjustment)
   uint8_t bank_index = pin / MAX6956_BANK_SIZE;
 
-  static const uint8_t BANK_REGS[4] = {
+  static constexpr uint8_t BANK_REGS[4] = {
       MAX6956_4PORTS_4_7,    // Bank 0: 4 ports 4-7 (bits D0-D3, D4-D7 read as 0)
       MAX6956_8PORTS_8_15,   // Bank 1: 8 ports 8-15 (bits D0-D7)
       MAX6956_8PORTS_16_23,  // Bank 2: 8 ports 16-23 (bits D0-D7)
@@ -80,15 +80,8 @@ bool MAX6956::digital_read_hw(uint8_t pin) {
 }
 
 bool MAX6956::digital_read_cache(uint8_t pin) {
-  // MAX6956 pins start at MAX6956_MIN
-  if (pin < MAX6956_MIN || pin > MAX6956_MAX) {
-    return false;
-  }
-
-  // Use the base class's view of banks (no offset adjustment)
   uint8_t bank_index = pin / MAX6956_BANK_SIZE;
   uint8_t bit_position = pin % MAX6956_BANK_SIZE;
-
   return (this->input_banks_[bank_index] & (1 << bit_position)) != 0;
 }
 
