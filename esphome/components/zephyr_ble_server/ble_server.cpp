@@ -67,9 +67,11 @@ void BLEServer::disconnected(bt_conn *conn, uint8_t reason) {
   bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
   ESP_LOGI(TAG, "Disconnected from %s (reason 0x%02x)", addr, reason);
-  global_ble_server->defer([conn]() {
-    bt_conn_unref(conn);
-    global_ble_server->conn_ = nullptr;
+  global_ble_server->defer([]() {
+    if (global_ble_server->conn_) {
+      bt_conn_unref(global_ble_server->conn_);
+      global_ble_server->conn_ = nullptr;
+    }
   });
   k_work_submit(&advertise_work);
 }
